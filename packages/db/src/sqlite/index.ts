@@ -1,13 +1,10 @@
 /** SQLite connection policy and restore operations; inject the consumer's opener. */
-export type { SqliteClient, SqliteOpener, SqliteOpenOptions, SqliteStatement } from "./types.js";
 export { createCheckedSqliteClient, type CheckedSqliteClient, type IntegerSource, type IntegerStatement } from "./checked-client.js";
 export { SqliteClientError } from "./checked-state.js";
 export { withSqliteTransaction, type TransactionSession, type Work } from "./transaction.js";
 export { openSqliteConnection, DEFAULT_PRAGMAS } from "./open.js";
 export { SqliteDbOpsAdapter, type SqliteDbOpsAdapterDeps } from "./db-ops.js";
 export { DATABASE_COPY_RETENTION, DatabaseDiskSpaceError, assertDatabaseCopySpace, pruneDatabaseCopies, type DatabaseCopy } from "./backup-policy.js";
-export type { SqliteBackupSource, SqliteRecoveryHook, OpenSqliteConnectionOptions } from "./restore-types.js";
 
-export type { SqliteSyncClient, SqliteSyncStatement, SqliteSyncTransaction, SqliteSyncOpener, SqliteDb } from "./sync-types.js";
 export { inspectSqliteDatabase, verifySqliteIntegrity } from "./inspect.js";
 export type { DaemonDbTableInfo, DaemonDbStatusReport, DbIntegrityIssueKind, DbIntegrityIssue, DbIntegrityReport, VerifyDbOptions } from "./inspect.js";

@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import { ToolInputError } from '@jini-ai/core';
 import { buildDomainRegistrations, indexCatalogById, requireInputRecord, requireNoInput, requireString, optionalString, withSchemaOnRejection } from "@jini-ai/core";
 import { adaptLegacyAuthorize, requireToolPermission } from "../index.js";
-import type { AuthorizeFn } from '../../commands/command.js';
+import type { AuthorizeFn } from '@jini-ai/core/contracts/events';
 
 it('reads named input without confusing a payload input key with the argument envelope', () => {
   const input = { input: { nested: true }, name: 'asset' };

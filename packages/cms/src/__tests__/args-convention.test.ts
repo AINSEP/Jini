@@ -12,8 +12,7 @@ import { validateHierarchyAssignment } from "../taxonomy/validation-chain.js";
 import { InMemoryWorkspaceRepo } from "../workspace/repo.memory.js";
 import { SecretNotSupportedError, PurgeRequiredError } from "@jini-ai/core/settings";
 import { executeCommand } from "../core/commands/command.js";
-import type { ChangeSetItemRecord, ChangeSetRepoPort } from "../core/commands/change-set.js";
-import type { DomainEvent } from "../core/ports.js";
+import type { ChangeSetItemRecord, ChangeSetRepoPort, DomainEvent } from "@jini-ai/core/contracts/events";
 
 describe("existing CMS APIs use required and optional argument objects", () => {
   it("keeps schema and identifier validation behavior", () => {

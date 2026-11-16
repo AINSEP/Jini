@@ -6,7 +6,7 @@ export interface PluginActivationTable {
   updated_at: string; quarantined_at: string | null; quarantine_reason: string | null;
   quarantine_failure_count: number | null;
 }
-import { toBool } from "@jini-ai/db/kernel";
+import { toBool } from "@jini-ai/core/contracts/storage";
 import type { PluginActivationRecord } from "../activation.js";
 
 /**

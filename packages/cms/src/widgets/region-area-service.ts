@@ -20,7 +20,7 @@ import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
  * `widgets` domain logic (implementation outline C-006).
  */
 import type { Clock as ClockPort, UUID } from "@jini-ai/core/primitives";
-import type { OutboxPort } from "../core/index.js";
+import type { OutboxPort } from "@jini-ai/core/contracts/events";
 import type { EntryRefsRepoPort } from "./ports.js";
 
 import type { ContentTypeRepoPort } from "../content-types/index.js";

@@ -1,4 +1,4 @@
-import type { EventBusPort, OutboxPort } from "../core/index.js";
+import type { EventBusPort, OutboxPort } from "@jini-ai/core/contracts/events";
 import type { UUID } from "@jini-ai/core/primitives";
 import type { SeoPostRecord as PostRecord, SeoPostListPort, SeoSettingsReaderPort } from "./ports.js";
 import type { OriginRegistryPort } from "@jini-ai/http-kit/verified-origin";

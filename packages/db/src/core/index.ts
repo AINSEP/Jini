@@ -8,6 +8,5 @@ export type { DbOpsPort, RestorePoint, RestoreCapability, RestoreCostClass, Rest
 export { PGLITE_SOCKET_FILE } from "./socket.js";
 export { PG_OID, PG_PARSERS, parseInt8 } from "./pg-types.js";
 
-export { parseJsonOrUndef, row, rows } from "./row-values.js";
-export type { DbRow, JsonObject } from "./row-values.js";
+export type { JsonObject } from "./row-values.js";
 export type { TransferNaming } from './transfer-naming.js';

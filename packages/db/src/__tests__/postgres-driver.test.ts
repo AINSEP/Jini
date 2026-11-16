@@ -8,7 +8,7 @@ import { sql } from "kysely";
 import pg from "pg";
 
 import { PGLITE_SOCKET_FILE } from "../core/index.js";
-import { StorageOpError, StorageOpNotSupportedError, type StorageKernel } from "../kernel/index.js";
+import { StorageOpError, StorageOpNotSupportedError, type KyselyKernel } from "../kernel/index.js";
 import { openPgliteSocketKernel, openPostgresKernel, postgresOps } from "../kernel/postgres/index.js";
 import { type PgliteOwner, startPgliteOwner } from "../pglite/index.js";
 import { LEDGER, OWNER } from "./helpers.js";
@@ -27,7 +27,7 @@ const socketDir = join(scratch, "s");
 const connectionString = `postgresql://postgres@localhost/postgres?host=${encodeURIComponent(socketDir)}`;
 
 let owner: PgliteOwner;
-let kernel: StorageKernel<unknown>;
+let kernel: KyselyKernel<unknown>;
 
 before(async () => {
   owner = await startPgliteOwner({ ...OWNER, dataDir }, { socketDir });

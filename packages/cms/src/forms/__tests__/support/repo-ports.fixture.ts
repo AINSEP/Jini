@@ -1,10 +1,11 @@
 /** Legacy test-call shapes, bound to the real package repos (no copied repository lifecycle). */
-import type { StorageKernel } from "@jini-ai/db/kernel";
+import type { StorageKernel } from "@jini-ai/core/contracts/storage";
 import { InMemoryFormDefinitionRepo, InMemoryFormSubmissionRepo as MemorySubmissionRepo } from "../../repo.memory.js";
 import { formDefinitionRepoFor as definitionRepoFor, SqlFormSubmissionRepo, createSubmissionIpRetentionRepo as retentionRepoFor } from "../../sql/index.js";
 import type { FormSubmissionDatabase } from "../../sql/tables.js";
 import type { FormSubmissionRepoPort as PackageSubmissionRepo } from "../../ports.js";
 import { tables } from "./forms-tables.fixture.js";
+import type { Kysely } from "kysely";
 export { InMemoryFormDefinitionRepo };
 export type { FormDefinitionRepoPort, RemoveFormSubmissionFn } from "../../ports.js";
 
@@ -28,12 +29,12 @@ class LegacySqlSubmissionRepo extends SqlFormSubmissionRepo {
   }
 }
 
-export function formDefinitionRepoFor<DB>(kernel: StorageKernel<DB>) {
+export function formDefinitionRepoFor<DB>(kernel: StorageKernel<Kysely<DB>, DB>) {
   return definitionRepoFor({ kernel, tables });
 }
-export function formSubmissionRepoFor<DB>(kernel: StorageKernel<DB>) {
-  return new LegacySqlSubmissionRepo({ kernel: kernel as unknown as StorageKernel<FormSubmissionDatabase>, tables });
+export function formSubmissionRepoFor<DB>(kernel: StorageKernel<Kysely<DB>, DB>) {
+  return new LegacySqlSubmissionRepo({ kernel: kernel as unknown as StorageKernel<Kysely<FormSubmissionDatabase>, FormSubmissionDatabase>, tables });
 }
-export function createSubmissionIpRetentionRepo<DB>({ kernel }: { kernel: StorageKernel<DB> }) {
+export function createSubmissionIpRetentionRepo<DB>({ kernel }: { kernel: StorageKernel<Kysely<DB>, DB> }) {
   return retentionRepoFor({ kernel, tables });
 }

@@ -3,7 +3,7 @@ import { test } from "./support/node-test.fixture.js";
 
 import { executeCommand, InMemoryChangeSetRepo } from "./support/switch-bindings.fixture.js";
 import { ForbiddenError as CommandForbiddenError } from "../../core/index.js";
-import type { AuthorizeFn } from "../../core/index.js";
+import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
 import {
   FormFieldValidationError,
   FormSlugConflictError,

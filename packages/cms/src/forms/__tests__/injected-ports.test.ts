@@ -9,7 +9,7 @@ import { InMemoryFormDefinitionRepo, InMemoryFormSubmissionRepo } from "./repo.f
 import { InMemoryChangeSetRepo } from "./change-set.fixture.js";
 import { InMemoryEventBus, InMemoryOutbox } from "./eventing.fixture.js";
 import { executeCommand } from "../../core/index.js";
-import type { AuthorizeFn } from "../../core/index.js";
+import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
 import { FormFieldValidationError } from "../errors.js";
 
 function setup() {

@@ -4,11 +4,12 @@ import { afterAll as after, beforeEach, describe, test, vi } from "vitest";
 import Database from "better-sqlite3";
 import { Kysely, type RawBuilder, sql, SqliteDialect } from "kysely";
 
-import { jsonSet, jsonText, listColumns, listTables, nowIso, tableExists, toBool, toBytes } from "../kernel/index.js";
+import { jsonSet, jsonText, listColumns, listTables, nowIso, tableExists } from "../kernel/index.js";
+import { toBool, toBytes, UnsupportedCapabilityError } from "@jini-ai/core/contracts/storage";
 import { openPgliteKernel } from "../kernel/pglite/index.js";
 import { sqliteKernel } from "../kernel/sqlite/index.js";
 import { buildKernel } from "../kernel/index.js";
-import { type StorageKernel, UnsupportedCapabilityError } from "../kernel/index.js";
+import { type KyselyKernel } from "../kernel/index.js";
 import { TurnLock } from "../kernel/index.js";
 import { PGlite } from "@electric-sql/pglite";
 
@@ -27,7 +28,7 @@ interface ProbeDb {
 
 interface Case {
   name: string;
-  kernel: StorageKernel<ProbeDb>;
+  kernel: KyselyKernel<ProbeDb>;
   /** DDL for the probe table: `doc` is a JSON column and `flag` a boolean, in the dialect's own types. */
   create: RawBuilder<unknown>;
 }
@@ -53,12 +54,12 @@ after(async () => {
   for (const each of cases) await each.kernel.close();
 });
 
-async function ids(kernel: StorageKernel<ProbeDb>): Promise<string[]> {
+async function ids(kernel: KyselyKernel<ProbeDb>): Promise<string[]> {
   const rows = await kernel.run((db) => db.selectFrom("kernel_probe").select("id").orderBy("id").execute());
   return rows.map((row) => row.id);
 }
 
-const insert = (kernel: StorageKernel<ProbeDb>, id: string) =>
+const insert = (kernel: KyselyKernel<ProbeDb>, id: string) =>
   kernel.run((db) => db.insertInto("kernel_probe").values({ id, doc: null, n: null, flag: null }).execute());
 
 /** A promise plus the function that resolves it. */
@@ -198,10 +199,10 @@ for (const { name, kernel, create } of cases) {
     });
 
     test("introspection lists tables and columns", async () => {
-      assert.ok((await listTables(kernel as StorageKernel<unknown>)).includes("kernel_probe"));
-      assert.equal(await tableExists(kernel as StorageKernel<unknown>, "kernel_probe"), true);
-      assert.equal(await tableExists(kernel as StorageKernel<unknown>, "no_such_table"), false);
-      const columns = await listColumns(kernel as StorageKernel<unknown>, "kernel_probe");
+      assert.ok((await listTables(kernel as KyselyKernel<unknown>)).includes("kernel_probe"));
+      assert.equal(await tableExists(kernel as KyselyKernel<unknown>, "kernel_probe"), true);
+      assert.equal(await tableExists(kernel as KyselyKernel<unknown>, "no_such_table"), false);
+      const columns = await listColumns(kernel as KyselyKernel<unknown>, "kernel_probe");
       assert.deepEqual(
         columns.map(({ name, notNull, primaryKey }) => ({ name, notNull, primaryKey })),
         [

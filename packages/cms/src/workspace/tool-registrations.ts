@@ -13,7 +13,7 @@
  * call the kit's `requireToolPermission` themselves, mirroring those routes' identical
  * `workspace.manage` check.
  */
-import type { AuthorizeFn } from "../core/commands/command.js";
+import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
 import { requireExpectedVersion } from "@jini-ai/core/optimistic-concurrency";
 import { buildDomainRegistrations, indexCatalogById, optionalString, requireInputRecord, requireNoInput, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import { adaptLegacyAuthorize, requireToolPermission } from "../core/tools/index.js";

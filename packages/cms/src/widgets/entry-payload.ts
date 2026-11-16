@@ -2,7 +2,7 @@ import { isNonArrayRecord } from "@jini-ai/core";
 import type { ContentTypeRepoPort } from "../content-types/index.js";
 import type { WidgetHostPorts } from "./host-ports.js";
 import type { Clock as ClockPort, JsonObject } from "@jini-ai/core/primitives";
-import type { OutboxPort } from "../core/index.js";
+import type { OutboxPort } from "@jini-ai/core/contracts/events";
 import type { EntryRecord } from "../entries/index.js";
 import { PRE_AUTHORIZED, WIDGETS_SYSTEM_ACTOR_ID } from "./authorize-helper.js";
 import {

@@ -16,7 +16,7 @@ import path from 'node:path';
 
 import { restorePointFilename } from '../core/artifact-naming.js';
 import type { DbOpsPort, RestoreCapability, RestorePoint, WatermarkReader } from '../core/ports.js';
-import type { SqliteBackupSource } from './restore-types.js';
+import type { SqliteBackupSource } from '@jini-ai/core/contracts/storage';
 import { assertDatabaseCopySpace } from './backup-policy.js';
 
 /** Sentinel `filePath` for an ephemeral connection with no file behind it. */

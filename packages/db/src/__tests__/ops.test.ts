@@ -12,7 +12,7 @@ import { openPgliteKernel, pgliteOps } from "../kernel/pglite/index.js";
 import { startPgliteOwner } from "../pglite/index.js";
 import { openPgliteSocketKernel, postgresOps } from "../kernel/postgres/index.js";
 import { StorageOpError, StorageOpNotSupportedError } from "../kernel/index.js";
-import type { StorageKernel } from "../kernel/index.js";
+import type { KyselyKernel } from "../kernel/index.js";
 import { PGlite } from "@electric-sql/pglite";
 import pg from "pg";
 import { LEDGER, LOCK_FILE, openSqlite, OWNER } from "./helpers.js";
@@ -102,7 +102,7 @@ test("openSqliteFileKernel readOnly requires the file to exist", () => {
   assert.throws(() => openSqliteFileKernel<unknown>({ filePath: path.join(tmp, "missing.db"), open: openSqlite }, { readOnly: true }), /unable to open/i);
 });
 
-async function seedPg(kernel: StorageKernel<unknown>, rows: number): Promise<void> {
+async function seedPg(kernel: KyselyKernel<unknown>, rows: number): Promise<void> {
   await kernel.execute(sql`CREATE TABLE app_migrations (id text PRIMARY KEY)`);
   await kernel.execute(sql`INSERT INTO app_migrations VALUES ('0000_test')`);
   await kernel.execute(sql`CREATE TABLE t (id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY, v text)`);

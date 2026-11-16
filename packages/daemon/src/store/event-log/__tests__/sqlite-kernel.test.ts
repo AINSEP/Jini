@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { expect, it, vi } from 'vitest';
-import type { StorageKernel } from '@jini-ai/db/kernel';
+import type { KyselyKernel } from '@jini-ai/db/kernel';
 import { sqliteKernel } from '@jini-ai/db/kernel/sqlite';
 import {
   createKernelSqliteEventLog, SQLITE_EVENT_LOG_SCHEMA,
@@ -24,7 +24,7 @@ it('awaits readiness, routes through the injected kernel, and never closes it', 
   const run = vi.spyOn(real, 'run');
   const transaction = vi.spyOn(real, 'transaction');
   const close = vi.fn(async () => {});
-  const kernel: StorageKernel<HostDatabase> = {
+  const kernel: KyselyKernel<HostDatabase> = {
     ...real, ready: new Promise<void>(resolve => { release = resolve; }), close,
   };
   try {

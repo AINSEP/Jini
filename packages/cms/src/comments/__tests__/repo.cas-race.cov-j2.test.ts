@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import type { StorageKernel } from "@jini-ai/db/kernel";
+import type { StorageKernel } from "@jini-ai/core/contracts/storage";
 
 import { describeEachDialect } from "../../core/__tests__/support/dialect-matrix.js";
 import { createTables, tables, tableNames } from "./support/comments-tables.fixture.js";
 import { SqlCommentRepo } from "../sql/index.js";
 import type { CommentTables } from "../sql/index.js";
 import type { CommentRecord } from "../types.js";
+import type { Kysely } from "kysely";
 
 /**
  * @file `SqlCommentRepo.applyModeration`'s compare-and-set arm on both dialects. The per-row lock
@@ -28,10 +29,10 @@ function comment(id: string): CommentRecord {
 }
 
 /** The real kernel, plus one armed write that runs just before the Nth subsequent `run` call. */
-function withInterleavedWrite(kernel: StorageKernel<unknown>) {
+function withInterleavedWrite(kernel: StorageKernel<Kysely<unknown>, unknown>) {
   let pending: { beforeRun: number; write: () => Promise<unknown> } | null = null;
   let runs = 0;
-  const racing: StorageKernel<unknown> = {
+  const racing: StorageKernel<Kysely<unknown>, unknown> = {
     ...kernel,
     run: async (fn) => {
       runs += 1;

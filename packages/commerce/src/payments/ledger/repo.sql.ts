@@ -2,7 +2,7 @@ import { OPEN_INTENT_STATUSES } from "../state/status.js";
 import type { PaymentMode } from "../contract/scope.js";
 import { type Kysely, type RawBuilder, type Selectable, sql } from "kysely";
 
-import type { StorageKernel } from "@jini-ai/db/kernel";
+import type { StorageKernel } from "@jini-ai/core/contracts/storage";
 import {
   ATTEMPT_PATCH_COLUMNS, DISPUTE_PATCH_COLUMNS, LEDGER_TABLES, OPEN_INBOX_STATES, PAYMENT_PATCH_COLUMNS, REFUND_PATCH_COLUMNS,
   attemptFromRow, attemptToRow, disputeFromRow, disputeToRow, encodeColumns, encodeMinor, evidenceFromRow, evidenceToRow,
@@ -71,7 +71,7 @@ function inScanScope({ scope }: { scope?: LedgerKeyScope }, _optional: Record<st
 }
 
 class SqlLedgerTx implements LedgerTx {
-  constructor(private readonly kernel: StorageKernel<PaymentsLedgerDatabase>) {}
+  constructor(private readonly kernel: StorageKernel<Kysely<PaymentsLedgerDatabase>, PaymentsLedgerDatabase>) {}
 
   private read<T>(fn: (db: Db) => Promise<T>): Promise<T> {
     return this.kernel.run(fn);
@@ -438,8 +438,8 @@ class SqlLedgerTx implements LedgerTx {
  *
  * @example const ledger = sqlPaymentsLedger({ kernel }); await ledger.transaction({ fn: async (tx) => tx.lockPayment({ workspaceId, mode, id }) });
  */
-export function sqlPaymentsLedger<DB>(required: { kernel: StorageKernel<DB> }, _optional: Record<string, never> = {}): PaymentsLedger {
-  const kernel = required.kernel as unknown as StorageKernel<PaymentsLedgerDatabase>;
+export function sqlPaymentsLedger<DB>(required: { kernel: StorageKernel<Kysely<DB>, DB> }, _optional: Record<string, never> = {}): PaymentsLedger {
+  const kernel = required.kernel as unknown as StorageKernel<Kysely<PaymentsLedgerDatabase>, PaymentsLedgerDatabase>;
   const tx = new SqlLedgerTx(kernel);
   return { transaction: ({ fn }) => kernel.transaction(() => fn(tx)) };
 }

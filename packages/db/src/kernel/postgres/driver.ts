@@ -2,7 +2,7 @@ import { describeErrorForLog } from '@jini-ai/core';
 import { Kysely, PostgresDialect } from "kysely";
 
 import { PG_PARSERS } from "../../core/index.js";
-import { buildKernel, postgresLockKey, type StorageKernel } from "../index.js";
+import { buildKernel, postgresLockKey, type KyselyKernel } from "../index.js";
 import { type PgModule, pgTypesFor } from "../../core/pg-types.js";
 
 /**
@@ -23,7 +23,7 @@ import { type PgModule, pgTypesFor } from "../../core/pg-types.js";
 export function openPostgresKernel<DB>(
   required: { pg: PgModule; connectionString: string },
   optional: { max?: number } = {}
-): StorageKernel<DB> {
+): KyselyKernel<DB> {
   const pool = new required.pg.Pool({
     connectionString: required.connectionString,
     max: optional.max ?? 10,

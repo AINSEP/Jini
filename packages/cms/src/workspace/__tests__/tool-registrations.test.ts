@@ -3,7 +3,7 @@ import { test } from "vitest";
 
 import { ToolInputError, ToolPermissionDeniedError, type ToolExecutionContext, type ToolRegistration } from "@jini-ai/core";
 
-import type { AuthorizeFn } from "../../core/commands/command.js";
+import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
 import { getWorkspaceAgentToolCatalog } from "../agent-tools.js";
 import { WorkspaceConflictError, WorkspaceValidationError, type WorkspaceRecord } from "../create.js";
 import * as workspaceBarrel from "../index.js";

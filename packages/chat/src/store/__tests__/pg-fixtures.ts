@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { sql, type KyselyPlugin, type RootOperationNode } from 'kysely';
 import { openPgliteKernel } from '@jini-ai/db/kernel/pglite';
 import { openPostgresKernel, openPgliteSocketKernel } from '@jini-ai/db/kernel/postgres';
-import { scopeToSchema, type StorageKernel } from '@jini-ai/db/kernel';
+import { scopeToSchema, type KyselyKernel } from '@jini-ai/db/kernel';
 import { startPgliteOwner } from '@jini-ai/db/pglite';
 import { createPgliteChatStore, createPgliteChatMaintenance } from '../pglite/index.js';
 import { createPostgresChatStore, createPostgresChatMaintenance } from '../postgres/index.js';
@@ -17,10 +17,10 @@ const {PGlite}=require('@electric-sql/pglite');const pg=require('pg');
 const DDL=readFileSync(new URL('./pg-schema.sql',import.meta.url),'utf8')+HOST_DDL;
 // This fixture DDL has no procedural bodies or quoted semicolons. PGlite's query path
 // prepares one statement; applying statements separately also works with both PG transports.
-async function applyFixtureSchema(kernel:StorageKernel<FixtureDatabase>){
+async function applyFixtureSchema(kernel:KyselyKernel<FixtureDatabase>){
  for(const statement of DDL.split(';').map(text=>text.trim()).filter(Boolean))await kernel.execute(sql.raw(statement));
 }
-function fixture(kernel:StorageKernel<FixtureDatabase>,create:typeof createPgliteChatStore,maintenance:typeof createPgliteChatMaintenance,close:()=>Promise<void>):Fixture{
+function fixture(kernel:KyselyKernel<FixtureDatabase>,create:typeof createPgliteChatStore,maintenance:typeof createPgliteChatMaintenance,close:()=>Promise<void>):Fixture{
  let reads=0,rows=0;const selects=new Set<object>();
  const plugin:KyselyPlugin={
   transformQuery(args){if(args.node.kind==='SelectQueryNode')selects.add(args.queryId);return args.node as RootOperationNode;},

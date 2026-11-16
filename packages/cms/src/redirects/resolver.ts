@@ -41,7 +41,7 @@ import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
  * `RouteResolvePhaseHandler` shape. No Express/route code.
  */
 import type { Clock as ClockPort, IdGenerator as IdGeneratorPort } from "@jini-ai/core/primitives";
-import type { DomainEvent, OutboxPort } from "../core/index.js";
+import type { DomainEvent, OutboxPort } from "@jini-ai/core/contracts/events";
 import { checkRedirectLocation, type RedirectTargetOracle } from "./target-gate.js";
 
 import type {

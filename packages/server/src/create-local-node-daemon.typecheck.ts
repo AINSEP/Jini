@@ -1,4 +1,4 @@
-import type { SqliteSyncOpener } from '@jini-ai/db/sqlite';
+import type { SqliteSyncOpener } from '@jini-ai/core/contracts/storage';
 declare const open: SqliteSyncOpener;
 /**
  * Type-level proof that `createLocalNodeDaemon` preserves `createDaemon`'s compile-time

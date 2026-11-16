@@ -15,7 +15,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { createChatHistoryMaintenance, createChatHistoryStore } from '../sqlite/index.js';
 import { ensureChatHistoryTables } from '../sqlite/index.js';
-import type { SqliteDb } from '@jini-ai/db/sqlite';
+import type { SqliteDb } from '@jini-ai/core/contracts/storage';
 
 // A package test supplies its own clock port; the system clock lives in the platform package.
 const testClock = { nowMs: () => Date.now() };

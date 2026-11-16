@@ -8,7 +8,7 @@ import { openSqliteFileKernel } from "@jini-ai/db/kernel/sqlite";
 import { runMigrations } from "@jini-ai/db/migrate";
 import { OWNER_STORE_LEDGER, ownerStoreMigrations } from "@jini-ai/db/owner-store";
 import { SqlSecretsVaultRepo } from "@jini-ai/db/secrets-vault";
-import type { SqliteOpener } from "@jini-ai/db/sqlite";
+import type { SqliteOpener } from "@jini-ai/core/contracts/storage";
 import { AesGcmSecretSealer, EnvOrFileKeyring, generateFileSiteKey } from "@jini-ai/platform/secrets";
 import { createVaultMetaParsers, SecretsVaultService } from "@jini-ai/platform/secrets/credential-sets";
 import type { VaultSummary } from "@jini-ai/platform/secrets/credential-sets/contracts";

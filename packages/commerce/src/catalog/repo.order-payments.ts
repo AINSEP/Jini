@@ -1,9 +1,10 @@
 /** Atomic reservation and binding guards keep concurrent dispatches pinned to one scope. */
-import type { StorageKernel } from "@jini-ai/db/kernel";
+import type { StorageKernel } from "@jini-ai/core/contracts/storage";
 import { sameScope } from "../payments/contract/scope.js";
 import { decodeMinor, encodeMinor } from "../payments/ledger/rows.js";
 import type { CommerceKernel } from "./database.js";
 import type { BindOrderPaymentResult, CommerceOrderPaymentRepoPort, ReserveOrderPaymentResult } from "./ports.js";
+import type { Kysely } from "kysely";
 
 /**
  * @param required.kernel - Borrowed host kernel, with the association schema already migrated.
@@ -11,7 +12,7 @@ import type { BindOrderPaymentResult, CommerceOrderPaymentRepoPort, ReserveOrder
  * @complexity O(log n) indexed database work per call, at most two statements; O(1) application space.
  * @example const orderPayments = commerceOrderPaymentRepoFor({ kernel });
  */
-export function commerceOrderPaymentRepoFor<DB>({ kernel }: { kernel: StorageKernel<DB> }, _optional: Record<string, never> = {}): CommerceOrderPaymentRepoPort {
+export function commerceOrderPaymentRepoFor<DB>({ kernel }: { kernel: StorageKernel<Kysely<DB>, DB> }, _optional: Record<string, never> = {}): CommerceOrderPaymentRepoPort {
   const storage = kernel as unknown as CommerceKernel;
   const findByOrder: CommerceOrderPaymentRepoPort["findByOrder"] = async (required, _optional = {}) => {
     const row = await storage.run(db => db.selectFrom("commerce_order_payments").selectAll()

@@ -12,7 +12,7 @@
  * file path. Neither function opens a new connection or mutates state.
  */
 import { promises as fsp } from 'node:fs';
-import type { SqliteDb } from './sync-types.js';
+import type { SqliteDb } from '@jini-ai/core/contracts/storage';
 
 export interface DaemonDbTableInfo {
   name: string;

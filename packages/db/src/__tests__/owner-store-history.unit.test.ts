@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { sql } from 'kysely';
 import { openMemorySqliteKernel } from '../kernel/sqlite/index.js';
 import { ownedTransactionOf } from '../kernel/owned-transaction.js';
-import type { StorageKernel } from '../kernel/port.js';
+import type { KyselyKernel } from '../kernel/port.js';
 import { executeDdl } from '../migrate/ddl.js';
 import { runMigrations, sourceChecksum } from '../migrate/index.js';
 import { OWNER_STORE_LEDGER, ownerStoreDdl, ownerStoreMigration, ownerStoreMigrations } from '../owner-store/index.js';
@@ -71,7 +71,7 @@ describe('legacy owner schema history', () => {
   });
 
   it('rejects foreign kernels before entering an owned transaction', () => {
-    expect(() => ownedTransactionOf({ kernel: {} as StorageKernel<unknown> }))
+    expect(() => ownedTransactionOf({ kernel: {} as KyselyKernel<unknown> }))
       .toThrow('an owned transaction requires a kernel built by buildKernel');
   });
 });

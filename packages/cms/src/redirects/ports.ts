@@ -23,7 +23,7 @@
  */
 import type { ISODateTime, UUID } from "@jini-ai/core/primitives";
 import type { RedirectLocationRefusalReason } from "./target-gate.js";
-import type { DomainEvent } from "../core/index.js";
+import type { DomainEvent } from "@jini-ai/core/contracts/events";
 import type {
   ListRedirectsFilter,
   RedirectHitStats,

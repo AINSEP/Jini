@@ -6,7 +6,7 @@ import { PGlite } from "@electric-sql/pglite";
 import type BetterSqlite3 from "better-sqlite3";
 import { sqliteKernel } from "@jini-ai/db/kernel/sqlite";
 import { openPgliteKernel } from "@jini-ai/db/kernel/pglite";
-import type { StorageKernel } from "@jini-ai/db/kernel";
+import type { KyselyKernel } from "@jini-ai/db/kernel";
 import { createFormsTables } from "../sql/index.js";
 import { createReferenceTables, referenceTables as tables } from "./support/forms-tables.reference.js";
 
@@ -41,7 +41,7 @@ function sqliteSchema(db: Db) {
 }
 
 /** Postgres catalog for the forms tables, as plain data. */
-async function postgresSchema<DB>(kernel: StorageKernel<DB>) {
+async function postgresSchema<DB>(kernel: KyselyKernel<DB>) {
   const names = [tables.definitions, tables.submissions];
   const columns = await kernel.query(sql`SELECT table_name, ordinal_position, column_name, data_type, is_nullable, column_default
     FROM information_schema.columns WHERE table_schema = current_schema() AND table_name IN (${sql.join(names)})

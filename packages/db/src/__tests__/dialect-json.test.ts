@@ -7,7 +7,7 @@ import { type RawBuilder, sql } from "kysely";
 import { jsonScalarEquals, jsonSortKey } from "../kernel/index.js";
 import { openPgliteKernel } from "../kernel/pglite/index.js";
 import { sqliteKernel } from "../kernel/sqlite/index.js";
-import type { StorageKernel } from "../kernel/index.js";
+import type { KyselyKernel } from "../kernel/index.js";
 import { PGlite } from "@electric-sql/pglite";
 
 /**
@@ -22,7 +22,7 @@ interface ProbeDb {
 
 interface Case {
   name: string;
-  kernel: StorageKernel<ProbeDb>;
+  kernel: KyselyKernel<ProbeDb>;
   create: RawBuilder<unknown>;
 }
 

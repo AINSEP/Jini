@@ -15,8 +15,7 @@ import type { Clock } from "@jini-ai/core/primitives";
  * `admin.collections.read` first") — so `collections_entry_list`'s handler performs that identical
  * inline check itself, mirroring `entries/list.ts`'s admin route.
  */
-import type { AuthorizeFn } from "../core/commands/command.js";
-import type { OutboxPort } from "../core/ports.js";
+import type { AuthorizeFn, OutboxPort } from "@jini-ai/core/contracts/events";
 import { AGENT_TOOL_PRINCIPAL_KIND, buildDomainRegistrations, fromResult, indexCatalogById, optionalString, requireInputRecord, requireNumber, requireString, withSchemaOnRejection, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import { adaptLegacyAuthorize, requireToolPermission } from "../core/tools/index.js";
 import { entriesAgentToolCatalog } from "./agent-tools.js";

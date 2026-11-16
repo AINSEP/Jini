@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { sql } from "kysely";
 import { SqlSecretsVaultRepo, type SecretsVaultDatabase } from "@jini-ai/db/secrets-vault";
-import type { StorageKernel } from "@jini-ai/db/kernel";
+import type { KyselyKernel } from "@jini-ai/db/kernel";
 import { openSqliteFileKernel } from "@jini-ai/db/kernel/sqlite";
-import type { SqliteOpener } from "@jini-ai/db/sqlite";
+import type { SqliteOpener } from "@jini-ai/core/contracts/storage";
 import { AesGcmSecretSealer, EnvOrFileKeyring } from "@jini-ai/platform/secrets";
 import { createVaultMetaParsers, isCopyableKind, SecretsVaultService, type VaultServiceDeps } from "@jini-ai/platform/secrets/credential-sets";
 import { VaultError, type VaultContext, type VaultKind, type VaultMeta } from "@jini-ai/platform/secrets/credential-sets/contracts";
@@ -83,12 +83,12 @@ export async function readLegacyOwnerStore(required: LegacyOwnerStoreFile & { ke
 }
 
 /** The legacy keyring exactly as the store wrote it; file fallback on, auto-generation off. */
-function ownerVault({ kernel, keyFilePath }: { kernel: StorageKernel<LegacyOwnerDatabase>; keyFilePath: string },
+function ownerVault({ kernel, keyFilePath }: { kernel: KyselyKernel<LegacyOwnerDatabase>; keyFilePath: string },
   options: Partial<Pick<VaultServiceDeps, "metaParsers">> = {}): SecretsVaultService {
   const keyring = new EnvOrFileKeyring({ env: { read: () => undefined }, envVarName: "OWNER_STORE_KEY",
     keyFilePath, hkdfSalt: "jini-owner-store-v1", allowFileFallback: true, allowFileAutoGenerate: false });
   // Kysely's DB generic is invariant. The vault sees only its table on this same read-only connection.
-  const repo = new SqlSecretsVaultRepo({ kernel: kernel as unknown as StorageKernel<SecretsVaultDatabase> });
+  const repo = new SqlSecretsVaultRepo({ kernel: kernel as unknown as KyselyKernel<SecretsVaultDatabase> });
   return new SecretsVaultService({ repo, keyring, sealer: new AesGcmSecretSealer({ keyring }),
     metaParsers: options.metaParsers ?? createVaultMetaParsers({}), now: () => new Date().toISOString(), newId: () => randomUUID(),
     authorize: async ({ context }) => {
@@ -108,7 +108,7 @@ async function readEntry({ vault, row }: { vault: SecretsVaultService; row: { id
 }
 
 /** owner_revocations exists only past the unpublished 0001 step; a 0000 store has none. */
-async function destinations({ kernel, table }: { kernel: StorageKernel<LegacyOwnerDatabase>; table: "owner_grants" | "owner_revocations" }): Promise<LegacyOwnerDestination[]> {
+async function destinations({ kernel, table }: { kernel: KyselyKernel<LegacyOwnerDatabase>; table: "owner_grants" | "owner_revocations" }): Promise<LegacyOwnerDestination[]> {
   const present = await kernel.query(sql`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ${table}`);
   if (present.length === 0) return [];
   const rows = await kernel.run(db => db.selectFrom(table).select(["entry_id", "consumer_id"]).orderBy("entry_id").orderBy("consumer_id").execute());

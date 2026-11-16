@@ -34,7 +34,7 @@ import type { Clock } from "@jini-ai/core/primitives";
  * edited/trashed, not to answer "where does this live".
  * See docs/decisions/DR-004-journaled-blob-gc.md.
  */
-import type { AuthorizeFn } from "../core/commands/command.js";
+import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
 import { buildDomainRegistrations, indexCatalogById, requireInputRecord, requireString, withSchemaOnRejection, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import { adaptLegacyAuthorize, requireToolPermission } from "../core/tools/index.js";
 import { mediaAgentToolCatalog } from "./agent-tools.js";

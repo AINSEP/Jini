@@ -4,7 +4,7 @@ import path from "node:path";
 import { sql } from "kysely";
 import { describe, test } from "vitest";
 
-import type { StorageKernel } from "@jini-ai/db/kernel";
+import type { KyselyKernel } from "@jini-ai/db/kernel";
 import { openPostgresKernel } from "@jini-ai/db/kernel/postgres";
 import { COMMERCE_PAYMENTS_LEDGER_TABLE, migrateCommercePayments } from "../migrations/index.js";
 import { sqlPaymentsLedger } from "../repo.sql.js";
@@ -30,7 +30,7 @@ if (url === undefined || url === "") {
   });
 } else {
   const pg = createRequire(path.resolve(import.meta.dirname, "../../../../node_modules/@jini-ai/db/package.json"))("pg");
-  const reset = async (kernel: StorageKernel<unknown>) => {
+  const reset = async (kernel: KyselyKernel<unknown>) => {
     const tables = [...Object.values(LEDGER_TABLES), COMMERCE_PAYMENTS_LEDGER_TABLE].join(", ");
     await kernel.execute(sql.raw(`DROP TABLE IF EXISTS ${tables} CASCADE`));
   };

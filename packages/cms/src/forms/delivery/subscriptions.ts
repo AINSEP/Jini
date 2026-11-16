@@ -3,7 +3,7 @@
  * transaction), and each child job event delivers independently, so one slow or failing
  * destination never delays or blocks another.
  */
-import type { EventBusPort } from "../../core/index.js";
+import type { EventBusPort } from "@jini-ai/core/contracts/events";
 import { deliverFormJob } from "./deliver-job.js";
 import { FORM_SUBMISSION_RECEIVED_EVENT } from "../types.js";
 import { FORM_DELIVERY_EVENT, type FormDeliveryJob, type FormDeliveryQueuedJob, type FormDeliverySubmissionReader, type FormDeliveryResult } from "./types.js";

@@ -44,7 +44,7 @@ export interface FormSubmissionRepoPort {
 export interface RateLimiterPort {
   check(required: { key: string }): { allowed: true } | { allowed: false; retryAfterSeconds: number } | Promise<{ allowed: true } | { allowed: false; retryAfterSeconds: number }>;
 }
-export interface FormOutboxPort { enqueue(event: import("@jini-ai/cms/core").DomainEvent): Promise<void>; }
+export interface FormOutboxPort { enqueue(event: import("@jini-ai/core/contracts/events").DomainEvent): Promise<void>; }
 /**
  * Runs `work` as one unit of persistence: commit when it resolves, roll back when it throws. A host
  * binds its database transaction here so an accepted submission's row and its outbox event are

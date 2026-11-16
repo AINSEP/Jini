@@ -1,4 +1,4 @@
-import type { EventBusPort } from '../core/index.js';
+import type { EventBusPort } from '@jini-ai/core/contracts/events';
 import type { FormOutboxPort } from './ports.js';
 import { FormDeliveryError } from './delivery/errors.js';
 

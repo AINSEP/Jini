@@ -1,7 +1,7 @@
 import type { Insertable, Selectable } from "kysely";
 
 import type { RedirectsTable, RedirectRevisionsTable } from "./row-types.js";
-import { toBool } from "@jini-ai/db/kernel";
+import { toBool } from "@jini-ai/core/contracts/storage";
 import type {
   RedirectMatchType,
   RedirectRecord,

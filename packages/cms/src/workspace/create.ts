@@ -1,6 +1,6 @@
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 import type { Clock, IdGenerator, UUID } from "@jini-ai/core/primitives";
-import type { DomainEvent, OutboxPort } from "../core/ports.js";
+import type { DomainEvent, OutboxPort } from "@jini-ai/core/contracts/events";
 
 /**
  * @file Workspace creation vertical slice (domain logic).

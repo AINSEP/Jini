@@ -22,7 +22,8 @@ import type { Clock } from '@jini-ai/core/primitives';
  * FIFO window. Memory keeps dedupe evidence until drop, including evicted entries. This durable
  * adapter preserves its existing bounded SQL/schema behavior rather than adding a hidden archive.
  */
-import { openSqliteConnection, type SqliteDb, type SqliteSyncOpener } from '@jini-ai/db/sqlite';
+import { openSqliteConnection } from '@jini-ai/db/sqlite';
+import { type SqliteDb, type SqliteSyncOpener } from '@jini-ai/core/contracts/storage';
 import type {
   EventLogAppendInput,
   EventLogAppendOptions,

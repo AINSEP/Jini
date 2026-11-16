@@ -4,12 +4,14 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import type { Kysely } from "kysely";
 
 import {
+  type KyselyKernel,
+} from "./port.js";
+import {
   type StorageCapabilities,
   type StorageDialect,
-  type StorageKernel,
   type StorageTransport,
   UnsupportedCapabilityError,
-} from "./port.js";
+} from "@jini-ai/core/contracts/storage";
 import type { DbTransport } from "./port.js";
 import { TurnLock } from "./turn-lock.js";
 import { registerOwnedTransaction } from "./owned-transaction.js";
@@ -84,7 +86,7 @@ async function takingTurn<T>(lock: TurnLock | undefined, kind: "shared" | "exclu
   }
 }
 
-export function buildKernel<DB>(driver: KernelDriver<DB>): StorageKernel<DB> {
+export function buildKernel<DB>(driver: KernelDriver<DB>): KyselyKernel<DB> {
   const scope = new AsyncLocalStorage<Scope<DB>>();
   const lock = driver.oneConnection ? (driver.turnLock ?? new TurnLock()) : undefined;
   let ownTransactions = 0;
@@ -142,7 +144,7 @@ export function buildKernel<DB>(driver: KernelDriver<DB>): StorageKernel<DB> {
     await driver.lockKey(current?.db ?? driver.base, key);
   }
 
-  const kernel: StorageKernel<DB> = {
+  const kernel: KyselyKernel<DB> = {
     dialect: driver.dialect,
     transport: driver.transport,
     capabilities: driver.capabilities,
@@ -166,10 +168,10 @@ export function buildKernel<DB>(driver: KernelDriver<DB>): StorageKernel<DB> {
     },
     close: () => driver.close(),
   };
-  registerOwnedTransaction({ kernel: kernel as StorageKernel<unknown>, control: {
+  registerOwnedTransaction({ kernel: kernel as KyselyKernel<unknown>, control: {
     assertAvailable: assertOwnedAvailable,
     transaction: (work, optional = {}) => transaction(work, optional),
   } });
-  registerKernelSessionDatabase({ kernel: kernel as StorageKernel<unknown>, database: driver.base as Kysely<unknown>, ...(driver.poolMax === undefined ? {} : { poolMax: driver.poolMax }) });
+  registerKernelSessionDatabase({ kernel: kernel as KyselyKernel<unknown>, database: driver.base as Kysely<unknown>, ...(driver.poolMax === undefined ? {} : { poolMax: driver.poolMax }) });
   return kernel;
 }

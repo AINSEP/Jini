@@ -8,8 +8,8 @@ import { openDatabase as openInjectedDatabase, closeDatabase, migrate } from '..
 import { listConversations,getConversation,normalizeConversationSessionMode,insertConversation,updateConversation,deleteConversation,listMessages,upsertMessage,getMessageTelemetryFinalizationState,appendMessageStatusEvent,appendMessageAgentEvent,deleteMessage } from '@jini-ai/chat/store/legacy/sqlite';
 import { listProjects,listLatestProjectRunStatuses,listLatestConversationRunStatuses,listFirstConversationRunStatuses,listLatestRunStatuses,listProjectsAwaitingInput,listConversationsAwaitingInput,getProject,insertProject,updateProject,deleteProject } from '../../store/projects/sqlite.js';
 import { getAgentSession,upsertAgentSession,getAgentSessionRecord,latestCompletedAssistantMessageId,updateAgentSessionStableHash,clearAgentSession } from '@jini-ai/daemon/store/agent-sessions/sqlite';
-import { parseJsonOrUndef,row,rows } from '@jini-ai/db/core';
-import type { SqliteDb } from '@jini-ai/db/sqlite';
+import { parseJsonOrUndef, row, rows } from '@jini-ai/core/contracts/storage';
+import type { SqliteDb } from '@jini-ai/core/contracts/storage';
 /** The fixture injects the host's actual driver; public calls use argument objects. */
 function openDatabase({ projectRoot }: { projectRoot: string },options:{dataDir?:string}={}) {
  return openInjectedDatabase({ projectRoot, open: (file, settings) => new Database(file, settings) }, options);

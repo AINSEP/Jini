@@ -12,7 +12,8 @@ import { PGlite } from "@electric-sql/pglite";
 import { sql } from "kysely";
 import pg from "pg";
 
-import { jsonText, listTables, toBool } from "../kernel/index.js";
+import { jsonText, listTables } from "../kernel/index.js";
+import { toBool } from "@jini-ai/core/contracts/storage";
 import {
   acquireOwnerLock,
   assertSocketPathFits,
@@ -24,7 +25,7 @@ import {
   startPgliteOwner,
 } from "../pglite/index.js";
 import { openPgliteSocketKernel } from "../kernel/postgres/index.js";
-import type { StorageKernel } from "../kernel/index.js";
+import type { KyselyKernel } from "../kernel/index.js";
 import { LOCK_FILE, RUN_DIR, OWNER } from "./helpers.js";
 
 /**
@@ -221,7 +222,7 @@ describe("socket location", () => {
 describe("a running owner", () => {
   let owner: PgliteOwner;
   let site: { dataDir: string; socketDir: string };
-  let kernel: StorageKernel<ProbeDb>;
+  let kernel: KyselyKernel<ProbeDb>;
 
   before(async () => {
     site = freshSite();
@@ -265,7 +266,7 @@ describe("a running owner", () => {
     const second = await startPgliteOwner({ ...OWNER, dataDir: other.dataDir }, { socketDir: other.socketDir });
     try {
       const otherKernel = openPgliteSocketKernel<ProbeDb>({ pg, socketPath: second.socketPath });
-      assert.equal((await listTables(otherKernel as StorageKernel<unknown>)).includes("kernel_probe"), false);
+      assert.equal((await listTables(otherKernel as KyselyKernel<unknown>)).includes("kernel_probe"), false);
       await otherKernel.close();
     } finally {
       await second.close();
@@ -278,7 +279,7 @@ describe("a running owner", () => {
 
   const ids = async () =>
     (await kernel.run((db) => db.selectFrom("kernel_probe").select("id").orderBy("id").execute())).map((row) => row.id);
-  const insert = (id: string, on: StorageKernel<ProbeDb> = kernel) =>
+  const insert = (id: string, on: KyselyKernel<ProbeDb> = kernel) =>
     on.run((db) => db.insertInto("kernel_probe").values({ id, doc: null, n: null, flag: null }).execute());
   const reset = () => kernel.execute(sql`DELETE FROM kernel_probe`);
 
@@ -347,7 +348,7 @@ describe("a running owner", () => {
       await db.exec("CREATE TABLE IF NOT EXISTS fixture_parent (id text PRIMARY KEY)");
       await db.exec("CREATE TABLE IF NOT EXISTS fixture_child (id text PRIMARY KEY, parent_id text REFERENCES fixture_parent(id))");
     });
-    const tables = await listTables(kernel as StorageKernel<unknown>);
+    const tables = await listTables(kernel as KyselyKernel<unknown>);
     assert.ok(tables.includes("fixture_parent") && tables.includes("fixture_child"), `fixture tables present: ${tables.join(", ")}`);
   });
 });

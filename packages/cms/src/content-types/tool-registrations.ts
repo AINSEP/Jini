@@ -32,8 +32,7 @@ import type { Clock, Result } from "@jini-ai/core/primitives";
  * below does the identical explicit `requireToolPermission` check, in the route's place, the same
  * pattern `comments/tool-registrations.ts` uses for `comments_list_moderation_queue`.
  */
-import type { AuthorizeFn } from "../core/commands/command.js";
-import type { OutboxPort } from "../core/ports.js";
+import type { AuthorizeFn, OutboxPort } from "@jini-ai/core/contracts/events";
 import { AGENT_TOOL_PRINCIPAL_KIND, buildDomainRegistrations, decorateWithSchema, fromResult, indexCatalogById, requireInputRecord, requireNoInput, requireNumber, requireString, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import { adaptLegacyAuthorize, requireToolPermission } from "../core/tools/index.js";
 import { contentTypesAgentToolCatalog } from "./agent-tools.js";

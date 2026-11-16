@@ -1,5 +1,5 @@
-import type { StorageKernel } from "@jini-ai/db/kernel";
-import type { ColumnType, Generated } from "kysely";
+import type { StorageKernel } from "@jini-ai/core/contracts/storage";
+import type { ColumnType, Generated, Kysely } from "kysely";
 /** Borrowed table contract; this package never creates, drops or reconciles the host's schema. */
 export interface CommerceDatabase {
   commerce_order_items: CommerceOrderItemsTable;
@@ -11,7 +11,7 @@ export interface CommerceDatabase {
   commerce_price_provider_refs: CommercePriceProviderRefsTable;
   commerce_order_payments: CommerceOrderPaymentsTable;
 }
-export type CommerceKernel = StorageKernel<CommerceDatabase>;
+export type CommerceKernel = StorageKernel<Kysely<CommerceDatabase>, CommerceDatabase>;
 export interface CommerceOrderPaymentsTable {
   workspace_id: string; order_id: string; site_id: string; provider_id: string; provider_account_id: string;
   mode: "test" | "live"; amount_minor: ColumnType<number | string | bigint, number, number>; currency: string;

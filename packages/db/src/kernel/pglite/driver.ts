@@ -5,7 +5,7 @@ import type { PGlite } from "@electric-sql/pglite";
 import { Kysely } from "kysely";
 
 import { PG_PARSERS } from "../../core/index.js";
-import { buildKernel, postgresLockKey, type StorageKernel } from "../index.js";
+import { buildKernel, postgresLockKey, type KyselyKernel } from "../index.js";
 import { PgliteDialect } from "./dialect.js";
 import type { PgliteClass } from "../../pglite/types.js";
 
@@ -21,7 +21,7 @@ import type { PgliteClass } from "../../pglite/types.js";
  * through its socket.
  */
 
-export type PgKernel<DB> = StorageKernel<DB>;
+export type PgKernel<DB> = KyselyKernel<DB>;
 
 /**
  * Opens (and on first use creates) a PGlite database. Synchronous so it fits the synchronous

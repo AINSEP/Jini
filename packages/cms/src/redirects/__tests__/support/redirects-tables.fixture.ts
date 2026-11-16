@@ -1,5 +1,6 @@
 import { sql } from "kysely";
-import type { StorageDialect, StorageKernel } from "@jini-ai/db/kernel";
+import type { KyselyKernel } from "@jini-ai/db/kernel";
+import type { StorageDialect } from "@jini-ai/core/contracts/storage";
 
 /**
  * DDL copied from Tovu apps/website/src/platform/db/drizzle/0004_known_silver_surfer.sql:8-43
@@ -27,7 +28,7 @@ const postgresStatements = [
 /** Apply the current two redirect tables and their indexes; schema failures propagate.
  * @complexity O(1) statements, plus driver DDL cost.
  */
-export async function createTables<DB>(kernel: StorageKernel<DB>, dialect: StorageDialect): Promise<void> {
+export async function createTables<DB>(kernel: KyselyKernel<DB>, dialect: StorageDialect): Promise<void> {
   const statements = dialect === "sqlite" ? sqliteStatements : postgresStatements;
   for (const statement of statements) await kernel.execute(sql.raw(statement));
 }

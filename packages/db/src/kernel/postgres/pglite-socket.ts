@@ -3,7 +3,7 @@ import { dirname } from "node:path";
 import { Kysely, PostgresDialect } from "kysely";
 
 import { PG_PARSERS, PGLITE_SOCKET_FILE } from "../../core/index.js";
-import { buildKernel, postgresLockKey, type StorageKernel } from "../index.js";
+import { buildKernel, postgresLockKey, type KyselyKernel } from "../index.js";
 import { type PgModule, pgTypesFor } from "../../core/pg-types.js";
 
 /**
@@ -23,7 +23,7 @@ import { type PgModule, pgTypesFor } from "../../core/pg-types.js";
  * @param required.pg the consumer's node-postgres module (`import pg from "pg"`).
  * @throws {Error} a path that does not end in the Postgres socket file name.
  */
-export function openPgliteSocketKernel<DB>(required: { pg: PgModule; socketPath: string }): StorageKernel<DB> {
+export function openPgliteSocketKernel<DB>(required: { pg: PgModule; socketPath: string }): KyselyKernel<DB> {
   if (!required.socketPath.endsWith(`/${PGLITE_SOCKET_FILE}`)) {
     throw new Error(`a PGlite socket path ends in /${PGLITE_SOCKET_FILE}: ${required.socketPath}`);
   }

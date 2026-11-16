@@ -1,7 +1,7 @@
 import { type Expression, type RawBuilder, sql } from "kysely";
 
-import type { ColumnInfo } from "@jini-ai/core/contracts/storage";
-import type { StorageDialect, StorageKernel } from "./port.js";
+import type { ColumnInfo, StorageDialect } from "@jini-ai/core/contracts/storage";
+import type { KyselyKernel } from "./port.js";
 
 /**
  * @file Dialect helpers: the few places SQLite and Postgres spell the same thing differently, as
@@ -19,7 +19,7 @@ import type { StorageDialect, StorageKernel } from "./port.js";
  * @throws Propagates kernel execution failures; the caller's transaction owns rollback.
  * @complexity O(n) time and space in DDL length, plus the database's execution cost.
  */
-export async function executeDdl({ kernel, ddl }: { kernel: StorageKernel<unknown>; ddl: string }, _options = {}): Promise<void> {
+export async function executeDdl({ kernel, ddl }: { kernel: KyselyKernel<unknown>; ddl: string }, _options = {}): Promise<void> {
   // Kysely executes one SQLite statement at a time.
   for (const statement of ddl.split(";").filter(part => part.trim())) {
     await kernel.execute(sql.raw(statement));
@@ -111,7 +111,7 @@ export function nowIso(dialect: StorageDialect): RawBuilder<string> {
 // ---- Introspection ------------------------------------------------------------------------------
 
 /** User tables in the connection's current schema, sorted by name. Internal tables excluded. */
-export async function listTables<DB>(kernel: StorageKernel<DB>): Promise<string[]> {
+export async function listTables<DB>(kernel: KyselyKernel<DB>): Promise<string[]> {
   const rows = await kernel.query<{ name: string }>(
     kernel.dialect === "sqlite"
       ? sql`SELECT name FROM sqlite_schema WHERE type = 'table' AND substr(name, 1, 7) <> 'sqlite_' ORDER BY name`
@@ -121,12 +121,12 @@ export async function listTables<DB>(kernel: StorageKernel<DB>): Promise<string[
   return rows.map((row) => row.name);
 }
 
-export async function tableExists<DB>(kernel: StorageKernel<DB>, table: string): Promise<boolean> {
+export async function tableExists<DB>(kernel: KyselyKernel<DB>, table: string): Promise<boolean> {
   return (await listColumns(kernel, table)).length > 0;
 }
 
 /** Columns in declaration order; empty when the table does not exist. */
-export async function listColumns<DB>(kernel: StorageKernel<DB>, table: string): Promise<ColumnInfo[]> {
+export async function listColumns<DB>(kernel: KyselyKernel<DB>, table: string): Promise<ColumnInfo[]> {
   const rows = await kernel.query<{ name: string; type: string; not_null: unknown; pk: unknown }>(
     kernel.dialect === "sqlite"
       ? sql`SELECT name, type, "notnull" AS not_null, pk FROM pragma_table_info(${table}) ORDER BY cid`
@@ -182,7 +182,7 @@ export function autoIdColumnSql(dialect: StorageDialect): string {
  * checkpoint (must run outside a write transaction on this connection: SQLite refuses it with
  * "database table is locked"). Postgres: nothing to do, a commit is already durable.
  */
-export async function checkpointWal<DB>(kernel: StorageKernel<DB>): Promise<void> {
+export async function checkpointWal<DB>(kernel: KyselyKernel<DB>): Promise<void> {
   if (kernel.dialect === "sqlite") await kernel.query(sql`PRAGMA wal_checkpoint(FULL)`);
 }
 
@@ -198,7 +198,7 @@ export interface IndexInfo {
  * UNIQUE constraint makes on its own (SQLite origin `pk`/`u`, Postgres constraint-backed), which no
  * `CREATE INDEX` declared. Empty when the table does not exist.
  */
-export async function listIndexes<DB>(kernel: StorageKernel<DB>, table: string): Promise<Map<string, IndexInfo>> {
+export async function listIndexes<DB>(kernel: KyselyKernel<DB>, table: string): Promise<Map<string, IndexInfo>> {
   const rows = await kernel.query<{ name: string; is_unique: unknown; column_name: string }>(
     kernel.dialect === "sqlite"
       ? sql`SELECT il.name AS name, il."unique" AS is_unique, ii.name AS column_name

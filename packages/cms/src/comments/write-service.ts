@@ -7,7 +7,7 @@ import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
  * the repo itself, one layer up.
  */
 import type { Clock as ClockPort, IdGenerator as IdGeneratorPort, UUID } from "@jini-ai/core/primitives";
-import type { OutboxPort } from "../core/index.js";
+import type { OutboxPort } from "@jini-ai/core/contracts/events";
 import type { CommentHookRegistry } from "./hooks.js";
 import type { CommentEventName, CommentRepoPort } from "./ports.js";
 import type { CommentRecord, CommentStatus, ModerationAction, ModerationLogEntry } from "./types.js";

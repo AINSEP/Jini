@@ -1,14 +1,14 @@
 import { sql } from "kysely";
-import { listColumns, type StorageKernel } from "@jini-ai/db/kernel";
+import { listColumns, type KyselyKernel } from "@jini-ai/db/kernel";
 import type { FormsTables, FormSubmissionDatabase } from "./tables.js";
 import type { SubmissionIpRetentionPort } from "../submission-ip-retention.js";
 
 /** Site-owned schema adapter; no retention policy or timer lives here. */
 export function createSubmissionIpRetentionRepo<DB>(
-  { kernel: suppliedKernel, tables }: { kernel: StorageKernel<DB>; tables: FormsTables },
+  { kernel: suppliedKernel, tables }: { kernel: KyselyKernel<DB>; tables: FormsTables },
   _optional: Record<string, never> = {},
 ): SubmissionIpRetentionPort {
-  const kernel = suppliedKernel as unknown as StorageKernel<FormSubmissionDatabase>;
+  const kernel = suppliedKernel as unknown as KyselyKernel<FormSubmissionDatabase>;
   let nullableConfirmed = false;
   return {
     async clearExpiredIps({ submittedBeforeOrAt }, { limit = 500 } = {}) {

@@ -1,6 +1,6 @@
 import type { UUID } from "@jini-ai/core/primitives";
 import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
-import type { StorageKernel } from "@jini-ai/db/kernel";
+import type { StorageKernel } from "@jini-ai/core/contracts/storage";
 import type { FormsTables, FormDefinitionDatabase, FormSubmissionDatabase } from "./tables.js";
 import { FormSlugConflictError } from "../errors.js";
 import type { FormDefinitionRepoPort, FormSubmissionRepoPort } from "../ports.js";
@@ -12,6 +12,7 @@ import {
   updatableDefinitionColumns,
 } from "./repo.rows.js";
 import type { FormDefinitionRecord, FormSubmissionPage, FormSubmissionRecord } from "../types.js";
+import type { Kysely } from "kysely";
 
 /**
  * @file THE forms repositories: one Kysely query body for every database the storage kernel drives
@@ -26,10 +27,10 @@ import type { FormDefinitionRecord, FormSubmissionPage, FormSubmissionRecord } f
  */
 
 export class SqlFormDefinitionRepo implements FormDefinitionRepoPort {
-  protected readonly kernel: StorageKernel<FormDefinitionDatabase>;
+  protected readonly kernel: StorageKernel<Kysely<FormDefinitionDatabase>, FormDefinitionDatabase>;
   protected readonly tables: FormsTables;
   constructor(
-    { kernel, tables }: { kernel: StorageKernel<FormDefinitionDatabase>; tables: FormsTables },
+    { kernel, tables }: { kernel: StorageKernel<Kysely<FormDefinitionDatabase>, FormDefinitionDatabase>; tables: FormsTables },
     _optional: Record<string, never> = {},
   ) { this.kernel = kernel; this.tables = tables; }
 
@@ -155,10 +156,10 @@ export class SqlFormDefinitionRepo implements FormDefinitionRepoPort {
 }
 
 export class SqlFormSubmissionRepo implements FormSubmissionRepoPort {
-  protected readonly kernel: StorageKernel<FormSubmissionDatabase>;
+  protected readonly kernel: StorageKernel<Kysely<FormSubmissionDatabase>, FormSubmissionDatabase>;
   protected readonly tables: FormsTables;
   constructor(
-    { kernel, tables }: { kernel: StorageKernel<FormSubmissionDatabase>; tables: FormsTables },
+    { kernel, tables }: { kernel: StorageKernel<Kysely<FormSubmissionDatabase>, FormSubmissionDatabase>; tables: FormsTables },
     _optional: Record<string, never> = {},
   ) { this.kernel = kernel; this.tables = tables; }
 
@@ -238,17 +239,17 @@ export class SqlFormSubmissionRepo implements FormSubmissionRepoPort {
 /** The form-definition repo for the injected kernel and required host table names.
  * @complexity O(1); no connection or schema work. */
 export function formDefinitionRepoFor<DB>(
-  { kernel, tables }: { kernel: StorageKernel<DB>; tables: FormsTables },
+  { kernel, tables }: { kernel: StorageKernel<Kysely<DB>, DB>; tables: FormsTables },
   _optional: Record<string, never> = {},
 ): SqlFormDefinitionRepo {
-  return new SqlFormDefinitionRepo({ kernel: kernel as unknown as StorageKernel<FormDefinitionDatabase>, tables });
+  return new SqlFormDefinitionRepo({ kernel: kernel as unknown as StorageKernel<Kysely<FormDefinitionDatabase>, FormDefinitionDatabase>, tables });
 }
 
 /** The form-submission repo for the injected kernel and required host table names.
  * @complexity O(1); no connection or schema work. */
 export function formSubmissionRepoFor<DB>(
-  { kernel, tables }: { kernel: StorageKernel<DB>; tables: FormsTables },
+  { kernel, tables }: { kernel: StorageKernel<Kysely<DB>, DB>; tables: FormsTables },
   _optional: Record<string, never> = {},
 ): SqlFormSubmissionRepo {
-  return new SqlFormSubmissionRepo({ kernel: kernel as unknown as StorageKernel<FormSubmissionDatabase>, tables });
+  return new SqlFormSubmissionRepo({ kernel: kernel as unknown as StorageKernel<Kysely<FormSubmissionDatabase>, FormSubmissionDatabase>, tables });
 }

@@ -2,13 +2,13 @@ import { PGlite } from "@electric-sql/pglite";
 import { sql } from "kysely";
 import { afterEach, expect, test } from "vitest";
 import { openPgliteKernel } from "../pglite/index.js";
-import type { StorageKernel } from "../port.js";
+import type { KyselyKernel } from "../port.js";
 import { copyPgStore, type StoreCopyScope } from "../store-copy.js";
 
 const scope: StoreCopyScope = { schemas: ["public"], ledgers: [] };
-const opened: StorageKernel<unknown>[] = [];
+const opened: KyselyKernel<unknown>[] = [];
 afterEach(async () => { for (const kernel of opened.splice(0)) await kernel.close(); });
-function open(_required: {}, _optional = {}): StorageKernel<unknown> {
+function open(_required: {}, _optional = {}): KyselyKernel<unknown> {
   const kernel = openPgliteKernel({ PGlite });
   opened.push(kernel);
   return kernel;

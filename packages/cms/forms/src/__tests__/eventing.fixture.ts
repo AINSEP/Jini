@@ -1,4 +1,4 @@
-import type { DomainEvent, EventBusPort } from "@jini-ai/cms/core";
+import type { DomainEvent, EventBusPort } from "@jini-ai/core/contracts/events";
 export class InMemoryEventBus implements EventBusPort {
   private handlers = new Map<string, Set<(event: DomainEvent<any>) => Promise<void>>>();
   private all = new Set<(event: DomainEvent) => Promise<void>>();

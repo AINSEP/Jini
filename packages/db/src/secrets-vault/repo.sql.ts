@@ -1,8 +1,9 @@
 import { sql, type Expression, type Kysely } from "kysely";
 import { assertVaultReplacement, VaultError, type VaultBatchOp, type VaultBatchResult, type VaultDefaultQuery, type VaultSingletonQuery, type VaultMeta, type VaultOptions, type VaultQuery,
   type VaultRecord, type VaultRepoPort } from "@jini-ai/platform/secrets/credential-sets/contracts";
-import { jsonSet, toBool } from "../kernel/dialect.js";
-import type { StorageKernel } from "../kernel/port.js";
+import { jsonSet } from "../kernel/dialect.js";
+import { toBool } from "@jini-ai/core/contracts/storage";
+import type { KyselyKernel } from "../kernel/port.js";
 
 /** Fixed columns consumed by the adapter; hosts own DDL, foreign keys and migration provenance.
  * A partial unique default index and label index use the same scope as VaultRepoPort.
@@ -61,8 +62,8 @@ function compareIds(a: string, b: string): number {
 }
 
 export class SqlSecretsVaultRepo implements VaultRepoPort {
-  private readonly kernel: StorageKernel<SecretsVaultDatabase>;
-  constructor({ kernel }: { kernel: StorageKernel<SecretsVaultDatabase> }, _options: VaultOptions = {}) { this.kernel = kernel; }
+  private readonly kernel: KyselyKernel<SecretsVaultDatabase>;
+  constructor({ kernel }: { kernel: KyselyKernel<SecretsVaultDatabase> }, _options: VaultOptions = {}) { this.kernel = kernel; }
 
   private write<T>(workspaceId: string, body: () => Promise<T>): Promise<T> {
     return this.kernel.transaction(async () => {

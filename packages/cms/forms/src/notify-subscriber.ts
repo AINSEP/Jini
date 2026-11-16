@@ -1,7 +1,7 @@
 import type { FormDefinitionRecord, FormSubmissionRecord } from "./types.js";
 import type { Logger } from "@jini-ai/core/primitives";
 /** Notification subscriber with host sender, mail and logging ports. Each recipient receives a stable per-submission dedup key; delivery and repository failures never block sibling subscribers. */
-import type { DomainEvent, EventBusPort } from "@jini-ai/cms/core";
+import type { DomainEvent, EventBusPort } from "@jini-ai/core/contracts/events";
 import type { MailerPort, EmailAddress } from "./ports.js";
 import type { FormDefinitionRepoPort, FormSubmissionRepoPort } from "./ports.js";
 

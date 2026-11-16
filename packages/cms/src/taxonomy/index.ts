@@ -76,7 +76,6 @@ export {
   type DeletableTaxonomyRepoPort,
   type DeletableTermRepoPort,
   type AssignmentCountEntryTermRepoPort,
-  type TransactionalRepoPort,
   type EntryTermsCleanupPort,
   type OnContentDeletedRequired,
   type ImportableTaxonomyRepoPort,

@@ -1,5 +1,5 @@
 import { createConsoleLogger } from '@jini-ai/core/primitives';
-import type { SqliteSyncOpener } from '@jini-ai/db/sqlite';
+import type { SqliteSyncOpener } from '@jini-ai/core/contracts/storage';
 /**
  * @module create-local-node-daemon
  *

@@ -6,7 +6,7 @@ import type {
   ChangeSetRecord,
   ChangeSetRepoPort,
   ChangeSetWithItems,
-} from "../index.js";
+} from "@jini-ai/core/contracts/events";
 
 export class InMemoryChangeSetRepo implements ChangeSetRepoPort {
   private rows: ChangeSetRecord[];

@@ -9,7 +9,7 @@ import { PGlite } from "@electric-sql/pglite";
 import type BetterSqlite3 from "better-sqlite3";
 import { sqliteKernel } from "@jini-ai/db/kernel/sqlite";
 import { openPgliteKernel } from "@jini-ai/db/kernel/pglite";
-import type { StorageKernel } from "@jini-ai/db/kernel";
+import type { KyselyKernel } from "@jini-ai/db/kernel";
 import { createFormsTables, formDefinitionRepoFor, formSubmissionRepoFor } from "../sql/index.js";
 import type { FormDefinitionRecord, FormSubmissionRecord } from "../index.js";
 
@@ -35,12 +35,12 @@ const entry: FormSubmissionRecord = {
   id: "sub-1", workspaceId: "ws", formDefinitionId: "def-1", data: { message: "hello" }, sourceIp: "203.0.113.9", submittedAt: T0,
 };
 
-async function writeThroughRepos<DB>(kernel: StorageKernel<DB>) {
+async function writeThroughRepos<DB>(kernel: KyselyKernel<DB>) {
   await formDefinitionRepoFor({ kernel, tables }).create(form);
   await formSubmissionRepoFor({ kernel, tables }).create(entry);
 }
 
-async function assertReadBack<DB>(kernel: StorageKernel<DB>) {
+async function assertReadBack<DB>(kernel: KyselyKernel<DB>) {
   assert.deepEqual(await formDefinitionRepoFor({ kernel, tables }).findBySlug({ workspaceId: "ws", slug: "contact" }), form);
   const page = await formSubmissionRepoFor({ kernel, tables }).listByDefinition({ workspaceId: "ws", formDefinitionId: "def-1", limit: 10 });
   assert.deepEqual(page, { items: [entry], nextCursor: null });

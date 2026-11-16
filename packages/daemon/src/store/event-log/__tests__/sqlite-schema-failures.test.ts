@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { describe, expect, it, vi } from 'vitest';
 import { sqliteKernel } from '@jini-ai/db/kernel/sqlite';
-import type { SqliteDb } from '@jini-ai/db/sqlite';
+import type { SqliteDb } from '@jini-ai/core/contracts/storage';
 import {
   createSqliteEventLog, createKernelSqliteEventLog, openSqliteEventLog, SQLITE_EVENT_LOG_SCHEMA,
   type SqliteEventLogDatabase,

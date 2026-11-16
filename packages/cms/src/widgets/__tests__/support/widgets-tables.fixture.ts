@@ -1,5 +1,6 @@
 import { sql } from "kysely";
-import type { StorageKernel, StorageDialect } from "@jini-ai/db/kernel";
+import type { KyselyKernel } from "@jini-ai/db/kernel";
+import type { StorageDialect } from "@jini-ai/core/contracts/storage";
 
 // Schema contract: Tovu apps/website/src/platform/db/schema.sqlite.ts:1592–1603.
 // Literal SQLite DDL: platform/db/drizzle/0017_magical_rawhide_kid.sql:13–21.
@@ -17,7 +18,7 @@ const POSTGRES_DDL = [
 
 /** Apply precisely the host's region-index schema on the matrix's embedded dialect. */
 export async function createWidgetsTables<DB>(
-  kernel: StorageKernel<DB>, dialect: StorageDialect,
+  kernel: KyselyKernel<DB>, dialect: StorageDialect,
 ): Promise<void> {
   for (const statement of dialect === "sqlite" ? SQLITE_DDL : POSTGRES_DDL) {
     await kernel.execute(sql.raw(statement));

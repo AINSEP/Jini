@@ -1,5 +1,5 @@
-import type { MigrationStep } from "@jini-ai/db/migrate";
-import type { StorageKernel } from "@jini-ai/db/kernel";
+import type { MigrationStep, StorageKernel } from "@jini-ai/core/contracts/storage";
+import type { Kysely } from "kysely";
 
 /**
  * @file Payments ledger step 4 (ADR-066; L4 review fixes R2-F4 and R2-F8): what a capture/void
@@ -19,13 +19,13 @@ import type { StorageKernel } from "@jini-ai/db/kernel";
  */
 export const PAYMENTS_ATTEMPT_RECOVERY_ID = "0004_payments_attempt_recovery";
 
-async function up(kernel: StorageKernel<unknown>): Promise<void> {
+async function up(kernel: StorageKernel<Kysely<unknown>, unknown>): Promise<void> {
   await kernel.run((db) => db.schema.alterTable("commerce_payment_attempts").addColumn("currency", "text").execute());
   await kernel.run((db) => db.schema.alterTable("commerce_payment_attempts").addColumn("amount_minor", "bigint").execute());
   await kernel.run((db) => db.schema.createIndex("commerce_payment_attempts_open").on("commerce_payment_attempts").columns(["outcome", "updated_at"]).execute());
 }
 
 /** The step, carrying its pinned checksum. @example paymentsAttemptRecovery({ checksum }) */
-export function paymentsAttemptRecovery(required: { checksum: string }, _optional: Record<string, never> = {}): MigrationStep {
+export function paymentsAttemptRecovery(required: { checksum: string }, _optional: Record<string, never> = {}): MigrationStep<StorageKernel<Kysely<unknown>, unknown>> {
   return { id: PAYMENTS_ATTEMPT_RECOVERY_ID, checksum: required.checksum, up };
 }

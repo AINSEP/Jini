@@ -1,6 +1,6 @@
-import type { Selectable } from "kysely";
+import type { Selectable, Kysely } from "kysely";
 
-import type { StorageKernel } from "@jini-ai/db/kernel";
+import type { StorageKernel } from "@jini-ai/core/contracts/storage";
 import type { WidgetRegionBindingsTable, WidgetsDatabase, WidgetsTables } from "./tables.js";
 import type { UUID } from "@jini-ai/core/primitives";
 import type { WidgetRegionBindingRepoPort } from "../ports.js";
@@ -38,10 +38,10 @@ function toRow(binding: WidgetRegionBindingRow): WidgetRegionBindingsTable {
 }
 
 export class SqlWidgetRegionBindingRepo implements WidgetRegionBindingRepoPort {
-  protected readonly kernel: StorageKernel<WidgetsDatabase>;
+  protected readonly kernel: StorageKernel<Kysely<WidgetsDatabase>, WidgetsDatabase>;
   protected readonly tables: WidgetsTables;
   constructor(
-    { kernel, tables }: { kernel: StorageKernel<WidgetsDatabase>; tables: WidgetsTables },
+    { kernel, tables }: { kernel: StorageKernel<Kysely<WidgetsDatabase>, WidgetsDatabase>; tables: WidgetsTables },
     _optional: Record<string, never> = {},
   ) { this.kernel = kernel; this.tables = tables; }
 
@@ -111,8 +111,8 @@ export class SqlWidgetRegionBindingRepo implements WidgetRegionBindingRepoPort {
 
 /** Borrow the host kernel through this repository's narrow SQL schema view; no connection work. */
 export function widgetRegionBindingRepoFor<DB>(
-  { kernel, tables }: { kernel: StorageKernel<DB>; tables: WidgetsTables },
+  { kernel, tables }: { kernel: StorageKernel<Kysely<DB>, DB>; tables: WidgetsTables },
   _optional: Record<string, never> = {},
 ): SqlWidgetRegionBindingRepo {
-  return new SqlWidgetRegionBindingRepo({ kernel: kernel as unknown as StorageKernel<WidgetsDatabase>, tables });
+  return new SqlWidgetRegionBindingRepo({ kernel: kernel as unknown as StorageKernel<Kysely<WidgetsDatabase>, WidgetsDatabase>, tables });
 }

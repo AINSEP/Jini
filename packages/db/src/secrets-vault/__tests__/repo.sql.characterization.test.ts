@@ -2,11 +2,11 @@ import Database from "better-sqlite3";
 import { sql, type Kysely } from "kysely";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import type { VaultPutRecord } from "@jini-ai/platform/secrets/credential-sets/contracts";
-import type { StorageKernel } from "../../kernel/port.js";
+import type { KyselyKernel } from "../../kernel/port.js";
 import { sqliteKernel } from "../../kernel/sqlite/index.js";
 import { SqlSecretsVaultRepo, type SecretsVaultDatabase } from "../repo.sql.js";
 
-let kernel: StorageKernel<SecretsVaultDatabase>;
+let kernel: KyselyKernel<SecretsVaultDatabase>;
 let repo: SqlSecretsVaultRepo;
 let reads: string[];
 beforeEach(async () => {
@@ -24,7 +24,7 @@ beforeEach(async () => {
     (workspace_id, kind, owner_key, (principal_id IS NULL), coalesce(principal_id, ''),
      (provider IS NULL), coalesce(provider, ''), label)`);
   reads = [];
-  const recording: StorageKernel<SecretsVaultDatabase> = { ...kernel,
+  const recording: KyselyKernel<SecretsVaultDatabase> = { ...kernel,
     run<T>(body: (db: Kysely<SecretsVaultDatabase>) => T | Promise<T>): Promise<T> {
       return kernel.run(db => body(db.withPlugin({
         transformQuery(args) {
@@ -114,7 +114,7 @@ test("replacement validation rejects stale revisions, invalid increments and ide
 test("an update returning no row remains a conflict and rolls back the write", async () => {
   await repo.put({ record: record({ id: "a" }), expectedRevision: null });
   const b = await repo.put({ record: record({ id: "b" }), expectedRevision: null });
-  const missingResult: StorageKernel<SecretsVaultDatabase> = { ...kernel,
+  const missingResult: KyselyKernel<SecretsVaultDatabase> = { ...kernel,
     run<T>(body: (db: Kysely<SecretsVaultDatabase>) => T | Promise<T>): Promise<T> {
       return kernel.run(db => {
         let update = false;

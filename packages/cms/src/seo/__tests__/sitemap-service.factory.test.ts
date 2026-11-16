@@ -7,7 +7,7 @@ import { SeoFieldValidationError } from "../errors.js";
 import { buildPostRecord, InMemoryPostRepo } from "./support/post.fixture.js";
 import { InMemorySettingsRepo, seoDeps } from "./support/legacy-api.fixture.js";
 import { InMemoryMediaRepo, InMemoryTransformDefinitionRepo } from "../../media/index.js";
-import type { EventBusPort, OutboxPort } from "../../core/index.js";
+import type { EventBusPort, OutboxPort } from "@jini-ai/core/contracts/events";
 
 function harness(slug: string) {
   const postRepo = new InMemoryPostRepo([buildPostRecord({ slug })]);

@@ -1,7 +1,8 @@
 import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
 import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 import { type Clock as ClockPort } from "@jini-ai/core/primitives";
-import { assertEntityLive, ForbiddenError, type AuthorizeFn } from "../core/index.js";
+import { assertEntityLive, ForbiddenError } from "../core/index.js";
+import { type AuthorizeFn } from "@jini-ai/core/contracts/events";
 import type { SeoPostWritePort as PostRepoPort, SeoFeaturedImagePort } from "./ports.js";
 type FeaturedImageDeps = { featuredImage: SeoFeaturedImagePort };
 import {

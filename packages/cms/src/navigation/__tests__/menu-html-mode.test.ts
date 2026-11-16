@@ -3,7 +3,7 @@ import { test } from "vitest";
 
 import type { ToolExecutionContext } from "@jini-ai/core";
 
-import type { OutboxPort } from "../../core/ports.js";
+import type { OutboxPort } from "@jini-ai/core/contracts/events";
 import { menusAgentToolCatalog } from "../agent-tools.js";
 import { MAX_MENU_HTML_LENGTH } from "../menu-html.js";
 import { mergeMenuHtml } from "../menu-html.js";

@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { StorageKernel } from '@jini-ai/db/kernel';
+import type { StorageKernel } from '@jini-ai/core/contracts/storage';
 import type { ChatMessage } from '../../../core/index.js';
 import type { ChatDatabase } from '../kernel.js';
 import { createChatHistoryStore } from '../chat-history-store.js';
 import { createSqlChatStore } from '../../sql/store.js';
 import { createRunGuardedChatStore } from '../run-guarded-chat-store.js';
 import { runtimeFixture, type RuntimeFixture } from './runtime-fixture.js';
+import type { Kysely } from 'kysely';
 
 // A package test supplies its own clock port; the system clock lives in the platform package.
 const testClock = { nowMs: () => Date.now() };
@@ -72,13 +73,13 @@ describe('createChatHistoryStore construction', () => {
   it.each(['pglite', 'pglite-socket', 'node-postgres'] as const)('routes a postgres %s kernel to its adapter without SQL', (transport) => {
     f = runtimeFixture();
     const run = vi.spyOn(f.kernel, 'run');
-    const kernel: StorageKernel<ChatDatabase> = { ...f.kernel, dialect: 'postgres', transport };
+    const kernel: StorageKernel<Kysely<ChatDatabase>, ChatDatabase> = { ...f.kernel, dialect: 'postgres', transport };
     expect(typeof createChatHistoryStore({ kernel, scope, isDaemonRunId }).messages).toBe('function');
     expect(run).not.toHaveBeenCalled();
   });
   it.each(['pglite', 'pglite-socket', 'node-postgres'] as const)('a sqlite-dialect %s kernel is refused by the selected postgres adapter', (transport) => {
     f = runtimeFixture();
-    const kernel: StorageKernel<ChatDatabase> = { ...f.kernel, transport };
+    const kernel: StorageKernel<Kysely<ChatDatabase>, ChatDatabase> = { ...f.kernel, transport };
     expect(() => createChatHistoryStore({ kernel, scope, isDaemonRunId })).toThrow('Invalid chat store input.');
   });
 });

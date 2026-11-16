@@ -10,7 +10,7 @@ import { FormFieldValidationError } from "../../errors.js";
 import { createSubmissionAttempts as attempts, submissionAttemptKey as attemptKey, type SubmissionAttempts } from "../../submission-attempts.js";
 import { htmlSubmissionDefinition } from "../../html/index.js";
 import { InMemoryOutbox as OutboxFixture } from "../eventing.fixture.js";
-import type { EventBusPort } from "../../../core/index.js";
+import type { EventBusPort } from "@jini-ai/core/contracts/events";
 import type { OutboundEmail, MailerSendOptions, MailerSendResult } from "../../ports.js";
 
 export { executeCommand } from "../../../core/index.js";

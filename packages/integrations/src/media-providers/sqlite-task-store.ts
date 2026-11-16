@@ -39,7 +39,7 @@
  * two-phase boot reconciliation. See `createInMemoryMediaTaskStore` in
  * `task-store.ts` for the reference behavior this mirrors.
  */
-import type { SqliteSyncOpener } from '@jini-ai/db/sqlite';
+import type { SqliteSyncOpener } from '@jini-ai/core/contracts/storage';
 import { loadMediaSqliteOpener } from './sqlite-driver.adapter.js';
 import type {
   MediaTask,

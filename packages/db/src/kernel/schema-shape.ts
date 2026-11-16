@@ -1,6 +1,6 @@
 import { sql } from "kysely";
 
-import type { StorageKernel } from "./port.js";
+import type { KyselyKernel } from "./port.js";
 
 /** A column default as it appears in the shape text; absent defaults add nothing. */
 function defaultClause(value: string | null): string {
@@ -31,14 +31,14 @@ export interface SchemaShape {
 const squash = (text: string) => text.replace(/\s+/g, " ").trim();
 
 /** Every user table's shape (internal and `sqlite_`/`pg_` tables excluded), keyed by table name. */
-export async function readSchemaShape(kernel: StorageKernel<unknown>, optional: { exclude?: readonly string[] } = {}): Promise<SchemaShape> {
+export async function readSchemaShape(kernel: KyselyKernel<unknown>, optional: { exclude?: readonly string[] } = {}): Promise<SchemaShape> {
   const exclude = new Set(optional.exclude ?? []);
   const shape = kernel.dialect === "sqlite" ? await sqliteShape(kernel) : await postgresShape(kernel);
   for (const name of exclude) delete shape.tables[name];
   return shape;
 }
 
-async function sqliteShape(kernel: StorageKernel<unknown>): Promise<SchemaShape> {
+async function sqliteShape(kernel: KyselyKernel<unknown>): Promise<SchemaShape> {
   // An auto-index (UNIQUE/PRIMARY KEY in the table text) has no SQL of its own: read it as ''.
   const objects = await kernel.query<{ type: string; name: string; tbl_name: string; sql: string }>(
     sql`SELECT type, name, tbl_name, coalesce(sql, '') AS sql FROM sqlite_schema WHERE substr(name, 1, 7) <> 'sqlite_' ORDER BY type, name`
@@ -76,7 +76,7 @@ async function sqliteShape(kernel: StorageKernel<unknown>): Promise<SchemaShape>
 
 async function sqliteIndexTexts(
   { kernel, tableName, objects }: {
-    kernel: StorageKernel<unknown>;
+    kernel: KyselyKernel<unknown>;
     tableName: string;
     objects: readonly { type: string; name: string; sql: string }[];
   },
@@ -99,7 +99,7 @@ async function sqliteIndexTexts(
   return indexTexts;
 }
 
-async function postgresShape(kernel: StorageKernel<unknown>): Promise<SchemaShape> {
+async function postgresShape(kernel: KyselyKernel<unknown>): Promise<SchemaShape> {
   const columns = await kernel.query<{ table_name: string; column_name: string; data_type: string; is_nullable: string; column_default: string | null }>(
     sql`SELECT c.table_name, c.column_name, c.data_type, c.is_nullable, c.column_default
         FROM information_schema.columns c
@@ -136,7 +136,7 @@ async function postgresShape(kernel: StorageKernel<unknown>): Promise<SchemaShap
 }
 
 /** The main database file of a SQLite kernel; null for an in-memory database or a Postgres kernel. */
-export async function databaseFile<DB>(kernel: StorageKernel<DB>): Promise<string | null> {
+export async function databaseFile<DB>(kernel: KyselyKernel<DB>): Promise<string | null> {
   if (kernel.dialect !== "sqlite") return null;
   const rows = await kernel.query<{ file: string }>(sql`SELECT file FROM pragma_database_list WHERE name = 'main'`);
   return rows[0]?.file ? rows[0].file : null;

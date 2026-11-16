@@ -5,7 +5,8 @@ import type BetterSqlite3 from "better-sqlite3";
 import { sql } from "kysely";
 import { sqliteKernel, type SqliteKernel } from "@jini-ai/db/kernel/sqlite";
 import { openPgliteKernel, type PgKernel } from "@jini-ai/db/kernel/pglite";
-import type { StorageDialect, StorageKernel } from "@jini-ai/db/kernel";
+import type { KyselyKernel } from "@jini-ai/db/kernel";
+import type { StorageDialect } from "@jini-ai/core/contracts/storage";
 
 /**
  * @file The contract-test matrix: run one suite against the domain fixture on EVERY embedded dialect,
@@ -33,7 +34,7 @@ import type { StorageDialect, StorageKernel } from "@jini-ai/db/kernel";
  *   their tests one after another (Vitest's sequential default inside a file). Closed after the file.
  */
 
-export type ContentKernel<DB = unknown> = StorageKernel<DB>;
+export type ContentKernel<DB = unknown> = KyselyKernel<DB>;
 export type SqliteContentKernel<DB = unknown> = SqliteKernel<DB>;
 export type PgContentKernel<DB = unknown> = PgKernel<DB>;
 
@@ -43,7 +44,7 @@ export interface DialectOptions<R, DB = unknown> {
   /** One factory for every dialect — the point of a single query body. */
   make: (kernel: ContentKernel<DB>) => R;
   /** Required domain-owned DDL; this helper never imports a product's migrations. */
-  createTables: (kernel: StorageKernel<DB>, dialect: StorageDialect) => void | Promise<void>;
+  createTables: (kernel: KyselyKernel<DB>, dialect: StorageDialect) => void | Promise<void>;
 }
 
 export interface DialectCase<R> {
@@ -77,9 +78,9 @@ afterAll(async () => {
  * @example heldUntil({ kernel, pending: createTables(kernel, kernel.dialect) }, {});
  */
 export function heldUntil<DB>(
-  { kernel, pending }: { kernel: StorageKernel<DB>; pending: Promise<void> },
+  { kernel, pending }: { kernel: KyselyKernel<DB>; pending: Promise<void> },
   _optional: Record<string, never> = {},
-): StorageKernel<DB> {
+): KyselyKernel<DB> {
   return {
     ...kernel,
     ready: pending,

@@ -8,7 +8,7 @@ import { sql } from "kysely";
 
 import {
   outsideTransactionOf,
-  type StorageKernel,
+  type KyselyKernel,
   type StorageOps,
   verifyLedgerReadBack,
 } from "../index.js";
@@ -43,7 +43,7 @@ export interface PgliteRestore {
  * @complexity each op is one full pass over the data dir, O(size).
  */
 export function pgliteOps<DB>(
-  kernel: StorageKernel<DB>,
+  kernel: KyselyKernel<DB>,
   required: PgliteRestore & { ledgerTable: string },
   optional: { pgliteOwner?: PgliteExclusive } = {}
 ): StorageOps {
@@ -52,7 +52,7 @@ export function pgliteOps<DB>(
   if (kernel.transport !== "pglite" && !ownedSocket) {
     throw new Error(`pgliteOps: a ${kernel.transport} kernel is not PGlite in this process (a socket client needs pgliteOwner)`);
   }
-  const outsideTransaction = outsideTransactionOf(kernel as StorageKernel<unknown>);
+  const outsideTransaction = outsideTransactionOf(kernel as KyselyKernel<unknown>);
   return {
     async copyTo(targetPath) {
       outsideTransaction("copyTo");
@@ -82,7 +82,7 @@ export function pgliteOps<DB>(
         await kernel.execute(sql`VACUUM`);
         await kernel.execute(sql`CHECKPOINT`);
       }
-      await verifyLedgerReadBack(kernel as StorageKernel<unknown>, required.ledgerTable);
+      await verifyLedgerReadBack(kernel as KyselyKernel<unknown>, required.ledgerTable);
     },
   };
 }

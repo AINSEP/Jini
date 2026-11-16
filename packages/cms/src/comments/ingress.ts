@@ -25,7 +25,7 @@
  */
 import type { Clock as ClockPort, IdGenerator as IdGeneratorPort, UUID } from "@jini-ai/core/primitives";
 import { nowIso } from "@jini-ai/core/primitives";
-import type { OutboxPort } from "../core/index.js";
+import type { OutboxPort } from "@jini-ai/core/contracts/events";
 import type { RateLimiter as HttpRateLimiter } from "@jini-ai/http-kit/rate-limit";
 
 /** Only the request check belongs to ingress; limiter construction and diagnostics are host policy. */

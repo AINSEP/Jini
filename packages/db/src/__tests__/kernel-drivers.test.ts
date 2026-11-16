@@ -5,7 +5,8 @@ import Database from "better-sqlite3";
 import { Kysely, sql, SqliteDialect } from "kysely";
 import { PGlite } from "@electric-sql/pglite";
 
-import { buildKernel, UnsupportedCapabilityError } from "../kernel/index.js";
+import { buildKernel } from "../kernel/index.js";
+import { UnsupportedCapabilityError } from "@jini-ai/core/contracts/storage";
 import { openPgliteKernel } from "../kernel/pglite/index.js";
 import { sqliteKernel } from "../kernel/sqlite/index.js";
 

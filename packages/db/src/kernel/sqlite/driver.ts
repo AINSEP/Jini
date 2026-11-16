@@ -4,7 +4,7 @@ import { assertDatabaseCopySpace } from "../../sqlite/backup-policy.js";
 import type { SqliteClient, SqliteOpener } from "@jini-ai/core/contracts/storage";
 import { Kysely, type SqliteDatabase, SqliteDialect } from "kysely";
 
-import { buildKernel, type StorageKernel, TurnLock } from "../index.js";
+import { buildKernel, type KyselyKernel, TurnLock } from "../index.js";
 import { checkedClients, checkedStates, connectionsByKernel, rawKernelClients } from "../../sqlite/checked-state.js";
 import { inheritOwnedTransaction } from "../owned-transaction.js";
 
@@ -171,7 +171,7 @@ export function openSqliteFileKernel<DB>(
     close: async () => closeSqliteConnection(client),
   };
   connectionsByKernel.set(owned as SqliteKernel<unknown>, client);
-  inheritOwnedTransaction({ from: kernel as StorageKernel<unknown>, to: owned as StorageKernel<unknown> });
+  inheritOwnedTransaction({ from: kernel as KyselyKernel<unknown>, to: owned as KyselyKernel<unknown> });
   return owned;
 }
 
@@ -187,6 +187,6 @@ export function closeSqliteConnection(source: SqliteConnectionSource): void {
 }
 
 /** The connection under a kernel this driver built, for the SQLite `StorageOps` (`./ops.ts`). */
-export function sqliteConnectionOf<DB>(kernel: StorageKernel<DB>): SqliteClient | undefined {
-  return connectionsByKernel.get(kernel as StorageKernel<unknown>);
+export function sqliteConnectionOf<DB>(kernel: KyselyKernel<DB>): SqliteClient | undefined {
+  return connectionsByKernel.get(kernel as KyselyKernel<unknown>);
 }

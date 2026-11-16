@@ -1,5 +1,5 @@
-import type { StorageKernel } from "@jini-ai/db/kernel";
-import { sql } from "kysely";
+import type { StorageKernel } from "@jini-ai/core/contracts/storage";
+import { sql, type Kysely } from "kysely";
 import type { CommerceKernel } from "./database.js";
 import { toPriceRecord, toProductRecord } from "./repo.rows.js";
 import { toSiteProduct, toSiteProducts, type StorefrontSiteProduct } from "./storefront.js";
@@ -15,7 +15,7 @@ export const STOREFRONT_PRODUCT_LIMIT = 24;
  * Detail lookup joins one scoped product to its selected price in one database read.
  */
 export function commerceStorefrontFor<DB>(
-  { kernel, workspaceId }: { kernel: StorageKernel<DB>; workspaceId: string },
+  { kernel, workspaceId }: { kernel: StorageKernel<Kysely<DB>, DB>; workspaceId: string },
   _optional: Record<string, never> = {},
 ): {
   listProducts(required?: Record<string, never>, optional?: Record<string, never>): Promise<StorefrontSiteProduct[]>;

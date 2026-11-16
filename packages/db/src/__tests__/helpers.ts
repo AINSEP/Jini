@@ -1,7 +1,7 @@
 import { PGlite } from "@electric-sql/pglite";
 import Database from "better-sqlite3";
 
-import type { SqliteOpener } from "../sqlite/index.js";
+import type { SqliteOpener } from "@jini-ai/core/contracts/storage";
 
 /**
  * @file What the tests pass where a consumer passes its own: the better-sqlite3 opener, and the

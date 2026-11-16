@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import type { DomainEvent, OutboxPort } from "../../core/ports.js";
+import type { DomainEvent, OutboxPort } from "@jini-ai/core/contracts/events";
 import { assignLocation, createMenu, deleteMenu, MenuConflictError, MenuVersionConflictError, updateMenuTree } from "../menu-service.js";
 import { InMemoryMenuRepo, InMemoryNavLocationBindingRepo, type MenuRepoPort } from "../repo.memory.js";
 import type { NavMenuEntry } from "../types.js";

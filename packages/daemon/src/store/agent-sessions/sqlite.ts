@@ -8,8 +8,7 @@
  * already-ported `packages/daemon/src/store/agent-sessions/schema.ts` `agent_sessions` table. Ported verbatim aside from
  * de-branding the module doc comment.
  */
-import type { SqliteDb } from '@jini-ai/db/sqlite';
-import type { DbRow } from '@jini-ai/db/core';
+import type { SqliteDb, DbRow, StorageKernel } from '@jini-ai/core/contracts/storage';
 
 /**
  * Returns the stored upstream CLI session id for a (conversation, agent) pair, or null if none exists.
@@ -185,12 +184,12 @@ export function clearAgentSession({ db, conversationId, agentId }: { readonly db
 export { LEGACY_AGENT_SESSIONS_DDL } from './schema.js';
 
 import type { Clock } from '@jini-ai/core/primitives';
-import type { StorageKernel } from '@jini-ai/db/kernel';
 import type { AgentSessionStore } from './ports.js';
 import { createSqlAgentSessionStore, validateSessionKernel, type AgentSessionDatabase } from './sql.js';
+import type { Kysely } from 'kysely';
 export type { AgentSessionDatabase } from './sql.js';
 /** Simple session-id mapping over a borrowed, migrated kernel; the host supplies the core Clock. */
-export function createSqliteAgentSessionStore<DB extends AgentSessionDatabase>(input:{kernel:StorageKernel<DB>;clock:Clock},_optional={}):AgentSessionStore {
+export function createSqliteAgentSessionStore<DB extends AgentSessionDatabase>(input:{kernel:StorageKernel<Kysely<DB>, DB>;clock:Clock},_optional={}):AgentSessionStore {
  validateSessionKernel({ kernel: input.kernel, dialect: 'sqlite', transports: ['better-sqlite3'] });
  return createSqlAgentSessionStore({ kernel: input.kernel, clock: input.clock });
 }

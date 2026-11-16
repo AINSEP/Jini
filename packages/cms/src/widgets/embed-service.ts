@@ -24,7 +24,7 @@ import { isNonArrayRecord } from "@jini-ai/core";
  * `bodyJson` capability which did not exist yet at that time.
  */
 import type { Clock as ClockPort, JsonObject, JsonValue, UUID } from "@jini-ai/core/primitives";
-import type { ChangeSetRepoPort, CommandActor, OutboxPort } from "../core/index.js";
+import type { ChangeSetRepoPort, CommandActor, OutboxPort } from "@jini-ai/core/contracts/events";
 import { ForbiddenError, executeCommand } from "../core/index.js";
 import type { EntryRefsRepoPort } from "./ports.js";
 

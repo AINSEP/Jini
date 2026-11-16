@@ -26,7 +26,7 @@
  * the asymmetry `examples/nlweb-demo`'s keyword-scoring spike measured) are passed to `bm25()` at
  * query time, not baked into the index.
  */
-import type { SqliteDb } from '@jini-ai/db/sqlite';
+import type { SqliteDb } from '@jini-ai/core/contracts/storage';
 
 import type { ToolCatalogEntry, ToolCatalogSearchHit } from './index.js';
 export type { ToolCatalogEntry, ToolCatalogSearchHit } from './index.js';

@@ -4,9 +4,8 @@ import {
   InMemoryChangeSetRepo,
   revertChangeSet,
   RevertForbiddenError,
-  type ChangeSetRecord,
-  type ChangeSetItemRecord,
 } from "@jini-ai/cms/core/commands";
+import { type ChangeSetRecord, type ChangeSetItemRecord } from "@jini-ai/core/contracts/events";
 
 test("public commands entry reverts in reverse order and preserves the agent force guard", async () => {
   const record: ChangeSetRecord = {

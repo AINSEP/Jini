@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test, vi } from "vitest";
 
 import { InMemoryEventBus } from "./eventing.fixture.js";
-import type { DomainEvent } from "../../core/index.js";
+import type { DomainEvent } from "@jini-ai/core/contracts/events";
 import type { MailerPort, MailerSendOptions, MailerSendResult, OutboundEmail } from "../ports.js";
 import { registerFormNotifySubscriber as registerSubscriber } from "../notify-subscriber.js";
 import { InMemoryFormDefinitionRepo, InMemoryFormSubmissionRepo } from "./repo.fixture.js";

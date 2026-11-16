@@ -1,5 +1,11 @@
 import { nowIso as readNowIso, type Clock as ClockPort, type IdGenerator as IdGeneratorPort, type UUID } from "@jini-ai/core/primitives";
-import type { DomainEvent, OutboxPort, ChangeSetRecord, ChangeSetRepoPort, ChangeSetItemRecord } from "../index.js";
+import type {
+  DomainEvent,
+  OutboxPort,
+  ChangeSetRecord,
+  ChangeSetRepoPort,
+  ChangeSetItemRecord,
+} from "@jini-ai/core/contracts/events";
 import type { RevertRegistry, EntityReverter } from "./appliers.js";
 
 /**

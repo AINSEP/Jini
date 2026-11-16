@@ -21,7 +21,8 @@ import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
  * errors.spec.md.
  */
 import { type Clock as ClockPort, type IdGenerator as IdGeneratorPort } from "@jini-ai/core/primitives";
-import { assertEntityLive, type DomainEvent, type OutboxPort } from "../core/index.js";
+import { assertEntityLive } from "../core/index.js";
+import { type DomainEvent, type OutboxPort } from "@jini-ai/core/contracts/events";
 import { callerSafeErrorMessage, type CallerSafeErrorRule } from "@jini-ai/core/model-facing-tool-errors";
 import { hasForbiddenRawUrlCharacter } from "@jini-ai/http-kit/verified-origin";
 import type { OriginRegistryPort, RedirectTargetContext } from "@jini-ai/http-kit/verified-origin";

@@ -1,13 +1,13 @@
 /** C2 borrowed-kernel SQL effects: rollback, FK cascade, deterministic clock and no construction I/O. */
 import { expect, it, vi } from 'vitest';
 import { sql } from 'kysely';
-import type { StorageKernel } from '@jini-ai/db/kernel';
+import type { KyselyKernel } from '@jini-ai/db/kernel';
 import type { AgentSessionDatabase } from '../sql.js';
 import type { Clock } from '@jini-ai/core/primitives';
 import type { AgentSessionStore } from '../ports.js';
 import { sessionContract } from './contract.js';
-export interface SqlSessionFixture { kernel: StorageKernel<AgentSessionDatabase>; store:AgentSessionStore; close():Promise<void>; }
-export function sqlSessionContract(make:()=>Promise<SqlSessionFixture>,create:(input:{kernel:StorageKernel<AgentSessionDatabase>;clock:Clock})=>AgentSessionStore):void {
+export interface SqlSessionFixture { kernel: KyselyKernel<AgentSessionDatabase>; store:AgentSessionStore; close():Promise<void>; }
+export function sqlSessionContract(make:()=>Promise<SqlSessionFixture>,create:(input:{kernel:KyselyKernel<AgentSessionDatabase>;clock:Clock})=>AgentSessionStore):void {
  sessionContract(make);
  it('shares the injected transaction for insert, overwrite and clear rollback',async()=>{
   const f=await make();try{

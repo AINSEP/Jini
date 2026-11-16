@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import type { DomainEvent, OutboxPort } from "../../core/ports.js";
+import type { DomainEvent, OutboxPort } from "@jini-ai/core/contracts/events";
 import {
   assignLocation,
   createMenu,

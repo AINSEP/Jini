@@ -1,15 +1,16 @@
 import { describe, expect, test } from "vitest";
-import type { DomainEvent, OutboxPort } from "../../ports.js";
-import type { ChangeSetItemRecord, ChangeSetRecord, ChangeSetRepoPort } from "../change-set.js";
+import type { DomainEvent, OutboxPort, ChangeSetItemRecord, ChangeSetRecord, ChangeSetRepoPort } from "@jini-ai/core/contracts/events";
 import {
   DuplicateCommandError,
   ForbiddenError,
   executeCommand,
+} from "../command.js";
+import {
   type AuthorizeFn,
   type CommandEnvelope,
   type CommandMutation,
   type ExecuteCommandDeps,
-} from "../command.js";
+} from "@jini-ai/core/contracts/events";
 
 type InsertCall = {
   required: { record: ChangeSetRecord; items: ChangeSetItemRecord[] };

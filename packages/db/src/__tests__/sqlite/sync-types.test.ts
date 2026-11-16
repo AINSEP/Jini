@@ -1,7 +1,7 @@
 /** C2 the actual host driver's sync API is structural, and a transaction rolls back atomically. */
 import Database from 'better-sqlite3';
 import { expect, it } from 'vitest';
-import type { SqliteDb } from '../../sqlite/sync-types.js';
+import type { SqliteDb } from '@jini-ai/core/contracts/storage';
 it('a host Database satisfies typed prepare/get/all/transaction/pragma contracts',()=>{
   const host=new Database(':memory:');
   const db:SqliteDb=host;

@@ -1,6 +1,5 @@
-import { type ColumnDefinitionBuilder, type CreateTableBuilder, sql } from "kysely";
-import type { MigrationStep } from "@jini-ai/db/migrate";
-import type { StorageKernel } from "@jini-ai/db/kernel";
+import { type ColumnDefinitionBuilder, type CreateTableBuilder, sql, type Kysely } from "kysely";
+import type { MigrationStep, StorageKernel } from "@jini-ai/core/contracts/storage";
 
 /**
  * @file The payments ledger's first schema (ADR-066 step; design 2026-10-21 lot L2). Portable DDL:
@@ -171,7 +170,7 @@ const COLUMN: Readonly<Record<"pk" | "null" | "required", (column: ColumnDefinit
 const SCOPED_PAYMENT_KEY = ["payment_id", "workspace_id", "mode"];
 const PAYMENT_SCOPE_KEY = ["id", "workspace_id", "mode"];
 
-async function createTable({ kernel, spec }: { kernel: StorageKernel<unknown>; spec: TableSpec }): Promise<void> {
+async function createTable({ kernel, spec }: { kernel: StorageKernel<Kysely<unknown>, unknown>; spec: TableSpec }): Promise<void> {
   await kernel.run((db) => {
     // Columns are added in a loop, so Kysely cannot track their names: widen the builder to `string`.
     let builder = db.schema.createTable(spec.name) as unknown as CreateTableBuilder<string, string>;
@@ -187,7 +186,7 @@ async function createTable({ kernel, spec }: { kernel: StorageKernel<unknown>; s
   });
 }
 
-async function up(kernel: StorageKernel<unknown>): Promise<void> {
+async function up(kernel: StorageKernel<Kysely<unknown>, unknown>): Promise<void> {
   for (const spec of TABLES) await createTable({ kernel, spec });
   for (const [name, table, columns] of INDEXES) {
     await kernel.run((db) => db.schema.createIndex(name).on(table).columns([...columns]).execute());
@@ -195,6 +194,6 @@ async function up(kernel: StorageKernel<unknown>): Promise<void> {
 }
 
 /** The step, carrying its pinned checksum. @example paymentsLedger({ checksum }) */
-export function paymentsLedger(required: { checksum: string }, _optional: Record<string, never> = {}): MigrationStep {
+export function paymentsLedger(required: { checksum: string }, _optional: Record<string, never> = {}): MigrationStep<StorageKernel<Kysely<unknown>, unknown>> {
   return { id: PAYMENTS_LEDGER_ID, checksum: required.checksum, up };
 }

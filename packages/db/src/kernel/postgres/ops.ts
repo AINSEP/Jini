@@ -2,7 +2,7 @@ import { sql } from "kysely";
 
 import {
   outsideTransactionOf,
-  type StorageKernel,
+  type KyselyKernel,
   StorageOpNotSupportedError,
   type StorageOps,
   verifyLedgerReadBack,
@@ -28,11 +28,11 @@ const SOCKET_COPY_REASON = "a PGlite socket client copies through its owner's ex
  * @throws {Error} a kernel of another transport.
  * @complexity `compactAndVerify` is one full `VACUUM` pass, O(size).
  */
-export function postgresOps<DB>(kernel: StorageKernel<DB>, required: { ledgerTable: string }): StorageOps {
+export function postgresOps<DB>(kernel: KyselyKernel<DB>, required: { ledgerTable: string }): StorageOps {
   if (kernel.transport !== "node-postgres" && kernel.transport !== "pglite-socket") {
     throw new Error(`postgresOps: a ${kernel.transport} kernel is not a node-postgres connection`);
   }
-  const outsideTransaction = outsideTransactionOf(kernel as StorageKernel<unknown>);
+  const outsideTransaction = outsideTransactionOf(kernel as KyselyKernel<unknown>);
   return {
     async copyTo() {
       outsideTransaction("copyTo");
@@ -48,7 +48,7 @@ export function postgresOps<DB>(kernel: StorageKernel<DB>, required: { ledgerTab
         // A hosted server rarely lets an app's role CHECKPOINT; a commit is durable anyway.
         await kernel.execute(sql`VACUUM (ANALYZE)`);
       }
-      await verifyLedgerReadBack(kernel as StorageKernel<unknown>, required.ledgerTable);
+      await verifyLedgerReadBack(kernel as KyselyKernel<unknown>, required.ledgerTable);
     },
   };
 }

@@ -12,12 +12,12 @@ import {
   autoIdColumnSql,
   checkpointWal,
   columnTypeSql,
-  isUniqueViolation,
   jsonText,
   listColumns,
   listIndexes,
-  type StorageKernel,
+  type KyselyKernel,
 } from "../kernel/index.js";
+import { isUniqueViolation } from "@jini-ai/core/contracts/storage";
 import { openPgliteKernel } from "../kernel/pglite/index.js";
 import { sqliteKernel } from "../kernel/sqlite/index.js";
 
@@ -32,7 +32,7 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "jini-db-kernel-ddl-"));
 
 interface Case {
   name: "sqlite" | "pglite";
-  kernel: StorageKernel<unknown>;
+  kernel: KyselyKernel<unknown>;
 }
 
 const cases: Case[] = [

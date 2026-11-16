@@ -15,12 +15,8 @@
  */
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 /** Audited definition writes through the CMS command gateway. Host permissions and reserved slugs are explicit policies; notify, idempotency and optional outbox wiring live in the second argument. */
-import type { ChangeSetRepoPort } from "../core/index.js";
+import type { ChangeSetRepoPort, AuthorizeFn, CommandActor } from "@jini-ai/core/contracts/events";
 import type { Clock, IdGenerator, UUID } from "@jini-ai/core/primitives";
-import type {
-  AuthorizeFn,
-  CommandActor,
-} from "../core/index.js";
 import { FormDefinitionNotFoundError, FormFieldValidationError } from "./errors.js";
 import { validateFieldDescriptors } from "./forms.js";
 import type { FormAuthoringPort, FormCommandExecutorPort, FormDefinitionRepoPort } from "./ports.js";
@@ -350,7 +346,7 @@ export async function setFormDefinitionStatus(
 
 export interface FormWriteOptional {
   idempotencyKey?: string;
-  outbox?: import("../core/index.js").OutboxPort;
+  outbox?: import("@jini-ai/core/contracts/events").OutboxPort;
 }
 export interface CreateFormDefinitionOptional extends FormWriteOptional { notify?: NotifyConfig; authoring?: FormAuthoringPort; }
 export interface UpdateFormDefinitionOptional extends FormWriteOptional { authoring?: FormAuthoringPort; expectedVersion?: number; }

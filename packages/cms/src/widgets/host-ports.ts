@@ -1,5 +1,5 @@
 import type { Clock, JsonObject } from "@jini-ai/core/primitives";
-import type { OutboxPort } from "../core/ports.js";
+import type { OutboxPort } from "@jini-ai/core/contracts/events";
 import type { createEntry, updateEntry, importEntry, toEntryOutbox } from "../entries/index.js";
 import type { registerContentType, toContentTypeOutbox, IndexProvisionerPort } from "../content-types/index.js";
 import type { findMediaByIdOrSlug, getLatestTransformDefinition } from "../media/index.js";

@@ -9,7 +9,7 @@ import { FORMS_SUBMIT_PROFILE } from "./support/switch-bindings.fixture.js";
 import { InMemoryFormDefinitionRepo, InMemoryFormSubmissionRepo } from "../repo.memory.js";
 import { submitForm } from "./support/switch-bindings.fixture.js";
 import { createSubmissionAttempts, DUPLICATE_ATTEMPT, DUPLICATE_SUBMISSION_WINDOW_MS, FORM_ATTEMPT_FIELD, submissionAttemptKey } from "./support/switch-bindings.fixture.js";
-import type { DomainEvent } from "../../core/index.js";
+import type { DomainEvent } from "@jini-ai/core/contracts/events";
 import type { FormDefinitionRecord } from "../index.js";
 
 /**

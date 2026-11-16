@@ -1,4 +1,5 @@
-import type { MigrationStep } from "../../migrate/step.js";
+import type { MigrationStep } from "@jini-ai/core/contracts/storage";
+import type { KyselyKernel } from "../../kernel/index.js";
 
 /** Owner-only history: no site tables or foreign workspace records are required. */
 export const ownerStoreDdl = `
@@ -28,7 +29,7 @@ CREATE INDEX owner_grants_consumer ON owner_grants (consumer_id, entry_id);
 `;
 
 /** Pin is checked against the DDL in tests; never edit this step after publication. */
-export const ownerStoreMigration: MigrationStep = {
+export const ownerStoreMigration: MigrationStep<KyselyKernel<unknown>> = {
   id: "0000_owner_store",
   checksum: "ea2c33cf1835f6b1db0f52a4de3419aaf8c1a2e2edeece1e2b3240c517592446",
   async up(kernel) {

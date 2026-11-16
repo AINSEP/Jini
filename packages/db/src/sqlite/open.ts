@@ -22,9 +22,8 @@
  * (`drizzle(conn, { schema })`) and runs its own migrator; migrations are product schema, and this
  * package has no business knowing a host's tables.
  */
-import type { SqliteClient } from './types.js';
+import type { SqliteClient, OpenSqliteConnectionOptions } from '@jini-ai/core/contracts/storage';
 
-import type { OpenSqliteConnectionOptions } from './restore-types.js';
 
 /**
  * Applied when a caller passes no `pragmas`.

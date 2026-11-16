@@ -6,9 +6,10 @@ import { sql } from "kysely";
 import { listTables } from "../kernel/index.js";
 import { openPgliteKernel } from "../kernel/pglite/index.js";
 import { openMemorySqliteKernel } from "../kernel/sqlite/index.js";
-import type { StorageKernel } from "../kernel/index.js";
+import type { KyselyKernel } from "../kernel/index.js";
 import { assertValidSteps, hasLedger, runMigrations } from "../migrate/index.js";
-import { MigrationChecksumError, type MigrationStep, UnknownAppliedMigrationError } from "../migrate/index.js";
+import { MigrationChecksumError, UnknownAppliedMigrationError } from "../migrate/index.js";
+import { type MigrationStep } from "@jini-ai/core/contracts/storage";
 import { PGlite } from "@electric-sql/pglite";
 import { openSqlite, LEDGER } from "./helpers.js";
 
@@ -21,7 +22,7 @@ import { openSqlite, LEDGER } from "./helpers.js";
 
 const sum = (char: string) => char.repeat(64);
 
-function tableStep(id: string, table: string, checksum = sum("a")): MigrationStep {
+function tableStep(id: string, table: string, checksum = sum("a")): MigrationStep<KyselyKernel<unknown>> {
   return {
     id,
     checksum,
@@ -31,12 +32,12 @@ function tableStep(id: string, table: string, checksum = sum("a")): MigrationSte
   };
 }
 
-const kernels: Array<StorageKernel<unknown>> = [];
+const kernels: Array<KyselyKernel<unknown>> = [];
 after(async () => {
   for (const kernel of kernels) await kernel.close();
 });
 
-const dialects: Array<{ name: string; open: () => StorageKernel<unknown> }> = [
+const dialects: Array<{ name: string; open: () => KyselyKernel<unknown> }> = [
   { name: "sqlite", open: () => openMemorySqliteKernel<unknown>({ open: openSqlite }) },
   { name: "pglite", open: () => openPgliteKernel<unknown>({ PGlite }) },
 ];
@@ -74,7 +75,7 @@ for (const { name, open } of dialects) {
 
     test("a failing step rolls back its own changes, is not recorded, and stops later steps", async () => {
       const kernel = fresh();
-      const failing: MigrationStep = {
+      const failing: MigrationStep<KyselyKernel<unknown>> = {
         id: "0002_fails",
         checksum: sum("c"),
         up: async (k) => {
@@ -98,7 +99,7 @@ for (const { name, open } of dialects) {
       const kernel = fresh();
       await kernel.execute(sql`CREATE TABLE prepared_value (value text)`);
       const events: string[] = [];
-      const step: MigrationStep = {
+      const step: MigrationStep<KyselyKernel<unknown>> = {
         id: "0001_prepared",
         checksum: sum("a"),
         prepare: async (k, context) => {
@@ -129,7 +130,7 @@ for (const { name, open } of dialects) {
       await kernel.execute(sql`CREATE TABLE keep_value (value text)`);
       await kernel.execute(sql`INSERT INTO keep_value VALUES ('original')`);
       const failure = new Error("preparation refused");
-      const step: MigrationStep = {
+      const step: MigrationStep<KyselyKernel<unknown>> = {
         id: "0001_refused", checksum: sum("a"),
         prepare: async () => { throw failure; },
         up: async (k) => { await k.execute(sql`DELETE FROM keep_value`); },
@@ -191,7 +192,7 @@ test("P8: step mode rejects a newer ledger committed after the older runner's in
   const newer = tableStep("0003_newer", "newer_t", sum("c"));
   await runMigrations(kernel, [first], { ledgerTable: LEDGER });
 
-  const olderSecond: MigrationStep = {
+  const olderSecond: MigrationStep<KyselyKernel<unknown>> = {
     ...second,
     prepare: async () => {
       // The older invocation has read the ledger but has not acquired its migration lock.

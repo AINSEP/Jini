@@ -13,7 +13,8 @@
  * simplify, because a readiness probe that stops probing still answers `200`. Ownership by the base,
  * borrowing by features, is what makes the feature set genuinely independent.
  */
-import { openSqliteConnection, type SqliteDb, type SqliteSyncOpener } from '@jini-ai/db/sqlite';
+import { openSqliteConnection } from '@jini-ai/db/sqlite';
+import { type SqliteDb, type SqliteSyncOpener } from '@jini-ai/core/contracts/storage';
 import { join } from 'node:path';
 import { createNativeAgentRuntime, type AiTraceSink, type NativeAgentRuntime } from '@jini-ai/agent-runtime';
 

@@ -18,7 +18,7 @@ const CONVERSATION_UPDATED_AT = 'c.updated_at';
  */
 import { sql, type Kysely } from 'kysely';
 import type { Clock } from '@jini-ai/core/primitives';
-import { isUniqueViolation, type StorageKernel } from '@jini-ai/db/kernel';
+import { isUniqueViolation, type StorageKernel } from '@jini-ai/core/contracts/storage';
 import { redactUserMessage, type UserTextRedactionOptions } from '../../core/user-text-redaction.js';
 import type { ChatMessage } from '../../core/messages.js';
 import { MID_RUN_USER_MESSAGE_EVENT_NAME } from '../../core/turn-usage.js';
@@ -238,7 +238,7 @@ function assertHistoryListInputs({ limit, query }: { limit: number; query: unkno
  *   messages and embedded events in SQL; `messages` is O(messages in the conversation).
  */
 export function createSqlChatStore<DB extends ChatDatabase>(
-  { kernel, scope: inputScope, clock }: { kernel: StorageKernel<DB>; scope: ChatOwnerScope; clock: Clock },
+  { kernel, scope: inputScope, clock }: { kernel: StorageKernel<Kysely<DB>, DB>; scope: ChatOwnerScope; clock: Clock },
   redactionOptions: UserTextRedactionOptions = {},
 ): ChatStore {
   const scope = copyScope({ scope: inputScope });

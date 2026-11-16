@@ -6,7 +6,7 @@
  * Reseeding, tokenization, BM25 weights and score inversion remain in the storage adapter.
  * Keep this on a separate Node subpath so browser consumers never load storage imports.
  */
-import type { SqliteDb } from '@jini-ai/db/sqlite';
+import type { SqliteDb } from '@jini-ai/core/contracts/storage';
 import { ensureToolCatalogTables, getToolCatalogEntry, reseedToolCatalog, searchToolCatalog } from '../tool-catalog/sqlite.js';
 import type { CatalogStoreFactory } from './ports.js';
 

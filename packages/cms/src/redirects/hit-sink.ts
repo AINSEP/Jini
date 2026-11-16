@@ -21,7 +21,7 @@
  * INTERNAL SEAM (not an ADR-006 port, see `ports.ts`'s file header) + a thin
  * composition-root registration function.
  */
-import type { EventBusPort } from "../core/index.js";
+import type { EventBusPort } from "@jini-ai/core/contracts/events";
 
 import type { RedirectHitEventPayload, RedirectHitSink } from "./ports.js";
 import type { RedirectHitStats } from "./types.js";

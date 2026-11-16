@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 
-import type { StorageKernel } from "@jini-ai/db/kernel";
+import type { StorageKernel } from "@jini-ai/core/contracts/storage";
+import type { Kysely } from "kysely";
 
 /**
  * @file Test helper: run a repo write while ANOTHER async context holds a content-db transaction
@@ -18,7 +19,7 @@ const tick = () => new Promise((resolve) => setImmediate(resolve));
  * @example await writeDuringOthersRollback({ kernel, write: () => repo.save(record) }, {});
  */
 export async function writeDuringOthersRollback<T, DB = unknown>(
-  { kernel, write }: { kernel: StorageKernel<DB>; write: () => Promise<T> },
+  { kernel, write }: { kernel: StorageKernel<Kysely<DB>, DB>; write: () => Promise<T> },
   _optional: Record<string, never> = {},
 ): Promise<T> {
   let release!: () => void;

@@ -14,8 +14,7 @@
  * consumer may use, not the kernel itself (`@jini-ai/core`/`@jini-ai/daemon` know nothing about this
  * table) — so "project" here is a de-branded generic workspace/container concept, not OD's model.
  */
-import type { SqliteDb } from '@jini-ai/db/sqlite';
-import type { DbRow } from '@jini-ai/db/core';
+import type { SqliteDb, DbRow } from '@jini-ai/core/contracts/storage';
 
 /** @internal Column alias list used in every SELECT against the projects table. */
 const PROJECT_COLS = `id, name,

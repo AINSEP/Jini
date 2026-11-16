@@ -13,8 +13,7 @@ import type { Clock } from "@jini-ai/core/primitives";
  * single evaluation for these tools, located where the real route locates it.
  */
 import { ToolInputError } from "@jini-ai/core";
-import type { AuthorizeFn } from "../core/commands/command.js";
-import type { OutboxPort } from "../core/ports.js";
+import type { AuthorizeFn, OutboxPort } from "@jini-ai/core/contracts/events";
 import { buildDomainRegistrations, indexCatalogById, requireInputRecord, requireNumber, requireString, withSchemaOnRejection, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import { requireToolPermission } from "../core/tools/index.js";
 import { menusAgentToolCatalog } from "./agent-tools.js";

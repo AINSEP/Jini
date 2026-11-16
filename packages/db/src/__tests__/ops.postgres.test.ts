@@ -9,7 +9,7 @@ import { freshPostgresDatabase } from "../testing/postgres-database.js";
 import { openPostgresKernel } from "../kernel/postgres/index.js";
 import { StorageOpError, StorageOpNotSupportedError } from "../kernel/ops.js";
 import { postgresOps } from "../kernel/postgres/index.js";
-import type { StorageKernel } from "../kernel/port.js";
+import type { KyselyKernel } from "../kernel/port.js";
 
 /**
  * @file The storage ops port on a real Postgres server (node-postgres): no file copy, with the reason
@@ -17,7 +17,7 @@ import type { StorageKernel } from "../kernel/port.js";
  */
 
 const DB = "jini_kernel_ops_test";
-let kernel: StorageKernel<unknown>;
+let kernel: KyselyKernel<unknown>;
 
 before(() => {
   kernel = openPostgresKernel<unknown>({ pg, connectionString: freshPostgresDatabase(DB) });

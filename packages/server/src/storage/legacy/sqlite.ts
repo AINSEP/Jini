@@ -1,7 +1,8 @@
 /** Host-owned app.sqlite lifecycle; the host explicitly supplies its SQLite driver. */
 import path from 'node:path';
 import fs from 'node:fs';
-import { openSqliteConnection, type SqliteDb, type SqliteSyncOpener } from '@jini-ai/db/sqlite';
+import { openSqliteConnection } from '@jini-ai/db/sqlite';
+import { type SqliteDb, type SqliteSyncOpener } from '@jini-ai/core/contracts/storage';
 import { LEGACY_CHAT_DDL } from '@jini-ai/chat/store/legacy/sqlite';
 import { LEGACY_AGENT_SESSIONS_DDL } from '@jini-ai/daemon/store/agent-sessions/sqlite';
 import { LEGACY_PROJECTS_DDL } from '../../store/projects/sqlite.js';

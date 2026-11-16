@@ -1,7 +1,7 @@
 /** Characterizes the retained host policy while public storage arguments become objects. */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Database from 'better-sqlite3';
-import type { SqliteDb } from '@jini-ai/db/sqlite';
+import type { SqliteDb } from '@jini-ai/core/contracts/storage';
 import type { Server } from 'node:http';
 import { closeHttpServer, installGracefulShutdown, normalizeDaemonBindHost } from '../host-bootstrap.js';
 import { CORE_CAPABILITIES, JINI_PROFILES, isCapabilityId } from '../feature.js';

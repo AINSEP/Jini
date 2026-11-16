@@ -7,10 +7,11 @@ import { afterAll as after, describe, test } from "vitest";
 import { PGlite } from "@electric-sql/pglite";
 import { sql } from "kysely";
 
-import { listTables, type StorageKernel } from "../../kernel/index.js";
+import { listTables, type KyselyKernel } from "../../kernel/index.js";
 import { openPgliteKernel } from "../../kernel/pglite/index.js";
 import { openMemorySqliteKernel, openSqliteFileKernel } from "../../kernel/sqlite/index.js";
-import { hasLedger, MigrationChecksumError, type MigrationStep, runMigrations } from "../../migrate/index.js";
+import { hasLedger, MigrationChecksumError, runMigrations } from "../../migrate/index.js";
+import { type MigrationStep } from "@jini-ai/core/contracts/storage";
 import { LEDGER, openSqlite } from "../helpers.js";
 
 /**
@@ -22,7 +23,7 @@ import { LEDGER, openSqlite } from "../helpers.js";
 
 const sum = (char: string) => char.repeat(64);
 
-function tableStep(id: string, table: string, checksum = sum("a")): MigrationStep {
+function tableStep(id: string, table: string, checksum = sum("a")): MigrationStep<KyselyKernel<unknown>> {
   return {
     id,
     checksum,
@@ -32,14 +33,14 @@ function tableStep(id: string, table: string, checksum = sum("a")): MigrationSte
   };
 }
 
-const kernels: Array<StorageKernel<unknown>> = [];
+const kernels: Array<KyselyKernel<unknown>> = [];
 const dirs: string[] = [];
 after(async () => {
   for (const kernel of kernels) await kernel.close();
   for (const dir of dirs) fs.rmSync(dir, { recursive: true, force: true });
 });
 
-function track<K extends StorageKernel<unknown>>(kernel: K): K {
+function track<K extends KyselyKernel<unknown>>(kernel: K): K {
   kernels.push(kernel);
   return kernel;
 }
@@ -86,7 +87,7 @@ describe("the pre-change backup", () => {
     const kernel = sqliteMemory();
     const backupPath = path.join(tempDir(), "unused", "before.db");
     const seen: Array<string | undefined> = [];
-    const step: MigrationStep = {
+    const step: MigrationStep<KyselyKernel<unknown>> = {
       id: "0001_first",
       checksum: sum("a"),
       prepare: async (_kernel, context) => {
@@ -121,7 +122,7 @@ describe("the pre-change backup", () => {
     const real = sqliteMemory();
     await real.execute(sql`CREATE TABLE existing_t (id text)`);
     let copies = 0;
-    const noBackup: StorageKernel<unknown> = {
+    const noBackup: KyselyKernel<unknown> = {
       ...real,
       capabilities: { ...real.capabilities, backup: false },
       backupTo: async () => {
@@ -218,7 +219,7 @@ for (const { name, open } of dialects) {
       const kernel = open();
       const arrive = barrier(2);
       let ups = 0;
-      const step: MigrationStep = {
+      const step: MigrationStep<KyselyKernel<unknown>> = {
         id: "0001_once",
         checksum: sum("a"),
         // Both runs have read an empty ledger by the time either reaches its transaction.
@@ -243,7 +244,7 @@ for (const { name, open } of dialects) {
     test("a run whose step was recorded concurrently with another checksum fails without applying it", async () => {
       const kernel = open();
       const arrive = barrier(2);
-      const variant = (checksum: string): MigrationStep => ({ ...tableStep("0001_raced", "raced_t", checksum), prepare: arrive });
+      const variant = (checksum: string): MigrationStep<KyselyKernel<unknown>> => ({ ...tableStep("0001_raced", "raced_t", checksum), prepare: arrive });
 
       const outcomes = await Promise.allSettled([
         runMigrations(kernel, [variant(sum("a"))], { ledgerTable: LEDGER }),

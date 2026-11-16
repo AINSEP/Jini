@@ -4,7 +4,7 @@ import path from "node:path";
 import { sql } from "kysely";
 import { nowIso, type Clock } from "@jini-ai/core/primitives";
 
-import { listTables, type StorageKernel, tableExists } from "../kernel/index.js";
+import { listTables, type KyselyKernel, tableExists } from "../kernel/index.js";
 import { ownedTransactionOf } from "../kernel/owned-transaction.js";
 import { ensureLegacyLedger, insertLegacyRow, readLegacyLedger, validateLegacyMapping, type LegacyLedgerMapping } from "./legacy-ledger.js";
 import type { Ledger, LedgerRow } from "./ledger-contracts.js";
@@ -12,10 +12,9 @@ export type { Ledger, LedgerRow } from "./ledger-contracts.js";
 import {
   MIGRATION_ID,
   MigrationChecksumError,
-  type MigrationContext,
-  type MigrationStep,
   UnknownAppliedMigrationError,
 } from "./step.js";
+import { type MigrationContext, type MigrationStep } from "@jini-ai/core/contracts/storage";
 
 /**
  * @file The migration runner: applies an ordered list of {@link MigrationStep}s to one database on
@@ -69,12 +68,12 @@ export interface MigrationOptions {
   legacyLedger?: LegacyLedgerMapping;
 }
 
-function ledgerFor(kernel: StorageKernel<unknown>, options: MigrationOptions): Ledger {
+function ledgerFor(kernel: KyselyKernel<unknown>, options: MigrationOptions): Ledger {
   const table = options.ledgerTable;
   if (typeof table !== "string" || table.length === 0) throw new Error("runMigrations: options.ledgerTable is required");
   const { schema } = options;
   if (schema !== undefined && kernel.dialect !== "postgres") throw new Error(`a migration ledger schema ('${schema}') needs Postgres, not ${kernel.dialect}`);
-  const store = kernel as StorageKernel<LedgerDb>;
+  const store = kernel as KyselyKernel<LedgerDb>;
   return {
     table,
     schema,
@@ -93,7 +92,7 @@ export interface MigrationReport {
 }
 
 /** Throws on duplicate, unordered or malformed ids and on a checksum that is not sha256 hex. */
-export function assertValidSteps(steps: readonly MigrationStep[]): void {
+export function assertValidSteps(steps: readonly MigrationStep<KyselyKernel<unknown>>[]): void {
   let previous = "";
   for (const step of steps) {
     if (!MIGRATION_ID.test(step.id)) throw new Error(`migration id '${step.id}' is not NNNN_snake_name`);
@@ -106,7 +105,7 @@ export function assertValidSteps(steps: readonly MigrationStep[]): void {
 /** Inside the step's transaction, under the lock: two Postgres sessions racing `CREATE TABLE IF NOT
  * EXISTS` can otherwise still collide. Created with the first step, so a backup a step takes in
  * `prepare` is the database exactly as it was. */
-async function ensureLedger(kernel: StorageKernel<unknown>, ledger: Ledger): Promise<void> {
+async function ensureLedger(kernel: KyselyKernel<unknown>, ledger: Ledger): Promise<void> {
   if (ledger.schema !== undefined) await kernel.run((db) => db.schema.createSchema(ledger.schema as string).ifNotExists().execute());
   if (ledger.mapping !== undefined) {
     await ensureLegacyLedger({ ledger, mapping: ledger.mapping, dialect: kernel.dialect });
@@ -128,7 +127,7 @@ async function readLedger(ledger: Ledger): Promise<LedgerRow[]> {
   return ledger.run((db) => db.selectFrom(ledger.table).selectAll().orderBy("id").execute());
 }
 
-function verifyRecorded(rows: readonly LedgerRow[], steps: readonly MigrationStep[], options: MigrationOptions): void {
+function verifyRecorded(rows: readonly LedgerRow[], steps: readonly MigrationStep<KyselyKernel<unknown>>[], options: MigrationOptions): void {
   const known = new Map(steps.map((step) => [step.id, step]));
   const unknown = rows.filter((row) => !known.has(row.id)).map((row) => row.id);
   if (unknown.length > 0 && !options.allowUnknownApplied) throw new UnknownAppliedMigrationError(unknown, options.appName);
@@ -142,7 +141,7 @@ function verifyRecorded(rows: readonly LedgerRow[], steps: readonly MigrationSte
   }
 }
 
-async function insertRow({ ledger, step, options }: { ledger: Ledger; step: MigrationStep; options: MigrationOptions }, _optional: {} = {}): Promise<void> {
+async function insertRow({ ledger, step, options }: { ledger: Ledger; step: MigrationStep<KyselyKernel<unknown>>; options: MigrationOptions }, _optional: {} = {}): Promise<void> {
   const timestamp = () => options.clock === undefined ? new Date().toISOString() : nowIso({ clock: options.clock });
   if (ledger.mapping !== undefined) {
     await insertLegacyRow({ ledger, mapping: ledger.mapping, step, timestamp });
@@ -151,13 +150,13 @@ async function insertRow({ ledger, step, options }: { ledger: Ledger; step: Migr
   await ledger.run((db) => db.insertInto(ledger.table).values({ id: step.id, checksum: step.checksum, applied_at: timestamp() }).execute());
 }
 
-async function recordedStep({ ledger, step, steps, options }: { ledger: Ledger; step: MigrationStep; steps: readonly MigrationStep[]; options: MigrationOptions }, _optional: {} = {}): Promise<boolean> {
+async function recordedStep({ ledger, step, steps, options }: { ledger: Ledger; step: MigrationStep<KyselyKernel<unknown>>; steps: readonly MigrationStep<KyselyKernel<unknown>>[]; options: MigrationOptions }, _optional: {} = {}): Promise<boolean> {
   const rows = await readLedger(ledger);
   verifyRecorded(rows, steps, options);
   return rows.some((row) => row.id === step.id);
 }
 
-function validateExtensions({ options, steps }: { options: MigrationOptions; steps: readonly MigrationStep[] }, _optional: {} = {}): void {
+function validateExtensions({ options, steps }: { options: MigrationOptions; steps: readonly MigrationStep<KyselyKernel<unknown>>[] }, _optional: {} = {}): void {
   if (options.legacyLedger === undefined) return;
   validateLegacyMapping({ mapping: options.legacyLedger, steps });
   if (options.clock !== undefined && options.legacyLedger.timestamps !== "iso") {
@@ -165,12 +164,12 @@ function validateExtensions({ options, steps }: { options: MigrationOptions; ste
   }
 }
 
-function assertBatchSteps({ steps, done }: { steps: readonly MigrationStep[]; done: ReadonlySet<string> }, _optional: {} = {}): void {
+function assertBatchSteps({ steps, done }: { steps: readonly MigrationStep<KyselyKernel<unknown>>[]; done: ReadonlySet<string> }, _optional: {} = {}): void {
   if (steps.some((step) => !done.has(step.id) && step.prepare !== undefined)) throw new Error("batch migrations cannot run pending prepare hooks");
 }
 
 async function applyBatch({ kernel, ledger, steps, options, context, report }: {
-  kernel: StorageKernel<unknown>; ledger: Ledger; steps: readonly MigrationStep[];
+  kernel: KyselyKernel<unknown>; ledger: Ledger; steps: readonly MigrationStep<KyselyKernel<unknown>>[];
   options: MigrationOptions; context: MigrationContext; report: MigrationReport;
 }, _optional: {} = {}): Promise<MigrationReport> {
   const control = ownedTransactionOf({ kernel });
@@ -201,7 +200,7 @@ async function applyBatch({ kernel, ledger, steps, options, context, report }: {
 
 /** Object-input facade over the existing runner; all extensions remain opt-in. */
 export function migrate(
-  required: { kernel: StorageKernel<unknown>; steps: readonly MigrationStep[]; ledgerTable: string },
+  required: { kernel: KyselyKernel<unknown>; steps: readonly MigrationStep<KyselyKernel<unknown>>[]; ledgerTable: string },
   optional: Omit<MigrationOptions, "ledgerTable"> = {}
 ): Promise<MigrationReport> {
   return runMigrations(required.kernel, required.steps, { ...optional, ledgerTable: required.ledgerTable });
@@ -216,8 +215,8 @@ export function migrate(
  *   step throws (its transaction is rolled back, later steps are not attempted).
  */
 export async function runMigrations(
-  kernel: StorageKernel<unknown>,
-  steps: readonly MigrationStep[],
+  kernel: KyselyKernel<unknown>,
+  steps: readonly MigrationStep<KyselyKernel<unknown>>[],
   options: MigrationOptions
 ): Promise<MigrationReport> {
   assertValidSteps(steps);
@@ -264,13 +263,13 @@ function migrationContext({ options, note }: { options: MigrationOptions; note: 
   };
 }
 
-async function preparePendingStep({ kernel, context, step, backedUp }: { kernel: StorageKernel<unknown>; context: MigrationContext; step: MigrationStep; backedUp: boolean }): Promise<void> {
+async function preparePendingStep({ kernel, context, step, backedUp }: { kernel: KyselyKernel<unknown>; context: MigrationContext; step: MigrationStep<KyselyKernel<unknown>>; backedUp: boolean }): Promise<void> {
   if (!backedUp) await backUpBeforeChange(kernel, context);
   await step.prepare?.(kernel, context);
 }
 
 /** The pre-change copy (see the file header). Outside any transaction: a backup cannot run inside one. */
-async function backUpBeforeChange(kernel: StorageKernel<unknown>, context: MigrationContext): Promise<void> {
+async function backUpBeforeChange(kernel: KyselyKernel<unknown>, context: MigrationContext): Promise<void> {
   const target = context.backupPath;
   if (target === undefined || !kernel.capabilities.backup || (await listTables(kernel)).length === 0) return;
   // The folder is made only when a copy is taken, so a run with nothing to copy leaves none behind.
@@ -286,13 +285,13 @@ async function backUpBeforeChange(kernel: StorageKernel<unknown>, context: Migra
   await context.onBackupComplete?.({ backupPath: target });
 }
 
-async function ledgerExists(kernel: StorageKernel<unknown>, ledger: Ledger): Promise<boolean> {
+async function ledgerExists(kernel: KyselyKernel<unknown>, ledger: Ledger): Promise<boolean> {
   if (ledger.schema === undefined) return tableExists(kernel, ledger.table);
   const [row] = await kernel.query<{ found: string | null }>(sql`SELECT to_regclass(${ledger.schema + "." + ledger.table})::text AS found`);
   return row?.found != null;
 }
 
 /** True when `kernel`'s database has the ledger `ledgerTable` (it has been through {@link runMigrations}). */
-export async function hasLedger(kernel: StorageKernel<unknown>, ledgerTable: string): Promise<boolean> {
+export async function hasLedger(kernel: KyselyKernel<unknown>, ledgerTable: string): Promise<boolean> {
   return tableExists(kernel, ledgerTable);
 }

@@ -1,7 +1,7 @@
 /** Async SQLite execution over the host kernel; event-log policy lives in sqlite-policy. */
 import { loadOptionalPeer } from '@jini-ai/core/optional-peer';
 import type { Clock } from '@jini-ai/core/primitives';
-import type { StorageKernel } from '@jini-ai/db/kernel';
+import type { StorageKernel } from '@jini-ai/core/contracts/storage';
 import type { Kysely } from 'kysely';
 import type { EventLogAppendInput, EventLogAppendOptions, EventLogEntry, EventLogReplayResult } from '@jini-ai/protocol';
 import {
@@ -26,7 +26,7 @@ type EventDatabase = Kysely<SqliteEventLogDatabase>;
  * const log = await createKernelSqliteEventLog({ kernel, clock }, { schemaSetup: 'host' });
  */
 export async function createKernelSqliteEventLog<DB extends SqliteEventLogDatabase>(
-  required: { kernel: StorageKernel<DB>; clock: Clock },
+  required: { kernel: StorageKernel<Kysely<DB>, DB>; clock: Clock },
   optional: SqliteEventLogOptions = {},
 ): Promise<SqliteEventLogWithReceipts> {
   const { kernel, clock } = required;

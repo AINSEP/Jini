@@ -1,4 +1,4 @@
-import type { StorageKernel } from "@jini-ai/db/kernel";
+import type { StorageKernel } from "@jini-ai/core/contracts/storage";
 import type { RedirectDbHandle } from "../ports.internal.js";
 import type { RedirectRepoPort } from "../ports.js";
 import { compareLongestFirst, compareSamePatternExactFirst, compareTieBreak } from "../order.js";
@@ -7,6 +7,7 @@ import { toRecord, toRevision, toRevisionRow, toRow, updatableColumns } from "./
 import { RedirectNotFoundError } from "../types.js";
 import type { ListRedirectsFilter, RedirectRecord, RedirectRevision } from "../types.js";
 import type { RedirectsTable, RedirectRevisionsTable } from "./row-types.js";
+import type { Kysely } from "kysely";
 
 /**
  * @file THE redirect repository: one Kysely query body for every database the storage kernel drives
@@ -23,10 +24,10 @@ import type { RedirectsTable, RedirectRevisionsTable } from "./row-types.js";
 
 /** Host-owned table names. No schema or product table defaults live in the adapter. */
 export interface RedirectTables { redirects: string; revisions: string }
-export interface RedirectSqlRequired { kernel: StorageKernel<unknown>; tables: RedirectTables }
+export interface RedirectSqlRequired { kernel: StorageKernel<Kysely<unknown>, unknown>; tables: RedirectTables }
 
 export class SqlRedirectRepo implements RedirectRepoPort, RedirectDbHandle {
-  protected readonly kernel: StorageKernel<unknown>;
+  protected readonly kernel: StorageKernel<Kysely<unknown>, unknown>;
   protected readonly tables: RedirectTables;
   constructor(
     { kernel, tables }: RedirectSqlRequired,

@@ -1,5 +1,5 @@
 import { inheritKernelSessionDatabase } from "./session-lock.js";
-import type { StorageKernel } from "./port.js";
+import type { KyselyKernel } from "./port.js";
 import { inheritOwnedTransaction } from "./owned-transaction.js";
 
 /**
@@ -13,13 +13,13 @@ import { inheritOwnedTransaction } from "./owned-transaction.js";
  *
  * Transactions, locks and `close` are the underlying kernel's: one database, one connection pool.
  */
-export function scopeToSchema<DB>(kernel: StorageKernel<DB>, schema: string): StorageKernel<DB> {
+export function scopeToSchema<DB>(kernel: KyselyKernel<DB>, schema: string): KyselyKernel<DB> {
   if (kernel.dialect !== "postgres") throw new Error(`schema '${schema}' needs a Postgres kernel, not ${kernel.dialect}`);
-  const scoped: StorageKernel<DB> = {
+  const scoped: KyselyKernel<DB> = {
     ...kernel,
     run: (fn) => kernel.run((db) => fn(db.withSchema(schema))),
   };
-  inheritOwnedTransaction({ from: kernel as StorageKernel<unknown>, to: scoped as StorageKernel<unknown> });
-  inheritKernelSessionDatabase({ from: kernel as StorageKernel<unknown>, to: scoped as StorageKernel<unknown> });
+  inheritOwnedTransaction({ from: kernel as KyselyKernel<unknown>, to: scoped as KyselyKernel<unknown> });
+  inheritKernelSessionDatabase({ from: kernel as KyselyKernel<unknown>, to: scoped as KyselyKernel<unknown> });
   return scoped;
 }

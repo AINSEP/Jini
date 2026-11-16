@@ -25,7 +25,7 @@ import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
  */ 
 import { assertEntityLive } from "../core/entity-liveness.js";
 import type { Clock, IdGenerator, UUID } from "@jini-ai/core/primitives";
-import type { DomainEvent, OutboxPort } from "../core/ports.js";
+import type { DomainEvent, OutboxPort } from "@jini-ai/core/contracts/events";
 import type { MenuRepoPort } from "./repo.memory.js";
 import type { NavLocationBindingRepoPort } from "./ports.js";
 import { normalizeMenuItemAttrs } from "./link-rel.js";

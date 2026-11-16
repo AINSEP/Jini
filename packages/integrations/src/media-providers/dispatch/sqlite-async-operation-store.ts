@@ -29,7 +29,7 @@ import type { RequiredArgs, OptionalArgs } from '../../args.js';
  * `better-sqlite3` to embed SQLite >= 3.35; verified against this repo's pinned version before
  * writing this file.
  */
-import type { SqliteSyncOpener } from '@jini-ai/db/sqlite';
+import type { SqliteSyncOpener } from '@jini-ai/core/contracts/storage';
 import { loadMediaSqliteOpener } from '../sqlite-driver.adapter.js';
 
 import {

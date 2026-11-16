@@ -7,7 +7,7 @@ import { createChatHistoryStore, createChatHistoryMaintenance } from '../sqlite/
 import { ensureChatHistoryTables } from '../sqlite/index.js';
 import { sqliteKernel } from '@jini-ai/db/kernel/sqlite';
 import type { Clock } from '@jini-ai/core/primitives';
-import type { StorageKernel } from '@jini-ai/db/kernel';
+import type { KyselyKernel } from '@jini-ai/db/kernel';
 import type { ChatDatabase } from '../sql/tables.js';
 import type { ChatOwnerScope, ChatStore } from '../ports.js';
 
@@ -23,7 +23,7 @@ const Database = require('better-sqlite3');
 export interface Fixture {
  make(scope: ChatOwnerScope, clock?: Clock): ChatStore;
  maintenance: ReturnType<typeof createChatHistoryMaintenance>;
- kernel: StorageKernel<FixtureDatabase>;
+ kernel: KyselyKernel<FixtureDatabase>;
  messageCount(): Promise<number>;
  readCount(): number;
  readRows(): number;

@@ -3,7 +3,7 @@
  * the adapter result, the safe error codes and the persistence port the planner writes through.
  * Kept free of behaviour so hosts and adapter ABIs can import the shapes without pulling logic.
  */
-import type { DomainEvent } from "../../core/index.js";
+import type { DomainEvent } from "@jini-ai/core/contracts/events";
 
 /** Outbox event name of one child delivery job (one per selected binding per submission). */
 export const FORM_DELIVERY_EVENT = "form.submission.delivery";

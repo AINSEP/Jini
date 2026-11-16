@@ -17,7 +17,7 @@
  * INTERFACES + TYPES ONLY — no feature logic lives here.
  */
 import type { ISODateTime, UUID } from "@jini-ai/core/primitives";
-import type { DomainEvent } from "../core/index.js";
+import type { DomainEvent } from "@jini-ai/core/contracts/events";
 import type {
   CommentRecord,
   CommentStatus,

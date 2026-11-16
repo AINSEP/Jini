@@ -37,7 +37,8 @@ import {
   reseedToolCatalog,
   searchToolCatalog,
 } from '@jini-ai/registry/tool-catalog/sqlite';
-import { inspectSqliteDatabase, verifySqliteIntegrity, type SqliteDb } from '@jini-ai/db/sqlite';
+import { inspectSqliteDatabase, verifySqliteIntegrity } from '@jini-ai/db/sqlite';
+import { type SqliteDb } from '@jini-ai/core/contracts/storage';
 import { createDaemonDbToolRegistrations, denyAllWorkspaceRoots, registerActiveContextRoutes, registerAgentRoutes, registerConnectorsRoutes, registerDaemonDbRoutes, registerDaemonStatusRoutes, registerDelegatedToolRoutes, registerFrontendSessionRoutes, registerHealthRoutes, registerHostToolsRoutes, registerMediaRoutes, registerMemoryRoutes, registerModelProxyRoutes, registerRemoteRunEventRoutes, registerResearchRoutes, registerRoutineRoutes, registerRunRoutes, registerTerminalRoutes, registerToolCatalogRoutes, registerXaiRoutes, type AgentSummary, type DaemonDbOperations, type DaemonDbVacuumResult, type DelegatedToolExecuteRequest, type FrontendSessionsHttpDeps, type MediaHttpDeps, type MemoryHttpDeps, type RemoteToolBridgeTokenConfig, type RoutineHttpDeps, type RunStartHandler, type WorkspaceRootResolver } from '@jini-ai/daemon/http';
 import type { Express } from 'express';
 

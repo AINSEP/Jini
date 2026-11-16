@@ -1,5 +1,4 @@
-import type { TransactionalRepoPort } from "../core/ports.js";
-export type { TransactionalRepoPort } from "../core/ports.js";
+import type { TransactionalRepoPort } from "@jini-ai/core/contracts/events";
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 import type { Clock, IdGenerator } from "@jini-ai/core/primitives";
 import { ForbiddenError } from "../core/commands/command.js";

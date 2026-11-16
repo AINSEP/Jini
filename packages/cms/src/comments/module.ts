@@ -48,7 +48,7 @@
  */
 import type { Clock as ClockPort, IdGenerator as IdGeneratorPort, UUID } from "@jini-ai/core/primitives";
 import { nowIso } from "@jini-ai/core/primitives";
-import type { OutboxPort } from "../core/index.js";
+import type { OutboxPort } from "@jini-ai/core/contracts/events";
 import { createCommentHookRegistry } from "./hooks.js";
 import { createCommentIngressPolicy } from "./ingress.js";
 import type { CommentRateLimiter, EntryLookupResult } from "./ingress.js";

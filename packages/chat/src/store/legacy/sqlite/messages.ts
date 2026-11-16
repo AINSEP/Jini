@@ -14,10 +14,9 @@ import { redactUserText, type SecretRedactionSignal, type UserTextRedactionOptio
  * already-ported `packages/chat/src/store/legacy/sqlite/schema.ts` messages table was pre-trimmed to match; see that file and
  * `source-map.md`'s Design Decisions for the same drop list.
  */
-import type { SqliteDb } from '@jini-ai/db/sqlite';
-import type { DbRow } from '@jini-ai/db/core';
+import type { SqliteDb, DbRow } from '@jini-ai/core/contracts/storage';
 import type { ChatSessionMode } from '../index.js';
-import { parseJsonOrUndef } from '@jini-ai/db/core';
+import { parseJsonOrUndef } from '@jini-ai/core/contracts/storage';
 
 /** @internal Column alias list used by both `listMessages` and `upsertMessage`'s re-fetch. */
 const MESSAGE_COLS = `id, role, content, agent_id AS agentId, agent_name AS agentName,

@@ -1,8 +1,9 @@
-import type { StorageKernel } from "@jini-ai/db/kernel";
+import type { StorageKernel } from "@jini-ai/core/contracts/storage";
 import { decodeKeysetCursor, encodeKeysetCursor } from "../../core/keyset-cursor.js";
 import type { CommentRepoPort } from "../ports.js";
 import { type CommentTables, type ModerationLogTables, toLogEntry, toLogRow, toRecord, toRow } from "./repo.rows.js";
 import type { CommentRecord, CommentStatus, CommentThreadNode, ModerationAction, ModerationLogEntry, ModerationQueuePage } from "../types.js";
+import type { Kysely } from "kysely";
 
 /**
  * @file THE comments repository: one Kysely query body for every database the storage kernel
@@ -21,10 +22,10 @@ const buildThread = (comments: readonly CommentRecord[], parentId: string | null
 
 /** Host-supplied identifiers, quoted by Kysely; no product table defaults. */
 export interface CommentSqlTables { comments: string; moderationLog: string }
-export interface CommentSqlRequired { kernel: StorageKernel<unknown>; tables: CommentSqlTables }
+export interface CommentSqlRequired { kernel: StorageKernel<Kysely<unknown>, unknown>; tables: CommentSqlTables }
 
 export class SqlCommentRepo implements CommentRepoPort {
-  protected readonly kernel: StorageKernel<unknown>;
+  protected readonly kernel: StorageKernel<Kysely<unknown>, unknown>;
   protected readonly tables: CommentSqlTables;
 
   /** Binds a storage kernel to the host's comments tables; neither table name has a default. */

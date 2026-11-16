@@ -1,5 +1,6 @@
-import { type MigrationOptions, type MigrationReport, type MigrationStep, runMigrations } from "@jini-ai/db/migrate";
-import type { StorageKernel } from "@jini-ai/db/kernel";
+import { type MigrationOptions, type MigrationReport, runMigrations } from "@jini-ai/db/migrate";
+import { type MigrationStep } from "@jini-ai/core/contracts/storage";
+import type { KyselyKernel } from "@jini-ai/db/kernel";
 
 import { paymentsLedger } from "./0001_payments_ledger.js";
 import { paymentsOperatorActions } from "./0002_payments_operator_actions.js";
@@ -30,7 +31,7 @@ export function pinnedChecksum(
   return checksum;
 }
 
-export const COMMERCE_PAYMENTS_MIGRATIONS: readonly MigrationStep[] = [
+export const COMMERCE_PAYMENTS_MIGRATIONS: readonly MigrationStep<KyselyKernel<unknown>>[] = [
   paymentsLedger({ checksum: pinnedChecksum({ id: "0001_payments_ledger" }) }),
   paymentsOperatorActions({ checksum: pinnedChecksum({ id: "0002_payments_operator_actions" }) }),
   paymentsAttemptRecovery({ checksum: pinnedChecksum({ id: "0004_payments_attempt_recovery" }) }),
@@ -44,7 +45,7 @@ export const COMMERCE_PAYMENTS_MIGRATIONS: readonly MigrationStep[] = [
  * lipay code and data wrong (2026-10-21), so its rows are never migrated into this ledger.
  */
 export function migrateCommercePayments(
-  required: { kernel: StorageKernel<unknown> },
+  required: { kernel: KyselyKernel<unknown> },
   optional: Omit<MigrationOptions, "ledgerTable"> = {}
 ): Promise<MigrationReport> {
   return runMigrations(required.kernel, COMMERCE_PAYMENTS_MIGRATIONS, { ...optional, ledgerTable: COMMERCE_PAYMENTS_LEDGER_TABLE });
