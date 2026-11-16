@@ -17,7 +17,7 @@ import {
   type SurfaceAskThenReport, type SurfaceExchangeStore, type SurfaceMessage,
   type ToolExecutionContext, type ToolExecutionOptions,
 } from '@jini-ai/core';
-import type { UIResourceUri } from './resource.js';
+import type { UIResourceUri } from '@jini-ai/protocol/mcp-ui';
 import { buildFormSurface, type FormSurfaceSpec } from './surfaces/form.js';
 import { buildOutcomeSurface, type SurfaceOutcomeSpec } from './surfaces/outcome.js';
 import type { StringField, SurfaceField } from './surfaces/fields.js';

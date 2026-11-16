@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createHash } from 'node:crypto';
 import { buildOutcomeSurface, renderOutcomeDocument } from '../../surfaces/outcome.js';
-import { MCP_UI_ACTION_PLAN_META_KEY, MCP_UI_PREFERRED_FRAME_SIZE_META_KEY } from '../../resource.js';
+import {
+  MCP_UI_ACTION_PLAN_META_KEY,
+  MCP_UI_PREFERRED_FRAME_SIZE_META_KEY,
+} from '@jini-ai/protocol/mcp-ui';
 import { mountSurface } from './mount-surface.js';
 
 const PUBLISH_SUCCESS = {

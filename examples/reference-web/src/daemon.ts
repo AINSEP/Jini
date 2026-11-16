@@ -5,10 +5,7 @@ import { createServer as createHttpServer, type Server as HttpServer } from 'nod
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, extname, join, resolve } from 'node:path';
-import {
-  parseRendererToAgentMessage,
-  type RendererToAgentMessage,
-} from '@jini-ai/agentic/a2ui';
+import { parseRendererToAgentMessage, type RendererToAgentMessage } from '@jini-ai/protocol/a2ui';
 import Database from 'better-sqlite3';
 import { createAgentExecutor } from '@jini-ai/daemon';
 import { createNativeAgentRuntime } from '@jini-ai/agent-runtime';

@@ -34,7 +34,7 @@
  * single-use token minted into the dialog is what proves a human saw it. Adding a client-side
  * allow-list would suggest a protection that is not real.
  */
-import type { McpUiToolCall, McpUiToolCallHandler } from '@jini-ai/ui/mcp-ui';
+import type { McpUiToolCall, McpUiToolCallHandler } from '@jini-ai/protocol/mcp-ui';
 import type { SurfaceEmission } from '@jini-ai/core';
 import type { SurfaceRecoveryInfo } from '../../../core/surface-recovery.js';
 import { readSurfaceRecoveryStream } from './surface-recovery-stream.js';

@@ -29,7 +29,7 @@ export type { ConfirmationToolAction } from '@jini-ai/core/contracts/cards';
  * than deferring it by the TTL. It stays optional because a non-destructive confirmation has nothing
  * to burn.
  */
-import { createUIResource, type UIResource, type UIResourceUri } from '../resource.js';
+import { createUIResource, type UIResource, type UIResourceUri } from '@jini-ai/protocol/mcp-ui';
 import { escapeHtml, escapeJsValue } from '../escape.js';
 import {
   DEFAULT_SURFACE_STATUS_TEXT,

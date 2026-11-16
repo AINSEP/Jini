@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createHash } from 'node:crypto';
 import { ToolInputError, type SurfaceEmission, type SurfaceExchange, type SurfaceMessage, type ToolExecutionContext } from '@jini-ai/core';
-import { parseUIResource } from '../resource.js';
+import { parseUIResource } from '@jini-ai/protocol/mcp-ui';
 import { defineSecretCardTool, type SecretCardDeps, type SecretCardField, type SecretCardForm, type SecretCardOptions, type SecretCardRun, type SecretCardSpec } from '../secret-card.js';
 
 // Synthetic input only. No stored credential is read by these specifications.

@@ -1,5 +1,6 @@
 import { createElement, type ComponentType, type ReactNode } from 'react';
-import { DynamicValueSchema, type A2uiInterpreter } from '@jini-ai/agentic/a2ui';
+import { DynamicValueSchema } from '@jini-ai/agentic/a2ui';
+import { type A2uiInterpreter } from '@jini-ai/protocol/a2ui';
 import type { RenderComponentProps } from './A2uiSurfaceCard.hooks.js';
 
 /** Resolve dynamic text and explicit child IDs for the card's renderer. */

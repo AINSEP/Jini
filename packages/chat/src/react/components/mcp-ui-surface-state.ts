@@ -6,7 +6,7 @@
  * the card's own deadline (`useSurfaceExpiry`) became a second reason to close it.
  */
 import { questionAnswerText } from '../../core/question-answer.js';
-import type { McpUiToolCallHandler } from '@jini-ai/ui/mcp-ui';
+import type { McpUiToolCallHandler } from '@jini-ai/protocol/mcp-ui';
 import type { ExtEventCall } from '../ext-event-renderer-registry.js';
 import type { useT } from '../hooks/context.js';
 

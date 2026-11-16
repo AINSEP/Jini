@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { expect, it } from 'vitest';
 import { z } from 'zod';
-import { createLabCatalog } from '@jini-ai/agentic/a2ui';
+import { createLabCatalog } from '@jini-ai/protocol/a2ui';
 import { DEFAULT_INTERACTIVE_UI_REGISTRY } from '@jini-ai/ui/interactive-ui';
 import { A2uiSurfaceCard } from '../A2uiSurfaceCard.js';
 

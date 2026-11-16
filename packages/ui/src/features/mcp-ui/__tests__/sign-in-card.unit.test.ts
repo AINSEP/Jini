@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SurfaceEmission, SurfaceExchange, SurfaceMessage, ToolExecutionContext } from '@jini-ai/core';
 import { buildSignInCard, waitAtSignInCard, type SignInCardSpec, type SignInCardState } from '../sign-in-card.js';
-import { parseUIResource } from '../resource.js';
+import { parseUIResource } from '@jini-ai/protocol/mcp-ui';
 
 const spec: SignInCardSpec = {
   uri: 'ui://neutral/account', toolId: 'neutral_connect', app: { appName: 'neutral-app', appVersion: '2' },

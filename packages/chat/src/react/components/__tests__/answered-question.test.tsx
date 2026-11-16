@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { McpUiHostProps } from '@jini-ai/ui/mcp-ui';
-import { MCP_UI_MIME_TYPE } from '@jini-ai/ui/mcp-ui';
+import { MCP_UI_MIME_TYPE } from '@jini-ai/protocol/mcp-ui';
 import type { AgentEvent, ChatMessage } from '../../../core/index.js';
 import { acceptedInputUserEvent } from '../../../core/accepted-input.js';
 import { clearExtEventRenderers } from '../../ext-event-renderer-registry.js';

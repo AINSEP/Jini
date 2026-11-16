@@ -5,4 +5,3 @@
  * owner, @jini-ai/agentic.
  */
 export { CHAT_CAPABILITIES } from './chat-capabilities.js';
-export type { CapabilityDef, CapabilityInputSchema, CapabilityRisk } from '@jini-ai/agentic';
