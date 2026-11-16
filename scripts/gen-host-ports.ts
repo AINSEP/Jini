@@ -37,7 +37,7 @@ function declaredNames(node: ts.Statement): { name: string; kind: string }[] {
   return declared ? [declared] : [];
 }
 
-const isExported = (node: ts.Statement): boolean => (ts.getCombinedModifierFlags(node as ts.Declaration) & ts.ModifierFlags.Export) !== 0;
+const isExported = (node: ts.Statement): boolean => (ts.canHaveModifiers(node) ? ts.getModifiers(node) : undefined)?.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword) ?? false;
 
 function fileEntries(required: { pkg: string; filename: string; root: string }): HostPortEntry[] {
   const ast = parseSource({ file: required.filename, source: readFileSync(required.filename, 'utf8') });
@@ -64,7 +64,8 @@ export function renderHostPorts(required: { entries: readonly HostPortEntry[] },
     'Everything a Jini package asks its host to bind or register: `*Port`, `*Kit`, `*Deps`, and registry functions',
     '(`register*`, `define*`, `contribute*`, `mount*`). Bind each in your composition root with `satisfies <Port>`.', '',
   ];
-  const byPackage = Map.groupBy(required.entries, entry => entry.pkg);
+  const byPackage = new Map<string, HostPortEntry[]>();
+  for (const entry of required.entries) byPackage.set(entry.pkg, [...(byPackage.get(entry.pkg) ?? []), entry]);
   for (const [pkg, entries] of byPackage) {
     lines.push(`## ${pkg}`, '', '| Name | Category | Kind | Where |', '|---|---|---|---|');
     for (const entry of entries) lines.push(`| \`${entry.name}\` | ${entry.category} | ${entry.kind} | \`${entry.file}:${entry.line}\` |`);
