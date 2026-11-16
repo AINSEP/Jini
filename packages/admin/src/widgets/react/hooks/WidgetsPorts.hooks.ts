@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react';
 import type { ComponentType, ReactNode } from 'react';
-import type { ScopedPorts } from '../../../core/module/types.js';
+import type { ScopedPorts } from '@jini-ai/core/contracts/admin-module';
 import type { widgetsModule } from '../../widgets.module.js';
 import type { AdminWidgetType, WidgetTypeOption, WidgetSlugRedirectPath, WidgetsTranslate } from '../../models.js';
 import { widgetsEnglish } from '../../messages.en.js';

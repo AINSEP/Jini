@@ -3,7 +3,7 @@ export { useUsersScope } from './UsersScope.hooks.js';
 export type { UsersScope, UsersPageProps } from './UsersScope.hooks.js';
 import { createElement, lazy } from 'react';
 import type { ReactNode } from 'react';
-import type { AdminInstance } from '@jini-ai/admin/core/module';
+import type { AdminInstance } from '@jini-ai/core/contracts/admin-module';
 import { usersModule } from '../../users.module.js';
 /** Descriptor identity must be the exact enriched object supplied to createAdmin. */
 export function createUsersBinding({ module }: { module: typeof usersModule }, _optional: Record<string, never> = {}) {

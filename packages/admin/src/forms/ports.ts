@@ -1,4 +1,4 @@
-import { adminPort } from '../core/module/token.js';
+import { adminPort } from '@jini-ai/core/contracts/admin-module';
 import type { AdminFormsPort } from '../core/ports/forms.js';
 import type { AdminShellNavigationPort } from '../core/ports/shell.js';
 export type { AdminFormsPort } from '../core/ports/forms.js';

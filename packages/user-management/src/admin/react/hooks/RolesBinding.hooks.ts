@@ -3,7 +3,7 @@ export { useRolesScope } from './RolesScope.hooks.js';
 export type { RolesScope, RolesTabProps, RolesPageProps } from './RolesScope.hooks.js';
 import { createElement, lazy } from 'react';
 import type { ReactNode } from 'react';
-import type { AdminInstance } from '@jini-ai/admin/core/module';
+import type { AdminInstance } from '@jini-ai/core/contracts/admin-module';
 import { rolesModule } from '../../roles.module.js';
 /** A private scope binds only this module's declared ports. No admin React internals are needed. */
 export function createRolesBinding({ module }: {

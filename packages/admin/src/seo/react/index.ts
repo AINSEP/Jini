@@ -1,5 +1,5 @@
 import { createElement, type ReactNode } from 'react';
-import type { AdminInstance } from '../../core/module/types.js';
+import type { AdminInstance } from '@jini-ai/core/contracts/admin-module';
 import { bindReact } from '../../core/react/bind-react.js';
 import { seoModule } from '../seo.module.js';
 import { SeoPortsContext, SeoOptionsContext } from './hooks/SeoPorts.hooks.js';

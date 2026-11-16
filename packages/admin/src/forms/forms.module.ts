@@ -1,4 +1,4 @@
-import { defineAdminModule } from '../core/module/define-admin-module.js';
+import { defineAdminModule } from '@jini-ai/core/contracts/admin-module';
 import { formsApiToken, formsTrashToken, formsEventsToken, formsNavigationToken } from './ports.js';
 import { formsMessagesEn } from './messages.en.js';
 export const formsModule = defineAdminModule({

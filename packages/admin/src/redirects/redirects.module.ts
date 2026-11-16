@@ -1,4 +1,4 @@
-import { defineAdminModule } from '../core/module/index.js';
+import { defineAdminModule } from '@jini-ai/core/contracts/admin-module';
 import { redirectsApiToken, redirectsEventsToken } from './ports.js';
 import { redirectsMessagesEn } from './messages.en.js';
 /** Existing route identity and permission are part of the host's navigation contract. */

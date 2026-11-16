@@ -1,4 +1,4 @@
-import { adminPort, defineAdminModule } from '@jini-ai/admin/core/module';
+import { adminPort, defineAdminModule } from '@jini-ai/core/contracts/admin-module';
 import type { UsersApiPort, UsersSafetyPort } from './ports.js';
 import { usersMessagesEn } from './messages.en.js';
 export const usersApiToken = adminPort<UsersApiPort, 'jini.identity.usersApi'>({ id: 'jini.identity.usersApi' });

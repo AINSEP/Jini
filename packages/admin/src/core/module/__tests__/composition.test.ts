@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { createAdmin, defineAdminModule, adminPort, AdminConfigError } from '../index.js';
+import { createAdmin, AdminConfigError } from '../index.js';
+import { defineAdminModule, adminPort } from '@jini-ai/core/contracts/admin-module';
 const a = adminPort<{ read(): string }>({ id: 'test.a' });
 const module = defineAdminModule({
   id: 'test',

@@ -1,4 +1,4 @@
-import { adminPort } from '../core/module/token.js';
+import { adminPort } from '@jini-ai/core/contracts/admin-module';
 import type { AdminRedirectsPort } from '../core/ports/redirects.js';
 export type { AdminRedirectsPort } from '../core/ports/redirects.js';
 /** Refresh notifications contain no rows; the authorized API remains the data owner. */

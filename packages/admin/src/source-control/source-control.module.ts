@@ -1,4 +1,4 @@
-import { defineAdminModule } from '../core/module/index.js';
+import { defineAdminModule } from '@jini-ai/core/contracts/admin-module';
 import { sourceControlApiToken } from './ports.js';
 import { credentialManagementToken } from '../contracts/credential-management.js';
 import { sourceControlMessagesEn as m } from './messages.en.js';

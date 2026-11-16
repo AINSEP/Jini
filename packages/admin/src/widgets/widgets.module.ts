@@ -1,4 +1,4 @@
-import { defineAdminModule } from '../core/module/index.js';
+import { defineAdminModule } from '@jini-ai/core/contracts/admin-module';
 import { widgetsApiToken, widgetsEventsToken, widgetsNavigationToken } from './ports.js';
 import { widgetsMessagesEn } from './messages.en.js';
 // Region pages share the host agent id; route-specific module page ids do not replace it.

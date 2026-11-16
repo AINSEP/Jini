@@ -1,6 +1,6 @@
 import { createElement } from 'react';
 import type { ComponentType, ReactNode } from 'react';
-import type { AdminInstance } from '../../core/module/types.js';
+import type { AdminInstance } from '@jini-ai/core/contracts/admin-module';
 import { bindReact } from '../../core/react/bind-react.js';
 import type { ModulePageProps } from '../../core/react/bind-react.js';
 import { widgetsModule } from '../widgets.module.js';

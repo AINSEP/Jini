@@ -1,4 +1,5 @@
-import { createAdmin, defineAdminModule, adminPort } from '../index.js';
+import { createAdmin } from '../index.js';
+import { defineAdminModule, adminPort } from '@jini-ai/core/contracts/admin-module';
 const demo = defineAdminModule({
   id: 'demo',
   requires: { api: adminPort<{ list(): void }>({ id: 'demo.api' }) },

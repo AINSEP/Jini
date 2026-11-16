@@ -1,4 +1,4 @@
-import { adminPort } from '../core/module/token.js';
+import { adminPort } from '@jini-ai/core/contracts/admin-module';
 /** Opaque headlessly; browser hosts publish an actual portal container, never an id or flag. */
 export interface PlaygroundTargetSnapshot { readonly target: object | null }
 export interface PlaygroundRenderTargetPort {

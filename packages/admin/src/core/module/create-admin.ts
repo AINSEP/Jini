@@ -6,8 +6,10 @@ import type {
   AdminTab,
   TabId,
   ScopedPorts,
-} from './types.js';
-import type { AdminPortToken, PortMap, PortValues } from './token.js';
+  AdminPortToken,
+  PortMap,
+  PortValues,
+} from '@jini-ai/core/contracts/admin-module';
 const bulletLine = (issue: string) => `- ${issue}`;
 export class AdminConfigError extends Error {
   readonly issues: readonly string[];

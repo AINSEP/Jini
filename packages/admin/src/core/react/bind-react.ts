@@ -1,6 +1,6 @@
 import { createContext, createElement, lazy, useContext } from 'react';
 import type { ComponentType, ReactNode, LazyExoticComponent, Context as ReactContext } from 'react';
-import type { AdminInstance, AdminModule, ScopedPorts } from '../module/types.js';
+import type { AdminInstance, AdminModule, ScopedPorts } from '@jini-ai/core/contracts/admin-module';
 import { AdminConfigError } from '../module/create-admin.js';
 export interface TabViewProps {
   readonly params: Readonly<Record<string, unknown>>;

@@ -1,4 +1,4 @@
-import { defineAdminModule } from '../core/module/index.js';
+import { defineAdminModule } from '@jini-ai/core/contracts/admin-module';
 import { mediaPickerToken } from '../contracts/media-picker.js';
 import { seoApiToken, seoEventsToken } from './ports.js';
 import { seoMessagesEn } from './messages.en.js';

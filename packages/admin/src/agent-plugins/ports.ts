@@ -1,4 +1,4 @@
-import { adminPort } from '../core/module/token.js';
+import { adminPort } from '@jini-ai/core/contracts/admin-module';
 import type { AgentPluginActivationInput, AgentPluginSummary, AgentPluginFiles, AgentPluginRequestOptions } from './models.js';
 /** Host owns lifecycle effects and authorization. Both list tabs read this same workspace scope. */
 export interface AgentPluginsApiPort {
