@@ -1,4 +1,4 @@
-import { act, render } from '@testing-library/react';
+import { act, render } from '../../../__tests__/fetch-query-support.js';
 import { expect, it, vi } from 'vitest';
 import { ConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog.js';
 import type { UseConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog.hooks.js';

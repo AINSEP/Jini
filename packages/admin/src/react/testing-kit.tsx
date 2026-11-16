@@ -1,8 +1,7 @@
-import { render, type RenderResult } from '@testing-library/react';
-import { forwardRef, useRef, type ReactElement } from 'react';
+import { forwardRef, useEffect, useMemo, useRef, type RefObject } from 'react';
 import type { FetchQueryAdapter, QueryResult } from '@jini-ai/core/fetch';
-import { AdminKitProvider, type AdminKit, type ButtonProps, type IconButtonProps, type AdminKitComponents, type AdminKitHooks, type AdminThemeKit } from '../kit.js';
-import type { AdminMediaProvidersKit } from '../kit-media-providers.js';
+import { type AdminKit, type DialogProps, type NativeDialogView, type SettlementGeneration, type ButtonProps, type IconButtonProps, type AdminKitComponents, type AdminKitHooks, type AdminThemeKit } from './kit.js';
+import { fakeMediaProviders } from './testing-kit-media-providers.js';
 
 const fakeComponents: AdminKitComponents = {
   Button: forwardRef<HTMLButtonElement, Omit<ButtonProps, 'ref'>>((p, ref) => <button ref={ref} {...p.attrs} type={p.type ?? 'button'} className={p.className} disabled={p.disabled || p.pending} onClick={() => p.onPress?.({})}>{p.children}</button>),
@@ -16,8 +15,8 @@ const fakeComponents: AdminKitComponents = {
       </select>
     </label>
   ),
-  Switch: (p) => <label>{p.label}<input type="checkbox" checked={p.checked} disabled={p.disabled} onChange={(e) => p.onCheckedChange({ checked: e.target.checked })} /></label>,
-  Dialog: (p) => (p.open ? <div role="dialog" aria-label={p.title}>{p.children}<button type="button" onClick={() => p.onClose({})}>{p.closeLabel ?? 'Close'}</button></div> : null),
+  Switch: (p) => <label>{p.label}<input type="checkbox" role="switch" checked={p.checked} disabled={p.disabled} onChange={(e) => p.onCheckedChange({ checked: e.target.checked })} /></label>,
+  Dialog: (p) => (p.open ? <div role="dialog" aria-label={p.title}><h2>{p.title}</h2>{p.children}<button type="button" onClick={() => p.onClose({})}>{p.closeLabel ?? 'Close'}</button></div> : null),
   ConfirmDialog: (p) => (p.open ? (
     <div role="dialog" aria-label={p.title}>{p.body}
       <button type="button" onClick={() => p.onCancel({})}>{p.cancelLabel ?? 'Cancel'}</button>
@@ -49,13 +48,49 @@ const fakeComponents: AdminKitComponents = {
 fakeComponents.Button.displayName = 'FakeButton';
 fakeComponents.IconButton.displayName = 'FakeIconButton';
 
+// Mirrors the real hook's one observable duty: a `<dialog>` is only visible/accessible once opened, so follow `open`.
+function useFakeNativeDialog(required: DialogProps): NativeDialogView {
+  const ref = useRef<HTMLDialogElement | null>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // Attribute, not showModal(): jsdom has no dialog top layer, and the attribute is all accessibility queries read.
+    el.toggleAttribute('open', required.open);
+  }, [required.open]);
+  return { titleId: 'fake-title', props: { ref, onCancel: () => required.onClose({}), onClick: () => {} } };
+}
+
+const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
+// Mirrors the real trap's contract: while active, Tab and Shift+Tab wrap at the container's first/last focusable.
+function useFakeFocusTrap({ containerRef }: { containerRef: RefObject<HTMLElement | null> }, { active = true }: { active?: boolean | undefined } = {}): void {
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!active || !container) return undefined;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab') return;
+      const items = Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE));
+      const edge = event.shiftKey ? items[0] : items[items.length - 1];
+      if (!edge || document.activeElement !== edge) return;
+      event.preventDefault();
+      (event.shiftKey ? items[items.length - 1] : items[0])?.focus();
+    };
+    container.addEventListener('keydown', onKeyDown);
+    return () => container.removeEventListener('keydown', onKeyDown);
+  }, [containerRef, active]);
+}
+
 const fakeHooks: AdminKitHooks = {
   useAgentHandle: (r) => (r.agentHandle === false ? undefined : r.agentHandle ?? 'fake-handle'),
-  useFocusTrap: () => {},
-  useDirtyGuard: (r) => ({ isDirty: r.original !== null && JSON.stringify(r.current) !== JSON.stringify(r.original), confirmLeave: () => true }),
+  useFocusTrap: useFakeFocusTrap,
+  useDirtyGuard: (r, o) => {
+    const isDirty = r.original !== null && JSON.stringify(r.current) !== JSON.stringify(r.original);
+    // The contract: clean (and nothing untracked) leaves freely; otherwise the operator's answer decides.
+    return { isDirty, confirmLeave: (_required = {}, { unsavedBeyondTracked = false } = {}) => (!isDirty && !unsavedBeyondTracked) || (o?.host ?? window).confirm('You have unsaved changes. Leave without saving?') };
+  },
   useSettlementGeneration: () => {
     const ref = useRef(0);
-    return { next: () => ++ref.current, isCurrent: (r) => r.generation === ref.current };
+    // Stable identity across renders, like a host's: callers list it in effect deps.
+    return useMemo<SettlementGeneration>(() => ({ next: () => ++ref.current, isCurrent: (r) => r.generation === ref.current }), []);
   },
   useConfirmController: (r) => ({
     pending: !!r.pending, error: null,
@@ -63,7 +98,7 @@ const fakeHooks: AdminKitHooks = {
     confirm: { onPress: () => void r.onConfirm({}) },
     requestDismiss: () => { r.onCancel({}); return true; },
   }),
-  useNativeDialog: (r) => ({ titleId: 'fake-title', props: { ref: useRef<HTMLDialogElement | null>(null), onCancel: () => r.onClose({}), onClick: () => {} } }),
+  useNativeDialog: useFakeNativeDialog,
 };
 
 /** Query hooks that answer immediately with `data`; mutations resolve at once. */
@@ -81,29 +116,16 @@ export function fixtureQuery(fixture: { data?: unknown } = {}): AdminKit['query'
   return { ...adapter, useFetchQueryScope: () => 1 };
 }
 
-const fakeMediaProviders: AdminMediaProvidersKit = {
-  useMediaProvidersTab: () => ({
-    providers: {}, load: { status: 'ok' }, save: { status: 'idle' }, hasAnyConfigured: false,
-    pendingProviderIds: new Set<string>(), updateProvider: () => {}, clearProvider: () => {}, saveChanges: () => {}, reload: () => {},
-  }),
-  rules: {
-    sortProvidersByConfigured: (catalog) => catalog,
-    isEntryPresent: (entry) => !!entry,
-    isMarkerOnlyEntry: () => false,
-    maskedKeyLabel: () => null,
-    isProviderBaseUrlInvalid: () => false,
-    invalidBaseUrlProviderIds: () => [],
-  },
-};
-
-const neutralColors = Object.freeze({ primary: '#000', primaryInk: '#fff', bg: '#fff', surface: '#fff', text: '#000', muted: '#666', border: '#ccc', danger: '#c00', success: '#080', warning: '#c80' });
+// Named colors only: admin source carries no literal color values (theme-boundaries), the host owns the palette.
+const neutralColors = Object.freeze({ primary: 'black', primaryInk: 'white', bg: 'white', surface: 'white', text: 'black', muted: 'dimgray', border: 'lightgray', danger: 'firebrick', success: 'green', warning: 'darkorange' });
 const fakeTheme: AdminThemeKit = {
   applyAdminTheme: () => () => {},
   resolveColorScheme: (r) => (r.preference === 'dark' ? 'dark' : 'light'),
   defaultAdminTheme: Object.freeze({ name: 'fake', fonts: Object.freeze({ body: 'sans-serif', heading: 'sans-serif' }), light: neutralColors, dark: neutralColors }),
 };
 
-/** Plain elements, no UI library: package tests check admin's behaviour, not a kit's markup. */
+/** Test-only kit for admin AND for consumer packages whose screens render under it (`@jini-ai/admin/react/testing-kit`).
+ *  Plain elements, no UI library: package tests check admin's behaviour, not a kit's markup. */
 export function fakeAdminKit(overrides: Partial<{ [G in keyof AdminKit]: Partial<AdminKit[G]> }> = {}): AdminKit {
   return {
     components: { ...fakeComponents, ...overrides.components },
@@ -112,8 +134,4 @@ export function fakeAdminKit(overrides: Partial<{ [G in keyof AdminKit]: Partial
     mediaProviders: { ...fakeMediaProviders, ...overrides.mediaProviders },
     theme: { ...fakeTheme, ...overrides.theme },
   } satisfies AdminKit;
-}
-
-export function renderWithAdminKit(ui: ReactElement, options: { kit?: AdminKit } = {}): RenderResult {
-  return render(<AdminKitProvider kit={options.kit ?? fakeAdminKit()}>{ui}</AdminKitProvider>);
 }

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "../../../__tests__/fetch-query-support.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AdminFormField } from "../../models.js";

@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '../../../__tests__/fetch-query-support.js';
 import { describe, expect, it, vi } from 'vitest';
 import type { AdminErasedEntityPort, AdminEntityRowData } from '../../../core/ports/entities.js';
 import { matchRoute } from '../../../core/routing/rules.js';

@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, renderHook, screen } from '../../../__tests__/fetch-query-support.js';
 import { createAdmin } from '../../../core/module/index.js';
 import * as sourceControlCore from '../../index.js';
 import { createHttpSourceControlApi } from '../../adapters/http.js';

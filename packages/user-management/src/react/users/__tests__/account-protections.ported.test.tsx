@@ -1,4 +1,4 @@
-import { act, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen, waitFor, within } from "../../__tests__/fetch-query-support.js";
 import { describe, expect, it, vi } from "vitest";
 import { FetchQueryProvider } from "@jini-ai/ui/panel-kit";
 import { Users, useUsers, userAccountCapabilities, isOwnerAccount, userRowMenuItems, formatGrantLabel } from "../../index.js";

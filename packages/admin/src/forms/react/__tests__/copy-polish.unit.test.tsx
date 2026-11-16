@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within } from '../../../__tests__/fetch-query-support.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { FetchQueryProvider } from '@jini-ai/ui/fetch-query';

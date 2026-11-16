@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Suspense } from 'react';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '../../../__tests__/fetch-query-support.js';
 import { describe, expect, it, vi } from 'vitest';
 import ts from 'typescript';
 import { FetchQueryProvider } from '@jini-ai/ui/fetch-query';

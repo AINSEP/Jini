@@ -1,5 +1,5 @@
 import { DEFAULT_PROVIDER_PRESETS } from '@jini-ai/integrations/media-providers/catalog';
-import { render, screen } from '@testing-library/react';
+import { render, screen } from '../../../../../__tests__/ui-kit-render-support.js';
 import { describe, expect, it, vi } from 'vitest';
 import { ByokProviderForm } from '../../../react/components/ByokProviderForm.js';
 import { I18nProvider, SETTINGS_DIALOG_DICTIONARIES } from '../../../../i18n/index.js';

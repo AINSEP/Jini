@@ -1,6 +1,6 @@
 import { Suspense, StrictMode } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, fireEvent, waitFor } from '../../../__tests__/fetch-query-support.js';
 import { createAdmin } from '../../../core/module/index.js';
 import { sourceControl } from '../index.js';
 import { createMemorySourceControlApi } from '../../adapters/memory.js';

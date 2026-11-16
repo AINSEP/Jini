@@ -1,4 +1,4 @@
-import { act, render, renderHook, screen, waitFor, fireEvent, within } from "@testing-library/react";
+import { act, render, renderHook, screen, waitFor, fireEvent, within } from "../../__tests__/fetch-query-support.js";
 import { expect, it, vi } from "vitest";
 import { FetchQueryProvider } from "@jini-ai/ui/panel-kit";
 import { createFakeUsersPort } from "../../testing.js";

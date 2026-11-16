@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '../../../__tests__/fetch-query-support.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AdminErasedEntityPort, AdminEntityRowData } from '../../../core/ports/entities.js';
 import { EntityEdit } from '../EntityEdit.js';

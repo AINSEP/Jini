@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '../../../__tests__/fetch-query-support.js';
 import { KitProvider } from '@jini-ai/ui-kit/react';
 import type { useRootKeyTab } from '../hooks/RootKeyTab.hooks.js';
 import { RootKeyTab } from '../tabs/RootKeyTab.js';

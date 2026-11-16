@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { cleanup, render, renderHook, screen } from '@testing-library/react';
+import { cleanup, render, renderHook, screen } from '../../../__tests__/fetch-query-support.js';
 import { AdminConfigError } from '../../../core/module/index.js';
 import { createMemoryPlaygroundTargets } from '../../adapters/memory.js';
 import { Canvas } from '../components/Canvas.js';

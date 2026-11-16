@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest';
-import { act, render, renderHook, screen, waitFor, within } from '@testing-library/react';
+import { act, render, renderHook, screen, waitFor, within } from './fetch-query-support.js';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { FetchQueryProvider } from '@jini-ai/ui/panel-kit';

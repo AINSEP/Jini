@@ -2,7 +2,8 @@ import { render, renderHook, screen } from '@testing-library/react';
 import { createRef, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { AdminKitProvider, Button, useAdminThemeKit, useDirtyGuard, useFetchQuery, useMediaProviderRules } from '../kit.js';
-import { fakeAdminKit, fixtureQuery, renderWithAdminKit } from './fake-admin-kit.js';
+import { fakeAdminKit, fixtureQuery } from '../testing-kit.js';
+import { renderWithAdminKit } from './render-with-admin-kit.js';
 
 describe('admin kit contract', () => {
   it('throws a plain-words error when a facade renders outside a provider', () => {

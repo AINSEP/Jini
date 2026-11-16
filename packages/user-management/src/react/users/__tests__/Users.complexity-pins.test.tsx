@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "../../__tests__/fetch-query-support.js";
 import { describe, expect, it, vi } from "vitest";
 import { createFakeUsersPort } from "../../testing.js";
 import { Users, type UsersHookDependencies, type UsersProps } from "../Users.js";

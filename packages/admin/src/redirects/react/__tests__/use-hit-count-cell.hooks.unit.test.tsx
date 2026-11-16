@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { renderHook, waitFor } from "../../../__tests__/fetch-query-support.js";
 import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
