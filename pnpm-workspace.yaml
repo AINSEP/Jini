@@ -21,3 +21,10 @@ preferWorkspacePackages: true
 
 # A cycle lets recursive builds run consumers before their dependencies on a clean checkout.
 disallowWorkspaceCycles: true
+
+# Supply-chain hardening (2026-11-16): a NEW dependency version must be >= 14 days old before
+# pnpm resolves it. Minutes: 14 * 24 * 60 = 20160. Versions already in pnpm-lock.yaml are unaffected.
+# Exempt: our own @jini-ai/* packages. See CONTRIBUTING.md.
+minimumReleaseAge: 20160
+minimumReleaseAgeExclude:
+  - '@jini-ai/*'
