@@ -7,7 +7,7 @@ import './dom-setup.js';
  */
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { act } from '@testing-library/react';
-import type { ChartInstance } from '@jini-ai/ui/charts';
+import type { ChartInstance } from '@jini-ai/core/contracts/charts';
 import { mount } from '../client/provider.js';
 
 beforeEach(() => {

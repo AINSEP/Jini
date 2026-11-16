@@ -1,7 +1,7 @@
 /** Pure ChartSpec → ECharts option mapping. No DOM and no ECharts runtime, so every kind is unit-testable. */
 import type { EChartsCoreOption } from 'echarts/core';
 import type { BarSeriesOption, LineSeriesOption, PieSeriesOption, ScatterSeriesOption } from 'echarts/charts';
-import type { ChartSpec, ChartValue } from '@jini-ai/ui/charts';
+import type { ChartSpec, ChartValue } from '@jini-ai/core/contracts/charts';
 import { isFiniteNumber, isPartToWhole } from './descriptor.js';
 
 /**

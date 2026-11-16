@@ -3,10 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import { z } from 'zod';
 import { createChartInteractiveRegistry } from '../react.js';
-import { chartCatalogManifests, createChartProviderRegistry, type ChartProviderEntry, type ChartSpec } from '../index.js';
+import { chartCatalogManifests, createChartProviderRegistry } from '../index.js';
+import { type ChartProviderEntry, type ChartSpec } from '@jini-ai/core/contracts/charts';
 import { InteractiveUiRegistry, type InteractiveComponentEntry } from '../../interactive-ui/registry.js';
 
-function recorder(id: string, kinds: string[], mounted: { provider: string; spec: ChartSpec }[], enabled = true): ChartProviderEntry {
+function recorder(id: string, kinds: string[], mounted: { provider: string; spec: ChartSpec }[], enabled = true): ChartProviderEntry<HTMLElement> {
   return { id, kinds, enabled, load: async () => ({ mount: ({ spec, element }) => {
     mounted.push({ provider: id, spec }); element.textContent = `drawn by ${id}`;
     return { update() {}, destroy() {} };

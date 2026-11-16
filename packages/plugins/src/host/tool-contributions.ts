@@ -1,7 +1,8 @@
 /** Projects executable plugins onto the host's existing ToolRegistry. Metadata/auth are host
  * ports; no separate catalog, executor, permission vocabulary, or approval engine is created. */
 import { createToolRegistrationScope, requireInputRecord, ToolInputError, type ToolRegistry, type ToolRegistration, type ToolMetadata } from '@jini-ai/core';
-import { pluginToolIdFor, type PluginContributionRegistry, type PluginAuthContext } from './contributions.js';
+import { pluginToolIdFor, type PluginContributionRegistry } from './contributions.js';
+import { type PluginAuthContext } from '@jini-ai/core/contracts/plugin-sdk';
 export interface PluginToolContributionPorts {
   readonly contributions: PluginContributionRegistry;
   readonly isEnabled: (required: { pluginId: string }, optional?: Record<string, never>) => Promise<boolean>;

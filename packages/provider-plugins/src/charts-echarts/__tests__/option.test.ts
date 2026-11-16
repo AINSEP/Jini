@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ChartSpec } from '@jini-ai/ui/charts';
+import type { ChartSpec } from '@jini-ai/core/contracts/charts';
 import { buildEChartsOption, CHART_SERIES_COLORS, chartTitle } from '../option.js';
 
 type Series = Record<string, unknown> & { type: string; name: string; data: unknown[] };

@@ -17,7 +17,8 @@
  * A failed or timed-out filter call throws, so `hook-registry.ts` fails the save closed and counts
  * the failure toward quarantine exactly as it does for a throwing Tier-3 filter.
  */
-import type { ExtPatch, PluginSdkBinding, PluginModuleImportPort } from "../ports.js";
+import type { PluginSdkBinding, PluginModuleImportPort } from "../ports.js";
+import type { ExtPatch } from "@jini-ai/core/contracts/plugin-sdk";
 
 import type { PluginCapability, PluginManifest } from "../manifest.js";
 import type { Tier2CallRunner, Tier2PluginRef } from "./protocol.js";

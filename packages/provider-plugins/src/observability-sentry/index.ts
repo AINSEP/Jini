@@ -1,5 +1,5 @@
 /** `observability-sentry`: setup only registers the factory; the private client is built when a host initializes it. */
-import type { PluginSdk } from '@jini-ai/plugins/host';
+import type { PluginSdk } from '@jini-ai/core/contracts/plugin-sdk';
 import { attributionOf } from '../attribution.js';
 import { createSentryObservabilityAdapter, type SentryAdapterOptions } from './sentry.js';
 

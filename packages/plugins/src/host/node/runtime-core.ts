@@ -16,7 +16,8 @@ import { setPluginEnabled, type PluginActivationRepoPort } from "../activation.j
 import { initializeBundledPlugins } from "../bundled-initialization.js";
 import { createPluginContributionCapture, createPluginContributionRegistry, type PluginContributionRegistry } from "../contributions.js";
 import type { AdmittedBrowserProvider } from "../browser-providers.js";
-import type { ArchiveReaderPort, BundledBrowserProviderApproval, DeclarativeContentTypesPort, DeclaredContentTypePorts, PluginModuleImportPort, PluginSdk, PluginSdkBinding, PluginTierPolicy, VerifyDigestPort } from "../ports.js";
+import type { ArchiveReaderPort, BundledBrowserProviderApproval, DeclarativeContentTypesPort, DeclaredContentTypePorts, PluginModuleImportPort, PluginSdkBinding, PluginTierPolicy, VerifyDigestPort } from "../ports.js";
+import type { PluginSdk } from "@jini-ai/core/contracts/plugin-sdk";
 import { addedPluginCapabilities, pluginCapabilitySet, type PluginSourcePolicyPort } from "../source-policy.js";
 import { enableDeclaredPlugin } from "../declarative-enable.js";
 import type { BuiltInPluginSource, PluginDiscoveryRecord } from "../discovery-types.js";

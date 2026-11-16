@@ -3,11 +3,15 @@ import { describeErrorForLog } from '@jini-ai/core';
  * Captures stay private until setup succeeds. A sealed generation cannot register from a timer.
  * Tier-3 currently runs with full in-process authority; a hardened worker at this boundary is
  * still to come. */
-import { PLUGIN_PROVIDER_CAPABILITY, isPluginProviderDeclaration, type PluginProviderContribution } from './provider-contributions.js';
+import { isPluginProviderDeclaration } from './provider-contributions.js';
+import {
+  PLUGIN_PROVIDER_CAPABILITY,
+  type PluginProviderContribution,
+} from '@jini-ai/core/contracts/plugin-sdk';
 import { createContributionRegistry } from '@jini-ai/core/contribution-registry';
 import { normalizeRoute, resolveClaimConflicts, type ExtensionClaim } from './claim-conflicts.js';
 import type { PluginManifest } from './manifest-types.js';
-import type { PluginSdk } from './ports.js';
+import type { PluginSdk } from '@jini-ai/core/contracts/plugin-sdk';
 
 export const PLUGIN_CONTRIBUTION_CAPABILITIES = ['http.route.register', 'tools.register', 'render.contribute', PLUGIN_PROVIDER_CAPABILITY] as const;
 export interface PluginContributionsSnapshot {

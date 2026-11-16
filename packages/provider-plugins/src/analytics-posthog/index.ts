@@ -1,5 +1,5 @@
 /** `analytics-posthog`: setup only registers the factory; the PostHog client is built when a host initializes it. */
-import type { PluginSdk } from '@jini-ai/plugins/host';
+import type { PluginSdk } from '@jini-ai/core/contracts/plugin-sdk';
 import { createPostHogProductAnalyticsAdapter, type PostHogAdapterOptions } from './posthog.js';
 import { attributionOf } from '../attribution.js';
 import { postHogBrowserContribution } from './browser.js';

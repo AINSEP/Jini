@@ -6,8 +6,7 @@ import { validateManifest } from '../../manifest.js';
 import { pluginClaimsFromManifest } from '../../plugin-claims.js';
 import { loadPlugin, type LoadPluginRequired } from '../../node/loader.js';
 import type { PluginManifest } from '../../manifest-types.js';
-import type { PluginSdk } from '../../ports.js';
-import type { PluginProviderContribution, PluginProviderResource } from '../../provider-contributions.js';
+import type { PluginSdk, PluginProviderContribution, PluginProviderResource } from '@jini-ai/core/contracts/plugin-sdk';
 import { manifestHost, pluginSdkBinding, tierPolicy } from '../support/fixture-bindings.js';
 
 const digest = `sha256-${'a'.repeat(64)}`;

@@ -1,6 +1,7 @@
 /** Server factories are inert registrations. Clients and timers belong to initialized resources. */
 import { PROVIDER_ID_PATTERN } from '@jini-ai/core/provider-registry';
-import type { PluginProviderDeclaration, PluginValidationError } from './manifest-types.js';
+import type { PluginValidationError } from './manifest-types.js';
+import type { PluginProviderDeclaration } from '@jini-ai/core/contracts/plugin-sdk';
 
 /** Shared grammar for manifest validation and runtime capture, using core's frozen id contract. */
 export function isPluginProviderDeclaration(
@@ -107,7 +108,7 @@ export function providerSettingsErrors({ settings }: { settings: unknown }, _opt
   return problems;
 }
 
-type MigrationFields = readonly import('./manifest-types.js').PluginProviderSettingField[];
+type MigrationFields = readonly import('@jini-ai/core/contracts/plugin-sdk').PluginProviderSettingField[];
 const publicSetting = ({ fields, name }: { fields: MigrationFields; name: unknown }, _optional = {}) =>
   fields.some(field => field.name === name && !field.secret);
 
@@ -134,7 +135,7 @@ function migrationValid({ rule, fields }: { rule: unknown; fields: MigrationFiel
 }
 
 /** Reject malformed migration hooks before a host can read them. */
-function migrationsValid({ provider }: { provider: import('./manifest-types.js').PluginProviderDeclaration }, _optional = {}): boolean {
+function migrationsValid({ provider }: { provider: import('@jini-ai/core/contracts/plugin-sdk').PluginProviderDeclaration }, _optional = {}): boolean {
   if (provider.settingsMigrations === undefined) return true;
   return Array.isArray(provider.settings) && providerSettingsErrors({ settings: provider.settings }).length === 0
     && Array.isArray(provider.settingsMigrations)

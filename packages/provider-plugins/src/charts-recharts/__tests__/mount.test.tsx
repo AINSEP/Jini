@@ -2,7 +2,7 @@ import './dom-setup.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, waitFor } from '@testing-library/react';
 import { mount, supportsRechartsSpec } from '../client/provider.js';
-import type { ChartSpec, ChartInstance } from '@jini-ai/ui/charts';
+import type { ChartSpec, ChartInstance } from '@jini-ai/core/contracts/charts';
 
 const spec: ChartSpec = { kind: 'bar', data: [{ month: 'Jan', revenue: 100 }, { month: 'Feb', revenue: 150 }], categoryKey: 'month', series: [{ key: 'revenue' }] };
 describe('standalone Recharts vanilla lifecycle', () => {

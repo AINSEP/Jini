@@ -8,7 +8,7 @@
  * capability-scoped SDK, then either report which hooks it attached (`probe`, run once at enable
  * time) or run its beforeSave filter on one entry (`beforeSave`, run per save/preview).
  */
-import type { ContentEntryDraft, HookContext } from "../ports.js";
+import type { ContentEntryDraft, HookContext } from "@jini-ai/core/contracts/plugin-sdk";
 
 import type { PluginCapability } from "../manifest.js";
 

@@ -1,6 +1,6 @@
 import { createHookRegistry as create, type HookRegistry as HostRegistry, type CreateHookRegistryOptions, type HookRegistryFieldDecl, type AttachmentSource } from '../../hook-registry.js';
 import type { ContentEntryDraft, BeforeSaveFilter } from './fixture-sdk.js';
-import type { BeforeSaveFilter as HostFilter } from '../../ports.js';
+import type { BeforeSaveFilter as HostFilter } from '@jini-ai/core/contracts/plugin-sdk';
 import { pluginSdkBinding } from './fixture-bindings.js';
 export * from '../../hook-registry.js';
 export interface HookRegistry {

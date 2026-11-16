@@ -26,12 +26,13 @@ import type { BundledBrowserProviderApproval } from "../ports.js";
 
 import * as semver from "semver";
 
-import { PLUGIN_PROVIDER_CAPABILITY } from '../provider-contributions.js';
+import { PLUGIN_PROVIDER_CAPABILITY } from '@jini-ai/core/contracts/plugin-sdk';
 import { createPluginContributionCapture, type PluginContributionRegistry, type PluginContributionsSnapshot } from '../contributions.js';
 import { buildCapabilityScopedSdk, type CapabilityScopedSdkCoreDeps } from "../capability-sdk.js";
 import type { PluginDiscoveryRecord } from "../discovery-types.js";
 import type { PluginManifest } from "../manifest.js";
-import type { HookPoints, PluginSdkBinding, PluginModuleImportPort, VerifyDigestPort, PluginTierPolicy } from "../ports.js";
+import type { PluginSdkBinding, PluginModuleImportPort, VerifyDigestPort, PluginTierPolicy } from "../ports.js";
+import type { HookPoints } from "@jini-ai/core/contracts/plugin-sdk";
 export { attachLoadedPlugin } from "../attach-loaded-plugin.js";
 
 /** A packaged artifact's file layout is fixed (ADR-004): `jini.plugin.json` + `server/index.mjs` at

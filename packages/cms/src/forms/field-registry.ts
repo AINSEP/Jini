@@ -1,5 +1,6 @@
 /** The form field vocabulary and control semantics. Validation and rendering both read this registry. */
-import type { FieldDescriptor, FormAnswer, FormFileInput, FormFileStoragePort } from "./types.js";
+import type { FieldDescriptor, FormFileInput, FormFileStoragePort } from "./types.js";
+import type { FormAnswer } from "@jini-ai/core/contracts/forms";
 import { portableFieldValidators, isSafeFieldPattern } from "./portable-validation.js";
 export { isSafeFieldPattern } from "./portable-validation.js";
 

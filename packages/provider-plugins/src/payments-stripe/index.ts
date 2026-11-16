@@ -1,5 +1,5 @@
 /** Setup registers the commerce adapter; the host owns selection and activation. */
-import type { PluginSdk } from '@jini-ai/plugins/host';
+import type { PluginSdk } from '@jini-ai/core/contracts/plugin-sdk';
 import { createStripePaymentProvider } from './provider.js';
 
 /**

@@ -1,5 +1,6 @@
 /** Pure field/submission validation and honeypot decisions. Error order and stored value normalization are stable. */
-import type { FieldDescriptor, FormDefinitionRecord, FormAnswer, FormFileInput, FormFileStoragePort } from "./types.js";
+import type { FieldDescriptor, FormDefinitionRecord, FormFileInput, FormFileStoragePort } from "./types.js";
+import type { FormAnswer } from "@jini-ai/core/contracts/forms";
 import { ATTRIBUTE_NAME_PATTERN, FIELD_TYPE_REGISTRY, resolveFormField, type FieldResolution } from "./field-registry.js";
 import { commonDescriptorErrors } from "./descriptor-rules.js";
 

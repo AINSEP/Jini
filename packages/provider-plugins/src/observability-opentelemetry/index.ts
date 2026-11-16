@@ -1,5 +1,9 @@
 /** `observability-opentelemetry`: setup only registers the factory; the SDK provider starts when a host initializes it. */
-import { hasProviderAuthHeader, PluginProviderStartupError, type PluginSdk } from '@jini-ai/plugins/host';
+import {
+  hasProviderAuthHeader,
+  PluginProviderStartupError,
+  type PluginSdk,
+} from '@jini-ai/core/contracts/plugin-sdk';
 import { resolveObservabilityConfig } from '@jini-ai/diagnostics/observability';
 import { createOtelObservabilityAdapter, type OtelAdapterOptions } from './opentelemetry.js';
 import { attributionOf } from '../attribution.js';

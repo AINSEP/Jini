@@ -1,7 +1,7 @@
 import './dom-setup.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getInstanceByDom } from 'echarts/core';
-import type { ChartInstance, ChartSpec } from '@jini-ai/ui/charts';
+import type { ChartInstance, ChartSpec } from '@jini-ai/core/contracts/charts';
 import { mount, UnsupportedChartSpecError } from '../client/provider.js';
 
 const sales: ChartSpec = {

@@ -1,5 +1,6 @@
 /** Portable validation owner shared by native forms and published static receivers. No Node APIs. */
-import type { FieldDescriptor, FormAnswer } from "./types.js";
+import type { FieldDescriptor } from "./types.js";
+import type { FormAnswer } from "@jini-ai/core/contracts/forms";
 import type { FieldResolution } from "./field-registry.js";
 type FieldValidator = (required: { field: FieldDescriptor; value: unknown }, optional?: Record<string, never>) => FieldResolution;
 /** Native email syntax shared by the registry and the compatibility submission guard. */

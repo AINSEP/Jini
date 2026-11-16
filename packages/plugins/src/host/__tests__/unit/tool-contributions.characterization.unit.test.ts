@@ -6,7 +6,8 @@
 import { expect, it } from 'vitest';
 import { createToolRegistry, ToolInputError, type ToolExecutionContext } from '@jini-ai/core';
 import { buildCapabilityScopedSdk } from '../../capability-sdk.js';
-import { createPluginContributionCapture, createPluginContributionRegistry, type PluginInvocationContext } from '../../contributions.js';
+import { createPluginContributionCapture, createPluginContributionRegistry } from '../../contributions.js';
+import { type PluginInvocationContext } from '@jini-ai/core/contracts/plugin-sdk';
 import { buildPluginContributionToolRegistrations, type PluginToolContributionPorts } from '../../tool-contributions.js';
 import type { PluginManifest } from '../../manifest.js';
 import { pluginSdkBinding } from '../support/fixture-bindings.js';

@@ -7,7 +7,8 @@ import { FormDefinitionNotFoundError, FormRateLimitExceededError, FormSubmission
 import { InMemoryFormDefinitionRepo, InMemoryFormSubmissionRepo } from "../repo.memory.js";
 import { createSubmissionAttempts } from "../submission-attempts.js";
 import { submitForm, type SubmitFormDeps, type SubmitFormInput } from "../submit-service.js";
-import { FORM_SUBMISSION_RECEIVED_EVENT, type FieldDescriptor, type FormDefinitionRecord, type FormFileInput, type FormFileReference, type FormFileStoragePort } from "../types.js";
+import { FORM_SUBMISSION_RECEIVED_EVENT, type FieldDescriptor, type FormDefinitionRecord, type FormFileInput, type FormFileStoragePort } from "../types.js";
+import { type FormFileReference } from "@jini-ai/core/contracts/forms";
 
 const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 1]);
 const photo: FormFileInput = { filename: "photo.png", contentType: "image/png", bytes: png };

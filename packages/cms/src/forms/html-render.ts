@@ -202,7 +202,7 @@ export function renderHtmlForm(
  * @complexity O(fields + authored HTML bytes) time/space; no I/O.
  * @overallScore 96 — Recommended: embed providers own their frame's validation and accessibility. */
 export function renderFormCollection(
-  required: { slug: string; fields: readonly FieldDescriptor[]; hooks: FormHtmlHooks; plan: import('./provider.js').FormCollectionPlan },
+  required: { slug: string; fields: readonly FieldDescriptor[]; hooks: FormHtmlHooks; plan: import('@jini-ai/core/contracts/forms').FormCollectionPlan },
   optional: { html?: string; className?: string; successMessage?: string; idPrefix?: string; consentOff?: boolean } = {},
 ): string {
   const { plan, ...form } = required;
@@ -222,7 +222,7 @@ export function renderFormSchemaHash({ schemaHash }: { schemaHash?: string | und
 /** Declared embeds stay inert without permission infrastructure; an explicit off mode delivers normally.
  * The browser consent client owns the permission decision and withdrawal lifecycle.
  * @complexity O(url + title + fallback bytes), no I/O. */
-function renderCollectionEmbed({ plan, consentOff }: { plan: Extract<import('./provider.js').FormCollectionPlan, { kind: 'embed' }>; consentOff: boolean }): string {
+function renderCollectionEmbed({ plan, consentOff }: { plan: Extract<import('@jini-ai/core/contracts/forms').FormCollectionPlan, { kind: 'embed' }>; consentOff: boolean }): string {
   const source = !consentOff && plan.consent?.length
     ? attr('data-src', plan.url) + attr('data-jini-consent', JSON.stringify(plan.consent))
     : attr('src', plan.url);

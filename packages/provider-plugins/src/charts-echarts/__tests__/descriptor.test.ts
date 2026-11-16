@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ChartSpec } from '@jini-ai/ui/charts';
+import type { ChartSpec } from '@jini-ai/core/contracts/charts';
 import { ECHARTS_KINDS, ECHARTS_PROVIDER_ID, supportsEChartsSpec } from '../client/provider.js';
 
 const sales: ChartSpec = {

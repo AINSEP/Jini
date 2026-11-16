@@ -1,4 +1,4 @@
-import type { FormProviderDescription } from "@jini-ai/cms/forms";
+import type { FormProviderDescription } from "@jini-ai/core/contracts/forms";
 import { FormProviderSettings } from "./FormProviderSettings.js";
 import type { AdminFormProviderSelection } from "../../../core/ports/forms.js";
 import { useFormFieldsBodyView } from "../hooks/forms-view.hooks.js";

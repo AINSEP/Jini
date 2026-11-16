@@ -1,4 +1,4 @@
-import type { FormProviderDescription } from '@jini-ai/cms/forms';
+import type { FormProviderDescription } from '@jini-ai/core/contracts/forms';
 import type { AdminFormsPort, AdminFormDefinition, AdminFormSubmission, AdminFormUpdatePatch } from '../../core/ports/forms.js';
 import { AdminApiError } from '../../core/transport/errors.js';
 import type { FormsTrashPort } from '../ports.js';

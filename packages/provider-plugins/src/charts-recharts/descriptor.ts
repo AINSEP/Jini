@@ -1,5 +1,5 @@
 /** Headless capabilities and admission for the initial, single-series Recharts implementation. */
-import type { ChartSpec } from '@jini-ai/ui/charts';
+import type { ChartSpec } from '@jini-ai/core/contracts/charts';
 export const RECHARTS_PROVIDER_ID = 'plugin.recharts';
 export const RECHARTS_KINDS = ['bar', 'line', 'pie'] as const;
 

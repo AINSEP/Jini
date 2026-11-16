@@ -1,6 +1,10 @@
 import { expect, it } from 'vitest';
 import { createPluginContributionRegistry } from '../../contributions.js';
-import { createPluginProviderHost, PluginProviderStartupError, pluginProviderStartupGuidance } from '../../provider-host.js';
+import { createPluginProviderHost } from '../../provider-host.js';
+import {
+  PluginProviderStartupError,
+  pluginProviderStartupGuidance,
+} from '@jini-ai/core/contracts/plugin-sdk';
 
 it('returns explicit startup guidance from both the local error and a separately bundled Error class', () => {
   const cause = new Error('underlying SDK detail');

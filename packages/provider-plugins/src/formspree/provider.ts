@@ -1,4 +1,4 @@
-import type { FormCollectionProvider, FormCollectionPlan } from '@jini-ai/cms/forms';
+import type { FormCollectionProvider, FormCollectionPlan } from '@jini-ai/core/contracts/forms';
 
 /** Formspree collects a native browser POST. No SDK, credentials, vendor request or local answer copy.
  * @example createFormspreeProvider({}).plan({ slug: 'contact', config: { endpoint: 'https://formspree.io/f/abc123' } });

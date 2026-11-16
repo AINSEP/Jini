@@ -1,4 +1,4 @@
-import type { BeforeSaveFilter } from "./ports.js";
+import type { BeforeSaveFilter } from "@jini-ai/core/contracts/plugin-sdk";
 import type { AttachmentSource, HookRegistry, HookRegistryFieldDecl } from "./hook-registry.js";
 
 export interface AttachLoadedPluginRequired {

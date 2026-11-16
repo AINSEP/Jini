@@ -39,7 +39,7 @@ export interface FormDefinitionView {
   readonly fields: readonly unknown[];
   readonly mode?: string;
   readonly html?: string | null;
-  readonly provider?: import("../../forms/provider.js").FormProviderSelection;
+  readonly provider?: import("@jini-ai/core/contracts/forms").FormProviderSelection;
 }
 /** Both lookup methods are used by today's resolver (id first, then authored slug). */
 export interface FormDefinitionReadPort {

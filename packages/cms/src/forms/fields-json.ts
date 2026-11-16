@@ -1,5 +1,5 @@
 import type { FieldDescriptor, FormDefinitionRecord } from './types.js';
-import type { FormProviderSelection } from './provider.js';
+import type { FormProviderSelection } from '@jini-ai/core/contracts/forms';
 
 export type FormAuthoring = { mode?: 'builder' | 'html'; html?: string | undefined; provider?: FormProviderSelection | undefined };
 export type HtmlFormDefinitionRecord = FormDefinitionRecord & FormAuthoring;

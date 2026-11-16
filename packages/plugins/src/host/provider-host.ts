@@ -1,7 +1,10 @@
 /** Resource lifecycle for the existing contribution snapshots. Domain validation stays injected. */
 import { createProviderRegistry, type ProviderDefinition } from '@jini-ai/core/provider-registry';
 import type { PluginContributionRegistry, PluginContributionsSnapshot } from './contributions.js';
-import type { PluginProviderContribution, PluginProviderResource } from './provider-contributions.js';
+import type {
+  PluginProviderContribution,
+  PluginProviderResource,
+} from '@jini-ai/core/contracts/plugin-sdk';
 
 export interface PluginProviderContract {
   readonly contract: string;

@@ -3,7 +3,12 @@ import { init, use, type EChartsType } from 'echarts/core';
 import { BarChart, LineChart, PieChart, ScatterChart } from 'echarts/charts';
 import { AriaComponent, GridComponent, LegendComponent, TitleComponent, TooltipComponent } from 'echarts/components';
 import { SVGRenderer } from 'echarts/renderers';
-import type { ChartInstance, ChartMountOptions, ChartRenderInput, ChartSpec } from '@jini-ai/ui/charts';
+import type {
+  ChartInstance,
+  ChartMountOptions,
+  ChartRenderInput,
+  ChartSpec,
+} from '@jini-ai/core/contracts/charts';
 import { applyChartTheme } from '@jini-ai/ui/charts/browser';
 import { ECHARTS_PROVIDER_ID, supportsEChartsSpec } from './descriptor.js';
 import { buildEChartsOption, chartTitle } from './option.js';

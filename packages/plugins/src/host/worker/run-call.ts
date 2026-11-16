@@ -15,7 +15,8 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { BeforeSaveFilter, PluginSdkBinding, PluginModuleImportPort } from "../ports.js";
+import type { PluginSdkBinding, PluginModuleImportPort } from "../ports.js";
+import type { BeforeSaveFilter } from "@jini-ai/core/contracts/plugin-sdk";
 import type { CapabilityScopedSdkCoreDeps } from "../capability-sdk.js";
 
 import { buildCapabilityScopedSdk } from "../capability-sdk.js";

@@ -1,7 +1,11 @@
 /** Recharts owns one isolated React root inside the vanilla provider's assigned element. */
 import { Component, useLayoutEffect, type ReactElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import type { ChartInstance, ChartMountOptions, ChartRenderInput } from '@jini-ai/ui/charts';
+import type {
+  ChartInstance,
+  ChartMountOptions,
+  ChartRenderInput,
+} from '@jini-ai/core/contracts/charts';
 import { applyChartTheme } from '@jini-ai/ui/charts/browser';
 import { BarChart } from './bar-chart.js';
 import { LineChart } from './line-chart.js';

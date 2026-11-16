@@ -1,4 +1,4 @@
-import type { FormCollectionProvider, FormCollectionPlan } from '@jini-ai/cms/forms';
+import type { FormCollectionProvider, FormCollectionPlan } from '@jini-ai/core/contracts/forms';
 
 const capabilities = {
   answers: 'Questions and answers are managed in Google Forms; new answers are not copied into the built-in inbox.',

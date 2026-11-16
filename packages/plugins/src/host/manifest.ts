@@ -27,7 +27,7 @@ import { collectManifestKeyErrors } from "../glue/manifest-keys.js";
  */
 
 import type { PluginTier, PluginManifest, PluginValidationError } from './manifest-types.js';
-export type { PluginTier, PluginCapability, PluginManifestFieldDecl, PluginManifest, PluginContributions, PluginProviderDeclaration, PluginProviderSettingsMigration, PluginProviderSettingField, PluginProviderSettingOption, PluginValidationError } from './manifest-types.js';
+export type { PluginTier, PluginCapability, PluginManifestFieldDecl, PluginManifest, PluginContributions, PluginValidationError } from './manifest-types.js';
 import * as semver from "semver";
 import { CORE_OWNER_ID, PLUGIN_MANIFEST_FILENAME } from "./plugin-format.js";
 export { CORE_OWNER_ID } from "./plugin-format.js";
@@ -36,7 +36,8 @@ import { validateBrowserProviders } from "./browser-providers.js";
 
 import { readPluginIdentity, validatePluginIdentity } from "@jini-ai/core/plugin-directory";
 import { isNonArrayRecord } from "@jini-ai/core/records";
-import type { HookPoints, ManifestHostPorts } from "./ports.js";
+import type { ManifestHostPorts } from "./ports.js";
+import type { HookPoints } from "@jini-ai/core/contracts/plugin-sdk";
 
 export interface ValidateManifestRequired<H extends HookPoints = HookPoints> extends ManifestHostPorts<H> {
   /** An already-parsed `jini.plugin.json` value (unparseable JSON is `discovery.ts`'s concern —

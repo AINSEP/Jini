@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 import { test } from "vitest";
 
-import type { DefinedPlugin, PluginModuleImportPort } from "../../ports.js";
+import type { PluginModuleImportPort } from "../../ports.js";
+import type { DefinedPlugin } from "@jini-ai/core/contracts/plugin-sdk";
 import { createInvocationCoreDeps, pluginSdkBinding } from "../../__tests__/support/fixture-bindings.js";
 import { runTier2Call, type RunTier2CallRequired } from "../run-call.js";
 import type { Tier2PluginRef, Tier2Request } from "../protocol.js";

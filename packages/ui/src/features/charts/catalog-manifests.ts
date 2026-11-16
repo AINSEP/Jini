@@ -3,7 +3,8 @@
  */
 import { z } from 'zod';
 import type { InteractiveComponentManifest } from '../interactive-ui/types.js';
-import { chartSpecSchema, type ChartKind } from './contract.js';
+import { chartSpecSchema } from './contract.js';
+import { type ChartKind } from '@jini-ai/core/contracts/charts';
 import { chartCapability, chartProvidersByKind, createChartProviderRegistry, type ChartProviderRegistry } from './registry.js';
 import { chartSpecPropsSchema, chartWireManifests } from './wire.js';
 

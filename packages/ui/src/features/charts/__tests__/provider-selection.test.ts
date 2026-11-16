@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { createChartProviderRegistry, selectChartProviders, type ChartProviderEntry, type ChartSpec } from '../index.js';
+import { createChartProviderRegistry, selectChartProviders } from '../index.js';
+import { type ChartProviderEntry, type ChartSpec } from '@jini-ai/core/contracts/charts';
 import { loadChartProvider, mountChart } from '../browser.js';
 
 const spec: ChartSpec = { kind: 'bar', data: [{ name: '<script>oops</script>', value: 2 }], categoryKey: 'name', series: [{ key: 'value' }] };
-function provider(id: string, kinds = ['bar'], enabled = true): ChartProviderEntry {
+function provider(id: string, kinds = ['bar'], enabled = true): ChartProviderEntry<HTMLElement> {
   return { id, kinds, enabled, load: async () => ({ mount: () => ({ update() {}, destroy() {} }) }) };
 }
 

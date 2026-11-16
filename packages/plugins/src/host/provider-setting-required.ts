@@ -1,5 +1,5 @@
 import { hasProviderAuthHeader } from '@jini-ai/core/contracts/plugin-sdk';
-import type { PluginProviderSettingField } from './manifest-types.js';
+import type { PluginProviderSettingField } from '@jini-ai/core/contracts/plugin-sdk';
 
 /** Evaluate the declared alternative without returning any setting or credential value. O(b) alternative text. */
 function requirementWaived({ condition, values }: {

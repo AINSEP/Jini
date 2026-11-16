@@ -1,7 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import { mountChart, type MountChartOptions } from '../browser.js';
 import { createChartProviderRegistry } from '../registry.js';
-import { DEFAULT_CHART_THEME, type ChartInstance, type ChartMountOptions, type ChartProvider, type ChartProviderEntry, type ChartSpec } from '../contract.js';
+import {
+  DEFAULT_CHART_THEME,
+  type ChartInstance,
+  type ChartMountOptions,
+  type ChartProvider,
+  type ChartSpec,
+  type ChartProviderEntry,
+} from '@jini-ai/core/contracts/charts';
 
 const spec: ChartSpec = { kind: 'bar', data: [{ label: 'Old', value: 1 }], series: [{ key: 'value' }] };
 const nextSpec: ChartSpec = { ...spec, data: [{ label: 'New', value: 9 }] };
@@ -13,11 +20,11 @@ function deferred<T>(_input: Record<string, never>, _options: Record<string, nev
   return { promise, resolve, reject };
 }
 
-function provider({ id, mount }: { id: string; mount: ChartProvider['mount'] }, _options: Record<string, never> = {}): ChartProviderEntry {
+function provider({ id, mount }: { id: string; mount: ChartProvider<HTMLElement>['mount'] }, _options: Record<string, never> = {}): ChartProviderEntry<HTMLElement> {
   return { id, kinds: ['bar'], enabled: true, load: async () => ({ mount }) };
 }
 
-function host({ providers }: { providers: ChartProviderEntry[] }, options: MountChartOptions = {}) {
+function host({ providers }: { providers: ChartProviderEntry<HTMLElement>[] }, options: MountChartOptions = {}) {
   const element = document.createElement('div');
   const registry = createChartProviderRegistry({ providers });
   const chart = mountChart({ element, spec, registry }, options);
@@ -32,7 +39,7 @@ describe('chart browser lifecycle characterization', () => {
     const mounted = deferred<void>({});
     const update = vi.fn<ChartInstance['update']>();
     const destroy = vi.fn<ChartInstance['destroy']>();
-    const mount = vi.fn<ChartProvider['mount']>(({ element, theme }) => {
+    const mount = vi.fn<ChartProvider<HTMLElement>['mount']>(({ element, theme }) => {
       expect(theme).toBe(DEFAULT_CHART_THEME);
       element.textContent = 'Chart'; mounted.resolve();
       return { ready: firstRender.promise, update, destroy };
@@ -62,15 +69,15 @@ describe('chart browser lifecycle characterization', () => {
     const cleanupError = new Error('cleanup');
     const reports: { provider: string; error: unknown }[] = [];
     const destroy = vi.fn(() => { throw cleanupError; });
-    const failedMount = vi.fn<ChartProvider['mount']>(() => {
+    const failedMount = vi.fn<ChartProvider<HTMLElement>['mount']>(() => {
       if (phase === 'mount') throw error;
       return { ready: Promise.reject(error), update() {}, destroy };
     });
-    const first: ChartProviderEntry = { ...provider({ id: 'first', mount: failedMount }), load: async () => {
+    const first: ChartProviderEntry<HTMLElement> = { ...provider({ id: 'first', mount: failedMount }), load: async () => {
       if (phase === 'load') throw error;
       return { mount: failedMount };
     } };
-    const loadSecond = vi.fn(async (): Promise<ChartProvider> => ({ mount: ({ element }) => {
+    const loadSecond = vi.fn(async (): Promise<ChartProvider<HTMLElement>> => ({ mount: ({ element }) => {
       element.textContent = 'Recovered'; return { update() {}, destroy() {} };
     } }));
     const view = host({ providers: [first, { ...provider({ id: 'second', mount: () => ({ update() {}, destroy() {} }) }), load: loadSecond }] }, {
@@ -86,7 +93,7 @@ describe('chart browser lifecycle characterization', () => {
   });
 
   it('keeps an exhausted table usable and mounts a newly supported provider on a later update', async () => {
-    const mount = vi.fn<ChartProvider['mount']>(({ element }) => {
+    const mount = vi.fn<ChartProvider<HTMLElement>['mount']>(({ element }) => {
       element.textContent = 'Line chart'; return { update() {}, destroy() {} };
     });
     const view = host({ providers: [{ ...provider({ id: 'line', mount }), kinds: ['line'] }] });
@@ -101,8 +108,8 @@ describe('chart browser lifecycle characterization', () => {
   });
 
   it.each(['resolve', 'reject'] as const)('ignores a late load that %ss after destruction', async (outcome) => {
-    const loading = deferred<ChartProvider>({});
-    const mount = vi.fn<ChartProvider['mount']>(() => ({ update() {}, destroy() {} }));
+    const loading = deferred<ChartProvider<HTMLElement>>({});
+    const mount = vi.fn<ChartProvider<HTMLElement>['mount']>(() => ({ update() {}, destroy() {} }));
     const onProviderError = vi.fn();
     const view = host({ providers: [{ ...provider({ id: 'first', mount }), load: () => loading.promise }] }, { onProviderError });
     view.chart.destroy({});
@@ -114,12 +121,12 @@ describe('chart browser lifecycle characterization', () => {
   });
 
   it.each(['resolve', 'reject'] as const)('ignores a superseded load that %ss while a newer mount is loading', async (outcome) => {
-    const oldLoad = deferred<ChartProvider>({});
-    const newLoad = deferred<ChartProvider>({});
-    const mount = vi.fn<ChartProvider['mount']>(({ element, spec: current }) => {
+    const oldLoad = deferred<ChartProvider<HTMLElement>>({});
+    const newLoad = deferred<ChartProvider<HTMLElement>>({});
+    const mount = vi.fn<ChartProvider<HTMLElement>['mount']>(({ element, spec: current }) => {
       element.textContent = String(current.data[0]!.label); return { update() {}, destroy() {} };
     });
-    const load = vi.fn<ChartProviderEntry['load']>().mockReturnValueOnce(oldLoad.promise).mockReturnValueOnce(newLoad.promise);
+    const load = vi.fn<ChartProviderEntry<HTMLElement>['load']>().mockReturnValueOnce(oldLoad.promise).mockReturnValueOnce(newLoad.promise);
     const onProviderError = vi.fn();
     const view = host({ providers: [{ ...provider({ id: 'first', mount }), load }] }, { onProviderError });
     const updating = view.chart.update({ spec: nextSpec });
@@ -261,7 +268,7 @@ describe('chart browser lifecycle characterization', () => {
   it('blacklists an update failure, reports it once and leaves the newest data visible when exhausted', async () => {
     const error = new Error('update');
     const destroy = vi.fn();
-    const mount = vi.fn<ChartProvider['mount']>(() => ({ update() { throw error; }, destroy }));
+    const mount = vi.fn<ChartProvider<HTMLElement>['mount']>(() => ({ update() { throw error; }, destroy }));
     const onProviderError = vi.fn();
     const view = host({ providers: [provider({ id: 'first', mount })] }, { onProviderError });
     await view.chart.ready;

@@ -1,6 +1,6 @@
 /** Vanilla fallback using the existing native table classes and numeric-column decision owner. */
 import { getNumericColumnKeys } from '../interactive-ui/table-data.js';
-import type { ChartSpec, ChartTheme } from './contract.js';
+import type { ChartSpec, ChartTheme } from '@jini-ai/core/contracts/charts';
 
 /** Apply only chart tokens; a provider cannot use theme input to style unrelated host chrome. */
 export function applyChartTheme(

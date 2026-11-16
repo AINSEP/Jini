@@ -15,7 +15,7 @@
  */
 import { AsyncLocalStorage } from "node:async_hooks";
 
-import type { BeforeSaveFilter, ContentEntryDraft } from "../ports.js";
+import type { BeforeSaveFilter, ContentEntryDraft } from "@jini-ai/core/contracts/plugin-sdk";
 import type { CapabilityScopedSdkCoreDeps } from "../capability-sdk.js";
 
 interface InvocationState {

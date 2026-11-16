@@ -5,7 +5,7 @@
  * load (two concurrent invocations never see each other's entry). */
 import { describe, expect, it } from 'vitest';
 import { createPluginInvocationBinding } from '../../node/index.js';
-import type { ContentEntryDraft, HookContext } from '../../index.js';
+import type { ContentEntryDraft, HookContext } from '@jini-ai/core/contracts/plugin-sdk';
 
 const HOOK = 'record.preCommit';
 const ctx: HookContext = { pluginId: 'acme', workspaceId: 'w-2' };

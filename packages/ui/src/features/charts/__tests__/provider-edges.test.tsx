@@ -1,7 +1,7 @@
 import { render, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { loadChartProvider, mountChart } from '../browser.js';
-import type { ChartProviderEntry, ChartSpec } from '../contract.js';
+import type { ChartProviderEntry, ChartSpec } from '@jini-ai/core/contracts/charts';
 import { ChartHost } from '../react.js';
 import { createChartProviderRegistry, selectChartProviders } from '../registry.js';
 
@@ -27,7 +27,7 @@ describe('loadChartProvider default import', () => {
 
 describe('selectChartProviders capability probe', () => {
   it('keeps providers that declare no probe or accept the spec, and skips one that refuses it', () => {
-    const entry = (id: string, supports?: ChartProviderEntry['supports']): ChartProviderEntry => ({
+    const entry = (id: string, supports?: ChartProviderEntry<HTMLElement>['supports']): ChartProviderEntry<HTMLElement> => ({
       id, kinds: ['bar'], enabled: true, load: async () => ({ mount: () => ({ update() {}, destroy() {} }) }), ...(supports ? { supports } : {}),
     });
     const registry = createChartProviderRegistry({ providers: [entry('open'), entry('accepts', () => true), entry('refuses', () => false)] });

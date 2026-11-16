@@ -46,7 +46,8 @@ import type { FormDefinitionRepoPort, FormSubmissionRepoPort } from "./ports.js"
 import type { FormDefinitionViewPort } from "./ports.js";
 import { assertSubmissionEmails } from "./submission-email-validation.js";
 import { DUPLICATE_ATTEMPT, FORM_ATTEMPT_FIELD, MIN_FORM_SUBMISSION_AGE_MS, type SubmissionAttempts } from "./submission-attempts.js";
-import { FORM_SUBMISSION_RECEIVED_EVENT, type FormDefinitionRecord, type FormSubmissionRecord, type FormFileStoragePort, type FormFileReference, type FormFileInput } from "./types.js";
+import { FORM_SUBMISSION_RECEIVED_EVENT, type FormDefinitionRecord, type FormSubmissionRecord, type FormFileStoragePort, type FormFileInput } from "./types.js";
+import { type FormFileReference } from "@jini-ai/core/contracts/forms";
 
 export interface SubmitFormDeps {
   definitionRepo: FormDefinitionRepoPort;

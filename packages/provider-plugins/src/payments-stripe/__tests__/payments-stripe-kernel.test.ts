@@ -1,7 +1,8 @@
 import { createHmac } from "node:crypto";
 import { afterEach, expect, it, vi } from "vitest";
 import { createPluginContributionCapture, createPluginContributionRegistry, createPluginProviderHost,
-  type PluginManifest, type PluginSdk } from "@jini-ai/plugins/host";
+  type PluginManifest } from "@jini-ai/plugins/host";
+import { type PluginSdk } from "@jini-ai/core/contracts/plugin-sdk";
 import { createInboxWorker, createKernelProviderRegistry, createMemoryGrantStore, createOutboxRelay,
   createPaymentsOperator, createPaymentsService, createProviderContexts, createWebhookReceiver,
   leasedProviderItem, memoryPaymentsLedger, paymentsProviderContract, sameScope,
