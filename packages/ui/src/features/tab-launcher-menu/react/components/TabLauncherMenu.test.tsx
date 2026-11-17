@@ -4,7 +4,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { TabLauncherMenu, type TabLauncherMenuProps } from './TabLauncherMenu.js';
-import { I18nProvider } from '../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../i18n/index.js';
 import type { TabLauncherAction, TabLauncherResultItem } from '../../types.js';
 
 beforeAll(() => {
@@ -36,6 +36,9 @@ function Harness({ files: propsFiles = files, onOpenFile = vi.fn(), onClose = vi
     </div>
   );
 }
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('TabLauncherMenu', () => {
   it('renders nothing until an anchor is available, then renders via a portal to document.body', () => {
@@ -276,5 +279,11 @@ describe('TabLauncherMenu 4-pattern hook override test suite', () => {
 
     expect(screen.getByText('apple.png')).toBeInTheDocument();
     expect(screen.queryByText('index.html')).toBeNull();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    const anchor = document.body.appendChild(document.createElement('button'));
+    render(<TabLauncherMenu anchor={anchor} files={files} onOpenFile={vi.fn()} onClose={vi.fn()} useTHook={useQuotingT} />);
+    expect(screen.getByRole('dialog', { name: '«New tab»' })).toBeInTheDocument();
   });
 });

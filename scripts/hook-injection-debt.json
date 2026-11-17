@@ -391,12 +391,6 @@
         "packages/chat/src/react/components/ChatSettingsDialog.tsx"
       ]
     },
-    "CheckboxField::useAgentHandle": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/interactive-ui/providers/shadcn/checkbox-field.tsx"
-      ]
-    },
     "ClientPooledIframe::useIframeKeepAlivePool": {
       "count": 1,
       "files": [
@@ -1476,12 +1470,6 @@
         "packages/ui/src/features/interactive-ui/providers/shadcn/select.tsx"
       ]
     },
-    "SelectField::useAgentHandle": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/interactive-ui/providers/shadcn/select-field.tsx"
-      ]
-    },
     "SentAttachmentButton::useSentAttachmentThumbnail": {
       "count": 1,
       "files": [
@@ -1738,12 +1726,6 @@
       "count": 1,
       "files": [
         "packages/ui/src/features/admin-widgets/components/SuggestInput/SuggestInput.tsx"
-      ]
-    },
-    "TabLauncherMenu::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/tab-launcher-menu/react/components/TabLauncherMenu.tsx"
       ]
     },
     "TabStrip::useAgentHandle": {
