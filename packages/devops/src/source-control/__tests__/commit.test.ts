@@ -262,3 +262,11 @@ test('G1b: a thrown provider error that carries the token is redacted after the 
   assert.equal(result.message.includes(OPAQUE_TOKEN), false);
   assert.match(result.message, /^request failed for .+$/);
 });
+
+test('G2: a provider failure code the host does not know, or an inherited member name, maps to PROVIDER_ERROR', async () => {
+  for (const code of ['made-up', 'constructor', '__proto__', 'toString', 'hasOwnProperty']) {
+    const f = fixture();
+    f.args.adapter.commitSite = async () => ({ ok: false, code: code as 'provider-error', message: 'refused' });
+    assert.deepEqual(await commitSiteToSourceControl(f.args), { ok: false, code: 'PROVIDER_ERROR', message: 'refused' }, code);
+  }
+});

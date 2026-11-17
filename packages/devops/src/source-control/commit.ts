@@ -1,6 +1,6 @@
 import { redactSecrets } from '@jini-ai/core';
 import { firstExportFailure } from '../core/export-failure-summary.js';
-import type { CommitExportArgs, CommitFile, CommitOptions, CommitOrchestrationArgs, PreviewCommitExportResult, SourceControlCommitOutcome } from './contracts.js';
+import type { CommitExportArgs, CommitFailureCode, CommitFile, CommitOptions, CommitOrchestrationArgs, PreviewCommitExportResult, SourceControlCommitOutcome } from './contracts.js';
 import { validateCommitTarget } from './repository-target.js';
 import { normalizeRepositoryFolder, prefixRepositoryPath } from './repository-path.js';
 
@@ -70,6 +70,11 @@ async function resolveProviderCredential(required: CommitOrchestrationArgs): Pro
   return { ok: true, credential };
 }
 
+/** Own keys only: a plugin's `constructor` or `__proto__` code must not resolve to an inherited member. */
+function outcomeCode(required: { code: string }): CommitFailureCode {
+  return Object.hasOwn(PROVIDER_FAILURE_CODES, required.code) ? PROVIDER_FAILURE_CODES[required.code as keyof typeof PROVIDER_FAILURE_CODES] : 'PROVIDER_ERROR';
+}
+
 /** Provider text may echo the Authorization value, so it never leaves this module without the exact token redacted
  *  (the shared redactor also catches shapes the token's own prefix would reveal). */
 function redactToken(required: { text: string; token: string }): string {
@@ -82,7 +87,7 @@ async function commitExportedFiles(required: { args: CommitOrchestrationArgs; to
   try {
     const folder = normalizeRepositoryFolder(args);
     const result = await args.adapter.commitSite({ token, owner: args.owner, repo: args.repo, commitMessage: args.commitMessage, files, ...(folder ? { folder } : {}) }, optional.branch !== undefined ? { branch: optional.branch } : {});
-    if (!result.ok) return { ok: false, code: PROVIDER_FAILURE_CODES[result.code], message: redactToken({ text: result.message, token }) };
+    if (!result.ok) return { ok: false, code: outcomeCode({ code: result.code }), message: redactToken({ text: result.message, token }) };
     return { ...result, owner: args.owner, repo: args.repo, divergedPaths: result.divergedPaths ?? [] };
   } catch (error) { return { ok: false, code: 'PROVIDER_ERROR', message: redactToken({ text: args.describeError({ error }), token }) }; }
 }
