@@ -7,4 +7,5 @@ export { SqliteDbOpsAdapter, type SqliteDbOpsAdapterDeps } from "./db-ops.js";
 export { DATABASE_COPY_RETENTION, DatabaseDiskSpaceError, assertDatabaseCopySpace, pruneDatabaseCopies, type DatabaseCopy } from "./backup-policy.js";
 
 export { inspectSqliteDatabase, verifySqliteIntegrity } from "./inspect.js";
+export { assertSqliteStopped, checkpointStoppedSqliteWal, inspectStoppedSqlite, type StoppedSqliteOpener } from "./stopped.js";
 export type { DaemonDbTableInfo, DaemonDbStatusReport, DbIntegrityIssueKind, DbIntegrityIssue, DbIntegrityReport, VerifyDbOptions } from "./inspect.js";
