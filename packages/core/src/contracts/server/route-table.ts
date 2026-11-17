@@ -41,6 +41,17 @@ function comparablePath({ pathname, lenient }: { pathname: string; lenient: bool
   return lenient && pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
 }
 
+type SegmentStep = 'literal' | 'malformed' | { readonly name: string; readonly value: string } | null;
+
+/** One segment against its pattern segment: `null` = this route does not fit. */
+function matchSegment({ want, got, lenient }: { want: string; got: string; lenient: boolean }): SegmentStep {
+  if (!want.startsWith(':')) return sameLiteral({ want, got, lenient }) ? 'literal' : null;
+  // An empty segment is a different path (Express's `:name` needs one or more characters), not a bad escape.
+  if (got === '') return null;
+  const value = decodeParam(got);
+  return value === null ? 'malformed' : { name: want.slice(1), value };
+}
+
 function matchSegments({ pattern, pathname, lenient }: { pattern: string; pathname: string; lenient: boolean }): SegmentMatch {
   const expected = pattern.split('/');
   const actual = comparablePath({ pathname, lenient }).split('/');
@@ -48,17 +59,10 @@ function matchSegments({ pattern, pathname, lenient }: { pattern: string; pathna
   const params: Record<string, string> = {};
   let malformed = false;
   for (let index = 0; index < expected.length; index += 1) {
-    const want = expected[index] ?? '';
-    const got = actual[index] ?? '';
-    if (!want.startsWith(':')) {
-      if (!sameLiteral({ want, got, lenient })) return null;
-      continue;
-    }
-    // An empty segment is a different path (Express's `:name` needs one or more characters), not a bad escape.
-    if (got === '') return null;
-    const value = decodeParam(got);
-    if (value === null) malformed = true;
-    else params[want.slice(1)] = value;
+    const step = matchSegment({ want: expected[index] ?? '', got: actual[index] ?? '', lenient });
+    if (step === null) return null;
+    if (step === 'malformed') malformed = true;
+    else if (step !== 'literal') params[step.name] = step.value;
   }
   // A later literal that differs still means "no match", so the verdict waits for the whole path.
   return malformed ? 'malformed' : { params };
@@ -90,6 +94,18 @@ function bySpecificity(a: string, b: string): number {
   return 0;
 }
 
+/** Every route whose pattern fits `pathname`, and whether a lenient table saw a pattern that fits except for a bad percent-escape. */
+function collect({ routes, pathname, lenient }: { routes: readonly ServerRoute[]; pathname: string; lenient: boolean }): { matched: { route: ServerRoute; params: Record<string, string> }[]; malformed: boolean } {
+  const matched: { route: ServerRoute; params: Record<string, string> }[] = [];
+  let malformed = false;
+  for (const route of routes) {
+    const found = matchSegments({ pattern: route.path, pathname, lenient });
+    if (found === 'malformed') malformed = lenient || malformed;
+    else if (found) matched.push({ route, params: found.params });
+  }
+  return { matched, malformed };
+}
+
 /** Optional settings for {@link createRouteTable}. */
 export interface RouteTableOptions {
   /**
@@ -119,13 +135,7 @@ export function createRouteTable(_required = {}, { lenientPaths = false }: Route
       routes.push({ method: route.method, path: route.path, handler: route.handler });
     },
     match({ method, pathname }) {
-      const matched: { route: ServerRoute; params: Record<string, string> }[] = [];
-      let malformed = false;
-      for (const route of routes) {
-        const found = matchSegments({ pattern: route.path, pathname, lenient: lenientPaths });
-        if (found === 'malformed') malformed = lenientPaths || malformed;
-        else if (found) matched.push({ route, params: found.params });
-      }
+      const { matched, malformed } = collect({ routes, pathname, lenient: lenientPaths });
       if (matched.length === 0) return malformed ? { kind: 'malformed-path' } : { kind: 'not-found' };
       const best = (wanted: string) => matched.filter((m) => m.route.method === wanted)
         .sort((a, b) => bySpecificity(a.route.path, b.route.path))[0];

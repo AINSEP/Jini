@@ -345,22 +345,23 @@ async function serveRoute({ incoming, out, method, options, onUnhandledError }: 
   }
 }
 
+/** Writes an answer the dispatcher itself chose; a failed write cuts the connection. */
+function answerItself({ dispatch, response }: { dispatch: Dispatch; response: Response }): Promise<void> {
+  return sendWebResponse({ response, res: dispatch.out }, { headOnly: dispatch.method === 'HEAD' })
+    .catch(() => { dispatch.out.destroy(); });
+}
+
 /**
  * The answers an `expressCompatible` dispatcher gives instead of falling through: OPTIONS on a path a route owns, and a 400 for a
  * malformed `:name` segment. `undefined` means "not one of these", and the ordinary fall-through applies.
  */
 function expressAnswer({ dispatch, match }: { dispatch: Dispatch; match: RouteMatch | null }): Promise<void> | undefined {
   if (!dispatch.expressCompatible || !match) return undefined;
-  const { out, method, options } = dispatch;
-  if (match.kind === 'malformed-path' && options.next) {
-    options.next(Object.assign(new Error(MALFORMED_PATH_TEXT), { status: 400, statusCode: 400, expose: true }));
-    return Promise.resolve();
-  }
-  if (match.kind === 'malformed-path' || (match.kind === 'method-not-allowed' && method === 'OPTIONS')) {
-    const response = match.kind === 'malformed-path' ? unroutedResponse(match) : optionsResponse({ allow: match.allow });
-    return sendWebResponse({ response, res: out }).catch(() => { out.destroy(); });
-  }
-  return undefined;
+  if (match.kind === 'method-not-allowed' && dispatch.method === 'OPTIONS') return answerItself({ dispatch, response: optionsResponse({ allow: match.allow }) });
+  if (match.kind !== 'malformed-path') return undefined;
+  if (!dispatch.options.next) return answerItself({ dispatch, response: unroutedResponse(match) });
+  dispatch.options.next(Object.assign(new Error(MALFORMED_PATH_TEXT), { status: 400, statusCode: 400, expose: true }));
+  return Promise.resolve();
 }
 
 /**
@@ -383,8 +384,7 @@ export function createNodeDispatcher(
     if (answer) return answer;
     // Not ours (or no usable URL): the host's own routes and validation decide, as before the dispatcher.
     if (dispatchArgs.options.next) return dispatchArgs.options.next();
-    return sendWebResponse({ response: unroutedResponse(match), res: dispatchArgs.out }, { headOnly: dispatchArgs.method === 'HEAD' })
-      .catch(() => { dispatchArgs.out.destroy(); });
+    return answerItself({ dispatch: dispatchArgs, response: unroutedResponse(match) });
   };
   return {
     server: { route: (route) => table.route(route) },

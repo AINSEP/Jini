@@ -30,7 +30,7 @@ import {
   type ResolveRunInput,
   type TerminalSessionManager,
 } from '@jini-ai/daemon';
-import { buildTerminalService, type TerminalFeatureOptions } from './terminal-service.js';
+import { buildTerminalService, type TerminalFeatureOptions } from './terminal-service.js'; import { mountRoutes } from './mount-routes.js';
 import {
   ensureToolCatalogTables,
   getToolCatalogEntry,
@@ -38,7 +38,7 @@ import {
   searchToolCatalog,
 } from '@jini-ai/registry/tool-catalog/sqlite';
 import { inspectSqliteDatabase, verifySqliteIntegrity } from '@jini-ai/db/sqlite'; import type { SqliteDb } from '@jini-ai/core/contracts/storage';
-import { createDaemonDbToolRegistrations, denyAllWorkspaceRoots, registerActiveContextRoutes, registerAgentRoutes, registerConnectorsRoutes, registerDaemonDbRoutes, registerDaemonStatusRoutes, registerDelegatedToolRoutes, registerFrontendSessionRoutes, registerHealthRoutes, registerHostToolsRoutes, registerMediaRoutes, registerMemoryRoutes, registerModelProxyRoutes, registerRemoteRunEventRoutes, registerResearchRoutes, registerRoutineRoutes, registerRunRoutes, registerTerminalRoutes, registerToolCatalogRoutes, registerXaiRoutes, type AgentSummary, type DaemonDbOperations, type DaemonDbVacuumResult, type DelegatedToolExecuteRequest, type FrontendSessionsHttpDeps, type MediaHttpDeps, type MemoryHttpDeps, type RemoteToolBridgeTokenConfig, type RoutineHttpDeps, type RunStartHandler, type WorkspaceRootResolver } from '@jini-ai/daemon/http';
+import { toolCatalogRoutes, createDaemonDbToolRegistrations, denyAllWorkspaceRoots, registerActiveContextRoutes, registerAgentRoutes, registerConnectorsRoutes, registerDaemonDbRoutes, registerDaemonStatusRoutes, registerDelegatedToolRoutes, registerFrontendSessionRoutes, registerHealthRoutes, registerHostToolsRoutes, registerMediaRoutes, registerMemoryRoutes, registerModelProxyRoutes, registerRemoteRunEventRoutes, registerResearchRoutes, registerRoutineRoutes, registerRunRoutes, registerTerminalRoutes, registerXaiRoutes, type AgentSummary, type DaemonDbOperations, type DaemonDbVacuumResult, type DelegatedToolExecuteRequest, type FrontendSessionsHttpDeps, type MediaHttpDeps, type MemoryHttpDeps, type RemoteToolBridgeTokenConfig, type RoutineHttpDeps, type RunStartHandler, type WorkspaceRootResolver } from '@jini-ai/daemon/http';
 import type { Express } from 'express';
 
 import { defineJiniFeature, type FeatureBuildContext, type JiniFeature } from './feature.js';
@@ -456,12 +456,12 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
           services: () => ({ context }),
         }, {
           http: ({ app, services }) =>
-            registerToolCatalogRoutes({ app: app as Express, deps: {
+            mountRoutes({ app, routes: toolCatalogRoutes({ deps: {
                 catalog: {
                   search: ({ query }, optionalArgs) => searchToolCatalog({ db: sqlite.connection, query }, optionalArgs),
                   describe: ({ id }: { id: string }) => getToolCatalogEntry({ db: sqlite.connection, id }),
                 },
-              }, adapter: services.context.adapter }),
+              }, host: services.context.routeHost }) }),
         }),
         // Runs once EVERY active feature's tools are registered — the one ordering a Pack cannot
         // express itself. Seeding from inside this pack's own `tools` would snapshot a registry

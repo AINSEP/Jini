@@ -71,8 +71,8 @@ const ROUTE_TABLE: Readonly<Record<string, readonly string[]>> = {
     'POST /api/daemon/db/vacuum [anonymous/2]',
   ],
   'tool-catalog': [
-    'GET /api/tools/search [anonymous/2]',
-    'GET /api/tools/:id [anonymous/2]',
+    'GET /api/tools/search [same-origin]',
+    'GET /api/tools/:id [same-origin]',
   ],
   'delegated-tools': [
     'POST /api/delegated-tool-calls [anonymous/2]',
