@@ -49,7 +49,7 @@
    "callLlmProvider": "function:0ca00ea5cf",
    "callLlmProviderForJson": "function:a5bc2238df",
    "containsPathSeparatorOrNul": "function:373ae2c589",
-   "createExtractionLog": "function:a57b7dd1d3",
+   "createExtractionLog": "function:da836a7bfe",
    "createNoteStore": "function:1fb18c8d8e",
    "createVerifyLog": "function:9a3f017940",
    "describeFetchError": "function:4704427f5c",

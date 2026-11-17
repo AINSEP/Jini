@@ -39,10 +39,10 @@
    "AdminFormDefinition": "interface:b023cf4e90",
    "AdminFormField": "interface:4b5ccfa4a0",
    "AdminFormNotifyConfig": "interface:bd12f6c88a",
-   "AdminFormSubmission": "interface:b9e7642e65",
+   "AdminFormSubmission": "interface:ecffc129df",
    "AdminFormSubmissionPage": "interface:94f39cc1fc",
    "AdminFormUpdatePatch": "interface:809827fc0c",
-   "AdminFormsPort": "interface:958770ba24",
+   "AdminFormsPort": "interface:17ae9fa7e9",
    "AdminIdentityPort": "interface:1322e921b9",
    "AdminIdentityUser": "interface:7810b911c3",
    "AdminIntegrationDelivery": "interface:50be30bf72",
@@ -203,9 +203,9 @@
    "agentPluginFilesSnapshot": "function:ad48a0c1fe",
    "agentPluginGlyphKind": "function:1002310fa0",
    "agentPluginSummary": "function:158e84a6a9",
-   "agentPluginsApiToken": "variable:6354c22ba9",
+   "agentPluginsApiToken": "variable:69617d4029",
    "agentPluginsMessagesEn": "variable:750779ab29",
-   "agentPluginsModule": "variable:feaf038b94",
+   "agentPluginsModule": "variable:ead22009c5",
    "ancestorFolderPaths": "function:0d6ed41090",
    "buildPackageFileTree": "function:3ff99ec26f",
    "createAgentPluginFilesController": "function:81e7b32c42",
@@ -240,7 +240,7 @@
  "./agent-plugins/react": {
   "types": "./dist/agent-plugins/react/index.d.ts",
   "symbols": {
-   "agentPlugins": "function:08bf879aa3",
+   "agentPlugins": "function:2c61939a32",
    "useAgentPluginsPorts": "function:94e92f9d4e"
   }
  },
@@ -287,12 +287,12 @@
    "RowActionState": "interface:828ef79078",
    "buildSettingsPatch": "function:24a6be3261",
    "commentRowMenuItems": "function:5feb421a9a",
-   "commentsApiToken": "variable:7dcdaef611",
-   "commentsEventsToken": "variable:de1388e240",
+   "commentsApiToken": "variable:282edfb21f",
+   "commentsEventsToken": "variable:90a625c24c",
    "commentsMessagesEn": "variable:d946d5988f",
-   "commentsModule": "variable:1de67cd173",
-   "commentsSessionToken": "variable:29c95a05a8",
-   "createCommentQueueController": "function:3415c7f05c",
+   "commentsModule": "variable:952a064fd2",
+   "commentsSessionToken": "variable:aea44aea87",
+   "createCommentQueueController": "function:8e47a83c96",
    "createCommentSettingsController": "function:08bba9ebb2",
    "createCommentsController": "function:97ba155d19",
    "describeModerationError": "function:693386ff26",
@@ -333,7 +333,7 @@
    "CommentsProps": "interface:3daaf45a29",
    "QueueSectionProps": "interface:7720240606",
    "SettingsSectionProps": "interface:8ba7aaede5",
-   "comments": "function:7a71d16e54",
+   "comments": "function:89ce453a77",
    "useCommentQueue": "function:8e955c19e5",
    "useCommentSettings": "function:c0a76536b8",
    "useComments": "function:9b90a5e3c1",
@@ -404,10 +404,10 @@
    "AdminFormDefinition": "interface:b023cf4e90",
    "AdminFormField": "interface:4b5ccfa4a0",
    "AdminFormNotifyConfig": "interface:bd12f6c88a",
-   "AdminFormSubmission": "interface:b9e7642e65",
+   "AdminFormSubmission": "interface:ecffc129df",
    "AdminFormSubmissionPage": "interface:94f39cc1fc",
    "AdminFormUpdatePatch": "interface:809827fc0c",
-   "AdminFormsPort": "interface:958770ba24",
+   "AdminFormsPort": "interface:17ae9fa7e9",
    "AdminIdentityPort": "interface:1322e921b9",
    "AdminIdentityUser": "interface:7810b911c3",
    "AdminIntegrationDelivery": "interface:50be30bf72",
@@ -543,21 +543,9 @@
   "types": "./dist/core/module/index.d.ts",
   "symbols": {
    "AdminConfigError": "class:937619e96c",
-   "AdminDescription": "interface:b042db47e3",
    "AdminHostPorts": "type:6b63af667d",
-   "AdminInstance": "interface:a1652fafee",
-   "AdminModule": "interface:71bbaeb0f4",
    "AdminOptions": "interface:c047d09c49",
-   "AdminPage": "interface:baab4a39d6",
-   "AdminPortToken": "interface:3e6eab4beb",
-   "AdminTab": "interface:f3506dc0ae",
-   "PortMap": "type:1c13e671bd",
-   "PortValues": "type:aa2fa976d9",
-   "ScopedPorts": "type:6f54e7751c",
-   "TabId": "type:57f048a0af",
-   "adminPort": "function:223d80e8d9",
-   "createAdmin": "function:2cb02d59f2",
-   "defineAdminModule": "function:97211cec77"
+   "createAdmin": "function:2cb02d59f2"
   }
  },
  "./core/react": {
@@ -579,7 +567,7 @@
    "AdminFormField": "type:dc59787bf3",
    "AdminFormNotify": "type:fb16f784b1",
    "AdminFormSubmission": "type:2dedfc7afc",
-   "AdminFormsPort": "interface:958770ba24",
+   "AdminFormsPort": "interface:17ae9fa7e9",
    "AttrRow": "interface:17736e9570",
    "FIELD_TYPES": "variable:679b05ae21",
    "FORMS_LIST_RESOURCE": "variable:7881a56ee8",
@@ -620,13 +608,13 @@
    "formRowMenuItems": "function:be919a2c11",
    "formSubmissionRows": "function:def788d7e8",
    "formatFormAnswer": "function:34ad49d26d",
-   "formsApiToken": "variable:cbc1f0e133",
-   "formsEventsToken": "variable:627c8ba597",
+   "formsApiToken": "variable:46dfa5d160",
+   "formsEventsToken": "variable:96af384c98",
    "formsListError": "function:a32bc9dcd6",
    "formsMessagesEn": "variable:798a04bbb4",
-   "formsModule": "variable:3e1f47bd56",
-   "formsNavigationToken": "variable:8dc29d815a",
-   "formsTrashToken": "variable:170963b60c",
+   "formsModule": "variable:1785265941",
+   "formsNavigationToken": "variable:50b0e53df2",
+   "formsTrashToken": "variable:a5412f9920",
    "newestUpdatedForms": "function:eb66ad7f2a",
    "nextTabIndex": "function:9ebfbecff0",
    "removeAttrRow": "function:d136bce73b",
@@ -670,7 +658,7 @@
    "FormsPorts": "interface:758665da15",
    "FormsPortsContext": "variable:6ec4cd489b",
    "FormsReactOptions": "interface:b110e32380",
-   "forms": "function:59c77ff84f",
+   "forms": "function:28555c67f1",
    "useFormEditor": "function:a11c4e58a6",
    "useFormsList": "function:7227604a21",
    "useFormsPorts": "function:70fc5764a1"
@@ -685,6 +673,8 @@
    "MediaAsset": "interface:631ed84eb6",
    "MediaContentTabId": "type:ffdf982a64",
    "MediaEventsPort": "interface:58f5970167",
+   "MediaHtmlAttributeError": "interface:e4bcd796a9",
+   "MediaHtmlAttributeRejectionReason": "type:29ebcd4013",
    "MediaMetadataPatch": "interface:97d7883fd1",
    "MediaOrderBy": "type:c037d66913",
    "MediaProvider": "interface:58ad8d567e",
@@ -695,27 +685,27 @@
    "MediaQuery": "interface:796adf3045",
    "MediaRequestOptions": "interface:2690ab868f",
    "MediaTabId": "type:cbdd42d53d",
+   "ParsedMediaHtmlAttributes": "interface:8ed82910ad",
    "UploadInput": "interface:b3a6cbd1e7",
    "acceptsMedia": "function:f3a0a9796d",
    "canReplaceMedia": "function:9f9b62fc36",
    "canRestoreMedia": "function:105ef13bb2",
    "countMediaTabs": "function:64c3598add",
    "createEditMediaController": "function:e45ae6efe0",
-   "createLibraryController": "function:ee52f455e7",
+   "createLibraryController": "function:19ea18f93a",
    "createProvidersController": "function:a013ad241f",
    "describeMediaHtmlAttributeError": "function:f5bbcb720f",
    "diffMediaMetadata": "function:96341c6541",
    "filterMediaByTab": "function:7d7673fb0f",
-   "formatByteSize": "function:ac60a38577",
    "formatUploadDate": "function:f7f85a7e27",
    "isAllowedMediaHtmlAttributeName": "function:1b96bba26a",
    "isRetryableMediaError": "function:69edc13af6",
-   "mediaApiToken": "variable:6da96de066",
+   "mediaApiToken": "variable:d07f322bd4",
    "mediaEmbedSnippet": "function:2aa7cd1051",
    "mediaFileName": "function:9c31019620",
    "mediaMessagesEn": "variable:97fdd567a9",
-   "mediaModule": "variable:d17e3c926b",
-   "mediaProvidersToken": "variable:e17705e4f8",
+   "mediaModule": "variable:adbf6c58eb",
+   "mediaProvidersToken": "variable:e59103c9f5",
    "mediaRowHandles": "function:9f13947bba",
    "parseMediaHtmlAttributes": "function:2092345143",
    "parseOptionalPixelSize": "function:c258a2e599",
@@ -727,8 +717,10 @@
  "./media/adapters/http": {
   "types": "./dist/media/adapters/http.d.ts",
   "symbols": {
+   "MediaProvidersTransportPort": "interface:9c41094513",
    "MediaTransportPort": "interface:145d20a825",
-   "createHttpMediaApi": "function:a752671aa3"
+   "createHttpMediaApi": "function:a752671aa3",
+   "createHttpMediaProvidersPort": "function:c4cdb5b370"
   }
  },
  "./media/adapters/memory": {
@@ -749,7 +741,7 @@
   "symbols": {
    "GallerySelectionImage": "interface:5813edeafb",
    "MediaPageProps": "interface:4dce242531",
-   "media": "function:e2dd230ef3",
+   "media": "function:c809baf9dc",
    "useGallerySelection": "function:5db3088add",
    "useMediaPorts": "function:2c6688f2b3"
   }
@@ -762,7 +754,7 @@
    "canMountPlayground": "function:88e2fbc1e8",
    "createPlaygroundController": "function:0dc85b1b05",
    "playgroundMessagesEn": "variable:1d2793d756",
-   "playgroundModule": "variable:60b027f7f5"
+   "playgroundModule": "variable:a9ccffe0bf"
   }
  },
  "./playground/adapters/http": {
@@ -786,7 +778,7 @@
  "./playground/react": {
   "types": "./dist/playground/react/index.d.ts",
   "symbols": {
-   "playground": "function:5f6a6d50a9",
+   "playground": "function:33d62414ef",
    "usePlaygroundPorts": "function:e0df555889"
   }
  },
@@ -929,6 +921,98 @@
    "toDatetimeLocalValue": "function:4701bed698"
   }
  },
+ "./react/kit": {
+  "types": "./dist/react/kit.d.ts",
+  "symbols": {
+   "AdminKit": "interface:b219f36597",
+   "AdminKitComponents": "interface:f764c98cce",
+   "AdminKitHooks": "interface:943521f7c0",
+   "AdminKitProvider": "function:60da7d224a",
+   "AdminQueryKit": "interface:fe542cee9a",
+   "AdminTheme": "interface:f2b152ab6a",
+   "AdminThemeColors": "interface:3e5919e150",
+   "AdminThemeDocument": "type:632b997fe6",
+   "AdminThemeKit": "interface:6a9d4d515f",
+   "AdminThemeTarget": "type:b650c87226",
+   "AgentAttrsPort": "type:3f50ca900e",
+   "AgentControlProps": "interface:5534945b03",
+   "Badge": "variable:7921dc5de6",
+   "BadgeProps": "interface:d84ae3bec8",
+   "Button": "variable:6063459b7d",
+   "ButtonProps": "interface:70f13023c2",
+   "CanvasContentWrapperNode": "interface:e567a43b71",
+   "CanvasEmbedPlaceholderDescriptor": "interface:93d510ac86",
+   "CanvasStyling": "interface:94a0bcb8ea",
+   "ColorScheme": "type:3d30344c7f",
+   "ColorSchemePreference": "type:4f4ab1028d",
+   "ConfirmControllerView": "interface:e8cae7969e",
+   "ConfirmDialog": "variable:79676c5cb6",
+   "Dialog": "variable:beff0c02aa",
+   "DialogProps": "interface:978cf32b4c",
+   "DirtyGuard": "interface:11e9de78a9",
+   "DirtyGuardHostPort": "type:6334cef7e9",
+   "ErrorNotice": "variable:fa53955c68",
+   "ErrorNoticeProps": "interface:28c08d6233",
+   "HtmlEditor": "variable:8e87efad7d",
+   "HtmlEditorProps": "interface:98fc40bf68",
+   "HtmlEditorTarget": "interface:8fbd7f7e24",
+   "IconButton": "variable:76163a15b5",
+   "IconButtonProps": "interface:35f8d2efbf",
+   "InfoTip": "variable:f310ed376e",
+   "InfoTipProps": "interface:c57f614143",
+   "InteractiveHtmlEditorHandle": "interface:d48df7f338",
+   "KitAttrs": "type:a54a0e70b2",
+   "KitConfirmDialogProps": "interface:32bb6aacd9",
+   "KitConfirmTone": "type:46d3dcb01f",
+   "Lightbox": "variable:29cece447b",
+   "LightboxProps": "interface:52b8b462b4",
+   "MatchMediaPort": "type:1eef261c33",
+   "MediaProviderCatalogPolicy": "interface:76f2253372",
+   "MediaProviderOption": "interface:103c7efe4e",
+   "Menu": "variable:3c1020b146",
+   "MenuItem": "interface:3a2e6a6a19",
+   "MenuProps": "interface:7ae81161e8",
+   "NativeDialogView": "interface:2e90428ecd",
+   "Notice": "variable:3fd8169406",
+   "NoticeProps": "interface:6d21eba88d",
+   "Select": "variable:501344e044",
+   "SelectOption": "interface:e209100cd7",
+   "SelectProps": "interface:dd7a04ddef",
+   "SettlementGeneration": "interface:c1ddd0846c",
+   "Spinner": "variable:28ae914a19",
+   "SpinnerProps": "interface:9a47834e6d",
+   "Switch": "variable:4f044712fb",
+   "SwitchProps": "interface:31fa1847a9",
+   "TabBar": "variable:bbb86736e4",
+   "TabBarProps": "interface:dd08ffdf1d",
+   "TabBarTab": "interface:23a1657a31",
+   "TabItem": "interface:6aaee72466",
+   "Tabs": "variable:ccb1406429",
+   "TabsProps": "interface:b220040ee7",
+   "TextArea": "variable:b46c7d52e1",
+   "TextAreaProps": "interface:2e1b37c1b7",
+   "TextField": "variable:891714bff6",
+   "TextFieldProps": "interface:122b3458de",
+   "WidgetSelect": "variable:7602a9b869",
+   "WidgetSelectOption": "interface:f8d19f3d08",
+   "WidgetSelectProps": "interface:f6c68a7a8c",
+   "useAdminKit": "function:756220d37f",
+   "useAdminThemeKit": "function:6f1e3f60fa",
+   "useAgentHandle": "variable:43858f4002",
+   "useCachedLoader": "variable:3ec3d85be4",
+   "useConfirmController": "variable:6181f1c037",
+   "useDirtyGuard": "function:c51834d32a",
+   "useFetchMutation": "variable:ba3e0ee174",
+   "useFetchQuery": "variable:1be8cf6085",
+   "useFetchQueryScope": "variable:a672895a55",
+   "useFocusTrap": "variable:75a9f1191e",
+   "useInvalidate": "variable:1d4817e1dd",
+   "useMediaProviderRules": "function:67218fa272",
+   "useMediaProvidersTab": "variable:ea89d93a84",
+   "useNativeDialog": "variable:02b76d66fe",
+   "useSettlementGeneration": "variable:0f33290eb3"
+  }
+ },
  "./react/overlays": {
   "types": "./dist/react/overlays.d.ts",
   "symbols": {
@@ -962,6 +1046,13 @@
    "resolveAdminShellModel": "function:5ff071ada8",
    "useAdminShellSession": "function:b683ae5a2a",
    "useAdminTheme": "function:25c8c3a6fa"
+  }
+ },
+ "./react/testing-kit": {
+  "types": "./dist/react/testing-kit.d.ts",
+  "symbols": {
+   "fakeAdminKit": "function:de20c6c74f",
+   "fixtureQuery": "function:725c0d932a"
   }
  },
  "./react/use-controller": {
@@ -1006,10 +1097,10 @@
    "nextRedirectStatus": "function:9621e8921c",
    "parseImportPayload": "function:ac540671e2",
    "redirectRowMenuItems": "function:d86ef3054e",
-   "redirectsApiToken": "variable:e9527766e8",
-   "redirectsEventsToken": "variable:ac943a2b93",
+   "redirectsApiToken": "variable:75c68e2230",
+   "redirectsEventsToken": "variable:39ec2565b8",
    "redirectsMessagesEn": "variable:81dff63312",
-   "redirectsModule": "variable:893f195d8e",
+   "redirectsModule": "variable:bce67a9c12",
    "translateRedirectsEn": "variable:3f51bd1564",
    "visibleRedirectsError": "function:2431efdf9e"
   }
@@ -1038,7 +1129,7 @@
   "symbols": {
    "RedirectsReactOptions": "interface:6d3f19114c",
    "RedirectsRenderMessageInput": "interface:3b980fb522",
-   "redirects": "function:0b765cde36",
+   "redirects": "function:ed78ab7ddf",
    "useHitCountCell": "function:32f81fe02d",
    "useImportRedirectsForm": "function:0a90591982",
    "useRedirects": "function:6ad02b40ab",
@@ -1083,12 +1174,12 @@
    "filterCredentials": "function:18bad887d8",
    "filterOtherCredentials": "function:b696bcfd60",
    "isRootKeyLocked": "function:9d60a59798",
-   "otherCredentialsToken": "variable:eeae730653",
+   "otherCredentialsToken": "variable:893fd6fbf8",
    "otherWritePermission": "function:8fc6cb50f7",
-   "rootKeyToken": "variable:f64f570b19",
-   "securityApiToken": "variable:79d9bbb492",
+   "rootKeyToken": "variable:086162378c",
+   "securityApiToken": "variable:457a36222b",
    "securityMessagesEn": "variable:64aad6ad93",
-   "securityModule": "variable:605b20dd8e",
+   "securityModule": "variable:ab7eb240b1",
    "validateCredentialDraft": "function:2c42416b1f",
    "writePermission": "function:8338adac4a"
   }
@@ -1118,7 +1209,7 @@
  "./security/react": {
   "types": "./dist/security/react/index.d.ts",
   "symbols": {
-   "security": "function:1296464488",
+   "security": "function:6941374f2d",
    "useSecurityPorts": "function:a0ed09c781"
   }
  },
@@ -1184,10 +1275,10 @@
    "resolveMediaRefPreviewUrl": "function:8f1555e0ad",
    "resolveSeoTabId": "function:23ba609069",
    "scoreTone": "function:e09a1323fe",
-   "seoApiToken": "variable:b9d0c83772",
-   "seoEventsToken": "variable:f73a939bd7",
+   "seoApiToken": "variable:237dc2d925",
+   "seoEventsToken": "variable:f9a4bbbb33",
    "seoMessagesEn": "variable:7db438703d",
-   "seoModule": "variable:ed728d69af",
+   "seoModule": "variable:e9463dde55",
    "shareImageWarning": "function:2b67a8fa7a",
    "sortIssuesBySeverity": "function:6f4d566958",
    "xIsCustomized": "function:c71360ee46",
@@ -1224,7 +1315,7 @@
    "SeoProps": "interface:8f85b5e5bb",
    "SeoReactOptions": "interface:d46f7cc774",
    "resolveSeoTabs": "function:e07d61970c",
-   "seo": "function:f5fc5941c3",
+   "seo": "function:47296e5538",
    "sitemapStateLabel": "function:6d88175dd2",
    "useSeoPorts": "function:79deaf1080"
   }
@@ -1247,9 +1338,9 @@
    "buildSourceControlConnection": "function:171cdb0174",
    "createSourceControlController": "function:591e6a0954",
    "defaultSourceControlCredential": "function:3b5f3a0e37",
-   "sourceControlApiToken": "variable:b15d1f21de",
+   "sourceControlApiToken": "variable:61337d806d",
    "sourceControlMessagesEn": "variable:f990149e34",
-   "sourceControlModule": "variable:6feeab563b",
+   "sourceControlModule": "variable:314efd6c77",
    "sourceControlProviders": "function:665cdbaeb9",
    "sourceControlReady": "function:424ed5b17f"
   }
@@ -1275,7 +1366,7 @@
  "./source-control/react": {
   "types": "./dist/source-control/react/index.d.ts",
   "symbols": {
-   "sourceControl": "function:f00725b8e1",
+   "sourceControl": "function:26fd5b6ef1",
    "useSourceControlPorts": "function:ec50a270ef"
   }
  },
@@ -1334,13 +1425,13 @@
    "widgetSlugRedirectPath": "function:b1235550b1",
    "widgetTypeLabel": "function:6c40860198",
    "widgetsAgentPageIds": "variable:68c9b138d0",
-   "widgetsApiToken": "variable:4dd98f5010",
+   "widgetsApiToken": "variable:3f9bb66d56",
    "widgetsEditorPaths": "variable:66fbf789d6",
    "widgetsEnglish": "function:b0fff975b3",
-   "widgetsEventsToken": "variable:06eec364fa",
+   "widgetsEventsToken": "variable:430dddb5ff",
    "widgetsMessagesEn": "variable:6af0714ad8",
-   "widgetsModule": "variable:17cf2b371b",
-   "widgetsNavigationToken": "variable:287aa0372c"
+   "widgetsModule": "variable:38566dce8b",
+   "widgetsNavigationToken": "variable:d8a01dddba"
   }
  },
  "./widgets/adapters/http": {
@@ -1374,8 +1465,8 @@
    "WidgetsReactOptions": "interface:ad456c770c",
    "WidgetsSlots": "interface:d5c0462582",
    "useWidgetsOptions": "function:c4075eb9d5",
-   "useWidgetsPorts": "function:e14fd123ab",
-   "widgets": "function:7955f43032"
+   "useWidgetsPorts": "function:262f4fd604",
+   "widgets": "function:148be6b9b8"
   }
  }
 }

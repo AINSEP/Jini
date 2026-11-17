@@ -55,6 +55,20 @@
   "types": null,
   "symbols": {}
  },
+ "./observability-opentelemetry/port": {
+  "types": "./dist/observability-opentelemetry/otel-port.d.ts",
+  "symbols": {
+   "ExporterFactory": "interface:d8cee9285d",
+   "OtelAdapterDependencies": "interface:e7d8a8768c",
+   "OtelAdapterOptions": "interface:4a1b737409",
+   "TraceSpanKind": "type:dc2c763271",
+   "TracerPort": "interface:d9f7af1cf7",
+   "TracerProviderFactory": "interface:ea1de01798",
+   "createOtelObservabilityPort": "function:bdde813c25",
+   "outboundTargetAttributes": "function:81a28602aa",
+   "redactRequestTarget": "function:b7f7351bf5"
+  }
+ },
  "./observability-sentry": {
   "types": null,
   "symbols": {}

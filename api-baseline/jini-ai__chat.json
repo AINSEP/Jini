@@ -17,9 +17,6 @@
    "CHAT_RUN_STATUSES": "variable:97da0abe3b",
    "COLLAPSED_DETAIL_MAX_CHARS": "variable:05e7a609d0",
    "CREDENTIAL_CARD_GUIDANCE": "variable:7b4b7e68d3",
-   "CapabilityDef": "interface:0e98676fc2",
-   "CapabilityInputSchema": "interface:6f68b2373f",
-   "CapabilityRisk": "type:114187996c",
    "ChatAttachment": "interface:09c6600a09",
    "ChatConversation": "interface:80a815ecb9",
    "ChatHistoryMaintenance": "interface:96a37f6da3",
@@ -190,13 +187,22 @@
    "withoutSecretQuestionDefaults": "function:cd641ec614"
   }
  },
+ "./browser/agent-inventory": {
+  "types": "./dist/embed-widget/browser/agent-inventory.d.ts",
+  "symbols": {
+   "AgentInventoryEntry": "interface:b290326ace",
+   "AgentInventorySnapshot": "interface:24df143578",
+   "AgentInventorySnapshotArgs": "interface:3b0a131f9b",
+   "createAgentInventorySnapshot": "function:fb73f15a98"
+  }
+ },
  "./browser/frontend-session-bridge": {
   "types": "./dist/embed-widget/browser/frontend-session-bridge.d.ts",
   "symbols": {
    "FrontendNavigationGuard": "interface:f29713c58c",
    "FrontendSessionBridge": "interface:58b5fa2143",
    "FrontendSessionBridgeArgs": "interface:35bca9027f",
-   "FrontendSessionBridgeOptions": "interface:c9b9e83c19",
+   "FrontendSessionBridgeOptions": "interface:24faa9b742",
    "createFrontendNavigationGuard": "function:9aea85c191",
    "createFrontendSessionBridge": "function:e8aef51090",
    "openFetchFrontendStream": "function:4ef01123e5"
@@ -239,9 +245,6 @@
    "CHAT_RUN_STATUSES": "variable:97da0abe3b",
    "COLLAPSED_DETAIL_MAX_CHARS": "variable:05e7a609d0",
    "CREDENTIAL_CARD_GUIDANCE": "variable:7b4b7e68d3",
-   "CapabilityDef": "interface:0e98676fc2",
-   "CapabilityInputSchema": "interface:6f68b2373f",
-   "CapabilityRisk": "type:114187996c",
    "ChatAttachment": "interface:09c6600a09",
    "ChatConversation": "interface:80a815ecb9",
    "ChatHistoryMaintenance": "interface:96a37f6da3",
@@ -459,10 +462,12 @@
   "types": "./dist/react/index.d.ts",
   "symbols": {
    "A2uiAgentActionOutcome": "type:5ba98ef6fd",
-   "A2uiSurfaceCard": "function:6302d9eb1e",
-   "A2uiSurfaceCardProps": "interface:d61a2295ec",
+   "A2uiSurfaceCard": "function:1d400b4ed1",
+   "A2uiSurfaceCardProps": "interface:96aae70ce9",
    "AGENT_PLUGIN_STATE_CHANGED": "variable:e4a8f4c224",
    "AcceptedChatInput": "interface:7a4af58cb6",
+   "AgentModelContextLike": "interface:5133463dac",
+   "AgentModelContextToolRegistration": "interface:2c41de2529",
    "AgentOption": "interface:c88a066a14",
    "AgentPluginUsage": "interface:ba154de11a",
    "AgentRuntimePicker": "function:b89deb8535",
@@ -489,6 +494,7 @@
    "ChatFabPosition": "interface:9a0d67cb43",
    "ChatFabProps": "interface:671fb6e087",
    "ChatMessage": "interface:896c333bd9",
+   "ChatPagePort": "interface:9f644f54af",
    "ChatPane": "function:f3f5d061ed",
    "ChatPaneActivity": "type:66e2fa592d",
    "ChatPaneAgent": "interface:c93904b43a",
@@ -512,6 +518,10 @@
    "ChatSettingsDialog": "function:805ad993ce",
    "ChatSettingsSection": "interface:0df07857fe",
    "ChatSettingsSegmented": "function:92160a9a56",
+   "ChatSurfaceComponentEntry": "interface:8dfbf71aae",
+   "ChatSurfaceRegistry": "interface:b8fb7ad998",
+   "ChatSurfaces": "interface:3d1d2adfb6",
+   "ChatSurfacesProvider": "function:6111a0c630",
    "ChatTransport": "interface:8e581d934f",
    "Composer": "function:244a7f2e73",
    "ComposerDiscoveryArgument": "interface:639057585d",
@@ -539,7 +549,6 @@
    "DefinedProps": "type:34af29221c",
    "DeliverMidRunMessage": "type:e75f66eb70",
    "DeliverTypedAnswer": "type:ac64da348a",
-   "DomPageDriverOptions": "interface:4ab83a295b",
    "ExtEventErrorBoundary": "class:0f137aabe0",
    "ExtEventErrorBoundaryProps": "interface:1b75499d11",
    "ExtEventGroup": "interface:7569ce7d0a",
@@ -557,8 +566,10 @@
    "FrontendRequestInput": "interface:4d895a770c",
    "FrontendSessionBridge": "interface:58b5fa2143",
    "FrontendSessionBridgeArgs": "interface:35bca9027f",
-   "FrontendSessionBridgeOptions": "interface:c9b9e83c19",
+   "FrontendSessionBridgeOptions": "interface:24faa9b742",
    "I18nAdapter": "interface:6cf1b517a0",
+   "Icon": "function:04990c1535",
+   "IconName": "type:866ffffe14",
    "JiniChatProvider": "function:8a0f1497e4",
    "JiniChatProviderProps": "interface:db844e82b9",
    "JiniChatSlots": "interface:86f4a03ae0",
@@ -570,6 +581,8 @@
    "MID_RUN_USER_MESSAGE_EXT_EVENT_NAME": "variable:ef6a97fe91",
    "Markdown": "function:0ed031d9f2",
    "MarkdownProps": "interface:e5061d3bd2",
+   "McpUiHost": "function:f03ccef134",
+   "McpUiHostProps": "interface:5dcbf292c5",
    "McpUiSurfaceCard": "function:b7434d4465",
    "McpUiSurfaceCardProps": "interface:942ea8abd2",
    "McpUiToolCallRequest": "interface:fcf8210c74",
@@ -657,7 +670,6 @@
    "createAssistantChatsClient": "function:fb7f37d2a8",
    "createBrowserComposerHistoryStorage": "function:751f5e8f47",
    "createDaemonAttachmentUploader": "function:d3cdbf7f11",
-   "createDomPageDriver": "function:337ed931c4",
    "createExtEventRendererRegistry": "function:59dd1237f5",
    "createFrontendNavigationGuard": "function:9aea85c191",
    "createFrontendRequestCaller": "function:3e2c1d3508",
@@ -667,7 +679,6 @@
    "createMidRunMessagePoster": "function:38e83f227a",
    "createToolRendererRegistry": "function:fc308363d2",
    "createTypedAnswerPoster": "function:6ca8e65f6d",
-   "currentAgentPage": "function:ae7bc74536",
    "defaultChatPaneSelection": "function:8f551e3a87",
    "definedProps": "function:cbeb5e3cdb",
    "extEventSlot": "function:4569745a1f",
@@ -703,6 +714,7 @@
    "useChatPaneRuntimeInventory": "function:2e88f07d8b",
    "useChatPaneWorkingDirectory": "function:ede0694c2a",
    "useChatSettingsDialog": "function:747a9af2d5",
+   "useChatSurfaces": "function:9e78335b45",
    "useChatTransport": "function:dfe7b68bb1",
    "useComposer": "function:8d4d4f16e2",
    "useConversation": "function:18cf2664f8",
@@ -905,8 +917,8 @@
    "AiChatMessagesTable": "type:e58253a98e",
    "AiChatsTable": "type:a280a8481b",
    "ChatDatabase": "type:791155507e",
-   "createPgliteChatMaintenance": "function:5e5b0400cc",
-   "createPgliteChatStore": "function:a8e01e6b03"
+   "createPgliteChatMaintenance": "function:9235daa49b",
+   "createPgliteChatStore": "function:f744a6091f"
   }
  },
  "./store/postgres": {
@@ -915,8 +927,8 @@
    "AiChatMessagesTable": "type:e58253a98e",
    "AiChatsTable": "type:a280a8481b",
    "ChatDatabase": "type:791155507e",
-   "createPostgresChatMaintenance": "function:298b7b13d3",
-   "createPostgresChatStore": "function:707a0abc1e"
+   "createPostgresChatMaintenance": "function:e00725a0a5",
+   "createPostgresChatStore": "function:6114f86e34"
   }
  },
  "./store/runtime": {
@@ -925,7 +937,7 @@
    "AssistantHistoryToolPorts": "interface:0218634aca",
    "CHAT_EXPIRY_SWEEP_INTERVAL_MS": "variable:e3e8d8aff7",
    "ChatDatabase": "type:18295727c2",
-   "ChatKernel": "type:65e515f3b7",
+   "ChatKernel": "type:67461c919d",
    "ChatRunLedger": "interface:70e3ad8d41",
    "ChatRunRecoveryOptions": "interface:2cb62e7d1c",
    "CheckpointOptions": "interface:7d35c2c9e0",
@@ -961,9 +973,9 @@
    "CHAT_HISTORY_DDL": "variable:7512890b5b",
    "ChatDatabase": "type:791155507e",
    "createChatHistoryMaintenance": "function:6576460941",
-   "createChatHistoryStore": "function:732f67044b",
-   "createSqliteChatMaintenance": "function:6ef9022da0",
-   "createSqliteChatStore": "function:5f2e4f65e8",
+   "createChatHistoryStore": "function:76d6bf27f9",
+   "createSqliteChatMaintenance": "function:3a94ebb583",
+   "createSqliteChatStore": "function:0546813a7c",
    "ensureChatHistoryTables": "function:1de0b9bf6b"
   }
  },

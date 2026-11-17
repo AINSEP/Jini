@@ -24,8 +24,7 @@
    "kitParts": "variable:5c9fb4ae14",
    "kitSpec": "variable:6592c726eb",
    "needs": "function:445424dd41",
-   "planConfirm": "function:382dabfa7c",
-   "secretControlAttrs": "function:9817b63a26"
+   "planConfirm": "function:382dabfa7c"
   }
  },
  "./react": {

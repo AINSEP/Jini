@@ -106,6 +106,9 @@
  "./electron": {
   "types": "./dist/electron/index.d.ts",
   "symbols": {
+   "AppVersionBridgeRequired": "interface:e4f8ee6d88",
+   "DescribeReleaseTag": "type:32a1300bdd",
+   "DevAppVersionRequired": "interface:d94182ac86",
    "ElectronAppLike": "interface:b537af68b3",
    "ElectronBeforeRequestCallback": "type:c318868b91",
    "ElectronBeforeRequestDetails": "interface:2cdb63eebe",
@@ -139,7 +142,9 @@
    "createFakeElectronApp": "function:74fd8d300c",
    "createFakeElectronDialog": "function:153249de52",
    "createFakeElectronProtocol": "function:4b4e8c0ca5",
-   "createFakeElectronShell": "function:5b910a0837"
+   "createFakeElectronShell": "function:5b910a0837",
+   "registerAppVersionBridge": "function:e0818a5c57",
+   "resolveDevAppVersion": "function:d06435be0c"
   }
  },
  "./electron/navigation-policy": {

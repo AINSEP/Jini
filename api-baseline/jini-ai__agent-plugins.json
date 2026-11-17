@@ -139,7 +139,15 @@
    "AdminSurfaceStagedAccount": "interface:2cd5aa0a33",
    "AdminSurfaceStatusView": "interface:2ceee54d6c",
    "IssuedSignIn": "interface:b0539d2556",
-   "createAdminSurfaceConnections": "function:04deb6d431"
+   "createAdminSurfaceConnections": "function:4fa622aa58"
+  }
+ },
+ "./admin-surfaces/node": {
+  "types": "./dist/admin-surfaces/node.d.ts",
+  "symbols": {
+   "HostSignInLink": "interface:b7c7c98d25",
+   "IssuedSignInCollector": "interface:e2dc4d909f",
+   "createIssuedSignInCollector": "function:20ab75e916"
   }
  },
  "./calendly": {
@@ -231,7 +239,7 @@
    "AgentPluginDestinationCardHost": "interface:a8f4d39068",
    "AgentPluginEnableAccessMessages": "interface:feafea2e7a",
    "AgentPluginInstalledMcpReads": "type:435bd483fb",
-   "AgentPluginLayout": "interface:5cf8477249",
+   "AgentPluginLayout": "interface:12de3a313c",
    "AgentPluginMcpAccessSnapshot": "type:11778ffe64",
    "AgentPluginMcpFederationMessages": "interface:4efe9a80a6",
    "AgentPluginMcpFederationPlan": "interface:36ffe15390",
@@ -279,7 +287,7 @@
    "checkAgentPluginAccessToken": "function:94d9fa6b01",
    "chooseApiConnectionDestinationWithPorts": "function:9f7a5f346c",
    "createApplyConnectDefaults": "function:fa44e4c529",
-   "createCredentialSaveTools": "function:9d8177f23e",
+   "createCredentialSaveTools": "function:a755363300",
    "createPluginCredentialCardOperations": "function:f72a70e018",
    "credentialCardsContribution": "variable:894d2122a5",
    "deriveAgentPluginConnectionId": "function:1e25c28f7c",
@@ -362,7 +370,7 @@
    "PluginHostLifecycle": "interface:995081d637",
    "PluginHostMessages": "interface:6ae25df138",
    "PortablePluginHost": "interface:9bacffc01d",
-   "createPluginHost": "function:76fc47bee6"
+   "createPluginHost": "function:7e7f7d12b6"
   }
  },
  "./fly": {
@@ -612,7 +620,7 @@
    "contributeProviders": "function:a73cb62064",
    "createAgentPluginActivations": "function:a98be8f4c9",
    "createAgentPluginLayout": "function:2ac136dd75",
-   "createAgentPluginLifecycle": "function:dc2100335f",
+   "createAgentPluginLifecycle": "function:574e41d9a0",
    "createAutomaticAgentPluginUse": "function:b30cfb12d4",
    "createPluginContributionLoader": "function:91849dd6a0",
    "createSkillFileReader": "function:cfa60bca9f",
@@ -707,7 +715,7 @@
    "MailAdapterModule": "interface:59a3101b00",
    "MailAdapterRegistry": "interface:1adaaff713",
    "MailAdaptersParseResult": "type:c7f8303eab",
-   "MailCatalogDeps": "interface:d268274f7a",
+   "MailCatalogDeps": "interface:c13a5377b6",
    "MailCredentialCard": "interface:1268a9917f",
    "MailCredentialRow": "interface:dcc20454bf",
    "MailProviderCatalog": "interface:41224b7545",
@@ -751,7 +759,7 @@
    "IssuedTokenMemories": "interface:e91535e894",
    "LoadedAgentPluginTool": "type:66137a1cbf",
    "WITHHELD_OUTPUT_MESSAGE": "variable:29f78ff96a",
-   "createAgentPluginToolProjection": "function:0eb0d69a0f",
+   "createAgentPluginToolProjection": "function:e627faa69f",
    "createIssuedTokenMemories": "function:aa4d3a2882",
    "defineAgentPluginToolContribution": "function:85e107cd12",
    "parseAgentPluginToolsFile": "function:fa4a1aea44"

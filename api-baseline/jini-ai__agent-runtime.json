@@ -473,7 +473,6 @@
    "kimiAgentDef": "variable:843c9c4afd",
    "kiroAgentDef": "variable:8c452dcbcc",
    "launchAgentInSystemTerminal": "function:f2f6a9ec16",
-   "listElevenLabsVoiceOptions": "function:9f520d24aa",
    "listProviderModels": "function:964a7d465b",
    "loadMmdRouteLaunchEnv": "function:76058f2c41",
    "loadMmdRouteModels": "function:62a985f422",

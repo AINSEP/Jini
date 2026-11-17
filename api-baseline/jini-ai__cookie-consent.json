@@ -87,7 +87,7 @@
    "ConsentReceiptStorageHealth": "type:b52f8ffa8e",
    "consentRateLimitKey": "function:afe0f1f770",
    "createConsentFileRecords": "function:e851adfdb2",
-   "createNodeConsentFiles": "function:dbb9e4088a",
+   "createNodeConsentFiles": "function:10959a9b65",
    "readConsentReceiptStorage": "function:dd40215fd3"
   }
  },

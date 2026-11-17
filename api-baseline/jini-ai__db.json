@@ -3,7 +3,6 @@
   "types": "./dist/core/index.d.ts",
   "symbols": {
    "DbOpsPort": "interface:619ff1ebc5",
-   "DbRow": "type:c3149fade0",
    "JsonObject": "type:c1880456f6",
    "PGLITE_SOCKET_FILE": "variable:5b813d88ba",
    "PG_OID": "variable:702f347b50",
@@ -15,10 +14,7 @@
    "TransferNaming": "interface:d8014add6f",
    "WatermarkReader": "type:d8713522b8",
    "parseInt8": "function:fdb9cc9299",
-   "parseJsonOrUndef": "function:4cf2119d4b",
    "restorePointFilename": "function:cf9edc9a9c",
-   "row": "function:110b5299f8",
-   "rows": "function:26ee0bccea",
    "sanitizeForFilename": "function:9b37474df2"
   }
  },
@@ -28,7 +24,7 @@
    "ColumnDecl": "interface:22f07ae2b3",
    "ColumnType": "type:09e860253a",
    "DataModuleDecl": "interface:d4a451fc41",
-   "DataModuleStore": "type:54dd834983",
+   "DataModuleStore": "type:5130628722",
    "DeclareResult": "interface:793ca7d410",
    "HeadroomCheck": "interface:b82644b553",
    "IndexDecl": "interface:46b7876798",
@@ -37,9 +33,9 @@
    "NamespaceAdoptionDecision": "type:2590c14ad6",
    "PluginCoreTables": "interface:9f1bb6fef6",
    "PluginIdentityRecord": "interface:4efe979586",
-   "PluginKernel": "type:f2758fa7fd",
+   "PluginKernel": "type:e5d7abf567",
    "PluginProvenance": "interface:e4b8069a48",
-   "PluginStore": "type:54dd834983",
+   "PluginStore": "type:5130628722",
    "PluginTier": "type:2023fb2d73",
    "RecoveryResult": "interface:b8d09dfa97",
    "TableDecl": "interface:4055da58f2",
@@ -68,81 +64,73 @@
   "types": "./dist/kernel/index.d.ts",
   "symbols": {
    "ColumnAffinity": "type:1930dcf2e0",
-   "ColumnInfo": "interface:caa29495da",
+   "DbTransport": "type:4bfd0ff4ed",
    "IndexInfo": "interface:ed78cd8a43",
-   "KernelDriver": "interface:a72f88f83b",
+   "KernelDriver": "interface:d1044aedaa",
+   "KyselyKernel": "interface:69a893dcea",
    "SchemaShape": "interface:da65ea765c",
-   "StorageCapabilities": "interface:ce53aca2cc",
-   "StorageCapability": "type:e50dcb122b",
-   "StorageDialect": "type:b7345ffa38",
-   "StorageKernel": "interface:73204f4dc0",
    "StorageOpError": "class:6a616847c1",
    "StorageOpNotSupportedError": "class:1f4f5f1dcb",
    "StorageOps": "interface:80c7b1c2b1",
-   "StorageTransport": "type:77e4ec6b70",
    "TableShape": "interface:718a0f0c63",
    "TurnLock": "class:44fdf74aea",
-   "UnsupportedCapabilityError": "class:9062ea0e74",
    "autoIdColumnSql": "function:8fb3543b2c",
-   "buildKernel": "function:04acd6ff9e",
-   "checkpointWal": "function:5527867926",
+   "buildKernel": "function:0b6c9ba2f4",
+   "checkpointWal": "function:96f30b3f08",
    "columnTypeSql": "function:6b627e87a4",
-   "databaseFile": "function:ff9fdf114f",
-   "isUniqueViolation": "function:258f757cb9",
+   "databaseFile": "function:5c7fff9121",
    "jsonScalarEquals": "function:a192ba3610",
    "jsonSet": "function:8262479703",
    "jsonSortKey": "function:024f2aa3b8",
    "jsonText": "function:eae0386e1e",
-   "kernelSessionPoolMax": "function:3e79240c0c",
-   "listColumns": "function:d927753c68",
-   "listIndexes": "function:8446b478e3",
-   "listTables": "function:eef3c7f0a3",
+   "kernelSessionPoolMax": "function:2017851ba3",
+   "listColumns": "function:0513b3a469",
+   "listIndexes": "function:e98e1e93b8",
+   "listTables": "function:3724222b8c",
    "nowIso": "function:7e1b5bf64f",
-   "outsideTransactionOf": "function:a9301453ee",
+   "outsideTransactionOf": "function:0201d67b6b",
    "postgresLockKey": "function:b0b2eb04ad",
-   "readSchemaShape": "function:de55817f3f",
-   "renderDatabaseTypes": "function:3f3bf22b39",
-   "scopeToSchema": "function:71dadadb09",
-   "tableExists": "function:3e077cebc2",
-   "toBool": "function:992e8d8240",
-   "toBytes": "function:6a96d01264",
-   "verifyLedgerReadBack": "function:ebe25226e4",
-   "withKernelSessionLock": "function:e6d0127b9b"
+   "readSchemaShape": "function:d283d8544f",
+   "renderDatabaseTypes": "function:02c0ebdbba",
+   "scopeToSchema": "function:ed22f853bb",
+   "tableExists": "function:81479eb902",
+   "verifyLedgerReadBack": "function:3dfb870e85",
+   "withKernelSessionLock": "function:05458eb826"
   }
  },
  "./kernel/pglite": {
   "types": "./dist/kernel/pglite/index.d.ts",
   "symbols": {
-   "PgKernel": "type:e843bd881e",
+   "PgKernel": "type:d82963f584",
    "PgliteDialect": "class:30f3410a6e",
    "PgliteExclusive": "interface:72940b1ac7",
    "PgliteRestore": "interface:6d1248facf",
    "copyServedPgliteTo": "function:a06b0aea31",
    "openPgliteKernel": "function:5c509f724f",
-   "pgliteOps": "function:4b5fded1df"
+   "pgliteOps": "function:9ee57979f5"
   }
  },
  "./kernel/postgres": {
   "types": "./dist/kernel/postgres/index.d.ts",
   "symbols": {
-   "openPgliteSocketKernel": "function:f5074081d5",
-   "openPostgresKernel": "function:a3b24c7238",
-   "postgresOps": "function:7b614d4458"
+   "openPgliteSocketKernel": "function:aa70bf081d",
+   "openPostgresKernel": "function:80db86c418",
+   "postgresOps": "function:d075fd737a"
   }
  },
  "./kernel/sqlite": {
   "types": "./dist/kernel/sqlite/index.d.ts",
   "symbols": {
    "SqliteConnectionSource": "type:1707c05d7b",
-   "SqliteKernel": "type:c6c872bb43",
+   "SqliteKernel": "type:d1c327c5ff",
    "closeSqliteConnection": "function:274e0f10b7",
    "copySqliteInto": "function:255d28ac1e",
    "openMemorySqliteKernel": "function:0f8c8de60b",
    "openSqliteFileKernel": "function:1f8b570353",
    "sqliteClientOf": "function:2fae2e045c",
-   "sqliteConnectionOf": "function:a88fb7cff3",
+   "sqliteConnectionOf": "function:ca28dfdc9b",
    "sqliteKernel": "function:4970204962",
-   "sqliteOps": "function:0deadcee55"
+   "sqliteOps": "function:139fde617e"
   }
  },
  "./kernel/store-copy": {
@@ -153,10 +141,10 @@
    "CopiedTable": "interface:fae6d57256",
    "StoreCopyError": "class:3024d214dd",
    "StoreCopyScope": "interface:976c9a6cbc",
-   "assertLedgersAgree": "function:dca9b36c8b",
-   "copyPgStore": "function:3b19708870",
-   "nonEmptyTables": "function:cf5725a1a3",
-   "readCatalog": "function:067d16e544"
+   "assertLedgersAgree": "function:dcfeab9c34",
+   "copyPgStore": "function:3fdaf51bed",
+   "nonEmptyTables": "function:2f4e2a3c02",
+   "readCatalog": "function:abcb9d2e9b"
   }
  },
  "./migrate": {
@@ -165,16 +153,14 @@
    "LegacyLedgerMapping": "interface:3d0d758799",
    "MIGRATION_ID": "variable:557a2657d6",
    "MigrationChecksumError": "class:9d63501d9c",
-   "MigrationContext": "interface:e2bfdaf6f0",
    "MigrationOptions": "interface:1f9bd342c9",
    "MigrationReport": "interface:a8db8059af",
-   "MigrationStep": "interface:77035d2260",
    "UnknownAppliedMigrationError": "class:23fd9f4089",
-   "assertValidSteps": "function:f59c4695b4",
-   "executeDdl": "function:97652fc42d",
-   "hasLedger": "function:86cb263ca9",
-   "migrate": "function:59a5806c24",
-   "runMigrations": "function:5599d81c9e",
+   "assertValidSteps": "function:d622b0940d",
+   "executeDdl": "function:c25f5494fc",
+   "hasLedger": "function:428eaa5c71",
+   "migrate": "function:fa284980fb",
+   "runMigrations": "function:b86de21f36",
    "sourceChecksum": "function:433e094bf7"
   }
  },
@@ -183,8 +169,8 @@
   "symbols": {
    "OWNER_STORE_LEDGER": "variable:75bffdc671",
    "ownerStoreDdl": "variable:4767c6209d",
-   "ownerStoreMigration": "variable:32bdc2daa5",
-   "ownerStoreMigrations": "variable:d28cd8c8c0"
+   "ownerStoreMigration": "variable:a1d1bbe3fd",
+   "ownerStoreMigrations": "variable:390b5c0344"
   }
  },
  "./package.json": {
@@ -305,7 +291,7 @@
   "symbols": {
    "SecretsVaultDatabase": "interface:ce15e6861f",
    "SecretsVaultTable": "interface:534649b73a",
-   "SqlSecretsVaultRepo": "class:1aaad6a721"
+   "SqlSecretsVaultRepo": "class:0650a9beaa"
   }
  },
  "./sqlite": {
@@ -323,31 +309,23 @@
    "DbIntegrityReport": "interface:3367ccba2e",
    "IntegerSource": "type:46ee3f23d3",
    "IntegerStatement": "interface:5d0b6d5a2d",
-   "OpenSqliteConnectionOptions": "interface:726e2158d1",
-   "SqliteBackupSource": "type:8d2d1cfab5",
-   "SqliteClient": "interface:f20a0a68fe",
    "SqliteClientError": "class:ffb1ce5e35",
-   "SqliteDb": "type:7c45319147",
    "SqliteDbOpsAdapter": "class:45c824b307",
    "SqliteDbOpsAdapterDeps": "interface:f4add4c5c9",
-   "SqliteOpenOptions": "interface:3142dcbe47",
-   "SqliteOpener": "type:377e4b6569",
-   "SqliteRecoveryHook": "type:6d2e647a05",
-   "SqliteStatement": "interface:c3da7aed29",
-   "SqliteSyncClient": "interface:7a5bb5b573",
-   "SqliteSyncOpener": "type:e4444ee062",
-   "SqliteSyncStatement": "interface:7c7d6a8b6c",
-   "SqliteSyncTransaction": "interface:33eae9b655",
+   "StoppedSqliteOpener": "type:b5ad52fc6b",
    "TransactionSession": "interface:dfdcf1448f",
    "VerifyDbOptions": "interface:8fc043aa18",
    "Work": "type:0715da5e40",
    "assertDatabaseCopySpace": "function:08ccc46f36",
+   "assertSqliteStopped": "function:32f44e8b3b",
+   "checkpointStoppedSqliteWal": "function:8a26a37aed",
    "createCheckedSqliteClient": "function:2bebb25e9a",
    "inspectSqliteDatabase": "function:627aa1bdc7",
+   "inspectStoppedSqlite": "function:4bf4efadff",
    "openSqliteConnection": "function:b1fd8e4121",
    "pruneDatabaseCopies": "function:44a70b9818",
    "verifySqliteIntegrity": "function:c1788fe0f8",
-   "withSqliteTransaction": "function:3489a7ec7c"
+   "withSqliteTransaction": "function:6029cb090c"
   }
  },
  "./testing/pg-fixture": {
@@ -424,6 +402,8 @@
    "SourceIndex": "interface:935f6488ea",
    "SourceSchemaMismatchError": "class:c407556e2a",
    "SourceTableLayout": "interface:75fdffec2c",
+   "TableCopyDependency": "interface:58bcf9f0fe",
+   "TableCopyOrderCycleError": "class:d99b9e722a",
    "TableCount": "interface:38ac0a8215",
    "TargetDescription": "interface:5114fa94b7",
    "TargetInspection": "type:a54c645a25",
@@ -456,7 +436,8 @@
    "quoteLiteral": "function:4321aea2d4",
    "reseedIdentitySql": "function:b346feb93a",
    "runCopy": "function:9b81301cc0",
-   "siteSchemaName": "function:835102398f"
+   "siteSchemaName": "function:835102398f",
+   "topologicalTableCopyOrder": "function:2c3b2df947"
   }
  }
 }

@@ -138,6 +138,15 @@
    "validateOidcIdToken": "function:7f50fea2f3"
   }
  },
+ "./callback-page": {
+  "types": "./dist/callback-page.d.ts",
+  "symbols": {
+   "OAuthCallbackPageCopy": "interface:c9f444d392",
+   "OAuthCallbackPageInput": "interface:8b29b1c63a",
+   "OAuthCallbackPageOptions": "interface:e89f48e9e3",
+   "renderOAuthCallbackPage": "function:fd769169c2"
+  }
+ },
  "./discovery-policy": {
   "types": "./dist/discovery-policy.d.ts",
   "symbols": {
