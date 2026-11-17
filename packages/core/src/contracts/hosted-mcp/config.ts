@@ -115,6 +115,8 @@ export interface ExternalMcpServerView<TokenHint = never> {
   /** For `stdio` + `static_env`: the child env variable that receives that token. A NAME, so plaintext. */
   accessTokenEnvName: string | null;
   oauth: ExternalMcpOAuthView;
+  /** Edit revision; send it back as `expectedVersion` on the next save so an edit from an old screen is refused. */
+  version: number;
 }
 
 /**
@@ -179,6 +181,12 @@ export interface SaveExternalMcpServerInput {
    *  keeps the stored name. */
   accessTokenEnvName?: string;
   oauth?: SaveExternalMcpOAuthInput;
+  /**
+   * The `version` the person (or tool) loaded this row at. Present: an edit from an older screen is refused with a
+   * `RecordVersionConflictError`. Absent: the save is compared against the version read in the same request, which does
+   * not protect against a stale screen (kept only until every caller sends it).
+   */
+  expectedVersion?: number;
   /**
    * Set ONLY by the host's trusted plugin provisioner, on the ONE save that creates a brand-new
    * plugin-provisioned row. Every other caller (including administrative routes and assistant
