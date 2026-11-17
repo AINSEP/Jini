@@ -32,7 +32,7 @@ async function exportIntoRunDirectory(input: CommitExportArgs, claim: (outputDir
     for (const file of files) prefixRepositoryPath({ folder: input.folder, path: file.path });
     return { ok: true, files };
   } catch (error) {
-    return { ok: false, code: 'EXPORT_FAILED', message: `export failed before committing could start: ${input.describeError({ error })}` };
+    return { ok: false, code: 'EXPORT_FAILED', message: `export failed before committing could start: ${input.describeError({ error, stage: 'export' })}` };
   }
 }
 async function exportForCommit(input: CommitExportArgs): Promise<ExportResult> {
@@ -64,7 +64,7 @@ type CommitRefusal = Extract<SourceControlCommitOutcome, { ok: false }>;
 async function resolveProviderCredential(required: CommitOrchestrationArgs): Promise<{ ok: true; credential: ResolvedCredential } | CommitRefusal> {
   let credential: ResolvedCredential | null;
   try { credential = await required.credentials.resolve({ workspaceId: required.workspaceId, providerId: required.providerId }); }
-  catch (error) { return { ok: false, code: 'NO_CREDENTIALS_CONFIGURED', message: `credential could not be resolved: ${required.describeError({ error })}` }; }
+  catch (error) { return { ok: false, code: 'NO_CREDENTIALS_CONFIGURED', message: `credential could not be resolved: ${required.describeError({ error, stage: 'credential' })}` }; }
   if (!credential) return { ok: false, code: 'NO_CREDENTIALS_CONFIGURED', message: `No source control credential is configured for '${required.providerId}'.` };
   if (credential.providerId !== required.providerId) return { ok: false, code: 'NO_CREDENTIALS_CONFIGURED', message: `The resolved default credential is not a '${required.providerId}' connection.` };
   return { ok: true, credential };
@@ -89,7 +89,7 @@ async function commitExportedFiles(required: { args: CommitOrchestrationArgs; to
     const result = await args.adapter.commitSite({ token, owner: args.owner, repo: args.repo, commitMessage: args.commitMessage, files, ...(folder ? { folder } : {}) }, optional.branch !== undefined ? { branch: optional.branch } : {});
     if (!result.ok) return { ok: false, code: outcomeCode({ code: result.code }), message: redactToken({ text: result.message, token }) };
     return { ...result, owner: args.owner, repo: args.repo, divergedPaths: result.divergedPaths ?? [] };
-  } catch (error) { return { ok: false, code: 'PROVIDER_ERROR', message: redactToken({ text: args.describeError({ error }), token }) }; }
+  } catch (error) { return { ok: false, code: 'PROVIDER_ERROR', message: redactToken({ text: args.describeError({ error, stage: 'commit' }), token }) }; }
 }
 
 /** Resolve one provider's credential, export into an isolated host-owned directory and commit once. */

@@ -270,3 +270,19 @@ test('G2: a provider failure code the host does not know, or an inherited member
     assert.deepEqual(await commitSiteToSourceControl(f.args), { ok: false, code: 'PROVIDER_ERROR', message: 'refused' }, code);
   }
 });
+
+test('G3: the host is told which stage failed: export, credential and commit each ask describeError once with their own stage', async () => {
+  const injections: Record<string, (f: ReturnType<typeof fixture>) => void> = {
+    export: f => { f.args.files.export = async () => { throw new Error('boom'); }; },
+    credential: f => { f.args.credentials.resolve = async () => { throw new Error('boom'); }; },
+    commit: f => { f.args.adapter.commitSite = async () => { throw new Error('boom'); }; },
+  };
+  for (const [stage, inject] of Object.entries(injections)) {
+    const f = fixture();
+    const asked: unknown[] = [];
+    f.args.describeError = input => { asked.push(input); return 'safe failure'; };
+    inject(f);
+    await commitSiteToSourceControl(f.args);
+    assert.deepEqual(asked.map(input => (input as { stage?: string }).stage), [stage], stage);
+  }
+});

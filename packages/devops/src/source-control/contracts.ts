@@ -86,6 +86,8 @@ export interface CommitLayoutPort {
   outputDirectory(required: { workspaceId: string; providerId: string; runId: string }): string;
   cleanup(required: { outputDir: string }): Promise<void>;
 }
+/** Where in a commit an error arose, so a host can word each stage's failure on its own. */
+export type CommitErrorStage = 'export' | 'arrange' | 'credential' | 'commit';
 export interface CommitExportArgs {
   folder?: string;
   workspaceId: string;
@@ -96,8 +98,8 @@ export interface CommitExportArgs {
   files: FileSourcePort;
   layout: CommitLayoutPort;
   ids: { next(required: Record<string, never>): string };
-  /** Must return caller-safe text without credentials. */
-  describeError(required: { error: unknown }): string;
+  /** Must return caller-safe text without credentials. `stage` names where the error arose (absent: unspecified). */
+  describeError(required: { error: unknown; stage?: CommitErrorStage }): string;
 }
 export interface CommitOrchestrationArgs extends CommitExportArgs { supportsFolder?: boolean; credentials: CredentialResolverPort; adapter: Pick<SourceControlProviderOperations, 'commitSite'> }
 export interface CommitOptions { branch?: string; validateTarget?: RepositoryTargetValidator }
