@@ -579,7 +579,7 @@ describe('delegatedToolExecuteRoute read-only constraint (requireReadOnly)', () 
     expect(ran).toEqual(['reader']);
   });
 
-  it('refuses an unregistered toolId under the constraint rather than falling through to ToolExecutor', async () => {
+  it('answers UNKNOWN_TOOL for an unregistered toolId under the constraint rather than falling through to ToolExecutor', async () => {
     const { registry, toolExecutor } = makeReadOnlyStack();
     const onInternalError = vi.fn();
     const deps = makeDeps({ toolExecutor, toolRegistry: registry, onInternalError });
@@ -588,8 +588,8 @@ describe('delegatedToolExecuteRoute read-only constraint (requireReadOnly)', () 
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error.code).toBe('TOOL_OPERATION_DENIED');
-      expect(result.error.message).toContain('no tool "nope" is registered');
+      expect(result.error.code).toBe('UNKNOWN_TOOL');
+      expect(result.error.message).toBe('There is no tool named "nope". Find tools with search_tools.');
       expect(result.error.message).not.toContain('execute_delegated_tool');
     }
     expect(onInternalError).not.toHaveBeenCalled();
@@ -607,8 +607,8 @@ describe('delegatedToolExecuteRoute read-only constraint (requireReadOnly)', () 
       runId: run.id, toolUseId: 'tu-1', toolId: 'content_read', input: { resource: 'theme' }, requireReadOnly: true,
     }, deps });
     expect(result).toEqual({ ok: false, error: {
-      code: 'TOOL_OPERATION_DENIED',
-      message: 'no tool "content_read" is registered; use search_tools — did you mean content_read.theme, content_read.backup_restore_point?',
+      code: 'UNKNOWN_TOOL',
+      message: 'There is no tool named "content_read". Closest names: content_read.theme, content_read.backup_restore_point. Find tools with search_tools.',
     } });
     expect(resolvePrincipal).not.toHaveBeenCalled();
     expect(ran).toEqual([]);

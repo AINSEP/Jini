@@ -46,24 +46,43 @@ async function call(harness: Harness, request: { toolId: string; runId?: string;
   });
 }
 
-describe('delegated tool route: a made-up tool id (characterization of today)', () => {
-  it('read-only gateway answers 403 TOOL_OPERATION_DENIED with the discovery sentence and never resolves a principal', async () => {
+describe('delegated tool route: a made-up tool id answers 404 UNKNOWN_TOOL on both gateways', () => {
+  const GATEWAYS = [
+    { name: 'read-only gateway', requireReadOnly: true },
+    { name: 'unconstrained gateway', requireReadOnly: false },
+  ] as const;
+
+  it.each(GATEWAYS)('$name: names the closest registered ids', async ({ requireReadOnly }) => {
     const harness = buildHarness();
-    const result = await call(harness, { toolId: 'content_read', requireReadOnly: true });
+    const result = await call(harness, { toolId: 'content_read', requireReadOnly });
     expect(result).toEqual({ ok: false, error: {
-      code: 'TOOL_OPERATION_DENIED',
-      message: 'no tool "content_read" is registered; use search_tools — did you mean content_read.menu?',
+      code: 'UNKNOWN_TOOL',
+      message: 'There is no tool named "content_read". Closest names: content_read.menu. Find tools with search_tools.',
     } });
+  });
+
+  it.each(GATEWAYS)('$name: leaves the closest-names part out when nothing is close', async ({ requireReadOnly }) => {
+    const harness = buildHarness();
+    const result = await call(harness, { toolId: 'zzz', requireReadOnly });
+    expect(result).toEqual({ ok: false, error: { code: 'UNKNOWN_TOOL', message: 'There is no tool named "zzz". Find tools with search_tools.' } });
+  });
+
+  it.each(GATEWAYS)('$name: resolves no principal and reaches no executor', async ({ requireReadOnly }) => {
+    const harness = buildHarness();
+    await call(harness, { toolId: 'zzz', requireReadOnly });
     expect(harness.principalCalls).toEqual([]);
     expect(harness.executorCalls).toEqual([]);
   });
 
-  it('unconstrained gateway answers 400 BAD_REQUEST from the executor throw; the principal is resolved first (path 2 today)', async () => {
+  it.each(GATEWAYS)('$name: a tool held only by another registry gets the byte-identical answer a made-up id gets', async ({ requireReadOnly }) => {
+    const elsewhere = createToolRegistry({});
+    elsewhere.register({ descriptor: { id: 'hidden_tool', readOnly: true }, policy: { authorize: () => 'allow' }, handler: async () => 'secret' });
     const harness = buildHarness();
-    const result = await call(harness, { toolId: 'zzz' });
-    expect(result).toEqual({ ok: false, error: { code: 'BAD_REQUEST', message: 'ToolExecutor: unknown tool "zzz"' } });
-    expect(harness.principalCalls).toHaveLength(1);
-    expect(harness.executorCalls).toHaveLength(1);
+    const hidden = await call(harness, { toolId: 'hidden_tool', requireReadOnly });
+    const madeUp = await call(buildHarness(), { toolId: 'hidden_tool', requireReadOnly });
+    expect(elsewhere.has({ toolId: 'hidden_tool' })).toBe(true);
+    expect(hidden).toEqual(madeUp);
+    expect(hidden).toMatchObject({ ok: false, error: { code: 'UNKNOWN_TOOL' } });
   });
 
   it('a route mounted without a toolRegistry has no registry to decide with and keeps the executor 400 on the unconstrained gateway', async () => {
@@ -72,18 +91,28 @@ describe('delegated tool route: a made-up tool id (characterization of today)', 
     expect(result).toEqual({ ok: false, error: { code: 'BAD_REQUEST', message: 'ToolExecutor: unknown tool "zzz"' } });
   });
 
-  it('check_messages is an MCP-local tool: the read-only gateway keeps its own sentence', async () => {
-    const harness = buildHarness();
-    const result = await call(harness, { toolId: 'check_messages', requireReadOnly: true });
-    expect(result).toEqual({ ok: false, error: {
-      code: 'TOOL_OPERATION_DENIED',
-      message: 'check_messages is an MCP-local tool; call check_messages directly, never as toolId in a delegated gateway',
-    } });
+  it('a route mounted without a toolRegistry still refuses the read-only gateway as unverifiable', async () => {
+    const harness = buildHarness({ withRegistryDep: false });
+    const result = await call(harness, { toolId: 'zzz', requireReadOnly: true });
+    expect(result).toMatchObject({ ok: false, error: { code: 'TOOL_OPERATION_DENIED' } });
+    expect(harness.principalCalls).toEqual([]);
   });
 
-  it.each([false, true])('an unknown runId answers 404 NOT_FOUND before any tool decision (requireReadOnly=%s)', async (requireReadOnly) => {
+  it('check_messages is an MCP-local tool: both gateways keep its own sentence, now as UNKNOWN_TOOL', async () => {
+    for (const requireReadOnly of [true, false]) {
+      const result = await call(buildHarness(), { toolId: 'check_messages', requireReadOnly });
+      expect(result).toEqual({ ok: false, error: {
+        code: 'UNKNOWN_TOOL',
+        message: 'check_messages is an MCP-local tool; call check_messages directly, never as toolId in a delegated gateway',
+      } });
+    }
+  });
+});
+
+describe('delegated tool route: gate order around the tool decision', () => {
+  it.each([false, true])('an unknown runId answers 404 NOT_FOUND before any tool answer (requireReadOnly=%s)', async (requireReadOnly) => {
     const harness = buildHarness();
-    const result = await call(harness, { toolId: 'content_reed', runId: 'no-such-run', requireReadOnly });
+    const result = await call(harness, { toolId: 'zzz', runId: 'no-such-run', requireReadOnly });
     expect(result).toEqual({ ok: false, error: { code: 'NOT_FOUND', message: 'run "no-such-run" was not found' } });
     expect(harness.principalCalls).toEqual([]);
   });
@@ -95,5 +124,14 @@ describe('delegated tool route: a made-up tool id (characterization of today)', 
       code: 'TOOL_OPERATION_DENIED',
       message: 'tool "writer" is not registered as read-only — this gateway executes only tools whose registration declares readOnly; call it through execute_delegated_tool instead',
     } });
+    expect(harness.principalCalls).toEqual([]);
+  });
+
+  it('a registered write tool on the unconstrained gateway still reaches the principal lookup and the executor', async () => {
+    const harness = buildHarness();
+    const result = await call(harness, { toolId: 'writer' });
+    expect(result).toMatchObject({ ok: true });
+    expect(harness.principalCalls).toHaveLength(1);
+    expect(harness.executorCalls).toHaveLength(1);
   });
 });
