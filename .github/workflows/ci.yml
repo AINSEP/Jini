@@ -105,6 +105,11 @@ jobs:
           SIZE_FIRST_PUSH_COMMIT: ${{ github.event.commits[0].id }}
         run: pnpm check:size
 
+      - name: hook injection (blocking ratchet)
+        # Owner HARD rule 2026-11-16: custom hooks are injected as props defaulted to the real hook.
+        # Baseline scripts/hook-injection-debt.json is keyed Component::hook, so moved files are not new debt.
+        run: pnpm check:hooks
+
       - name: log safety (blocking ratchet)
         env:
           LOG_SAFETY_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}

@@ -11,6 +11,7 @@ export default defineConfig({
       'scripts/__tests__/check-hardwiring.test.ts',
       'scripts/__tests__/integration/infra-retirement.integration.test.ts',
       'scripts/__tests__/sync-software-engineering.test.mjs',
+      'scripts/__tests__/check-hook-injection.test.mjs',
       // Agent plugin content suites are node:test files; test:agent-plugins:content runs them.
       'packages/agent-plugins/**/__tests__/**/*.mjs',
     ],
