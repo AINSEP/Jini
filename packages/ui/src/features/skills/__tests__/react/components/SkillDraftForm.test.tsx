@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { SkillDraft } from '../../../types.js';
 import { SkillDraftForm, type SkillDraftFormProps } from '../../../react/components/SkillDraftForm.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 
 const EMPTY_DRAFT: SkillDraft = { name: '', description: '', triggers: '', body: '' };
 
@@ -33,6 +34,9 @@ function renderForm(overrides: Partial<SkillDraftFormProps> = {}) {
   );
   return { onDraftChange, appliedDrafts };
 }
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('SkillDraftForm', () => {
   it('typing into the Triggers field updates the draft', async () => {
@@ -224,6 +228,20 @@ describe('SkillDraftForm', () => {
     renderForm({ agentHandle: 'skills-create' });
     const name = screen.getByPlaceholderText('my-skill');
     expect([...name.attributes].some((attr) => attr.value === 'skills-create-name')).toBe(true);
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    renderForm({ useTHook: useQuotingT });
+    expect(screen.getByPlaceholderText('«search the web, summarize»')).toBeInTheDocument();
+  });
+
+  it('renders translated placeholders from the real provider, not the keys', () => {
+    render(
+      <I18nProvider dictionaries={{ fr: { 'search the web, summarize': 'chercher sur le web, résumer' } }} initialLocale="fr">
+        <SkillDraftForm heading="New skill" draft={EMPTY_DRAFT} onDraftChange={vi.fn()} error={null} saving={false} isEdit={false} onCancel={vi.fn()} onSubmit={vi.fn()} />
+      </I18nProvider>,
+    );
+    expect(screen.getByPlaceholderText('chercher sur le web, résumer')).toBeInTheDocument();
   });
 });
 

@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import { createFakeSkillsPort } from '../../../dependencies.js';
 import type { SkillsPort, SkillWritePayload } from '../../../ports.js';
 import type { SkillDetail } from '../../../types.js';
@@ -33,6 +33,9 @@ function renderTab(port: SkillsPort, extra: Partial<{ disabledSkillIds: Readonly
     <SkillsTab port={port} disabledSkillIds={extra.disabledSkillIds ?? new Set()} onToggleEnabled={extra.onToggleEnabled ?? vi.fn()} />,
   );
 }
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('SkillsTab', () => {
   it('lists every skill from the port', async () => {
@@ -408,6 +411,12 @@ describe('SkillsTab', () => {
     await screen.findByText('Summarize');
     await userEvent.click(screen.getByTestId('skills-new'));
     expect(document.querySelector('[data-agent-element]')).toBeNull();
+  });
+
+  it('renders the translator supplied through useTHook', async () => {
+    const port = createFakeSkillsPort({ skills: [] });
+    render(<SkillsTab port={port} disabledSkillIds={new Set()} onToggleEnabled={vi.fn()} useTHook={useQuotingT} />);
+    expect(await screen.findByText('«New skill»')).toBeInTheDocument();
   });
 });
 

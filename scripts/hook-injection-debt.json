@@ -1812,30 +1812,6 @@
         "packages/ui/src/features/sketch-editor/react/components/SketchEditor.tsx"
       ]
     },
-    "SkillDraftForm::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/skills/react/components/SkillDraftForm.tsx"
-      ]
-    },
-    "SkillRow::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/skills/react/components/SkillRow.tsx"
-      ]
-    },
-    "SkillsTab::useSkillsTab": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/skills/react/components/SkillsTab.tsx"
-      ]
-    },
-    "SkillsTab::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/skills/react/components/SkillsTab.tsx"
-      ]
-    },
     "Slot::useAdminKit": {
       "count": 1,
       "files": [

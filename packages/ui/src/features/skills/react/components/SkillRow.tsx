@@ -62,6 +62,7 @@ export interface SkillRowProps {
   labels?: SkillRowLabels | undefined;
   /** This row's own agent handle — `SkillsTab` derives one per skill via `buildAgentListHandles`. */
   agentHandle?: string;
+  useTHook?: typeof useT;
 }
 
 /**
@@ -98,8 +99,9 @@ export function SkillRow({
   onSubmitEdit,
   labels,
   agentHandle,
+  useTHook = useT,
 }: SkillRowProps) {
-  const l = resolveLabels({ defaults: DEFAULT_SKILL_ROW_LABELS, t: useT() }, { labels });
+  const l = resolveLabels({ defaults: DEFAULT_SKILL_ROW_LABELS, t: useTHook() }, { labels });
   const builtIn = isBuiltInSkill(skill);
   // Built-in skills are never edited in place — "editing" one creates a
   // user-owned override, so every edit affordance says so.

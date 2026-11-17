@@ -37,6 +37,7 @@ export interface SkillDraftFormProps {
   labels?: SkillDraftFormLabels | undefined;
   /** This form's own agent handle — see `SkillsTab`'s `agentHandle` doc. */
   agentHandle?: string;
+  useTHook?: typeof useT;
 }
 
 /**
@@ -57,8 +58,9 @@ export function SkillDraftForm({
   onSubmit,
   labels,
   agentHandle,
+  useTHook = useT,
 }: SkillDraftFormProps) {
-  const l = resolveSkillDraftFormLabels({ t: useT() }, { labels });
+  const l = resolveSkillDraftFormLabels({ t: useTHook() }, { labels });
   const submitLabel = skillDraftSubmitLabel({ labels: l, saving, isEdit, isBuiltInOverride });
   const errorText = skillDraftErrorText({ labels: l, error });
   const fieldProps = { draft, onDraftChange, agentHandle };
