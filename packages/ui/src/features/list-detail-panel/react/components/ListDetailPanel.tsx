@@ -37,8 +37,8 @@ export interface ListDetailPanelProps<TItem extends ListDetailItem> {
 const join = (...classes: Array<string | undefined | false>) => classes.filter(Boolean).join(' ');
 
 /** Busy status region shown in the sidebar or detail pane while the host is loading. */
-function LoadingRegion({ variant, testId, children }: { variant: 'sidebar' | 'detail'; testId: string; children: ReactNode }) {
-  const t = useT();
+function LoadingRegion({ variant, testId, children, useTHook = useT }: { variant: 'sidebar' | 'detail'; testId: string; children: ReactNode; useTHook?: typeof useT; }) {
+  const t = useTHook();
   return (
     <div
       className={`jini-list-detail-panel-loading-${variant}`}
