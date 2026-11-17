@@ -46,8 +46,8 @@ function renderResultSection(
   );
 }
 
-function TabLauncherKindChips<TActionCtx>({ menu }: { menu: TabLauncherMenuController<TActionCtx> }) {
-  const t = useT();
+function TabLauncherKindChips<TActionCtx>({ menu, useTHook = useT }: { menu: TabLauncherMenuController<TActionCtx>; useTHook?: typeof useT; }) {
+  const t = useTHook();
   if (menu.presentKinds.length === 0) return null;
   return (
     <div className="jini-tab-launcher-menu__chips">
@@ -77,8 +77,8 @@ interface TabLauncherScrollBodyProps<TActionCtx> {
   renderIcon: TabLauncherMenuProps<TActionCtx>['renderIcon'];
 }
 
-function TabLauncherScrollBody<TActionCtx>({ menu, renderIcon }: TabLauncherScrollBodyProps<TActionCtx>) {
-  const t = useT();
+function TabLauncherScrollBody<TActionCtx>({ menu, renderIcon, useTHook = useT }: TabLauncherScrollBodyProps<TActionCtx> & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const openLabel = t('Open');
   const hasResults = menu.fileResults.length > 0 || menu.tabResults.length > 0;
 
@@ -141,9 +141,10 @@ export function TabLauncherMenu<TActionCtx = void>({
   renderIcon,
   renderSearchIcon,
   useTabLauncherMenu: useTabLauncherMenuHook = useTabLauncherMenu,
+  useTHook = useT,
   ...options
-}: TabLauncherMenuProps<TActionCtx>) {
-  const t = useT();
+}: TabLauncherMenuProps<TActionCtx> & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const menu = useTabLauncherMenuHook(options);
 
   useEffect(() => {
