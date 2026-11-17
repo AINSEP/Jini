@@ -477,9 +477,6 @@ importers:
         specifier: workspace:^
         version: link:../core
     devDependencies:
-      '@jini-ai/platform':
-        specifier: workspace:*
-        version: link:../platform
       '@types/better-sqlite3':
         specifier: ^7.6.11
         version: 7.6.13
