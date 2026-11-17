@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { SkillFileEntry, SkillSummary } from '../../../types.js';
 import { SkillRow, type SkillRowProps } from '../../../react/components/SkillRow.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 
 const SKILL: SkillSummary = {
   id: 'skill-x',
@@ -44,6 +45,9 @@ function renderRow(overrides: Partial<SkillRowProps> = {}) {
     />,
   );
 }
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('SkillRow', () => {
   it('falls back to the skill id when it has no untranslated or localized name', () => {
@@ -298,6 +302,20 @@ describe('SkillRow', () => {
     renderRow({ editing: true, draft: DRAFT });
     const name = within(screen.getByTestId('skills-edit-form')).getByPlaceholderText('my-skill');
     expect([...name.attributes].some((attr) => attr.name.startsWith('data-agent'))).toBe(false);
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    renderRow({ useTHook: useQuotingT });
+    expect(screen.getByLabelText('«Enabled»')).toBeInTheDocument();
+  });
+
+  it('renders the translated toggle label from the real provider, not the key', () => {
+    render(
+      <I18nProvider dictionaries={{ fr: { Enabled: 'Activé' } }} initialLocale="fr">
+        <SkillRow skill={SKILL} locale="en" enabled expanded={false} editing={false} body={undefined} bodyLoading={false} files={null} filesLoading={false} confirmDelete={false} confirmBuiltInEdit={false} draft={null} draftError={null} draftSaving={false} onDraftChange={vi.fn()} onToggleExpanded={vi.fn()} onToggleEnabled={vi.fn()} onStartEdit={vi.fn()} onConfirmBuiltInEdit={vi.fn()} onCancelBuiltInEdit={vi.fn()} onArmDelete={vi.fn()} onCancelDelete={vi.fn()} onCommitDelete={vi.fn()} onCancelEdit={vi.fn()} onSubmitEdit={vi.fn()} />
+      </I18nProvider>,
+    );
+    expect(screen.getByLabelText('Activé')).toBeInTheDocument();
   });
 });
 

@@ -41,6 +41,8 @@ export interface SkillsTabProps {
    * ONE base.
    */
   agentHandle?: string;
+  useTHook?: typeof useT;
+  useSkillsTabHook?: typeof useSkillsTab;
 }
 
 /**
@@ -51,9 +53,9 @@ export interface SkillsTabProps {
  * host-defined. All filtering/search/count logic lives in this feature's
  * own `rules.ts`; this component only renders it.
  */
-export function SkillsTab({ port, disabledSkillIds, onToggleEnabled, locale = 'en', labels, agentHandle }: SkillsTabProps) {
-  const t = useT();
-  const tab = useSkillsTab({ port, locale });
+export function SkillsTab({ port, disabledSkillIds, onToggleEnabled, locale = 'en', labels, agentHandle, useTHook = useT, useSkillsTabHook = useSkillsTab }: SkillsTabProps) {
+  const t = useTHook();
+  const tab = useSkillsTabHook({ port, locale });
   const l = resolveLabels({ defaults: DEFAULT_SKILLS_TAB_LABELS, t }, { labels });
   const loadErrorLabel = labels?.loadErrorLabel ?? t('Could not load skills: {error}', { error: tab.loadError ?? '' });
 
