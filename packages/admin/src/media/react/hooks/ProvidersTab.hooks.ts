@@ -146,6 +146,39 @@ function editorView({ editor, port, rules }: { editor: ProvidersEditor; port: Me
     // must not accept endpoint/model edits that would only surface as a failed save.
     settingsDisabled: !port || (!port.saveChanges && !port.saveSettings) };
 }
+type CachedReads = ReturnType<typeof useMediaProvidersQuery>['loader'];
+/** The editor's transport over the host's provider service. `lastRead` is the last settled read, kept so a
+ * sequential save can tell which submitted ids the service never returned. */
+function createRawEditorPort(
+  { mediaProviders, reads, lifetime, setDiscoveredCatalog }: {
+    mediaProviders: MediaProvidersPort | undefined; reads: { current: CachedReads }; lifetime: { current: AbortController | null };
+    setDiscoveredCatalog: (catalog: readonly MediaProviderOption[]) => void;
+  },
+  _optional: Record<string, never> = {},
+) {
+  let lastRead: readonly MediaProvider[] = [];
+  return {
+    async fetchMediaProviders() {
+      try {
+        const signal = lifetime.current!.signal;
+        const items = await reads.current.load();
+        if (!items || signal.aborted) return null;
+        lastRead = items;
+        setDiscoveredCatalog(items.map(({ id, label }) => ({ id, label })));
+        return configuration({ items });
+      } catch { return null; }
+    },
+    async saveMediaProviders(providers: MediaProviderConfigurationMap) {
+      if (!mediaProviders) throw new Error('Provider service unavailable');
+      const signal = lifetime.current!.signal;
+      const items = mediaProviders.saveChanges
+        ? await mediaProviders.saveChanges({ providers }, { signal })
+        : await saveSequentially({ port: mediaProviders, providers, lastRead, signal });
+      lastRead = items;
+      return configuration({ items });
+    },
+  };
+}
 export function useProvidersTab(_required: Record<string, never> = {}, { useRules = useMediaProviderRules }: { useRules?: () => ProviderRules } = {}) {
   const rules = useRules();
   const { mediaProviders } = useMediaPorts();
@@ -160,30 +193,7 @@ export function useProvidersTab(_required: Record<string, never> = {}, { useRule
   }, [mediaProviders]);
   // Always invoke the hook. An unavailable optional port uses an inert, scoped fallback.
   // Reuse the established editor's send-time serialization, reload merge and clear rollback.
-  const rawEditorPort = useMemo(() => {
-    let lastRead: readonly MediaProvider[] = [];
-    return {
-      async fetchMediaProviders() {
-        try {
-          const signal = lifetime.current!.signal;
-          const items = await reads.current.load();
-          if (!items || signal.aborted) return null;
-          lastRead = items;
-          setDiscoveredCatalog(items.map(({ id, label }) => ({ id, label })));
-          return configuration({ items });
-        } catch { return null; }
-      },
-      async saveMediaProviders(providers: MediaProviderConfigurationMap) {
-        if (!mediaProviders) throw new Error('Provider service unavailable');
-        const signal = lifetime.current!.signal;
-        const items = mediaProviders.saveChanges
-          ? await mediaProviders.saveChanges({ providers }, { signal })
-          : await saveSequentially({ port: mediaProviders, providers, lastRead, signal });
-        lastRead = items;
-        return configuration({ items });
-      },
-    };
-  }, [mediaProviders]);
+  const rawEditorPort = useMemo(() => createRawEditorPort({ mediaProviders, reads, lifetime, setDiscoveredCatalog }), [mediaProviders]);
   const save = useFetchMutation({ run: ({ input }: { input: MediaProviderConfigurationMap }) => rawEditorPort.saveMediaProviders(input) },
     { invalidates: [MEDIA_QUERY_KEYS.providers] });
   const saves = useRef(save); saves.current = save;
