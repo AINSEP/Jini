@@ -646,9 +646,9 @@
   {
     "file": "packages/integrations/src/api-connections/hosted-mcp/sign-in.ts",
     "function": "<file>",
-    "line": 911,
+    "line": 913,
     "rule": "max-lines",
-    "value": 602
+    "value": 597
   },
   {
     "file": "packages/integrations/src/media-providers/dispatch/sqlite-async-operation-store.ts",

@@ -543,10 +543,7 @@ async function resolveOwnedAccessToken(
 }
 
 /** A failure entry for one record, in the shape {@link readEnabledExternalMcpConfigs} collects. */
-function externalMcpFailure(
-  { record, reason }: { record: ExternalMcpServerRecord; reason: string },
-  { category }: { category?: ExternalMcpConfigFailure["category"] } = {},
-): { readonly ok: false; readonly failure: ExternalMcpConfigFailure } {
+function externalMcpFailure({ record, reason }: { record: ExternalMcpServerRecord; reason: string }, { category }: { category?: ExternalMcpConfigFailure["category"] } = {}): { readonly ok: false; readonly failure: ExternalMcpConfigFailure } {
   return { ok: false, failure: { serverId: record.serverId, reason, ...(category === undefined ? {} : { category }) } };
 }
 

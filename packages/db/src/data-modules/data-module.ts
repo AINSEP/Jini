@@ -1053,9 +1053,6 @@ export async function declareDataModule(
   const journalId = await openJournalIfFileBacked(kernel, decl.pluginId, snapshotPath);
 
   const applied = await applyPlanAtomically({ kernel, decl, plan, journalId, snapshotPath });
-  if (!applied.ok) return applied;
-
-  await finishCommittedMigration({ kernel, journalId, snapshotPath });
-
+  if (applied.ok) await finishCommittedMigration({ kernel, journalId, snapshotPath });
   return applied;
 }

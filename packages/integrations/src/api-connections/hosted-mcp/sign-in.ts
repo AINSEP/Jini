@@ -573,26 +573,15 @@ function resourceOption(resource: string | undefined): { resource?: string } {
 }
 
 /** Device-code grant: start the device authorization, park it for polling, and hand the user code back. */
-async function beginDeviceCodeConnect(
-  { deps, record, provider, client, scopes, resource }: {
-    deps: ExternalMcpOAuthServiceDeps; record: ExternalMcpServerRecord; provider: OAuthProviderDescriptor;
-    client: OAuthClient; scopes: string[]; resource: string | undefined;
-  },
-): Promise<ExternalMcpConnectStart> {
+async function beginDeviceCodeConnect({ deps, record, provider, client, scopes, resource }: { deps: ExternalMcpOAuthServiceDeps; record: ExternalMcpServerRecord; provider: OAuthProviderDescriptor; client: OAuthClient; scopes: string[]; resource: string | undefined }): Promise<ExternalMcpConnectStart> {
   const authorization = await deps.ports.withCopy({ call: () => deps.ports.flow.beginDeviceAuthorization(
     { ...deps.httpPorts, provider, clock: deps.clock, client },
     { scopes, ...resourceOption(resource), timeoutMs: CONNECT_TIMEOUT_MS },
   ) });
   await deps.devices.put(record.serverId, authorization);
   await setOAuthStatus(deps, record.serverId, "pending");
-  return {
-    kind: "device_code",
-    userCode: authorization.userCode,
-    verificationUri: authorization.verificationUri,
-    verificationUriComplete: authorization.verificationUriComplete,
-    expiresAt: authorization.expiresAt,
-    intervalSeconds: authorization.intervalSeconds,
-  };
+  const { userCode, verificationUri, verificationUriComplete, expiresAt, intervalSeconds } = authorization;
+  return { kind: "device_code", userCode, verificationUri, verificationUriComplete, expiresAt, intervalSeconds };
 }
 
 /** Thin site-key codec; Jini owns the expiring redirect payload and all binding checks.

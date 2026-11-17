@@ -435,18 +435,13 @@ export function useStandingDraftAutosave(deps: StandingDraftAutosaveOptions, _op
 
   const clearStandingDraft = useCallback(async (_required: Record<string, never> = {}, { keepOnFailure = false }: { keepOnFailure?: boolean } = {}) => {
     // A late 401/refusal must not resurrect a draft a successful Save or Discard superseded.
-    backupGenerationRef.current++;
-    clearPendingTimer();
+    backupGenerationRef.current++; clearPendingTimer();
     // keepOnFailure holds the banner and the local copy until the server confirms the discard.
-    const settleLocally = () => {
-      setRecoverableDraft(null);
-      // A real Save landed (or the operator discarded): whatever was refused is superseded, so the
-      // gate lifts and the mirror goes with it — otherwise the next mount would offer a ghost. This
-      // is also the ONLY thing that clears a mirror the operator has already been shown and chose to
-      // discard, since by then the gate that wrote it belongs to a previous mount.
-      liftStaleGate();
-      dropLocalBackup();
-    };
+    // A real Save landed (or the operator discarded): whatever was refused is superseded, so the
+    // gate lifts and the mirror goes with it — otherwise the next mount would offer a ghost. This
+    // is also the ONLY thing that clears a mirror the operator has already been shown and chose to
+    // discard, since by then the gate that wrote it belongs to a previous mount.
+    const settleLocally = () => { setRecoverableDraft(null); liftStaleGate(); dropLocalBackup(); };
     if (!keepOnFailure || !entryId) settleLocally();
     if (!entryId) return { discarded: true };
     const outcome = await discardOnServer({ enqueue, port, entryId });
