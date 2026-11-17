@@ -4,7 +4,8 @@
  * outside. Building every gated route through {@link gated} keeps the gate names beside the route,
  * so a test can read "which gates, in which order" from the route list without sending a request.
  */
-import { withRouteMiddleware, type ServerMiddleware, type ServerRoute } from '@jini-ai/core/contracts/server';
+import { jsonRoute, withRouteMiddleware, type JsonRouteSpec, type ServerMiddleware, type ServerRoute } from '@jini-ai/core/contracts/server';
+import type { DaemonRouteHost } from './route-host.js';
 
 /** The gates a daemon route can sit behind. */
 export type DaemonGateName = 'same-origin' | 'tool-exec-caller' | 'remote-bridge-token' | 'frontend-session-owner';
@@ -38,4 +39,21 @@ function gateNames(route: ServerRoute): readonly string[] {
 /** Method, path and gate names of each route, in list order. A route built without {@link gated} has no gates. For tests. */
 export function describeRoutes({ routes }: { readonly routes: readonly ServerRoute[] }, _optional: Record<string, never> = {}): { method: string; path: string; gates: readonly string[] }[] {
   return routes.map((route) => ({ method: route.method, path: route.path, gates: gateNames(route) }));
+}
+
+/**
+ * One JSON route spec as a daemon route: the host's incident reporter and body limit applied, and a
+ * `same-origin` gate named when the spec asks for it (the JSON route itself runs that check).
+ * @param required.spec - The route's declaration.
+ * @param required.deps - What the route's `handle` is given.
+ * @param required.host - The host the route list was built for.
+ */
+export function gatedJsonRoute<Input, Output, Deps>(
+  { spec, deps, host }: { readonly spec: JsonRouteSpec<Input, Output, Deps>; readonly deps: Deps; readonly host: DaemonRouteHost },
+  _optional: Record<string, never> = {},
+): DaemonRoute {
+  return gated({
+    route: jsonRoute({ spec: { ...spec, maxBodyBytes: host.jsonBodyMaxBytes }, deps, reportInternalError: host.reportInternalError }, { host: host.context }),
+    gates: spec.requireSameOrigin ? [{ name: 'same-origin' }] : [],
+  });
 }
