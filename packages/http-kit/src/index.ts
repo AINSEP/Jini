@@ -18,6 +18,7 @@ export {
   getRouteRegistrationInventory,
   guardedRouteKey,
   installRouteRegistrationGuard,
+  recordRouteRegistrations,
 } from './route-registration-guard.js';
 export type { CreateSseChannelOptions, SseChannel } from './sse.js';
 export { createSseChannel, requestedAfterCursor, sendRawApiError } from './sse.js';

@@ -3,6 +3,7 @@ import {
   getRouteRegistrationInventory,
   guardedRouteKey,
   installRouteRegistrationGuard,
+  recordRouteRegistrations,
 } from '../route-registration-guard.js';
 
 /** Mirrors the real Express app surface `installRouteRegistrationGuard` monkey-patches: eight
@@ -173,5 +174,25 @@ describe('getRouteRegistrationInventory', () => {
 
     const second = getRouteRegistrationInventory({ app: app as any });
     expect(second).toEqual([{ method: 'GET', path: '/a' }]);
+  });
+});
+
+describe('recordRouteRegistrations', () => {
+  it('appends listed routes to the inventory, after what the app registered itself, upper-casing nothing it was not given', () => {
+    const { app } = makeApp();
+    installRouteRegistrationGuard({ app: app as never });
+    (app as unknown as { get: (path: string) => void }).get('/api/own');
+    recordRouteRegistrations({ app: app as never, registrations: [{ method: 'POST', path: '/api/listed' }, { method: 'GET', path: '/api/listed/:id' }] });
+    expect(getRouteRegistrationInventory({ app: app as never })).toEqual([
+      { method: 'GET', path: '/api/own' },
+      { method: 'POST', path: '/api/listed' },
+      { method: 'GET', path: '/api/listed/:id' },
+    ]);
+  });
+
+  it('does nothing on an app the guard was never installed on', () => {
+    const { app } = makeApp();
+    recordRouteRegistrations({ app: app as never, registrations: [{ method: 'GET', path: '/api/listed' }] });
+    expect(getRouteRegistrationInventory({ app: app as never })).toEqual([]);
   });
 });

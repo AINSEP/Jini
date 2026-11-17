@@ -104,3 +104,22 @@ export function installRouteRegistrationGuard({ app }: { readonly app: Express }
 export function getRouteRegistrationInventory({ app }: { readonly app: Express }, _optional: Record<string, never> = {}): RouteRegistration[] {
   return ((app as unknown as Record<symbol, RouteRegistration[] | undefined>)[routeInventorySymbol] ?? []).map((entry) => ({ ...entry }));
 }
+
+/**
+ * Adds routes a host mounted as a list (one `app.use` layer, not one registration per route) to the
+ * inventory {@link installRouteRegistrationGuard} keeps, so {@link getRouteRegistrationInventory}
+ * still shows everything the app answers. Inventory only: a listed route is never checked against
+ * `guardedRouteKeys`.
+ *
+ * @param app - The app the routes were mounted on. An app the guard was never installed on is left alone.
+ * @param registrations - The method and path of each listed route, in list order.
+ * @complexity O(routes).
+ */
+export function recordRouteRegistrations(
+  { app, registrations }: { readonly app: Express; readonly registrations: readonly RouteRegistration[] },
+  _optional: Record<string, never> = {},
+): void {
+  const inventory = (app as unknown as Record<symbol, RouteRegistration[] | undefined>)[routeInventorySymbol];
+  if (inventory === undefined) return;
+  for (const { method, path } of registrations) inventory.push({ method, path });
+}
