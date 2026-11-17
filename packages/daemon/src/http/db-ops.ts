@@ -29,7 +29,7 @@
  * (`packages/devops/src/deploy/tool.ts`'s `deploy.publish`, `packages/daemon/src/
  * delegated-tool-bridge.ts`), the actual work happens only inside a
  * `ToolHandler` `ToolExecutor.execute` invokes after `ToolPolicy.authorize`
- * allows it — never directly from `registerDaemonDbRoutes`' handlers. All
+ * allows it — never directly from `daemonDbRoutes`' handlers. All
  * three routes also keep `requireSameOrigin: true` as a first line of
  * defense (matching `daemon-status.ts`'s shutdown route), but that transport
  * gate is defense in depth, not a substitute for the tool-execution
