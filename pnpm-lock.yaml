@@ -695,18 +695,12 @@ importers:
         specifier: workspace:^
         version: link:../core
     devDependencies:
-      '@jini-ai/agentic':
-        specifier: workspace:*
-        version: link:../agentic
       '@jini-ai/cms':
         specifier: workspace:*
         version: link:../cms
       '@jini-ai/db':
         specifier: workspace:*
         version: link:../db
-      '@jini-ai/ui':
-        specifier: workspace:*
-        version: link:../ui
       '@testing-library/jest-dom':
         specifier: ^6.0.0
         version: 6.9.1
