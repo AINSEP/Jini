@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AgentEvent } from "../../../core/index.js";
+import { fakeAgentFailures } from "./fake-chat-agent-failures.js";
 import type { DurableRun, DurableRunStore, RecoveryPorts, RecoveryTrigger, RunProbe } from "../../../core/durable-runs/ports.js";
 import { unusedStoreMethods } from "./store-fake.js";
 import { AWAITING_ANSWER_NOTICE, createDurableRecovery, EXHAUSTED_NOTICE, RUN_STALENESS_MS } from "../recover.js";
@@ -52,7 +53,7 @@ function harness({ events = [], probe = "dead", run = {}, now = TIME + 20_000, a
   const launches: Parameters<RecoveryPorts["launch"]>[0][] = [];
   const nativeQueries: string[] = [];
   const ports: RecoveryPorts = {
-    store, now: () => now, mintRunId: () => "next",
+    store, agentFailures: fakeAgentFailures(), now: () => now, mintRunId: () => "next",
     probe: async () => probe, attach: (value) => { attached.push(value.runId); },
     launch: async (input) => { launches.push(input); }, cancelAttempt: async () => {},
     verifyChildDead: async () => true,
@@ -75,7 +76,7 @@ describe("durable recovery boundaries: before any decision", () => {
   it("returns gone when the message has no durable run", async () => {
     const settlements: unknown[] = [];
     const recovery = createDurableRecovery({
-      store: storeReturning(null), now: () => TIME, mintRunId: () => "next", probe: async () => "dead", attach: () => {},
+      store: storeReturning(null), agentFailures: fakeAgentFailures(), now: () => TIME, mintRunId: () => "next", probe: async () => "dead", attach: () => {},
       launch: async () => {}, cancelAttempt: async () => {}, verifyChildDead: async () => true, supportsNativeResume: () => true, settle: async (value) => { settlements.push(value); return true; },
     }, { logger: { info: () => {} } });
     expect(await recovery.recover({ messageId: "answer", trigger: "boot" }, {})).toBe("gone");
@@ -187,6 +188,7 @@ describe("durable recovery boundaries: generation fencing", () => {
     let loads = 0;
     const attached: string[] = [];
     const recovery = createDurableRecovery({
+      agentFailures: fakeAgentFailures(),
       store: {
         ...storeReturning(null),
         load: async () => { loads += 1; return loads === 1 ? runFixture() : null; },
@@ -239,11 +241,15 @@ function runFixture(): DurableRun {
 }
 
 describe("durable recovery boundaries: continuation launch", () => {
-  it("saves a redacted launch rejection and probes uncertainty without duplicating execution", async () => {
+  it("saves the port-worded launch rejection and probes uncertainty without duplicating execution", async () => {
     const checkpoints: Parameters<NonNullable<RecoveryPorts['checkpoint']>>[0][] = [];
     const attachments: DurableRun[] = [];
     let launches = 0;
+    // Redaction is the agent-failure port's job (the host binding proves it); chat must store exactly what the port returns.
+    const agentFailures = fakeAgentFailures();
+    const worded = { ...agentFailures, startupFailureMessage: (...args: Parameters<typeof agentFailures.startupFailureMessage>) => `PORT WORDED: ${agentFailures.startupFailureMessage(...args).split('\n')[1]}` };
     const h = harness({ ports: {
+      agentFailures: worded,
       attach: run => { attachments.push(run); },
       launch: async () => { launches++; throw new Error('connection refused; Bearer private-value'); },
       checkpoint: async (progress) => {
@@ -257,8 +263,9 @@ describe("durable recovery boundaries: continuation launch", () => {
     expect(checkpoints).toHaveLength(1);
     const notice = checkpoints[0]!.events.at(-1)!;
     expect(notice).toMatchObject({ kind: 'status', code: 'run_launch_unconfirmed' });
-    expect(JSON.stringify(notice)).toContain('recovery launch');
-    expect(JSON.stringify(notice)).toContain('connection refused');
+    expect(agentFailures.startupCalls).toHaveLength(1);
+    expect(agentFailures.startupCalls[0]![0]).toMatchObject({ stage: 'recovery launch', error: expect.objectContaining({ message: 'connection refused; Bearer private-value' }) });
+    expect(notice).toMatchObject({ detail: 'PORT WORDED: Startup stage: recovery launch' });
     expect(JSON.stringify(notice)).not.toContain('private-value');
     expect(checkpoints[0]!.events[0]).toMatchObject({ code: 'run_recovering' });
     const reloaded = createDurableRecovery({ ...h.ports, probe: async () => 'uncertain' }, { logger: { info() {} } });

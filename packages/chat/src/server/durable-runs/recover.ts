@@ -1,7 +1,7 @@
 import { recoveredRunEvents, type AgentEvent } from "../../core/index.js";
-import { classifyAgentServiceFailure, startupFailureMessage } from "@jini-ai/agent-runtime";
 import { continuationRequest } from "../../core/durable-runs/continuation.js";
 import { isAwaitingAnswer } from "../../core/run-activity.js";
+import type { ChatAgentFailurePort } from "../../core/agents-port.js";
 import type { DurableRecovery, DurableRun, RecoveryPorts, RecoveryResult, RecoveryTrigger, RunProbe } from "../../core/durable-runs/ports.js";
 
 import { RECOVERY_LIMIT, RUN_STALENESS_MS, SAVED_WORK_NOTICE, AWAITING_ANSWER_NOTICE, EXHAUSTED_NOTICE } from "../../core/durable-runs/policies.js";
@@ -63,26 +63,26 @@ function needsHumanRepair({ diagnostics }: { diagnostics: string }, _optional = 
   return hasRejectedStatus || HUMAN_REPAIR_PATTERNS.some(pattern => pattern.test(diagnostics));
 }
 
-function attemptFailure({ diagnostics }: { diagnostics: string }, _optional = {}): FailureClass {
+function attemptFailure({ diagnostics, agentFailures }: { diagnostics: string; agentFailures: ChatAgentFailurePort }, _optional = {}): FailureClass {
   // MCP_BRIDGE_UNAVAILABLE needs bridge repair; another attempt repeats the same failure.
   // Classify it before interpreting the bridge's stderr as an agent auth/watchdog failure.
   if (MCP_BRIDGE_FAILURE.test(diagnostics)) return "permanent";
   if (/inactivity[_ -]?(timeout|watchdog)|watchdog.*(kill|stop)/i.test(diagnostics)) return "inactivity-watchdog";
-  if (classifyAgentServiceFailure({ text: diagnostics }) === "AGENT_AUTH_REQUIRED") return "auth-failure";
+  if (agentFailures.classifyServiceFailure({ text: diagnostics }) === "AGENT_AUTH_REQUIRED") return "auth-failure";
   return needsHumanRepair({ diagnostics }) ? "permanent" : "retryable";
 }
 
 /** Keep the notice bounded and scoped to the same executor diagnostics as failure classification. */
-function lastDiagnosticLine({ diagnostics }: { diagnostics: string }, _optional = {}): string | undefined {
+function lastDiagnosticLine({ diagnostics, agentFailures }: { diagnostics: string; agentFailures: ChatAgentFailurePort }, _optional = {}): string | undefined {
   // Startup evidence is already bounded, but redact again for older saved events. Keep the
   // complete stage/cause block; a last-line/300-character tail erased its useful context.
   const startup = diagnostics.lastIndexOf('Startup stage:');
-  if (startup >= 0) return startupFailureMessage({ stage: 'saved startup failure', error: diagnostics.slice(startup) }, {});
+  if (startup >= 0) return agentFailures.startupFailureMessage({ stage: 'saved startup failure', error: diagnostics.slice(startup) }, {});
   return diagnostics.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).at(-1)?.slice(0, 300);
 }
 
-function attemptFailureDetail({ run }: { run: DurableRun }, _optional = {}): string | undefined {
-  return lastDiagnosticLine({ diagnostics: attemptDiagnostics({ run }) });
+function attemptFailureDetail({ run, agentFailures }: { run: DurableRun; agentFailures: ChatAgentFailurePort }, _optional = {}): string | undefined {
+  return lastDiagnosticLine({ diagnostics: attemptDiagnostics({ run }), agentFailures });
 }
 
 function exclusion(run: DurableRun): string | null {
@@ -116,8 +116,8 @@ function budgetNotice(run: DurableRun, now: number): string | null {
 }
 
 /** The exhausted notice's detail: the attempt's last diagnostic, else which budget ended. */
-function exhaustedDetail({ run }: { run: DurableRun }, _optional = {}): string {
-  return attemptFailureDetail({ run }) ?? (run.recoveryCount >= RECOVERY_LIMIT ? `Tried ${RECOVERY_LIMIT} times` : "Recovery window ended");
+function exhaustedDetail({ run, agentFailures }: { run: DurableRun; agentFailures: ChatAgentFailurePort }, _optional = {}): string {
+  return attemptFailureDetail({ run, agentFailures }) ?? (run.recoveryCount >= RECOVERY_LIMIT ? `Tried ${RECOVERY_LIMIT} times` : "Recovery window ended");
 }
 
 /** Saved work to carry into the next attempt, seeding the saved content when no text event holds it. */
@@ -179,7 +179,7 @@ export function createDurableRecovery(ports: RecoveryPorts, { logger = console }
       // same idempotent attempt is probed by the attached watcher before another CAS is possible.
       const diagnostic: AgentEvent = { kind: 'status', code: 'run_launch_unconfirmed',
         label: 'The assistant start response was not confirmed. Checking whether this attempt is running.',
-        detail: startupFailureMessage({ stage, error }, {
+        detail: ports.agentFailures.startupFailureMessage({ stage, error }, {
           notice: 'The assistant start response was not confirmed. Wait while this attempt is checked.',
         }) };
       const events = [...(next.message.events ?? []), diagnostic];
@@ -228,7 +228,7 @@ export function createDurableRecovery(ports: RecoveryPorts, { logger = console }
     if (failure !== "permanent") return finalize(run, failure === "auth-failure" ? "Not logged in. Saved work is above." : STOPPED_NOTICE, { canceled: true });
     // A bridge failure shows its own reason (and stderr): the generic notice hides what needs repair.
     const bridgeNotice = diagnostics.match(MCP_BRIDGE_FAILURE)?.[0];
-    return finalize(run, bridgeNotice ?? EXHAUSTED_NOTICE, { detail: bridgeNotice ? undefined : lastDiagnosticLine({ diagnostics }) });
+    return finalize(run, bridgeNotice ?? EXHAUSTED_NOTICE, { detail: bridgeNotice ? undefined : lastDiagnosticLine({ diagnostics, agentFailures: ports.agentFailures }) });
   }
 
   async function decide(run: DurableRun, trigger: RecoveryTrigger, liveRunId: string | undefined): Promise<Decision> {
@@ -256,7 +256,7 @@ export function createDurableRecovery(ports: RecoveryPorts, { logger = console }
     // probe, raw stdout quoting a tool description ("OAuth-authenticated") canceled a live turn
     // as "Not logged in" (luvira, 2026-10-08).
     const diagnostics = attemptDiagnostics({ run });
-    const failure = attemptFailure({ diagnostics });
+    const failure = attemptFailure({ diagnostics, agentFailures: ports.agentFailures });
     const decision = failure === "retryable" ? await resolveMissing(run, trigger) : await finalizeFailure({ run, failure, diagnostics });
     return { probe, failure, decision };
   }
@@ -284,7 +284,7 @@ export function createDurableRecovery(ports: RecoveryPorts, { logger = console }
     // rather than minting an attempt that runs preflight and asks the same question again.
     if (awaitingAnswer({ run })) return finalize(run, AWAITING_ANSWER_NOTICE);
     const notice = budgetNotice(run, ports.now());
-    if (notice) return finalize(run, notice, { detail: notice === EXHAUSTED_NOTICE ? exhaustedDetail({ run }) : undefined });
+    if (notice) return finalize(run, notice, { detail: notice === EXHAUSTED_NOTICE ? exhaustedDetail({ run, agentFailures: ports.agentFailures }) : undefined });
     // A queued attempt may be between durable acceptance and the daemon's start transaction.
     // Give that idempotent launch time to appear before a 404 can advance its generation.
     if (continuesNow({ run, trigger, now: ports.now() })) return continueDead(run);
