@@ -49,24 +49,6 @@
         "packages/admin/src/security/react/tabs/AccessTokensTab.tsx"
       ]
     },
-    "AddFormActions::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/source-config-list/react/components/SourceConfigAddForm.tsx"
-      ]
-    },
-    "AddFormFields::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/source-config-list/react/components/SourceConfigAddForm.tsx"
-      ]
-    },
-    "AddFormTrustSelect::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/source-config-list/react/components/SourceConfigAddForm.tsx"
-      ]
-    },
     "AdminShell::useAdminShellSession": {
       "count": 1,
       "files": [
@@ -1293,48 +1275,6 @@
         "packages/ui/src/features/html-editor/react/components/InteractiveHtmlEditor.tsx"
       ]
     },
-    "ItemCardActions::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/source-config-list/react/components/SourceConfigItemCard.tsx"
-      ]
-    },
-    "ItemCardEditFields::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/source-config-list/react/components/SourceConfigItemCard.tsx"
-      ]
-    },
-    "ItemCardEditToggle::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/source-config-list/react/components/SourceConfigItemCard.tsx"
-      ]
-    },
-    "ItemCardEnabledToggle::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/source-config-list/react/components/SourceConfigItemCard.tsx"
-      ]
-    },
-    "ItemCardReadOnlyFields::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/source-config-list/react/components/SourceConfigItemCard.tsx"
-      ]
-    },
-    "ItemCardSummary::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/source-config-list/react/components/SourceConfigItemCard.tsx"
-      ]
-    },
-    "ItemCardTrustSelect::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/source-config-list/react/components/SourceConfigItemCard.tsx"
-      ]
-    },
     "JumpToLatest::useT": {
       "count": 1,
       "files": [
@@ -1791,12 +1731,6 @@
         "packages/user-management/src/react/auth/Passkeys.tsx"
       ]
     },
-    "PasswordControl::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/source-config-list/react/components/SourceConfigField.tsx"
-      ]
-    },
     "Payments::usePayments": {
       "count": 1,
       "files": [
@@ -2204,12 +2138,6 @@
         "packages/ui/src/features/interactive-ui/providers/shadcn/select.tsx"
       ]
     },
-    "SelectControl::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/source-config-list/react/components/SourceConfigField.tsx"
-      ]
-    },
     "SelectField::useAgentHandle": {
       "count": 1,
       "files": [
@@ -2480,66 +2408,6 @@
         "packages/ui/src/features/notifications/react/components/NotificationsTab.tsx"
       ]
     },
-    "SourceConfigAddForm::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/source-config-list/react/components/SourceConfigAddForm.tsx"
-      ]
-    },
-    "SourceConfigField::useSecretReveal": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/source-config-list/react/components/SourceConfigField.tsx"
-      ]
-    },
-    "SourceConfigField::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/source-config-list/react/components/SourceConfigField.tsx"
-      ]
-    },
-    "SourceConfigFieldControl::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/source-config-list/react/components/SourceConfigField.tsx"
-      ]
-    },
-    "SourceConfigItemCard::useItemCardEdit": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/source-config-list/react/components/SourceConfigItemCard.tsx"
-      ]
-    },
-    "SourceConfigListBody::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/source-config-list/react/components/SourceConfigListView.tsx"
-      ]
-    },
-    "SourceConfigListError::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/source-config-list/react/components/SourceConfigListView.tsx"
-      ]
-    },
-    "SourceConfigListHead::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/source-config-list/react/components/SourceConfigListView.tsx"
-      ]
-    },
-    "SourceConfigTestControl::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/source-config-list/react/components/SourceConfigTestControl.tsx"
-      ]
-    },
-    "SourceConfigTrustOptions::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/source-config-list/react/components/SourceConfigTrustOptions.tsx"
-      ]
-    },
     "SourceControlCredentialFields::useSourceControlCredentialFields": {
       "count": 1,
       "files": [
@@ -2642,22 +2510,10 @@
         "packages/chat/src/react/components/Markdown.tsx"
       ]
     },
-    "TestStatusMessage::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/source-config-list/react/components/SourceConfigTestControl.tsx"
-      ]
-    },
     "TextMarkItem::useT": {
       "count": 1,
       "files": [
         "packages/ui/src/renderers/annotation-canvas/react/components/AnnotationCanvas.tsx"
-      ]
-    },
-    "TextareaControl::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/source-config-list/react/components/SourceConfigField.tsx"
       ]
     },
     "ThinkingBlock::useT": {
