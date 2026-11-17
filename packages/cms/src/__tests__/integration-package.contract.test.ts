@@ -49,8 +49,6 @@ it('keeps the folded domain entries and optional adapter peers explicit', () => 
   expect(manifest.peerDependenciesMeta["kysely"].optional).toBe(true);
   assert.ok(manifest.peerDependenciesMeta["express"]);
   expect(manifest.peerDependenciesMeta["express"].optional).toBe(true);
-  assert.ok(manifest.peerDependenciesMeta["@jini-ai/http-kit"]);
-  expect(manifest.peerDependenciesMeta["@jini-ai/http-kit"].optional).toBe(true);
   expect(manifest.jini.entries["./redirects"]).toBe("universal");
   expect(manifest.jini.entries["./redirects/sql"]).toBe("node");
   expect(manifest.jini.entries["./redirects/spa"]).toBe("universal");
@@ -67,11 +65,8 @@ it('keeps the folded domain entries and optional adapter peers explicit', () => 
   assert.ok(manifest.exports["./redirects/express"]);
   expect(manifest.exports["./redirects/express"].types).toBe("./dist/redirects/express/index.d.ts");
   expect(manifest.jini.isolation.domains.redirects).toEqual(["src/redirects"]);
-  expect(manifest.peerDependenciesMeta["@jini-ai/http-kit"].optional).toBe(true);
   expect(manifest.jini.entries['./seo']).toBe('universal');
   expect(manifest.jini.entries['./seo/dom']).toBe('browser');
-  expect(manifest.peerDependencies['@jini-ai/http-kit']).toMatch(/^\^\d+\.\d+\.\d+/);
-  expect(manifest.peerDependenciesMeta['@jini-ai/http-kit']?.optional).toBe(true);
   expect(manifest.jini.entries['./widgets']).toBe('universal');
   expect(manifest.jini.entries['./widgets/markers']).toBe('universal');
   expect(manifest.jini.entries['./widgets/html']).toBe('node');
