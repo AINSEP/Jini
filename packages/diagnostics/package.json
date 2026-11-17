@@ -20,6 +20,7 @@
       "./web-evidence/playwright": "node",
       "./web-evidence/testing": "universal",
       "./web-evidence/capture-budget": "universal",
+      "./web-evidence/capture-clock": "universal",
       "./domain-dns": "node"
     },
     "runtime": "node"
@@ -68,6 +69,11 @@
       "types": "./dist/web-evidence/capture-budget.d.ts",
       "import": "./dist/web-evidence/capture-budget.js",
       "default": "./dist/web-evidence/capture-budget.js"
+    },
+    "./web-evidence/capture-clock": {
+      "types": "./dist/web-evidence/capture-clock.d.ts",
+      "import": "./dist/web-evidence/capture-clock.js",
+      "default": "./dist/web-evidence/capture-clock.js"
     },
     "./domain-dns": {
       "types": "./dist/domain-dns/index.d.ts",
