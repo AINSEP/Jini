@@ -298,7 +298,7 @@ export {
   connectorsStorageGetRoute,
   connectorsStorageListRoute,
   connectorsStoragePutRoute,
-  registerConnectorsRoutes,
+  connectorsRoutes,
 } from './connectors.js';
 export type {
   ResearchProvider,

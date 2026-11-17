@@ -44,11 +44,11 @@
  *   to the provider.
  * - `RealtimeProvider.subscribe` has no route here — see the realtime section below for why.
  */
-import type { Express } from 'express';
 import { createApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
-import { ClientFacingError, type RouteHostContext, validationError, err, ok, type Result, type RouteInputContext } from '@jini-ai/core/contracts/server';
+import { ClientFacingError, defineJsonRoute, validationError, err, ok, type JsonRouteSpec, type ReportRouteInternalError, type Result, type RouteInputContext } from '@jini-ai/core/contracts/server';
 import { reportRouteInternalError } from '@jini-ai/http-kit';
+import type { DaemonRouteHost } from './route-host.js';
+import { gatedJsonRoute, withHostReporter, type DaemonRoute } from './route-table.js';
 
 /** Validation message for a request body that is not a JSON object. */
 const BODY_NOT_OBJECT_MESSAGE = 'body must be a JSON object';
@@ -131,6 +131,8 @@ export interface ConnectorsHttpDeps {
   readonly realtime?: RealtimeProvider;
   /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
   readonly onInternalError?: (context: ConnectorsInternalErrorContext) => void;
+  /** Makes the request ID and writes the log line for an internal failure. {@link connectorsRoutes} sets it to the host's reporter; a caller that runs a route's `handle` itself may omit it and gets `@jini-ai/http-kit`'s. */
+  readonly reportInternalError?: ReportRouteInternalError;
 }
 
 /** Plain words per provider; the caller also gets the request ID. */
@@ -160,7 +162,7 @@ async function guardedCall<T>(
     return ok({ value: await fn() });
   } catch (error) {
     if (error instanceof ClientFacingError) return err({ error: error.apiError });
-    return err({ error: reportRouteInternalError<Omit<ConnectorsInternalErrorContext, 'correlationId'>>({ report: { source, operation, error }, logSource: `connectors/${source}.${operation}`, message: CONNECTOR_FAILURE_MESSAGES[source] }, { onInternalError: deps.onInternalError }) });
+    return err({ error: (deps.reportInternalError ?? reportRouteInternalError)<Omit<ConnectorsInternalErrorContext, 'correlationId'>>({ report: { source, operation, error }, logSource: `connectors/${source}.${operation}`, message: CONNECTOR_FAILURE_MESSAGES[source] }, { onInternalError: deps.onInternalError }) });
   }
 }
 
@@ -505,23 +507,14 @@ export const connectorsRealtimePublishRoute = defineJsonRoute<RealtimePublishReq
   }
 }, { requireSameOrigin: true });
 
-/** Mounts every connectors route on `app`. A pack's `http(app, services)` calls this directly. */
-export function registerConnectorsRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: ConnectorsHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
-  mountJsonRoute({ app, spec: connectorsAuthSignUpRoute, deps, adapter });
-  mountJsonRoute({ app, spec: connectorsAuthSignInRoute, deps, adapter });
-  mountJsonRoute({ app, spec: connectorsAuthSignOutRoute, deps, adapter });
-  mountJsonRoute({ app, spec: connectorsAuthSessionRoute, deps, adapter });
-
-  mountJsonRoute({ app, spec: connectorsStoragePutRoute, deps, adapter });
-  mountJsonRoute({ app, spec: connectorsStorageGetRoute, deps, adapter });
-  mountJsonRoute({ app, spec: connectorsStorageDeleteRoute, deps, adapter });
-  mountJsonRoute({ app, spec: connectorsStorageListRoute, deps, adapter });
-
-  mountJsonRoute({ app, spec: connectorsDbInsertRoute, deps, adapter });
-  mountJsonRoute({ app, spec: connectorsDbGetRoute, deps, adapter });
-  mountJsonRoute({ app, spec: connectorsDbUpdateRoute, deps, adapter });
-  mountJsonRoute({ app, spec: connectorsDbDeleteRoute, deps, adapter });
-  mountJsonRoute({ app, spec: connectorsDbQueryRoute, deps, adapter });
-
-  mountJsonRoute({ app, spec: connectorsRealtimePublishRoute, deps, adapter });
+/** Every connectors route as data (auth x4, storage x4, db x5, realtime x1), each behind the same-origin gate its spec declares. Internal failures are reported through the host's reporter. */
+export function connectorsRoutes({ deps, host }: { readonly deps: ConnectorsHttpDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
+  const routeDeps = withHostReporter({ deps, host });
+  const json = <I, O>(spec: JsonRouteSpec<I, O, ConnectorsHttpDeps>): DaemonRoute => gatedJsonRoute({ spec, deps: routeDeps, host });
+  return [
+    json(connectorsAuthSignUpRoute), json(connectorsAuthSignInRoute), json(connectorsAuthSignOutRoute), json(connectorsAuthSessionRoute),
+    json(connectorsStoragePutRoute), json(connectorsStorageGetRoute), json(connectorsStorageDeleteRoute), json(connectorsStorageListRoute),
+    json(connectorsDbInsertRoute), json(connectorsDbGetRoute), json(connectorsDbUpdateRoute), json(connectorsDbDeleteRoute), json(connectorsDbQueryRoute),
+    json(connectorsRealtimePublishRoute),
+  ];
 }
