@@ -373,18 +373,6 @@
         "packages/ui/src/features/iframe-pool/react/components/PooledIframe.tsx"
       ]
     },
-    "CommandPalette::useCommandPaletteView": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/command-palette/react/components/CommandPalette.tsx"
-      ]
-    },
-    "CommandPalette::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/command-palette/react/components/CommandPalette.tsx"
-      ]
-    },
     "CommentsPage::useCommentsPage": {
       "count": 1,
       "files": [
@@ -1159,18 +1147,6 @@
         "packages/ui/src/features/progress-card/components/ProgressCard.tsx"
       ]
     },
-    "ProjectLocationsTab::useProjectLocationsTab": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/project-locations/react/components/ProjectLocationsTab.tsx"
-      ]
-    },
-    "ProjectLocationsTab::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/project-locations/react/components/ProjectLocationsTab.tsx"
-      ]
-    },
     "ProvidersTab::useProvidersTab": {
       "count": 2,
       "files": [
@@ -1258,18 +1234,6 @@
       "count": 1,
       "files": [
         "packages/chat/src/react/components/ToolCard.tsx"
-      ]
-    },
-    "RevisionDiffCard::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/revision-review/react/components/RevisionDiffCard.tsx"
-      ]
-    },
-    "RevisionHistoryList::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/revision-review/react/components/RevisionHistoryList.tsx"
       ]
     },
     "RoleRow::useRoleRow": {
@@ -1606,18 +1570,6 @@
       "count": 1,
       "files": [
         "packages/ui/src/features/tab-strip/react/components/TabStrip.tsx"
-      ]
-    },
-    "TabbedDialog::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/tabbed-dialog/react/components/TabbedDialog.tsx"
-      ]
-    },
-    "TabbedDialog::useTabbedDialog": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/tabbed-dialog/react/components/TabbedDialog.tsx"
       ]
     },
     "TableBlock::useTableOverflow": {

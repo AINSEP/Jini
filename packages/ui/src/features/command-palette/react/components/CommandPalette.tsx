@@ -12,6 +12,8 @@ export interface CommandPaletteProps {
   placeholder?: string | undefined;
   /** Custom hook override for dependency injection / testing. */
   useWiredCommandPalette?: typeof useWiredCommandPalette;
+  useTHook?: typeof useT;
+  useCommandPaletteViewHook?: typeof useCommandPaletteView;
 }
 
 /**
@@ -34,10 +36,12 @@ export function CommandPalette({
   scopeKey,
   placeholder,
   useWiredCommandPalette: useWiredCommandPaletteHook = useWiredCommandPalette,
+  useTHook = useT,
+  useCommandPaletteViewHook = useCommandPaletteView,
 }: CommandPaletteProps) {
-  const t = useT();
+  const t = useTHook();
   const palette = useWiredCommandPaletteHook({ items, onSelect, onClose, scopeKey });
-  const { listRef, setInputRef } = useCommandPaletteView({ cursor: palette.cursor });
+  const { listRef, setInputRef } = useCommandPaletteViewHook({ cursor: palette.cursor });
 
   const hasQuery = palette.query.trim().length > 0;
   const emptyLabel = hasQuery ? t('No matches') : t('No items');
