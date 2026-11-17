@@ -481,44 +481,6 @@
         "packages/ui/src/features/command-palette/react/components/CommandPalette.tsx"
       ]
     },
-    "CommentSideCreateForm::useT": {
-      "count": 1,
-      "files": []
-    },
-    "CommentSideHeader::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/viewer-shell/react/components/CommentSidePanel.tsx"
-      ]
-    },
-    "CommentSidePanel::useCollapseToggleFocus": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/viewer-shell/react/components/CommentSidePanel.tsx"
-      ]
-    },
-    "CommentSidePanel::useCommentTimestampFormatter": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/viewer-shell/react/components/CommentSidePanel.tsx"
-      ]
-    },
-    "CommentSidePanel::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/viewer-shell/react/components/CommentSidePanel.tsx"
-      ]
-    },
-    "CommentSideRail::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/viewer-shell/react/components/CommentSidePanel.tsx"
-      ]
-    },
-    "CommentSideSelectBar::useT": {
-      "count": 1,
-      "files": []
-    },
     "CommentsPage::useCommentsPage": {
       "count": 1,
       "files": [
@@ -1081,36 +1043,6 @@
       "count": 1,
       "files": [
         "packages/user-management/src/admin/react/pages/LoginPage.tsx"
-      ]
-    },
-    "MarkdownEditorPane::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/viewer-shell/react/components/MarkdownSplitPane.tsx"
-      ]
-    },
-    "MarkdownModeTabs::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/viewer-shell/react/components/MarkdownSplitPane.tsx"
-      ]
-    },
-    "MarkdownPreviewPane::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/viewer-shell/react/components/MarkdownSplitPane.tsx"
-      ]
-    },
-    "MarkdownSplitPane::useMarkdownScrollSync": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/viewer-shell/react/components/MarkdownSplitPane.tsx"
-      ]
-    },
-    "MarkdownSplitPane::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/viewer-shell/react/components/MarkdownSplitPane.tsx"
       ]
     },
     "MarketplaceTab::useMarketplaceTab": {
@@ -2478,18 +2410,6 @@
       "count": 1,
       "files": [
         "packages/vibecoding/src/react/components/VibecodingWorkbench.tsx"
-      ]
-    },
-    "ViewerFileActions::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/viewer-shell/react/components/ViewerFileActions.tsx"
-      ]
-    },
-    "ViewportSwitcher::useDismissOnOutsideOrEscape": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/viewer-shell/react/components/ViewportSwitcher.tsx"
       ]
     },
     "WebFetchCard::useT": {

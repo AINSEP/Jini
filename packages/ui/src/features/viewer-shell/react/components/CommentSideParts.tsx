@@ -47,6 +47,7 @@ export function CommentSideSelectBar({
   queueOnSend,
   onClearSelection,
   onSendSelected,
+  useTHook = useT,
 }: {
   selectedCount: number;
   sending: boolean;
@@ -54,8 +55,9 @@ export function CommentSideSelectBar({
   queueOnSend: boolean;
   onClearSelection: () => void;
   onSendSelected: () => void | Promise<void>;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   if (selectedCount === 0) return null;
   const idleSendLabel = queueOnSend ? t('Queue') : t('Send to chat');
   return (
@@ -84,6 +86,7 @@ export function CommentSideCreateForm({
   onCreateComment,
   sending,
   sendDisabled,
+  useTHook = useT,
 }: {
   renderCreateForm: boolean;
   draft: string;
@@ -91,8 +94,9 @@ export function CommentSideCreateForm({
   onCreateComment: ((note: string) => boolean | Promise<boolean>) | undefined;
   sending: boolean;
   sendDisabled: boolean;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   if (!renderCreateForm || !onCreateComment) return null;
   // Bind the narrowed callback: TypeScript drops the narrowing inside the
   // nested async `submitNewComment` closure below.
