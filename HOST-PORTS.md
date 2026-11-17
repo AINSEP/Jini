@@ -573,7 +573,7 @@ Everything a Jini package asks its host to bind or register: `*Port`, `*Kit`, `*
 | `ResearchHttpDeps` | deps | interface | `packages/daemon/src/http/research.ts:141` |
 | `researchRoutes` | registry | function | `packages/daemon/src/http/research.ts:290` |
 | `RoutineHttpDeps` | deps | interface | `packages/daemon/src/http/routines.ts:92` |
-| `registerRoutineRoutes` | registry | function | `packages/daemon/src/http/routines.ts:402` |
+| `routineRoutes` | registry | function | `packages/daemon/src/http/routines.ts:402` |
 | `RunHttpDeps` | deps | interface | `packages/daemon/src/http/runs.ts:57` |
 | `registerRunEventStream` | registry | function | `packages/daemon/src/http/runs.ts:360` |
 | `registerRunRoutes` | registry | function | `packages/daemon/src/http/runs.ts:372` |

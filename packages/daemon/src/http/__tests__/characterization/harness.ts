@@ -36,7 +36,7 @@ import { registerMessageRelayRoutes } from '../../message-relay.js';
 import { registerModelProxyRoutes } from '../../model-proxy.js';
 import { registerRemoteRunEventRoutes } from '../../remote-run-events.js';
 import { researchRoutes } from '../../research.js';
-import { registerRoutineRoutes } from '../../routines.js';
+import { routineRoutes } from '../../routines.js';
 import { registerRunRoutes } from '../../runs.js';
 import { registerTerminalRoutes } from '../../terminals.js';
 import { toolCatalogRoutes } from '../../tool-catalog.js';
@@ -128,7 +128,7 @@ const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-par
   ['xai', ({ app, adapter, deps }) => registerXaiRoutes({ app, deps: deps(), adapter })],
   ['remote-run-events', ({ app, adapter, deps }) => registerRemoteRunEventRoutes({ app, deps: deps({ env: gateEnv, tokenConfig: undefined, timingSafeEqual: undefined }), adapter })],
   ['memory', ({ app, adapter, deps }) => registerMemoryRoutes({ app, deps: deps(), adapter })],
-  ['routines', ({ app, adapter, deps }) => registerRoutineRoutes({ app, deps: deps(), adapter })],
+  ['routines', ({ adapter, deps, mountList }) => mountList(routineRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['media', ({ adapter, deps, mountList }) => mountList(mediaRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['frontend-sessions', ({ app, adapter, deps }) => registerFrontendSessionRoutes({ app, deps: deps({ routePrefix: undefined, resolveOwner: undefined }), adapter })],
   ['frontend-sessions (scoped)', ({ app, adapter, deps }) => registerFrontendSessionRoutes({ app, deps: deps({ routePrefix: SCOPED_FRONTEND_PREFIX }), adapter })],

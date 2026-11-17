@@ -1,9 +1,8 @@
-import type { Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
-import express from 'express';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createLocalTestOrigin } from './fixtures/local-origin.js';
-import { createRecordingOriginPolicy, createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
+import { describe, expect, it, vi } from 'vitest';
+import { denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
+import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
+import { describeRoutes } from '../route-table.js';
 import {
   createInMemoryRoutineStore,
   validateSchedule,
@@ -12,7 +11,7 @@ import {
   type RoutineStore,
 } from '../../index.js';
 import {
-  registerRoutineRoutes,
+  routineRoutes,
   routineCreateRoute,
   routineDeleteRoute,
   routineGetRoute,
@@ -35,30 +34,6 @@ vi.mock('../../index.js', async (importOriginal) => {
   return { ...actual, validateSchedule: vi.fn(actual.validateSchedule) };
 });
 
-interface MockApp {
-  get: (path: string, handler: any) => void;
-  post: (path: string, handler: any) => void;
-  put: (path: string, handler: any) => void;
-  delete: (path: string, handler: any) => void;
-  patch: (path: string, handler: any) => void;
-  handlers: Record<string, (req: any, res: any) => Promise<void> | void>;
-}
-
-function makeApp(): MockApp {
-  const handlers: MockApp['handlers'] = {};
-  const make = (method: string) => (path: string, handler: any) => {
-    handlers[`${method.toUpperCase()} ${path}`] = handler;
-  };
-  return { get: make('get'), post: make('post'), put: make('put'), delete: make('delete'), patch: make('patch'), handlers };
-}
-
-function makeRes() {
-  return { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() };
-}
-
-const testOriginPolicy = createRecordingOriginPolicy();
-
-const adapter = createTestRouteHost({}, { originPolicy: testOriginPolicy });
 
 function validCreateBody(overrides: Record<string, unknown> = {}) {
   return {
@@ -88,10 +63,6 @@ function makeScheduler(overrides: Partial<RoutineScheduler> = {}): RoutineSchedu
 function makeDeps(overrides: Partial<RoutineHttpDeps> = {}): RoutineHttpDeps {
   return { store: createInMemoryRoutineStore({}), scheduler: makeScheduler(), ...overrides };
 }
-
-beforeEach(() => {
-  testOriginPolicy.set({ allow: true });
-});
 
 // ---------------------------------------------------------------------------
 // parse
@@ -811,91 +782,105 @@ describe('routineRunsListRoute.handle', () => {
 });
 
 // ---------------------------------------------------------------------------
-// registerRoutineRoutes — mounting, same-origin, and the confirmed-bug regression
+// routineRoutes — the list, same-origin, and the confirmed-bug regression
 // ---------------------------------------------------------------------------
 
-describe('registerRoutineRoutes', () => {
-  it('mounts exactly the seven routine routes, nothing else', () => {
-    const app = makeApp();
-    registerRoutineRoutes({ app: app as any, deps: makeDeps(), adapter });
-    expect(Object.keys(app.handlers).sort()).toEqual(
-      [
-        'GET /api/routines',
-        'POST /api/routines',
-        'GET /api/routines/:id',
-        'PATCH /api/routines/:id',
-        'DELETE /api/routines/:id',
-        'POST /api/routines/:id/run',
-        'GET /api/routines/:id/runs',
-      ].sort(),
-    );
+describe('routineRoutes', () => {
+  const serve = ({ deps, denyOrigins = false }: { deps: RoutineHttpDeps; denyOrigins?: boolean }) =>
+    serveRoutes({ routes: routineRoutes({ deps, host: fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {}) }) });
+  const send = async ({ deps, method = 'GET', path, body, denyOrigins = false }: { deps: RoutineHttpDeps; method?: string; path: string; body?: unknown; denyOrigins?: boolean }) => {
+    const response = await serve({ deps, denyOrigins })(jsonRequest({ path, method }, { body }));
+    return { status: response.status, body: await response.json() as unknown };
+  };
+
+  it('lists exactly the seven routine routes, the four writes behind the same-origin gate', () => {
+    expect(describeRoutes({ routes: routineRoutes({ deps: makeDeps(), host: fakeDaemonRouteHost() }) })).toEqual([
+      { method: 'GET', path: '/api/routines', gates: [] },
+      { method: 'POST', path: '/api/routines', gates: ['same-origin'] },
+      { method: 'GET', path: '/api/routines/:id', gates: [] },
+      { method: 'PATCH', path: '/api/routines/:id', gates: ['same-origin'] },
+      { method: 'DELETE', path: '/api/routines/:id', gates: ['same-origin'] },
+      { method: 'POST', path: '/api/routines/:id/run', gates: ['same-origin'] },
+      { method: 'GET', path: '/api/routines/:id/runs', gates: [] },
+    ]);
   });
 
   it('does not require same-origin for the three read-only GET routes', async () => {
-    testOriginPolicy.set({ allow: false });
-    const app = makeApp();
     const store = createInMemoryRoutineStore({});
     const routine = await store.create(validCreateBody() as any);
-    registerRoutineRoutes({ app: app as any, deps: makeDeps({ store }), adapter });
-
-    const listRes = makeRes();
-    await app.handlers['GET /api/routines']!({ body: {}, query: {}, params: {} }, listRes);
-    expect(listRes.status).toHaveBeenCalledWith(200);
-
-    const getRes = makeRes();
-    await app.handlers['GET /api/routines/:id']!({ body: {}, query: {}, params: { id: routine.id } }, getRes);
-    expect(getRes.status).toHaveBeenCalledWith(200);
-
-    const runsRes = makeRes();
-    await app.handlers['GET /api/routines/:id/runs']!({ body: {}, query: {}, params: { id: routine.id } }, runsRes);
-    expect(runsRes.status).toHaveBeenCalledWith(200);
+    const deps = makeDeps({ store });
+    const statuses = await Promise.all(['/api/routines', `/api/routines/${routine.id}`, `/api/routines/${routine.id}/runs`].map(async (path) => (await send({ deps, path, denyOrigins: true })).status));
+    expect(statuses).toEqual([200, 200, 200]);
   });
 
-  it('requires same-origin for POST /api/routines', async () => {
-    testOriginPolicy.set({ allow: false });
-    const app = makeApp();
-    registerRoutineRoutes({ app: app as any, deps: makeDeps(), adapter });
-    const res = makeRes();
-    await app.handlers['POST /api/routines']!({ body: validCreateBody(), query: {}, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(403);
+  it.each([
+    ['POST', '/api/routines', validCreateBody()],
+    ['PATCH', '/api/routines/routine-1', {}],
+    ['DELETE', '/api/routines/routine-1', undefined],
+    ['POST', '/api/routines/routine-1/run', {}],
+  ] as const)('requires same-origin for %s %s', async (method, path, body) => {
+    expect((await send({ deps: makeDeps(), method, path, body, denyOrigins: true })).status).toBe(403);
   });
 
-  it('requires same-origin for PATCH /api/routines/:id', async () => {
-    testOriginPolicy.set({ allow: false });
-    const app = makeApp();
-    registerRoutineRoutes({ app: app as any, deps: makeDeps(), adapter });
-    const res = makeRes();
-    await app.handlers['PATCH /api/routines/:id']!({ body: {}, query: {}, params: { id: 'routine-1' } }, res);
-    expect(res.status).toHaveBeenCalledWith(403);
-  });
-
-  it('requires same-origin for DELETE /api/routines/:id', async () => {
-    testOriginPolicy.set({ allow: false });
-    const app = makeApp();
-    registerRoutineRoutes({ app: app as any, deps: makeDeps(), adapter });
-    const res = makeRes();
-    await app.handlers['DELETE /api/routines/:id']!({ body: {}, query: {}, params: { id: 'routine-1' } }, res);
-    expect(res.status).toHaveBeenCalledWith(403);
-  });
-
-  it('requires same-origin for POST /api/routines/:id/run', async () => {
-    testOriginPolicy.set({ allow: false });
-    const app = makeApp();
-    registerRoutineRoutes({ app: app as any, deps: makeDeps(), adapter });
-    const res = makeRes();
-    await app.handlers['POST /api/routines/:id/run']!({ body: {}, query: {}, params: { id: 'routine-1' } }, res);
-    expect(res.status).toHaveBeenCalledWith(403);
-  });
-
-  it('mounted POST /api/routines creates a routine end to end through the real Adapter pipeline', async () => {
-    const app = makeApp();
+  it('serves GET and POST /api/routines end to end, creating a routine through the real JSON route pipeline', async () => {
     const deps = makeDeps();
-    registerRoutineRoutes({ app: app as any, deps, adapter });
-    const res = makeRes();
-    await app.handlers['POST /api/routines']!({ body: validCreateBody(), query: {}, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(201);
-    const [body] = res.json.mock.calls[0]!;
-    expect(body.routine.name).toBe('Daily brief');
+    const created = await send({ deps, method: 'POST', path: '/api/routines', body: validCreateBody() });
+    expect(created.status).toBe(201);
+    const createdBody = created.body as { routine: { id: string; name: string } };
+    expect(createdBody.routine.name).toBe('Daily brief');
+
+    const listed = await send({ deps, path: '/api/routines' });
+    expect(listed.status).toBe(200);
+    expect((listed.body as { routines: { id: string }[] }).routines.map((routine) => routine.id)).toEqual([createdBody.routine.id]);
+  });
+
+  it('serves GET, PATCH, and DELETE /api/routines/:id end to end, then 404s the deleted id', async () => {
+    const store = createInMemoryRoutineStore({});
+    const routine = await store.create(validCreateBody() as any);
+    const scheduler = makeScheduler();
+    const deps = makeDeps({ store, scheduler });
+
+    const got = await send({ deps, path: `/api/routines/${routine.id}` });
+    expect(got.status).toBe(200);
+    expect((got.body as { routine: { id: string } }).routine.id).toBe(routine.id);
+
+    const patched = await send({ deps, method: 'PATCH', path: `/api/routines/${routine.id}`, body: { name: 'renamed' } });
+    expect(patched.status).toBe(200);
+    expect((patched.body as { routine: { name: string } }).routine.name).toBe('renamed');
+    expect(scheduler.rescheduleOne).toHaveBeenCalledWith({ routineId: routine.id });
+
+    expect(await send({ deps, method: 'DELETE', path: `/api/routines/${routine.id}` })).toEqual({ status: 200, body: { ok: true } });
+
+    expect(await send({ deps, path: `/api/routines/${routine.id}` })).toEqual({
+      status: 404,
+      body: { error: { code: 'NOT_FOUND', message: 'routine not found' } },
+    });
+  });
+
+  it('serves POST /api/routines/:id/run and GET /api/routines/:id/runs end to end', async () => {
+    const store = createInMemoryRoutineStore({});
+    const routine = await store.create(validCreateBody() as any);
+    const deps = makeDeps({ store });
+
+    const started = await send({ deps, method: 'POST', path: `/api/routines/${routine.id}/run` });
+    expect(started.status).toBe(202);
+    expect(started.body).toMatchObject({
+      run: null, // no host bridge wired in this test — see module doc
+      projectId: 'project-1',
+      conversationId: 'conversation-1',
+      agentRunId: 'agent-run-1',
+    });
+
+    expect(await send({ deps, path: `/api/routines/${routine.id}/runs` })).toEqual({ status: 200, body: { runs: [], nextCursor: null } });
+    expect((await send({ deps, path: `/api/routines/${routine.id}/runs?cursor=garbage` })).status).toBe(400);
+  });
+
+  it('rejects a cross-origin create request with 403 before the routine store is ever called', async () => {
+    const store = createInMemoryRoutineStore({});
+    const createSpy = vi.spyOn(store, 'create');
+    const response = await send({ deps: makeDeps({ store }), method: 'POST', path: '/api/routines', body: validCreateBody(), denyOrigins: true });
+    expect(response.status).toBe(403);
+    expect(createSpy).not.toHaveBeenCalled();
   });
 
   describe('confirmed-bug regression: GET/:id, DELETE/:id, and GET/:id/runs must not crash (or silently 500-loop) on a throwing store, matching every sibling route\'s try/catch discipline', () => {
@@ -915,139 +900,14 @@ describe('registerRoutineRoutes', () => {
       } as unknown as RoutineStore;
     }
 
-    it('GET /api/routines/:id returns 500 INTERNAL_ERROR instead of throwing', async () => {
-      const app = makeApp();
-      registerRoutineRoutes({ app: app as any, deps: makeDeps({ store: throwingStore() }), adapter });
-      const res = makeRes();
-      await expect(
-        app.handlers['GET /api/routines/:id']!({ body: {}, query: {}, params: { id: 'x' } }, res),
-      ).resolves.toBeUndefined();
-      expect(res.status).toHaveBeenCalledWith(500);
-      const [body] = res.json.mock.calls[0]!;
-      expect(body.error.code).toBe('INTERNAL_ERROR');
+    it.each([
+      ['GET', '/api/routines/x'],
+      ['DELETE', '/api/routines/x'],
+      ['GET', '/api/routines/x/runs'],
+    ] as const)('%s %s returns 500 INTERNAL_ERROR instead of throwing', async (method, path) => {
+      const response = await send({ deps: makeDeps({ store: throwingStore() }), method, path });
+      expect(response.status).toBe(500);
+      expect((response.body as { error: { code: string } }).error.code).toBe('INTERNAL_ERROR');
     });
-
-    it('DELETE /api/routines/:id returns 500 INTERNAL_ERROR instead of throwing', async () => {
-      const app = makeApp();
-      registerRoutineRoutes({ app: app as any, deps: makeDeps({ store: throwingStore() }), adapter });
-      const res = makeRes();
-      await expect(
-        app.handlers['DELETE /api/routines/:id']!({ body: {}, query: {}, params: { id: 'x' } }, res),
-      ).resolves.toBeUndefined();
-      expect(res.status).toHaveBeenCalledWith(500);
-    });
-
-    it('GET /api/routines/:id/runs returns 500 INTERNAL_ERROR instead of throwing', async () => {
-      const app = makeApp();
-      registerRoutineRoutes({ app: app as any, deps: makeDeps({ store: throwingStore() }), adapter });
-      const res = makeRes();
-      await expect(
-        app.handlers['GET /api/routines/:id/runs']!({ body: {}, query: {}, params: { id: 'x' } }, res),
-      ).resolves.toBeUndefined();
-      expect(res.status).toHaveBeenCalledWith(500);
-    });
-  });
-});
-
-/**
- * Real Express server on a real socket. Every test above calls a route's `handle` directly or drives
- * a handler-capturing `MockApp` stub — neither actually resolves an Express path (including the two
- * overlapping `/api/routines/:id` and `/api/routines/:id/run`/`/api/routines/:id/runs` shapes), feeds
- * a spec's `parse` a body Express itself parsed from real JSON bytes, or observes the declared
- * `201`/`202`/`200`/`404` status codes reaching the wire. This block is the only place
- * `registerRoutineRoutes` is exercised as a listening server.
- */
-describe('registerRoutineRoutes — real Express server on a real socket', () => {
-  const servers: Server[] = [];
-  const { adapter: adapterRef, portRef: adapterRefPortRef } = createLocalTestOrigin({}, { port: 0 });
-
-  afterEach(() => {
-    for (const server of servers.splice(0)) server.close();
-  });
-
-  async function listen(deps: RoutineHttpDeps): Promise<string> {
-    const app = express();
-    app.use(express.json());
-    registerRoutineRoutes({ app: app as never, deps, adapter: adapterRef as never });
-    const server = await new Promise<Server>((resolve) => {
-      const s = app.listen(0, '127.0.0.1', () => resolve(s));
-    });
-    servers.push(server);
-    adapterRefPortRef.current = (server.address() as AddressInfo).port;
-    return `http://127.0.0.1:${adapterRefPortRef.current}`;
-  }
-
-  async function send(base: string, method: string, routePath: string, body?: unknown, origin = base) {
-    const response = await fetch(`${base}${routePath}`, {
-      method,
-      headers: { 'content-type': 'application/json', origin },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    });
-    return { status: response.status, body: await response.json() };
-  }
-
-  it('serves GET and POST /api/routines end to end, creating a routine through the real Adapter pipeline', async () => {
-    const base = await listen(makeDeps());
-    const created = await send(base, 'POST', '/api/routines', validCreateBody());
-    expect(created.status).toBe(201);
-    const createdBody = created.body as { routine: { id: string; name: string } };
-    expect(createdBody.routine.name).toBe('Daily brief');
-
-    const listed = await send(base, 'GET', '/api/routines');
-    expect(listed.status).toBe(200);
-    expect((listed.body as { routines: { id: string }[] }).routines.map((routine) => routine.id)).toEqual([
-      createdBody.routine.id,
-    ]);
-  });
-
-  it('serves GET, PATCH, and DELETE /api/routines/:id end to end, then 404s the deleted id', async () => {
-    const store = createInMemoryRoutineStore({});
-    const routine = await store.create(validCreateBody() as any);
-    const scheduler = makeScheduler();
-    const base = await listen(makeDeps({ store, scheduler }));
-
-    const got = await send(base, 'GET', `/api/routines/${routine.id}`);
-    expect(got.status).toBe(200);
-    expect((got.body as { routine: { id: string } }).routine.id).toBe(routine.id);
-
-    const patched = await send(base, 'PATCH', `/api/routines/${routine.id}`, { name: 'renamed' });
-    expect(patched.status).toBe(200);
-    expect((patched.body as { routine: { name: string } }).routine.name).toBe('renamed');
-    expect(scheduler.rescheduleOne).toHaveBeenCalledWith({ routineId: routine.id });
-
-    expect(await send(base, 'DELETE', `/api/routines/${routine.id}`)).toEqual({ status: 200, body: { ok: true } });
-
-    expect(await send(base, 'GET', `/api/routines/${routine.id}`)).toEqual({
-      status: 404,
-      body: { error: { code: 'NOT_FOUND', message: 'routine not found' } },
-    });
-  });
-
-  it('serves POST /api/routines/:id/run and GET /api/routines/:id/runs end to end', async () => {
-    const store = createInMemoryRoutineStore({});
-    const routine = await store.create(validCreateBody() as any);
-    const base = await listen(makeDeps({ store }));
-
-    const started = await send(base, 'POST', `/api/routines/${routine.id}/run`);
-    expect(started.status).toBe(202);
-    expect(started.body).toMatchObject({
-      run: null, // no host bridge wired in this test — see module doc
-      projectId: 'project-1',
-      conversationId: 'conversation-1',
-      agentRunId: 'agent-run-1',
-    });
-
-    expect(await send(base, 'GET', `/api/routines/${routine.id}/runs`)).toEqual({ status: 200, body: { runs: [], nextCursor: null } });
-    expect((await send(base, 'GET', `/api/routines/${routine.id}/runs?cursor=garbage`)).status).toBe(400);
-  });
-
-  it('rejects a cross-origin create request with 403 before the routine store is ever called', async () => {
-    testOriginPolicy.set({ allow: false });
-    const store = createInMemoryRoutineStore({});
-    const createSpy = vi.spyOn(store, 'create');
-    const base = await listen(makeDeps({ store }));
-    const response = await send(base, 'POST', '/api/routines', validCreateBody(), 'http://evil.example.com');
-    expect(response.status).toBe(403);
-    expect(createSpy).not.toHaveBeenCalled();
   });
 });

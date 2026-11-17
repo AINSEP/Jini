@@ -127,7 +127,7 @@ export type {
   RoutineScheduler,
 } from './routines.js';
 export {
-  registerRoutineRoutes,
+  routineRoutes,
   routineCreateRoute,
   routineDeleteRoute,
   routineGetRoute,
