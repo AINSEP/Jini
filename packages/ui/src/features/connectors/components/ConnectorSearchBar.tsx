@@ -13,6 +13,8 @@ export interface ConnectorSearchBarProps {
   clearAriaLabel?: string;
   /** This search bar's own agent handle — see `ConnectorsBrowser`'s `agentHandle` doc. */
   agentHandle?: string;
+  useTHook?: typeof useT;
+  useConnectorSearchBarHook?: typeof useConnectorSearchBar;
 }
 
 export function ConnectorSearchBar({
@@ -24,12 +26,14 @@ export function ConnectorSearchBar({
   ariaLabel,
   clearAriaLabel,
   agentHandle,
+  useTHook = useT,
+  useConnectorSearchBarHook = useConnectorSearchBar,
 }: ConnectorSearchBarProps) {
-  const t = useT();
+  const t = useTHook();
   const resolvedPlaceholder = placeholder ?? t('Search connectors');
   const resolvedAriaLabel = ariaLabel ?? t('Search connectors');
   const resolvedClearAriaLabel = clearAriaLabel ?? t('Clear search');
-  const { inputRef, hasQuery, onKeyDown } = useConnectorSearchBar({ value, onChange });
+  const { inputRef, hasQuery, onKeyDown } = useConnectorSearchBarHook({ value, onChange });
 
   return (
     <div className="toolbar-search connectors-search">
