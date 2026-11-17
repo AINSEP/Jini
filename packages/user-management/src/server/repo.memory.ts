@@ -139,7 +139,9 @@ export class InMemorySessionRepo extends InMemoryIdentityRows<SessionRecord> imp
   }
 
   async save(record: SessionRecord): Promise<void> {
-    upsertRecord({ records: this.rows, record, identity: { workspaceId: record.workspaceId, id: record.id } });
+    // Revocation is one-way: a record read before a logout/reset/disable carries no `revokedAt` and must not restore the session.
+    const revokedAt = (await this.findById(record))?.revokedAt;
+    upsertRecord({ records: this.rows, record: revokedAt ? { ...record, revokedAt } : record, identity: { workspaceId: record.workspaceId, id: record.id } });
   }
 
   async revoke(required: { workspaceId: string; id: string; revokedAt: string }): Promise<void> {
