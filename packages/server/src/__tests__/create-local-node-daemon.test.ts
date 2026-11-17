@@ -510,8 +510,8 @@ describe('createLocalNodeDaemon', () => {
       const { status, json } = await callDelegatedTool(daemon.url, {
         runId, toolUseId: 'use-1', toolId: 'terminal.create', input: { cwd: '/tmp' },
       });
-      expect(status).toBe(400);
-      expect(json).toEqual({ error: { code: 'BAD_REQUEST', message: 'ToolExecutor: unknown tool "terminal.create"' } });
+      expect(status).toBe(404);
+      expect(json).toEqual({ error: { code: 'UNKNOWN_TOOL', message: 'There is no tool named "terminal.create". Find tools with search_tools.' } });
     });
 
     it('and with the default (enabled) composition the very same call reaches the tool and is refused by POLICY, not by absence', async () => {
