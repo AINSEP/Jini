@@ -16,11 +16,15 @@ test('every published entry has matching runtime metadata and a source module', 
 });
 
 test('React dependencies are optional peers and available to package development', () => {
-  for (const name of ['react', 'react-dom', '@jini-ai/ui', '@jini-ai/admin', '@jini-ai/agentic']) {
+  for (const name of ['react', 'react-dom', '@jini-ai/ui', '@jini-ai/admin']) {
     expect(manifest.peerDependencies[name], name).toBeTruthy();
     expect(manifest.peerDependenciesMeta[name], name).toEqual({ optional: true });
     expect(manifest.devDependencies[name], name).toBeTruthy();
     expect(manifest.dependencies?.[name], name).toBeUndefined();
   }
   expect(manifest.peerDependenciesMeta.argon2).toEqual({ optional: true });
+  // No source file imports @jini-ai/agentic, so it is not declared in any dependency field.
+  for (const field of ['dependencies', 'peerDependencies', 'devDependencies']) {
+    expect(manifest[field]?.['@jini-ai/agentic'], field).toBeUndefined();
+  }
 });

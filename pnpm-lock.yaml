@@ -1519,9 +1519,6 @@ importers:
       '@jini-ai/admin':
         specifier: workspace:*
         version: link:../admin
-      '@jini-ai/agentic':
-        specifier: workspace:*
-        version: link:../agentic
       '@jini-ai/cms':
         specifier: workspace:*
         version: link:../cms
