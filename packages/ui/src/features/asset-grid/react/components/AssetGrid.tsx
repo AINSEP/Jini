@@ -85,10 +85,12 @@ export function AssetGrid<TAsset extends AssetGridItem>({
   initialViewMode = 'grid',
   useWiredAssetGridData: useWiredAssetGridDataHook = useWiredAssetGridData,
   useAssetGridSelection: useAssetGridSelectionHook = useAssetGridSelection,
-}: AssetGridProps<TAsset>) {
-  const t = useT();
+  useTHook = useT,
+  useAssetGridViewHook = useAssetGridView,
+}: AssetGridProps<TAsset> & { useTHook?: typeof useT; useAssetGridViewHook?: typeof useAssetGridView }) {
+  const t = useTHook();
 
-  const { kind, setKind, source, setSource, search, setSearch, kindFacets, sourceFacets, viewMode, setViewMode, assets, loading, reload, selectedIds, selectAll, clearSelection, containerRef, band, dragging, onMouseDown, requestDeleteSelected, confirmDeleteOpen, setConfirmDeleteOpen, deleteError, getDayKey, renderCard, confirmDelete } = useAssetGridView({ active, selectors, dependencies, configuredKindFacets, configuredSourceFacets, renderThumbnail, renderThumbnailPlaceholder, renderCardExtra, onDeleteAsset, onDeleteSelected, onPreview, isPreviewOpen, searchDebounceMs, liveUpdateCoalesceMs, initialViewMode, useWiredAssetGridDataHook, useAssetGridSelectionHook });
+  const { kind, setKind, source, setSource, search, setSearch, kindFacets, sourceFacets, viewMode, setViewMode, assets, loading, reload, selectedIds, selectAll, clearSelection, containerRef, band, dragging, onMouseDown, requestDeleteSelected, confirmDeleteOpen, setConfirmDeleteOpen, deleteError, getDayKey, renderCard, confirmDelete } = useAssetGridViewHook({ active, selectors, dependencies, configuredKindFacets, configuredSourceFacets, renderThumbnail, renderThumbnailPlaceholder, renderCardExtra, onDeleteAsset, onDeleteSelected, onPreview, isPreviewOpen, searchDebounceMs, liveUpdateCoalesceMs, initialViewMode, useWiredAssetGridDataHook, useAssetGridSelectionHook });
 
   return (
     <div className="asset-grid-root">

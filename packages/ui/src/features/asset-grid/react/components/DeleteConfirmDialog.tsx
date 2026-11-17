@@ -6,6 +6,8 @@ export interface DeleteConfirmDialogProps {
   count: number;
   onCancel: () => void;
   onConfirm: () => void;
+  useTHook?: typeof useT;
+  useDismissOnOutsideOrEscapeHook?: typeof useDismissOnOutsideOrEscape;
 }
 
 /**
@@ -16,12 +18,12 @@ export interface DeleteConfirmDialogProps {
  * `useDismissOnOutsideOrEscape` below); the backdrop's own `onMouseDown`
  * already handles outside-click, so no `containerRef` is passed.
  */
-export function DeleteConfirmDialog({ count, onCancel, onConfirm }: DeleteConfirmDialogProps) {
-  const t = useT();
+export function DeleteConfirmDialog({ count, onCancel, onConfirm, useTHook = useT, useDismissOnOutsideOrEscapeHook = useDismissOnOutsideOrEscape }: DeleteConfirmDialogProps) {
+  const t = useTHook();
   const titleId = useId();
   const confirmBtnRef = useRef<HTMLButtonElement | null>(null);
 
-  useDismissOnOutsideOrEscape({ onDismiss: onCancel });
+  useDismissOnOutsideOrEscapeHook({ onDismiss: onCancel });
 
   useEffect(() => {
     confirmBtnRef.current?.focus();

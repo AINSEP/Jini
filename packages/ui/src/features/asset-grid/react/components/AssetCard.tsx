@@ -60,12 +60,15 @@ export function AssetCard<TAsset extends AssetGridItem>({
   onPreview,
   onDeleteAsset,
   renderCardExtra,
-}: AssetCardProps<TAsset>) {
-  const t = useT();
-  const { ref, inView } = useInView<HTMLDivElement>({ once: true, rootMargin: '300px' });
+  useTHook = useT,
+  useInViewHook = useInView,
+  useAssetCardHook = useAssetCard,
+}: AssetCardProps<TAsset> & { useTHook?: typeof useT; useInViewHook?: typeof useInView; useAssetCardHook?: typeof useAssetCard }) {
+  const t = useTHook();
+  const { ref, inView } = useInViewHook<HTMLDivElement>({ once: true, rootMargin: '300px' });
   const selectionValue = selected ? 'true' : 'false';
 
-  const { handlePreviewClick, handleCheckboxClick } = useAssetCard({ asset, index, onToggle, onRange, onPreview });
+  const { handlePreviewClick, handleCheckboxClick } = useAssetCardHook({ asset, index, onToggle, onRange, onPreview });
 
   return (
     <figure

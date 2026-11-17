@@ -8,6 +8,7 @@ export interface SelectionActionBarProps {
   onRequestDelete: () => void;
   /** Host-specific bulk actions (e.g. "add to design system"), rendered before the built-in Delete action. */
   renderBulkActions?: ((selectedIds: string[]) => ReactNode) | undefined;
+  useTHook?: typeof useT;
 }
 
 export function SelectionActionBar({
@@ -16,8 +17,9 @@ export function SelectionActionBar({
   onClear,
   onRequestDelete,
   renderBulkActions,
+  useTHook = useT,
 }: SelectionActionBarProps) {
-  const t = useT();
+  const t = useTHook();
   const count = selectedIds.length;
 
   return (
