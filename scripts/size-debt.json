@@ -116,14 +116,7 @@
     "function": "<file>",
     "line": 675,
     "rule": "max-lines",
-    "value": 773
-  },
-  {
-    "file": "packages/core/src/contracts/ai-trace/recorder.ts",
-    "function": "createAiTraceRecorder",
-    "line": 95,
-    "rule": "max-lines-per-function",
-    "value": 191
+    "value": 748
   },
   {
     "file": "packages/agent-runtime/src/providers/openai-chat.ts",
@@ -670,13 +663,6 @@
     "line": 878,
     "rule": "max-lines",
     "value": 988
-  },
-  {
-    "file": "packages/memory/src/note-store.ts",
-    "function": "<file>",
-    "line": 722,
-    "rule": "max-lines",
-    "value": 522
   },
   {
     "file": "packages/platform/src/download.ts",

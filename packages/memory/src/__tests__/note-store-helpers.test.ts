@@ -1,15 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  buildUpsertChangeEvent,
   containsPathSeparatorOrNul,
   hasInvalidSubdirLength,
   isMultiSegmentOrAbsoluteWin32Path,
   isReservedRelativeSegment,
-  isValidUpsertInput,
-  resolveUpsertEntryId,
-  type NoteEntrySummary,
-} from '../note-store.js';
+} from '../note-subdir.js';
+import { buildUpsertChangeEvent, isValidUpsertInput, resolveUpsertEntryId } from '../note-upsert.js';
+import type { NoteEntrySummary } from '../note-store.js';
 
 describe('hasInvalidSubdirLength', () => {
   it('is true for a non-string, an empty string, or a string over 128 characters', () => {
