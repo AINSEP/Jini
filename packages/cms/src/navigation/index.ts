@@ -73,15 +73,11 @@ export {
 } from "./repo.memory.js";
 
 /**
- * `isAllowedHref`/`ALLOWED_HREF_SHAPES_DESCRIPTION` (2026-09-03): the canonical author-link
- * allowlist, promoted here specifically so a HOST can import it rather than hand-copy it — the
- * dependency direction a host -> `@jini-ai/cms` is the one that is actually legal (the reverse is
- * not). The host's own render-time `safeHref` (`server/inbound/public-http/http/site/render.ts` and its
- * `features/theme/static-render.ts` duplicate) have not yet been migrated to import this — see
- * `menu-service.ts`'s own doc comment on `isAllowedHref` for the retirement plan and why nothing in
- * `check:boundaries` blocks either host-side call site from doing so.
+ * `isAllowedHref`/`toAllowedHref`/`ALLOWED_HREF_SHAPES_DESCRIPTION`: the single author-link href
+ * standard, exported so a HOST imports it rather than hand-copying it — the dependency direction a
+ * host -> `@jini-ai/cms` is the one that is actually legal (the reverse is not). See `href.ts`.
  */
-export { isAllowedHref, ALLOWED_HREF_SHAPES_DESCRIPTION } from "./href.js";
+export { isAllowedHref, toAllowedHref, ALLOWED_HREF_SHAPES_DESCRIPTION } from "./href.js";
 
 export {
   createMenu,

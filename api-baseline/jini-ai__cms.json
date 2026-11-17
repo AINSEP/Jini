@@ -974,7 +974,7 @@
    "deleteMenu": "function:568f3f5648",
    "findBoundMenu": "function:65c4ed4203",
    "injectMenuDropdownScript": "function:bcb05b256b",
-   "isAllowedHref": "function:da15c02e56",
+   "isAllowedHref": "function:598750378a",
    "isMenuHtmlAuthoring": "function:d457f8b494",
    "menuHtmlInputProblem": "function:8df9b2ecb9",
    "menuVersionConflictError": "function:e8a5a5236a",
@@ -985,6 +985,7 @@
    "renderMenuToggle": "function:d16bc93417",
    "resolveForLocation": "function:98311bec63",
    "resolveMenuDoc": "function:02a92bca06",
+   "toAllowedHref": "function:45db2e4c06",
    "updateMenuTree": "function:94c01edaf1",
    "validateAndCloneTree": "function:ef6a58ffa5"
   }
@@ -1094,7 +1095,7 @@
    "deleteMenu": "function:568f3f5648",
    "findBoundMenu": "function:65c4ed4203",
    "injectMenuDropdownScript": "function:bcb05b256b",
-   "isAllowedHref": "function:da15c02e56",
+   "isAllowedHref": "function:598750378a",
    "isMenuHtmlAuthoring": "function:d457f8b494",
    "menuHtmlInputProblem": "function:8df9b2ecb9",
    "menuVersionConflictError": "function:e8a5a5236a",
@@ -1106,6 +1107,7 @@
    "renderMenuToggle": "function:d16bc93417",
    "resolveForLocation": "function:98311bec63",
    "resolveMenuDoc": "function:02a92bca06",
+   "toAllowedHref": "function:45db2e4c06",
    "updateMenuTree": "function:05e5ac652e",
    "validateAndCloneTree": "function:ef6a58ffa5"
   }
