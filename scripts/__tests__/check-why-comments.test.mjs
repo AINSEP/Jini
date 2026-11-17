@@ -97,6 +97,14 @@ test('the text surviving in the other repo counts as not lost', () => {
   rmSync(other, { recursive: true, force: true });
 });
 
+test('a comment reworded in place (a few words changed) is not lost', () => {
+  const before = '// We retry once because the upstream drops the first connection after a deploy, so the second attempt succeeds.\nconst a = 1;\n';
+  const after = '// We retry once because the upstream drops the first connection after a release, so the second attempt succeeds.\nconst a = 1;\n';
+  withFixture({ 'src/a.ts': before }, { 'src/a.ts': after }, root => {
+    assert.equal(run(root).code, 0);
+  });
+});
+
 test('shortening a comment by dropping a sentence is flagged', () => {
   const longer = `// First we validate. Then we retry once because the upstream drops the first connection after a deploy.\nconst a = 1;\n`;
   const shorter = `// First we validate.\nconst a = 1;\n`;

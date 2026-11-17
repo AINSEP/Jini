@@ -24,6 +24,9 @@ const CODE_LINE = [
 ];
 const MIN_WORDS = 4;
 const PREFIX_KEY = 12;
+const SHINGLE_WORDS = 3;
+// A comment edited in place keeps most of its words; one that lost a sentence does not.
+const EDIT_CONTAINMENT = 0.75;
 
 /** Strips comment markers per line and returns the readable lines of a raw comment block. */
 export function commentLines(raw) {
@@ -161,6 +164,24 @@ export function findSurvivors(pending, flat) {
   return survivors;
 }
 
+function shingles(normalized) {
+  const words = normalized.split(' ').filter(token => /[a-z0-9]/.test(token));
+  const out = [];
+  for (let i = 0; i + SHINGLE_WORDS <= words.length; i += 1) out.push(words.slice(i, i + SHINGLE_WORDS).join(' '));
+  return out;
+}
+
+/** Fraction of the block's 3-word runs that the range's added text still contains: an edit keeps most, a deletion keeps none. */
+export function containment(normalized, pool) {
+  const runs = shingles(normalized);
+  if (runs.length === 0) return 0;
+  return runs.filter(run => pool.has(run)).length / runs.length;
+}
+
+function shinglePool(addedTexts) {
+  return new Set(addedTexts.flatMap(text => shingles(normalizeText(text))));
+}
+
 /**
  * @param {{oldPath: string, oldSource: string, ranges: number[][]}[]} files
  * @param {string[]} addedTexts  text of lines the range added
@@ -171,7 +192,8 @@ export function findLostBlocks({ files, addedTexts, currentTexts }) {
   const corpus = buildCorpus([...currentTexts, ...addedTexts.map((text, i) => ({ path: `added-${i}`, text }))]);
   const unmatched = candidates.filter(c => !corpus.blocks.has(c.normalized));
   const survivors = findSurvivors(new Set(unmatched.map(c => c.normalized)), corpus.flat);
-  return unmatched.filter(c => !survivors.has(c.normalized));
+  const pool = shinglePool(addedTexts);
+  return unmatched.filter(c => !survivors.has(c.normalized) && containment(c.normalized, pool) < EDIT_CONTAINMENT);
 }
 
 /** Allow-list: `{ version: 1, allow: [{ id, reason }] }`. A missing reason is an error, never a silent pass. */
