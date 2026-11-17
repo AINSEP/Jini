@@ -124,7 +124,6 @@
   {"rule": "L5-injected-edge", "file": "packages/infra/src/db/driver/index.ts", "spec": "@jini-ai/db/core", "kind": "type-import", "count": 1, "lane": "R13"},
   {"rule": "L5-injected-edge", "file": "packages/infra/src/db/sqlite/index.ts", "spec": "@jini-ai/db/sqlite", "kind": "export-from", "count": 1, "lane": "R13"},
   {"rule": "L5-injected-edge", "file": "packages/infra/src/db/sqlite/index.ts", "spec": "@jini-ai/db/sqlite", "kind": "type-import", "count": 1, "lane": "R13"},
-  {"rule": "L5-injected-edge", "file": "packages/integrations/package.json", "spec": "@jini-ai/db", "kind": "manifest-peer", "count": 1, "lane": "L-STORAGE"},
   {"rule": "L5-injected-edge", "file": "packages/integrations/package.json", "spec": "@jini-ai/platform", "kind": "manifest-peer", "count": 1, "lane": "L-PLATFORM"},
   {"rule": "L5-injected-edge", "file": "packages/integrations/src/media-providers/dispatch/node.ts", "spec": "@jini-ai/platform/http/guarded", "kind": "import", "count": 1, "lane": "L-PLATFORM"},
   {"rule": "L5-injected-edge", "file": "packages/integrations/src/media-providers/dispatch/outbound.ts", "spec": "@jini-ai/platform/http/guarded", "kind": "import", "count": 1, "lane": "L-PLATFORM"},
