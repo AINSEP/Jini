@@ -63,6 +63,7 @@ export type {
 import type { SchedulerPort } from './scheduler.js';
 import { createSurfaceRestoration } from './surface-restoration.js';
 export type { SchedulerPort } from './scheduler.js';
+export * from './bound-confirmations.js';
 
 /**
  * How long an exchange may sit with nothing happening before it gives up.
