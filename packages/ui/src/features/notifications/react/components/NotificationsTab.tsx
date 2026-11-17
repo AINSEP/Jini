@@ -41,6 +41,8 @@ export interface NotificationsTabProps {
   labels?: NotificationsTabLabels;
   /** This tab's own agent handle — see other tabs' `agentHandle` doc for the split. */
   agentHandle?: string;
+  useTHook?: typeof useT;
+  useNotificationsTabHook?: typeof useNotificationsTab;
 }
 
 /**
@@ -71,9 +73,11 @@ export function NotificationsTab({
   testNotificationBody,
   labels,
   agentHandle,
+  useTHook = useT,
+  useNotificationsTabHook = useNotificationsTab,
 }: NotificationsTabProps) {
-  const t = useT();
-  const { permission, testStatus, completionSoundTitle, completionSoundHint, successSoundLabel, failureSoundLabel, desktopTitle, desktopHint, desktopUnsupported, desktopBlocked, sendTestLabel, testSentLabel, testFailedLabel, activeLabel, offLabel, toggleSound, toggleDesktop, sendTestNotification } = useNotificationsTab({ preferences, onChange, testNotificationTitle, testNotificationBody, labels, t });
+  const t = useTHook();
+  const { permission, testStatus, completionSoundTitle, completionSoundHint, successSoundLabel, failureSoundLabel, desktopTitle, desktopHint, desktopUnsupported, desktopBlocked, sendTestLabel, testSentLabel, testFailedLabel, activeLabel, offLabel, toggleSound, toggleDesktop, sendTestNotification } = useNotificationsTabHook({ preferences, onChange, testNotificationTitle, testNotificationBody, labels, t });
 
   return (
     <section className="jini-settings-section jini-settings-notifications">
@@ -194,6 +198,7 @@ function NotificationToggle({
 
 function SoundPicker({
   label, sounds, selectedSoundId, preferenceKey, onChange, previewSound, agentHandle, action,
+  useTHook = useT,
 }: {
   label: string;
   sounds: SoundOption[];
@@ -203,8 +208,9 @@ function SoundPicker({
   previewSound: typeof playSound;
   agentHandle: string | undefined;
   action: 'success-sound' | 'failure-sound';
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   const handles = agentHandle
     ? buildAgentListHandles({ prefix: agentSubHandle({ base: agentHandle, action }), ids: sounds.map((sound) => sound.id) })
     : undefined;

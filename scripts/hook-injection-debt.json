@@ -949,24 +949,6 @@
         "packages/admin/src/media/react/components/MediaCard.tsx"
       ]
     },
-    "MediaProvidersTab::useMediaProviderKeyVisibility": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/media-providers/react/components/MediaProvidersTab.tsx"
-      ]
-    },
-    "MediaProvidersTab::useMediaProvidersTab": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/media-providers/react/components/MediaProvidersTab.tsx"
-      ]
-    },
-    "MediaProvidersTab::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/media-providers/react/components/MediaProvidersTab.tsx"
-      ]
-    },
     "MediaPurgeDialog::useMediaPurgeDialog": {
       "count": 1,
       "files": [
@@ -1157,18 +1139,6 @@
       "count": 1,
       "files": [
         "packages/chat/src/react/components/NextStepActions.tsx"
-      ]
-    },
-    "NotificationsTab::useNotificationsTab": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/notifications/react/components/NotificationsTab.tsx"
-      ]
-    },
-    "NotificationsTab::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/notifications/react/components/NotificationsTab.tsx"
       ]
     },
     "OpenInTabButton::useT": {
@@ -1726,12 +1696,6 @@
       "count": 1,
       "files": [
         "packages/admin/src/react/kit.tsx"
-      ]
-    },
-    "SoundPicker::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/notifications/react/components/NotificationsTab.tsx"
       ]
     },
     "SourceControlCredentialFields::useSourceControlCredentialFields": {

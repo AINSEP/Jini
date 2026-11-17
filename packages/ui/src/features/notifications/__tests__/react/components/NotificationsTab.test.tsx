@@ -1,13 +1,16 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import { DEFAULT_NOTIFICATIONS_PREFERENCES } from '../../../constants.js';
 import { NotificationsTab } from '../../../react/components/NotificationsTab.js';
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('NotificationsTab', () => {
   it('toggles the completion-sound master switch', async () => {
@@ -163,5 +166,10 @@ describe('NotificationsTab', () => {
       </I18nProvider>,
     );
     expect(screen.getByText('Son de fin de tâche')).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    render(<NotificationsTab preferences={DEFAULT_NOTIFICATIONS_PREFERENCES} onChange={() => {}} useTHook={useQuotingT} />);
+    expect(screen.getByRole('button', { name: /«Completion sound»/ })).toBeInTheDocument();
   });
 });
