@@ -110,7 +110,7 @@ export function runCli(argv, options = {}) {
     const allow = existsSync(debtFile) ? parseDebt(readFileSync(debtFile, 'utf8')) : new Map();
     const range = collectRange({ opts, root, git });
     const roots = [...new Set([root, ...opts.others, ...siblingRoots(root, profile)])];
-    const currentTexts = roots.flatMap(r => readTexts(r));
+    const currentTexts = roots.flatMap(r => readTexts(r).map(entry => (r === root ? { ...entry, own: true } : entry)));
     const lost = findLostBlocks({ files: range.files, addedTexts: range.addedTexts, currentTexts });
     return report({ lost, allow, command: profile.command, io, range });
   } catch (error) {

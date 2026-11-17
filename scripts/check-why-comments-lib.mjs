@@ -185,15 +185,19 @@ function shinglePool(addedTexts) {
 /**
  * @param {{oldPath: string, oldSource: string, ranges: number[][]}[]} files
  * @param {string[]} addedTexts  text of lines the range added
- * @param {{path: string, text: string}[]} currentTexts  current text of every file in all configured repos
+ * @param {{path: string, text: string, own?: boolean}[]} currentTexts  current text of every file in all configured repos;
+ *   `own` marks this repo's files, whose same-path text also decides whether a comment was edited in place
  */
 export function findLostBlocks({ files, addedTexts, currentTexts }) {
   const candidates = files.flatMap(f => deletedBlocks(f));
   const corpus = buildCorpus([...currentTexts, ...addedTexts.map((text, i) => ({ path: `added-${i}`, text }))]);
   const unmatched = candidates.filter(c => !corpus.blocks.has(c.normalized));
   const survivors = findSurvivors(new Set(unmatched.map(c => c.normalized)), corpus.flat);
-  const pool = shinglePool(addedTexts);
-  return unmatched.filter(c => !survivors.has(c.normalized) && containment(c.normalized, pool) < EDIT_CONTAINMENT);
+  const added = shinglePool(addedTexts);
+  const own = new Map(currentTexts.filter(entry => entry.own).map(entry => [entry.path, entry.text]));
+  const edited = c => containment(c.normalized, added) >= EDIT_CONTAINMENT
+    || (own.has(c.file) && containment(c.normalized, shinglePool([own.get(c.file)])) >= EDIT_CONTAINMENT);
+  return unmatched.filter(c => !survivors.has(c.normalized) && !edited(c));
 }
 
 /** Allow-list: `{ version: 1, allow: [{ id, reason }] }`. A missing reason is an error, never a silent pass. */

@@ -105,6 +105,14 @@ test('a comment reworded in place (a few words changed) is not lost', () => {
   });
 });
 
+test('editing one line of a multi-line comment keeps the rest, so it is not lost', () => {
+  const before = '// We retry once because the upstream drops the first connection\n// after a deploy, so the second attempt always succeeds here.\nconst a = 1;\n';
+  const after = '// We retry once because the upstream drops the first connection\n// after a release, so the second attempt always succeeds here.\nconst a = 1;\n';
+  withFixture({ 'src/a.ts': before }, { 'src/a.ts': after }, root => {
+    assert.equal(run(root).code, 0);
+  });
+});
+
 test('shortening a comment by dropping a sentence is flagged', () => {
   const longer = `// First we validate. Then we retry once because the upstream drops the first connection after a deploy.\nconst a = 1;\n`;
   const shorter = `// First we validate.\nconst a = 1;\n`;
