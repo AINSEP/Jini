@@ -11,6 +11,8 @@ interface FormState {
 }
 
 type MutationKind = 'save' | 'remove';
+/** The last save or delete that was rejected, with the error exactly as the port threw it. */
+export interface EntityMutationFailure { readonly error: unknown; readonly kind: MutationKind }
 type Descriptor = AdminErasedEntityPort['descriptor'];
 
 /** The first form for a loaded row, or null while it is loading or an edited row was not found. */
@@ -60,17 +62,19 @@ async function performMutation({ kind, port, id, draft }: {
 }
 
 /** Called by the editor mounted for one entity/id pair. */
-export function useEntityEdit({ port, ...props }: EntityEditProps & { readonly port: AdminErasedEntityPort }) {
-  const { entityName, id, registry, routes } = props;
-  const scope = useMemo(() => ({ port, registry, entityName, id }), [port, registry, entityName, id]);
+export function useEntityEdit({ port, useReadHook = useEntityRead, ...props }: EntityEditProps & { readonly port: AdminErasedEntityPort; readonly useReadHook?: typeof useEntityRead }) {
+  const { entityName, id, registry, routes, refreshToken } = props;
+  // `reloads` is part of the scope on purpose: Reload starts from nothing (no old row, no old draft, no old failure).
+  const [reloads, setReloads] = useState(0);
+  const scope = useMemo(() => ({ port, registry, entityName, id, reloads }), [port, registry, entityName, id, reloads]);
   const currentScope = useRef(scope);
   currentScope.current = scope;
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const load = useCallback(() => loadEntityRow({ registry, entityName, id }), [registry, entityName, id, port]);
-  const read = useEntityRead({ load, scope });
+  const read = useReadHook({ load, scope, refreshToken });
   const [formState, setFormState] = useState<{ scope: unknown; form: FormState } | null>(null);
-  const [mutation, setMutation] = useState<{ scope: unknown; kind: MutationKind | null; failed: boolean }>({ scope, kind: null, failed: false });
+  const [mutation, setMutation] = useState<{ scope: unknown; kind: MutationKind | null; failure: EntityMutationFailure | null }>({ scope, kind: null, failure: null });
   const busy = useRef(false);
   let form = formState?.scope === scope ? formState.form : null;
   if (form === null) {
@@ -78,13 +82,14 @@ export function useEntityEdit({ port, ...props }: EntityEditProps & { readonly p
     if (form !== null) setFormState({ scope, form });
   }
   const draft = form?.draft ?? {};
-  const missing = missingRequiredFields({ descriptor: port.descriptor, draft });
+  const missing = missingRequiredFields({ descriptor: port.descriptor, draft }, { creating: id === null });
   const invalid = invalidDraftFields({ descriptor: port.descriptor, draft });
   const pending = mutation.scope === scope ? mutation.kind : null;
   const canSave = canSaveForm({ form, missing, invalid, pending });
 
   function setField({ name, value }: { readonly name: string; readonly value: unknown }): void {
-    if (!port.descriptor.fields.some((field) => field.name === name) || busy.current) return;
+    // A persistedOnly field is read-only: its loaded value travels back untouched.
+    if (!port.descriptor.fields.some((field) => field.name === name && field.persistedOnly !== true) || busy.current) return;
     setFormState((state) => state?.scope === scope ? { scope, form: { ...state.form, draft: { ...state.form.draft, [name]: value } } } : state);
   }
 
@@ -104,20 +109,23 @@ export function useEntityEdit({ port, ...props }: EntityEditProps & { readonly p
   async function mutate({ kind }: { readonly kind: MutationKind }): Promise<void> {
     if (busy.current || !mutationAllowed({ kind, canSave, id, port })) return;
     busy.current = true;
-    setMutation({ scope, kind, failed: false });
+    setMutation({ scope, kind, failure: null });
     const active = () => mounted.current && currentScope.current === scope;
     try {
       const savedId = await performMutation({ kind, port, id, draft });
       if (active()) routes.navigate(savedId === null ? { entity: entityName } : { entity: entityName, id: savedId });
-      if (active()) setMutation({ scope, kind: null, failed: false });
-    } catch {
-      if (active()) setMutation({ scope, kind: null, failed: true });
+      if (active()) setMutation({ scope, kind: null, failure: null });
+    } catch (error) {
+      if (active()) setMutation({ scope, kind: null, failure: { error, kind } });
     } finally { busy.current = false; }
   }
 
+  const failure = mutation.scope === scope ? mutation.failure : null;
   return {
     form, read, missing, invalid, canSave, pending,
-    failed: mutation.scope === scope && mutation.failed,
+    failed: failure !== null, failure,
+    retry: () => (failure === null ? Promise.resolve() : mutate({ kind: failure.kind })),
+    reload: () => setReloads((count) => count + 1),
     setField, setJsonText,
     save: () => mutate({ kind: 'save' }),
     remove: () => mutate({ kind: 'remove' }),

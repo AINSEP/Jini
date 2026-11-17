@@ -1,3 +1,4 @@
+// GAP: G2 entries table declared by the app; lane S2 ships the bootstrap (sheet G2)
 /**
  * @file Opens the app's SQLite file and makes sure every table it needs exists, using only public
  * `@jini-ai/db` and `@jini-ai/cms` exports (no hand-written DDL).

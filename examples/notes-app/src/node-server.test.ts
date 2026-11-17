@@ -161,3 +161,68 @@ describe('matchServerPath', () => {
     assert.throws(() => matchServerPath('/notes/:id', '/notes/1'));
   });
 });
+
+describe('node-server onUnmatched hook', () => {
+  const calls: string[] = [];
+  const reported: unknown[] = [];
+  let app: NodeServer;
+  let base = '';
+  let hook: (required: { request: Request }) => Response | undefined | Promise<Response | undefined> = () => undefined;
+
+  before(async () => {
+    app = createNodeServer({}, {
+      onUnmatched: (required) => { calls.push(`${required.request.method} ${new URL(required.request.url).pathname}`); return hook(required); },
+      reportError: ({ error }) => { reported.push(error); },
+    });
+    app.route({ method: 'GET', path: '/known', handler: () => new Response('known') });
+    base = `http://127.0.0.1:${(await app.listen({ port: 0 })).port}`;
+  });
+  after(() => app.close());
+
+  it('answers today\'s plain 404 when the hook returns undefined', async () => {
+    hook = () => undefined;
+    const response = await fetch(`${base}/nothing`);
+    assert.equal(response.status, 404);
+    assert.equal(await response.text(), 'Not Found');
+    assert.deepEqual(calls.splice(0), ['GET /nothing']);
+  });
+
+  it('answers with the hook\'s Response, awaited when async', async () => {
+    hook = async () => new Response('from hook', { status: 200, headers: { 'content-type': 'text/plain' } });
+    const response = await fetch(`${base}/anything`);
+    assert.equal(response.status, 200);
+    assert.equal(await response.text(), 'from hook');
+    calls.splice(0);
+  });
+
+  it('never calls the hook for a matched route, or for a matched path with another method (405 stays)', async () => {
+    hook = () => new Response('hook must not answer', { status: 200 });
+    assert.equal(await (await fetch(`${base}/known`)).text(), 'known');
+    const wrong = await fetch(`${base}/known`, { method: 'POST' });
+    assert.equal(wrong.status, 405);
+    assert.equal(wrong.headers.get('allow'), 'GET, HEAD');
+    assert.deepEqual(calls, []);
+  });
+
+  it('answers 500 in plain words and reports the error when the hook throws', async () => {
+    const failure = new Error('hook exploded');
+    hook = () => { throw failure; };
+    const response = await fetch(`${base}/boom`);
+    assert.equal(response.status, 500);
+    assert.equal(await response.text(), 'Internal Server Error');
+    assert.deepEqual(reported.splice(0), [failure]);
+    calls.splice(0);
+  });
+
+  it('without a hook an unmatched request is the same 404', async () => {
+    const plainApp = createNodeServer();
+    const port = (await plainApp.listen({ port: 0 })).port;
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/nothing`);
+      assert.equal(response.status, 404);
+      assert.equal(await response.text(), 'Not Found');
+    } finally {
+      await plainApp.close();
+    }
+  });
+});
