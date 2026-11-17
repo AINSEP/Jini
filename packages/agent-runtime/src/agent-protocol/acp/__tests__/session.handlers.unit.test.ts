@@ -6,8 +6,8 @@
  * session (which acp/__tests__/session.test.ts already covers end-to-end).
  */
 import { describe, expect, it, vi } from 'vitest';
+import { createAcpSessionState } from '../session-state.js';
 import {
-  createAcpSessionState,
   handleRpcError,
   tryPromoteAmrRetryStatus,
   handleThoughtChunkUpdate,

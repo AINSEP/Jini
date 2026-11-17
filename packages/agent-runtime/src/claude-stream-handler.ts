@@ -2,8 +2,7 @@
  * Stateful Claude stream-json handler behind `createClaudeStreamHandler`.
  * One `StreamCtx` carries the per-stream scratch state (message ids, streamed
  * channels, artifact-echo suppression, role-marker guards) and every handler is
- * a small function over it. The pure frame helpers stay in `./claude-stream.js`;
- * the import is circular but only used inside function bodies at runtime.
+ * a small function over it. The pure frame helpers live in `./claude-stream-frames.js`.
  */
 import { createBoundedLineStream } from './core/bounded-line-stream.js';
 import { createRoleMarkerGuard, type RoleMarkerGuard } from './role-marker-guard.js';
@@ -26,7 +25,7 @@ import {
   type EventSink,
   type RuntimeTask,
   type TaskRegistry,
-} from './claude-stream.js';
+} from './claude-stream-frames.js';
 
 export interface ClaudeStreamHandlerOptions {
   suppressHtmlArtifactsAfterFileWrite?: boolean;

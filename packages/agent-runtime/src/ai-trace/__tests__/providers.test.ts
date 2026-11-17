@@ -13,7 +13,8 @@ import {
 import { createClaudeStreamHandler } from '../../claude-stream.js';
 import { createQoderStreamHandler } from '../../qoder-stream.js';
 import { createJsonEventStreamHandler } from '../../json-event-stream.js';
-import { createAcpSessionState, handleSessionUpdate, type AcpSessionEffects } from '../../agent-protocol/acp/session.js';
+import { handleSessionUpdate, type AcpSessionEffects } from '../../agent-protocol/acp/session.js';
+import { createAcpSessionState } from '../../agent-protocol/acp/session-state.js';
 import { createToolCallTextSuppressor } from '../../agent-protocol/acp/text-suppression.js';
 import { noopAccountFailureClassifier } from '../../agent-protocol/acp/account-failure.js';
 import { formatUsage } from '../../agent-protocol/acp/rpc.js';

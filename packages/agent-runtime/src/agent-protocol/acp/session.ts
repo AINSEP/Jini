@@ -169,7 +169,7 @@ export interface AttachAcpSessionOptions {
 /**
  * Mutable per-session state shared by the exported ACP handlers below.
  * `attachAcpSession` creates one instance per session via
- * {@link createAcpSessionState} and mutates it in place as messages arrive.
+ * `createAcpSessionState` (`./session-state.js`) and mutates it in place as messages arrive.
  */
 export interface AcpSessionState {
   // Handshake / JSON-RPC id routing.
@@ -202,33 +202,6 @@ export interface AcpSessionState {
   // across its frames and whether we have already mirrored it into canonical
   // tool_use/tool_result events. See `mirrorArtifactWriteToolEvent`.
   acpArtifactRunEventState: Map<string, { path: string | null; emitted: boolean }>;
-}
-
-/** Builds a fresh {@link AcpSessionState} with every field at its initial value. */
-export function createAcpSessionState(): AcpSessionState {
-  return {
-    expectedId: 1,
-    nextId: 2,
-    promptRequestId: null,
-    setModelRequestId: null,
-    sessionId: null,
-    durableSessionId: null,
-    activeModel: null,
-    modelConfigId: null,
-    emittedThinkingStart: false,
-    emittedTextChunk: false,
-    emittedVisibleTextChunk: false,
-    emittedTextBuffer: '',
-    emittedToolCall: false,
-    emittedConcreteToolEvent: false,
-    dsmlArtifactSuppressor: null,
-    dsmlArtifactSuppressorLastSuppressedChars: 0,
-    dsmlArtifactSuppressorToolCallId: null,
-    dsmlArtifactSuppressorArmedAfterText: false,
-    dsmlArtifactSuppressorSawIncrementalProse: false,
-    acpArtifactWriteToolCallIds: new Set<string>(),
-    acpArtifactRunEventState: new Map(),
-  };
 }
 
 /**

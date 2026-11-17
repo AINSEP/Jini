@@ -7,7 +7,6 @@ import {
   applyTaskUpdate,
   artifactOpenCandidateLength,
   assistantText,
-  createClaudeStreamHandler,
   emitAssistantErrorIfPresent,
   emitCanonicalTaskSnapshot,
   fileWriteContent,
@@ -22,10 +21,13 @@ import {
   runtimeTaskIdFromCreate,
   stringifyToolResult,
   toolInputPath,
-  type ClaudeStreamEvent,
   type RuntimeTask,
   type RuntimeTaskIdCounter,
   type TaskRegistry,
+} from '../claude-stream-frames.js';
+import {
+  createClaudeStreamHandler,
+  type ClaudeStreamEvent,
 } from '../claude-stream.js';
 
 function freshTaskRegistry(): TaskRegistry {
