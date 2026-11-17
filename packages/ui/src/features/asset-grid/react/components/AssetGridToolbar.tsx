@@ -22,6 +22,7 @@ export interface AssetGridToolbarProps {
   loading: boolean;
   /** Host-specific extra toolbar controls (e.g. an Upload button), rendered after the built-in controls. */
   toolbarActions?: ReactNode;
+  useTHook?: typeof useT;
 }
 
 type Facets = AssetGridToolbarProps['kindFacets'];
@@ -43,10 +44,11 @@ function FacetSelect({ facets, label, value, onChange }: {
 }
 
 /** Grid / timeline switch. */
-function ViewModeToggle({ viewMode, onViewModeChange }: {
+function ViewModeToggle({ viewMode, onViewModeChange, useTHook = useT }: {
   viewMode: AssetGridViewMode; onViewModeChange: (mode: AssetGridViewMode) => void;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   return (
     <div className="asset-grid-view-toggle" role="group" aria-label={t('View mode')}>
       <button
@@ -90,8 +92,9 @@ export function AssetGridToolbar({
   onRefresh,
   loading,
   toolbarActions,
+  useTHook = useT,
 }: AssetGridToolbarProps) {
-  const t = useT();
+  const t = useTHook();
 
   return (
     <div className="asset-grid-toolbar">

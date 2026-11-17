@@ -205,48 +205,6 @@
         "packages/ui/src/renderers/react/components/ArtifactView.tsx"
       ]
     },
-    "AssetCard::useAssetCard": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/asset-grid/react/components/AssetCard.tsx"
-      ]
-    },
-    "AssetCard::useInView": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/asset-grid/react/components/AssetCard.tsx"
-      ]
-    },
-    "AssetCard::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/asset-grid/react/components/AssetCard.tsx"
-      ]
-    },
-    "AssetGrid::useAssetGridView": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/asset-grid/react/components/AssetGrid.tsx"
-      ]
-    },
-    "AssetGrid::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/asset-grid/react/components/AssetGrid.tsx"
-      ]
-    },
-    "AssetGridBody::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/asset-grid/react/components/AssetGridBody.tsx"
-      ]
-    },
-    "AssetGridToolbar::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/asset-grid/react/components/AssetGridToolbar.tsx"
-      ]
-    },
     "AssetTreeBreadcrumbs::useT": {
       "count": 1,
       "files": [
@@ -729,17 +687,9 @@
     },
     "CommentSideCreateForm::useT": {
       "count": 1,
-      "files": [
-        "packages/ui/src/features/viewer-shell/react/components/CommentSidePanel.tsx"
-      ]
+      "files": []
     },
     "CommentSideHeader::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/viewer-shell/react/components/CommentSidePanel.tsx"
-      ]
-    },
-    "CommentSideItem::useT": {
       "count": 1,
       "files": [
         "packages/ui/src/features/viewer-shell/react/components/CommentSidePanel.tsx"
@@ -771,9 +721,7 @@
     },
     "CommentSideSelectBar::useT": {
       "count": 1,
-      "files": [
-        "packages/ui/src/features/viewer-shell/react/components/CommentSidePanel.tsx"
-      ]
+      "files": []
     },
     "CommentsPage::useCommentsPage": {
       "count": 1,
@@ -1097,18 +1045,6 @@
       "count": 1,
       "files": [
         "packages/chat/src/react/components/AttachmentTray.tsx"
-      ]
-    },
-    "DeleteConfirmDialog::useDismissOnOutsideOrEscape": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/asset-grid/react/components/DeleteConfirmDialog.tsx"
-      ]
-    },
-    "DeleteConfirmDialog::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/asset-grid/react/components/DeleteConfirmDialog.tsx"
       ]
     },
     "DescribeToolCard::useT": {
@@ -1543,12 +1479,6 @@
         "packages/ui/src/features/admin-widgets/components/Lightbox/Lightbox.tsx"
       ]
     },
-    "ListDetailPanel::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/list-detail-panel/react/components/ListDetailPanel.tsx"
-      ]
-    },
     "LocalCliAgentCard::useLocalCliAgentCard": {
       "count": 1,
       "files": [
@@ -1802,12 +1732,6 @@
       ]
     },
     "MemoryConnectButton::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/memory/react/components/MemoryConnectedPanel.tsx"
-      ]
-    },
-    "MemoryConnectedPanel::useT": {
       "count": 1,
       "files": [
         "packages/ui/src/features/memory/react/components/MemoryConnectedPanel.tsx"
@@ -2326,9 +2250,7 @@
     },
     "QueueActionsCell::useQueueActionsCell": {
       "count": 1,
-      "files": [
-        "packages/admin/src/comments/react/components/QueueSection.tsx"
-      ]
+      "files": []
     },
     "QueueSection::useQueueSection": {
       "count": 1,
@@ -2598,12 +2520,6 @@
       "count": 1,
       "files": [
         "packages/ui/src/features/mention-autocomplete/react/components/SelectedMentionChips.tsx"
-      ]
-    },
-    "SelectionActionBar::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/asset-grid/react/components/SelectionActionBar.tsx"
       ]
     },
     "SentAttachmentButton::useSentAttachmentThumbnail": {
