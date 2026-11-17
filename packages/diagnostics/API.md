@@ -53,7 +53,7 @@ const safe = redactText({ text: 'Authorization: Bearer example123456' });
 |---|---|---|
 | `redaction/secrets-only` | universal | `redactSecretShapes({ text, policy })`; also exports `SECRET_PATTERNS`, `PEM_PATTERN_NAME` and policy/rule types. Preserves paths and ordinary error prose. |
 | `observability` | universal | Explicit configuration, no-op/tracing factories and request hooks; exports structural SDK, logger, metrics and request-ID ports; clocks use core `Clock`. |
-| `web-evidence` | universal | Bounded observation collector, same-origin helpers, browser/origin/policy ports and browser-serialized DOM structure capture. DOM capture itself runs in a page. |
+| `web-evidence` | universal | Bounded observation collector, same-origin helpers, the own-site path guard (`resolveSameOriginPath` with an injected pathname policy), the bounded body reader, the cookie-shape projection, browser/origin/policy ports and browser-serialized DOM structure capture. DOM capture itself runs in a page. |
 | `web-evidence/playwright` | node | Optional adapter opened with `openPlaywrightSiteEvidenceBrowser({}, options)`. Core evidence imports never load Playwright. |
 | `domain-dns` | node | Hostname validators, record types, `DomainDnsInputError` and `createDomainDnsChecks(deps)`, over injected authorization, resolver, TLS and expected-host ports. |
 
