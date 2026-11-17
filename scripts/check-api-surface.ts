@@ -32,13 +32,13 @@ for (const dir of readdirSync(join(root, "packages")).sort()) {
   if (!existsSync(pj)) continue;
   const json = JSON.parse(readFileSync(pj, "utf8"));
   if (json.private || !json.exports) continue;
-  const cur = buildPackageSurface(pkgDir, json.exports);
+  const cur = buildPackageSurface({ pkgDir, exportsField: json.exports });
   pkgCount++; entryCount += Object.keys(cur).length;
   symCount += Object.values(cur).reduce((n, e) => n + Object.keys(e.symbols).length, 0);
-  const file = join(baseDir, baselineFileName(json.name));
+  const file = join(baseDir, baselineFileName({ pkgName: json.name }));
   if (update) { writeFileSync(file, JSON.stringify(cur, null, 1) + "\n"); continue; }
   if (!existsSync(file)) { console.log(`[api] ${json.name}: no baseline (run pnpm api:update)`); continue; }
-  const d = diffSurface(JSON.parse(readFileSync(file, "utf8")) as PackageSurface, cur);
+  const d = diffSurface({ base: JSON.parse(readFileSync(file, "utf8")) as PackageSurface, cur });
   const lines = [
     ...d.removedSubpaths.map((x) => `  REMOVED subpath ${x}`),
     ...d.removedSymbols.map((x) => `  REMOVED export  ${x}`),
@@ -47,8 +47,8 @@ for (const dir of readdirSync(join(root, "packages")).sort()) {
     ...d.addedSymbols.map((x) => `  added export    ${x}`),
   ];
   if (!lines.length) continue;
-  const covered = coveredByChangeset(json.name, changesets);
-  const breaking = isBreaking(d);
+  const covered = coveredByChangeset({ pkgName: json.name, changesets });
+  const breaking = isBreaking({ diff: d });
   console.log(`[api] ${json.name}${breaking ? (covered ? " (breaking, covered by changeset)" : " (BREAKING, NO major/minor changeset)") : ""}`);
   console.log(lines.join("\n"));
   if (breaking && !covered) failed = true;

@@ -11,7 +11,7 @@
  */
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import ts from "typescript";
 
 export interface EntrySurface {
@@ -33,14 +33,14 @@ export interface SurfaceDiff {
 const CONDITION_ORDER = ["types", "import", "default", "require"];
 
 /** First string target for the given condition priority, skipping nested non-matching branches. */
-export function pickTarget(value: unknown, wantTypes: boolean): string | null {
+export function pickTarget({ value, wantTypes }: { value: unknown; wantTypes: boolean }, _optional = {}): string | null {
   if (typeof value === "string") return value;
   if (!value || typeof value !== "object") return null;
   const obj = value as Record<string, unknown>;
   const order = wantTypes ? CONDITION_ORDER : CONDITION_ORDER.filter((c) => c !== "types");
   for (const key of order) {
     if (key in obj) {
-      const hit = pickTarget(obj[key], wantTypes);
+      const hit = pickTarget({ value: obj[key], wantTypes });
       if (hit) return hit;
     }
   }
@@ -48,8 +48,8 @@ export function pickTarget(value: unknown, wantTypes: boolean): string | null {
 }
 
 /** Map an `exports` target to its `.d.ts`, or `null` when the target is an asset / has no types. */
-export function resolveTypesFile(pkgDir: string, value: unknown): string | null {
-  const target = pickTarget(value, true);
+export function resolveTypesFile({ pkgDir, value }: { pkgDir: string; value: unknown }, _optional = {}): string | null {
+  const target = pickTarget({ value, wantTypes: true });
   if (!target || target.includes("*")) return null;
   let cand: string | null = null;
   if (/\.d\.[cm]?ts$/.test(target)) cand = target;
@@ -75,8 +75,8 @@ function kindOf(sym: ts.Symbol): string {
 
 /** Extract exported symbols of the given `.d.ts` entry files in one program (shared checker). */
 export function extractSymbols(
-  pkgDir: string,
-  files: string[],
+  { pkgDir, files }: { pkgDir: string; files: string[] },
+  _optional = {},
 ): Record<string, Record<string, string>> {
   const roots = files.map((f) => resolve(pkgDir, f));
   const program = ts.createProgram(roots, {
@@ -113,14 +113,14 @@ export function extractSymbols(
   return out;
 }
 
-export function buildPackageSurface(pkgDir: string, exportsField: unknown): PackageSurface {
+export function buildPackageSurface({ pkgDir, exportsField }: { pkgDir: string; exportsField: unknown }, _optional = {}): PackageSurface {
   const surface: PackageSurface = {};
   if (typeof exportsField === "string" || Array.isArray(exportsField)) exportsField = { ".": exportsField };
   const entries = Object.entries((exportsField ?? {}) as Record<string, unknown>);
   const typesBySub = new Map<string, string | null>();
-  for (const [sub, val] of entries) typesBySub.set(sub, resolveTypesFile(pkgDir, val));
+  for (const [sub, val] of entries) typesBySub.set(sub, resolveTypesFile({ pkgDir, value: val }));
   const uniq = [...new Set([...typesBySub.values()].filter((v): v is string => !!v))];
-  const symbols = uniq.length ? extractSymbols(pkgDir, uniq) : {};
+  const symbols = uniq.length ? extractSymbols({ pkgDir, files: uniq }) : {};
   for (const [sub] of entries.sort(([a], [b]) => a.localeCompare(b))) {
     const t = typesBySub.get(sub) ?? null;
     surface[sub] = { types: t, symbols: t ? sortKeys(symbols[t] ?? {}) : {} };
@@ -132,7 +132,7 @@ function sortKeys<T>(o: Record<string, T>): Record<string, T> {
   return Object.fromEntries(Object.entries(o).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
 }
 
-export function diffSurface(base: PackageSurface, cur: PackageSurface): SurfaceDiff {
+export function diffSurface({ base, cur }: { base: PackageSurface; cur: PackageSurface }, _optional = {}): SurfaceDiff {
   const d: SurfaceDiff = {
     removedSubpaths: [], addedSubpaths: [], removedSymbols: [], addedSymbols: [], changedSymbols: [],
   };
@@ -152,10 +152,10 @@ export function diffSurface(base: PackageSurface, cur: PackageSurface): SurfaceD
   return d;
 }
 
-export const isBreaking = (d: SurfaceDiff) => d.removedSubpaths.length + d.removedSymbols.length > 0;
+export const isBreaking = ({ diff }: { diff: SurfaceDiff }, _optional = {}) => diff.removedSubpaths.length + diff.removedSymbols.length > 0;
 
 /** Parse changeset frontmatter -> map package -> highest bump seen. */
-export function parseChangesetBumps(md: string): Record<string, string> {
+export function parseChangesetBumps({ md }: { md: string }, _optional = {}): Record<string, string> {
   const m = /^---\r?\n([\s\S]*?)\r?\n---/.exec(md);
   const out: Record<string, string> = {};
   if (!m) return out;
@@ -167,12 +167,11 @@ export function parseChangesetBumps(md: string): Record<string, string> {
 }
 
 /** The rule: a breaking diff is covered iff a pending changeset bumps this package major/minor. */
-export function coveredByChangeset(pkgName: string, changesets: string[]): boolean {
+export function coveredByChangeset({ pkgName, changesets }: { pkgName: string; changesets: string[] }, _optional = {}): boolean {
   return changesets.some((md) => {
-    const bump = parseChangesetBumps(md)[pkgName];
+    const bump = parseChangesetBumps({ md })[pkgName];
     return bump === "major" || bump === "minor";
   });
 }
 
-export const baselineFileName = (pkgName: string) => pkgName.replace(/^@/, "").replace("/", "__") + ".json";
-export { dirname };
+export const baselineFileName = ({ pkgName }: { pkgName: string }, _optional = {}) => pkgName.replace(/^@/, "").replace("/", "__") + ".json";
