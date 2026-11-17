@@ -15,6 +15,24 @@ export interface DirectoryRunningLock {
 
 type RunningOwner = Omit<DirectoryRunningRecord, "port" | "scheme"> & { port?: unknown; scheme?: unknown };
 
+/** Validate the holder before probing liveness; unreadable/unknown identities fail closed.
+ * A malformed address is recoverable only after proving this holder cannot own the DB. O(1).
+ */
+function readRunningOwner({ file }: { file: DurableJsonFile }): RunningOwner | null {
+  const result = file.read({});
+  if (result.state === "missing") return null;
+  if (result.state !== "ok") throw new Error("The running lock is unreadable; refusing to open this directory's database.");
+  const record = result.value;
+  if (!validRunningOwner(record)) throw new Error("The running lock is invalid; refusing to open this directory's database.");
+  return record;
+}
+/** Release still requires a complete valid record and its token, even for a dead holder. O(1). */
+function readRunningRecord({ file }: { file: DurableJsonFile }): DirectoryRunningRecord | null {
+  const record = readRunningOwner({ file });
+  if (record && !validRunningRecord(record)) throw new Error("The running lock is invalid; refusing to open this directory's database.");
+  return record;
+}
+
 /** A process lease is distinct from the brief file lock protecting its read/modify/write.
  * Only proven process death permits stale cleanup. Release/update require the unique claim token.
  * A zero port means boot is in progress and must still prevent a second database owner.
@@ -25,23 +43,8 @@ export function createDirectoryRunningLock(
     file: DurableJsonFile; isAlive: (required: { pid: number }) => boolean; remove: () => void;
   }, { bootIdentity }: { bootIdentity?: () => BootIdentity | undefined } = {},
 ): DirectoryRunningLock {
-  /** Validate the holder before probing liveness; unreadable/unknown identities fail closed.
-   * A malformed address is recoverable only after proving this holder cannot own the DB. O(1).
-   */
-  function readOwner(): RunningOwner | null {
-    const result = file.read({});
-    if (result.state === "missing") return null;
-    if (result.state !== "ok") throw new Error("The running lock is unreadable; refusing to open this directory's database.");
-    const record = result.value;
-    if (!validRunningOwner(record)) throw new Error("The running lock is invalid; refusing to open this directory's database.");
-    return record;
-  }
-  /** Release still requires a complete valid record and its token, even for a dead holder. O(1). */
-  function readRecord(): DirectoryRunningRecord | null {
-    const record = readOwner();
-    if (record && !validRunningRecord(record)) throw new Error("The running lock is invalid; refusing to open this directory's database.");
-    return record;
-  }
+  const readOwner = (): RunningOwner | null => readRunningOwner({ file });
+  const readRecord = (): DirectoryRunningRecord | null => readRunningRecord({ file });
   function readLive(cleanup = true): DirectoryRunningRecord | null {
     const record = readOwner();
     if (!record) return null;

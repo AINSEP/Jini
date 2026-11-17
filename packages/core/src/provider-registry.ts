@@ -87,6 +87,39 @@ function safeId<T>(required: { readonly definition: ProviderDefinition<T> }, _op
   try { return String(required.definition.id); } catch { return ''; }
 }
 
+/** Fail fast when the configured default id is not a legal provider id. */
+function assertDefaultProviderId({ contract, defaultProviderId }: { contract: string; defaultProviderId: string | undefined }): void {
+  if (defaultProviderId !== undefined && !PROVIDER_ID_PATTERN.test(defaultProviderId)) {
+    throw new ProviderRegistryError({ code: 'invalid_id', message: `${contract} default provider id '${defaultProviderId}' must match ${PROVIDER_ID_PATTERN.source}` });
+  }
+}
+
+/** Validate and register a plugin contribution; every rejection is recorded via `refuse`, never thrown. */
+function contributeChecked<T>(
+  { input, contract, providers, refuse }: {
+    input: Parameters<ProviderRegistry<T>['contribute']>[0];
+    contract: string;
+    providers: Map<string, RegisteredProvider<T>>;
+    refuse: (input: { readonly fault: Fault; readonly pluginId: string; readonly providerId: string }) => false;
+  },
+  optional: { readonly validate?: (required: { readonly provider: T }) => string | undefined } = {},
+): boolean {
+  const { definition, pluginId, contract: declared } = input;
+  const providerId = String(definition.id);
+  if (declared !== undefined && declared !== contract) {
+    return refuse({ fault: { code: 'contract_mismatch', message: `plugin '${pluginId}' contributed provider '${providerId}' for contract '${declared}', not '${contract}'` }, pluginId, providerId });
+  }
+  const fault = definitionFault({ contract, definition }, { ...(optional.validate ? { validate: optional.validate } : {}) });
+  if (fault) return refuse({ fault, pluginId, providerId });
+  const existing = providers.get(providerId);
+  if (existing) {
+    const owner = existing.pluginId === undefined ? 'the built-in provider' : `plugin '${existing.pluginId}'`;
+    return refuse({ fault: { code: 'duplicate', message: `${contract} provider '${providerId}' from plugin '${pluginId}' was not loaded: already registered by ${owner}` }, pluginId, providerId });
+  }
+  providers.set(providerId, frozenEntry({ definition, origin: 'plugin' }, { pluginId }));
+  return true;
+}
+
 function frozenEntry<T>(required: { readonly definition: ProviderDefinition<T>; readonly origin: ProviderOrigin }, optional: { readonly pluginId?: string } = {}): RegisteredProvider<T> {
   const { id, provider, label } = required.definition;
   return Object.freeze({
@@ -118,9 +151,7 @@ export function createProviderRegistry<T>(
 ): ProviderRegistry<T> {
   const { contract } = required;
   const { defaultProviderId, validate } = optional;
-  if (defaultProviderId !== undefined && !PROVIDER_ID_PATTERN.test(defaultProviderId)) {
-    throw new ProviderRegistryError({ code: 'invalid_id', message: `${contract} default provider id '${defaultProviderId}' must match ${PROVIDER_ID_PATTERN.source}` });
-  }
+  assertDefaultProviderId({ contract, defaultProviderId });
   const providers = new Map<string, RegisteredProvider<T>>();
   const refused: ProviderRefusal[] = [];
   const refuse = (input: { readonly fault: Fault; readonly pluginId: string; readonly providerId: string }): false => {
@@ -146,7 +177,7 @@ export function createProviderRegistry<T>(
     contribute(input) {
       // Third-party input: a throwing validator, id or provider getter is refused, never propagated
       // (core registrations keep the throwing policy above).
-      try { return contributeChecked(input); }
+      try { return contributeChecked({ input, contract, providers, refuse }, { ...(validate ? { validate } : {}) }); }
       catch { return refuse({ fault: { code: 'invalid_provider', message: `${contract} provider from plugin '${input.pluginId}' was not loaded: its definition could not be validated` }, pluginId: input.pluginId, providerId: safeId({ definition: input.definition }) }); }
     },
     get({ id }) { return providers.get(id); },
@@ -155,21 +186,6 @@ export function createProviderRegistry<T>(
     getDefault() { return defaultProviderId === undefined ? undefined : providers.get(defaultProviderId); },
     refusals() { return Object.freeze([...refused]); },
   };
-  function contributeChecked({ definition, pluginId, contract: declared }: Parameters<ProviderRegistry<T>['contribute']>[0]): boolean {
-    const providerId = String(definition.id);
-    if (declared !== undefined && declared !== contract) {
-      return refuse({ fault: { code: 'contract_mismatch', message: `plugin '${pluginId}' contributed provider '${providerId}' for contract '${declared}', not '${contract}'` }, pluginId, providerId });
-    }
-    const fault = definitionFault({ contract, definition }, { ...(validate ? { validate } : {}) });
-    if (fault) return refuse({ fault, pluginId, providerId });
-    const existing = providers.get(providerId);
-    if (existing) {
-      const owner = existing.pluginId === undefined ? 'the built-in provider' : `plugin '${existing.pluginId}'`;
-      return refuse({ fault: { code: 'duplicate', message: `${contract} provider '${providerId}' from plugin '${pluginId}' was not loaded: already registered by ${owner}` }, pluginId, providerId });
-    }
-    providers.set(providerId, frozenEntry({ definition, origin: 'plugin' }, { pluginId }));
-    return true;
-  }
   for (const definition of optional.seed ?? []) registry.register({ definition });
   return registry;
 }

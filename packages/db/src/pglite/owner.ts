@@ -413,6 +413,49 @@ export function acquireOwnerLock(required: { dataDir: string; lockFileName: stri
   throw new Error(`could not take the PGlite owner lock ${lockPath}`);
 }
 
+/** Start the PGlite database and its owner-only socket server; any failure tears down everything it opened. */
+async function bootOwnerServer(
+  { required, optional, io, dataDir, socketDir, socketPath, releaseLock }: {
+    required: { PGlite: PgliteClass };
+    optional: { idleInTransactionTimeoutMs?: number; maxConnections?: number; log?: (message: string) => void };
+    io: ReturnType<typeof ownerIo>;
+    dataDir: string; socketDir: string; socketPath: string; releaseLock: () => void;
+  },
+): Promise<{ db: PGlite; server: PgliteSocketServer }> {
+  const { fs } = io;
+  let db: PGlite | undefined;
+  let server: PgliteSocketServer | undefined;
+  // WASM initialization can await native work with no referenced Node handle. Until the socket
+  // starts, keep this awaited boot alive; otherwise a CLI exits with only the owner lock written.
+  // Release on both success and failure, so an idle or refused boot retains no extra timer.
+  const startupRef = setInterval(() => {}, 1_000);
+  try {
+    ensurePrivateDir(socketDir, io);
+    // We hold the lock, so a socket file here was left by a dead owner.
+    if (fs.existsSync(socketPath)) fs.unlinkSync(socketPath);
+    db = await required.PGlite.create({ dataDir, startParams: pgliteLowMemoryStartParams(required.PGlite) });
+    server = new PgliteSocketServer({
+      db,
+      path: socketPath,
+      idleInTransactionTimeoutMs: optional.idleInTransactionTimeoutMs,
+      maxConnections: optional.maxConnections,
+      log: optional.log,
+    });
+    await server.start();
+    fs.chmodSync(socketPath, 0o600);
+    if ((fs.statSync(socketPath).mode & 0o077) !== 0) throw new Error(`socket ${socketPath} is not owner-only`);
+  } catch (error) {
+    await server?.stop().catch(() => {});
+    await db?.close().catch(() => {});
+    fs.rmSync(socketPath, { force: true });
+    releaseLock();
+    throw error;
+  } finally {
+    clearInterval(startupRef);
+  }
+  return { db, server };
+}
+
 /**
  * Opens `dataDir` (creating it on first use — initdb takes several seconds) and serves it on a
  * private Unix socket.
@@ -444,36 +487,7 @@ export async function startPgliteOwner(
 
   fs.mkdirSync(dataDir, { recursive: true, mode: 0o700 });
   const releaseLock = acquireOwnerLock({ dataDir, lockFileName: required.lockFileName }, io);
-  let db: PGlite | undefined;
-  let server: PgliteSocketServer | undefined;
-  // WASM initialization can await native work with no referenced Node handle. Until the socket
-  // starts, keep this awaited boot alive; otherwise a CLI exits with only the owner lock written.
-  // Release on both success and failure, so an idle or refused boot retains no extra timer.
-  const startupRef = setInterval(() => {}, 1_000);
-  try {
-    ensurePrivateDir(socketDir, io);
-    // We hold the lock, so a socket file here was left by a dead owner.
-    if (fs.existsSync(socketPath)) fs.unlinkSync(socketPath);
-    db = await required.PGlite.create({ dataDir, startParams: pgliteLowMemoryStartParams(required.PGlite) });
-    server = new PgliteSocketServer({
-      db,
-      path: socketPath,
-      idleInTransactionTimeoutMs: optional.idleInTransactionTimeoutMs,
-      maxConnections: optional.maxConnections,
-      log: optional.log,
-    });
-    await server.start();
-    fs.chmodSync(socketPath, 0o600);
-    if ((fs.statSync(socketPath).mode & 0o077) !== 0) throw new Error(`socket ${socketPath} is not owner-only`);
-  } catch (error) {
-    await server?.stop().catch(() => {});
-    await db?.close().catch(() => {});
-    fs.rmSync(socketPath, { force: true });
-    releaseLock();
-    throw error;
-  } finally {
-    clearInterval(startupRef);
-  }
+  const { db, server } = await bootOwnerServer({ required, optional, io, dataDir, socketDir, socketPath, releaseLock });
 
   const serving = server;
   const open = db;

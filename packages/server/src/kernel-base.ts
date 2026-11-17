@@ -125,14 +125,17 @@ function createKernelAgentRuntime(
   });
 }
 
-/**
- * Opens every kernel-owned resource and rehydrates durable run history.
- *
- * @throws If rehydration fails against a corrupt or unreadable durable history. Every handle this
- * call had already opened is closed before it rethrows, so a failed boot never leaks a sqlite file
- * handle — the invariant the standalone daemon has always maintained.
- */
-export async function createJiniKernelBase(options: CreateJiniKernelBaseOptions): Promise<JiniKernelBase> {
+interface KernelStorageHandles {
+  eventLog: ClosableEventLog;
+  journalEventLog: ClosableEventLog;
+  lifecycle: RunLifecycle;
+  disposeTracing: () => void;
+  journal: ReturnType<typeof createRunByteJournal>;
+  sqlite: KernelSqliteAccess | null;
+}
+
+/** Open the event logs, byte journal and run lifecycle; a failure after any handle opened closes them all first. */
+async function openKernelStorage({ options }: { options: CreateJiniKernelBaseOptions }): Promise<KernelStorageHandles> {
   const sqliteStorage = options.storage.kind === 'sqlite' ? options.storage : null;
   const dataDir = sqliteStorage?.dataDir ?? null;
   const eventsDbPath = dataDir === null ? null : join(dataDir, 'events.db');
@@ -187,6 +190,18 @@ export async function createJiniKernelBase(options: CreateJiniKernelBaseOptions)
     await closeFailedAcquisition({ featureConnection, opened });
     throw error;
   }
+  return { eventLog, journalEventLog, lifecycle, disposeTracing, journal, sqlite };
+}
+
+/**
+ * Opens every kernel-owned resource and rehydrates durable run history.
+ *
+ * @throws If rehydration fails against a corrupt or unreadable durable history. Every handle this
+ * call had already opened is closed before it rethrows, so a failed boot never leaks a sqlite file
+ * handle — the invariant the standalone daemon has always maintained.
+ */
+export async function createJiniKernelBase(options: CreateJiniKernelBaseOptions): Promise<JiniKernelBase> {
+  const { eventLog, journalEventLog, lifecycle, disposeTracing, journal, sqlite } = await openKernelStorage({ options });
 
   const agentRuntime = createKernelAgentRuntime({ options });
   const agentExecutor = createAgentExecutor({ lifecycle }, {

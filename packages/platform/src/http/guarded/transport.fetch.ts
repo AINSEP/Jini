@@ -21,6 +21,79 @@ export interface NativeHttpTransportOptions {
   request?: (input: { secure: boolean; options: RequestOptions; onResponse: (response: IncomingMessage) => void }, optional?: Record<string, never>) => ClientRequest;
 }
 
+/** Request options that pin the connection to the vetted peer while keeping the caller's Host header. */
+function buildPinnedRequestOptions(
+  { req, peer, url, isHttps, idleTimeoutMs }: { req: HttpRequest; peer: PinnedPeer; url: URL; isHttps: boolean; idleTimeoutMs: number },
+): RequestOptions {
+  return {
+    method: req.method,
+    host: peer.ip,
+    port: peer.port,
+    path: `${url.pathname}${url.search}`,
+    headers: { ...req.headers, host: peer.authority },
+    // Node's timeout is per-socket inactivity, including the response body. Do not
+    // replace it with a timer over total transfer time: active large bodies can be slow.
+    timeout: idleTimeoutMs,
+    ...(req.signal ? { signal: req.signal } : {}),
+
+    // RFC 6066 forbids IP-literal SNI. Omit the option entirely when no hostname is supplied.
+    ...(isHttps && peer.tlsServerName ? { servername: peer.tlsServerName } : {}),
+  };
+}
+
+/** Read a (possibly compressed) pinned response into memory, enforcing the size cap; settles exactly once. */
+function collectPinnedResponse(
+  { req, res, clientRequest, resolve, reject }: {
+    req: HttpRequest; res: IncomingMessage; clientRequest: () => ClientRequest;
+    resolve: (response: HttpResponse) => void; reject: (error: unknown) => void;
+  },
+): void {
+
+    // HEAD can advertise GET's compression but has no body to decompress.
+    const decoded = req.method === "HEAD" ? res : decodeBody(res.headers["content-encoding"], res);
+    const chunks: Buffer[] = [];
+    let totalBytes = 0;
+
+    let settled = false;
+    const finish = (truncated: boolean) => {
+      if (settled) return;
+      settled = true;
+      // Concatenate once: text is a lossy UTF-8 view, while binary consumers retain the same
+      // undecoded bytes. Buffer is a Uint8Array, so returning it needs no second byte copy.
+      const body = Buffer.concat(chunks);
+      chunks.length = 0;
+      resolve({
+        status: res.statusCode ?? 0,
+        headers: flattenHeaders(res.headers),
+        setCookies: res.headers["set-cookie"] ?? [],
+        bodyText: req.bodyAs === "bytes" ? "" : body.toString("utf8"), bodyBytes: body,
+        ...(truncated ? { bodyTruncated: true, bodyBytesTruncated: true } : {}),
+      });
+    };
+    const cap = req.maxResponseBytes ?? DEFAULT_MAX_BYTES;
+    decoded.on("data", (chunk: Buffer) => {
+      if (settled) return;
+      const remaining = cap - totalBytes;
+      if (chunk.length > remaining) {
+        if (req.maxResponseBytes === undefined) {
+          clientRequest().destroy(new Error("response exceeded the absolute size ceiling"));
+          return;
+        }
+        chunks.push(chunk.subarray(0, remaining));
+        finish(true);
+
+        decoded.destroy?.();
+        res.destroy();
+        clientRequest().destroy();
+        return;
+      }
+      totalBytes += chunk.length;
+      chunks.push(chunk);
+    });
+    decoded.on("end", () => finish(false));
+    decoded.on("error", reject);
+}
+
 export class FetchHttpTransportAdapter implements PinnedHttpTransport {
   constructor(_required: Record<string, never>, private readonly optional: NativeHttpTransportOptions = {}) {}
   async requestPinned({ request: req, peer }: { request: HttpRequest; peer: PinnedPeer }): Promise<HttpResponse> {
@@ -29,68 +102,10 @@ export class FetchHttpTransportAdapter implements PinnedHttpTransport {
     const requestFn = isHttps ? httpsRequest : httpRequest;
     const idleTimeoutMs = req.idleTimeoutMs ?? req.timeoutMs!;
 
-    const options: RequestOptions = {
-      method: req.method,
-      host: peer.ip,
-      port: peer.port,
-      path: `${url.pathname}${url.search}`,
-      headers: { ...req.headers, host: peer.authority },
-      // Node's timeout is per-socket inactivity, including the response body. Do not
-      // replace it with a timer over total transfer time: active large bodies can be slow.
-      timeout: idleTimeoutMs,
-      ...(req.signal ? { signal: req.signal } : {}),
-
-      // RFC 6066 forbids IP-literal SNI. Omit the option entirely when no hostname is supplied.
-      ...(isHttps && peer.tlsServerName ? { servername: peer.tlsServerName } : {}),
-    };
+    const options = buildPinnedRequestOptions({ req, peer, url, isHttps, idleTimeoutMs });
 
     return new Promise<HttpResponse>((resolve, reject) => {
-      const onResponse = (res: IncomingMessage) => {
-
-        // HEAD can advertise GET's compression but has no body to decompress.
-        const decoded = req.method === "HEAD" ? res : decodeBody(res.headers["content-encoding"], res);
-        const chunks: Buffer[] = [];
-        let totalBytes = 0;
-
-        let settled = false;
-        const finish = (truncated: boolean) => {
-          if (settled) return;
-          settled = true;
-          // Concatenate once: text is a lossy UTF-8 view, while binary consumers retain the same
-          // undecoded bytes. Buffer is a Uint8Array, so returning it needs no second byte copy.
-          const body = Buffer.concat(chunks);
-          chunks.length = 0;
-          resolve({
-            status: res.statusCode ?? 0,
-            headers: flattenHeaders(res.headers),
-            setCookies: res.headers["set-cookie"] ?? [],
-            bodyText: req.bodyAs === "bytes" ? "" : body.toString("utf8"), bodyBytes: body,
-            ...(truncated ? { bodyTruncated: true, bodyBytesTruncated: true } : {}),
-          });
-        };
-        const cap = req.maxResponseBytes ?? DEFAULT_MAX_BYTES;
-        decoded.on("data", (chunk: Buffer) => {
-          if (settled) return;
-          const remaining = cap - totalBytes;
-          if (chunk.length > remaining) {
-            if (req.maxResponseBytes === undefined) {
-              clientRequest.destroy(new Error("response exceeded the absolute size ceiling"));
-              return;
-            }
-            chunks.push(chunk.subarray(0, remaining));
-            finish(true);
-
-            decoded.destroy?.();
-            res.destroy();
-            clientRequest.destroy();
-            return;
-          }
-          totalBytes += chunk.length;
-          chunks.push(chunk);
-        });
-        decoded.on("end", () => finish(false));
-        decoded.on("error", reject);
-      };
+      const onResponse = (res: IncomingMessage) => collectPinnedResponse({ req, res, clientRequest: () => clientRequest, resolve, reject });
       const clientRequest = this.optional.request
         ? this.optional.request({ secure: isHttps, options, onResponse }, {})
         : requestFn(options, onResponse);

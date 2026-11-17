@@ -205,6 +205,38 @@ export function ipcRefusalReason({ value }: { value: unknown }, _optional = {}):
   return reason.length > 0 && reason.length <= 1024 ? reason : undefined;
 }
 
+/** Complete only a matching request, preserving explicit public refusals. O(1) lookup. */
+function completePendingReply(
+  { pending, message }: { pending: Map<string, { finish(error: Error | null, payload?: unknown): void }>; message: { id: string; ok?: unknown; payload?: unknown } },
+  _optional = {},
+): void {
+  const refusalReason = ipcRefusalReason({ value: message });
+  const error = message.ok === true ? null : Object.assign(new Error(refusalReason ?? "IPC request refused"),
+    refusalReason === undefined ? {} : { refusalReason });
+  pending.get(message.id)?.finish(error, message.payload);
+}
+
+/** Run the handler for one inbound request and send exactly one reply; a handler error is never echoed, only its opt-in refusalReason. */
+function serveIpcRequest(
+  { id, payload, handle, reply, onSettled }: {
+    id: string; payload: unknown; handle: (payload: unknown) => Promise<Serializable>;
+    reply: (message: Record<string, Serializable>) => void; onSettled: () => void;
+  },
+): void {
+  void Promise.resolve().then(() => handle(payload)).then(
+    payload => reply({ jiniIpc: 1, kind: "reply", id, ok: true, payload }),
+    error => {
+      const refusalReason = ipcRefusalReason({ value: error });
+      reply({ jiniIpc: 1, kind: "reply", id, ok: false, ...(refusalReason ? { refusalReason } : {}) });
+    },
+  ).catch(() => {}).finally(onSettled); // A disconnected peer cannot receive its reply.
+}
+
+/** Only the size refusal is specific enough to surface; any other send failure stays generic. */
+function ipcSendFailure({ error }: { error: unknown }): Error {
+  return new Error(error instanceof Error && error.message === "IPC envelope too large" ? error.message : "IPC send failed");
+}
+
 /** Native request/reply with bounded pending work. Errors never echo a request, payload or raw handler error.
  * Handlers may opt into public diagnostics by throwing an error with a `refusalReason` string
  * (1–1024 characters), e.g. `Object.assign(new Error(), { refusalReason: "This session ended." })`.
@@ -229,28 +261,15 @@ export function createNodeIpcChannel({ peer }: { peer: NodeIpcPeer }, {
   function reply(message: Record<string, Serializable>): void {
     try { send(message); } catch { dispose({}); } // A departing peer cannot receive a refusal.
   }
-  /** Complete only a matching request, preserving explicit public refusals. O(1) lookup. */
-  function receiveReply({ message }: { message: { id: string; ok?: unknown; payload?: unknown } }, _optional = {}): void {
-    const refusalReason = ipcRefusalReason({ value: message });
-    const error = message.ok === true ? null : Object.assign(new Error(refusalReason ?? "IPC request refused"),
-      refusalReason === undefined ? {} : { refusalReason });
-    pending.get(message.id)?.finish(error, message.payload);
-  }
   function receive(message: unknown): void {
     if (disposed || !isIpcEnvelope(message) || message.channel !== channel) return;
     const { id } = message;
     if (message.kind === "reply") {
-      receiveReply({ message });
+      completePendingReply({ pending, message });
     } else if (message.kind === "request" && handle) {
       if (handling >= maxPending) { reply({ jiniIpc: 1, kind: "reply", id, ok: false }); return; }
       handling++;
-      void Promise.resolve().then(() => handle(message.payload)).then(
-        payload => reply({ jiniIpc: 1, kind: "reply", id, ok: true, payload }),
-        error => {
-          const refusalReason = ipcRefusalReason({ value: error });
-          reply({ jiniIpc: 1, kind: "reply", id, ok: false, ...(refusalReason ? { refusalReason } : {}) });
-        },
-      ).catch(() => {}).finally(() => { handling--; }); // A disconnected peer cannot receive its reply.
+      serveIpcRequest({ id, payload: message.payload, handle, reply, onSettled: () => { handling--; } });
     }
   }
   function dispose(_required: Record<string, never>, _optional = {}): void {
@@ -269,10 +288,7 @@ export function createNodeIpcChannel({ peer }: { peer: NodeIpcPeer }, {
         const timer = setTimeout(() => pending.get(id)?.finish(new Error("IPC request timed out")), timeoutMs);
         pending.set(id, { finish(error, value) { clearTimeout(timer); pending.delete(id); if (error) reject(error); else resolve(value); } });
         try { send({ jiniIpc: 1, kind: "request", id, payload }); }
-        catch (error) {
-          const reason = error instanceof Error && error.message === "IPC envelope too large" ? error.message : "IPC send failed";
-          pending.get(id)?.finish(new Error(reason));
-        }
+        catch (error) { pending.get(id)?.finish(ipcSendFailure({ error })); }
       });
     },
     dispose,

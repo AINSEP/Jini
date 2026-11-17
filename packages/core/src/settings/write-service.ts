@@ -93,6 +93,51 @@ export interface RegisterDefinitionsRequired {
   };
 }
 
+/** One definition, one transaction: the row and its `register` revision commit together. Returns the new setting id. */
+async function saveRegisteredDefinition(
+  { deps, definitionInput, callerPrincipalId }: { deps: SettingsWriteServiceDeps; definitionInput: DefinitionInput; callerPrincipalId: UUID },
+): Promise<string> {
+  return deps.repo.transaction(async () => {
+    const now = kernelNowIso({ clock: deps.clock });
+    const settingId = deps.ids.newId();
+    await deps.repo.saveDefinition({
+      settingId,
+      version: 1,
+      workspaceId: definitionInput.workspaceId,
+      namespace: definitionInput.namespace,
+      key: definitionInput.key,
+      ownerKind: definitionInput.ownerKind,
+      ownerId: definitionInput.ownerId ?? null,
+      schema: definitionInput.schema,
+      defaultValue: definitionInput.defaultValue,
+      scopes: definitionInput.scopes,
+      secret: false,
+      status: "active",
+      aliasOfNamespace: null,
+      aliasOfKey: null,
+      coercionTag: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await deps.repo.appendRevision({
+      entityKind: "definition",
+      settingId,
+      scope: null,
+      workspaceId: definitionInput.workspaceId,
+      principalId: null,
+      op: "register",
+      beforeJson: null,
+      afterJson: null,
+      defVersion: 1,
+      actor: callerPrincipalId,
+      originPluginId: null,
+      changeSetId: null,
+      createdAt: now,
+    });
+    return settingId;
+  });
+}
+
 /** chokepoint write: authorize `settings.definitions.manage` -> validate -> write + revision, one per definition, each its own tx. See docs/decisions/DR-003-settings-ledger-invariants.md. */
 export async function registerDefinitions(
   required: RegisterDefinitionsRequired
@@ -116,45 +161,7 @@ export async function registerDefinitions(
     const validation = validateDefinitionInput(definitionInput);
     if (!validation.valid) throw validation.error;
 
-    await deps.repo.transaction(async () => {
-      const now = kernelNowIso({ clock: deps.clock });
-      const settingId = deps.ids.newId();
-      await deps.repo.saveDefinition({
-        settingId,
-        version: 1,
-        workspaceId: definitionInput.workspaceId,
-        namespace: definitionInput.namespace,
-        key: definitionInput.key,
-        ownerKind: definitionInput.ownerKind,
-        ownerId: definitionInput.ownerId ?? null,
-        schema: definitionInput.schema,
-        defaultValue: definitionInput.defaultValue,
-        scopes: definitionInput.scopes,
-        secret: false,
-        status: "active",
-        aliasOfNamespace: null,
-        aliasOfKey: null,
-        coercionTag: null,
-        createdAt: now,
-        updatedAt: now,
-      });
-      await deps.repo.appendRevision({
-        entityKind: "definition",
-        settingId,
-        scope: null,
-        workspaceId: definitionInput.workspaceId,
-        principalId: null,
-        op: "register",
-        beforeJson: null,
-        afterJson: null,
-        defVersion: 1,
-        actor: input.callerPrincipalId,
-        originPluginId: null,
-        changeSetId: null,
-        createdAt: now,
-      });
-      registered.push(settingId);
-    });
+    registered.push(await saveRegisteredDefinition({ deps, definitionInput, callerPrincipalId: input.callerPrincipalId }));
     invalidateDefinitionNamespaceCache(deps.repo, definitionInput.namespace);
   }
 
@@ -327,22 +334,21 @@ async function assertExpectedRevision(
   }
 }
 
-/**
- * Authorize -> validate -> value + revision in one transaction. An optional expectedRevisionSeq
- * refuses a stale scoped value and rolls back its revision; omission keeps unconditional writes.
- * @example await set({ deps, input }, { expectedRevisionSeq: snapshotSeq });
- * See docs/decisions/DR-003-settings-ledger-invariants.md.
- */
-export async function set(required: SetValueRequired, optional: SettingsValueWriteOptions = {}): Promise<{ value: JsonValue; revisionSeq: number }> {
-  const { deps, input } = required;
+type ValueWriteInput = Pick<SetValueRequired["input"], "scope" | "workspaceId" | "principalId" | "callerPrincipalId" | "authWorkspaceId">;
 
-  const permission =
-    input.requiredPermissionOverride ??
-    deriveRequiredPermission({
-      scope: input.scope,
-      targetPrincipalId: input.principalId,
-      callerPrincipalId: input.callerPrincipalId,
-    });
+/** The permission a caller needs for this target, derived from scope and who is being written for. */
+function derivePermissionFor({ input }: { input: ValueWriteInput }): string {
+  return deriveRequiredPermission({
+    scope: input.scope,
+    targetPrincipalId: input.principalId,
+    callerPrincipalId: input.callerPrincipalId,
+  });
+}
+
+/** Authorize the caller in the ambient workspace; the target workspace must match it. Refusal throws. */
+async function authorizeValueWrite(
+  { deps, input, permission }: { deps: SettingsWriteServiceDeps; input: ValueWriteInput; permission: string },
+): Promise<void> {
   const authWorkspaceId = input.authWorkspaceId ?? input.workspaceId ?? input.callerPrincipalId;
   assertTargetWorkspaceMatchesAuth({ ...input, authWorkspaceId });
   const authResult = await deps.authorize({
@@ -356,6 +362,73 @@ export async function set(required: SetValueRequired, optional: SettingsValueWri
       `principal '${input.callerPrincipalId}' is not authorized for '${permission}' (${authResult.reason})`
     );
   }
+}
+
+/** Append the ledger revision, check the concurrency guard, then save the addressed layer's row. */
+async function writeValueRevision(
+  { deps, input, definition, optional, change }: {
+    deps: SettingsWriteServiceDeps;
+    input: ValueWriteInput & { namespace: string; key: string };
+    definition: Awaited<ReturnType<typeof resolveScopedDefinitionOrThrow>>;
+    optional: SettingsValueWriteOptions;
+    change: { op: "set" | "clear"; afterJson: JsonValue | null; valueJson: JsonValue | null; state: "set" | "cleared" };
+  },
+): Promise<{ revisionSeq: number }> {
+  const now = kernelNowIso({ clock: deps.clock });
+  const revisionSeq = await deps.repo.appendRevision({
+    entityKind: "value",
+    settingId: definition.settingId,
+    scope: input.scope,
+    workspaceId: input.scope === "global" ? null : (input.workspaceId ?? null),
+    principalId: input.scope === "user" ? (input.principalId ?? input.callerPrincipalId) : null,
+    op: change.op,
+    beforeJson: null,
+    afterJson: change.afterJson,
+    defVersion: definition.version,
+    actor: input.callerPrincipalId,
+    originPluginId: null,
+    changeSetId: null,
+    createdAt: now,
+  });
+
+  await assertExpectedRevision({ repo: deps.repo, settingId: definition.settingId, input }, optional);
+
+  const base = {
+    settingId: definition.settingId,
+    scope: input.scope,
+    valueJson: change.valueJson,
+    state: change.state,
+    defVersion: definition.version,
+    seq: revisionSeq,
+    updatedBy: input.callerPrincipalId,
+    updatedAt: now,
+    originPluginId: null,
+  };
+
+  if (input.scope === "global") {
+    await deps.repo.saveGlobalValue({ ...base, workspaceId: null, principalId: null });
+  } else if (input.scope === "workspace") {
+    await deps.repo.saveWorkspaceValue({ ...base, workspaceId: input.workspaceId ?? null, principalId: null });
+  } else {
+    await deps.repo.saveUserValue({
+      ...base,
+      workspaceId: input.workspaceId ?? null,
+      principalId: input.principalId ?? input.callerPrincipalId,
+    });
+  }
+  return { revisionSeq };
+}
+
+/**
+ * Authorize -> validate -> value + revision in one transaction. An optional expectedRevisionSeq
+ * refuses a stale scoped value and rolls back its revision; omission keeps unconditional writes.
+ * @example await set({ deps, input }, { expectedRevisionSeq: snapshotSeq });
+ * See docs/decisions/DR-003-settings-ledger-invariants.md.
+ */
+export async function set(required: SetValueRequired, optional: SettingsValueWriteOptions = {}): Promise<{ value: JsonValue; revisionSeq: number }> {
+  const { deps, input } = required;
+
+  await authorizeValueWrite({ deps, input, permission: input.requiredPermissionOverride ?? derivePermissionFor({ input }) });
 
   const definition = await resolveScopedDefinitionOrThrow(deps, input);
 
@@ -367,52 +440,9 @@ export async function set(required: SetValueRequired, optional: SettingsValueWri
 
   await assertTargetPrincipalInWorkspace(deps, input);
 
-  const runSet = async () => {
-    const now = kernelNowIso({ clock: deps.clock });
-    const revisionSeq = await deps.repo.appendRevision({
-      entityKind: "value",
-      settingId: definition.settingId,
-      scope: input.scope,
-      workspaceId: input.scope === "global" ? null : (input.workspaceId ?? null),
-      principalId: input.scope === "user" ? (input.principalId ?? input.callerPrincipalId) : null,
-      op: "set",
-      beforeJson: null,
-      afterJson: input.value,
-      defVersion: definition.version,
-      actor: input.callerPrincipalId,
-      originPluginId: null,
-      changeSetId: null,
-      createdAt: now,
-    });
-
-    await assertExpectedRevision({ repo: deps.repo, settingId: definition.settingId, input }, optional);
-
-    const base = {
-      settingId: definition.settingId,
-      scope: input.scope,
-      valueJson: input.value,
-      state: "set" as const,
-      defVersion: definition.version,
-      seq: revisionSeq,
-      updatedBy: input.callerPrincipalId,
-      updatedAt: now,
-      originPluginId: null,
-    };
-
-    if (input.scope === "global") {
-      await deps.repo.saveGlobalValue({ ...base, workspaceId: null, principalId: null });
-    } else if (input.scope === "workspace") {
-      await deps.repo.saveWorkspaceValue({ ...base, workspaceId: input.workspaceId ?? null, principalId: null });
-    } else {
-      await deps.repo.saveUserValue({
-        ...base,
-        workspaceId: input.workspaceId ?? null,
-        principalId: input.principalId ?? input.callerPrincipalId,
-      });
-    }
-
-    return { value: input.value, revisionSeq };
-  };
+  const runSet = () => writeValueRevision({
+    deps, input, definition, optional, change: { op: "set", afterJson: input.value, valueJson: input.value, state: "set" },
+  }).then(({ revisionSeq }) => ({ value: input.value, revisionSeq }));
 
   // `skipTransaction` means an enclosing caller already owns the boundary, so
   // this write joins it and a later failure rolls this one back too.
@@ -450,80 +480,14 @@ export interface ClearValueRequired {
 export async function clear(required: ClearValueRequired, optional: SettingsValueWriteOptions = {}): Promise<{ revisionSeq: number }> {
   const { deps, input } = required;
 
-  if (!input.skipAuthorize) {
-    const permission = deriveRequiredPermission({
-      scope: input.scope,
-      targetPrincipalId: input.principalId,
-      callerPrincipalId: input.callerPrincipalId,
-    });
-    const authWorkspaceId = input.authWorkspaceId ?? input.workspaceId ?? input.callerPrincipalId;
-    assertTargetWorkspaceMatchesAuth({ ...input, authWorkspaceId });
-    const authResult = await deps.authorize({
-      principalId: input.callerPrincipalId,
-      permission,
-      workspaceId: authWorkspaceId,
-      entityType: "setting-value",
-    });
-    if (!authResult.allowed) {
-      throw new ForbiddenError(
-        `principal '${input.callerPrincipalId}' is not authorized for '${permission}' (${authResult.reason})`
-      );
-    }
-  }
+  if (!input.skipAuthorize) await authorizeValueWrite({ deps, input, permission: derivePermissionFor({ input }) });
 
   const definition = await resolveScopedDefinitionOrThrow(deps, input);
   await assertTargetPrincipalInWorkspace(deps, input);
 
-  const runClear = async () => {
-    const now = kernelNowIso({ clock: deps.clock });
-    const revisionSeq = await deps.repo.appendRevision({
-      entityKind: "value",
-      settingId: definition.settingId,
-      scope: input.scope,
-      workspaceId: input.scope === "global" ? null : (input.workspaceId ?? null),
-      principalId: input.scope === "user" ? (input.principalId ?? input.callerPrincipalId) : null,
-      op: "clear",
-      beforeJson: null,
-      afterJson: null,
-      defVersion: definition.version,
-      actor: input.callerPrincipalId,
-      originPluginId: null,
-      changeSetId: null,
-      createdAt: now,
-    });
-
-    await assertExpectedRevision({ repo: deps.repo, settingId: definition.settingId, input }, optional);
-
-    const base = {
-      settingId: definition.settingId,
-      scope: input.scope,
-      valueJson: null,
-      state: "cleared" as const,
-      defVersion: definition.version,
-      seq: revisionSeq,
-      updatedBy: input.callerPrincipalId,
-      updatedAt: now,
-      originPluginId: null,
-    };
-
-    if (input.scope === "global") {
-      await deps.repo.saveGlobalValue({ ...base, workspaceId: null, principalId: null });
-    } else if (input.scope === "workspace") {
-      await deps.repo.saveWorkspaceValue({
-        ...base,
-        workspaceId: input.workspaceId ?? null,
-        principalId: null,
-      });
-    } else {
-      await deps.repo.saveUserValue({
-        ...base,
-        workspaceId: input.workspaceId ?? null,
-        principalId: input.principalId ?? input.callerPrincipalId,
-      });
-    }
-
-    return { revisionSeq };
-  };
+  const runClear = () => writeValueRevision({
+    deps, input, definition, optional, change: { op: "clear", afterJson: null, valueJson: null, state: "cleared" },
+  });
 
   // `skipTransaction` means an enclosing caller already owns the boundary, so
   // this write joins it and a later failure rolls this one back too.
@@ -679,6 +643,7 @@ export interface RenameDefinitionRequired {
 }
 
 type RenameInput = RenameDefinitionRequired["input"];
+type ActiveDefinition = Awaited<ReturnType<typeof resolveActiveDefinitionOrThrow>>;
 
 async function assertRenameTargetFree(deps: SettingsWriteServiceDeps, input: RenameInput): Promise<void> {
   // A dispatched `rename` item that omits its target arrives here as `""` (see definitions-dispatch);
@@ -838,6 +803,56 @@ export interface RetypeDefinitionRequired {
   };
 }
 
+/** One transaction body: deprecate the prior active version, insert the new one, ledger the retype. */
+async function writeRetypedVersion(
+  { deps, input, current }: { deps: SettingsWriteServiceDeps; input: RetypeDefinitionRequired["input"]; current: ActiveDefinition },
+): Promise<{ settingId: string; version: number }> {
+  const now = kernelNowIso({ clock: deps.clock });
+  const newVersion = current.version + 1;
+
+  // Step 1: deprecate the prior active version first.
+  await deps.repo.saveDefinition({ ...current, status: "deprecated", updatedAt: now });
+
+  // Step 2: insert the new version as active -- same setting_id/namespace/key.
+  await deps.repo.saveDefinition({
+    settingId: current.settingId,
+    version: newVersion,
+    workspaceId: current.workspaceId,
+    namespace: current.namespace,
+    key: current.key,
+    ownerKind: current.ownerKind,
+    ownerId: current.ownerId,
+    schema: input.schema,
+    defaultValue: input.defaultValue,
+    scopes: current.scopes,
+    secret: current.secret,
+    status: "active",
+    aliasOfNamespace: null,
+    aliasOfKey: null,
+    coercionTag: input.coercionTag,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  await deps.repo.appendRevision({
+    entityKind: "definition",
+    settingId: current.settingId,
+    scope: null,
+    workspaceId: current.workspaceId,
+    principalId: null,
+    op: "retype",
+    beforeJson: null,
+    afterJson: null,
+    defVersion: newVersion,
+    actor: input.callerPrincipalId,
+    originPluginId: null,
+    changeSetId: null,
+    createdAt: now,
+  });
+
+  return { settingId: current.settingId, version: newVersion };
+}
+
 /**
  * The retype mechanism : a same-tx pair --
  * (1) UPDATE the prior active version's `status` to `deprecated` FIRST (else
@@ -876,52 +891,7 @@ export async function retypeDefinition(
     }
   }
 
-  const result = await deps.repo.transaction(async () => {
-    const now = kernelNowIso({ clock: deps.clock });
-    const newVersion = current.version + 1;
-
-    // Step 1: deprecate the prior active version first.
-    await deps.repo.saveDefinition({ ...current, status: "deprecated", updatedAt: now });
-
-    // Step 2: insert the new version as active -- same setting_id/namespace/key.
-    await deps.repo.saveDefinition({
-      settingId: current.settingId,
-      version: newVersion,
-      workspaceId: current.workspaceId,
-      namespace: current.namespace,
-      key: current.key,
-      ownerKind: current.ownerKind,
-      ownerId: current.ownerId,
-      schema: input.schema,
-      defaultValue: input.defaultValue,
-      scopes: current.scopes,
-      secret: current.secret,
-      status: "active",
-      aliasOfNamespace: null,
-      aliasOfKey: null,
-      coercionTag: input.coercionTag,
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    await deps.repo.appendRevision({
-      entityKind: "definition",
-      settingId: current.settingId,
-      scope: null,
-      workspaceId: current.workspaceId,
-      principalId: null,
-      op: "retype",
-      beforeJson: null,
-      afterJson: null,
-      defVersion: newVersion,
-      actor: input.callerPrincipalId,
-      originPluginId: null,
-      changeSetId: null,
-      createdAt: now,
-    });
-
-    return { settingId: current.settingId, version: newVersion };
-  });
+  const result = await deps.repo.transaction(() => writeRetypedVersion({ deps, input, current }));
 
   invalidateDefinitionNamespaceCache(deps.repo, input.namespace);
   return result;

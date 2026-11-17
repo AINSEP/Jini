@@ -122,6 +122,45 @@ export interface GracefulShutdownHandle {
   uninstall(): void;
 }
 
+/** One shutdown attempt: race `stop()` against the forced-exit timer; whichever settles first decides the exit code. */
+function runShutdown(
+  { signal, stop, timers, logger, timeoutMs, onExit }: {
+    signal: NodeJS.Signals; stop: () => Promise<void>;
+    timers: NonNullable<GracefulShutdownOptions['timers']>; logger: NonNullable<GracefulShutdownOptions['logger']>;
+    timeoutMs: number; onExit: (code: number) => void;
+  },
+): void {
+  let timedOut = false;
+  const timer = timers.setTimeout(() => {
+    timedOut = true;
+    logger.error(
+      `[@jini-ai/server] graceful shutdown did not complete within ${timeoutMs}ms after ${signal}; forcing exit`,
+    );
+    onExit(1);
+  }, timeoutMs);
+  timer.unref?.();
+
+  void stop()
+    .catch((error: unknown) => {
+      logger.error(`[@jini-ai/server] graceful shutdown failed after ${signal}`, describeErrorForLog({ err: error }));
+      // Re-thrown so the `.finally` below still distinguishes success from failure via rejection
+      // state rather than a second flag.
+      throw error;
+    })
+    .then(
+      () => {
+        if (timedOut) return;
+        timers.clearTimeout(timer);
+        onExit(0);
+      },
+      () => {
+        if (timedOut) return;
+        timers.clearTimeout(timer);
+        onExit(1);
+      },
+    );
+}
+
 /**
  * Wires `stop` to the process's OS shutdown signals so a container stop, process-manager restart, or
  * operator `kill`/Ctrl-C runs the caller's graceful teardown instead of Node's default immediate
@@ -162,35 +201,7 @@ export function installGracefulShutdown(
     if (shuttingDown) return;
     shuttingDown = true;
 
-    let timedOut = false;
-    const timer = timers.setTimeout(() => {
-      timedOut = true;
-      logger.error(
-        `[@jini-ai/server] graceful shutdown did not complete within ${timeoutMs}ms after ${signal}; forcing exit`,
-      );
-      onExit(1);
-    }, timeoutMs);
-    timer.unref?.();
-
-    void stop()
-      .catch((error: unknown) => {
-        logger.error(`[@jini-ai/server] graceful shutdown failed after ${signal}`, describeErrorForLog({ err: error }));
-        // Re-thrown so the `.finally` below still distinguishes success from failure via rejection
-        // state rather than a second flag.
-        throw error;
-      })
-      .then(
-        () => {
-          if (timedOut) return;
-          timers.clearTimeout(timer);
-          onExit(0);
-        },
-        () => {
-          if (timedOut) return;
-          timers.clearTimeout(timer);
-          onExit(1);
-        },
-      );
+    runShutdown({ signal, stop, timers, logger, timeoutMs, onExit });
   };
 
   for (const signal of signals) {

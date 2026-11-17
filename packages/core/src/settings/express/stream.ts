@@ -9,6 +9,55 @@ interface StreamRequired {
   isDisposed: () => boolean;
 }
 
+type ErrorReporter = (operation: string, error: unknown) => void;
+
+/** One poll step: collect a bounded page and emit a settings-changed event; overlapping ticks are skipped. */
+function createPollTick(
+  { response, changeFeed, viewer, pageSize, cursor: initialCursor, isClosed, reportError }: {
+    response: Response; changeFeed: SettingsChangeFeed; viewer: { workspaceId: string; principalId: string };
+    pageSize: number; cursor: number; isClosed: () => boolean; reportError: ErrorReporter;
+  },
+): () => Promise<void> {
+  let cursor = initialCursor;
+  let lastEmittedId = initialCursor;
+  let ticking = false;
+  return async (): Promise<void> => {
+    if (isClosed() || ticking) return;
+    ticking = true;
+    try {
+      // Snapshot head before the page: concurrent writes must never be skipped.
+      const ledgerHead = await changeFeed.head({});
+      if (isClosed()) return;
+      const batch = await changeFeed.collect({ sinceSeq: cursor, limit: pageSize, viewer });
+      if (isClosed()) return;
+      const examined = batch.examinedCount < pageSize ? ledgerHead : batch.cursor;
+      cursor = Math.max(cursor, examined, batch.cursor);
+      if (!batch.namespaces.length) return;
+      // The internal global head is never disclosed as an event id.
+      lastEmittedId = Math.max(lastEmittedId, batch.cursor);
+      response.write(`id: ${lastEmittedId}\nevent: settings-changed\ndata: ${JSON.stringify({ namespaces: batch.namespaces })}\n\n`);
+    } catch (error) { if (!isClosed()) reportError("poll", error); }
+    finally { ticking = false; }
+  };
+}
+
+/** Periodic re-authorization: closes the stream once the principal loses the permission. */
+function createReauthorizer(
+  { required, isClosed, close, reportError }: { required: StreamRequired; isClosed: () => boolean; close: () => void; reportError: ErrorReporter },
+): () => Promise<void> {
+  let checkingAuthorization = false;
+  return async (): Promise<void> => {
+    if (isClosed() || checkingAuthorization) return;
+    checkingAuthorization = true;
+    try {
+      const { principalId, workspaceId, permission } = required;
+      const result = await required.authorize({ principalId, workspaceId, permission, entityType: "setting-value" });
+      if (!isClosed() && !result.allowed) close();
+    } catch (error) { if (!isClosed()) reportError("re-authorization", error); }
+    finally { checkingAuthorization = false; }
+  };
+}
+
 /** Starts after HTTP authorization. All scheduling and storage are injected.
  * Poll with bounded pages, tenant-scoped ids and retryable reads; close cancels all schedules.
  * O(page size) per tick and O(1) connection state; repository effects live behind the feed port.
@@ -18,8 +67,6 @@ export async function openSettingsChangeStream(required: StreamRequired, optiona
   const { request, response, workspaceId, principalId, changeFeed, scheduler } = required;
   const { pageSize, pollIntervalMs, keepaliveIntervalMs, reauthorizeIntervalMs } = readStreamTimings(optional);
   let closed = false;
-  let ticking = false;
-  let checkingAuthorization = false;
   const cancellations: Array<() => void> = [];
   const reportError = createErrorReporter(optional);
   const recover = (operation: string, effect: () => void): void => {
@@ -44,37 +91,10 @@ export async function openSettingsChangeStream(required: StreamRequired, optiona
     const head = await changeFeed.head({});
     const gone = () => closed || required.isDisposed() || response.destroyed || response.writableEnded;
     if (gone()) { close(); return close; }
-    let cursor = resumeCursor({ lastEventId: request.headers["last-event-id"], head });
-    let lastEmittedId = cursor;
-    const viewer = { workspaceId, principalId };
+    const cursor = resumeCursor({ lastEventId: request.headers["last-event-id"], head });
     response.writeHead(200, sseHeaders({ httpVersionMajor: request.httpVersionMajor }));
-    const tick = async (): Promise<void> => {
-      if (closed || ticking) return;
-      ticking = true;
-      try {
-        // Snapshot head before the page: concurrent writes must never be skipped.
-        const ledgerHead = await changeFeed.head({});
-        if (closed) return;
-        const batch = await changeFeed.collect({ sinceSeq: cursor, limit: pageSize, viewer });
-        if (closed) return;
-        const examined = batch.examinedCount < pageSize ? ledgerHead : batch.cursor;
-        cursor = Math.max(cursor, examined, batch.cursor);
-        if (!batch.namespaces.length) return;
-        // The internal global head is never disclosed as an event id.
-        lastEmittedId = Math.max(lastEmittedId, batch.cursor);
-        response.write(`id: ${lastEmittedId}\nevent: settings-changed\ndata: ${JSON.stringify({ namespaces: batch.namespaces })}\n\n`);
-      } catch (error) { if (!closed) reportError("poll", error); }
-      finally { ticking = false; }
-    };
-    const reauthorize = async (): Promise<void> => {
-      if (closed || checkingAuthorization) return;
-      checkingAuthorization = true;
-      try {
-        const result = await required.authorize({ principalId, workspaceId, permission: required.permission, entityType: "setting-value" });
-        if (!closed && !result.allowed) close();
-      } catch (error) { if (!closed) reportError("re-authorization", error); }
-      finally { checkingAuthorization = false; }
-    };
+    const tick = createPollTick({ response, changeFeed, viewer: { workspaceId, principalId }, pageSize, cursor, isClosed: () => closed, reportError });
+    const reauthorize = createReauthorizer({ required, isClosed: () => closed, close, reportError });
     const schedule = (intervalMs: number, callback: () => void): void => {
       const cancel = scheduler.every({ intervalMs, callback });
       if (closed) recover("cancel", cancel); else cancellations.push(cancel);
