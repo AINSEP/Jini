@@ -278,6 +278,12 @@ async function openSession(
   return { page, context, response, finalUrl, budget };
 }
 
+/** The URL syntax boundary, and the rule that public rendering always runs behind a guarded router. */
+function assertRenderable({ url }: { url: string }, options: RenderPageOptions): void {
+  assertHttpUrl({ url });
+  if (options.originPolicy === "public" && !options.router) throw new Error("Public rendering requires a guarded request router");
+}
+
 /** Open, guard, wait and consume ONE ephemeral page, always releasing the context.
  * No network-idle wait: SPAs and polling sites can stay busy forever. DNS decisions are not followed
  * by Chromium `continue()` in public mode: the router fetches on pinned vetted peers and fulfills
@@ -291,8 +297,7 @@ export async function renderPage<T>(
   options: RenderPageOptions = {},
 ): Promise<T> {
   const { timeoutMs = 30_000, signal: callerSignal, clock = REAL_CAPTURE_CLOCK } = options;
-  assertHttpUrl({ url });
-  if (options.originPolicy === "public" && !options.router) throw new Error("Public rendering requires a guarded request router");
+  assertRenderable({ url }, options);
   // A native total timer remains firm even if the wall clock moves between budgeted steps.
   const deadline = clock.deadlineSignal(timeoutMs);
   const signal = callerSignal ? AbortSignal.any([callerSignal, deadline]) : deadline;

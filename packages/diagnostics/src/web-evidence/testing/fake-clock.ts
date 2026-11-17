@@ -16,7 +16,8 @@ export class FakeCaptureClock implements CaptureClock {
   now(): number { return this.current; }
 
   setTimeout(fn: () => void, ms: number): number {
-    const id = this.nextId++;
+    const id = this.nextId;
+    this.nextId += 1;
     this.timers.push({ id, at: this.current + Math.max(0, ms), fn });
     return id;
   }
