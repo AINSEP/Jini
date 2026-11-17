@@ -178,6 +178,14 @@ function checkToolTarget(
   return createApiError({ code: 'UNKNOWN_TOOL', message: unknownToolMessage({ target }) });
 }
 
+/** The gates that read descriptors only, in their one order: the target decision, then the read-only constraint. */
+function checkToolGates(
+  deps: DelegatedToolsHttpDeps,
+  input: DelegatedToolExecuteRequest,
+): ReturnType<typeof createApiError> | null {
+  return checkToolTarget(deps, input) ?? checkReadOnlyConstraint(deps, input);
+}
+
 /** Plain words for a server fault behind a tool call: the model reads them, so they say what to do next. */
 const DELEGATED_TOOL_FAULT_MESSAGE = 'The tool could not run because of a server fault. Do not retry the same call; tell the user to copy the request ID and report this problem.';
 
@@ -345,17 +353,14 @@ export const delegatedToolExecuteRoute = defineJsonRoute<
       return err({ error: createApiError({ code: 'NOT_FOUND', message: `run "${input.runId}" was not found` }) });
     }
 
-    // The target decision answers right after the run check and before any other gate: a tool id the
-    // registry does not hold is a missing tool (404 UNKNOWN_TOOL), not a refused one.
-    const unknownTarget = checkToolTarget(deps, input);
-    if (unknownTarget !== null) return err({ error: unknownTarget });
-
+    // The target decision comes first and answers before any other gate: a tool id the registry does
+    // not hold is a missing tool (404 UNKNOWN_TOOL), not a refused one.
     // Before `resolvePrincipal`, and long before the bridge: a refused call must cost nothing
     // downstream and must leave no trace of an execution that was never going to happen. It sits
     // after the run-existence check only so that a bad `runId` still answers 404 the way it always
     // did, regardless of the constraint.
-    const readOnlyRefusal = checkReadOnlyConstraint(deps, input);
-    if (readOnlyRefusal !== null) return err({ error: readOnlyRefusal });
+    const refusal = checkToolGates(deps, input);
+    if (refusal !== null) return err({ error: refusal });
 
     let principal: Principal;
     try {
