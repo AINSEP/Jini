@@ -63,6 +63,7 @@ import { checkAgenticDomPurity } from './check-agentic-dom-purity.js';
 import { checkChatPanePublicSurface } from './check-chatpane-public-surface.js';
 import { checkDriverIsolation } from './check-driver-isolation.js';
 import { checkHardwiring } from './check-hardwiring.js';
+import { checkEnvAccess } from './check-env-access.js';
 import { checkEngineBoundaries } from './check-engine-boundaries.js';
 import { checkErrorDisclosureCallers } from './check-error-disclosure-callers.js';
 import { checkExtensionlessImports } from './check-extensionless-imports.js';
@@ -112,6 +113,7 @@ async function main() {
     await checkExtensionlessImports(),
     await checkDriverIsolation(),
     checkHardwiring(),
+    checkEnvAccess(),
     await checkModelFallbackFreshness(),
     checkRuntimeCycles({ repoRoot: REPO_ROOT }),
     // R14: reviewed caller lists for `approveCause` and `tracker: 'skip'` (see the check's module doc).

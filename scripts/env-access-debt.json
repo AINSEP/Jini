@@ -1,0 +1,600 @@
+{
+  "_comment": "2026-11-16 env-access adoption (HW9, HW12). Occurrence hashes of the env name. Shrink as readers move to their host; never regenerate in CI.",
+  "violations": [
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/agent-runtime/src/agent-protocol/acp/models.ts",
+      "line": 258,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/agent-runtime/src/defs/codex.ts",
+      "line": 178,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/agent-runtime/src/defs/reasonix.ts",
+      "line": 13,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "0229a335ed697ed0026820ccd934f3e56277a01fba0f53ff435c8bd69324eab6"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/agent-runtime/src/defs/reasonix.ts",
+      "line": 13,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "0229a335ed697ed0026820ccd934f3e56277a01fba0f53ff435c8bd69324eab6"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/agent-runtime/src/defs/reasonix.ts",
+      "line": 15,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a7f2893dd29073c21bf76c6d9d2cd367a875752f617512c3b0a4dbb22c9d61d9"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/agent-runtime/src/detection.ts",
+      "line": 266,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/agent-runtime/src/detection.ts",
+      "line": 498,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/agent-runtime/src/executables.ts",
+      "line": 96,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/agent-runtime/src/executables.ts",
+      "line": 277,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/agent-runtime/src/models.ts",
+      "line": 119,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/agent-runtime/src/skills/web-clone/scripts/lib/playwright-loader.mjs",
+      "line": 18,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/cli/src/daemon-url.ts",
+      "line": 54,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/cms/src/media/video-frames.ffmpeg.ts",
+      "line": 31,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/daemon/src/agent-executor/launch.ts",
+      "line": 1011,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/daemon/src/agent-executor/launch.ts",
+      "line": 1017,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/daemon/src/agent-executor/mcp-bridge-probe.ts",
+      "line": 61,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/daemon/src/close-status.ts",
+      "line": 81,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/daemon/src/http/host-tools.ts",
+      "line": 103,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/daemon/src/http/remote-run-events.ts",
+      "line": 79,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/daemon/src/http/research.ts",
+      "line": 232,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/daemon/src/http/tool-execution-routes.ts",
+      "line": 84,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/db/src/testing/pg-fixture.ts",
+      "line": 42,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW12-env-import-time",
+      "file": "packages/db/src/testing/pg-fixture.ts",
+      "line": 42,
+      "reason": "This environment read runs while the module is being imported, before a host can supply configuration; move it into the process entry.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/db/src/testing/postgres-database.ts",
+      "line": 60,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW12-env-import-time",
+      "file": "packages/db/src/testing/postgres-database.ts",
+      "line": 60,
+      "reason": "This environment read runs while the module is being imported, before a host can supply configuration; move it into the process entry.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/db/src/testing/transfer-pg-test-db.ts",
+      "line": 59,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW12-env-import-time",
+      "file": "packages/db/src/testing/transfer-pg-test-db.ts",
+      "line": 59,
+      "reason": "This environment read runs while the module is being imported, before a host can supply configuration; move it into the process entry.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/db/src/transfer/postgres-target.ts",
+      "line": 147,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/desktop-host/src/config.ts",
+      "line": 38,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/desktop-host/src/paths.ts",
+      "line": 90,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/devops/src/local-dev/node-runtime.ts",
+      "line": 33,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/mcp/src/agent-install/install.ts",
+      "line": 169,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/mcp/src/federation/bootstrap.ts",
+      "line": 175,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/mcp/src/federation/stdio/adapter.stdio.ts",
+      "line": 573,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/mcp/src/federation/stdio/stdio-launch-resolver.ts",
+      "line": 239,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/platform/src/command.ts",
+      "line": 27,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/platform/src/command.ts",
+      "line": 32,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/platform/src/command.ts",
+      "line": 46,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/platform/src/fs/directory-sync.ts",
+      "line": 94,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/platform/src/fs/directory-user-config.ts",
+      "line": 52,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/platform/src/fs/directory-workspace.ts",
+      "line": 27,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/platform/src/fs/user-data-directories.ts",
+      "line": 35,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/platform/src/resource-paths.ts",
+      "line": 54,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/platform/src/resource-paths.ts",
+      "line": 116,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/platform/src/resource-paths.ts",
+      "line": 150,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/platform/src/resource-paths.ts",
+      "line": 197,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "92b7b421992ef490f3b75898ec0e511f1a5c02422819d89719b20362b023ee4f"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/platform/src/resource-paths.ts",
+      "line": 197,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "42b2ada5446160d1b82ef9aa9bbfc3fa10ddffc2b4a62b2ce4cb1ccad056026c"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/platform/src/sandbox-env.ts",
+      "line": 70,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/platform/src/sandbox-env.ts",
+      "line": 153,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/platform/src/sandbox-env.ts",
+      "line": 165,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/platform/src/sandbox-env.ts",
+      "line": 179,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/platform/src/shell.ts",
+      "line": 72,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "d4db71eecc1adeeae61a48d9a283751048b92e46fa4a99d7aea7228d02cbd523"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/platform/src/shell.ts",
+      "line": 97,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "665d998270647c7ad8e0914d20424f5393bb87111100034ba3279dc73899d171"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/platform/src/shell.ts",
+      "line": 99,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/platform/src/terminal.ts",
+      "line": 110,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/platform/src/terminal.ts",
+      "line": 282,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/platform/src/toolchain.ts",
+      "line": 77,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/platform/src/windows-system-tools.ts",
+      "line": 12,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/server/src/compose-jini-kernel.ts",
+      "line": 206,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/server/src/create-local-node-daemon.ts",
+      "line": 358,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/server/src/kernel-base.ts",
+      "line": 121,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/server/src/storage/backend-config.ts",
+      "line": 103,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/sidecar/src/bootstrap.ts",
+      "line": 30,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/sidecar/src/json-ipc.ts",
+      "line": 42,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "4be69a2b18c33ce906a4945f4749d1c8b9b8bf2e5b56bc75a49bc93e6e44138b"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/sidecar/src/paths.ts",
+      "line": 86,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "packages/sidecar/src/paths.ts",
+      "line": 242,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "examples/minimal-host/src/index.ts",
+      "line": 49,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "examples/nlweb-demo/src/server.ts",
+      "line": 15,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "6b89fa1deb53156b0f5200beafa86119cf8c35dd103fa8ecb3aab8a34c76b740"
+    },
+    {
+      "rule": "HW12-env-import-time",
+      "file": "examples/nlweb-demo/src/server.ts",
+      "line": 15,
+      "reason": "This environment read runs while the module is being imported, before a host can supply configuration; move it into the process entry.",
+      "fingerprint": "6b89fa1deb53156b0f5200beafa86119cf8c35dd103fa8ecb3aab8a34c76b740"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "examples/notes-app/src/main.ts",
+      "line": 12,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a34af560f7fb2640d2f28437b5fa9651d547adb26fa3091fb311761f6bea0217"
+    },
+    {
+      "rule": "HW12-env-import-time",
+      "file": "examples/notes-app/src/main.ts",
+      "line": 12,
+      "reason": "This environment read runs while the module is being imported, before a host can supply configuration; move it into the process entry.",
+      "fingerprint": "a34af560f7fb2640d2f28437b5fa9651d547adb26fa3091fb311761f6bea0217"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "examples/notes-app/src/main.ts",
+      "line": 13,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "6acc99af99f6b3a1dcc5bbe7d00be59f947cbe8cda444c34fa2f90f1c0d92693"
+    },
+    {
+      "rule": "HW12-env-import-time",
+      "file": "examples/notes-app/src/main.ts",
+      "line": 13,
+      "reason": "This environment read runs while the module is being imported, before a host can supply configuration; move it into the process entry.",
+      "fingerprint": "6acc99af99f6b3a1dcc5bbe7d00be59f947cbe8cda444c34fa2f90f1c0d92693"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "examples/reference-desktop/src/main.ts",
+      "line": 26,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "0e0a22cefcf40c67493ef4c8e2309946e462abee168b981864bf9f750ea995f8"
+    },
+    {
+      "rule": "HW12-env-import-time",
+      "file": "examples/reference-desktop/src/main.ts",
+      "line": 26,
+      "reason": "This environment read runs while the module is being imported, before a host can supply configuration; move it into the process entry.",
+      "fingerprint": "0e0a22cefcf40c67493ef4c8e2309946e462abee168b981864bf9f750ea995f8"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "examples/reference-desktop/src/main.ts",
+      "line": 29,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "8305b0100060b1af02ee1988193211ae509669fcf9252aaa046ae7e7914c0731"
+    },
+    {
+      "rule": "HW12-env-import-time",
+      "file": "examples/reference-desktop/src/main.ts",
+      "line": 29,
+      "reason": "This environment read runs while the module is being imported, before a host can supply configuration; move it into the process entry.",
+      "fingerprint": "8305b0100060b1af02ee1988193211ae509669fcf9252aaa046ae7e7914c0731"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "examples/reference-desktop/src/main.ts",
+      "line": 30,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "af32e49396b5a3aad74e7267b3269b07f9121e8bf429f13a25b779ce1c0b60c2"
+    },
+    {
+      "rule": "HW12-env-import-time",
+      "file": "examples/reference-desktop/src/main.ts",
+      "line": 30,
+      "reason": "This environment read runs while the module is being imported, before a host can supply configuration; move it into the process entry.",
+      "fingerprint": "af32e49396b5a3aad74e7267b3269b07f9121e8bf429f13a25b779ce1c0b60c2"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "examples/reference-web/src/daemon.ts",
+      "line": 47,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "examples/reference-web/src/daemon.ts",
+      "line": 338,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "b4fc36db4a396915ab9656babc016004b2168402fa1e5ab3a53425ba23a2746d"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "examples/reference-web/src/daemon.ts",
+      "line": 339,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "ea14828b69f87941c9dcafe0a9012581e001d36e5baf9446a9f62bdaea54e6dd"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "examples/reference-web/src/daemon.ts",
+      "line": 342,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "examples/reference-web/src/daemon.ts",
+      "line": 358,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "af32e49396b5a3aad74e7267b3269b07f9121e8bf429f13a25b779ce1c0b60c2"
+    },
+    {
+      "rule": "HW9-env-access",
+      "file": "examples/reference-web/src/daemon.ts",
+      "line": 544,
+      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+    }
+  ]
+}

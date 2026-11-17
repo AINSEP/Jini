@@ -211,6 +211,20 @@ describe('runHardwiring', () => {
     expect(JSON.parse(readFileSync(debtPath, 'utf8'))).toEqual({ violations: [stale] });
   });
 
+  it('reports on the rule family the host names, so a separate debt file gets its own counts', async () => {
+    const { root } = tree();
+    const debtPath = join(root, 'env-debt.json');
+    const known = violation('HW9-env-access', 'known.ts');
+    writeFileSync(debtPath, JSON.stringify({ violations: [known] }));
+    const logs: string[] = []; const errors: string[] = [];
+    const fresh = violation('HW12-env-import-time', 'new.ts');
+    const added = await runHardwiring({ debtPath, baselineComment: 'unused', collect: () => [known, fresh], logger: { log: (line) => { logs.push(line); }, error: (line) => { errors.push(line); } } },
+      { rules: ['HW9-env-access', 'HW12-env-import-time'] });
+    expect(added).toEqual([fresh]);
+    expect(logs).toEqual(['[hardwiring] HW9-env-access: 1 total; 0 new', '[hardwiring] HW12-env-import-time: 1 total; 1 new']);
+    expect(errors).toEqual(['[hardwiring] HW12-env-import-time new.ts:3: fixture reason']);
+  });
+
   it('defaults to the console logger', async () => {
     const { root } = tree();
     const debtPath = join(root, 'debt.json');

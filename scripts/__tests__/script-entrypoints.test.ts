@@ -33,7 +33,7 @@ function guardFixture(root: string): string {
   if (existsSync(helper)) copyFileSync(helper, path.join(scripts, 'lib/is-main-module.ts'));
   const checks = {
     'check-agentic-dom-purity': 'checkAgenticDomPurity', 'check-chatpane-public-surface': 'checkChatPanePublicSurface',
-    'check-driver-isolation': 'checkDriverIsolation', 'check-hardwiring': 'checkHardwiring',
+    'check-driver-isolation': 'checkDriverIsolation', 'check-hardwiring': 'checkHardwiring', 'check-env-access': 'checkEnvAccess',
     'check-engine-boundaries': 'checkEngineBoundaries', 'check-extensionless-imports': 'checkExtensionlessImports',
     'check-model-fallback-freshness': 'checkModelFallbackFreshness', 'check-protocol-purity': 'checkProtocolPurity',
     'check-package-layers': 'checkPackageLayers', 'check-plugin-packages': 'checkPluginPackages',

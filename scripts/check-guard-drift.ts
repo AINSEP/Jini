@@ -32,6 +32,7 @@ import { checkAgenticDomPurity } from './check-agentic-dom-purity.js';
 import { checkChatPanePublicSurface } from './check-chatpane-public-surface.js';
 import { checkDriverIsolation } from './check-driver-isolation.js';
 import { checkHardwiring } from './check-hardwiring.js';
+import { checkEnvAccess } from './check-env-access.js';
 import { checkEngineBoundaries, type Violation } from './check-engine-boundaries.js';
 import { checkExtensionlessImports } from './check-extensionless-imports.js';
 import { checkModelFallbackFreshness } from './check-model-fallback-freshness.js';
@@ -151,6 +152,7 @@ async function main(): Promise<void> {
     await checkExtensionlessImports(),
     await checkDriverIsolation(),
     checkHardwiring(),
+    checkEnvAccess(),
     await checkModelFallbackFreshness(),
     checkRuntimeCycles({ repoRoot: REPO_ROOT }),
   ];

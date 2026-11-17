@@ -184,12 +184,16 @@ export function installedPublicFunctions({ root, compiler: c }: { root: string; 
 export async function runHardwiring({ collect, debtPath, baselineComment, logger = console }: {
   collect: () => readonly HardwiringViolation[] | Promise<readonly HardwiringViolation[]>;
   debtPath: string; baselineComment: string; logger?: Pick<Console, 'log' | 'error'>;
-}, { writeBaseline = false }: { writeBaseline?: boolean } = {}): Promise<HardwiringViolation[]> {
+}, { writeBaseline = false, rules = HARDWIRING_RULES }: {
+  writeBaseline?: boolean;
+  /** The rule family this run reports on; a host with a separate debt file per family passes that family's rules. */
+  rules?: readonly string[];
+} = {}): Promise<HardwiringViolation[]> {
   const violations = await collect();
   if (writeBaseline) writeFileSync(debtPath, JSON.stringify({ _comment: baselineComment, violations }, null, 2) + '\n');
   const debt = JSON.parse(readFileSync(debtPath, 'utf8')) as { violations: HardwiringViolation[] };
   const { added, removed } = diffHardwiringDebt({ baseline: debt.violations, current: violations });
-  for (const rule of HARDWIRING_RULES) logger.log(`[hardwiring] ${rule}: ${violations.filter(v => v.rule === rule).length} total; ${added.filter(v => v.rule === rule).length} new`);
+  for (const rule of rules) logger.log(`[hardwiring] ${rule}: ${violations.filter(v => v.rule === rule).length} total; ${added.filter(v => v.rule === rule).length} new`);
   if (removed.length) logger.log(`[hardwiring] ${removed.length} stale debt occurrences; remove them from ${debtPath}.`);
   for (const v of added) logger.error(`[hardwiring] ${v.rule} ${v.file}:${v.line}: ${v.reason}`);
   return added;

@@ -64,7 +64,10 @@
       "./errors/disclosure": "universal",
       "./errors/idioms": "universal",
       "./errors/error-id": "universal",
-      "./errors/testing": "universal"
+      "./errors/testing": "universal",
+      "./contracts/env": "universal",
+      "./env/parse-env": "universal",
+      "./env/format-env-issue": "universal"
     },
     "isolation": {
       "entries": {
@@ -234,6 +237,21 @@
       "types": "./dist/filesystem.d.ts",
       "import": "./dist/filesystem.js",
       "default": "./dist/filesystem.js"
+    },
+    "./contracts/env": {
+      "types": "./dist/contracts/env.d.ts",
+      "import": "./dist/contracts/env.js",
+      "default": "./dist/contracts/env.js"
+    },
+    "./env/parse-env": {
+      "types": "./dist/env/parse-env.d.ts",
+      "import": "./dist/env/parse-env.js",
+      "default": "./dist/env/parse-env.js"
+    },
+    "./env/format-env-issue": {
+      "types": "./dist/env/format-env-issue.d.ts",
+      "import": "./dist/env/format-env-issue.js",
+      "default": "./dist/env/format-env-issue.js"
     },
     "./optional-peer": {
       "types": "./dist/optional-peer.d.ts",
