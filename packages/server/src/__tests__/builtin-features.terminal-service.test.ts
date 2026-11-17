@@ -1,5 +1,6 @@
 import express from 'express';
 import { installRouteRegistrationGuard } from '@jini-ai/http-kit';
+import { createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
 import type { CreateTerminalServiceOptions, PtySpawn, TerminalService } from '@jini-ai/core/contracts/runtime';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { composeJiniKernel } from '../compose-jini-kernel.js';
@@ -35,8 +36,7 @@ async function composeWith(terminal: Record<string, unknown> | undefined): Promi
   const app = express();
   installRouteRegistrationGuard({ app });
   kernels.push(await composeJiniKernel({
-    app, adapter: { resolvedPortRef: { current: 0 }, env: {}, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS',
-      webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' },
+    app, adapter: createTestRouteHost(), resolvedPortRef: { current: 0 },
     security: { mode: 'host' }, storage: { kind: 'memory' }, profile: 'agent-core-v1',
     capabilities: { 'host:exec': true }, features: { terminal: true },
     ...(terminal === undefined ? {} : { featureOptions: { terminal } }),
