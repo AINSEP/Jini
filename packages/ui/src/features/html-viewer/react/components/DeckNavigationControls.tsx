@@ -7,6 +7,7 @@ export interface DeckNavigationControlsProps {
   counterLabel: string | null;
   onPrev(): void;
   onNext(): void;
+  useTHook?: typeof useT;
 }
 
 /** Prev/next slide buttons + a live counter. Renders nothing until the sandboxed deck reports its first state. */
@@ -16,8 +17,9 @@ export function DeckNavigationControls({
   counterLabel,
   onPrev,
   onNext,
+  useTHook = useT,
 }: DeckNavigationControlsProps) {
-  const t = useT();
+  const t = useTHook();
   if (counterLabel === null) return null;
   return (
     <div className="jini-deck-nav" role="group" aria-label={t('Slide navigation')}>

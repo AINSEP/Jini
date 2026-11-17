@@ -7,12 +7,14 @@ export interface PresentMenuProps {
   onPresentInline(): void;
   onPresentFullscreen(): void;
   onPresentInNewTab(): void;
+  useTHook?: typeof useT;
+  usePresentMenuHook?: typeof usePresentMenu;
 }
 
 /** The three present actions (source's `presentInThisTab`/`presentFullscreen`/`presentNewTab`), as a disclosure menu. Open/close is local UI state, same shape as `ZoomMenu`. */
-export function PresentMenu({ disabled, onPresentInline, onPresentFullscreen, onPresentInNewTab }: PresentMenuProps) {
-  const t = useT();
-  const { open, setOpen, wrapRef, select } = usePresentMenu({});
+export function PresentMenu({ disabled, onPresentInline, onPresentFullscreen, onPresentInNewTab, useTHook = useT, usePresentMenuHook = usePresentMenu }: PresentMenuProps) {
+  const t = useTHook();
+  const { open, setOpen, wrapRef, select } = usePresentMenuHook({});
 
   return (
     <div className="jini-present-menu" ref={wrapRef}>

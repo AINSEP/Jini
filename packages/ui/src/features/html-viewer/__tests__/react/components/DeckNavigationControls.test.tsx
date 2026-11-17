@@ -1,8 +1,11 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import { DeckNavigationControls } from '../../../react/components/DeckNavigationControls.js';
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('DeckNavigationControls', () => {
   it('renders nothing when there is no counter label yet', () => {
@@ -47,5 +50,10 @@ describe('DeckNavigationControls', () => {
     expect(screen.getByRole('group', { name: 'Navigation des diapositives' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Diapositive précédente' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Diapositive suivante' })).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    render(<DeckNavigationControls canGoPrev canGoNext counterLabel="1 / 3" onPrev={vi.fn()} onNext={vi.fn()} useTHook={useQuotingT} />);
+    expect(screen.getByRole('button', { name: '«Previous slide»' })).toBeInTheDocument();
   });
 });
