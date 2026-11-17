@@ -8,6 +8,7 @@ import { memoryPaymentsLedger } from "../../ledger/repo.memory.js";
 import type { NewPayment } from "../../ledger/rows.js";
 import { migrateCommercePayments, sqlPaymentsLedger } from "../../ledger/sql.js";
 import { createLipayFake, lipayFakeContext } from "../../testkit/lipay-fake.js";
+import { runMigrations } from "@jini-ai/db/migrate";
 import {
   applyPaymentEvidence, applyRefundEvidence, recordRefundDispatchOutcome, reserveRefund,
 } from "../apply-evidence.js";
@@ -35,7 +36,7 @@ export type LedgerKind = "memory" | "sqlite";
 export async function openLedger(kind: LedgerKind): Promise<PaymentsLedger> {
   if (kind === "memory") return memoryPaymentsLedger();
   const kernel = openMemorySqliteKernel<unknown>({ open: (filePath, options) => new Database(filePath, options) });
-  await migrateCommercePayments({ kernel });
+  await migrateCommercePayments({ kernel, runMigrations });
   return sqlPaymentsLedger({ kernel });
 }
 

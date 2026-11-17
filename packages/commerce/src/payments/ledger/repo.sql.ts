@@ -434,7 +434,7 @@ class SqlLedgerTx implements LedgerTx {
 
 /**
  * The SQL ledger over the host's storage kernel. The tables must exist: run
- * `migrateCommercePayments({ kernel })` first. No connection work happens here.
+ * `migrateCommercePayments({ kernel, runMigrations })` first (the host's runner, `@jini-ai/db/migrate`). No connection work happens here.
  *
  * @example const ledger = sqlPaymentsLedger({ kernel }); await ledger.transaction({ fn: async (tx) => tx.lockPayment({ workspaceId, mode, id }) });
  */

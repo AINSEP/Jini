@@ -21,8 +21,9 @@ export * from "./provider-contract.js";
 export * from "./provider-registry.js";
 export * from "./provider-contexts.js";
 // The payments ledger (L2): storage records, the `PaymentsLedger` port and its in-memory adapter.
-// The SQL adapter and the migrations are in `./ledger/sql.ts`, not here: they load `kysely` and
-// `@jini-ai/db` at runtime, both optional peers a provider plugin importing this entry lacks.
+// The SQL adapter and the migrations are in `./ledger/sql.ts`, not here: they load `kysely` at
+// runtime (an optional peer a provider plugin importing this entry lacks) and take the host's
+// `@jini-ai/db` kernel and migration runner as injected values.
 export * from "./ledger/rows.js";
 export * from "./ledger/repo.js";
 export * from "./ledger/repo.memory.js";
