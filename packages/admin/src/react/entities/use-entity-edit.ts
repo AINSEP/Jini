@@ -62,7 +62,7 @@ async function performMutation({ kind, port, id, draft }: {
 }
 
 /** Called by the editor mounted for one entity/id pair. */
-export function useEntityEdit({ port, ...props }: EntityEditProps & { readonly port: AdminErasedEntityPort }) {
+export function useEntityEdit({ port, useReadHook = useEntityRead, ...props }: EntityEditProps & { readonly port: AdminErasedEntityPort; readonly useReadHook?: typeof useEntityRead }) {
   const { entityName, id, registry, routes, refreshToken } = props;
   // `reloads` is part of the scope on purpose: Reload starts from nothing (no old row, no old draft, no old failure).
   const [reloads, setReloads] = useState(0);
@@ -72,7 +72,7 @@ export function useEntityEdit({ port, ...props }: EntityEditProps & { readonly p
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const load = useCallback(() => loadEntityRow({ registry, entityName, id }), [registry, entityName, id, port]);
-  const read = useEntityRead({ load, scope, refreshToken });
+  const read = useReadHook({ load, scope, refreshToken });
   const [formState, setFormState] = useState<{ scope: unknown; form: FormState } | null>(null);
   const [mutation, setMutation] = useState<{ scope: unknown; kind: MutationKind | null; failure: EntityMutationFailure | null }>({ scope, kind: null, failure: null });
   const busy = useRef(false);

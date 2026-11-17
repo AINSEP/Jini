@@ -4,7 +4,7 @@ import { loadRelationIndex, resolveEntityPageSize } from './rules.js';
 import { useEntityRead } from './use-entity-read.js';
 
 /** Track cursor history and read the selected page with its relation labels. */
-export function useEntityList({ entityName, registry, limitParam, refreshToken, search }: Pick<EntityListProps, 'entityName' | 'registry' | 'limitParam' | 'refreshToken' | 'search'>, _options = {}) {
+export function useEntityList({ entityName, registry, limitParam, refreshToken, search }: Pick<EntityListProps, 'entityName' | 'registry' | 'limitParam' | 'refreshToken' | 'search'>, { useReadHook = useEntityRead }: { readonly useReadHook?: typeof useEntityRead } = {}) {
   const port = useMemo(() => registry.getEntity({ name: entityName }), [registry, entityName]);
   const limit = resolveEntityPageSize({ raw: limitParam });
   const text = search === null || search === undefined || search === '' ? undefined : search;
@@ -22,6 +22,6 @@ export function useEntityList({ entityName, registry, limitParam, refreshToken, 
     ]);
     return { page, relations };
   }, [port, registry, limit, position.cursor, text]);
-  const result = useEntityRead({ load, scope: port, refreshToken });
+  const result = useReadHook({ load, scope: port, refreshToken });
   return { port, entries, position, setWalk, result };
 }
