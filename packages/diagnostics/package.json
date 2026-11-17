@@ -19,6 +19,7 @@
       "./web-evidence": "universal",
       "./web-evidence/playwright": "node",
       "./web-evidence/testing": "universal",
+      "./web-evidence/capture-budget": "universal",
       "./domain-dns": "node"
     },
     "runtime": "node"
@@ -62,6 +63,11 @@
       "types": "./dist/web-evidence/testing/fake-clock.d.ts",
       "import": "./dist/web-evidence/testing/fake-clock.js",
       "default": "./dist/web-evidence/testing/fake-clock.js"
+    },
+    "./web-evidence/capture-budget": {
+      "types": "./dist/web-evidence/capture-budget.d.ts",
+      "import": "./dist/web-evidence/capture-budget.js",
+      "default": "./dist/web-evidence/capture-budget.js"
     },
     "./domain-dns": {
       "types": "./dist/domain-dns/index.d.ts",
