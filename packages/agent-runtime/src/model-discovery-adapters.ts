@@ -3,12 +3,12 @@ import { execFile, type ExecFileOptions, type SpawnOptions } from 'node:child_pr
 import { readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
-import { createCommandInvocation } from '@jini-ai/platform/command';
+import { planCommandInvocation } from '@jini-ai/core/contracts/runtime';
 import { nativeAcpModelProbe } from './acp-model-probe.js';
 import { type AcpModelProbe } from '@jini-ai/core/contracts/agents';
 import { CLAUDE_CODE_INITIALIZE_ARGS, CLAUDE_CODE_INITIALIZE_REQUEST } from './claude-code-models.js';
 import { listProviderModels, type ProviderModelsInput } from './providers/model-catalog.js';
-import { execAgentFile } from './invocation.js';
+import { ambientCommandShell, execAgentFile, type AmbientCommandShell } from './invocation.js';
 import { scheduleProbeProcess } from './probe-scheduler.js';
 import { probeDroidSdk } from './model-discovery-sdk.js';
 import { parseSettingsJson, readModelConfiguration } from './model-discovery-config.js';
@@ -268,7 +268,8 @@ function runProcess(input: Parameters<ModelDiscoveryDeps['process']['run']>[0]):
   return scheduleProbeProcess({ work: () => new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
     let completed = false;
     let captured = '';
-    const invocation = createCommandInvocation({ command: input.context.executable, args: [...input.args], env: input.context.env });
+    const { platform, fallbackComSpec } = ambientCommandShell();
+    const invocation = planCommandInvocation({ command: input.context.executable, platform, env: input.context.env }, { args: [...input.args], fallbackComSpec });
     const tree = input.terminateProcessTree && process.platform !== 'win32';
     let treeTimer: ReturnType<typeof setTimeout> | undefined;
     /** Settles the probe with the exec outcome; an error only rejects when nothing completed first. */
@@ -439,12 +440,15 @@ export function getRuntimeModelDiscoveryDeps({ state }: { state: AgentRuntimeSta
 /** Adapt the existing ACP port to catalog metadata; array-only transports cannot claim a default.
  * Keeps invocation normalization, cancellation and the shared process budget in the native adapter.
  * @param required - The host's existing ACP probe, optionally capable of reporting current selection.
+ * @param optional - `commandShell`: the ambient platform and `ComSpec` the command plan reads (injectable for tests).
  * @returns A catalog adapter using that probe without changing security or concurrency guarantees.
  * @example const acp = createAcpDiscoveryAdapter({ probe: hostProbe });
  */
-export function createAcpDiscoveryAdapter({ probe }: { probe: AcpModelProbe }, _optional: Record<string, never> = {}): ModelDiscoveryDeps['acp'] {
+export function createAcpDiscoveryAdapter({ probe }: { probe: AcpModelProbe }, { commandShell }: { commandShell?: AmbientCommandShell } = {}): ModelDiscoveryDeps['acp'] {
   return { async probe({ context, args, signal }) {
-    const invocation = createCommandInvocation({ command: context.executable, args: [...args], env: context.env });
+    // Read per probe, never hoisted at adapter creation: the adapter is built at module load.
+    const shell = commandShell ?? ambientCommandShell();
+    const invocation = planCommandInvocation({ command: context.executable, platform: shell.platform, env: context.env }, { args: [...args], fallbackComSpec: shell.fallbackComSpec });
     const required = { bin: invocation.command, args: invocation.args };
     const optional = { cwd: context.cwd, env: context.env, timeoutMs: 15_000, signal };
     const result = await scheduleProbeProcess({ work: async () => {
