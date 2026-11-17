@@ -25,6 +25,8 @@ export function fakeVersionedStore(initial: Record<string, string>) {
     write({ key, pinned, append }: { key: string; pinned: number; append: string }): number {
       const target = file(key);
       if (target.version !== pinned) throw new Error(STALE_TEXT);
+      // A byte-identical write changes nothing, so the version stays where it was.
+      if (append === '') return target.version;
       target.bytes += append;
       target.version += 1;
       return target.version;
