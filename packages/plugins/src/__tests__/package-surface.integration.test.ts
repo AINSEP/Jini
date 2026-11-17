@@ -32,7 +32,11 @@ test('host entries publish independent runtime surfaces with optional host peers
   assert.deepEqual(manifest.dependencies, { '@jini-ai/core': 'workspace:^' });
   assert.equal(Object.hasOwn(manifest.peerDependencies, '@jini-ai/core'), false);
   assert.equal(Object.hasOwn(manifest.peerDependenciesMeta, '@jini-ai/core'), false);
-  for (const peer of ['semver', 'kysely', '@jini-ai/db']) assert.equal(manifest.peerDependenciesMeta[peer].optional, true);
+  for (const peer of ['semver', 'kysely']) assert.equal(manifest.peerDependenciesMeta[peer].optional, true);
+  // No plugins production file imports @jini-ai/db (only an integration test does), so it is a devDependency, never a peer.
+  assert.equal(Object.hasOwn(manifest.peerDependencies, '@jini-ai/db'), false);
+  assert.equal(Object.hasOwn(manifest.peerDependenciesMeta, '@jini-ai/db'), false);
+  assert.equal(Object.hasOwn(manifest.jini.optionalPeers ?? {}, '@jini-ai/db'), false);
 });
 
 test('each host entry barrel re-exports the runtime APIs its package.json entry promises', async () => {
