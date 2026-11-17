@@ -61,6 +61,9 @@
       "better-sqlite3",
       "electron",
       "node-pty"
-    ]
+    ],
+    "overrides": {
+      "tinypool": "2.1.2"
+    }
   }
 }

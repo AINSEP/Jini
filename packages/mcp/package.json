@@ -98,7 +98,7 @@
     "@jini-ai/core": "workspace:^",
     "@jini-ai/protocol": "workspace:^",
     "@cfworker/json-schema": "^4.1.1",
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@jini-ai/platform": "workspace:^"
   },
   "devDependencies": {
@@ -106,6 +106,6 @@
     "@jini-ai/core": "workspace:^",
     "@jini-ai/daemon": "workspace:^",
     "@jini-ai/platform": "workspace:^",
-    "@modelcontextprotocol/sdk": "^1.29.0"
+    "@modelcontextprotocol/sdk": "^1.32.2"
   }
 }
