@@ -4,6 +4,7 @@ import type { DeviceAuthorization, DiscoveredOAuthConfiguration, OAuthClient, OA
 import type { ExternalMcpConnectStart, ExternalMcpOAuthGrant, ExternalMcpOAuthStatus, ExternalMcpServerRecord } from "@jini-ai/core/contracts/hosted-mcp";
 import type { DeviceAuthorizationStore, ExternalMcpOAuthDeps as HostedMcpOAuthDeps, ExternalMcpOAuthService, HostedMcpSignInPorts } from "./contracts.js";
 import { createSharedExternalMcpOAuth, type SharedExternalMcpOwner } from "./shared-sign-in.js";
+import { runtimePatchOf, updateRowOnce, writeOAuthRuntime } from "./oauth-row-writes.js";
 
 /**
  * @file Connects `@jini-ai/oauth`'s generic client to one external-MCP connection row.
@@ -383,7 +384,7 @@ async function mintClientForConnection(
  *
  *  Read-modify-write for the same reason {@link persistTokens} is: sealing `{ clientSecret }` alone
  *  would delete a token the connection is still holding.
- *  @complexity O(1) — one unseal, one seal, one upsert. */
+ *  @complexity O(1) — one unseal, one seal, one conditional write. */
 async function persistSelfConfiguration(
   deps: SignInDeps,
   record: ExternalMcpServerRecord,
@@ -398,26 +399,28 @@ async function persistSelfConfiguration(
   },
   options: { readonly configurationOnly?: boolean } = {},
 ): Promise<ExternalMcpServerRecord> {
-  const existing = await deps.ports.store.openPayload(deps.sealer, record);
-  const clientSecret = identity.clientSecret === undefined ? existing.clientSecret : (identity.clientSecret ?? undefined);
-  const { sealedOAuth, oauthAadVersion } = await deps.ports.store.sealPayload(deps, record, {
-    ...(clientSecret === undefined ? {} : { clientSecret }),
-    ...(existing.tokens === undefined ? {} : { tokens: existing.tokens }),
-  });
-
-  const next: ExternalMcpServerRecord = {
-    ...record,
-    oauthGrant: identity.grant,
-    oauthClientId: identity.clientId,
-    oauthEndpointsJson: JSON.stringify(identity.endpoints),
-    oauthScopesJson: JSON.stringify(identity.scopes),
-    sealedOAuth,
-    // Carried from the seal, never from `...record` — the spread holds the row's OLD version.
-    oauthAadVersion,
-    updatedAt: readNowIso({ clock: deps.clock }),
+  const build = async (current: ExternalMcpServerRecord): Promise<ExternalMcpServerRecord> => {
+    const existing = await deps.ports.store.openPayload(deps.sealer, current);
+    const clientSecret = identity.clientSecret === undefined ? existing.clientSecret : (identity.clientSecret ?? undefined);
+    const { sealedOAuth, oauthAadVersion } = await deps.ports.store.sealPayload(deps, current, {
+      ...(clientSecret === undefined ? {} : { clientSecret }),
+      ...(existing.tokens === undefined ? {} : { tokens: existing.tokens }),
+    });
+    return {
+      ...current,
+      oauthGrant: identity.grant,
+      oauthClientId: identity.clientId,
+      oauthEndpointsJson: JSON.stringify(identity.endpoints),
+      oauthScopesJson: JSON.stringify(identity.scopes),
+      sealedOAuth,
+      // Carried from the seal, never from `...current` — the spread holds the row's OLD version.
+      oauthAadVersion,
+      updatedAt: readNowIso({ clock: deps.clock }),
+    };
   };
-  if (!options.configurationOnly) await deps.repo.upsert(next);
-  return next;
+  if (options.configurationOnly) return build(record);
+  // Sign-in configuration is an editor-visible change: compared on version, retried once (M4).
+  return (await updateRowOnce({ repo: deps.repo, key: record, build })) ?? requireOAuthRecord(deps, record.serverId);
 }
 
 /**
@@ -610,7 +613,7 @@ function sealedRedirectState({ deps, serverId, browserBinding }: { deps: SignInD
 
 /** Writes a token set into the row: sealed blob (preserving the client secret) plus the PLAINTEXT
  *  status and expiry beside it. One place, so the plaintext metadata cannot drift from the blob.
- *  @complexity O(1) — one unseal, one seal, one upsert. */
+ *  @complexity O(1) — one unseal, one seal, one runtime write. */
 async function persistTokens(
   deps: SignInDeps,
   record: ExternalMcpServerRecord,
@@ -630,16 +633,10 @@ async function persistTokens(
     },
   });
 
-  await deps.repo.upsert({
-    ...record,
-    oauthStatus: "connected" satisfies ExternalMcpOAuthStatus,
-    oauthExpiresAt: tokens.expiresAt,
-    oauthRefreshLeaseUntil: null,
-    sealedOAuth,
-    // Carried from the seal, never from `...record` — the spread holds the row's OLD version.
-    oauthAadVersion,
-    updatedAt: readNowIso({ clock: deps.clock }),
-  });
+  // Runtime write: only the token columns, fenced on the credential read above (see oauth-row-writes.ts).
+  // `oauthAadVersion` is carried from the seal, never from `record` — it holds the row's OLD version.
+  await writeOAuthRuntime({ repo: deps.repo, ports: deps.ports, record, patch: { oauthStatus: "connected" satisfies ExternalMcpOAuthStatus,
+    oauthExpiresAt: tokens.expiresAt, oauthRefreshLeaseUntil: null, sealedOAuth, oauthAadVersion, updatedAt: readNowIso({ clock: deps.clock }) } });
 }
 
 /** The row-patch fields {@link setOAuthStatus} merges on top of `status`/`oauthRefreshLeaseUntil`
@@ -753,22 +750,25 @@ async function setOAuthStatus(
   status: ExternalMcpOAuthStatus,
   options: SetOAuthStatusOptions = {},
 ): Promise<void> {
-  const record = await deps.repo.findByServerId({ workspaceId: deps.workspaceId, serverId });
+  const key = { workspaceId: deps.workspaceId, serverId };
+  const record = await deps.repo.findByServerId(key);
   if (!record) return;
-
-  const endpoints = readStoredEndpoints(record);
-  const forgetClient = options.forgetSelfRegisteredClient === true && isSelfRegisteredClient(record, endpoints);
-  // The secret is only ever dropped together with the token (`clearToken`), never on its own.
-  const clearedTokenPatch = await resolveClearedTokenPatch(deps, record, { ...options, dropClientSecret: forgetClient });
-
-  await deps.repo.upsert({
-    ...record,
-    oauthStatus: status,
-    ...clearedTokenPatch,
-    ...(forgetClient ? { oauthClientId: null, oauthEndpointsJson: JSON.stringify(withoutSelfRegisteredClient(endpoints)) } : {}),
-    oauthRefreshLeaseUntil: null,
-    updatedAt: readNowIso({ clock: deps.clock }),
-  });
+  const forgetClient = options.forgetSelfRegisteredClient === true && isSelfRegisteredClient(record, readStoredEndpoints(record));
+  const nextRow = async (current: ExternalMcpServerRecord): Promise<ExternalMcpServerRecord> => {
+    // The secret is only ever dropped together with the token (`clearToken`), never on its own.
+    const clearedTokenPatch = await resolveClearedTokenPatch(deps, current, { ...options, dropClientSecret: forgetClient });
+    return {
+      ...current,
+      oauthStatus: status,
+      ...clearedTokenPatch,
+      ...(forgetClient ? { oauthClientId: null, oauthEndpointsJson: JSON.stringify(withoutSelfRegisteredClient(readStoredEndpoints(current))) } : {}),
+      oauthRefreshLeaseUntil: null,
+      updatedAt: readNowIso({ clock: deps.clock }),
+    };
+  };
+  // Forgetting the client is an edit (version-compared, M4); every other state change is a runtime write (S1).
+  if (forgetClient) await updateRowOnce({ repo: deps.repo, key, build: nextRow });
+  else await writeOAuthRuntime({ repo: deps.repo, ports: deps.ports, record, patch: runtimePatchOf(await nextRow(record)) });
 }
 
 /**
