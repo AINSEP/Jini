@@ -57,7 +57,7 @@ import type { AgentToolDefinition } from "@jini-ai/core";
  * union and cross-checked by this catalog's own contract test rather than imported.
  */
 
-import { ALLOWED_HREF_SHAPES_DESCRIPTION } from "./menu-service.js";
+import { ALLOWED_HREF_SHAPES_DESCRIPTION } from "./href.js";
 import { MENU_REL_TOKENS } from "./link-rel.js";
 
 

@@ -81,14 +81,14 @@ export {
  * `menu-service.ts`'s own doc comment on `isAllowedHref` for the retirement plan and why nothing in
  * `check:boundaries` blocks either host-side call site from doing so.
  */
+export { isAllowedHref, ALLOWED_HREF_SHAPES_DESCRIPTION } from "./href.js";
+
 export {
   createMenu,
   updateMenuTree,
   assignLocation,
   deleteMenu,
   validateAndCloneTree,
-  isAllowedHref,
-  ALLOWED_HREF_SHAPES_DESCRIPTION,
   MenuNotFoundError,
   MenuValidationError,
   MenuConflictError,

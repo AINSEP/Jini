@@ -3,17 +3,16 @@ import { test } from "vitest";
 
 import type { DomainEvent, OutboxPort } from "@jini-ai/core/contracts/events";
 import {
-  ALLOWED_HREF_SHAPES_DESCRIPTION,
   assignLocation,
   createMenu,
   deleteMenu,
-  isAllowedHref,
   MenuConflictError,
   MenuLocationBoundError,
   MenuNotFoundError,
   MenuValidationError,
   updateMenuTree,
 } from "../menu-service.js";
+import { ALLOWED_HREF_SHAPES_DESCRIPTION, isAllowedHref } from "../href.js";
 import { InMemoryMenuRepo, InMemoryNavLocationBindingRepo } from "../repo.memory.js";
 import type { NavItemNode } from "../types.js";
 
