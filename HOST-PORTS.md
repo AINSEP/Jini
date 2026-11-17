@@ -538,7 +538,7 @@ Everything a Jini package asks its host to bind or register: `*Port`, `*Kit`, `*
 | `ActiveContextDeps` | deps | interface | `packages/daemon/src/http/active-context.ts:63` |
 | `registerActiveContextRoutes` | registry | function | `packages/daemon/src/http/active-context.ts:142` |
 | `AgentsHttpDeps` | deps | interface | `packages/daemon/src/http/agents.ts:66` |
-| `registerAgentRoutes` | registry | function | `packages/daemon/src/http/agents.ts:89` |
+| `agentRoutes` | registry | function | `packages/daemon/src/http/agents.ts:89` |
 | `registerAttachmentLookupRoutes` | registry | function | `packages/daemon/src/http/attachment-lookup-routes.ts:76` |
 | `AttachmentsHttpDeps` | deps | interface | `packages/daemon/src/http/attachments.ts:1376` |
 | `registerAttachmentRoutes` | registry | function | `packages/daemon/src/http/attachments.ts:1603` |

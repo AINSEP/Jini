@@ -37,8 +37,8 @@ const ROUTE_TABLE: Readonly<Record<string, readonly string[]>> = {
     'GET /api/runs/:runId/events [anonymous/2]',
   ],
   'agents': [
-    'GET /api/agents [anonymous/2]',
-    'POST /api/agents/rescan [anonymous/2]',
+    'GET /api/agents []',
+    'POST /api/agents/rescan [same-origin]',
   ],
   'host-tools': [
     'GET /api/editors [anonymous/2]',

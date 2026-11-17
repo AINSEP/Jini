@@ -18,7 +18,7 @@ import { fakeDaemonRouteHost } from '../fakes/route-host.js';
 import type { DaemonRouteHost } from '../../route-host.js';
 import { describeRoutes } from '../../route-table.js';
 import { registerActiveContextRoutes } from '../../active-context.js';
-import { registerAgentRoutes } from '../../agents.js';
+import { agentRoutes } from '../../agents.js';
 import { registerAttachmentLookupRoutes } from '../../attachment-lookup-routes.js';
 import { registerAttachmentRoutes } from '../../attachments.js';
 import { componentCatalogRoutes } from '../../component-catalog.js';
@@ -115,7 +115,7 @@ const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-par
   ['attachment-lookup-routes', ({ app, deps }) => registerAttachmentLookupRoutes({ app, store: deps() })],
   'json-parser',
   ['runs', ({ app, adapter, deps }) => registerRunRoutes({ app, deps: deps(), adapter })],
-  ['agents', ({ app, adapter, deps }) => registerAgentRoutes({ app, deps: deps(), adapter })],
+  ['agents', ({ adapter, deps, mountList }) => mountList(agentRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['host-tools', ({ app, adapter, deps }) => registerHostToolsRoutes({ app, adapter }, deps())],
   ['model-proxy', ({ app, adapter, deps }) => registerModelProxyRoutes({ app, deps: deps(), adapter })],
   ['active-context', ({ app, adapter, deps }) => registerActiveContextRoutes({ app, deps: deps(), adapter })],

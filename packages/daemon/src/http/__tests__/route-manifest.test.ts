@@ -7,7 +7,7 @@ import {
   routeFamilyManifest,
 } from '../route-manifest.js';
 import type { RouteRegistration } from '../route-manifest.js';
-import { registerAgentRoutes } from '../agents.js';
+import { agentRoutes } from '../agents.js';
 import { registerDelegatedToolRoutes } from '../delegated-tools.js';
 import { registerHealthRoutes } from '../health.js';
 import { registerRunRoutes } from '../runs.js';
@@ -52,12 +52,12 @@ const anyDeps = {} as never;
 const MOUNT_FAMILY: Readonly<Record<string, (app: Express) => void>> = {
   health: (app) => registerHealthRoutes({ app, deps: anyDeps, adapter }),
   runs: (app) => registerRunRoutes({ app, deps: anyDeps, adapter }),
-  agents: (app) => registerAgentRoutes({ app, deps: anyDeps, adapter }),
   delegatedToolCalls: (app) => registerDelegatedToolRoutes({ app, deps: anyDeps, adapter }),
 };
 
 /** A family that returns its routes as data: what it lists, as registrations. */
 const LISTED_FAMILY: Readonly<Record<string, () => RouteRegistration[]>> = {
+  agents: () => describeRoutes({ routes: agentRoutes({ deps: anyDeps, host: fakeDaemonRouteHost() }) }),
   toolCatalog: () => describeRoutes({ routes: toolCatalogRoutes({ deps: anyDeps, host: fakeDaemonRouteHost() }) }),
 };
 

@@ -15,7 +15,7 @@ read-only policy entry do not load HTTP or Express.
   `daemonShutdownRoute`) and `registerHealthRoutes` (`/health`, `/ready`, `/version` and their
   `/api`-prefixed twins — deliberately open, unauthenticated probes).
 - **Kernel route packs, ready to mount** — one `register*Routes` function per concern: runs
-  (`registerRunRoutes`), agents (`registerAgentRoutes`), memory (`registerMemoryRoutes`),
+  (`registerRunRoutes`), agents (`agentRoutes`), memory (`registerMemoryRoutes`),
   routines (`registerRoutineRoutes`), terminals (`registerTerminalRoutes`), db-ops
   (`registerDaemonDbRoutes` + tool registrations), tool catalog (`toolCatalogRoutes`),
   delegated tools (`registerDelegatedToolRoutes`), remote run events

@@ -322,7 +322,7 @@ Registrars use `({app: Express, deps: D, adapter: AdapterContext}, {}) => void`.
 | Registrar | Consumer dependency contract |
 |---|---|
 | `registerRunRoutes` / `registerRunEventStream` | `RunHttpDeps`: `lifecycle: RunLifecycle`; optional `onStarted(RunStartContext)`, `onInternalError(RunInternalErrorContext)` |
-| `registerAgentRoutes` | `AgentsHttpDeps`: `listAgents() => AgentSummary[] \| Promise<readonly AgentSummary[]>`; optional `rescanAgents()` |
+| `agentRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them); `AgentsHttpDeps`: `listAgents() => AgentSummary[] \| Promise<readonly AgentSummary[]>`; optional `rescanAgents()` |
 | `registerHealthRoutes` | `HealthHttpDeps`: `getVersion() => string \| Promise<string>`; optional async `checkReadiness() => {ok, checks: Record<string,boolean>}` |
 | `registerDaemonStatusRoutes` | `DaemonStatusDeps`: `getVersion`, `host`, `getPort`, `dataDir`, `isShuttingDown`, `requestShutdown` callbacks/values |
 | `registerActiveContextRoutes` | `ActiveContextDeps`: `resolveResource({resourceRef}) => {name?: string \| null} \| null \| undefined`; optional `now() => number` |
