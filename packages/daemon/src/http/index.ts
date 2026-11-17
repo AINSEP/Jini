@@ -360,7 +360,7 @@ export type {
   XaiSearchResponse,
 } from './xai.js';
 export {
-  registerXaiRoutes,
+  xaiRoutes,
   xaiAuthStatusRoute,
   xaiOauthCancelRoute,
   xaiOauthCompleteRoute,

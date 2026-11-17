@@ -41,7 +41,7 @@ import { registerRunRoutes } from '../../runs.js';
 import { registerTerminalRoutes } from '../../terminals.js';
 import { toolCatalogRoutes } from '../../tool-catalog.js';
 import { registerToolExecutionRoutes } from '../../tool-execution-routes.js';
-import { registerXaiRoutes } from '../../xai.js';
+import { xaiRoutes } from '../../xai.js';
 
 /** The text every stand-in dependency throws. A response that contains it has leaked an internal error. */
 export const INTERNAL_FAILURE_MARKER = 'characterization-internal-failure-do-not-leak';
@@ -125,7 +125,7 @@ const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-par
   ['delegated-tools', ({ adapter, deps, mountList }) => mountList(delegatedToolRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['connectors', ({ adapter, deps, mountList }) => mountList(connectorsRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['research', ({ adapter, deps, mountList }) => mountList(researchRoutes({ deps: deps(), host: routeHost(adapter) }))],
-  ['xai', ({ app, adapter, deps }) => registerXaiRoutes({ app, deps: deps(), adapter })],
+  ['xai', ({ adapter, deps, mountList }) => mountList(xaiRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['remote-run-events', ({ app, adapter, deps }) => registerRemoteRunEventRoutes({ app, deps: deps({ env: gateEnv, tokenConfig: undefined, timingSafeEqual: undefined }), adapter })],
   ['memory', ({ app, adapter, deps }) => registerMemoryRoutes({ app, deps: deps(), adapter })],
   ['routines', ({ adapter, deps, mountList }) => mountList(routineRoutes({ deps: deps(), host: routeHost(adapter) }))],

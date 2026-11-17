@@ -1,11 +1,11 @@
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
-import type { Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createLocalTestOrigin } from './fixtures/local-origin.js';
+import { denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
+import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
+import { describeRoutes } from '../route-table.js';
 import {
   beginOAuthPkce,
   setStoredOAuthToken,
@@ -15,7 +15,7 @@ import {
   type OAuthCallbackOutcome,
 } from '@jini-ai/agent-runtime';
 import {
-  registerXaiRoutes,
+  xaiRoutes,
   toStoredOAuthToken,
   xaiAuthStatusRoute,
   xaiOauthCancelRoute,
@@ -26,33 +26,6 @@ import {
   type XaiHttpDeps,
 } from '../xai.js';
 
-interface MockApp {
-  get: (path: string, handler: any) => void;
-  post: (path: string, handler: any) => void;
-  put: (path: string, handler: any) => void;
-  delete: (path: string, handler: any) => void;
-  patch: (path: string, handler: any) => void;
-  handlers: Record<string, (req: any, res: any) => Promise<void> | void>;
-}
-
-function makeApp(): MockApp {
-  const handlers: MockApp['handlers'] = {};
-  const make = (method: string) => (path: string, handler: any) => {
-    handlers[`${method.toUpperCase()} ${path}`] = (req, res) => handler({
-      ...req, headers: { host: '127.0.0.1:7456', origin: 'http://127.0.0.1:7456', ...req.headers },
-    }, res);
-  };
-  return { get: make('get'), post: make('post'), put: make('put'), delete: make('delete'), patch: make('patch'), handlers };
-}
-
-function makeRes() {
-  return {
-    status: vi.fn().mockReturnThis(),
-    json: vi.fn().mockReturnThis(),
-  };
-}
-
-const { adapter: adapter, portRef: adapterPortRef } = createLocalTestOrigin({}, { port: 7456 });
 const REDIRECT_URI = 'http://127.0.0.1:56121/callback';
 
 function makeListener(overrides: Partial<OAuthCallbackListener> = {}): OAuthCallbackListener {
@@ -1103,188 +1076,94 @@ describe('xaiSearchRoute.handle', () => {
 // registerXaiRoutes
 // ---------------------------------------------------------------------------
 
-describe('registerXaiRoutes', () => {
-  it('mounts exactly the six xai routes', () => {
-    const app = makeApp();
-    registerXaiRoutes({ app: app as any, deps: { dataDir }, adapter });
-    expect(Object.keys(app.handlers).sort()).toEqual(
-      [
-        'GET /api/xai/auth/status',
-        'POST /api/xai/oauth/cancel',
-        'POST /api/xai/oauth/complete',
-        'POST /api/xai/oauth/disconnect',
-        'POST /api/xai/oauth/start',
-        'POST /api/xai/search',
-      ].sort(),
-    );
+describe('xaiRoutes', () => {
+  type Served = (request: Request) => Promise<Response>;
+  const listen = (deps: XaiHttpDeps, { denyOrigins = false }: { denyOrigins?: boolean } = {}): Served =>
+    serveRoutes({ routes: xaiRoutes({ deps, host: fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {}) }) });
+  async function send(served: Served, method: string, routePath: string, body?: unknown) {
+    const response = await served(jsonRequest({ path: routePath, method }, { body }));
+    return { status: response.status, body: await response.json() as Record<string, unknown> };
+  }
+
+  it('lists exactly the six xai routes, each behind the same-origin gate', () => {
+    expect(describeRoutes({ routes: xaiRoutes({ deps: { dataDir }, host: fakeDaemonRouteHost() }) })).toEqual([
+      { method: 'POST', path: '/api/xai/oauth/start', gates: ['same-origin'] },
+      { method: 'POST', path: '/api/xai/oauth/complete', gates: ['same-origin'] },
+      { method: 'POST', path: '/api/xai/oauth/cancel', gates: ['same-origin'] },
+      { method: 'GET', path: '/api/xai/auth/status', gates: ['same-origin'] },
+      { method: 'POST', path: '/api/xai/oauth/disconnect', gates: ['same-origin'] },
+      { method: 'POST', path: '/api/xai/search', gates: ['same-origin'] },
+    ]);
   });
 
   it('requires same-origin: rejects a cross-origin oauth/start with 403 before opening any listener', async () => {
     const startCallbackListener = vi.fn();
-    const app = makeApp();
-    registerXaiRoutes({ app: app as any, deps: { dataDir, startCallbackListener }, adapter });
-    const res = makeRes();
-    await app.handlers['POST /api/xai/oauth/start']!({ body: {}, query: {}, params: {}, headers: { origin: 'http://evil.example.com' } }, res);
-    expect(res.status).toHaveBeenCalledWith(403);
+    expect((await send(listen({ dataDir, startCallbackListener }, { denyOrigins: true }), 'POST', '/api/xai/oauth/start')).status).toBe(403);
     expect(startCallbackListener).not.toHaveBeenCalled();
   });
 
   it('requires same-origin: rejects a cross-origin auth/status GET with 403', async () => {
-    const app = makeApp();
-    registerXaiRoutes({ app: app as any, deps: { dataDir }, adapter });
-    const res = makeRes();
-    await app.handlers['GET /api/xai/auth/status']!({ body: {}, query: {}, params: {}, headers: { origin: 'http://evil.example.com' } }, res);
-    expect(res.status).toHaveBeenCalledWith(403);
+    expect((await send(listen({ dataDir }, { denyOrigins: true }), 'GET', '/api/xai/auth/status')).status).toBe(403);
   });
 
   it('requires same-origin: rejects a cross-origin search with 403 before any fetch', async () => {
     const fetchImpl = vi.fn();
-    const app = makeApp();
-    registerXaiRoutes({ app: app as any, deps: { dataDir, fetchImpl } as unknown as XaiHttpDeps, adapter });
-    const res = makeRes();
-    await app.handlers['POST /api/xai/search']!({ body: { query: 'q' }, query: {}, params: {}, headers: { origin: 'http://evil.example.com' } }, res);
-    expect(res.status).toHaveBeenCalledWith(403);
+    expect((await send(listen({ dataDir, fetchImpl } as unknown as XaiHttpDeps, { denyOrigins: true }), 'POST', '/api/xai/search', { query: 'q' })).status).toBe(403);
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it('shares one pending-auth cache and listener slot across mounted requests: start then complete succeeds end to end', async () => {
-    const listener = makeListener();
-    const startCallbackListener = vi.fn(async () => listener);
-    const fetchImpl = vi.fn(async () => okTokenResponse());
-    const app = makeApp();
-    registerXaiRoutes({ app: app as any, deps: { dataDir, startCallbackListener, fetchImpl } as unknown as XaiHttpDeps, adapter });
+  it('drives the whole OAuth handshake: start -> complete -> status -> disconnect, sharing one pending-auth cache and listener slot', async () => {
+    const served = listen({ dataDir, startCallbackListener: vi.fn(async () => makeListener()), fetchImpl: vi.fn(async () => okTokenResponse()) as unknown as typeof fetch });
 
-    const startRes = makeRes();
-    await app.handlers['POST /api/xai/oauth/start']!({ body: {}, query: {}, params: {} }, startRes);
-    expect(startRes.status).toHaveBeenCalledWith(200);
-    const state = startRes.json.mock.calls[0]![0].state as string;
-    expect(typeof state).toBe('string');
-
-    const completeRes = makeRes();
-    await app.handlers['POST /api/xai/oauth/complete']!({ body: { state, code: 'browser-code' }, query: {}, params: {} }, completeRes);
-    expect(completeRes.status).toHaveBeenCalledWith(200);
-    expect(completeRes.json).toHaveBeenCalledWith({ ok: true });
-
-    const statusRes = makeRes();
-    await app.handlers['GET /api/xai/auth/status']!({ body: {}, query: {}, params: {} }, statusRes);
-    expect(statusRes.json).toHaveBeenCalledWith(expect.objectContaining({ connected: true }));
-  });
-
-  it('a same-origin GET auth/status with nothing connected returns 200 with a not-connected body', async () => {
-    const app = makeApp();
-    registerXaiRoutes({ app: app as any, deps: { dataDir }, adapter });
-    const res = makeRes();
-    await app.handlers['GET /api/xai/auth/status']!({ body: {}, query: {}, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith({ connected: false, expiresAt: null, scope: null, savedAt: null, listening: false });
-  });
-});
-
-/**
- * Real Express app on a real socket, one genuine round-trip per mounted route. Everything above uses
- * a handler-capturing fake app, which cannot catch a path that fails to resolve, an Express-parsed
- * body the spec's `parse` reads differently, or a declared status that never reaches the wire. The
- * full OAuth handshake is driven here as one sequence, because the shared `pending`/`listenerRef`
- * state is exactly the thing a per-request mount would break.
- */
-describe('registerXaiRoutes — real Express server on a real socket', () => {
-  const servers: Server[] = [];
-  const { adapter: adapterRef, portRef: adapterRefPortRef } = createLocalTestOrigin({}, { port: 0 });
-
-  afterEach(() => {
-    for (const server of servers.splice(0)) server.close();
-  });
-
-  async function listen(deps: XaiHttpDeps): Promise<string> {
-    const app = express();
-    app.use(express.json());
-    registerXaiRoutes({ app: app as never, deps, adapter: adapterRef as never });
-    const server = await new Promise<Server>((resolve) => {
-      const s = app.listen(0, '127.0.0.1', () => resolve(s));
-    });
-    servers.push(server);
-    adapterRefPortRef.current = (server.address() as AddressInfo).port;
-    return `http://127.0.0.1:${adapterRefPortRef.current}`;
-  }
-
-  async function send(base: string, method: string, routePath: string, body?: unknown, origin = base) {
-    const response = await fetch(`${base}${routePath}`, {
-      method,
-      headers: { 'content-type': 'application/json', origin },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    });
-    return { status: response.status, body: await response.json() as Record<string, unknown> };
-  }
-
-  it('drives the whole OAuth handshake over the wire: start -> complete -> status -> disconnect', async () => {
-    const listener = makeListener();
-    const base = await listen({
-      dataDir,
-      startCallbackListener: vi.fn(async () => listener),
-      fetchImpl: vi.fn(async () => okTokenResponse()) as unknown as typeof fetch,
-    });
-
-    const started = await send(base, 'POST', '/api/xai/oauth/start');
+    const started = await send(served, 'POST', '/api/xai/oauth/start');
     expect(started.status).toBe(200);
     expect(typeof started.body.authorizeUrl).toBe('string');
     expect(typeof started.body.state).toBe('string');
 
-    const completed = await send(base, 'POST', '/api/xai/oauth/complete', { state: started.body.state, code: 'browser-code' });
-    expect(completed).toEqual({ status: 200, body: { ok: true } });
+    expect(await send(served, 'POST', '/api/xai/oauth/complete', { state: started.body.state, code: 'browser-code' })).toEqual({ status: 200, body: { ok: true } });
 
-    const status = await send(base, 'GET', '/api/xai/auth/status');
+    const status = await send(served, 'GET', '/api/xai/auth/status');
     expect(status.status).toBe(200);
     expect(status.body).toMatchObject({ connected: true, scope: 'openid api:access', listening: false });
 
-    const disconnected = await send(base, 'POST', '/api/xai/oauth/disconnect');
-    expect(disconnected).toEqual({ status: 200, body: { ok: true } });
-    expect((await send(base, 'GET', '/api/xai/auth/status')).body).toMatchObject({ connected: false });
+    expect(await send(served, 'POST', '/api/xai/oauth/disconnect')).toEqual({ status: 200, body: { ok: true } });
+    expect((await send(served, 'GET', '/api/xai/auth/status')).body).toMatchObject({ connected: false });
   });
 
-  it('serves oauth/cancel over the wire, stopping the in-flight listener', async () => {
+  it('a same-origin GET auth/status with nothing connected returns 200 with a not-connected body', async () => {
+    expect(await send(listen({ dataDir }), 'GET', '/api/xai/auth/status')).toEqual({
+      status: 200,
+      body: { connected: false, expiresAt: null, scope: null, savedAt: null, listening: false },
+    });
+  });
+
+  it('serves oauth/cancel, stopping the in-flight listener', async () => {
     const listener = makeListener();
-    const base = await listen({ dataDir, startCallbackListener: vi.fn(async () => listener) });
-    expect((await send(base, 'POST', '/api/xai/oauth/start')).status).toBe(200);
-    expect(await send(base, 'POST', '/api/xai/oauth/cancel')).toEqual({ status: 200, body: { ok: true } });
+    const served = listen({ dataDir, startCallbackListener: vi.fn(async () => listener) });
+    expect((await send(served, 'POST', '/api/xai/oauth/start')).status).toBe(200);
+    expect(await send(served, 'POST', '/api/xai/oauth/cancel')).toEqual({ status: 200, body: { ok: true } });
     expect(listener.stop).toHaveBeenCalledTimes(1);
   });
 
   it('serves a real search round-trip once connected', async () => {
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValueOnce(okTokenResponse())
-      .mockResolvedValueOnce(okSearchResponse({ output_text: 'grok says hi' }));
-    const base = await listen({
-      dataDir,
-      startCallbackListener: vi.fn(async () => makeListener()),
-      fetchImpl: fetchImpl as unknown as typeof fetch,
-    });
-    const started = await send(base, 'POST', '/api/xai/oauth/start');
-    await send(base, 'POST', '/api/xai/oauth/complete', { state: started.body.state, code: 'c1' });
+    const fetchImpl = vi.fn().mockResolvedValueOnce(okTokenResponse()).mockResolvedValueOnce(okSearchResponse({ output_text: 'grok says hi' }));
+    const served = listen({ dataDir, startCallbackListener: vi.fn(async () => makeListener()), fetchImpl: fetchImpl as unknown as typeof fetch });
+    const started = await send(served, 'POST', '/api/xai/oauth/start');
+    await send(served, 'POST', '/api/xai/oauth/complete', { state: started.body.state, code: 'c1' });
 
-    const searched = await send(base, 'POST', '/api/xai/search', { query: 'latest on grok' });
+    const searched = await send(served, 'POST', '/api/xai/search', { query: 'latest on grok' });
     expect(searched.status).toBe(200);
     expect(searched.body).toMatchObject({ answer: 'grok says hi', citations: [] });
   });
 
-  it('answers 503 over the wire for a search with no xAI account connected', async () => {
-    const base = await listen({ dataDir });
-    expect(await send(base, 'POST', '/api/xai/search', { query: 'q' })).toEqual({
+  it('answers 503 for a search with no xAI account connected', async () => {
+    expect(await send(listen({ dataDir }), 'POST', '/api/xai/search', { query: 'q' })).toEqual({
       status: 503,
       body: { error: { code: 'NOT_CONFIGURED', message: 'no xAI account connected — sign in via /api/xai/oauth/start first' } },
     });
   });
 
-  it('answers 400 over the wire for a malformed search body', async () => {
-    const base = await listen({ dataDir });
-    expect((await send(base, 'POST', '/api/xai/search', { query: '   ' })).status).toBe(400);
-  });
-
-  it('answers 403 over the wire for a cross-origin request', async () => {
-    const startCallbackListener = vi.fn();
-    const base = await listen({ dataDir, startCallbackListener });
-    const response = await send(base, 'POST', '/api/xai/oauth/start', undefined, 'http://evil.example.com');
-    expect(response.status).toBe(403);
-    expect(startCallbackListener).not.toHaveBeenCalled();
+  it('answers 400 for a malformed search body', async () => {
+    expect((await send(listen({ dataDir }), 'POST', '/api/xai/search', { query: '   ' })).status).toBe(400);
   });
 });

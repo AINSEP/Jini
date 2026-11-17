@@ -584,7 +584,7 @@ Everything a Jini package asks its host to bind or register: `*Port`, `*Kit`, `*
 | `toolCatalogRoutes` | registry | function | `packages/daemon/src/http/tool-catalog.ts:113` |
 | `registerToolExecutionRoutes` | registry | function | `packages/daemon/src/http/tool-execution-routes.ts:226` |
 | `XaiHttpDeps` | deps | interface | `packages/daemon/src/http/xai.ts:175` |
-| `registerXaiRoutes` | registry | function | `packages/daemon/src/http/xai.ts:794` |
+| `xaiRoutes` | registry | function | `packages/daemon/src/http/xai.ts:794` |
 | `LegacyFilesystemPort` | port | type | `packages/daemon/src/legacy-data-migration.ts:22` |
 | `CredentialCryptoPort` | port | interface | `packages/daemon/src/run-credentials.ts:5` |
 | `registerIdempotencyKeyIfPresent` | registry | function | `packages/daemon/src/run-lifecycle.ts:342` |

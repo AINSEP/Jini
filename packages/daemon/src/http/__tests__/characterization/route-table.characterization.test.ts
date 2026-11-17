@@ -97,12 +97,12 @@ const ROUTE_TABLE: Readonly<Record<string, readonly string[]>> = {
     'POST /api/research/search [same-origin]',
   ],
   'xai': [
-    'POST /api/xai/oauth/start [anonymous/2]',
-    'POST /api/xai/oauth/complete [anonymous/2]',
-    'POST /api/xai/oauth/cancel [anonymous/2]',
-    'GET /api/xai/auth/status [anonymous/2]',
-    'POST /api/xai/oauth/disconnect [anonymous/2]',
-    'POST /api/xai/search [anonymous/2]',
+    'POST /api/xai/oauth/start [same-origin]',
+    'POST /api/xai/oauth/complete [same-origin]',
+    'POST /api/xai/oauth/cancel [same-origin]',
+    'GET /api/xai/auth/status [same-origin]',
+    'POST /api/xai/oauth/disconnect [same-origin]',
+    'POST /api/xai/search [same-origin]',
   ],
   'remote-run-events': [
     'USE /api/runs/:runId/tool-use [anonymous/3]',
