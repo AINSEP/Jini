@@ -44,7 +44,7 @@ describe('env-access rules (one failing and one passing fixture per case)', () =
 
   it('HW9: an injected map, a binding namespace, a type and a property that is only called env are not the ambient object', () => {
     expect(rules('export function make({ env }) { return env.KEY ?? env["OTHER"]; }')).toEqual([]);
-    expect(rules('export default { async fetch(request, env) { return env.DB.prepare("select 1").all(); } };', { file: 'packages/agent-plugins/cloudflare/worker/forms-receiver.mjs' })).toEqual([]);
+    expect(rules('export default { async fetch(request, env) { return env.DB.prepare("select 1").all(); } };', { file: 'packages/agent-plugins/edge-host/worker/forms-receiver.mjs' })).toEqual([]);
     expect(rules('export function make(env: typeof process.env, other: NodeJS.ProcessEnv) { return env.KEY ?? other.KEY; }')).toEqual([]);
     expect(rules('export function make(host) { return host.process.env.KEY ?? host.env.KEY; }')).toEqual([]);
     expect(rules('// process.env.KEY is read by the host\nexport const note = "process.env.KEY";')).toEqual([]);
