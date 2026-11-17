@@ -17,6 +17,7 @@
       "./composition": "universal",
       "./gated-mutations": "universal",
       "./model-facing-tool-errors": "universal",
+      "./tool-call-text": "universal",
       "./contribution-registry": "universal",
       "./provider-registry": "universal",
       "./object-store": "universal",
@@ -142,6 +143,11 @@
       "types": "./dist/model-facing-tool-errors.d.ts",
       "import": "./dist/model-facing-tool-errors.js",
       "default": "./dist/model-facing-tool-errors.js"
+    },
+    "./tool-call-text": {
+      "types": "./dist/tool-call-text.d.ts",
+      "import": "./dist/tool-call-text.js",
+      "default": "./dist/tool-call-text.js"
     },
     "./contribution-registry": {
       "types": "./dist/contribution-registry.d.ts",
