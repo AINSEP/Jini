@@ -5,7 +5,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import { MemoryExtractionCard } from '../../../react/components/MemoryExtractionCard.js';
 import type { MemoryExtractionRecord } from '../../../types.js';
 
@@ -27,6 +27,9 @@ function renderCard(over: Partial<MemoryExtractionRecord> = {}) {
   );
   return { ...utils, onOpenPreview, onDelete };
 }
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('MemoryExtractionCard', () => {
   it('renders the title, phase pill, and kind badge for a successful record', () => {
@@ -88,5 +91,11 @@ describe('MemoryExtractionCard', () => {
     );
     expect(screen.getByText('Terminé')).toBeInTheDocument();
     expect(screen.getByLabelText('Retirer')).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    render(<MemoryExtractionCard record={record()} nowClock={5_000} onOpenPreview={vi.fn()} onDelete={vi.fn()} useTHook={useQuotingT} />);
+    expect(screen.getByText('«Done»')).toBeInTheDocument();
+    expect(screen.getByLabelText('«Remove»')).toBeInTheDocument();
   });
 });

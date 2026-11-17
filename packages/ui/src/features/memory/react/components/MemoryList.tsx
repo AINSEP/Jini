@@ -23,8 +23,8 @@ function rowHandles({ agentHandle, action, ids }: { agentHandle: string | undefi
   return agentHandle ? buildAgentListHandles({ prefix: agentSubHandle({ base: agentHandle, action }), ids }) : undefined;
 }
 
-function MemoryListCounts({ savedCount, extractionCount }: { savedCount: number; extractionCount: number }) {
-  const t = useT();
+function MemoryListCounts({ savedCount, extractionCount, useTHook = useT }: { savedCount: number; extractionCount: number; useTHook?: typeof useT; }) {
+  const t = useTHook();
   return (
     <div className="memory-management-counts">
       <span className="memory-source-badge">{savedCount} {t('saved')}</span>
@@ -43,14 +43,16 @@ function MemoryFilterPills({
   filter,
   onFilterChange,
   agentHandle,
+  useTHook = useT,
 }: {
   entries: MemoryEntrySummary[];
   extractionCount: number;
   filter: MemoryFilter;
   onFilterChange: (filter: MemoryFilter) => void;
   agentHandle: string | undefined;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   const typeLabel = useMemo(() => memoryTypeLabels(t), [t]);
   return (
     <div className="library-filters">
@@ -88,13 +90,15 @@ function MemoryExtractionActions({
   onRefreshExtractions,
   isRefreshing,
   agentHandle,
+  useTHook = useT,
 }: {
   onClearExtractions: () => void;
   onRefreshExtractions: () => void;
   isRefreshing: boolean;
   agentHandle: string | undefined;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   return (
     <>
       <button
@@ -122,8 +126,8 @@ function MemoryExtractionActions({
   );
 }
 
-function MemoryListEmpty() {
-  const t = useT();
+function MemoryListEmpty({ useTHook = useT }: { useTHook?: typeof useT } = {}) {
+  const t = useTHook();
   return (
     // Empty state: one clear "no rows yet" line and a one-sentence
     // primer that explains the mechanism (talk in chat, fact gets
@@ -210,6 +214,7 @@ export function MemoryList({
   onDeleteEntry,
   onDeleteExtraction,
   agentHandle,
+  useTHook = useT,
 }: {
   sectionRef: MutableRefObject<HTMLElement | null>;
   entries: MemoryEntrySummary[];
@@ -230,8 +235,9 @@ export function MemoryList({
   onDeleteExtraction: (id: string) => void;
   /** This section's own agent handle — see `MemorySettingsPanel`'s `agentHandle` doc. */
   agentHandle?: string;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   return (
     <section ref={sectionRef} className="settings-section settings-section-card memory-records-section">
       <div className="memory-management-panel">

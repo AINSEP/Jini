@@ -5,7 +5,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import { MemoryAdvancedModal } from '../../../react/components/MemoryAdvancedModal.js';
 import type { MemoryTreeNode } from '../../../types.js';
 
@@ -41,6 +41,9 @@ function renderModal(props: Partial<Parameters<typeof MemoryAdvancedModal>[0]> =
   );
   return { ...utils, host, ...cbs };
 }
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('MemoryAdvancedModal', () => {
   it('renders nothing when closed', () => {
@@ -185,5 +188,10 @@ describe('MemoryAdvancedModal', () => {
     );
     expect(host.querySelector('#memory-advanced-modal-title')?.textContent).toBe('Avancé');
     expect(host.querySelector('[aria-label="Fermer"]')).not.toBeNull();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    const { host } = renderModal({ useTHook: useQuotingT });
+    expect(host.querySelector('#memory-advanced-modal-title')?.textContent).toBe('«Advanced»');
   });
 });

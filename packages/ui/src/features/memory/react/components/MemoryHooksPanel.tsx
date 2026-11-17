@@ -64,6 +64,7 @@ export function MemoryHooksPanel({
   flags,
   onToggle,
   agentHandle,
+  useTHook = useT,
 }: {
   /** Master memory switch — when off, every hook toggle is disabled. */
   enabled: boolean;
@@ -71,8 +72,9 @@ export function MemoryHooksPanel({
   onToggle: (key: MemoryHookKey, next: boolean) => void;
   /** This panel's own agent handle — one distinct sub-handle per hook toggle. */
   agentHandle?: string;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   return (
     <div className="memory-hooks-panel" data-testid="memory-hooks-panel">
       <div className="memory-hooks-panel-head">

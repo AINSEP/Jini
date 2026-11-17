@@ -44,6 +44,7 @@ export interface MemorySettingsPanelProps {
    * all derive their own `data-agent-*` handle from this ONE base.
    */
   agentHandle?: string;
+  useTHook?: typeof useT;
 }
 
 export function MemorySettingsPanel({
@@ -56,8 +57,9 @@ export function MemorySettingsPanel({
   savedMemory,
   howItWorks,
   agentHandle,
+  useTHook = useT,
 }: MemorySettingsPanelProps) {
-  const t = useT();
+  const t = useTHook();
   // Scroll target for the saved-memory section; nothing outside this panel
   // needs to reach it, so it's owned here rather than threaded through props.
   const sectionRef = useRef<HTMLElement | null>(null);
