@@ -800,6 +800,25 @@
    "planCommandInvocation": "function:332b35b2f9"
   }
  },
+ "./contracts/runtime/testing": {
+  "types": "./dist/contracts/runtime/testing.d.ts",
+  "symbols": {
+   "FakeAtomicWriter": "interface:8fda5ff5a7",
+   "FakeFileLock": "interface:3e96903da7",
+   "FakeGuardedHttp": "interface:284042a876",
+   "FakeGuardedRoutes": "type:2bfa6d091b",
+   "FakeHttpFetch": "interface:59855ca013",
+   "FakeProcessControl": "interface:2442101747",
+   "RecordedAtomicWrite": "interface:915536f661",
+   "RecordedFileLockCall": "interface:d90f3d52c7",
+   "RecordedHttpFetch": "interface:04d1f888d8",
+   "fakeAtomicWriter": "function:d4e64312e0",
+   "fakeFileLock": "function:fa409fa450",
+   "fakeGuardedHttp": "function:a0e4ce31f7",
+   "fakeHttpFetch": "function:0af1ddf8b4",
+   "fakeProcessControl": "function:fe6367af71"
+  }
+ },
  "./contracts/server": {
   "types": "./dist/contracts/server.d.ts",
   "symbols": {

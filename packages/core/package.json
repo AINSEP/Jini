@@ -53,6 +53,7 @@
       "./net": "universal",
       "./contracts/blob": "universal",
       "./contracts/runtime": "universal",
+      "./contracts/runtime/testing": "universal",
       "./contracts/admin-module": "universal",
       "./contracts/forms": "universal",
       "./contracts/charts": "universal",
@@ -338,6 +339,11 @@
       "types": "./dist/contracts/runtime.d.ts",
       "import": "./dist/contracts/runtime.js",
       "default": "./dist/contracts/runtime.js"
+    },
+    "./contracts/runtime/testing": {
+      "types": "./dist/contracts/runtime/testing.d.ts",
+      "import": "./dist/contracts/runtime/testing.js",
+      "default": "./dist/contracts/runtime/testing.js"
     },
     "./contracts/admin-module": {
       "types": "./dist/contracts/admin-module.d.ts",

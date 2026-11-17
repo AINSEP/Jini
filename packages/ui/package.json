@@ -45,7 +45,8 @@
       "./charts/browser": "browser",
       "./charts/react": "browser",
       "./mcp-ui/credential-card": "universal",
-      "./react-kit": "browser"
+      "./react-kit": "browser",
+      "./react/testing": "browser"
     },
     "isolation": {
       "entries": {
@@ -230,6 +231,11 @@
       "types": "./dist/react/kit.d.ts",
       "import": "./dist/react/kit.js",
       "default": "./dist/react/kit.js"
+    },
+    "./react/testing": {
+      "types": "./dist/react/testing.d.ts",
+      "import": "./dist/react/testing.js",
+      "default": "./dist/react/testing.js"
     }
   },
   "files": [

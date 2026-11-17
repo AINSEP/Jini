@@ -526,3 +526,6 @@ Keep the selected adapter fixed for a provider's lifetime; remount to switch it.
 Selects and secret inputs render through a host-supplied `UiKit` (`components.SecretInput`,
 `hooks.useOverlayContainer`, `hooks.useSecretReveal`). Mount `<UiKitProvider kit={kit}>` once at each
 React root; without it these components throw a message naming the missing provider.
+
+Tests of ui and of packages whose screens render under it import `fakeUiKit`, an in-memory `UiKit`, from
+`@jini-ai/ui/react/testing` (test-only; never import it from production code).
