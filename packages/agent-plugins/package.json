@@ -100,7 +100,8 @@
       "./connect": "universal",
       "./connect/executable": "universal",
       "./connect/plugin-host": "universal",
-      "./admin-surfaces/connections": "universal"
+      "./admin-surfaces/connections": "universal",
+      "./admin-surfaces/node": "node"
     },
     "isolation": {
       "entries": {
@@ -287,6 +288,11 @@
       "types": "./dist/admin-surfaces/connections/index.d.ts",
       "import": "./dist/admin-surfaces/connections/index.js",
       "default": "./dist/admin-surfaces/connections/index.js"
+    },
+    "./admin-surfaces/node": {
+      "types": "./dist/admin-surfaces/node.d.ts",
+      "import": "./dist/admin-surfaces/node.js",
+      "default": "./dist/admin-surfaces/node.js"
     }
   },
   "files": [
