@@ -1220,9 +1220,6 @@ importers:
       '@jini-ai/core':
         specifier: workspace:^
         version: link:../core
-      '@jini-ai/platform':
-        specifier: workspace:^
-        version: link:../platform
       '@jini-ai/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -1230,6 +1227,9 @@ importers:
       '@jini-ai/db':
         specifier: workspace:*
         version: link:../db
+      '@jini-ai/platform':
+        specifier: workspace:^
+        version: link:../platform
       '@types/better-sqlite3':
         specifier: ^7.6.11
         version: 7.6.13

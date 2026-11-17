@@ -154,8 +154,6 @@
   {"rule": "L5-injected-edge", "file": "packages/provider-plugins/src/payments-stripe/session-reading.ts", "spec": "@jini-ai/commerce/payments/kernel", "kind": "type-import", "count": 1, "lane": "L-PROV"},
   {"rule": "L5-injected-edge", "file": "packages/provider-plugins/src/payments-stripe/webhook.ts", "spec": "@jini-ai/commerce/payments/kernel", "kind": "type-import", "count": 1, "lane": "L-PROV"},
   {"rule": "L5-injected-edge", "file": "packages/provider-plugins/src/telemetry-reporter.ts", "spec": "@jini-ai/diagnostics/observability", "kind": "import", "count": 1, "lane": "L-PROV"},
-  {"rule": "L5-injected-edge", "file": "packages/registry/package.json", "spec": "@jini-ai/db", "kind": "manifest-peer", "count": 1, "lane": "L-STORAGE"},
-  {"rule": "L5-injected-edge", "file": "packages/registry/package.json", "spec": "@jini-ai/platform", "kind": "manifest-dependencies", "count": 1, "lane": "L-PLATFORM"},
   {"rule": "L5-injected-edge", "file": "packages/search/package.json", "spec": "@jini-ai/agent-plugins", "kind": "manifest-peer", "count": 1, "lane": "L-REG-MISC"},
   {"rule": "L5-injected-edge", "file": "packages/search/src/contribution.ts", "spec": "@jini-ai/agent-plugins/lifecycle", "kind": "export-from", "count": 1, "lane": "L-REG-MISC"},
   {"rule": "L5-injected-edge", "file": "packages/search/src/contribution.ts", "spec": "@jini-ai/agent-plugins/lifecycle", "kind": "import", "count": 1, "lane": "L-REG-MISC"},
