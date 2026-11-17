@@ -3,6 +3,7 @@ import type { AdminEntityField, AdminErasedEntityPort } from '../../core/ports/e
 import type { EntityEditProps, EntityTranslate } from './types.js';
 import { EntityCell } from './EntityCell.js';
 import { EntityField } from './EntityField.js';
+import { copyToClipboard, describeEntityFailure, FailureNotice } from './FailureNotice.js';
 import { RelationTruncationNotice } from './RelationTruncationNotice.js';
 import { useEntityEdit } from './use-entity-edit.js';
 import { entityText } from './types.js';
@@ -59,7 +60,7 @@ function EditActions({ edit, canRemove, translate }: {
 }
 
 function EntityEditor(props: EntityEditProps & { readonly port: AdminErasedEntityPort }) {
-  const { port, translate, routes, entityName, id } = props;
+  const { port, translate, routes, entityName, id, describeFailure, copyText = copyToClipboard } = props;
   const formId = useId();
   const edit = useEntityEdit(props);
   if (edit.read.error) return <p role="alert">{translate({ key: 'Unable to load row' })}</p>;
@@ -72,7 +73,8 @@ function EntityEditor(props: EntityEditProps & { readonly port: AdminErasedEntit
   return <form className="page" onSubmit={(e) => { e.preventDefault(); void edit.save(); }}>
     <a href={routes.href({ entity: entityName })}>{translate({ key: port.descriptor.labelPlural })}</a>
     <h1>{entityText({ translate, key: id === null ? 'New {entity}' : 'Edit {entity}', values: { entity: translate({ key: port.descriptor.labelSingular }) } })}</h1>
-    {edit.failed ? <p role="alert">{translate({ key: 'Operation failed' })}</p> : null}
+    {edit.failure === null ? null : <FailureNotice view={describeFailure ? describeFailure({ error: edit.failure.error }) : describeEntityFailure({ error: edit.failure.error, translate })}
+      translate={translate} onReload={edit.reload} onRetry={() => { void edit.retry(); }} copyText={copyText} />}
     {port.descriptor.fields.map((field, index) =>
       <EntityFieldRow key={field.name} edit={edit} form={form} field={field} inputId={`${formId}-${index}`} relations={relations} translate={translate} id={id} />)}
     <RelationTruncationNotice relations={relations} translate={translate} />

@@ -1,4 +1,5 @@
 import type { AdminErasedEntityPort } from '../../core/ports/entities.js';
+import type { EntityFailureView } from './FailureNotice.js';
 
 /** Resolves existing entity ports; replace the registry object when registrations change. */
 export interface EntityRegistryPort {
@@ -43,6 +44,13 @@ export interface EntityEditProps extends EntityScreenDependencies {
   readonly entityName: string;
   /** Null creates a row. All string ids, including `new`, refer to saved rows. */
   readonly id: string | null;
+  /**
+   * Host words for a rejected save or delete. Receives the error exactly as the port threw it. Default:
+   * "Operation failed" plus the error text under Details and a Copy details button.
+   */
+  readonly describeFailure?: (required: { readonly error: unknown }) => EntityFailureView;
+  /** Puts text on the clipboard for Copy details. Default: the browser clipboard. */
+  readonly copyText?: (required: { readonly text: string }) => Promise<void>;
 }
 
 /** Stable source templates let host dictionaries translate copy before values are inserted. */

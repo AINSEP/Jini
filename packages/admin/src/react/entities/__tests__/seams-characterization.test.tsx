@@ -43,7 +43,7 @@ describe('entity screen seams, as they behave before the seams exist', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
   });
 
-  it('a rejected update shows only the fixed text and keeps the draft; the error is not shown anywhere', async () => {
+  it('a rejected update keeps the draft; the message is the fixed text and the error appears only under Details (GA 2 changed this)', async () => {
     const f = fixture();
     f.port.update = vi.fn(async () => { throw Object.assign(new Error('version 1 is stale'), { code: 'CONFLICT' }); });
     render(<EntityEdit {...f} entityName="notes" id="n1" />);
@@ -52,8 +52,8 @@ describe('entity screen seams, as they behave before the seams exist', () => {
     fireEvent.change(title, { target: { value: 'Edited' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent('Operation failed');
-    expect(alert.textContent).not.toMatch(/stale|CONFLICT/);
+    expect(alert.querySelector('p')).toHaveTextContent(/^Operation failed$/);
+    expect(alert.querySelector('details')).toHaveTextContent('version 1 is stale');
     expect(screen.queryByRole('button', { name: /reload/i })).toBeNull();
     expect(screen.getByLabelText('title *')).toHaveValue('Edited');
   });
