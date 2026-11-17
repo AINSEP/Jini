@@ -94,7 +94,7 @@ const ROUTE_TABLE: Readonly<Record<string, readonly string[]>> = {
     'POST /api/connectors/realtime/:channel/publish [anonymous/2]',
   ],
   'research': [
-    'POST /api/research/search [anonymous/2]',
+    'POST /api/research/search [same-origin]',
   ],
   'xai': [
     'POST /api/xai/oauth/start [anonymous/2]',

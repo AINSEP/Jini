@@ -1,9 +1,10 @@
-import express from 'express';
 import { describe, expect, it, vi } from 'vitest';
-import { createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
+import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
+import { describeRoutes } from '../route-table.js';
 import {
   createResearchSearchRoute,
-  registerResearchRoutes,
+  researchRoutes,
   researchSearchRoute,
   type ResearchHttpDeps,
   type ResearchInternalErrorContext,
@@ -110,17 +111,11 @@ describe('research handle: outcomes', () => {
   });
 });
 
-describe('registerResearchRoutes with deps.provider', () => {
-  it("mounts a route whose parse accepts the provider's own id", async () => {
-    // A real Express app; the spy captures the handler `mountJsonRoute` registers so it can be driven directly.
-    const app = express();
-    const post = vi.spyOn(app, 'post');
-    registerResearchRoutes({ app, deps: { provider: provider('host'), resolveCredentials: async () => ({ apiKey: KEY }) }, adapter: createTestRouteHost() });
-    const res = { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() };
-    expect(post.mock.calls.map((call) => call[0])).toEqual(['/api/research/search']);
-    const handler = post.mock.calls[0]!.at(-1) as (req: unknown, res: unknown) => Promise<void>;
-    await handler({ body: { query: 'q', providers: ['host'] }, query: {}, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json.mock.calls[0]![0]).toMatchObject({ provider: 'host', summary: 'host answer' });
+describe('researchRoutes with deps.provider', () => {
+  it("lists a route whose parse accepts the provider's own id", async () => {
+    const routes = researchRoutes({ deps: { provider: provider('host'), resolveCredentials: async () => ({ apiKey: KEY }) }, host: fakeDaemonRouteHost() });
+    expect(describeRoutes({ routes }).map((route) => `${route.method} ${route.path}`)).toEqual(['POST /api/research/search']);
+    const response = await serveRoutes({ routes })(jsonRequest({ path: '/api/research/search', method: 'POST' }, { body: { query: 'q', providers: ['host'] } }));
+    expect([response.status, await response.json()]).toEqual([200, expect.objectContaining({ provider: 'host', summary: 'host answer' })]);
   });
 });

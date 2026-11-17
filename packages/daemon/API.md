@@ -22,7 +22,7 @@ read-only policy entry do not load HTTP or Express.
   (`registerRemoteRunEventRoutes`), frontend sessions (`registerFrontendSessionRoutes`), active
   context (`activeContextRoutes`), host tools (`registerHostToolsRoutes`), model proxy
   (`registerModelProxyRoutes`), connectors — auth/db/storage/realtime provider seams (no payments slot: money moves only through `@jini-ai/commerce`)
-  (`registerConnectorsRoutes`), research (`registerResearchRoutes`), media
+  (`registerConnectorsRoutes`), research (`researchRoutes`), media
   (`registerMediaRoutes`), and xai (`registerXaiRoutes`). Each exports its own `*HttpDeps` type so
   you inject exactly the backing services it needs.
 - **Workspace root resolution** — `resolveWorkspaceRoot`/`denyAllWorkspaceRoots`/

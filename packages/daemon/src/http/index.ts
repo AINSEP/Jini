@@ -309,7 +309,7 @@ export type {
   ResearchSearchResponse,
   ResearchSource,
 } from './research.js';
-export { createResearchSearchRoute, registerResearchRoutes, researchSearchRoute } from './research.js';
+export { createResearchSearchRoute, researchRoutes, researchSearchRoute } from './research.js';
 export type {
   MediaGenerateResponse,
   MediaHttpDeps,

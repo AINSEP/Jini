@@ -35,7 +35,7 @@ import { registerMemoryRoutes } from '../../memory.js';
 import { registerMessageRelayRoutes } from '../../message-relay.js';
 import { registerModelProxyRoutes } from '../../model-proxy.js';
 import { registerRemoteRunEventRoutes } from '../../remote-run-events.js';
-import { registerResearchRoutes } from '../../research.js';
+import { researchRoutes } from '../../research.js';
 import { registerRoutineRoutes } from '../../routines.js';
 import { registerRunRoutes } from '../../runs.js';
 import { registerTerminalRoutes } from '../../terminals.js';
@@ -124,7 +124,7 @@ const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-par
   ['tool-catalog', ({ adapter, deps, mountList }) => mountList(toolCatalogRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['delegated-tools', ({ adapter, deps, mountList }) => mountList(delegatedToolRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['connectors', ({ app, adapter, deps }) => registerConnectorsRoutes({ app, deps: deps(), adapter })],
-  ['research', ({ app, adapter, deps }) => registerResearchRoutes({ app, deps: deps(), adapter })],
+  ['research', ({ adapter, deps, mountList }) => mountList(researchRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['xai', ({ app, adapter, deps }) => registerXaiRoutes({ app, deps: deps(), adapter })],
   ['remote-run-events', ({ app, adapter, deps }) => registerRemoteRunEventRoutes({ app, deps: deps({ env: gateEnv, tokenConfig: undefined, timingSafeEqual: undefined }), adapter })],
   ['memory', ({ app, adapter, deps }) => registerMemoryRoutes({ app, deps: deps(), adapter })],
