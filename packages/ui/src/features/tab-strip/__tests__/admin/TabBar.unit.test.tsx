@@ -281,4 +281,12 @@ describe("TabBar — keyboard (WAI-ARIA tabs)", () => {
     expect(screen.getByRole("tab", { name: "Tab A" })).toHaveAttribute("tabindex", "0");
     expect(screen.getByRole("tab", { name: "Tab B" })).toHaveAttribute("tabindex", "-1");
   });
+
+  it('routes key presses through the keyboard hook supplied via useTabBarKeyboardHook', async () => {
+    const onKeyDown = vi.fn();
+    render(<TabBar tabs={BASE_TABS} activeId="a" onChange={vi.fn()} ariaLabel="Sections" useTabBarKeyboardHook={() => ({ onKeyDown })} />);
+    screen.getByRole('tab', { name: 'Tab A' }).focus();
+    await userEvent.keyboard('{ArrowRight}');
+    expect(onKeyDown).toHaveBeenCalled();
+  });
 });
