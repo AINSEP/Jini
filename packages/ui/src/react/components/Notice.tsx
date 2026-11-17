@@ -21,10 +21,11 @@ export interface NoticeProps {
   /** Label for the collapsible log's `<summary>`. Defaults to `t('Install log')`. */
   logLabel?: string;
   className?: string;
+  useTHook?: typeof useT;
 }
 
-export function Notice({ outcome, logLabel, className }: NoticeProps) {
-  const t = useT();
+export function Notice({ outcome, logLabel, className, useTHook = useT }: NoticeProps) {
+  const t = useTHook();
   const warnings = outcome.warnings ?? [];
   const log = outcome.log ?? [];
   return (

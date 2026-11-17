@@ -20,6 +20,7 @@ export interface FileImportPanelProps {
   onChange: (files: File[]) => void;
   onImport: () => void;
   className?: string;
+  useTHook?: typeof useT;
 }
 
 export function FileImportPanel({
@@ -33,8 +34,9 @@ export function FileImportPanel({
   onChange,
   onImport,
   className,
+  useTHook = useT,
 }: FileImportPanelProps) {
-  const t = useT();
+  const t = useTHook();
   const directoryProps = folder
     ? ({ webkitdirectory: '', directory: '' } as Record<string, string>)
     : {};

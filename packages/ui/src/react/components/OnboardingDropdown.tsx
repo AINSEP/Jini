@@ -512,7 +512,7 @@ function OnboardingDropdownMenu({ label, placeholder, multiple, searchable, sear
  * {@link useOnboardingDropdown}; this component only renders the field,
  * trigger, and (when open) the menu.
  */
-export function OnboardingDropdown(props: OnboardingDropdownProps) {
+export function OnboardingDropdown({ useOnboardingDropdown: useOnboardingDropdownHook = useOnboardingDropdown, ...props }: OnboardingDropdownProps) {
   const {
     label,
     placeholder,
@@ -521,7 +521,6 @@ export function OnboardingDropdown(props: OnboardingDropdownProps) {
     searchPlaceholder,
     sourceTone,
     className,
-    useOnboardingDropdown: useOnboardingDropdownHook = useOnboardingDropdown,
   } = props;
 
   const {
