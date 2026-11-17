@@ -61,6 +61,10 @@ export interface SketchEditorProps {
   dependencies?: SketchEditorDependencies;
   /** Custom hook override for dependency injection / testing. */
   useSketchTheme?: typeof useSketchTheme;
+  useI18nHook?: typeof useI18n;
+  useSketchSceneHook?: typeof useSketchScene;
+  useSketchSaveWorkflowHook?: typeof useSketchSaveWorkflow;
+  useSketchDomEnhancementsHook?: typeof useSketchDomEnhancements;
 }
 
 const EXCALIDRAW_UI_OPTIONS = {
@@ -119,10 +123,11 @@ interface SketchCanvasProps {
   sceneState: SketchSceneState;
   workflow: SketchSaveWorkflow;
   hasContent: boolean;
+  useI18nHook?: typeof useI18n;
 }
 
-function SketchCanvas({ props, engine, theme, sceneState, workflow, hasContent }: SketchCanvasProps) {
-  const { t, locale } = useI18n();
+function SketchCanvas({ props, engine, theme, sceneState, workflow, hasContent, useI18nHook = useI18n }: SketchCanvasProps) {
+  const { t, locale } = useI18nHook();
   const { saving = false, dirty = false } = props;
   const { Excalidraw, MainMenu } = engine;
   return (
@@ -168,19 +173,19 @@ function SketchCanvas({ props, engine, theme, sceneState, workflow, hasContent }
  * behind (the source product's legacy pre-Excalidraw item migration, its
  * `.sketch.json` naming convention, and its own translated copy).
  */
-export function SketchEditor(props: SketchEditorProps) {
+export function SketchEditor({ useI18nHook = useI18n, useSketchSceneHook = useSketchScene, useSketchSaveWorkflowHook = useSketchSaveWorkflow, useSketchDomEnhancementsHook = useSketchDomEnhancements, ...props }: SketchEditorProps) {
   const { scene, fileName, onSceneChange, onClear, saving = false, dirty = false } = props;
-  const { t } = useI18n();
+  const { t } = useI18nHook();
   const { engine } = props.dependencies ?? defaultSketchEditorDependencies;
   const canvasWrapRef = useRef<HTMLDivElement | null>(null);
   const theme = (props.useSketchTheme ?? useSketchTheme)();
-  const sceneState = useSketchScene({ scene, fileName, onSceneChange, onClear });
+  const sceneState = useSketchSceneHook({ scene, fileName, onSceneChange, onClear });
 
   // Calls the raw hook (not `useWiredSketchSaveWorkflow`) and threads `engine`
   // explicitly: `SketchEditor` itself accepts a swappable `dependencies` prop
   // (see `SketchEditorProps.dependencies` above) so hosts/tests can inject a
   // fake engine, and the wired hook would bypass that override.
-  const workflow = useSketchSaveWorkflow({
+  const workflow = useSketchSaveWorkflowHook({
     dirty,
     saving,
     savedAt: props.savedAt,
@@ -194,7 +199,7 @@ export function SketchEditor(props: SketchEditorProps) {
     sourceFileExtension: props.sourceFileExtension,
   });
 
-  useSketchDomEnhancements({
+  useSketchDomEnhancementsHook({
     containerRef: canvasWrapRef,
     t,
     domTextOverrides: props.domTextOverrides,

@@ -631,12 +631,6 @@
         "packages/ui/src/features/panel-kit/ErrorNotice.tsx"
       ]
     },
-    "FakeExcalidraw::useFakeExcalidraw": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/sketch-editor/react/dependencies-fake.tsx"
-      ]
-    },
     "FieldAttributesDialog::useFieldAttributesView": {
       "count": 1,
       "files": [
@@ -1582,30 +1576,6 @@
       "count": 1,
       "files": [
         "packages/admin/src/seo/react/components/SitemapModal.tsx"
-      ]
-    },
-    "SketchEditor::useI18n": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/sketch-editor/react/components/SketchEditor.tsx"
-      ]
-    },
-    "SketchEditor::useSketchDomEnhancements": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/sketch-editor/react/components/SketchEditor.tsx"
-      ]
-    },
-    "SketchEditor::useSketchSaveWorkflow": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/sketch-editor/react/components/SketchEditor.tsx"
-      ]
-    },
-    "SketchEditor::useSketchScene": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/sketch-editor/react/components/SketchEditor.tsx"
       ]
     },
     "Slot::useAdminKit": {
