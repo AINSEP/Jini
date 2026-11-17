@@ -5,7 +5,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import { MemoryHowPanel } from '../../../react/components/MemoryHowPanel.js';
 import type { MemoryConfigFlagKey } from '../../../rules.js';
 
@@ -23,6 +23,9 @@ function renderPanel(props: Partial<Parameters<typeof MemoryHowPanel>[0]> = {}) 
   const utils = render(<MemoryHowPanel enabled hookFlags={allFlags(true)} onToggleHook={onToggleHook} {...props} />);
   return { ...utils, onToggleHook };
 }
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('MemoryHowPanel', () => {
   it('renders the automatic-capture flow diagram and primer copy', () => {
@@ -70,5 +73,11 @@ describe('MemoryHowPanel', () => {
     );
     expect(screen.getByText('Intégration')).toBeInTheDocument();
     expect(screen.getByText('Mémoire enregistrée')).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    renderPanel({ useTHook: useQuotingT });
+    expect(screen.getByText('«Onboarding»')).toBeInTheDocument();
+    expect(screen.getByText('«Saved memory»')).toBeInTheDocument();
   });
 });

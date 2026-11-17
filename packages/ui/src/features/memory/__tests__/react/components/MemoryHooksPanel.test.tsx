@@ -5,7 +5,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import { MemoryHooksPanel, type MemoryHookKey } from '../../../react/components/MemoryHooksPanel.js';
 
 function allFlags(value: boolean): Record<MemoryHookKey, boolean> {
@@ -22,6 +22,9 @@ function renderPanel(props: Partial<Parameters<typeof MemoryHooksPanel>[0]> = {}
   const utils = render(<MemoryHooksPanel enabled flags={allFlags(true)} onToggle={onToggle} {...props} />);
   return { ...utils, onToggle };
 }
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('MemoryHooksPanel', () => {
   it('renders the head copy and every hook row label/description', () => {
@@ -85,5 +88,11 @@ describe('MemoryHooksPanel', () => {
     );
     expect(screen.getByText('Crochets de mémoire')).toBeInTheDocument();
     expect(screen.getByText('Injection de profil')).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    renderPanel({ useTHook: useQuotingT });
+    expect(screen.getByText('«Memory hooks»')).toBeInTheDocument();
+    expect(screen.getByText('«Profile injection»')).toBeInTheDocument();
   });
 });

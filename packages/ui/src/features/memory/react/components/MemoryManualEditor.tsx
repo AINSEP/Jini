@@ -13,8 +13,9 @@ import { FIELD_LABEL_STYLE } from '../styles.js';
 function MemoryStarterRow({
   editing,
   onEditingChange,
-}: Pick<MemoryManualEditorProps, 'onEditingChange'> & { editing: DraftEntry }) {
-  const t = useT();
+  useTHook = useT,
+}: Pick<MemoryManualEditorProps, 'onEditingChange'> & { editing: DraftEntry } & { useTHook?: typeof useT }) {
+  const t = useTHook();
   return (
       <div
         style={{
@@ -66,8 +67,9 @@ function MemoryNameTypeRow({
   editing,
   onEditingChange,
   editorNameRef,
-}: DraftFieldProps & Pick<MemoryManualEditorProps, 'editorNameRef'>) {
-  const t = useT();
+  useTHook = useT,
+}: DraftFieldProps & Pick<MemoryManualEditorProps, 'editorNameRef'> & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const typeLabel = useMemo(() => memoryTypeLabels(t), [t]);
   return (
     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
@@ -100,8 +102,8 @@ function MemoryNameTypeRow({
   );
 }
 
-function MemoryDetailsField({ editing, onEditingChange }: DraftFieldProps) {
-  const t = useT();
+function MemoryDetailsField({ editing, onEditingChange, useTHook = useT }: DraftFieldProps & { useTHook?: typeof useT }) {
+  const t = useTHook();
   return (
     <div>
       <label style={FIELD_LABEL_STYLE}>{t('Details')}</label>
@@ -128,8 +130,9 @@ function MemoryDraftFields({
   editing,
   onEditingChange,
   editorNameRef,
-}: DraftFieldProps & Pick<MemoryManualEditorProps, 'editorNameRef'>) {
-  const t = useT();
+  useTHook = useT,
+}: DraftFieldProps & Pick<MemoryManualEditorProps, 'editorNameRef'> & { useTHook?: typeof useT }) {
+  const t = useTHook();
   return (
     <div
       style={{
@@ -160,8 +163,9 @@ function MemoryDraftActions({
   busy,
   onCancel,
   onSave,
-}: Pick<MemoryManualEditorProps, 'busy' | 'onCancel' | 'onSave'> & { editing: DraftEntry }) {
-  const t = useT();
+  useTHook = useT,
+}: Pick<MemoryManualEditorProps, 'busy' | 'onCancel' | 'onSave'> & { editing: DraftEntry } & { useTHook?: typeof useT }) {
+  const t = useTHook();
   return (
     <div
       style={{
@@ -234,11 +238,12 @@ export interface MemoryManualEditorProps {
   editorRef: MutableRefObject<HTMLDivElement | null>;
   editorNameRef: MutableRefObject<HTMLInputElement | null>;
   flash: { kind: FlashKind; key: number } | null;
+  useTHook?: typeof useT;
 }
 
-export function MemoryManualEditor(props: MemoryManualEditorProps) {
+export function MemoryManualEditor({ useTHook = useT, ...props }: MemoryManualEditorProps) {
   const { editing, onStartNew, flash } = props;
-  const t = useT();
+  const t = useTHook();
   const flashLabel = useMemo(() => memoryFlashLabels(t), [t]);
   return (
     <div className="memory-tab-panel memory-manual-panel">

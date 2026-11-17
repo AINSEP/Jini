@@ -11,14 +11,16 @@ export function MemoryHowPanel({
   hookFlags,
   onToggleHook,
   agentHandle,
+  useTHook = useT,
 }: {
   enabled: boolean;
   hookFlags: Record<MemoryConfigFlagKey, boolean>;
   onToggleHook: (key: MemoryConfigFlagKey, next: boolean) => void;
   /** This panel's own agent handle, forwarded unchanged to `MemoryHooksPanel`. */
   agentHandle?: string;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   return (
     <div className="memory-how-panel">
       <div className="memory-auto-flow">
