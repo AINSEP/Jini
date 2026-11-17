@@ -33,6 +33,8 @@ export interface EntityScreenDependencies {
 export interface EntityListProps extends EntityScreenDependencies {
   readonly entityName: string;
   readonly limitParam: string | null;
+  /** Free text handed to the port's `list` as `search` on every page; null or empty sends none. */
+  readonly search?: string | null | undefined;
 }
 
 export interface EntityDetailProps extends EntityScreenDependencies {

@@ -78,7 +78,7 @@ export function createEntityPanel(
         entityName = decodeSegment({ value: route.params.entity ?? '' });
         id = decodeSegment({ value: route.params.id ?? '' });
       } catch { return <p role="alert">{args.translate({ key: 'Invalid route' })}</p>; }
-      if (route.view === 'list') return <EntityList {...dependencies} entityName={entityName} limitParam={route.query.get('limit')} />;
+      if (route.view === 'list') return <EntityList {...dependencies} entityName={entityName} limitParam={route.query.get('limit')} search={route.query.get('search')} />;
       if (route.view === 'detail') return <EntityDetail {...dependencies} entityName={entityName} id={id} />;
       return <EntityEdit {...dependencies} entityName={entityName} id={route.view === 'create' ? null : id} />;
     },

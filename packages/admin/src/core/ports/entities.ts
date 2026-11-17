@@ -253,6 +253,12 @@ export interface AdminEntityListQuery {
   readonly cursor?: string;
   readonly filter?: readonly AdminEntityFilter[];
   /**
+   * Free text to match, as typed by a person. What it is matched against (titles, bodies, every
+   * `queryable` text field) is the adapter's decision and an adapter that cannot search ignores it.
+   * An absent or empty search means "no search": a screen never sends `search: ''`.
+   */
+  readonly search?: string;
+  /**
    * Ordering, applied by the adapter over the whole collection *before* the page is cut.
    *
    * Ordering is a server concern and this is the only place it may be expressed. Sorting a page
