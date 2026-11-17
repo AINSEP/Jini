@@ -1440,12 +1440,6 @@
         "packages/chat/src/react/components/MessageList.tsx"
       ]
     },
-    "RecurringSchedulePicker::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/schedule-picker/react/components/RecurringSchedulePicker.tsx"
-      ]
-    },
     "RedirectsPage::useRedirectsPage": {
       "count": 1,
       "files": [
@@ -1558,24 +1552,6 @@
       "count": 1,
       "files": [
         "packages/chat/src/react/features/chat-pane/components/AgentRuntimePicker.tsx"
-      ]
-    },
-    "ScheduleFields::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/schedule-picker/react/components/ScheduleFields.tsx"
-      ]
-    },
-    "ScheduleKindTabs::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/schedule-picker/react/components/ScheduleKindTabs.tsx"
-      ]
-    },
-    "ScheduleSummary::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/schedule-picker/react/components/ScheduleSummary.tsx"
       ]
     },
     "SearchToolsCard::useT": {
@@ -2146,12 +2122,6 @@
       "count": 1,
       "files": [
         "packages/chat/src/react/components/ToolCard.tsx"
-      ]
-    },
-    "WeekdayGrid::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/schedule-picker/react/components/WeekdayGrid.tsx"
       ]
     },
     "WidgetInstanceEditor::useWidgetInstanceEditorView": {
