@@ -1,9 +1,12 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider, SETTINGS_DIALOG_DICTIONARIES } from '../../../../i18n/index.js';
+import { I18nProvider, SETTINGS_DIALOG_DICTIONARIES, type useT } from '../../../../i18n/index.js';
 import { DEFAULT_ACCENT_COLOR } from '../../../../../utils/appearance.js';
 import { AppearanceTab } from '../../../react/components/AppearanceTab.js';
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('AppearanceTab', () => {
   it('names all swatches in French using only the shipped settings dictionaries', () => {
@@ -107,5 +110,10 @@ describe('AppearanceTab', () => {
     expect(screen.getByText('Système')).toBeInTheDocument();
     expect(screen.getByText('Clair')).toBeInTheDocument();
     expect(screen.getByText('Sombre')).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    render(<AppearanceTab theme="light" onThemeChange={() => {}} onAccentColorChange={() => {}} useTHook={useQuotingT} />);
+    expect(screen.getByLabelText('«Accent color»')).toBeInTheDocument();
   });
 });

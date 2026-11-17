@@ -127,12 +127,6 @@
         "packages/admin/src/seo/react/pages/SeoPage.tsx"
       ]
     },
-    "AppearanceTab::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/appearance/react/components/AppearanceTab.tsx"
-      ]
-    },
     "ArtifactView::useArtifactView": {
       "count": 1,
       "files": [
@@ -757,12 +751,6 @@
         "packages/ui/src/features/admin-widgets/components/InfoTip.tsx"
       ]
     },
-    "InstructionsTab::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/instructions/react/components/InstructionsTab.tsx"
-      ]
-    },
     "InteractiveHtmlEditor::useInteractiveHtmlEditor": {
       "count": 1,
       "files": [
@@ -779,12 +767,6 @@
       "count": 1,
       "files": [
         "packages/ui-kit/src/react/KitProvider.tsx"
-      ]
-    },
-    "LanguageTab::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/language/react/components/LanguageTab.tsx"
       ]
     },
     "LibraryTab::useLibraryTab": {
