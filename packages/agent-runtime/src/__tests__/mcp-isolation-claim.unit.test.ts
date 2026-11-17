@@ -5,7 +5,8 @@ import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { planRun, type NativeToolPolicyInput } from '../native-tool-policy.js';
+import type { NativeToolPolicyInput } from '@jini-ai/core/contracts/agents';
+import { planRun } from '../native-tool-policy.js';
 import { AGENT_DEFS } from '../registry.js';
 
 const ISOLATION_FLAG = '--strict-mcp-config';
