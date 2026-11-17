@@ -18,4 +18,5 @@
  */
 export * from './types.js';
 export * from './providers.js';
+export * from './image-model-ids.js';
 export { DEFAULT_MEDIA_PROVIDER_CATALOG, DEFAULT_PROVIDER_PRESETS } from './ui-defaults.js';
