@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import type { VersionManagerDependencies, VersionManagerPort } from '../../../ports.js';
 import type { VersionManagerFileRef, VersionRecord, VersionRestoreResult } from '../../../types.js';
 import { VersionManagerModal } from '../../../react/components/VersionManagerModal.js';
@@ -416,5 +416,21 @@ describe('VersionManagerModal metadata characterization (L204)', () => {
     // The list resolves before the selected version's cached content populates the preview.
     expect(await screen.findByTitle(`${FILE_REF.name} · v2`)).toBeInTheDocument();
     expect(screen.queryByText(/Restored from v/)).not.toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useI18nHook', async () => {
+    const dependencies = createDeps({ versions: [makeVersion({ id: 'v1', version: 1, current: true })] });
+    render(
+      <VersionManagerModal
+        fileRef={FILE_REF}
+        currentContent="<p>current</p>"
+        onClose={vi.fn()}
+        onRestored={vi.fn()}
+        dependencies={dependencies}
+        useI18nHook={() => ({ locale: 'en', setLocale: vi.fn(), t: (key: string) => `«${key}»` })}
+      />,
+    );
+    expect(screen.getByRole('dialog', { name: '«Version history»' })).toBeInTheDocument();
+    await waitFor(() => expect(dependencies.versions.listVersions).toHaveBeenCalled());
   });
 });

@@ -1,8 +1,11 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import { VersionRestoreControl } from '../../../react/components/VersionRestoreControl.js';
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('VersionRestoreControl', () => {
   it('renders the restore button, disabled when disabled is true', () => {
@@ -84,5 +87,10 @@ describe('VersionRestoreControl', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Restaurer cette version' }));
     expect(screen.getByText('Restaurer cette version ?')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Annuler' })).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    render(<VersionRestoreControl disabled={false} restoring={false} onRestore={vi.fn()} useTHook={useQuotingT} />);
+    expect(screen.getByRole('button', { name: '«Restore this version»' })).toBeInTheDocument();
   });
 });
