@@ -138,10 +138,10 @@ const ROUTE_TABLE: Readonly<Record<string, readonly string[]>> = {
     'GET /api/routines/:id/runs [anonymous/2]',
   ],
   'media': [
-    'POST /api/media/generate [anonymous/2]',
-    'GET /api/media/tasks/:id [anonymous/2]',
-    'DELETE /api/media/tasks/:id [anonymous/2]',
-    'GET /api/media/tasks [anonymous/2]',
+    'POST /api/media/generate [same-origin]',
+    'GET /api/media/tasks/:id []',
+    'DELETE /api/media/tasks/:id [same-origin]',
+    'GET /api/media/tasks []',
   ],
   'frontend-sessions': [
     'GET /api/frontend-sessions/stream [anonymous/2]',

@@ -560,7 +560,7 @@ Everything a Jini package asks its host to bind or register: `*Port`, `*Kit`, `*
 | `HostToolsOpenInDeps` | deps | interface | `packages/daemon/src/http/host-tools.ts:342` |
 | `hostToolsRoutes` | registry | function | `packages/daemon/src/http/host-tools.ts:426` |
 | `MediaHttpDeps` | deps | interface | `packages/daemon/src/http/media.ts:161` |
-| `registerMediaRoutes` | registry | function | `packages/daemon/src/http/media.ts:477` |
+| `mediaRoutes` | registry | function | `packages/daemon/src/http/media.ts:477` |
 | `MemoryHttpDeps` | deps | interface | `packages/daemon/src/http/memory.ts:139` |
 | `registerMemoryEventStream` | registry | function | `packages/daemon/src/http/memory.ts:541` |
 | `registerMemoryRoutes` | registry | function | `packages/daemon/src/http/memory.ts:584` |

@@ -30,7 +30,7 @@ import { registerFrontendRequestRoute } from '../../frontend-request-route.js';
 import { registerFrontendSessionRoutes } from '../../frontend-sessions.js';
 import { healthRoutes } from '../../health.js';
 import { hostToolsRoutes } from '../../host-tools.js';
-import { registerMediaRoutes } from '../../media.js';
+import { mediaRoutes } from '../../media.js';
 import { registerMemoryRoutes } from '../../memory.js';
 import { registerMessageRelayRoutes } from '../../message-relay.js';
 import { registerModelProxyRoutes } from '../../model-proxy.js';
@@ -129,7 +129,7 @@ const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-par
   ['remote-run-events', ({ app, adapter, deps }) => registerRemoteRunEventRoutes({ app, deps: deps({ env: gateEnv, tokenConfig: undefined, timingSafeEqual: undefined }), adapter })],
   ['memory', ({ app, adapter, deps }) => registerMemoryRoutes({ app, deps: deps(), adapter })],
   ['routines', ({ app, adapter, deps }) => registerRoutineRoutes({ app, deps: deps(), adapter })],
-  ['media', ({ app, adapter, deps }) => registerMediaRoutes({ app, deps: deps(), adapter })],
+  ['media', ({ adapter, deps, mountList }) => mountList(mediaRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['frontend-sessions', ({ app, adapter, deps }) => registerFrontendSessionRoutes({ app, deps: deps({ routePrefix: undefined, resolveOwner: undefined }), adapter })],
   ['frontend-sessions (scoped)', ({ app, adapter, deps }) => registerFrontendSessionRoutes({ app, deps: deps({ routePrefix: SCOPED_FRONTEND_PREFIX }), adapter })],
   ['daemon-status', ({ adapter, deps, mountList }) => mountList(daemonStatusRoutes({ deps: deps({ requestShutdown: () => undefined }), host: routeHost(adapter) }))],

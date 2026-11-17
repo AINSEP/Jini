@@ -10,11 +10,11 @@ import Database from 'better-sqlite3';
 import { createAgentExecutor } from '@jini-ai/daemon';
 import { createNativeAgentRuntime } from '@jini-ai/agent-runtime';
 import type { ToolRegistration } from '@jini-ai/core';
-import { createDiskAttachmentStore, registerAttachmentRoutes, registerMediaRoutes, registerMemoryRoutes } from '@jini-ai/daemon/http';
+import { createDiskAttachmentStore, mediaRoutes, registerAttachmentRoutes, registerMemoryRoutes } from '@jini-ai/daemon/http';
 import { createBuiltinVendorAdapterRegistry, createMediaDispatchEngine, createSqliteMediaTaskStore } from '@jini-ai/integrations/media-providers';
 import { createNodeMediaHttpClient } from '@jini-ai/integrations/media-providers/node';
 import { createExtractionLog, createNoteStore, createVerifyLog } from '@jini-ai/memory';
-import { createFrontendControl, createLocalNodeDaemon, installGracefulShutdown } from '@jini-ai/server';
+import { createFrontendControl, createLocalNodeDaemon, installGracefulShutdown, mountRoutes } from '@jini-ai/server';
 import { CHAT_CAPABILITIES } from '@jini-ai/chat/core';
 import { PAGE_CAPABILITIES } from '@jini-ai/agentic';
 import type { RunAgentPayload } from '@jini-ai/protocol';
@@ -459,8 +459,8 @@ async function main(): Promise<void> {
         // `JINI_ALLOWED_ORIGINS` above already names the Vite dev origin the browser sends.
         (app, { adapter }) => registerAttachmentRoutes({ app, deps: { store: attachmentStore }, adapter }),
         (app, { adapter }) => registerMemoryRoutes({ app, deps: memoryRoutesDeps, adapter }),
-        (app, { adapter }) =>
-          registerMediaRoutes({ app, deps: {
+        (app, { routeHost }) =>
+          mountRoutes({ app, routes: mediaRoutes({ deps: {
               engine: createMediaDispatchEngine({
                 registry: createBuiltinVendorAdapterRegistry(),
                 httpClient: createNodeMediaHttpClient({}),
@@ -473,7 +473,7 @@ async function main(): Promise<void> {
                 listByOwner: ({ ownerRef }, options) => mediaTaskStore.listByOwner(ownerRef, options),
                 delete: ({ id }) => mediaTaskStore.delete(id),
               },
-            }, adapter }),
+            }, host: routeHost }) }),
       ],
       onShutdown: async () => {
         clearInterval(attachmentPruneTimer);

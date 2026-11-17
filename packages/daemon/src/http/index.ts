@@ -323,7 +323,7 @@ export {
   mediaTaskDeleteRoute,
   mediaTaskGetRoute,
   mediaTaskListRoute,
-  registerMediaRoutes,
+  mediaRoutes,
 } from './media.js';
 export type {
   AttachmentClaim,
