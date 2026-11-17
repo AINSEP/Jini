@@ -323,7 +323,7 @@ describe('clearStandingDraft with keepOnFailure (recovered-draft Discard)', () =
   ])('keeps the banner and the local copy when %s', async (_name, discardAutosave) => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const backup = makeBackup();
-    backup.write({ entryId: 'entry', draft: draft({ title: 'parked' }) }, { principalId: 'operator' });
+    backup.write({ entryId: 'entry', draft: draft({ title: 'parked' }), savedAt: '2026-01-02T00:00:00.000Z' }, { principalId: 'operator' });
     const { port } = makePort({ ...recovered, discardAutosave });
     const { result } = mount({ port, backup });
     await act(async () => {});
