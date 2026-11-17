@@ -182,7 +182,7 @@ export interface HostedMcpSignInPorts {
   readonly store: {
     /** @agent-note Exactly one sealer open per call; `{}` when the row holds no blob. */
     openPayload(sealer: Pick<SecretSealerPort, 'open'>, record: Pick<ExternalMcpServerRecord, 'sealedOAuth' | 'workspaceId' | 'serverId' | 'oauthAadVersion'>): Promise<ExternalMcpSealedOAuthPayload>;
-    /** @agent-note Exactly one seal; the result is staged for `deps.repo.upsert` in the same call sequence. */
+    /** @agent-note Exactly one seal; the result is staged for the conditional `deps.repo` write (`updateIfVersion` or `updateOAuthRuntime`) in the same call sequence. */
     sealPayload(deps: { readonly sealer: SecretSealerPort; readonly keyring: KeyringPort }, identity: { readonly workspaceId: string; readonly serverId: string }, payload: ExternalMcpSealedOAuthPayload): Promise<SealedExternalMcpOAuth>;
   };
   /** @agent-note Pure row projections (the canonical resolvers); no I/O. */
