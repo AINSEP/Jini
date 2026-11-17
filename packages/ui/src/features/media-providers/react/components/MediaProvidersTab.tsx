@@ -57,6 +57,9 @@ export interface MediaProvidersTabProps {
   /** This tab's own agent handle. One distinct sub-handle per provider card, derived from the
    *  provider's own catalog id via `buildAgentListHandles`. */
   agentHandle?: string;
+  useTHook?: typeof useT;
+  useMediaProvidersTabHook?: typeof useMediaProvidersTab;
+  useMediaProviderKeyVisibilityHook?: typeof useMediaProviderKeyVisibility;
 }
 
 /**
@@ -76,12 +79,15 @@ export function MediaProvidersTab({
   pinnedProviderIds,
   labels,
   agentHandle,
+  useTHook = useT,
+  useMediaProvidersTabHook = useMediaProvidersTab,
+  useMediaProviderKeyVisibilityHook = useMediaProviderKeyVisibility,
 }: MediaProvidersTabProps) {
-  const t = useT();
+  const t = useTHook();
   const { providers, load, save, hasAnyConfigured, pendingProviderIds, updateProvider, clearProvider, saveChanges, reload } =
-    useMediaProvidersTab({ port, catalogPolicy, initialProviders });
+    useMediaProvidersTabHook({ port, catalogPolicy, initialProviders });
   const { canonicalMediaProviderId } = catalogPolicy;
-  const { visibleApiKeys, toggleKeyVisible } = useMediaProviderKeyVisibility({});
+  const { visibleApiKeys, toggleKeyVisible } = useMediaProviderKeyVisibilityHook({});
   const resolved = resolveMediaProvidersTabLabels({ t }, { labels });
 
   const canonicalPinnedIds = pinnedProviderIds?.map((id) => canonicalMediaProviderId({ id }));
