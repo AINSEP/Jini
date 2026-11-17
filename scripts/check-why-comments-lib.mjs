@@ -98,15 +98,18 @@ export function parseDiff(diffText) {
   let file;
   for (const line of diffText.split('\n')) {
     if (line.startsWith('diff --git ')) file = startFile(parsed);
-    else if (!file) continue;
-    else if (line.startsWith('@@')) readHunk(file, line);
-    else if (!file.inHunk && line.startsWith('--- ')) file.oldPath = line === '--- /dev/null' ? undefined : line.slice(6);
-    else if (file.inHunk && line.startsWith('+')) file.added.push(line.slice(1));
+    else if (file) applyDiffLine(file, line);
   }
   return {
     files: parsed.filter(f => f.oldPath && SOURCE_FILE.test(f.oldPath)).map(({ oldPath, ranges }) => ({ oldPath, ranges })),
     addedTexts: parsed.map(f => f.added.join('\n')).filter(Boolean),
   };
+}
+
+function applyDiffLine(file, line) {
+  if (line.startsWith('@@')) readHunk(file, line);
+  else if (!file.inHunk && line.startsWith('--- ')) file.oldPath = line === '--- /dev/null' ? undefined : line.slice(6);
+  else if (file.inHunk && line.startsWith('+')) file.added.push(line.slice(1));
 }
 
 function touched(block, ranges) {
@@ -150,17 +153,19 @@ function prefixIndex(pending) {
   return index;
 }
 
+function survivorsIn(haystack, index, survivors) {
+  for (let pos = 0; pos <= haystack.length - PREFIX_KEY; pos += 1) {
+    if (pos > 0 && haystack[pos - 1] !== ' ') continue;
+    const candidates = index.get(haystack.slice(pos, pos + PREFIX_KEY));
+    for (const text of candidates ?? []) if (haystack.startsWith(text, pos)) survivors.add(text);
+  }
+}
+
 /** One pass over the corpus: returns the set of pending texts that occur as a substring somewhere. */
 export function findSurvivors(pending, flat) {
   const survivors = new Set();
   const index = prefixIndex(pending);
-  for (const haystack of flat) {
-    for (let pos = 0; pos <= haystack.length - PREFIX_KEY; pos += 1) {
-      if (pos > 0 && haystack[pos - 1] !== ' ') continue;
-      const candidates = index.get(haystack.slice(pos, pos + PREFIX_KEY));
-      if (candidates) for (const text of candidates) if (haystack.startsWith(text, pos)) survivors.add(text);
-    }
-  }
+  for (const haystack of flat) survivorsIn(haystack, index, survivors);
   return survivors;
 }
 
@@ -171,15 +176,15 @@ function shingles(normalized) {
   return out;
 }
 
-/** Fraction of the block's 3-word runs that the range's added text still contains: an edit keeps most, a deletion keeps none. */
+/** Fraction of the block's 3-word runs that a pool still contains: an edit keeps most, a deletion keeps none. */
 export function containment(normalized, pool) {
   const runs = shingles(normalized);
   if (runs.length === 0) return 0;
   return runs.filter(run => pool.has(run)).length / runs.length;
 }
 
-function shinglePool(addedTexts) {
-  return new Set(addedTexts.flatMap(text => shingles(normalizeText(text))));
+function shinglePool(texts) {
+  return new Set(texts.flatMap(text => shingles(normalizeText(text))));
 }
 
 /**
@@ -193,11 +198,21 @@ export function findLostBlocks({ files, addedTexts, currentTexts }) {
   const corpus = buildCorpus([...currentTexts, ...addedTexts.map((text, i) => ({ path: `added-${i}`, text }))]);
   const unmatched = candidates.filter(c => !corpus.blocks.has(c.normalized));
   const survivors = findSurvivors(new Set(unmatched.map(c => c.normalized)), corpus.flat);
+  const edited = editedInPlace({ addedTexts, currentTexts });
+  return unmatched.filter(c => !survivors.has(c.normalized) && !edited(c));
+}
+
+/** Predicate: did the block's wording mostly survive in the range's added text or in its own file's current text? */
+function editedInPlace({ addedTexts, currentTexts }) {
   const added = shinglePool(addedTexts);
   const own = new Map(currentTexts.filter(entry => entry.own).map(entry => [entry.path, entry.text]));
-  const edited = c => containment(c.normalized, added) >= EDIT_CONTAINMENT
-    || (own.has(c.file) && containment(c.normalized, shinglePool([own.get(c.file)])) >= EDIT_CONTAINMENT);
-  return unmatched.filter(c => !survivors.has(c.normalized) && !edited(c));
+  const ownPools = new Map();
+  const ownPool = file => {
+    if (!ownPools.has(file)) ownPools.set(file, shinglePool([own.get(file)]));
+    return ownPools.get(file);
+  };
+  return c => containment(c.normalized, added) >= EDIT_CONTAINMENT
+    || (own.has(c.file) && containment(c.normalized, ownPool(c.file)) >= EDIT_CONTAINMENT);
 }
 
 /** Allow-list: `{ version: 1, allow: [{ id, reason }] }`. A missing reason is an error, never a silent pass. */

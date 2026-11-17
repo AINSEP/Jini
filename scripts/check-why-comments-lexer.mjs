@@ -115,16 +115,26 @@ function readSlash(ctx) {
   else { ctx.i += 1; ctx.lastSig = '/'; }
 }
 
+function skip(ctx) {
+  ctx.i += 1;
+}
+
+function readTemplateStart(ctx) {
+  ctx.i += 1;
+  readTemplateBody(ctx);
+}
+
+function readOther(ctx) {
+  if (IDENT_CHAR.test(ctx.src[ctx.i])) readWord(ctx);
+  else { ctx.lastSig = ctx.src[ctx.i]; ctx.i += 1; }
+}
+
+const HANDLERS = {
+  '\n': newline, ' ': skip, '\t': skip, '\r': skip, '/': readSlash, '"': readQuoted, "'": readQuoted, '`': readTemplateStart, '{': readBrace, '}': readBrace,
+};
+
 function step(ctx) {
-  const c = ctx.src[ctx.i];
-  if (c === '\n') newline(ctx);
-  else if (c === ' ' || c === '\t' || c === '\r') ctx.i += 1;
-  else if (c === '/') readSlash(ctx);
-  else if (c === '"' || c === "'") readQuoted(ctx);
-  else if (c === '`') { ctx.i += 1; readTemplateBody(ctx); }
-  else if (c === '{' || c === '}') readBrace(ctx);
-  else if (IDENT_CHAR.test(c)) readWord(ctx);
-  else { ctx.lastSig = c; ctx.i += 1; }
+  (HANDLERS[ctx.src[ctx.i]] ?? readOther)(ctx);
 }
 
 /** Joins runs of standalone `//` lines on consecutive lines into one block, as a reader sees them. */

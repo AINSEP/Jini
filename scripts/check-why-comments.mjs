@@ -46,17 +46,22 @@ function takeValue(argv, i) {
   return argv[i + 1];
 }
 
+const VALUE_FLAGS = {
+  '--base': (opts, v) => { opts.base = v; },
+  '--head': (opts, v) => { opts.head = v; },
+  '--root': (opts, v) => { opts.root = path.resolve(v); },
+  '--debt': (opts, v) => { opts.debt = path.resolve(v); },
+  '--other-root': (opts, v) => { opts.others.push(path.resolve(v)); },
+};
+
 export function parseArgs(argv, env = {}) {
   const opts = { base: env.WHY_COMMENTS_BASE_REF || DEFAULT_BASE, head: 'HEAD', mergeBase: false, root: undefined, debt: undefined, others: [] };
-  const fromEnv = (env.WHY_COMMENTS_OTHER_ROOT ?? '').split(path.delimiter).filter(Boolean).map(p => path.resolve(p));
-  opts.others.push(...fromEnv);
+  opts.others.push(...(env.WHY_COMMENTS_OTHER_ROOT ?? '').split(path.delimiter).filter(Boolean).map(p => path.resolve(p)));
   for (let i = 0; i < argv.length; i++) {
     const flag = argv[i];
     if (flag === '--') continue;
-    else if (flag === '--merge-base') opts.mergeBase = true;
-    else if (flag === '--base' || flag === '--head') opts[flag.slice(2)] = takeValue(argv, i++);
-    else if (flag === '--root' || flag === '--debt') opts[flag.slice(2)] = path.resolve(takeValue(argv, i++));
-    else if (flag === '--other-root') opts.others.push(path.resolve(takeValue(argv, i++)));
+    if (flag === '--merge-base') opts.mergeBase = true;
+    else if (VALUE_FLAGS[flag]) VALUE_FLAGS[flag](opts, takeValue(argv, i++));
     else throw new Error(`unknown argument ${flag}; use --base, --head, --merge-base, --root, --other-root, --debt`);
   }
   return opts;
@@ -94,23 +99,37 @@ function report({ lost, allow, command, io, range }) {
   return 1;
 }
 
+function loadAllow(debtFile) {
+  return existsSync(debtFile) ? parseDebt(readFileSync(debtFile, 'utf8')) : new Map();
+}
+
+function currentTextsOf({ root, opts, profile, readTexts }) {
+  const roots = [...new Set([root, ...opts.others, ...siblingRoots(root, profile)])];
+  return roots.flatMap(r => readTexts(r).map(entry => (r === root ? { ...entry, own: true } : entry)));
+}
+
+function withDefaults(options) {
+  const git = options.git ?? defaultGit;
+  return {
+    io: { out: options.out ?? console.log, err: options.err ?? console.error },
+    profile: options.profile ?? PROFILE,
+    git,
+    readTexts: options.readTexts ?? (root => defaultReadTexts(root, git)),
+  };
+}
+
 /**
  * @param {string[]} argv
  * @param {{out?: Function, err?: Function, env?: object, profile?: object, git?: Function, readTexts?: Function}} options
  */
 export function runCli(argv, options = {}) {
-  const io = { out: options.out ?? console.log, err: options.err ?? console.error };
-  const profile = options.profile ?? PROFILE;
-  const git = options.git ?? defaultGit;
-  const readTexts = options.readTexts ?? (root => defaultReadTexts(root, git));
+  const { io, profile, git, readTexts } = withDefaults(options);
   try {
     const opts = parseArgs(argv, options.env ?? process.env);
     const root = opts.root ?? REPO_ROOT;
-    const debtFile = opts.debt ?? path.join(root, profile.debt);
-    const allow = existsSync(debtFile) ? parseDebt(readFileSync(debtFile, 'utf8')) : new Map();
+    const allow = loadAllow(opts.debt ?? path.join(root, profile.debt));
     const range = collectRange({ opts, root, git });
-    const roots = [...new Set([root, ...opts.others, ...siblingRoots(root, profile)])];
-    const currentTexts = roots.flatMap(r => readTexts(r).map(entry => (r === root ? { ...entry, own: true } : entry)));
+    const currentTexts = currentTextsOf({ root, opts, profile, readTexts });
     const lost = findLostBlocks({ files: range.files, addedTexts: range.addedTexts, currentTexts });
     return report({ lost, allow, command: profile.command, io, range });
   } catch (error) {
