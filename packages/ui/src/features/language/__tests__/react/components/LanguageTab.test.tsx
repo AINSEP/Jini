@@ -1,13 +1,16 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import { LanguageTab } from '../../../react/components/LanguageTab.js';
 
 const locales = [
   { code: 'en', label: 'English' },
   { code: 'fr', label: 'Français' },
 ];
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('LanguageTab', () => {
   it('marks the selected locale tile as checked and shows a checkmark', () => {
@@ -38,5 +41,10 @@ describe('LanguageTab', () => {
       </I18nProvider>,
     );
     expect(screen.getByRole('radiogroup', { name: 'Langue' })).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    render(<LanguageTab locales={locales} selectedLocale="fr" onSelectLocale={() => {}} useTHook={useQuotingT} />);
+    expect(screen.getByLabelText('«Language»')).toBeInTheDocument();
   });
 });
