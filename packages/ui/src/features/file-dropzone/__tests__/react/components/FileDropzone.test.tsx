@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { FileDropzone } from '../../../react/components/FileDropzone.js';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 
 function file(name: string, type = '', size = 10): File {
   return new File([new Uint8Array(size)], name, { type });
@@ -12,6 +12,9 @@ function file(name: string, type = '', size = 10): File {
 function dataTransfer(files: File[]): DataTransfer {
   return { items: [], files } as unknown as DataTransfer;
 }
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('FileDropzone', () => {
   it('renders a default prompt with no paste mention when enablePaste is not set', () => {
@@ -357,5 +360,10 @@ describe('FileDropzone 4-pattern hook override test suite', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Stage file' }));
 
     expect(screen.getByText('doc.pdf')).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    render(<FileDropzone onFiles={vi.fn()} useTHook={useQuotingT} />);
+    expect(screen.getByText('«Drag & drop or browse»')).toBeInTheDocument();
   });
 });

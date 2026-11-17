@@ -12,13 +12,15 @@ export interface FileDropzoneZoneProps {
   enablePaste?: boolean | undefined;
   /** Already-translated hint shown inside the zone under the prompt. */
   hint?: string | undefined;
+  useTHook?: typeof useT;
+  useFileDropzoneZoneHook?: typeof useFileDropzoneZone;
 }
 
 /** The keyboard-activatable drag/drop/click zone of `FileDropzone`, with its nested native file input. Internal to the file-dropzone feature. */
-export function FileDropzoneZone({ dropzone, zoneText, accept, directory, enablePaste, hint }: FileDropzoneZoneProps) {
-  const t = useT();
+export function FileDropzoneZone({ dropzone, zoneText, accept, directory, enablePaste, hint, useTHook = useT, useFileDropzoneZoneHook = useFileDropzoneZone }: FileDropzoneZoneProps) {
+  const t = useTHook();
 
-  const { onZoneKeyDown, onInputClick, directoryInputProps } = useFileDropzoneZone({ dropzone, directory });
+  const { onZoneKeyDown, onInputClick, directoryInputProps } = useFileDropzoneZoneHook({ dropzone, directory });
 
   return (
     <div

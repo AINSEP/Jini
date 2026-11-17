@@ -62,6 +62,8 @@ export interface FileDropzoneProps {
   /** Custom hook overrides for dependency injection / testing. */
   useFileDropzone?: typeof useFileDropzone;
   useFileDropzonePreviews?: typeof useFileDropzonePreviews;
+  useTHook?: typeof useT;
+  useGlobalKeydownHook?: typeof useGlobalKeydown;
 }
 
 /**
@@ -93,14 +95,16 @@ export function FileDropzone({
   secondaryAction,
   useFileDropzone: useFileDropzoneHook = useFileDropzone,
   useFileDropzonePreviews: useFileDropzonePreviewsHook = useFileDropzonePreviews,
+  useTHook = useT,
+  useGlobalKeydownHook = useGlobalKeydown,
 }: FileDropzoneProps) {
-  const t = useT();
+  const t = useTHook();
   const [lightboxFile, setLightboxFile] = useState<File | null>(null);
 
   const dropzone = useFileDropzoneHook({ onFiles, onZoneClick, onError, onProcessingStart, enablePaste });
   const previews = useFileDropzonePreviewsHook(files ?? NO_FILES);
 
-  useGlobalKeydown({
+  useGlobalKeydownHook({
     handler: (event) => {
       if (event.key === 'Escape') setLightboxFile(null);
     },
@@ -172,6 +176,7 @@ interface FileDropzoneStagedProps {
   onRemove?: ((file: File) => void) | undefined;
   /** Already-translated helper paragraph for the simple variant. */
   simpleHelper?: string | undefined;
+  useTHook?: typeof useT;
 }
 
 /** Everything below the zone: the secondary action, the staged names/thumbnails, the simple-variant helper, and the lightbox. Empty `names`/`files` render nothing — `FileDropzoneNameList` and `FileDropzoneThumbnailGrid` both return `null` for an empty list. */
@@ -186,8 +191,9 @@ function FileDropzoneStaged({
   files,
   onRemove,
   simpleHelper,
+  useTHook = useT,
 }: FileDropzoneStagedProps) {
-  const t = useT();
+  const t = useTHook();
   return (
     <>
       {secondaryAction ? (
