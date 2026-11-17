@@ -36,6 +36,14 @@ Routes: `GET /`, `POST /notes`, `GET /notes/:slug`, `POST /notes/:slug/edit`,
 
 The app has one local owner and no login; it is meant to run on localhost.
 
+## Admin bundle (`/admin/`)
+
+`node src/main.ts --admin-dir <path>` serves a built admin app (default `../notes-web/dist`) under `/admin/`
+(`src/admin-bundle.ts`, bound to the adapter's `onUnmatched`, so it only sees requests no route matched).
+GET and HEAD only; a path with no file extension answers `index.html`; a path that could leave the folder
+(`..`, an encoded slash, a symlink out) or a missing file answers the plain 404. The admin app itself
+(`examples/notes-web`) is not in this branch: see the wave report.
+
 ## Entity API (what the admin screens call)
 
 `/api/entities/note` is the notes as one `AdminEntityPort` (`src/notes-entity.ts`, a mapping over `@jini-ai/cms/entries`;
