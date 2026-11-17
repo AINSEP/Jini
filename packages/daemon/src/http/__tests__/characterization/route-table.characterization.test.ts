@@ -41,8 +41,8 @@ const ROUTE_TABLE: Readonly<Record<string, readonly string[]>> = {
     'POST /api/agents/rescan [same-origin]',
   ],
   'host-tools': [
-    'GET /api/editors [anonymous/2]',
-    'POST /api/resources/:resourceRef/open-in [anonymous/2]',
+    'GET /api/editors []',
+    'POST /api/resources/:resourceRef/open-in [same-origin]',
   ],
   'model-proxy': [
     'POST /api/proxy/anthropic/stream [anonymous/2]',

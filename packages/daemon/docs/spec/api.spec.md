@@ -339,7 +339,7 @@ Registrars use `({app: Express, deps: D, adapter: AdapterContext}, {}) => void`.
 | `registerMediaRoutes` | `MediaHttpDeps`: `engine.generate({surface, model}, remainingOptions)`, `taskStore` with async create/get/update/listByOwner/delete, optional `onInternalError` |
 | `registerAttachmentRoutes` | `AttachmentsHttpDeps`: `store: AttachmentStore`; optional `maxConcurrentUploads`, `maxAttachmentBytes`, `maxCleanupPaths`, `requireSameOrigin`, `onInternalError`, trusted `resolveOwnerId({req})` |
 | `registerXaiRoutes` | `XaiHttpDeps`: every dependency field is optional: data/token path, provider config, callback host/port/path, pending cache, listener slot/factory, search base/model/fetch/deadline, private error sink |
-| `registerHostToolsRoutes` | `({app, adapter}, {resolveRoot?, probeEnv?, spawnImpl?} = {}) => void` |
+| `hostToolsRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them);  |
 | `registerMemoryRoutes` / `registerMemoryEventStream` | `({app, deps: MemoryHttpDeps, adapter}, {}) => void`; `deps = {notes, extractions, verifications, dataDir}` |
 | `toolCatalogRoutes` | `({deps: ToolCatalogHttpDeps, host: DaemonRouteHost}, {}) => DaemonRoute[]`; catalog declares `search({query}, {limit?})`, `describe({id}, {})`; the routes are data a host mounts |
 

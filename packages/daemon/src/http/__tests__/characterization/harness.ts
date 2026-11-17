@@ -29,7 +29,7 @@ import { delegatedToolRoutes } from '../../delegated-tools.js';
 import { registerFrontendRequestRoute } from '../../frontend-request-route.js';
 import { registerFrontendSessionRoutes } from '../../frontend-sessions.js';
 import { healthRoutes } from '../../health.js';
-import { registerHostToolsRoutes } from '../../host-tools.js';
+import { hostToolsRoutes } from '../../host-tools.js';
 import { registerMediaRoutes } from '../../media.js';
 import { registerMemoryRoutes } from '../../memory.js';
 import { registerMessageRelayRoutes } from '../../message-relay.js';
@@ -116,7 +116,7 @@ const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-par
   'json-parser',
   ['runs', ({ app, adapter, deps }) => registerRunRoutes({ app, deps: deps(), adapter })],
   ['agents', ({ adapter, deps, mountList }) => mountList(agentRoutes({ deps: deps(), host: routeHost(adapter) }))],
-  ['host-tools', ({ app, adapter, deps }) => registerHostToolsRoutes({ app, adapter }, deps())],
+  ['host-tools', ({ adapter, deps, mountList }) => mountList(hostToolsRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['model-proxy', ({ app, adapter, deps }) => registerModelProxyRoutes({ app, deps: deps(), adapter })],
   ['active-context', ({ adapter, deps, mountList }) => mountList(activeContextRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['terminals', ({ app, adapter, deps }) => registerTerminalRoutes({ app, deps: deps(), adapter })],

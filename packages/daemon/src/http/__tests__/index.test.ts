@@ -30,7 +30,7 @@ describe('@jini-ai/daemon/http barrel', () => {
   });
 
   it('re-exports the host-tools editors route and registrar', () => {
-    expect(typeof HttpBarrel.registerHostToolsRoutes).toBe('function');
+    expect(typeof HttpBarrel.hostToolsRoutes).toBe('function');
     expect(HttpBarrel.hostEditorsRoute.path).toBe('/api/editors');
   });
 

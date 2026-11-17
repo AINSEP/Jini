@@ -38,7 +38,7 @@ import {
   searchToolCatalog,
 } from '@jini-ai/registry/tool-catalog/sqlite';
 import { inspectSqliteDatabase, verifySqliteIntegrity } from '@jini-ai/db/sqlite'; import type { SqliteDb } from '@jini-ai/core/contracts/storage';
-import { healthRoutes, daemonDbRoutes, researchRoutes, delegatedToolRoutes, activeContextRoutes, daemonStatusRoutes, agentRoutes, toolCatalogRoutes, createDaemonDbToolRegistrations, denyAllWorkspaceRoots, registerConnectorsRoutes, registerFrontendSessionRoutes, registerHostToolsRoutes, registerMediaRoutes, registerMemoryRoutes, registerModelProxyRoutes, registerRemoteRunEventRoutes, registerRoutineRoutes, registerRunRoutes, registerTerminalRoutes, registerXaiRoutes, type AgentSummary, type DaemonDbOperations, type DaemonDbVacuumResult, type DelegatedToolExecuteRequest, type FrontendSessionsHttpDeps, type MediaHttpDeps, type MemoryHttpDeps, type RemoteToolBridgeTokenConfig, type RoutineHttpDeps, type RunStartHandler, type WorkspaceRootResolver } from '@jini-ai/daemon/http';
+import { hostToolsRoutes, healthRoutes, daemonDbRoutes, researchRoutes, delegatedToolRoutes, activeContextRoutes, daemonStatusRoutes, agentRoutes, toolCatalogRoutes, createDaemonDbToolRegistrations, denyAllWorkspaceRoots, registerConnectorsRoutes, registerFrontendSessionRoutes, registerMediaRoutes, registerMemoryRoutes, registerModelProxyRoutes, registerRemoteRunEventRoutes, registerRoutineRoutes, registerRunRoutes, registerTerminalRoutes, registerXaiRoutes, type AgentSummary, type DaemonDbOperations, type DaemonDbVacuumResult, type DelegatedToolExecuteRequest, type FrontendSessionsHttpDeps, type MediaHttpDeps, type MemoryHttpDeps, type RemoteToolBridgeTokenConfig, type RoutineHttpDeps, type RunStartHandler, type WorkspaceRootResolver } from '@jini-ai/daemon/http';
 import type { Express } from 'express';
 
 import { defineJiniFeature, type FeatureBuildContext, type JiniFeature } from './feature.js';
@@ -349,9 +349,9 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
         services: () => ({ context }),
       }, {
         http: ({ app, services }) => {
-          registerHostToolsRoutes({ app: app as Express, adapter: services.context.adapter }, {
+          mountRoutes({ app, routes: hostToolsRoutes({ deps: {
             resolveRoot: options.hostTools?.resolveWorkspaceRoot ?? denyAllWorkspaceRoots,
-          });
+          }, host: services.context.routeHost }) });
         },
       }),
     }),

@@ -36,7 +36,7 @@ export {
   pathDirs,
   probeCommandOnPath,
   probeMacBundle,
-  registerHostToolsRoutes,
+  hostToolsRoutes,
   resolveEntry,
   resolveHostToolLaunchPlan,
 } from './host-tools.js';
