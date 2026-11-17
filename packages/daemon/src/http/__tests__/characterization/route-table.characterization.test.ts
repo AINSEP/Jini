@@ -157,8 +157,8 @@ const ROUTE_TABLE: Readonly<Record<string, readonly string[]>> = {
     'POST /api/daemon/shutdown [anonymous/2]',
   ],
   'component-catalog': [
-    'GET /api/components/search [anonymous/2]',
-    'GET /api/components/:id [anonymous/2]',
+    'GET /api/components/search [same-origin]',
+    'GET /api/components/:id [same-origin]',
   ],
   'attachments': [
     'POST /api/attachments [anonymous/2]',

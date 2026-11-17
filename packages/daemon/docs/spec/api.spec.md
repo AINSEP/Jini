@@ -328,7 +328,7 @@ Registrars use `({app: Express, deps: D, adapter: AdapterContext}, {}) => void`.
 | `registerActiveContextRoutes` | `ActiveContextDeps`: `resolveResource({resourceRef}) => {name?: string \| null} \| null \| undefined`; optional `now() => number` |
 | `registerRoutineRoutes` | `RoutineHttpDeps`: `store: RoutineStore`, `scheduler: Pick<RoutineService,'nextRunAt' \| 'rescheduleOne' \| 'runNow' \| 'unschedule'>`; optional `projectExists({projectId})` |
 | `registerDaemonDbRoutes` | `({app, deps: DaemonDbHttpDeps, adapter}, {}) => void`; deps requires `toolExecutor: ToolExecutor`, explicit `principal: Principal`; optional private `onInternalError` sink |
-| `registerComponentCatalogRoutes` | `ComponentCatalogHttpDeps.catalog.search({query}, {limit?}) => readonly ComponentCatalogSearchHit[]`, `describe({id}, {}) => ComponentCatalogEntry \| null` |
+| `componentCatalogRoutes` | `({deps: ComponentCatalogHttpDeps, host: DaemonRouteHost}, {}) => DaemonRoute[]`; catalog declares `search({query}, {limit?}) => readonly ComponentCatalogSearchHit[]`, `describe({id}, {}) => ComponentCatalogEntry \| null`; the routes are data a host mounts |
 | `registerDelegatedToolRoutes` | `DelegatedToolsHttpDeps`: `lifecycle`, `toolExecutor`, `resolvePrincipal({request}) => Principal \| Promise<Principal>`; optional `toolRegistry`, `onInternalError`, `isModelSafeToolFailure({result})`, `describeInternalError(context)` |
 | `registerRemoteRunEventRoutes` | `RemoteRunEventHttpDeps`: `lifecycle`, `recorder: RemoteToolEventRecorder`; optional `tokenConfig`, `env`, `onInternalError` |
 | `registerFrontendSessionRoutes` | `FrontendSessionsHttpDeps`: `registry: FrontendSessionRegistry`; optional `newSessionId()`, `onInternalError` |

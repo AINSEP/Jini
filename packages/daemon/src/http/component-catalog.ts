@@ -15,11 +15,11 @@
  * Same authorization posture, too: discovery is not permission. Finding a component id here
  * grants nothing — a host still decides whether/how to actually mount it.
  */
-import type { Express } from 'express';
 import { createApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
-import { type RouteHostContext, err, ok } from '@jini-ai/core/contracts/server';
+import { defineJsonRoute, err, ok } from '@jini-ai/core/contracts/server';
 import { parseCatalogDescribeInput, parseCatalogSearchInput } from './catalog-route-input.js';
+import type { DaemonRouteHost } from './route-host.js';
+import { gatedJsonRoute, type DaemonRoute } from './route-table.js';
 
 export interface ComponentCatalogSearchHit {
   readonly id: string;
@@ -84,8 +84,10 @@ export const componentCatalogDescribeRoute = defineJsonRoute<{ id: string }, Com
   }
 }, { requireSameOrigin: true });
 
-/** Mounts both component-catalog routes on `app`. A pack's `http(app, services)` calls this directly. */
-export function registerComponentCatalogRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: ComponentCatalogHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
-  mountJsonRoute({ app, spec: componentCatalogSearchRoute, deps, adapter });
-  mountJsonRoute({ app, spec: componentCatalogDescribeRoute, deps, adapter });
+/**
+ * Both component-catalog routes as data, each behind the same-origin gate its spec declares. A host
+ * mounts the list; the routes never see the host's app.
+ */
+export function componentCatalogRoutes({ deps, host }: { readonly deps: ComponentCatalogHttpDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
+  return [gatedJsonRoute({ spec: componentCatalogSearchRoute, deps, host }), gatedJsonRoute({ spec: componentCatalogDescribeRoute, deps, host })];
 }

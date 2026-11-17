@@ -179,7 +179,7 @@ export type {
   ComponentCatalogSearchHit,
 } from './component-catalog.js';
 export {
-  registerComponentCatalogRoutes,
+  componentCatalogRoutes,
   componentCatalogDescribeRoute,
   componentCatalogSearchRoute,
 } from './component-catalog.js';

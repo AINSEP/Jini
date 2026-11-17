@@ -543,7 +543,7 @@ Everything a Jini package asks its host to bind or register: `*Port`, `*Kit`, `*
 | `AttachmentsHttpDeps` | deps | interface | `packages/daemon/src/http/attachments.ts:1376` |
 | `registerAttachmentRoutes` | registry | function | `packages/daemon/src/http/attachments.ts:1603` |
 | `ComponentCatalogHttpDeps` | deps | interface | `packages/daemon/src/http/component-catalog.ts:47` |
-| `registerComponentCatalogRoutes` | registry | function | `packages/daemon/src/http/component-catalog.ts:88` |
+| `componentCatalogRoutes` | registry | function | `packages/daemon/src/http/component-catalog.ts:88` |
 | `ConnectorsHttpDeps` | deps | interface | `packages/daemon/src/http/connectors.ts:127` |
 | `registerConnectorsRoutes` | registry | function | `packages/daemon/src/http/connectors.ts:509` |
 | `DaemonStatusDeps` | deps | interface | `packages/daemon/src/http/daemon-status.ts:26` |
