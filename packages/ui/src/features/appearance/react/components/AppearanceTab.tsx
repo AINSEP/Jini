@@ -39,6 +39,7 @@ export interface AppearanceTabProps {
   /** This tab's own agent handle. Theme buttons get one sub-handle per theme option; swatches get
    *  one distinct sub-handle per color via `buildAgentListHandles`. */
   agentHandle?: string;
+  useTHook?: typeof useT;
 }
 
 /**
@@ -59,8 +60,9 @@ export function AppearanceTab({
   defaultAccentAriaLabel,
   customAccentAriaLabel,
   agentHandle,
+  useTHook = useT,
 }: AppearanceTabProps) {
-  const t = useT();
+  const t = useTHook();
   const resolvedAccent = resolveAccentColor({ value: accentColor });
   const swatchHandles = agentHandle ? buildAgentListHandles({ prefix: agentSubHandle({ base: agentHandle, action: 'swatch' }), ids: accentSwatches }) : undefined;
   const resolvedAriaLabel = ariaLabel ?? t('Appearance');
