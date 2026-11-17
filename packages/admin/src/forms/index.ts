@@ -1,6 +1,6 @@
 export { formsModule } from './forms.module.js';
-export { formsApiToken, formsTrashToken, formsEventsToken, formsNavigationToken } from './ports.js';
-export type { AdminFormsPort, FormsTrashPort, FormsEventsPort, FormsNavigationPort } from './ports.js';
+export { formsApiToken, formsCatalogToken, formsTrashToken, formsEventsToken, formsNavigationToken } from './ports.js';
+export type { AdminFormsPort, FormsCatalogPort, FormFieldKindInfo, FormsTrashPort, FormsEventsPort, FormsNavigationPort } from './ports.js';
 export type { AdminFormDefinition, AdminFormField, AdminFormNotify, AdminFormSubmission, FormsTranslator } from './models.js';
 export { formsMessagesEn, translateForms } from './messages.en.js';
 export * from './rules.js';

@@ -1,11 +1,12 @@
 import { createContext, useContext } from 'react';
 import type { ComponentType, ReactNode } from 'react';
 import { AdminConfigError } from '../../../core/module/create-admin.js';
-import type { AdminFormsPort, FormsTrashPort, FormsEventsPort, FormsNavigationPort } from '../../ports.js';
+import type { AdminFormsPort, FormsCatalogPort, FormsTrashPort, FormsEventsPort, FormsNavigationPort } from '../../ports.js';
 import type { FormsTranslator } from '../../models.js';
 import { translateForms } from '../../messages.en.js';
 export interface FormsPorts {
   readonly formsApi: AdminFormsPort;
+  readonly formsCatalog: FormsCatalogPort;
   readonly formsTrash: FormsTrashPort;
   readonly formsEvents?: FormsEventsPort;
   readonly formsNavigation?: FormsNavigationPort;
