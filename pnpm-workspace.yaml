@@ -17,6 +17,14 @@ packages:
 # Resolve plain semver ranges on @jini-ai/* to the local workspace package (pnpm 10 defaults this to false,
 # which sent "^0.5.0" to the registry, where only 0.3.0 is published). Added 2026-10-02 by tovu-jini.
 linkWorkspacePackages: true
+preferWorkspacePackages: true
 
 # A cycle lets recursive builds run consumers before their dependencies on a clean checkout.
 disallowWorkspaceCycles: true
+
+# Supply-chain hardening (2026-11-16): a NEW dependency version must be >= 14 days old before
+# pnpm resolves it. Minutes: 14 * 24 * 60 = 20160. Versions already in pnpm-lock.yaml are unaffected.
+# Exempt: our own @jini-ai/* packages. See CONTRIBUTING.md.
+minimumReleaseAge: 20160
+minimumReleaseAgeExclude:
+  - '@jini-ai/*'
