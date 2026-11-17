@@ -2,9 +2,7 @@
  "_comment": "Injection ratchet baseline (2026-11-15). Keyed by rule+file+spec+kind; shrink only, never regenerate in CI.",
  "entries": [
   {"rule": "L5-injected-edge", "file": "packages/admin/package.json", "spec": "@jini-ai/agent-plugins", "kind": "manifest-peer", "count": 1, "lane": "L-ADMIN-PORTS"},
-  {"rule": "L5-injected-edge", "file": "packages/admin/package.json", "spec": "@jini-ai/agentic", "kind": "manifest-peer", "count": 1, "lane": "L-HANDLES"},
   {"rule": "L5-injected-edge", "file": "packages/admin/package.json", "spec": "@jini-ai/cms", "kind": "manifest-peer", "count": 1, "lane": "L-ADMIN-PORTS"},
-  {"rule": "L5-injected-edge", "file": "packages/admin/package.json", "spec": "@jini-ai/ui-kit", "kind": "manifest-peer", "count": 1, "lane": "L-KIT-ADMIN"},
   {"rule": "L5-injected-edge", "file": "packages/admin/package.json", "spec": "@jini-ai/ui", "kind": "manifest-peer", "count": 1, "lane": "L-KIT-ADMIN"},
   {"rule": "L5-injected-edge", "file": "packages/admin/src/agent-plugins/models.ts", "spec": "@jini-ai/agent-plugins/lifecycle", "kind": "type-import", "count": 1, "lane": "L-ADMIN-PORTS"},
   {"rule": "L5-injected-edge", "file": "packages/admin/src/comments/adapters/memory.ts", "spec": "@jini-ai/cms/comments", "kind": "import", "count": 1, "lane": "L-ADMIN-PORTS"},
