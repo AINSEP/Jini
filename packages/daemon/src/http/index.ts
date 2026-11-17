@@ -158,7 +158,7 @@ export {
   DB_VACUUM_TOOL_ID,
   DB_VERIFY_TOOL_ID,
   denyAllDaemonDbPolicy,
-  registerDaemonDbRoutes,
+  daemonDbRoutes,
 } from './db-ops.js';
 export type {
   ToolCatalogEntry,

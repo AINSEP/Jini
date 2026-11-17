@@ -66,9 +66,9 @@ const ROUTE_TABLE: Readonly<Record<string, readonly string[]>> = {
     'GET /api/terminals/:id/stream [anonymous/2]',
   ],
   'db-ops': [
-    'GET /api/daemon/db [anonymous/2]',
-    'POST /api/daemon/db/verify [anonymous/2]',
-    'POST /api/daemon/db/vacuum [anonymous/2]',
+    'GET /api/daemon/db [same-origin]',
+    'POST /api/daemon/db/verify [same-origin]',
+    'POST /api/daemon/db/vacuum [same-origin]',
   ],
   'tool-catalog': [
     'GET /api/tools/search [same-origin]',

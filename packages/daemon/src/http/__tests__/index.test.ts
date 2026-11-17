@@ -49,7 +49,7 @@ describe('@jini-ai/daemon/http barrel', () => {
 
   it('re-exports the daemon DB-ops routes and tool registrar', () => {
     expect(typeof HttpBarrel.createDaemonDbToolRegistrations).toBe('function');
-    expect(typeof HttpBarrel.registerDaemonDbRoutes).toBe('function');
+    expect(typeof HttpBarrel.daemonDbRoutes).toBe('function');
     expect(HttpBarrel.daemonDbInspectRoute.path).toBe('/api/daemon/db');
     expect(HttpBarrel.daemonDbVerifyRoute.path).toBe('/api/daemon/db/verify');
     expect(HttpBarrel.daemonDbVacuumRoute.path).toBe('/api/daemon/db/vacuum');
