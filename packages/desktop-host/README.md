@@ -112,6 +112,7 @@ before calling through. The ports are small: `SingleInstanceLockPort` is just `c
 | subpath | what's behind it | extra dep it pulls in |
 |---|---|---|
 | `.` | The six port interfaces + DI tokens, the shell-agnostic implementations (sidecar launcher, single-instance, protocol proxy), paths, config, logging, Windows registry helpers, and the `window.__jini__` bridge. | none |
+| `./bridge` | The renderer-safe `window.__jini__` bridge alone (`getJiniHost`, `openHostExternalUrl`, ...): no `node:` built-in and no relative import, so a renderer bundle does not pull the sidecar or registry modules the root entry re-exports. | none |
 | `./bridge-testing` | `createMockJiniHost` / `installMockJiniHost` for testing renderer code against the host bridge. | none |
 | `./electron` | The full Electron assembly + per-port factories + fakes. | none — `electron` is injected, not imported |
 | `./tauri` | The full Tauri assembly + per-port factories + fakes. `createTauriRenderService` throws `NotImplementedError`. | none — the Tauri API is injected, not imported |

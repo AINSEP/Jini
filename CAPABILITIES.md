@@ -203,6 +203,7 @@ host · [README](packages/desktop-host/README.md)
 | Entry point | What it does | Key exports / assets | Runtime | Used by |
 |---|---|---|---|---|
 | `@jini-ai/desktop-host` | Desktop shell ports, host bridge, paths, logging, single instance and sidecar launch. | `DesktopHostPorts`, `getJiniHost`, `createNodeSidecarLauncher` | node (desktop) | none yet |
+| `@jini-ai/desktop-host/bridge` | Probe and call the `window.__jini__` desktop bridge from renderer code without the Node-side root entry. | `getJiniHost`, `isJiniHostAvailable`, `openHostExternalUrl`, `openHostPath` | universal | Tovu: desktop |
 | `@jini-ai/desktop-host/bridge-testing` | Mock/install the desktop bridge for renderer fixtures. | `createMockJiniHost`, `installMockJiniHost` | universal | none yet |
 | `@jini-ai/desktop-host/electron` | Assemble injected Electron window, protocol, shell and render-service ports. | `createElectronDesktopHost`, `createElectronRenderService` | node (desktop) | none yet |
 | `@jini-ai/desktop-host/tauri` | Assemble injected Tauri ports; render service remains unimplemented. | `createTauriDesktopHost`, `createTauriRenderService` | node (desktop) | none yet |
