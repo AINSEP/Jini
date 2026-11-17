@@ -745,12 +745,6 @@
         "packages/admin/src/forms/react/pages/FormsList.tsx"
       ]
     },
-    "FullscreenButton::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/renderers/preview-modal-shell/react/components/PreviewModalShell.tsx"
-      ]
-    },
     "GlobCard::useT": {
       "count": 1,
       "files": [
@@ -1201,24 +1195,6 @@
         "packages/ui/src/features/iframe-pool/react/components/PooledIframe.tsx"
       ]
     },
-    "PreviewModalShell::usePreviewModalShell": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/renderers/preview-modal-shell/react/components/PreviewModalShell.tsx"
-      ]
-    },
-    "PreviewModalShell::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/renderers/preview-modal-shell/react/components/PreviewModalShell.tsx"
-      ]
-    },
-    "PrimaryAction::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/renderers/preview-modal-shell/react/components/PreviewModalShell.tsx"
-      ]
-    },
     "PrivacyTab::useT": {
       "count": 1,
       "files": [
@@ -1540,24 +1516,6 @@
       "count": 1,
       "files": [
         "packages/admin/src/comments/react/components/SettingsSection.tsx"
-      ]
-    },
-    "ShellHeader::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/renderers/preview-modal-shell/react/components/PreviewModalShell.tsx"
-      ]
-    },
-    "ShellStage::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/renderers/preview-modal-shell/react/components/PreviewModalShell.tsx"
-      ]
-    },
-    "SidebarHandle::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/renderers/preview-modal-shell/react/components/PreviewModalShell.tsx"
       ]
     },
     "SidebarMobileHeader::useSidebar": {

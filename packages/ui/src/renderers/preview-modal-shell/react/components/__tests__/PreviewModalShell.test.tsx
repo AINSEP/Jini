@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../react/i18n.js';
+import { I18nProvider, type useT } from '../../../../react/i18n.js';
 import { PreviewModalShell, type PreviewModalView } from '../PreviewModalShell.js';
 
 /** Swaps in a fake global for the duration of `run()`, restoring the previous value afterward — used for `ResizeObserver`, which jsdom doesn't define by default. Same helper shape as `annotation-canvas`'s test suite. */
@@ -27,6 +27,9 @@ const twoViews: PreviewModalView[] = [
 afterEach(() => {
   document.body.style.overflow = '';
 });
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('PreviewModalShell — shell chrome', () => {
   it('renders the backdrop dialog with title/subtitle', () => {
@@ -461,5 +464,10 @@ describe('PreviewModalShell — stage measurement', () => {
       const scaler = document.querySelector('[data-preview-modal-stage-scaler]') as HTMLElement;
       expect(scaler.style.transform).toBe('scale(0.25)');
     });
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    render(<PreviewModalShell title="T" views={singleView} onClose={vi.fn()} useTHook={useQuotingT} />);
+    expect(screen.getByRole('dialog', { name: '«{title} preview»' })).toBeInTheDocument();
   });
 });

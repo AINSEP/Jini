@@ -64,6 +64,8 @@ export interface PreviewModalShellProps {
   srcDocOptions?: BuildSrcDocOptions | undefined;
   icons?: Partial<Record<PreviewModalIconName, () => ReactElement>> | undefined;
   className?: string | undefined;
+  useTHook?: typeof useT;
+  usePreviewModalShellHook?: typeof usePreviewModalShell;
 }
 
 export function PreviewModalShell({
@@ -83,10 +85,12 @@ export function PreviewModalShell({
   srcDocOptions,
   icons: iconOverrides,
   className,
+  useTHook = useT,
+  usePreviewModalShellHook = usePreviewModalShell,
 }: PreviewModalShellProps) {
-  const t = useT();
+  const t = useTHook();
   const icons = { ...DEFAULT_PREVIEW_MODAL_ICONS, ...iconOverrides };
-  const c = usePreviewModalShell({
+  const c = usePreviewModalShellHook({
     views,
     initialViewId,
     onView,
@@ -158,6 +162,7 @@ function ShellHeader({
   headerExtras,
   onClose,
   onSidebarToggleClick,
+  useTHook = useT,
 }: {
   title: string;
   subtitle: string | undefined;
@@ -169,8 +174,9 @@ function ShellHeader({
   headerExtras: ReactNode;
   onClose: () => void;
   onSidebarToggleClick: ((open: boolean) => void) | undefined;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   return (
   <header style={{ display: 'flex', alignItems: 'center', gap: 12 }} data-preview-modal-header="">
     <div data-preview-modal-title-block="">
@@ -207,6 +213,7 @@ function ShellStage({
   srcDocOptions,
   onFullscreenClick,
   onSidebarToggleClick,
+  useTHook = useT,
 }: {
   title: string;
   controller: ShellController;
@@ -216,8 +223,9 @@ function ShellStage({
   srcDocOptions: BuildSrcDocOptions | undefined;
   onFullscreenClick: (() => void) | undefined;
   onSidebarToggleClick: ((open: boolean) => void) | undefined;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   const status = deriveContentStatus(controller.activeView);
   return (
   <div
@@ -300,12 +308,14 @@ function FullscreenButton({
   controller,
   icons,
   onFullscreenClick,
+  useTHook = useT,
 }: {
   controller: ShellController;
   icons: ShellIcons;
   onFullscreenClick: (() => void) | undefined;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   const label = controller.fullscreen ? t('Exit fullscreen') : t('Fullscreen');
   return (
     <button
@@ -330,13 +340,15 @@ function SidebarHandle({
   controller,
   open,
   onSidebarToggleClick,
+  useTHook = useT,
 }: {
   sidebar: PreviewModalSidebar;
   controller: ShellController;
   open: boolean;
   onSidebarToggleClick: ((open: boolean) => void) | undefined;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   const label = open ? t('Show {label}', { label: sidebar.label }) : t('Hide {label}', { label: sidebar.label });
   return (
     <button
@@ -373,12 +385,14 @@ function PrimaryAction({
   action,
   controller,
   icons,
+  useTHook = useT,
 }: {
   action: PreviewModalPrimaryAction;
   controller: ShellController;
   icons: ShellIcons;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   const menu = action.menu ?? [];
 
   if (menu.length === 0) return <PrimaryButton action={action} />;
