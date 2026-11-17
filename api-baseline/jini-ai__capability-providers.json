@@ -1,0 +1,145 @@
+{
+ ".": {
+  "types": "./dist/index.d.ts",
+  "symbols": {
+   "AuthCredentials": "interface:d9a8934315",
+   "AuthProvider": "interface:8b04a43ac7",
+   "AuthProviderToken": "variable:92d1289d99",
+   "AuthSession": "interface:9cc212b329",
+   "AuthUser": "interface:bb08f61b80",
+   "Charge": "interface:9a0c5b3afd",
+   "ChargeInput": "interface:f5f098bf2c",
+   "ChargeStatus": "type:65f7c434d9",
+   "DbProvider": "interface:65d456f617",
+   "DbProviderToken": "variable:e985920833",
+   "DbQuery": "interface:2e599d96fa",
+   "DbRecord": "interface:1641f8eb34",
+   "PaymentsProvider": "interface:3c7e36da8b",
+   "PaymentsProviderToken": "variable:83d78e987d",
+   "RealtimeHandler": "type:767fe754c7",
+   "RealtimeProvider": "interface:d46fbdf2d7",
+   "RealtimeProviderToken": "variable:049b17f5dd",
+   "RealtimeUnsubscribe": "type:ef3ae40391",
+   "StorageObjectMeta": "interface:d293ba1157",
+   "StorageProvider": "interface:884c924308",
+   "StorageProviderToken": "variable:2fc522fdee",
+   "StoragePutOptions": "interface:2b22bbc0c0"
+  }
+ },
+ "./adapters/blob-storage": {
+  "types": "./dist/adapters/blob-storage/index.d.ts",
+  "symbols": {
+   "BlobStorageProvider": "class:18737c19c7",
+   "BlobStorageProviderOptions": "interface:a0b6221233"
+  }
+ },
+ "./adapters/jwt-auth": {
+  "types": "./dist/adapters/jwt-auth/index.d.ts",
+  "symbols": {
+   "JwtAuthProvider": "class:b03fe43cda",
+   "JwtAuthProviderOptionalArgs": "interface:31bbd1b154",
+   "JwtAuthProviderOptions": "interface:3b7df075f8"
+  }
+ },
+ "./adapters/sqlite": {
+  "types": "./dist/adapters/sqlite/index.d.ts",
+  "symbols": {
+   "SqliteDbProvider": "class:f52bd8a195"
+  }
+ },
+ "./adapters/ws": {
+  "types": "./dist/adapters/ws/index.d.ts",
+  "symbols": {
+   "CreateWebSocketRealtimeProviderOptions": "interface:3aa0d55d3b",
+   "RealtimeWebSocketLike": "interface:746c7935d9",
+   "RealtimeWebSocketServerLike": "interface:84bcc0c6e7",
+   "WebSocketRealtimeProvider": "class:e8df6a4312",
+   "WebSocketRealtimeProviderOptions": "interface:b42a3c6d67",
+   "createWebSocketRealtimeProvider": "function:79165d3aec"
+  }
+ },
+ "./comments": {
+  "types": "./dist/comments/index.d.ts",
+  "symbols": {
+   "CommentModerationPort": "interface:55829e3038",
+   "CommentModerationToken": "variable:ef5ffb4df2",
+   "CommentStatus": "type:d2ceb0a3ce",
+   "CommentSubmissionPort": "interface:9e0824bd7a",
+   "CommentSubmissionToken": "variable:03f74a62f2",
+   "CommentThreadRendererPort": "interface:5c6c47a049",
+   "CommentThreadRendererToken": "variable:c067843cfe",
+   "CommentThreadScript": "interface:587d387c78",
+   "CommentsProviderAdapter": "type:0f967c5976",
+   "CommentsProviderBinding": "interface:5969766411",
+   "CommentsProviderDefinition": "interface:4f3ec9b68f",
+   "CommentsProviderRegistry": "interface:f838c71e70",
+   "CommentsProviderRegistryToken": "variable:8b9c4c8bed",
+   "CommentsSelection": "interface:b8a20e8b0a",
+   "CommentsSelectionStorePort": "interface:bf8df426f1",
+   "CommentsSelectionStoreToken": "variable:d69e339a9a",
+   "CommentsSettingField": "interface:a97f865de8",
+   "createCommentsProviderRegistry": "function:fb98fa61c7",
+   "freezeCommentsDefinition": "function:f5828937cd"
+  }
+ },
+ "./unsafe-reference": {
+  "types": "./dist/unsafe-reference/index.d.ts",
+  "symbols": {
+   "InMemoryAuthProviderOptions": "interface:3275d3a7e4",
+   "createInMemoryAuthProvider": "function:ded51792fd",
+   "createInMemoryDbProvider": "function:7dc9bfa108",
+   "createInMemoryPaymentsProvider": "function:f5a722ebd7",
+   "createInMemoryRealtimeProvider": "function:40c87de304",
+   "createInMemoryStorageProvider": "function:fce15ee1c4"
+  }
+ },
+ "./visitor-auth": {
+  "types": "./dist/visitor-auth/index.d.ts",
+  "symbols": {
+   "BUILT_IN_VISITOR_AUTH_PROVIDERS": "variable:631eba81d7",
+   "FACEBOOK_VISITOR_AUTH_PROVIDER": "variable:2eae4265ef",
+   "GOOGLE_VISITOR_AUTH_PROVIDER": "variable:e6c7314e96",
+   "LINKEDIN_VISITOR_AUTH_PROVIDER": "variable:0d17a00673",
+   "VisitorAuthAuthorizationPlan": "interface:7517b216d6",
+   "VisitorAuthAuthorizationServer": "interface:81e4131090",
+   "VisitorAuthAuthorizationServerPort": "interface:ee5aebffd9",
+   "VisitorAuthAuthorizationServerToken": "variable:476eb6ee74",
+   "VisitorAuthCallbackDecision": "type:45a1e37303",
+   "VisitorAuthCallbackParameters": "interface:a47078c555",
+   "VisitorAuthCallbackRejectionReason": "type:6f9221fc9e",
+   "VisitorAuthClientRegistration": "interface:e9ac9e2797",
+   "VisitorAuthClientRegistrationPort": "interface:cb4eac6447",
+   "VisitorAuthClientRegistrationToken": "variable:d5c68cc99a",
+   "VisitorAuthClientSecretRef": "interface:3495c163de",
+   "VisitorAuthConfigurationError": "class:a5a8d5484b",
+   "VisitorAuthConfigurationErrorCode": "type:67f8c5ef7c",
+   "VisitorAuthCredentialFieldDefinition": "interface:7ae5ea9ec2",
+   "VisitorAuthCredentialFieldKind": "type:ca17fbe928",
+   "VisitorAuthIdTokenVerifierPort": "interface:9c186bc5d0",
+   "VisitorAuthIdTokenVerifierToken": "variable:88ce3fd7e0",
+   "VisitorAuthIdentityClaimsDecision": "type:d0eaa0c29c",
+   "VisitorAuthIdentityClaimsRejectionReason": "type:3de3ee4f6d",
+   "VisitorAuthProtocol": "type:0578cd7ecc",
+   "VisitorAuthProviderDefinition": "interface:d3f0722b1e",
+   "VisitorAuthProviderRegistry": "interface:e24cccedc9",
+   "VisitorAuthProviderRegistryToken": "variable:889375ffcf",
+   "VisitorAuthRegistryError": "class:d2e3717c65",
+   "VisitorAuthRegistryErrorCode": "type:7e00c8def5",
+   "VisitorAuthSecurityArtifacts": "interface:3782292161",
+   "VisitorAuthSecurityPort": "interface:63f0d7cd30",
+   "VisitorAuthSecurityToken": "variable:1475220c1c",
+   "VisitorAuthTokenExchangePort": "interface:b6a6082e9b",
+   "VisitorAuthTokenExchangeRequest": "interface:27aeaf323d",
+   "VisitorAuthTokenExchangeToken": "variable:5b675d0828",
+   "VisitorAuthTokenSet": "interface:751ac3f90f",
+   "VisitorAuthTransaction": "interface:2fcdcec961",
+   "VisitorAuthTransactionStorePort": "interface:62dc6e1a99",
+   "VisitorAuthTransactionStoreToken": "variable:da297ac1a2",
+   "VisitorAuthVerifiedIdTokenClaims": "interface:edfe64bde5",
+   "createVisitorAuthProviderRegistry": "function:91950818d6",
+   "evaluateVisitorAuthCallback": "function:4fc65321a7",
+   "planVisitorAuthAuthorization": "function:18c93d78de",
+   "validateVisitorAuthIdentityClaims": "function:e34c054144"
+  }
+ }
+}
