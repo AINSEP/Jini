@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { fromStripeAmount, STRIPE_CURRENCIES, toStripeAmount } from "../amount.js";
+import { fromStripeAmount as decode, STRIPE_CURRENCIES, toStripeAmount as encode } from "../amount.js";
+import { realHelpers as errors } from "./fakes/domain-helpers.js";
+
+// The domain's own helpers, as a host registers them; provider-context.test.ts pins the helper calls with recording fakes.
+const toStripeAmount = (required: Omit<Parameters<typeof encode>[0], "errors">, optional: Record<string, never> = {}) => encode({ ...required, errors }, optional);
+const fromStripeAmount = (required: Omit<Parameters<typeof decode>[0], "errors">, optional: Record<string, never> = {}) => decode({ ...required, errors }, optional);
 
 const currencies = ["AUD", "BRL", "CAD", "CHF", "CZK", "DKK", "EUR", "GBP", "HKD", "JPY", "KRW", "MXN", "NOK", "NZD", "PLN", "SEK", "SGD", "USD"];
 

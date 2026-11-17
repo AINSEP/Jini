@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { translateStripeEvent } from "../webhook.js";
+import { translateStripeEvent as translate } from "../webhook.js";
+import { realHelpers as errors } from "./fakes/domain-helpers.js";
+
+// The domain's own helpers, as a host registers them; provider-context.test.ts pins the helper calls with recording fakes.
+const translateStripeEvent = (required: Omit<Parameters<typeof translate>[0], "errors">, optional: Record<string, never> = {}) => translate({ ...required, errors }, optional);
 
 const session = { object: "checkout.session", id: "cs_1", mode: "payment", livemode: false,
   metadata: { jini_payment_id: "pay_1" }, amount_total: 900, currency: "usd", status: "complete", payment_status: "paid" };

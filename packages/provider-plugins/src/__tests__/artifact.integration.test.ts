@@ -41,7 +41,11 @@ const host: ManifestHostPorts = {
 const tierPolicy: PluginTierPolicy = { execution: 'in-process', siteErrors: () => [], checkInstall: () => {}, allowLoad: ({ manifest }) => manifest.tier === 'tier-3' };
 
 /** A server provider: the domain validator a host injects, and configuration whose initialization opens no connection. */
-type ServerSpec = { contract: string; id: string; validate: (port: unknown) => boolean; input: (namespace: string) => Record<string, unknown>; probe?: (port: unknown) => unknown };
+type ServerSpec = { contract: string; id: string; validate: (port: unknown) => boolean; input: (namespace: string) => Record<string, unknown>; probe?: (port: unknown) => unknown;
+  /** The helpers the domain's contract registration hands the factory as `optional.context`; the real host passes them through `initialize`. */
+  context?: Readonly<Record<string, unknown>>;
+  /** Source text of the factory's optional argument in the standalone Node process, which cannot import a domain package. */
+  standaloneOptions?: string };
 /** A browser-only provider: its exact `browserProviders` declaration (kind `chart`, contract version 1). */
 type BrowserSpec = { browser: { id: string; kinds: readonly string[]; javascript: string; stylesheet?: string } };
 const isBrowserSpec = (spec: ServerSpec | BrowserSpec): spec is BrowserSpec => 'browser' in spec;
@@ -56,7 +60,8 @@ const SPECS: Record<string, ServerSpec | BrowserSpec> = {
   'formspree': { contract: 'form_collection', id: 'formspree', validate: port => typeof (port as { plan?: unknown })?.plan === 'function', input: () => ({}) },
   'google-forms': { contract: 'form_collection', id: 'google_forms', validate: port => typeof (port as { plan?: unknown })?.plan === 'function', input: () => ({}) },
   'payments-stripe': { contract: 'payments', id: 'stripe', validate: port => paymentsProviderContract.validate({ provider: port }) === undefined,
-    input: () => ({}) },
+    input: () => ({}), context: paymentsProviderContract.context,
+    standaloneOptions: '{ context: { paymentError: required => required, moneyProblem: () => null } }' },
   'observability-opentelemetry': { contract: 'observability', id: 'opentelemetry', validate: port => typeof (port as { trackRequest?: unknown })?.trackRequest === 'function',
     input: () => ({ serviceName: 'artifact-test', tracerName: 'artifact', endpoint: 'http://127.0.0.1:9', headers: { authorization: 'Bearer unused' } }) },
   'observability-sentry': { contract: 'observability', id: 'sentry', validate: port => typeof (port as { reportError?: unknown })?.reportError === 'function',
@@ -203,14 +208,15 @@ it.each(SERVER_IDS)('%s: packs, installs and loads identical standalone bytes wi
     const {default: plugin} = await import(${JSON.stringify(pathToFileURL(path.join(artifact, 'server/index.mjs')).href)});
     let provider; plugin.definition.setup({providers: {register(value) {provider = value;}}});
     if (provider.contract !== ${JSON.stringify(spec.contract)} || provider.id !== ${JSON.stringify(spec.id)}) throw new Error('wrong provider');
-    const resource = await provider.factory(${JSON.stringify(spec.input('standalone'))}, {});
+    const resource = await provider.factory(${JSON.stringify(spec.input('standalone'))}, ${spec.standaloneOptions ?? '{}'});
     if (!resource.port) throw new Error('standalone provider failed');
     await resource.dispose({});
   `], { cwd: root, env: { ...process.env, NODE_PATH: '' } });
   expect(standalone.stderr).toBe('');
   for (const [namespace, runtimeSdkVersion] of [['tovu', '0.1.0'], ['com.example.host', '1.0.0']] as const) {
     const { registry } = await installAndLoad({ pluginId, artifact, manifest, namespace, runtimeSdkVersion });
-    const providerHost = createPluginProviderHost({ contributions: registry, contracts: [{ contract: spec.contract, validate: ({ provider }) => spec.validate(provider) ? undefined : 'invalid port' }] });
+    const providerHost = createPluginProviderHost({ contributions: registry, contracts: [{ contract: spec.contract, validate: ({ provider }) => spec.validate(provider) ? undefined : 'invalid port',
+      ...(spec.context ? { context: spec.context } : {}) }] });
     const lease = (await providerHost.initialize({ contract: spec.contract, id: spec.id, input: spec.input(namespace) }))!;
     expect(spec.validate(lease.port)).toBe(true);
     if (pluginId === 'payments-stripe') {
@@ -242,6 +248,42 @@ it.each(SERVER_IDS)('%s: packs, installs and loads identical standalone bytes wi
     await providerHost.dispose({});
     if (spec.probe) expect(spec.probe(lease.port)).toBeUndefined();
   }
+}, 60_000);
+
+/** The packed Stripe entry, installed and loaded through the real host installer, with a contract the caller shapes. */
+async function stripeProviderHost(required: { namespace: string; context?: Readonly<Record<string, unknown>> }) {
+  const { artifact } = artifacts.get('payments-stripe')!;
+  const manifest = JSON.parse(await readFile(path.join(artifact, 'jini.plugin.json'), 'utf8')) as PluginManifest;
+  const { registry } = await installAndLoad({ pluginId: 'payments-stripe', artifact, manifest, namespace: required.namespace, runtimeSdkVersion: '0.1.0' });
+  return createPluginProviderHost({ contributions: registry, contracts: [{ contract: 'payments', validate: ({ provider }) => paymentsProviderContract.validate({ provider }),
+    ...(required.context ? { context: required.context } : {}) }] });
+}
+
+it('payments-stripe: the packed entry builds its errors from the helpers the domain registered, not from a copy', async () => {
+  const built: unknown[] = [];
+  const context = { ...paymentsProviderContract.context,
+    paymentError: (...args: Parameters<typeof paymentsProviderContract.context.paymentError>) => {
+      const error = paymentsProviderContract.context.paymentError(...args);
+      built.push(error);
+      return error;
+    } };
+  const host = await stripeProviderHost({ namespace: 'stripe-context', context });
+  const lease = (await host.initialize({ contract: 'payments', id: 'stripe', input: {} }))!;
+  const send = vi.fn<ProviderContext['httpClient']['send']>();
+  const ctx: ProviderContext = { credentials: { webhookSecret: 'whsec_unused' }, account: { providerAccountId: 'acct_1', mode: 'test' },
+    httpClient: { send }, now: () => 0, returnUrl: 'https://shop.test/return', cancelUrl: 'https://shop.test/cancel', webhookUrl: 'https://shop.test/hook' };
+  const result = await (lease.port as PaymentProvider).verifyWebhook({ rawBody: new TextEncoder().encode('garbage'), headers: {}, ctx });
+  expect(result).toMatchObject({ kind: 'rejected', error: { code: 'SIGNATURE_INVALID' } });
+  expect(built).toHaveLength(1);
+  expect((result as { error: unknown }).error).toBe(built[0]);
+  await host.dispose({});
+}, 60_000);
+
+it('payments-stripe: initialize fails with the typed configuration error when the contract registers no helpers', async () => {
+  const host = await stripeProviderHost({ namespace: 'stripe-no-context' });
+  await expect(host.initialize({ contract: 'payments', id: 'stripe', input: {} })).rejects.toMatchObject({
+    code: 'payments_stripe_context_missing', details: 'optional.context is missing: paymentError, moneyProblem',
+  });
 }, 60_000);
 
 /** Every import left in a built file, as esbuild's own parser sees it (strings and comments never count). */

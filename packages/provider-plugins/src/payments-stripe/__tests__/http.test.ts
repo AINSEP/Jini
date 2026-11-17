@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ProviderContext } from "@jini-ai/commerce/payments/kernel";
-import { stripeOutcome, stripeRequest } from "../http.js";
+import { stripeOutcome as classify, stripeRequest as request } from "../http.js";
+import { realHelpers as errors } from "./fakes/domain-helpers.js";
+
+// The domain's own helpers, as a host registers them; provider-context.test.ts pins the helper calls with recording fakes.
+const stripeOutcome = (required: Omit<Parameters<typeof classify>[0], "errors">, optional: Record<string, never> = {}) => classify({ ...required, errors }, optional);
+const stripeRequest = (required: Omit<Parameters<typeof request>[0], "errors">, optional: Parameters<typeof request>[1] = {}) => request({ ...required, errors }, optional);
 
 const context = (send: ProviderContext["httpClient"]["send"]): ProviderContext => ({
   credentials: { secretKey: "test-secret" }, account: { providerAccountId: "acct_1", mode: "test" },
