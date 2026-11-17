@@ -21,10 +21,10 @@ const adminKit = fakeAdminKit({ query: { useFetchQuery, useFetchMutation, useCac
 // The host's own binding (Tovu's `userManagementKit`): the real ui/admin implementations, so a test rendered through
 // this file is an integration test of the page over the real components. Pure page tests use `renderWithUmKit` and the fake.
 // `ConfirmDialog` is admin's (body, confirmLabel, tone); `SecretInput` is ui's i18n-aware wrapper, not ui-kit's.
-const umKit = {
+export const realUmKit: UserManagementKit = {
   components: { SecretInput: UiSecretInput, InfoTip, RowMenu, ConfirmDialog: AdminConfirmDialog },
   hooks: { useFetchQuery, useFetchMutation, useAsyncAction, useCachedLoader, useInvalidate },
-} satisfies UserManagementKit;
+};
 
 /** Each rendered test tree owns one provider; rerenders retain it, independent tests do not. */
 function scope(wrapper?: ComponentType<{ children: ReactNode }>) {
@@ -33,7 +33,7 @@ function scope(wrapper?: ComponentType<{ children: ReactNode }>) {
     return createElement(UiKitProvider, {
       kit: uiKit,
       children: createElement(AdminKitProvider, { kit: adminKit, children: createElement(FetchQueryProvider, {
-        children: createElement(UserManagementKitProvider, { kit: umKit, children: inner }) }) }),
+        children: createElement(UserManagementKitProvider, { kit: realUmKit, children: inner }) }) }),
     });
   };
 }

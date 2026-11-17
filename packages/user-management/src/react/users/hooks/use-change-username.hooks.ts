@@ -1,5 +1,5 @@
 import { useRef, useState, type Dispatch, type SetStateAction } from "react";
-import { useFetchMutation } from "@jini-ai/ui/panel-kit";
+import { useFetchMutation } from "../../kit.js";
 import type { AdminIdentityUser } from "../../models.js";
 import type { UsersPort } from "../../ports.js";
 import { describeApiError, KEYS } from "../rules.js";

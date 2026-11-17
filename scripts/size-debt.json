@@ -1054,7 +1054,7 @@
     "function": "<file>",
     "line": 697,
     "rule": "max-lines",
-    "value": 725
+    "value": 723
   },
   {
     "file": "packages/user-management/src/react/users/Users.tsx",

@@ -1,4 +1,4 @@
-import { ConfirmDialog } from "@jini-ai/admin/react";
+import { ConfirmDialog } from "../kit.js";
 import { agentHandle } from "@jini-ai/core/agent-handles";
 
 import type { useChangeUsername } from "./hooks/use-change-username.hooks.js";

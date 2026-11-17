@@ -2,8 +2,7 @@ import { useEffect, useRef, useState, type Dispatch, type FormEvent, type SetSta
 
 import type { AdminIdentityUser, AdminPolicy, AdminRole } from "../../models.js";
 
-import { useFetchMutation, useFetchQuery } from "@jini-ai/ui/panel-kit";
-import { useAsyncAction } from "@jini-ai/ui/panel-kit";
+import { useAsyncAction, useFetchMutation, useFetchQuery } from "../../kit.js";
 import { describeApiError, KEYS, isOwnerAccount, userAccountCapabilities, type UserAccountCapabilities } from "../rules.js";
 import type { UsersPort } from "../../ports.js";
 import { useChangeUsername } from "./use-change-username.hooks.js";
