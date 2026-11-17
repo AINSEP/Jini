@@ -96,7 +96,8 @@
         "src/text",
         "src/model-facing-tool-errors.ts",
         "src/tool-permissions.ts",
-        "src/records.ts"
+        "src/records.ts",
+        "src/tool-input-repairs.ts"
       ],
       "forbidden": {
         "universal": [
