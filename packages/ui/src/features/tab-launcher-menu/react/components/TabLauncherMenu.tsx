@@ -2,7 +2,7 @@ import { useEffect, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useT } from '../../../i18n/index.js';
 import { ALL_KIND_FILTER } from '../../constants.js';
-import { useTabLauncherMenu, type UseTabLauncherMenuOptions } from '../hooks/useTabLauncherMenu.js';
+import { useTabLauncherMenu, type TabLauncherMenuController, type UseTabLauncherMenuOptions } from '../hooks/useTabLauncherMenu.js';
 import { TabLauncherActionRow } from './TabLauncherActionRow.js';
 import { TabLauncherResultRow, type TabLauncherResultRowProps } from './TabLauncherResultRow.js';
 
@@ -46,6 +46,80 @@ function renderResultSection(
   );
 }
 
+function TabLauncherKindChips<TActionCtx>({ menu }: { menu: TabLauncherMenuController<TActionCtx> }) {
+  const t = useT();
+  if (menu.presentKinds.length === 0) return null;
+  return (
+    <div className="jini-tab-launcher-menu__chips">
+      <button
+        type="button"
+        className={`jini-tab-launcher-menu__chip${menu.kindFilter === ALL_KIND_FILTER ? ' jini-tab-launcher-menu__chip--active' : ''}`}
+        onClick={() => menu.setKindFilter(ALL_KIND_FILTER)}
+      >
+        {t('All files')}
+      </button>
+      {menu.presentKinds.map((kind) => (
+        <button
+          key={kind}
+          type="button"
+          className={`jini-tab-launcher-menu__chip${menu.kindFilter === kind ? ' jini-tab-launcher-menu__chip--active' : ''}`}
+          onClick={() => menu.setKindFilter(kind)}
+        >
+          {kind}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+interface TabLauncherScrollBodyProps<TActionCtx> {
+  menu: TabLauncherMenuController<TActionCtx>;
+  renderIcon: TabLauncherMenuProps<TActionCtx>['renderIcon'];
+}
+
+function TabLauncherScrollBody<TActionCtx>({ menu, renderIcon }: TabLauncherScrollBodyProps<TActionCtx>) {
+  const t = useT();
+  const openLabel = t('Open');
+  const hasResults = menu.fileResults.length > 0 || menu.tabResults.length > 0;
+
+  return (
+    <div className="jini-tab-launcher-menu__scroll-body">
+      {menu.actions.length > 0 ? (
+        <section className="jini-tab-launcher-menu__section">
+          <div className="jini-tab-launcher-menu__section-header">{t('Create new')}</div>
+          <ul className="jini-tab-launcher-menu__list">
+            {menu.actions.map((action) => (
+              <TabLauncherActionRow key={action.id} action={action} onSelect={menu.runAction} renderIcon={renderIcon} />
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {renderResultSection({
+        items: menu.fileResults,
+        renderLabel: () => t('Open file'),
+        startIndex: 0,
+        selected: menu.selected,
+        openLabel,
+        onHover: menu.setSelected,
+        onSelect: menu.selectFile,
+      }, { renderIcon })}
+
+      {renderResultSection({
+        items: menu.tabResults,
+        renderLabel: () => t('Open tabs'),
+        startIndex: menu.fileResults.length,
+        selected: menu.selected,
+        openLabel,
+        onHover: menu.setSelected,
+        onSelect: menu.selectTab,
+      }, { renderIcon })}
+
+      {!hasResults ? <div className="jini-tab-launcher-menu__empty">{t('No files match')}</div> : null}
+    </div>
+  );
+}
+
 /**
  * An anchored, portal-rendered command-palette dropdown for a tab strip's
  * "+" button: viewport-clamped fixed positioning off an anchor element,
@@ -83,9 +157,6 @@ export function TabLauncherMenu<TActionCtx = void>({
   // running during SSR, with no separate `typeof document` check needed.
   if (!menu.position) return null;
 
-  const openLabel = t('Open');
-  const hasResults = menu.fileResults.length > 0 || menu.tabResults.length > 0;
-
   return createPortal(
     <div
       ref={menu.containerRef}
@@ -107,62 +178,9 @@ export function TabLauncherMenu<TActionCtx = void>({
         />
       </div>
 
-      {menu.presentKinds.length > 0 ? (
-        <div className="jini-tab-launcher-menu__chips">
-          <button
-            type="button"
-            className={`jini-tab-launcher-menu__chip${menu.kindFilter === ALL_KIND_FILTER ? ' jini-tab-launcher-menu__chip--active' : ''}`}
-            onClick={() => menu.setKindFilter(ALL_KIND_FILTER)}
-          >
-            {t('All files')}
-          </button>
-          {menu.presentKinds.map((kind) => (
-            <button
-              key={kind}
-              type="button"
-              className={`jini-tab-launcher-menu__chip${menu.kindFilter === kind ? ' jini-tab-launcher-menu__chip--active' : ''}`}
-              onClick={() => menu.setKindFilter(kind)}
-            >
-              {kind}
-            </button>
-          ))}
-        </div>
-      ) : null}
+      <TabLauncherKindChips menu={menu} />
 
-      <div className="jini-tab-launcher-menu__scroll-body">
-        {menu.actions.length > 0 ? (
-          <section className="jini-tab-launcher-menu__section">
-            <div className="jini-tab-launcher-menu__section-header">{t('Create new')}</div>
-            <ul className="jini-tab-launcher-menu__list">
-              {menu.actions.map((action) => (
-                <TabLauncherActionRow key={action.id} action={action} onSelect={menu.runAction} renderIcon={renderIcon} />
-              ))}
-            </ul>
-          </section>
-        ) : null}
-
-        {renderResultSection({
-          items: menu.fileResults,
-          renderLabel: () => t('Open file'),
-          startIndex: 0,
-          selected: menu.selected,
-          openLabel,
-          onHover: menu.setSelected,
-          onSelect: menu.selectFile,
-        }, { renderIcon })}
-
-        {renderResultSection({
-          items: menu.tabResults,
-          renderLabel: () => t('Open tabs'),
-          startIndex: menu.fileResults.length,
-          selected: menu.selected,
-          openLabel,
-          onHover: menu.setSelected,
-          onSelect: menu.selectTab,
-        }, { renderIcon })}
-
-        {!hasResults ? <div className="jini-tab-launcher-menu__empty">{t('No files match')}</div> : null}
-      </div>
+      <TabLauncherScrollBody menu={menu} renderIcon={renderIcon} />
     </div>,
     document.body,
   );

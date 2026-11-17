@@ -64,16 +64,9 @@ function requiredNonNullField<T extends object, K extends keyof T>(
   return value as NonNullable<T[K]>;
 }
 
-/** Build the real REST ports with one native fetch binding; defaults remain browser-owned. */
-export function createMemoryHttpPorts(
-  _required: Record<string, never>,
-  { fetch }: { fetch?: typeof globalThis.fetch } = {},
-): { config: MemoryConfigPort; entries: MemoryEntriesPort; extractions: MemoryExtractionsPort } {
-  function request(url: string, init: RequestInit, { timeoutMs }: { timeoutMs: number }): Promise<Response> {
-    return requestWithTimeout({ url, timeoutMs }, { ...(fetch === undefined ? {} : { fetch }), init });
-  }
-  // ─── Config cluster (real HTTP) ─────────────────────────────────────────────
+type MemoryRequest = (url: string, init: RequestInit, options: { timeoutMs: number }) => Promise<Response>;
 
+function createConfigPort(request: MemoryRequest): MemoryConfigPort {
   async function patchMemoryConfig(patch: UpdateMemoryConfigRequest): Promise<boolean> {
     const resp = await request(
       '/api/memory/config',
@@ -83,12 +76,11 @@ export function createMemoryHttpPorts(
     return resp.ok;
   }
 
-  const memoryConfigPort: MemoryConfigPort = {
-    patchConfig: patchMemoryConfig,
-  };
+  return { patchConfig: patchMemoryConfig };
+}
 
-  // ─── Entries/index cluster (real HTTP) ──────────────────────────────────────
-
+/** Read side of the entries/index cluster. */
+function createEntryReaders(request: MemoryRequest) {
   /**
    * `entries` drives the saved-memory list; `rootDir`/`index`/`enabled` are
    * consumed directly (no fallback) by `useMemoryEntries.reload()` and
@@ -138,6 +130,11 @@ export function createMemoryHttpPorts(
     return requiredNonNullField(json, 'entry', 'Memory entry request');
   }
 
+  return { fetchMemoryList, fetchMemoryTree, fetchMemoryEntry };
+}
+
+/** Write side of the entries/index cluster. */
+function createEntryWriters(request: MemoryRequest) {
   async function saveMemoryEntry(draft: DraftEntry): Promise<MemoryEntry | null> {
     const url = draft.id ? `/api/memory/${encodeURIComponent(draft.id)}` : '/api/memory';
     const resp = await request(
@@ -168,17 +165,10 @@ export function createMemoryHttpPorts(
     return resp.ok;
   }
 
-  const memoryEntriesPort: MemoryEntriesPort = {
-    fetchMemoryList,
-    fetchMemoryTree,
-    fetchMemoryEntry,
-    saveMemoryEntry,
-    deleteMemoryEntry,
-    saveMemoryIndex,
-  };
+  return { saveMemoryEntry, deleteMemoryEntry, saveMemoryIndex };
+}
 
-  // ─── Extraction history cluster (real HTTP) ─────────────────────────────────
-
+function createExtractionsPort(request: MemoryRequest): MemoryExtractionsPort {
   async function fetchExtractions(): Promise<MemoryExtractionRecord[]> {
     const resp = await request('/api/memory/extractions', {}, { timeoutMs: 15_000 });
     if (!resp.ok) throw new Error(`Memory extractions request failed (${resp.status})`);
@@ -204,12 +194,21 @@ export function createMemoryHttpPorts(
     return resp.ok;
   }
 
-  const memoryExtractionsPort: MemoryExtractionsPort = {
-    fetchExtractions,
-    deleteExtraction,
-    clearExtractionHistory,
+  return { fetchExtractions, deleteExtraction, clearExtractionHistory };
+}
+
+/** Build the real REST ports with one native fetch binding; defaults remain browser-owned. */
+export function createMemoryHttpPorts(
+  _required: Record<string, never>,
+  { fetch }: { fetch?: typeof globalThis.fetch } = {},
+): { config: MemoryConfigPort; entries: MemoryEntriesPort; extractions: MemoryExtractionsPort } {
+  const request: MemoryRequest = (url, init, { timeoutMs }) =>
+    requestWithTimeout({ url, timeoutMs }, { ...(fetch === undefined ? {} : { fetch }), init });
+  return {
+    config: createConfigPort(request),
+    entries: { ...createEntryReaders(request), ...createEntryWriters(request) },
+    extractions: createExtractionsPort(request),
   };
-  return { config: memoryConfigPort, entries: memoryEntriesPort, extractions: memoryExtractionsPort };
 }
 
 /** @deprecated Explicit legacy REST binding. Host UI composition must use MemoryPortsProvider. */

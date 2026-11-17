@@ -24,6 +24,55 @@ export interface AssetGridToolbarProps {
   toolbarActions?: ReactNode;
 }
 
+type Facets = AssetGridToolbarProps['kindFacets'];
+
+/** A facet filter `<select>`; renders nothing when the host supplied no facets. */
+function FacetSelect({ facets, label, value, onChange }: {
+  facets: Facets; label: string; value: string; onChange: (value: string) => void;
+}) {
+  if (facets.length === 0) return null;
+  return (
+    <select aria-label={label} className="asset-grid-select" value={value} onChange={(e) => onChange(e.target.value)}>
+      {facets.map((f) => (
+        <option key={f.value || ALL_FACET_VALUE} value={f.value}>
+          {f.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+/** Grid / timeline switch. */
+function ViewModeToggle({ viewMode, onViewModeChange }: {
+  viewMode: AssetGridViewMode; onViewModeChange: (mode: AssetGridViewMode) => void;
+}) {
+  const t = useT();
+  return (
+    <div className="asset-grid-view-toggle" role="group" aria-label={t('View mode')}>
+      <button
+        type="button"
+        className="asset-grid-view-toggle-btn"
+        data-active={viewMode === 'grid' ? 'true' : 'false'}
+        aria-pressed={viewMode === 'grid'}
+        onClick={() => onViewModeChange('grid')}
+      >
+        <Icon name="grid" size={14} />
+        {t('Grid')}
+      </button>
+      <button
+        type="button"
+        className="asset-grid-view-toggle-btn"
+        data-active={viewMode === 'timeline' ? 'true' : 'false'}
+        aria-pressed={viewMode === 'timeline'}
+        onClick={() => onViewModeChange('timeline')}
+      >
+        <Icon name="history" size={14} />
+        {t('Timeline')}
+      </button>
+    </div>
+  );
+}
+
 export function AssetGridToolbar({
   search,
   onSearchChange,
@@ -57,56 +106,9 @@ export function AssetGridToolbar({
           aria-label={t('Search')}
         />
       </div>
-      {kindFacets.length > 0 ? (
-        <select
-          aria-label={kindFacetsLabel ?? t('Filter by kind')}
-          className="asset-grid-select"
-          value={kind}
-          onChange={(e) => onKindChange(e.target.value)}
-        >
-          {kindFacets.map((f) => (
-            <option key={f.value || ALL_FACET_VALUE} value={f.value}>
-              {f.label}
-            </option>
-          ))}
-        </select>
-      ) : null}
-      {sourceFacets.length > 0 ? (
-        <select
-          aria-label={sourceFacetsLabel ?? t('Filter by source')}
-          className="asset-grid-select"
-          value={source}
-          onChange={(e) => onSourceChange(e.target.value)}
-        >
-          {sourceFacets.map((f) => (
-            <option key={f.value || ALL_FACET_VALUE} value={f.value}>
-              {f.label}
-            </option>
-          ))}
-        </select>
-      ) : null}
-      <div className="asset-grid-view-toggle" role="group" aria-label={t('View mode')}>
-        <button
-          type="button"
-          className="asset-grid-view-toggle-btn"
-          data-active={viewMode === 'grid' ? 'true' : 'false'}
-          aria-pressed={viewMode === 'grid'}
-          onClick={() => onViewModeChange('grid')}
-        >
-          <Icon name="grid" size={14} />
-          {t('Grid')}
-        </button>
-        <button
-          type="button"
-          className="asset-grid-view-toggle-btn"
-          data-active={viewMode === 'timeline' ? 'true' : 'false'}
-          aria-pressed={viewMode === 'timeline'}
-          onClick={() => onViewModeChange('timeline')}
-        >
-          <Icon name="history" size={14} />
-          {t('Timeline')}
-        </button>
-      </div>
+      <FacetSelect facets={kindFacets} label={kindFacetsLabel ?? t('Filter by kind')} value={kind} onChange={onKindChange} />
+      <FacetSelect facets={sourceFacets} label={sourceFacetsLabel ?? t('Filter by source')} value={source} onChange={onSourceChange} />
+      <ViewModeToggle viewMode={viewMode} onViewModeChange={onViewModeChange} />
       <button
         type="button"
         className="asset-grid-refresh-btn"

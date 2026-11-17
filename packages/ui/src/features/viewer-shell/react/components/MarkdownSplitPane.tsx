@@ -1,4 +1,4 @@
-import { useRef, type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject } from 'react';
+import { useRef, type ComponentProps, type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject } from 'react';
 import { useT } from '../../../i18n/index.js';
 import { SegmentedToggle } from './SegmentedToggle.js';
 import { ViewerShell } from './ViewerShell.js';
@@ -42,6 +42,16 @@ export interface MarkdownSplitPaneProps {
   onPreviewClick?: (event: ReactMouseEvent<HTMLElement>) => void;
 }
 
+/** Toolbar's left slot: a host's extra controls followed by the source/split/preview tabs. */
+function MarkdownToolbarLeft({ extra, ...tabsProps }: { extra: ReactNode } & ComponentProps<typeof MarkdownModeTabs>) {
+  return (
+    <>
+      {extra}
+      <MarkdownModeTabs {...tabsProps} />
+    </>
+  );
+}
+
 /**
  * The generic core of the source component's `MarkdownViewer`: a
  * source/split/preview mode toggle plus a two-pane layout whose scroll
@@ -55,36 +65,16 @@ export interface MarkdownSplitPaneProps {
  * own markdown-to-HTML pipeline and passes the result as `previewHtml`.
  */
 export function MarkdownSplitPane({
-  mode,
-  onModeChange,
-  sourceText,
-  onSourceChange,
-  previewHtml,
-  previewSelector,
-  loading = false,
-  loadingLabel,
-  sourceLabel,
-  splitLabel,
-  previewLabel,
-  editorAriaLabel,
-  previewAriaLabel,
-  modeAriaLabel,
-  toolbarLeftExtra,
-  toolbarActions,
-  editorTextareaProps,
-  onPreviewClick,
+  mode, onModeChange, sourceText, onSourceChange, previewHtml, previewSelector, loading = false, loadingLabel,
+  sourceLabel, splitLabel, previewLabel, editorAriaLabel, previewAriaLabel, modeAriaLabel,
+  toolbarLeftExtra, toolbarActions, editorTextareaProps, onPreviewClick,
 }: MarkdownSplitPaneProps) {
   const t = useT();
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
   const previewRef = useRef<HTMLElement | null>(null);
 
   const { handleEditorScroll, handlePreviewScroll, activatePane } = useMarkdownScrollSync({
-    mode,
-    sourceText,
-    editorRef,
-    previewRef,
-    previewSelector,
-    resyncKey: previewHtml,
+    mode, sourceText, editorRef, previewRef, previewSelector, resyncKey: previewHtml,
   });
 
   const showEditor = mode === 'source' || mode === 'split';
@@ -96,17 +86,10 @@ export function MarkdownSplitPane({
       kindClassName="markdown-split-viewer"
       bodyClassName={`markdown-workbench markdown-workbench-${mode}`}
       toolbarLeft={
-        <>
-          {toolbarLeftExtra}
-          <MarkdownModeTabs
-            mode={mode}
-            onModeChange={onModeChange}
-            sourceLabel={sourceLabel}
-            splitLabel={splitLabel}
-            previewLabel={previewLabel}
-            modeAriaLabel={modeAriaLabel}
-          />
-        </>
+        <MarkdownToolbarLeft
+          extra={toolbarLeftExtra} mode={mode} onModeChange={onModeChange} sourceLabel={sourceLabel} splitLabel={splitLabel}
+          previewLabel={previewLabel} modeAriaLabel={modeAriaLabel}
+        />
       }
       toolbarActions={toolbarActions}
     >
@@ -116,13 +99,8 @@ export function MarkdownSplitPane({
         <>
           {showEditor ? (
             <MarkdownEditorPane
-              editorRef={editorRef}
-              sourceText={sourceText}
-              onSourceChange={onSourceChange}
-              ariaLabel={editorAriaLabel}
-              onScroll={handleEditorScroll}
-              activatePane={activatePane}
-              textareaProps={editorTextareaProps}
+              editorRef={editorRef} sourceText={sourceText} onSourceChange={onSourceChange} ariaLabel={editorAriaLabel}
+              onScroll={handleEditorScroll} activatePane={activatePane} textareaProps={editorTextareaProps}
             />
           ) : null}
           {showPreview ? (
@@ -134,10 +112,7 @@ export function MarkdownSplitPane({
               // here. TypeScript can't follow that indirect invariant
               // through the derived `isLoading` boolean, hence the `!`.
               html={previewHtml!}
-              ariaLabel={previewAriaLabel}
-              onScroll={handlePreviewScroll}
-              activatePane={activatePane}
-              onPreviewClick={onPreviewClick}
+              ariaLabel={previewAriaLabel} onScroll={handlePreviewScroll} activatePane={activatePane} onPreviewClick={onPreviewClick}
             />
           ) : null}
         </>
