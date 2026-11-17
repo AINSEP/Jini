@@ -1,5 +1,6 @@
 /** Forms persistence and outbound effect contracts. Concrete repositories, HTTP routing, tool wiring and transport implementations belong to consumers. */
 import type { UUID } from "@jini-ai/core/primitives";
+import type { ExecuteCommandFn } from "@jini-ai/core/contracts/events";
 import type { FormDefinitionRecord, FormSubmissionPage, FormSubmissionRecord } from "./types.js";
 
 /** Definitions and submissions have distinct lifecycles and therefore separate ports.
@@ -66,4 +67,4 @@ export type MailerSendResult = { ok: true; providerMessageId: string; acceptedAt
 export interface MailerPort { send(required: { message: OutboundEmail; options: MailerSendOptions }): Promise<MailerSendResult>; }
 
 /** Generic audited mutation contract supplied by the host composition root. */
-export type FormCommandExecutorPort = typeof import("@jini-ai/cms/core").executeCommand;
+export type FormCommandExecutorPort = ExecuteCommandFn;

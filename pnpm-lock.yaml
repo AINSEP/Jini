@@ -681,13 +681,13 @@ importers:
 
   packages/cms/forms:
     dependencies:
-      '@jini-ai/cms':
-        specifier: workspace:^
-        version: link:..
       '@jini-ai/core':
         specifier: workspace:^
         version: link:../../core
     devDependencies:
+      '@jini-ai/cms':
+        specifier: workspace:^
+        version: link:..
       '@types/node':
         specifier: ^24.0.0
         version: 24.13.3

@@ -42,10 +42,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@jini-ai/cms": "workspace:^",
     "@jini-ai/core": "workspace:^"
   },
   "devDependencies": {
+    "@jini-ai/cms": "workspace:^",
     "vitest": "^2.1.0",
     "typescript": "^5.6.0",
     "@types/node": "^24.0.0"

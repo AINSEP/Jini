@@ -37,7 +37,7 @@ function layerOf(name: string): number | undefined {
   if (Object.hasOwn(layers, name)) return layers[name];
   return name.startsWith('plugin-') ? pluginDistributionLayer : undefined;
 }
-const sameLayerEdges = new Set(['cli→sidecar', 'cms-forms→cms', 'admin→ui']);
+const sameLayerEdges = new Set(['cli→sidecar', 'admin→ui']);
 
 // Reviewed feature owners expose these contracts/catalogs without dispatch or service code.
 // Manifest declarations permit installation; each production import still needs its exact leaf/file.
