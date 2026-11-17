@@ -25,6 +25,8 @@ export interface ConnectorCardProps {
   /** This card's own agent handle — see `ConnectorsBrowser`'s `agentHandle` doc; `ConnectorGrid`
    *  derives one distinct handle per connector and passes it here. */
   agentHandle?: string;
+  useTHook?: typeof useT;
+  useConnectorCardHook?: typeof useConnectorCard;
 }
 
 type ConnectorStatusValue = Connector['status'];
@@ -41,8 +43,8 @@ function stopThen(onActivate: () => void) {
   };
 }
 
-function ConnectorCardTitleDot({ status, isAuthorizationPending }: { status: ConnectorStatusValue; isAuthorizationPending: boolean }) {
-  const t = useT();
+function ConnectorCardTitleDot({ status, isAuthorizationPending, useTHook = useT }: { status: ConnectorStatusValue; isAuthorizationPending: boolean; useTHook?: typeof useT; }) {
+  const t = useTHook();
   if (status === 'connected') {
     return (
       <span
@@ -64,8 +66,8 @@ function ConnectorCardTitleDot({ status, isAuthorizationPending }: { status: Con
   );
 }
 
-function ConnectorCardToolsBadge({ connector, toolsLoaded }: { connector: Connector; toolsLoaded: boolean }) {
-  const t = useT();
+function ConnectorCardToolsBadge({ connector, toolsLoaded, useTHook = useT }: { connector: Connector; toolsLoaded: boolean; useTHook?: typeof useT; }) {
+  const t = useTHook();
   const showToolsBadge = connector.toolCount !== undefined || connector.tools.length > 0 || toolsLoaded;
   const toolsBadge = toolsBadgeTranslation(getConnectorDisplayToolCount(connector));
   const toolsBadgeLabel = t(toolsBadge.key, toolsBadge.vars);
@@ -85,10 +87,11 @@ interface ConnectorCardActionButtonProps {
   disabled: boolean;
   agentHandle: string | undefined;
   onActivate: () => void;
+  useTHook?: typeof useT;
 }
 
-function ConnectorDisconnectButton({ flags, disabled, agentHandle, onActivate }: ConnectorCardActionButtonProps) {
-  const t = useT();
+function ConnectorDisconnectButton({ flags, disabled, agentHandle, onActivate, useTHook = useT }: ConnectorCardActionButtonProps) {
+  const t = useTHook();
   const { isDisconnecting } = flags;
   return (
     <button
@@ -109,8 +112,8 @@ function ConnectorDisconnectButton({ flags, disabled, agentHandle, onActivate }:
   );
 }
 
-function ConnectorConnectButton({ flags, disabled, agentHandle, onActivate }: ConnectorCardActionButtonProps) {
-  const t = useT();
+function ConnectorConnectButton({ flags, disabled, agentHandle, onActivate, useTHook = useT }: ConnectorCardActionButtonProps) {
+  const t = useTHook();
   const { isAuthorizationPending } = flags;
   const isBusy = flags.isConnecting || isAuthorizationPending;
   return (
@@ -132,8 +135,8 @@ function ConnectorConnectButton({ flags, disabled, agentHandle, onActivate }: Co
   );
 }
 
-function ConnectorCancelAuthorizationButton({ onActivate }: { onActivate: () => void }) {
-  const t = useT();
+function ConnectorCancelAuthorizationButton({ onActivate, useTHook = useT }: { onActivate: () => void; useTHook?: typeof useT; }) {
+  const t = useTHook();
   return (
     <button
       type="button"
@@ -149,8 +152,8 @@ function ConnectorCancelAuthorizationButton({ onActivate }: { onActivate: () => 
   );
 }
 
-function ConnectorStatusPill({ status }: { status: ConnectorStatusValue }) {
-  const t = useT();
+function ConnectorStatusPill({ status, useTHook = useT }: { status: ConnectorStatusValue; useTHook?: typeof useT; }) {
+  const t = useTHook();
   if (status !== 'error' && status !== 'disabled') return null;
   return <span className={`connector-status-pill status-${status}`}>{t(statusLabel(status))}</span>;
 }
@@ -161,6 +164,7 @@ interface ConnectorCardHintsProps {
   cancelFailedMessage: string | undefined;
   continueInBrowserLabel: string | undefined;
   onOpenExternalUrl: ((url: string) => void) | undefined;
+  useTHook?: typeof useT;
 }
 
 /** The cancel-failed alert and the continue-in-browser link under the card body. */
@@ -170,8 +174,9 @@ function ConnectorCardHints({
   cancelFailedMessage,
   continueInBrowserLabel,
   onOpenExternalUrl,
+  useTHook = useT,
 }: ConnectorCardHintsProps) {
-  const t = useT();
+  const t = useTHook();
 
   const continueAuthorization = redirectUrl ? createContinueAuthorization({ redirectUrl, onOpenExternalUrl }) : undefined;
 
@@ -207,13 +212,15 @@ export function ConnectorCard({
   continueInBrowserLabel,
   onOpenExternalUrl,
   agentHandle,
+  useTHook = useT,
+  useConnectorCardHook = useConnectorCard,
 }: ConnectorCardProps) {
-  const t = useT();
+  const t = useTHook();
   const flags = connectorActionFlags({ connector, pendingAction, authorizationPending, disabled });
   const categoryLabel = getCategoryLabel(connector.category);
   const actionProps = { flags, disabled, agentHandle };
 
-  const { openDetails, onKeyActivate } = useConnectorCard({ connector, disabled, onOpenDetails });
+  const { openDetails, onKeyActivate } = useConnectorCardHook({ connector, disabled, onOpenDetails });
 
   return (
     <article

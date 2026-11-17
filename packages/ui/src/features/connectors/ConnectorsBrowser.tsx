@@ -41,6 +41,8 @@ export interface ConnectorsBrowserProps {
    * emitted anywhere — additive, never a behavior change.
    */
   agentHandle?: string;
+  useTHook?: typeof useT;
+  useConnectorsBrowserViewHook?: typeof useConnectorsBrowserView;
 }
 
 /** `{ agentHandle }` for a child derived from the browser's own handle, or `{}` when the host published none. */
@@ -121,9 +123,11 @@ export function ConnectorsBrowser({
   useConnectorAuthorization,
   useConnectorDetail,
   agentHandle,
+  useTHook = useT,
+  useConnectorsBrowserViewHook = useConnectorsBrowserView,
 }: ConnectorsBrowserProps) {
-  const t = useT();
-  const { filter, setFilter, selectedProvider, catalog, authorization, detail, filteredConnectors, hasNoResults, alerts, handleProviderTabSelect, actions, categoryLabelProps, gateProps } = useConnectorsBrowserView({ unlocked, providerTabs, catalogRefreshKey, dependencies, getCategoryLabel, gate, onProviderTabClick, onConnectorAuthResult, onConnectorsChanged, useConnectorCatalog, useConnectorAuthorization, useConnectorDetail, t });
+  const t = useTHook();
+  const { filter, setFilter, selectedProvider, catalog, authorization, detail, filteredConnectors, hasNoResults, alerts, handleProviderTabSelect, actions, categoryLabelProps, gateProps } = useConnectorsBrowserViewHook({ unlocked, providerTabs, catalogRefreshKey, dependencies, getCategoryLabel, gate, onProviderTabClick, onConnectorAuthResult, onConnectorsChanged, useConnectorCatalog, useConnectorAuthorization, useConnectorDetail, t });
 
   return (
     <div className="tab-panel connectors-panel connectors-panel-embedded">

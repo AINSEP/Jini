@@ -35,6 +35,8 @@ export interface ConnectorDetailDrawerProps {
   continueInBrowserLabel?: string;
   /** This drawer's own agent handle — see `ConnectorsBrowser`'s `agentHandle` doc. */
   agentHandle?: string;
+  useTHook?: typeof useT;
+  useDrawerModalBehaviorHook?: typeof useDrawerModalBehavior;
 }
 
 interface ConnectorDrawerHeadProps {
@@ -45,6 +47,7 @@ interface ConnectorDrawerHeadProps {
   closeBtnRef: RefObject<HTMLButtonElement | null>;
   onClose: () => void;
   agentHandle: string | undefined;
+  useTHook?: typeof useT;
 }
 
 function ConnectorDrawerHead({
@@ -55,8 +58,9 @@ function ConnectorDrawerHead({
   closeBtnRef,
   onClose,
   agentHandle,
+  useTHook = useT,
 }: ConnectorDrawerHeadProps) {
-  const t = useT();
+  const t = useTHook();
   const showToolsBadge = connector.toolCount !== undefined || connector.tools.length > 0 || toolsLoaded;
   const toolsBadge = toolsBadgeTranslation(getConnectorDisplayToolCount(connector));
   const toolsBadgeLabel = t(toolsBadge.key, toolsBadge.vars);
@@ -106,6 +110,7 @@ interface ConnectorDrawerAboutProps {
   redirectUrl: string | undefined;
   continueInBrowserLabel: string | undefined;
   onOpenExternalUrl: ((url: string) => void) | undefined;
+  useTHook?: typeof useT;
 }
 
 function ConnectorDrawerAbout({
@@ -114,8 +119,9 @@ function ConnectorDrawerAbout({
   redirectUrl,
   continueInBrowserLabel,
   onOpenExternalUrl,
+  useTHook = useT,
 }: ConnectorDrawerAboutProps) {
-  const t = useT();
+  const t = useTHook();
 
   const continueAuthorization = redirectUrl ? createContinueAuthorization({ redirectUrl, onOpenExternalUrl }) : undefined;
 
@@ -152,10 +158,11 @@ interface ConnectorDrawerDetailsProps {
   flags: ConnectorActionFlags;
   onDisconnect: (connectorId: string) => void;
   agentHandle: string | undefined;
+  useTHook?: typeof useT;
 }
 
-function ConnectorDrawerDetails({ connector, categoryLabel, accountLabel, flags, onDisconnect, agentHandle }: ConnectorDrawerDetailsProps) {
-  const t = useT();
+function ConnectorDrawerDetails({ connector, categoryLabel, accountLabel, flags, onDisconnect, agentHandle, useTHook = useT }: ConnectorDrawerDetailsProps) {
+  const t = useTHook();
   const { isDisconnecting } = flags;
   return (
     <section className="connector-drawer-section">
@@ -225,11 +232,12 @@ interface ConnectorDrawerToolsProps {
   toolsPreviewLoading: boolean;
   toolsLoaded: boolean;
   onLoadMoreTools: (connectorId: string, cursor: string) => void;
+  useTHook?: typeof useT;
 }
 
 /** The tools section body: loading, unavailable, empty, or the list with an optional load-more. */
-function ConnectorDrawerToolsBody({ connector, toolsPreviewLoading, toolsLoaded, onLoadMoreTools }: ConnectorDrawerToolsProps) {
-  const t = useT();
+function ConnectorDrawerToolsBody({ connector, toolsPreviewLoading, toolsLoaded, onLoadMoreTools, useTHook = useT }: ConnectorDrawerToolsProps) {
+  const t = useTHook();
   const actualToolCount = connector.tools.length;
   const toolCount = getConnectorDisplayToolCount(connector);
   if (toolsPreviewLoading || !toolsLoaded) {
@@ -279,10 +287,11 @@ interface ConnectorDrawerFootProps {
   onConnect: (connectorId: string) => void;
   onCancelAuthorization: (connectorId: string) => void;
   agentHandle: string | undefined;
+  useTHook?: typeof useT;
 }
 
-function ConnectorDrawerFoot({ connectorId, flags, onConnect, onCancelAuthorization, agentHandle }: ConnectorDrawerFootProps) {
-  const t = useT();
+function ConnectorDrawerFoot({ connectorId, flags, onConnect, onCancelAuthorization, agentHandle, useTHook = useT }: ConnectorDrawerFootProps) {
+  const t = useTHook();
   const { isAuthorizationPending } = flags;
   const isBusy = flags.isConnecting || isAuthorizationPending;
   return (
@@ -366,12 +375,14 @@ export function ConnectorDetailDrawer({
   cancelFailedMessage,
   continueInBrowserLabel,
   agentHandle,
+  useTHook = useT,
+  useDrawerModalBehaviorHook = useDrawerModalBehavior,
 }: ConnectorDetailDrawerProps) {
-  const t = useT();
+  const t = useTHook();
   const flags = connectorActionFlags({ connector, pendingAction, authorizationPending, disabled });
   const closeBtnRef = useRef<HTMLButtonElement | null>(null);
   const categoryLabel = getCategoryLabel(connector.category);
-  useDrawerModalBehavior({ onClose, closeBtnRef });
+  useDrawerModalBehaviorHook({ onClose, closeBtnRef });
 
   return (
     <div
