@@ -222,4 +222,13 @@ describe('ResourceCard', () => {
     expect(onToggleSelected).toHaveBeenCalledTimes(1);
     expect(onOpen).not.toHaveBeenCalled();
   });
+
+  it('activates through the handler supplied by useResourceCardHook', async () => {
+    const handleActivate = vi.fn();
+    const props = baseProps();
+    render(<ResourceCard {...props} useResourceCardHook={() => ({ handleActivate, menuActions: [] })} />);
+    await userEvent.click(screen.getByText('Marketing site'));
+    expect(handleActivate).toHaveBeenCalledTimes(1);
+    expect(props.onOpen).not.toHaveBeenCalled();
+  });
 });

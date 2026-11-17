@@ -1428,30 +1428,6 @@
         "packages/admin/src/redirects/react/pages/RedirectsPage.tsx"
       ]
     },
-    "ResourceBoard::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/resource-dashboard/react/components/ResourceBoard.tsx"
-      ]
-    },
-    "ResourceCard::useResourceCard": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/resource-dashboard/react/components/ResourceCard.tsx"
-      ]
-    },
-    "ResourceRowList::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/resource-dashboard/react/components/ResourceRowList.tsx"
-      ]
-    },
-    "ResourceRowList::useWiredResourceRowList": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/resource-dashboard/react/components/ResourceRowList.tsx"
-      ]
-    },
     "ResultBadge::useT": {
       "count": 1,
       "files": [
@@ -1866,18 +1842,6 @@
         "packages/ui/src/features/admin-widgets/components/SuggestInput/SuggestInput.tsx"
       ]
     },
-    "TabBar::useActiveTabInView": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/tab-strip/react/components/TabBar.tsx"
-      ]
-    },
-    "TabBar::useTabBarKeyboard": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/tab-strip/react/components/TabBar.tsx"
-      ]
-    },
     "TabLauncherMenu::useT": {
       "count": 1,
       "files": [
@@ -1888,24 +1852,6 @@
       "count": 1,
       "files": [
         "packages/ui/src/features/tab-strip/react/components/TabStrip.tsx"
-      ]
-    },
-    "TabStripItem::useAgentHandle": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/tab-strip/react/components/TabStripItem.tsx"
-      ]
-    },
-    "TabStripItem::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/tab-strip/react/components/TabStripItem.tsx"
-      ]
-    },
-    "TabStripItem::useTabStripItem": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/tab-strip/react/components/TabStripItem.tsx"
       ]
     },
     "TabbedDialog::useT": {
