@@ -28,7 +28,7 @@ import { daemonDbRoutes } from '../../db-ops.js';
 import { delegatedToolRoutes } from '../../delegated-tools.js';
 import { registerFrontendRequestRoute } from '../../frontend-request-route.js';
 import { registerFrontendSessionRoutes } from '../../frontend-sessions.js';
-import { registerHealthRoutes } from '../../health.js';
+import { healthRoutes } from '../../health.js';
 import { registerHostToolsRoutes } from '../../host-tools.js';
 import { registerMediaRoutes } from '../../media.js';
 import { registerMemoryRoutes } from '../../memory.js';
@@ -106,7 +106,7 @@ const gateEnv = { JINI_TOOL_EXEC_TOKEN: HARNESS_BEARER_TOKEN, JINI_REMOTE_TOOL_B
  * the blanket `express.json()` the preset mounts (default limit, 100 KB).
  */
 const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-parser')[] = [
-  ['health', ({ app, adapter, deps }) => registerHealthRoutes({ app, deps: deps(), adapter })],
+  ['health', ({ adapter, deps, mountList }) => mountList(healthRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['tool-execution-routes', ({ app, deps }) => {
     // The host's run check is optional; a test that wants one supplies it as this family's `authorizeRun`.
     const { authorizeRun } = deps({ authorizeRun: undefined }) as { authorizeRun: RequestHandler | undefined };

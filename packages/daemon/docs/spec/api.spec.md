@@ -323,7 +323,7 @@ Registrars use `({app: Express, deps: D, adapter: AdapterContext}, {}) => void`.
 |---|---|
 | `registerRunRoutes` / `registerRunEventStream` | `RunHttpDeps`: `lifecycle: RunLifecycle`; optional `onStarted(RunStartContext)`, `onInternalError(RunInternalErrorContext)` |
 | `agentRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them); `AgentsHttpDeps`: `listAgents() => AgentSummary[] \| Promise<readonly AgentSummary[]>`; optional `rescanAgents()` |
-| `registerHealthRoutes` | `HealthHttpDeps`: `getVersion() => string \| Promise<string>`; optional async `checkReadiness() => {ok, checks: Record<string,boolean>}` |
+| `healthRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them); `HealthHttpDeps`: `getVersion() => string \| Promise<string>`; optional async `checkReadiness() => {ok, checks: Record<string,boolean>}` |
 | `daemonStatusRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them); `DaemonStatusDeps`: `getVersion`, `host`, `getPort`, `dataDir`, `isShuttingDown`, `requestShutdown` callbacks/values |
 | `activeContextRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them); `ActiveContextDeps`: `resolveResource({resourceRef}) => {name?: string \| null} \| null \| undefined`; optional `now() => number` |
 | `registerRoutineRoutes` | `RoutineHttpDeps`: `store: RoutineStore`, `scheduler: Pick<RoutineService,'nextRunAt' \| 'rescheduleOne' \| 'runNow' \| 'unschedule'>`; optional `projectExists({projectId})` |

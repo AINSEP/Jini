@@ -38,7 +38,7 @@ import {
   searchToolCatalog,
 } from '@jini-ai/registry/tool-catalog/sqlite';
 import { inspectSqliteDatabase, verifySqliteIntegrity } from '@jini-ai/db/sqlite'; import type { SqliteDb } from '@jini-ai/core/contracts/storage';
-import { daemonDbRoutes, researchRoutes, delegatedToolRoutes, activeContextRoutes, daemonStatusRoutes, agentRoutes, toolCatalogRoutes, createDaemonDbToolRegistrations, denyAllWorkspaceRoots, registerConnectorsRoutes, registerFrontendSessionRoutes, registerHealthRoutes, registerHostToolsRoutes, registerMediaRoutes, registerMemoryRoutes, registerModelProxyRoutes, registerRemoteRunEventRoutes, registerRoutineRoutes, registerRunRoutes, registerTerminalRoutes, registerXaiRoutes, type AgentSummary, type DaemonDbOperations, type DaemonDbVacuumResult, type DelegatedToolExecuteRequest, type FrontendSessionsHttpDeps, type MediaHttpDeps, type MemoryHttpDeps, type RemoteToolBridgeTokenConfig, type RoutineHttpDeps, type RunStartHandler, type WorkspaceRootResolver } from '@jini-ai/daemon/http';
+import { healthRoutes, daemonDbRoutes, researchRoutes, delegatedToolRoutes, activeContextRoutes, daemonStatusRoutes, agentRoutes, toolCatalogRoutes, createDaemonDbToolRegistrations, denyAllWorkspaceRoots, registerConnectorsRoutes, registerFrontendSessionRoutes, registerHostToolsRoutes, registerMediaRoutes, registerMemoryRoutes, registerModelProxyRoutes, registerRemoteRunEventRoutes, registerRoutineRoutes, registerRunRoutes, registerTerminalRoutes, registerXaiRoutes, type AgentSummary, type DaemonDbOperations, type DaemonDbVacuumResult, type DelegatedToolExecuteRequest, type FrontendSessionsHttpDeps, type MediaHttpDeps, type MemoryHttpDeps, type RemoteToolBridgeTokenConfig, type RoutineHttpDeps, type RunStartHandler, type WorkspaceRootResolver } from '@jini-ai/daemon/http';
 import type { Express } from 'express';
 
 import { defineJiniFeature, type FeatureBuildContext, type JiniFeature } from './feature.js';
@@ -238,7 +238,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
         http: ({ app, services }) => {
           const sqlite = services.context.kernel.sqlite;
           const isShuttingDown = options.health?.isShuttingDown ?? (() => false);
-          registerHealthRoutes({ app: app as Express, deps: {
+          mountRoutes({ app, routes: healthRoutes({ deps: {
               getVersion: options.health?.getVersion ?? (() => packageVersion),
               // Borrows the kernel's connection — see kernel-base.ts on why this is not
               // `daemonDb`'s to own. A readiness check must never itself throw and crash the
@@ -254,7 +254,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
                 }
                 return { ok: dbOk && notShuttingDown, checks: { db: dbOk, notShuttingDown } };
               },
-            }, adapter: services.context.adapter });
+            }, host: services.context.routeHost }) });
         },
       }),
     }),

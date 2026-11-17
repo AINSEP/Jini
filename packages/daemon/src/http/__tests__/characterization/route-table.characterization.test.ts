@@ -14,12 +14,12 @@ import { describeRouteTable, startRouteHarness, type RouteHarness } from './harn
  */
 const ROUTE_TABLE: Readonly<Record<string, readonly string[]>> = {
   'health': [
-    'GET /health [anonymous/2]',
-    'GET /api/health [anonymous/2]',
-    'GET /ready [anonymous/2]',
-    'GET /api/ready [anonymous/2]',
-    'GET /version [anonymous/2]',
-    'GET /api/version [anonymous/2]',
+    'GET /health []',
+    'GET /api/health []',
+    'GET /ready []',
+    'GET /api/ready []',
+    'GET /version []',
+    'GET /api/version []',
   ],
   'tool-execution-routes': [
     'POST /internal/tool-executions [anonymous/3, jsonParser/3, anonymous/2, bodyParserFailure/4]',

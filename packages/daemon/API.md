@@ -12,7 +12,7 @@ origin guards and `AdapterContext` remain in `@jini-ai/http-kit`. Install the op
 read-only policy entry do not load HTTP or Express.
 
 - **Daemon lifecycle routes** — `daemonStatusRoutes` (`daemonStatusRoute`,
-  `daemonShutdownRoute`) and `registerHealthRoutes` (`/health`, `/ready`, `/version` and their
+  `daemonShutdownRoute`) and `healthRoutes` (`/health`, `/ready`, `/version` and their
   `/api`-prefixed twins — deliberately open, unauthenticated probes).
 - **Kernel route packs, ready to mount** — one `register*Routes` function per concern: runs
   (`registerRunRoutes`), agents (`agentRoutes`), memory (`registerMemoryRoutes`),

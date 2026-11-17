@@ -556,7 +556,7 @@ Everything a Jini package asks its host to bind or register: `*Port`, `*Kit`, `*
 | `FrontendSessionsHttpDeps` | deps | interface | `packages/daemon/src/http/frontend-sessions.ts:110` |
 | `registerFrontendSessionRoutes` | registry | function | `packages/daemon/src/http/frontend-sessions.ts:289` |
 | `HealthHttpDeps` | deps | interface | `packages/daemon/src/http/health.ts:65` |
-| `registerHealthRoutes` | registry | function | `packages/daemon/src/http/health.ts:124` |
+| `healthRoutes` | registry | function | `packages/daemon/src/http/health.ts:124` |
 | `HostToolsOpenInDeps` | deps | interface | `packages/daemon/src/http/host-tools.ts:342` |
 | `registerHostToolsRoutes` | registry | function | `packages/daemon/src/http/host-tools.ts:426` |
 | `MediaHttpDeps` | deps | interface | `packages/daemon/src/http/media.ts:161` |

@@ -256,7 +256,7 @@ export {
   apiVersionInfoRoute,
   healthRoute,
   readyRoute,
-  registerHealthRoutes,
+  healthRoutes,
   versionInfoRoute,
 } from './health.js';
 export type {
