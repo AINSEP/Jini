@@ -34,6 +34,14 @@ function renderSessionGate({ props, context, state, refresh }: {
   return <div role="alert"><p>{props.labels.sessionError}</p><button type="button" onClick={() => { void refresh(); }}>{props.labels.retry}</button></div>;
 }
 
+/** The routed panel, or the host's `noAccess` slot (an empty `<main>` without one) when access is denied. */
+function renderRoutedPanel({ model, slots, slotArgs }: {
+  readonly model: AdminShellModel; readonly slots: AdminShellProps['slots']; readonly slotArgs: AdminShellSlotArgs;
+}): ReactNode {
+  if (model.access === 'denied') return slots.noAccess?.(slotArgs) ?? null;
+  return model.panel?.render(slotArgs);
+}
+
 interface ShellView { readonly model: AdminShellModel; readonly slotArgs: AdminShellSlotArgs; readonly nav: readonly AdminNavGroup[] }
 
 /** Resolve the authenticated route, nav and slot arguments from the session's contributions. */
@@ -106,7 +114,7 @@ export function AdminShell(props: AdminShellProps): ReactNode {
           {props.slots.topbar}
         </div>
         <main ref={props.mainRef} id={mainId} className="admin-content" tabIndex={-1} data-agent-page={model.agentPageId ?? undefined}>
-          {model.panel?.render(slotArgs)}
+          {renderRoutedPanel({ model, slots: props.slots, slotArgs })}
         </main>
       </div>
       {assistant && <aside className="admin-assistant-pane" aria-label={assistant.label} hidden={!assistant.open}>{assistant.content}</aside>}

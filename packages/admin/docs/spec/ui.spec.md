@@ -55,6 +55,7 @@ Optional props are `capabilities`, `railDefaultCollapsed`, `collapsibleGroups`, 
 | sidebarFooter | `(AdminShellSlotArgs) => ReactNode`, after rail toggle |
 | topbar | ReactNode, after title |
 | overlays | `(AdminShellSlotArgs) => ReactNode`, authenticated |
+| noAccess | `(AdminShellSlotArgs) => ReactNode`; rendered in `<main>` instead of the routed panel when `model.access` is `'denied'`; absent: empty `<main>` |
 | assistant | `{content: ReactNode, label: string, open: boolean}`; authenticated aside, stays mounted with hidden when closed |
 
 Render args carry context, session and route; slot args also carry logout, refreshSession and optional appearance. The shell passes these args to the resolved panel renderer. The host owns login implementation, assistant controls/content, overlays, labels and actual API adapters. No logout button is built in; place one in a slot.
