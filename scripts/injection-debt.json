@@ -178,8 +178,6 @@
   {"rule": "L5-injected-edge", "file": "packages/user-management/src/admin/react/tabs/PoliciesTab.tsx", "spec": "@jini-ai/ui-kit/react", "kind": "import", "count": 1, "lane": "L-KIT-UM"},
   {"rule": "L5-injected-edge", "file": "packages/user-management/src/admin/react/tabs/RolesTab.tsx", "spec": "@jini-ai/ui-kit/react", "kind": "import", "count": 1, "lane": "L-KIT-UM"},
   {"rule": "L5-injected-edge", "file": "packages/user-management/src/admin/react/tabs/UsersTab.tsx", "spec": "@jini-ai/ui-kit/react", "kind": "import", "count": 1, "lane": "L-KIT-UM"},
-  {"rule": "L5-injected-edge", "file": "packages/user-management/src/react/auth/Login.tsx", "spec": "@jini-ai/ui", "kind": "import", "count": 1, "lane": "L-KIT-UM"},
-  {"rule": "L5-injected-edge", "file": "packages/user-management/src/react/auth/TotpSettings.tsx", "spec": "@jini-ai/ui", "kind": "import", "count": 1, "lane": "L-KIT-UM"},
   {"rule": "L5-injected-edge", "file": "packages/user-management/src/react/members/hooks/use-members.hooks.ts", "spec": "@jini-ai/ui/fetch-query", "kind": "import", "count": 1, "lane": "L-KIT-UM"},
   {"rule": "L5-injected-edge", "file": "packages/user-management/src/react/members/Members.tsx", "spec": "@jini-ai/admin/react", "kind": "import", "count": 1, "lane": "L-KIT-UM"},
   {"rule": "L5-injected-edge", "file": "packages/user-management/src/react/members/rules.ts", "spec": "@jini-ai/admin/react", "kind": "type-import", "count": 1, "lane": "L-KIT-UM"},
