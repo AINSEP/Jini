@@ -42,14 +42,14 @@ import type { AnyPack, MissingTokenIds } from '@jini-ai/core/composition';
 import type { ResolveRunInput, RunLifecycle } from '@jini-ai/daemon';
 import { installRouteRegistrationGuard, mountPackHttp } from '@jini-ai/http-kit';
 import { createLocalSameOriginPolicy, type RouteHostContext } from '@jini-ai/core/contracts/server';
-import type {  DelegatedToolExecuteRequest,  RunStartHandler,  WorkspaceRootResolver } from '@jini-ai/daemon/http';
+import type { DaemonRouteHost, DelegatedToolExecuteRequest,  RunStartHandler,  WorkspaceRootResolver } from '@jini-ai/daemon/http';
 import { removeDaemonRegistryRecordIfCurrent, resolveDaemonRegistryPath, writeDaemonRegistryRecord } from '@jini-ai/sidecar';
 
 import { composeJiniKernel, type JiniKernelSecurity, type KernelBoundIds } from './compose-jini-kernel.js';
 import type { BuiltInFeatureOptions } from './builtin-features.js';
 import type { TerminalFeatureOptions } from './terminal-service.js';
 import type { CapabilityId, JiniProfileId } from './feature.js';
-import { closeHttpServer, normalizeDaemonBindHost } from './host-bootstrap.js';
+import { closeHttpServer, normalizeDaemonBindHost } from './host-bootstrap.js'; import { PRESET_JSON_PARSER_LIMIT_BYTES, presetRouteHost } from './route-host.js';
 
 const require = createRequire(import.meta.url);
 /** This package's own `package.json` version, echoed back by `GET /api/daemon/status`. */
@@ -112,6 +112,8 @@ export type { KernelBoundIds };
  */
 export interface LocalNodeHttpExtensionContext {
   readonly adapter: RouteHostContext;
+  /** The host object route lists are built with (`@jini-ai/daemon/http`'s `*Routes({ deps, host })`); mount the list with {@link mountRoutes}. Same origin policy as `adapter`. */
+  readonly routeHost: DaemonRouteHost;
   readonly lifecycle: RunLifecycle;
   readonly dataDir: string;
 }
@@ -412,7 +414,7 @@ export async function createLocalNodeDaemon(
     // route families and the daemon-status routes.
     onAfterApiRoutes: (mountedApp, daemon, base) => {
       for (const registerExtension of config.httpExtensions ?? []) {
-        registerExtension(mountedApp, { adapter, lifecycle: base.lifecycle, dataDir: config.dataDir });
+        registerExtension(mountedApp, { adapter, routeHost: presetRouteHost({ context: adapter, parserLimitBytes: PRESET_JSON_PARSER_LIMIT_BYTES }), lifecycle: base.lifecycle, dataDir: config.dataDir });
       }
       mountPackHttp({ app: mountedApp, packs: config.packs, daemon });
     },

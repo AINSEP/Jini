@@ -88,6 +88,7 @@ export type {
   KernelSqliteAccess,
 } from './kernel-base.js';
 export { createJiniKernelBase } from './kernel-base.js';
+export { mountRoutes } from './mount-routes.js';
 
 // Frontend control belongs to the daemon HTTP surface: hosts that build their own Express app
 // can compose it without the server kernel. This server entry keeps its existing public export.
