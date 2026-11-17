@@ -679,36 +679,6 @@
         "packages/ui/src/features/panel-kit/ErrorNotice.tsx"
       ]
     },
-    "ExternalMcpFooter::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/external-mcp/react/components/ExternalMcpTab.tsx"
-      ]
-    },
-    "ExternalMcpSources::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/external-mcp/react/components/ExternalMcpTab.tsx"
-      ]
-    },
-    "ExternalMcpTab::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/external-mcp/react/components/ExternalMcpTab.tsx"
-      ]
-    },
-    "ExternalMcpTab::useWiredSourceConfigAddForm": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/external-mcp/react/components/ExternalMcpTab.tsx"
-      ]
-    },
-    "ExternalMcpTab::useWiredSourceConfigList": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/external-mcp/react/components/ExternalMcpTab.tsx"
-      ]
-    },
     "FakeExcalidraw::useFakeExcalidraw": {
       "count": 1,
       "files": [

@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from '../../../../../__tests__/ui-kit-render-support.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import type { SourceConfigPort } from '../../../../source-config-list/ports.js';
 import type { SourceConfigItem, SourceFieldSpec } from '../../../../source-config-list/types.js';
 import { ExternalMcpTab, type ExternalMcpTabProps } from '../ExternalMcpTab.js';
@@ -19,6 +19,9 @@ function createPort(
     ...overrides,
   };
 }
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('ExternalMcpTab characterization', () => {
   const footerCases: { name: string; props: Partial<ExternalMcpTabProps>; footer: string | null; path: string | null }[] = [
@@ -178,5 +181,11 @@ describe('ExternalMcpTab characterization', () => {
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByLabelText('Server ID', { exact: false })).toHaveValue('silent');
     expect(screen.queryByTestId('source-config-item-card')).toBeNull();
+  });
+
+  it('renders the translator supplied through useTHook', async () => {
+    const port = createPort({ sources: [] });
+    render(<ExternalMcpTab dependencies={{ port }} useTHook={useQuotingT} />);
+    expect(await screen.findByText('«External MCP servers»')).toBeInTheDocument();
   });
 });
