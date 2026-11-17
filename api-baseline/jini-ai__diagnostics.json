@@ -45,6 +45,20 @@
    "redactText": "function:22d890307e"
   }
  },
+ "./console-tee": {
+  "types": "./dist/console-tee.d.ts",
+  "symbols": {
+   "CaptureFailure": "interface:97681cf95f",
+   "CaptureFailureReporter": "type:8349e01a85",
+   "ConsoleTeeBuffer": "interface:bfcece9f9f",
+   "ConsoleTeeLevel": "type:047168479b",
+   "InstallConsoleTeeOptional": "interface:0bee70a09a",
+   "InstallConsoleTeeRequired": "interface:1f2351122d",
+   "TeeableConsole": "type:33225186b9",
+   "createRedactedOutputSink": "function:64586d9004",
+   "installConsoleTee": "function:0d88f47933"
+  }
+ },
  "./domain-dns": {
   "types": "./dist/domain-dns/index.d.ts",
   "symbols": {
@@ -60,6 +74,12 @@
    "createDomainDnsChecks": "function:140accd3af",
    "readPublicDnsName": "function:e59277410b",
    "readPublicDomain": "function:e9fb9622de"
+  }
+ },
+ "./local-text": {
+  "types": "./dist/local-text.d.ts",
+  "symbols": {
+   "redactLocalText": "function:0bb52b2449"
   }
  },
  "./observability": {

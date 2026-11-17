@@ -18,7 +18,9 @@
       "./observability/node": "node",
       "./web-evidence": "universal",
       "./web-evidence/playwright": "node",
-      "./domain-dns": "node"
+      "./domain-dns": "node",
+      "./local-text": "node",
+      "./console-tee": "node"
     },
     "runtime": "node"
   },
@@ -61,6 +63,16 @@
       "types": "./dist/domain-dns/index.d.ts",
       "import": "./dist/domain-dns/index.js",
       "default": "./dist/domain-dns/index.js"
+    },
+    "./local-text": {
+      "types": "./dist/local-text.d.ts",
+      "import": "./dist/local-text.js",
+      "default": "./dist/local-text.js"
+    },
+    "./console-tee": {
+      "types": "./dist/console-tee.d.ts",
+      "import": "./dist/console-tee.js",
+      "default": "./dist/console-tee.js"
     }
   },
   "files": [

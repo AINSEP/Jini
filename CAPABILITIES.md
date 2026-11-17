@@ -608,6 +608,8 @@ diagnostics · [README](packages/diagnostics/README.md) · [On-demand UI perform
 | `@jini-ai/diagnostics/web-evidence` | Capture bounded page structure, network/storage/cookie evidence with trusted host URLs. | `collectPageStructure`, `collectPageEvidence`, `normalizeSitePath` | universal | Tovu: website |
 | `@jini-ai/diagnostics/web-evidence/playwright` | Adapt injected Playwright browser operations to web evidence capture. | `openPlaywrightSiteEvidenceBrowser` | node | Tovu: website |
 | `@jini-ai/diagnostics/domain-dns` | Bounded public DNS/TLS/domain diagnostics over explicit resolver/network ports. | `readPublicDomain`, `readPublicDnsName`, `createDomainDnsChecks` | node | Tovu: website |
+| `@jini-ai/diagnostics/local-text` | Redact credentials and mask the literal home directory in local child, native and gate output. | `redactLocalText` | node | Tovu: desktop, website |
+| `@jini-ai/diagnostics/console-tee` | Redact then capture console output and child-process streams without ever breaking the original output. | `installConsoleTee`, `createRedactedOutputSink` | node | Tovu: desktop, website |
 
 ## tooling · `@jini-ai/plugins`
 
