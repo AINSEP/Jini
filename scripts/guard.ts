@@ -64,6 +64,7 @@ import { checkChatPanePublicSurface } from './check-chatpane-public-surface.js';
 import { checkDriverIsolation } from './check-driver-isolation.js';
 import { checkHardwiring } from './check-hardwiring.js';
 import { checkEngineBoundaries } from './check-engine-boundaries.js';
+import { checkErrorDisclosureCallers } from './check-error-disclosure-callers.js';
 import { checkExtensionlessImports } from './check-extensionless-imports.js';
 import { checkModelFallbackFreshness } from './check-model-fallback-freshness.js';
 import { checkProtocolPurity } from './check-protocol-purity.js';
@@ -113,6 +114,9 @@ async function main() {
     checkHardwiring(),
     await checkModelFallbackFreshness(),
     checkRuntimeCycles({ repoRoot: REPO_ROOT }),
+    // R14: reviewed caller lists for `approveCause` and `tracker: 'skip'` (see the check's module doc).
+    // Proven on known-bad files in scripts/__tests__/check-error-disclosure-callers.test.ts, not in runGuardSelfTest.
+    checkErrorDisclosureCallers(),
     // TODO: vocabulary-firewall check (foundry/automation/** must not import engine domain types) —
     // genuinely unimplemented, not covered by either check above (both are scoped to packages/).
     // TODO: residual-JS allowlist — genuinely unimplemented; scope not yet specified precisely

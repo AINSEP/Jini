@@ -34,7 +34,8 @@
     "quality:properties": "pnpm -r --no-bail --filter @jini-ai/platform --filter @jini-ai/chat --filter @jini-ai/oauth --filter @jini-ai/cms run test:properties",
     "quality:sonar": "eslint --config development/quality/eslint.sonar.config.mjs --format ./development/quality/sonar-formatter.mjs --no-error-on-unmatched-pattern packages",
     "check:cross-package": "node --import tsx ./scripts/check-no-cross-package.ts --base 35c4961af",
-    "check:log-safety": "node ./scripts/check-log-safety.mjs"
+    "check:log-safety": "node ./scripts/check-log-safety.mjs",
+    "check:errors": "node ./scripts/check-error-gate.mjs"
   },
   "devDependencies": {
     "@jini-ai/core": "workspace:^",

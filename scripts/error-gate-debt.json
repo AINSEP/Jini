@@ -1,0 +1,2717 @@
+[
+  {
+    "file": "packages/admin/src/agent-plugins/conformance/agent-plugins-api.conformance.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/admin/src/agent-plugins/controllers/agent-plugin-files.controller.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/agent-plugins/controllers/agent-plugins.controller.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/admin/src/browser/telemetry.ts",
+    "rule": "catch-reads-error",
+    "value": 4
+  },
+  {
+    "file": "packages/admin/src/core/module/create-admin.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/core/transport/http.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/core/transport/http.ts",
+    "rule": "no-generic-failure-text",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/forms/conformance/forms-api.conformance.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/forms/react/hooks/use-form-editor.hooks.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/admin/src/forms/react/hooks/use-form-submissions.hooks.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/forms/react/hooks/use-forms-list.hooks.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/media/conformance/media-api.conformance.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/media/controllers/edit-media.controller.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/media/controllers/library.controller.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/media/controllers/library.controller.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/media/react/hooks/EditMediaPanel.hooks.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/media/react/hooks/ProvidersTab.hooks.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/media/react/hooks/UploadButton.hooks.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/media/rules.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/react/entities/contribution.tsx",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/react/entities/EntityEdit.tsx",
+    "rule": "no-generic-failure-text",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/react/entities/use-entity-edit.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/react/hooks/use-nav-sections.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/admin/src/react/hooks/use-sidebar-rail.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/admin/src/redirects/adapters/memory.ts",
+    "rule": "no-generic-failure-text",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/redirects/conformance/redirects-api.conformance.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/redirects/controllers/import-redirects.controller.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/redirects/controllers/redirects.controller.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/admin/src/redirects/react/pages/RedirectsPage.tsx",
+    "rule": "no-generic-failure-text",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/security/conformance/security-api.conformance.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/security/controllers/access-tokens.controller.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/admin/src/security/controllers/access-tokens.controller.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 2
+  },
+  {
+    "file": "packages/admin/src/security/controllers/other-credentials.controller.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/admin/src/security/controllers/other-credentials.controller.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 2
+  },
+  {
+    "file": "packages/admin/src/security/controllers/root-key.controller.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/admin/src/security/controllers/root-key.controller.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 3
+  },
+  {
+    "file": "packages/admin/src/seo/conformance/seo-api.conformance.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/seo/controllers/seo-entry.controller.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/seo/controllers/sitemap.controller.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/seo/react/hooks/MediaPickerBridge.hooks.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/seo/rules.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/source-control/conformance/source-control-api.conformance.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/source-control/controllers/source-control.controller.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/admin/src/source-control/controllers/source-control.controller.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 2
+  },
+  {
+    "file": "packages/admin/src/widgets/conformance/widgets-api.conformance.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/widgets/controllers/region-editor.controller.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/admin-surfaces/external-links.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/connect/access-token-tool.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-plugins/src/connect/connect-tool.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/connect/connect-tool.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/connect/executable/register.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-plugins/src/connect/import-access-token.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/connect/plugin-credential-card.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/connect/plugin-host/index.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-plugins/src/connect/token-sign-in.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/contracts/admin-surface-action-schema.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/folder-zip-node.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/folder-zip.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/folder-zip.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/activation.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/automatic-use.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/bundled-digests.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/bundled-file-policy.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/capability-projection.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/fetch-archive.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/fetch-archive.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 3
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/fetch-archive.ts",
+    "rule": "no-generic-failure-text",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/host-tools/identity.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/host-tools/identity.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/install.ts",
+    "rule": "catch-reads-error",
+    "value": 5
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/install.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/installed-package-index.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/installed-package-roots.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/mail/adapter-descriptors.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/package-paths.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/provider-contribution.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/resolve-agent-plugin-refs.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/seed-bundled.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/set-enabled.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/skill-file-reader.ts",
+    "rule": "catch-reads-error",
+    "value": 5
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/tools/capabilities.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/uninstall.ts",
+    "rule": "catch-reads-error",
+    "value": 6
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/update.ts",
+    "rule": "catch-reads-error",
+    "value": 4
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/update.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/update.ts",
+    "rule": "no-generic-failure-text",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/agent-protocol/acp/models.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/agent-protocol/acp/session.ts",
+    "rule": "catch-reads-error",
+    "value": 6
+  },
+  {
+    "file": "packages/agent-runtime/src/agent-protocol/core/json-line-stream.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/agent-protocol/pi-rpc/session.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/agent-runtime/src/ai-trace/capture.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/ai-trace/sinks.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/amr-model-cache.ts",
+    "rule": "no-generic-failure-text",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/anthropic-live-models.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/claude-code-models.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/agent-runtime/src/claude-filesystem-policy.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-runtime/src/claude-stream.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/defs/amr/executable-resolution.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/defs/claude/auth.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/defs/codex/launch.ts",
+    "rule": "catch-reads-error",
+    "value": 6
+  },
+  {
+    "file": "packages/agent-runtime/src/defs/pi.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/detection.ts",
+    "rule": "catch-reads-error",
+    "value": 4
+  },
+  {
+    "file": "packages/agent-runtime/src/executables.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/json-event-stream.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/mmd-routes.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/model-discovery-adapters.ts",
+    "rule": "catch-reads-error",
+    "value": 7
+  },
+  {
+    "file": "packages/agent-runtime/src/model-discovery.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-runtime/src/opencode-log.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/agent-runtime/src/providers/aihubmix.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/providers/connection-guard.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-runtime/src/providers/connection-test.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-runtime/src/providers/oauth-callback-server.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-runtime/src/providers/oauth-credentials.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/providers/oauth-tokens.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/providers/ollama-chat.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/providers/response-text.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-runtime/src/providers/response-text.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/qoder-stream.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/agentic/src/core/site-guide/site-guide.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/agentic/src/skills/install/install-service.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/analytics/src/forwarding.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/analytics/src/product/fanout.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/analytics/src/product/index.ts",
+    "rule": "catch-reads-error",
+    "value": 6
+  },
+  {
+    "file": "packages/artifacts/src/manifest.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/artifacts/src/node/stub-guard.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/capability-providers/src/adapters/jwt-auth/index.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/core/agent-plugin-chat-state.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/chat/src/core/assistant-client/a2ui-action-poster.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/core/assistant-client/attachment-liveness.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/core/assistant-client/durable-run-subscription.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/chat/src/core/assistant-client/transport.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/chat/src/core/partial-json.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/core/run-events/entry.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/chat/src/core/tool-call-detail.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/core/tool-output.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/embed-widget/browser/frontend-session-bridge.ts",
+    "rule": "catch-reads-error",
+    "value": 4
+  },
+  {
+    "file": "packages/chat/src/embed-widget/browser/lazy-loader.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/embed-widget/browser/session-store.ts",
+    "rule": "catch-reads-error",
+    "value": 4
+  },
+  {
+    "file": "packages/chat/src/embed-widget/transports/fetch-sse.ts",
+    "rule": "catch-reads-error",
+    "value": 5
+  },
+  {
+    "file": "packages/chat/src/react/components/AttachmentPreviewModal.hooks.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/react/ext-event-renderer-registry.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/chat/src/react/features/chat-pane/create-daemon-attachment-uploader.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/chat/src/react/features/chat-pane/create-mcp-ui-tool-caller.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/react/features/chat-pane/create-mcp-ui-tool-caller.ts",
+    "rule": "no-generic-failure-text",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/react/features/chat-pane/create-mid-run-message-poster.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/chat/src/react/features/chat-pane/hooks/useChatPane.hooks.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/chat/src/react/features/chat-pane/hooks/useChatPaneAgentControl.hooks.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/chat/src/react/hooks/assistant-chats.ts",
+    "rule": "catch-reads-error",
+    "value": 5
+  },
+  {
+    "file": "packages/chat/src/react/hooks/composer-draft-cache.ts",
+    "rule": "catch-reads-error",
+    "value": 5
+  },
+  {
+    "file": "packages/chat/src/react/hooks/composer-history-storage.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/chat/src/react/hooks/fab-position.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/chat/src/react/hooks/last-conversation-store.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/chat/src/react/hooks/useComposer.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/chat/src/react/hooks/useComposerHistory.hooks.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/chat/src/react/hooks/useCopyToClipboard.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/chat/src/react/hooks/usePinnedTodos.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/react/hooks/useSurfaceRecovery.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/server/durable-runs/accept.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/chat/src/server/durable-runs/recover.ts",
+    "rule": "catch-reads-error",
+    "value": 5
+  },
+  {
+    "file": "packages/chat/src/server/run-finalizer/entry.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/cli/src/errors.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/cli/src/http.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/cms/src/comments/express/submit-handler.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/comments/express/submit-handler.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/comments/express/submit-handler.ts",
+    "rule": "no-generic-failure-text",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/comments/hooks.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/cms/src/core/form-collection.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/cms/src/forms/attachment-cleanup.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/forms/attachment-cleanup.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/forms/attachment-purge.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/forms/delivery/deliver-job.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/forms/delivery/pull-trigger.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/forms/delivery/subscriptions.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/forms/express/handler.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/forms/express/handler.ts",
+    "rule": "no-generic-failure-text",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/forms/notify-subscriber.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/forms/reconcile-attachments.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/cms/src/forms/repo.memory.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/forms/submit-service.ts",
+    "rule": "catch-reads-error",
+    "value": 4
+  },
+  {
+    "file": "packages/cms/src/forms/write-service.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/media/image-transformer.sharp.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/media/plugins/document-text/unpdf.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/media/video-frames.ffmpeg.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/cms/src/redirects/hit-sink.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/redirects/host-config/index.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/redirects/redirects.ts",
+    "rule": "no-generic-failure-text",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/redirects/resolver.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/redirects/target-gate.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/cms/src/taxonomy/write-service.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/trash/sweeper.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/trash/write-service.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/widgets/date-label.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/widgets/embed-service.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 2
+  },
+  {
+    "file": "packages/cms/src/widgets/html/plugin-export.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/widgets/read-service.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/widgets/resolver-service.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/cms/src/widgets/write-service.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/commerce/src/browser/checkout.ts",
+    "rule": "catch-reads-error",
+    "value": 4
+  },
+  {
+    "file": "packages/commerce/src/browser/checkout.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/commerce/src/catalog-tools.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/commerce/src/catalog/checkout.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/commerce/src/catalog/plugin-server.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/commerce/src/http/payments-webhook.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/commerce/src/http/payments-webhook.ts",
+    "rule": "no-generic-failure-text",
+    "value": 1
+  },
+  {
+    "file": "packages/commerce/src/payments/accounting/apply-evidence.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/commerce/src/payments/ingest/outbox-relay.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/commerce/src/payments/ingest/settlement-worker.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/commerce/src/payments/ingest/worker.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/commerce/src/payments/ledger/repo.memory.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/commerce/src/payments/ops/common.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/commerce/src/payments/ops/reconciler.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/commerce/src/payments/provider-contexts.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/cookie-consent/src/client/bridges.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/cookie-consent/src/client/dom.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/cookie-consent/src/client/runtime.ts",
+    "rule": "catch-reads-error",
+    "value": 7
+  },
+  {
+    "file": "packages/cookie-consent/src/contracts/plugins.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/cookie-consent/src/extensions.min.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/cookie-consent/src/node/index.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/cookie-consent/src/server/receipt.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/cookie-consent/src/server/region.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/core/src/contracts/server/request-body.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/core/src/contracts/server/verified-origin/origin.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/core/src/fetch/cache.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/core/src/fetch/cache.ts",
+    "rule": "no-generic-failure-text",
+    "value": 1
+  },
+  {
+    "file": "packages/core/src/object-store.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/core/src/provider-registry.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/core/src/redact.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/core/src/settings/express/http-request.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/core/src/settings/express/shared.ts",
+    "rule": "no-generic-failure-text",
+    "value": 1
+  },
+  {
+    "file": "packages/core/src/settings/express/stream.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/claude/config-dir.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/claude/mcp-config.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/claude/mcp-delivery.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/codex/home-staging.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/codex/isolation.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/codex/isolation.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/events.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/http-mcp.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/launch.ts",
+    "rule": "catch-reads-error",
+    "value": 6
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/live-session-state.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/mcp-bridge-probe.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/mcp-bridge.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/opencode/mcp-config.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/run-output.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/ai-trace-lifecycle.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/daemon/src/core/tool-gaps.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/daemon/src/delegated-result-correlation.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/frontend-session-registry.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/attachments.ts",
+    "rule": "catch-reads-error",
+    "value": 7
+  },
+  {
+    "file": "packages/daemon/src/http/cancel-owned-runs.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/daemon-status.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/delegated-tools.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/frontend-control.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/daemon/src/http/frontend-guest-scope.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/frontend-request-route.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/frontend-sessions.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/host-tools.ts",
+    "rule": "catch-reads-error",
+    "value": 4
+  },
+  {
+    "file": "packages/daemon/src/http/remote-run-events.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/research-tavily.adapter.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/research-tavily.adapter.ts",
+    "rule": "no-generic-failure-text",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/surface-restoration.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/xai.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/daemon/src/http/xai.ts",
+    "rule": "no-generic-failure-text",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/legacy-data-migration.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/daemon/src/remote-attachment-lookup.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/remote-tool-executor.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/routines/schedule.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/daemon/src/routines/scheduler.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/run-credentials.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/run-lifecycle.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/daemon/src/run-lifecycle.ts",
+    "rule": "no-generic-failure-text",
+    "value": 6
+  },
+  {
+    "file": "packages/daemon/src/session-coordination.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/daemon/src/store/event-log/sqlite.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/surface-exchanges.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/terminal-session.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/tool-access-lowering.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/daemon/src/tool-executor.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/daemon/src/tool-recovery/analytics.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/tool-recovery/recovery.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/tool-recovery/redaction.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/tool-result-diagnostics.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/tool-result-media.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/db/src/data-modules/data-module.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/db/src/data-modules/disk-headroom.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/db/src/data-modules/snapshot.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/db/src/kernel/ops.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/db/src/kernel/pglite/driver.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/db/src/pglite/owner.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/db/src/pglite/socket-server.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/db/src/recovery/restore-hooks.ts",
+    "rule": "no-generic-failure-text",
+    "value": 1
+  },
+  {
+    "file": "packages/db/src/sqlite/db-ops.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/db/src/sqlite/inspect.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/db/src/tools/transfer-tools.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/db/src/transfer/copy-engine.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/db/src/transfer/postgres-target.ts",
+    "rule": "no-generic-failure-text",
+    "value": 1
+  },
+  {
+    "file": "packages/desktop-host/src/config.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/desktop-host/src/electron/electron-shell.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/desktop-host/src/electron/electron-url-capture.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/desktop-host/src/electron/electron-url-capture.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 2
+  },
+  {
+    "file": "packages/desktop-host/src/electron/navigation-policy/webview-guest-policy.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/desktop-host/src/electron/navigation-policy/window-navigation-policy.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/desktop-host/src/electron/updates/instance-presence.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/desktop-host/src/electron/usability/window-bounds-store.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/desktop-host/src/logging.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/desktop-host/src/node-toolchain/index.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/desktop-host/src/node-toolchain/install-location.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/desktop-host/src/render-bridge.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/desktop-host/src/render-bridge.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/desktop-host/src/tauri/tauri-shell.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/desktop-host/src/tauri/tauri-sidecar.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/desktop-host/src/windows-registry.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/devops/src/deploy/ops-runner.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/devops/src/deploy/ops-runner.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/devops/src/dns/delegation.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/devops/src/dns/node/resolver.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/devops/src/local-dev/index.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/devops/src/local-dev/node-runtime.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/devops/src/local-dev/server-retirement.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/devops/src/packaging/electron/archive.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/devops/src/source-control/commit.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/devops/src/source-control/repository-path.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/devops/src/static-export/transforms.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/diagnostics/src/discovery-filesystem.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/diagnostics/src/observability/delivery.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/diagnostics/src/observability/fanout.ts",
+    "rule": "catch-reads-error",
+    "value": 7
+  },
+  {
+    "file": "packages/diagnostics/src/observability/tracker.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/diagnostics/src/web-evidence/lazy-browser.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/diagnostics/src/web-evidence/page-work-budget.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/diagnostics/src/web-evidence/playwright-runtime.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/diagnostics/src/web-evidence/public-page.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/diagnostics/src/web-evidence/render-page.ts",
+    "rule": "catch-reads-error",
+    "value": 5
+  },
+  {
+    "file": "packages/diagnostics/src/web-evidence/request-guard.ts",
+    "rule": "catch-reads-error",
+    "value": 5
+  },
+  {
+    "file": "packages/http-kit/src/html-response.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/http-kit/src/internal-error.ts",
+    "rule": "no-generic-failure-text",
+    "value": 2
+  },
+  {
+    "file": "packages/http-kit/src/local-daemon-request.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/infra/src/events/outbox/drainer.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/infra/src/events/outbox/fenced-conformance.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/infra/src/events/outbox/fenced-conformance.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/infra/src/events/outbox/worker.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/integrations/src/api-connections/byo-client.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/integrations/src/api-connections/host.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/integrations/src/credentialed-http/credentialed-request.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/integrations/src/credentialed-http/tools/tool-registrations.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/integrations/src/media-providers/dispatch/operation-runtime.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/integrations/src/media-providers/dispatch/providers/aihubmix-shared.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/integrations/src/media-providers/dispatch/providers/aihubmix.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/integrations/src/media-providers/dispatch/ssrf-guard.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/integrations/src/media-providers/staging.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/integrations/src/media-providers/staging.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/integrations/src/saved-requests/execute.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 2
+  },
+  {
+    "file": "packages/integrations/src/saved-requests/projection.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/integrations/src/saved-requests/projection.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/integrations/src/saved-requests/validation.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/integrations/src/saved-requests/validation.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/agent-install/install.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/agent-install/install.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/core/config-shared.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/core/config.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/mcp/src/core/opencode/config.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/core/tokens.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/federation/adapter.http.ts",
+    "rule": "catch-reads-error",
+    "value": 5
+  },
+  {
+    "file": "packages/mcp/src/federation/adapter.http.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/federation/adapter.http.ts",
+    "rule": "no-generic-failure-text",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/federation/approvals/remembered-approval.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/federation/approvals/revocation.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/federation/bootstrap.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/federation/hosted/connection-gate.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/federation/hosted/store.memory.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/federation/hosted/store.ts",
+    "rule": "catch-reads-error",
+    "value": 7
+  },
+  {
+    "file": "packages/mcp/src/federation/hosted/store.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 2
+  },
+  {
+    "file": "packages/mcp/src/federation/reload.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/federation/stdio/adapter.stdio.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/federation/stdio/stdio-launch-resolver.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/federation/trust.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/server/http-tool-server.adapter.ts",
+    "rule": "catch-reads-error",
+    "value": 4
+  },
+  {
+    "file": "packages/mcp/src/server/http-tool-server.adapter.ts",
+    "rule": "no-generic-failure-text",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/server/message-relay.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/server/stdio-hosting.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/server/tool-server.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/memory/src/extraction-log.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/memory/src/extraction-log.ts",
+    "rule": "no-generic-failure-text",
+    "value": 1
+  },
+  {
+    "file": "packages/memory/src/llm-provider.ts",
+    "rule": "catch-reads-error",
+    "value": 4
+  },
+  {
+    "file": "packages/memory/src/llm-provider.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 2
+  },
+  {
+    "file": "packages/memory/src/llm-provider.ts",
+    "rule": "no-generic-failure-text",
+    "value": 1
+  },
+  {
+    "file": "packages/memory/src/note-store.ts",
+    "rule": "catch-reads-error",
+    "value": 8
+  },
+  {
+    "file": "packages/memory/src/verify.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/oauth/src/authorization-code.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/oauth/src/authorization-code.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/oauth/src/bounded-json.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/oauth/src/discovery.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/oauth/src/discovery.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/oauth/src/endpoint-safety.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/oauth/src/file-registration-cache.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/oauth/src/loopback-receiver.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/oauth/src/oidc.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/oauth/src/oidc.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/oauth/src/options.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/oauth/src/refresh.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/oauth/src/registration-cache.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/oauth/src/revocation.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/oauth/src/sealed-state.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/platform/src/asset-cache.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/platform/src/asset-cache.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/platform/src/blob-storage.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/platform/src/blob-storage.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 4
+  },
+  {
+    "file": "packages/platform/src/child-environment.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/platform/src/child-environment.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/platform/src/download.ts",
+    "rule": "catch-reads-error",
+    "value": 25
+  },
+  {
+    "file": "packages/platform/src/download.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/platform/src/fetch-with-timeout.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/platform/src/fs.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/platform/src/fs/atomic-write.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/platform/src/fs/boot-identity.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/platform/src/fs/directory-sync.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/platform/src/fs/directory-user-config.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/platform/src/fs/durable-json.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/platform/src/fs/file-lock.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/platform/src/fs/guarded-reader.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/platform/src/fs/guarded-reader.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 3
+  },
+  {
+    "file": "packages/platform/src/fs/reviewed-file.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/platform/src/mail/delivery-wrapper.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/platform/src/mail/domain-read.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/platform/src/mail/resolve-mailer.ts",
+    "rule": "catch-reads-error",
+    "value": 7
+  },
+  {
+    "file": "packages/platform/src/mail/sender-domain-verification.ts",
+    "rule": "catch-reads-error",
+    "value": 5
+  },
+  {
+    "file": "packages/platform/src/process.ts",
+    "rule": "catch-reads-error",
+    "value": 5
+  },
+  {
+    "file": "packages/platform/src/proxy-env.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/platform/src/resource-paths.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/platform/src/sandbox-env.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/platform/src/secrets/credential-sets/vault-archive.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/platform/src/secrets/credential-token.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/platform/src/secrets/passphrase-envelope.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/platform/src/secrets/passphrase-envelope.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/platform/src/terminal.ts",
+    "rule": "catch-reads-error",
+    "value": 6
+  },
+  {
+    "file": "packages/platform/src/toolchain.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/plugins/src/host/activation.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/plugins/src/host/node/browser-provider-assets.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/plugins/src/host/node/install.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/plugins/src/host/node/loader.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/plugins/src/host/node/module-snapshot.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/plugins/src/host/node/package-files.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/plugins/src/host/node/runtime-core.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/plugins/src/host/node/source-drafts.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/plugins/src/host/provider-revision-watch.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/plugins/src/host/quarantine.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/plugins/src/host/tools/install.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/plugins/src/host/tools/management.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/plugins/src/host/tools/source.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/protocol/src/a2ui/json-pointer.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/protocol/src/delegated-result.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/protocol/src/errors.ts",
+    "rule": "no-generic-failure-text",
+    "value": 2
+  },
+  {
+    "file": "packages/provider-plugins/src/analytics-posthog/consent-adapter.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/provider-plugins/src/analytics-posthog/posthog.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/provider-plugins/src/observability-opentelemetry/opentelemetry.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/provider-plugins/src/observability-opentelemetry/otel-port.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/provider-plugins/src/observability-sentry/sentry.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/provider-plugins/src/payments-stripe/http.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/provider-plugins/src/telemetry-reporter.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/registry/src/trust-certificates.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/sandbox/src/node-worker.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/search/src/indexer.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/search/src/service.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/search/src/testkit/conformance.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/server/src/builtin-features.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/server/src/create-local-node-daemon.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/server/src/kernel-base.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/server/src/owner-store/legacy.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/server/src/storage/legacy/sqlite.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/sidecar/src/json-file.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/sidecar/src/json-ipc.ts",
+    "rule": "no-generic-failure-text",
+    "value": 3
+  },
+  {
+    "file": "packages/sidecar/src/port.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/sidecar/src/supervision/supervisor-node.ts",
+    "rule": "catch-reads-error",
+    "value": 5
+  },
+  {
+    "file": "packages/sidecar/src/supervision/supervisor.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/ui-kit/src/react/confirm/ConfirmDialog.hooks.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/about/react/components/AboutTab.tsx",
+    "rule": "no-generic-failure-text",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/asset-grid/dependencies.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/browser-chrome/dependencies.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/ui/src/features/charts/browser.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/command-palette/dependencies.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/ui/src/features/connectors/dependencies.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/ui/src/features/connectors/hooks/useConnectorAuthorization.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/ui/src/features/connectors/hooks/useConnectorCatalog.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/ui/src/features/connectors/hooks/useConnectorDetail.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/execution/react/hooks/use-execution-credential.hooks.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/file-dropzone/react/hooks/useFileDropzonePreviews.ts",
+    "rule": "catch-reads-error",
+    "value": 6
+  },
+  {
+    "file": "packages/ui/src/features/html-editor/react/hooks/useInteractiveHtmlEditor.ts",
+    "rule": "catch-reads-error",
+    "value": 5
+  },
+  {
+    "file": "packages/ui/src/features/integrations/react/hooks/useCodexInstallToggle.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/mcp-ui/secret-card.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/ui/src/features/mcp-ui/sign-in-card.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/memory/dependencies.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/ui/src/features/memory/dependencies.ts",
+    "rule": "no-generic-failure-text",
+    "value": 4
+  },
+  {
+    "file": "packages/ui/src/features/memory/formatters.ts",
+    "rule": "no-generic-failure-text",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/memory/react/hooks/useMemoryConnectors.hooks.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/ui/src/features/memory/react/hooks/useMemoryConnectors.hooks.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 3
+  },
+  {
+    "file": "packages/ui/src/features/memory/react/hooks/useMemoryEntries.hooks.ts",
+    "rule": "catch-reads-error",
+    "value": 7
+  },
+  {
+    "file": "packages/ui/src/features/memory/react/hooks/useMemoryExtractions.hooks.ts",
+    "rule": "catch-reads-error",
+    "value": 5
+  },
+  {
+    "file": "packages/ui/src/features/observability/install.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/observability/long-task.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/ui/src/features/panel-kit/failure-channel.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/panel-kit/fetch-query/adapter.react.tsx",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/panel-kit/fetch-query/adapter.tanstack.tsx",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/panel-kit/helpers/standing-draft-local-backup.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/ui/src/features/panel-kit/hooks/use-settings-slice.hooks.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/ui/src/features/panel-kit/hooks/use-standing-draft-autosave.hooks.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/ui/src/features/panel-kit/hooks/use-standing-draft-autosave.hooks.ts",
+    "rule": "no-generic-failure-text",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/resource-dashboard/dependencies.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/ui/src/features/resource-dashboard/react/components/ResourceRowList.tsx",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/resource-dashboard/react/hooks/useResourceBoard.ts",
+    "rule": "catch-reads-error",
+    "value": 4
+  },
+  {
+    "file": "packages/ui/src/features/resource-dashboard/react/hooks/useResourceRowList.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/ui/src/features/sketch-editor/rules.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/ui/src/features/source-config-list/react/hooks/useSourceConfigList.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/tab-strip/dependencies.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/version-manager/react/hooks/useVersionManager.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/version-manager/rules.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/viewer-shell/rules.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/react/components/ExportDiagnosticsButton.tsx",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/react/components/KitErrorBoundary.tsx",
+    "rule": "no-generic-failure-text",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/react/components/remixicon-font-recovery.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/ui/src/react/components/TooltipLayer.tsx",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/react/hooks/useBrandFonts.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/react/hooks/useResizableSplitPane.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/ui/src/renderers/preview-modal-shell/react/components/PreviewModalShell.tsx",
+    "rule": "no-generic-failure-text",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/renderers/preview-modal-shell/react/hooks/usePreviewModalShell.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/ui/src/renderers/srcdoc/bridge.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/renderers/srcdoc/build.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/utils/copy-to-clipboard.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/ui/src/utils/markdown-scroll-sync.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/utils/notifications.ts",
+    "rule": "catch-reads-error",
+    "value": 9
+  },
+  {
+    "file": "packages/ui/src/utils/timezone.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/ui/src/utils/visual-stability.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/user-management/src/admin/conformance/index.ts",
+    "rule": "catch-reads-error",
+    "value": 6
+  },
+  {
+    "file": "packages/user-management/src/admin/controllers/users.controller.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/user-management/src/admin/people.rules.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/user-management/src/react/auth/passkey-browser.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 2
+  },
+  {
+    "file": "packages/user-management/src/react/auth/TotpSettings.hooks.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/user-management/src/react/members/hooks/use-members.hooks.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/user-management/src/react/users/hooks/use-users.hooks.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/user-management/src/server/hasher.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/user-management/src/server/login-providers.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/user-management/src/server/mfa/passkey-service.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/vibecoding/src/core/history.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/vibecoding/src/node/project.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/vibecoding/src/node/project.ts",
+    "rule": "no-generic-failure-text",
+    "value": 1
+  },
+  {
+    "file": "packages/vibecoding/src/react/components/VibecodingWorkbench.tsx",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/vibecoding/src/react/use-vibecoding-session.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  }
+]

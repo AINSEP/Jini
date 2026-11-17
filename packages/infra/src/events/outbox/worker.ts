@@ -26,12 +26,40 @@ type FailurePlan = { delayMs: number; nextStatus: 'pending' | 'failed' };
 function failureStatus(required: { row: Pick<OutboxRecord, 'attempts'>; retry: OutboxRetryPolicy }): 'pending' | 'failed' {
   return required.row.attempts >= required.retry.maxAttempts ? 'failed' : 'pending';
 }
-function report<Event extends EventEnvelope>(required: { args: WorkerServices<Event>; message: string; error: unknown }): void {
-  try { required.args.logger.error({ message: required.message }, { error: required.error }); } catch { /* Reporter cannot kill a background delivery. */ }
+function report<Event extends EventEnvelope>(
+  required: { args: WorkerServices<Event>; message: string; error: unknown }, optional: { meta?: Record<string, unknown> } = {},
+): void {
+  try { required.args.logger.error({ message: required.message }, { error: required.error, ...optional }); } catch { /* Reporter cannot kill a background delivery. */ }
 }
-function reportPolicyFailure<Event extends EventEnvelope>(required: { args: WorkerServices<Event>; row: RetryRow<Event>; error: unknown }): void {
+function reportPolicyFailure<Event extends EventEnvelope>(
+  required: { args: WorkerServices<Event>; row: RetryRow<Event>; error: unknown },
+  optional: { fallback?: string } = {},
+): void {
+  const fallback = optional.fallback ?? 'using the default policy for this row';
   report({ args: required.args, error: required.error,
-    message: `[outbox-worker] the retry policy for outbox event "${required.row.event.name}" (${required.row.id}) failed; using the default policy for this row` });
+    message: `[outbox-worker] the retry policy for outbox event "${required.row.event.name}" (${required.row.id}) failed; ${fallback}` });
+}
+
+/**
+ * The value stored in `lastError` for one failed attempt: the policy's code when it is on the
+ * policy's own closed list, otherwise the class label. `codeOf` is host code running inside the
+ * worker, so a throw is contained the same way as {@link retryPolicyFor} (reported, never
+ * rejecting the batch) and falls back to the label. Never the message: it can quote a payload.
+ */
+function failureLabel<Event extends EventEnvelope>(required: {
+  args: WorkerServices<Event>; row: RetryRow<Event>; retry: OutboxRetryPolicy; error: unknown;
+}): string {
+  const { args, row, retry, error } = required;
+  const listed = retry.failureCodes;
+  if (listed !== undefined) {
+    try {
+      const code: unknown = listed.codeOf({ error });
+      if (typeof code === 'string' && listed.codes.includes(code)) return code;
+    } catch (policyError) {
+      reportPolicyFailure({ args, row, error: policyError }, { fallback: 'storing the error class as the failure code for this row' });
+    }
+  }
+  return describeErrorForLog({ err: error });
 }
 
 /**
@@ -132,8 +160,13 @@ async function recordOutcome<Event extends EventEnvelope>(required: {
   // because the correct anchor costs one clock read, not because it was observed in the wild.
   const plan = failurePlan({ args, row, retry, error });
   const nextAttemptAt = addMs(nowIso({ clock: args.clock }), plan.delayMs);
-  await args.outbox.markFailed({ ...claim(row), error: describeErrorForLog({ err: error }),
-    nextAttemptAt, nextStatus: plan.nextStatus });
+  const lastError = failureLabel({ args, row, retry, error });
+  // The row stores no error ID: the row ID and attempt it already has are the correlation key
+  // between this entry (whose original error only a host diagnostics sink receives) and the row.
+  // Written before the row, so a storage failure below cannot leave the delivery failure unlogged.
+  report({ args, error, message: `[outbox-worker] delivery of outbox event "${row.event.name}" failed` },
+    { meta: { outboxId: row.id, attempt: row.attempts, lastError } });
+  await args.outbox.markFailed({ ...claim(row), error: lastError, nextAttemptAt, nextStatus: plan.nextStatus });
 }
 
 /**

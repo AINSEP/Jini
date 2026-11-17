@@ -1,14 +1,19 @@
 /**
  * @file The one place a delivery failure becomes ledger-safe. Adapter and provider messages can
- * contain tokens, URLs or answers, and the outbox persists `error.message` verbatim, so the only
- * text a {@link FormDeliveryError} ever carries is an allowlisted code.
+ * contain tokens, URLs or answers. The outbox never persists a message: it stores a failure code
+ * only when the delivery retry policy lists it ({@link FORM_DELIVERY_LEDGER_CODES}, declared in
+ * `retry-policy.ts`), and the class label otherwise. The error object itself still reaches the
+ * host's log sink, so the only text a {@link FormDeliveryError} ever carries is an allowlisted code.
  */
 import type { FormDeliveryErrorCode } from "./types.js";
 
-const FORM_DELIVERY_ERROR_CODES: ReadonlySet<string> = new Set<FormDeliveryErrorCode>([
+/** The ledger vocabulary: every value a delivery job's `lastError` may hold as a code. Lower-case
+ * on purpose and owned here; these never enter a log describer, which accepts constant tokens only. */
+export const FORM_DELIVERY_LEDGER_CODES: readonly FormDeliveryErrorCode[] = [
   "authorization-required", "rate-limited", "configuration-invalid", "mapping-invalid", "resource-not-granted",
   "destination-limit", "outcome-unknown", "adapter-unavailable", "delivery-failed",
-]);
+];
+const FORM_DELIVERY_ERROR_CODES: ReadonlySet<string> = new Set<FormDeliveryErrorCode>(FORM_DELIVERY_LEDGER_CODES);
 
 /** Upper bound on an adapter's `retryAfterMs`. One hour covers per-minute and per-hour provider
  * quotas, while a buggy or hostile adapter cannot park a job for days and silently exhaust the

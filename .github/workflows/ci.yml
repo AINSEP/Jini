@@ -116,6 +116,14 @@ jobs:
           LOG_SAFETY_FIRST_PUSH_COMMIT: ${{ github.event.commits[0].id }}
         run: pnpm check:log-safety
 
+      - name: error gate (WARN mode; prints new entries, never fails the build yet)
+        if: ${{ !cancelled() }}
+        run: pnpm check:errors
+
+      - name: error gate rules on copied sites (the exemption's executable examples; blocking)
+        if: ${{ !cancelled() }}
+        run: pnpm exec vitest run scripts/__tests__/check-error-gate.test.ts scripts/__tests__/check-error-disclosure-callers.test.ts
+
       - name: SonarJS (report-only; counts per rule)
         if: ${{ !cancelled() }}
         run: pnpm quality:sonar
