@@ -6,11 +6,12 @@ export interface AssetTreeBreadcrumbsProps {
   /** The root segment's label (host-owned — e.g. a project/working-dir name, or a generic "Files" fallback). */
   rootLabel: string;
   onNavigate: (dir: string) => void;
+  useTHook?: typeof useT;
 }
 
 /** Directory breadcrumb trail: the root label plus one clickable segment per path component, the last always non-interactive (the current directory). */
-export function AssetTreeBreadcrumbs({ currentDir, rootLabel, onNavigate }: AssetTreeBreadcrumbsProps) {
-  const t = useT();
+export function AssetTreeBreadcrumbs({ currentDir, rootLabel, onNavigate, useTHook = useT }: AssetTreeBreadcrumbsProps) {
+  const t = useTHook();
   const segments = buildBreadcrumbSegments(currentDir);
   const atRoot = currentDir === '';
 

@@ -8,11 +8,12 @@ export interface AssetTreeFolderRowProps {
   /** Total files under this folder at every depth (see `countFilesUnderDir`). */
   fileCount: number;
   onNavigate: (path: string) => void;
+  useTHook?: typeof useT;
 }
 
 /** One subdirectory row: navigates into the folder on click (both the row itself and its name button — matches the origin `DesignFilesPanel`'s doubled click targets). */
-export function AssetTreeFolderRow({ name, path, fileCount, onNavigate }: AssetTreeFolderRowProps) {
-  const t = useT();
+export function AssetTreeFolderRow({ name, path, fileCount, onNavigate, useTHook = useT }: AssetTreeFolderRowProps) {
+  const t = useTHook();
 
   return (
     <div

@@ -3,6 +3,7 @@ import type { AssetTreeToolbarAction } from '../../types.js';
 
 export interface AssetTreeToolbarProps {
   actions: readonly AssetTreeToolbarAction[];
+  useTHook?: typeof useT;
 }
 
 /**
@@ -13,8 +14,8 @@ export interface AssetTreeToolbarProps {
  * `data-icon` attribute rather than resolved to a rendered glyph — this
  * package has no opinion on the host's icon system.
  */
-export function AssetTreeToolbar({ actions }: AssetTreeToolbarProps) {
-  const t = useT();
+export function AssetTreeToolbar({ actions, useTHook = useT }: AssetTreeToolbarProps) {
+  const t = useTHook();
   if (actions.length === 0) return null;
 
   return (

@@ -22,13 +22,16 @@ export interface AssetTreeFileRowProps {
   onRenameDraftChange: (draft: string) => void;
   onCommitRename: () => void;
   onCancelRename: () => void;
+  useTHook?: typeof useT;
+  useAssetTreeFileRowHook?: typeof useAssetTreeFileRow;
 }
 
 /** Selection checkbox cell; Enter/Space toggle like a native checkbox. */
-function RowCheck({ path, displayName, selected, onToggleSelect }: {
+function RowCheck({ path, displayName, selected, onToggleSelect, useTHook = useT }: {
   path: string; displayName: string; selected: boolean; onToggleSelect: (path: string) => void;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   return (
     <span
       className="asset-tree-row-check"
@@ -58,11 +61,12 @@ function RowCheck({ path, displayName, selected, onToggleSelect }: {
 }
 
 /** Inline rename input; commits on Enter/blur, cancels on Escape (once — see `skipRenameCommit`). */
-function RenameInput({ displayName, renaming, onRenameDraftChange, onCommitRename, onCancelRename }: {
+function RenameInput({ displayName, renaming, onRenameDraftChange, onCommitRename, onCancelRename, useTHook = useT }: {
   displayName: string; renaming: NonNullable<AssetTreeFileRowProps['renaming']>;
   onRenameDraftChange: (draft: string) => void; onCommitRename: () => void; onCancelRename: () => void;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   return (
   <input
     autoFocus
@@ -120,10 +124,11 @@ function RowNameCell({ path, displayName, kindLabel, renaming, nameKeyDown, onSe
 }
 
 /** Row-actions trigger; Enter/Space open the menu like a button. */
-function RowMenuTrigger({ path, displayName, handleMenuTrigger }: {
+function RowMenuTrigger({ path, displayName, handleMenuTrigger, useTHook = useT }: {
   path: string; displayName: string; handleMenuTrigger: (event: React.MouseEvent<HTMLElement> | React.KeyboardEvent<HTMLElement>) => void;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   return (
     <span
       data-testid={`asset-tree-file-menu-${path}`}
@@ -156,9 +161,11 @@ function RowMenuTrigger({ path, displayName, handleMenuTrigger }: {
 export function AssetTreeFileRow({
   path, displayName, active, selected, kindLabel, kindGlyph, size, modifiedAt, renaming,
   onSelectPreview, onOpen, onToggleSelect, onOpenMenu, onRenameDraftChange, onCommitRename, onCancelRename,
+  useTHook = useT,
+  useAssetTreeFileRowHook = useAssetTreeFileRow,
 }: AssetTreeFileRowProps) {
-  const t = useT();
-  const { handleNameKeyDown, handleMenuTrigger } = useAssetTreeFileRow({ path, onOpen, onSelectPreview, onOpenMenu });
+  const t = useTHook();
+  const { handleNameKeyDown, handleMenuTrigger } = useAssetTreeFileRowHook({ path, onOpen, onSelectPreview, onOpenMenu });
   const relativeTime = relativeTimeResult(modifiedAt);
   const timeLabel = relativeTime.translatable ? t(relativeTime.label, relativeTime.params) : relativeTime.label;
 

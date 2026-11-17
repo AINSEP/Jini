@@ -38,6 +38,7 @@ export interface AssetTreeBrowserTopbarProps {
   rootLabel?: string | undefined;
   onNavigate: (dir: string) => void;
   toolbarActions?: readonly AssetTreeToolbarAction[] | undefined;
+  useTHook?: typeof useT;
 }
 
 /** Breadcrumbs (root label defaults to `t('Files')`) plus the host toolbar. */
@@ -46,8 +47,9 @@ export function AssetTreeBrowserTopbar({
   rootLabel,
   onNavigate,
   toolbarActions = EMPTY_TOOLBAR_ACTIONS,
+  useTHook = useT,
 }: AssetTreeBrowserTopbarProps) {
-  const t = useT();
+  const t = useTHook();
   return (
     <div className="asset-tree-topbar">
       <div className="asset-tree-topbar-left">
@@ -150,13 +152,15 @@ function AssetTreeFoldersSection<TFile extends AssetTreeFileItem>({
   dirs,
   currentDir,
   onNavigate,
+  useTHook = useT,
 }: {
   files: TFile[];
   dirs: string[];
   currentDir: string;
   onNavigate: (dir: string) => void;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   if (dirs.length === 0) return null;
   return (
     <div className="asset-tree-section">
@@ -185,12 +189,13 @@ function AssetTreeKindSection<TFile extends AssetTreeFileItem>({
   section,
   selectors,
   kindConfig,
+  useTHook = useT,
 }: ControllerProps<TFile> & {
   section: AssetTreeSection<TFile>;
   selectors: AssetTreeSelectors<TFile>;
   kindConfig: AssetTreeKindConfigMap;
-}) {
-  const t = useT();
+} & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const { navigation, preview, selection, rename, rowMenu, openPath } = controller;
   const config = resolveKindConfig(section.kind, kindConfig);
   return (
@@ -245,8 +250,9 @@ export function AssetTreeBrowserPreview<TFile extends AssetTreeFileItem>({
   getFileUrl,
   renderPreviewThumbnail,
   thumbnailIsInteractive,
-}: AssetTreeBrowserPreviewProps<TFile>) {
-  const t = useT();
+  useTHook = useT,
+}: AssetTreeBrowserPreviewProps<TFile> & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const previewKindConfig = resolveKindConfig(selectors.getKind(file), kindConfig);
   return (
     <FilePreviewPane

@@ -175,96 +175,6 @@
         "packages/ui/src/renderers/react/components/ArtifactView.tsx"
       ]
     },
-    "AssetTreeBreadcrumbs::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/asset-tree-browser/react/components/AssetTreeBreadcrumbs.tsx"
-      ]
-    },
-    "AssetTreeBrowser::useAssetTreeBrowserController": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/asset-tree-browser/react/components/AssetTreeBrowser.tsx"
-      ]
-    },
-    "AssetTreeBrowser::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/asset-tree-browser/react/components/AssetTreeBrowser.tsx"
-      ]
-    },
-    "AssetTreeBrowserPreview::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/asset-tree-browser/react/components/AssetTreeBrowserParts.tsx"
-      ]
-    },
-    "AssetTreeBrowserTopbar::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/asset-tree-browser/react/components/AssetTreeBrowserParts.tsx"
-      ]
-    },
-    "AssetTreeEmptyState::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/asset-tree-browser/react/components/AssetTreeEmptyState.tsx"
-      ]
-    },
-    "AssetTreeFileRow::useAssetTreeFileRow": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/asset-tree-browser/react/components/AssetTreeFileRow.tsx"
-      ]
-    },
-    "AssetTreeFileRow::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/asset-tree-browser/react/components/AssetTreeFileRow.tsx"
-      ]
-    },
-    "AssetTreeFolderRow::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/asset-tree-browser/react/components/AssetTreeFolderRow.tsx"
-      ]
-    },
-    "AssetTreeFoldersSection::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/asset-tree-browser/react/components/AssetTreeBrowserParts.tsx"
-      ]
-    },
-    "AssetTreeKindSection::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/asset-tree-browser/react/components/AssetTreeBrowserParts.tsx"
-      ]
-    },
-    "AssetTreeRowMenu::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/asset-tree-browser/react/components/AssetTreeRowMenu.tsx"
-      ]
-    },
-    "AssetTreeSelectionBar::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/asset-tree-browser/react/components/AssetTreeSelectionBar.tsx"
-      ]
-    },
-    "AssetTreeToolbar::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/asset-tree-browser/react/components/AssetTreeToolbar.tsx"
-      ]
-    },
-    "AssetTreeUploadErrorBanner::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/asset-tree-browser/react/components/AssetTreeUploadErrorBanner.tsx"
-      ]
-    },
     "AssistantMessageFooter::useT": {
       "count": 1,
       "files": [
@@ -985,12 +895,6 @@
       "count": 1,
       "files": [
         "packages/ui/src/react/components/FileImportPanel.tsx"
-      ]
-    },
-    "FilePreviewPane::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/asset-tree-browser/react/components/FilePreviewPane.tsx"
       ]
     },
     "FileReadCard::useT": {
