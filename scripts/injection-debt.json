@@ -96,7 +96,7 @@
   {"rule": "L5-injected-edge", "file": "packages/daemon/src/http/attachments.ts", "spec": "@jini-ai/http-kit", "kind": "import", "count": 1, "lane": "L-ROUTES"},
   {"rule": "L5-injected-edge", "file": "packages/daemon/src/http/attachments.ts", "spec": "@jini-ai/platform/fs", "kind": "import", "count": 1, "lane": "L-PLATFORM"},
   {"rule": "L5-injected-edge", "file": "packages/daemon/src/http/connectors.ts", "spec": "@jini-ai/http-kit", "kind": "import", "count": 2, "lane": "L-ROUTES"},
-  {"rule": "L5-injected-edge", "file": "packages/daemon/src/http/db-ops.ts", "spec": "@jini-ai/http-kit", "kind": "import", "count": 2, "lane": "L-ROUTES"},
+  {"rule": "L5-injected-edge", "file": "packages/daemon/src/http/db-ops.ts", "spec": "@jini-ai/http-kit", "kind": "import", "count": 1, "lane": "L-ROUTES"},
   {"rule": "L5-injected-edge", "file": "packages/daemon/src/http/delegated-tools.ts", "spec": "@jini-ai/http-kit", "kind": "import", "count": 1, "lane": "L-ROUTES"},
   {"rule": "L5-injected-edge", "file": "packages/daemon/src/http/frontend-sessions.ts", "spec": "@jini-ai/http-kit", "kind": "import", "count": 4, "lane": "L-ROUTES"},
   {"rule": "L5-injected-edge", "file": "packages/daemon/src/http/health.ts", "spec": "@jini-ai/http-kit", "kind": "import", "count": 1, "lane": "L-ROUTES"},
