@@ -235,3 +235,30 @@ test('a describeError that throws while reporting an export fault propagates and
   await assert.rejects(commitSiteToSourceControl(f.args), /describer crashed/);
   assert.deepEqual(f.events, ['credential', 'cleanup:/artifacts/run-1']);
 });
+
+// --- SC-1 hardening: the five gaps `commitSiteToSourceControl` had against the host's own copy ---
+
+const OPAQUE_TOKEN = 'zq81-opaque-credential-with-no-known-prefix';
+
+test('G1: a provider failure message is redacted with the resolved token and keeps the rest of the text', async () => {
+  const f = fixture();
+  f.args.credentials.resolve = async () => ({ providerId: 'example', token: OPAQUE_TOKEN });
+  f.args.adapter.commitSite = async () => ({ ok: false, code: 'provider-error', message: `x ${OPAQUE_TOKEN} y` });
+  const result = await commitSiteToSourceControl(f.args);
+  if (result.ok) assert.fail('failure committed');
+  assert.equal(result.code, 'PROVIDER_ERROR');
+  assert.equal(result.message.includes(OPAQUE_TOKEN), false);
+  assert.match(result.message, /^x .+ y$/);
+});
+
+test('G1b: a thrown provider error that carries the token is redacted after the host describes it', async () => {
+  const f = fixture();
+  f.args.credentials.resolve = async () => ({ providerId: 'example', token: OPAQUE_TOKEN });
+  f.args.adapter.commitSite = async () => { throw new Error(`request failed for ${OPAQUE_TOKEN}`); };
+  f.args.describeError = ({ error }) => (error as Error).message;
+  const result = await commitSiteToSourceControl(f.args);
+  if (result.ok) assert.fail('failure committed');
+  assert.equal(result.code, 'PROVIDER_ERROR');
+  assert.equal(result.message.includes(OPAQUE_TOKEN), false);
+  assert.match(result.message, /^request failed for .+$/);
+});

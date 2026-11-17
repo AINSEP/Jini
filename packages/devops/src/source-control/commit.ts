@@ -1,3 +1,4 @@
+import { redactSecrets } from '@jini-ai/core';
 import { firstExportFailure } from '../core/export-failure-summary.js';
 import type { CommitExportArgs, CommitFile, CommitOptions, CommitOrchestrationArgs, PreviewCommitExportResult, SourceControlCommitOutcome } from './contracts.js';
 import { validateCommitTarget } from './repository-target.js';
@@ -69,15 +70,21 @@ async function resolveProviderCredential(required: CommitOrchestrationArgs): Pro
   return { ok: true, credential };
 }
 
+/** Provider text may echo the Authorization value, so it never leaves this module without the exact token redacted
+ *  (the shared redactor also catches shapes the token's own prefix would reveal). */
+function redactToken(required: { text: string; token: string }): string {
+  return redactSecrets({ input: required.text }, { exactSecrets: [required.token] });
+}
+
 /** One provider call; the adapter's failure codes map onto the host-facing outcome codes. */
 async function commitExportedFiles(required: { args: CommitOrchestrationArgs; token: string; files: CommitFile[] }, optional: CommitOptions): Promise<SourceControlCommitOutcome> {
   const { args, token, files } = required;
   try {
     const folder = normalizeRepositoryFolder(args);
     const result = await args.adapter.commitSite({ token, owner: args.owner, repo: args.repo, commitMessage: args.commitMessage, files, ...(folder ? { folder } : {}) }, optional.branch !== undefined ? { branch: optional.branch } : {});
-    if (!result.ok) return { ok: false, code: PROVIDER_FAILURE_CODES[result.code], message: result.message };
+    if (!result.ok) return { ok: false, code: PROVIDER_FAILURE_CODES[result.code], message: redactToken({ text: result.message, token }) };
     return { ...result, owner: args.owner, repo: args.repo, divergedPaths: result.divergedPaths ?? [] };
-  } catch (error) { return { ok: false, code: 'PROVIDER_ERROR', message: args.describeError({ error }) }; }
+  } catch (error) { return { ok: false, code: 'PROVIDER_ERROR', message: redactToken({ text: args.describeError({ error }), token }) }; }
 }
 
 /** Resolve one provider's credential, export into an isolated host-owned directory and commit once. */
