@@ -116,6 +116,14 @@ jobs:
         # Baseline scripts/hook-injection-debt.json is keyed Component::hook, so moved files are not new debt.
         run: pnpm check:hooks
 
+      - name: why-comments (blocking ratchet)
+        # Owner HARD rule: refactors MOVE "why" comments with the code, never delete them. Fails when a
+        # comment block deleted in this push/PR survives nowhere (this repo or the Tovu sibling) and has
+        # no reasoned entry in scripts/why-comments-debt.json.
+        env:
+          WHY_COMMENTS_BASE_REF: ${{ github.event.pull_request.base.sha || (github.event.before != '0000000000000000000000000000000000000000' && github.event.before) || format('origin/{0}', github.event.repository.default_branch) }}
+        run: pnpm check:why-comments -- --merge-base
+
       - name: log safety (blocking ratchet)
         env:
           LOG_SAFETY_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
