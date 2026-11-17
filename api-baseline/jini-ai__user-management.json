@@ -227,6 +227,32 @@
    "userRowMenuItems": "function:97035d229a"
   }
  },
+ "./react/kit": {
+  "types": "./dist/react/kit.d.ts",
+  "symbols": {
+   "AsyncActionState": "interface:c5c0d8c93d",
+   "ConfirmDialog": "function:0eafcd123c",
+   "ConfirmDialogProps": "interface:00cfac7784",
+   "InfoTip": "function:e8b8d95fac",
+   "InfoTipProps": "interface:9ad3121b58",
+   "RowMenu": "function:8fdea28156",
+   "RowMenuItem": "interface:b94097c25c",
+   "RowMenuProps": "interface:d02fade9bc",
+   "SecretInput": "variable:be63b4ed42",
+   "SecretInputProps": "type:ea058b877f",
+   "UserManagementKit": "interface:4d73756288",
+   "UserManagementKitComponents": "interface:1beaed73f2",
+   "UserManagementKitHooks": "interface:a5b8703a7c",
+   "UserManagementKitMissingError": "class:fe5fce5b2c",
+   "UserManagementKitProvider": "function:9f57823263",
+   "useAsyncAction": "variable:e6e4a2bc00",
+   "useCachedLoader": "variable:de99329c14",
+   "useFetchMutation": "variable:e788591803",
+   "useFetchQuery": "variable:b45103c385",
+   "useInvalidate": "variable:539387119a",
+   "useUserManagementKit": "function:78cc420336"
+  }
+ },
  "./react/testing": {
   "types": "./dist/react/testing.d.ts",
   "symbols": {
