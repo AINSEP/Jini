@@ -19,6 +19,13 @@ export function hostPresets(required: { packages: readonly SourcePackage[] }, _o
   const declared = required.packages.filter(pkg => (pkg.manifest as { jini?: { kind?: string } }).jini?.kind === 'host-preset').map(ownerOf);
   return new Set([...NAMED_HOST_PRESETS, ...declared]);
 }
+
+/** Owner decision OD-3 (2026-11-16): Node bindings of ports live in `runtime-adapter` packages. Such a package
+ * may import `platform` and may name a domain's port TYPES; it never runs a domain's code and never assembles
+ * a service. Only a host or a host preset may import it. */
+export function runtimeAdapters(required: { packages: readonly SourcePackage[] }, _optional: Record<string, never> = {}): Set<string> {
+  return new Set(required.packages.filter(pkg => (pkg.manifest as { jini?: { kind?: string } }).jini?.kind === 'runtime-adapter').map(ownerOf));
+}
 const SCOPE = '@jini-ai/';
 
 /** `spec` is what the import resolves to; `written` is the alias it was written as, when different. */
@@ -71,19 +78,31 @@ export function manifestEdges(required: EdgeScope, _optional: Record<string, nev
     .flatMap(spec => edgesOf({ owner, spec, kind, file, resolve: required.resolve })));
 }
 
-function l5Reason(required: { edge: Edge; exceptions: readonly InjectionException[]; presets: ReadonlySet<string> }): string | undefined {
-  const { edge, exceptions, presets } = required;
+/** A type-only site, or a manifest peer: neither runs the target's code. */
+const TYPE_ONLY_KINDS: ReadonlySet<string> = new Set(['type-import', 'import-type', 'jsdoc-import', 'manifest-peer']);
+
+function adapterReason(required: { edge: Edge; presets: ReadonlySet<string>; adapters: ReadonlySet<string> }): string | undefined | null {
+  const { edge, presets, adapters } = required;
+  if (adapters.has(edge.target) && !presets.has(edge.owner)) return 'only a host or a host preset may import a runtime-adapter package';
+  if (!adapters.has(edge.owner)) return null;
+  return edge.target === 'platform' || TYPE_ONLY_KINDS.has(edge.kind) ? undefined : null;
+}
+
+function l5Reason(required: { edge: Edge; exceptions: readonly InjectionException[]; presets: ReadonlySet<string>; adapters: ReadonlySet<string> }): string | undefined {
+  const { edge, exceptions, presets, adapters } = required;
   if (BASE_PACKAGES.has(edge.target)) return undefined;
   if (presets.has(edge.target)) return 'nothing may import a host-preset package';
   if (presets.has(edge.owner)) return undefined;
+  const adapter = adapterReason({ edge, presets, adapters });
+  if (adapter !== null) return adapter;
   const excused = exceptions.some(item => item.owner === edge.owner && item.target === edge.target
     && specMatches({ glob: item.specGlob, spec: edge.spec }));
   return excused ? undefined : 'only @jini-ai/core and @jini-ai/protocol may be imported; inject the rest from the host';
 }
 
-export function injectedEdgeFindings(required: { edges: readonly Edge[]; exceptions: readonly InjectionException[]; presets: ReadonlySet<string> }, _optional: Record<string, never> = {}): Finding[] {
+export function injectedEdgeFindings(required: { edges: readonly Edge[]; exceptions: readonly InjectionException[]; presets: ReadonlySet<string>; adapters: ReadonlySet<string> }, _optional: Record<string, never> = {}): Finding[] {
   return required.edges.flatMap(edge => {
-    const why = l5Reason({ edge, exceptions: required.exceptions, presets: required.presets });
+    const why = l5Reason({ edge, exceptions: required.exceptions, presets: required.presets, adapters: required.adapters });
     return why ? [{ rule: 'L5-injected-edge', file: edge.file, spec: edge.spec, kind: edge.kind, reason: `${edge.owner} → ${edge.spec}${edge.written ? ` (written as ${edge.written})` : ''}: ${why}` }] : [];
   });
 }
