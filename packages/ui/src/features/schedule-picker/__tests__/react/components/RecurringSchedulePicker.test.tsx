@@ -3,8 +3,11 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { RecurringSchedulePicker } from '../../../react/components/RecurringSchedulePicker.js';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import type { ScheduleValue } from '../../../types.js';
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('RecurringSchedulePicker', () => {
   it('shows the schedule summary on the trigger and opens the popover on click', async () => {
@@ -193,5 +196,12 @@ describe('RecurringSchedulePicker 4-pattern hook override test suite', () => {
     expect(screen.getByRole('button', { name: /Hourly at/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Hourly at/ }));
     expect(screen.getByRole('tablist')).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', async () => {
+    const value: ScheduleValue = { kind: 'daily', time: '09:00', timezone: 'UTC' };
+    render(<RecurringSchedulePicker value={value} onChange={vi.fn()} useTHook={useQuotingT} />);
+    await userEvent.click(screen.getAllByRole('button')[0]!);
+    expect(screen.getByRole('button', { name: '«Done»' })).toBeInTheDocument();
   });
 });
