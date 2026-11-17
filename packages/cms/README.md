@@ -110,6 +110,9 @@ parse5 normalization to create/update, merge and tool registration. The existing
 raw-HTML permission checks, OCC and outbox owners remain unchanged; an unconfigured universal
 HTML write fails before saving rather than persisting markup that could escape its theme container.
 
+`./workspace/sql` (node) is the Kysely adapter for `WorkspaceRepoPort`: the host passes its storage
+kernel and its own `workspaces` table name; the adapter has no table or product defaults.
+
 **Still to move:** `post`, `seo`, `comments`, `redirects`, `newsletter`,
 `members`. Widgets are exposed through the universal and node entries above.
 The nested forms package is maintained by its separate owner and is excluded from this parent package.

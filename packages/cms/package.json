@@ -50,6 +50,7 @@
       "./comments/express": "node",
       "./redirects": "universal",
       "./redirects/sql": "node",
+      "./workspace/sql": "node",
       "./redirects/express": "node",
       "./redirects/spa": "universal",
       "./redirects/host-config": "universal",
@@ -338,6 +339,11 @@
       "types": "./dist/redirects/sql/index.d.ts",
       "import": "./dist/redirects/sql/index.js",
       "default": "./dist/redirects/sql/index.js"
+    },
+    "./workspace/sql": {
+      "types": "./dist/workspace/sql/index.d.ts",
+      "import": "./dist/workspace/sql/index.js",
+      "default": "./dist/workspace/sql/index.js"
     },
     "./redirects/express": {
       "types": "./dist/redirects/express/index.d.ts",
