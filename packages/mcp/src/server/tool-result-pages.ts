@@ -13,6 +13,14 @@ export interface ToolResultPages {
   clear(required: Record<string, never>, optional?: Record<string, never>): void;
 }
 
+/** `limit` opts in to the clamp repair: a page size above the maximum is read at the maximum, with a note. */
+const READ_TOOL_RESULT_INPUT_SCHEMA: McpToolDef['inputSchema'] = {
+  type: 'object', required: ['resultId'], additionalProperties: false, properties: {
+    resultId: { type: 'string', minLength: 1 }, offset: { type: 'integer', minimum: 0 },
+    limit: { type: 'integer', minimum: 1, maximum: 8000, clamp: true },
+  },
+};
+
 /** Keep large text in this MCP run rather than a CLI-owned spill file outside the site sandbox.
  * Text is paged losslessly; image/resource blocks and result error flags pass through unchanged.
  * @param _required No required configuration; one instance belongs to one server run.
@@ -43,10 +51,7 @@ export function createToolResultPages(_required: Record<string, never>, {
   const tool: McpToolDef = {
     name: 'read_tool_result',
     description: 'Read a page of a saved oversized tool result in this run. Use resultId from the tool response, offset (default 0), and limit (default 4000, max 8000). Returns one text block: JSON cursor metadata on its first line, then exact result text. Follow nextOffset until null. Unknown/evicted IDs fail; repeat the original tool with a narrower query. Never read CLI spill files with Bash.',
-    inputSchema: { type: 'object', required: ['resultId'], additionalProperties: false, properties: {
-      resultId: { type: 'string', minLength: 1 }, offset: { type: 'integer', minimum: 0 },
-      limit: { type: 'integer', minimum: 1, maximum: 8000, clamp: true },
-    } },
+    inputSchema: READ_TOOL_RESULT_INPUT_SCHEMA,
     argumentNormalization: { clamp: true },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     handler({ args }) {

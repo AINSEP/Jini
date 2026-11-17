@@ -34,6 +34,22 @@ function clampedValue(
   return undefined;
 }
 
+/** One property of one object level: recurse into an object value, or clamp an opted-in number. */
+function clampProperty(
+  { copy, name, property, prefix, depth, notes }: { copy: Record<string, unknown>; name: string; property: Record<string, unknown>; prefix: string; depth: number; notes: string[] },
+): void {
+  const path = `${prefix}${name}`;
+  const current = copy[name];
+  if (isObject(current)) {
+    if (depth < MAX_DEPTH) copy[name] = clampObject({ value: current, schema: property, prefix: `${path}.`, depth: depth + 1, notes });
+    return;
+  }
+  const repaired = property.clamp === true ? clampedValue({ value: current, schema: property, path }) : undefined;
+  if (repaired === undefined) return;
+  copy[name] = repaired.value;
+  notes.push(repaired.note);
+}
+
 /** One object level: a copy whose opted-in numeric properties are clamped, recursing into object properties. */
 function clampObject(
   { value, schema, prefix, depth, notes }: { value: Record<string, unknown>; schema: Record<string, unknown>; prefix: string; depth: number; notes: string[] },
@@ -41,15 +57,7 @@ function clampObject(
   const properties = isObject(schema.properties) ? schema.properties : {};
   const copy = { ...value };
   for (const [name, property] of Object.entries(properties)) {
-    if (!Object.hasOwn(copy, name) || !isObject(property)) continue;
-    const path = `${prefix}${name}`;
-    const current = copy[name];
-    if (isObject(current) && depth < MAX_DEPTH) {
-      copy[name] = clampObject({ value: current, schema: property, prefix: `${path}.`, depth: depth + 1, notes });
-    } else if (property.clamp === true) {
-      const repaired = clampedValue({ value: current, schema: property, path });
-      if (repaired !== undefined) { copy[name] = repaired.value; notes.push(repaired.note); }
-    }
+    if (Object.hasOwn(copy, name) && isObject(property)) clampProperty({ copy, name, property, prefix, depth, notes });
   }
   return copy;
 }
