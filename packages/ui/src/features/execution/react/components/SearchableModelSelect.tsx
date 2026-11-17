@@ -32,6 +32,8 @@ export interface SearchableModelSelectProps extends AgentControlProps {
   searchInputTestId?: string | undefined;
   /** Addresses the actual trigger, options and search field; false excludes every control. */
   agentHandle?: string | false | undefined;
+  useAgentHandleHook?: typeof useAgentHandle;
+  useSearchableModelSelectHook?: typeof useSearchableModelSelect;
 }
 
 /**
@@ -63,10 +65,12 @@ export function SearchableModelSelect({
   testId,
   searchInputTestId,
   agentHandle,
+  useAgentHandleHook = useAgentHandle,
+  useSearchableModelSelectHook = useSearchableModelSelect,
   ...agentProps
 }: SearchableModelSelectProps) {
-  const base = useAgentHandle({ ...agentProps, agentHandle });
-  const { query, setQuery, searchRef, shouldShowSearch, visibleOptions, handleOpenChange } = useSearchableModelSelect({ models, value, additionalOptions, minSearchableOptions });
+  const base = useAgentHandleHook({ ...agentProps, agentHandle });
+  const { query, setQuery, searchRef, shouldShowSearch, visibleOptions, handleOpenChange } = useSearchableModelSelectHook({ models, value, additionalOptions, minSearchableOptions });
 
   return (
     <div className="jini-searchable-select" data-testid={testId} data-agent-private={agentProps['data-agent-private']} data-agent-page={agentProps['data-agent-page']}>

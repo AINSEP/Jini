@@ -91,18 +91,6 @@
         "packages/admin/src/react/shell/AdminShell.tsx"
       ]
     },
-    "AgentCliEnvFields::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/execution/react/components/AgentCliEnvFields.tsx"
-      ]
-    },
-    "AgentDiagnosticRow::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/execution/react/components/AgentDiagnosticRow.tsx"
-      ]
-    },
     "AgentPluginFileContent::useAgentPluginFileContent": {
       "count": 1,
       "files": [
@@ -437,90 +425,6 @@
       "count": 1,
       "files": [
         "packages/agent-runtime/src/skills/chat-motion-overlay/assets/remotion-template/src/components/BubbleScene.tsx"
-      ]
-    },
-    "ByokAdvanced::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/execution/react/components/ByokProviderForm.tsx"
-      ]
-    },
-    "ByokApiKeyField::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/execution/react/components/ByokProviderForm.tsx"
-      ]
-    },
-    "ByokApiKeyLabel::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/execution/react/components/ByokProviderForm.tsx"
-      ]
-    },
-    "ByokConnectionFields::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/execution/react/components/ByokProviderForm.tsx"
-      ]
-    },
-    "ByokConnectionResult::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/execution/react/components/ByokProviderForm.tsx"
-      ]
-    },
-    "ByokDiscoveryError::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/execution/react/components/ByokProviderForm.tsx"
-      ]
-    },
-    "ByokLiveModelSelect::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/execution/react/components/ByokProviderForm.tsx"
-      ]
-    },
-    "ByokModelRow::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/execution/react/components/ByokProviderForm.tsx"
-      ]
-    },
-    "ByokModelTextInput::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/execution/react/components/ByokProviderForm.tsx"
-      ]
-    },
-    "ByokPane::useByokPane": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/execution/react/components/ExecutionTab.tsx"
-      ]
-    },
-    "ByokPane::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/execution/react/components/ExecutionTab.tsx"
-      ]
-    },
-    "ByokProviderForm::useByokProviderForm": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/execution/react/components/ByokProviderForm.tsx"
-      ]
-    },
-    "ByokProviderForm::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/execution/react/components/ByokProviderForm.tsx"
-      ]
-    },
-    "ByokTestConnectionButton::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/execution/react/components/ByokProviderForm.tsx"
       ]
     },
     "Canvas::useCanvas": {
@@ -1119,24 +1023,6 @@
         "packages/ui/src/features/panel-kit/ErrorNotice.tsx"
       ]
     },
-    "ExecutionModeSwitch::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/execution/react/components/ExecutionTab.tsx"
-      ]
-    },
-    "ExecutionTab::useExecutionTabView": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/execution/react/components/ExecutionTab.tsx"
-      ]
-    },
-    "ExecutionTab::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/execution/react/components/ExecutionTab.tsx"
-      ]
-    },
     "ExportDiagnosticsButton::useExportDiagnostics": {
       "count": 1,
       "files": [
@@ -1477,54 +1363,6 @@
       "count": 1,
       "files": [
         "packages/ui/src/features/admin-widgets/components/Lightbox/Lightbox.tsx"
-      ]
-    },
-    "LocalCliAgentCard::useLocalCliAgentCard": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/execution/react/components/LocalCliAgentCard.tsx"
-      ]
-    },
-    "LocalCliAgentCard::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/execution/react/components/LocalCliAgentCard.tsx"
-      ]
-    },
-    "LocalCliAgentFeedback::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/execution/react/components/LocalCliAgentSettings.tsx"
-      ]
-    },
-    "LocalCliAgentGrid::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/execution/react/components/LocalCliAgentList.tsx"
-      ]
-    },
-    "LocalCliAgentList::useLocalCliAgentCards": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/execution/react/components/LocalCliAgentList.tsx"
-      ]
-    },
-    "LocalCliAgentList::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/execution/react/components/LocalCliAgentList.tsx"
-      ]
-    },
-    "LocalCliAgentModelControls::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/execution/react/components/LocalCliAgentSettings.tsx"
-      ]
-    },
-    "LocalCliAgentSummary::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/execution/react/components/LocalCliAgentCard.tsx"
       ]
     },
     "LoginPage::useLoginPage": {
@@ -2298,18 +2136,6 @@
       "count": 1,
       "files": [
         "packages/chat/src/react/components/ToolCard.tsx"
-      ]
-    },
-    "SearchableModelSelect::useAgentHandle": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/execution/react/components/SearchableModelSelect.tsx"
-      ]
-    },
-    "SearchableModelSelect::useSearchableModelSelect": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/execution/react/components/SearchableModelSelect.tsx"
       ]
     },
     "SecretInput::useSecretReveal": {

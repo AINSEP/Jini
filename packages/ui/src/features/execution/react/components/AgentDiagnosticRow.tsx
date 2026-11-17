@@ -21,6 +21,7 @@ export interface AgentDiagnosticRowProps {
   diagnostic: AgentDiagnostic;
   handlers?: AgentDiagnosticRowHandlers | undefined;
   className?: string | undefined;
+  useTHook?: typeof useT;
 }
 
 interface ResolvedAction {
@@ -79,8 +80,8 @@ function resolveAction(
  * (rather than accepted-and-unused) since neither this port nor the origin
  * wires them to anything yet — see `resolveAction`'s doc.
  */
-export function AgentDiagnosticRow({ diagnostic, handlers = {}, className }: AgentDiagnosticRowProps) {
-  const t = useT();
+export function AgentDiagnosticRow({ diagnostic, handlers = {}, className, useTHook = useT }: AgentDiagnosticRowProps) {
+  const t = useTHook();
   const labels = {
     install: t('Install'),
     docs: t('Docs'),

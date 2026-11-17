@@ -37,6 +37,8 @@ export interface LocalCliAgentCardProps {
   /** This card's own agent handle — see `ExecutionTab`'s `agentHandle` doc; `LocalCliAgentList`
    *  derives one distinct handle per agent and passes it here. */
   agentHandle?: string;
+  useTHook?: typeof useT;
+  useLocalCliAgentCardHook?: typeof useLocalCliAgentCard;
 }
 
 /**
@@ -71,9 +73,11 @@ export function LocalCliAgentCard({
   agentTest,
   onRescan,
   agentHandle,
+  useTHook = useT,
+  useLocalCliAgentCardHook = useLocalCliAgentCard,
 }: LocalCliAgentCardProps) {
-  const t = useT();
-  const card = useLocalCliAgentCard({ agent, config, agentTest, cliEnvFields, onModelChange, onReasoningChange, onRescan, onTest, t });
+  const t = useTHook();
+  const card = useLocalCliAgentCardHook({ agent, config, agentTest, cliEnvFields, onModelChange, onReasoningChange, onRescan, onTest, t });
 
   return (
     <div
@@ -151,9 +155,9 @@ function LocalCliAgentSelection({ agent, config, selected, onSelect, renderIcon,
 }
 
 /** Detection metadata and the compact model summary for the card's identity. */
-function LocalCliAgentSummary({ agent, config, selected }:
-  Pick<LocalCliAgentCardProps, 'agent' | 'config' | 'selected'>) {
-  const t = useT();
+function LocalCliAgentSummary({ agent, config, selected, useTHook = useT }:
+  Pick<LocalCliAgentCardProps, 'agent' | 'config' | 'selected'> & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const description = agent.description ?? DEFAULT_AGENT_DESCRIPTIONS[agent.id];
   const meta = agentMetaLabel(agent, {
     authRequired: t('Authentication required'),

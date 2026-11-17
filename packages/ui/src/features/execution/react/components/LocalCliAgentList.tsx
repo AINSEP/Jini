@@ -40,6 +40,8 @@ export interface LocalCliAgentListProps {
   agentHandle?: string;
   /** Injection seam for the not-installed disclosure state. */
   useAgentList?: typeof useLocalCliAgentList | undefined;
+  useTHook?: typeof useT;
+  useLocalCliAgentCardsHook?: typeof useLocalCliAgentCards;
 }
 
 /**
@@ -66,9 +68,11 @@ export function LocalCliAgentList({
   scopeLabel,
   agentHandle,
   useAgentList = useLocalCliAgentList,
+  useTHook = useT,
+  useLocalCliAgentCardsHook = useLocalCliAgentCards,
 }: LocalCliAgentListProps) {
-  const t = useT();
-  const { installed, renderCard } = useLocalCliAgentCards({ agents, config, onSelect, onModelChange, onReasoningChange, onEnvChange, cliEnvFields, onRescan, onTest, agentTest, renderAgentIcon, agentHandle });
+  const t = useTHook();
+  const { installed, renderCard } = useLocalCliAgentCardsHook({ agents, config, onSelect, onModelChange, onReasoningChange, onEnvChange, cliEnvFields, onRescan, onTest, agentTest, renderAgentIcon, agentHandle });
   const scope = scopeLabel ?? t('Runs a code-agent CLI detected by the host.');
   const list = useAgentList({ agents, selectedAgentId: config.agentId });
 
@@ -112,14 +116,15 @@ export function LocalCliAgentList({
 }
 
 /** Scan-state precedence and the not-installed disclosure belong to one grid. */
-function LocalCliAgentGrid({ agents, scan, list, renderCard, agentHandle }: {
+function LocalCliAgentGrid({ agents, scan, list, renderCard, agentHandle, useTHook = useT }: {
   agents: readonly DetectedAgent[];
   scan: AgentScanState;
   list: UseLocalCliAgentListResult;
   renderCard: (agent: DetectedAgent) => ReactNode;
   agentHandle?: string | undefined;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   if (scan.status === 'scanning') {
     return (
       <div className="jini-agent-scan-card" role="status" aria-live="polite">

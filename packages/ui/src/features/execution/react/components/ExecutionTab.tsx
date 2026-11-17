@@ -90,6 +90,8 @@ export interface ExecutionTabProps {
    * `data-agent-*` markup is emitted anywhere in this tab — additive, never a behavior change.
    */
   agentHandle?: string;
+  useTHook?: typeof useT;
+  useExecutionTabViewHook?: typeof useExecutionTabView;
 }
 
 /**
@@ -122,9 +124,11 @@ export function ExecutionTab({
   canDiscoverModels = true,
   describeProbeError,
   agentHandle,
+  useTHook = useT,
+  useExecutionTabViewHook = useExecutionTabView,
 }: ExecutionTabProps) {
-  const t = useT();
-  const { tab, selectedPreset, setMode } = useExecutionTabView({ config, onConfigChange, port, presets, autoDetect, canDiscoverModels, describeProbeError });
+  const t = useTHook();
+  const { tab, selectedPreset, setMode } = useExecutionTabViewHook({ config, onConfigChange, port, presets, autoDetect, canDiscoverModels, describeProbeError });
 
   const modes: ReadonlyArray<{ id: ExecutionMode; title: string; meta: string }> = [
     { id: 'local-cli', title: t('Local CLI'), meta: t('Run an agent installed on this machine') },
@@ -170,14 +174,15 @@ export function ExecutionTab({
 
 /** The Local CLI ↔ BYOK segmented control. Local CLI is disabled, with the host's reason as its
  *  tooltip and caption, while the host says it is unavailable. */
-function ExecutionModeSwitch({ modes, activeMode, localCliUnavailableReason, onSelect, agentHandle }: {
+function ExecutionModeSwitch({ modes, activeMode, localCliUnavailableReason, onSelect, agentHandle, useTHook = useT }: {
   modes: ReadonlyArray<{ id: ExecutionMode; title: string; meta: string }>;
   activeMode: ExecutionMode;
   localCliUnavailableReason: string | undefined;
   onSelect: (mode: ExecutionMode) => void;
   agentHandle: string | undefined;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   const localCliDisabled = Boolean(localCliUnavailableReason);
   return (
     <div
@@ -214,6 +219,8 @@ function ExecutionModeSwitch({ modes, activeMode, localCliUnavailableReason, onS
 /** The BYOK half of the tab: protocol and gateway chip rows over the credential card. */
 function ByokPane({
   config, onConfigChange, presets, selectedPreset, tab, canDiscoverModels, canListModels, formProps, agentHandle,
+  useTHook = useT,
+  useByokPaneHook = useByokPane,
 }: {
   config: ExecutionConfig;
   onConfigChange: (config: ExecutionConfig) => void;
@@ -229,9 +236,11 @@ function ByokPane({
     apiKeyPlaceholder: string | undefined;
   };
   agentHandle: string | undefined;
+  useTHook?: typeof useT;
+  useByokPaneHook?: typeof useByokPane;
 }) {
-  const t = useT();
-  const { protocols, gateways, configuredPresetIds, selectPreset, selectedPresetId } = useByokPane({ config, onConfigChange, presets, selectedPreset });
+  const t = useTHook();
+  const { protocols, gateways, configuredPresetIds, selectPreset, selectedPresetId } = useByokPaneHook({ config, onConfigChange, presets, selectedPreset });
   return (
     <section className="jini-settings-section jini-settings-byok">
       <ProviderChipGroup
