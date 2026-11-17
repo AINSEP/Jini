@@ -1,4 +1,4 @@
-import { RecordVersionConflictError } from "@jini-ai/core/optimistic-concurrency";
+import { applyInternalChange } from "@jini-ai/core/optimistic-concurrency";
 import type { ExternalMcpOAuthRuntimePatch, ExternalMcpServerKey, ExternalMcpServerRecord, ExternalMcpServerRepoPort } from "@jini-ai/core/contracts/hosted-mcp";
 import type { HostedMcpSignInPorts } from "./contracts.js";
 
@@ -49,7 +49,7 @@ export async function writeOAuthRuntime(
 
 /**
  * Re-reads the row, lets `build` derive its next state, and writes it conditionally on the version
- * and credentials it read; once more from a fresh read if that missed, then a conflict.
+ * and credentials it read; once more from a fresh read if that missed, then a conflict (M4).
  *
  * @param required.build - Derives the next row from the row just read; `null` means nothing to write.
  * @returns the row as written, or `null` when the row is gone or `build` had nothing to write.
@@ -60,15 +60,6 @@ export async function updateRowOnce(
   { repo, key, build }: { repo: RowRepo; key: ExternalMcpServerKey; build: (record: ExternalMcpServerRecord) => Promise<ExternalMcpServerRecord | null> },
   _options = {},
 ): Promise<ExternalMcpServerRecord | null> {
-  let expectedVersion = 0;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const record = await repo.findByServerId(key);
-    if (!record) return null;
-    expectedVersion = record.version;
-    const next = await build(record);
-    if (!next) return null;
-    if (await repo.updateIfVersion({ record: next, expectedVersion, replaces: { sealedEnv: record.sealedEnv, sealedOAuth: record.sealedOAuth } })) return next;
-  }
-  const current = await repo.findByServerId(key);
-  throw new RecordVersionConflictError({ recordKind: "MCP server", recordId: key.serverId, expectedVersion, currentVersion: current?.version ?? null });
+  return applyInternalChange<ExternalMcpServerRecord>({ recordKind: "MCP server", recordId: key.serverId, read: () => repo.findByServerId(key), build,
+    write: ({ current, next }) => repo.updateIfVersion({ record: next, expectedVersion: current.version, replaces: { sealedEnv: current.sealedEnv, sealedOAuth: current.sealedOAuth } }) });
 }

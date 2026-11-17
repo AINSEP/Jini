@@ -251,3 +251,40 @@ export function versionConflictRule(
       'Do not resend this call unchanged. If the other change conflicts with what the person asked for, tell them instead of choosing.',
   };
 }
+
+/**
+ * An internal, single-purpose change (a status flip, an adoption, a rename) applied to a versioned
+ * record: read it, derive the next state from what was read, write it conditionally on the version
+ * that was read. If the write misses, read again and re-apply the same change once (rule M4), then
+ * report the conflict. A person's or an agent's edit never goes through here: it carries its own
+ * basis and is never retried for them.
+ *
+ * @param required.read - Reads the record, `null` when it does not exist.
+ * @param required.build - Derives the next record from the one just read; `null` means nothing to write.
+ * @param required.write - The conditional write (`WHERE version = current.version`); `true` when it applied.
+ * @returns the record as written, or `null` when it does not exist or `build` had nothing to write.
+ * @throws {RecordVersionConflictError} when the write missed twice.
+ * @complexity O(1) writes; at most two reads, two builds and one extra read for the message.
+ */
+export async function applyInternalChange<TRecord extends { readonly version: number }>(
+  required: {
+    recordKind: string;
+    recordId: string;
+    read: () => Promise<TRecord | null>;
+    build: (current: TRecord) => Promise<TRecord | null>;
+    write: (required: { current: TRecord; next: TRecord }) => Promise<boolean>;
+  },
+  _optional: Record<string, never> = {},
+): Promise<TRecord | null> {
+  let expectedVersion = 0;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const current = await required.read();
+    if (!current) return null;
+    expectedVersion = current.version;
+    const next = await required.build(current);
+    if (!next) return null;
+    if (await required.write({ current, next })) return next;
+  }
+  const latest = await required.read();
+  throw new RecordVersionConflictError({ recordKind: required.recordKind, recordId: required.recordId, expectedVersion, currentVersion: latest?.version ?? null });
+}
