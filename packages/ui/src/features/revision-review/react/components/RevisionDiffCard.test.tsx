@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { RevisionDiffCard } from './RevisionDiffCard.js';
-import { I18nProvider } from '../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../i18n/index.js';
 import type { RevisionReviewItem } from '../../types.js';
 
 const revision: RevisionReviewItem = {
@@ -16,6 +16,9 @@ const revision: RevisionReviewItem = {
   updatedAt: '2026-03-01T10:30:00.000Z',
   sectionTitle: 'Spacing',
 };
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('RevisionDiffCard', () => {
   it('renders the feedback and the diff-added-lines preview', () => {
@@ -108,5 +111,10 @@ describe('RevisionDiffCard', () => {
     expect(screen.getByText('Révision en attente')).toBeInTheDocument();
     expect(screen.getByText('Accepter')).toBeInTheDocument();
     expect(screen.getByText('Rejeter')).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    render(<RevisionDiffCard revision={revision} onAccept={vi.fn()} onReject={vi.fn()} useTHook={useQuotingT} />);
+    expect(screen.getByText('«Pending revision»')).toBeInTheDocument();
   });
 });

@@ -2,7 +2,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { RevisionHistoryList } from './RevisionHistoryList.js';
-import { I18nProvider } from '../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../i18n/index.js';
 import type { RevisionReviewItem } from '../../types.js';
 
 const revisions: RevisionReviewItem[] = [
@@ -26,6 +26,9 @@ const revisions: RevisionReviewItem[] = [
     updatedAt: '2026-03-03T10:30:00.000Z',
   },
 ];
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('RevisionHistoryList', () => {
   it('renders a row per revision with its status class and section title', () => {
@@ -59,5 +62,10 @@ describe('RevisionHistoryList', () => {
     expect(screen.getByText('Historique des révisions')).toBeInTheDocument();
     expect(screen.getByText('accepté')).toBeInTheDocument();
     expect(screen.getByText('rejeté')).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    render(<RevisionHistoryList revisions={revisions} useTHook={useQuotingT} />);
+    expect(screen.getByText('«Revision history»')).toBeInTheDocument();
   });
 });

@@ -19,8 +19,8 @@ export interface RevisionDiffCardProps<TMeta = unknown> {
  * itself (feedback + diff preview + file previews + accept/reject) has no
  * OD coupling beyond that type.
  */
-export function RevisionDiffCard<TMeta = unknown>({ revision, saving = false, onAccept, onReject }: RevisionDiffCardProps<TMeta>) {
-  const t = useT();
+export function RevisionDiffCard<TMeta = unknown>({ revision, saving = false, onAccept, onReject, useTHook = useT }: RevisionDiffCardProps<TMeta> & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const diff = diffAddedLines(revision.baseBody, revision.proposedBody);
   return (
     <section className="jini-revision-diff-card">
