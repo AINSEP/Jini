@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { MentionAutocomplete } from '../../../react/components/MentionAutocomplete.js';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import type { MentionItem } from '../../../types.js';
 import type { ReactNode } from 'react';
 
@@ -32,6 +32,9 @@ function ControlledHarness(props: Partial<React.ComponentProps<typeof MentionAut
     />
   );
 }
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('MentionAutocomplete', () => {
   it('opens the results popover when typing the trigger character, and closes when the query ends', async () => {
@@ -277,5 +280,11 @@ describe('MentionAutocomplete 4-pattern hook override test suite', () => {
 
     fireEvent.change(textarea, { target: { value: '@Al' } });
     expect(screen.getByRole('listbox')).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', async () => {
+    render(<ControlledHarness useTHook={useQuotingT} />);
+    await userEvent.type(screen.getByRole('textbox'), '@al');
+    expect(screen.getByRole('listbox', { name: '«Autocomplete results»' })).toBeInTheDocument();
   });
 });

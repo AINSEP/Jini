@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { SelectedMentionChips } from '../../../react/components/SelectedMentionChips.js';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import type { MentionItem } from '../../../types.js';
 import type { ReactNode } from 'react';
 
@@ -10,6 +10,9 @@ const ITEMS: MentionItem<ReactNode>[] = [
   { id: '1', label: 'Alpha', category: 'skills' },
   { id: '2', label: 'Beta', category: 'plugins' },
 ];
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('SelectedMentionChips', () => {
   it('renders nothing when there are no selected items', () => {
@@ -46,5 +49,10 @@ describe('SelectedMentionChips', () => {
     );
     expect(screen.getByLabelText('Contexte sélectionné')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Alpha/ })).toHaveAttribute('title', 'Retirer Alpha');
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    render(<SelectedMentionChips items={ITEMS} onRemove={vi.fn()} useTHook={useQuotingT} />);
+    expect(screen.getByLabelText('«Selected context»')).toBeInTheDocument();
   });
 });
