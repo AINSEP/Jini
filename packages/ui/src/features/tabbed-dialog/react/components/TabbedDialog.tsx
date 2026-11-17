@@ -97,10 +97,12 @@ export function TabbedDialog<T extends TabbedDialogTab>({
   chromeExtra,
   dialogAriaLabelledBy = 'tabbed-dialog-title',
   className,
-}: TabbedDialogProps<T>) {
+  useTHook = useT,
+  useTabbedDialogHook = useTabbedDialog,
+}: TabbedDialogProps<T> & { useTHook?: typeof useT; useTabbedDialogHook?: typeof useTabbedDialog }) {
   const isModal = resolveIsModal({ hasOnClose: Boolean(onClose) }, { presentation });
-  const t = useT();
-  const shell = useTabbedDialog({
+  const t = useTHook();
+  const shell = useTabbedDialogHook({
     tabs,
     initialActiveTabId,
     activeTabId: controlledActiveTabId,
