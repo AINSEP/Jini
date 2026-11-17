@@ -27,6 +27,8 @@
       "./store/legacy/sqlite": "node",
       "./core/run-events": "universal",
       "./core/ag-ui": "universal",
+      "./core/ag-ui/reduction": "universal",
+      "./server/ag-ui/run-input": "universal",
       "./server/run-finalizer": "universal",
       "./react/embed": "browser",
       "./transports/fetch-sse": "universal",
@@ -133,9 +135,19 @@
       "default": "./dist/core/run-events/entry.js"
     },
     "./core/ag-ui": {
-      "types": "./dist/core/ag-ui/entry.d.ts",
-      "import": "./dist/core/ag-ui/entry.js",
-      "default": "./dist/core/ag-ui/entry.js"
+      "types": "./dist/core/ag-ui/event-projection.d.ts",
+      "import": "./dist/core/ag-ui/event-projection.js",
+      "default": "./dist/core/ag-ui/event-projection.js"
+    },
+    "./core/ag-ui/reduction": {
+      "types": "./dist/core/ag-ui/event-reduction.d.ts",
+      "import": "./dist/core/ag-ui/event-reduction.js",
+      "default": "./dist/core/ag-ui/event-reduction.js"
+    },
+    "./server/ag-ui/run-input": {
+      "types": "./dist/core/ag-ui/run-input.d.ts",
+      "import": "./dist/core/ag-ui/run-input.js",
+      "default": "./dist/core/ag-ui/run-input.js"
     },
     "./server/run-finalizer": {
       "types": "./dist/server/run-finalizer/entry.d.ts",
@@ -309,7 +321,13 @@
         "./dist/core/run-events/entry.d.ts"
       ],
       "core/ag-ui": [
-        "./dist/core/ag-ui/entry.d.ts"
+        "./dist/core/ag-ui/event-projection.d.ts"
+      ],
+      "core/ag-ui/reduction": [
+        "./dist/core/ag-ui/event-reduction.d.ts"
+      ],
+      "server/ag-ui/run-input": [
+        "./dist/core/ag-ui/run-input.d.ts"
       ],
       "server/run-finalizer": [
         "./dist/server/run-finalizer/entry.d.ts"

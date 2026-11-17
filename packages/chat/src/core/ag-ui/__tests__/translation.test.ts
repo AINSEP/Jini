@@ -1,11 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import {
-  closeAgUiRun as close, createAgUiTranslationState as create,
-  reduceAgentWirePayload as reduce, translateAgentEventToAgUi as translate,
-} from '../entry.js';
-import { terminalReasonNotice as reason } from '../../run-events/entry.js';
+import { closeAgUiRun as close, createAgUiTranslationState as create, translateAgentEventToAgUi as translate } from '../event-projection.js';
+import { terminalReasonNotice as reason, translateRunAgentPayload as reduce } from '../../run-events/entry.js';
 import { notices } from '../../run-events/__tests__/fixture.js';
 import type { AgentEvent } from '../../events.js';
 const createAgUiTranslationState = () => create({
@@ -84,9 +81,10 @@ test("reduceAgentWirePayload — mcp-ui/a2ui unwrap to their inner payload under
   });
 });
 
-test("reduceAgentWirePayload — an unrecognized type (e.g. tool_input_delta) falls through to 'ext' with the whole payload", () => {
-  const payload = { type: "tool_input_delta", id: "t1", name: "search", delta: "{\"q" };
-  assert.deepEqual(reduceAgentWirePayload(payload), { kind: "ext", name: "tool_input_delta", data: payload });
+test("the one reducer — an unrecognized type falls through to 'ext' with the whole payload; partial tool input is dropped", () => {
+  const payload = { type: "stage_start", stage: "plan" };
+  assert.deepEqual(reduceAgentWirePayload(payload), { kind: "ext", name: "stage_start", data: payload });
+  assert.equal(reduceAgentWirePayload({ type: "tool_input_delta", id: "t1", name: "search", delta: "{\"q" }), null);
 });
 
 test("terminalReasonNotice — only max_tool_turns produces a notice", () => {

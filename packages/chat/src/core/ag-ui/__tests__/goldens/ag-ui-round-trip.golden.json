@@ -1,0 +1,133 @@
+{
+  "wire": "data: {\"type\":\"CUSTOM\",\"name\":\"jini.status\",\"value\":{\"kind\":\"status\",\"label\":\"Working\",\"detail\":\"step 2 of 3\",\"code\":\"api_retry\",\"data\":{\"attempt\":2,\"maxAttempts\":5,\"reason\":\"overloaded\"}}}\n\ndata: {\"type\":\"REASONING_START\",\"messageId\":\"reasoning_1\"}\n\ndata: {\"type\":\"REASONING_MESSAGE_START\",\"messageId\":\"reasoning_1\",\"role\":\"reasoning\"}\n\ndata: {\"type\":\"REASONING_MESSAGE_CONTENT\",\"messageId\":\"reasoning_1\",\"delta\":\"plan \"}\n\ndata: {\"type\":\"REASONING_MESSAGE_CONTENT\",\"messageId\":\"reasoning_1\",\"delta\":\"more\"}\n\ndata: {\"type\":\"REASONING_MESSAGE_END\",\"messageId\":\"reasoning_1\"}\n\ndata: {\"type\":\"REASONING_END\",\"messageId\":\"reasoning_1\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_START\",\"messageId\":\"msg_2\",\"role\":\"assistant\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"msg_2\",\"delta\":\"Hel\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"msg_2\",\"delta\":\"lo\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_END\",\"messageId\":\"msg_2\"}\n\ndata: {\"type\":\"TOOL_CALL_START\",\"toolCallId\":\"call-1\",\"toolCallName\":\"search\",\"toolOrigin\":\"bridge\",\"bridgeCall\":{\"name\":\"posts.search\",\"input\":{\"q\":\"posts\"},\"buffered\":true}}\n\ndata: {\"type\":\"TOOL_CALL_ARGS\",\"toolCallId\":\"call-1\",\"delta\":\"{\\\"q\\\":\\\"posts\\\"}\"}\n\ndata: {\"type\":\"TOOL_CALL_END\",\"toolCallId\":\"call-1\"}\n\ndata: {\"type\":\"TOOL_CALL_RESULT\",\"messageId\":\"tool_result_msg_3\",\"toolCallId\":\"call-1\",\"content\":\"found 3\",\"role\":\"tool\",\"isError\":true,\"media\":[{\"type\":\"image\",\"mimeType\":\"image/png\",\"data\":\"AAAA\"}],\"outcome\":\"unknown\"}\n\ndata: {\"type\":\"CUSTOM\",\"name\":\"jini.usage\",\"value\":{\"kind\":\"usage\",\"inputTokens\":11,\"outputTokens\":7,\"costUsd\":0.01,\"cumulativeCostUsd\":0.05,\"costSessionId\":\"cost-1\",\"durationMs\":1200,\"stopReason\":\"end_turn\"}}\n\ndata: {\"type\":\"RAW\",\"event\":\"raw line\"}\n\ndata: {\"type\":\"CUSTOM\",\"name\":\"jini.ext.a2ui\",\"value\":{\"createSurface\":{\"surfaceId\":\"s1\",\"catalogId\":\"basic\"}}}\n\ndata: {\"type\":\"CUSTOM\",\"name\":\"jini.ext.mcp-ui\",\"value\":{\"type\":\"resource\",\"resource\":{\"uri\":\"ui://confirm/1\",\"mimeType\":\"text/html\",\"text\":\"<p>Delete?</p>\",\"_meta\":{\"jini/surface-exchange\":{\"exchangeId\":\"ex-1\",\"toolId\":\"posts.delete\",\"runId\":\"run-1\"}}}}}\n\ndata: {\"type\":\"CUSTOM\",\"name\":\"jini.ext.stage_start\",\"value\":{\"type\":\"stage_start\",\"stage\":\"plan\"}}\n\ndata: {\"type\":\"TEXT_MESSAGE_START\",\"messageId\":\"msg_4\",\"role\":\"assistant\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"msg_4\",\"delta\":\"Done.\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_END\",\"messageId\":\"msg_4\"}\n\n",
+  "back": [
+    {
+      "kind": "status",
+      "label": "Working",
+      "detail": "step 2 of 3",
+      "code": "api_retry",
+      "data": {
+        "attempt": 2,
+        "maxAttempts": 5,
+        "reason": "overloaded"
+      }
+    },
+    {
+      "kind": "thinking",
+      "text": "plan "
+    },
+    {
+      "kind": "thinking",
+      "text": "more"
+    },
+    {
+      "kind": "status",
+      "code": "step_start",
+      "label": "",
+      "data": {
+        "messageId": "msg_2"
+      }
+    },
+    {
+      "kind": "text",
+      "text": "Hel"
+    },
+    {
+      "kind": "text",
+      "text": "lo"
+    },
+    {
+      "kind": "tool_use",
+      "id": "call-1",
+      "name": "search",
+      "input": {
+        "q": "posts"
+      },
+      "toolOrigin": "bridge",
+      "bridgeCall": {
+        "name": "posts.search",
+        "input": {
+          "q": "posts"
+        },
+        "buffered": true
+      }
+    },
+    {
+      "kind": "tool_result",
+      "toolUseId": "call-1",
+      "content": "found 3",
+      "isError": true,
+      "media": [
+        {
+          "type": "image",
+          "mimeType": "image/png",
+          "data": "AAAA"
+        }
+      ],
+      "outcome": "unknown"
+    },
+    {
+      "kind": "usage",
+      "inputTokens": 11,
+      "outputTokens": 7,
+      "costUsd": 0.01,
+      "cumulativeCostUsd": 0.05,
+      "costSessionId": "cost-1",
+      "durationMs": 1200,
+      "stopReason": "end_turn"
+    },
+    {
+      "kind": "raw",
+      "line": "raw line"
+    },
+    {
+      "kind": "ext",
+      "name": "a2ui",
+      "data": {
+        "createSurface": {
+          "surfaceId": "s1",
+          "catalogId": "basic"
+        }
+      }
+    },
+    {
+      "kind": "ext",
+      "name": "mcp-ui",
+      "data": {
+        "type": "resource",
+        "resource": {
+          "uri": "ui://confirm/1",
+          "mimeType": "text/html",
+          "text": "<p>Delete?</p>",
+          "_meta": {
+            "jini/surface-exchange": {
+              "exchangeId": "ex-1",
+              "toolId": "posts.delete",
+              "runId": "run-1"
+            }
+          }
+        }
+      }
+    },
+    {
+      "kind": "ext",
+      "name": "stage_start",
+      "data": {
+        "type": "stage_start",
+        "stage": "plan"
+      }
+    },
+    {
+      "kind": "status",
+      "code": "step_start",
+      "label": "",
+      "data": {
+        "messageId": "msg_4"
+      }
+    },
+    {
+      "kind": "text",
+      "text": "Done."
+    }
+  ]
+}

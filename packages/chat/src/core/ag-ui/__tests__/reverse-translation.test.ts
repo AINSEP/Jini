@@ -1,13 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { EventType } from "@ag-ui/core";
-import {
-  closeAgUiRun,
-  createAgUiToAgentTranslationState,
-  createAgUiTranslationState,
-  translateAgentEventToAgUi,
-  translateAgUiEventToAgentEvent,
-  type AgUiEvent,
-} from "../entry.js";
+import { closeAgUiRun, createAgUiTranslationState, translateAgentEventToAgUi, type AgUiEvent } from "../event-projection.js";
+import { createAgUiToAgentTranslationState, translateAgUiEventToAgentEvent } from "../event-reduction.js";
 import type { AgentEvent } from "../../events.js";
 import { assistantContentFromEvents } from '../../assistant-content.js';
 
