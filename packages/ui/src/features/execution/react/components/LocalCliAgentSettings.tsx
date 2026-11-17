@@ -48,9 +48,9 @@ export function LocalCliAgentSettings({
 }
 
 /** Model, custom-id and effort controls share the hook's resolved model state. */
-function LocalCliAgentModelControls({ agent, card, onModelChange, agentHandle }:
-  Pick<LocalCliAgentSettingsProps, 'agent' | 'card' | 'onModelChange' | 'agentHandle'>) {
-  const t = useT();
+function LocalCliAgentModelControls({ agent, card, onModelChange, agentHandle, useTHook = useT }:
+  Pick<LocalCliAgentSettingsProps, 'agent' | 'card' | 'onModelChange' | 'agentHandle'> & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const { reasoning, source, sourceLabel, sourceHint } = card;
   const {
     hasModels,
@@ -135,9 +135,9 @@ function LocalCliAgentModelControls({ agent, card, onModelChange, agentHandle }:
 }
 
 /** Probe evidence and repair actions stay together beneath the model controls. */
-function LocalCliAgentFeedback({ agent, card, onEnvChange }:
-  Pick<LocalCliAgentSettingsProps, 'agent' | 'card' | 'onEnvChange'>) {
-  const t = useT();
+function LocalCliAgentFeedback({ agent, card, onEnvChange, useTHook = useT }:
+  Pick<LocalCliAgentSettingsProps, 'agent' | 'card' | 'onEnvChange'> & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const { result, repair, repairField } = card;
   return (
     <>
