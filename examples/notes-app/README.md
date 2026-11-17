@@ -32,9 +32,33 @@ Every place the app had to write something Jini could own is marked `// GAP:` in
 
 Routes: `GET /`, `POST /notes`, `GET /notes/:slug`, `POST /notes/:slug/edit`,
 `POST /notes/:slug/publish`, `POST /forms/:slug`, `GET /api/notes`,
-`GET /api/forms/:slug/submissions`.
+`GET /api/forms/:slug/submissions`, `GET /api/session` and the entity routes below.
 
 The app has one local owner and no login; it is meant to run on localhost.
+
+## Entity API (what the admin screens call)
+
+`/api/entities/note` is the notes as one `AdminEntityPort` (`src/notes-entity.ts`, a mapping over `@jini-ai/cms/entries`;
+`src/gaps/entity-routes.ts` is the generic JSON layer). `GET /api/session` answers the fixed local owner.
+
+| Route | Answer |
+|---|---|
+| `GET /api/entities/note?limit=&cursor=&search=` | `{ items, nextCursor, total }`, newest first; `cursor` is the last id of the previous page |
+| `GET /api/entities/note/:id` | the row, or 404 |
+| `POST /api/entities/note` | 201 + the row. `{ title, body?, slug?, status? }`; the slug is made from the title when not given |
+| `PATCH /api/entities/note/:id` | the row. Needs `version` (the version you read); `title`, `body`, `status` are optional. A stale `version` is 409 `CONFLICT` and nothing changes |
+
+Row: `{ id, title, slug, body, status, version, updatedAt }`. `status` is `draft`, `published` or `unpublished`
+(publish then unpublish ends in `unpublished`). `slug`, `version` and `updatedAt` are read-only (`persistedOnly`
+in the descriptor): the slug cannot change after creation. There is no delete: the entry services have none.
+Errors are `{ error: { code, message } }`: `VALIDATION` 400, `NOT_FOUND` 404, `CONFLICT` 409, `BAD_REQUEST` 400
+(invalid JSON), `PAYLOAD_TOO_LARGE` 413 (body over 256 KB). Every route is behind the guard below.
+
+Search reads the whole collection and filters in memory (title and body, case-insensitive): fine for a demo,
+not a database bound (gap G20). The port types come from `@jini-ai/admin/core` through a `paths` entry in
+`tsconfig.json` (a type-only import, erased at run time) instead of a dependency, because the lockfile cannot be
+regenerated under the repo's `minimumReleaseAge` policy at this base; make it a `workspace:*` dependency and drop
+the `paths` entry when it can.
 
 ## Request guard
 

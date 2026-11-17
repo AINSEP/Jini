@@ -7,6 +7,7 @@ import type { AppKernel } from './db.ts';
 import { createAppDeps } from './app-deps.ts';
 import { createOriginGuard } from './gaps/origin-guard.ts';
 import { registerContactForm } from './routes/contact-form.ts';
+import { registerEntities } from './routes/entities.ts';
 import { registerNotesApi } from './routes/notes-api.ts';
 import { registerNotesPages } from './routes/notes-pages.ts';
 
@@ -23,4 +24,5 @@ export async function registerNotesApp(
   registerNotesPages({ app: guarded, deps });
   registerNotesApi({ app: guarded, deps });
   registerContactForm({ app: guarded, deps });
+  registerEntities({ app: guarded, deps });
 }
