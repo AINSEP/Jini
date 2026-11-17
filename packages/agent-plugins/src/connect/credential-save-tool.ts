@@ -23,11 +23,6 @@ export interface CredentialSaveAdapters {
 /** @agent-note The host supplies its exact product description, including examples and tool navigation. No default description is selected here. */
 export interface CredentialSaveMessages { readonly description: string; readonly oauthRefusal: string }
 
-/** @agent-note The host supplies its reviewed metadata, public tool id and credential categories. Save adapters keep authorization and persistence in that host. */
-export function createCredentialSaveTools({ metadata: toolMetadata, toolId: CREDENTIAL_SAVE_TOOL_ID, categories: CUSTOM_CREDENTIAL_CATEGORIES, messages, catalogModule }: {
-  metadata: ToolMetadataById; toolId: string; categories: readonly string[]; messages: CredentialSaveMessages; catalogModule: string;
-}, _optional: Record<string, never> = {}) {
-
 const KINDS = ['api', 'media-provider', 'source-control', 'publish-host', 'agent-plugin-token', 'plugin-provider', 'provider-settings'] as const;
 type CredentialKind = typeof KINDS[number];
 
@@ -36,9 +31,11 @@ type CredentialKind = typeof KINDS[number];
  * argument can smuggle a token into the human-form path. Creation and rotation have distinct
  * contracts: optional creation hints make a new row; target addresses an existing credential.
  */
-const credentialSaveCatalog: AgentToolDefinition[] = [{
-  name: CREDENTIAL_SAVE_TOOL_ID,
-  description: messages.description,
+
+function buildCredentialSaveCatalog({ toolId, categories, description }: { toolId: string; categories: readonly string[]; description: string }): AgentToolDefinition[] {
+  return [{
+  name: toolId,
+  description: description,
   sideEffects: 'mutates-durable-state',
   authorization: { permission: 'resolved-per-kind' },
   inputSchema: {
@@ -49,14 +46,13 @@ const credentialSaveCatalog: AgentToolDefinition[] = [{
       label: { type: 'string', description: 'Optional new API or source-control credential label; never a secret.' },
       baseUrl: { type: 'string', description: 'API creation only: non-secret base URL prefill.' },
       worksFor: { type: "array", items: { type: "string" }, description: "API creation only: explicit host or vendor IDs to preselect in the secure form." },
-      category: { type: 'string', enum: [...CUSTOM_CREDENTIAL_CATEGORIES], description: 'API creation only: category prefill.' },
+      category: { type: 'string', enum: [...categories], description: 'API creation only: category prefill.' },
       reason: { type: 'string', maxLength: 1000, description: 'Media only: non-secret reason shown on the form.' },
       prefill: { type: 'object', additionalProperties: { type: 'string' }, description: 'Publish only: provider-declared non-secret credential fields. Never tokens, keys or passwords.' },
     },
   },
 }];
-
-const credentialSaveDerivedRisk: DerivedRiskByToolId = new Map([[CREDENTIAL_SAVE_TOOL_ID, 'mutates-durable-state']]);
+}
 
 /** Select one domain owner without authorizing, opening a card, or inspecting secret fields.
  * @param required - Kind, non-secret metadata and injected domain handlers.
@@ -64,7 +60,7 @@ const credentialSaveDerivedRisk: DerivedRiskByToolId = new Map([[CREDENTIAL_SAVE
  * @throws ToolInputError for unknown kinds, cross-kind fields or malformed prefill.
  * @complexity Time/space O(k + f), input keys plus publish prefill fields.
  */
-function selectSave({ input, adapters }: { input: Record<string, unknown>; adapters: CredentialSaveAdapters }, _optional = {}): { handler: ToolHandler; input: Record<string, unknown> } {
+function selectSave({ input, adapters, toolId }: { input: Record<string, unknown>; adapters: CredentialSaveAdapters; toolId: string }, _optional = {}): { handler: ToolHandler; input: Record<string, unknown> } {
   const kind = requireString({ input, key: 'kind' });
   if (!KINDS.includes(kind as CredentialKind)) throw new ToolInputError({ message: 'Unknown credential kind. Use api, media-provider, source-control, publish-host, agent-plugin-token, plugin-provider or provider-settings.' });
   const selectedKind = kind as CredentialKind;
@@ -78,7 +74,7 @@ function selectSave({ input, adapters }: { input: Record<string, unknown>; adapt
   if (validateHere && Object.keys(metadata).some(key => !fields.includes(key))) {
     // Creation previously ignored unknown hints. Refuse them here; other owners already validate
     // their entire input and retain their exact per-kind errors. Never silently drop an extra key.
-    throw new ToolInputError({ message: `${CREDENTIAL_SAVE_TOOL_ID} accepts only non-secret metadata for the selected kind; enter secrets in the human form.` });
+    throw new ToolInputError({ message: `${toolId} accepts only non-secret metadata for the selected kind; enter secrets in the human form.` });
   }
   return routeSave({ selectedKind, metadata, adapters });
 }
@@ -133,37 +129,8 @@ function selectPublishSave({ metadata, adapters }: { metadata: Record<string, un
   return { handler: adapters.publishHost, input: { ...prefill, target: metadata.target } };
 }
 
-/** Register the sole credential save tool through the existing registry, forwarding options intact.
- * @param required - Domain adapters, each retaining its own authorization, validation and save port.
- * @returns One registration; no executable aliases for the retired tools.
- * @example buildCredentialSaveRegistrations({ adapters });
- * @complexity Registration O(1); each invocation performs O(k + f) routing before one domain save.
- */
-function buildCredentialSaveRegistrations({ adapters, loadPluginCredentialCards, authorizePluginProvider, adaptersForCards, savedResult }: { savedResult?: (input: { result: unknown }) => Promise<unknown>; adapters: CredentialSaveAdapters; loadPluginCredentialCards?: () => Promise<readonly PluginCredentialCard[]>; authorizePluginProvider?: (ctx: ToolExecutionContext) => Promise<void>; adaptersForCards?: (required: { cards: readonly PluginCredentialCard[] }) => CredentialSaveAdapters }, _optional = {}): ToolRegistration[] {
-  return buildDomainRegistrations({ metadata: toolMetadata,
-    domain: 'credential-save', catalogModule,
-    catalog: indexCatalogById({ catalog: credentialSaveCatalog }), derivedRisk: credentialSaveDerivedRisk,
-    handlers: { [CREDENTIAL_SAVE_TOOL_ID]: async (ctx, optional = {}) => {
-      const selected = selectSave({ input: requireInputRecord({ input: ctx.input }), adapters });
-      if (selected.handler !== adapters.pluginProvider || !loadPluginCredentialCards) {
-        return invokeSaveAdapter({ selected, ctx, options: optional, savedResult });
-      }
-      // A card can choose a domain, so require the entry permission before reading plugin data.
-      if (!authorizePluginProvider) throw new ToolInputError({ message: 'Plugin credential card authorization is unavailable. Use the credential kind directly.' });
-      await authorizePluginProvider(ctx);
-      const cards = await loadPluginCredentialCardsSafely({ loadCards: loadPluginCredentialCards, workspaceId: '' });
-      const resolvedAdapters = adaptersForCards?.({ cards }) ?? adapters;
-      const card = cards.find(entry => entry.providerId === selected.input.provider);
-      const resolved = { ...selected, handler: resolvedAdapters.pluginProvider };
-      const routed = routePluginCard({ card, selected: resolved, adapters: resolvedAdapters });
-      const result = await routed.handler({ ...ctx, input: routed.input }, optional);
-      return savedResult ? savedResult({ result }) : result;
-    } },
-  });
-}
-
 /** A declared destination reuses the existing permission, validation, probe and sealed-store owner. */
-function routePluginCard({ card, selected, adapters }: { card?: PluginCredentialCard | undefined; selected: { handler: ToolHandler; input: Record<string, unknown> }; adapters: CredentialSaveAdapters }, _options = {}): { handler: ToolHandler; input: Record<string, unknown> } {
+function routePluginCard({ card, selected, adapters, oauthRefusal }: { oauthRefusal: string; card?: PluginCredentialCard | undefined; selected: { handler: ToolHandler; input: Record<string, unknown> }; adapters: CredentialSaveAdapters }, _options = {}): { handler: ToolHandler; input: Record<string, unknown> } {
   if (!card) return selected;
   const target = card.saveTarget ?? card.providerId;
   switch (card.saveKind) {
@@ -171,7 +138,7 @@ function routePluginCard({ card, selected, adapters }: { card?: PluginCredential
     case 'source-control': return { handler: adapters.sourceControl, input: { provider: target } };
     case 'agent-plugin-token': return { handler: adapters.agentPluginToken, input: { pluginId: target } };
     case 'provider-settings': return selectProviderSettingsSave({ adapters, target });
-    case 'oauth': throw new ToolInputError({ message: messages.oauthRefusal });
+    case 'oauth': throw new ToolInputError({ message: oauthRefusal });
     default: return selected;
   }
 }
@@ -186,5 +153,57 @@ async function invokeSaveAdapter({ selected, ctx, options, savedResult }: {
   return savedResult ? savedResult({ result }) : result;
 }
 
-return { credentialSaveCatalog, credentialSaveDerivedRisk, buildCredentialSaveRegistrations };
+/** What `buildCredentialSaveRegistrations` receives per host: the optional plugin-card hooks and result hook. */
+interface CredentialSaveRegistrationInput {
+  readonly adapters: CredentialSaveAdapters;
+  readonly loadPluginCredentialCards?: () => Promise<readonly PluginCredentialCard[]>;
+  readonly authorizePluginProvider?: (ctx: ToolExecutionContext) => Promise<void>;
+  readonly adaptersForCards?: (required: { cards: readonly PluginCredentialCard[] }) => CredentialSaveAdapters;
+  readonly savedResult?: (input: { result: unknown }) => Promise<unknown>;
+}
+
+/** Route one save call to its domain owner; a plugin-provider save first resolves the plugin's declared card. */
+async function runCredentialSave({ ctx, options, toolId, oauthRefusal, hooks }: {
+  ctx: ToolExecutionContext; options: ToolExecutionOptions; toolId: string; oauthRefusal: string; hooks: CredentialSaveRegistrationInput;
+}): Promise<unknown> {
+  const { adapters, loadPluginCredentialCards, authorizePluginProvider, adaptersForCards, savedResult } = hooks;
+  const selected = selectSave({ input: requireInputRecord({ input: ctx.input }), adapters, toolId });
+  if (selected.handler !== adapters.pluginProvider || !loadPluginCredentialCards) {
+    return invokeSaveAdapter({ selected, ctx, options, savedResult });
+  }
+  // A card can choose a domain, so require the entry permission before reading plugin data.
+  if (!authorizePluginProvider) throw new ToolInputError({ message: 'Plugin credential card authorization is unavailable. Use the credential kind directly.' });
+  await authorizePluginProvider(ctx);
+  const cards = await loadPluginCredentialCardsSafely({ loadCards: loadPluginCredentialCards, workspaceId: '' });
+  const resolvedAdapters = adaptersForCards?.({ cards }) ?? adapters;
+  const card = cards.find(entry => entry.providerId === selected.input.provider);
+  const resolved = { ...selected, handler: resolvedAdapters.pluginProvider };
+  const routed = routePluginCard({ card, selected: resolved, adapters: resolvedAdapters, oauthRefusal });
+  const result = await routed.handler({ ...ctx, input: routed.input }, options);
+  return savedResult ? savedResult({ result }) : result;
+}
+
+/** @agent-note The host supplies its reviewed metadata, public tool id and credential categories. Save adapters keep authorization and persistence in that host. */
+export function createCredentialSaveTools({ metadata: toolMetadata, toolId: CREDENTIAL_SAVE_TOOL_ID, categories: CUSTOM_CREDENTIAL_CATEGORIES, messages, catalogModule }: {
+  metadata: ToolMetadataById; toolId: string; categories: readonly string[]; messages: CredentialSaveMessages; catalogModule: string;
+}, _optional: Record<string, never> = {}) {
+  const credentialSaveCatalog = buildCredentialSaveCatalog({ toolId: CREDENTIAL_SAVE_TOOL_ID, categories: CUSTOM_CREDENTIAL_CATEGORIES, description: messages.description });
+  const credentialSaveDerivedRisk: DerivedRiskByToolId = new Map([[CREDENTIAL_SAVE_TOOL_ID, 'mutates-durable-state']]);
+
+  /**
+   * Register the sole credential save tool through the existing registry, forwarding options intact.
+   * @param required - Domain adapters, each retaining its own authorization, validation and save port.
+   * @returns One registration; no executable aliases for the retired tools.
+   * @example buildCredentialSaveRegistrations({ adapters });
+   * @complexity Registration O(1); each invocation performs O(k + f) routing before one domain save.
+   */
+  function buildCredentialSaveRegistrations(hooks: CredentialSaveRegistrationInput, _optional = {}): ToolRegistration[] {
+    return buildDomainRegistrations({ metadata: toolMetadata,
+      domain: 'credential-save', catalogModule,
+      catalog: indexCatalogById({ catalog: credentialSaveCatalog }), derivedRisk: credentialSaveDerivedRisk,
+      handlers: { [CREDENTIAL_SAVE_TOOL_ID]: (ctx, optional = {}) => runCredentialSave({ ctx, options: optional, toolId: CREDENTIAL_SAVE_TOOL_ID, oauthRefusal: messages.oauthRefusal, hooks }) },
+    });
+  }
+
+  return { credentialSaveCatalog, credentialSaveDerivedRisk, buildCredentialSaveRegistrations };
 }

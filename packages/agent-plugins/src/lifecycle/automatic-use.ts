@@ -99,6 +99,184 @@ function copyDecision({ decision }: { decision: SavedDecision }, _options = {}):
   return { selected: [...new Set(decision.selected as string[])], ...(typeof decision.asked === 'boolean' ? { asked: decision.asked } : {}), ...(ids(decision.delivered) ? { delivered: [...new Set(decision.delivered)] } : {}) };
 }
 
+/** One preparation owner's mutable state and host ports, shared by the module-level helpers below. */
+interface UseContext {
+  mode: ChatAgentPlugins;
+  state: ChatAgentPluginState;
+  readonly ports: AutomaticAgentPluginPorts;
+  readonly delivered: Map<string, string>;
+  readonly alreadyLoaded: Set<string>;
+  publishedSize: number | undefined;
+  queue: Promise<unknown>;
+}
+
+/** Ask mode admits only consented matches; the first non-empty match set asks the person once. */
+async function applyConsent(ctx: UseContext, { matches }: { matches: AgentPluginSearchMatch[] }, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<AgentPluginSearchMatch[]> {
+  if (ctx.mode !== 'ask') return matches;
+  const { decision } = ctx.state;
+  if (decision === null || decision.asked === false) return matches.length ? askConsent(ctx, { matches }, { signal }) : matches;
+  // Consent survives cold runs; relevance still comes from this request or write capability.
+  // Later matches do not inherit consent, and exclusions were applied before ranking.
+  return matches.filter(plugin => decision.selected.includes(plugin.pluginId));
+}
+async function askConsent(ctx: UseContext, { matches }: { matches: AgentPluginSearchMatch[] }, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<AgentPluginSearchMatch[]> {
+  const offered = matches.map(plugin => describeMatch({ plugin }));
+  const answer = await ctx.ports.ask({ matches: offered, ...(signal ? { signal } : {}) }, {});
+  const selected = answer.action === 'skip' ? [] : answer.selected.filter(id => matches.some(plugin => plugin.pluginId === id));
+  // Failed preference persistence must leave this controller without the rejected consent.
+  if (answer.action === 'auto') { await ctx.ports.saveAuto({}, {}); ctx.mode = 'auto'; }
+  ctx.state = { decision: { selected, asked: true }, excluded: [...new Set([...ctx.state.excluded, ...matches.filter(plugin => !selected.includes(plugin.pluginId)).map(plugin => plugin.pluginId)])] };
+  // Consent changes only this person's preference, never a workspace default.
+  return matches.filter(plugin => selected.includes(plugin.pluginId));
+}
+/** Resolve through the host's activation/trust owner; delivery is recorded only by the caller.
+ * Explicit content requests retain safe resolver refusals so the model can correct its request;
+ * thrown host diagnostics remain private. Failures stay retryable. O(1) bookkeeping.
+ */
+async function resolveOneGuidance(ctx: UseContext, { plugin, ...request }: { plugin: AgentPluginSearchCandidate } & AgentPluginSkillRequest, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<AutomaticAgentPluginLoadResult> {
+  if (signal?.aborted) return { status: 'cancelled', guidance: '' };
+  try {
+    const result = await ctx.ports.resolve({ pluginId: plugin.pluginId, ...request }, {});
+    if (!result.ok) return { status: result.code ?? 'unavailable', guidance: request.skill !== undefined || request.file !== undefined ? result.reason : '' };
+    if (!result.promptPrefix.trim()) return { status: 'unavailable', guidance: '' };
+    return { status: 'loaded', guidance: result.promptPrefix };
+  } catch {
+    // Automatic guidance is advisory; unavailable plugins must not block the run.
+    return { status: 'unavailable', guidance: '' };
+  }
+}
+/** Only complete primary guidance updates the loaded set. O(1), no host effects. */
+function recordDelivery(ctx: UseContext, { plugin, result }: { plugin: AgentPluginSearchCandidate; result: AutomaticAgentPluginLoadResult }, _options = {}): void {
+  if (result.status === 'loaded') ctx.delivered.set(plugin.pluginId, plugin.displayName ?? plugin.pluginId);
+}
+/** Bound automatic attachments before recording delivery; explicit loads retain complete text.
+ * O(p*b) in resolved plugins and guidance bytes; a deferred plugin remains retryable.
+ */
+async function resolveGuidance(ctx: UseContext, { matches, primaryId }: { matches: readonly AgentPluginSearchMatch[]; primaryId?: string | undefined }, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<string[]> {
+  const guidance: string[] = [];
+  // Unloaded plugins contribute nothing; oversized guidance becomes a pointer instead of the text.
+  const guidanceFor = async (match: AgentPluginSearchMatch): Promise<string | undefined> => {
+    const result = await resolveOneGuidance(ctx, { plugin: match }, { signal });
+    if (result.status !== 'loaded') return undefined;
+    if (new TextEncoder().encode(result.guidance).length > (match.pluginId === primaryId ? MAX_PRIMARY_GUIDANCE_BYTES : MAX_AUTOMATIC_GUIDANCE_BYTES)) {
+      const pointer = ctx.ports.formatPluginToolPointer?.({ pluginId: match.pluginId, skill: match.pluginId, file: 'SKILL.md' });
+      const howToLoad = pointer === undefined ? '' : ` Load the full instructions with ${pointer}; use the same call with file '<relative path>' for supporting references.`;
+      return `Agent Plugin '${match.pluginId}' guidance is deferred because it exceeds the automatic byte limit.${howToLoad}`;
+    }
+    recordDelivery(ctx, { plugin: match, result });
+    return result.guidance;
+  };
+  for (const match of matches) {
+    if (signal?.aborted) break;
+    const text = await guidanceFor(match);
+    if (text !== undefined) guidance.push(text);
+  }
+  return guidance;
+}
+/** Persist actual deliveries separately from consent, using the existing chat decision. */
+function rememberDelivery(ctx: UseContext, ): void {
+  if (!ctx.alreadyLoaded.size && !ctx.delivered.size) return;
+  const { decision } = ctx.state;
+  ctx.state = { ...ctx.state, decision: { selected: [...new Set([...(decision?.selected ?? []), ...(ctx.mode === 'auto' ? ctx.delivered.keys() : [])])],
+    asked: decision?.asked ?? false, delivered: [...new Set([...(decision?.delivered ?? []), ...ctx.alreadyLoaded, ...ctx.delivered.keys()])] } };
+}
+/** Initialize usage after a decision (including Skip), then publish only loaded-set changes.
+ * Empty discovery must not consume that initial publication: a later Ask answer must persist.
+ */
+async function publishUsage(ctx: UseContext, ): Promise<void> {
+  if (ctx.publishedSize === ctx.delivered.size || (ctx.delivered.size === 0 && ctx.state.decision === null)) return;
+  ctx.publishedSize = ctx.delivered.size;
+  try {
+    await ctx.ports.publish({ state: ctx.state, plugins: [...ctx.delivered].map(([id, name]) => ({ id, name })) }, {});
+  } catch {
+    // Usage publication is advisory; losing its event must not discard resolved model guidance.
+  }
+}
+/** Query preflight delivers one primary; guarded capabilities resolve their providers.
+ * Effects serialize with loads so a suggestion never consumes a backstop's delivery.
+ */
+async function prepare(ctx: UseContext, input: PrepareInput, _options = {}): Promise<string> {
+  for (const id of input.loaded ?? []) ctx.alreadyLoaded.add(id);
+  if (ctx.mode === 'off' || input.signal?.aborted) return '';
+  const catalog = (await ctx.ports.list({}, {})).filter(plugin => !ctx.state.excluded.includes(plugin.pluginId));
+  const candidates = catalog.filter(plugin => plugin.enabled);
+  for (const id of ctx.alreadyLoaded) if (!candidates.some(plugin => plugin.pluginId === id)) ctx.alreadyLoaded.delete(id);
+  const matches = await consentedMatches(ctx, { candidates, input });
+  const result = await preparedGuidance(ctx, { matches, input });
+  rememberDelivery(ctx);
+  await publishUsage(ctx);
+  // Preflight never resolves off packages implicitly. A catalog line offers an explicit read;
+  // its setup guidance may explain whether enabling or credentials are needed.
+  const off = offPluginNote(ctx, { catalog, input });
+  return [result, off].filter(Boolean).join('\n\n');
+}
+/** Rank enabled candidates, drop plugins this run already has, then apply the person's consent. */
+async function consentedMatches(ctx: UseContext, { candidates, input }: { candidates: readonly AgentPluginSearchCandidate[]; input: PrepareInput }, _options = {}): Promise<AgentPluginSearchMatch[]> {
+  const ranked = rankCandidates({ candidates, input, ports: ctx.ports });
+  // Owner decision 2026-10-18: no per-chat plugin count; the relevance threshold and vendor gate decide.
+  const relevant = ranked.filter(plugin => !ctx.delivered.has(plugin.pluginId) && !input.loaded?.includes(plugin.pluginId) && (!ctx.alreadyLoaded.has(plugin.pluginId) || !!input.query));
+  return applyConsent(ctx, { matches: relevant }, { signal: input.signal });
+}
+/** Capability calls resolve every match; a query resolves one primary and notes the rest. */
+async function preparedGuidance(ctx: UseContext, { matches, input }: { matches: AgentPluginSearchMatch[]; input: PrepareInput }, _options = {}): Promise<string> {
+  const shouldLoad = !!input.capabilities?.length;
+  const primary = primaryMatch(ctx, { matches, input });
+  return shouldLoad ? (await resolveGuidance(ctx, { matches }, { signal: input.signal })).join('\n\n') : [
+    ...(await resolveGuidance(ctx, { matches: primary, primaryId: primary[0]?.pluginId }, { signal: input.signal })),
+    relevantPluginNote({ matches: matches.slice(primary.length), formatPluginToolPointer: ctx.ports.formatPluginToolPointer }),
+  ].filter(Boolean).join('\n\n');
+}
+/** The single top match a fresh, unbounded query preflight delivers in full; otherwise none. */
+function primaryMatch(ctx: UseContext, { matches, input }: { matches: AgentPluginSearchMatch[]; input: PrepareInput }, _options = {}): AgentPluginSearchMatch[] {
+  return input.maxPromptArgBytes === undefined && input.query && !input.loaded?.length && !ctx.alreadyLoaded.has(matches[0]?.pluginId ?? '') ? matches.slice(0, 1) : [];
+}
+/** Rank readable metadata for off plugins; never load their tools or guidance implicitly. O(p*t). */
+function offPluginNote(ctx: UseContext, { catalog, input }: { catalog: readonly AgentPluginSearchCandidate[]; input: PrepareInput }): string {
+  if (!input.query) return '';
+  const candidates = catalog.filter(plugin => !plugin.enabled).map(candidate => agentVisiblePluginCandidate({ candidate }));
+  return ctx.ports.rank({ query: input.query, candidates, limit: 10 }, {}).map(plugin => [plugin.description,
+    ctx.ports.formatPluginToolPointer?.({ pluginId: plugin.pluginId, file: 'SKILL.md' })].filter(Boolean).join(' ')).join('\n');
+}
+/** Admit one explicit id using the same catalog, consent, resolver and delivery state as prepare.
+ * No activation writes; unavailable guidance is retryable. O(p) local catalog lookup.
+ */
+async function load(ctx: UseContext, { pluginId, signal, ...request }: { pluginId: string; signal?: AbortSignal } & AgentPluginSkillRequest, _options = {}): Promise<AutomaticAgentPluginLoadResult> {
+  if (ctx.mode === 'off' && !ctx.alreadyLoaded.has(pluginId)) return { status: 'off', guidance: '' };
+  if (signal?.aborted) return { status: 'cancelled', guidance: '' };
+  if (ctx.state.excluded.includes(pluginId)) return { status: 'excluded', guidance: '' };
+  const plugin = (await ctx.ports.list({}, {})).find(candidate => candidate.pluginId === pluginId);
+  if (!plugin) return { status: 'missing', guidance: '' };
+  return loadPermitted(ctx, { plugin, ...request }, { signal });
+}
+/** The plugin's own SKILL.md, whether defaulted or named explicitly. O(1). */
+function isPrimaryInstructions(ctx: UseContext, { pluginId, skill, file }: { pluginId: string } & AgentPluginSkillRequest, _options = {}): boolean {
+  return (skill === undefined || skill === pluginId) && (file === undefined || file === 'SKILL.md');
+}
+/** Requested content bypasses only deduplication, never consent or the resolver's trust checks.
+ * Only the primary SKILL.md records full plugin delivery. O(p) consent filtering plus one read.
+ */
+async function loadPermitted(ctx: UseContext, { plugin, ...request }: { plugin: AgentPluginSearchCandidate } & AgentPluginSkillRequest, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<AutomaticAgentPluginLoadResult> {
+  const matches = await applyConsent(ctx, { matches: [{ ...plugin, score: 4 }] }, { signal });
+  if (!matches.length) {
+    await publishUsage(ctx);
+    return { status: 'excluded', guidance: '' };
+  }
+  let result = await resolveOneGuidance(ctx, { plugin, ...request }, { signal });
+  if (!plugin.enabled && result.status === 'loaded') {
+    result = { status: 'installed-but-inactive', guidance: `Plugin '${plugin.pluginId}' is off; its tools are unavailable.\n\n${result.guidance}` };
+  }
+  if (isPrimaryInstructions(ctx, { pluginId: plugin.pluginId, ...request })) recordDelivery(ctx, { plugin, result });
+  rememberDelivery(ctx);
+  await publishUsage(ctx);
+  return result;
+}
+/** Share one queue between preflight, explicit reads and simultaneous guarded writes. */
+function enqueue<T>(ctx: UseContext, { operation }: { operation: () => Promise<T> }, _options = {}): Promise<T> {
+  const next = ctx.queue.then(operation);
+  ctx.queue = next.catch(() => undefined);
+  return next;
+}
+
 /** Create one run's preparation owner. Calls serialize so parallel tool writes share one question.
  * @param required Host effects and the person's mode; browser state is advisory selection only.
  * @returns prepare(): a relevance note or capability guidance; load(): a truthful admission/delivery outcome.
@@ -109,186 +287,19 @@ export function createAutomaticAgentPluginUse(
   { mode, state: initialState, ports }: { mode: ChatAgentPlugins; state?: ChatAgentPluginState | undefined; ports: AutomaticAgentPluginPorts },
   _options = {},
 ) {
-  let state = readChatAgentPluginState({ value: initialState });
-  const delivered = new Map<string, string>();
-  const alreadyLoaded = new Set(mode === 'off' ? [] : state.decision?.delivered?.filter(id => !state.excluded.includes(id)));
-  let publishedSize: number | undefined;
-  let queue: Promise<unknown> = Promise.resolve();
-
-  /** Ask mode admits only consented matches; the first non-empty match set asks the person once. */
-  async function applyConsent({ matches }: { matches: AgentPluginSearchMatch[] }, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<AgentPluginSearchMatch[]> {
-    if (mode !== 'ask') return matches;
-    const { decision } = state;
-    if (decision === null || decision.asked === false) return matches.length ? askConsent({ matches }, { signal }) : matches;
-    // Consent survives cold runs; relevance still comes from this request or write capability.
-    // Later matches do not inherit consent, and exclusions were applied before ranking.
-    return matches.filter(plugin => decision.selected.includes(plugin.pluginId));
-  }
-  async function askConsent({ matches }: { matches: AgentPluginSearchMatch[] }, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<AgentPluginSearchMatch[]> {
-    const offered = matches.map(plugin => describeMatch({ plugin }));
-    const answer = await ports.ask({ matches: offered, ...(signal ? { signal } : {}) }, {});
-    const selected = answer.action === 'skip' ? [] : answer.selected.filter(id => matches.some(plugin => plugin.pluginId === id));
-    // Failed preference persistence must leave this controller without the rejected consent.
-    if (answer.action === 'auto') { await ports.saveAuto({}, {}); mode = 'auto'; }
-    state = { decision: { selected, asked: true }, excluded: [...new Set([...state.excluded, ...matches.filter(plugin => !selected.includes(plugin.pluginId)).map(plugin => plugin.pluginId)])] };
-    // Consent changes only this person's preference, never a workspace default.
-    return matches.filter(plugin => selected.includes(plugin.pluginId));
-  }
-  /** Resolve through the host's activation/trust owner; delivery is recorded only by the caller.
-   * Explicit content requests retain safe resolver refusals so the model can correct its request;
-   * thrown host diagnostics remain private. Failures stay retryable. O(1) bookkeeping.
-   */
-  async function resolveOneGuidance({ plugin, ...request }: { plugin: AgentPluginSearchCandidate } & AgentPluginSkillRequest, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<AutomaticAgentPluginLoadResult> {
-    if (signal?.aborted) return { status: 'cancelled', guidance: '' };
-    try {
-      const result = await ports.resolve({ pluginId: plugin.pluginId, ...request }, {});
-      if (!result.ok) return { status: result.code ?? 'unavailable', guidance: request.skill !== undefined || request.file !== undefined ? result.reason : '' };
-      if (!result.promptPrefix.trim()) return { status: 'unavailable', guidance: '' };
-      return { status: 'loaded', guidance: result.promptPrefix };
-    } catch {
-      // Automatic guidance is advisory; unavailable plugins must not block the run.
-      return { status: 'unavailable', guidance: '' };
-    }
-  }
-  /** Only complete primary guidance updates the loaded set. O(1), no host effects. */
-  function recordDelivery({ plugin, result }: { plugin: AgentPluginSearchCandidate; result: AutomaticAgentPluginLoadResult }, _options = {}): void {
-    if (result.status === 'loaded') delivered.set(plugin.pluginId, plugin.displayName ?? plugin.pluginId);
-  }
-  /** Bound automatic attachments before recording delivery; explicit loads retain complete text.
-   * O(p*b) in resolved plugins and guidance bytes; a deferred plugin remains retryable.
-   */
-  async function resolveGuidance({ matches, primaryId }: { matches: readonly AgentPluginSearchMatch[]; primaryId?: string | undefined }, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<string[]> {
-    const guidance: string[] = [];
-    // Unloaded plugins contribute nothing; oversized guidance becomes a pointer instead of the text.
-    const guidanceFor = async (match: AgentPluginSearchMatch): Promise<string | undefined> => {
-      const result = await resolveOneGuidance({ plugin: match }, { signal });
-      if (result.status !== 'loaded') return undefined;
-      if (new TextEncoder().encode(result.guidance).length > (match.pluginId === primaryId ? MAX_PRIMARY_GUIDANCE_BYTES : MAX_AUTOMATIC_GUIDANCE_BYTES)) {
-        const pointer = ports.formatPluginToolPointer?.({ pluginId: match.pluginId, skill: match.pluginId, file: 'SKILL.md' });
-        const howToLoad = pointer === undefined ? '' : ` Load the full instructions with ${pointer}; use the same call with file '<relative path>' for supporting references.`;
-        return `Agent Plugin '${match.pluginId}' guidance is deferred because it exceeds the automatic byte limit.${howToLoad}`;
-      }
-      recordDelivery({ plugin: match, result });
-      return result.guidance;
-    };
-    for (const match of matches) {
-      if (signal?.aborted) break;
-      const text = await guidanceFor(match);
-      if (text !== undefined) guidance.push(text);
-    }
-    return guidance;
-  }
-  /** Persist actual deliveries separately from consent, using the existing chat decision. */
-  function rememberDelivery(): void {
-    if (!alreadyLoaded.size && !delivered.size) return;
-    const { decision } = state;
-    state = { ...state, decision: { selected: [...new Set([...(decision?.selected ?? []), ...(mode === 'auto' ? delivered.keys() : [])])],
-      asked: decision?.asked ?? false, delivered: [...new Set([...(decision?.delivered ?? []), ...alreadyLoaded, ...delivered.keys()])] } };
-  }
-  /** Initialize usage after a decision (including Skip), then publish only loaded-set changes.
-   * Empty discovery must not consume that initial publication: a later Ask answer must persist.
-   */
-  async function publishUsage(): Promise<void> {
-    if (publishedSize === delivered.size || (delivered.size === 0 && state.decision === null)) return;
-    publishedSize = delivered.size;
-    try {
-      await ports.publish({ state, plugins: [...delivered].map(([id, name]) => ({ id, name })) }, {});
-    } catch {
-      // Usage publication is advisory; losing its event must not discard resolved model guidance.
-    }
-  }
-  /** Query preflight delivers one primary; guarded capabilities resolve their providers.
-   * Effects serialize with loads so a suggestion never consumes a backstop's delivery.
-   */
-  async function prepare(input: PrepareInput, _options = {}): Promise<string> {
-    for (const id of input.loaded ?? []) alreadyLoaded.add(id);
-    if (mode === 'off' || input.signal?.aborted) return '';
-    const catalog = (await ports.list({}, {})).filter(plugin => !state.excluded.includes(plugin.pluginId));
-    const candidates = catalog.filter(plugin => plugin.enabled);
-    for (const id of alreadyLoaded) if (!candidates.some(plugin => plugin.pluginId === id)) alreadyLoaded.delete(id);
-    const matches = await consentedMatches({ candidates, input });
-    const result = await preparedGuidance({ matches, input });
-    rememberDelivery();
-    await publishUsage();
-    // Preflight never resolves off packages implicitly. A catalog line offers an explicit read;
-    // its setup guidance may explain whether enabling or credentials are needed.
-    const off = offPluginNote({ catalog, input });
-    return [result, off].filter(Boolean).join('\n\n');
-  }
-  /** Rank enabled candidates, drop plugins this run already has, then apply the person's consent. */
-  async function consentedMatches({ candidates, input }: { candidates: readonly AgentPluginSearchCandidate[]; input: PrepareInput }, _options = {}): Promise<AgentPluginSearchMatch[]> {
-    const ranked = rankCandidates({ candidates, input, ports });
-    // Owner decision 2026-10-18: no per-chat plugin count; the relevance threshold and vendor gate decide.
-    const relevant = ranked.filter(plugin => !delivered.has(plugin.pluginId) && !input.loaded?.includes(plugin.pluginId) && (!alreadyLoaded.has(plugin.pluginId) || !!input.query));
-    return applyConsent({ matches: relevant }, { signal: input.signal });
-  }
-  /** Capability calls resolve every match; a query resolves one primary and notes the rest. */
-  async function preparedGuidance({ matches, input }: { matches: AgentPluginSearchMatch[]; input: PrepareInput }, _options = {}): Promise<string> {
-    const shouldLoad = !!input.capabilities?.length;
-    const primary = primaryMatch({ matches, input });
-    return shouldLoad ? (await resolveGuidance({ matches }, { signal: input.signal })).join('\n\n') : [
-      ...(await resolveGuidance({ matches: primary, primaryId: primary[0]?.pluginId }, { signal: input.signal })),
-      relevantPluginNote({ matches: matches.slice(primary.length), formatPluginToolPointer: ports.formatPluginToolPointer }),
-    ].filter(Boolean).join('\n\n');
-  }
-  /** The single top match a fresh, unbounded query preflight delivers in full; otherwise none. */
-  function primaryMatch({ matches, input }: { matches: AgentPluginSearchMatch[]; input: PrepareInput }, _options = {}): AgentPluginSearchMatch[] {
-    return input.maxPromptArgBytes === undefined && input.query && !input.loaded?.length && !alreadyLoaded.has(matches[0]?.pluginId ?? '') ? matches.slice(0, 1) : [];
-  }
-  /** Rank readable metadata for off plugins; never load their tools or guidance implicitly. O(p*t). */
-  function offPluginNote({ catalog, input }: { catalog: readonly AgentPluginSearchCandidate[]; input: PrepareInput }): string {
-    if (!input.query) return '';
-    const candidates = catalog.filter(plugin => !plugin.enabled).map(candidate => agentVisiblePluginCandidate({ candidate }));
-    return ports.rank({ query: input.query, candidates, limit: 10 }, {}).map(plugin => [plugin.description,
-      ports.formatPluginToolPointer?.({ pluginId: plugin.pluginId, file: 'SKILL.md' })].filter(Boolean).join(' ')).join('\n');
-  }
-  /** Admit one explicit id using the same catalog, consent, resolver and delivery state as prepare.
-   * No activation writes; unavailable guidance is retryable. O(p) local catalog lookup.
-   */
-  async function load({ pluginId, signal, ...request }: { pluginId: string; signal?: AbortSignal } & AgentPluginSkillRequest, _options = {}): Promise<AutomaticAgentPluginLoadResult> {
-    if (mode === 'off' && !alreadyLoaded.has(pluginId)) return { status: 'off', guidance: '' };
-    if (signal?.aborted) return { status: 'cancelled', guidance: '' };
-    if (state.excluded.includes(pluginId)) return { status: 'excluded', guidance: '' };
-    const plugin = (await ports.list({}, {})).find(candidate => candidate.pluginId === pluginId);
-    if (!plugin) return { status: 'missing', guidance: '' };
-    return loadPermitted({ plugin, ...request }, { signal });
-  }
-  /** The plugin's own SKILL.md, whether defaulted or named explicitly. O(1). */
-  function isPrimaryInstructions({ pluginId, skill, file }: { pluginId: string } & AgentPluginSkillRequest, _options = {}): boolean {
-    return (skill === undefined || skill === pluginId) && (file === undefined || file === 'SKILL.md');
-  }
-  /** Requested content bypasses only deduplication, never consent or the resolver's trust checks.
-   * Only the primary SKILL.md records full plugin delivery. O(p) consent filtering plus one read.
-   */
-  async function loadPermitted({ plugin, ...request }: { plugin: AgentPluginSearchCandidate } & AgentPluginSkillRequest, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<AutomaticAgentPluginLoadResult> {
-    const matches = await applyConsent({ matches: [{ ...plugin, score: 4 }] }, { signal });
-    if (!matches.length) {
-      await publishUsage();
-      return { status: 'excluded', guidance: '' };
-    }
-    let result = await resolveOneGuidance({ plugin, ...request }, { signal });
-    if (!plugin.enabled && result.status === 'loaded') {
-      result = { status: 'installed-but-inactive', guidance: `Plugin '${plugin.pluginId}' is off; its tools are unavailable.\n\n${result.guidance}` };
-    }
-    if (isPrimaryInstructions({ pluginId: plugin.pluginId, ...request })) recordDelivery({ plugin, result });
-    rememberDelivery();
-    await publishUsage();
-    return result;
-  }
-  /** Share one queue between preflight, explicit reads and simultaneous guarded writes. */
-  function enqueue<T>({ operation }: { operation: () => Promise<T> }, _options = {}): Promise<T> {
-    const next = queue.then(operation);
-    queue = next.catch(() => undefined);
-    return next;
-  }
+  const state = readChatAgentPluginState({ value: initialState });
+  const ctx: UseContext = {
+    mode, state, ports, delivered: new Map<string, string>(), publishedSize: undefined, queue: Promise.resolve(),
+    alreadyLoaded: new Set(mode === 'off' ? [] : state.decision?.delivered?.filter(id => !state.excluded.includes(id))),
+  };
   return {
-    guidanceIds: (_required: Record<string, never>, _options = {}) => [...new Set([...alreadyLoaded, ...delivered.keys()])].filter(id => !state.excluded.includes(id)),
+    guidanceIds: (_required: Record<string, never>, _options = {}) => [...new Set([...ctx.alreadyLoaded, ...ctx.delivered.keys()])].filter(id => !ctx.state.excluded.includes(id)),
     /** Suggest relevant metadata for a query; capability calls load only their providers. */
-    prepare: (input: PrepareInput, _options = {}) => enqueue({ operation: () => prepare(input) }),
+    prepare: (input: PrepareInput, _options = {}) => enqueue(ctx, { operation: () => prepare(ctx, input) }),
     /** Resolve one active, permitted id and publish usage only after real guidance is read.
      * Returns a concrete status and delivered content or a safe explicit-request refusal.
      * @example await controller.load({ pluginId: 'my-plugin' });
      */
-    load: (input: { pluginId: string; signal?: AbortSignal } & AgentPluginSkillRequest, _options = {}) => enqueue({ operation: () => load(input) }),
+    load: (input: { pluginId: string; signal?: AbortSignal } & AgentPluginSkillRequest, _options = {}) => enqueue(ctx, { operation: () => load(ctx, input) }),
   };
 }

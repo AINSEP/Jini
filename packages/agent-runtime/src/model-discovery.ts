@@ -133,105 +133,124 @@ function resolveFromCatalog(
   if (!isConcreteId(id)) return { status: 'unresolved', selectionId: selection, reason: NO_CONCRETE_EVIDENCE };
   return { status: 'resolved', id, selectionId: selection, source: configSelection === selection ? 'config-file' : catalog.source, resolvedAt, launchFingerprint: fingerprint };
 }
+/** The agent-scoped ports every discovery step reads; bound once by `createAgentModelDiscovery`. */
+interface DiscoveryEnv {
+  agentId: string;
+  configuration: AgentDiscoveryConfiguration;
+  probes: ModelDiscoveryProbes;
+}
+
+type Scope = { context: ModelDiscoveryContext; deps: ModelDiscoveryDeps; signal: AbortSignal | undefined; key: string; fingerprint: string; config: ScopedConfiguration; cached: ModelCacheEntry; now: number };
+
+async function scoped(env: DiscoveryEnv, { context, deps, signal }: { context: ModelDiscoveryContext; deps: ModelDiscoveryDeps; signal?: AbortSignal | undefined }) {
+  const { agentId } = env;
+  const config = await withModelProbeTimeout((active) => readModelConfiguration(agentId, context, deps, active), 1000, signal);
+  const key = `${agentId}:${modelLaunchFingerprint(context, config.fingerprintMaterial)}`;
+  return { config, key, fingerprint: key.slice(agentId.length + 1) };
+}
+
+async function readDiskCatalog(env: DiscoveryEnv, { context, deps, signal, fingerprint, config, now }: Scope): Promise<ModelCatalogSnapshot | undefined> {
+  try {
+    const disk = await withModelProbeTimeout(active => env.probes.cliCache({ agentId: env.agentId, context, deps, signal: active }), 1000, signal);
+    const models = normalizeDiscoveredModels(disk.models);
+    if (!models.length) return undefined;
+    return { models, source: 'cli-cache', coverage: disk.coverage,
+      freshness: 'stale', fetchedAt: new Date(now).toISOString(), expiresAt: new Date(now).toISOString(),
+      launchFingerprint: fingerprint, diagnostics: [],
+      ...(config.selection ? { defaultSelectionId: config.selection } : {}) };
+  } catch { /* No usable disk cache: keep the bounded cold-probe path below. */ return undefined; }
+}
+
+/** A fresh host process may still have a CLI-owned disk catalog. Use its observed rows
+ * immediately; keep stale provenance and refresh without holding the first user prompt.
+ * Returns a concurrent caller's answer when one started refreshing during the read. */
+async function primeFromDisk(env: DiscoveryEnv, scope: Scope) {
+  const disk = await readDiskCatalog(env, scope);
+  if (disk) scope.cached.good = disk;
+  // Another caller may have started the refresh while disk metadata was read.
+  const concurrent = scope.deps.cache.get(scope.key);
+  return concurrent?.pending ? concurrent.failed || concurrent.good || concurrent.pending : undefined;
+}
+
+function failureSnapshot(env: DiscoveryEnv, { cached, deps, fingerprint }: Scope, error: unknown): ModelCatalogSnapshot {
+  const retryAt = cached.retryAt as number;
+  // Outer inventory caches must retry failed refreshes on the negative lifetime too.
+  if (cached.good) return { ...cached.good, freshness: 'stale', expiresAt: new Date(retryAt).toISOString(), diagnostics: [diagnostic(error)] };
+  return offlineSnapshot(fingerprint, deps.clock.now(), env.configuration.fallbackModels(), diagnostic(error));
+}
+
+async function probeAndStore(env: DiscoveryEnv, scope: Scope): Promise<ModelCatalogSnapshot> {
+  const { agentId, configuration, probes } = env;
+  const { context, deps, signal, cached } = scope;
+  const result: ModelProbeResult = await boundedProbe(deps, () => withModelProbeTimeout((active) => probes.catalog({ agentId, context, configuration, deps, signal: active }), probes.timeoutMs({ agentId }), signal), signal);
+  const models = normalizeDiscoveredModels(result.models);
+  if (models.length === 0) throw new ModelProbeError('malformed-response');
+  const selection = pickSelection({ agentId, context, configSelection: scope.config.selection, result });
+  const snapshot = liveSnapshot({ models, result, fingerprint: scope.fingerprint, selection, fetched: deps.clock.now() });
+  cached.good = snapshot; delete cached.retryAt; delete cached.failed;
+  return snapshot;
+}
+
+async function refresh(env: DiscoveryEnv, scope: Scope): Promise<ModelCatalogSnapshot> {
+  const { deps, cached } = scope;
+  let snapshot: ModelCatalogSnapshot;
+  try { snapshot = await probeAndStore(env, scope); }
+  catch (error) {
+    cached.retryAt = deps.clock.now() + MODEL_NEGATIVE_TTL_MS;
+    snapshot = failureSnapshot(env, scope, error);
+    cached.failed = snapshot;
+  } finally { delete cached.pending; }
+  return snapshot;
+}
+
+async function discover(
+  env: DiscoveryEnv,
+  { context, deps }: { context: ModelDiscoveryContext; deps: ModelDiscoveryDeps },
+  { signal, force, staleWhileRevalidate }: { signal: AbortSignal | undefined; force: boolean; staleWhileRevalidate: boolean },
+): Promise<ModelCatalogSnapshot> {
+  let state: Awaited<ReturnType<typeof scoped>>;
+  try { state = await scoped(env, { context, deps, signal }); }
+  catch (error) {
+    return offlineSnapshot(modelLaunchFingerprint(context), deps.clock.now(), env.configuration.fallbackModels(), diagnostic(error));
+  }
+  const now = deps.clock.now();
+  const scope: Scope = { context, deps, signal, ...state, cached: deps.cache.get(state.key) || {}, now };
+  const hit = cachedAnswer({ cached: scope.cached, now }, { force, staleWhileRevalidate });
+  if (hit) return hit;
+  // Only await on the disk path: any other await here would let a concurrent caller start a second probe.
+  const joined = staleWhileRevalidate && !scope.cached.good && DISK_CATALOG_AGENTS.includes(env.agentId) ? await primeFromDisk(env, scope) : undefined;
+  if (joined) return joined;
+  const pending = refresh(env, scope);
+  scope.cached.pending = pending; deps.cache.set(scope.key, scope.cached);
+  evictSettledScopes(deps.cache);
+  // Explicit rescan still waits for live evidence. Launches retain the scoped last-good
+  // catalog while this coalesced, timeout-bounded refresh updates the cache in the background.
+  return (staleWhileRevalidate && lastGoodSnapshot(scope.cached, now)) || pending;
+}
+
+async function resolveDefault(
+  env: DiscoveryEnv,
+  { context, catalog, deps, signal }: { context: ModelDiscoveryContext; catalog: ModelCatalogSnapshot; deps: ModelDiscoveryDeps; signal: AbortSignal | undefined },
+): Promise<DefaultModelResolution> {
+  let state: Awaited<ReturnType<typeof scoped>>;
+  try { state = await scoped(env, { context, deps, signal }); } catch { return { status: 'unresolved', reason: 'Launch configuration could not be read.' }; }
+  if (state.fingerprint !== catalog.launchFingerprint) return { status: 'unresolved', reason: 'Launch configuration changed; refresh the catalog.' };
+  return resolveFromCatalog({ context, catalog, configSelection: state.config.selection, fingerprint: state.fingerprint, resolvedAt: new Date(deps.clock.now()).toISOString() });
+}
+
 /** Bind supplied effect ports and probes without loading their native implementations. */
 export function createAgentModelDiscovery(
   { agentId, configuration, deps: suppliedDeps, probes }: { agentId: string; configuration: AgentDiscoveryConfiguration; deps: ModelDiscoveryDeps; probes: ModelDiscoveryProbes },
   _optional: Record<string, never> = {},
 ): AgentModelDiscoveryPort {
-  async function scoped(context: ModelDiscoveryContext, deps: ModelDiscoveryDeps, signal?: AbortSignal) {
-    const config = await withModelProbeTimeout((active) => readModelConfiguration(agentId, context, deps, active), 1000, signal);
-    const key = `${agentId}:${modelLaunchFingerprint(context, config.fingerprintMaterial)}`;
-    return { config, key, fingerprint: key.slice(agentId.length + 1) };
-  }
-  type Scope = { context: ModelDiscoveryContext; deps: ModelDiscoveryDeps; signal: AbortSignal | undefined; key: string; fingerprint: string; config: ScopedConfiguration; cached: ModelCacheEntry; now: number };
-
-  async function readDiskCatalog({ context, deps, signal, fingerprint, config, now }: Scope): Promise<ModelCatalogSnapshot | undefined> {
-    try {
-      const disk = await withModelProbeTimeout(active => probes.cliCache({ agentId, context, deps, signal: active }), 1000, signal);
-      const models = normalizeDiscoveredModels(disk.models);
-      if (!models.length) return undefined;
-      return { models, source: 'cli-cache', coverage: disk.coverage,
-        freshness: 'stale', fetchedAt: new Date(now).toISOString(), expiresAt: new Date(now).toISOString(),
-        launchFingerprint: fingerprint, diagnostics: [],
-        ...(config.selection ? { defaultSelectionId: config.selection } : {}) };
-    } catch { /* No usable disk cache: keep the bounded cold-probe path below. */ return undefined; }
-  }
-
-  /** A fresh host process may still have a CLI-owned disk catalog. Use its observed rows
-   * immediately; keep stale provenance and refresh without holding the first user prompt.
-   * Returns a concurrent caller's answer when one started refreshing during the read. */
-  async function primeFromDisk(scope: Scope) {
-    const disk = await readDiskCatalog(scope);
-    if (disk) scope.cached.good = disk;
-    // Another caller may have started the refresh while disk metadata was read.
-    const concurrent = scope.deps.cache.get(scope.key);
-    return concurrent?.pending ? concurrent.failed || concurrent.good || concurrent.pending : undefined;
-  }
-
-  function failureSnapshot({ cached, deps, fingerprint }: Scope, error: unknown): ModelCatalogSnapshot {
-    const retryAt = cached.retryAt as number;
-    // Outer inventory caches must retry failed refreshes on the negative lifetime too.
-    if (cached.good) return { ...cached.good, freshness: 'stale', expiresAt: new Date(retryAt).toISOString(), diagnostics: [diagnostic(error)] };
-    return offlineSnapshot(fingerprint, deps.clock.now(), configuration.fallbackModels(), diagnostic(error));
-  }
-
-  async function probeAndStore(scope: Scope): Promise<ModelCatalogSnapshot> {
-    const { context, deps, signal, cached } = scope;
-    const result: ModelProbeResult = await boundedProbe(deps, () => withModelProbeTimeout((active) => probes.catalog({ agentId, context, configuration, deps, signal: active }), probes.timeoutMs({ agentId }), signal), signal);
-    const models = normalizeDiscoveredModels(result.models);
-    if (models.length === 0) throw new ModelProbeError('malformed-response');
-    const selection = pickSelection({ agentId, context, configSelection: scope.config.selection, result });
-    const snapshot = liveSnapshot({ models, result, fingerprint: scope.fingerprint, selection, fetched: deps.clock.now() });
-    cached.good = snapshot; delete cached.retryAt; delete cached.failed;
-    return snapshot;
-  }
-
-  async function refresh(scope: Scope): Promise<ModelCatalogSnapshot> {
-    const { deps, cached } = scope;
-    let snapshot: ModelCatalogSnapshot;
-    try { snapshot = await probeAndStore(scope); }
-    catch (error) {
-      cached.retryAt = deps.clock.now() + MODEL_NEGATIVE_TTL_MS;
-      snapshot = failureSnapshot(scope, error);
-      cached.failed = snapshot;
-    } finally { delete cached.pending; }
-    return snapshot;
-  }
-
-  async function discover(
-    { context, deps }: { context: ModelDiscoveryContext; deps: ModelDiscoveryDeps },
-    { signal, force, staleWhileRevalidate }: { signal: AbortSignal | undefined; force: boolean; staleWhileRevalidate: boolean },
-  ): Promise<ModelCatalogSnapshot> {
-    let state: Awaited<ReturnType<typeof scoped>>;
-    try { state = await scoped(context, deps, signal); }
-    catch (error) {
-      return offlineSnapshot(modelLaunchFingerprint(context), deps.clock.now(), configuration.fallbackModels(), diagnostic(error));
-    }
-    const now = deps.clock.now();
-    const scope: Scope = { context, deps, signal, ...state, cached: deps.cache.get(state.key) || {}, now };
-    const hit = cachedAnswer({ cached: scope.cached, now }, { force, staleWhileRevalidate });
-    if (hit) return hit;
-    // Only await on the disk path: any other await here would let a concurrent caller start a second probe.
-    const joined = staleWhileRevalidate && !scope.cached.good && DISK_CATALOG_AGENTS.includes(agentId) ? await primeFromDisk(scope) : undefined;
-    if (joined) return joined;
-    const pending = refresh(scope);
-    scope.cached.pending = pending; deps.cache.set(scope.key, scope.cached);
-    evictSettledScopes(deps.cache);
-    // Explicit rescan still waits for live evidence. Launches retain the scoped last-good
-    // catalog while this coalesced, timeout-bounded refresh updates the cache in the background.
-    return (staleWhileRevalidate && lastGoodSnapshot(scope.cached, now)) || pending;
-  }
-
+  const env: DiscoveryEnv = { agentId, configuration, probes };
   const port: AgentModelDiscoveryPort = {
     async discoverModels({ context }, optional = {}) {
-      return discover({ context, deps: optional.deps ?? suppliedDeps },
+      return discover(env, { context, deps: optional.deps ?? suppliedDeps },
         { signal: optional.signal, force: optional.force === true, staleWhileRevalidate: optional.staleWhileRevalidate === true });
     },
     async resolveDefaultModel({ context, catalog }, { signal, deps = suppliedDeps } = {}): Promise<DefaultModelResolution> {
-      let state: Awaited<ReturnType<typeof scoped>>;
-      try { state = await scoped(context, deps, signal); } catch { return { status: 'unresolved', reason: 'Launch configuration could not be read.' }; }
-      if (state.fingerprint !== catalog.launchFingerprint) return { status: 'unresolved', reason: 'Launch configuration changed; refresh the catalog.' };
-      return resolveFromCatalog({ context, catalog, configSelection: state.config.selection, fingerprint: state.fingerprint, resolvedAt: new Date(deps.clock.now()).toISOString() });
+      return resolveDefault(env, { context, catalog, deps, signal });
     },
   };
   return port;

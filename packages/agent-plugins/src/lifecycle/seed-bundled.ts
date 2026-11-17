@@ -146,15 +146,7 @@ export interface SeedBundledAgentPluginsRequired {
   readonly sourceRoot: string;
 }
 
-function buildModule(ports: AgentPluginLifecyclePorts) {
-  const readdir = ports.filesystem.readdir.bind(ports.filesystem);
-  const stat = ports.filesystem.stat.bind(ports.filesystem);
-  const { assertAgentPluginActivationsWritable, recordBundledAgentPluginIfAbsent } = createActivationModule(ports);
-  const { recordBundledAgentPluginDigests } = createBundledDigestsModule(ports);
-  const { createBundledSourceArchiveReader, packAgentPluginDirectory } = createBundledSourceArchiveModule(ports);
-  const { installAgentPlugin } = createInstallModule(ports);
-  const { retireBundledAgentPlugins } = createRetireBundledModule(ports);
-  /**
+/**
  * Installs every bundled Agent Plugin into one workspace and records each inactive-by-default,
  * except {@link BUNDLED_AGENT_PLUGINS_SEEDED_ENABLED}.
  *
@@ -179,125 +171,125 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
 // its ledger entry exist by now, and the retirement only has to decide whether to switch it on.
 // A successor whose seed FAILED has neither; `retire-bundled.ts` then keeps the retired plugin
 // rather than remove it in favour of a switch with no code behind it (its header, step 1a).
-  async function seedBundledAgentPlugins(
-    required: SeedBundledAgentPluginsRequired,
-    optional: SeedBundledAgentPluginsOptional = {},
-  ): Promise<SeedBundledAgentPluginsResult> {
-    const { layout, workspaceId, sourceRoot } = required;
+async function seedBundledAgentPlugins(ports: AgentPluginLifecyclePorts, 
+  required: SeedBundledAgentPluginsRequired,
+  optional: SeedBundledAgentPluginsOptional = {},
+): Promise<SeedBundledAgentPluginsResult> {
+  const { layout, workspaceId, sourceRoot } = required;
 
-    const pluginDirNames = await listBundledPluginDirs(sourceRoot);
-    try {
-      const migration = ports.migrateBeforeSeed
-        ? await ports.migrateBeforeSeed({ layout, workspaceId }, {})
-        : await createPersistentStateModule(ports).migrate({ workspaceRoot: layout.forWorkspace({ workspaceId }).root });
-      if (!migration.complete) throw new Error('Legacy plugin layout migration has unfinished filesystem moves; see boot log');
-    } catch (error) {
-      const reason = describeErrorForLog({ err: error });
-      return { sourceRoot, outcomes: pluginDirNames.map(pluginId => ({ pluginId, status: 'failed' as const, reason })), retirements: [] };
-    }
-
-    const refusal = await activationsRefusal(layout, workspaceId);
-    if (refusal !== undefined) {
-      return {
-        sourceRoot,
-        outcomes: pluginDirNames.map((dirName): SeededAgentPluginOutcome => ({ pluginId: dirName, status: "failed", reason: refusal })),
-        retirements: [],
-      };
-    }
-
-    const outcomes: SeededAgentPluginOutcome[] = [];
-    for (const dirName of pluginDirNames) {
-      outcomes.push(await seedOne({ layout, workspaceId, sourceDir: path.join(sourceRoot, dirName), dirName }, optional));
-    }
-
-    const ledgerFailure = await recordSeededDigests(layout.forWorkspace({ workspaceId }).root, outcomes);
-
-    const retirements = await retireBundledAgentPlugins({ layout, workspaceId });
-
-    return { sourceRoot, outcomes, retirements, ...(ledgerFailure !== undefined ? { ledgerFailure } : {}) };
+  const pluginDirNames = await listBundledPluginDirs(ports, sourceRoot);
+  try {
+    const migration = ports.migrateBeforeSeed
+      ? await ports.migrateBeforeSeed({ layout, workspaceId }, {})
+      : await createPersistentStateModule(ports).migrate({ workspaceRoot: layout.forWorkspace({ workspaceId }).root });
+    if (!migration.complete) throw new Error('Legacy plugin layout migration has unfinished filesystem moves; see boot log');
+  } catch (error) {
+    const reason = describeErrorForLog({ err: error });
+    return { sourceRoot, outcomes: pluginDirNames.map(pluginId => ({ pluginId, status: 'failed' as const, reason })), retirements: [] };
   }
 
-  /** Records which digest this boot published for each plugin that seeded successfully, and returns
+  const refusal = await activationsRefusal(ports, layout, workspaceId);
+  if (refusal !== undefined) {
+    return {
+      sourceRoot,
+      outcomes: pluginDirNames.map((dirName): SeededAgentPluginOutcome => ({ pluginId: dirName, status: "failed", reason: refusal })),
+      retirements: [],
+    };
+  }
+
+  const outcomes: SeededAgentPluginOutcome[] = [];
+  for (const dirName of pluginDirNames) {
+    outcomes.push(await seedOne(ports, { layout, workspaceId, sourceDir: path.join(sourceRoot, dirName), dirName }, optional));
+  }
+
+  const ledgerFailure = await recordSeededDigests(ports, layout.forWorkspace({ workspaceId }).root, outcomes);
+
+  const retirements = await createRetireBundledModule(ports).retireBundledAgentPlugins({ layout, workspaceId });
+
+  return { sourceRoot, outcomes, retirements, ...(ledgerFailure !== undefined ? { ledgerFailure } : {}) };
+}
+
+/** Records which digest this boot published for each plugin that seeded successfully, and returns
  *  why it could not, rather than throwing — {@link seedBundledAgentPlugins}'s own contract is
  *  "@throws Nothing", and a ledger this boot failed to write costs the workspace nothing it had
  *  before the ledger existed.
  *  @complexity One file read and one atomic write. */
-  async function recordSeededDigests(
-    workspaceRoot: string,
-    outcomes: readonly SeededAgentPluginOutcome[],
-  ): Promise<string | undefined> {
-    try {
-      await recordBundledAgentPluginDigests({
-        workspaceRoot,
-        seeded: outcomes.flatMap((outcome) =>
-          outcome.status === "seeded" ? [{ pluginId: outcome.pluginId, archiveDigest: outcome.archiveDigest }] : [],
-        ),
-      });
-      return undefined;
-    } catch (error) {
-      return describeErrorForLog({ err: error });
-    }
+async function recordSeededDigests(ports: AgentPluginLifecyclePorts, 
+  workspaceRoot: string,
+  outcomes: readonly SeededAgentPluginOutcome[],
+): Promise<string | undefined> {
+  try {
+    await createBundledDigestsModule(ports).recordBundledAgentPluginDigests({
+      workspaceRoot,
+      seeded: outcomes.flatMap((outcome) =>
+        outcome.status === "seeded" ? [{ pluginId: outcome.pluginId, archiveDigest: outcome.archiveDigest }] : [],
+      ),
+    });
+    return undefined;
+  } catch (error) {
+    return describeErrorForLog({ err: error });
   }
+}
 
-  /** Why nothing may be seeded into this workspace right now, or `undefined`. One strict read BEFORE
+/** Why nothing may be seeded into this workspace right now, or `undefined`. One strict read BEFORE
  *  any install, so a bundled package never lands on disk without the record that keeps it inactive.
  *  Catches everything (including `forWorkspace`'s own throw) to keep this function's own contract
  *  "@throws Nothing", matching {@link seedBundledAgentPlugins}'s own guarantee.
  *  @complexity One file read. */
-  async function activationsRefusal(layout: AgentPluginLayout, workspaceId: string): Promise<string | undefined> {
-    try {
-      await assertAgentPluginActivationsWritable(layout.forWorkspace({ workspaceId }).root);
-      return undefined;
-    } catch (error) {
-      return describeErrorForLog({ err: error });
-    }
+async function activationsRefusal(ports: AgentPluginLifecyclePorts, layout: AgentPluginLayout, workspaceId: string): Promise<string | undefined> {
+  try {
+    await createActivationModule(ports).assertAgentPluginActivationsWritable(layout.forWorkspace({ workspaceId }).root);
+    return undefined;
+  } catch (error) {
+    return describeErrorForLog({ err: error });
   }
+}
 
-  // The plugin's OWN manifest name, not the directory name — `install.ts` reads the id from
+// The plugin's OWN manifest name, not the directory name — `install.ts` reads the id from
 // `plugin.json`, and every consumer keys activation off that same id. Using the folder name
 // here would produce a record nothing ever consults if the two ever disagreed.
-  async function seedOne(args: {
-    readonly layout: AgentPluginLayout;
-    readonly workspaceId: string;
-    readonly sourceDir: string;
-    readonly dirName: string;
-  }, optional: SeedBundledAgentPluginsOptional = {}): Promise<SeededAgentPluginOutcome> {
-    try {
-      const packing = typeof optional.packing === 'function'
-        ? await optional.packing({ sourceDir: args.sourceDir, dirName: args.dirName }, {}) : optional.packing;
-      const packed = await packAgentPluginDirectory(args.sourceDir, packing);
-      // No revision pruning here, not even of the digest the ledger recorded last boot: that digest
-      // names the bytes this build once published, not what is on disk now, so an operator edit
-      // under it would be deleted. Every same-name copy stays; the ledger selects this build's.
-      const installed = await installAgentPlugin({
-        archive: packed.bytes,
-        expectedSha256: packed.sha256,
-        archiveReader: packed.archiveReader ?? createBundledSourceArchiveReader(),
-        layout: args.layout,
-        workspaceId: args.workspaceId,
-      }, { pruneSupersededRevisions: false });
+async function seedOne(ports: AgentPluginLifecyclePorts, args: {
+  readonly layout: AgentPluginLayout;
+  readonly workspaceId: string;
+  readonly sourceDir: string;
+  readonly dirName: string;
+}, optional: SeedBundledAgentPluginsOptional = {}): Promise<SeededAgentPluginOutcome> {
+  try {
+    const packing = typeof optional.packing === 'function'
+      ? await optional.packing({ sourceDir: args.sourceDir, dirName: args.dirName }, {}) : optional.packing;
+    const packed = await createBundledSourceArchiveModule(ports).packAgentPluginDirectory(args.sourceDir, packing);
+    // No revision pruning here, not even of the digest the ledger recorded last boot: that digest
+    // names the bytes this build once published, not what is on disk now, so an operator edit
+    // under it would be deleted. Every same-name copy stays; the ledger selects this build's.
+    const installed = await createInstallModule(ports).installAgentPlugin({
+      archive: packed.bytes,
+      expectedSha256: packed.sha256,
+      archiveReader: packed.archiveReader ?? createBundledSourceArchiveModule(ports).createBundledSourceArchiveReader(),
+      layout: args.layout,
+      workspaceId: args.workspaceId,
+    }, { pruneSupersededRevisions: false });
 
-      const { recorded } = await recordBundledAgentPluginIfAbsent(
-        { workspaceRoot: args.layout.forWorkspace({ workspaceId: args.workspaceId }).root, pluginId: installed.pluginId },
-        { enabled: ports.seededEnabledPluginIds.has(installed.pluginId) },
-      );
+    const { recorded } = await createActivationModule(ports).recordBundledAgentPluginIfAbsent(
+      { workspaceRoot: args.layout.forWorkspace({ workspaceId: args.workspaceId }).root, pluginId: installed.pluginId },
+      { enabled: ports.seededEnabledPluginIds.has(installed.pluginId) },
+    );
 
-      return {
-        pluginId: installed.pluginId,
-        status: "seeded",
-        archiveDigest: installed.archiveDigest,
-        activationRecorded: recorded,
-      };
-    } catch (error) {
-      return {
-        pluginId: args.dirName,
-        status: "failed",
-        reason: describeErrorForLog({ err: error }),
-      };
-    }
+    return {
+      pluginId: installed.pluginId,
+      status: "seeded",
+      archiveDigest: installed.archiveDigest,
+      activationRecorded: recorded,
+    };
+  } catch (error) {
+    return {
+      pluginId: args.dirName,
+      status: "failed",
+      reason: describeErrorForLog({ err: error }),
+    };
   }
+}
 
-  /**
+/**
  * Lists the subdirectories of `sourceRoot` that actually look like Agent Plugin packages (they hold
  * a `plugin.json` at their own root, which is where `indexInstalledRoot` looks for it).
  *
@@ -308,28 +300,33 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
  */
 // A retired id is never seeded, even from a stale build that still carries its directory —
 // otherwise every boot would reinstall it only for `retire-bundled.ts` to remove it again.
-  async function listBundledPluginDirs(sourceRoot: string): Promise<readonly string[]> {
-    let entries: Dirent[];
-    try {
-      entries = await readdir(sourceRoot, { withFileTypes: true });
-    } catch {
-      return [];
-    }
-
-    const dirs: string[] = [];
-    for (const entry of entries) {
-      if (!entry.isDirectory() || ports.retiredBundledPlugins.has(entry.name)) continue;
-      try {
-        const manifest = await stat(path.join(sourceRoot, entry.name, "plugin.json"));
-        if (manifest.isFile()) dirs.push(entry.name);
-      } catch {
-        // No plugin.json: not a package. Silently skipped — see this function's own doc.
-      }
-    }
-    return dirs.sort();
+async function listBundledPluginDirs(ports: AgentPluginLifecyclePorts, sourceRoot: string): Promise<readonly string[]> {
+  let entries: Dirent[];
+  try {
+    entries = await ports.filesystem.readdir(sourceRoot, { withFileTypes: true });
+  } catch {
+    return [];
   }
 
-  return { seedBundledAgentPlugins };
+  const dirs: string[] = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory() || ports.retiredBundledPlugins.has(entry.name)) continue;
+    try {
+      const manifest = await ports.filesystem.stat(path.join(sourceRoot, entry.name, "plugin.json"));
+      if (manifest.isFile()) dirs.push(entry.name);
+    } catch {
+      // No plugin.json: not a package. Silently skipped — see this function's own doc.
+    }
+  }
+  return dirs.sort();
+}
+
+type WithoutPorts<F> = F extends (ports: never, ...rest: infer R) => unknown ? R : never;
+
+function buildModule(ports: AgentPluginLifecyclePorts) {
+  return {
+    seedBundledAgentPlugins: (...args: WithoutPorts<typeof seedBundledAgentPlugins>) => seedBundledAgentPlugins(ports, ...args),
+  };
 }
 
 const instances = new WeakMap<AgentPluginLifecyclePorts, ReturnType<typeof buildModule>>();
