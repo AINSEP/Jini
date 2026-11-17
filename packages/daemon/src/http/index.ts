@@ -12,7 +12,7 @@ export type { ActiveContextDeps, ActiveContextResource } from './active-context.
 export {
   ACTIVE_CONTEXT_TTL_MS,
   getActiveRoute,
-  registerActiveContextRoutes,
+  activeContextRoutes,
   setActiveRoute,
 } from './active-context.js';
 export type {

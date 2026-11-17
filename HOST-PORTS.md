@@ -536,7 +536,7 @@ Everything a Jini package asks its host to bind or register: `*Port`, `*Kit`, `*
 | `StopProcessesPort` | port | type | `packages/daemon/src/agent-executor/contracts.ts:299` |
 | `TerminateChildTreeDeps` | deps | interface | `packages/daemon/src/agent-executor/contracts.ts:301` |
 | `ActiveContextDeps` | deps | interface | `packages/daemon/src/http/active-context.ts:63` |
-| `registerActiveContextRoutes` | registry | function | `packages/daemon/src/http/active-context.ts:142` |
+| `activeContextRoutes` | registry | function | `packages/daemon/src/http/active-context.ts:142` |
 | `AgentsHttpDeps` | deps | interface | `packages/daemon/src/http/agents.ts:66` |
 | `agentRoutes` | registry | function | `packages/daemon/src/http/agents.ts:89` |
 | `registerAttachmentLookupRoutes` | registry | function | `packages/daemon/src/http/attachment-lookup-routes.ts:76` |

@@ -35,7 +35,7 @@ describe('@jini-ai/daemon/http barrel', () => {
   });
 
   it('re-exports the active-context routes and registrar', () => {
-    expect(typeof HttpBarrel.registerActiveContextRoutes).toBe('function');
+    expect(typeof HttpBarrel.activeContextRoutes).toBe('function');
     expect(HttpBarrel.setActiveRoute.path).toBe('/api/active');
     expect(HttpBarrel.getActiveRoute.path).toBe('/api/active');
     expect(HttpBarrel.ACTIVE_CONTEXT_TTL_MS).toBe(5 * 60 * 1000);

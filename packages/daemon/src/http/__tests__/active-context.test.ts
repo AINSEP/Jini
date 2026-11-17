@@ -1,41 +1,21 @@
-import type { Server } from 'node:http';
-import express from 'express';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createLocalTestOrigin } from './fixtures/local-origin.js';
-import { createRecordingOriginPolicy, createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
+import { describe, expect, it, vi } from 'vitest';
+import { denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
+import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
+import { describeRoutes } from '../route-table.js';
 import {
   ACTIVE_CONTEXT_TTL_MS,
   getActiveRoute,
-  registerActiveContextRoutes,
+  activeContextRoutes,
   setActiveRoute,
   type ActiveContextDeps,
 } from '../active-context.js';
 
-interface MockApp {
-  get: (path: string, handler: any) => void;
-  post: (path: string, handler: any) => void;
-  handlers: Record<string, (req: any, res: any) => Promise<void> | void>;
+/** The active-context routes on an in-memory server; `denyOrigins` makes the host refuse every origin. */
+function serve({ deps, denyOrigins = false }: { deps: ActiveContextDeps; denyOrigins?: boolean }) {
+  const host = fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {});
+  return serveRoutes({ routes: activeContextRoutes({ deps, host }) });
 }
-
-function makeApp(): MockApp {
-  const handlers: MockApp['handlers'] = {};
-  const make = (method: string) => (path: string, handler: any) => {
-    handlers[`${method.toUpperCase()} ${path}`] = handler;
-  };
-  return { get: make('get'), post: make('post'), handlers };
-}
-
-function makeRes() {
-  return { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() };
-}
-
-const testOriginPolicy = createRecordingOriginPolicy();
-
-const adapter = createTestRouteHost({}, { originPolicy: testOriginPolicy });
-
-beforeEach(() => {
-  testOriginPolicy.set({ allow: true });
-});
 
 describe('setActiveRoute.parse', () => {
   it('parses {active: false} as a clear', () => {
@@ -215,148 +195,57 @@ describe('getActiveRoute.handle', () => {
   });
 });
 
-describe('registerActiveContextRoutes', () => {
+describe('activeContextRoutes', () => {
   function makeDeps(overrides: Partial<ActiveContextDeps> = {}): ActiveContextDeps {
     return { resolveResource: () => ({ name: 'Resolved' }), ...overrides };
   }
+  const post = (body: unknown) => jsonRequest({ path: '/api/active', method: 'POST' }, { body });
+  const get = () => jsonRequest({ path: '/api/active' });
 
-  it('mounts exactly POST and GET /api/active', () => {
-    const app = makeApp();
-    registerActiveContextRoutes({ app: app as any, deps: makeDeps(), adapter });
-    expect(Object.keys(app.handlers).sort()).toEqual(['GET /api/active', 'POST /api/active'].sort());
+  it('lists exactly POST and GET /api/active, each behind the same-origin gate', () => {
+    expect(describeRoutes({ routes: activeContextRoutes({ deps: makeDeps(), host: fakeDaemonRouteHost() }) })).toEqual([
+      { method: 'POST', path: '/api/active', gates: ['same-origin'] },
+      { method: 'GET', path: '/api/active', gates: ['same-origin'] },
+    ]);
   });
 
-  it('shares one in-memory store across both mounted routes: a POST is visible to a later GET', async () => {
-    const app = makeApp();
-    registerActiveContextRoutes({ app: app as any, deps: makeDeps({ resolveResource: () => ({ name: 'Widget' }) }), adapter });
-
-    const postRes = makeRes();
-    await app.handlers['POST /api/active']!(
-      { body: { resourceRef: 'w-1', detail: 'notes.md' }, query: {}, params: {} },
-      postRes,
-    );
-    expect(postRes.status).toHaveBeenCalledWith(200);
-
-    const getRes = makeRes();
-    await app.handlers['GET /api/active']!({ body: {}, query: {}, params: {} }, getRes);
-    expect(getRes.status).toHaveBeenCalledWith(200);
-    expect(getRes.json).toHaveBeenCalledWith(
-      expect.objectContaining({ active: true, resourceRef: 'w-1', resourceName: 'Widget', detail: 'notes.md' }),
-    );
+  it('shares one in-memory store across both routes: a POST is visible to a later GET, through real body parsing and JSON serialization', async () => {
+    const fetch = serve({ deps: makeDeps({ resolveResource: () => ({ name: 'Widget' }) }) });
+    const posted = await fetch(post({ resourceRef: 'w-1', detail: 'notes.md' }));
+    expect([posted.status, posted.headers.get('content-type')]).toEqual([200, expect.stringContaining('application/json')]);
+    expect(await posted.json()).toMatchObject({ active: true, resourceRef: 'w-1', detail: 'notes.md' });
+    const read = await fetch(get());
+    expect([read.status, await read.json()]).toEqual([200, expect.objectContaining({ active: true, resourceRef: 'w-1', resourceName: 'Widget', detail: 'notes.md' })]);
   });
 
   it('a POST clear is visible to a later GET as inactive', async () => {
-    const app = makeApp();
-    registerActiveContextRoutes({ app: app as any, deps: makeDeps(), adapter });
-
-    await app.handlers['POST /api/active']!({ body: { resourceRef: 'w-1' }, query: {}, params: {} }, makeRes());
-    await app.handlers['POST /api/active']!({ body: { active: false }, query: {}, params: {} }, makeRes());
-
-    const getRes = makeRes();
-    await app.handlers['GET /api/active']!({ body: {}, query: {}, params: {} }, getRes);
-    expect(getRes.json).toHaveBeenCalledWith({ active: false });
+    const fetch = serve({ deps: makeDeps() });
+    await fetch(post({ resourceRef: 'w-1' }));
+    await fetch(post({ active: false }));
+    expect(await (await fetch(get())).json()).toEqual({ active: false });
   });
 
   it('defaults now to Date.now when the caller does not supply one', async () => {
-    const app = makeApp();
-    registerActiveContextRoutes({ app: app as any, deps: makeDeps(), adapter });
     const before = Date.now();
-
-    const postRes = makeRes();
-    await app.handlers['POST /api/active']!({ body: { resourceRef: 'w-1' }, query: {}, params: {} }, postRes);
-    const posted = postRes.json.mock.calls[0]![0];
+    const posted = await (await serve({ deps: makeDeps() })(post({ resourceRef: 'w-1' }))).json() as { ts: number };
     expect(posted.ts).toBeGreaterThanOrEqual(before);
     expect(posted.ts).toBeLessThanOrEqual(Date.now());
   });
 
   it('uses a caller-supplied now() instead of Date.now when provided', async () => {
-    const app = makeApp();
-    registerActiveContextRoutes({ app: app as any, deps: makeDeps({ now: () => 42 }), adapter });
-
-    const postRes = makeRes();
-    await app.handlers['POST /api/active']!({ body: { resourceRef: 'w-1' }, query: {}, params: {} }, postRes);
-    expect(postRes.json).toHaveBeenCalledWith(expect.objectContaining({ ts: 42 }));
+    const posted = await serve({ deps: makeDeps({ now: () => 42 }) })(post({ resourceRef: 'w-1' }));
+    expect(await posted.json()).toEqual(expect.objectContaining({ ts: 42 }));
   });
 
   it('requires same-origin: blocks a cross-origin GET with 403', async () => {
-    testOriginPolicy.set({ allow: false });
-    const app = makeApp();
-    registerActiveContextRoutes({ app: app as any, deps: makeDeps(), adapter });
-    const res = makeRes();
-    await app.handlers['GET /api/active']!({ body: {}, query: {}, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(403);
+    expect((await serve({ deps: makeDeps(), denyOrigins: true })(get())).status).toBe(403);
   });
 
   it('requires same-origin: blocks a cross-origin POST with 403', async () => {
-    testOriginPolicy.set({ allow: false });
-    const app = makeApp();
-    registerActiveContextRoutes({ app: app as any, deps: makeDeps(), adapter });
-    const res = makeRes();
-    await app.handlers['POST /api/active']!({ body: { resourceRef: 'w-1' }, query: {}, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(403);
+    expect((await serve({ deps: makeDeps(), denyOrigins: true })(post({ resourceRef: 'w-1' }))).status).toBe(403);
   });
 
-  it('surfaces a BAD_REQUEST parse failure through the mounted POST route as 400', async () => {
-    const app = makeApp();
-    registerActiveContextRoutes({ app: app as any, deps: makeDeps(), adapter });
-    const res = makeRes();
-    await app.handlers['POST /api/active']!({ body: {}, query: {}, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(400);
-  });
-});
-
-describe('registerActiveContextRoutes — real Express server on a real socket, not fake req/res', () => {
-  function makeDeps(overrides: Partial<ActiveContextDeps> = {}): ActiveContextDeps {
-    return { resolveResource: () => ({ name: 'Resolved' }), ...overrides };
-  }
-
-  let server: Server | undefined;
-
-  afterEach(() => {
-    server?.close();
-    server = undefined;
-  });
-
-  it('a real POST /api/active followed by a real GET /api/active round-trips through actual body parsing, path routing, and JSON serialization', async () => {
-    const app = express();
-    app.use(express.json());
-    const { adapter: realAdapter, portRef: realAdapterPortRef } = createLocalTestOrigin({}, { port: 0 });
-    registerActiveContextRoutes({ app, deps: makeDeps({ resolveResource: () => ({ name: 'Widget' }) }), adapter: realAdapter });
-    server = app.listen(0);
-    const port = (server.address() as { port: number }).port;
-    realAdapterPortRef.current = port;
-    const base = `http://127.0.0.1:${port}`;
-
-    const postRes = await fetch(`${base}/api/active`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ resourceRef: 'w-1', detail: 'notes.md' }),
-    });
-    expect(postRes.status).toBe(200);
-    expect(postRes.headers.get('content-type')).toContain('application/json');
-    const postBody = await postRes.json();
-    expect(postBody).toMatchObject({ active: true, resourceRef: 'w-1', detail: 'notes.md' });
-
-    const getRes = await fetch(`${base}/api/active`);
-    expect(getRes.status).toBe(200);
-    const getBody = await getRes.json();
-    expect(getBody).toMatchObject({ active: true, resourceRef: 'w-1', resourceName: 'Widget', detail: 'notes.md' });
-  });
-
-  it('a real malformed POST /api/active (missing resourceRef) gets a genuine 400 over the wire', async () => {
-    const app = express();
-    app.use(express.json());
-    const { adapter: realAdapter, portRef: realAdapterPortRef } = createLocalTestOrigin({}, { port: 0 });
-    registerActiveContextRoutes({ app, deps: makeDeps(), adapter: realAdapter });
-    server = app.listen(0);
-    const port = (server.address() as { port: number }).port;
-    realAdapterPortRef.current = port;
-
-    const res = await fetch(`http://127.0.0.1:${port}/api/active`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({}),
-    });
-    expect(res.status).toBe(400);
+  it('answers a BAD_REQUEST parse failure (missing resourceRef) on POST as 400', async () => {
+    expect((await serve({ deps: makeDeps() })(post({}))).status).toBe(400);
   });
 });

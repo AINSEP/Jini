@@ -17,7 +17,7 @@ import { testOriginConfig } from '../fixtures/local-origin.js';
 import { fakeDaemonRouteHost } from '../fakes/route-host.js';
 import type { DaemonRouteHost } from '../../route-host.js';
 import { describeRoutes } from '../../route-table.js';
-import { registerActiveContextRoutes } from '../../active-context.js';
+import { activeContextRoutes } from '../../active-context.js';
 import { agentRoutes } from '../../agents.js';
 import { registerAttachmentLookupRoutes } from '../../attachment-lookup-routes.js';
 import { registerAttachmentRoutes } from '../../attachments.js';
@@ -118,7 +118,7 @@ const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-par
   ['agents', ({ adapter, deps, mountList }) => mountList(agentRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['host-tools', ({ app, adapter, deps }) => registerHostToolsRoutes({ app, adapter }, deps())],
   ['model-proxy', ({ app, adapter, deps }) => registerModelProxyRoutes({ app, deps: deps(), adapter })],
-  ['active-context', ({ app, adapter, deps }) => registerActiveContextRoutes({ app, deps: deps(), adapter })],
+  ['active-context', ({ adapter, deps, mountList }) => mountList(activeContextRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['terminals', ({ app, adapter, deps }) => registerTerminalRoutes({ app, deps: deps(), adapter })],
   ['db-ops', ({ app, adapter, deps }) => registerDaemonDbRoutes({ app, deps: deps(), adapter })],
   ['tool-catalog', ({ adapter, deps, mountList }) => mountList(toolCatalogRoutes({ deps: deps(), host: routeHost(adapter) }))],

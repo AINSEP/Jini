@@ -38,7 +38,7 @@ import {
   searchToolCatalog,
 } from '@jini-ai/registry/tool-catalog/sqlite';
 import { inspectSqliteDatabase, verifySqliteIntegrity } from '@jini-ai/db/sqlite'; import type { SqliteDb } from '@jini-ai/core/contracts/storage';
-import { daemonStatusRoutes, agentRoutes, toolCatalogRoutes, createDaemonDbToolRegistrations, denyAllWorkspaceRoots, registerActiveContextRoutes, registerConnectorsRoutes, registerDaemonDbRoutes, registerDelegatedToolRoutes, registerFrontendSessionRoutes, registerHealthRoutes, registerHostToolsRoutes, registerMediaRoutes, registerMemoryRoutes, registerModelProxyRoutes, registerRemoteRunEventRoutes, registerResearchRoutes, registerRoutineRoutes, registerRunRoutes, registerTerminalRoutes, registerXaiRoutes, type AgentSummary, type DaemonDbOperations, type DaemonDbVacuumResult, type DelegatedToolExecuteRequest, type FrontendSessionsHttpDeps, type MediaHttpDeps, type MemoryHttpDeps, type RemoteToolBridgeTokenConfig, type RoutineHttpDeps, type RunStartHandler, type WorkspaceRootResolver } from '@jini-ai/daemon/http';
+import { activeContextRoutes, daemonStatusRoutes, agentRoutes, toolCatalogRoutes, createDaemonDbToolRegistrations, denyAllWorkspaceRoots, registerConnectorsRoutes, registerDaemonDbRoutes, registerDelegatedToolRoutes, registerFrontendSessionRoutes, registerHealthRoutes, registerHostToolsRoutes, registerMediaRoutes, registerMemoryRoutes, registerModelProxyRoutes, registerRemoteRunEventRoutes, registerResearchRoutes, registerRoutineRoutes, registerRunRoutes, registerTerminalRoutes, registerXaiRoutes, type AgentSummary, type DaemonDbOperations, type DaemonDbVacuumResult, type DelegatedToolExecuteRequest, type FrontendSessionsHttpDeps, type MediaHttpDeps, type MemoryHttpDeps, type RemoteToolBridgeTokenConfig, type RoutineHttpDeps, type RunStartHandler, type WorkspaceRootResolver } from '@jini-ai/daemon/http';
 import type { Express } from 'express';
 
 import { defineJiniFeature, type FeatureBuildContext, type JiniFeature } from './feature.js';
@@ -381,9 +381,9 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
         services: () => ({ context }),
       }, {
         http: ({ app, services }) =>
-          registerActiveContextRoutes({ app: app as Express, deps: // Mandatory but with an honest, harmless answer this package can always give:
+          mountRoutes({ app, routes: activeContextRoutes({ deps: // Mandatory but with an honest, harmless answer this package can always give:
             // "unknown". It has no Project/Workspace noun of its own to resolve a name from.
-            { resolveResource: (): undefined => undefined }, adapter: services.context.adapter }),
+            { resolveResource: (): undefined => undefined }, host: services.context.routeHost }) }),
       }),
     }),
   });

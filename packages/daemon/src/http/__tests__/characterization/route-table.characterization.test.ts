@@ -53,8 +53,8 @@ const ROUTE_TABLE: Readonly<Record<string, readonly string[]>> = {
     'POST /api/proxy/:provider/stream [anonymous/2]',
   ],
   'active-context': [
-    'POST /api/active [anonymous/2]',
-    'GET /api/active [anonymous/2]',
+    'POST /api/active [same-origin]',
+    'GET /api/active [same-origin]',
   ],
   'terminals': [
     'GET /api/terminals [anonymous/2]',
