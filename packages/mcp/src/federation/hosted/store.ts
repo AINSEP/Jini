@@ -42,7 +42,7 @@ import { resolveExternalMcpOAuthStatus } from "./auth.js";
  * environment. Both combinations are real, so neither field can be derived from the other.
  */
 import { SUPPORTED_EXTERNAL_MCP_TRANSPORTS, EXTERNAL_MCP_OAUTH_GRANTS } from "./vocabulary.js";
-import type { ExternalMcpTransport, ExternalMcpOAuthGrant, ExternalMcpServerRepoPort, ExternalMcpServerRecord, ExternalMcpServerTarget, ExternalMcpServerConfig, ExternalMcpServerView, ExternalMcpStoreDeps, ExternalMcpOAuthTokenResolverPort, SaveExternalMcpOAuthInput, SaveExternalMcpServerInput, ExternalMcpSealedOAuthPayload, SealedExternalMcpOAuth } from "@jini-ai/core/contracts/hosted-mcp";
+import type { ExternalMcpConfigFailure, ExternalMcpTransport, ExternalMcpOAuthGrant, ExternalMcpServerRepoPort, ExternalMcpServerRecord, ExternalMcpServerTarget, ExternalMcpServerConfig, ExternalMcpServerView, ExternalMcpStoreDeps, ExternalMcpOAuthTokenResolverPort, SaveExternalMcpOAuthInput, SaveExternalMcpServerInput, ExternalMcpSealedOAuthPayload, SealedExternalMcpOAuth } from "@jini-ai/core/contracts/hosted-mcp";
 import type { HostedMcpStorePorts, HostedMcpTokenHint } from "./store-ports.js";
 
 import { nowIso, type ISODateTime, type UUID } from "@jini-ai/core/primitives";
@@ -489,13 +489,13 @@ async function openExternalMcpEnv(
  * tools vanished, and the reason string is the only thing carrying that at boot. The admin tab's
  * `needs_reauth` badge is the out-of-band half of the same signal.
  */
-function oauthStatusFailure(record: ExternalMcpServerRecord, settingsLink: string): string | null {
+function oauthStatusFailure(record: ExternalMcpServerRecord, settingsLink: string): Omit<ExternalMcpConfigFailure, "serverId"> | null {
   const status = resolveExternalMcpOAuthStatus(record);
   if (status === "connected") return null;
   if (status === "needs_reauth") {
-    return `its authorization expired or was revoked — reconnect it in ${settingsLink}`;
+    return { reason: `its authorization expired or was revoked — reconnect it in ${settingsLink}`, category: "reauth_required" };
   }
-  return `it has not been authorized yet (status '${status}') — connect it in ${settingsLink}`;
+  return { reason: `it has not been authorized yet (status '${status}') — connect it in ${settingsLink}` };
 }
 
 /**
@@ -512,13 +512,13 @@ async function resolveExternalMcpAccessToken(
   record: ExternalMcpServerRecord,
   oauth: ExternalMcpOAuthTokenResolverPort | undefined,
   { settingsLink, reauthRequiredCode }: Pick<HostedMcpStorePorts, "settingsLink" | "reauthRequiredCode">,
-): Promise<{ readonly ok: true; readonly token: string; readonly shared?: true } | { readonly ok: false; readonly reason: string }> {
+): Promise<{ readonly ok: true; readonly token: string; readonly shared?: true } | ({ readonly ok: false } & Omit<ExternalMcpConfigFailure, "serverId">)> {
   try {
     const shared = await oauth?.resolveSharedAccessToken?.({ serverId: record.serverId });
     if (shared !== undefined) return { ok: true, token: shared, shared: true };
   } catch { return { ok: false, reason: `This shared connection is no longer granted to this site. Choose it again or sign in from ${settingsLink}.` }; }
   const statusFailure = oauthStatusFailure(record, settingsLink);
-  if (statusFailure !== null) return { ok: false, reason: statusFailure };
+  if (statusFailure !== null) return { ok: false, ...statusFailure };
   if (!oauth) {
     return { ok: false, reason: "this process was not wired with an OAuth token resolver, so its access token cannot be obtained" };
   }
@@ -530,21 +530,21 @@ async function resolveOwnedAccessToken(
   record: ExternalMcpServerRecord,
   oauth: ExternalMcpOAuthTokenResolverPort,
   { settingsLink, reauthRequiredCode }: Pick<HostedMcpStorePorts, "settingsLink" | "reauthRequiredCode">,
-): Promise<{ readonly ok: true; readonly token: string } | { readonly ok: false; readonly reason: string }> {
+): Promise<{ readonly ok: true; readonly token: string } | ({ readonly ok: false } & Omit<ExternalMcpConfigFailure, "serverId">)> {
   try {
     return { ok: true, token: await oauth.resolveAccessToken({ serverId: record.serverId }) };
   } catch (err) {
     // Preserve reauthorization as a typed outcome, without echoing raw provider error messages.
     const needsReauth = err instanceof Error && "code" in err && err.code === reauthRequiredCode;
-    return { ok: false, reason: needsReauth
-      ? `its authorization expired or was revoked — reconnect it in ${settingsLink}`
-      : `its OAuth access token could not be obtained: OAuth token resolution failed — reconnect this server in ${settingsLink}` };
+    return needsReauth
+      ? { ok: false, reason: `its authorization expired or was revoked — reconnect it in ${settingsLink}`, category: "reauth_required" }
+      : { ok: false, reason: `its OAuth access token could not be obtained: OAuth token resolution failed — reconnect this server in ${settingsLink}` };
   }
 }
 
 /** A failure entry for one record, in the shape {@link readEnabledExternalMcpConfigs} collects. */
-function externalMcpFailure(record: ExternalMcpServerRecord, reason: string): { readonly ok: false; readonly failure: { serverId: string; reason: string } } {
-  return { ok: false, failure: { serverId: record.serverId, reason } };
+function externalMcpFailure({ record, reason }: { record: ExternalMcpServerRecord; reason: string }, { category }: { category?: ExternalMcpConfigFailure["category"] } = {}): { readonly ok: false; readonly failure: ExternalMcpConfigFailure } {
+  return { ok: false, failure: { serverId: record.serverId, reason, ...(category === undefined ? {} : { category }) } };
 }
 
 /**
@@ -562,20 +562,20 @@ async function resolveStdioTarget(
   oauth: ExternalMcpOAuthTokenResolverPort | undefined,
   staticAccessToken: string | null,
   ports: HostedMcpStorePorts,
-): Promise<{ readonly ok: true; readonly target: ExternalMcpServerTarget } | { readonly ok: false; readonly failure: { serverId: string; reason: string } }> {
-  if (!record.command) return externalMcpFailure(record, "no command is configured to launch it");
+): Promise<{ readonly ok: true; readonly target: ExternalMcpServerTarget } | { readonly ok: false; readonly failure: ExternalMcpConfigFailure }> {
+  if (!record.command) return externalMcpFailure({ record, reason: "no command is configured to launch it" });
 
   const withStaticToken = withStaticAccessToken(record, env, authMode, staticAccessToken);
   if (withStaticToken === null) {
-    return externalMcpFailure(record, "no environment variable name is configured to receive its access token");
+    return externalMcpFailure({ record, reason: "no environment variable name is configured to receive its access token" });
   }
   let resolvedEnv = withStaticToken;
   if (authMode === "oauth") {
     if (!record.oauthTokenEnvName) {
-      return externalMcpFailure(record, "no environment variable name is configured to receive its OAuth access token");
+      return externalMcpFailure({ record, reason: "no environment variable name is configured to receive its OAuth access token" });
     }
     const token = await resolveExternalMcpAccessToken(record, oauth, ports);
-    if (!token.ok) return externalMcpFailure(record, token.reason);
+    if (!token.ok) return externalMcpFailure({ record, reason: token.reason }, { category: token.category });
     resolvedEnv = { ...resolvedEnv, [record.oauthTokenEnvName]: token.token };
   }
 
@@ -598,22 +598,22 @@ async function resolveHttpTarget(
   oauth: ExternalMcpOAuthTokenResolverPort | undefined,
   staticAccessToken: string | null,
   ports: HostedMcpStorePorts,
-): Promise<{ readonly ok: true; readonly target: ExternalMcpServerTarget } | { readonly ok: false; readonly failure: { serverId: string; reason: string } }> {
-  if (!record.url) return externalMcpFailure(record, "no URL is configured to reach it");
+): Promise<{ readonly ok: true; readonly target: ExternalMcpServerTarget } | { readonly ok: false; readonly failure: ExternalMcpConfigFailure }> {
+  if (!record.url) return externalMcpFailure({ record, reason: "no URL is configured to reach it" });
 
   const headers: Record<string, string> = {};
   let shared = false;
   if (authMode === "static_env" && staticAccessToken !== null) headers.authorization = `Bearer ${staticAccessToken}`;
   if (authMode === "oauth") {
     const token = await resolveExternalMcpAccessToken(record, oauth, ports);
-    if (!token.ok) return externalMcpFailure(record, token.reason);
+    if (!token.ok) return externalMcpFailure({ record, reason: token.reason }, { category: token.category });
     headers.authorization = `Bearer ${token.token}`;
     shared = token.shared === true;
   }
 
   if (headers.authorization !== undefined) {
     const failure = hostedTokenFailure({ authorization: headers.authorization, credential: ports.credential });
-    if (failure !== null) return externalMcpFailure(record, failure);
+    if (failure !== null) return externalMcpFailure({ record, reason: failure });
   }
   return { ok: true, target: { kind: "streamable_http", url: record.url, headers,
     ...(shared ? { bearerToken: async () => {
@@ -678,18 +678,18 @@ async function resolveExternalMcpConfig(
   oauth: ExternalMcpOAuthTokenResolverPort | undefined,
 ): Promise<
   | { readonly ok: true; readonly config: ExternalMcpServerConfig }
-  | { readonly ok: false; readonly failure: { serverId: string; reason: string } }
+  | { readonly ok: false; readonly failure: ExternalMcpConfigFailure }
 > {
   const transport = record.transport as ExternalMcpTransport;
   if (!SUPPORTED_EXTERNAL_MCP_TRANSPORTS.includes(transport)) {
-    return externalMcpFailure(record, `unsupported transport '${record.transport}'`);
+    return externalMcpFailure({ record, reason: `unsupported transport '${record.transport}'` });
   }
   const opened = await openExternalMcpEnv(record, deps);
-  if (!opened.ok) return externalMcpFailure(record, opened.reason);
+  if (!opened.ok) return externalMcpFailure({ record, reason: opened.reason });
 
   const authMode = resolveExternalMcpAuthMode(record);
   const staticToken = await openExternalMcpStaticAccessToken(record, deps);
-  if (!staticToken.ok) return externalMcpFailure(record, staticToken.reason);
+  if (!staticToken.ok) return externalMcpFailure({ record, reason: staticToken.reason });
   const resolved =
     transport === "stdio"
       ? await resolveStdioTarget(record, opened.env, authMode, oauth, staticToken.token, deps)
@@ -717,10 +717,10 @@ async function resolveExternalMcpConfig(
 export async function readEnabledExternalMcpConfigs(
   deps: Pick<ExternalMcpStoreDeps, "repo" | "sealer"> & { oauth?: ExternalMcpOAuthTokenResolverPort } & HostedMcpStorePorts,
   workspaceId: UUID,
-): Promise<{ configs: ExternalMcpServerConfig[]; failures: { serverId: string; reason: string }[] }> {
+): Promise<{ configs: ExternalMcpServerConfig[]; failures: ExternalMcpConfigFailure[] }> {
   const records = await deps.repo.listByWorkspaceId(workspaceId);
   const configs: ExternalMcpServerConfig[] = [];
-  const failures: { serverId: string; reason: string }[] = [];
+  const failures: ExternalMcpConfigFailure[] = [];
 
   for (const record of records) {
     if (!record.enabled) continue;

@@ -16,56 +16,16 @@ function withoutAssetIds<TAsset extends AssetGridItem>(
   return assets.filter(asset => !ids.has(asset.id));
 }
 
-/** Coordinate grid reads, selection, preview, deletion, and per-card rendering. */
-export function useAssetGridView<TAsset extends AssetGridItem>({ active, selectors, dependencies, configuredKindFacets, configuredSourceFacets, renderThumbnail, renderThumbnailPlaceholder, renderCardExtra, onDeleteAsset, onDeleteSelected, onPreview, isPreviewOpen, searchDebounceMs, liveUpdateCoalesceMs, initialViewMode, useWiredAssetGridDataHook, useAssetGridSelectionHook }: {
-  active: boolean; selectors: AssetGridProps<TAsset>['selectors']; dependencies: AssetGridProps<TAsset>['dependencies'];
-  configuredKindFacets: AssetGridProps<TAsset>['kindFacets']; configuredSourceFacets: AssetGridProps<TAsset>['sourceFacets'];
-  renderThumbnail: AssetGridProps<TAsset>['renderThumbnail']; renderThumbnailPlaceholder: AssetGridProps<TAsset>['renderThumbnailPlaceholder'];
-  renderCardExtra: AssetGridProps<TAsset>['renderCardExtra']; onDeleteAsset: AssetGridProps<TAsset>['onDeleteAsset'];
-  onDeleteSelected: AssetGridProps<TAsset>['onDeleteSelected']; onPreview: AssetGridProps<TAsset>['onPreview'];
-  isPreviewOpen: boolean; searchDebounceMs: AssetGridProps<TAsset>['searchDebounceMs']; liveUpdateCoalesceMs: AssetGridProps<TAsset>['liveUpdateCoalesceMs'];
-  initialViewMode: AssetGridViewMode; useWiredAssetGridDataHook: typeof useWiredAssetGridData; useAssetGridSelectionHook: typeof useAssetGridSelection;
+type AssetsSetter<TAsset> = (update: (prev: TAsset[]) => TAsset[]) => void;
+
+/** Delete flow for the grid: confirm dialog state, the inline error, and the batch/single handlers. */
+function useAssetGridDeletion<TAsset extends AssetGridItem>({ selectedIds, setSelectedIds, setAssets, onDeleteAsset, onDeleteSelected }: {
+  selectedIds: ReadonlySet<string>; setSelectedIds: (ids: Set<string>) => void; setAssets: AssetsSetter<TAsset>;
+  onDeleteAsset: AssetGridProps<TAsset>['onDeleteAsset']; onDeleteSelected: AssetGridProps<TAsset>['onDeleteSelected'];
 }, _options = {}) {
-  const {
-    kind, setKind, source, setSource, search, setSearch,
-    debouncedSearch, filtersActive, kindFacets, sourceFacets, kindFacetLabels, sourceFacetLabels,
-  } = useAssetGridFilters({
-    kindFacets: configuredKindFacets,
-    sourceFacets: configuredSourceFacets,
-    searchDebounceMs,
-  });
-  const [viewMode, setViewMode] = useState<AssetGridViewMode>(initialViewMode);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   /** Message from a delete the host rejected. Rendered inline — see `runDelete`. */
   const [deleteError, setDeleteError] = useState<string | null>(null);
-
-  // `dependencies` (host-supplied, or omitted to fall back to the package's
-  // in-memory fake) is resolved by each wirer independently — neither this
-  // component nor the real `useAssetGridData`/`useAssetGridLiveUpdates`
-  // hooks import `dependencies.ts` themselves.
-  const { assets, setAssets, loading, reload } = useWiredAssetGridDataHook({
-    dependencies,
-    active,
-    kind,
-    source,
-    debouncedSearch,
-    getKind: selectors.getKind,
-    matchesKindFilter: selectors.matchesKindFilter,
-    mapKindToQuery: selectors.mapKindToQuery,
-  });
-
-  useWiredAssetGridLiveUpdates({
-    dependencies,
-    active,
-    filtersActive,
-    setAssets,
-    reload,
-    coalesceMs: liveUpdateCoalesceMs,
-  });
-
-  const { selectedIds, setSelectedIds, toggleOne, rangeTo, selectAll, clearSelection } = useAssetGridSelectionHook(assets);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const { band, dragging, onMouseDown } = useRubberBandDrag({ containerRef, selectedIds, setSelectedIds });
 
   const requestDeleteSelected = useCallback(() => {
     if (selectedIds.size) setConfirmDeleteOpen(true);
@@ -130,32 +90,22 @@ export function useAssetGridView<TAsset extends AssetGridItem>({ active, selecto
       : undefined,
     [onDeleteAsset, setAssets, runDelete],
   );
+  return { requestDeleteSelected, confirmDeleteOpen, setConfirmDeleteOpen, deleteError, confirmDelete, handleDeleteAsset };
+}
 
-  const handlePreview = useCallback(
-    (id: string) => {
-      const asset = assets.find((a) => a.id === id);
-      if (asset) onPreview?.(asset);
-    },
-    [assets, onPreview],
-  );
-
-  useAssetGridKeyboardShortcuts({
-    active,
-    enabled: !confirmDeleteOpen,
-    hasAssets: assets.length > 0,
-    hasSelection: selectedIds.size > 0,
-    isPreviewOpen,
-    onSelectAll: selectAll,
-    onClearSelection: clearSelection,
-    onRequestDeleteSelected: requestDeleteSelected,
-  });
-
-  const getDayKey = useMemo(
-    () => selectors.getDayKey ?? ((asset: TAsset) => dayKeyFromTimestamp(selectors.getTimestamp(asset))),
-    [selectors],
-  );
-
-  const renderCard = useCallback(
+/** Builds the memoised per-asset card renderer. */
+function useAssetCardRenderer<TAsset extends AssetGridItem>({
+  selectors, selectedIds, kindFacetLabels, sourceFacetLabels, renderThumbnail, renderThumbnailPlaceholder,
+  renderCardExtra, onDeleteAsset, handleDeleteAsset, handlePreview, toggleOne, rangeTo,
+}: {
+  selectors: AssetGridProps<TAsset>['selectors']; selectedIds: ReadonlySet<string>;
+  kindFacetLabels: Parameters<typeof resolveFacetLabel>[1]; sourceFacetLabels: Parameters<typeof resolveFacetLabel>[1];
+  renderThumbnail: AssetGridProps<TAsset>['renderThumbnail']; renderThumbnailPlaceholder: AssetGridProps<TAsset>['renderThumbnailPlaceholder'];
+  renderCardExtra: AssetGridProps<TAsset>['renderCardExtra']; onDeleteAsset: AssetGridProps<TAsset>['onDeleteAsset'];
+  handleDeleteAsset: ((id: string) => Promise<void>) | undefined; handlePreview: (id: string) => void;
+  toggleOne: React.ComponentProps<typeof AssetCard>['onToggle']; rangeTo: React.ComponentProps<typeof AssetCard>['onRange'];
+}, _options = {}) {
+  return useCallback(
     (asset: TAsset, index: number) => {
       const kindValue = selectors.getKind(asset);
       const sourceValue = selectors.getSource?.(asset);
@@ -180,20 +130,93 @@ export function useAssetGridView<TAsset extends AssetGridItem>({ active, selecto
       );
     },
     [
-      selectedIds,
-      selectors,
-      kindFacetLabels,
-      sourceFacetLabels,
-      renderThumbnail,
-      renderThumbnailPlaceholder,
-      toggleOne,
-      rangeTo,
-      handlePreview,
-      onDeleteAsset,
-      handleDeleteAsset,
-      renderCardExtra,
+      selectedIds, selectors, kindFacetLabels, sourceFacetLabels, renderThumbnail, renderThumbnailPlaceholder,
+      toggleOne, rangeTo, handlePreview, onDeleteAsset, handleDeleteAsset, renderCardExtra,
     ],
   );
+}
+
+/** Wires the grid's data read and its live-update subscription over the same asset list. */
+function useWiredAssetGridReads<TAsset extends AssetGridItem>({
+  dependencies, active, kind, source, debouncedSearch, filtersActive, selectors, liveUpdateCoalesceMs, useWiredAssetGridDataHook,
+}: {
+  dependencies: AssetGridProps<TAsset>['dependencies']; active: boolean; kind: string; source: string; debouncedSearch: string;
+  filtersActive: boolean; selectors: AssetGridProps<TAsset>['selectors'];
+  liveUpdateCoalesceMs: AssetGridProps<TAsset>['liveUpdateCoalesceMs']; useWiredAssetGridDataHook: typeof useWiredAssetGridData;
+}, _options = {}) {
+  // `dependencies` (host-supplied, or omitted to fall back to the package's
+  // in-memory fake) is resolved by each wirer independently — neither this
+  // component nor the real `useAssetGridData`/`useAssetGridLiveUpdates`
+  // hooks import `dependencies.ts` themselves.
+  const { assets, setAssets, loading, reload } = useWiredAssetGridDataHook({
+    dependencies,
+    active,
+    kind,
+    source,
+    debouncedSearch,
+    getKind: selectors.getKind,
+    matchesKindFilter: selectors.matchesKindFilter,
+    mapKindToQuery: selectors.mapKindToQuery,
+  });
+
+  useWiredAssetGridLiveUpdates({
+    dependencies,
+    active,
+    filtersActive,
+    setAssets,
+    reload,
+    coalesceMs: liveUpdateCoalesceMs,
+  });
+  return { assets, setAssets, loading, reload };
+}
+
+/** Coordinate grid reads, selection, preview, deletion, and per-card rendering. */
+export function useAssetGridView<TAsset extends AssetGridItem>({ active, selectors, dependencies, configuredKindFacets, configuredSourceFacets, renderThumbnail, renderThumbnailPlaceholder, renderCardExtra, onDeleteAsset, onDeleteSelected, onPreview, isPreviewOpen, searchDebounceMs, liveUpdateCoalesceMs, initialViewMode, useWiredAssetGridDataHook, useAssetGridSelectionHook }: {
+  active: boolean; selectors: AssetGridProps<TAsset>['selectors']; dependencies: AssetGridProps<TAsset>['dependencies'];
+  configuredKindFacets: AssetGridProps<TAsset>['kindFacets']; configuredSourceFacets: AssetGridProps<TAsset>['sourceFacets'];
+  renderThumbnail: AssetGridProps<TAsset>['renderThumbnail']; renderThumbnailPlaceholder: AssetGridProps<TAsset>['renderThumbnailPlaceholder'];
+  renderCardExtra: AssetGridProps<TAsset>['renderCardExtra']; onDeleteAsset: AssetGridProps<TAsset>['onDeleteAsset'];
+  onDeleteSelected: AssetGridProps<TAsset>['onDeleteSelected']; onPreview: AssetGridProps<TAsset>['onPreview'];
+  isPreviewOpen: boolean; searchDebounceMs: AssetGridProps<TAsset>['searchDebounceMs']; liveUpdateCoalesceMs: AssetGridProps<TAsset>['liveUpdateCoalesceMs'];
+  initialViewMode: AssetGridViewMode; useWiredAssetGridDataHook: typeof useWiredAssetGridData; useAssetGridSelectionHook: typeof useAssetGridSelection;
+}, _options = {}) {
+  const { kind, setKind, source, setSource, search, setSearch, debouncedSearch, filtersActive, kindFacets, sourceFacets, kindFacetLabels, sourceFacetLabels } =
+    useAssetGridFilters({ kindFacets: configuredKindFacets, sourceFacets: configuredSourceFacets, searchDebounceMs });
+  const [viewMode, setViewMode] = useState<AssetGridViewMode>(initialViewMode);
+  const { assets, setAssets, loading, reload } = useWiredAssetGridReads({
+    dependencies, active, kind, source, debouncedSearch, filtersActive, selectors, liveUpdateCoalesceMs, useWiredAssetGridDataHook,
+  });
+
+  const { selectedIds, setSelectedIds, toggleOne, rangeTo, selectAll, clearSelection } = useAssetGridSelectionHook(assets);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { band, dragging, onMouseDown } = useRubberBandDrag({ containerRef, selectedIds, setSelectedIds });
+
+  const {
+    requestDeleteSelected, confirmDeleteOpen, setConfirmDeleteOpen, deleteError, confirmDelete, handleDeleteAsset,
+  } = useAssetGridDeletion({ selectedIds, setSelectedIds, setAssets, onDeleteAsset, onDeleteSelected });
+
+  const handlePreview = useCallback(
+    (id: string) => {
+      const asset = assets.find((a) => a.id === id);
+      if (asset) onPreview?.(asset);
+    },
+    [assets, onPreview],
+  );
+
+  useAssetGridKeyboardShortcuts({
+    active, enabled: !confirmDeleteOpen, hasAssets: assets.length > 0, hasSelection: selectedIds.size > 0, isPreviewOpen,
+    onSelectAll: selectAll, onClearSelection: clearSelection, onRequestDeleteSelected: requestDeleteSelected,
+  });
+
+  const getDayKey = useMemo(
+    () => selectors.getDayKey ?? ((asset: TAsset) => dayKeyFromTimestamp(selectors.getTimestamp(asset))),
+    [selectors],
+  );
+
+  const renderCard = useAssetCardRenderer({
+    selectors, selectedIds, kindFacetLabels, sourceFacetLabels, renderThumbnail, renderThumbnailPlaceholder,
+    renderCardExtra, onDeleteAsset, handleDeleteAsset, handlePreview, toggleOne, rangeTo,
+  });
 
   return { kind, setKind, source, setSource, search, setSearch, kindFacets, sourceFacets, viewMode, setViewMode, assets, loading, reload, selectedIds, selectAll, clearSelection, containerRef, band, dragging, onMouseDown, requestDeleteSelected, confirmDeleteOpen, setConfirmDeleteOpen, deleteError, getDayKey, renderCard, confirmDelete };
 }

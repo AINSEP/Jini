@@ -185,32 +185,21 @@ export interface StagedTree {
   readonly originalMode: number;
 }
 
-function buildModule(ports: AgentPluginLifecyclePorts) {
-  const randomUUID = () => ports.ids.newId();
-  const { assertContainedOnDisk } = createPackagePathsModule(ports);
-  const rmdir = ports.filesystem.rmdir.bind(ports.filesystem);
-  const chmod = ports.filesystem.chmod.bind(ports.filesystem);
-  const readdir = ports.filesystem.readdir.bind(ports.filesystem);
-  const rename = ports.filesystem.rename.bind(ports.filesystem);
-  const rm = ports.filesystem.rm.bind(ports.filesystem);
-  const stat = ports.filesystem.stat.bind(ports.filesystem);
-  const { deleteAgentPluginActivation, isAgentPluginRecordedAsBundled, resolveAgentPluginActivation } = createActivationModule(ports);
-  const { listInstalledPlugins } = createResolveAgentPluginRefsModule(ports);
-  /** The refusals both entry points share, plus what removal needs. Internal: `matches` carries host
+/** The refusals both entry points share, plus what removal needs. Internal: `matches` carries host
  *  paths (`packageRoot`) and must not reach a preview. */
 interface UninstallTargets {
-    readonly workspaceRoot: string;
+  readonly workspaceRoot: string;
 
-    /** `<workspaceRoot>/packages/sha256` — the parent every staged rename stays inside. */
-    readonly packagesDir: string;
-    readonly matches: readonly InstalledAgentPlugin[];
-  }
+  /** `<workspaceRoot>/packages/sha256` — the parent every staged rename stays inside. */
+  readonly packagesDir: string;
+  readonly matches: readonly InstalledAgentPlugin[];
+}
 
 
 
-  const STAGED_DIRNAME_PREFIX = ".uninstalling-";
+const STAGED_DIRNAME_PREFIX = ".uninstalling-";
 
-  /**
+/**
  * Reports what uninstalling `pluginId` would remove, without removing anything.
  *
  * @throws {AgentPluginNotFoundError} No installed package for `pluginId` exists in this workspace.
@@ -218,16 +207,16 @@ interface UninstallTargets {
  * entry for it (t91 R4).
  * @throws {AgentPluginActivationsUnreadableError} The activation record could not be read at all, so
  * whether it says "bundled" cannot be established — see `activation.ts`'s
- * `isAgentPluginRecordedAsBundled`.
- * @complexity O(d) in this workspace's installed-digest count (one `listInstalledPlugins` walk).
+ * `createActivationModule(ports).isAgentPluginRecordedAsBundled`.
+ * @complexity O(d) in this workspace's installed-digest count (one `createResolveAgentPluginRefsModule(ports).listInstalledPlugins` walk).
  */
-  async function previewAgentPluginUninstall(required: UninstallAgentPluginRequired): Promise<AgentPluginUninstallPreview> {
-    const { matches } = await resolveUninstallTargets(required);
-    const versions = [...new Set(matches.flatMap((plugin) => (plugin.version === undefined ? [] : [plugin.version])))];
-    return { pluginId: required.pluginId, versions, archiveDigests: matches.map((plugin) => plugin.archiveDigest) };
-  }
+async function previewAgentPluginUninstall(ports: AgentPluginLifecyclePorts, required: UninstallAgentPluginRequired): Promise<AgentPluginUninstallPreview> {
+  const { matches } = await resolveUninstallTargets(ports, required);
+  const versions = [...new Set(matches.flatMap((plugin) => (plugin.version === undefined ? [] : [plugin.version])))];
+  return { pluginId: required.pluginId, versions, archiveDigests: matches.map((plugin) => plugin.archiveDigest) };
+}
 
-  /**
+/**
  * Uninstalls one workspace's installed Agent Plugin: removes every installed archive digest for
  * `pluginId` under this workspace's own `packages/sha256/`, then deletes its activation record.
  *
@@ -239,92 +228,92 @@ interface UninstallTargets {
  * @throws {AgentPluginChangedSincePreviewError} `optional.confirmedPreview` was given and the installed digests differ from it.
  * @throws Whatever the filesystem raised, after every staged tree has been put back — or, if a tree
  * could not be put back, an error naming the staged paths an operator must recover by hand.
- * @complexity O(d) in this workspace's installed-digest count (one `listInstalledPlugins` walk) plus
+ * @complexity O(d) in this workspace's installed-digest count (one `createResolveAgentPluginRefsModule(ports).listInstalledPlugins` walk) plus
  * O(f) in the total file count under the matching digest(s) being removed.
  */
-  async function uninstallAgentPlugin(required: UninstallAgentPluginRequired, optional: UninstallAgentPluginOptional = {}): Promise<UninstallAgentPluginResult> {
-    const workspaceRoot = required.layout.forWorkspace({ workspaceId: required.workspaceId }).root;
-    return createPersistentStateModule(ports).withPluginLock({ workspaceRoot, pluginId: required.pluginId,
-      run: () => uninstallAgentPluginUnlocked(required, optional) });
+async function uninstallAgentPlugin(ports: AgentPluginLifecyclePorts, required: UninstallAgentPluginRequired, optional: UninstallAgentPluginOptional = {}): Promise<UninstallAgentPluginResult> {
+  const workspaceRoot = required.layout.forWorkspace({ workspaceId: required.workspaceId }).root;
+  return createPersistentStateModule(ports).withPluginLock({ workspaceRoot, pluginId: required.pluginId,
+    run: () => uninstallAgentPluginUnlocked(ports, required, optional) });
+}
+
+async function uninstallAgentPluginUnlocked(ports: AgentPluginLifecyclePorts, 
+  required: UninstallAgentPluginRequired,
+  optional: UninstallAgentPluginOptional = {},
+): Promise<UninstallAgentPluginResult> {
+  const { workspaceRoot, packagesDir, matches } = await resolveUninstallTargets(ports, required, optional.retiredBundled === true);
+  assertUnchangedSincePreview(required.pluginId, optional.confirmedPreview, matches);
+  assertMemoryDeletionConfirmed(required, optional);
+  // An unfinished update journal would make boot recovery resurrect the old revision over this
+  // uninstall, so it refuses (PLUGIN_UPDATE_PENDING) until a boot recovers it. The store resolves
+  // paths from this call's own layout, like every other path here.
+  const updates = createAgentPluginUpdateStore({ ports: { ...ports, layout: required.layout }, workspaceId: required.workspaceId, pluginId: required.pluginId });
+  await settleAgentPluginUpdateJournal({ store: updates });
+
+  const staged = await stageAndDeleteActivation(ports, { workspaceRoot, packagesDir, pluginId: required.pluginId, matches });
+
+  // Past this point the live state is already settled: the packages are no longer reachable under
+  // any installed-digest name and the activation record is gone. These removes are the only
+  // irreversible step, and nothing observable depends on them finishing.
+  for (const tree of staged) {
+    await removeFrozenPackageTree(ports, tree.quarantined);
   }
 
-  async function uninstallAgentPluginUnlocked(
-    required: UninstallAgentPluginRequired,
-    optional: UninstallAgentPluginOptional = {},
-  ): Promise<UninstallAgentPluginResult> {
-    const { workspaceRoot, packagesDir, matches } = await resolveUninstallTargets(required, optional.retiredBundled === true);
-    assertUnchangedSincePreview(required.pluginId, optional.confirmedPreview, matches);
-    assertMemoryDeletionConfirmed(required, optional);
-    // An unfinished update journal would make boot recovery resurrect the old revision over this
-    // uninstall, so it refuses (PLUGIN_UPDATE_PENDING) until a boot recovers it. The store resolves
-    // paths from this call's own layout, like every other path here.
-    const updates = createAgentPluginUpdateStore({ ports: { ...ports, layout: required.layout }, workspaceId: required.workspaceId, pluginId: required.pluginId });
-    await settleAgentPluginUpdateJournal({ store: updates });
+  await removeEmptyPackageAncestors(ports, { packagesDir });
+  if (optional.deleteMemory) await deletePersistentMemory(ports, { ...required, workspaceRoot });
+  return { pluginId: required.pluginId, removedDigests: matches.map((plugin) => plugin.archiveDigest) };
+}
 
-    const staged = await stageAndDeleteActivation({ workspaceRoot, packagesDir, pluginId: required.pluginId, matches });
+function assertMemoryDeletionConfirmed(required: UninstallAgentPluginRequired, optional: UninstallAgentPluginOptional): void {
+  if (optional.deleteMemory && optional.confirmedPreview?.pluginId !== required.pluginId) {
+    throw new Error('Deleting plugin memory requires a confirmed preview for this plugin');
+  }
+}
 
-    // Past this point the live state is already settled: the packages are no longer reachable under
-    // any installed-digest name and the activation record is gone. These removes are the only
-    // irreversible step, and nothing observable depends on them finishing.
-    for (const tree of staged) {
-      await removeFrozenPackageTree(tree.quarantined);
+/** Reversible work first — see this file's header, "Why removal stages first". Nothing in here is
+ *  destructive: every step up to and including the activation-record delete can be undone by
+ *  renaming the staged trees back where they came from. */
+async function stageAndDeleteActivation(ports: AgentPluginLifecyclePorts, required: {
+  readonly workspaceRoot: string;
+  readonly packagesDir: string;
+  readonly pluginId: string;
+  readonly matches: readonly InstalledAgentPlugin[];
+}): Promise<readonly StagedTree[]> {
+  const staged: StagedTree[] = [];
+  try {
+    for (const plugin of required.matches) {
+      staged.push(await stageForRemoval(ports, required.packagesDir, plugin.packageRoot));
     }
-
-    await removeEmptyPackageAncestors({ packagesDir });
-    if (optional.deleteMemory) await deletePersistentMemory({ ...required, workspaceRoot });
-    return { pluginId: required.pluginId, removedDigests: matches.map((plugin) => plugin.archiveDigest) };
+    await createActivationModule(ports).deleteAgentPluginActivation({ workspaceRoot: required.workspaceRoot, pluginId: required.pluginId });
+  } catch (error) {
+    throw await restoreStagedTrees(ports, staged, error);
   }
+  return staged;
+}
 
-  function assertMemoryDeletionConfirmed(required: UninstallAgentPluginRequired, optional: UninstallAgentPluginOptional): void {
-    if (optional.deleteMemory && optional.confirmedPreview?.pluginId !== required.pluginId) {
-      throw new Error('Deleting plugin memory requires a confirmed preview for this plugin');
+/** Remove only empty package ancestors: a concurrently-installed digest must never be deleted. */
+async function removeEmptyPackageAncestors(ports: AgentPluginLifecyclePorts, required: { readonly packagesDir: string }): Promise<void> {
+  for (const directory of [required.packagesDir, path.dirname(required.packagesDir)]) {
+    try { await ports.filesystem.rmdir(directory); } catch (error) {
+      if (!isAncestorStillInUse(error)) throw error;
     }
   }
+}
 
-  /** Reversible work first — see this file's header, "Why removal stages first". Nothing in here is
-   *  destructive: every step up to and including the activation-record delete can be undone by
-   *  renaming the staged trees back where they came from. */
-  async function stageAndDeleteActivation(required: {
-    readonly workspaceRoot: string;
-    readonly packagesDir: string;
-    readonly pluginId: string;
-    readonly matches: readonly InstalledAgentPlugin[];
-  }): Promise<readonly StagedTree[]> {
-    const staged: StagedTree[] = [];
-    try {
-      for (const plugin of required.matches) {
-        staged.push(await stageForRemoval(required.packagesDir, plugin.packageRoot));
-      }
-      await deleteAgentPluginActivation({ workspaceRoot: required.workspaceRoot, pluginId: required.pluginId });
-    } catch (error) {
-      throw await restoreStagedTrees(staged, error);
-    }
-    return staged;
-  }
+function isAncestorStillInUse(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && ['ENOENT', 'ENOTEMPTY', 'EEXIST'].includes(String(error.code));
+}
 
-  /** Remove only empty package ancestors: a concurrently-installed digest must never be deleted. */
-  async function removeEmptyPackageAncestors(required: { readonly packagesDir: string }): Promise<void> {
-    for (const directory of [required.packagesDir, path.dirname(required.packagesDir)]) {
-      try { await rmdir(directory); } catch (error) {
-        if (!isAncestorStillInUse(error)) throw error;
-      }
-    }
-  }
+/** No package may have appeared since this uninstall's preview. Preserve it on a race. */
+async function deletePersistentMemory(ports: AgentPluginLifecyclePorts, required: UninstallAgentPluginRequired & { readonly workspaceRoot: string }): Promise<void> {
+  const { workspaceRoot, pluginId } = required;
+  const pluginRoot = required.layout.forWorkspace({ workspaceId: required.workspaceId }).pluginRootDir({ pluginId });
+  await createPackagePathsModule(ports).assertContainedOnDisk(workspaceRoot, path.relative(workspaceRoot, pluginRoot));
+  if ((await createResolveAgentPluginRefsModule(ports).listInstalledPlugins(workspaceRoot)).some(plugin => plugin.pluginId === pluginId)) throw new Error('Plugin was reinstalled during uninstall; persistent memory was kept');
+  await ports.filesystem.rm(pluginRoot, { recursive: true, force: true });
+}
 
-  function isAncestorStillInUse(error: unknown): boolean {
-    return typeof error === 'object' && error !== null && 'code' in error && ['ENOENT', 'ENOTEMPTY', 'EEXIST'].includes(String(error.code));
-  }
-
-  /** No package may have appeared since this uninstall's preview. Preserve it on a race. */
-  async function deletePersistentMemory(required: UninstallAgentPluginRequired & { readonly workspaceRoot: string }): Promise<void> {
-    const { workspaceRoot, pluginId } = required;
-    const pluginRoot = required.layout.forWorkspace({ workspaceId: required.workspaceId }).pluginRootDir({ pluginId });
-    await assertContainedOnDisk(workspaceRoot, path.relative(workspaceRoot, pluginRoot));
-    if ((await listInstalledPlugins(workspaceRoot)).some(plugin => plugin.pluginId === pluginId)) throw new Error('Plugin was reinstalled during uninstall; persistent memory was kept');
-    await rm(pluginRoot, { recursive: true, force: true });
-  }
-
-  /**
+/**
  * Refuses when the digests resolved now are not exactly the set a confirmed preview listed — an archive added
  * OR removed for this id while the dialog was open. Runs in the same call that stages the removal, so it opens
  * no new check-then-act gap of its own.
@@ -332,72 +321,72 @@ interface UninstallTargets {
  * @throws {AgentPluginChangedSincePreviewError} The two digest sets differ.
  * @complexity O(d log d) in the digest count.
  */
-  function assertUnchangedSincePreview(
-    pluginId: string,
-    confirmedPreview: AgentPluginUninstallPreview | undefined,
-    matches: readonly InstalledAgentPlugin[],
-  ): void {
-    if (confirmedPreview === undefined) return;
-    const previewed = [...confirmedPreview.archiveDigests].sort();
-    const installedNow = matches.map((plugin) => plugin.archiveDigest).sort();
-    if (previewed.join(",") === installedNow.join(",")) return;
-    throw new AgentPluginChangedSincePreviewError({ message: `Agent Plugin '${pluginId}' changed after its uninstall was previewed (previewed archive digests: ${previewed.join(", ")}; ` +
-        `installed now: ${installedNow.join(", ")}) — nothing was removed` });
-  }
+function assertUnchangedSincePreview(
+  pluginId: string,
+  confirmedPreview: AgentPluginUninstallPreview | undefined,
+  matches: readonly InstalledAgentPlugin[],
+): void {
+  if (confirmedPreview === undefined) return;
+  const previewed = [...confirmedPreview.archiveDigests].sort();
+  const installedNow = matches.map((plugin) => plugin.archiveDigest).sort();
+  if (previewed.join(",") === installedNow.join(",")) return;
+  throw new AgentPluginChangedSincePreviewError({ message: `Agent Plugin '${pluginId}' changed after its uninstall was previewed (previewed archive digests: ${previewed.join(", ")}; ` +
+      `installed now: ${installedNow.join(", ")}) — nothing was removed` });
+}
 
-  /**
+/**
  * Renames one package root aside, inside its own parent directory, so removing it becomes
  * reversible. Unfreezes the root directory itself first — a frozen directory cannot be renamed at
- * all (see this file's header) — and re-freezes it if the rename fails, so a package this function
+ * all (see this file's header) — and re-freezes it if the ports.filesystem.rename fails, so a package this function
  * could not stage is left exactly as it found it.
  *
- * @complexity One `stat`, one or two `chmod`s, one `rename`.
+ * @complexity One `ports.filesystem.stat`, one or two `ports.filesystem.chmod`s, one `ports.filesystem.rename`.
  */
-  async function stageForRemoval(packagesDir: string, packageRoot: string, optional: { quarantined?: string } = {}): Promise<StagedTree> {
-    // Updates choose a journaled destination outside packages/sha256; uninstall keeps its sibling
-    // destination and same-filesystem guarantee documented above. Both retain the same move owner.
-    const quarantined = optional.quarantined ?? path.join(packagesDir, `${STAGED_DIRNAME_PREFIX}${randomUUID()}`);
-    const originalMode = (await stat(packageRoot)).mode & 0o777;
+async function stageForRemoval(ports: AgentPluginLifecyclePorts, packagesDir: string, packageRoot: string, optional: { quarantined?: string } = {}): Promise<StagedTree> {
+  // Updates choose a journaled destination outside packages/sha256; uninstall keeps its sibling
+  // destination and same-filesystem guarantee documented above. Both retain the same move owner.
+  const quarantined = optional.quarantined ?? path.join(packagesDir, `${STAGED_DIRNAME_PREFIX}${(() => ports.ids.newId())()}`);
+  const originalMode = (await ports.filesystem.stat(packageRoot)).mode & 0o777;
 
-    await chmod(packageRoot, originalMode | 0o700);
-    try {
-      await rename(packageRoot, quarantined);
-    } catch (error) {
-      await chmod(packageRoot, originalMode).catch(() => undefined);
-      throw error;
-    }
-
-    return { quarantined, original: packageRoot, originalMode };
+  await ports.filesystem.chmod(packageRoot, originalMode | 0o700);
+  try {
+    await ports.filesystem.rename(packageRoot, quarantined);
+  } catch (error) {
+    await ports.filesystem.chmod(packageRoot, originalMode).catch(() => undefined);
+    throw error;
   }
 
-  /**
+  return { quarantined, original: packageRoot, originalMode };
+}
+
+/**
  * Puts every staged tree back, newest first, and returns the error `uninstallAgentPlugin` should
  * throw: `cause` when everything was restored, or — when some tree could not be — an error naming
  * the staged paths, since those directories hold the only remaining copy of that package.
  *
  * @complexity O(s) renames in the staged-tree count.
  */
-  async function restoreStagedTrees(staged: readonly StagedTree[], cause: unknown): Promise<unknown> {
-    const stranded: string[] = [];
-    for (const tree of [...staged].reverse()) {
-      try {
-        await rename(tree.quarantined, tree.original);
-        await chmod(tree.original, tree.originalMode).catch(() => undefined);
-      } catch {
-        stranded.push(tree.quarantined);
-      }
+async function restoreStagedTrees(ports: AgentPluginLifecyclePorts, staged: readonly StagedTree[], cause: unknown): Promise<unknown> {
+  const stranded: string[] = [];
+  for (const tree of [...staged].reverse()) {
+    try {
+      await ports.filesystem.rename(tree.quarantined, tree.original);
+      await ports.filesystem.chmod(tree.original, tree.originalMode).catch(() => undefined);
+    } catch {
+      stranded.push(tree.quarantined);
     }
-    if (stranded.length === 0) return cause;
-
-    const reason = cause instanceof Error ? cause.message : String(cause);
-    return new Error(
-      `Agent Plugin uninstall failed (${reason}) and ${stranded.length} package tree(s) could not be put back. ` +
-        `They still hold the package bytes and were left in place for recovery: ${stranded.join(", ")}`,
-      { cause },
-    );
   }
+  if (stranded.length === 0) return cause;
 
-  /**
+  const reason = cause instanceof Error ? cause.message : String(cause);
+  return new Error(
+    `Agent Plugin uninstall failed (${reason}) and ${stranded.length} package tree(s) could not be put back. ` +
+      `They still hold the package bytes and were left in place for recovery: ${stranded.join(", ")}`,
+    { cause },
+  );
+}
+
+/**
  * Finds `pluginId`'s installed digests in this workspace and applies both refusals.
  *
  * @throws {AgentPluginNotFoundError} No match on disk.
@@ -414,85 +403,94 @@ interface UninstallTargets {
 // `enabled`), which says nothing about provenance. The gate reads that entry as `undetermined` and denies; an
 // uninstall does the same rather than remove what may be a bundled plugin the next boot re-seeds (t91 R4). A
 // file that became unreadable between the two reads also lands here, and is refused the same way.
-  async function resolveUninstallTargets(required: UninstallAgentPluginRequired, retiredBundled = false): Promise<UninstallTargets> {
-    const { layout, workspaceId, pluginId } = required;
+async function resolveUninstallTargets(ports: AgentPluginLifecyclePorts, required: UninstallAgentPluginRequired, retiredBundled = false): Promise<UninstallTargets> {
+  const { layout, workspaceId, pluginId } = required;
 
-    const workspaceLayout = layout.forWorkspace({ workspaceId });
+  const workspaceLayout = layout.forWorkspace({ workspaceId });
 
-    const installed = await listInstalledPlugins(workspaceLayout.root);
-    const matches = installed.filter((plugin) => plugin.pluginId === pluginId);
-    if (matches.length === 0) {
-      throw new AgentPluginNotFoundError({ message: `Agent Plugin '${pluginId}' is not installed in this workspace — nothing to uninstall` });
-    }
-
-    if (!retiredBundled && (await isAgentPluginRecordedAsBundled(workspaceLayout.root, pluginId))) {
-      throw new AgentPluginNotUninstallableError({ message: bundledRefusalMessage(pluginId) });
-    }
-
-    if ((await resolveAgentPluginActivation(workspaceLayout.root, pluginId)).verdict === "undetermined") {
-      throw new AgentPluginNotUninstallableError({ message: malformedEntryRefusalMessage(pluginId) });
-    }
-
-    return { workspaceRoot: workspaceLayout.root, packagesDir: workspaceLayout.pluginPackagesDir({ pluginId }), matches };
+  const installed = await createResolveAgentPluginRefsModule(ports).listInstalledPlugins(workspaceLayout.root);
+  const matches = installed.filter((plugin) => plugin.pluginId === pluginId);
+  if (matches.length === 0) {
+    throw new AgentPluginNotFoundError({ message: `Agent Plugin '${pluginId}' is not installed in this workspace — nothing to uninstall` });
   }
 
-  /** Names the levers that do work for a bundled plugin — see this file's header, item 2. */
-  function bundledRefusalMessage(pluginId: string): string {
-    return (
-      `Agent Plugin '${pluginId}' is bundled with ${ports.productName} and cannot be uninstalled — it is re-seeded on every boot ` +
-      "(seed-bundled.ts), so removing its files now would silently reappear on the next restart. To stop it being " +
-      (ports.formatBundledUninstallRecovery?.({ pluginId }, {}) ?? "used, disable it through the host's activation control.")
-    );
+  if (!retiredBundled && (await createActivationModule(ports).isAgentPluginRecordedAsBundled(workspaceLayout.root, pluginId))) {
+    throw new AgentPluginNotUninstallableError({ message: bundledRefusalMessage(ports, pluginId) });
   }
 
-  /** Path-free: says why provenance is unknown and what repairs it. Does not suggest toggling the plugin, which would
+  if ((await createActivationModule(ports).resolveAgentPluginActivation(workspaceLayout.root, pluginId)).verdict === "undetermined") {
+    throw new AgentPluginNotUninstallableError({ message: malformedEntryRefusalMessage(ports, pluginId) });
+  }
+
+  return { workspaceRoot: workspaceLayout.root, packagesDir: workspaceLayout.pluginPackagesDir({ pluginId }), matches };
+}
+
+/** Names the levers that do work for a bundled plugin — see this file's header, item 2. */
+function bundledRefusalMessage(ports: AgentPluginLifecyclePorts, pluginId: string): string {
+  return (
+    `Agent Plugin '${pluginId}' is bundled with ${ports.productName} and cannot be uninstalled — it is re-seeded on every boot ` +
+    "(seed-bundled.ts), so removing its files now would silently reappear on the next restart. To stop it being " +
+    (ports.formatBundledUninstallRecovery?.({ pluginId }, {}) ?? "used, disable it through the host's activation control.")
+  );
+}
+
+/** Path-free: says why provenance is unknown and what repairs it. Does not suggest toggling the plugin, which would
  *  rewrite a garbled bundled entry as `operator-installed`. */
-  function malformedEntryRefusalMessage(pluginId: string): string {
-    return (
-      `Agent Plugin '${pluginId}' cannot be uninstalled: its entry in this workspace's activation record is malformed, so ` +
-      `whether it is bundled with ${ports.productName} (and would be re-seeded on the next boot) cannot be established. Nothing was ` +
-      "removed. Tell the user an operator has to repair that entry in activations.json first; until then this " +
-      "plugin's tool calls and plugin-pinned runs are refused."
-    );
-  }
+function malformedEntryRefusalMessage(ports: AgentPluginLifecyclePorts, pluginId: string): string {
+  return (
+    `Agent Plugin '${pluginId}' cannot be uninstalled: its entry in this workspace's activation record is malformed, so ` +
+    `whether it is bundled with ${ports.productName} (and would be re-seeded on the next boot) cannot be established. Nothing was ` +
+    "removed. Tell the user an operator has to repair that entry in activations.json first; until then this " +
+    "plugin's tool calls and plugin-pinned runs are refused."
+  );
+}
 
-  /**
+/**
  * Restores write permission through `root`'s whole tree, then removes it — the production
  * counterpart of `__tests__/fixtures/force-remove.ts` (that file's own header explains why a plain
- * recursive `rm` cannot work here: `install.ts`'s `freezeTree` leaves every directory `0o555`).
+ * recursive `ports.filesystem.rm` cannot work here: `install.ts`'s `freezeTree` leaves every directory `0o555`).
  * Deliberately not shared code with that test fixture: the fixture is intentionally test-only and
  * this is the first production need for the same operation, not a refactor opportunity forced by it.
  *
  * @complexity O(f) in the file/directory count under `root`.
  */
-  async function removeFrozenPackageTree(root: string): Promise<void> {
-    await makeTreeWritable(root);
-    await rm(root, { recursive: true, force: true });
+async function removeFrozenPackageTree(ports: AgentPluginLifecyclePorts, root: string): Promise<void> {
+  await makeTreeWritable(ports, root);
+  await ports.filesystem.rm(root, { recursive: true, force: true });
+}
+
+async function makeTreeWritable(ports: AgentPluginLifecyclePorts, dir: string): Promise<void> {
+  let entries: Dirent[];
+  try {
+    entries = await ports.filesystem.readdir(dir, { withFileTypes: true });
+  } catch {
+    return;
   }
 
-  async function makeTreeWritable(dir: string): Promise<void> {
-    let entries: Dirent[];
-    try {
-      entries = await readdir(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-
-    await chmod(dir, 0o700).catch(() => undefined);
-    for (const entry of entries) {
-      // Dirents are lstat-typed: a link is removed by `rm`, never followed, since chmod through it
-      // would change the mode of whatever it points at, even outside the package.
-      if (entry.isSymbolicLink()) continue;
-      const absolute = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        await makeTreeWritable(absolute);
-      } else {
-        await chmod(absolute, 0o600).catch(() => undefined);
-      }
+  await ports.filesystem.chmod(dir, 0o700).catch(() => undefined);
+  for (const entry of entries) {
+    // Dirents are lstat-typed: a link is removed by `ports.filesystem.rm`, never followed, since ports.filesystem.chmod through it
+    // would change the mode of whatever it points at, even outside the package.
+    if (entry.isSymbolicLink()) continue;
+    const absolute = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      await makeTreeWritable(ports, absolute);
+    } else {
+      await ports.filesystem.chmod(absolute, 0o600).catch(() => undefined);
     }
   }
+}
 
-  return { previewAgentPluginUninstall, uninstallAgentPlugin, stageForRemoval, restoreStagedTrees, removeFrozenPackageTree };
+type WithoutPorts<F> = F extends (ports: never, ...rest: infer R) => unknown ? R : never;
+
+function buildModule(ports: AgentPluginLifecyclePorts) {
+  return {
+    previewAgentPluginUninstall: (...args: WithoutPorts<typeof previewAgentPluginUninstall>) => previewAgentPluginUninstall(ports, ...args),
+    uninstallAgentPlugin: (...args: WithoutPorts<typeof uninstallAgentPlugin>) => uninstallAgentPlugin(ports, ...args),
+    stageForRemoval: (...args: WithoutPorts<typeof stageForRemoval>) => stageForRemoval(ports, ...args),
+    restoreStagedTrees: (...args: WithoutPorts<typeof restoreStagedTrees>) => restoreStagedTrees(ports, ...args),
+    removeFrozenPackageTree: (...args: WithoutPorts<typeof removeFrozenPackageTree>) => removeFrozenPackageTree(ports, ...args),
+  };
 }
 
 const instances = new WeakMap<AgentPluginLifecyclePorts, ReturnType<typeof buildModule>>();

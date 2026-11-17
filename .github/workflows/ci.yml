@@ -71,6 +71,12 @@ jobs:
       # which ones can skip it.
       - run: pnpm -r run build
 
+      # Public-API surface vs api-baseline/ (see scripts/check-api-surface.ts): fails only when a package
+      # removed/renamed an export or exports subpath with no pending major/minor changeset for it.
+      # After an intentional change run `pnpm api:update` and commit api-baseline/.
+      - name: api surface (removed exports need a major/minor changeset)
+        run: pnpm api:check
+
       - name: guard (ratcheted against scripts/guard-baseline.json — see that file and check-guard-drift.ts)
         id: guard
         env:

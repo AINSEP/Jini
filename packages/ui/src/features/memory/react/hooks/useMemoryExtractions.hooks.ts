@@ -38,18 +38,11 @@ export interface MemoryExtractionsController {
   clearExtractions: () => Promise<void>;
 }
 
-export function useMemoryExtractions(port: MemoryExtractionsPort): MemoryExtractionsController {
-  // Recent extraction attempts, newest first — a render mirror of the
-  // store's rows. All mutation logic lives in the store (see its docs).
-  const [extractions, setExtractions] = useState<MemoryExtractionRecord[]>([]);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const storeRef = useRef<ExtractionHistoryStore | null>(null);
-  // `setExtractions` is stable, so creating the store once on first render
-  // keeps store state and the rendered rows resolved together.
-  if (!storeRef.current) storeRef.current = createExtractionHistoryStore(setExtractions);
-  const store = storeRef.current;
+type SetLoadError = (error: string | null) => void;
 
+/** Commit-guarded reload of the history; returns the rows that actually committed. */
+function useExtractionReload(port: MemoryExtractionsPort, store: ExtractionHistoryStore, setLoadError: SetLoadError) {
+  const [isRefreshing, setIsRefreshing] = useState(false);
   // Orders reloadExtractions() against itself (rule A, via the slice's
   // shared primitive): two overlapping reloads race two INDEPENDENT server
   // reads, so resolution order says nothing about freshness — only call
@@ -104,15 +97,13 @@ export function useMemoryExtractions(port: MemoryExtractionsPort): MemoryExtract
       setLoadError(LOAD_ERROR_MESSAGE);
       return store.rows();
     }
-  }, [port, store]);
+  }, [port, store, setLoadError]);
 
-  const applyExtractionEvent = useCallback(
-    (ev: MemoryExtractionEvent) => {
-      store.applyFrame(ev);
-    },
-    [store],
-  );
+  return { isRefreshing, reloadExtractions };
+}
 
+/** Optimistic delete-one / clear-all, each recovering server truth on failure. */
+function useExtractionMutations(port: MemoryExtractionsPort, store: ExtractionHistoryStore, setLoadError: SetLoadError) {
   const onDeleteExtraction = useCallback(
     async (id: string) => {
       // Optimistic removal: drop the row immediately so the click feels
@@ -148,7 +139,7 @@ export function useMemoryExtractions(port: MemoryExtractionsPort): MemoryExtract
         setLoadError(LOAD_ERROR_MESSAGE);
       }
     },
-    [port, store],
+    [port, store, setLoadError],
   );
 
   const clearExtractions = useCallback(async () => {
@@ -173,8 +164,34 @@ export function useMemoryExtractions(port: MemoryExtractionsPort): MemoryExtract
       store.restoreIfUnchanged(token);
       setLoadError(LOAD_ERROR_MESSAGE);
     }
-  }, [port, store]);
+  }, [port, store, setLoadError]);
 
+  return { onDeleteExtraction, clearExtractions };
+}
+
+/** Wall clock ticking every 30s so relative ages re-render. */
+function useNowClock() {
+  const [nowClock, setNowClock] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowClock(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  return nowClock;
+}
+
+export function useMemoryExtractions(port: MemoryExtractionsPort): MemoryExtractionsController {
+  // Recent extraction attempts, newest first — a render mirror of the
+  // store's rows. All mutation logic lives in the store (see its docs).
+  const [extractions, setExtractions] = useState<MemoryExtractionRecord[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const storeRef = useRef<ExtractionHistoryStore | null>(null);
+  // `setExtractions` is stable, so creating the store once on first render
+  // keeps store state and the rendered rows resolved together.
+  if (!storeRef.current) storeRef.current = createExtractionHistoryStore(setExtractions);
+  const store = storeRef.current;
+  const { isRefreshing, reloadExtractions } = useExtractionReload(port, store, setLoadError);
+  const mutations = useExtractionMutations(port, store, setLoadError);
+  const applyExtractionEvent = useCallback((ev: MemoryExtractionEvent) => store.applyFrame(ev), [store]);
   // The "no API key" banner only shows when the most recent attempt skipped
   // for that specific reason. We don't show it for memory-disabled (the
   // user's own toggle) or empty-message (a routine no-op on tool-only turns).
@@ -182,13 +199,7 @@ export function useMemoryExtractions(port: MemoryExtractionsPort): MemoryExtract
     const latest = extractions[0];
     return Boolean(latest && latest.phase === 'skipped' && latest.reason === 'no-provider');
   }, [extractions]);
-
-  const [nowClock, setNowClock] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNowClock(Date.now()), 30_000);
-    return () => clearInterval(id);
-  }, []);
-
+  const nowClock = useNowClock();
   const connectorExtractions = useMemo(() => extractions.filter((record) => record.kind === 'connector'), [extractions]);
 
   return {
@@ -200,8 +211,7 @@ export function useMemoryExtractions(port: MemoryExtractionsPort): MemoryExtract
     connectorExtractions,
     reloadExtractions,
     applyExtractionEvent,
-    onDeleteExtraction,
-    clearExtractions,
+    ...mutations,
   };
 }
 

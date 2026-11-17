@@ -132,10 +132,13 @@ export interface StandingDraftAutosaveController {
    * ordering guarantee that keeps a late autosave from resurrecting content a real save (or an
    * explicit discard) just superseded.
    *
-   * Resolves `discarded: false` when the server refused or could not be reached; the banner and the
-   * local copy are already gone, so the caller tells the person the draft may come back.
+   * Resolves `discarded: false` when the server refused or could not be reached. By default the
+   * banner and the local copy are already gone, so the caller tells the person the draft may come
+   * back. With `keepOnFailure` (the recovered-draft Discard button) the banner, the local copy and
+   * the stale gate stay until the server confirms, so a failed discard never hides a draft that is
+   * still there and the person can retry.
    */
-  clearStandingDraft: () => Promise<{ discarded: boolean }>;
+  clearStandingDraft: (required?: Record<string, never>, optional?: { keepOnFailure?: boolean }) => Promise<{ discarded: boolean }>;
   /**
    * The caller replaced its basis with a newer saved row it did not write itself (an assistant
    * write applied by `use-external-entry-refresh.hooks.ts`, silently or through Load latest). Every
@@ -430,19 +433,20 @@ export function useStandingDraftAutosave(deps: StandingDraftAutosaveOptions, _op
     };
   }, [enabled, entryId, flushPendingAutosave]);
 
-  const clearStandingDraft = useCallback(async () => {
+  const clearStandingDraft = useCallback(async (_required: Record<string, never> = {}, { keepOnFailure = false }: { keepOnFailure?: boolean } = {}) => {
     // A late 401/refusal must not resurrect a draft a successful Save or Discard superseded.
-    backupGenerationRef.current++;
-    clearPendingTimer();
-    setRecoverableDraft(null);
+    backupGenerationRef.current++; clearPendingTimer();
+    // keepOnFailure holds the banner and the local copy until the server confirms the discard.
     // A real Save landed (or the operator discarded): whatever was refused is superseded, so the
     // gate lifts and the mirror goes with it — otherwise the next mount would offer a ghost. This
     // is also the ONLY thing that clears a mirror the operator has already been shown and chose to
     // discard, since by then the gate that wrote it belongs to a previous mount.
-    liftStaleGate();
-    dropLocalBackup();
+    const settleLocally = () => { setRecoverableDraft(null); liftStaleGate(); dropLocalBackup(); };
+    if (!keepOnFailure || !entryId) settleLocally();
     if (!entryId) return { discarded: true };
-    return discardOnServer({ enqueue, port, entryId });
+    const outcome = await discardOnServer({ enqueue, port, entryId });
+    if (keepOnFailure && outcome.discarded) settleLocally();
+    return outcome;
   }, [clearPendingTimer, dropLocalBackup, enqueue, entryId, liftStaleGate, port]);
 
   const dismissRecoverable = useCallback(() => setRecoverableDraft(null), []);

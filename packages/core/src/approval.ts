@@ -104,6 +104,18 @@ export interface ApprovalSteps<TPrepared, TDescription> {
   notConfirmed(required: { reason: 'declined' | 'expired' | 'abandoned'; prepared?: TPrepared | undefined }): unknown;
 }
 
+/** Detach the input and actor identity so no later mutation by the caller reaches the approval. */
+function detachToolContext({ ctx }: { ctx: ToolExecutionContext }): ToolExecutionContext {
+  return { ...ctx, input: structuredClone(ctx.input), principal: { ...ctx.principal }, run: { ...ctx.run } };
+}
+
+/** Access plans carry a resource list the host renders; snapshot it so it cannot drift after review. */
+function detachApprovalPlan<TDescription>({ plan }: { plan: ApprovalPlan<TDescription> }): ApprovalPlan<TDescription> {
+  return plan.kind === 'access'
+    ? { ...structuredClone(plan), access: snapshotAccessApproval({ access: plan.access }) }
+    : plan;
+}
+
 /** Extend the branded human-confirm owner with descriptions and optional remembered grants.
  * Inputs and actor identity are detached before any asynchronous port runs. No input field can
  * approve an action; only the host transport or the bound grant store can answer. Abort checks
@@ -142,15 +154,12 @@ export function createApprovalHandler<TPrepared, TDescription>(
 
   return humanConfirmedHandler<Prepared>({
     prepare: async ({ ctx }, options = {}) => {
-      const snapshot = { ...ctx, input: structuredClone(ctx.input), principal: { ...ctx.principal }, run: { ...ctx.run } };
+      const snapshot = detachToolContext({ ctx });
       if (snapshot.signal.aborted) return { ctx: snapshot };
       const value = await steps.prepare({ ctx: snapshot }, options);
       if (snapshot.signal.aborted) return { ctx: snapshot, value };
       const description = await steps.describe({ ctx: snapshot, prepared: value }, options);
-      const plan = description.kind === 'access'
-        ? { ...structuredClone(description), access: snapshotAccessApproval({ access: description.access }) }
-        : description;
-      return { ctx: snapshot, value, plan };
+      return { ctx: snapshot, value, plan: detachApprovalPlan({ plan: description }) };
     },
     askHuman: async ({ prepared }, options = {}) => {
       const { ctx, plan } = prepared;
@@ -190,6 +199,25 @@ export function createPreparedBatchHandler<TPrepared>(
   }, combineDescriptions: () => undefined }, options);
 }
 
+/** Expand `items` into one context per item (shared fields as defaults), validating cap, nesting and duplicates. */
+function expandBatchContexts(
+  { ctx, input, maxItems }: { ctx: ToolExecutionContext; input: ReturnType<typeof requireInputRecord>; maxItems: number },
+): ToolExecutionContext[] {
+  const { items, ...defaults } = input;
+  if (!Array.isArray(items) || items.length < 1 || items.length > maxItems) {
+    throw new ToolInputError({ message: `items must contain between 1 and ${maxItems} inputs.` });
+  }
+  const contexts = items.map(item => {
+    const fields = requireInputRecord({ input: item });
+    if (Object.hasOwn(fields, 'items')) throw new ToolInputError({ message: 'Nested items batches are not supported.' });
+    return { ...ctx, input: { ...defaults, ...fields } };
+  });
+  // These boundary inputs are records; sorting their keys also catches reordered scalar ids.
+  const keys = contexts.map(({ input: itemInput }) => JSON.stringify(Object.entries(itemInput).sort(([a], [b]) => a.localeCompare(b))));
+  if (new Set(keys).size !== keys.length) throw new ToolInputError({ message: 'Duplicate batch inputs are not allowed.' });
+  return contexts;
+}
+
 /** Prepare every item before asking once for the complete batch. Reuses the single-call approval
  * lifecycle, including its detached inputs, authenticated confirmer and abort checks.
  * Single inputs preserve their result shape. Batch effects run in order and stop on the first
@@ -210,18 +238,7 @@ export function createBatchApprovalHandler<TPrepared, TDescription>(
     prepare: async ({ ctx }, options) => {
       const input = requireInputRecord({ input: ctx.input });
       if (!Object.hasOwn(input, 'items')) return { batch: false, entries: [{ ctx, prepared: await steps.prepare({ ctx }, options) }] };
-      const { items, ...defaults } = input;
-      if (!Array.isArray(items) || items.length < 1 || items.length > maxItems) {
-        throw new ToolInputError({ message: `items must contain between 1 and ${maxItems} inputs.` });
-      }
-      const contexts = items.map(item => {
-        const fields = requireInputRecord({ input: item });
-        if (Object.hasOwn(fields, 'items')) throw new ToolInputError({ message: 'Nested items batches are not supported.' });
-        return { ...ctx, input: { ...defaults, ...fields } };
-      });
-      // These boundary inputs are records; sorting their keys also catches reordered scalar ids.
-      const keys = contexts.map(({ input }) => JSON.stringify(Object.entries(input).sort(([a], [b]) => a.localeCompare(b))));
-      if (new Set(keys).size !== keys.length) throw new ToolInputError({ message: 'Duplicate batch inputs are not allowed.' });
+      const contexts = expandBatchContexts({ ctx, input, maxItems });
       const entries: Entry[] = [];
       for (const itemCtx of contexts) entries.push({ ctx: itemCtx, prepared: await steps.prepare({ ctx: itemCtx }, options) });
       return { batch: true, entries };
@@ -250,6 +267,37 @@ export function createBatchApprovalHandler<TPrepared, TDescription>(
   });
 }
 
+type ProposalSnapshot<TDescription> = { pending: { approvalId: string; description: TDescription } | null; error: string | null };
+type ProposedAction = { approvalId: string; execute: () => Promise<unknown>; signal: AbortSignal; humanOnly: boolean; decide?: (answer: ApprovalAnswer) => void };
+
+/** Park a call on a proposal store without publishing any assistant reply capability. The app
+ * dialog alone may decide it. Expiry/abort consume the proposal before resolving the waiter. */
+async function requestAppDialogDecision<TDescription>(
+  { proposer, scheduler, description, signal }: {
+    proposer: { propose(required: { description: TDescription; execute: () => Promise<unknown>; signal: AbortSignal }, optional: { humanOnly?: boolean; decide?: (answer: ApprovalAnswer) => void }): unknown };
+    scheduler: ApprovalSchedulerPort;
+    description: TDescription;
+    signal: AbortSignal;
+  },
+  { timeoutMs = APPROVAL_WAIT_TIMEOUT_MS }: { timeoutMs?: number } = {},
+): Promise<ApprovalAnswer> {
+  const lifetime = new AbortController();
+  const abort = () => lifetime.abort();
+  if (signal.aborted) return { confirmed: false, reason: 'abandoned' };
+  signal.addEventListener('abort', abort, { once: true });
+  let expired = false;
+  const handle = scheduler.schedule({ callback: () => { expired = true; lifetime.abort(); }, delayMs: timeoutMs });
+  try {
+    return await resolveApproval({ signal: lifetime.signal, askHuman: () => new Promise<ApprovalAnswer>(resolve => {
+      proposer.propose({ description, signal: lifetime.signal, execute: async () => undefined }, { humanOnly: true, decide: resolve });
+    }) }).then(answer => expired ? { confirmed: false, reason: 'expired' } as const : answer);
+  } finally {
+    scheduler.cancel({ handle });
+    signal.removeEventListener('abort', abort);
+    lifetime.abort();
+  }
+}
+
 /** Page-local proposal transport for a browser that must return before its explicit reply arrives.
  * It carries no principal or tool authorization: the host's execute port must re-check access.
  * The private action is independent of the rendered snapshot; replies consume it before awaiting
@@ -261,10 +309,9 @@ export function createApprovalProposalStore<TDescription>(
   { responseTool, messages, ids, scheduler }: { responseTool: string; messages: { closed: string; pending: string; missing: string }; ids: IdGenerator; scheduler: ApprovalSchedulerPort },
   _optional = {},
 ) {
-  type Pending = { approvalId: string; description: TDescription };
-  type Snapshot = { pending: Pending | null; error: string | null };
+  type Snapshot = ProposalSnapshot<TDescription>;
   let snapshot: Snapshot = { pending: null, error: null };
-  let action: { approvalId: string; execute: () => Promise<unknown>; signal: AbortSignal; humanOnly: boolean; decide?: (answer: ApprovalAnswer) => void } | null = null;
+  let action: ProposedAction | null = null;
   let detach: (() => void) | null = null;
   const listeners = new Set<() => void>();
   const publish = (next: Snapshot) => { snapshot = next; for (const listener of listeners) listener(); };
@@ -305,28 +352,8 @@ export function createApprovalProposalStore<TDescription>(
       catch (error) { publish({ ...snapshot, error: error instanceof Error ? error.message : String(error) }); throw error; }
     },
   };
-  /** Park a call on this same store without publishing any assistant reply capability. The app
-   * dialog alone may decide it. Expiry/abort consume the proposal before resolving the waiter. */
-  async function request(
-    { description, signal }: { description: TDescription; signal: AbortSignal },
-    { timeoutMs = APPROVAL_WAIT_TIMEOUT_MS }: { timeoutMs?: number } = {},
-  ): Promise<ApprovalAnswer> {
-    const lifetime = new AbortController();
-    const abort = () => lifetime.abort();
-    if (signal.aborted) return { confirmed: false, reason: 'abandoned' };
-    signal.addEventListener('abort', abort, { once: true });
-    let expired = false;
-    const handle = scheduler.schedule({ callback: () => { expired = true; lifetime.abort(); }, delayMs: timeoutMs });
-    try {
-      return await resolveApproval({ signal: lifetime.signal, askHuman: () => new Promise<ApprovalAnswer>(resolve => {
-        store.propose({ description, signal: lifetime.signal, execute: async () => undefined }, { humanOnly: true, decide: resolve });
-      }) }).then(answer => expired ? { confirmed: false, reason: 'expired' } as const : answer);
-    } finally {
-      scheduler.cancel({ handle });
-      signal.removeEventListener('abort', abort);
-      lifetime.abort();
-    }
-  }
+  const request = (required: { description: TDescription; signal: AbortSignal }, optional: { timeoutMs?: number } = {}) =>
+    requestAppDialogDecision({ proposer: store, scheduler, ...required }, optional);
   return { ...store, request };
 }
 

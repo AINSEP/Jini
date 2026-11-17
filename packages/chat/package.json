@@ -35,6 +35,7 @@
       "./transports/http": "universal",
       "./transports/ag-ui": "universal",
       "./browser/session-store": "browser",
+      "./browser/agent-inventory": "browser",
       "./server/durable-runs": "node",
       "./store/runtime": "node",
       "./vanilla": "browser",
@@ -178,6 +179,11 @@
       "types": "./dist/embed-widget/browser/session-store.d.ts",
       "import": "./dist/embed-widget/browser/session-store.js",
       "default": "./dist/embed-widget/browser/session-store.js"
+    },
+    "./browser/agent-inventory": {
+      "types": "./dist/embed-widget/browser/agent-inventory.d.ts",
+      "import": "./dist/embed-widget/browser/agent-inventory.js",
+      "default": "./dist/embed-widget/browser/agent-inventory.js"
     },
     "./server/durable-runs": {
       "types": "./dist/server/durable-runs/entry.d.ts",
@@ -346,6 +352,9 @@
       ],
       "browser/session-store": [
         "./dist/embed-widget/browser/session-store.d.ts"
+      ],
+      "browser/agent-inventory": [
+        "./dist/embed-widget/browser/agent-inventory.d.ts"
       ],
       "server/durable-runs": [
         "./dist/server/durable-runs/entry.d.ts"

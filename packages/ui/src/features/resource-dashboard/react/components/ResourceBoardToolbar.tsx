@@ -80,6 +80,64 @@ function ResourceBoardSelectControls({
   );
 }
 
+type ResourceBoardSortPillProps = Pick<
+  ResourceBoardToolbarProps,
+  'sortOptions' | 'activeSort' | 'onSortChange' | 'sortAriaLabel'
+>;
+
+function ResourceBoardSortPill({ sortOptions, activeSort, onSortChange, sortAriaLabel }: ResourceBoardSortPillProps) {
+  if (sortOptions.length === 0) return null;
+  return (
+    <div className="resource-board-sort-pill" role="group" aria-label={sortAriaLabel}>
+      {sortOptions.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          aria-pressed={activeSort === option.value}
+          className={activeSort === option.value ? 'active' : ''}
+          onClick={() => onSortChange(option.value)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+type ResourceBoardViewPillProps = Pick<
+  ResourceBoardToolbarProps,
+  'viewMode' | 'onViewModeChange' | 'viewToggleAriaLabel' | 'gridViewLabel' | 'kanbanViewLabel'
+>;
+
+function ResourceBoardViewPill({
+  viewMode,
+  onViewModeChange,
+  viewToggleAriaLabel,
+  gridViewLabel,
+  kanbanViewLabel,
+}: ResourceBoardViewPillProps) {
+  return (
+    <div className="resource-board-view-pill" role="group" aria-label={viewToggleAriaLabel}>
+      <button
+        aria-pressed={viewMode === 'grid'}
+        className={viewMode === 'grid' ? 'active' : ''}
+        title={gridViewLabel}
+        onClick={() => onViewModeChange('grid')}
+      >
+        {gridViewLabel}
+      </button>
+      <button
+        aria-pressed={viewMode === 'kanban'}
+        className={viewMode === 'kanban' ? 'active' : ''}
+        title={kanbanViewLabel}
+        onClick={() => onViewModeChange('kanban')}
+      >
+        {kanbanViewLabel}
+      </button>
+    </div>
+  );
+}
+
 /**
  * DesignsTab's toolbar: sub-tab sort pills + a create button + search +
  * select-mode/bulk-delete bar (grid view only) + the grid/kanban view
@@ -88,53 +146,14 @@ function ResourceBoardSelectControls({
  * list; a host wanting that composes its own refresh affordance around the
  * hook's `reload()`.
  */
-export function ResourceBoardToolbar({
-  sortOptions,
-  activeSort,
-  onSortChange,
-  sortAriaLabel,
-  query,
-  onQueryChange,
-  searchPlaceholder,
-  viewMode,
-  onViewModeChange,
-  viewToggleAriaLabel,
-  gridViewLabel,
-  kanbanViewLabel,
-  enableBulkDelete,
-  selectMode,
-  selectedCount,
-  bulkDeleteBusy,
-  onEnterSelectMode,
-  onExitSelectMode,
-  onBulkDelete,
-  selectModeLabel,
-  selectedCountLabel,
-  deleteSelectedLabel,
-  cancelSelectLabel,
-  createLabel,
-  onCreate,
-}: ResourceBoardToolbarProps) {
-  const showSelectControls = enableBulkDelete && viewMode === 'grid';
+export function ResourceBoardToolbar(props: ResourceBoardToolbarProps) {
+  const { query, onQueryChange, searchPlaceholder, createLabel, onCreate } = props;
+  const showSelectControls = props.enableBulkDelete && props.viewMode === 'grid';
 
   return (
     <div className="resource-board-toolbar">
       <div className="resource-board-toolbar-left">
-        {sortOptions.length > 0 ? (
-          <div className="resource-board-sort-pill" role="group" aria-label={sortAriaLabel}>
-            {sortOptions.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                aria-pressed={activeSort === option.value}
-                className={activeSort === option.value ? 'active' : ''}
-                onClick={() => onSortChange(option.value)}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        ) : null}
+        <ResourceBoardSortPill {...props} />
       </div>
       <div className="resource-board-toolbar-right">
         {onCreate && createLabel ? (
@@ -145,38 +164,8 @@ export function ResourceBoardToolbar({
         <div className="resource-board-search">
           <input placeholder={searchPlaceholder} value={query} onChange={(event) => onQueryChange(event.target.value)} />
         </div>
-        {showSelectControls ? (
-          <ResourceBoardSelectControls
-            selectMode={selectMode}
-            selectedCount={selectedCount}
-            bulkDeleteBusy={bulkDeleteBusy}
-            onEnterSelectMode={onEnterSelectMode}
-            onExitSelectMode={onExitSelectMode}
-            onBulkDelete={onBulkDelete}
-            selectModeLabel={selectModeLabel}
-            selectedCountLabel={selectedCountLabel}
-            deleteSelectedLabel={deleteSelectedLabel}
-            cancelSelectLabel={cancelSelectLabel}
-          />
-        ) : null}
-        <div className="resource-board-view-pill" role="group" aria-label={viewToggleAriaLabel}>
-          <button
-            aria-pressed={viewMode === 'grid'}
-            className={viewMode === 'grid' ? 'active' : ''}
-            title={gridViewLabel}
-            onClick={() => onViewModeChange('grid')}
-          >
-            {gridViewLabel}
-          </button>
-          <button
-            aria-pressed={viewMode === 'kanban'}
-            className={viewMode === 'kanban' ? 'active' : ''}
-            title={kanbanViewLabel}
-            onClick={() => onViewModeChange('kanban')}
-          >
-            {kanbanViewLabel}
-          </button>
-        </div>
+        {showSelectControls ? <ResourceBoardSelectControls {...props} /> : null}
+        <ResourceBoardViewPill {...props} />
       </div>
     </div>
   );

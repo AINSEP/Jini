@@ -128,4 +128,24 @@ describe("second host wires the hosted MCP store by ports", () => {
     expect(counts.open).toBe(0);
     expect(await entry.openExternalMcpVaultPayload({ sealer, sealed, identity: { workspaceId: WS, serverId: "acme-a" }, kind: "mcp-env", ports })).toEqual({ K: "v" });
   });
+
+  test("a reauthorization failure carries the typed reauth_required category; other failures carry none", async () => {
+    const repo = new entry.InMemoryExternalMcpServerRepo(ports);
+    const deps = { repo, sealer, keyring, clock, ...ports };
+    await entry.saveExternalMcpServer(deps, { workspaceId: WS, enabled: true, serverId: "acme-env", transport: "stdio", command: "acme-mcp", args: "", env: "K=v", allowedToolNames: "" } as never);
+    const saved = (await repo.findByServerId({ workspaceId: WS, serverId: "acme-env" }))!;
+    const hosted = { ...saved, transport: "streamable_http", command: null, url: "https://mcp.acme.test/mcp", authMode: "oauth", sealedEnv: null };
+    await repo.upsert({ ...hosted, serverId: "acme-stored", oauthStatus: "needs_reauth" } as never);
+    await repo.upsert({ ...hosted, serverId: "acme-live", oauthStatus: "connected" } as never);
+    await repo.upsert({ ...hosted, serverId: "acme-down", oauthStatus: "connected" } as never);
+    const oauth = { resolveAccessToken: async ({ serverId }: { serverId: string }): Promise<string> => {
+      if (serverId === "acme-live") throw Object.assign(new Error("idp said no"), { code: "ACME_SIGN_IN_AGAIN" });
+      throw new Error("idp unreachable");
+    } };
+    const { failures } = await entry.readEnabledExternalMcpConfigs({ repo, sealer, oauth, ...ports }, WS);
+    expect(Object.fromEntries(failures.map((failure) => [failure.serverId, failure.category ?? null])))
+      .toEqual({ "acme-stored": "reauth_required", "acme-live": "reauth_required", "acme-down": null });
+    expect(failures.find((failure) => failure.serverId === "acme-stored")?.reason)
+      .toBe("its authorization expired or was revoked — reconnect it in Console › Tools › Remote servers");
+  });
 });

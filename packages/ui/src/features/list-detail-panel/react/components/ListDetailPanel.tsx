@@ -36,6 +36,45 @@ export interface ListDetailPanelProps<TItem extends ListDetailItem> {
 
 const join = (...classes: Array<string | undefined | false>) => classes.filter(Boolean).join(' ');
 
+/** Busy status region shown in the sidebar or detail pane while the host is loading. */
+function LoadingRegion({ variant, testId, children }: { variant: 'sidebar' | 'detail'; testId: string; children: ReactNode }) {
+  const t = useT();
+  return (
+    <div
+      className={`jini-list-detail-panel-loading-${variant}`}
+      role="status"
+      aria-busy="true"
+      aria-label={t('Loading')}
+      data-testid={`${testId}-loading-${variant}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** One selectable row button in the sidebar list. */
+function ListItemButton<TItem extends ListDetailItem>({ item, testId, active, itemClassName, getItemAriaLabel, onSelect, renderItem }: {
+  item: TItem; testId: string; active: boolean;
+  itemClassName: ListDetailPanelProps<TItem>['itemClassName']; getItemAriaLabel: ListDetailPanelProps<TItem>['getItemAriaLabel'];
+  onSelect: ListDetailPanelProps<TItem>['onSelect']; renderItem: ListDetailPanelProps<TItem>['renderItem'];
+}) {
+  const state: ListDetailItemRenderState = { active };
+  const resolvedItemClassName = typeof itemClassName === 'function' ? itemClassName(item, state) : itemClassName;
+  return (
+    <button
+      type="button"
+      className={join('jini-list-detail-panel-item', active && 'jini-list-detail-panel-item-active', resolvedItemClassName)}
+      aria-pressed={active}
+      aria-label={getItemAriaLabel?.(item)}
+      data-active={active}
+      data-testid={`${testId}-item-${item.id}`}
+      onClick={() => onSelect(item.id)}
+    >
+      {renderItem(item, state)}
+    </button>
+  );
+}
+
 /**
  * Generic master-detail (list+preview) navigator shell: a sidebar list of
  * summary rows with a selection state, and a detail pane rendering whichever
@@ -43,26 +82,11 @@ const join = (...classes: Array<string | undefined | false>) => classes.filter(B
  * {@link useListDetailSelection} (or the host's own state), not here.
  */
 export function ListDetailPanel<TItem extends ListDetailItem>({
-  items,
-  selectedId,
-  onSelect,
-  renderItem,
-  renderDetail,
-  getItemAriaLabel,
-  header,
-  emptyListContent,
-  emptyDetailContent,
-  loading = false,
-  loadingSidebarContent,
-  loadingDetailContent,
-  className,
-  sidebarClassName,
-  listClassName,
-  detailClassName,
-  itemClassName,
+  items, selectedId, onSelect, renderItem, renderDetail, getItemAriaLabel, header, emptyListContent, emptyDetailContent,
+  loading = false, loadingSidebarContent, loadingDetailContent,
+  className, sidebarClassName, listClassName, detailClassName, itemClassName,
   'data-testid': testId = 'list-detail-panel',
 }: ListDetailPanelProps<TItem>) {
-  const t = useT();
   const selectedItem = findSelectedItem(items, selectedId);
 
   return (
@@ -70,58 +94,24 @@ export function ListDetailPanel<TItem extends ListDetailItem>({
       <aside className={join('jini-list-detail-panel-sidebar', sidebarClassName)} data-testid={`${testId}-sidebar`}>
         {header}
         {loading ? (
-          <div
-            className="jini-list-detail-panel-loading-sidebar"
-            role="status"
-            aria-busy="true"
-            aria-label={t('Loading')}
-            data-testid={`${testId}-loading-sidebar`}
-          >
-            {loadingSidebarContent}
-          </div>
+          <LoadingRegion variant="sidebar" testId={testId}>{loadingSidebarContent}</LoadingRegion>
         ) : (
           <div className={join('jini-list-detail-panel-list', listClassName)} data-testid={`${testId}-list`}>
             {items.length === 0
               ? emptyListContent
-              : items.map((item) => {
-                  const active = item.id === selectedId;
-                  const state: ListDetailItemRenderState = { active };
-                  const resolvedItemClassName =
-                    typeof itemClassName === 'function' ? itemClassName(item, state) : itemClassName;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className={join(
-                        'jini-list-detail-panel-item',
-                        active && 'jini-list-detail-panel-item-active',
-                        resolvedItemClassName,
-                      )}
-                      aria-pressed={active}
-                      aria-label={getItemAriaLabel?.(item)}
-                      data-active={active}
-                      data-testid={`${testId}-item-${item.id}`}
-                      onClick={() => onSelect(item.id)}
-                    >
-                      {renderItem(item, state)}
-                    </button>
-                  );
-                })}
+              : items.map((item) => (
+                  <ListItemButton
+                    key={item.id} item={item} testId={testId} active={item.id === selectedId} itemClassName={itemClassName}
+                    getItemAriaLabel={getItemAriaLabel} onSelect={onSelect} renderItem={renderItem}
+                  />
+                ))}
           </div>
         )}
       </aside>
 
       <section className={join('jini-list-detail-panel-detail', detailClassName)} data-testid={`${testId}-detail`}>
         {loading ? (
-          <div
-            className="jini-list-detail-panel-loading-detail"
-            role="status"
-            aria-busy="true"
-            aria-label={t('Loading')}
-            data-testid={`${testId}-loading-detail`}
-          >
-            {loadingDetailContent}
-          </div>
+          <LoadingRegion variant="detail" testId={testId}>{loadingDetailContent}</LoadingRegion>
         ) : null}
         {!loading && selectedItem ? renderDetail(selectedItem) : null}
         {!loading && !selectedItem ? emptyDetailContent : null}

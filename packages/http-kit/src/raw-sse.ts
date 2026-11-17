@@ -34,6 +34,12 @@ export interface SseConnection {
   readonly closed: boolean;
 }
 
+const SSE_RESPONSE_HEADERS = {
+  'Content-Type': 'text/event-stream',
+  'Cache-Control': 'no-cache, no-transform',
+  Connection: 'keep-alive',
+} as const;
+
 /**
  * Opens `res` as a Server-Sent Events stream: writes the `text/event-stream` response headers
  * immediately, arms a keepalive interval, and wires client-disconnect detection.
@@ -54,11 +60,7 @@ export function createSseResponse({ req, res }: { readonly req: IncomingMessage;
   const queue: string[] = [];
   let writable = true;
 
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache, no-transform',
-    Connection: 'keep-alive',
-  });
+  res.writeHead(200, SSE_RESPONSE_HEADERS);
 
   /**
    * Writes as much of the queue as the socket will accept. `res.write()` returning `false` means

@@ -344,6 +344,42 @@ function mountApiSecurity(
   }
 }
 
+/** Run `run` at most once; every later call returns the first call's promise. */
+function onceAsync(run: () => Promise<unknown>): () => Promise<void> {
+  let started: Promise<void> | null = null;
+  return () => {
+    started ??= run().then(() => undefined);
+    return started;
+  };
+}
+
+/** The kernel's own services, bound first so a caller's `bindings` hook can extend or replace them. */
+function bindKernelServices({ config, base }: { config: ComposeJiniKernelConfig; base: JiniKernelBase }) {
+  const kernelBindings = bindings({})
+    .bind({ token: EventLogToken, impl: base.eventLog })
+    .bind({ token: RunLifecycleToken, impl: base.lifecycle })
+    .bind({ token: AgentExecutorToken, impl: base.agentExecutor });
+  return config.bindings ? config.bindings(kernelBindings) : kernelBindings;
+}
+
+/** Mount in the fixed order: probe, security, api (then the caller's hook), status. */
+function mountAppPhases(
+  { config, base, security, env, composed, featureDaemon, callerDaemon }: {
+    config: ComposeJiniKernelConfig; base: JiniKernelBase; security: ReturnType<typeof prepareComposition>["security"];
+    env: ReturnType<typeof prepareComposition>["env"]; composed: ComposedFeature[];
+    featureDaemon: Daemon<readonly AnyPack[]>; callerDaemon: Daemon<readonly AnyPack[]>;
+  },
+): void {
+  const { app } = config;
+  mountPhase('probe', app, composed, featureDaemon);
+
+  mountSecurity({ config, security, env });
+
+  mountPhase('api', app, composed, featureDaemon);
+  config.onAfterApiRoutes?.(app, callerDaemon, base);
+  mountPhase('status', app, composed, featureDaemon);
+}
+
 /**
  * Composes the kernel, the selected feature set, and the caller's own packs onto `config.app`.
  *
@@ -366,11 +402,7 @@ export async function composeJiniKernel(config: ComposeJiniKernelConfig): Promis
   const callerPacks = config.packs ?? [];
 
   try {
-    const kernelBindings = bindings({})
-      .bind({ token: EventLogToken, impl: base.eventLog })
-      .bind({ token: RunLifecycleToken, impl: base.lifecycle })
-      .bind({ token: AgentExecutorToken, impl: base.agentExecutor });
-    const boundBindings = config.bindings ? config.bindings(kernelBindings) : kernelBindings;
+    const boundBindings = bindKernelServices({ config, base });
 
     callerDaemon = createDaemon({ packs: callerPacks, bindings: boundBindings });
 
@@ -383,14 +415,7 @@ export async function composeJiniKernel(config: ComposeJiniKernelConfig): Promis
     registerCompositionTools({ base, featurePacks, featureDaemon, callerPacks, callerDaemon,
       registrations: config.toolRegistrations ?? [], composed });
 
-    const { app } = config;
-    mountPhase('probe', app, composed, featureDaemon);
-
-    mountSecurity({ config, security, env });
-
-    mountPhase('api', app, composed, featureDaemon);
-    config.onAfterApiRoutes?.(app, callerDaemon, base);
-    mountPhase('status', app, composed, featureDaemon);
+    mountAppPhases({ config, base, security, env, composed, featureDaemon, callerDaemon });
   } catch (error) {
     // Reverse of the order they were built: features composed against an already-constructed caller
     // daemon, so they release first. The caller's packs are disposed here too — `createDaemon` ran
@@ -405,20 +430,8 @@ export async function composeJiniKernel(config: ComposeJiniKernelConfig): Promis
     throw error;
   }
 
-  let disposedFeatures: Promise<void> | null = null;
-  const disposeFeatures = (): Promise<void> => {
-    disposedFeatures ??= disposePacks({
-      packs: composed.map((entry) => entry.pack),
-      daemon: featureDaemon,
-    }).then(() => undefined);
-    return disposedFeatures;
-  };
-
-  let disposedCallerPacks: Promise<void> | null = null;
-  const disposeCallerPacks = (): Promise<void> => {
-    disposedCallerPacks ??= disposePacks({ packs: callerPacks, daemon: callerDaemon }).then(() => undefined);
-    return disposedCallerPacks;
-  };
+  const disposeFeatures = onceAsync(() => disposePacks({ packs: composed.map((entry) => entry.pack), daemon: featureDaemon }));
+  const disposeCallerPacks = onceAsync(() => disposePacks({ packs: callerPacks, daemon: callerDaemon }));
 
   return {
     base,

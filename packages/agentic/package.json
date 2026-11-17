@@ -17,7 +17,8 @@
       "./core": "universal",
       "./dom": "browser",
       "./skills/install": "node",
-      "./skills/install/node": "node"
+      "./skills/install/node": "node",
+      "./skills/tools": "node"
     },
     "optionalPeers": {
       "@jini-ai/protocol": "opt-in: agent protocol adapters — Agent protocol adapters could not load @jini-ai/protocol. Install @jini-ai/protocol to enable this feature, or check its installed version and native binaries."
@@ -52,6 +53,11 @@
       "types": "./dist/skills/install/node-filesystem.d.ts",
       "import": "./dist/skills/install/node-filesystem.js",
       "default": "./dist/skills/install/node-filesystem.js"
+    },
+    "./skills/tools": {
+      "types": "./dist/skills/tools/index.d.ts",
+      "import": "./dist/skills/tools/index.js",
+      "default": "./dist/skills/tools/index.js"
     }
   },
   "files": [

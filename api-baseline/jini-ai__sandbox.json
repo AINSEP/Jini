@@ -1,0 +1,68 @@
+{
+ "./core": {
+  "types": "./dist/core/index.d.ts",
+  "symbols": {
+   "BootOptions": "interface:cefdd0a577",
+   "CommandResult": "interface:48809cd658",
+   "FileChangeEvent": "interface:fc3b649c16",
+   "FileChangeKind": "type:4d06d2cfe4",
+   "PreviewTarget": "interface:ad29fb5792",
+   "ProcessHandle": "interface:941724b1df",
+   "ProcessOutputChunk": "interface:3d9b234ed6",
+   "RunCommandOptions": "interface:d85a9c100c",
+   "SandboxErrorCategory": "type:f3ba9ed2a7",
+   "SandboxFile": "interface:f9fb7bfff5",
+   "SandboxOperationError": "class:f8aa187291",
+   "SandboxProviderPort": "interface:93d698c519",
+   "SandboxSession": "interface:06beca7ad9",
+   "Unsubscribe": "type:f9d4ec4150"
+  }
+ },
+ "./e2b": {
+  "types": "./dist/e2b/index.d.ts",
+  "symbols": {
+   "DEFAULT_VITE_REACT_TEMPLATE": "variable:43d7ead29f",
+   "E2bCommandHandle": "interface:32fe663e4d",
+   "E2bCommandResult": "interface:1bcbbb3b24",
+   "E2bCommands": "interface:ce6bb9c6c8",
+   "E2bEntryInfo": "interface:3aab2650dc",
+   "E2bFileType": "type:6937593c88",
+   "E2bFilesystem": "interface:3228f75abd",
+   "E2bFilesystemEvent": "interface:c59ec72c49",
+   "E2bFilesystemEventType": "type:0797b08c6b",
+   "E2bProviderConfig": "interface:d7f8d8be8f",
+   "E2bRunOptions": "interface:8c1f55bbeb",
+   "E2bSandboxHandle": "interface:2d6eac44aa",
+   "E2bSessionConfig": "interface:eb266c7a4c",
+   "E2bWatchHandle": "interface:c7286aef00",
+   "E2bWriteEntry": "interface:ad0c6885b1",
+   "categorizeE2bError": "function:f17639b67c",
+   "createE2bSandboxProvider": "function:d6f0f61f75",
+   "mapE2bFileChangeKind": "function:40f9baadf7",
+   "shellQuote": "function:106ef00fa3",
+   "toArrayBuffer": "function:6324fc1069",
+   "wrapE2bSandbox": "function:0895bf347b"
+  }
+ },
+ "./node-worker": {
+  "types": "./dist/node-worker.d.ts",
+  "symbols": {
+   "NodeWorkerFactoryOptions": "interface:85ce658d0a",
+   "SandboxRenderResult": "type:6828203f4e",
+   "WorkerCapacity": "interface:1e4ec088aa",
+   "WorkerCapacityError": "class:d001d532e5",
+   "WorkerFactory": "interface:f958bea660",
+   "WorkerHandle": "interface:407912dece",
+   "WorkerSandboxOptions": "interface:93a0eec667",
+   "WorkerSandboxRequired": "interface:98593164e3",
+   "WorkerScheduler": "interface:7d46b7d34a",
+   "WorkerSubscription": "type:5b2356c7af",
+   "createNodeWorkerFactory": "function:7822bc1ebe",
+   "createNodeWorkerScheduler": "function:79958b3309",
+   "createWorkerCapacity": "function:a6e1996157",
+   "renderInWorkerSandbox": "function:dd23bffbb8",
+   "resolveDefaultTimeoutMs": "function:7449085e24",
+   "runInWorkerSandbox": "function:cf842980ba"
+  }
+ }
+}

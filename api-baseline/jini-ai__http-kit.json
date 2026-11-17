@@ -1,0 +1,109 @@
+{
+ ".": {
+  "types": "./dist/index.d.ts",
+  "symbols": {
+   "ApiBearerAuthMiddlewareDeps": "interface:be155804c6",
+   "ApiErrorResponseWriter": "interface:17cd7c7fdc",
+   "ApiOriginGuardMiddlewareDeps": "interface:511d3d77c4",
+   "BodySizeLimitOptional": "type:dc426235a1",
+   "BodySizeLimitRequired": "interface:36ae3bae47",
+   "ClientIpPolicy": "interface:9966bdd24f",
+   "ClientIpSource": "interface:2a90fadba4",
+   "Clock": "interface:7229e2675d",
+   "CounterStore": "interface:09e952eedd",
+   "CounterWindow": "interface:addca4e755",
+   "CreateSseChannelOptions": "interface:30c311a7c4",
+   "CreateSseResponseOptions": "interface:4dd66d03e1",
+   "ErrorResponseFactory": "type:7bca76d8d1",
+   "HttpRequestObservabilityPort": "interface:1f18b4ccde",
+   "InstallRouteRegistrationGuardOptions": "interface:8f1f6ec850",
+   "JsonRoutePorts": "interface:c027f86b02",
+   "JsonRouteSpec": "interface:249060e3b1",
+   "RateLimitProfile": "interface:371075b603",
+   "RateLimitResult": "type:820531e754",
+   "RateLimiter": "interface:d04a48e03e",
+   "RouteInternalErrorContext": "interface:a7266168db",
+   "RouteInternalErrorSink": "type:4919a01145",
+   "RouteRegistration": "interface:dd8f03278d",
+   "SseChannel": "interface:0f3bbfc83b",
+   "SseConnection": "interface:07bc99adbf",
+   "StrictBearerTokenDeps": "interface:202e2692f9",
+   "TrustProxySetting": "type:4402ca5eb5",
+   "applyRequestTracking": "function:0af6ee0954",
+   "bearerTokenFromHeader": "function:ba31d5fbf1",
+   "createCompatApiError": "function:b72ee5c81d",
+   "createCompatApiErrorResponse": "function:6ace5d310f",
+   "createMemoryCounterStore": "function:99c1f89bab",
+   "createRateLimiter": "function:117b280693",
+   "createRequestTrackingMiddleware": "function:c1487c1af5",
+   "createSseChannel": "function:6b5949a137",
+   "createSseResponse": "function:5dbd1e53c4",
+   "defineJsonRoute": "function:c429567bcb",
+   "getRouteRegistrationInventory": "function:06809fd314",
+   "guardedRouteKey": "function:c04e992e0f",
+   "installRouteRegistrationGuard": "function:da822df729",
+   "isLoopbackPeerAddress": "function:fabf33bea5",
+   "localOriginFromHeader": "function:83ea0a0288",
+   "logCompletedRequest": "function:621db323d4",
+   "mountJsonRoute": "function:6dfd7fdce8",
+   "mountPackHttp": "function:5bca9d0d56",
+   "normalizeLocalAuthority": "function:bd90bc6a31",
+   "passesSameOriginGuard": "function:cff4462e58",
+   "rawInput": "function:42089ccc5f",
+   "registerApiBearerAuthMiddleware": "function:a1563bf718",
+   "registerApiOriginGuardMiddleware": "function:81fe30bb0e",
+   "rejectOversizedJsonBody": "function:d053045660",
+   "reportRouteInternalError": "function:e75cae7f47",
+   "requestedAfterCursor": "function:fa080c39af",
+   "requireLocalDaemonRequest": "function:55b9ae8f35",
+   "requireStrictBearerToken": "function:5c4cf0a586",
+   "resolveClientIp": "function:cf6f709e8a",
+   "resolveTrustProxySetting": "function:997e16aadd",
+   "sendApiError": "function:3f461596e0",
+   "sendJson": "function:0f6d7ef441",
+   "sendRawApiError": "function:331a5d2c98",
+   "timingSafeTokenMatch": "function:83a5a4c58d",
+   "validateLocalDaemonRequest": "function:9de8fc35cb"
+  }
+ },
+ "./html-response": {
+  "types": "./dist/html-response.d.ts",
+  "symbols": {
+   "captureHtmlResponse": "function:6da08d3cf7"
+  }
+ },
+ "./middleware": {
+  "types": "./dist/middleware.d.ts",
+  "symbols": {
+   "BodySizeLimitOptional": "type:dc426235a1",
+   "BodySizeLimitRequired": "interface:36ae3bae47",
+   "ErrorResponseFactory": "type:7bca76d8d1",
+   "rejectOversizedJsonBody": "function:d053045660"
+  }
+ },
+ "./observability": {
+  "types": "./dist/observability.d.ts",
+  "symbols": {
+   "HttpRequestObservabilityPort": "interface:1f18b4ccde",
+   "applyRequestTracking": "function:0af6ee0954",
+   "createRequestTrackingMiddleware": "function:c1487c1af5",
+   "logCompletedRequest": "function:621db323d4"
+  }
+ },
+ "./rate-limit": {
+  "types": "./dist/rate-limit.d.ts",
+  "symbols": {
+   "ClientIpPolicy": "interface:9966bdd24f",
+   "ClientIpSource": "interface:2a90fadba4",
+   "Clock": "interface:7229e2675d",
+   "CounterStore": "interface:09e952eedd",
+   "CounterWindow": "interface:addca4e755",
+   "RateLimitProfile": "interface:371075b603",
+   "RateLimitResult": "type:820531e754",
+   "RateLimiter": "interface:d04a48e03e",
+   "createMemoryCounterStore": "function:99c1f89bab",
+   "createRateLimiter": "function:117b280693",
+   "resolveClientIp": "function:cf6f709e8a"
+  }
+ }
+}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type MutableRefObject, type RefObject } from 'react';
 import { extractMarkdownBlockLines } from '../../../../utils/markdown-scroll-sync.js';
 import {
   computeSplitPaneScrollTarget,
@@ -28,37 +28,40 @@ export interface UseMarkdownScrollSyncResult {
   activatePane: (pane: MarkdownScrollPane) => void;
 }
 
-/**
- * Keeps a split editor/preview pane aligned while scrolling either side, by
- * anchoring on each top-level markdown block's source line vs. its rendered
- * DOM element (falling back to plain ratio-sync when block anchors can't be
- * measured). This is the generic mechanism behind the source component's
- * split-pane markdown viewer — ported without its artifact-status gate, its
- * autosave/upload pipeline, and its shiki-based syntax highlighting (all
- * genuinely OD/product-specific; see `archived UI provenance ledger`).
- */
-export function useMarkdownScrollSync(options: UseMarkdownScrollSyncOptions): UseMarkdownScrollSyncResult {
-  const { mode, sourceText, editorRef, previewRef, previewSelector, resyncKey } = options;
+type PaneRef = MutableRefObject<MarkdownScrollPane>;
+type ProgrammaticScroll = { pane: MarkdownScrollPane; top: number } | null;
 
+/** Cached editor block offsets, invalidated whenever the source text changes. */
+function useEditorBlockOffsets(
+  editorRef: RefObject<HTMLTextAreaElement | null>,
+  blockLines: number[],
+  sourceText: string,
+) {
   const editorBlockOffsetsRef = useRef<{ width: number; offsets: number[] } | null>(null);
-  const scrollSyncFrameRef = useRef<number | null>(null);
-  const programmaticScrollClearFrameRef = useRef<number | null>(null);
-  const pendingScrollSyncRef = useRef<{ sourcePane: MarkdownScrollPane; targetPane: MarkdownScrollPane } | null>(null);
-  const programmaticScrollRef = useRef<{ pane: MarkdownScrollPane; top: number } | null>(null);
-  const activePaneRef = useRef<MarkdownScrollPane>('editor');
-
-  const blockLines = useMemo(() => extractMarkdownBlockLines(sourceText), [sourceText]);
 
   useEffect(() => {
     editorBlockOffsetsRef.current = null;
   }, [sourceText]);
 
-  useEffect(() => {
-    return () => {
-      if (scrollSyncFrameRef.current !== null) cancelAnimationFrame(scrollSyncFrameRef.current);
-      if (programmaticScrollClearFrameRef.current !== null) cancelAnimationFrame(programmaticScrollClearFrameRef.current);
-    };
-  }, []);
+  return useCallback((): number[] | null => {
+    const editor = editorRef.current;
+    if (!editor || blockLines.length === 0) return null;
+    const width = editor.clientWidth;
+    const cached = editorBlockOffsetsRef.current;
+    if (cached && cached.width === width && cached.offsets.length === blockLines.length) {
+      return cached.offsets;
+    }
+    const offsets = measureEditorBlockOffsets(editor, blockLines, sourceText);
+    if (!offsets) return null;
+    editorBlockOffsetsRef.current = { width, offsets };
+    return offsets;
+  }, [blockLines, editorRef, sourceText]);
+}
+
+/** Tracks scrolls WE caused so the target pane's resulting scroll event isn't echoed back. */
+function useProgrammaticScrollGuard(activePaneRef: PaneRef) {
+  const programmaticScrollClearFrameRef = useRef<number | null>(null);
+  const programmaticScrollRef = useRef<ProgrammaticScroll>(null);
 
   const clearProgrammaticScrollSoon = useCallback(() => {
     if (programmaticScrollClearFrameRef.current !== null) {
@@ -72,32 +75,53 @@ export function useMarkdownScrollSync(options: UseMarkdownScrollSyncOptions): Us
     });
   }, []);
 
-  const getEditorBlockOffsets = useCallback((): number[] | null => {
-    const editor = editorRef.current;
-    if (!editor || blockLines.length === 0) return null;
-    const width = editor.clientWidth;
-    const cached = editorBlockOffsetsRef.current;
-    if (cached && cached.width === width && cached.offsets.length === blockLines.length) {
-      return cached.offsets;
+  const shouldIgnoreScroll = useCallback((pane: MarkdownScrollPane, element: HTMLElement): boolean => {
+    const programmatic = programmaticScrollRef.current;
+    if (programmatic?.pane !== pane) return false;
+    if (Math.abs(element.scrollTop - programmatic.top) > 1 && activePaneRef.current === pane) {
+      return false;
     }
-    const offsets = measureEditorBlockOffsets(editor, blockLines, sourceText);
-    if (!offsets) return null;
-    editorBlockOffsetsRef.current = { width, offsets };
-    return offsets;
-  }, [blockLines, editorRef, sourceText]);
+    programmaticScrollRef.current = null;
+    return true;
+  }, [activePaneRef]);
 
-  const applyScrollSync = useCallback(
+  return { programmaticScrollRef, programmaticScrollClearFrameRef, clearProgrammaticScrollSoon, shouldIgnoreScroll };
+}
+
+interface ApplyScrollSyncDeps {
+  mode: MarkdownSplitPaneMode;
+  editorRef: RefObject<HTMLTextAreaElement | null>;
+  previewRef: RefObject<HTMLElement | null>;
+  previewSelector: string | undefined;
+  blockLineCount: number;
+  getEditorBlockOffsets: () => number[] | null;
+  programmaticScrollRef: MutableRefObject<ProgrammaticScroll>;
+  clearProgrammaticScrollSoon: () => void;
+}
+
+/** Scrolls the target pane to match the source pane (block-anchored when measurable, else ratio). */
+function useApplyScrollSync({
+  mode,
+  editorRef,
+  previewRef,
+  previewSelector,
+  blockLineCount,
+  getEditorBlockOffsets,
+  programmaticScrollRef,
+  clearProgrammaticScrollSoon,
+}: ApplyScrollSyncDeps) {
+  return useCallback(
     (sourcePane: MarkdownScrollPane, targetPane: MarkdownScrollPane) => {
       const source = sourcePane === 'editor' ? editorRef.current : previewRef.current;
       const target = targetPane === 'editor' ? editorRef.current : previewRef.current;
       if (mode !== 'split' || !source || !target) return;
       const editorOffsets = getEditorBlockOffsets();
-      const previewOffsets = editorOffsets ? measurePreviewBlockOffsets(previewRef.current!, blockLines.length, previewSelector) : null;
+      const previewOffsets = editorOffsets ? measurePreviewBlockOffsets(previewRef.current!, blockLineCount, previewSelector) : null;
       const targetTop = computeSplitPaneScrollTarget({
         sourcePane,
         source,
         target,
-        blockLineCount: blockLines.length,
+        blockLineCount,
         editorOffsets,
         previewOffsets,
       });
@@ -106,8 +130,16 @@ export function useMarkdownScrollSync(options: UseMarkdownScrollSyncOptions): Us
       target.scrollTop = targetTop;
       clearProgrammaticScrollSoon();
     },
-    [blockLines.length, clearProgrammaticScrollSoon, editorRef, getEditorBlockOffsets, mode, previewRef, previewSelector],
+    [blockLineCount, clearProgrammaticScrollSoon, editorRef, getEditorBlockOffsets, mode, previewRef, previewSelector, programmaticScrollRef],
   );
+}
+
+type ApplyScrollSync = (sourcePane: MarkdownScrollPane, targetPane: MarkdownScrollPane) => void;
+
+/** Coalesces scroll events into one sync per animation frame. */
+function useScrollSyncScheduler(mode: MarkdownSplitPaneMode, applyScrollSync: ApplyScrollSync) {
+  const scrollSyncFrameRef = useRef<number | null>(null);
+  const pendingScrollSyncRef = useRef<{ sourcePane: MarkdownScrollPane; targetPane: MarkdownScrollPane } | null>(null);
 
   const scheduleScrollSync = useCallback(
     (sourcePane: MarkdownScrollPane, targetPane: MarkdownScrollPane) => {
@@ -136,15 +168,78 @@ export function useMarkdownScrollSync(options: UseMarkdownScrollSyncOptions): Us
     [applyScrollSync, mode],
   );
 
-  const shouldIgnoreScroll = useCallback((pane: MarkdownScrollPane, element: HTMLElement): boolean => {
-    const programmatic = programmaticScrollRef.current;
-    if (programmatic?.pane !== pane) return false;
-    if (Math.abs(element.scrollTop - programmatic.top) > 1 && activePaneRef.current === pane) {
-      return false;
+  return { scheduleScrollSync, scrollSyncFrameRef, pendingScrollSyncRef };
+}
+
+interface ScrollSyncLifecycleDeps {
+  mode: MarkdownSplitPaneMode;
+  resyncKey: unknown;
+  activePaneRef: PaneRef;
+  guard: ReturnType<typeof useProgrammaticScrollGuard>;
+  scheduler: ReturnType<typeof useScrollSyncScheduler>;
+}
+
+/** Cancels pending frames on unmount / when leaving split mode, and resyncs on mode or content changes. */
+function useScrollSyncLifecycle({ mode, resyncKey, activePaneRef, guard, scheduler }: ScrollSyncLifecycleDeps) {
+  const { scrollSyncFrameRef, pendingScrollSyncRef, scheduleScrollSync } = scheduler;
+  const { programmaticScrollClearFrameRef, programmaticScrollRef } = guard;
+
+  useEffect(() => {
+    return () => {
+      if (scrollSyncFrameRef.current !== null) cancelAnimationFrame(scrollSyncFrameRef.current);
+      if (programmaticScrollClearFrameRef.current !== null) cancelAnimationFrame(programmaticScrollClearFrameRef.current);
+    };
+  }, [scrollSyncFrameRef, programmaticScrollClearFrameRef]);
+
+  useEffect(() => {
+    if (mode !== 'split') {
+      if (scrollSyncFrameRef.current !== null) {
+        cancelAnimationFrame(scrollSyncFrameRef.current);
+        scrollSyncFrameRef.current = null;
+      }
+      if (programmaticScrollClearFrameRef.current !== null) {
+        cancelAnimationFrame(programmaticScrollClearFrameRef.current);
+        programmaticScrollClearFrameRef.current = null;
+      }
+      pendingScrollSyncRef.current = null;
+      programmaticScrollRef.current = null;
+      activePaneRef.current = 'editor';
+      return;
     }
-    programmaticScrollRef.current = null;
-    return true;
-  }, []);
+    // `activePaneRef.current` is a `MarkdownScrollPane` (never null/undefined
+    // — it's initialized to `'editor'` and every writer assigns a real
+    // pane), so it's used directly rather than through a `??` fallback.
+    const sourcePane = activePaneRef.current;
+    const targetPane = sourcePane === 'preview' ? 'editor' : 'preview';
+    scheduleScrollSync(sourcePane, targetPane);
+    // resyncKey intentionally re-triggers this on preview content changes.
+  }, [mode, resyncKey, scheduleScrollSync, scrollSyncFrameRef, programmaticScrollClearFrameRef, pendingScrollSyncRef, programmaticScrollRef, activePaneRef]);
+}
+
+/**
+ * Keeps a split editor/preview pane aligned while scrolling either side, by
+ * anchoring on each top-level markdown block's source line vs. its rendered
+ * DOM element (falling back to plain ratio-sync when block anchors can't be
+ * measured). This is the generic mechanism behind the source component's
+ * split-pane markdown viewer — ported without its artifact-status gate, its
+ * autosave/upload pipeline, and its shiki-based syntax highlighting (all
+ * genuinely OD/product-specific; see `archived UI provenance ledger`).
+ */
+export function useMarkdownScrollSync(options: UseMarkdownScrollSyncOptions): UseMarkdownScrollSyncResult {
+  const { mode, sourceText, editorRef, previewRef, previewSelector, resyncKey } = options;
+  const activePaneRef = useRef<MarkdownScrollPane>('editor');
+  const blockLines = useMemo(() => extractMarkdownBlockLines(sourceText), [sourceText]);
+  const getEditorBlockOffsets = useEditorBlockOffsets(editorRef, blockLines, sourceText);
+  const guard = useProgrammaticScrollGuard(activePaneRef);
+  const applyScrollSync = useApplyScrollSync({
+    mode, editorRef, previewRef, previewSelector, blockLineCount: blockLines.length, getEditorBlockOffsets,
+    programmaticScrollRef: guard.programmaticScrollRef, clearProgrammaticScrollSoon: guard.clearProgrammaticScrollSoon,
+  });
+  const scheduler = useScrollSyncScheduler(mode, applyScrollSync);
+  const { scheduleScrollSync } = scheduler;
+  const { shouldIgnoreScroll } = guard;
+
+  useScrollSyncLifecycle({ mode, resyncKey, activePaneRef, guard, scheduler });
 
   const handleEditorScroll = useCallback(() => {
     const editor = editorRef.current;
@@ -163,30 +258,6 @@ export function useMarkdownScrollSync(options: UseMarkdownScrollSyncOptions): Us
   const activatePane = useCallback((pane: MarkdownScrollPane) => {
     activePaneRef.current = pane;
   }, []);
-
-  useEffect(() => {
-    if (mode !== 'split') {
-      if (scrollSyncFrameRef.current !== null) {
-        cancelAnimationFrame(scrollSyncFrameRef.current);
-        scrollSyncFrameRef.current = null;
-      }
-      if (programmaticScrollClearFrameRef.current !== null) {
-        cancelAnimationFrame(programmaticScrollClearFrameRef.current);
-        programmaticScrollClearFrameRef.current = null;
-      }
-      pendingScrollSyncRef.current = null;
-      programmaticScrollRef.current = null;
-      activePaneRef.current = 'editor';
-      return;
-    }
-    // `activePaneRef.current` is a `MarkdownScrollPane` (never null/undefined
-    // — it's initialized to `'editor'` and every writer above assigns a real
-    // pane), so it's used directly rather than through a `??` fallback.
-    const sourcePane = activePaneRef.current;
-    const targetPane = sourcePane === 'preview' ? 'editor' : 'preview';
-    scheduleScrollSync(sourcePane, targetPane);
-    // resyncKey intentionally re-triggers this on preview content changes.
-  }, [mode, resyncKey, scheduleScrollSync]);
 
   return { handleEditorScroll, handlePreviewScroll, activatePane };
 }

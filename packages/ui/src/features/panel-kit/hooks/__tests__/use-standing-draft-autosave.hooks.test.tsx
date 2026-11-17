@@ -313,3 +313,33 @@ describe('clearStandingDraft result', () => {
     expect(outcome).toEqual({ discarded: expected });
   });
 });
+
+describe('clearStandingDraft with keepOnFailure (recovered-draft Discard)', () => {
+  const recovered = { getAutosave: async () => ({ autosave: snapshot('2099-01-01T00:00:00.000Z', 'parked') }) };
+
+  it.each([
+    ['the server keeps it', async () => ({ ok: false })],
+    ['the request fails', async (): Promise<{ ok: boolean }> => { throw new Error('offline'); }],
+  ])('keeps the banner and the local copy when %s', async (_name, discardAutosave) => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const backup = makeBackup();
+    backup.write({ entryId: 'entry', draft: draft({ title: 'parked' }), savedAt: '2026-01-02T00:00:00.000Z' }, { principalId: 'operator' });
+    const { port } = makePort({ ...recovered, discardAutosave });
+    const { result } = mount({ port, backup });
+    await act(async () => {});
+    expect(result.current.recoverableDraft?.title).toBe('parked');
+    let outcome: { discarded: boolean } | undefined;
+    await act(async () => { outcome = await result.current.clearStandingDraft({}, { keepOnFailure: true }); });
+    expect(outcome).toEqual({ discarded: false });
+    expect(result.current.recoverableDraft?.title).toBe('parked');
+    expect(backup.read({ entryId: 'entry' }, { principalId: 'operator' })?.title).toBe('parked');
+  });
+
+  it('clears the banner once the server confirms the discard', async () => {
+    const { port } = makePort({ ...recovered, discardAutosave: async () => ({ ok: true }) });
+    const { result } = mount({ port, backup: makeBackup() });
+    await act(async () => {});
+    await act(async () => { await result.current.clearStandingDraft({}, { keepOnFailure: true }); });
+    expect(result.current.recoverableDraft).toBeNull();
+  });
+});

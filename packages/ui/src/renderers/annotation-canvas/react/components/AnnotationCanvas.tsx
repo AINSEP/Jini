@@ -197,6 +197,89 @@ function TextMarkItem({ c, icons, mark }: { c: AnnotationCanvasController; icons
   );
 }
 
+function AttachImageControl({
+  c,
+  icons,
+  onToolbarClick,
+}: {
+  c: AnnotationCanvasController;
+  icons: CanvasIcons;
+  onToolbarClick: AnnotationCanvasProps['onToolbarClick'];
+}) {
+  const t = useT();
+  return (
+    <>
+      <input
+        ref={c.fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        style={{ display: 'none' }}
+        onChange={c.onFileInputChange}
+      />
+      <button
+        type="button"
+        onClick={() => {
+          onToolbarClick?.('attach_image');
+          c.fileInputRef.current?.click();
+        }}
+        disabled={c.sending}
+        aria-label={t('Attach image')}
+        title={t('Attach image')}
+      >
+        {icons.attach()}
+      </button>
+    </>
+  );
+}
+
+function AnnotationNoteInput({ c }: { c: AnnotationCanvasController }) {
+  const t = useT();
+  return (
+    <input
+      value={c.note}
+      onChange={(e) => c.setNote(e.target.value)}
+      onPaste={c.onNotePaste}
+      disabled={c.sending}
+      placeholder={t('Add a note…')}
+      aria-label={t('Annotation note')}
+      onCompositionStart={c.onCompositionStart}
+      onCompositionEnd={c.onCompositionEnd}
+      onKeyDown={c.onNoteKeyDown}
+    />
+  );
+}
+
+function AnnotationToolbar({
+  c,
+  icons,
+  onToolbarClick,
+}: {
+  c: AnnotationCanvasController;
+  icons: CanvasIcons;
+  onToolbarClick: AnnotationCanvasProps['onToolbarClick'];
+}) {
+  const t = useT();
+  return (
+    <div
+      role="toolbar"
+      aria-label={t('Annotation tools')}
+      style={{ display: 'flex', alignItems: 'center', gap: 6, visibility: c.chromeHidden ? 'hidden' : undefined }}
+    >
+      <MarkToolPicker c={c} icons={icons} />
+      <button type="button" onClick={c.undoStroke} disabled={!c.canUndo} aria-label={t('Undo')} title={t('Undo')}>
+        {icons.undo()}
+      </button>
+      <button type="button" onClick={c.redoStroke} disabled={!c.canRedo} aria-label={t('Redo')} title={t('Redo')}>
+        {icons.redo()}
+      </button>
+      <AttachImageControl c={c} icons={icons} onToolbarClick={onToolbarClick} />
+      <AnnotationNoteInput c={c} />
+      <SubmitPicker c={c} icons={icons} />
+    </div>
+  );
+}
+
 function AnnotationDock({
   c,
   icons,
@@ -220,51 +303,7 @@ function AnnotationDock({
         </div>
       ) : null}
       {c.imagePreviews.length > 0 ? <AttachedImages c={c} icons={icons} /> : null}
-      <div
-        role="toolbar"
-        aria-label={t('Annotation tools')}
-        style={{ display: 'flex', alignItems: 'center', gap: 6, visibility: c.chromeHidden ? 'hidden' : undefined }}
-      >
-        <MarkToolPicker c={c} icons={icons} />
-        <button type="button" onClick={c.undoStroke} disabled={!c.canUndo} aria-label={t('Undo')} title={t('Undo')}>
-          {icons.undo()}
-        </button>
-        <button type="button" onClick={c.redoStroke} disabled={!c.canRedo} aria-label={t('Redo')} title={t('Redo')}>
-          {icons.redo()}
-        </button>
-        <input
-          ref={c.fileInputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          style={{ display: 'none' }}
-          onChange={c.onFileInputChange}
-        />
-        <button
-          type="button"
-          onClick={() => {
-            onToolbarClick?.('attach_image');
-            c.fileInputRef.current?.click();
-          }}
-          disabled={c.sending}
-          aria-label={t('Attach image')}
-          title={t('Attach image')}
-        >
-          {icons.attach()}
-        </button>
-        <input
-          value={c.note}
-          onChange={(e) => c.setNote(e.target.value)}
-          onPaste={c.onNotePaste}
-          disabled={c.sending}
-          placeholder={t('Add a note…')}
-          aria-label={t('Annotation note')}
-          onCompositionStart={c.onCompositionStart}
-          onCompositionEnd={c.onCompositionEnd}
-          onKeyDown={c.onNoteKeyDown}
-        />
-        <SubmitPicker c={c} icons={icons} />
-      </div>
+      <AnnotationToolbar c={c} icons={icons} onToolbarClick={onToolbarClick} />
       <button
         type="button"
         onClick={() => {

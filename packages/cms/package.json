@@ -35,6 +35,7 @@
       "./widgets/html/html-embeds": "node",
       "./widgets/html/gallery-render": "universal",
       "./widgets/date-label": "universal",
+      "./html/style-values": "universal",
       "./navigation/types": "universal",
       "./navigation/dropdown": "universal",
       "./navigation/node": "node",
@@ -53,6 +54,7 @@
       "./redirects/spa": "universal",
       "./redirects/host-config": "universal",
       "./seo": "universal",
+      "./seo/content-analysis": "universal",
       "./seo/dom": "browser",
       "./widgets": "universal",
       "./widgets/markers": "universal",
@@ -262,6 +264,11 @@
       "import": "./dist/widgets/date-label.js",
       "default": "./dist/widgets/date-label.js"
     },
+    "./html/style-values": {
+      "types": "./dist/html/style-values.d.ts",
+      "import": "./dist/html/style-values.js",
+      "default": "./dist/html/style-values.js"
+    },
     "./navigation/types": {
       "types": "./dist/navigation/types.d.ts",
       "import": "./dist/navigation/types.js",
@@ -351,6 +358,11 @@
       "types": "./dist/seo/index.d.ts",
       "import": "./dist/seo/index.js",
       "default": "./dist/seo/index.js"
+    },
+    "./seo/content-analysis": {
+      "types": "./dist/seo/content-analysis/index.d.ts",
+      "import": "./dist/seo/content-analysis/index.js",
+      "default": "./dist/seo/content-analysis/index.js"
     },
     "./seo/dom": {
       "types": "./dist/seo/dom/index.d.ts",

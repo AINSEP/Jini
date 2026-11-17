@@ -29,6 +29,35 @@ const require = createRequire(import.meta.url);
 
 
 
+/** A fresh running session record: empty replay buffer, no clients, nothing pending to flush. */
+function newInternalSession(
+  { id, createOptions, shell, cols, rows, pty, now }: {
+    id: string; createOptions: CreateTerminalOptions; shell: string; cols: number; rows: number; pty: InternalSession['pty']; now: number;
+  },
+): InternalSession {
+  return {
+    id,
+    projectId:
+      typeof createOptions.projectId === 'string' && createOptions.projectId ? createOptions.projectId : null,
+    cwd: createOptions.cwd,
+    shell,
+    cols,
+    rows,
+    status: 'running',
+    createdAt: now,
+    updatedAt: now,
+    exitCode: null,
+    signal: null,
+    events: [],
+    nextEventId: 1,
+    clients: new Set(),
+    pty,
+    bufferedBytes: 0,
+    pendingData: '',
+    flushTimer: null,
+  };
+}
+
 /**
  * Resolves the candidate paths to node-pty's `spawn-helper` binary. On
  * macOS/Linux, `pty.fork` shells out to this helper via `posix_spawn`;
@@ -281,27 +310,7 @@ export function createTerminalService(options: CreateTerminalServiceOptions): Te
       cwd: createOptions.cwd,
       env: { ...process.env } as Record<string, string>,
     });
-    const session: InternalSession = {
-      id,
-      projectId:
-        typeof createOptions.projectId === 'string' && createOptions.projectId ? createOptions.projectId : null,
-      cwd: createOptions.cwd,
-      shell,
-      cols,
-      rows,
-      status: 'running',
-      createdAt: now,
-      updatedAt: now,
-      exitCode: null,
-      signal: null,
-      events: [],
-      nextEventId: 1,
-      clients: new Set(),
-      pty,
-      bufferedBytes: 0,
-      pendingData: '',
-      flushTimer: null,
-    };
+    const session = newInternalSession({ id, createOptions, shell, cols, rows, pty, now });
     sessions.set(id, session);
     pty.onData((chunk: string) => {
       session.pendingData += chunk;

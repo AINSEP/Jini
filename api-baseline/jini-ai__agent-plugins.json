@@ -1,0 +1,992 @@
+{
+ ".": {
+  "types": "./dist/index.d.ts",
+  "symbols": {
+   "AGENT_PLUGINS_MCP_SCHEMA_URL": "variable:640488e7cb",
+   "AGENT_PLUGINS_SCHEMA_URL": "variable:8f680f7a01",
+   "McpManifest": "interface:8b59523ecb",
+   "McpServerEntry": "type:32d55a1a29",
+   "PLUGIN_MANIFEST_FILENAME": "variable:5eb623e683",
+   "PLUGIN_MCP_MANIFEST_FILENAME": "variable:7999e855a9",
+   "PLUGIN_SKILLS_DIRNAME": "variable:e9cf3d9318",
+   "PluginManifest": "interface:981332f8e2",
+   "PluginManifestAuthor": "interface:a4d04da65d",
+   "isMcpManifest": "function:8f0ec11822",
+   "isPluginManifest": "function:aa84ae8d7b",
+   "validateMcpManifest": "function:1890c037a8",
+   "validatePluginManifest": "function:a6c852f16e"
+  }
+ },
+ "./admin-surfaces": {
+  "types": "./dist/admin-surfaces/index.d.ts",
+  "symbols": {
+   "ADMIN_SURFACE_ACTION_INTENTS": "variable:8b67f9aa8e",
+   "ADMIN_SURFACE_MAX_HEIGHT": "variable:cf183eb506",
+   "ADMIN_SURFACE_MIN_HEIGHT": "variable:2c87c92b78",
+   "ADMIN_SURFACE_STATE_LIMITS": "variable:87dc8118fe",
+   "ADMIN_SURFACE_THEME_TOKENS": "variable:a4dfea5372",
+   "AdminSurfaceAction": "interface:18ce090fcd",
+   "AdminSurfaceActionError": "class:442b144761",
+   "AdminSurfaceActionFailure": "interface:672242cb48",
+   "AdminSurfaceActionHandler": "type:07065112c9",
+   "AdminSurfaceActionOutcome": "type:bf35ccccf9",
+   "AdminSurfaceActionRequest": "interface:66ed931db6",
+   "AdminSurfaceActionResponse": "type:e482d0d422",
+   "AdminSurfaceActionSchema": "type:bc05d9e289",
+   "AdminSurfaceAuthorizationStart": "interface:f371dae8a0",
+   "AdminSurfaceBootstrap": "interface:1f0b9ec479",
+   "AdminSurfaceBootstrapCall": "interface:a6b249af50",
+   "AdminSurfaceCallbackFieldKey": "interface:f90d593787",
+   "AdminSurfaceCapabilities": "type:08ca54a12a",
+   "AdminSurfaceCapabilitiesPort": "type:c77e2c5f22",
+   "AdminSurfaceCapabilityDeclarations": "interface:35659c6e17",
+   "AdminSurfaceColorScheme": "type:5d0824b8c2",
+   "AdminSurfaceConnectionAction": "type:500f5101f9",
+   "AdminSurfaceConnectionDeclaration": "interface:23f27b7f04",
+   "AdminSurfaceConnectionState": "type:4fd825592c",
+   "AdminSurfaceConnectionStatus": "interface:e4b614a8eb",
+   "AdminSurfaceConnections": "interface:a76e112bc6",
+   "AdminSurfaceCspDirective": "type:3bf16fcd59",
+   "AdminSurfaceDeliveryBinding": "type:6462461e89",
+   "AdminSurfaceDeliveryBindingDraft": "type:cb6190eb70",
+   "AdminSurfaceDeliveryBindingForms": "type:c291f96ade",
+   "AdminSurfaceDeliveryBindings": "interface:0b2ac53cd6",
+   "AdminSurfaceDescriptor": "interface:6d1c2ec527",
+   "AdminSurfaceForm": "interface:0029d07fd8",
+   "AdminSurfaceForms": "interface:953df73a26",
+   "AdminSurfaceHandlerCall": "interface:85b2547d50",
+   "AdminSurfaceHandlerContext": "interface:7f3825273a",
+   "AdminSurfaceHandlerModule": "interface:bb983b5ed5",
+   "AdminSurfaceHostKind": "type:2acf12d36f",
+   "AdminSurfaceInitMessage": "interface:a6fa8cae19",
+   "AdminSurfaceLinkVerdict": "type:2f760dcfa1",
+   "AdminSurfaceMessageEvent": "interface:eb79adf790",
+   "AdminSurfaceMessageVerdict": "type:a4bacaa283",
+   "AdminSurfaceMountRecord": "interface:107ee8b6a9",
+   "AdminSurfaceOpenLinkPort": "type:926b5c3ddb",
+   "AdminSurfaceOpenLinkRequest": "interface:5fa2ed4b58",
+   "AdminSurfacePluginContext": "interface:0623cbf266",
+   "AdminSurfacePluginStatePersistence": "interface:4f93bde454",
+   "AdminSurfacePublicConfig": "interface:bb9fb9e8bc",
+   "AdminSurfaceResizeMessage": "interface:b1950ebbf6",
+   "AdminSurfaceRevocationOutcome": "type:a2e8d8b76b",
+   "AdminSurfaceSignInAttempt": "interface:529a7c3053",
+   "AdminSurfaceState": "interface:9971ce2ddd",
+   "AdminSurfaceStateValue": "type:37f5e3b019",
+   "AdminSurfaceTheme": "interface:eb8c455713",
+   "AdminSurfaceThemeMessage": "interface:b2761d84fe",
+   "AdminSurfaceThemeToken": "type:11f5df3958",
+   "AdminSurfaceToolContext": "interface:8507bbf9bb",
+   "AdminSurfaceToolSource": "interface:67a41169e2",
+   "AgentPluginStateScope": "interface:6767493a3e",
+   "AgentPluginStateStore": "interface:829066a2c5",
+   "AgentPluginStateSummary": "interface:a8bc289b8b",
+   "LoadedAdminSurface": "interface:1d42666280",
+   "LoadedAdminSurfaceHandlers": "type:b01c3ab9ab",
+   "PLUGIN_STATE_MAX_KEYS": "variable:4776ac8b95",
+   "adminSurfaceActionResponse": "function:ec692a2ea6",
+   "adminSurfaceBootstrapHeaders": "function:1f07c161ad",
+   "adminSurfaceFrameAttributes": "function:cf9a9a81e7",
+   "adminSurfaceInitMessage": "function:a9dd0629b9",
+   "adminSurfaceThemeMessage": "function:d74f97bcf6",
+   "buildAdminSurfaceActionTools": "function:1b3a59e262",
+   "createAdminSurfaceActionDispatcher": "function:914a57195a",
+   "createAdminSurfaceBootstrap": "function:f9d7fdfa65",
+   "createAdminSurfaceCallbackInbox": "function:a545e3d67c",
+   "createAdminSurfaceHandlerHost": "function:12b4388649",
+   "createAdminSurfaceMount": "function:b782ca5e4d",
+   "createAgentPluginStateStore": "function:4d64f5e684",
+   "defineAdminSurfaceContribution": "function:168856a763",
+   "defineAdminSurfaceHandlerContribution": "function:e4077c065b",
+   "openAdminSurfaceLink": "function:67a3447299",
+   "parseAdminSurfacesFile": "function:461d32faab",
+   "readAdminSurfaceFile": "function:89427558f6",
+   "readAdminSurfaceResize": "function:3e81202831",
+   "readAdminSurfaceTheme": "function:a3b12f63ec",
+   "validateAdminSurfaceMessage": "function:5517ed445c"
+  }
+ },
+ "./admin-surfaces/client": {
+  "types": "./dist/admin-surfaces/surface-client.d.ts",
+  "symbols": {
+   "AdminSurfaceBrowserScope": "interface:2360756ed5",
+   "AdminSurfaceCallError": "class:d620b5aa44",
+   "AdminSurfaceClientFailure": "interface:8a32c28b35",
+   "AdminSurfaceClientTheme": "interface:ebcffdf933",
+   "AdminSurfaceIncomingMessage": "interface:a0ca015dd1",
+   "AdminSurfaceListenPort": "type:d47f359460",
+   "AdminSurfaceObserverConstructor": "type:55f0f4f9bd",
+   "AdminSurfaceParentPort": "interface:dc2658444e",
+   "AdminSurfaceSizePort": "type:364f8497b7",
+   "AdminSurfaceSizedBody": "interface:96f905654f",
+   "AdminSurfaceThemeRoot": "interface:9e16c521c1",
+   "createAdminSurfaceClient": "function:a058e20d0e"
+  }
+ },
+ "./admin-surfaces/connections": {
+  "types": "./dist/admin-surfaces/connections/index.d.ts",
+  "symbols": {
+   "AdminSurfaceAccountAction": "interface:1c0b431587",
+   "AdminSurfaceCallbackInbox": "interface:c12e1b7505",
+   "AdminSurfaceConnectionAccount": "interface:ab0ec6074c",
+   "AdminSurfaceConnectionRecord": "interface:c6ad524971",
+   "AdminSurfaceConnectionsDeps": "interface:38e96a57a7",
+   "AdminSurfaceConnectionsHost": "interface:991b5067be",
+   "AdminSurfaceDeclaredConnection": "interface:fbb2763b54",
+   "AdminSurfaceDisconnected": "interface:eef849831c",
+   "AdminSurfaceSignInStart": "interface:810e7369b8",
+   "AdminSurfaceSignInStarted": "interface:28084be007",
+   "AdminSurfaceStagedAccount": "interface:2cd5aa0a33",
+   "AdminSurfaceStatusView": "interface:2ceee54d6c",
+   "IssuedSignIn": "interface:b0539d2556",
+   "createAdminSurfaceConnections": "function:4fa622aa58"
+  }
+ },
+ "./admin-surfaces/node": {
+  "types": "./dist/admin-surfaces/node.d.ts",
+  "symbols": {
+   "HostSignInLink": "interface:b7c7c98d25",
+   "IssuedSignInCollector": "interface:e2dc4d909f",
+   "createIssuedSignInCollector": "function:20ab75e916"
+  }
+ },
+ "./calendly": {
+  "types": null,
+  "symbols": {}
+ },
+ "./calendly/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./charts-echarts": {
+  "types": null,
+  "symbols": {}
+ },
+ "./charts-echarts/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./charts-recharts": {
+  "types": null,
+  "symbols": {}
+ },
+ "./charts-recharts/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./cloudflare": {
+  "types": null,
+  "symbols": {}
+ },
+ "./cloudflare/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./commerce": {
+  "types": null,
+  "symbols": {}
+ },
+ "./commerce/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./commerce/server": {
+  "types": "./core/commerce-server.d.ts",
+  "symbols": {
+   "CommerceOrderReadDeps": "interface:c1e307d63f",
+   "CommerceOrderView": "interface:59f36ada97",
+   "CommerceServer": "interface:e9477dca12",
+   "CommerceServerRequired": "interface:d840957f17",
+   "CommerceServerStatus": "interface:99d288e4b7",
+   "CommerceUnavailableError": "class:fc2eee270a",
+   "createCommerceServer": "function:c1b97b9b36",
+   "normalizedCommerceOrigin": "function:b3c4534096",
+   "readOwnedCommerceOrder": "function:296e3257fa"
+  }
+ },
+ "./composio": {
+  "types": null,
+  "symbols": {}
+ },
+ "./composio/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./connect": {
+  "types": "./dist/connect/index.d.ts",
+  "symbols": {
+   "AgentPluginAccessApprovalDescription": "interface:a9c4e8dfe1",
+   "AgentPluginAccessTokenFormMessages": "interface:8b710d5b2c",
+   "AgentPluginAccessTokenHost": "interface:ff45e9d1ce",
+   "AgentPluginAccessTokenMessages": "interface:ec18ca84c5",
+   "AgentPluginAccessTokenToolDeps": "interface:ecc86084c5",
+   "AgentPluginApiConnectionStatusReads": "interface:91a04393ac",
+   "AgentPluginCardBuilders": "type:c59f4e5af5",
+   "AgentPluginCardIdentity": "interface:1414411ad4",
+   "AgentPluginCardsPort": "type:68b4c387a9",
+   "AgentPluginConnectActors": "interface:c61323cff5",
+   "AgentPluginConnectApiConnectionsPort": "interface:2a80257809",
+   "AgentPluginConnectApprovalsPort": "interface:d90de19bea",
+   "AgentPluginConnectCardSpec": "type:184cd8b05f",
+   "AgentPluginConnectDeps": "interface:bfc220380b",
+   "AgentPluginConnectHost": "interface:053c676c02",
+   "AgentPluginConnectMessages": "interface:42aefcf40f",
+   "AgentPluginConnectOptions": "type:6d1dcae793",
+   "AgentPluginConnectResult": "interface:d6fe114838",
+   "AgentPluginConnectSignInPort": "interface:06ba0028a6",
+   "AgentPluginConnectionStatus": "type:01d7e73bb3",
+   "AgentPluginCredentialCardForms": "interface:eb15eae751",
+   "AgentPluginDestinationCardHost": "interface:a8f4d39068",
+   "AgentPluginEnableAccessMessages": "interface:feafea2e7a",
+   "AgentPluginInstalledMcpReads": "type:435bd483fb",
+   "AgentPluginLayout": "interface:12de3a313c",
+   "AgentPluginMcpAccessSnapshot": "type:11778ffe64",
+   "AgentPluginMcpFederationMessages": "interface:4efe9a80a6",
+   "AgentPluginMcpFederationPlan": "interface:36ffe15390",
+   "AgentPluginMcpPort": "interface:6a8f552a74",
+   "AgentPluginMcpProjectionPorts": "interface:0e20b5e274",
+   "AgentPluginMcpProjections": "interface:3788657a42",
+   "AgentPluginMcpRecord": "type:72397fd040",
+   "AgentPluginMcpRepo": "type:20cc1f50a8",
+   "AgentPluginMcpSave": "type:0aee4cef71",
+   "AgentPluginMcpServicesPort": "interface:8c7b2958ea",
+   "AgentPluginMcpTrustClassifier": "type:6739150ee3",
+   "AgentPluginMcpView": "type:4a00d458fb",
+   "AgentPluginTokenCredentialsPort": "interface:4cb01a81a8",
+   "AgentPluginTokenTargetDeps": "interface:920dfcba23",
+   "AgentPluginTokenValidator": "interface:c765be7662",
+   "ApplyAgentPluginToolRenamesDeps": "interface:16bb659888",
+   "ApplyConnectDefaultsDeps": "type:a8429d733b",
+   "CredentialSaveAdapters": "interface:26dd368851",
+   "CredentialSaveMessages": "interface:cde7904d7b",
+   "GrantSignedInDefaultsDeps": "type:0c9d9cc874",
+   "ImportAgentPluginAccessTokenDeps": "interface:63ded131b5",
+   "ImportAgentPluginAccessTokenOutcome": "type:12f0f243c7",
+   "ImportAgentPluginAccessTokensFromEnvDeps": "interface:16f3a5b1dd",
+   "InstalledAgentPluginServers": "interface:9a35cf952d",
+   "LoadPluginCredentialCards": "type:613f643045",
+   "PlannedAgentPluginMcpUpsert": "interface:d003f55bf9",
+   "PluginCredentialCardPorts": "interface:14173fb2f1",
+   "ProvisionAgentPluginMcpServersInput": "interface:9f672ee237",
+   "ProvisionAgentPluginMcpServersResult": "interface:5dd603ca1c",
+   "ResolvedAgentPluginForConnect": "interface:59bcd13ffd",
+   "SavedTokenSwitchOutcome": "type:5154b18712",
+   "SetAccessTokenResult": "type:445ac33b4a",
+   "SkippedAgentPluginMcpServer": "interface:fc80e94a7b",
+   "SwitchOnSavedTokenDeps": "interface:d83d9dcb37",
+   "TokenAuthTarget": "interface:e9478b155c",
+   "TokenCheckOutcome": "type:f1852e5e39",
+   "TokenImportLog": "interface:2dea363278",
+   "TokenSignInPlugin": "interface:c7738b705d",
+   "agentPluginConnectAgentToolCatalogFor": "function:64d2d7da39",
+   "agentPluginConnectDerivedRiskFor": "function:8d4210ac7a",
+   "applyAgentPluginToolRenames": "function:ea3541d267",
+   "buildAgentPluginAccessTokenFormWithPorts": "function:a6a7fd76aa",
+   "buildAgentPluginAccessTokenOutcomeWithPorts": "function:e43fbf2510",
+   "buildAgentPluginConnectCardWithPorts": "function:482ef2f54d",
+   "checkAgentPluginAccessToken": "function:94d9fa6b01",
+   "chooseApiConnectionDestinationWithPorts": "function:9f7a5f346c",
+   "createApplyConnectDefaults": "function:fa44e4c529",
+   "createCredentialSaveTools": "function:a755363300",
+   "createPluginCredentialCardOperations": "function:f72a70e018",
+   "credentialCardsContribution": "variable:894d2122a5",
+   "deriveAgentPluginConnectionId": "function:1e25c28f7c",
+   "findAgentPluginMcpServerDefaults": "function:69db31b2e8",
+   "findPluginCredentialCard": "function:2d1807b6c2",
+   "grantDeclaredToolsAtBoot": "function:07a731bbe0",
+   "grantDeclaredToolsToSignedInRows": "function:75c00d9b42",
+   "hasStoredAgentPluginCredential": "function:fa714c4819",
+   "importAgentPluginAccessToken": "function:6410f8c08e",
+   "importAgentPluginAccessTokensFromEnv": "function:f226e549c9",
+   "isEmptyJsonList": "function:43c45a428e",
+   "listInstalledAgentPluginServers": "function:0e222142e7",
+   "listTokenSignInPlugins": "function:c3ac8c8e70",
+   "loadAgentPluginConnectionStatuses": "function:55940735c9",
+   "loadPluginCredentialCardsSafely": "function:32f9cb172f",
+   "mergePluginCredentialCards": "function:ea48e2e035",
+   "parseCredentialCardUsedFor": "function:513ff5a08e",
+   "parsePluginCredentialCards": "function:cb0ce38651",
+   "planAgentPluginMcpFederation": "function:6d985613b2",
+   "previewAgentPluginEnableAccess": "function:ae6eb1c415",
+   "probeToken": "function:99c6336eb2",
+   "provisionAgentPluginMcpServers": "function:b8a8997a9d",
+   "recordAgentPluginAccessDeclined": "function:8136c24f57",
+   "renameToolNames": "function:47ff6f3bf3",
+   "requireTargetRow": "function:3500fd5896",
+   "resolveAgentPluginCardIdentity": "function:9f66254a37",
+   "resolveAgentPluginMcpServers": "function:b6ea298ee3",
+   "resolveAgentPluginReadOnlyRemoteNames": "function:33b43297fd",
+   "resolveTarget": "function:81f5ea0376",
+   "runAgentPluginConnect": "function:2d209330f0",
+   "saveAgentPluginToken": "function:051f7d79f2",
+   "saveStaticAccessToken": "function:c9be4582e6",
+   "storedAgentPluginGrants": "function:d167e4c974",
+   "switchOnSavedTokenConnection": "function:dbd00579c1",
+   "titleCaseFromPluginId": "function:2657f81520",
+   "validatedAgentPluginToolGrant": "function:e8942108a8",
+   "waitAtAgentPluginSignInCardWithPorts": "function:7581cc44e2"
+  }
+ },
+ "./connect/executable": {
+  "types": "./dist/connect/executable/index.d.ts",
+  "symbols": {
+   "APPROVAL_FAMILY_BY_EFFECT": "variable:da2a221961",
+   "AgentPluginApiOriginsFor": "type:c1930796de",
+   "AgentPluginApprovalFamily": "type:d1491952dc",
+   "AgentPluginArtifactWriter": "interface:ade1d2aa09",
+   "AgentPluginConnectionAccess": "interface:6d0c75aec5",
+   "AgentPluginConnectionTarget": "interface:a68c9273ac",
+   "AgentPluginDisclosureMessages": "interface:10266eba40",
+   "AgentPluginDisclosureSource": "interface:bec279931f",
+   "AgentPluginExecutableContributionRegistry": "interface:ef81a92bd3",
+   "AgentPluginExecutableContributions": "interface:4efc88044c",
+   "AgentPluginExecutableRegistrationRequired": "interface:c00cc85d44",
+   "AgentPluginExecutableRuntimeHost": "interface:56187bcf58",
+   "AgentPluginRateLimiter": "interface:f954a816b6",
+   "AgentPluginStateReaderFor": "type:76ded30fc8",
+   "ApplyAgentPluginApproval": "type:a46a1b2fe0",
+   "ApplyAgentPluginPolicy": "type:fdf5e2c9fe",
+   "FrozenConnectionAccounts": "interface:7c21c10e98",
+   "HTTPS_ONLY_MESSAGE": "variable:09863ca2e5",
+   "RESPONSE_TOO_LARGE_MESSAGE": "variable:584c8683e4",
+   "UNAPPROVED_CONNECTION_MESSAGE": "variable:f1125ea9f9",
+   "UNDECLARED_ORIGIN_MESSAGE": "variable:3938bfcba9",
+   "confirmedTokenOptions": "function:4fa132dfc6",
+   "createAgentPluginDisclosure": "function:d58089c2d4",
+   "createAgentPluginToolCapabilities": "function:b14feb03b2",
+   "createFrozenConnectionAccounts": "function:5c6357833d",
+   "createGuardedPluginHttp": "function:7dd81438dd",
+   "registerAgentPluginExecutableTools": "function:65494efcab"
+  }
+ },
+ "./connect/plugin-host": {
+  "types": "./dist/connect/plugin-host/index.d.ts",
+  "symbols": {
+   "AgentPluginLifecycleCapability": "interface:c877b37126",
+   "PluginHostActivation": "interface:fbd7b4a8f9",
+   "PluginHostDeps": "interface:352f084e96",
+   "PluginHostDiscoveryRecord": "interface:c4162d7fea",
+   "PluginHostGrantDeps": "interface:caa2f3bdc1",
+   "PluginHostLifecycle": "interface:995081d637",
+   "PluginHostMessages": "interface:6ae25df138",
+   "PortablePluginHost": "interface:9bacffc01d",
+   "createPluginHost": "function:7e7f7d12b6"
+  }
+ },
+ "./fly": {
+  "types": null,
+  "symbols": {}
+ },
+ "./fly/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./folder-zip": {
+  "types": "./dist/folder-zip.d.ts",
+  "symbols": {
+   "FOLDER_EMPTY": "variable:9e643dfbc0",
+   "FOLDER_MAX_FILES": "variable:1a27fd25a7",
+   "FOLDER_UNREADABLE": "variable:b91751fb31",
+   "FolderZipError": "class:9cc8238ad2",
+   "crc32": "function:db32ef69cc",
+   "zipFolderFiles": "function:b5935cddd1"
+  }
+ },
+ "./folder-zip/node": {
+  "types": "./dist/folder-zip-node.d.ts",
+  "symbols": {
+   "CustomizeAgentPluginFolderInput": "interface:6e825d1cdd",
+   "zipCustomizedAgentPluginFolder": "function:1bf0fe9a35",
+   "zipLocalFolder": "function:9fa056b6ff"
+  }
+ },
+ "./formspree": {
+  "types": null,
+  "symbols": {}
+ },
+ "./formspree/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./github": {
+  "types": null,
+  "symbols": {}
+ },
+ "./github-pages": {
+  "types": null,
+  "symbols": {}
+ },
+ "./github-pages/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./github/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./google-forms": {
+  "types": null,
+  "symbols": {}
+ },
+ "./google-forms/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./google-login": {
+  "types": null,
+  "symbols": {}
+ },
+ "./google-login/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./google-workspace": {
+  "types": null,
+  "symbols": {}
+ },
+ "./google-workspace/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./higgsfield-media": {
+  "types": null,
+  "symbols": {}
+ },
+ "./higgsfield-media/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./jev": {
+  "types": null,
+  "symbols": {}
+ },
+ "./jev/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./langfuse": {
+  "types": null,
+  "symbols": {}
+ },
+ "./langfuse/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./lifecycle": {
+  "types": "./dist/lifecycle/index.d.ts",
+  "symbols": {
+   "ACTIVATIONS_FILENAME": "variable:91aecd8cb5",
+   "ACTIVATIONS_LOCK_FILENAME": "variable:5b84d6e29f",
+   "AGENT_PLUGIN_CONTRACT_VERSION": "variable:f94e019d0f",
+   "AgentPluginActivationRecord": "interface:606043936f",
+   "AgentPluginActivationVerdict": "type:337676fbc5",
+   "AgentPluginActivations": "interface:d4d4c73c48",
+   "AgentPluginActivationsBusyError": "class:ffc334daa8",
+   "AgentPluginActivationsUnreadableError": "class:c1de951892",
+   "AgentPluginArchiveEntry": "type:9bd792022d",
+   "AgentPluginArchiveReaderPort": "interface:41abe6d61d",
+   "AgentPluginChangedSincePreviewError": "class:ba5244d947",
+   "AgentPluginClockPort": "type:e92529f656",
+   "AgentPluginCompatibility": "interface:7c1ab0f7de",
+   "AgentPluginDeclaredTools": "interface:460e69b784",
+   "AgentPluginDefaultTools": "interface:598ccc523b",
+   "AgentPluginDeliveryMode": "type:c7c75b920f",
+   "AgentPluginDiscoveryMatch": "interface:394df20ddf",
+   "AgentPluginDiscoveryPage": "interface:dafe6b9f7e",
+   "AgentPluginExport": "interface:b89f1dcb29",
+   "AgentPluginExportConsent": "type:a03e00f26b",
+   "AgentPluginExportExternalHosts": "interface:27ba7bf21a",
+   "AgentPluginExportMetadata": "interface:8760f6f2ca",
+   "AgentPluginExportStaticMode": "type:65b59d6555",
+   "AgentPluginFetchError": "class:55b4953622",
+   "AgentPluginFetchErrorCode": "type:14e8109cd1",
+   "AgentPluginFetchPort": "type:6cecb29803",
+   "AgentPluginHostIncompatibleError": "class:de00a3845b",
+   "AgentPluginHostSignal": "interface:a5f1819f43",
+   "AgentPluginIdsPort": "type:c61b55ae0e",
+   "AgentPluginInstallError": "class:cf6634340a",
+   "AgentPluginInstallErrorCode": "type:a20011b938",
+   "AgentPluginIntegrity": "type:4eea3cb6ac",
+   "AgentPluginLayout": "type:08d4efab5f",
+   "AgentPluginLayoutPort": "interface:d85ecc33eb",
+   "AgentPluginLifecycleOptional": "type:5e69b9ca3d",
+   "AgentPluginLifecyclePorts": "interface:5080d2f8ad",
+   "AgentPluginLifecycleRequired": "type:5ed9a704ff",
+   "AgentPluginManifest": "interface:9bdfdd5a99",
+   "AgentPluginMcpConfig": "interface:c642887fd5",
+   "AgentPluginMcpProvisioningPort": "interface:08ae0a5915",
+   "AgentPluginMetadata": "interface:76daff84f8",
+   "AgentPluginNotFoundError": "class:e8d11993c8",
+   "AgentPluginNotInstalledError": "class:077809f488",
+   "AgentPluginNotUninstallableError": "class:0289d0756b",
+   "AgentPluginOrigin": "type:f5d8db2afb",
+   "AgentPluginOutboundGuardPort": "interface:60b98cc660",
+   "AgentPluginProcessPort": "interface:381df1f7f0",
+   "AgentPluginSearchCandidate": "interface:d9c323f760",
+   "AgentPluginSearchMatch": "interface:8736c2dc0b",
+   "AgentPluginSearchSkill": "interface:6d4d9e05cc",
+   "AgentPluginServerMetadata": "interface:9019ba443e",
+   "AgentPluginServerMetadataReader": "type:ccfa5d6e1b",
+   "AgentPluginSkillRequest": "interface:a9249b1edb",
+   "AgentPluginTokenAuth": "interface:7bdb980948",
+   "AgentPluginToolGrant": "interface:46aa90b3d8",
+   "AgentPluginUninstallPreview": "interface:d4b12d2828",
+   "AgentPluginUpdateError": "class:67474c7962",
+   "AgentPluginUpdatePlan": "interface:a3f30c89fe",
+   "AgentPluginWorkspaceLayout": "interface:7021f4bbe4",
+   "ArchiveReaderPort": "interface:41abe6d61d",
+   "AutomaticAgentPluginLoadResult": "interface:74e8598a6e",
+   "AutomaticAgentPluginMatch": "interface:831b68f91c",
+   "AutomaticAgentPluginPorts": "interface:3b1cf825df",
+   "BUNDLED_DIGESTS_FILENAME": "variable:8dd69b1e30",
+   "BundledAgentPluginDigests": "type:04a85ba757",
+   "BundledAgentPluginEnableOutcome": "type:72021736fd",
+   "BundledPluginFileDisposition": "type:6e5511a09b",
+   "ChatAgentPluginState": "interface:ca10117c33",
+   "ChatAgentPlugins": "type:0b95196b39",
+   "DEFAULT_CHAT_AGENT_PLUGINS": "variable:376c9da0d9",
+   "DeleteAgentPluginActivationRequired": "interface:d1cc1c531c",
+   "FetchAgentPluginArchiveOptional": "interface:ee56ca8fb3",
+   "FetchAgentPluginArchiveRequired": "interface:22e8ba4da1",
+   "FetchedAgentPluginArchive": "interface:2a392bb425",
+   "FilesystemPort": "type:f49d5b06ee",
+   "INVALID_AGENT_PLUGIN_HOST_RANGE": "variable:bcf7f35127",
+   "InstallAgentPluginFromUrlOptional": "interface:56f5762b94",
+   "InstallAgentPluginFromUrlRequired": "interface:19c528e50d",
+   "InstallAgentPluginOptional": "interface:e434999ac0",
+   "InstallAgentPluginRequired": "interface:532bc01acf",
+   "InstalledAgentPlugin": "interface:82c59e0791",
+   "InstalledAgentPluginFromUrl": "interface:3bed5b7d6d",
+   "InstalledAgentPluginSkill": "interface:b99bf06a89",
+   "InstalledDigestIdentity": "interface:402ff1fb54",
+   "LoadPluginContributionsOptional": "interface:d7ecd663d2",
+   "LoadedPluginContribution": "interface:a4a1f2edd8",
+   "LoadedProviderContribution": "interface:b43a84befe",
+   "MCP_SERVER_TRANSPORTS": "variable:8960591bee",
+   "McpManifest": "interface:8b59523ecb",
+   "McpServerConfig": "type:e9d3a5cb67",
+   "McpServerEntry": "type:32d55a1a29",
+   "McpServerTransport": "type:2a86a939da",
+   "PackAgentPluginDirectoryOptional": "interface:812bcebd04",
+   "PackagePathViolation": "class:fa885b606f",
+   "PackedAgentPluginArchive": "interface:2486756376",
+   "PackingForSource": "type:4259f4870a",
+   "ParseAgentPluginExportsResult": "type:05b62b0aa5",
+   "ParseAgentPluginManifestResult": "type:3de3c84d87",
+   "ParseAgentPluginMcpConfigResult": "type:c3df5359a9",
+   "PluginActivationReaderPorts": "interface:8e64ea4437",
+   "PluginContributionDefinition": "interface:dba2b12222",
+   "PluginContributionParseResult": "type:7123311683",
+   "PluginContributionPorts": "interface:e25cfcede5",
+   "PluginContributionResult": "interface:385c46cd74",
+   "PluginCredentialCard": "interface:49c9ac2963",
+   "PluginCredentialField": "interface:03707f19ad",
+   "PluginManifest": "interface:981332f8e2",
+   "PluginManifestAuthor": "interface:a4d04da65d",
+   "PluginModuleImportPort": "type:ca34bc4fec",
+   "ProviderContributionDescriptor": "interface:0c7d451ab7",
+   "ReadBundledPluginFile": "type:4df99a4edc",
+   "RemoteMcpServerConfig": "interface:f581a4c4b3",
+   "ResolveAgentPluginRefsResult": "type:81e2f19758",
+   "RetireBundledAgentPluginsOptional": "interface:56c36a74a1",
+   "RetireBundledAgentPluginsRequired": "interface:ca73f41682",
+   "RetiredAgentPluginOutcome": "type:32fb4ef2ca",
+   "RetiredAgentPluginSuccessorOutcome": "type:7021705397",
+   "SeedBundledAgentPluginsOptional": "interface:b24db3beb9",
+   "SeedBundledAgentPluginsRequired": "interface:898b2227b8",
+   "SeedBundledAgentPluginsResult": "interface:d283e27ecb",
+   "SeededAgentPluginOutcome": "type:d36c816d49",
+   "SeededBundledAgentPluginDigest": "interface:e2f1c16d05",
+   "SetAgentPluginActivationOptional": "interface:89ed146aaa",
+   "SetAgentPluginActivationRequired": "interface:306ffbf5b6",
+   "SetAgentPluginEnabledInput": "interface:cbb190c5a8",
+   "SetAgentPluginEnabledResult": "interface:fb229a9dd9",
+   "SkillFileReader": "interface:eb45cd890d",
+   "SkillFileResult": "interface:8f40f695a4",
+   "StagedTree": "interface:c48f56457a",
+   "StdioMcpServerConfig": "interface:399aac4e44",
+   "TrustedPluginPackage": "interface:30e934f555",
+   "TrustedPluginPackagesQuery": "interface:ef99ed38aa",
+   "TrustedPluginVerdict": "type:7c364296d1",
+   "UninstallAgentPluginOptional": "interface:a692eafcf7",
+   "UninstallAgentPluginRequired": "interface:3e6e39f19d",
+   "UninstallAgentPluginResult": "interface:7530bc09f7",
+   "UpdateAgentPluginRequired": "interface:b45a47301d",
+   "UpdateAgentPluginResult": "interface:fb9bdef78e",
+   "agentPluginDependentWarnings": "function:36974ab938",
+   "agentVisiblePluginCandidate": "function:73459fc02a",
+   "checkAgentPluginCompatibility": "function:bff4692d9e",
+   "classifyBundledPluginFile": "function:810f0efc4c",
+   "contributeProviders": "function:a73cb62064",
+   "createAgentPluginActivations": "function:a98be8f4c9",
+   "createAgentPluginLayout": "function:2ac136dd75",
+   "createAgentPluginLifecycle": "function:574e41d9a0",
+   "createAutomaticAgentPluginUse": "function:b30cfb12d4",
+   "createPluginContributionLoader": "function:91849dd6a0",
+   "createSkillFileReader": "function:cfa60bca9f",
+   "createVersionedPluginActivationReader": "function:771de6a6a6",
+   "defineExecutablePluginContribution": "function:c4410755cf",
+   "defineProviderContribution": "function:d47d4b38b6",
+   "describeAgentPluginCompatibility": "function:8f78898c32",
+   "fetchAgentPluginArchive": "function:8af33048c2",
+   "isAgentPluginName": "function:e17a3cd2f7",
+   "isValidAgentPluginHostRange": "function:8b20ed6bf4",
+   "legacyAgentPluginMetadataWarning": "variable:20062880ac",
+   "maxAgentPluginArchiveBytes": "function:ecb6f8ddce",
+   "parseAgentPluginExports": "function:50a4cbdffb",
+   "parseAgentPluginManifest": "function:cf39a3623c",
+   "parseAgentPluginMcpConfig": "function:8e825c4d2b",
+   "parseCredentialCardUsedFor": "function:513ff5a08e",
+   "parsePluginCredentialCards": "function:cb0ce38651",
+   "planAgentPluginToolGrant": "function:93572ef4ae",
+   "planAgentPluginUpdate": "function:c43178184e",
+   "projectAgentPluginSearchPage": "function:bbdbcd8da6",
+   "provisionAgentPluginMcp": "function:a1aef3dae0",
+   "readAgentPluginCompatibilityMetadata": "function:7a4b567d22",
+   "readAgentPluginCompatibilityWarnings": "function:61b964846c",
+   "readAgentPluginExtension": "function:e6f45e2d27",
+   "readAgentPluginMetadata": "function:722000ab87",
+   "readAgentPluginPortableExtension": "function:fcf7173e41",
+   "readChatAgentPluginState": "function:b5ce5ce5c7",
+   "removeAgentPluginMcp": "function:04c3729567",
+   "resolveAgentPluginIdentityNamespace": "function:976cc15f0f",
+   "syncAgentPluginMcpEnabled": "function:58bb558988",
+   "validateAgentPluginExportProps": "function:66db482df5",
+   "validateMcpManifest": "function:1890c037a8",
+   "validatePluginManifest": "function:a6c852f16e"
+  }
+ },
+ "./lifecycle/host-tools": {
+  "types": "./dist/lifecycle/host-tools/index.d.ts",
+  "symbols": {
+   "AgentPluginHostToolPorts": "interface:7b82b3cac7",
+   "AgentPluginSearchToolInput": "interface:696d68a2ce",
+   "AgentPluginSkillDetail": "interface:0a7ffcd554",
+   "AgentPluginToolGate": "interface:5baca6d175",
+   "AgentPluginToolIdentity": "interface:b95088a9e2",
+   "AgentPluginToolSource": "interface:bbba15c6b3",
+   "ApplyHostToolApprovalPolicy": "type:bb9f8341c0",
+   "HostGuidancePort": "interface:89e8df12b5",
+   "HostSearchToolNames": "interface:9adac2e8bc",
+   "HostToolApprovalFamily": "type:ca1f2a3cfc",
+   "HostToolMessages": "interface:bd416d989e",
+   "HostToolPermissions": "interface:f9d38f6295",
+   "HostToolSurfaces": "interface:a04af1033d",
+   "HostToolsActivationsPort": "type:6781eef0a9",
+   "HostToolsLayoutPort": "interface:136d64d11e",
+   "HostToolsLifecyclePort": "type:ab33eab880",
+   "HostToolsMemoryPort": "interface:b3fc7a7c20",
+   "IdentifiedAgentPluginSearchCandidate": "type:e924e9d9f8",
+   "PROVIDER_STATUS_TOOL_ID": "variable:d825c19c36",
+   "PluginMaturity": "type:beeae27ed9",
+   "PluginToolGuidance": "interface:6e449d2ea6",
+   "ProviderSettingFieldProjection": "interface:b0ee075e89",
+   "ProviderStatusMessages": "interface:9a79419a0f",
+   "ProviderStatusPorts": "interface:f3c6ec9db1",
+   "ProviderStatusRow": "interface:35684ffbba",
+   "RequireHostToolPermission": "type:8f52ce77f0",
+   "UNTESTED_PLUGIN_GUIDANCE": "variable:88913baa0e",
+   "WRITE_PLUGIN_NOTE": "variable:ed4ce6409e",
+   "agentPluginSearchDerivedRisk": "variable:1d30d49a7d",
+   "agentPluginSearchToolCatalog": "function:3b1a3bafd3",
+   "agentPluginToolDerivedRisk": "function:6ae1238e7e",
+   "buildAgentPluginSearchRegistrations": "function:943e3a097d",
+   "buildAgentPluginToolRegistrations": "function:14351b8d45",
+   "buildPluginMemoryRegistrations": "function:88f64ba759",
+   "createAgentPluginToolGate": "function:60aecf412f",
+   "createProviderStatusTools": "function:291c4f4af7",
+   "loadAgentPluginSearchCandidates": "function:1b553dd8f4",
+   "loadInstalledAgentPluginToolSources": "function:da1e8450b6",
+   "pluginNoteHandler": "function:83dd5308d4",
+   "pluginNoteRisk": "variable:c358322c15",
+   "pluginNoteToolCatalog": "function:079a01342a",
+   "readInstalledAgentPluginIdentity": "function:3c857a04c2",
+   "readPluginMaturity": "function:6665405c53",
+   "readProviderPluginLink": "function:939ff574e3",
+   "registerInstalledAgentPluginTools": "function:6f9d974ca7"
+  }
+ },
+ "./lifecycle/mail": {
+  "types": "./dist/lifecycle/mail/index.d.ts",
+  "symbols": {
+   "LoadedMailAdapter": "interface:ee424ce923",
+   "MailAdapterCreateContext": "interface:9dda881788",
+   "MailAdapterDescriptor": "interface:a64bbc667d",
+   "MailAdapterModule": "interface:59a3101b00",
+   "MailAdapterRegistry": "interface:1adaaff713",
+   "MailAdaptersParseResult": "type:c7f8303eab",
+   "MailCatalogDeps": "interface:c13a5377b6",
+   "MailCredentialCard": "interface:1268a9917f",
+   "MailCredentialRow": "interface:dcc20454bf",
+   "MailProviderCatalog": "interface:41224b7545",
+   "MailSelectionInput": "interface:77608d82a0",
+   "MailSelectionPorts": "interface:8d5f4dea99",
+   "asMailAdapterModule": "function:21da508cb3",
+   "createHostMailer": "function:5f419d24da",
+   "createMailCatalog": "function:29b8ca78d3",
+   "createMailConfiguration": "function:0ccb4fb37a",
+   "createMailContributions": "function:1b1a796307",
+   "createMailSelection": "function:6bca84162f",
+   "defaultMailCredentialLabel": "function:69417bedc3",
+   "parseMailAdaptersFile": "function:634acd9417"
+  }
+ },
+ "./lifecycle/node": {
+  "types": "./dist/lifecycle/node.d.ts",
+  "symbols": {
+   "createNodeAgentPluginEffects": "function:aa0c709cec"
+  }
+ },
+ "./lifecycle/tools": {
+  "types": "./dist/lifecycle/tools/index.d.ts",
+  "symbols": {
+   "AgentPluginAdditionalTool": "interface:5f9f674293",
+   "AgentPluginContractTool": "interface:f2e6fa6e5a",
+   "AgentPluginHttpOptions": "interface:18d22eb6d3",
+   "AgentPluginLimitResult": "type:fe4bff3ef0",
+   "AgentPluginStateReader": "interface:ca8a4f88ed",
+   "AgentPluginStateValue": "type:5a94cd3e57",
+   "AgentPluginToolCapabilities": "interface:2688274bb1",
+   "AgentPluginToolCapabilitiesPort": "type:7040b1442d",
+   "AgentPluginToolCapabilityScope": "interface:33e9771394",
+   "AgentPluginToolDescriptor": "interface:7e86a5e6c7",
+   "AgentPluginToolDisclosure": "interface:63f24ec667",
+   "AgentPluginToolEffect": "type:ea1a7bb42f",
+   "AgentPluginToolInvocation": "interface:689c79489f",
+   "AgentPluginToolModule": "interface:0440f25683",
+   "AgentPluginToolProjectionPorts": "interface:559cceb56b",
+   "AgentPluginToolSnapshot": "interface:1448aa968a",
+   "IssuedTokenMemories": "interface:e91535e894",
+   "LoadedAgentPluginTool": "type:66137a1cbf",
+   "WITHHELD_OUTPUT_MESSAGE": "variable:29f78ff96a",
+   "createAgentPluginToolProjection": "function:e627faa69f",
+   "createIssuedTokenMemories": "function:aa4d3a2882",
+   "defineAgentPluginToolContribution": "function:85e107cd12",
+   "parseAgentPluginToolsFile": "function:fa4a1aea44"
+  }
+ },
+ "./lifecycle/yauzl": {
+  "types": "./dist/lifecycle/yauzl-archive-reader.d.ts",
+  "symbols": {
+   "YauzlEntry": "interface:f677d84cdf",
+   "YauzlPort": "interface:f5a88f41fc",
+   "YauzlZipFile": "interface:deb97366e2",
+   "createYauzlAgentPluginArchiveReader": "function:0f3b3d91d8"
+  }
+ },
+ "./manifest": {
+  "types": "./dist/lifecycle/manifest.d.ts",
+  "symbols": {
+   "AgentPluginDefaultTools": "interface:598ccc523b",
+   "AgentPluginExport": "interface:b89f1dcb29",
+   "AgentPluginExportConsent": "type:a03e00f26b",
+   "AgentPluginExportExternalHosts": "interface:27ba7bf21a",
+   "AgentPluginExportMetadata": "interface:8760f6f2ca",
+   "AgentPluginExportStaticMode": "type:65b59d6555",
+   "AgentPluginHostSignal": "interface:a5f1819f43",
+   "AgentPluginManifest": "interface:9bdfdd5a99",
+   "AgentPluginMcpConfig": "interface:c642887fd5",
+   "AgentPluginMetadata": "interface:76daff84f8",
+   "AgentPluginServerMetadata": "interface:9019ba443e",
+   "AgentPluginServerMetadataReader": "type:ccfa5d6e1b",
+   "AgentPluginTokenAuth": "interface:7bdb980948",
+   "MCP_SERVER_TRANSPORTS": "variable:8960591bee",
+   "McpManifest": "interface:8b59523ecb",
+   "McpServerConfig": "type:e9d3a5cb67",
+   "McpServerEntry": "type:32d55a1a29",
+   "McpServerTransport": "type:2a86a939da",
+   "ParseAgentPluginExportsResult": "type:05b62b0aa5",
+   "ParseAgentPluginManifestResult": "type:3de3c84d87",
+   "ParseAgentPluginMcpConfigResult": "type:c3df5359a9",
+   "PluginCredentialCard": "interface:49c9ac2963",
+   "PluginCredentialField": "interface:03707f19ad",
+   "PluginManifest": "interface:981332f8e2",
+   "PluginManifestAuthor": "interface:a4d04da65d",
+   "RemoteMcpServerConfig": "interface:f581a4c4b3",
+   "StdioMcpServerConfig": "interface:399aac4e44",
+   "isAgentPluginName": "function:e17a3cd2f7",
+   "legacyAgentPluginMetadataWarning": "variable:20062880ac",
+   "parseAgentPluginExports": "function:50a4cbdffb",
+   "parseAgentPluginManifest": "function:cf39a3623c",
+   "parseAgentPluginMcpConfig": "function:8e825c4d2b",
+   "parseCredentialCardUsedFor": "function:513ff5a08e",
+   "parsePluginCredentialCards": "function:cb0ce38651",
+   "readAgentPluginCompatibilityWarnings": "function:61b964846c",
+   "readAgentPluginExtension": "function:e6f45e2d27",
+   "readAgentPluginMetadata": "function:722000ab87",
+   "readAgentPluginPortableExtension": "function:fcf7173e41",
+   "resolveAgentPluginIdentityNamespace": "function:976cc15f0f",
+   "validateAgentPluginExportProps": "function:66db482df5",
+   "validateMcpManifest": "function:1890c037a8",
+   "validatePluginManifest": "function:a6c852f16e"
+  }
+ },
+ "./meilisearch": {
+  "types": null,
+  "symbols": {}
+ },
+ "./meilisearch/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./netlify": {
+  "types": null,
+  "symbols": {}
+ },
+ "./netlify/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./opentelemetry": {
+  "types": null,
+  "symbols": {}
+ },
+ "./opentelemetry/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./persistent-state": {
+  "types": "./persistent-state.d.ts",
+  "symbols": {
+   "DEFAULT_PLUGIN_MEMORY_LIMITS": "variable:db7cebcf46",
+   "PluginMemory": "interface:2b8500a324",
+   "PluginMemoryFile": "interface:b58de15225",
+   "PluginMemoryKind": "type:86981af25d",
+   "PluginStateEffects": "interface:ade43730b5",
+   "PluginStatePaths": "interface:0164e6c832",
+   "assertPluginStatePath": "function:234ef12956",
+   "createPluginMemory": "function:026992c641",
+   "migratePluginLayout": "function:69aba6d306",
+   "pluginStatePaths": "function:6481e625d3",
+   "withPluginStateLock": "function:98e06a3be9"
+  }
+ },
+ "./posthog": {
+  "types": null,
+  "symbols": {}
+ },
+ "./posthog/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./railway": {
+  "types": null,
+  "symbols": {}
+ },
+ "./railway/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./render": {
+  "types": null,
+  "symbols": {}
+ },
+ "./render/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./resend": {
+  "types": null,
+  "symbols": {}
+ },
+ "./resend/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./s3-compatible": {
+  "types": null,
+  "symbols": {}
+ },
+ "./s3-compatible/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./sentry": {
+  "types": null,
+  "symbols": {}
+ },
+ "./sentry/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./shopify": {
+  "types": null,
+  "symbols": {}
+ },
+ "./shopify/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./site-compliance": {
+  "types": null,
+  "symbols": {}
+ },
+ "./site-compliance/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./site-import": {
+  "types": null,
+  "symbols": {}
+ },
+ "./site-import/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./slide-design": {
+  "types": null,
+  "symbols": {}
+ },
+ "./slide-design/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./software-engineering": {
+  "types": null,
+  "symbols": {}
+ },
+ "./software-engineering/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./stripe": {
+  "types": null,
+  "symbols": {}
+ },
+ "./stripe/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./supabase": {
+  "types": null,
+  "symbols": {}
+ },
+ "./supabase/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./ui-ux-design": {
+  "types": null,
+  "symbols": {}
+ },
+ "./ui-ux-design/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./vercel": {
+  "types": null,
+  "symbols": {}
+ },
+ "./vercel/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./wordpress": {
+  "types": null,
+  "symbols": {}
+ },
+ "./wordpress/*": {
+  "types": null,
+  "symbols": {}
+ }
+}

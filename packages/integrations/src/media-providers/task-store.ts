@@ -110,6 +110,34 @@ export interface MediaTaskStore {
   reconcileOnBoot(options: MediaTaskReconcileOptions): Promise<MediaTaskReconcileResult>;
 }
 
+/** Boot reconciliation over the live map: interrupt in-flight tasks and drop terminal ones past the TTL. */
+function reconcileTasks(
+  { tasks, options }: { tasks: Map<string, MediaTask>; options: MediaTaskReconcileOptions },
+): MediaTaskReconcileResult {
+  assertValidTerminalTtl(options.terminalTtlMs);
+  const now = options.now ?? Date.now();
+  const cutoff = now - options.terminalTtlMs;
+  let interrupted = 0;
+  let deleted = 0;
+  for (const task of [...tasks.values()]) {
+    const action = reconcileAction(task, now, cutoff);
+    switch (action.kind) {
+      case 'interrupt':
+        tasks.set(task.id, action.next);
+        interrupted += 1;
+        break;
+      case 'delete':
+        tasks.delete(task.id);
+        deleted += 1;
+        break;
+      default:
+        // 'keep': the task stays as it is.
+        break;
+    }
+  }
+  return { interrupted, deleted };
+}
+
 /** Creates the in-memory reference `MediaTaskStore`. No persistence — state is lost on process exit. */
 export function createInMemoryMediaTaskStore(): MediaTaskStore {
   const tasks = new Map<string, MediaTask>();
@@ -151,28 +179,7 @@ export function createInMemoryMediaTaskStore(): MediaTaskStore {
     },
 
     async reconcileOnBoot(options: MediaTaskReconcileOptions): Promise<MediaTaskReconcileResult> {
-      assertValidTerminalTtl(options.terminalTtlMs);
-      const now = options.now ?? Date.now();
-      const cutoff = now - options.terminalTtlMs;
-      let interrupted = 0;
-      let deleted = 0;
-      for (const task of [...tasks.values()]) {
-        const action = reconcileAction(task, now, cutoff);
-        switch (action.kind) {
-          case 'interrupt':
-            tasks.set(task.id, action.next);
-            interrupted += 1;
-            break;
-          case 'delete':
-            tasks.delete(task.id);
-            deleted += 1;
-            break;
-          default:
-            // 'keep': the task stays as it is.
-            break;
-        }
-      }
-      return { interrupted, deleted };
+      return reconcileTasks({ tasks, options });
     },
   };
 }

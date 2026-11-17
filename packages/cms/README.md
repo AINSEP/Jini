@@ -30,6 +30,7 @@ Configuration writes only through the injected guarded settings writer; no deliv
 | `./settings/express` | node | One-release compatibility re-export of `@jini-ai/core/settings/express`. |
 | `./widgets` / `./widgets/markers` / `./widgets/resolvers` | universal | Widget contracts, markers and resolution services; no HTML parser. |
 | `./widgets/html` | node | HTML scanning/substitution, fragment validation and plugin-export template resolution. |
+| `./html/style-values` | universal | CSS-value allowlists for author strings a renderer writes into a `style` attribute (`safeTextAlign`, `safeAspectRatio`). |
 
 Hosts that sanitize SVG uploads or ingest documents through `./media` must install the optional peers
 `dompurify` and `jsdom`. They load lazily: without them, other media still works, but SVG and Office uploads fail.
@@ -87,6 +88,8 @@ A package's `exports` map is precisely the enforcement a single `src/` tree cann
 consumer of `@jini-ai/cms/core` physically cannot reach a Node adapter, and `/core` physically
 cannot import a transport type, because the module resolver refuses. Porting into this shape from
 the first commit means that failure mode cannot recur here.
+
+`@jini-ai/cms/seo/content-analysis` (universal, pure): `analyzeContent` scores title + content blocks (checks, readability, TOC with a host-supplied `slugify`) and `summarizeReport` renders the report as one English paragraph.
 
 ## Port inventory
 

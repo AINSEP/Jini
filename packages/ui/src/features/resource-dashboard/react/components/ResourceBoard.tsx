@@ -33,6 +33,43 @@ export interface ResourceBoardProps<TItem extends ResourceBoardItem<TBody>, TBod
   useWiredResourceBoard?: typeof useWiredResourceBoard;
 }
 
+/** Static, translated chrome labels for `ResourceBoardView`. */
+function resourceBoardLabels({ t }: { t: ReturnType<typeof useT> }, _options = {}) {
+  return {
+    sortAriaLabel: t('Sort'),
+    searchPlaceholder: t('Search…'),
+    viewToggleAriaLabel: t('View'),
+    gridViewLabel: t('Grid view'),
+    kanbanViewLabel: t('Kanban view'),
+    selectModeLabel: t('Select'),
+    selectedCountLabel: (n: number) => t('{n} selected', { n }),
+    deleteSelectedLabel: t('Delete selected'),
+    cancelSelectLabel: t('Cancel'),
+    menuActionLabel: (_kind: string, fallback: string) => t(fallback),
+    moreLabel: t('More'),
+    deleteLabel: t('Delete'),
+    deleteAriaLabel: (title: string) => t('Delete {name}', { name: title }),
+    emptyColumnLabel: t('No items in this column.'),
+    emptyStateTitle: t('No items yet.'),
+    emptyStateNoMatch: t('No items match your search.'),
+  };
+}
+
+/** Bulk-select wiring from the board state to `ResourceBoardView`'s props. */
+function bulkSelectProps<TItem extends ResourceBoardItem<TBody>, TBody>(
+  { board }: { board: ReturnType<typeof useWiredResourceBoard<TItem>> }, { enableBulkDelete }: { enableBulkDelete: boolean },
+) {
+  return {
+    enableBulkDelete,
+    selectMode: board.selectMode,
+    selected: board.selected,
+    bulkDeleteBusy: board.bulkDeleteBusy,
+    onEnterSelectMode: board.enterSelectMode,
+    onExitSelectMode: board.exitSelectMode,
+    onBulkDelete: () => void board.bulkDelete(),
+  };
+}
+
 /**
  * The DesignsTab-shaped orchestrator: wires `useWiredResourceBoard` +
  * `useT()` + `ResourceBoardView`. `rename`/`duplicate`/`delete` are the
@@ -43,24 +80,9 @@ export interface ResourceBoardProps<TItem extends ResourceBoardItem<TBody>, TBod
  * collect, and anything else bubbles to `onCustomItemAction`.
  */
 export function ResourceBoard<TItem extends ResourceBoardItem<TBody>, TBody = unknown>({
-  dependencies,
-  statusOptions,
-  toneMap,
-  defaultStatus,
-  normalizeStatus,
-  sortOptions = [],
-  initialSort,
-  storageScopeKey,
-  defaultViewMode,
-  enableBulkDelete = true,
-  onOpenItem,
-  onCreate,
-  createLabel,
-  onRenameRequest,
-  onCustomItemAction,
-  refreshToken,
-  renderBody,
-  useWiredResourceBoard: useWiredResourceBoardHook = useWiredResourceBoard,
+  dependencies, statusOptions, toneMap, defaultStatus, normalizeStatus, sortOptions = [], initialSort, storageScopeKey,
+  defaultViewMode, enableBulkDelete = true, onOpenItem, onCreate, createLabel, onRenameRequest, onCustomItemAction,
+  refreshToken, renderBody, useWiredResourceBoard: useWiredResourceBoardHook = useWiredResourceBoard,
 }: ResourceBoardProps<TItem, TBody>) {
   const t = useT();
   const board = useWiredResourceBoardHook<TItem>(
@@ -84,26 +106,12 @@ export function ResourceBoard<TItem extends ResourceBoardItem<TBody>, TBody = un
       sortOptions={sortOptions}
       {...(board.sort !== undefined ? { activeSort: board.sort } : {})}
       onSortChange={board.setSort}
-      sortAriaLabel={t('Sort')}
+      {...resourceBoardLabels({ t })}
       query={board.query}
       onQueryChange={board.setQuery}
-      searchPlaceholder={t('Search…')}
       viewMode={board.viewMode}
       onViewModeChange={board.setViewMode}
-      viewToggleAriaLabel={t('View')}
-      gridViewLabel={t('Grid view')}
-      kanbanViewLabel={t('Kanban view')}
-      enableBulkDelete={enableBulkDelete}
-      selectMode={board.selectMode}
-      selected={board.selected}
-      bulkDeleteBusy={board.bulkDeleteBusy}
-      onEnterSelectMode={board.enterSelectMode}
-      onExitSelectMode={board.exitSelectMode}
-      onBulkDelete={() => void board.bulkDelete()}
-      selectModeLabel={t('Select')}
-      selectedCountLabel={(n) => t('{n} selected', { n })}
-      deleteSelectedLabel={t('Delete selected')}
-      cancelSelectLabel={t('Cancel')}
+      {...bulkSelectProps({ board }, { enableBulkDelete })}
       {...boardCreateProps({ t }, { createLabel, onCreate })}
       openMenuId={board.openMenuId}
       menuContainerRef={board.menuContainerRef}
@@ -115,13 +123,6 @@ export function ResourceBoard<TItem extends ResourceBoardItem<TBody>, TBody = un
       onKanbanDelete={(id) => void board.remove(id)}
       statusLabel={statusLabelFor({ t, statusOptions })}
       {...(toneMap ? { toneMap } : {})}
-      menuActionLabel={(_kind, fallback) => t(fallback)}
-      moreLabel={t('More')}
-      deleteLabel={t('Delete')}
-      deleteAriaLabel={(title) => t('Delete {name}', { name: title })}
-      emptyColumnLabel={t('No items in this column.')}
-      emptyStateTitle={t('No items yet.')}
-      emptyStateNoMatch={t('No items match your search.')}
       {...(renderBody ? { renderBody } : {})}
     />
   );

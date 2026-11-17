@@ -1,0 +1,117 @@
+{
+ ".": {
+  "types": "./dist/index.d.ts",
+  "symbols": {
+   "ANONYMOUS_DELEGATED_PRINCIPAL": "variable:e242e90a12",
+   "ActivationReason": "type:a966e698bb",
+   "ActiveFeatureRecord": "interface:ea0210fe54",
+   "AnyPack": "type:6d1c29b2d4",
+   "BuiltInFeatureOptions": "interface:24d7f1ce46",
+   "CAPABILITY_IDS": "variable:277dfa55ab",
+   "CORE_CAPABILITIES": "variable:5336f9eda0",
+   "CapabilityId": "type:a5b5c776c6",
+   "CloseHttpServerOptions": "interface:09ef52feb9",
+   "ComposeJiniKernelConfig": "interface:d1810473d1",
+   "CreateFrontendControlOptions": "interface:657f25806b",
+   "CreateJiniKernelBaseOptions": "interface:8ea154fbb3",
+   "CreateLocalNodeDaemonConfig": "interface:fe825baa1b",
+   "DEFAULT_DAEMON_BIND_HOST": "variable:b7f875e50c",
+   "DeactivationReason": "type:310feaeb2c",
+   "FeatureActivationInput": "interface:85e4a27163",
+   "FeatureActivationPlan": "interface:1ddce33c8b",
+   "FeatureBuildContext": "interface:767fed6b93",
+   "FeatureComposition": "interface:450061db57",
+   "FeaturePhase": "type:4ee46d046b",
+   "FrontendBindErrorContext": "interface:7e68066924",
+   "FrontendControl": "interface:54d6aa200d",
+   "FrontendHttpExtension": "type:f54e5a8471",
+   "GracefulShutdownHandle": "interface:67afe986a7",
+   "GracefulShutdownOptions": "interface:15fd420a5a",
+   "InactiveFeatureRecord": "interface:6828087253",
+   "JINI_PROFILES": "variable:06f150c8ef",
+   "JiniFeature": "interface:ebd1e6f2f1",
+   "JiniKernel": "interface:5194c85142",
+   "JiniKernelBase": "interface:5998a1ddee",
+   "JiniKernelSecurity": "type:738e4e05e6",
+   "JiniKernelStorage": "type:ec8fbd8ab9",
+   "JiniProfile": "interface:a0d2c5678f",
+   "JiniProfileId": "type:0117779d77",
+   "KernelBoundIds": "type:64b9c5be2c",
+   "KernelSqliteAccess": "interface:7f4752618b",
+   "LOCAL_DAEMON_PRINCIPAL": "variable:f608e95920",
+   "LocalNodeDaemon": "interface:310ffd0f40",
+   "LocalNodeHttpExtension": "type:e4be652e98",
+   "LocalNodeHttpExtensionContext": "interface:683acb4837",
+   "ProfileActivation": "type:3796077c23",
+   "buildDaemonDbOperations": "function:6c35043b6f",
+   "classifyRunFailureForRetry": "function:8af5e0e4cf",
+   "closeHttpServer": "function:05f66cdfcd",
+   "composeJiniKernel": "function:12ce059da6",
+   "createBuiltInFeatures": "function:73e46171e3",
+   "createFrontendControl": "function:a37f8098eb",
+   "createJiniKernelBase": "function:843e65b368",
+   "createLocalNodeDaemon": "function:5cb259aaad",
+   "defaultServerMessages": "variable:3bd40a658e",
+   "defineJiniFeature": "function:ba198541c8",
+   "installGracefulShutdown": "function:8d2865853c",
+   "isCapabilityId": "function:50ce5c97a1",
+   "normalizeDaemonBindHost": "function:bb7e0affc8",
+   "projectDetectedAgent": "function:e75e0470fc",
+   "resolveBoundPort": "function:c45558f65c",
+   "resolveFeatureActivation": "function:6f7d15862b",
+   "resolveReportHost": "function:539ff4702d"
+  }
+ },
+ "./owner-store": {
+  "types": "./dist/owner-store/index.d.ts",
+  "symbols": {
+   "LegacyOwnerCounts": "interface:fa6fa6844e",
+   "LegacyOwnerDestination": "interface:9fc8956967",
+   "LegacyOwnerEntry": "interface:98a6922bbb",
+   "LegacyOwnerSnapshot": "interface:18df6fd904",
+   "LegacyOwnerStoreFile": "interface:27fdb598dd",
+   "OWNER_WORKSPACE_ID": "variable:466508722c",
+   "OwnerStoreBackupError": "class:f58b2abcb9",
+   "OwnerStoreRecoveryError": "class:5969635d4a",
+   "countLegacyOwnerStore": "function:4af7d1470a",
+   "ownerContext": "function:fd061ff4cb",
+   "readLegacyOwnerBackup": "function:dfe920b857",
+   "readLegacyOwnerStore": "function:f39191fda8"
+  }
+ },
+ "./storage": {
+  "types": "./dist/storage/index.d.ts",
+  "symbols": {
+   "SqliteBackendConfig": "interface:1057db0e8c",
+   "SqliteBackendConfigError": "class:06d0b38a69",
+   "SqliteBackendKind": "type:ba7ca41896",
+   "resolveSqliteBackendConfig": "function:6eb36b749b"
+  }
+ },
+ "./storage/legacy/sqlite": {
+  "types": "./dist/storage/legacy/sqlite.d.ts",
+  "symbols": {
+   "closeDatabase": "variable:e216cdabf0",
+   "createLegacySqliteStorage": "function:3b4e47526e",
+   "migrate": "function:cc9a337798",
+   "openDatabase": "variable:645eb7f77e"
+  }
+ },
+ "./store/projects/sqlite": {
+  "types": "./dist/store/projects/sqlite.d.ts",
+  "symbols": {
+   "LEGACY_PROJECTS_DDL": "variable:721053ec82",
+   "deleteProject": "function:1623a586ae",
+   "getProject": "function:0ef22d8270",
+   "insertProject": "function:98bc91177f",
+   "listConversationsAwaitingInput": "function:0dfa503b93",
+   "listFirstConversationRunStatuses": "function:85f09640a0",
+   "listLatestConversationRunStatuses": "function:d5fb5f6552",
+   "listLatestProjectRunStatuses": "function:cda54f39e6",
+   "listLatestRunStatuses": "function:de7db8db47",
+   "listProjects": "function:e1e23f7222",
+   "listProjectsAwaitingInput": "function:7b86f1eedc",
+   "updateProject": "function:912017c6b4"
+  }
+ }
+}

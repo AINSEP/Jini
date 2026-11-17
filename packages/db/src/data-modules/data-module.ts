@@ -929,6 +929,63 @@ function warnIfNotOpenFile(
   }
 }
 
+/** Run all DDL for the plan in one transaction; any throw rolls it back and is reported as DDL_FAILED. */
+async function applyPlanAtomically(
+  { kernel, decl, plan, journalId, snapshotPath }: {
+    kernel: ReturnType<typeof pluginKernel>; decl: DataModuleDecl; plan: ReconciliationPlan;
+    journalId: Awaited<ReturnType<typeof openJournalIfFileBacked>>; snapshotPath: string | null;
+  },
+): Promise<DeclareResult> {
+  const created: string[] = [];
+  const altered: string[] = [];
+  try {
+    await advancePhaseIfJournaled(kernel, journalId, "DDL_IN_PROGRESS");
+    // One transaction for ALL DDL — new tables, column additions, and index add/recreate on
+    // existing tables — PLUS the post-DDL verification AND the journal's own COMMITTED write (this
+    // file's header comment, POST-COMMIT DATA-LOSS WINDOW). Folding all four into one atomic unit
+    // is what makes "the DDL committed" and "the journal says COMMITTED" the same fact: either this
+    // whole callback returns and every one of those things is durably true together, or it throws
+    // and the kernel rolls every one of them back together (§9).
+    await kernel.transaction(async () => {
+      await ensureJournal(kernel);
+      const at = Date.now();
+      for (const table of plan.toCreate) created.push(await applyTableCreate(kernel, decl.pluginId, table, snapshotPath, at));
+      for (const alteration of plan.toAlter) {
+        await applyTableAlteration(kernel, decl.pluginId, alteration, snapshotPath, at);
+        altered.push(alteration.fqTableName);
+      }
+      const problems = await verifyPostDdl(kernel, decl, plan);
+      if (problems.length > 0) {
+        throw new Error(`post-DDL verification failed: ${problems.join(", ")} not found after DDL`);
+      }
+      await stagePhaseIfJournaled(kernel, journalId, "COMMITTED");
+    });
+  } catch (err) {
+    // `kernel.transaction()` above threw — DDL, verification, and the in-transaction "COMMITTED" write
+    // are now one atomic unit, so the transaction's own rollback really did undo ALL of them; the
+    // live db is unchanged and working (same-process, catchable-failure case — no restore needed,
+    // restore only ever runs at next-boot recovery for a CRASH, see migration-recovery.ts).
+    // `ROLLED_BACK` is therefore always truthful here now (this file's header comment, POST-COMMIT
+    // DATA-LOSS WINDOW) — there is no remaining case where this catch fires with the DDL actually
+    // live. The snapshot remains as the named recovery point (§9) for operator forensics; for an
+    // in-memory db, `snapshotPath`/`journalId` are both null (see above) — the same-process
+    // rollback just performed IS the full recovery, no crash-recovery boot path can ever exist for
+    // `:memory:` to need one.
+    await advancePhaseIfJournaled(kernel, journalId, "ROLLED_BACK");
+    const e = err as Error;
+    return {
+      ok: false,
+      created: [],
+      altered: [],
+      snapshotPath,
+      recoveryPoint: snapshotPath ?? undefined,
+      error: { code: "DDL_FAILED", message: e.message },
+    };
+  }
+
+  return { ok: true, created, altered, snapshotPath };
+}
+
 /**
  * Declare (reconcile) a plugin's tables. Core snapshots first, then runs the DDL transactionally.
  *
@@ -995,54 +1052,7 @@ export async function declareDataModule(
   // the complete safety net.
   const journalId = await openJournalIfFileBacked(kernel, decl.pluginId, snapshotPath);
 
-  const created: string[] = [];
-  const altered: string[] = [];
-  try {
-    await advancePhaseIfJournaled(kernel, journalId, "DDL_IN_PROGRESS");
-    // One transaction for ALL DDL — new tables, column additions, and index add/recreate on
-    // existing tables — PLUS the post-DDL verification AND the journal's own COMMITTED write (this
-    // file's header comment, POST-COMMIT DATA-LOSS WINDOW). Folding all four into one atomic unit
-    // is what makes "the DDL committed" and "the journal says COMMITTED" the same fact: either this
-    // whole callback returns and every one of those things is durably true together, or it throws
-    // and the kernel rolls every one of them back together (§9).
-    await kernel.transaction(async () => {
-      await ensureJournal(kernel);
-      const at = Date.now();
-      for (const table of plan.toCreate) created.push(await applyTableCreate(kernel, decl.pluginId, table, snapshotPath, at));
-      for (const alteration of plan.toAlter) {
-        await applyTableAlteration(kernel, decl.pluginId, alteration, snapshotPath, at);
-        altered.push(alteration.fqTableName);
-      }
-      const problems = await verifyPostDdl(kernel, decl, plan);
-      if (problems.length > 0) {
-        throw new Error(`post-DDL verification failed: ${problems.join(", ")} not found after DDL`);
-      }
-      await stagePhaseIfJournaled(kernel, journalId, "COMMITTED");
-    });
-  } catch (err) {
-    // `kernel.transaction()` above threw — DDL, verification, and the in-transaction "COMMITTED" write
-    // are now one atomic unit, so the transaction's own rollback really did undo ALL of them; the
-    // live db is unchanged and working (same-process, catchable-failure case — no restore needed,
-    // restore only ever runs at next-boot recovery for a CRASH, see migration-recovery.ts).
-    // `ROLLED_BACK` is therefore always truthful here now (this file's header comment, POST-COMMIT
-    // DATA-LOSS WINDOW) — there is no remaining case where this catch fires with the DDL actually
-    // live. The snapshot remains as the named recovery point (§9) for operator forensics; for an
-    // in-memory db, `snapshotPath`/`journalId` are both null (see above) — the same-process
-    // rollback just performed IS the full recovery, no crash-recovery boot path can ever exist for
-    // `:memory:` to need one.
-    await advancePhaseIfJournaled(kernel, journalId, "ROLLED_BACK");
-    const e = err as Error;
-    return {
-      ok: false,
-      created: [],
-      altered: [],
-      snapshotPath,
-      recoveryPoint: snapshotPath ?? undefined,
-      error: { code: "DDL_FAILED", message: e.message },
-    };
-  }
-
-  await finishCommittedMigration({ kernel, journalId, snapshotPath });
-
-  return { ok: true, created, altered, snapshotPath };
+  const applied = await applyPlanAtomically({ kernel, decl, plan, journalId, snapshotPath });
+  if (applied.ok) await finishCommittedMigration({ kernel, journalId, snapshotPath });
+  return applied;
 }

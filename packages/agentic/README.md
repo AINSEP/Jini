@@ -97,6 +97,7 @@ fetcher and provenance check. Normalized `url` input requires a provider and nev
 | `./dom` | `createDomPageDriver`/`currentAgentPage` — the one `PageDriver` that reads and writes a real DOM subtree, compiled under its own DOM-lib `tsconfig`. Also WebMCP feature detection (`getAgentModelContext`). `@jini-ai/chat-react` is its one in-repo consumer. | a real DOM (browser or jsdom) |
 | `./skills/install` | Bounded bundle validation, source/archive import, installation/state, explicit layout and live-registration factories. | Node runtime; injected filesystem, YAML, archive, source, IDs and tool-source ports |
 | `./skills/install/node` | `createNodeSkillFilesystem({})`, a bounded no-follow filesystem adapter. | Node runtime |
+| `./skills/tools` | `loadInstalledSkillToolSources`, `buildSkillToolRegistrations`, `skillToolDerivedRisk`: installed skills as one tool each, with host-injected frontmatter reader, file reader, enable check and report. | Node runtime; requires `@jini-ai/core` |
 
 ## What's swappable
 

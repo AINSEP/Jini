@@ -260,3 +260,16 @@ export interface ExternalMcpDeviceStart {
 
 /** @agent-note Discriminated by `kind`; hosts render each arm, packages never build host links here. */
 export type ExternalMcpConnectStart = ExternalMcpAuthorizationStart | ExternalMcpDeviceStart;
+
+/** Machine-readable reason a saved, enabled server could not become a usable config. Only reauthorization is
+ *  distinguished today; callers branch on this, never on `reason` wording. */
+export type ExternalMcpConfigFailureCategory = "reauth_required";
+
+/** @agent-note One saved, enabled server the hosted store could not resolve. `reason` is operator-facing prose
+ *  (the host's settings link interpolated; never a secret or provider text). `category` is absent for an
+ *  ordinary resolution failure (unreadable credentials, misconfigured row, token endpoint unreachable). */
+export interface ExternalMcpConfigFailure {
+  readonly serverId: string;
+  readonly reason: string;
+  readonly category?: ExternalMcpConfigFailureCategory;
+}

@@ -59,6 +59,11 @@ export function createMemoryCounterStore(
   };
 }
 
+/** Whole seconds a rejected caller must wait for its window to end; never less than one. */
+function secondsUntilWindowEnds({ windowStartMs, windowMs, nowMs }: { windowStartMs: number; windowMs: number; nowMs: number }): number {
+  return Math.max(1, Math.ceil((windowStartMs + windowMs - nowMs) / 1000));
+}
+
 // An injected clock makes window boundaries deterministic without real-time sleeps; a fresh
 // dedicated store keeps limiter instances isolated instead of sharing module-global counters.
 /**
@@ -123,8 +128,7 @@ export function createRateLimiter(
       await store.set({ key, state: { ...existing, count: existing.count + 1 } });
       return { allowed: true };
     }
-    const retryAfterSeconds = Math.max(1, Math.ceil((existing.windowStartMs + windowMs - nowMs) / 1000));
-    return { allowed: false, retryAfterSeconds };
+    return { allowed: false, retryAfterSeconds: secondsUntilWindowEnds({ windowStartMs: existing.windowStartMs, windowMs, nowMs }) };
   }
 
   return {

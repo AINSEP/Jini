@@ -11,4 +11,5 @@ export * from "./store.js";
 export { InMemoryExternalMcpServerRepo } from "./store.memory.js";
 export * from "./revocation.js";
 export * from "./connection-gate.js";
+export * from "./probe.js";
 export * from "./pinned-capability.js";
