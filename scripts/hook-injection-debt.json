@@ -325,12 +325,6 @@
         "packages/admin/src/playground/react/components/Canvas.tsx"
       ]
     },
-    "CapabilitiesCard::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/integrations/react/components/IntegrationsTab.tsx"
-      ]
-    },
     "ChatFab::useChatFabDrag": {
       "count": 1,
       "files": [
@@ -427,46 +421,10 @@
         "packages/ui/src/features/interactive-ui/providers/shadcn/checkbox-field.tsx"
       ]
     },
-    "ClientPicker::useDismissOnOutsideOrEscape": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/integrations/react/components/ClientPicker.tsx"
-      ]
-    },
-    "ClientPicker::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/integrations/react/components/ClientPicker.tsx"
-      ]
-    },
     "ClientPooledIframe::useIframeKeepAlivePool": {
       "count": 1,
       "files": [
         "packages/ui/src/features/iframe-pool/react/components/PooledIframe.tsx"
-      ]
-    },
-    "CodexInstallStatusHint::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/integrations/react/components/CodexInstallToggleButton.tsx"
-      ]
-    },
-    "CodexInstallToggleButton::useCodexInstallToggle": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/integrations/react/components/CodexInstallToggleButton.tsx"
-      ]
-    },
-    "CodexInstallToggleButton::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/integrations/react/components/CodexInstallToggleButton.tsx"
-      ]
-    },
-    "CodexInstallUnavailableRow::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/integrations/react/components/CodexInstallToggleButton.tsx"
       ]
     },
     "CommandPalette::useCommandPaletteView": {
@@ -643,22 +601,10 @@
         "packages/ui/src/react/components/CustomSelect.tsx"
       ]
     },
-    "DaemonErrorCard::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/integrations/react/components/IntegrationsTab.tsx"
-      ]
-    },
     "DeckNavigationControls::useT": {
       "count": 1,
       "files": [
         "packages/ui/src/features/html-viewer/react/components/DeckNavigationControls.tsx"
-      ]
-    },
-    "DeeplinkInstallRow::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/integrations/react/components/IntegrationsTab.tsx"
       ]
     },
     "DefaultAttachmentChip::useSentAttachmentThumbnail": {
@@ -979,28 +925,10 @@
         "packages/ui/src/features/admin-widgets/components/InfoTip.tsx"
       ]
     },
-    "InstallSnippet::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/integrations/react/components/IntegrationsTab.tsx"
-      ]
-    },
     "InstructionsTab::useT": {
       "count": 1,
       "files": [
         "packages/ui/src/features/instructions/react/components/InstructionsTab.tsx"
-      ]
-    },
-    "IntegrationsTab::useMcpInstallInfo": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/integrations/react/components/IntegrationsTab.tsx"
-      ]
-    },
-    "IntegrationsTab::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/integrations/react/components/IntegrationsTab.tsx"
       ]
     },
     "InteractiveHtmlEditor::useInteractiveHtmlEditor": {
@@ -1487,12 +1415,6 @@
       "count": 1,
       "files": [
         "packages/ui/src/react/components/PopoverItem.tsx"
-      ]
-    },
-    "PrerequisiteWarning::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/integrations/react/components/IntegrationsTab.tsx"
       ]
     },
     "PresentMenu::usePresentMenu": {
@@ -2086,18 +2008,6 @@
       "count": 1,
       "files": [
         "packages/admin/src/react/kit.tsx"
-      ]
-    },
-    "SnippetBlock::useSnippetBlock": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/integrations/react/components/SnippetBlock.tsx"
-      ]
-    },
-    "SnippetBlock::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/integrations/react/components/SnippetBlock.tsx"
       ]
     },
     "SoundPicker::useT": {

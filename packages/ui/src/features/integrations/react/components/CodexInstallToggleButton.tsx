@@ -7,6 +7,8 @@ export interface CodexInstallToggleButtonProps {
   port: Pick<McpIntegrationsPort, 'fetchCodexInstallStatus' | 'installCodexMcp' | 'uninstallCodexMcp'>;
   /** This button's own agent handle — see `IntegrationsTab`'s `agentHandle` doc. */
   agentHandle?: string;
+  useTHook?: typeof useT;
+  useCodexInstallToggleHook?: typeof useCodexInstallToggle;
 }
 
 /**
@@ -15,9 +17,9 @@ export interface CodexInstallToggleButtonProps {
  * doesn't support Codex one-click install (falls back to snippet-copy-only,
  * same as every other client).
  */
-export function CodexInstallToggleButton({ port, agentHandle }: CodexInstallToggleButtonProps) {
-  const t = useT();
-  const { available, installed, busy, error, successKind, toggle } = useCodexInstallToggle(port);
+export function CodexInstallToggleButton({ port, agentHandle, useTHook = useT, useCodexInstallToggleHook = useCodexInstallToggle }: CodexInstallToggleButtonProps) {
+  const t = useTHook();
+  const { available, installed, busy, error, successKind, toggle } = useCodexInstallToggleHook(port);
 
   if (available === null) return null;
 
@@ -42,8 +44,8 @@ export function CodexInstallToggleButton({ port, agentHandle }: CodexInstallTogg
 }
 
 /** The row shown when the host's port has no Codex one-click install support. */
-function CodexInstallUnavailableRow() {
-  const t = useT();
+function CodexInstallUnavailableRow({ useTHook = useT }: { useTHook?: typeof useT } = {}) {
+  const t = useTHook();
   return (
     <div className="jini-codex-install-row">
       <button type="button" className="jini-button" disabled>
@@ -55,8 +57,8 @@ function CodexInstallUnavailableRow() {
 }
 
 /** The hint after the last toggle: its error if it failed, else which success it reached, else nothing. */
-function CodexInstallStatusHint({ error, successKind }: Pick<CodexInstallToggleController, 'error' | 'successKind'>) {
-  const t = useT();
+function CodexInstallStatusHint({ error, successKind, useTHook = useT }: Pick<CodexInstallToggleController, 'error' | 'successKind'> & { useTHook?: typeof useT }) {
+  const t = useTHook();
   if (error) return <span className="jini-hint jini-hint-error">{t('Install failed: {error}', { error })}</span>;
   if (successKind === 'installed') return <span className="jini-hint">{t('MCP server installed.')}</span>;
   if (successKind === 'uninstalled') return <span className="jini-hint">{t('MCP server uninstalled.')}</span>;
