@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '../../../../../__tests__/ui-kit-render-support.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import { identityCatalogPolicy as catalogPolicy } from '../../catalog-policy.fixture.js';
 import { createFakeMediaProvidersPort } from '../../../dependencies.js';
 import type { MediaProvidersPort } from '../../../ports.js';
@@ -12,6 +12,9 @@ const CATALOG: readonly MediaProviderOption[] = [
   { id: 'alpha', label: 'Alpha Images', defaultBaseUrl: 'https://alpha.example.com' },
   { id: 'bravo', label: 'Bravo Video', models: ['bravo-fast', 'bravo-hq'] },
 ];
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('MediaProvidersTab', () => {
   it('renders every catalog provider, configured ones first', async () => {
@@ -314,5 +317,11 @@ describe('MediaProvidersTab', () => {
       </I18nProvider>,
     );
     expect(await screen.findByText('Fournisseurs de médias')).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', async () => {
+    const port = createFakeMediaProvidersPort();
+    render(<MediaProvidersTab catalogPolicy={catalogPolicy} port={port} catalog={CATALOG} useTHook={useQuotingT} />);
+    expect(await screen.findByText('«Media providers»')).toBeInTheDocument();
   });
 });
