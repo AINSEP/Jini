@@ -2,7 +2,8 @@ import { createRef } from 'react';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { SecretInput, UiKitProvider, useOverlayContainer } from '../kit.js';
-import { fakeUiKit, renderWithUiKit } from './fake-ui-kit.js';
+import { fakeUiKit } from '../testing.js';
+import { renderWithUiKit } from './render-with-ui-kit.js';
 
 function Probe() {
   return <span data-testid="probe">{useOverlayContainer() === document.body ? 'body' : 'other'}</span>;
