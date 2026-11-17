@@ -61,9 +61,12 @@ SelectScrollDownButton.displayName = SelectPrimitive.ScrollDownButton.displayNam
 
 const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content> & { portalContainer?: Element | DocumentFragment | null | undefined }
->(({ className, children, position = 'popper', portalContainer, ...props }, ref) => {
-  const overlayContainer = useOverlayContainer({});
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content> & {
+    portalContainer?: Element | DocumentFragment | null | undefined;
+    useOverlayContainerHook?: typeof useOverlayContainer;
+  }
+>(({ className, children, position = 'popper', portalContainer, useOverlayContainerHook = useOverlayContainer, ...props }, ref) => {
+  const overlayContainer = useOverlayContainerHook({});
   const container = portalContainer ?? overlayContainer;
   return (
   <SelectPrimitive.Portal {...(container === null ? {} : { container })}>
