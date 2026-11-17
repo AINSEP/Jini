@@ -871,7 +871,7 @@
    "toDatetimeLocalValue": "function:4701bed698",
    "toneClassName": "function:d7b8d823d0",
    "useAdminShellSession": "function:b683ae5a2a",
-   "useAdminTheme": "function:25c8c3a6fa",
+   "useAdminTheme": "function:8eee9c61ef",
    "useConfirmRequest": "function:6364c0492f",
    "useNavSections": "function:78560294d0",
    "useSidebar": "function:5da63ee4df",
@@ -1045,7 +1045,7 @@
    "AdminThemePreferenceStorePort": "interface:826709481f",
    "resolveAdminShellModel": "function:5ff071ada8",
    "useAdminShellSession": "function:b683ae5a2a",
-   "useAdminTheme": "function:25c8c3a6fa"
+   "useAdminTheme": "function:8eee9c61ef"
   }
  },
  "./react/testing-kit": {

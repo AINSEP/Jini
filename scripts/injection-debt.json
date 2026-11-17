@@ -14,7 +14,6 @@
   {"rule": "L5-injected-edge", "file": "packages/admin/src/forms/rules.ts", "spec": "@jini-ai/cms/forms", "kind": "import", "count": 1, "lane": "L-ADMIN-PORTS"},
   {"rule": "L5-injected-edge", "file": "packages/admin/src/media/html-attributes.ts", "spec": "@jini-ai/cms/widgets/markers", "kind": "import", "count": 1, "lane": "L-ADMIN-PORTS"},
   {"rule": "L5-injected-edge", "file": "packages/admin/src/media/react/hooks/ProvidersTab.hooks.ts", "spec": "@jini-ai/ui", "kind": "import", "count": 1, "lane": "L-KIT-ADMIN"},
-  {"rule": "L5-injected-edge", "file": "packages/admin/src/react/shell/use-admin-theme.ts", "spec": "@jini-ai/ui/theme", "kind": "import", "count": 1, "lane": "L-KIT-ADMIN"},
   {"rule": "L5-injected-edge", "file": "packages/agent-plugins/core/commerce-server.d.ts", "spec": "@jini-ai/commerce", "kind": "export-from", "count": 1, "lane": "R12"},
   {"rule": "L5-injected-edge", "file": "packages/agent-plugins/core/commerce-server.d.ts", "spec": "@jini-ai/commerce", "kind": "type-import", "count": 1, "lane": "R12"},
   {"rule": "L5-injected-edge", "file": "packages/agent-plugins/core/commerce-server.mjs", "spec": "@jini-ai/commerce", "kind": "export-from", "count": 1, "lane": "R12"},

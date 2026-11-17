@@ -1,13 +1,20 @@
 import { act, cleanup, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
-import { defaultAdminTheme } from '@jini-ai/ui/theme';
-import { type ColorSchemePreference } from '../../kit.js';
+import { AdminKitProvider, type ColorSchemePreference } from '../../kit.js';
+import { fakeAdminKit } from '../../testing-kit.js';
 import { AdminShell } from '../AdminShell.js';
 import { useAdminTheme } from '../use-admin-theme.js';
 import type { AdminThemeEnvironment, AdminThemePreferenceStorePort } from '../theme-ports.js';
 import type { AdminShellProps } from '../types.js';
+import { recordingThemeKit } from './theme-kit-fake.js';
 
 afterEach(cleanup);
+
+const themeKit = recordingThemeKit();
+const { useThemeKit } = themeKit;
+// AdminShell reads the theme from the host kit, so it renders under a provider carrying the recording fake.
+const shellKit = fakeAdminKit({ theme: themeKit.theme });
+const shell = (props: AdminShellProps) => <AdminKitProvider kit={shellKit}><AdminShell {...props} /></AdminKitProvider>;
 
 function fixture() {
   const target = document.createElement('div');
@@ -28,7 +35,8 @@ function fixture() {
 it('restores per-user choices, writes only on explicit changes and isolates switched users', () => {
   const f = fixture(); const workspace = { project: 'fixture' };
   const { result, rerender, unmount } = renderHook(({ userId }) => useAdminTheme({ userId, workspace }, {
-    theme: defaultAdminTheme, environment: f.environment, preferenceStore: f.preferenceStore,
+    useThemeKit,
+    theme: themeKit.theme.defaultAdminTheme, environment: f.environment, preferenceStore: f.preferenceStore,
   }), { initialProps: { userId: 'one' as string | null } });
   expect(result.current?.preference).toBe('dark');
   expect(f.target.getAttribute('data-color-scheme')).toBe('dark');
@@ -50,6 +58,7 @@ it('tracks system changes, honors a controlled choice and releases media subscri
   const f = fixture(); const workspace = {};
   const onColorSchemeChange = vi.fn();
   const { result, rerender, unmount } = renderHook(({ colorScheme }) => useAdminTheme({ userId: 'one', workspace }, {
+    useThemeKit,
     environment: f.environment, colorScheme, onColorSchemeChange,
   }), { initialProps: { colorScheme: 'system' as ColorSchemePreference } });
   expect(f.listeners.size).toBe(1);
@@ -76,11 +85,11 @@ it('applies theme props on AdminShell and passes appearance controls into authen
     panels: [{ id: 'home', description: 'Manage home.', render: () => <p>Home</p> }],
     slots: { login: () => <p>Login</p>, sidebarFooter: ({ appearance }) => <button onClick={() => appearance?.setPreference({ preference: 'light' })}>Light</button> },
     labels: { navigation: 'Navigation', openNavigation: 'Open', closeNavigation: 'Close', skipToContent: 'Skip', loading: 'Loading', sessionError: 'Error', retry: 'Retry', expandSidebar: 'Expand', collapseSidebar: 'Collapse', soon: 'Soon' },
-    theme: defaultAdminTheme, themeEnvironment: f.environment, themePreferenceStore: f.preferenceStore,
+    theme: themeKit.theme.defaultAdminTheme, themeEnvironment: f.environment, themePreferenceStore: f.preferenceStore,
   };
-  const { unmount } = render(<AdminShell {...props} />);
+  const { unmount } = render(shell(props));
   const light = await screen.findByRole('button', { name: 'Light' });
-  expect(f.target.getAttribute('data-admin-theme')).toBe('neutral');
+  expect(f.target.getAttribute('data-admin-theme')).toBe(themeKit.theme.defaultAdminTheme.name);
   await waitFor(() => expect(f.target.getAttribute('data-color-scheme')).toBe('dark'));
   act(() => light.click());
   expect(f.preferenceStore.write).toHaveBeenCalledWith({ userId: 'one', workspace: props.workspace, preference: 'light' });
@@ -102,7 +111,7 @@ it('forwards a controlled color scheme and its change callback from AdminShell p
     labels: { navigation: 'Navigation', openNavigation: 'Open', closeNavigation: 'Close', skipToContent: 'Skip', loading: 'Loading', sessionError: 'Error', retry: 'Retry', expandSidebar: 'Expand', collapseSidebar: 'Collapse', soon: 'Soon' },
     colorScheme: 'light', themeEnvironment: f.environment, onColorSchemeChange,
   };
-  render(<AdminShell {...props} />);
+  render(shell(props));
   const control = await screen.findByRole('button', { name: 'light' });
   act(() => control.click());
   expect(onColorSchemeChange).toHaveBeenCalledWith({ preference: 'system' });
