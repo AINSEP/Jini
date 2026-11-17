@@ -180,6 +180,7 @@ The DNS-pinned transport requires `OAuthDispatcherPort.dispatcher` to match Node
 |---|---|
 | `./discovery-policy` | `createIssuerBoundDiscoveryPolicy` and its metadata-policy port |
 | `./dns-pinned-transport` | `createDnsPinnedOAuthTransport`, transport result and DNS/address/dispatcher ports |
+| `./callback-page` | `renderOAuthCallbackPage`, `OAuthCallbackPageCopy`, `OAuthCallbackPageInput`, `OAuthCallbackPageOptions`: the popup landing page; the host supplies all copy |
 
 `startLoopbackAuthorizationReceiver`, its receiver/result/options/timer types and field limits are root exports.
 

@@ -27,7 +27,6 @@ export {
   canRestoreMedia,
   isRetryableMediaError,
   parseOptionalPixelSize,
-  formatByteSize,
   formatUploadDate,
   mediaFileName,
   countMediaTabs,

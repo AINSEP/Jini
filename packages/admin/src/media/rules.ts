@@ -120,16 +120,6 @@ function isRetryableHttpStatus({ status }: { status: number }, _optional: Record
 export function parseOptionalPixelSize({ value }: { value: string }, _optional: Record<string, never> = {}): number | null {
   return value.trim() === '' ? null : Number(value);
 }
-/** 1024-based to agree with upload limits. Whole B/KB, one decimal MB/GB distinguishes
- * similarly sized clips; locale controls the decimal separator, never a hardcoded dot. */
-export function formatByteSize({ bytes }: { bytes: number }, { locale = 'en-US' }: { locale?: string } = {}): string {
-  if (bytes < 1024) return `${Math.round(bytes)} B`;
-  const kb = bytes / 1024;
-  if (kb < 1024) return `${Math.round(kb)} KB`;
-  const decimal = new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-  const mb = kb / 1024;
-  return mb < 1024 ? `${decimal.format(mb)} MB` : `${decimal.format(mb / 1024)} GB`;
-}
 /** The extension each sniffed media type is stored as; JPEG shows as the common ".jpg". */
 const MEDIA_EXTENSION_BY_CONTENT_TYPE: Readonly<Record<string, string>> = {
   'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp', 'image/avif': 'avif',

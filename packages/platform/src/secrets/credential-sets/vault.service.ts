@@ -159,6 +159,14 @@ export class SecretsVaultService {
     const plaintext = JSON.stringify(input.payload);
     return this.deps.sealer.seal({ plaintext, key: await this.deps.keyring.activeKey({}), aad: buildVaultAad(input.context) });
   }
+  /** Opens a fresh envelope under the row's own AAD and requires the exact sealed plaintext back.
+   * Any failure surfaces as the fixed `invalid-record` code: no envelope or plaintext in the error. */
+  private async assertOpensTo({ record, sealed, payload }: { record: VaultRecord; sealed: VaultRecord["sealed"]; payload: VaultMeta | null }): Promise<void> {
+    if (sealed === null) return;
+    let reopened: string;
+    try { reopened = await this.deps.sealer.open({ sealed }, { aad: buildVaultAad(record) }); } catch { throw invalidRecord(); }
+    if (reopened !== JSON.stringify(payload)) throw invalidRecord();
+  }
   private async open(record: VaultRecord): Promise<VaultMeta | null> {
     if (!record.sealed) return null;
     const plaintext = await this.deps.sealer.open({ sealed: record.sealed }, { aad: buildVaultAad(record) });
@@ -360,13 +368,19 @@ export class SecretsVaultService {
       expectedRevision: input.expectedRevision, patch, updatedAt: this.deps.now({}) })));
   }
 
-  /** Re-seal using the active key; concurrent replacement wins through CAS. Metadata-only rows persist. */
+  /** Re-seal using the active key; concurrent replacement wins through CAS. Metadata-only rows persist.
+   * A re-seal that cannot be opened again under the row's own binding is refused before anything is
+   * written: rotation replaces the only copy of the secret, so a bad seal would destroy it.
+   * @throws VaultError `invalid-record` when the new envelope does not open to the stored payload.
+   */
   async rotate(input: VaultIdentity & { expectedRevision: number }, _options: VaultOptions = {}): Promise<VaultSummary> {
     assertContext(input);
     await this.authorize({ action: "rotate", context: input });
     const existing = await this.find(input);
     if (existing?.revision !== input.expectedRevision) throw new VaultError({ code: "conflict" });
-    const sealed = await this.seal({ context: input, payload: await this.open(existing) });
+    const payload = await this.open(existing);
+    const sealed = await this.seal({ context: input, payload });
+    await this.assertOpensTo({ record: existing, sealed, payload });
     return summary(this.parse(await this.deps.repo.put({ expectedRevision: input.expectedRevision,
       record: { ...existing, sealed, revision: existing.revision + 1, updatedAt: this.deps.now({}) } })));
   }

@@ -14,3 +14,5 @@ export { formatTimestamp, formatRelativeMinutesAgo } from './format-timestamp.js
 export { resolveActiveTabId } from './resolve-active-tab-id.js';
 export { isAbortError } from './is-abort-error.js';
 export { extensionForMimeType } from './mime.js';
+export { formatByteSize } from './format-byte-size.js';
+export type { FormatByteSizeOptions } from './format-byte-size.js';
