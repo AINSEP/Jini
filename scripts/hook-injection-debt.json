@@ -127,18 +127,6 @@
         "packages/admin/src/seo/react/pages/SeoPage.tsx"
       ]
     },
-    "AnnotationCanvas::useAnnotationCanvas": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/renderers/annotation-canvas/react/components/AnnotationCanvas.tsx"
-      ]
-    },
-    "AnnotationDock::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/renderers/annotation-canvas/react/components/AnnotationCanvas.tsx"
-      ]
-    },
     "AppearanceTab::useT": {
       "count": 1,
       "files": [
@@ -197,12 +185,6 @@
       "count": 1,
       "files": [
         "packages/chat/src/react/components/MessageRow.tsx"
-      ]
-    },
-    "AttachedImages::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/renderers/annotation-canvas/react/components/AnnotationCanvas.tsx"
       ]
     },
     "AttachmentMetaCard::useT": {
@@ -767,12 +749,6 @@
       "count": 1,
       "files": [
         "packages/ui/src/features/iframe-pool/react/components/IframeKeepAliveProvider.tsx"
-      ]
-    },
-    "ImagePreviewDialog::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/renderers/annotation-canvas/react/components/AnnotationCanvas.tsx"
       ]
     },
     "ImagePreviewModal::useAgentHandle": {
@@ -1656,12 +1632,6 @@
         "packages/ui/src/renderers/react/components/SrcDocSandbox.tsx"
       ]
     },
-    "SubmitPicker::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/renderers/annotation-canvas/react/components/AnnotationCanvas.tsx"
-      ]
-    },
     "SuggestInput::useAgentHandle": {
       "count": 1,
       "files": [
@@ -1702,12 +1672,6 @@
       "count": 1,
       "files": [
         "packages/chat/src/react/components/Markdown.tsx"
-      ]
-    },
-    "TextMarkItem::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/renderers/annotation-canvas/react/components/AnnotationCanvas.tsx"
       ]
     },
     "ThinkingBlock::useT": {
