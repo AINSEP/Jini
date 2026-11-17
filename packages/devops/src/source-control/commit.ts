@@ -80,7 +80,7 @@ async function resolveProviderCredential(required: CommitOrchestrationArgs): Pro
   let credential: ResolvedCredential | null;
   try { credential = await required.credentials.resolve({ workspaceId: required.workspaceId, providerId: required.providerId }); }
   catch (error) { return { ok: false, code: 'NO_CREDENTIALS_CONFIGURED', message: `credential could not be resolved: ${required.describeError({ error, stage: 'credential' })}` }; }
-  if (!credential) return { ok: false, code: 'NO_CREDENTIALS_CONFIGURED', message: `No source control credential is configured for '${required.providerId}'.` };
+  if (!credential) return { ok: false, code: 'NO_CREDENTIALS_CONFIGURED', message: required.describeMissingCredential?.({ providerId: required.providerId }) ?? `No source control credential is configured for '${required.providerId}'.` };
   if (credential.providerId !== required.providerId) return { ok: false, code: 'NO_CREDENTIALS_CONFIGURED', message: `The resolved default credential is not a '${required.providerId}' connection.` };
   return { ok: true, credential };
 }

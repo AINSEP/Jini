@@ -324,3 +324,14 @@ test('G4: a throwing arrangement refuses as EXPORT_FAILED worded by the host for
   assert.deepEqual(asked, [{ error: new Error('collision'), stage: 'arrange' }]);
   assert.deepEqual(f.events, ['credential', 'export:/artifacts/run-1', 'arrange', 'cleanup:/artifacts/run-1']);
 });
+
+test('G5: a missing credential uses the host sentence when it supplies one, and the generic sentence otherwise', async () => {
+  const f = fixture();
+  f.args.credentials.resolve = async () => null;
+  const asked: unknown[] = [];
+  const hosted = { ...f.args, describeMissingCredential: (required: { providerId: string }) => { asked.push(required); return `Connect '${required.providerId}' in the admin first.`; } };
+  assert.deepEqual(await commitSiteToSourceControl(hosted), { ok: false, code: 'NO_CREDENTIALS_CONFIGURED', message: "Connect 'example' in the admin first." });
+  assert.deepEqual(asked, [{ providerId: 'example' }]);
+  assert.deepEqual(await commitSiteToSourceControl(f.args), { ok: false, code: 'NO_CREDENTIALS_CONFIGURED', message: "No source control credential is configured for 'example'." });
+  assert.deepEqual(f.events, []);
+});

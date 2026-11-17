@@ -106,7 +106,14 @@ export interface CommitExportArgs {
   /** Must return caller-safe text without credentials. `stage` names where the error arose (absent: unspecified). */
   describeError(required: { error: unknown; stage?: CommitErrorStage }): string;
 }
-export interface CommitOrchestrationArgs extends CommitExportArgs { supportsFolder?: boolean; credentials: CredentialResolverPort; adapter: Pick<SourceControlProviderOperations, 'commitSite'> }
+export interface CommitOrchestrationArgs extends CommitExportArgs {
+  supportsFolder?: boolean;
+  credentials: CredentialResolverPort;
+  adapter: Pick<SourceControlProviderOperations, 'commitSite'>;
+  /** The whole refusal sentence when no credential is configured for the provider (a host can say where to connect one).
+   *  Absent: a generic sentence naming the provider. Must not contain credentials. */
+  describeMissingCredential?(required: { providerId: string }): string;
+}
 export interface CommitOptions { branch?: string; validateTarget?: RepositoryTargetValidator }
 export type CommitFailureCode = 'INVALID_CONFIG' | 'NO_CREDENTIALS_CONFIGURED' | 'EXPORT_FAILED' | 'REPOSITORY_NOT_FOUND' | 'NO_CHANGES' | 'DIVERGED_BRANCH' | 'NETWORK_UNREACHABLE' | 'PROVIDER_ERROR';
 export type SourceControlCommitOutcome =
