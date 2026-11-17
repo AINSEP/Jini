@@ -31,10 +31,11 @@ export interface QuestionsPanelProps extends UserTextRedactionOptions {
   /** The assistant turn is still streaming the form — keeps Continue disabled and shows a generating hint. */
   generating?: boolean;
   onSubmit: (text: string, answers: Record<string, string | string[]>) => void;
+  useTHook?: typeof useT;
 }
 
-export function QuestionsPanel({ form, interactive, submitDisabled, submittedAnswers, generating = false, onSubmit, redactUserText, onSecretRedacted }: QuestionsPanelProps) {
-  const t = useT();
+export function QuestionsPanel({ form, interactive, submitDisabled, submittedAnswers, generating = false, onSubmit, redactUserText, onSecretRedacted, useTHook = useT }: QuestionsPanelProps) {
+  const t = useTHook();
   const formRef = useRef<QuestionFormHandle>(null);
   const [ready, setReady] = useState(false);
 

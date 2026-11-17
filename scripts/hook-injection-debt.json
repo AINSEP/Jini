@@ -277,12 +277,6 @@
         "packages/admin/src/playground/react/components/Canvas.tsx"
       ]
     },
-    "ChatFab::useChatFabDrag": {
-      "count": 1,
-      "files": [
-        "packages/chat/src/react/components/ChatFab.tsx"
-      ]
-    },
     "ChatPane::useAgentHandle": {
       "count": 1,
       "files": [
@@ -479,18 +473,6 @@
       "count": 1,
       "files": [
         "packages/chat/src/react/components/Markdown.tsx"
-      ]
-    },
-    "CopyMessageButton::useCopyToClipboard": {
-      "count": 1,
-      "files": [
-        "packages/chat/src/react/components/CopyMessageButton.tsx"
-      ]
-    },
-    "CopyMessageButton::useT": {
-      "count": 1,
-      "files": [
-        "packages/chat/src/react/components/CopyMessageButton.tsx"
       ]
     },
     "CredentialEditor::useCredentialEditor": {
@@ -1063,12 +1045,6 @@
         "packages/ui-kit/src/react/native/Navigation.tsx"
       ]
     },
-    "NextStepActions::useT": {
-      "count": 1,
-      "files": [
-        "packages/chat/src/react/components/NextStepActions.tsx"
-      ]
-    },
     "OpenInTabButton::useT": {
       "count": 1,
       "files": [
@@ -1182,12 +1158,6 @@
       "count": 1,
       "files": [
         "packages/chat/src/react/components/QuestionForm.tsx"
-      ]
-    },
-    "QuestionsPanel::useT": {
-      "count": 1,
-      "files": [
-        "packages/chat/src/react/components/QuestionsPanel.tsx"
       ]
     },
     "QueueActionsCell::useQueueActionsCell": {
@@ -1588,12 +1558,6 @@
       "count": 1,
       "files": [
         "packages/ui-kit/src/react/KitProvider.tsx"
-      ]
-    },
-    "TodoCard::useT": {
-      "count": 1,
-      "files": [
-        "packages/chat/src/react/components/TodoCard.tsx"
       ]
     },
     "ToolCallDetail::useT": {

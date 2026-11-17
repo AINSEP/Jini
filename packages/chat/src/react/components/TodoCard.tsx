@@ -17,10 +17,11 @@ export interface TodoCardProps {
   todos: TodoItem[];
   runStreaming?: boolean;
   onDismiss?: () => void;
+  useTHook?: typeof useT;
 }
 
-export function TodoCard({ todos, runStreaming, onDismiss }: TodoCardProps) {
-  const t = useT();
+export function TodoCard({ todos, runStreaming, onDismiss, useTHook = useT }: TodoCardProps) {
+  const t = useTHook();
   const { defaultExpanded, inProgressTodo, done, allComplete } = todoProgress({ todos }, { runStreaming });
   const [overrideExpanded, setOverrideExpanded] = useState<boolean | null>(null);
   const expanded = overrideExpanded ?? defaultExpanded;

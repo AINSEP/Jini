@@ -32,10 +32,11 @@ export interface NextStepAction {
 export interface NextStepActionsProps {
   actions: NextStepAction[];
   onSelect: (actionId: string) => void;
+  useTHook?: typeof useT;
 }
 
-export function NextStepActions({ actions, onSelect }: NextStepActionsProps) {
-  const t = useT();
+export function NextStepActions({ actions, onSelect, useTHook = useT }: NextStepActionsProps) {
+  const t = useTHook();
   if (actions.length === 0) return null;
   return (
     <div className="next-step-actions">
