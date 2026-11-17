@@ -73,7 +73,7 @@ it('required integration peers keep their approved adapter boundary, never the n
 });
 
 it.each([
-  ['db', 'better-sqlite3'], ['db', 'pg'], ['db', '@electric-sql/pglite'], ['daemon', 'node-pty'],
+  ['db', 'better-sqlite3'], ['db', 'pg'], ['db', '@electric-sql/pglite'], ['server', 'node-pty'],
   ['capability-providers', 'ws'], ['user-management', 'argon2'], ['cms', 'sharp'],
   ['cms', 'jsdom'], ['ui', '@excalidraw/excalidraw'], ['ui', 'grapesjs'],
   ['ui', 'lexical'], ['ui', 'shiki'], ['sandbox', '@e2b/code-interpreter'],
@@ -113,7 +113,7 @@ it('feature load messages match the owning manifest classifications', async () =
   const sites = [
     'capability-providers/src/adapters/ws/index.ts', 'cms/src/media/image-transformer.sharp.ts',
     'cms/src/media/document-ingress.ts', 'cms/src/media/sanitize-svg.ts',
-    'daemon/src/terminal.adapter.ts', 'daemon/src/store/event-log/sqlite-kernel.ts',
+    'server/src/adapters/node-pty.ts', 'daemon/src/store/event-log/sqlite-kernel.ts',
     'integrations/src/media-providers/sqlite-driver.adapter.ts', 'platform/src/asset-cache.adapter.ts',
     'ui/src/renderers/shiki.ts', 'user-management/src/server/hasher.ts', 'mcp/src/federation/adapter.http.ts',
   ];
@@ -157,9 +157,11 @@ it('all real default entries keep runtime libraries required and classify opt-in
   const { sourcePackages } = await import('../lib/package-sources.js');
   const audit = auditSubpathIsolation({ repoRoot });
   const daemonEntries = audit.closures.filter(closure => closure.package === '@jini-ai/daemon');
-  expect(daemonEntries.find(closure => closure.subpath === '.')!.dependencies).not.toContain('node-pty');
-  expect(daemonEntries.find(closure => closure.subpath === './terminal')?.dependencies).toContain('node-pty');
-  expect(audit.findings.filter(finding => finding.package === '@jini-ai/daemon')).toEqual([]);
+  expect(daemonEntries.flatMap(closure => closure.dependencies)).not.toContain('node-pty');
+  const serverEntries = audit.closures.filter(closure => closure.package === '@jini-ai/server');
+  expect(serverEntries.find(closure => closure.subpath === '.')!.dependencies).not.toContain('node-pty');
+  expect(serverEntries.find(closure => closure.subpath === './adapters/node-pty')?.dependencies).toContain('node-pty');
+  expect(audit.findings.filter(finding => finding.package === '@jini-ai/daemon' || finding.package === '@jini-ai/server')).toEqual([]);
   const failures = audit.findings.filter(finding => finding.rule === 'SI-optional-peer');
   expect(failures).toEqual([]);
   const missingSubpaths = sourcePackages({ packagesDir: join(repoRoot, 'packages') }).flatMap(pkg => {

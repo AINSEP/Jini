@@ -14,7 +14,8 @@
     "runtime": "node",
     "entries": {
       ".": "node",
-      "./terminal": "node",
+      "./ports/process": "node",
+      "./ports/runtime": "node",
       "./store/event-log/sqlite": "node",
       "./store/agent-sessions": "universal",
       "./store/agent-sessions/sqlite": "node",
@@ -38,7 +39,6 @@
       ]
     },
     "optionalPeers": {
-      "node-pty": "opt-in: import @jini-ai/daemon/terminal — Interactive terminals could not load node-pty. Install node-pty to enable this feature, or check its installed version and native binaries.",
       "better-sqlite3": "opt-in: sqlite storage — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
       "@electric-sql/pglite": "opt-in: embedded postgresql storage — Embedded PostgreSQL storage could not load @electric-sql/pglite. Install @electric-sql/pglite to enable this feature, or check its installed version and native binaries.",
       "pg": "opt-in: postgresql storage — PostgreSQL storage could not load pg. Install pg to enable this feature, or check its installed version and native binaries."
@@ -54,10 +54,15 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
-    "./terminal": {
-      "types": "./dist/terminal.adapter.d.ts",
-      "import": "./dist/terminal.adapter.js",
-      "default": "./dist/terminal.adapter.js"
+    "./ports/process": {
+      "types": "./dist/ports/process.d.ts",
+      "import": "./dist/ports/process.js",
+      "default": "./dist/ports/process.js"
+    },
+    "./ports/runtime": {
+      "types": "./dist/ports/runtime.d.ts",
+      "import": "./dist/ports/runtime.js",
+      "default": "./dist/ports/runtime.js"
     },
     "./store/event-log/sqlite": {
       "types": "./dist/store/event-log/sqlite.d.ts",
@@ -157,7 +162,6 @@
   "devDependencies": {
     "smol-toml": "1.9.1",
     "@vitest/coverage-v8": "^2.1.9",
-    "node-pty": "^1.1.0",
     "@jini-ai/db": "workspace:*",
     "better-sqlite3": "^13.0.0",
     "@types/better-sqlite3": "^7.6.11",
@@ -185,16 +189,12 @@
     "kysely": "^0.29.6"
   },
   "peerDependencies": {
-    "node-pty": "^1.1.0",
     "better-sqlite3": "^13.0.0",
     "@electric-sql/pglite": "0.5.8",
     "pg": "^8.23.0",
     "express": "^4.21.0 || ^5.0.0"
   },
   "peerDependenciesMeta": {
-    "node-pty": {
-      "optional": true
-    },
     "better-sqlite3": {
       "optional": true
     },

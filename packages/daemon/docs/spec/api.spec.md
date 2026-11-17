@@ -191,8 +191,7 @@ The root wildcard exposes the following functions. These are composition/testing
 ## Terminal manager
 
 ```ts
-createTerminalSessionManager(requiredArgs: Record<string, never>, optionalArgs: Pick<CreateTerminalSessionManagerOptions, "terminalService" | "loadSpawnPty" | "maxEvents" | "maxBufferBytes" | "exitTailBytes" | "flushIntervalMs" | "flushThresholdBytes" | "ttlMs" | "shutdownGraceMs"> = {}): TerminalSessionManager;
-loadRealSpawnPty(_requiredArgs: Record<string, never>): Promise<PtySpawn>;
+createTerminalSessionManager(requiredArgs: CreateTerminalSessionManagerRequired, _optionalArgs: Record<string, never> = {}): TerminalSessionManager;
 createTerminalToolRegistrations(requiredArgs: Pick<CreateTerminalToolRegistrationsOptions, "manager">, optionalArgs: Pick<CreateTerminalToolRegistrationsOptions, "policy" | "requiresConfirmation" | "timeoutMs"> = {}): TerminalToolRegistrations;
 ```
 

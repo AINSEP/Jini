@@ -28,9 +28,9 @@ import {
   createTerminalSessionManager,
   createTerminalToolRegistrations,
   type ResolveRunInput,
-  type CreateTerminalSessionManagerOptions,
   type TerminalSessionManager,
 } from '@jini-ai/daemon';
+import { buildTerminalService, type TerminalFeatureOptions } from './terminal-service.js';
 import {
   ensureToolCatalogTables,
   getToolCatalogEntry,
@@ -84,12 +84,7 @@ export interface BuiltInFeatureOptions {
     readonly detector?: () => Promise<readonly DetectedAgent[]>;
   };
   readonly hostTools?: { readonly resolveWorkspaceRoot?: WorkspaceRootResolver };
-  readonly terminal?: {
-    /** Host-selected PTY implementation; the native adapter is at `@jini-ai/daemon/terminal`. */
-    readonly loadSpawnPty?: CreateTerminalSessionManagerOptions['loadSpawnPty'];
-    readonly resolveWorkspaceRoot?: WorkspaceRootResolver;
-    readonly principal?: Principal;
-  };
+  readonly terminal?: TerminalFeatureOptions;
   readonly daemonDb?: { readonly principal?: Principal };
   readonly delegatedToolCalls?: {
     readonly resolvePrincipal?: (request: DelegatedToolExecuteRequest) => Principal | Promise<Principal>;
@@ -397,9 +392,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
     id: 'terminal',
     provides: ['host:exec'],
     compose: (context) => {
-      const manager: TerminalSessionManager = createTerminalSessionManager({}, {
-        ...(options.terminal?.loadSpawnPty === undefined ? {} : { loadSpawnPty: options.terminal.loadSpawnPty }),
-      });
+      const manager: TerminalSessionManager = createTerminalSessionManager({ terminalService: buildTerminalService({ options: options.terminal ?? {} }) });
       return {
         pack: definePack({
           name: 'jini.terminal',

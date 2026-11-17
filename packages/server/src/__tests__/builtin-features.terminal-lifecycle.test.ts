@@ -1,27 +1,27 @@
 import express from 'express';
 import { installRouteRegistrationGuard } from '@jini-ai/http-kit';
-import type { TerminalSessionManager } from '@jini-ai/daemon';
-import type { PtyProcess } from '@jini-ai/core/contracts/runtime';
+import type { PtyProcess, TerminalService } from '@jini-ai/core/contracts/runtime';
 import { expect, it, vi } from 'vitest';
 import { composeJiniKernel } from '../compose-jini-kernel.js';
 import { createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
 
-const managers: TerminalSessionManager[] = [];
+const services: TerminalService[] = [];
 const child = { running: false };
 const pty: PtyProcess = {
   onData() {}, onExit() {}, write() {}, resize() {},
   kill() { child.running = false; },
 };
 
-// Keep the real manager and session service; replace only the OS spawn boundary.
-vi.mock('@jini-ai/daemon', async importOriginal => {
-  const actual = await importOriginal<typeof import('@jini-ai/daemon')>();
+// A recording spy, not a replacement: the preset builds its own service from `options.terminal`, and
+// the test needs that very service to open a session. Shutdown grace is passed as an option below.
+vi.mock('@jini-ai/platform', async importOriginal => {
+  const actual = await importOriginal<typeof import('@jini-ai/platform')>();
   return {
     ...actual,
-    createTerminalSessionManager: (...args: Parameters<typeof actual.createTerminalSessionManager>) => {
-      const manager = actual.createTerminalSessionManager(args[0], { ...args[1], shutdownGraceMs: 0 });
-      managers.push(manager);
-      return manager;
+    createTerminalService: (...args: Parameters<typeof actual.createTerminalService>) => {
+      const service = actual.createTerminalService(...args);
+      services.push(service);
+      return service;
     },
   };
 });
@@ -36,25 +36,24 @@ it('P9: closing the kernel terminates PTYs owned by the terminal feature', async
       app, adapter: createTestRouteHost(), resolvedPortRef: { current: 0 },
       security: { mode: 'host' }, storage: { kind: 'memory' }, profile: 'agent-core-v1',
       capabilities: { 'host:exec': true }, features: { terminal: true },
-      featureOptions: { terminal: { loadSpawnPty: async () => () => { child.running = true; return pty; } } },
+      featureOptions: { terminal: { shutdownGraceMs: 0, loadSpawnPty: async () => () => { child.running = true; return pty; } } },
     });
-    expect(managers).toHaveLength(1);
-    const manager = managers[0]!;
-    const principal = { id: 'terminal-owner' };
-    const session = await manager.create({ principal, options: { cwd: '/fixture', shell: '/bin/sh' } });
+    expect(services).toHaveLength(1);
+    const service = services[0]!;
+    const session = await service.create({ cwd: '/fixture', shell: '/bin/sh' });
     expect(child.running).toBe(true);
     expect(session.status).toBe('running');
 
     await kernel.close();
 
     expect(child.running).toBe(false);
-    expect(manager.get({ principal, id: session.id })).toMatchObject({ status: 'ok', session: { status: 'exited' } });
+    expect(service.get(session.id)).toMatchObject({ status: 'exited' });
   } finally {
     try {
       await kernel?.close();
-      for (const manager of managers) await manager.shutdownActive({ graceMs: 0 });
+      for (const service of services) await service.shutdownActive({ graceMs: 0 });
     } finally {
-      managers.length = 0;
+      services.length = 0;
       child.running = false;
       vi.clearAllTimers();
       vi.useRealTimers();

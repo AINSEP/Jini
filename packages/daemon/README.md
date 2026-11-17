@@ -18,16 +18,19 @@ Packed-consumer fixtures are local to this package. PostgreSQL test declarations
 npm install @jini-ai/daemon
 ```
 
-`node-pty` is an **optional peer dependency** — the package boots and every other capability
+`node-pty` is no longer a dependency of this package — it boots and every other capability
 (run lifecycle, tool executor, agent executor, routines) works without it. Only
-the native adapter at `@jini-ai/daemon/terminal` needs `node-pty` installed.
-The default entry's session manager requires a host-supplied `terminalService` or `loadSpawnPty`:
+the native adapter at `@jini-ai/server/adapters/node-pty` needs `node-pty` installed.
+The session manager wraps a host-built `TerminalService`; the host also owns the PTY loader and the
+service's tuning (buffer sizes, flush timing, TTL, shutdown grace):
 
 ```ts
 import { createTerminalSessionManager } from '@jini-ai/daemon';
-import { loadRealSpawnPty } from '@jini-ai/daemon/terminal';
+import { createTerminalService } from '@jini-ai/platform';
+import { loadRealSpawnPty } from '@jini-ai/server/adapters/node-pty';
 
-const manager = createTerminalSessionManager({}, { loadSpawnPty: () => loadRealSpawnPty({}) });
+const terminalService = createTerminalService({ loadSpawnPty: () => loadRealSpawnPty({}) });
+const manager = createTerminalSessionManager({ terminalService });
 ```
 
 With `@jini-ai/server`, pass that loader as `featureOptions.terminal.loadSpawnPty` to
@@ -58,7 +61,7 @@ With `@jini-ai/server`, pass that loader as `featureOptions.terminal.loadSpawnPt
   manifest into `ToolRegistry` registrations — the only door into it).
 - **Terminal sessions** — `createTerminalSessionManager`, `createTerminalToolRegistrations` — a
   session manager built on `@jini-ai/platform`'s generic ring-buffer engine, plus session-token
-  gating. The optional native `loadRealSpawnPty` adapter lives at `@jini-ai/daemon/terminal`.
+  gating. The optional native `loadRealSpawnPty` adapter lives at `@jini-ai/server/adapters/node-pty`.
 - **Routines** — `RoutineService`, `createInMemoryRoutineStore` (`routines/`) — a DST-safe
   wall-clock scheduler plus CRUD + run-history store port.
 - **Run-orchestration helpers** (`run/`) — `runResultFromStatus`, `deriveRunErrorCode`,

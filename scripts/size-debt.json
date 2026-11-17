@@ -856,9 +856,9 @@
   {
     "file": "packages/daemon/src/terminal-session.ts",
     "function": "createTerminalSessionManager",
-    "line": 208,
+    "line": 197,
     "rule": "max-lines-per-function",
-    "value": 101
+    "value": 85
   },
   {
     "file": "packages/daemon/src/tool-executor.ts",
@@ -1136,16 +1136,16 @@
   {
     "file": "packages/server/src/builtin-features.ts",
     "function": "createBuiltInFeatures",
-    "line": 231,
+    "line": 226,
     "rule": "max-lines-per-function",
-    "value": 426
+    "value": 424
   },
   {
     "file": "packages/server/src/builtin-features.ts",
     "function": "<file>",
     "line": 644,
     "rule": "max-lines",
-    "value": 566
+    "value": 560
   },
   {
     "file": "packages/server/src/create-local-node-daemon.ts",

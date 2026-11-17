@@ -22,7 +22,6 @@ import type { Clock } from '@jini-ai/core/primitives';
  * FIFO window. Memory keeps dedupe evidence until drop, including evicted entries. This durable
  * adapter preserves its existing bounded SQL/schema behavior rather than adding a hidden archive.
  */
-import { openSqliteConnection } from '@jini-ai/db/sqlite';
 import { type SqliteDb, type SqliteSyncOpener } from '@jini-ai/core/contracts/storage';
 import type {
   EventLogAppendInput,
@@ -77,10 +76,9 @@ export function openSqliteEventLog(
   resolveMaxEntriesPerRun(options.maxEntriesPerRun);
   let db: SqliteDb | undefined;
   try {
-    db = openSqliteConnection({ filePath: input.file, open({ filePath }, settings) {
-      db = input.open(filePath, settings);
-      return db;
-    } }, { pragmas: ['journal_mode = WAL'] });
+    // The handle is captured before anything that can throw, so the catch below closes what was opened.
+    db = input.open(input.file, {});
+    db.pragma('journal_mode = WAL');
     const log = bindSqliteEventLog(db, input.clock, options);
     let closed = false;
     return { ...log, async close(_args: Record<string, never>) { if (closed) return;
