@@ -35,10 +35,11 @@ export interface FakeExcalidrawProps {
    *  something to actually assert on. */
   theme?: string;
   children?: ReactNode;
+  useFakeExcalidrawHook?: typeof useFakeExcalidraw;
 }
 
-function FakeExcalidraw({ initialData, excalidrawAPI, onChange, renderTopRightUI, name, theme, children }: FakeExcalidrawProps) {
-  const { fireChange } = useFakeExcalidraw({ initialData, excalidrawAPI, onChange });
+function FakeExcalidraw({ initialData, excalidrawAPI, onChange, renderTopRightUI, name, theme, children, useFakeExcalidrawHook = useFakeExcalidraw }: FakeExcalidrawProps) {
+  const { fireChange } = useFakeExcalidrawHook({ initialData, excalidrawAPI, onChange });
 
   return (
     <div data-testid="fake-excalidraw" aria-label={name} data-theme={theme}>
