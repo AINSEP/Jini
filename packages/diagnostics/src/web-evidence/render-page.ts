@@ -1,5 +1,5 @@
 import { REAL_CAPTURE_CLOCK, type CaptureClock } from "./capture-clock.js";
-import { PageWorkBudget, PageWorkTimeout } from "./page-work-budget.js";
+import { PageWorkBudget, PageWorkDeadline, PageWorkTimeout } from "./page-work-budget.js";
 import { isSameOriginUrl } from "./same-origin.js";
 import { MAX_REDIRECT_HOPS, isMainFrameNavigation, type RequestRouter, type RouteLike } from "./request-guard.js";
 
@@ -37,15 +37,26 @@ export interface RenderBrowser {
   newContext(options?: Record<string, unknown>): Promise<RenderContext>;
   close(): Promise<void>;
 }
+/** Where ordinary work was when the soft deadline cut it short (see `RenderPageOptions.softDeadlineMs`). */
+export type TimedOutPhase = "dismiss" | "wait" | "load";
 export interface RenderSession {
   page: RenderPage; context: RenderContext; response: RenderResponse | null;
   finalUrl: string; budget: PageWorkBudget;
+  /** Set only when `consume` runs as the fallback: the page committed navigation but this step did not finish. */
+  phaseTimedOut?: TimedOutPhase;
 }
 export interface RenderPageOptions {
   timeoutMs?: number;
   signal?: AbortSignal;
   /** Time source for the budget, its timers and the hard stop; defaults to the real clock. */
   clock?: CaptureClock;
+  /** Ordinary work (navigation, wait, load wait, cookie dismissal) must end this many ms after the start; it is
+   * above 0 and below `timeoutMs`. If the page has committed navigation by then, `onSoftDeadline` decides what
+   * happens; if not, the capture fails with a PageWorkTimeout at this time. A caller cancel never counts as this. */
+  softDeadlineMs?: number;
+  /** The only action: run `consume` once on the current page with what is left of `timeoutMs`
+   * (`session.phaseTimedOut` says which step was cut short). It is what applies when `softDeadlineMs` is set. */
+  onSoftDeadline?: "consume-current";
   /** CSS selector, or settle seconds (0–10). DOM content loaded always precedes this. */
   waitFor?: string | number;
   dismissCookieBanners?: boolean;
@@ -135,7 +146,7 @@ function assertNavigable(required: OriginPolicy & { url: string }): void {
 const CONTEXT_OPTION_KEYS = ["viewport", "deviceScaleFactor", "isMobile", "hasTouch", "javaScriptEnabled"];
 
 async function openContext(
-  { browser, budget, signal, timeoutMs }: { browser: RenderBrowser; budget: PageWorkBudget; signal: AbortSignal; timeoutMs: number },
+  { browser, budget, signal }: { browser: RenderBrowser; budget: PageWorkBudget; signal: AbortSignal },
   { contextOptions = {} }: RenderPageOptions,
 ): Promise<RenderContext> {
   return budget.run({ work: async () => {
@@ -146,7 +157,7 @@ async function openContext(
     if (budget.remainingMs() <= 0 || signal.aborted) {
       void opened.close().catch(() => {});
       signal.throwIfAborted();
-      throw new PageWorkTimeout({ timeoutMs });
+      throw budget.expiredError();
     }
     return opened;
   } });
@@ -239,13 +250,17 @@ async function waitForSelectorOrDelay({ page, budget, waitFor }: { page: RenderP
 
 /** Cookie dismissal, the selector/settle strategy and the best-effort load wait, all within the page budget. */
 async function settlePage(
-  { page, budget, signal }: { page: RenderPage; budget: PageWorkBudget; signal: AbortSignal },
+  { page, budget, signal, progress }: { page: RenderPage; budget: PageWorkBudget; signal: AbortSignal; progress: OpenProgress },
   options: RenderPageOptions,
 ): Promise<void> {
   const { waitFor = 1.2, dismissCookieBanners: dismiss = false } = options;
+  progress.phase = "dismiss";
   const dismissed = dismiss && await dismissCookieBanners({ page, budget });
+  progress.phase = "wait";
   await waitForSelectorOrDelay({ page, budget, waitFor });
+  progress.phase = "load";
   await waitForLoad({ page, budget, signal }, options);
+  progress.phase = "dismiss";
   // Hydrated consent widgets can arrive during the settle/selector wait.
   if (dismiss && !dismissed && await dismissCookieBanners({ page, budget })) {
     await budget.run({ work: () => page.waitForTimeout(200) });
@@ -262,26 +277,73 @@ async function waitForLoad({ page, budget, signal }: { page: RenderPage; budget:
   }
 }
 
-/** Guard, navigate and settle the page; the session's final URL passes the same origin boundary. */
-async function openSession(
-  { context, budget, signal, url }: { context: RenderContext; budget: PageWorkBudget; signal: AbortSignal; url: string },
-  options: RenderPageOptions,
-): Promise<RenderSession> {
-  const policy: OriginPolicy = { originPolicy: options.originPolicy ?? "same-origin", originBaseUrl: options.originBaseUrl ?? url };
-  const refusedOrigin = await guardRequests({ context, budget, ...policy }, options);
-  const page = await budget.run({ work: () => context.newPage() });
-  const { target, response } = await navigate({ page, budget, url, refusedOrigin, ...policy }, options);
-  await settlePage({ page, budget, signal }, options);
-  signal.throwIfAborted();
+/** How far opening got: what the page committed, and the settle step in progress. */
+interface OpenProgress {
+  committed?: { page: RenderPage; response: RenderResponse | null; target: string };
+  phase: TimedOutPhase;
+}
+
+const originPolicyOf = ({ url }: { url: string }, options: RenderPageOptions): OriginPolicy =>
+  ({ originPolicy: options.originPolicy ?? "same-origin", originBaseUrl: options.originBaseUrl ?? url });
+
+/** The session for a committed page; its final URL passes the same origin boundary on every path. */
+function sessionOf(
+  { context, budget, committed: { page, response, target } }: { context: RenderContext; budget: PageWorkBudget; committed: NonNullable<OpenProgress["committed"]> },
+  policy: OriginPolicy,
+): RenderSession {
   const finalUrl = page.url?.() ?? response?.url?.() ?? target;
   assertNavigable({ url: finalUrl, ...policy });
   return { page, context, response, finalUrl, budget };
 }
 
+/** Guard, navigate and settle the page; the session's final URL passes the same origin boundary. */
+async function openSession(
+  { context, budget, signal, url, progress }: { context: RenderContext; budget: PageWorkBudget; signal: AbortSignal; url: string; progress: OpenProgress },
+  options: RenderPageOptions,
+): Promise<RenderSession> {
+  const policy = originPolicyOf({ url }, options);
+  const refusedOrigin = await guardRequests({ context, budget, ...policy }, options);
+  const page = await budget.run({ work: () => context.newPage() });
+  const { target, response } = await navigate({ page, budget, url, refusedOrigin, ...policy }, options);
+  const committed = { page, response, target };
+  progress.committed = committed;
+  await settlePage({ page, budget, signal, progress }, options);
+  signal.throwIfAborted();
+  return sessionOf({ context, budget, committed }, policy);
+}
+
+/** Open the session. When the work deadline cuts settling short on a page that committed navigation, the
+ * session of that page is the fallback; before commit it is a failure. A caller cancel or the hard stop is
+ * never a work deadline: it throws, so a cancel can never start fallback work. */
+async function openOrFallBack(
+  args: { context: RenderContext; budget: PageWorkBudget; signal: AbortSignal; url: string },
+  options: RenderPageOptions,
+): Promise<RenderSession> {
+  const progress: OpenProgress = { phase: "dismiss" };
+  try {
+    return await openSession({ ...args, progress }, options);
+  } catch (error) {
+    const { committed } = progress;
+    if (!(error instanceof PageWorkDeadline) || !committed) throw error;
+    // A cancel that lands right after the deadline cannot start the fallback: budget.run refuses to start `consume` on an aborted signal.
+    const session = sessionOf({ context: args.context, budget: args.budget, committed }, originPolicyOf(args, options));
+    return { ...session, phaseTimedOut: progress.phase };
+  }
+}
+
 /** The URL syntax boundary, and the rule that public rendering always runs behind a guarded router. */
-function assertRenderable({ url }: { url: string }, options: RenderPageOptions): void {
+function assertRenderable({ url, timeoutMs }: { url: string; timeoutMs: number }, options: RenderPageOptions): void {
   assertHttpUrl({ url });
   if (options.originPolicy === "public" && !options.router) throw new Error("Public rendering requires a guarded request router");
+  assertSoftDeadline({ timeoutMs }, options);
+}
+
+/** A soft deadline at or past the hard limit leaves no fallback window: that is a caller bug, not a clamp. */
+function assertSoftDeadline({ timeoutMs }: { timeoutMs: number }, { softDeadlineMs }: RenderPageOptions): void {
+  if (softDeadlineMs === undefined) return;
+  if (!(softDeadlineMs > 0 && softDeadlineMs < timeoutMs)) {
+    throw new RangeError(`softDeadlineMs must be above 0 and below timeoutMs (${timeoutMs}), got ${softDeadlineMs}`);
+  }
 }
 
 /** Open, guard, wait and consume ONE ephemeral page, always releasing the context.
@@ -297,7 +359,7 @@ export async function renderPage<T>(
   options: RenderPageOptions = {},
 ): Promise<T> {
   const { timeoutMs = 30_000, signal: callerSignal, clock = REAL_CAPTURE_CLOCK } = options;
-  assertRenderable({ url }, options);
+  assertRenderable({ url, timeoutMs }, options);
   // A native total timer remains firm even if the wall clock moves between budgeted steps.
   const deadline = clock.deadlineSignal(timeoutMs);
   const signal = callerSignal ? AbortSignal.any([callerSignal, deadline]) : deadline;
@@ -314,17 +376,20 @@ async function consumeOnePage<T>(
   { browser, url, consume, signal, timeoutMs, clock }: { browser: RenderBrowser; url: string; consume: (session: RenderSession) => Promise<T>; signal: AbortSignal; timeoutMs: number; clock: CaptureClock },
   options: RenderPageOptions,
 ): Promise<T> {
-  const budget = new PageWorkBudget({ timeoutMs }, { signal, clock });
+  const { softDeadlineMs } = options;
+  const budget = new PageWorkBudget({ timeoutMs }, { signal, clock, ...(softDeadlineMs === undefined ? {} : { workDeadlineMs: softDeadlineMs }) });
   let context: RenderContext | undefined;
   const onAbort = () => { void context?.close().catch(() => {}); };
   signal.throwIfAborted();
   signal.addEventListener("abort", onAbort, { once: true });
   try {
-    context = await openContext({ browser, budget, signal, timeoutMs }, options);
-    const session = await openSession({ context, budget, signal, url }, options);
+    context = await openContext({ browser, budget, signal }, options);
+    const session = await openOrFallBack({ context, budget, signal, url }, options);
+    budget.endWorkPhase();
     return await budget.run({ work: () => consume(session) });
   } finally {
     signal.removeEventListener("abort", onAbort);
+    budget.endWorkPhase();
     if (context) await budget.release({ close: () => context!.close().catch(() => {}) });
   }
 }
