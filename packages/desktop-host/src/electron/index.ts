@@ -16,3 +16,4 @@ export * from './electron-process-memory.js';
 export * from './electron-shell.js';
 export * from './create-electron-desktop-host.js';
 export * from './testing.js';
+export * from './app-version.js';
