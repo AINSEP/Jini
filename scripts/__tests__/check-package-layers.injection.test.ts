@@ -294,11 +294,11 @@ describe('helpers', () => {
 });
 
 describe('the real workspace baseline', () => {
-  it('ships a parsable debt file, no exceptions, and passes the gate', () => {
+  it('ships a parsable debt file, only Q2 exceptions (pinned exactly in injection-exceptions.q2.test.ts), and passes the gate', () => {
     const entries = loadDebt({ root: REPO_ROOT });
     expect(entries.length).toBeGreaterThan(0);
     expect(entries.every(entry => entry.count > 0 && entry.lane.length > 0)).toBe(true);
-    expect(loadExceptions({ root: REPO_ROOT })).toEqual([]);
+    expect(loadExceptions({ root: REPO_ROOT }).filter(item => item.ownerQuestion !== 'Q2' || !['sqlite', 'infra'].includes(item.owner))).toEqual([]);
     expect(checkPackageLayers({ repoRoot: REPO_ROOT }, { warn: () => undefined })).toEqual([]);
   }, 180_000);
 });
