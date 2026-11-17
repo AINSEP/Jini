@@ -16,6 +16,9 @@ import { findLostBlocks, parseDebt, parseDiff } from './check-why-comments-lib.m
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const PROFILE = {
+  // Reports, plans and the gate's own baseline quote deleted comments verbatim; counting them as
+  // "the comment still exists" would let every committed report launder the deletions it lists.
+  corpusExclude: /^(cloud-results|cloud|\.cloud-coord|ADS-memory)\//,
   debt: 'scripts/why-comments-debt.json',
   siblings: ['../Tovu'],
   command: 'pnpm check:why-comments',
@@ -29,8 +32,8 @@ function defaultGit(args, { cwd }) {
 }
 
 /** Current text of every tracked text file in a repo; large, binary and lock files cannot hold a moved comment. */
-function defaultReadTexts(root, git) {
-  const names = git(['ls-files', '-z'], { cwd: root }).split('\0').filter(Boolean);
+function defaultReadTexts(root, { git, exclude }) {
+  const names = git(['ls-files', '-z'], { cwd: root }).split('\0').filter(name => name && !exclude.test(name));
   const texts = [];
   for (const name of names) {
     const file = path.join(root, name);
@@ -114,7 +117,7 @@ function withDefaults(options) {
     io: { out: options.out ?? console.log, err: options.err ?? console.error },
     profile: options.profile ?? PROFILE,
     git,
-    readTexts: options.readTexts ?? (root => defaultReadTexts(root, git)),
+    readTexts: options.readTexts ?? (root => defaultReadTexts(root, { git, exclude: (options.profile ?? PROFILE).corpusExclude })),
   };
 }
 

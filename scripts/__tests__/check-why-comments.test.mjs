@@ -9,7 +9,7 @@ import { classifyBlock, normalizeText, parseDebt, parseDiff } from '../check-why
 import { runCli } from '../check-why-comments.mjs';
 
 const WHY = '// We retry once because the upstream drops the first connection after a deploy.';
-const PROFILE = { debt: 'debt.json', siblings: [], command: 'pnpm check:why-comments' };
+const PROFILE = { corpusExclude: /^cloud-results\//, debt: 'debt.json', siblings: [], command: 'pnpm check:why-comments' };
 
 function git(cwd, ...args) {
   return execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...args], { cwd, encoding: 'utf8' });
@@ -110,6 +110,12 @@ test('editing one line of a multi-line comment keeps the rest, so it is not lost
   const after = '// We retry once because the upstream drops the first connection\n// after a release, so the second attempt always succeeds here.\nconst a = 1;\n';
   withFixture({ 'src/a.ts': before }, { 'src/a.ts': after }, root => {
     assert.equal(run(root).code, 0);
+  });
+});
+
+test('a report that quotes the deleted comment does not make it survive', () => {
+  withFixture({ 'src/a.ts': WITH_WHY }, { 'src/a.ts': WITHOUT_WHY, 'cloud-results/baseline.txt': `lost: ${WHY.slice(3)}\n` }, root => {
+    assert.equal(run(root).code, 1);
   });
 });
 
