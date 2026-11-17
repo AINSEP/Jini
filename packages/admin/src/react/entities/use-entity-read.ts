@@ -3,20 +3,25 @@ import type { AdminEntityRowData } from '../../core/ports/entities.js';
 import type { EntityRegistryPort } from './types.js';
 import { loadRelationIndex, type RelationIndex } from './rules.js';
 
-/** Per-mount async state; stale results are discarded and reads never overwrite another route. */
+/**
+ * Per-mount async state; stale results are discarded and reads never overwrite another route.
+ * A changed `refreshToken` (compared with `Object.is`) reads again; the previous data stays visible
+ * until the new read settles, so a refresh never blanks the screen.
+ */
 export function useEntityRead<T>(
-  { load, scope }: { readonly load: () => Promise<T>; readonly scope: unknown },
+  { load, scope, refreshToken }: { readonly load: () => Promise<T>; readonly scope: unknown; readonly refreshToken?: unknown },
 ): { readonly data: T | undefined; readonly error: unknown; readonly loading: boolean } {
   const [state, setState] = useState<{ scope: unknown; load: () => Promise<T>; data?: T; error?: unknown }>({ scope, load });
   useEffect(() => {
     let active = true;
-    setState({ scope, load });
+    // A new scope or loader starts from nothing; a refresh of the same read keeps what is shown.
+    setState((previous) => (previous.scope === scope && previous.load === load ? previous : { scope, load }));
     Promise.resolve().then(load).then(
       (data) => { if (active) setState({ scope, load, data }); },
       (error: unknown) => { if (active) setState({ scope, load, error }); },
     );
     return () => { active = false; };
-  }, [load, scope]);
+  }, [load, scope, refreshToken]);
   const current = state.scope === scope && state.load === load ? state : null;
   return { data: current?.data, error: current?.error, loading: current === null || (!Object.hasOwn(current, 'data') && !Object.hasOwn(current, 'error')) };
 }

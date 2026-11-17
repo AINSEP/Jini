@@ -11,7 +11,7 @@ import { useEntityList } from './EntityList.hooks.js';
  */
 export function EntityList(props: EntityListProps) {
   const { entityName, registry, translate, routes } = props;
-  const { port, entries, position, setWalk, result } = useEntityList({ entityName, registry, limitParam: props.limitParam });
+  const { port, entries, position, setWalk, result } = useEntityList({ entityName, registry, limitParam: props.limitParam, refreshToken: props.refreshToken });
   if (port === null) return <p role="alert">{translate({ key: 'Unknown entity' })}</p>;
   if (result.error) return <p role="alert">{translate({ key: 'Unable to load rows' })}</p>;
   if (result.loading || !result.data) return <p role="status">{translate({ key: 'Loading' })}</p>;

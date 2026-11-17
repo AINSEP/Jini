@@ -3,8 +3,8 @@ import type { EntityDetailProps } from './types.js';
 import { useEntityDetail } from './EntityDetail.hooks.js';
 import { readTitle } from './rules.js';
 
-export function EntityDetail({ entityName, id, registry, translate, routes }: EntityDetailProps) {
-  const { port, result } = useEntityDetail({ registry, entityName, id });
+export function EntityDetail({ entityName, id, registry, translate, routes, refreshToken }: EntityDetailProps) {
+  const { port, result } = useEntityDetail({ registry, entityName, id, refreshToken });
   if (port === null) return <p role="alert">{translate({ key: 'Unknown entity' })}</p>;
   if (result.error) return <p role="alert">{translate({ key: 'Unable to load row' })}</p>;
   if (result.loading || !result.data) return <p role="status">{translate({ key: 'Loading' })}</p>;

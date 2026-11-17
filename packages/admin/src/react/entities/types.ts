@@ -22,6 +22,11 @@ export interface EntityScreenDependencies {
   readonly registry: EntityRegistryPort;
   readonly translate: EntityTranslate;
   readonly routes: EntityRoutesPort;
+  /**
+   * A value the host changes when the data may have changed behind the screen's back (an assistant edited
+   * a row, another tab saved). A changed token reads again, once; the same token never does.
+   */
+  readonly refreshToken?: unknown;
 }
 
 export interface EntityListProps extends EntityScreenDependencies {

@@ -49,10 +49,14 @@ export function createEntityRoutes({ adminBase, panelId, navigate }: EntityRoute
  * own legacy bookmark migration. Select translation is adapted to its existing scalar callback ABI. */
 export function createEntityPanel(
   args: EntityRouteDependencies & { readonly registry: EntityRegistryPort; readonly translate: EntityTranslate },
-  options: { readonly nav?: AdminNavEntry; readonly agentReachable?: boolean; readonly requires?: readonly string[]; readonly permissions?: readonly string[] } = {},
+  options: {
+    readonly nav?: AdminNavEntry; readonly agentReachable?: boolean; readonly requires?: readonly string[]; readonly permissions?: readonly string[];
+    /** Handed to every screen of the panel; a host that changes it (and recreates the panel) makes the open screen read again. */
+    readonly refreshToken?: unknown;
+  } = {},
 ): AdminShellPanel {
   const routes = createEntityRoutes(args);
-  const dependencies = { registry: args.registry, translate: args.translate, routes };
+  const dependencies = { registry: args.registry, translate: args.translate, routes, refreshToken: options.refreshToken };
   return {
     id: args.panelId,
     description: args.translate({ key: 'Browse and edit data records.' }),
