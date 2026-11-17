@@ -283,3 +283,5 @@ loads this adapter; neither entry is re-exported by the kernel root.
 
 The former `@jini-ai/cms/settings` and `@jini-ai/cms/settings/express` entries re-export these
 owners for one release. New consumers should import the core subpaths directly.
+
+`@jini-ai/core/text` also exports `redactOAuthUrls({ text, pattern, replacement })`: replaces every match of a provider-owned pattern and leaves all other bytes intact (a non-global pattern replaces only its first match). The caller owns the pattern and the replacement.

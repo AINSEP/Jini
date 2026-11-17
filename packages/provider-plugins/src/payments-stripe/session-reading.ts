@@ -1,4 +1,4 @@
-import type { PaymentEvidence, PaymentMode, ProviderPaymentStatus } from "@jini-ai/commerce/payments/kernel";
+import type { PaymentEvidence, PaymentMode, ProviderPaymentStatus, StripeProviderContext } from "./contract.js";
 import { fromStripeAmount } from "./amount.js";
 
 export type SessionReading = { kind: "evidence"; evidence: PaymentEvidence } | { kind: "id_only"; sessionId: string }
@@ -40,10 +40,10 @@ function sessionStatus(
 
 /** Translates an owned Checkout session, preserving incomplete facts for worker retrieval.
  * @returns Evidence, id-only, foreign, or a malformed reason; no I/O or thrown JSON errors.
- * @example readSession({ object: event.data.object, mode: ctx.account.mode }, { eventType: event.type })
+ * @example readSession({ object: event.data.object, mode: ctx.account.mode, errors }, { eventType: event.type })
  * @complexity O(n) in the currency string length; constant fields inspected. */
 export function readSession(
-  { object, mode }: { object: unknown; mode: PaymentMode }, optional: { eventType?: string } = {}
+  { object, mode, errors }: { object: unknown; mode: PaymentMode; errors: Pick<StripeProviderContext, "moneyProblem"> }, optional: { eventType?: string } = {}
 ): SessionReading {
   const session = record({ value: object });
   const correlationId = record({ value: session.metadata }).jini_payment_id;
@@ -53,7 +53,7 @@ export function readSession(
     kind: "malformed", reason: "invalid checkout session identity or mode",
   };
   const status = sessionStatus({ session, eventType: optional.eventType });
-  const amount = fromStripeAmount({ amount: session.amount_total, currency: session.currency });
+  const amount = fromStripeAmount({ amount: session.amount_total, currency: session.currency, errors });
   if (status === null || amount === null) return { kind: "id_only", sessionId: session.id };
   return { kind: "evidence", evidence: { providerRef: session.id, correlationId, status, amount, refunds: [], disputes: [] } };
 }

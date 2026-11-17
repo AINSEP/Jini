@@ -1435,6 +1435,7 @@
    "parseDescriptorI18n": "function:3021007027",
    "pickPlural": "function:a302d2f417",
    "possibleTagStart": "function:7201b60551",
+   "redactOAuthUrls": "function:cd05e2b6b5",
    "resolveActiveTabId": "function:489595cd9d",
    "sanitizeUntrustedText": "function:ea4ea95b49",
    "splitOnPlaceholders": "function:62d48b8737",

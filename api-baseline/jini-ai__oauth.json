@@ -128,7 +128,6 @@
    "parseResourceMetadataUrl": "function:ffc5c97b0f",
    "parseWwwAuthenticateScopes": "function:dfa64c3d83",
    "pollDeviceAuthorizationOnce": "function:2f5f5a1b0a",
-   "redactOAuthUrls": "function:cd05e2b6b5",
    "refreshAccessToken": "function:84a7ac522a",
    "registerOAuthClientDynamically": "function:0d857c7d4c",
    "requestOAuthToken": "function:10e9bc9ab8",

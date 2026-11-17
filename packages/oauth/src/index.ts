@@ -46,7 +46,6 @@ export type { OAuthDnsAddress, OAuthDnsPort, OAuthAddressPolicyPort, OAuthDispat
 export { generateOAuthState } from './pkce.js';
 export { buildOAuthAuthorizationUrl, exchangeOAuthAuthorizationCode } from './authorization-code.js';
 export { createPendingAuthorizationStore } from './pending-authorizations.js';
-export { redactOAuthUrls } from './redact.js';
 export { defaultOAuthMessages } from './messages.js';
 export type { OAuthMessages } from './messages.js';
 export type { PendingAuthorizationCache, PendingAuthorizationScheduler, PendingAuthorizationCacheOptions } from './pending-authorizations.js';
