@@ -56,7 +56,14 @@ describe('proxy argument recovery', () => {
     expect(fetchImpl.mock.calls[0]?.[0]).toBe('http://daemon.example/api/tools/search?q=duplicate+a+theme&limit=8');
   });
 
-  it.each([0, 26, 1.5, '1.5', '08', ' 3', '26', 'eight'])('search_tools validates max_results %j using the limit contract', async max_results => {
+  it.each([[0, 1], [26, 25], ['26', 25]])('search_tools repairs max_results %j to %j with the clamp declared on limit', async (max_results, limit) => {
+    fetchImpl.mockImplementation(async () => Response.json({ hits: [] }));
+    const result = await call({ tool: searchToolsTool, args: { query: 'read posts', max_results } });
+    expect(result.isError).toBeUndefined();
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe(`http://daemon.example/api/tools/search?q=read+posts&limit=${limit}`);
+  });
+
+  it.each([1.5, '1.5', '08', ' 3', 'eight'])('search_tools validates max_results %j using the limit contract', async max_results => {
     const result = await call({ tool: searchToolsTool, args: { query: 'read posts', max_results } });
     expect(result.isError).toBe(true);
     expect(fetchImpl).not.toHaveBeenCalled();

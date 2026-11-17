@@ -92,7 +92,15 @@ describe('searchToolsTool.inputSchema limit bounds', () => {
     expect(searchToolsTool.argumentNormalization?.aliases?.max_results).toBe('limit');
   });
 
-  it.each([0, -1, 1.5, 26])('rejects out-of-range limit %p instead of forwarding it to the daemon', async (limit) => {
+  it.each([[0, 1], [-1, 1], [26, 25]])('repairs out-of-range limit %p to %p and forwards the bound to the daemon', async (limit, bound) => {
+    const result = await call(limit);
+    expect(result.isError).toBeUndefined();
+    expect(getDaemonJson).toHaveBeenCalledWith(
+      { baseUrl: 'http://d.example', route: `/api/tools/search?q=q&limit=${bound}` }, { fetchImpl: ctx.fetchImpl, diagnosticToolIds: ['search_tools'] },
+    );
+  });
+
+  it.each([1.5])('rejects a non-integer limit %p instead of forwarding it to the daemon', async (limit) => {
     const result = await call(limit);
     expect(result.isError).toBe(true);
     expect((result.content[0] as { text: string }).text).toContain('invalid arguments for search_tools');

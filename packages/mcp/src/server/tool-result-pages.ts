@@ -45,8 +45,9 @@ export function createToolResultPages(_required: Record<string, never>, {
     description: 'Read a page of a saved oversized tool result in this run. Use resultId from the tool response, offset (default 0), and limit (default 4000, max 8000). Returns one text block: JSON cursor metadata on its first line, then exact result text. Follow nextOffset until null. Unknown/evicted IDs fail; repeat the original tool with a narrower query. Never read CLI spill files with Bash.',
     inputSchema: { type: 'object', required: ['resultId'], additionalProperties: false, properties: {
       resultId: { type: 'string', minLength: 1 }, offset: { type: 'integer', minimum: 0 },
-      limit: { type: 'integer', minimum: 1, maximum: 8000 },
+      limit: { type: 'integer', minimum: 1, maximum: 8000, clamp: true },
     } },
+    argumentNormalization: { clamp: true },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     handler({ args }) {
       const resultId = args['resultId'] as string;

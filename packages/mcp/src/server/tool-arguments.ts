@@ -21,6 +21,13 @@ export interface McpToolArgumentContract {
     readonly foldIntoInput?: true;
     /** Concrete registry tools reuse the core schema normalizer before MCP validation. */
     readonly schemaInput?: true;
+    /**
+     * A local tool opts in to the declared `clamp` repair on its own schema: a property that sets
+     * `clamp: true` has an out-of-range number moved to its bound, with a note. This does not turn
+     * on `schemaInput` (which also changes the tool's refusal texts); registry tools get the clamp
+     * through the core normalizer and never need this flag.
+     */
+    readonly clamp?: true;
   };
 }
 

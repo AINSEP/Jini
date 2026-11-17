@@ -46,6 +46,7 @@
  */
 import { batchOutcomeFor, normalizeToolInput, withNormalizationNotes, type ToolDescriptor } from '@jini-ai/core';
 import { sanitizeUntrustedText } from '@jini-ai/core/text';
+import { clampDeclaredBounds } from '@jini-ai/core/tool-input-repairs';
 import { unknownToolSentence } from '@jini-ai/core/tool-call-text';
 import { Validator, type Schema } from '@cfworker/json-schema';
 import { ContentBlockSchema } from '@modelcontextprotocol/sdk/types.js';
@@ -260,6 +261,11 @@ async function normalizeCallArguments(
   { tool, rawArgs }: { tool: McpToolDef; rawArgs: unknown }, _options: Record<string, never> = {},
 ): Promise<{ args: Record<string, unknown>; notes: readonly string[] }> {
   const args = normalizeToolArguments({ tool, rawArgs });
+  if (tool.argumentNormalization?.clamp) {
+    // Local tools opt in to the clamp alone: the rest of their refusal texts stay as they are.
+    const clamped = clampDeclaredBounds({ input: args, inputSchema: tool.inputSchema });
+    return { args: clamped.input as Record<string, unknown>, notes: clamped.notes };
+  }
   if (!tool.argumentNormalization?.schemaInput) return { args, notes: [] };
   const normalized = await normalizeToolInput({ input: args, registration: { descriptor: { id: tool.name, inputSchema: tool.inputSchema } } });
   if (!isRecord(normalized.input)) throw new Error('normalization must produce one input object');

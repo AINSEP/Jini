@@ -18,6 +18,8 @@ const text = expect.any(String);
 const READ = { readOnlyHint: true, idempotentHint: true, openWorldHint: false };
 const WRITE = { readOnlyHint: false, idempotentHint: false, destructiveHint: false, openWorldHint: false };
 const limitSchema = { type: 'integer', minimum: 1, maximum: 25, description: text };
+// search_tools opts in to the clamp repair on its page-size controls.
+const clampedLimitSchema = { ...limitSchema, clamp: true };
 
 function valid(tool: McpToolDef, input: unknown): boolean {
   return new Validator(tool.inputSchema as Schema, '2020-12', false).validate(input).valid;
@@ -42,7 +44,7 @@ describe('tool descriptor contracts (inline, exact)', () => {
     // UPDATED (209434d6e): search_tools also accepts max_results as an alias of limit.
     ['search_tools', searchToolsTool, {
       type: 'object',
-      properties: { query: { type: 'string', description: text }, limit: limitSchema, max_results: limitSchema },
+      properties: { query: { type: 'string', description: text }, limit: clampedLimitSchema, max_results: clampedLimitSchema },
       required: ['query'],
       additionalProperties: false,
     }, { ...READ, title: 'Search the tool catalog' }],
