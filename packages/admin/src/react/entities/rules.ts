@@ -161,12 +161,16 @@ function isBlankDraftValue(field: AdminEntityField, value: unknown): boolean {
   return field.kind !== "json" && value === "";
 }
 
-/** Field names whose declared `required: true` is not satisfied by `draft`. */
+/**
+ * Field names whose declared `required: true` is not satisfied by `draft`.
+ * A `persistedOnly` field is never missing while `creating`: the create form does not offer it.
+ */
 export function missingRequiredFields(
   { descriptor, draft }: { readonly descriptor: AdminEntityDescriptor; readonly draft: Record<string, unknown> },
+  { creating = false }: { readonly creating?: boolean } = {},
 ): readonly string[] {
   return descriptor.fields
-    .filter((field) => field.required === true)
+    .filter((field) => field.required === true && !(creating && field.persistedOnly === true))
     .filter((field) => isBlankDraftValue(field, draft[field.name]))
     .map((field) => field.name);
 }

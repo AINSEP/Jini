@@ -78,13 +78,14 @@ export function useEntityEdit({ port, ...props }: EntityEditProps & { readonly p
     if (form !== null) setFormState({ scope, form });
   }
   const draft = form?.draft ?? {};
-  const missing = missingRequiredFields({ descriptor: port.descriptor, draft });
+  const missing = missingRequiredFields({ descriptor: port.descriptor, draft }, { creating: id === null });
   const invalid = invalidDraftFields({ descriptor: port.descriptor, draft });
   const pending = mutation.scope === scope ? mutation.kind : null;
   const canSave = canSaveForm({ form, missing, invalid, pending });
 
   function setField({ name, value }: { readonly name: string; readonly value: unknown }): void {
-    if (!port.descriptor.fields.some((field) => field.name === name) || busy.current) return;
+    // A persistedOnly field is read-only: its loaded value travels back untouched.
+    if (!port.descriptor.fields.some((field) => field.name === name && field.persistedOnly !== true) || busy.current) return;
     setFormState((state) => state?.scope === scope ? { scope, form: { ...state.form, draft: { ...state.form.draft, [name]: value } } } : state);
   }
 

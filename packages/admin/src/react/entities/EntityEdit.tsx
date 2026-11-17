@@ -1,6 +1,7 @@
 import { useId, useMemo, type ReactNode } from 'react';
 import type { AdminEntityField, AdminErasedEntityPort } from '../../core/ports/entities.js';
 import type { EntityEditProps, EntityTranslate } from './types.js';
+import { EntityCell } from './EntityCell.js';
 import { EntityField } from './EntityField.js';
 import { RelationTruncationNotice } from './RelationTruncationNotice.js';
 import { useEntityEdit } from './use-entity-edit.js';
@@ -10,7 +11,26 @@ import type { RelationIndex } from './rules.js';
 type EntityEditState = ReturnType<typeof useEntityEdit>;
 type EntityEditForm = NonNullable<EntityEditState['form']>;
 
-function EntityFieldRow({ edit, form, field, inputId, relations, translate }: {
+/** A `persistedOnly` field on a saved row: its label and value, no control. */
+function PersistedValue({ form, field, id, relations, translate }: {
+  readonly form: EntityEditForm; readonly field: AdminEntityField; readonly id: string;
+  readonly relations: RelationIndex; readonly translate: EntityTranslate;
+}): ReactNode {
+  return <div>
+    <span>{translate({ key: field.label ?? field.name })}</span>{' '}
+    <EntityCell field={field} row={{ ...form.draft, id }} relations={relations} translate={translate} />
+  </div>;
+}
+
+function EntityFieldRow({ edit, form, field, inputId, relations, translate, id }: {
+  readonly edit: EntityEditState; readonly form: EntityEditForm; readonly field: AdminEntityField; readonly inputId: string;
+  readonly relations: RelationIndex; readonly translate: EntityTranslate; readonly id: string | null;
+}): ReactNode {
+  if (field.persistedOnly !== true) return <EditableField edit={edit} form={form} field={field} inputId={inputId} relations={relations} translate={translate} />;
+  return id === null ? null : <PersistedValue form={form} field={field} id={id} relations={relations} translate={translate} />;
+}
+
+function EditableField({ edit, form, field, inputId, relations, translate }: {
   readonly edit: EntityEditState; readonly form: EntityEditForm; readonly field: AdminEntityField; readonly inputId: string;
   readonly relations: RelationIndex; readonly translate: EntityTranslate;
 }): ReactNode {
@@ -54,7 +74,7 @@ function EntityEditor(props: EntityEditProps & { readonly port: AdminErasedEntit
     <h1>{entityText({ translate, key: id === null ? 'New {entity}' : 'Edit {entity}', values: { entity: translate({ key: port.descriptor.labelSingular }) } })}</h1>
     {edit.failed ? <p role="alert">{translate({ key: 'Operation failed' })}</p> : null}
     {port.descriptor.fields.map((field, index) =>
-      <EntityFieldRow key={field.name} edit={edit} form={form} field={field} inputId={`${formId}-${index}`} relations={relations} translate={translate} />)}
+      <EntityFieldRow key={field.name} edit={edit} form={form} field={field} inputId={`${formId}-${index}`} relations={relations} translate={translate} id={id} />)}
     <RelationTruncationNotice relations={relations} translate={translate} />
     <EditActions edit={edit} canRemove={id !== null && port.remove !== undefined} translate={translate} />
   </form>;

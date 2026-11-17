@@ -88,6 +88,14 @@ interface AdminEntityFieldBase {
   /** When true, the row type makes this field non-optional — see {@link AdminEntityRow}. */
   readonly required?: boolean;
   /**
+   * The value exists only once a row is saved (a version or concurrency token, a generated slug).
+   * A generic edit screen leaves it out of the create form and never counts it as a missing required
+   * field there; on a saved row it shows the value read-only and sends it back unchanged in the
+   * update, so an adapter that needs the token (an optimistic-concurrency `version`) receives it.
+   * The row type is unchanged: `required` still decides whether the key is optional on a row.
+   */
+  readonly persistedOnly?: true;
+  /**
    * Whether a backend can filter or order on this field without a full scan.
    *
    * **Currently advisory in both directions, and nothing enforces either half.** A screen is
