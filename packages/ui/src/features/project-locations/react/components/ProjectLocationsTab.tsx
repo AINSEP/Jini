@@ -33,6 +33,8 @@ export interface ProjectLocationsTabProps {
   defaultLocationId?: string | null;
   onDefaultLocationIdChange?: (id: string) => void;
   labels?: ProjectLocationsTabLabels;
+  useTHook?: typeof useT;
+  useProjectLocationsTabHook?: typeof useProjectLocationsTab;
 }
 
 function resolveLabels(
@@ -169,9 +171,9 @@ function DraftLocationCard({ draft, index, state, labels, defaultControlLabel }:
  * only host coupling being the folder-picker/persistence/scan calls, all
  * routed through the injected `ProjectLocationsPort`.
  */
-export function ProjectLocationsTab({ port, defaultLocationId, onDefaultLocationIdChange, labels }: ProjectLocationsTabProps) {
-  const t = useT();
-  const state = useProjectLocationsTab({ port, defaultLocationId, onDefaultLocationIdChange });
+export function ProjectLocationsTab({ port, defaultLocationId, onDefaultLocationIdChange, labels, useTHook = useT, useProjectLocationsTabHook = useProjectLocationsTab }: ProjectLocationsTabProps) {
+  const t = useTHook();
+  const state = useProjectLocationsTabHook({ port, defaultLocationId, onDefaultLocationIdChange });
   const { drafts, builtIn, effectiveDefaultLocationId, saving, result, addFolder, setDefaultLocationId } = state;
   const copy = resolveLabels({ t }, labels);
   const defaultControlLabel = createDefaultControlLabel({ defaultBadge: copy.defaultBadge, makeDefaultLabel: copy.makeDefaultLabel });
