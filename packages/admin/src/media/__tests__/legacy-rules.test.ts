@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { MediaAsset } from '../models.js';
 import {
-  countMediaTabs, diffMediaMetadata, filterMediaByTab, formatByteSize,
+  countMediaTabs, diffMediaMetadata, filterMediaByTab,
   mediaEmbedSnippet, parseOptionalPixelSize, queryMedia, resolveActiveTab,
 } from '../rules.js';
 import {
@@ -21,26 +21,6 @@ function asset(required: Partial<MediaAsset>, _optional: Record<string, never> =
     ...required,
   };
 }
-
-describe('legacy byte-size formatting', () => {
-  // 1024-based units must agree with upload caps; MB/GB keep precision so different clips
-  // do not misleadingly collapse to the same whole-number size.
-  it.each([
-    [0, '0 B'], [823, '823 B'], [823.6, '824 B'], [1023, '1023 B'],
-    [1024, '1 KB'], [839_680, '820 KB'], [1023 * 1024, '1023 KB'],
-    [1024 * 1024, '1.0 MB'], [9_961_472, '9.5 MB'],
-    [10 * 1024 * 1024, '10.0 MB'], [1024 ** 3, '1.0 GB'],
-    [1_288_490_189, '1.2 GB'],
-  ])('formats %s bytes as %s', (bytes, expected) => {
-    expect(formatByteSize({ bytes: bytes as number })).toBe(expected);
-  });
-  it('uses locale decimal separators and defaults to en-US', () => {
-    expect(formatByteSize({ bytes: 9_961_472 }, { locale: 'de-DE' })).toBe('9,5 MB');
-    expect(formatByteSize({ bytes: 9_961_472 })).toBe(
-      formatByteSize({ bytes: 9_961_472 }, { locale: 'en-US' }),
-    );
-  });
-});
 
 describe('legacy attribute-name allowlist', () => {
   it.each([

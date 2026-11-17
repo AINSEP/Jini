@@ -2,6 +2,7 @@ import type { KeyringPort, SecretSealerPort } from "@jini-ai/core/contracts/vaul
 import { credentialTokenHint } from "../credential-token.js";
 import { buildVaultAad } from "./vault.aad.js";
 import { isCopyableKind } from "./vault.meta.js";
+import { VaultResealRefusedError } from "./vault.reseal-refused.js";
 import {
   VAULT_KINDS,
   VaultError,
@@ -58,6 +59,13 @@ export interface VaultCopyInput {
   overwrite: boolean;
   /** Optional selection-time guard; otherwise the revisions read by this operation are used. */
   sourceRevisions?: Readonly<Record<string, number>>;
+}
+
+export interface VaultRotateOptions {
+  /** Opens the STORED row when it was sealed under a key the service's own `sealer` cannot open any
+   * more (a key switch). It is used for that one read only: the service's `sealer` still seals the new
+   * envelope and verifies it, so `deps.sealer.open` always means "open with the current keyring". */
+  sourceOpener?: Pick<SecretSealerPort, "open">;
 }
 
 type CopyResultBody = Pick<VaultCopyResult, "status" | "last4" | "reasonCode">;
@@ -159,9 +167,20 @@ export class SecretsVaultService {
     const plaintext = JSON.stringify(input.payload);
     return this.deps.sealer.seal({ plaintext, key: await this.deps.keyring.activeKey({}), aad: buildVaultAad(input.context) });
   }
-  private async open(record: VaultRecord): Promise<VaultMeta | null> {
+  /** Opens a fresh envelope with this service's own sealer, under the stored row's own binding, and
+   * requires the exact sealed plaintext back. A seal that cannot be read back would replace the only
+   * copy of a secret with something nobody can open.
+   * @throws VaultResealRefusedError naming the failing step, the key and the sealer error's name/code only. */
+  private async assertOpensTo({ record, sealed, payload }: { record: VaultRecord; sealed: VaultRecord["sealed"]; payload: VaultMeta | null }): Promise<void> {
+    if (sealed === null) return;
+    let reopened: string;
+    try { reopened = await this.deps.sealer.open({ sealed }, { aad: buildVaultAad(record) }); }
+    catch (error) { throw new VaultResealRefusedError({ step: "open-new-envelope", keyId: sealed.keyId }, { cause: error }); }
+    if (reopened !== JSON.stringify(payload)) throw new VaultResealRefusedError({ step: "plaintext-mismatch", keyId: sealed.keyId });
+  }
+  private async open(record: VaultRecord, { opener = this.deps.sealer }: { opener?: Pick<SecretSealerPort, "open"> } = {}): Promise<VaultMeta | null> {
     if (!record.sealed) return null;
-    const plaintext = await this.deps.sealer.open({ sealed: record.sealed }, { aad: buildVaultAad(record) });
+    const plaintext = await opener.open({ sealed: record.sealed }, { aad: buildVaultAad(record) });
     let payload: unknown;
     try { payload = JSON.parse(plaintext); } catch { throw invalidRecord(); }
     if (payload === null || typeof payload !== "object" || Array.isArray(payload)) throw invalidRecord();
@@ -360,13 +379,22 @@ export class SecretsVaultService {
       expectedRevision: input.expectedRevision, patch, updatedAt: this.deps.now({}) })));
   }
 
-  /** Re-seal using the active key; concurrent replacement wins through CAS. Metadata-only rows persist. */
-  async rotate(input: VaultIdentity & { expectedRevision: number }, _options: VaultOptions = {}): Promise<VaultSummary> {
+  /** Re-seal using the active key; concurrent replacement wins through CAS. Metadata-only rows persist.
+   * A re-seal that cannot be opened again under the row's own binding is refused before anything is
+   * written: rotation replaces the only copy of the secret, so a bad seal would destroy it.
+   * After a key switch the stored row no longer opens with this service's sealer: pass the previous
+   * key's opener as `sourceOpener` rather than binding `sealer.open` to it.
+   * @throws VaultResealRefusedError (`invalid-record`) when the new envelope does not open to the stored payload.
+   * @example await vault.rotate({ ...identity, expectedRevision }, { sourceOpener: previousKeySealer });
+   */
+  async rotate(input: VaultIdentity & { expectedRevision: number }, { sourceOpener }: VaultRotateOptions = {}): Promise<VaultSummary> {
     assertContext(input);
     await this.authorize({ action: "rotate", context: input });
     const existing = await this.find(input);
     if (existing?.revision !== input.expectedRevision) throw new VaultError({ code: "conflict" });
-    const sealed = await this.seal({ context: input, payload: await this.open(existing) });
+    const payload = await this.open(existing, sourceOpener ? { opener: sourceOpener } : {});
+    const sealed = await this.seal({ context: input, payload });
+    await this.assertOpensTo({ record: existing, sealed, payload });
     return summary(this.parse(await this.deps.repo.put({ expectedRevision: input.expectedRevision,
       record: { ...existing, sealed, revision: existing.revision + 1, updatedAt: this.deps.now({}) } })));
   }
