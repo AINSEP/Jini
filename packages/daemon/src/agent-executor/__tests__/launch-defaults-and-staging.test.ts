@@ -5,7 +5,12 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, delimiter, dirname, join } from 'node:path';
 import { afterAll, describe, expect, it, vi } from 'vitest';
-import { RuntimeSelectionError, getAgentDef, createAgentRuntimeState, type AgentLaunchResolution, type RuntimeAgentDef } from '@jini-ai/agent-runtime';
+import { getAgentDef, createAgentRuntimeState } from '@jini-ai/agent-runtime';
+import {
+  RuntimeSelectionError,
+  type AgentLaunchResolution,
+  type RuntimeAgentDef,
+} from '@jini-ai/core/contracts/agents';
 import { createInMemoryEventLog } from '../../event-log.js';
 import { createRunLifecycle } from '../../run-lifecycle.js';
 import { createAgentExecutor } from '../../index.js';

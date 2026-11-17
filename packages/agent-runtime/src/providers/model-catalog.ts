@@ -15,27 +15,16 @@ import { redactSecrets } from '@jini-ai/core';
  * no OD-branded strings).
  */
 
-import type { DnsLookupFn } from './connection-guard.js';
+import type { ConnectionTestKind, ConnectionTestProtocol, DnsLookupFn, ProviderModelOption, ProviderModelsQuery, ProviderModelsResponse } from '@jini-ai/core/contracts/agents';
 import { defaultDnsLookup, validateBaseUrl, validateBaseUrlResolved } from './connection-guard.js';
 import { aihubmixCatalogUrl, aihubmixHeaders, parseAIHubMixCatalog } from './aihubmix.js';
 import { appendVersionedApiPath } from './provider-url.js';
 import { googleProviderModelsUrl, normalizeGoogleModelId } from './google.js';
-import type {
-  ConnectionTestKind,
-  ConnectionTestProtocol,
-  ProviderModelOption,
-  ProviderModelsRequest,
-  ProviderModelsResponse,
-} from './types.js';
 
-export type ProviderModelsInput = ProviderModelsRequest & {
-  signal?: AbortSignal;
+/** The core query plus this runtime's transport-only field (an undici dispatcher), which a universal contract cannot name. */
+export interface ProviderModelsInput extends ProviderModelsQuery {
   requestInit?: Pick<RequestInit, 'dispatcher'>;
-  /** Injectable DNS resolver for the base-URL SSRF guard; defaults to `node:dns`. */
-  dnsLookup?: DnsLookupFn;
-  /** Injectable HTTP transport for adapter conformance; defaults to fetch. */
-  fetchFn?: typeof fetch;
-};
+}
 
 const PROVIDER_MODELS_TIMEOUT_MS = 12_000;
 

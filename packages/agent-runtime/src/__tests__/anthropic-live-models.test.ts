@@ -8,7 +8,7 @@ import {
 } from '../anthropic-live-models.js';
 import { setClaudeCodeModelIoForTesting } from '../claude-code-models.js';
 import { claudeAgentDef } from '../defs/claude.js';
-import type { RuntimeModelOption } from '../types.js';
+import type { RuntimeModelOption } from '@jini-ai/core/contracts/agents';
 
 // Keep the real SSRF guard and model-catalog parser; only DNS is supplied by the fixture.
 vi.mock('node:dns', () => ({

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createRecordingAiTraceSink, createJsonEventStreamHandler, createClaudeStreamHandler, type AiTraceSink } from '@jini-ai/agent-runtime';
+import { createJsonEventStreamHandler, createClaudeStreamHandler } from '@jini-ai/agent-runtime';
+import { createRecordingAiTraceSink, type AiTraceSink } from '@jini-ai/core/contracts/ai-trace';
 import type { RunProtocolEvent } from '@jini-ai/protocol';
 import { createInMemoryEventLog } from '../event-log.js';
 import { createRunLifecycle, type RunLifecycle } from '../run-lifecycle.js';

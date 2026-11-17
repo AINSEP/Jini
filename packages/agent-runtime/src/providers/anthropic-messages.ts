@@ -76,7 +76,8 @@ import { redactSecrets } from '@jini-ai/core';
  */
 import { createRoleMarkerGuard, emitGuardedTextDelta } from '../role-marker-guard.js';
 import { extractProviderErrorDetail } from './response-text.js';
-import { defaultDnsLookup, pinnedFetch, validateBaseUrlResolved, type DnsLookupFn, type PinnedFetch } from './connection-guard.js';
+import { defaultDnsLookup, pinnedFetch, validateBaseUrlResolved, type PinnedFetch } from './connection-guard.js';
+import { type DnsLookupFn } from '@jini-ai/core/contracts/agents';
 import { decodeSseStream, parseSseJsonRecord, type DecodedSseEvent } from './sse-decode.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
 import { createStrictToolRetry, type StrictToolRetryState } from './openai-chat.js';

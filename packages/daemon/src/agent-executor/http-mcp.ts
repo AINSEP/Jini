@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import type { RuntimeAgentDef } from '@jini-ai/agent-runtime';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import type { RunLifecycle } from '../run-lifecycle.js';
 import type { McpHttpEndpoint, McpJsonInjectionOptions } from './contracts.js';
 import { prepareClaudeHttpMcpConfig } from './claude/mcp-config.js';

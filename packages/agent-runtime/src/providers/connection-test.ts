@@ -19,12 +19,11 @@ import { redactSecrets } from '@jini-ai/core';
  * directory.
  */
 
-import type { DnsLookupFn } from './connection-guard.js';
+import type { DnsLookupFn, ConnectionTestKind, ConnectionTestProtocol } from '@jini-ai/core/contracts/agents';
 import { defaultDnsLookup, validateBaseUrlResolved } from './connection-guard.js';
 import { appendVersionedApiPath } from './provider-url.js';
 import { googleGenerateContentUrl } from './google.js';
 import { buildOpenAIChatTokenParam, buildLegacyMaxTokensParam } from './token-params.js';
-import type { ConnectionTestKind, ConnectionTestProtocol } from './types.js';
 import { trimCharsEnd } from '@jini-ai/core/text';
 
 /** The four wire protocols this smoke test knows how to speak. A narrower

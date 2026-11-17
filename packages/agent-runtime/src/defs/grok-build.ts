@@ -1,8 +1,7 @@
 import { createAgentModelDiscovery } from '../model-discovery-native.js';
 
 import { DEFAULT_MODEL_OPTION } from './shared.js';
-import type { RuntimeModelOption } from '../types.js';
-import type { RuntimeAgentDef } from '../types.js';
+import type { RuntimeModelOption, RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 /** Agent id, binary name and the routing-mode default model id. */
 const GROK_BUILD_ID = 'grok-build';
@@ -49,7 +48,7 @@ function grokModelSupportsReasoningEffort(model: string | null | undefined): boo
 // tool_use streaming). Upgrading to a `grok-stream-json` event parser is
 // follow-up work once the format is stable enough to lock in.
 export const grokBuildAgentDef = {
-  ...createAgentModelDiscovery(GROK_BUILD_ID, { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => grokBuildAgentDef.fallbackModels, args: ['models'], parse: (input): import('../types.js').RuntimeModelOption[] | null => grokBuildAgentDef.listModels.parse(input) }),
+  ...createAgentModelDiscovery(GROK_BUILD_ID, { fallbackModels: (): readonly import('@jini-ai/core/contracts/agents').RuntimeModelOption[] => grokBuildAgentDef.fallbackModels, args: ['models'], parse: (input): import('@jini-ai/core/contracts/agents').RuntimeModelOption[] | null => grokBuildAgentDef.listModels.parse(input) }),
   id: GROK_BUILD_ID,
   name: 'Grok Build',
   bin: 'grok',

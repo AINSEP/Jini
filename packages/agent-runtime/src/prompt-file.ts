@@ -10,12 +10,8 @@
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { RuntimeAgentDef } from './types.js';
+import type { PreparedPromptFile, RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
-export type PreparedPromptFile = {
-  path: string;
-  cleanup: () => Promise<void>;
-};
 
 export async function preparePromptFileForAgent({ def, prompt, label }: { def: RuntimeAgentDef | null | undefined; prompt: string; label: string }
 ): Promise<PreparedPromptFile | null> {

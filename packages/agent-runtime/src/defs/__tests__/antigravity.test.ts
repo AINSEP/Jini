@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ModelDiscoveryDeps } from '../../model-discovery-types.js';
+import type { ModelDiscoveryDeps } from '@jini-ai/core/contracts/agents';
 import { antigravityAgentDef, parseAgyModels, redactAntigravityAuthUrls, sanitizeAntigravityWireLine } from '../antigravity/index.js';
 import { cliOutputDiscoveryDeps, discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 

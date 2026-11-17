@@ -14,8 +14,8 @@ export { prepareClaudeConfigDirIfNeeded, resolveSourceClaudeConfigDir } from './
 export { mergeEnvContentMcpConfig, mergeEnvContentInstructions } from './opencode/mcp-config.js';
 import type {
    AcpMcpServerInput,
-   RuntimeAgentDef,
 } from '@jini-ai/agent-runtime';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import {
   isRecord,
   errorMessage,
@@ -222,7 +222,7 @@ export function defaultRemoveMcpJsonFile({ path }: { readonly path: string }): P
 }
 
 /** Inherited credentials and persistent settings require explicit approval, including standalone hosts. */
-function needsInheritedMcpConsent(input: { def: RuntimeAgentDef; nativeCapabilities?: Partial<import('@jini-ai/agent-runtime').NativeCapabilities> }, injection: McpJsonInjectionOptions | undefined): boolean {
+function needsInheritedMcpConsent(input: { def: RuntimeAgentDef; nativeCapabilities?: Partial<import('@jini-ai/core/contracts/agents').NativeCapabilities> }, injection: McpJsonInjectionOptions | undefined): boolean {
   return input.def.externalMcpInjection === 'env-passthrough' && injection !== undefined && input.nativeCapabilities?.userMcp !== true;
 }
 
@@ -230,7 +230,7 @@ const MCP_BRIDGE_PREPARERS: ReadonlyMap<string, typeof prepareAntigravityBridge>
 
 /** Phase 5: resolve credentials and delivery, then await agy's scoped MCP permission setup.
  * Setup errors release staged files and fail before spawn. @complexity O(settings bytes) for agy. */
-export async function resolveMcpBridgeForRun({ input, deps }: { readonly input: { readonly runId: string; readonly cwd: string; readonly def: RuntimeAgentDef; readonly nativeCapabilities?: Partial<import('@jini-ai/agent-runtime').NativeCapabilities> }; readonly deps: {
+export async function resolveMcpBridgeForRun({ input, deps }: { readonly input: { readonly runId: string; readonly cwd: string; readonly def: RuntimeAgentDef; readonly nativeCapabilities?: Partial<import('@jini-ai/core/contracts/agents').NativeCapabilities> }; readonly deps: {
     readonly mcpJsonInjection: McpJsonInjectionOptions | undefined;
     readonly cleanupStagedFiles: () => Promise<void>;
     readonly failBeforeSpawn: FailBeforeSpawn;
@@ -270,7 +270,7 @@ export async function resolveMcpBridgeForRun({ input, deps }: { readonly input: 
 }
 
 /** Phase 10: mechanism 1 of 5's one effect — stages this run's own `.mcp.json`, returning the path `cleanupStagedFiles` should later remove (`undefined` for every other mechanism / unconfigured host). */
-export async function writeMcpJsonIfNeeded({ input, deps }: { readonly input: { readonly runId: string; readonly cwd: string; readonly nativeToolAccess?: boolean | undefined; readonly nativeCapabilities?: Partial<import('@jini-ai/agent-runtime').NativeCapabilities>; readonly def: RuntimeAgentDef; readonly mcpBridge: McpBridgeDelivery | null }; readonly deps: {
+export async function writeMcpJsonIfNeeded({ input, deps }: { readonly input: { readonly runId: string; readonly cwd: string; readonly nativeToolAccess?: boolean | undefined; readonly nativeCapabilities?: Partial<import('@jini-ai/core/contracts/agents').NativeCapabilities>; readonly def: RuntimeAgentDef; readonly mcpBridge: McpBridgeDelivery | null }; readonly deps: {
     readonly mcpJsonInjection: McpJsonInjectionOptions | undefined;
     readonly releaseStagedResources: () => Promise<void>;
     readonly failBeforeSpawn: FailBeforeSpawn;

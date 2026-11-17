@@ -18,7 +18,6 @@
  * module's own header and `archived provenance ledger`'s dated sections for the full
  * rationale.
  */
-export * from './types.js';
 export * from './token-params.js';
 export * from './google.js';
 export * from './aihubmix.js';

@@ -3,7 +3,7 @@
  * Return cached remote models while refreshing, with static presets on cold start. This caching
  * pattern also serves other agents with cheap presets and slower authoritative remote catalogs.
  */
-import type { RuntimeModelOption } from './types.js';
+import type { RuntimeModelOption } from '@jini-ai/core/contracts/agents';
 import { coalesceModelLoad } from './model-loading-state.js';
 
 export type AmrModelsResponse = {

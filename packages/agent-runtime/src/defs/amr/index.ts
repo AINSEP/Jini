@@ -1,6 +1,6 @@
 import { createAgentModelDiscovery } from '../../model-discovery-native.js';
 import { execAgentFile } from '../shared.js';
-import type { RuntimeAgentDef, RuntimeModelOption } from '../../types.js';
+import type { RuntimeAgentDef, RuntimeModelOption } from '@jini-ai/core/contracts/agents';
 
 const AMR_MODELS_TIMEOUT_MS = 10_000;
 const AMR_MODELS_RETRY_DELAYS_MS = [250, 750] as const;
@@ -266,7 +266,7 @@ export async function fetchVelaBillingSummary({ resolvedBin, env }: { resolvedBi
 
 export const amrAgentDef = {
   // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
-  ...createAgentModelDiscovery('amr', { fallbackModels: (): readonly import('../../types.js').RuntimeModelOption[] => amrAgentDef.fallbackModels, parse: ({ stdout }) => parseVelaModelJson({ stdout, expectedSource: 'remote' }) }),
+  ...createAgentModelDiscovery('amr', { fallbackModels: (): readonly import('@jini-ai/core/contracts/agents').RuntimeModelOption[] => amrAgentDef.fallbackModels, parse: ({ stdout }) => parseVelaModelJson({ stdout, expectedSource: 'remote' }) }),
   id: 'amr',
   name: 'AMR',
   bin: 'vela',

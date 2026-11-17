@@ -48,6 +48,7 @@ import { readProviderResponseText, MAX_PROVIDER_ERROR_BYTES } from './response-t
 import { isLoopbackApiHost, isBlockedExternalApiHostname } from '@jini-ai/core/net';
 import { isIpLiteralHostname } from '@jini-ai/core';
 import { trimCharsEnd } from '@jini-ai/core/text';
+import type { DnsLookupAddress, DnsLookupFn } from '@jini-ai/core/contracts/agents';
 
 export interface BaseUrlValidationResult {
   parsed?: URL;
@@ -102,9 +103,6 @@ export function validateBaseUrl({ baseUrl }: { baseUrl: string }): BaseUrlValida
   }
   return { parsed };
 }
-
-export type DnsLookupAddress = { address: string; family: number };
-export type DnsLookupFn = (requiredArgs: { hostname: string }) => Promise<DnsLookupAddress[]>;
 
 /**
  * DNS-aware companion to {@link validateBaseUrl}. The synchronous check only

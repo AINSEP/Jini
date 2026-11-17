@@ -21,15 +21,17 @@ import {
   prepareAgentLogFile,
   preparePromptFileForAgent,
   type AcpSessionController,
-  type AgentLaunchResolution,
   type PiRpcSession,
+} from '@jini-ai/agent-runtime';
+import {
+  type AgentLaunchResolution,
   type PromptAugmenter,
   type RuntimeAgentDef,
   type RuntimeBuildOptions,
   type RuntimeLock,
   type RuntimeLockAcquireContext,
   type RuntimeLockHandoffContext,
-} from '@jini-ai/agent-runtime';
+} from '@jini-ai/core/contracts/agents';
 import { createToolRegistry, type Principal, type RunRef } from '@jini-ai/core';
 import type { JournalEntry } from '@jini-ai/protocol';
 import { createInMemoryEventLog } from '../../event-log.js';

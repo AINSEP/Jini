@@ -16,7 +16,8 @@
 import { openSqliteConnection } from '@jini-ai/db/sqlite';
 import { type SqliteDb, type SqliteSyncOpener } from '@jini-ai/core/contracts/storage';
 import { join } from 'node:path';
-import { createNativeAgentRuntime, type AiTraceSink, type NativeAgentRuntime } from '@jini-ai/agent-runtime';
+import { createNativeAgentRuntime, type NativeAgentRuntime } from '@jini-ai/agent-runtime';
+import { type AiTraceSink } from '@jini-ai/core/contracts/ai-trace';
 
 import { createToolRegistry, type ToolRegistry } from '@jini-ai/core';
 import {
@@ -120,9 +121,17 @@ function createKernelAgentRuntime(
 ): NativeAgentRuntime {
   return createNativeAgentRuntime({ env: options.agentExecutor?.hostEnv ?? process.env }, {
     ...(options.agentExecutor?.runtimeState ? { state: options.agentExecutor.runtimeState } : {}),
-    ...(options.agentExecutor?.codexDisablePlugins !== undefined ? { codexDisablePlugins: options.agentExecutor.codexDisablePlugins } : {}),
-    ...(options.agentExecutor?.piGracefulShutdownMs !== undefined ? { piGracefulShutdownMs: options.agentExecutor.piGracefulShutdownMs } : {}),
+    ...(options.agentExecutor?.codexDisablePlugins !== undefined ? { codex: { disablePlugins: options.agentExecutor.codexDisablePlugins } } : {}),
+    ...(options.agentExecutor?.piGracefulShutdownMs !== undefined ? { pi: { gracefulShutdownMs: options.agentExecutor.piGracefulShutdownMs } } : {}),
   });
+}
+
+/** Until the executor takes the bound runtime port (R8b), it still receives the two definition policies by value. */
+function executorDefinitionPolicies(
+  { agentRuntime }: { agentRuntime: NativeAgentRuntime },
+  _optional: Record<string, never> = {},
+): { codexDisablePlugins: boolean; piGracefulShutdownMs: number } {
+  return { codexDisablePlugins: agentRuntime.codex.disablePlugins === true, piGracefulShutdownMs: agentRuntime.pi.gracefulShutdownMs ?? 5000 };
 }
 
 /**
@@ -193,8 +202,7 @@ export async function createJiniKernelBase(options: CreateJiniKernelBaseOptions)
     ...options.agentExecutor,
     runtimeState: agentRuntime.state,
     hostEnv: agentRuntime.hostEnv,
-    codexDisablePlugins: agentRuntime.codexDisablePlugins,
-    piGracefulShutdownMs: agentRuntime.piGracefulShutdownMs,
+    ...executorDefinitionPolicies({ agentRuntime }),
     journal,
     classifyFailure: classifyRunFailureForRetry,
   });

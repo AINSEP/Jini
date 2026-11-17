@@ -6,7 +6,7 @@ import { createAgentModelDiscovery } from '../model-discovery-native.js';
 import os from 'node:os';
 import path from 'node:path';
 import { acpModelFetcher, DEFAULT_MODEL_OPTION } from './shared.js';
-import type { RuntimeAgentDef } from '../types.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 /** Resolve Reasonix's home directory, respecting REASONIX_HOME if already set. */
 function reasonixHome(): string {
@@ -20,7 +20,7 @@ function reasonixHome(): string {
 
 export const reasonixAgentDef = {
   // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
-  ...createAgentModelDiscovery('reasonix', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => reasonixAgentDef.fallbackModels }),
+  ...createAgentModelDiscovery('reasonix', { fallbackModels: (): readonly import('@jini-ai/core/contracts/agents').RuntimeModelOption[] => reasonixAgentDef.fallbackModels }),
     id: 'reasonix',
     name: 'DeepSeek Reasonix',
     bin: 'reasonix',

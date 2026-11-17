@@ -43,7 +43,7 @@ import { join } from 'node:path';
 import { createCommandInvocation } from '@jini-ai/platform/command';
 
 import { sanitizeCustomModel } from './models.js';
-import type { RuntimeEnv, RuntimeModelOption } from './types.js';
+import type { RuntimeEnv, RuntimeModelOption } from '@jini-ai/core/contracts/agents';
 
 /** A spawn costs ~2.5s and the picker list only moves when Claude Code updates or the server's
  *  "additional" options change, so one answer is trusted for this long per process. Failures are

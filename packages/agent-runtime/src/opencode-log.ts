@@ -12,7 +12,8 @@
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { classifyAgentServiceFailure, type AgentServiceFailureCode } from './auth.js';
+import { classifyAgentServiceFailure } from './auth.js';
+import { type AgentServiceFailureCode } from '@jini-ai/core/contracts/agents';
 
 export interface OpenCodeServiceFailure {
   code: AgentServiceFailureCode;

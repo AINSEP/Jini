@@ -1,9 +1,22 @@
 import { createHash } from 'node:crypto';
-import type { RuntimeModelOption, RuntimeReasoningOption, RuntimeAgentDef } from './types.js';
-import type { AgentModelDiscoveryPort, AgentDiscoveryConfiguration, DefaultModelResolution, DiscoveredModel, ModelCacheEntry, ModelCatalogSnapshot, ModelDiscoveryContext, ModelDiscoveryDeps, ModelDiscoveryProbes, ModelProbeResult } from './model-discovery-types.js';
+import type {
+  RuntimeModelOption,
+  RuntimeReasoningOption,
+  RuntimeAgentDef,
+  AgentModelDiscoveryPort,
+  DefaultModelResolution,
+  DiscoveredModel,
+  ModelCacheEntry,
+  ModelCatalogSnapshot,
+  ModelDiscoveryContext,
+  ModelDiscoveryDeps,
+  ModelProbeResult,
+} from '@jini-ai/core/contracts/agents';
+import type { AgentDiscoveryConfiguration, ModelDiscoveryProbes } from './model-discovery-types.js';
+import { RuntimeSelectionError } from '@jini-ai/core/contracts/agents';
 import { readModelConfiguration } from './model-discovery-config.js';
-import { ModelProbeError, ProbeTimeout, RuntimeSelectionError, validateRuntimeModelSelection, modelIdentityKind, normalizeDiscoveredModels, withModelProbeTimeout } from './core/model-discovery-shared.js';
-export { RuntimeSelectionError, ModelProbeError, modelIdentityKind, normalizeDiscoveredModels, withModelProbeTimeout } from './core/model-discovery-shared.js';
+import { ModelProbeError, ProbeTimeout, validateRuntimeModelSelection, modelIdentityKind, normalizeDiscoveredModels, withModelProbeTimeout } from './core/model-discovery-shared.js';
+export { ModelProbeError, modelIdentityKind, normalizeDiscoveredModels, withModelProbeTimeout } from './core/model-discovery-shared.js';
 export type * from './model-discovery-types.js';
 export const MODEL_CATALOG_TTL_MS = 15 * 60_000;
 export const MODEL_NEGATIVE_TTL_MS = 30_000;

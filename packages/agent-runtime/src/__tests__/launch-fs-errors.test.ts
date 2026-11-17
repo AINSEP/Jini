@@ -26,7 +26,7 @@ vi.mock('node:fs', async (importOriginal) => {
 });
 
 import { resolveAgentLaunch } from '../launch.js';
-import type { RuntimeAgentDef } from '../types.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 function makeDef(overrides: Partial<RuntimeAgentDef> = {}): RuntimeAgentDef {
   return {

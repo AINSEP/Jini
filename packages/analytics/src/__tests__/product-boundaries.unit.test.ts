@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { createAiTraceRecorder } from '@jini-ai/agent-runtime/ai-trace';
+import { createAiTraceRecorder } from '@jini-ai/core/contracts/ai-trace';
 import { createAiGenerationSink, createNoopProductAnalytics, isNoopProductAnalytics, withProductAnalyticsGuards,
   type ProductAiGeneration, type ProductAnalyticsPort } from '../product/index.js';
 import { injectBrowserAnalytics } from '../product/browser.js';

@@ -37,10 +37,9 @@ import { detectAgents as nativeDetectAgents, detectAgentsStream as nativeDetectA
 import { normalizeDiscoveredModels } from '../model-discovery.js';
 import { MODEL_CATALOG_TTL_MS, MODEL_NEGATIVE_TTL_MS } from '../model-discovery.js';
 import { createAgentRuntimeState } from '../runtime-state.js';
-import type { ModelDiscoveryDeps } from '../model-discovery-types.js';
+import type { ModelDiscoveryDeps, AcpModelProbe } from '@jini-ai/core/contracts/agents';
 import { agentCapabilities } from '../capabilities.js';
 import { getRememberedLiveModels, rememberLiveModels } from '../models.js';
-import type { AcpModelProbe } from '../acp-model-probe.js';
 import type { AmrProfileResolver } from '../amr-profile-resolver.js';
 import { AGENT_DEFS } from '../registry.js';
 

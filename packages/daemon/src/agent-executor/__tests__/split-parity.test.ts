@@ -1,7 +1,7 @@
 import { ChildProcess } from 'node:child_process';
 import * as childProcess from 'node:child_process';
 import { describe, expect, it, vi } from 'vitest';
-import type { RuntimeLockHandoffContext, RuntimeLockHold } from '@jini-ai/agent-runtime';
+import type { RuntimeLockHandoffContext, RuntimeLockHold } from '@jini-ai/core/contracts/agents';
 import * as executor from '../../index.js';
 import * as compatibilityEntry from '../../agent-executor.js';
 import * as splitEntry from '../index.js';

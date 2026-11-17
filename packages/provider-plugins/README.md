@@ -27,7 +27,7 @@ denied. Analytics and AI tracing keep their existing policies.
 Observability factories return diagnostics' `ObservabilityPort` plus `dispose`; `analytics-posthog`
 returns `@jini-ai/analytics/product`'s `ProductAnalyticsPort`, which the host wraps in
 `withProductAnalyticsGuards` (consent, opaque ids, PII rules) before any event reaches the vendor;
-`ai-trace-langfuse` returns an `@jini-ai/agent-runtime/ai-trace` sink, which the host combines with
+`ai-trace-langfuse` returns an `@jini-ai/core/contracts/ai-trace` sink, which the host combines with
 `createFanOutAiTraceSink` and hands to the daemon's `withAiTracing`.
 
 Cookie consent: the PostHog port's `consentAdapter({ path })` returns `{ adapter, http }`. Mount `http`

@@ -1,6 +1,6 @@
 import type { SurfaceEmission } from '@jini-ai/core';
 import type { UserTextRedactionOptions } from '../../../core/user-text-redaction.js';
-import type { NativeToolPolicyInput } from '@jini-ai/agent-runtime/native-tool-policy';
+import type { NativeToolPolicyInput } from '@jini-ai/core/contracts/agents';
 import type { CSSProperties, ReactNode, RefObject } from 'react';
 import type { ChatAttachment, ChatMessage } from '@jini-ai/chat';
 

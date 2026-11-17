@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { NativeCapabilities } from '../../native-tool-policy.js';
+import type { NativeCapabilities } from '@jini-ai/core/contracts/agents';
 import { claudeAgentDef } from '../claude.js';
 import { codexAgentDef } from '../codex.js';
 

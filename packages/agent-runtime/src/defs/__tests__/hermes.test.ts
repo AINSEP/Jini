@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { setAcpModelProbe, type AcpModelProbe } from '../../acp-model-probe.js';
-import type { RuntimeAgentDef } from '../../types.js';
+import { setAcpModelProbe } from '../../acp-model-probe.js';
+import { type AcpModelProbe } from '@jini-ai/core/contracts/agents';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import { hermesAgentDef } from '../hermes.js';
 import { DEFAULT_MODEL_OPTION } from '../shared.js';
 

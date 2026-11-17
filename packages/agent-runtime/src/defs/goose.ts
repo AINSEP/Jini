@@ -11,11 +11,11 @@ import { createAgentModelDiscovery } from '../model-discovery-native.js';
  * fail on the unknown `acp` command.
  */
 import { acpModelFetcher, DEFAULT_MODEL_OPTION } from './shared.js';
-import type { RuntimeAgentDef } from '../types.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 export const gooseAgentDef = {
   // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
-  ...createAgentModelDiscovery('goose', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => gooseAgentDef.fallbackModels }),
+  ...createAgentModelDiscovery('goose', { fallbackModels: (): readonly import('@jini-ai/core/contracts/agents').RuntimeModelOption[] => gooseAgentDef.fallbackModels }),
     id: 'goose',
     name: 'goose',
     bin: 'goose',

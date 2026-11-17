@@ -15,7 +15,7 @@ import {
   type ClaudeCodeModelIo,
 } from '../claude-code-models.js';
 import { createAgentRuntimeState } from '../runtime-state.js';
-import type { RuntimeModelOption } from '../types.js';
+import type { RuntimeModelOption } from '@jini-ai/core/contracts/agents';
 
 const FALLBACK: RuntimeModelOption[] = [
   { id: 'default', label: 'Default (CLI config)' },

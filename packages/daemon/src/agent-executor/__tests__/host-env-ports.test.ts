@@ -3,7 +3,7 @@ import { fixtureModelDiscovery } from './model-discovery-fixture.js';
 import { createAgentExecutor } from '../index.js';
 import { createRunLifecycle } from '../../run-lifecycle.js';
 import { createInMemoryEventLog } from '../../event-log.js';
-import type { RuntimeAgentDef } from '@jini-ai/agent-runtime';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import { expect, it } from 'vitest';
 import { resolveRunEnv, selectAgentExecutorHostEnv, resolveSystemPromptOverlayDelivery } from '../launch.js';
 import { configureExecutableResolutionEnv, createAgentRuntimeState, defaultRuntimeState } from '@jini-ai/agent-runtime';

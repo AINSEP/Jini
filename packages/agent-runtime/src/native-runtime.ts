@@ -1,17 +1,23 @@
 /** Native host composition: one state and transport, with environment policies resolved once. */
-import { nativeAcpModelProbe, type AcpModelProbe } from './acp-model-probe.js';
+import { nativeAcpModelProbe } from './acp-model-probe.js';
+import { type AcpModelProbe } from '@jini-ai/core/contracts/agents';
 import { detectAgents, probeAgentModels } from './detection.js';
 import { resolveAgentLaunch } from './launch.js';
 import { getAgentDef } from './registry.js';
 import { createAcpDiscoveryAdapter } from './model-discovery-adapters.js';
-import { bindRuntimeAgentDef, createAgentRuntimeState, type AgentRuntimeState } from './runtime-state.js';
-import type { RuntimeEnv } from './types.js';
+import { createAgentRuntimeState, type AgentRuntimeState } from './runtime-state.js';
+import { bindRuntimeAgentDef } from './runtime-def-binding.js';
+import { codexDefOptionsFromEnv, type CodexDefOptions } from './defs/codex/options.js';
+import { piDefOptionsFromEnv, type PiDefOptions } from './defs/pi/options.js';
+import type { RuntimeEnv } from '@jini-ai/core/contracts/agents';
 
 export interface NativeAgentRuntime {
   readonly state: AgentRuntimeState;
   readonly hostEnv: RuntimeEnv;
-  readonly codexDisablePlugins: boolean;
-  readonly piGracefulShutdownMs: number;
+  /** Codex definition config; the runtime-port binding closes over it, hosts never read it. */
+  readonly codex: CodexDefOptions;
+  /** Pi definition config; the runtime-port binding's PI session member closes over it. */
+  readonly pi: PiDefOptions;
   readonly detectAgents: typeof detectAgents;
   readonly probeAgentModels: typeof probeAgentModels;
   readonly resolveAgentLaunch: typeof resolveAgentLaunch;
@@ -30,9 +36,8 @@ export interface NativeAgentRuntime {
 export function createNativeAgentRuntime(
   { env }: { env: RuntimeEnv },
   { state = createAgentRuntimeState({}), acpModelProbe = state.acpModelProbe ?? nativeAcpModelProbe,
-    codexDisablePlugins = env.CODEX_DISABLE_PLUGINS === '1',
-    piGracefulShutdownMs = Number(env.PI_GRACEFUL_SHUTDOWN_MS) || 5000,
-  }: { state?: AgentRuntimeState; acpModelProbe?: AcpModelProbe; codexDisablePlugins?: boolean; piGracefulShutdownMs?: number } = {},
+    codex = codexDefOptionsFromEnv({ env }), pi = piDefOptionsFromEnv({ env }),
+  }: { state?: AgentRuntimeState; acpModelProbe?: AcpModelProbe; codex?: CodexDefOptions; pi?: PiDefOptions } = {},
 ): NativeAgentRuntime {
   const hostEnv = { ...env };
   if (state.discoveryDeps && state.acpModelProbe !== acpModelProbe) {
@@ -50,13 +55,13 @@ export function createNativeAgentRuntime(
     return result;
   }
   return {
-    state, hostEnv, codexDisablePlugins, piGracefulShutdownMs,
+    state, hostEnv, codex, pi,
     detectAgents: (required, optional = {}) => track(() => detectAgents(required, { ...optional, state, env: hostEnv })),
     probeAgentModels: (required, optional = {}) => track(() => probeAgentModels(required, { ...optional, state, env: hostEnv })),
     resolveAgentLaunch: (required, optional = {}) => resolveAgentLaunch(required, { ...optional, state, env: hostEnv }),
     getAgentDef: (required, _optional = {}) => {
       const def = getAgentDef(required);
-      return def ? bindRuntimeAgentDef({ def, state }, { codexDisablePlugins }) : def;
+      return def ? bindRuntimeAgentDef({ def, state }, { codex }) : def;
     },
     dispose(_required, _optional = {}) {
       disposal ??= (async () => {

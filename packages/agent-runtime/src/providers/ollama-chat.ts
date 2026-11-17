@@ -105,7 +105,8 @@ import { redactSecrets } from '@jini-ai/core';
  * See docs/decisions/DR-001-provider-native-tool-lifecycle.md.
  */
 import { createRoleMarkerGuard, emitGuardedTextDelta } from '../role-marker-guard.js';
-import { defaultDnsLookup, pinnedFetch, validateBaseUrlResolved, type DnsLookupFn, type PinnedFetch } from './connection-guard.js';
+import { defaultDnsLookup, pinnedFetch, validateBaseUrlResolved, type PinnedFetch } from './connection-guard.js';
+import { type DnsLookupFn } from '@jini-ai/core/contracts/agents';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
 import { trimCharsEnd } from '@jini-ai/core/text';
 import { toolLoopVerdict } from './tool-loop-verdict.js';

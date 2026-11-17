@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { probeDroidSdk } from '../model-discovery-sdk.js';
-import type { ModelDiscoveryContext, ModelDiscoveryDeps } from '../model-discovery-types.js';
+import type { ModelDiscoveryContext, ModelDiscoveryDeps } from '@jini-ai/core/contracts/agents';
 
 const context: ModelDiscoveryContext = { executable: '/chosen/cli', cwd: '/project', env: { HOME: '/fake' } };
 describe('official metadata SDK category', () => {

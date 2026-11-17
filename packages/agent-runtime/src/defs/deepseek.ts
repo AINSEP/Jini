@@ -1,10 +1,10 @@
 import { createAgentModelDiscovery } from '../model-discovery-native.js';
 import { DEFAULT_MODEL_OPTION } from './shared.js';
-import type { RuntimeAgentDef } from '../types.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 export const deepseekAgentDef = {
   // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
-  ...createAgentModelDiscovery('deepseek', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => deepseekAgentDef.fallbackModels }),
+  ...createAgentModelDiscovery('deepseek', { fallbackModels: (): readonly import('@jini-ai/core/contracts/agents').RuntimeModelOption[] => deepseekAgentDef.fallbackModels }),
     id: 'deepseek',
     name: 'DeepSeek TUI',
     // The `deepseek` dispatcher owns the `exec` / `--auto` subcommands and

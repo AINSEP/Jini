@@ -14,7 +14,12 @@ import { buildClaudeMcpConfigArgs, DEFAULT_MODEL_OPTION } from './shared.js';
 import { loadMmdRouteModels } from '../mmd-routes.js';
 import { loadAnthropicLiveModels, mergeLiveModels } from '../anthropic-live-models.js';
 import { loadClaudeCodeModels } from '../claude-code-models.js';
-import type { RuntimeAgentDef, RuntimeBuildOptions, RuntimeCapabilityMap, RuntimeContext } from '../types.js';
+import type {
+  RuntimeAgentDef,
+  RuntimeBuildOptions,
+  RuntimeCapabilityMap,
+  RuntimeContext,
+} from '@jini-ai/core/contracts/agents';
 
 /**
  * The levels `claude --effort` accepts, as the CLI itself reports them when
@@ -147,7 +152,7 @@ function claudeLaunchPolicy({ options, caps, extraAllowedDirs, imagePaths, runti
 }
 
 export const claudeAgentDef = {
-  ...createAgentModelDiscovery('claude', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => claudeAgentDef.fallbackModels }),
+  ...createAgentModelDiscovery('claude', { fallbackModels: (): readonly import('@jini-ai/core/contracts/agents').RuntimeModelOption[] => claudeAgentDef.fallbackModels }),
     id: 'claude',
   subagentStartHook: true,
     supportsNativeToolAccess: true,

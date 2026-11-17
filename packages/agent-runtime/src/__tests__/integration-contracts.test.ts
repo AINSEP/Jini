@@ -4,8 +4,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   ModelCatalogCache, unionModels, runProviderToolTurn, providerTurnAdapters,
   decodeSseStream, probeAcpModels, detectAcpModels, setAcpModelProbe,
-  type AcpModelProbe, type ProviderTurnAdapters,
+  type ProviderTurnAdapters,
 } from '../index.js';
+import { type AcpModelProbe } from '@jini-ai/core/contracts/agents';
 import { ModelCatalogCache as CatalogSubpath } from '../model-catalog-cache.js';
 import { runProviderToolTurn as TurnSubpath } from '../providers/tool-turn.js';
 import { decodeSseStream as DecoderSubpath } from '../providers/sse-decode.js';

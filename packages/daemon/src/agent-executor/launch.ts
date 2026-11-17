@@ -20,7 +20,6 @@ import {
   join,
 } from 'node:path';
 import {
-  RuntimeSelectionError,
   agentCapabilities,
   planRun,
   resolveNativeToolPolicy,
@@ -43,15 +42,16 @@ import {
   checkWindowsDirectExeCommandLineBudget,
   prepareAgentLogFile,
   preparePromptFileForAgent,
+} from '@jini-ai/agent-runtime';
+import {
+  RuntimeSelectionError,
   type AgentLaunchResolution,
   type ModelCatalogSnapshot,
-  type PreparedAgentLogFile,
-  type PreparedPromptFile,
+  type PreparedAgentLogFile, type PreparedPromptFile,
   type PromptAugmenter,
   type RuntimeAgentDef,
-  type RuntimeBuildOptions,
-  type RuntimeContext,
-} from '@jini-ai/agent-runtime';
+  type RuntimeBuildOptions, type RuntimeContext,
+} from '@jini-ai/core/contracts/agents';
 import { createCommandInvocation } from '@jini-ai/platform/command';
 import {
   listProcessSnapshots,
@@ -271,7 +271,7 @@ function resolveAgentRuntimeDeps(
       const def = lookupDef(input);
       // Without owned state, only an enabled plugin policy needs binding; otherwise keep the published definition.
       if (!def || (!options.runtimeState && !options.codexDisablePlugins)) return def;
-      return bindRuntimeAgentDef({ def, state: options.runtimeState ?? defaultRuntimeState }, options.codexDisablePlugins ? { codexDisablePlugins: true } : {});
+      return bindRuntimeAgentDef({ def, state: options.runtimeState ?? defaultRuntimeState }, options.codexDisablePlugins ? { codex: { disablePlugins: true } } : {});
     },
     resolveAgentLaunch: options.resolveAgentLaunch ?? ((input, optional = {}) => resolveAgentLaunch(input, { ...optional, ...runtimeOptions, ...envOptions })),
     ensureAgentCapabilities: options.ensureAgentCapabilities ?? ((input) => ensureAgentCapabilities(input, runtimeOptions)),

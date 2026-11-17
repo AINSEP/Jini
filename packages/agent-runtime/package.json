@@ -19,8 +19,7 @@
       "./providers/sse-decode": "universal",
       "./model-discovery": "node",
       "./model-selection": "universal",
-      "./native-tool-policy": "universal",
-      "./ai-trace": "universal"
+      "./native-tool-policy": "universal"
     },
     "isolation": {
       "forbidden": {
@@ -75,11 +74,6 @@
       "types": "./dist/model-discovery.d.ts",
       "import": "./dist/model-discovery.js",
       "default": "./dist/model-discovery.js"
-    },
-    "./ai-trace": {
-      "types": "./dist/ai-trace/index.d.ts",
-      "import": "./dist/ai-trace/index.js",
-      "default": "./dist/ai-trace/index.js"
     }
   },
   "typesVersions": {

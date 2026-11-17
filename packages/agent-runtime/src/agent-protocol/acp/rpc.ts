@@ -5,7 +5,7 @@
  */
 import type { JsonRpcId, RpcWritable } from './types.js';
 import { asObject } from './json.js';
-import type { RuntimeBuildOptions } from '../../types.js';
+import type { RuntimeBuildOptions } from '@jini-ai/core/contracts/agents';
 
 /**
  * Writes a JSON-RPC 2.0 request frame to `writable` as a single newline-terminated

@@ -16,7 +16,8 @@ import Database from 'better-sqlite3';
 // health-boot runs this file with plain `node`, whose type stripping never maps .js to .ts.
 import { acpFixtureDef } from './acp-fixture.ts';
 import { createAgentExecutor } from '@jini-ai/daemon';
-import { createNativeAgentRuntime, type AgentLaunchResolution } from '@jini-ai/agent-runtime';
+import { createNativeAgentRuntime } from '@jini-ai/agent-runtime';
+import { type AgentLaunchResolution } from '@jini-ai/core/contracts/agents';
 import { fetchWithTimeout } from '@jini-ai/platform';
 import { FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
 import { createLocalNodeDaemon } from '@jini-ai/server';
@@ -48,7 +49,7 @@ async function main(): Promise<void> {
   const startDaemon = () => {
     const runtime = createNativeAgentRuntime({ env: process.env });
     const runtimeExecutorOptions = { runtimeState: runtime.state, hostEnv: runtime.hostEnv,
-      codexDisablePlugins: runtime.codexDisablePlugins, piGracefulShutdownMs: runtime.piGracefulShutdownMs };
+      codexDisablePlugins: runtime.codex.disablePlugins === true, piGracefulShutdownMs: runtime.pi.gracefulShutdownMs ?? 5000 };
     return createLocalNodeDaemon({
       dataDir,
       // The host supplies the SQLite driver; Jini never autoloads it.

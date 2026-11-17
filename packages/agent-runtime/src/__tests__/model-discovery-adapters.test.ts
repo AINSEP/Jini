@@ -4,7 +4,12 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createEnvCredentialPort, defaultModelDiscoveryDeps, modelProbeTimeoutMs, parseClaudeInitializeMetadata, parsePiRpcMetadata, probeAgentCatalog, probeClaudeInitialize, probeCliCache, probeCliSubcommand, probeProviderApi } from '../model-discovery-adapters.js';
 import { ModelProbeError } from '../model-discovery-shared.js';
-import type { AgentDiscoveryConfiguration, ModelDiscoveryContext, ModelDiscoveryDeps, ModelProbeResult } from '../model-discovery-types.js';
+import type { AgentDiscoveryConfiguration } from '../model-discovery-types.js';
+import type {
+  ModelDiscoveryContext,
+  ModelDiscoveryDeps,
+  ModelProbeResult,
+} from '@jini-ai/core/contracts/agents';
 
 const context: ModelDiscoveryContext = { executable: '/cli', cwd: '/workspace', env: { HOME: '/home/fake' } };
 const signal = new AbortController().signal;

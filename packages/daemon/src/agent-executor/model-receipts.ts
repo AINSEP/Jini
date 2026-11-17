@@ -1,5 +1,6 @@
 import type { RunAgentPayload } from '@jini-ai/protocol';
-import { modelIdentityKind, type DiscoveredModel } from '@jini-ai/agent-runtime';
+import { modelIdentityKind } from '@jini-ai/agent-runtime';
+import { type DiscoveredModel } from '@jini-ai/core/contracts/agents';
 /** Status metadata comes from CLI/RPC frames, never generated text. Dedupe repeats and record
  * each observed transition separately so durable run events can describe model switches. */
 export function createModelReceiptTracker(startingModel?: string, models: readonly DiscoveredModel[] = []): (payload: RunAgentPayload) => RunAgentPayload | null {

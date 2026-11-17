@@ -7,7 +7,13 @@ import { createAgentModelDiscovery as createNativeDiscovery } from '../model-dis
 import { createAgentModelDiscovery as createRootDiscovery, modelDiscoveryForDef as rootDiscoveryForDef,
   resolveModelForLaunch as rootResolveModelForLaunch } from '../index.js';
 import { modelDiscoveryForDef as nativeDiscoveryForDef, resolveModelForLaunch as nativeResolveModelForLaunch } from '../model-discovery-native.js';
-import type { ModelCatalogSnapshot, ModelDiscoveryContext, ModelDiscoveryDeps, ModelDiscoveryProbes, ModelProbeResult } from '../model-discovery-types.js';
+import type { ModelDiscoveryProbes } from '../model-discovery-types.js';
+import type {
+  ModelCatalogSnapshot,
+  ModelDiscoveryContext,
+  ModelDiscoveryDeps,
+  ModelProbeResult,
+} from '@jini-ai/core/contracts/agents';
 
 const context: ModelDiscoveryContext = { executable: '/host-cli', cwd: '/workspace', env: { HOME: '/fixture' } };
 const configuration = { fallbackModels: () => [{ id: 'offline-model', label: 'Offline Model' }] };

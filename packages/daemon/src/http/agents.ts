@@ -17,7 +17,11 @@
 import type { Express } from 'express';
 import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
 import { type RouteHostContext, ok } from '@jini-ai/core/contracts/server';
-import type { ModelCatalogSnapshot, DefaultModelResolution, ModelIdentityKind } from '@jini-ai/agent-runtime';
+import type {
+  ModelCatalogSnapshot,
+  DefaultModelResolution,
+  ModelIdentityKind,
+} from '@jini-ai/core/contracts/agents';
 
 export interface AgentModelSummary {
   readonly id: string;

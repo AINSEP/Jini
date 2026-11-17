@@ -44,6 +44,8 @@
       "./contracts/oauth": "universal",
       "./contracts/content-types": "universal",
       "./contracts/hosted-mcp": "universal",
+      "./contracts/agents": "universal",
+      "./contracts/ai-trace": "universal",
       "./contracts/storage": "universal",
       "./contracts/events": "universal",
       "./contracts/capabilities": "universal",
@@ -263,6 +265,16 @@
       "types": "./dist/contracts/hosted-mcp.d.ts",
       "import": "./dist/contracts/hosted-mcp.js",
       "default": "./dist/contracts/hosted-mcp.js"
+    },
+    "./contracts/agents": {
+      "types": "./dist/contracts/agents/index.d.ts",
+      "import": "./dist/contracts/agents/index.js",
+      "default": "./dist/contracts/agents/index.js"
+    },
+    "./contracts/ai-trace": {
+      "types": "./dist/contracts/ai-trace/index.d.ts",
+      "import": "./dist/contracts/ai-trace/index.js",
+      "default": "./dist/contracts/ai-trace/index.js"
     },
     "./contracts/storage": {
       "types": "./dist/contracts/storage.d.ts",

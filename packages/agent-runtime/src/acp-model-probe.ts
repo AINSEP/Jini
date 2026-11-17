@@ -5,8 +5,7 @@
  * and null restores native transport. noopAcpModelProbe is an explicit opt-out that returns no
  * live models, allowing detection to fall back to the def's static catalog.
  */
-import type { AcpModelProbe, AcpModelProbeRequest, RuntimeModelOption } from './types.js';
-export type { AcpModelProbeRequest, AcpModelProbe } from './types.js';
+import type { AcpModelProbe, AcpModelProbeRequest, RuntimeModelOption } from '@jini-ai/core/contracts/agents';
 import { detectAcpModels as probeNativeModels, detectAcpModelMetadata } from './agent-protocol/acp/models.js';
 
 export const noopAcpModelProbe: AcpModelProbe = {

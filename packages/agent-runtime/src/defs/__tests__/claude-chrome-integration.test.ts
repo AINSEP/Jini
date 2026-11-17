@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { agentCapabilities } from '../../capabilities.js';
 import { agentSupportsChromeIntegration, BASE_AGENT_DEFS, getAgentDef, runtimeSupportsChromeIntegration } from '../../registry.js';
-import type { RuntimeBuildOptions } from '../../types.js';
+import type { RuntimeBuildOptions } from '@jini-ai/core/contracts/agents';
 
 /**
  * `RuntimeBuildOptions.chromeIntegration` → Claude Code's `--chrome` / `--no-chrome` (2.1.307

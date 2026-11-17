@@ -1,4 +1,4 @@
-import type { ModelDiscoveryContext, ModelDiscoveryDeps } from './model-discovery-types.js';
+import type { ModelDiscoveryContext, ModelDiscoveryDeps } from '@jini-ai/core/contracts/agents';
 
 /** JSON path of the model setting in the Qoder and Qwen settings files. */
 export const MODEL_NAME_PATH = 'model.name';

@@ -19,7 +19,7 @@
  * different shapes there. The host application supplies the actual server
  * name/command/args. See `archived provenance ledger`.
  */
-import type { RuntimeAgentDef } from './types.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 export type AcpMcpServerSpec = {
   /** MCP server name advertised to the agent. Host-supplied — no default. */

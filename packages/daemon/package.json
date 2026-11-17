@@ -29,7 +29,8 @@
       "./session-coordination": "universal",
       "./run-credentials": "node",
       "./tool-recovery": "node",
-      "./chat-settings": "node"
+      "./chat-settings": "node",
+      "./ports/agent-runtime": "node"
     },
     "isolation": {
       "shared": [
@@ -63,6 +64,11 @@
       "types": "./dist/ports/runtime.d.ts",
       "import": "./dist/ports/runtime.js",
       "default": "./dist/ports/runtime.js"
+    },
+    "./ports/agent-runtime": {
+      "types": "./dist/ports/agent-runtime.d.ts",
+      "import": "./dist/ports/agent-runtime.js",
+      "default": "./dist/ports/agent-runtime.js"
     },
     "./store/event-log/sqlite": {
       "types": "./dist/store/event-log/sqlite.d.ts",

@@ -13,7 +13,7 @@
  * message doesn't assume a design-system-shaped host. Mechanics (byte
  * budgets, Windows quote-doubling math) are unchanged. See `archived provenance ledger`.
  */
-import type { RuntimeAgentDef, RuntimePromptBudgetError } from './types.js';
+import type { RuntimeAgentDef, RuntimePromptBudgetError } from '@jini-ai/core/contracts/agents';
 
 function promptArgvBudgetMessage(def: RuntimeAgentDef, bytes: number, limit: number): string {
   if (def.id === 'deepseek') {

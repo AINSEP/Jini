@@ -7,7 +7,11 @@ import { antigravityAgentDef, parseAgyModels } from '../defs/antigravity/index.j
 import { parseGrokBuildModels } from '../defs/grok-build.js';
 import { parseLineSeparatedModels } from '../defs/shared.js';
 import { parsePiModels } from '../pi-models.js';
-import type { ModelDiscoveryContext, ModelDiscoveryDeps, ModelProbeResult } from '../model-discovery-types.js';
+import type {
+  ModelDiscoveryContext,
+  ModelDiscoveryDeps,
+  ModelProbeResult,
+} from '@jini-ai/core/contracts/agents';
 
 const context: ModelDiscoveryContext = { executable: '/cli', version: '1', cwd: '/workspace', env: { HOME: '/home/fake' } };
 function fakeDeps() {

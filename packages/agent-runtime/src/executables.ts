@@ -26,7 +26,7 @@ import path from 'node:path';
 import { homedir } from 'node:os';
 import { wellKnownUserToolchainBins } from '@jini-ai/platform/toolchain';
 import { expandHomePath } from './paths.js';
-import type { RuntimeAgentDef } from './types.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import type { ExecutableResolutionHelpers, ResolvedExecutableOptions } from './executable-helpers.js';
 import { packagedAmrExecutable, resolveAmrCompanion } from './defs/amr/executable-resolution.js';
 import { codexAppBundleExecutable, codexBundleCandidates } from './defs/codex/executable-resolution.js';

@@ -35,8 +35,8 @@ import type {
    preparePromptFileForAgent,
    AcpMcpServerInput,
    AcpPermissionHandler,
-   PromptAugmenter,
 } from '@jini-ai/agent-runtime';
+import type { PromptAugmenter } from '@jini-ai/core/contracts/agents';
 import type { createCommandInvocation } from '@jini-ai/platform/command';
 import type {
    listProcessSnapshots,
@@ -180,7 +180,7 @@ export interface AgentExecutorRunInput {
   /** Host-authorized native shell/edit grant; unsupported restricted providers fail before spawn. */
   readonly nativeToolAccess?: boolean;
   /** Independent host-verified permissions, snapshotted for this run. */
-  readonly nativeCapabilities?: Partial<import('@jini-ai/agent-runtime').NativeCapabilities>;
+  readonly nativeCapabilities?: Partial<import('@jini-ai/core/contracts/agents').NativeCapabilities>;
   /** Approved parent plugin IDs and short instructions for native child startup. */
   readonly subagentStartContext?: { ids: readonly string[]; instructions: string };
   /** Trusted-host CLI parity; never derived from prompt/context fields. */

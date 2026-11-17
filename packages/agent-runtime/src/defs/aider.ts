@@ -1,10 +1,10 @@
 import { createAgentModelDiscovery } from '../model-discovery-native.js';
 import { DEFAULT_MODEL_OPTION } from './shared.js';
-import type { RuntimeAgentDef } from '../types.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 export const aiderAgentDef = {
   // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
-  ...createAgentModelDiscovery('aider', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => aiderAgentDef.fallbackModels }),
+  ...createAgentModelDiscovery('aider', { fallbackModels: (): readonly import('@jini-ai/core/contracts/agents').RuntimeModelOption[] => aiderAgentDef.fallbackModels }),
     mcpIsolation: 'no-client',
     id: 'aider',
     name: 'Aider',
