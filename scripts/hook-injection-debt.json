@@ -589,12 +589,6 @@
         "packages/ui/src/react/components/CustomSelect.tsx"
       ]
     },
-    "DeckNavigationControls::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/html-viewer/react/components/DeckNavigationControls.tsx"
-      ]
-    },
     "DefaultAttachmentChip::useSentAttachmentThumbnail": {
       "count": 1,
       "files": [
@@ -1259,18 +1253,6 @@
       "count": 1,
       "files": [
         "packages/ui/src/features/iframe-pool/react/components/PooledIframe.tsx"
-      ]
-    },
-    "PresentMenu::usePresentMenu": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/html-viewer/react/components/PresentMenu.tsx"
-      ]
-    },
-    "PresentMenu::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/html-viewer/react/components/PresentMenu.tsx"
       ]
     },
     "PreviewModalShell::usePreviewModalShell": {
@@ -2038,18 +2020,6 @@
       "count": 1,
       "files": [
         "packages/admin/src/widgets/react/pages/WidgetsLibrary.tsx"
-      ]
-    },
-    "ZoomMenu::useDismissOnOutsideOrEscape": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/html-viewer/react/components/ZoomMenu.tsx"
-      ]
-    },
-    "ZoomMenu::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/html-viewer/react/components/ZoomMenu.tsx"
       ]
     }
   }
