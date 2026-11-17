@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 
 
 import type { AdminMember } from "../../models.js";
 import { describeApiError, emptyRowState, type RowActionState } from "../rules.js";
-import { useCachedLoader, useFetchMutation, useFetchQuery, useInvalidate } from "@jini-ai/ui/fetch-query";
+import { useCachedLoader, useFetchMutation, useFetchQuery, useInvalidate } from "../../kit.js";
 import type { MembersPort } from "../../ports.js";
 
 import { type Translate } from '@jini-ai/core/text';
