@@ -40,6 +40,8 @@ export interface MarkdownSplitPaneProps {
   /** Click handler on the rendered preview `<article>` — a host uses this
    *  to delegate code-block "copy" button clicks, etc. */
   onPreviewClick?: (event: ReactMouseEvent<HTMLElement>) => void;
+  useTHook?: typeof useT;
+  useMarkdownScrollSyncHook?: typeof useMarkdownScrollSync;
 }
 
 /** Toolbar's left slot: a host's extra controls followed by the source/split/preview tabs. */
@@ -68,12 +70,14 @@ export function MarkdownSplitPane({
   mode, onModeChange, sourceText, onSourceChange, previewHtml, previewSelector, loading = false, loadingLabel,
   sourceLabel, splitLabel, previewLabel, editorAriaLabel, previewAriaLabel, modeAriaLabel,
   toolbarLeftExtra, toolbarActions, editorTextareaProps, onPreviewClick,
+  useTHook = useT,
+  useMarkdownScrollSyncHook = useMarkdownScrollSync,
 }: MarkdownSplitPaneProps) {
-  const t = useT();
+  const t = useTHook();
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
   const previewRef = useRef<HTMLElement | null>(null);
 
-  const { handleEditorScroll, handlePreviewScroll, activatePane } = useMarkdownScrollSync({
+  const { handleEditorScroll, handlePreviewScroll, activatePane } = useMarkdownScrollSyncHook({
     mode, sourceText, editorRef, previewRef, previewSelector, resyncKey: previewHtml,
   });
 
@@ -131,6 +135,7 @@ function MarkdownModeTabs({
   splitLabel,
   previewLabel,
   modeAriaLabel,
+  useTHook = useT,
 }: {
   mode: MarkdownSplitPaneMode;
   onModeChange: (mode: MarkdownSplitPaneMode) => void;
@@ -138,8 +143,9 @@ function MarkdownModeTabs({
   splitLabel: string | undefined;
   previewLabel: string | undefined;
   modeAriaLabel: string | undefined;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   return (
     <SegmentedToggle
       className="markdown-mode-tabs"
@@ -163,6 +169,7 @@ function MarkdownEditorPane({
   onScroll,
   activatePane,
   textareaProps,
+  useTHook = useT,
 }: {
   editorRef: RefObject<HTMLTextAreaElement | null>;
   sourceText: string;
@@ -171,8 +178,9 @@ function MarkdownEditorPane({
   onScroll: PaneScrollHandler;
   activatePane: ActivatePane;
   textareaProps: Record<string, unknown> | undefined;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   const label = ariaLabel ?? t('Markdown editor');
   return (
     <section className="markdown-editor-pane" aria-label={label}>
@@ -201,6 +209,7 @@ function MarkdownPreviewPane({
   onScroll,
   activatePane,
   onPreviewClick,
+  useTHook = useT,
 }: {
   previewRef: RefObject<HTMLElement | null>;
   html: string;
@@ -208,8 +217,9 @@ function MarkdownPreviewPane({
   onScroll: PaneScrollHandler;
   activatePane: ActivatePane;
   onPreviewClick: MarkdownSplitPaneProps['onPreviewClick'];
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   const activatePreview = createMarkdownPreviewActivator({ activatePane });
   return (
     <div className="markdown-preview-pane-wrap">

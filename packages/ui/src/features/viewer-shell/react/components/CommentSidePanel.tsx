@@ -52,6 +52,9 @@ export interface CommentSidePanelProps<TComment extends ViewerCommentBase> {
   formatTimestamp?: (timestampMs: number) => string;
   /** Custom hook override for dependency injection / testing. */
   useCommentReorder?: typeof useCommentReorder;
+  useTHook?: typeof useT;
+  useCommentTimestampFormatterHook?: typeof useCommentTimestampFormatter;
+  useCollapseToggleFocusHook?: typeof useCollapseToggleFocus;
 }
 
 /**
@@ -64,17 +67,22 @@ export interface CommentSidePanelProps<TComment extends ViewerCommentBase> {
  * `getCommentLabel`/`getCommentTimestamp` above and
  * `archived UI source map`.
  */
-export function CommentSidePanel<TComment extends ViewerCommentBase>(props: CommentSidePanelProps<TComment>) {
+export function CommentSidePanel<TComment extends ViewerCommentBase>({
+  useCommentReorder: useCommentReorderHook = useCommentReorder,
+  useTHook = useT,
+  useCommentTimestampFormatterHook = useCommentTimestampFormatter,
+  useCollapseToggleFocusHook = useCollapseToggleFocus,
+  ...props
+}: CommentSidePanelProps<TComment>) {
   const { comments, selectedIds, collapsed, onCollapsedChange, onReorder } = props;
-  const useCommentReorderHook = props.useCommentReorder ?? useCommentReorder;
-  const t = useT();
+  const t = useTHook();
   const [newCommentDraft, setNewCommentDraft] = useState('');
   const reorder = useCommentReorderHook(comments.map((comment) => comment.id), onReorder);
   const visibleSelectedIds = visibleSelectedCommentIds(comments, selectedIds);
   const commentsLabel = t('Comments');
   const panelId = useId();
-  const formatTs = useCommentTimestampFormatter(props.formatTimestamp);
-  const { collapsedRailRef, expandedToggleRef, handleCollapsedChange } = useCollapseToggleFocus({
+  const formatTs = useCommentTimestampFormatterHook(props.formatTimestamp);
+  const { collapsedRailRef, expandedToggleRef, handleCollapsedChange } = useCollapseToggleFocusHook({
     collapsed,
     onCollapsedChange,
   });
@@ -157,8 +165,8 @@ type CommentSideListProps<TComment extends ViewerCommentBase> = CommentSidePanel
   formatTs: (timestampMs: number) => string;
 };
 
-function CommentSideList<TComment extends ViewerCommentBase>(props: CommentSideListProps<TComment>) {
-  const t = useT();
+function CommentSideList<TComment extends ViewerCommentBase>({ useTHook = useT, ...props }: CommentSideListProps<TComment> & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const { comments, reorder, visibleSelectedIds, activeCommentId, formatTs } = props;
   return (
     <div className="comment-side-list" onDragLeave={reorder.onDragLeaveContainer}>
@@ -236,13 +244,15 @@ function CommentSideRail({
   commentsLabel,
   commentCount,
   onExpand,
+  useTHook = useT,
 }: {
   railRef: RefObject<HTMLButtonElement | null>;
   commentsLabel: string;
   commentCount: number;
   onExpand: () => void;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   const showLabel = t('Show {label}', { label: commentsLabel });
   return (
     <button
@@ -270,6 +280,7 @@ function CommentSideHeader({
   selectedCount,
   onSelectAll,
   onCollapse,
+  useTHook = useT,
 }: {
   toggleRef: RefObject<HTMLButtonElement | null>;
   panelId: string;
@@ -278,8 +289,9 @@ function CommentSideHeader({
   selectedCount: number;
   onSelectAll: () => void;
   onCollapse: () => void;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   const hideLabel = t('Hide {label}', { label: commentsLabel });
   const allSelected = commentCount > 0 && selectedCount === commentCount;
   return (
@@ -332,8 +344,8 @@ function commentItemClassName({
   return `comment-side-item${selected ? ' selected' : ''}${active ? ' active' : ''}${isDragging ? ' dragging' : ''}${dropClass}`;
 }
 
-function CommentSideCheck({ selected, onToggle }: { selected: boolean; onToggle: () => void }) {
-  const t = useT();
+function CommentSideCheck({ selected, onToggle, useTHook = useT }: { selected: boolean; onToggle: () => void; useTHook?: typeof useT; }) {
+  const t = useTHook();
   return (
     <button
       type="button"
@@ -358,6 +370,7 @@ function CommentSideItemHead<TComment extends ViewerCommentBase>({
   label,
   timeLabel,
   onToggleSelect,
+  useTHook = useT,
 }: {
   comment: TComment;
   index: number;
@@ -366,8 +379,9 @@ function CommentSideItemHead<TComment extends ViewerCommentBase>({
   label: string;
   timeLabel: string;
   onToggleSelect: (commentId: string) => void;
+  useTHook?: typeof useT;
 }) {
-  const dragLabel = useT()('Drag to reorder');
+  const dragLabel = useTHook()('Drag to reorder');
   return (
     <div className="comment-side-item-head">
       <button

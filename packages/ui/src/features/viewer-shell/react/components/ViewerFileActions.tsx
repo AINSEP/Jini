@@ -9,6 +9,7 @@ export interface ViewerFileActionsProps {
   fileName?: string;
   downloadLabel?: string;
   openLabel?: string;
+  useTHook?: typeof useT;
 }
 
 /**
@@ -16,8 +17,8 @@ export interface ViewerFileActionsProps {
  * from a `projectFileUrl(projectId, file.name)` daemon route — that's
  * host-specific, so this version takes final, already-resolved URLs instead.
  */
-export function ViewerFileActions({ downloadUrl, openUrl, fileName, downloadLabel, openLabel }: ViewerFileActionsProps) {
-  const t = useT();
+export function ViewerFileActions({ downloadUrl, openUrl, fileName, downloadLabel, openLabel, useTHook = useT }: ViewerFileActionsProps) {
+  const t = useTHook();
   if (!downloadUrl && !openUrl) return null;
   return (
     <div className="viewer-toolbar-actions">

@@ -1,7 +1,10 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import { ViewerFileActions } from '../../../react/components/ViewerFileActions.js';
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('ViewerFileActions', () => {
   it('renders nothing when neither url is given', () => {
@@ -38,5 +41,11 @@ describe('ViewerFileActions', () => {
     );
     expect(screen.getByText('Télécharger')).toBeInTheDocument();
     expect(screen.getByText('Ouvrir')).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    render(<ViewerFileActions downloadUrl="/f.png" openUrl="/f.png?open" useTHook={useQuotingT} />);
+    expect(screen.getByText('«Download»')).toBeInTheDocument();
+    expect(screen.getByText('«Open»')).toBeInTheDocument();
   });
 });
