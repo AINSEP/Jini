@@ -191,7 +191,7 @@ export type {
 } from './delegated-tools.js';
 export {
   delegatedToolExecuteRoute,
-  registerDelegatedToolRoutes,
+  delegatedToolRoutes,
 } from './delegated-tools.js';
 export type {
   RemoteRunEventHttpDeps,

@@ -38,7 +38,7 @@ import {
   searchToolCatalog,
 } from '@jini-ai/registry/tool-catalog/sqlite';
 import { inspectSqliteDatabase, verifySqliteIntegrity } from '@jini-ai/db/sqlite'; import type { SqliteDb } from '@jini-ai/core/contracts/storage';
-import { activeContextRoutes, daemonStatusRoutes, agentRoutes, toolCatalogRoutes, createDaemonDbToolRegistrations, denyAllWorkspaceRoots, registerConnectorsRoutes, registerDaemonDbRoutes, registerDelegatedToolRoutes, registerFrontendSessionRoutes, registerHealthRoutes, registerHostToolsRoutes, registerMediaRoutes, registerMemoryRoutes, registerModelProxyRoutes, registerRemoteRunEventRoutes, registerResearchRoutes, registerRoutineRoutes, registerRunRoutes, registerTerminalRoutes, registerXaiRoutes, type AgentSummary, type DaemonDbOperations, type DaemonDbVacuumResult, type DelegatedToolExecuteRequest, type FrontendSessionsHttpDeps, type MediaHttpDeps, type MemoryHttpDeps, type RemoteToolBridgeTokenConfig, type RoutineHttpDeps, type RunStartHandler, type WorkspaceRootResolver } from '@jini-ai/daemon/http';
+import { delegatedToolRoutes, activeContextRoutes, daemonStatusRoutes, agentRoutes, toolCatalogRoutes, createDaemonDbToolRegistrations, denyAllWorkspaceRoots, registerConnectorsRoutes, registerDaemonDbRoutes, registerFrontendSessionRoutes, registerHealthRoutes, registerHostToolsRoutes, registerMediaRoutes, registerMemoryRoutes, registerModelProxyRoutes, registerRemoteRunEventRoutes, registerResearchRoutes, registerRoutineRoutes, registerRunRoutes, registerTerminalRoutes, registerXaiRoutes, type AgentSummary, type DaemonDbOperations, type DaemonDbVacuumResult, type DelegatedToolExecuteRequest, type FrontendSessionsHttpDeps, type MediaHttpDeps, type MemoryHttpDeps, type RemoteToolBridgeTokenConfig, type RoutineHttpDeps, type RunStartHandler, type WorkspaceRootResolver } from '@jini-ai/daemon/http';
 import type { Express } from 'express';
 
 import { defineJiniFeature, type FeatureBuildContext, type JiniFeature } from './feature.js';
@@ -491,7 +491,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
         services: () => ({ context }),
       }, {
         http: ({ app, services }) =>
-          registerDelegatedToolRoutes({ app: app as Express, deps: {
+          mountRoutes({ app, routes: delegatedToolRoutes({ deps: {
               lifecycle: services.context.kernel.lifecycle,
               toolExecutor: services.context.kernel.toolExecutor,
               // The same registry `toolExecutor` was built over, so a `requireReadOnly` call (the
@@ -501,7 +501,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
               // read-only gateway refuse everything, so a kernel host gets it wired by default.
               toolRegistry: services.context.kernel.registry,
               resolvePrincipal: ({ request }) => resolveDelegatedToolPrincipal({ request, resolvePrincipal: resolveDelegatedPrincipal }),
-            }, adapter: services.context.adapter }),
+            }, host: services.context.routeHost }) }),
       }),
     }),
   });

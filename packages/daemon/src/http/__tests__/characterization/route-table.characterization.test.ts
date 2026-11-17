@@ -75,7 +75,7 @@ const ROUTE_TABLE: Readonly<Record<string, readonly string[]>> = {
     'GET /api/tools/:id [same-origin]',
   ],
   'delegated-tools': [
-    'POST /api/delegated-tool-calls [anonymous/2]',
+    'POST /api/delegated-tool-calls [same-origin]',
   ],
   'connectors': [
     'POST /api/connectors/auth/signup [anonymous/2]',

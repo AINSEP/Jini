@@ -57,7 +57,7 @@ describe('@jini-ai/daemon/http barrel', () => {
   });
 
   it('re-exports the delegated-tools route (the MCP-callback bridge)', () => {
-    expect(typeof HttpBarrel.registerDelegatedToolRoutes).toBe('function');
+    expect(typeof HttpBarrel.delegatedToolRoutes).toBe('function');
     expect(HttpBarrel.delegatedToolExecuteRoute.path).toBe('/api/delegated-tool-calls');
     expect(typeof HttpBarrel.registerFrontendSessionRoutes).toBe('function');
     expect(typeof HttpBarrel.handleFrontendSessionStream).toBe('function');

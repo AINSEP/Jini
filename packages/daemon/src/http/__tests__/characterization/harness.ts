@@ -25,7 +25,7 @@ import { componentCatalogRoutes } from '../../component-catalog.js';
 import { registerConnectorsRoutes } from '../../connectors.js';
 import { daemonStatusRoutes } from '../../daemon-status.js';
 import { registerDaemonDbRoutes } from '../../db-ops.js';
-import { registerDelegatedToolRoutes } from '../../delegated-tools.js';
+import { delegatedToolRoutes } from '../../delegated-tools.js';
 import { registerFrontendRequestRoute } from '../../frontend-request-route.js';
 import { registerFrontendSessionRoutes } from '../../frontend-sessions.js';
 import { registerHealthRoutes } from '../../health.js';
@@ -122,7 +122,7 @@ const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-par
   ['terminals', ({ app, adapter, deps }) => registerTerminalRoutes({ app, deps: deps(), adapter })],
   ['db-ops', ({ app, adapter, deps }) => registerDaemonDbRoutes({ app, deps: deps(), adapter })],
   ['tool-catalog', ({ adapter, deps, mountList }) => mountList(toolCatalogRoutes({ deps: deps(), host: routeHost(adapter) }))],
-  ['delegated-tools', ({ app, adapter, deps }) => registerDelegatedToolRoutes({ app, deps: deps(), adapter })],
+  ['delegated-tools', ({ adapter, deps, mountList }) => mountList(delegatedToolRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['connectors', ({ app, adapter, deps }) => registerConnectorsRoutes({ app, deps: deps(), adapter })],
   ['research', ({ app, adapter, deps }) => registerResearchRoutes({ app, deps: deps(), adapter })],
   ['xai', ({ app, adapter, deps }) => registerXaiRoutes({ app, deps: deps(), adapter })],

@@ -265,7 +265,7 @@ export const remoteToolResultRoute = defineJsonRoute<RemoteToolResultRequest, Re
 
 /**
  * Mounts both remote-run-event routes on `app`, gated by {@link requireRemoteToolBridgeToken}.
- * Unlike `registerRunRoutes`/`registerDelegatedToolRoutes`, these routes do not use
+ * Unlike `registerRunRoutes`/`delegatedToolRoutes`, these routes do not use
  * `requireSameOrigin` — they are not meant to be called from a browser at all, only from a host's
  * own trusted backend process, so the dedicated bearer token above is the sole gate.
  */

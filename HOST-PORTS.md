@@ -551,7 +551,7 @@ Everything a Jini package asks its host to bind or register: `*Port`, `*Kit`, `*
 | `DaemonDbHttpDeps` | deps | interface | `packages/daemon/src/http/db-ops.ts:202` |
 | `registerDaemonDbRoutes` | registry | function | `packages/daemon/src/http/db-ops.ts:292` |
 | `DelegatedToolsHttpDeps` | deps | interface | `packages/daemon/src/http/delegated-tools.ts:89` |
-| `registerDelegatedToolRoutes` | registry | function | `packages/daemon/src/http/delegated-tools.ts:382` |
+| `delegatedToolRoutes` | registry | function | `packages/daemon/src/http/delegated-tools.ts:382` |
 | `registerFrontendRequestRoute` | registry | function | `packages/daemon/src/http/frontend-request-route.ts:44` |
 | `FrontendSessionsHttpDeps` | deps | interface | `packages/daemon/src/http/frontend-sessions.ts:110` |
 | `registerFrontendSessionRoutes` | registry | function | `packages/daemon/src/http/frontend-sessions.ts:289` |
