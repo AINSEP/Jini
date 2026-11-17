@@ -42,6 +42,12 @@ export interface AdminShellSlots {
   readonly sidebarFooter?: (args: AdminShellSlotArgs) => ReactNode;
   readonly topbar?: ReactNode;
   readonly overlays?: (args: AdminShellSlotArgs) => ReactNode;
+  /**
+   * Rendered in `<main>` instead of the routed panel when the operator may not use it (`model.access`
+   * is `'denied'`). The URL, route and agent page id stay the denied panel's own. Absent: an empty
+   * `<main>`. Client-side visibility only; the server stays the authority.
+   */
+  readonly noAccess?: (args: AdminShellSlotArgs) => ReactNode;
   /** Always mounted while authenticated; hidden when closed. The host owns pane controls. */
   readonly assistant?: { readonly content: ReactNode; readonly label: string; readonly open: boolean };
 }
