@@ -14,8 +14,10 @@ const port = Number(values.port ?? process.env.PORT ?? 3000);
 
 const database = await openAppDatabase({ filePath });
 const app = createNodeServer();
-await registerNotesApp({ app, kernel: database.kernel });
+let boundPort = 0;
+await registerNotesApp({ app, kernel: database.kernel, port: () => boundPort });
 const listening = await app.listen({ port });
+boundPort = listening.port;
 console.log(`listening on http://127.0.0.1:${listening.port}`);
 
 const stop = async () => {

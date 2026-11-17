@@ -18,13 +18,15 @@ describe('contact form client address', () => {
   let app: NodeServer;
   let closeDb: () => void = () => {};
   let base = '';
+  let boundPort = 0;
 
   before(async () => {
     const database = await openAppDatabase({ filePath });
     closeDb = database.close;
     app = createNodeServer();
-    await registerNotesApp({ app, kernel: database.kernel });
-    base = `http://127.0.0.1:${(await app.listen({ port: 0 })).port}`;
+    await registerNotesApp({ app, kernel: database.kernel, port: () => boundPort });
+    boundPort = (await app.listen({ port: 0 })).port;
+    base = `http://127.0.0.1:${boundPort}`;
   });
   after(async () => {
     await app.close();

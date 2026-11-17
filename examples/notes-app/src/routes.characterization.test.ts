@@ -12,7 +12,8 @@ import { createInMemoryServer, type InMemoryServer } from '@jini-ai/core/contrac
 import { openAppDatabase } from './db.ts';
 import { registerNotesApp } from './app.ts';
 
-const ORIGIN = 'http://127.0.0.1:3000';
+const HOST = '127.0.0.1:3000';
+const ORIGIN = `http://${HOST}`;
 
 describe('notes app routes (characterization)', () => {
   const dir = mkdtempSync(join(tmpdir(), 'notes-routes-test-'));
@@ -22,6 +23,7 @@ describe('notes app routes (characterization)', () => {
   const send = (path: string, init: { method?: string; fields?: Record<string, string> } = {}): Promise<Response> =>
     memory.fetch(new Request(`${ORIGIN}${path}`, {
       method: init.method ?? 'GET',
+      headers: { host: HOST },
       ...(init.fields ? { body: new URLSearchParams(init.fields) } : {}),
     }));
   const post = (path: string, fields: Record<string, string>) => send(path, { method: 'POST', fields });
@@ -30,7 +32,7 @@ describe('notes app routes (characterization)', () => {
     const database = await openAppDatabase({ filePath: join(dir, 'notes.db') });
     closeDb = database.close;
     memory = createInMemoryServer();
-    await registerNotesApp({ app: memory.server, kernel: database.kernel });
+    await registerNotesApp({ app: memory.server, kernel: database.kernel, port: () => 3000 });
   });
   after(() => {
     closeDb();
