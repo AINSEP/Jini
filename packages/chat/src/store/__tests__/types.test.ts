@@ -10,9 +10,7 @@ it('old eight-method fakes compile and every factory accepts host extra tables b
  const root=fileURLToPath(new URL('../../../',import.meta.url));const dir=mkdtempSync(join(tmpdir(),'chat-types-'));
  try{
   const paths={
-   '@jini-ai/db/kernel':[join(root,'../db/dist/kernel/index.d.ts')],
-   '@jini-ai/db/kernel/sqlite':[join(root,'../db/dist/kernel/sqlite/index.d.ts')],
-   '@jini-ai/db/sqlite':[join(root,'../db/dist/sqlite/index.d.ts')],
+   '@jini-ai/db/testing/sqlite':[join(root,'../db/dist/kernel/sqlite/testing.d.ts')],
    'kysely':[join(root,'../db/node_modules/kysely/dist/index.d.ts')],
   };
   writeFileSync(join(dir,'tsconfig.json'),JSON.stringify({extends:join(root,'tsconfig.json'),compilerOptions:{noEmit:true,types:[],paths},include:[join(root,'src/store/__tests__/types.fixture.ts')],exclude:[]}));

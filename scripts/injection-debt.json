@@ -63,7 +63,6 @@
   {"rule": "L5-injected-edge", "file": "packages/chat/src/react/features/chat-pane/model-options.ts", "spec": "@jini-ai/agent-runtime/model-selection", "kind": "import", "count": 1, "lane": "L-AGENTS"},
   {"rule": "L5-injected-edge", "file": "packages/chat/src/react/features/chat-pane/rules.ts", "spec": "@jini-ai/agent-runtime/model-selection", "kind": "import", "count": 1, "lane": "L-AGENTS"},
   {"rule": "L5-injected-edge", "file": "packages/chat/src/server/durable-runs/recover.ts", "spec": "@jini-ai/agent-runtime", "kind": "import", "count": 1, "lane": "L-AGENTS"},
-  {"rule": "L5-injected-edge", "file": "packages/chat/src/store/sqlite/index.ts", "spec": "@jini-ai/db/kernel/sqlite", "kind": "import", "count": 1, "lane": "L-STORAGE"},
   {"rule": "L5-injected-edge", "file": "packages/cms/forms/package.json", "spec": "@jini-ai/cms", "kind": "manifest-dependencies", "count": 1, "lane": "R9"},
   {"rule": "L5-injected-edge", "file": "packages/cms/forms/src/ports.ts", "spec": "@jini-ai/cms/core", "kind": "import-type", "count": 1, "lane": "L-STORAGE"},
   {"rule": "L5-injected-edge", "file": "packages/cms/package.json", "spec": "@jini-ai/db", "kind": "manifest-peer", "count": 1, "lane": "L-STORAGE"},

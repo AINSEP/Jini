@@ -1,7 +1,6 @@
-import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { sql } from 'kysely';
-import { openPgliteKernel } from '@jini-ai/db/kernel/pglite';
+import { openPgliteTestKernel } from '@jini-ai/db/testing/pglite';
 import type { ChatDatabase } from '../kernel.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AgentEvent, ChatMessage } from '../../../core/index.js';
@@ -282,8 +281,7 @@ describe('watch-owned checkpoint deltas', () => {
 
 describe('checkpoint deltas on PostgreSQL (PGlite)', () => {
   it('uses SQL character lengths for text replacement, appends, and concurrent-barrier fallback', async () => {
-    const { PGlite } = createRequire(new URL('../../../../../db/package.json', import.meta.url))('@electric-sql/pglite');
-    const kernel = openPgliteKernel<ChatDatabase>({ PGlite });
+    const { kernel, close } = await openPgliteTestKernel<ChatDatabase>();
     try {
       const ddl = readFileSync(new URL('../../__tests__/pg-schema.sql', import.meta.url), 'utf8') + RUN_DDL.replaceAll('INTEGER', 'BIGINT');
       for (const statement of ddl.split(';').map(text => text.trim()).filter(Boolean)) await kernel.execute(sql.raw(statement));
@@ -305,7 +303,7 @@ describe('checkpoint deltas on PostgreSQL (PGlite)', () => {
       await save(progress({ content: '😀 é!', events: [{ kind: 'text', text: '😀 é' }, toolUse('t1'), { kind: 'text', text: '!' }] }));
       expect(state).toBeUndefined();
       expect(await saved()).toBe(JSON.stringify([{ kind: 'text', text: '😀 é' }, toolUse('t1'), { kind: 'text', text: '!' }, toolResult('t1')]));
-    } finally { await kernel.close(); }
+    } finally { await close(); }
   });
 });
 

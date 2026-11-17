@@ -11,6 +11,7 @@ import { createSqlChatStore } from '../sql/store.js';
 import { createSqlChatMaintenance } from '../sql/maintenance.js';
 import { validateKernel } from '../sql/boundary.js';
 export type { ChatDatabase, AiChatsTable, AiChatMessagesTable } from '../sql/tables.js';
+export { CHAT_HISTORY_DDL, ensureChatHistoryTables } from './schema.js';
 
 /** Borrow an existing kernel, with no configuration, migration or connection lifecycle effects.
  * @example createSqliteChatStore({ kernel, scope, clock: { nowMs: () => 42 } })
@@ -28,19 +29,4 @@ export function createSqliteChatStore<DB extends ChatDatabase>(
 export function createSqliteChatMaintenance<DB extends ChatDatabase>(required: { kernel: StorageKernel<Kysely<DB>, DB> }): ChatHistoryMaintenance {
   validateKernel({ kernel: required.kernel, transports: ['better-sqlite3'], dialect: 'sqlite' });
   return createSqlChatMaintenance(required);
-}
-
-import { sqliteKernel, type SqliteConnectionSource } from '@jini-ai/db/kernel/sqlite';
-export { CHAT_HISTORY_DDL, ensureChatHistoryTables } from './schema.js';
-
-/** Compatibility wrapper over db's memoized kernel; joins the exact raw-handle kernel context.
- * @example createChatHistoryStore({ db, scope, clock: { nowMs: () => 42 } })
- */
-export function createChatHistoryStore({ db, scope, clock }: { db: SqliteConnectionSource; scope: ChatOwnerScope; clock: Clock }, optional: UserTextRedactionOptions = {}): ChatStore {
-  return createSqliteChatStore({ kernel: sqliteKernel<ChatDatabase>(db), scope, clock }, optional);
-}
-
-/** Compatibility retention wrapper; the caller still owns the handle and its configuration. */
-export function createChatHistoryMaintenance({ db }: { db: SqliteConnectionSource }): ChatHistoryMaintenance {
-  return createSqliteChatMaintenance({ kernel: sqliteKernel<ChatDatabase>(db) });
 }

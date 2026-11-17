@@ -1,11 +1,7 @@
 /** Real better-sqlite3 kernel with the host-owned run tables the runtime adapters borrow. */
-import { createRequire } from 'node:module';
-import { sqliteKernel } from '@jini-ai/db/kernel/sqlite';
+import { openMemorySqliteTestKernel } from '@jini-ai/db/testing/sqlite';
 import { ensureChatHistoryTables } from '../../sqlite/index.js';
 import type { ChatDatabase, ChatKernel } from '../kernel.js';
-
-const require = createRequire(new URL('../../../../../db/package.json', import.meta.url));
-const Database = require('better-sqlite3');
 
 export const RUN_DDL = `
 CREATE TABLE assistant_agent_sessions (conversation_id TEXT NOT NULL REFERENCES ai_chats(id) ON DELETE CASCADE, agent_id TEXT NOT NULL, session_id TEXT NOT NULL, updated_at BIGINT NOT NULL, PRIMARY KEY (conversation_id, agent_id));
@@ -21,14 +17,13 @@ export interface RuntimeFixture {
 }
 
 export function runtimeFixture(): RuntimeFixture {
-  const db = new Database(':memory:');
-  db.pragma('foreign_keys = ON');
+  const { kernel, connection: db } = openMemorySqliteTestKernel<ChatDatabase>();
   ensureChatHistoryTables({ db });
   db.exec(RUN_DDL);
   return {
-    kernel: sqliteKernel<ChatDatabase>(db),
+    kernel,
     sql: (text, ...params) => { db.prepare(text).run(...params); },
-    rows: (text, ...params) => db.prepare(text).all(...params),
-    close: () => db.close(),
+    rows: <T>(text: string, ...params: unknown[]) => db.prepare(text).all(...params) as T[],
+    close: () => { db.close(); },
   };
 }

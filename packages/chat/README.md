@@ -165,8 +165,8 @@ Separate privileged `createSqliteChatMaintenance` / PGlite / Postgres factories 
 most 500 expired conversations per call (limits 1..500). The host schema supplies cascades;
 SQLite borrowers must have foreign keys enabled. Stores never expose cross-owner maintenance.
 
-SQLite also retains positional `createChatHistoryStore(db, scope, now?)` and
-`createChatHistoryMaintenance(db)` wrappers over db's memoized borrowed kernel. The explicit
+The host opens the kernel: `createSqliteChatStore({ kernel: sqliteKernel(db), scope, clock })`, with
+`sqliteKernel` from `@jini-ai/db/kernel/sqlite`. The explicit
 `ensureChatHistoryTables(db)` helper uses the unchanged DDL and is never called by a factory.
 The temporary sqlite-chat entry delegates here; its richer local legacy model stays separate.
 

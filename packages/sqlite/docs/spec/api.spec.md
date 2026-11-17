@@ -20,7 +20,7 @@ Runtime exports are `inspectSqliteDatabase({db,file})`, `verifySqliteIntegrity(o
 
 ## Chat history and legacy rows
 
-Runtime exports: CHAT_HISTORY_DDL, createChatHistoryMaintenance, createChatHistoryStore and ensureChatHistoryTables from chat/store/sqlite. Owner-scoped factories require host-owned kernels/owner tuples and expose the canonical chat methods; the facade adds no wrapper. ChatSessionMode is a type-only export from chat/store/legacy.
+Runtime exports: CHAT_HISTORY_DDL and ensureChatHistoryTables from chat/store/sqlite (the `{ db }` wrappers `createChatHistoryStore` and `createChatHistoryMaintenance` were removed; open the kernel and call `createSqliteChatStore({ kernel, scope, clock })`). Owner-scoped factories require host-owned kernels/owner tuples and expose the canonical chat methods; the facade adds no wrapper. ChatSessionMode is a type-only export from chat/store/legacy.
 
 Legacy synchronous calls borrow db in object arguments: `listConversations({db,projectId})`, `getConversation({db,id})`, `insertConversation({db,c})`, `updateConversation({db,id,patch})`, `deleteConversation({db,id})`, `normalizeConversationSessionMode({value})`, `listMessages({db,conversationId})`, `upsertMessage({db,conversationId,m})`, `getMessageTelemetryFinalizationState({db,messageId})`, `appendMessageStatusEvent({db,messageId,event})`, `appendMessageAgentEvent({db,messageId,event})`, `deleteMessage({db,id})`. The current facade does not export their error constructors or LEGACY_CHAT_DDL. [Canonical chat declarations and limits](../../../chat/docs/spec/api.spec.md).
 

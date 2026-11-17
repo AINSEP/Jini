@@ -10,12 +10,11 @@
  * from "not yours" is itself an enumeration oracle, and a store that throws `Forbidden` for the
  * second case tells an attacker which ids exist.
  */
-import Database from 'better-sqlite3';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { createChatHistoryMaintenance, createChatHistoryStore } from '../sqlite/index.js';
-import { ensureChatHistoryTables } from '../sqlite/index.js';
-import type { SqliteDb } from '@jini-ai/core/contracts/storage';
+import { openMemorySqliteTestKernel, type SqliteTestKernel } from '@jini-ai/db/testing/sqlite';
+import { createSqliteChatMaintenance, createSqliteChatStore, ensureChatHistoryTables } from '../sqlite/index.js';
+import type { ChatDatabase } from '../sql/tables.js';
 
 // A package test supplies its own clock port; the system clock lives in the platform package.
 const testClock = { nowMs: () => Date.now() };
@@ -28,17 +27,20 @@ const ALICE_OTHER_WS = { scopeId: 'ws-2', ownerKind: 'user', ownerId: 'alice' } 
 /** Same id string as a user, but a guest — catches a predicate that drops `owner_kind`. */
 const GUEST = { scopeId: 'ws-1', ownerKind: 'guest', ownerId: 'alice' } as const;
 
-let db: SqliteDb;
+let harness: SqliteTestKernel<ChatDatabase>;
+let db: SqliteTestKernel<ChatDatabase>['connection'];
+let kernel: SqliteTestKernel<ChatDatabase>['kernel'];
 
 beforeEach(() => {
-  db = new Database(':memory:');
-  // Without this the `ON DELETE CASCADE` is inert and the cascade test below passes vacuously.
-  db.pragma('foreign_keys = ON');
-  ensureChatHistoryTables({ db: db });
+  // The testing kernel turns foreign keys on: without it the `ON DELETE CASCADE` is inert and the
+  // cascade test below passes vacuously.
+  harness = openMemorySqliteTestKernel<ChatDatabase>();
+  ({ connection: db, kernel } = harness);
+  ensureChatHistoryTables({ db });
 });
 
 async function seedAliceChat(id = 'chat-a') {
-  const alice = createChatHistoryStore({ db: db, scope: ALICE, clock: testClock });
+  const alice = createSqliteChatStore({ kernel, scope: ALICE, clock: testClock });
   await alice.create({ id, title: 'Alice private' });
   await alice.appendMessage({ conversationId: id, message: { id: 'm1', role: 'user', content: 'secret' } });
   return alice;
@@ -47,48 +49,48 @@ async function seedAliceChat(id = 'chat-a') {
 describe('cross-owner reads', () => {
   it('returns null when another user fetches a chat by id', async () => {
     await seedAliceChat();
-    expect(await createChatHistoryStore({ db: db, scope: BOB, clock: testClock }).get({ id: 'chat-a' })).toBeNull();
+    expect(await createSqliteChatStore({ kernel, scope: BOB, clock: testClock }).get({ id: 'chat-a' })).toBeNull();
   });
 
   it('returns null across workspaces even for the same owner id', async () => {
     await seedAliceChat();
-    expect(await createChatHistoryStore({ db: db, scope: ALICE_OTHER_WS, clock: testClock }).get({ id: 'chat-a' })).toBeNull();
+    expect(await createSqliteChatStore({ kernel, scope: ALICE_OTHER_WS, clock: testClock }).get({ id: 'chat-a' })).toBeNull();
   });
 
   it('returns null across owner kinds even for the same owner id', async () => {
     await seedAliceChat();
-    expect(await createChatHistoryStore({ db: db, scope: GUEST, clock: testClock }).get({ id: 'chat-a' })).toBeNull();
+    expect(await createSqliteChatStore({ kernel, scope: GUEST, clock: testClock }).get({ id: 'chat-a' })).toBeNull();
   });
 
   it('omits other owners chats from list', async () => {
     await seedAliceChat();
-    await createChatHistoryStore({ db: db, scope: BOB, clock: testClock }).create({ id: 'chat-b', title: 'Bob own' });
-    const bobList = await createChatHistoryStore({ db: db, scope: BOB, clock: testClock }).list();
+    await createSqliteChatStore({ kernel, scope: BOB, clock: testClock }).create({ id: 'chat-b', title: 'Bob own' });
+    const bobList = await createSqliteChatStore({ kernel, scope: BOB, clock: testClock }).list();
     expect(bobList.map((c) => c.id)).toEqual(['chat-b']);
   });
 
   it('returns no messages when another user asks for them', async () => {
     await seedAliceChat();
-    expect(await createChatHistoryStore({ db: db, scope: BOB, clock: testClock }).messages({ conversationId: 'chat-a' })).toEqual([]);
+    expect(await createSqliteChatStore({ kernel, scope: BOB, clock: testClock }).messages({ conversationId: 'chat-a' })).toEqual([]);
   });
 });
 
 describe('cross-owner writes are no-ops, not errors', () => {
   it('does not delete another owners chat', async () => {
     const alice = await seedAliceChat();
-    await createChatHistoryStore({ db: db, scope: BOB, clock: testClock }).delete({ id: 'chat-a' });
+    await createSqliteChatStore({ kernel, scope: BOB, clock: testClock }).delete({ id: 'chat-a' });
     expect(await alice.get({ id: 'chat-a' })).not.toBeNull();
   });
 
   it('does not rename another owners chat', async () => {
     const alice = await seedAliceChat();
-    await createChatHistoryStore({ db: db, scope: BOB, clock: testClock }).rename({ id: 'chat-a', title: 'pwned' });
+    await createSqliteChatStore({ kernel, scope: BOB, clock: testClock }).rename({ id: 'chat-a', title: 'pwned' });
     expect((await alice.get({ id: 'chat-a' }))?.title).toBe('Alice private');
   });
 
   it('refuses to append a message into another owners chat', async () => {
     const alice = await seedAliceChat();
-    const written = await createChatHistoryStore({ db: db, scope: BOB, clock: testClock }).appendMessage({ conversationId: 'chat-a', message: {
+    const written = await createSqliteChatStore({ kernel, scope: BOB, clock: testClock }).appendMessage({ conversationId: 'chat-a', message: {
       id: 'injected',
       role: 'user',
       content: 'injected',
@@ -112,7 +114,7 @@ describe('cross-owner writes are no-ops, not errors', () => {
      * newly selected chat.
      */
     const alice = await seedAliceChat();
-    const bob = createChatHistoryStore({ db: db, scope: BOB, clock: testClock });
+    const bob = createSqliteChatStore({ kernel, scope: BOB, clock: testClock });
     await bob.create({ id: 'chat-b', title: 'Bob own' });
 
     const written = await bob.appendMessage({ conversationId: 'chat-b', message: { id: 'm1', role: 'user', content: 'pwned' } });
@@ -127,7 +129,7 @@ describe('cross-owner writes are no-ops, not errors', () => {
   it('does not touch another owners chat', async () => {
     const alice = await seedAliceChat();
     const before = (await alice.get({ id: 'chat-a' }))!.updatedAt;
-    await createChatHistoryStore({ db: db, scope: BOB, clock: testClock }).touch({ id: 'chat-a' }, { expiresAt: 1 });
+    await createSqliteChatStore({ kernel, scope: BOB, clock: testClock }).touch({ id: 'chat-a' }, { expiresAt: 1 });
     const after = await alice.get({ id: 'chat-a' });
     expect(after!.updatedAt).toBe(before);
     expect(after!.expiresAt).toBeUndefined();
@@ -178,14 +180,14 @@ describe('deletion', () => {
 
 describe('title source', () => {
   it('lets a generated title replace a fallback one', async () => {
-    const alice = createChatHistoryStore({ db: db, scope: ALICE, clock: testClock });
+    const alice = createSqliteChatStore({ kernel, scope: ALICE, clock: testClock });
     await alice.create({ id: 'c', title: 'Search My Posts', titleSource: 'fallback' });
     const renamed = await alice.rename({ id: 'c', title: 'Post Search Results' }, { source: 'generated' });
     expect(renamed?.title).toBe('Post Search Results');
   });
 
   it('never lets a generated title clobber a manual rename', async () => {
-    const alice = createChatHistoryStore({ db: db, scope: ALICE, clock: testClock });
+    const alice = createSqliteChatStore({ kernel, scope: ALICE, clock: testClock });
     await alice.create({ id: 'c', title: 'Search My Posts' });
     await alice.rename({ id: 'c', title: 'Q3 launch notes' }, { source: 'manual' });
     await alice.rename({ id: 'c', title: 'Post Search Results' }, { source: 'generated' });
@@ -197,13 +199,13 @@ describe('title source', () => {
 
 describe('retention sweep', () => {
   it('deletes only expired rows and never touches never-expiring history', async () => {
-    const alice = createChatHistoryStore({ db: db, scope: ALICE, clock: testClock });
-    const guest = createChatHistoryStore({ db: db, scope: GUEST, clock: testClock });
+    const alice = createSqliteChatStore({ kernel, scope: ALICE, clock: testClock });
+    const guest = createSqliteChatStore({ kernel, scope: GUEST, clock: testClock });
     await alice.create({ id: 'admin-forever' });
     await guest.create({ id: 'guest-stale', expiresAt: 1_000 });
     await guest.create({ id: 'guest-fresh', expiresAt: 9_000 });
 
-    const deleted = await createChatHistoryMaintenance({ db: db }).sweepExpired({ now: 5_000 });
+    const deleted = await createSqliteChatMaintenance({ kernel }).sweepExpired({ now: 5_000 });
 
     expect(deleted).toBe(1);
     expect(await alice.get({ id: 'admin-forever' })).not.toBeNull();
@@ -212,9 +214,9 @@ describe('retention sweep', () => {
   });
 
   it('honours its chunk limit so one call cannot hold a long write lock', async () => {
-    const guest = createChatHistoryStore({ db: db, scope: GUEST, clock: testClock });
+    const guest = createSqliteChatStore({ kernel, scope: GUEST, clock: testClock });
     for (let i = 0; i < 5; i += 1) await guest.create({ id: `g${i}`, expiresAt: 1_000 });
-    const maintenance = createChatHistoryMaintenance({ db: db });
+    const maintenance = createSqliteChatMaintenance({ kernel });
     expect(await maintenance.sweepExpired({ now: 5_000 }, { limit: 2 })).toBe(2);
     expect(await maintenance.sweepExpired({ now: 5_000 }, { limit: 2 })).toBe(2);
     expect(await maintenance.sweepExpired({ now: 5_000 }, { limit: 2 })).toBe(1);
@@ -224,7 +226,7 @@ describe('retention sweep', () => {
 
 describe('message ordering', () => {
   it('assigns sequential positions and returns messages in that order', async () => {
-    const alice = createChatHistoryStore({ db: db, scope: ALICE, clock: testClock });
+    const alice = createSqliteChatStore({ kernel, scope: ALICE, clock: testClock });
     await alice.create({ id: 'c' });
     // Identical `createdAt` on every message: ordering must come from `position`, so a store
     // that sorted by timestamp would produce a nondeterministic result here rather than pass.
@@ -235,7 +237,7 @@ describe('message ordering', () => {
   });
 
   it('updates a message in place without allocating a new position', async () => {
-    const alice = createChatHistoryStore({ db: db, scope: ALICE, clock: testClock });
+    const alice = createSqliteChatStore({ kernel, scope: ALICE, clock: testClock });
     await alice.create({ id: 'c' });
     await alice.appendMessage({ conversationId: 'c', message: { id: 'm1', role: 'assistant', content: '', runStatus: 'running' } });
     await alice.appendMessage({ conversationId: 'c', message: { id: 'm1', role: 'assistant', content: 'done', runStatus: 'succeeded' } });
@@ -246,4 +248,4 @@ describe('message ordering', () => {
   });
 });
 
-afterEach(() => {db.close();});
+afterEach(async () => { await harness.close(); });
