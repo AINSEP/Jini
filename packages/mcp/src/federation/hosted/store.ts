@@ -544,7 +544,8 @@ async function resolveOwnedAccessToken(
 
 /** A failure entry for one record, in the shape {@link readEnabledExternalMcpConfigs} collects. */
 function externalMcpFailure(
-  record: ExternalMcpServerRecord, reason: string, category?: ExternalMcpConfigFailure["category"],
+  { record, reason }: { record: ExternalMcpServerRecord; reason: string },
+  { category }: { category?: ExternalMcpConfigFailure["category"] } = {},
 ): { readonly ok: false; readonly failure: ExternalMcpConfigFailure } {
   return { ok: false, failure: { serverId: record.serverId, reason, ...(category === undefined ? {} : { category }) } };
 }
@@ -565,19 +566,19 @@ async function resolveStdioTarget(
   staticAccessToken: string | null,
   ports: HostedMcpStorePorts,
 ): Promise<{ readonly ok: true; readonly target: ExternalMcpServerTarget } | { readonly ok: false; readonly failure: ExternalMcpConfigFailure }> {
-  if (!record.command) return externalMcpFailure(record, "no command is configured to launch it");
+  if (!record.command) return externalMcpFailure({ record, reason: "no command is configured to launch it" });
 
   const withStaticToken = withStaticAccessToken(record, env, authMode, staticAccessToken);
   if (withStaticToken === null) {
-    return externalMcpFailure(record, "no environment variable name is configured to receive its access token");
+    return externalMcpFailure({ record, reason: "no environment variable name is configured to receive its access token" });
   }
   let resolvedEnv = withStaticToken;
   if (authMode === "oauth") {
     if (!record.oauthTokenEnvName) {
-      return externalMcpFailure(record, "no environment variable name is configured to receive its OAuth access token");
+      return externalMcpFailure({ record, reason: "no environment variable name is configured to receive its OAuth access token" });
     }
     const token = await resolveExternalMcpAccessToken(record, oauth, ports);
-    if (!token.ok) return externalMcpFailure(record, token.reason, token.category);
+    if (!token.ok) return externalMcpFailure({ record, reason: token.reason }, { category: token.category });
     resolvedEnv = { ...resolvedEnv, [record.oauthTokenEnvName]: token.token };
   }
 
@@ -601,21 +602,21 @@ async function resolveHttpTarget(
   staticAccessToken: string | null,
   ports: HostedMcpStorePorts,
 ): Promise<{ readonly ok: true; readonly target: ExternalMcpServerTarget } | { readonly ok: false; readonly failure: ExternalMcpConfigFailure }> {
-  if (!record.url) return externalMcpFailure(record, "no URL is configured to reach it");
+  if (!record.url) return externalMcpFailure({ record, reason: "no URL is configured to reach it" });
 
   const headers: Record<string, string> = {};
   let shared = false;
   if (authMode === "static_env" && staticAccessToken !== null) headers.authorization = `Bearer ${staticAccessToken}`;
   if (authMode === "oauth") {
     const token = await resolveExternalMcpAccessToken(record, oauth, ports);
-    if (!token.ok) return externalMcpFailure(record, token.reason, token.category);
+    if (!token.ok) return externalMcpFailure({ record, reason: token.reason }, { category: token.category });
     headers.authorization = `Bearer ${token.token}`;
     shared = token.shared === true;
   }
 
   if (headers.authorization !== undefined) {
     const failure = hostedTokenFailure({ authorization: headers.authorization, credential: ports.credential });
-    if (failure !== null) return externalMcpFailure(record, failure);
+    if (failure !== null) return externalMcpFailure({ record, reason: failure });
   }
   return { ok: true, target: { kind: "streamable_http", url: record.url, headers,
     ...(shared ? { bearerToken: async () => {
@@ -684,14 +685,14 @@ async function resolveExternalMcpConfig(
 > {
   const transport = record.transport as ExternalMcpTransport;
   if (!SUPPORTED_EXTERNAL_MCP_TRANSPORTS.includes(transport)) {
-    return externalMcpFailure(record, `unsupported transport '${record.transport}'`);
+    return externalMcpFailure({ record, reason: `unsupported transport '${record.transport}'` });
   }
   const opened = await openExternalMcpEnv(record, deps);
-  if (!opened.ok) return externalMcpFailure(record, opened.reason);
+  if (!opened.ok) return externalMcpFailure({ record, reason: opened.reason });
 
   const authMode = resolveExternalMcpAuthMode(record);
   const staticToken = await openExternalMcpStaticAccessToken(record, deps);
-  if (!staticToken.ok) return externalMcpFailure(record, staticToken.reason);
+  if (!staticToken.ok) return externalMcpFailure({ record, reason: staticToken.reason });
   const resolved =
     transport === "stdio"
       ? await resolveStdioTarget(record, opened.env, authMode, oauth, staticToken.token, deps)

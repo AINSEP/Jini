@@ -120,7 +120,7 @@ function isProbeTimeoutFailure({ error }: { error: unknown }, _options = {}): bo
 /** Connects once, lists, describes, and closes — the `finally` is the whole safety story for the
  *  outbound session, kept separate to stay under the complexity ceiling.
  *  @complexity O(t) in the remote's advertised tool count, plus one round trip. */
-async function runProbe(connect: ExternalMcpProbeSessionFactory, target: ProbeTarget): Promise<{ ok: true; tools: ReturnType<typeof describeRemoteToolSurface> } | { ok: false; kind: "auth" | "timeout" | "unreachable" }> {
+async function runProbe({ connect, target }: { connect: ExternalMcpProbeSessionFactory; target: ProbeTarget }, _optional: Record<string, never> = {}): Promise<{ ok: true; tools: ReturnType<typeof describeRemoteToolSurface> } | { ok: false; kind: "auth" | "timeout" | "unreachable" }> {
   let session: McpSessionPort | undefined;
   try {
     session = await connect({ spec: target.launch, requestTimeoutMs: target.federationConfig.connectTimeoutMs });
@@ -148,6 +148,6 @@ export async function probeExternalMcpServer(
 ): Promise<ExternalMcpProbeResult> {
   const resolution = await resolveProbeTarget({ ports, workspaceId, serverId });
   if (!resolution.ok) return resolution;
-  const outcome = await runProbe(ports.connect, resolution.target);
+  const outcome = await runProbe({ connect: ports.connect, target: resolution.target });
   return outcome.ok ? outcome : { ok: false, failure: { kind: outcome.kind } };
 }
