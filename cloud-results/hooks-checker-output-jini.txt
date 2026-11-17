@@ -1,0 +1,68 @@
+hook-injection: 451 components, 587 direct custom-hook calls
+top hooks: useT 271, useAgentHandle 19, useSeoCopy 12, useDismissOnOutsideOrEscape 7, useI18n 6, useAttachmentGallery 4, useConsentSettingsPanel 4, useOverlayContainer 4
+top folders: packages/ui 326, packages/chat 111, packages/admin 100, packages/ui-kit 22, packages/user-management 22, packages/agent-runtime 3, examples/reference-web 1, packages/commerce 1, packages/vibecoding 1
+hook-injection: 32 new or increased entries (owner rule: hooks are injected as props defaulted to the real hook)
+packages/ui/src/renderers/annotation-canvas/react/components/AnnotationCanvas.tsx:237  AnnotationNoteInput calls useT directly (new) [AnnotationNoteInput::useT]
+  fix: function AnnotationNoteInput({ useTHook = useT }) { const value = useTHook(); ... }
+packages/ui/src/renderers/annotation-canvas/react/components/AnnotationCanvas.tsx:262  AnnotationToolbar calls useT directly (new) [AnnotationToolbar::useT]
+  fix: function AnnotationToolbar({ useTHook = useT }) { const value = useTHook(); ... }
+packages/ui/src/renderers/annotation-canvas/react/components/AnnotationCanvas.tsx:209  AttachImageControl calls useT directly (new) [AttachImageControl::useT]
+  fix: function AttachImageControl({ useTHook = useT }) { const value = useTHook(); ... }
+packages/ui/src/features/viewer-shell/react/components/CommentSidePanel.tsx:336  CommentSideCheck calls useT directly (new) [CommentSideCheck::useT]
+  fix: function CommentSideCheck({ useTHook = useT }) { const value = useTHook(); ... }
+packages/ui/src/features/viewer-shell/react/components/CommentSidePanel.tsx:370  CommentSideItemHead calls useT directly (new) [CommentSideItemHead::useT]
+  fix: function CommentSideItemHead({ useTHook = useT }) { const value = useTHook(); ... }
+packages/ui/src/features/viewer-shell/react/components/CommentSidePanel.tsx:161  CommentSideList calls useT directly (new) [CommentSideList::useT]
+  fix: function CommentSideList({ useTHook = useT }) { const value = useTHook(); ... }
+packages/ui/src/features/viewer-shell/react/components/CommentSidePanel.tsx:72  CommentSidePanel calls useCommentReorderHook directly (new) [CommentSidePanel::useCommentReorderHook]
+  fix: function CommentSidePanel({ useCommentReorderHookHook = useCommentReorderHook }) { const value = useCommentReorderHookHook(); ... }
+packages/ui/src/features/list-detail-panel/react/components/ListDetailPanel.tsx:41  LoadingRegion calls useT directly (new) [LoadingRegion::useT]
+  fix: function LoadingRegion({ useTHook = useT }) { const value = useTHook(); ... }
+packages/ui/src/features/memory/react/components/MemoryConnectedPanel.tsx:434  MemoryConnectorPickerHead calls useT directly (new) [MemoryConnectorPickerHead::useT]
+  fix: function MemoryConnectorPickerHead({ useTHook = useT }) { const value = useTHook(); ... }
+packages/ui/src/features/memory/react/components/MemoryConnectedPanel.tsx:449  MemoryConnectorWorkbench calls useT directly (new) [MemoryConnectorWorkbench::useT]
+  fix: function MemoryConnectorWorkbench({ useTHook = useT }) { const value = useTHook(); ... }
+packages/ui/src/features/memory/react/components/MemoryManualEditor.tsx:104  MemoryDetailsField calls useT directly (new) [MemoryDetailsField::useT]
+  fix: function MemoryDetailsField({ useTHook = useT }) { const value = useTHook(); ... }
+packages/ui/src/features/memory/react/components/MemoryManualEditor.tsx:164  MemoryDraftActions calls useT directly (new) [MemoryDraftActions::useT]
+  fix: function MemoryDraftActions({ useTHook = useT }) { const value = useTHook(); ... }
+packages/ui/src/features/memory/react/components/MemoryManualEditor.tsx:132  MemoryDraftFields calls useT directly (new) [MemoryDraftFields::useT]
+  fix: function MemoryDraftFields({ useTHook = useT }) { const value = useTHook(); ... }
+packages/ui/src/features/memory/react/components/MemoryAdvancedModal.tsx:59  MemoryIndexEditorCard calls useT directly (new) [MemoryIndexEditorCard::useT]
+  fix: function MemoryIndexEditorCard({ useTHook = useT }) { const value = useTHook(); ... }
+packages/ui/src/features/memory/react/components/MemoryAdvancedModal.tsx:21  MemoryIndexEditorFooter calls useT directly (new) [MemoryIndexEditorFooter::useT]
+  fix: function MemoryIndexEditorFooter({ useTHook = useT }) { const value = useTHook(); ... }
+packages/ui/src/features/memory/react/components/MemoryManualEditor.tsx:70  MemoryNameTypeRow calls useT directly (new) [MemoryNameTypeRow::useT]
+  fix: function MemoryNameTypeRow({ useTHook = useT }) { const value = useTHook(); ... }
+packages/ui/src/features/memory/react/components/MemoryManualEditor.tsx:17  MemoryStarterRow calls useT directly (new) [MemoryStarterRow::useT]
+  fix: function MemoryStarterRow({ useTHook = useT }) { const value = useTHook(); ... }
+packages/ui/src/features/memory/react/components/MemoryAdvancedModal.tsx:86  MemoryTreeCard calls useT directly (new) [MemoryTreeCard::useT]
+  fix: function MemoryTreeCard({ useTHook = useT }) { const value = useTHook(); ... }
+packages/ui/src/features/memory/react/components/MemoryAdvancedModal.tsx:151  MemoryTreeChildRow calls useT directly (new) [MemoryTreeChildRow::useT]
+  fix: function MemoryTreeChildRow({ useTHook = useT }) { const value = useTHook(); ... }
+packages/ui/src/features/memory/react/components/MemoryAdvancedModal.tsx:119  MemoryTreeFolderCard calls useT directly (new) [MemoryTreeFolderCard::useT]
+  fix: function MemoryTreeFolderCard({ useTHook = useT }) { const value = useTHook(); ... }
+packages/ui/src/features/asset-tree-browser/react/components/AssetTreeFileRow.tsx:65  RenameInput calls useT directly (new) [RenameInput::useT]
+  fix: function RenameInput({ useTHook = useT }) { const value = useTHook(); ... }
+packages/ui/src/features/asset-tree-browser/react/components/AssetTreeFileRow.tsx:31  RowCheck calls useT directly (new) [RowCheck::useT]
+  fix: function RowCheck({ useTHook = useT }) { const value = useTHook(); ... }
+packages/ui/src/features/asset-tree-browser/react/components/AssetTreeFileRow.tsx:126  RowMenuTrigger calls useT directly (new) [RowMenuTrigger::useT]
+  fix: function RowMenuTrigger({ useTHook = useT }) { const value = useTHook(); ... }
+packages/ui/src/features/sketch-editor/react/components/SketchEditor.tsx:125  SketchCanvas calls useI18n directly (new) [SketchCanvas::useI18n]
+  fix: function SketchCanvas({ useI18nHook = useI18n }) { const value = useI18nHook(); ... }
+packages/ui/src/features/tab-launcher-menu/react/components/TabLauncherMenu.tsx:50  TabLauncherKindChips calls useT directly (new) [TabLauncherKindChips::useT]
+  fix: function TabLauncherKindChips({ useTHook = useT }) { const value = useTHook(); ... }
+packages/ui/src/features/tab-launcher-menu/react/components/TabLauncherMenu.tsx:81  TabLauncherScrollBody calls useT directly (new) [TabLauncherScrollBody::useT]
+  fix: function TabLauncherScrollBody({ useTHook = useT }) { const value = useTHook(); ... }
+packages/ui/src/features/version-manager/react/components/VersionManagerModal.tsx:65  VersionHeaderActions calls useI18n directly (new) [VersionHeaderActions::useI18n]
+  fix: function VersionHeaderActions({ useI18nHook = useI18n }) { const value = useI18nHook(); ... }
+packages/ui/src/features/version-manager/react/components/VersionManagerModal.tsx:35  VersionManagerSidebar calls useI18n directly (new) [VersionManagerSidebar::useI18n]
+  fix: function VersionManagerSidebar({ useI18nHook = useI18n }) { const value = useI18nHook(); ... }
+packages/ui/src/features/version-manager/react/components/VersionSidebar.tsx:22  VersionSearchBox calls useT directly (new) [VersionSearchBox::useT]
+  fix: function VersionSearchBox({ useTHook = useT }) { const value = useTHook(); ... }
+packages/ui/src/features/version-manager/react/components/VersionSidebar.tsx:76  VersionSidebarItem calls useT directly (new) [VersionSidebarItem::useT]
+  fix: function VersionSidebarItem({ useTHook = useT }) { const value = useTHook(); ... }
+packages/ui/src/features/version-manager/react/components/VersionSidebar.tsx:47  VersionSkeletonList calls useT directly (new) [VersionSkeletonList::useT]
+  fix: function VersionSkeletonList({ useTHook = useT }) { const value = useTHook(); ... }
+packages/ui/src/features/asset-grid/react/components/AssetGridToolbar.tsx:49  ViewModeToggle calls useT directly (new) [ViewModeToggle::useT]
+  fix: function ViewModeToggle({ useTHook = useT }) { const value = useTHook(); ... }
