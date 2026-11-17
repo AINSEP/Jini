@@ -421,7 +421,7 @@ describe('run()', () => {
     });
     await expect(server.callTool({ params: { name: 'missing' } })).resolves.toEqual({
       isError: true,
-      content: [{ type: 'text', text: 'unknown tool: missing' }],
+      content: [{ type: 'text', text: 'There is no tool named "missing". Closest names: noop. Find tools with search_tools.' }],
     });
     hoisted.onIdleRef.current?.({});
     await runPromise;

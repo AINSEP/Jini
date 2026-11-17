@@ -46,6 +46,7 @@
  */
 import { batchOutcomeFor, normalizeToolInput, withNormalizationNotes, type ToolDescriptor } from '@jini-ai/core';
 import { sanitizeUntrustedText } from '@jini-ai/core/text';
+import { unknownToolSentence } from '@jini-ai/core/tool-call-text';
 import { Validator, type Schema } from '@cfworker/json-schema';
 import { ContentBlockSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
@@ -302,7 +303,7 @@ export async function handleToolCall(
   ctx = { ...ctx, diagnosticToolIds };
   const tool = tools.get(resolveMcpToolName({ name }, { isRegistered: candidate => tools.has(candidate) }));
   if (tool === undefined) {
-    return errorResult({ message: `unknown tool: ${name}` });
+    return errorResult({ message: unknownToolSentence({ toolId: name, candidates: [...tools.keys()] }) });
   }
   // Normalization and schema validation share an error boundary; handlers run only afterward.
   // See docs/decisions/DR-005-proxy-argument-shapes.md.
