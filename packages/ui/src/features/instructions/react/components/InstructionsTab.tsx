@@ -19,6 +19,7 @@ export interface InstructionsTabProps {
   maxLength?: number;
   /** This tab's own agent handle — see other tabs' `agentHandle` doc for the split. */
   agentHandle?: string;
+  useTHook?: typeof useT;
 }
 
 /**
@@ -36,8 +37,9 @@ export function InstructionsTab({
   rows = 5,
   maxLength = 5000,
   agentHandle,
+  useTHook = useT,
 }: InstructionsTabProps) {
-  const t = useT();
+  const t = useTHook();
   const resolvedTitle = title ?? t('Custom instructions');
   const resolvedDescription =
     description ?? t('Extra instructions applied to every conversation, in addition to any per-project instructions.');
