@@ -4,7 +4,7 @@
 import { basePurityFindings } from './base-purity.js';
 import { cssTokenFindings, loadThemeTokens } from './css-tokens.js';
 import {
-  advisoryTestEdges, hostPresets, injectedEdgeFindings, manifestEdges, ownerOf, payloadEdges, productionEdges, testEdges, type Edge, type EdgeScope,
+  advisoryTestEdges, hostPresets, injectedEdgeFindings, manifestEdges, ownerOf, payloadEdges, productionEdges, runtimeAdapters, testEdges, type Edge, type EdgeScope,
 } from './injection-edges.js';
 import {
   applyDebt, debtGrowth, gitDebtBase, loadDebt, loadExceptions, type DebtEntry, type DebtViolation, type Finding,
@@ -27,7 +27,7 @@ export function collectInjectionFindings(required: Scope, _optional: Record<stri
   const { root, packages } = required;
   const edges = packages.flatMap(pkg => edgesOf(scopeOf({ root, pkg, packages })));
   return [
-    ...injectedEdgeFindings({ edges, exceptions: loadExceptions({ root }), presets: hostPresets({ packages }) }),
+    ...injectedEdgeFindings({ edges, exceptions: loadExceptions({ root }), presets: hostPresets({ packages }), adapters: runtimeAdapters({ packages }) }),
     ...basePurityFindings({ root, packages }),
     ...cssTokenFindings({ root, packages, tokens: loadThemeTokens({ root }) }),
   ];

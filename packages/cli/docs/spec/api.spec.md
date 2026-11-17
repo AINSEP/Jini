@@ -126,7 +126,7 @@ Evidence: `src/index.ts`, all its re-exported modules, `src/main.ts`; static tes
 Architecture update: the moved text functions and SanitizeTextOptions are no longer CLI exports;
 import them from core/text. Recursive JSON sanitization remains here and retains output/limits.
 Direct core redaction uses category markers and PII rules; its default is conservative, while
-former direct CLI opaque-run masking is explicit aggressive policy. platform/net supplies the
+former direct CLI opaque-run masking is explicit aggressive policy. core/net supplies the
 loopback hostname classifier, including full 127/8 and dotted localhost. See API.md.
 
 ## Current manifest boundary

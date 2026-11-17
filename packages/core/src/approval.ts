@@ -200,7 +200,7 @@ export function createPreparedBatchHandler<TPrepared>(
 }
 
 /** Expand `items` into one context per item (shared fields as defaults), validating cap, nesting and duplicates. */
-function expandBatchContexts(
+export function expandBatchContexts(
   { ctx, input, maxItems }: { ctx: ToolExecutionContext; input: ReturnType<typeof requireInputRecord>; maxItems: number },
 ): ToolExecutionContext[] {
   const { items, ...defaults } = input;

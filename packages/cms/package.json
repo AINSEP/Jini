@@ -145,7 +145,6 @@
       "@jini-ai/http-kit": "opt-in: http route adapters; import @jini-ai/cms/redirects — HTTP route adapters could not load @jini-ai/http-kit. Install @jini-ai/http-kit to enable this feature, or check its installed version and native binaries.",
       "dompurify": "opt-in: svg sanitization; import @jini-ai/cms/media — SVG sanitization could not load dompurify. Install dompurify to enable this feature, or check its installed version and native binaries.",
       "jsdom": "opt-in: server-side html and svg processing; import @jini-ai/cms/media — Server-side HTML and SVG processing could not load jsdom. Install jsdom to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/platform": "opt-in: platform-backed adapters; import @jini-ai/cms/forms/email-sender — Platform-backed adapters could not load @jini-ai/platform. Install @jini-ai/platform to enable this feature, or check its installed version and native binaries.",
       "express": "opt-in: express route adapters; import @jini-ai/cms/forms/express — Express route adapters could not load express. Install express to enable this feature, or check its installed version."
     }
   },
@@ -476,7 +475,6 @@
   "peerDependencies": {
     "@jini-ai/db": "^0.7.0",
     "@jini-ai/http-kit": "^0.7.0",
-    "@jini-ai/platform": "^0.7.0",
     "dompurify": "^3.4.12",
     "express": "^4.21.0 || ^5.0.0",
     "jsdom": "^25.0.1 || ^26.0.0 || ^27.0.0",
@@ -500,9 +498,6 @@
       "optional": true
     },
     "jsdom": {
-      "optional": true
-    },
-    "@jini-ai/platform": {
       "optional": true
     },
     "express": {

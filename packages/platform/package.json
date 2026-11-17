@@ -40,9 +40,7 @@
       "./toolchain": "node",
       "./proxy-env": "node",
       "./shell": "node",
-      "./child-environment": "node",
-      "./runtime-ports/process": "node",
-      "./runtime-ports/fs": "node"
+      "./child-environment": "node"
     },
     "isolation": {
       "entries": {
@@ -51,9 +49,7 @@
         "./toolchain": "os",
         "./proxy-env": "os",
         "./shell": "os",
-        "./child-environment": "os",
-        "./runtime-ports/process": "os",
-        "./runtime-ports/fs": "fs"
+        "./child-environment": "os"
       },
       "shared": [
         "src/web/html-document.ts",
@@ -191,16 +187,6 @@
       "types": "./dist/command.d.ts",
       "import": "./dist/command.js",
       "default": "./dist/command.js"
-    },
-    "./runtime-ports/process": {
-      "types": "./dist/runtime-ports/process.d.ts",
-      "import": "./dist/runtime-ports/process.js",
-      "default": "./dist/runtime-ports/process.js"
-    },
-    "./runtime-ports/fs": {
-      "types": "./dist/runtime-ports/fs.d.ts",
-      "import": "./dist/runtime-ports/fs.js",
-      "default": "./dist/runtime-ports/fs.js"
     },
     "./process": {
       "types": "./dist/process.d.ts",

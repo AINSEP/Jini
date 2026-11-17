@@ -1,3 +1,4 @@
+// GAP: G1 hand-rolled node:http Server adapter; @jini-ai/http-kit/node-bridge replaces it (sheet G1)
 /**
  * @file Plain Node `http` adapter for `@jini-ai/core/contracts/server`'s `Server` contract.
  *
@@ -113,41 +114,72 @@ function plain({ status, text }: { status: number; text: string }, { headers = {
   return new Response(text, { status, headers: { 'content-type': 'text/plain; charset=utf-8', ...headers } });
 }
 
-export function createNodeServer(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): NodeServer {
+/** Answers an unmatched request instead of the adapter's 404; `undefined` keeps the 404. */
+export type UnmatchedHook = (required: { request: Request }) => Response | undefined | Promise<Response | undefined>;
+
+export interface NodeServerOptions {
+  /** Called only when no route matches the path (never for a matched path with another method). */
+  readonly onUnmatched?: UnmatchedHook;
+  /** Receives every handler/hook failure before the 500 is sent. Default: `console.error`. */
+  readonly reportError?: (required: { error: unknown }) => void;
+}
+
+interface Match { route: Route; params: Record<string, string> }
+
+/** One scan: every route whose path matches, kept for both the method pick and the 405's Allow. */
+function matchRoutes({ routes, pathname }: { routes: readonly Route[]; pathname: string }): Match[] {
+  const matched: Match[] = [];
+  for (const route of routes) {
+    const params = matchServerPath({ pattern: route.path, pathname });
+    if (params) matched.push({ route, params });
+  }
+  return matched;
+}
+
+function pickMatch({ matched, method }: { matched: readonly Match[]; method: string }): Match | undefined {
+  const best = (wanted: string) => matched.filter((m) => m.route.method === wanted)
+    .sort((a, b) => bySpecificity(a.route.path, b.route.path))[0];
+  // A HEAD with no HEAD route is answered by the GET route, per the contract's ServerMethod note.
+  return best(method) ?? (method === 'HEAD' ? best('GET') : undefined);
+}
+
+async function dispatch(
+  { routes, incoming, out }: { routes: readonly Route[]; incoming: IncomingMessage; out: ServerResponse },
+  { onUnmatched }: { onUnmatched?: UnmatchedHook | undefined } = {},
+): Promise<void> {
+  const abort = new AbortController();
+  out.on('close', () => { if (!out.writableFinished) abort.abort(); });
+  const request = toRequest({ incoming, origin: `http://${incoming.headers.host ?? 'localhost'}`, signal: abort.signal });
+  const matched = matchRoutes({ routes, pathname: new URL(request.url).pathname });
+  if (matched.length === 0) {
+    const answer = onUnmatched ? await onUnmatched({ request }) : undefined;
+    await writeResponse({ response: answer ?? plain({ status: 404, text: 'Not Found' }), out });
+    return;
+  }
+  const isHead = request.method === 'HEAD';
+  const hit = pickMatch({ matched, method: request.method });
+  if (!hit) {
+    const allow = new Set(matched.map((m) => m.route.method));
+    if (allow.has('GET')) allow.add('HEAD');
+    await writeResponse({ response: plain({ status: 405, text: 'Method Not Allowed' }, { headers: { allow: [...allow].join(', ') } }), out });
+    return;
+  }
+  const address = incoming.socket.remoteAddress;
+  const response = await hit.route.handler({ request, params: hit.params, ...(address ? { client: { address } } : {}) });
+  if (isHead) await response.body?.cancel();
+  await writeResponse({ response: isHead ? new Response(null, { status: response.status, headers: response.headers }) : response, out });
+}
+
+export function createNodeServer(_required: Record<string, never> = {}, options: NodeServerOptions = {}): NodeServer {
+  const { onUnmatched, reportError = ({ error }) => console.error('node-server: handler failed', error) } = options;
   const routes: Route[] = [];
   let http: HttpServer | undefined;
 
-  async function dispatch(incoming: IncomingMessage, out: ServerResponse): Promise<void> {
-    const abort = new AbortController();
-    out.on('close', () => { if (!out.writableFinished) abort.abort(); });
-    const request = toRequest({ incoming, origin: `http://${incoming.headers.host ?? 'localhost'}`, signal: abort.signal });
-    const pathname = new URL(request.url).pathname;
-    // One scan: every route whose path matches, kept for both the method pick and the 405's Allow.
-    const matched: { route: Route; params: Record<string, string> }[] = [];
-    for (const route of routes) {
-      const params = matchServerPath({ pattern: route.path, pathname });
-      if (params) matched.push({ route, params });
-    }
-    if (matched.length === 0) {
-      await writeResponse({ response: plain({ status: 404, text: 'Not Found' }), out });
-      return;
-    }
-    const isHead = request.method === 'HEAD';
-    const best = (method: string) => matched.filter((m) => m.route.method === method)
-      .sort((a, b) => bySpecificity(a.route.path, b.route.path))[0];
-    // A HEAD with no HEAD route is answered by the GET route, per the contract's ServerMethod note.
-    const hit = best(request.method) ?? (isHead ? best('GET') : undefined);
-    if (!hit) {
-      const allow = new Set(matched.map((m) => m.route.method));
-      if (allow.has('GET')) allow.add('HEAD');
-      await writeResponse({ response: plain({ status: 405, text: 'Method Not Allowed' }, { headers: { allow: [...allow].join(', ') } }), out });
-      return;
-    }
-    const address = incoming.socket.remoteAddress;
-    const response = await hit.route.handler({ request, params: hit.params, ...(address ? { client: { address } } : {}) });
-    if (isHead) await response.body?.cancel();
-    await writeResponse({ response: isHead ? new Response(null, { status: response.status, headers: response.headers }) : response, out });
-  }
+  const onFailure = ({ error, out }: { error: unknown; out: ServerResponse }): void => {
+    reportError({ error });
+    if (!out.headersSent) writeResponse({ response: plain({ status: 500, text: 'Internal Server Error' }), out }).catch(() => out.destroy());
+    else out.destroy();
+  };
 
   return {
     route({ method, path, handler }) {
@@ -158,11 +190,7 @@ export function createNodeServer(_required: Record<string, never> = {}, _optiona
     },
     listen({ port, host = '127.0.0.1' }) {
       http = createServer((incoming, out) => {
-        dispatch(incoming, out).catch((error: unknown) => {
-          console.error('node-server: handler failed', error);
-          if (!out.headersSent) writeResponse({ response: plain({ status: 500, text: 'Internal Server Error' }), out }).catch(() => out.destroy());
-          else out.destroy();
-        });
+        dispatch({ routes, incoming, out }, { onUnmatched }).catch((error: unknown) => onFailure({ error, out }));
       });
       const server = http;
       return new Promise((resolve, reject) => {

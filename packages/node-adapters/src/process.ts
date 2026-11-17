@@ -1,18 +1,18 @@
 /**
- * @module runtime-ports/process
+ * @module process
  *
- * Node binding of core's `ProcessControlPort` over this package's process functions. Hosts import
+ * Node binding of core's `ProcessControlPort` over `@jini-ai/platform`'s process functions. Hosts import
  * {@link nodeProcessControl} instead of hand-copying the adapter: two of the port members take their
  * arguments in a different shape from the function they wrap (`{ pids }` vs a positional array,
  * `{ pid }` vs a positional pid), so a binding that merely typechecks can silently reshape an
  * argument. The builder takes the wrapped functions as arguments so a test can hand it recording
  * fakes and assert exactly what each receives. The file lock and atomic writer bind in
- * `./runtime-ports/fs` (a separate entry: subpath isolation keeps the `os` and `fs` domains apart).
+ * `@jini-ai/node-adapters/fs` (a separate entry: subpath isolation keeps the `os` and `fs` domains apart).
  * `command` has no binding on purpose: core's pure `planCommandInvocation` is the planner, and
  * `createCommandInvocation` reads its arguments from the other object.
  */
 import type { ProcessControlPort } from "@jini-ai/core/contracts/runtime";
-import { listProcessSnapshots, stopProcesses, waitForProcessExit } from "../process.js";
+import { listProcessSnapshots, stopProcesses, waitForProcessExit } from "@jini-ai/platform/process";
 
 /** The three platform process functions the process-control port wraps. */
 export interface ProcessFunctions {

@@ -1,0 +1,17 @@
+{
+ "./fs": {
+  "types": "./dist/fs.d.ts",
+  "symbols": {
+   "nodeAtomicWriter": "variable:1b8d313c6a",
+   "nodeFileLock": "variable:6cd02ce922"
+  }
+ },
+ "./process": {
+  "types": "./dist/process.d.ts",
+  "symbols": {
+   "ProcessFunctions": "interface:2195967367",
+   "createProcessControlPort": "function:b7f8365c70",
+   "nodeProcessControl": "variable:90bc017162"
+  }
+ }
+}

@@ -22,6 +22,9 @@ const layers: Readonly<Record<string, number>> = {
   integrations: 4, 'agent-plugins': 4, devops: 4, chat: 4, plugins: 4, analytics: 4,
   // The search contribution entry composes agent-plugins (L4), so L5 is its lowest valid layer.
   ui: 5, admin: 5, search: 5,
+  // OD-3 runtime-adapter packages bind platform functions to domain ports and may name those ports'
+  // types, so they sit above every domain they bind; only a host or host preset imports them.
+  'node-adapters': 5,
   // Commerce composes CMS authorization and UI through opt-in entries; SI keeps its root isolated.
   server: 6, sqlite: 6, infra: 6, commerce: 6,
   // Provider plugin sources adapt lower-layer domain ports (diagnostics, analytics, agent-runtime,
