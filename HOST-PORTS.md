@@ -547,7 +547,7 @@ Everything a Jini package asks its host to bind or register: `*Port`, `*Kit`, `*
 | `ConnectorsHttpDeps` | deps | interface | `packages/daemon/src/http/connectors.ts:127` |
 | `registerConnectorsRoutes` | registry | function | `packages/daemon/src/http/connectors.ts:509` |
 | `DaemonStatusDeps` | deps | interface | `packages/daemon/src/http/daemon-status.ts:26` |
-| `registerDaemonStatusRoutes` | registry | function | `packages/daemon/src/http/daemon-status.ts:105` |
+| `daemonStatusRoutes` | registry | function | `packages/daemon/src/http/daemon-status.ts:105` |
 | `DaemonDbHttpDeps` | deps | interface | `packages/daemon/src/http/db-ops.ts:202` |
 | `registerDaemonDbRoutes` | registry | function | `packages/daemon/src/http/db-ops.ts:292` |
 | `DelegatedToolsHttpDeps` | deps | interface | `packages/daemon/src/http/delegated-tools.ts:89` |

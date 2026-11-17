@@ -11,9 +11,9 @@
  * rather than read from globals, so this module has no dependency on any
  * particular process/runtime wiring.
  */
-import type { Express } from 'express';
-import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
-import { type RouteHostContext, ok } from '@jini-ai/core/contracts/server';
+import { defineJsonRoute, ok } from '@jini-ai/core/contracts/server';
+import type { DaemonRouteHost } from './route-host.js';
+import { gatedJsonRoute, type DaemonRoute } from './route-table.js';
 
 /**
  * Everything the two routes below need, supplied by the caller. `requestShutdown`
@@ -101,9 +101,7 @@ export const daemonShutdownRoute = defineJsonRoute<void, DaemonShutdownResponse,
   }
 }, { requireSameOrigin: true });
 
-/** Mounts both daemon-status routes on `app`. A pack's `http(app, services)` calls this directly. */
-export function registerDaemonStatusRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: DaemonStatusDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}
-): void {
-  mountJsonRoute({ app, spec: daemonStatusRoute, deps, adapter });
-  mountJsonRoute({ app, spec: daemonShutdownRoute, deps, adapter });
+/** Both daemon-status routes as data; the shutdown route sits behind the same-origin gate its spec declares. */
+export function daemonStatusRoutes({ deps, host }: { readonly deps: DaemonStatusDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
+  return [gatedJsonRoute({ spec: daemonStatusRoute, deps, host }), gatedJsonRoute({ spec: daemonShutdownRoute, deps, host })];
 }

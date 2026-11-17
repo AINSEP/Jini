@@ -153,8 +153,8 @@ const ROUTE_TABLE: Readonly<Record<string, readonly string[]>> = {
     'POST /api/scoped-frontend-sessions/:sessionId/responses [anonymous/2]',
   ],
   'daemon-status': [
-    'GET /api/daemon/status [anonymous/2]',
-    'POST /api/daemon/shutdown [anonymous/2]',
+    'GET /api/daemon/status []',
+    'POST /api/daemon/shutdown [same-origin]',
   ],
   'component-catalog': [
     'GET /api/components/search [same-origin]',

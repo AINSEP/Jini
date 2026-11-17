@@ -23,7 +23,7 @@ import { registerAttachmentLookupRoutes } from '../../attachment-lookup-routes.j
 import { registerAttachmentRoutes } from '../../attachments.js';
 import { componentCatalogRoutes } from '../../component-catalog.js';
 import { registerConnectorsRoutes } from '../../connectors.js';
-import { registerDaemonStatusRoutes } from '../../daemon-status.js';
+import { daemonStatusRoutes } from '../../daemon-status.js';
 import { registerDaemonDbRoutes } from '../../db-ops.js';
 import { registerDelegatedToolRoutes } from '../../delegated-tools.js';
 import { registerFrontendRequestRoute } from '../../frontend-request-route.js';
@@ -132,7 +132,7 @@ const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-par
   ['media', ({ app, adapter, deps }) => registerMediaRoutes({ app, deps: deps(), adapter })],
   ['frontend-sessions', ({ app, adapter, deps }) => registerFrontendSessionRoutes({ app, deps: deps({ routePrefix: undefined, resolveOwner: undefined }), adapter })],
   ['frontend-sessions (scoped)', ({ app, adapter, deps }) => registerFrontendSessionRoutes({ app, deps: deps({ routePrefix: SCOPED_FRONTEND_PREFIX }), adapter })],
-  ['daemon-status', ({ app, adapter, deps }) => registerDaemonStatusRoutes({ app, deps: deps({ requestShutdown: () => undefined }), adapter })],
+  ['daemon-status', ({ adapter, deps, mountList }) => mountList(daemonStatusRoutes({ deps: deps({ requestShutdown: () => undefined }), host: routeHost(adapter) }))],
   ['component-catalog', ({ adapter, deps, mountList }) => mountList(componentCatalogRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['attachments', ({ app, adapter, deps }) => registerAttachmentRoutes({ app, deps: deps({ acquireActivity: undefined }), adapter })],
   ['message-relay', ({ app, deps }) => registerMessageRelayRoutes({ app, agentExecutor: deps(), runScopedCallers: undefined })],

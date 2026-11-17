@@ -45,7 +45,7 @@ export type {
   DaemonStatusDeps,
   DaemonStatusResponse,
 } from './daemon-status.js';
-export { daemonShutdownRoute, daemonStatusRoute, registerDaemonStatusRoutes } from './daemon-status.js';
+export { daemonShutdownRoute, daemonStatusRoute, daemonStatusRoutes } from './daemon-status.js';
 export type {
   RunCancelResponse,
   RunCreateRequest,
