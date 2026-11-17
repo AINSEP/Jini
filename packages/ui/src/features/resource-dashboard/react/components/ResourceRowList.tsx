@@ -48,9 +48,11 @@ export function ResourceRowList<TRow extends ResourceRowItem>({
   onCreate,
   createLabel,
   refreshToken,
-}: ResourceRowListProps<TRow>) {
-  const t = useT();
-  const list = useWiredResourceRowList<TRow>({
+  useTHook = useT,
+  useWiredResourceRowListHook = useWiredResourceRowList,
+}: ResourceRowListProps<TRow> & { useTHook?: typeof useT; useWiredResourceRowListHook?: typeof useWiredResourceRowList }) {
+  const t = useTHook();
+  const list = useWiredResourceRowListHook<TRow>({
     dependencies,
     ...(refreshToken !== undefined ? { refreshToken } : {}),
   });

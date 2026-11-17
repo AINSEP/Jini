@@ -49,8 +49,9 @@ export function ResourceCard<TBody = unknown>({
   onToggleSelected,
   onToggleMenu,
   onAction,
-}: ResourceCardProps<TBody>) {
-  const { handleActivate, menuActions } = useResourceCard({ item, selectMode, onOpen, onToggleSelected });
+  useResourceCardHook = useResourceCard,
+}: ResourceCardProps<TBody> & { useResourceCardHook?: typeof useResourceCard }) {
+  const { handleActivate, menuActions } = useResourceCardHook({ item, selectMode, onOpen, onToggleSelected });
 
   return (
     <div
