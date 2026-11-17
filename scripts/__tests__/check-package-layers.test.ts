@@ -268,3 +268,23 @@ describe('packaged payload peers keep the runtime source boundary', () => {
     expect(checkPackageLayers({ repoRoot: root }, { injection: false })).toHaveLength(2);
   });
 });
+
+describe('admin reaches ui only through its kit', () => {
+  let root: string;
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), 'jini-admin-ui-layer-test-'));
+    for (const name of ['admin', 'ui']) {
+      mkdirSync(join(root, 'packages', name), { recursive: true });
+      writeFileSync(join(root, 'packages', name, 'package.json'), JSON.stringify({ name: `@jini-ai/${name}`, ...(name === 'admin' ? { dependencies: { '@jini-ai/ui': '*' } } : {}) }));
+    }
+  });
+  afterEach(() => rmSync(root, { recursive: true, force: true }));
+
+  it('no longer treats admin → ui as an approved same-layer edge', () => {
+    mkdirSync(join(root, 'packages/admin/src'), { recursive: true });
+    writeFileSync(join(root, 'packages/admin/src/theme.ts'), "import { applyAdminTheme } from '@jini-ai/ui/theme';");
+    const violations = checkPackageLayers({ repoRoot: root }, { injection: false });
+    expect(violations.map(violation => violation.rule)).toContain('L1-layer-edge');
+    expect(violations.some(violation => violation.reason.startsWith('admin → @jini-ai/ui'))).toBe(true);
+  });
+});

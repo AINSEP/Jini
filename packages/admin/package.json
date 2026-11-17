@@ -101,7 +101,6 @@
     },
     "optionalPeers": {
       "@jini-ai/agentic": "opt-in: agent-aware ui and protocols; import @jini-ai/admin/react — Agent-aware UI and protocols could not load @jini-ai/agentic. Install @jini-ai/agentic to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/ui": "opt-in: ui integrations; import @jini-ai/admin/react — UI integrations could not load @jini-ai/ui. Install @jini-ai/ui to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/ui-kit": "opt-in: ui kit integrations; import @jini-ai/admin/react — UI kit integrations could not load @jini-ai/ui-kit. Install @jini-ai/ui-kit to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/agent-plugins": "opt-in: agent plugin integrations — Agent plugin integrations could not load @jini-ai/agent-plugins. Install @jini-ai/agent-plugins to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/cms": "opt-in: cms integrations; import @jini-ai/admin/media — CMS integrations could not load @jini-ai/cms. Install @jini-ai/cms to enable this feature, or check its installed version and native binaries.",
@@ -477,7 +476,6 @@
     "react": "^18.3.0 || ^19.0.0",
     "react-dom": "^18.3.0 || ^19.0.0",
     "@jini-ai/agentic": "^0.7.0",
-    "@jini-ai/ui": "^0.7.0",
     "@jini-ai/ui-kit": "^0.7.0",
     "@jini-ai/agent-plugins": "^0.7.0",
     "@jini-ai/cms": "^0.7.0",
@@ -509,9 +507,6 @@
   },
   "peerDependenciesMeta": {
     "@jini-ai/agentic": {
-      "optional": true
-    },
-    "@jini-ai/ui": {
       "optional": true
     },
     "@jini-ai/ui-kit": {
