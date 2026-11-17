@@ -18,6 +18,7 @@
       "./gated-mutations": "universal",
       "./model-facing-tool-errors": "universal",
       "./tool-call-text": "universal",
+      "./tool-input-repairs": "universal",
       "./contribution-registry": "universal",
       "./provider-registry": "universal",
       "./object-store": "universal",
@@ -148,6 +149,11 @@
       "types": "./dist/tool-call-text.d.ts",
       "import": "./dist/tool-call-text.js",
       "default": "./dist/tool-call-text.js"
+    },
+    "./tool-input-repairs": {
+      "types": "./dist/tool-input-repairs.d.ts",
+      "import": "./dist/tool-input-repairs.js",
+      "default": "./dist/tool-input-repairs.js"
     },
     "./contribution-registry": {
       "types": "./dist/contribution-registry.d.ts",
