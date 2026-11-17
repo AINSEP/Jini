@@ -1464,12 +1464,6 @@
         "packages/ui/src/features/admin-widgets/components/Select/Select.tsx"
       ]
     },
-    "SelectContent::useOverlayContainer": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/interactive-ui/providers/shadcn/select.tsx"
-      ]
-    },
     "SentAttachmentButton::useSentAttachmentThumbnail": {
       "count": 1,
       "files": [

@@ -17,10 +17,11 @@ export interface SelectFieldProps extends AgentControlProps {
   readonly placeholder?: string;
   readonly disabled?: boolean;
   readonly onValueChange?: (value: string) => void;
+  useAgentHandleHook?: typeof useAgentHandle;
 }
 
-export function SelectField({ options, value, placeholder, disabled, onValueChange, portalContainer, ...agentProps }: SelectFieldProps) {
-  const base = useAgentHandle(agentProps);
+export function SelectField({ options, value, placeholder, disabled, onValueChange, portalContainer, useAgentHandleHook = useAgentHandle, ...agentProps }: SelectFieldProps) {
+  const base = useAgentHandleHook(agentProps);
   const [trigger, setTrigger] = useState<HTMLButtonElement | null>(null);
   const page = agentProps['data-agent-page'] ?? resolveSelectOriginPage({ trigger });
   return (

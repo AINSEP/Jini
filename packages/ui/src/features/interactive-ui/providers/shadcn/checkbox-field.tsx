@@ -10,11 +10,12 @@ export interface CheckboxFieldProps extends AgentControlProps {
   readonly checked?: boolean;
   readonly disabled?: boolean;
   readonly onCheckedChange?: (checked: boolean) => void;
+  useAgentHandleHook?: typeof useAgentHandle;
 }
 
-export function CheckboxField({ label, checked, disabled, onCheckedChange, ...agentProps }: CheckboxFieldProps) {
+export function CheckboxField({ label, checked, disabled, onCheckedChange, useAgentHandleHook = useAgentHandle, ...agentProps }: CheckboxFieldProps) {
   const id = useId();
-  const base = useAgentHandle(agentProps);
+  const base = useAgentHandleHook(agentProps);
   return (
     <div className="flex items-center gap-2">
       {/* Radix's own prop types are exact-optional (no explicit `| undefined`), so an omitted
