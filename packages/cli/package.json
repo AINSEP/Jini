@@ -61,12 +61,10 @@
   "devDependencies": {
     "commander": "^15.0.0",
     "@jini-ai/core": "workspace:*",
-    "@jini-ai/platform": "workspace:*",
     "@jini-ai/sidecar": "workspace:*"
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^",
-    "@jini-ai/platform": "workspace:^",
     "@jini-ai/sidecar": "workspace:^"
   }
 }
