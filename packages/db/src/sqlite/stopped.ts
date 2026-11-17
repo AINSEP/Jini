@@ -8,10 +8,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { verifySqliteIntegrity } from './inspect.js';
-import type { SqliteClient } from './types.js';
+import type { SqliteDb } from '@jini-ai/core/contracts/storage';
 
 /** The host's native opener: `(file, options) => new Database(file, options)`. */
-export type StoppedSqliteOpener = (file: string, options: { readonly?: boolean; fileMustExist?: boolean; timeout?: number }) => Pick<SqliteClient, 'exec' | 'pragma' | 'close'>;
+export type StoppedSqliteOpener = (file: string, options: { readonly?: boolean; fileMustExist?: boolean; timeout?: number }) => SqliteDb;
 
 /** Fold an unclean stop's committed WAL frames into the main file; never read rows.
  * The caller must hold SQLite's exclusive lock on this connection until it closes, so a
@@ -23,7 +23,7 @@ export type StoppedSqliteOpener = (file: string, options: { readonly?: boolean; 
  * @example checkpointStoppedSqliteWal({ db, path: file });
  * @complexity O(1) file probes plus checkpointing the leftover WAL; no rows are read.
  */
-export function checkpointStoppedSqliteWal({ db, path: file }: { db: Pick<SqliteClient, 'pragma'>; path: string }, _options = {}): void {
+export function checkpointStoppedSqliteWal({ db, path: file }: { db: Pick<SqliteDb, 'pragma'>; path: string }, _options = {}): void {
   if (fs.existsSync(file + "-wal")) {
     const [result] = db.pragma("wal_checkpoint(TRUNCATE)") as { busy: number }[];
     if (result?.busy || fs.statSync(file + "-wal").size !== 0) throw new Error(`Database journal could not be checkpointed: ${file}-wal. Open and stop the site, then retry.`);
