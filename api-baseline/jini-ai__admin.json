@@ -350,7 +350,7 @@
    "ConsentBannerFields": "function:d9a581c4d7",
    "ConsentFieldProblem": "interface:3030577d40",
    "ConsentFieldsProps": "interface:3669b2eff8",
-   "ConsentLookFields": "function:45f5a70e31",
+   "ConsentLookFields": "function:c1b340b5b0",
    "ConsentPreviewFrame": "function:1e6e80ae3b",
    "ConsentPreviewFrameProps": "interface:1d947551e1",
    "ConsentPreviewWidth": "type:b0ae665a19",

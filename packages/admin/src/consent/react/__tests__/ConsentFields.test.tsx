@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
+import { render } from './kit-render.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { ConsentBannerFields, ConsentLookFields, ConsentPreviewFrame, ConsentRulesFields, type ConsentSettingsView } from '../index.js';

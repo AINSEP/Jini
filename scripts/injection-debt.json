@@ -8,7 +8,6 @@
   {"rule": "L5-injected-edge", "file": "packages/admin/package.json", "spec": "@jini-ai/ui", "kind": "manifest-peer", "count": 1, "lane": "L-KIT-ADMIN"},
   {"rule": "L5-injected-edge", "file": "packages/admin/src/agent-plugins/models.ts", "spec": "@jini-ai/agent-plugins/lifecycle", "kind": "type-import", "count": 1, "lane": "L-ADMIN-PORTS"},
   {"rule": "L5-injected-edge", "file": "packages/admin/src/comments/adapters/memory.ts", "spec": "@jini-ai/cms/comments", "kind": "import", "count": 1, "lane": "L-ADMIN-PORTS"},
-  {"rule": "L5-injected-edge", "file": "packages/admin/src/consent/react/ConsentFields.tsx", "spec": "@jini-ai/ui/theme", "kind": "import", "count": 1, "lane": "L-KIT-ADMIN"},
   {"rule": "L5-injected-edge", "file": "packages/admin/src/forms/field-settings.ts", "spec": "@jini-ai/cms/forms", "kind": "import", "count": 1, "lane": "L-ADMIN-PORTS"},
   {"rule": "L5-injected-edge", "file": "packages/admin/src/forms/html-rules.ts", "spec": "@jini-ai/cms/forms", "kind": "import", "count": 1, "lane": "L-ADMIN-PORTS"},
   {"rule": "L5-injected-edge", "file": "packages/admin/src/forms/rules.ts", "spec": "@jini-ai/cms/forms", "kind": "import", "count": 1, "lane": "L-ADMIN-PORTS"},
