@@ -149,9 +149,6 @@ function claudeLaunchPolicy({ options, caps, extraAllowedDirs, imagePaths, runti
 export const claudeAgentDef = {
   ...createAgentModelDiscovery('claude', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => claudeAgentDef.fallbackModels }),
     id: 'claude',
-    // Every run passes `--strict-mcp-config` (see `buildClaudeMcpConfigArgs`), so the CLI ignores
-    // user/project MCP sources it would otherwise auto-discover; planRun need not ask for consent.
-    mcpIsolation: { perRun: 'claude-strict-mcp-config@2026-11-16' },
   subagentStartHook: true,
     supportsNativeToolAccess: true,
     // Native Task/Agent subagent tool (see `native-tool-policy.ts`'s `subagents` dimension).

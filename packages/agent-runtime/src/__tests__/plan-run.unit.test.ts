@@ -58,9 +58,3 @@ it('host-defaults.fixture.contract plans every CLI against the exported consumer
     if (result.verdict === 'RUN') expect(result.loadsOwn).toBe(false);
   }
 });
-it('an isolated Claude run does not request MCP consent (it passes --strict-mcp-config)', () => {
-  const def = AGENT_DEFS.find((candidate) => candidate.id === 'claude');
-  expect(def?.mcpIsolation).toMatchObject({ perRun: expect.stringMatching(/@\d{4}-\d{2}-\d{2}$/) });
-  expect(planRun({ def: def!, policy })).toMatchObject({ verdict: 'RUN', loadsOwn: false });
-  expect(planRun({ def: def!, policy: { ...policy, nativeCapabilities: { ...policy.nativeCapabilities, userMcp: true } } })).toMatchObject({ verdict: 'RUN', loadsOwn: true });
-});
