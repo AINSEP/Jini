@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { unknownToolSentence } from '../tool-call-text.js';
+import { toolFamilySentence, unknownToolSentence } from '../tool-call-text.js';
 
 describe('unknownToolSentence', () => {
   it('names the closest registered ids and where to search', () => {
@@ -13,5 +13,16 @@ describe('unknownToolSentence', () => {
 
   it('never says the call was denied or refused', () => {
     expect(unknownToolSentence({ toolId: 'x', candidates: ['y'] })).not.toMatch(/denied|refused|registered/);
+  });
+});
+
+describe('toolFamilySentence', () => {
+  it('says the id is a group and lists the members to call', () => {
+    expect(toolFamilySentence({ familyId: 'fam', members: ['fam.a', 'fam.b'] }))
+      .toBe('"fam" is a group of tools, not one tool. Call one of: fam.a, fam.b.');
+  });
+
+  it('never says the call was denied or refused', () => {
+    expect(toolFamilySentence({ familyId: 'fam', members: ['fam.a'] })).not.toMatch(/denied|refused|registered/);
   });
 });

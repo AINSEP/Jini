@@ -27,3 +27,20 @@ export function unknownToolSentence(
   const closest = candidates.length > 0 ? ` Closest names: ${candidates.join(', ')}.` : '';
   return `There is no tool named "${toolId}".${closest} ${DISCOVERY_SENTENCE}`;
 }
+
+/**
+ * The sentence for an id that names a group of tools, not one tool. The caller lists only members its own
+ * registry holds; this function only words them. Like {@link unknownToolSentence} it never says the call was
+ * denied: nothing was refused and nothing ran.
+ *
+ * @param required.familyId - The group id the caller used, shown verbatim in quotes.
+ * @param required.members - The registered member ids to call instead, in the order to show them.
+ * @returns `"fam" is a group of tools, not one tool. Call one of: fam.a, fam.b.`
+ * @complexity O(m) for m members; no effects.
+ */
+export function toolFamilySentence(
+  { familyId, members }: { readonly familyId: string; readonly members: readonly string[] },
+  _optional: Record<string, never> = {},
+): string {
+  return `"${familyId}" is a group of tools, not one tool. Call one of: ${members.join(', ')}.`;
+}
