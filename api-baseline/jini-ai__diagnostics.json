@@ -215,6 +215,15 @@
    "verifiedOriginToBaseUrl": "function:2df0589cd2"
   }
  },
+ "./web-evidence/capture-budget": {
+  "types": "./dist/web-evidence/capture-budget.d.ts",
+  "symbols": {
+   "CaptureBudget": "interface:38d20316f0",
+   "CaptureBudgetLimits": "interface:0f34c6ffdb",
+   "CaptureRequest": "interface:45ebc50372",
+   "captureBudget": "function:93cd1d9ded"
+  }
+ },
  "./web-evidence/playwright": {
   "types": "./dist/web-evidence/playwright-browser.d.ts",
   "symbols": {
@@ -241,16 +250,17 @@
    "RenderCookie": "interface:299788d207",
    "RenderLocator": "interface:6f6fb38ac9",
    "RenderPage": "interface:0e9aaf5546",
-   "RenderPageOptions": "interface:04df86bb92",
+   "RenderPageOptions": "interface:2c228642d5",
    "RenderRequestRefused": "class:8d6dd29d4b",
    "RenderResponse": "interface:3e4d4cb84d",
-   "RenderSession": "interface:8094d0b352",
+   "RenderSession": "interface:47e41a009a",
    "RequestDecision": "type:c18557c50f",
    "RequestRouter": "interface:1016d4e706",
    "RequestRouterOptions": "interface:2d8ea48880",
    "RequestRouterReport": "interface:cadd90c251",
    "RouteLike": "interface:3ef887ad4c",
    "RoutedRequest": "interface:00a38aa4ff",
+   "TimedOutPhase": "type:ceb20fed34",
    "createJsonCapture": "function:0aaa219686",
    "createLazyBrowser": "function:5ee17d7eee",
    "createRenderBrowserPool": "function:3f59046fd4",
@@ -264,6 +274,12 @@
    "publicPageExpression": "function:24f2cce2fc",
    "renderPage": "function:efe05c1047",
    "renderPublicPage": "function:5a601af7b4"
+  }
+ },
+ "./web-evidence/testing": {
+  "types": "./dist/web-evidence/testing/fake-clock.d.ts",
+  "symbols": {
+   "FakeCaptureClock": "class:147d19cde2"
   }
  }
 }

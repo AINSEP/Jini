@@ -259,6 +259,7 @@
    "disposePacks": "function:d3a3411e6c",
    "evaluateFeatureFlag": "function:5aa379b64f",
    "execute": "function:2086e804a5",
+   "expandBatchContexts": "function:8080b6ae58",
    "expireToken": "function:4e11cad822",
    "forbiddenRule": "function:be512ff702",
    "formatErrorForLog": "function:005640ed8c",
@@ -350,6 +351,14 @@
    "isValidElementHandle": "function:4c4744759f",
    "resolveHandleSelector": "function:c724ab0670",
    "secretControlAttrs": "function:896fd0aa19"
+  }
+ },
+ "./approval-batch-chain": {
+  "types": "./dist/approval-batch-chain.d.ts",
+  "symbols": {
+   "ChainedBatchSteps": "interface:a837079253",
+   "PrepareStep": "type:0d4df46b9a",
+   "createChainedBatchHandler": "function:b7c81aade3"
   }
  },
  "./composition": {
@@ -837,8 +846,9 @@
    "RouteHostContext": "interface:c26ac79c5e",
    "RouteHostInternalErrorContext": "interface:96ac301673",
    "RouteInputContext": "interface:3099af8fcf",
-   "RouteMatch": "type:95fecf2161",
+   "RouteMatch": "type:2d41b49165",
    "RouteTable": "interface:5351d2527c",
+   "RouteTableOptions": "interface:d2e60237c4",
    "Server": "interface:f016fd762f",
    "ServerApiError": "interface:4a732bac36",
    "ServerApiErrorResponse": "interface:85cf1e050c",
@@ -852,7 +862,7 @@
    "SseStream": "interface:0eec82bf4d",
    "SseStreamOptions": "interface:c01be88623",
    "apiErrorBody": "variable:6518c8a9f8",
-   "createRouteTable": "function:f876adf092",
+   "createRouteTable": "function:e5e42d0e89",
    "createSseStream": "function:2bc9bd985b",
    "defineJsonRoute": "function:07eaa5203e",
    "err": "variable:6de429f2fe",
@@ -882,7 +892,7 @@
   "types": "./dist/contracts/server/testing.d.ts",
   "symbols": {
    "InMemoryServer": "interface:149de69aa8",
-   "createInMemoryServer": "function:9e00955213"
+   "createInMemoryServer": "function:9483abe301"
   }
  },
  "./contracts/server/verified-origin": {
