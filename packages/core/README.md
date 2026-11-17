@@ -141,6 +141,7 @@ class and factory identities.
 | Subpath | API and required ports |
 |---|---|
 | `./gated-mutations` | `plan`, `confirm`, `execute`, `authorizeForHooks`; authorization, clock, ID generation, complete opaque token generation, TTL, token store and mutation hooks. Includes token lifecycle and composite actor-reference helpers. |
+| `./approval-batch-chain` | `createChainedBatchHandler({ prepare, run, targetKey, successor }, { maxItems, targetNoun })`; direct batch whose same-target items apply in order, each pinned to the version the batch's own previous write reported (`run` returns `{ output, committed }`; `successor` is synchronous, no I/O). |
 | `./model-facing-tool-errors` | `forbiddenRule`, `reclassifyToolError`, `withModelFacingErrors`, `withModelFacingRegistrationErrors`, `callerSafeErrorMessage`; callers own ordered error allowlists and fallback wording. |
 | `./contribution-registry` | `createContributionRegistry({ keyOf })`; instance-owned replacement by key, with detached array snapshots. |
 | `./naming` | `deriveAvailableName`, `deriveDuplicateName`, `MAX_SUFFIX_ATTEMPTS`; required collision predicate, suffix formatter and exhaustion message policy. |

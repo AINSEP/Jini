@@ -16,6 +16,7 @@
       ".": "universal",
       "./composition": "universal",
       "./gated-mutations": "universal",
+      "./approval-batch-chain": "universal",
       "./model-facing-tool-errors": "universal",
       "./contribution-registry": "universal",
       "./provider-registry": "universal",
@@ -137,6 +138,11 @@
       "types": "./dist/gated-mutations.d.ts",
       "import": "./dist/gated-mutations.js",
       "default": "./dist/gated-mutations.js"
+    },
+    "./approval-batch-chain": {
+      "types": "./dist/approval-batch-chain.d.ts",
+      "import": "./dist/approval-batch-chain.js",
+      "default": "./dist/approval-batch-chain.js"
     },
     "./model-facing-tool-errors": {
       "types": "./dist/model-facing-tool-errors.d.ts",
