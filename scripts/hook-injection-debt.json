@@ -25,24 +25,6 @@
         "packages/ui/src/features/a2ui/renderer.tsx"
       ]
     },
-    "AboutTab::useSilentUpdatesToggle": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/about/react/components/AboutTab.tsx"
-      ]
-    },
-    "AboutTab::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/about/react/components/AboutTab.tsx"
-      ]
-    },
-    "AboutTab::useUpdateActionRunner": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/about/react/components/AboutTab.tsx"
-      ]
-    },
     "AccessTokensTab::useAccessTokensTab": {
       "count": 1,
       "files": [
