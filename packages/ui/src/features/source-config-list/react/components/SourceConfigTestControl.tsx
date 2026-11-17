@@ -17,6 +17,7 @@ export interface SourceConfigTestControlProps {
    */
   agentHandle?: string;
   onTest: () => void;
+  useTHook?: typeof useT;
 }
 
 /**
@@ -36,8 +37,8 @@ export interface SourceConfigTestControlProps {
  * stable handle instead of one that only exists once there is something to
  * say.
  */
-export function SourceConfigTestControl({ running, result, disabled = false, agentHandle, onTest }: SourceConfigTestControlProps) {
-  const t = useT();
+export function SourceConfigTestControl({ running, result, disabled = false, agentHandle, onTest, useTHook = useT }: SourceConfigTestControlProps) {
+  const t = useTHook();
   return (
     <div className="source-config-test-control">
       <div
@@ -66,8 +67,8 @@ export function SourceConfigTestControl({ running, result, disabled = false, age
 type Translate = ReturnType<typeof useT>;
 
 /** The status line's content: "Testing…" while running, the last result once one exists, nothing before the first test. */
-function TestStatusMessage({ running, result }: { running: boolean; result?: SourceTestResult | undefined }) {
-  const t = useT();
+function TestStatusMessage({ running, result, useTHook = useT }: { running: boolean; result?: SourceTestResult | undefined; useTHook?: typeof useT; }) {
+  const t = useTHook();
   if (running) {
     return (
       <span className="source-config-test-status is-running" role="status" aria-live="polite">

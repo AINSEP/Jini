@@ -72,8 +72,8 @@ export function SourceConfigListView<TSource extends SourceConfigItem>(props: So
 }
 
 /** The optional title/subtitle block — omitted entirely when neither is given. */
-function SourceConfigListHead({ title, subtitle }: { title?: string | undefined; subtitle?: string | undefined }) {
-  const t = useT();
+function SourceConfigListHead({ title, subtitle, useTHook = useT }: { title?: string | undefined; subtitle?: string | undefined; useTHook?: typeof useT; }) {
+  const t = useTHook();
   if (!title && !subtitle) return null;
   return (
     <div className="source-config-list-head">
@@ -83,8 +83,8 @@ function SourceConfigListHead({ title, subtitle }: { title?: string | undefined;
   );
 }
 
-function SourceConfigListError({ loadError }: { loadError?: string | null | undefined }) {
-  const t = useT();
+function SourceConfigListError({ loadError, useTHook = useT }: { loadError?: string | null | undefined; useTHook?: typeof useT; }) {
+  const t = useTHook();
   if (!loadError) return null;
   return (
     <div className="source-config-list-error" role="alert">
@@ -94,8 +94,8 @@ function SourceConfigListError({ loadError }: { loadError?: string | null | unde
 }
 
 /** The loading indicator, the empty message, or one item card per source — in that order of precedence. */
-function SourceConfigListBody<TSource extends SourceConfigItem>(props: SourceConfigListViewProps<TSource>) {
-  const t = useT();
+function SourceConfigListBody<TSource extends SourceConfigItem>({ useTHook = useT, ...props }: SourceConfigListViewProps<TSource> & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const { sources, loading, emptyMessage, agentHandle } = props;
   if (loading) {
     return (

@@ -87,9 +87,9 @@ export type SourceConfigAddFormProps = SourceConfigAddFormBaseProps & SourceTrus
  * caller's next `page.find_elements` sees them, because that verb re-queries
  * the DOM rather than replaying an earlier snapshot.
  */
-export function SourceConfigAddForm(props: SourceConfigAddFormProps) {
+export function SourceConfigAddForm({ useTHook = useT, ...props }: SourceConfigAddFormProps & { useTHook?: typeof useT }) {
   const { addLabel, onSubmit, agentHandle, submitError } = props;
-  const t = useT();
+  const t = useTHook();
   const submitLabel = addLabel ? t(addLabel) : t('Add source');
 
   return (
@@ -115,8 +115,8 @@ export function SourceConfigAddForm(props: SourceConfigAddFormProps) {
 }
 
 /** One `SourceConfigField` per spec; a field's error only shows once a submit has been attempted. */
-function AddFormFields({ fieldSpecs, values, validation, submitAttempted, submitting, onFieldChange, agentHandle }: SourceConfigAddFormProps) {
-  const t = useT();
+function AddFormFields({ fieldSpecs, values, validation, submitAttempted, submitting, onFieldChange, agentHandle, useTHook = useT }: SourceConfigAddFormProps & { useTHook?: typeof useT }) {
+  const t = useTHook();
   return fieldSpecs.map((spec) => {
     const issue = submitAttempted ? issueForField(validation, spec.key) : undefined;
     return (
@@ -134,8 +134,8 @@ function AddFormFields({ fieldSpecs, values, validation, submitAttempted, submit
 }
 
 /** Rendered only when `trustOptions` is non-empty — the origin MCP-server shape has no trust concept at all. */
-function AddFormTrustSelect(props: SourceConfigAddFormProps) {
-  const t = useT();
+function AddFormTrustSelect({ useTHook = useT, ...props }: SourceConfigAddFormProps & { useTHook?: typeof useT }) {
+  const t = useTHook();
   // Narrow on `props` itself (not a destructured copy) so the non-empty `trustOptions` check also
   // proves `onTrustChange` present — the `SourceTrustSelectorProps` union binds the two.
   if (!props.trustOptions || props.trustOptions.length === 0) return null;
@@ -173,8 +173,8 @@ function AddFormTestControl({ canTest = false, onTest, testing = false, submitti
 }
 
 /** The submit button alone, or wrapped beside a Cancel button when `onCancel` is given. */
-function AddFormActions({ submitting, agentHandle, onCancel, cancelLabel, submitLabel }: SourceConfigAddFormProps & { submitLabel: string }) {
-  const t = useT();
+function AddFormActions({ submitting, agentHandle, onCancel, cancelLabel, submitLabel, useTHook = useT }: SourceConfigAddFormProps & { submitLabel: string } & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const submitButton = (
     <button
       type="submit"
