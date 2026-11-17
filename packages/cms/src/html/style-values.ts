@@ -13,7 +13,7 @@
  *  `align`) ever intentionally emit. `"left"` is deliberately excluded: it is the CSS/HTML default,
  *  so {@link safeTextAlign} treats it the same as any other value this renderer doesn't recognize —
  *  the caller emits nothing rather than a redundant `text-align:left`. */
-const TEXT_ALIGN_VALUES = new Set(["center", "right", "justify"]);
+const TEXT_ALIGN_VALUES: ReadonlySet<string> = new Set(["center", "right", "justify"]);
 
 /**
  * Validate a `textAlign`-shaped value against the fixed set of keywords the renderer ever means to emit

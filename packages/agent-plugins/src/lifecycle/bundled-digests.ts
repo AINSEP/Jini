@@ -93,7 +93,7 @@ const SHA256_DIGEST_PATTERN = /^[a-f0-9]{64}$/;
 
 const SAFE_PLUGIN_ID_PATTERN = /^[a-z0-9]+(?:[-.][a-z0-9]+)*$/;
 
-const EMPTY_LEDGER: BundledAgentPluginDigests = new Map();
+const EMPTY_LEDGER: ReadonlyMap<string, string> = new Map();
 
 /**
  * Reads one workspace's bundled-digest ledger.
