@@ -148,137 +148,178 @@ export interface AutoUpdateController {
   willQuit(): void;
 }
 
+interface UpdateState {
+  started: boolean;
+  stopped: boolean;
+  lastCheckAt: number | null;
+  checking: boolean;
+  readyVersion: string | null;
+  promptedVersion: string | null;
+  restartRequested: boolean;
+  installStarted: boolean;
+}
+
+/** Shared collaborators and mutable lifecycle state for the controller helpers below. */
+interface UpdateCtx {
+  readonly deps: AutoUpdateControllerDeps;
+  readonly now: () => number;
+  readonly timers: UpdateTimersPort;
+  readonly timing: Readonly<UpdateTiming>;
+  readonly messages: UpdateMessages;
+  readonly startedAt: number;
+  readonly handles: UpdateTimer[];
+  readonly state: UpdateState;
+}
+
+function logError(ctx: UpdateCtx, build: (required: { message: string }) => string, error: unknown): void {
+  ctx.deps.log({ message: build({ message: describeErrorForLog({ err: error }) }) });
+}
+
+/** Request a restart only before staging; a second quit could interrupt Squirrel's handoff.
+ * @complexity O(n) live presence records; effects are explanation or a quit request.
+ */
+function requestRestart(ctx: UpdateCtx): void {
+  const { state, deps } = ctx;
+  if (state.stopped || state.installStarted) return;
+  const count = otherInstances(ctx);
+  const action = decideRestartClick({ updateReady: state.readyVersion !== null, otherInstances: count });
+  if (action === 'others-open') deps.explainOthersOpen({ count });
+  if (action !== 'restart') return;
+  state.restartRequested = true; deps.quit();
+}
+
+function onDownloaded(ctx: UpdateCtx, info: { version: string }): void {
+  const { state, deps, messages } = ctx;
+  if (state.stopped) return;
+  state.readyVersion = info.version;
+  deps.log({ message: messages.downloaded({ version: info.version }) });
+  if (state.promptedVersion === info.version) return;
+  state.promptedVersion = info.version;
+  // Promise wrapping catches a prompt that throws synchronously as well as a rejection.
+  Promise.resolve().then(() => deps.promptUpdateReady({ version: info.version })).then(
+    restart => { if (restart && !state.stopped) requestRestart(ctx); },
+    error => logError(ctx, messages.promptFailed, error),
+  );
+}
+
+function onUpdaterError(ctx: UpdateCtx, error: unknown): void {
+  if (ctx.state.stopped) return;
+  logError(ctx, ctx.messages.error, error);
+  // A failed Squirrel handoff must release the held quit rather than leave the app hanging.
+  if (ctx.state.installStarted) ctx.deps.quit();
+}
+
+function registerUpdaterListeners(ctx: UpdateCtx): void {
+  const { updater } = ctx.deps;
+  if (isNativeUpdater(updater)) {
+    updater.on('update-downloaded', (info: { version: string }) => onDownloaded(ctx, info));
+    updater.on('error', (error: unknown) => onUpdaterError(ctx, error));
+  } else {
+    updater.on({ event: 'update-downloaded', listener: ({ payload }) => onDownloaded(ctx, payload) });
+    updater.on({ event: 'error', listener: ({ payload }) => onUpdaterError(ctx, payload) });
+  }
+}
+
+function otherInstances({ deps }: UpdateCtx): number { return deps.presence.readLive().filter(record => record.pid !== deps.pid).length; }
+function heartbeat(ctx: UpdateCtx): void {
+  const { deps } = ctx;
+  try { deps.presence.write({ record: { pid: deps.pid, startedAt: ctx.startedAt, heartbeatAt: ctx.now() } }); }
+  catch (error) { logError(ctx, ctx.messages.presenceWriteFailed, error); }
+}
+function check(ctx: UpdateCtx): void {
+  const { state } = ctx;
+  state.lastCheckAt = ctx.now(); state.checking = true;
+  let result: ReturnType<UpdaterLike['checkForUpdates']>;
+  try { result = ctx.deps.updater.checkForUpdates(); }
+  catch (error) { state.checking = false; logError(ctx, ctx.messages.checkFailed, error); return; }
+  result.then(value => value?.downloadPromise ?? null)
+    .catch(error => logError(ctx, ctx.messages.checkFailed, error))
+    .finally(() => { state.checking = false; });
+}
+function tick(ctx: UpdateCtx): void {
+  const { state, deps } = ctx;
+  if (state.stopped) return;
+  heartbeat(ctx);
+  const time = ctx.now();
+  const isOwner = electUpdaterOwner({ instances: deps.presence.readLive(), now: time, staleMs: ctx.timing.staleMs }) === deps.pid;
+  if (shouldCheckNow({ isOwner, lastCheckAt: state.lastCheckAt, now: time, busy: state.checking || state.readyVersion !== null, intervalMs: ctx.timing.checkIntervalMs })) check(ctx);
+}
+/** Hand off installation with native flags; false lets the current quit proceed on a sync failure.
+ * Logs failures and cancels their fallback; successful handoffs retain it. @complexity O(1).
+ */
+function startInstall(ctx: UpdateCtx, { silent, relaunch }: { silent: boolean; relaunch: boolean }): boolean {
+  const { deps, handles, timers } = ctx;
+  const { updater } = deps;
+  ctx.state.installStarted = true;
+  updater.autoRunAppAfterInstall = relaunch;
+  // Arm before the handoff so a synchronous failure cannot leave the held quit hanging.
+  const fallback = timers.setTimeout({ callback: () => { if (!ctx.state.stopped) deps.quit(); }, ms: ctx.timing.stageTimeoutMs });
+  fallback.unref?.(); handles.push(fallback);
+  try {
+    if (isNativeUpdater(updater)) updater.quitAndInstall(silent, relaunch);
+    else updater.quitAndInstall({}, { isSilent: silent, isForceRunAfter: relaunch });
+  }
+  catch (error) {
+    timers.clear({ timer: fallback });
+    handles.splice(handles.indexOf(fallback), 1);
+    logError(ctx, ctx.messages.error, error);
+    return false;
+  }
+  return true;
+}
+function startController(ctx: UpdateCtx): void {
+  const { state, timers, timing, handles } = ctx;
+  if (state.started || state.stopped) return;
+  // Advertise presence immediately so siblings see us, while delaying the first update check.
+  state.started = true; heartbeat(ctx);
+  const first = timers.setTimeout({ callback: () => tick(ctx), ms: timing.firstCheckDelayMs });
+  const every = timers.setInterval({ callback: () => tick(ctx), ms: timing.tickMs });
+  first.unref?.(); every.unref?.(); handles.push(first, every);
+}
+function beforeFinalQuit(ctx: UpdateCtx): boolean {
+  const { state, deps } = ctx;
+  if (state.stopped) return false;
+  const action = decideFinalQuit({ platform: deps.platform, updateReady: state.readyVersion !== null,
+    otherInstances: state.readyVersion !== null && !state.installStarted ? otherInstances(ctx) : 0,
+    restartRequested: state.restartRequested, installStarted: state.installStarted });
+  if (deps.platform === 'win32' && !state.installStarted) deps.updater.autoInstallOnAppQuit = action === 'install-on-quit';
+  if (action === 'stage-then-quit') return startInstall(ctx, { silent: false, relaunch: false });
+  if (action === 'install-and-relaunch') return startInstall(ctx, { silent: true, relaunch: true });
+  return false;
+}
+function willQuit(ctx: UpdateCtx): void {
+  if (ctx.state.stopped) return;
+  ctx.state.stopped = true;
+  for (const handle of ctx.handles) ctx.timers.clear({ timer: handle });
+  ctx.deps.presence.remove({ pid: ctx.deps.pid });
+}
+
 /** Coordinates quiet downloads and last-instance installs through injected effects.
  * No single-instance lock is acquired. Construction registers updater listeners but starts no timers.
  * @complexity O(1) construction; O(n) live records per tick or final quit.
  */
 export function createAutoUpdateController(deps: AutoUpdateControllerDeps, options: AutoUpdateControllerOptions = {}): AutoUpdateController {
-  const { updater, platform, pid, presence, log } = deps;
   const clock: Clock = deps.clock !== undefined ? deps.clock : { nowMs: deps.now };
   const now = () => clock.nowMs();
-  const timers = options.timers ?? deps.timers ?? createNodeUpdateTimers();
-  const timing = { ...defaultUpdateTiming, ...deps.timing, ...options.timing };
-  const messages = options.messages ?? deps.messages ?? defaultUpdateMessages;
-  const startedAt = now();
-  const handles: UpdateTimer[] = [];
-  let started = false;
-  let stopped = false;
-  let lastCheckAt: number | null = null;
-  let checking = false;
-  let readyVersion: string | null = null;
-  let promptedVersion: string | null = null;
-  let restartRequested = false;
-  let installStarted = false;
-  updater.autoDownload = true;
+  const ctx: UpdateCtx = {
+    deps, now,
+    timers: options.timers ?? deps.timers ?? createNodeUpdateTimers(),
+    timing: { ...defaultUpdateTiming, ...deps.timing, ...options.timing },
+    messages: options.messages ?? deps.messages ?? defaultUpdateMessages,
+    startedAt: now(),
+    handles: [],
+    state: { started: false, stopped: false, lastCheckAt: null, checking: false, readyVersion: null, promptedVersion: null, restartRequested: false, installStarted: false },
+  };
+  deps.updater.autoDownload = true;
   // Windows registers its quit handler only if this is true at download time; final-quit policy
   // later decides whether to allow installation. macOS must withhold Squirrel until the final quit.
-  updater.autoInstallOnAppQuit = platform === 'win32';
-
-  const onDownloaded = (info: { version: string }) => {
-    if (stopped) return;
-    readyVersion = info.version;
-    log({ message: messages.downloaded({ version: info.version }) });
-    if (promptedVersion === info.version) return;
-    promptedVersion = info.version;
-    // Promise wrapping catches a prompt that throws synchronously as well as a rejection.
-    Promise.resolve().then(() => deps.promptUpdateReady({ version: info.version })).then(
-      restart => { if (restart && !stopped) requestRestart(); },
-      error => log({ message: messages.promptFailed({ message: describeErrorForLog({ err: error }) }) }),
-    );
-  };
-  const onError = (error: unknown) => {
-    if (stopped) return;
-    log({ message: messages.error({ message: describeErrorForLog({ err: error }) }) });
-    // A failed Squirrel handoff must release the held quit rather than leave the app hanging.
-    if (installStarted) deps.quit();
-  };
-  if (isNativeUpdater(updater)) {
-    updater.on('update-downloaded', onDownloaded);
-    updater.on('error', onError);
-  } else {
-    updater.on({ event: 'update-downloaded', listener: ({ payload }) => onDownloaded(payload) });
-    updater.on({ event: 'error', listener: ({ payload }) => onError(payload) });
-  }
-
-  function otherInstances(): number { return presence.readLive().filter(record => record.pid !== pid).length; }
-  function heartbeat(): void {
-    try { presence.write({ record: { pid, startedAt, heartbeatAt: now() } }); }
-    catch (error) { log({ message: messages.presenceWriteFailed({ message: describeErrorForLog({ err: error }) }) }); }
-  }
-  function check(): void {
-    lastCheckAt = now(); checking = true;
-    let result: ReturnType<UpdaterLike['checkForUpdates']>;
-    try { result = updater.checkForUpdates(); }
-    catch (error) { checking = false; log({ message: messages.checkFailed({ message: describeErrorForLog({ err: error }) }) }); return; }
-    result.then(value => value?.downloadPromise ?? null)
-      .catch(error => log({ message: messages.checkFailed({ message: describeErrorForLog({ err: error }) }) }))
-      .finally(() => { checking = false; });
-  }
-  function tick(): void {
-    if (stopped) return;
-    heartbeat();
-    const time = now();
-    const isOwner = electUpdaterOwner({ instances: presence.readLive(), now: time, staleMs: timing.staleMs }) === pid;
-    if (shouldCheckNow({ isOwner, lastCheckAt, now: time, busy: checking || readyVersion !== null, intervalMs: timing.checkIntervalMs })) check();
-  }
-  /** Request a restart only before staging; a second quit could interrupt Squirrel's handoff.
-   * @complexity O(n) live presence records; effects are explanation or a quit request.
-   */
-  function requestRestart(): void {
-    if (stopped || installStarted) return;
-    const count = otherInstances();
-    const action = decideRestartClick({ updateReady: readyVersion !== null, otherInstances: count });
-    if (action === 'others-open') deps.explainOthersOpen({ count });
-    if (action !== 'restart') return;
-    restartRequested = true; deps.quit();
-  }
-  /** Hand off installation with native flags; false lets the current quit proceed on a sync failure.
-   * Logs failures and cancels their fallback; successful handoffs retain it. @complexity O(1).
-   */
-  function startInstall({ silent, relaunch }: { silent: boolean; relaunch: boolean }, _options = {}): boolean {
-    installStarted = true;
-    updater.autoRunAppAfterInstall = relaunch;
-    // Arm before the handoff so a synchronous failure cannot leave the held quit hanging.
-    const fallback = timers.setTimeout({ callback: () => { if (!stopped) deps.quit(); }, ms: timing.stageTimeoutMs });
-    fallback.unref?.(); handles.push(fallback);
-    try {
-      if (isNativeUpdater(updater)) updater.quitAndInstall(silent, relaunch);
-      else updater.quitAndInstall({}, { isSilent: silent, isForceRunAfter: relaunch });
-    }
-    catch (error) {
-      timers.clear({ timer: fallback });
-      handles.splice(handles.indexOf(fallback), 1);
-      log({ message: messages.error({ message: describeErrorForLog({ err: error }) }) });
-      return false;
-    }
-    return true;
-  }
+  deps.updater.autoInstallOnAppQuit = deps.platform === 'win32';
+  registerUpdaterListeners(ctx);
   return {
-    start() {
-      if (started || stopped) return;
-      // Advertise presence immediately so siblings see us, while delaying the first update check.
-      started = true; heartbeat();
-      const first = timers.setTimeout({ callback: tick, ms: timing.firstCheckDelayMs });
-      const every = timers.setInterval({ callback: tick, ms: timing.tickMs });
-      first.unref?.(); every.unref?.(); handles.push(first, every);
-    },
-    tick,
-    requestRestart,
-    beforeFinalQuit() {
-      if (stopped) return false;
-      const action = decideFinalQuit({ platform, updateReady: readyVersion !== null,
-        otherInstances: readyVersion !== null && !installStarted ? otherInstances() : 0,
-        restartRequested, installStarted });
-      if (platform === 'win32' && !installStarted) updater.autoInstallOnAppQuit = action === 'install-on-quit';
-      if (action === 'stage-then-quit') return startInstall({ silent: false, relaunch: false });
-      if (action === 'install-and-relaunch') return startInstall({ silent: true, relaunch: true });
-      return false;
-    },
-    willQuit() {
-      if (stopped) return;
-      stopped = true;
-      for (const handle of handles) timers.clear({ timer: handle });
-      presence.remove({ pid });
-    },
+    start: () => startController(ctx),
+    tick: () => tick(ctx),
+    requestRestart: () => requestRestart(ctx),
+    beforeFinalQuit: () => beforeFinalQuit(ctx),
+    willQuit: () => willQuit(ctx),
   };
 }

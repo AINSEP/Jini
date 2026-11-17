@@ -40,18 +40,23 @@ function bodyOf(req: Request): Record<string, unknown> {
   return req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body as Record<string, unknown> : {};
 }
 
-/** Mount all eight endpoints. The returned disposer closes active feeds and cancels their schedules.
- * Injected policy and services preserve the settings HTTP response envelopes.
- * O(1) mounting; read/mutation work is delegated. Feed resources are bounded per connection.
- * @example registerSettingsRoutes({ app, workspaceId, ready, service, changeFeed, principalResolver, authorize, scheduler, routes, permissions });
- */
-export function registerSettingsRoutes(required: SettingsHttpRequired, optional: SettingsHttpOptions = {}): { dispose(): void } {
-  const { app, workspaceId, service, routes, permissions } = required;
-  const streams = new Set<() => void>();
-  let disposed = false;
-  type Handler = (req: Request, res: Response, principalId: string) => Promise<void>;
-  const wrap = (handler: Handler, mappings: readonly SettingsErrorMapping[] = []) => async (req: Request, res: Response): Promise<void> => {
-    if (disposed) { res.status(503).json({ error: "settings routes are disposed", code: "UNAVAILABLE" }); return; }
+type Handler = (req: Request, res: Response, principalId: string) => Promise<void>;
+interface RouteKit {
+  readonly required: SettingsHttpRequired;
+  readonly optional: SettingsHttpOptions;
+  readonly state: { disposed: boolean; readonly streams: Set<() => void> };
+  wrap(handler: Handler, mappings?: readonly SettingsErrorMapping[]): (req: Request, res: Response) => Promise<void>;
+  check(res: Response, principalId: string, permission: string, entityType: string): Promise<boolean>;
+  readTarget(res: Response, principalId: string, requestedPrincipalId: string | undefined):
+    ReturnType<typeof resolveUserLayerReadTarget>;
+}
+
+/** Shared request plumbing: disposal/workspace/auth gate, permission check, and user-layer read target. */
+function createRouteKit(required: SettingsHttpRequired, optional: SettingsHttpOptions): RouteKit {
+  const { workspaceId, routes, permissions } = required;
+  const state = { disposed: false, streams: new Set<() => void>() };
+  const wrap: RouteKit["wrap"] = (handler, mappings = []) => async (req, res) => {
+    if (state.disposed) { res.status(503).json({ error: "settings routes are disposed", code: "UNAVAILABLE" }); return; }
     if (String(req.params[routes.workspaceParam] ?? "") !== workspaceId) {
       res.status(404).json({ error: "workspace was not found" }); return;
     }
@@ -63,12 +68,12 @@ export function registerSettingsRoutes(required: SettingsHttpRequired, optional:
       failRequest({ response: res, error, mappings }, optional);
     }
   };
-  const check = async (res: Response, principalId: string, permission: string, entityType: string): Promise<boolean> => {
+  const check: RouteKit["check"] = async (res, principalId, permission, entityType) => {
     const result = await required.authorize({ principalId, permission, workspaceId, entityType });
     if (!result.allowed) denied(res, principalId, permission, result.reason);
     return result.allowed;
   };
-  const readTarget = async (res: Response, principalId: string, requestedPrincipalId: string | undefined) => {
+  const readTarget: RouteKit["readTarget"] = async (res, principalId, requestedPrincipalId) => {
     const result = await resolveUserLayerReadTarget({ deps: { workspaceId, authorize: required.authorize, permission: permissions.readOtherUser },
       input: { callerPrincipalId: principalId, requestedPrincipalId } });
     if (!result.allowed) res.status(403).json({
@@ -77,6 +82,11 @@ export function registerSettingsRoutes(required: SettingsHttpRequired, optional:
     });
     return result;
   };
+  return { required, optional, state, wrap, check, readTarget };
+}
+
+function registerReadRoutes(kit: RouteKit): void {
+  const { required: { app, workspaceId, service, routes, permissions }, wrap, check, readTarget } = kit;
   app.get(routes.definitions, wrap(async (_req, res, principalId) => {
     if (!await check(res, principalId, permissions.readDefinitions, "setting-definition")) return;
     const definitions = await service.listDefinitions({ workspaceId });
@@ -103,6 +113,10 @@ export function registerSettingsRoutes(required: SettingsHttpRequired, optional:
     if (!result) { res.status(404).json({ error: `definition '${namespace}.${key}' was not found`, code: "DEFINITION_NOT_FOUND" }); return; }
     res.json(result);
   }));
+}
+
+function registerDefinitionWriteRoute(kit: RouteKit): void {
+  const { required: { app, workspaceId, service, routes, permissions }, wrap, check } = kit;
   app.post(routes.definitions, wrap(async (req, res, principalId) => {
     if (!await check(res, principalId, permissions.manageDefinitions, "setting-definition")) return;
     const items = bodyOf(req).definitions;
@@ -111,7 +125,10 @@ export function registerSettingsRoutes(required: SettingsHttpRequired, optional:
     if ("unknownOp" in result) { validation(res, `unknown op '${result.unknownOp}'`); return; }
     res.json(result);
   }, DEFINITION_ERRORS));
+}
 
+function registerValueRoutes(kit: RouteKit): void {
+  const { required: { app, workspaceId, service, routes, permissions }, wrap, check } = kit;
   const mutate = (operation: ValueMutationOperation): Handler => async (req, res, callerPrincipalId) => {
     const body = bodyOf(req);
     const fields = readValueMutation(body, operation);
@@ -139,22 +156,40 @@ export function registerSettingsRoutes(required: SettingsHttpRequired, optional:
     const result = await service.reset({ namespace, scope, workspaceId: target.workspaceId, callerPrincipalId, authWorkspaceId: workspaceId });
     res.json({ namespace, ...result });
   }, RESET_ERRORS));
+}
+
+function registerEventsRoute(kit: RouteKit): void {
+  const { required, optional, state, wrap, check } = kit;
+  const { app, workspaceId, routes, permissions } = required;
   app.get(routes.events, wrap(async (req, res, principalId) => {
     if (!await check(res, principalId, permissions.read, "setting-value")) return;
     const close = await openSettingsChangeStream({ request: req, response: res, workspaceId, principalId,
       changeFeed: required.changeFeed, authorize: required.authorize, permission: permissions.read, scheduler: required.scheduler,
-      onClose: ({ close }) => { streams.delete(close); }, isDisposed: () => disposed }, optional);
-    if (disposed) {
+      onClose: ({ close }) => { state.streams.delete(close); }, isDisposed: () => state.disposed }, optional);
+    if (state.disposed) {
       close();
       return;
     }
-    if (!res.destroyed && !res.writableEnded) streams.add(close);
+    if (!res.destroyed && !res.writableEnded) state.streams.add(close);
   }));
+}
+
+/** Mount all eight endpoints. The returned disposer closes active feeds and cancels their schedules.
+ * Injected policy and services preserve the settings HTTP response envelopes.
+ * O(1) mounting; read/mutation work is delegated. Feed resources are bounded per connection.
+ * @example registerSettingsRoutes({ app, workspaceId, ready, service, changeFeed, principalResolver, authorize, scheduler, routes, permissions });
+ */
+export function registerSettingsRoutes(required: SettingsHttpRequired, optional: SettingsHttpOptions = {}): { dispose(): void } {
+  const kit = createRouteKit(required, optional);
+  registerReadRoutes(kit);
+  registerDefinitionWriteRoute(kit);
+  registerValueRoutes(kit);
+  registerEventsRoute(kit);
   return {
     dispose: () => {
-      disposed = true;
-      for (const close of streams) close();
-      streams.clear();
+      kit.state.disposed = true;
+      for (const close of kit.state.streams) close();
+      kit.state.streams.clear();
     },
   };
 }

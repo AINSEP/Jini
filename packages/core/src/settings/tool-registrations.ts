@@ -210,151 +210,158 @@ async function findDottedKeySplits(routeDeps: SettingsToolDeps, dottedKey: strin
   return matches;
 }
 
+type ToolHandlerContext = Parameters<ToolHandler>[0];
+
+async function listDefinitionsHandler(routeDeps: SettingsToolDeps, ctx: ToolHandlerContext) {
+  const input = requireInputRecord({ input: ctx.input === undefined ? {} : ctx.input });
+  const search = optionalString({ input, key: "search" })?.toLowerCase();
+  const namespace = optionalString({ input, key: "namespace" });
+  await routeDeps.settingsReady;
+  await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "settings.read.definitions" }, { entityType: "setting-definition" });
+
+  const [platformDefs, siteDefs] = await Promise.all([
+    routeDeps.settingsRepo.listActiveDefinitions({ workspaceId: null }),
+    routeDeps.settingsRepo.listActiveDefinitions({ workspaceId: routeDeps.workspaceId }),
+  ]);
+
+  // Filter only authorized workspace rows, before alias lookups; never search stored values.
+  const definitions = [...platformDefs, ...siteDefs]
+    .filter((def) => namespace === undefined || def.namespace === namespace)
+    .filter((def) => !search || `${def.namespace}.${def.key}`.toLowerCase().includes(search));
+  const rules = agentWriteRules(routeDeps);
+  const data = (await Promise.all(definitions.map((def) => describeDefinitionForAgent(routeDeps, rules, def))))
+    .sort((a, b) => a.namespace.localeCompare(b.namespace) || a.key.localeCompare(b.key));
+
+  return { data };
+}
+
+async function getEffectiveHandler(routeDeps: SettingsToolDeps, ctx: ToolHandlerContext) {
+  const input = requireInputRecord({ input: ctx.input });
+  const namespace = requireString({ input: input, key: "namespace" });
+  await routeDeps.settingsReady;
+  await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "settings.read" }, { entityType: "setting-value" });
+
+  const workspaceId = routeDeps.workspaceId;
+  const principalId = await resolveOwnOrOtherPrincipalRead(routeDeps, {
+    requestedPrincipalId: optionalString({ input: input, key: "principalId" }),
+    callerPrincipalId: ctx.principal.id,
+  });
+
+  const [platformDefs, siteDefs] = await Promise.all([
+    routeDeps.settingsRepo.listActiveDefinitions({ workspaceId: null }),
+    routeDeps.settingsRepo.listActiveDefinitions({ workspaceId }),
+  ]);
+  const keys = new Set([...platformDefs, ...siteDefs].filter((d) => d.namespace === namespace).map((d) => d.key));
+
+  const data: Array<{ key: string; value: unknown; sourceLayer: string; defVersion: number }> = [];
+  for (const key of keys) {
+    const resolved = await getEffective({ repo: routeDeps.settingsRepo }, { namespace, key, scopeContext: { workspaceId, principalId } });
+    if (resolved) data.push({ key, value: resolved.value, sourceLayer: resolved.sourceLayer, defVersion: resolved.defVersion });
+  }
+
+  return { data };
+}
+
+async function getRawHandler(routeDeps: SettingsToolDeps, ctx: ToolHandlerContext) {
+  const input = requireInputRecord({ input: ctx.input });
+  const namespace = requireString({ input: input, key: "namespace" });
+  const key = requireString({ input: input, key: "key" });
+  await routeDeps.settingsReady;
+  await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "settings.read.raw" }, { entityType: "setting-value" });
+
+  const workspaceId = routeDeps.workspaceId;
+  const principalId = await resolveOwnOrOtherPrincipalRead(routeDeps, {
+    requestedPrincipalId: optionalString({ input: input, key: "principalId" }),
+    callerPrincipalId: ctx.principal.id,
+  });
+
+  const definition = await resolveDefinition({ repo: routeDeps.settingsRepo }, { namespace, key, workspaceId });
+  if (!definition) throw new Error(`definition '${namespace}.${key}' was not found`);
+
+  const [globalValue, workspaceValue, userValue] = await Promise.all([
+    routeDeps.settingsRepo.getGlobalValue(definition.settingId),
+    routeDeps.settingsRepo.getWorkspaceValue({ workspaceId, settingId: definition.settingId }),
+    principalId ? routeDeps.settingsRepo.getUserValue({ workspaceId, principalId, settingId: definition.settingId }) : Promise.resolve(null),
+  ]);
+
+  return {
+    key: `${namespace}.${key}`,
+    global: layerValueOf(globalValue),
+    workspace: layerValueOf(workspaceValue),
+    user: layerValueOf(userValue),
+    default: definition.defaultValue,
+  };
+}
+
+async function setUiPreferenceHandler(routeDeps: SettingsToolDeps, ctx: ToolHandlerContext) {
+  const input = requireInputRecord({ input: ctx.input });
+  const settingId = requireString({ input: input, key: "setting" });
+
+  // Re-checked here even though the published schema carries the same enum. See
+  // `agent-writable-preferences.ts` on why: the enum is enforced by a caller's descriptor
+  // validation, and this is the check that still holds if a stale or bypassed descriptor lets
+  // an unlisted id through. Rejected BEFORE `settingsUiTabsReady` is awaited so an unlisted id
+  // cannot even be used to probe which definitions exist.
+  const preference = resolveAgentWritablePreference(settingId);
+  if (!preference) {
+    throw new Error(
+      `'${settingId}' is not an agent-writable preference. Allowed: ${AGENT_WRITABLE_PREFERENCE_IDS.join(", ")}.`,
+    );
+  }
+
+  // `in` rather than a truthiness check: `false` and `0` are legitimate values here
+  // (`soundEnabled`, `desktopEnabled`), and rejecting them would make the two boolean
+  // preferences settable in one direction only.
+  if (!("value" in input)) {
+    throw new Error(`a 'value' is required to set '${settingId}'`);
+  }
+  const value = input.value as JsonValue;
+
+  // This tool's definitions are registered by `ensureSettingsUiTabDefinitions()` at boot, not
+  // by any legacy-migration promise a host might also cover — awaiting the wrong promise would
+  // make an early call fail with a spurious "definition was not found".
+  await routeDeps.settingsUiTabsReady;
+
+  // No `requireToolPermission` call here, unlike every read above. That is deliberate and is
+  // the opposite of the reads' situation: the read paths carry no `authorize()` of their own,
+  // so this layer must supply it, whereas `write-service.set()` IS the authorization
+  // chokepoint and derives the permission itself from the scope and target. Adding a. See docs/decisions/DR-003-settings-ledger-invariants.md.
+  // pre-check would mean this file naming a permission string that the chokepoint might later
+  // derive differently — the exact fail-open drift `deriveRequiredPermission`'s own header
+  // (Red-Team ) says must not be duplicated. Omitting `principalId` is what makes the. See docs/decisions/DR-003-settings-ledger-invariants.md.
+  // derived permission `settings.user.self.write`.
+  ctx.signal.throwIfAborted();
+  const { value: stored, revisionSeq } = await withSchemaOnRejection({
+      toolId: "settings_set_ui_preference",
+      catalog: CATALOG_BY_ID,
+      isShapeRejection: ({ error }) => isPreferenceShapeRejection(error), fn: () =>
+      setSettingValue({
+        deps: toWriteDeps(routeDeps),
+        input: {
+          namespace: preference.namespace,
+          key: preference.key,
+          scope: AGENT_PREFERENCE_WRITE_SCOPE,
+          value,
+          workspaceId: routeDeps.workspaceId,
+          // `principalId` is deliberately NOT passed. `write-service.set()` falls back to
+          // `callerPrincipalId` for a user-scoped write, so the caller's own layer is the only
+          // reachable target — and the self-vs-other permission derivation sees a self-write.
+          callerPrincipalId: ctx.principal.id,
+          authWorkspaceId: routeDeps.workspaceId,
+        },
+      }) });
+
+  return { setting: settingId, value: stored, scope: AGENT_PREFERENCE_WRITE_SCOPE, revisionSeq };
+}
+
 export function buildSettingsRegistrations(routeDeps: SettingsToolDeps): ToolRegistration[] {
   const handlers: Record<string, ToolHandler> = {
     settings_set_value: buildSettingsValueWriteHandler(routeDeps, "settings_set_value"),
     settings_clear_value: buildSettingsValueWriteHandler(routeDeps, "settings_clear_value"),
-    settings_list_definitions: async (ctx) => {
-      const input = requireInputRecord({ input: ctx.input === undefined ? {} : ctx.input });
-      const search = optionalString({ input, key: "search" })?.toLowerCase();
-      const namespace = optionalString({ input, key: "namespace" });
-      await routeDeps.settingsReady;
-      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "settings.read.definitions" }, { entityType: "setting-definition" });
-
-      const [platformDefs, siteDefs] = await Promise.all([
-        routeDeps.settingsRepo.listActiveDefinitions({ workspaceId: null }),
-        routeDeps.settingsRepo.listActiveDefinitions({ workspaceId: routeDeps.workspaceId }),
-      ]);
-
-      // Filter only authorized workspace rows, before alias lookups; never search stored values.
-      const definitions = [...platformDefs, ...siteDefs]
-        .filter((def) => namespace === undefined || def.namespace === namespace)
-        .filter((def) => !search || `${def.namespace}.${def.key}`.toLowerCase().includes(search));
-      const rules = agentWriteRules(routeDeps);
-      const data = (await Promise.all(definitions.map((def) => describeDefinitionForAgent(routeDeps, rules, def))))
-        .sort((a, b) => a.namespace.localeCompare(b.namespace) || a.key.localeCompare(b.key));
-
-      return { data };
-    },
-
-    settings_get_effective: async (ctx) => {
-      const input = requireInputRecord({ input: ctx.input });
-      const namespace = requireString({ input: input, key: "namespace" });
-      await routeDeps.settingsReady;
-      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "settings.read" }, { entityType: "setting-value" });
-
-      const workspaceId = routeDeps.workspaceId;
-      const principalId = await resolveOwnOrOtherPrincipalRead(routeDeps, {
-        requestedPrincipalId: optionalString({ input: input, key: "principalId" }),
-        callerPrincipalId: ctx.principal.id,
-      });
-
-      const [platformDefs, siteDefs] = await Promise.all([
-        routeDeps.settingsRepo.listActiveDefinitions({ workspaceId: null }),
-        routeDeps.settingsRepo.listActiveDefinitions({ workspaceId }),
-      ]);
-      const keys = new Set([...platformDefs, ...siteDefs].filter((d) => d.namespace === namespace).map((d) => d.key));
-
-      const data: Array<{ key: string; value: unknown; sourceLayer: string; defVersion: number }> = [];
-      for (const key of keys) {
-        const resolved = await getEffective({ repo: routeDeps.settingsRepo }, { namespace, key, scopeContext: { workspaceId, principalId } });
-        if (resolved) data.push({ key, value: resolved.value, sourceLayer: resolved.sourceLayer, defVersion: resolved.defVersion });
-      }
-
-      return { data };
-    },
-
-    settings_get_raw: async (ctx) => {
-      const input = requireInputRecord({ input: ctx.input });
-      const namespace = requireString({ input: input, key: "namespace" });
-      const key = requireString({ input: input, key: "key" });
-      await routeDeps.settingsReady;
-      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "settings.read.raw" }, { entityType: "setting-value" });
-
-      const workspaceId = routeDeps.workspaceId;
-      const principalId = await resolveOwnOrOtherPrincipalRead(routeDeps, {
-        requestedPrincipalId: optionalString({ input: input, key: "principalId" }),
-        callerPrincipalId: ctx.principal.id,
-      });
-
-      const definition = await resolveDefinition({ repo: routeDeps.settingsRepo }, { namespace, key, workspaceId });
-      if (!definition) throw new Error(`definition '${namespace}.${key}' was not found`);
-
-      const [globalValue, workspaceValue, userValue] = await Promise.all([
-        routeDeps.settingsRepo.getGlobalValue(definition.settingId),
-        routeDeps.settingsRepo.getWorkspaceValue({ workspaceId, settingId: definition.settingId }),
-        principalId ? routeDeps.settingsRepo.getUserValue({ workspaceId, principalId, settingId: definition.settingId }) : Promise.resolve(null),
-      ]);
-
-      return {
-        key: `${namespace}.${key}`,
-        global: layerValueOf(globalValue),
-        workspace: layerValueOf(workspaceValue),
-        user: layerValueOf(userValue),
-        default: definition.defaultValue,
-      };
-    },
-
-    settings_set_ui_preference: async (ctx) => {
-      const input = requireInputRecord({ input: ctx.input });
-      const settingId = requireString({ input: input, key: "setting" });
-
-      // Re-checked here even though the published schema carries the same enum. See
-      // `agent-writable-preferences.ts` on why: the enum is enforced by a caller's descriptor
-      // validation, and this is the check that still holds if a stale or bypassed descriptor lets
-      // an unlisted id through. Rejected BEFORE `settingsUiTabsReady` is awaited so an unlisted id
-      // cannot even be used to probe which definitions exist.
-      const preference = resolveAgentWritablePreference(settingId);
-      if (!preference) {
-        throw new Error(
-          `'${settingId}' is not an agent-writable preference. Allowed: ${AGENT_WRITABLE_PREFERENCE_IDS.join(", ")}.`,
-        );
-      }
-
-      // `in` rather than a truthiness check: `false` and `0` are legitimate values here
-      // (`soundEnabled`, `desktopEnabled`), and rejecting them would make the two boolean
-      // preferences settable in one direction only.
-      if (!("value" in input)) {
-        throw new Error(`a 'value' is required to set '${settingId}'`);
-      }
-      const value = input.value as JsonValue;
-
-      // This tool's definitions are registered by `ensureSettingsUiTabDefinitions()` at boot, not
-      // by any legacy-migration promise a host might also cover — awaiting the wrong promise would
-      // make an early call fail with a spurious "definition was not found".
-      await routeDeps.settingsUiTabsReady;
-
-      // No `requireToolPermission` call here, unlike every read above. That is deliberate and is
-      // the opposite of the reads' situation: the read paths carry no `authorize()` of their own,
-      // so this layer must supply it, whereas `write-service.set()` IS the authorization
-      // chokepoint and derives the permission itself from the scope and target. Adding a. See docs/decisions/DR-003-settings-ledger-invariants.md.
-      // pre-check would mean this file naming a permission string that the chokepoint might later
-      // derive differently — the exact fail-open drift `deriveRequiredPermission`'s own header
-      // (Red-Team ) says must not be duplicated. Omitting `principalId` is what makes the. See docs/decisions/DR-003-settings-ledger-invariants.md.
-      // derived permission `settings.user.self.write`.
-      ctx.signal.throwIfAborted();
-      const { value: stored, revisionSeq } = await withSchemaOnRejection({
-          toolId: "settings_set_ui_preference",
-          catalog: CATALOG_BY_ID,
-          isShapeRejection: ({ error }) => isPreferenceShapeRejection(error), fn: () =>
-          setSettingValue({
-            deps: toWriteDeps(routeDeps),
-            input: {
-              namespace: preference.namespace,
-              key: preference.key,
-              scope: AGENT_PREFERENCE_WRITE_SCOPE,
-              value,
-              workspaceId: routeDeps.workspaceId,
-              // `principalId` is deliberately NOT passed. `write-service.set()` falls back to
-              // `callerPrincipalId` for a user-scoped write, so the caller's own layer is the only
-              // reachable target — and the self-vs-other permission derivation sees a self-write.
-              callerPrincipalId: ctx.principal.id,
-              authWorkspaceId: routeDeps.workspaceId,
-            },
-          }) });
-
-      return { setting: settingId, value: stored, scope: AGENT_PREFERENCE_WRITE_SCOPE, revisionSeq };
-    },
+    settings_list_definitions: (ctx) => listDefinitionsHandler(routeDeps, ctx),
+    settings_get_effective: (ctx) => getEffectiveHandler(routeDeps, ctx),
+    settings_get_raw: (ctx) => getRawHandler(routeDeps, ctx),
+    settings_set_ui_preference: (ctx) => setUiPreferenceHandler(routeDeps, ctx),
   };
 
   return buildDomainRegistrations({ domain: "settings", catalogModule: "settings/agent-tools.ts", catalog: CATALOG_BY_ID, handlers, derivedRisk: settingsDerivedRisk,

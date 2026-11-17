@@ -28,77 +28,101 @@ export interface MemoryRolesOptions {
     readonly referencedRoleIds?: readonly string[];
     readonly referencedPolicyIds?: readonly string[];
 }
-/** Isolated fake of the server wire contract, including immutable and issuer guards.
- * It is not a production authorizer or a persistent identity repository. */
-export function createMemoryRolesApi({ workspaceId }: {
-    workspaceId: string;
-}, options: MemoryRolesOptions = {}): RolesApiPort {
+/** Seed data and guards shared by the role, policy and permission operations of one fake. */
+interface RolesCtx {
+    readonly workspaceId: string;
+    readonly options: MemoryRolesOptions;
+    readonly grants: readonly string[];
+    readonly catalog: Set<string>;
+    readonly roles: Map<string, RoleRecord>;
+    readonly policies: Map<string, PolicyRecord>;
+    readonly permissions: Map<string, PolicyPermissionRecord>;
+    id(): string;
+    write(o: RolesCallOptions): void;
+    name(v: string): string;
+    unique<T extends { id: string; name: string }>(map: Map<string, T>, n: string, except?: string): void;
+    getPolicy(policyId: string): PolicyRecord;
+    editableRole(roleId: string): RoleRecord;
+    editablePolicy(policyId: string): PolicyRecord;
+}
+const failRoles = (code: string, message: string): never => { throw new RolesApiError({ code, message }); };
+
+function createRolesCtx(workspaceId: string, options: MemoryRolesOptions): RolesCtx {
     const grants = Object.freeze([...(options.permissions ?? [])]), catalog = new Set(options.catalog ?? BUILTIN_PERMISSIONS.map(p => p.id));
     const roles = new Map(inWorkspace(options.roles, workspaceId).map(r => [r.id, { ...r }]));
     const policies = new Map(inWorkspace(options.policies, workspaceId).map(p => [p.id, { ...p }]));
     const permissions = new Map(inWorkspace(options.policyPermissions, workspaceId).map(p => [p.id, { ...p }]));
     let sequence = 0;
-    const id = () => {
-        let next: string; do {
-            ++sequence;
-            next = `memory-${sequence}`;
-        } while (roles.has(next) || policies.has(next) || permissions.has(next)); return next;
+    const getRole = (roleId: string) => roles.get(roleId) ?? failRoles('RESOURCE_NOT_FOUND', 'Role not found.');
+    const getPolicy = (policyId: string) => policies.get(policyId) ?? failRoles('RESOURCE_NOT_FOUND', 'Policy not found.');
+    return {
+        workspaceId, options, grants, catalog, roles, policies, permissions, getPolicy,
+        id() {
+            let next: string; do {
+                ++sequence;
+                next = `memory-${sequence}`;
+            } while (roles.has(next) || policies.has(next) || permissions.has(next)); return next;
+        },
+        write(o) {
+            check(o); if (!canManageRoles({ permissions: grants })) {
+                failRoles('FORBIDDEN', 'Missing role.manage.');
+            }
+        },
+        name(v) {
+            const n = v.trim().normalize('NFC'); if (!n) {
+                failRoles('VALIDATION_ERROR', 'Name is required.');
+            }
+            return n;
+        },
+        unique(map, n, except) {
+            if ([...map.values()].some(r => r.id !== except && r.name.toLowerCase() === n.toLowerCase())) {
+                failRoles('RESOURCE_CONFLICT', 'Name already exists.');
+            }
+        },
+        editableRole(roleId) {
+            const r = getRole(roleId); if (r.isBuiltin) {
+                failRoles('VALIDATION_ERROR', 'Built-in role is immutable.');
+            }
+            return r;
+        },
+        editablePolicy(policyId) {
+            const p = getPolicy(policyId); if (p.isBuiltin || p.isFrozen) {
+                failRoles('VALIDATION_ERROR', 'Built-in or frozen policy is immutable.');
+            }
+            return p;
+        },
     };
-    const fail = (code: string, message: string): never => { throw new RolesApiError({ code, message }); };
-    const write = (o: RolesCallOptions) => {
-        check(o); if (!canManageRoles({ permissions: grants })) {
-            fail('FORBIDDEN', 'Missing role.manage.');
-        }
-    };
-    const name = (v: string) => {
-        const n = v.trim().normalize('NFC'); if (!n) {
-            fail('VALIDATION_ERROR', 'Name is required.');
-        }
-        return n;
-    };
-    const unique = <T extends {
-        id: string;
-        name: string;
-    }>(map: Map<string, T>, n: string, except?: string) => {
-        if ([...map.values()].some(r => r.id !== except && r.name.toLowerCase() === n.toLowerCase())) {
-            fail('RESOURCE_CONFLICT', 'Name already exists.');
-        }
-    };
-    const getRole = (roleId: string) => roles.get(roleId) ?? fail('RESOURCE_NOT_FOUND', 'Role not found.');
-    const getPolicy = (policyId: string) => policies.get(policyId) ?? fail('RESOURCE_NOT_FOUND', 'Policy not found.');
-    const editableRole = (roleId: string) => {
-        const r = getRole(roleId); if (r.isBuiltin) {
-            fail('VALIDATION_ERROR', 'Built-in role is immutable.');
-        }
-        return r;
-    };
-    const editablePolicy = (policyId: string) => {
-        const p = getPolicy(policyId); if (p.isBuiltin || p.isFrozen) {
-            fail('VALIDATION_ERROR', 'Built-in or frozen policy is immutable.');
-        }
-        return p;
-    };
+}
+
+function roleOperations(ctx: RolesCtx): Pick<RolesApiPort, 'listRoles' | 'createRole' | 'updateRole' | 'deleteRole'> {
+    const { roles, workspaceId, options } = ctx;
     return {
         async listRoles(_r, o = {}) { check(o); return { roles: [...roles.values()].map(r => ({ ...r })) }; },
-        async listPolicies(_r, o = {}) { check(o); return { policies: [...policies.values()].map(p => ({ ...p })) }; },
-        async createRole(r, o = {}) { write(o); const n = name(r.name); unique(roles, n); const role = { id: id(), workspaceId, name: n, isBuiltin: false }; roles.set(role.id, role); return { role: { ...role } }; },
-        async updateRole(r, o = {}) { write(o); const old = editableRole(r.roleId), n = name(r.name); unique(roles, n, old.id); const role = { ...old, name: n }; roles.set(role.id, role); return { role: { ...role } }; },
+        async createRole(r, o = {}) { ctx.write(o); const n = ctx.name(r.name); ctx.unique(roles, n); const role = { id: ctx.id(), workspaceId, name: n, isBuiltin: false }; roles.set(role.id, role); return { role: { ...role } }; },
+        async updateRole(r, o = {}) { ctx.write(o); const old = ctx.editableRole(r.roleId), n = ctx.name(r.name); ctx.unique(roles, n, old.id); const role = { ...old, name: n }; roles.set(role.id, role); return { role: { ...role } }; },
         async deleteRole(r, o = {}) {
-            write(o); editableRole(r.roleId); if (options.referencedRoleIds?.includes(r.roleId)) {
-                fail('RESOURCE_CONFLICT', 'Role is still assigned.');
+            ctx.write(o); ctx.editableRole(r.roleId); if (options.referencedRoleIds?.includes(r.roleId)) {
+                failRoles('RESOURCE_CONFLICT', 'Role is still assigned.');
             }
             roles.delete(r.roleId);
         },
-        async createPolicy(r, o = {}) { write(o); const n = name(r.name); unique(policies, n); const policy: PolicyRecord = { id: id(), workspaceId, name: n, isBuiltin: false, isFrozen: false, ...(o.description !== undefined ? { description: o.description } : {}) }; policies.set(policy.id, policy); return { policy: { ...policy } }; },
+    };
+}
+
+function policyOperations(ctx: RolesCtx): Pick<RolesApiPort, 'listPolicies' | 'createPolicy' | 'updatePolicy' | 'deletePolicy'> {
+    const { policies, permissions, workspaceId, options } = ctx;
+    return {
+        async listPolicies(_r, o = {}) { check(o); return { policies: [...policies.values()].map(p => ({ ...p })) }; },
+        async createPolicy(r, o = {}) { ctx.write(o); const n = ctx.name(r.name); ctx.unique(policies, n); const policy: PolicyRecord = { id: ctx.id(), workspaceId, name: n, isBuiltin: false, isFrozen: false, ...(o.description !== undefined ? { description: o.description } : {}) }; policies.set(policy.id, policy); return { policy: { ...policy } }; },
         async updatePolicy(r, o = {}) {
-            write(o); const old = editablePolicy(r.policyId); if (o.name === undefined && o.description === undefined) {
-                fail('VALIDATION_ERROR', 'At least one of name or description is required.');
+            ctx.write(o); const old = ctx.editablePolicy(r.policyId); if (o.name === undefined && o.description === undefined) {
+                failRoles('VALIDATION_ERROR', 'At least one of name or description is required.');
             }
-            const n = o.name === undefined ? old.name : name(o.name); unique(policies, n, old.id); const policy = { ...old, name: n, ...(o.description !== undefined ? { description: o.description } : {}) }; policies.set(policy.id, policy); return { policy: { ...policy } };
+            const n = o.name === undefined ? old.name : ctx.name(o.name); ctx.unique(policies, n, old.id); const policy = { ...old, name: n, ...(o.description !== undefined ? { description: o.description } : {}) }; policies.set(policy.id, policy); return { policy: { ...policy } };
         },
         async deletePolicy(r, o = {}) {
-            write(o); editablePolicy(r.policyId); if (options.referencedPolicyIds?.includes(r.policyId)) {
-                fail('RESOURCE_CONFLICT', 'Policy is still attached.');
+            ctx.write(o); ctx.editablePolicy(r.policyId); if (options.referencedPolicyIds?.includes(r.policyId)) {
+                failRoles('RESOURCE_CONFLICT', 'Policy is still attached.');
             }
             policies.delete(r.policyId); for (const p of permissions.values()) {
                 if (p.policyId === r.policyId) {
@@ -107,30 +131,45 @@ export function createMemoryRolesApi({ workspaceId }: {
 
             }
         },
-        async listPolicyPermissions(r, o = {}) { check(o); getPolicy(r.policyId); return { policyPermissions: [...permissions.values()].filter(p => p.policyId === r.policyId).map(p => ({ ...p })) }; },
+    };
+}
+
+function permissionOperations(ctx: RolesCtx): Pick<RolesApiPort, 'listPolicyPermissions' | 'writePolicyPermission' | 'removePolicyPermission'> {
+    const { permissions, workspaceId, catalog, grants } = ctx;
+    return {
+        async listPolicyPermissions(r, o = {}) { check(o); ctx.getPolicy(r.policyId); return { policyPermissions: [...permissions.values()].filter(p => p.policyId === r.policyId).map(p => ({ ...p })) }; },
         async writePolicyPermission(r, o = {}) {
-            write(o);
-            editablePolicy(r.policyId);
+            ctx.write(o);
+            ctx.editablePolicy(r.policyId);
             if (!catalog.has(r.permission)) {
-                fail('PERMISSION_UNKNOWN', 'Unrecognized permission.');
+                failRoles('PERMISSION_UNKNOWN', 'Unrecognized permission.');
             }
 
             if (!hasAdminGrant({ permissions: grants, permission: r.permission })) {
-                fail('GRANT_EXCEEDS_ISSUER', 'Grant exceeds issuer.');
+                failRoles('GRANT_EXCEEDS_ISSUER', 'Grant exceeds issuer.');
             }
 
             const resourceType = o.resourceType || null;
-            const policyPermission: PolicyPermissionRecord = { id: id(), workspaceId, policyId: r.policyId, permission: r.permission, resourceType, constraintJson: null };
+            const policyPermission: PolicyPermissionRecord = { id: ctx.id(), workspaceId, policyId: r.policyId, permission: r.permission, resourceType, constraintJson: null };
             permissions.set(policyPermission.id, policyPermission);
             return { policyPermission: { ...policyPermission } };
         },
         async removePolicyPermission(r, o = {}) {
-            write(o); editablePolicy(r.policyId); const p = permissions.get(r.policyPermissionId); if (!p || p.policyId !== r.policyId) {
-                fail('RESOURCE_NOT_FOUND', 'Permission not found on this policy.');
+            ctx.write(o); ctx.editablePolicy(r.policyId); const p = permissions.get(r.policyPermissionId); if (!p || p.policyId !== r.policyId) {
+                failRoles('RESOURCE_NOT_FOUND', 'Permission not found on this policy.');
             }
             permissions.delete(r.policyPermissionId);
         },
     };
+}
+
+/** Isolated fake of the server wire contract, including immutable and issuer guards.
+ * It is not a production authorizer or a persistent identity repository. */
+export function createMemoryRolesApi({ workspaceId }: {
+    workspaceId: string;
+}, options: MemoryRolesOptions = {}): RolesApiPort {
+    const ctx = createRolesCtx(workspaceId, options);
+    return { ...roleOperations(ctx), ...policyOperations(ctx), ...permissionOperations(ctx) };
 }
 /** Complete fake ownership data. Production hosts must resolve effective unconstrained wildcard
  * grants, never role display names. Unknown ids deliberately fail closed. */

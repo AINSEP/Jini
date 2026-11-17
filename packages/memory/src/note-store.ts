@@ -282,6 +282,451 @@ export function buildUpsertChangeEvent(
   };
 }
 
+/** Per-store ports, taxonomy and mutation queue shared by the helpers below. */
+interface NoteStoreState {
+  readonly fsp: NonNullable<NoteStoreOptionalArgs['filesystem']>;
+  readonly now: () => number;
+  readonly ids: () => string;
+  readonly validTypes: ReadonlySet<string>;
+  readonly subdir: string;
+  readonly events: EventEmitter;
+  readonly mutationTails: Map<string, Promise<void>>;
+  readonly config: NoteStoreConfig;
+}
+
+/**
+ * Serialize public mutations per directory in this store so index/config
+ * read-modify-writes cannot lose updates. Internal calls stay unqueued to
+ * avoid waiting on their own mutation. Rejections reach the caller without
+ * poisoning later work; settled directories release their queue state.
+ * O(1) scheduling per mutation, excluding the operation and path length.
+ */
+function serializeMutation<T>(s: NoteStoreState, { dataDir, operation }: {
+  dataDir: string;
+  operation: () => Promise<T>;
+}, _optional: Record<string, never> = {}): Promise<T> {
+  const { mutationTails } = s;
+  const key = path.resolve(dir(s, { dataDir }));
+  const previous = mutationTails.get(key) ?? Promise.resolve();
+  const result = previous.then(operation);
+  const tail = result.then(() => undefined, () => undefined);
+  mutationTails.set(key, tail);
+  void tail.then(() => {
+    if (mutationTails.get(key) === tail) mutationTails.delete(key);
+  });
+  return result;
+}
+
+async function ensureDir(s: NoteStoreState, dirPath: string): Promise<void> {
+  const { fsp } = s;
+  await fsp.mkdir(dirPath, { recursive: true });
+}
+
+/**
+ * Resolve `<dataDir>/<subdir>` and verify — via `realpath`, which follows
+ * symlinks — that it is still contained under `realpath(dataDir)`. Rejects
+ * a `subdir` (or an intermediate symlink) that redirects storage outside
+ * the intended root. When `create` is true, the directory chain is created
+ * first (matching the store's historical "writes create their directory"
+ * behavior); read paths never create directories as a side effect.
+ */
+async function resolveContainedDir(s: NoteStoreState, lexicalDir: string, dataDir: string, create: boolean): Promise<string> {
+  const { fsp } = s;
+  if (create) await ensureDir(s, lexicalDir);
+  const realRoot = await fsp.realpath(dataDir);
+  const realTarget = await fsp.realpath(lexicalDir);
+  const rel = path.relative(realRoot, realTarget);
+  const contained = rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+  if (!contained) {
+    throw new Error(
+      `note store: resolved directory "${realTarget}" escapes its data root "${realRoot}" (check the "subdir" option and for a symlink)`,
+    );
+  }
+  return realTarget;
+}
+
+/** Reads a file only if it is a regular file (not a symlink/directory/device), rejecting via `lstat` rather than following. */
+async function readRegularFileStrict(s: NoteStoreState, filePath: string): Promise<string> {
+  const { fsp } = s;
+  const st = await fsp.lstat(filePath);
+  if (!st.isFile()) {
+    const err = new Error(`refusing to read non-regular-file path: ${filePath}`) as NodeJS.ErrnoException;
+    err.code = 'ENOTREG';
+    throw err;
+  }
+  return fsp.readFile(filePath, 'utf8');
+}
+
+/** Same regular-file guard as `readRegularFileStrict`, but reports "not found/unreadable" as `null` instead of throwing — for best-effort read paths. */
+async function readRegularFileOrNull(s: NoteStoreState, filePath: string): Promise<{ raw: string; mtimeMs: number } | null> {
+  const { fsp } = s;
+  let st;
+  try {
+    st = await fsp.lstat(filePath);
+  } catch {
+    return null;
+  }
+  if (!st.isFile()) return null;
+  try {
+    const raw = await fsp.readFile(filePath, 'utf8');
+    return { raw, mtimeMs: st.mtimeMs };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Write `data` to `filePath` via a same-directory temp file plus atomic
+ * rename, so a concurrent reader or a crash mid-write never observes a
+ * torn/partial file. Because `rename` replaces the destination *name*
+ * rather than following it, this is also symlink-safe: if `filePath`
+ * happened to be a pre-existing symlink, the rename atomically replaces
+ * the symlink itself with the new regular file instead of writing through
+ * it to whatever it pointed at.
+ */
+async function atomicWriteFile(s: NoteStoreState, filePath: string, data: string): Promise<void> {
+  const { fsp, ids } = s;
+  const tempId = ids();
+  if (!/^[a-zA-Z0-9_.-]+$/.test(tempId)) throw new Error('invalid temporary note file id');
+  const dirName = path.dirname(filePath);
+  const tmpPath = path.join(
+    dirName,
+    `.${path.basename(filePath)}.${tempId}.tmp`,
+  );
+  const handle = await fsp.open(tmpPath, 'wx');
+  try {
+    await handle.writeFile(data);
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+  try {
+    await fsp.rename(tmpPath, filePath);
+  } catch (err) {
+    await fsp.unlink(tmpPath).catch(() => {});
+    throw err;
+  }
+}
+
+function emitChange(s: NoteStoreState, event: Omit<NoteChangeEvent, 'at'>): void {
+  const { now, events } = s;
+  // A throwing listener must not turn an already-committed write into an
+  // apparent API failure — isolate listener exceptions from the caller.
+  try {
+    events.emit('change', { ...event, at: now() });
+  } catch {
+    // Intentionally swallowed; see doc comment above.
+  }
+}
+
+function isValidType(s: NoteStoreState, t: unknown): t is string {
+  const { validTypes } = s;
+  return typeof t === 'string' && validTypes.has(t);
+}
+
+function dir(s: NoteStoreState, { dataDir }: { dataDir: string }): string {
+  const { subdir } = s;
+  return path.join(dataDir, subdir);
+}
+
+function deriveId(s: NoteStoreState, { type, name }: { type: string; name: string }): string {
+  const { config } = s;
+  const safeType = isValidType(s, type) ? type : config.defaultType;
+  const raw = String(name || '');
+  const joined = raw
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_');
+  const cleaned = trimBoth(joined, '_').slice(0, 48);
+  if (cleaned.length > 0) return `${safeType}_${cleaned}`;
+  // FNV-1a 32-bit on the original name — deterministic, dependency-free,
+  // and avoids colliding two purely-non-ASCII names on the same fallback slug.
+  let h = 0x811c9dc5 >>> 0;
+  for (let i = 0; i < raw.length; i++) {
+    h = (h ^ raw.charCodeAt(i)) >>> 0;
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return `${safeType}_n${h.toString(36)}`;
+}
+
+async function containedEntryPath(s: NoteStoreState, dataDir: string, id: string, create: boolean): Promise<string> {
+  if (!isValidId(id)) throw new Error('invalid note id');
+  const base = await resolveContainedDir(s, dir(s, { dataDir }), dataDir, create);
+  return path.join(base, `${id}.md`);
+}
+
+async function containedIndexPath(s: NoteStoreState, dataDir: string, create: boolean): Promise<string> {
+  const base = await resolveContainedDir(s, dir(s, { dataDir }), dataDir, create);
+  return path.join(base, INDEX_FILE);
+}
+
+async function containedConfigPath(s: NoteStoreState, dataDir: string, create: boolean): Promise<string> {
+  const base = await resolveContainedDir(s, dir(s, { dataDir }), dataDir, create);
+  return path.join(base, CONFIG_FILE);
+}
+
+async function readConfig(s: NoteStoreState, { dataDir }: { dataDir: string }): Promise<NoteStoreOptions> {
+  let raw: string;
+  try {
+    const filePath = await containedConfigPath(s, dataDir, false);
+    raw = await readRegularFileStrict(s, filePath);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException)?.code;
+    if (code === 'ENOENT') return { enabled: true };
+    // Anything else — corrupt/unreadable file, permission denied, a
+    // symlink rejected by readRegularFileStrict, or the directory itself
+    // escaping its root — must not silently re-enable memory.
+    throw new NoteStoreConfigError(
+      { message: `note store config could not be read; refusing to default to "enabled" (${(err as Error).message})`, code: code ?? 'EUNKNOWN' },
+      { cause: err },
+    );
+  }
+  let parsed: { enabled?: unknown };
+  try {
+    parsed = JSON.parse(raw) as { enabled?: unknown };
+  } catch (err) {
+    throw new NoteStoreConfigError(
+      { message: 'note store config is corrupt JSON; refusing to default to "enabled"', code: 'EPARSE' },
+      { cause: err },
+    );
+  }
+  return { enabled: parsed?.enabled !== false };
+}
+
+async function writeConfig(s: NoteStoreState, { dataDir, patch }: { dataDir: string; patch: Partial<NoteStoreOptions> }): Promise<NoteStoreOptions> {
+  const current = await readConfig(s, { dataDir });
+  const next: NoteStoreOptions = {
+    enabled: typeof patch.enabled === 'boolean' ? patch.enabled : current.enabled,
+  };
+  const filePath = await containedConfigPath(s, dataDir, true);
+  await atomicWriteFile(s, filePath, JSON.stringify(next, null, 2));
+  if (current.enabled !== next.enabled) emitChange(s, { kind: 'config', enabled: next.enabled });
+  return next;
+}
+
+async function readIndex(s: NoteStoreState, { dataDir }: { dataDir: string }): Promise<string> {
+  try {
+    const filePath = await containedIndexPath(s, dataDir, false);
+    const found = await readRegularFileOrNull(s, filePath);
+    return found ? found.raw : DEFAULT_INDEX;
+  } catch {
+    return DEFAULT_INDEX;
+  }
+}
+
+async function writeIndex(s: NoteStoreState, { dataDir, body }: { dataDir: string; body: string }, options?: { silent?: boolean }): Promise<void> {
+  const filePath = await containedIndexPath(s, dataDir, true);
+  await atomicWriteFile(s, filePath, body);
+  if (!options?.silent) emitChange(s, { kind: 'index' });
+}
+
+function summarize(s: NoteStoreState, id: string, raw: string, mtime: number): { summary: NoteEntrySummary; body: string } {
+  const { config } = s;
+  const { data, body } = parseEntryFrontmatter({ raw });
+  const type = isValidType(s, data.type) ? data.type : config.defaultType;
+  return {
+    summary: { id, name: data.name || id, description: data.description, type, updatedAt: mtime },
+    body: body.trimStart(),
+  };
+}
+
+async function listEntries(s: NoteStoreState, { dataDir }: { dataDir: string }): Promise<NoteEntrySummary[]> {
+  const { fsp } = s;
+  let base: string;
+  let names: string[] = [];
+  try {
+    base = await resolveContainedDir(s, dir(s, { dataDir }), dataDir, false);
+    names = await fsp.readdir(base);
+  } catch {
+    return [];
+  }
+  const out: NoteEntrySummary[] = [];
+  const entryFiles = names.filter((name) => name.endsWith('.md') && name !== INDEX_FILE && isValidId(name.slice(0, -3)));
+  for (const name of entryFiles) {
+    const id = name.slice(0, -3);
+    const filePath = path.join(base, name);
+    // Skip unreadable/malformed/non-regular (e.g. symlink) files rather
+    // than let one shadow the rest or read through a planted symlink.
+    const found = await readRegularFileOrNull(s, filePath);
+    if (found) out.push(summarize(s, id, found.raw, found.mtimeMs).summary);
+  }
+  out.sort((a, b) => b.updatedAt - a.updatedAt);
+  return out;
+}
+
+async function listActiveEntries(s: NoteStoreState, { dataDir }: { dataDir: string }): Promise<NoteEntrySummary[]> {
+  const [entries, indexBody] = await Promise.all([listEntries(s, { dataDir }), readIndex(s, { dataDir })]);
+  const linkedIds = parseIndexLinkIds(indexBody);
+  return entries.filter((entry) => linkedIds.has(entry.id));
+}
+
+async function readEntry(s: NoteStoreState, { dataDir, id }: { dataDir: string; id: string }): Promise<NoteEntry | null> {
+  try {
+    const filePath = await containedEntryPath(s, dataDir, id, false);
+    const found = await readRegularFileOrNull(s, filePath);
+    if (!found) return null;
+    const { summary, body } = summarize(s, id, found.raw, found.mtimeMs);
+    return { ...summary, body };
+  } catch {
+    return null;
+  }
+}
+
+function parseIndexLinkIds(indexBody: string): Set<string> {
+  const ids = new Set<string>();
+  for (const line of indexBody.split(/\r?\n/)) {
+    // Group 2 is `([^)]+)` (one-or-more, mandatory), so it is set whenever the line matches.
+    const target = INDEX_LINK_RE.exec(line)?.[2];
+    if (target === undefined || !target.endsWith('.md') || target === INDEX_FILE) continue;
+    const id = target.slice(0, -3);
+    if (isValidId(id)) ids.add(id);
+  }
+  return ids;
+}
+
+async function ensureIndexHasEntry(s: NoteStoreState, dataDir: string, id: string, name: string, description: string): Promise<void> {
+  const current = await readIndex(s, { dataDir });
+  const lines = current.split(/\r?\n/);
+  const link = `${id}.md`;
+  const safeName = escapeIndexText(name) || id;
+  const safeDesc = escapeIndexText(description);
+  const newLine = safeDesc ? `- [${safeName}](${link}) — ${safeDesc}` : `- [${safeName}](${link})`;
+  let replaced = false;
+  for (let i = 0; i < lines.length; i++) {
+    // `i < lines.length` bounds the loop, so the index access is always
+    // defined — the assertion is TS-required (noUncheckedIndexedAccess).
+    const m = INDEX_LINK_RE.exec(lines[i]!);
+    if (m && m[2] === link) {
+      lines[i] = newLine;
+      replaced = true;
+      break;
+    }
+  }
+  if (!replaced) {
+    if (lines.length > 0 && lines[lines.length - 1] !== '') lines.push('');
+    lines.push(newLine);
+  }
+  // Silent: the caller emits its own change event for the write as a whole.
+  await writeIndex(s, { dataDir, body: lines.join('\n') }, { silent: true });
+}
+
+async function removeIndexLine(s: NoteStoreState, dataDir: string, id: string): Promise<void> {
+  const current = await readIndex(s, { dataDir });
+  const link = `${id}.md`;
+  const lines = current.split(/\r?\n/).filter((line) => {
+    const m = INDEX_LINK_RE.exec(line);
+    return !m || m[2] !== link;
+  });
+  await writeIndex(s, { dataDir, body: lines.join('\n') }, { silent: true });
+}
+
+async function upsertEntry(s: NoteStoreState, { dataDir, input }: { dataDir: string; input: NoteUpsertInput },
+  options?: { silent?: boolean; source?: string },
+): Promise<NoteEntry> {
+  const { name, type, body } = input;
+  const description = input.description ?? '';
+  if (!isValidUpsertInput({ name, type, isType: ({ type }) => isValidType(s, type) })) {
+    throw new Error('note entry requires `name` and a valid `type`');
+  }
+  const id = resolveUpsertEntryId({ id: input.id, type, name, isId: ({ id }) => isValidId(id), deriveId: (required) => deriveId(s, required) });
+  const filePath = await containedEntryPath(s, dataDir, id, true);
+  await atomicWriteFile(s, filePath, renderEntryFrontmatter({ fields: { name, description, type }, body: body ?? '' }));
+  await ensureIndexHasEntry(s, dataDir, id, name, description);
+  const entry = await readEntry(s, { dataDir, id });
+  if (!entry) throw new Error('failed to read note entry after write');
+  if (!options?.silent) emitChange(s, buildUpsertChangeEvent({ entry }, { source: options?.source }));
+  return entry;
+}
+
+async function deleteEntry(s: NoteStoreState, { dataDir, id }: { dataDir: string; id: string }): Promise<void> {
+  const { fsp } = s;
+  try {
+    // `unlink` removes the directory entry itself and never dereferences
+    // a symlink to delete its target, so this is safe even if the path
+    // turns out to be a planted symlink; a missing/invalid/escaping path
+    // is treated the same as "already gone" — the caller doesn't need to
+    // distinguish those for a best-effort delete of the primary file.
+    const filePath = await containedEntryPath(s, dataDir, id, false);
+    await fsp.unlink(filePath);
+  } catch {
+    // Already gone — fine, caller doesn't care.
+  }
+  await removeIndexLine(s, dataDir, id);
+  emitChange(s, { kind: 'delete', id });
+}
+
+async function updateTreeNode(s: NoteStoreState, { dataDir, id, patch }: { dataDir: string; id: string; patch: NoteTreePatch },
+): Promise<NoteEntry> {
+  if (id.startsWith('folder:')) throw new Error('note tree folders are derived and cannot be edited');
+  const current = await readEntry(s, { dataDir, id });
+  if (!current) throw new Error('note not found');
+  const nextType = isValidType(s, patch.type) ? patch.type : current.type;
+  return upsertEntry(s, { dataDir, input: {
+    id,
+    name: patch.name?.trim() ? patch.name : current.name,
+    description: patch.description ?? current.description,
+    type: nextType,
+    body: patch.body ?? current.body,
+  } });
+}
+
+function folderId(type: string): string {
+  return `folder:${type}`;
+}
+
+function toIsoTime(ms: number): string {
+  return new Date(ms).toISOString();
+}
+
+async function buildTree(s: NoteStoreState, { dataDir }: { dataDir: string }): Promise<NoteTreeNode[]> {
+  const { config } = s;
+  const entries = await listEntries(s, { dataDir });
+  const byType = new Map<string, NoteEntrySummary[]>();
+  for (const type of config.validTypes) byType.set(type, []);
+  for (const entry of entries) {
+    const list = byType.get(entry.type) ?? [];
+    list.push(entry);
+    byType.set(entry.type, list);
+  }
+
+  const nodes: NoteTreeNode[] = [];
+  for (const type of config.validTypes) {
+    // `byType` was seeded with every `config.validTypes` member just
+    // above, so a key drawn from that same list is always present here
+    // (an entry whose type falls outside `validTypes` — see line above —
+    // adds an extra key, but this loop never visits that extra key).
+    const children = byType.get(type)!;
+    const folderUpdatedAt = children.reduce((latest, entry) => Math.max(latest, entry.updatedAt), 0);
+    const id = folderId(type);
+    nodes.push({
+      id,
+      parentId: null,
+      path: `/${type}`,
+      name: capitalize(type),
+      description: `${capitalize(type)} notes`,
+      kind: 'folder',
+      type,
+      createdAt: toIsoTime(folderUpdatedAt),
+      updatedAt: toIsoTime(folderUpdatedAt),
+      childrenCount: children.length,
+    });
+    for (const entry of children) {
+      nodes.push({
+        id: entry.id,
+        parentId: id,
+        path: `/${type}/${entry.id}`,
+        name: entry.name,
+        description: entry.description,
+        kind: 'entry',
+        type: entry.type,
+        createdAt: toIsoTime(entry.updatedAt),
+        updatedAt: toIsoTime(entry.updatedAt),
+        childrenCount: 0,
+      });
+    }
+  }
+  return nodes;
+}
+
 /**
  * Construct a note store bound to a host-supplied type taxonomy. Each
  * returned store carries its own `EventEmitter` — instantiate one store per
@@ -294,451 +739,33 @@ export function buildUpsertChangeEvent(
  * @throws if `optional.subdir` is not a single safe path segment.
  */
 export function createNoteStore(config: NoteStoreConfig, optional: NoteStoreOptionalArgs = {}): NoteStore {
-  const fsp = optional.filesystem ?? nodeFilesystem;
   const now = optional.now ?? Date.now;
-  const ids = optional.ids ?? (() => `${process.pid}.${now().toString(36)}.${randomUUID()}`);
-  const validTypes = new Set(config.validTypes);
   const subdir = optional.subdir ?? 'notes';
   assertSafeSubdir(subdir);
   const events = new EventEmitter();
   events.setMaxListeners(64);
-  const mutationTails = new Map<string, Promise<void>>();
-
-  /**
-   * Serialize public mutations per directory in this store so index/config
-   * read-modify-writes cannot lose updates. Internal calls stay unqueued to
-   * avoid waiting on their own mutation. Rejections reach the caller without
-   * poisoning later work; settled directories release their queue state.
-   * O(1) scheduling per mutation, excluding the operation and path length.
-   */
-  function serializeMutation<T>({ dataDir, operation }: {
-    dataDir: string;
-    operation: () => Promise<T>;
-  }, _optional: Record<string, never> = {}): Promise<T> {
-    const key = path.resolve(dir({ dataDir }));
-    const previous = mutationTails.get(key) ?? Promise.resolve();
-    const result = previous.then(operation);
-    const tail = result.then(() => undefined, () => undefined);
-    mutationTails.set(key, tail);
-    void tail.then(() => {
-      if (mutationTails.get(key) === tail) mutationTails.delete(key);
-    });
-    return result;
-  }
-
-  async function ensureDir(dirPath: string): Promise<void> {
-    await fsp.mkdir(dirPath, { recursive: true });
-  }
-
-  /**
-   * Resolve `<dataDir>/<subdir>` and verify — via `realpath`, which follows
-   * symlinks — that it is still contained under `realpath(dataDir)`. Rejects
-   * a `subdir` (or an intermediate symlink) that redirects storage outside
-   * the intended root. When `create` is true, the directory chain is created
-   * first (matching the store's historical "writes create their directory"
-   * behavior); read paths never create directories as a side effect.
-   */
-  async function resolveContainedDir(lexicalDir: string, dataDir: string, create: boolean): Promise<string> {
-    if (create) await ensureDir(lexicalDir);
-    const realRoot = await fsp.realpath(dataDir);
-    const realTarget = await fsp.realpath(lexicalDir);
-    const rel = path.relative(realRoot, realTarget);
-    const contained = rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
-    if (!contained) {
-      throw new Error(
-        `note store: resolved directory "${realTarget}" escapes its data root "${realRoot}" (check the "subdir" option and for a symlink)`,
-      );
-    }
-    return realTarget;
-  }
-
-  /** Reads a file only if it is a regular file (not a symlink/directory/device), rejecting via `lstat` rather than following. */
-  async function readRegularFileStrict(filePath: string): Promise<string> {
-    const st = await fsp.lstat(filePath);
-    if (!st.isFile()) {
-      const err = new Error(`refusing to read non-regular-file path: ${filePath}`) as NodeJS.ErrnoException;
-      err.code = 'ENOTREG';
-      throw err;
-    }
-    return fsp.readFile(filePath, 'utf8');
-  }
-
-  /** Same regular-file guard as `readRegularFileStrict`, but reports "not found/unreadable" as `null` instead of throwing — for best-effort read paths. */
-  async function readRegularFileOrNull(filePath: string): Promise<{ raw: string; mtimeMs: number } | null> {
-    let st;
-    try {
-      st = await fsp.lstat(filePath);
-    } catch {
-      return null;
-    }
-    if (!st.isFile()) return null;
-    try {
-      const raw = await fsp.readFile(filePath, 'utf8');
-      return { raw, mtimeMs: st.mtimeMs };
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * Write `data` to `filePath` via a same-directory temp file plus atomic
-   * rename, so a concurrent reader or a crash mid-write never observes a
-   * torn/partial file. Because `rename` replaces the destination *name*
-   * rather than following it, this is also symlink-safe: if `filePath`
-   * happened to be a pre-existing symlink, the rename atomically replaces
-   * the symlink itself with the new regular file instead of writing through
-   * it to whatever it pointed at.
-   */
-  async function atomicWriteFile(filePath: string, data: string): Promise<void> {
-    const tempId = ids();
-    if (!/^[a-zA-Z0-9_.-]+$/.test(tempId)) throw new Error('invalid temporary note file id');
-    const dirName = path.dirname(filePath);
-    const tmpPath = path.join(
-      dirName,
-      `.${path.basename(filePath)}.${tempId}.tmp`,
-    );
-    const handle = await fsp.open(tmpPath, 'wx');
-    try {
-      await handle.writeFile(data);
-      await handle.sync();
-    } finally {
-      await handle.close();
-    }
-    try {
-      await fsp.rename(tmpPath, filePath);
-    } catch (err) {
-      await fsp.unlink(tmpPath).catch(() => {});
-      throw err;
-    }
-  }
-
-  function emitChange(event: Omit<NoteChangeEvent, 'at'>): void {
-    // A throwing listener must not turn an already-committed write into an
-    // apparent API failure — isolate listener exceptions from the caller.
-    try {
-      events.emit('change', { ...event, at: now() });
-    } catch {
-      // Intentionally swallowed; see doc comment above.
-    }
-  }
-
-  function isValidType(t: unknown): t is string {
-    return typeof t === 'string' && validTypes.has(t);
-  }
-
-  function dir({ dataDir }: { dataDir: string }): string {
-    return path.join(dataDir, subdir);
-  }
-
-  function deriveId({ type, name }: { type: string; name: string }): string {
-    const safeType = isValidType(type) ? type : config.defaultType;
-    const raw = String(name || '');
-    const joined = raw
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '_');
-    const cleaned = trimBoth(joined, '_').slice(0, 48);
-    if (cleaned.length > 0) return `${safeType}_${cleaned}`;
-    // FNV-1a 32-bit on the original name — deterministic, dependency-free,
-    // and avoids colliding two purely-non-ASCII names on the same fallback slug.
-    let h = 0x811c9dc5 >>> 0;
-    for (let i = 0; i < raw.length; i++) {
-      h = (h ^ raw.charCodeAt(i)) >>> 0;
-      h = Math.imul(h, 0x01000193) >>> 0;
-    }
-    return `${safeType}_n${h.toString(36)}`;
-  }
-
-  async function containedEntryPath(dataDir: string, id: string, create: boolean): Promise<string> {
-    if (!isValidId(id)) throw new Error('invalid note id');
-    const base = await resolveContainedDir(dir({ dataDir }), dataDir, create);
-    return path.join(base, `${id}.md`);
-  }
-
-  async function containedIndexPath(dataDir: string, create: boolean): Promise<string> {
-    const base = await resolveContainedDir(dir({ dataDir }), dataDir, create);
-    return path.join(base, INDEX_FILE);
-  }
-
-  async function containedConfigPath(dataDir: string, create: boolean): Promise<string> {
-    const base = await resolveContainedDir(dir({ dataDir }), dataDir, create);
-    return path.join(base, CONFIG_FILE);
-  }
-
-  async function readConfig({ dataDir }: { dataDir: string }): Promise<NoteStoreOptions> {
-    let raw: string;
-    try {
-      const filePath = await containedConfigPath(dataDir, false);
-      raw = await readRegularFileStrict(filePath);
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException)?.code;
-      if (code === 'ENOENT') return { enabled: true };
-      // Anything else — corrupt/unreadable file, permission denied, a
-      // symlink rejected by readRegularFileStrict, or the directory itself
-      // escaping its root — must not silently re-enable memory.
-      throw new NoteStoreConfigError(
-        { message: `note store config could not be read; refusing to default to "enabled" (${(err as Error).message})`, code: code ?? 'EUNKNOWN' },
-        { cause: err },
-      );
-    }
-    let parsed: { enabled?: unknown };
-    try {
-      parsed = JSON.parse(raw) as { enabled?: unknown };
-    } catch (err) {
-      throw new NoteStoreConfigError(
-        { message: 'note store config is corrupt JSON; refusing to default to "enabled"', code: 'EPARSE' },
-        { cause: err },
-      );
-    }
-    return { enabled: parsed?.enabled !== false };
-  }
-
-  async function writeConfig({ dataDir, patch }: { dataDir: string; patch: Partial<NoteStoreOptions> }): Promise<NoteStoreOptions> {
-    const current = await readConfig({ dataDir });
-    const next: NoteStoreOptions = {
-      enabled: typeof patch.enabled === 'boolean' ? patch.enabled : current.enabled,
-    };
-    const filePath = await containedConfigPath(dataDir, true);
-    await atomicWriteFile(filePath, JSON.stringify(next, null, 2));
-    if (current.enabled !== next.enabled) emitChange({ kind: 'config', enabled: next.enabled });
-    return next;
-  }
-
-  async function readIndex({ dataDir }: { dataDir: string }): Promise<string> {
-    try {
-      const filePath = await containedIndexPath(dataDir, false);
-      const found = await readRegularFileOrNull(filePath);
-      return found ? found.raw : DEFAULT_INDEX;
-    } catch {
-      return DEFAULT_INDEX;
-    }
-  }
-
-  async function writeIndex({ dataDir, body }: { dataDir: string; body: string }, options?: { silent?: boolean }): Promise<void> {
-    const filePath = await containedIndexPath(dataDir, true);
-    await atomicWriteFile(filePath, body);
-    if (!options?.silent) emitChange({ kind: 'index' });
-  }
-
-  function summarize(id: string, raw: string, mtime: number): { summary: NoteEntrySummary; body: string } {
-    const { data, body } = parseEntryFrontmatter({ raw });
-    const type = isValidType(data.type) ? data.type : config.defaultType;
-    return {
-      summary: { id, name: data.name || id, description: data.description, type, updatedAt: mtime },
-      body: body.trimStart(),
-    };
-  }
-
-  async function listEntries({ dataDir }: { dataDir: string }): Promise<NoteEntrySummary[]> {
-    let base: string;
-    let names: string[] = [];
-    try {
-      base = await resolveContainedDir(dir({ dataDir }), dataDir, false);
-      names = await fsp.readdir(base);
-    } catch {
-      return [];
-    }
-    const out: NoteEntrySummary[] = [];
-    const entryFiles = names.filter((name) => name.endsWith('.md') && name !== INDEX_FILE && isValidId(name.slice(0, -3)));
-    for (const name of entryFiles) {
-      const id = name.slice(0, -3);
-      const filePath = path.join(base, name);
-      // Skip unreadable/malformed/non-regular (e.g. symlink) files rather
-      // than let one shadow the rest or read through a planted symlink.
-      const found = await readRegularFileOrNull(filePath);
-      if (found) out.push(summarize(id, found.raw, found.mtimeMs).summary);
-    }
-    out.sort((a, b) => b.updatedAt - a.updatedAt);
-    return out;
-  }
-
-  async function listActiveEntries({ dataDir }: { dataDir: string }): Promise<NoteEntrySummary[]> {
-    const [entries, indexBody] = await Promise.all([listEntries({ dataDir }), readIndex({ dataDir })]);
-    const linkedIds = parseIndexLinkIds(indexBody);
-    return entries.filter((entry) => linkedIds.has(entry.id));
-  }
-
-  async function readEntry({ dataDir, id }: { dataDir: string; id: string }): Promise<NoteEntry | null> {
-    try {
-      const filePath = await containedEntryPath(dataDir, id, false);
-      const found = await readRegularFileOrNull(filePath);
-      if (!found) return null;
-      const { summary, body } = summarize(id, found.raw, found.mtimeMs);
-      return { ...summary, body };
-    } catch {
-      return null;
-    }
-  }
-
-  function parseIndexLinkIds(indexBody: string): Set<string> {
-    const ids = new Set<string>();
-    for (const line of indexBody.split(/\r?\n/)) {
-      // Group 2 is `([^)]+)` (one-or-more, mandatory), so it is set whenever the line matches.
-      const target = INDEX_LINK_RE.exec(line)?.[2];
-      if (target === undefined || !target.endsWith('.md') || target === INDEX_FILE) continue;
-      const id = target.slice(0, -3);
-      if (isValidId(id)) ids.add(id);
-    }
-    return ids;
-  }
-
-  async function ensureIndexHasEntry(dataDir: string, id: string, name: string, description: string): Promise<void> {
-    const current = await readIndex({ dataDir });
-    const lines = current.split(/\r?\n/);
-    const link = `${id}.md`;
-    const safeName = escapeIndexText(name) || id;
-    const safeDesc = escapeIndexText(description);
-    const newLine = safeDesc ? `- [${safeName}](${link}) — ${safeDesc}` : `- [${safeName}](${link})`;
-    let replaced = false;
-    for (let i = 0; i < lines.length; i++) {
-      // `i < lines.length` bounds the loop, so the index access is always
-      // defined — the assertion is TS-required (noUncheckedIndexedAccess).
-      const m = INDEX_LINK_RE.exec(lines[i]!);
-      if (m && m[2] === link) {
-        lines[i] = newLine;
-        replaced = true;
-        break;
-      }
-    }
-    if (!replaced) {
-      if (lines.length > 0 && lines[lines.length - 1] !== '') lines.push('');
-      lines.push(newLine);
-    }
-    // Silent: the caller emits its own change event for the write as a whole.
-    await writeIndex({ dataDir, body: lines.join('\n') }, { silent: true });
-  }
-
-  async function removeIndexLine(dataDir: string, id: string): Promise<void> {
-    const current = await readIndex({ dataDir });
-    const link = `${id}.md`;
-    const lines = current.split(/\r?\n/).filter((line) => {
-      const m = INDEX_LINK_RE.exec(line);
-      return !m || m[2] !== link;
-    });
-    await writeIndex({ dataDir, body: lines.join('\n') }, { silent: true });
-  }
-
-  async function upsertEntry(
-    { dataDir, input }: { dataDir: string; input: NoteUpsertInput },
-    options?: { silent?: boolean; source?: string },
-  ): Promise<NoteEntry> {
-    const { name, type, body } = input;
-    const description = input.description ?? '';
-    if (!isValidUpsertInput({ name, type, isType: ({ type }) => isValidType(type) })) {
-      throw new Error('note entry requires `name` and a valid `type`');
-    }
-    const id = resolveUpsertEntryId({ id: input.id, type, name, isId: ({ id }) => isValidId(id), deriveId });
-    const filePath = await containedEntryPath(dataDir, id, true);
-    await atomicWriteFile(filePath, renderEntryFrontmatter({ fields: { name, description, type }, body: body ?? '' }));
-    await ensureIndexHasEntry(dataDir, id, name, description);
-    const entry = await readEntry({ dataDir, id });
-    if (!entry) throw new Error('failed to read note entry after write');
-    if (!options?.silent) emitChange(buildUpsertChangeEvent({ entry }, { source: options?.source }));
-    return entry;
-  }
-
-  async function deleteEntry({ dataDir, id }: { dataDir: string; id: string }): Promise<void> {
-    try {
-      // `unlink` removes the directory entry itself and never dereferences
-      // a symlink to delete its target, so this is safe even if the path
-      // turns out to be a planted symlink; a missing/invalid/escaping path
-      // is treated the same as "already gone" — the caller doesn't need to
-      // distinguish those for a best-effort delete of the primary file.
-      const filePath = await containedEntryPath(dataDir, id, false);
-      await fsp.unlink(filePath);
-    } catch {
-      // Already gone — fine, caller doesn't care.
-    }
-    await removeIndexLine(dataDir, id);
-    emitChange({ kind: 'delete', id });
-  }
-
-  async function updateTreeNode(
-    { dataDir, id, patch }: { dataDir: string; id: string; patch: NoteTreePatch },
-  ): Promise<NoteEntry> {
-    if (id.startsWith('folder:')) throw new Error('note tree folders are derived and cannot be edited');
-    const current = await readEntry({ dataDir, id });
-    if (!current) throw new Error('note not found');
-    const nextType = isValidType(patch.type) ? patch.type : current.type;
-    return upsertEntry({ dataDir, input: {
-      id,
-      name: patch.name?.trim() ? patch.name : current.name,
-      description: patch.description ?? current.description,
-      type: nextType,
-      body: patch.body ?? current.body,
-    } });
-  }
-
-  function folderId(type: string): string {
-    return `folder:${type}`;
-  }
-
-  function toIsoTime(ms: number): string {
-    return new Date(ms).toISOString();
-  }
-
-  async function buildTree({ dataDir }: { dataDir: string }): Promise<NoteTreeNode[]> {
-    const entries = await listEntries({ dataDir });
-    const byType = new Map<string, NoteEntrySummary[]>();
-    for (const type of config.validTypes) byType.set(type, []);
-    for (const entry of entries) {
-      const list = byType.get(entry.type) ?? [];
-      list.push(entry);
-      byType.set(entry.type, list);
-    }
-
-    const nodes: NoteTreeNode[] = [];
-    for (const type of config.validTypes) {
-      // `byType` was seeded with every `config.validTypes` member just
-      // above, so a key drawn from that same list is always present here
-      // (an entry whose type falls outside `validTypes` — see line above —
-      // adds an extra key, but this loop never visits that extra key).
-      const children = byType.get(type)!;
-      const folderUpdatedAt = children.reduce((latest, entry) => Math.max(latest, entry.updatedAt), 0);
-      const id = folderId(type);
-      nodes.push({
-        id,
-        parentId: null,
-        path: `/${type}`,
-        name: capitalize(type),
-        description: `${capitalize(type)} notes`,
-        kind: 'folder',
-        type,
-        createdAt: toIsoTime(folderUpdatedAt),
-        updatedAt: toIsoTime(folderUpdatedAt),
-        childrenCount: children.length,
-      });
-      for (const entry of children) {
-        nodes.push({
-          id: entry.id,
-          parentId: id,
-          path: `/${type}/${entry.id}`,
-          name: entry.name,
-          description: entry.description,
-          kind: 'entry',
-          type: entry.type,
-          createdAt: toIsoTime(entry.updatedAt),
-          updatedAt: toIsoTime(entry.updatedAt),
-          childrenCount: 0,
-        });
-      }
-    }
-    return nodes;
-  }
+  const s: NoteStoreState = {
+    fsp: optional.filesystem ?? nodeFilesystem,
+    now,
+    ids: optional.ids ?? (() => `${process.pid}.${now().toString(36)}.${randomUUID()}`),
+    validTypes: new Set(config.validTypes),
+    subdir, events, mutationTails: new Map<string, Promise<void>>(), config,
+  };
 
   return {
     events,
-    dir,
-    deriveId,
-    readConfig,
-    writeConfig: (required, _optional = {}) => serializeMutation({ dataDir: required.dataDir, operation: () => writeConfig(required) }),
-    readIndex,
-    writeIndex: (required, optional = {}) => serializeMutation({ dataDir: required.dataDir, operation: () => writeIndex(required, optional) }),
-    listEntries,
-    listActiveEntries,
-    readEntry,
-    upsertEntry: (required, optional = {}) => serializeMutation({ dataDir: required.dataDir, operation: () => upsertEntry(required, optional) }),
-    deleteEntry: (required, _optional = {}) => serializeMutation({ dataDir: required.dataDir, operation: () => deleteEntry(required) }),
-    updateTreeNode: (required, _optional = {}) => serializeMutation({ dataDir: required.dataDir, operation: () => updateTreeNode(required) }),
-    buildTree,
+    dir: (required) => dir(s, required),
+    deriveId: (required) => deriveId(s, required),
+    readConfig: (required) => readConfig(s, required),
+    writeConfig: (required, _optional = {}) => serializeMutation(s, { dataDir: required.dataDir, operation: () => writeConfig(s, required) }),
+    readIndex: (required) => readIndex(s, required),
+    writeIndex: (required, optional = {}) => serializeMutation(s, { dataDir: required.dataDir, operation: () => writeIndex(s, required, optional) }),
+    listEntries: (required) => listEntries(s, required),
+    listActiveEntries: (required) => listActiveEntries(s, required),
+    readEntry: (required) => readEntry(s, required),
+    upsertEntry: (required, optional = {}) => serializeMutation(s, { dataDir: required.dataDir, operation: () => upsertEntry(s, required, optional) }),
+    deleteEntry: (required, _optional = {}) => serializeMutation(s, { dataDir: required.dataDir, operation: () => deleteEntry(s, required) }),
+    updateTreeNode: (required, _optional = {}) => serializeMutation(s, { dataDir: required.dataDir, operation: () => updateTreeNode(s, required) }),
+    buildTree: (required) => buildTree(s, required),
   };
 }
