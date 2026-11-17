@@ -85,6 +85,11 @@ export interface FileSourcePort { export(required: { outputDir: string }, option
 export interface CommitLayoutPort {
   outputDirectory(required: { workspaceId: string; providerId: string; runId: string }): string;
   cleanup(required: { outputDir: string }): Promise<void>;
+  /** The files to commit, arranged from the finished export (for example a host's static-download layout).
+   *  Absent: the succeeded routes then the succeeded assets, as exported. A throw refuses the commit as
+   *  `EXPORT_FAILED`, worded by `describeError` with stage `'arrange'`; every arranged path is still validated
+   *  against the destination folder. Runs before `cleanup`, so an arrangement may read the output directory. */
+  arrangeFiles?(required: { report: ExportReport }): readonly CommitFile[];
 }
 /** Where in a commit an error arose, so a host can word each stage's failure on its own. */
 export type CommitErrorStage = 'export' | 'arrange' | 'credential' | 'commit';

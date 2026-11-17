@@ -286,3 +286,41 @@ test('G3: the host is told which stage failed: export, credential and commit eac
     assert.deepEqual(asked.map(input => (input as { stage?: string }).stage), [stage], stage);
   }
 });
+
+test('G4 deny: a path the layout arranges outside the destination is still refused before the provider sees it', async () => {
+  const f = fixture();
+  f.args.layout.arrangeFiles = () => [{ path: '../escape.html', data: 'x' }];
+  const result = await commitSiteToSourceControl({ ...f.args, folder: 'site', supportsFolder: true });
+  if (result.ok) assert.fail('an escaping arranged path was committed');
+  assert.equal(result.code, 'EXPORT_FAILED');
+  assert.equal(f.events.includes('commit'), false);
+  const preview = await previewCommitExport({ ...f.args, folder: 'site' });
+  assert.equal(preview.ok, false);
+});
+
+test('G4: arrangeFiles receives the export report and the provider is handed exactly the arranged files, before cleanup', async () => {
+  const f = fixture();
+  const seen: unknown[] = [];
+  const arranged = [{ path: 'landing.html', data: 'hello' }, { path: 'site/index.html', data: Buffer.from([1, 2]) }];
+  f.args.layout.arrangeFiles = required => { f.events.push('arrange'); seen.push(required); return arranged; };
+  assert.equal((await commitSiteToSourceControl(f.args)).ok, true);
+  assert.deepEqual(seen, [{ report: f.report }]);
+  assert.deepEqual((f.captured() as { files: unknown }).files, arranged);
+  assert.deepEqual(f.events, ['credential', 'export:/artifacts/run-1', 'arrange', 'cleanup:/artifacts/run-1', 'commit']);
+});
+
+test('G4: arrangeFiles also shapes the preview', async () => {
+  const f = fixture();
+  f.args.layout.arrangeFiles = () => [{ path: 'only.html', data: 'abc' }];
+  assert.deepEqual(await previewCommitExport(f.args), { ok: true, fileCount: 1, totalBytes: 3, paths: ['only.html'] });
+});
+
+test('G4: a throwing arrangement refuses as EXPORT_FAILED worded by the host for the arrange stage, never calls the provider, and still cleans up once', async () => {
+  const f = fixture();
+  const asked: unknown[] = [];
+  f.args.layout.arrangeFiles = () => { f.events.push('arrange'); throw new Error('collision'); };
+  f.args.describeError = input => { asked.push(input); return 'packaging failed'; };
+  assert.deepEqual(await commitSiteToSourceControl(f.args), { ok: false, code: 'EXPORT_FAILED', message: 'packaging failed' });
+  assert.deepEqual(asked, [{ error: new Error('collision'), stage: 'arrange' }]);
+  assert.deepEqual(f.events, ['credential', 'export:/artifacts/run-1', 'arrange', 'cleanup:/artifacts/run-1']);
+});

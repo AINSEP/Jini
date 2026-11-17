@@ -1,4 +1,5 @@
 import { redactSecrets } from '@jini-ai/core';
+import type { ExportReport } from '../static-export/contracts.js';
 import { firstExportFailure } from '../core/export-failure-summary.js';
 import type { CommitExportArgs, CommitFailureCode, CommitFile, CommitOptions, CommitOrchestrationArgs, PreviewCommitExportResult, SourceControlCommitOutcome } from './contracts.js';
 import { validateCommitTarget } from './repository-target.js';
@@ -19,6 +20,20 @@ export function toCommitFile(required: { outputFile: string; data: string | Buff
 }
 
 type ExportResult = { ok: true; files: CommitFile[] } | { ok: false; code: 'EXPORT_FAILED'; message: string };
+
+/** The files to commit: the host's arrangement when its layout supplies one, else the succeeded routes then assets. */
+function arrangeCommitFiles(required: { input: CommitExportArgs; report: ExportReport }): ExportResult {
+  const { input, report } = required;
+  try {
+    const files = input.layout.arrangeFiles
+      ? [...input.layout.arrangeFiles({ report })]
+      : [...report.routes.succeeded.map(toCommitFile), ...report.assets.succeeded.map(toCommitFile)];
+    return { ok: true, files };
+  } catch (error) {
+    return { ok: false, code: 'EXPORT_FAILED', message: input.describeError({ error, stage: 'arrange' }) };
+  }
+}
+
 /** Export into a fresh run directory, reporting it through `claim` before any export I/O starts. */
 async function exportIntoRunDirectory(input: CommitExportArgs, claim: (outputDir: string) => void): Promise<ExportResult> {
   try {
@@ -27,10 +42,10 @@ async function exportIntoRunDirectory(input: CommitExportArgs, claim: (outputDir
     const report = await input.files.export({ outputDir }, { clean: true });
     const failure = firstExportFailure({ report });
     if (failure) return { ok: false, code: 'EXPORT_FAILED', message: `refused to commit: ${failure.count} ${failure.kind}(s) failed to export (first: '${failure.identifier}' — ${failure.reason})` };
-    const files = [...report.routes.succeeded.map(toCommitFile), ...report.assets.succeeded.map(toCommitFile)];
+    const arranged = arrangeCommitFiles({ input, report });
     // Validate every folder-relative path while export failures still use the safe outcome channel.
-    for (const file of files) prefixRepositoryPath({ folder: input.folder, path: file.path });
-    return { ok: true, files };
+    if (arranged.ok) for (const file of arranged.files) prefixRepositoryPath({ folder: input.folder, path: file.path });
+    return arranged;
   } catch (error) {
     return { ok: false, code: 'EXPORT_FAILED', message: `export failed before committing could start: ${input.describeError({ error, stage: 'export' })}` };
   }
