@@ -36,12 +36,14 @@ import { checkEngineBoundaries, type Violation } from './check-engine-boundaries
 import { checkExtensionlessImports } from './check-extensionless-imports.js';
 import { checkModelFallbackFreshness } from './check-model-fallback-freshness.js';
 import { checkProtocolPurity } from './check-protocol-purity.js';
+import { checkRuntimeCycles } from './check-runtime-cycles.js';
 import { checkSourceNeutrality } from './lib/source-neutrality.js';
 import { checkPackageLayers } from './check-package-layers.js';
 import { checkPluginPackages } from './check-plugin-packages.js';
 import { REPO_ROOT } from './lib/walk-imports.js';
 import { checkSubpathIsolation } from './check-subpath-isolation.js';
 import { runPublishHygieneSelfTest } from './lib/publish-hygiene-self-test.js';
+import { runRuntimeCycleSelfTest } from './lib/runtime-cycles-self-test.js';
 import { runGuardSelfTest } from './lib/self-test.js';
 import { isMainModule } from './lib/is-main-module.js';
 
@@ -134,6 +136,7 @@ function assertWorkingGuards(selfTestFailures: { expectation: string }[]): void 
 async function main(): Promise<void> {
   const selfTestFailures = await runGuardSelfTest();
   for (const expectation of runPublishHygieneSelfTest()) selfTestFailures.push({ expectation, detail: 'publish hygiene fixture' });
+  for (const expectation of runRuntimeCycleSelfTest()) selfTestFailures.push({ expectation, detail: 'runtime cycle fixture' });
   assertWorkingGuards(selfTestFailures);
 
   const results = [
@@ -149,6 +152,7 @@ async function main(): Promise<void> {
     await checkDriverIsolation(),
     checkHardwiring(),
     await checkModelFallbackFreshness(),
+    checkRuntimeCycles({ repoRoot: REPO_ROOT }),
   ];
   const current = results.flat();
 

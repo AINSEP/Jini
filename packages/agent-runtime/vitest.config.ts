@@ -50,7 +50,7 @@ export default defineConfig({
       // remain uncovered on purpose, both re-derived (not merely trusted
       // from a prior comment) and documented inline + in archived provenance ledger's
       // 2026-07-22 entry:
-      //   - json-event-stream.ts's `stringifyContent` catch: every real
+      //   - json-event-stream-shared.ts's `stringifyContent` catch: every real
       //     call site's value traces back to `JSON.parse` output, which can
       //     never produce a value `JSON.stringify` throws on.
       //   - defs/amr.ts's `fetchVelaRemoteModelsWithRetry`: an unconditional

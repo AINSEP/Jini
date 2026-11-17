@@ -39,6 +39,7 @@ function guardFixture(root: string): string {
     'check-package-layers': 'checkPackageLayers', 'check-plugin-packages': 'checkPluginPackages',
     'check-subpath-isolation': 'checkSubpathIsolation', 'lib/source-neutrality': 'checkSourceNeutrality',
     'lib/publish-hygiene-self-test': 'runPublishHygieneSelfTest', 'lib/self-test': 'runGuardSelfTest',
+    'check-runtime-cycles': 'checkRuntimeCycles', 'lib/runtime-cycles-self-test': 'runRuntimeCycleSelfTest',
   };
   for (const [module, name] of Object.entries(checks)) writeFileSync(path.join(scripts, module + '.ts'), `export const ${name} = () => [];`);
   writeFileSync(path.join(scripts, 'lib/walk-imports.ts'), `export const REPO_ROOT = ${JSON.stringify(root)};`);

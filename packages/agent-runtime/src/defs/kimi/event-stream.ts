@@ -1,5 +1,5 @@
-import { isRecord, nonEmptyString, safeParseJson, stringifyContent, trimmedNonBlank } from '../../json-event-stream.js';
-import type { JsonObject, StreamEventHandler } from '../../json-event-stream.js';
+import { isRecord, nonEmptyString, safeParseJson, stringifyContent, trimmedNonBlank } from '../../json-event-stream-shared.js';
+import type { JsonObject, StreamEventHandler } from '../../json-event-stream-shared.js';
 
 function emitKimiToolCalls(toolCalls: unknown[], onEvent: StreamEventHandler): void {
   for (const rawCall of toolCalls) {

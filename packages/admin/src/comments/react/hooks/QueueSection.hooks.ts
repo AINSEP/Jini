@@ -3,9 +3,13 @@ import { buildAgentListHandles } from '@jini-ai/core/agent-handles';
 
 import type { DataTableColumn } from '../../../react/components/DataTable.js';
 import type { AdminComment, CommentModerationAction, CommentStatus } from '../../../core/ports/comments.js';
-import { commentRowMenuItems, truncate, type RowActionState } from '../../rules.js';
+import { truncate, type RowActionState } from '../../rules.js';
 import type { CommentsTranslator } from '../../messages.en.js';
-import { QueueActionsCell, type QueueSectionProps } from '../components/QueueSection.js';
+import { QueueActionsCell } from '../components/QueueActionsCell.js';
+// Statement-level `import type` on purpose: QueueSection.tsx imports this file's hooks, and under
+// `verbatimModuleSyntax` an inline `import { type QueueSectionProps }` is emitted as `import {} from`,
+// which still loads the component module and makes the two files a runtime cycle.
+import type { QueueSectionProps } from '../components/QueueSection.js';
 import { useWiredCommentQueue } from './use-comment-queue.hooks.js';
 import { useCommentsTranslation } from './CommentsPorts.hooks.js';
 
@@ -20,15 +24,6 @@ export function useQueueSection(props: QueueSectionProps, _optional: Record<stri
 }
 export function useQueueToolbar({ onStatusChange }: { onStatusChange: (status: CommentStatus) => void }, _optional: Record<string, never> = {}) {
   return { onChange: (event: ChangeEvent<HTMLSelectElement>) => onStatusChange(event.target.value as CommentStatus) };
-}
-export function useQueueActionsCell(props: {
-  comment: AdminComment; permissions: readonly string[]; status: CommentStatus; t: CommentsTranslator;
-  onModerate: (comment: AdminComment, action: CommentModerationAction) => void;
-  onRequestPurge: (comment: AdminComment) => void;
-}, _optional: Record<string, never> = {}) {
-  return { menuItems: commentRowMenuItems({ comment: props.comment,
-    context: { permissions: props.permissions, currentFilterStatus: props.status },
-    handlers: { onModerate: props.onModerate, onRequestPurge: props.onRequestPurge } }, { t: props.t }) };
 }
 /** Builds the `DataTable` column descriptors. A plain function rather than a closure declared
  *  inside `QueueTable`'s body — it doesn't need to be a hook-scoped closure, only the values

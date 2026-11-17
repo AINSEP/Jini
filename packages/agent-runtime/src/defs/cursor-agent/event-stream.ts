@@ -1,5 +1,5 @@
-import { initializingStatus, isRecord, optionalNumber, pickUsage } from '../../json-event-stream.js';
-import type { JsonObject, ParserState, StreamEventHandler, UsageFields } from '../../json-event-stream.js';
+import { initializingStatus, isRecord, optionalNumber, pickUsage } from '../../json-event-stream-shared.js';
+import type { JsonObject, ParserState, StreamEventHandler, UsageFields } from '../../json-event-stream-shared.js';
 
 export type CursorStreamState = { textSoFar: string; turnStart: number };
 export function createCursorStreamState(): CursorStreamState { return { textSoFar: '', turnStart: 0 }; }
