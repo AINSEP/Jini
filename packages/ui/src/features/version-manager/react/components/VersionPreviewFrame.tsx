@@ -19,6 +19,8 @@ export interface VersionPreviewFrameProps {
   error: string | null;
   loading: boolean;
   loadingContent: boolean;
+  useTHook?: typeof useT;
+  usePreviewCanvasSizeHook?: typeof usePreviewCanvasSize;
 }
 
 /** The scaled, sandboxed preview iframe + its loading overlay. Measures its
@@ -34,9 +36,11 @@ export function VersionPreviewFrame({
   error,
   loading,
   loadingContent,
+  useTHook = useT,
+  usePreviewCanvasSizeHook = usePreviewCanvasSize,
 }: VersionPreviewFrameProps) {
-  const t = useT();
-  const [frameRef, canvasSize] = usePreviewCanvasSize<HTMLDivElement>();
+  const t = useTHook();
+  const [frameRef, canvasSize] = usePreviewCanvasSizeHook<HTMLDivElement>();
   const preset = findViewportPreset(viewportPresets, viewport);
   const scale = effectivePreviewScale(preset, 1, canvasSize, DEFAULT_PREVIEW_CANVAS_PADDING);
 

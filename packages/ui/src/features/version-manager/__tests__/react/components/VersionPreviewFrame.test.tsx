@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import { DEFAULT_VIEWPORT_PRESETS } from '../../../../viewer-shell/index.js';
 import { VersionPreviewFrame } from '../../../react/components/VersionPreviewFrame.js';
 
@@ -17,6 +17,9 @@ function baseProps() {
     loadingContent: false,
   };
 }
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('VersionPreviewFrame', () => {
   afterEach(() => {
@@ -89,5 +92,10 @@ describe('VersionPreviewFrame', () => {
       </I18nProvider>,
     );
     expect(screen.getByText('Aucun aperçu disponible.')).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    render(<VersionPreviewFrame {...baseProps()} useTHook={useQuotingT} />);
+    expect(screen.getByText('«No preview available.»')).toBeInTheDocument();
   });
 });
