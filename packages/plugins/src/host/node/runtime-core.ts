@@ -16,6 +16,7 @@ import { setPluginEnabled, type PluginActivationRepoPort } from "../activation.j
 import { initializeBundledPlugins } from "../bundled-initialization.js";
 import { createPluginContributionCapture, createPluginContributionRegistry, type PluginContributionRegistry } from "../contributions.js";
 import type { AdmittedBrowserProvider } from "../browser-providers.js";
+import { ProviderLoadTimeoutError } from "./provider-load-timeout-error.js";
 import type { ArchiveReaderPort, BundledBrowserProviderApproval, DeclarativeContentTypesPort, DeclaredContentTypePorts, PluginModuleImportPort, PluginSdkBinding, PluginTierPolicy, VerifyDigestPort } from "../ports.js"; import type { PluginSdk } from "@jini-ai/core/contracts/plugin-sdk";
 import { addedPluginCapabilities, pluginCapabilitySet, type PluginSourcePolicyPort } from "../source-policy.js";
 import { enableDeclaredPlugin } from "../declarative-enable.js";
@@ -696,7 +697,7 @@ export function createPluginRuntimeCore<TEvent, TOptions>(
   async function attachProviderWithin({ record, timeoutMs }: { record: PluginDiscoveryRecord; timeoutMs: number }): Promise<void> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const deadline = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new Error(`provider plugin load timed out after ${timeoutMs} ms`)), timeoutMs);
+      timer = setTimeout(() => reject(new ProviderLoadTimeoutError({ timeoutMs })), timeoutMs);
     });
     const attached = attachPlugin(record.id, record);
     // Observed even after the deadline wins, so a late failure is never an unhandled rejection.
@@ -726,7 +727,7 @@ export function createPluginRuntimeCore<TEvent, TOptions>(
         loaded.push(record.id);
       } catch (error) {
         onPluginDisabled(record.id);
-        console.warn(`[plugin-runtime] provider plugin '${record.id}' failed to load; its contract stays on the noop: ${describeErrorForLog({ err: error })}`);
+        console.warn(`[plugin-runtime] provider plugin '${record.id}' failed to load; its contract stays on the noop: ${error instanceof ProviderLoadTimeoutError ? error.message : describeErrorForLog({ err: error })}`);
       }
     }
     return loaded;
