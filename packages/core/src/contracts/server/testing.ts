@@ -7,7 +7,7 @@ import type { TimingSafeByteComparison } from '../../token.js';
 import type { Server } from '../server.js';
 import type { RouteHostContext } from './json-route.js';
 import type { SameOriginPolicyPort } from './origin.js';
-import { createRouteTable } from './route-table.js';
+import { createRouteTable, type RouteTableOptions } from './route-table.js';
 
 /** Every request passes. For route tests whose subject is not origin policy. */
 export const allowAllOrigins: SameOriginPolicyPort = Object.freeze({ isSameOrigin: () => true });
@@ -64,17 +64,27 @@ export interface InMemoryServer {
   fetch(request: Request, optional?: { client?: { readonly address: string }; locals?: Record<string, unknown> }): Promise<Response>;
 }
 
-const plain = (status: number, headers: Record<string, string> = {}): Response =>
-  new Response(JSON.stringify({ error: { code: status === 404 ? 'NOT_FOUND' : 'METHOD_NOT_ALLOWED', message: status === 404 ? 'No route matches this address.' : 'This address does not accept this method.' } }), { status, headers: { 'content-type': 'application/json; charset=utf-8', ...headers } });
+const PLAIN_ERRORS: Record<number, { code: string; message: string }> = {
+  400: { code: 'BAD_REQUEST', message: 'The address is not valid percent-encoding.' },
+  404: { code: 'NOT_FOUND', message: 'No route matches this address.' },
+  405: { code: 'METHOD_NOT_ALLOWED', message: 'This address does not accept this method.' },
+};
 
-/** Creates an empty in-memory server. Unmatched requests answer 404, or 405 with `allow` when only the method differs. */
-export function createInMemoryServer(_required = {}, _optional: Record<string, never> = {}): InMemoryServer {
-  const table = createRouteTable();
+const plain = (status: number, headers: Record<string, string> = {}): Response =>
+  new Response(JSON.stringify({ error: PLAIN_ERRORS[status] }), { status, headers: { 'content-type': 'application/json; charset=utf-8', ...headers } });
+
+/**
+ * Creates an empty in-memory server. Unmatched requests answer 404, or 405 with `allow` when only the method differs.
+ * @param optional.lenientPaths - Match paths as a host that replaced Express routes does (see `RouteTableOptions`); a malformed `:name` segment then answers 400.
+ */
+export function createInMemoryServer(_required = {}, { lenientPaths = false }: RouteTableOptions = {}): InMemoryServer {
+  const table = createRouteTable({}, { lenientPaths });
   return {
     server: table,
     async fetch(request, { client, locals } = {}) {
       const found = table.match({ method: request.method, pathname: new URL(request.url).pathname });
       if (found.kind === 'not-found') return plain(404);
+      if (found.kind === 'malformed-path') return plain(400);
       if (found.kind === 'method-not-allowed') return plain(405, { allow: found.allow.join(', ') });
       const response = await found.route.handler({ request, params: found.params, ...(client ? { client } : {}), ...(locals ? { locals } : {}) });
       return request.method === 'HEAD' ? headResponse(response) : response;

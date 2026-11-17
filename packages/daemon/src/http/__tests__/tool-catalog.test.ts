@@ -1,10 +1,9 @@
-import type { Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
-import express from 'express';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createLocalTestOrigin } from './fixtures/local-origin.js';
+import { describe, expect, it, vi } from 'vitest';
+import { createInMemoryServer, denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
+import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { describeRoutes } from '../route-table.js';
 import {
-  registerToolCatalogRoutes,
+  toolCatalogRoutes,
   toolCatalogDescribeRoute,
   toolCatalogSearchRoute,
   type ToolCatalogEntry,
@@ -36,18 +35,23 @@ function makeDeps(overrides: Partial<ToolCatalogQuery> = {}): ToolCatalogHttpDep
   return { catalog: makeCatalog(overrides) };
 }
 
-it('mounts catalog routes from argument objects and forwards search options to the port', async () => {
-  const handlers: Record<string, (req: any, res: any) => Promise<void>> = {};
-  const app = { get: (path: string, handler: typeof handlers[string]) => { handlers[path] = handler; } };
+/** The two routes on an in-memory server (exact matching: the Express spellings are the host bridge's job). */
+function serve(deps: ToolCatalogHttpDeps, { denyOrigins = false }: { denyOrigins?: boolean } = {}) {
+  const host = fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {});
+  const { server, fetch } = createInMemoryServer();
+  for (const route of toolCatalogRoutes({ deps, host })) server.route(route);
+  return { fetch, host };
+}
+
+it('lists the two catalog routes in order, each behind the same-origin gate, and forwards search options to the port', async () => {
   const search = vi.fn(() => HITS);
-  const { adapter: adapter, portRef: adapterPortRef } = createLocalTestOrigin({}, { port: 7456 });
-  registerToolCatalogRoutes({ app: app as never, deps: makeDeps({ search }), adapter }, {});
-  expect(Object.keys(handlers)).toEqual(['/api/tools/search', '/api/tools/:id']);
-  const res = { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() };
-  await handlers['/api/tools/search']!({ method: 'GET', headers: { host: 'localhost:7456' }, get: (name: string) => name.toLowerCase() === 'host' ? 'localhost:7456' : undefined, body: {}, query: { q: 'navigate', limit: '3' }, params: {} }, res);
+  expect(describeRoutes({ routes: toolCatalogRoutes({ deps: makeDeps({ search }), host: fakeDaemonRouteHost() }) })).toEqual([
+    { method: 'GET', path: '/api/tools/search', gates: ['same-origin'] },
+    { method: 'GET', path: '/api/tools/:id', gates: ['same-origin'] },
+  ]);
+  const response = await serve(makeDeps({ search })).fetch(new Request('http://local/api/tools/search?q=navigate&limit=3'));
   expect(search).toHaveBeenCalledWith({ query: 'navigate' }, { limit: 3 });
-  expect(res.status).toHaveBeenCalledWith(200);
-  expect(res.json).toHaveBeenCalledWith({ hits: HITS });
+  expect([response.status, await response.json()]).toEqual([200, { hits: HITS }]);
 });
 
 describe('toolCatalogSearchRoute', () => {
@@ -122,63 +126,34 @@ describe('toolCatalogDescribeRoute', () => {
   });
 });
 
-describe('registerToolCatalogRoutes — real Express server on a real socket', () => {
-  const servers: Server[] = [];
-  const { adapter: adapter, portRef: adapterPortRef } = createLocalTestOrigin({}, { port: 0 });
+describe('toolCatalogRoutes — answers a client sees', () => {
+  const get = async (deps: ToolCatalogHttpDeps, path: string, options: { denyOrigins?: boolean } = {}) =>
+    serve(deps, options).fetch(new Request(`http://local${path}`));
 
-  afterEach(() => {
-    for (const server of servers.splice(0)) server.close();
+  it('serves GET /api/tools/search, ranked hits only', async () => {
+    const response = await get(makeDeps(), '/api/tools/search?q=navigate');
+    expect([response.status, await response.json()]).toEqual([200, { hits: HITS }]);
   });
 
-  async function listen(deps: ToolCatalogHttpDeps): Promise<string> {
-    const app = express();
-    app.use(express.json());
-    registerToolCatalogRoutes({ app: app as never, deps, adapter: adapter as never });
-    const server = await new Promise<Server>((resolve) => {
-      const s = app.listen(0, '127.0.0.1', () => resolve(s));
-    });
-    servers.push(server);
-    adapterPortRef.current = (server.address() as AddressInfo).port;
-    return `http://127.0.0.1:${adapterPortRef.current}`;
-  }
-
-  it('serves GET /api/tools/search over the wire, ranked hits only', async () => {
-    const base = await listen(makeDeps());
-    const response = await fetch(`${base}/api/tools/search?q=navigate`, { headers: { origin: base } });
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ hits: HITS });
+  it('serves GET /api/tools/:id, including inputSchema', async () => {
+    const response = await get(makeDeps(), '/api/tools/page.navigate');
+    expect([response.status, await response.json()]).toEqual([200, ENTRY]);
   });
 
-  it('serves GET /api/tools/:id over the wire, including inputSchema', async () => {
-    const base = await listen(makeDeps());
-    const response = await fetch(`${base}/api/tools/page.navigate`, { headers: { origin: base } });
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual(ENTRY);
-  });
-
-  // The wire-level half of the 400 -> 404 correction above: the status code an HTTP caller
-  // (and `@jini-ai/mcp`'s `describe_tool`, which proxies this exact route) actually observes.
-  it('answers 404 over the wire for an unknown tool id', async () => {
-    const base = await listen(makeDeps());
-    const response = await fetch(`${base}/api/tools/no.such.tool`, { headers: { origin: base } });
-    expect(response.status).toBe(404);
-    expect(await response.json()).toEqual({
-      error: { code: 'NOT_FOUND', message: 'no catalog entry for tool id "no.such.tool"' },
-    });
+  // The status code an HTTP caller (and `@jini-ai/mcp`'s `describe_tool`, which proxies this exact route) observes.
+  it('answers 404 for an unknown tool id', async () => {
+    const response = await get(makeDeps(), '/api/tools/no.such.tool');
+    expect([response.status, await response.json()]).toEqual([404, { error: { code: 'NOT_FOUND', message: 'no catalog entry for tool id "no.such.tool"' } }]);
   });
 
   // A malformed request is still 400 — the correction narrowed the not-found case only.
-  it('still answers 400 over the wire for a malformed search request', async () => {
-    const base = await listen(makeDeps());
-    const response = await fetch(`${base}/api/tools/search?q=`, { headers: { origin: base } });
-    expect(response.status).toBe(400);
+  it('still answers 400 for a malformed search request', async () => {
+    expect((await get(makeDeps(), '/api/tools/search?q=')).status).toBe(400);
   });
 
   it('rejects a cross-origin request with 403 before consulting the catalog', async () => {
     let consulted = false;
-    const base = await listen(makeDeps({ describe: ({ id }) => { consulted = true; return id === ENTRY.id ? ENTRY : null; } }));
-    const response = await fetch(`${base}/api/tools/page.navigate`, { headers: { origin: 'http://evil.example.com' } });
-    expect(response.status).toBe(403);
-    expect(consulted).toBe(false);
+    const response = await get(makeDeps({ describe: ({ id }) => { consulted = true; return id === ENTRY.id ? ENTRY : null; } }), '/api/tools/page.navigate', { denyOrigins: true });
+    expect([response.status, consulted]).toEqual([403, false]);
   });
 });

@@ -10,7 +10,13 @@ import type { AddressInfo } from 'node:net';
 import express, { type Express, type RequestHandler } from 'express';
 import type { RouteHostContext } from '@jini-ai/core/contracts/server';
 import { createLocalSameOriginPolicy } from '@jini-ai/core/contracts/server';
+import type { ServerRoute } from '@jini-ai/core/contracts/server';
+import { reportRouteInternalError } from '@jini-ai/http-kit';
+import { createNodeDispatcher, maxReserializedJsonBytes } from '@jini-ai/http-kit/node-bridge';
 import { testOriginConfig } from '../fixtures/local-origin.js';
+import { fakeDaemonRouteHost } from '../fakes/route-host.js';
+import type { DaemonRouteHost } from '../../route-host.js';
+import { describeRoutes } from '../../route-table.js';
 import { registerActiveContextRoutes } from '../../active-context.js';
 import { registerAgentRoutes } from '../../agents.js';
 import { registerAttachmentLookupRoutes } from '../../attachment-lookup-routes.js';
@@ -33,7 +39,7 @@ import { registerResearchRoutes } from '../../research.js';
 import { registerRoutineRoutes } from '../../routines.js';
 import { registerRunRoutes } from '../../runs.js';
 import { registerTerminalRoutes } from '../../terminals.js';
-import { registerToolCatalogRoutes } from '../../tool-catalog.js';
+import { toolCatalogRoutes } from '../../tool-catalog.js';
 import { registerToolExecutionRoutes } from '../../tool-execution-routes.js';
 import { registerXaiRoutes } from '../../xai.js';
 
@@ -89,7 +95,7 @@ export function throwingDeps(known: Readonly<Record<string, unknown>> = {}): nev
   }) as never;
 }
 
-type Mount = (required: { app: Express; adapter: RouteHostContext; deps: (known?: Readonly<Record<string, unknown>>) => never }) => void;
+type Mount = (required: { app: Express; adapter: RouteHostContext; deps: (known?: Readonly<Record<string, unknown>>) => never; mountList: (routes: readonly ServerRoute[]) => void }) => void;
 
 /** Token env for the two bearer gates; never the real process env. */
 const gateEnv = { JINI_TOOL_EXEC_TOKEN: HARNESS_BEARER_TOKEN, JINI_REMOTE_TOOL_BRIDGE_TOKEN: HARNESS_BEARER_TOKEN };
@@ -115,7 +121,7 @@ const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-par
   ['active-context', ({ app, adapter, deps }) => registerActiveContextRoutes({ app, deps: deps(), adapter })],
   ['terminals', ({ app, adapter, deps }) => registerTerminalRoutes({ app, deps: deps(), adapter })],
   ['db-ops', ({ app, adapter, deps }) => registerDaemonDbRoutes({ app, deps: deps(), adapter })],
-  ['tool-catalog', ({ app, adapter, deps }) => registerToolCatalogRoutes({ app, deps: deps(), adapter })],
+  ['tool-catalog', ({ adapter, deps, mountList }) => mountList(toolCatalogRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['delegated-tools', ({ app, adapter, deps }) => registerDelegatedToolRoutes({ app, deps: deps(), adapter })],
   ['connectors', ({ app, adapter, deps }) => registerConnectorsRoutes({ app, deps: deps(), adapter })],
   ['research', ({ app, adapter, deps }) => registerResearchRoutes({ app, deps: deps(), adapter })],
@@ -132,6 +138,23 @@ const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-par
   ['message-relay', ({ app, deps }) => registerMessageRelayRoutes({ app, agentExecutor: deps(), runScopedCallers: undefined })],
   ['frontend-request-route', ({ app, deps }) => registerFrontendRequestRoute({ app, path: '/api/frontend-requests', control: deps(), executor: deps(), resolveOwner: (deps() as { resolveOwner: never }).resolveOwner, capabilityIds: ['characterization.capability'] })],
 ];
+
+/** The host a route list is given: the harness's own origin policy and sink, the real reporter, and the body limit a host derives from the blanket parser (100 KB). */
+function routeHost(adapter: RouteHostContext): DaemonRouteHost {
+  return { ...fakeDaemonRouteHost(), context: adapter, reportInternalError: reportRouteInternalError, jsonBodyMaxBytes: maxReserializedJsonBytes({ parserLimitBytes: 102_400 }) };
+}
+
+/**
+ * Mounts a route list at this position, the way the preset and Tovu do: as one layer through the Node
+ * bridge, with the parser above it (`parsedBody`) and Express's own answers kept. Each route is recorded
+ * as its method, path and gate names, so the route-table pin reads the same for a list as for `app.get`.
+ */
+function mountRouteList({ app, family, routes, described }: { app: Express; family: string; routes: readonly ServerRoute[]; described: DescribedRoute[] }): void {
+  const dispatcher = createNodeDispatcher({}, { expressCompatible: true });
+  for (const route of routes) dispatcher.server.route(route);
+  app.use((req, res, next) => { void dispatcher.handle({ incoming: req, out: res }, { next, parsedBody: (req as { body?: unknown }).body, locals: res.locals }); });
+  for (const route of describeRoutes({ routes })) described.push({ family, method: route.method, path: route.path, layers: route.gates });
+}
 
 const layerName = (handler: unknown): string => (typeof handler === 'function' ? `${handler.name || 'anonymous'}/${handler.length}` : String(handler));
 
@@ -158,7 +181,7 @@ function mountEverything({ app, adapter, familyDeps }: { app: Express; adapter: 
       continue;
     }
     const [family, mount] = entry;
-    mount({ app: recordingApp({ app, family, routes }), adapter, deps: (known = {}) => throwingDeps({ onInternalError: adapter.onInternalError, ...known, ...familyDeps[family] }) });
+    mount({ app: recordingApp({ app, family, routes }), adapter, mountList: (list) => mountRouteList({ app, family, routes: list, described: routes }), deps: (known = {}) => throwingDeps({ onInternalError: adapter.onInternalError, ...known, ...familyDeps[family] }) });
   }
   return routes;
 }

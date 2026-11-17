@@ -11,7 +11,9 @@ import { registerAgentRoutes } from '../agents.js';
 import { registerDelegatedToolRoutes } from '../delegated-tools.js';
 import { registerHealthRoutes } from '../health.js';
 import { registerRunRoutes } from '../runs.js';
-import { registerToolCatalogRoutes } from '../tool-catalog.js';
+import { toolCatalogRoutes } from '../tool-catalog.js';
+import { describeRoutes } from '../route-table.js';
+import { fakeDaemonRouteHost } from './fakes/route-host.js';
 
 /**
  * The anti-drift guard for `route-manifest.ts`.
@@ -51,9 +53,22 @@ const MOUNT_FAMILY: Readonly<Record<string, (app: Express) => void>> = {
   health: (app) => registerHealthRoutes({ app, deps: anyDeps, adapter }),
   runs: (app) => registerRunRoutes({ app, deps: anyDeps, adapter }),
   agents: (app) => registerAgentRoutes({ app, deps: anyDeps, adapter }),
-  toolCatalog: (app) => registerToolCatalogRoutes({ app, deps: anyDeps, adapter }),
   delegatedToolCalls: (app) => registerDelegatedToolRoutes({ app, deps: anyDeps, adapter }),
 };
+
+/** A family that returns its routes as data: what it lists, as registrations. */
+const LISTED_FAMILY: Readonly<Record<string, () => RouteRegistration[]>> = {
+  toolCatalog: () => describeRoutes({ routes: toolCatalogRoutes({ deps: anyDeps, host: fakeDaemonRouteHost() }) }),
+};
+
+/** What `family` really registers: its route list, or the routes its registrar puts on a recording app. */
+function registeredBy(family: string): RouteRegistration[] {
+  const listed = LISTED_FAMILY[family];
+  if (listed) return listed();
+  const { app, routes } = recordingApp();
+  MOUNT_FAMILY[family]!(app);
+  return routes;
+}
 
 const sortKeys = (routes: readonly RouteRegistration[]) =>
   routes.map((r) => `${r.method} ${r.path}`).sort();
@@ -70,12 +85,11 @@ describe('route manifest matches what each family really registers', () => {
       'toolCatalog',
     ]);
     // Every declared family must have a way to be verified, and vice versa.
-    expect(Object.keys(MOUNT_FAMILY).sort()).toEqual(Object.keys(JINI_ROUTE_MANIFEST).sort());
+    expect([...Object.keys(MOUNT_FAMILY), ...Object.keys(LISTED_FAMILY)].sort()).toEqual(Object.keys(JINI_ROUTE_MANIFEST).sort());
   });
 
   it.each(Object.keys(JINI_ROUTE_MANIFEST))('family %s', (family) => {
-    const { app, routes } = recordingApp();
-    MOUNT_FAMILY[family]!(app);
+    const routes = registeredBy(family);
     expect(routes).not.toHaveLength(0);
     expect(sortKeys(routes)).toEqual(sortKeys(JINI_ROUTE_MANIFEST[family]!));
   });
