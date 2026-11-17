@@ -1,4 +1,4 @@
-/** Security review A2: rotation opens its fresh seal again before writing, a key switch reads the stored
+/** Security review A2: rotation and copy-overwrite open their fresh seal again before writing, a key switch reads the stored
  * row through an explicit source opener, and a refusal says which step failed without leaking. */
 import assert from "node:assert/strict";
 import { test, vi } from "vitest";
@@ -153,4 +153,52 @@ test("a cause whose name or code is not a plain identifier is dropped rather tha
   assert.ok(refusal instanceof VaultResealRefusedError);
   assert.deepEqual([refusal.causeName, refusal.causeCode], [undefined, undefined]);
   assertRedacted(refusal, []);
+});
+
+/** Two sites, each with its own key, for the copy-overwrite tests: the source holds the secret, the target already has a row to overwrite. */
+async function copySites() {
+  const site = (workspaceId: string) => {
+    const repo = new InMemoryVaultRepo({});
+    const key = keyed(workspaceId);
+    const siteContext = { workspaceId, kind: "vendor" as const, ownerKey: "feature", principalId: null, binding: null };
+    return { repo, ...key, service: serviceOver({ repo, ...key }), siteContext, put: { ...siteContext, id: "same-id", provider: "host", label: "Main",
+      meta: { credentialType: "vendor", worksFor: ["host"] }, payload: { token: secret }, hintToken: secret, expectedRevision: null } satisfies VaultPutInput };
+  };
+  const source = site("source"), target = site("target");
+  const copy = (overwrite: boolean) => target.service.copyToSite({ source: source.service, sourceContext: source.siteContext,
+    targetContext: target.siteContext, ids: ["same-id"], overwrite });
+  await source.service.put(source.put);
+  return { source, target, copy };
+}
+
+test("copy with overwrite refuses a fresh seal that does not open and leaves the target row intact", async () => {
+  const { target, copy } = await copySites();
+  await target.service.put({ ...target.put, payload: { token: "target-value-123" } });
+  const before = (await target.repo.find({ workspaceId: "target", id: "same-id" }))!;
+  const seal = target.sealer.seal.bind(target.sealer);
+  vi.spyOn(target.sealer, "seal").mockImplementationOnce(async value => seal({ ...value, plaintext: JSON.stringify({ token: "swapped-value" }) }));
+  assert.deepEqual(await copy(true), [{ kind: "vendor", id: "same-id", status: "failed", reasonCode: "invalid-record" }]);
+  assert.deepEqual(await target.repo.find({ workspaceId: "target", id: "same-id" }), before);
+  assert.deepEqual((await target.service.get({ ...target.siteContext, id: "same-id" }))?.payload, { token: "target-value-123" });
+});
+
+test("copy with overwrite refuses a fresh seal that is bound to the wrong identity and leaves the target row intact", async () => {
+  const { target, copy } = await copySites();
+  await target.service.put({ ...target.put, payload: { token: "target-value-123" } });
+  const before = (await target.repo.find({ workspaceId: "target", id: "same-id" }))!;
+  const seal = target.sealer.seal.bind(target.sealer);
+  vi.spyOn(target.sealer, "seal").mockImplementationOnce(async value => seal({ ...value, aad: buildVaultAad({ ...target.siteContext, id: "other" }) }));
+  assert.deepEqual(await copy(true), [{ kind: "vendor", id: "same-id", status: "failed", reasonCode: "invalid-record" }]);
+  assert.deepEqual(await target.repo.find({ workspaceId: "target", id: "same-id" }), before);
+});
+
+test("only rotate and copy-overwrite open a fresh seal: put, prepare and a first copy add no open", async () => {
+  const { target, copy } = await copySites();
+  const open = vi.spyOn(target.sealer, "open");
+  await target.service.put({ ...target.put, id: "other-id", label: "Other", payload: { token: "target-value-123" } });
+  await target.service.prepare({ ...target.put, id: "prepared", label: "Prepared", payload: { token: "target-value-123" } });
+  assert.deepEqual(await copy(false), [{ kind: "vendor", id: "same-id", status: "copied", last4: secret.slice(-4) }]);
+  assert.equal(open.mock.calls.length, 0);
+  assert.equal((await copy(true))[0]?.status, "copied");
+  assert.equal(open.mock.calls.length, 1);
 });
