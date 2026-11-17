@@ -12,6 +12,7 @@ export type { Translate, DictionaryTranslator, LocaleDictionary } from './dictio
 export { interpolate, splitOnPlaceholders, pickPlural, localeEntry } from './template-i18n.js';
 export { formatTimestamp, formatRelativeMinutesAgo } from './format-timestamp.js';
 export { resolveActiveTabId } from './resolve-active-tab-id.js';
+export { redactOAuthUrls } from './redact-urls.js';
 export { isAbortError } from './is-abort-error.js';
 export { extensionForMimeType } from './mime.js';
 export { formatByteSize } from './format-byte-size.js';
