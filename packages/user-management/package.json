@@ -17,6 +17,7 @@
       "./server": "node",
       "./react": "browser",
       "./react/testing": "browser",
+      "./react/kit": "browser",
       "./admin": "universal",
       "./admin/react": "browser",
       "./admin/adapters/http": "universal",
@@ -55,6 +56,11 @@
       "types": "./dist/react/testing.d.ts",
       "import": "./dist/react/testing.js",
       "default": "./dist/react/testing.js"
+    },
+    "./react/kit": {
+      "types": "./dist/react/kit.d.ts",
+      "import": "./dist/react/kit.js",
+      "default": "./dist/react/kit.js"
     },
     "./admin": {
       "types": "./dist/admin/index.d.ts",

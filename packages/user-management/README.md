@@ -9,6 +9,7 @@ All current entries are included in the unchanged 0.1.0 package version:
 | `@jini-ai/user-management/server` | Node | Auth, sessions, grants, administration, hashing, memory repos, seeding, migrations, tool metadata/parser and registration composition |
 | `@jini-ai/user-management/react` | Browser | Login, Users, Members, hooks, browser DTOs and typed host ports |
 | `@jini-ai/user-management/react/testing` | Browser | Generalized fake login/users/roles/members ports |
+| `@jini-ai/user-management/react/kit` | Browser | The UI contract the screens render through: four components and five hooks, provided once by the host via `UserManagementKitProvider` |
 | `@jini-ai/user-management/admin/react` | Browser | Composable roles/policies module and lazy screens using ui-kit |
 
 Every public function/factory takes a required argument object and, where needed,
