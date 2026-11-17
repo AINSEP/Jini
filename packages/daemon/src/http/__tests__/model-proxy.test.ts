@@ -1,12 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { allowSameOrigin, rejectCrossOrigin, sameOriginGuard } from './fixtures/same-origin-gate.js';
+import { createRecordingOriginPolicy, createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
 import { registerModelProxyRoutes, type ModelProxyHttpDeps } from '../model-proxy.js';
-
-// The same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
-vi.mock('@jini-ai/core/contracts/server', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@jini-ai/core/contracts/server')>();
-  return { ...actual, guardSameOrigin: vi.fn(() => actual.ok({ value: undefined })) };
-});
 
 // `@jini-ai/agent-runtime`'s provider adapters (anthropic-messages.ts, openai-chat.ts — azure-chat.ts
 // delegates to the latter — google-messages.ts, ollama-chat.ts) all call `pinnedFetch` from
@@ -77,7 +71,16 @@ function makeSseRes() {
   return res;
 }
 
-const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 7456 } };
+const baseOriginPolicy = createRecordingOriginPolicy();
+// Scripted verdicts consumed before the recording policy answers: lets a test make the Nth origin check throw.
+const scriptedOrigin: Array<() => boolean> = [];
+const testOriginPolicy = {
+  isSameOrigin: (required: Parameters<typeof baseOriginPolicy.isSameOrigin>[0]) => (scriptedOrigin.length > 0 ? scriptedOrigin.shift()!() : baseOriginPolicy.isSameOrigin(required)),
+  set: (required: { readonly allow: boolean }) => baseOriginPolicy.set(required),
+};
+const throwFromOriginCheck = (message: string) => scriptedOrigin.push(() => { throw new Error(message); });
+
+const adapter = createTestRouteHost({}, { originPolicy: testOriginPolicy });
 
 /** Always injects `injectedFetch`/`injectedDnsLookup` as the transport/resolver — a caller-supplied `deps.fetchImpl`/`deps.dnsLookup` would still win (spread order), but nothing in this file ever passes one. */
 function mount(deps: ModelProxyHttpDeps = {}) {
@@ -225,7 +228,8 @@ const validOllamaBody = {
 };
 
 beforeEach(() => {
-  allowSameOrigin();
+  testOriginPolicy.set({ allow: true });
+  scriptedOrigin.length = 0;
   injectedFetch.mockReset();
 });
 
@@ -265,7 +269,7 @@ describe('POST /api/proxy/anthropic/stream', () => {
   }
 
   it('rejects a cross-origin request with 403 before touching fetch', async () => {
-    rejectCrossOrigin();
+    testOriginPolicy.set({ allow: false });
     const fetchMock = vi.fn();
     injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
@@ -467,9 +471,7 @@ describe('POST /api/proxy/anthropic/stream', () => {
     };
     process.on('unhandledRejection', onUnhandledRejection);
     try {
-      sameOriginGuard().mockImplementationOnce(() => {
-        throw new Error('same-origin check exploded unexpectedly');
-      });
+      throwFromOriginCheck('same-origin check exploded unexpectedly');
       const res = makeSseRes();
       // Mirrors real Express dispatch exactly: call the handler and discard its return value,
       // never `await` or `.catch()` it — that is the one thing Express itself never does either.
@@ -498,7 +500,7 @@ describe('POST /api/proxy/openai/stream', () => {
   }
 
   it('rejects a cross-origin request with 403 before touching fetch', async () => {
-    rejectCrossOrigin();
+    testOriginPolicy.set({ allow: false });
     const fetchMock = vi.fn();
     injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
@@ -596,7 +598,7 @@ describe('POST /api/proxy/azure/stream', () => {
   }
 
   it('rejects a cross-origin request with 403 before touching fetch', async () => {
-    rejectCrossOrigin();
+    testOriginPolicy.set({ allow: false });
     const fetchMock = vi.fn();
     injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
@@ -700,7 +702,7 @@ describe('POST /api/proxy/google/stream', () => {
   }
 
   it('rejects a cross-origin request with 403 before touching fetch', async () => {
-    rejectCrossOrigin();
+    testOriginPolicy.set({ allow: false });
     const fetchMock = vi.fn();
     injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
@@ -811,7 +813,7 @@ describe('POST /api/proxy/ollama/stream', () => {
   }
 
   it('rejects a cross-origin request with 403 before touching fetch', async () => {
-    rejectCrossOrigin();
+    testOriginPolicy.set({ allow: false });
     const fetchMock = vi.fn();
     injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
@@ -957,7 +959,7 @@ describe('POST /api/proxy/:provider/stream — the generic catch-all', () => {
   }
 
   it('rejects a cross-origin request with 403 before looking at the provider param', async () => {
-    rejectCrossOrigin();
+    testOriginPolicy.set({ allow: false });
     const fetchMock = vi.fn();
     injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
@@ -980,9 +982,7 @@ describe('POST /api/proxy/:provider/stream — the generic catch-all', () => {
     };
     process.on('unhandledRejection', onUnhandledRejection);
     try {
-      sameOriginGuard().mockImplementationOnce(() => {
-        throw new Error('same-origin check exploded unexpectedly');
-      });
+      throwFromOriginCheck('same-origin check exploded unexpectedly');
       const res = makeSseRes();
       handler()(makeParamReq({ provider: 'anthropic' }, validAnthropicBody), res);
       await new Promise((resolve) => setImmediate(resolve));
@@ -1442,9 +1442,7 @@ describe('model-proxy pins — executeTool wiring per provider', () => {
 
 describe('model-proxy pins — catch-block fallbacks once headers are already committed', () => {
   function throwingOriginOnce() {
-    sameOriginGuard().mockImplementationOnce(() => {
-      throw new Error('origin check exploded');
-    });
+    throwFromOriginCheck('origin check exploded');
   }
 
   it('fixed route: ends a response whose headers were already sent instead of writing JSON', async () => {
@@ -1550,9 +1548,8 @@ describe('model-proxy pins — catch-block fallbacks once headers are already co
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
     const res = makeSseRes();
     // The catch-all's own origin check passes; the one inside runProxyStream throws.
-    sameOriginGuard().mockReturnValueOnce({ ok: true, value: undefined }).mockImplementationOnce(() => {
-      throw new Error('origin check exploded');
-    });
+    scriptedOrigin.push(() => true);
+    throwFromOriginCheck('origin check exploded');
     await callCatchAll('anthropic', validAnthropicBody, { onInternalError }, res); // a rejection would fail the test
     expect(onInternalError).toHaveBeenCalledTimes(1);
     expect(res.status).toHaveBeenCalledWith(500);

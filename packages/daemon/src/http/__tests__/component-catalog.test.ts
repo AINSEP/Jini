@@ -2,6 +2,7 @@ import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { afterEach, describe, expect, it } from 'vitest';
+import { createLocalTestOrigin } from './fixtures/local-origin.js';
 import {
   registerComponentCatalogRoutes,
   componentCatalogDescribeRoute,
@@ -106,7 +107,7 @@ describe('componentCatalogDescribeRoute', () => {
 
 describe('registerComponentCatalogRoutes — real Express server on a real socket', () => {
   const servers: Server[] = [];
-  const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 0 } };
+  const { adapter: adapter, portRef: adapterPortRef } = createLocalTestOrigin({}, { port: 0 });
 
   afterEach(() => {
     for (const server of servers.splice(0)) server.close();
@@ -120,8 +121,8 @@ describe('registerComponentCatalogRoutes — real Express server on a real socke
       const s = app.listen(0, '127.0.0.1', () => resolve(s));
     });
     servers.push(server);
-    adapter.resolvedPortRef.current = (server.address() as AddressInfo).port;
-    return `http://127.0.0.1:${adapter.resolvedPortRef.current}`;
+    adapterPortRef.current = (server.address() as AddressInfo).port;
+    return `http://127.0.0.1:${adapterPortRef.current}`;
   }
 
   it('serves GET /api/components/search over the wire, ranked hits only', async () => {

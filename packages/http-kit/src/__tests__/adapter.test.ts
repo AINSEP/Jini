@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import { createApiError } from '@jini-ai/protocol';
 import { defineJsonRoute, mountJsonRoute } from '../adapter.js';
-import { ClientFacingError, err, ok } from '@jini-ai/core/contracts/server';
+import { ClientFacingError, createLocalSameOriginPolicy, err, ok } from '@jini-ai/core/contracts/server';
 
 type RecordedHandler = (req: any, res: any) => Promise<void> | void;
 
@@ -56,7 +56,7 @@ function makeClosableRes() {
   };
 }
 
-const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 7456 } };
+const adapter = { originPolicy: createLocalSameOriginPolicy({ port: () => 7456, env: {}, config: { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' } }) };
 
 describe('http adapter', () => {
   it('prints only class, code and correlation for an error carrying config headers and quoted credentials', async () => {

@@ -2,7 +2,8 @@ import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { allowSameOrigin, rejectCrossOrigin } from './fixtures/same-origin-gate.js';
+import { createLocalTestOrigin } from './fixtures/local-origin.js';
+import { createRecordingOriginPolicy, createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
 import {
   mediaGenerateRoute,
   mediaTaskDeleteRoute,
@@ -85,12 +86,6 @@ function createInMemoryMediaTaskStore(): MediaTaskStore {
   };
 }
 
-// The same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
-vi.mock('@jini-ai/core/contracts/server', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@jini-ai/core/contracts/server')>();
-  return { ...actual, guardSameOrigin: vi.fn(() => actual.ok({ value: undefined })) };
-});
-
 interface MockApp {
   get: (path: string, handler: any) => void;
   post: (path: string, handler: any) => void;
@@ -115,7 +110,9 @@ function makeJsonRes() {
   };
 }
 
-const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 7456 } };
+const testOriginPolicy = createRecordingOriginPolicy();
+
+const adapter = createTestRouteHost({}, { originPolicy: testOriginPolicy });
 
 function fakeResult(overrides: Partial<MediaGenerationResult> = {}): MediaGenerationResult {
   return {
@@ -141,7 +138,7 @@ function makeDeps(overrides: Partial<MediaHttpDeps> = {}): MediaHttpDeps {
 }
 
 beforeEach(() => {
-  allowSameOrigin();
+  testOriginPolicy.set({ allow: true });
 });
 
 describe('mediaGenerateRoute.parse', () => {
@@ -710,7 +707,7 @@ describe('registerMediaRoutes', () => {
   });
 
   it('requires same-origin for generate: blocks a cross-origin request with 403', async () => {
-    rejectCrossOrigin();
+    testOriginPolicy.set({ allow: false });
     const app = makeApp();
     registerMediaRoutes({ app: app as any, deps: makeDeps(), adapter });
     const res = makeJsonRes();
@@ -719,7 +716,7 @@ describe('registerMediaRoutes', () => {
   });
 
   it('requires same-origin for delete: blocks a cross-origin request with 403', async () => {
-    rejectCrossOrigin();
+    testOriginPolicy.set({ allow: false });
     const app = makeApp();
     registerMediaRoutes({ app: app as any, deps: makeDeps(), adapter });
     const res = makeJsonRes();
@@ -728,7 +725,7 @@ describe('registerMediaRoutes', () => {
   });
 
   it('does not require same-origin for get/list', async () => {
-    rejectCrossOrigin();
+    testOriginPolicy.set({ allow: false });
     const app = makeApp();
     const deps = makeDeps();
     registerMediaRoutes({ app: app as any, deps, adapter });
@@ -764,7 +761,7 @@ describe('registerMediaRoutes', () => {
  */
 describe('registerMediaRoutes — real Express server on a real socket', () => {
   const servers: Server[] = [];
-  const adapterRef = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 0 } };
+  const { adapter: adapterRef, portRef: adapterRefPortRef } = createLocalTestOrigin({}, { port: 0 });
 
   afterEach(() => {
     for (const server of servers.splice(0)) server.close();
@@ -778,8 +775,8 @@ describe('registerMediaRoutes — real Express server on a real socket', () => {
       const s = app.listen(0, '127.0.0.1', () => resolve(s));
     });
     servers.push(server);
-    adapterRef.resolvedPortRef.current = (server.address() as AddressInfo).port;
-    return `http://127.0.0.1:${adapterRef.resolvedPortRef.current}`;
+    adapterRefPortRef.current = (server.address() as AddressInfo).port;
+    return `http://127.0.0.1:${adapterRefPortRef.current}`;
   }
 
   async function send(base: string, method: string, routePath: string, body?: unknown, origin = base) {
@@ -832,7 +829,7 @@ describe('registerMediaRoutes — real Express server on a real socket', () => {
   });
 
   it('rejects a cross-origin generate request with 403 before the task store is ever called', async () => {
-    rejectCrossOrigin();
+    testOriginPolicy.set({ allow: false });
     const taskStore = createInMemoryMediaTaskStore();
     const createSpy = vi.spyOn(taskStore, 'create');
     const base = await listen(makeDeps({ taskStore }));

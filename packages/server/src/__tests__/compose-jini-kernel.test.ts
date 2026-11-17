@@ -7,7 +7,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import express, { type Express } from 'express';
 import { definePack, type ToolRegistration } from '@jini-ai/core';
 import { getRouteRegistrationInventory, installRouteRegistrationGuard } from '@jini-ai/http-kit';
-import { type RouteHostContext } from '@jini-ai/core/contracts/server';
+import { createLocalSameOriginPolicy, type RouteHostContext } from '@jini-ai/core/contracts/server';
+import { createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
 
 import { composeJiniKernel, type JiniKernel } from '../compose-jini-kernel.js';
 import { createBuiltInFeatures } from '../builtin-features.js';
@@ -28,11 +29,11 @@ function makeTempDataDir(): string {
 }
 
 const kernels: JiniKernel[] = [];
-async function compose(config: Omit<Parameters<typeof composeJiniKernel>[0], 'app' | 'adapter'> & { app?: Express }) {
+async function compose(config: Omit<Parameters<typeof composeJiniKernel>[0], 'app' | 'adapter' | 'resolvedPortRef'> & { app?: Express }) {
   const app = config.app ?? express();
   installRouteRegistrationGuard({ app });
-  const adapter: RouteHostContext = { resolvedPortRef: { current: 4000 }, env: {}, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' };
-  const kernel = await composeJiniKernel({ ...config, app, adapter });
+  const adapter: RouteHostContext = createTestRouteHost();
+  const kernel = await composeJiniKernel({ resolvedPortRef: { current: 4000 }, ...config, app, adapter });
   kernels.push(kernel);
   return { app, kernel };
 }
@@ -141,7 +142,7 @@ describe('shared kernel resources', () => {
     const kernel = await composeJiniKernel({
         security: { mode: 'host' },
         app,
-      adapter: { resolvedPortRef: { current: 4000 }, env: {}, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' },
+      adapter: createTestRouteHost(), resolvedPortRef: { current: 4000 },
       storage: { kind: 'sqlite', open: openSqlite, dataDir },
       profile: 'local-daemon-v1',
       featureOptions: { daemonStatus: { requestShutdown: () => undefined } },
@@ -282,7 +283,7 @@ describe('mounting order', () => {
     await composeJiniKernel({
         security: { mode: 'host' },
         app,
-      adapter: { resolvedPortRef: { current: 4000 }, env: {}, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' },
+      adapter: createTestRouteHost(), resolvedPortRef: { current: 4000 },
       storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
       featureOptions: { daemonStatus: { requestShutdown: () => undefined } },
@@ -426,7 +427,8 @@ describe('security: sidecar-strict', () => {
     const resolvedPortRef = { current: 0 };
     const kernel = await composeJiniKernel({
         app,
-      adapter: { resolvedPortRef, env, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' },
+      adapter: { originPolicy: createLocalSameOriginPolicy({ port: () => resolvedPortRef.current, env, config: { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' } }) },
+      resolvedPortRef,
       storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       env,
@@ -591,7 +593,7 @@ describe('teardown', () => {
       composeJiniKernel({
         security: { mode: 'host' },
         app,
-        adapter: { resolvedPortRef: { current: 4000 }, env: {}, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' },
+        adapter: createTestRouteHost(), resolvedPortRef: { current: 4000 },
         storage: { kind: 'memory' },
         profile: 'agent-core-v1',
         packs: [callerPack],
@@ -630,7 +632,7 @@ describe('teardown', () => {
       composeJiniKernel({
         security: { mode: 'host' },
         app,
-        adapter: { resolvedPortRef: { current: 4000 }, env: {}, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' },
+        adapter: createTestRouteHost(), resolvedPortRef: { current: 4000 },
         storage: { kind: 'sqlite', open: openSqlite, dataDir },
         profile: 'local-daemon-v1',
       featureOptions: { daemonStatus: { requestShutdown: () => undefined } },
@@ -707,7 +709,7 @@ it('rejects omitted security before any storage resource is read', async () => {
   const app = express();
   const config = {
     app,
-    adapter: { resolvedPortRef: { current: 0 }, env: {}, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' },
+    adapter: createTestRouteHost(), resolvedPortRef: { current: 0 },
     get storage(): { kind: 'memory' } { throw new Error('storage was opened'); },
   };
   // @ts-expect-error Security is deliberately omitted to exercise untyped callers at runtime.
@@ -719,7 +721,7 @@ it('rejects unknown security modes before any storage resource is read', async (
   const app = express();
   const config = {
     app,
-    adapter: { resolvedPortRef: { current: 0 }, env: {}, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' },
+    adapter: createTestRouteHost(), resolvedPortRef: { current: 0 },
     security: { mode: 'unknown' },
     get storage(): { kind: 'memory' } { throw new Error('storage was opened'); },
   };

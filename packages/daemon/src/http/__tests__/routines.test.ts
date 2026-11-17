@@ -2,6 +2,8 @@ import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createLocalTestOrigin } from './fixtures/local-origin.js';
+import { createRecordingOriginPolicy, createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
 import {
   createInMemoryRoutineStore,
   validateSchedule,
@@ -9,7 +11,6 @@ import {
   type RoutineRun,
   type RoutineStore,
 } from '../../index.js';
-import { allowSameOrigin, rejectCrossOrigin } from './fixtures/same-origin-gate.js';
 import {
   registerRoutineRoutes,
   routineCreateRoute,
@@ -22,12 +23,6 @@ import {
   type RoutineHttpDeps,
   type RoutineScheduler,
 } from '../routines.js';
-
-// The same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
-vi.mock('@jini-ai/core/contracts/server', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@jini-ai/core/contracts/server')>();
-  return { ...actual, guardSameOrigin: vi.fn(() => actual.ok({ value: undefined })) };
-});
 
 // `validateSchedule`/`validateTarget` (real @jini-ai/daemon logic, unmocked in every other test in this
 // file via the wrapping vi.fn below) always throw genuine `Error` instances in practice — confirmed by
@@ -61,7 +56,9 @@ function makeRes() {
   return { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() };
 }
 
-const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 7456 } };
+const testOriginPolicy = createRecordingOriginPolicy();
+
+const adapter = createTestRouteHost({}, { originPolicy: testOriginPolicy });
 
 function validCreateBody(overrides: Record<string, unknown> = {}) {
   return {
@@ -93,7 +90,7 @@ function makeDeps(overrides: Partial<RoutineHttpDeps> = {}): RoutineHttpDeps {
 }
 
 beforeEach(() => {
-  allowSameOrigin();
+  testOriginPolicy.set({ allow: true });
 });
 
 // ---------------------------------------------------------------------------
@@ -835,7 +832,7 @@ describe('registerRoutineRoutes', () => {
   });
 
   it('does not require same-origin for the three read-only GET routes', async () => {
-    rejectCrossOrigin();
+    testOriginPolicy.set({ allow: false });
     const app = makeApp();
     const store = createInMemoryRoutineStore({});
     const routine = await store.create(validCreateBody() as any);
@@ -855,7 +852,7 @@ describe('registerRoutineRoutes', () => {
   });
 
   it('requires same-origin for POST /api/routines', async () => {
-    rejectCrossOrigin();
+    testOriginPolicy.set({ allow: false });
     const app = makeApp();
     registerRoutineRoutes({ app: app as any, deps: makeDeps(), adapter });
     const res = makeRes();
@@ -864,7 +861,7 @@ describe('registerRoutineRoutes', () => {
   });
 
   it('requires same-origin for PATCH /api/routines/:id', async () => {
-    rejectCrossOrigin();
+    testOriginPolicy.set({ allow: false });
     const app = makeApp();
     registerRoutineRoutes({ app: app as any, deps: makeDeps(), adapter });
     const res = makeRes();
@@ -873,7 +870,7 @@ describe('registerRoutineRoutes', () => {
   });
 
   it('requires same-origin for DELETE /api/routines/:id', async () => {
-    rejectCrossOrigin();
+    testOriginPolicy.set({ allow: false });
     const app = makeApp();
     registerRoutineRoutes({ app: app as any, deps: makeDeps(), adapter });
     const res = makeRes();
@@ -882,7 +879,7 @@ describe('registerRoutineRoutes', () => {
   });
 
   it('requires same-origin for POST /api/routines/:id/run', async () => {
-    rejectCrossOrigin();
+    testOriginPolicy.set({ allow: false });
     const app = makeApp();
     registerRoutineRoutes({ app: app as any, deps: makeDeps(), adapter });
     const res = makeRes();
@@ -962,7 +959,7 @@ describe('registerRoutineRoutes', () => {
  */
 describe('registerRoutineRoutes — real Express server on a real socket', () => {
   const servers: Server[] = [];
-  const adapterRef = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 0 } };
+  const { adapter: adapterRef, portRef: adapterRefPortRef } = createLocalTestOrigin({}, { port: 0 });
 
   afterEach(() => {
     for (const server of servers.splice(0)) server.close();
@@ -976,8 +973,8 @@ describe('registerRoutineRoutes — real Express server on a real socket', () =>
       const s = app.listen(0, '127.0.0.1', () => resolve(s));
     });
     servers.push(server);
-    adapterRef.resolvedPortRef.current = (server.address() as AddressInfo).port;
-    return `http://127.0.0.1:${adapterRef.resolvedPortRef.current}`;
+    adapterRefPortRef.current = (server.address() as AddressInfo).port;
+    return `http://127.0.0.1:${adapterRefPortRef.current}`;
   }
 
   async function send(base: string, method: string, routePath: string, body?: unknown, origin = base) {
@@ -1045,7 +1042,7 @@ describe('registerRoutineRoutes — real Express server on a real socket', () =>
   });
 
   it('rejects a cross-origin create request with 403 before the routine store is ever called', async () => {
-    rejectCrossOrigin();
+    testOriginPolicy.set({ allow: false });
     const store = createInMemoryRoutineStore({});
     const createSpy = vi.spyOn(store, 'create');
     const base = await listen(makeDeps({ store }));

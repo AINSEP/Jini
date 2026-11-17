@@ -32,7 +32,8 @@ import {
   isApiTokenMiddlewareEnabled,
   type ApiTokenAuthEnvConfig,
 } from '@jini-ai/core';
-import { isLoopbackPeerAddress } from './local-daemon-request.js';
+import { bearerTokenFromHeader } from '@jini-ai/core/contracts/server';
+import { isLoopbackPeerAddress } from '@jini-ai/core/net';
 
 /** Health/readiness/version probes stay reachable without a bearer token so monitoring never needs one. Both the mount-relative and `/api`-prefixed forms are listed because this middleware is always registered via `app.use('/api', ...)`, under which Express strips the `/api` prefix from `req.path` for a request to `/api/health` — the prefixed form is kept for parity with the origin module's own set rather than dropped as dead, in case a future caller mounts this middleware unprefixed. */
 const OPEN_PROBE_PATHS = new Set([
@@ -43,25 +44,6 @@ const OPEN_PROBE_PATHS = new Set([
   '/version',
   '/api/version',
 ]);
-
-const BEARER_TOKEN_PATTERN = /^Bearer\s+(\S+)\s*$/i;
-
-/**
- * Extracts the token from an `Authorization: Bearer <token>` header value. The scheme is
- * case-insensitive per RFC 7235 §2.1; the token itself is not.
- *
- * Shared by every bearer gate in this package so the accepted header grammar is defined exactly
- * once — three separate copies of this regex is three chances for them to disagree about what
- * counts as a well-formed header.
- *
- * @param header - The raw `Authorization` header value, or `undefined` when absent.
- * @returns The token, or `null` when the header is absent or not a well-formed bearer header.
- * @complexity O(n) in the header length.
- * @overallScore 100/100
- */
-export function bearerTokenFromHeader({ header }: { readonly header: string | undefined }, _optional: Record<string, never> = {}): string | null {
-  return BEARER_TOKEN_PATTERN.exec(header ?? '')?.[1] ?? null;
-}
 
 /**
  * Constant-time token comparison. Length is compared first and NOT in constant time — that leaks

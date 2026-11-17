@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import express from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createLocalTestOrigin } from './fixtures/local-origin.js';
 import { createFrontendSessionRegistry, type FrontendSessionRegistry } from '../../index.js';
 import type { Request, Response } from 'express';
 
@@ -38,7 +39,7 @@ function makeDeps(
 
 describe('registerFrontendSessionRoutes', () => {
   const servers: Server[] = [];
-  const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 0 } };
+  const { adapter: adapter, portRef: adapterPortRef } = createLocalTestOrigin({}, { port: 0 });
 
   afterEach(() => {
     for (const server of servers.splice(0)) server.close();
@@ -53,8 +54,8 @@ describe('registerFrontendSessionRoutes', () => {
       s.once('error', reject);
     });
     servers.push(server);
-    adapter.resolvedPortRef.current = (server.address() as AddressInfo).port;
-    return `http://127.0.0.1:${adapter.resolvedPortRef.current}`;
+    adapterPortRef.current = (server.address() as AddressInfo).port;
+    return `http://127.0.0.1:${adapterPortRef.current}`;
   }
 
   it('refuses full capacity with a quiet HTTP 429 before opening SSE', async () => {
@@ -160,7 +161,7 @@ describe('registerFrontendSessionRoutes', () => {
       get: (_path: string, handler: (req: Request, res: Response) => void) => { getHandler = handler; },
       post: () => undefined,
     };
-    const fixedPortAdapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 4310 } };
+    const { adapter: fixedPortAdapter, portRef: fixedPortAdapterPortRef } = createLocalTestOrigin({}, { port: 4310 });
     registerFrontendSessionRoutes({ app: fakeApp as never, deps: makeDeps(registry, { onInternalError }), adapter: fixedPortAdapter as never });
 
     const status = vi.fn().mockReturnThis();
@@ -193,7 +194,7 @@ describe('registerFrontendSessionRoutes', () => {
       get: (_path: string, handler: (req: Request, res: Response) => void) => { getHandler = handler; },
       post: () => undefined,
     };
-    const fixedPortAdapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 4310 } };
+    const { adapter: fixedPortAdapter, portRef: fixedPortAdapterPortRef } = createLocalTestOrigin({}, { port: 4310 });
     registerFrontendSessionRoutes({ app: fakeApp as never, deps: makeDeps(registry, { onInternalError: vi.fn() }), adapter: fixedPortAdapter as never });
 
     const end = vi.fn();

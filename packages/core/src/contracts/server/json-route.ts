@@ -197,12 +197,22 @@ async function readRawInput<I, O, D, C>({ spec, request, params }: RouteCall<I, 
   return body.ok ? { ok: true, value: { body: body.value, query, params } } : body;
 }
 
+/**
+ * The same-origin check for a hand-built route (an SSE stream, an upload) that is not a `jsonRoute` and so does not
+ * get `requireSameOrigin`: the host's origin policy is asked with the request's `host`, `origin` and `sec-fetch-site`
+ * headers, and a refusal is the standard 403 `Response`. Returns `undefined` when the request may proceed, so the
+ * route's first line is `const refused = sameOriginRefusal(...); if (refused) return refused;`.
+ */
+export function sameOriginRefusal({ request, origin }: { readonly request: Request; readonly origin: OriginContext }, _optional: Record<string, never> = {}): Response | undefined {
+  const header = (name: string): string | undefined => request.headers.get(name) ?? undefined;
+  const verdict = guardSameOrigin({ req: { headers: { host: header('host'), origin: header('origin'), 'sec-fetch-site': header('sec-fetch-site') } }, origin });
+  return verdict.ok ? undefined : errorAnswer({ error: verdict.error });
+}
+
 function originRefusal<I, O, D, C>({ spec, request }: RouteCall<I, O, D, C>, { host }: { readonly host: RouteHostContext | undefined }): Response | undefined {
   if (!spec.requireSameOrigin) return undefined;
   if (!host) throw new Error('same-origin adapter context is required');
-  const header = (name: string): string | undefined => request.headers.get(name) ?? undefined;
-  const verdict = guardSameOrigin({ req: { headers: { host: header('host'), origin: header('origin'), 'sec-fetch-site': header('sec-fetch-site') } }, origin: host });
-  return verdict.ok ? undefined : errorAnswer({ error: verdict.error });
+  return sameOriginRefusal({ request, origin: host });
 }
 
 // The route chooses where authorization occurs: reads may authorize before validation,

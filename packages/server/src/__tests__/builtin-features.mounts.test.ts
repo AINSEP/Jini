@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import express from 'express';
 import { getRouteRegistrationInventory, installRouteRegistrationGuard } from '@jini-ai/http-kit';
 import { type RouteHostContext } from '@jini-ai/core/contracts/server';
+import { createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
 import type { DetectedAgent } from '@jini-ai/agent-runtime';
 import { composeJiniKernel, type JiniKernel } from '../compose-jini-kernel.js';
 import { ANONYMOUS_DELEGATED_PRINCIPAL, LOCAL_DAEMON_PRINCIPAL, projectDetectedAgent } from '../builtin-features.js';
@@ -19,10 +20,11 @@ afterEach(async () => { while (cleanups.length) await cleanups.pop()!(); });
 async function routesFor(features: Record<string, true>, storage: 'memory' | 'sqlite' = 'memory'): Promise<string[]> {
   const app = express();
   installRouteRegistrationGuard({ app });
-  const adapter: RouteHostContext = { resolvedPortRef: { current: 0 }, env: {}, allowedOriginsEnvVar: 'A', webPortEnvVar: 'W', bindHostEnvVar: 'B' };
+  const adapter: RouteHostContext = createTestRouteHost();
+  const resolvedPortRef = { current: 0 };
   let dataDir: string | undefined;
   if (storage === 'sqlite') { dataDir = mkdtempSync(join(tmpdir(), 'jini-mounts-')); cleanups.push(() => rmSync(dataDir!, { recursive: true, force: true })); }
-  const kernel: JiniKernel = await composeJiniKernel({ app, adapter, security: { mode: 'host' }, profile: 'agent-core-v1',
+  const kernel: JiniKernel = await composeJiniKernel({ app, adapter, resolvedPortRef, security: { mode: 'host' }, profile: 'agent-core-v1',
     storage: storage === 'memory' ? { kind: 'memory' } : { kind: 'sqlite', open: (file: string) => new Database(file) as never, dataDir: dataDir! },
     capabilities: { 'net:egress': true }, features } as never);
   cleanups.push(() => kernel.close());

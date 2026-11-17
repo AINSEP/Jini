@@ -30,14 +30,12 @@ export type {
   StrictBearerTokenDeps,
 } from './api-security-middleware.js';
 export {
-  bearerTokenFromHeader,
   registerApiBearerAuthMiddleware,
   registerApiOriginGuardMiddleware,
   requireStrictBearerToken,
   timingSafeTokenMatch,
 } from './api-security-middleware.js';
 export {
-  isLoopbackPeerAddress,
   localOriginFromHeader,
   normalizeLocalAuthority,
   requireLocalDaemonRequest,

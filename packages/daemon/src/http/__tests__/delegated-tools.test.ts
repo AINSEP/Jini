@@ -1,6 +1,7 @@
 import { withReadOnlyToolConstraint, defaultDaemonMessages } from '../../read-only-tools.js';
 import { createNodeCredentialCrypto } from '../../run-credentials.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createRecordingOriginPolicy, createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
 import { createToolRegistry, ToolInputError, type Principal, type ToolRegistry } from '@jini-ai/core';
 import {
   createInMemoryEventLog,
@@ -10,18 +11,11 @@ import {
   type RunLifecycle,
   type ToolExecutor,
 } from '../../index.js';
-import { allowSameOrigin, rejectCrossOrigin } from './fixtures/same-origin-gate.js';
 import {
   delegatedToolExecuteRoute,
   registerDelegatedToolRoutes,
   type DelegatedToolsHttpDeps,
 } from '../delegated-tools.js';
-
-// The same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
-vi.mock('@jini-ai/core/contracts/server', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@jini-ai/core/contracts/server')>();
-  return { ...actual, guardSameOrigin: vi.fn(() => actual.ok({ value: undefined })) };
-});
 
 interface MockApp {
   get: (path: string, handler: any) => void;
@@ -47,7 +41,9 @@ function makeJsonRes() {
   };
 }
 
-const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 7456 } };
+const testOriginPolicy = createRecordingOriginPolicy();
+
+const adapter = createTestRouteHost({}, { originPolicy: testOriginPolicy });
 const TEST_PRINCIPAL: Principal = { id: 'test-principal' };
 
 function makeLifecycle(): RunLifecycle {
@@ -80,7 +76,7 @@ function makeDeps(overrides: Partial<DelegatedToolsHttpDeps> = {}): DelegatedToo
 }
 
 beforeEach(() => {
-  allowSameOrigin();
+  testOriginPolicy.set({ allow: true });
 });
 
 describe('delegatedToolExecuteRoute.parse (parseDelegatedToolExecute)', () => {
@@ -405,7 +401,7 @@ describe('registerDelegatedToolRoutes', () => {
   });
 
   it('requires same-origin: blocks a cross-origin request with 403', async () => {
-    rejectCrossOrigin();
+    testOriginPolicy.set({ allow: false });
     const app = makeApp();
     registerDelegatedToolRoutes({ app: app as any, deps: makeDeps(), adapter });
     const res = makeJsonRes();

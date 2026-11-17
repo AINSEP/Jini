@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { err, ok } from '../result.js';
-import { ClientFacingError, jsonResponse, jsonRoute, type JsonRouteSpec, type ReportRouteInternalError, type RouteHostContext } from '../json-route.js';
+import { ClientFacingError, jsonResponse, jsonRoute, sameOriginRefusal, type JsonRouteSpec, type ReportRouteInternalError, type RouteHostContext } from '../json-route.js';
 import { createInMemoryServer } from '../testing.js';
+import { createLocalSameOriginPolicy } from '../origin.js';
+import { createRecordingOriginPolicy } from '../testing.js';
 
 describe('jsonResponse', () => {
   it('uses Express res.json content type and extra headers', async () => {
@@ -25,7 +27,7 @@ const reportInternalError: ReportRouteInternalError = ({ report, message }, opti
   return { code: 'INTERNAL_ERROR', message, requestId: 'req-1' };
 };
 const host: RouteHostContext = {
-  resolvedPortRef: { current: 7000 }, env: {}, allowedOriginsEnvVar: 'A', webPortEnvVar: 'W', bindHostEnvVar: 'B',
+  originPolicy: createLocalSameOriginPolicy({ port: () => 7000, env: {}, config: { allowedOriginsEnvVar: 'A', webPortEnvVar: 'W', bindHostEnvVar: 'B' } }),
 };
 
 function mount(spec: Partial<JsonRouteSpec<{ n: number }, { n: number }, null>> = {}, withHost = true) {
@@ -108,5 +110,26 @@ describe('jsonRoute', () => {
     const small = mount({ maxBodyBytes: 1024 });
     const big = await small.fetch(new Request('http://local/r', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ pad: 'x'.repeat(1030) }) }));
     expect(big.status).toBe(413);
+  });
+});
+
+describe('sameOriginRefusal', () => {
+  const answer = async (response: Response | undefined) => response && { status: response.status, body: await response.json() };
+  it('answers undefined for a same-origin request and the standard 403 envelope for a foreign one', async () => {
+    const own = new Request('http://127.0.0.1:7000/x', { headers: { host: '127.0.0.1:7000', origin: 'http://127.0.0.1:7000' } });
+    const foreign = new Request('http://127.0.0.1:7000/x', { headers: { host: '127.0.0.1:7000', origin: 'http://evil.example' } });
+    expect(sameOriginRefusal({ request: own, origin: host })).toBeUndefined();
+    expect(await answer(sameOriginRefusal({ request: foreign, origin: host }))).toEqual({ status: 403, body: { error: { code: 'FORBIDDEN', message: 'cross-origin request rejected' } } });
+  });
+  it('hands the policy the host, origin and sec-fetch-site headers, and nothing else', () => {
+    const recording = createRecordingOriginPolicy();
+    sameOriginRefusal({ request: new Request('http://l/x', { headers: { host: 'h:1', origin: 'http://o', 'sec-fetch-site': 'same-origin', authorization: 'secret' } }), origin: { originPolicy: recording } });
+    expect(recording.calls).toEqual([{ headers: { host: 'h:1', origin: 'http://o', 'sec-fetch-site': 'same-origin' } }]);
+  });
+  it('is the check jsonRoute uses: a route with requireSameOrigin refuses what sameOriginRefusal refuses', async () => {
+    const request = post({}, { headers: { origin: 'http://evil.example', host: 'local' } });
+    const viaRoute = await mount({ requireSameOrigin: true }).fetch(request.clone());
+    const direct = sameOriginRefusal({ request, origin: host });
+    expect([viaRoute.status, await viaRoute.text()]).toEqual([direct?.status, await direct?.text()]);
   });
 });

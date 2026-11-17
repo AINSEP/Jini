@@ -1,9 +1,10 @@
 import type { Server } from 'node:http';
 import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createLocalTestOrigin } from './fixtures/local-origin.js';
+import { createRecordingOriginPolicy, createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
 import { createToolRegistry, type Principal, type ToolPolicy, type ToolRegistry } from '@jini-ai/core';
 import { createToolExecutor, type ToolExecutor } from '../../index.js';
-import { allowSameOrigin, rejectCrossOrigin } from './fixtures/same-origin-gate.js';
 import {
   createDaemonDbToolRegistrations,
   daemonDbInspectRoute,
@@ -17,12 +18,6 @@ import {
   type DaemonDbHttpDeps,
   type DaemonDbOperations,
 } from '../db-ops.js';
-
-// The same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
-vi.mock('@jini-ai/core/contracts/server', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@jini-ai/core/contracts/server')>();
-  return { ...actual, guardSameOrigin: vi.fn(() => actual.ok({ value: undefined })) };
-});
 
 interface MockApp {
   get: (path: string, handler: any) => void;
@@ -45,7 +40,9 @@ function makeRes() {
   return { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() };
 }
 
-const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 7456 } };
+const testOriginPolicy = createRecordingOriginPolicy();
+
+const adapter = createTestRouteHost({}, { originPolicy: testOriginPolicy });
 const principal: Principal = { id: 'local-daemon-operator' };
 
 const inspectReport = {
@@ -152,7 +149,7 @@ function fakeExecutorResolving(result: Awaited<ReturnType<ToolExecutor['execute'
 }
 
 beforeEach(() => {
-  allowSameOrigin();
+  testOriginPolicy.set({ allow: true });
 });
 
 describe('createDaemonDbToolRegistrations', () => {
@@ -448,7 +445,7 @@ describe('registerDaemonDbRoutes', () => {
   });
 
   it('requires same-origin on all three mounted routes: blocks a cross-origin request before the tool executor ever runs', async () => {
-    rejectCrossOrigin();
+    testOriginPolicy.set({ allow: false });
     const app = makeApp();
     const { deps, operations } = makeDeps();
     registerDaemonDbRoutes({ app: app as any, deps, adapter });
@@ -486,11 +483,11 @@ describe('registerDaemonDbRoutes — real Express server on a real socket, not f
     const app = express();
     app.use(express.json());
     const { deps, operations } = makeDeps();
-    const realAdapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 0 } };
+    const { adapter: realAdapter, portRef: realAdapterPortRef } = createLocalTestOrigin({}, { port: 0 });
     registerDaemonDbRoutes({ app, deps, adapter: realAdapter });
     server = app.listen(0);
     const port = (server.address() as { port: number }).port;
-    realAdapter.resolvedPortRef.current = port;
+    realAdapterPortRef.current = port;
     const base = `http://127.0.0.1:${port}`;
 
     const inspectRes = await fetch(`${base}/api/daemon/db`);
@@ -513,11 +510,11 @@ describe('registerDaemonDbRoutes — real Express server on a real socket, not f
     const app = express();
     app.use(express.json());
     const { deps, operations } = makeDenyByDefaultDeps();
-    const realAdapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 0 } };
+    const { adapter: realAdapter, portRef: realAdapterPortRef } = createLocalTestOrigin({}, { port: 0 });
     registerDaemonDbRoutes({ app, deps, adapter: realAdapter });
     server = app.listen(0);
     const port = (server.address() as { port: number }).port;
-    realAdapter.resolvedPortRef.current = port;
+    realAdapterPortRef.current = port;
 
     const res = await fetch(`http://127.0.0.1:${port}/api/daemon/db`);
     expect(res.status).toBe(403);

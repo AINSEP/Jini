@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createLocalTestOrigin } from './fixtures/local-origin.js';
 import {
   beginOAuthPkce,
   setStoredOAuthToken,
@@ -51,7 +52,7 @@ function makeRes() {
   };
 }
 
-const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 7456 } };
+const { adapter: adapter, portRef: adapterPortRef } = createLocalTestOrigin({}, { port: 7456 });
 const REDIRECT_URI = 'http://127.0.0.1:56121/callback';
 
 function makeListener(overrides: Partial<OAuthCallbackListener> = {}): OAuthCallbackListener {
@@ -1188,7 +1189,7 @@ describe('registerXaiRoutes', () => {
  */
 describe('registerXaiRoutes — real Express server on a real socket', () => {
   const servers: Server[] = [];
-  const adapterRef = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 0 } };
+  const { adapter: adapterRef, portRef: adapterRefPortRef } = createLocalTestOrigin({}, { port: 0 });
 
   afterEach(() => {
     for (const server of servers.splice(0)) server.close();
@@ -1202,8 +1203,8 @@ describe('registerXaiRoutes — real Express server on a real socket', () => {
       const s = app.listen(0, '127.0.0.1', () => resolve(s));
     });
     servers.push(server);
-    adapterRef.resolvedPortRef.current = (server.address() as AddressInfo).port;
-    return `http://127.0.0.1:${adapterRef.resolvedPortRef.current}`;
+    adapterRefPortRef.current = (server.address() as AddressInfo).port;
+    return `http://127.0.0.1:${adapterRefPortRef.current}`;
   }
 
   async function send(base: string, method: string, routePath: string, body?: unknown, origin = base) {

@@ -60,6 +60,78 @@ describe('createSseStream', () => {
   });
 });
 
+describe('createSseStream keepalive option', () => {
+  function recordingScheduler() {
+    const every: number[] = [];
+    let cancelled = 0;
+    const scheduler: SseSchedulerPort = { every: ({ intervalMs }) => { every.push(intervalMs); return 'h'; }, cancel: () => { cancelled += 1; } };
+    return { scheduler, every, cancelled: () => cancelled };
+  }
+  it('keepAliveMs: false schedules no timer at all and writes no bytes while idle', async () => {
+    const { scheduler, every, cancelled } = recordingScheduler();
+    const stream = createSseStream<SseEvent>({ scheduler }, { keepAliveMs: false });
+    stream.end();
+    expect(await stream.response.text()).toBe('');
+    expect([every, cancelled()]).toEqual([[], 0]);
+  });
+  it('a number still schedules the keepalive at that interval, and the default is 15 seconds', () => {
+    const custom = recordingScheduler();
+    createSseStream<SseEvent>({ scheduler: custom.scheduler }, { keepAliveMs: 5000 });
+    const standard = recordingScheduler();
+    createSseStream<SseEvent>({ scheduler: standard.scheduler });
+    expect([custom.every, standard.every]).toEqual([[5000], [15000]]);
+  });
+  it('cancels the timer it scheduled when it closes, and only then', () => {
+    const { scheduler, cancelled } = recordingScheduler();
+    const stream = createSseStream<SseEvent>({ scheduler }, {});
+    expect(cancelled()).toBe(0);
+    const reader = stream.response.body!.getReader();
+    void reader.cancel();
+    expect(cancelled()).toBe(1);
+  });
+});
+
+describe('createSseStream backlog frames', () => {
+  const idsOf = (text: string) => [...text.matchAll(/^id: (\d+)$/gm)].map((m) => Number(m[1]));
+  it('a replay burst larger than the cap is delivered whole, because backlog frames are not counted against it', async () => {
+    const { scheduler } = fakeScheduler();
+    const stream = createSseStream<SseEvent>({ scheduler }, { maxQueuedEvents: 3, keepAliveMs: false });
+    for (let i = 0; i < 10; i += 1) stream.send({ event: event(i) }, { backlog: true });
+    expect(stream.closed).toBe(false);
+    stream.send({ event: event(10) });
+    stream.end();
+    expect(idsOf(await stream.response.text())).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  });
+  it('live frames keep the cap: the frame past it drops the client even with a backlog queued', () => {
+    const { scheduler } = fakeScheduler();
+    const stream = createSseStream<SseEvent>({ scheduler }, { maxQueuedEvents: 2, keepAliveMs: false });
+    for (let i = 0; i < 5; i += 1) stream.send({ event: event(i) }, { backlog: true });
+    stream.send({ event: event(5) });
+    stream.send({ event: event(6) });
+    expect(stream.closed).toBe(false);
+    stream.send({ event: event(7) });
+    expect(stream.closed).toBe(true);
+  });
+  it('a frame leaves the live count once the client has read it, so a slow reader is only capped on what it has not read', async () => {
+    const { scheduler } = fakeScheduler();
+    const stream = createSseStream<SseEvent>({ scheduler }, { maxQueuedEvents: 2, keepAliveMs: false });
+    const reader = stream.response.body!.getReader();
+    stream.send({ event: event(0) });
+    stream.send({ event: event(1) });
+    await reader.read();
+    stream.send({ event: event(2) });
+    expect(stream.closed).toBe(false);
+  });
+  it('omitting the option or passing backlog: false counts the frame (the existing behaviour)', () => {
+    const { scheduler } = fakeScheduler();
+    const stream = createSseStream<SseEvent>({ scheduler }, { maxQueuedEvents: 2, keepAliveMs: false });
+    stream.send({ event: event(0) }, { backlog: false });
+    stream.send({ event: event(1) });
+    stream.send({ event: event(2) });
+    expect(stream.closed).toBe(true);
+  });
+});
+
 describe('lastEventCursor', () => {
   it('prefers the header over the query', () => {
     expect(lastEventCursor({ request: new Request('http://l/s?afterCursor=q', { headers: { 'last-event-id': 'h' } }) })).toBe('h');

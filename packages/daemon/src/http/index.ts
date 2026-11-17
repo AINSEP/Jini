@@ -71,6 +71,8 @@ export {
   runStatusRoute,
 } from './runs.js';
 export { JINI_ROUTE_MANIFEST, manifestRoutesForFamilies, routeFamilyManifest } from './route-manifest.js';
+export type { RouteRegistration } from './route-manifest.js';
+export type { DaemonRouteHost } from './route-host.js';
 export type { AgentListResponse, AgentModelSummary, AgentsHttpDeps, AgentSummary } from './agents.js';
 export { agentListRoute, agentRescanRoute, registerAgentRoutes } from './agents.js';
 export type {

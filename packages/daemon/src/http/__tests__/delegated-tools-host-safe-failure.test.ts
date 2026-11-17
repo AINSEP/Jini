@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
 import { createToolRegistry, type Principal } from '@jini-ai/core';
 import {
   createInMemoryEventLog,
@@ -8,12 +9,6 @@ import {
   type ToolExecutor,
 } from '../../index.js';
 import { delegatedToolExecuteRoute, registerDelegatedToolRoutes, type DelegatedToolsHttpDeps } from '../delegated-tools.js';
-
-// The same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
-vi.mock('@jini-ai/core/contracts/server', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@jini-ai/core/contracts/server')>();
-  return { ...actual, guardSameOrigin: vi.fn(() => actual.ok({ value: undefined })) };
-});
 
 const PRINCIPAL: Principal = { id: 'test-principal' };
 const ERROR_ID = 'ERR-E498-0000-1111-2222';
@@ -76,7 +71,7 @@ describe('delegated tool route: a failure the host marks model-safe', () => {
     const app = { get: register('GET'), post: register('POST'), put: register('PUT'), delete: register('DELETE'), patch: register('PATCH') };
     const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
     const { run } = await lifecycle.start({ contextRef: 'ctx-http' });
-    registerDelegatedToolRoutes({ app: app as never, deps: { lifecycle, toolExecutor: makeExecutor(SAFE_MESSAGE, ERROR_ID), resolvePrincipal: () => PRINCIPAL, isModelSafeToolFailure: hostRedacted }, adapter: { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 7456 } } }
+    registerDelegatedToolRoutes({ app: app as never, deps: { lifecycle, toolExecutor: makeExecutor(SAFE_MESSAGE, ERROR_ID), resolvePrincipal: () => PRINCIPAL, isModelSafeToolFailure: hostRedacted }, adapter: createTestRouteHost() }
     );
     const res = { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() };
     await handlers['POST /api/delegated-tool-calls']!(

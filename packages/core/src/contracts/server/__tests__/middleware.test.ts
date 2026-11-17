@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ServerHandler, ServerMiddleware, ServerRoute } from '../../server.js';
 import { createRouteTable } from '../route-table.js';
-import { withServerMiddleware } from '../middleware.js';
+import { withRouteMiddleware, withServerMiddleware } from '../middleware.js';
 
 const text = (body: string): ServerHandler => () => new Response(body);
 
@@ -51,3 +51,42 @@ describe('withServerMiddleware', () => {
   });
 });
 
+describe('withRouteMiddleware', () => {
+  const call = (route: ServerRoute, path = '/a') => route.handler({ request: new Request(`http://l${path}`), params: {} });
+
+  it('returns the same route with its gates in front: method and path are kept, the handler runs only through the chain', async () => {
+    const order: string[] = [];
+    const route: ServerRoute = { method: 'POST', path: '/a/:id', handler: ({ locals }) => { order.push('handler'); return new Response(String(locals?.who)); } };
+    const gated = withRouteMiddleware({ route, middleware: [async ({ locals, next }) => { order.push('gate'); locals.who = 'p1'; return next(); }] });
+    expect([gated.method, gated.path]).toEqual(['POST', '/a/:id']);
+    expect(await (await call(gated)).text()).toBe('p1');
+    expect(order).toEqual(['gate', 'handler']);
+  });
+  it('a gate that refuses stops the request before the handler, and the original route stays ungated', async () => {
+    let handled = 0;
+    const route: ServerRoute = { method: 'GET', path: '/a', handler: () => { handled += 1; return new Response('ok'); } };
+    const gated = withRouteMiddleware({ route, middleware: [() => new Response('no', { status: 401 })] });
+    expect((await call(gated)).status).toBe(401);
+    expect(handled).toBe(0);
+    expect((await call(route)).status).toBe(200);
+  });
+  it('runs several gates in array order, sharing one locals object, and refuses a second next()', async () => {
+    const seen: string[] = [];
+    const route: ServerRoute = { method: 'GET', path: '/a', handler: ({ locals }) => new Response(JSON.stringify(locals)) };
+    const gated = withRouteMiddleware({ route, middleware: [
+      async ({ locals, next }) => { seen.push('one'); locals.one = 1; return next(); },
+      async ({ locals, next }) => { seen.push('two'); locals.two = 2; return next(); },
+    ] });
+    expect(await (await call(gated)).json()).toEqual({ one: 1, two: 2 });
+    expect(seen).toEqual(['one', 'two']);
+    const twice = withRouteMiddleware({ route, middleware: [async ({ next }) => { await next(); return next(); }] });
+    await expect(call(twice)).rejects.toThrow('A middleware in front of GET /a called next() twice.');
+  });
+  it('passes the caller address to every gate and on to the handler', async () => {
+    let gateSaw: string | undefined;
+    const route: ServerRoute = { method: 'GET', path: '/a', handler: ({ client }) => new Response(client?.address ?? 'none') };
+    const gated = withRouteMiddleware({ route, middleware: [({ client, next }) => { gateSaw = client?.address; return next(); }] });
+    const res = await gated.handler({ request: new Request('http://l/a'), params: {}, client: { address: '10.1.2.3' } });
+    expect([gateSaw, await res.text()]).toEqual(['10.1.2.3', '10.1.2.3']);
+  });
+});

@@ -25,8 +25,15 @@ export interface SseSchedulerPort {
 /** One open SSE stream: the `Response` to return, and the handle the producer writes through. */
 export interface SseStream<E extends SseEvent> {
   readonly response: Response;
-  /** Queues one event. A no-op once the stream has closed. */
-  send(required: { event: E }, optional?: Record<string, never>): void;
+  /**
+   * Queues one event. A no-op once the stream has closed.
+   *
+   * `backlog: true` says "this frame is history the caller already holds in memory": it is queued without
+   * counting against `maxQueuedEvents`, so a synchronous replay burst larger than the cap is delivered
+   * whole instead of dropping the client. The cost is one formatted frame per replayed event held until
+   * the client reads it, the same order as the replay the caller already built. Live frames keep the cap.
+   */
+  send(required: { event: E }, optional?: { readonly backlog?: boolean }): void;
   /** Ends the stream after the frames already queued. Idempotent. */
   end(): void;
   /** `true` once the stream has closed for any reason. */
@@ -39,8 +46,8 @@ export interface SseStreamOptions<E extends SseEvent> {
   signal?: AbortSignal;
   /** Queued-frame ceiling before the connection is dropped. Defaults to {@link DEFAULT_MAX_QUEUED_SSE_EVENTS}. */
   maxQueuedEvents?: number;
-  /** Milliseconds between keepalive comment frames. Defaults to 15000. */
-  keepAliveMs?: number;
+  /** Milliseconds between keepalive comment frames. Defaults to 15000; `false` schedules no timer and writes nothing while idle. */
+  keepAliveMs?: number | false;
   /** Overrides the wire format. Defaults to `id/event/data`. */
   formatEvent?: (required: { event: E }) => string;
   /** When true for an event, the stream ends right after writing it. */
@@ -54,7 +61,9 @@ export interface SseStreamOptions<E extends SseEvent> {
 const defaultFormat = <E extends SseEvent>({ event }: { event: E }): string =>
   `id: ${event.opaqueCursor}\nevent: ${event.kind}\ndata: ${JSON.stringify(event)}\n\n`;
 
-interface StreamState { frames: string[]; closed: boolean; ending: boolean; wake: (() => void) | undefined }
+/** A queued wire frame, and whether it counts against the live-frame cap (backlog frames do not). */
+interface QueuedFrame { readonly text: string; readonly counted: boolean }
+interface StreamState { frames: QueuedFrame[]; counted: number; closed: boolean; ending: boolean; wake: (() => void) | undefined }
 
 /**
  * Opens an SSE stream over a pull-based `ReadableStream`: the consumer pulls one frame at a time,
@@ -64,7 +73,7 @@ export function createSseStream<E extends SseEvent>(
   { scheduler }: { scheduler: SseSchedulerPort },
   options: SseStreamOptions<E> = {},
 ): SseStream<E> {
-  const state: StreamState = { frames: [], closed: false, ending: false, wake: undefined };
+  const state: StreamState = { frames: [], counted: 0, closed: false, ending: false, wake: undefined };
   const max = options.maxQueuedEvents ?? DEFAULT_MAX_QUEUED_SSE_EVENTS;
   const format = options.formatEvent ?? defaultFormat;
   const encoder = new TextEncoder();
@@ -73,19 +82,21 @@ export function createSseStream<E extends SseEvent>(
     if (state.closed) return;
     state.closed = true;
     state.frames.length = 0;
+    state.counted = 0;
     if (timer !== undefined) scheduler.cancel({ handle: timer });
     options.onClose?.();
     state.wake?.();
   };
-  const push = (frame: string): void => {
+  const push = (text: string, { counted }: { readonly counted: boolean }): void => {
     if (state.closed || state.ending) return;
     // A client that stopped reading is disconnected rather than buffered without limit: a closed
     // stream is an observable signal it can reconnect from, silently dropped frames are not.
-    if (state.frames.length >= max) { close(); return; }
-    state.frames.push(frame);
+    if (counted && state.counted >= max) { close(); return; }
+    state.frames.push({ text, counted });
+    if (counted) state.counted += 1;
     state.wake?.();
   };
-  timer = scheduler.every({ callback: () => push(': ping\n\n'), intervalMs: options.keepAliveMs ?? 15_000 });
+  if (options.keepAliveMs !== false) timer = scheduler.every({ callback: () => push(': ping\n\n', { counted: true }), intervalMs: options.keepAliveMs ?? 15_000 });
   options.signal?.addEventListener('abort', close, { once: true });
   // A client that disconnected while the handler was still setting up never fires 'abort' again.
   if (options.signal?.aborted) close();
@@ -95,8 +106,8 @@ export function createSseStream<E extends SseEvent>(
   });
   return {
     response: new Response(body, { status: 200, headers: sseHeaders(options.headers) }),
-    send({ event }) {
-      push(format({ event }));
+    send({ event }, { backlog = false } = {}) {
+      push(format({ event }), { counted: !backlog });
       if (options.isEndEvent?.({ event })) state.ending = true;
       if (state.ending) state.wake?.();
     },
@@ -114,7 +125,11 @@ async function pullFrame({ state, controller, encoder, close }: {
 }): Promise<void> {
   while (!state.closed || state.frames.length > 0) {
     const frame = state.frames.shift();
-    if (frame !== undefined) { controller.enqueue(encoder.encode(frame)); return; }
+    if (frame !== undefined) {
+      if (frame.counted) state.counted -= 1;
+      controller.enqueue(encoder.encode(frame.text));
+      return;
+    }
     if (state.ending) break;
     await new Promise<void>((resolve) => { state.wake = resolve; });
     state.wake = undefined;

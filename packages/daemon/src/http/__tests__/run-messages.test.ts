@@ -1,15 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { allowSameOrigin, rejectCrossOrigin } from './fixtures/same-origin-gate.js';
+import { createRecordingOriginPolicy, createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
 import { createInMemoryEventLog, createRunLifecycle, type UserMessageDelivery } from '../../index.js';
 import { registerRunRoutes, runMessageRoute, type RunHttpDeps } from '../runs.js';
 
-// The same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
-vi.mock('@jini-ai/core/contracts/server', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@jini-ai/core/contracts/server')>();
-  return { ...actual, guardSameOrigin: vi.fn(() => actual.ok({ value: undefined })) };
-});
+const testOriginPolicy = createRecordingOriginPolicy();
 
-const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 7456 } };
+const adapter = createTestRouteHost({}, { originPolicy: testOriginPolicy });
 
 function makeDeps(deliver?: (input: { runId: string; text: string }) => UserMessageDelivery): RunHttpDeps {
   return { lifecycle: createRunLifecycle({ eventLog: createInMemoryEventLog({}) }), ...(deliver ? { deliverUserMessage: deliver, deliverUserMessageWithAttachments: deliver } : {}) };
@@ -20,7 +16,7 @@ function makeJsonRes() {
 }
 
 beforeEach(() => {
-  allowSameOrigin();
+  testOriginPolicy.set({ allow: true });
 });
 
 describe('POST /api/runs/:runId/messages — a message sent while the run is going', () => {
@@ -100,7 +96,7 @@ describe('POST /api/runs/:runId/messages — a message sent while the run is goi
   });
 
   it('requires same-origin like every other run write', async () => {
-    rejectCrossOrigin();
+    testOriginPolicy.set({ allow: false });
     const app = { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn(), patch: vi.fn() };
     registerRunRoutes({ app: app as never, deps: makeDeps(() => 'delivered'), adapter });
     const handler = app.post.mock.calls.find(([path]) => path === '/api/runs/:runId/messages')![1];

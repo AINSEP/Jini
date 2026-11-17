@@ -47,7 +47,12 @@ import {
   runStatusRoute,
 } from './runs.js';
 import { toolCatalogDescribeRoute, toolCatalogSearchRoute } from './tool-catalog.js';
-import type { RouteRegistration } from '@jini-ai/http-kit';
+
+/** One route this manifest names: the upper-case HTTP verb and the literal path it is mounted on. */
+export interface RouteRegistration {
+  readonly method: string;
+  readonly path: string;
+}
 
 /** Minimal shape this module reads off a route spec. Structurally satisfied by any `JsonRouteSpec`. */
 interface RoutePathSpec {

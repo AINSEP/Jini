@@ -2,7 +2,8 @@ import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { allowSameOrigin, rejectCrossOrigin } from './fixtures/same-origin-gate.js';
+import { createLocalTestOrigin } from './fixtures/local-origin.js';
+import { createRecordingOriginPolicy, createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
 import { ClientFacingError } from '@jini-ai/core/contracts/server';
 import {
   type AuthCredentials,
@@ -32,12 +33,6 @@ import {
   type ConnectorsHttpDeps,
 } from '../connectors.js';
 
-// The same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
-vi.mock('@jini-ai/core/contracts/server', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@jini-ai/core/contracts/server')>();
-  return { ...actual, guardSameOrigin: vi.fn(() => actual.ok({ value: undefined })) };
-});
-
 interface MockApp {
   get: (path: string, handler: any) => void;
   post: (path: string, handler: any) => void;
@@ -62,7 +57,9 @@ function makeRes() {
   };
 }
 
-const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 7456 } };
+const testOriginPolicy = createRecordingOriginPolicy();
+
+const adapter = createTestRouteHost({}, { originPolicy: testOriginPolicy });
 
 const fakeUser: AuthUser = { id: 'u1', email: 'a@example.com', createdAt: 0 };
 const fakeSession: AuthSession = { token: 'tok1', userId: 'u1', expiresAt: 0 };
@@ -115,7 +112,7 @@ function makeDeps(overrides: Partial<ConnectorsHttpDeps> = {}): ConnectorsHttpDe
 }
 
 beforeEach(() => {
-  allowSameOrigin();
+  testOriginPolicy.set({ allow: true });
 });
 
 describe('auth routes', () => {
@@ -401,7 +398,7 @@ describe('registerConnectorsRoutes', () => {
   });
 
   it('credential-bearing and mutating routes enforce same-origin; GET routes do not gate on it', async () => {
-    rejectCrossOrigin();
+    testOriginPolicy.set({ allow: false });
     const app = makeApp();
     registerConnectorsRoutes({ app: app as any, deps: makeDeps({ auth: makeAuthProvider() }), adapter });
 
@@ -615,7 +612,7 @@ describe('path-parameter parsers reject a missing segment', () => {
  */
 describe('registerConnectorsRoutes — real Express server on a real socket', () => {
   const servers: Server[] = [];
-  const adapterRef = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 0 } };
+  const { adapter: adapterRef, portRef: adapterRefPortRef } = createLocalTestOrigin({}, { port: 0 });
 
   afterEach(() => {
     for (const server of servers.splice(0)) server.close();
@@ -629,8 +626,8 @@ describe('registerConnectorsRoutes — real Express server on a real socket', ()
       const s = app.listen(0, '127.0.0.1', () => resolve(s));
     });
     servers.push(server);
-    adapterRef.resolvedPortRef.current = (server.address() as AddressInfo).port;
-    return `http://127.0.0.1:${adapterRef.resolvedPortRef.current}`;
+    adapterRefPortRef.current = (server.address() as AddressInfo).port;
+    return `http://127.0.0.1:${adapterRefPortRef.current}`;
   }
 
   function fullyConfigured() {
@@ -771,7 +768,7 @@ describe('registerConnectorsRoutes — real Express server on a real socket', ()
   });
 
   it('rejects a cross-origin mutating request with 403 before reaching the provider', async () => {
-    rejectCrossOrigin();
+    testOriginPolicy.set({ allow: false });
     const deps = fullyConfigured();
     const base = await listen(deps);
     const response = await fetch(`${base}/api/connectors/auth/signup`, {

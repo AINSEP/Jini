@@ -119,6 +119,7 @@ export interface Server {
 
 export * from './server/result.js';
 export * from './server/api-error.js';
+export * from './server/auth.js';
 export * from './server/origin.js';
 export * from './server/route-table.js';
 export * from './server/middleware.js';

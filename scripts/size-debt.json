@@ -1150,9 +1150,9 @@
   {
     "file": "packages/server/src/create-local-node-daemon.ts",
     "function": "createLocalNodeDaemon",
-    "line": 354,
+    "line": 365,
     "rule": "max-lines-per-function",
-    "value": 113
+    "value": 112
   },
   {
     "file": "packages/sidecar/src/json-ipc.ts",

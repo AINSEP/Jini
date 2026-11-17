@@ -9,9 +9,8 @@
  * callers only (e.g. a local companion process), regardless of origin
  * allow-list configuration.
  */
-import net from 'node:net';
 import type { NextFunction, Request, Response } from 'express';
-import { isLoopbackHostname } from '@jini-ai/core/net';
+import { isLoopbackHostname, isLoopbackPeerAddress } from '@jini-ai/core/net';
 import { createCompatApiError } from './compat.js';
 import { sendApiError } from './response.js';
 
@@ -52,17 +51,6 @@ export function normalizeLocalAuthority({ value }: { readonly value: unknown }, 
   } catch {
     return null;
   }
-}
-
-/** True when `address` (typically `req.socket.remoteAddress`) is a loopback peer, unwrapping an IPv4-mapped IPv6 prefix first. */
-export function isLoopbackPeerAddress({ address }: { readonly address: unknown }, _optional: Record<string, never> = {}): boolean {
-  if (typeof address !== 'string') return false;
-  const normalized = address.trim().toLowerCase().replace(/^\[|\]$/g, '');
-  if (!normalized) return false;
-  if (normalized.startsWith('::ffff:')) return isLoopbackPeerAddress({ address: normalized.slice('::ffff:'.length) });
-  if (normalized === '::1' || normalized === '0:0:0:0:0:0:0:1') return true;
-  if (net.isIP(normalized) === 4) return normalized === '127.0.0.1' || normalized.startsWith('127.');
-  return false;
 }
 
 function isBareHttpOrigin({ parsed }: { readonly parsed: URL }, _optional: Record<string, never> = {}): boolean {

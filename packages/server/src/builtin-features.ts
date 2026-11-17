@@ -671,7 +671,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
       const deps = {
         getVersion: supplied.getVersion ?? (() => packageVersion),
         host: supplied.host ?? '127.0.0.1',
-        getPort: supplied.getPort ?? (() => context.adapter.resolvedPortRef.current),
+        getPort: supplied.getPort ?? (() => context.resolvedPortRef.current),
         dataDir: supplied.dataDir ?? context.kernel.sqlite?.dataDir ?? '',
         isShuttingDown: supplied.isShuttingDown ?? (() => false),
         requestShutdown: supplied.requestShutdown,

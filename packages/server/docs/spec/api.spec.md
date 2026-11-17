@@ -45,7 +45,7 @@ createJiniKernelBase(options: CreateJiniKernelBaseOptions): Promise<JiniKernelBa
 | discoveryFile | `<dataDir>/daemon.json`; false disables discovery |
 | onShutdown | Host teardown callback before base handles close |
 
-`composeJiniKernel` requires `{app: Express, adapter: AdapterContext, storage: JiniKernelStorage}`. storage is `{kind:'memory'}` or `{kind:'sqlite', dataDir, open}`. Optional profile defaults to agent-core-v1; security defaults to `{mode:'host'}`; installJsonBodyParser defaults true. It also accepts capabilities, features, featureOptions, extraFeatures, toolRegistrations, packs, bindings, agentExecutor overrides, env and `onAfterApiRoutes(app, callerDaemon, base)`.
+`composeJiniKernel` requires `{app: Express, adapter: AdapterContext, storage: JiniKernelStorage}`. storage is `{kind:'memory'}` or `{kind:'sqlite', dataDir, open}`. Optional profile defaults to agent-core-v1; security defaults to `{mode:'host'}`; installJsonBodyParser defaults true; `jsonBodyParserLimitBytes` is the byte limit of the JSON parser in front of the routes (102,400 when this function installs the parser; a caller with its own parser passes that parser's limit). It also accepts capabilities, features, featureOptions, extraFeatures, toolRegistrations, packs, bindings, agentExecutor overrides, env and `onAfterApiRoutes(app, callerDaemon, base)`.
 
 It returns `{base, daemon, activation, disposeFeatures(), disposeCallerPacks(), closeBase(), close()}`. Every close/dispose method returns Promise<void>. It mounts an app but opens no listener; host owns its HTTP server. Caller pack HTTP routes require explicit mounting in onAfterApiRoutes; kernel composition creates their services and registers their tools, but does not automatically mount their HTTP routes.
 

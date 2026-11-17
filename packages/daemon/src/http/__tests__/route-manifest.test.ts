@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { createLocalTestOrigin } from './fixtures/local-origin.js';
 import type { Express } from 'express';
 import {
   JINI_ROUTE_MANIFEST,
   manifestRoutesForFamilies,
   routeFamilyManifest,
 } from '../route-manifest.js';
-import type { RouteRegistration } from '@jini-ai/http-kit';
+import type { RouteRegistration } from '../route-manifest.js';
 import { registerAgentRoutes } from '../agents.js';
 import { registerDelegatedToolRoutes } from '../delegated-tools.js';
 import { registerHealthRoutes } from '../health.js';
@@ -41,7 +42,7 @@ function recordingApp(): { app: Express; routes: RouteRegistration[] } {
   return { app, routes };
 }
 
-const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 4319 } };
+const { adapter: adapter, portRef: adapterPortRef } = createLocalTestOrigin({}, { port: 4319 });
 /** Registrars only need deps at request time, never at mount time — see `mountJsonRoute`. */
 const anyDeps = {} as never;
 

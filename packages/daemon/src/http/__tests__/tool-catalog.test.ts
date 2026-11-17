@@ -2,6 +2,7 @@ import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createLocalTestOrigin } from './fixtures/local-origin.js';
 import {
   registerToolCatalogRoutes,
   toolCatalogDescribeRoute,
@@ -39,7 +40,7 @@ it('mounts catalog routes from argument objects and forwards search options to t
   const handlers: Record<string, (req: any, res: any) => Promise<void>> = {};
   const app = { get: (path: string, handler: typeof handlers[string]) => { handlers[path] = handler; } };
   const search = vi.fn(() => HITS);
-  const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', resolvedPortRef: { current: 7456 }, env: {} };
+  const { adapter: adapter, portRef: adapterPortRef } = createLocalTestOrigin({}, { port: 7456 });
   registerToolCatalogRoutes({ app: app as never, deps: makeDeps({ search }), adapter }, {});
   expect(Object.keys(handlers)).toEqual(['/api/tools/search', '/api/tools/:id']);
   const res = { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() };
@@ -123,7 +124,7 @@ describe('toolCatalogDescribeRoute', () => {
 
 describe('registerToolCatalogRoutes — real Express server on a real socket', () => {
   const servers: Server[] = [];
-  const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 0 } };
+  const { adapter: adapter, portRef: adapterPortRef } = createLocalTestOrigin({}, { port: 0 });
 
   afterEach(() => {
     for (const server of servers.splice(0)) server.close();
@@ -137,8 +138,8 @@ describe('registerToolCatalogRoutes — real Express server on a real socket', (
       const s = app.listen(0, '127.0.0.1', () => resolve(s));
     });
     servers.push(server);
-    adapter.resolvedPortRef.current = (server.address() as AddressInfo).port;
-    return `http://127.0.0.1:${adapter.resolvedPortRef.current}`;
+    adapterPortRef.current = (server.address() as AddressInfo).port;
+    return `http://127.0.0.1:${adapterPortRef.current}`;
   }
 
   it('serves GET /api/tools/search over the wire, ranked hits only', async () => {

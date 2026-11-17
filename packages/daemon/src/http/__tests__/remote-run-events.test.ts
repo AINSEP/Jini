@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createLocalTestOrigin } from './fixtures/local-origin.js';
 import { createInMemoryEventLog, createRemoteToolEventRecorder, createRunLifecycle, type RunLifecycle } from '../../index.js';
 import {
   registerRemoteRunEventRoutes,
@@ -59,7 +60,7 @@ async function dispatch(app: MockApp, method: string, path: string, req: any, re
   await app.handlers[`${method} ${path}`]!(req, res);
 }
 
-const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 7654 } };
+const { adapter: adapter, portRef: adapterPortRef } = createLocalTestOrigin({}, { port: 7654 });
 const TOKEN_ENV_VAR = 'JINI_REMOTE_TOOL_BRIDGE_TOKEN_TEST';
 
 function makeLifecycle(): RunLifecycle {

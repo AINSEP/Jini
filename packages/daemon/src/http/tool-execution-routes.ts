@@ -25,8 +25,11 @@
 import express, { type ErrorRequestHandler, type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import { createApiError, type ApiError } from '@jini-ai/protocol';
 import type { Principal, SurfaceEmitter, ToolDescriptor } from '@jini-ai/core';
-import { bearerTokenFromHeader, isLoopbackPeerAddress, reportRouteInternalError, sendApiError, timingSafeTokenMatch, type RouteInternalErrorSink } from '@jini-ai/http-kit';
-import { statusForError } from '@jini-ai/core/contracts/server';
+import { timingSafeTokenMatch, type TimingSafeByteComparison } from '@jini-ai/core';
+import { reportRouteInternalError, sendApiError, type RouteInternalErrorSink } from '@jini-ai/http-kit';
+import { bearerTokenFromHeader, statusForError } from '@jini-ai/core/contracts/server';
+import { isLoopbackPeerAddress } from '@jini-ai/core/net';
+import { nodeTimingSafeEqual } from './node-timing-safe-equal.js';
 import type { ToolExecutionResult, ToolExecutor } from '../tool-executor.js';
 import { TOOL_EXECUTIONS_ROUTE_PATH, type ToolExecutionWireError, type ToolExecutionWireLine, type ToolExecutionWireRequest } from '../remote-tool-executor.js';
 
@@ -57,6 +60,8 @@ export interface ToolExecutionRoutesOptional {
   readonly tokenEnvVar?: string;
   /** Defaults to `process.env`; injectable so tests never mutate the real env. */
   readonly env?: NodeJS.ProcessEnv;
+  /** Constant-time byte comparison for the token check. Defaults to `node:crypto`'s; tests inject a recording one. */
+  readonly timingSafeEqual?: TimingSafeByteComparison;
   /** Defaults to {@link DEFAULT_TOOL_EXEC_MAX_BODY_BYTES}. */
   readonly maxBodyBytes?: number;
   readonly runWithContext?: RunWithToolContext;
@@ -66,13 +71,13 @@ export interface ToolExecutionRoutesOptional {
   readonly onInternalError?: RouteInternalErrorSink;
 }
 
-function refusalFor({ req, expected, tokenEnvVar }: { readonly req: Request; readonly expected: string | undefined; readonly tokenEnvVar: string }): ApiError | null {
+function refusalFor({ req, expected, tokenEnvVar, timingSafeEqual }: { readonly req: Request; readonly expected: string | undefined; readonly tokenEnvVar: string; readonly timingSafeEqual: TimingSafeByteComparison }): ApiError | null {
   if (!expected) return createApiError({ code: 'NOT_CONFIGURED', message: `${tokenEnvVar} is not set — remote tool execution is disabled` });
   if (!isLoopbackPeerAddress({ address: req.socket?.remoteAddress })) {
     return createApiError({ code: 'FORBIDDEN', message: 'remote tool execution accepts loopback callers only' });
   }
   const presented = bearerTokenFromHeader({ header: req.get('authorization') });
-  if (presented === null || !timingSafeTokenMatch({ presented, expected })) {
+  if (presented === null || !timingSafeTokenMatch({ presented, expected, timingSafeEqual })) {
     return createApiError({ code: 'UNAUTHORIZED', message: `Authorization: Bearer <${tokenEnvVar}> required` });
   }
   return null;
@@ -81,10 +86,10 @@ function refusalFor({ req, expected, tokenEnvVar }: { readonly req: Request; rea
 /** The token + loopback gate; mounted before any body parser. Exported for hosts that need it on another path. */
 export function requireToolExecutionCaller(
   _required: Record<string, never>,
-  { tokenEnvVar = DEFAULT_TOOL_EXEC_TOKEN_ENV_VAR, env = process.env }: Pick<ToolExecutionRoutesOptional, 'tokenEnvVar' | 'env'> = {},
+  { tokenEnvVar = DEFAULT_TOOL_EXEC_TOKEN_ENV_VAR, env = process.env, timingSafeEqual = nodeTimingSafeEqual }: Pick<ToolExecutionRoutesOptional, 'tokenEnvVar' | 'env' | 'timingSafeEqual'> = {},
 ): RequestHandler {
   return (req, res, next) => {
-    const refusal = refusalFor({ req, expected: env[tokenEnvVar], tokenEnvVar });
+    const refusal = refusalFor({ req, expected: env[tokenEnvVar], tokenEnvVar, timingSafeEqual });
     if (refusal === null) { next(); return; }
     sendApiError({ res, status: statusForError({ error: refusal }), error: refusal });
   };
@@ -226,9 +231,9 @@ function catalogHandler(
  */
 export function registerToolExecutionRoutes(
   { app, executor, listToolsFor }: ToolExecutionRoutesRequired,
-  { tokenEnvVar, env, maxBodyBytes = DEFAULT_TOOL_EXEC_MAX_BODY_BYTES, runWithContext, authorizeRun, onInternalError }: ToolExecutionRoutesOptional = {},
+  { tokenEnvVar, env, timingSafeEqual, maxBodyBytes = DEFAULT_TOOL_EXEC_MAX_BODY_BYTES, runWithContext, authorizeRun, onInternalError }: ToolExecutionRoutesOptional = {},
 ): void {
-  const gate = requireToolExecutionCaller({}, { ...(tokenEnvVar === undefined ? {} : { tokenEnvVar }), ...(env === undefined ? {} : { env }) });
+  const gate = requireToolExecutionCaller({}, { ...(tokenEnvVar === undefined ? {} : { tokenEnvVar }), ...(env === undefined ? {} : { env }), ...(timingSafeEqual === undefined ? {} : { timingSafeEqual }) });
   const parser = express.json({ limit: maxBodyBytes });
   const runGate = authorizeRun ? [authorizeRun] : [];
   app.post(TOOL_EXECUTIONS_ROUTE_PATH, gate, parser, ...runGate, executionHandler({ executor }, runWithContext === undefined ? {} : { runWithContext }), bodyParserFailure);
