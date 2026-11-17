@@ -23,6 +23,7 @@ export interface PillButtonProps extends AgentControlProps {
    *  wrapping element so a caller can position it with CSS relative to the
    *  pill without an extra wrapper of its own. */
   children?: ReactNode;
+  useAgentHandleHook?: typeof useAgentHandle;
 }
 
 /**
@@ -48,8 +49,9 @@ export function PillButton({
   'data-agent-element': suppliedHandle,
   'data-agent-private': privateControl,
   'data-agent-page': page,
+  useAgentHandleHook = useAgentHandle,
 }: PillButtonProps) {
-  const base = useAgentHandle({ agentHandle, 'data-agent-element': suppliedHandle, 'data-agent-private': privateControl });
+  const base = useAgentHandleHook({ agentHandle, 'data-agent-element': suppliedHandle, 'data-agent-private': privateControl });
   return (
     <div className={withClassName('jini-pill-wrap', className)}>
       <button

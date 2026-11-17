@@ -43,6 +43,8 @@ export interface PaletteTweaksProps {
   onChange: (id: PaletteId | null) => void;
   onPreview: (id: PaletteId | null) => void;
   onClose: () => void;
+  usePaletteDismissHook?: typeof usePaletteDismiss;
+  usePaletteHoverHook?: typeof usePaletteHover;
 }
 
 // --- Pure derivations (module-level, directly unit-testable) --------------
@@ -160,9 +162,9 @@ export function usePaletteDismiss(options: {
  * {@link usePaletteHover} and {@link usePaletteDismiss}; the row derivations
  * are module-level helpers. This component is a pure render.
  */
-export function PaletteTweaks({ open, selected, onChange, onPreview, onClose }: PaletteTweaksProps) {
-  const rootRef = usePaletteDismiss({ open, onClose });
-  const { hovered, setHover } = usePaletteHover({ open, selected, onPreview });
+export function PaletteTweaks({ open, selected, onChange, onPreview, onClose, usePaletteDismissHook = usePaletteDismiss, usePaletteHoverHook = usePaletteHover }: PaletteTweaksProps) {
+  const rootRef = usePaletteDismissHook({ open, onClose });
+  const { hovered, setHover } = usePaletteHoverHook({ open, selected, onPreview });
 
   if (!open) return null;
   const isOriginal = selected === null;

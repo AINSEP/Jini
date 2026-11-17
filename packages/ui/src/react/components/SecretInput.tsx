@@ -74,16 +74,16 @@ function useSecretToggle(
   return { reveal, button } as const;
 }
 
-export const SecretInput = forwardRef<HTMLInputElement, SecretInputProps>(function SecretInput(props, ref) {
-  const t = useT();
+export const SecretInput = forwardRef<HTMLInputElement, SecretInputProps & { useTHook?: typeof useT }>(function SecretInput({ useTHook = useT, ...props }, ref) {
+  const t = useTHook();
   return <KitSecretInput {...props} ref={ref} toggleLabels={props.toggleLabels ?? {
     show: `${t('Show')} ${props.label}`, hide: `${t('Hide')} ${props.label}`,
   }} />;
 });
 
-export const SecretTextarea = forwardRef<HTMLTextAreaElement, SecretTextareaProps>(function SecretTextarea(props, ref) {
+export const SecretTextarea = forwardRef<HTMLTextAreaElement, SecretTextareaProps & { useSecretToggleHook?: typeof useSecretToggle }>(function SecretTextarea({ useSecretToggleHook = useSecretToggle, ...props }, ref) {
   const { label, toggleLabels, toggleAttrs, revealed, onRevealedChange, style, maskedValue, ...textareaProps } = props;
-  const { reveal, button } = useSecretToggle(props, { value: textareaProps.value, disabled: textareaProps.disabled });
+  const { reveal, button } = useSecretToggleHook(props, { value: textareaProps.value, disabled: textareaProps.disabled });
   const replacementShown = !reveal.revealed && maskedValue !== undefined;
   /* Not a standard CSS property, so it is set here rather than left to a host stylesheet: a host
      that forgot it would show the secret in clear text. pre-wrap keeps line breaks while masked. */

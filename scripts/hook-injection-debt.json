@@ -283,12 +283,6 @@
         "packages/chat/src/react/components/ToolCard.tsx"
       ]
     },
-    "BrandLogo::useBrandLogo": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/react/components/BrandLogo.tsx"
-      ]
-    },
     "BrowserViewportControls::useDismissOnOutsideOrEscape": {
       "count": 1,
       "files": [
@@ -443,12 +437,6 @@
       "count": 1,
       "files": [
         "packages/admin/src/comments/react/pages/CommentsPage.tsx"
-      ]
-    },
-    "ComponentKitPreview::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/react/components/ComponentKitPreview.tsx"
       ]
     },
     "Composer::useAgentHandle": {
@@ -691,12 +679,6 @@
         "packages/ui/src/features/panel-kit/ErrorNotice.tsx"
       ]
     },
-    "ExportDiagnosticsButton::useExportDiagnostics": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/react/components/ExportDiagnosticsButton.tsx"
-      ]
-    },
     "ExternalMcpFooter::useT": {
       "count": 1,
       "files": [
@@ -797,12 +779,6 @@
       "count": 1,
       "files": [
         "packages/chat/src/react/components/ToolCard.tsx"
-      ]
-    },
-    "FileImportPanel::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/react/components/FileImportPanel.tsx"
       ]
     },
     "FileReadCard::useT": {
@@ -1303,12 +1279,6 @@
         "packages/chat/src/react/components/NextStepActions.tsx"
       ]
     },
-    "Notice::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/react/components/Notice.tsx"
-      ]
-    },
     "NotificationsTab::useNotificationsTab": {
       "count": 1,
       "files": [
@@ -1321,12 +1291,6 @@
         "packages/ui/src/features/notifications/react/components/NotificationsTab.tsx"
       ]
     },
-    "OnboardingDropdown::useOnboardingDropdownHook": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/react/components/OnboardingDropdown.tsx"
-      ]
-    },
     "OpenInTabButton::useT": {
       "count": 1,
       "files": [
@@ -1337,18 +1301,6 @@
       "count": 1,
       "files": [
         "packages/admin/src/react/OverlayHost.tsx"
-      ]
-    },
-    "PaletteTweaks::usePaletteDismiss": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/react/components/PaletteTweaks.tsx"
-      ]
-    },
-    "PaletteTweaks::usePaletteHover": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/react/components/PaletteTweaks.tsx"
       ]
     },
     "PasskeySettings::usePasskeySettings": {
@@ -1373,12 +1325,6 @@
       "count": 1,
       "files": [
         "packages/user-management/src/admin/react/components/PermissionPanel.tsx"
-      ]
-    },
-    "PillButton::useAgentHandle": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/react/components/PillButton.tsx"
       ]
     },
     "PlaygroundPage::usePlaygroundPage": {
@@ -1409,12 +1355,6 @@
       "count": 1,
       "files": [
         "packages/ui/src/features/iframe-pool/react/components/PooledIframe.tsx"
-      ]
-    },
-    "PopoverItem::useAgentHandle": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/react/components/PopoverItem.tsx"
       ]
     },
     "PresentMenu::usePresentMenu": {
@@ -1698,22 +1638,10 @@
         "packages/ui-kit/src/react/SecretInput.tsx"
       ]
     },
-    "SecretInput::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/react/components/SecretInput.tsx"
-      ]
-    },
     "SecretInput::useUiKit": {
       "count": 1,
       "files": [
         "packages/ui/src/react/kit.tsx"
-      ]
-    },
-    "SecretTextarea::useSecretToggle": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/react/components/SecretInput.tsx"
       ]
     },
     "SecurityPage::useSecurityPage": {
@@ -2320,18 +2248,6 @@
       "count": 1,
       "files": [
         "packages/admin/src/widgets/react/pages/WidgetsLibrary.tsx"
-      ]
-    },
-    "WorkingDirPicker::useWorkingDirFocusHandoff": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/react/components/WorkingDirPicker.tsx"
-      ]
-    },
-    "WorkingDirPicker::useWorkingDirPanelNavigation": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/react/components/WorkingDirPicker.tsx"
       ]
     },
     "ZoomMenu::useDismissOnOutsideOrEscape": {
