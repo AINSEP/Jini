@@ -30,7 +30,13 @@ export {
 } from './routing/rules.js';
 
 // Permissions — affordance only, never an authorization boundary.
-export { hasPermission } from './permissions/rules.js';
+export {
+  hasPermission,
+  isPanelAccessible,
+  withoutInaccessiblePanels,
+  type AdminPanelAccessDeclaration,
+  type AdminPanelAccessEntry,
+} from './permissions/rules.js';
 
 // Transport — the seam every route group is built on.
 export {

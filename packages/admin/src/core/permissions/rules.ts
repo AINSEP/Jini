@@ -22,6 +22,9 @@
  * actually allowed.
  */
 
+import type { AdminNavGroup } from '../manifest/rules.js';
+import type { AdminPanel } from '../manifest/types.js';
+
 /**
  * True iff `permissions` grants `permission` — either an exact match, or the unconstrained owner
  * wildcard `"*"`.
@@ -31,4 +34,62 @@
  */
 export function hasPermission({ permissions, permission }: { readonly permissions: readonly string[]; readonly permission: string }): boolean {
   return permissions.includes('*') || permissions.includes(permission);
+}
+
+/** What {@link isPanelAccessible} reads from a panel: its two permission declarations. */
+export type AdminPanelAccessDeclaration = Pick<AdminPanel, 'permissions' | 'anyOfPermissions'>;
+
+/** A declaration plus the id that ties it to a nav row. */
+export type AdminPanelAccessEntry = AdminPanelAccessDeclaration & { readonly id: string };
+
+/**
+ * True when the operator may use a panel, from the panel's own permission declarations.
+ *
+ * `permissions` is a **required key whose value may be `undefined`**: `undefined` means the session
+ * has not said yet (fresh sign-in before the host's permission read answers), and every panel shows
+ * then rather than flashing an empty nav or a no-access screen at someone who has access. An empty
+ * list is a known, empty grant and is not the same thing (it hides every gated panel). It is
+ * therefore never an optional property: absent and unknown must not be confusable.
+ *
+ * Rules: no declaration is accessible; `anyOfPermissions` needs at least one held (or `"*"`);
+ * `permissions` (all-of) needs every one held; when both are declared both must pass.
+ *
+ * Client-side visibility only, never an authorization boundary: the server stays the authority
+ * (see the file header).
+ *
+ * @complexity O(d * m): d declared ids, m held permissions.
+ */
+export function isPanelAccessible(
+  { panel, permissions }: { readonly panel: AdminPanelAccessDeclaration; readonly permissions: readonly string[] | undefined },
+  _options: Record<string, never> = {},
+): boolean {
+  if (permissions === undefined) return true;
+  const holds = (permission: string): boolean => hasPermission({ permissions, permission });
+  const anyOf = panel.anyOfPermissions ?? [];
+  return (anyOf.length === 0 || anyOf.some(holds)) && (panel.permissions ?? []).every(holds);
+}
+
+/**
+ * The nav with every row the operator cannot use removed.
+ *
+ * Returns `groups` itself (same reference) while `permissions` is `undefined`. Drops a group once all
+ * its rows are hidden, so no heading sits over nothing, and keeps a row whose id names no panel in
+ * `panels` (there is nothing to check it against). Client-side visibility only, like
+ * {@link isPanelAccessible}.
+ *
+ * @complexity O(n + p + n * d * m): a Map over p panels, then n nav rows.
+ */
+export function withoutInaccessiblePanels(
+  { groups, panels, permissions }: {
+    readonly groups: readonly AdminNavGroup[];
+    readonly panels: readonly AdminPanelAccessEntry[];
+    readonly permissions: readonly string[] | undefined;
+  },
+  _options: Record<string, never> = {},
+): readonly AdminNavGroup[] {
+  if (permissions === undefined) return groups;
+  const panelsById = new Map(panels.map((panel) => [panel.id, panel] as const));
+  return groups
+    .map((group) => ({ ...group, items: group.items.filter((item) => isPanelAccessible({ panel: panelsById.get(item.id) ?? {}, permissions })) }))
+    .filter((group) => group.items.length > 0);
 }
