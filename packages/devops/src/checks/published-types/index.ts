@@ -5,6 +5,8 @@ export type { CheckLoggerPort, FilesystemPort, PackageInstallerPort, ProcessRequ
 export interface DependencyManifest {
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
+  optionalDependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
   overrides?: Record<string, unknown>;
 }
 
@@ -47,7 +49,7 @@ function validatePins(pins: Readonly<Record<string, string>>, scope: string): vo
 export function registryDependencies({ manifest, scope }: { manifest: DependencyManifest; scope: string }): Record<string, string> {
   validateScope(scope);
   const dependencies: Record<string, string> = {};
-  for (const [name, spec] of Object.entries({ ...manifest.dependencies, ...manifest.devDependencies })) {
+  for (const [name, spec] of Object.entries({ ...manifest.dependencies, ...manifest.optionalDependencies, ...manifest.peerDependencies, ...manifest.devDependencies })) {
     if (!name.startsWith(`${scope}/`) || /^(file:|workspace:|link:)/.test(spec)) continue;
     if (!new RegExp(`^${escapeRegex(scope)}/[a-z0-9][a-z0-9._-]*$`).test(name)) throw new TypeError(`invalid dependency name: ${name}`);
     dependencies[name] = spec;
