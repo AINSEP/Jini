@@ -1357,21 +1357,12 @@ importers:
 
   packages/ui:
     dependencies:
-      '@jini-ai/agentic':
-        specifier: workspace:^
-        version: link:../agentic
       '@jini-ai/core':
         specifier: workspace:^
         version: link:../core
-      '@jini-ai/platform':
-        specifier: workspace:^
-        version: link:../platform
       '@jini-ai/protocol':
         specifier: workspace:^
         version: link:../protocol
-      '@jini-ai/ui-kit':
-        specifier: workspace:^
-        version: link:../ui-kit
       micromark:
         specifier: ^4.0.0
         version: 4.0.2
@@ -1385,9 +1376,15 @@ importers:
       '@jini-ai/agent-runtime':
         specifier: workspace:^
         version: link:../agent-runtime
+      '@jini-ai/agentic':
+        specifier: workspace:^
+        version: link:../agentic
       '@jini-ai/integrations':
         specifier: workspace:^
         version: link:../integrations
+      '@jini-ai/ui-kit':
+        specifier: workspace:^
+        version: link:../ui-kit
       '@mcp-ui/client':
         specifier: 7.1.1
         version: 7.1.1(@cfworker/json-schema@4.1.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
