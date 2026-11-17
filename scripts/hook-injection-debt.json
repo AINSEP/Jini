@@ -727,54 +727,6 @@
         "packages/admin/src/forms/react/components/FieldSettingsSection.tsx"
       ]
     },
-    "FileDropzone::useGlobalKeydown": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/file-dropzone/react/components/FileDropzone.tsx"
-      ]
-    },
-    "FileDropzone::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/file-dropzone/react/components/FileDropzone.tsx"
-      ]
-    },
-    "FileDropzoneLightbox::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/file-dropzone/react/components/FileDropzoneLightbox.tsx"
-      ]
-    },
-    "FileDropzoneNameList::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/file-dropzone/react/components/FileDropzoneNameList.tsx"
-      ]
-    },
-    "FileDropzoneStaged::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/file-dropzone/react/components/FileDropzone.tsx"
-      ]
-    },
-    "FileDropzoneThumbnailGrid::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/file-dropzone/react/components/FileDropzoneThumbnailGrid.tsx"
-      ]
-    },
-    "FileDropzoneZone::useFileDropzoneZone": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/file-dropzone/react/components/FileDropzoneZone.tsx"
-      ]
-    },
-    "FileDropzoneZone::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/file-dropzone/react/components/FileDropzoneZone.tsx"
-      ]
-    },
     "FileEditCard::useT": {
       "count": 1,
       "files": [

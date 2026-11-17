@@ -10,6 +10,7 @@ export interface FileDropzoneThumbnailGridProps {
   previews: FileDropzonePreviewState;
   onSelect: (file: File) => void;
   onRemove?: ((file: File) => void) | undefined;
+  useTHook?: typeof useT;
 }
 
 function renderGlyph({ file, kind }: { file: File; kind: FileDropzoneKind }) {
@@ -71,8 +72,8 @@ function renderThumb({ file, kind, previews }: { file: File; kind: FileDropzoneK
 }
 
 /** Kind-aware thumbnail grid over staged files, with remove tiles and click-to-select (the host renders the lightbox — see `FileDropzoneLightbox`). Ported from `DesignSystemAssetDropzone.tsx`'s staged-asset grid. */
-export function FileDropzoneThumbnailGrid({ files, previews, onSelect, onRemove }: FileDropzoneThumbnailGridProps) {
-  const t = useT();
+export function FileDropzoneThumbnailGrid({ files, previews, onSelect, onRemove, useTHook = useT }: FileDropzoneThumbnailGridProps) {
+  const t = useTHook();
   if (files.length === 0) return null;
   return (
     <ul className="jini-file-dropzone__grid" aria-label={t('Staged files')}>

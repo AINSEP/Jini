@@ -11,6 +11,7 @@ export interface FileDropzoneLightboxProps {
   file: File;
   previews: FileDropzonePreviewState;
   onClose: () => void;
+  useTHook?: typeof useT;
 }
 
 type Translate = (key: string, vars?: TranslationVars) => string;
@@ -98,8 +99,8 @@ function renderStage({ t, file, kind, previews }: StageInput & { kind: FileDropz
 }
 
 /** Click-to-enlarge, kind-aware preview for one staged file — image, PDF embed, HTML mini-render, video/audio player, font specimen, or a text snippet, with a name/size fallback card for everything else. Rendered in the shared `Lightbox` (a top-layer native dialog, so no portal is needed). Ported from `DesignSystemAssetDropzone.tsx`'s lightbox. */
-export function FileDropzoneLightbox({ file, previews, onClose }: FileDropzoneLightboxProps) {
-  const t = useT();
+export function FileDropzoneLightbox({ file, previews, onClose, useTHook = useT }: FileDropzoneLightboxProps) {
+  const t = useTHook();
   const kind = fileDropzoneKind(file);
   return (
     <Lightbox

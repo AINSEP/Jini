@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { FileDropzoneThumbnailGrid } from '../../../react/components/FileDropzoneThumbnailGrid.js';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import type { FileDropzonePreviewState } from '../../../types.js';
 
 function file(name: string, type = ''): File {
@@ -15,6 +15,9 @@ const EMPTY_PREVIEWS: FileDropzonePreviewState = {
   fontFamilies: new Map(),
   textSnippets: new Map(),
 };
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('FileDropzoneThumbnailGrid', () => {
   it('renders nothing for an empty file list', () => {
@@ -160,5 +163,11 @@ describe('FileDropzoneThumbnailGrid', () => {
     );
     expect(screen.getByRole('list', { name: 'Fichiers en cours' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retirer a.pdf' })).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    const f = file('a.png', 'image/png');
+    render(<FileDropzoneThumbnailGrid files={[f]} previews={EMPTY_PREVIEWS} onSelect={vi.fn()} useTHook={useQuotingT} />);
+    expect(screen.getByLabelText('«Staged files»')).toBeInTheDocument();
   });
 });
