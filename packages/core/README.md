@@ -142,6 +142,8 @@ class and factory identities.
 |---|---|
 | `./gated-mutations` | `plan`, `confirm`, `execute`, `authorizeForHooks`; authorization, clock, ID generation, complete opaque token generation, TTL, token store and mutation hooks. Includes token lifecycle and composite actor-reference helpers. |
 | `./model-facing-tool-errors` | `forbiddenRule`, `reclassifyToolError`, `withModelFacingErrors`, `withModelFacingRegistrationErrors`, `callerSafeErrorMessage`; callers own ordered error allowlists and fallback wording. |
+| `./tool-call-text` | `unknownToolSentence`; the one wording of an unknown-tool answer, shared by the daemon route and the MCP host. |
+| `./tool-input-repairs` | `clampDeclaredBounds`, `assertRepairKeywords`; opt-in `clamp: true` on a bounded numeric property (applied by `normalizeToolInput` on every registry path). |
 | `./contribution-registry` | `createContributionRegistry({ keyOf })`; instance-owned replacement by key, with detached array snapshots. |
 | `./naming` | `deriveAvailableName`, `deriveDuplicateName`, `MAX_SUFFIX_ATTEMPTS`; required collision predicate, suffix formatter and exhaustion message policy. |
 | `./agent-handles` | `agentHandle`/`agentHandleProps`/`buildAgentListHandles`, the `data-agent-*` attribute names and handle grammar, `FieldDescriptor`. Pure data, no DOM. |
