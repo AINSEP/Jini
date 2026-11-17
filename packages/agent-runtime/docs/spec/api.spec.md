@@ -683,22 +683,19 @@ Every listed name is exported from the root; source links define fields and lite
 
 | Source | Exported values, classes and types |
 |---|---|
-| [types.ts](../../src/types.ts) | `DetectedAgent`, `RuntimeAgentDef`, `RuntimeBuildOptions`, `RuntimeCapabilityMap`, `RuntimeContext`, `RuntimeEnv`, `RuntimeExecOptions`, `RuntimeListModels`, `RuntimeLock`, `RuntimeLockAcquireContext`, `RuntimeLockHandoffContext`, `RuntimeLockHold`, `RuntimeModelOption`, `RuntimeModelSource`, `RuntimePromptBudgetError`, `RuntimeReasoningInModelId`, `RuntimeReasoningOption`, `RuntimeStdoutPolicy` |
+| [types.ts](../../src/types.ts) | `DetectedAgent`, `RuntimeExecOptions` |
 | [models.ts](../../src/models.ts) | `DEFAULT_MODEL_OPTION` |
 | [capabilities.ts](../../src/capabilities.ts) | `agentCapabilities` |
 | [mmd-routes.ts](../../src/mmd-routes.ts) | `MmdRouteLaunchEnv` |
 | [metadata.ts](../../src/metadata.ts) | `AgentInstallMeta`, `DEFAULT_AGENT_INSTALL_LINKS` |
 | [mcp.ts](../../src/mcp.ts) | `AcpMcpServerEntry`, `AcpMcpServerSpec` |
 | [role-marker-guard.ts](../../src/role-marker-guard.ts) | `FABRICATED_ROLE_MARKER_RE`, `RoleMarkerGuard`, `RoleMarkerWarningEvent` |
-| [auth.ts](../../src/auth.ts) | `AgentAuthProbeResult`, `AgentServiceFailureCode` |
+| [auth.ts](../../src/auth.ts) | `AgentAuthProbeResult` |
 | [opencode-log.ts](../../src/opencode-log.ts) | `OpenCodeServiceFailure` |
 | [env.ts](../../src/env.ts) | `SpawnEnvHooks` |
-| [launch.ts](../../src/launch.ts) | `AgentLaunchKind`, `AgentLaunchResolution` |
 | [terminal-launch.ts](../../src/terminal-launch.ts) | `TerminalLaunchResult` |
 | [diagnostics.ts](../../src/diagnostics.ts) | `NotInvocableCause` |
 | [detection.ts](../../src/detection.ts) | `ProbedAgentModels` |
-| [prompt-file.ts](../../src/prompt-file.ts) | `PreparedPromptFile` |
-| [log-file.ts](../../src/log-file.ts) | `PreparedAgentLogFile` |
 | [amr-model-cache.ts](../../src/amr-model-cache.ts) | `AmrModelLoadingCache`, `AmrModelsResponse`, `amrModelLoadingCache` |
 | [model-catalog-cache.ts](../../src/model-catalog-cache.ts) | `ModelCatalogCache`, `ModelCatalogCacheDependencies`, `ModelCatalogCacheKey`, `ModelCatalogCacheOptions`, `ModelCatalogReadOptions`, `ModelDiscovery`, `ModelMerger` |
 | [registry.ts](../../src/registry.ts) | `AGENT_DEFS`, `BASE_AGENT_DEFS` |
@@ -734,13 +731,12 @@ Every listed name is exported from the root; source links define fields and lite
 | [claude-stream.ts](../../src/claude-stream.ts) | `ClaudeStreamEvent` |
 | [qoder-stream.ts](../../src/qoder-stream.ts) | `QoderEvent` |
 | [amr-profile-resolver.ts](../../src/amr-profile-resolver.ts) | `AmrProfileResolver`, `noopAmrProfileResolver` |
-| [acp-model-probe.ts](../../src/acp-model-probe.ts) | `AcpModelProbe`, `AcpModelProbeRequest`, `noopAcpModelProbe` |
-| [prompt-augmenter.ts](../../src/prompt-augmenter.ts) | `PromptAugmenter`, `RunContextSelection`, `WorkspaceContextItem`, `noopPromptAugmenter` |
+| [acp-model-probe.ts](../../src/acp-model-probe.ts) | `noopAcpModelProbe` |
+| [prompt-augmenter.ts](../../src/prompt-augmenter.ts) | `noopPromptAugmenter` |
 | [artifact-taxonomy.ts](../../src/artifact-taxonomy.ts) | `ArtifactTaxonomy`, `noopArtifactTaxonomy` |
 | [telemetry-sink.ts](../../src/telemetry-sink.ts) | `RunLifecycleEvent`, `TelemetrySink`, `noopTelemetrySink` |
-| [core contracts/agents/model-catalog.ts](../../../core/src/contracts/agents/model-catalog.ts) | `ConnectionTestKind`, `ConnectionTestProtocol`, `ProviderModelOption`, `ProviderModelsKind`, `ProviderModelsRequest`, `ProviderModelsResponse` |
 | [providers/aihubmix.ts](../../src/providers/aihubmix.ts) | `AIHUBMIX_APP_CODE`, `AIHUBMIX_DEFAULT_BASE_URL`, `AIHUBMIX_IMAGE_ASPECT_TO_SIZE`, `AIHubMixCatalogModel`, `AIHubMixCatalogType`, `AIHubMixGeminiImageRequest`, `AIHubMixProtocol`, `ParseAIHubMixCatalogOptions` |
-| [providers/connection-guard.ts](../../src/providers/connection-guard.ts) | `BaseUrlValidationResult`, `DnsLookupAddress`, `DnsLookupFn`, `PinnedFetch`, `PinnedFetchInit`, `PinnedFetchResponse` |
+| [providers/connection-guard.ts](../../src/providers/connection-guard.ts) | `BaseUrlValidationResult`, `PinnedFetch`, `PinnedFetchInit`, `PinnedFetchResponse` |
 | [providers/model-catalog.ts](../../src/providers/model-catalog.ts) | `ProviderModelsInput` |
 | [providers/connection-test.ts](../../src/providers/connection-test.ts) | `ConnectionTestResponse`, `ProviderConnectionTestInput`, `ProviderConnectionTestRequest`, `SupportedConnectionTestProtocol` |
 | [providers/sse-decode.ts](../../src/providers/sse-decode.ts) | `DecodedSseEvent` |
@@ -762,7 +758,24 @@ Every listed name is exported from the root; source links define fields and lite
 | [agent-protocol/acp/session.ts](../../src/agent-protocol/acp/session.ts) | `AcpPermissionDecision`, `AcpPermissionHandler`, `AcpPermissionOption`, `AcpPermissionRequest`, `AcpSessionController`, `AttachAcpSessionOptions` |
 | [agent-protocol/acp/account-failure.ts](../../src/agent-protocol/acp/account-failure.ts) | `AccountFailure`, `AccountFailureClassifier`, `noopAccountFailureClassifier` |
 | [agent-protocol/pi-rpc/session.ts](../../src/agent-protocol/pi-rpc/session.ts) | `PiRpcSession`, `PiRpcSessionOptions` |
-| @jini-ai/protocol re-exports | `AgentDefinition`, `CredentialStatus`, `ModelCatalogOption`, `ModelProvider`, `AgentDiagnostic`, `AgentDiagnosticReason`, `AgentDiagnosticSeverity`, `AgentFixIntent` |
+| @jini-ai/protocol re-exports | `AgentDefinition`, `CredentialStatus`, `ModelCatalogOption`, `ModelProvider` |
+| [runtime-port-bindings.ts](../../src/runtime-port-bindings.ts) | `createAgentRuntimeBindings` |
+| [runtime-def-binding.ts](../../src/runtime-def-binding.ts) | `bindRuntimeAgentDef` |
+| [defs/codex/options.ts](../../src/defs/codex/options.ts) | `CodexDefOptions`, `codexDefOptionsFromEnv` |
+| [defs/pi/options.ts](../../src/defs/pi/options.ts) | `PiDefOptions`, `piDefOptionsFromEnv` |
+
+### Vocabulary that moved to core
+
+These types are no longer exported from this package (sheet C6, one definition each). Import them from `@jini-ai/core/contracts/agents`; the agent runtime and the daemon both implement or consume them from there.
+
+| Core file | Types |
+|---|---|
+| [definition.ts](../../../core/src/contracts/agents/definition.ts) | `AcpModelProbe`, `AcpModelProbeRequest`, `RuntimeAgentDef`, `RuntimeBuildOptions`, `RuntimeCapabilityMap`, `RuntimeContext`, `RuntimeListModels`, `RuntimeLock`, `RuntimeLockAcquireContext`, `RuntimeLockHandoffContext`, `RuntimeLockHold`, `RuntimeModelSource`, `RuntimePromptBudgetError`, `RuntimeReasoningInModelId`, `RuntimeStdoutPolicy` |
+| [model-catalog.ts](../../../core/src/contracts/agents/model-catalog.ts) | `RuntimeEnv`, `RuntimeModelOption`, `RuntimeReasoningOption`, `ModelIdentityKind`, `ConnectionTestKind`, `ConnectionTestProtocol`, `ProviderModelOption`, `ProviderModelsKind`, `ProviderModelsRequest`, `ProviderModelsQuery`, `ProviderModelsResponse`, `DnsLookupAddress`, `DnsLookupFn`, `RuntimeSelectionError` (a data-only error class: the launcher checks it with `instanceof`) |
+| [launch.ts](../../../core/src/contracts/agents/launch.ts) | `AgentLaunchKind`, `AgentLaunchResolution`, `PreparedAgentLogFile`, `PreparedPromptFile`, `PromptAugmenter`, `RunContextSelection`, `WorkspaceContextItem`, `AgentServiceFailureCode` |
+| [native-tool-policy.ts](../../../core/src/contracts/agents/native-tool-policy.ts) | `NativeCapabilities`, `NativeToolPolicyInput`, `RunConsentKey`, `RunPlan`, `RunPlanHost` |
+
+The AI trace recorder, usage normalizer and sinks are in `@jini-ai/core/contracts/ai-trace`; this package has no `./ai-trace` path. `AgentDiagnostic*` types come from `@jini-ai/protocol`. The daemon states what it needs from this package as `AgentRuntimePort` (`@jini-ai/daemon/ports/agent-runtime`); `createAgentRuntimeBindings` is the one binding of it.
 
 ## Alias and coverage boundaries
 
