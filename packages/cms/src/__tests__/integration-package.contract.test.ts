@@ -43,8 +43,6 @@ it('keeps the folded domain entries and optional adapter peers explicit', () => 
   expect(manifest.exports["./comments/sql"]).toEqual({types: "./dist/comments/sql/index.d.ts", import: "./dist/comments/sql/index.js", default: "./dist/comments/sql/index.js"});
   expect(manifest.exports["./comments/express"]).toEqual({types: "./dist/comments/express/index.d.ts", import: "./dist/comments/express/index.js", default: "./dist/comments/express/index.js"});
   expect(manifest.jini.isolation.domains.comments).toEqual(["src/comments"]);
-  assert.ok(manifest.peerDependenciesMeta["@jini-ai/db"]);
-  expect(manifest.peerDependenciesMeta["@jini-ai/db"].optional).toBe(true);
   assert.ok(manifest.peerDependenciesMeta["kysely"]);
   expect(manifest.peerDependenciesMeta["kysely"].optional).toBe(true);
   assert.ok(manifest.peerDependenciesMeta["express"]);
@@ -75,7 +73,6 @@ it('keeps the folded domain entries and optional adapter peers explicit', () => 
   expect(Object.hasOwn(manifest.peerDependencies, 'parse5')).toBe(false);
   expect(Object.hasOwn(manifest.peerDependenciesMeta, 'parse5')).toBe(false);
   expect(manifest.peerDependenciesMeta['kysely']?.optional).toBe(true);
-  expect(manifest.peerDependenciesMeta['@jini-ai/db']?.optional).toBe(true);
   expect(manifest.jini.isolation.domains.widgets).toEqual(['src/widgets']);
 });
 

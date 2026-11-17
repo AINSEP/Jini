@@ -1,14 +1,15 @@
-import { sql } from "kysely";
-import { listColumns, type KyselyKernel } from "@jini-ai/db/kernel";
+import { sql, type Kysely } from "kysely";
+import type { StorageKernel } from "@jini-ai/core/contracts/storage";
+import type { ColumnCatalogPort } from "./ports.js";
 import type { FormsTables, FormSubmissionDatabase } from "./tables.js";
 import type { SubmissionIpRetentionPort } from "../submission-ip-retention.js";
 
 /** Site-owned schema adapter; no retention policy or timer lives here. */
 export function createSubmissionIpRetentionRepo<DB>(
-  { kernel: suppliedKernel, tables }: { kernel: KyselyKernel<DB>; tables: FormsTables },
+  { kernel: suppliedKernel, tables, columns }: { kernel: StorageKernel<Kysely<DB>, DB>; tables: FormsTables; columns: ColumnCatalogPort },
   _optional: Record<string, never> = {},
 ): SubmissionIpRetentionPort {
-  const kernel = suppliedKernel as unknown as KyselyKernel<FormSubmissionDatabase>;
+  const kernel = suppliedKernel as unknown as StorageKernel<Kysely<FormSubmissionDatabase>, FormSubmissionDatabase>;
   let nullableConfirmed = false;
   return {
     async clearExpiredIps({ submittedBeforeOrAt }, { limit = 500 } = {}) {
@@ -16,10 +17,10 @@ export function createSubmissionIpRetentionRepo<DB>(
       if (!nullableConfirmed) {
         // A database not yet at migration 0006 still has NOT NULL source_ip. Fail before
         // writing while that old schema is present; a failed probe is retried on the next pass.
-        // The kernel's catalog helper spells the dialect-specific lookup (SQLite table_info,
+        // The host's catalog port spells the dialect-specific lookup (SQLite table_info,
         // Postgres information_schema), so this adapter stays dialect-neutral.
-        const columns = await listColumns(kernel, tables.submissions);
-        nullableConfirmed = columns.some(column => column.name === "source_ip" && !column.notNull);
+        const catalog = await columns({ table: tables.submissions });
+        nullableConfirmed = catalog.some(column => column.name === "source_ip" && !column.notNull);
         if (!nullableConfirmed) throw new Error("submission IP retention requires the nullable source_ip migration (0006)");
       }
       // Single statement, with the predicate repeated on the write: another process may have

@@ -560,6 +560,7 @@
  "./forms/sql": {
   "types": "./dist/forms/sql/index.d.ts",
   "symbols": {
+   "ColumnCatalogPort": "type:3850823105",
    "FormDefinitionDatabase": "type:b5e9b6ca21",
    "FormDefinitionRow": "type:8779f2cd70",
    "FormDefinitionTable": "interface:875b4de730",
@@ -572,7 +573,7 @@
    "SqlFormDefinitionRepo": "class:4f50efbe1d",
    "SqlFormSubmissionRepo": "class:b6e4210663",
    "createFormsTables": "function:630c073d1a",
-   "createSubmissionIpRetentionRepo": "function:21447571ae",
+   "createSubmissionIpRetentionRepo": "function:a4dbc5813c",
    "formDefinitionRepoFor": "function:0b30c4d79c",
    "formSubmissionRepoFor": "function:e1a6331e0e",
    "toDefinitionRecord": "function:8d8f175a3a",

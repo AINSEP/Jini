@@ -105,6 +105,13 @@ test("CMS declares no production dependency on the HTTP toolkit", () => {
   expect(Object.keys(production)).not.toContain("@jini-ai/http-kit");
 });
 
+// REGRESSION: the forms SQL adapter once imported the database toolkit's catalog helper. The host
+// now injects it (`columns`), so the toolkit must not come back as a production dependency.
+test("CMS declares no production dependency on the database toolkit", () => {
+  const production = { ...manifest.dependencies, ...manifest.peerDependencies, ...manifest.peerDependenciesMeta };
+  expect(Object.keys(production)).not.toContain("@jini-ai/db");
+});
+
 // REGRESSION: fails if index-provisioning.ts restores import { createHash } from "node:crypto".
 test("no CMS universal entry reaches a Node builtin", () => {
   expect(manifest.jini.entries["./content-types"]).toBe("universal");

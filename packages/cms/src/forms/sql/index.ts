@@ -3,3 +3,4 @@ export * from "./repo.js";
 export * from "./repo.rows.js";
 export * from "./submission-ip-retention-repo.js";
 export * from "./create-tables.js";
+export type { ColumnCatalogPort } from "./ports.js";
