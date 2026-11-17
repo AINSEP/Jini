@@ -52,8 +52,9 @@ export function FilePreviewPane<TFile>({
   downloadHref,
   renderThumbnail,
   thumbnailIsInteractive = false,
-}: FilePreviewPaneProps<TFile>) {
-  const t = useT();
+  useTHook = useT,
+}: FilePreviewPaneProps<TFile> & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const relativeTime = relativeTimeResult(modifiedAt);
   const timeLabel = relativeTime.translatable ? t(relativeTime.label, relativeTime.params) : relativeTime.label;
   const openLabel = `${t('Open')} ${path}`;

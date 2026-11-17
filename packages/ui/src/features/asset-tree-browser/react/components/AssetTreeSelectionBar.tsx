@@ -9,6 +9,7 @@ export interface AssetTreeSelectionBarProps {
   onDownload?: (() => void) | undefined;
   downloading?: boolean | undefined;
   downloadError?: string | null | undefined;
+  useTHook?: typeof useT;
 }
 
 /** The batch action bar shown above the listing whenever one or more rows are selected: an optional batch download, delete, and clear-selection. */
@@ -20,8 +21,9 @@ export function AssetTreeSelectionBar({
   onDownload,
   downloading = false,
   downloadError = null,
+  useTHook = useT,
 }: AssetTreeSelectionBarProps) {
-  const t = useT();
+  const t = useTHook();
 
   return (
     <div className="asset-tree-batch-bar" data-testid="asset-tree-batch-bar">

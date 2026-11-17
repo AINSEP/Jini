@@ -23,6 +23,7 @@ export interface AssetTreeRowMenuProps {
   onRename: () => void;
   onCopyLocalPath: () => void;
   onDelete: () => void;
+  useTHook?: typeof useT;
 }
 
 /**
@@ -46,8 +47,9 @@ export function AssetTreeRowMenu({
   onRename,
   onCopyLocalPath,
   onDelete,
+  useTHook = useT,
 }: AssetTreeRowMenuProps) {
-  const t = useT();
+  const t = useTHook();
 
   return (
     <div
