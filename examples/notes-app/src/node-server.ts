@@ -1,3 +1,4 @@
+// GAP: G1 hand-rolled node:http Server adapter; @jini-ai/http-kit/node-bridge replaces it (sheet G1)
 /**
  * @file Plain Node `http` adapter for `@jini-ai/core/contracts/server`'s `Server` contract.
  *

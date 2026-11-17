@@ -35,3 +35,29 @@ Routes: `GET /`, `POST /notes`, `GET /notes/:slug`, `POST /notes/:slug/edit`,
 `GET /api/forms/:slug/submissions`.
 
 The app has one local owner and no login; it is meant to run on localhost.
+
+## Request guard
+
+Every route `registerNotesApp` registers runs behind a Host/Origin guard (`src/gaps/origin-guard.ts`).
+A request is refused with 403 and `{ error: { code, message } }` when:
+
+- its `Host` is not loopback (`127.0.0.1`, `localhost`, `[::1]`) on the port the server really bound
+  (`HOST_REJECTED`, any method; the port is read after `listen`, never from a header),
+- it carries an `Origin` that is not the app's own (`ORIGIN_REJECTED`),
+- or it is a state-changing request the browser marks `Sec-Fetch-Site: cross-site` (`ORIGIN_REJECTED`).
+
+A POST with no `Origin` from the same host (curl, scripts) is allowed. Requests that match no route
+(the adapter's 404 and any `onUnmatched` hook) are not behind the guard.
+
+## Unmatched requests
+
+`createNodeServer({}, { onUnmatched })`: `onUnmatched({ request })` may return a `Response` for a request
+whose path matches no route (return `undefined` to keep the plain 404). It is never called for a matched path,
+so a wrong method still gets the 405. A hook that throws gets a 500 and the error goes to `reportError`
+(default `console.error`).
+
+## Gaps
+
+`GAPS.json` lists every file that holds code Jini should own, with its gap id and a line budget.
+`pnpm --filter @jini-example/notes-app run gaps` fails when a listed file is missing, lacks its
+`// GAP: <id>` header, or has grown past its budget. The counts only go down.
