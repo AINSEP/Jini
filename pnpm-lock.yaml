@@ -598,9 +598,6 @@ importers:
       '@jini-ai/core':
         specifier: workspace:^
         version: link:../core
-      '@jini-ai/platform':
-        specifier: workspace:^
-        version: link:../platform
       '@jini-ai/sidecar':
         specifier: workspace:^
         version: link:../sidecar
