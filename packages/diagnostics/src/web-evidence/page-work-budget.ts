@@ -1,3 +1,5 @@
+import { REAL_CAPTURE_CLOCK, type CaptureClock } from "./capture-clock.js";
+
 /** Internal deadline shared by every asynchronous step of one page observation. */
 export class PageWorkTimeout extends Error {
   constructor({ timeoutMs }: { timeoutMs: number }) {
@@ -11,14 +13,16 @@ export class PageWorkBudget {
   private readonly expiresAt: number;
   private readonly timeoutMs: number;
   private readonly signal: AbortSignal | undefined;
+  private readonly clock: CaptureClock;
 
-  constructor({ timeoutMs }: { timeoutMs: number }, { signal }: { signal?: AbortSignal } = {}) {
+  constructor({ timeoutMs }: { timeoutMs: number }, { signal, clock = REAL_CAPTURE_CLOCK }: { signal?: AbortSignal; clock?: CaptureClock } = {}) {
     this.signal = signal;
     this.timeoutMs = timeoutMs;
-    this.expiresAt = Date.now() + timeoutMs;
+    this.clock = clock;
+    this.expiresAt = clock.now() + timeoutMs;
   }
 
-  remainingMs(): number { return Math.max(0, this.expiresAt - Date.now()); }
+  remainingMs(): number { return Math.max(0, this.expiresAt - this.clock.now()); }
 
   /** Races even APIs without native timeouts (evaluation/cookies) and never starts expired work.
    * @complexity O(1) time and space apart from the injected operation. */
@@ -26,7 +30,7 @@ export class PageWorkBudget {
     this.signal?.throwIfAborted();
     const remaining = this.remainingMs();
     if (remaining <= 0) throw new PageWorkTimeout({ timeoutMs: this.timeoutMs });
-    let timer: ReturnType<typeof setTimeout> | undefined;
+    let timer: unknown;
     let onAbort: (() => void) | undefined;
     try {
       return await Promise.race([
@@ -37,11 +41,11 @@ export class PageWorkBudget {
           if (this.signal!.aborted) onAbort();
         })] : []),
         new Promise<never>((_resolve, reject) => {
-          timer = setTimeout(() => reject(new PageWorkTimeout({ timeoutMs: this.timeoutMs })), remaining);
+          timer = this.clock.setTimeout(() => reject(new PageWorkTimeout({ timeoutMs: this.timeoutMs })), remaining);
         }),
       ]);
     } finally {
-      clearTimeout(timer);
+      this.clock.clearTimeout(timer);
       if (onAbort) this.signal?.removeEventListener("abort", onAbort);
     }
   }
@@ -56,7 +60,7 @@ export class PageWorkBudget {
       return;
     }
     try {
-      await new PageWorkBudget({ timeoutMs: this.remainingMs() }, this.signal ? { signal: this.signal } : {}).run({ work: () => closing });
+      await new PageWorkBudget({ timeoutMs: this.remainingMs() }, { clock: this.clock, ...(this.signal ? { signal: this.signal } : {}) }).run({ work: () => closing });
     } catch (error) {
       if (!(error instanceof PageWorkTimeout) && !this.signal?.aborted) throw error;
     }

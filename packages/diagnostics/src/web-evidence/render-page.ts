@@ -1,3 +1,4 @@
+import { REAL_CAPTURE_CLOCK, type CaptureClock } from "./capture-clock.js";
 import { PageWorkBudget, PageWorkTimeout } from "./page-work-budget.js";
 import { isSameOriginUrl } from "./same-origin.js";
 import { MAX_REDIRECT_HOPS, isMainFrameNavigation, type RequestRouter, type RouteLike } from "./request-guard.js";
@@ -43,6 +44,8 @@ export interface RenderSession {
 export interface RenderPageOptions {
   timeoutMs?: number;
   signal?: AbortSignal;
+  /** Time source for the budget, its timers and the hard stop; defaults to the real clock. */
+  clock?: CaptureClock;
   /** CSS selector, or settle seconds (0–10). DOM content loaded always precedes this. */
   waitFor?: string | number;
   dismissCookieBanners?: boolean;
@@ -287,14 +290,14 @@ export async function renderPage<T>(
   { browser, url, consume }: { browser: RenderBrowser; url: string; consume: (session: RenderSession) => Promise<T> },
   options: RenderPageOptions = {},
 ): Promise<T> {
-  const { timeoutMs = 30_000, signal: callerSignal } = options;
+  const { timeoutMs = 30_000, signal: callerSignal, clock = REAL_CAPTURE_CLOCK } = options;
   assertHttpUrl({ url });
   if (options.originPolicy === "public" && !options.router) throw new Error("Public rendering requires a guarded request router");
   // A native total timer remains firm even if the wall clock moves between budgeted steps.
-  const deadline = AbortSignal.timeout(timeoutMs);
+  const deadline = clock.deadlineSignal(timeoutMs);
   const signal = callerSignal ? AbortSignal.any([callerSignal, deadline]) : deadline;
   try {
-    return await consumeOnePage({ browser, url, consume, signal, timeoutMs }, options);
+    return await consumeOnePage({ browser, url, consume, signal, timeoutMs, clock }, options);
   } catch (error) {
     if (deadline.aborted && !callerSignal?.aborted) throw new PageWorkTimeout({ timeoutMs });
     throw error;
@@ -303,10 +306,10 @@ export async function renderPage<T>(
 
 /** The context opened here is closed at once on abort and always released when the call ends. */
 async function consumeOnePage<T>(
-  { browser, url, consume, signal, timeoutMs }: { browser: RenderBrowser; url: string; consume: (session: RenderSession) => Promise<T>; signal: AbortSignal; timeoutMs: number },
+  { browser, url, consume, signal, timeoutMs, clock }: { browser: RenderBrowser; url: string; consume: (session: RenderSession) => Promise<T>; signal: AbortSignal; timeoutMs: number; clock: CaptureClock },
   options: RenderPageOptions,
 ): Promise<T> {
-  const budget = new PageWorkBudget({ timeoutMs }, { signal });
+  const budget = new PageWorkBudget({ timeoutMs }, { signal, clock });
   let context: RenderContext | undefined;
   const onAbort = () => { void context?.close().catch(() => {}); };
   signal.throwIfAborted();

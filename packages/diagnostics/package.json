@@ -18,6 +18,7 @@
       "./observability/node": "node",
       "./web-evidence": "universal",
       "./web-evidence/playwright": "node",
+      "./web-evidence/testing": "universal",
       "./domain-dns": "node"
     },
     "runtime": "node"
@@ -56,6 +57,11 @@
       "types": "./dist/web-evidence/playwright-browser.d.ts",
       "import": "./dist/web-evidence/playwright-browser.js",
       "default": "./dist/web-evidence/playwright-browser.js"
+    },
+    "./web-evidence/testing": {
+      "types": "./dist/web-evidence/testing/fake-clock.d.ts",
+      "import": "./dist/web-evidence/testing/fake-clock.js",
+      "default": "./dist/web-evidence/testing/fake-clock.js"
     },
     "./domain-dns": {
       "types": "./dist/domain-dns/index.d.ts",
