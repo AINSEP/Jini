@@ -33,7 +33,7 @@ import { batchOutcomeFor, ToolInputError, type Principal, type ToolRegistry } fr
 import { createDelegatedToolBridge, type RunLifecycle, type ToolExecutionResult, type ToolExecutor } from '../index.js';
 import { reportRouteInternalError } from '@jini-ai/http-kit';
 import type { DaemonRouteHost } from './route-host.js';
-import { gatedJsonRoute, type DaemonRoute } from './route-table.js';
+import { gatedJsonRoute, withHostReporter, type DaemonRoute } from './route-table.js';
 import {
   defineJsonRoute,
   err,
@@ -392,5 +392,5 @@ export const delegatedToolExecuteRoute = defineJsonRoute<
 
 /** `POST /api/delegated-tool-calls` as data, behind the same-origin gate its spec declares. Internal failures are reported through the host's reporter. */
 export function delegatedToolRoutes({ deps, host }: { readonly deps: DelegatedToolsHttpDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
-  return [gatedJsonRoute({ spec: delegatedToolExecuteRoute, deps: { ...deps, reportInternalError: host.reportInternalError }, host })];
+  return [gatedJsonRoute({ spec: delegatedToolExecuteRoute, deps: withHostReporter({ deps, host }), host })];
 }

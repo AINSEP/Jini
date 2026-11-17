@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { defineJsonRoute, ok } from '@jini-ai/core/contracts/server';
 import { createInMemoryServer, denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
 import { fakeDaemonRouteHost } from './fakes/route-host.js';
-import { describeRoutes, gatedJsonRoute } from '../route-table.js';
+import { describeRoutes, gatedJsonRoute, withHostReporter } from '../route-table.js';
 
 const open = defineJsonRoute<{ n: number }, { n: number }, { base: number }>({
   method: 'post', path: '/api/open', parse: ({ body }) => ok({ value: { n: Number((body as { n?: unknown }).n) } }), handle: ({ input, deps }) => ok({ value: { n: input.n + deps.base } }),
@@ -38,5 +38,21 @@ describe('gatedJsonRoute', () => {
     server.route(gatedJsonRoute({ spec: { ...open, maxBodyBytes: 1_000_000 }, deps: { base: 0 }, host: fakeDaemonRouteHost({}, { jsonBodyMaxBytes: 8 }) }));
     const response = await fetch(new Request('http://local/api/open', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"n":123456789}' }));
     expect(response.status).toBe(413);
+  });
+});
+
+describe('withHostReporter', () => {
+  it("adds the host's reporter and keeps reading every member of deps through the original object", () => {
+    const host = fakeDaemonRouteHost();
+    const seen: string[] = [];
+    const deps = new Proxy({ own: 1 }, { get: (target, property) => { seen.push(String(property)); return (target as Record<string, unknown>)[property as string]; } });
+    const routeDeps = withHostReporter({ deps, host });
+    expect([routeDeps.reportInternalError === host.reportInternalError, (routeDeps as { own: number }).own, seen]).toEqual([true, 1, ['own']]);
+  });
+
+  it('does not change the deps it was given', () => {
+    const deps = { own: 1 };
+    withHostReporter({ deps, host: fakeDaemonRouteHost() });
+    expect(Object.keys(deps)).toEqual(['own']);
   });
 });

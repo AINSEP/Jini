@@ -99,7 +99,7 @@ import { createTavilyResearchProvider } from './research-tavily.adapter.js';
 import { createApiError } from '@jini-ai/protocol';
 import { reportRouteInternalError } from '@jini-ai/http-kit';
 import type { DaemonRouteHost } from './route-host.js';
-import { gatedJsonRoute, type DaemonRoute } from './route-table.js';
+import { gatedJsonRoute, withHostReporter, type DaemonRoute } from './route-table.js';
 import {
   defineJsonRoute,
   err,
@@ -301,5 +301,5 @@ export const researchSearchRoute = createResearchSearchRoute({});
 /** `POST /api/research/search` as data, behind the same-origin gate its spec declares. Internal failures are reported through the host's reporter. */
 export function researchRoutes({ deps, host }: { readonly deps: ResearchHttpDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
   const spec = deps.provider ? createResearchSearchRoute({ provider: deps.provider }) : researchSearchRoute;
-  return [gatedJsonRoute({ spec, deps: { ...deps, reportInternalError: host.reportInternalError }, host })];
+  return [gatedJsonRoute({ spec, deps: withHostReporter({ deps, host }), host })];
 }

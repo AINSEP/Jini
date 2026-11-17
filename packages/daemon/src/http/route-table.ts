@@ -57,3 +57,17 @@ export function gatedJsonRoute<Input, Output, Deps>(
     gates: spec.requireSameOrigin ? [{ name: 'same-origin' }] : [],
   });
 }
+
+/**
+ * `deps` with the host's reporter added, without copying `deps`: every member stays readable through
+ * the original object, so a deps value that is not a plain bag (a class instance, a proxy that fails on
+ * use) behaves exactly as it did before the reporter was added.
+ * @param required.deps - What a route group was given.
+ * @param required.host - The host whose reporter the routes use for internal failures.
+ */
+export function withHostReporter<Deps extends object>(
+  { deps, host }: { readonly deps: Deps; readonly host: DaemonRouteHost },
+  _optional: Record<string, never> = {},
+): Deps & { readonly reportInternalError: DaemonRouteHost['reportInternalError'] } {
+  return Object.create(deps, { reportInternalError: { value: host.reportInternalError, enumerable: true } }) as Deps & { readonly reportInternalError: DaemonRouteHost['reportInternalError'] };
+}
