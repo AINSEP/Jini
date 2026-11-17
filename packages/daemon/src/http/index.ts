@@ -193,6 +193,7 @@ export {
   delegatedToolExecuteRoute,
   registerDelegatedToolRoutes,
 } from './delegated-tools.js';
+export type { FamilySelector, ToolFamilyDescription, ToolFamilyPort } from '../core/tool-family.js';
 export type {
   RemoteRunEventHttpDeps,
   RemoteRunEventResponse,
