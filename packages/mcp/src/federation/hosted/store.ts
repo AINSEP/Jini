@@ -1650,6 +1650,7 @@ export async function saveExternalMcpServer(
     oauthAadVersion,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
+    version: existing?.version ?? 1,
   };
   await deps.repo.upsert(record);
   return toView(record, deps, deps.sealer);

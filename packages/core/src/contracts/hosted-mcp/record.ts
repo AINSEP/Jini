@@ -99,6 +99,13 @@ export interface ExternalMcpServerRecord {
   oauthAadVersion: number;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
+  /**
+   * Edit revision, starting at 1. Advanced by every write an editor can see: a form save, an access
+   * approval or revocation, a credential removed by recovery. NOT advanced by runtime writes (token
+   * refresh, OAuth status, lease), so background activity never makes a person's save conflict.
+   * @agent-note Compared in the write statement (`updateIfVersion`), never in application code alone. A caller that holds a `version` read earlier and sends it back as the basis is protected against a save from an old screen; a lock or a same-request read is not that protection.
+   */
+  version: number;
 }
 
 /** A conditional access-only write. Credential and connection configuration are never replaced. */
@@ -112,7 +119,32 @@ export interface ExternalMcpAccessUpdate {
   readonly nowIso: ISODateTime;
 }
 
-/** Workspace-scoped persistence. Multi-row per workspace, so list/upsert/delete rather
+/** Which server row a runtime write addresses. */
+export interface ExternalMcpServerKey {
+  readonly workspaceId: UUID;
+  readonly serverId: string;
+}
+
+/** The credential envelopes an edit was built from, exactly as the writer read them from the stored row. */
+/** @agent-note The repository compares these against the row's current vault pointers inside its write. A miss with an unchanged `version` means a runtime write (token refresh) moved a credential between the writer's read and its write: the writer re-reads and rebuilds once. Never re-sealed or edited by the caller. */
+export interface ExternalMcpReplacedSecrets {
+  readonly sealedEnv: SealedSecret | null;
+  readonly sealedOAuth: SealedSecret | null;
+}
+
+/** The only columns a runtime (non-edit) OAuth write may change. */
+/** @agent-note Deliberately has no label, enabled flag, grants, url or version: a token refresh must not restore the values it read before it called the provider. */
+export interface ExternalMcpOAuthRuntimePatch {
+  readonly oauthStatus: string | null;
+  readonly oauthExpiresAt: ISODateTime | null;
+  readonly oauthRefreshLeaseUntil: ISODateTime | null;
+  /** The new staged envelope, or `null` to drop the stored one (a cleared token with no client secret to keep). */
+  readonly sealedOAuth: SealedSecret | null;
+  readonly oauthAadVersion: number;
+  readonly updatedAt: ISODateTime;
+}
+
+/** Workspace-scoped persistence. Multi-row per workspace, so list/insert/update/delete rather
  *  than a single-row find/upsert. */
 /** @agent-note Fulfilled by the host (SQL or memory adapter). The store, the sign-in service and the plugin connect seam must receive the SAME repository instance, because sealed envelopes carry private repository context only that repository rebuilds. */
 export interface ExternalMcpServerRepoPort {
@@ -120,11 +152,29 @@ export interface ExternalMcpServerRepoPort {
   listByWorkspaceId(workspaceId: UUID): Promise<ExternalMcpServerRecord[]>;
   /** @agent-note Returns the whole saved row or `null`; at most one row read per call. */
   findByServerId(input: { workspaceId: UUID; serverId: string }): Promise<ExternalMcpServerRecord | null>;
-  /** @agent-note Writes the whole row in one transaction (row, vault pointer, status and expiry together). */
+  /** @agent-note Writes the whole row in one transaction (row, vault pointer, status and expiry together). Replaces any stored row blindly, so it is not allowed for an edit: use `insert` / `updateIfVersion` / `updateOAuthRuntime`. */
   upsert(record: ExternalMcpServerRecord): Promise<void>;
+  /**
+   * Creates the row at `version` 1. `false` when a row with this key already exists; nothing is written.
+   * @agent-note One transaction (row + staged envelopes). Never overwrites: a create that lost a race to another create reports `false`.
+   */
+  insert(required: { readonly record: ExternalMcpServerRecord }): Promise<boolean>;
+  /**
+   * The edit write: replaces the editable columns and both credential pointers iff the stored
+   * `version` equals `expectedVersion` AND both stored envelopes are the ones in `replaces`; sets
+   * `version` to `expectedVersion + 1`. `false` when nothing was written (the row is gone, moved on, or a credential was replaced since the read).
+   * @agent-note Compare-and-set in the write statement under the same writer lock the credential writers take. `record.version` is ignored; the repository assigns the next version.
+   */
+  updateIfVersion(required: { readonly record: ExternalMcpServerRecord; readonly expectedVersion: number; readonly replaces: ExternalMcpReplacedSecrets }): Promise<boolean>;
+  /**
+   * The runtime write: sets only the sealed-OAuth pointer, `oauthStatus`, `oauthExpiresAt`,
+   * `oauthRefreshLeaseUntil`, `oauthAadVersion` and `updatedAt`, iff the stored sealed-OAuth envelope is `expectedSealedOAuth`. Leaves `version` and every other column alone. `false` when the credential was replaced or removed, or the row is gone.
+   * @agent-note A late token set for a credential that no longer exists is dropped, never written onto its replacement. The caller reports it as "reauthorization required".
+   */
+  updateOAuthRuntime(required: { readonly key: ExternalMcpServerKey; readonly expectedSealedOAuth: SealedSecret | null; readonly patch: ExternalMcpOAuthRuntimePatch }): Promise<boolean>;
   /** Compare the approved snapshot and update access atomically, preserving credential columns. */
-  /** @agent-note Compare-and-set against `expected`; `false` means the row changed since approval and nothing was written. */
-  updateAccessIfCurrent(required: ExternalMcpAccessUpdate, optional?: Record<string, never>): Promise<boolean>;
+  /** @agent-note Compare-and-set against `expected`; `false` means the row changed since approval and nothing was written. A successful write advances `version`, so a form saved from before the approval or revocation conflicts instead of restoring the old grants. */
+  updateAccessIfCurrent(required: ExternalMcpAccessUpdate): Promise<boolean>;
   /** @agent-note Returns whether a row existed. */
   deleteByServerId(input: { workspaceId: UUID; serverId: string }): Promise<boolean>;
   /**
