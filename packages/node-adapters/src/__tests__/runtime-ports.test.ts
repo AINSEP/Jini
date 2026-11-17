@@ -2,8 +2,8 @@ import { mkdtemp, readFile, rm, writeFile, access } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createProcessControlPort, nodeProcessControl, type ProcessFunctions } from '../runtime-ports/process.js';
-import { nodeAtomicWriter, nodeFileLock } from '../runtime-ports/fs.js';
+import { createProcessControlPort, nodeProcessControl, type ProcessFunctions } from '../process.js';
+import { nodeAtomicWriter, nodeFileLock } from '../fs.js';
 
 const stopped = { alreadyStopped: false, forcedPids: [], matchedPids: [3], remainingPids: [], stoppedPids: [3] };
 
