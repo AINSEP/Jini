@@ -5,9 +5,10 @@ import { createMcpToolServer, type McpTransportLike } from '../tool-server.js';
 import { createToolServerCapture } from './tool-server-capture.fixture.js';
 
 /**
- * Characterization (S15): today the call handler never sends `notifications/progress`, so a client
- * that sent a progress token hears nothing while a slow tool runs. The assertion changes in the
- * commit that adds the pump.
+ * Characterization (S15). Before the pump, a call handler never sent `notifications/progress`, so a
+ * client that sent a progress token heard nothing while a slow tool ran (zero frames in 120 s). The
+ * pump landed in the commit that changed the assertion below; this keeps the end-to-end shape with
+ * the default real-timer scheduler, run on fake timers.
  */
 
 const transport: McpTransportLike = { close: async () => {} };
@@ -23,8 +24,8 @@ function slowTool({ waitMs }: { waitMs: number }): McpToolDef {
 
 afterEach(() => { vi.useRealTimers(); });
 
-describe('tools/call progress notifications (today)', () => {
-  it('a 120 s call from a client that sent a progress token produces zero notifications', async () => {
+describe('tools/call progress notifications with the default scheduler', () => {
+  it('a 120 s call from a client that sent a progress token produces frames at 25, 50, 75 and 100 s', async () => {
     vi.useFakeTimers();
     const capture = createToolServerCapture();
     await createMcpToolServer(
@@ -39,6 +40,6 @@ describe('tools/call progress notifications (today)', () => {
     await vi.advanceTimersByTimeAsync(120_000);
     const result = await pending;
     expect(result.content).toEqual([{ type: 'text', text: 'done' }]);
-    expect(sent).toEqual([]);
+    expect(sent).toEqual([1, 2, 3, 4].map(progress => ({ method: 'notifications/progress', params: { progressToken: 't1', progress, message: 'waiting' } })));
   });
 });
