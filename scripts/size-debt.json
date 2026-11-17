@@ -1619,9 +1619,9 @@
   {
     "file": "packages/ui/src/react/components/Icon.tsx",
     "function": "<file>",
-    "line": 538,
+    "line": 535,
     "rule": "max-lines",
-    "value": 674
+    "value": 672
   },
   {
     "file": "packages/ui/src/react/components/OnboardingDropdown.tsx",
