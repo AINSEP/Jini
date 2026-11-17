@@ -20,11 +20,13 @@ it('makes every SQL, React and surface-card UI peer optional, with one pinned de
  const jiniPeers={'@jini-ai/agent-runtime':'^0.7.0','@jini-ai/ui':'^0.7.0'};
  expect(manifest.peerDependencies).toEqual({...peers,...jiniPeers});
  // SQL stores and surface cards use core's default clock at runtime, so core is required.
- // Default widget/bridge/SQL entries load agentic, db, diagnostics and Kysely, so they became regular
+ // Default widget/bridge/SQL entries load db, diagnostics and Kysely, so they became regular
  // dependencies (deaf9cc, squashed; pinned alike by dbpkg-chat-manifest.test.ts).
  // Wave B made protocol required: core's run-activity reads A2UI surface ids from it (7b601411).
- expect(manifest.dependencies).toEqual({'@jini-ai/core':'workspace:^','@jini-ai/agentic':'workspace:^','@jini-ai/db':'workspace:^',
+ expect(manifest.dependencies).toEqual({'@jini-ai/core':'workspace:^','@jini-ai/db':'workspace:^',
   '@jini-ai/diagnostics':'workspace:^','@jini-ai/protocol':'workspace:^',kysely:'^0.29.6'});
+ // @jini-ai/agentic is imported only by chat tests (G-STALE-DEPS row 14), so it is a devDependency, never a dependency.
+ expect(manifest.devDependencies['@jini-ai/agentic']).toBe('workspace:^');
  for(const name of Object.keys({...peers,...jiniPeers})){
   expect(manifest.peerDependenciesMeta[name]).toEqual({optional:true});
   expect(manifest.dependencies??{}).not.toHaveProperty(name);
