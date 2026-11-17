@@ -38,7 +38,6 @@ it('publishes every isolated extraction entry with its browser or universal clas
   // them regular dependencies. Only opt-in subpaths and host UI peers remain optional.
   expect(manifest.dependencies).toEqual({
     '@jini-ai/core': 'workspace:^',
-    '@jini-ai/agentic': 'workspace:^',
     '@jini-ai/db': 'workspace:^',
     '@jini-ai/diagnostics': 'workspace:^',
     // Wave B: core's run-activity reads A2UI surface ids from protocol, so it is required (7b601411).

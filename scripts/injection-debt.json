@@ -38,7 +38,6 @@
   {"rule": "L5-injected-edge", "file": "packages/agent-runtime/src/model-discovery-adapters.ts", "spec": "@jini-ai/platform/command", "kind": "import", "count": 1, "lane": "L-PLATFORM"},
   {"rule": "L5-injected-edge", "file": "packages/agent-runtime/src/providers/pkce.ts", "spec": "@jini-ai/oauth", "kind": "import", "count": 1, "lane": "L-AGENTS"},
   {"rule": "L5-injected-edge", "file": "packages/chat/package.json", "spec": "@jini-ai/agent-runtime", "kind": "manifest-peer", "count": 1, "lane": "L-AGENTS"},
-  {"rule": "L5-injected-edge", "file": "packages/chat/package.json", "spec": "@jini-ai/agentic", "kind": "manifest-dependencies", "count": 1, "lane": "L-SURF"},
   {"rule": "L5-injected-edge", "file": "packages/chat/package.json", "spec": "@jini-ai/db", "kind": "manifest-dependencies", "count": 1, "lane": "L-STORAGE"},
   {"rule": "L5-injected-edge", "file": "packages/chat/package.json", "spec": "@jini-ai/diagnostics", "kind": "manifest-dependencies", "count": 1, "lane": "L-PLATFORM"},
   {"rule": "L5-injected-edge", "file": "packages/chat/package.json", "spec": "@jini-ai/ui", "kind": "manifest-peer", "count": 1, "lane": "L-KIT-CHAT"},

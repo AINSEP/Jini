@@ -495,9 +495,6 @@ importers:
 
   packages/chat:
     dependencies:
-      '@jini-ai/agentic':
-        specifier: workspace:^
-        version: link:../agentic
       '@jini-ai/core':
         specifier: workspace:^
         version: link:../core
@@ -523,6 +520,9 @@ importers:
       '@jini-ai/agent-runtime':
         specifier: workspace:*
         version: link:../agent-runtime
+      '@jini-ai/agentic':
+        specifier: workspace:^
+        version: link:../agentic
       '@jini-ai/ui':
         specifier: workspace:^
         version: link:../ui
