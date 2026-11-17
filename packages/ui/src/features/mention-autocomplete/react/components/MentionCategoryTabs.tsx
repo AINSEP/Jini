@@ -9,11 +9,12 @@ export interface MentionCategoryTabsProps {
   /** Label for the built-in "show every category" tab. Plain English,
    *  passed through `useT()`. Defaults to `'All'`. */
   allLabel?: string;
+  useTHook?: typeof useT;
 }
 
 /** The `'All' | <category>...` tab row above the grouped result list. */
-export function MentionCategoryTabs({ categories, active, onChange, allLabel = 'All' }: MentionCategoryTabsProps) {
-  const t = useT();
+export function MentionCategoryTabs({ categories, active, onChange, allLabel = 'All', useTHook = useT }: MentionCategoryTabsProps) {
+  const t = useTHook();
   return (
     <div className="jini-mention-tabs" role="tablist">
       <button

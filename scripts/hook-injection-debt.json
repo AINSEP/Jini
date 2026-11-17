@@ -1063,24 +1063,6 @@
         "packages/user-management/src/admin/react/tabs/MembersTab.tsx"
       ]
     },
-    "MentionAutocomplete::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/mention-autocomplete/react/components/MentionAutocomplete.tsx"
-      ]
-    },
-    "MentionCategoryTabs::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/mention-autocomplete/react/components/MentionCategoryTabs.tsx"
-      ]
-    },
-    "MentionResultsList::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/mention-autocomplete/react/components/MentionResultsList.tsx"
-      ]
-    },
     "MessageList::useConversationUsage": {
       "count": 1,
       "files": [
@@ -1618,12 +1600,6 @@
       "count": 1,
       "files": [
         "packages/ui/src/features/interactive-ui/providers/shadcn/select-field.tsx"
-      ]
-    },
-    "SelectedMentionChips::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/mention-autocomplete/react/components/SelectedMentionChips.tsx"
       ]
     },
     "SentAttachmentButton::useSentAttachmentThumbnail": {

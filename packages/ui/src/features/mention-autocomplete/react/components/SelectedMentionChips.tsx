@@ -16,8 +16,9 @@ export function SelectedMentionChips<T extends MentionItem<ReactNode>>({
   items,
   onRemove,
   removeIcon,
-}: SelectedMentionChipsProps<T>) {
-  const t = useT();
+  useTHook = useT,
+}: SelectedMentionChipsProps<T> & { useTHook?: typeof useT }) {
+  const t = useTHook();
   if (items.length === 0) return null;
 
   return (

@@ -63,8 +63,9 @@ export function MentionAutocomplete<T extends MentionItem<ReactNode>>({
   emptyResultsPlaceholder,
   resultsAriaLabel,
   useMentionAutocomplete: useMentionAutocompleteHook = useMentionAutocomplete,
-}: MentionAutocompleteProps<T>) {
-  const t = useT();
+  useTHook = useT,
+}: MentionAutocompleteProps<T> & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const mention = useMentionAutocompleteHook<T>({
     value,
     onValueChange,
