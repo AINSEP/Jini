@@ -4,9 +4,11 @@
 Not visually checked: no browser was used. T1a changes no markup (nav rows and the denied screen come from the same decisions, pinned by P1 and the existing `app-panel-permissions` render tests).
 
 ## Branches / SHAs
-- Jini `wave3/admin-j3-t1a`: base `origin/refactor/terra` = `4c1892368`, then merge (--no-ff) of `origin/wave2/admin-j` (J1 + J2 steps 1-4); `wave2/admin-a` does not exist in Jini (A0/A1 are Tovu-only). J3 commit `911212b9`. Head at report time: Jini `4662f6387` (includes this report copy).
-- Tovu `wave3/admin-j3-t1a`: base `origin/refactor/terra` = `ada11733`, then merges of `origin/wave2/admin-j` (`4c1226bd`, report only) and `origin/wave2/admin-a` (`2df36764`; A0/A1 landed: its report `admin-a0-a1.md` is on that branch). T1a commits: `b62c4e4e` (P1 characterization test, green on Tovu's own rule, red under any-of to all-of mutation), `af9396fd` (repoint + delete `lib/panel-access.ts`). Head at report time: `d995b35b9`.
+- Jini `wave3/admin-j3-t1a`: base `origin/refactor/terra` = `4c1892368`, then merge (--no-ff) of `origin/wave2/admin-j` (J1 + J2 steps 1-4); `wave2/admin-a` does not exist in Jini (A0/A1 are Tovu-only). J3 commit `4662f638`. Head: Jini `13f00204` (includes this report copy).
+- Tovu `wave3/admin-j3-t1a`: base `origin/refactor/terra` = `ada11733`, then merges of `origin/wave2/admin-j` (`4c1226bd`, report only) and `origin/wave2/admin-a` (`2df36764`; A0/A1 landed: its report `admin-a0-a1.md` is on that branch). T1a commits: `2905a431` (P1 characterization test, green on Tovu's own rule, red under any-of to all-of mutation), `d995b35b` (repoint + delete `lib/panel-access.ts`). Head: Tovu `cc4c3da6`.
 - Prerequisites checked: J1 exports present in Jini (`isPanelAccessible`, `withoutInaccessiblePanels`, `AdminPanel.anyOfPermissions` in `core/index.ts`); A0/A1 present (merge above).
+
+**SHA note.** \`git pull --rebase\` before each push linearized the two \`--no-ff\` merges (no \`--rebase-merges\`), so the merged-in \`wave2/admin-j\` / \`wave2/admin-a\` commits appear as plain commits below the new ones; the tree content is the same. The T1a commit message names Jini \`911212b9\`, the pre-rebase SHA of J3: it is \`4662f638\` now. Final heads: Jini \`13f00204\` (before this fix commit), Tovu \`cc4c3da6\` (before this fix commit).
 
 ## J3 (theme seam) - Jini only, no new port method
 J2 step 1 had already typed `useThemeHook` as `typeof useAdminTheme` (returns `AdminShellAppearance | undefined`), so J3 reduced to pinning and documenting that contract. Edits: `packages/admin/src/react/shell/types.ts` (TSDoc of `useThemeHook`), `__tests__/AdminShell.hook-props.test.tsx` (3 new tests), `.changeset/admin-shell-theme-seam.md`.
