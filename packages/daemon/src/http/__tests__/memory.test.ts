@@ -20,6 +20,7 @@ import {
   memoryRoutes,
   type MemoryExtractionLog,
   type MemoryHttpDeps,
+  type MemoryRouteDeps,
   type MemoryNoteEntry,
   type MemoryNoteStore,
   type MemoryVerifyLog,
@@ -28,6 +29,10 @@ import { describeRoutes } from '../route-table.js';
 import { fakeDaemonRouteHost } from './fakes/route-host.js';
 import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
 import { readFrames } from './fakes/sse-reader.js';
+
+/** What a client is told when the memory store throws: no dependency text, only this sentence and a request ID. */
+const STORE_FAILURE_SENTENCE = 'The memory store could not complete the request. Copy the request ID and report this problem.';
+const storeFailureAnswer = { ok: false, error: { code: 'INTERNAL_ERROR', message: STORE_FAILURE_SENTENCE, requestId: expect.any(String) } };
 
 describe('void-input routes: parse() always succeeds with no input', () => {
   it.each([
@@ -96,8 +101,9 @@ function makeVerifyLog(overrides: Partial<MemoryVerifyLog> = {}): MemoryVerifyLo
   };
 }
 
-function makeDeps(overrides: Partial<MemoryHttpDeps> = {}): MemoryHttpDeps {
+function makeDeps(overrides: Partial<MemoryRouteDeps> = {}): MemoryRouteDeps {
   return {
+    reportInternalError: fakeDaemonRouteHost().reportInternalError,
     notes: makeNoteStore(),
     extractions: makeExtractionLog(),
     verifications: makeVerifyLog(),
@@ -179,11 +185,12 @@ describe('memoryUpdateTreeNodeRoute.handle', () => {
     expect(result).toEqual({ ok: false, error: { code: 'NOT_FOUND', message: 'note not found' } });
   });
 
-  it('maps any other thrown error to 400 BAD_REQUEST', async () => {
+  it('answers any other thrown error with the fixed sentence and a request ID, and gives the sink the text', async () => {
     const notes = makeNoteStore({ updateTreeNode: vi.fn(async () => { throw new Error('folders are derived'); }) });
     const deps = makeDeps({ notes });
     const result = await memoryUpdateTreeNodeRoute.handle({ input: { id: 'folder:x', patch: {} }, deps });
-    expect(result).toEqual({ ok: false, error: { code: 'BAD_REQUEST', message: 'folders are derived' } });
+    expect(result).toEqual(storeFailureAnswer);
+    expect(JSON.stringify(result)).not.toContain('folders are derived');
   });
 });
 
@@ -228,17 +235,20 @@ describe('memoryWriteIndexRoute', () => {
     });
   });
 
-  it('maps a thrown write error to 400', async () => {
+  it('answers a thrown write error with the fixed sentence and a request ID', async () => {
     const notes = makeNoteStore({ writeIndex: vi.fn(async () => { throw new Error('write failed'); }) });
     const result = await memoryWriteIndexRoute.handle({ input: 'x', deps: makeDeps({ notes }) });
-    expect(result).toEqual({ ok: false, error: { code: 'BAD_REQUEST', message: 'write failed' } });
+    expect(result).toEqual(storeFailureAnswer);
+    expect(JSON.stringify(result)).not.toContain('write failed');
   });
 
-  it('stringifies a non-Error throw', async () => {
+  it('answers a non-Error throw the same way, and the sink gets the raw value', async () => {
     // eslint-disable-next-line @typescript-eslint/no-throw-literal
     const notes = makeNoteStore({ writeIndex: vi.fn(async () => { throw 'raw string failure'; }) });
-    const result = await memoryWriteIndexRoute.handle({ input: 'x', deps: makeDeps({ notes }) });
-    expect(result).toEqual({ ok: false, error: { code: 'BAD_REQUEST', message: 'raw string failure' } });
+    const onInternalError = vi.fn();
+    const result = await memoryWriteIndexRoute.handle({ input: 'x', deps: makeDeps({ notes, onInternalError }) });
+    expect(result).toEqual(storeFailureAnswer);
+    expect(onInternalError.mock.calls[0]![0]).toMatchObject({ error: 'raw string failure', source: 'memory/index-write' });
   });
 });
 
@@ -269,10 +279,11 @@ describe('memoryWriteConfigRoute', () => {
     expect(notes.writeConfig).toHaveBeenCalledWith({ dataDir: '/data', patch: { enabled: false } });
   });
 
-  it('maps a thrown config error to 400', async () => {
+  it('answers a thrown config error with the fixed sentence and a request ID', async () => {
     const notes = makeNoteStore({ writeConfig: vi.fn(async () => { throw new Error('bad config'); }) });
     const result = await memoryWriteConfigRoute.handle({ input: { enabled: true }, deps: makeDeps({ notes }) });
-    expect(result).toEqual({ ok: false, error: { code: 'BAD_REQUEST', message: 'bad config' } });
+    expect(result).toEqual(storeFailureAnswer);
+    expect(JSON.stringify(result)).not.toContain('bad config');
   });
 });
 
@@ -323,14 +334,16 @@ describe('verification history routes', () => {
 });
 
 describe('entry CRUD', () => {
-  it('echoes the store exception text, including a filesystem path, to the client (reported, not fixed)', async () => {
-    // Unlike runs.ts (SEC-005: generic INTERNAL_ERROR + correlation id), memory routes pass the
-    // store's raw message through, so a host-side path in an fs error reaches the HTTP caller.
+  it('never sends the store exception text, including a filesystem path, to the client: the sink gets it', async () => {
+    const onInternalError = vi.fn();
     const deps = makeDeps({
-      notes: makeNoteStore({ upsertEntry: vi.fn(async () => { throw new Error("EACCES: permission denied, open '/home/op/.data/notes/x.md'"); }) }),
+      notes: makeNoteStore({ upsertEntry: vi.fn(async () => { throw new Error("EACCES: permission denied, open '/home/op/.data/notes/x.md'"); }) }), onInternalError,
     });
     const result = await memoryCreateEntryRoute.handle({ input: { name: 'n', type: 't' }, deps });
-    expect(result).toEqual({ ok: false, error: { code: 'BAD_REQUEST', message: "EACCES: permission denied, open '/home/op/.data/notes/x.md'" } });
+    expect(result).toEqual(storeFailureAnswer);
+    expect(JSON.stringify(result)).not.toContain('/home/op');
+    expect((onInternalError.mock.calls[0]![0].error as Error).message).toBe("EACCES: permission denied, open '/home/op/.data/notes/x.md'");
+    expect(onInternalError.mock.calls[0]![0]).toMatchObject({ source: 'memory/entry-create' });
   });
 
   describe('memoryCreateEntryRoute.parse', () => {
@@ -376,10 +389,11 @@ describe('entry CRUD', () => {
     expect(notes.upsertEntry).toHaveBeenCalledWith({ dataDir: '/data', input: { name: 'n', type: 'user' } });
   });
 
-  it('memoryCreateEntryRoute.handle maps a thrown validation error to 400', async () => {
+  it('memoryCreateEntryRoute.handle answers a store-side validation error like any other store failure (the store\'s text is not shown)', async () => {
     const notes = makeNoteStore({ upsertEntry: vi.fn(async () => { throw new Error('note entry requires `name` and a valid `type`'); }) });
     const result = await memoryCreateEntryRoute.handle({ input: { name: 'n', type: 'bogus' }, deps: makeDeps({ notes }) });
-    expect(result).toEqual({ ok: false, error: { code: 'BAD_REQUEST', message: 'note entry requires `name` and a valid `type`' } });
+    expect(result).toEqual(storeFailureAnswer);
+    expect(JSON.stringify(result)).not.toContain('valid `type`');
   });
 
   it('memoryReadEntryRoute: success returns the entry', async () => {
@@ -415,10 +429,10 @@ describe('entry CRUD', () => {
     expect(notes.upsertEntry).toHaveBeenCalledWith({ dataDir: '/data', input: { name: 'n', type: 'user', id: entry.id } });
   });
 
-  it('memoryUpdateEntryRoute.handle maps a thrown error to 400', async () => {
+  it('memoryUpdateEntryRoute.handle answers a thrown error with the fixed sentence and a request ID', async () => {
     const notes = makeNoteStore({ upsertEntry: vi.fn(async () => { throw new Error('bad'); }) });
     const result = await memoryUpdateEntryRoute.handle({ input: { id: 'x', input: { name: 'n', type: 't' } }, deps: makeDeps({ notes }) });
-    expect(result).toEqual({ ok: false, error: { code: 'BAD_REQUEST', message: 'bad' } });
+    expect(result).toEqual(storeFailureAnswer);
   });
 
   it('memoryDeleteEntryRoute.handle success', async () => {
@@ -428,10 +442,11 @@ describe('entry CRUD', () => {
     expect(notes.deleteEntry).toHaveBeenCalledWith({ dataDir: '/data', id: entry.id });
   });
 
-  it('memoryDeleteEntryRoute.handle maps a thrown error to 400', async () => {
+  it('memoryDeleteEntryRoute.handle answers a thrown error with the fixed sentence and a request ID', async () => {
     const notes = makeNoteStore({ deleteEntry: vi.fn(async () => { throw new Error('delete failed'); }) });
     const result = await memoryDeleteEntryRoute.handle({ input: 'x', deps: makeDeps({ notes }) });
-    expect(result).toEqual({ ok: false, error: { code: 'BAD_REQUEST', message: 'delete failed' } });
+    expect(result).toEqual(storeFailureAnswer);
+    expect(JSON.stringify(result)).not.toContain('delete failed');
   });
 });
 
@@ -552,6 +567,25 @@ describe('memoryRoutes', () => {
       'PUT /api/memory/:id [same-origin]',
       'DELETE /api/memory/:id [same-origin]',
     ]);
+  });
+
+  it('a store failure goes through the host reporter: the fixed sentence and the request ID to the client, the real error to the host', async () => {
+    const notes = makeNoteStore({ writeIndex: vi.fn(async () => { throw new Error("EACCES: permission denied, open '/srv/secret/index.md'"); }) });
+    const { fetch, host } = serve(makeDeps({ notes }));
+    const response = await fetch(jsonRequest({ path: '/api/memory/index', method: 'PUT' }, { body: { index: '# x' } }));
+    const text = await response.text();
+    expect(response.status).toBe(500);
+    expect(JSON.parse(text)).toEqual({ error: { code: 'INTERNAL_ERROR', message: STORE_FAILURE_SENTENCE, requestId: 'req-1' } });
+    expect(text).not.toContain('/srv/secret');
+    expect(host.reports).toHaveLength(1);
+    expect(host.reports[0]).toMatchObject({ logSource: 'memory/index-write', requestId: 'req-1' });
+    expect((host.reports[0]!.report.error as Error).message).toContain('/srv/secret/index.md');
+  });
+
+  it('the store\'s one expected refusal, "note not found", still answers 404 NOT_FOUND through the route list', async () => {
+    const notes = makeNoteStore({ updateTreeNode: vi.fn(async () => { throw new Error('note not found'); }) });
+    const response = await serve(makeDeps({ notes })).fetch(jsonRequest({ path: '/api/memory/tree/x', method: 'PATCH' }, { body: { name: 'n' } }));
+    expect([response.status, await response.json()]).toEqual([404, { error: { code: 'NOT_FOUND', message: 'note not found' } }]);
   });
 
   it('forwards a parsed config patch to the store', async () => {

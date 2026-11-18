@@ -83,6 +83,8 @@ export type {
   MemoryExtractionLog,
   MemoryExtractionsResponse,
   MemoryHttpDeps,
+  MemoryInternalErrorContext,
+  MemoryRouteDeps,
   MemoryIndexResponse,
   MemoryNoteEntry,
   MemoryNoteEntrySummary,
