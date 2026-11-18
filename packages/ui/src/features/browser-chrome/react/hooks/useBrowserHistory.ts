@@ -41,7 +41,7 @@ export function useBrowserHistory(
   }, [history, scopeKey, debounceMs]);
 
   const commitVisit = useCallback((url: string, meta?: MergeHistoryEntryMeta, mergeOptions?: MergeHistoryEntryOptions) => {
-    setHistory((current) => mergeHistoryEntry(current, url, meta ?? {}, mergeOptions ?? {}));
+    setHistory((current) => mergeHistoryEntry({ history: current, url }, { meta: meta ?? {}, options: mergeOptions ?? {} }));
   }, []);
 
   const clearHistory = useCallback(() => {

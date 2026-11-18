@@ -118,7 +118,7 @@ describe('every endpoint-taking tab enforces the same policy', () => {
 
   it('source-config-list: a url-kind field rejects the metadata service', () => {
     const spec = [{ key: 'url', label: 'URL', kind: 'url', required: true }] as const;
-    expect(validateSourceDraft(spec, { url: METADATA }).ok).toBe(false);
-    expect(validateSourceDraft(spec, { url: 'https://example.com/mcp' }).ok).toBe(true);
+    expect(validateSourceDraft({ fieldSpecs: spec, values: { url: METADATA } }).ok).toBe(false);
+    expect(validateSourceDraft({ fieldSpecs: spec, values: { url: 'https://example.com/mcp' } }).ok).toBe(true);
   });
 });

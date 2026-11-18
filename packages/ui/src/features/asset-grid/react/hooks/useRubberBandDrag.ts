@@ -33,7 +33,7 @@ function bandSelection({ drag, point }: { drag: DragState; point: { x: number; y
     h: Math.abs(point.y - drag.startY),
   };
   const selection = new Set(drag.base);
-  for (const id of cardIdsInBand(drag.rects, band)) selection.add(id);
+  for (const id of cardIdsInBand({ rects: drag.rects, band })) selection.add(id);
   return { band, selection };
 }
 
@@ -79,7 +79,7 @@ function attachDragListeners({ dragRef, containerRef, setBand, setDragging, setS
   const onScroll = () => {
     const d = dragRef.current;
     if (!d) return;
-    d.rects = snapshotCardRects(containerRef.current);
+    d.rects = snapshotCardRects({ container: containerRef.current });
     schedule();
   };
   const up = () => {
@@ -137,7 +137,7 @@ export function useRubberBandDrag({
         // out. The move handler then hit-tests these cached rects instead of
         // forcing a querySelectorAll + getBoundingClientRect reflow on every
         // mouse move.
-        rects: snapshotCardRects(containerRef.current),
+        rects: snapshotCardRects({ container: containerRef.current }),
       };
       setBand({ x: e.clientX, y: e.clientY, w: 0, h: 0 });
       setDragging(true);

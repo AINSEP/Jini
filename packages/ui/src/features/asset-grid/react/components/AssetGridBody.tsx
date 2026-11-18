@@ -32,7 +32,7 @@ export function AssetGridBody<TAsset extends AssetGridItem>({
   const t = useTHook();
 
   if (viewMode === 'timeline') {
-    const groups = groupByDay(assets, getDayKey);
+    const groups = groupByDay({ items: assets, getDayKey });
     return (
       <div
         className="asset-grid-timeline"
@@ -41,7 +41,7 @@ export function AssetGridBody<TAsset extends AssetGridItem>({
         data-selecting={selecting ? 'true' : 'false'}
       >
         {groups.map((group) => {
-          const heading = dayHeadingResult(group.key);
+          const heading = dayHeadingResult({ key: group.key });
           return (
             <section key={group.key} className="asset-grid-timeline-day">
               <div className="asset-grid-timeline-head">

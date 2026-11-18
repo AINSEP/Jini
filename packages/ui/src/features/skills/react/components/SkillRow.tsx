@@ -241,8 +241,8 @@ function SkillRowSummaryButton({
   labels: l,
   agentHandle,
 }: RowPartProps & Pick<SkillRowProps, 'skill' | 'locale' | 'expanded' | 'onToggleExpanded'>) {
-  const name = localizedSkillName(skill, locale) || skill.id;
-  const description = localizedSkillDescription(skill, locale);
+  const name = localizedSkillName({ skill, locale }) || skill.id;
+  const description = localizedSkillDescription({ skill, locale });
   return (
     <button
       type="button"
@@ -406,11 +406,11 @@ function SkillFileTree({
   return (
     <ul className="jini-skills-file-tree">
       {files.map((entry) => (
-        <li key={entry.path} className="jini-skills-file-entry" style={{ paddingLeft: skillFileTreeIndent(entry.path) }}>
+        <li key={entry.path} className="jini-skills-file-entry" style={{ paddingLeft: skillFileTreeIndent({ path: entry.path }) }}>
           <Icon name={entry.kind === 'directory' ? 'folder' : 'file'} size={12} />
-          <span>{skillFileLeafName(entry.path)}</span>
+          <span>{skillFileLeafName({ path: entry.path })}</span>
           {entry.kind === 'file' && typeof entry.size === 'number' ? (
-            <span className="jini-hint">{formatSkillFileSize(entry.size)}</span>
+            <span className="jini-hint">{formatSkillFileSize({ bytes: entry.size })}</span>
           ) : null}
         </li>
       ))}

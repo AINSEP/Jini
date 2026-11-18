@@ -80,12 +80,12 @@ export function SourceConfigField({ spec, value, error, disabled = false, idPref
     disabled,
     'aria-invalid': Boolean(error) || undefined,
     'aria-describedby': errorId,
-    ...sourceConfigAgentProps(agentHandle, { role: 'field', label: fieldLabel }),
+    ...sourceConfigAgentProps({ base: agentHandle, role: 'field', label: fieldLabel }),
     onChange: (event) => onChange(event.target.value),
   };
   // Labelled by the field it reveals, not by the live "Show"/"Hide" on its face: an agent label is
   // stable page ontology, so it must not flip every time the toggle is clicked.
-  const revealAgentProps = sourceConfigAgentProps(agentHandle, {
+  const revealAgentProps = sourceConfigAgentProps({ base: agentHandle,
     role: 'button',
     label: t('Show or hide {label}', { label: fieldLabel }),
     action: 'reveal',
@@ -232,7 +232,7 @@ function TextareaControl({ spec, value, inputId, shared, reveal, isLockedSecret,
         onRevealedChange={reveal.onToggle}
         toggleAttrs={reveal.agentProps}
         value={value}
-        maskedValue={isLockedSecret ? maskFieldValue(spec.kind, value) : undefined}
+        maskedValue={isLockedSecret ? maskFieldValue({ kind: spec.kind, value }) : undefined}
         placeholder={placeholder}
         // A masked textarea must not be typed into — the visible text is not
         // the real value, so an edit would commit the mask characters.

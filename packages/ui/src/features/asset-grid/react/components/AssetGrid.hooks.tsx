@@ -99,7 +99,7 @@ function useAssetCardRenderer<TAsset extends AssetGridItem>({
   renderCardExtra, onDeleteAsset, handleDeleteAsset, handlePreview, toggleOne, rangeTo,
 }: {
   selectors: AssetGridProps<TAsset>['selectors']; selectedIds: ReadonlySet<string>;
-  kindFacetLabels: Parameters<typeof resolveFacetLabel>[1]; sourceFacetLabels: Parameters<typeof resolveFacetLabel>[1];
+  kindFacetLabels: Parameters<typeof resolveFacetLabel>[0]['labelsByValue']; sourceFacetLabels: Parameters<typeof resolveFacetLabel>[0]['labelsByValue'];
   renderThumbnail: AssetGridProps<TAsset>['renderThumbnail']; renderThumbnailPlaceholder: AssetGridProps<TAsset>['renderThumbnailPlaceholder'];
   renderCardExtra: AssetGridProps<TAsset>['renderCardExtra']; onDeleteAsset: AssetGridProps<TAsset>['onDeleteAsset'];
   handleDeleteAsset: ((id: string) => Promise<void>) | undefined; handlePreview: (id: string) => void;
@@ -117,8 +117,8 @@ function useAssetCardRenderer<TAsset extends AssetGridItem>({
           selected={selectedIds.has(asset.id)}
           title={selectors.getTitle(asset)}
           subtitle={selectors.getSubtitle?.(asset)}
-          kindLabel={resolveFacetLabel(kindValue, kindFacetLabels)}
-          sourceLabel={sourceValue ? resolveFacetLabel(sourceValue, sourceFacetLabels) : undefined}
+          kindLabel={resolveFacetLabel({ value: kindValue, labelsByValue: kindFacetLabels })}
+          sourceLabel={sourceValue ? resolveFacetLabel({ value: sourceValue, labelsByValue: sourceFacetLabels }) : undefined}
           renderThumbnail={renderThumbnail}
           renderThumbnailPlaceholder={renderThumbnailPlaceholder}
           onToggle={toggleOne}
@@ -209,7 +209,7 @@ export function useAssetGridView<TAsset extends AssetGridItem>({ active, selecto
   });
 
   const getDayKey = useMemo(
-    () => selectors.getDayKey ?? ((asset: TAsset) => dayKeyFromTimestamp(selectors.getTimestamp(asset))),
+    () => selectors.getDayKey ?? ((asset: TAsset) => dayKeyFromTimestamp({ timestampMs: selectors.getTimestamp(asset) })),
     [selectors],
   );
 

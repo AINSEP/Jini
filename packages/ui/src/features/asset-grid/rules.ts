@@ -11,7 +11,7 @@ import type { AssetGridDayGroup, AssetGridItem, AssetGridQuery, Band, CardRect }
 // --- day bucketing ---------------------------------------------------------
 
 /** Local `YYYY-MM-DD` for a Date. */
-export function localDayKey(date: Date): string {
+export function localDayKey({ date }: { date: Date }, _optional: Record<string, never> = {}): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
@@ -19,8 +19,8 @@ export function localDayKey(date: Date): string {
 }
 
 /** The day bucket an epoch-ms timestamp belongs to, in local time. */
-export function dayKeyFromTimestamp(timestampMs: number): string {
-  return localDayKey(new Date(timestampMs));
+export function dayKeyFromTimestamp({ timestampMs }: { timestampMs: number }, _optional: Record<string, never> = {}): string {
+  return localDayKey({ date: new Date(timestampMs) });
 }
 
 export interface DayHeading {
@@ -30,9 +30,9 @@ export interface DayHeading {
 }
 
 /** Human heading for a `YYYY-MM-DD` day bucket — Today / Yesterday / a date. */
-export function dayHeadingResult(key: string, referenceDate: Date = new Date()): DayHeading {
-  const today = localDayKey(referenceDate);
-  const yesterday = localDayKey(new Date(referenceDate.getTime() - 86_400_000));
+export function dayHeadingResult({ key }: { key: string }, { referenceDate = new Date() }: { referenceDate?: Date | undefined } = {}): DayHeading {
+  const today = localDayKey({ date: referenceDate });
+  const yesterday = localDayKey({ date: new Date(referenceDate.getTime() - 86_400_000) });
   if (key === today) return { label: 'Today', translatable: true };
   if (key === yesterday) return { label: 'Yesterday', translatable: true };
   const [y, m, d] = key.split('-').map(Number);
@@ -46,14 +46,14 @@ export function dayHeadingResult(key: string, referenceDate: Date = new Date()):
 }
 
 /** Convenience for callers that only need the display string (see `dayHeadingResult` for the i18n-aware form). */
-export function dayHeading(key: string, referenceDate: Date = new Date()): string {
-  return dayHeadingResult(key, referenceDate).label;
+export function dayHeading({ key }: { key: string }, { referenceDate = new Date() }: { referenceDate?: Date | undefined } = {}): string {
+  return dayHeadingResult({ key }, { referenceDate }).label;
 }
 
 /** Groups items into day buckets (newest day first), keeping each item's flat index in `items`. */
 export function groupByDay<TAsset>(
-  items: readonly TAsset[],
-  getDayKey: (asset: TAsset) => string,
+  { items, getDayKey }: { items: readonly TAsset[]; getDayKey: (asset: TAsset) => string },
+  _optional: Record<string, never> = {},
 ): AssetGridDayGroup<TAsset>[] {
   const map = new Map<string, Array<{ asset: TAsset; index: number }>>();
   items.forEach((asset, index) => {
@@ -75,7 +75,7 @@ export function groupByDay<TAsset>(
 // rects and Set<string> ids, with zero asset-type coupling.
 
 /** Snapshot every rendered card's viewport rect (id + bounds) under `container`. */
-export function snapshotCardRects(container: HTMLElement | null): CardRect[] {
+export function snapshotCardRects({ container }: { container: HTMLElement | null }, _optional: Record<string, never> = {}): CardRect[] {
   const out: CardRect[] = [];
   if (!container) return out;
   container.querySelectorAll<HTMLElement>(ASSET_ID_SELECTOR).forEach((el) => {
@@ -88,7 +88,7 @@ export function snapshotCardRects(container: HTMLElement | null): CardRect[] {
 }
 
 /** Ids of cards whose snapshotted rect intersects the band rectangle. */
-export function cardIdsInBand(rects: readonly CardRect[], band: Band): string[] {
+export function cardIdsInBand({ rects, band }: { rects: readonly CardRect[]; band: Band }, _optional: Record<string, never> = {}): string[] {
   const left = band.x;
   const top = band.y;
   const right = band.x + band.w;
@@ -102,7 +102,7 @@ export function cardIdsInBand(rects: readonly CardRect[], band: Band): string[] 
 
 // --- selection ---------------------------------------------------------
 
-export function toggleSelection(prev: ReadonlySet<string>, id: string): Set<string> {
+export function toggleSelection({ prev, id }: { prev: ReadonlySet<string>; id: string }, _optional: Record<string, never> = {}): Set<string> {
   const next = new Set(prev);
   if (next.has(id)) next.delete(id);
   else next.add(id);
@@ -110,10 +110,8 @@ export function toggleSelection(prev: ReadonlySet<string>, id: string): Set<stri
 }
 
 export function rangeSelection<TAsset extends AssetGridItem>(
-  prev: ReadonlySet<string>,
-  items: readonly TAsset[],
-  anchorIndex: number,
-  targetIndex: number,
+  { prev, items, anchorIndex, targetIndex }: { prev: ReadonlySet<string>; items: readonly TAsset[]; anchorIndex: number; targetIndex: number },
+  _optional: Record<string, never> = {},
 ): Set<string> {
   const lo = Math.min(anchorIndex, targetIndex);
   const hi = Math.max(anchorIndex, targetIndex);
@@ -125,7 +123,7 @@ export function rangeSelection<TAsset extends AssetGridItem>(
   return next;
 }
 
-export function selectAllIds<TAsset extends AssetGridItem>(items: readonly TAsset[]): Set<string> {
+export function selectAllIds<TAsset extends AssetGridItem>({ items }: { items: readonly TAsset[] }, _optional: Record<string, never> = {}): Set<string> {
   return new Set(items.map((item) => item.id));
 }
 
@@ -140,8 +138,8 @@ export function selectAllIds<TAsset extends AssetGridItem>(items: readonly TAsse
  * when the filtered result is equal — would silently defeat that bail-out.
  */
 export function pruneMissingSelection<TAsset extends AssetGridItem>(
-  prev: Set<string>,
-  items: readonly TAsset[],
+  { prev, items }: { prev: Set<string>; items: readonly TAsset[] },
+  _optional: Record<string, never> = {},
 ): Set<string> {
   if (prev.size === 0) return prev;
   const live = new Set(items.map((item) => item.id));
@@ -162,8 +160,8 @@ export function pruneMissingSelection<TAsset extends AssetGridItem>(
  * for a no-op merge.
  */
 export function mergeIngestedAssets<TAsset extends AssetGridItem>(
-  prev: TAsset[],
-  fetched: readonly TAsset[],
+  { prev, fetched }: { prev: TAsset[]; fetched: readonly TAsset[] },
+  _optional: Record<string, never> = {},
 ): TAsset[] {
   if (fetched.length === 0) return prev;
   const byId = new Map(fetched.map((a) => [a.id, a]));
@@ -174,7 +172,7 @@ export function mergeIngestedAssets<TAsset extends AssetGridItem>(
 }
 
 /** Parse an id out of a live-update event's `data:` payload (`{ "<idField>": "…" }`), or null. */
-export function parseLiveUpdateAssetId(data: unknown, idField = 'id'): string | null {
+export function parseLiveUpdateAssetId({ data }: { data: unknown }, { idField = 'id' }: { idField?: string | undefined } = {}): string | null {
   if (typeof data !== 'string') return null;
   try {
     const parsed = JSON.parse(data) as Record<string, unknown>;
@@ -188,10 +186,8 @@ export function parseLiveUpdateAssetId(data: unknown, idField = 'id'): string | 
 // --- query + filtering ---------------------------------------------------
 
 export function buildAssetGridQuery(
-  kind: string,
-  source: string,
-  search: string,
-  mapKindToQuery?: (kind: string) => string | undefined,
+  { kind, source, search }: { kind: string; source: string; search: string },
+  { mapKindToQuery }: { mapKindToQuery?: ((kind: string) => string | undefined) | undefined } = {},
 ): AssetGridQuery {
   const q: AssetGridQuery = {};
   if (kind) {
@@ -205,17 +201,15 @@ export function buildAssetGridQuery(
 }
 
 export function defaultMatchesKindFilter<TAsset>(
-  asset: TAsset,
-  filterValue: string,
-  getKind: (asset: TAsset) => string,
+  { asset, filterValue, getKind }: { asset: TAsset; filterValue: string; getKind: (asset: TAsset) => string },
+  _optional: Record<string, never> = {},
 ): boolean {
   return filterValue === '' || getKind(asset) === filterValue;
 }
 
 export function filterByKind<TAsset>(
-  items: readonly TAsset[],
-  filterValue: string,
-  matches: (asset: TAsset, filterValue: string) => boolean,
+  { items, filterValue, matches }: { items: readonly TAsset[]; filterValue: string; matches: (asset: TAsset, filterValue: string) => boolean },
+  _optional: Record<string, never> = {},
 ): TAsset[] {
   if (!filterValue) return [...items];
   return items.filter((item) => matches(item, filterValue));
@@ -249,12 +243,12 @@ export function resolveCheckboxClickAction(modifiers: { shiftKey: boolean }): Ch
 // --- facet labels ---------------------------------------------------------
 
 /** Value -> label lookup built from a facet option list, for resolving a card's kind/source badge text. */
-export function buildFacetLabelMap(facets: readonly { value: string; label: string }[]): Map<string, string> {
+export function buildFacetLabelMap({ facets }: { facets: readonly { value: string; label: string }[] }, _optional: Record<string, never> = {}): Map<string, string> {
   return new Map(facets.map((f) => [f.value, f.label]));
 }
 
 /** The facet label for `value`, falling back to `value` itself when no facet option matches (e.g. no facets were configured at all). */
-export function resolveFacetLabel(value: string, labelsByValue: ReadonlyMap<string, string>): string {
+export function resolveFacetLabel({ value, labelsByValue }: { value: string; labelsByValue: ReadonlyMap<string, string> }, _optional: Record<string, never> = {}): string {
   return labelsByValue.get(value) ?? value;
 }
 
@@ -263,7 +257,7 @@ export function resolveFacetLabel(value: string, labelsByValue: ReadonlyMap<stri
 const TYPING_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
 
 /** Whether `el` is a text-entry target that keyboard shortcuts should not hijack. */
-export function isTypingTarget(el: Element | null): boolean {
+export function isTypingTarget({ el }: { el: Element | null }, _optional: Record<string, never> = {}): boolean {
   if (!el) return false;
   if (el instanceof HTMLElement && (el.isContentEditable || el.getAttribute('contenteditable') === 'true')) {
     return true;

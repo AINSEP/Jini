@@ -16,6 +16,6 @@ describe('CSS serialization formatting pins', () => {
     ['a{content:"tail', 'a {\n  content: "tail'],
     [') ; x', ') ;\nx'],
   ])('preserves formatting of %j', (css, expected) => {
-    expect(prettifyCss(css)).toBe(expected);
+    expect(prettifyCss({ css })).toBe(expected);
   });
 });

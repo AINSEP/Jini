@@ -42,7 +42,7 @@ describe('applyHostSurfaceTokens', () => {
   });
 
   it('inserts a :root rule right after the token style, so it outranks the defaults by source order', () => {
-    const html = applyHostSurfaceTokens(surface(), { '--jini-mcpui-accent': '#a85a38' });
+    const html = applyHostSurfaceTokens({ html: surface(), tokens: { '--jini-mcpui-accent': '#a85a38' } });
     const tokenBlockEnd = html.indexOf('</style>');
     const hostRule = html.indexOf('<style data-jini-host-theme>');
     expect(hostRule).toBeGreaterThan(tokenBlockEnd);
@@ -50,14 +50,14 @@ describe('applyHostSurfaceTokens', () => {
   });
 
   it("leaves a builder's own tokens in the more specific :root:root rule, which the host rule cannot outrank", () => {
-    const html = applyHostSurfaceTokens(surface({ '--jini-mcpui-accent': '#00aa88' }), { '--jini-mcpui-accent': '#a85a38' });
+    const html = applyHostSurfaceTokens({ html: surface({ '--jini-mcpui-accent': '#00aa88' }), tokens: { '--jini-mcpui-accent': '#a85a38' } });
     expect(html).toContain(':root:root {\n  --jini-mcpui-accent: #00aa88;\n}');
   });
 
   it('returns the document unchanged with no tokens, no surface tokens, or no style element', () => {
     const doc = surface();
-    expect(applyHostSurfaceTokens(doc, {})).toBe(doc);
-    expect(applyHostSurfaceTokens('<style>p{}</style><p>third party</p>', { '--jini-mcpui-accent': '#a85a38' })).toBe('<style>p{}</style><p>third party</p>');
-    expect(applyHostSurfaceTokens('<p style="--jini-mcpui-accent: red">x</p>', { '--jini-mcpui-accent': '#a85a38' })).toBe('<p style="--jini-mcpui-accent: red">x</p>');
+    expect(applyHostSurfaceTokens({ html: doc, tokens: {} })).toBe(doc);
+    expect(applyHostSurfaceTokens({ html: '<style>p{}</style><p>third party</p>', tokens: { '--jini-mcpui-accent': '#a85a38' } })).toBe('<style>p{}</style><p>third party</p>');
+    expect(applyHostSurfaceTokens({ html: '<p style="--jini-mcpui-accent: red">x</p>', tokens: { '--jini-mcpui-accent': '#a85a38' } })).toBe('<p style="--jini-mcpui-accent: red">x</p>');
   });
 });

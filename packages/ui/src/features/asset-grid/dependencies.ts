@@ -71,12 +71,12 @@ export function createBrowserSseLiveUpdatesPort(options: BrowserSseLiveUpdatesOp
         return () => {};
       }
       const onIngest = (ev: MessageEvent) => {
-        const id = parseLiveUpdateAssetId(ev.data, idField);
+        const id = parseLiveUpdateAssetId({ data: ev.data }, { idField });
         if (id) handlers.onIngest(id);
         else handlers.onFullReload();
       };
       const onDelete = (ev: MessageEvent) => {
-        const id = parseLiveUpdateAssetId(ev.data, idField);
+        const id = parseLiveUpdateAssetId({ data: ev.data }, { idField });
         if (id) handlers.onDelete(id);
         else handlers.onFullReload();
       };

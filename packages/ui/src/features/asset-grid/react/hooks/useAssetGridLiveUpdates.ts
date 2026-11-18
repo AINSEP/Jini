@@ -82,7 +82,7 @@ async function mergePendingIngests<TAsset extends AssetGridItem>(
   // here since the `some(a => a === null)` check above already
   // guarantees every element is non-null.
   const resolved = fetched as unknown as TAsset[];
-  ports.setAssets((prev) => mergeIngestedAssets(prev, resolved));
+  ports.setAssets((prev) => mergeIngestedAssets({ prev, fetched: resolved }));
 }
 
 // No `disposed` check on entry: a pass only ever starts from `flush`, whose first pass runs

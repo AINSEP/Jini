@@ -13,60 +13,60 @@ import {
 
 describe('isTodoWriteToolName', () => {
   it('recognizes every known alias', () => {
-    expect(isTodoWriteToolName('TodoWrite')).toBe(true);
-    expect(isTodoWriteToolName('todowrite')).toBe(true);
-    expect(isTodoWriteToolName('todo_write')).toBe(true);
-    expect(isTodoWriteToolName('update_plan')).toBe(true);
-    expect(isTodoWriteToolName('Write')).toBe(false);
+    expect(isTodoWriteToolName({ name: 'TodoWrite' })).toBe(true);
+    expect(isTodoWriteToolName({ name: 'todowrite' })).toBe(true);
+    expect(isTodoWriteToolName({ name: 'todo_write' })).toBe(true);
+    expect(isTodoWriteToolName({ name: 'update_plan' })).toBe(true);
+    expect(isTodoWriteToolName({ name: 'Write' })).toBe(false);
   });
 });
 
 describe('parseTodoWriteInput', () => {
   it('reads todos from the `todos` field', () => {
-    const todos = parseTodoWriteInput({ todos: [{ content: 'Do the thing', status: 'in_progress' }] });
+    const todos = parseTodoWriteInput({ input: { todos: [{ content: 'Do the thing', status: 'in_progress' }] } });
     expect(todos).toEqual([{ content: 'Do the thing', status: 'in_progress' }]);
   });
 
   it('falls back to the `plan` field', () => {
-    const todos = parseTodoWriteInput({ plan: [{ step: 'Plan step', status: 'completed' }] });
+    const todos = parseTodoWriteInput({ input: { plan: [{ step: 'Plan step', status: 'completed' }] } });
     expect(todos).toEqual([{ content: 'Plan step', status: 'completed' }]);
   });
 
   it('normalizes cancelled/failed statuses to stopped and unknown to pending', () => {
-    const todos = parseTodoWriteInput({
+    const todos = parseTodoWriteInput({ input: {
       todos: [
         { content: 'a', status: 'cancelled' },
         { content: 'b', status: 'failed' },
         { content: 'c', status: 'mystery' },
       ],
-    });
+    } });
     expect(todos.map((todo) => todo.status)).toEqual(['stopped', 'stopped', 'pending']);
   });
 
   it('drops entries with no usable content field', () => {
-    const todos = parseTodoWriteInput({ todos: [{ status: 'pending' }, { content: 'kept', status: 'pending' }] });
+    const todos = parseTodoWriteInput({ input: { todos: [{ status: 'pending' }, { content: 'kept', status: 'pending' }] } });
     expect(todos).toEqual([{ content: 'kept', status: 'pending' }]);
   });
 
   it('returns an empty array for non-object or missing input', () => {
-    expect(parseTodoWriteInput(null)).toEqual([]);
-    expect(parseTodoWriteInput('nope')).toEqual([]);
-    expect(parseTodoWriteInput({})).toEqual([]);
+    expect(parseTodoWriteInput({ input: null })).toEqual([]);
+    expect(parseTodoWriteInput({ input: 'nope' })).toEqual([]);
+    expect(parseTodoWriteInput({ input: {} })).toEqual([]);
   });
 
   it('skips a non-object entry in the todos array rather than throwing', () => {
-    const todos = parseTodoWriteInput({ todos: [null, 'not an object', { content: 'kept', status: 'pending' }] });
+    const todos = parseTodoWriteInput({ input: { todos: [null, 'not an object', { content: 'kept', status: 'pending' }] } });
     expect(todos).toEqual([{ content: 'kept', status: 'pending' }]);
   });
 
   it('falls back through description/label/text content fields in priority order', () => {
-    expect(parseTodoWriteInput({ todos: [{ description: 'from description' }] })).toEqual([
+    expect(parseTodoWriteInput({ input: { todos: [{ description: 'from description' }] } })).toEqual([
       { content: 'from description', status: 'pending' },
     ]);
-    expect(parseTodoWriteInput({ todos: [{ label: 'from label' }] })).toEqual([
+    expect(parseTodoWriteInput({ input: { todos: [{ label: 'from label' }] } })).toEqual([
       { content: 'from label', status: 'pending' },
     ]);
-    expect(parseTodoWriteInput({ todos: [{ text: 'from text' }] })).toEqual([
+    expect(parseTodoWriteInput({ input: { todos: [{ text: 'from text' }] } })).toEqual([
       { content: 'from text', status: 'pending' },
     ]);
   });
@@ -79,28 +79,28 @@ describe('latestTodosFromAgentEvents', () => {
       { kind: 'tool_use', id: '2', name: 'Read', input: { file_path: 'a.ts' } },
       { kind: 'tool_use', id: '3', name: 'TodoWrite', input: { todos: [{ content: 'new', status: 'in_progress' }] } },
     ];
-    expect(latestTodosFromAgentEvents(events)).toEqual([{ content: 'new', status: 'in_progress' }]);
+    expect(latestTodosFromAgentEvents({ events })).toEqual([{ content: 'new', status: 'in_progress' }]);
   });
 
   it('returns an empty array when there is no TodoWrite event', () => {
-    expect(latestTodosFromAgentEvents([{ kind: 'text' }])).toEqual([]);
-    expect(latestTodosFromAgentEvents(undefined)).toEqual([]);
+    expect(latestTodosFromAgentEvents({ events: [{ kind: 'text' }] })).toEqual([]);
+    expect(latestTodosFromAgentEvents({ events: undefined })).toEqual([]);
   });
 });
 
 describe('latestStatusDetailFromAgentEvents', () => {
   it('formats the label and appends detail when present', () => {
     const events: AgentEventLike[] = [{ kind: 'status', label: 'reading_files', detail: 'src/app.ts' }];
-    expect(latestStatusDetailFromAgentEvents(events)).toBe('reading files: src/app.ts');
+    expect(latestStatusDetailFromAgentEvents({ events })).toBe('reading files: src/app.ts');
   });
 
   it('omits the detail suffix when absent', () => {
     const events: AgentEventLike[] = [{ kind: 'status', label: 'thinking' }];
-    expect(latestStatusDetailFromAgentEvents(events)).toBe('thinking');
+    expect(latestStatusDetailFromAgentEvents({ events })).toBe('thinking');
   });
 
   it('returns null when there is no status event', () => {
-    expect(latestStatusDetailFromAgentEvents([{ kind: 'text' }])).toBeNull();
+    expect(latestStatusDetailFromAgentEvents({ events: [{ kind: 'text' }] })).toBeNull();
   });
 });
 
@@ -112,17 +112,17 @@ describe('dedupeToolUsesById', () => {
       { kind: 'tool_use', id: 'a', name: 'Read', input: {} },
       { kind: 'tool_result', toolUseId: 'a', isError: false },
     ];
-    const deduped = dedupeToolUsesById(events);
+    const deduped = dedupeToolUsesById({ events });
     expect(deduped.filter((event) => event.kind === 'tool_use')).toHaveLength(1);
   });
 
   it('is a no-op when there are no duplicate ids', () => {
     const events: AgentEventLike[] = [{ kind: 'tool_use', id: 'a', name: 'Read', input: {} }];
-    expect(dedupeToolUsesById(events)).toEqual(events);
+    expect(dedupeToolUsesById({ events })).toEqual(events);
   });
 
   it('returns an empty array for an empty (not undefined) events list', () => {
-    expect(dedupeToolUsesById([])).toEqual([]);
+    expect(dedupeToolUsesById({ events: [] })).toEqual([]);
   });
 
   it('keeps a later, non-duplicate event once a duplicate has triggered rebuilding the array', () => {
@@ -131,7 +131,7 @@ describe('dedupeToolUsesById', () => {
       { kind: 'tool_use', id: 'a', name: 'Read', input: {} }, // duplicate id -> triggers rebuild
       { kind: 'tool_use', id: 'b', name: 'Write', input: {} }, // must still be kept afterward
     ];
-    const deduped = dedupeToolUsesById(events);
+    const deduped = dedupeToolUsesById({ events });
     expect(deduped.map((event) => (event as { id?: string }).id)).toEqual(['a', 'b']);
   });
 });
@@ -144,7 +144,7 @@ describe('deriveFileOpsFromAgentEvents', () => {
       { kind: 'tool_use', id: '3', name: 'Edit', input: { file_path: 'c.ts' } },
       { kind: 'tool_use', id: '4', name: 'Delete', input: { file_path: 'd.ts' } },
     ];
-    const ops = deriveFileOpsFromAgentEvents(events);
+    const ops = deriveFileOpsFromAgentEvents({ events });
     expect(ops.map((op) => op.ops[0]).sort()).toEqual(['delete', 'edit', 'read', 'write']);
   });
 
@@ -155,7 +155,7 @@ describe('deriveFileOpsFromAgentEvents', () => {
       { kind: 'tool_use', id: '2', name: 'Edit', input: { file_path: 'src/a.ts' } },
       { kind: 'tool_result', toolUseId: '2', isError: true },
     ];
-    const ops = deriveFileOpsFromAgentEvents(events);
+    const ops = deriveFileOpsFromAgentEvents({ events });
     expect(ops).toHaveLength(1);
     expect(ops[0]).toMatchObject({ path: 'a.ts', fullPath: 'src/a.ts', status: 'error' });
     expect(ops[0]!.ops).toEqual(['read', 'edit']);
@@ -163,22 +163,22 @@ describe('deriveFileOpsFromAgentEvents', () => {
 
   it('marks a tool_use with no matching tool_result as running', () => {
     const events: AgentEventLike[] = [{ kind: 'tool_use', id: '1', name: 'Write', input: { file_path: 'a.ts' } }];
-    expect(deriveFileOpsFromAgentEvents(events)[0]?.status).toBe('running');
+    expect(deriveFileOpsFromAgentEvents({ events })[0]?.status).toBe('running');
   });
 
   it('ignores tool calls with no resolvable file path', () => {
     const events: AgentEventLike[] = [{ kind: 'tool_use', id: '1', name: 'Read', input: {} }];
-    expect(deriveFileOpsFromAgentEvents(events)).toEqual([]);
+    expect(deriveFileOpsFromAgentEvents({ events })).toEqual([]);
   });
 
   it('ignores unrelated tool names', () => {
     const events: AgentEventLike[] = [{ kind: 'tool_use', id: '1', name: 'Bash', input: { command: 'rm a.ts' } }];
-    expect(deriveFileOpsFromAgentEvents(events)).toEqual([]);
+    expect(deriveFileOpsFromAgentEvents({ events })).toEqual([]);
   });
 
   it('ignores a tool call whose input is not an object at all', () => {
     const events: AgentEventLike[] = [{ kind: 'tool_use', id: '1', name: 'Read', input: null }];
-    expect(deriveFileOpsFromAgentEvents(events)).toEqual([]);
+    expect(deriveFileOpsFromAgentEvents({ events })).toEqual([]);
   });
 
   it('resolves the file path from filename/target_path/targetPath fallback fields too', () => {
@@ -187,12 +187,12 @@ describe('deriveFileOpsFromAgentEvents', () => {
       { kind: 'tool_use', id: '2', name: 'Read', input: { target_path: 'b.ts' } },
       { kind: 'tool_use', id: '3', name: 'Read', input: { targetPath: 'c.ts' } },
     ];
-    expect(deriveFileOpsFromAgentEvents(events).map((op) => op.fullPath).sort()).toEqual(['a.ts', 'b.ts', 'c.ts']);
+    expect(deriveFileOpsFromAgentEvents({ events }).map((op) => op.fullPath).sort()).toEqual(['a.ts', 'b.ts', 'c.ts']);
   });
 
   it('falls back to the full path when it has no non-separator segments', () => {
     const events: AgentEventLike[] = [{ kind: 'tool_use', id: '1', name: 'Read', input: { file_path: '///' } }];
-    expect(deriveFileOpsFromAgentEvents(events)[0]?.path).toBe('///');
+    expect(deriveFileOpsFromAgentEvents({ events })[0]?.path).toBe('///');
   });
 
   it('merges two completed ops on the same path to "done"', () => {
@@ -202,7 +202,7 @@ describe('deriveFileOpsFromAgentEvents', () => {
       { kind: 'tool_use', id: '2', name: 'Edit', input: { file_path: 'src/a.ts' } },
       { kind: 'tool_result', toolUseId: '2', isError: false },
     ];
-    const ops = deriveFileOpsFromAgentEvents(events);
+    const ops = deriveFileOpsFromAgentEvents({ events });
     expect(ops).toHaveLength(1);
     expect(ops[0]!.status).toBe('done');
   });
@@ -213,7 +213,7 @@ describe('deriveFileOpsFromAgentEvents', () => {
       { kind: 'tool_result', toolUseId: '1', isError: false },
       { kind: 'tool_use', id: '2', name: 'Edit', input: { file_path: 'src/a.ts' } }, // no matching result -> running
     ];
-    const ops = deriveFileOpsFromAgentEvents(events);
+    const ops = deriveFileOpsFromAgentEvents({ events });
     expect(ops).toHaveLength(1);
     expect(ops[0]!.status).toBe('running');
   });
@@ -221,36 +221,36 @@ describe('deriveFileOpsFromAgentEvents', () => {
 
 describe('chatActivityToProgressCard', () => {
   it('returns null when there is nothing to show', () => {
-    expect(chatActivityToProgressCard(null, { id: 'x', active: false })).toBeNull();
-    expect(chatActivityToProgressCard({ events: [] }, { id: 'x', active: false })).toBeNull();
+    expect(chatActivityToProgressCard({ message: null, id: 'x', active: false })).toBeNull();
+    expect(chatActivityToProgressCard({ message: { events: [] }, id: 'x', active: false })).toBeNull();
   });
 
   it('is running while active, even with an unset runStatus', () => {
-    const card = chatActivityToProgressCard({ events: [] }, { id: 'x', active: true });
+    const card = chatActivityToProgressCard({ message: { events: [] }, id: 'x', active: true });
     expect(card?.status).toBe('running');
   });
 
   it('maps queued/running runStatus to a running card (when there is activity to show)', () => {
     const events: AgentEventLike[] = [{ kind: 'status', label: 'thinking' }];
-    expect(chatActivityToProgressCard({ events, runStatus: 'queued' }, { id: 'x', active: false })?.status).toBe(
+    expect(chatActivityToProgressCard({ message: { events, runStatus: 'queued' }, id: 'x', active: false })?.status).toBe(
       'running',
     );
-    expect(chatActivityToProgressCard({ events, runStatus: 'running' }, { id: 'x', active: false })?.status).toBe(
+    expect(chatActivityToProgressCard({ message: { events, runStatus: 'running' }, id: 'x', active: false })?.status).toBe(
       'running',
     );
   });
 
   it('a queued/running runStatus alone (no active flag, no other signal) shows nothing, matching the source', () => {
-    expect(chatActivityToProgressCard({ runStatus: 'queued' }, { id: 'x', active: false })).toBeNull();
+    expect(chatActivityToProgressCard({ message: { runStatus: 'queued' }, id: 'x', active: false })).toBeNull();
   });
 
   it('maps failed/canceled runStatus to a failed card', () => {
-    expect(chatActivityToProgressCard({ runStatus: 'failed' }, { id: 'x', active: false })?.status).toBe('failed');
-    expect(chatActivityToProgressCard({ runStatus: 'canceled' }, { id: 'x', active: false })?.status).toBe('failed');
+    expect(chatActivityToProgressCard({ message: { runStatus: 'failed' }, id: 'x', active: false })?.status).toBe('failed');
+    expect(chatActivityToProgressCard({ message: { runStatus: 'canceled' }, id: 'x', active: false })?.status).toBe('failed');
   });
 
   it('maps a terminal succeeded run to a succeeded card at 100%', () => {
-    const card = chatActivityToProgressCard({ runStatus: 'succeeded' }, { id: 'x', active: true });
+    const card = chatActivityToProgressCard({ message: { runStatus: 'succeeded' }, id: 'x', active: true });
     // `active` still forces running per the source's own precedence rule.
     expect(card?.status).toBe('running');
   });
@@ -270,7 +270,7 @@ describe('chatActivityToProgressCard', () => {
         },
       },
     ];
-    const card = chatActivityToProgressCard({ events, runStatus: 'running' }, { id: 'x', active: true });
+    const card = chatActivityToProgressCard({ message: { events, runStatus: 'running' }, id: 'x', active: true });
     expect(card?.steps.map((step) => ({ label: step.label, status: step.status }))).toEqual([
       { label: 'first', status: 'succeeded' },
       { label: 'second', status: 'running' },
@@ -285,7 +285,7 @@ describe('chatActivityToProgressCard', () => {
       { kind: 'tool_use', id: '1', name: 'Read', input: { file_path: 'a.ts' } },
       { kind: 'tool_result', toolUseId: '1', isError: false },
     ];
-    const card = chatActivityToProgressCard({ events, runStatus: 'running' }, { id: 'x', active: true });
+    const card = chatActivityToProgressCard({ message: { events, runStatus: 'running' }, id: 'x', active: true });
     expect(card?.steps.map((step) => step.id)).toEqual(['read-current-state', 'update-files', 'finalize']);
   });
 
@@ -293,7 +293,7 @@ describe('chatActivityToProgressCard', () => {
     const events: AgentEventLike[] = [
       { kind: 'tool_use', id: '1', name: 'Edit', input: { file_path: 'a.ts' } }, // no result -> running
     ];
-    const card = chatActivityToProgressCard({ events, runStatus: 'running' }, { id: 'x', active: true });
+    const card = chatActivityToProgressCard({ message: { events, runStatus: 'running' }, id: 'x', active: true });
     expect(card?.steps.find((step) => step.id === 'update-files')?.status).toBe('running');
   });
 
@@ -306,7 +306,7 @@ describe('chatActivityToProgressCard', () => {
         input: { todos: [{ content: 'abandoned', status: 'cancelled' }] },
       },
     ];
-    const card = chatActivityToProgressCard({ events, runStatus: 'failed' }, { id: 'x', active: false });
+    const card = chatActivityToProgressCard({ message: { events, runStatus: 'failed' }, id: 'x', active: false });
     expect(card?.steps).toEqual([{ id: 'abandoned-0', label: 'abandoned', status: 'failed' }]);
   });
 
@@ -324,7 +324,7 @@ describe('chatActivityToProgressCard', () => {
         },
       },
     ];
-    const card = chatActivityToProgressCard({ events, runStatus: 'running' }, { id: 'x', active: true });
+    const card = chatActivityToProgressCard({ message: { events, runStatus: 'running' }, id: 'x', active: true });
     // 1 of 2 completed, no in-progress bonus: round(1/2 * 100) = 50.
     expect(card?.progress).toBe(50);
   });
@@ -334,7 +334,7 @@ describe('chatActivityToProgressCard', () => {
       { kind: 'tool_use', id: '1', name: 'Edit', input: { file_path: 'src/a.ts' } },
       { kind: 'tool_result', toolUseId: '1', isError: false },
     ];
-    const card = chatActivityToProgressCard({ events, runStatus: 'running' }, { id: 'x', active: true });
+    const card = chatActivityToProgressCard({ message: { events, runStatus: 'running' }, id: 'x', active: true });
     expect(card?.secondaryItems).toEqual([{ id: 'src/a.ts', label: 'a.ts', status: 'succeeded' }]);
   });
 
@@ -343,13 +343,13 @@ describe('chatActivityToProgressCard', () => {
       { kind: 'tool_use', id: '1', name: 'Edit', input: { file_path: 'src/a.ts' } },
       { kind: 'tool_result', toolUseId: '1', isError: true },
     ];
-    const card = chatActivityToProgressCard({ events, runStatus: 'failed' }, { id: 'x', active: false });
+    const card = chatActivityToProgressCard({ message: { events, runStatus: 'failed' }, id: 'x', active: false });
     expect(card?.secondaryItems).toEqual([{ id: 'src/a.ts', label: 'a.ts', status: 'failed' }]);
   });
 
   it('is active with a status event even when nothing else is going on', () => {
     const events: AgentEventLike[] = [{ kind: 'status', label: 'thinking' }];
-    const card = chatActivityToProgressCard({ events, runStatus: 'succeeded' }, { id: 'x', active: false });
+    const card = chatActivityToProgressCard({ message: { events, runStatus: 'succeeded' }, id: 'x', active: false });
     expect(card).not.toBeNull();
     expect(card?.detail).toBe('thinking');
   });

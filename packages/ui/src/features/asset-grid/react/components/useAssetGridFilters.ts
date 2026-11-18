@@ -22,8 +22,8 @@ export function useAssetGridFilters(
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebouncedValue({ value: search, delayMs: searchDebounceMs });
   const filtersActive = !!(kind || source || debouncedSearch.trim());
-  const kindFacetLabels = useMemo(() => buildFacetLabelMap(kindFacets), [kindFacets]);
-  const sourceFacetLabels = useMemo(() => buildFacetLabelMap(sourceFacets), [sourceFacets]);
+  const kindFacetLabels = useMemo(() => buildFacetLabelMap({ facets: kindFacets }), [kindFacets]);
+  const sourceFacetLabels = useMemo(() => buildFacetLabelMap({ facets: sourceFacets }), [sourceFacets]);
 
   return {
     kind, setKind, source, setSource, search, setSearch,

@@ -124,7 +124,7 @@ function consumeStructure({ st, ch }: { st: CssPrettyState; ch: string }, _optio
  * @complexity O(n) single pass over the CSS string, O(1) additional space beyond the output buffer.
  * @overallScore 100
  */
-export function prettifyCss(css: string): string {
+export function prettifyCss({ css }: { css: string }, _optional: Record<string, never> = {}): string {
   const st: CssPrettyState = { css, out: '', depth: 0, parenDepth: 0, quote: null, atDeclStart: false, i: 0 };
   while (st.i < css.length) {
     const ch = css[st.i]!;

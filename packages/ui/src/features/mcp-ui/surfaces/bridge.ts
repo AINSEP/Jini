@@ -80,10 +80,10 @@ export const SURFACE_HANDSHAKE_FAILED_ATTRIBUTE = 'data-mcpui-handshake-failed';
  * @complexity O(1) — a constant template with three interpolations.
  */
 export function renderBridgeScript(spec: BridgeScriptSpec): string {
-  const appInfo = escapeJsValue({ name: spec.appName, version: spec.appVersion });
-  const protocolVersion = escapeJsValue(spec.protocolVersion ?? MCP_UI_PROTOCOL_VERSION);
+  const appInfo = escapeJsValue({ value: { name: spec.appName, version: spec.appVersion } });
+  const protocolVersion = escapeJsValue({ value: spec.protocolVersion ?? MCP_UI_PROTOCOL_VERSION });
   const global = SURFACE_BRIDGE_GLOBAL;
-  const failedAttribute = escapeJsValue(SURFACE_HANDSHAKE_FAILED_ATTRIBUTE);
+  const failedAttribute = escapeJsValue({ value: SURFACE_HANDSHAKE_FAILED_ATTRIBUTE });
 
   return `(function () {
   "use strict";

@@ -9,7 +9,7 @@ describe('createEarlyMessageBuffer', () => {
   it('delivers a message pushed before any subscriber exists, once one subscribes', () => {
     // This is the actual race the fixture exists to survive: postMessage does not queue for a
     // listener that doesn't exist yet, so the only way to not lose the message is to buffer it.
-    const buffer = createEarlyMessageBuffer();
+    const buffer = createEarlyMessageBuffer({});
     buffer.push(msg({ jsonrpc: '2.0', id: 'v1', method: 'ui/initialize' }));
 
     const received: BufferedWindowMessage[] = [];
@@ -20,7 +20,7 @@ describe('createEarlyMessageBuffer', () => {
   });
 
   it('drains multiple backlogged messages to a new subscriber in arrival order', () => {
-    const buffer = createEarlyMessageBuffer();
+    const buffer = createEarlyMessageBuffer({});
     buffer.push(msg({ seq: 1 }));
     buffer.push(msg({ seq: 2 }));
     buffer.push(msg({ seq: 3 }));
@@ -32,7 +32,7 @@ describe('createEarlyMessageBuffer', () => {
   });
 
   it('delivers directly to a live subscriber without ever touching the backlog', () => {
-    const buffer = createEarlyMessageBuffer();
+    const buffer = createEarlyMessageBuffer({});
     const received: unknown[] = [];
     buffer.subscribe((message) => received.push(message.data));
 
@@ -43,7 +43,7 @@ describe('createEarlyMessageBuffer', () => {
   });
 
   it('reports backlog size while nothing is subscribed', () => {
-    const buffer = createEarlyMessageBuffer();
+    const buffer = createEarlyMessageBuffer({});
     expect(buffer.backlogSize).toBe(0);
     buffer.push(msg('a'));
     buffer.push(msg('b'));
@@ -51,7 +51,7 @@ describe('createEarlyMessageBuffer', () => {
   });
 
   it('evicts the OLDEST message once the cap is exceeded, so a flood cannot grow it unbounded', () => {
-    const buffer = createEarlyMessageBuffer(3);
+    const buffer = createEarlyMessageBuffer({}, { maxBuffered: 3 });
     buffer.push(msg('oldest'));
     buffer.push(msg('middle'));
     buffer.push(msg('newest-1'));
@@ -64,13 +64,13 @@ describe('createEarlyMessageBuffer', () => {
   });
 
   it('defaults the cap to MAX_BUFFERED_MESSAGES', () => {
-    const buffer = createEarlyMessageBuffer();
+    const buffer = createEarlyMessageBuffer({});
     for (let i = 0; i < MAX_BUFFERED_MESSAGES + 10; i += 1) buffer.push(msg(i));
     expect(buffer.backlogSize).toBe(MAX_BUFFERED_MESSAGES);
   });
 
   it('stops delivering to a handler after it unsubscribes', () => {
-    const buffer = createEarlyMessageBuffer();
+    const buffer = createEarlyMessageBuffer({});
     const received: unknown[] = [];
     const unsubscribe = buffer.subscribe((message) => received.push(message.data));
     buffer.push(msg('before-unsubscribe'));
@@ -89,7 +89,7 @@ describe('createEarlyMessageBuffer', () => {
     // `show_mcpui_widget` widget), each subscribing its own Host. A buffer that only tracks one
     // "live" slot silently starves whichever Host mounted first the moment the second subscribes
     // — no error, no log, just missing messages.
-    const buffer = createEarlyMessageBuffer();
+    const buffer = createEarlyMessageBuffer({});
     const firstReceived: unknown[] = [];
     const secondReceived: unknown[] = [];
     buffer.subscribe((message) => firstReceived.push(message.data));
@@ -105,7 +105,7 @@ describe('createEarlyMessageBuffer', () => {
     // Each `subscribe` call's disposer removes only its own handler reference (e.g. a Host
     // re-subscribing after a `sessionKey` change, or one of the two concurrent Hosts tearing
     // down) — it must never affect a sibling subscription that happens to still be live.
-    const buffer = createEarlyMessageBuffer();
+    const buffer = createEarlyMessageBuffer({});
     const firstReceived: unknown[] = [];
     const secondReceived: unknown[] = [];
     const unsubscribeFirst = buffer.subscribe((message) => firstReceived.push(message.data));
@@ -119,8 +119,8 @@ describe('createEarlyMessageBuffer', () => {
   });
 
   it('keeps independent buffers fully isolated from one another', () => {
-    const bufferA = createEarlyMessageBuffer();
-    const bufferB = createEarlyMessageBuffer();
+    const bufferA = createEarlyMessageBuffer({});
+    const bufferB = createEarlyMessageBuffer({});
     bufferA.push(msg('only-in-a'));
     expect(bufferA.backlogSize).toBe(1);
     expect(bufferB.backlogSize).toBe(0);

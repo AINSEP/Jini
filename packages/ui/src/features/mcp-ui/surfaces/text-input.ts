@@ -45,7 +45,7 @@ export interface TextInputProps extends Partial<SecretInputText> {
 
 function optionalAttribute(name: string, value: string | number | undefined): string {
   if (value === undefined) return '';
-  return ` ${name}="${escapeHtml(String(value))}"`;
+  return ` ${name}="${escapeHtml({ value: String(value) })}"`;
 }
 
 function booleanAttribute(name: string, value: boolean | undefined = false): string {
@@ -80,7 +80,7 @@ const EYE_ICON =
 function renderSecretToggle(props: TextInputProps, id: string): string {
   const show = `${props.showSecret ?? DEFAULT_SECRET_INPUT_TEXT.showSecret} ${props.label}`;
   const hide = `${props.hideSecret ?? DEFAULT_SECRET_INPUT_TEXT.hideSecret} ${props.label}`;
-  return `<button type="button" class="mcpui-secret-toggle" data-mcpui-secret-toggle="${escapeHtml(id)}" data-mcpui-show-secret="${escapeHtml(show)}" data-mcpui-hide-secret="${escapeHtml(hide)}" aria-label="${escapeHtml(show)}" aria-controls="${escapeHtml(id)}" aria-pressed="false"${booleanAttribute('disabled', props.disabled)}>${EYE_ICON}</button>`;
+  return `<button type="button" class="mcpui-secret-toggle" data-mcpui-secret-toggle="${escapeHtml({ value: id })}" data-mcpui-show-secret="${escapeHtml({ value: show })}" data-mcpui-hide-secret="${escapeHtml({ value: hide })}" aria-label="${escapeHtml({ value: show })}" aria-controls="${escapeHtml({ value: id })}" aria-pressed="false"${booleanAttribute('disabled', props.disabled)}>${EYE_ICON}</button>`;
 }
 
 /** Wraps a secret control so its toggle sits inside the field's right edge. @complexity O(n) in the rendered length. */
@@ -95,7 +95,7 @@ function renderTextarea(props: TextInputProps, required: { id: string; common: s
     // Password inputs strip line breaks. CSS masking keeps the textarea's actual value intact,
     // and disables browser text assistance that could retain or alter a pasted credential.
     (secret ? ' data-mcpui-secret style="-webkit-text-security: disc;" autocomplete="off" spellcheck="false"' : '') +
-    `>${props.value === undefined ? '' : escapeHtml(String(props.value))}</textarea>`;
+    `>${props.value === undefined ? '' : escapeHtml({ value: String(props.value) })}</textarea>`;
   return secret ? withSecretToggle(control, props, required.id) : control;
 }
 
@@ -129,9 +129,9 @@ export function renderTextInput(props: TextInputProps): string {
   if (props.secret === true && props.value !== undefined) {
     throw new Error('Secret fields cannot have a pre-filled value. Omit value.');
   }
-  const id = fieldElementId(props.name);
+  const id = fieldElementId({ name: props.name });
   const common =
-    ` id="${escapeHtml(id)}" name="${escapeHtml(props.name)}"` +
+    ` id="${escapeHtml({ value: id })}" name="${escapeHtml({ value: props.name })}"` +
     optionalAttribute('placeholder', props.placeholder) +
     booleanAttribute('required', props.required) +
     booleanAttribute('disabled', props.disabled) +

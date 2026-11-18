@@ -29,7 +29,7 @@ export function resolveThemedViewSession(input: {
   readonly hostTokens: HostSurfaceTokens | undefined;
 }): ThemedViewSession {
   const { hostTokens } = input;
-  const html = hostTokens === undefined ? input.html : applyHostSurfaceTokens(input.html, hostTokens);
+  const html = hostTokens === undefined ? input.html : applyHostSurfaceTokens({ html: input.html, tokens: hostTokens });
   // Only a document the theme actually changed takes the theme into its key, so a third-party View
   // (left untouched) never remounts when the host's theme moves.
   const sessionKey = `${String(input.sessionKey ?? input.html)}${html === input.html ? '' : JSON.stringify(hostTokens)}`;

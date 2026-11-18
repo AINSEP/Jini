@@ -37,7 +37,7 @@ function resolveAbsolutePath(value: string, options: NormalizeBrowserAddressOpti
   return `file://${encodeURI(value)}`;
 }
 
-export function normalizeBrowserAddress(rawAddress: string, options: NormalizeBrowserAddressOptions = {}): string {
+export function normalizeBrowserAddress({ rawAddress }: { rawAddress: string }, options: NormalizeBrowserAddressOptions = {}): string {
   const value = rawAddress.trim();
   if (!value || value === EMPTY_URL) return EMPTY_URL;
   if (/^(https?|file):\/\//i.test(value)) return value;
@@ -47,7 +47,7 @@ export function normalizeBrowserAddress(rawAddress: string, options: NormalizeBr
   return `https://www.google.com/search?q=${encodeURIComponent(value)}`;
 }
 
-export function labelFromUrl(url: string, homeLabel: string = DEFAULT_HOME_NAVIGATION_ENTRY.title): string {
+export function labelFromUrl({ url }: { url: string }, { homeLabel = DEFAULT_HOME_NAVIGATION_ENTRY.title }: { homeLabel?: string | undefined } = {}): string {
   if (url === EMPTY_URL) return homeLabel;
   try {
     const parsed = new URL(url);
@@ -58,30 +58,28 @@ export function labelFromUrl(url: string, homeLabel: string = DEFAULT_HOME_NAVIG
 }
 
 export function formatAddressDisplayParts(
-  url: string,
-  title?: string,
-  homeLabel: string = DEFAULT_HOME_NAVIGATION_ENTRY.title,
+  { url }: { url: string },
+  { title, homeLabel = DEFAULT_HOME_NAVIGATION_ENTRY.title }: { title?: string | undefined; homeLabel?: string | undefined } = {},
 ): AddressDisplayParts {
   if (url === EMPTY_URL) return { url: '' };
   const cleanTitle = title?.trim();
   if (!cleanTitle) return { url };
-  const fallback = labelFromUrl(url, homeLabel);
+  const fallback = labelFromUrl({ url }, { homeLabel });
   if (cleanTitle === fallback || cleanTitle === url) return { url };
   return { url: trimTrailingChars(url, '/'), title: cleanTitle };
 }
 
 export function formatAddressDisplay(
-  url: string,
-  title?: string,
-  homeLabel: string = DEFAULT_HOME_NAVIGATION_ENTRY.title,
+  { url }: { url: string },
+  { title, homeLabel = DEFAULT_HOME_NAVIGATION_ENTRY.title }: { title?: string | undefined; homeLabel?: string | undefined } = {},
 ): string {
-  const parts = formatAddressDisplayParts(url, title, homeLabel);
+  const parts = formatAddressDisplayParts({ url }, { title, homeLabel });
   if (!parts.url) return '';
   if (!parts.title) return parts.url;
   return `${parts.url} / ${parts.title}`;
 }
 
-export function hostnameFromUrl(url: string): string {
+export function hostnameFromUrl({ url }: { url: string }, _optional: Record<string, never> = {}): string {
   try {
     return new URL(url).hostname.replace(/^www\./, '');
   } catch {
@@ -93,7 +91,7 @@ function isHttpLikeUrl(url: string): boolean {
   return /^https?:\/\//i.test(url);
 }
 
-export function faviconUrl(url: string): string | undefined {
+export function faviconUrl({ url }: { url: string }, _optional: Record<string, never> = {}): string | undefined {
   if (!isHttpLikeUrl(url)) return undefined;
   try {
     return new URL('/favicon.ico', new URL(url).origin).toString();
@@ -102,11 +100,11 @@ export function faviconUrl(url: string): string | undefined {
   }
 }
 
-export function isHistoryUrl(url: string): boolean {
+export function isHistoryUrl({ url }: { url: string }, _optional: Record<string, never> = {}): boolean {
   return url !== EMPTY_URL && (isHttpLikeUrl(url) || /^file:\/\//i.test(url));
 }
 
-export function sameUrl(left: string, right: string): boolean {
+export function sameUrl({ left, right }: { left: string; right: string }, _optional: Record<string, never> = {}): boolean {
   return trimTrailingChars(left, '/') === trimTrailingChars(right, '/');
 }
 
@@ -130,12 +128,12 @@ export function isHistoryEntry(value: unknown): value is BrowserHistoryEntry {
 }
 
 /** Namespace + scope key -> storage key. Namespace defaults to a generic Jini prefix (see `constants.ts`); scope key is host-supplied (e.g. a project or tab id). */
-export function historyStorageKey(namespace: string, scopeKey: string): string {
+export function historyStorageKey({ namespace, scopeKey }: { namespace: string; scopeKey: string }, _optional: Record<string, never> = {}): string {
   return `${namespace}:${scopeKey}`;
 }
 
 /** Parses a raw JSON storage payload into a sorted, deduped, limit-capped history list. Never throws — returns `[]` on any malformed input. */
-export function parseHistoryPayload(raw: string, limit: number = HISTORY_LIMIT): BrowserHistoryEntry[] {
+export function parseHistoryPayload({ raw }: { raw: string }, { limit = HISTORY_LIMIT }: { limit?: number | undefined } = {}): BrowserHistoryEntry[] {
   try {
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -148,7 +146,7 @@ export function parseHistoryPayload(raw: string, limit: number = HISTORY_LIMIT):
   }
 }
 
-export function serializeHistoryPayload(history: BrowserHistoryEntry[], limit: number = HISTORY_LIMIT): string {
+export function serializeHistoryPayload({ history }: { history: BrowserHistoryEntry[] }, { limit = HISTORY_LIMIT }: { limit?: number | undefined } = {}): string {
   return JSON.stringify(history.slice(0, limit));
 }
 
@@ -169,17 +167,14 @@ export interface MergeHistoryEntryOptions {
  * re-render/re-save). `now` is injectable for deterministic tests.
  */
 export function mergeHistoryEntry(
-  history: BrowserHistoryEntry[],
-  url: string,
-  meta: MergeHistoryEntryMeta = {},
-  options: MergeHistoryEntryOptions = {},
-  now: number = Date.now(),
+  { history, url }: { history: BrowserHistoryEntry[]; url: string },
+  { meta = {}, options = {}, now = Date.now() }: { meta?: MergeHistoryEntryMeta | undefined; options?: MergeHistoryEntryOptions | undefined; now?: number | undefined } = {},
 ): BrowserHistoryEntry[] {
-  if (!isHistoryUrl(url)) return history;
-  const existing = history.find((entry) => sameUrl(entry.url, url));
+  if (!isHistoryUrl({ url })) return history;
+  const existing = history.find((entry) => sameUrl({ left: entry.url, right: url }));
   const entry = buildHistoryEntry({ url, meta, now, countVisit: options.countVisit !== false }, { existing });
   if (existing && sameHistoryEntryState(existing, entry)) return history;
-  return [entry, ...history.filter((item) => !sameUrl(item.url, url))].slice(0, HISTORY_LIMIT);
+  return [entry, ...history.filter((item) => !sameUrl({ left: item.url, right: url }))].slice(0, HISTORY_LIMIT);
 }
 
 interface BuildHistoryEntryInput {
@@ -211,8 +206,8 @@ function resolveHistoryMeta(
 ): { iconUrl?: string; title: string } {
   // `isHistoryUrl` above already excludes `EMPTY_URL`, so `labelFromUrl`'s
   // home-label branch can never trigger here — no `homeLabel` option to pass.
-  const title = meta.title?.trim() || existing?.title || labelFromUrl(url);
-  const iconUrl = cleanIconUrl(meta.iconUrl) || existing?.iconUrl || faviconUrl(url);
+  const title = meta.title?.trim() || existing?.title || labelFromUrl({ url });
+  const iconUrl = cleanIconUrl(meta.iconUrl) || existing?.iconUrl || faviconUrl({ url });
   return iconUrl !== undefined ? { iconUrl, title } : { title };
 }
 
@@ -230,12 +225,11 @@ function sameHistoryEntryState(left: BrowserHistoryEntry, right: BrowserHistoryE
 // ---------------------------------------------------------------------------
 
 export function initialNavigationState(
-  initialUrl?: string,
-  initialTitle?: string,
-  homeEntry: BrowserNavigationEntry = DEFAULT_HOME_NAVIGATION_ENTRY,
+  _input: Record<string, never>,
+  { initialUrl, initialTitle, homeEntry = DEFAULT_HOME_NAVIGATION_ENTRY }: { initialUrl?: string | undefined; initialTitle?: string | undefined; homeEntry?: BrowserNavigationEntry | undefined } = {},
 ): BrowserNavigationState & { url: string; addressValue: string } {
   const trimmedUrl = initialUrl?.trim();
-  const url = trimmedUrl && isHistoryUrl(trimmedUrl) ? trimmedUrl : EMPTY_URL;
+  const url = trimmedUrl && isHistoryUrl({ url: trimmedUrl }) ? trimmedUrl : EMPTY_URL;
   if (url === EMPTY_URL) {
     return {
       addressValue: '',
@@ -244,7 +238,7 @@ export function initialNavigationState(
       url,
     };
   }
-  const title = initialTitle?.trim() || labelFromUrl(url, homeEntry.title);
+  const title = initialTitle?.trim() || labelFromUrl({ url }, { homeLabel: homeEntry.title });
   return {
     addressValue: url,
     navigationIndex: 0,
@@ -267,12 +261,10 @@ export interface RecordNavigationOptions {
  * browser's history uses.
  */
 export function recordNavigation(
-  state: BrowserNavigationState,
-  url: string,
-  title?: string,
-  options: RecordNavigationOptions = {},
+  { state, url }: { state: BrowserNavigationState; url: string },
+  { title, options = {} }: { title?: string | undefined; options?: RecordNavigationOptions | undefined } = {},
 ): BrowserNavigationState {
-  if (url !== EMPTY_URL && !isHistoryUrl(url)) return state;
+  if (url !== EMPTY_URL && !isHistoryUrl({ url })) return state;
 
   const { navigationStack: stack, navigationIndex: index } = state;
   const nextTitle = navigationTitle({ url }, { title, homeLabel: options.homeLabel });
@@ -299,7 +291,7 @@ function navigationTitle({ url }: { url: string }, { title, homeLabel }: { title
   // custom label correctly. Falls back to the generic default only when no
   // homeLabel is supplied.
   if (url === EMPTY_URL) return homeLabel ?? DEFAULT_HOME_NAVIGATION_ENTRY.title;
-  return title?.trim() || labelFromUrl(url, homeLabel);
+  return title?.trim() || labelFromUrl({ url }, { homeLabel });
 }
 
 interface RejoinTarget {
@@ -319,16 +311,16 @@ function findRejoinTarget(
 ): RejoinTarget | undefined {
   const { navigationStack: stack, navigationIndex: index } = state;
   const current = stack[index];
-  const replacingCurrent = current && replacePendingTarget && pendingTarget && sameUrl(current.url, pendingTarget);
-  if (current && (sameUrl(current.url, url) || replacingCurrent)) {
+  const replacingCurrent = current && replacePendingTarget && pendingTarget && sameUrl({ left: current.url, right: pendingTarget });
+  if (current && (sameUrl({ left: current.url, right: url }) || replacingCurrent)) {
     return { index, entry: current };
   }
   return [index - 1, index + 1]
     .map((candidate) => ({ index: candidate, entry: stack[candidate] }))
-    .find((target): target is RejoinTarget => target.entry !== undefined && sameUrl(target.entry.url, url));
+    .find((target): target is RejoinTarget => target.entry !== undefined && sameUrl({ left: target.entry.url, right: url }));
 }
 
-export function updateCurrentNavigationTitle(state: BrowserNavigationState, title?: string): BrowserNavigationState {
+export function updateCurrentNavigationTitle({ state }: { state: BrowserNavigationState }, { title }: { title?: string | undefined } = {}): BrowserNavigationState {
   const trimmedTitle = title?.trim();
   const { navigationStack: stack, navigationIndex: index } = state;
   if (!trimmedTitle || index < 0) return state;
@@ -346,8 +338,8 @@ export interface NavigationHistoryDeltaResult {
 
 /** Resolves a back (`delta: -1`) or forward (`delta: 1`) step. Returns `null` at either end of the stack. */
 export function resolveNavigationHistoryDelta(
-  state: BrowserNavigationState,
-  delta: -1 | 1,
+  { state, delta }: { state: BrowserNavigationState; delta: -1 | 1 },
+  _optional: Record<string, never> = {},
 ): NavigationHistoryDeltaResult | null {
   const targetIndex = state.navigationIndex + delta;
   const entry = state.navigationStack[targetIndex];

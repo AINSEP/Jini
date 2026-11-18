@@ -302,12 +302,12 @@ export function renderSurfaceDocument(spec: SurfaceDocumentSpec): string {
   const detailCss = hasDisclosures ? STRUCTURED_DETAILS_CSS : '';
   const detailScript = hasDisclosures ? `\n${DETAIL_DISCLOSURE_SCRIPT}` : '';
   return `<!doctype html>
-<html lang="${escapeHtml(spec.lang ?? 'en')}">
+<html lang="${escapeHtml({ value: spec.lang ?? 'en' })}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="${SURFACE_CSP}">
-<title>${escapeHtml(spec.title)}</title>
+<title>${escapeHtml({ value: spec.title })}</title>
 <style>
 ${renderTokenBlock(spec.tokens)}
 ${SURFACE_BASE_CSS}${detailCss}${extraCss}
@@ -336,8 +336,8 @@ ${spec.script}${detailScript}
  */
 export function renderSurfaceHeader(spec: { title: string; description?: string }): string {
   const description =
-    spec.description === undefined ? '' : `\n<p class="mcpui-description">${escapeHtml(spec.description)}</p>`;
-  return `<h1 class="mcpui-title">${escapeHtml(spec.title)}</h1>${description}`;
+    spec.description === undefined ? '' : `\n<p class="mcpui-description">${escapeHtml({ value: spec.description })}</p>`;
+  return `<h1 class="mcpui-title">${escapeHtml({ value: spec.title })}</h1>${description}`;
 }
 
 /**
@@ -348,15 +348,15 @@ export function renderSurfaceHeader(spec: { title: string; description?: string 
  * as a list with no items, which is worse than no list.
  * @complexity O(n * depth) with previous snapshots, otherwise O(n) rendered bytes; no effects or input mutation.
  */
-export function renderDetailList(details: readonly SurfaceDetail[], options: { layout?: 'outcome' } = {}): string {
+export function renderDetailList({ details }: { details: readonly SurfaceDetail[] }, options: { layout?: 'outcome' } = {}): string {
   if (details.length === 0) return '';
   const outcome = options.layout === 'outcome';
   const rows = details
     .map((detail) => {
       const body = renderStructuredDetail({ detail });
-      const description = detail.description === undefined ? '' : `<span class="mcpui-hint">${escapeHtml(detail.description)}</span>`;
-      const valueClass = detail.format === 'status' && typeof detail.value === 'string' ? ` class="mcpui-detail-status" title="${escapeHtml(detail.value)}"` : '';
-      const pair = `<dt>${escapeHtml(detail.label)}${description}</dt><dd${valueClass}>${body}</dd>`;
+      const description = detail.description === undefined ? '' : `<span class="mcpui-hint">${escapeHtml({ value: detail.description })}</span>`;
+      const valueClass = detail.format === 'status' && typeof detail.value === 'string' ? ` class="mcpui-detail-status" title="${escapeHtml({ value: detail.value })}"` : '';
+      const pair = `<dt>${escapeHtml({ value: detail.label })}${description}</dt><dd${valueClass}>${body}</dd>`;
       return outcome ? `  <div class="mcpui-outcome-row">${pair}</div>` : `  ${pair}`;
     })
     .join('\n');
@@ -441,7 +441,7 @@ const FIELD_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_.-]*$/;
  * @throws If the name is not a valid field name. Thrown rather than sanitized, because silently
  * rewriting a caller's field name would change the key of the params the tool receives.
  */
-export function fieldElementId(name: string): string {
+export function fieldElementId({ name }: { name: string }, _optional: Record<string, never> = {}): string {
   if (!FIELD_NAME_PATTERN.test(name)) {
     throw new Error(`Invalid MCP-UI field name ${JSON.stringify(name)}: expected /${FIELD_NAME_PATTERN.source}/.`);
   }
@@ -466,14 +466,14 @@ export function renderFieldLabel(spec: {
   const hint =
     spec.hint === undefined
       ? ''
-      : `\n<span class="mcpui-hint" id="${escapeHtml(fieldElementId(spec.name))}-hint">${escapeHtml(spec.hint)}</span>`;
-  return `<label class="mcpui-label${spec.labelHidden === true ? ` ${VISUALLY_HIDDEN_CLASS}` : ''}" for="${escapeHtml(fieldElementId(spec.name))}">${escapeHtml(spec.label)}${required}</label>${hint}`;
+      : `\n<span class="mcpui-hint" id="${escapeHtml({ value: fieldElementId({ name: spec.name }) })}-hint">${escapeHtml({ value: spec.hint })}</span>`;
+  return `<label class="mcpui-label${spec.labelHidden === true ? ` ${VISUALLY_HIDDEN_CLASS}` : ''}" for="${escapeHtml({ value: fieldElementId({ name: spec.name }) })}">${escapeHtml({ value: spec.label })}${required}</label>${hint}`;
 }
 
 /** The `aria-describedby` attribute pointing at a field's hint, or `''` when it has none. */
 export function fieldDescribedBy(spec: { name: string; hint?: string }): string {
   if (spec.hint === undefined) return '';
-  return ` aria-describedby="${escapeHtml(fieldElementId(spec.name))}-hint"`;
+  return ` aria-describedby="${escapeHtml({ value: fieldElementId({ name: spec.name }) })}-hint"`;
 }
 
 /** One button in a surface's action row. */
@@ -523,12 +523,12 @@ export interface SurfaceAction {
  * @overallScore 98/100
  * @qualityFindings Low: The legacy array-first signature remains a compatibility exception to object arguments.
  */
-export function renderActions(actions: readonly SurfaceAction[], { humanOnly = false }: { humanOnly?: boolean } = {}): string {
+export function renderActions({ actions }: { actions: readonly SurfaceAction[] }, { humanOnly = false }: { humanOnly?: boolean } = {}): string {
   const buttons = actions
     .map((action) => {
       const variant = action.variant ?? 'neutral';
       const variantClass = variant === 'neutral' ? '' : ` mcpui-button-${variant}`;
-      const label = escapeHtml(action.label);
+      const label = escapeHtml({ value: action.label });
       // `mcpui-action-<id>` rather than the bare id: every id observed across this package's own
       // builders ('confirm', 'cancel', 'submit') already satisfies the agentic package's stricter
       // `[a-z0-9]+(-[a-z0-9]+)*` handle pattern, but `SurfaceAction.id` is typed as a plain `string`
@@ -538,8 +538,8 @@ export function renderActions(actions: readonly SurfaceAction[], { humanOnly = f
       // can never reach this document to resolve it either way), so failing loudly here would refuse
       // markup for a reason that can never matter to the one consumer that can actually query it.
       const addressing = humanOnly ? AGENT_PRIVATE_ATTRIBUTE
-        : `${AGENT_ELEMENT_ATTRIBUTE}="mcpui-action-${escapeHtml(action.id)}" ${AGENT_ROLE_ATTRIBUTE}="button" ${AGENT_LABEL_ATTRIBUTE}="${label}"`;
-      return `  <button type="${action.type ?? 'button'}" class="mcpui-button${variantClass}" data-mcpui-action="${escapeHtml(action.id)}" ${addressing}${action.disabled === true ? ' disabled' : ''}>${label}</button>`;
+        : `${AGENT_ELEMENT_ATTRIBUTE}="mcpui-action-${escapeHtml({ value: action.id })}" ${AGENT_ROLE_ATTRIBUTE}="button" ${AGENT_LABEL_ATTRIBUTE}="${label}"`;
+      return `  <button type="${action.type ?? 'button'}" class="mcpui-button${variantClass}" data-mcpui-action="${escapeHtml({ value: action.id })}" ${addressing}${action.disabled === true ? ' disabled' : ''}>${label}</button>`;
     })
     .join('\n');
   return `<div class="mcpui-actions">\n${buttons}\n</div>`;

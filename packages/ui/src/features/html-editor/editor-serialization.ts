@@ -4,7 +4,7 @@ import { indexElementSourceRanges, pathKey, spliceElementInner, type ElementPath
 import type { PreparedEditorSource } from './editor-blocks.js';
 import { assertProtectedSourceMetadata, EditorSourceError } from './protected-elements.js';
 
-/** One accumulated text edit, keyed by `pathKey(path)` in the caller's `dirty` map: the element-only
+/** One accumulated text edit, keyed by `pathKey({ path })` in the caller's `dirty` map: the element-only
  *  path and tag name `spliceElementInner` needs to locate and verify the target, plus the edited
  *  component itself. Its inner HTML is read at serialize time, not recorded here: GrapesJS fires
  *  `rte:disable` BEFORE `syncContent` writes the edited text into the model, so a snapshot taken at
@@ -54,7 +54,7 @@ function serializeCleaned(editor: Editor): string {
   // (`assertProtectedSourceMetadata`) before reaching here. The old `: editor.getHtml()` fallback for a
   // missing wrapper was therefore unreachable and is gone.
   const html = editor.getWrapper()!.getInnerHTML();
-  return css ? `<style>${prettifyCss(css)}</style>${html}` : html;
+  return css ? `<style>${prettifyCss({ css })}</style>${html}` : html;
 }
 
 /**
@@ -103,23 +103,23 @@ function serializeWithSplice(
     return serializeCleaned(editor);
   }
 
-  const originalIndex = indexElementSourceRanges(original);
+  const originalIndex = indexElementSourceRanges({ html: original });
   const ordered = [...dirty.values()].sort((a, b) => {
-    const aStart = originalIndex.get(pathKey(a.path))?.start ?? -1;
-    const bStart = originalIndex.get(pathKey(b.path))?.start ?? -1;
+    const aStart = originalIndex.get(pathKey({ path: a.path }))?.start ?? -1;
+    const bStart = originalIndex.get(pathKey({ path: b.path }))?.start ?? -1;
     return bStart - aStart;
   });
 
   let result = original;
   for (const edit of ordered) {
-    const range = originalIndex.get(pathKey(edit.path));
+    const range = originalIndex.get(pathKey({ path: edit.path }));
     if (range && sourcePlan.instances.some(raw => range.start < raw.outerEnd && range.end > raw.outerStart)) {
       warnFallback('text edit overlaps a protected source region');
       return serializeCleaned(editor);
     }
-    const spliced = spliceElementInner(result, edit.path, edit.tagName, edit.component.getInnerHTML());
+    const spliced = spliceElementInner({ html: result, path: edit.path, expectedTagName: edit.tagName, newInner: edit.component.getInnerHTML() });
     if (spliced === null) {
-      warnFallback(`element at path "${pathKey(edit.path)}" could not be spliced (removed, or its tag drifted)`);
+      warnFallback(`element at path "${pathKey({ path: edit.path })}" could not be spliced (removed, or its tag drifted)`);
       return serializeCleaned(editor);
     }
     result = spliced;

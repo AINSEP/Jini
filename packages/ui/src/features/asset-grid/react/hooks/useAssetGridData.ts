@@ -50,18 +50,18 @@ export function useAssetGridData<TAsset extends AssetGridItem>(
   }, [mapKindToQuery]);
 
   const query = useMemo(
-    () => buildAssetGridQuery(kind, source, debouncedSearch, mapKindToQuery),
+    () => buildAssetGridQuery({ kind, source, search: debouncedSearch }, { mapKindToQuery }),
     [kind, source, debouncedSearch, mapKindToQuery],
   );
 
   const reload = useCallback(async () => {
     setLoading(true);
-    const liveQuery = buildAssetGridQuery(kind, source, debouncedSearch, mapKindToQueryRef.current);
+    const liveQuery = buildAssetGridQuery({ kind, source, search: debouncedSearch }, { mapKindToQuery: mapKindToQueryRef.current });
     const fetched = await data.fetchAssets(liveQuery);
     const matches =
       matchesKindFilterRef.current ??
-      ((asset: TAsset, filterValue: string) => defaultMatchesKindFilter(asset, filterValue, getKindRef.current));
-    setAssets(filterByKind(fetched, kind, matches));
+      ((asset: TAsset, filterValue: string) => defaultMatchesKindFilter({ asset, filterValue, getKind: getKindRef.current }));
+    setAssets(filterByKind({ items: fetched, filterValue: kind, matches }));
     setLoading(false);
   }, [data, kind, source, debouncedSearch]);
 

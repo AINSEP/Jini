@@ -51,7 +51,7 @@ export function useAssetGridKeyboardShortcuts(params: UseAssetGridKeyboardShortc
   useGlobalKeydown({
     handler: (e) => {
       if (!enabled) return;
-      const typing = isTypingTarget(document.activeElement);
+      const typing = isTypingTarget({ el: document.activeElement });
       if ((e.metaKey || e.ctrlKey) && (e.key === 'a' || e.key === 'A')) {
         if (typing || !hasAssets) return;
         e.preventDefault();

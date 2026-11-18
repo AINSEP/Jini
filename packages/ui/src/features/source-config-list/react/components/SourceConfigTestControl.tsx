@@ -43,7 +43,7 @@ export function SourceConfigTestControl({ running, result, disabled = false, age
     <div className="source-config-test-control">
       <div
         className="source-config-test-control-status"
-        {...sourceConfigAgentProps(agentHandle, {
+        {...sourceConfigAgentProps({ base: agentHandle,
           role: 'status',
           label: t('Connection test result'),
           action: 'status',
@@ -54,7 +54,7 @@ export function SourceConfigTestControl({ running, result, disabled = false, age
       <button
         type="button"
         className="source-config-test-button"
-        {...sourceConfigAgentProps(agentHandle, { role: 'button', label: t('Test connection') })}
+        {...sourceConfigAgentProps({ base: agentHandle, role: 'button', label: t('Test connection') })}
         onClick={onTest}
         disabled={disabled || running}
       >

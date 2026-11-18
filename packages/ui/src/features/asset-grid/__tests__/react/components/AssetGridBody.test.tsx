@@ -10,7 +10,7 @@ interface TestAsset {
   day: string;
 }
 
-const today = localDayKey(new Date());
+const today = localDayKey({ date: new Date() });
 const assets: TestAsset[] = [
   { id: 'a', day: today },
   { id: 'b', day: today },
