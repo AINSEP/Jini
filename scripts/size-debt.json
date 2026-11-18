@@ -714,13 +714,6 @@
     "value": 124
   },
   {
-    "file": "packages/sidecar/src/supervision/supervisor.ts",
-    "function": "createDaemonSupervisor",
-    "line": 89,
-    "rule": "max-lines-per-function",
-    "value": 208
-  },
-  {
     "file": "packages/ui/src/features/admin-widgets/components/Select/Select.tsx",
     "function": "SelectPanel",
     "line": 91,
@@ -943,33 +936,5 @@
     "line": 344,
     "rule": "max-lines-per-function",
     "value": 186
-  },
-  {
-    "file": "packages/vibecoding/src/core/session.ts",
-    "function": "createVibecodingSession",
-    "line": 111,
-    "rule": "max-lines-per-function",
-    "value": 126
-  },
-  {
-    "file": "packages/vibecoding/src/html/regions.ts",
-    "function": "createHtmlRegionTarget",
-    "line": 186,
-    "rule": "max-lines-per-function",
-    "value": 86
-  },
-  {
-    "file": "packages/vibecoding/src/node/project.ts",
-    "function": "assembleProject",
-    "line": 139,
-    "rule": "max-lines-per-function",
-    "value": 181
-  },
-  {
-    "file": "packages/vibecoding/src/node/store.ts",
-    "function": "createProjectStore",
-    "line": 178,
-    "rule": "max-lines-per-function",
-    "value": 246
   }
 ]
