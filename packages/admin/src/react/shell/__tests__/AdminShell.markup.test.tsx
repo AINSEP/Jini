@@ -30,3 +30,8 @@ it('renders the open-drawer markup unchanged when no new slot is supplied', () =
   getByRole('button', { name: 'Open navigation' }).click();
   expect(container.innerHTML.replace(/_r_[0-9a-z]+_/g, ':id:')).toMatchSnapshot();
 });
+
+it('the topbar toggle icon has round line caps (markup parity with the host the shell replaces)', () => {
+  const { getByRole } = render(<AdminShell {...shellProps('/')} />);
+  expect(getByRole('button', { name: 'Open navigation' }).querySelector('path')).toHaveAttribute('stroke-linecap', 'round');
+});
