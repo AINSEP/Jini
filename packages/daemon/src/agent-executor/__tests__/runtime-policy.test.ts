@@ -10,6 +10,7 @@ import { createRunLifecycle } from '../../run-lifecycle.js';
 import { createInMemoryEventLog } from '../../event-log.js';
 import { fixtureModelDiscovery } from './model-discovery-fixture.js';
 import type { McpJsonInjectionOptions } from '../index.js';
+import { runtimeFixture } from './runtime-fixture.js';
 
 class FakeChild extends EventEmitter {
   stdin = new PassThrough();
@@ -33,17 +34,17 @@ async function startFixture(
   const calls: { args: readonly string[]; env: NodeJS.ProcessEnv | undefined }[] = [];
   const def: RuntimeAgentDef = { ...getAgentDef({ id: agentId })!, ...fixtureModelDiscovery,
     ...(['claude', 'codex'].includes(agentId) ? { mcpIsolation: { perRun: 'fixture@2026-11-05' } } : {}) };
-  const executor = createAgentExecutor({ lifecycle }, {
-    ...policies, hostEnv, ...(ownRuntimeState ? { runtimeState: createAgentRuntimeState({}) } : {}),
+  const executor = createAgentExecutor({ lifecycle, hostEnv: hostEnv, runtime: runtimeFixture({ spawn: ((_command: string, args: readonly string[], options: { env?: NodeJS.ProcessEnv }) => {
+      calls.push({ args, env: options.env });
+      queueMicrotask(() => child.emit('spawn'));
+      return child as unknown as ChildProcess;
+    }) as typeof nodeSpawn }) }, {
+    ...policies,  ...(ownRuntimeState ? { runtimeState: createAgentRuntimeState({}) } : {}),
     getAgentDef: () => def,
     resolveAgentLaunch: () => ({ selectedPath: '/fake/cli', pathResolvedPath: '/fake/cli',
       configuredOverridePath: null, launchPath: '/fake/cli', launchKind: 'selected', childPathPrepend: [], diagnostic: null }),
     applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {},
-    spawn: ((_command: string, args: readonly string[], options: { env?: NodeJS.ProcessEnv }) => {
-      calls.push({ args, env: options.env });
-      queueMicrotask(() => child.emit('spawn'));
-      return child as unknown as ChildProcess;
-    }) as typeof nodeSpawn,
+    
   });
   const { run } = await lifecycle.start({ contextRef: 'host-policy' });
   await executor.run({ runId: run.id, agentId, prompt: 'question', cwd: '/missing-fixture-workspace' }, runPolicy);

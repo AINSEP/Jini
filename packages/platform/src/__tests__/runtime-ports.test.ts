@@ -2,7 +2,8 @@ import { mkdtemp, readFile, rm, writeFile, access } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createProcessControlPort, nodeProcessControl, type ProcessFunctions } from '../runtime-ports/process.js';
+import { spawn as realSpawn, type ChildProcess, type SpawnOptions } from 'node:child_process';
+import { createProcessControlPort, createSpawnPort, nodeCommandShell, nodeProcessControl, type ProcessFunctions } from '../runtime-ports/process.js';
 import { nodeAtomicWriter, nodeFileLock } from '../runtime-ports/fs.js';
 
 const stopped = { alreadyStopped: false, forcedPids: [], matchedPids: [3], remainingPids: [], stoppedPids: [3] };
@@ -48,10 +49,60 @@ describe('createProcessControlPort argument shapes', () => {
   });
 });
 
+describe('createSpawnPort argument shape', () => {
+  const child = { pid: 42 } as ChildProcess;
+
+  it('hands spawn the command, a new mutable copy of the args, and the options, and returns the child itself', () => {
+    const spawn = vi.fn((_command: string, _args: string[], _options: SpawnOptions) => child);
+    const port = createSpawnPort({ spawn });
+    const args = ['--mode', 'plan', 'a b'] as const;
+    const options: SpawnOptions = { cwd: '/work', stdio: 'pipe' };
+    expect(port({ command: '/bin/agent', args }, options)).toBe(child);
+    const [command, received, passed] = spawn.mock.calls[0]!;
+    expect(command).toBe('/bin/agent');
+    expect(received).toEqual(['--mode', 'plan', 'a b']);
+    expect(received).not.toBe(args);
+    expect(passed).toBe(options);
+  });
+
+  it('defaults absent options to an empty object, and returns synchronously (never a promise)', () => {
+    const spawn = vi.fn((_command: string, _args: string[], _options: SpawnOptions) => child);
+    const result = createSpawnPort({ spawn })({ command: 'x', args: [] });
+    expect(spawn.mock.calls[0]![2]).toEqual({});
+    expect(result).not.toBeInstanceOf(Promise);
+  });
+
+  it('lets a throwing spawn throw in the same turn', () => {
+    const port = createSpawnPort({ spawn: () => { throw new Error('EACCES'); } });
+    expect(() => port({ command: 'x', args: [] })).toThrow('EACCES');
+  });
+});
+
+describe('nodeCommandShell', () => {
+  it('states the running platform by default, takes the ComSpec from the env the host passes, and a given platform wins', () => {
+    expect(nodeCommandShell({ env: { ComSpec: 'C:\\cmd.exe' } })).toEqual({ platform: process.platform, fallbackComSpec: 'C:\\cmd.exe' });
+    expect(nodeCommandShell({ env: { ComSpec: 'C:\\cmd.exe' } }, { platform: 'win32' })).toEqual({ platform: 'win32', fallbackComSpec: 'C:\\cmd.exe' });
+    expect(nodeCommandShell({ env: {} }, { platform: 'linux' })).toEqual({ platform: 'linux', fallbackComSpec: undefined });
+  });
+});
+
 describe('node runtime ports over the real platform functions', () => {
   const roots: string[] = [];
   afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))); });
   const scratch = async (): Promise<string> => { const root = await mkdtemp(join(tmpdir(), 'runtime-ports-')); roots.push(root); return root; };
+
+  // Moved from daemon's launch-defaults suite: daemon no longer defaults to the real stopper, so the
+  // proof that the real one stops a live process lives with the binding that owns it.
+  it('stopProcesses stops a live process with SIGTERM', async () => {
+    const sleeper = realSpawn('sleep', ['30'], { stdio: 'ignore' });
+    const exited = new Promise<NodeJS.Signals | null>((resolve) => sleeper.once('exit', (_code, signal) => resolve(signal)));
+    try {
+      await expect(nodeProcessControl.stopProcesses({ pids: [sleeper.pid] })).resolves.toMatchObject({ alreadyStopped: false });
+      expect(await exited).toBe('SIGTERM');
+    } finally {
+      sleeper.kill('SIGKILL');
+    }
+  });
 
   it('stopProcesses with only unusable pids reports alreadyStopped without touching anything', async () => {
     await expect(nodeProcessControl.stopProcesses({ pids: [null, undefined] })).resolves.toMatchObject({ alreadyStopped: true });

@@ -499,16 +499,16 @@
   {
     "file": "packages/daemon/src/agent-executor/events.ts",
     "function": "<file>",
-    "line": 812,
+    "line": 820,
     "rule": "max-lines",
-    "value": 930
+    "value": 926
   },
   {
     "file": "packages/daemon/src/agent-executor/launch.ts",
     "function": "<file>",
-    "line": 826,
+    "line": 848,
     "rule": "max-lines",
-    "value": 1048
+    "value": 1026
   },
   {
     "file": "packages/daemon/src/agent-executor/launch.ts",

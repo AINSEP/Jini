@@ -37,6 +37,9 @@ import {
 } from '@jini-ai/daemon';
 import { openSqliteEventLog } from '@jini-ai/daemon/store/event-log/sqlite';
 import { createSystemClock } from '@jini-ai/platform/system';
+import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/platform/runtime-ports/fs';
+import { nodeCommandShell, nodeProcessControl, nodeSpawnPort } from '@jini-ai/platform/runtime-ports/process';
+import type { AgentExecutorRuntimePorts } from '@jini-ai/daemon/ports/runtime';
 
 /** Where a composition's durable state lives. */
 export type JiniKernelStorage =
@@ -81,7 +84,8 @@ export interface JiniKernelBase {
 export interface CreateJiniKernelBaseOptions {
   readonly storage: JiniKernelStorage;
   /** Extra `createAgentExecutor` options (e.g. `mcpJsonInjection`). `lifecycle`/`journal`/`classifyFailure` are kernel-owned. */
-  readonly agentExecutor?: Omit<NonNullable<Parameters<typeof createAgentExecutor>[1]>, 'journal' | 'classifyFailure'>;
+  readonly agentExecutor?: Omit<NonNullable<Parameters<typeof createAgentExecutor>[1]>, 'journal' | 'classifyFailure'>
+    & Partial<Pick<Parameters<typeof createAgentExecutor>[0], 'hostEnv' | 'runtime'>>;
   /** Optional AI-run tracing: every run's normalized agent events are also recorded to `sink`. Absent = no tracing, no cost. */
   readonly aiTrace?: AiTracingOptions & { readonly sink: AiTraceSink };
 }
@@ -124,6 +128,11 @@ function createKernelAgentRuntime(
     ...(options.agentExecutor?.codexDisablePlugins !== undefined ? { codex: { disablePlugins: options.agentExecutor.codexDisablePlugins } } : {}),
     ...(options.agentExecutor?.piGracefulShutdownMs !== undefined ? { pi: { gracefulShutdownMs: options.agentExecutor.piGracefulShutdownMs } } : {}),
   });
+}
+
+/** The Node implementations of the OS-facing ports one agent executor needs, bound once from platform. */
+function nodeAgentExecutorRuntime({ hostEnv }: { hostEnv: NodeJS.ProcessEnv }, _optional: Record<string, never> = {}): AgentExecutorRuntimePorts {
+  return { spawn: nodeSpawnPort, processes: nodeProcessControl, fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell({ env: hostEnv }) };
 }
 
 /** Until the executor takes the bound runtime port (R8b), it still receives the two definition policies by value. */
@@ -213,10 +222,11 @@ export async function createJiniKernelBase(options: CreateJiniKernelBaseOptions)
   const { eventLog, journalEventLog, lifecycle, disposeTracing, journal, sqlite } = await openKernelStorage({ options });
 
   const agentRuntime = createKernelAgentRuntime({ options });
-  const agentExecutor = createAgentExecutor({ lifecycle }, {
-    ...options.agentExecutor,
+  // The preset is a Node host: it binds the Node implementations unless the caller supplies its own.
+  const { runtime = nodeAgentExecutorRuntime({ hostEnv: agentRuntime.hostEnv }), ...executorOptions } = options.agentExecutor ?? {};
+  const agentExecutor = createAgentExecutor({ lifecycle, runtime, hostEnv: agentRuntime.hostEnv }, {
+    ...executorOptions,
     runtimeState: agentRuntime.state,
-    hostEnv: agentRuntime.hostEnv,
     ...executorDefinitionPolicies({ agentRuntime }),
     journal,
     classifyFailure: classifyRunFailureForRetry,

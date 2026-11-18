@@ -6,8 +6,9 @@ import { randomUUID } from 'node:crypto';
 import { supportsMessageRelay, type RunMessageRelay } from './message-relay.js';
 import type { MessageAttachmentImage } from '../attachment-content.js';
 import { probeMcpBridge } from './mcp-bridge-probe.js';
+import { createCommandPlanner, createProcessTreeDeps } from './runtime-bindings.js';
+import type { ProcessSpawnPort } from '../ports/process.js';
 import {
-  spawn as nodeSpawn,
   type ChildProcess,
 } from 'node:child_process';
 import {
@@ -52,12 +53,7 @@ import {
   type RuntimeAgentDef,
   type RuntimeBuildOptions, type RuntimeContext,
 } from '@jini-ai/core/contracts/agents';
-import { createCommandInvocation } from '@jini-ai/platform/command';
-import {
-  listProcessSnapshots,
-  stopProcesses,
-} from '@jini-ai/platform/process';
-import { collectProcessTreePids } from '@jini-ai/core/contracts/runtime';
+import type { CommandInvocation } from '@jini-ai/core/contracts/runtime';
 import {
   applyImagePromptDelivery,
   type ImagePromptDelivery,
@@ -71,8 +67,6 @@ import {
   AgentExecutorError,
   type AgentExecutorRunInput,
   type AgentExecutor,
-  type CollectProcessTreePidsPort,
-  type StopProcessesPort,
   type AgentCleanupFailureContext,
   type McpBridgeDelivery,
   type PreparedCodexHome,
@@ -282,25 +276,6 @@ function resolveAgentRuntimeDeps(
     }),
     preparePromptFileForAgent: options.preparePromptFileForAgent ?? preparePromptFileForAgent,
     prepareAgentLogFile: options.prepareAgentLogFile ?? prepareAgentLogFile,
-  };
-}
-
-interface ResolvedProcessDeps {
-  readonly createCommandInvocation: typeof createCommandInvocation;
-  readonly spawn: typeof nodeSpawn;
-  readonly listProcessSnapshots: typeof listProcessSnapshots;
-  readonly collectProcessTreePids: CollectProcessTreePidsPort;
-  readonly stopProcesses: StopProcessesPort;
-}
-
-/** Resolves the OS-process-facing collaborator seams — see {@link resolveAgentRuntimeDeps}'s doc. Pure. */
-function resolveProcessDeps(options: CreateAgentExecutorOptions): ResolvedProcessDeps {
-  return {
-    createCommandInvocation: options.createCommandInvocation ?? createCommandInvocation,
-    spawn: options.spawn ?? nodeSpawn,
-    listProcessSnapshots: options.listProcessSnapshots ?? listProcessSnapshots,
-    collectProcessTreePids: options.collectProcessTreePids ?? (({ processes, rootPids }) => collectProcessTreePids(processes, rootPids)),
-    stopProcesses: options.stopProcesses ?? (({ pids }) => stopProcesses(pids)),
   };
 }
 
@@ -872,13 +847,13 @@ export async function guardWindowsCommandLineBudget({ input, deps }: { readonly 
 export function spawnAgentChildProcess({ input, deps }: { readonly input: {
     readonly cwd: string;
     readonly childEnv: NodeJS.ProcessEnv;
-    readonly invocation: ReturnType<typeof createCommandInvocation>;
-  }; readonly deps: { readonly spawn: typeof nodeSpawn } }
+    readonly invocation: CommandInvocation;
+  }; readonly deps: { readonly spawn: ProcessSpawnPort } }
 ): SpawnAgentChildProcessResult {
   try {
     return {
       kind: 'ok',
-      child: deps.spawn(input.invocation.command, input.invocation.args, {
+      child: deps.spawn({ command: input.invocation.command, args: input.invocation.args }, {
         cwd: input.cwd,
         env: input.childEnv,
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -893,7 +868,7 @@ export function spawnAgentChildProcess({ input, deps }: { readonly input: {
 /** Command preparation is part of pre-spawn staging, so failures must release all owned resources. */
 async function prepareRunCommand({ command, args, env, runId }: { command: string; args: string[]; env: NodeJS.ProcessEnv; runId: string }, {
   createInvocation, release, failBeforeSpawn,
-}: { createInvocation: typeof createCommandInvocation; release: () => Promise<void>; failBeforeSpawn: FailBeforeSpawn }): Promise<ReturnType<typeof createCommandInvocation>> {
+}: { createInvocation: ReturnType<typeof createCommandPlanner>; release: () => Promise<void>; failBeforeSpawn: FailBeforeSpawn }): Promise<CommandInvocation> {
   try { return createInvocation({ command, args, env }); }
   catch {
     await release();
@@ -1006,15 +981,15 @@ function httpMcpPreparationMessage(injection: CreateAgentExecutorOptions['mcpJso
  * @complexity `run()`'s own setup is O(1); steady-state cost is the chosen stream parser's.
  * @overallScore 100/100
  */
-export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOptions, "lifecycle">, optionalArgs: Pick<CreateAgentExecutorOptions, "runtimeState" | "codexDisablePlugins" | "piGracefulShutdownMs" | "hostEnv" | "getAgentDef" | "resolveAgentLaunch" | "resolveModelForLaunch" | "ensureAgentCapabilities" | "assertClaudeFilesystemSupport" | "applyAgentLaunchEnv" | "createCommandInvocation" | "spawn" | "probeMcpBridge" | "attachAcpSession" | "acpPermissionHandler" | "attachPiRpcSession" | "preparePromptFileForAgent" | "prepareAgentLogFile" | "listProcessSnapshots" | "collectProcessTreePids" | "stopProcesses" | "onCleanupFailure" | "journal" | "delegatedResultCorrelation" | "stdoutJournalBlobs" | "continuation" | "classifyFailure" | "mcpJsonInjection" | "claudeConfigDirIsolation" | "claudeConfigDirIsolationEnabled" | "bufferedStdoutMaxBytes" | "promptAugmenter"> = {}): AgentExecutor {
-  // This native composition boundary resolves ambient defaults once, before allowlisting child env.
-  const env = optionalArgs.hostEnv ?? process.env;
+export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOptions, "lifecycle" | "runtime" | "hostEnv">, optionalArgs: Pick<CreateAgentExecutorOptions, "runtimeState" | "codexDisablePlugins" | "piGracefulShutdownMs" | "getAgentDef" | "resolveAgentLaunch" | "resolveModelForLaunch" | "ensureAgentCapabilities" | "assertClaudeFilesystemSupport" | "applyAgentLaunchEnv" | "probeMcpBridge" | "attachAcpSession" | "acpPermissionHandler" | "attachPiRpcSession" | "preparePromptFileForAgent" | "prepareAgentLogFile" | "onCleanupFailure" | "journal" | "delegatedResultCorrelation" | "stdoutJournalBlobs" | "continuation" | "classifyFailure" | "mcpJsonInjection" | "claudeConfigDirIsolation" | "claudeConfigDirIsolationEnabled" | "bufferedStdoutMaxBytes" | "promptAugmenter"> = {}): AgentExecutor {
+  // The host passes its env; nothing here reads the ambient process env.
+  const env = requiredArgs.hostEnv;
   const options: CreateAgentExecutorOptions & { readonly piGracefulShutdownMs: number } = { ...requiredArgs, ...optionalArgs,
     codexDisablePlugins: resolveCodexDisablePlugins(optionalArgs.codexDisablePlugins, env),
     piGracefulShutdownMs: resolvePiGracefulShutdownMs(optionalArgs.piGracefulShutdownMs, env),
   };
   const lifecycle = options.lifecycle;
-  const hostEnv = selectAgentExecutorHostEnv({ env: options.hostEnv ?? process.env }, options.runtimeState ? { runtimeState: options.runtimeState } : {});
+  const hostEnv = selectAgentExecutorHostEnv({ env: options.hostEnv }, options.runtimeState ? { runtimeState: options.runtimeState } : {});
   const {
     getAgentDef: getAgentDefFn,
     resolveAgentLaunch: resolveAgentLaunchFn,
@@ -1025,13 +1000,13 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     preparePromptFileForAgent: preparePromptFileForAgentFn,
     prepareAgentLogFile: prepareAgentLogFileFn,
   } = resolveAgentRuntimeDeps({ ...options, hostEnv });
+  const { runtime } = options;
+  const createCommandInvocationFn = createCommandPlanner({ commandShell: runtime.commandShell });
   const {
-    createCommandInvocation: createCommandInvocationFn,
-    spawn: spawnFn,
     listProcessSnapshots: listProcessSnapshotsFn,
     collectProcessTreePids: collectProcessTreePidsFn,
     stopProcesses: stopProcessesFn,
-  } = resolveProcessDeps(options);
+  } = createProcessTreeDeps({ processes: runtime.processes });
   const { onCleanupFailure: onCleanupFailureFn, bufferedStdoutMaxBytes } = resolveMiscExecutorDeps(options);
   validateStdoutJournalOptions(options);
   const { journal, continuation, classifyFailure, mcpJsonInjection, claudeConfigDirIsolation, promptAugmenter } = options;
@@ -1288,7 +1263,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
           bufferedStdoutMaxBytes,
           expectsJiniBridge: writtenMcpJsonPath !== undefined || httpMcp === true,
           bridgeProbeEntry: bridgeProbeEntryForRun({ mcpBridge }, {}),
-          probeMcpBridge: options.probeMcpBridge ?? probeMcpBridge,
+          probeMcpBridge: options.probeMcpBridge ?? (({ entry }) => probeMcpBridge({ entry, spawn: runtime.spawn, hostEnv })),
         })
       : null;
 
@@ -1666,7 +1641,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // Kept a synchronous call (no `await`) on purpose — see `spawnAgentChildProcess`'s own doc for
     // the microtask-timing race this avoids. The error branch's own cleanup/failBeforeSpawn calls are
     // async, which is fine: no child exists yet on that path, so nothing is racing a listener.
-    const spawnResult = spawnAgentChildProcess({ input: { cwd: input.cwd, childEnv, invocation }, deps: { spawn: spawnFn } });
+    const spawnResult = spawnAgentChildProcess({ input: { cwd: input.cwd, childEnv, invocation }, deps: { spawn: runtime.spawn } });
     if (spawnResult.kind === 'error') {
       await releaseStagedResources();
       await failBeforeSpawn(

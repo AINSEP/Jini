@@ -6,7 +6,7 @@ import { createLiveSessionState } from './live-session-state.js';
 import { createSanitizedLineStream } from './sanitized-line-stream.js';
 import { acceptsMidRunUserMessages, createMessageRelay, type RunMessageRelay } from './message-relay.js';
 import { randomUUID } from 'node:crypto';
-import type { probeMcpBridge, McpBridgeProbeResult } from './mcp-bridge-probe.js';
+import type { McpBridgeProbe, McpBridgeProbeEntry, McpBridgeProbeResult } from './mcp-bridge-probe.js';
 import type { ModelCatalogSnapshot } from '@jini-ai/core/contracts/agents';
 import { createModelReceiptTracker } from './model-receipts.js';
 import { observeRunOutput } from './run-output.js';
@@ -33,10 +33,6 @@ import {
   type PiRpcSession,
 } from '@jini-ai/agent-runtime';
 import { type RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
-import {
-  listProcessSnapshots,
-  stopProcesses,
-} from '@jini-ai/platform/process';
 import {
   classifyRunCloseStatus,
 } from '../close-status.js';
@@ -369,8 +365,8 @@ interface WireChildLifecycleContext extends TerminateChildTreeDeps {
    * {@link MCP_BRIDGE_UNAVAILABLE} instead of letting it continue without the host's tools.
    */
   readonly expectsJiniBridge: boolean;
-  readonly bridgeProbeEntry: Parameters<typeof probeMcpBridge>[0]['entry'] | undefined;
-  readonly probeMcpBridge: typeof probeMcpBridge;
+  readonly bridgeProbeEntry: McpBridgeProbeEntry | undefined;
+  readonly probeMcpBridge: McpBridgeProbe;
 }
 
 /** Keeps exact-byte auditing separate from retained diagnostics on the run's existing FIFO.

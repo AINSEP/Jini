@@ -8,6 +8,9 @@ import { dirname, extname, join, resolve } from 'node:path';
 import { parseRendererToAgentMessage, type RendererToAgentMessage } from '@jini-ai/protocol/a2ui';
 import Database from 'better-sqlite3';
 import { createAgentExecutor } from '@jini-ai/daemon';
+import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/platform/runtime-ports/fs';
+import { nodeCommandShell, nodeProcessControl, nodeSpawnPort } from '@jini-ai/platform/runtime-ports/process';
+import type { AgentExecutorRuntimePorts } from '@jini-ai/daemon/ports/runtime';
 import { createNativeAgentRuntime } from '@jini-ai/agent-runtime';
 import type { ToolRegistration } from '@jini-ai/core';
 import { createDiskAttachmentStore, registerAttachmentRoutes, registerMediaRoutes, registerMemoryRoutes } from '@jini-ai/daemon/http';
@@ -31,6 +34,11 @@ import {
   isLoopbackAddress,
 } from './working-directory-authority.js';
 import { resolveJiniMcpBridge, type JiniMcpBridgeInjection } from './mcp-bridge.js';
+
+/** The Node implementations of the OS-facing ports the agent executor needs, bound from the env this host owns. */
+function executorRuntimeFor({ hostEnv }: { hostEnv: NodeJS.ProcessEnv }, _optional: Record<string, never> = {}): AgentExecutorRuntimePorts {
+  return { spawn: nodeSpawnPort, processes: nodeProcessControl, fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell({ env: hostEnv }) };
+}
 
 const PLAYGROUND_PREFIX = 'playground:';
 
@@ -529,7 +537,7 @@ async function main(): Promise<void> {
               decoded.workingDirectory,
               decoded.project,
             );
-            const executor = createAgentExecutor({ lifecycle }, {
+            const executor = createAgentExecutor({ lifecycle, hostEnv: runtimeExecutorOptions.hostEnv, runtime: executorRuntimeFor({ hostEnv: runtimeExecutorOptions.hostEnv }) }, {
               ...runtimeExecutorOptions,
               // Gives the spawned CLI `execute_delegated_tool`, the agent-native route into the
               // same `ToolExecutor` gate `frontendControl` registers its capabilities behind.

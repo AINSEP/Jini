@@ -65,8 +65,9 @@ import {
   type McpBridgeDelivery,
   type McpJsonInjectionOptions,
   type McpBridgeProbeResult,
-  probeMcpBridge,
+  type McpBridgeProbe,
 } from '../../index.js';
+import { runtimeFixture } from './runtime-fixture.js';
 
 // Fake defs take no stream-json stdin, so every bridged run also carries the mid-run message
 // relay (f40db242) with a fresh per-run nonce.
@@ -365,9 +366,11 @@ interface SpawnCall {
 }
 
 interface HarnessOptions {
+  /** The host env the executor is given (it never reads the ambient process env). Default: empty. */
+  hostEnv?: NodeJS.ProcessEnv;
   delegatedResultCorrelation?: DelegatedResultCorrelation;
   stdoutJournalBlobs?: StdoutJournalBlobPort;
-  probeMcpBridge?: typeof probeMcpBridge;
+  probeMcpBridge?: McpBridgeProbe;
   def?: RuntimeAgentDef | null;
   launchPath?: string | null;
   spawnThrows?: unknown;
@@ -435,7 +438,19 @@ function createHarness(options: HarnessOptions = {}): Harness {
 
   const onCleanupFailure = vi.fn();
 
-  const executor = createAgentExecutor({ lifecycle }, { ...(options.delegatedResultCorrelation ? { delegatedResultCorrelation: options.delegatedResultCorrelation } : {}), ...(options.stdoutJournalBlobs ? { stdoutJournalBlobs: options.stdoutJournalBlobs } : {}), ...(options.probeMcpBridge ? { probeMcpBridge: options.probeMcpBridge } : {}), resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def && def.id === id ? def : null), resolveAgentLaunch: () =>
+  const executor = createAgentExecutor({ lifecycle, hostEnv: options.hostEnv ?? {}, runtime: runtimeFixture({ spawn: fakeSpawn, listProcessSnapshots: async () => {
+      if (options.listProcessSnapshotsRejects !== undefined) throw options.listProcessSnapshotsRejects;
+      const pid = child.pid ?? 0;
+      return [
+        { pid, ppid: 1, command: 'fake-bin' },
+        { pid: pid + 1, ppid: pid, command: 'fake-bin --mcp-helper' },
+      ];
+    }, stopProcesses: async ({ pids }) => {
+      stopProcessesCalls.push([...pids]);
+      if (options.stopProcessesRejects !== undefined) throw options.stopProcessesRejects;
+      const numericPids = pids.filter((pid): pid is number => typeof pid === 'number');
+      return { alreadyStopped: false, forcedPids: [], matchedPids: numericPids, remainingPids: [], stoppedPids: numericPids };
+    } }) }, { ...(options.delegatedResultCorrelation ? { delegatedResultCorrelation: options.delegatedResultCorrelation } : {}), ...(options.stdoutJournalBlobs ? { stdoutJournalBlobs: options.stdoutJournalBlobs } : {}), ...(options.probeMcpBridge ? { probeMcpBridge: options.probeMcpBridge } : {}), resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def && def.id === id ? def : null), resolveAgentLaunch: () =>
       ({
         selectedPath: launchPath,
         pathResolvedPath: launchPath,
@@ -444,21 +459,9 @@ function createHarness(options: HarnessOptions = {}): Harness {
         launchKind: 'selected',
         childPathPrepend: [],
         diagnostic: null,
-      }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, spawn: fakeSpawn, ...(options.preparePromptFileForAgent !== undefined
+      }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env,  ...(options.preparePromptFileForAgent !== undefined
       ? { preparePromptFileForAgent: options.preparePromptFileForAgent }
-      : {}), ...(options.prepareAgentLogFile !== undefined ? { prepareAgentLogFile: options.prepareAgentLogFile } : {}), listProcessSnapshots: async () => {
-      if (options.listProcessSnapshotsRejects !== undefined) throw options.listProcessSnapshotsRejects;
-      const pid = child.pid ?? 0;
-      return [
-        { pid, ppid: 1, command: 'fake-bin' },
-        { pid: pid + 1, ppid: pid, command: 'fake-bin --mcp-helper' },
-      ];
-    }, stopProcesses: async ({ pids }) => {
-      stopProcessesCalls.push(pids);
-      if (options.stopProcessesRejects !== undefined) throw options.stopProcessesRejects;
-      const numericPids = pids.filter((pid): pid is number => typeof pid === 'number');
-      return { alreadyStopped: false, forcedPids: [], matchedPids: numericPids, remainingPids: [], stoppedPids: numericPids };
-    }, onCleanupFailure, ...(options.journal !== undefined ? { journal: options.journal } : {}), ...(options.continuation !== undefined ? { continuation: options.continuation } : {}), ...(options.classifyFailure !== undefined ? { classifyFailure: options.classifyFailure } : {}), ...(options.mcpJsonInjection !== undefined ? { mcpJsonInjection: options.mcpJsonInjection } : {}), ...(options.claudeConfigDirIsolation !== undefined
+      : {}), ...(options.prepareAgentLogFile !== undefined ? { prepareAgentLogFile: options.prepareAgentLogFile } : {}),   onCleanupFailure, ...(options.journal !== undefined ? { journal: options.journal } : {}), ...(options.continuation !== undefined ? { continuation: options.continuation } : {}), ...(options.classifyFailure !== undefined ? { classifyFailure: options.classifyFailure } : {}), ...(options.mcpJsonInjection !== undefined ? { mcpJsonInjection: options.mcpJsonInjection } : {}), ...(options.claudeConfigDirIsolation !== undefined
       ? { claudeConfigDirIsolation: options.claudeConfigDirIsolation }
       : {}), ...(options.claudeConfigDirIsolationEnabled !== undefined
       ? { claudeConfigDirIsolationEnabled: options.claudeConfigDirIsolationEnabled }
@@ -1124,7 +1127,9 @@ describe('AgentExecutor — cancellation', () => {
       return child as unknown as ChildProcess;
     }) as unknown as typeof nodeSpawn;
     const def = createFakeDef();
-    const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: () => def, resolveAgentLaunch: () =>
+    const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: fakeSpawn, listProcessSnapshots: async () => [{ pid: 4242, ppid: 1, command: 'fake-bin' }], stopProcesses: async () => {
+        throw new Error('EPERM: secret/token/abc123 not permitted');
+      } }) }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: () => def, resolveAgentLaunch: () =>
         ({
           selectedPath: '/fake/bin',
           pathResolvedPath: '/fake/bin',
@@ -1133,9 +1138,7 @@ describe('AgentExecutor — cancellation', () => {
           launchKind: 'selected',
           childPathPrepend: [],
           diagnostic: null,
-        }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, spawn: fakeSpawn, listProcessSnapshots: async () => [{ pid: 4242, ppid: 1, command: 'fake-bin' }], stopProcesses: async () => {
-        throw new Error('EPERM: secret/token/abc123 not permitted');
-      } });
+        }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env,  });
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
     const runPromise = executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'x', cwd: '/work' });
     await flushAsync();
@@ -1211,7 +1214,7 @@ describe('isSupportedStreamFormat', () => {
 describe('createAgentExecutor — real default collaborators', () => {
   it('constructs cleanly with only { lifecycle } — every collaborator falls back to its real @jini-ai/agent-runtime / @jini-ai/platform / node:child_process default', () => {
     const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
-    const executor = createAgentExecutor({ lifecycle });
+    const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture() });
     expect(typeof executor.run).toBe('function');
   });
 
@@ -1233,7 +1236,9 @@ describe('createAgentExecutor — real default collaborators', () => {
         throw new Error('sensitive-path/should-be-redacted rpc init rejected');
       }) as unknown as typeof attachPiRpcSession;
 
-      const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+      const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: fakeSpawn, listProcessSnapshots: async () => [], stopProcesses: async () => {
+          throw Object.assign(new Error('EPERM: not permitted api_key=SECRETSECRETSECRETSECRET'), { code: 'EPERM' });
+        } }) }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
           ({
             selectedPath: '/fake/pi-bin',
             pathResolvedPath: '/fake/pi-bin',
@@ -1242,9 +1247,7 @@ describe('createAgentExecutor — real default collaborators', () => {
             launchKind: 'selected',
             childPathPrepend: [],
             diagnostic: null,
-          }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, spawn: fakeSpawn, attachPiRpcSession: fakeAttachPiRpcSession, listProcessSnapshots: async () => [], stopProcesses: async () => {
-          throw Object.assign(new Error('EPERM: not permitted api_key=SECRETSECRETSECRETSECRET'), { code: 'EPERM' });
-        } });
+          }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env,  attachPiRpcSession: fakeAttachPiRpcSession, });
 
       const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
       await expect(executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'x', cwd: '/work' })).rejects.toMatchObject({
@@ -1278,7 +1281,7 @@ describe('createAgentExecutor — real default collaborators', () => {
         return child as unknown as ChildProcess;
       }) as unknown as typeof nodeSpawn;
 
-      const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+      const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: fakeSpawn, listProcessSnapshots: async () => [], stopProcesses: async () => ({ alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }) }) }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
           ({
             selectedPath: '/fake/claude-bin',
             pathResolvedPath: '/fake/claude-bin',
@@ -1287,7 +1290,7 @@ describe('createAgentExecutor — real default collaborators', () => {
             launchKind: 'selected',
             childPathPrepend: [],
             diagnostic: null,
-          }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, spawn: fakeSpawn, listProcessSnapshots: async () => [], stopProcesses: async () => ({ alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }), mcpJsonInjection: { command: '/usr/bin/jini-mcp', daemonUrl: 'http://127.0.0.1:4242' } });
+          }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env,    mcpJsonInjection: { command: '/usr/bin/jini-mcp', daemonUrl: 'http://127.0.0.1:4242' } });
 
       const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
       await executor.run({ runId: run.id, agentId: 'claude', prompt: 'hi', cwd: tmpDir });
@@ -1331,7 +1334,7 @@ describe('createAgentExecutor — real default collaborators', () => {
         return child as unknown as ChildProcess;
       }) as unknown as typeof nodeSpawn;
 
-      const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+      const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: fakeSpawn, listProcessSnapshots: async () => [], stopProcesses: async () => ({ alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }) }) }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
           ({
             selectedPath: '/fake/claude-bin',
             pathResolvedPath: '/fake/claude-bin',
@@ -1340,7 +1343,7 @@ describe('createAgentExecutor — real default collaborators', () => {
             launchKind: 'selected',
             childPathPrepend: [],
             diagnostic: null,
-          }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, spawn: fakeSpawn, listProcessSnapshots: async () => [], stopProcesses: async () => ({ alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }), mcpJsonInjection: { command: '/usr/bin/jini-mcp', daemonUrl: 'http://127.0.0.1:4242' } });
+          }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env,    mcpJsonInjection: { command: '/usr/bin/jini-mcp', daemonUrl: 'http://127.0.0.1:4242' } });
 
       const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
       await executor.run({ runId: run.id, agentId: 'claude', prompt: 'hi', cwd: tmpDir });
@@ -1375,7 +1378,7 @@ describe('createAgentExecutor — real default collaborators', () => {
       return child as unknown as ChildProcess;
     }) as unknown as typeof nodeSpawn;
 
-    const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+    const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: fakeSpawn, listProcessSnapshots: async () => [], stopProcesses: async () => ({ alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }) }) }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
         ({
           selectedPath: '/fake/bin',
           pathResolvedPath: '/fake/bin',
@@ -1384,7 +1387,7 @@ describe('createAgentExecutor — real default collaborators', () => {
           launchKind: 'selected',
           childPathPrepend: [],
           diagnostic: null,
-        }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, spawn: fakeSpawn, listProcessSnapshots: async () => [], stopProcesses: async () => ({ alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }), mcpJsonInjection: { command: '/usr/bin/jini-mcp', daemonUrl: 'http://127.0.0.1:4242' } });
+        }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env,    mcpJsonInjection: { command: '/usr/bin/jini-mcp', daemonUrl: 'http://127.0.0.1:4242' } });
 
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
     await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/tmp' });
@@ -1707,7 +1710,18 @@ function createAcpHarness(options: AcpHarnessOptions = {}): AcpHarness {
     return controller;
   }) as unknown as typeof attachAcpSession;
 
-  const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: fakeSpawn, listProcessSnapshots: async () => {
+      const pid = child.pid ?? 0;
+      return [
+        { pid, ppid: 1, command: 'fake-acp-bin' },
+        { pid: pid + 1, ppid: pid, command: 'fake-acp-bin --mcp-helper' },
+      ];
+    }, stopProcesses: async ({ pids }) => {
+      stopProcessesCalls.push([...pids]);
+      if (options.stopProcessesRejects !== undefined) throw options.stopProcessesRejects;
+      const numericPids = pids.filter((pid): pid is number => typeof pid === 'number');
+      return { alreadyStopped: false, forcedPids: [], matchedPids: numericPids, remainingPids: [], stoppedPids: numericPids };
+    } }) }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
       ({
         selectedPath: '/fake/acp-bin',
         pathResolvedPath: '/fake/acp-bin',
@@ -1716,18 +1730,7 @@ function createAcpHarness(options: AcpHarnessOptions = {}): AcpHarness {
         launchKind: 'selected',
         childPathPrepend: [],
         diagnostic: null,
-      }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, spawn: fakeSpawn, attachAcpSession: fakeAttachAcpSession, ...(options.acpPermissionHandler !== undefined ? { acpPermissionHandler: options.acpPermissionHandler as never } : {}), listProcessSnapshots: async () => {
-      const pid = child.pid ?? 0;
-      return [
-        { pid, ppid: 1, command: 'fake-acp-bin' },
-        { pid: pid + 1, ppid: pid, command: 'fake-acp-bin --mcp-helper' },
-      ];
-    }, stopProcesses: async ({ pids }) => {
-      stopProcessesCalls.push(pids);
-      if (options.stopProcessesRejects !== undefined) throw options.stopProcessesRejects;
-      const numericPids = pids.filter((pid): pid is number => typeof pid === 'number');
-      return { alreadyStopped: false, forcedPids: [], matchedPids: numericPids, remainingPids: [], stoppedPids: numericPids };
-    }, onCleanupFailure, ...(options.journal !== undefined ? { journal: options.journal } : {}), ...(options.classifyFailure !== undefined ? { classifyFailure: options.classifyFailure } : {}), ...(options.prepareAgentLogFile !== undefined ? { prepareAgentLogFile: options.prepareAgentLogFile } : {}), ...(options.mcpJsonInjection !== undefined ? { mcpJsonInjection: options.mcpJsonInjection } : {}) });
+      }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env,  attachAcpSession: fakeAttachAcpSession, ...(options.acpPermissionHandler !== undefined ? { acpPermissionHandler: options.acpPermissionHandler as never } : {}),   onCleanupFailure, ...(options.journal !== undefined ? { journal: options.journal } : {}), ...(options.classifyFailure !== undefined ? { classifyFailure: options.classifyFailure } : {}), ...(options.prepareAgentLogFile !== undefined ? { prepareAgentLogFile: options.prepareAgentLogFile } : {}), ...(options.mcpJsonInjection !== undefined ? { mcpJsonInjection: options.mcpJsonInjection } : {}) });
 
   return { lifecycle, executor, child, attachCalls, abort, stopProcessesCalls, onCleanupFailure };
 }
@@ -2129,7 +2132,18 @@ function createPiRpcHarness(options: PiRpcHarnessOptions = {}): PiRpcHarness {
     return session;
   }) as unknown as typeof attachPiRpcSession;
 
-  const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: fakeSpawn, listProcessSnapshots: async () => {
+      const pid = child.pid ?? 0;
+      return [
+        { pid, ppid: 1, command: 'fake-pi-bin' },
+        { pid: pid + 1, ppid: pid, command: 'fake-pi-bin --mcp-helper' },
+      ];
+    }, stopProcesses: async ({ pids }) => {
+      stopProcessesCalls.push([...pids]);
+      if (options.stopProcessesRejects !== undefined) throw options.stopProcessesRejects;
+      const numericPids = pids.filter((pid): pid is number => typeof pid === 'number');
+      return { alreadyStopped: false, forcedPids: [], matchedPids: numericPids, remainingPids: [], stoppedPids: numericPids };
+    } }) }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
       ({
         selectedPath: '/fake/pi-bin',
         pathResolvedPath: '/fake/pi-bin',
@@ -2138,18 +2152,7 @@ function createPiRpcHarness(options: PiRpcHarnessOptions = {}): PiRpcHarness {
         launchKind: 'selected',
         childPathPrepend: [],
         diagnostic: null,
-      }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, spawn: fakeSpawn, attachPiRpcSession: fakeAttachPiRpcSession, listProcessSnapshots: async () => {
-      const pid = child.pid ?? 0;
-      return [
-        { pid, ppid: 1, command: 'fake-pi-bin' },
-        { pid: pid + 1, ppid: pid, command: 'fake-pi-bin --mcp-helper' },
-      ];
-    }, stopProcesses: async ({ pids }) => {
-      stopProcessesCalls.push(pids);
-      if (options.stopProcessesRejects !== undefined) throw options.stopProcessesRejects;
-      const numericPids = pids.filter((pid): pid is number => typeof pid === 'number');
-      return { alreadyStopped: false, forcedPids: [], matchedPids: numericPids, remainingPids: [], stoppedPids: numericPids };
-    }, onCleanupFailure, ...(options.journal !== undefined ? { journal: options.journal } : {}), ...(options.classifyFailure !== undefined ? { classifyFailure: options.classifyFailure } : {}), ...(options.prepareAgentLogFile !== undefined ? { prepareAgentLogFile: options.prepareAgentLogFile } : {}) });
+      }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env,  attachPiRpcSession: fakeAttachPiRpcSession,   onCleanupFailure, ...(options.journal !== undefined ? { journal: options.journal } : {}), ...(options.classifyFailure !== undefined ? { classifyFailure: options.classifyFailure } : {}), ...(options.prepareAgentLogFile !== undefined ? { prepareAgentLogFile: options.prepareAgentLogFile } : {}) });
 
   return { lifecycle, executor, child, attachCalls, abort, stopProcessesCalls, onCleanupFailure };
 }
@@ -5926,12 +5929,11 @@ describe("AgentExecutor — 'codex-toml' MCP bridge delivery (Codex CODEX_HOME r
   });
 
   it('stages a scratch config.toml (real config appended) and sets CODEX_HOME on the spawned env, strictly before spawn', async () => {
-    vi.stubEnv('CODEX_HOME', '/real/codex/home');
     const { mcpJsonInjection, mkdtempCalls, readCalls, writeCalls } = createCodexHomeFsSpies({
       existingConfigToml: '[sandbox]\nmode = "workspace-write"\n',
     });
     const def = createFakeDef({ id: 'codex', externalMcpInjection: 'codex-toml' });
-    const { lifecycle, executor, spawnCalls } = createHarness({ def, mcpJsonInjection });
+    const { lifecycle, executor, spawnCalls } = createHarness({ def, mcpJsonInjection, hostEnv: { CODEX_HOME: '/real/codex/home' } });
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
     await executor.run({ runId: run.id, agentId: 'codex', prompt: 'hi', cwd: '/work' });
 
@@ -6392,35 +6394,23 @@ describe('AgentExecutor — SEC-001 deny-by-default subprocess environment', () 
   });
 
   it('still forwards the baseline allowlist (PATH/HOME/locale) so the spawned agent can actually run', async () => {
-    vi.stubEnv('PATH', '/usr/bin:/bin');
-    vi.stubEnv('HOME', '/home/test-user');
-    vi.stubEnv('LANG', 'en_US.UTF-8');
-    try {
-      const { lifecycle, executor, spawnCalls } = createHarness();
-      const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
-      await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+    const { lifecycle, executor, spawnCalls } = createHarness({ hostEnv: { PATH: '/usr/bin:/bin', HOME: '/home/test-user', LANG: 'en_US.UTF-8' } });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
 
-      const env = spawnCalls[0]!.options.env as Record<string, string>;
-      expect(env.PATH).toBe('/usr/bin:/bin');
-      expect(env.HOME).toBe('/home/test-user');
-      expect(env.LANG).toBe('en_US.UTF-8');
-    } finally {
-      vi.unstubAllEnvs();
-    }
+    const env = spawnCalls[0]!.options.env as Record<string, string>;
+    expect(env.PATH).toBe('/usr/bin:/bin');
+    expect(env.HOME).toBe('/home/test-user');
+    expect(env.LANG).toBe('en_US.UTF-8');
   });
 
   it('forwards USER — a spawned `claude` CLI cannot find its own login state without it, even with HOME present (see the host CLI credential investigation §9)', async () => {
-    vi.stubEnv('USER', 'test-user');
-    try {
-      const { lifecycle, executor, spawnCalls } = createHarness();
-      const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
-      await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+    const { lifecycle, executor, spawnCalls } = createHarness({ hostEnv: { USER: 'test-user' } });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
 
-      const env = spawnCalls[0]!.options.env as Record<string, string>;
-      expect(env.USER).toBe('test-user');
-    } finally {
-      vi.unstubAllEnvs();
-    }
+    const env = spawnCalls[0]!.options.env as Record<string, string>;
+    expect(env.USER).toBe('test-user');
   });
 
   it('delegates a run-specific credential via credentialEnv even though it is absent from process.env', async () => {
@@ -6672,7 +6662,7 @@ async function probeOverlayDelivery(
     return child as unknown as ChildProcess;
   }) as unknown as typeof nodeSpawn;
 
-  const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: fakeSpawn, listProcessSnapshots: async () => [{ pid: child.pid ?? 0, ppid: 1, command: 'fake-bin' }], stopProcesses: async () => ({ alreadyStopped: true, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }) }) }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
       ({
         selectedPath: '/fake/bin',
         pathResolvedPath: '/fake/bin',
@@ -6681,7 +6671,7 @@ async function probeOverlayDelivery(
         launchKind: 'selected',
         childPathPrepend: [],
         diagnostic: null,
-      }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, spawn: fakeSpawn, promptAugmenter: createOverlayAugmenter(options.overlay === undefined ? OVERLAY_TEXT : options.overlay), preparePromptFileForAgent: (async ({ def: promptFileDef, prompt }: { def: RuntimeAgentDef | null | undefined; prompt: string }) => {
+      }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env,  promptAugmenter: createOverlayAugmenter(options.overlay === undefined ? OVERLAY_TEXT : options.overlay), preparePromptFileForAgent: (async ({ def: promptFileDef, prompt }: { def: RuntimeAgentDef | null | undefined; prompt: string }) => {
       if (!promptFileDef?.promptViaFile) return null;
       promptFile = prompt;
       return { path: '/fake/staged/prompt.md', cleanup: async () => {} };
@@ -6699,7 +6689,7 @@ async function probeOverlayDelivery(
     }) as unknown as typeof attachAcpSession, attachPiRpcSession: ((attachOptions: { prompt: string }) => {
       piRpcPrompt = attachOptions.prompt;
       return { hasFatalError: () => false, getLastSessionPath: () => null, abort: vi.fn() } as PiRpcSession;
-    }) as unknown as typeof attachPiRpcSession, listProcessSnapshots: async () => [{ pid: child.pid ?? 0, ppid: 1, command: 'fake-bin' }], stopProcesses: async () => ({ alreadyStopped: true, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }), onCleanupFailure: vi.fn() });
+    }) as unknown as typeof attachPiRpcSession,   onCleanupFailure: vi.fn() });
 
   const { run } = await lifecycle.start({ contextRef: `ctx-overlay-${def.id}` });
   const runPromise = executor.run({ runId: run.id, agentId: def.id, prompt: OVERLAY_USER_PROMPT, cwd: '/work' }, { ...(options.resumeSessionId !== undefined ? { resumeSessionId: options.resumeSessionId } : {}) });
@@ -6959,7 +6949,7 @@ describe('AgentExecutor — a run whose jini MCP bridge did not connect fails lo
   const assistantFrame =
     '{"type":"assistant","message":{"id":"m1","content":[{"type":"text","text":"I cannot see any host tools."}],"stop_reason":"end_turn"}}\n';
 
-  async function startClaudeRun(options: { mcpJsonInjection?: McpJsonInjectionOptions; probeMcpBridge?: typeof probeMcpBridge } = { mcpJsonInjection: injection }) {
+  async function startClaudeRun(options: { mcpJsonInjection?: McpJsonInjectionOptions; probeMcpBridge?: McpBridgeProbe } = { mcpJsonInjection: injection }) {
     const harness = createHarness({ def: claudeDef(), ...options });
     const { run } = await harness.lifecycle.start({ contextRef: 'ctx-1' });
     await harness.executor.run({ runId: run.id, agentId: 'claude', prompt: 'hi', cwd: '/work' });
@@ -6971,7 +6961,7 @@ describe('AgentExecutor — a run whose jini MCP bridge did not connect fails lo
     const probeResult: McpBridgeProbeResult = { ok: false, exitCode: 1, signal: null, stderrTail, elapsedMs: 12 };
     let finishProbe!: (result: McpBridgeProbeResult) => void;
     const pendingProbe = new Promise<McpBridgeProbeResult>((resolve) => { finishProbe = resolve; });
-    const probe = vi.fn<typeof probeMcpBridge>(() => pendingProbe);
+    const probe = vi.fn<McpBridgeProbe>(() => pendingProbe);
     const { probeOnFailure: _disabled, ...defaultInjection } = injection;
     const { lifecycle, child, runId, stopProcessesCalls } = await startClaudeRun({
       mcpJsonInjection: { ...defaultInjection, args: ['serve.js'], env: { ELECTRON_RUN_AS_NODE: '1' }, credential: () => 'fixture-run-token' },
@@ -7001,7 +6991,7 @@ describe('AgentExecutor — a run whose jini MCP bridge did not connect fails lo
   });
 
   it('keeps the existing message when the probe initializes successfully', async () => {
-    const probe = vi.fn<typeof probeMcpBridge>(async () => ({ ok: true, exitCode: null, signal: null, stderrTail: '', elapsedMs: 3 }));
+    const probe = vi.fn<McpBridgeProbe>(async () => ({ ok: true, exitCode: null, signal: null, stderrTail: '', elapsedMs: 3 }));
     const { lifecycle, child, runId } = await startClaudeRun({ mcpJsonInjection: { ...injection, probeOnFailure: true }, probeMcpBridge: probe });
     child.stdout.emit('data', initFrame([{ name: 'jini', status: 'failed' }]));
     child.emit('close', 1, null);
@@ -7014,7 +7004,7 @@ describe('AgentExecutor — a run whose jini MCP bridge did not connect fails lo
   });
 
   it('skips the probe when disabled and still emits the original error', async () => {
-    const probe = vi.fn<typeof probeMcpBridge>();
+    const probe = vi.fn<McpBridgeProbe>();
     const { lifecycle, child, runId } = await startClaudeRun({ mcpJsonInjection: injection, probeMcpBridge: probe });
     child.stdout.emit('data', initFrame([{ name: 'jini', status: 'failed' }]));
     child.emit('close', 1, null);
@@ -7027,7 +7017,7 @@ describe('AgentExecutor — a run whose jini MCP bridge did not connect fails lo
   });
 
   it('preserves the original error and end if an injected probe rejects', async () => {
-    const probe = vi.fn<typeof probeMcpBridge>(async () => { throw new Error('diagnostic unavailable'); });
+    const probe = vi.fn<McpBridgeProbe>(async () => { throw new Error('diagnostic unavailable'); });
     const { lifecycle, child, runId } = await startClaudeRun({ mcpJsonInjection: { ...injection, probeOnFailure: true }, probeMcpBridge: probe });
     child.stdout.emit('data', initFrame([{ name: 'jini', status: 'failed' }]));
     child.emit('close', 1, null);

@@ -342,7 +342,7 @@ describe('spawnAgentChildProcess', () => {
     const result = spawnAgentChildProcess({ input: { cwd: '/work', childEnv: { PATH: '/bin' }, invocation: { command: 'claude', args: ['-p'], windowsVerbatimArguments: false } }, deps: { spawn } }
     );
     expect(result).toEqual({ kind: 'ok', child: fakeChild });
-    expect(spawn).toHaveBeenCalledWith('claude', ['-p'], {
+    expect(spawn).toHaveBeenCalledWith({ command: 'claude', args: ['-p'] }, {
       cwd: '/work',
       env: { PATH: '/bin' },
       stdio: ['pipe', 'pipe', 'pipe'],

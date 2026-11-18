@@ -1,5 +1,4 @@
 /** The shipped kernel composition owns runtime state and uses it for real executor argument binding. */
-import type { spawn as nodeSpawn } from 'node:child_process';
 import { expect, it } from 'vitest';
 import { getAgentDef } from '@jini-ai/agent-runtime';
 import { createJiniKernelBase } from '../kernel-base.js';
@@ -9,6 +8,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createNativeAgentRuntime } from '@jini-ai/agent-runtime';
 import { createLocalNodeDaemon } from '../create-local-node-daemon.js';
+import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/platform/runtime-ports/fs';
+import { createSpawnPort, nodeCommandShell, nodeProcessControl, type SpawnFunction } from '@jini-ai/platform/runtime-ports/process';
 
 it('gives each kernel a separate state, shares it with its executor, and clears it on close', async () => {
   const def = getAgentDef({ id: 'codex' })!;
@@ -25,7 +26,10 @@ it('gives each kernel a separate state, shares it with its executor, and clears 
         catalog: { models: [{ id: 'fixture-model', label: 'fixture-model', identityKind: 'concrete' }], source: 'rpc', freshness: 'fresh', fetchedAt: '2026-10-13T00:00:00.000Z', expiresAt: '2026-10-13T01:00:00.000Z', coverage: 'account', launchFingerprint: 'fixture', diagnostics: [] },
       }),
       applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {},
-      spawn: ((_command: string, argv: readonly string[]) => { captured.push([...argv]); throw new Error('fixture spawn stop'); }) as unknown as typeof nodeSpawn,
+      runtime: {
+        spawn: createSpawnPort({ spawn: ((_command: string, argv: readonly string[]) => { captured.push([...argv]); throw new Error('fixture spawn stop'); }) as SpawnFunction }),
+        processes: nodeProcessControl, fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell({ env: {} }),
+      },
     } }) };
   };
   const aFixture = makeBase(); const bFixture = makeBase();

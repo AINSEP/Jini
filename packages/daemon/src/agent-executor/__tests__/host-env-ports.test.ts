@@ -7,6 +7,7 @@ import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import { expect, it } from 'vitest';
 import { resolveRunEnv, selectAgentExecutorHostEnv, resolveSystemPromptOverlayDelivery } from '../launch.js';
 import { configureExecutableResolutionEnv, createAgentRuntimeState, defaultRuntimeState } from '@jini-ai/agent-runtime';
+import { runtimeFixture } from './runtime-fixture.js';
 
 it('preserves configured default resolution paths without passing a runtime state', () => {
   const previous = { ...defaultRuntimeState.executable.envNames };
@@ -55,11 +56,11 @@ it('threads the host snapshot and bound capabilities through a real executor run
   };
   const hostEnv = { PATH: '/host/bin', HOME: '/host/home', UNRELATED_TOKEN: 'fixture-secret' };
   const calls: unknown[] = [];
-  const executor = createAgentExecutor({ lifecycle }, {
-    hostEnv, runtimeState: state, getAgentDef: () => def,
+  const executor = createAgentExecutor({ lifecycle, hostEnv: hostEnv, runtime: runtimeFixture({ spawn: ((_command: string, args: readonly string[], options?: { env?: NodeJS.ProcessEnv }) => { calls.push({ args, env: options?.env }); throw new Error('stop after capturing spawn'); }) as unknown as typeof nodeSpawn }) }, {
+     runtimeState: state, getAgentDef: () => def,
     resolveAgentLaunch: () => ({ selectedPath: '/fake/host-agent', pathResolvedPath: '/fake/host-agent', configuredOverridePath: null, launchPath: '/fake/host-agent', launchKind: 'selected', childPathPrepend: [], diagnostic: null }),
     applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {},
-    spawn: ((_command: string, args: readonly string[], options?: { env?: NodeJS.ProcessEnv }) => { calls.push({ args, env: options?.env }); throw new Error('stop after capturing spawn'); }) as unknown as typeof nodeSpawn,
+    
   });
   hostEnv.HOME = '/changed';
   const { run } = await lifecycle.start({ contextRef: 'host-port-test' });
