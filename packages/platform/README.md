@@ -116,6 +116,8 @@ relied on transitive installation must add them before upgrading.
 
 `@jini-ai/platform/mail/email-template` (pure email-template renders: `{{field}}` fill-ins, preview and send) loads only `parse5@7.3.0`.
 
+`@jini-ai/platform/mail/email-template-operations` (create/edit/rename/list/get/preview/send-render over a host `EmailTemplateStore` port) loads `parse5@7.3.0` through `./mail/email-template`.
+
 ```sh
 npm install parse5@7.3.0 hast-util-from-parse5@8.0.3 hast-util-to-mdast@10.1.2 mdast-util-to-markdown@2.1.2 mdast-util-gfm-table@2.0.0
 ```
