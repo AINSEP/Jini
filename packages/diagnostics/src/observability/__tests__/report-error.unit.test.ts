@@ -138,3 +138,14 @@ test("one successful provider hand-off consumes the incident; async success mark
     assert.equal(reportErrorOnce({ observability: asyncPort, error, operation: "async" }), false);
   } });
 });
+
+// Pinned with the colon-prose rules (core `redact.prose-credentials.test.ts`): an error report gets the engine's
+// answers. A plain-word passphrase or a value on the next line after a field-start label is masked, and an
+// instruction sentence that merely mentions the word is kept.
+test("a passphrase after a label is masked in the message; an instruction sentence is kept", () => {
+  const { port, reports } = recording();
+  reportErrorOnce({ observability: port, error: new Error("bad login\nPassword: correct horse battery staple\nDB_PASSWORD=\nhunter2\nPassword: Must be 8 chars"), operation: "x" });
+  const sent = reports[0]!.error as Error;
+  assert.ok(sent.message.includes("Password: [REDACTED:labeled_secret]\nDB_PASSWORD=\n[REDACTED:labeled_secret]\nPassword: Must be 8 chars"), sent.message);
+  assert.ok(!sent.message.includes("horse") && !sent.message.includes("hunter2"));
+});

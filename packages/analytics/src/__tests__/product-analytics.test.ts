@@ -79,3 +79,13 @@ test("an async consent (a settings read) delays the event until it answers true;
   await new Promise((resolve) => setTimeout(resolve, 0));
   expect(events.map((e) => e.userId)).toEqual(["u1"]);
 });
+
+// Pinned with the colon-prose rules (core `redact.prose-credentials.test.ts`): telemetry text gets the engine's
+// answers. A plain-word passphrase or a value on the next line after a field-start label is a credential, and a
+// sentence that merely mentions the word stays readable.
+test("property text: a passphrase after a label is masked, an instruction sentence is kept", () => {
+  const { port, events } = recordingPort();
+  const guarded = withProductAnalyticsGuards({ inner: port, consent: () => true });
+  guarded.capture({ name: "assistant_tool_call", userId: "u1", properties: { a: "Password: correct horse battery staple", b: "DB_PASSWORD=\nhunter2", c: "Password: Must be 8 chars" } });
+  expect(events[0]?.properties).toEqual({ a: "Password: [REDACTED:labeled_secret]", b: "DB_PASSWORD=\n[REDACTED:labeled_secret]", c: "Password: Must be 8 chars" });
+});

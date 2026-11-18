@@ -34,7 +34,7 @@
 
 import { authSchemeValueRanges, BARE_SCHEME_TOKEN_PATTERNS, DIGEST_VALUE } from './redact-auth-schemes.js';
 import { labelAliasValueRanges } from './redact-label-aliases.js';
-import { isProseAfterColon } from './redact-prose-values.js';
+import { isProseAfterColon, passphraseLength } from './redact-prose-values.js';
 import { forEachOccurrence, forwardFinder, unescapedQuoteFinder, userinfoLength } from './redact-text-scan.js';
 import { VENDOR_SHAPE_PATTERNS } from './redact-vendor-shapes.js';
 
@@ -790,8 +790,10 @@ function collectLabeledSecrets({ text, add }: SpanPass, earlier: readonly Span[]
       regex.lastIndex = start;
       continue;
     }
-    const value = extentOf(start);
-    if (isColonProse({ text, match, start, value }) || covered(start, value) || isMaskedValue(text.slice(start, value.end))) {
+    const extent = extentOf(start);
+    const reading = colonReading({ text, match, start, value: extent });
+    const value = reading === 'prose' ? extent : reading;
+    if (reading === 'prose' || covered(start, value) || isMaskedValue(text.slice(start, value.end))) {
       regex.lastIndex = start;
       continue;
     }
@@ -800,15 +802,20 @@ function collectLabeledSecrets({ text, add }: SpanPass, earlier: readonly Span[]
   }
 }
 
-/** After a colon (never `=`), an unquoted value that reads as prose or a placeholder is not a credential:
- * "Password: (skipped)", "password: must be at least 8 characters". The scan resumes at the value. */
-function isColonProse({ text, match, start, value }: { text: string; match: RegExpExecArray; start: number; value: LabelValue }): boolean {
+/** What a colon after a label introduces: `prose` (a sentence, form transcript or placeholder: not a credential), or
+ * the value to mask, which a plain-word passphrase widens from its first token to the line end. `=` never reads as prose. */
+function colonReading({ text, match, start, value }: { text: string; match: RegExpExecArray; start: number; value: LabelValue }): 'prose' | LabelValue {
   const head = match[0].slice(0, -1);
   const colon = head.indexOf(':');
-  if (value.quoted || colon === -1 || head.includes('=')) return false;
+  if (value.quoted || colon === -1 || head.includes('=')) return value;
   const rest = /^[^\r\n]*/.exec(text.slice(start, start + 200))?.[0] ?? '';
-  const before = text.slice(Math.max(0, match.index - 16), match.index + (match[1] ?? '').length);
-  return isProseAfterColon({ rest, gap: head.slice(colon + 1) }, { before, label: match[2] ?? '', token: value.end - start });
+  const labelStart = match.index + (match[1] ?? '').length;
+  // Bounded to 200 characters so a long line with many labels costs O(1) per label, not a scan back to its start.
+  const window = text.slice(Math.max(0, labelStart - 200), labelStart);
+  const before = window.slice(window.lastIndexOf('\n') + 1);
+  if (isProseAfterColon({ rest, gap: head.slice(colon + 1) }, { before, label: match[2] ?? '', token: value.end - start })) return 'prose';
+  const phrase = passphraseLength({ rest, before });
+  return phrase > value.end - start && !head.slice(colon + 1).includes('\n') ? { ...value, end: start + phrase } : value;
 }
 
 /** Preserve quoted diagnostic/JSON values, including the closing quote on truncated echoes. */
