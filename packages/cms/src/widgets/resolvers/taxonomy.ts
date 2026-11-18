@@ -6,8 +6,7 @@ function findTaxonomy(taxonomies: Awaited<ReturnType<TaxonomyListPort["list"]>>,
   // Names are human-readable targets, but unlike slugs are not guaranteed unique.
   // An ambiguous name is unresolved, never an arbitrary choice; real ids win.
   const matches = taxonomies.filter((taxonomy) => taxonomy.name === key);
-  const taxonomy = taxonomies.find((candidate) => candidate.id === key) ?? (matches.length === 1 ? matches[0] : undefined);
-  return taxonomy;
+  return taxonomies.find((candidate) => candidate.id === key) ?? (matches.length === 1 ? matches[0] : undefined);
 }
 
 /** Workspace-scoped read ports are supplied by the host, like the other HTML embed resolvers. */
