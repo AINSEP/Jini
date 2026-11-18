@@ -10,6 +10,7 @@ exports. Import the capability you need; each entry owns its dependencies and ru
 | `./credentialed-http` | Node | Credential-origin binding, authentication, redacted responses and audit ports |
 | `./saved-requests` | Node | Fixed-target declarative requests, bounded schemas and typed public projections |
 | `./webhooks` | Node | Subscriptions, delivery/retries and signing through host ports |
+| `./webhooks/tools` | Node | Webhook agent tools: catalog, handlers, risk map and views over host repository, origin and confirmation ports |
 
 ## No root `.` export
 

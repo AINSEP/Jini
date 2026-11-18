@@ -22,7 +22,8 @@
       "./api-connections/hosted-mcp": "node",
       "./media-providers/node": "node",
       "./saved-requests": "node",
-      "./credentialed-http/tools": "node"
+      "./credentialed-http/tools": "node",
+      "./webhooks/tools": "node"
     },
     "optionalPeers": {
       "better-sqlite3": "opt-in: sqlite storage; import @jini-ai/integrations/media-providers — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
@@ -82,6 +83,11 @@
       "types": "./dist/credentialed-http/tools/index.d.ts",
       "import": "./dist/credentialed-http/tools/index.js",
       "default": "./dist/credentialed-http/tools/index.js"
+    },
+    "./webhooks/tools": {
+      "types": "./dist/webhooks/tools/index.d.ts",
+      "import": "./dist/webhooks/tools/index.js",
+      "default": "./dist/webhooks/tools/index.js"
     }
   },
   "typesVersions": {
@@ -112,6 +118,9 @@
       ],
       "credentialed-http/tools": [
         "./dist/credentialed-http/tools/index.d.ts"
+      ],
+      "webhooks/tools": [
+        "./dist/webhooks/tools/index.d.ts"
       ]
     }
   },
