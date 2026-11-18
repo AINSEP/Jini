@@ -176,7 +176,7 @@ function useReloadConnectors(port: MemoryConnectorsPort, core: CatalogueCore) {
       const statuses = await port.fetchConnectorStatuses();
       if (connectorStatusGuardRef.current.isCurrent(statusRevision)) {
         commitConnectorStatuses(statuses);
-        setConnectors((prev) => applyConnectorStatuses(prev, statuses));
+        setConnectors((prev) => applyConnectorStatuses({ current: prev, statuses }));
         setConnectorStatusLoadError(null);
       }
     } catch {
@@ -196,7 +196,7 @@ function useReloadConnectors(port: MemoryConnectorsPort, core: CatalogueCore) {
       // reload's own status step racing a concurrent refresh) may have landed
       // while this discovery fetch was still in flight, and stamping the
       // captured snapshot back over it would silently revert it.
-      setConnectors(applyConnectorStatuses(next, connectorStatusesRef.current));
+      setConnectors(applyConnectorStatuses({ current: next, statuses: connectorStatusesRef.current }));
       setConnectorCatalogueLoadError(null);
     } catch {
       // Discovery is required for the real catalogue. Keep prior details rather
@@ -234,9 +234,9 @@ function useRefreshConnectorStatuses(port: MemoryConnectorsPort, core: Catalogue
       return;
     }
     if (!connectorStatusGuardRef.current.isCurrent(revision)) return;
-    const statusChanged = hasConnectorStatusChanges(connectorsRef.current, statuses);
+    const statusChanged = hasConnectorStatusChanges({ current: connectorsRef.current, statuses });
     commitConnectorStatuses(statuses);
-    setConnectors((prev) => applyConnectorStatuses(prev, statuses));
+    setConnectors((prev) => applyConnectorStatuses({ current: prev, statuses }));
     setConnectorStatusLoadError(null);
     setPendingConnectorAuthIds((prev) => {
       const next = new Set(prev);
@@ -275,7 +275,7 @@ function buildMemoryConnectors(connectors: Connector[], connectorStatuses: Conne
     const connector = byId.get(id);
     const status = connectorStatuses[id];
     if (connector) {
-      return status ? applyMemoryConnectorStatus(connector, status) : connector;
+      return status ? applyMemoryConnectorStatus({ connector, status }) : connector;
     }
     return {
       id,

@@ -66,16 +66,16 @@ function preset(overrides: Partial<ProviderPreset> = {}): ProviderPreset {
 
 describe('isValidApiBaseUrl', () => {
   it('accepts absolute http and https URLs', () => {
-    expect(isValidApiBaseUrl('https://api.example.com')).toBe(true);
-    expect(isValidApiBaseUrl('http://localhost:11434/v1')).toBe(true);
+    expect(isValidApiBaseUrl({ raw: 'https://api.example.com' })).toBe(true);
+    expect(isValidApiBaseUrl({ raw: 'http://localhost:11434/v1' })).toBe(true);
   });
 
   it('rejects blank, relative, and non-http schemes', () => {
-    expect(isValidApiBaseUrl('')).toBe(false);
-    expect(isValidApiBaseUrl('   ')).toBe(false);
-    expect(isValidApiBaseUrl('/v1/messages')).toBe(false);
-    expect(isValidApiBaseUrl('ftp://example.com')).toBe(false);
-    expect(isValidApiBaseUrl('javascript:alert(1)')).toBe(false);
+    expect(isValidApiBaseUrl({ raw: '' })).toBe(false);
+    expect(isValidApiBaseUrl({ raw: '   ' })).toBe(false);
+    expect(isValidApiBaseUrl({ raw: '/v1/messages' })).toBe(false);
+    expect(isValidApiBaseUrl({ raw: 'ftp://example.com' })).toBe(false);
+    expect(isValidApiBaseUrl({ raw: 'javascript:alert(1)' })).toBe(false);
   });
 });
 
@@ -91,25 +91,25 @@ describe('isBaseUrlInvalid', () => {
 
 describe('presetRequiresApiKey / showsBaseUrlField', () => {
   it('requires a key unless the preset explicitly opts out', () => {
-    expect(presetRequiresApiKey(preset())).toBe(true);
-    expect(presetRequiresApiKey(null)).toBe(true);
-    expect(presetRequiresApiKey(preset({ requiresApiKey: false }))).toBe(false);
+    expect(presetRequiresApiKey({ preset: preset() })).toBe(true);
+    expect(presetRequiresApiKey({ preset: null })).toBe(true);
+    expect(presetRequiresApiKey({ preset: preset({ requiresApiKey: false }) })).toBe(false);
   });
 
   it('hides Base URL only for fixed-origin gateways', () => {
-    expect(showsBaseUrlField(preset())).toBe(true);
-    expect(showsBaseUrlField(null)).toBe(true);
-    expect(showsBaseUrlField(preset({ fixedOrigin: true }))).toBe(false);
+    expect(showsBaseUrlField({ preset: preset() })).toBe(true);
+    expect(showsBaseUrlField({ preset: null })).toBe(true);
+    expect(showsBaseUrlField({ preset: preset({ fixedOrigin: true }) })).toBe(false);
   });
 });
 
 describe('missingRequiredFields', () => {
   it('reports nothing when every required field is present', () => {
-    expect(missingRequiredFields(byok(), preset())).toEqual([]);
+    expect(missingRequiredFields({ config: byok(), preset: preset() })).toEqual([]);
   });
 
   it('reports blank key, invalid URL, and blank model in render order', () => {
-    expect(missingRequiredFields(byok({ apiKey: ' ', baseUrl: 'nope', model: '' }), preset())).toEqual([
+    expect(missingRequiredFields({ config: byok({ apiKey: ' ', baseUrl: 'nope', model: '' }), preset: preset() })).toEqual([
       'apiKey',
       'baseUrl',
       'model',
@@ -117,18 +117,18 @@ describe('missingRequiredFields', () => {
   });
 
   it('does not require a key for a keyless preset', () => {
-    expect(missingRequiredFields(byok({ apiKey: '' }), preset({ requiresApiKey: false }))).toEqual([]);
+    expect(missingRequiredFields({ config: byok({ apiKey: '' }), preset: preset({ requiresApiKey: false }) })).toEqual([]);
   });
 
   it('does not require a base URL for a fixed-origin gateway', () => {
-    expect(missingRequiredFields(byok({ baseUrl: '' }), preset({ fixedOrigin: true }))).toEqual([]);
+    expect(missingRequiredFields({ config: byok({ baseUrl: '' }), preset: preset({ fixedOrigin: true }) })).toEqual([]);
   });
 });
 
 describe('credentialsForPreset / isProviderConfigured (per-provider keying)', () => {
   it('is true exactly when nothing is missing for the ACTIVE preset', () => {
-    expect(isProviderConfigured(byok(), preset())).toBe(true);
-    expect(isProviderConfigured(byok({ apiKey: '' }), preset())).toBe(false);
+    expect(isProviderConfigured({ config: byok(), preset: preset() })).toBe(true);
+    expect(isProviderConfigured({ config: byok({ apiKey: '' }), preset: preset() })).toBe(false);
   });
 
   it('reads a non-active preset from its own saved draft, not the active form fields', () => {
@@ -140,13 +140,13 @@ describe('credentialsForPreset / isProviderConfigured (per-provider keying)', ()
       savedByProviderId: { ollama: { apiKey: '', baseUrl: 'http://localhost:11434/v1', model: 'llama3' } },
     });
     const ollama = preset({ id: 'ollama', protocol: 'openai', baseUrl: 'http://localhost:11434/v1', requiresApiKey: false });
-    expect(credentialsForPreset(config, ollama)).toEqual({
+    expect(credentialsForPreset({ config, preset: ollama })).toEqual({
       apiKey: '',
       baseUrl: 'http://localhost:11434/v1',
       model: 'llama3',
       maxTokens: undefined,
     });
-    expect(isProviderConfigured(config, ollama)).toBe(true);
+    expect(isProviderConfigured({ config, preset: ollama })).toBe(true);
   });
 
   it('BUG FIX: a keyless preset with no saved draft does NOT read as configured just because a different provider is active', () => {
@@ -160,8 +160,8 @@ describe('credentialsForPreset / isProviderConfigured (per-provider keying)', ()
       model: 'claude-sonnet-4-5',
     });
     const ollama = preset({ id: 'ollama', protocol: 'openai', baseUrl: 'http://localhost:11434/v1', requiresApiKey: false });
-    expect(isProviderConfigured(config, ollama)).toBe(false);
-    expect(credentialsForPreset(config, ollama)).toEqual({
+    expect(isProviderConfigured({ config, preset: ollama })).toBe(false);
+    expect(credentialsForPreset({ config, preset: ollama })).toEqual({
       apiKey: '',
       baseUrl: 'http://localhost:11434/v1',
       model: '',
@@ -170,7 +170,7 @@ describe('credentialsForPreset / isProviderConfigured (per-provider keying)', ()
   });
 
   it('returns false for a null preset', () => {
-    expect(isProviderConfigured(byok(), null)).toBe(false);
+    expect(isProviderConfigured({ config: byok(), preset: null })).toBe(false);
   });
 });
 
@@ -183,18 +183,18 @@ describe('presetsForProtocol / groupPresets', () => {
   ];
 
   it('filters by protocol and excludes the custom entry', () => {
-    expect(presetsForProtocol(catalog, 'openai').map((p) => p.id)).toEqual(['b', 'c']);
-    expect(presetsForProtocol(catalog, 'anthropic').map((p) => p.id)).toEqual(['a']);
+    expect(presetsForProtocol({ presets: catalog, protocol: 'openai' }).map((p) => p.id)).toEqual(['b', 'c']);
+    expect(presetsForProtocol({ presets: catalog, protocol: 'anthropic' }).map((p) => p.id)).toEqual(['a']);
   });
 
   it('splits into protocol and gateway rows, dropping custom', () => {
-    const { protocols, gateways } = groupPresets(catalog);
+    const { protocols, gateways } = groupPresets({ presets: catalog });
     expect(protocols.map((p) => p.id)).toEqual(['a', 'b']);
     expect(gateways.map((p) => p.id)).toEqual(['c']);
   });
 
   it('defaults a kind-less preset into the protocol row so hosts ignoring kind still see one populated row', () => {
-    const { protocols, gateways } = groupPresets([preset({ id: 'x' })]);
+    const { protocols, gateways } = groupPresets({ presets: [preset({ id: 'x' })] });
     expect(protocols.map((p) => p.id)).toEqual(['x']);
     expect(gateways).toEqual([]);
   });
@@ -204,31 +204,31 @@ describe('resolveSelectedPreset', () => {
   const catalog = [preset({ id: 'a' }), preset({ id: 'b', baseUrl: 'https://b.example.com' })];
 
   it('returns null when the config is on custom', () => {
-    expect(resolveSelectedPreset(catalog, byok({ providerId: null }))).toBeNull();
+    expect(resolveSelectedPreset({ presets: catalog, config: byok({ providerId: null }) })).toBeNull();
   });
 
   it('matches by id first', () => {
-    expect(resolveSelectedPreset(catalog, byok({ providerId: 'b' }))?.id).toBe('b');
+    expect(resolveSelectedPreset({ presets: catalog, config: byok({ providerId: 'b' }) })?.id).toBe('b');
   });
 
   it('falls back to protocol+baseUrl so a config from an older catalog still resolves', () => {
     const resolved = resolveSelectedPreset(
-      catalog,
-      byok({ providerId: 'gone', baseUrl: 'https://b.example.com' }),
+      { presets: catalog,
+      config: byok({ providerId: 'gone', baseUrl: 'https://b.example.com' }) },
     );
     expect(resolved?.id).toBe('b');
   });
 
   it('returns null when neither id nor endpoint matches', () => {
-    expect(resolveSelectedPreset(catalog, byok({ providerId: 'gone', baseUrl: 'https://z.example.com' }))).toBeNull();
+    expect(resolveSelectedPreset({ presets: catalog, config: byok({ providerId: 'gone', baseUrl: 'https://z.example.com' }) })).toBeNull();
   });
 });
 
 describe('nextConfigForPresetSelect', () => {
   it('adopts the preset endpoint and top preferred model when switching from custom (nothing to snapshot)', () => {
     const next = nextConfigForPresetSelect(
-      byok({ providerId: null, baseUrl: '', model: '' }),
-      preset({ id: 'b', baseUrl: 'https://b.example.com', preferredModels: ['m1', 'm2'] }),
+      { config: byok({ providerId: null, baseUrl: '', model: '' }),
+      preset: preset({ id: 'b', baseUrl: 'https://b.example.com', preferredModels: ['m1', 'm2'] }) },
     );
     expect(next).toMatchObject({ providerId: 'b', baseUrl: 'https://b.example.com', model: 'm1' });
   });
@@ -239,13 +239,13 @@ describe('nextConfigForPresetSelect', () => {
   // let a keyless preset's chip read as "configured" off an active
   // provider's live values (see `isProviderConfigured`'s bug-fix test above).
   it('does NOT carry an API key over to a different, never-configured preset', () => {
-    const next = nextConfigForPresetSelect(byok({ providerId: 'anthropic', apiKey: 'keep-me' }), preset({ id: 'b' }));
+    const next = nextConfigForPresetSelect({ config: byok({ providerId: 'anthropic', apiKey: 'keep-me' }), preset: preset({ id: 'b' }) });
     expect(next.apiKey).toBe('');
   });
 
   it("requires an explicit endpoint and model for a bare, never-configured preset", () => {
-    const next = nextConfigForPresetSelect(byok(), preset({ id: 'b', baseUrl: '', preferredModels: [] }));
-    expect(next.baseUrl).toBe(nextConfigForPresetSelect(byok(), preset({ id: 'c', baseUrl: '' })).baseUrl);
+    const next = nextConfigForPresetSelect({ config: byok(), preset: preset({ id: 'b', baseUrl: '', preferredModels: [] }) });
+    expect(next.baseUrl).toBe(nextConfigForPresetSelect({ config: byok(), preset: preset({ id: 'c', baseUrl: '' }) }).baseUrl);
     expect(next.baseUrl).toBe('');
     expect(next.model).toBe('');
     expect(next.maxTokens).toBeUndefined();
@@ -253,7 +253,7 @@ describe('nextConfigForPresetSelect', () => {
 
   it('snapshots the outgoing provider into savedByProviderId before switching', () => {
     const before = byok({ providerId: 'anthropic', apiKey: 'anthropic-key', baseUrl: 'https://api.anthropic.com', model: 'claude-sonnet-4-5' });
-    const next = nextConfigForPresetSelect(before, preset({ id: 'b', baseUrl: 'https://b.example.com' }));
+    const next = nextConfigForPresetSelect({ config: before, preset: preset({ id: 'b', baseUrl: 'https://b.example.com' }) });
     expect(next.savedByProviderId?.anthropic).toEqual({
       apiKey: 'anthropic-key',
       baseUrl: 'https://api.anthropic.com',
@@ -272,7 +272,7 @@ describe('nextConfigForPresetSelect', () => {
         anthropic: { apiKey: 'saved-key', baseUrl: 'https://api.anthropic.com', model: 'claude-sonnet-4-5' },
       },
     });
-    const next = nextConfigForPresetSelect(config, preset({ id: 'anthropic', baseUrl: 'https://api.anthropic.com' }));
+    const next = nextConfigForPresetSelect({ config, preset: preset({ id: 'anthropic', baseUrl: 'https://api.anthropic.com' }) });
     expect(next).toMatchObject({
       providerId: 'anthropic',
       apiKey: 'saved-key',
@@ -283,15 +283,15 @@ describe('nextConfigForPresetSelect', () => {
 
   it('a never-configured preset with no preferred models starts with a blank model rather than inheriting a different provider\'s model', () => {
     const next = nextConfigForPresetSelect(
-      byok({ providerId: 'anthropic', model: 'mine' }),
-      preset({ id: 'b', preferredModels: [] }),
+      { config: byok({ providerId: 'anthropic', model: 'mine' }),
+      preset: preset({ id: 'b', preferredModels: [] }) },
     );
     expect(next.model).toBe('');
   });
 
   it('selecting the custom preset clears the provider id and snapshots the outgoing provider', () => {
     const before = byok();
-    const next = nextConfigForPresetSelect(before, preset({ id: 'custom', custom: true }));
+    const next = nextConfigForPresetSelect({ config: before, preset: preset({ id: 'custom', custom: true }) });
     expect(next).toEqual({
       ...before,
       providerId: null,
@@ -305,18 +305,18 @@ describe('nextConfigForPresetSelect', () => {
 describe('nextConfigForProtocolSelect', () => {
   it('is identity when the protocol is unchanged', () => {
     const before = byok();
-    expect(nextConfigForProtocolSelect(before, 'anthropic')).toBe(before);
+    expect(nextConfigForProtocolSelect({ config: before, protocol: 'anthropic' })).toBe(before);
   });
 
   it('drops the preset selection and keeps an operator-typed base URL', () => {
-    const next = nextConfigForProtocolSelect(byok({ baseUrl: 'https://mine.example.com' }), 'openai');
+    const next = nextConfigForProtocolSelect({ config: byok({ baseUrl: 'https://mine.example.com' }), protocol: 'openai' });
     expect(next.providerId).toBeNull();
     expect(next.protocol).toBe('openai');
     expect(next.baseUrl).toBe('https://mine.example.com');
   });
 
   it('leaves endpoint selection to the operator when no base URL was typed', () => {
-    const next = nextConfigForProtocolSelect(byok({ baseUrl: '' }), 'openai');
+    const next = nextConfigForProtocolSelect({ config: byok({ baseUrl: '' }), protocol: 'openai' });
     expect(next.baseUrl).toBe('');
   });
 });
@@ -325,11 +325,11 @@ describe('nextConfigForModeChange', () => {
   const config: ExecutionConfig = { mode: 'local-cli', byok: byok(), localCli: { agentId: null } };
 
   it('is identity when the mode is unchanged', () => {
-    expect(nextConfigForModeChange(config, 'local-cli')).toBe(config);
+    expect(nextConfigForModeChange({ config, mode: 'local-cli' })).toBe(config);
   });
 
   it('preserves BYOK credentials across a mode flip', () => {
-    const next = nextConfigForModeChange(config, 'byok');
+    const next = nextConfigForModeChange({ config, mode: 'byok' });
     expect(next.mode).toBe('byok');
     expect(next.byok).toEqual(config.byok);
   });
@@ -337,30 +337,30 @@ describe('nextConfigForModeChange', () => {
 
 describe('parseMaxTokens', () => {
   it('treats blank as "use the model default"', () => {
-    expect(parseMaxTokens('')).toBeUndefined();
-    expect(parseMaxTokens('   ')).toBeUndefined();
+    expect(parseMaxTokens({ raw: '' })).toBeUndefined();
+    expect(parseMaxTokens({ raw: '   ' })).toBeUndefined();
   });
 
   it('parses a positive integer', () => {
-    expect(parseMaxTokens('8192')).toBe(8192);
+    expect(parseMaxTokens({ raw: '8192' })).toBe(8192);
   });
 
   it('rejects zero, negatives, fractions, and junk rather than storing 0', () => {
-    expect(parseMaxTokens('0')).toBeUndefined();
-    expect(parseMaxTokens('-5')).toBeUndefined();
-    expect(parseMaxTokens('1.5')).toBeUndefined();
-    expect(parseMaxTokens('lots')).toBeUndefined();
+    expect(parseMaxTokens({ raw: '0' })).toBeUndefined();
+    expect(parseMaxTokens({ raw: '-5' })).toBeUndefined();
+    expect(parseMaxTokens({ raw: '1.5' })).toBeUndefined();
+    expect(parseMaxTokens({ raw: 'lots' })).toBeUndefined();
   });
 });
 
 describe('sortDetectedAgents', () => {
   it('puts installed agents first, then sorts alphabetically', () => {
-    const sorted = sortDetectedAgents([
+    const sorted = sortDetectedAgents({ agents: [
       { id: '1', label: 'Zeta', installed: false },
       { id: '2', label: 'Beta', installed: true },
       { id: '3', label: 'Alpha', installed: false },
       { id: '4', label: 'Alpha2', installed: true },
-    ]);
+    ] });
     expect(sorted.map((a) => a.label)).toEqual(['Alpha2', 'Beta', 'Alpha', 'Zeta']);
   });
 
@@ -369,7 +369,7 @@ describe('sortDetectedAgents', () => {
       { id: '1', label: 'Zeta', installed: false },
       { id: '2', label: 'Beta', installed: true },
     ];
-    sortDetectedAgents(input);
+    sortDetectedAgents({ agents: input });
     expect(input.map((a) => a.label)).toEqual(['Zeta', 'Beta']);
   });
 });
@@ -387,22 +387,22 @@ function agent(overrides: Partial<DetectedAgent> = {}): DetectedAgent {
 
 describe('cleanAgentVersionLabel', () => {
   it('is blank when the CLI reported no version', () => {
-    expect(cleanAgentVersionLabel('Claude Code', undefined)).toBe('');
-    expect(cleanAgentVersionLabel('Claude Code', null)).toBe('');
+    expect(cleanAgentVersionLabel({ label: 'Claude Code', version: undefined })).toBe('');
+    expect(cleanAgentVersionLabel({ label: 'Claude Code', version: null })).toBe('');
   });
 
   it('strips a redundant trailing agent name in either shape', () => {
-    expect(cleanAgentVersionLabel('Claude Code', '1.2.3 (Claude Code)')).toBe('1.2.3');
-    expect(cleanAgentVersionLabel('Claude Code', '1.2.3 Claude Code')).toBe('1.2.3');
+    expect(cleanAgentVersionLabel({ label: 'Claude Code', version: '1.2.3 (Claude Code)' })).toBe('1.2.3');
+    expect(cleanAgentVersionLabel({ label: 'Claude Code', version: '1.2.3 Claude Code' })).toBe('1.2.3');
   });
 
   it('leaves a version that merely contains the name intact', () => {
-    expect(cleanAgentVersionLabel('Claude Code', 'Claude Code build 9')).toBe('Claude Code build 9');
+    expect(cleanAgentVersionLabel({ label: 'Claude Code', version: 'Claude Code build 9' })).toBe('Claude Code build 9');
   });
 
   it('does not treat the label as a regex', () => {
-    expect(cleanAgentVersionLabel('a.b', '1.0 (a.b)')).toBe('1.0');
-    expect(cleanAgentVersionLabel('a.b', '1.0 (axb)')).toBe('1.0 (axb)');
+    expect(cleanAgentVersionLabel({ label: 'a.b', version: '1.0 (a.b)' })).toBe('1.0');
+    expect(cleanAgentVersionLabel({ label: 'a.b', version: '1.0 (axb)' })).toBe('1.0 (axb)');
   });
 });
 
@@ -416,32 +416,32 @@ describe('agentMetaLabel', () => {
 
   it('reports auth trouble instead of the version', () => {
     // A signed-out CLI showing "1.2.3" reads as everything being fine.
-    const missing = agentMetaLabel(agent({ version: '1.2.3', authStatus: 'missing' }), labels);
+    const missing = agentMetaLabel({ agent: agent({ version: '1.2.3', authStatus: 'missing' }), labels });
     expect(missing.text).toBe('Authentication required');
-    const unknown = agentMetaLabel(agent({ version: '1.2.3', authStatus: 'unknown' }), labels);
+    const unknown = agentMetaLabel({ agent: agent({ version: '1.2.3', authStatus: 'unknown' }), labels });
     expect(unknown.text).toBe('Auth status unknown');
   });
 
   it('keeps unknown distinct from missing rather than collapsing them', () => {
-    expect(agentMetaLabel(agent({ authStatus: 'unknown' }), labels).text).not.toBe(
-      agentMetaLabel(agent({ authStatus: 'missing' }), labels).text,
+    expect(agentMetaLabel({ agent: agent({ authStatus: 'unknown' }), labels }).text).not.toBe(
+      agentMetaLabel({ agent: agent({ authStatus: 'missing' }), labels }).text,
     );
   });
 
   it('falls back to "Installed" when there is no version to show', () => {
-    expect(agentMetaLabel(agent({ authStatus: 'ok' }), labels).text).toBe('Installed');
+    expect(agentMetaLabel({ agent: agent({ authStatus: 'ok' }), labels }).text).toBe('Installed');
   });
 
   it('reports a missing agent regardless of any other field', () => {
-    expect(agentMetaLabel(agent({ installed: false, version: '9' }), labels).text).toBe('Not installed');
+    expect(agentMetaLabel({ agent: agent({ installed: false, version: '9' }), labels }).text).toBe('Not installed');
   });
 
   it('puts the actionable detail in the tooltip, preferring the auth message', () => {
     expect(
-      agentMetaLabel(agent({ authStatus: 'missing', authMessage: 'run login', path: '/bin/c' }), labels).title,
+      agentMetaLabel({ agent: agent({ authStatus: 'missing', authMessage: 'run login', path: '/bin/c' }), labels }).title,
     ).toBe('run login');
-    expect(agentMetaLabel(agent({ authStatus: 'ok', path: '/bin/c' }), labels).title).toBe('/bin/c');
-    expect(agentMetaLabel(agent({ authStatus: 'ok' }), labels).title).toBe('');
+    expect(agentMetaLabel({ agent: agent({ authStatus: 'ok', path: '/bin/c' }), labels }).title).toBe('/bin/c');
+    expect(agentMetaLabel({ agent: agent({ authStatus: 'ok' }), labels }).title).toBe('');
   });
 });
 
@@ -453,30 +453,30 @@ describe('selectedAgentModel / agentModelSummary', () => {
 
   it('prefers the operator pick over the reported default', () => {
     const config: LocalCliConfig = { agentId: 'claude', modelByAgentId: { claude: 'm2' } };
-    expect(selectedAgentModel(config, agent({ models }))).toBe('m2');
+    expect(selectedAgentModel({ config, agent: agent({ models }) })).toBe('m2');
   });
 
   it('falls back to the first reported model, then to nothing', () => {
-    expect(selectedAgentModel({ agentId: 'claude' }, agent({ models }))).toBe('m1');
-    expect(selectedAgentModel({ agentId: 'claude' }, agent())).toBe('');
+    expect(selectedAgentModel({ config: { agentId: 'claude' }, agent: agent({ models }) })).toBe('m1');
+    expect(selectedAgentModel({ config: { agentId: 'claude' }, agent: agent() })).toBe('');
   });
 
   it('ignores a blank pick rather than treating it as a choice', () => {
     const config: LocalCliConfig = { agentId: 'claude', modelByAgentId: { claude: '   ' } };
-    expect(selectedAgentModel(config, agent({ models }))).toBe('m1');
+    expect(selectedAgentModel({ config, agent: agent({ models }) })).toBe('m1');
   });
 
   it('keys picks per agent so switching agents does not cross-contaminate', () => {
     const config: LocalCliConfig = { agentId: 'claude', modelByAgentId: { codex: 'm2' } };
-    expect(selectedAgentModel(config, agent({ id: 'claude', models }))).toBe('m1');
+    expect(selectedAgentModel({ config, agent: agent({ id: 'claude', models }) })).toBe('m1');
   });
 
   it('summarises a stale pick by raw id rather than hiding it', () => {
     // Hiding it would misreport what will actually run.
     const config: LocalCliConfig = { agentId: 'claude', modelByAgentId: { claude: 'retired' } };
-    expect(agentModelSummary(config, agent({ models }))).toBe('retired');
-    expect(agentModelSummary({ agentId: 'claude' }, agent({ models }))).toBe('Model One');
-    expect(agentModelSummary({ agentId: 'claude' }, agent())).toBe('');
+    expect(agentModelSummary({ config, agent: agent({ models }) })).toBe('retired');
+    expect(agentModelSummary({ config: { agentId: 'claude' }, agent: agent({ models }) })).toBe('Model One');
+    expect(agentModelSummary({ config: { agentId: 'claude' }, agent: agent() })).toBe('');
   });
 });
 
@@ -485,7 +485,7 @@ describe('nextConfigForAgentSelect / nextConfigForAgentModel', () => {
 
   it('is identity when re-picking the selected agent', () => {
     const selected = { ...base, localCli: { agentId: 'claude' } };
-    expect(nextConfigForAgentSelect(selected, 'claude')).toBe(selected);
+    expect(nextConfigForAgentSelect({ config: selected, agentId: 'claude' })).toBe(selected);
   });
 
   it('selects without disturbing saved per-agent models or BYOK state', () => {
@@ -493,15 +493,15 @@ describe('nextConfigForAgentSelect / nextConfigForAgentModel', () => {
       ...base,
       localCli: { agentId: 'claude', modelByAgentId: { claude: 'm1', codex: 'm9' } },
     };
-    const next = nextConfigForAgentSelect(withPicks, 'codex');
+    const next = nextConfigForAgentSelect({ config: withPicks, agentId: 'codex' });
     expect(next.localCli.agentId).toBe('codex');
     expect(next.localCli.modelByAgentId).toEqual({ claude: 'm1', codex: 'm9' });
     expect(next.byok).toEqual(withPicks.byok);
   });
 
   it('records a model per agent without clobbering the others', () => {
-    const first = nextConfigForAgentModel(base, 'claude', 'm1');
-    const second = nextConfigForAgentModel(first, 'codex', 'm9');
+    const first = nextConfigForAgentModel({ config: base, agentId: 'claude', model: 'm1' });
+    const second = nextConfigForAgentModel({ config: first, agentId: 'codex', model: 'm9' });
     expect(second.localCli.modelByAgentId).toEqual({ claude: 'm1', codex: 'm9' });
     // The originals are untouched — these are pure transitions.
     expect(base.localCli.modelByAgentId).toBeUndefined();
@@ -518,28 +518,28 @@ describe('selectedAgentReasoning / nextConfigForAgentReasoning', () => {
 
   it('prefers the operator pick over the reported default', () => {
     const config: LocalCliConfig = { agentId: 'claude', reasoningByAgentId: { claude: 'high' } };
-    expect(selectedAgentReasoning(config, agent({ reasoningOptions }))).toBe('high');
+    expect(selectedAgentReasoning({ config, agent: agent({ reasoningOptions }) })).toBe('high');
   });
 
   it('falls back to the first reported option, then to nothing', () => {
-    expect(selectedAgentReasoning({ agentId: 'claude' }, agent({ reasoningOptions }))).toBe('low');
-    expect(selectedAgentReasoning({ agentId: 'claude' }, agent())).toBe('');
+    expect(selectedAgentReasoning({ config: { agentId: 'claude' }, agent: agent({ reasoningOptions }) })).toBe('low');
+    expect(selectedAgentReasoning({ config: { agentId: 'claude' }, agent: agent() })).toBe('');
   });
 
   it('ignores a blank pick rather than treating it as a choice', () => {
     const config: LocalCliConfig = { agentId: 'claude', reasoningByAgentId: { claude: '   ' } };
-    expect(selectedAgentReasoning(config, agent({ reasoningOptions }))).toBe('low');
+    expect(selectedAgentReasoning({ config, agent: agent({ reasoningOptions }) })).toBe('low');
   });
 
   it('keys picks per agent so switching agents does not cross-contaminate', () => {
     const config: LocalCliConfig = { agentId: 'claude', reasoningByAgentId: { codex: 'high' } };
-    expect(selectedAgentReasoning(config, agent({ id: 'claude', reasoningOptions }))).toBe('low');
+    expect(selectedAgentReasoning({ config, agent: agent({ id: 'claude', reasoningOptions }) })).toBe('low');
   });
 
   it('records a reasoning pick per agent without clobbering the others or the model map', () => {
-    const withModel = nextConfigForAgentModel(base, 'claude', 'm1');
-    const first = nextConfigForAgentReasoning(withModel, 'claude', 'high');
-    const second = nextConfigForAgentReasoning(first, 'codex', 'low');
+    const withModel = nextConfigForAgentModel({ config: base, agentId: 'claude', model: 'm1' });
+    const first = nextConfigForAgentReasoning({ config: withModel, agentId: 'claude', reasoning: 'high' });
+    const second = nextConfigForAgentReasoning({ config: first, agentId: 'codex', reasoning: 'low' });
     expect(second.localCli.reasoningByAgentId).toEqual({ claude: 'high', codex: 'low' });
     expect(second.localCli.modelByAgentId).toEqual({ claude: 'm1' });
     // The originals are untouched — these are pure transitions.
@@ -550,19 +550,19 @@ describe('selectedAgentReasoning / nextConfigForAgentReasoning', () => {
 
 describe('shouldShowCustomModelInput', () => {
   it('shows custom input once the operator has explicitly switched to it', () => {
-    expect(shouldShowCustomModelInput('m1', ['m1', 'm2'], true)).toBe(true);
+    expect(shouldShowCustomModelInput({ modelValue: 'm1', knownModelIds: ['m1', 'm2'], explicitCustomMode: true })).toBe(true);
   });
 
   it('shows custom input when there is no resolved value yet', () => {
-    expect(shouldShowCustomModelInput('', ['m1', 'm2'], false)).toBe(true);
+    expect(shouldShowCustomModelInput({ modelValue: '', knownModelIds: ['m1', 'm2'], explicitCustomMode: false })).toBe(true);
   });
 
   it('shows custom input when the value is not one of the known models', () => {
-    expect(shouldShowCustomModelInput('retired-model', ['m1', 'm2'], false)).toBe(true);
+    expect(shouldShowCustomModelInput({ modelValue: 'retired-model', knownModelIds: ['m1', 'm2'], explicitCustomMode: false })).toBe(true);
   });
 
   it('hides custom input for a known value with no explicit toggle', () => {
-    expect(shouldShowCustomModelInput('m1', ['m1', 'm2'], false)).toBe(false);
+    expect(shouldShowCustomModelInput({ modelValue: 'm1', knownModelIds: ['m1', 'm2'], explicitCustomMode: false })).toBe(false);
   });
 });
 
@@ -576,24 +576,24 @@ describe('per-agent CLI env fields', () => {
 
   describe('cliEnvFieldsForAgent', () => {
     it('filters the shared catalog down to one agent, preserving catalog order', () => {
-      expect(cliEnvFieldsForAgent(FIELDS, 'claude').map((f) => f.envKey)).toEqual([
+      expect(cliEnvFieldsForAgent({ fields: FIELDS, agentId: 'claude' }).map((f) => f.envKey)).toEqual([
         'ANTHROPIC_BASE_URL',
         'ANTHROPIC_API_KEY',
       ]);
     });
 
     it('returns an empty list for an agent with no configurable fields', () => {
-      expect(cliEnvFieldsForAgent(FIELDS, 'unknown-agent')).toEqual([]);
+      expect(cliEnvFieldsForAgent({ fields: FIELDS, agentId: 'unknown-agent' })).toEqual([]);
     });
   });
 
   describe('binPathEnvField', () => {
     it('finds the field tagged as the binary-path override', () => {
-      expect(binPathEnvField(FIELDS, 'codex')?.envKey).toBe('CODEX_BIN');
+      expect(binPathEnvField({ fields: FIELDS, agentId: 'codex' })?.envKey).toBe('CODEX_BIN');
     });
 
     it('returns null for an agent with no binPath-tagged field', () => {
-      expect(binPathEnvField(FIELDS, 'claude')).toBeNull();
+      expect(binPathEnvField({ fields: FIELDS, agentId: 'claude' })).toBeNull();
     });
   });
 
@@ -601,27 +601,27 @@ describe('per-agent CLI env fields', () => {
     const base: ExecutionConfig = { mode: 'local-cli', byok: byok(), localCli: { agentId: 'claude' } };
 
     it('reads an unset field as blank', () => {
-      expect(agentCliEnvValue(base.localCli, 'claude', 'ANTHROPIC_BASE_URL')).toBe('');
+      expect(agentCliEnvValue({ config: base.localCli, agentId: 'claude', envKey: 'ANTHROPIC_BASE_URL' })).toBe('');
     });
 
     it('sets a field, trimming the input', () => {
-      const next = nextConfigForAgentCliEnvChange(base, 'claude', 'ANTHROPIC_BASE_URL', '  https://proxy.example.com  ');
-      expect(agentCliEnvValue(next.localCli, 'claude', 'ANTHROPIC_BASE_URL')).toBe('https://proxy.example.com');
+      const next = nextConfigForAgentCliEnvChange({ config: base, agentId: 'claude', envKey: 'ANTHROPIC_BASE_URL', rawValue: '  https://proxy.example.com  ' });
+      expect(agentCliEnvValue({ config: next.localCli, agentId: 'claude', envKey: 'ANTHROPIC_BASE_URL' })).toBe('https://proxy.example.com');
       // The original is untouched — this is a pure transition.
-      expect(agentCliEnvValue(base.localCli, 'claude', 'ANTHROPIC_BASE_URL')).toBe('');
+      expect(agentCliEnvValue({ config: base.localCli, agentId: 'claude', envKey: 'ANTHROPIC_BASE_URL' })).toBe('');
     });
 
     it('keeps two fields for the same agent independent', () => {
-      const withBaseUrl = nextConfigForAgentCliEnvChange(base, 'claude', 'ANTHROPIC_BASE_URL', 'https://a.example.com');
-      const withBoth = nextConfigForAgentCliEnvChange(withBaseUrl, 'claude', 'ANTHROPIC_API_KEY', 'sk-1');
+      const withBaseUrl = nextConfigForAgentCliEnvChange({ config: base, agentId: 'claude', envKey: 'ANTHROPIC_BASE_URL', rawValue: 'https://a.example.com' });
+      const withBoth = nextConfigForAgentCliEnvChange({ config: withBaseUrl, agentId: 'claude', envKey: 'ANTHROPIC_API_KEY', rawValue: 'sk-1' });
       expect(withBoth.localCli.envByAgentId).toEqual({
         claude: { ANTHROPIC_BASE_URL: 'https://a.example.com', ANTHROPIC_API_KEY: 'sk-1' },
       });
     });
 
     it('keeps two agents independent so one CLI\'s override never bleeds into another\'s', () => {
-      const withClaude = nextConfigForAgentCliEnvChange(base, 'claude', 'ANTHROPIC_BASE_URL', 'https://a.example.com');
-      const withBoth = nextConfigForAgentCliEnvChange(withClaude, 'codex', 'CODEX_BIN', '/usr/local/bin/codex');
+      const withClaude = nextConfigForAgentCliEnvChange({ config: base, agentId: 'claude', envKey: 'ANTHROPIC_BASE_URL', rawValue: 'https://a.example.com' });
+      const withBoth = nextConfigForAgentCliEnvChange({ config: withClaude, agentId: 'codex', envKey: 'CODEX_BIN', rawValue: '/usr/local/bin/codex' });
       expect(withBoth.localCli.envByAgentId).toEqual({
         claude: { ANTHROPIC_BASE_URL: 'https://a.example.com' },
         codex: { CODEX_BIN: '/usr/local/bin/codex' },
@@ -629,22 +629,22 @@ describe('per-agent CLI env fields', () => {
     });
 
     it('clearing the last field for an agent drops that agent from the map entirely, not just to {}', () => {
-      const withField = nextConfigForAgentCliEnvChange(base, 'claude', 'ANTHROPIC_BASE_URL', 'https://a.example.com');
-      const cleared = nextConfigForAgentCliEnvChange(withField, 'claude', 'ANTHROPIC_BASE_URL', '');
+      const withField = nextConfigForAgentCliEnvChange({ config: base, agentId: 'claude', envKey: 'ANTHROPIC_BASE_URL', rawValue: 'https://a.example.com' });
+      const cleared = nextConfigForAgentCliEnvChange({ config: withField, agentId: 'claude', envKey: 'ANTHROPIC_BASE_URL', rawValue: '' });
       expect(cleared.localCli.envByAgentId).toEqual({});
       expect(cleared.localCli.envByAgentId?.claude).toBeUndefined();
     });
 
     it('clearing one field leaves a sibling field for the same agent intact', () => {
-      const withBaseUrl = nextConfigForAgentCliEnvChange(base, 'claude', 'ANTHROPIC_BASE_URL', 'https://a.example.com');
-      const withBoth = nextConfigForAgentCliEnvChange(withBaseUrl, 'claude', 'ANTHROPIC_API_KEY', 'sk-1');
-      const clearedOne = nextConfigForAgentCliEnvChange(withBoth, 'claude', 'ANTHROPIC_API_KEY', '');
+      const withBaseUrl = nextConfigForAgentCliEnvChange({ config: base, agentId: 'claude', envKey: 'ANTHROPIC_BASE_URL', rawValue: 'https://a.example.com' });
+      const withBoth = nextConfigForAgentCliEnvChange({ config: withBaseUrl, agentId: 'claude', envKey: 'ANTHROPIC_API_KEY', rawValue: 'sk-1' });
+      const clearedOne = nextConfigForAgentCliEnvChange({ config: withBoth, agentId: 'claude', envKey: 'ANTHROPIC_API_KEY', rawValue: '' });
       expect(clearedOne.localCli.envByAgentId).toEqual({ claude: { ANTHROPIC_BASE_URL: 'https://a.example.com' } });
     });
 
     it('a whitespace-only value clears the field rather than storing blank spaces', () => {
-      const withField = nextConfigForAgentCliEnvChange(base, 'claude', 'ANTHROPIC_BASE_URL', 'https://a.example.com');
-      const cleared = nextConfigForAgentCliEnvChange(withField, 'claude', 'ANTHROPIC_BASE_URL', '   ');
+      const withField = nextConfigForAgentCliEnvChange({ config: base, agentId: 'claude', envKey: 'ANTHROPIC_BASE_URL', rawValue: 'https://a.example.com' });
+      const cleared = nextConfigForAgentCliEnvChange({ config: withField, agentId: 'claude', envKey: 'ANTHROPIC_BASE_URL', rawValue: '   ' });
       expect(cleared.localCli.envByAgentId).toEqual({});
     });
   });
@@ -703,25 +703,25 @@ describe('filterAgentModelOptions', () => {
   ];
 
   it('returns every option for a blank query', () => {
-    expect(filterAgentModelOptions(options, '', '')).toEqual(options);
-    expect(filterAgentModelOptions(options, '   ', '')).toEqual(options);
+    expect(filterAgentModelOptions({ options, query: '', selectedValue: '' })).toEqual(options);
+    expect(filterAgentModelOptions({ options, query: '   ', selectedValue: '' })).toEqual(options);
   });
 
   it('matches case-insensitively against the label', () => {
-    expect(filterAgentModelOptions(options, 'HAIKU', '').map((o) => o.id)).toEqual(['claude-haiku-4-5']);
+    expect(filterAgentModelOptions({ options, query: 'HAIKU', selectedValue: '' }).map((o) => o.id)).toEqual(['claude-haiku-4-5']);
   });
 
   it('matches against the raw id even when it does not appear in the label', () => {
-    expect(filterAgentModelOptions(options, 'gpt-4o', '').map((o) => o.id)).toEqual(['gpt-4o']);
+    expect(filterAgentModelOptions({ options, query: 'gpt-4o', selectedValue: '' }).map((o) => o.id)).toEqual(['gpt-4o']);
   });
 
   it('keeps the selected option visible even when it stops matching the query', () => {
-    const filtered = filterAgentModelOptions(options, 'haiku', 'gpt-4o');
+    const filtered = filterAgentModelOptions({ options, query: 'haiku', selectedValue: 'gpt-4o' });
     expect(filtered.map((o) => o.id).sort()).toEqual(['claude-haiku-4-5', 'gpt-4o']);
   });
 
   it('returns an empty list when nothing matches and nothing is selected', () => {
-    expect(filterAgentModelOptions(options, 'nonexistent', '')).toEqual([]);
+    expect(filterAgentModelOptions({ options, query: 'nonexistent', selectedValue: '' })).toEqual([]);
   });
 });
 

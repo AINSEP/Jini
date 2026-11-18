@@ -38,7 +38,7 @@ export function describeConnectorReadIssue(result: ConnectorMemorySuggestionResp
   const firstIssue = failed[0] ?? skipped[0];
   if (!firstIssue) return null;
 
-  const connectorName = firstIssue.connectorName || connectorAppLabel(firstIssue.connectorId) || firstIssue.connectorId;
+  const connectorName = firstIssue.connectorName || connectorAppLabel({ connectorId: firstIssue.connectorId }) || firstIssue.connectorId;
   const reason = (firstIssue.error || firstIssue.summary || '').trim();
   const suffix = reason ? ` ${reason}` : '';
 
@@ -48,11 +48,12 @@ export function describeConnectorReadIssue(result: ConnectorMemorySuggestionResp
   return `No readable content from ${connectorName}.${suffix}`;
 }
 
-export function providerDisplayName(provider: MemoryExtractionRecord['provider'] | undefined): string {
-  if (provider?.credentialSource === 'chat-cli') {
-    if (provider.kind === 'anthropic') return 'Claude Code';
-    return 'Local CLI';
-  }
+function chatCliProviderDisplayName({ provider }: { provider: NonNullable<MemoryExtractionRecord['provider']> }, _optional: Record<string, never> = {}): string {
+  return provider.kind === 'anthropic' ? 'Claude Code' : 'Local CLI';
+}
+
+export function providerDisplayName({ provider }: { provider: MemoryExtractionRecord['provider'] | undefined }, _optional: Record<string, never> = {}): string {
+  if (provider?.credentialSource === 'chat-cli') return chatCliProviderDisplayName({ provider });
   switch (provider?.kind) {
     case 'anthropic':
       return 'Anthropic';
@@ -100,7 +101,7 @@ function parseJsonErrorFields(raw: string): ProviderErrorFields {
   }
 }
 
-export function parseProviderError(raw: string): { message: string; code: string; status: number | null } {
+export function parseProviderError({ raw }: { raw: string }, _optional: Record<string, never> = {}): { message: string; code: string; status: number | null } {
   const fields = parseJsonErrorFields(raw);
   const statusMatch = /\b(4\d\d|5\d\d)\b/.exec(raw);
   return {
@@ -170,11 +171,11 @@ function failureCopy({
 
 export function describeExtractionFailure(record: MemoryExtractionRecord): FriendlyExtractionFailure | null {
   if (record.phase !== 'failed' || !record.error) return null;
-  const parsed = parseProviderError(record.error);
+  const parsed = parseProviderError({ raw: record.error });
   const haystack = `${parsed.message} ${parsed.code} ${record.error}`.toLowerCase();
   return failureCopy({
     category: classifyFailure({ status: parsed.status, haystack }),
-    providerName: providerDisplayName(record.provider),
+    providerName: providerDisplayName({ provider: record.provider }),
     usesChatCli: record.provider?.credentialSource === 'chat-cli',
     source:
       record.kind === 'connector'
@@ -184,7 +185,7 @@ export function describeExtractionFailure(record: MemoryExtractionRecord): Frien
   });
 }
 
-export function formatConnectorContextBytes(bytes: number): string {
+export function formatConnectorContextBytes({ bytes }: { bytes: number }, _optional: Record<string, never> = {}): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return 'No data';
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(bytes < 10 * 1024 ? 1 : 0)} KB`;
@@ -192,7 +193,7 @@ export function formatConnectorContextBytes(bytes: number): string {
 }
 
 export function connectorAttemptName(attempt: ConnectorMemoryAttempt): string {
-  return attempt.connectorName || connectorAppLabel(attempt.connectorId) || attempt.connectorId;
+  return attempt.connectorName || connectorAppLabel({ connectorId: attempt.connectorId }) || attempt.connectorId;
 }
 
 export function connectorAttemptTitle(attempt: ConnectorMemoryAttempt): string {
@@ -219,8 +220,8 @@ export function connectorAttemptDetail(attempt: ConnectorMemoryAttempt): string 
 // reaching describeRecord. We fall back to 'skipped' defensively in
 // case a daemon-side regression sneaks one through.
 export function describeRecord(
-  record: MemoryExtractionRecord,
-  t: Translate,
+  { record, t }: { record: MemoryExtractionRecord; t: Translate },
+  _optional: Record<string, never> = {},
 ): {
   phaseLabel: string;
   reasonLabel: string | null;
@@ -261,7 +262,7 @@ export function describeRecord(
   return { phaseLabel, reasonLabel, kindLabel, tone };
 }
 
-export function formatRelativeTime(at: number, now: number): string {
+export function formatRelativeTime({ at, now }: { at: number; now: number }, _optional: Record<string, never> = {}): string {
   const delta = Math.max(0, now - at);
   if (delta < 60_000) return `${Math.round(delta / 1000)}s`;
   if (delta < 3_600_000) return `${Math.round(delta / 60_000)}m`;
@@ -274,7 +275,7 @@ export function formatRelativeTime(at: number, now: number): string {
 // gives no hint about whether that 5m was during today's session or a
 // stale row from yesterday. We omit the date for same-day rows so the line
 // stays short, and tack on the date for older rows.
-export function formatAbsoluteTime(at: number, now: number): string {
+export function formatAbsoluteTime({ at, now }: { at: number; now: number }, _optional: Record<string, never> = {}): string {
   const date = new Date(at);
   const today = new Date(now);
   const sameDay =
@@ -301,12 +302,12 @@ export function formatDuration(record: MemoryExtractionRecord): string | null {
   return `${Math.round(ms / 1000)}s`;
 }
 
-export function formatRelativeTimeAgo(at: number, now: number): string {
-  const relative = formatRelativeTime(at, now);
+export function formatRelativeTimeAgo({ at, now }: { at: number; now: number }, _optional: Record<string, never> = {}): string {
+  const relative = formatRelativeTime({ at, now });
   return relative === '0s' ? 'just now' : `${relative} ago`;
 }
 
-export function memoryCountLabel(count: number): string {
+export function memoryCountLabel({ count }: { count: number }, _optional: Record<string, never> = {}): string {
   return count === 1 ? 'memory' : 'memories';
 }
 
@@ -327,7 +328,7 @@ function connectorCardTitle({ record, t }: { record: MemoryExtractionRecord; t: 
     case 'success': {
       const writtenCount = positiveWrittenCount(record);
       if (writtenCount > 0) {
-        return t('Saved {count} {label}', { count: writtenCount, label: memoryCountLabel(writtenCount) });
+        return t('Saved {count} {label}', { count: writtenCount, label: memoryCountLabel({ count: writtenCount }) });
       }
       return t('No new memories found');
     }
@@ -336,7 +337,7 @@ function connectorCardTitle({ record, t }: { record: MemoryExtractionRecord; t: 
   }
 }
 
-export function extractionCardTitle(record: MemoryExtractionRecord, t: Translate): string {
+export function extractionCardTitle({ record, t }: { record: MemoryExtractionRecord; t: Translate }, _optional: Record<string, never> = {}): string {
   const kind = record.kind ?? 'llm';
   if (kind !== 'connector') {
     return record.userMessagePreview || t('Extraction');
@@ -346,7 +347,7 @@ export function extractionCardTitle(record: MemoryExtractionRecord, t: Translate
 
 function connectorCardMeta({ record, now, t }: { record: MemoryExtractionRecord; now: number; t: Translate }): string {
   if (record.phase === 'running') return t('Checking selected apps');
-  const age = formatRelativeTimeAgo(record.startedAt, now);
+  const age = formatRelativeTimeAgo({ at: record.startedAt, now });
   switch (record.phase) {
     case 'failed':
       return `${t('Needs attention')} · ${age}`;
@@ -363,7 +364,7 @@ function connectorCardMeta({ record, now, t }: { record: MemoryExtractionRecord;
 
 function modelCardMeta({ record, now, t }: { record: MemoryExtractionRecord; now: number; t: Translate }): string {
   const duration = formatDuration(record);
-  const parts = [formatAbsoluteTime(record.startedAt, now), formatRelativeTime(record.startedAt, now)];
+  const parts = [formatAbsoluteTime({ at: record.startedAt, now }), formatRelativeTime({ at: record.startedAt, now })];
   if (duration) parts.push(`${t('took')} ${duration}`);
   if (record.phase === 'success' && typeof record.writtenCount === 'number') {
     parts.push(`${record.writtenCount} ${t('saved')}`);
@@ -371,7 +372,7 @@ function modelCardMeta({ record, now, t }: { record: MemoryExtractionRecord; now
   return parts.join(' · ');
 }
 
-export function extractionCardMeta(record: MemoryExtractionRecord, now: number, t: Translate): string {
+export function extractionCardMeta({ record, now, t }: { record: MemoryExtractionRecord; now: number; t: Translate }, _optional: Record<string, never> = {}): string {
   const kind = record.kind ?? 'llm';
   if (kind === 'connector') return connectorCardMeta({ record, now, t });
   return modelCardMeta({ record, now, t });
@@ -379,7 +380,7 @@ export function extractionCardMeta(record: MemoryExtractionRecord, now: number, 
 
 /** Localized labels for each memory type badge. `t`-only, so callers memoize on
  *  `t` at the call site instead of drilling the map through props. */
-export function memoryTypeLabels(t: Translate): Record<MemoryType, string> {
+export function memoryTypeLabels({ t }: { t: Translate }, _optional: Record<string, never> = {}): Record<MemoryType, string> {
   return {
     profile: t('Profile'),
     user: t('Preference'),
@@ -391,7 +392,7 @@ export function memoryTypeLabels(t: Translate): Record<MemoryType, string> {
 }
 
 /** Localized labels for the transient action-confirmation pills. `t`-only. */
-export function memoryFlashLabels(t: Translate): Record<FlashKind, string> {
+export function memoryFlashLabels({ t }: { t: Translate }, _optional: Record<string, never> = {}): Record<FlashKind, string> {
   return {
     created: t('Memory created'),
     saved: t('Memory saved'),
@@ -402,7 +403,7 @@ export function memoryFlashLabels(t: Translate): Record<FlashKind, string> {
 }
 
 /** The add-modal source-tab bar config (profile / manual / connected). `t`-only. */
-export function memorySourceTabs(t: Translate): readonly MemorySourceTab[] {
+export function memorySourceTabs({ t }: { t: Translate }, _optional: Record<string, never> = {}): readonly MemorySourceTab[] {
   return [
     {
       id: 'profile',

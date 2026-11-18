@@ -53,7 +53,7 @@ function MemoryFilterPills({
   useTHook?: typeof useT;
 }) {
   const t = useTHook();
-  const typeLabel = useMemo(() => memoryTypeLabels(t), [t]);
+  const typeLabel = useMemo(() => memoryTypeLabels({ t }), [t]);
   return (
     <div className="library-filters">
       <button

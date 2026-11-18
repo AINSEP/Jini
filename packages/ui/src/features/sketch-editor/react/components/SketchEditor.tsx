@@ -220,7 +220,7 @@ export function SketchEditor({ useI18nHook = useI18n, useSketchSceneHook = useSk
           theme={theme}
           sceneState={sceneState}
           workflow={workflow}
-          hasContent={sketchSceneHasContent(scene)}
+          hasContent={sketchSceneHasContent({ scene })}
         />
       </div>
       <SketchSaveToast workflow={workflow} t={t} />

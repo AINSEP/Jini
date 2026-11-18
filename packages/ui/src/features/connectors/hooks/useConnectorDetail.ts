@@ -51,7 +51,7 @@ export function useConnectorDetail(port: ConnectorsPort, params: UseConnectorDet
           ...(cursor === undefined ? {} : { toolsCursor: cursor }),
         });
         if (next) {
-          setConnectors((curr) => curr.map((c) => (c.id === next.id ? mergeConnectorToolPreview(c, next, cursor !== undefined) : c)));
+          setConnectors((curr) => curr.map((c) => (c.id === next.id ? mergeConnectorToolPreview({ current: c, next, append: cursor !== undefined }) : c)));
           setFetchedIds((curr) => ({ ...curr, [connectorId]: true }));
           setFailedIds((curr) => withoutKey({ record: curr, key: connectorId }));
         } else {

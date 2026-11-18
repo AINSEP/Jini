@@ -33,8 +33,8 @@ export function ConnectorLogo({ connectorId, connectorName, logoUrl, size = 'sm'
     }
   }, [logoUrl]);
 
-  const initials = fallbackLogoInitials(connectorName);
-  const palette = fallbackLogoPaletteIndex(connectorId || connectorName, FALLBACK_PALETTE_SIZE);
+  const initials = fallbackLogoInitials({ name: connectorName });
+  const palette = fallbackLogoPaletteIndex({ seed: connectorId || connectorName, paletteSize: FALLBACK_PALETTE_SIZE });
   const showImage = Boolean(logoUrl) && state !== 'error';
 
   return (

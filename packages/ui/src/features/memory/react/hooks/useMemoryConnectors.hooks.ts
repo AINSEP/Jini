@@ -157,8 +157,8 @@ export function applyMemoryConnectorConnectResult(
   const requiresAuthorizationCompletion = result.auth?.kind === 'redirect_required' || result.auth?.kind === 'pending';
   setConnectors((prev) =>
     upsertMemoryConnector(
-      prev,
-      requiresAuthorizationCompletion && result.connector ? connectorWithPendingAuthorization(result.connector) : result.connector,
+      { current: prev,
+      next: requiresAuthorizationCompletion && result.connector ? connectorWithPendingAuthorization(result.connector) : result.connector },
     ),
   );
   // This upsert just committed newer-than-any-in-flight-discovery truth for

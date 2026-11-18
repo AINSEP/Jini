@@ -191,7 +191,7 @@ export function ByokProviderForm({
         <ByokCardTitle preset={preset} useTHook={hooks.useT} />
       </div>
 
-      {presetRequiresApiKey(preset) ? (
+      {presetRequiresApiKey({ preset }) ? (
         <ByokApiKeyField
           {...part}
           presets={presets}
@@ -242,7 +242,7 @@ function ByokConnectionFields({ config, patch, preset, agentHandle, validation, 
           BELOW it rather than two squeezed columns. Source order is therefore the stacking order.
           With `showsBaseUrlField` false the row holds one child, which then fills it. */}
       <div className="jini-byok-field-row">
-        {showsBaseUrlField(preset) ? (
+        {showsBaseUrlField({ preset }) ? (
           <label className="jini-field" onBlurCapture={() => validation.markTouched({ field: 'baseUrl' })}>
             <span className="jini-field-label">
               {t('Base URL')}
@@ -275,7 +275,7 @@ function ByokConnectionFields({ config, patch, preset, agentHandle, validation, 
             min={1}
             step={1}
             value={config.maxTokens ?? ''}
-            onChange={(event) => patch({ maxTokens: parseMaxTokens(event.target.value) })}
+            onChange={(event) => patch({ maxTokens: parseMaxTokens({ raw: event.target.value }) })}
             {...agentHandleProps({}, { base: agentHandle, ...({ action: 'max-tokens', role: 'field', label: t('Max tokens (optional)') }) })}
           />
           <span className="jini-field-hint">
@@ -308,7 +308,7 @@ function ByokApiKeyField({
   const keyInputId = useId();
   /** Deliberately NOT folded into `missing` above: that set drives `is-missing` styling and the
    *  Test-connection disable, and a wrong-SHAPED key must never reach either. */
-  const keyFormatWarning = apiKeyFormatWarning(config, preset, presets);
+  const keyFormatWarning = apiKeyFormatWarning({ config, preset }, { presets });
   return (
     <>
     {/* A `<div>` with a `<label htmlFor>`, never a wrapping `<label>`: the eye toggle's
@@ -430,7 +430,7 @@ function ByokModelRow({
   // opens the box for an explicit "Custom…" pick AND for a value that simply isn't in the list, so
   // a hydrated or hand-typed id is never silently replaced by whatever sorts first.
   const customModelActive =
-    showModelPicker && shouldShowCustomModelInput(config.model, liveModels, explicitCustomModel);
+    showModelPicker && shouldShowCustomModelInput({ modelValue: config.model, knownModelIds: liveModels, explicitCustomMode: explicitCustomModel });
   const modelClassName = 'jini-input' + missingClass(validation, 'model');
 
   return (

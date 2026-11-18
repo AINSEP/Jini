@@ -174,13 +174,13 @@ function LocalCliAgentSummary({ agent, config, selected, useTHook = useT }:
   Pick<LocalCliAgentCardProps, 'agent' | 'config' | 'selected'> & { useTHook?: typeof useT }) {
   const t = useTHook();
   const description = agent.description ?? DEFAULT_AGENT_DESCRIPTIONS[agent.id];
-  const meta = agentMetaLabel(agent, {
+  const meta = agentMetaLabel({ agent, labels: {
     authRequired: t('Authentication required'),
     authUnknown: t('Auth status unknown'),
     installed: t('Installed'),
     notInstalled: t('Not installed'),
-  });
-  const summary = agentModelSummary(config, agent);
+  } });
+  const summary = agentModelSummary({ config, agent });
 
   return (
     <span className="jini-agent-card-body">

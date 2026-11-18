@@ -32,7 +32,7 @@ export interface AgentCliEnvFieldsProps {
 export function AgentCliEnvFields({ agentId, fields, config, onChange, useTHook = useT }: AgentCliEnvFieldsProps) {
   const t = useTHook();
   const idBase = useId();
-  const relevant = cliEnvFieldsForAgent(fields, agentId);
+  const relevant = cliEnvFieldsForAgent({ fields, agentId });
   if (relevant.length === 0) return null;
 
   return (
@@ -46,7 +46,7 @@ export function AgentCliEnvFields({ agentId, fields, config, onChange, useTHook 
             const input = {
               id,
               className: 'jini-input',
-              value: agentCliEnvValue(config, agentId, field.envKey),
+              value: agentCliEnvValue({ config, agentId, envKey: field.envKey }),
               placeholder: field.placeholder,
               spellCheck: false,
               'data-testid': `jini-agent-cli-env-${agentId}-${field.envKey}`,

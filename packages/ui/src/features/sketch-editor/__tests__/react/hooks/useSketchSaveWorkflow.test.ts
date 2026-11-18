@@ -33,7 +33,7 @@ function baseParams(overrides: Partial<Parameters<typeof useSketchSaveWorkflow>[
     dirty: false,
     saving: false,
     fileName: 'diagram.excalidraw',
-    currentScene: () => emptySketchScene('diagram.excalidraw'),
+    currentScene: () => emptySketchScene({}, { name: 'diagram.excalidraw' }),
     onSave: vi.fn(async () => true),
     engine: createFakeSketchEditorEngine(),
     t,
@@ -85,7 +85,7 @@ describe('useSketchSaveWorkflow', () => {
 
   it('handleSave calls onSave with the current scene and shows a "Saved" toast', async () => {
     const onSave = vi.fn(async () => true);
-    const scene = emptySketchScene('a');
+    const scene = emptySketchScene({}, { name: 'a' });
     const { result } = renderHook(() => useSketchSaveWorkflow(baseParams({ onSave, currentScene: () => scene })));
     await act(async () => {
       await result.current.handleSave();
@@ -321,7 +321,7 @@ describe('useWiredSketchSaveWorkflow', () => {
           dirty: false,
           saving: false,
           fileName: 'diagram.excalidraw',
-          currentScene: () => emptySketchScene('diagram.excalidraw'),
+          currentScene: () => emptySketchScene({}, { name: 'diagram.excalidraw' }),
           onSave: vi.fn(async () => true),
           onExportImage,
           t,

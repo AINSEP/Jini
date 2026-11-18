@@ -43,14 +43,14 @@ describe('reportThrownConnectorActionFailure', () => {
   it('reports an Error message via onAuthResult, then rethrows the same error', () => {
     const onAuthResult = vi.fn();
     const err = new Error('network down');
-    expect(() => reportThrownConnectorActionFailure({ connectorId: 'slack', action: 'connect' }, { onAuthResult }, err)).toThrow(err);
+    expect(() => reportThrownConnectorActionFailure({ connectorId: 'slack', action: 'connect', err }, { onAuthResult })).toThrow(err);
     expect(onAuthResult).toHaveBeenCalledWith({ connectorId: 'slack', action: 'connect', result: 'failed', errorCode: 'network down' });
   });
 
   it('stringifies a non-Error throw', () => {
     const onAuthResult = vi.fn();
     expect(() =>
-      reportThrownConnectorActionFailure({ connectorId: 'slack', action: 'disconnect' }, { onAuthResult }, 'plain failure'),
+      reportThrownConnectorActionFailure({ connectorId: 'slack', action: 'disconnect', err: 'plain failure' }, { onAuthResult }),
     ).toThrow('plain failure');
     expect(onAuthResult).toHaveBeenCalledWith({
       connectorId: 'slack',
@@ -61,7 +61,7 @@ describe('reportThrownConnectorActionFailure', () => {
   });
 
   it('still rethrows when onAuthResult is not supplied', () => {
-    expect(() => reportThrownConnectorActionFailure({ connectorId: 'slack', action: 'connect' }, {}, new Error('boom'))).toThrow('boom');
+    expect(() => reportThrownConnectorActionFailure({ connectorId: 'slack', action: 'connect', err: new Error('boom') }, {})).toThrow('boom');
   });
 });
 

@@ -75,7 +75,7 @@ function useSavedIndicator({ dirty, saving, savedAt }: { dirty: boolean; saving:
 function exportSceneInput({ scene }: { scene: ReturnType<UseSketchSaveWorkflowParams['currentScene']> }, _options = {}) {
   const exportedElements = scene.elements.filter(isNonDeletedExcalidrawElement) as OrderedExcalidrawElement[];
   const exportedAppState = {
-    ...sanitizeExcalidrawAppState(scene.appState),
+    ...sanitizeExcalidrawAppState({ value: scene.appState }),
     exportBackground: true,
     viewBackgroundColor: typeof scene.appState?.viewBackgroundColor === 'string' ? scene.appState.viewBackgroundColor : '#ffffff',
   } as Partial<AppState>;
@@ -99,10 +99,10 @@ async function performSketchExport({ scene, engine, exportHandler, fileNameRef, 
       exportPadding: 16,
     });
     const base64 = await blobToBase64(blob);
-    const requestedFileName = exportedImageFileName(fileNameRef.current, sourceFileExtension);
+    const requestedFileName = exportedImageFileName({ fileName: fileNameRef.current }, { sourceExtension: sourceFileExtension });
     const result = await exportHandler(base64, requestedFileName, scene);
     if (result === false) return null;
-    const savedFileName = exportedImageResultFileName(result, requestedFileName);
+    const savedFileName = exportedImageResultFileName({ result, fallback: requestedFileName });
     return { message: tRef.current('Image exported'), details: savedFileName, tone: 'success', actionFileName: savedFileName };
   } catch (err) {
     console.warn('[SketchEditor] export image failed', describeErrorForLog({ err }));

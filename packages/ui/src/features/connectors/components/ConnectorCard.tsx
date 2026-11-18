@@ -49,8 +49,8 @@ function ConnectorCardTitleDot({ status, isAuthorizationPending, useTHook = useT
     return (
       <span
         className={`connector-status-dot connector-card-title-dot status-${status}`}
-        aria-label={t(statusLabel(status))}
-        title={t(statusLabel(status))}
+        aria-label={t(statusLabel({ status }))}
+        title={t(statusLabel({ status }))}
         role="img"
       />
     );
@@ -69,7 +69,7 @@ function ConnectorCardTitleDot({ status, isAuthorizationPending, useTHook = useT
 function ConnectorCardToolsBadge({ connector, toolsLoaded, useTHook = useT }: { connector: Connector; toolsLoaded: boolean; useTHook?: typeof useT; }) {
   const t = useTHook();
   const showToolsBadge = connector.toolCount !== undefined || connector.tools.length > 0 || toolsLoaded;
-  const toolsBadge = toolsBadgeTranslation(getConnectorDisplayToolCount(connector));
+  const toolsBadge = toolsBadgeTranslation({ count: getConnectorDisplayToolCount(connector) });
   const toolsBadgeLabel = t(toolsBadge.key, toolsBadge.vars);
   return (
     <span className="connector-meta-tools" aria-hidden={!showToolsBadge}>
@@ -155,7 +155,7 @@ function ConnectorCancelAuthorizationButton({ onActivate, useTHook = useT }: { o
 function ConnectorStatusPill({ status, useTHook = useT }: { status: ConnectorStatusValue; useTHook?: typeof useT; }) {
   const t = useTHook();
   if (status !== 'error' && status !== 'disabled') return null;
-  return <span className={`connector-status-pill status-${status}`}>{t(statusLabel(status))}</span>;
+  return <span className={`connector-status-pill status-${status}`}>{t(statusLabel({ status }))}</span>;
 }
 
 interface ConnectorCardHintsProps {

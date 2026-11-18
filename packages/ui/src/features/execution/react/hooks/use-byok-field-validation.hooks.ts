@@ -16,7 +16,7 @@ export function useByokFieldValidation(
   const [touched, setTouched] = useState<{ providerId: ByokConfig['providerId']; fields: Set<Field> }>(
     { providerId: config.providerId, fields: new Set() },
   );
-  const missing = new Set(missingRequiredFields(config, preset));
+  const missing = new Set(missingRequiredFields({ config, preset }));
   if (apiKeyStoredExternally) missing.delete('apiKey');
   const baseUrlInvalid = isBaseUrlInvalid(config);
 

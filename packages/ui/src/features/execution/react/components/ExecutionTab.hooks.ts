@@ -16,7 +16,7 @@ export function useExecutionTabView({ config, onConfigChange, port, presets, aut
   });
   const { loadModels, resetModelDiscovery } = tab;
 
-  const selectedPreset = resolveSelectedPreset(presets, config.byok);
+  const selectedPreset = resolveSelectedPreset({ presets, config: config.byok });
 
   /**
    * Whether a key EXISTS, never what it is. Keyed on the boolean specifically so the effect below
@@ -61,7 +61,7 @@ export function useExecutionTabView({ config, onConfigChange, port, presets, aut
   // whenever `localCliUnavailableReason` is set, and React never dispatches `onClick` for a disabled
   // button, so `setMode('local-cli')` cannot be reached in that state.
   const setMode = (mode: ExecutionMode) => {
-    onConfigChange(nextConfigForModeChange(config, mode));
+    onConfigChange(nextConfigForModeChange({ config, mode }));
   };
 
   return { tab, selectedPreset, setMode };
@@ -71,12 +71,12 @@ export function useExecutionTabView({ config, onConfigChange, port, presets, aut
 export function useByokPane({ config, onConfigChange, presets, selectedPreset }: {
   config: ExecutionConfig; onConfigChange: (config: ExecutionConfig) => void; presets: readonly ProviderPreset[]; selectedPreset: ProviderPreset | null;
 }, _options = {}) {
-  const { protocols, gateways } = groupPresets(presets);
+  const { protocols, gateways } = groupPresets({ presets });
   const configuredPresetIds = new Set(
-    presets.filter((preset) => isProviderConfigured(config.byok, preset)).map((preset) => preset.id),
+    presets.filter((preset) => isProviderConfigured({ config: config.byok, preset })).map((preset) => preset.id),
   );
   const selectPreset = (preset: ProviderPreset) =>
-    onConfigChange({ ...config, byok: nextConfigForPresetSelect(config.byok, preset) });
+    onConfigChange({ ...config, byok: nextConfigForPresetSelect({ config: config.byok, preset }) });
   const selectedPresetId = selectedPreset?.id ?? null;
   return { protocols, gateways, configuredPresetIds, selectPreset, selectedPresetId };
 }

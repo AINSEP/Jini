@@ -70,7 +70,7 @@ function MemoryNameTypeRow({
   useTHook = useT,
 }: DraftFieldProps & Pick<MemoryManualEditorProps, 'editorNameRef'> & { useTHook?: typeof useT }) {
   const t = useTHook();
-  const typeLabel = useMemo(() => memoryTypeLabels(t), [t]);
+  const typeLabel = useMemo(() => memoryTypeLabels({ t }), [t]);
   return (
     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -244,7 +244,7 @@ export interface MemoryManualEditorProps {
 export function MemoryManualEditor({ useTHook = useT, ...props }: MemoryManualEditorProps) {
   const { editing, onStartNew, flash } = props;
   const t = useTHook();
-  const flashLabel = useMemo(() => memoryFlashLabels(t), [t]);
+  const flashLabel = useMemo(() => memoryFlashLabels({ t }), [t]);
   return (
     <div className="memory-tab-panel memory-manual-panel">
       <div className="memory-source-summary">

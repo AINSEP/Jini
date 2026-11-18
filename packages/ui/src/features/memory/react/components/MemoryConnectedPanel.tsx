@@ -263,7 +263,7 @@ function MemoryConnectorDiagnostics({
       <div className="memory-connector-diagnostics-head">
         <strong>{t('Last scan')}</strong>
         <span>
-          {formatConnectorContextBytes(connectorContextBytes)} {t('read')}
+          {formatConnectorContextBytes({ bytes: connectorContextBytes })} {t('read')}
         </span>
       </div>
       <div className="memory-connector-diagnostics-list">
