@@ -342,7 +342,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
 
 const instances = new WeakMap<AgentPluginLifecyclePorts, ReturnType<typeof buildModule>>();
 /** Internal composition; one state/queue instance per injected host context. */
-export function createBundledDigestsModule(ports: AgentPluginLifecyclePorts) {
+export function createBundledDigestsModule(ports: AgentPluginLifecyclePorts, _optional: Record<string, never> = {}) {
   let instance = instances.get(ports);
   if (!instance) { instance = buildModule(ports); instances.set(ports, instance); }
   return instance;

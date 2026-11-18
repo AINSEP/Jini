@@ -68,7 +68,7 @@ function extractFallbackSummary(markdown: string): string | undefined {
 /** One skill's summary, for folding into its plugin's combined description — reuses the same
  *  frontmatter/fallback parsing the prior per-skill pilot used, just no longer wrapped into a
  *  standalone tool description of its own. */
-export function summarizeSkillMarkdown(skillName: string, markdown: string, ports: Pick<AgentPluginHostToolPorts, "readFrontmatterField">): string {
+export function summarizeSkillMarkdown({ skillName, markdown, ports }: { skillName: string; markdown: string; ports: Pick<AgentPluginHostToolPorts, "readFrontmatterField"> }, _optional: Record<string, never> = {}): string {
   return (
     ports.readFrontmatterField({ markdown, key: "description" }) ?? extractFallbackSummary(markdown) ?? `${humanize(skillName)} guidance and reference material.`
   ).replace(/\s+/g, " ").trim();
@@ -182,7 +182,7 @@ export async function readInstalledSkillDetail(
   _optional: Record<string, never> = {},
 ): Promise<AgentPluginSkillDetail> {
   const markdown = await ports.lifecycle.readInstalledSkillMarkdown({ packageRoot: plugin.packageRoot, skillPath: skill.skillPath });
-  return { name: skill.name, summary: summarizeSkillMarkdown(skill.name, markdown, ports), markdown,
+  return { name: skill.name, summary: summarizeSkillMarkdown({ skillName: skill.name, markdown, ports }), markdown,
     readFile: (_input, options = {}) => ports.lifecycle.readInstalledSkillFile({ packageRoot: plugin.packageRoot, skillPath: skill.skillPath }, options),
   };
 }

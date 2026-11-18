@@ -54,8 +54,8 @@ test('env token import logs the error class only', async () => {
 test('a failed provisioning write keeps its answer text and carries the original error', async () => {
   const secret = secretError();
   const result = await provisionAgentPluginMcpServers(
-    { repo: { findByServerId: async () => { throw secret; } }, saveServer: async () => {}, projections: {}, classifyError: () => 'other' } as never,
-    { workspaceId: 'ws', pluginId: 'p', principalId: 'u', classifyTrust: () => 'auto-admit',
+    { deps: { repo: { findByServerId: async () => { throw secret; } }, saveServer: async () => {}, projections: {}, classifyError: () => 'other' } as never,
+      workspaceId: 'ws', pluginId: 'p', principalId: 'u', classifyTrust: () => 'auto-admit',
       servers: { alpha: { type: 'streamable-http', url: 'https://alpha.example/mcp' } },
       messages: { sseTransportUnsupported: () => 'sse', headersUnsupported: () => 'headers' } } as never,
   );

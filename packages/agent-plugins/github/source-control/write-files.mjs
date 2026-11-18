@@ -38,31 +38,31 @@ export function enc(value) {
   return encodeURIComponent(value);
 }
 
-/** @param {string} path */
-export function encPath(path) {
+/** @param {{ path: string }} required */
+export function encPath({ path }, _optional = {}) {
   return path.split("/").map(enc).join("/");
 }
 
 /** `<baseUrl>/repos/<owner>/<repo>`. @param {Target} target */
-export function repoPathOf(target) {
+export function repoPathOf(target, _optional = {}) {
   const base = target.baseUrl.endsWith("/") ? target.baseUrl.slice(0, -1) : target.baseUrl;
   return `${base}/repos/${enc(target.owner)}/${enc(target.repo)}`;
 }
 
 /** @param {HttpResponse} response */
-export function isOk(response) {
+export function isOk(response, _optional = {}) {
   return response.status >= 200 && response.status < 300;
 }
 
-/** @param {unknown} value @param {string} field */
-export function extractStringField(value, field) {
+/** @param {{ value: unknown, field: string }} required */
+export function extractStringField({ value, field }, _optional = {}) {
   if (typeof value !== "object" || value === null) return "";
   const candidate = /** @type {Record<string, unknown>} */ (value)[field];
   return typeof candidate === "string" ? candidate : "";
 }
 
 /** @param {HttpResponse} response @returns {{ ok: true, json: any } | { ok: false, message: string }} */
-export function parseJsonBody(response) {
+export function parseJsonBody(response, _optional = {}) {
   try {
     return { ok: true, json: JSON.parse(response.bodyText) };
   } catch {
@@ -70,8 +70,8 @@ export function parseJsonBody(response) {
   }
 }
 
-/** @param {HttpResponse} response @param {string} fallback */
-export function providerErrorMessage(response, fallback) {
+/** @param {{ response: HttpResponse, fallback: string }} required */
+export function providerErrorMessage({ response, fallback }, _optional = {}) {
   const body = parseJsonBody(response);
   const providerMessage = body.ok && typeof body.json?.message === "string" ? body.json.message : undefined;
   return providerMessage ? `${fallback}: ${providerMessage}` : `${fallback} (status ${response.status})`;
@@ -90,7 +90,7 @@ function splitRepoPath(path) {
 
 /** A regular file, not a symlink or submodule (both report `download_url: null`). @param {unknown} entry */
 function isRegularFileEntry(entry) {
-  if (extractStringField(entry, "type") !== "file") return false;
+  if (extractStringField({ value: entry, field: "type" }) !== "file") return false;
   return !(entry !== null && typeof entry === "object" && /** @type {Record<string, unknown>} */ (entry).download_url === null);
 }
 
@@ -125,13 +125,12 @@ function gitHubRateLimitDelay({ response, retryAfter, policy }, _options = {}) {
  * GitHub's documented order: `retry-after` (seconds) first, then `x-ratelimit-reset` when
  * `x-ratelimit-remaining` is 0, then at least a minute for a secondary limit without either.
  *
- * @param {{ kind: "response", response: HttpResponse } | { kind: "network-unreachable", refused: boolean }} result
- * @param {number} attempt - 1 for the first retry.
- * @param {RetryPolicy} policy
+ * @param {{ result: { kind: "response", response: HttpResponse } | { kind: "network-unreachable", refused: boolean }, attempt: number, policy: RetryPolicy }} required
+ * @param {number} required.attempt - 1 for the first retry.
  * @returns {number | undefined}
  * @complexity O(headers).
  */
-export function retryDelayMs(result, attempt, policy) {
+export function retryDelayMs({ result, attempt, policy }, _optional = {}) {
   const backoff = Math.min(policy.maxBackoffMs, policy.baseBackoffMs * 2 ** (attempt - 1));
   if (result.kind !== "response") return result.refused ? undefined : backoff;
   const { status } = result.response;
@@ -168,7 +167,7 @@ export function createGitDataClient(kit, options = {}) {
     let result = await sendOnce(target, request);
     const policy = options.retry;
     for (let attempt = 1; policy !== undefined && attempt < policy.maxAttempts; attempt++) {
-      const waitMs = retryDelayMs(result, attempt, policy);
+      const waitMs = retryDelayMs({ result, attempt, policy });
       if (waitMs === undefined || waitMs > policy.maxWaitMs) break;
       await sleep(waitMs);
       result = await sendOnce(target, request);
@@ -215,7 +214,7 @@ export function createGitDataClient(kit, options = {}) {
     const result = await send(target, { method: "GET", url });
     if (result.kind !== "response") return nonResponseFailure(result);
     if (result.response.status === 404) return { ok: true, found: false };
-    if (!isOk(result.response)) return { ok: false, code: PROVIDER_ERROR, message: providerErrorMessage(result.response, failureFallback) };
+    if (!isOk(result.response)) return { ok: false, code: PROVIDER_ERROR, message: providerErrorMessage({ response: result.response, fallback: failureFallback }) };
     const body = parseJsonBody(result.response);
     if (!body.ok) return { ok: false, code: PROVIDER_ERROR, message: body.message };
     return { ok: true, found: true, json: body.json };
@@ -226,7 +225,7 @@ export function createGitDataClient(kit, options = {}) {
   async function postJson(target, url, body, failureFallback) {
     const result = await send(target, { method: "POST", url, body: JSON.stringify(body) });
     if (result.kind !== "response") return nonResponseFailure(result);
-    if (!isOk(result.response)) return { ok: false, code: PROVIDER_ERROR, message: providerErrorMessage(result.response, failureFallback) };
+    if (!isOk(result.response)) return { ok: false, code: PROVIDER_ERROR, message: providerErrorMessage({ response: result.response, fallback: failureFallback }) };
     const parsed = parseJsonBody(result.response);
     if (!parsed.ok) return { ok: false, code: PROVIDER_ERROR, message: parsed.message };
     return { ok: true, json: parsed.json };
@@ -237,7 +236,7 @@ export function createGitDataClient(kit, options = {}) {
     const bytes = typeof content === "string" ? Buffer.from(content, "utf8") : Buffer.from(content.buffer, content.byteOffset, content.byteLength);
     const result = await postJson(target, `${repoPathOf(target)}/git/blobs`, { content: bytes.toString("base64"), encoding: "base64" }, "GitHub blob creation failed");
     if (!result.ok) return result;
-    const sha = extractStringField(result.json, "sha");
+    const sha = extractStringField({ value: result.json, field: "sha" });
     if (!sha) return { ok: false, code: PROVIDER_ERROR, message: "GitHub blob creation response did not include a sha" };
     return { ok: true, sha };
   }
@@ -245,12 +244,12 @@ export function createGitDataClient(kit, options = {}) {
   /** Unforced: a 422 means the branch moved. @param {Target} target @param {string} branch @param {string} sha
    *  @returns {Promise<{ ok: true } | { ok: false, code: "diverged", message: string } | Failure>} */
   async function updateRef(target, branch, sha) {
-    const result = await send(target, { method: "PATCH", url: `${repoPathOf(target)}/git/refs/heads/${encPath(branch)}`, body: JSON.stringify({ sha }) });
+    const result = await send(target, { method: "PATCH", url: `${repoPathOf(target)}/git/refs/heads/${encPath({ path: branch })}`, body: JSON.stringify({ sha }) });
     if (result.kind !== "response") return nonResponseFailure(result);
     if (result.response.status === 422) {
       return { ok: false, code: "diverged", message: "the branch has moved since this write was confirmed — refusing to overwrite it" };
     }
-    if (!isOk(result.response)) return { ok: false, code: PROVIDER_ERROR, message: providerErrorMessage(result.response, "GitHub branch update failed") };
+    if (!isOk(result.response)) return { ok: false, code: PROVIDER_ERROR, message: providerErrorMessage({ response: result.response, fallback: "GitHub branch update failed" }) };
     return { ok: true };
   }
 
@@ -260,10 +259,10 @@ export function createGitDataClient(kit, options = {}) {
 /** @typedef {ReturnType<typeof createGitDataClient>} GitDataClient */
 
 /** The two write-files operations. @param {GitDataClient} git */
-export function createFileWriter(git) {
+export function createFileWriter(git, _optional = {}) {
   /** @param {Target} target @param {string} branch @param {string} path */
   async function checkOneFileExistence(target, branch, path) {
-    const result = await git.getJson(target, `${repoPathOf(target)}/contents/${encPath(path)}?ref=${enc(branch)}`, `GitHub lookup of '${path}' failed`);
+    const result = await git.getJson(target, `${repoPathOf(target)}/contents/${encPath({ path })}?ref=${enc(branch)}`, `GitHub lookup of '${path}' failed`);
     if (!result.ok) return result;
     if (!result.found) return { ok: true, state: { path, exists: false } };
     if (Array.isArray(result.json) || result.json.type !== "file") return notRegularFileFailure(path);
@@ -293,7 +292,7 @@ export function createFileWriter(git) {
 
   /** @param {{ target: Target, branch: string, dirFiles: WriteFile[], entries: any[], stateByPath: Map<string, { path: string, exists: boolean }> }} required */
   async function resolveDirectoryFileStates({ target, branch, dirFiles, entries, stateByPath }, _options = {}) {
-    const entryByName = new Map(entries.map((entry) => [extractStringField(entry, "name"), entry]));
+    const entryByName = new Map(entries.map((entry) => [extractStringField({ value: entry, field: "name" }), entry]));
     const listingMayBeIncomplete = entries.length >= CONTENTS_API_DIRECTORY_LISTING_CAP;
     for (const file of dirFiles) {
       const entry = entryByName.get(splitRepoPath(file.path).name);
@@ -306,7 +305,7 @@ export function createFileWriter(git) {
 
   /** @param {{ target: Target, branch: string, dir: string, dirFiles: WriteFile[], stateByPath: Map<string, { path: string, exists: boolean }> }} required */
   async function checkDirectoryFileExistence({ target, branch, dir, dirFiles, stateByPath }, _options = {}) {
-    const directoryPath = dir ? `/${encPath(dir)}` : "";
+    const directoryPath = dir ? `/${encPath({ path: dir })}` : "";
     const listUrl = `${repoPathOf(target)}/contents${directoryPath}?ref=${enc(branch)}`;
     const listResult = await git.getJson(target, listUrl, `GitHub directory lookup of '${dir}' failed`);
     if (!listResult.ok) return listResult;
@@ -338,16 +337,16 @@ export function createFileWriter(git) {
   /** @param {Target & { branch: string, files: readonly WriteFile[] }} input */
   async function planFileWrite(input) {
     const repoPath = repoPathOf(input);
-    const refJson = await git.getJson(input, `${repoPath}/git/ref/heads/${encPath(input.branch)}`, "GitHub branch lookup failed");
+    const refJson = await git.getJson(input, `${repoPath}/git/ref/heads/${encPath({ path: input.branch })}`, "GitHub branch lookup failed");
     if (!refJson.ok) return refJson;
     if (!refJson.found) return { ok: false, code: "branch-not-found", message: `branch '${input.branch}' does not exist in ${input.owner}/${input.repo}` };
-    const parentCommitSha = extractStringField(refJson.json.object, "sha");
+    const parentCommitSha = extractStringField({ value: refJson.json.object, field: "sha" });
     if (!parentCommitSha) return { ok: false, code: PROVIDER_ERROR, message: "GitHub branch lookup response did not include a sha" };
 
     const commitJson = await git.getJson(input, `${repoPath}/git/commits/${enc(parentCommitSha)}`, "GitHub parent-commit lookup failed");
     if (!commitJson.ok) return commitJson;
     if (!commitJson.found) return { ok: false, code: PROVIDER_ERROR, message: "GitHub parent-commit lookup returned 404 for a sha this call just resolved" };
-    const baseTreeSha = extractStringField(commitJson.json.tree, "sha");
+    const baseTreeSha = extractStringField({ value: commitJson.json.tree, field: "sha" });
     if (!baseTreeSha) return { ok: false, code: PROVIDER_ERROR, message: "GitHub parent-commit response did not include a tree sha" };
 
     const existence = await checkFileExistence(input, input.branch, input.files);
@@ -446,7 +445,7 @@ export function createFileWriter(git) {
 
     const treeResult = await git.postJson(input, `${repoPath}/git/trees`, { tree: blobs.entries, base_tree: plan.baseTreeSha }, "GitHub tree creation failed");
     if (!treeResult.ok) return treeResult;
-    const newTreeSha = extractStringField(treeResult.json, "sha");
+    const newTreeSha = extractStringField({ value: treeResult.json, field: "sha" });
     if (!newTreeSha) return { ok: false, code: PROVIDER_ERROR, message: "GitHub tree creation response did not include a sha" };
 
     const commitResult = await git.postJson(
@@ -456,7 +455,7 @@ export function createFileWriter(git) {
       "GitHub commit creation failed"
     );
     if (!commitResult.ok) return commitResult;
-    const commitSha = extractStringField(commitResult.json, "sha");
+    const commitSha = extractStringField({ value: commitResult.json, field: "sha" });
     if (!commitSha) return { ok: false, code: PROVIDER_ERROR, message: "GitHub commit creation response did not include a sha" };
 
     const refResult = await git.updateRef(input, input.branch, commitSha);

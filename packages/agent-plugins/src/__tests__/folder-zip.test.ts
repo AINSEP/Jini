@@ -15,8 +15,8 @@ async function archive(required: { files: File[]; maxBytes?: number }, _optional
 }
 
 test("CRC-32 matches the standard check vector and empty input", () => {
-  assert.equal(crc32(new TextEncoder().encode("123456789")), 0xcbf43926);
-  assert.equal(crc32(new Uint8Array()), 0);
+  assert.equal(crc32({ bytes: new TextEncoder().encode("123456789") }), 0xcbf43926);
+  assert.equal(crc32({ bytes: new Uint8Array() }), 0);
 });
 
 test("an empty selection returns the empty-folder refusal", async () => {
@@ -66,7 +66,7 @@ test("stored ZIP headers preserve binary bytes, CRC, fixed dates and DOS file at
   assert.equal(view.getUint16(8, true), 0);
   assert.equal(view.getUint16(10, true), 0);
   assert.equal(view.getUint16(12, true), 33);
-  assert.equal(view.getUint32(14, true), crc32(data));
+  assert.equal(view.getUint32(14, true), crc32({ bytes: data }));
   assert.equal(view.getUint32(18, true), 4);
   assert.equal(view.getUint32(22, true), 4);
   assert.deepEqual(bytes.subarray(31, 35), data);
@@ -75,7 +75,7 @@ test("stored ZIP headers preserve binary bytes, CRC, fixed dates and DOS file at
   assert.equal(view.getUint16(central + 6, true), 20);
   assert.equal(view.getUint16(central + 8, true), 0);
   assert.equal(view.getUint16(central + 14, true), 33);
-  assert.equal(view.getUint32(central + 16, true), crc32(data));
+  assert.equal(view.getUint32(central + 16, true), crc32({ bytes: data }));
   assert.equal(view.getUint32(central + 20, true), 4);
   assert.equal(view.getUint32(central + 24, true), 4);
   assert.equal(view.getUint32(central + 38, true), 0);

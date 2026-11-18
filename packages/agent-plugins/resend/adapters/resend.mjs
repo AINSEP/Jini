@@ -84,7 +84,7 @@ const MAIL_RATE_LIMITED = "MAIL_RATE_LIMITED";
 function classifyError(status, bodyText, headers) {
   const { errorCode, message } = parseErrorBody({ status, bodyText });
   if (status !== 429) return { ok: false, retryable: isRetryableStatus(status), errorCode, message };
-  const wait = retryAfterMs(headers);
+  const wait = retryAfterMs({ headers });
   return { ok: false, retryable: true, errorCode: MAIL_RATE_LIMITED, message: `${message} (${errorCode})`, ...(wait === undefined ? {} : { retryAfterMs: wait }) };
 }
 

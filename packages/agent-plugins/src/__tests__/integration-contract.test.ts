@@ -12,8 +12,8 @@ import { forceRemove } from '../lifecycle/__tests__/fixtures/force-remove.js';
 
 test('object validators preserve legacy structural validation', () => {
   for (const value of [null, [], {}, { name: '' }, { name: 'toolkit' }]) {
-    expect(validatePluginManifest({ value })).toBe(isPluginManifest(value));
-    expect(validateMcpManifest({ value })).toBe(isMcpManifest(value));
+    expect(validatePluginManifest({ value })).toBe(isPluginManifest({ value }));
+    expect(validateMcpManifest({ value })).toBe(isMcpManifest({ value }));
   }
   expect(validateMcpManifest({ value: { mcpServers: {} } })).toBe(true);
 });

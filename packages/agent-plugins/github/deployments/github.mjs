@@ -75,7 +75,7 @@ function readGitHubTargetConfig(target) {
  *
  * @complexity O(1) beyond the underlying `http.send` call.
  */
-export async function sendPinned(http, request) {
+export async function sendPinned({ http, ...request }, _optional = {}) {
   const url = new URL(request.url);
   if (url.origin !== GITHUB_API_ORIGIN) {
     throw new Error(
@@ -151,7 +151,7 @@ async function mintInstallationToken(
 
   let response;
   try {
-    response = await sendPinned(http, {
+    response = await sendPinned({ http,
       method: "POST",
       url: githubApiUrl(`/app/installations/${encodeURIComponent(credentials.installationId)}/access_tokens`),
       headers: { ...githubHeaders(jwt), "content-type": "application/json" },
@@ -207,7 +207,7 @@ async function createGitHubDeployment(
 ) {
   let response;
   try {
-    response = await sendPinned(ctx.httpClient, {
+    response = await sendPinned({ http: ctx.httpClient,
       method: "POST",
       url: githubApiUrl(`/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.repo)}/deployments`),
       headers: { ...githubHeaders(token), "content-type": "application/json" },
@@ -299,7 +299,7 @@ async function startRun(input, ctx) {
  *
  * @complexity O(1).
  */
-export function mapGitHubDeploymentStatus(status) {
+export function mapGitHubDeploymentStatus(status, _optional = {}) {
   const providerStatusId = String(status.id);
   const message = sanitizeMessage(status.description);
   switch (status.state) {
@@ -336,7 +336,7 @@ async function pollGitHubDeploymentStatuses(
 ) {
   let response;
   try {
-    response = await sendPinned(ctx.httpClient, {
+    response = await sendPinned({ http: ctx.httpClient,
       method: "GET",
       url: githubApiUrl(
         `/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.repo)}/deployments/` +

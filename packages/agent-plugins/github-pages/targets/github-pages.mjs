@@ -47,7 +47,7 @@ function withNoJekyll(files) {
  *   `DeployHostKit` helpers, called positionally; `DeployError` is `new (message, status?, details?)`).
  * @returns The target class, constructed with `{ token, owner, repo, branch? }` as in devops.
  */
-export function bindGitHubPages(kit) {
+export function bindGitHubPages(kit, _optional = {}) {
   const { fetch: fetchWithTimeout, timeouts: FETCH_TIMEOUT_MS, sleep, DeployError, checkDeploymentUrl, normalizeDeploymentUrl, waitForReachableDeploymentUrl, assertNotRedirected, redirectGuardInit } = kit;
   const GITHUB_PAGES_TARGET_ID = 'github-pages';
   const GITHUB_API = 'https://api.github.com';

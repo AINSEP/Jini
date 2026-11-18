@@ -251,7 +251,7 @@ async function provisionPluginMcp<UninstallInput, Layout extends AgentPluginLayo
   try {
     const approvedEnable = execution.approvedEnable ? { principalId, accessKey: requireApprovedAccessKey(execution.approvedEnableKey, deps.messages) } : undefined;
     const servers = await resolveServers(pluginId);
-    const result = await (optional.provisionMcpServers ?? provisionAgentPluginMcpServers)(mcp, { workspaceId: deps.workspaceId, pluginId, servers, principalId, classifyTrust: deps.classifyTrust, messages: deps.messages });
+    const result = await (optional.provisionMcpServers ?? provisionAgentPluginMcpServers)({ deps: mcp, workspaceId: deps.workspaceId, pluginId, servers, principalId, classifyTrust: deps.classifyTrust, messages: deps.messages });
     reportProvisioningFailures({ pluginId, failed: result.failed, approved: execution.approvedEnable === true, warn, messages: deps.messages });
     // Same as the admin toggle: an account signed in while the plugin was off gets the plugin's
     // declared tools now (bug 2026-11-04, the host's sign-in grant owner).

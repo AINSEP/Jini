@@ -194,7 +194,7 @@ async function readArchiveBody(
  * The module's own cap, exported so a caller (or a test pinning it against `install.ts`'s
  * `LIMITS.maxArchiveBytes`) can read it without duplicating the number.
  */
-export function maxAgentPluginArchiveBytes(_required: Record<string, never>): number {
+export function maxAgentPluginArchiveBytes(_required: Record<string, never>, _optional: Record<string, never> = {}): number {
   return MAX_ARCHIVE_BYTES;
 }
 
