@@ -1,8 +1,8 @@
-import { act, waitFor } from '@testing-library/react';
-import { getAgentModelContext } from '@jini-ai/agentic/dom';
+import { act, waitFor } from '../../../../__tests__/fake-chat-kit.js';
 import { fakeChatSurfaces, renderHookWithChatSurfaces } from '../../../../__tests__/fake-chat-surfaces.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { AgentModelContextLike } from '../../../../surfaces.js';
 import { createFakeChatTransport } from '../../../../hooks/testing/fake-transport.js';
 import { CHAT_PANE_AGENT_TOOLS } from '../../agent-tools.js';
 import type {
@@ -25,41 +25,41 @@ const agents: ChatPaneAgent[] = [
  * WebMCP detection now goes through the host's `ChatSurfaces.page` port. These cases install a
  * `document.modelContext` and assert what the hook does with it, so they bind the same detector a
  * host binds (agentic's `getAgentModelContext`) instead of the default fake, which finds nothing.
+ * They now hand the hook a context of their own through that port instead; where a real browser keeps
+ * that context (`document` first, then the deprecated `navigator` alias) is proved in agentic's
+ * `model-context.test.ts`.
  */
+let hostContext: AgentModelContextLike | undefined;
 const renderAgentControl: typeof renderHookWithChatSurfaces = (callback, options = {}) =>
-  renderHookWithChatSurfaces(callback, { ...options, surfaces: fakeChatSurfaces({ page: { getModelContext: getAgentModelContext } }) });
+  renderHookWithChatSurfaces(callback, { ...options, surfaces: fakeChatSurfaces({ page: { getModelContext: () => hostContext } }) });
 
 interface RegisteredTool {
   name: string;
   execute: (args: Record<string, unknown>) => Promise<unknown>;
 }
 
-/** Minimal stand-in for the draft `document.modelContext` surface the hook feature-detects. */
+/** Minimal stand-in for the draft `document.modelContext` surface the hook feature-detects (handed over by the page port). */
 function installModelContext(): {
   tools: Map<string, RegisteredTool>;
   registerCalls: number;
   unregistered: string[];
 } {
   const state = { tools: new Map<string, RegisteredTool>(), registerCalls: 0, unregistered: [] as string[] };
-  Object.defineProperty(globalThis.document, 'modelContext', {
-    configurable: true,
-    writable: true,
-    value: {
-      registerTool(tool: RegisteredTool) {
-        state.registerCalls += 1;
-        state.tools.set(tool.name, tool);
-      },
-      unregisterTool(name: string) {
-        state.unregistered.push(name);
-        state.tools.delete(name);
-      },
+  hostContext = {
+    async registerTool({ tool }) {
+      state.registerCalls += 1;
+      state.tools.set(tool.name, tool);
     },
-  });
+    unregisterTool({ name }) {
+      state.unregistered.push(name);
+      state.tools.delete(name);
+    },
+  };
   return state;
 }
 
 function removeModelContext(): void {
-  Reflect.deleteProperty(globalThis.document as unknown as Record<string, unknown>, 'modelContext');
+  hostContext = undefined;
 }
 
 /** Renders a pane plus its agent-control surface, exposing both to the test. */
@@ -395,35 +395,8 @@ describe('useChatPaneAgentControl — bridge response delivery', () => {
 });
 
 describe('useChatPaneAgentControl — host surface detection', () => {
-  function installNavigatorModelContext() {
-    const state = { tools: new Map<string, RegisteredTool>() };
-    Object.defineProperty(globalThis.navigator, 'modelContext', {
-      configurable: true,
-      writable: true,
-      value: {
-        registerTool(tool: RegisteredTool) { state.tools.set(tool.name, tool); },
-      },
-    });
-    return state;
-  }
-
-  it('falls back to navigator.modelContext when document does not carry it', async () => {
-    // WebMCP moved from navigator to document on 2026-07-21 and Chrome 150 deprecated the old
-    // location while the origin trial still serves it — both paths have to work.
-    const context = installNavigatorModelContext();
-    try {
-      const { pane } = renderControlledPane();
-      expect(context.tools.size).toBe(CHAT_PANE_AGENT_TOOLS.length);
-      const state = await context.tools.get('chat.get_state')?.execute({});
-      expect(state).toHaveProperty('activity');
-      expect(pane().activity).toBeDefined();
-    } finally {
-      Reflect.deleteProperty(globalThis.navigator as unknown as Record<string, unknown>, 'modelContext');
-    }
-  });
-
   it('is a no-op when no host surface exists at all', () => {
-    // Neither document nor navigator carries modelContext: registration must simply not happen
+    // Neither document nor navigator carries modelContext (the page port finds none): registration must simply not happen
     // rather than throw, since this is the common case in every browser today.
     expect(() => renderControlledPane()).not.toThrow();
   });

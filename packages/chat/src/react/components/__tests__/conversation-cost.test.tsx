@@ -1,4 +1,4 @@
-import { render, cleanup } from '@testing-library/react';
+import { render, cleanup } from '../../__tests__/fake-chat-kit.js';
 import { afterEach, expect, it } from 'vitest';
 import type { ChatMessage } from '../../../core/messages.js';
 import { conversationUsage } from '../../../core/turn-usage.js';

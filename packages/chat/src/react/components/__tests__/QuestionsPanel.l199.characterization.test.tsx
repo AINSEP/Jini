@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '../../__tests__/fake-chat-kit.js';
 import { expect, it, vi } from 'vitest';
 import type { QuestionForm } from '../../../core/index.js';
 import { QuestionsPanel } from '../QuestionsPanel.js';

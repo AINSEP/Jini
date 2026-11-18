@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook } from '../../__tests__/fake-chat-kit.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ChatAttachment, ChatMessage } from '../../../core/index.js';
 import { useAttachmentGallery } from '../AttachmentGallery.hooks.js';

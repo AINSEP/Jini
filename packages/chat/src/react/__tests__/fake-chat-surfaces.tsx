@@ -1,13 +1,14 @@
-import type { ReactElement, ReactNode } from 'react';
-import type { RenderHookOptions, RenderResult } from '@testing-library/react';
-// Kit-scoped render: chat panes and cards reach ui's kit-backed selects and secret inputs, so the
-// surfaces wrapper also needs the UiKitProvider a host mounts at its root.
-import { render, renderHook } from './ui-kit-render-support.js';
+import type { ReactElement } from 'react';
+import type { RenderHookOptions, RenderResult } from './fake-chat-kit.js';
+// Chat panes and cards render through the ChatKit, so the surfaces wrapper also mounts the fake kit.
+import { render, renderHook } from './fake-chat-kit.js';
+import type { ChatKit } from '../kit.js';
 import { z } from 'zod';
 import {
   ChatSurfacesProvider,
   type ChatSurfaceComponentEntry,
   type ChatSurfaces,
+  type McpUiHostProps,
 } from '../surfaces.js';
 
 function fakeRegistry(ids: readonly string[]) {
@@ -40,22 +41,35 @@ export function fakeChatSurfaces(overrides: Partial<ChatSurfaces> = {}): ChatSur
   };
 }
 
-/** Provider wrapper, so `rerender` keeps the surfaces too. */
-function surfacesWrapper(surfaces: ChatSurfaces) {
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return <ChatSurfacesProvider surfaces={surfaces}>{children}</ChatSurfacesProvider>;
-  };
-}
-
-export function renderWithChatSurfaces(ui: ReactElement, { surfaces = fakeChatSurfaces() }: { surfaces?: ChatSurfaces } = {}): RenderResult {
+export function renderWithChatSurfaces(ui: ReactElement, { surfaces = fakeChatSurfaces(), kit }: { surfaces?: ChatSurfaces; kit?: ChatKit } = {}): RenderResult {
   // Explicit return type: the inferred one names a pnpm-internal @testing-library/dom path, and
   // this helper ships in the declaration build (TS2742).
-  return render(ui, { wrapper: surfacesWrapper(surfaces) });
+  return render(ui, { surfaces, ...(kit ? { kit } : {}) });
 }
 
 export function renderHookWithChatSurfaces<Result, Props>(
   callback: (props: Props) => Result,
   { surfaces = fakeChatSurfaces(), ...options }: Omit<RenderHookOptions<Props>, 'wrapper'> & { surfaces?: ChatSurfaces } = {},
 ) {
-  return renderHook(callback, { ...options, wrapper: surfacesWrapper(surfaces) });
+  return renderHook(callback, { ...options, wrapper: ({ children }) => <ChatSurfacesProvider surfaces={surfaces}>{children}</ChatSurfacesProvider> });
+}
+
+/**
+ * TEST-ONLY: an MCP-UI host that records the props chat passes it and renders an iframe stand-in tagged
+ * with the resource URI. What the real host does with those props (sandbox iframe, `aria-label`, height
+ * style) is ui's subject and is proved in ui's `McpUiHost.test.tsx`.
+ */
+export function recordingMcpUiHost(_required = {}, _optional: Record<string, never> = {}) {
+  const renders: McpUiHostProps[] = [];
+  const Host = (props: McpUiHostProps) => {
+    renders.push(props);
+    return <iframe title={props.title} data-uri={props.toolName} />;
+  };
+  /** The latest props per resource URI, in first-appearance order. */
+  const latestByUri = (): McpUiHostProps[] => {
+    const latest = new Map<string, McpUiHostProps>();
+    for (const props of renders) latest.set(props.toolName ?? '', props);
+    return [...latest.values()];
+  };
+  return { Host, renders, latestByUri };
 }

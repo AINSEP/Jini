@@ -1,8 +1,6 @@
-import { act, fireEvent, render, screen } from '../../../../__tests__/ui-kit-render-support.js';
+import { act, fakeChatKit, fireEvent, render, screen } from '../../../../__tests__/fake-chat-kit.js';
+import { fakeHandleDriver } from '../../../../__tests__/fake-page-port.js';
 import { describe, expect, it, vi } from 'vitest';
-import { createDomPageDriver } from '@jini-ai/agentic/dom';
-// Exercise the existing shared overlay context without adding a chat runtime dependency.
-import { KitProvider } from '@jini-ai/ui-kit/react';
 import { AgentRuntimePicker } from '../../components/AgentRuntimePicker.js';
 import type { ChatPaneAgent } from '../../types.js';
 
@@ -11,8 +9,15 @@ const agents: ChatPaneAgent[] = [
   { id: 'runtime-b', name: 'Second runtime', available: true },
 ];
 
+/** A kit whose overlay container is `overlay`, as a host's provider supplies one. */
+const kitWithOverlay = (overlay: HTMLElement) => {
+  const kit = fakeChatKit();
+  kit.hooks.useOverlayContainer = () => overlay;
+  return kit;
+};
+
 describe('AgentRuntimePicker agent handles', () => {
-  it('keeps portalled runtime rows in the provider overlay and preserves origin page identity for scoped driving', async () => {
+  it('keeps portalled runtime rows in the provider overlay and publishes the origin page for scoped driving', async () => {
     const root = document.createElement('main');
     const mount = document.createElement('section');
     mount.dataset.agentPage = 'settings';
@@ -20,18 +25,19 @@ describe('AgentRuntimePicker agent handles', () => {
     root.append(mount, overlay);
     document.body.append(root);
     const onChange = vi.fn();
-    const view = render(<KitProvider overlayContainer={overlay}>
-      <AgentRuntimePicker agentHandle="runtime" agents={agents} value={{ agentId: 'runtime/a' }} onChange={onChange} />
-    </KitProvider>, { container: mount });
+    const view = render(
+      <AgentRuntimePicker agentHandle="runtime" agents={agents} value={{ agentId: 'runtime/a' }} onChange={onChange} />,
+      { container: mount, kit: kitWithOverlay(overlay) },
+    );
     try {
-      const driver = createDomPageDriver({ root, pages: { settings: { label: 'Settings', navigate: () => {} } } });
+      // Which handles a page driver can resolve, and refusing a root that lacks them, is the real driver's
+      // (agentic, with its own tests); chat's part is publishing reachable handles and the origin page.
+      const driver = fakeHandleDriver({ root });
       await act(async () => { await driver.click({ handle: 'runtime-trigger' }); });
       const option = screen.getByRole('radio', { name: /Second runtime/ });
       expect(overlay).toContainElement(option);
+      expect(option.closest('.jini-runtime-popover')).toHaveAttribute('data-agent-page', 'settings');
       const handle = option.getAttribute('data-agent-element')!;
-      expect(await driver.findElements({}, { query: handle })).toEqual([expect.objectContaining({ handle, page: 'settings' })]);
-      const outside = createDomPageDriver({ root: document.createElement('main'), pages: {} });
-      await expect(outside.click({ handle })).rejects.toThrow(`no element published as "${handle}" on this page`);
       expect(onChange).not.toHaveBeenCalled();
       await act(async () => { await driver.click({ handle }); });
       expect(onChange).toHaveBeenCalledWith({ agentId: 'runtime-b' });
@@ -41,9 +47,9 @@ describe('AgentRuntimePicker agent handles', () => {
   it('retains native-dialog portal ownership ahead of a provider overlay outside that dialog', () => {
     const overlay = document.createElement('div');
     document.body.append(overlay);
-    const view = render(<KitProvider overlayContainer={overlay}><dialog open data-agent-page="settings">
+    const view = render(<dialog open data-agent-page="settings">
       <AgentRuntimePicker agentHandle="dialog-runtime" agents={agents} value={{ agentId: 'runtime/a' }} onChange={vi.fn()} />
-    </dialog></KitProvider>);
+    </dialog>, { kit: kitWithOverlay(overlay) });
     try {
       const trigger = screen.getByRole('button', { name: 'Choose AI runtime' });
       const dialog = trigger.closest('dialog');

@@ -1,6 +1,6 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '../../__tests__/fake-chat-kit.js';
 import { describe, expect, it, vi } from 'vitest';
-import { createDomPageDriver } from '@jini-ai/agentic/dom';
+import { fakeHandleDriver } from '../../__tests__/fake-page-port.js';
 import { Composer, type ComposerProps } from '../Composer.js';
 import { useComposer } from '../../hooks/useComposer.js';
 
@@ -45,13 +45,15 @@ describe('Composer agent handles', () => {
   it('lets a scoped driver fill the ordinary draft while an outside root refuses send', async () => {
     const onSend = vi.fn();
     const { container } = render(<main data-agent-page="chat"><Harness agentHandle="assistant" onSend={onSend} /></main>);
-    const driver = createDomPageDriver({ root: container, pages: { chat: { label: 'Chat', navigate: () => {} } } });
+    // A fake over core's handle resolution: this proves chat publishes reachable handles. That the REAL
+    // driver can drive them is held beside the host's other agent-drive tests (Tovu admin).
+    const driver = fakeHandleDriver({ root: container });
     await act(async () => driver.fill({ handle: 'assistant-draft', text: 'Typed through driver' }));
     expect(screen.getByRole('textbox')).toHaveValue('Typed through driver');
     const restricted = document.createElement('main');
     document.body.append(restricted);
     try {
-      const outside = createDomPageDriver({ root: restricted, pages: { chat: { label: 'Chat', navigate: () => {} } } });
+      const outside = fakeHandleDriver({ root: restricted });
       await expect(outside.click({ handle: 'assistant-send' })).rejects.toThrow('no element published as "assistant-send" on this page');
       expect(onSend).not.toHaveBeenCalled();
     } finally { restricted.remove(); }

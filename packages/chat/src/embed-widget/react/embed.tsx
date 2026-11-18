@@ -3,6 +3,7 @@ import type { ChatTransport } from '../../core/transport.js';
 import { ChatPane } from '../../react/chat-pane.js';
 import type { ChatPaneAgent } from '../../react/chat-pane.js';
 import { ChatFab } from '../../react/components/ChatFab.js';
+import { ChatKitProvider, type ChatKit } from '../../react/kit.js';
 import { JiniChatProvider } from '../../react/components/JiniChatProvider.js';
 import type { BrowserSessionStore } from '../browser/session-store.js';
 import { EmbedChatHeader } from './header.js';
@@ -58,9 +59,10 @@ export function EmbedChatWidget(args: EmbedChatWidgetArgs) {
     </JiniChatProvider>
   </div>;
 }
-/** Mounts into a host-provided node and returns lifecycle cleanup. O(1) plus React rendering. */
-export function mountEmbedChat({ element, widget }: { element: Element; widget: EmbedChatWidgetArgs }): { unmount: (args: Record<string, never>) => void } {
+/** Mounts into a host-provided node and returns lifecycle cleanup. This creates its own React root, so
+ * the host's `kit` (its UI library and agent runtime) is mounted here, once. O(1) plus React rendering. */
+export function mountEmbedChat({ element, widget, kit }: { element: Element; widget: EmbedChatWidgetArgs; kit: ChatKit }): { unmount: (args: Record<string, never>) => void } {
   const root = createRoot(element);
-  root.render(<EmbedChatWidget {...widget} />);
+  root.render(<ChatKitProvider kit={kit}><EmbedChatWidget {...widget} /></ChatKitProvider>);
   return { unmount: (_args: Record<string, never>) => root.unmount() };
 }

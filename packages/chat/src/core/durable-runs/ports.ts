@@ -1,5 +1,6 @@
 import type { AgentEvent, ChatMessage } from "../index.js";
 import type { RunProgress, RunRef, RunSettlement } from "./run-contracts.js";
+import type { ChatAgentFailurePort } from "../agents-port.js";
 
 export interface AcceptedRunRequest {
   readonly agentId?: string;
@@ -59,6 +60,8 @@ export interface DurableRunStore {
 export type RunProbe = "live" | "dead" | "uncertain";
 export interface RecoveryPorts {
   readonly store: DurableRunStore;
+  /** Classifies saved executor failures and words startup failures; the host binds its agent runtime. */
+  readonly agentFailures: ChatAgentFailurePort;
   readonly now: () => number;
   readonly mintRunId: () => string;
   readonly probe: (required: DurableRun, optional: {}) => Promise<RunProbe>;

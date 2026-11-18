@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '../../../../__tests__/fake-chat-kit.js';
 import { renderWithChatSurfaces } from '../../../../__tests__/fake-chat-surfaces.js';
 import { describe, expect, it, vi } from 'vitest';
 

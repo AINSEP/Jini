@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react';
+import { fireEvent, screen } from '../../../../__tests__/fake-chat-kit.js';
 import { renderWithChatSurfaces } from '../../../../__tests__/fake-chat-surfaces.js';
 import { describe, expect, it } from 'vitest';
 import { createFakeChatTransport } from '../../../../hooks/testing/fake-transport.js';

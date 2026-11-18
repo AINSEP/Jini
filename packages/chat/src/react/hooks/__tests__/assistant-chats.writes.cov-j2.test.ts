@@ -1,4 +1,4 @@
-import { act } from '@testing-library/react';
+import { act } from '../../__tests__/fake-chat-kit.js';
 import { describe, expect, it } from 'vitest';
 import type { ChatMessage } from '../../../core/messages.js';
 import { StatusError, conv, createFakePort, deferred, makeClient, memoryStore, mount, reply, settle, userTurn } from './assistant-chats.fixtures.js';

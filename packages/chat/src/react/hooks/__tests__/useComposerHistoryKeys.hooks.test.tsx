@@ -3,7 +3,7 @@
  * `getBoundingClientRect`. The visual-line tests stub both — the fake layout puts each
  * `\n`-separated line 20px below the previous one, so "visual line" == "logical line" here.
  */
-import { act, fireEvent, render } from '@testing-library/react';
+import { act, fireEvent, render } from '../../__tests__/fake-chat-kit.js';
 import { useRef, type RefObject } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ComposerHistoryKeyInput, ComposerHistoryStoragePort } from '../../../core/composer-history.js';

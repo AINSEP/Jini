@@ -37,13 +37,9 @@ beforeAll(()=>{
  for(const name of ['store','neutral','sqlite','pglite','postgres']){
   const dir=join(root,name);dirs[name]=dir;mkdirSync(dir,{recursive:true});writeFileSync(join(dir,'package.json'),JSON.stringify({type:'module'}));const dest=join(dir,'node_modules/@jini-ai/chat');mkdirSync(dest,{recursive:true});
   execFileSync('tar',['-xzf',join(root,pack),'-C',dest,'--strip-components','1']);
-  // Optional peers are installed per entry: store is peer-free, while core and SQL redact via diagnostics.
+  // Optional peers are installed per entry: store is peer-free, while the SQL entries add db and Kysely (redaction is core's, so no diagnostics).
   // The neutral store's declarations import core's `list-page` types, so core is installed for every entry.
   copyPackage('@jini-ai/core',join(packageRoot,'../core'),dir);
-  if(name!=='store'){
-   // 24d45ab9 added a declared tokenizer dependency; isolated installs need its runtime closure.
-   copyRuntimeTree('@jini-ai/diagnostics',join(packageRoot,'../diagnostics'),dir);
-  }
   if(name==='neutral'){
    // Core's A2UI activity projection owns this closure; SQL stores must not need it. Wave B moved
    // the A2UI surface readers from @jini-ai/agentic/a2ui to @jini-ai/protocol/a2ui (now a required
@@ -75,7 +71,7 @@ it('neutral declarations typecheck without installing any optional peer',()=>{
  const result=spawnSync(process.execPath,[localRequire.resolve('typescript/bin/tsc'),'--noEmit','--strict','--module','NodeNext','--moduleResolution','NodeNext','--target','ES2022','consumer.ts'],{cwd:dir,encoding:'utf8'});
  expect(result.stdout+result.stderr).toBe('');expect(result.status).toBe(0);
 });
-it.each(['sqlite','pglite','postgres'])('%s entry loads with core, diagnostics, db and Kysely, validates invocation, and leaves neutral store usable',name=>{
+it.each(['sqlite','pglite','postgres'])('%s entry loads with core, db and Kysely, validates invocation, and leaves neutral store usable',name=>{
  const factory=`create${name==='sqlite'?'Sqlite':name==='pglite'?'Pglite':'Postgres'}ChatStore`;
  // Core usability is checked in its own fixture; importing it here would conceal SQL-to-A2UI coupling.
  const result=run(dirs[name]!,`const a=await import('@jini-ai/chat/store/${name}'); let code;try{a.${factory}({kernel:{dialect:'wrong',transport:'wrong'},scope:{scopeId:'s',ownerKind:'user',ownerId:'u'}});}catch(e){code=e.code;}const s=await import('@jini-ai/chat/store');console.log(JSON.stringify([code,new s.ChatStoreError({ code: 'unavailable' }).code]));`);
@@ -86,7 +82,7 @@ it.each(['sqlite','pglite','postgres'])('%s entry loads with core, diagnostics, 
  const missing=run(dirs[name]!,`await import(${JSON.stringify(name==='sqlite'?'better-sqlite3':name==='pglite'?'@electric-sql/pglite':'pg')})`);
  expect(missing.status).not.toBe(0);expect(missing.stderr).toContain('ERR_MODULE_NOT_FOUND');
 });
-it('SQLite packed consumer needs only the injected SQLite driver, core, diagnostics, db and Kysely',()=>{
+it('SQLite packed consumer needs only the injected SQLite driver, core, db and Kysely',()=>{
  // Copy the installed driver's declared dependency tree, not an older version's dependency list.
  const dir=dirs.sqlite!;const sqliteRoot=realpathSync(join(dbRoot,'node_modules/better-sqlite3'));
  copyRuntimeTree('better-sqlite3',sqliteRoot,dir);

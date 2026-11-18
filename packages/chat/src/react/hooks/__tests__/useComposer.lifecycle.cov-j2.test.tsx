@@ -3,7 +3,7 @@
  * draft write (and what happens where there is no page at all), and how a slow attachment
  * validator's answer is applied — or dropped — once the composer has moved on.
  */
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '../../__tests__/fake-chat-kit.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatAttachment } from '../../../core/index.js';
 import {

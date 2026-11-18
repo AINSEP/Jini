@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from '../../../../__tests__/ui-kit-render-support.js';
+import { act, fireEvent, render, screen, waitFor, within } from '../../../../__tests__/fake-chat-kit.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -227,16 +227,11 @@ describe('AgentRuntimePicker', () => {
     expect(screen.getByText('Code agent')).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: /Claude Code/ })).toBeInTheDocument();
     expect(screen.queryByRole('radio', { name: /Missing Agent/ })).not.toBeInTheDocument();
-    // Each rendered agent's own icon is @jini-ai/ui's bundled data URI (see AgentIcon.tsx's
-    // BUNDLED_ICON_URLS doc) rather than a `/agent-icons/<id>.svg` host path — scoped per-radio
-    // rather than a document-wide selector so this still proves each specific agent got an icon,
-    // not just that some data-URI <img> exists somewhere on the page.
-    expect(
-      screen.getByRole('radio', { name: /Codex CLI/ }).querySelector('img[src^="data:image/svg+xml;base64,"]'),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('radio', { name: /Claude Code/ }).querySelector('img[src^="data:image/svg+xml;base64,"]'),
-    ).toBeInTheDocument();
+    // Each rendered agent gets the kit's AgentIcon for ITS id (which asset the kit draws is the kit's; the
+    // UI package proves its bundled marks). Scoped per-radio so this proves each specific agent got an icon,
+    // not just that some icon exists somewhere on the page.
+    expect(screen.getByRole('radio', { name: /Codex CLI/ }).querySelector('[data-agent-icon="codex"]')).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /Claude Code/ }).querySelector('[data-agent-icon="claude"]')).toBeInTheDocument();
     // Model and Reasoning moved to the composer-bar drop-ups (owner 2026-10-18).
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
     expect(screen.queryByText('Offline fallback')).not.toBeInTheDocument();
@@ -452,16 +447,16 @@ describe('AgentRuntimePicker', () => {
     it('shows the provider brand mark on the trigger when byokRuntime supplies an iconId', async () => {
       renderApi({ providerLabel: 'Google Gemini', model: 'gemini-2.5-flash-lite', iconId: 'gemini' });
       const trigger = screen.getByRole('button', { name: 'Choose AI runtime' });
-      // @jini-ai/ui's bundled data URI, not a `/agent-icons/<id>.svg` host path — see the comment
-      // on the reference-structure test above.
-      expect(trigger.querySelector('img[src^="data:image/svg+xml;base64,"]')).toBeInTheDocument();
+      // The kit's AgentIcon for the provider's iconId — see the comment on the reference-structure test above.
+      expect(trigger.querySelector('[data-agent-icon="gemini"]')).toBeInTheDocument();
     });
 
     it('falls back to a generic link glyph when byokRuntime has no iconId', async () => {
       renderApi({ providerLabel: 'Google Gemini', model: 'gemini-2.5-flash-lite' });
       const trigger = screen.getByRole('button', { name: 'Choose AI runtime' });
-      // No <img> at all — the fallback is the RemixIcon glyph, not a broken/missing brand asset.
-      expect(trigger.querySelector('img')).not.toBeInTheDocument();
+      // No brand mark at all — the fallback is the generic link glyph, not a broken/missing brand asset.
+      expect(trigger.querySelector('[data-agent-icon]')).not.toBeInTheDocument();
+      expect(trigger.querySelector('[data-icon="link"]')).toBeInTheDocument();
     });
 
     it('names the provider and model on the collapsed trigger, not the selected CLI', async () => {
@@ -495,7 +490,7 @@ describe('AgentRuntimePicker', () => {
         />,
       );
       const trigger = screen.getByRole('button', { name: 'Choose AI runtime' });
-      expect(trigger.querySelector('img')).toHaveAttribute('src', '/vendor-icons/gemini.svg');
+      expect(trigger.querySelector('[data-agent-icon="gemini"]')).toHaveAttribute('data-base-path', '/vendor-icons');
     });
 
     it('offers the model picker with nothing chosen and no "set a model" warning when no model is configured yet', async () => {
@@ -511,7 +506,7 @@ describe('AgentRuntimePicker', () => {
         />,
       );
       await userEvent.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
-      expect(document.querySelector('.jini-runtime-byok-model .jini-select-trigger')).toBeInTheDocument();
+      expect(document.querySelector('.jini-runtime-byok-model button[aria-haspopup="listbox"]')).toBeInTheDocument();
       expect(screen.queryByText('Set a model in the BYOK settings before sending a message.')).not.toBeInTheDocument();
     });
 
@@ -536,7 +531,7 @@ describe('AgentRuntimePicker', () => {
         />,
       );
       await userEvent.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
-      await userEvent.click(document.querySelector('.jini-runtime-byok-model .jini-select-trigger')!);
+      await userEvent.click(document.querySelector('.jini-runtime-byok-model button[aria-haspopup="listbox"]')!);
       await userEvent.click(screen.getByRole('option', { name: 'gemini-3.1-pro-preview' }));
 
       // The "stay in sync" contract: the picker reports the choice rather than owning it, so the
@@ -579,22 +574,17 @@ describe('AgentRuntimePicker', () => {
         </div>,
       );
       await userEvent.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
-      await userEvent.click(document.querySelector('.jini-runtime-byok-model .jini-select-trigger')!);
+      await userEvent.click(document.querySelector('.jini-runtime-byok-model button[aria-haspopup="listbox"]')!);
 
       // The POPOVER is what has to carry the theme: it portals to `document.body`, so the host's
       // own `data-theme` element is not an ancestor of anything inside it.
       const popover = document.querySelector('.jini-runtime-popover');
       expect(popover?.getAttribute('data-theme')).toBe('light');
 
-      // The trigger rides inside the popover and inherits. The MENU portals again — `CustomSelect`
-      // defaults `portal` to true — so it is a sibling of the popover in `document.body` and has to
-      // carry the theme itself. Two hops, and both must hold: the popover copies from the host, and
-      // the menu copies from the popover. Break either and the control goes dark again.
-      const menu = document.querySelector('.jini-select-menu');
-      const trigger = document.querySelector('.jini-select-trigger');
+      // The trigger rides inside the popover and inherits. (The kit's menu copying the theme from the
+      // popover is the second hop; the UI package's select tests prove it with the real select.)
+      const trigger = document.querySelector('.jini-runtime-byok-model button[aria-haspopup="listbox"]');
       expect(popover?.contains(trigger)).toBe(true);
-      expect(menu).not.toBeNull();
-      expect(menu?.getAttribute('data-theme')).toBe('light');
     });
 
     /** Opening that portaled menu is a mousedown on a node that is a descendant of neither the
@@ -619,7 +609,7 @@ describe('AgentRuntimePicker', () => {
         />,
       );
       await userEvent.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
-      await userEvent.click(document.querySelector('.jini-runtime-byok-model .jini-select-trigger')!);
+      await userEvent.click(document.querySelector('.jini-runtime-byok-model button[aria-haspopup="listbox"]')!);
       await userEvent.click(screen.getByRole('option', { name: 'gemini-3.1-pro-preview' }));
 
       expect(screen.getByRole('dialog')).toBeInTheDocument();
@@ -773,10 +763,10 @@ describe('AgentRuntimePicker', () => {
       <AgentRuntimePicker agents={agents} value={{ agentId: 'codex' }} onChange={() => {}} agentIconBasePath="/vendor-icons" />,
     );
     const trigger = screen.getByRole('button', { name: 'Choose AI runtime' });
-    expect(trigger.querySelector('img')).toHaveAttribute('src', '/vendor-icons/codex.svg');
+    expect(trigger.querySelector('[data-agent-icon="codex"]')).toHaveAttribute('data-base-path', '/vendor-icons');
     await userEvent.click(trigger);
     const radio = screen.getByRole('radio', { name: /Claude Code/ });
-    expect(radio.querySelector('img')).toHaveAttribute('src', '/vendor-icons/claude.svg');
+    expect(radio.querySelector('[data-agent-icon="claude"]')).toHaveAttribute('data-base-path', '/vendor-icons');
   });
 
   it('badges a runtime that cannot receive tools, and leaves tool-capable ones unbadged', async () => {

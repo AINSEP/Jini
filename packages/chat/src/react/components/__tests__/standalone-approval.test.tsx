@@ -1,7 +1,7 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '../../__tests__/fake-chat-kit.js';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
-import { buildFormSurface } from '@jini-ai/ui/mcp-ui';
+import { approvalPluginsSurface } from '../../__tests__/fixtures/mcp-ui-surfaces.js';
 import type { McpUiHostProps } from '../../surfaces.js';
 import type { AgentEvent, ChatMessage } from '../../../core/index.js';
 import { clearExtEventRenderers } from '../../ext-event-renderer-registry.js';
@@ -16,11 +16,7 @@ const StubHost = ({ onToolCall, title }: McpUiHostProps) => <section aria-label=
   }}>Use guide</button></section>;
 const renderWithChatSurfaces = (ui: Parameters<typeof renderWithSurfaces>[0]) => renderWithSurfaces(ui, { surfaces: fakeChatSurfaces({ mcpUi: { Host: StubHost } }) });
 
-const resource = buildFormSurface({
-  uri: 'ui://approval/plugins', title: 'Agent plugins', toolName: 'answer', submitLabel: 'Use',
-  fields: [{ kind: 'multi-enum', name: 'selections', label: 'Matching plugins',
-    options: [{ value: 'site-guide', label: 'Site guide' }] }],
-});
+const resource = approvalPluginsSurface;
 const events: AgentEvent[] = [{ kind: 'ext', name: 'mcp-ui', data: resource }];
 const message: ChatMessage = { id: 'approval', role: 'assistant', content: '', events, runStatus: 'running' };
 afterEach(() => clearExtEventRenderers());

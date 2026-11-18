@@ -1,26 +1,17 @@
 /** Every backend gets a fresh disposable schema and host-owned extra tables. */
-import { createRequire } from 'node:module';
-import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { sql, type KyselyPlugin, type RootOperationNode } from 'kysely';
-import { openPgliteKernel } from '@jini-ai/db/kernel/pglite';
-import { openPostgresKernel, openPgliteSocketKernel } from '@jini-ai/db/kernel/postgres';
-import { scopeToSchema, type KyselyKernel } from '@jini-ai/db/kernel';
-import { startPgliteOwner } from '@jini-ai/db/pglite';
+import { type KyselyPlugin, type RootOperationNode } from 'kysely';
+import { openPgliteTestKernel } from '@jini-ai/db/testing/pglite';
+import { startPgliteTestOwner } from '@jini-ai/db/testing/pglite-owner';
+import { openPgliteSocketTestKernel, openPostgresTestKernel } from '@jini-ai/db/testing/postgres';
 import { createPgliteChatStore, createPgliteChatMaintenance } from '../pglite/index.js';
 import { createPostgresChatStore, createPostgresChatMaintenance } from '../postgres/index.js';
-import { HOST_DDL, type Fixture, type FixtureDatabase } from './fixtures.js';
-const require=createRequire(new URL('../../../../db/package.json',import.meta.url));
-const {PGlite}=require('@electric-sql/pglite');const pg=require('pg');
-const DDL=readFileSync(new URL('./pg-schema.sql',import.meta.url),'utf8')+HOST_DDL;
+import { HOST_DDL, type Fixture, type FixtureDatabase, type FixtureKernel } from './fixtures.js';
 // This fixture DDL has no procedural bodies or quoted semicolons. PGlite's query path
 // prepares one statement; applying statements separately also works with both PG transports.
-async function applyFixtureSchema(kernel:KyselyKernel<FixtureDatabase>){
- for(const statement of DDL.split(';').map(text=>text.trim()).filter(Boolean))await kernel.execute(sql.raw(statement));
-}
-function fixture(kernel:KyselyKernel<FixtureDatabase>,create:typeof createPgliteChatStore,maintenance:typeof createPgliteChatMaintenance,close:()=>Promise<void>):Fixture{
+const DDL=(readFileSync(new URL('./pg-schema.sql',import.meta.url),'utf8')+HOST_DDL).split(';').map(text=>text.trim()).filter(Boolean);
+function fixture(kernel:FixtureKernel,create:typeof createPgliteChatStore,maintenance:typeof createPgliteChatMaintenance,close:()=>Promise<void>):Fixture{
  let reads=0,rows=0;const selects=new Set<object>();
  const plugin:KyselyPlugin={
   transformQuery(args){if(args.node.kind==='SelectQueryNode')selects.add(args.queryId);return args.node as RootOperationNode;},
@@ -33,9 +24,8 @@ function fixture(kernel:KyselyKernel<FixtureDatabase>,create:typeof createPglite
  deleteMessage:async id=>{await kernel.run(db=>db.deleteFrom('ai_chat_messages').where('id','=',id).execute());},close};
 }
 export async function pgliteFixture():Promise<Fixture>{
- const kernel=openPgliteKernel<FixtureDatabase>({PGlite});
- try{await applyFixtureSchema(kernel);return fixture(kernel,createPgliteChatStore,createPgliteChatMaintenance,()=>kernel.close());}
- catch(error){await kernel.close();throw error;}
+ const {kernel,close}=await openPgliteTestKernel<FixtureDatabase>({},{ddl:DDL});
+ return fixture(kernel,createPgliteChatStore,createPgliteChatMaintenance,close);
 }
 function postgresUrl():string{
  const url=process.env.JINI_CHAT_TEST_POSTGRES_URL;
@@ -44,24 +34,21 @@ function postgresUrl():string{
  return url;
 }
 async function pgPair(){
- const connectionString=postgresUrl();const schema=`chat_test_${randomUUID().replaceAll('-','')}`;
- const a=openPostgresKernel<FixtureDatabase>({pg,connectionString});const b=openPostgresKernel<FixtureDatabase>({pg,connectionString});
+ const url=postgresUrl();const schema=`chat_test_${randomUUID().replaceAll('-','')}`;
+ // The first kernel creates the schema and the tables and drops the schema on close; the second joins it.
+ const a=await openPostgresTestKernel<FixtureDatabase>({url},{schema,ddl:DDL});
  try{
-  await a.execute(sql`CREATE SCHEMA ${sql.id(schema)}`);
-  await a.transaction(async()=>{await a.execute(sql`SET LOCAL search_path TO ${sql.id(schema)}`);await applyFixtureSchema(a);});
-  const ka=scopeToSchema(a,schema),kb=scopeToSchema(b,schema);
-  return {a:fixture(ka,createPostgresChatStore,createPostgresChatMaintenance,async()=>{}),b:fixture(kb,createPostgresChatStore,createPostgresChatMaintenance,async()=>{}),
-   close:async()=>{try{await a.execute(sql`DROP SCHEMA ${sql.id(schema)} CASCADE`);}finally{await Promise.all([a.close(),b.close()]);}}};
- }catch(error){await Promise.all([a.close(),b.close()]);throw error;}
+  const b=await openPostgresTestKernel<FixtureDatabase>({url},{schema});
+  return {a:fixture(a.kernel,createPostgresChatStore,createPostgresChatMaintenance,async()=>{}),b:fixture(b.kernel,createPostgresChatStore,createPostgresChatMaintenance,async()=>{}),
+   close:async()=>{try{await a.close();}finally{await b.close();}}};
+ }catch(error){await a.close();throw error;}
 }
 export async function twoPostgresConnections(){return pgPair();}
 export async function postgresFixture():Promise<Fixture>{const pair=await pgPair();return {...pair.a,close:pair.close};}
 export async function pgliteSocketFixture():Promise<Fixture>{
- const dir=mkdtempSync(join(tmpdir(),'chat-sock-'));
- const owner=await startPgliteOwner({PGlite,dataDir:join(dir,'data'),lockFileName:'chat-test.lock',runDirName:'chat-test'},{socketDir:join(dir,'sock')});
- const kernel=openPgliteSocketKernel<FixtureDatabase>({pg,socketPath:owner.socketPath});
+ const owner=await startPgliteTestOwner();
  try{
-  await applyFixtureSchema(kernel);
-  return fixture(kernel,createPgliteChatStore,createPgliteChatMaintenance,async()=>{try{await kernel.close();await owner.close();}finally{rmSync(dir,{recursive:true,force:true});}});
- }catch(error){await kernel.close();await owner.close();rmSync(dir,{recursive:true,force:true});throw error;}
+  const {kernel,close}=await openPgliteSocketTestKernel<FixtureDatabase>({socketPath:owner.socketPath},{ddl:DDL});
+  return fixture(kernel,createPgliteChatStore,createPgliteChatMaintenance,async()=>{try{await close();}finally{await owner.close();}});
+ }catch(error){await owner.close();throw error;}
 }

@@ -1,15 +1,12 @@
 import { defineConfig } from 'vitest/config';
 import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
 // Tests can use already-installed j01 peers before the owner refreshes the workspace links.
 const local = createRequire(import.meta.url);
 const db = createRequire(new URL('../db/package.json', import.meta.url));
 const peer = (name: string) => { try { return local.resolve(name); } catch { return db.resolve(name); } };
-const dbRoot = fileURLToPath(new URL('../db/dist/', import.meta.url));
 
 export default defineConfig({
   resolve: { alias: [
-    { find: /^@jini-ai\/db\/(.*)$/, replacement: `${dbRoot}$1/index.js` },
     ...['kysely', 'better-sqlite3', '@electric-sql/pglite', 'pg'].map(name => ({ find: name, replacement: peer(name) })),
   ] },
   test: {

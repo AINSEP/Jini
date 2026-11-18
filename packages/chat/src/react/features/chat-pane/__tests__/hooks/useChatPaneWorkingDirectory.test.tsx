@@ -1,4 +1,4 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '../../../../__tests__/fake-chat-kit.js';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ChatPaneWorkingDirectoryAccess } from '../../types.js';

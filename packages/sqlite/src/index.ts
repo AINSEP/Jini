@@ -13,7 +13,7 @@ export type { SqliteDb, DbRow } from '@jini-ai/core/contracts/storage';
 export { parseJsonOrUndef, row, rows } from '@jini-ai/core/contracts/storage';
 export type { JsonObject } from '@jini-ai/db/core';
 export type { ChatSessionMode } from '@jini-ai/chat/store/legacy';
-export { CHAT_HISTORY_DDL, createChatHistoryMaintenance, createChatHistoryStore, ensureChatHistoryTables } from '@jini-ai/chat/store/sqlite';
+export { CHAT_HISTORY_DDL, ensureChatHistoryTables } from '@jini-ai/chat/store/sqlite';
 export type { ToolCatalogEntry, ToolCatalogSearchHit } from '@jini-ai/registry/tool-catalog';
 export { ensureToolCatalogTables, getToolCatalogEntry, reseedToolCatalog, searchToolCatalog } from '@jini-ai/registry/tool-catalog/sqlite';
 export { appendMessageAgentEvent, appendMessageStatusEvent, deleteConversation, deleteMessage, getConversation, getMessageTelemetryFinalizationState, insertConversation, listConversations, listMessages, normalizeConversationSessionMode, updateConversation, upsertMessage } from '@jini-ai/chat/store/legacy/sqlite';

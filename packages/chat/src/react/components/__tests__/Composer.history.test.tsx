@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '../../__tests__/fake-chat-kit.js';
 import { describe, expect, it, vi } from 'vitest';
 import type { ChatMessage } from '../../../core/messages.js';
 import type { ComposerHistoryStoragePort } from '../../../core/composer-history.js';

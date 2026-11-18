@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from 'react';
-import { useFocusTrap } from '@jini-ai/ui/panel-kit';
+import { useFocusTrap } from '../../react/kit.js';
 import type { ChatMessage } from '../../core/messages.js';
 import type { BrowserSessionStore } from '../browser/session-store.js';
 

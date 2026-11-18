@@ -1,8 +1,6 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within } from '../../__tests__/fake-chat-kit.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
-import { executePageCapability, type FindElementsResult } from '@jini-ai/agentic/core';
-import { createDomPageDriver } from '@jini-ai/agentic/dom';
 import type { AgentEvent, ChatMessage } from '../../../core/index.js';
 import { MessageList } from '../MessageList.js';
 import { ToolCard } from '../ToolCard.js';
@@ -62,27 +60,26 @@ describe('tool-card memory in a restored chat', () => {
     expect(messages[1]!.events![0]).toMatchObject({ input: { payload: longInput } });
   });
 
-  it('lets the real page reader inspect a collapsed call and its live result without clicking', async () => {
+  // The reader text is what a page reader (agentic's find_elements) returns as an element's state; that the
+  // REAL reader returns it is held in Tovu admin's composer-agent-drive test. Here: chat renders it, outside
+  // the collapsed region, with the live result.
+  it('publishes the reader text for a collapsed call and its live result without clicking', () => {
     const use = { kind: 'tool_use' as const, id: 'reader', name: 'page.fill', input: { element: 'name-input' } };
     const { container, rerender } = render(<ToolCard use={use} runStreaming />);
-    const driver = createDomPageDriver({ root: container, pages: {} });
-    const read = async () => await executePageCapability({
-      driver, capabilityId: 'page.find_elements', input: { query: 'tool-call-reader', withState: true },
-    }) as FindElementsResult;
+    const readers = () => container.querySelectorAll('.op-card-reader-text');
 
     const reader = container.querySelector('.op-card-reader-text')!;
     expect(reader).not.toHaveAttribute('hidden');
     expect(reader).toHaveClass('op-sr-prefix');
     expect(reader.closest('.accordion-collapsible')).toBeNull();
-    const pending = await read();
-    expect(pending.elements).toHaveLength(1);
-    expect(pending.elements[0]!.state?.text).toContain('name-input');
-    expect(pending.elements[0]!.state?.text).toContain('Waiting for the result or answer…');
+    expect(readers()).toHaveLength(1);
+    expect(readers()[0]!.textContent).toContain('name-input');
+    expect(readers()[0]!.textContent).toContain('Waiting for the result or answer…');
     rerender(<ToolCard use={use} result={{ kind: 'tool_result', toolUseId: 'reader', content: 'Saved Ada', isError: false }} runSucceeded />);
-    const completed = await read();
-    expect(completed.elements[0]!.state?.text).toContain('name-input');
-    expect(completed.elements[0]!.state?.text).toContain('Saved Ada');
-    expect(completed.elements[0]!.state?.text).not.toContain('Waiting for the result or answer…');
+    expect(readers()).toHaveLength(1);
+    expect(readers()[0]!.textContent).toContain('name-input');
+    expect(readers()[0]!.textContent).toContain('Saved Ada');
+    expect(readers()[0]!.textContent).not.toContain('Waiting for the result or answer…');
     expect(screen.getByRole('button')).toHaveAttribute('aria-expanded', 'false');
     expect(container.querySelectorAll('pre')).toHaveLength(0);
   });

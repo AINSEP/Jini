@@ -1,11 +1,8 @@
-import { expect, it, vi } from 'vitest';
+import { expect, it } from 'vitest';
 import { parseFrame, readSseFrames, translateRunFrame, readTerminalOutcome, isDaemonRunId, asString } from '../entry.js';
 import { notices } from './fixture.js';
 
-// This universal entry must work without loading the optional runtime compatibility hop.
-vi.mock('@jini-ai/agent-runtime/providers/sse-decode', () => {
-  throw new Error('run-events must import SSE framing directly from core primitives');
-});
+// That this universal entry never loads agent-runtime is enforced statically for all of chat by guard gate L5-injected-edge.
 
 it('rejects malformed wire payloads without throwing, including terminal nulls', () => {
   for (const raw of ['no-json', 'null', '[]', '1', '{}', '{"payload":null}', '{"payload":1}']) {

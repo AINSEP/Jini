@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { fakeAgentFailures } from "./fake-chat-agent-failures.js";
 import type { AgentEvent } from "../../../core/index.js";
 import type { DurableRun, DurableRunStore, RecoveryPorts, RunProbe } from "../../../core/durable-runs/ports.js";
 import { translateRunFrame } from "../../../core/run-events/entry.js";
@@ -35,7 +36,7 @@ function harness({ events, probe, content = "", run = {} }: { events: AgentEvent
     ...unusedStoreMethods,
   } satisfies DurableRunStore;
   const ports: RecoveryPorts = {
-    store, now: () => TIME + 20_000, mintRunId: () => "next",
+    store, agentFailures: fakeAgentFailures(), now: () => TIME + 20_000, mintRunId: () => "next",
     probe: async () => probe, attach: (run) => { attached.push(run.runId); },
     launch: async (input) => { launches.push(input); }, cancelAttempt: async (run) => { canceled.push(run.runId); },
     verifyChildDead: async () => false, supportsNativeResume: () => true,

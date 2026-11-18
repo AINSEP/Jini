@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import type { ReactNode } from 'react';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fakeChatKit, fireEvent, render, screen } from '../../../react/__tests__/fake-chat-kit.js';
 import { describe, expect, it, vi } from 'vitest';
 import type { ChatMessage } from '../../../core/messages.js';
 import type { ChatTransport } from '../../../core/transport.js';
@@ -91,7 +91,7 @@ describe('embed composition', () => {
     const element = document.createElement('div');
     document.body.append(element);
     let mounted!: ReturnType<typeof mountEmbedChat>;
-    await act(async () => { mounted = mountEmbedChat({ element, widget }); });
+    await act(async () => { mounted = mountEmbedChat({ element, widget, kit: fakeChatKit() }); });
     expect(element.querySelector('h2')!.textContent).toBe('Help');
     await act(async () => mounted.unmount({}));
     expect(element.childNodes.length).toBe(0);

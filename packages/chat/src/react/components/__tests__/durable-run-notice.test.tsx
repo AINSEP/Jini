@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen } from '../../__tests__/fake-chat-kit.js';
 import { expect, it } from 'vitest';
 import { MessageRow } from '../MessageRow.js';
 

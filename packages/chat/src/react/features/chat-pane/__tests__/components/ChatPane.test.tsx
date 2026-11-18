@@ -1,12 +1,10 @@
 import { createRef } from 'react';
-import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { renderWithChatSurfaces } from '../../../../__tests__/fake-chat-surfaces.js';
-import { hostChatSurfaces } from '../../../../__tests__/host-chat-surfaces.js';
+import { act, fakeChatKit, fireEvent, screen, waitFor, within } from '../../../../__tests__/fake-chat-kit.js';
+import { fakeChatSurfaces, renderWithChatSurfaces } from '../../../../__tests__/fake-chat-surfaces.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ChatMessage } from '@jini-ai/chat';
-import { FILE_SYSTEM_READ_ERROR_MESSAGE } from '@jini-ai/ui';
 import { createFakeChatTransport } from '../../../../hooks/testing/fake-transport.js';
 import { ChatPane } from '../../components/ChatPane.js';
 import { createTypedAnswerPoster } from '../../create-typed-answer-poster.js';
@@ -623,24 +621,15 @@ describe('ChatPane', () => {
    * dropped on the floor here (only `enabled`/`bridgeAccess` were forwarded), so no host could ever
    * reach the hook's WebMCP branch through the public component, regardless of what it passed.
    */
-  it('registers this pane\'s own tools with document.modelContext when agentControl.webmcp is true', () => {
-    const registerTool = vi.fn();
-    Object.defineProperty(globalThis.document, 'modelContext', {
-      configurable: true,
-      writable: true,
-      value: { registerTool, unregisterTool: vi.fn() },
-    });
-    try {
-      const transport = createFakeChatTransport();
-      renderWithChatSurfaces(
-        <ChatPane transport={transport} agents={agents} agentControl={{ enabled: true, webmcp: true }} />,
-        // WebMCP detection is the host's page port; bind the detector a host binds.
-        { surfaces: hostChatSurfaces() },
-      );
-      expect(registerTool).toHaveBeenCalled();
-    } finally {
-      Reflect.deleteProperty(globalThis.document as unknown as Record<string, unknown>, 'modelContext');
-    }
+  it('registers this pane\'s own tools with the page port\'s model context when agentControl.webmcp is true', () => {
+    const registerTool = vi.fn(async () => {});
+    const transport = createFakeChatTransport();
+    renderWithChatSurfaces(
+      <ChatPane transport={transport} agents={agents} agentControl={{ enabled: true, webmcp: true }} />,
+      // WebMCP detection is the host's page port; bind the detector a host binds (here, a context of this test's own).
+      { surfaces: fakeChatSurfaces({ page: { getModelContext: () => ({ registerTool, unregisterTool: vi.fn() }) } }) },
+    );
+    expect(registerTool).toHaveBeenCalled();
   });
 
   it('shows a rescan failure as an alert while keeping the last good inventory on screen', async () => {
@@ -684,31 +673,19 @@ describe('ChatPane', () => {
     expect(await screen.findByRole('radio', { name: /Claude CLI/ })).toBeInTheDocument();
   });
 
-  it('reports a read error banner when a dropped item cannot be read from disk', async () => {
+  it('reports the kit drop target\'s read error as a banner (reading a dropped folder is the kit\'s; proved in the UI package)', async () => {
+    const READ_ERROR = 'Could not read one or more dropped files or folders.';
+    const kit = fakeChatKit();
+    kit.hooks.useFileDropTarget = () => ({ draggingFiles: false, dropReadError: READ_ERROR, clearDropReadError: () => {}, onDragEnter: () => {}, onDragOver: () => {}, onDragLeave: () => {}, onDrop: () => {} });
     const transport = createFakeChatTransport();
     const uploadAttachments = vi.fn(async (files: File[]) => files.map((file) => ({
       path: `/tmp/${file.name}`,
       name: file.name,
       kind: 'file' as const,
     })));
-    renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} uploadAttachments={uploadAttachments} />);
+    renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} uploadAttachments={uploadAttachments} />, { kit });
 
-    const target = screen.getByTestId('chat-pane-file-drop-target');
-    const unreadableItem = {
-      kind: 'file',
-      webkitGetAsEntry: () => ({
-        isFile: true,
-        isDirectory: false,
-        file: (_resolve: (file: File) => void, reject: (error: Error) => void) => {
-          reject(new Error('permission denied'));
-        },
-      }),
-    };
-    fireEvent.drop(target, {
-      dataTransfer: { types: ['Files'], items: [unreadableItem], files: [] },
-    });
-
-    expect(await screen.findByText(FILE_SYSTEM_READ_ERROR_MESSAGE)).toBeInTheDocument();
+    expect(await screen.findByText(READ_ERROR)).toBeInTheDocument();
     expect(uploadAttachments).not.toHaveBeenCalled();
   });
 

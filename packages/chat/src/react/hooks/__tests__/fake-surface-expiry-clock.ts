@@ -1,4 +1,4 @@
-import { act } from '@testing-library/react';
+import { act } from '../../__tests__/fake-chat-kit.js';
 import type { SurfaceExpiryClock } from '../useSurfaceExpiry.js';
 
 /** A hand-driven clock: `advance` moves time and fires every live ticker once per elapsed interval. */

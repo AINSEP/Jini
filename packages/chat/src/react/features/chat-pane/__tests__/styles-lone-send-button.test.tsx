@@ -1,4 +1,4 @@
-import { cleanup, render, renderHook, screen } from '@testing-library/react';
+import { cleanup, render, renderHook, screen } from '../../../__tests__/fake-chat-kit.js';
 import { afterEach, describe, expect, it } from 'vitest';
 import { Composer } from '../../../components/Composer.js';
 import { useComposer } from '../../../hooks/useComposer.js';

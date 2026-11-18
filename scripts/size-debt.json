@@ -268,9 +268,9 @@
   {
     "file": "packages/chat/src/react/features/chat-pane/hooks/useChatPane.hooks.ts",
     "function": "useChatPane",
-    "line": 404,
+    "line": 405,
     "rule": "max-lines-per-function",
-    "value": 618
+    "value": 616
   },
   {
     "file": "packages/chat/src/react/features/chat-pane/hooks/useChatPane.hooks.ts",
@@ -478,9 +478,9 @@
   {
     "file": "packages/core/src/redact.ts",
     "function": "<file>",
-    "line": 874,
+    "line": 886,
     "rule": "max-lines",
-    "value": 601
+    "value": 562
   },
   {
     "file": "packages/core/src/settings/write-service.ts",

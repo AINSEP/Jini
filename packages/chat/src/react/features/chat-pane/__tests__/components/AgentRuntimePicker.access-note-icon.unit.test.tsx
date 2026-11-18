@@ -1,4 +1,4 @@
-import { act, render, screen, within } from '../../../../__tests__/ui-kit-render-support.js';
+import { act, render, screen, within } from '../../../../__tests__/fake-chat-kit.js';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import { AgentRuntimePicker } from '../../components/AgentRuntimePicker.js';
@@ -27,17 +27,16 @@ it('shows a warning icon, not the note paragraph, in the composer row', async ()
   expect(document.querySelector('.info-tip-bubble')).toHaveTextContent(note);
 });
 
-it('opens the tip on tap and keyboard focus', async () => {
-  const user = userEvent.setup();
+// Touch pinning and hover-vs-press semantics are the kit InfoTip's; the UI package's InfoTip.unit.test.tsx
+// proves them with the real component. Chat's part: it renders the kit's tip, which opens on keyboard focus.
+it('opens the tip on keyboard focus', () => {
   render(<AgentRuntimePicker agents={agents} value={{ agentId: 'antigravity' }} onChange={vi.fn()} />);
   const icon = screen.getByRole('button', { name: 'Full computer access' });
-  await user.pointer({ keys: '[TouchA]', target: icon });
-  expect(icon).toHaveAttribute('aria-expanded', 'true');
-  await user.pointer({ keys: '[TouchA]', target: icon });
   expect(icon).toHaveAttribute('aria-expanded', 'false');
-  act(() => icon.blur());
   act(() => icon.focus());
   expect(icon).toHaveAttribute('aria-expanded', 'true');
+  act(() => icon.blur());
+  expect(icon).toHaveAttribute('aria-expanded', 'false');
 });
 
 it('marks the agent in the picker list with the same icon, outside its radio', async () => {

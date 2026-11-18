@@ -48,6 +48,14 @@ describe('McpUiHost', () => {
     expect(wrapper.style.height).toBe('220px');
   });
 
+  it('uses initialHeight as the pre-handshake height while autoResize is on', () => {
+    // Twin of the case chat's McpUiSurfaceCard used to hold against the real host (C-CHAT-DEPS S6-a):
+    // chat now only asserts that it passes `initialHeight`; the height it produces is proved here.
+    const { container } = render(<McpUiHost title="A view" html="<p>hi</p>" sandboxProxyUrl={SANDBOX_URL} initialHeight={480} />);
+    const wrapper = container.querySelector('[data-mcpui-host]') as HTMLElement;
+    expect(wrapper.style.height).toBe('480px');
+  });
+
   it('pins the frame to the normal color scheme so a dark host does not paint an opaque white canvas around the View', () => {
     const { container } = render(<McpUiHost title="A view" html="<p>hi</p>" sandboxProxyUrl={SANDBOX_URL} />);
     const wrapper = container.querySelector('[data-mcpui-host]') as HTMLElement;

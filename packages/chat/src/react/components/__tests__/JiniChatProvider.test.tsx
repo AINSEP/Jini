@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen } from '../../__tests__/fake-chat-kit.js';
 import { describe, expect, it } from 'vitest';
 import { JiniChatProvider, useJiniChatSlots, useOnFeedback } from '../JiniChatProvider.js';
 import { useT, useProjectContext, useAnalytics, useChatTransport, useArtifactRegistry } from '../../hooks/context.js';

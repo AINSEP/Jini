@@ -3,8 +3,7 @@
  * - bridge-replay: an executed invocation id is never executed twice.
  * - bridge-cancel: a `cancelled` frame that arrives while the action is still queued prevents the effect. */
 import { expect, it, vi } from 'vitest';
-import type { PageDriver } from '@jini-ai/agentic';
-import { createDriverPagePort } from '@jini-ai/agentic/dom';
+import { fakeChatPagePort } from '../../../react/__tests__/fake-page-port.js';
 import { createFrontendSessionBridge } from '../frontend-session-bridge.js';
 
 function pageBridge({ click }: { click: (...args: unknown[]) => Promise<void> }) {
@@ -19,7 +18,7 @@ function pageBridge({ click }: { click: (...args: unknown[]) => Promise<void> })
       const source = new EventTarget(); sources.push(source);
       return { addEventListener: source.addEventListener.bind(source) as EventSource['addEventListener'], close() {} };
     },
-  }, { page: createDriverPagePort({ driver: { click, findElements: async () => [] } as unknown as PageDriver }) });
+  }, { page: fakeChatPagePort({}, { run: ({ input }) => click(input) }) });
   const frame = (data: unknown) => sources[0]!.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(data) }));
   return { bridge, frame, bodies, send };
 }

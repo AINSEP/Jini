@@ -3,12 +3,10 @@
  * parses that run's own rows only, never every message's events in its conversation.
  * The JSON.parse count per call is the observable: it must not grow with the conversation.
  */
-import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { sql } from 'kysely';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { scopeToSchema } from '@jini-ai/db/kernel';
-import { openPgliteKernel } from '@jini-ai/db/kernel/pglite';
+import { openPgliteTestKernel } from '@jini-ai/db/testing/pglite';
 import type { ChatDatabase } from '../kernel.js';
 import type { DurableRunStore } from '../../../core/durable-runs/ports.js';
 import { createChatHistoryStore } from '../chat-history-store.js';
@@ -110,8 +108,7 @@ describe('head reads and the SQL event append', () => {
 
 describe('the SQL event append on PostgreSQL (PGlite)', () => {
   it('appends byte-for-byte and starts a new array over an empty one', async () => {
-    const { PGlite } = createRequire(new URL('../../../../../db/package.json', import.meta.url))('@electric-sql/pglite');
-    const kernel = openPgliteKernel<ChatDatabase>({ PGlite });
+    const { kernel, inSchema, close } = await openPgliteTestKernel<ChatDatabase>();
     try {
       // Epoch-millisecond clocks need BIGINT on PostgreSQL; SQLite's INTEGER is already 64-bit.
       const ddl = readFileSync(new URL('../../__tests__/pg-schema.sql', import.meta.url), 'utf8') + RUN_DDL.replaceAll('INTEGER', 'BIGINT');
@@ -131,7 +128,7 @@ describe('the SQL event append on PostgreSQL (PGlite)', () => {
       for (const table of ['ai_chats', 'ai_chat_messages', 'assistant_agent_sessions', 'assistant_run_attempts']) {
         await kernel.execute(sql`ALTER TABLE ${sql.table(table)} SET SCHEMA owned_chat`);
       }
-      const scoped = scopeToSchema(kernel, 'owned_chat');
+      const scoped = inSchema({ schema: 'owned_chat' });
       const scopedHistory = createChatHistoryStore({ kernel: scoped, scope, isDaemonRunId });
       const version = await scopedHistory.messagesVersion!({ conversationId: 'c' }, {});
       expect(version).toBeTruthy();
@@ -142,7 +139,7 @@ describe('the SQL event append on PostgreSQL (PGlite)', () => {
       expect(first?.messageJson).toContain('"events":');
       expect(await scopedStore.poll!(input, { cursor: first!.cursor })).toEqual({ cursor: first!.cursor });
 
-    } finally { await kernel.close(); }
+    } finally { await close(); }
   });
 });
 

@@ -1,6 +1,5 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '../../__tests__/fake-chat-kit.js';
 import { renderWithChatSurfaces } from '../../__tests__/fake-chat-surfaces.js';
-import { hostChatSurfaces } from '../../__tests__/host-chat-surfaces.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { createLabCatalog } from '@jini-ai/protocol/a2ui';
@@ -468,42 +467,5 @@ describe('A2uiSurfaceCard', () => {
     await userEvent.click(screen.getByRole('button', { name: 'To agent' }));
     expect(screen.getByText(/has not wired up a live agent-action relay/)).toBeInTheDocument();
     expect(screen.queryByText(/Local action resolved/)).not.toBeInTheDocument();
-  });
-
-  // --- registry components (shadcn/recharts), merged into this card's own catalog -------------
-
-  it('renders a registry-sourced shadcn component inside a Card, not the placeholder', () => {
-    const events = [
-      createSurfaceMessage('s1', [
-        { id: 'root', component: 'Card', child: 'btn' },
-        { id: 'btn', component: 'shadcn.button', label: 'Publish' },
-      ]),
-    ];
-    renderWithChatSurfaces(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming runSucceeded={false} runId="run-1" />, { surfaces: hostChatSurfaces() });
-    expect(document.querySelector('.a2ui-card')).not.toBeNull();
-    expect(screen.queryByText(/no renderer yet for component type/)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Publish' })).toBeInTheDocument();
-  });
-
-  it('renders the legacy pie chart data as a styled table without a provider', () => {
-    const events = [
-      createSurfaceMessage('s1', [
-        { id: 'root', component: 'Column', children: ['title', 'chart'] },
-        { id: 'title', component: 'Text', text: 'Posts vs Pages' },
-        {
-          id: 'chart',
-          component: 'recharts.pie-chart',
-          data: [
-            { name: 'Posts', value: 12 },
-            { name: 'Pages', value: 4 },
-          ],
-        },
-      ]),
-    ];
-    renderWithChatSurfaces(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming runSucceeded={false} runId="run-1" />, { surfaces: hostChatSurfaces() });
-    expect(screen.getByText('Posts vs Pages')).toBeInTheDocument();
-    expect(screen.getByRole('table')).toHaveTextContent('Posts12Pages4');
-    expect(document.querySelector('svg.recharts-surface')).toBeNull();
-    expect(screen.queryByText(/no renderer yet for component type/)).not.toBeInTheDocument();
   });
 });

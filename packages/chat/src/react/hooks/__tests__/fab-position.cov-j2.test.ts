@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook } from '../../__tests__/fake-chat-kit.js';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { useFabPosition, type FabPositionInput } from '../fab-position.js';

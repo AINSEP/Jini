@@ -1,4 +1,4 @@
-import { cleanup, renderHook } from '@testing-library/react';
+import { cleanup, renderHook } from '../../__tests__/fake-chat-kit.js';
 import { afterEach, expect, it } from 'vitest';
 import type { ChatUsageSummary } from '../../../core/turn-usage.js';
 import { usageEndLabel, usageLayout, usageLineMeetsActions, useUsageSummary } from '../MessageRow.usage.js';

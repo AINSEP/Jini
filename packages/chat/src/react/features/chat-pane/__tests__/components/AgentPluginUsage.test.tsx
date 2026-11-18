@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '../../../../__tests__/fake-chat-kit.js';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { AgentPluginUsage } from '../../components/AgentPluginUsage.js';
 import { readAgentPluginChatState } from '../../../../../core/agent-plugin-chat-state.js';

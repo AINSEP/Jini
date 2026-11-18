@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '../../__tests__/fake-chat-kit.js';
 import { expect, it, vi } from 'vitest';
 import type { TodoItem } from '../../../core/index.js';
 import { TodoCard } from '../TodoCard.js';

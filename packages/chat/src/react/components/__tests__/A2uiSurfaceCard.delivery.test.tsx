@@ -1,6 +1,5 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '../../__tests__/fake-chat-kit.js';
 import { renderWithChatSurfaces } from '../../__tests__/fake-chat-surfaces.js';
-import { hostChatSurfaces } from '../../__tests__/host-chat-surfaces.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { createLabCatalog } from '@jini-ai/protocol/a2ui';
@@ -35,18 +34,5 @@ describe('A2uiSurfaceCard agent delivery', () => {
     settle[0]!.reject(new Error('stale transport failure'));
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(screen.queryByText(/could not be delivered/)).not.toBeInTheDocument();
-  });
-
-  it('delivers a registry data-table row click as the table’s action, with a response id when the agent wants one', async () => {
-    const events = [{ version: 'v1.0', createSurface: { surfaceId: 's1', catalogId: CATALOG_ID, components: [
-      { id: 'root', component: 'native.data-table', columns: [{ key: 'name', label: 'Name' }], rows: [{ name: 'Ada' }],
-        action: { event: { name: 'pick-row', wantResponse: true } } },
-    ] } }];
-    const onAgentAction = vi.fn();
-    renderWithChatSurfaces(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming runSucceeded={false} runId="run-7" onAgentAction={onAgentAction} />, { surfaces: hostChatSurfaces() });
-    await userEvent.click(screen.getByRole('button', { name: /Ada/ }));
-    expect(onAgentAction).toHaveBeenCalledWith('run-7', expect.objectContaining({ action: expect.objectContaining({
-      name: 'pick-row', surfaceId: 's1', sourceComponentId: 'root', wantResponse: true, actionId: expect.stringMatching(/^a2ui-action-\d+-[0-9a-z]+$/),
-    }) }));
   });
 });

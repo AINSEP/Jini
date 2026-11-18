@@ -1,13 +1,10 @@
 /** Real-driver fixtures. Only test hooks touch SQL; no fake certifies a store. */
-import { createRequire } from 'node:module';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createChatHistoryStore, createChatHistoryMaintenance } from '../sqlite/index.js';
-import { ensureChatHistoryTables } from '../sqlite/index.js';
-import { sqliteKernel } from '@jini-ai/db/kernel/sqlite';
+import { openFileSqliteTestKernel, openMemorySqliteTestKernel, type SqliteTestKernel } from '@jini-ai/db/testing/sqlite';
+import { createSqliteChatStore, createSqliteChatMaintenance, ensureChatHistoryTables } from '../sqlite/index.js';
 import type { Clock } from '@jini-ai/core/primitives';
-import type { KyselyKernel } from '@jini-ai/db/kernel';
 import type { ChatDatabase } from '../sql/tables.js';
 import type { ChatOwnerScope, ChatStore } from '../ports.js';
 
@@ -18,12 +15,12 @@ export type FixtureDatabase = ChatDatabase & {
  assistant_conversation_tool_approvals: { conversation_id: string; principal_id: string; connection_id: string; tool_name: string; fingerprint: string; granted_at: string };
  guard: { id: string; settled: number | null };
 };
-const require = createRequire(new URL('../../../../db/package.json', import.meta.url));
-const Database = require('better-sqlite3');
+/** The kernel type the fixtures hand to stores; derived so the tests name no db production type. */
+export type FixtureKernel = SqliteTestKernel<FixtureDatabase>['kernel'];
 export interface Fixture {
  make(scope: ChatOwnerScope, clock?: Clock): ChatStore;
- maintenance: ReturnType<typeof createChatHistoryMaintenance>;
- kernel: KyselyKernel<FixtureDatabase>;
+ maintenance: ReturnType<typeof createSqliteChatMaintenance>;
+ kernel: FixtureKernel;
  messageCount(): Promise<number>;
  readCount(): number;
  readRows(): number;
@@ -36,31 +33,30 @@ CREATE TABLE assistant_agent_sessions (conversation_id TEXT NOT NULL REFERENCES 
 CREATE TABLE assistant_conversation_tool_approvals (conversation_id TEXT NOT NULL REFERENCES ai_chats(id) ON DELETE CASCADE, principal_id TEXT NOT NULL, connection_id TEXT NOT NULL, tool_name TEXT NOT NULL, fingerprint TEXT NOT NULL, granted_at TEXT NOT NULL);
 CREATE TABLE guard (id TEXT PRIMARY KEY, settled INTEGER NOT NULL);`;
 export async function sqliteFixture(): Promise<Fixture> {
- const db = new Database(':memory:'); db.pragma('foreign_keys = ON'); ensureChatHistoryTables({ db: db }); db.exec(HOST_DDL);
- const kernel=sqliteKernel<FixtureDatabase>(db);
+ const { kernel, connection: db, close } = openMemorySqliteTestKernel<FixtureDatabase>();
+ ensureChatHistoryTables({ db }); db.exec(HOST_DDL);
  let reads=0, rows=0;
  const prepare=db.prepare.bind(db);
- db.prepare=(text:string)=>{
+ Object.assign(db,{prepare:(text:string)=>{
   const st=prepare(text); const all=st.all.bind(st), get=st.get.bind(st);
   st.all=(...args:unknown[])=>{ const result=all(...args); reads++; rows+=result.length; return result; };
   st.get=(...args:unknown[])=>{ const result=get(...args); reads++; rows+=result ? 1 : 0; return result; };
   return st;
- };
- return { kernel, make: (scope, clock) => createChatHistoryStore({ db: db, scope: scope, clock: clock ?? testClock }),
- maintenance: createChatHistoryMaintenance({ db: db }),
- messageCount: async () => db.prepare('SELECT COUNT(*) AS n FROM ai_chat_messages').get().n,
+ }});
+ return { kernel, make: (scope, clock) => createSqliteChatStore({ kernel, scope, clock: clock ?? testClock }),
+ maintenance: createSqliteChatMaintenance({ kernel }),
+ messageCount: async () => (db.prepare('SELECT COUNT(*) AS n FROM ai_chat_messages').get() as { n: number }).n,
  readCount:()=>reads,readRows:()=>rows,resetReadRows:()=>{rows=0;},
  deleteMessage:async(id)=>{ db.prepare('DELETE FROM ai_chat_messages WHERE id = ?').run(id); },
- close: async () => db.close() };
+ close };
 }
 
 /** Independent real SQLite connections sharing only a disposable file. */
 export async function twoSqliteConnections() {
  const dir=mkdtempSync(join(tmpdir(),'chat-two-'));
- const file=join(dir,'chat.sqlite');
- const dbs=[new Database(file),new Database(file)];
- for(const db of dbs){db.pragma('foreign_keys=ON');db.pragma('busy_timeout=5000');}
- ensureChatHistoryTables({ db: dbs[0] });dbs[0].exec(HOST_DDL);
- const wrap=(db:any):Fixture=>({kernel:sqliteKernel<FixtureDatabase>(db),make:(scope,clock)=>createChatHistoryStore({ db: db, scope: scope, clock: clock ?? testClock }),maintenance:createChatHistoryMaintenance({ db: db }),messageCount:async()=>db.prepare('SELECT COUNT(*) n FROM ai_chat_messages').get().n,readCount:()=>0,readRows:()=>0,resetReadRows:()=>{},deleteMessage:async id=>{db.prepare('DELETE FROM ai_chat_messages WHERE id=?').run(id);},close:async()=>{}});
- return {a:wrap(dbs[0]),b:wrap(dbs[1]),close:async()=>{for(const db of dbs)db.close();rmSync(dir,{recursive:true,force:true});}};
+ const path=join(dir,'chat.sqlite');
+ const opened=[openFileSqliteTestKernel<FixtureDatabase>({ path }),openFileSqliteTestKernel<FixtureDatabase>({ path })];
+ ensureChatHistoryTables({ db: opened[0]!.connection });opened[0]!.connection.exec(HOST_DDL);
+ const wrap=({ kernel, connection: db }:SqliteTestKernel<FixtureDatabase>):Fixture=>({kernel,make:(scope,clock)=>createSqliteChatStore({ kernel, scope, clock: clock ?? testClock }),maintenance:createSqliteChatMaintenance({ kernel }),messageCount:async()=>(db.prepare('SELECT COUNT(*) n FROM ai_chat_messages').get() as {n:number}).n,readCount:()=>0,readRows:()=>0,resetReadRows:()=>{},deleteMessage:async id=>{db.prepare('DELETE FROM ai_chat_messages WHERE id=?').run(id);},close:async()=>{}});
+ return {a:wrap(opened[0]!),b:wrap(opened[1]!),close:async()=>{for(const each of opened)await each.close();rmSync(dir,{recursive:true,force:true});}};
 }

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen } from '../../__tests__/fake-chat-kit.js';
 import { describe, expect, it } from 'vitest';
 import { ToolCard } from '../ToolCard.js';
 import { AGY_READ, AGY_OUTPUT_READ, AGY_SEARCH, AGY_DESCRIBE, AGY_CHECK, AGY_GATEWAY, CODEX_BATCH, CLAUDE_DIRECT } from '../../../core/__tests__/fixtures/cli-tool-events.js';

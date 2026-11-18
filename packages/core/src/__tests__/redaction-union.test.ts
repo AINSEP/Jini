@@ -18,7 +18,8 @@ const conservativeVectors: Array<{ input: string; secrets: string[]; exactSecret
   ].map(secret => ({ input: `before ${secret} after`, secrets: [secret] })),
   { input: 'Authorization: Bearer abcdefghijklmnopqrstuvwx', secrets: ['abcdefghijklmnopqrstuvwx'] },
   { input: 'bearer short', secrets: ['short'] },
-  { input: 'prefixbearer abc+/_-.= tail', secrets: ['abc+/_-.='] },
+  // Spaced, not glued: a scheme word must start a word (TokenBearer is prose), see redact.bearer-word-boundary.test.ts.
+  { input: 'prefix bearer abc+/_-.= tail', secrets: ['abc+/_-.='] },
   { input: 'x-api-key: "abcd1234"', secrets: ['abcd1234'] },
   { input: 'api-key=abcd1234;', secrets: ['abcd1234'] },
   { input: 'x-goog-api-key: small', secrets: ['small'] },

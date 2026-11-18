@@ -1,5 +1,5 @@
 import { createRef } from 'react';
-import { act, fireEvent, renderHook, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, renderHook, screen, waitFor, within } from './fake-chat-kit.js';
 import { renderWithChatSurfaces } from './fake-chat-surfaces.js';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { ChatPane } from '../features/chat-pane/components/ChatPane.js';

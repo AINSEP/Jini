@@ -1,4 +1,4 @@
-import { modelReasoningOptions } from '@jini-ai/agent-runtime/model-selection';
+import type { ChatAgentPolicyPort } from '../../../core/agents-port.js';
 import { configuredPickerModel, pickerModelOptions, isConcretePickerModel } from './model-options.js';
 import type { ChatMessage } from '@jini-ai/chat';
 import { isTerminalRunStatus } from '../../../core/messages.js';
@@ -41,36 +41,38 @@ function isSelectableAgent(agent: ChatPaneAgent): boolean {
 }
 
 /** A concrete custom model passes through when the agent accepts one; anything else must be on the picker list. */
-function resolveRequestedModel({ agent, requested, fallback }: {
+function resolveRequestedModel({ agent, requested, fallback, policy }: {
   agent: ChatPaneAgent;
   requested: string | undefined;
   fallback: string | undefined;
+  policy: ChatAgentPolicyPort;
 }): string | undefined {
   const acceptsCustom = agent.supportsCustomModel && agent.supportsConcreteModelSelection !== false;
-  if (requested && acceptsCustom && isConcretePickerModel(requested)) return requested;
-  return validatedOptionId(pickerModelOptions(agent), requested, fallback);
+  if (requested && acceptsCustom && isConcretePickerModel({ id: requested, policy })) return requested;
+  return validatedOptionId(pickerModelOptions({ agent, policy }), requested, fallback);
 }
 
-export function defaultChatPaneSelection({ agent }: { agent: ChatPaneAgent }): ChatPaneAgentSelection {
+/** `policy` carries the agent runtime's model-selection rules (the ChatKit `agents` slot). */
+export function defaultChatPaneSelection({ agent, policy }: { agent: ChatPaneAgent; policy: ChatAgentPolicyPort }, _optional = {}): ChatPaneAgentSelection {
   // Legacy hosts without structured resolution retain their first-concrete-entry behavior.
   // Use that fallback for unresolved native defaults too: an off-list alias must not strand
   // a usable catalog. The picker still excludes aliases without concrete model evidence.
-  const model = configuredPickerModel(agent) || pickerModelOptions(agent)[0]?.id;
-  const reasoning = preferredOptionId(modelReasoningOptions({ agent, model: pickerModelOptions(agent).find(option => option.id === model) }));
+  const model = configuredPickerModel({ agent, policy }) || pickerModelOptions({ agent, policy })[0]?.id;
+  const reasoning = preferredOptionId(policy.modelReasoningOptions({ agent, model: pickerModelOptions({ agent, policy }).find(option => option.id === model) }));
   return selectionOf({ agentId: agent.id, model, reasoning });
 }
 
-export function resolveChatPaneSelection({ agents, requested }: { agents: readonly ChatPaneAgent[]; requested: ChatPaneAgentSelection }
+export function resolveChatPaneSelection({ agents, requested, policy }: { agents: readonly ChatPaneAgent[]; requested: ChatPaneAgentSelection; policy: ChatAgentPolicyPort }, _optional = {}
 ): ChatPaneAgentSelection {
   const requestedAgent = agents.find(
     (agent) => agent.id === requested.agentId && isSelectableAgent(agent),
   );
   const agent = requestedAgent ?? agents.find(isSelectableAgent);
   if (!agent) return { agentId: '' };
-  const defaults = defaultChatPaneSelection({ agent: agent });
+  const defaults = defaultChatPaneSelection({ agent: agent, policy });
   if (agent !== requestedAgent) return defaults;
-  const model = resolveRequestedModel({ agent, requested: requested.model, fallback: defaults.model });
-  const efforts = modelReasoningOptions({ agent, model: pickerModelOptions(agent).find(option => option.id === model) });
+  const model = resolveRequestedModel({ agent, requested: requested.model, fallback: defaults.model, policy });
+  const efforts = policy.modelReasoningOptions({ agent, model: pickerModelOptions({ agent, policy }).find(option => option.id === model) });
   const reasoning = validatedOptionId(efforts, requested.reasoning, preferredOptionId(efforts));
   return selectionOf({ agentId: agent.id, model, reasoning });
 }
@@ -93,6 +95,8 @@ export type ChatPaneSendBlocker =
   | 'working-directory-error';
 
 export interface ChatPaneSendability {
+  /** The agent runtime's model-selection rules (the ChatKit `agents` slot). */
+  readonly policy: ChatAgentPolicyPort;
   readonly selectedAgent: Pick<ChatPaneAgent, 'available' | 'modelCatalog' | 'supportsConcreteModelSelection'> | undefined;
   readonly model?: string;
   readonly isStreaming: boolean;
@@ -169,13 +173,14 @@ export function findChatPaneSendBlocker(state: ChatPaneSendability): ChatPaneSen
  * Whether a catalog-backed (or concrete-selection-refusing) agent lacks a concrete model to run.
  * An agent that refuses concrete selection can never resolve one, whatever `model` says.
  */
-function isModelUnresolved({ agent, model }: {
+function isModelUnresolved({ agent, model, policy }: {
   agent: NonNullable<ChatPaneSendability['selectedAgent']>;
   model: string | undefined;
+  policy: ChatAgentPolicyPort;
 }): boolean {
   const refusesConcrete = agent.supportsConcreteModelSelection === false;
   if (!agent.modelCatalog && !refusesConcrete) return false;
-  return refusesConcrete || !model || !isConcretePickerModel(model);
+  return refusesConcrete || !model || !isConcretePickerModel({ id: model, policy });
 }
 
 /** The agent/model half of {@link findChatPaneSendBlocker}: a configured API mode stands in for a missing CLI. */
@@ -183,7 +188,7 @@ function findAgentSendBlocker(state: ChatPaneSendability): ChatPaneSendBlocker |
   const agent = state.selectedAgent;
   if (agent === undefined) return state.apiModeConfigured ? null : 'no-agent-selected';
   if (agent.available === false) return 'agent-unavailable';
-  if (!state.apiModeConfigured && isModelUnresolved({ agent, model: state.model })) return 'model-unresolved';
+  if (!state.apiModeConfigured && isModelUnresolved({ agent, model: state.model, policy: state.policy })) return 'model-unresolved';
   return null;
 }
 

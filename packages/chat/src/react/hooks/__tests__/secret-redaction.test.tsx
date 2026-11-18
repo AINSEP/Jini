@@ -1,7 +1,6 @@
-import { act, fireEvent, renderHook, screen } from '@testing-library/react';
+import { act, fireEvent, renderHook, screen } from '../../__tests__/fake-chat-kit.js';
 import { renderWithChatSurfaces } from '../../__tests__/fake-chat-surfaces.js';
 import { expect, it } from 'vitest';
-import { formatDroppedFolderPaths } from '@jini-ai/ui/core';
 import { useConversation } from '../useConversation.js';
 import { useChatPane } from '../../features/chat-pane/hooks/useChatPane.hooks.js';
 import { ChatPane } from '../../features/chat-pane/components/ChatPane.js';
@@ -104,18 +103,18 @@ it('a secret text or textarea question gets the shared eye toggle, named from ch
   const { container } = renderWithChatSurfaces(<JiniChatProvider transport={createFakeChatTransport()} i18n={{ locale: 'es', t }}><QuestionForm form={form} interactive onSubmit={() => undefined} /></JiniChatProvider>);
   const input = container.querySelector('input')!;
   const area = container.querySelector('textarea')!;
-  expect(input.closest('.jini-secret')).not.toBeNull();
-  expect(area.closest('.jini-secret--multiline')).not.toBeNull();
+  // Masking itself is the kit's SecretInput/SecretTextarea; chat's part is choosing them and naming the toggle.
+  expect(input.type).toBe('password');
   expect(input).toHaveAccessibleName('Key');
   expect(area).toHaveAccessibleName('Account JSON');
-  expect((area.style as CSSStyleDeclaration & { WebkitTextSecurity: string }).WebkitTextSecurity).toBe('disc');
+  expect(area).toHaveAttribute('data-masked', 'true');
   fireEvent.click(screen.getByRole('button', { name: 'Mostrar Key' }));
   expect(input.type).toBe('text');
   expect(screen.getByRole('button', { name: 'Ocultar Key' })).not.toHaveAttribute('aria-pressed');
   fireEvent.click(screen.getByRole('button', { name: 'Mostrar Account JSON' }));
-  expect((area.style as CSSStyleDeclaration & { WebkitTextSecurity: string }).WebkitTextSecurity).toBe('none');
+  expect(area).toHaveAttribute('data-masked', 'false');
   fireEvent.click(screen.getByRole('button', { name: 'Ocultar Account JSON' }));
-  expect((area.style as CSSStyleDeclaration & { WebkitTextSecurity: string }).WebkitTextSecurity).toBe('disc');
+  expect(area).toHaveAttribute('data-masked', 'true');
 });
 
 it('ordinary labelled answers still pass secret-shaped pasted text through the guard', () => {
@@ -135,18 +134,18 @@ it('pane notice uses the host translator and exposes only safe metadata to open 
   expect(signals).toEqual([{ secretRedacted: true, count: 1 }]);
 });
 
+// b2c3f637e: the folder picker quotes whitespace-containing paths before they reach chat, so the expected text is written out.
 it.each([
-  '/Users/la/Documents/Tovu/Some-Folder2026',
-  '~/Documents/Customer-Portal2026/SourceFiles',
-  String.raw`C:\Projects\CustomerPortal2026ProductionSourceFilesAndDocuments`,
-  String.raw`\\FileServer\Projects\CustomerPortal2026ProductionSourceFilesAndDocuments`,
-  '/Users/alex/Client Work/CustomerPortal2026ProductionSourceFilesAndDocuments',
-])('sends a picked folder intact without showing a key warning: %s', async path => {
+  ['/Users/la/Documents/Tovu/Some-Folder2026', '/Users/la/Documents/Tovu/Some-Folder2026'],
+  ['~/Documents/Customer-Portal2026/SourceFiles', '~/Documents/Customer-Portal2026/SourceFiles'],
+  [String.raw`C:\Projects\CustomerPortal2026ProductionSourceFilesAndDocuments`, String.raw`C:\Projects\CustomerPortal2026ProductionSourceFilesAndDocuments`],
+  [String.raw`\\FileServer\Projects\CustomerPortal2026ProductionSourceFilesAndDocuments`, String.raw`\\FileServer\Projects\CustomerPortal2026ProductionSourceFilesAndDocuments`],
+  ['/Users/alex/Client Work/CustomerPortal2026ProductionSourceFilesAndDocuments', '"/Users/alex/Client Work/CustomerPortal2026ProductionSourceFilesAndDocuments"'],
+])('sends a picked folder intact without showing a key warning: %s', async (_path, pasted) => {
   const transport = createFakeChatTransport();
   const signals: unknown[] = [];
   const contexts: string[] = [];
-  // b2c3f637e: the picker quotes whitespace-containing paths before they reach chat.
-  const prompt = `Please inspect ${formatDroppedFolderPaths([path])}`;
+  const prompt = `Please inspect ${pasted}`;
   renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} initialSelection={{ agentId: 'a' }} initialDraft={prompt}
     onSecretRedacted={signal => signals.push(signal)} runContext={({ prompt }) => { contexts.push(prompt); return {}; }} />);
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send' })); });

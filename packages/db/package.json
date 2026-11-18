@@ -17,7 +17,11 @@
     ],
     "isolation": {
       "entries": {
-        "./tools": "transfer"
+        "./tools": "transfer",
+        "./testing/sqlite": "kernel",
+        "./testing/pglite": "kernel",
+        "./testing/postgres": "kernel",
+        "./testing/pglite-owner": "pglite"
       },
       "shared": [
         "src/shared/ddl.adapter.ts",
@@ -91,6 +95,26 @@
       "types": "./dist/migrate/index.d.ts",
       "import": "./dist/migrate/index.js",
       "default": "./dist/migrate/index.js"
+    },
+    "./testing/sqlite": {
+      "types": "./dist/kernel/sqlite/testing.d.ts",
+      "import": "./dist/kernel/sqlite/testing.js",
+      "default": "./dist/kernel/sqlite/testing.js"
+    },
+    "./testing/pglite": {
+      "types": "./dist/kernel/pglite/testing.d.ts",
+      "import": "./dist/kernel/pglite/testing.js",
+      "default": "./dist/kernel/pglite/testing.js"
+    },
+    "./testing/postgres": {
+      "types": "./dist/kernel/postgres/testing.d.ts",
+      "import": "./dist/kernel/postgres/testing.js",
+      "default": "./dist/kernel/postgres/testing.js"
+    },
+    "./testing/pglite-owner": {
+      "types": "./dist/pglite/testing.d.ts",
+      "import": "./dist/pglite/testing.js",
+      "default": "./dist/pglite/testing.js"
     },
     "./testing/pg-fixture": {
       "types": "./dist/pg-fixture.d.ts",

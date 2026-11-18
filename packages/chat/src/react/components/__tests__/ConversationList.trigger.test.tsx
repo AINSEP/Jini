@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen } from '../../__tests__/fake-chat-kit.js';
 import { describe, expect, it } from 'vitest';
 import { ConversationList, type ConversationListProps } from '../ConversationList.js';
 import { conversationTriggerAttributes } from '../ConversationList.rules.js';

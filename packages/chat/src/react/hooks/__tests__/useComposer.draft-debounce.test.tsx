@@ -4,7 +4,7 @@
  * host's persistence port. The durable writes now wait for a pause in typing; every exit path
  * (send, conversation switch, unmount, page hide, composer blur) writes or discards immediately.
  */
-import { act, fireEvent, render, renderHook } from '@testing-library/react';
+import { act, fireEvent, render, renderHook } from '../../__tests__/fake-chat-kit.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Composer } from '../../components/Composer.js';
 import {

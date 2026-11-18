@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook } from '../../__tests__/fake-chat-kit.js';
 import { expect, it } from 'vitest';
 import { useConversation } from '../useConversation.js';
 import { createFakeChatTransport } from '../testing/fake-transport.js';

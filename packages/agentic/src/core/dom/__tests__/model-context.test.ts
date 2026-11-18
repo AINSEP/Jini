@@ -51,6 +51,8 @@ describe('getAgentModelContext', () => {
   });
 
   it('falls back to navigator.modelContext when document carries no surface', () => {
+    // WebMCP moved from navigator to document on 2026-07-21 and Chrome 150 deprecated the old
+    // location while the origin trial still serves it — both paths have to work.
     const surface = fakeSurface('navigator');
     vi.stubGlobal('document', {});
     vi.stubGlobal('navigator', { modelContext: surface });

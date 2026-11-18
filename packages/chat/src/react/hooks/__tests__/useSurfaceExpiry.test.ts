@@ -1,4 +1,4 @@
-import { renderHook } from '@testing-library/react';
+import { renderHook } from '../../__tests__/fake-chat-kit.js';
 import { describe, expect, it } from 'vitest';
 import { SYSTEM_SURFACE_EXPIRY_CLOCK, useSurfaceExpiry } from '../useSurfaceExpiry.js';
 import { fakeClock } from './fake-surface-expiry-clock.js';

@@ -1,5 +1,5 @@
 import type { ChangeEvent, CSSProperties, RefObject } from 'react';
-import { RemixIcon } from '@jini-ai/ui';
+import { RemixIcon } from '../kit.js';
 import { agentHandleProps, agentHandleSegment } from '@jini-ai/core/agent-handles';
 import type { ComposerDiscoveryGroup, ComposerDiscoveryItem } from '../slots.js';
 import type { ComposerDiscoveryMatch } from './composer-discovery.js';
