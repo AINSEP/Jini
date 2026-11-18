@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "vercel",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Publishes the site's static export to Vercel with the workspace's own saved token. Ships the host code itself (a host loads it only because that host chose to ship this plugin) and the know-how an agent needs: where to get a token, the optional team, Deployment Protection, and what each failure means in plain words.",
   "author": "Tovu",
   "license": "Apache-2.0",
