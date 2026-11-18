@@ -1,5 +1,5 @@
-import type { McpHttpEndpoint, McpJsonServerEntry, McpJsonInjectionOptions } from '../contracts.js';
-import { JINI_MCP_SERVER_KEY } from '../mcp-bridge.js';
+import type { McpHttpEndpoint, McpJsonInjectionOptions } from '../contracts.js';
+import { JINI_MCP_SERVER_KEY, type McpJsonServerEntry } from '../mcp-json-file.js';
 
 /**
  * TOML basic-string escaping for the narrow value shapes {@link buildCodexMcpServerToml} emits (a
@@ -202,7 +202,7 @@ function stripExistingJiniMcpServerTable(existingRaw: string, optional: { allSer
  * {@link stripExistingJiniMcpServerTable}), then this run's own table appended.
  *
  * **Append-only by design, not a parse-and-merge, for everything but the jini table itself.**
- * `mergeMcpJsonContent`/`mergeEnvContentMcpConfig` in `mcp-bridge.ts` can safely parse-merge-reserialize because
+ * `mergeMcpJsonContent` (`mcp-json-file.ts`)/`mergeEnvContentMcpConfig` (`opencode/mcp-config.ts`) can safely parse-merge-reserialize because
  * their formats have a JS-native parser (`JSON.parse`); re-serializing parsed TOML would drop
  * comments and layout (see `buildCodexMcpServerToml`'s doc), and every other setting a real Codex
  * install carries — model choice, sandbox policy, the trusted-project list, the operator's own

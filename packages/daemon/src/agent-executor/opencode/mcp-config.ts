@@ -1,6 +1,6 @@
-import type { McpHttpEndpoint, McpJsonServerEntry } from '../contracts.js';
+import type { McpHttpEndpoint } from '../contracts.js';
 import { isRecord } from '../values.js';
-import { JINI_MCP_SERVER_KEY } from '../mcp-bridge.js';
+import { JINI_MCP_SERVER_KEY, type McpJsonServerEntry } from '../mcp-json-file.js';
 import { OPENCODE_CONFIG_ENV } from './constants.js';
 
 /** Merge the run-scoped HTTP endpoint into OpenCode's existing inline configuration. */

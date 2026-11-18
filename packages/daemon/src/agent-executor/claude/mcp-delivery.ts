@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import type { McpBridgeDelivery, McpJsonInjectionOptions } from '../contracts.js';
 import type { McpDeliveryBuildInput } from '../mcp-delivery-types.js';
-import { defaultReadMcpJsonFile, defaultWriteMcpJsonFile, mergeMcpJsonContent } from '../mcp-bridge.js';
+import { defaultReadMcpJsonFile, defaultWriteMcpJsonFile, mergeMcpJsonContent } from '../mcp-json-file.js';
 
 export function buildClaudeMcpDelivery({ cwd, runId, serverEntry }: McpDeliveryBuildInput): McpBridgeDelivery {
   return { kind: 'claude-mcp-json', mcpJsonPath: mcpJsonPathForRun(cwd, runId), serverEntry };

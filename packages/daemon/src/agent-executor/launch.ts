@@ -97,15 +97,13 @@ import {
   runPiRpcDispatch,
 } from './events.js';
 import {
-  mergeEnvContentMcpConfig,
-  mergeEnvContentInstructions,
-  defaultRemoveMcpJsonFile,
   resolveMcpBridgeForRun,
   writeMcpJsonIfNeeded,
-  prepareClaudeConfigDirIfNeeded,
 } from './mcp-bridge.js';
+import { mergeEnvContentMcpConfig, mergeEnvContentInstructions } from './opencode/mcp-config.js';
+import { defaultRemoveMcpJsonFile } from './mcp-json-file.js';
 import { CODEX_HOME_ENV, codexHttpMcpStaging, prepareCodexHomeIfNeeded, resolveCodexDisablePlugins, withStagedCodexHome } from './codex/home-staging.js';
-import { CLAUDE_CONFIG_DIR_ENV, withStagedClaudeConfigDir } from './claude/config-dir.js';
+import { CLAUDE_CONFIG_DIR_ENV, prepareClaudeConfigDirIfNeeded, withStagedClaudeConfigDir } from './claude/config-dir.js';
 import { claudeFilesystemAdapter } from './claude/filesystem.js';
 import { AMR_OPENCODE_BIN_ENV } from './amr/executable-env.js';
 import { resolvePiGracefulShutdownMs } from './pi/options.js';
