@@ -29,7 +29,7 @@ export interface DevAppVersionRequired {
  */
 export async function resolveDevAppVersion(
   { repoRoot, packageVersion, versionFromTag, describeTag, devSuffix }: DevAppVersionRequired,
-  _optional: Record<string, never> = {},
+  _optional = {},
 ): Promise<string> {
   try {
     const version = versionFromTag((await describeTag({ cwd: repoRoot })).trim());
@@ -51,7 +51,7 @@ export interface AppVersionBridgeRequired extends Omit<DevAppVersionRequired, "p
  */
 export function registerAppVersionBridge(
   { ipcMain, app, channel, ...dev }: AppVersionBridgeRequired,
-  _optional: Record<string, never> = {},
+  _optional = {},
 ): void {
   if (app.isPackaged) {
     ipcMain.handle(channel, () => app.getVersion());

@@ -15,6 +15,7 @@
     "entries": {
       ".": "desktop",
       "./bridge-testing": "universal",
+      "./app-version": "universal",
       "./render-bridge": "node",
       "./electron": "desktop",
       "./tauri": "desktop",
@@ -58,6 +59,11 @@
       "types": "./dist/bridge-testing.d.ts",
       "import": "./dist/bridge-testing.js",
       "default": "./dist/bridge-testing.js"
+    },
+    "./app-version": {
+      "types": "./dist/app-version/index.d.ts",
+      "import": "./dist/app-version/index.js",
+      "default": "./dist/app-version/index.js"
     },
     "./electron": {
       "types": "./dist/electron/index.d.ts",
