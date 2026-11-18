@@ -216,11 +216,14 @@ async function refresh(env: DiscoveryEnv, scope: Scope): Promise<ModelCatalogSna
   return snapshot;
 }
 
-async function discover(
-  env: DiscoveryEnv,
-  { context, deps }: { context: ModelDiscoveryContext; deps: ModelDiscoveryDeps },
-  { signal, force, staleWhileRevalidate }: { signal: AbortSignal | undefined; force: boolean; staleWhileRevalidate: boolean },
-): Promise<ModelCatalogSnapshot> {
+async function discover({ env, context, deps, signal, force, staleWhileRevalidate }: {
+  env: DiscoveryEnv;
+  context: ModelDiscoveryContext;
+  deps: ModelDiscoveryDeps;
+  signal: AbortSignal | undefined;
+  force: boolean;
+  staleWhileRevalidate: boolean;
+}): Promise<ModelCatalogSnapshot> {
   let state: Awaited<ReturnType<typeof scoped>>;
   try { state = await scoped(env, { context, deps, signal }); }
   catch (error) {
@@ -259,8 +262,14 @@ export function createAgentModelDiscovery(
   const env: DiscoveryEnv = { agentId, configuration, probes };
   const port: AgentModelDiscoveryPort = {
     async discoverModels({ context }, optional = {}) {
-      return discover(env, { context, deps: optional.deps ?? suppliedDeps },
-        { signal: optional.signal, force: optional.force === true, staleWhileRevalidate: optional.staleWhileRevalidate === true });
+      return discover({
+        env,
+        context,
+        deps: optional.deps ?? suppliedDeps,
+        signal: optional.signal,
+        force: optional.force === true,
+        staleWhileRevalidate: optional.staleWhileRevalidate === true,
+      });
     },
     async resolveDefaultModel({ context, catalog }, { signal, deps = suppliedDeps } = {}): Promise<DefaultModelResolution> {
       return resolveDefault(env, { context, catalog, deps, signal });
