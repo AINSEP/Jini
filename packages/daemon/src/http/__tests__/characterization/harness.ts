@@ -19,7 +19,7 @@ import type { DaemonRouteHost } from '../../route-host.js';
 import { describeRoutes } from '../../route-table.js';
 import { activeContextRoutes } from '../../active-context.js';
 import { agentRoutes } from '../../agents.js';
-import { registerAttachmentLookupRoutes } from '../../attachment-lookup-routes.js';
+import { attachmentLookupRoutes } from '../../attachment-lookup-routes.js';
 import { registerAttachmentRoutes } from '../../attachments.js';
 import { componentCatalogRoutes } from '../../component-catalog.js';
 import { connectorsRoutes } from '../../connectors.js';
@@ -112,7 +112,7 @@ const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-par
     const { authorizeRun } = deps({ authorizeRun: undefined }) as { authorizeRun: RequestHandler | undefined };
     registerToolExecutionRoutes({ app, executor: deps(), listToolsFor: (deps() as { listToolsFor: never }).listToolsFor }, { env: gateEnv, ...(authorizeRun ? { authorizeRun } : {}) });
   }],
-  ['attachment-lookup-routes', ({ app, deps }) => registerAttachmentLookupRoutes({ app, store: deps() })],
+  ['attachment-lookup-routes', ({ adapter, deps, mountList }) => mountList(attachmentLookupRoutes({ store: deps(), host: routeHost(adapter) }))],
   'json-parser',
   ['runs', ({ adapter, deps, mountList }) => mountList(runRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['agents', ({ adapter, deps, mountList }) => mountList(agentRoutes({ deps: deps(), host: routeHost(adapter) }))],

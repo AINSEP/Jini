@@ -26,7 +26,7 @@ const ROUTE_TABLE: Readonly<Record<string, readonly string[]>> = {
     'GET /internal/tool-catalog [anonymous/3, anonymous/2]',
   ],
   'attachment-lookup-routes': [
-    'POST /internal/attachment-lookup [jsonParser/3, anonymous/2]',
+    'POST /internal/attachment-lookup []',
   ],
   'runs': [
     'POST /api/runs [same-origin]',

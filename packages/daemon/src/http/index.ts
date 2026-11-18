@@ -383,7 +383,7 @@ export {
   TOOL_EXECUTIONS_ROUTE_PATH,
 } from './tool-execution-routes.js';
 export type { AttachmentLookup, AttachmentLookupRequest, AttachmentLookupRoutesRequired } from './attachment-lookup-routes.js';
-export { ATTACHMENT_LOOKUP_ROUTE_PATH, registerAttachmentLookupRoutes } from './attachment-lookup-routes.js';
+export { ATTACHMENT_LOOKUP_ROUTE_PATH, attachmentLookupRoutes } from './attachment-lookup-routes.js';
 export type { RemoteAttachmentLookupOptional, RemoteAttachmentLookupRequired } from '../remote-attachment-lookup.js';
 export { createRemoteAttachmentLookup } from '../remote-attachment-lookup.js';
 
