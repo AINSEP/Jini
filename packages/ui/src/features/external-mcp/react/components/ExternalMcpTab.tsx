@@ -43,10 +43,12 @@ export interface ExternalMcpTabProps {
    *  non-empty AND the port implements `setTrust`; without it the tab's `setTrust` wiring had no
    *  control that could ever reach it. Omit for no trust picker (the previous, and still default, look). */
   trustOptions?: readonly SourceTrustOption[];
-  useTHook?: typeof useT;
-  useWiredSourceConfigListHook?: typeof useWiredSourceConfigList;
-  useWiredSourceConfigAddFormHook?: typeof useWiredSourceConfigAddForm;
+  /** Hooks the tab calls; defaults to the real ones, a test hands in fakes. */
+  hooks?: ExternalMcpTabHooks | undefined;
 }
+
+export const defaultExternalMcpTabHooks = { useT, useWiredSourceConfigList, useWiredSourceConfigAddForm };
+export type ExternalMcpTabHooks = typeof defaultExternalMcpTabHooks;
 
 /**
  * OD as an MCP *client* — distinct from the "MCP server" tab, where the host
@@ -62,14 +64,12 @@ export function ExternalMcpTab({
   saveStatusLabel,
   configPath,
   trustOptions,
-  useTHook = useT,
-  useWiredSourceConfigListHook = useWiredSourceConfigList,
-  useWiredSourceConfigAddFormHook = useWiredSourceConfigAddForm,
+  hooks = defaultExternalMcpTabHooks,
 }: ExternalMcpTabProps) {
-  const t = useTHook();
+  const t = hooks.useT();
   const [formOpen, setFormOpen] = useState(false);
-  const list = useWiredSourceConfigListHook<SourceConfigItem>({ dependencies });
-  const addForm = useWiredSourceConfigAddFormHook<SourceConfigItem>({
+  const list = hooks.useWiredSourceConfigList<SourceConfigItem>({ dependencies });
+  const addForm = hooks.useWiredSourceConfigAddForm<SourceConfigItem>({
     dependencies,
     fieldSpecs,
     onAdded: (source) => {

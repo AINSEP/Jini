@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider, type TranslationDict, type useT } from '../../../../i18n/index.js';
 import { MCP_CLIENTS } from '../../../constants.js';
 import { createFakeMcpIntegrationsPort } from '../../../dependencies.js';
-import { ClientPicker } from '../../../react/components/ClientPicker.js';
+import { ClientPicker, defaultClientPickerHooks } from '../../../react/components/ClientPicker.js';
 import { CodexInstallToggleButton } from '../../../react/components/CodexInstallToggleButton.js';
 import { SnippetBlock } from '../../../react/components/SnippetBlock.js';
 
@@ -56,8 +56,21 @@ describe('CodexInstallToggleButton hooks', () => {
 });
 
 describe('ClientPicker hooks', () => {
+  it('hands the close handler and open state to the injected dismiss hook', () => {
+    const useFakeDismiss = vi.fn();
+    render(
+      <ClientPicker
+        clients={MCP_CLIENTS}
+        selectedClientId="claude"
+        onSelect={vi.fn()}
+        hooks={{ ...defaultClientPickerHooks, useDismissOnOutsideOrEscape: useFakeDismiss }}
+      />,
+    );
+    expect(useFakeDismiss).toHaveBeenCalledWith({ onDismiss: expect.any(Function) }, expect.objectContaining({ enabled: false }));
+  });
+
   it('renders the translator supplied through useTHook', () => {
-    render(<ClientPicker clients={MCP_CLIENTS} selectedClientId="claude" onSelect={vi.fn()} useTHook={useQuotingT} />);
+    render(<ClientPicker clients={MCP_CLIENTS} selectedClientId="claude" onSelect={vi.fn()} hooks={{ ...defaultClientPickerHooks, useT: useQuotingT }} />);
     expect(screen.getByRole('button', { expanded: false }).textContent).toContain('«');
   });
 

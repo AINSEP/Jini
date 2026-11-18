@@ -62,8 +62,26 @@ export interface FileDropzoneProps {
   /** Custom hook overrides for dependency injection / testing. */
   useFileDropzone?: typeof useFileDropzone;
   useFileDropzonePreviews?: typeof useFileDropzonePreviews;
-  useTHook?: typeof useT;
-  useGlobalKeydownHook?: typeof useGlobalKeydown;
+  /** The other hooks the dropzone calls; defaults to the real ones, a test hands in fakes. */
+  hooks?: FileDropzoneHooks | undefined;
+}
+
+export const defaultFileDropzoneHooks = { useT, useGlobalKeydown };
+export type FileDropzoneHooks = typeof defaultFileDropzoneHooks;
+
+/** The heading above the zone; a bare zone has none. */
+function FileDropzoneLabel({ label, t }: { label: string | undefined; t: (key: string) => string }) {
+  return label ? <strong className="jini-file-dropzone__label">{t(label)}</strong> : null;
+}
+
+/** The external browse-folder trigger a desktop host supplies, beside the zone. */
+function FileDropzoneBrowseFolder({ onBrowseFolder, t }: { onBrowseFolder: (() => void) | undefined; t: (key: string) => string }) {
+  if (!onBrowseFolder) return null;
+  return (
+    <button type="button" className="jini-file-dropzone__browse-folder" onClick={onBrowseFolder}>
+      {t('Browse folder')}
+    </button>
+  );
 }
 
 /**
@@ -95,16 +113,15 @@ export function FileDropzone({
   secondaryAction,
   useFileDropzone: useFileDropzoneHook = useFileDropzone,
   useFileDropzonePreviews: useFileDropzonePreviewsHook = useFileDropzonePreviews,
-  useTHook = useT,
-  useGlobalKeydownHook = useGlobalKeydown,
+  hooks = defaultFileDropzoneHooks,
 }: FileDropzoneProps) {
-  const t = useTHook();
+  const t = hooks.useT();
   const [lightboxFile, setLightboxFile] = useState<File | null>(null);
 
   const dropzone = useFileDropzoneHook({ onFiles, onZoneClick, onError, onProcessingStart, enablePaste });
   const previews = useFileDropzonePreviewsHook(files ?? NO_FILES);
 
-  useGlobalKeydownHook({
+  hooks.useGlobalKeydown({
     handler: (event) => {
       if (event.key === 'Escape') setLightboxFile(null);
     },
@@ -117,7 +134,7 @@ export function FileDropzone({
 
   return (
     <div className="jini-file-dropzone">
-      {label ? <strong className="jini-file-dropzone__label">{t(label)}</strong> : null}
+      <FileDropzoneLabel label={label} t={t} />
       <div className="jini-file-dropzone__wrap">
         <FileDropzoneZone
           dropzone={dropzone}
@@ -127,11 +144,7 @@ export function FileDropzone({
           enablePaste={enablePaste}
           hint={isSimpleVariant ? undefined : helperText}
         />
-        {onBrowseFolder ? (
-          <button type="button" className="jini-file-dropzone__browse-folder" onClick={onBrowseFolder}>
-            {t('Browse folder')}
-          </button>
-        ) : null}
+        <FileDropzoneBrowseFolder onBrowseFolder={onBrowseFolder} t={t} />
       </div>
 
       <FileDropzoneStaged

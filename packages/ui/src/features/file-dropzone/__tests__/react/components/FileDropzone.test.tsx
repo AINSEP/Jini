@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { FileDropzone } from '../../../react/components/FileDropzone.js';
+import { FileDropzone, defaultFileDropzoneHooks } from '../../../react/components/FileDropzone.js';
 import { I18nProvider, type useT } from '../../../../i18n/index.js';
 
 function file(name: string, type = '', size = 10): File {
@@ -363,7 +363,13 @@ describe('FileDropzone 4-pattern hook override test suite', () => {
   });
 
   it('renders the translator supplied through useTHook', () => {
-    render(<FileDropzone onFiles={vi.fn()} useTHook={useQuotingT} />);
+    render(<FileDropzone onFiles={vi.fn()} hooks={{ ...defaultFileDropzoneHooks, useT: useQuotingT }} />);
     expect(screen.getByText('«Drag & drop or browse»')).toBeInTheDocument();
+  });
+
+  it('registers its Escape handler through the injected global-keydown hook, disabled until a lightbox opens', () => {
+    const useFakeKeydown = vi.fn();
+    render(<FileDropzone onFiles={vi.fn()} hooks={{ ...defaultFileDropzoneHooks, useGlobalKeydown: useFakeKeydown }} />);
+    expect(useFakeKeydown).toHaveBeenCalledWith({ handler: expect.any(Function) }, { enabled: false });
   });
 });

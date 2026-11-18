@@ -40,9 +40,12 @@ export interface MarkdownSplitPaneProps {
   /** Click handler on the rendered preview `<article>` — a host uses this
    *  to delegate code-block "copy" button clicks, etc. */
   onPreviewClick?: (event: ReactMouseEvent<HTMLElement>) => void;
-  useTHook?: typeof useT;
-  useMarkdownScrollSyncHook?: typeof useMarkdownScrollSync;
+  /** Hooks the pane calls; defaults to the real ones, a test hands in fakes. */
+  hooks?: MarkdownSplitPaneHooks | undefined;
 }
+
+export const defaultMarkdownSplitPaneHooks = { useT, useMarkdownScrollSync };
+export type MarkdownSplitPaneHooks = typeof defaultMarkdownSplitPaneHooks;
 
 /** Toolbar's left slot: a host's extra controls followed by the source/split/preview tabs. */
 function MarkdownToolbarLeft({ extra, ...tabsProps }: { extra: ReactNode } & ComponentProps<typeof MarkdownModeTabs>) {
@@ -70,14 +73,13 @@ export function MarkdownSplitPane({
   mode, onModeChange, sourceText, onSourceChange, previewHtml, previewSelector, loading = false, loadingLabel,
   sourceLabel, splitLabel, previewLabel, editorAriaLabel, previewAriaLabel, modeAriaLabel,
   toolbarLeftExtra, toolbarActions, editorTextareaProps, onPreviewClick,
-  useTHook = useT,
-  useMarkdownScrollSyncHook = useMarkdownScrollSync,
+  hooks = defaultMarkdownSplitPaneHooks,
 }: MarkdownSplitPaneProps) {
-  const t = useTHook();
+  const t = hooks.useT();
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
   const previewRef = useRef<HTMLElement | null>(null);
 
-  const { handleEditorScroll, handlePreviewScroll, activatePane } = useMarkdownScrollSyncHook({
+  const { handleEditorScroll, handlePreviewScroll, activatePane } = hooks.useMarkdownScrollSync({
     mode, sourceText, editorRef, previewRef, previewSelector, resyncKey: previewHtml,
   });
 

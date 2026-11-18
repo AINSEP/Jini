@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider, type useT } from '../../../../i18n/index.js';
-import { MarkdownSplitPane } from '../../../react/components/MarkdownSplitPane.js';
+import { MarkdownSplitPane, defaultMarkdownSplitPaneHooks } from '../../../react/components/MarkdownSplitPane.js';
 
 /** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
 const useQuotingT: typeof useT = () => (key) => `«${key}»`;
@@ -181,7 +181,7 @@ describe('MarkdownSplitPane', () => {
 
   it('renders the translator supplied through useTHook', () => {
     render(
-      <MarkdownSplitPane mode="split" onModeChange={() => {}} sourceText="# Hi" onSourceChange={() => {}} previewHtml={null} useTHook={useQuotingT} />,
+      <MarkdownSplitPane mode="split" onModeChange={() => {}} sourceText="# Hi" onSourceChange={() => {}} previewHtml={null} hooks={{ ...defaultMarkdownSplitPaneHooks, useT: useQuotingT }} />,
     );
     expect(screen.getByText('«Loading…»')).toBeInTheDocument();
   });

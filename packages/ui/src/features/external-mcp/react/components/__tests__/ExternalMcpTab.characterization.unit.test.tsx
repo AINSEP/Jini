@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import type { SourceConfigPort } from '../../../../source-config-list/ports.js';
 import type { SourceConfigItem, SourceFieldSpec } from '../../../../source-config-list/types.js';
-import { ExternalMcpTab, type ExternalMcpTabProps } from '../ExternalMcpTab.js';
+import { ExternalMcpTab, defaultExternalMcpTabHooks, type ExternalMcpTabProps } from '../ExternalMcpTab.js';
 
 const fields: readonly SourceFieldSpec[] = [{ key: 'id', label: 'Server ID', kind: 'text', required: true }];
 
@@ -185,7 +185,7 @@ describe('ExternalMcpTab characterization', () => {
 
   it('renders the translator supplied through useTHook', async () => {
     const port = createPort({ sources: [] });
-    render(<ExternalMcpTab dependencies={{ port }} useTHook={useQuotingT} />);
+    render(<ExternalMcpTab dependencies={{ port }} hooks={{ ...defaultExternalMcpTabHooks, useT: useQuotingT }} />);
     expect(await screen.findByText('«External MCP servers»')).toBeInTheDocument();
   });
 });

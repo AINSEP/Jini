@@ -31,16 +31,19 @@ export interface ClientPickerProps {
   /** This picker's own agent handle. The trigger button and each dropdown option get their own
    *  derived sub-handle — see `IntegrationsTab`'s `agentHandle` doc. */
   agentHandle?: string;
-  useTHook?: typeof useT;
-  useDismissOnOutsideOrEscapeHook?: typeof useDismissOnOutsideOrEscape;
+  /** Hooks the picker calls; defaults to the real ones, a test hands in fakes. */
+  hooks?: ClientPickerHooks | undefined;
 }
+
+export const defaultClientPickerHooks = { useT, useDismissOnOutsideOrEscape };
+export type ClientPickerHooks = typeof defaultClientPickerHooks;
 
 /**
  * Dropdown client picker. Origin: the `ds-picker` markup inline in
  * `IntegrationsSection` — closes on outside click or Escape.
  */
-export function ClientPicker({ clients, selectedClientId, onSelect, methodLabel, methodLabels, agentHandle, useTHook = useT, useDismissOnOutsideOrEscapeHook = useDismissOnOutsideOrEscape }: ClientPickerProps) {
-  const t = useTHook();
+export function ClientPicker({ clients, selectedClientId, onSelect, methodLabel, methodLabels, agentHandle, hooks = defaultClientPickerHooks }: ClientPickerProps) {
+  const t = hooks.useT();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const selected = clients.find((c) => c.id === selectedClientId) ?? clients[0];
@@ -55,7 +58,7 @@ export function ClientPicker({ clients, selectedClientId, onSelect, methodLabel,
   // popover/dropdown call site — see that hook's own doc comment), a
   // behaviorally-equivalent upgrade for this same dismiss-on-outside-click
   // pattern.
-  useDismissOnOutsideOrEscapeHook({ onDismiss: () => setOpen(false) }, { enabled: open, containerRef: rootRef });
+  hooks.useDismissOnOutsideOrEscape({ onDismiss: () => setOpen(false) }, { enabled: open, containerRef: rootRef });
 
   return (
     <div className="jini-picker" ref={rootRef}>
