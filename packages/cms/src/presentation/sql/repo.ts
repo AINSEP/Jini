@@ -10,9 +10,9 @@ import {
 } from "./repo.rows.js";
 
 /**
- * @file THE durable `PresentationSettingsRepoPort`: one Kysely query body for every database the storage kernel
- * drives (SQLite, PGlite, Postgres). One row per workspace; `save` upserts on `workspace_id`. Every statement goes
- * through `kernel.run` and is awaited. The table name is host-owned.
+ * @file THE presentation-settings repository: one Kysely query body for every database the storage
+ * kernel drives (SQLite, PGlite, Postgres). One row per workspace; `save` upserts on `workspace_id`.
+ * Every statement goes through `kernel.run` and is awaited. The table name is host-owned.
  */
 export class SqlPresentationSettingsRepo implements PresentationSettingsRepoPort {
   protected readonly kernel: StorageKernel<Kysely<unknown>, unknown>;
