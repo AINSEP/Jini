@@ -56,7 +56,7 @@ export async function readLiveSnapshot<DB>(
         if (entry.versionColumn) columns.push(eb.ref(qualified({ table: entry.table, column: entry.versionColumn })).as("version"));
         return columns;
       })
-      .where((eb) => entryWhere(eb, { entry, workspaceId: required.workspaceId, entityId: required.entityId }))
+      .where((eb) => entryWhere({ eb, entry, workspaceId: required.workspaceId, entityId: required.entityId }))
       .where((eb) => notTrashed({ entityType: entry.entityType, registry: deps.registry })(eb))
       .limit(1)
       .executeTakeFirst();
@@ -70,8 +70,8 @@ export async function readLiveSnapshot<DB>(
  *
  * @complexity O(1) to build.
  */
-export function entryWhere(eb: LooseExpressionBuilder, required: { entry: TrashEntry; workspaceId: string; entityId: string }) {
-  const { entry } = required;
+export function entryWhere(required: { eb: LooseExpressionBuilder; entry: TrashEntry; workspaceId: string; entityId: string }, _optional: Record<string, never> = {}) {
+  const { eb, entry } = required;
   const conditions = [
     eb(qualified({ table: entry.table, column: entry.workspaceColumn }), "=", required.workspaceId),
     eb(qualified({ table: entry.table, column: entry.idColumn }), "=", required.entityId),

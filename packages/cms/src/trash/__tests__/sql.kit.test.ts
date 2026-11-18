@@ -63,7 +63,7 @@ describeEachDialect<ContentKernel>({ title: "trash sql kit", options: { tables: 
     const kernel = make();
     await kernel.execute(sql.raw("INSERT INTO t_items VALUES ('w1', 'w', 'widget', 'a', 'a', 1, NULL), ('r1', 'w', 'recipe', 'b', 'b', 1, NULL)"));
     assert.equal(await readLiveSnapshot({ entry: widget, workspaceId: "w", entityId: "r1" }, { kernel, registry }), null);
-    const hits = await kernel.run((db) => loose(db).selectFrom("t_items").select("t_items.id").where((eb) => entryWhere(eb, { entry: widget, workspaceId: "w", entityId: "r1" })).execute());
+    const hits = await kernel.run((db) => loose(db).selectFrom("t_items").select("t_items.id").where((eb) => entryWhere({ eb, entry: widget, workspaceId: "w", entityId: "r1" })).execute());
     assert.deepEqual(hits, []);
   });
 } });

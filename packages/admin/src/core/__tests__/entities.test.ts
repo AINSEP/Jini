@@ -189,7 +189,7 @@ describe('createAdminEntityRegistry — lookup safety', () => {
   });
 
   it('resolves a registered name', () => {
-    expect(getErasedEntityPort(registry, 'recipe')?.descriptor.labelPlural).toBe('Recipes');
+    expect(getErasedEntityPort({ registry, name: 'recipe' })?.descriptor.labelPlural).toBe('Recipes');
   });
 
   // An entity name is a URL segment. A plain-object registry answers `registry['constructor']` with
@@ -197,7 +197,7 @@ describe('createAdminEntityRegistry — lookup safety', () => {
   it.each(['constructor', '__proto__', 'toString', 'hasOwnProperty', 'valueOf'])(
     'resolves the prototype key %s to null',
     (name) => {
-      expect(getErasedEntityPort(registry, name)).toBeNull();
+      expect(getErasedEntityPort({ registry, name })).toBeNull();
     },
   );
 
@@ -381,15 +381,15 @@ describe('describeAdminEntityFieldMismatch', () => {
     ['json array', field.json, ['lentils']],
     ['json null', field.json, null],
   ])('accepts a conforming %s', (_label, declared, value) => {
-    expect(describeAdminEntityFieldMismatch(declared, value)).toBeNull();
+    expect(describeAdminEntityFieldMismatch({ field: declared, value })).toBeNull();
   });
 
   // `false` and `0` are the two values a truthiness-based validator silently rejects, and neither
   // appears in any descriptor the browser acceptance run exercises.
   it('accepts `false` and `0` rather than reading them as absent', () => {
-    expect(describeAdminEntityFieldMismatch(field.boolean, false)).toBeNull();
-    expect(describeAdminEntityFieldMismatch(field.integer, 0)).toBeNull();
-    expect(describeAdminEntityFieldMismatch(field.real, 0)).toBeNull();
+    expect(describeAdminEntityFieldMismatch({ field: field.boolean, value: false })).toBeNull();
+    expect(describeAdminEntityFieldMismatch({ field: field.integer, value: 0 })).toBeNull();
+    expect(describeAdminEntityFieldMismatch({ field: field.real, value: 0 })).toBeNull();
   });
 
   it.each([
@@ -407,6 +407,6 @@ describe('describeAdminEntityFieldMismatch', () => {
     ['a non-finite number inside json', field.json, [Number.NaN], /non-finite number/],
     ['a function inside json', field.json, { fn: () => 1 }, /is a function/],
   ])('rejects %s', (_label, declared, value, expected) => {
-    expect(describeAdminEntityFieldMismatch(declared, value)).toMatch(expected);
+    expect(describeAdminEntityFieldMismatch({ field: declared, value })).toMatch(expected);
   });
 });

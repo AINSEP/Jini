@@ -210,7 +210,7 @@ export function invalidDraftFields(
   for (const field of descriptor.fields) {
     const value = draft[field.name];
     if (isBlankDraftValue(field, value)) continue;
-    const detail = describeAdminEntityFieldMismatch(field, value);
+    const detail = describeAdminEntityFieldMismatch({ field, value });
     if (detail !== null) problems.push({ field: field.name, detail });
   }
   return problems;

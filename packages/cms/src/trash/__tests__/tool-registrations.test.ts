@@ -143,7 +143,7 @@ describe("buildTrashToolRegistrations", () => {
   });
 
   it("publishes the policy's catalog kinds in both tools' entityType enums", () => {
-    const catalog = buildTrashAgentToolCatalog(["post", "media"]);
+    const catalog = buildTrashAgentToolCatalog({ kinds: ["post", "media"] });
     expect(catalog.map((tool) => tool.name)).toEqual(["trash_list_items", "trash_restore_item"]);
     expect(JSON.stringify(catalog[1]!.inputSchema)).toContain('"enum":["post","media"]');
     const h = harness({ policy: { catalogKinds: () => ["media"] } });

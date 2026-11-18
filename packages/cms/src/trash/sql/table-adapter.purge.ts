@@ -29,7 +29,7 @@ async function claimPreImage({ ctx, workspaceId, entityId, row }: { ctx: TableTr
   const { entry } = ctx;
   const claimWhere = (eb: LooseExpressionBuilder) => {
     const guards = [
-      entryWhere(eb, { entry, workspaceId, entityId }),
+      entryWhere({ eb, entry, workspaceId, entityId }),
       eb(qualified({ table: entry.table, column: entry.marker.column }), "=", row.marker),
     ];
     if (entry.versionColumn && row.version !== null && row.version !== undefined) {
@@ -54,7 +54,7 @@ async function deleteClaimed({ ctx, workspaceId, entityId, expectedVersion }: { 
   const { entry } = ctx;
   const versionColumn = entry.versionColumn;
   const deleteWhere = (eb: LooseExpressionBuilder) => {
-    const base = entryWhere(eb, { entry, workspaceId, entityId });
+    const base = entryWhere({ eb, entry, workspaceId, entityId });
     return versionColumn && expectedVersion !== null
       ? eb.and([base, eb(qualified({ table: entry.table, column: versionColumn }), "=", expectedVersion)])
       : base;
