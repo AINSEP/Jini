@@ -113,8 +113,7 @@ export {
   memoryUpdateTreeNodeRoute,
   memoryWriteConfigRoute,
   memoryWriteIndexRoute,
-  registerMemoryEventStream,
-  registerMemoryRoutes,
+  memoryRoutes,
 } from './memory.js';
 export type {
   RoutineDeleteResponse,

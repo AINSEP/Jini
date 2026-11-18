@@ -10,7 +10,7 @@ import Database from 'better-sqlite3';
 import { createAgentExecutor } from '@jini-ai/daemon';
 import { createNativeAgentRuntime } from '@jini-ai/agent-runtime';
 import type { ToolRegistration } from '@jini-ai/core';
-import { createDiskAttachmentStore, mediaRoutes, registerAttachmentRoutes, registerMemoryRoutes } from '@jini-ai/daemon/http';
+import { createDiskAttachmentStore, mediaRoutes, memoryRoutes, registerAttachmentRoutes } from '@jini-ai/daemon/http';
 import { createBuiltinVendorAdapterRegistry, createMediaDispatchEngine, createSqliteMediaTaskStore } from '@jini-ai/integrations/media-providers';
 import { createNodeMediaHttpClient } from '@jini-ai/integrations/media-providers/node';
 import { createExtractionLog, createNoteStore, createVerifyLog } from '@jini-ai/memory';
@@ -458,7 +458,7 @@ async function main(): Promise<void> {
         // file used to carry. The same-origin guard is on by default and works here because
         // `JINI_ALLOWED_ORIGINS` above already names the Vite dev origin the browser sends.
         (app, { adapter }) => registerAttachmentRoutes({ app, deps: { store: attachmentStore }, adapter }),
-        (app, { adapter }) => registerMemoryRoutes({ app, deps: memoryRoutesDeps, adapter }),
+        (app, { routeHost }) => mountRoutes({ app, routes: memoryRoutes({ deps: memoryRoutesDeps, host: routeHost }) }),
         (app, { routeHost }) =>
           mountRoutes({ app, routes: mediaRoutes({ deps: {
               engine: createMediaDispatchEngine({

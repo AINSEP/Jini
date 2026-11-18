@@ -562,8 +562,7 @@ Everything a Jini package asks its host to bind or register: `*Port`, `*Kit`, `*
 | `MediaHttpDeps` | deps | interface | `packages/daemon/src/http/media.ts:161` |
 | `mediaRoutes` | registry | function | `packages/daemon/src/http/media.ts:477` |
 | `MemoryHttpDeps` | deps | interface | `packages/daemon/src/http/memory.ts:139` |
-| `registerMemoryEventStream` | registry | function | `packages/daemon/src/http/memory.ts:541` |
-| `registerMemoryRoutes` | registry | function | `packages/daemon/src/http/memory.ts:584` |
+| `memoryRoutes` | registry | function | `packages/daemon/src/http/memory.ts:586` |
 | `MessageRelayHttpDeps` | deps | interface | `packages/daemon/src/http/message-relay.ts:6` |
 | `registerMessageRelayRoutes` | registry | function | `packages/daemon/src/http/message-relay.ts:46` |
 | `ModelProxyHttpDeps` | deps | interface | `packages/daemon/src/http/model-proxy.ts:159` |

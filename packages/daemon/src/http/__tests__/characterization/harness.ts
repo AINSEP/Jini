@@ -31,7 +31,7 @@ import { registerFrontendSessionRoutes } from '../../frontend-sessions.js';
 import { healthRoutes } from '../../health.js';
 import { hostToolsRoutes } from '../../host-tools.js';
 import { mediaRoutes } from '../../media.js';
-import { registerMemoryRoutes } from '../../memory.js';
+import { memoryRoutes } from '../../memory.js';
 import { registerMessageRelayRoutes } from '../../message-relay.js';
 import { registerModelProxyRoutes } from '../../model-proxy.js';
 import { remoteRunEventRoutes } from '../../remote-run-events.js';
@@ -127,7 +127,7 @@ const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-par
   ['research', ({ adapter, deps, mountList }) => mountList(researchRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['xai', ({ adapter, deps, mountList }) => mountList(xaiRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['remote-run-events', ({ adapter, deps, mountList }) => mountList(remoteRunEventRoutes({ deps: deps({ env: gateEnv, tokenConfig: undefined }), host: routeHost(adapter) }))],
-  ['memory', ({ app, adapter, deps }) => registerMemoryRoutes({ app, deps: deps(), adapter })],
+  ['memory', ({ adapter, deps, mountList }) => mountList(memoryRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['routines', ({ adapter, deps, mountList }) => mountList(routineRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['media', ({ adapter, deps, mountList }) => mountList(mediaRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['frontend-sessions', ({ app, adapter, deps }) => registerFrontendSessionRoutes({ app, deps: deps({ routePrefix: undefined, resolveOwner: undefined }), adapter })],

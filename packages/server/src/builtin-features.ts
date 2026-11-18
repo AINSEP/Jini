@@ -38,7 +38,7 @@ import {
   searchToolCatalog,
 } from '@jini-ai/registry/tool-catalog/sqlite';
 import { inspectSqliteDatabase, verifySqliteIntegrity } from '@jini-ai/db/sqlite'; import type { SqliteDb } from '@jini-ai/core/contracts/storage';
-import { xaiRoutes, connectorsRoutes, routineRoutes, mediaRoutes, hostToolsRoutes, healthRoutes, daemonDbRoutes, researchRoutes, delegatedToolRoutes, activeContextRoutes, daemonStatusRoutes, agentRoutes, toolCatalogRoutes, createDaemonDbToolRegistrations, denyAllWorkspaceRoots, registerFrontendSessionRoutes, registerMemoryRoutes, registerModelProxyRoutes, remoteRunEventRoutes, runRoutes, registerTerminalRoutes, type AgentSummary, type DaemonDbOperations, type DaemonDbVacuumResult, type DelegatedToolExecuteRequest, type FrontendSessionsHttpDeps, type MediaHttpDeps, type MemoryHttpDeps, type RemoteToolBridgeTokenConfig, type RoutineHttpDeps, type RunStartHandler, type WorkspaceRootResolver } from '@jini-ai/daemon/http';
+import { xaiRoutes, connectorsRoutes, routineRoutes, mediaRoutes, hostToolsRoutes, healthRoutes, daemonDbRoutes, researchRoutes, delegatedToolRoutes, activeContextRoutes, daemonStatusRoutes, agentRoutes, toolCatalogRoutes, createDaemonDbToolRegistrations, denyAllWorkspaceRoots, registerFrontendSessionRoutes, memoryRoutes, registerModelProxyRoutes, remoteRunEventRoutes, runRoutes, registerTerminalRoutes, type AgentSummary, type DaemonDbOperations, type DaemonDbVacuumResult, type DelegatedToolExecuteRequest, type FrontendSessionsHttpDeps, type MediaHttpDeps, type MemoryHttpDeps, type RemoteToolBridgeTokenConfig, type RoutineHttpDeps, type RunStartHandler, type WorkspaceRootResolver } from '@jini-ai/daemon/http';
 import type { Express } from 'express';
 
 import { defineJiniFeature, type FeatureBuildContext, type JiniFeature } from './feature.js';
@@ -598,7 +598,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
           deps: [],
           services: () => ({ context }),
         }, {
-          http: ({ app, services }) => registerMemoryRoutes({ app: app as Express, deps, adapter: services.context.adapter }),
+          http: ({ app, services }) => mountRoutes({ app, routes: memoryRoutes({ deps, host: services.context.routeHost }) }),
         }),
       };
     },

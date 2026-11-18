@@ -47,25 +47,21 @@
  *   route-level scoping choice. A host needing those toggles today has to
  *   layer its own config storage alongside `NoteStore.writeConfig`.
  */
-import type { Express, Request, Response } from 'express';
 import { createApiError } from '@jini-ai/protocol';
 import {
-  createSseChannel,
+  createSseStream,
   defineJsonRoute,
-  mountJsonRoute,
-  sendApiError,
-} from '@jini-ai/http-kit';
-import {
   err,
-  guardSameOrigin,
   ok,
-  statusForError,
+  sameOriginRefusal,
   validationError,
-  type RouteHostContext,
   type Result,
   type RouteInputContext,
   type SseEvent,
 } from '@jini-ai/core/contracts/server';
+import type { DaemonRouteHost } from './route-host.js';
+import { gated, gatedJsonRoute, type DaemonRoute } from './route-table.js';
+import { SSE_CHARSET_HEADERS } from './sse-wire.js';
 
 // ---------------------------------------------------------------------------
 // Local structural mirrors of @jini-ai/memory's NoteStore/ExtractionLog/VerifyLog
@@ -531,73 +527,80 @@ interface MemoryStreamEvent extends SseEvent {
  * `deps.notes.events`), `extraction` (relayed from `deps.extractions.events`,
  * whose underlying event name is `'attempt'` — see `@jini-ai/memory`'s
  * `extraction-log.ts`), and `verify` (relayed from `deps.verifications.events`).
- * Uses `sse.ts`'s generic channel rather than OD's bespoke `createSseResponse`;
- * no Last-Event-ID replay (unlike `runs.ts`) since none of the three
+ * No Last-Event-ID replay (unlike `runs.ts`) since none of the three
  * underlying emitters buffer history for reconnect — this mirrors the OD
  * origin's own behavior (a live tail only, no replay).
  *
- * Bypasses `mountJsonRoute` (raw `app.get`, for the SSE response shape), so it does not get
- * `requireSameOrigin` for free the way the JSON routes below do — the guard is applied here
- * directly, before the SSE channel is opened, so a cross-origin request never gets a stream.
+ * Not a JSON route, so it does not get `requireSameOrigin` for free the way the JSON routes below
+ * do — the guard is applied here directly, before anything is subscribed, so a cross-origin request
+ * never gets a stream and never leaves a listener behind.
  */
-export function registerMemoryEventStream({ app, deps, adapter }: { readonly app: Express; readonly deps: MemoryHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
-  app.get('/api/memory/events', (req: Request, res: Response) => {
-    const origin = guardSameOrigin({ req, origin: adapter });
-    if (!origin.ok) {
-      sendApiError({ res, status: statusForError({ error: origin.error }), error: origin.error });
-      return;
-    }
-    let seq = 0;
-    const channel = createSseChannel<MemoryStreamEvent>({ res });
-    const emit = (kind: string, data: unknown): void => {
-      const cursor = seq;
-      seq += 1;
-      channel.enqueue({ event: { opaqueCursor: String(cursor), kind, data } });
-    };
-
-    const onChange = (event: unknown): void => emit('change', event);
-    const onExtraction = (event: unknown): void => emit('extraction', event);
-    const onVerify = (event: unknown): void => emit('verify', event);
-
-    deps.notes.events.on('change', onChange);
-    deps.extractions.events.on('attempt', onExtraction);
-    deps.verifications.events.on('verify', onVerify);
-
-    channel.onClose({
-      callback: () => {
-        deps.notes.events.off('change', onChange);
-        deps.extractions.events.off('attempt', onExtraction);
-        deps.verifications.events.off('verify', onVerify);
-      }
-    });
-
-    channel.open();
-    emit('connected', { at: Date.now() });
+function memoryEventStreamRoute({ deps, host }: { readonly deps: MemoryHttpDeps; readonly host: DaemonRouteHost }): DaemonRoute {
+  return gated({
+    route: {
+      method: 'GET', path: '/api/memory/events',
+      handler: ({ request }) => sameOriginRefusal({ request, origin: host.context }) ?? openMemoryStream({ deps, host, signal: request.signal }),
+    },
+    gates: [{ name: 'same-origin' }],
   });
 }
 
+/** Subscribes the three emitters and returns what removes those listeners again. */
+function subscribeMemoryEmitters({ deps, emit }: { readonly deps: MemoryHttpDeps; readonly emit: (kind: string, data: unknown) => void }): () => void {
+  const onChange = (event: unknown): void => emit('change', event);
+  const onExtraction = (event: unknown): void => emit('extraction', event);
+  const onVerify = (event: unknown): void => emit('verify', event);
+  deps.notes.events.on('change', onChange);
+  deps.extractions.events.on('attempt', onExtraction);
+  deps.verifications.events.on('verify', onVerify);
+  return () => {
+    deps.notes.events.off('change', onChange);
+    deps.extractions.events.off('attempt', onExtraction);
+    deps.verifications.events.off('verify', onVerify);
+  };
+}
+
+/** The stream itself: no heartbeat (this feed never sent one), every listener removed in the one `onClose`, whichever way the stream ends. */
+function openMemoryStream({ deps, host, signal }: { readonly deps: MemoryHttpDeps; readonly host: DaemonRouteHost; readonly signal: AbortSignal }): Response {
+  let release: () => void = () => undefined;
+  const stream = createSseStream<MemoryStreamEvent>({ scheduler: host.scheduler }, { signal, keepAliveMs: false, headers: SSE_CHARSET_HEADERS, onClose: () => release() });
+  let seq = 0;
+  const emit = (kind: string, data: unknown): void => {
+    const cursor = seq;
+    seq += 1;
+    stream.send({ event: { opaqueCursor: String(cursor), kind, data } });
+  };
+  release = subscribeMemoryEmitters({ deps, emit });
+  // The client may have left before the listeners existed: `onClose` ran with nothing to remove.
+  if (stream.closed) release();
+  emit('connected', { at: Date.now() });
+  return stream.response;
+}
+
 /**
- * Mounts every ported memory route. Static sub-resources (`/tree`,
- * `/index`, `/config`, `/events`, `/extractions`, `/verifications`) are
- * mounted BEFORE the `/api/memory/:id` catch-all routes, preserving OD's own
- * ordering discipline ("so an `index`/`config`/`extract` slug can't shadow
- * the real handlers") — Express matches routes in registration order.
+ * Every memory route as data. Static sub-resources (`/tree`, `/index`, `/config`, `/events`,
+ * `/extractions`, `/verifications`) and `/api/memory/:id` can be listed in any order: the route table
+ * matches a literal segment before a `:name` segment, so an `index`/`config`/`extract` slug can never
+ * shadow the real handlers (this replaces OD's "mount static routes first" rule).
  */
-export function registerMemoryRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: MemoryHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
-  mountJsonRoute({ app, spec: memoryOverviewRoute, deps, adapter });
-  mountJsonRoute({ app, spec: memoryTreeRoute, deps, adapter });
-  mountJsonRoute({ app, spec: memoryUpdateTreeNodeRoute, deps, adapter });
-  mountJsonRoute({ app, spec: memoryWriteIndexRoute, deps, adapter });
-  mountJsonRoute({ app, spec: memoryWriteConfigRoute, deps, adapter });
-  registerMemoryEventStream({ app, deps, adapter });
-  mountJsonRoute({ app, spec: memoryListExtractionsRoute, deps, adapter });
-  mountJsonRoute({ app, spec: memoryClearExtractionsRoute, deps, adapter });
-  mountJsonRoute({ app, spec: memoryRemoveExtractionRoute, deps, adapter });
-  mountJsonRoute({ app, spec: memoryListVerificationsRoute, deps, adapter });
-  mountJsonRoute({ app, spec: memoryClearVerificationsRoute, deps, adapter });
-  mountJsonRoute({ app, spec: memoryRemoveVerificationRoute, deps, adapter });
-  mountJsonRoute({ app, spec: memoryCreateEntryRoute, deps, adapter });
-  mountJsonRoute({ app, spec: memoryReadEntryRoute, deps, adapter });
-  mountJsonRoute({ app, spec: memoryUpdateEntryRoute, deps, adapter });
-  mountJsonRoute({ app, spec: memoryDeleteEntryRoute, deps, adapter });
+export function memoryRoutes({ deps, host }: { readonly deps: MemoryHttpDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
+  const json = <I, O>(spec: Parameters<typeof gatedJsonRoute<I, O, MemoryHttpDeps>>[0]['spec']): DaemonRoute => gatedJsonRoute({ spec, deps, host });
+  return [
+    json(memoryOverviewRoute),
+    json(memoryTreeRoute),
+    json(memoryUpdateTreeNodeRoute),
+    json(memoryWriteIndexRoute),
+    json(memoryWriteConfigRoute),
+    memoryEventStreamRoute({ deps, host }),
+    json(memoryListExtractionsRoute),
+    json(memoryClearExtractionsRoute),
+    json(memoryRemoveExtractionRoute),
+    json(memoryListVerificationsRoute),
+    json(memoryClearVerificationsRoute),
+    json(memoryRemoveVerificationRoute),
+    json(memoryCreateEntryRoute),
+    json(memoryReadEntryRoute),
+    json(memoryUpdateEntryRoute),
+    json(memoryDeleteEntryRoute),
+  ];
 }

@@ -340,7 +340,7 @@ Registrars use `({app: Express, deps: D, adapter: AdapterContext}, {}) => void`.
 | `registerAttachmentRoutes` | `AttachmentsHttpDeps`: `store: AttachmentStore`; optional `maxConcurrentUploads`, `maxAttachmentBytes`, `maxCleanupPaths`, `requireSameOrigin`, `onInternalError`, trusted `resolveOwnerId({req})` |
 | `xaiRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them); `XaiHttpDeps`: every dependency field is optional: data/token path, provider config, callback host/port/path, pending cache, listener slot/factory, search base/model/fetch/deadline, private error sink |
 | `hostToolsRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them);  |
-| `registerMemoryRoutes` / `registerMemoryEventStream` | `({app, deps: MemoryHttpDeps, adapter}, {}) => void`; `deps = {notes, extractions, verifications, dataDir}` |
+| `memoryRoutes` | `({ deps: MemoryHttpDeps, host: DaemonRouteHost }) => DaemonRoute[]`; `deps = {notes, extractions, verifications, dataDir}`. Includes the SSE change feed |
 | `toolCatalogRoutes` | `({deps: ToolCatalogHttpDeps, host: DaemonRouteHost}, {}) => DaemonRoute[]`; catalog declares `search({query}, {limit?})`, `describe({id}, {})`; the routes are data a host mounts |
 
 Auth/ownership/rate limits are host composition concerns unless a registrar explicitly installs a gate. Same-origin is not user authentication. JSON routes default to status 200; exceptions are noted below. Response records and structural ports are defined in the corresponding `src/<family>.ts` files; no database driver or domain store is created implicitly.
