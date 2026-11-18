@@ -90,7 +90,10 @@ type SetPendingKeys = Dispatch<SetStateAction<ReadonlySet<string>>>;
 type SetOpenMenuId = Dispatch<SetStateAction<string | null>>;
 
 /** Loads the item list from the port; bumping `refreshToken` re-fetches. */
-function useBoardItems<TItem extends ResourceBoardItem>(port: ResourceBoardPort<TItem>, refreshToken: string | number | undefined) {
+function useBoardItems<TItem extends ResourceBoardItem>({ port, refreshToken }: {
+  port: ResourceBoardPort<TItem>;
+  refreshToken: string | number | undefined;
+}) {
   const [items, setItems] = useState<TItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -137,7 +140,11 @@ function useBoardViewMode(params: UseResourceBoardParams<ResourceBoardItem>) {
 }
 
 /** Select mode + selected ids, pruned as items disappear and reset when leaving grid view. */
-function useBoardSelection(itemIds: string[], viewMode: ResourceBoardViewMode, itemsKey: unknown) {
+function useBoardSelection({ itemIds, viewMode, itemsKey }: {
+  itemIds: string[];
+  viewMode: ResourceBoardViewMode;
+  itemsKey: unknown;
+}) {
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
 
@@ -292,13 +299,13 @@ function useBoardBulkDelete<TItem extends ResourceBoardItem>(
 export function useResourceBoard<TItem extends ResourceBoardItem>(params: UseResourceBoardParams<TItem>): ResourceBoardController<TItem> {
   const { port, refreshToken } = params;
   const statusOrder = params.statusOrder ?? [];
-  const { items, setItems, loading, error, reload } = useBoardItems(port, refreshToken);
+  const { items, setItems, loading, error, reload } = useBoardItems({ port, refreshToken });
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<string | undefined>(params.initialSort);
   const [pendingKeys, setPendingKeys] = useState<ReadonlySet<string>>(new Set());
   const { viewMode, setViewMode } = useBoardViewMode(params);
   const itemIds = useMemo(() => items.map((item) => item.id), [items]);
-  const selection = useBoardSelection(itemIds, viewMode, items);
+  const selection = useBoardSelection({ itemIds, viewMode, itemsKey: items });
   const menu = useBoardMenu();
   const deps = { port, setItems, setPendingKeys, setOpenMenuId: menu.setOpenMenuId };
   const itemActions = useBoardItemActions(deps);

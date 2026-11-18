@@ -129,7 +129,7 @@ interface OptimisticToggleContext {
 }
 
 /** Optimistically set a flag, then write it through its queue; roll back to server truth on a failed write with no newer intent. */
-function runOptimisticToggle(ctx: OptimisticToggleContext, next: boolean): Promise<void> {
+function runOptimisticToggle({ ctx, next }: { ctx: OptimisticToggleContext; next: boolean }): Promise<void> {
   ctx.guard.invalidate();
   ctx.setError(null);
   ctx.setValue(next);
@@ -154,7 +154,11 @@ function runOptimisticToggle(ctx: OptimisticToggleContext, next: boolean): Promi
 }
 
 /** A list response can have raced an optimistic PATCH: leave both the visible value and its rollback baseline alone until that setting's queue settles (the write's onSettled then reconciles it). */
-function hydrateFlag(queue: ConfigWriteQueue, next: boolean, apply: (value: boolean) => void) {
+function hydrateFlag({ queue, next, apply }: {
+  queue: ConfigWriteQueue;
+  next: boolean;
+  apply: (value: boolean) => void;
+}) {
   if (!hasUnsettledConfigWrite(queue)) apply(next);
 }
 
@@ -236,14 +240,22 @@ function useConfigHydration({ refs, setEnabled, setters }: ConfigHydrationDeps) 
 
   const hydrate = useCallback((list: MemoryListResponse, revision: number) => {
     if (!hydrationGuardRef.current.isCurrent(revision)) return;
-    hydrateFlag(enabledQueueRef.current, list.enabled, (value) => {
+    hydrateFlag({
+      queue: enabledQueueRef.current,
+      next: list.enabled,
+      apply: (value) => {
       setEnabled(value);
       enabledConfirmedRef.current = value;
+    },
     });
     for (const key of HOOK_FLAG_KEYS) {
-      hydrateFlag(hookQueuesRef.current[key], list[key] !== false, (value) => {
+      hydrateFlag({
+        queue: hookQueuesRef.current[key],
+        next: list[key] !== false,
+        apply: (value) => {
         setters[key](() => value);
         hookConfirmedRef.current[key] = value;
+      },
       });
     }
   }, [setters, enabledConfirmedRef, enabledQueueRef, hookConfirmedRef, hookQueuesRef, hydrationGuardRef, setEnabled]);
@@ -263,8 +275,8 @@ export function useMemoryConfig(port: MemoryConfigPort): MemoryConfigController 
 
   const onToggleEnabled = useCallback(
     (next: boolean) =>
-      runOptimisticToggle(
-        {
+      runOptimisticToggle({
+        ctx: {
           guard: hydrationGuardRef.current,
           queue: enabledQueueRef.current,
           setError,
@@ -276,14 +288,14 @@ export function useMemoryConfig(port: MemoryConfigPort): MemoryConfigController 
           send: (value) => port.patchConfig(enabledPatch(value)),
         },
         next,
-      ),
+      }),
     [port],
   );
 
   const onToggleHook = useCallback(
     (key: MemoryConfigFlagKey, next: boolean) =>
-      runOptimisticToggle(
-        {
+      runOptimisticToggle({
+        ctx: {
           guard: hydrationGuardRef.current,
           queue: hookQueuesRef.current[key],
           setError,
@@ -295,7 +307,7 @@ export function useMemoryConfig(port: MemoryConfigPort): MemoryConfigController 
           send: (value) => port.patchConfig(singleFlagPatch(key, value)),
         },
         next,
-      ),
+      }),
     [port, setters],
   );
 
