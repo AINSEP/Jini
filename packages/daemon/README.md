@@ -98,6 +98,13 @@ omit it for a headless caller. `PtySpawn` (terminal sessions) and `RoutineStore`
 persistence) are likewise ports with one reference implementation each. The state-machine logic
 itself (run transitions, the tool-execution audit trail, retry classification) is fixed.
 
+The agent runtime is one port too. `@jini-ai/daemon/ports/agent-runtime` states `AgentRuntimePort` (definitions, launch,
+filesystem policy, model resolution, ACP/PI sessions, stream parsers, startup failures) and `BaseUrlGuardPort`;
+`@jini-ai/agent-runtime`'s `createAgentRuntimeBindings` is the one binding, and the host proves it with
+`satisfies AgentRuntimePort`. The provider-facing HTTP routes take two more ports:
+`@jini-ai/daemon/ports/provider-http` (`ProviderToolTurnPort`, the pinned-fetch types) and
+`@jini-ai/daemon/ports/xai-oauth` (`XaiOAuthPort`). Each has a DI fake under `src/ports/__tests__/` for route and launcher tests.
+
 ## Runtime
 
 Node-only.
