@@ -15,8 +15,13 @@ const MASK_TAIL = 4;
 const isEntryPresent = (entry: MediaProviderCredentials | null | undefined): boolean =>
   !!entry && !!(entry.apiKey?.trim() || entry.baseUrl?.trim() || entry.model?.trim() || entry.apiKeyConfigured || entry.apiKeyTail);
 
+// Typed values an operator can re-send; markers do not count, they only say a key exists server-side.
+const hasRecoverableFields = (entry: MediaProviderCredentials | null | undefined): boolean =>
+  !!(entry?.apiKey?.trim() || entry?.baseUrl?.trim() || entry?.model?.trim());
+
+// Configured but holding nothing usable: an endpoint or model typed beside a stored key makes it more than markers.
 const isMarkerOnlyEntry = (entry: MediaProviderCredentials | null | undefined): boolean =>
-  !!entry && !entry.apiKey?.trim() && !!(entry.apiKeyConfigured || entry.apiKeyTail);
+  isEntryPresent(entry) && !hasRecoverableFields(entry);
 
 function maskedKeyLabel(entry: MediaProviderCredentials | null | undefined): string | null {
   const tail = entry?.apiKeyTail?.trim() || entry?.apiKey?.trim();

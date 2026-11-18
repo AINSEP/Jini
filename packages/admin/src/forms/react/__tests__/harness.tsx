@@ -8,6 +8,7 @@ import { createHttpFormsApi, createHttpFormsTrash, type FormsTransportPort } fro
 import { FormsPortsContext, FormsOptionsContext } from '../hooks/FormsPorts.hooks.js';
 import type { FormsReactOptions } from '../hooks/FormsPorts.hooks.js';
 import { translateForms } from '../../messages.en.js';
+import { fakeFormsCatalog } from '../../__tests__/fakes/forms-catalog.js';
 /** Constructor bridge is test harness only, retaining the original error assertions. */
 export class ApiError extends AdminApiError {
   constructor(message: string, status: number, code?: string, body?: Record<string, unknown>) {
@@ -21,7 +22,7 @@ export function FormsTestProvider({ children, options = {} }: { children: ReactN
       request: ({ path, method, body }, optional = {}) => host.request({ path }, { method, ...(body === undefined ? {} : { body: JSON.stringify(body) }), ...optional }),
       url: ({ path }) => `/api/admin/v1${path}`,
     };
-    return { formsApi: { ...createHttpFormsApi({ transport, basePath: '/workspaces/workspace-local/forms' }), listFormProviders: async () => describeFormCollectionProviders({ providers: createFormCollectionRegistry({}) }) }, formsTrash: createHttpFormsTrash({ transport, basePath: '/workspaces/workspace-local/trash/items' }), formsNavigation: createAdminShellNavigation({ location: window.location, window, document }) };
+    return { formsApi: { ...createHttpFormsApi({ transport, basePath: '/workspaces/workspace-local/forms' }), listFormProviders: async () => describeFormCollectionProviders({ providers: createFormCollectionRegistry({}) }) }, formsCatalog: fakeFormsCatalog(), formsTrash: createHttpFormsTrash({ transport, basePath: '/workspaces/workspace-local/trash/items' }), formsNavigation: createAdminShellNavigation({ location: window.location, window, document }) };
   }, []);
   return <FetchQueryProvider><FormsPortsContext.Provider value={ports}><FormsOptionsContext.Provider value={options}>{children}</FormsOptionsContext.Provider></FormsPortsContext.Provider></FetchQueryProvider>;
 }

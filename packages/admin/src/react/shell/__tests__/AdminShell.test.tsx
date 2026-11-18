@@ -1,8 +1,14 @@
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { useEffect, useState } from 'react';
+import { act, cleanup, fireEvent, render as renderBare, screen, waitFor, within, type RenderOptions } from '@testing-library/react';
+import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { AdminKitProvider } from '../../kit.js';
+import { fakeAdminKit } from '../../testing-kit.js';
 import { AdminShell } from '../AdminShell.js';
 import type { AdminShellNavigationPort, AdminShellPanel, AdminShellProps, AdminShellRenderArgs, AdminShellSessionPort } from '../types.js';
+
+// The shell reads its theme functions from the host kit, so every render sits under a provider.
+const wrapper = ({ children }: { children: ReactNode }) => <AdminKitProvider kit={fakeAdminKit()}>{children}</AdminKitProvider>;
+const render = (ui: ReactElement, options: Omit<RenderOptions, 'wrapper'> = {}) => renderBare(ui, { wrapper, ...options });
 
 // Generalized App prototype-key, agent-page, rail-storage and session-seam tests.
 const panels: readonly AdminShellPanel[] = [

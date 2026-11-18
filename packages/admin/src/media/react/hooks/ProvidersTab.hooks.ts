@@ -1,9 +1,8 @@
-import { useFetchMutation, useMediaProvidersTab } from '../../../react/kit.js';
+import { useFetchMutation, useMediaProviderRules, useMediaProvidersTab } from '../../../react/kit.js';
+import type { AdminMediaProvidersKit } from '../../../react/kit-media-providers.js';
 import { MEDIA_QUERY_KEYS, useMediaProvidersQuery } from './MediaQuery.hooks.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { sortProvidersByConfigured, isEntryPresent, isMarkerOnlyEntry,
-  maskedKeyLabel, isProviderBaseUrlInvalid, invalidBaseUrlProviderIds } from '@jini-ai/ui';
 import type { MediaProvider, MediaProviderOption, MediaProviderConfigurationMap } from '../../models.js';
 import { useMediaPorts } from './MediaPorts.hooks.js';
 import type { MediaProvidersPort } from '../../ports.js';
@@ -25,6 +24,8 @@ function configuration({ items }: { items: readonly MediaProvider[] }, _optional
 }
 
 type ProviderEntry = MediaProviderConfigurationMap[string];
+/** The six pure provider rules, from the host kit. */
+type ProviderRules = AdminMediaProvidersKit['rules'];
 type ProvidersEditor = ReturnType<typeof useMediaProvidersTab>;
 /** Drops a cleared provider's stored state; one that never held any needs no call. */
 async function removeIfStored({ port, item, signal }: { port: MediaProvidersPort; item: MediaProvider; signal: AbortSignal }, _optional: Record<string, never> = {}) {
@@ -69,9 +70,9 @@ async function saveSequentially(
   if (!items) throw new Error('Provider service unavailable');
   return items;
 }
-function rowStatus({ entry, pending }: { entry: ProviderEntry; pending: boolean }, _optional: Record<string, never> = {}) {
-  const saved = isMarkerOnlyEntry(entry);
-  const mask = saved ? maskedKeyLabel(entry) : null;
+function rowStatus({ entry, pending, rules }: { entry: ProviderEntry; pending: boolean; rules: ProviderRules }, _optional: Record<string, never> = {}) {
+  const saved = rules.isMarkerOnlyEntry(entry);
+  const mask = saved ? rules.maskedKeyLabel(entry) : null;
   const unsavedLabel = pending ? 'Unsaved' : null;
   return {
     mask,
@@ -83,8 +84,8 @@ function rowStatus({ entry, pending }: { entry: ProviderEntry; pending: boolean 
 function defaultBaseUrlHint({ entry, item }: { entry: ProviderEntry; item: MediaProviderOption }) {
   return !entry.baseUrl?.trim() && item.defaultBaseUrl ? `Uses ${item.defaultBaseUrl} by default.` : null;
 }
-function baseUrlHint({ entry, item }: { entry: ProviderEntry; item: MediaProviderOption }, _optional: Record<string, never> = {}) {
-  const invalid = isProviderBaseUrlInvalid(entry);
+function baseUrlHint({ entry, item, rules }: { entry: ProviderEntry; item: MediaProviderOption; rules: ProviderRules }, _optional: Record<string, never> = {}) {
+  const invalid = rules.isProviderBaseUrlInvalid(entry);
   return {
     invalid, hint: invalid ? 'Enter an absolute http:// or https:// URL that is not a private or internal address.' : defaultBaseUrlHint({ entry, item }),
     hintClassName: invalid ? 'jini-field-hint jini-hint-error' : 'jini-field-hint',
@@ -115,12 +116,12 @@ function settingsFields({ item, entry, editor }: { item: MediaProviderOption; en
   };
 }
 function providerRow(
-  { item, entry, editor, visible, toggle }: {
-    item: MediaProviderOption; entry: ProviderEntry; editor: ProvidersEditor; visible: boolean; toggle: () => void;
+  { item, entry, editor, visible, toggle, rules }: {
+    item: MediaProviderOption; entry: ProviderEntry; editor: ProvidersEditor; visible: boolean; toggle: () => void; rules: ProviderRules;
   },
   { divider = false, disabled = false }: { divider?: boolean; disabled?: boolean } = {},
 ) {
-  const { mask, ...status } = rowStatus({ entry, pending: editor.pendingProviderIds.has(item.id) });
+  const { mask, ...status } = rowStatus({ entry, pending: editor.pendingProviderIds.has(item.id), rules });
   return {
     ...item,
     divider,
@@ -128,24 +129,58 @@ function providerRow(
     ...credentialFields({ item, entry, editor, visible }, { mask }),
     toggle,
     ...settingsFields({ item, entry, editor }),
-    clearLabel: `${item.label} Clear`, clearDisabled: !isEntryPresent(entry) || disabled,
+    clearLabel: `${item.label} Clear`, clearDisabled: !rules.isEntryPresent(entry) || disabled,
     clear: () => editor.clearProvider(item.id),
-    ...baseUrlHint({ entry, item }),
+    ...baseUrlHint({ entry, item, rules }),
   };
 }
-function editorView({ editor, port }: { editor: ProvidersEditor; port: MediaProvidersPort | undefined }, _optional: Record<string, never> = {}) {
+function editorView({ editor, port, rules }: { editor: ProvidersEditor; port: MediaProvidersPort | undefined; rules: ProviderRules }, _optional: Record<string, never> = {}) {
   const loading = editor.load.status === 'loading', saving = editor.save.status === 'saving';
   return { reload: editor.reload, reloadDisabled: loading,
     reloadLabel: loading ? 'Reloading…' : 'Reload',
     unreachable: editor.load.status === 'unreachable', empty: !editor.hasAnyConfigured,
     save: editor.saveChanges, saveLabel: saving ? 'Saving…' : 'Save changes',
-    saveDisabled: !port || saving || !editor.pendingProviderIds.size || !!invalidBaseUrlProviderIds(editor.providers).length,
+    saveDisabled: !port || saving || !editor.pendingProviderIds.size || !!rules.invalidBaseUrlProviderIds(editor.providers).length,
     saved: editor.save.status === 'saved', saveError: editor.save.status === 'save-error', disabled: !port,
     // Fail closed: a host that can persist neither the whole set nor per-provider settings
     // must not accept endpoint/model edits that would only surface as a failed save.
     settingsDisabled: !port || (!port.saveChanges && !port.saveSettings) };
 }
-export function useProvidersTab(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
+type CachedReads = ReturnType<typeof useMediaProvidersQuery>['loader'];
+/** The editor's transport over the host's provider service. `lastRead` is the last settled read, kept so a
+ * sequential save can tell which submitted ids the service never returned. */
+function createRawEditorPort(
+  { mediaProviders, reads, lifetime, setDiscoveredCatalog }: {
+    mediaProviders: MediaProvidersPort | undefined; reads: { current: CachedReads }; lifetime: { current: AbortController | null };
+    setDiscoveredCatalog: (catalog: readonly MediaProviderOption[]) => void;
+  },
+  _optional: Record<string, never> = {},
+) {
+  let lastRead: readonly MediaProvider[] = [];
+  return {
+    async fetchMediaProviders() {
+      try {
+        const signal = lifetime.current!.signal;
+        const items = await reads.current.load();
+        if (!items || signal.aborted) return null;
+        lastRead = items;
+        setDiscoveredCatalog(items.map(({ id, label }) => ({ id, label })));
+        return configuration({ items });
+      } catch { return null; }
+    },
+    async saveMediaProviders(providers: MediaProviderConfigurationMap) {
+      if (!mediaProviders) throw new Error('Provider service unavailable');
+      const signal = lifetime.current!.signal;
+      const items = mediaProviders.saveChanges
+        ? await mediaProviders.saveChanges({ providers }, { signal })
+        : await saveSequentially({ port: mediaProviders, providers, lastRead, signal });
+      lastRead = items;
+      return configuration({ items });
+    },
+  };
+}
+export function useProvidersTab(_required: Record<string, never> = {}, { useRules = useMediaProviderRules }: { useRules?: () => ProviderRules } = {}) {
+  const rules = useRules();
   const { mediaProviders } = useMediaPorts();
   const cached = useMediaProvidersQuery({ port: mediaProviders });
   const reads = useRef(cached.loader); reads.current = cached.loader;
@@ -158,30 +193,7 @@ export function useProvidersTab(_required: Record<string, never> = {}, _optional
   }, [mediaProviders]);
   // Always invoke the hook. An unavailable optional port uses an inert, scoped fallback.
   // Reuse the established editor's send-time serialization, reload merge and clear rollback.
-  const rawEditorPort = useMemo(() => {
-    let lastRead: readonly MediaProvider[] = [];
-    return {
-      async fetchMediaProviders() {
-        try {
-          const signal = lifetime.current!.signal;
-          const items = await reads.current.load();
-          if (!items || signal.aborted) return null;
-          lastRead = items;
-          setDiscoveredCatalog(items.map(({ id, label }) => ({ id, label })));
-          return configuration({ items });
-        } catch { return null; }
-      },
-      async saveMediaProviders(providers: MediaProviderConfigurationMap) {
-        if (!mediaProviders) throw new Error('Provider service unavailable');
-        const signal = lifetime.current!.signal;
-        const items = mediaProviders.saveChanges
-          ? await mediaProviders.saveChanges({ providers }, { signal })
-          : await saveSequentially({ port: mediaProviders, providers, lastRead, signal });
-        lastRead = items;
-        return configuration({ items });
-      },
-    };
-  }, [mediaProviders]);
+  const rawEditorPort = useMemo(() => createRawEditorPort({ mediaProviders, reads, lifetime, setDiscoveredCatalog }), [mediaProviders]);
   const save = useFetchMutation({ run: ({ input }: { input: MediaProviderConfigurationMap }) => rawEditorPort.saveMediaProviders(input) },
     { invalidates: [MEDIA_QUERY_KEYS.providers] });
   const saves = useRef(save); saves.current = save;
@@ -196,12 +208,12 @@ export function useProvidersTab(_required: Record<string, never> = {}, _optional
   const editor = useMediaProvidersTab({ port: editorPort, catalogPolicy });
   const catalog = mediaProviders?.catalog ?? discoveredCatalog;
   const pinnedIds = mediaProviders?.pinnedProviderIds ?? [];
-  const ordered = sortProvidersByConfigured(catalog, editor.providers, pinnedIds);
+  const ordered = rules.sortProvidersByConfigured(catalog, editor.providers, pinnedIds);
   const toggleKey = (id: string) => setVisibleKeys(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id);
     return next; });
   const rows = ordered.map((item, index) => providerRow(
-    { item, entry: editor.providers[item.id] ?? {}, editor, visible: visibleKeys.has(item.id), toggle: () => toggleKey(item.id) },
+    { item, entry: editor.providers[item.id] ?? {}, editor, visible: visibleKeys.has(item.id), toggle: () => toggleKey(item.id), rules },
     { divider: index > 0 && !pinnedIds.includes(item.id) && pinnedIds.includes(ordered[index - 1]!.id), disabled: !mediaProviders },
   ));
-  return { rows, ...editorView({ editor, port: mediaProviders }) };
+  return { rows, ...editorView({ editor, port: mediaProviders, rules }) };
 }

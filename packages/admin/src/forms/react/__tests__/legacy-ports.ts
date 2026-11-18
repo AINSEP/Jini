@@ -7,6 +7,7 @@ import { useFormEditor as useCoreEditor } from '../hooks/use-form-editor.hooks.j
 import { useFormsList as useCoreList } from '../hooks/use-forms-list.hooks.js';
 import { useFormSubmissions as useCoreSubmissions } from '../hooks/use-form-submissions.hooks.js';
 import { useFormSubmissionDetail as useCoreDetail } from '../hooks/use-form-submission-detail.hooks.js';
+import { fakeFormsCatalog } from '../../__tests__/fakes/forms-catalog.js';
 export interface FormsPort {
   listForms(): Promise<{ data: AdminFormDefinition[] }>;
   getForm(id: string): Promise<{ data: AdminFormDefinition }>;
@@ -65,7 +66,7 @@ export function useFormsList({ port, t }: { port: FormsPort; t: (key: string) =>
   return useCoreList({ port: adapt(port), trash, t, events }, optional);
 }
 export function useFormEditor(props: { formId: string; tab: 'fields' | 'submissions' }, deps: { port: FormsPort; navigate: (path: string) => void; t: (key: string) => string; clipboard?: { writeText(text: string): Promise<void> } }) {
-  return useCoreEditor({ ...props, port: adapt(deps.port), navigate: deps.navigate, t: deps.t }, deps.clipboard ? { clipboard: deps.clipboard } : {});
+  return useCoreEditor({ ...props, port: adapt(deps.port), catalog: fakeFormsCatalog(), navigate: deps.navigate, t: deps.t }, deps.clipboard ? { clipboard: deps.clipboard } : {});
 }
 export function useFormSubmissions(props: { formId: string }, port: FormSubmissionsPort) {
   return useCoreSubmissions({ ...props, port: adapt(undefined, port) });

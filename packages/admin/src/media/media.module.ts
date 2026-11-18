@@ -1,6 +1,6 @@
 import { defineAdminModule } from '@jini-ai/core/contracts/admin-module';
 import { mediaPickerToken } from '../contracts/media-picker.js';
-import { mediaApiToken, mediaProvidersToken, mediaEventsToken } from './ports.js';
+import { mediaApiToken, embedPolicyToken, mediaProvidersToken, mediaEventsToken } from './ports.js';
 import { mediaMessagesEn } from './messages.en.js';
 /** "External Providers": credentials for outside media generation services belong
  * beside the media they generate, not beside MCP/webhook plumbing. Last in the list —
@@ -8,7 +8,7 @@ import { mediaMessagesEn } from './messages.en.js';
  * and the three content tabs read as one group with this one set apart. */
 export const mediaModule = defineAdminModule({
   id: 'media',
-  requires: { mediaApi: mediaApiToken },
+  requires: { mediaApi: mediaApiToken, embedPolicy: embedPolicyToken },
   optional: { mediaProviders: mediaProvidersToken, mediaEvents: mediaEventsToken },
   provides: { mediaPicker: mediaPickerToken },
   messages: mediaMessagesEn,

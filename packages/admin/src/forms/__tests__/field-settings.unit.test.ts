@@ -1,13 +1,13 @@
-import { FIELD_TYPE_REGISTRY, type FieldType } from "@jini-ai/cms/forms";
 import { describe, expect, it } from "vitest";
 
 import { createFieldAttributesDialogController } from "../controllers/field-attributes-dialog.controller.js";
 import {
   addOptionRow, buildFieldSettingsPatch, FIELD_TYPE_LABELS, fieldIdFromLabel, fieldSettingsFor, fieldTypeGroups, labelChangePatch,
-  MAX_UPLOAD_MB, moveOptionRow, removeOptionRow, retypeField, settingsFormFromField, updateOptionRow, UPLOAD_CHOICES,
+  maxUploadMb, moveOptionRow, removeOptionRow, retypeField, settingsFormFromField, updateOptionRow, uploadChoices,
   type FieldSettings, type FieldSettingsForm, type OptionRow,
 } from "../field-settings.js";
 import type { AdminFormField } from "../models.js";
+import { fakeFormsCatalog } from "./fakes/forms-catalog.js";
 
 /**
  * @file Builder settings derived from the CMS field registry (`field-settings.ts`) and the field
@@ -15,14 +15,21 @@ import type { AdminFormField } from "../models.js";
  * no module mocks.
  */
 
+const browserRule = fakeFormsCatalog();
+// The forms domain's own "unsafe pattern" rule (alternation inside a group) is not admin's to reimplement:
+// this host says no to that one pattern and defers to the browser rule for the rest.
+const HOST_REFUSED_PATTERN = "(a|b)";
+const catalog = fakeFormsCatalog({ isBrowserSafePattern: ({ pattern }) => pattern !== HOST_REFUSED_PATTERN && browserRule.isBrowserSafePattern({ pattern }) });
+const MAX_UPLOAD_MB = maxUploadMb({ catalog });
+const FIELD_TYPES = Object.keys(catalog.fieldKinds);
 const field = (overrides: Partial<AdminFormField> & Pick<AdminFormField, "type">): AdminFormField =>
   ({ id: "f", label: "F", required: false, ...overrides });
 const form = (overrides: Partial<FieldSettingsForm> = {}): FieldSettingsForm =>
-  ({ ...settingsFormFromField({ field: field({ type: "text" }) }), ...overrides });
+  ({ ...settingsFormFromField({ catalog, field: field({ type: "text" }) }), ...overrides });
 const rows = (...labels: Array<[string, string]>): OptionRow[] => labels.map(([label, value], index) => ({ _rowId: 1000 + index, label, value }));
 
 /** The expected settings per registry key, written out so a registry change shows up as a diff here. */
-const EXPECTED: Record<FieldType, Partial<FieldSettings>> = {
+const EXPECTED: Record<string, Partial<FieldSettings>> = {
   text: { placeholder: true, length: true, pattern: true, bounds: null, defaultKind: "text" },
   textarea: { placeholder: true, length: true, pattern: true, defaultKind: "textarea" },
   email: { placeholder: true, length: true, pattern: true, defaultKind: "text" },
@@ -44,13 +51,13 @@ const EXPECTED: Record<FieldType, Partial<FieldSettings>> = {
 };
 
 describe("fieldSettingsFor", () => {
-  it.each(Object.keys(FIELD_TYPE_REGISTRY) as FieldType[])("%s offers the settings its registry kind supports", (type) => {
-    expect(fieldSettingsFor({ type })).toMatchObject(EXPECTED[type]);
+  it.each(FIELD_TYPES)("%s offers the settings its registry kind supports", (type) => {
+    expect(fieldSettingsFor({ catalog, type })).toMatchObject(EXPECTED[type]!);
     expect(FIELD_TYPE_LABELS[type]).toBeTruthy();
   });
 
   it("an unknown stored type gets help text only, never a setting the server would refuse", () => {
-    expect(fieldSettingsFor({ type: "signature" })).toEqual({
+    expect(fieldSettingsFor({ catalog, type: "signature" })).toEqual({
       placeholder: false, helpText: true, length: false, pattern: false, bounds: null, step: false, options: false, multiple: false, defaultKind: null, upload: false,
     });
   });
@@ -58,17 +65,17 @@ describe("fieldSettingsFor", () => {
 
 describe("fieldTypeGroups", () => {
   it("covers every registry type exactly once, in group order", () => {
-    const groups = fieldTypeGroups({});
+    const groups = fieldTypeGroups({ catalog });
     expect(groups.map((entry) => entry.group)).toEqual(["Text", "Choices", "Numbers and dates", "Other"]);
-    expect(groups.flatMap((entry) => entry.types.map((item) => item.type)).sort()).toEqual(Object.keys(FIELD_TYPE_REGISTRY).sort());
+    expect(groups.flatMap((entry) => entry.types.map((item) => item.type)).sort()).toEqual(FIELD_TYPES.sort());
     expect(groups.find((entry) => entry.group === "Choices")!.types.map((item) => item.type)).toEqual(["select", "multi-select", "radio", "checkbox", "checkbox-group", "toggle"]);
     expect(groups.find((entry) => entry.group === "Other")!.types.map((item) => item.type)).toEqual(["file", "hidden"]);
   });
 
   it("keeps an unknown stored type as a trailing option so loading never changes it", () => {
-    const other = fieldTypeGroups({ current: "signature" }).at(-1)!;
+    const other = fieldTypeGroups({ catalog, current: "signature" }).at(-1)!;
     expect(other.types.at(-1)).toEqual({ type: "signature", label: "signature" });
-    expect(fieldTypeGroups({ current: "email" }).flatMap((entry) => entry.types).filter((item) => item.type === "email")).toHaveLength(1);
+    expect(fieldTypeGroups({ catalog, current: "email" }).flatMap((entry) => entry.types).filter((item) => item.type === "email")).toHaveLength(1);
   });
 });
 
@@ -95,7 +102,7 @@ describe("retypeField", () => {
   });
 
   it("drops text-only settings and seeds two options when becoming a choice field", () => {
-    expect(retypeField({ field: rich, type: "select" })).toEqual({
+    expect(retypeField({ catalog, field: rich, type: "select" })).toEqual({
       id: "topic", label: "Topic", type: "select", required: true, helpText: "Pick one", className: "wide", attributes: { "data-x": "1" },
       placeholder: "Type", options: [{ value: "Option 1", label: "Option 1" }, { value: "Option 2", label: "Option 2" }],
     });
@@ -103,7 +110,7 @@ describe("retypeField", () => {
 
   it("keeps existing options, and copies them rather than sharing the array", () => {
     const options = [{ value: "a", label: "A" }];
-    const next = retypeField({ field: field({ type: "select", options, default: "a" }), type: "radio" });
+    const next = retypeField({ catalog, field: field({ type: "select", options, default: "a" }), type: "radio" });
     expect(next.options).toEqual(options);
     expect(next.options).not.toBe(options);
     expect(next.default).toBe("a");
@@ -111,17 +118,17 @@ describe("retypeField", () => {
 
   it("keeps bounds only between types with the same bound format, and defaults only when their shape matches", () => {
     const number = field({ type: "number", min: 1, max: 9, step: 2, default: 5 });
-    expect(retypeField({ field: number, type: "range" })).toMatchObject({ min: 1, max: 9, step: 2, default: 5 });
-    const asDate = retypeField({ field: number, type: "date" });
+    expect(retypeField({ catalog, field: number, type: "range" })).toMatchObject({ min: 1, max: 9, step: 2, default: 5 });
+    const asDate = retypeField({ catalog, field: number, type: "date" });
     expect([asDate.min, asDate.max, asDate.step, asDate.default]).toEqual([undefined, undefined, undefined, undefined]);
-    expect(retypeField({ field: field({ type: "date", min: "2026-01-01", default: "2026-02-01" }), type: "time" })).not.toHaveProperty("min");
-    expect(retypeField({ field: field({ type: "select", options: [{ value: "a", label: "A" }], default: "a" }), type: "multi-select" })).not.toHaveProperty("default");
+    expect(retypeField({ catalog, field: field({ type: "date", min: "2026-01-01", default: "2026-02-01" }), type: "time" })).not.toHaveProperty("min");
+    expect(retypeField({ catalog, field: field({ type: "select", options: [{ value: "a", label: "A" }], default: "a" }), type: "multi-select" })).not.toHaveProperty("default");
   });
 
   it("keeps upload limits between file fields and drops required for a hidden field", () => {
-    expect(retypeField({ field: field({ type: "file", accept: ["image/*"], maxFileSize: 1024 }), type: "file" })).toMatchObject({ accept: ["image/*"], maxFileSize: 1024 });
-    expect(retypeField({ field: rich, type: "hidden" })).toMatchObject({ required: false, maxLength: 40, minLength: 2 });
-    expect(retypeField({ field: rich, type: "hidden" })).not.toHaveProperty("helpText");
+    expect(retypeField({ catalog, field: field({ type: "file", accept: ["image/*"], maxFileSize: 1024 }), type: "file" })).toMatchObject({ accept: ["image/*"], maxFileSize: 1024 });
+    expect(retypeField({ catalog, field: rich, type: "hidden" })).toMatchObject({ required: false, maxLength: 40, minLength: 2 });
+    expect(retypeField({ catalog, field: rich, type: "hidden" })).not.toHaveProperty("helpText");
   });
 });
 
@@ -149,23 +156,23 @@ describe("option rows", () => {
 
 describe("settingsFormFromField", () => {
   it("drafts every stored setting as text", () => {
-    const draft = settingsFormFromField({ field: field({ type: "file", accept: ["application/pdf"], maxFileSize: 5 * 1024 * 1024, helpText: "PDF" }) });
+    const draft = settingsFormFromField({ catalog, field: field({ type: "file", accept: ["application/pdf"], maxFileSize: 5 * 1024 * 1024, helpText: "PDF" }) });
     expect(draft).toMatchObject({ helpText: "PDF", accept: ["application/pdf"], maxFileSizeMb: "5", defaultText: "", defaultChoices: [] });
-    expect(settingsFormFromField({ field: field({ type: "number", min: 0, max: 10, step: 0.5, default: 3 }) })).toMatchObject({ min: "0", max: "10", step: "0.5", defaultText: "3" });
-    expect(settingsFormFromField({ field: field({ type: "select", options: [{ value: "a", label: "A" }], default: "a" }) }).defaultChoices).toEqual(["a"]);
-    expect(settingsFormFromField({ field: field({ type: "checkbox-group", options: [{ value: "a", label: "A" }], default: ["a"] }) }).defaultChoices).toEqual(["a"]);
-    expect(settingsFormFromField({ field: field({ type: "checkbox", checkboxValue: "yes", default: "yes" }) }).defaultChecked).toBe(true);
-    expect(settingsFormFromField({ field: field({ type: "toggle", default: true }) }).defaultChecked).toBe(true);
+    expect(settingsFormFromField({ catalog, field: field({ type: "number", min: 0, max: 10, step: 0.5, default: 3 }) })).toMatchObject({ min: "0", max: "10", step: "0.5", defaultText: "3" });
+    expect(settingsFormFromField({ catalog, field: field({ type: "select", options: [{ value: "a", label: "A" }], default: "a" }) }).defaultChoices).toEqual(["a"]);
+    expect(settingsFormFromField({ catalog, field: field({ type: "checkbox-group", options: [{ value: "a", label: "A" }], default: ["a"] }) }).defaultChoices).toEqual(["a"]);
+    expect(settingsFormFromField({ catalog, field: field({ type: "checkbox", checkboxValue: "yes", default: "yes" }) }).defaultChecked).toBe(true);
+    expect(settingsFormFromField({ catalog, field: field({ type: "toggle", default: true }) }).defaultChecked).toBe(true);
   });
 });
 
 describe("buildFieldSettingsPatch", () => {
   const patch = (type: string, overrides: Partial<FieldSettingsForm>, checkboxValue?: string) =>
-    buildFieldSettingsPatch({ form: form(overrides), field: { type, ...(checkboxValue === undefined ? {} : { checkboxValue }) } });
+    buildFieldSettingsPatch({ catalog, form: form(overrides), field: { type, ...(checkboxValue === undefined ? {} : { checkboxValue }) } });
 
   it.each(["text", "textarea", "email", "phone", "url", "hidden"])("%s clears a stored max length with null, including on the wire", (type) => {
     const original = field({ type, maxLength: 40 });
-    const controller = createFieldAttributesDialogController({ field: original });
+    const controller = createFieldAttributesDialogController({ catalog, field: original });
     controller.setSettings({ patch: { maxLength: " " } });
     const result = controller.submit({});
     expect(result.ok).toBe(true);
@@ -178,8 +185,8 @@ describe("buildFieldSettingsPatch", () => {
 
   it.each(["range", "checkbox", "file", "signature"])("%s omits unsupported max length after replacing the field's type", (type) => {
     const original = field({ type: "text", maxLength: 40, minLength: 2, pattern: "[a-z]+", placeholder: "Name" });
-    const retyped = retypeField({ field: original, type });
-    const result = buildFieldSettingsPatch({ form: settingsFormFromField({ field: retyped }), field: retyped });
+    const retyped = retypeField({ catalog, field: original, type });
+    const result = buildFieldSettingsPatch({ catalog, form: settingsFormFromField({ catalog, field: retyped }), field: retyped });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.error);
     expect(result.patch).not.toHaveProperty("maxLength");
@@ -201,7 +208,7 @@ describe("buildFieldSettingsPatch", () => {
     ["text", { minLength: "1.5" }, "Length must be a whole number."],
     ["text", { maxLength: "-1" }, "Length must be a whole number."],
     ["text", { minLength: "9", maxLength: "3" }, "Minimum must not be above maximum."],
-    ["text", { pattern: "(a|b)" }, "That pattern isn't supported."],
+    ["text", { pattern: HOST_REFUSED_PATTERN }, "That pattern isn't supported."],
     ["number", { min: "x" }, "Enter numbers for min, max and step."],
     ["number", { max: "x" }, "Enter numbers for min, max and step."],
     ["range", { step: "x" }, "Enter numbers for min, max and step."],
@@ -244,7 +251,7 @@ describe("buildFieldSettingsPatch", () => {
   });
 
   it("uploads: no ticked type means every safe type; megabytes become bytes, capped at the CMS limit", () => {
-    expect(UPLOAD_CHOICES.map((choice) => choice.value)).toEqual(["image/*", "video/*", "application/pdf"]);
+    expect(uploadChoices({ catalog }).map((choice) => choice.value)).toEqual(["image/*", "video/*", "application/pdf"]);
     expect(patch("file", { accept: [], maxFileSizeMb: "" })).toMatchObject({ ok: true, patch: { accept: undefined, maxFileSize: undefined, default: undefined } });
     expect(patch("file", { accept: ["image/*"], maxFileSizeMb: "2.5" })).toMatchObject({ ok: true, patch: { accept: ["image/*"], maxFileSize: 2621440 } });
     expect(patch("file", { maxFileSizeMb: String(MAX_UPLOAD_MB) })).toMatchObject({ ok: true, patch: { maxFileSize: MAX_UPLOAD_MB * 1024 * 1024 } });
@@ -259,7 +266,7 @@ describe("field settings dialog controller", () => {
   const select = field({ type: "select", id: "topic", label: "Topic", options: [{ value: "a", label: "A" }, { value: "b", label: "B" }], className: "old" });
 
   it("submits the settings patch merged with the class and attribute patch", () => {
-    const controller = createFieldAttributesDialogController({ field: select });
+    const controller = createFieldAttributesDialogController({ catalog, field: select });
     const [first] = controller.getSnapshot().settings.options;
     controller.addOption({});
     const added = controller.getSnapshot().settings.options.at(-1)!;
@@ -277,13 +284,13 @@ describe("field settings dialog controller", () => {
   });
 
   it("a single-choice default replaces the selection; clearing it empties it; multi toggles add and remove", () => {
-    const single = createFieldAttributesDialogController({ field: select });
+    const single = createFieldAttributesDialogController({ catalog, field: select });
     single.toggleDefaultChoice({ value: "a", on: true, single: true });
     single.toggleDefaultChoice({ value: "b", on: true, single: true });
     expect(single.getSnapshot().settings.defaultChoices).toEqual(["b"]);
     single.toggleDefaultChoice({ value: "", on: true, single: true });
     expect(single.getSnapshot().settings.defaultChoices).toEqual([]);
-    const multi = createFieldAttributesDialogController({ field: { ...select, type: "checkbox-group" } });
+    const multi = createFieldAttributesDialogController({ catalog, field: { ...select, type: "checkbox-group" } });
     multi.toggleDefaultChoice({ value: "a", on: true, single: false });
     multi.toggleDefaultChoice({ value: "a", on: true, single: false });
     multi.toggleDefaultChoice({ value: "b", on: true, single: false });
@@ -292,7 +299,7 @@ describe("field settings dialog controller", () => {
   });
 
   it("toggles accepted upload types", () => {
-    const controller = createFieldAttributesDialogController({ field: field({ type: "file" }) });
+    const controller = createFieldAttributesDialogController({ catalog, field: field({ type: "file" }) });
     controller.toggleAccept({ value: "image/*", on: true });
     controller.toggleAccept({ value: "application/pdf", on: true });
     controller.toggleAccept({ value: "image/*", on: false });
@@ -300,7 +307,7 @@ describe("field settings dialog controller", () => {
   });
 
   it("a settings error wins over an attribute error and is stored; fixing it clears the stored error", () => {
-    const controller = createFieldAttributesDialogController({ field: field({ type: "number" }) });
+    const controller = createFieldAttributesDialogController({ catalog, field: field({ type: "number" }) });
     controller.setSettings({ patch: { min: "5", max: "1" } });
     controller.addRow({});
     const row = controller.getSnapshot().rows.at(-1)!;
@@ -321,38 +328,38 @@ describe("retypeField key order and absent settings", () => {
       type: "text", id: "t", label: "T", required: true, helpText: "h", className: "c", attributes: { "data-x": "1" },
       placeholder: "p", maxLength: 9, minLength: 1, pattern: "[a-z]+", default: "d",
     });
-    expect(Object.keys(retypeField({ field: rich, type: "email" }))).toEqual([
+    expect(Object.keys(retypeField({ catalog, field: rich, type: "email" }))).toEqual([
       "id", "label", "type", "required", "helpText", "className", "attributes", "placeholder", "maxLength", "minLength", "pattern", "default",
     ]);
     const number = field({ type: "number", min: 1, max: 9, step: 2, default: 5 });
-    expect(Object.keys(retypeField({ field: number, type: "range" }))).toEqual(["id", "label", "type", "required", "min", "max", "step", "default"]);
+    expect(Object.keys(retypeField({ catalog, field: number, type: "range" }))).toEqual(["id", "label", "type", "required", "min", "max", "step", "default"]);
     const upload = field({ type: "file", accept: ["image/*"], maxFileSize: 1024 });
-    expect(Object.keys(retypeField({ field: upload, type: "file" }))).toEqual(["id", "label", "type", "required", "accept", "maxFileSize"]);
+    expect(Object.keys(retypeField({ catalog, field: upload, type: "file" }))).toEqual(["id", "label", "type", "required", "accept", "maxFileSize"]);
     const choice = field({ type: "select", options: [{ value: "a", label: "A" }], default: "a" });
-    expect(Object.keys(retypeField({ field: choice, type: "radio" }))).toEqual(["id", "label", "type", "required", "options", "default"]);
+    expect(Object.keys(retypeField({ catalog, field: choice, type: "radio" }))).toEqual(["id", "label", "type", "required", "options", "default"]);
   });
 
   it("adds no key for a setting the old field never had", () => {
-    expect(retypeField({ field: field({ type: "text" }), type: "email" })).toEqual({ id: "f", label: "F", type: "email", required: false });
+    expect(retypeField({ catalog, field: field({ type: "text" }), type: "email" })).toEqual({ id: "f", label: "F", type: "email", required: false });
   });
 
   it("drops a null max length rather than carrying it", () => {
-    expect(retypeField({ field: field({ type: "text", maxLength: null }), type: "email" })).not.toHaveProperty("maxLength");
+    expect(retypeField({ catalog, field: field({ type: "text", maxLength: null }), type: "email" })).not.toHaveProperty("maxLength");
   });
 
   it("copies attributes and accepted types rather than sharing them, and keeps the default by reference", () => {
     const attributes = { "data-x": "1" };
     const accept = ["image/*"];
     const defaults = ["a"];
-    expect(retypeField({ field: field({ type: "text", attributes }), type: "email" }).attributes).not.toBe(attributes);
-    expect(retypeField({ field: field({ type: "file", accept }), type: "file" }).accept).not.toBe(accept);
+    expect(retypeField({ catalog, field: field({ type: "text", attributes }), type: "email" }).attributes).not.toBe(attributes);
+    expect(retypeField({ catalog, field: field({ type: "file", accept }), type: "file" }).accept).not.toBe(accept);
     const choices = field({ type: "multi-select", options: [{ value: "a", label: "A" }], default: defaults });
-    expect(retypeField({ field: choices, type: "checkbox-group" }).default).toBe(defaults);
+    expect(retypeField({ catalog, field: choices, type: "checkbox-group" }).default).toBe(defaults);
   });
 });
 
 describe("buildFieldSettingsPatch bounds edges", () => {
-  const build = (type: string, overrides: Partial<FieldSettingsForm>) => buildFieldSettingsPatch({ form: form(overrides), field: { type } });
+  const build = (type: string, overrides: Partial<FieldSettingsForm>) => buildFieldSettingsPatch({ catalog, form: form(overrides), field: { type } });
 
   it("keeps a date max with a blank min", () => {
     expect(build("date", { min: "", max: "2026-01-01" })).toMatchObject({ ok: true, patch: { min: undefined, max: "2026-01-01" } });
@@ -408,11 +415,11 @@ describe("buildFieldSettingsPatch bounds edges", () => {
 
 describe("settingsFormFromField defaults", () => {
   it("drafts a choice default as a one-item list, a text default as text, and a file size in megabytes", () => {
-    expect(settingsFormFromField({ field: field({ type: "select", options: [{ value: "a", label: "A" }], default: "a" }) })).toMatchObject({ defaultText: "a", defaultChoices: ["a"], defaultChecked: false });
-    expect(settingsFormFromField({ field: field({ type: "text", default: "a" }) })).toMatchObject({ defaultText: "a", defaultChoices: [] });
-    expect(settingsFormFromField({ field: field({ type: "multi-select", default: ["a", "b"] }) })).toMatchObject({ defaultText: "", defaultChoices: ["a", "b"] });
-    expect(settingsFormFromField({ field: field({ type: "checkbox", default: true }) })).toMatchObject({ defaultText: "", defaultChecked: true });
-    expect(settingsFormFromField({ field: field({ type: "checkbox", checkboxValue: "yes", default: "yes" }) })).toMatchObject({ defaultChecked: true });
-    expect(settingsFormFromField({ field: field({ type: "file", maxFileSize: 1536 * 1024 }) })).toMatchObject({ maxFileSizeMb: "1.5" });
+    expect(settingsFormFromField({ catalog, field: field({ type: "select", options: [{ value: "a", label: "A" }], default: "a" }) })).toMatchObject({ defaultText: "a", defaultChoices: ["a"], defaultChecked: false });
+    expect(settingsFormFromField({ catalog, field: field({ type: "text", default: "a" }) })).toMatchObject({ defaultText: "a", defaultChoices: [] });
+    expect(settingsFormFromField({ catalog, field: field({ type: "multi-select", default: ["a", "b"] }) })).toMatchObject({ defaultText: "", defaultChoices: ["a", "b"] });
+    expect(settingsFormFromField({ catalog, field: field({ type: "checkbox", default: true }) })).toMatchObject({ defaultText: "", defaultChecked: true });
+    expect(settingsFormFromField({ catalog, field: field({ type: "checkbox", checkboxValue: "yes", default: "yes" }) })).toMatchObject({ defaultChecked: true });
+    expect(settingsFormFromField({ catalog, field: field({ type: "file", maxFileSize: 1536 * 1024 }) })).toMatchObject({ maxFileSizeMb: "1.5" });
   });
 });

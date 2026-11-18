@@ -1,0 +1,1461 @@
+{
+ "settings": {
+  "text": {
+   "placeholder": true,
+   "helpText": true,
+   "length": true,
+   "pattern": true,
+   "bounds": null,
+   "step": false,
+   "options": false,
+   "multiple": false,
+   "defaultKind": "text",
+   "upload": false
+  },
+  "textarea": {
+   "placeholder": true,
+   "helpText": true,
+   "length": true,
+   "pattern": true,
+   "bounds": null,
+   "step": false,
+   "options": false,
+   "multiple": false,
+   "defaultKind": "textarea",
+   "upload": false
+  },
+  "email": {
+   "placeholder": true,
+   "helpText": true,
+   "length": true,
+   "pattern": true,
+   "bounds": null,
+   "step": false,
+   "options": false,
+   "multiple": false,
+   "defaultKind": "text",
+   "upload": false
+  },
+  "phone": {
+   "placeholder": true,
+   "helpText": true,
+   "length": true,
+   "pattern": true,
+   "bounds": null,
+   "step": false,
+   "options": false,
+   "multiple": false,
+   "defaultKind": "text",
+   "upload": false
+  },
+  "url": {
+   "placeholder": true,
+   "helpText": true,
+   "length": true,
+   "pattern": true,
+   "bounds": null,
+   "step": false,
+   "options": false,
+   "multiple": false,
+   "defaultKind": "text",
+   "upload": false
+  },
+  "number": {
+   "placeholder": true,
+   "helpText": true,
+   "length": false,
+   "pattern": false,
+   "bounds": "number",
+   "step": true,
+   "options": false,
+   "multiple": false,
+   "defaultKind": "number",
+   "upload": false
+  },
+  "range": {
+   "placeholder": false,
+   "helpText": true,
+   "length": false,
+   "pattern": false,
+   "bounds": "number",
+   "step": true,
+   "options": false,
+   "multiple": false,
+   "defaultKind": "number",
+   "upload": false
+  },
+  "date": {
+   "placeholder": false,
+   "helpText": true,
+   "length": false,
+   "pattern": false,
+   "bounds": "date",
+   "step": false,
+   "options": false,
+   "multiple": false,
+   "defaultKind": "temporal",
+   "upload": false
+  },
+  "time": {
+   "placeholder": false,
+   "helpText": true,
+   "length": false,
+   "pattern": false,
+   "bounds": "time",
+   "step": false,
+   "options": false,
+   "multiple": false,
+   "defaultKind": "temporal",
+   "upload": false
+  },
+  "datetime": {
+   "placeholder": false,
+   "helpText": true,
+   "length": false,
+   "pattern": false,
+   "bounds": "datetime-local",
+   "step": false,
+   "options": false,
+   "multiple": false,
+   "defaultKind": "temporal",
+   "upload": false
+  },
+  "select": {
+   "placeholder": true,
+   "helpText": true,
+   "length": false,
+   "pattern": false,
+   "bounds": null,
+   "step": false,
+   "options": true,
+   "multiple": false,
+   "defaultKind": "choice",
+   "upload": false
+  },
+  "multi-select": {
+   "placeholder": false,
+   "helpText": true,
+   "length": false,
+   "pattern": false,
+   "bounds": null,
+   "step": false,
+   "options": true,
+   "multiple": true,
+   "defaultKind": "choices",
+   "upload": false
+  },
+  "radio": {
+   "placeholder": false,
+   "helpText": true,
+   "length": false,
+   "pattern": false,
+   "bounds": null,
+   "step": false,
+   "options": true,
+   "multiple": false,
+   "defaultKind": "choice",
+   "upload": false
+  },
+  "checkbox": {
+   "placeholder": false,
+   "helpText": true,
+   "length": false,
+   "pattern": false,
+   "bounds": null,
+   "step": false,
+   "options": false,
+   "multiple": false,
+   "defaultKind": "boolean",
+   "upload": false
+  },
+  "checkbox-group": {
+   "placeholder": false,
+   "helpText": true,
+   "length": false,
+   "pattern": false,
+   "bounds": null,
+   "step": false,
+   "options": true,
+   "multiple": true,
+   "defaultKind": "choices",
+   "upload": false
+  },
+  "toggle": {
+   "placeholder": false,
+   "helpText": true,
+   "length": false,
+   "pattern": false,
+   "bounds": null,
+   "step": false,
+   "options": false,
+   "multiple": false,
+   "defaultKind": "boolean",
+   "upload": false
+  },
+  "file": {
+   "placeholder": false,
+   "helpText": true,
+   "length": false,
+   "pattern": false,
+   "bounds": null,
+   "step": false,
+   "options": false,
+   "multiple": false,
+   "defaultKind": null,
+   "upload": true
+  },
+  "hidden": {
+   "placeholder": false,
+   "helpText": false,
+   "length": true,
+   "pattern": false,
+   "bounds": null,
+   "step": false,
+   "options": false,
+   "multiple": false,
+   "defaultKind": "text",
+   "upload": false
+  },
+  "legacy-kind": {
+   "placeholder": false,
+   "helpText": true,
+   "length": false,
+   "pattern": false,
+   "bounds": null,
+   "step": false,
+   "options": false,
+   "multiple": false,
+   "defaultKind": null,
+   "upload": false
+  }
+ },
+ "groups": [
+  {
+   "group": "Text",
+   "types": [
+    {
+     "type": "text",
+     "label": "Short text"
+    },
+    {
+     "type": "textarea",
+     "label": "Paragraph"
+    },
+    {
+     "type": "email",
+     "label": "Email"
+    },
+    {
+     "type": "phone",
+     "label": "Phone"
+    },
+    {
+     "type": "url",
+     "label": "Website address"
+    }
+   ]
+  },
+  {
+   "group": "Choices",
+   "types": [
+    {
+     "type": "select",
+     "label": "Dropdown"
+    },
+    {
+     "type": "multi-select",
+     "label": "Multi-select list"
+    },
+    {
+     "type": "radio",
+     "label": "Radio buttons"
+    },
+    {
+     "type": "checkbox",
+     "label": "Checkbox"
+    },
+    {
+     "type": "checkbox-group",
+     "label": "Checkboxes"
+    },
+    {
+     "type": "toggle",
+     "label": "Toggle switch"
+    }
+   ]
+  },
+  {
+   "group": "Numbers and dates",
+   "types": [
+    {
+     "type": "number",
+     "label": "Number"
+    },
+    {
+     "type": "range",
+     "label": "Slider"
+    },
+    {
+     "type": "date",
+     "label": "Date"
+    },
+    {
+     "type": "time",
+     "label": "Time"
+    },
+    {
+     "type": "datetime",
+     "label": "Date and time"
+    }
+   ]
+  },
+  {
+   "group": "Other",
+   "types": [
+    {
+     "type": "file",
+     "label": "File upload"
+    },
+    {
+     "type": "hidden",
+     "label": "Hidden value"
+    }
+   ]
+  }
+ ],
+ "groupsWithLegacy": [
+  {
+   "group": "Text",
+   "types": [
+    {
+     "type": "text",
+     "label": "Short text"
+    },
+    {
+     "type": "textarea",
+     "label": "Paragraph"
+    },
+    {
+     "type": "email",
+     "label": "Email"
+    },
+    {
+     "type": "phone",
+     "label": "Phone"
+    },
+    {
+     "type": "url",
+     "label": "Website address"
+    }
+   ]
+  },
+  {
+   "group": "Choices",
+   "types": [
+    {
+     "type": "select",
+     "label": "Dropdown"
+    },
+    {
+     "type": "multi-select",
+     "label": "Multi-select list"
+    },
+    {
+     "type": "radio",
+     "label": "Radio buttons"
+    },
+    {
+     "type": "checkbox",
+     "label": "Checkbox"
+    },
+    {
+     "type": "checkbox-group",
+     "label": "Checkboxes"
+    },
+    {
+     "type": "toggle",
+     "label": "Toggle switch"
+    }
+   ]
+  },
+  {
+   "group": "Numbers and dates",
+   "types": [
+    {
+     "type": "number",
+     "label": "Number"
+    },
+    {
+     "type": "range",
+     "label": "Slider"
+    },
+    {
+     "type": "date",
+     "label": "Date"
+    },
+    {
+     "type": "time",
+     "label": "Time"
+    },
+    {
+     "type": "datetime",
+     "label": "Date and time"
+    }
+   ]
+  },
+  {
+   "group": "Other",
+   "types": [
+    {
+     "type": "file",
+     "label": "File upload"
+    },
+    {
+     "type": "hidden",
+     "label": "Hidden value"
+    },
+    {
+     "type": "legacy-kind",
+     "label": "legacy-kind"
+    }
+   ]
+  }
+ ],
+ "retyped": {
+  "text": {
+   "id": "f_text",
+   "label": "Label <text> & \"q\"",
+   "type": "text",
+   "required": true,
+   "helpText": "Help",
+   "attributes": {
+    "data-x": "1"
+   },
+   "placeholder": "Hold 'er",
+   "maxLength": 9,
+   "minLength": 1,
+   "pattern": "[a-z]+",
+   "default": "a&b"
+  },
+  "textarea": {
+   "id": "f_text",
+   "label": "Label <text> & \"q\"",
+   "type": "textarea",
+   "required": true,
+   "helpText": "Help",
+   "attributes": {
+    "data-x": "1"
+   },
+   "placeholder": "Hold 'er",
+   "maxLength": 9,
+   "minLength": 1,
+   "pattern": "[a-z]+"
+  },
+  "email": {
+   "id": "f_text",
+   "label": "Label <text> & \"q\"",
+   "type": "email",
+   "required": true,
+   "helpText": "Help",
+   "attributes": {
+    "data-x": "1"
+   },
+   "placeholder": "Hold 'er",
+   "maxLength": 9,
+   "minLength": 1,
+   "pattern": "[a-z]+",
+   "default": "a&b"
+  },
+  "phone": {
+   "id": "f_text",
+   "label": "Label <text> & \"q\"",
+   "type": "phone",
+   "required": true,
+   "helpText": "Help",
+   "attributes": {
+    "data-x": "1"
+   },
+   "placeholder": "Hold 'er",
+   "maxLength": 9,
+   "minLength": 1,
+   "pattern": "[a-z]+",
+   "default": "a&b"
+  },
+  "url": {
+   "id": "f_text",
+   "label": "Label <text> & \"q\"",
+   "type": "url",
+   "required": true,
+   "helpText": "Help",
+   "attributes": {
+    "data-x": "1"
+   },
+   "placeholder": "Hold 'er",
+   "maxLength": 9,
+   "minLength": 1,
+   "pattern": "[a-z]+",
+   "default": "a&b"
+  },
+  "number": {
+   "id": "f_text",
+   "label": "Label <text> & \"q\"",
+   "type": "number",
+   "required": true,
+   "helpText": "Help",
+   "attributes": {
+    "data-x": "1"
+   },
+   "placeholder": "Hold 'er",
+   "step": 1
+  },
+  "range": {
+   "id": "f_text",
+   "label": "Label <text> & \"q\"",
+   "type": "range",
+   "required": true,
+   "helpText": "Help",
+   "attributes": {
+    "data-x": "1"
+   },
+   "step": 1
+  },
+  "date": {
+   "id": "f_text",
+   "label": "Label <text> & \"q\"",
+   "type": "date",
+   "required": true,
+   "helpText": "Help",
+   "attributes": {
+    "data-x": "1"
+   }
+  },
+  "time": {
+   "id": "f_text",
+   "label": "Label <text> & \"q\"",
+   "type": "time",
+   "required": true,
+   "helpText": "Help",
+   "attributes": {
+    "data-x": "1"
+   }
+  },
+  "datetime": {
+   "id": "f_text",
+   "label": "Label <text> & \"q\"",
+   "type": "datetime",
+   "required": true,
+   "helpText": "Help",
+   "attributes": {
+    "data-x": "1"
+   }
+  },
+  "select": {
+   "id": "f_text",
+   "label": "Label <text> & \"q\"",
+   "type": "select",
+   "required": true,
+   "helpText": "Help",
+   "attributes": {
+    "data-x": "1"
+   },
+   "placeholder": "Hold 'er",
+   "options": [
+    {
+     "value": "a&b",
+     "label": "A <b>"
+    },
+    {
+     "value": "c",
+     "label": "C \"d\""
+    }
+   ]
+  },
+  "multi-select": {
+   "id": "f_text",
+   "label": "Label <text> & \"q\"",
+   "type": "multi-select",
+   "required": true,
+   "helpText": "Help",
+   "attributes": {
+    "data-x": "1"
+   },
+   "options": [
+    {
+     "value": "a&b",
+     "label": "A <b>"
+    },
+    {
+     "value": "c",
+     "label": "C \"d\""
+    }
+   ]
+  },
+  "radio": {
+   "id": "f_text",
+   "label": "Label <text> & \"q\"",
+   "type": "radio",
+   "required": true,
+   "helpText": "Help",
+   "attributes": {
+    "data-x": "1"
+   },
+   "options": [
+    {
+     "value": "a&b",
+     "label": "A <b>"
+    },
+    {
+     "value": "c",
+     "label": "C \"d\""
+    }
+   ]
+  },
+  "checkbox": {
+   "id": "f_text",
+   "label": "Label <text> & \"q\"",
+   "type": "checkbox",
+   "required": true,
+   "helpText": "Help",
+   "attributes": {
+    "data-x": "1"
+   }
+  },
+  "checkbox-group": {
+   "id": "f_text",
+   "label": "Label <text> & \"q\"",
+   "type": "checkbox-group",
+   "required": true,
+   "helpText": "Help",
+   "attributes": {
+    "data-x": "1"
+   },
+   "options": [
+    {
+     "value": "a&b",
+     "label": "A <b>"
+    },
+    {
+     "value": "c",
+     "label": "C \"d\""
+    }
+   ]
+  },
+  "toggle": {
+   "id": "f_text",
+   "label": "Label <text> & \"q\"",
+   "type": "toggle",
+   "required": true,
+   "helpText": "Help",
+   "attributes": {
+    "data-x": "1"
+   }
+  },
+  "file": {
+   "id": "f_text",
+   "label": "Label <text> & \"q\"",
+   "type": "file",
+   "required": true,
+   "helpText": "Help",
+   "attributes": {
+    "data-x": "1"
+   },
+   "accept": [
+    "image/*"
+   ],
+   "maxFileSize": 1048576
+  },
+  "hidden": {
+   "id": "f_text",
+   "label": "Label <text> & \"q\"",
+   "type": "hidden",
+   "required": false,
+   "attributes": {
+    "data-x": "1"
+   },
+   "maxLength": 9,
+   "minLength": 1,
+   "default": "a&b"
+  }
+ },
+ "retypedFromFile": {
+  "id": "f_file",
+  "label": "Label <file> & \"q\"",
+  "type": "select",
+  "required": true,
+  "helpText": "Help",
+  "attributes": {
+   "data-x": "1"
+  },
+  "placeholder": "Hold 'er",
+  "options": [
+   {
+    "value": "a&b",
+    "label": "A <b>"
+   },
+   {
+    "value": "c",
+    "label": "C \"d\""
+   }
+  ]
+ },
+ "drafts": {
+  "text": {
+   "placeholder": "Hold 'er",
+   "helpText": "Help",
+   "defaultText": "a&b",
+   "defaultChecked": false,
+   "defaultChoices": [],
+   "minLength": "1",
+   "maxLength": "9",
+   "pattern": "[a-z]+",
+   "min": "1",
+   "max": "9",
+   "step": "1",
+   "options": [
+    {
+     "_rowId": 0,
+     "value": "a&b",
+     "label": "A <b>"
+    },
+    {
+     "_rowId": 1,
+     "value": "c",
+     "label": "C \"d\""
+    }
+   ],
+   "accept": [
+    "image/*"
+   ],
+   "maxFileSizeMb": "1"
+  },
+  "textarea": {
+   "placeholder": "Hold 'er",
+   "helpText": "Help",
+   "defaultText": "a&b",
+   "defaultChecked": false,
+   "defaultChoices": [],
+   "minLength": "1",
+   "maxLength": "9",
+   "pattern": "[a-z]+",
+   "min": "1",
+   "max": "9",
+   "step": "1",
+   "options": [
+    {
+     "_rowId": 0,
+     "value": "a&b",
+     "label": "A <b>"
+    },
+    {
+     "_rowId": 1,
+     "value": "c",
+     "label": "C \"d\""
+    }
+   ],
+   "accept": [
+    "image/*"
+   ],
+   "maxFileSizeMb": "1"
+  },
+  "email": {
+   "placeholder": "Hold 'er",
+   "helpText": "Help",
+   "defaultText": "a&b",
+   "defaultChecked": false,
+   "defaultChoices": [],
+   "minLength": "1",
+   "maxLength": "9",
+   "pattern": "[a-z]+",
+   "min": "1",
+   "max": "9",
+   "step": "1",
+   "options": [
+    {
+     "_rowId": 0,
+     "value": "a&b",
+     "label": "A <b>"
+    },
+    {
+     "_rowId": 1,
+     "value": "c",
+     "label": "C \"d\""
+    }
+   ],
+   "accept": [
+    "image/*"
+   ],
+   "maxFileSizeMb": "1"
+  },
+  "phone": {
+   "placeholder": "Hold 'er",
+   "helpText": "Help",
+   "defaultText": "a&b",
+   "defaultChecked": false,
+   "defaultChoices": [],
+   "minLength": "1",
+   "maxLength": "9",
+   "pattern": "[a-z]+",
+   "min": "1",
+   "max": "9",
+   "step": "1",
+   "options": [
+    {
+     "_rowId": 0,
+     "value": "a&b",
+     "label": "A <b>"
+    },
+    {
+     "_rowId": 1,
+     "value": "c",
+     "label": "C \"d\""
+    }
+   ],
+   "accept": [
+    "image/*"
+   ],
+   "maxFileSizeMb": "1"
+  },
+  "url": {
+   "placeholder": "Hold 'er",
+   "helpText": "Help",
+   "defaultText": "a&b",
+   "defaultChecked": false,
+   "defaultChoices": [],
+   "minLength": "1",
+   "maxLength": "9",
+   "pattern": "[a-z]+",
+   "min": "1",
+   "max": "9",
+   "step": "1",
+   "options": [
+    {
+     "_rowId": 0,
+     "value": "a&b",
+     "label": "A <b>"
+    },
+    {
+     "_rowId": 1,
+     "value": "c",
+     "label": "C \"d\""
+    }
+   ],
+   "accept": [
+    "image/*"
+   ],
+   "maxFileSizeMb": "1"
+  },
+  "number": {
+   "placeholder": "Hold 'er",
+   "helpText": "Help",
+   "defaultText": "a&b",
+   "defaultChecked": false,
+   "defaultChoices": [],
+   "minLength": "1",
+   "maxLength": "9",
+   "pattern": "[a-z]+",
+   "min": "1",
+   "max": "9",
+   "step": "1",
+   "options": [
+    {
+     "_rowId": 0,
+     "value": "a&b",
+     "label": "A <b>"
+    },
+    {
+     "_rowId": 1,
+     "value": "c",
+     "label": "C \"d\""
+    }
+   ],
+   "accept": [
+    "image/*"
+   ],
+   "maxFileSizeMb": "1"
+  },
+  "range": {
+   "placeholder": "Hold 'er",
+   "helpText": "Help",
+   "defaultText": "a&b",
+   "defaultChecked": false,
+   "defaultChoices": [],
+   "minLength": "1",
+   "maxLength": "9",
+   "pattern": "[a-z]+",
+   "min": "1",
+   "max": "9",
+   "step": "1",
+   "options": [
+    {
+     "_rowId": 0,
+     "value": "a&b",
+     "label": "A <b>"
+    },
+    {
+     "_rowId": 1,
+     "value": "c",
+     "label": "C \"d\""
+    }
+   ],
+   "accept": [
+    "image/*"
+   ],
+   "maxFileSizeMb": "1"
+  },
+  "date": {
+   "placeholder": "Hold 'er",
+   "helpText": "Help",
+   "defaultText": "a&b",
+   "defaultChecked": false,
+   "defaultChoices": [],
+   "minLength": "1",
+   "maxLength": "9",
+   "pattern": "[a-z]+",
+   "min": "1",
+   "max": "9",
+   "step": "1",
+   "options": [
+    {
+     "_rowId": 0,
+     "value": "a&b",
+     "label": "A <b>"
+    },
+    {
+     "_rowId": 1,
+     "value": "c",
+     "label": "C \"d\""
+    }
+   ],
+   "accept": [
+    "image/*"
+   ],
+   "maxFileSizeMb": "1"
+  },
+  "time": {
+   "placeholder": "Hold 'er",
+   "helpText": "Help",
+   "defaultText": "a&b",
+   "defaultChecked": false,
+   "defaultChoices": [],
+   "minLength": "1",
+   "maxLength": "9",
+   "pattern": "[a-z]+",
+   "min": "1",
+   "max": "9",
+   "step": "1",
+   "options": [
+    {
+     "_rowId": 0,
+     "value": "a&b",
+     "label": "A <b>"
+    },
+    {
+     "_rowId": 1,
+     "value": "c",
+     "label": "C \"d\""
+    }
+   ],
+   "accept": [
+    "image/*"
+   ],
+   "maxFileSizeMb": "1"
+  },
+  "datetime": {
+   "placeholder": "Hold 'er",
+   "helpText": "Help",
+   "defaultText": "a&b",
+   "defaultChecked": false,
+   "defaultChoices": [],
+   "minLength": "1",
+   "maxLength": "9",
+   "pattern": "[a-z]+",
+   "min": "1",
+   "max": "9",
+   "step": "1",
+   "options": [
+    {
+     "_rowId": 0,
+     "value": "a&b",
+     "label": "A <b>"
+    },
+    {
+     "_rowId": 1,
+     "value": "c",
+     "label": "C \"d\""
+    }
+   ],
+   "accept": [
+    "image/*"
+   ],
+   "maxFileSizeMb": "1"
+  },
+  "select": {
+   "placeholder": "Hold 'er",
+   "helpText": "Help",
+   "defaultText": "a&b",
+   "defaultChecked": false,
+   "defaultChoices": [
+    "a&b"
+   ],
+   "minLength": "1",
+   "maxLength": "9",
+   "pattern": "[a-z]+",
+   "min": "1",
+   "max": "9",
+   "step": "1",
+   "options": [
+    {
+     "_rowId": 0,
+     "value": "a&b",
+     "label": "A <b>"
+    },
+    {
+     "_rowId": 1,
+     "value": "c",
+     "label": "C \"d\""
+    }
+   ],
+   "accept": [
+    "image/*"
+   ],
+   "maxFileSizeMb": "1"
+  },
+  "multi-select": {
+   "placeholder": "Hold 'er",
+   "helpText": "Help",
+   "defaultText": "a&b",
+   "defaultChecked": false,
+   "defaultChoices": [
+    "a&b"
+   ],
+   "minLength": "1",
+   "maxLength": "9",
+   "pattern": "[a-z]+",
+   "min": "1",
+   "max": "9",
+   "step": "1",
+   "options": [
+    {
+     "_rowId": 0,
+     "value": "a&b",
+     "label": "A <b>"
+    },
+    {
+     "_rowId": 1,
+     "value": "c",
+     "label": "C \"d\""
+    }
+   ],
+   "accept": [
+    "image/*"
+   ],
+   "maxFileSizeMb": "1"
+  },
+  "radio": {
+   "placeholder": "Hold 'er",
+   "helpText": "Help",
+   "defaultText": "a&b",
+   "defaultChecked": false,
+   "defaultChoices": [
+    "a&b"
+   ],
+   "minLength": "1",
+   "maxLength": "9",
+   "pattern": "[a-z]+",
+   "min": "1",
+   "max": "9",
+   "step": "1",
+   "options": [
+    {
+     "_rowId": 0,
+     "value": "a&b",
+     "label": "A <b>"
+    },
+    {
+     "_rowId": 1,
+     "value": "c",
+     "label": "C \"d\""
+    }
+   ],
+   "accept": [
+    "image/*"
+   ],
+   "maxFileSizeMb": "1"
+  },
+  "checkbox": {
+   "placeholder": "Hold 'er",
+   "helpText": "Help",
+   "defaultText": "a&b",
+   "defaultChecked": false,
+   "defaultChoices": [],
+   "minLength": "1",
+   "maxLength": "9",
+   "pattern": "[a-z]+",
+   "min": "1",
+   "max": "9",
+   "step": "1",
+   "options": [
+    {
+     "_rowId": 0,
+     "value": "a&b",
+     "label": "A <b>"
+    },
+    {
+     "_rowId": 1,
+     "value": "c",
+     "label": "C \"d\""
+    }
+   ],
+   "accept": [
+    "image/*"
+   ],
+   "maxFileSizeMb": "1"
+  },
+  "checkbox-group": {
+   "placeholder": "Hold 'er",
+   "helpText": "Help",
+   "defaultText": "a&b",
+   "defaultChecked": false,
+   "defaultChoices": [
+    "a&b"
+   ],
+   "minLength": "1",
+   "maxLength": "9",
+   "pattern": "[a-z]+",
+   "min": "1",
+   "max": "9",
+   "step": "1",
+   "options": [
+    {
+     "_rowId": 0,
+     "value": "a&b",
+     "label": "A <b>"
+    },
+    {
+     "_rowId": 1,
+     "value": "c",
+     "label": "C \"d\""
+    }
+   ],
+   "accept": [
+    "image/*"
+   ],
+   "maxFileSizeMb": "1"
+  },
+  "toggle": {
+   "placeholder": "Hold 'er",
+   "helpText": "Help",
+   "defaultText": "a&b",
+   "defaultChecked": false,
+   "defaultChoices": [],
+   "minLength": "1",
+   "maxLength": "9",
+   "pattern": "[a-z]+",
+   "min": "1",
+   "max": "9",
+   "step": "1",
+   "options": [
+    {
+     "_rowId": 0,
+     "value": "a&b",
+     "label": "A <b>"
+    },
+    {
+     "_rowId": 1,
+     "value": "c",
+     "label": "C \"d\""
+    }
+   ],
+   "accept": [
+    "image/*"
+   ],
+   "maxFileSizeMb": "1"
+  },
+  "file": {
+   "placeholder": "Hold 'er",
+   "helpText": "Help",
+   "defaultText": "a&b",
+   "defaultChecked": false,
+   "defaultChoices": [],
+   "minLength": "1",
+   "maxLength": "9",
+   "pattern": "[a-z]+",
+   "min": "1",
+   "max": "9",
+   "step": "1",
+   "options": [
+    {
+     "_rowId": 0,
+     "value": "a&b",
+     "label": "A <b>"
+    },
+    {
+     "_rowId": 1,
+     "value": "c",
+     "label": "C \"d\""
+    }
+   ],
+   "accept": [
+    "image/*"
+   ],
+   "maxFileSizeMb": "1"
+  },
+  "hidden": {
+   "placeholder": "Hold 'er",
+   "helpText": "Help",
+   "defaultText": "a&b",
+   "defaultChecked": false,
+   "defaultChoices": [],
+   "minLength": "1",
+   "maxLength": "9",
+   "pattern": "[a-z]+",
+   "min": "1",
+   "max": "9",
+   "step": "1",
+   "options": [
+    {
+     "_rowId": 0,
+     "value": "a&b",
+     "label": "A <b>"
+    },
+    {
+     "_rowId": 1,
+     "value": "c",
+     "label": "C \"d\""
+    }
+   ],
+   "accept": [
+    "image/*"
+   ],
+   "maxFileSizeMb": "1"
+  }
+ },
+ "patches": {
+  "text": {
+   "ok": true,
+   "patch": {
+    "placeholder": "Hold 'er",
+    "pattern": "[a-z]+",
+    "minLength": 1,
+    "maxLength": 9,
+    "helpText": "Help",
+    "default": "a&b"
+   }
+  },
+  "textarea": {
+   "ok": true,
+   "patch": {
+    "placeholder": "Hold 'er",
+    "pattern": "[a-z]+",
+    "minLength": 1,
+    "maxLength": 9,
+    "helpText": "Help",
+    "default": "a&b"
+   }
+  },
+  "email": {
+   "ok": true,
+   "patch": {
+    "placeholder": "Hold 'er",
+    "pattern": "[a-z]+",
+    "minLength": 1,
+    "maxLength": 9,
+    "helpText": "Help",
+    "default": "a&b"
+   }
+  },
+  "phone": {
+   "ok": true,
+   "patch": {
+    "placeholder": "Hold 'er",
+    "pattern": "[a-z]+",
+    "minLength": 1,
+    "maxLength": 9,
+    "helpText": "Help",
+    "default": "a&b"
+   }
+  },
+  "url": {
+   "ok": true,
+   "patch": {
+    "placeholder": "Hold 'er",
+    "pattern": "[a-z]+",
+    "minLength": 1,
+    "maxLength": 9,
+    "helpText": "Help",
+    "default": "a&b"
+   }
+  },
+  "number": {
+   "ok": false,
+   "error": "Default must be a number."
+  },
+  "range": {
+   "ok": false,
+   "error": "Default must be a number."
+  },
+  "date": {
+   "ok": true,
+   "patch": {
+    "min": "1",
+    "max": "9",
+    "helpText": "Help",
+    "default": "a&b"
+   }
+  },
+  "time": {
+   "ok": true,
+   "patch": {
+    "min": "1",
+    "max": "9",
+    "helpText": "Help",
+    "default": "a&b"
+   }
+  },
+  "datetime": {
+   "ok": true,
+   "patch": {
+    "min": "1",
+    "max": "9",
+    "helpText": "Help",
+    "default": "a&b"
+   }
+  },
+  "select": {
+   "ok": true,
+   "patch": {
+    "placeholder": "Hold 'er",
+    "helpText": "Help",
+    "options": [
+     {
+      "value": "a&b",
+      "label": "A <b>"
+     },
+     {
+      "value": "c",
+      "label": "C \"d\""
+     }
+    ],
+    "default": "a&b"
+   }
+  },
+  "multi-select": {
+   "ok": true,
+   "patch": {
+    "helpText": "Help",
+    "options": [
+     {
+      "value": "a&b",
+      "label": "A <b>"
+     },
+     {
+      "value": "c",
+      "label": "C \"d\""
+     }
+    ],
+    "default": [
+     "a&b"
+    ]
+   }
+  },
+  "radio": {
+   "ok": true,
+   "patch": {
+    "helpText": "Help",
+    "options": [
+     {
+      "value": "a&b",
+      "label": "A <b>"
+     },
+     {
+      "value": "c",
+      "label": "C \"d\""
+     }
+    ],
+    "default": "a&b"
+   }
+  },
+  "checkbox": {
+   "ok": true,
+   "patch": {
+    "helpText": "Help"
+   }
+  },
+  "checkbox-group": {
+   "ok": true,
+   "patch": {
+    "helpText": "Help",
+    "options": [
+     {
+      "value": "a&b",
+      "label": "A <b>"
+     },
+     {
+      "value": "c",
+      "label": "C \"d\""
+     }
+    ],
+    "default": [
+     "a&b"
+    ]
+   }
+  },
+  "toggle": {
+   "ok": true,
+   "patch": {
+    "helpText": "Help"
+   }
+  },
+  "file": {
+   "ok": true,
+   "patch": {
+    "accept": [
+     "image/*"
+    ],
+    "maxFileSize": 1048576,
+    "helpText": "Help"
+   }
+  },
+  "hidden": {
+   "ok": true,
+   "patch": {
+    "minLength": 1,
+    "maxLength": 9,
+    "default": "a&b"
+   }
+  }
+ },
+ "uploadChoices": [
+  {
+   "value": "image/*",
+   "label": "Images"
+  },
+  {
+   "value": "video/*",
+   "label": "Videos"
+  },
+  {
+   "value": "application/pdf",
+   "label": "PDF"
+  }
+ ],
+ "maxUploadMb": 10,
+ "oversize": {
+  "ok": false,
+  "error": "Max size must be up to 10 MB."
+ },
+ "clamp": {
+  "ok": true,
+  "patch": {
+   "accept": [
+    "image/*"
+   ],
+   "maxFileSize": 10485760,
+   "helpText": "Help"
+  }
+ },
+ "unsafePattern": {
+  "ok": false,
+  "error": "That pattern isn't supported."
+ }
+}

@@ -1,4 +1,6 @@
 import { adminPort } from '@jini-ai/core/contracts/admin-module';
+import type { EmbedPolicyPort } from '../core/ports/embed-policy.js';
+export type { EmbedPolicyPort } from '../core/ports/embed-policy.js';
 import type {
   MediaAsset,
   MediaQuery,
@@ -78,4 +80,7 @@ export const mediaProvidersToken = adminPort<MediaProvidersPort, 'admin.media.pr
 export interface MediaEventsPort {
   subscribe(required: { onRefresh: () => void }, optional?: Record<string, never>): () => void;
 }
+/** Which HTML attributes an operator may type into a media item's attribute hint field; the content domain
+ * that renders embeds owns the allow-list and parser, so the host binds its own. */
+export const embedPolicyToken = adminPort<EmbedPolicyPort, 'admin.media.embedPolicy'>({ id: 'admin.media.embedPolicy' });
 export const mediaEventsToken = adminPort<MediaEventsPort, 'admin.media.events'>({ id: 'admin.media.events' });

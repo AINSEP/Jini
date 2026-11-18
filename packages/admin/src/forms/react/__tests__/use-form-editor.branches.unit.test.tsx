@@ -10,6 +10,8 @@ import { createMemoryFormsApi } from "../../adapters/memory.js";
 import { KEYS } from "../../rules.js";
 import { useFormEditor, useWiredFormEditor } from "../hooks/use-form-editor.hooks.js";
 import { FormsOptionsContext, FormsPortsContext } from "../hooks/FormsPorts.hooks.js";
+import { fakeFormsCatalog } from '../../__tests__/fakes/forms-catalog.js';
+
 
 /**
  * @file `useFormEditor` outcomes not reached by the screen suites: refetch protection, builder
@@ -25,7 +27,7 @@ const stored = (overrides: Partial<CoreForm> = {}): CoreForm => ({ id: "f1", nam
 
 function mount(api: AdminFormsPort, formId = "f1", options: Parameters<typeof useFormEditor>[1] = {}) {
   const navigate = vi.fn();
-  const view = renderHook(() => ({ editor: useFormEditor({ formId, tab: "fields", port: api, navigate, t }, options), invalidate: useInvalidate() }), { wrapper });
+  const view = renderHook(() => ({ editor: useFormEditor({ formId, tab: "fields", port: api, catalog: fakeFormsCatalog(), navigate, t }, options), invalidate: useInvalidate() }), { wrapper });
   return { ...view, navigate };
 }
 afterEach(() => { vi.unstubAllGlobals(); });
@@ -146,7 +148,7 @@ describe("useWiredFormEditor", () => {
     const api = createMemoryFormsApi({}, { forms: [stored()] });
     const writeText = vi.fn(async () => {});
     const hostWrapper = ({ children }: { children: ReactNode }) => (
-      <FetchQueryProvider><FormsPortsContext.Provider value={{ formsApi: api, formsTrash: api.trash }}>
+      <FetchQueryProvider><FormsPortsContext.Provider value={{ formsApi: api, formsCatalog: fakeFormsCatalog(), formsTrash: api.trash }}>
         <FormsOptionsContext.Provider value={{ clipboard: { writeText } }}>{children}</FormsOptionsContext.Provider>
       </FormsPortsContext.Provider></FetchQueryProvider>
     );

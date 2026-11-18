@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { render } from './kit-render.js';
 import { expect, it, vi } from 'vitest';
 import { ConsentSettingsPanel, type ConsentSettingsView } from '../index.js';
 

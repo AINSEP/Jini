@@ -11,6 +11,7 @@ import { UploadButton } from '../components/UploadButton.js';
 import { MediaPortsContext } from '../hooks/MediaPorts.hooks.js';
 import { ProvidersTab } from '../tabs/ProvidersTab.js';
 import type { MediaApiPort, MediaEventsPort } from '../../ports.js';
+import { realEmbedPolicy } from '../../__tests__/fakes/embed-policy.js';
 // First lazy imports can take more than 1s on a shared machine; behavior assertions stay exact.
 configure({ asyncUtilTimeout: 5000 });
 const upload = { filename: 'zebra.png', contentType: 'image/png', dataBase64: 'aGVsbG8=' };
@@ -25,7 +26,7 @@ async function fixture() {
 }
 function mountPage({ api, events, requestedTab }: { api: MediaApiPort; events?: MediaEventsPort; requestedTab?: string }, { permissions = ['media.read', 'media.upload', 'media.update', 'media.trash', 'media.delete.force'] }: { permissions?: string[] } = {}) {
   const overlays = createOverlayController({}), module = media({ overlays });
-  const admin = createAdmin({ modules: [module], ports: { mediaApi: api, ...(events ? { mediaEvents: events } : {}) } }, { permissions });
+  const admin = createAdmin({ modules: [module], ports: { embedPolicy: realEmbedPolicy, mediaApi: api, ...(events ? { mediaEvents: events } : {}) } }, { permissions });
   const { Page, tabs } = module.react.pages.library;
   const changed = vi.fn();
   const view = render(<module.react.Provider admin={admin}><Suspense fallback="Loading">
@@ -208,7 +209,7 @@ it('displays endpoint/model controls, persists them through one Save changes wit
   // Legacy renders a model picker only for catalog entries that advertise models.
   const mediaProviders = { ...memory, catalog: [{ id: 'example', label: 'Example', models: ['old-model', 'new-model'] }, { id: 'sibling', label: 'Sibling' }] };
   const saveCredential = vi.spyOn(mediaProviders, 'saveCredential'), removeCredential = vi.spyOn(mediaProviders, 'removeCredential');
-  const view = render(<MediaPortsContext.Provider value={{ mediaApi: api, mediaProviders }}><ProvidersTab params={{}} /></MediaPortsContext.Provider>);
+  const view = render(<MediaPortsContext.Provider value={{ embedPolicy: realEmbedPolicy, mediaApi: api, mediaProviders }}><ProvidersTab params={{}} /></MediaPortsContext.Provider>);
   const url = await screen.findByLabelText('Example base URL');
   expect(url).toHaveValue('https://old');
   expect(screen.queryByLabelText('Sibling model')).toBeNull();
@@ -223,7 +224,7 @@ it('displays endpoint/model controls, persists them through one Save changes wit
   expect(saveCredential).not.toHaveBeenCalled(); expect(removeCredential).not.toHaveBeenCalled();
   expect(screen.getByLabelText('Sibling base URL')).toHaveValue('https://sibling');
   const { saveSettings: _saveSettings, ...oldHost } = mediaProviders;
-  view.rerender(<MediaPortsContext.Provider value={{ mediaApi: api, mediaProviders: oldHost }}><ProvidersTab params={{}} /></MediaPortsContext.Provider>);
+  view.rerender(<MediaPortsContext.Provider value={{ embedPolicy: realEmbedPolicy, mediaApi: api, mediaProviders: oldHost }}><ProvidersTab params={{}} /></MediaPortsContext.Provider>);
   expect(await screen.findByLabelText('Example base URL')).toBeDisabled();
   expect(screen.getByLabelText('Example model')).toBeDisabled();
   // Credentials still save through the old per-provider method.

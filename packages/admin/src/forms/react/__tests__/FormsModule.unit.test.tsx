@@ -10,6 +10,7 @@ import { createAdmin } from '../../../core/module/create-admin.js';
 import { AdminApiError } from '../../../core/transport/errors.js';
 import { createMemoryFormsApi } from '../../adapters/memory.js';
 import { forms } from '../index.js';
+import { fakeFormsCatalog } from '../../__tests__/fakes/forms-catalog.js';
 
 describe('Forms module list API failure regression', () => {
   it('loads the list eagerly so its API read cannot queue behind a native dynamic import', () => {
@@ -47,7 +48,7 @@ describe('Forms module list API failure regression', () => {
     const module = forms({});
     // The Provider scopes the bound definition by identity, not the factory's React wrapper.
     const admin = createAdmin({ modules: [module.react.module], ports: {
-      formsApi: { ...memory, listFormDefinitions }, formsTrash: memory.trash,
+      formsApi: { ...memory, listFormDefinitions }, formsCatalog: fakeFormsCatalog(), formsTrash: memory.trash,
     } }, { permissions: ['admin.forms.manage'] });
     const { Page, tabs } = module.react.pages.list;
     const description = admin.describe().pages.find(page => page.id === 'forms.list')!;

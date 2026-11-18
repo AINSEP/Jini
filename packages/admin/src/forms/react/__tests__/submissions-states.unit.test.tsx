@@ -16,6 +16,7 @@ import { useFormSubmissionDetail, type FormSubmissionDetailController } from "..
 import { useFormSubmissions } from "../hooks/use-form-submissions.hooks.js";
 import { useFormsList, useWiredFormsList } from "../hooks/use-forms-list.hooks.js";
 import { FormsPortsContext } from "../hooks/FormsPorts.hooks.js";
+import { fakeFormsCatalog } from '../../__tests__/fakes/forms-catalog.js';
 
 afterEach(cleanup);
 const t = (key: string) => key;
@@ -185,7 +186,7 @@ describe("useFormsList row locks", () => {
     let refresh!: () => void;
     const events: FormsEventsPort = { subscribe: ({ onRefresh }) => { refresh = onRefresh; return () => {}; } };
     const list = vi.spyOn(api, "listFormDefinitions");
-    const hostWrapper = ({ children }: { children: ReactNode }) => <FetchQueryProvider><FormsPortsContext.Provider value={{ formsApi: api, formsTrash: api.trash, formsEvents: events }}>{children}</FormsPortsContext.Provider></FetchQueryProvider>;
+    const hostWrapper = ({ children }: { children: ReactNode }) => <FetchQueryProvider><FormsPortsContext.Provider value={{ formsApi: api, formsCatalog: fakeFormsCatalog(), formsTrash: api.trash, formsEvents: events }}>{children}</FormsPortsContext.Provider></FetchQueryProvider>;
     const { result } = renderHook(() => useWiredFormsList(), { wrapper: hostWrapper });
     await waitFor(() => expect(result.current.forms).not.toBeNull());
     await act(async () => { refresh(); });
@@ -203,7 +204,7 @@ describe("forms module editor page", () => {
   function mountEditor(pageProps: Record<string, unknown>) {
     const api = createMemoryFormsApi({}, { forms: [storedForm("f1", { name: "Contact" })] });
     const module = forms({});
-    const admin = createAdmin({ modules: [module.react.module], ports: { formsApi: api, formsTrash: api.trash } }, { permissions: ["admin.forms.manage"] });
+    const admin = createAdmin({ modules: [module.react.module], ports: { formsApi: api, formsCatalog: fakeFormsCatalog(), formsTrash: api.trash } }, { permissions: ["admin.forms.manage"] });
     const { Page, tabs } = module.react.pages.editor;
     const description = admin.describe().pages.find(page => page.id === "forms.editor")!;
     render(<FetchQueryProvider><module.react.Provider admin={admin}><Boundary><Suspense fallback="loading">

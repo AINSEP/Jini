@@ -11,6 +11,11 @@ Replacement is an optional identity-preserving capability: missing method or exp
 it and the controller fails closed. Never simulate replacement through upload/trash. Memory and
 configured HTTP implement it; conformance runs with and without it.
 
+The HTML-attribute hint on the edit panel is validated against a required `embedPolicy` port
+(`embedPolicyToken`, `EmbedPolicyPort`): the host binds the content domain's own allow-list and parser,
+and admin keeps no allow-list of its own. The client rule must keep mirroring the server parser;
+the server still validates every write and render independently.
+
 Provider configuration is an optional settings write, separate from credentials so blank keys
 cannot accidentally clear secrets. Hosts must return baseUrl/model and implement saveSettings to
 enable persistence. UI edits survive unreachable reads; full-map serialization is host-owned.

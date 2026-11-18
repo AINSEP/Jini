@@ -1,18 +1,19 @@
 /**
  * @file `AdminCommentRepo` — the three comment-store operations the in-memory admin comments adapter calls.
  *
- * Restated structurally from the comments domain's repository (only the fields the adapter reads); the host
+ * Restated structurally from the comments domain's repository (the queue returns whole comments, as the admin queue shows them); the host
  * supplies a factory that seeds a store from initial comments.
  */
+import type { AdminComment } from './comments.js';
+
 type CommentStatus = 'pending' | 'approved' | 'spam' | 'trash';
 type ModerationAction = 'approve' | 'mark_spam' | 'unspam' | 'trash' | 'restore';
-interface RepoComment { readonly id: string; readonly workspaceId: string; readonly status: CommentStatus; readonly version: number }
 
 export interface AdminCommentRepo {
   listModerationQueue(
     required: { workspaceId: string; status: CommentStatus; limit: number; cursor?: string | null },
     optional?: Record<string, never>,
-  ): Promise<{ items: RepoComment[]; nextCursor: string | null }>;
+  ): Promise<{ items: AdminComment[]; nextCursor: string | null }>;
   applyModeration(
     required: {
       workspaceId: string; id: string; expectedVersion: number; action: ModerationAction; toStatus: CommentStatus;

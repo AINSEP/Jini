@@ -1,8 +1,10 @@
 import { createContext, useContext } from 'react';
+import type { EmbedPolicyPort } from '../../../core/ports/embed-policy.js';
 import type { MediaApiPort, MediaProvidersPort, MediaEventsPort } from '../../ports.js';
 import { AdminConfigError } from '../../../core/module/index.js';
 export interface MediaPorts {
   readonly mediaApi: MediaApiPort;
+  readonly embedPolicy: EmbedPolicyPort;
   readonly mediaProviders?: MediaProvidersPort;
   readonly mediaEvents?: MediaEventsPort;
 }

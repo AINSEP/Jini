@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from '..
 import { EditMediaPanel } from '../components/EditMediaPanel.js';
 import { useEditMediaPanel } from '../hooks/EditMediaPanel.hooks.js';
 import { createMemoryMediaApi } from '../../adapters/memory.js';
+import { EmbedPolicyScope } from './embed-policy-scope.js';
 import type { MediaAsset } from '../../models.js';
 import type { MediaApiPort } from '../../ports.js';
 
@@ -42,7 +43,7 @@ function deferred<T>(_required: Record<string, never> = {}, _optional: Record<st
 describe('legacy metadata fields and partial patches', () => {
   it('prefills separate title and slug fields and sends slug alone without changing title', async () => {
     const context = fixture();
-    render(<EditMediaPanel {...context} />);
+    render(<EditMediaPanel {...context} />, { wrapper: EmbedPolicyScope });
     expect(screen.getByLabelText('Title')).toHaveValue(context.item.title);
     expect(screen.getByLabelText('Slug')).toHaveValue(context.item.slug);
     fireEvent.change(screen.getByLabelText('Slug'), { target: { value: 'new-slug' } });
@@ -53,7 +54,7 @@ describe('legacy metadata fields and partial patches', () => {
   });
   it('renaming only title never derives a new slug or sends untouched native-size fields', async () => {
     const context = fixture();
-    render(<EditMediaPanel {...context} />);
+    render(<EditMediaPanel {...context} />, { wrapper: EmbedPolicyScope });
     fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Renamed title' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(context.onSaved).toHaveBeenCalledTimes(1));
@@ -62,7 +63,7 @@ describe('legacy metadata fields and partial patches', () => {
   });
   it('sends numeric dimensions and verbatim CSS/HTML values from their own fields', async () => {
     const context = fixture();
-    render(<EditMediaPanel {...context} />);
+    render(<EditMediaPanel {...context} />, { wrapper: EmbedPolicyScope });
     expect(screen.getByLabelText('Width (px)')).toHaveValue(null);
     expect(screen.getByLabelText('Height (px)')).toHaveValue(null);
     fireEvent.change(screen.getByLabelText('Width (px)'), { target: { value: '320' } });
@@ -77,7 +78,7 @@ describe('legacy metadata fields and partial patches', () => {
   });
   it('clears existing dimensions, CSS class and HTML attributes with explicit null', async () => {
     const context = fixture({ item: asset({ width: 320, height: 240, cssClass: 'hero', htmlAttributes: 'loading=lazy' }) });
-    render(<EditMediaPanel {...context} />);
+    render(<EditMediaPanel {...context} />, { wrapper: EmbedPolicyScope });
     for (const label of ['Width (px)', 'Height (px)', 'CSS class (optional)', 'HTML attributes (optional)'])
       fireEvent.change(screen.getByLabelText(label), { target: { value: label.includes('(px)') ? '' : '   ' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
@@ -90,7 +91,7 @@ describe('legacy metadata fields and partial patches', () => {
     // A live item prop is not the draft's baseline. Diffing against it would send stale,
     // untouched alt as a change and silently revert the other operator's committed write.
     const context = fixture();
-    const view = render(<EditMediaPanel {...context} />);
+    const view = render(<EditMediaPanel {...context} />, { wrapper: EmbedPolicyScope });
     fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Local title' } });
     const remote = await context.api.update({ id: context.item.id, patch: { alt: 'Remote alt' } });
     context.update.mockClear();
@@ -110,7 +111,7 @@ describe('legacy metadata fields and partial patches', () => {
     const update = vi.spyOn(api, 'update');
     const onSaved = vi.fn();
     const props = { api, onSaved, onClose: vi.fn() };
-    const view = render(<EditMediaPanel key={a.id} {...props} item={a} />);
+    const view = render(<EditMediaPanel key={a.id} {...props} item={a} />, { wrapper: EmbedPolicyScope });
     fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Unsaved A title' } });
     view.rerender(<EditMediaPanel key={b.id} {...props} item={b} />);
     expect(screen.getByLabelText('Title')).toHaveValue('B title');
@@ -129,7 +130,7 @@ describe('legacy server-authoritative save failures', () => {
     // including independently edited title/alt. The server owns atomic rejection.
     const context = fixture();
     context.update.mockRejectedValueOnce(new Error('400: onerror is not allowed; nothing was written'));
-    render(<EditMediaPanel {...context} />);
+    render(<EditMediaPanel {...context} />, { wrapper: EmbedPolicyScope });
     fireEvent.change(screen.getByLabelText('HTML attributes (optional)'), { target: { value: 'onerror="alert(1)"' } });
     fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Dirty title' } });
     // The empty entry is the replace control's persistent sr-only success live region.
@@ -151,7 +152,7 @@ describe('legacy server-authoritative save failures', () => {
   ])('shows full server error %s for client-valid metadata', async (message) => {
     const context = fixture();
     context.update.mockRejectedValueOnce(new Error(message));
-    render(<EditMediaPanel {...context} />);
+    render(<EditMediaPanel {...context} />, { wrapper: EmbedPolicyScope });
     fireEvent.change(screen.getByLabelText('Slug'), { target: { value: 'other-slug' } });
     fireEvent.change(screen.getByLabelText('HTML attributes (optional)'), { target: { value: 'data-motion="fade-in"' } });
     // No attribute hint: only the replace control's empty persistent success live region remains.
@@ -165,14 +166,14 @@ describe('legacy server-authoritative save failures', () => {
 describe('legacy public references and original handles', () => {
   it('passes through the server public URL verbatim and never calls the authenticated original URL builder', () => {
     const context = fixture();
-    render(<EditMediaPanel {...context} />);
+    render(<EditMediaPanel {...context} />, { wrapper: EmbedPolicyScope });
     expect(screen.getByText(context.item.publicUrl!)).toHaveTextContent(context.item.publicUrl!);
     expect(context.originalUrl).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Copy URL' })).toHaveAttribute('data-agent-element', 'media-edit-copy-url');
   });
   it('hides a null public URL but displays the saved-slug embed even when the draft slug is changed', () => {
     const context = fixture({ item: asset({ publicUrl: null }) });
-    render(<EditMediaPanel {...context} />);
+    render(<EditMediaPanel {...context} />, { wrapper: EmbedPolicyScope });
     expect(screen.queryByText('File URL')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Copy URL' })).toBeNull();
     fireEvent.change(screen.getByLabelText('Slug'), { target: { value: 'unsaved-draft-slug' } });
@@ -181,7 +182,7 @@ describe('legacy public references and original handles', () => {
   });
   it('attaches legacy handles to the actual fillable fields and save/cancel actions', async () => {
     const context = fixture();
-    render(<EditMediaPanel {...context} />);
+    render(<EditMediaPanel {...context} />, { wrapper: EmbedPolicyScope });
     const changes = {
       title: 'Handle title', slug: 'handle-slug', alt: 'Handle alt', caption: 'Handle caption',
       credit: 'Handle credit', width: '320', height: '240',
@@ -211,7 +212,7 @@ describe('legacy public references and original handles', () => {
     const { replace: _replace, ...withoutReplace } = context.api;
     const api: MediaApiPort = mode === 'missing' ? withoutReplace
       : { ...context.api, replaceSupported: false };
-    render(<EditMediaPanel {...context} api={api} />);
+    render(<EditMediaPanel {...context} api={api} />, { wrapper: EmbedPolicyScope });
     expect(screen.queryByRole('button', { name: 'Replace file' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
   });
@@ -235,7 +236,7 @@ describe('legacy clipboard feedback', () => {
     const writeText = vi.fn(() => pending.promise);
     vi.stubGlobal('navigator', { clipboard: { writeText } });
     const context = fixture();
-    const { result } = renderHook(() => useEditMediaPanel(context));
+    const { result } = renderHook(() => useEditMediaPanel(context), { wrapper: EmbedPolicyScope });
     let copying!: Promise<void>;
     act(() => { copying = result.current.copies.find((row) => row.id === id)!.copy(); });
     expect(writeText.mock.calls).toEqual([[text]]);
@@ -254,7 +255,7 @@ describe('legacy clipboard feedback', () => {
     const writeText = vi.fn().mockRejectedValue(new Error('Clipboard permission denied'));
     vi.stubGlobal('navigator', { clipboard: { writeText } });
     const context = fixture();
-    render(<EditMediaPanel {...context} />);
+    render(<EditMediaPanel {...context} />, { wrapper: EmbedPolicyScope });
     const button = document.querySelector(`[data-agent-element="media-edit-copy-${id}"]`)!;
     fireEvent.click(button);
     await waitFor(() => expect(writeText.mock.calls).toEqual([[text]]));
@@ -268,7 +269,7 @@ describe('legacy clipboard feedback', () => {
     vi.useFakeTimers();
     vi.stubGlobal('navigator', { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
     const context = fixture();
-    const { result } = renderHook(() => useEditMediaPanel(context));
+    const { result } = renderHook(() => useEditMediaPanel(context), { wrapper: EmbedPolicyScope });
     await act(async () => { await result.current.copies.find((row) => row.id === 'hash')!.copy(); });
     act(() => { vi.advanceTimersByTime(500); });
     await act(async () => { await result.current.copies.find((row) => row.id === 'url')!.copy(); });
@@ -283,7 +284,7 @@ describe('legacy clipboard feedback', () => {
     const pending = deferred<void>();
     vi.stubGlobal('navigator', { clipboard: { writeText: vi.fn(() => pending.promise) } });
     const context = fixture();
-    const { result, unmount } = renderHook(() => useEditMediaPanel(context));
+    const { result, unmount } = renderHook(() => useEditMediaPanel(context), { wrapper: EmbedPolicyScope });
     let copying!: Promise<void>;
     act(() => { copying = result.current.copies.find((row) => row.id === 'hash')!.copy(); });
     unmount();
@@ -294,7 +295,7 @@ describe('legacy clipboard feedback', () => {
     vi.useFakeTimers();
     vi.stubGlobal('navigator', { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
     const context = fixture();
-    const { result, unmount } = renderHook(() => useEditMediaPanel(context));
+    const { result, unmount } = renderHook(() => useEditMediaPanel(context), { wrapper: EmbedPolicyScope });
     await act(async () => { await result.current.copies.find((row) => row.id === 'hash')!.copy(); });
     expect(vi.getTimerCount()).toBe(1);
     unmount();

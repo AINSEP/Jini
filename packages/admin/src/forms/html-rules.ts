@@ -1,4 +1,4 @@
-import { FIELD_TYPE_REGISTRY, escapeFormHtml, type FieldType } from "@jini-ai/cms/forms";
+import type { FormsCatalogPort } from "../core/ports/forms-catalog.js";
 import type { AdminFormField, AdminFormSubmission } from "./models.js";
 
 export interface FormAnswerColumn {
@@ -23,7 +23,7 @@ export function formAnswerColumns({ fields }: { fields: readonly AdminFormField[
   });
 }
 
-/** The stored shape of a file-field answer (`FormFileReference` in `@jini-ai/cms/forms`). */
+/** The stored shape of a file-field answer (the forms domain's `FormFileReference`). */
 export interface FormAnswerFile { mediaId: string; filename: string; byteSize?: number }
 
 /** Narrows a stored answer to an uploaded-file reference.
@@ -110,56 +110,59 @@ export function formSubmissionRows(
 }
 
 type StarterKind = { control: string; htmlType: string; multiple?: boolean; attributes?: Readonly<Record<string, string>> };
-const kindOf = (type: string): StarterKind =>
-  Object.hasOwn(FIELD_TYPE_REGISTRY, type) ? FIELD_TYPE_REGISTRY[type as FieldType] as StarterKind : { control: "input", htmlType: "text" };
+const kindOf = ({ type, catalog }: { type: string; catalog: FormsCatalogPort }): StarterKind =>
+  Object.hasOwn(catalog.fieldKinds, type) ? catalog.fieldKinds[type]! : { control: "input", htmlType: "text" };
+/** Every authored value goes through the catalog's escaper; the host owns what "safe in HTML" means. */
+type Escape = (value: string) => string;
 const isDefault = (field: AdminFormField, value: string): boolean =>
   Array.isArray(field.default) ? field.default.includes(value) : field.default === value;
 
 /** Name, required and the stored constraints, as authored HTML attributes the CMS reads back. */
-function starterAttributes(field: AdminFormField, kind: StarterKind): string {
+function starterAttributes({ field, kind, esc }: { field: AdminFormField; kind: StarterKind; esc: Escape }): string {
   const constraints: Array<[string, unknown]> = [
     ["placeholder", kind.control === "select" ? undefined : field.placeholder], ["minlength", field.minLength], ["maxlength", field.maxLength],
     ["pattern", field.pattern], ["min", field.min], ["max", field.max], ["step", field.step], ["accept", field.accept?.join(",")],
     ...Object.entries(kind.attributes ?? {}),
   ];
-  return `name="${escapeFormHtml({ value: field.id })}"${field.required ? " required" : ""}` +
-    constraints.filter(([, value]) => value != null && value !== "").map(([name, value]) => ` ${name}="${escapeFormHtml({ value: String(value) })}"`).join("");
+  return `name="${esc(field.id)}"${field.required ? " required" : ""}` +
+    constraints.filter(([, value]) => value != null && value !== "").map(([name, value]) => ` ${name}="${esc(String(value))}"`).join("");
 }
 
-type StarterInput = { field: AdminFormField; kind: StarterKind; label: string; attrs: string };
+type StarterInput = { field: AdminFormField; kind: StarterKind; label: string; attrs: string; esc: Escape };
 
 /** One field's starter markup; every control comes from the registry kind, as the public render does. */
-function starterField(field: AdminFormField): string {
-  const kind = kindOf(field.type);
-  return starterRendererFor({ kind })({ field, kind, label: escapeFormHtml({ value: field.label }), attrs: starterAttributes(field, kind) });
+function starterField({ field, catalog }: { field: AdminFormField; catalog: FormsCatalogPort }): string {
+  const kind = kindOf({ type: field.type, catalog });
+  const esc: Escape = (value) => catalog.escapeHtml({ value });
+  return starterRendererFor({ kind })({ field, kind, label: esc(field.label), attrs: starterAttributes({ field, kind, esc }), esc });
 }
 
 function starterRendererFor({ kind }: { kind: StarterKind }): (input: StarterInput) => string {
   if (kind.control === "group") return starterGroup;
   if (kind.control === "select") return starterSelect;
   if (kind.control === "textarea") return ({ label, attrs }) => `<label>${label}\n  <textarea ${attrs}></textarea>\n</label>`;
-  if (kind.htmlType === "hidden") return ({ field, label, attrs }) => `<input type="hidden" ${attrs} value="${escapeFormHtml({ value: String(field.default ?? "") })}" aria-label="${label}">`;
+  if (kind.htmlType === "hidden") return ({ field, label, attrs, esc }) => `<input type="hidden" ${attrs} value="${esc(String(field.default ?? ""))}" aria-label="${label}">`;
   if (kind.htmlType === "checkbox") return starterCheckbox;
   return ({ label, attrs }) => `<label>${label}\n  <input type="${kind.htmlType}" ${attrs}>\n</label>`;
 }
 
-function starterGroup({ field, kind, label, attrs }: StarterInput): string {
+function starterGroup({ field, kind, label, attrs, esc }: StarterInput): string {
   // One box per option under a shared name; the CMS collects them back into this choice field.
   // Native `required` on every checkbox would demand ALL of them, so a checkbox group leaves it
   // off (the server still enforces one-or-more); a radio group's `required` means "pick one".
-  const boxAttrs = kind.multiple ? starterAttributes({ ...field, required: false }, kind) : attrs;
-  const boxes = (field.options ?? []).map((option) => `  <label><input type="${kind.htmlType}" ${boxAttrs} value="${escapeFormHtml({ value: option.value })}"${isDefault(field, option.value) ? " checked" : ""}> ${escapeFormHtml({ value: option.label })}</label>`);
+  const boxAttrs = kind.multiple ? starterAttributes({ field: { ...field, required: false }, kind, esc }) : attrs;
+  const boxes = (field.options ?? []).map((option) => `  <label><input type="${kind.htmlType}" ${boxAttrs} value="${esc(option.value)}"${isDefault(field, option.value) ? " checked" : ""}> ${esc(option.label)}</label>`);
   return `<fieldset>\n  <legend>${label}</legend>\n${boxes.join("\n")}\n</fieldset>`;
 }
 
-function starterSelect({ field, kind, label, attrs }: StarterInput): string {
-  const empty = kind.multiple ? [] : [`    <option value="">${escapeFormHtml({ value: field.placeholder ?? "Choose an option" })}</option>`];
-  const choices = (field.options ?? []).map((option) => `    <option value="${escapeFormHtml({ value: option.value })}"${isDefault(field, option.value) ? " selected" : ""}>${escapeFormHtml({ value: option.label })}</option>`);
+function starterSelect({ field, kind, label, attrs, esc }: StarterInput): string {
+  const empty = kind.multiple ? [] : [`    <option value="">${esc(field.placeholder ?? "Choose an option")}</option>`];
+  const choices = (field.options ?? []).map((option) => `    <option value="${esc(option.value)}"${isDefault(field, option.value) ? " selected" : ""}>${esc(option.label)}</option>`);
   return `<label>${label}\n  <select ${attrs}${kind.multiple ? " multiple" : ""}>\n${[...empty, ...choices].join("\n")}\n  </select>\n</label>`;
 }
 
-function starterCheckbox({ field, label, attrs }: StarterInput): string {
-  const value = field.checkboxValue !== undefined ? ` value="${escapeFormHtml({ value: field.checkboxValue })}"` : "";
+function starterCheckbox({ field, label, attrs, esc }: StarterInput): string {
+  const value = field.checkboxValue !== undefined ? ` value="${esc(field.checkboxValue)}"` : "";
   const checked = field.default === true || (field.checkboxValue !== undefined && field.default === field.checkboxValue) ? " checked" : "";
   return `<label><input type="checkbox"${field.type === "toggle" ? ' role="switch"' : ""} ${attrs}${value}${checked}> ${label}</label>`;
 }
@@ -172,10 +175,10 @@ function starterCheckbox({ field, label, attrs }: StarterInput): string {
  * @complexity O(f + o) for fields and their options; no I/O.
  */
 export function formHtmlStarter(
-  { fields }: { fields: readonly AdminFormField[] },
+  { fields, catalog }: { fields: readonly AdminFormField[]; catalog: FormsCatalogPort },
   { submitLabel = "Send" }: { submitLabel?: string } = {},
 ): string {
-  return fields.map(starterField).join("\n\n") + `\n\n<button type="submit">${escapeFormHtml({ value: submitLabel })}</button>`;
+  return fields.map((field) => starterField({ field, catalog })).join("\n\n") + `\n\n<button type="submit">${catalog.escapeHtml({ value: submitLabel })}</button>`;
 }
 
 export function formHtmlEmbed({ slug }: { slug: string }, _optional = {}): string {
