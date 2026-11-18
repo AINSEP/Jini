@@ -18,13 +18,21 @@ test('every published entry has matching runtime metadata and a source module', 
 });
 
 test('React dependencies are optional peers and available to package development', () => {
-  for (const name of ['react', 'react-dom', '@jini-ai/ui', '@jini-ai/admin']) {
+  for (const name of ['react', 'react-dom', '@jini-ai/ui-kit']) {
     expect(manifest.peerDependencies[name], name).toBeTruthy();
     expect(manifest.peerDependenciesMeta[name], name).toEqual({ optional: true });
     expect(manifest.devDependencies[name], name).toBeTruthy();
     expect(manifest.dependencies?.[name], name).toBeUndefined();
   }
   expect(manifest.peerDependenciesMeta.argon2).toEqual({ optional: true });
+  // The screens render through the injected kit (react/kit), so ui and admin are test-only host bindings: no peer, no optional-peer hint.
+  for (const name of ['@jini-ai/ui', '@jini-ai/admin']) {
+    expect(manifest.peerDependencies[name], name).toBeUndefined();
+    expect(manifest.peerDependenciesMeta[name], name).toBeUndefined();
+    expect(manifest.jini.optionalPeers[name], name).toBeUndefined();
+    expect(manifest.devDependencies[name], name).toBeTruthy();
+    expect(manifest.dependencies?.[name], name).toBeUndefined();
+  }
   // No source file imports @jini-ai/agentic, so it is not declared in any dependency field.
   for (const field of ['dependencies', 'peerDependencies', 'devDependencies']) {
     expect(manifest[field]?.['@jini-ai/agentic'], field).toBeUndefined();

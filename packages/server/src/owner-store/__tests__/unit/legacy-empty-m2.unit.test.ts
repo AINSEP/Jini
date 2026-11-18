@@ -1,6 +1,6 @@
 import { rmSync } from 'node:fs';
 import { expect, test } from 'vitest';
-import { countLegacyOwnerStore, readLegacyOwnerStore, ownerContext } from '../../index.js';
+import { countLegacyOwnerStore, readLegacyOwnerStore } from '../../index.js';
 import { legacyStore, open } from '../fixture.js';
 
 test('an empty legacy store can be read without a key and never recreates the removed key', async () => {
@@ -13,10 +13,4 @@ test('an empty legacy store can be read without a key and never recreates the re
     const { existsSync } = await import('node:fs');
     expect(existsSync(store.keyFilePath)).toBe(false);
   } finally { store.cleanup(); }
-});
-
-test('legacy contexts preserve binding and feature ownership within the fixed owner workspace', () => {
-  expect(ownerContext({ kind: 'vendor', ownerKey: 'feature', binding: 'connection-1' })).toEqual({
-    kind: 'vendor', ownerKey: 'feature', binding: 'connection-1', workspaceId: 'owner', principalId: null,
-  });
 });

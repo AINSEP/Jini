@@ -20,8 +20,7 @@
     "optionalPeers": {
       "node-pty": "opt-in: import @jini-ai/server/adapters/node-pty — Interactive terminals could not load node-pty. Install node-pty to enable this feature, or check its installed version and native binaries.",
       "better-sqlite3": "opt-in: sqlite storage — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/chat": "opt-in: chat host assembly; import @jini-ai/server/storage/legacy/sqlite — Chat host assembly could not load @jini-ai/chat. Install @jini-ai/chat to enable this feature, or check its installed version and native binaries.",
-      "kysely": "opt-in: sql storage adapters; import @jini-ai/server/owner-store — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries."
+      "@jini-ai/chat": "opt-in: chat host assembly; import @jini-ai/server/storage/legacy/sqlite — Chat host assembly could not load @jini-ai/chat. Install @jini-ai/chat to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",
@@ -113,8 +112,7 @@
     "node-pty": "^1.1.0",
     "better-sqlite3": "^13.0.0",
     "express": "^4.21.0 || ^5.0.0",
-    "@jini-ai/chat": "^0.7.0",
-    "kysely": "^0.29.6"
+    "@jini-ai/chat": "^0.7.0"
   },
   "sideEffects": false,
   "peerDependenciesMeta": {
@@ -125,9 +123,6 @@
       "optional": true
     },
     "@jini-ai/chat": {
-      "optional": true
-    },
-    "kysely": {
       "optional": true
     }
   }

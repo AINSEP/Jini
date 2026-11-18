@@ -2,8 +2,10 @@ import Database from "better-sqlite3";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { afterEach, expect, test } from "vitest";
-import { countLegacyOwnerStore, OwnerStoreRecoveryError, readLegacyOwnerStore } from "../legacy.js";
-import { input, legacyStore, open } from "./fixture.js";
+import { ownerContext, OwnerStoreRecoveryError } from "@jini-ai/platform/secrets/legacy-owner";
+import { countLegacyOwnerStore, readLegacyOwnerStore } from "../index.js";
+import { input, legacyStore, open, putRaw } from "./fixture.js";
+import type { SqliteOpener } from "@jini-ai/core/contracts/storage";
 
 const stores: Awaited<ReturnType<typeof legacyStore>>[] = [];
 afterEach(() => { for (const store of stores.splice(0)) store.cleanup(); });
@@ -69,4 +71,26 @@ test("reading a missing owner.db fails without creating it", async () => {
   store.cleanup();
   await expect(countLegacyOwnerStore({ filePath: store.filePath, open })).rejects.toThrow(new TypeError("Cannot open database because the directory does not exist"));
   expect(existsSync(store.filePath)).toBe(false);
+});
+
+test("a non-copyable row in the store is a recovery error", async () => {
+  const store = await setup({ entries: [input] });
+  await putRaw(store, { ...input, meta: {}, ...ownerContext({ kind: "mcp-env", ownerKey: "plugin", binding: null }) });
+  await expect(readLegacyOwnerStore({ filePath: store.filePath, keyFilePath: store.keyFilePath, open })).rejects.toBeInstanceOf(OwnerStoreRecoveryError);
+});
+
+test("rows of another workspace are not read", async () => {
+  const store = await setup({ entries: [input] });
+  await putRaw(store, { ...input, label: "Other", workspaceId: "ws-other", principalId: null });
+  const snapshot = await readLegacyOwnerStore({ filePath: store.filePath, keyFilePath: store.keyFilePath, open });
+  expect(snapshot.entries.map(entry => entry.label)).toEqual(["Shared API key"]);
+});
+
+test("both readers open the file read-only", async () => {
+  const store = await setup({ entries: [input] });
+  const seen: unknown[] = [];
+  const recording: SqliteOpener = (filePath, options) => { seen.push(options); return new Database(filePath, options); };
+  await countLegacyOwnerStore({ filePath: store.filePath, open: recording });
+  await readLegacyOwnerStore({ filePath: store.filePath, keyFilePath: store.keyFilePath, open: recording });
+  expect(seen).toEqual([{ readonly: true, fileMustExist: true }, { readonly: true, fileMustExist: true }]);
 });

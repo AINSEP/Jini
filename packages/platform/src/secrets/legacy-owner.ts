@@ -1,15 +1,72 @@
-import { openWithPassphrase } from "@jini-ai/platform/secrets";
-import { isCopyableKind } from "@jini-ai/platform/secrets/credential-sets";
+import { randomUUID } from "node:crypto";
 import {
   VAULT_KINDS,
+  VaultError,
+  type VaultContext,
   type VaultKind,
   type VaultOptions,
+  type VaultRepoPort,
   type VaultSummary,
 } from "@jini-ai/core/contracts/vault";
-import type { LegacyOwnerEntry, LegacyOwnerSnapshot } from "./legacy.js";
+import { EnvOrFileKeyring } from "./keyring.env.js";
+import { openWithPassphrase } from "./passphrase-envelope.js";
+import { AesGcmSecretSealer } from "./secret-sealer.aesgcm.js";
+import { createVaultMetaParsers, isCopyableKind } from "./credential-sets/vault.meta.js";
+import { SecretsVaultService, type VaultServiceDeps } from "./credential-sets/vault.service.js";
+import type { VaultArchiveEntry } from "./credential-sets/vault-archive.js";
+
+/** @file Decoder for a legacy owner store's passphrase backup and the vault policy that reads its
+ * `owner.db` rows (keyring, authorization, recovery error). Shared keys are now project references,
+ * so nothing here writes, migrates or generates a key. The SQL reads live in
+ * `@jini-ai/db/owner-store`; the file wiring lives in `@jini-ai/server/owner-store`.
+ */
+
+export const OWNER_WORKSPACE_ID = "owner";
+
+/** A site the legacy store copied an entry to (consumerId = the site's canonical folder). */
+export interface LegacyOwnerDestination { entryId: string; consumerId: string }
+/** grants: active copies. revocations: revoked copies whose site cleanup never finished. */
+export interface LegacyOwnerSnapshot { entries: VaultArchiveEntry[]; grants: LegacyOwnerDestination[]; revocations: LegacyOwnerDestination[] }
+
+/** Safe recovery guidance never includes underlying key material or vault payloads. */
+export class OwnerStoreRecoveryError extends Error {
+  constructor() {
+    super("Owner store key is missing, invalid, or cannot open existing data. Restore the original owner key.");
+    this.name = "OwnerStoreRecoveryError";
+  }
+}
+
+/** Fixed owner scope still preserves feature ownership, which the vault's AAD authenticates. */
+export function ownerContext(input: Pick<VaultContext, "kind" | "ownerKey" | "binding">, _options = {}): VaultContext {
+  return { kind: input.kind, ownerKey: input.ownerKey, binding: input.binding, workspaceId: OWNER_WORKSPACE_ID, principalId: null };
+}
+
+/** The legacy keyring exactly as the store wrote it; file fallback on, auto-generation off. */
+export function openLegacyOwnerVault({ repo, keyFilePath }: { repo: VaultRepoPort; keyFilePath: string },
+  options: Partial<Pick<VaultServiceDeps, "metaParsers">> = {}): SecretsVaultService {
+  const keyring = new EnvOrFileKeyring({ env: { read: () => undefined }, envVarName: "OWNER_STORE_KEY",
+    keyFilePath, hkdfSalt: "jini-owner-store-v1", allowFileFallback: true, allowFileAutoGenerate: false });
+  return new SecretsVaultService({ repo, keyring, sealer: new AesGcmSecretSealer({ keyring }),
+    metaParsers: options.metaParsers ?? createVaultMetaParsers({}), now: () => new Date().toISOString(), newId: () => randomUUID(),
+    authorize: async ({ context }) => {
+      if (context.workspaceId !== OWNER_WORKSPACE_ID || context.principalId !== null || !isCopyableKind[context.kind]) throw new VaultError({ code: "context" });
+    } });
+}
+
+/** One authenticated decrypt; any key or envelope failure is the fixed recovery error. */
+export async function readLegacyOwnerEntry({ vault, row }: { vault: SecretsVaultService; row: { id: string; kind: VaultKind; ownerKey: string; binding: string | null } }): Promise<VaultArchiveEntry> {
+  let entry: Awaited<ReturnType<SecretsVaultService["get"]>>;
+  try { entry = await vault.get({ ...ownerContext({ kind: row.kind, ownerKey: row.ownerKey, binding: row.binding }), id: row.id }); }
+  catch { throw new OwnerStoreRecoveryError(); }
+  if (!entry) throw new OwnerStoreRecoveryError();
+  const { summary } = entry;
+  return { id: summary.id, kind: summary.kind, ownerKey: summary.ownerKey, binding: summary.binding, provider: summary.provider,
+    label: summary.label, isDefault: summary.isDefault, meta: summary.meta, payload: entry.payload };
+}
+
 
 type BackupHint = Pick<VaultSummary, "last4" | "tokenLength">;
-type BackupEntry = LegacyOwnerEntry & BackupHint;
+type BackupEntry = VaultArchiveEntry & BackupHint;
 /** A pending target cleanup: the site may still hold the revoked copy, so the importer reports it. */
 type BackupRevocation = { entryId: string; consumerId: string; workspaceId: string; attempts: number; updatedAt: string };
 /** An active grant: its entry was synced to a site, which keeps that copy.

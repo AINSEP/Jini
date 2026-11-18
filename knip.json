@@ -624,6 +624,7 @@
         "src/net/endpoint-policy.ts",
         "src/fs/file-lock.ts",
         "src/secrets/credential-token.ts",
+        "src/secrets/legacy-owner.ts",
         "src/web/index.ts",
         "src/command.ts",
         "src/process.ts",

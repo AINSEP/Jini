@@ -24,12 +24,14 @@ Server entry imports never pull in React or a native binding eagerly.
 
 `ensurePrincipal({ principalRepo, externalId, displayName }, { workspaceId, clock })` from the server entry ensures only a credential-free user principal (no roles/policies), using the trimmed external ID as its principal ID; scope defaults to `"local"`, inputs allow 1–255 trimmed characters, and existing rows remain unchanged. It requires the optional atomic `PrincipalRepoPort.insertIfAbsent` capability (otherwise it fails closed); durable adapters must enforce composite-key uniqueness across processes. `InMemoryPrincipalRepo` implements it for tests/dev only.
 
-React consumers install compatible React/React DOM and `@jini-ai/{ui,admin,agentic}`
-peers. These peers are optional for universal/server consumers. Mount Users
-inside `FetchQueryProvider` from `@jini-ai/ui/panel-kit`; the current provider owns
-its cache directly. The roles/policies module uses `@jini-ai/ui-kit` and its React facades;
+React consumers install compatible React/React DOM peers (and `@jini-ai/ui-kit` for the roles/policies
+module). These peers are optional for universal/server consumers. The Users, Members and Login screens
+import no `ui` or `admin` component: they render through `<UserManagementKitProvider kit={...}>`
+(`@jini-ai/user-management/react/kit`: four component slots, five hook slots), which the host mounts once
+at its root with its own implementations (`const kit = {...} satisfies UserManagementKit`). Mount the
+provider inside the host's query provider; the fetch hooks in the kit own the cache. The roles/policies module uses `@jini-ai/ui-kit` and its React facades;
 see [roles administration wiring and cleanup](./src/admin/PORT.md).
-Member timestamps use `formatTimestamp({ iso })` from `@jini-ai/ui/panel-kit`.
+Member timestamps use `formatTimestamp({ iso })` from `@jini-ai/core/text`.
 Supply `port`, `translate` and a session/workspace `queryScope`.
 Login requires `productName`. Members optionally accepts a host-filtered refresh port.
 Screen ports use object IDs and separate optional fields. The fake roles port

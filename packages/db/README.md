@@ -278,9 +278,10 @@ missing-source-table/column formatter subset. Messages never select a schema or 
 Persisted `TransferNaming` remains required with no fallback; its display-only catalog
 examples still default to `app` / `app_`. Keep each host's existing wire names explicit.
 
-`@jini-ai/db/owner-store` exports the independent owner schema and pinned migration history.
-The concrete owner-vault assembly moved to `@jini-ai/server/owner-store`; use that entry for
-`openOwnerStore`, `OwnerStoreService` and encrypted backup operations.
+`@jini-ai/db/owner-store` exports the independent owner schema and pinned migration history, plus its
+read-only row queries (`countOwnerStoreRows`, `listOwnerEntryRows`, `listOwnerDestinations`). Decryption lives
+in `@jini-ai/platform/secrets/legacy-owner`; the file wiring (`countLegacyOwnerStore`, `readLegacyOwnerStore`)
+lives in `@jini-ai/server/owner-store`.
 
 **Migration (breaking, next release):** replace
 `import { openOwnerStore, OwnerStoreService, exportOwnerStore, restoreOwnerStore, OwnerStoreBackupError, OwnerStoreRecoveryError } from '@jini-ai/db/owner-store'`

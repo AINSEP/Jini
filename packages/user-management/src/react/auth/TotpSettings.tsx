@@ -1,4 +1,4 @@
-import { SecretInput } from '@jini-ai/ui';
+import { SecretInput } from '../kit.js';
 
 import { useTotpSettings, useTotpSettingsForm } from './TotpSettings.hooks.js';
 
