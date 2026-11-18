@@ -71,12 +71,12 @@ export function pickUsage(source: JsonObject, fields: UsageFields): Usage {
 }
 
 /** Routes a record frame to the handler registered for its `type`; unknown types are unhandled. */
-export function dispatchFrame(
-  handlers: ReadonlyMap<unknown, FrameHandler>,
-  obj: JsonObject,
-  onEvent: StreamEventHandler,
-  state: ParserState,
-): boolean {
+export function dispatchFrame({ handlers, obj, onEvent, state }: {
+  handlers: ReadonlyMap<unknown, FrameHandler>;
+  obj: JsonObject;
+  onEvent: StreamEventHandler;
+  state: ParserState;
+}): boolean {
   const handler = handlers.get(obj.type);
   return handler ? handler(obj, onEvent, state) : false;
 }
@@ -110,27 +110,27 @@ function isNonNullObject(value: unknown): value is object {
 }
 
 /** Unwrap string/record error envelopes, retaining string or numeric codes alongside messages. */
-export function extractErrorMessage(value: unknown, fallback: string): string {
+export function extractErrorMessage({ value, fallback }: { value: unknown; fallback: string }): string {
   if (typeof value === 'string') {
     const parsed = safeParseJson(value);
-    return isNonNullObject(parsed) ? extractErrorMessage(parsed, value) : value;
+    return isNonNullObject(parsed) ? extractErrorMessage({ value: parsed, fallback: value }) : value;
   }
   if (!isRecord(value)) return fallback;
-  const message = extractRecordErrorMessage(value, '');
+  const message = extractRecordErrorMessage({ value, fallback: '' });
   const code = typeof value.code === 'number' ? String(value.code) : trimmedNonBlank(value.code);
   return (code ? [code, message].filter(Boolean).join(': ') : message) || fallback;
 }
 
 /** Field precedence for an error object: detail, message (itself maybe JSON), error, data, name. */
-function extractRecordErrorMessage(value: JsonObject, fallback: string): string {
+function extractRecordErrorMessage({ value, fallback }: { value: JsonObject; fallback: string }): string {
   const detail = nonEmptyString(value.detail);
   if (detail) return detail;
   const message = nonEmptyString(value.message);
-  if (message) return extractErrorMessage(message, message);
+  if (message) return extractErrorMessage({ value: message, fallback: message });
   const error = nonEmptyString(value.error);
   if (error) return error;
-  if (isNonNullObject(value.error)) return extractErrorMessage(value.error, fallback);
-  const dataMessage = isNonNullObject(value.data) ? extractErrorMessage(value.data, '') : '';
+  if (isNonNullObject(value.error)) return extractErrorMessage({ value: value.error, fallback });
+  const dataMessage = isNonNullObject(value.data) ? extractErrorMessage({ value: value.data, fallback: '' }) : '';
   return dataMessage || nonEmptyString(value.name) || fallback;
 }
 
