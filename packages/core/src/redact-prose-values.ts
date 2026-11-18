@@ -58,9 +58,15 @@ const PASSPHRASE = /^[A-Za-z]+(?:[ \t]+[A-Za-z]+){1,7}[.!?]?[ \t]*$/;
 // still masked. The `=` form never gets this reading.
 const KEY_QUALIFIER_BEFORE = /(?:^|[^A-Za-z])(?:sort|primary|foreign|partition|cache|group|order|hash|map|composite|unique|lookup|index|natural|surrogate|join|shard|clustering|search|row)[ \t]+$/i;
 const QUALIFIED_KEY_MAX_VALUE = 11;
+// A longer answer is kept when it reads as a column name (`customerLastName`, `tenant_id_shard_bucket`), as the
+// formatter chat used before kept it: words of letters joined by `_`/`-` or camel case, at most a short number at the
+// end of a word. A random value changes case or digit class mid-word (`Zq8wPx3m...`) or carries a long digit run.
+const IDENTIFIER_WORD = /^[A-Za-z][a-z]*(?:[A-Z][a-z]+)*\d{0,4}$/;
+const isReadableIdentifier = (value: string): boolean => value.split(/[_-]/).every(word => IDENTIFIER_WORD.test(word));
 
-const isQualifiedKey = ({ before, label, token }: { before: string; label: string; token: number }): boolean =>
-  label.toLowerCase() === 'key' && token <= QUALIFIED_KEY_MAX_VALUE && KEY_QUALIFIER_BEFORE.test(before);
+const isQualifiedKey = ({ before, label, value }: { before: string; label: string; value: string }): boolean =>
+  label.toLowerCase() === 'key' && (value.length <= QUALIFIED_KEY_MAX_VALUE || isReadableIdentifier(value))
+  && KEY_QUALIFIER_BEFORE.test(before);
 
 /** The value after a line break is prose unless it is one bare token on the line right after the label. A header name
  * (`Authorization:`) never heads a paragraph, so its single-token value may follow blank lines, as the diagnostics
@@ -82,7 +88,7 @@ export function isProseAfterColon(
   { rest, gap }: { readonly rest: string; readonly gap: string },
   { before, label, token }: { readonly before: string; readonly label: string; readonly token: number },
 ): boolean {
-  if (isQualifiedKey({ before, label, token }) || PLACEHOLDER_RES.some(pattern => pattern.test(rest))) return true;
+  if (isQualifiedKey({ before, label, value: rest.slice(0, token) }) || PLACEHOLDER_RES.some(pattern => pattern.test(rest))) return true;
   const breaks = gap.match(/\n/g)?.length ?? 0;
   if (breaks > 0) return isNextLineProse({ rest, breaks, label });
   if (!SENTENCE_START.test(rest) || token >= OPAQUE_WORD_MIN) return false;

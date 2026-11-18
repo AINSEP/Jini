@@ -27,4 +27,10 @@ describe('user text on the shared engine', () => {
     const form = { id: 'f', title: 'F', questions: [{ id: 'password', label: 'Password', type: 'text' as const }] };
     expect(formatFormAnswers({ form, answers: {} }).split('\n')[1]).toBe('- Password: (skipped)');
   });
+  // The formatter chat used before kept a column-name answer of any length; core kept only 11 characters after a
+  // qualified key, so a transcript line such as "Sort key: customerLastName" lost its answer.
+  it.each(['id', 'created_at', 'customerLastName', 'orderPlacedAtTimestamp'])('keeps the sort-key answer %j in a transcript', answer => {
+    const form = { id: 'f', title: 'F', questions: [{ id: 'notes', label: 'Notes', type: 'textarea' as const }] };
+    expect(formatFormAnswers({ form, answers: { notes: `Sort key: ${answer}` } }).split('\n')[1]).toBe(`- Notes: Sort key: ${answer}`);
+  });
 });
