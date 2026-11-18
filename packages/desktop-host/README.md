@@ -113,6 +113,7 @@ before calling through. The ports are small: `SingleInstanceLockPort` is just `c
 |---|---|---|
 | `.` | The six port interfaces + DI tokens, the shell-agnostic implementations (sidecar launcher, single-instance, protocol proxy), paths, config, logging, Windows registry helpers, and the `window.__jini__` bridge. | none |
 | `./bridge-testing` | `createMockJiniHost` / `installMockJiniHost` for testing renderer code against the host bridge. | none |
+| `./app-version` | Framework-free `useSyncExternalStore`-shaped controllers for a window's version brand (`createAppVersionLoader`) and its "check for updates" action (`createUpdateCheck`). The main-process half is `registerAppVersionBridge` under `./electron`. | none |
 | `./electron` | The full Electron assembly + per-port factories + fakes. | none — `electron` is injected, not imported |
 | `./tauri` | The full Tauri assembly + per-port factories + fakes. `createTauriRenderService` throws `NotImplementedError`. | none — the Tauri API is injected, not imported |
 | `./shutdown` | Pending teardown tracking, quit/drain decisions and signal routing. | none |

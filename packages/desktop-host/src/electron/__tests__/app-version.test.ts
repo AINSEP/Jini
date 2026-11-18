@@ -9,8 +9,8 @@ describe("resolveDevAppVersion", () => {
   test("uses the nearest release tag, trimmed, with the host suffix", async () => {
     expect(await resolveDevAppVersion({ ...base, packageVersion: "1.0.0", describeTag: async ({ cwd }) => { expect(cwd).toBe("/repo"); return "acme-v2.4.1\n"; } })).toBe("2.4.1-beta");
   });
-  test("falls back to the package version for a non-release tag, an empty tag or a failing port", async () => {
-    for (const describeTag of [async () => "other-v9", async () => "acme-v", async () => { throw new Error("no git"); }]) {
+  test("falls back to the package version for a non-release tag, a bare prefix, an empty tag or a failing port", async () => {
+    for (const describeTag of [async () => "other-v9", async () => "acme-v", async () => "", async () => { throw new Error("no git"); }]) {
       expect(await resolveDevAppVersion({ ...base, packageVersion: "1.0.0", describeTag })).toBe("1.0.0-beta");
     }
   });
