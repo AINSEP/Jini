@@ -40,7 +40,7 @@ interface RefreshCtx {
     readonly leasePollMs: number;
 }
 // Preserve the terminal OAuth signal if the durable status write itself fails.
-async function markNeedsReauthBestEffort(ctx: RefreshCtx, key: string, reason: string): Promise<unknown> {
+async function markNeedsReauthBestEffort({ ctx, key, reason }: { ctx: RefreshCtx; key: string; reason: string }): Promise<unknown> {
     try {
         await ctx.deps.port.markNeedsReauth({
             key: key,
@@ -52,14 +52,22 @@ async function markNeedsReauthBestEffort(ctx: RefreshCtx, key: string, reason: s
         return error;
     }
 }
-async function failMissingRefreshToken(ctx: RefreshCtx, key: string, current: OAuthTokenSet): Promise<never> {
+async function failMissingRefreshToken({ ctx, key, current }: {
+  ctx: RefreshCtx;
+  key: string;
+  current: OAuthTokenSet;
+}): Promise<never> {
     const reason = isHardExpired(current, readNowIso({ clock: ctx.deps.clock }))
         ? "the provider issued no refresh token and the access token has expired"
         : "the provider issued no refresh token and the access token is due for refresh";
-    const writeFailure = await markNeedsReauthBestEffort(ctx, key, reason);
+    const writeFailure = await markNeedsReauthBestEffort({ ctx, key, reason });
     throw needsReauthError("no refresh token", { cause: writeFailure });
 }
-async function redeemRefreshToken(ctx: RefreshCtx, key: string, refreshToken: string): Promise<OAuthTokenSet> {
+async function redeemRefreshToken({ ctx, key, refreshToken }: {
+  ctx: RefreshCtx;
+  key: string;
+  refreshToken: string;
+}): Promise<OAuthTokenSet> {
     try {
         return await ctx.deps.port.refresh({
             key: key,
@@ -70,16 +78,20 @@ async function redeemRefreshToken(ctx: RefreshCtx, key: string, refreshToken: st
         const terminal = error instanceof OAuthError && (error.code === "OAUTH_INVALID_GRANT" || error.code === "OAUTH_ACCESS_DENIED");
         if (terminal) {
             const reason = "the provider rejected the stored refresh token";
-            const writeFailure = await markNeedsReauthBestEffort(ctx, key, reason);
+            const writeFailure = await markNeedsReauthBestEffort({ ctx, key, reason });
             throw needsReauthError(reason, { cause: writeFailure });
         }
         throw error;
     }
 }
-async function performRefresh(ctx: RefreshCtx, key: string, current: OAuthTokenSet): Promise<string> {
+async function performRefresh({ ctx, key, current }: {
+  ctx: RefreshCtx;
+  key: string;
+  current: OAuthTokenSet;
+}): Promise<string> {
     if (current.refreshToken === null)
-        return failMissingRefreshToken(ctx, key, current);
-    const rotated = await redeemRefreshToken(ctx, key, current.refreshToken);
+        return failMissingRefreshToken({ ctx, key, current });
+    const rotated = await redeemRefreshToken({ ctx, key, refreshToken: current.refreshToken });
     // Never hand out a rotated token before storage knows its new refresh token.
     await ctx.deps.port.persist({
         key: key,
@@ -120,7 +132,7 @@ async function awaitLeaseHolder(ctx: RefreshCtx, { key }: { readonly key: string
         }
     }
 }
-async function refreshUnderLease(ctx: RefreshCtx, key: string): Promise<string> {
+async function refreshUnderLease({ ctx, key }: { ctx: RefreshCtx; key: string }): Promise<string> {
     // Another holder may have rotated or cleared the token after our initial load.
     const reloaded = await ctx.deps.port.load({ key });
     if (reloaded === null)
@@ -131,19 +143,23 @@ async function refreshUnderLease(ctx: RefreshCtx, key: string): Promise<string> 
         skewMs: ctx.skewMs
     }))
         return reloaded.accessToken;
-    return await performRefresh(ctx, key, reloaded);
+    return await performRefresh({ ctx, key, current: reloaded });
 }
-async function refreshOnce(ctx: RefreshCtx, key: string, current: OAuthTokenSet): Promise<string> {
+async function refreshOnce({ ctx, key, current }: {
+  ctx: RefreshCtx;
+  key: string;
+  current: OAuthTokenSet;
+}): Promise<string> {
     const { port } = ctx.deps;
     if (!port.tryAcquireRefreshLease)
-        return performRefresh(ctx, key, current);
+        return performRefresh({ ctx, key, current });
     const acquired = await port.tryAcquireRefreshLease({
         key: key
     });
     if (!acquired)
         return awaitLeaseHolder(ctx, { key });
     try {
-        return await refreshUnderLease(ctx, key);
+        return await refreshUnderLease({ ctx, key });
     }
     finally {
         await port.releaseRefreshLease?.({
@@ -151,7 +167,11 @@ async function refreshOnce(ctx: RefreshCtx, key: string, current: OAuthTokenSet)
         }).catch(() => undefined);
     }
 }
-async function getAccessTokenCoalesced(ctx: RefreshCtx, inFlight: Map<string, Promise<string>>, key: string): Promise<string> {
+async function getAccessTokenCoalesced({ ctx, inFlight, key }: {
+  ctx: RefreshCtx;
+  inFlight: Map<string, Promise<string>>;
+  key: string;
+}): Promise<string> {
     const current = await ctx.deps.port.load({
         key: key
     });
@@ -167,7 +187,7 @@ async function getAccessTokenCoalesced(ctx: RefreshCtx, inFlight: Map<string, Pr
     const existing = inFlight.get(key);
     if (existing)
         return existing;
-    const attempt = refreshOnce(ctx, key, current).finally(() => {
+    const attempt = refreshOnce({ ctx, key, current }).finally(() => {
         inFlight.delete(key);
     });
     inFlight.set(key, attempt);
@@ -182,7 +202,7 @@ export function createTokenRefresher(deps: OAuthRequiredArgs<TokenRefresherDeps>
     };
     const inFlight = new Map<string, Promise<string>>();
     return {
-        getAccessToken: ({ key }) => getAccessTokenCoalesced(ctx, inFlight, key),
+        getAccessToken: ({ key }) => getAccessTokenCoalesced({ ctx, inFlight, key }),
         inFlightCount(_requiredArgs) {
             return inFlight.size;
         },
