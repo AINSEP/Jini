@@ -1,0 +1,32 @@
+From fb28e594eb56f867e5b20c9a5405e547e2221e51 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 18 Nov 2026 00:39:51 +0000
+Subject: [PATCH 4/6] chore(daemon): lower the injection and size debt rows
+ R8a/R8b step 4 and 8 retired
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01FiTZBoVsefwW5254ZQEFJi
+---
+ scripts/injection-debt.json | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/scripts/injection-debt.json b/scripts/injection-debt.json
+index cb940d78..c3f73e13 100644
+--- a/scripts/injection-debt.json
++++ b/scripts/injection-debt.json
+@@ -45,12 +45,10 @@
+   {"rule": "L5-injected-edge", "file": "packages/daemon/package.json", "spec": "@jini-ai/db", "kind": "manifest-dependencies", "count": 1, "lane": "L-STORAGE"},
+   {"rule": "L5-injected-edge", "file": "packages/daemon/package.json", "spec": "@jini-ai/http-kit", "kind": "manifest-dependencies", "count": 1, "lane": "L-ROUTES"},
+   {"rule": "L5-injected-edge", "file": "packages/daemon/package.json", "spec": "@jini-ai/platform", "kind": "manifest-dependencies", "count": 1, "lane": "L-PLATFORM"},
+-  {"rule": "L5-injected-edge", "file": "packages/daemon/src/agent-executor/antigravity/permissions.ts", "spec": "@jini-ai/platform/fs", "kind": "import", "count": 1, "lane": "L-PLATFORM"},
+   {"rule": "L5-injected-edge", "file": "packages/daemon/src/agent-executor/claude/filesystem.ts", "spec": "@jini-ai/agent-runtime", "kind": "import", "count": 1, "lane": "L-AGENTS"},
+   {"rule": "L5-injected-edge", "file": "packages/daemon/src/agent-executor/contracts.ts", "spec": "@jini-ai/agent-runtime", "kind": "type-import", "count": 1, "lane": "L-AGENTS"},
+   {"rule": "L5-injected-edge", "file": "packages/daemon/src/agent-executor/events.ts", "spec": "@jini-ai/agent-runtime", "kind": "import", "count": 1, "lane": "L-AGENTS"},
+   {"rule": "L5-injected-edge", "file": "packages/daemon/src/agent-executor/launch.ts", "spec": "@jini-ai/agent-runtime", "kind": "import", "count": 1, "lane": "L-AGENTS"},
+-  {"rule": "L5-injected-edge", "file": "packages/daemon/src/agent-executor/mcp-bridge.ts", "spec": "@jini-ai/agent-runtime", "kind": "type-import", "count": 1, "lane": "L-AGENTS"},
+   {"rule": "L5-injected-edge", "file": "packages/daemon/src/agent-executor/model-receipts.ts", "spec": "@jini-ai/agent-runtime", "kind": "import", "count": 1, "lane": "L-AGENTS"},
+   {"rule": "L5-injected-edge", "file": "packages/daemon/src/http/active-context.ts", "spec": "@jini-ai/http-kit", "kind": "import", "count": 1, "lane": "L-ROUTES"},
+   {"rule": "L5-injected-edge", "file": "packages/daemon/src/http/agents.ts", "spec": "@jini-ai/http-kit", "kind": "import", "count": 1, "lane": "L-ROUTES"},
+-- 
+2.43.0
+
