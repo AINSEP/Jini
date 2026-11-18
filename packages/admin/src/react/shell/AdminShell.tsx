@@ -1,6 +1,7 @@
 import { useId, useMemo, type ReactNode } from 'react';
 import { Sidebar } from '../components/Sidebar.js';
 import { resolveAdminShellModel, type AdminShellModel } from './model.js';
+import type { useShellDrawer } from './AdminShell.hooks.js';
 import { resolveShellHooks } from './shell-hooks.js';
 import type { useAdminTheme } from './use-admin-theme.js';
 import type { AdminShellAppearance } from './theme-ports.js';
@@ -43,21 +44,6 @@ function renderRoutedPanel({ model, slots, slotArgs }: {
 
 interface ShellView { readonly model: AdminShellModel; readonly slotArgs: AdminShellSlotArgs; readonly nav: readonly AdminNavGroup[] }
 
-/** Resolve the authenticated route, nav and slot arguments from the session's contributions. */
-function resolveShellView({ props, context, session, routePath, controller }: {
-  readonly props: AdminShellBaseProps; readonly context: AdminShellContext; readonly session: AdminShellSession;
-  readonly routePath: string; readonly controller: AdminShellSessionController;
-}, { appearance }: { readonly appearance?: AdminShellAppearance | undefined }): ShellView {
-  const model = resolveAdminShellModel({ panels: props.panels, session, routePath, defaultPanelId: props.defaultPanelId },
-    { capabilities: props.capabilities ?? [] });
-  const slotArgs: AdminShellSlotArgs = {
-    context, session, route: model.route, logout: controller.logout, refreshSession: controller.refresh,
-    ...(appearance ? { appearance } : {}),
-  };
-  const nav = props.translateNav ? props.translateNav({ groups: model.nav }) : model.nav;
-  return { model, slotArgs, nav };
-}
-
 /** The manifest-driven sidebar: header slot, nav groups, rail toggle and footer slot. */
 function ShellSidebar({ props, view, open, id }: {
   readonly props: AdminShellBaseProps; readonly view: ShellView; readonly open: boolean; readonly id: string;
@@ -75,27 +61,28 @@ function ShellSidebar({ props, view, open, id }: {
   );
 }
 
+interface ShellLayoutArgs {
+  readonly props: AdminShellBaseProps; readonly context: AdminShellContext; readonly controller: AdminShellSessionController;
+  readonly session: AdminShellSession; readonly appearance: AdminShellAppearance | undefined; readonly routePath: string;
+  readonly drawer: ReturnType<typeof useShellDrawer>; readonly sidebarId: string; readonly mainId: string;
+}
+
 /**
- * A host-composed admin layout with manifest navigation and a session gate.
- * @param props Required host scope, ports, contributions, labels and slots; optional layout settings.
- * @returns Loading/login/error UI or the authenticated sidebar, feature screen and pane slots.
+ * The authenticated tree. It is its own component so the model and the translated nav are memoized on
+ * what they derive from (panels, capabilities, the session's permissions, route, `translateNav`):
+ * a drawer toggle or a theme repaint re-renders the shell without rebuilding either.
  */
-export function AdminShell(props: AdminShellProps | AdminShellHostProps): ReactNode {
-  const context = useMemo(() => ({ apiBase: props.apiBase, workspace: props.workspace }), [props.apiBase, props.workspace]);
-  const hooks = resolveShellHooks({ props });
-  const session = hooks.useSession(context);
-  const appearance = hooks.useTheme({ userId: session.state.status === 'authenticated' ? session.state.session.user.id : null, workspace: context.workspace },
-    themeOptions(props));
-  const routePath = hooks.useRoute({ navigation: props.navigation, base: props.adminBase });
-  const drawer = hooks.useDrawer({ routePath });
-  const id = useId();
-  const sidebarId = `${id}-sidebar`;
-  const mainId = `${id}-main`;
-
-  if (session.state.status !== 'authenticated') return renderSessionGate({ props, context, state: session.state, refresh: session.refresh });
-
-  const view = resolveShellView({ props, context, session: session.state.session, routePath, controller: session }, { appearance });
-  const { model, slotArgs } = view;
+function ShellLayout({ args }: { readonly args: ShellLayoutArgs }): ReactNode {
+  const { props, context, controller, session, appearance, routePath, drawer, sidebarId, mainId } = args;
+  const { panels, capabilities, defaultPanelId, translateNav } = props;
+  const model = useMemo(() => resolveAdminShellModel({ panels, session, routePath, defaultPanelId }, capabilities ? { capabilities } : {}),
+    [panels, capabilities, session, routePath, defaultPanelId]);
+  const nav = useMemo(() => (translateNav ? translateNav({ groups: model.nav }) : model.nav), [translateNav, model]);
+  const slotArgs: AdminShellSlotArgs = {
+    context, session, route: model.route, logout: controller.logout, refreshSession: controller.refresh,
+    ...(appearance ? { appearance } : {}),
+  };
+  const view: ShellView = { model, slotArgs, nav };
   const assistant = props.slots.assistant;
 
   return (
@@ -121,4 +108,24 @@ export function AdminShell(props: AdminShellProps | AdminShellHostProps): ReactN
       {props.slots.overlays?.(slotArgs)}
     </div>
   );
+}
+
+/**
+ * A host-composed admin layout with manifest navigation and a session gate.
+ * @param props Required host scope, ports, contributions, labels and slots; optional layout settings.
+ * @returns Loading/login/error UI or the authenticated sidebar, feature screen and pane slots.
+ */
+export function AdminShell(props: AdminShellProps | AdminShellHostProps): ReactNode {
+  const context = useMemo(() => ({ apiBase: props.apiBase, workspace: props.workspace }), [props.apiBase, props.workspace]);
+  const hooks = resolveShellHooks({ props });
+  const controller = hooks.useSession(context);
+  const { state } = controller;
+  const appearance = hooks.useTheme({ userId: state.status === 'authenticated' ? state.session.user.id : null, workspace: context.workspace },
+    themeOptions(props));
+  const routePath = hooks.useRoute({ navigation: props.navigation, base: props.adminBase });
+  const drawer = hooks.useDrawer({ routePath });
+  const id = useId();
+
+  if (state.status !== 'authenticated') return renderSessionGate({ props, context, state, refresh: controller.refresh });
+  return <ShellLayout args={{ props, context, controller, session: state.session, appearance, routePath, drawer, sidebarId: `${id}-sidebar`, mainId: `${id}-main` }} />;
 }

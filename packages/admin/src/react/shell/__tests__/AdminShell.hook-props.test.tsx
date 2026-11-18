@@ -2,49 +2,12 @@ import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, expect, expectTypeOf, it, vi } from 'vitest';
 import { AdminShell } from '../AdminShell.js';
 import type { AdminShellAppearance } from '../theme-ports.js';
-import type {
-  AdminShellBaseProps, AdminShellHostProps, AdminShellNavigationPort, AdminShellPanel, AdminShellProps, AdminShellSessionController, AdminShellSessionPort,
-} from '../types.js';
+import type { AdminShellHostProps, AdminShellProps, AdminShellSessionController } from '../types.js';
+import { baseFields, baseProps, controller, operator, ports, type Ports } from './shell-fixture.js';
 
 // J2 step 1: every hook the shell calls arrives as a prop defaulted to the real hook, so each
 // test hands the shell a fake and asserts the real one's collaborator was never touched.
-const session = { user: { id: 'u1', username: 'operator' }, effectivePermissions: ['*'] };
-const panels: readonly AdminShellPanel[] = [
-  { id: 'dashboard', description: 'Manage dashboard.', render: () => <h1>Overview screen</h1>, nav: { label: 'Overview' } },
-  { id: 'records', description: 'Manage records.', render: ({ route }) => <h1>Records {route.params.recordId}</h1>, nav: { label: 'Records' },
-    routes: [{ pattern: '/:recordId', view: 'detail' }] },
-];
-const labels = {
-  navigation: 'Navigation', openNavigation: 'Open navigation', closeNavigation: 'Close navigation', skipToContent: 'Skip to content',
-  loading: 'Checking session', sessionError: 'Session unavailable', retry: 'Retry', expandSidebar: 'Expand sidebar',
-  collapseSidebar: 'Collapse sidebar', soon: 'Soon',
-};
-
-/** Ports whose every method is a spy: a fake hook must keep all of them untouched. */
-function ports() {
-  const navigation: AdminShellNavigationPort = {
-    readRoute: vi.fn(() => '/'), subscribe: vi.fn(() => () => {}), navigate: vi.fn(), installLinkInterceptor: vi.fn(() => () => {}),
-  };
-  const sessionPort: AdminShellSessionPort = {
-    read: vi.fn(async () => session), logout: vi.fn(async () => {}), onUnauthenticated: vi.fn(() => () => {}),
-  };
-  const themePreferenceStore = { read: vi.fn(() => null), write: vi.fn() };
-  return { navigation, sessionPort, themePreferenceStore };
-}
-
-function baseFields(p: ReturnType<typeof ports>): AdminShellBaseProps {
-  return {
-    apiBase: '/operator-api', workspace: { projectId: 'p1' }, adminBase: '/console', defaultPanelId: 'dashboard', railStorageKey: 'hook-props-rail',
-    title: 'Console', navigation: p.navigation, panels, labels, themePreferenceStore: p.themePreferenceStore,
-    slots: { login: () => <p>Login fixture</p> },
-  };
-}
-
-const baseProps = (p: ReturnType<typeof ports>): AdminShellProps => ({ ...baseFields(p), session: p.sessionPort });
-
-const controller = (state: AdminShellSessionController['state']): AdminShellSessionController => ({
-  state, refresh: vi.fn(async () => {}), logout: vi.fn(async () => {}),
-});
+const session = operator;
 
 afterEach(cleanup);
 
@@ -94,7 +57,7 @@ it('useDrawerHook: a fake drawer state drives the toggle and backdrop', () => {
 });
 
 // 1b: a host that owns the session machine passes `useHostSession` and no port at all.
-function hostProps(p: ReturnType<typeof ports>, useHostSession: () => AdminShellSessionController): AdminShellHostProps {
+function hostProps(p: Ports, useHostSession: () => AdminShellSessionController): AdminShellHostProps {
   return { ...baseFields(p), useHostSession };
 }
 
