@@ -1,4 +1,125 @@
 {
   "version": 1,
-  "allow": []
+  "allow": [
+    {
+      "id": "15004f5ecbb6",
+      "reason": "Provenance claim is false now: invocation.ts no longer imports createCommandInvocation from @jini-ai/platform; it plans with core's planCommandInvocation. The module header was rewritten to say so."
+    },
+    {
+      "id": "0df8fa4ad951",
+      "reason": "Kept in place (oauth-callback-server.ts, same sentence) with the function renamed handle() -> dispatchCallback() when the handler was split."
+    },
+    {
+      "id": "4affbb6c73ce",
+      "reason": "The re-export it explains no longer exists: agent-runtime types.ts dropped the AgentDiagnostic/AgentFixIntent re-export shell (owner rule: no forwarders) and importers point at @jini-ai/protocol directly."
+    },
+    {
+      "id": "6b97fbcabdcf",
+      "reason": "The excluded file src/providers/types.ts was deleted; its shapes live in @jini-ai/core contracts/agents/model-catalog.ts, which core's coverage config does not exclude. Nothing is carved out any more."
+    },
+    {
+      "id": "f159774f3016",
+      "reason": "False now: the legacy wire reducer is gone (one reducer, translateRunAgentPayload) and tool-result media/isError/outcome now ride on TOOL_CALL_RESULT as extra fields. event-projection.ts carries the current header."
+    },
+    {
+      "id": "deeb820b0e87",
+      "reason": "Its function reduceAgentWirePayload was deleted with the legacy wire reducer (A1 split of ag-ui/entry.ts); the daemon payload reduction is translateRunAgentPayload in run-events."
+    },
+    {
+      "id": "32e31150055f",
+      "reason": "False now: the projection carries isError as an extra field, so it survives the AG-UI round trip. event-reduction.ts has the rewritten comment at the same case."
+    },
+    {
+      "id": "e5c80d9bac89",
+      "reason": "OriginContext no longer holds the resolved port and env; it is only { originPolicy }. The port/env half of the sentence moved to createLocalSameOriginPolicy's doc."
+    },
+    {
+      "id": "d52b8242ee25",
+      "reason": "guardSameOrigin no longer wraps isLocalSameOrigin; it asks the host's injected origin policy. The same sentence is kept in adjusted form in the doc above guardSameOrigin."
+    },
+    {
+      "id": "e125772f1b42",
+      "reason": "Split: the malformed-percent-encoding half is still decodeParam's comment; the empty-segment half moved to matchSegment's own comment, since the empty check moved there."
+    },
+    {
+      "id": "9bb69b503369",
+      "reason": "Daemon test no longer builds the real engine itself; the manager takes a host-built service. The recording spy over createTerminalService now lives in server's builtin-features.terminal-service.test.ts, with its own comment."
+    },
+    {
+      "id": "17de6e09aa2c",
+      "reason": "The one-line pointer to the deleted same-origin-gate fixture, in 20 route tests that no longer spy the guard and inject an origin policy instead."
+    },
+    {
+      "id": "1c2b4ab5fcfd",
+      "reason": "The same-origin gate fixture was deleted. Routes take an injected SameOriginPolicyPort (core/contracts/server/testing: allowAllOrigins, denyAllOrigins, createRecordingOriginPolicy), so no test mocks guardSameOrigin any more."
+    },
+    {
+      "id": "77b987a5e4dc",
+      "reason": "Part of the deleted same-origin-gate fixture (guard is injected as a policy port now, never vi.mock'd)."
+    },
+    {
+      "id": "97991e658665",
+      "reason": "Part of the deleted same-origin-gate fixture (guard is injected as a policy port now, never vi.mock'd)."
+    },
+    {
+      "id": "b7546a9fb0a5",
+      "reason": "Part of the deleted same-origin-gate fixture (guard is injected as a policy port now, never vi.mock'd)."
+    },
+    {
+      "id": "93a457eb2597",
+      "reason": "The over-the-wire Express tests were replaced by in-memory server tests; the surviving comment says what status code a caller sees. There is no wire half any more."
+    },
+    {
+      "id": "b27bdde2c6b8",
+      "reason": "registerToolCatalogRoutes(app) was replaced by toolCatalogRoutes(), routes as data. The host mounts them and no pack calls this with an app; the new doc says so."
+    },
+    {
+      "id": "490796c361f1",
+      "reason": "The option it documents (terminalService on CreateTerminalSessionManagerOptions) is gone: the manager is handed a required service and builds none. The new required-arg doc says so."
+    },
+    {
+      "id": "c60be620a8a5",
+      "reason": "The loadSpawnPty option was removed from the session manager; the host passes it where it builds the service, and the module header says so."
+    },
+    {
+      "id": "a87ae8fa0c5d",
+      "reason": "Its text is kept except the sentence about a missing host service/loader making create() reject, which is false now (the manager never builds a service). The 'wrapper setup is O(1)' sentence was adjusted."
+    },
+    {
+      "id": "5f7d56df73ba",
+      "reason": "mintToolErrorId moved to core errors/error-id.ts with a doc that is accurate to the port-based version (randomness injected); the redaction.ts pattern doc names the new owner."
+    },
+    {
+      "id": "55bf2b580d65",
+      "reason": "One-line provenance comment whose source path moved: now '@jini-ai/core src/contracts/ai-trace/__tests__/scenario.ts'."
+    },
+    {
+      "id": "ef454bb06c25",
+      "reason": "Describes the old vi.mock of createTerminalSessionManager. The test now spies createTerminalService, and the new comment above that mock says so."
+    },
+    {
+      "id": "4452cb29ccc9",
+      "reason": "The createFrontendControl re-export from @jini-ai/server was removed (no forwarders); hosts import it from @jini-ai/daemon/http."
+    },
+    {
+      "id": "818263e30d9f",
+      "reason": "Decorative section divider: the cluster became its own factory (createConfigPort), whose name carries the section."
+    },
+    {
+      "id": "8663777d8275",
+      "reason": "Decorative section divider: the cluster became createEntryReaders/createEntryWriters, whose docs carry the section."
+    },
+    {
+      "id": "45db51807f8e",
+      "reason": "Decorative section divider: the cluster became createExtractionsPort, whose name carries the section."
+    },
+    {
+      "id": "ee94f8c26bd1",
+      "reason": "A 'see onToggleEnabled above' pointer. Both toggles now share runOptimisticToggle, which holds the one explanation of why settle invalidates again."
+    },
+    {
+      "id": "65377600f4f5",
+      "reason": "The claim that the version, list and preview state cannot split cleanly is false: the hook was split into useVersionManager.state.ts sub-hooks, and the new doc says so."
+    }
+  ]
 }
