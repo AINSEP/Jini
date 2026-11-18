@@ -928,14 +928,14 @@
     "function": "<file>",
     "line": 697,
     "rule": "max-lines",
-    "value": 723
+    "value": 716
   },
   {
     "file": "packages/user-management/src/react/users/Users.tsx",
     "function": "Users",
     "line": 826,
     "rule": "max-lines-per-function",
-    "value": 127
+    "value": 126
   },
   {
     "file": "packages/user-management/src/server/agent-tool-registrations.ts",
