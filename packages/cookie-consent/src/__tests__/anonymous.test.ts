@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /** Owner decisions R2/R3, 2026-10-26: real render/client/server boundaries, no vendor assumptions. */
 import { afterEach, expect, test, vi } from 'vitest';
-import { boot, browserPorts } from '../client/index.js';
+import { boot, browserPorts, purgeStorage } from '../client/index.js';
 import { renderBanner } from '../render/index.js';
 import { readConsent, handleReceipt } from '../server/index.js';
 import type { ConsentState } from '../contract.js';
@@ -149,7 +149,7 @@ for (const gpc of [false, true]) test(`off lazy adapters receive the current lev
   const api = boot(window, { ports: { ...browserPorts(window), importModule, fetch: vi.fn() } })!;
   await new Promise(r => setTimeout(r, 0));
   expect(importModule).toHaveBeenCalledOnce();
-  expect(onState).toHaveBeenCalledWith({ state: api.get() });
+  expect(onState).toHaveBeenCalledWith({ state: api.get(), purge: purgeStorage });
   expect(api.get().allowed.analytics).toBe(false);
   expect(grant).toHaveBeenCalledTimes(gpc ? 0 : 1);
 });

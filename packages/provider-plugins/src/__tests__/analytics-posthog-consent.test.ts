@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
 import { ADAPTER_SLOT } from '@jini-ai/cookie-consent/plugins';
+import { purgeStorage } from '@jini-ai/cookie-consent/client';
 import type { ConsentState, RawContribution } from '@jini-ai/cookie-consent';
 import { ADAPTER_FILE, POSTHOG_SDK_INTEGRITY, postHogConsentContribution, SDK_FILE } from '../analytics-posthog/consent.js';
 import defaultAdapter, { createPostHogConsentAdapter, loadVerifiedSdk, POSTHOG_STORAGE, safePath, type LoaderDocument,
@@ -49,7 +50,7 @@ it('revocation works when an SDK client does not provide the optional replay sto
       return client;
     },
   }) } });
-  const revoker = await adapter.grant({ config: config(), state, signal: new AbortController().signal });
+  const revoker = await adapter.grant({ purge: purgeStorage, config: config(), state, signal: new AbortController().signal });
   expect(await revoker!.revoke!()).toBe(true);
   expect(configs).toHaveLength(1);
   expect(configs[0]).toMatchObject({ disable_persistence: true, autocapture: false, disable_session_recording: true });
@@ -143,7 +144,7 @@ describe('PostHog consent adapter (browser module)', () => {
 
   it('grant loads the pinned SDK with its digest and starts one named instance with privacy settings', async () => {
     const f = adapterWith();
-    const revoker = await f.adapter.grant({ config: config(), state, signal: new AbortController().signal });
+    const revoker = await f.adapter.grant({ purge: purgeStorage, config: config(), state, signal: new AbortController().signal });
     expect(revoker).not.toBeNull();
     expect(f.loads).toEqual([{ src: '/_consent/posthog/sdk-1.260.2.js', integrity: POSTHOG_SDK_INTEGRITY }]);
     expect(f.inits).toHaveLength(1);
@@ -156,11 +157,11 @@ describe('PostHog consent adapter (browser module)', () => {
 
   it('runs nothing when the SDK fails its integrity check or the choice is withdrawn mid-download', async () => {
     const failed = adapterWith({ fail: true });
-    expect(await failed.adapter.grant({ config: config(), state, signal: new AbortController().signal })).toBeNull();
+    expect(await failed.adapter.grant({ purge: purgeStorage, config: config(), state, signal: new AbortController().signal })).toBeNull();
     expect(failed.inits).toEqual([]);
     const ctl = new AbortController();
     const withdrawn = adapterWith();
-    const pending = withdrawn.adapter.grant({ config: config(), state, signal: ctl.signal });
+    const pending = withdrawn.adapter.grant({ purge: purgeStorage, config: config(), state, signal: ctl.signal });
     ctl.abort();
     expect(await pending).toBeNull();
     expect(withdrawn.inits).toEqual([]);
@@ -168,14 +169,14 @@ describe('PostHog consent adapter (browser module)', () => {
 
   it('revoke stops replay, disables persistence and drops events; it asks for a reload only when replay may have run', async () => {
     const f = adapterWith();
-    const revoker = await f.adapter.grant({ config: config(), state, signal: new AbortController().signal });
+    const revoker = await f.adapter.grant({ purge: purgeStorage, config: config(), state, signal: new AbortController().signal });
     expect(await revoker!.revoke!()).toBe(true);
     expect(f.stopped()).toBe(1);
     const retired = f.configs.at(-1)!;
     expect(retired).toMatchObject({ disable_persistence: true, autocapture: false, capture_pageview: false, disable_session_recording: true });
     expect(retired.before_send({ event: 'x' })).toBeNull();
     const replay = adapterWith();
-    const replayed = await replay.adapter.grant({ config: config({ sessionReplay: true }), state, signal: new AbortController().signal });
+    const replayed = await replay.adapter.grant({ purge: purgeStorage, config: config({ sessionReplay: true }), state, signal: new AbortController().signal });
     expect(replay.inits[0]!.disable_session_recording).toBe(false);
     expect(await replayed!.revoke!()).toBe(false);
   });
@@ -183,10 +184,10 @@ describe('PostHog consent adapter (browser module)', () => {
   it('a second grant in the same page re-applies settings to the same instance, so events flow again', async () => {
     const f = adapterWith();
     const first = new AbortController();
-    const revoker = await f.adapter.grant({ config: config(), state, signal: first.signal });
+    const revoker = await f.adapter.grant({ purge: purgeStorage, config: config(), state, signal: first.signal });
     first.abort();
     await revoker!.revoke!();
-    const second = await f.adapter.grant({ config: config(), state, signal: new AbortController().signal });
+    const second = await f.adapter.grant({ purge: purgeStorage, config: config(), state, signal: new AbortController().signal });
     expect(second).not.toBeNull();
     expect(f.inits).toHaveLength(1);
     const reapplied = f.configs.at(-1)!;
@@ -197,7 +198,7 @@ describe('PostHog consent adapter (browser module)', () => {
   it('before_send keeps an allow-list, redacts paths and DOM content, and drops events once withdrawn', async () => {
     const f = adapterWith();
     const ctl = new AbortController();
-    await f.adapter.grant({ config: config(), state, signal: ctl.signal });
+    await f.adapter.grant({ purge: purgeStorage, config: config(), state, signal: ctl.signal });
     const beforeSend = f.inits[0]!.before_send;
     const sent = beforeSend({ event: '$autocapture', properties: { distinct_id: 'visitor:1', $browser: 'Firefox', email: 'a@b.example',
       $current_url: 'https://site.example/account?token=secret', $referrer: 'https://elsewhere.example',
@@ -216,7 +217,7 @@ describe('PostHog consent adapter (browser module)', () => {
     const f = adapterWith();
     f.setId('visitor:returning');
     const ctl = new AbortController();
-    await f.adapter.grant({ config: { ...config(), siteId: undefined } as unknown as PostHogConsentConfig, state, signal: ctl.signal });
+    await f.adapter.grant({ purge: purgeStorage, config: { ...config(), siteId: undefined } as unknown as PostHogConsentConfig, state, signal: ctl.signal });
     expect(f.identified).toEqual(['visitor:returning']);
     expect(f.inits[0]!.persistence_name).toBe('jini_site_site');
     expect(f.inits[0]!.before_send({ event: 'x', properties: {} }).properties).not.toHaveProperty('site_id');
@@ -270,7 +271,7 @@ describe('default browser ports', () => {
     try {
       const fakeModule = 'export default { init: (_t, settings) => { globalThis.__phSettings = settings; return { set_config() {}, get_distinct_id: () => "a", identify() {} }; } };';
       const sdk = `data:text/javascript,${encodeURIComponent(fakeModule)}`;
-      const revoker = await defaultAdapter.grant({ config: config({ sdk }), state, signal: new AbortController().signal });
+      const revoker = await defaultAdapter.grant({ purge: purgeStorage, config: config({ sdk }), state, signal: new AbortController().signal });
       expect(revoker).not.toBeNull();
       expect(appended[0]).toMatchObject({ type: 'module', integrity: POSTHOG_SDK_INTEGRITY });
       const settings = page.__phSettings as Settings;
