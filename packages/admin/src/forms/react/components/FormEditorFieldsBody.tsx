@@ -30,13 +30,15 @@ export interface FormEditorFieldsBodyProps {
   onHtmlChange: (html: string) => void;
   onCopyEmbed: () => void;
   copyFeedback: string | null;
+  /** Dependency injection seam for tests; defaulted to the real hook. */
+  useFormFieldsBodyViewHook?: typeof useFormFieldsBodyView;
 }
 
 /** Edit the existing form body and explicit collection destination without crossing their state boundaries.
  * @complexity O(f) render time/space for fields; event callbacks perform no direct I/O.
  * Provider settings come from the shared runtime description; no vendor choices live in this view. */
-export function FormEditorFieldsBody(props: FormEditorFieldsBodyProps) {
-  const handlers = useFormFieldsBodyView(props);
+export function FormEditorFieldsBody({ useFormFieldsBodyViewHook = useFormFieldsBodyView, ...props }: FormEditorFieldsBodyProps) {
+  const handlers = useFormFieldsBodyViewHook(props);
   const { name, slug, isNew, t } = props;
 
   return (

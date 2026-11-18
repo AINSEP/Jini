@@ -11,6 +11,8 @@ export interface FormFieldsEditorProps {
   useFormFieldsEditorHook?: typeof useFormFieldsEditor;
   /** Translator closure — see `FormEditor()`'s own `t`. */
   t: (key: string) => string;
+  /** Same seam for the row view-model hook. */
+  useFormFieldsViewHook?: typeof useFormFieldsView;
 }
 
 export function FormFieldsEditor({
@@ -18,6 +20,7 @@ export function FormFieldsEditor({
   existingFieldIds = [],
   onChange,
   useFormFieldsEditorHook = useFormFieldsEditor,
+  useFormFieldsViewHook = useFormFieldsView,
   t,
 }: FormFieldsEditorProps, _optional: Record<string, never> = {}) {
   const controller = useFormFieldsEditorHook({ fields, onChange });
@@ -27,7 +30,7 @@ export function FormFieldsEditor({
   // position fallback covers that case the same way it covers any other unsluggable id. Not
   // `useMemo`d: one form's own field list is small and this is an O(n) pass, cheap enough that
   // memoizing it was not judged worth the added indirection.
-  const { rows, editingField, saveAttributes } = useFormFieldsView({ fields, existingFieldIds, controller });
+  const { rows, editingField, saveAttributes } = useFormFieldsViewHook({ fields, existingFieldIds, controller });
 
   return (
     <>

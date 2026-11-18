@@ -38,12 +38,14 @@ export interface FormsListProps {
    * convention. Defaulted to the real hook, so `panels.tsx` passes nothing.
    */
   useFormsListHook?: typeof useWiredFormsList;
+  /** Same seam for the view-model hook that builds the table rows. */
+  useFormsListViewHook?: typeof useFormsListView;
 }
 
-export function FormsList({ useFormsListHook = useWiredFormsList }: FormsListProps = {}, _optional: Record<string, never> = {}) {
+export function FormsList({ useFormsListHook = useWiredFormsList, useFormsListViewHook = useFormsListView }: FormsListProps = {}, _optional: Record<string, never> = {}) {
   const { forms, formatFormDates, error, rowSavingId, toggleStatus, pendingDelete, setPendingDelete, removeForm, t } = useFormsListHook();
 
-  const { rows, cancelDelete, headerActions } = useFormsListView({ forms, t, formatFormDates, toggleStatus, setPendingDelete });
+  const { rows, cancelDelete, headerActions } = useFormsListViewHook({ forms, t, formatFormDates, toggleStatus, setPendingDelete });
 
   if (error && !forms) return <div className="notice error">{error}</div>;
   if (!forms) return <div className="notice">{t("Loading forms…")}</div>;

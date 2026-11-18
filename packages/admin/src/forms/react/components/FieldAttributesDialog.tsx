@@ -15,6 +15,8 @@ export interface FieldAttributesDialogProps {
   useFieldAttributesDialogHook?: typeof useFieldAttributesDialog;
   /** Translator closure — see `FormEditor()`'s own `t`. */
   t: (key: string) => string;
+  /** Same seam for the view-model hook. */
+  useFieldAttributesViewHook?: typeof useFieldAttributesView;
 }
 
 export function FieldAttributesDialog({
@@ -23,6 +25,7 @@ export function FieldAttributesDialog({
   onSave,
   onCancel,
   useFieldAttributesDialogHook = useFieldAttributesDialog,
+  useFieldAttributesViewHook = useFieldAttributesView,
   t,
 }: FieldAttributesDialogProps, _optional: Record<string, never> = {}) {
   const controller = useFieldAttributesDialogHook({
@@ -36,7 +39,7 @@ export function FieldAttributesDialog({
   // one field's own CSS-class/HTML-attribute rows (a handful at most), cheap enough that memoizing
   // it was not judged worth the added indirection.
   const { className, addRow, error, submit } = controller;
-  const { rows, displayName, onClose, onClassName, hasStyling } = useFieldAttributesView({ field, fieldIndex, controller, onCancel });
+  const { rows, displayName, onClose, onClassName, hasStyling } = useFieldAttributesViewHook({ field, fieldIndex, controller, onCancel });
 
   return (
     <Dialog open title={`${t("Field settings —")} ${displayName}`}

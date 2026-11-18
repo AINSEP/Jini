@@ -1219,18 +1219,6 @@
         "packages/ui/src/features/sketch-editor/react/dependencies-fake.tsx"
       ]
     },
-    "FieldAttributesDialog::useFieldAttributesView": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/forms/react/components/FieldAttributesDialog.tsx"
-      ]
-    },
-    "FieldSettingsSection::useFieldSettingsView": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/forms/react/components/FieldSettingsSection.tsx"
-      ]
-    },
     "FileDropzone::useGlobalKeydown": {
       "count": 1,
       "files": [
@@ -1325,48 +1313,6 @@
       "count": 1,
       "files": [
         "packages/chat/src/react/components/FolderChips.tsx"
-      ]
-    },
-    "FormEditorFieldsBody::useFormFieldsBodyView": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/forms/react/components/FormEditorFieldsBody.tsx"
-      ]
-    },
-    "FormEditorTabStrip::useFormTabStripView": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/forms/react/components/FormEditorTabStrip.tsx"
-      ]
-    },
-    "FormFieldsEditor::useFormFieldsView": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/forms/react/components/FormFieldsEditor.tsx"
-      ]
-    },
-    "FormSubmissionDetail::useFormSubmissionDate": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/forms/react/components/FormSubmissionDetail.tsx"
-      ]
-    },
-    "FormSubmissions::useFormSubmissionDate": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/forms/react/components/FormSubmissions.tsx"
-      ]
-    },
-    "FormSubmissions::useSubmissionsView": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/forms/react/components/FormSubmissions.tsx"
-      ]
-    },
-    "FormsList::useFormsListView": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/forms/react/pages/FormsList.tsx"
       ]
     },
     "FullscreenButton::useT": {
