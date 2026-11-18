@@ -111,7 +111,8 @@ function renderAssistant(slots: AdminShellBaseProps['slots']): ReactNode {
 }
 
 /**
- * The authenticated tree. It is its own component so the model and the translated nav are memoized on
+ * Resolve the authenticated route, nav and slot arguments from the session's contributions, then lay out
+ * the sidebar, main column, assistant and overlays. It is its own component so the model and the translated nav are memoized on
  * what they derive from (panels, capabilities, the session's permissions, route, `translateNav`):
  * a drawer toggle or a theme repaint re-renders the shell without rebuilding either.
  */
