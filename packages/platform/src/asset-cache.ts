@@ -194,7 +194,7 @@ interface AssetCacheState {
   readonly inflight: Map<string, Promise<AssetCacheResult>>;
 }
 
-async function readFromDisk(s: AssetCacheState, { key }: { key: string }, _options = {}): Promise<AssetCacheResult | null> {
+async function readFromDisk({ s, key }: { s: AssetCacheState; key: string }): Promise<AssetCacheResult | null> {
   const { cacheDir } = s;
   const blobPath = path.join(cacheDir, key);
   const metaPath = `${blobPath}.json`;
@@ -210,7 +210,11 @@ async function readFromDisk(s: AssetCacheState, { key }: { key: string }, _optio
   }
 }
 
-async function writeToDisk(s: AssetCacheState, key: string, result: AssetCacheResult): Promise<void> {
+async function writeToDisk({ s, key, result }: {
+  s: AssetCacheState;
+  key: string;
+  result: AssetCacheResult;
+}): Promise<void> {
   const { cacheDir } = s;
   await mkdir(cacheDir, { recursive: true });
   const blobPath = path.join(cacheDir, key);
@@ -242,16 +246,18 @@ function resolveContentType({ headerValue, url }: { headerValue: string | null; 
   throw new AssetCacheError(415, `unsupported content-type: ${header || 'unknown'}`);
 }
 
-function assertWithinLimit(s: AssetCacheState, total: number): void {
+function assertWithinLimit({ s, total }: { s: AssetCacheState; total: number }): void {
   const { maxBytes } = s;
   if (total > maxBytes) throw new AssetCacheError(413, 'asset exceeds size limit');
 }
 
 /** Pull chunks until done, failing as soon as the running total passes
  *  `maxBytes`. Always releases the reader, even on the size-limit throw. */
-async function drainCapped(s: AssetCacheState, reader: ReadableStreamDefaultReader<Uint8Array>,
-  controller: AbortController,
-): Promise<Buffer> {
+async function drainCapped({ s, reader, controller }: {
+  s: AssetCacheState;
+  reader: ReadableStreamDefaultReader<Uint8Array>;
+  controller: AbortController;
+}): Promise<Buffer> {
   const { maxBytes } = s;
   const chunks: Uint8Array[] = [];
   let total = 0;
@@ -280,15 +286,23 @@ async function drainCapped(s: AssetCacheState, reader: ReadableStreamDefaultRead
  *  `maxBytes`. A response without a trustworthy Content-Length must never be
  *  fully buffered first — that would turn this caller-supplied proxy into a
  *  memory-exhaustion path. */
-async function readBodyCapped(s: AssetCacheState, response: Response, controller: AbortController): Promise<Buffer> {
+async function readBodyCapped({ s, response, controller }: {
+  s: AssetCacheState;
+  response: Response;
+  controller: AbortController;
+}): Promise<Buffer> {
   const body = response.body;
-  if (body) return drainCapped(s, body.getReader(), controller);
+  if (body) return drainCapped({ s, reader: body.getReader(), controller });
   const ab = await response.arrayBuffer();
-  assertWithinLimit(s, ab.byteLength);
+  assertWithinLimit({ s, total: ab.byteLength });
   return Buffer.from(ab);
 }
 
-async function fetchAndStore(s: AssetCacheState, rawUrl: string, key: string): Promise<AssetCacheResult> {
+async function fetchAndStore({ s, rawUrl, key }: {
+  s: AssetCacheState;
+  rawUrl: string;
+  key: string;
+}): Promise<AssetCacheResult> {
   const { timeoutMs, fetchImpl, dispatcher } = s;
   const url = assertSafePublicUrl(rawUrl);
   const controller = new AbortController();
@@ -310,12 +324,12 @@ async function fetchAndStore(s: AssetCacheState, rawUrl: string, key: string): P
       throw new AssetCacheError(502, `upstream responded ${response.status}`);
     }
     const declaredLength = Number(response.headers.get('content-length') ?? '');
-    if (Number.isFinite(declaredLength)) assertWithinLimit(s, declaredLength);
+    if (Number.isFinite(declaredLength)) assertWithinLimit({ s, total: declaredLength });
     const contentType = resolveContentType({ headerValue: response.headers.get('content-type'), url });
-    const buf = await readBodyCapped(s, response, controller);
+    const buf = await readBodyCapped({ s, response, controller });
     const result: AssetCacheResult = { buf, contentType };
     try {
-      await writeToDisk(s, key, result);
+      await writeToDisk({ s, key, result });
     } catch {
       // A cache-write failure must not fail the request; serve from memory.
     }
@@ -325,18 +339,18 @@ async function fetchAndStore(s: AssetCacheState, rawUrl: string, key: string): P
   }
 }
 
-async function get(s: AssetCacheState, rawUrl: string): Promise<AssetCacheResult> {
+async function get({ s, rawUrl }: { s: AssetCacheState; rawUrl: string }): Promise<AssetCacheResult> {
   const { inflight } = s;
   if (!isCacheableExternalUrl(rawUrl)) {
     throw new AssetCacheError(400, 'url is not a cacheable external media url');
   }
   const url = rawUrl.trim();
   const key = assetCacheKey(url);
-  const cached = await readFromDisk(s, { key });
+  const cached = await readFromDisk({ s, key });
   if (cached) return cached;
   const existing = inflight.get(key);
   if (existing) return existing;
-  const pending = fetchAndStore(s, url, key).finally(() => {
+  const pending = fetchAndStore({ s, rawUrl: url, key }).finally(() => {
     inflight.delete(key);
   });
   inflight.set(key, pending);
@@ -361,7 +375,7 @@ export function createAssetCache(opts: AssetCacheOptions, options: { dispatcher?
     inflight: new Map<string, Promise<AssetCacheResult>>(),
   };
 
-  return { get: (rawUrl) => get(s, rawUrl), close: async () => { if (!suppliedDispatcher) await s.dispatcher.close(); } };
+  return { get: (rawUrl) => get({ s, rawUrl }), close: async () => { if (!suppliedDispatcher) await s.dispatcher.close(); } };
 }
 
 /** Exposed for tests that need to assert the on-disk key layout. */
