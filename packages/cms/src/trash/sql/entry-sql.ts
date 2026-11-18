@@ -14,9 +14,11 @@ import type { LooseExpressionBuilder, LooseTables } from "./entry-sql.types.js";
 import { notTrashed } from "./not-trashed.js";
 
 /** `db` with every table name accepted — for a query whose table comes from a registry entry.
+ *  Generic over the host's schema `DB`: a host's typed handle is not assignable to `Kysely<unknown>`, and `withTables`
+ *  alone would keep its static tables in the type, so this one place narrows the view to the loose one.
  *  @complexity O(1). */
-export function loose(db: Kysely<unknown>): Kysely<LooseTables> {
-  return db.withTables<LooseTables>();
+export function loose<DB>(db: Kysely<DB>): Kysely<LooseTables> {
+  return db.withTables<LooseTables>() as unknown as Kysely<LooseTables>;
 }
 
 /** `table.column` — a bare column name of `table`, qualified so it stays unambiguous next to a join.
@@ -39,9 +41,9 @@ export interface EntitySnapshotRow {
  *
  * @complexity O(1): one indexed read, plus the display join's primary-key lookup when present.
  */
-export async function readLiveSnapshot(
+export async function readLiveSnapshot<DB>(
   required: { entry: TrashEntry; workspaceId: string; entityId: string },
-  deps: { kernel: StorageKernel<Kysely<unknown>, unknown>; registry: TrashRegistry }
+  deps: { kernel: StorageKernel<Kysely<DB>, unknown>; registry: TrashRegistry }
 ): Promise<EntitySnapshotRow | null> {
   const { entry } = required;
   const row = await deps.kernel.run((db) => {
