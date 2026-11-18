@@ -116,7 +116,7 @@
     "function": "<file>",
     "line": 675,
     "rule": "max-lines",
-    "value": 748
+    "value": 745
   },
   {
     "file": "packages/agent-runtime/src/providers/openai-chat.ts",
