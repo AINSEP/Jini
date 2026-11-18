@@ -117,8 +117,8 @@ it("reads owned ledger truth without configuration, activation, migrations or pr
   const f = fixture(); f.state.active = true; await f.create(); await f.server.pay({ memberId: "member", orderId: "order" });
   f.state.active = false; f.payments.createIntent.mockClear(); f.ensureSchema.mockClear();
   const deps = { workspaceId: "ws", siteId: "site", orders: f.orders, orderPayments: f.deps.payOrderDeps.orderPayments, payments: f.payments };
-  expect(await readOwnedCommerceOrder({ deps, input: { memberId: "member", orderId: "order" } })).toMatchObject({ payment: { id: "payment" }, intent: null });
-  await expect(readOwnedCommerceOrder({ deps, input: { memberId: "foreign", orderId: "order" } })).rejects.toThrow("Order was not found");
+  expect(await readOwnedCommerceOrder({ deps, memberId: "member", orderId: "order" })).toMatchObject({ payment: { id: "payment" }, intent: null });
+  await expect(readOwnedCommerceOrder({ deps, memberId: "foreign", orderId: "order" })).rejects.toThrow("Order was not found");
   expect(f.payments.createIntent).not.toHaveBeenCalled(); expect(f.ensureSchema).not.toHaveBeenCalled();
 });
 it("refuses recurring prices before creating a pending order", async () => {

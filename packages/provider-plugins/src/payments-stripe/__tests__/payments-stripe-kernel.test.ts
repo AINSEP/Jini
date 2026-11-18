@@ -91,7 +91,7 @@ async function fixture(_required: Record<string, never>, _optional: Record<strin
   const publish = vi.fn(async ({ message }: { message: PaymentsOutboxMessage }) => { messages.push(message); await projector.handle({ message }); });
   const worker = createInboxWorker(kernel, { alerts }), relay = createOutboxRelay({ ledger, now, publish: { publish } });
   return { state, host, inner, item, send, kernel, payments, order, orders, orderPayments, deps, receiver, signed, worker, relay, publish, messages, projector, alerts,
-    operator: createPaymentsOperator(kernel, { alerts }), run: () => payOrder({ deps, input: { workspaceId: "ws", orderId: "order", scope } }) };
+    operator: createPaymentsOperator(kernel, { alerts }), run: () => payOrder({ deps, workspaceId: "ws", orderId: "order", scope }) };
 }
 
 it("pays an order through the real Stripe adapter, signed inbox, writer and order projector", async () => {
@@ -244,7 +244,7 @@ it("concurrent payOrder calls share one payment while the first HTTP response is
 });
 it("refuses a different mode reservation before any second provider dispatch", async () => {
   const w = await fixture({}); await w.run();
-  await expect(payOrder({ deps: w.deps, input: { workspaceId: "ws", orderId: "order", scope: { ...scope, mode: "live" } } }))
+  await expect(payOrder({ deps: w.deps, workspaceId: "ws", orderId: "order", scope: { ...scope, mode: "live" } }))
     .rejects.toThrow("order already reserved for another scope");
   expect(w.send).toHaveBeenCalledTimes(1); expect(w.state.association!.mode).toBe("test"); expect(w.order.status).toBe("pending");
 });

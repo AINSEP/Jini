@@ -76,7 +76,7 @@ function fromAnswer({ answer, policy }: { answer: unknown; policy: RiskFailPolic
  * resolve through `failPolicy` — the charge path never hangs on, or crashes because of, the risk layer.
  */
 export async function assessPreChargeRisk(
-  { deps, input }: { deps: RiskGateDeps; input: PreChargeRiskInput },
+  { deps, ...input }: { deps: RiskGateDeps } & PreChargeRiskInput,
   _optional: Record<string, never> = {}
 ): Promise<RiskDecision> {
   const controller = new AbortController();

@@ -18,7 +18,7 @@ function validateOrder({ order, input }: { order: CommerceOrderRecord; input: Lo
 }
 
 /** Load the single one-time item and validate its purchase-time total; current prices never reprice it. */
-export async function loadPayableOrder({ deps, input }: { deps: LoadPayableOrderDeps; input: LoadPayableOrderInput }, _optional: Record<string, never> = {}): Promise<{
+export async function loadPayableOrder({ deps, ...input }: { deps: LoadPayableOrderDeps } & LoadPayableOrderInput, _optional: Record<string, never> = {}): Promise<{
   order: CommerceOrderRecord; item: CommerceOrderItemRecord; price: CommercePriceRecord;
 }> {
   const order = await deps.orders.findById({ workspaceId: input.workspaceId, id: input.orderId });

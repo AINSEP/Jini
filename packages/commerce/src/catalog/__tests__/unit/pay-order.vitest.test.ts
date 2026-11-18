@@ -30,10 +30,10 @@ async function fixture() {
   const settle = { orders, orderPayments, payments, alerts: { raise: vi.fn(async () => {}) }, clock: { nowMs: () => Date.parse(at) } };
   const deps: PayOrderDeps = { orders, prices, priceRefs, orderPayments, payments, settle };
   const dispatch = vi.spyOn(w.lipay.provider, "createIntent");
-  return { ...w, kernelDeps: w.deps, dispatch, state, order, orders, orderPayments, payments, priceRefs, deps, run: () => payOrder({ deps, input }) };
+  return { ...w, kernelDeps: w.deps, dispatch, state, order, orders, orderPayments, payments, priceRefs, deps, run: () => payOrder({ deps, ...input }) };
 }
 it("reserves before dispatch, sends the exact snapshot and scoped mapping, binds, then settles synchronous success", async () => {
-  const w = await fixture(), result = await payOrder({ deps: w.deps, input }, {});
+  const w = await fixture(), result = await payOrder({ deps: w.deps, ...input }, {});
   expect(result).toMatchObject({ ok: true, replayed: false, payment: { status: "succeeded" } });
   expect(w.orderPayments.reserve).toHaveBeenCalledWith({ ...LIPAY, orderId: "order", amount: USD(369), createdAt: at });
   expect(w.priceRefs.find).toHaveBeenCalledWith({ workspaceId: "ws", priceId: "price", providerId: LIPAY.providerId, providerAccountId: LIPAY.providerAccountId, mode: "test" });

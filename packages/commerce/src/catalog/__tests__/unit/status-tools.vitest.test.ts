@@ -141,8 +141,8 @@ test('a ready checkout reports its current provider catalog and webhook reconcil
 });
 
 test('paused checkout leaves webhook reconciliation unavailable while provider discovery remains truthful', async () => {
-  const status = readCommerceStatus({ workspaceId: 'ws-a', resolvePaymentRuntime: () => ({ listProviders: () => [provider] }),
-    checkout: { active: false, ready: false, reason: 'Commerce is disabled.' } });
+  const status = readCommerceStatus({ workspaceId: 'ws-a', resolvePaymentRuntime: () => ({ listProviders: () => [provider] }) },
+    { checkout: { active: false, ready: false, reason: 'Commerce is disabled.' } });
   expect(status.capabilities).toMatchObject({ providerDiscovery: 'available', checkout: 'unavailable', webhookReconciliation: 'unavailable' });
 });
 

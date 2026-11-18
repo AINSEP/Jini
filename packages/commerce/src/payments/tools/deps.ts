@@ -89,7 +89,7 @@ export const NO_SCOPE: PaymentsToolRefusal = {
   ok: false, reason: "no-payment-scope", message: "this run is not bound to a payment account; nothing was read or changed",
 };
 
-export function paymentNotFound(paymentId: string): PaymentsToolRefusal {
+export function paymentNotFound({ paymentId }: { paymentId: string }, _optional: Record<string, never> = {}): PaymentsToolRefusal {
   return { ok: false, reason: "payment-not-found", message: `no payment '${paymentId}' in this payment account; nothing was changed` };
 }
 

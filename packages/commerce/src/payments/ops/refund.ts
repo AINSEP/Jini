@@ -155,7 +155,7 @@ async function settleRefund({ deps, opened, outcome }: { deps: OpsDeps; opened: 
 }
 
 export async function refund(
-  { deps, required }: { deps: OpsDeps; required: RefundRequired },
+  { deps, ...required }: { deps: OpsDeps } & RefundRequired,
   optional: { reason?: string } = {}
 ): Promise<RefundResult> {
   const checked = checkRefund({ deps, required });

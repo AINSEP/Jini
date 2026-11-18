@@ -19,11 +19,11 @@ export interface CommerceWorkerOptional {
 /** Bind existing host ownership to one serialized settlement owner, active or draining.
  * No transaction spans provider HTTP: kernel dispatch snapshots commit independently.
  * @complexity One cycle/5s while active/draining, no idle timers; one owner lock held while running. */
-export function createSettlementWorker(required: CommerceWorkerRequired, optional: CommerceWorkerOptional): {
+export function createSettlementWorker(required: CommerceWorkerRequired & CommerceWorkerOptional, _optional: Record<string, never> = {}): {
   kick(): Promise<void>; close(): Promise<void>;
 } {
-  const own = optional.withOwnership;
-  const schedule = optional.schedule;
+  const own = required.withOwnership;
+  const schedule = required.schedule;
   let cancel: (() => void) | undefined;
   let current: Promise<void> | undefined;
   let holding: Promise<void> | undefined;

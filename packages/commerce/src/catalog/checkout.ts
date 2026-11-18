@@ -142,8 +142,8 @@ export interface CheckoutResult {
  *
  * @complexity Time: O(1) — two point lookups (`findById`) plus one 2-row write. Space: O(1).
  */
-export async function checkout(required: CheckoutRequired, _optional: Record<string, never> = {}): Promise<CheckoutResult> {
-  const { deps, input } = required;
+export async function checkout(required: { deps: CheckoutDeps } & CheckoutInput, _optional: Record<string, never> = {}): Promise<CheckoutResult> {
+  const { deps, ...input } = required;
 
   const quantity = input.quantity ?? 1;
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_CHECKOUT_QUANTITY) {

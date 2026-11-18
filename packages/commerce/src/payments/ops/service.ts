@@ -33,10 +33,10 @@ async function getPayment({ deps, scope, paymentId }: { deps: OpsDeps; scope: Pa
 export function createPaymentsService(required: PaymentsServiceRequired, optional: PaymentsServiceOptional = {}): PaymentsPort {
   const deps = resolveOpsDeps(required, optional);
   return {
-    createIntent: (r, o) => createIntent({ deps, required: r }, o),
-    refund: (r, o) => refund({ deps, required: r }, o),
-    capture: (r) => capture({ deps, required: r }),
-    void: (r) => voidPayment({ deps, required: r }),
+    createIntent: (r, o) => createIntent({ ...r, deps }, o),
+    refund: (r, o) => refund({ ...r, deps }, o),
+    capture: (r) => capture({ ...r, deps }),
+    void: (r) => voidPayment({ ...r, deps }),
     getPayment: ({ scope, paymentId }) => getPayment({ deps, scope, paymentId }),
     listProviders: () => deps.providers.list().map((registered) => providerSummary(registered)),
   };
@@ -54,6 +54,6 @@ export function createPaymentsOperator(required: PaymentsServiceRequired, option
   const deps = resolveOpsDeps(required, optional);
   return {
     reconcileUnknown: createCursorReconciler({ deps }),
-    resolveUnknown: (r) => resolveUnknown({ deps, required: r }),
+    resolveUnknown: (r) => resolveUnknown({ ...r, deps }),
   };
 }

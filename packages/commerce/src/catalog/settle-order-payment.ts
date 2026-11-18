@@ -63,7 +63,7 @@ function paymentIdentityProblem({ association, payment, input }: {
 }
 
 /** Verify the reserved scope and exact captured total before fulfilling; throws preserve redelivery. */
-export async function settleOrderPayment({ deps, input }: SettlementRequired, _optional: Record<string, never> = {}): Promise<SettleOutcome> {
+export async function settleOrderPayment({ deps, ...input }: { deps: SettleOrderPaymentDeps } & SettlementRequired["input"], _optional: Record<string, never> = {}): Promise<SettleOutcome> {
   const association = await deps.orderPayments.findByOrder({ workspaceId: input.workspaceId, orderId: input.reference });
   if (!association) {
     const order = await deps.orders.findById({ workspaceId: input.workspaceId, id: input.reference });

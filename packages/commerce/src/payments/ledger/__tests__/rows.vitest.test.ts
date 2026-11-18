@@ -76,7 +76,7 @@ describe("integer boundaries refuse coercion and rounding", () => {
   test("a revived payload replaces only verified facts, hash and purge time", () => {
     expect(revivedPayload({}, {})).toEqual({});
     const payload = Object.freeze({ factsJson: '{"verified":true}', bodySha256: "cd".repeat(32) });
-    expect(revivedPayload({ payload }, {})).toEqual({ facts_json: '{"verified":true}', body_sha256: "cd".repeat(32), purged_at: null });
+    expect(revivedPayload({}, { payload })).toEqual({ facts_json: '{"verified":true}', body_sha256: "cd".repeat(32), purged_at: null });
     expect(payload).toEqual({ factsJson: '{"verified":true}', bodySha256: "cd".repeat(32) });
   });
 });

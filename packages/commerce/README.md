@@ -117,9 +117,9 @@ const publish: OutboxPublisherPort = { publish: async ({ message }) => { await p
 const relay = createOutboxRelay({ ledger, now, publish });
 
 const placed = await checkout({ deps: { products, prices, orders, clock, idGen },
-  input: { workspaceId: scope.workspaceId, memberId, priceId, quantity: 1, provider: scope.providerId } });
+  workspaceId: scope.workspaceId, memberId, priceId, quantity: 1, provider: scope.providerId });
 const result = await payOrder({ deps: { orders, prices, priceRefs, orderPayments, payments, settle },
-  input: { workspaceId: scope.workspaceId, orderId: placed.order.id, scope } });
+  workspaceId: scope.workspaceId, orderId: placed.order.id, scope });
 // Return result to the browser; keep credentials, the provider port and ledger on the server.
 ```
 

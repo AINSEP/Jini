@@ -311,7 +311,7 @@ class SqlLedgerTx implements LedgerTx {
     { id, nextAttemptAt }: { id: string; nextAttemptAt: number },
     optional: { payload?: { factsJson: string; bodySha256: string } } = {}
   ): Promise<boolean> {
-    const set = encodeColumns({ state: "received", attempts: 0, next_attempt_at: nextAttemptAt, ...revivedPayload(optional) });
+    const set = encodeColumns({ state: "received", attempts: 0, next_attempt_at: nextAttemptAt, ...revivedPayload({}, optional) });
     return this.updateById({ table: LEDGER_TABLES.inbox, id, set }, { states: ["dead"] });
   }
 

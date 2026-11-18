@@ -8,8 +8,8 @@ export function createOrderPaymentProjector({ deps }: { deps: SettleOrderPayment
   return {
     async handle({ message }, _optional = {}) {
       if (message.topic !== "payment.succeeded" || typeof message.payload.reference !== "string") return "ignored";
-      return settleOrderPayment({ deps, input: { workspaceId: message.workspaceId, mode: message.mode,
-        paymentId: message.aggregateId, reference: message.payload.reference } });
+      return settleOrderPayment({ deps, workspaceId: message.workspaceId, mode: message.mode,
+        paymentId: message.aggregateId, reference: message.payload.reference });
     },
   };
 }

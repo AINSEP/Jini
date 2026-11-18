@@ -19,10 +19,10 @@ export type PayOrderResult = IntentResult;
  * @throws {CommerceCheckoutValidationError} Invalid order, conflicting reservation, or missing/conflicting binding.
  * Storage failures propagate so a retry replays the same payment and finishes binding.
  */
-export async function payOrder({ deps, input }: {
-  deps: PayOrderDeps; input: { workspaceId: UUID; orderId: UUID; scope: PaymentScope };
+export async function payOrder({ deps, ...input }: {
+  deps: PayOrderDeps; workspaceId: UUID; orderId: UUID; scope: PaymentScope;
 }, _optional: Record<string, never> = {}): Promise<PayOrderResult> {
-  const { order, item, price } = await loadPayableOrder({ deps, input });
+  const { order, item, price } = await loadPayableOrder({ deps, ...input });
   // A corrected price stops new dispatches; an existing reservation must still replay its original payment.
   if (price.status !== "active" && !await deps.orderPayments.findByOrder({ workspaceId: input.workspaceId, orderId: order.id })) {
     throw new CommerceCheckoutValidationError({ message: "price is no longer active; return to the shop to start a new order" });
@@ -38,7 +38,7 @@ export async function payOrder({ deps, input }: {
   if (result.payment) {
     const bound = await deps.orderPayments.bind({ workspaceId, orderId: order.id, paymentId: result.payment.id });
     if (bound === "conflict" || bound === "not_found") throw new CommerceCheckoutValidationError({ message: `order payment association ${bound}` });
-    await settleOrderPayment({ deps: deps.settle, input: { workspaceId, mode, paymentId: result.payment.id, reference: order.id } });
+    await settleOrderPayment({ deps: deps.settle, workspaceId, mode, paymentId: result.payment.id, reference: order.id });
   }
   return result;
 }
