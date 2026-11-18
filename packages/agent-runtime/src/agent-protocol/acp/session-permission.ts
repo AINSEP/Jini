@@ -60,7 +60,7 @@ interface PermissionReply {
 // One status event per request. Only protocol categories leave this
 // boundary: titles, names, option ids and raw arguments can contain
 // commands, paths or credentials.
-function logPermissionDecision(run: AcpRun, toolCall: UnknownRecord | null, selected?: AcpPermissionOption): void {
+function logPermissionDecision({ run, toolCall }: { run: AcpRun; toolCall: UnknownRecord | null }, { selected }: { selected?: AcpPermissionOption } = {}): void {
   try {
     const tool = permissionToolKind(toolCall);
     sendAgent(run, {
@@ -89,7 +89,7 @@ function respondToPermission(reply: PermissionReply, decision: AcpPermissionDeci
     // A broken pipe cannot carry a response; ordinary transport lifecycle
     // handling still owns process failure, not the permission decision.
   }
-  logPermissionDecision(run, toolCall, selected);
+  logPermissionDecision({ run, toolCall }, selected === undefined ? {} : { selected });
 }
 
 function askPermissionHandler(reply: PermissionReply, params: UnknownRecord): void {
@@ -120,7 +120,7 @@ export function replyPermission(run: AcpRun, raw: UnknownRecord): void {
   if (!isJsonRpcId(raw.id)) {
     // No response can be correlated without a valid id; drop it rather
     // than failing the run.
-    logPermissionDecision(run, toolCall);
+    logPermissionDecision({ run, toolCall });
     return;
   }
   const reply: PermissionReply = {
@@ -130,7 +130,7 @@ export function replyPermission(run: AcpRun, raw: UnknownRecord): void {
     respondToPermission(reply, { outcome: 'cancelled' });
     return;
   }
-  run.pendingPermissionRequests.set(raw.id, () => logPermissionDecision(run, toolCall));
+  run.pendingPermissionRequests.set(raw.id, () => logPermissionDecision({ run, toolCall }));
   // Human decision time is outside the agent's inactivity budget. All timer
   // resets stay paused until the last pending permission response is sent.
   clearStageTimer(run);

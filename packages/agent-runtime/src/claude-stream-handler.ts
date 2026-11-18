@@ -211,7 +211,8 @@ function getOrCreateRoleGuard(s: StreamCtx, { msgId }: { msgId: string }): RoleM
   return guard;
 }
 
-function emitSafeText(s: StreamCtx, { msgId, text }: {
+function emitSafeText({ s, msgId, text }: {
+  s: StreamCtx;
   msgId: string | null;
   text: string;
 }, { eventType = 'text_delta' }: {
@@ -353,11 +354,11 @@ function handleAssistantContentBlock(s: StreamCtx, { block, ctx }: {
     return;
   }
   if (isUnstreamedTextBlock(block, ctx.textAlreadyStreamed)) {
-    emitSafeText(s, { msgId: ctx.textMsgId, text: block.text });
+    emitSafeText({ s, msgId: ctx.textMsgId, text: block.text });
     return;
   }
   if (isUnstreamedThinkingBlock(block, ctx.thinkingAlreadyStreamed)) {
-    emitSafeText(s, { msgId: ctx.thinkingMsgId, text: block.thinking }, { eventType: 'thinking_delta' });
+    emitSafeText({ s, msgId: ctx.thinkingMsgId, text: block.thinking }, { eventType: 'thinking_delta' });
   }
 }
 
@@ -504,13 +505,13 @@ function handleContentBlockDelta(s: StreamCtx, { index, delta }: { index: unknow
   if (delta.type === 'text_delta' && typeof delta.text === 'string') {
     if (s.currentMessageId) s.textStreamed.add(s.currentMessageId);
     s.currentMessageStreamedText = true;
-    emitSafeText(s, { msgId: s.currentMessageId, text: delta.text });
+    emitSafeText({ s, msgId: s.currentMessageId, text: delta.text });
     return;
   }
   if (delta.type === 'thinking_delta' && typeof delta.thinking === 'string') {
     if (s.currentMessageId) s.thinkingStreamed.add(s.currentMessageId);
     s.currentMessageStreamedThinking = true;
-    emitSafeText(s, { msgId: s.currentMessageId, text: delta.thinking }, { eventType: 'thinking_delta' });
+    emitSafeText({ s, msgId: s.currentMessageId, text: delta.thinking }, { eventType: 'thinking_delta' });
     return;
   }
   if (delta.type === 'input_json_delta' && typeof delta.partial_json === 'string') {
@@ -587,5 +588,5 @@ function flushPendingArtifactText(s: StreamCtx) {
   s.suppressDuplicateArtifactText = false;
   s.recentWriteContents.length = 0;
   s.wroteHtmlFileThisTurn = false;
-  emitSafeText(s, { msgId: s.currentMessageId, text });
+  emitSafeText({ s, msgId: s.currentMessageId, text });
 }
