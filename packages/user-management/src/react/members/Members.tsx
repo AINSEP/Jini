@@ -157,35 +157,8 @@ function MemberRow({
   );
 }
 
-export function Members({ useMembersHook = useMembers, port, translate: injectedTranslate, queryScope, refresh,
-  description = "People who have registered an account — review status, resend a sign-in link, or disable access.",
-  emptyDescription = "Registered members will show up here.", renderServerLabel }: MembersProps) {
-  const {
-    members,
-    error,
-    stateFor,
-    onResendSignInLink,
-    expandedId,
-    detailById,
-    detailError,
-    detailLoadingId,
-    onToggleDetail,
-    confirmingDisable,
-    setConfirmingDisable,
-    confirmDisable,
-    t,
-    translate,
-  } = useMembersHook({ port, translate: injectedTranslate, ...(queryScope === undefined ? {} : { queryScope }) }, { refresh });
-
-  if (error) return <div className="notice error">{error}</div>;
-  if (!members) return <div className="notice">{t("Loading members…")}</div>;
-
-  // Member ids are stable and unique, so they disambiguate one row's menu from another's — same
-  // reasoning as every other list on this workstream.
-  const memberMenuBases = buildAgentListHandles({ prefix: "members-row", ids: members.map((member) => member.id) });
-
+function renderMembersHeader({ t, description }: { t: Translate; description: string }) {
   return (
-    <div className="page">
       <div className="page-header">
         <div className="page-header-text">
           <p className="page-kicker">{t("People")}</p>
@@ -195,15 +168,12 @@ export function Members({ useMembersHook = useMembers, port, translate: injected
           </p>
         </div>
       </div>
+  );
+}
 
-      {members.length === 0 ? (
-        <div className="card">
-          <div className="empty-state">
-            <p>{t("No members yet.")}</p>
-            <p className="page-description">{t(emptyDescription)}</p>
-          </div>
-        </div>
-      ) : (
+function renderMembersTable(controller: ReturnType<typeof useMembers> & { members: AdminMember[] }, memberMenuBases: ReturnType<typeof buildAgentListHandles>, renderServerLabel: MembersProps['renderServerLabel']) {
+  const { members, stateFor, expandedId, detailById, detailError, detailLoadingId, onToggleDetail, onResendSignInLink, setConfirmingDisable, t, translate } = controller;
+  return (
       <div className="table-scroll">
       <table className="list-table">
         <thead>
@@ -237,7 +207,26 @@ export function Members({ useMembersHook = useMembers, port, translate: injected
         </tbody>
       </table>
       </div>
-      )}
+  );
+}
+
+function renderMembersRoster(controller: ReturnType<typeof useMembers> & { members: AdminMember[] }, memberMenuBases: ReturnType<typeof buildAgentListHandles>, presentation: { emptyDescription: string; renderServerLabel: MembersProps['renderServerLabel'] }) {
+  const { members, t } = controller;
+  const { emptyDescription, renderServerLabel } = presentation;
+  return (
+    members.length === 0 ? (
+        <div className="card">
+          <div className="empty-state">
+            <p>{t("No members yet.")}</p>
+            <p className="page-description">{t(emptyDescription)}</p>
+          </div>
+        </div>
+      ) : renderMembersTable(controller, memberMenuBases, renderServerLabel)
+  );
+}
+
+function renderMemberDisableDialog({ t, confirmingDisable, stateFor, confirmDisable, setConfirmingDisable }: Pick<ReturnType<typeof useMembers>, 't' | 'confirmingDisable' | 'stateFor' | 'confirmDisable' | 'setConfirmingDisable'>) {
+  return (
       <ConfirmDialog
         cancelLabel={t("Cancel")}
         open={confirmingDisable !== null}
@@ -256,6 +245,41 @@ export function Members({ useMembersHook = useMembers, port, translate: injected
         onConfirm={confirmDisable}
         onCancel={() => setConfirmingDisable(null)}
       />
+  );
+}
+
+export function Members({ useMembersHook = useMembers, port, translate: injectedTranslate, queryScope, refresh,
+  description = "People who have registered an account — review status, resend a sign-in link, or disable access.",
+  emptyDescription = "Registered members will show up here.", renderServerLabel }: MembersProps) {
+  const {
+    members,
+    error,
+    stateFor,
+    onResendSignInLink,
+    expandedId,
+    detailById,
+    detailError,
+    detailLoadingId,
+    onToggleDetail,
+    confirmingDisable,
+    setConfirmingDisable,
+    confirmDisable,
+    t,
+    translate,
+  } = useMembersHook({ port, translate: injectedTranslate, ...(queryScope === undefined ? {} : { queryScope }) }, { refresh });
+
+  if (error) return <div className="notice error">{error}</div>;
+  if (!members) return <div className="notice">{t("Loading members…")}</div>;
+
+  // Member ids are stable and unique, so they disambiguate one row's menu from another's — same
+  // reasoning as every other list on this workstream.
+  const memberMenuBases = buildAgentListHandles({ prefix: "members-row", ids: members.map((member) => member.id) });
+
+  return (
+    <div className="page">
+      {renderMembersHeader({ t, description })}
+      {renderMembersRoster({ members, error, stateFor, onResendSignInLink, expandedId, detailById, detailError, detailLoadingId, onToggleDetail, confirmingDisable, setConfirmingDisable, confirmDisable, t, translate }, memberMenuBases, { emptyDescription, renderServerLabel })}
+      {renderMemberDisableDialog({ t, confirmingDisable, stateFor, confirmDisable, setConfirmingDisable })}
     </div>
   );
 }

@@ -225,6 +225,109 @@ async function applyPluginFilter(
   return buildDeclaredPatch(pluginId, patch, attachment.declaredFields);
 }
 
+type HookFailureContext = {
+  consecutiveFailures: Map<string, Map<string, number>>;
+  failureThreshold: number;
+  options: CreateHookRegistryOptions;
+};
+
+type HookExecutionContext = {
+  attachments: Map<string, Attachment>;
+  beforeSaveHook: string;
+  isQuarantined: (input: { pluginId: string; workspaceId: string }) => boolean;
+  clearFailures: (pluginId: string, workspaceId?: string) => void;
+  recordFailure: (input: { pluginId: string; workspaceId: string; failure: PluginHookFailedError }) => Promise<void>;
+};
+
+function clearHookFailures(consecutiveFailures: Map<string, Map<string, number>>, pluginId: string, workspaceId?: string): void {
+    if (workspaceId !== undefined) {
+      const workspaceFailures = consecutiveFailures.get(workspaceId);
+      workspaceFailures?.delete(pluginId);
+      if (workspaceFailures?.size === 0) consecutiveFailures.delete(workspaceId);
+      return;
+    }
+    for (const [workspace, workspaceFailures] of consecutiveFailures) {
+      workspaceFailures.delete(pluginId);
+      if (workspaceFailures.size === 0) consecutiveFailures.delete(workspace);
+    }
+}
+
+  /** Counts failures for one workspace and quarantines it before awaiting persistence.
+   * Persistence failure throws a hook error; the workspace remains quarantined.
+   * @complexity O(1) bookkeeping plus one host persistence callback at the threshold.
+   */
+async function recordHookFailure(
+    { consecutiveFailures, failureThreshold, options }: HookFailureContext,
+    { pluginId, workspaceId, failure }: { pluginId: string; workspaceId: string; failure: PluginHookFailedError },
+    _optional: Record<string, never> = {},
+  ): Promise<void> {
+    if (!options.onQuarantine) return;
+
+    const workspaceFailures = consecutiveFailures.get(workspaceId) ?? new Map<string, number>();
+    const next = (workspaceFailures.get(pluginId) ?? 0) + 1;
+    workspaceFailures.set(pluginId, next);
+    consecutiveFailures.set(workspaceId, workspaceFailures);
+    if (next < failureThreshold) return;
+
+    // Recover the affected workspace first: the triggering save remains fail-closed, but the
+    // threshold count skips later saves/previews while durable activation state is recorded.
+    // Other workspaces retain the attachment and their own failure counts.
+    try {
+      await options.onQuarantine({
+        pluginId,
+        workspaceId,
+        consecutiveFailures: next,
+        reason: failure.message,
+      });
+    } catch (error) {
+      throw new PluginHookFailedError(
+        pluginId,
+        `${failure.message}; automatic quarantine persistence failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        { cause: error }
+      );
+    }
+}
+
+function createBeforeSaveRunner({ attachments, beforeSaveHook, isQuarantined, clearFailures, recordFailure }: HookExecutionContext): HookRegistry['runBeforeSave'] {
+  return async function runBeforeSave({ entry }: { entry: Readonly<ContentEntryDraft> }, _optional: Record<string, never> = {}): Promise<JsonObject> {
+    const ordered = [...attachments.entries()].sort(compareTb01);
+    const merged: Record<string, JsonObject> = {};
+
+    for (const [pluginId, attachment] of ordered) {
+      if (isQuarantined({ pluginId, workspaceId: entry.workspaceId })) continue;
+      try {
+        merged[pluginId] = await applyPluginFilter(pluginId, attachment, entry, merged, beforeSaveHook);
+        clearFailures(pluginId, entry.workspaceId);
+      } catch (error) {
+        const failure =
+          error instanceof PluginHookFailedError
+            ? error
+            : new PluginHookFailedError(pluginId, `plugin '${pluginId}' beforeSave hook failed`, { cause: error });
+        await recordFailure({ pluginId, workspaceId: entry.workspaceId, failure });
+        throw failure;
+      }
+    }
+
+    return merged;
+  };
+}
+
+function createBeforeSavePreview({ attachments, beforeSaveHook, isQuarantined }: HookExecutionContext): HookRegistry['previewBeforeSave'] {
+  return async function previewBeforeSave({ pluginId, entry }: { pluginId: string; entry: Readonly<ContentEntryDraft> }, _optional: Record<string, never> = {}): Promise<JsonObject | null> {
+    const attachment = attachments.get(pluginId);
+    if (!attachment || isQuarantined({ pluginId, workspaceId: entry.workspaceId })) return null;
+    try {
+      return await applyPluginFilter(pluginId, attachment, entry, {}, beforeSaveHook);
+    } catch (error) {
+      throw error instanceof PluginHookFailedError
+        ? error
+        : new PluginHookFailedError(pluginId, `plugin '${pluginId}' beforeSave hook failed`, { cause: error });
+    }
+  };
+}
+
 /**
  * Creates a fresh, empty hook registry (no plugins attached). Each process has exactly one
  * long-lived instance, constructed once at composition-root time and shared between `loader.ts`
@@ -259,55 +362,9 @@ export function createHookRegistry<H extends HookPoints>(
     return (consecutiveFailures.get(workspaceId)?.get(pluginId) ?? 0) >= failureThreshold;
   }
 
-  function clearFailures(pluginId: string, workspaceId?: string): void {
-    if (workspaceId !== undefined) {
-      const workspaceFailures = consecutiveFailures.get(workspaceId);
-      workspaceFailures?.delete(pluginId);
-      if (workspaceFailures?.size === 0) consecutiveFailures.delete(workspaceId);
-      return;
-    }
-    for (const [workspace, workspaceFailures] of consecutiveFailures) {
-      workspaceFailures.delete(pluginId);
-      if (workspaceFailures.size === 0) consecutiveFailures.delete(workspace);
-    }
-  }
-
-  /** Counts failures for one workspace and quarantines it before awaiting persistence.
-   * Persistence failure throws a hook error; the workspace remains quarantined.
-   * @complexity O(1) bookkeeping plus one host persistence callback at the threshold.
-   */
-  async function recordFailure(
-    { pluginId, workspaceId, failure }: { pluginId: string; workspaceId: string; failure: PluginHookFailedError },
-    _optional: Record<string, never> = {},
-  ): Promise<void> {
-    if (!options.onQuarantine) return;
-
-    const workspaceFailures = consecutiveFailures.get(workspaceId) ?? new Map<string, number>();
-    const next = (workspaceFailures.get(pluginId) ?? 0) + 1;
-    workspaceFailures.set(pluginId, next);
-    consecutiveFailures.set(workspaceId, workspaceFailures);
-    if (next < failureThreshold) return;
-
-    // Recover the affected workspace first: the triggering save remains fail-closed, but the
-    // threshold count skips later saves/previews while durable activation state is recorded.
-    // Other workspaces retain the attachment and their own failure counts.
-    try {
-      await options.onQuarantine({
-        pluginId,
-        workspaceId,
-        consecutiveFailures: next,
-        reason: failure.message,
-      });
-    } catch (error) {
-      throw new PluginHookFailedError(
-        pluginId,
-        `${failure.message}; automatic quarantine persistence failed: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-        { cause: error }
-      );
-    }
-  }
+  const failureContext = { consecutiveFailures, failureThreshold, options };
+  const clearFailures = (pluginId: string, workspaceId?: string) => clearHookFailures(consecutiveFailures, pluginId, workspaceId);
+  const recordFailure = (input: Parameters<typeof recordHookFailure>[1]) => recordHookFailure(failureContext, input);
 
   function attach(
     { pluginId, source, filter, declaredFields }: { pluginId: string; source: AttachmentSource; filter: BeforeSaveFilter; declaredFields: readonly HookRegistryFieldDecl[] },
@@ -322,39 +379,9 @@ export function createHookRegistry<H extends HookPoints>(
     clearFailures(pluginId);
   }
 
-  async function runBeforeSave({ entry }: { entry: Readonly<ContentEntryDraft> }, _optional: Record<string, never> = {}): Promise<JsonObject> {
-    const ordered = [...attachments.entries()].sort(compareTb01);
-    const merged: Record<string, JsonObject> = {};
-
-    for (const [pluginId, attachment] of ordered) {
-      if (isQuarantined({ pluginId, workspaceId: entry.workspaceId })) continue;
-      try {
-        merged[pluginId] = await applyPluginFilter(pluginId, attachment, entry, merged, beforeSaveHook);
-        clearFailures(pluginId, entry.workspaceId);
-      } catch (error) {
-        const failure =
-          error instanceof PluginHookFailedError
-            ? error
-            : new PluginHookFailedError(pluginId, `plugin '${pluginId}' beforeSave hook failed`, { cause: error });
-        await recordFailure({ pluginId, workspaceId: entry.workspaceId, failure });
-        throw failure;
-      }
-    }
-
-    return merged;
-  }
-
-  async function previewBeforeSave({ pluginId, entry }: { pluginId: string; entry: Readonly<ContentEntryDraft> }, _optional: Record<string, never> = {}): Promise<JsonObject | null> {
-    const attachment = attachments.get(pluginId);
-    if (!attachment || isQuarantined({ pluginId, workspaceId: entry.workspaceId })) return null;
-    try {
-      return await applyPluginFilter(pluginId, attachment, entry, {}, beforeSaveHook);
-    } catch (error) {
-      throw error instanceof PluginHookFailedError
-        ? error
-        : new PluginHookFailedError(pluginId, `plugin '${pluginId}' beforeSave hook failed`, { cause: error });
-    }
-  }
+  const executionContext = { attachments, beforeSaveHook, isQuarantined, clearFailures, recordFailure };
+  const runBeforeSave = createBeforeSaveRunner(executionContext);
+  const previewBeforeSave = createBeforeSavePreview(executionContext);
 
   return { attach, detach, runBeforeSave, previewBeforeSave };
 }
