@@ -59,8 +59,6 @@ export interface ReadOnlyToolMessages {
 
 export interface ReadOnlyToolCheckRequired {
   readonly toolId: string;
-  /** Diagnostic selector only; never changes which registration is checked or executed. */
-  readonly input?: unknown;
   readonly registry: Pick<ToolRegistry, 'list'> | undefined;
   readonly messages: ReadOnlyToolMessages;
 }
@@ -157,13 +155,13 @@ export function readOnlyToolRefusalMessage(
  * @complexity O(n) for known tools; unknown-tool diagnostics add bounded name scoring and O(n log n) sorting.
  */
 export function checkReadOnlyTool(
-  { toolId, input, registry, messages }: ReadOnlyToolCheckRequired,
+  { toolId, registry, messages }: ReadOnlyToolCheckRequired,
   _optional: Record<string, never> = {},
 ): string | null {
   if (registry === undefined) return messages.unverifiableMessage;
   const tools = registry.list({});
   const descriptor = tools.find((candidate) => candidate.id === toolId);
-  if (!descriptor) return messages.unknownToolMessage({ toolId, candidates: toolCandidates({ toolId, tools, input }) });
+  if (!descriptor) return messages.unknownToolMessage({ toolId, candidates: toolCandidates({ toolId, tools }) });
   if (isReadOnlyTool({ descriptor })) return null;
   return readOnlyToolRefusalMessage({ toolId, messages });
 }
@@ -240,8 +238,8 @@ export function withReadOnlyToolConstraint(
 ): ToolExecutor {
   return {
     execute: async (requiredArgs, optionalArgs = {}) => {
-      const { principal, toolId, input } = requiredArgs;
-      const refusal = refuseNonReadOnlyDispatch({ principal, toolId, input, registry, messages });
+      const { principal, toolId } = requiredArgs;
+      const refusal = refuseNonReadOnlyDispatch({ principal, toolId, registry, messages });
       // Deny before inner: no handler or kernel audit record exists. Use the authorization result
       // union instead of throwing, and mint a denial ID because there is no inner execution ID.
       if (refusal !== null) return { executionId: idGenerator.newId(), status: 'denied', error: refusal };

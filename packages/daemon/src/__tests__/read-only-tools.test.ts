@@ -195,14 +195,14 @@ test('unknown read-only tool suggestions exclude contains-only matches and keep 
   assert.equal(refusal.includes('site_content_read'), false);
 });
 
-test('read-only constraint uses the resource hint for diagnostics without executing an alternate registration', async () => {
+test('read-only constraint suggests by name similarity only (the input picks nothing) without executing an alternate registration', async () => {
   const { registry, gate, calls } = harness();
   for (const id of ['content_read.backup_restore_point', 'content_read.theme']) {
     registry.register({ descriptor: { id, readOnly: true }, policy: { authorize: () => 'allow' }, handler: async () => calls.push(id) });
   }
   const input = { resource: 'theme' };
   const expected = 'no tool "content_read" is registered; use search_tools — did you mean content_read.theme, content_read.backup_restore_point?';
-  assert.equal(checkReadOnlyTool({ toolId: 'content_read', input, registry, messages: defaultDaemonMessages.readOnly }), expected);
+  assert.equal(checkReadOnlyTool({ toolId: 'content_read', registry, messages: defaultDaemonMessages.readOnly }), expected);
   const constrained = withReadOnlyToolConstraint({ inner: gate, registry, messages: defaultDaemonMessages.readOnly, idGenerator: { newId: () => 'denial' } });
   assert.deepEqual(await constrained.execute({ principal: READ_ONLY, run: RUN, toolId: 'content_read', input }), {
     status: 'denied', executionId: 'denial', error: expected,

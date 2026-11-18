@@ -155,7 +155,7 @@ describe('createMcpToolServer', () => {
     try {
       const before = await server.listTools();
       expect(await server.callTool({ params: { name: 'describe_tool', arguments: { id: family.id } } }))
-        .toEqual({ content: [{ type: 'text', text: JSON.stringify(family) }] });
+        .toEqual({ content: [{ type: 'text', text: JSON.stringify({ ...family, callAs: 'none' }) }] });
       expect(await server.listTools()).toEqual(before);
       expect(notified).not.toHaveBeenCalled();
       await server.callTool({ params: { name: 'describe_tool', arguments: { id: card.id } } });
@@ -421,7 +421,7 @@ describe('run()', () => {
     });
     await expect(server.callTool({ params: { name: 'missing' } })).resolves.toEqual({
       isError: true,
-      content: [{ type: 'text', text: 'unknown tool: missing' }],
+      content: [{ type: 'text', text: 'There is no tool named "missing". Closest names: noop. Find tools with search_tools.' }],
     });
     hoisted.onIdleRef.current?.({});
     await runPromise;

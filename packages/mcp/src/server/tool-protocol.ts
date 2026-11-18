@@ -46,6 +46,8 @@
  */
 import { batchOutcomeFor, normalizeToolInput, withNormalizationNotes, type ToolDescriptor } from '@jini-ai/core';
 import { sanitizeUntrustedText } from '@jini-ai/core/text';
+import { clampDeclaredBounds } from '@jini-ai/core/tool-input-repairs';
+import { unknownToolSentence } from '@jini-ai/core/tool-call-text';
 import { Validator, type Schema } from '@cfworker/json-schema';
 import { ContentBlockSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
@@ -53,14 +55,24 @@ import { argumentShapeMessage, isRecord, normalizeToolArguments, resolveMcpToolN
 import { safeDiagnostic, type DaemonRequestOptions } from './daemon-client.js';
 import { scopeNestedSchemaRefs } from './schema-ref-scope.js';
 
+/** Why a described tool was not published as its own tool: a full list, a full schema budget, or no such descriptor. */
+export type ToolPublicationSkipReason = 'tool-limit' | 'schema-byte-limit' | 'not-found';
+
+/** The outcome of publishing one described tool. */
+export type ToolPublication = { readonly wireName: string } | { readonly skipped: ToolPublicationSkipReason };
+
 /** What every tool handler receives alongside its parsed arguments. */
 export interface McpToolContext {
   /** Resolve MCP-local names through the hosting server; undefined leaves daemon dispatch intact. */
   readonly callLocalTool?: (required: {
     name: string; input: Record<string, unknown>; requireReadOnly: boolean;
   }, optional?: Record<string, never>) => Promise<CallToolResult | undefined>;
-  /** Publishes a successfully described, host-owned descriptor in this server run only. */
-  readonly publishTool?: (required: { descriptor: ToolDescriptor }, optional?: Record<string, never>) => Promise<void>;
+  /**
+   * Publishes a successfully described, host-owned descriptor in this server run only, and says what happened:
+   * the wire name it is now called by (an already published tool answers with its existing name), or why it was
+   * not published, so the caller can tell the model to use the gateway instead of promising a tool that is not there.
+   */
+  readonly publishTool?: (required: { descriptor: ToolDescriptor }, optional?: Record<string, never>) => Promise<ToolPublication>;
   /** Host registration metadata, supplied outside model-controlled arguments. */
   readonly diagnosticToolIds?: readonly string[];
   /** The resolved daemon HTTP base URL (no trailing slash), fixed for the lifetime of one server run. */
@@ -259,6 +271,11 @@ async function normalizeCallArguments(
   { tool, rawArgs }: { tool: McpToolDef; rawArgs: unknown }, _options: Record<string, never> = {},
 ): Promise<{ args: Record<string, unknown>; notes: readonly string[] }> {
   const args = normalizeToolArguments({ tool, rawArgs });
+  if (tool.argumentNormalization?.clamp) {
+    // Local tools opt in to the clamp alone: the rest of their refusal texts stay as they are.
+    const clamped = clampDeclaredBounds({ input: args, inputSchema: tool.inputSchema });
+    return { args: clamped.input as Record<string, unknown>, notes: clamped.notes };
+  }
   if (!tool.argumentNormalization?.schemaInput) return { args, notes: [] };
   const normalized = await normalizeToolInput({ input: args, registration: { descriptor: { id: tool.name, inputSchema: tool.inputSchema } } });
   if (!isRecord(normalized.input)) throw new Error('normalization must produce one input object');
@@ -302,7 +319,7 @@ export async function handleToolCall(
   ctx = { ...ctx, diagnosticToolIds };
   const tool = tools.get(resolveMcpToolName({ name }, { isRegistered: candidate => tools.has(candidate) }));
   if (tool === undefined) {
-    return errorResult({ message: `unknown tool: ${name}` });
+    return errorResult({ message: unknownToolSentence({ toolId: name, candidates: [...tools.keys()] }) });
   }
   // Normalization and schema validation share an error boundary; handlers run only afterward.
   // See docs/decisions/DR-005-proxy-argument-shapes.md.
@@ -312,7 +329,7 @@ export async function handleToolCall(
     const { args, notes } = await normalizeCallArguments({ tool, rawArgs: rawArgs ?? {} });
     const validation = validatorForTool(tool).validate(args);
     if (!validation.valid) {
-      return errorResult({ message: `invalid arguments for ${tool.name}: ${sanitizeUntrustedText({ text: argumentShapeMessage({ errors: validation.errors, inputSchema: wireInputSchema(tool) }, { includeContract: tool.argumentNormalization?.schemaInput === true }) }, {
+      return errorResult({ message: `invalid arguments for ${tool.name}: ${sanitizeUntrustedText({ text: argumentShapeMessage({ errors: validation.errors, inputSchema: wireInputSchema(tool) }, { includeContract: tool.argumentNormalization?.schemaInput === true, isKnownTool: id => diagnosticToolIds.includes(id) }) }, {
         diagnosticToolIds,
         // A complete bounded contract must survive the default 500-character diagnostic cap.
         maxLength: 4608,

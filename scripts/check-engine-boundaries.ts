@@ -149,6 +149,12 @@ const PRODUCT_IDENTITY_STRINGS = [
   'opendesign.app',
   'od://',
 ];
+/**
+ * Tool ids a host product owns. They are vocabulary of one consumer, so engine source may not name them
+ * (a host passes them in through a port); tests and comments may, as fixtures and provenance.
+ */
+const HOST_TOOL_NAMES = ['content_read'];
+const TEST_FILE_RE = /(^|\/)__tests__\/|\.(test|spec)\.[cm]?[jt]sx?$/;
 /** Matched separately (word-boundary) to avoid false positives on identifiers like `MOD_FOO`. */
 const OD_PREFIX_RE = /\bOD_[A-Z0-9_]*/;
 
@@ -519,6 +525,10 @@ export async function checkEngineBoundaries(
         file,
         reason: `product-identity prefix "${match ? match[0] : 'OD_'}"`,
       });
+    }
+    if (TEST_FILE_RE.test(file)) return;
+    for (const name of HOST_TOOL_NAMES) {
+      if (content.includes(name)) violations.push({ rule: 'R5-neutrality', file, reason: `host tool name "${name}"` });
     }
 
   }

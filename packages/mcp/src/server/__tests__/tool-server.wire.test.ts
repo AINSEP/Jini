@@ -219,7 +219,7 @@ describe('createMcpToolServer — wire-level (real SDK Client + Server + InMemor
   it('returns an {isError:true} CallToolResult (not a JSON-RPC error) for an unknown tool name, over the real wire', async () => {
     const { client, runPromise } = await bootWireServer({ tools: [echoTool()] });
     const result = await client.callTool({ name: 'does-not-exist', arguments: {} });
-    expect(result).toEqual({ isError: true, content: [{ type: 'text', text: 'unknown tool: does-not-exist' }] });
+    expect(result).toEqual({ isError: true, content: [{ type: 'text', text: 'There is no tool named "does-not-exist". Closest names: echo. Find tools with search_tools.' }] });
     await closeDown(runPromise);
   });
 
