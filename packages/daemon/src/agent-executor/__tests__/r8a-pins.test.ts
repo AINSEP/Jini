@@ -30,7 +30,7 @@ describe('R4a: a refusal before anything is acquired', () => {
     const { spawn, calls } = recordingSpawn([]);
     const rig = createRig({ def: createDef(), spawn });
     const runId = await rig.start();
-    await expect(rig.executor.run({ runId, agentId: 'r8a-agent', prompt: 'hi', cwd: '/work', nativeToolAccess: true, nativeCapabilities: { shell: false } }))
+    await expect(rig.executor.run({ runId, agentId: 'r8a-agent', prompt: 'hi', cwd: '/work' }, { nativeToolAccess: true, nativeCapabilities: { shell: false } }))
       .rejects.toMatchObject({ code: 'NATIVE_TOOL_POLICY_UNSUPPORTED', message: expect.stringContaining('R8a Agent needs your approval') });
     expect(calls).toHaveLength(0);
     expect(rig.events).toEqual([]);
