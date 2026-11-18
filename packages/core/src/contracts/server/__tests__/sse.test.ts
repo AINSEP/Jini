@@ -133,6 +133,12 @@ describe('createSseStream backlog frames', () => {
 });
 
 describe('lastEventCursor', () => {
+  it('reads no cursor when afterCursor is repeated: which of two values the client meant is unknown (Express gave an array, which the old reader refused)', () => {
+    expect(lastEventCursor({ request: new Request('http://l/s?afterCursor=a&afterCursor=b') })).toBe(null);
+  });
+  it('reads no cursor from an empty afterCursor', () => {
+    expect(lastEventCursor({ request: new Request('http://l/s?afterCursor=') })).toBe(null);
+  });
   it('prefers the header over the query', () => {
     expect(lastEventCursor({ request: new Request('http://l/s?afterCursor=q', { headers: { 'last-event-id': 'h' } }) })).toBe('h');
     expect(lastEventCursor({ request: new Request('http://l/s?afterCursor=q') })).toBe('q');

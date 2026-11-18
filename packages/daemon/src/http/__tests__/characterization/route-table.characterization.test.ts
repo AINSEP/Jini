@@ -29,12 +29,12 @@ const ROUTE_TABLE: Readonly<Record<string, readonly string[]>> = {
     'POST /internal/attachment-lookup [jsonParser/3, anonymous/2]',
   ],
   'runs': [
-    'POST /api/runs [anonymous/2]',
-    'GET /api/runs [anonymous/2]',
-    'GET /api/runs/:runId [anonymous/2]',
-    'POST /api/runs/:runId/cancel [anonymous/2]',
-    'POST /api/runs/:runId/messages [anonymous/2]',
-    'GET /api/runs/:runId/events [anonymous/2]',
+    'POST /api/runs [same-origin]',
+    'GET /api/runs []',
+    'GET /api/runs/:runId []',
+    'POST /api/runs/:runId/cancel [same-origin]',
+    'POST /api/runs/:runId/messages [same-origin]',
+    'GET /api/runs/:runId/events []',
   ],
   'agents': [
     'GET /api/agents []',

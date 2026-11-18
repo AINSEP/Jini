@@ -60,13 +60,12 @@ export type {
   RunStatusResponse,
 } from './runs.js';
 export {
-  registerRunEventStream,
-  registerRunRoutes,
   RUN_EVENTS_ROUTE_PATH,
   runCancelRoute,
   runListRoute,
   runMessageRoute,
   RUN_MESSAGE_MAX_CHARS,
+  runRoutes,
   runStartRoute,
   runStatusRoute,
 } from './runs.js';

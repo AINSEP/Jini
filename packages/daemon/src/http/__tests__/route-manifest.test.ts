@@ -1,6 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { createLocalTestOrigin } from './fixtures/local-origin.js';
-import type { Express } from 'express';
 import {
   JINI_ROUTE_MANIFEST,
   manifestRoutesForFamilies,
@@ -10,7 +8,7 @@ import type { RouteRegistration } from '../route-manifest.js';
 import { agentRoutes } from '../agents.js';
 import { delegatedToolRoutes } from '../delegated-tools.js';
 import { healthRoutes } from '../health.js';
-import { registerRunRoutes } from '../runs.js';
+import { runRoutes } from '../runs.js';
 import { toolCatalogRoutes } from '../tool-catalog.js';
 import { describeRoutes } from '../route-table.js';
 import { fakeDaemonRouteHost } from './fakes/route-host.js';
@@ -21,53 +19,24 @@ import { fakeDaemonRouteHost } from './fakes/route-host.js';
  * The manifest restates no path literals, so a spec's path changing can never desynchronize it. The one
  * remaining failure mode is a family gaining a route that nobody lists in the manifest — which is
  * exactly the failure that already shipped once in a real consumer (`GET /api/runs` missing from a
- * hand-maintained proxy route list). These tests mount each declared family's real registrar onto a
- * recording app and compare, so that omission fails here instead.
+ * hand-maintained proxy route list). These tests build each declared family's real route list and compare, so that omission fails here instead.
  */
 
-/** Records `{method, path}` for every string-path registration, like `installRouteRegistrationGuard`. */
-function recordingApp(): { app: Express; routes: RouteRegistration[] } {
-  const routes: RouteRegistration[] = [];
-  const record = (method: string) => (path: unknown) => {
-    if (typeof path === 'string') routes.push({ method, path });
-  };
-  const app = {
-    get: record('GET'),
-    post: record('POST'),
-    put: record('PUT'),
-    patch: record('PATCH'),
-    delete: record('DELETE'),
-    options: record('OPTIONS'),
-    all: record('ALL'),
-    use: record('USE'),
-  } as unknown as Express;
-  return { app, routes };
-}
-
-const { adapter: adapter, portRef: adapterPortRef } = createLocalTestOrigin({}, { port: 4319 });
-/** Registrars only need deps at request time, never at mount time — see `mountJsonRoute`. */
+/** Routes only need deps at request time, never when the list is built. */
 const anyDeps = {} as never;
 
-/** Mounts one family exactly as a composition would, and returns what registered. */
-const MOUNT_FAMILY: Readonly<Record<string, (app: Express) => void>> = {
-  runs: (app) => registerRunRoutes({ app, deps: anyDeps, adapter }),
-};
-
-/** A family that returns its routes as data: what it lists, as registrations. */
+/** Every family returns its routes as data: what it lists, as registrations. */
 const LISTED_FAMILY: Readonly<Record<string, () => RouteRegistration[]>> = {
+  runs: () => describeRoutes({ routes: runRoutes({ deps: anyDeps, host: fakeDaemonRouteHost() }) }),
   health: () => describeRoutes({ routes: healthRoutes({ deps: anyDeps, host: fakeDaemonRouteHost() }) }),
   delegatedToolCalls: () => describeRoutes({ routes: delegatedToolRoutes({ deps: anyDeps, host: fakeDaemonRouteHost() }) }),
   agents: () => describeRoutes({ routes: agentRoutes({ deps: anyDeps, host: fakeDaemonRouteHost() }) }),
   toolCatalog: () => describeRoutes({ routes: toolCatalogRoutes({ deps: anyDeps, host: fakeDaemonRouteHost() }) }),
 };
 
-/** What `family` really registers: its route list, or the routes its registrar puts on a recording app. */
+/** What `family` really lists. */
 function registeredBy(family: string): RouteRegistration[] {
-  const listed = LISTED_FAMILY[family];
-  if (listed) return listed();
-  const { app, routes } = recordingApp();
-  MOUNT_FAMILY[family]!(app);
-  return routes;
+  return LISTED_FAMILY[family]!();
 }
 
 const sortKeys = (routes: readonly RouteRegistration[]) =>
@@ -85,7 +54,7 @@ describe('route manifest matches what each family really registers', () => {
       'toolCatalog',
     ]);
     // Every declared family must have a way to be verified, and vice versa.
-    expect([...Object.keys(MOUNT_FAMILY), ...Object.keys(LISTED_FAMILY)].sort()).toEqual(Object.keys(JINI_ROUTE_MANIFEST).sort());
+    expect(Object.keys(LISTED_FAMILY).sort()).toEqual(Object.keys(JINI_ROUTE_MANIFEST).sort());
   });
 
   it.each(Object.keys(JINI_ROUTE_MANIFEST))('family %s', (family) => {

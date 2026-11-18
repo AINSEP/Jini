@@ -288,7 +288,7 @@ export function createDeferredEndGate({ channel }: { readonly channel: DeferredE
  * reconnect replay (via `sse.ts`'s `requestedAfterCursor`, the same helper
  * `runs.ts` uses). Adapts `deps.manager.attach`'s push/end
  * `TerminalSseSink` to `sse.ts`'s generic channel, mirroring
- * `registerRunEventStream`'s adaptation of `RunLifecycle.stream`.
+ * `runRoutes`'s event stream's adaptation of `RunLifecycle.stream`.
  *
  * Bypasses `mountJsonRoute` (raw `app.get`, for the SSE response shape), so it does not get
  * `requireSameOrigin` for free the way the JSON routes above do — the guard is applied here

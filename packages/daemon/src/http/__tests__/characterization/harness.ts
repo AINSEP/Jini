@@ -37,7 +37,7 @@ import { registerModelProxyRoutes } from '../../model-proxy.js';
 import { remoteRunEventRoutes } from '../../remote-run-events.js';
 import { researchRoutes } from '../../research.js';
 import { routineRoutes } from '../../routines.js';
-import { registerRunRoutes } from '../../runs.js';
+import { runRoutes } from '../../runs.js';
 import { registerTerminalRoutes } from '../../terminals.js';
 import { toolCatalogRoutes } from '../../tool-catalog.js';
 import { registerToolExecutionRoutes } from '../../tool-execution-routes.js';
@@ -114,7 +114,7 @@ const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-par
   }],
   ['attachment-lookup-routes', ({ app, deps }) => registerAttachmentLookupRoutes({ app, store: deps() })],
   'json-parser',
-  ['runs', ({ app, adapter, deps }) => registerRunRoutes({ app, deps: deps(), adapter })],
+  ['runs', ({ adapter, deps, mountList }) => mountList(runRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['agents', ({ adapter, deps, mountList }) => mountList(agentRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['host-tools', ({ adapter, deps, mountList }) => mountList(hostToolsRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['model-proxy', ({ app, adapter, deps }) => registerModelProxyRoutes({ app, deps: deps(), adapter })],

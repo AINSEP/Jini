@@ -317,11 +317,11 @@ Evidence: exported source and tests covering lifecycle replay/recovery, cancella
 ## ./http: domain routes and ports
 
 
-Registrars use `({app: Express, deps: D, adapter: AdapterContext}, {}) => void`. They register paths; they do not open a listening server. Stream-only `registerRunEventStream({app, deps}, {}) => void` omits adapter. Public route constants are `JsonRouteSpec<I,O,D>` with `parse(raw)` and `handle({input, deps}, {signal?})`; return values are `Result<O>`. Table response names are public interfaces unless a structural shape is shown.
+Registrars use `({app: Express, deps: D, adapter: AdapterContext}, {}) => void`. They register paths; they do not open a listening server. Public route constants are `JsonRouteSpec<I,O,D>` with `parse(raw)` and `handle({input, deps}, {signal?})`; return values are `Result<O>`. Table response names are public interfaces unless a structural shape is shown.
 
 | Registrar | Consumer dependency contract |
 |---|---|
-| `registerRunRoutes` / `registerRunEventStream` | `RunHttpDeps`: `lifecycle: RunLifecycle`; optional `onStarted(RunStartContext)`, `onInternalError(RunInternalErrorContext)` |
+| `runRoutes` | `({ deps: RunHttpDeps, host: DaemonRouteHost }) => DaemonRoute[]`; `RunHttpDeps`: `lifecycle: RunLifecycle`; optional `onStarted(RunStartContext)`, `onInternalError(RunInternalErrorContext)`. Includes the SSE event stream |
 | `agentRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them); `AgentsHttpDeps`: `listAgents() => AgentSummary[] \| Promise<readonly AgentSummary[]>`; optional `rescanAgents()` |
 | `healthRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them); `HealthHttpDeps`: `getVersion() => string \| Promise<string>`; optional async `checkReadiness() => {ok, checks: Record<string,boolean>}` |
 | `daemonStatusRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them); `DaemonStatusDeps`: `getVersion`, `host`, `getPort`, `dataDir`, `isShuttingDown`, `requestShutdown` callbacks/values |

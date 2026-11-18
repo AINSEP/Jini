@@ -8,8 +8,7 @@ describe('@jini-ai/daemon/http barrel', () => {
     expect(HttpBarrel.runStartRoute.path).toBe('/api/runs');
     expect(HttpBarrel.runStatusRoute.path).toBe('/api/runs/:runId');
     expect(HttpBarrel.runCancelRoute.path).toBe('/api/runs/:runId/cancel');
-    expect(typeof HttpBarrel.registerRunEventStream).toBe('function');
-    expect(typeof HttpBarrel.registerRunRoutes).toBe('function');
+    expect(typeof HttpBarrel.runRoutes).toBe('function');
   });
 
   it('re-exports the attachment upload capability: routes, store, and helpers', () => {

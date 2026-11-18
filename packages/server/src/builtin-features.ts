@@ -38,7 +38,7 @@ import {
   searchToolCatalog,
 } from '@jini-ai/registry/tool-catalog/sqlite';
 import { inspectSqliteDatabase, verifySqliteIntegrity } from '@jini-ai/db/sqlite'; import type { SqliteDb } from '@jini-ai/core/contracts/storage';
-import { xaiRoutes, connectorsRoutes, routineRoutes, mediaRoutes, hostToolsRoutes, healthRoutes, daemonDbRoutes, researchRoutes, delegatedToolRoutes, activeContextRoutes, daemonStatusRoutes, agentRoutes, toolCatalogRoutes, createDaemonDbToolRegistrations, denyAllWorkspaceRoots, registerFrontendSessionRoutes, registerMemoryRoutes, registerModelProxyRoutes, remoteRunEventRoutes, registerRunRoutes, registerTerminalRoutes, type AgentSummary, type DaemonDbOperations, type DaemonDbVacuumResult, type DelegatedToolExecuteRequest, type FrontendSessionsHttpDeps, type MediaHttpDeps, type MemoryHttpDeps, type RemoteToolBridgeTokenConfig, type RoutineHttpDeps, type RunStartHandler, type WorkspaceRootResolver } from '@jini-ai/daemon/http';
+import { xaiRoutes, connectorsRoutes, routineRoutes, mediaRoutes, hostToolsRoutes, healthRoutes, daemonDbRoutes, researchRoutes, delegatedToolRoutes, activeContextRoutes, daemonStatusRoutes, agentRoutes, toolCatalogRoutes, createDaemonDbToolRegistrations, denyAllWorkspaceRoots, registerFrontendSessionRoutes, registerMemoryRoutes, registerModelProxyRoutes, remoteRunEventRoutes, runRoutes, registerTerminalRoutes, type AgentSummary, type DaemonDbOperations, type DaemonDbVacuumResult, type DelegatedToolExecuteRequest, type FrontendSessionsHttpDeps, type MediaHttpDeps, type MemoryHttpDeps, type RemoteToolBridgeTokenConfig, type RoutineHttpDeps, type RunStartHandler, type WorkspaceRootResolver } from '@jini-ai/daemon/http';
 import type { Express } from 'express';
 
 import { defineJiniFeature, type FeatureBuildContext, type JiniFeature } from './feature.js';
@@ -282,13 +282,13 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
           services: () => ({ context }),
         }, {
           http: ({ app, services }) => {
-            registerRunRoutes({ app: app as Express, deps: {
+            mountRoutes({ app, routes: runRoutes({ deps: {
                 lifecycle: services.context.kernel.lifecycle,
                 ...(onStarted === undefined ? {} : { onStarted }),
                 // A mid-run message reaches whichever live run the kernel's own executor is driving;
                 // a run some other driver owns reads as not-running, never as delivered.
                 deliverUserMessage: (input) => services.context.kernel.agentExecutor.sendUserMessage(input),
-              }, adapter: services.context.adapter });
+              }, host: services.context.routeHost }) });
           },
         }),
       };
