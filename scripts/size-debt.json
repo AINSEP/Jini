@@ -548,9 +548,9 @@
   {
     "file": "packages/daemon/src/http/attachments.ts",
     "function": "<file>",
-    "line": 1086,
+    "line": 1091,
     "rule": "max-lines",
-    "value": 861
+    "value": 844
   },
   {
     "file": "packages/daemon/src/http/attachments.ts",

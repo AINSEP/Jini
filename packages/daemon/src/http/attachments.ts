@@ -90,9 +90,9 @@
  * leaves nothing to write. The classic way to hit this is a JSON body parser mounted app-wide: a
  * user drops a `.json` file, the browser sets `content-type: application/json`, and
  * `express.json()` eats the body — which without a guard shows up as the deeply unhelpful
- * "attachment is empty". `registerAttachmentRoutes` detects an already-consumed stream up front and
- * reports it as a host misconfiguration (`'attachment-body-consumed'`) instead of failing silently.
- * Mount this pack before any global body parser, or scope the parser so it skips this path.
+ * "attachment is empty". `attachmentUploadRoutes` detects an already-consumed stream up front (the host hands it no
+ * body at all) and reports it as a host misconfiguration (`'attachment-body-consumed'`) instead of failing silently.
+ * Mount this list before any global body parser, or scope the parser so it skips this path.
  *
  * **SEC-005 redaction**: a store failure can carry filesystem paths a caller must not see, so
  * anything that is not an explicitly-classified `AttachmentRejectedError` becomes a
@@ -102,11 +102,9 @@
 import { chmod, copyFile, lstat, mkdir, mkdtemp, open, readFile, readdir, realpath, rm, rmdir, type FileHandle } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { basename, dirname, extname, resolve } from 'node:path';
-import type { Express, Request, Response } from 'express';
-import { createApiError, type ApiError } from '@jini-ai/protocol';
-import type { RouteHostContext } from '@jini-ai/core/contracts/server';
-import { guardSameOrigin } from '@jini-ai/core/contracts/server';
-import { reportRouteInternalError, sendApiError, sendJson } from '@jini-ai/http-kit';
+import { createApiError, createApiErrorResponse, type ApiError } from '@jini-ai/protocol';
+import { jsonResponse, readJsonBody, readQuery, sameOriginRefusal, statusForError } from '@jini-ai/core/contracts/server';
+import type { DaemonRouteHost } from './route-host.js';
 import { writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
 
 /**
@@ -739,6 +737,16 @@ export function detectAttachmentKind({ body }: { readonly body: Uint8Array }, _o
 }
 
 /**
+ * One chunk of a request body as a `Buffer`. A web request body yields `Uint8Array` chunks, which are not
+ * `Buffer`s, and `String(chunk)` of one is a comma-joined number list: never take that branch for bytes.
+ */
+function chunkBuffer(chunk: unknown): Buffer {
+  if (Buffer.isBuffer(chunk)) return chunk;
+  if (chunk instanceof Uint8Array) return Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+  return Buffer.from(String(chunk));
+}
+
+/**
  * Streams a request body straight to a private file under a hard byte cap, keeping only the
  * leading signature bytes in memory so an upload never costs memory proportional to its size.
  *
@@ -760,7 +768,7 @@ export async function writeBoundedAttachmentBody(requiredArgs: { request: AsyncI
   let signature = Buffer.alloc(0);
   try {
     for await (const chunk of request) {
-      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
+      const buffer = chunkBuffer(chunk);
       total += buffer.byteLength;
       if (total > maxBytes) {
         throw new AttachmentRejectedError({ reason: 'attachment-too-large', message: `Each attachment must be ${formatByteLimit(maxBytes)} or smaller` }
@@ -1412,47 +1420,42 @@ export interface AttachmentsHttpDeps {
    * caller-controlled value here (an inbound header nothing has verified) would let any uploader
    * assert an arbitrary `ownerId` and make its files discoverable by whoever that id names.
    */
-  readonly resolveOwnerId?: ({ req }: { req: Request }) => string | undefined;
+  readonly resolveOwnerId?: (required: { readonly request: Request; readonly locals: Record<string, unknown> }) => string | undefined;
 }
 
 export const ATTACHMENTS_ROUTE_PATH = '/api/attachments';
 
-function reportInternalError(
-  { deps, source, error, batchId }: { readonly deps: AttachmentsHttpDeps; readonly source: AttachmentsInternalErrorContext['source']; readonly error: unknown; readonly batchId: string | null },
+/** The two things every handler below needs from outside: the app's own deps and the host's reporter, origin policy and body limit. */
+export interface AttachmentCall {
+  readonly deps: AttachmentsHttpDeps;
+  readonly host: DaemonRouteHost;
+}
+
+export function reportInternalError(
+  { deps, host, source, error, batchId }: AttachmentCall & { readonly source: AttachmentsInternalErrorContext['source']; readonly error: unknown; readonly batchId: string | null },
   _optional: Record<string, never> = {},
 ): ApiError {
   const message = source === 'attachment-upload'
     ? 'The file could not be attached. Try again; if it keeps failing, copy the request ID and report this problem.'
     : 'The attachment could not be removed. Try again; if it keeps failing, copy the request ID and report this problem.';
-  return reportRouteInternalError<Omit<AttachmentsInternalErrorContext, 'correlationId'>>({ report: { source, batchId, error }, logSource: source, message }, { onInternalError: deps.onInternalError });
+  return host.reportInternalError({ report: { source, batchId, error }, logSource: source, message }, { onInternalError: deps.onInternalError });
 }
 
+export const failureAnswer = ({ status, error }: { readonly status: number; readonly error: ApiError }): Response =>
+  jsonResponse({ status, body: createApiErrorResponse({ error }) });
+
 /**
- * Sends the right status for an upload failure: an explicitly-classified rejection keeps its real
+ * The answer for an upload failure: an explicitly-classified rejection keeps its real
  * message (the composer shows it to the user, so "you can attach at most 10 files" has to survive),
  * while an integrity failure or any unexpected error is redacted to a generic `INTERNAL_ERROR`.
  */
-function respondToUploadFailure(
-  res: Response,
-  deps: AttachmentsHttpDeps,
-  error: unknown,
-  batchId: string | null,
-  source: AttachmentsInternalErrorContext['source'],
-): void {
+export function respondToUploadFailure(
+  { deps, host, error, batchId, source }: AttachmentCall & { readonly error: unknown; readonly batchId: string | null; readonly source: AttachmentsInternalErrorContext['source'] },
+): Response {
   if (error instanceof AttachmentRejectedError && REJECTION_STATUS[error.reason] !== 500) {
-    sendApiError({ res, status: REJECTION_STATUS[error.reason], error: apiErrorForRejection(error) });
-    return;
+    return failureAnswer({ status: REJECTION_STATUS[error.reason], error: apiErrorForRejection(error) });
   }
-  sendApiError({ res, status: 500, error: reportInternalError({ deps, source, error, batchId }) });
-}
-
-/** `false` when the same-origin guard rejected the request (and already answered it). */
-function passesOriginGuard(req: Request, res: Response, deps: AttachmentsHttpDeps, adapter: RouteHostContext): boolean {
-  if (deps.requireSameOrigin === false) return true;
-  const origin = guardSameOrigin({ req, origin: adapter });
-  if (origin.ok) return true;
-  sendApiError({ res, status: 403, error: origin.error });
-  return false;
+  return failureAnswer({ status: 500, error: reportInternalError({ deps, host, source, error, batchId }) });
 }
 
 export interface AttachmentUploadResponse {
@@ -1465,17 +1468,32 @@ export interface AttachmentUploadResponse {
  * its upload budget never pays for diagnosing a misconfigured body parser.
  */
 function refusalBeforeUpload(
-  { req, state, maxConcurrentUploads }: { readonly req: Request; readonly state: { readonly activeUploads: number }; readonly maxConcurrentUploads: number },
+  { request, state, maxConcurrentUploads }: { readonly request: Request; readonly state: { readonly activeUploads: number }; readonly maxConcurrentUploads: number },
 ): AttachmentRejectedError | undefined {
   if (state.activeUploads >= maxConcurrentUploads) {
     return new AttachmentRejectedError({ reason: 'too-many-concurrent-uploads', message: 'Too many attachment uploads are in progress' });
   }
   // Checked before a single byte is written: a drained stream would otherwise produce a zero-byte
-  // file and the misleading "attachment is empty". See this module's body-parser doc.
-  if (req.readableEnded) {
+  // file and the misleading "attachment is empty". The host hands a route that reads raw bytes no body at all when
+  // something above it already consumed the stream, so no body here means exactly that. See this module's body-parser doc.
+  if (request.body === null) {
     return new AttachmentRejectedError({ reason: 'attachment-body-consumed', message: `the request body was already consumed before ${ATTACHMENTS_ROUTE_PATH} received it — mount this route pack before any global body parser, or scope that parser to skip this path` });
   }
   return undefined;
+}
+
+/** The chunks of a web request body, as an async sequence the bounded writer can consume. */
+async function* bodyChunks({ body }: { readonly body: ReadableStream<Uint8Array> }): AsyncGenerator<Uint8Array> {
+  const reader = body.getReader();
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) return;
+      yield value;
+    }
+  } finally {
+    reader.releaseLock();
+  }
 }
 
 /**
@@ -1509,18 +1527,17 @@ async function openAttachmentUpload(
  * register, answer. Throws for the caller to map; the caller owns the slot and the `finally` tidy.
  */
 async function storeAttachmentUpload(
-  { req, res, deps, batchId, name, maxAttachmentBytes }: { readonly req: Request; readonly res: Response; readonly deps: AttachmentsHttpDeps; readonly batchId: string; readonly name: string; readonly maxAttachmentBytes: number },
+  { request, locals, deps, batchId, name, maxAttachmentBytes }: { readonly request: Request & { readonly body: ReadableStream<Uint8Array> }; readonly locals: Record<string, unknown>; readonly deps: AttachmentsHttpDeps; readonly batchId: string; readonly name: string; readonly maxAttachmentBytes: number },
   _optional: Record<string, never> = {},
-): Promise<void> {
+): Promise<Response> {
   await deps.store.pruneExpired({});
   const { path, handle } = await openAttachmentUpload({ store: deps.store, batchId, name });
-  const upload = await writeBoundedAttachmentBody({ request: req, filePath: path, maxBytes: maxAttachmentBytes }, { handle });
+  const upload = await writeBoundedAttachmentBody({ request: bodyChunks({ body: request.body }), filePath: path, maxBytes: maxAttachmentBytes }, { handle });
   if (upload.size === 0) {
     await rm(path, { force: true });
-    sendApiError({ res, status: 400, error: createApiError({ code: 'BAD_REQUEST', message: 'Attachment is empty' }) });
-    return;
+    return failureAnswer({ status: 400, error: createApiError({ code: 'BAD_REQUEST', message: 'Attachment is empty' }) });
   }
-  const ownerId = deps.resolveOwnerId?.({ req });
+  const ownerId = deps.resolveOwnerId?.({ request, locals });
   const attachment = await deps.store.register({
     input: {
       batchId,
@@ -1531,32 +1548,32 @@ async function storeAttachmentUpload(
       ...(ownerId === undefined ? {} : { ownerId }),
     }
   });
-  sendJson({ res, status: 201, body: { attachment } satisfies AttachmentUploadResponse });
+  return jsonResponse({ status: 201, body: { attachment } satisfies AttachmentUploadResponse });
 }
 
 /**
  * Handles one upload: rate-limit, batch directory, bounded stream to disk, signature sniff,
- * register. Exported so a host mounting its own path (or its own framework) can reuse the whole
+ * register. Exported so a host mounting its own path can reuse the whole
  * body without re-deriving the ordering, which is load-bearing — see the `finally`.
  */
-export async function handleAttachmentUpload({ req, res, deps, state }: { readonly req: Request; readonly res: Response; readonly deps: AttachmentsHttpDeps; readonly state: { activeUploads: number } }, _optional: Record<string, never> = {}
-): Promise<void> {
+export async function handleAttachmentUpload(
+  { request, locals, deps, host, state }: AttachmentCall & { readonly request: Request; readonly locals: Record<string, unknown>; readonly state: { activeUploads: number } },
+  _optional: Record<string, never> = {},
+): Promise<Response> {
   const maxConcurrentUploads = deps.maxConcurrentUploads ?? 4;
   const maxAttachmentBytes = deps.maxAttachmentBytes ?? 20 * 1024 * 1024;
-  const name = sanitizeAttachmentName({ requestedName: req.query.name });
-  const batchId = typeof req.query.batch === 'string' ? req.query.batch : '';
+  const query = readQuery({ request });
+  const name = sanitizeAttachmentName({ requestedName: query.name });
+  const batchId = typeof query.batch === 'string' ? query.batch : '';
   // Every refusal below goes through `respondToUploadFailure`, so the reason -> status/code mapping
   // lives in exactly one place rather than being partly inlined here.
-  const refusal = refusalBeforeUpload({ req, state, maxConcurrentUploads });
-  if (refusal !== undefined) {
-    respondToUploadFailure(res, deps, refusal, batchId, 'attachment-upload');
-    return;
-  }
+  const refusal = refusalBeforeUpload({ request, state, maxConcurrentUploads });
+  if (refusal !== undefined) return respondToUploadFailure({ deps, host, error: refusal, batchId, source: 'attachment-upload' });
   state.activeUploads += 1;
   try {
-    await storeAttachmentUpload({ req, res, deps, batchId, name, maxAttachmentBytes });
+    return await storeAttachmentUpload({ request: request as Request & { readonly body: ReadableStream<Uint8Array> }, locals, deps, batchId, name, maxAttachmentBytes });
   } catch (error) {
-    respondToUploadFailure(res, deps, error, batchId, 'attachment-upload');
+    return respondToUploadFailure({ deps, host, error, batchId, source: 'attachment-upload' });
   } finally {
     state.activeUploads -= 1;
     // Removes the batch directory when this failed upload left it empty. Passing no paths is
@@ -1569,71 +1586,28 @@ export async function handleAttachmentUpload({ req, res, deps, state }: { readon
 /**
  * Handles a client abandoning a batch (a failed multi-file upload, a cleared composer). Only
  * *unclaimed* uploads can be deleted this way, so a caller cannot use it to pull files out from
- * under a run that already claimed them.
+ * under a run that already claimed them. Answers `204` with no body.
  */
-export async function handleAttachmentCleanup({ req, res, deps }: { readonly req: Request; readonly res: Response; readonly deps: AttachmentsHttpDeps }, _optional: Record<string, never> = {}
-): Promise<void> {
+export async function handleAttachmentCleanup(
+  { request, deps, host }: AttachmentCall & { readonly request: Request },
+  _optional: Record<string, never> = {},
+): Promise<Response> {
   const maxCleanupPaths = deps.maxCleanupPaths ?? 10;
-  const body = req.body as { batchId?: unknown; paths?: unknown } | undefined;
+  const read = await readJsonBody({ request }, { maxBytes: host.jsonBodyMaxBytes });
+  if (!read.ok) return failureAnswer({ status: statusForError({ error: read.error }), error: read.error });
+  const body = read.value as { batchId?: unknown; paths?: unknown } | undefined;
   if (
     typeof body?.batchId !== 'string'
     || !Array.isArray(body.paths)
     || body.paths.length > maxCleanupPaths
     || !body.paths.every((path) => typeof path === 'string')
   ) {
-    sendApiError({ res, status: 400, error: createApiError({ code: 'BAD_REQUEST', message: 'Invalid attachment cleanup request' }) });
-    return;
+    return failureAnswer({ status: 400, error: createApiError({ code: 'BAD_REQUEST', message: 'Invalid attachment cleanup request' }) });
   }
   try {
     await deps.store.deleteUnclaimed({ batchId: body.batchId, paths: body.paths });
-    res.status(204).end();
+    return jsonResponse({ status: 204, body: undefined });
   } catch (error) {
-    respondToUploadFailure(res, deps, error, body.batchId, 'attachment-cleanup');
+    return respondToUploadFailure({ deps, host, error, batchId: body.batchId, source: 'attachment-cleanup' });
   }
-}
-
-/**
- * Mounts `POST`/`DELETE /api/attachments` on `app`. A pack's `http(app, services)` calls this
- * directly.
- *
- * Hand-mounted rather than built from `defineJsonRoute`/`mountJsonRoute` for two concrete reasons:
- * the upload reads the raw request stream (a JSON-parsed `req.body` is exactly what must not have
- * happened), and the cleanup answers `204` with no body, which a JSON responder cannot express.
- */
-export function registerAttachmentRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: AttachmentsHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}
-): void {
-  // Per-registration, not module-level: two daemons in one process (a test harness, an embedded
-  // second host) must not share one upload budget.
-  const state = { activeUploads: 0 };
-  app.post(ATTACHMENTS_ROUTE_PATH, async (req, res) => {
-    let release: (() => void) | undefined;
-    try {
-      release = deps.acquireActivity?.();
-      if (!passesOriginGuard(req, res, deps, adapter)) return;
-      await handleAttachmentUpload({ req, res, deps, state });
-    } catch (error) {
-      // `handleAttachmentUpload` already catches everything inside its own body — this only ever
-      // fires for `passesOriginGuard`/`guardSameOrigin` throwing, which is Result-returning by
-      // contract but not guaranteed never to throw (`isLocalSameOrigin` really does throw on a
-      // malformed `JINI_ALLOWED_ORIGINS` entry — see the paired regression test). Mounting this
-      // route bypasses `mountJsonRoute`'s adapter (see this function's own doc), so nothing else
-      // stood between that throw and an unhandled rejection with no process-level guard anywhere
-      // in this package's path.
-      if (!res.headersSent) respondToUploadFailure(res, deps, error, null, 'attachment-upload');
-    } finally {
-      release?.();
-    }
-  });
-  app.delete(ATTACHMENTS_ROUTE_PATH, async (req, res) => {
-    let release: (() => void) | undefined;
-    try {
-      release = deps.acquireActivity?.();
-      if (!passesOriginGuard(req, res, deps, adapter)) return;
-      await handleAttachmentCleanup({ req, res, deps });
-    } catch (error) {
-      if (!res.headersSent) sendApiError({ res, status: 500, error: reportInternalError({ deps, source: 'attachment-cleanup', error, batchId: null }) });
-    } finally {
-      release?.();
-    }
-  });
 }

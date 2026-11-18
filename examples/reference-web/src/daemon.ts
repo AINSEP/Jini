@@ -10,7 +10,7 @@ import Database from 'better-sqlite3';
 import { createAgentExecutor } from '@jini-ai/daemon';
 import { createNativeAgentRuntime } from '@jini-ai/agent-runtime';
 import type { ToolRegistration } from '@jini-ai/core';
-import { createDiskAttachmentStore, mediaRoutes, memoryRoutes, registerAttachmentRoutes } from '@jini-ai/daemon/http';
+import { attachmentCleanupRoutes, attachmentUploadRoutes, createDiskAttachmentStore, mediaRoutes, memoryRoutes } from '@jini-ai/daemon/http';
 import { createBuiltinVendorAdapterRegistry, createMediaDispatchEngine, createSqliteMediaTaskStore } from '@jini-ai/integrations/media-providers';
 import { createNodeMediaHttpClient } from '@jini-ai/integrations/media-providers/node';
 import { createExtractionLog, createNoteStore, createVerifyLog } from '@jini-ai/memory';
@@ -458,7 +458,11 @@ async function main(): Promise<void> {
         // `POST`/`DELETE /api/attachments`, replacing ~70 lines of hand-rolled upload plumbing this
         // file used to carry. The same-origin guard is on by default and works here because
         // `JINI_ALLOWED_ORIGINS` above already names the Vite dev origin the browser sends.
-        (app, { adapter }) => registerAttachmentRoutes({ app, deps: { store: attachmentStore }, adapter }),
+        // The upload reads the raw request bytes, so its list is mounted without the parsed body (`rawBody`); the cleanup reads JSON.
+        (app, { routeHost }) => {
+          mountRoutes({ app, routes: attachmentUploadRoutes({ deps: { store: attachmentStore }, host: routeHost }) }, { rawBody: true });
+          mountRoutes({ app, routes: attachmentCleanupRoutes({ deps: { store: attachmentStore }, host: routeHost }) });
+        },
         (app, { routeHost }) => mountRoutes({ app, routes: memoryRoutes({ deps: memoryRoutesDeps, host: routeHost }) }),
         (app, { routeHost }) =>
           mountRoutes({ app, routes: mediaRoutes({ deps: {

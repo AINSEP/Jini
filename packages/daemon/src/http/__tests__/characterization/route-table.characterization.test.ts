@@ -158,8 +158,8 @@ const ROUTE_TABLE: Readonly<Record<string, readonly string[]>> = {
     'GET /api/components/:id [same-origin]',
   ],
   'attachments': [
-    'POST /api/attachments [anonymous/2]',
-    'DELETE /api/attachments [anonymous/2]',
+    'POST /api/attachments [same-origin]',
+    'DELETE /api/attachments [same-origin]',
   ],
   'message-relay': [
     'POST /api/runs/:runId/messages/claim []',

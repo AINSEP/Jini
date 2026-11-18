@@ -13,7 +13,8 @@ describe('@jini-ai/daemon/http barrel', () => {
 
   it('re-exports the attachment upload capability: routes, store, and helpers', () => {
     expect(HttpBarrel.ATTACHMENTS_ROUTE_PATH).toBe('/api/attachments');
-    expect(typeof HttpBarrel.registerAttachmentRoutes).toBe('function');
+    expect(typeof HttpBarrel.attachmentUploadRoutes).toBe('function');
+    expect(typeof HttpBarrel.attachmentCleanupRoutes).toBe('function');
     expect(typeof HttpBarrel.createDiskAttachmentStore).toBe('function');
     expect(typeof HttpBarrel.handleAttachmentUpload).toBe('function');
     expect(typeof HttpBarrel.handleAttachmentCleanup).toBe('function');

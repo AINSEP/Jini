@@ -6,12 +6,13 @@
  * - `ftypBoxEnd`'s short-body guard, which no `hasAvifSignature` call can reach (its `ftyp` tag
  *   check already requires 8 bytes) and so is exercised by a direct call — a bounds guard is kept,
  *   never deleted as "unreachable".
- * - `registerAttachmentRoutes`'s `catch` around the origin guard, for both `POST` and `DELETE`,
+ * - `attachmentUploadRoutes`/`attachmentCleanupRoutes`'s `catch` around the origin guard, for both `POST` and `DELETE`,
  *   driven by a host-injected `adapter.env` whose read throws (the environment `guardSameOrigin`
  *   actually reads). A malformed allowed-origins entry no longer throws — `configuredAllowedOrigins`
  *   drops and logs it — so a throwing env read is the remaining way to make the guard throw.
  * - Rejection of same-inode, same-size content swaps after registration.
  */
+import { mountAttachmentRoutes, mountRoutes, testRouteHost } from './fakes/mount-attachments.js';
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -26,7 +27,6 @@ import {
   createDiskAttachmentStore,
   ftypBoxEnd,
   hasAvifSignature,
-  registerAttachmentRoutes,
   type AttachmentStore,
   type AttachmentsHttpDeps,
   type AttachmentsInternalErrorContext,
@@ -122,7 +122,7 @@ async function throwingGuardHarness(): Promise<{ url: string; sink: ReturnType<t
   const adapter: RouteHostContext = { originPolicy: createLocalSameOriginPolicy({ port: () => portRef.current, env: throwingEnv(), config: testOriginConfig }) };
   const app = express();
   app.use(express.json());
-  registerAttachmentRoutes({ app, deps, adapter });
+  mountAttachmentRoutes({ app, deps, adapter });
   const server: Server = app.listen(0);
   await new Promise((ready) => server.once('listening', ready));
   const { port } = server.address() as { port: number };

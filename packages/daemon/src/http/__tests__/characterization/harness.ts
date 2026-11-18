@@ -20,7 +20,7 @@ import { describeRoutes } from '../../route-table.js';
 import { activeContextRoutes } from '../../active-context.js';
 import { agentRoutes } from '../../agents.js';
 import { attachmentLookupRoutes } from '../../attachment-lookup-routes.js';
-import { registerAttachmentRoutes } from '../../attachments.js';
+import { attachmentCleanupRoutes, attachmentUploadRoutes } from '../../attachment-routes.js';
 import { componentCatalogRoutes } from '../../component-catalog.js';
 import { connectorsRoutes } from '../../connectors.js';
 import { daemonStatusRoutes } from '../../daemon-status.js';
@@ -137,7 +137,11 @@ const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-par
   ['frontend-sessions (scoped)', ({ adapter, deps, mountList }) => mountList(frontendSessionRoutes({ deps: deps({ routePrefix: SCOPED_FRONTEND_PREFIX, setTimer: NEVER_FIRING_TIMER }), host: routeHost(adapter) }))],
   ['daemon-status', ({ adapter, deps, mountList }) => mountList(daemonStatusRoutes({ deps: deps({ requestShutdown: () => undefined }), host: routeHost(adapter) }))],
   ['component-catalog', ({ adapter, deps, mountList }) => mountList(componentCatalogRoutes({ deps: deps(), host: routeHost(adapter) }))],
-  ['attachments', ({ app, adapter, deps }) => registerAttachmentRoutes({ app, deps: deps({ acquireActivity: undefined }), adapter })],
+  ['attachments', ({ adapter, deps, mountList }) => {
+    const attachmentDeps = deps({ acquireActivity: undefined });
+    mountList(attachmentUploadRoutes({ deps: attachmentDeps, host: routeHost(adapter) }), { rawBody: true });
+    mountList(attachmentCleanupRoutes({ deps: attachmentDeps, host: routeHost(adapter) }));
+  }],
   ['message-relay', ({ deps, mountList }) => mountList(messageRelayRoutes({ agentExecutor: deps(), runScopedCallers: undefined }))],
   ['frontend-request-route', ({ adapter, deps, mountList }) => mountList(frontendRequestRoutes({ path: '/api/frontend-requests', control: deps(), executor: deps(), resolveOwner: (deps() as { resolveOwner: never }).resolveOwner, capabilityIds: ['characterization.capability'], host: routeHost(adapter) }))],
 ];

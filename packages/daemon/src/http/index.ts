@@ -344,11 +344,11 @@ export {
   handleAttachmentCleanup,
   handleAttachmentUpload,
   isUnchangedAttachment,
-  registerAttachmentRoutes,
   sanitizeAttachmentName,
   stageAttachmentClaim,
   writeBoundedAttachmentBody,
 } from './attachments.js';
+export { attachmentCleanupRoutes, attachmentUploadRoutes } from './attachment-routes.js';
 export type {
   XaiAuthStatusResponse,
   XaiHttpDeps,
