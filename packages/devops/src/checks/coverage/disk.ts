@@ -46,7 +46,7 @@ export interface DiskAreaResult {
 }
 
 /** Exclude test and declaration filenames from a production-source inventory. */
-export function isMeasurableSource({ file: relPath }: { file: string }): boolean {
+export function isMeasurableSource({ file: relPath }: { file: string }, _optional = {}): boolean {
   if (/\.(test|spec)\.(js|cjs|mjs|ts|tsx|mts)$/.test(relPath)) return false;
   if (relPath.endsWith(".d.ts")) return false;
   return true;
@@ -58,7 +58,7 @@ export function isMeasurableSource({ file: relPath }: { file: string }): boolean
  *  no failure. Both sides are desktop-root-relative and `/`-separated; a trailing `/` on a
  *  configured directory is ignored.
  *  @complexity O(d) in excluded directories. */
-export function isInExcludedDir({ file: relPath, excludeDirs }: { file: string; excludeDirs: readonly string[] }): boolean {
+export function isInExcludedDir({ file: relPath, excludeDirs }: { file: string; excludeDirs: readonly string[] }, _optional = {}): boolean {
   return excludeDirs.some((dir) => {
     const base = withoutTrailingSlashes({ path: dir });
     return relPath === base || relPath.startsWith(`${base}/`);
@@ -70,7 +70,7 @@ export function isInExcludedDir({ file: relPath, excludeDirs }: { file: string; 
  *  glob, so a flag placed there shows up as drift rather than being skipped. Any other command
  *  throws, so a script this cannot read fails loudly instead of comparing as zero globs.
  *  @complexity O(n) in script length. */
-export function parseNodeTestScript({ script }: { script: string }): RunnerGlobs[] {
+export function parseNodeTestScript({ script }: { script: string }, _optional = {}): RunnerGlobs[] {
   return script.split("&&").map((command) => {
     const tokens = [...command.matchAll(/"([^"]*)"|(\S+)/g)].map((match) => match[1] ?? match[2]!);
     const testAt = tokens.indexOf("--test");
@@ -108,7 +108,7 @@ function unmatchedGlobs(
  *  is ignored, a glob moved between runners is reported on both, and two spellings of one pattern
  *  count as drift.
  *  @complexity O(g) in globs. */
-export function runnerSplitDrift({ passes, scriptPasses }: { passes: readonly RunnerGlobs[]; scriptPasses: readonly RunnerGlobs[] }): string[] {
+export function runnerSplitDrift({ passes, scriptPasses }: { passes: readonly RunnerGlobs[]; scriptPasses: readonly RunnerGlobs[] }, _optional = {}): string[] {
   const inPasses = globsByRunner(passes);
   const inScript = globsByRunner(scriptPasses);
   return [
@@ -160,7 +160,7 @@ function floorFailures(
 }
 
 /** Evaluate floors against an independently supplied source inventory and declared gaps. */
-export function evaluateDiskArea({ area, onDisk, coverage }: { area: CoverageArea; onDisk: readonly string[]; coverage: ReadonlyMap<string, LcovCounters> }): DiskAreaResult {
+export function evaluateDiskArea({ area, onDisk, coverage }: { area: CoverageArea; onDisk: readonly string[]; coverage: ReadonlyMap<string, LcovCounters> }, _optional = {}): DiskAreaResult {
   const diskPaths = [...new Set(onDisk)];
   const known = new Set(area.knownUnmeasured ?? []);
   const measuredPaths = diskPaths.filter((p) => coverage.has(p));

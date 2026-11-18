@@ -73,7 +73,7 @@ describe('review lg: shared Node adapters', () => {
       put('src/entry.ts', '');
       put('src/owner.ts', 'export const value = 1;');
       const entry = join(root, 'src/entry.ts');
-      const resolver = createResolver({ root, compiler: ts, runtime: true, aliases: { '#host/': join(root, 'src') } });
+      const resolver = createResolver({ root, compiler: ts }, { runtime: true, aliases: { '#host/': join(root, 'src') } });
       expect(resolver('widget', entry)).toBe(join(root, 'node_modules/widget/browser.js'));
       expect(resolver('#host/owner', entry)).toBe(join(root, 'src/owner.ts'));
       expect(resolver('node:fs', entry)).toBeUndefined();

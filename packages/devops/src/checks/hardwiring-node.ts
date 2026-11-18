@@ -17,7 +17,7 @@ function isAuthoredSource({ file, declarations }: { file: string; declarations: 
 }
 
 /** Authored inventory excludes generated output, fixtures and tests. O(directory entries). */
-export function sourceFiles({ directory, declarations = false }: { directory: string; declarations?: boolean }, _options: Record<string, never> = {}): string[] {
+export function sourceFiles({ directory }: { directory: string }, { declarations = false }: { declarations?: boolean } = {}): string[] {
   const found: string[] = [];
   function visit(dir: string): void {
     if (!existsSync(dir)) return;
@@ -36,9 +36,9 @@ export function sourceFiles({ directory, declarations = false }: { directory: st
 /** Runtime compiler resolution denies declarations which can erase React edges.
  * Resolution failures omit the specifier because import literals may contain secrets.
  */
-export function createResolver({ root, compiler: c, runtime = false, aliases = {} }: {
-  root: string; compiler: typeof ts; runtime?: boolean; aliases?: Readonly<Record<string, string>>;
-}, _options: Record<string, never> = {}) {
+export function createResolver({ root, compiler: c }: { root: string; compiler: typeof ts }, {
+  runtime = false, aliases = {},
+}: { runtime?: boolean; aliases?: Readonly<Record<string, string>> } = {}) {
   const options: ts.CompilerOptions = { moduleResolution: c.ModuleResolutionKind.Bundler, module: c.ModuleKind.ESNext, allowJs: true, resolveJsonModule: true, customConditions: ['browser'] };
   // A declaration entry can erase every React edge while its executable imports React.
   // Keep browser/export resolution in the maintained compiler, but deny declaration candidates.
@@ -68,9 +68,9 @@ function executable(resolved: string): string {
  * Realpaths can point at sibling workspace packages locally and node_modules in CI.
  * Normalize dependency ownership to the manifest name so publishing cannot move its waiver.
  */
-export function displayGraphFile({ file, root, authoredDirectories = ['apps', 'content'] }: {
-  file: string; root: string; authoredDirectories?: readonly string[];
-}, _options: Record<string, never> = {}): string {
+export function displayGraphFile({ file, root }: { file: string; root: string }, {
+  authoredDirectories = ['apps', 'content'],
+}: { authoredDirectories?: readonly string[] } = {}): string {
   if (authoredDirectories.some(directory => file.startsWith(join(root, directory) + '/'))) return relative(root, file).replaceAll('\\', '/');
   for (let dir = dirname(file); dirname(dir) !== dir; dir = dirname(dir)) {
     const manifest = join(dir, 'package.json');
@@ -85,7 +85,7 @@ export function displayGraphFile({ file, root, authoredDirectories = ['apps', 'c
 function wildcardTargets(file: string): string[] {
   // Only called for targets containing '*', so split always yields a prefix and a suffix.
   const [prefix, suffix] = file.split('*') as [string, string];
-  return sourceFiles({ directory: dirname(prefix), declarations: true })
+  return sourceFiles({ directory: dirname(prefix) }, { declarations: true })
     .filter(candidate => candidate.startsWith(prefix) && candidate.endsWith(suffix));
 }
 
@@ -181,10 +181,11 @@ export function installedPublicFunctions({ root, compiler: c }: { root: string; 
 }
 
 /** Shared occurrence ratchet and the sole debt generator. Never regenerate baselines in CI. */
-export async function runHardwiring({ collect, debtPath, baselineComment, logger = console }: {
+export async function runHardwiring({ collect, debtPath, baselineComment }: {
   collect: () => readonly HardwiringViolation[] | Promise<readonly HardwiringViolation[]>;
-  debtPath: string; baselineComment: string; logger?: Pick<Console, 'log' | 'error'>;
-}, { writeBaseline = false, rules = HARDWIRING_RULES }: {
+  debtPath: string; baselineComment: string;
+}, { logger = console, writeBaseline = false, rules = HARDWIRING_RULES }: {
+  logger?: Pick<Console, 'log' | 'error'>;
   writeBaseline?: boolean;
   /** The rule family this run reports on; a host with a separate debt file per family passes that family's rules. */
   rules?: readonly string[];

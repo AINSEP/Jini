@@ -6,7 +6,7 @@ import path from 'node:path';
 import type { AgentCliRunnerPort, JobFilesystemPort, AgentJob } from './ports.js';
 
 /** Environment is required: the host explicitly chooses which credentials/config reach the CLI. */
-export function createNodeAgentCliRunner({ env }: { env: NodeJS.ProcessEnv }): AgentCliRunnerPort {
+export function createNodeAgentCliRunner({ env }: { env: NodeJS.ProcessEnv }, _optional = {}): AgentCliRunnerPort {
   const environment = { ...env };
   return { async run(request) {
     const child = spawn(request.executable, [...request.args], { cwd: request.cwd, env: environment, shell: false, stdio: ['pipe', 'pipe', 'pipe'] });
@@ -27,7 +27,7 @@ export function createNodeAgentCliRunner({ env }: { env: NodeJS.ProcessEnv }): A
   } };
 }
 /** Writes final/failed artifacts; raw logs are streamed by the CLI adapter. */
-export function createNodeJobFilesystem(_required: Record<string, never>): JobFilesystemPort {
+export function createNodeJobFilesystem(_required: Record<string, never>, _optional = {}): JobFilesystemPort {
   return {
     mkdir: async ({ path }) => { await mkdir(path, { recursive: true }); },
     exists: async ({ path }) => {

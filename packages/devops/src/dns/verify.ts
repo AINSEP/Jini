@@ -122,12 +122,12 @@ export function aggregatePropagation(required: { readonly states: readonly Propa
  * @complexity O(records · nameservers) queries, issued concurrently.
  */
 export async function verifyRequirements(
-  required: { readonly zone: string; readonly requirements: readonly DnsPlanRequirement[] },
-  ports: { readonly resolver: AuthoritativeDnsPort },
+  required: { readonly zone: string; readonly requirements: readonly DnsPlanRequirement[]; readonly resolver: AuthoritativeDnsPort },
+  _optional = {},
 ): Promise<DnsVerification> {
   const zone = normalizeDnsName({ name: required.zone });
   const records = required.requirements.flatMap(requirement => requirement.records);
-  const ns = await settlePort({ call: () => ports.resolver.queryNs({ zone }) });
+  const ns = await settlePort({ call: () => required.resolver.queryNs({ zone }) });
   const nameservers = ns.status === 'ok' ? [...new Set(ns.value.map(name => normalizeDnsName({ name })))] : [];
   if (nameservers.length === 0) {
     const reason = ns.status === 'ok' ? `${zone} has no authoritative nameservers.` : `The nameservers of ${zone} could not be read.`;
@@ -135,7 +135,7 @@ export async function verifyRequirements(
   }
   const verified = await Promise.all(records.map(async record => {
     const siblings = sameRrset(records, record);
-    const byNameserver = await Promise.all(nameservers.map(nameserver => observe(record, nameserver, { resolver: ports.resolver, siblings })));
+    const byNameserver = await Promise.all(nameservers.map(nameserver => observe(record, nameserver, { resolver: required.resolver, siblings })));
     return { record, state: recordState(byNameserver.map(observation => observation.state)), byNameserver };
   }));
   return { zone, nameservers, records: verified, state: aggregatePropagation({ states: verified.map(record => record.state) }) };

@@ -52,20 +52,24 @@ export interface ExportSiteArgs {
   assetSource: AssetSourcePort;
   themeLayout: ThemeLayoutPort;
   assetUrlPrefixes: readonly string[];
-  /** Explicit site-relative assets from declarations (including JSON), fetched through the same app.
-   * A deferred list runs once after app.open, allowing the host to expose its mounted runtime assets. */
-  assetUrls?: readonly string[] | (() => Promise<readonly string[]>);
   requestHeaders: Readonly<Record<string, string>>;
   security: { transformHtml(required: { html: string }): string };
   errorPage: { outputFile: string; acceptStatus(required: { status: number }): boolean; rejectionReason?(required: { status: number }): string };
-  /** Host terminology for an asset rejected before network/filesystem access. */
-  assetPathFailureReason?: string;
   /** Caller-safe error description; used for failed network, body or artifact writes. */
   describeError(required: { error: unknown }): string;
+}
+export interface ExportSiteOptions {
+  clean?: boolean;
+  basePath?: string;
+  fetchTimeoutMs?: number;
+  /** Explicit site-relative assets from declarations (including JSON), fetched through the same app.
+   * A deferred list runs once after app.open, allowing the host to expose its mounted runtime assets. */
+  assetUrls?: readonly string[] | (() => Promise<readonly string[]>);
+  /** Host terminology for an asset rejected before network/filesystem access. */
+  assetPathFailureReason?: string;
   /** Further routes a written page links to (e.g. see-more batch URLs), exported in turn and
    *  themselves scanned, so a chain of batches is followed to its end. Given the raw, pre-rewrite html. */
   discoverRoutes?(required: { path: string; html: string }): readonly ManifestRoute[];
 }
-export interface ExportSiteOptions { clean?: boolean; basePath?: string; fetchTimeoutMs?: number }
 export class ExportOutputNotEmptyError extends Error {}
 export class ExportPathError extends Error {}

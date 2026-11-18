@@ -7,7 +7,7 @@ import { exportSite } from '../runner.js';
 import { createNodeArtifactWriter } from '../node-adapters.js';
 import { extractAssetUrls, outputFileForUrl, redirectOutcomeFor, renderRedirectStub, rewriteRouteBodyForBasePath } from '../transforms.js';
 import { firstExportFailure } from '../failure-summary.js';
-import type { ExportSiteArgs, RouteManifest } from '../contracts.js';
+import type { ExportSiteArgs, ExportSiteOptions, RouteManifest } from '../contracts.js';
 
 function fixture() {
   const writes = new Map<string, string | Buffer>();
@@ -40,7 +40,8 @@ function fixture() {
       return new Response(bodies[url.pathname] ?? 'missing', { status: url.pathname === '/missing-probe' ? 404 : url.pathname in bodies ? 200 : 404, headers: { 'content-type': url.pathname.endsWith('.css') ? 'text/css' : url.pathname.endsWith('.xml') ? 'application/xml' : url.pathname === '/robots.txt' ? 'text/plain' : 'text/html' } });
     },
   };
-  return { args, manifest, writes, fetched, initByPath, closes: () => closes };
+  const options: ExportSiteOptions = {};
+  return { args, options, manifest, writes, fetched, initByPath, closes: () => closes };
 }
 
 // Generalized from site-exporter.test.ts: same output and failures, no CMS/app/database fixtures.
@@ -378,12 +379,12 @@ test('discoverRoutes follows a chain of discovered routes once each, scanning ra
     return new Response(after < 24 ? `<a data-more href="/_more/1/${after + 12}">more</a>` : 'last', { headers: { 'content-type': 'text/html' } });
   };
   const seen: string[] = [];
-  f.args.discoverRoutes = ({ path: from, html }) => {
+  f.options.discoverRoutes = ({ path: from, html }) => {
     seen.push(from);
     const hrefs = from === '/' ? ['/_more/1/12', '/_more/1/12'] : [...html.matchAll(/href="(\/_more\/[^"]+)"/g)].map(m => m[1]!);
     return hrefs.map(href => ({ path: href, kind: 'listing-batch', label: href }));
   };
-  const report = await exportSite(f.args, { basePath: '/site' });
+  const report = await exportSite(f.args, { ...f.options, basePath: '/site' });
   assert.deepEqual(report.routes.failed, []);
   assert.ok(f.writes.has('_more/1/12/index.html') && f.writes.has('_more/1/24/index.html'));
   assert.equal(f.fetched.filter(url => url === '/_more/1/12').length, 1);
@@ -392,8 +393,8 @@ test('discoverRoutes follows a chain of discovered routes once each, scanning ra
 
   const capped = fixture();
   let n = 0;
-  capped.args.discoverRoutes = () => (n++ === 0 ? Array.from({ length: 2001 }, (_, i) => ({ path: `/missing-${i}`, kind: 'listing-batch', label: 'x' })) : []);
-  const cappedReport = await exportSite(capped.args);
+  capped.options.discoverRoutes = () => (n++ === 0 ? Array.from({ length: 2001 }, (_, i) => ({ path: `/missing-${i}`, kind: 'listing-batch', label: 'x' })) : []);
+  const cappedReport = await exportSite(capped.args, capped.options);
   assert.deepEqual(cappedReport.skippedManifestEntries.at(-1), { reason: 'discovered-route-cap', detail: '/missing-2000 (over 2000 discovered routes)' });
   assert.equal(cappedReport.routes.failed.length, 2000);
 });
@@ -435,8 +436,8 @@ test('a failed query variant leaves its output available to a later successful v
 
 test('explicit manifest assets invisible in JSON are fetched once with ordinary assets', async () => {
   const f = fixture();
-  f.args.assetUrls = ['/assets/declared.bin', '/assets/a.bin', '/assets/declared.bin'];
-  const report = await exportSite(f.args);
+  f.options.assetUrls = ['/assets/declared.bin', '/assets/a.bin', '/assets/declared.bin'];
+  const report = await exportSite(f.args, f.options);
   assert.deepEqual(report.assets.failed, []);
   assert.deepEqual(f.writes.get('assets/declared.bin'), Buffer.from([0,128,255]));
   assert.equal(f.fetched.filter(url => url === '/assets/declared.bin').length, 1);
@@ -447,10 +448,10 @@ test('explicit manifest assets invisible in JSON are fetched once with ordinary 
 
 test('explicit asset paths cannot fetch external origins or escape the output directory', async () => {
   const f = fixture();
-  f.args.assetUrls = ['https://outside.example/tracker.js', '/../private.js'];
-  const report = await exportSite(f.args);
+  f.options.assetUrls = ['https://outside.example/tracker.js', '/../private.js'];
+  const report = await exportSite(f.args, f.options);
   assert.equal(report.assets.failed.length, 2);
-  assert.deepEqual(report.assets.failed.map(asset => asset.url), f.args.assetUrls);
+  assert.deepEqual(report.assets.failed.map(asset => asset.url), f.options.assetUrls);
   assert.equal(f.fetched.some(url => url.includes('tracker.js') || url.includes('private.js')), false);
 });
 
@@ -461,13 +462,13 @@ test('deferred asset declarations run once after the app opens and before it clo
   let reads = 0;
   const open = f.args.app.open;
   f.args.app.open = async input => { const session = await open(input); opened = true; return session; };
-  f.args.assetUrls = async () => {
+  f.options.assetUrls = async () => {
     assert.equal(opened, true);
     assert.equal(f.closes(), 0);
     reads++;
     return ['/assets/declared.bin'];
   };
-  const report = await exportSite(f.args);
+  const report = await exportSite(f.args, f.options);
   assert.deepEqual(report.assets.failed, []);
   assert.deepEqual(f.writes.get('assets/declared.bin'), Buffer.from([0,128,255]));
   assert.equal(reads, 1);

@@ -87,7 +87,6 @@ export interface CommitLayoutPort {
   cleanup(required: { outputDir: string }): Promise<void>;
 }
 export interface CommitExportArgs {
-  folder?: string;
   workspaceId: string;
   owner: string;
   repo: string;
@@ -99,8 +98,8 @@ export interface CommitExportArgs {
   /** Must return caller-safe text without credentials. */
   describeError(required: { error: unknown }): string;
 }
-export interface CommitOrchestrationArgs extends CommitExportArgs { supportsFolder?: boolean; credentials: CredentialResolverPort; adapter: Pick<SourceControlProviderOperations, 'commitSite'> }
-export interface CommitOptions { branch?: string; validateTarget?: RepositoryTargetValidator }
+export interface CommitOrchestrationArgs extends CommitExportArgs { credentials: CredentialResolverPort; adapter: Pick<SourceControlProviderOperations, 'commitSite'> }
+export interface CommitOptions { folder?: string; branch?: string; validateTarget?: RepositoryTargetValidator }
 export type CommitFailureCode = 'INVALID_CONFIG' | 'NO_CREDENTIALS_CONFIGURED' | 'EXPORT_FAILED' | 'REPOSITORY_NOT_FOUND' | 'NO_CHANGES' | 'DIVERGED_BRANCH' | 'NETWORK_UNREACHABLE' | 'PROVIDER_ERROR';
 export type SourceControlCommitOutcome =
   | { ok: false; code: CommitFailureCode; message: string }

@@ -88,7 +88,7 @@ export function createPublishJobStore<T>(
  * @returns Pasteable ID, upload count, URL/status and next step. Unknown stays explicit.
  * @complexity O(1), no I/O; output is independent of file count/export size.
  */
-export function publishJobRecoveryMessage<T>({ job, statusToolId }: { job?: PublishJobSnapshot<T> | undefined; statusToolId: string }, _options = {}): string {
+export function publishJobRecoveryMessage<T>({ statusToolId }: { statusToolId: string }, { job }: { job?: PublishJobSnapshot<T> | undefined } = {}): string {
   if (!job) return `Publish job status could not be confirmed for this call. Deployment: unknown; uploaded files: unknown; URL/status: unknown. Call ${statusToolId} with {} and check the hosting dashboard before retrying.`;
   const progress = job.progress;
   const uploaded = progress.totalFiles === undefined ? 'unknown' : progress.uploadedFiles ?? 'unknown';

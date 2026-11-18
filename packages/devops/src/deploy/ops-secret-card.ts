@@ -20,7 +20,7 @@ export async function collectTypedDeploySecret(
       const registry = await deps.loadDeployOps({ workspaceId: deps.workspaceId });
       const platform = requireDeployPlatform({registry,id:input.platform}, {});
       if (!platform.module.setSecret) throw new ToolInputError({ message: "This platform has no secrets adapter." });
-      await boundContext({deps,platform,explicit:input.credentialLabel}, {signal:ctx.signal});
+      await boundContext({deps,platform}, {explicit:input.credentialLabel,signal:ctx.signal});
       locale = await cards.locale({ctx});
       return { locale };
     },

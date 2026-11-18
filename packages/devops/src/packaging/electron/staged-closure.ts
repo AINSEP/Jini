@@ -6,11 +6,13 @@ export interface StagedClosureInput {
   root: string;
   /** Host runtime entry files or directories. All installed Jini dist files are also audited. */
   scan: readonly string[];
-  /** Package roots sharing this resource tree, e.g. an extracted app.asar directory. */
-  packageRoots?: readonly string[];
   fs: PackagingFilesystemPort;
   imports: ImportReaderPort;
   resolver: RuntimeResolverPort;
+}
+export interface StagedClosureOptions {
+  /** Package roots sharing this resource tree, e.g. an extracted app.asar directory. */
+  packageRoots?: readonly string[];
   /** Native host modules supplied by the executable, e.g. Electron. Never package exceptions. */
   hostModules?: ReadonlySet<string>;
 }
@@ -83,11 +85,11 @@ function resolveEdge(required: { file: string; specifier: string; kind: 'import'
  * @throws on an invalid scan root, escaping package link, or a parser without runtime references.
  * @complexity O(files + edges × Node resolution cost); each reached file is parsed once.
  */
-export function auditStagedClosure(input: StagedClosureInput, _options: Record<string, never> = {}): StagedClosureAudit {
+export function auditStagedClosure(input: StagedClosureInput, optional: StagedClosureOptions = {}): StagedClosureAudit {
   if (!input.imports.references) throw new Error('staged closure requires an AST runtime-reference reader');
   const root = input.fs.realpath({ path: input.root });
   const queue = [...new Set([...input.scan.flatMap(directory => codeFiles({ directory, root, fs: input.fs })),
-    ...(input.packageRoots ?? [root]).flatMap(directory => jiniFiles({ directory, root, fs: input.fs }))])];
+    ...(optional.packageRoots ?? [root]).flatMap(directory => jiniFiles({ directory, root, fs: input.fs }))])];
   const seen = new Set<string>();
   const problems: string[] = [];
   const optIns: string[] = [];
@@ -98,7 +100,7 @@ export function auditStagedClosure(input: StagedClosureInput, _options: Record<s
     else problems.push(`${location}: ${error instanceof Error ? error.message : String(error)}`);
   }
   function checkReference(file: string, ref: { specifier: string; kind: 'import' | 'require'; line: number }): void {
-    if (isBuiltin(ref.specifier) || input.hostModules?.has(ref.specifier)) return;
+    if (isBuiltin(ref.specifier) || optional.hostModules?.has(ref.specifier)) return;
     const location = `${path.relative(root, file)}:${ref.line} -> ${ref.specifier}`;
     try {
       const target = resolveEdge({ file, ...ref, input: stagedInput });

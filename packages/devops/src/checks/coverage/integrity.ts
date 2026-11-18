@@ -34,7 +34,7 @@ export interface GatedVerdict extends BlockVerdict {
 }
 
 /** Apply path-based debt: severe contamination can never be suppressed. */
-export function applyBaseline({ contaminated, baselineSet }: { contaminated: readonly BlockVerdict[]; baselineSet: ReadonlySet<string> }): readonly GatedVerdict[] {
+export function applyBaseline({ contaminated, baselineSet }: { contaminated: readonly BlockVerdict[]; baselineSet: ReadonlySet<string> }, _optional = {}): readonly GatedVerdict[] {
   return contaminated.map((v) => {
     const baselined = baselineSet.has(v.file);
     return { ...v, baselined, fails: v.severe || !baselined };
@@ -47,7 +47,7 @@ interface BaselineFile {
 }
 
 /** Read the caller-provided baseline JSON; an absent ledger is empty. */
-export function parseBaseline({ baselineJson }: { baselineJson: string }): ReadonlySet<string> {
+export function parseBaseline({ baselineJson }: { baselineJson: string }, _optional = {}): ReadonlySet<string> {
   const parsed = JSON.parse(baselineJson) as BaselineFile;
   return new Set(parsed.knownContaminated ?? []);
 }
@@ -70,7 +70,7 @@ export interface ParsedArgs {
 }
 
 /** Parse coverage artifact and baseline CLI arguments without process globals. */
-export function parseArgs({ argv }: { argv: readonly string[] }): ParsedArgs {
+export function parseArgs({ argv }: { argv: readonly string[] }, _optional = {}): ParsedArgs {
   let lcovArg: string | undefined;
   let baselinePath: string | undefined;
   let updateBaseline = false;
@@ -89,7 +89,7 @@ export function parseArgs({ argv }: { argv: readonly string[] }): ParsedArgs {
 }
 
 /** Parse function and line hit records, preserving summaries when present. */
-export function parseLcovBlocks({ lcovText }: { lcovText: string }): LcovBlock[] {
+export function parseLcovBlocks({ lcovText }: { lcovText: string }, _optional = {}): LcovBlock[] {
   const records = lcovText.replace(/\r\n/g, '\n').split(/^end_of_record$/m);
   const blocks: LcovBlock[] = [];
   for (const record of records) {
@@ -117,7 +117,7 @@ const EXPORT_FROM_STATEMENT =
   /export\s+(?:type\s+)?(?:\{[^{}]*\}|\*(?:\s+as\s+[A-Za-z_$][\w$]*)?)\s+from\s+["'][^"']+["']\s*;?/g;
 
 /** Recognize plain re-export barrels using the inherited source-text heuristic. */
-export function isPureReExportBarrelSource({ sourceText }: { sourceText: string }): boolean {
+export function isPureReExportBarrelSource({ sourceText }: { sourceText: string }, _optional = {}): boolean {
   const withoutComments = sourceText.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
   const matches = [...withoutComments.matchAll(EXPORT_FROM_STATEMENT)];
   if (matches.length === 0) return false;

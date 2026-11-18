@@ -10,7 +10,7 @@ export { sourceFiles, createResolver, displayGraphFile, installedPublicFunctions
 export type { HardwiringSource, HardwiringViolation } from './hardwiring.js';
 
 /** Explicit Node filesystem adapter. Temporary parents must already exist. */
-export function createNodeFilesystem(_args: Record<string, never>): FilesystemPort {
+export function createNodeFilesystem(_args: Record<string, never>, _optional = {}): FilesystemPort {
   return {
     exists: ({ path: file }) => existsSync(file),
     isSymbolicLink: ({ path: file }) => lstatSync(file).isSymbolicLink(),
@@ -31,7 +31,7 @@ export function createNodeFilesystem(_args: Record<string, never>): FilesystemPo
 }
 
 /** Uses Node's environment precedence: exported variables win over file values. Requires Node 20.12+. */
-export function createNodeEnvLoader(_args: Record<string, never>): EnvLoaderPort {
+export function createNodeEnvLoader(_args: Record<string, never>, _optional = {}): EnvLoaderPort {
   return { load: ({ path: file }) => { process.loadEnvFile(file); } };
 }
 

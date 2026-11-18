@@ -11,7 +11,7 @@ import { trimChars, trimCharsEnd } from '@jini-ai/core/primitives';
  * @complexity O(n) in the length of `raw`.
  * @overallScore 100/100
  */
-export function safeProjectLabel({ raw, maxLength }: { raw: unknown; maxLength: number }): string {
+export function safeProjectLabel({ raw, maxLength }: { raw: unknown; maxLength: number }, _optional = {}): string {
   const collapsed = String(raw)
     .normalize('NFKD')
     .toLowerCase()
@@ -21,6 +21,6 @@ export function safeProjectLabel({ raw, maxLength }: { raw: unknown; maxLength: 
 }
 
 /** DNS-label-safe variant (63-char cap, the DNS label limit). */
-export function safeDnsLabel({ raw }: { raw: unknown }): string {
+export function safeDnsLabel({ raw }: { raw: unknown }, _optional = {}): string {
   return safeProjectLabel({ raw, maxLength: 63 });
 }

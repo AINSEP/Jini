@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { exportSite } from '../runner.js';
-import type { ExportSiteArgs, ManifestRoute, RouteManifest } from '../contracts.js';
+import type { ExportSiteArgs, ExportSiteOptions, ManifestRoute, RouteManifest } from '../contracts.js';
 
 type Responder = () => Response | Promise<Response>;
 
@@ -28,7 +28,8 @@ function harness(routes: ManifestRoute[], responses: Record<string, Responder>, 
       return respond ? respond() : new Response('missing', { status: 404 });
     },
   };
-  return { args, manifest, writes, fetched, closes: () => closes };
+  const options: ExportSiteOptions = {};
+  return { args, options, manifest, writes, fetched, closes: () => closes };
 }
 const html = (body: string, status = 200): Responder => () => new Response(body, { status, headers: { 'content-type': 'text/html' } });
 const page = (path: string, kind = 'page'): ManifestRoute => ({ path, kind, label: path });
@@ -92,8 +93,8 @@ test('a redirect route answered without a 3xx leaves its response body uncancell
 
 test('a redirect route is never crawled for assets or discovered routes', async () => {
   const h = harness([{ path: '/old', kind: 'redirect', label: 'old', redirectTarget: '/assets/x.png' }], { '/old': () => new Response(null, { status: 301 }) });
-  h.args.discoverRoutes = () => assert.fail('redirect stubs are not scanned for routes');
-  await exportSite(h.args);
+  h.options.discoverRoutes = () => assert.fail('redirect stubs are not scanned for routes');
+  await exportSite(h.args, h.options);
   assert.deepEqual(h.fetched, ['/old']);
 });
 
@@ -119,8 +120,8 @@ test('a non-200 content route fails with the status', async () => {
 
 test('the error page is written to the host artifact path, always sanitized, and never crawled', async () => {
   const h = harness([page('/probe', 'not-found')], { '/probe': () => new Response('<img src="/assets/e.png">', { status: 404 }) });
-  h.args.discoverRoutes = () => assert.fail('error pages are not scanned for routes');
-  const report = await exportSite(h.args, { basePath: '/b' });
+  h.options.discoverRoutes = () => assert.fail('error pages are not scanned for routes');
+  const report = await exportSite(h.args, { ...h.options, basePath: '/b' });
   assert.equal(h.writes.get('404.html'), '<!--safe--><img src="/b/assets/e.png">');
   assert.deepEqual(h.fetched, ['/probe']);
   assert.equal(report.routes.succeeded[0]!.outputFile, '404.html');
@@ -168,8 +169,8 @@ test('a non-HTML route with a non-.html artifact is not scanned for dropped refe
 
 test('discovered routes already in the manifest are not requested twice', async () => {
   const h = harness([page('/'), page('/b')], { '/': html('home'), '/b': html('b') });
-  h.args.discoverRoutes = () => [page('/b'), page('/'), page('/c')];
-  const report = await exportSite(h.args);
+  h.options.discoverRoutes = () => [page('/b'), page('/'), page('/c')];
+  const report = await exportSite(h.args, h.options);
   assert.deepEqual(h.fetched, ['/', '/b', '/c']);
   assert.deepEqual(report.routes.failed.map(route => route.path), ['/c']);
 });
@@ -177,8 +178,8 @@ test('discovered routes already in the manifest are not requested twice', async 
 test('discovery receives the raw pre-rewrite HTML and the page path', async () => {
   const h = harness([page('/p')], { '/p': html('<a href="/x">') });
   const seen: Array<{ path: string; html: string }> = [];
-  h.args.discoverRoutes = (required) => { seen.push(required); return []; };
-  await exportSite(h.args, { basePath: '/b' });
+  h.options.discoverRoutes = (required) => { seen.push(required); return []; };
+  await exportSite(h.args, { ...h.options, basePath: '/b' });
   assert.deepEqual(seen, [{ path: '/p', html: '<a href="/x">' }]);
 });
 
@@ -214,16 +215,16 @@ test('a failed asset response is cancelled and reported with its status', async 
 
 test('a refused asset path uses the host term when supplied, before any request', async () => {
   const h = harness([page('/')], { '/': html('<img src="/assets/%2e%2e/%2e%2e/x">') });
-  h.args.assetPathFailureReason = 'unsafe asset path';
-  const report = await exportSite(h.args);
+  h.options.assetPathFailureReason = 'unsafe asset path';
+  const report = await exportSite(h.args, h.options);
   assert.deepEqual(report.assets.failed, [{ url: '/assets/%2e%2e/%2e%2e/x', reason: 'unsafe asset path' }]);
   assert.deepEqual(h.fetched, ['/']);
 });
 
 test('the host asset term is not used for transport failures', async () => {
   const h = harness([page('/')], { '/': html('<img src="/assets/x.png">'), '/assets/x.png': () => { throw new Error('reset'); } });
-  h.args.assetPathFailureReason = 'unsafe asset path';
-  assert.deepEqual((await exportSite(h.args)).assets.failed, [{ url: '/assets/x.png', reason: 'GET http://127.0.0.1:4000/assets/x.png failed: described reset' }]);
+  h.options.assetPathFailureReason = 'unsafe asset path';
+  assert.deepEqual((await exportSite(h.args, h.options)).assets.failed, [{ url: '/assets/x.png', reason: 'GET http://127.0.0.1:4000/assets/x.png failed: described reset' }]);
 });
 
 test('theme pages, index, 404 and fetched theme assets are accounted; other theme files are unreferenced', async () => {

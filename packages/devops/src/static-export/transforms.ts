@@ -21,7 +21,7 @@ function safeHref(value: string): string {
   return '#';
 }
 /** Normalize the optional output URL prefix; no product layout is implied. */
-export function normalizeBasePath(required: { raw: string }): string {
+export function normalizeBasePath(required: { raw: string }, _optional = {}): string {
   const trimmed = trimCharsEnd({ text: required.raw.trim(), chars: '/' });
   if (trimmed === '' || trimmed === '/') return '';
   if (/[\\\x00-\x20\x7f?#"'<>]/.test(trimmed) || trimmed.startsWith('//')) throw new ExportPathError('Invalid export base path.');
@@ -104,7 +104,7 @@ export function rewriteRouteBodyForBasePath(required: { path: string; body: stri
   return rewriteHtml(body, basePath);
 }
 /** Rewrite asset output only; discovery still uses the raw stylesheet/manifest response. */
-export function rewriteAssetBodyForBasePath(required: { body: string; contentType: string; basePath: string }): string {
+export function rewriteAssetBodyForBasePath(required: { body: string; contentType: string; basePath: string }, _optional = {}): string {
   const { body, contentType, basePath } = required;
   if (!basePath) return body;
   if (/\bjson\b/.test(contentType)) return rewriteJson(body, basePath);
@@ -165,7 +165,7 @@ export function extractAssetUrls(required: { html: string; prefixes: readonly st
   return [...found];
 }
 /** A single CSS hop, resolved against the stylesheet URL and restricted to the same synthetic origin. */
-export function extractCssUrls(required: { css: string; cssUrl: string; prefixes: readonly string[] }): string[] {
+export function extractCssUrls(required: { css: string; cssUrl: string; prefixes: readonly string[] }, _optional = {}): string[] {
   const found = new Set<string>();
   for (const { value } of cssUrlTokens(required.css)) {
     const pathname = localCssPath({ ref: value.trim(), cssUrl: required.cssUrl });
@@ -181,7 +181,7 @@ function localCssPath({ ref, cssUrl }: { ref: string; cssUrl: string }): string 
   return resolved.origin === LOCAL_CSS_ORIGIN ? resolved.pathname : undefined;
 }
 /** Reject path escapes and separators before HTTP or writing; returns forward-slash relative output. */
-export function safeRelativeOutputFile(required: { value: string }): string {
+export function safeRelativeOutputFile(required: { value: string }, _optional = {}): string {
   const { value } = required;
   if (!value || /[\\\x00-\x1f\x7f:]/.test(value) || value.startsWith('/')) throw new ExportPathError('Output path resolved outside the output directory — refused');
   if (value.split('/').some(segment => !segment || segment === '.' || segment === '..')) throw new ExportPathError('Output path resolved outside the output directory — refused');

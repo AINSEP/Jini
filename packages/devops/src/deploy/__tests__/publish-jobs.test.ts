@@ -44,7 +44,7 @@ it('recovery text distinguishes unknown creation and acknowledged bytes without 
   const jobs = createPublishJobStore({});
   jobs.begin({ jobId: 'one', scopeId: 'a', target: 'host', startedAtIso: 'start', requestId: 'run-1' });
   jobs.progress({ jobId: 'one', progress: { phase: 'creating', deploymentCreated: 'unknown', uploadedFiles: 2, totalFiles: 3 } });
-  const message = publishJobRecoveryMessage({ job: jobs.get({ scopeId: 'a' }), statusToolId: 'get_publish_status' });
+  const message = publishJobRecoveryMessage({ statusToolId: 'get_publish_status' }, { job: jobs.get({ scopeId: 'a' }) });
   expect(message).toContain('Deployment: unknown');
   expect(message).toContain('2 of 3');
   expect(message).toContain('one');

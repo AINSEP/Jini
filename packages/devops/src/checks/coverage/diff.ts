@@ -43,7 +43,7 @@ function bothTiers(file: string, result: TierResult): FileTierEvaluation {
 /** Evaluate two independent tiers; missing records differ from a known branchless source file. */
 export function evaluateFileTiers({ file, unitRec, integrationRec, thresholds }: {
   file: string; unitRec: FileCoverage | undefined; integrationRec: FileCoverage | undefined; thresholds: TierThresholds;
-}): FileTierEvaluation {
+}, _optional = {}): FileTierEvaluation {
   assertThresholds(thresholds);
   const brf = sharedBranchTotal(unitRec, integrationRec);
   if (typeof brf !== 'number') return bothTiers(file, { ok: false, pctValue: 0, detail: brf.failure });
@@ -57,7 +57,7 @@ export function evaluateFileTiers({ file, unitRec, integrationRec, thresholds }:
 export async function checkCoverageDiff({ baseRef, repoRoot, sourceRoots, diff, reader, isMeasurable, unitCoveragePath, integrationCoveragePath, thresholds }: {
   baseRef: string; repoRoot: string; sourceRoots: readonly string[]; diff: DiffPort; reader: SourceReaderPort; isMeasurable: SourceClassifier;
   unitCoveragePath: string; integrationCoveragePath: string; thresholds: TierThresholds;
-}): Promise<{ ok: boolean; files: readonly FileTierEvaluation[] }> {
+}, _optional = {}): Promise<{ ok: boolean; files: readonly FileTierEvaluation[] }> {
   const changed = [...new Set(await diff.changedFiles({ baseRef, repoRoot, sourceRoots }))].filter((file) => isMeasurable({ file }));
   if (changed.length === 0) return { ok: true, files: [] };
   const unit = new Map(loadRouteCoverage({ lcovPath: unitCoveragePath, repoRoot, reader, isMeasurable }).map((record) => [record.file, record]));

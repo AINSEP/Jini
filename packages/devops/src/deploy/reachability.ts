@@ -90,7 +90,7 @@ export interface ReachabilityWaitResult {
  * @complexity O(1).
  * @overallScore 100/100
  */
-export function normalizeDeploymentUrl({ url }: { url: unknown }): string {
+export function normalizeDeploymentUrl({ url }: { url: unknown }, _optional = {}): string {
   if (typeof url !== 'string') return '';
   const trimmed = url.trim();
   if (!trimmed) return '';

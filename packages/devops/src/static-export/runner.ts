@@ -4,7 +4,7 @@ import { extractAssetUrls, extractHtmlReferences, extractCssUrls, normalizeBaseP
 import { trimCharsEnd } from '@jini-ai/core/primitives';
 
 const BASE_PATH_REWRITE_WARNING = "base-path rewriting is a best-effort TEXT rewrite over already-rendered responses — it cannot rewrite a path a theme's own JavaScript constructs at runtime from a string (same category of gap as the unreferenced-theme-file warning, just invisible to this rewrite instead of to the asset crawl).";
-interface RunContext { args: ExportSiteArgs; baseUrl: string; basePath: string; timeoutMs: number }
+interface RunContext { args: ExportSiteArgs; options: ExportSiteOptions; baseUrl: string; basePath: string; timeoutMs: number }
 async function request(ctx: RunContext, url: string): Promise<Response> {
   // Redirects are observed, never followed off the caller's app, for routes and assets alike.
   return ctx.args.fetch({ url: ctx.baseUrl + url }, { init: { redirect: 'manual', headers: new Headers(ctx.args.requestHeaders), signal: AbortSignal.timeout(ctx.timeoutMs) } });
@@ -107,7 +107,7 @@ async function writeAndScanRoute(
   const html = outcome.crawlHtml;
   if (html === undefined) return;
   for (const url of extractAssetUrls({ html, prefixes: ctx.args.assetUrlPrefixes }, { format: routeAssetFormat({ path: route.path }) })) out.assets.add(url);
-  enqueueDiscovered({ state, routes: ctx.args.discoverRoutes?.({ path: route.path, html }) ?? [] });
+  enqueueDiscovered({ state, routes: ctx.options.discoverRoutes?.({ path: route.path, html }) ?? [] });
 }
 async function fetchAsset(required: { ctx: RunContext; url: string; crawlCss: boolean }): Promise<{ asset: ExportedAsset; children: string[] } | { reason: string }> {
   const { ctx, url } = required;
@@ -133,7 +133,7 @@ function stylesheetChildren(required: { ctx: RunContext; asset: ExportedAsset; c
 }
 function assetFailureReason(required: { ctx: RunContext; url: string; error: unknown }): string {
   const { ctx, url, error } = required;
-  return error instanceof ExportPathError && ctx.args.assetPathFailureReason !== undefined ? ctx.args.assetPathFailureReason : failureReason(ctx, url, error);
+  return error instanceof ExportPathError && ctx.options.assetPathFailureReason !== undefined ? ctx.options.assetPathFailureReason : failureReason(ctx, url, error);
 }
 /** Fetch one asset and queue its children, returning its physical output claim on success.
  * Failed variants leave the destination available for another URL's retry. */
@@ -276,9 +276,9 @@ export async function exportSite(required: ExportSiteArgs, optional: ExportSiteO
   const manifest = await required.manifest.build({});
   const session = await required.app.open({});
   try {
-    const ctx: RunContext = { args: required, baseUrl: sessionOrigin({ baseUrl: session.baseUrl }), basePath, timeoutMs };
+    const ctx: RunContext = { args: required, options: optional, baseUrl: sessionOrigin({ baseUrl: session.baseUrl }), basePath, timeoutMs };
     const routes = await writeRoutes(ctx, manifest.routes);
-    const explicitAssets = typeof required.assetUrls === 'function' ? await required.assetUrls() : required.assetUrls ?? [];
+    const explicitAssets = typeof optional.assetUrls === 'function' ? await optional.assetUrls() : optional.assetUrls ?? [];
     const assets = await writeAssets(ctx, [...routes.assets, ...explicitAssets]);
     return { outputDir: required.outputDir, routes: { succeeded: routes.succeeded, failed: routes.failed }, assets, skippedManifestEntries: [...manifest.skipped, ...routes.skipped],
       droppedReferences: droppedReferences({ routes: routes.succeeded, assets: assets.succeeded, basePath, baseUrl: ctx.baseUrl }),
