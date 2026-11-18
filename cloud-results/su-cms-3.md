@@ -1,4 +1,4 @@
-# su-cms-3: lane S cms chain, S4b done (PARTIAL: S7a, S7b not done)
+# su-cms-3: lane S cms chain, S4b done (PARTIAL: S7a step 0 only, S7b not started)
 
 Branch `wave3/su-cms-3` in BOTH repos. Base `origin/refactor/terra` (Tovu b5fbf2a5e / Jini 6c9effae4) with `origin/wave3/su-cms` merged first (one `--no-ff`, no conflicts). No HELD decision ID applies. Plan: `origin/plan/lanes-s-u-2026-11-16` (`INDEX-SU.md`, `T-SQLREPO.md`, `S/S4`).
 
@@ -11,7 +11,16 @@ Branch `wave3/su-cms-3` in BOTH repos. Base `origin/refactor/terra` (Tovu b5fbf2
 | S4b T1 (30 call sites repointed, `features/trash/table-adapter.ts` + `index.ts` re-export deleted, stale size-debt entry deleted) | 8e422f7a | - |
 
 ## Left / next step
-- **S7a** (not started; needs ~110k, budget did not allow): step 0 = diff Tovu `InMemoryVersionedMediaRepo` against Jini `packages/cms/src/media/repo.memory.ts` method by method; then T0 rows (saveIfVersion stale refused, retire-list set, saveRenditionIfSource guard), J1 (`media/versioned-repo.ts`, `rendition-guard`), T1 (delete `features/media/{versioned-media-repo,guard-rendition-repo}.ts`, repoint importers in the facts file).
+- **S7a** (step 0 done, nothing written; stopped for context budget): prerequisites hold (S4b true now; R6-R9: `ColumnCatalogPort` exists in cms `forms/sql`). **Step 0 diff, Tovu `InMemoryVersionedMediaRepo` vs Jini `InMemoryMediaRepo` (`media/repo.memory.ts`)**:
+  | member | Jini `InMemoryMediaRepo` | Tovu `InMemoryVersionedMediaRepo` |
+  |---|---|---|
+  | constructor | `{ initialRows }` | `{ initialRows, renditionRepo }` (a shared `InMemoryAssetRenditionRepo`) |
+  | `findBySlug` | live row only | live row, else a retired slug's owner |
+  | `save` | upsert by id, creator preserved | same, plus `reclaimOwnSlug` (another asset's retired slug throws `MediaConflictError`) and `retireSlug` |
+  | `remove` | drops the row | drops the row and its retired slugs |
+  | `listRetiredSlugs`, `saveIfVersion`, `insertIfAbsent`, `saveRenditionIfSource`, `replaceFileIfVersion` | absent | present |
+  Decision the table makes: Jini's class would change behavior in three EXISTING methods (not just gain methods), so it is NOT extended; MOVE the class beside it as `packages/cms/src/media/versioned-repo.memory.ts` (the sheet's second branch), with `VersionedMediaRepoPort` in `media/versioned-repo.ts` and `guardMediaRenditionRepo` beside `rendition-service.ts`. `MediaFileReplacementRepoPort` (with optional `replaceFileIfVersion` / `saveRenditionIfSource`) is already in Jini `media/replace-media-file.ts:45`. T0 rows to write first against the Tovu class: stale `saveIfVersion` refused with the row unchanged; `insertIfAbsent` false on a taken id; `listRetiredSlugs` set for a rename chain and freed on `remove`; `saveRenditionIfSource` refuses when the source sha moved; `guardMediaRenditionRepo` throws `MediaConflictError` on a changed source. Tovu importers (facts file, re-verify with `rg`): prod `features/media/{index,where-used}.ts` + `guard-rendition-repo.ts`, `server/inbound/public-http/routes/site/media-rendition.ts`; tests `features/media/__tests__/{guard-rendition-repo,mediawidget-where-used,verify-published-media,versioned-*}.test.ts`, `server/inbound/admin-http/routes/media/__tests__/replace.test.ts`; `platform/db/repos/media-repo.ts:8` (S7b) imports the port.
+  Next step: T0 (tests + mutations, commit), then J1, then T1; est. ~110k.
 - **S7b** not started (needs S7a).
 
 ## Deviations from the sheet
