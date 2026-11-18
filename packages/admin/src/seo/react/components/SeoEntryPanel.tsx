@@ -38,7 +38,7 @@ export interface SeoEntryPanelProps {
 // 2026-10-20: exemption retired under the ≤10/≤10 bar — the head row, the "Search appearance"
 // group, the "Social preview" group and its X disclosure are now their own components below, each
 // scoring ≤10. The fallback chains themselves are unchanged and still read in form order.
-function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntryPanel, useSeoCopyHook = useSeoCopy }: SeoEntryPanelProps) {
+export function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntryPanel, useSeoCopyHook = useSeoCopy }: SeoEntryPanelProps) {
   const t = useSeoCopyHook();
   const { resolved, analysis, loadError, saving, saveError, notice, fieldValue, setField, save, touched, ogImageInherited = false } = useSeoEntryPanelHook({ entryId });
 
