@@ -1,0 +1,243 @@
+From 842ee5cf313f8445e192ad7d82a5baf80e85a6c5 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 18 Nov 2026 00:43:04 +0000
+Subject: [PATCH 5/6] test(server): the terminal preset tests mock no module:
+ featureOptions.terminal takes a host-built terminalService
+
+The last vi.mock of another package's internals (a spy over platform's createTerminalService, in two server suites) is gone.
+The lifecycle test builds the service itself and hands it to the preset (the guidance error already promised that option);
+the service tests call buildTerminalService with a recording createService. Red first by mutation: ignoring the host service turns
+two tests red, dropping the undefined filter turns one red. it() counts: terminal-service 4 -> 5, terminal-lifecycle 1 -> 1.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01FiTZBoVsefwW5254ZQEFJi
+---
+ .changeset/server-terminal-service-option.md  |  5 ++
+ ...uiltin-features.terminal-lifecycle.test.ts | 25 ++----
+ .../builtin-features.terminal-service.test.ts | 83 ++++++++-----------
+ packages/server/src/terminal-service.ts       | 15 +++-
+ 4 files changed, 56 insertions(+), 72 deletions(-)
+ create mode 100644 .changeset/server-terminal-service-option.md
+
+diff --git a/.changeset/server-terminal-service-option.md b/.changeset/server-terminal-service-option.md
+new file mode 100644
+index 00000000..93d536ee
+--- /dev/null
++++ b/.changeset/server-terminal-service-option.md
+@@ -0,0 +1,5 @@
++---
++"@jini-ai/server": minor
++---
++
++`featureOptions.terminal` accepts `terminalService`: a `TerminalService` the host built itself, used as given (the guidance error already named it). `loadSpawnPty` and the tuning options configure the service the preset builds when none is given. `buildTerminalService` takes an injectable `createService` so its tests record what the preset hands the engine without mocking a module.
+diff --git a/packages/server/src/__tests__/builtin-features.terminal-lifecycle.test.ts b/packages/server/src/__tests__/builtin-features.terminal-lifecycle.test.ts
+index c174c16b..caf10710 100644
+--- a/packages/server/src/__tests__/builtin-features.terminal-lifecycle.test.ts
++++ b/packages/server/src/__tests__/builtin-features.terminal-lifecycle.test.ts
+@@ -1,33 +1,21 @@
+ import express from 'express';
+ import { installRouteRegistrationGuard } from '@jini-ai/http-kit';
+ import type { PtyProcess, TerminalService } from '@jini-ai/core/contracts/runtime';
++import { createTerminalService } from '@jini-ai/platform';
+ import { expect, it, vi } from 'vitest';
+ import { composeJiniKernel } from '../compose-jini-kernel.js';
+ import { createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
+ 
+-const services: TerminalService[] = [];
+ const child = { running: false };
+ const pty: PtyProcess = {
+   onData() {}, onExit() {}, write() {}, resize() {},
+   kill() { child.running = false; },
+ };
+ 
+-// A recording spy, not a replacement: the preset builds its own service from `options.terminal`, and
+-// the test needs that very service to open a session. Shutdown grace is passed as an option below.
+-vi.mock('@jini-ai/platform', async importOriginal => {
+-  const actual = await importOriginal<typeof import('@jini-ai/platform')>();
+-  return {
+-    ...actual,
+-    createTerminalService: (...args: Parameters<typeof actual.createTerminalService>) => {
+-      const service = actual.createTerminalService(...args);
+-      services.push(service);
+-      return service;
+-    },
+-  };
+-});
+-
+ it('P9: closing the kernel terminates PTYs owned by the terminal feature', async () => {
+   vi.useFakeTimers();
++  // The host builds the service itself (the preset takes it as given), so the test holds the very service the kernel owns.
++  const service: TerminalService = createTerminalService({ shutdownGraceMs: 0, loadSpawnPty: async () => () => { child.running = true; return pty; } });
+   const app = express();
+   installRouteRegistrationGuard({ app });
+   let kernel: Awaited<ReturnType<typeof composeJiniKernel>> | undefined;
+@@ -36,10 +24,8 @@ it('P9: closing the kernel terminates PTYs owned by the terminal feature', async
+       app, adapter: createTestRouteHost(), resolvedPortRef: { current: 0 },
+       security: { mode: 'host' }, storage: { kind: 'memory' }, profile: 'agent-core-v1',
+       capabilities: { 'host:exec': true }, features: { terminal: true },
+-      featureOptions: { terminal: { shutdownGraceMs: 0, loadSpawnPty: async () => () => { child.running = true; return pty; } } },
++      featureOptions: { terminal: { terminalService: service } },
+     });
+-    expect(services).toHaveLength(1);
+-    const service = services[0]!;
+     const session = await service.create({ cwd: '/fixture', shell: '/bin/sh' });
+     expect(child.running).toBe(true);
+     expect(session.status).toBe('running');
+@@ -51,9 +37,8 @@ it('P9: closing the kernel terminates PTYs owned by the terminal feature', async
+   } finally {
+     try {
+       await kernel?.close();
+-      for (const service of services) await service.shutdownActive({ graceMs: 0 });
++      await service.shutdownActive({ graceMs: 0 });
+     } finally {
+-      services.length = 0;
+       child.running = false;
+       vi.clearAllTimers();
+       vi.useRealTimers();
+diff --git a/packages/server/src/__tests__/builtin-features.terminal-service.test.ts b/packages/server/src/__tests__/builtin-features.terminal-service.test.ts
+index 7e96518c..a9fd8c36 100644
+--- a/packages/server/src/__tests__/builtin-features.terminal-service.test.ts
++++ b/packages/server/src/__tests__/builtin-features.terminal-service.test.ts
+@@ -1,73 +1,58 @@
+-import express from 'express';
+-import { installRouteRegistrationGuard } from '@jini-ai/http-kit';
+-import { createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
+ import type { CreateTerminalServiceOptions, PtySpawn, TerminalService } from '@jini-ai/core/contracts/runtime';
+-import { afterEach, describe, expect, it, vi } from 'vitest';
+-import { composeJiniKernel } from '../compose-jini-kernel.js';
++import { createTerminalService } from '@jini-ai/platform';
++import { describe, expect, it } from 'vitest';
++import { buildTerminalService, type TerminalFeatureOptions } from '../terminal-service.js';
+ 
+ /**
+  * @file R8a step 3 (R10): the preset builds the terminal service. Boot is inert unless the host
+- * selects a PTY loader, a host loader wins over the inert one, and exactly the tuning the host gave
+- * reaches the service (an explicit `undefined` never overrides an engine default).
++ * selects a PTY loader, a host loader wins over the inert one, a service the host built is used as
++ * given, and exactly the tuning the host gave reaches the service (an explicit `undefined` never
++ * overrides an engine default). The builder is called directly with a recording `createService`:
++ * no module is mocked.
+  */
+ 
+-const built: Array<{ options: CreateTerminalServiceOptions; service: TerminalService }> = [];
+-
+-// A recording spy over the real engine: records the options the preset hands `createTerminalService`, so knob forwarding is asserted, not assumed, and the service it gets back.
+-vi.mock('@jini-ai/platform', async importOriginal => {
+-  const actual = await importOriginal<typeof import('@jini-ai/platform')>();
+-  return {
+-    ...actual,
+-    createTerminalService: (...args: Parameters<typeof actual.createTerminalService>) => {
+-      const service = actual.createTerminalService(...args);
+-      built.push({ options: args[0], service });
+-      return service;
+-    },
+-  };
+-});
+-
+-const kernels: Array<Awaited<ReturnType<typeof composeJiniKernel>>> = [];
+-afterEach(async () => {
+-  for (const kernel of kernels.splice(0)) await kernel.close();
+-  built.length = 0;
+-});
+-
+-async function composeWith(terminal: Record<string, unknown> | undefined): Promise<void> {
+-  const app = express();
+-  installRouteRegistrationGuard({ app });
+-  kernels.push(await composeJiniKernel({
+-    app, adapter: createTestRouteHost(), resolvedPortRef: { current: 0 },
+-    security: { mode: 'host' }, storage: { kind: 'memory' }, profile: 'agent-core-v1',
+-    capabilities: { 'host:exec': true }, features: { terminal: true },
+-    ...(terminal === undefined ? {} : { featureOptions: { terminal } }),
+-  }));
++/** A `createService` that records the options the preset hands the engine (so knob forwarding is asserted, not assumed) and returns the real service it builds. */
++function recordingBuilder(): { createService: typeof createTerminalService; built: CreateTerminalServiceOptions[] } {
++  const built: CreateTerminalServiceOptions[] = [];
++  return { built, createService: (options) => { built.push(options); return createTerminalService(options); } };
+ }
+ 
+ describe('the preset builds the terminal service', () => {
+   it('keeps boot inert: create() rejects with guidance naming the server adapter, and no PTY library is touched', async () => {
+-    await composeWith(undefined);
+-    expect(built).toHaveLength(1);
+-    await expect(built[0]!.service.create({ cwd: '/work' })).rejects.toThrow(
++    const service = buildTerminalService({ options: {} });
++    await expect(service.create({ cwd: '/work' })).rejects.toThrow(
+       'Interactive terminals require a host-supplied terminalService or loadSpawnPty. Import loadRealSpawnPty from @jini-ai/server/adapters/node-pty to enable node-pty.',
+     );
+   });
+ 
+   it('uses the host loader instead of the inert one', async () => {
+     const loadSpawnPty = async (): Promise<PtySpawn> => { throw new Error('host loader ran'); };
+-    await composeWith({ loadSpawnPty });
+-    expect(built[0]!.options.loadSpawnPty).toBe(loadSpawnPty);
+-    await expect(built[0]!.service.create({ cwd: '/work' })).rejects.toThrow('host loader ran');
++    const { createService, built } = recordingBuilder();
++    const service = buildTerminalService({ options: { loadSpawnPty } }, { createService });
++    expect(built[0]!.loadSpawnPty).toBe(loadSpawnPty);
++    await expect(service.create({ cwd: '/work' })).rejects.toThrow('host loader ran');
++  });
++
++  it('uses a service the host built as given, without building another', () => {
++    const hostService = { marker: 'host-built' } as unknown as TerminalService;
++    const { createService, built } = recordingBuilder();
++    expect(buildTerminalService({ options: { terminalService: hostService, loadSpawnPty: async () => { throw new Error('unused'); } } }, { createService })).toBe(hostService);
++    expect(built).toEqual([]);
+   });
+ 
+-  it('forwards every tuning option that was given, and only those', async () => {
++  it('forwards every tuning option that was given, and only those', () => {
+     const loadSpawnPty = async (): Promise<PtySpawn> => { throw new Error('unused'); };
+-    await composeWith({ loadSpawnPty, maxEvents: 1, maxBufferBytes: 2, exitTailBytes: 3, flushIntervalMs: 4, flushThresholdBytes: 5, ttlMs: 6, shutdownGraceMs: 7 });
+-    expect(built[0]!.options).toEqual({ loadSpawnPty, maxEvents: 1, maxBufferBytes: 2, exitTailBytes: 3, flushIntervalMs: 4, flushThresholdBytes: 5, ttlMs: 6, shutdownGraceMs: 7 });
++    const { createService, built } = recordingBuilder();
++    buildTerminalService({ options: { loadSpawnPty, maxEvents: 1, maxBufferBytes: 2, exitTailBytes: 3, flushIntervalMs: 4, flushThresholdBytes: 5, ttlMs: 6, shutdownGraceMs: 7 } }, { createService });
++    expect(built[0]).toEqual({ loadSpawnPty, maxEvents: 1, maxBufferBytes: 2, exitTailBytes: 3, flushIntervalMs: 4, flushThresholdBytes: 5, ttlMs: 6, shutdownGraceMs: 7 });
+   });
+ 
+-  it('leaves an omitted or undefined option out so the engine default applies', async () => {
++  it('leaves an omitted or undefined option out so the engine default applies', () => {
+     const loadSpawnPty = async (): Promise<PtySpawn> => { throw new Error('unused'); };
+-    await composeWith({ loadSpawnPty, maxEvents: 9, ttlMs: undefined });
+-    expect(Object.keys(built[0]!.options).sort()).toEqual(['loadSpawnPty', 'maxEvents']);
++    const { createService, built } = recordingBuilder();
++    // A JavaScript host is not held to `exactOptionalPropertyTypes`: an explicit `undefined` must not override a default.
++    const options = { loadSpawnPty, maxEvents: 9, ttlMs: undefined } as unknown as TerminalFeatureOptions;
++    buildTerminalService({ options }, { createService });
++    expect(Object.keys(built[0]!).sort()).toEqual(['loadSpawnPty', 'maxEvents']);
+   });
+ });
+diff --git a/packages/server/src/terminal-service.ts b/packages/server/src/terminal-service.ts
+index 4183d937..92c41261 100644
+--- a/packages/server/src/terminal-service.ts
++++ b/packages/server/src/terminal-service.ts
+@@ -12,6 +12,11 @@ import type { WorkspaceRootResolver } from '@jini-ai/daemon/http';
+ export type TerminalFeatureOptions = Omit<CreateTerminalServiceOptions, 'loadSpawnPty'> & {
+   /** Host-selected PTY implementation; the native adapter is at `@jini-ai/server/adapters/node-pty`. Without one, `create()` rejects with guidance. */
+   readonly loadSpawnPty?: CreateTerminalServiceOptions['loadSpawnPty'];
++  /**
++   * A service the host built itself (the guidance below names this option). It is used as given: `loadSpawnPty` and the
++   * tuning options configure the service the preset would otherwise build, so they have no effect beside it.
++   */
++  readonly terminalService?: TerminalService;
+   readonly resolveWorkspaceRoot?: WorkspaceRootResolver;
+   readonly principal?: Principal;
+ };
+@@ -24,8 +29,12 @@ function inertPtyLoader(): never {
+ /** The tuning keys the preset forwards to the service; an explicit `undefined` never overrides the engine's default. */
+ const TERMINAL_TUNING_KEYS = ['maxEvents', 'maxBufferBytes', 'exitTailBytes', 'flushIntervalMs', 'flushThresholdBytes', 'ttlMs', 'shutdownGraceMs'] as const;
+ 
+-/** Builds the terminal service from the preset's `terminal` options: the host's loader (or the inert one) plus only the tuning that was given. */
+-export function buildTerminalService({ options }: { options: TerminalFeatureOptions }, _optional: Record<string, never> = {}): TerminalService {
++/** The host's service when it gave one; otherwise one built from the host's loader (or the inert one) plus only the tuning that was given. `createService` is the engine's builder, injectable so a test can record what it receives. */
++export function buildTerminalService(
++  { options }: { options: TerminalFeatureOptions },
++  { createService = createTerminalService }: { createService?: typeof createTerminalService } = {},
++): TerminalService {
++  if (options.terminalService !== undefined) return options.terminalService;
+   const tuning = Object.fromEntries(TERMINAL_TUNING_KEYS.filter((key) => options[key] !== undefined).map((key) => [key, options[key]]));
+-  return createTerminalService({ loadSpawnPty: options.loadSpawnPty ?? inertPtyLoader, ...tuning });
++  return createService({ loadSpawnPty: options.loadSpawnPty ?? inertPtyLoader, ...tuning });
+ }
+-- 
+2.43.0
+

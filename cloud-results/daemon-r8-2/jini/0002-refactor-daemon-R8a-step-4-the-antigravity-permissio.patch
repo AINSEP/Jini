@@ -1,0 +1,457 @@
+From 19e932c89c782c1b4e6d29e32c2b1da9c36982d1 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 18 Nov 2026 00:12:48 +0000
+Subject: [PATCH 2/6] refactor(daemon): R8a step 4 the antigravity permission
+ grant takes fileLock and writer from the host runtime
+
+Folded into step 5 as the R8a report recommended: the executor's runtime now exists, so the launcher passes runtime.fileLock /
+runtime.writer into resolveMcpBridgeForRun. The ports test (lock, backup, write, unlock order; failing backup / write / lock three
+ways) was red first (7 failures) and is green; an executor-level pin shows the grant going through the host runtime. The attempt
+patch from the R8a report was applied minus its platform defaults.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01FiTZBoVsefwW5254ZQEFJi
+---
+ .../daemon-antigravity-permission-ports.md    |  5 +
+ .../access-approval-transport.test.ts         |  3 +-
+ .../antigravity-permissions.order.test.ts     |  5 +-
+ .../antigravity-permissions.ports.test.ts     | 97 +++++++++++++++++++
+ .../__tests__/antigravity-permissions.test.ts |  8 +-
+ .../antigravity-permissions.unit.test.ts      |  3 +-
+ .../__tests__/full-cli-mcp-policy.test.ts     |  5 +-
+ .../__tests__/message-relay.test.ts           |  3 +-
+ .../agent-executor/__tests__/r8a-pins.test.ts | 33 ++++++-
+ .../__tests__/runtime-fixture.ts              |  4 +-
+ .../agent-executor/antigravity/permissions.ts | 17 ++--
+ packages/daemon/src/agent-executor/launch.ts  |  2 +-
+ .../daemon/src/agent-executor/mcp-bridge.ts   |  5 +-
+ 13 files changed, 168 insertions(+), 22 deletions(-)
+ create mode 100644 .changeset/daemon-antigravity-permission-ports.md
+ create mode 100644 packages/daemon/src/agent-executor/__tests__/antigravity-permissions.ports.test.ts
+
+diff --git a/.changeset/daemon-antigravity-permission-ports.md b/.changeset/daemon-antigravity-permission-ports.md
+new file mode 100644
+index 00000000..63a032cf
+--- /dev/null
++++ b/.changeset/daemon-antigravity-permission-ports.md
+@@ -0,0 +1,5 @@
++---
++"@jini-ai/daemon": minor
++---
++
++`ensureAntigravityMcpPermission` and `prepareAntigravityBridge` take `fileLock` and `writer` (core's `FileLockPort` and `AtomicFileWriterPort`) as required fields; `resolveMcpBridgeForRun`'s `deps` carry them, and the executor supplies its `runtime.fileLock` / `runtime.writer`. The lock, backup-once, atomic-write order and the lock release on every path are unchanged.
+diff --git a/packages/daemon/src/agent-executor/__tests__/access-approval-transport.test.ts b/packages/daemon/src/agent-executor/__tests__/access-approval-transport.test.ts
+index 7818257b..b6298dd8 100644
+--- a/packages/daemon/src/agent-executor/__tests__/access-approval-transport.test.ts
++++ b/packages/daemon/src/agent-executor/__tests__/access-approval-transport.test.ts
+@@ -1,3 +1,4 @@
++import { fakeRuntimePorts } from '../../ports/__tests__/fakes/runtime.js';
+ import { describe, expect, it } from 'vitest';
+ import { parse } from 'smol-toml';
+ import { AGENT_DEFS, buildAcpSessionNewParams, runtimeSupportsExternalTools } from '@jini-ai/agent-runtime';
+@@ -33,7 +34,7 @@ async function stage(def: RuntimeAgentDef, runId: string, credential: string) {
+   };
+   const delivery = await resolveMcpBridgeForRun({
+     input: { runId, cwd: '/fixture', def, nativeCapabilities: { userMcp: true } },
+-    deps: { mcpJsonInjection: options, cleanupStagedFiles: async () => {}, failBeforeSpawn: refuse,
++    deps: { mcpJsonInjection: options, cleanupStagedFiles: async () => {}, failBeforeSpawn: refuse, ...fakeRuntimePorts(),
+       ensureAntigravityMcpPermission: async () => {} },
+   });
+   if (delivery === null) {
+diff --git a/packages/daemon/src/agent-executor/__tests__/antigravity-permissions.order.test.ts b/packages/daemon/src/agent-executor/__tests__/antigravity-permissions.order.test.ts
+index 0b0bc6ac..7c764a0d 100644
+--- a/packages/daemon/src/agent-executor/__tests__/antigravity-permissions.order.test.ts
++++ b/packages/daemon/src/agent-executor/__tests__/antigravity-permissions.order.test.ts
+@@ -2,7 +2,10 @@ import { promises as fs } from 'node:fs';
+ import { tmpdir } from 'node:os';
+ import { join } from 'node:path';
+ import { afterEach, describe, expect, it, vi } from 'vitest';
+-import { ensureAntigravityMcpPermission } from '../antigravity/permissions.js';
++import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
++import { ensureAntigravityMcpPermission as grantWithPorts } from '../antigravity/permissions.js';
++
++const ensureAntigravityMcpPermission = (input: { settingsPath: string; serverName: string }) => grantWithPorts({ ...input, fileLock: nodeFileLock, writer: nodeAtomicWriter });
+ 
+ /**
+  * @file R8a step 0 (R11): the order of effects on the user's personal settings file: lock, then
+diff --git a/packages/daemon/src/agent-executor/__tests__/antigravity-permissions.ports.test.ts b/packages/daemon/src/agent-executor/__tests__/antigravity-permissions.ports.test.ts
+new file mode 100644
+index 00000000..18e09cf4
+--- /dev/null
++++ b/packages/daemon/src/agent-executor/__tests__/antigravity-permissions.ports.test.ts
+@@ -0,0 +1,97 @@
++import { describe, expect, it, vi } from 'vitest';
++import { promises as fs } from 'node:fs';
++import { tmpdir } from 'node:os';
++import { join } from 'node:path';
++import type { FileLockPort } from '@jini-ai/core/contracts/runtime';
++import { ensureAntigravityMcpPermission } from '../antigravity/permissions.js';
++import { fakeAtomicWriter, fakeFileLock, type EffectLog } from '../../ports/__tests__/fakes/runtime.js';
++
++/**
++ * @file R8a step 4: the antigravity grant takes its lock and writer as ports. Order and failure
++ * behaviour are asserted through recording fakes (the real-file-system order is pinned by
++ * antigravity-permissions.order.test.ts): lock -> backup of the original -> atomic write -> unlock.
++ */
++
++const SETTINGS = '/home/u/.gemini/antigravity-cli/settings.json';
++
++/** Settings text the grant reads from disk: the grant still reads through `node:fs` (staging, lane K). */
++async function withSettingsFile(raw: string | undefined, use: (settingsPath: string) => Promise<void>): Promise<void> {
++  const root = await fs.mkdtemp(join(tmpdir(), 'agy-ports-'));
++  try {
++    const settingsPath = join(root, 'settings.json');
++    if (raw !== undefined) await fs.writeFile(settingsPath, raw);
++    await use(settingsPath);
++  } finally { await fs.rm(root, { recursive: true, force: true }); }
++}
++
++describe('ensureAntigravityMcpPermission through ports', () => {
++  it('takes the lock, backs up the original, writes atomically, then releases, in that order', async () => {
++    await withSettingsFile('{"theme":"dark"}', async (settingsPath) => {
++      const log: EffectLog = [];
++      const fileLock = fakeFileLock({ log });
++      const writer = fakeAtomicWriter({ log });
++      const lock = vi.spyOn(fileLock, 'withFileLock');
++      const writeText = vi.spyOn(writer, 'writeText');
++      await ensureAntigravityMcpPermission({ settingsPath, serverName: 'jini', fileLock, writer });
++      expect(log).toEqual(['lock', `backup:${settingsPath}`, `text:${settingsPath}`, 'unlock']);
++      expect(lock.mock.calls[0]![0].lockPath).toBe(`${settingsPath}.jini-lock`);
++      expect(lock.mock.calls[0]![1]).toEqual({ createParent: true, timeoutMs: 5000 });
++      expect(JSON.parse(writeText.mock.calls[0]![0].content as string)).toEqual({ theme: 'dark', permissions: { allow: ['mcp(jini/*)'] } });
++      expect(writeText.mock.calls[0]![1]).toEqual({ refuseSymlink: true });
++    });
++  });
++
++  it('writes a missing file without a backup, and writes nothing when the rule is already present once', async () => {
++    await withSettingsFile(undefined, async (settingsPath) => {
++      const log: EffectLog = [];
++      await ensureAntigravityMcpPermission({ settingsPath, serverName: 'jini', fileLock: fakeFileLock({ log }), writer: fakeAtomicWriter({ log }) });
++      expect(log).toEqual(['lock', `text:${settingsPath}`, 'unlock']);
++    });
++    await withSettingsFile('{"permissions":{"allow":["mcp(jini/*)"]}}', async (settingsPath) => {
++      const log: EffectLog = [];
++      await ensureAntigravityMcpPermission({ settingsPath, serverName: 'jini', fileLock: fakeFileLock({ log }), writer: fakeAtomicWriter({ log }) });
++      expect(log).toEqual(['lock', 'unlock']);
++    });
++  });
++
++  it('refuses a bad server name before touching the lock or the writer', async () => {
++    const log: EffectLog = [];
++    await expect(ensureAntigravityMcpPermission({ settingsPath: SETTINGS, serverName: 'a b', fileLock: fakeFileLock({ log }), writer: fakeAtomicWriter({ log }) }))
++      .rejects.toThrow(/^Invalid MCP server name$/);
++    expect(log).toEqual([]);
++  });
++
++  it('a failing backup rejects with that failure, never writes the settings, and still unlocks', async () => {
++    await withSettingsFile('{}', async (settingsPath) => {
++      const failure = new Error('backup refused');
++      const log: EffectLog = [];
++      await expect(ensureAntigravityMcpPermission({ settingsPath, serverName: 'jini', fileLock: fakeFileLock({ log }), writer: fakeAtomicWriter({ log }, { failOn: 'backupOriginalOnce', failure }) }))
++        .rejects.toBe(failure);
++      expect(log).toEqual(['lock', `backup:${settingsPath}`, 'unlock']);
++    });
++  });
++
++  it('a failing write rejects with that failure, keeps the backup already taken, and still unlocks', async () => {
++    await withSettingsFile('{}', async (settingsPath) => {
++      const failure = new Error('write refused');
++      const log: EffectLog = [];
++      await expect(ensureAntigravityMcpPermission({ settingsPath, serverName: 'jini', fileLock: fakeFileLock({ log }), writer: fakeAtomicWriter({ log }, { failOn: 'writeText', failure }) }))
++        .rejects.toBe(failure);
++      expect(log).toEqual(['lock', `backup:${settingsPath}`, `text:${settingsPath}`, 'unlock']);
++    });
++  });
++
++  it.each([
++    ['an Error rejection', () => Promise.reject(new Error('lock refused')), new Error('lock refused')],
++    ['a non-Error rejection', () => Promise.reject('lock refused'), 'lock refused'],
++    ['a synchronous throw', () => { throw new Error('lock refused'); }, new Error('lock refused')],
++  ])('a file lock that fails with %s rejects the grant and nothing is written', async (_label, acquire, expected) => {
++    await withSettingsFile('{}', async (settingsPath) => {
++      const log: EffectLog = [];
++      const fileLock: FileLockPort = { withFileLock: acquire as FileLockPort['withFileLock'] };
++      await expect(ensureAntigravityMcpPermission({ settingsPath, serverName: 'jini', fileLock, writer: fakeAtomicWriter({ log }) }))
++        .rejects.toEqual(expected);
++      expect(log).toEqual([]);
++    });
++  });
++});
+diff --git a/packages/daemon/src/agent-executor/__tests__/antigravity-permissions.test.ts b/packages/daemon/src/agent-executor/__tests__/antigravity-permissions.test.ts
+index 2e44e2ef..a551b214 100644
+--- a/packages/daemon/src/agent-executor/__tests__/antigravity-permissions.test.ts
++++ b/packages/daemon/src/agent-executor/__tests__/antigravity-permissions.test.ts
+@@ -1,3 +1,5 @@
++import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
++import { fakeRuntimePorts } from '../../ports/__tests__/fakes/runtime.js';
+ import { constants, promises as fs } from 'node:fs';
+ import { tmpdir } from 'node:os';
+ import { join } from 'node:path';
+@@ -27,7 +29,7 @@ function prepare() {
+   return resolveMcpBridgeForRun({
+     input: { nativeCapabilities: { userMcp: true }, runId: 'run', cwd: '/isolated', def: { id: 'antigravity', externalMcpInjection: 'env-passthrough' } as RuntimeAgentDef },
+     deps: {
+-      mcpJsonInjection: { command: 'jini-mcp', daemonUrl: 'http://localhost:4317' },
++      mcpJsonInjection: { command: 'jini-mcp', daemonUrl: 'http://localhost:4317' }, fileLock: nodeFileLock, writer: nodeAtomicWriter,
+       cleanupStagedFiles: async () => {},
+       failBeforeSpawn: async ({ message }) => { throw new Error(message); },
+     },
+@@ -85,7 +87,7 @@ it('launch preparation authorizes the Jini bridge before returning delivery, and
+   const cleanupStagedFiles = vi.fn(async () => {});
+   const failBeforeSpawn = vi.fn(async (input: { message: string }): Promise<never> => { throw new Error(input.message); });
+   const input = { nativeCapabilities: { userMcp: true }, runId: 'run', cwd: '/isolated', def: { id: 'antigravity', externalMcpInjection: 'env-passthrough' } as RuntimeAgentDef };
+-  const deps = { mcpJsonInjection: { command: 'jini-mcp', daemonUrl: 'http://localhost:4317' }, cleanupStagedFiles, failBeforeSpawn, ensureAntigravityMcpPermission: authorize };
++  const deps = { mcpJsonInjection: { command: 'jini-mcp', daemonUrl: 'http://localhost:4317' }, cleanupStagedFiles, failBeforeSpawn, ...fakeRuntimePorts(), ensureAntigravityMcpPermission: authorize };
+   let ready = false;
+   const pending = resolveMcpBridgeForRun({ input, deps }).then(value => { ready = true; return value; });
+   await new Promise(resolve => setImmediate(resolve));
+@@ -108,7 +110,7 @@ it('mints no credential and writes no personal permission without explicit conse
+   const authorize = vi.fn(async () => {});
+   const input = { runId: 'unapproved', cwd: '/site', def: { id: 'antigravity', externalMcpInjection: 'env-passthrough' } as RuntimeAgentDef };
+   const deps = { mcpJsonInjection: { command: 'bridge', daemonUrl: 'http://localhost', credential },
+-    cleanupStagedFiles: async () => {}, ensureAntigravityMcpPermission: authorize,
++    cleanupStagedFiles: async () => {}, ...fakeRuntimePorts(), ensureAntigravityMcpPermission: authorize,
+     failBeforeSpawn: async ({ message }: { message: string }): Promise<never> => { throw new Error(message); } };
+   await expect(resolveMcpBridgeForRun({ input, deps })).rejects.toThrow(/approval/);
+   expect(credential).not.toHaveBeenCalled();
+diff --git a/packages/daemon/src/agent-executor/__tests__/antigravity-permissions.unit.test.ts b/packages/daemon/src/agent-executor/__tests__/antigravity-permissions.unit.test.ts
+index 1ef2caaa..d484a92b 100644
+--- a/packages/daemon/src/agent-executor/__tests__/antigravity-permissions.unit.test.ts
++++ b/packages/daemon/src/agent-executor/__tests__/antigravity-permissions.unit.test.ts
+@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs';
+ import { tmpdir } from 'node:os';
+ import { join } from 'node:path';
+ import { afterEach, describe, expect, it, vi } from 'vitest';
++import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
+ import { ensureAntigravityMcpPermission } from '../antigravity/permissions.js';
+ 
+ // Direct characterization of the permission writer: every branch of the grant decision is pinned
+@@ -20,7 +21,7 @@ async function settingsFile(raw?: string): Promise<string> {
+   if (raw !== undefined) await fs.writeFile(settingsPath, raw);
+   return settingsPath;
+ }
+-const grant = (settingsPath: string, serverName = 'jini') => ensureAntigravityMcpPermission({ settingsPath, serverName });
++const grant = (settingsPath: string, serverName = 'jini') => ensureAntigravityMcpPermission({ settingsPath, serverName, fileLock: nodeFileLock, writer: nodeAtomicWriter });
+ const read = (path: string) => fs.readFile(path, 'utf8');
+ const exists = (path: string) => fs.access(path).then(() => true, () => false);
+ 
+diff --git a/packages/daemon/src/agent-executor/__tests__/full-cli-mcp-policy.test.ts b/packages/daemon/src/agent-executor/__tests__/full-cli-mcp-policy.test.ts
+index ac099ffa..b218cc9f 100644
+--- a/packages/daemon/src/agent-executor/__tests__/full-cli-mcp-policy.test.ts
++++ b/packages/daemon/src/agent-executor/__tests__/full-cli-mcp-policy.test.ts
+@@ -1,3 +1,4 @@
++import { fakeRuntimePorts } from '../../ports/__tests__/fakes/runtime.js';
+ import { expect, it, vi } from 'vitest';
+ import { getAgentDef } from '@jini-ai/agent-runtime';
+ import { buildMcpJsonServerEntry, resolveMcpBridgeForRun, writeMcpJsonIfNeeded } from '../mcp-bridge.js';
+@@ -62,7 +63,7 @@ it.each(cliReleasePins)('stages startup IDs and the run credential using $agent
+     mkdtemp: async () => '/tmp/fake-m2-home', removeDir: async () => {}, linkSessionStore: async () => {},
+   };
+   const delivery = await resolveMcpBridgeForRun({ input: { runId: 'run', cwd: '/site', def },
+-    deps: { mcpJsonInjection: options, cleanupStagedFiles: async () => {}, failBeforeSpawn: refuse } });
++    deps: { mcpJsonInjection: options, cleanupStagedFiles: async () => {}, failBeforeSpawn: refuse, ...fakeRuntimePorts() } });
+   expect(delivery?.kind).toBe(agent === 'claude' ? 'claude-mcp-json' : 'codex-toml');
+   if (agent === 'claude') {
+     await writeMcpJsonIfNeeded({ input: { runId: 'run', cwd: '/site', def, mcpBridge: delivery },
+@@ -86,7 +87,7 @@ it.each(cliReleasePins)('stages startup IDs and the run credential using $agent
+ it('cleans up and fails before spawn if the startup ID resolver rejects', async () => {
+   const cleanup = vi.fn(async () => {});
+   await expect(resolveMcpBridgeForRun({ input: { runId: 'run', cwd: '/site', def: getAgentDef({ id: 'claude' })! },
+-    deps: { cleanupStagedFiles: cleanup, failBeforeSpawn: refuse, mcpJsonInjection: { command: 'bridge', daemonUrl: 'http://site',
++    deps: { ...fakeRuntimePorts(), cleanupStagedFiles: cleanup, failBeforeSpawn: refuse, mcpJsonInjection: { command: 'bridge', daemonUrl: 'http://site',
+       startupToolIds: () => { throw new Error('visibility unavailable'); },
+     } },
+   })).rejects.toMatchObject({ code: 'AGENT_SPAWN_FAILED' });
+diff --git a/packages/daemon/src/agent-executor/__tests__/message-relay.test.ts b/packages/daemon/src/agent-executor/__tests__/message-relay.test.ts
+index 18da5256..319e68b6 100644
+--- a/packages/daemon/src/agent-executor/__tests__/message-relay.test.ts
++++ b/packages/daemon/src/agent-executor/__tests__/message-relay.test.ts
+@@ -1,3 +1,4 @@
++import { fakeRuntimePorts } from '../../ports/__tests__/fakes/runtime.js';
+ import { expect, it } from 'vitest';
+ import type { RunAgentPayload } from '@jini-ai/protocol';
+ import { createMessageRelay } from '../message-relay.js';
+@@ -8,7 +9,7 @@ it('spawn_gate_uses_fresh_nonces_only_for_mcp_relay_engines', async () => {
+   const options = { command: 'node', daemonUrl: 'http://daemon', env: { JINI_MESSAGE_RELAY: '1', JINI_MESSAGE_RELAY_NONCE: 'forged' } };
+   const resolve = async (agentId: string, runId: string) => resolveMcpBridgeForRun({
+     input: { runId, cwd: '/work', def: getAgentDef({ id: agentId })! },
+-    deps: { mcpJsonInjection: options, cleanupStagedFiles: async () => {}, failBeforeSpawn: async ({ message }) => { throw new Error(message); } },
++    deps: { mcpJsonInjection: options, ...fakeRuntimePorts(), cleanupStagedFiles: async () => {}, failBeforeSpawn: async ({ message }) => { throw new Error(message); } },
+   });
+   const native = await resolve('claude', 'native');
+   expect(native?.kind).toBe('claude-mcp-json');
+diff --git a/packages/daemon/src/agent-executor/__tests__/r8a-pins.test.ts b/packages/daemon/src/agent-executor/__tests__/r8a-pins.test.ts
+index ac1a6696..96200663 100644
+--- a/packages/daemon/src/agent-executor/__tests__/r8a-pins.test.ts
++++ b/packages/daemon/src/agent-executor/__tests__/r8a-pins.test.ts
+@@ -1,6 +1,11 @@
+ import type { ChildProcess } from 'node:child_process';
+ import { describe, expect, it, vi } from 'vitest';
+-import { createFakeChild, createDef, createRig, stopResult, flush, type SpawnPort } from './r8a-rig.js';
++import { createInMemoryEventLog } from '../../event-log.js';
++import { createRunLifecycle } from '../../run-lifecycle.js';
++import { createAgentExecutor } from '../../index.js';
++import { createFakeChild, createDef, createRig, launchAt, stopResult, flush, type SpawnPort } from './r8a-rig.js';
++import { fixtureLaunchModel } from './model-discovery-fixture.js';
++import { runtimeFixture } from './runtime-fixture.js';
+ 
+ /**
+  * @file R8a pins written before step 5 edits the launcher (the cases step 0 left open):
+@@ -8,6 +13,7 @@ import { createFakeChild, createDef, createRig, stopResult, flush, type SpawnPor
+  *   stream and touches nothing (no spawn, no lock, no staged file);
+  * - R7: two executors with overlapping runs keep their own process, lock and cleanup bookkeeping;
+  * - R8: the exact argv and the exact env values a pinned host env produces at spawn.
++ * - Step 4: the antigravity permission grant locks, backs up and writes through the host's `runtime`.
+  * R12 (one recorder per run, one outcome per success / failure / cancel) is already pinned by
+  * `__tests__/ai-trace-lifecycle*.test.ts`.
+  */
+@@ -90,3 +96,28 @@ describe('R8: argv and env at spawn, for a pinned host env', () => {
+     await rig.lifecycle.waitForTerminal({ runId });
+   });
+ });
++
++describe('step 4: the antigravity permission grant runs through the host runtime', () => {
++  it('locks, writes the settings and unlocks via runtime.fileLock / runtime.writer, in that order, before the child is spawned', async () => {
++    const child = createFakeChild(8400);
++    const { spawn, calls } = recordingSpawn([child]);
++    const runtime = runtimeFixture({ spawn });
++    const def = createDef({ id: 'antigravity', name: 'Antigravity', externalMcpInjection: 'env-passthrough' });
++    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
++    const executor = createAgentExecutor({ lifecycle, hostEnv: { PATH: '/bin' }, runtime }, {
++      resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (id === def.id ? def : null),
++      resolveAgentLaunch: launchAt('/fake/bin'), applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {},
++      mcpJsonInjection: { command: 'jini-mcp', daemonUrl: 'http://localhost:4317' },
++    });
++    const runId = (await lifecycle.start({ contextRef: 'r8a-agy' })).run.id;
++    await executor.run({ runId, agentId: def.id, prompt: 'hi', cwd: '/work' }, { nativeCapabilities: { userMcp: true } });
++    // Where the settings file lives is the user's home; the order and the ports are what is pinned.
++    expect(runtime.log[0]).toBe('lock');
++    expect(runtime.log.at(-1)).toBe('unlock');
++    expect(runtime.log.filter((entry) => entry.startsWith('text:'))).toHaveLength(1);
++    expect(runtime.log.find((entry) => entry.startsWith('text:'))).toMatch(/\.gemini[\\/]antigravity-cli[\\/]settings\.json$/);
++    expect(calls).toHaveLength(1);
++    child.emit('close', 0, null);
++    await lifecycle.waitForTerminal({ runId });
++  });
++});
+diff --git a/packages/daemon/src/agent-executor/__tests__/runtime-fixture.ts b/packages/daemon/src/agent-executor/__tests__/runtime-fixture.ts
+index 87dc1ce2..64e33e1c 100644
+--- a/packages/daemon/src/agent-executor/__tests__/runtime-fixture.ts
++++ b/packages/daemon/src/agent-executor/__tests__/runtime-fixture.ts
+@@ -2,7 +2,7 @@ import type { ProcessSnapshot, RuntimePlatform, StopProcessesResult } from '@jin
+ import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
+ import { createSpawnPort, nodeCommandShell, nodeProcessControl, nodeSpawnPort, type SpawnFunction } from '@jini-ai/node-adapters/process';
+ import type { AgentExecutorRuntimePorts } from '../../ports/runtime.js';
+-import { fakeRuntimePorts } from '../../ports/__tests__/fakes/runtime.js';
++import { fakeRuntimePorts, type EffectLog } from '../../ports/__tests__/fakes/runtime.js';
+ 
+ /**
+  * What an executor test scripts: Node's own positional `spawn` shape (a spy keeps asserting
+@@ -21,7 +21,7 @@ export interface RuntimeFixtureScript {
+ const NOTHING_STOPPED: StopProcessesResult = { alreadyStopped: true, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] };
+ 
+ /** A full {@link AgentExecutorRuntimePorts} for an executor test; pinned to Linux unless `platform` says otherwise. */
+-export function runtimeFixture(script: RuntimeFixtureScript = {}, _optional: Record<string, never> = {}): AgentExecutorRuntimePorts {
++export function runtimeFixture(script: RuntimeFixtureScript = {}, _optional: Record<string, never> = {}): AgentExecutorRuntimePorts & { readonly log: EffectLog } {
+   const base = fakeRuntimePorts();
+   return {
+     ...base,
+diff --git a/packages/daemon/src/agent-executor/antigravity/permissions.ts b/packages/daemon/src/agent-executor/antigravity/permissions.ts
+index 174116fe..8a7eae7d 100644
+--- a/packages/daemon/src/agent-executor/antigravity/permissions.ts
++++ b/packages/daemon/src/agent-executor/antigravity/permissions.ts
+@@ -2,7 +2,7 @@ import { homedir } from 'node:os';
+ import { join } from 'node:path';
+ import type { McpBridgeDelivery } from '../contracts.js';
+ import { promises as fs } from 'node:fs';
+-import { backupOriginalOnce, withFileLock, writeFileAtomicAsync } from '@jini-ai/platform/fs';
++import type { AtomicFileWriterPort, FileLockPort } from '@jini-ai/core/contracts/runtime';
+ import { isRecord } from '../values.js';
+ 
+ /** Read the current settings text; a missing file is undefined, every other failure rejects. */
+@@ -36,23 +36,24 @@ function grantedAllowList(allow: readonly unknown[], rule: string): unknown[] |
+ 
+ /**
+  * Persist one server's MCP grant for agy, which has no run-scoped settings override.
+- * Reuses the platform lock and atomic writer; keeps the first existing file as a backup.
++ * Holds the host's lock and writes through the host's atomic writer, which also keeps the first
++ * existing file as a backup (lock, then backup, then write; the lock is released on every path).
+  * Invalid settings and I/O failures reject before spawn rather than widening permissions.
+  * @complexity O(settings bytes), including the allow-list scan; bounded by the settings file.
+  */
+ export async function ensureAntigravityMcpPermission(
+-  { settingsPath, serverName }: { settingsPath: string; serverName: string },
++  { settingsPath, serverName, fileLock, writer }: { settingsPath: string; serverName: string; fileLock: FileLockPort; writer: AtomicFileWriterPort },
+   _options: Record<string, never> = {},
+ ): Promise<void> {
+   if (!/^[\w.-]+$/.test(serverName)) throw new Error('Invalid MCP server name');
+   const rule = `mcp(${serverName}/*)`;
+-  await withFileLock({ lockPath: `${settingsPath}.jini-lock`, run: async () => {
++  await fileLock.withFileLock({ lockPath: `${settingsPath}.jini-lock`, run: async () => {
+     const raw = await readSettingsText(settingsPath);
+     const { settings, permissions, allow } = parseSettings(raw);
+     const nextAllow = grantedAllowList(allow, rule);
+     if (nextAllow === null) return;
+-    if (raw !== undefined) await backupOriginalOnce({ filePath: settingsPath });
+-    await writeFileAtomicAsync({ filePath: settingsPath, content: `${JSON.stringify({
++    if (raw !== undefined) await writer.backupOriginalOnce({ filePath: settingsPath });
++    await writer.writeText({ filePath: settingsPath, content: `${JSON.stringify({
+       ...settings, permissions: { ...permissions, allow: nextAllow },
+     }, null, 2)}\n` }, { refuseSymlink: true });
+   } }, { createParent: true, timeoutMs: 5000 });
+@@ -60,9 +61,9 @@ export async function ensureAntigravityMcpPermission(
+ 
+ /** Prepare this CLI's persistent MCP permission before an env-passthrough launch. */
+ export async function prepareAntigravityBridge(
+-  { delivery, serverName }: { delivery: McpBridgeDelivery | null; serverName: string },
++  { delivery, serverName, fileLock, writer }: { delivery: McpBridgeDelivery | null; serverName: string; fileLock: FileLockPort; writer: AtomicFileWriterPort },
+   { ensurePermission }: { ensurePermission: typeof ensureAntigravityMcpPermission },
+ ): Promise<void> {
+   if (delivery?.kind !== 'env-passthrough') return;
+-  await ensurePermission({ settingsPath: join(homedir(), '.gemini', 'antigravity-cli', 'settings.json'), serverName });
++  await ensurePermission({ settingsPath: join(homedir(), '.gemini', 'antigravity-cli', 'settings.json'), serverName, fileLock, writer });
+ }
+diff --git a/packages/daemon/src/agent-executor/launch.ts b/packages/daemon/src/agent-executor/launch.ts
+index 798541bd..9dbfddd3 100644
+--- a/packages/daemon/src/agent-executor/launch.ts
++++ b/packages/daemon/src/agent-executor/launch.ts
+@@ -1538,7 +1538,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
+     // the five mechanisms ends up carrying it. `null` for an unconfigured host or a def declaring
+     // no strategy — see `buildMcpBridgeDelivery`'s doc.
+     preparedHttpMcp = await prepareRunHttpMcp({ input, def, cleanupStagedFiles });
+-    const mcpBridge = preparedHttpMcp ? null : await resolveMcpBridgeForRun({ input: { runId: input.runId, cwd: input.cwd, def, ...nativeCapabilityInput({ input }, {}) }, deps: { mcpJsonInjection, cleanupStagedFiles, failBeforeSpawn } }
++    const mcpBridge = preparedHttpMcp ? null : await resolveMcpBridgeForRun({ input: { runId: input.runId, cwd: input.cwd, def, ...nativeCapabilityInput({ input }, {}) }, deps: { mcpJsonInjection, cleanupStagedFiles, failBeforeSpawn, fileLock: runtime.fileLock, writer: runtime.writer } }
+     );
+ 
+     const baseRuntimeContext = computeRuntimeContext({ preparedPromptFile, preparedLogFile, mcpBridge }, sessionRuntimeContext(input, {}));
+diff --git a/packages/daemon/src/agent-executor/mcp-bridge.ts b/packages/daemon/src/agent-executor/mcp-bridge.ts
+index 2e7fd42f..83cfcfdf 100644
+--- a/packages/daemon/src/agent-executor/mcp-bridge.ts
++++ b/packages/daemon/src/agent-executor/mcp-bridge.ts
+@@ -1,4 +1,5 @@
+ import type { McpBridgeProbeResult } from './mcp-bridge-probe.js';
++import type { AtomicFileWriterPort, FileLockPort } from '@jini-ai/core/contracts/runtime';
+ import { randomBytes } from 'node:crypto';
+ import { supportsMessageRelay } from './message-relay.js';
+ import { ensureAntigravityMcpPermission, prepareAntigravityBridge } from './antigravity/permissions.js';
+@@ -189,6 +190,8 @@ export async function resolveMcpBridgeForRun({ input, deps }: { readonly input:
+     readonly mcpJsonInjection: McpJsonInjectionOptions | undefined;
+     readonly cleanupStagedFiles: () => Promise<void>;
+     readonly failBeforeSpawn: FailBeforeSpawn;
++    readonly fileLock: FileLockPort;
++    readonly writer: AtomicFileWriterPort;
+     readonly ensureAntigravityMcpPermission?: typeof ensureAntigravityMcpPermission;
+   } }
+ ): Promise<McpBridgeDelivery | null> {
+@@ -209,7 +212,7 @@ export async function resolveMcpBridgeForRun({ input, deps }: { readonly input:
+       ...(supportsMessageRelay({ def: input.def }) ? { messageRelayNonce: randomBytes(24).toString('hex') } : {}),
+     });
+     const prepareBridge = MCP_BRIDGE_PREPARERS.get(input.def.id);
+-    if (prepareBridge) await prepareBridge({ delivery, serverName: JINI_MCP_SERVER_KEY }, {
++    if (prepareBridge) await prepareBridge({ delivery, serverName: JINI_MCP_SERVER_KEY, fileLock: deps.fileLock, writer: deps.writer }, {
+       ensurePermission: deps.ensureAntigravityMcpPermission ?? ensureAntigravityMcpPermission,
+     });
+     return delivery;
+-- 
+2.43.0
+
