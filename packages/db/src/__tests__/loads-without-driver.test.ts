@@ -114,6 +114,21 @@ const SUBPATHS: Record<string, { dirs: string[]; probe: string; kernel?: boolean
         && JSON.stringify(calls) === '[["selectFrom","g"],["selectAll"],["where","setting_id","=","missing"],["limit",1]]';
     })()`,
   },
+  events: {
+    dirs: ["events"],
+    probe: `await (async () => {
+      const events = [];
+      const kernel = {
+        transaction: async fn => { events.push("begin"); return fn(); },
+        lockKey: async key => { events.push("lock:" + key); },
+        run: async () => { events.push("read"); return []; },
+      };
+      const repo = new m.SqlOutboxAdapter({ kernel, tables: { outboxEvents: "o" }, claimLeaseMs: 1000 });
+      const claimed = await repo.claimPending({ batchSize: 1, nowIso: "2026-11-18T00:00:00.000Z" });
+      return claimed.length === 0 && typeof m.SqlChangeSetRepo === "function" && m.outboxEventValues({ id: "e", name: "n", occurredAt: "t", workspaceId: "w", payload: {} }).status === "pending"
+        && JSON.stringify(events) === '["begin","lock:outbox_events:claim","read"]';
+    })()`,
+  },
   "gated-mutations": {
     dirs: ["gated-mutations"],
     probe: `await (async () => {

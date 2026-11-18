@@ -33,7 +33,7 @@ export interface ChangeSetRecord {
   id: UUID;
   workspaceId: UUID;
   /** Principal (user or agent) that caused the change. */
-  actorId?: UUID;
+  actorId?: UUID | undefined;
   status: ChangeSetStatus;
   /** Human-readable description shown in audit/review UIs. */
   summary: string;
@@ -42,8 +42,8 @@ export interface ChangeSetRecord {
   /** Link back to the chat message / plan step that motivated the change. */
   intentRef?: string | undefined;
   createdAt: ISODateTime;
-  appliedAt?: ISODateTime;
-  revertedAt?: ISODateTime;
+  appliedAt?: ISODateTime | undefined;
+  revertedAt?: ISODateTime | undefined;
 }
 
 /** One entity mutation inside a change set. */

@@ -97,7 +97,7 @@ export interface OutboxRecord {
   /** Retry eligibility timestamp. */
   nextAttemptAt: ISODateTime;
   /** Most recent delivery failure reason. */
-  lastError?: string;
+  lastError?: string | undefined;
   /** Row creation timestamp. */
   createdAt: ISODateTime;
 }
