@@ -85,6 +85,13 @@ export {
   type ImportTermOptional,
 } from "./write-service.js";
 
+export type {
+  AssignedTermView,
+  EntryTermReadPort,
+  TaxonomyPublishReadPort,
+  TermPublishReadPort,
+} from "./read-ports.js";
+
 export {
   listTaxonomiesWithTerms,
   type TaxonomyListPort,

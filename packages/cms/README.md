@@ -113,6 +113,12 @@ HTML write fails before saving rather than persisting markup that could escape i
 `./workspace/sql` (node) is the Kysely adapter for `WorkspaceRepoPort`: the host passes its storage
 kernel and its own `workspaces` table name; the adapter has no table or product defaults.
 
+`./taxonomy/sql` (node) is the Kysely adapter for the taxonomy ports (`SqlTaxonomyRepo`, `SqlTermRepo`,
+`SqlEntryTermRepo`, `SqlTaxonomyRevisionRepo`): the host passes its storage kernel, the names of its four
+taxonomy tables and the workspace each repository is scoped to; the adapter has no table or product defaults.
+The universal `./taxonomy` entry carries the read-port types (`TaxonomyPublishReadPort`, `TermPublishReadPort`,
+`AssignedTermView`, `EntryTermReadPort`) those repositories also satisfy.
+
 **Still to move:** `post`, `seo`, `comments`, `redirects`, `newsletter`,
 `members`. Widgets are exposed through the universal and node entries above.
 The nested forms package is maintained by its separate owner and is excluded from this parent package.
