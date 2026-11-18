@@ -71,3 +71,53 @@ Tovu: `redactUserText` (chat/core) in `credential-chat-intake.ts`, `redactSecret
 - A key glued to a word (`xASIA...`, `xBearer abc`) is not masked by the new rules, which require a word boundary.
 - `Proxy-Authorization` with a bare value (no scheme) is not masked; Bearer, Basic, Token, ApiKey and Digest are.
 - Redaction counts for a repeated pass keep using core's generated markers; chat's `[token removed]` is chat's own display and is protected before the engine runs, unchanged.
+
+---
+
+# chat-redaction-fix-2 (Jini, branch wave2/chat-deps)
+
+Base: origin/wave2/chat-deps `b2350a6c` (the first fix's tip). Setup: Node 24.22.3, `pnpm install --frozen-lockfile`, `pnpm --no-bail -r build`; baseline = the first fix's recorded counts (core 210 files / 3243 tests, chat 4490, others as listed above). Method as before: for each class the test was written first and run against the parent (red), then the fix, then green; "mutation" = fix stashed again, same red count. One commit per class carries test + fix, so the red state is the parent SHA.
+
+## Classes (red = parent SHA, green = the commit)
+
+| # | class | red on parent | red count | green commit |
+|---|---|---|---|---|
+| 4 | Digest parameter list read whole (quoted values with spaces/commas) | `b2350a6c` | 7 of 9 | `e4c8905e` |
+| 1 | custom auth header with a scheme word masked whole; scheme-less `Proxy-Authorization` masked | `e4c8905e` | 15 of 21 | `9e3ad8ca` |
+| 9 | URL userinfo stops at `, ; ( ) < > " '` before a later `@` (host and contact address kept) | `9e3ad8ca` | 6 of 7 | `a8000fb7` |
+| 5 | activation/verification/reset/auth/otp/invite... codes masked again by NAME SET (`zipcode`, `promo_code`, `error_code` keep values) | `a8000fb7` | 22 of 51 | `2cbb8fe6` |
+| 6 | vendor keys masked through the last character (trailing `\b` removed from sk/langfuse/github/slack/stripe/jwt rules), `xASIA`/`_ASIA` boundary = AKIA's, bare Basic/Token after a line break | `2cbb8fe6` | 12 of 20 | `4d5ba078` |
+| 7 | `Sort key: name` (closed list of qualifiers) and release ids after `Token` kept; CMS email masks the credential part and keeps the rest | `4d5ba078` | core 11 of 21, cms 2 of 17 | `a64b9aad` |
+| 3 | quoted multiword keys ending in a credential name; prefixed name with the value on the next line | `a64b9aad` | 13 of 27 | `50c8fe5d` |
+| 2 | colon-prose no longer overrides credential syntax (field-start label: only function words / placeholders are prose; plain-word passphrase masked to line end; one bare token on the next line masked); diagnostics and analytics pinned | `50c8fe5d` | core 9 of 29, analytics 1, diagnostics 1 | `7ed7c31f` |
+| 8 | chat opaque-token location check: one sorted sweep (new `user-text-locations.ts`), timing-bounded test | `7ed7c31f` | 2 of 3 (4.4 s at 16,000 lines; 609 ms -> 57 ms at 8,000) | `a76feec3` |
+| - | chat pins for the new classes (green pins) | - | - | `4e758e46` |
+| - | refactor: URL vocabulary, header rules and colon reading out of `redact.ts`; size baseline 562 -> 554 (behaviour unchanged) | - | - | `c87c8253` |
+| harness | escaped-JSON credential, `--token=x` style flags, blank-line env value (found by the differential below) | `c87c8253` | 7 of 14 | `01d2e1f5` |
+| harness | `NAME=` then next line masks the first token like the engine's own labels | `01d2e1f5` | 1 of 27 | `8a1ecf16` |
+
+The class-2 commit message says "9 of 30"; the count is 9 of 29. Intermediate commits `e4c8905e`..`7ed7c31f` pass their tests and typecheck but not the size/complexity ratchets until `c87c8253` (same caveat as the first fix); run the ratchets at the tip.
+
+Decisions you may want to reverse: (a) a field-start label (line start, list item, number) followed by a plain-word value masks it unless the first word is an ordinary function word (`must`, `it`, `the`, `please`...; list in `redact-prose-values.ts`); a mention in the middle of a sentence keeps the old prose reading. (b) `key` is only read as a column name behind a closed list of qualifiers (`sort primary foreign partition cache group order hash map composite unique lookup index natural surrogate join shard clustering search row`), so `secret key: ab` stays masked. (c) CMS email: an answer with a credential is now sent with that part masked instead of dropped (two CMS tests changed from "omitted" to "masked in place"). (d) The old pin that kept `xASIA...` was reversed on purpose (class 6).
+
+## Differential harness (old chat rules `4c189236` vs pre-fix core `cc1b8fd7` vs new tip)
+
+56,408 distinct string literals from the tests of core, chat, diagnostics, cms, analytics, agent-runtime, daemon, mcp, cli, platform, http-kit plus the ~110 probe lines of this run. A token of 4+ characters counts as "shown" when it is in the output of one engine and not in the other (case-insensitive).
+- old masked, pre-fix core shows: 141. old masked, new tip shows: **18, and in none of them is a credential value shown** (first review run of this harness found 51 at the first tip; three more real gaps it surfaced are fixed above: escaped JSON, `--token=`, blank-line env value).
+- The 18: a scheme word alone with a full stop (`Authorization: Basic.`, `x-api-key: Bearer.`; documentation phrase, decided in the first fix) x2; release ids after `Token` x4 (class 7); `token=secret=` label words visible beside a masked value x2 (and `apikey=`, 1); `DB_PASSWORD=` followed by another assignment (`DB_USER=app`) x1; URL host and contact address that the old rule swallowed into the userinfo x5 (class 9); `Authorization: Bearer <PLACEHOLDER>` documentation placeholders x3.
+- tip masked, old shows: 423 (over-masking direction); sampled, all are the intended new classes.
+
+## Gates (exact command -> result), run at tip `8a1ecf16`+report
+
+- tests, `npx vitest run --maxWorkers=2 --minWorkers=1` per package: core 219 files / 3441 tests (baseline 210 / 3243), chat 305 | 1 skipped files / 4507 tests (4490), cms 4085 (4085), diagnostics 998, analytics 225, http-kit 570, mcp 1805, cli 592, agent-plugins 2165, agent-runtime 4479, daemon 4729, integrations 2053, platform 3117, plugins 1011, ui 8585: all exit 0. Every package that calls the engine was run after the final change, with core's `dist` rebuilt.
+- `pnpm run typecheck` in core, chat, cms, diagnostics, analytics -> clean
+- `node scripts/check-size.mjs` -> passed (redact.ts debt 562 -> 554); `node scripts/check-complexity.mjs` -> passed (17 entries); `node scripts/check-why-comments.mjs --base b2350a6c` (the pinned parent, not the tip) -> ok, 0 lost
+- `pnpm guard` -> ok
+- `node scripts/check-error-gate.mjs --strict` (failing mode) -> exit 1: 20 new or worse rows, none in a file this run changed (three in packages/chat, core and ui areas: `chat/src/embed-widget/browser/agent-inventory.ts`, `core/src/contracts/ai-trace/capture.ts`, `core/src/contracts/ai-trace/sinks.ts`; the rest in ui). The one row in `redact.ts` (the `catch` in `formatErrorForLog`) is on the base.
+- `npx eslint` on the touched sources -> 0 errors, 10 warnings (3 on the base in `redact.ts`; 7 regex-complexity / character-class warnings in the new alias and prose files). No eslint-disable or ts-ignore added.
+- `pnpm api:check`: no export of core or cms changed (new modules are internal); the lists it prints are the earlier chat-deps commits. `check:hooks` (ui `AssetGridToolbar.tsx`) and `check:log-safety` (http-kit `node-bridge.ts`) still fail on files this run did not touch.
+- Linear-time spot checks (tsx timings, 20k/40k repeats): colon labels 32/49 ms, next-line values 58/82 ms, quoted keys 50/89 ms, userinfo with many `@` 3/5 ms, Digest lists 46/99 ms, scheme headers 27/53 ms.
+
+## Core callers checked
+
+All callers of `redactSecrets`/`redactSecretsWithCounts`/`formatErrorForLog`: agent-plugins, agent-runtime, analytics (property text and AI-generation content), chat, cli, cms (form email answers), daemon, diagnostics (error reports), http-kit, integrations, mcp, platform, plugins, ui: suites above. The 48 pinned answers of `redact.callers-pin.test.ts` are unchanged. Telemetry callers inherit class 2 and the vendor changes; their answers are pinned in `analytics/.../product-analytics.test.ts` and `diagnostics/.../report-error.unit.test.ts`. Tovu's suite was not run (it consumes `@jini-ai/*` from this checkout).
