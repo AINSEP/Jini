@@ -35,6 +35,20 @@ function conflict({ key, expectedVersion, currentVersion }: { key: ExternalMcpSe
   return new RecordVersionConflictError({ recordKind: "MCP server", recordId: key.serverId, expectedVersion, currentVersion });
 }
 
+type SaveRepo = Pick<ExternalMcpServerRepoPort, "findByServerId" | "insert" | "updateIfVersion">;
+
+/** Refuses the save when the row's current version is not the basis the person loaded (no basis: nothing to compare). */
+function assertBasis({ key, expectedVersion, current }: { key: ExternalMcpServerKey; expectedVersion: number | undefined; current: ExternalMcpServerRecord | null }): void {
+  if (expectedVersion === undefined) return;
+  if ((current?.version ?? 0) !== expectedVersion) throw conflict({ key, expectedVersion, currentVersion: current?.version ?? null });
+}
+
+/** Creates the row when there was none, else replaces it only if its version is still the one read. */
+function writeNext({ repo, record, existing }: { repo: SaveRepo; record: ExternalMcpServerRecord; existing: ExternalMcpServerRecord | null }): Promise<boolean> {
+  if (!existing) return repo.insert({ record });
+  return repo.updateIfVersion({ record, expectedVersion: existing.version, replaces: { sealedEnv: existing.sealedEnv, sealedOAuth: existing.sealedOAuth } });
+}
+
 /**
  * Reads the stored row, builds the next one and writes it conditionally.
  *
@@ -47,20 +61,17 @@ function conflict({ key, expectedVersion, currentVersion }: { key: ExternalMcpSe
  * @complexity O(1) writes; at most two reads and two builds.
  */
 export async function commitExternalMcpSave(
-  { repo, key, expectedVersion, build }: { repo: Pick<ExternalMcpServerRepoPort, "findByServerId" | "insert" | "updateIfVersion">; key: ExternalMcpServerKey; expectedVersion: number | undefined; build: (existing: ExternalMcpServerRecord | null) => Promise<ExternalMcpServerRecord> },
+  { repo, key, expectedVersion, build }: { repo: SaveRepo; key: ExternalMcpServerKey; expectedVersion: number | undefined; build: (existing: ExternalMcpServerRecord | null) => Promise<ExternalMcpServerRecord> },
   _options = {},
 ): Promise<ExternalMcpServerRecord> {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const existing = await repo.findByServerId(key);
-    if (expectedVersion !== undefined && (existing?.version ?? 0) !== expectedVersion) throw conflict({ key, expectedVersion, currentVersion: existing?.version ?? null });
+    assertBasis({ key, expectedVersion, current: existing });
     const record = await build(existing);
-    if (!existing ? await repo.insert({ record }) : await repo.updateIfVersion({ record, expectedVersion: existing.version, replaces: { sealedEnv: existing.sealedEnv, sealedOAuth: existing.sealedOAuth } })) {
-      return { ...record, version: (existing?.version ?? 0) + 1 };
-    }
+    if (await writeNext({ repo, record, existing })) return { ...record, version: (existing?.version ?? 0) + 1 };
     // A miss with the basis still current means a runtime write (a token refresh) or a concurrent
     // internal write moved the row between the read and the write; read again and rebuild once.
-    const live = await repo.findByServerId(key);
-    if (expectedVersion !== undefined && (live?.version ?? 0) !== expectedVersion) throw conflict({ key, expectedVersion, currentVersion: live?.version ?? null });
+    assertBasis({ key, expectedVersion, current: await repo.findByServerId(key) });
   }
   const live = await repo.findByServerId(key);
   throw conflict({ key, expectedVersion: expectedVersion ?? 0, currentVersion: live?.version ?? null });
