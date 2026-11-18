@@ -92,7 +92,7 @@ export function domainState({ status }, _optional = {}) {
   return status === 'failed' ? 'failed' : 'pending';
 }
 
-/** A relative record name under `domain` as a full name. @param {{ name: string, domain: string }} required @param {string} required.name @param {string} required.domain */
+/** A relative record name under `domain` as a full name. @param {string} name @param {string} domain */
 export function qualify({ name, domain }, _optional = {}) {
   const lower = name.toLowerCase();
   if (lower === '' || lower === '@' || lower === domain) return domain;
