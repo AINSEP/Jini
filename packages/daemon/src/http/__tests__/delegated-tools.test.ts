@@ -595,20 +595,24 @@ describe('delegatedToolExecuteRoute read-only constraint (requireReadOnly)', () 
     expect(onInternalError).not.toHaveBeenCalled();
   });
 
-  it('suggests content_read.<resource> first at read-only preflight without resolving identity or running a handler', async () => {
+  it('answers a host-declared group at read-only preflight with its members and selector, without resolving identity or running a handler', async () => {
     const { registry, toolExecutor, ran } = makeReadOnlyStack();
     for (const id of ['content_read.backup_restore_point', 'content_read.theme']) {
       registry.register({ descriptor: { id, readOnly: true }, policy: { authorize: () => 'allow' }, handler: async () => ran.push(id) });
     }
     const resolvePrincipal = vi.fn(() => TEST_PRINCIPAL);
-    const deps = makeDeps({ toolExecutor, toolRegistry: registry, resolvePrincipal });
+    const selector = { keys: ['resource'], byValue: { theme: 'content_read.theme', backup: 'content_read.backup_restore_point' } };
+    const toolFamilies = { describeFamily: ({ familyId }: { familyId: string }) => familyId === 'content_read'
+      ? { members: ['content_read.backup_restore_point', 'content_read.theme'], selector } : undefined };
+    const deps = makeDeps({ toolExecutor, toolRegistry: registry, resolvePrincipal, toolFamilies });
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
     const result = await delegatedToolExecuteRoute.handle({ input: {
       runId: run.id, toolUseId: 'tu-1', toolId: 'content_read', input: { resource: 'theme' }, requireReadOnly: true,
     }, deps });
     expect(result).toEqual({ ok: false, error: {
       code: 'UNKNOWN_TOOL',
-      message: 'There is no tool named "content_read". Closest names: content_read.theme, content_read.backup_restore_point. Find tools with search_tools.',
+      message: '"content_read" is a group of tools, not one tool. Call one of: content_read.backup_restore_point, content_read.theme.',
+      details: { family: { id: 'content_read', members: ['content_read.backup_restore_point', 'content_read.theme'], selector } },
     } });
     expect(resolvePrincipal).not.toHaveBeenCalled();
     expect(ran).toEqual([]);

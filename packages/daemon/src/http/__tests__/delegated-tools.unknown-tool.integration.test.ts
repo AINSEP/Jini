@@ -8,6 +8,7 @@ import {
   type ToolExecutor,
 } from '../../index.js';
 import { delegatedToolExecuteRoute, type DelegatedToolsHttpDeps } from '../delegated-tools.js';
+import type { ToolFamilyPort } from '../../core/tool-family.js';
 
 const PRINCIPAL: Principal = { id: 'unknown-tool-principal' };
 
@@ -20,7 +21,7 @@ interface Harness {
 }
 
 /** Real registry and executor, wrapped so every call that reaches the executor or the principal lookup is recorded. */
-function buildHarness(options: { withRegistryDep?: boolean; registry?: ToolRegistry } = {}): Harness {
+function buildHarness(options: { withRegistryDep?: boolean; registry?: ToolRegistry; toolFamilies?: ToolFamilyPort } = {}): Harness {
   const registry = options.registry ?? createToolRegistry({});
   registry.register({ descriptor: { id: 'content_read.menu', readOnly: true }, policy: { authorize: () => 'allow' }, handler: async () => 'menu' });
   registry.register({ descriptor: { id: 'writer' }, policy: { authorize: () => 'allow' }, handler: async () => 'wrote' });
@@ -34,6 +35,7 @@ function buildHarness(options: { withRegistryDep?: boolean; registry?: ToolRegis
     toolExecutor,
     resolvePrincipal: (call) => { principalCalls.push(call); return PRINCIPAL; },
     ...(options.withRegistryDep === false ? {} : { toolRegistry: registry }),
+    ...(options.toolFamilies === undefined ? {} : { toolFamilies: options.toolFamilies }),
   };
   return { deps, registry, lifecycle, principalCalls, executorCalls };
 }
@@ -106,6 +108,35 @@ describe('delegated tool route: a made-up tool id answers 404 UNKNOWN_TOOL on bo
         message: 'check_messages is an MCP-local tool; call check_messages directly, never as toolId in a delegated gateway',
       } });
     }
+  });
+});
+
+describe('delegated tool route: a tool family answers as a group on both gateways', () => {
+  const SELECTOR = { keys: ['kind'], byValue: { menu: 'content_read.menu', gone: 'content_read.gone' } };
+  const toolFamilies: ToolFamilyPort = {
+    describeFamily: ({ familyId }) => familyId === 'content_read' ? { members: ['content_read.menu', 'content_read.gone'], selector: SELECTOR } : undefined,
+  };
+
+  it.each([{ name: 'read-only gateway', requireReadOnly: true }, { name: 'unconstrained gateway', requireReadOnly: false }])(
+    '$name: 404 UNKNOWN_TOOL with the group sentence and only the members this registry holds, and nothing runs',
+    async ({ requireReadOnly }) => {
+      const harness = buildHarness({ toolFamilies });
+      const result = await call(harness, { toolId: 'content_read', requireReadOnly });
+      expect(result).toEqual({ ok: false, error: {
+        code: 'UNKNOWN_TOOL',
+        message: '"content_read" is a group of tools, not one tool. Call one of: content_read.menu.',
+        details: { family: { id: 'content_read', members: ['content_read.menu'], selector: { keys: ['kind'], byValue: { menu: 'content_read.menu' } } } },
+      } });
+      expect(harness.principalCalls).toEqual([]);
+      expect(harness.executorCalls).toEqual([]);
+    });
+
+  it('a route with no toolFamilies keeps the plain unknown-tool answer', async () => {
+    const result = await call(buildHarness(), { toolId: 'content_read' });
+    expect(result).toEqual({ ok: false, error: {
+      code: 'UNKNOWN_TOOL',
+      message: 'There is no tool named "content_read". Closest names: content_read.menu. Find tools with search_tools.',
+    } });
   });
 });
 

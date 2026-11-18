@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createToolRegistry } from '@jini-ai/core';
-import { resolveToolTarget, unknownToolMessage, type ToolTarget } from '../tool-target.js';
+import { resolveToolTarget, unknownToolDetails, unknownToolMessage, type ToolTarget } from '../tool-target.js';
+import type { ToolFamilyPort } from '../tool-family.js';
 
 function registryWith(ids: readonly string[]) {
   const registry = createToolRegistry({});
@@ -37,10 +38,19 @@ describe('resolveToolTarget', () => {
     expect(hidden).toEqual(madeUp);
   });
 
-  it('ranks with a content_read resource selector from the input without dispatching it', () => {
-    const registry = registryWith(['content_read.theme', 'content_read.backup_restore_point']);
-    const target = resolveToolTarget({ toolId: 'content_read', input: { resource: 'theme' }, registry });
+  it('does not read a selector from the input when no family port is given', () => {
+    const registry = registryWith(['content_read.backup_restore_point', 'content_read.theme']);
+    const target = resolveToolTarget({ toolId: 'content_read', input: { resource: 'backup' }, registry });
     expect(unknown(target).candidates).toEqual(['content_read.theme', 'content_read.backup_restore_point']);
+  });
+
+  it('ranks the member a family selector points at first, without dispatching it', () => {
+    const registry = registryWith(['content_read.backup_restore_point', 'content_read.theme']);
+    const families: ToolFamilyPort = { describeFamily: () => ({
+      members: ['content_read.backup_restore_point', 'content_read.theme'], selector: { keys: ['resource'], byValue: { backup: 'content_read.backup_restore_point' } },
+    }) };
+    const target = resolveToolTarget({ toolId: 'content_read', input: { resource: 'backup' }, registry }, { families });
+    expect(unknown(target).candidates).toEqual(['content_read.backup_restore_point', 'content_read.theme']);
   });
 });
 
@@ -58,5 +68,64 @@ describe('unknownToolMessage', () => {
   it('keeps the MCP-local sentence for check_messages', () => {
     const target = unknown(resolveToolTarget({ toolId: 'check_messages', registry: registryWith([]) }));
     expect(unknownToolMessage({ target })).toBe('check_messages is an MCP-local tool; call check_messages directly, never as toolId in a delegated gateway');
+  });
+});
+
+const FAM_SELECTOR = { keys: ['kind'], byValue: { a: 'fam.a', b: 'fam.b' } } as const;
+
+function familyPort(description: ReturnType<ToolFamilyPort['describeFamily']>, asked: string[] = []): ToolFamilyPort {
+  return { describeFamily: ({ familyId }) => { asked.push(familyId); return familyId === 'fam' ? description : undefined; } };
+}
+
+describe('resolveToolTarget: a tool family answers as a group', () => {
+  it('words a family id as a group of tools and carries members and selector in the details', () => {
+    const families = familyPort({ members: ['fam.a', 'fam.b'], selector: FAM_SELECTOR });
+    const target = unknown(resolveToolTarget({ toolId: 'fam', registry: registryWith(['fam.a', 'fam.b', 'other']) }, { families }));
+    expect(unknownToolMessage({ target })).toBe('"fam" is a group of tools, not one tool. Call one of: fam.a, fam.b.');
+    expect(unknownToolDetails({ target })).toEqual({ family: { id: 'fam', members: ['fam.a', 'fam.b'], selector: FAM_SELECTOR } });
+  });
+
+  it('asks the port only about the unknown id, never about a registered tool', () => {
+    const asked: string[] = [];
+    const families = familyPort({ members: ['fam.a'] }, asked);
+    resolveToolTarget({ toolId: 'fam.a', registry: registryWith(['fam.a']) }, { families });
+    expect(asked).toEqual([]);
+  });
+
+  it('never trusts the port for visibility: a member the registry does not hold is dropped everywhere', () => {
+    const families = familyPort({ members: ['fam.a', 'fam.c', 'fam.b'], selector: { keys: ['kind'], byValue: { a: 'fam.a', c: 'fam.c', b: 'fam.b' } } });
+    const target = unknown(resolveToolTarget({ toolId: 'fam', registry: registryWith(['fam.a', 'fam.b']) }, { families }));
+    expect(unknownToolMessage({ target })).toBe('"fam" is a group of tools, not one tool. Call one of: fam.a, fam.b.');
+    expect(JSON.stringify(unknownToolDetails({ target }))).not.toContain('fam.c');
+    expect(unknownToolDetails({ target })).toEqual({ family: { id: 'fam', members: ['fam.a', 'fam.b'], selector: FAM_SELECTOR } });
+  });
+
+  it('a family with no visible member is an ordinary unknown id', () => {
+    const families = familyPort({ members: ['fam.c'], selector: { keys: ['kind'], byValue: { c: 'fam.c' } } });
+    const target = unknown(resolveToolTarget({ toolId: 'fam', registry: registryWith(['other']) }, { families }));
+    expect(target.family).toBeUndefined();
+    expect(unknownToolMessage({ target })).toBe('There is no tool named "fam". Find tools with search_tools.');
+    expect(unknownToolDetails({ target })).toBeUndefined();
+  });
+
+  it('keeps only own, short, string selector entries and at most 64 members', () => {
+    const ids = Array.from({ length: 70 }, (_, index) => `fam.m${index}`);
+    const byValue = { ok: 'fam.m0', ['x'.repeat(65)]: 'fam.m1', num: 3 as unknown as string, gone: 'fam.zzz' };
+    const families = familyPort({ members: ids, selector: { keys: ['kind', 'k'.repeat(65)], byValue } });
+    const target = unknown(resolveToolTarget({ toolId: 'fam', registry: registryWith(ids) }, { families }));
+    expect(target.family?.members).toEqual(ids.slice(0, 64));
+    expect(target.family?.selector).toEqual({ keys: ['kind'], byValue: { ok: 'fam.m0' } });
+  });
+
+  it('drops a selector whose values all fail the filter, keeping the members', () => {
+    const families = familyPort({ members: ['fam.a'], selector: { keys: ['kind'], byValue: { z: 'fam.z' } } });
+    const target = unknown(resolveToolTarget({ toolId: 'fam', registry: registryWith(['fam.a']) }, { families }));
+    expect(unknownToolDetails({ target })).toEqual({ family: { id: 'fam', members: ['fam.a'] } });
+  });
+
+  it('without a port the answer is today\'s', () => {
+    const target = unknown(resolveToolTarget({ toolId: 'fam', registry: registryWith(['fam.a']) }));
+    expect(unknownToolMessage({ target })).toBe('There is no tool named "fam". Closest names: fam.a. Find tools with search_tools.');
+    expect(unknownToolDetails({ target })).toBeUndefined();
   });
 });

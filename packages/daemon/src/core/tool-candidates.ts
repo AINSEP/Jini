@@ -18,27 +18,18 @@ function nameDistance({ left, right }: { left: string; right: string }, _options
   return previous[right.length]!;
 }
 
-/** Use content_read's explicit resource selector only as a diagnostic hint, never a dispatch.
- * @returns The target spelling to rank against; malformed selectors use the original tool id.
- * @complexity O(r) to join an r-character selector; no mutation or effects. Name scoring is bounded separately.
- */
-function candidateTarget({ toolId, input }: { toolId: string; input: unknown }, _options: Record<string, never> = {}): string {
-  if (toolId !== 'content_read' || typeof input !== 'object' || input === null || Array.isArray(input)) return toolId;
-  const resource = (input as Record<string, unknown>).resource;
-  return typeof resource === 'string' && resource.length > 0 ? `${toolId}.${resource}` : toolId;
-}
-
 /** Registered prefix/near-name suggestions, closest first and capped at eight. Equal scores keep
- * catalog order; an exact content_read.<resource> takes priority even beyond the old cutoff.
+ * catalog order. `target` is the spelling the caller wants ranked against instead of `toolId` (a host that
+ * knows which member a request selected passes it); an exact registered `target` takes priority even beyond
+ * the cutoff, and prefix matching still uses `toolId`. This function knows no host tool names and reads no input.
  * Suggestions grant no execution authority; the caller must retry through the existing gates.
- * @example toolCandidates({ toolId: 'content_read', input: { resource: 'theme' }, tools });
+ * @example toolCandidates({ toolId: 'fam', target: 'fam.theme', tools });
  * @complexity O(n*l*r + n log n) time, O(n + r) space; scoring lengths capped at 128.
  */
 export function toolCandidates(
-  { toolId, tools, input }: { toolId: string; tools: readonly Pick<ToolDescriptor, 'id'>[]; input?: unknown },
+  { toolId, tools, target = toolId }: { toolId: string; tools: readonly Pick<ToolDescriptor, 'id'>[]; target?: string },
   _optional: Record<string, never> = {},
 ): string[] {
-  const target = candidateTarget({ toolId, input });
   return tools.map(({ id }) => ({ id, distance: nameDistance({ left: target, right: id }) }))
     .filter(({ id, distance }) => id === target || id.startsWith(toolId) || distance <= 2)
     .sort((left, right) => Number(right.id === target) - Number(left.id === target) || left.distance - right.distance)

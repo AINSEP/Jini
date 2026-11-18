@@ -42,7 +42,8 @@ import {
   type RouteInputContext,
 } from '@jini-ai/core/contracts/server';
 import * as readOnlyTools from '../core/read-only-tools.js';
-import { resolveToolTarget, unknownToolMessage } from '../core/tool-target.js';
+import { resolveToolTarget, unknownToolDetails, unknownToolMessage } from '../core/tool-target.js';
+import type { ToolFamilyPort } from '../core/tool-family.js';
 
 export interface DelegatedToolExecuteRequest {
   readonly runId: string;
@@ -121,6 +122,15 @@ export interface DelegatedToolsHttpDeps {
    */
   readonly toolRegistry?: Pick<ToolRegistry, 'list'>;
   /**
+   * Host opt-in: names the groups of tools the host's ids belong to (an id that is a prefix of many tools, not
+   * a tool). When the request names an id the registry does not hold and this port knows it as a group, the
+   * `404 UNKNOWN_TOOL` says so and carries `details.family`: the members and selector this route's own registry
+   * holds. Nothing is executed or rerouted here: the caller picks one member and sends an ordinary request for it,
+   * so every host gate keyed on the tool id still sees the concrete id. Omitted (the default), no id is a group.
+   * Needs `toolRegistry`; without one the route decides nothing about the target.
+   */
+  readonly toolFamilies?: ToolFamilyPort;
+  /**
    * Host opt-in: returns `true` for a `failed` result whose `error` text the HOST has already made
    * safe to show the model — secret values blanked, an error id minted — so this route answers it
    * with `422 TOOL_EXECUTION_FAILED` carrying that text, not the SEC-005-redacted 500. The model then
@@ -156,7 +166,7 @@ function checkReadOnlyConstraint(
 ): ReturnType<typeof createApiError> | null {
   if (input.requireReadOnly !== true) return null;
   const refusal = readOnlyTools.checkReadOnlyTool({
-    toolId: input.toolId, input: input.input, registry: deps.toolRegistry, messages: readOnlyTools.defaultDaemonMessages.readOnly,
+    toolId: input.toolId, registry: deps.toolRegistry, messages: readOnlyTools.defaultDaemonMessages.readOnly,
   });
   if (refusal === null) return null;
   return createApiError({ code: 'TOOL_OPERATION_DENIED', message: refusal });
@@ -173,9 +183,10 @@ function checkToolTarget(
   input: DelegatedToolExecuteRequest,
 ): ReturnType<typeof createApiError> | null {
   if (deps.toolRegistry === undefined) return null;
-  const target = resolveToolTarget({ toolId: input.toolId, input: input.input, registry: deps.toolRegistry });
+  const target = resolveToolTarget({ toolId: input.toolId, input: input.input, registry: deps.toolRegistry }, deps.toolFamilies === undefined ? {} : { families: deps.toolFamilies });
   if (target.kind === 'tool') return null;
-  return createApiError({ code: 'UNKNOWN_TOOL', message: unknownToolMessage({ target }) });
+  const details = unknownToolDetails({ target });
+  return createApiError({ code: 'UNKNOWN_TOOL', message: unknownToolMessage({ target }) }, details === undefined ? {} : { details });
 }
 
 /** The gates that read descriptors only, in their one order: the target decision, then the read-only constraint. */

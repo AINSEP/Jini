@@ -103,7 +103,7 @@ All named definitions below are McpToolDef objects invoked as `handler({args,ctx
 | `listAgentsTool` / list_agents | No required args; GET /api/agents | Parsed response |
 | `getActiveContextTool` / get_active_context | No required args; GET /api/active | Active response, or `{active:false,hint}`; route 404 becomes explicit unsupported-host error |
 | `searchToolsTool` / search_tools | query, limit? (1–25); GET /api/tools/search | Response hits |
-| `describeToolTool` / describe_tool | id; GET /api/tools/:id | Parsed response |
+| `describeToolTool` / describe_tool | id; GET /api/tools/:id | Parsed response plus `callAs` (`direct` \| `gateway` \| `none`) and `call`: the wire name of a published tool, the gateway call with the registry id, or nothing for a schema-less group. `McpToolContext.publishTool` returns `{ wireName }` or `{ skipped: 'tool-limit' \| 'schema-byte-limit' \| 'not-found' }` |
 | `searchComponentsTool` / search_components | query, limit? (1–25); GET /api/components/search | Response hits |
 | `describeComponentTool` / describe_component | id; GET /api/components/:id | Parsed response |
 

@@ -2,7 +2,7 @@
 import { createCheckMessagesTool, messageRelayInstructions, type McpMessageRelay } from './message-relay.js';
 import type { ToolDescriptor } from '@jini-ai/core';
 import type { McpToolServerRequiredArgs, McpToolServerOptions } from './tool-server.js';
-import type { McpToolDef } from './tool-protocol.js';
+import type { McpToolDef, ToolPublication } from './tool-protocol.js';
 import { waitTool } from './tools/wait.js';
 import { RUN_TOOLS } from './tools/run-tools.js';
 import { describeToolTool, TOOL_CATALOG_TOOLS } from './tools/tool-catalog-tools.js';
@@ -124,7 +124,9 @@ async function resolveStartupTools({ toolIds, resolveBaseUrl, serverOptions }: {
     baseUrl: await resolveBaseUrl(),
     fetchImpl: serverOptions.fetchImpl ?? fetch,
     ...definedOnly({ authHeaders: serverOptions.authHeaders, diagnosticToolIds: serverOptions.diagnosticToolIds }),
-    publishTool: async ({ descriptor }: { descriptor: ToolDescriptor }) => { descriptors.push(descriptor); },
+    // Collection only: the exposure built later from `descriptors` decides what is published, and the
+    // describe result this answers is discarded, so nothing here is promised to a caller.
+    publishTool: async ({ descriptor }: { descriptor: ToolDescriptor }): Promise<ToolPublication> => { descriptors.push(descriptor); return { skipped: 'not-found' }; },
   };
   for (const id of new Set(toolIds)) await describeToolTool.handler({ args: { id }, ctx });
   return descriptors;
