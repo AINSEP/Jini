@@ -7,46 +7,11 @@
     "value": 114
   },
   {
-    "file": "packages/admin/src/forms/react/components/FieldAttributesDialog.tsx",
-    "function": "FieldAttributesDialog",
-    "line": 21,
-    "rule": "max-lines-per-function",
-    "value": 148
-  },
-  {
-    "file": "packages/admin/src/forms/react/components/FormFieldsEditor.tsx",
-    "function": "FormFieldsEditor",
-    "line": 16,
-    "rule": "max-lines-per-function",
-    "value": 182
-  },
-  {
-    "file": "packages/admin/src/forms/react/components/FormFieldsEditor.tsx",
-    "function": "FormFieldsEditor.rows.map callback",
-    "line": 90,
-    "rule": "max-lines-per-function",
-    "value": 108
-  },
-  {
     "file": "packages/admin/src/forms/react/hooks/use-form-editor.hooks.ts",
     "function": "useFormEditor",
     "line": 133,
     "rule": "max-lines-per-function",
     "value": 151
-  },
-  {
-    "file": "packages/admin/src/forms/react/pages/FormEditor.tsx",
-    "function": "FormEditor",
-    "line": 24,
-    "rule": "max-lines-per-function",
-    "value": 90
-  },
-  {
-    "file": "packages/admin/src/forms/react/pages/FormsList.tsx",
-    "function": "FormsList",
-    "line": 43,
-    "rule": "max-lines-per-function",
-    "value": 106
   },
   {
     "file": "packages/admin/src/media/react/hooks/LibraryTab.hooks.ts",
