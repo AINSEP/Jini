@@ -34,7 +34,7 @@ import { mediaRoutes } from '../../media.js';
 import { registerMemoryRoutes } from '../../memory.js';
 import { registerMessageRelayRoutes } from '../../message-relay.js';
 import { registerModelProxyRoutes } from '../../model-proxy.js';
-import { registerRemoteRunEventRoutes } from '../../remote-run-events.js';
+import { remoteRunEventRoutes } from '../../remote-run-events.js';
 import { researchRoutes } from '../../research.js';
 import { routineRoutes } from '../../routines.js';
 import { registerRunRoutes } from '../../runs.js';
@@ -126,7 +126,7 @@ const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-par
   ['connectors', ({ adapter, deps, mountList }) => mountList(connectorsRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['research', ({ adapter, deps, mountList }) => mountList(researchRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['xai', ({ adapter, deps, mountList }) => mountList(xaiRoutes({ deps: deps(), host: routeHost(adapter) }))],
-  ['remote-run-events', ({ app, adapter, deps }) => registerRemoteRunEventRoutes({ app, deps: deps({ env: gateEnv, tokenConfig: undefined, timingSafeEqual: undefined }), adapter })],
+  ['remote-run-events', ({ adapter, deps, mountList }) => mountList(remoteRunEventRoutes({ deps: deps({ env: gateEnv, tokenConfig: undefined }), host: routeHost(adapter) }))],
   ['memory', ({ app, adapter, deps }) => registerMemoryRoutes({ app, deps: deps(), adapter })],
   ['routines', ({ adapter, deps, mountList }) => mountList(routineRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['media', ({ adapter, deps, mountList }) => mountList(mediaRoutes({ deps: deps(), host: routeHost(adapter) }))],

@@ -330,7 +330,7 @@ Registrars use `({app: Express, deps: D, adapter: AdapterContext}, {}) => void`.
 | `daemonDbRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them); deps requires `toolExecutor: ToolExecutor`, explicit `principal: Principal`; optional private `onInternalError` sink |
 | `componentCatalogRoutes` | `({deps: ComponentCatalogHttpDeps, host: DaemonRouteHost}, {}) => DaemonRoute[]`; catalog declares `search({query}, {limit?}) => readonly ComponentCatalogSearchHit[]`, `describe({id}, {}) => ComponentCatalogEntry \| null`; the routes are data a host mounts |
 | `delegatedToolRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them); `DelegatedToolsHttpDeps`: `lifecycle`, `toolExecutor`, `resolvePrincipal({request}) => Principal \| Promise<Principal>`; optional `toolRegistry`, `onInternalError`, `isModelSafeToolFailure({result})`, `describeInternalError(context)` |
-| `registerRemoteRunEventRoutes` | `RemoteRunEventHttpDeps`: `lifecycle`, `recorder: RemoteToolEventRecorder`; optional `tokenConfig`, `env`, `onInternalError` |
+| `remoteRunEventRoutes` | `({ deps: RemoteRunEventHttpDeps, host: DaemonRouteHost }) => DaemonRoute[]`; deps: `lifecycle`, `recorder: RemoteToolEventRecorder`, `env`; optional `tokenConfig`, `onInternalError`. Both routes are returned behind the `remote-bridge-token` gate |
 | `registerFrontendSessionRoutes` | `FrontendSessionsHttpDeps`: `registry: FrontendSessionRegistry`; optional `newSessionId()`, `onInternalError` |
 | `registerTerminalRoutes` / `registerTerminalEventStream` | `TerminalsHttpDeps`: `manager: TerminalSessionManager`, `toolExecutor`, `principal`; optional `resolveRoot`, `onInternalError` |
 | `registerModelProxyRoutes` | `ModelProxyHttpDeps`: optional provider tool executors `anthropicExecuteTool`, `openaiExecuteTool`, `azureExecuteTool`, `googleExecuteTool`, `ollamaExecuteTool`; optional `onInternalError`, `fetchImpl`, `dnsLookup` |
@@ -409,7 +409,7 @@ MemoryNoteStore methods take objects: `dir/readConfig/readIndex/listEntries/buil
 |---|---|
 | `createDaemonDbToolRegistrations` | `({operations: {inspect(), verify({quick}), vacuum()}}, {policy?, requiresConfirmation?, timeoutMs?} = {}) => {inspect,verify,vacuum: ToolRegistration}` |
 | `denyAllDaemonDbPolicy` | `ToolPolicy`, always denies; tool ids `DB_INSPECT_TOOL_ID = 'daemon.db.inspect'`, `DB_VERIFY_TOOL_ID = 'daemon.db.verify'`, `DB_VACUUM_TOOL_ID = 'daemon.db.vacuum'` |
-| `requireRemoteToolBridgeToken` | `({}, {tokenConfig?: {tokenEnvVar?}, env?} = {}) => RequestHandler` |
+| `remoteToolBridgeTokenGate` | `({ env, timingSafeEqual }, { tokenConfig?: {tokenEnvVar?} } = {}) => ServerMiddleware` |
 | `readOnlyRefusalMessage` | `({toolId}, {}) => string`; gateway compatibility wording; `READ_ONLY_UNVERIFIABLE_MESSAGE` is also public |
 | `parseCapabilityQuery` | `({raw: unknown}, {}) => readonly string[] \| null` |
 | `handleFrontendSessionStream` | `({req,res,deps: FrontendSessionsHttpDeps}, {}) => void`; caller must apply authorization/origin guard first |

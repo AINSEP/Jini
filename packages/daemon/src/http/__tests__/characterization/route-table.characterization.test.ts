@@ -105,10 +105,8 @@ const ROUTE_TABLE: Readonly<Record<string, readonly string[]>> = {
     'POST /api/xai/search [same-origin]',
   ],
   'remote-run-events': [
-    'USE /api/runs/:runId/tool-use [anonymous/3]',
-    'USE /api/runs/:runId/tool-result [anonymous/3]',
-    'POST /api/runs/:runId/tool-use [anonymous/2]',
-    'POST /api/runs/:runId/tool-result [anonymous/2]',
+    'POST /api/runs/:runId/tool-use [remote-bridge-token]',
+    'POST /api/runs/:runId/tool-result [remote-bridge-token]',
   ],
   'memory': [
     'GET /api/memory [anonymous/2]',
@@ -184,7 +182,7 @@ describe('daemon route table', () => {
     expect(describeRouteTable({ routes: harness.routes })).toEqual(ROUTE_TABLE);
   });
 
-  it('is 100 routes and 3 path gates (the scoped frontend-session mount adds its own stream and response route)', async () => {
+  it('is 100 routes and 1 path gate (the scoped frontend-session mount adds its own stream and response route; the two remote-run-event gates now sit in front of their routes as `remote-bridge-token`)', async () => {
     harness = await startRouteHarness();
     const scoped = harness.routes.filter((route) => route.family === 'frontend-sessions (scoped)');
     const rest = harness.routes.filter((route) => route.family !== 'frontend-sessions (scoped)');
@@ -193,8 +191,6 @@ describe('daemon route table', () => {
     const gates = [...rest, ...scoped].filter((route) => isGate(route) && route.family !== 'message-relay');
     expect(rest.filter((route) => route.method !== 'USE')).toHaveLength(100);
     expect(gates.map((route) => `${route.method} ${route.path}`)).toEqual([
-      'USE /api/runs/:runId/tool-use',
-      'USE /api/runs/:runId/tool-result',
       'POST /api/scoped-frontend-sessions/:sessionId/responses',
     ]);
     expect(scoped.filter((route) => !isGate(route))).toHaveLength(2);

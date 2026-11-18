@@ -201,10 +201,10 @@ export type {
   RemoteToolUseRequest,
 } from './remote-run-events.js';
 export {
-  registerRemoteRunEventRoutes,
+  remoteRunEventRoutes,
+  remoteToolBridgeTokenGate,
   remoteToolResultRoute,
   remoteToolUseRoute,
-  requireRemoteToolBridgeToken,
 } from './remote-run-events.js';
 export type {
   FrontendSessionAttachedEvent,

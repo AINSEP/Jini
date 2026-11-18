@@ -1,66 +1,27 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createLocalTestOrigin } from './fixtures/local-origin.js';
+import type { ServerMiddleware } from '@jini-ai/core/contracts/server';
 import { createInMemoryEventLog, createRemoteToolEventRecorder, createRunLifecycle, type RunLifecycle } from '../../index.js';
 import {
-  registerRemoteRunEventRoutes,
+  remoteRunEventRoutes,
+  remoteToolBridgeTokenGate,
   remoteToolResultRoute,
   remoteToolUseRoute,
-  requireRemoteToolBridgeToken,
   type RemoteRunEventHttpDeps,
 } from '../remote-run-events.js';
+import type { DaemonRouteHost } from '../route-host.js';
+import { describeRoutes } from '../route-table.js';
+import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
 
-interface MockApp {
-  get: (path: string, handler: any) => void;
-  post: (path: string, handler: any) => void;
-  put: (path: string, handler: any) => void;
-  delete: (path: string, handler: any) => void;
-  patch: (path: string, handler: any) => void;
-  use: (path: string, middleware: any) => void;
-  handlers: Record<string, (req: any, res: any) => Promise<void> | void>;
-  middlewares: Record<string, ((req: any, res: any, next: () => void) => void)[]>;
+/** What a gate did with one request: its answer, and how often it let the request through. */
+async function callGate({ gate, authorization }: { readonly gate: ServerMiddleware; readonly authorization?: string }): Promise<{ readonly status: number; readonly body: { error?: { code: string; message: string } } | null; readonly nextCalls: number }> {
+  const next = vi.fn(async () => new Response(null, { status: 204 }));
+  const request = new Request('http://local/api/runs/r1/tool-use', { method: 'POST', ...(authorization === undefined ? {} : { headers: { authorization } }) });
+  const response = await gate({ request, params: { runId: 'r1' }, locals: {}, route: { method: 'POST', path: '/api/runs/:runId/tool-use' }, next });
+  const text = await response.text();
+  return { status: response.status, body: text === '' ? null : JSON.parse(text), nextCalls: next.mock.calls.length };
 }
 
-function makeApp(): MockApp {
-  const handlers: MockApp['handlers'] = {};
-  const middlewares: MockApp['middlewares'] = {};
-  const make = (method: string) => (path: string, handler: any) => {
-    handlers[`${method.toUpperCase()} ${path}`] = handler;
-  };
-  return {
-    get: make('get'),
-    post: make('post'),
-    put: make('put'),
-    delete: make('delete'),
-    patch: make('patch'),
-    use: (path: string, middleware: any) => {
-      (middlewares[path] ??= []).push(middleware);
-    },
-    handlers,
-    middlewares,
-  };
-}
-
-function makeJsonRes() {
-  return { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() };
-}
-
-/** Runs a mounted route's real middleware chain (registered via `app.use(path, ...)`) before the route handler itself, exactly as Express would for a matching path. */
-async function dispatch(app: MockApp, method: string, path: string, req: any, res: any): Promise<void> {
-  for (const mw of app.middlewares[path] ?? []) {
-    let called = false;
-    await new Promise<void>((resolve) => {
-      mw(req, res, () => {
-        called = true;
-        resolve();
-      });
-      if (!called) resolve();
-    });
-    if (!called) return; // middleware responded directly (401/503) and never called next()
-  }
-  await app.handlers[`${method} ${path}`]!(req, res);
-}
-
-const { adapter: adapter, portRef: adapterPortRef } = createLocalTestOrigin({}, { port: 7654 });
 const TOKEN_ENV_VAR = 'JINI_REMOTE_TOOL_BRIDGE_TOKEN_TEST';
 
 function makeLifecycle(): RunLifecycle {
@@ -186,45 +147,35 @@ describe('remoteToolUseRoute.handle / remoteToolResultRoute.handle', () => {
   });
 });
 
-describe('requireRemoteToolBridgeToken', () => {
-  it('fails closed with 503 when the token env var is not configured', () => {
-    const gate = requireRemoteToolBridgeToken({}, { tokenConfig: { tokenEnvVar: TOKEN_ENV_VAR }, env: {} });
-    const res = makeJsonRes();
-    const next = vi.fn();
-    gate({ headers: {}, get: () => undefined } as any, res as any, next);
-    expect(res.status).toHaveBeenCalledWith(503);
-    expect(res.json).toHaveBeenCalledWith({
-      error: {
-        code: 'REMOTE_TOOL_BRIDGE_NOT_CONFIGURED',
-        message: `${TOKEN_ENV_VAR} is not set — remote run-event ingestion is disabled`,
-      },
+const gateFor = (env: Record<string, string | undefined>, tokenConfig: RemoteRunEventHttpDeps['tokenConfig'] = { tokenEnvVar: TOKEN_ENV_VAR }): ServerMiddleware =>
+  remoteToolBridgeTokenGate({ env, timingSafeEqual: fakeDaemonRouteHost().timingSafeEqual }, { tokenConfig });
+
+describe('remoteToolBridgeTokenGate', () => {
+  it('fails closed with 503 when the token env var is not configured', async () => {
+    const answer = await callGate({ gate: gateFor({}), authorization: 'Bearer wrong-secret' });
+    expect(answer).toEqual({
+      status: 503,
+      body: { error: { code: 'REMOTE_TOOL_BRIDGE_NOT_CONFIGURED', message: `${TOKEN_ENV_VAR} is not set — remote run-event ingestion is disabled` } },
+      nextCalls: 0,
     });
-    expect(next).not.toHaveBeenCalled();
   });
 
-  it('rejects a missing/incorrect bearer token with 401', () => {
-    const gate = requireRemoteToolBridgeToken({}, { tokenConfig: { tokenEnvVar: TOKEN_ENV_VAR }, env: { [TOKEN_ENV_VAR]: 'right-secret' } });
-    const res = makeJsonRes();
-    const next = vi.fn();
-    gate({ headers: {}, get: () => 'Bearer wrong-secret' } as any, res as any, next);
-    expect(res.status).toHaveBeenCalledWith(401);
-    expect(res.json).toHaveBeenCalledWith({
-      error: { code: 'REMOTE_TOOL_BRIDGE_TOKEN_REQUIRED', message: `Authorization: Bearer <${TOKEN_ENV_VAR}> required` },
+  it('rejects a missing/incorrect bearer token with 401', async () => {
+    const answer = await callGate({ gate: gateFor({ [TOKEN_ENV_VAR]: 'right-secret' }), authorization: 'Bearer wrong-secret' });
+    expect(answer).toEqual({
+      status: 401,
+      body: { error: { code: 'REMOTE_TOOL_BRIDGE_TOKEN_REQUIRED', message: `Authorization: Bearer <${TOKEN_ENV_VAR}> required` } },
+      nextCalls: 0,
     });
-    expect(next).not.toHaveBeenCalled();
   });
 
-  it('calls next() for a correct bearer token', () => {
-    const gate = requireRemoteToolBridgeToken({}, { tokenConfig: { tokenEnvVar: TOKEN_ENV_VAR }, env: { [TOKEN_ENV_VAR]: 'right-secret' } });
-    const res = makeJsonRes();
-    const next = vi.fn();
-    gate({ headers: {}, get: () => 'Bearer right-secret' } as any, res as any, next);
-    expect(next).toHaveBeenCalledTimes(1);
-    expect(res.status).not.toHaveBeenCalled();
+  it('passes the request on for a correct bearer token', async () => {
+    const answer = await callGate({ gate: gateFor({ [TOKEN_ENV_VAR]: 'right-secret' }), authorization: 'Bearer right-secret' });
+    expect([answer.status, answer.nextCalls]).toEqual([204, 1]);
   });
 });
 
-describe('requireRemoteToolBridgeToken — deny table (F1: every non-matching header must 401, never next())', () => {
+describe('remoteToolBridgeTokenGate — deny table (F1: every non-matching header must 401, never next())', () => {
   const EXPECTED_401 = { error: { code: 'REMOTE_TOOL_BRIDGE_TOKEN_REQUIRED', message: `Authorization: Bearer <${TOKEN_ENV_VAR}> required` } };
   it.each([
     ['no Authorization header', undefined],
@@ -239,93 +190,141 @@ describe('requireRemoteToolBridgeToken — deny table (F1: every non-matching he
     ['token plus a second word', 'Bearer right-secret extra'],
     ['leading junk before the scheme', 'x Bearer right-secret'],
     ['wrong-case token', 'Bearer RIGHT-SECRET'],
-  ])('%s → 401 REMOTE_TOOL_BRIDGE_TOKEN_REQUIRED, next() never called', (_label, header) => {
-    const gate = requireRemoteToolBridgeToken({}, { tokenConfig: { tokenEnvVar: TOKEN_ENV_VAR }, env: { [TOKEN_ENV_VAR]: 'right-secret' } });
-    const res = makeJsonRes();
-    const next = vi.fn();
-    expect(() => gate({ headers: {}, get: () => header } as any, res as any, next)).not.toThrow();
-    expect(next).not.toHaveBeenCalled();
-    expect(res.status).toHaveBeenCalledTimes(1);
-    expect(res.status).toHaveBeenCalledWith(401);
-    expect(res.json).toHaveBeenCalledWith(EXPECTED_401);
+  ])('%s → 401 REMOTE_TOOL_BRIDGE_TOKEN_REQUIRED, next() never called', async (_label, authorization) => {
+    const answer = await callGate({ gate: gateFor({ [TOKEN_ENV_VAR]: 'right-secret' }), ...(authorization === undefined ? {} : { authorization }) });
+    expect(answer).toEqual({ status: 401, body: EXPECTED_401, nextCalls: 0 });
   });
 
-  it('accepts the bearer scheme case-insensitively and tolerates trailing whitespace (the shared http-kit header grammar)', () => {
-    const gate = requireRemoteToolBridgeToken({}, { tokenConfig: { tokenEnvVar: TOKEN_ENV_VAR }, env: { [TOKEN_ENV_VAR]: 'right-secret' } });
-    for (const header of ['bearer right-secret', 'Bearer right-secret  ']) {
-      const res = makeJsonRes();
-      const next = vi.fn();
-      gate({ headers: {}, get: () => header } as any, res as any, next);
-      expect(next).toHaveBeenCalledTimes(1);
-      expect(res.status).not.toHaveBeenCalled();
+  it('accepts the bearer scheme case-insensitively and tolerates trailing whitespace (the shared core header grammar)', async () => {
+    for (const authorization of ['bearer right-secret', 'Bearer right-secret  ']) {
+      const answer = await callGate({ gate: gateFor({ [TOKEN_ENV_VAR]: 'right-secret' }), authorization });
+      expect([answer.status, answer.nextCalls]).toEqual([204, 1]);
     }
   });
 
-  it('an empty-string token env var is "not configured" (503), never a match for an empty bearer', () => {
-    const gate = requireRemoteToolBridgeToken({}, { tokenConfig: { tokenEnvVar: TOKEN_ENV_VAR }, env: { [TOKEN_ENV_VAR]: '' } });
-    const res = makeJsonRes();
-    const next = vi.fn();
-    gate({ headers: {}, get: () => 'Bearer ' } as any, res as any, next);
-    expect(next).not.toHaveBeenCalled();
-    expect(res.status).toHaveBeenCalledWith(503);
-    expect(res.json.mock.calls[0]![0].error.code).toBe('REMOTE_TOOL_BRIDGE_NOT_CONFIGURED');
+  it('an empty-string token env var is "not configured" (503), never a match for an empty bearer', async () => {
+    const answer = await callGate({ gate: gateFor({ [TOKEN_ENV_VAR]: '' }), authorization: 'Bearer ' });
+    expect([answer.status, answer.nextCalls, answer.body?.error?.code]).toEqual([503, 0, 'REMOTE_TOOL_BRIDGE_NOT_CONFIGURED']);
   });
 
-  it('a token configured under a DIFFERENT env var name does not open the gate', () => {
-    const gate = requireRemoteToolBridgeToken({}, { tokenConfig: { tokenEnvVar: TOKEN_ENV_VAR }, env: { JINI_REMOTE_TOOL_BRIDGE_TOKEN: 'right-secret' } });
-    const res = makeJsonRes();
-    const next = vi.fn();
-    gate({ headers: {}, get: () => 'Bearer right-secret' } as any, res as any, next);
-    expect(next).not.toHaveBeenCalled();
-    expect(res.status).toHaveBeenCalledWith(503);
+  it('a token configured under a DIFFERENT env var name does not open the gate', async () => {
+    const answer = await callGate({ gate: gateFor({ JINI_REMOTE_TOOL_BRIDGE_TOKEN: 'right-secret' }), authorization: 'Bearer right-secret' });
+    expect([answer.status, answer.nextCalls]).toEqual([503, 0]);
   });
 
-  it('end to end: a WRONG token on tool-result is rejected before the recorder runs', async () => {
-    const app = makeApp();
-    const deps = makeDeps();
-    const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
-    const recordToolResult = vi.spyOn(deps.recorder, 'recordToolResult');
-    registerRemoteRunEventRoutes({ app: app as any, deps, adapter });
-    const res = makeJsonRes();
-    await dispatch(app, 'POST', '/api/runs/:runId/tool-result', { headers: {}, get: () => 'Bearer shared-secreT', body: { toolUseId: 'tu-1', content: 'x' }, query: {}, params: { runId: run.id } }, res);
-    expect(res.status).toHaveBeenCalledWith(401);
-    expect(res.json.mock.calls[0]![0].error.code).toBe('REMOTE_TOOL_BRIDGE_TOKEN_REQUIRED');
-    expect(recordToolResult).not.toHaveBeenCalled();
+  it('has no loopback exemption: a loopback peer with the wrong token is still refused', async () => {
+    const gate = gateFor({ [TOKEN_ENV_VAR]: 'right-secret' });
+    const next = vi.fn(async () => new Response(null, { status: 204 }));
+    const request = new Request('http://local/x', { method: 'POST', headers: { authorization: 'Bearer wrong-secret!' } });
+    const response = await gate({ request, params: {}, client: { address: '127.0.0.1' }, locals: {}, route: { method: 'POST', path: '/x' }, next });
+    expect([response.status, next.mock.calls.length]).toEqual([401, 0]);
+  });
+
+  const exactGate = (timingSafeEqual: DaemonRouteHost['timingSafeEqual']): ServerMiddleware => remoteToolBridgeTokenGate({ env: { [TOKEN_ENV_VAR]: 'right-secret' }, timingSafeEqual }, { tokenConfig: { tokenEnvVar: TOKEN_ENV_VAR } });
+
+  it('the verdict is the host port\'s: a port that says no refuses even the exact token', async () => {
+    const refusing = Object.assign(() => false, { calls: fakeDaemonRouteHost().timingSafeEqual.calls });
+    expect((await callGate({ gate: exactGate(refusing), authorization: 'Bearer right-secret' })).status).toBe(401);
+  });
+
+  it('a token of another length is refused without the host port being asked', async () => {
+    const host = fakeDaemonRouteHost();
+    expect((await callGate({ gate: exactGate(host.timingSafeEqual), authorization: 'Bearer right-secretx' })).status).toBe(401);
+    expect(host.timingSafeEqual.calls).toHaveLength(0);
+  });
+
+  it('the exact token is admitted through the host port, asked exactly once', async () => {
+    const host = fakeDaemonRouteHost();
+    expect((await callGate({ gate: exactGate(host.timingSafeEqual), authorization: 'Bearer right-secret' })).status).toBe(204);
+    expect(host.timingSafeEqual.calls).toHaveLength(1);
+  });
+
+  it('a same-length wrong token is compared through the host port, exactly once, on two equal-length arrays', async () => {
+    const host = fakeDaemonRouteHost();
+    const gate = remoteToolBridgeTokenGate({ env: { [TOKEN_ENV_VAR]: 'right-secret' }, timingSafeEqual: host.timingSafeEqual }, { tokenConfig: { tokenEnvVar: TOKEN_ENV_VAR } });
+    expect((await callGate({ gate, authorization: 'Bearer wrong-secret' })).status).toBe(401);
+    expect(host.timingSafeEqual.calls).toHaveLength(1);
+    expect(host.timingSafeEqual.calls[0]!.left.length).toBe(host.timingSafeEqual.calls[0]!.right.length);
   });
 });
 
-describe('registerRemoteRunEventRoutes', () => {
-  it('mounts exactly the two remote-event routes', () => {
-    const app = makeApp();
-    registerRemoteRunEventRoutes({ app: app as any, deps: makeDeps(), adapter });
-    expect(Object.keys(app.handlers).sort()).toEqual(['POST /api/runs/:runId/tool-result', 'POST /api/runs/:runId/tool-use'].sort());
+/** The two routes on an in-memory server, with a lifecycle that has one live run. */
+async function servedRoutes(overrides: Partial<RemoteRunEventHttpDeps> = {}) {
+  const deps = makeDeps(overrides);
+  const host = fakeDaemonRouteHost();
+  const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
+  return { deps, host, run, fetch: serveRoutes({ routes: remoteRunEventRoutes({ deps, host }) }) };
+}
+
+describe('remoteRunEventRoutes', () => {
+  it('lists exactly the two remote-event routes, each behind the bridge-token gate', () => {
+    const routes = remoteRunEventRoutes({ deps: makeDeps(), host: fakeDaemonRouteHost() });
+    expect(describeRoutes({ routes })).toEqual([
+      { method: 'POST', path: '/api/runs/:runId/tool-use', gates: ['remote-bridge-token'] },
+      { method: 'POST', path: '/api/runs/:runId/tool-result', gates: ['remote-bridge-token'] },
+    ]);
   });
 
-  it('end to end: an unauthenticated request is rejected before the handler ever runs', async () => {
-    const app = makeApp();
-    registerRemoteRunEventRoutes({ app: app as any, deps: makeDeps(), adapter });
-    const res = makeJsonRes();
-    await dispatch(app, 'POST', '/api/runs/:runId/tool-use', { headers: {}, get: () => undefined, body: { toolUseId: 'tu-1', toolId: 'echo' }, query: {}, params: { runId: 'whatever' } }, res);
-    expect(res.status).toHaveBeenCalledWith(401);
+  it('an unauthenticated request is rejected before the handler ever runs, and its body is never read', async () => {
+    const { fetch, deps, run } = await servedRoutes();
+    const recordToolUse = vi.spyOn(deps.recorder, 'recordToolUse');
+    const malformed = new Request(`http://local/api/runs/${run.id}/tool-use`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{not json' });
+    const response = await fetch(malformed);
+    expect(response.status).toBe(401);
+    expect(malformed.bodyUsed).toBe(false);
+    expect(recordToolUse).not.toHaveBeenCalled();
   });
 
-  it('end to end: an authenticated request records a real tool_use event through the full Adapter pipeline', async () => {
-    const app = makeApp();
-    const deps = makeDeps();
-    const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
-    registerRemoteRunEventRoutes({ app: app as any, deps, adapter });
-    const res = makeJsonRes();
-    await dispatch(
-      app,
-      'POST',
-      '/api/runs/:runId/tool-use',
-      { headers: {}, get: () => 'Bearer shared-secret', body: { toolUseId: 'tu-1', toolId: 'echo', input: 1 }, query: {}, params: { runId: run.id } },
-      res,
-    );
-    expect(res.status).toHaveBeenCalledWith(200);
+  it.each(['tool-use', 'tool-result'])('%s with no Authorization header answers 401 REMOTE_TOOL_BRIDGE_TOKEN_REQUIRED', async (leaf) => {
+    const { fetch, run } = await servedRoutes();
+    const response = await fetch(jsonRequest({ path: `/api/runs/${run.id}/${leaf}`, method: 'POST' }, { body: { toolUseId: 'tu-1', toolId: 'echo', content: 'x' } }));
+    expect([response.status, ((await response.json()) as { error: { code: string } }).error.code]).toEqual([401, 'REMOTE_TOOL_BRIDGE_TOKEN_REQUIRED']);
+  });
+
+  it('with no token configured both routes fail closed with 503, and the recorder is never called', async () => {
+    const { fetch, deps, run } = await servedRoutes({ env: {} });
+    const recordToolUse = vi.spyOn(deps.recorder, 'recordToolUse');
+    const request = jsonRequest({ path: `/api/runs/${run.id}/tool-use`, method: 'POST' }, { body: { toolUseId: 'tu-1', toolId: 'echo' } });
+    request.headers.set('authorization', 'Bearer shared-secret');
+    expect((await fetch(request)).status).toBe(503);
+    expect(recordToolUse).not.toHaveBeenCalled();
+  });
+
+  it('a WRONG token on tool-result is rejected before the recorder runs', async () => {
+    const { fetch, deps, run } = await servedRoutes();
+    const recordToolResult = vi.spyOn(deps.recorder, 'recordToolResult');
+    const request = jsonRequest({ path: `/api/runs/${run.id}/tool-result`, method: 'POST' }, { body: { toolUseId: 'tu-1', content: 'x' } });
+    request.headers.set('authorization', 'Bearer shared-secreT');
+    const response = await fetch(request);
+    expect(response.status).toBe(401);
+    expect(((await response.json()) as { error: { code: string } }).error.code).toBe('REMOTE_TOOL_BRIDGE_TOKEN_REQUIRED');
+    expect(recordToolResult).not.toHaveBeenCalled();
+  });
+
+  it('an authenticated request records a real tool_use event through the full pipeline', async () => {
+    const { fetch, deps, run } = await servedRoutes();
+    const request = jsonRequest({ path: `/api/runs/${run.id}/tool-use`, method: 'POST' }, { body: { toolUseId: 'tu-1', toolId: 'echo', input: 1 } });
+    request.headers.set('authorization', 'Bearer shared-secret');
+    const response = await fetch(request);
+    expect([response.status, await response.json()]).toEqual([200, { recorded: true }]);
     const events: unknown[] = [];
     await deps.lifecycle.stream({ runId: run.id, onEvent: (event) => events.push(event) });
     expect((events as { kind: string }[]).some((e) => e.kind === 'agent')).toBe(true);
+  });
+
+  it('answers an internal recorder failure through the host reporter: fixed sentence plus the request ID, the real error to the host', async () => {
+    const lifecycle = makeLifecycle();
+    const recorder = { recordToolUse: () => Promise.reject(new Error('sqlite failed at /srv/private/runs.db')), recordToolResult: () => Promise.resolve() } as unknown as RemoteRunEventHttpDeps['recorder'];
+    const { fetch, host, run } = await servedRoutes({ lifecycle, recorder });
+    const request = jsonRequest({ path: `/api/runs/${run.id}/tool-use`, method: 'POST' }, { body: { toolUseId: 'tu-1', toolId: 'echo' } });
+    request.headers.set('authorization', 'Bearer shared-secret');
+    const response = await fetch(request);
+    const text = await response.text();
+    expect(response.status).toBe(500);
+    expect(text).not.toContain('/srv/private/runs.db');
+    expect(JSON.parse(text).error).toMatchObject({ code: 'INTERNAL_ERROR', requestId: 'req-1' });
+    expect(host.reports).toHaveLength(1);
+    expect((host.reports[0]!.report.error as Error).message).toBe('sqlite failed at /srv/private/runs.db');
   });
 });
 
@@ -382,32 +381,11 @@ describe('remote-run-events — remaining contract surface', () => {
     expect(result).toEqual({ ok: false, error: { code: 'NOT_FOUND', message: 'run "never-started" was not found' } });
   });
 
-  it('defaults its token env var name and env source when a host configures neither', () => {
-    const saved = process.env.JINI_REMOTE_TOOL_BRIDGE_TOKEN;
-    delete process.env.JINI_REMOTE_TOOL_BRIDGE_TOKEN;
-    try {
-      const gate = requireRemoteToolBridgeToken({}, {});
-      const res = makeJsonRes();
-      const next = vi.fn();
-      gate({ get: () => undefined } as never, res as never, next);
-      // Unconfigured means 503, never an open door — the default name resolves to a real, absent
-      // variable rather than to no gate at all.
-      expect(next).not.toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(503);
-
-      process.env.JINI_REMOTE_TOOL_BRIDGE_TOKEN = 'from-real-env';
-      const allowed = makeJsonRes();
-      const allowNext = vi.fn();
-      requireRemoteToolBridgeToken({}, {})(
-        { get: () => 'Bearer from-real-env' } as never,
-        allowed as never,
-        allowNext,
-      );
-      expect(allowNext).toHaveBeenCalledTimes(1);
-    } finally {
-      if (saved === undefined) delete process.env.JINI_REMOTE_TOOL_BRIDGE_TOKEN;
-      else process.env.JINI_REMOTE_TOOL_BRIDGE_TOKEN = saved;
-    }
+  it('defaults its token env var name when a host configures none', async () => {
+    // Unconfigured means 503, never an open door — the default name resolves to a real, absent
+    // variable rather than to no gate at all.
+    expect((await callGate({ gate: gateFor({}, {}) })).status).toBe(503);
+    expect((await callGate({ gate: gateFor({ JINI_REMOTE_TOOL_BRIDGE_TOKEN: 'from-env' }, {}), authorization: 'Bearer from-env' })).status).toBe(204);
   });
 
   // Rewritten from an earlier assertion that this became `CONFLICT` with the raw rejection as its
@@ -555,14 +533,10 @@ describe('remote-run-events — F1 exact-refusal pins', () => {
       : { code: 'BAD_REQUEST', message, details: { kind: 'validation', issues: [{ path, message: issue }] } },
   });
 
-  it('a missing Authorization header never matches a configured token that is literally "null"', () => {
+  it('a missing Authorization header never matches a configured token that is literally "null"', async () => {
     // `presented === null` must short-circuit: TextEncoder would otherwise encode null as "null".
-    const gate = requireRemoteToolBridgeToken({}, { tokenConfig: { tokenEnvVar: TOKEN_ENV_VAR }, env: { [TOKEN_ENV_VAR]: 'null' } });
-    const res = makeJsonRes();
-    const next = vi.fn();
-    gate({ headers: {}, get: () => undefined } as any, res as any, next);
-    expect(next).not.toHaveBeenCalled();
-    expect(res.status).toHaveBeenCalledWith(401);
+    const answer = await callGate({ gate: gateFor({ [TOKEN_ENV_VAR]: 'null' }) });
+    expect([answer.status, answer.nextCalls]).toEqual([401, 0]);
   });
 
   for (const route of [remoteToolUseRoute, remoteToolResultRoute]) {

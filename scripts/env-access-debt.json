@@ -129,13 +129,6 @@
     },
     {
       "rule": "HW9-env-access",
-      "file": "packages/daemon/src/http/remote-run-events.ts",
-      "line": 79,
-      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
-      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
-    },
-    {
-      "rule": "HW9-env-access",
       "file": "packages/daemon/src/http/research.ts",
       "line": 232,
       "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",

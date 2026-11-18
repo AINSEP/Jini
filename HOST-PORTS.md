@@ -569,7 +569,7 @@ Everything a Jini package asks its host to bind or register: `*Port`, `*Kit`, `*
 | `ModelProxyHttpDeps` | deps | interface | `packages/daemon/src/http/model-proxy.ts:159` |
 | `registerModelProxyRoutes` | registry | function | `packages/daemon/src/http/model-proxy.ts:647` |
 | `RemoteRunEventHttpDeps` | deps | interface | `packages/daemon/src/http/remote-run-events.ts:46` |
-| `registerRemoteRunEventRoutes` | registry | function | `packages/daemon/src/http/remote-run-events.ts:267` |
+| `remoteRunEventRoutes` | registry | function | `packages/daemon/src/http/remote-run-events.ts:269` |
 | `ResearchHttpDeps` | deps | interface | `packages/daemon/src/http/research.ts:141` |
 | `researchRoutes` | registry | function | `packages/daemon/src/http/research.ts:290` |
 | `RoutineHttpDeps` | deps | interface | `packages/daemon/src/http/routines.ts:92` |
