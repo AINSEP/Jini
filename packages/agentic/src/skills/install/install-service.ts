@@ -70,7 +70,10 @@ interface InstallerEnv<Source extends object> {
   queues: Map<string, Promise<unknown>>;
 }
 
-function layoutFor<Source extends object>(env: InstallerEnv<Source>, workspaceId: string) {
+function layoutFor<Source extends object>({ env, workspaceId }: {
+  env: InstallerEnv<Source>;
+  workspaceId: string;
+}) {
   const layout = env.deps.layout.resolve({ workspaceId });
   if (!path.isAbsolute(layout.workspaceRoot) || !path.isAbsolute(layout.stagingRoot)) throw new SkillInputError({ message: "Skill roots must be absolute." });
   if (!layout.stateFileName || hasSeparatorOrNul(layout.stateFileName) || [".", ".."].includes(layout.stateFileName) || ["SKILL.md", "README.md", "LICENSE", "references", "scripts", "assets"].includes(layout.stateFileName)) throw new SkillInputError({ message: "Invalid skill state file name." });
@@ -78,8 +81,12 @@ function layoutFor<Source extends object>(env: InstallerEnv<Source>, workspaceId
 }
 
 /** Serializes mutations in this server without leaving persistent locks after a crash. */
-async function locked<Source extends object, T>(env: InstallerEnv<Source>, workspaceId: string, work: () => Promise<T>): Promise<T> {
-  const key = layoutFor(env, workspaceId).workspaceRoot;
+async function locked<Source extends object, T>({ env, workspaceId, work }: {
+  env: InstallerEnv<Source>;
+  workspaceId: string;
+  work: () => Promise<T>;
+}): Promise<T> {
+  const key = layoutFor({ env, workspaceId }).workspaceRoot;
   const result = (env.queues.get(key) ?? Promise.resolve()).catch(() => {}).then(work);
   env.queues.set(key, result);
   try { return await result; }
@@ -88,7 +95,7 @@ async function locked<Source extends object, T>(env: InstallerEnv<Source>, works
 
 async function listManagedSkills<Source extends object>(env: InstallerEnv<Source>, required: { workspaceId: string }): Promise<ManagedSkill<Source>[]> {
   const { deps } = env;
-  const layout = layoutFor(env, required.workspaceId);
+  const layout = layoutFor({ env, workspaceId: required.workspaceId });
   const sources = await deps.toolSourceLoader.load(required, { includeDisabled: true });
   return Promise.all(sources.map(async skill => {
     const directory = containedDirectory(layout.workspaceRoot, skill.directory);
@@ -101,12 +108,16 @@ async function managedDirectory<Source extends object>(env: InstallerEnv<Source>
   const { deps } = env;
   const skill = (await deps.toolSourceLoader.load({ workspaceId: required.workspaceId }, { includeDisabled: true })).find(source => source.id === required.toolId);
   if (!skill) throw new SkillInputError({ message: "Skill was not found." });
-  const directory = containedDirectory(layoutFor(env, required.workspaceId).workspaceRoot, skill.directory);
+  const directory = containedDirectory(layoutFor({ env, workspaceId: required.workspaceId }).workspaceRoot, skill.directory);
   if ((await deps.filesystem.lstat({ path: directory })).kind !== "directory") throw new SkillInputError({ message: "Skill directory must be a regular directory." });
   return directory;
 }
 
-async function notifyChanged<Source extends object>(env: InstallerEnv<Source>, workspaceId: string, toolId: string): Promise<void> {
+async function notifyChanged<Source extends object>({ env, workspaceId, toolId }: {
+  env: InstallerEnv<Source>;
+  workspaceId: string;
+  toolId: string;
+}): Promise<void> {
   await env.onChanged?.({ workspaceId, toolId });
 }
 
@@ -126,8 +137,11 @@ async function commitSkillInstall<Source extends object>(env: InstallerEnv<Sourc
   const { filesystem } = env.deps;
   const validated = input.prepared;
   const { toolId, source } = validated;
-  const layout = layoutFor(env, input.workspaceId);
-  return locked(env, input.workspaceId, async () => {
+  const layout = layoutFor({ env, workspaceId: input.workspaceId });
+  return locked({
+    env,
+    workspaceId: input.workspaceId,
+    work: async () => {
     if ((await listManagedSkills(env, input)).some(skill => skill.toolId === toolId)) throw new SkillInputError({ message: `Skill '${validated.name}' is already installed. Remove it before installing another version.` });
     await filesystem.mkdir({ path: layout.workspaceRoot });
     await filesystem.mkdir({ path: layout.stagingRoot });
@@ -135,16 +149,17 @@ async function commitSkillInstall<Source extends object>(env: InstallerEnv<Sourc
     try {
       await writeStagedSkill(env, { staging, layout, prepared: validated });
       await filesystem.rename({ from: staging, to: path.join(layout.workspaceRoot, validated.name) });
-      await notifyChanged(env, input.workspaceId, toolId);
+      await notifyChanged({ env, workspaceId: input.workspaceId, toolId });
       return { toolId, name: validated.name, description: validated.description, enabled: true, source };
     } finally { await filesystem.remove({ path: staging }, { recursive: true, force: true }); }
+  },
   });
 }
 
 async function writeSkillEnabledState<Source extends object>(env: InstallerEnv<Source>, input: { workspaceId: string; toolId: string; enabled: boolean }): Promise<void> {
   const { deps } = env;
   const directory = await managedDirectory(env, input);
-  const layout = layoutFor(env, input.workspaceId);
+  const layout = layoutFor({ env, workspaceId: input.workspaceId });
   const state = await readSkillState<Source>({ directory, stateFileName: layout.stateFileName, filesystem: deps.filesystem, validateSource: deps.validateSource });
   const id = deps.ids.next({});
   if (!id || hasSeparatorOrNul(id)) throw new SkillInputError({ message: "Invalid skill temporary id." });
@@ -159,16 +174,24 @@ async function writeSkillEnabledState<Source extends object>(env: InstallerEnv<S
 
 async function setSkillEnabled<Source extends object>(env: InstallerEnv<Source>, input: { workspaceId: string; toolId: string; enabled: boolean }): Promise<void> {
   if (typeof input.enabled !== "boolean") throw new SkillInputError({ message: "enabled must be a boolean." });
-  await locked(env, input.workspaceId, async () => {
+  await locked({
+    env,
+    workspaceId: input.workspaceId,
+    work: async () => {
     await writeSkillEnabledState(env, input);
-    await notifyChanged(env, input.workspaceId, input.toolId);
+    await notifyChanged({ env, workspaceId: input.workspaceId, toolId: input.toolId });
+  },
   });
 }
 
 async function uninstallSkill<Source extends object>(env: InstallerEnv<Source>, input: { workspaceId: string; toolId: string }): Promise<void> {
-  await locked(env, input.workspaceId, async () => {
+  await locked({
+    env,
+    workspaceId: input.workspaceId,
+    work: async () => {
     await env.deps.filesystem.remove({ path: await managedDirectory(env, input) }, { recursive: true });
-    await notifyChanged(env, input.workspaceId, input.toolId);
+    await notifyChanged({ env, workspaceId: input.workspaceId, toolId: input.toolId });
+  },
   });
 }
 
