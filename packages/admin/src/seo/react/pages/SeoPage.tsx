@@ -1,5 +1,4 @@
 import { useAnalyzePanel, useSeoDefaults, useSeoTabs } from "../hooks/SeoPage.hooks.js";
-import type { ReactNode } from "react";
 import type { SeoTabController, SeoTabId } from "../hooks/SeoPage.hooks.js";
 
 import { agentHandle } from "@jini-ai/core/agent-handles";
@@ -11,14 +10,13 @@ import { useWiredEntryPicker } from "../hooks/use-entry-picker.hooks.js";
 import { useWiredSeoEntryPanel } from "../hooks/use-seo-entry-panel.hooks.js";
 import { useSeoEntrySection } from "../hooks/use-seo-entry-section.hooks.js";
 import { useWiredSeo } from "../hooks/use-seo.hooks.js";
-import {
-  useSeoPageActions,
-  sitemapStateLabel,
-} from "../hooks/SeoPage.hooks.js";
+import { useSeoPageActions, sitemapStateLabel } from "../hooks/SeoPage.hooks.js";
 import { MediaRefField } from "../components/MediaRefField.js";
 import { SitemapModal } from "../components/SitemapModal.js";
 
 import type { SeoEntryAnalysis, SeoEntryPanelController } from "../../models.js";
+import { SeoSection } from "../components/SeoSection.js";
+
 
 /**
  * `SeoSettingsScreen` (SPEC-008 ui.spec.md §2.4) — the site-wide `seo.*` settings form +
@@ -79,45 +77,6 @@ import type { SeoEntryAnalysis, SeoEntryPanelController } from "../../models.js"
  * changed is the constraint that matters — all seven fields still live in one `<form>`, submitted
  * as one `FormData`, with nothing about them conditional.
  */
-
-export interface SeoSectionProps {
-  title: string;
-  /** Optional ⓘ explanation beside the title (explanations are tips, never loose paragraphs). */
-  tip?: string;
-  children: ReactNode;
-}
-
-/**
- * One titled group on this screen — title in the left rail, controls in the right column. Markup
- * only; every visual decision and the reasoning for the rail lives in `styles/seo.css`'s header.
- *
- * This is the 1:1 replacement for the `<div className="field-group"><h2 className="card-title">`
- * pair `56e87ae0` introduced, and the swap is deliberately structure-preserving: the section body
- * carries `.field-group`'s exact `flex-column` + `--space-4` gap, so the fields inside are laid
- * out identically and NOTHING becomes conditional. That matters more here than anywhere else in
- * this file — `SeoDefaultsTab` submits via `new FormData(e.currentTarget)`, so a field that stops
- * being mounted is simply absent from the payload and silently saves as blank. A wrapper element
- * cannot unmount anything, and `Seo.unit.test.tsx`'s "keeps every defaults field inside ONE form"
- * pins all seven names, in order, against exactly that.
- *
- * Fixed `<h2>` rather than a `level` prop: both callers are top-level groups under the page `H1`,
- * and the one heading on this screen that is genuinely subordinate — `SeoEntryPanel`'s "Per-entry
- * overrides", which sits INSIDE the "Per-entry SEO" section — keeps its own `<h3>` and is not
- * routed through here.
- */
-function SeoSection({ title, tip, children }: SeoSectionProps) {
-  return (
-    <section className="jini-seo-section">
-      <div className="jini-seo-section-head">
-        <h2 className="jini-seo-section-title">
-          {title}
-          {tip ? <InfoTip label={tip} /> : null}
-        </h2>
-      </div>
-      <div className="jini-seo-section-body">{children}</div>
-    </section>
-  );
-}
 
 export interface EntryPickerProps {
   locale: string;
