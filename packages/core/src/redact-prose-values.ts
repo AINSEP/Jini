@@ -37,11 +37,13 @@ const FUNCTION_WORD_START = new RegExp(`^(?:${[
 // must stay masked. Sentences after a label start with short words.
 const OPAQUE_WORD_MIN = 12;
 // A sentence about the credential that begins with the label's own word ("Password: Passwords expire every 90 days")
-// is a policy line, not a passphrase: nobody's password is the name of the field followed by more words.
+// or with a plural credential noun ("Token: Passwords expire...") is a policy line, not a passphrase: nobody's password
+// is the name of the field, or a word for credentials in general, followed by more words.
+const PLURAL_CREDENTIAL_NOUN = /^(?:passwords|passphrases|tokens|secrets|keys|credentials|cookies)$/;
 const startsWithLabelWord = ({ rest, label }: { rest: string; label: string }): boolean => {
   const word = /^[A-Za-z]+/.exec(rest)?.[0].toLowerCase() ?? '';
   const name = label.toLowerCase();
-  return name !== '' && (word === name || word === `${name}s`);
+  return (name !== '' && (word === name || word === `${name}s`)) || PLURAL_CREDENTIAL_NOUN.test(word);
 };
 // A label that starts its line (after a list marker, a number or a bracket) is an assignment, not a sentence.
 const NUMBERED_LIST_PREFIX = /^\s*\d+[.)]\s+/;

@@ -45,3 +45,20 @@ describe('a field-start sentence that begins with the label word', () => {
     expect(run(input)).not.toContain(secret);
   });
 });
+
+// Found by the parity corpus: a policy sentence may start with another credential noun than its label ("Token: Passwords
+// expire..."). A plural credential noun followed by more words is a sentence about credentials, not a credential.
+describe('a field-start sentence that begins with a plural credential noun', () => {
+  it.each([
+    'Token: Passwords expire every 90 days.',
+    '- API key: Secrets live in the vault, never in chat.',
+    'Password: Tokens are rotated daily by the platform.',
+    'Secret: Keys must be rotated each quarter',
+  ])('keeps %j', input => {
+    expect(run(input)).toBe(input);
+  });
+
+  it.each([['Password: Tokens', 'Tokens'], ['token: Passwordz are fun', 'Passwordz']])('still masks %j', (input, secret) => {
+    expect(run(input)).not.toContain(secret);
+  });
+});
