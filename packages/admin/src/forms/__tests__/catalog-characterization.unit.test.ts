@@ -3,6 +3,7 @@ import { buildFieldSettingsPatch, fieldSettingsFor, fieldTypeGroups, retypeField
 import { formHtmlStarter } from '../html-rules.js';
 import type { AdminFormField } from '../models.js';
 import { catalogFieldKinds } from './fakes/catalog-fixture.js';
+import { fakeFormsCatalog } from './fakes/forms-catalog.js';
 
 // Characterization of everything the forms catalog drives: the starter HTML, the settings each field kind offers,
 // the type picker's groups, retyping, the settings draft and its save-time checks. The expected output was recorded from the
@@ -17,7 +18,7 @@ const draftOf = (type: string) => settingsFormFromField({ field: fieldOf(type) }
 
 it('records the starter HTML for every field kind, an unknown kind and escaped text', () => {
   const fields = [...types, 'legacy-kind'].map(fieldOf);
-  expect(formHtmlStarter({ fields }, { submitLabel: 'Go <now>' })).toMatchFileSnapshot('./__snapshots__/starter-html.html');
+  expect(formHtmlStarter({ fields, catalog: fakeFormsCatalog() }, { submitLabel: 'Go <now>' })).toMatchFileSnapshot('./__snapshots__/starter-html.html');
 });
 
 it('records the settings, groups, retype results, drafts and upload limits', () => {

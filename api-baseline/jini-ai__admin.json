@@ -593,7 +593,7 @@
    "blankField": "function:90ceef73a9",
    "buildFieldAttributesPatch": "function:ac7f1ce4fc",
    "createFieldAttributesDialogController": "function:0d0f9c0b7e",
-   "createFormEditorController": "function:3c24def7af",
+   "createFormEditorController": "function:4877ae30bc",
    "createFormFieldsEditorController": "function:a4a40d1e88",
    "createFormSubmissionDetailController": "function:1b0207dbb7",
    "createFormSubmissionsController": "function:48169bafb2",
@@ -606,7 +606,7 @@
    "formDateDisplay": "function:47318c66a1",
    "formDatesLines": "function:a2eb606ad6",
    "formHtmlEmbed": "function:06a79bde85",
-   "formHtmlStarter": "function:e9f08b8141",
+   "formHtmlStarter": "function:2e5bac6237",
    "formRowMenuItems": "function:be919a2c11",
    "formSubmissionRows": "function:def788d7e8",
    "formatFormAnswer": "function:34ad49d26d",
@@ -662,7 +662,7 @@
    "FormsPortsContext": "variable:6ec4cd489b",
    "FormsReactOptions": "interface:b110e32380",
    "forms": "function:e42529837a",
-   "useFormEditor": "function:a11c4e58a6",
+   "useFormEditor": "function:42177470de",
    "useFormsList": "function:7227604a21",
    "useFormsPorts": "function:70fc5764a1"
   }

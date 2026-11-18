@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 
 import { formHtmlEmbed, formHtmlStarter } from "../html-rules.js";
 import type { AdminFormField } from "../models.js";
+import { fakeFormsCatalog } from './fakes/forms-catalog.js';
+const catalog = fakeFormsCatalog();
 
 /**
  * @file `formHtmlStarter` — the HTML a form seeds when it switches to HTML mode. It used to write
@@ -16,18 +18,18 @@ import type { AdminFormField } from "../models.js";
 
 const one = (type: string, extra: Partial<AdminFormField> = {}): AdminFormField => ({ id: "f", label: "Field", type, required: false, ...extra });
 const options = [{ value: "a", label: "Apple" }, { value: "b", label: "Banana" }];
-const starter = (field: AdminFormField) => formHtmlStarter({ fields: [field] }).split("\n\n<button")[0];
+const starter = (field: AdminFormField) => formHtmlStarter({ fields: [field], catalog }).split("\n\n<button")[0];
 
 describe("formHtmlStarter", () => {
   it("round-trips a URL text control with URL keyboard hints and URL validation", () => {
-    const html = formHtmlStarter({ fields: [one("url", { placeholder: "yoursite.com or @handle" })] });
+    const html = formHtmlStarter({ fields: [one("url", { placeholder: "yoursite.com or @handle" })], catalog });
     for (const attribute of ['type="text"', 'inputmode="url"', 'autocomplete="url"', 'spellcheck="false"', 'autocapitalize="off"']) expect(html).toContain(attribute);
     expect(html).not.toContain('type="url"');
     expect(deriveHtmlForm({ html }).fields[0]?.type).toBe("url");
   });
 
   it("keeps the original markup for a plain text-like field", () => {
-    expect(formHtmlStarter({ fields: [{ id: "email", label: "Email", type: "email", required: true, maxLength: 120 }] }, { submitLabel: "Go" }))
+    expect(formHtmlStarter({ fields: [{ id: "email", label: "Email", type: "email", required: true, maxLength: 120 }], catalog }, { submitLabel: "Go" }))
       .toBe('<label>Email\n  <input type="email" name="email" required maxlength="120">\n</label>\n\n<button type="submit">Go</button>');
   });
 
@@ -78,7 +80,7 @@ describe("formHtmlStarter", () => {
       { id: "interests", type: "checkbox-group", label: "Interests", required: false,
         options: [{ value: "news", label: "News" }, { value: "events", label: "Events" }] },
     ];
-    const derived = deriveHtmlForm({ html: formHtmlStarter({ fields }) }).fields;
+    const derived = deriveHtmlForm({ html: formHtmlStarter({ fields, catalog }) }).fields;
     expect(derived).toHaveLength(2);
     expect(derived.map(({ id, type, label, options }) => ({ id, type, label, options })))
       .toEqual(fields.map(({ id, type, label, options }) => ({ id, type, label, options })));
@@ -89,7 +91,7 @@ describe("formHtmlStarter", () => {
       id: type.replace(/-/g, "_"), label: `Label ${type}`, type, required: false,
       ...(FIELD_TYPE_REGISTRY[type as keyof typeof FIELD_TYPE_REGISTRY] as { choices?: boolean }).choices ? { options } : {},
     }));
-    const derived = deriveHtmlForm({ html: formHtmlStarter({ fields }) }).fields;
+    const derived = deriveHtmlForm({ html: formHtmlStarter({ fields, catalog }) }).fields;
     expect(derived.map((field) => [field.id, field.type])).toEqual(fields.map((field) => [field.id, field.type]));
     for (const field of derived.filter((item) => item.options)) expect(field.options, field.id).toEqual(options);
   });

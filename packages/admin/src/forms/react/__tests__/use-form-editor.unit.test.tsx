@@ -6,6 +6,8 @@ import { FetchQueryProvider } from "@jini-ai/ui/fetch-query";
 import { useFormEditor } from "./legacy-ports.js";
 import { createFakeFormsPort } from "./legacy-ports.js";
 import type { AdminFormDefinition } from "../../models.js";
+import { fakeFormsCatalog } from '../../__tests__/fakes/forms-catalog.js';
+
 
 /**
  * @file `useFormEditor` — the FormEditor screen's load/save/status-toggle state.
@@ -180,7 +182,7 @@ it('discovers current choices without replacing an edited draft when discovery f
   const { useFormEditor: useCoreEditor } = await import('../hooks/use-form-editor.hooks.js');
   let rejectDiscovery!: (reason: Error) => void;
   const port = { ...createMemoryFormsApi({}, { forms: [formFixture()] }), listFormProviders: () => new Promise<never>((_resolve, reject) => { rejectDiscovery = reject; }) };
-  const { result } = renderHook(() => useCoreEditor({ formId: 'f1', tab: 'fields', port, navigate: vi.fn(), t: key => key }), { wrapper });
+  const { result } = renderHook(() => useCoreEditor({ formId: 'f1', tab: 'fields', port, catalog: fakeFormsCatalog(), navigate: vi.fn(), t: key => key }), { wrapper });
   await waitFor(() => expect(result.current.form).not.toBeNull());
   const selection = { id: 'fourth', config: { destination: 'kept' } };
   act(() => { result.current.setName('Unsaved name'); result.current.setProvider(selection); });
@@ -194,7 +196,7 @@ it('loads arbitrary provider descriptions through its port', async () => {
   const { useFormEditor: useCoreEditor } = await import('../hooks/use-form-editor.hooks.js');
   const providers = [{ id: 'fourth', label: 'Fourth', fields: [], answers: 'Fourth answers', validation: 'Fourth checks', frameOrigins: [], available: true }];
   const port = createMemoryFormsApi({}, { providers });
-  const { result } = renderHook(() => useCoreEditor({ formId: 'new', tab: 'fields', port, navigate: vi.fn(), t: key => key }), { wrapper });
+  const { result } = renderHook(() => useCoreEditor({ formId: 'new', tab: 'fields', port, catalog: fakeFormsCatalog(), navigate: vi.fn(), t: key => key }), { wrapper });
   await waitFor(() => expect(result.current.providers).toEqual(providers));
   expect(result.current.provider).toEqual({ id: 'builtin', config: {} });
 });

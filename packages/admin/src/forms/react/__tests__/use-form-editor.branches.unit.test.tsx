@@ -12,6 +12,7 @@ import { useFormEditor, useWiredFormEditor } from "../hooks/use-form-editor.hook
 import { FormsOptionsContext, FormsPortsContext } from "../hooks/FormsPorts.hooks.js";
 import { fakeFormsCatalog } from '../../__tests__/fakes/forms-catalog.js';
 
+
 /**
  * @file `useFormEditor` outcomes not reached by the screen suites: refetch protection, builder
  * creates, html->builder saves, status toggles both ways and failures, embed copying without an
@@ -26,7 +27,7 @@ const stored = (overrides: Partial<CoreForm> = {}): CoreForm => ({ id: "f1", nam
 
 function mount(api: AdminFormsPort, formId = "f1", options: Parameters<typeof useFormEditor>[1] = {}) {
   const navigate = vi.fn();
-  const view = renderHook(() => ({ editor: useFormEditor({ formId, tab: "fields", port: api, navigate, t }, options), invalidate: useInvalidate() }), { wrapper });
+  const view = renderHook(() => ({ editor: useFormEditor({ formId, tab: "fields", port: api, catalog: fakeFormsCatalog(), navigate, t }, options), invalidate: useInvalidate() }), { wrapper });
   return { ...view, navigate };
 }
 afterEach(() => { vi.unstubAllGlobals(); });

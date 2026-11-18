@@ -1,5 +1,6 @@
 import type { FormProviderDescription } from "@jini-ai/core/contracts/forms";
 import type { AdminFormProviderSelection, AdminFormsPort } from "../../../core/ports/forms.js";
+import type { FormsCatalogPort } from "../../../core/ports/forms-catalog.js";
 import { formView } from "../../models.js";
 import { describeApiError } from "../../../core/transport/errors.js";
 import { useFormsPorts, useFormsOptions } from "./FormsPorts.hooks.js";
@@ -130,13 +131,13 @@ function authoringPatch({ mode, html, savedMode }: { mode: "builder" | "html"; h
  * @complexity O(f + b) draft state for fields/HTML bytes; one definition request per save, no provider I/O.
  * @overallScore 95 — Low: the existing screen lifecycle remains one hook with independently tested callbacks. */
 export function useFormEditor(
-  props: { formId: string; tab: "fields" | "submissions"; port: AdminFormsPort; navigate: (path: string) => void; t: (key: string) => string },
+  props: { formId: string; tab: "fields" | "submissions"; port: AdminFormsPort; catalog: FormsCatalogPort; navigate: (path: string) => void; t: (key: string) => string },
   { clipboard }: { clipboard?: { writeText: (text: string) => Promise<void> } } = {},
 ): FormEditorController {
-  const { port, navigate, t } = props;
+  const { port, catalog, navigate, t } = props;
   const { tab } = props;
   const isNew = props.formId === "new";
-  const { controller: stateController, snapshot: stateSnapshot } = useController({ create: () => createFormEditorController({}), dependencies: [] });
+  const { controller: stateController, snapshot: stateSnapshot } = useController({ create: () => createFormEditorController({ catalog }), dependencies: [] });
   const state = stateSnapshot ?? initialFormEditorState({});
   const { form, mode, html, copyFeedback, name, slug, fields, notify, provider } = state;
   const setProvider = (value: AdminFormProviderSelection) => stateController?.update({ key: "provider", value });
@@ -349,11 +350,11 @@ export function useFormEditor(
 type FormEditorStateValue<K extends keyof FormEditorState> = FormEditorState[K] | ((current: FormEditorState[K]) => FormEditorState[K]);
 
 export function useWiredFormEditor(props: { formId: string; tab: "fields" | "submissions" }, _optional = {}): FormEditorController {
-  const { formsApi, formsNavigation } = useFormsPorts();
+  const { formsApi, formsCatalog, formsNavigation } = useFormsPorts();
   const { t, clipboard, adminBase } = useFormsOptions();
   const navigate = (routePath: string) => {
     if (!formsNavigation) throw new Error('Missing forms navigation port');
     formsNavigation.navigate({ base: adminBase, routePath });
   };
-  return useFormEditor({ ...props, port: formsApi, navigate, t }, clipboard ? { clipboard } : {});
+  return useFormEditor({ ...props, port: formsApi, catalog: formsCatalog, navigate, t }, clipboard ? { clipboard } : {});
 }
