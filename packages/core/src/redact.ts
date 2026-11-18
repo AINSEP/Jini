@@ -174,7 +174,8 @@ const PATTERNS: readonly SecretRedactionPattern[] = [
   // Both vendors plus a long tail of OpenAI-compatible providers (DeepSeek,
   // MiniMax, Together, etc.) ship keys in this shape, so a single rule
   // covers most "sk-..." secrets a user might paste into a prompt.
-  { name: 'sk_key', regex: /\bsk-(?:proj-|live-|test-|ant-)?[A-Za-z0-9_-]{20,}\b/g },
+  // 16+: chat's user-text guard masked 16-character tails; one engine now serves both.
+  { name: 'sk_key', regex: /\bsk-(?:proj-|live-|test-|ant-)?[A-Za-z0-9_-]{16,}\b/g },
 
   // GitHub personal / OAuth / server / user-server / refresh tokens.
   { name: 'github_token', regex: /\bgh[opsur]_[A-Za-z0-9]{36,}\b/g },
@@ -195,7 +196,10 @@ const PATTERNS: readonly SecretRedactionPattern[] = [
   { name: 'google_api_key', regex: /\bAQ\.[A-Za-z0-9_-]{20,}\b/g },
   { name: 'google_api_key', regex: /\bAIza[0-9A-Za-z_-]{35}\b/g },
 
-  // Slack tokens.
+  // Slack tokens. Chat's user-text guard once kept a rule on top of the shared Slack rule: that rule
+  // refused a token preceded by `-` (e.g. a URL path segment `/-xoxb-…`) and the entropy fallback below
+  // exempts URLs, so without this rule such a token would reach storage and model history. Only drop
+  // it once the shared rule covers that case: it does now, because \b sits between '-' and 'x'.
   { name: 'slack_token', regex: /\bxox[abprs]-[0-9A-Za-z-]{10,}\b/g },
 
   // Stripe keys.
@@ -361,7 +365,11 @@ const CHAINED_LABEL_RE = new RegExp(`(?:${RUNTIME_SECRET_LABELS})\\b["']?\\s*[:=
 // The value is read in a lookahead so the scan resumes at it (`Bearer Bearer x` masks both),
 // as the earlier lookbehind form did, without a lookbehind test at every position.
 // Quotes and field delimiters end the value; punctuation such as `!` remains credential text.
-const SHORT_BEARER_RE = new RegExp(`Bearer\\s+["']?(?!${GENERATED_MARKER}(?=$|[\\s"',;<>}]))(?=([^\\s"',;<>}]+))`, 'gi');
+// Explicit authorization syntax catches even short values. Exempt scheme descriptions in prose
+// ("Bearer token authentication") is not a credential. Only a value that is exactly one of the
+// words in the second lookahead (plus one closing sentence mark) is exempt, so a credential that
+// merely starts with one ("auth-1a2b", "token.abc") is still masked.
+const SHORT_BEARER_RE = new RegExp(`Bearer\\s+["']?(?!${GENERATED_MARKER}(?=$|[\\s"',;<>}]))(?!(?:tokens?|authentication|authorization|auth|scheme|credentials?)[.!?:)]?(?![^\\s"',;<>}]))(?=([^\\s"',;<>}]+))`, 'gi');
 const BASIC_AUTH_RE = /\bauthorization["']?\s*[:=]\s*["']?(Basic\s+[^\s"',;}]+)/gi;
 // Cookie pairs belong to one header value, including pairs after a semicolon and a space.
 const COOKIE_HEADER_RE = /\bcookie\s*:\s*([^\r\n]+)/gi;
