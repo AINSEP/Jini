@@ -399,6 +399,36 @@ describe('frontend session stream (GET /api/frontend-sessions/stream)', () => {
     expect(attached).toHaveLength(0);
   });
 
+  // A12: what each `capability` query shape does today (the host app's `qs` parser decides). The rows marked D-FS1 are the ones the
+  // plan's section 12.4 changes on purpose; every other row must stay as written.
+  const ERROR_EVENT = 'data: {"type":"error","message":"each \\"capability\\" query parameter must be a non-empty string"}';
+  const filler = Array.from({ length: 1000 }, (_unused, index) => `f${index}=1`).join('&');
+  for (const [name, query, capabilities] of [
+    ['one key', '?capability=page.read', ['page.read']],
+    ['repeated plain keys, in order', '?capability=page.read&capability=page.click', ['page.read', 'page.click']],
+    ['no key at all', '', []],
+    ['D-FS1: an empty-bracket key is read as a list', '?capability[]=page.read', ['page.read']],
+    ['D-FS1: an indexed key is read as a list', '?capability[0]=page.read', ['page.read']],
+    ['D-FS1: a high index is read as a list', '?capability[25]=page.read', ['page.read']],
+    ['D-FS1: a key after 1000 other parameters is ignored', `?${filler}&capability=page.read`, []],
+  ] as const) it(`capability query, ${name}: attached with ${JSON.stringify(capabilities)}`, async () => {
+    const stream = await openStream({ harness, route }, { query });
+    expect(await stream.next()).toEqual(['data: {"type":"attached","sessionId":"session-1","bindToken":"bind-1"}']);
+    expect(attached[0]?.descriptor.capabilities).toEqual(capabilities);
+    stream.abort();
+    await vi.waitFor(() => { expect(detach).toHaveBeenCalledTimes(1); });
+  });
+  for (const [name, query] of [
+    ['a nested key', '?capability[k]=page.read'],
+    ['a plain key next to a nested one', '?capability=page.read&capability[k]=page.click'],
+    ['an empty value', '?capability='],
+    ['a blank value among good ones', '?capability=page.read&capability=%20'],
+  ] as const) it(`capability query, ${name}: one error event, nothing attached`, async () => {
+    const stream = await openStream({ harness, route }, { query });
+    expect(await stream.rest()).toEqual([ERROR_EVENT]);
+    expect(attached).toHaveLength(0);
+  });
+
   it('pings every 15 seconds while idle, and stops when the client leaves', async () => {
     fakeIntervals();
     const stream = await openStream({ harness, route });
