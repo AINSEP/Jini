@@ -1,6 +1,11 @@
 import type { ChildProcess } from 'node:child_process';
 import { describe, expect, it, vi } from 'vitest';
-import { createFakeChild, createDef, createRig, stopResult, flush, type SpawnPort } from './r8a-rig.js';
+import { createInMemoryEventLog } from '../../event-log.js';
+import { createRunLifecycle } from '../../run-lifecycle.js';
+import { createAgentExecutor } from '../../index.js';
+import { createFakeChild, createDef, createRig, launchAt, stopResult, flush, type SpawnPort } from './r8a-rig.js';
+import { fixtureLaunchModel } from './model-discovery-fixture.js';
+import { runtimeFixture } from './runtime-fixture.js';
 
 /**
  * @file R8a pins written before step 5 edits the launcher (the cases step 0 left open):
@@ -8,6 +13,7 @@ import { createFakeChild, createDef, createRig, stopResult, flush, type SpawnPor
  *   stream and touches nothing (no spawn, no lock, no staged file);
  * - R7: two executors with overlapping runs keep their own process, lock and cleanup bookkeeping;
  * - R8: the exact argv and the exact env values a pinned host env produces at spawn.
+ * - Step 4: the antigravity permission grant locks, backs up and writes through the host's `runtime`.
  * R12 (one recorder per run, one outcome per success / failure / cancel) is already pinned by
  * `__tests__/ai-trace-lifecycle*.test.ts`.
  */
@@ -88,5 +94,30 @@ describe('R8: argv and env at spawn, for a pinned host env', () => {
     expect(calls[0]!.options.env).toEqual({ PATH: '/bin', HOME: '/home/pinned' });
     child.emit('close', 0, null);
     await rig.lifecycle.waitForTerminal({ runId });
+  });
+});
+
+describe('step 4: the antigravity permission grant runs through the host runtime', () => {
+  it('locks, writes the settings and unlocks via runtime.fileLock / runtime.writer, in that order, before the child is spawned', async () => {
+    const child = createFakeChild(8400);
+    const { spawn, calls } = recordingSpawn([child]);
+    const runtime = runtimeFixture({ spawn });
+    const def = createDef({ id: 'antigravity', name: 'Antigravity', externalMcpInjection: 'env-passthrough' });
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+    const executor = createAgentExecutor({ lifecycle, hostEnv: { PATH: '/bin' }, runtime }, {
+      resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (id === def.id ? def : null),
+      resolveAgentLaunch: launchAt('/fake/bin'), applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {},
+      mcpJsonInjection: { command: 'jini-mcp', daemonUrl: 'http://localhost:4317' },
+    });
+    const runId = (await lifecycle.start({ contextRef: 'r8a-agy' })).run.id;
+    await executor.run({ runId, agentId: def.id, prompt: 'hi', cwd: '/work' }, { nativeCapabilities: { userMcp: true } });
+    // Where the settings file lives is the user's home; the order and the ports are what is pinned.
+    expect(runtime.log[0]).toBe('lock');
+    expect(runtime.log.at(-1)).toBe('unlock');
+    expect(runtime.log.filter((entry) => entry.startsWith('text:'))).toHaveLength(1);
+    expect(runtime.log.find((entry) => entry.startsWith('text:'))).toMatch(/\.gemini[\\/]antigravity-cli[\\/]settings\.json$/);
+    expect(calls).toHaveLength(1);
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal({ runId });
   });
 });

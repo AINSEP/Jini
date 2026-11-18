@@ -2,6 +2,7 @@ import {
   promises as fsPromises,
 } from 'node:fs';
 import type { McpBridgeProbeResult } from './mcp-bridge-probe.js';
+import type { AtomicFileWriterPort, FileLockPort } from '@jini-ai/core/contracts/runtime';
 import { randomBytes } from 'node:crypto';
 import { supportsMessageRelay } from './message-relay.js';
 import { ensureAntigravityMcpPermission, prepareAntigravityBridge } from './antigravity/permissions.js';
@@ -234,6 +235,8 @@ export async function resolveMcpBridgeForRun({ input, deps }: { readonly input: 
     readonly mcpJsonInjection: McpJsonInjectionOptions | undefined;
     readonly cleanupStagedFiles: () => Promise<void>;
     readonly failBeforeSpawn: FailBeforeSpawn;
+    readonly fileLock: FileLockPort;
+    readonly writer: AtomicFileWriterPort;
     readonly ensureAntigravityMcpPermission?: typeof ensureAntigravityMcpPermission;
   } }
 ): Promise<McpBridgeDelivery | null> {
@@ -254,7 +257,7 @@ export async function resolveMcpBridgeForRun({ input, deps }: { readonly input: 
       ...(supportsMessageRelay({ def: input.def }) ? { messageRelayNonce: randomBytes(24).toString('hex') } : {}),
     });
     const prepareBridge = MCP_BRIDGE_PREPARERS.get(input.def.id);
-    if (prepareBridge) await prepareBridge({ delivery, serverName: JINI_MCP_SERVER_KEY }, {
+    if (prepareBridge) await prepareBridge({ delivery, serverName: JINI_MCP_SERVER_KEY, fileLock: deps.fileLock, writer: deps.writer }, {
       ensurePermission: deps.ensureAntigravityMcpPermission ?? ensureAntigravityMcpPermission,
     });
     return delivery;

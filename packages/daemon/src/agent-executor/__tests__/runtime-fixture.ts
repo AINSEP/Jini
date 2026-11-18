@@ -2,7 +2,7 @@ import type { ProcessSnapshot, RuntimePlatform, StopProcessesResult } from '@jin
 import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/platform/runtime-ports/fs';
 import { createSpawnPort, nodeCommandShell, nodeProcessControl, nodeSpawnPort, type SpawnFunction } from '@jini-ai/platform/runtime-ports/process';
 import type { AgentExecutorRuntimePorts } from '../../ports/runtime.js';
-import { fakeRuntimePorts } from '../../ports/__tests__/fakes/runtime.js';
+import { fakeRuntimePorts, type EffectLog } from '../../ports/__tests__/fakes/runtime.js';
 
 /**
  * What an executor test scripts: Node's own positional `spawn` shape (a spy keeps asserting
@@ -21,7 +21,7 @@ export interface RuntimeFixtureScript {
 const NOTHING_STOPPED: StopProcessesResult = { alreadyStopped: true, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] };
 
 /** A full {@link AgentExecutorRuntimePorts} for an executor test; pinned to Linux unless `platform` says otherwise. */
-export function runtimeFixture(script: RuntimeFixtureScript = {}, _optional: Record<string, never> = {}): AgentExecutorRuntimePorts {
+export function runtimeFixture(script: RuntimeFixtureScript = {}, _optional: Record<string, never> = {}): AgentExecutorRuntimePorts & { readonly log: EffectLog } {
   const base = fakeRuntimePorts();
   return {
     ...base,

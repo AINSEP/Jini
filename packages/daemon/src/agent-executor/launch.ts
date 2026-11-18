@@ -1540,7 +1540,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // the five mechanisms ends up carrying it. `null` for an unconfigured host or a def declaring
     // no strategy — see `buildMcpBridgeDelivery`'s doc.
     preparedHttpMcp = await prepareRunHttpMcp({ input, def, cleanupStagedFiles });
-    const mcpBridge = preparedHttpMcp ? null : await resolveMcpBridgeForRun({ input: { runId: input.runId, cwd: input.cwd, def, ...nativeCapabilityInput({ input }, {}) }, deps: { mcpJsonInjection, cleanupStagedFiles, failBeforeSpawn } }
+    const mcpBridge = preparedHttpMcp ? null : await resolveMcpBridgeForRun({ input: { runId: input.runId, cwd: input.cwd, def, ...nativeCapabilityInput({ input }, {}) }, deps: { mcpJsonInjection, cleanupStagedFiles, failBeforeSpawn, fileLock: runtime.fileLock, writer: runtime.writer } }
     );
 
     const baseRuntimeContext = computeRuntimeContext({ preparedPromptFile, preparedLogFile, mcpBridge }, sessionRuntimeContext(input, {}));
