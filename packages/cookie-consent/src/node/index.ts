@@ -113,7 +113,7 @@ async function syncConsentDirectory({ env, directoryPath }: {
   try { await directory.sync(); } finally { await directory.close(); }
 }
 
-async function readConsentText({ filesystem }: ConsentFilesEnv, filePath: string): Promise<string | null> {
+async function readConsentText({ filesystem }: ConsentFilesEnv, { filePath }: { filePath: string }): Promise<string | null> {
   try {
     const handle = await filesystem.open(filePath, 'r');
     try {
@@ -147,12 +147,12 @@ async function writeConsentJson(env: ConsentFilesEnv, { filePath, record }: { fi
 async function retireConsentFile({ env, filePath }: { env: ConsentFilesEnv; filePath: string }): Promise<void> {
   const directoryPath = path.dirname(filePath);
   await serializeConsentWrite(env, { directory: directoryPath, operation: async () => {
-    const text = await readConsentText(env, filePath);
+    const text = await readConsentText(env, { filePath });
     if (text === null) return;
     // Publish the archive durably before unlinking the active receipt. A crash can only leave
     // the old choice active before the replacement save has been acknowledged to the visitor.
     const archived = path.join(directoryPath, 'retired', path.basename(filePath));
-    if (await readConsentText(env, archived) === null) await writeConsentJson(env, { filePath: archived, record: JSON.parse(text) as ConsentRecord });
+    if (await readConsentText(env, { filePath: archived }) === null) await writeConsentJson(env, { filePath: archived, record: JSON.parse(text) as ConsentRecord });
     try { await env.filesystem.unlink(filePath); }
     catch (error) { if (!isErrorCode({ error, code: 'ENOENT' })) throw error; }
     env.inventories.get(directoryPath)?.delete(path.basename(filePath));
@@ -168,7 +168,7 @@ export function createNodeConsentFiles({ atomicWrite }: { atomicWrite: ConsentAt
   const env: ConsentFilesEnv = { atomicWrite, filesystem, uniqueId, maximumRecords, retentionMs, nowMs, platform, writes: new Map(), inventories: new Map() };
   return {
     retire: ({ filePath }, _options = {}) => retireConsentFile({ env, filePath }),
-    readText: ({ filePath }) => readConsentText(env, filePath),
+    readText: ({ filePath }) => readConsentText(env, { filePath }),
     writeJson: (required, _options = {}) => writeConsentJson(env, required),
   };
 }
