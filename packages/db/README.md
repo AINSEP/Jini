@@ -32,8 +32,21 @@ the tsx CommonJS bootstrap can resolve the subpaths without an active `import` c
 `@jini-ai/db/secrets-vault` takes its credential validation and error contracts from `@jini-ai/core/contracts/vault`
 (plus Kysely for SQL); it no longer needs `@jini-ai/platform`, which is not a peer of this package.
 
-`kysely` is an optional peer (`^0.29.6`), imported as a value or type only under `src/kernel/`
-and `src/migrate/`. `better-sqlite3`, `pg` and `@electric-sql/pglite` are also optional peers.
+`@jini-ai/db/settings` is the Kysely adapter (`SqlSettingsRepo`) for the settings repository port declared in
+`@jini-ai/core/settings`. It takes the kernel and five host-owned table names; it owns no schema, no default table name and no
+migration. Value writes are unconditional last-write-wins upserts and every revision append serializes on the
+one install-wide `setting_revisions` lock.
+
+`@jini-ai/db/gated-mutations` is the Kysely adapter (`SqlTokenStore`) for the confirmation-token store port declared in
+`@jini-ai/core/gated-mutations`. It takes the kernel and one host-owned table name; redemption is single-use under a
+per-token lock, and the plan binding is checked by the core service, not the store.
+
+`@jini-ai/db/verified-origin` is the Kysely adapter (`SqlOriginSettingRepo`) for the verified-origin port declared in
+`@jini-ai/core/contracts/server/verified-origin`, plus `registerConfiguredOrigin`, the insert-or-correct writer for an
+operator-declared origin (origin columns only, under a per-workspace lock). It takes the kernel and one host-owned table name.
+
+`kysely` is an optional peer (`^0.29.6`), imported as a value or type only under `src/kernel/`,
+`src/migrate/`, `src/settings/`, `src/gated-mutations/`, `src/verified-origin/` and `src/secrets-vault/`. `better-sqlite3`, `pg` and `@electric-sql/pglite` are also optional peers.
 Production code never imports a driver at runtime. PGlite type imports are confined to
 `src/pglite/` and `src/kernel/pglite/`; SQLite and Postgres use structural types.
 

@@ -97,6 +97,54 @@ const SUBPATHS: Record<string, { dirs: string[]; probe: string; kernel?: boolean
         && JSON.stringify(calls) === '[["selectFrom","secrets_vault"],["selectAll"],["where","workspace_id","=","workspace"],["where","id","=","missing"]]';
     })()`,
   },
+  settings: {
+    dirs: ["settings"],
+    probe: `await (async () => {
+      const calls = [];
+      const query = {
+        selectAll() { calls.push(["selectAll"]); return this; },
+        where(...args) { calls.push(["where", ...args]); return this; },
+        limit(n) { calls.push(["limit", n]); return this; },
+        async executeTakeFirst() { return undefined; },
+      };
+      const db = { withTables() { return db; }, selectFrom: table => { calls.push(["selectFrom", table]); return query; } };
+      const kernel = { run: fn => fn(db) };
+      const repo = new m.SqlSettingsRepo({ kernel, tables: { definitions: "d", valuesGlobal: "g", valuesWorkspace: "w", valuesUser: "u", revisions: "r" } });
+      return await repo.getGlobalValue("missing") === null
+        && JSON.stringify(calls) === '[["selectFrom","g"],["selectAll"],["where","setting_id","=","missing"],["limit",1]]';
+    })()`,
+  },
+  "gated-mutations": {
+    dirs: ["gated-mutations"],
+    probe: `await (async () => {
+      const events = [];
+      const kernel = {
+        transaction: async fn => { events.push("begin"); return fn(); },
+        lockKey: async key => { events.push("lock:" + key); },
+        run: async () => { events.push("read"); return undefined; },
+      };
+      const repo = new m.SqlTokenStore({ kernel, tables: { tokens: "t" } });
+      const result = await repo.tryRedeem({ token: "tok", now: "2026-11-18T00:00:00.000Z" });
+      return result.redeemed === false && result.record === null
+        && JSON.stringify(events) === '["begin","lock:gated_mutation_tokens:tok","read"]';
+    })()`,
+  },
+  "verified-origin": {
+    dirs: ["verified-origin"],
+    probe: `await (async () => {
+      const calls = [];
+      const query = {
+        selectAll() { calls.push(["selectAll"]); return this; },
+        where(...args) { calls.push(["where", ...args]); return this; },
+        async executeTakeFirst() { return undefined; },
+      };
+      const db = { withTables() { return db; }, selectFrom: table => { calls.push(["selectFrom", table]); return query; } };
+      const repo = new m.SqlOriginSettingRepo({ kernel: { run: fn => fn(db) }, tables: { origins: "o" } });
+      return await repo.findByWorkspaceId({ workspaceId: "ws" }) === null
+        && typeof m.registerConfiguredOrigin === "function"
+        && JSON.stringify(calls) === '[["selectFrom","o"],["selectAll"],["where","workspace_id","=","ws"]]';
+    })()`,
+  },
   "owner-store": {
     // Migration metadata loads without Kysely; up() lazily loads the kernel's DDL adapter.
     dirs: ["owner-store", "owner-store/migrations"],

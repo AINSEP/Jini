@@ -133,6 +133,21 @@
       "import": "./dist/secrets-vault/index.js",
       "default": "./dist/secrets-vault/index.js"
     },
+    "./settings": {
+      "types": "./dist/settings/index.d.ts",
+      "import": "./dist/settings/index.js",
+      "default": "./dist/settings/index.js"
+    },
+    "./gated-mutations": {
+      "types": "./dist/gated-mutations/index.d.ts",
+      "import": "./dist/gated-mutations/index.js",
+      "default": "./dist/gated-mutations/index.js"
+    },
+    "./verified-origin": {
+      "types": "./dist/verified-origin/index.d.ts",
+      "import": "./dist/verified-origin/index.js",
+      "default": "./dist/verified-origin/index.js"
+    },
     "./data-modules": {
       "types": "./dist/data-modules/index.d.ts",
       "import": "./dist/data-modules/index.js",
@@ -194,6 +209,15 @@
       ],
       "secrets-vault": [
         "./dist/secrets-vault/index.d.ts"
+      ],
+      "settings": [
+        "./dist/settings/index.d.ts"
+      ],
+      "gated-mutations": [
+        "./dist/gated-mutations/index.d.ts"
+      ],
+      "verified-origin": [
+        "./dist/verified-origin/index.d.ts"
       ],
       "data-modules": [
         "./dist/data-modules/index.d.ts"
