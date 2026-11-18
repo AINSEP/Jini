@@ -1,6 +1,6 @@
 import { SecretInput } from '../kit.js';
 
-import { useTotpSettings as useTotpSettings_, useTotpSettingsForm as useTotpSettingsForm_ } from './TotpSettings.hooks.js';
+import { useTotpSettings, useTotpSettingsForm } from './TotpSettings.hooks.js';
 
 import { type Translate } from '@jini-ai/core/text';
 export interface TotpSettingsPort {
@@ -13,17 +13,17 @@ export interface TotpSettingsPort {
 /** Owner settings hold setup secrets only until confirmation/cancellation or unmount.
  * @complexity O(1): one bounded status read on mount and one request per explicit action; no polling.
  */
-export function TotpSettings({ port, translate: t, hooks: { useTotpSettings = useTotpSettings_, useTotpSettingsForm = useTotpSettingsForm_ } = {} }: { port: TotpSettingsPort; translate: Translate; hooks?: { useTotpSettings?: typeof useTotpSettings_; useTotpSettingsForm?: typeof useTotpSettingsForm_ } }) {
-  const { status, error } = useTotpSettings({ port, t });
+export function TotpSettings({ port, translate: t, useTotpSettingsHook = useTotpSettings, useTotpSettingsFormHook = useTotpSettingsForm }: { port: TotpSettingsPort; translate: Translate; useTotpSettingsHook?: typeof useTotpSettings; useTotpSettingsFormHook?: typeof useTotpSettingsForm }) {
+  const { status, error } = useTotpSettingsHook({ port, t });
   if (error) return <p role="alert">{error}</p>;
   if (!status?.isOwner || !status.available) return null;
-  return <TotpSettingsForm port={port} enrolled={status.enrolled} t={t} hooks={{ useTotpSettingsForm }} />;
+  return <TotpSettingsForm port={port} enrolled={status.enrolled} t={t} useTotpSettingsFormHook={useTotpSettingsFormHook} />;
 }
 
 const isTotpRemovalDisabled = ({ busy, password, code }: { busy: boolean; password: string; code: string }) => busy || !password || !code;
 
-function TotpSettingsForm({ port, enrolled: initialEnrolled, t, hooks: { useTotpSettingsForm = useTotpSettingsForm_ } = {} }: { port: TotpSettingsPort; enrolled: boolean; t: Translate; hooks?: { useTotpSettingsForm?: typeof useTotpSettingsForm_ } }) {
-  const { enrolled, setup, password, setPassword, code, setCode, busy, error, message, passwordId, clear, enroll, confirm, remove } = useTotpSettingsForm({ port, initialEnrolled, t });
+function TotpSettingsForm({ port, enrolled: initialEnrolled, t, useTotpSettingsFormHook = useTotpSettingsForm }: { port: TotpSettingsPort; enrolled: boolean; t: Translate; useTotpSettingsFormHook?: typeof useTotpSettingsForm }) {
+  const { enrolled, setup, password, setPassword, code, setCode, busy, error, message, passwordId, clear, enroll, confirm, remove } = useTotpSettingsFormHook({ port, initialEnrolled, t });
   return <section className="card">
     <h3>{t('Authenticator app')}</h3>
     <p>{t(enrolled ? 'Your authenticator code is required at every sign-in, including desktop.' : 'Add an authenticator app to require a code when signing in as the owner.')}</p>
