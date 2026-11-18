@@ -12,7 +12,7 @@ import type { SqliteOpener } from "@jini-ai/core/contracts/storage";
 import { AesGcmSecretSealer, EnvOrFileKeyring, generateFileSiteKey } from "@jini-ai/platform/secrets";
 import { createVaultMetaParsers, SecretsVaultService } from "@jini-ai/platform/secrets/credential-sets";
 import type { VaultSummary } from "@jini-ai/core/contracts/vault";
-import { ownerContext } from "../legacy.js";
+import { ownerContext } from "@jini-ai/platform/secrets/legacy-owner";
 
 export const input = { kind: "vendor" as const, ownerKey: "plugin", binding: null, provider: "provider",
   label: "Shared API key", meta: { credentialType: "vendor", worksFor: ["provider"] },

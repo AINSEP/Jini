@@ -2145,6 +2145,11 @@
     "value": 1
   },
   {
+    "file": "packages/platform/src/secrets/legacy-owner.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
     "file": "packages/platform/src/secrets/passphrase-envelope.ts",
     "rule": "catch-reads-error",
     "value": 1
@@ -2316,11 +2321,6 @@
   },
   {
     "file": "packages/server/src/kernel-base.ts",
-    "rule": "catch-reads-error",
-    "value": 1
-  },
-  {
-    "file": "packages/server/src/owner-store/legacy.ts",
     "rule": "catch-reads-error",
     "value": 1
   },

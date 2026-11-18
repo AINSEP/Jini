@@ -678,6 +678,20 @@
    "normalizeCredentialToken": "function:1eb9527a79"
   }
  },
+ "./secrets/legacy-owner": {
+  "types": "./dist/secrets/legacy-owner.d.ts",
+  "symbols": {
+   "LegacyOwnerDestination": "interface:9fc8956967",
+   "LegacyOwnerSnapshot": "interface:0fb07ca3e1",
+   "OWNER_WORKSPACE_ID": "variable:466508722c",
+   "OwnerStoreBackupError": "class:f58b2abcb9",
+   "OwnerStoreRecoveryError": "class:5969635d4a",
+   "openLegacyOwnerVault": "function:bb5d2a2f95",
+   "ownerContext": "function:fd061ff4cb",
+   "readLegacyOwnerBackup": "function:dfe920b857",
+   "readLegacyOwnerEntry": "function:1663bfcb64"
+  }
+ },
  "./secrets/testing": {
   "types": "./dist/secrets/testing.d.ts",
   "symbols": {

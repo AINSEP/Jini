@@ -167,7 +167,11 @@
  "./owner-store": {
   "types": "./dist/owner-store/index.d.ts",
   "symbols": {
+   "LegacyOwnerDatabase": "interface:0981e08353",
    "OWNER_STORE_LEDGER": "variable:75bffdc671",
+   "countOwnerStoreRows": "function:b98f24ccc7",
+   "listOwnerDestinations": "function:379ad77df1",
+   "listOwnerEntryRows": "function:e49e9b3141",
    "ownerStoreDdl": "variable:4767c6209d",
    "ownerStoreMigration": "variable:a1d1bbe3fd",
    "ownerStoreMigrations": "variable:390b5c0344"

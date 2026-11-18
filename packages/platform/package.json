@@ -34,6 +34,7 @@
       "./net": "node",
       "./fs/file-lock": "node",
       "./secrets/credential-token": "universal",
+      "./secrets/legacy-owner": "node",
       "./web": "node",
       "./command": "node",
       "./process": "node",
@@ -177,6 +178,11 @@
       "types": "./dist/secrets/credential-token.d.ts",
       "import": "./dist/secrets/credential-token.js",
       "default": "./dist/secrets/credential-token.js"
+    },
+    "./secrets/legacy-owner": {
+      "types": "./dist/secrets/legacy-owner.d.ts",
+      "import": "./dist/secrets/legacy-owner.js",
+      "default": "./dist/secrets/legacy-owner.js"
     },
     "./web": {
       "types": "./dist/web/index.d.ts",

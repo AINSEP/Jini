@@ -67,16 +67,8 @@
   "types": "./dist/owner-store/index.d.ts",
   "symbols": {
    "LegacyOwnerCounts": "interface:fa6fa6844e",
-   "LegacyOwnerDestination": "interface:9fc8956967",
-   "LegacyOwnerEntry": "interface:98a6922bbb",
-   "LegacyOwnerSnapshot": "interface:18df6fd904",
    "LegacyOwnerStoreFile": "interface:27fdb598dd",
-   "OWNER_WORKSPACE_ID": "variable:466508722c",
-   "OwnerStoreBackupError": "class:f58b2abcb9",
-   "OwnerStoreRecoveryError": "class:5969635d4a",
    "countLegacyOwnerStore": "function:4af7d1470a",
-   "ownerContext": "function:fd061ff4cb",
-   "readLegacyOwnerBackup": "function:dfe920b857",
    "readLegacyOwnerStore": "function:f39191fda8"
   }
  },

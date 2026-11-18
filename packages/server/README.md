@@ -61,12 +61,17 @@ does not pull another package's test sources outside server's source root.
 `@jini-ai/server/owner-store` reads an old owner store so a host can import its entries. Nothing writes,
 migrates or syncs an owner store any more. `countLegacyOwnerStore` counts entries and grants without the
 key; `readLegacyOwnerStore` decrypts entries and lists recorded destinations, opening the file with SQLite's
-read-only mode; `readLegacyOwnerBackup` authenticates and validates a v1 or v2 passphrase backup.
-`@jini-ai/db/owner-store` owns only the pinned schema. The database path, key path and SQLite opener remain
-host supplied. This entry requires the optional `@jini-ai/db`, `@jini-ai/platform` and `kysely` peers.
+read-only mode. This entry is only the file wiring: the SQL reads live in `@jini-ai/db/owner-store`, and the
+passphrase-backup decoder (`readLegacyOwnerBackup`), `OwnerStoreRecoveryError`, `ownerContext` and the legacy
+keyring and authorization policy live in `@jini-ai/platform/secrets/legacy-owner`. The database path, key path
+and SQLite opener remain host supplied. This entry requires the `@jini-ai/db` and `@jini-ai/platform` packages.
 
 ```ts
 import { countLegacyOwnerStore, readLegacyOwnerStore } from '@jini-ai/server/owner-store';
 const { entries } = await countLegacyOwnerStore({ filePath, open });
 if (entries > 0) await readLegacyOwnerStore({ filePath, keyFilePath, open });
 ```
+
+**Migration (breaking):** `OwnerStoreBackupError`, `OwnerStoreRecoveryError`, `readLegacyOwnerBackup`, `ownerContext`,
+`OWNER_WORKSPACE_ID` and the `LegacyOwner*` snapshot types moved to `@jini-ai/platform/secrets/legacy-owner`.
+The old entry type is gone: use `VaultArchiveEntry` from `@jini-ai/platform/secrets/credential-sets`.

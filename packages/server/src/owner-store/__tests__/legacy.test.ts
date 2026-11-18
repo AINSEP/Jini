@@ -2,7 +2,8 @@ import Database from "better-sqlite3";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { afterEach, expect, test } from "vitest";
-import { countLegacyOwnerStore, OwnerStoreRecoveryError, ownerContext, readLegacyOwnerStore } from "../legacy.js";
+import { ownerContext, OwnerStoreRecoveryError } from "@jini-ai/platform/secrets/legacy-owner";
+import { countLegacyOwnerStore, readLegacyOwnerStore } from "../index.js";
 import { input, legacyStore, open, putRaw } from "./fixture.js";
 import type { SqliteOpener } from "@jini-ai/core/contracts/storage";
 

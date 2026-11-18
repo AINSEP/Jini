@@ -1,7 +1,9 @@
-import { sealWithPassphrase } from "@jini-ai/platform/secrets";
 import { expect, test } from "vitest";
-import { readLegacyOwnerBackup } from "../backup.js";
-import { input } from "./fixture.js";
+import { sealWithPassphrase } from "../passphrase-envelope.js";
+import { readLegacyOwnerBackup } from "../legacy-owner.js";
+
+const input = { kind: "vendor" as const, ownerKey: "plugin", provider: "provider", label: "Shared API key",
+  meta: { credentialType: "vendor", worksFor: ["provider"] }, payload: { token: "a-secret-value-that-must-not-escape" } };
 
 type Doc = Record<string, any>;
 const first = { id: "entry-1", kind: input.kind, ownerKey: input.ownerKey, binding: null, provider: input.provider, label: input.label,
