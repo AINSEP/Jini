@@ -202,8 +202,9 @@ const PATTERNS: readonly SecretRedactionPattern[] = [
   // Google API keys — legacy AIza… (Maps / AI Studio) and service-account-
   // bound AQ.… keys AI Studio now issues. AQ. must run before the generic
   // sk_ rule would mis-label unrelated tokens.
-  { name: 'google_api_key', regex: /\bAQ\.[A-Za-z0-9_-]{20,}\b/g },
-  { name: 'google_api_key', regex: /\bAIza[0-9A-Za-z_-]{35}\b/g },
+  // No trailing `\b`: a key may end in `-`, and a word boundary there left that last character outside the mask.
+  { name: 'google_api_key', regex: /\bAQ\.[A-Za-z0-9_-]{20,}/g },
+  { name: 'google_api_key', regex: /\bAIza[0-9A-Za-z_-]{35}(?![A-Za-z0-9_-])/g },
 
   // Slack tokens. Chat's user-text guard once kept a rule on top of the shared Slack rule: that rule
   // refused a token preceded by `-` (e.g. a URL path segment `/-xoxb-…`) and the entropy fallback below
@@ -366,9 +367,12 @@ const RUNTIME_SECRET_LABELS = `${SERIALIZED_SECRET_LABELS}|(?<![?&])(?:key)`;
 // Bearer, Token, ApiKey or Digest (a quoted value stays masked whole by this rule, and Basic by its own rule),
 // and a scheme word alone (`Authorization: Bearer`) describes a header.
 const AUTH_SCHEME_WORD = '(?:Bearer|Token|ApiKey|Digest|Basic)';
+// Only an auth header's value starts with a scheme word. After any other label (`password=Bearer`) the word is the
+// credential itself and is masked, as the rules chat used before masked it.
+const AUTH_HEADER_LABEL_BEFORE = `(?<=(?:authorization|api-key|x-api-key|x-goog-api-key)["']?\\s*[:=]\\s*)`;
 const MASK_AWARE_LABELED_SECRET_RE = new RegExp(
   `(?<![\\w-])(["']?)(${RUNTIME_SECRET_LABELS})\\1\\s*[:=]\\s*`
-    + `(?!(?:Bearer\\s+\\S|(?:Token|ApiKey|Digest)[ \\t]+\\S|${AUTH_SCHEME_WORD}(?:[\\s"'\x60.,;:)\\]}]|$)))(?!${GENERATED_MARKER}[;&])((?!&)\\S)`,
+    + `(?!${AUTH_HEADER_LABEL_BEFORE}(?:Bearer\\s+\\S|(?:Token|ApiKey|Digest)[ \\t]+\\S|${AUTH_SCHEME_WORD}(?:[\\s"'\x60.,;:)\\]}]|$)))(?!${GENERATED_MARKER}[;&])((?!&)\\S)`,
   'gi',
 );
 // A label can name another label; resume at it instead of consuming `token:` and leaking its value.
@@ -386,6 +390,8 @@ const SHORT_BEARER_RE = new RegExp(`\\bBearer\\s+["']?(?!${GENERATED_MARKER}(?=$
 const BASIC_AUTH_RE = /\bauthorization["']?\s*[:=]\s*["']?(Basic\s+[^\s"',;}]+)/gi;
 // Cookie pairs belong to one header value, including pairs after a semicolon and a space.
 const COOKIE_HEADER_RE = /\bcookie\s*:\s*([^\r\n]+)/gi;
+// `cookie=` is a cookie header written as an assignment: each `; name=value` pair after the first is part of its value.
+const COOKIE_ASSIGNMENT_RE = /\b(?:set-)?cookie\s*=\s*([^\s;"']+(?:;[ \t]*[^\s;="']+=[^\s;"']*)*)/gi;
 const PROVIDER_API_KEY_QUERY = /([?&]key=)([^&\s"']+)/gi;
 // URL userinfo and signed query values have explicit credential context; unlike opaque runs,
 // they are safe to recognize in the conservative policy. Keep scheme/host and query names
@@ -699,6 +705,7 @@ function collectKeyedCredentials(pass: SpanPass): void {
     if (!isMaskedValue(pass.text.slice(start, end))) pass.add(start, end, CATEGORY.apiKeyHeader);
   }
   collectMatches(pass, COOKIE_HEADER_RE, trailingValue(CATEGORY.labeledSecret, 1));
+  collectMatches(pass, COOKIE_ASSIGNMENT_RE, trailingValue(CATEGORY.labeledSecret, 1));
   collectUrlSecretParams(pass);
 }
 
