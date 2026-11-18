@@ -21,12 +21,12 @@ function PreviewMarkup(vm: ReturnType<typeof useMediaCard>, _optional: Record<st
   </>;
 }
 /** The lightbox uses the same fallback chain without the grid's metadata and actions. */
-export function MediaPreview(props: MediaCardProps, _optional: Record<string, never> = {}) {
-  const vm = useMediaCard(props);
+export function MediaPreview({ useMediaCardHook = useMediaCard, ...props }: MediaCardProps & { useMediaCardHook?: typeof useMediaCard }, _optional: Record<string, never> = {}) {
+  const vm = useMediaCardHook(props);
   return <PreviewMarkup {...vm} />;
 }
-export function MediaCard(props: MediaCardProps, _optional: Record<string, never> = {}) {
-  const vm = useMediaCard(props);
+export function MediaCard({ useMediaCardHook = useMediaCard, ...props }: MediaCardProps & { useMediaCardHook?: typeof useMediaCard }, _optional: Record<string, never> = {}) {
+  const vm = useMediaCardHook(props);
   return <article className="jini-media-card" data-jini-part="media.card" data-media-id={vm.item.id} tabIndex={-1}>
     <div className="jini-media-card-preview" data-jini-part="media.preview.frame"><PreviewMarkup {...vm} /></div>
     <div className="jini-media-card-body">

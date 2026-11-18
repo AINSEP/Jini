@@ -2,8 +2,8 @@ import { Fragment } from 'react';
 import type { TabViewProps } from '../../../core/react/bind-react.js';
 import { useProvidersTab } from '../hooks/ProvidersTab.hooks.js';
 import { EyeIcon, HiddenEyeIcon, ReloadIcon } from '../components/MediaIcons.js';
-export function ProvidersTab(_props: TabViewProps, _optional: Record<string, never> = {}) {
-  const vm = useProvidersTab();
+export function ProvidersTab({ useProvidersTabHook = useProvidersTab }: TabViewProps & { useProvidersTabHook?: typeof useProvidersTab }, _optional: Record<string, never> = {}) {
+  const vm = useProvidersTabHook();
   return <section className="jini-media-providers-panel jini-settings-section jini-settings-media-providers" data-jini-part="media.providers" data-theme="light">
     <div className="jini-section-head"><div><h4>Media providers</h4><p className="jini-hint">Credentials this host uses to generate images and video.</p></div>
       <button type="button" className="jini-button jini-button-ghost" data-agent-element="media-providers-reload" onClick={vm.reload} disabled={vm.reloadDisabled}><ReloadIcon /><span>{vm.reloadLabel}</span></button>

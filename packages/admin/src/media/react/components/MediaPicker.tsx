@@ -3,8 +3,8 @@ import { Button, IconButton, TextField } from '../../../react/kit.js';
 import { useMediaPicker } from '../hooks/MediaPicker.hooks.js';
 import type { MediaPickerProps } from '../hooks/MediaPicker.hooks.js';
 import { MediaGrid } from './MediaGrid.js';
-export function MediaPicker(props: MediaPickerProps, _optional: Record<string, never> = {}) {
-  const vm = useMediaPicker(props);
+export function MediaPicker({ useMediaPickerHook = useMediaPicker, ...props }: MediaPickerProps & { useMediaPickerHook?: typeof useMediaPicker }, _optional: Record<string, never> = {}) {
+  const vm = useMediaPickerHook(props);
   return (
     <MediaDialog className="jini-media-picker-dialog"
       attrs={{ 'data-jini-part': 'media.picker' }}

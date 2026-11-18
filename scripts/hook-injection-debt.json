@@ -1087,12 +1087,6 @@
         "packages/chat/src/react/components/QuestionForm.tsx"
       ]
     },
-    "EditMediaPanel::useEditMediaPanel": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/media/react/components/EditMediaPanel.tsx"
-      ]
-    },
     "EmbedChatHeader::useEmbedChatHeader": {
       "count": 1,
       "files": [
@@ -1435,12 +1429,6 @@
         "packages/ui/src/features/language/react/components/LanguageTab.tsx"
       ]
     },
-    "LibraryTab::useLibraryTab": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/media/react/tabs/LibraryTab.tsx"
-      ]
-    },
     "Lightbox::useLightboxHook": {
       "count": 1,
       "files": [
@@ -1591,48 +1579,6 @@
         "packages/chat/src/react/components/McpUiSurfaceCard.tsx"
       ]
     },
-    "MediaCard::useMediaCard": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/media/react/components/MediaCard.tsx"
-      ]
-    },
-    "MediaDialog::useMediaDialog": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/media/react/components/MediaDialog.tsx"
-      ]
-    },
-    "MediaGrid::useMediaGrid": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/media/react/components/MediaGrid.tsx"
-      ]
-    },
-    "MediaLightbox::useMediaLightbox": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/media/react/components/MediaLightbox.tsx"
-      ]
-    },
-    "MediaPage::useMediaPage": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/media/react/pages/MediaPage.tsx"
-      ]
-    },
-    "MediaPicker::useMediaPicker": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/media/react/components/MediaPicker.tsx"
-      ]
-    },
-    "MediaPreview::useMediaCard": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/media/react/components/MediaCard.tsx"
-      ]
-    },
     "MediaProvidersTab::useMediaProviderKeyVisibility": {
       "count": 1,
       "files": [
@@ -1649,12 +1595,6 @@
       "count": 1,
       "files": [
         "packages/ui/src/features/media-providers/react/components/MediaProvidersTab.tsx"
-      ]
-    },
-    "MediaPurgeDialog::useMediaPurgeDialog": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/media/react/components/MediaPurgeDialog.tsx"
       ]
     },
     "MemberRow::useMemberRow": {
@@ -2168,9 +2108,8 @@
       ]
     },
     "ProvidersTab::useProvidersTab": {
-      "count": 2,
+      "count": 1,
       "files": [
-        "packages/admin/src/media/react/tabs/ProvidersTab.tsx",
         "packages/admin/src/source-control/react/tabs/ProvidersTab.tsx"
       ]
     },
@@ -2868,12 +2807,6 @@
       "count": 1,
       "files": [
         "packages/user-management/src/react/auth/TotpSettings.tsx"
-      ]
-    },
-    "UploadButton::useUploadButton": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/media/react/components/UploadButton.tsx"
       ]
     },
     "UsageSummary::useT": {
