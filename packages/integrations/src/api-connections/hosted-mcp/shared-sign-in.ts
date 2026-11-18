@@ -83,6 +83,23 @@ export function createSharedExternalMcpOAuth(required: {
   resolveProvider: (record: ExternalMcpServerRecord) => OAuthProviderDescriptor;
   configure: (input: { serverId: string; redirectUri?: string | undefined }) => Promise<SharedMcpConfiguration>;
 }, _optional = {}) {
+  const access = createSharedSignInAccess(required);
+  const target = createSharedMcpTarget(access);
+  const consumer = createSharedMcpConsumer(access);
+  const selection = createSharedMcpSelection(access, target);
+  const attempts = createSharedMcpAttempts(access);
+  return {
+    ...createSharedMcpInventory(access),
+    ...createSharedMcpAccessMethods(selection, consumer, access.bindingFor),
+    ...createSharedMcpBindingMethods(access, selection, consumer),
+    ...createSharedMcpConnectMethod(access, selection, attempts),
+    ...createSharedMcpCallbackMethod(access, selection, attempts),
+    ...createSharedMcpPollingMethod(access, selection, attempts),
+    ...createSharedMcpDisconnectMethods(access, selection),
+  };
+}
+
+function createSharedSignInAccess(required: Parameters<typeof createSharedExternalMcpOAuth>[0]) {
   const { deps, shared, configure, resolveProvider, ports } = required;
   const { owner, bindings, attachments, siteId } = shared;
   const unavailable = () => new ApiConnectionError({ code: 'connection-not-found', message: ports.copy.sharedUnavailable });
@@ -95,6 +112,15 @@ export function createSharedExternalMcpOAuth(required: {
     if (!context?.mcp || context.identity.pluginId !== MCP_PLUGIN_ID || context.identity.connectionId !== 'oauth') throw unavailable();
     return context;
   }
+  async function assertOwner(actorId: string | undefined) {
+    if (actorId !== await shared.ownerPrincipalId) throw new ApiConnectionError({ code: 'access-denied', message: ports.copy.sharedOwnerOnly });
+  }
+  return { deps, shared, configure, resolveProvider, ports, owner, bindings, attachments, siteId,
+    unavailable, invalidState, refreshers, deviceKeyFor, bindingFor, contextFor, assertOwner };
+}
+
+function createSharedMcpTarget(access: ReturnType<typeof createSharedSignInAccess>) {
+  const { resolveProvider, siteId, unavailable } = access;
   function optionalAuthorization(authorizationEndpoint: string | undefined) {
     return authorizationEndpoint === undefined ? {} : { authorizationEndpoint };
   }
@@ -116,6 +142,11 @@ export function createSharedExternalMcpOAuth(required: {
     return { siteId, consumerId: consumerId(record.serverId), identity: { pluginId: MCP_PLUGIN_ID, connectionId: 'oauth',
       ...endpointIdentity(record, context) }, requiredScopes: scopes };
   }
+  return target;
+}
+
+function createSharedMcpConsumer(access: ReturnType<typeof createSharedSignInAccess>) {
+  const { deps, ports, owner, bindings, attachments, unavailable, refreshers, contextFor } = access;
   async function refreshFor(credentialId: string) {
     const cached = refreshers.get(credentialId);
     if (cached) return cached;
@@ -145,28 +176,19 @@ export function createSharedExternalMcpOAuth(required: {
       }
     } },
   });
+  return consumer;
+}
+
+function createSharedMcpSelection(
+  access: ReturnType<typeof createSharedSignInAccess>, target: ReturnType<typeof createSharedMcpTarget>,
+) {
+  const { deps, shared, owner, bindings, attachments, siteId, configure, unavailable, bindingFor, contextFor } = access;
   async function selected(serverId: string) {
     const binding = await bindingFor({ serverId });
     if (!binding) return null;
     const [context, record] = await Promise.all([contextFor(binding.credentialId), deps.repo.findByServerId({ workspaceId: deps.workspaceId, serverId })]);
     if (!record) throw unavailable();
     return { binding, context, record, target: target(record, context) };
-  }
-  async function assertAttempt(serverId: string, credentialId: string, generation: number) {
-    const [binding, record, granted] = await Promise.all([bindingFor({ serverId }), owner.records.read({ key: credentialId }), attachments.isAttached({ siteId, keyId: credentialId })]);
-    if (binding?.credentialId !== credentialId || !granted || !record) throw invalidState();
-    if (record.generation !== generation || record.status === 'revocation-pending') throw invalidState();
-    return record;
-  }
-  function stateFor(input: { serverId: string; credentialId: string; generation: number; browserBinding?: string }) {
-    const aad = ports.aad.format({ kind: 'oauth-redirect-state', version: 'v1', parts: [JSON.stringify(['shared', siteId, input.serverId, input.credentialId, input.generation, input.browserBinding])] });
-    return ports.flow.createSealedAuthorizationState({ clock: deps.clock, workspaceId: siteId, serverId: input.serverId, codec: {
-      seal: async ({ plaintext }) => Buffer.from(JSON.stringify(await deps.sealer.seal({ plaintext, key: await deps.keyring.activeKey({}), aad }))).toString('base64url'),
-      open: async ({ state }) => deps.sealer.open({ sealed: JSON.parse(Buffer.from(state, 'base64url').toString()) }, { aad }),
-    } });
-  }
-  async function assertOwner(actorId: string | undefined) {
-    if (actorId !== await shared.ownerPrincipalId) throw new ApiConnectionError({ code: 'access-denied', message: ports.copy.sharedOwnerOnly });
   }
   async function createSelection(input: { serverId: string; redirectUri?: string }) {
     const server = await deps.repo.findByServerId({ workspaceId: deps.workspaceId, serverId: input.serverId });
@@ -190,7 +212,26 @@ export function createSharedExternalMcpOAuth(required: {
     } });
     return { binding: { credentialId }, context };
   }
-  async function install(serverId: string, context: SharedMcpContext, generation: number, tokens: OAuthTokenSet) {
+  return { selected, createSelection, target };
+}
+
+function createSharedMcpAttempts(access: ReturnType<typeof createSharedSignInAccess>) {
+  const { deps, ports, owner, siteId, invalidState, unavailable, bindingFor } = access;
+  async function assertAttempt(serverId: string, credentialId: string, generation: number) {
+    const [binding, record, granted] = await Promise.all([bindingFor({ serverId }), owner.records.read({ key: credentialId }), attachments.isAttached({ siteId, keyId: credentialId })]);
+    if (binding?.credentialId !== credentialId || !granted || !record) throw invalidState();
+    if (record.generation !== generation || record.status === 'revocation-pending') throw invalidState();
+    return record;
+  }
+  function stateFor(input: { serverId: string; credentialId: string; generation: number; browserBinding?: string }) {
+    const aad = ports.aad.format({ kind: 'oauth-redirect-state', version: 'v1', parts: [JSON.stringify(['shared', siteId, input.serverId, input.credentialId, input.generation, input.browserBinding])] });
+    return ports.flow.createSealedAuthorizationState({ clock: deps.clock, workspaceId: siteId, serverId: input.serverId, codec: {
+      seal: async ({ plaintext }) => Buffer.from(JSON.stringify(await deps.sealer.seal({ plaintext, key: await deps.keyring.activeKey({}), aad }))).toString('base64url'),
+      open: async ({ state }) => deps.sealer.open({ sealed: JSON.parse(Buffer.from(state, 'base64url').toString()) }, { aad }),
+    } });
+  }
+  async function install(serverId: string, context: SharedMcpContext, result: { generation: number; tokens: OAuthTokenSet }) {
+    const { generation, tokens } = result;
     const grantedScopes = tokens.scopes.length ? tokens.scopes : context.mcp.scopes;
     if (context.mcp.scopes.some(scope => !grantedScopes.includes(scope))) throw unavailable();
     const record = await assertAttempt(serverId, context.credentialId, generation);
@@ -200,6 +241,11 @@ export function createSharedExternalMcpOAuth(required: {
     await owner.tokensFor({ context }).install({ key: record.key, tokens: { ...tokens, scopes: [...grantedScopes] }, generation: next.generation });
     await assertAttempt(serverId, context.credentialId, next.generation);
   }
+  return { assertAttempt, stateFor, install };
+}
+
+function createSharedMcpInventory(access: ReturnType<typeof createSharedSignInAccess>) {
+  const { deps, shared, owner, attachments, siteId, bindingFor, assertOwner } = access;
   async function connectionOption(credentialId: string, record: ExternalMcpServerRecord | null) {
     const context = await owner.readContext({ credentialId }) as SharedMcpContext | null;
     if (!context?.mcp || context.mcp.url !== record?.url) return null;
@@ -225,6 +271,15 @@ export function createSharedExternalMcpOAuth(required: {
       }
       return { available: true, connections, current: await currentSelection(input) };
     },
+  };
+}
+
+function createSharedMcpAccessMethods(
+  selection: ReturnType<typeof createSharedMcpSelection>, consumer: ReturnType<typeof createSharedMcpConsumer>,
+  bindingFor: ReturnType<typeof createSharedSignInAccess>['bindingFor'],
+) {
+  const { selected } = selection;
+  return {
     hasBinding: async (input: { serverId: string }) => (await bindingFor(input)) !== null,
     async getAccessToken(input: { serverId: string }) {
       const found = await selected(input.serverId);
@@ -236,6 +291,16 @@ export function createSharedExternalMcpOAuth(required: {
       await consumer.assertAuthorized(found.target);
       return true;
     },
+  };
+}
+
+function createSharedMcpBindingMethods(
+  access: ReturnType<typeof createSharedSignInAccess>, selection: ReturnType<typeof createSharedMcpSelection>,
+  consumer: ReturnType<typeof createSharedMcpConsumer>,
+) {
+  const { deps, shared, owner, bindings, attachments, siteId, unavailable, contextFor, bindingFor, assertOwner } = access;
+  const { target } = selection;
+  return {
     async useSaved(input: { serverId: string; credentialId: string; actorId: string }) {
       await assertOwner(input.actorId);
       const context = await contextFor(input.credentialId);
@@ -259,6 +324,17 @@ export function createSharedExternalMcpOAuth(required: {
         await bindings.remove({ consumerId: consumerId(input.serverId) });
       } });
     },
+  };
+}
+
+function createSharedMcpConnectMethod(
+  access: ReturnType<typeof createSharedSignInAccess>, selection: ReturnType<typeof createSharedMcpSelection>,
+  attempts: ReturnType<typeof createSharedMcpAttempts>,
+) {
+  const { deps, ports, owner, siteId, unavailable, assertOwner, deviceKeyFor } = access;
+  const { selected, createSelection } = selection;
+  const { assertAttempt, stateFor } = attempts;
+  return {
     async beginConnect(input: { serverId: string; redirectUri?: string; delivery?: 'hosted'; browserBinding?: string; actorId?: string; destination?: 'shared' }): Promise<ExternalMcpConnectStart> {
       await assertOwner(input.actorId);
       const found = input.destination === 'shared' ? await createSelection(input) : await selected(input.serverId) ?? await createSelection(input);
@@ -284,6 +360,17 @@ export function createSharedExternalMcpOAuth(required: {
       { scopes: context.mcp.scopes, ...(context.identity.resource === undefined ? {} : { resource: context.identity.resource }) });
       return { kind: 'redirect_required', authorizationUrl: started.authorizationUrl, expiresAt: started.expiresAt };
     },
+  };
+}
+
+function createSharedMcpCallbackMethod(
+  access: ReturnType<typeof createSharedSignInAccess>, selection: ReturnType<typeof createSharedMcpSelection>,
+  attempts: ReturnType<typeof createSharedMcpAttempts>,
+) {
+  const { deps, ports, owner, siteId, invalidState } = access;
+  const { selected } = selection;
+  const { assertAttempt, stateFor, install } = attempts;
+  return {
     async completeAuthorizationCallback(input: Parameters<ExternalMcpOAuthService['completeAuthorizationCallback']>[0]) {
       const found = await selected(input.serverId);
       if (!found) throw invalidState();
@@ -294,8 +381,19 @@ export function createSharedExternalMcpOAuth(required: {
       const tokens = await ports.flow.completeAuthorizationCode({ ...deps.httpPorts, provider: context.mcp.provider, clock: deps.clock,
         stateless: stateFor({ ...input, credentialId: binding.credentialId, generation: record.generation }), redirectUri: input.redirectUri,
         ownerKey: JSON.stringify([siteId, input.serverId, binding.credentialId]), client: context.client, params: input.params }, { timeoutMs: 15_000 });
-      await install(input.serverId, context, record.generation, tokens);
+      await install(input.serverId, context, { generation: record.generation, tokens });
     },
+  };
+}
+
+function createSharedMcpPollingMethod(
+  access: ReturnType<typeof createSharedSignInAccess>, selection: ReturnType<typeof createSharedMcpSelection>,
+  attempts: ReturnType<typeof createSharedMcpAttempts>,
+) {
+  const { deps, ports, owner, invalidState, deviceKeyFor } = access;
+  const { selected } = selection;
+  const { assertAttempt, install } = attempts;
+  return {
     async pollDeviceAuthorization(input: { serverId: string }) {
       const found = await selected(input.serverId);
       if (!found) throw invalidState();
@@ -310,7 +408,7 @@ export function createSharedExternalMcpOAuth(required: {
         const tokens = await ports.flow.pollDeviceAuthorizationOnce({ ...deps.httpPorts, provider: context.mcp.provider, clock: deps.clock,
           client: context.client, deviceCode: authorization.deviceCode, expiresAt: authorization.expiresAt }, { ...(context.identity.resource === undefined ? {} : { resource: context.identity.resource }), timeoutMs: 15_000 });
         await deps.devices.delete(deviceKey);
-        await install(input.serverId, context, record.generation, tokens);
+        await install(input.serverId, context, { generation: record.generation, tokens });
         return { status: 'connected' as const };
       } catch (error) {
         if (ports.errors.isOAuthError(error) && error.retryable) return { status: 'pending' as const, retryAfterSeconds: error.retryAfterSeconds ?? authorization.intervalSeconds };
@@ -318,6 +416,15 @@ export function createSharedExternalMcpOAuth(required: {
         throw error;
       }
     },
+  };
+}
+
+function createSharedMcpDisconnectMethods(
+  access: ReturnType<typeof createSharedSignInAccess>, selection: ReturnType<typeof createSharedMcpSelection>,
+) {
+  const { shared, owner, attachments, siteId, bindingFor } = access;
+  const { selected } = selection;
+  return {
     async markNeedsReauth(input: { serverId: string }) {
       const found = await selected(input.serverId);
       if (!found || !await attachments.isAttached({ siteId, keyId: found.binding.credentialId })) return;

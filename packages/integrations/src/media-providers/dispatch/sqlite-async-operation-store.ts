@@ -135,7 +135,15 @@ export async function createSqliteAsyncOperationStore(
   const open = injectedOpen ?? options.open ?? await loadMediaSqliteOpener({});
   const db = open(dbPath, {});
   db.pragma('journal_mode = WAL');
+  initializeAsyncOperationSchema(db);
+  const statements = prepareAsyncOperationStatements(db);
+  const leases = prepareAsyncOperationLeaseStatements(db);
+  const writes = createAsyncOperationWriteTransactions(db, statements);
+  const polling = createAsyncOperationPollingTransactions(db, leases);
+  return createAsyncOperationMethods(db, { ...statements, ...leases }, { ...writes, ...polling });
+}
 
+function initializeAsyncOperationSchema(db: ReturnType<SqliteSyncOpener>) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS jini_async_operations (
       id TEXT PRIMARY KEY,
@@ -160,7 +168,9 @@ export async function createSqliteAsyncOperationStore(
     CREATE INDEX IF NOT EXISTS idx_jini_async_operations_owner ON jini_async_operations (owner_ref);
     CREATE INDEX IF NOT EXISTS idx_jini_async_operations_claim ON jini_async_operations (status, next_poll_at);
   `);
+}
 
+function prepareAsyncOperationStatements(db: ReturnType<SqliteSyncOpener>) {
   const getStmt = db.prepare<[string], OperationRow>('SELECT * FROM jini_async_operations WHERE id = ?');
   const insertStmt = db.prepare<[
     string, string, string, string, string, number, number, number, number, string | null, number, number, number,
@@ -182,6 +192,10 @@ export async function createSqliteAsyncOperationStore(
   const releaseLeaseStmt = db.prepare<[number, string, string]>(
     'UPDATE jini_async_operations SET lease_owner = NULL, lease_expires_at = NULL, updated_at = ? WHERE id = ? AND lease_owner = ?',
   );
+  return { getStmt, insertStmt, updateStmt, listByOwnerStmt, releaseLeaseStmt };
+}
+
+function prepareAsyncOperationLeaseStatements(db: ReturnType<SqliteSyncOpener>) {
   // Variadic bind params (a `now`/`limit` mix plus a spread of `LIVE_LIST`) don't fit a fixed
   // tuple type — `better-sqlite3`'s `Statement` defaults to `unknown[]` when left unspecified.
   const claimDueStmt = db.prepare<unknown[], OperationRow>(`
@@ -209,12 +223,18 @@ export async function createSqliteAsyncOperationStore(
     WHERE status IN (${LIVE_PLACEHOLDERS}) AND lease_owner IS NOT NULL AND (lease_expires_at IS NULL OR lease_expires_at <= ?)
     RETURNING *
   `);
+  return { claimDueStmt, deadlineExpireStmt, releaseDeadLeasesStmt };
+}
 
-  /** A nullable JSON column: `null`/`undefined` store SQL NULL, anything else its JSON text. */
-  function jsonOrNull(value: object | null | undefined): string | null {
-    return value == null ? null : JSON.stringify(value);
-  }
+/** A nullable JSON column: `null`/`undefined` store SQL NULL, anything else its JSON text. */
+function jsonOrNull(value: object | null | undefined): string | null {
+  return value == null ? null : JSON.stringify(value);
+}
 
+function createAsyncOperationWriteTransactions(
+  db: ReturnType<SqliteSyncOpener>, statements: ReturnType<typeof prepareAsyncOperationStatements>,
+) {
+  const { getStmt, insertStmt, updateStmt } = statements;
   const createTxn = db.transaction((input: AsyncOperationCreateInput): AsyncOperationRecord => {
     if (getStmt.get(input.id)) {
         throw new Error(`async operation "${input.id}" already exists`);
@@ -238,7 +258,13 @@ export async function createSqliteAsyncOperationStore(
     updateStmt.run(next.status, next.attempts, next.nextPollAt, jsonOrNull(next.state), jsonOrNull(next.result), jsonOrNull(next.error), next.leaseOwner, next.leaseExpiresAt, next.updatedAt, id);
     return rowToOperation(getStmt.get(id)!);
 });
+  return { createTxn, updateTxn };
+}
 
+function createAsyncOperationPollingTransactions(
+  db: ReturnType<SqliteSyncOpener>, statements: ReturnType<typeof prepareAsyncOperationLeaseStatements>,
+) {
+  const { claimDueStmt, deadlineExpireStmt, releaseDeadLeasesStmt } = statements;
   const claimDueTxn = db.transaction((options: AsyncOperationClaimOptions): AsyncOperationRecord[] => {
     const { now, leaseOwner, leaseMs } = options;
     const limit = options.limit ?? 10;
@@ -256,7 +282,16 @@ export async function createSqliteAsyncOperationStore(
     const leasesReleased = releaseDeadLeasesStmt.all(now, ...LIVE_LIST, now).length;
     return { leasesReleased, deadlineExpired };
   });
+  return { claimDueTxn, reconcileTxn };
+}
 
+function createAsyncOperationMethods(
+  db: ReturnType<SqliteSyncOpener>,
+  statements: ReturnType<typeof prepareAsyncOperationStatements> & ReturnType<typeof prepareAsyncOperationLeaseStatements>,
+  transactions: ReturnType<typeof createAsyncOperationWriteTransactions> & ReturnType<typeof createAsyncOperationPollingTransactions>,
+): SqliteAsyncOperationStore {
+  const { getStmt, listByOwnerStmt, releaseLeaseStmt } = statements;
+  const { createTxn, updateTxn, claimDueTxn, reconcileTxn } = transactions;
   return {
     async create(required: RequiredArgs<AsyncOperationCreateInput>, optional: OptionalArgs<AsyncOperationCreateInput> = {}): Promise<AsyncOperationRecord> {
       const input = { ...required, ...optional };
