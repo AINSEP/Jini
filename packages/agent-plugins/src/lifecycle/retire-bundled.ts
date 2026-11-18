@@ -111,16 +111,16 @@ export interface RetireBundledAgentPluginsOptional {
  * @throws Nothing.
  * @complexity O(r) retired ids, each one `createResolveAgentPluginRefsModule(ports).listInstalledPlugins` walk plus a few small file writes.
  */
-async function retireBundledAgentPlugins(ports: AgentPluginLifecyclePorts, 
-  required: RetireBundledAgentPluginsRequired,
-  optional: RetireBundledAgentPluginsOptional = {},
-): Promise<readonly RetiredAgentPluginOutcome[]> {
+async function retireBundledAgentPlugins({ ports, required }: {
+  ports: AgentPluginLifecyclePorts;
+  required: RetireBundledAgentPluginsRequired;
+}, optional: RetireBundledAgentPluginsOptional = {}): Promise<readonly RetiredAgentPluginOutcome[]> {
   const outcomes: RetiredAgentPluginOutcome[] = [];
   for (const [pluginId, successor] of optional.retired ?? ports.retiredBundledPlugins) {
     const successorIds: readonly string[] = typeof successor === "string" ? [successor] : successor;
     const ids = { successorId: successorIds[0] ?? "", ...(typeof successor === "string" ? {} : { successorIds }) };
     try {
-      outcomes.push(await retireOne(ports, required, optional, pluginId, ids));
+      outcomes.push(await retireOne({ ports, required, optional, pluginId, ids }));
     } catch (error) {
       outcomes.push({ pluginId, ...ids, status: "failed", reason: describeErrorForLog({ err: error }) });
     }
@@ -130,12 +130,13 @@ async function retireBundledAgentPlugins(ports: AgentPluginLifecyclePorts,
 
 // The successor first: if a later step fails, the operator keeps the capability, and the next boot
 // (which finds this step already done) retries only what is left.
-async function retireOne(ports: AgentPluginLifecyclePorts, 
-  required: RetireBundledAgentPluginsRequired,
-  optional: RetireBundledAgentPluginsOptional,
-  pluginId: string,
-  ids: RetiredAgentPluginSuccessors,
-): Promise<RetiredAgentPluginOutcome> {
+async function retireOne({ ports, required, optional, pluginId, ids }: {
+  ports: AgentPluginLifecyclePorts;
+  required: RetireBundledAgentPluginsRequired;
+  optional: RetireBundledAgentPluginsOptional;
+  pluginId: string;
+  ids: RetiredAgentPluginSuccessors;
+}): Promise<RetiredAgentPluginOutcome> {
   const workspaceLayout = required.layout.forWorkspace({ workspaceId: required.workspaceId });
   const workspaceRoot = workspaceLayout.root;
   const successorIds = ids.successorIds ?? [ids.successorId];
@@ -151,12 +152,12 @@ async function retireOne(ports: AgentPluginLifecyclePorts,
 
   if (installed.length === 0 && !hasRecord) return dropLeftoverLedgerEntry(ports, { workspaceRoot, pluginId, ids });
 
-  const unusable = await unusableSuccessor(ports, workspaceRoot, allInstalled, successorIds);
+  const unusable = await unusableSuccessor({ ports, workspaceRoot, allInstalled, successorIds });
   if (unusable !== undefined) {
     return { pluginId, ...ids, status: "failed", reason: `'${pluginId}' is kept until every successor is usable: ${unusable}` };
   }
 
-  const successors = await switchOnSuccessors(ports, { workspaceRoot, pluginId, successorIds, wasActive: verdict.verdict === "active" }, { now: optional.now });
+  const successors = await switchOnSuccessors({ ports, workspaceRoot, pluginId, successorIds, wasActive: verdict.verdict === "active" }, { now: optional.now });
   const successor = successors[ids.successorId] ?? "not-needed";
 
   let removedDigests: readonly string[] = [];
@@ -180,10 +181,15 @@ async function dropLeftoverLedgerEntry(ports: AgentPluginLifecyclePorts,
 }
 
 /** Step 2: each successor's outcome — switched on only when the retired plugin was active. */
-async function switchOnSuccessors(ports: AgentPluginLifecyclePorts, 
-  { workspaceRoot, pluginId, successorIds, wasActive }: { readonly workspaceRoot: string; readonly pluginId: string; readonly successorIds: readonly string[]; readonly wasActive: boolean },
-  { now }: { readonly now?: RetireBundledAgentPluginsOptional["now"] } = {},
-): Promise<Record<string, RetiredAgentPluginSuccessorOutcome>> {
+async function switchOnSuccessors({ ports, workspaceRoot, pluginId, successorIds, wasActive }: {
+  ports: AgentPluginLifecyclePorts;
+  workspaceRoot: string;
+  pluginId: string;
+  successorIds: readonly string[];
+  wasActive: boolean;
+}, { now }: {
+  now?: RetireBundledAgentPluginsOptional["now"];
+} = {}): Promise<Record<string, RetiredAgentPluginSuccessorOutcome>> {
   const successors: Record<string, RetiredAgentPluginSuccessorOutcome> = {};
   for (const successorId of successorIds) {
     successors[successorId] = wasActive
@@ -196,11 +202,12 @@ async function switchOnSuccessors(ports: AgentPluginLifecyclePorts,
 /** Why one of `successorIds` cannot take over yet, or `undefined` when every one is installed at the
  *  digest the ledger records for it (this file's header, step 1a).
  *  @complexity O(s * n) for s successors over n installed packages; both are small bundled counts. */
-async function unusableSuccessor(ports: AgentPluginLifecyclePorts, 
-  workspaceRoot: string,
-  allInstalled: readonly { readonly pluginId: string; readonly archiveDigest: string }[],
-  successorIds: readonly string[],
-): Promise<string | undefined> {
+async function unusableSuccessor({ ports, workspaceRoot, allInstalled, successorIds }: {
+  ports: AgentPluginLifecyclePorts;
+  workspaceRoot: string;
+  allInstalled: readonly { readonly pluginId: string; readonly archiveDigest: string }[];
+  successorIds: readonly string[];
+}): Promise<string | undefined> {
   const ledger = await createBundledDigestsModule(ports).readBundledAgentPluginDigests(workspaceRoot);
   for (const successorId of successorIds) {
     const digest = ledger.get(successorId);
@@ -212,11 +219,9 @@ async function unusableSuccessor(ports: AgentPluginLifecyclePorts,
   return undefined;
 }
 
-type WithoutPorts<F> = F extends (ports: never, ...rest: infer R) => unknown ? R : never;
-
 function buildModule(ports: AgentPluginLifecyclePorts) {
   return {
-    retireBundledAgentPlugins: (...args: WithoutPorts<typeof retireBundledAgentPlugins>) => retireBundledAgentPlugins(ports, ...args),
+    retireBundledAgentPlugins: (required: RetireBundledAgentPluginsRequired, optional: RetireBundledAgentPluginsOptional = {}) => retireBundledAgentPlugins({ ports, required }, optional),
   };
 }
 

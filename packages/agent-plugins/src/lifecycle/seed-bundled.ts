@@ -171,13 +171,13 @@ export interface SeedBundledAgentPluginsRequired {
 // its ledger entry exist by now, and the retirement only has to decide whether to switch it on.
 // A successor whose seed FAILED has neither; `retire-bundled.ts` then keeps the retired plugin
 // rather than remove it in favour of a switch with no code behind it (its header, step 1a).
-async function seedBundledAgentPlugins(ports: AgentPluginLifecyclePorts, 
-  required: SeedBundledAgentPluginsRequired,
-  optional: SeedBundledAgentPluginsOptional = {},
-): Promise<SeedBundledAgentPluginsResult> {
+async function seedBundledAgentPlugins({ ports, required }: {
+  ports: AgentPluginLifecyclePorts;
+  required: SeedBundledAgentPluginsRequired;
+}, optional: SeedBundledAgentPluginsOptional = {}): Promise<SeedBundledAgentPluginsResult> {
   const { layout, workspaceId, sourceRoot } = required;
 
-  const pluginDirNames = await listBundledPluginDirs(ports, sourceRoot);
+  const pluginDirNames = await listBundledPluginDirs({ ports, sourceRoot });
   try {
     const migration = ports.migrateBeforeSeed
       ? await ports.migrateBeforeSeed({ layout, workspaceId }, {})
@@ -188,7 +188,7 @@ async function seedBundledAgentPlugins(ports: AgentPluginLifecyclePorts,
     return { sourceRoot, outcomes: pluginDirNames.map(pluginId => ({ pluginId, status: 'failed' as const, reason })), retirements: [] };
   }
 
-  const refusal = await activationsRefusal(ports, layout, workspaceId);
+  const refusal = await activationsRefusal({ ports, layout, workspaceId });
   if (refusal !== undefined) {
     return {
       sourceRoot,
@@ -199,10 +199,13 @@ async function seedBundledAgentPlugins(ports: AgentPluginLifecyclePorts,
 
   const outcomes: SeededAgentPluginOutcome[] = [];
   for (const dirName of pluginDirNames) {
-    outcomes.push(await seedOne(ports, { layout, workspaceId, sourceDir: path.join(sourceRoot, dirName), dirName }, optional));
+    outcomes.push(await seedOne({
+      ports,
+      args: { layout, workspaceId, sourceDir: path.join(sourceRoot, dirName), dirName },
+    }, { optional }));
   }
 
-  const ledgerFailure = await recordSeededDigests(ports, layout.forWorkspace({ workspaceId }).root, outcomes);
+  const ledgerFailure = await recordSeededDigests({ ports, workspaceRoot: layout.forWorkspace({ workspaceId }).root, outcomes });
 
   const retirements = await createRetireBundledModule(ports).retireBundledAgentPlugins({ layout, workspaceId });
 
@@ -214,10 +217,11 @@ async function seedBundledAgentPlugins(ports: AgentPluginLifecyclePorts,
  *  "@throws Nothing", and a ledger this boot failed to write costs the workspace nothing it had
  *  before the ledger existed.
  *  @complexity One file read and one atomic write. */
-async function recordSeededDigests(ports: AgentPluginLifecyclePorts, 
-  workspaceRoot: string,
-  outcomes: readonly SeededAgentPluginOutcome[],
-): Promise<string | undefined> {
+async function recordSeededDigests({ ports, workspaceRoot, outcomes }: {
+  ports: AgentPluginLifecyclePorts;
+  workspaceRoot: string;
+  outcomes: readonly SeededAgentPluginOutcome[];
+}): Promise<string | undefined> {
   try {
     await createBundledDigestsModule(ports).recordBundledAgentPluginDigests({
       workspaceRoot,
@@ -236,7 +240,11 @@ async function recordSeededDigests(ports: AgentPluginLifecyclePorts,
  *  Catches everything (including `forWorkspace`'s own throw) to keep this function's own contract
  *  "@throws Nothing", matching {@link seedBundledAgentPlugins}'s own guarantee.
  *  @complexity One file read. */
-async function activationsRefusal(ports: AgentPluginLifecyclePorts, layout: AgentPluginLayout, workspaceId: string): Promise<string | undefined> {
+async function activationsRefusal({ ports, layout, workspaceId }: {
+  ports: AgentPluginLifecyclePorts;
+  layout: AgentPluginLayout;
+  workspaceId: string;
+}): Promise<string | undefined> {
   try {
     await createActivationModule(ports).assertAgentPluginActivationsWritable(layout.forWorkspace({ workspaceId }).root);
     return undefined;
@@ -248,12 +256,17 @@ async function activationsRefusal(ports: AgentPluginLifecyclePorts, layout: Agen
 // The plugin's OWN manifest name, not the directory name — `install.ts` reads the id from
 // `plugin.json`, and every consumer keys activation off that same id. Using the folder name
 // here would produce a record nothing ever consults if the two ever disagreed.
-async function seedOne(ports: AgentPluginLifecyclePorts, args: {
+async function seedOne({ ports, args }: {
+  ports: AgentPluginLifecyclePorts;
+  args: {
   readonly layout: AgentPluginLayout;
   readonly workspaceId: string;
   readonly sourceDir: string;
   readonly dirName: string;
-}, optional: SeedBundledAgentPluginsOptional = {}): Promise<SeededAgentPluginOutcome> {
+};
+}, { optional = {} }: {
+  optional?: SeedBundledAgentPluginsOptional;
+} = {}): Promise<SeededAgentPluginOutcome> {
   try {
     const packing = typeof optional.packing === 'function'
       ? await optional.packing({ sourceDir: args.sourceDir, dirName: args.dirName }, {}) : optional.packing;
@@ -300,7 +313,10 @@ async function seedOne(ports: AgentPluginLifecyclePorts, args: {
  */
 // A retired id is never seeded, even from a stale build that still carries its directory —
 // otherwise every boot would reinstall it only for `retire-bundled.ts` to remove it again.
-async function listBundledPluginDirs(ports: AgentPluginLifecyclePorts, sourceRoot: string): Promise<readonly string[]> {
+async function listBundledPluginDirs({ ports, sourceRoot }: {
+  ports: AgentPluginLifecyclePorts;
+  sourceRoot: string;
+}): Promise<readonly string[]> {
   let entries: Dirent[];
   try {
     entries = await ports.filesystem.readdir(sourceRoot, { withFileTypes: true });
@@ -321,11 +337,9 @@ async function listBundledPluginDirs(ports: AgentPluginLifecyclePorts, sourceRoo
   return dirs.sort();
 }
 
-type WithoutPorts<F> = F extends (ports: never, ...rest: infer R) => unknown ? R : never;
-
 function buildModule(ports: AgentPluginLifecyclePorts) {
   return {
-    seedBundledAgentPlugins: (...args: WithoutPorts<typeof seedBundledAgentPlugins>) => seedBundledAgentPlugins(ports, ...args),
+    seedBundledAgentPlugins: (required: SeedBundledAgentPluginsRequired, optional: SeedBundledAgentPluginsOptional = {}) => seedBundledAgentPlugins({ ports, required }, optional),
   };
 }
 
