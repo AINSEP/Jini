@@ -5,7 +5,7 @@ import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import { createFakeSkillsPort } from '../../../dependencies.js';
 import type { SkillsPort, SkillWritePayload } from '../../../ports.js';
 import type { SkillDetail } from '../../../types.js';
-import { SkillsTab } from '../../../react/components/SkillsTab.js';
+import { SkillsTab, defaultSkillsTabHooks } from '../../../react/components/SkillsTab.js';
 
 const BUILT_IN: SkillDetail = {
   id: 'skill-summarize',
@@ -415,7 +415,7 @@ describe('SkillsTab', () => {
 
   it('renders the translator supplied through useTHook', async () => {
     const port = createFakeSkillsPort({ skills: [] });
-    render(<SkillsTab port={port} disabledSkillIds={new Set()} onToggleEnabled={vi.fn()} useTHook={useQuotingT} />);
+    render(<SkillsTab port={port} disabledSkillIds={new Set()} onToggleEnabled={vi.fn()} hooks={{ ...defaultSkillsTabHooks, useT: useQuotingT }} />);
     expect(await screen.findByText('«New skill»')).toBeInTheDocument();
   });
 });

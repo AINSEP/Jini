@@ -33,8 +33,30 @@ export interface IntegrationsTabProps {
    * install/uninstall toggle all derive their own `data-agent-*` handle from this ONE base.
    */
   agentHandle?: string;
-  useTHook?: typeof useT;
-  useMcpInstallInfoHook?: typeof useMcpInstallInfo;
+  /** Hooks the tab calls; defaults to the real ones, a test hands in fakes. */
+  hooks?: IntegrationsTabHooks | undefined;
+}
+
+export const defaultIntegrationsTabHooks = { useT, useMcpInstallInfo };
+export type IntegrationsTabHooks = typeof defaultIntegrationsTabHooks;
+
+/** The per-client install affordances: the Codex toggle, and the one-click link when the client has one. */
+function ClientInstallActions({ client, resolved, info, port, agentHandle }: {
+  client: McpClientDescriptor | undefined;
+  resolved: McpClientSnippet | null;
+  info: McpInstallInfo | null;
+  port: McpIntegrationsPort;
+  agentHandle: string | undefined;
+}) {
+  return (
+    <>
+      {client?.id === 'codex' ? (
+        <CodexInstallToggleButton port={port} {...childHandleProps({ agentHandle, action: 'codex-toggle' })} />
+      ) : null}
+
+      {resolved?.deeplink && info ? <DeeplinkInstallRow deeplink={resolved.deeplink} info={info} agentHandle={agentHandle} /> : null}
+    </>
+  );
 }
 
 /**
@@ -54,13 +76,12 @@ export function IntegrationsTab({
   capabilitiesTitle,
   capabilities,
   agentHandle,
-  useTHook = useT,
-  useMcpInstallInfoHook = useMcpInstallInfo,
+  hooks = defaultIntegrationsTabHooks,
 }: IntegrationsTabProps) {
-  const t = useTHook();
+  const t = hooks.useT();
   const resolvedPort = useMemo(() => port ?? createFakeMcpIntegrationsPort(), [port]);
   const [clientId, setClientId] = useState<McpClientId>(initialClientId);
-  const { info, error, loading } = useMcpInstallInfoHook(resolvedPort);
+  const { info, error, loading } = hooks.useMcpInstallInfo(resolvedPort);
   const { client, resolved } = resolveClientSnippet({ clients, clientId, serverName, info });
 
   return (
@@ -80,11 +101,7 @@ export function IntegrationsTab({
 
         {resolved ? <p className="jini-mcp-instruction">{t(resolved.instructionTemplate, resolved.instructionVars)}</p> : null}
 
-        {client?.id === 'codex' ? (
-          <CodexInstallToggleButton port={resolvedPort} {...childHandleProps({ agentHandle, action: 'codex-toggle' })} />
-        ) : null}
-
-        {resolved?.deeplink && info ? <DeeplinkInstallRow deeplink={resolved.deeplink} info={info} agentHandle={agentHandle} /> : null}
+        <ClientInstallActions client={client} resolved={resolved} info={info} port={resolvedPort} agentHandle={agentHandle} />
 
         <InstallSnippet resolved={resolved} loading={loading} error={error} />
 
