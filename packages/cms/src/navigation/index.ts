@@ -75,7 +75,9 @@ export {
 /**
  * `isAllowedHref`/`toAllowedHref`/`ALLOWED_HREF_SHAPES_DESCRIPTION`: the single author-link href
  * standard, exported so a HOST imports it rather than hand-copying it — the dependency direction a
- * host -> `@jini-ai/cms` is the one that is actually legal (the reverse is not). See `href.ts`.
+ * host -> `@jini-ai/cms` is the one that is actually legal (the reverse is not). See `href.ts`. The
+ * same three are the dependency-free leaf `@jini-ai/cms/navigation/href`, for a render worker whose import
+ * graph must not load this barrel's menu service, tool registrations and `@jini-ai/core` root.
  */
 export { isAllowedHref, toAllowedHref, ALLOWED_HREF_SHAPES_DESCRIPTION } from "./href.js";
 

@@ -105,6 +105,7 @@ it('exposes rendering leaves without replacing the compatibility barrels', () =>
     'widgets/html/gallery-render': 'universal',
     'navigation/types': 'universal',
     'navigation/dropdown': 'universal',
+    'navigation/href': 'universal',
     'media/slug': 'universal',
   };
   for (const [leaf, runtime] of Object.entries(leaves)) {

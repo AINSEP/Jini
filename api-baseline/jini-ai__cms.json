@@ -998,6 +998,14 @@
    "renderMenuToggle": "function:d16bc93417"
   }
  },
+ "./navigation/href": {
+  "types": "./dist/navigation/href.d.ts",
+  "symbols": {
+   "ALLOWED_HREF_SHAPES_DESCRIPTION": "variable:1fc7003b00",
+   "isAllowedHref": "function:598750378a",
+   "toAllowedHref": "function:45db2e4c06"
+  }
+ },
  "./navigation/node": {
   "types": "./dist/navigation/node/index.d.ts",
   "symbols": {

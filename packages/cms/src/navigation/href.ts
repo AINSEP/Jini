@@ -48,6 +48,17 @@ function resolvesToBaseOrigin({ href }: { href: string }): boolean {
  * embedded control characters, and scheme are all irrelevant to an allowlist the same way) rather
  * than needing a new prefix bolted on per newly-discovered shape.
  *
+ * A `#…` target needs no further check: the WHATWG URL parser always resolves a fragment-only reference
+ * against the CURRENT page's own origin, no matter what precedes or follows the `#`.
+ *
+ * The `/…` branch is NOT a plain prefix check. A value can start with a single leading `/` and still
+ * resolve OFF origin once a browser parses it: `"//evil.example"` (protocol-relative — resolved against
+ * the page's own scheme, landing on an attacker host), `"/\evil.example"` (a browser folds a backslash to
+ * a forward slash for `http(s)`), and a TAB/LF/CR planted between the leading `/` and the rest (the parser
+ * strips those three from ANYWHERE in the input, not just the ends `.trim()` covers, so `"/\t/evil.example"`
+ * reconstitutes `"//evil.example"`). Resolving against fixed placeholder origins and comparing origins
+ * closes all of them at once, and stays correct for whatever equivalent shape is found next.
+ *
  * A protocol-relative href (`//host/x`, `/\host/x`, with or without a port) is never allowed, whatever
  * the host — including a placeholder host of {@link SAFE_HREF_RESOLUTION_BASES}.
  *
