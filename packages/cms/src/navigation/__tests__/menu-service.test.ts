@@ -1012,8 +1012,8 @@ test("updateMenuTree refuses a trashed menu with ENTITY_IN_TRASH and leaves it u
   assert.equal(after?.doc.items.length, 0);
 });
 
-// REGRESSION: fails if the private URL resolution bases admit a protocol-relative href aimed at their own
-// placeholder host (the single-base form accepted `//safehref.invalid/path` as "same origin").
+// REGRESSION: fails if the private URL resolution base is changed away from safehref.invalid, or if a single
+// base is used again: a protocol-relative href aimed at that one host then passes as "same origin".
 test("href resolution never treats a protocol-relative href as same-origin, not even to its own placeholder host", () => {
   assert.equal(isAllowedHref({ rawHref: "//safehref.invalid/path" }), false);
   // PARITY: an ordinary origin-relative path is admitted; a different network origin is refused.

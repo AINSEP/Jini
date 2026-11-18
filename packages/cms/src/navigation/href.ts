@@ -7,15 +7,20 @@
  */
 
 /**
- * Two fixed placeholder origins {@link isAllowedHref} resolves a claimed same-origin-relative href
- * against, to compare the RESOLVED origin rather than the raw string shape. Two, because one is not
- * enough: a protocol-relative href aimed at a single placeholder's own host (`//safehref.invalid/x`)
- * resolves to that placeholder's origin and would pass as "same origin" although it is off-origin.
- * An href is same-origin only when it resolves to the base's origin under BOTH bases; a
- * protocol-relative href carries its own host, which cannot equal both bases' hosts, so it is refused
- * whatever the host or port spelling. The placeholder values are never inspected beyond that
- * comparison (reserved `.invalid` hosts; no request is ever made). `https:` bases because a `/…` href
- * cannot change the scheme, so the scheme is irrelevant to the comparison.
+ * Fixed placeholder origins {@link isAllowedHref} resolves a claimed same-origin-relative href
+ * against, to compare the RESOLVED origin rather than the raw string shape. They mirrored the host's
+ * public renderer's identically-named constant byte-for-byte while the host kept its own copy — see
+ * the host's own header (now retired with that copy) for why a fixed placeholder origin is sufficient
+ * (only the relationship between the resolved URL's origin and this one is ever inspected, never the
+ * placeholder value itself).
+ *
+ * Two of them, because one is not enough: a protocol-relative href aimed at a single placeholder's own
+ * host (`//safehref.invalid/x`) resolves to that placeholder's origin and would pass as "same origin"
+ * although it is off-origin. An href is same-origin only when it resolves to the base's origin under
+ * BOTH bases; a protocol-relative href carries its own host, which cannot equal both bases' hosts, so it
+ * is refused whatever the host or port spelling. Reserved `.invalid` hosts; no request is ever made.
+ * `https:` bases because a `/…` href cannot change the scheme, so the scheme is irrelevant to the
+ * comparison.
  */
 const SAFE_HREF_RESOLUTION_BASES: readonly string[] = ["https://safehref.invalid/", "https://safehref-other.invalid/"];
 
@@ -32,12 +37,22 @@ function resolvesToBaseOrigin({ href }: { href: string }): boolean {
 }
 
 /**
- * The CANONICAL href allowlist for an author-authored link — accepted shapes: `#…`, same-origin
- * `/…`, `http(s)://`, `mailto:`. **This is the single source of truth** for a host's render-time
- * links, its static export, and the menu write path; it is exported from this package's public
- * surface (`navigation/index.ts` -> `@jini-ai/cms/navigation`) so the dependency runs the direction
- * that is actually legal — a host depends on `@jini-ai/cms`, not the reverse — rather than each
- * consumer hand-copying the predicate. A host's own copy of the predicate is a divergence to retire.
+ * The CANONICAL href allowlist for an author-authored link — same accepted shapes (`#…`, same-origin
+ * `/…`, `http(s)://`, `mailto:`) as the host's render-time `safeHref` in `render.ts` and its
+ * `features/theme/static-render.ts` duplicate had. **This is the single source of truth** exported
+ * from this package's public surface (`navigation/index.ts` -> `@jini-ai/cms/navigation`) so the
+ * dependency runs the direction that is actually legal — the host already depends on `@jini-ai/cms`, not
+ * the reverse — rather than each consumer hand-copying the predicate.
+ *
+ * The two host-side copies (`render.ts:252`, `features/theme/static-render.ts:210`, both a coercing
+ * `value => passes ? value : "#"` wrapper around the identical predicate below) have **been
+ * retired onto this** (2026-11-17), through {@link toAllowedHref} — that edit was intentionally out of
+ * the earlier change's scope (a `check:boundaries` no-deep-import concern was NOT what blocked it:
+ * `render.ts` already imported `@jini-ai/cms/core`, and `features/theme` already imported
+ * `@jini-ai/cms/core` too, so both call sites may legally import `@jini-ai/cms/navigation` directly —
+ * verified by grep, not assumed). Until that follow-up landed, the host's menu href allowlist sync check
+ * behaviorally gated the three copies against the same adversarial table so a divergence failed CI
+ * instead of drifting silently; it now gates this function itself and fails if a host copy comes back.
  *
  * Replaced a `URL_SCHEME_DENYLIST` (`startsWith` on a lowercased, `.trim`ed string)
  * that failed open: the WHATWG `URL` parser strips TAB/LF/CR from ANYWHERE in the input and folds a
