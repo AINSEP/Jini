@@ -39,9 +39,9 @@ const shellStyles = `
  * cannot replay effects. Reset remounts the pane after confirmation.
  * @complexity O(messages + latest reply events) per transcript update; O(message IDs) retained.
  */
-export function EmbedChatWidget(args: EmbedChatWidgetArgs) {
+export function EmbedChatWidget({ useEmbedChatWidgetHook = useEmbedChatWidget, ...args }: EmbedChatWidgetArgs & { useEmbedChatWidgetHook?: typeof useEmbedChatWidget }) {
   const { agent, copy, transport, session, keyboard } = args;
-  const { open, toggle, panelRef, launcherRef, panelId, paneKey, messages, reset, onMessagesChange } = useEmbedChatWidget({ session });
+  const { open, toggle, panelRef, launcherRef, panelId, paneKey, messages, reset, onMessagesChange } = useEmbedChatWidgetHook({ session });
   return <div className="jini-chat-embed">
     <style>{shellStyles}</style>
     <div ref={launcherRef} tabIndex={-1}>

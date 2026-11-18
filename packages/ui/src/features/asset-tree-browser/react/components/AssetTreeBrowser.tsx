@@ -74,10 +74,10 @@ export interface AssetTreeBrowserProps<TFile extends AssetTreeFileItem> {
  * section, project menu, rotating-tip footer, and file-kind-specific
  * preview rendering).
  */
-export function AssetTreeBrowser<TFile extends AssetTreeFileItem>(props: AssetTreeBrowserProps<TFile>) {
-  const t = useT();
+export function AssetTreeBrowser<TFile extends AssetTreeFileItem>({ useTHook = useT, useAssetTreeBrowserControllerHook = useAssetTreeBrowserController, ...props }: AssetTreeBrowserProps<TFile> & { useTHook?: typeof useT; useAssetTreeBrowserControllerHook?: typeof useAssetTreeBrowserController }) {
+  const t = useTHook();
   const { files, folders, selectors, kindConfig = DEFAULT_KIND_CONFIG_MAP, getFileUrl } = props;
-  const controller = useAssetTreeBrowserController(props, props);
+  const controller = useAssetTreeBrowserControllerHook(props, props);
   const { navigation, preview, selection, rowMenu, dragUpload } = controller;
   const hasSelection = selection.selected.size > 0;
   const previewedFile = preview.previewFile;

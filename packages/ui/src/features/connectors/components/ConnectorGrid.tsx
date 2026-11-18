@@ -36,6 +36,7 @@ interface ConnectorGridEmptyProps {
   emptyNoMatchBody: ConnectorGridProps['emptyNoMatchBody'];
   emptyNoMatchAction: ConnectorGridProps['emptyNoMatchAction'];
   agentHandle: ConnectorGridProps['agentHandle'];
+  useTHook?: typeof useT;
 }
 
 /** Search-empty state: the no-match title/body and a clear-search action, each copy line host-overridable. */
@@ -46,8 +47,9 @@ function ConnectorGridEmpty({
   emptyNoMatchBody,
   emptyNoMatchAction,
   agentHandle,
+  useTHook = useT,
 }: ConnectorGridEmptyProps) {
-  const t = useT();
+  const t = useTHook();
   const title = emptyNoMatchTitle
     ? emptyNoMatchTitle(searchQuery.trim())
     : t('No connectors match "{query}"', { query: searchQuery.trim() });

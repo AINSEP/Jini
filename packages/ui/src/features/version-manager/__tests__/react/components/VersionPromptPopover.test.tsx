@@ -1,8 +1,11 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import { VersionPromptPopover } from '../../../react/components/VersionPromptPopover.js';
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('VersionPromptPopover', () => {
   it('is disabled and closed by default', () => {
@@ -69,5 +72,10 @@ describe('VersionPromptPopover', () => {
     );
     await userEvent.click(screen.getByRole('button', { name: 'Invite' }));
     expect(screen.getByRole('button', { name: 'Copier' })).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    render(<VersionPromptPopover prompt="hi" disabled={false} onCopy={vi.fn()} copied={false} useTHook={useQuotingT} />);
+    expect(screen.getByRole('button', { name: '«Prompt»' })).toBeInTheDocument();
   });
 });

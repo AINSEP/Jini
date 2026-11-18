@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { MemorySettingsPanel, type MemorySettingsPanelProps } from '../../../react/components/MemorySettingsPanel.js';
 import type { MemoryEntrySummary } from '../../../types.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 
 const ENTRY: MemoryEntrySummary = { id: 'e1', name: 'Prefers tabs', description: 'd', type: 'feedback' };
 
@@ -26,6 +27,9 @@ function props(overrides: Partial<MemorySettingsPanelProps> = {}): MemorySetting
     ...overrides,
   };
 }
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('MemorySettingsPanel', () => {
   it('shows the saved-memory list on the Memories view with that tab selected', () => {
@@ -90,5 +94,20 @@ describe('MemorySettingsPanel', () => {
   it('publishes no agent markup without a panel handle', () => {
     const { container } = render(<MemorySettingsPanel {...props({ topTab: 'how' })} />);
     expect(container.querySelector('[data-agent-element]')).toBeNull();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    render(<MemorySettingsPanel {...props()} useTHook={useQuotingT} />);
+    expect(screen.getByRole('tab', { name: '«Memories»' })).toBeInTheDocument();
+  });
+
+  it('renders translated copy when mounted under an I18nProvider with a matching dictionary', () => {
+    render(
+      <I18nProvider dictionaries={{ fr: { Memories: 'Souvenirs' } }} initialLocale="fr">
+        <MemorySettingsPanel {...props()} />
+      </I18nProvider>,
+    );
+    expect(screen.getByRole('tab', { name: 'Souvenirs' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Memories' })).toBeNull();
   });
 });

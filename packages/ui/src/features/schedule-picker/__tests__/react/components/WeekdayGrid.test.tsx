@@ -2,8 +2,11 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { WeekdayGrid } from '../../../react/components/WeekdayGrid.js';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import { DEFAULT_WEEKDAYS } from '../../../constants.js';
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('WeekdayGrid', () => {
   it('renders every weekday short label and marks the active one pressed', () => {
@@ -31,5 +34,10 @@ describe('WeekdayGrid', () => {
     const mon = screen.getByRole('button', { name: 'Lun' });
     expect(mon).toBeInTheDocument();
     expect(mon).toHaveAttribute('title', 'Lundi');
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    render(<WeekdayGrid weekdays={DEFAULT_WEEKDAYS} active={1} onChange={vi.fn()} useTHook={useQuotingT} />);
+    expect(screen.getByLabelText('«Weekday»')).toBeInTheDocument();
   });
 });

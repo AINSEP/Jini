@@ -60,8 +60,8 @@ export function resolveSeeMoreView({
 }
 
 /** Clamps overflowing text and exposes an accessible expand/collapse toggle. Labels are host-owned. */
-export function SeeMore({ useClamp = useSeeMoreClamp, agentHandle: suppliedHandle, ...props }: SeeMoreProps) {
-  const handle = useAgentHandle({ agentHandle: suppliedHandle });
+export function SeeMore({ useClamp = useSeeMoreClamp, agentHandle: suppliedHandle, useAgentHandleHook = useAgentHandle, ...props }: SeeMoreProps & { useAgentHandleHook?: typeof useAgentHandle }) {
+  const handle = useAgentHandleHook({ agentHandle: suppliedHandle });
   const { children, lines = DEFAULT_LINES, moreLabel, lessLabel, className, textClassName, toggleClassName, toggleAriaLabel } = props;
 
   const { expanded, setExpanded, overflows, textRef, regionId, lineCount } = useClamp({ lines, children });

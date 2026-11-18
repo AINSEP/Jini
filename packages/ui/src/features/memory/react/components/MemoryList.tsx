@@ -23,8 +23,8 @@ function rowHandles({ agentHandle, action, ids }: { agentHandle: string | undefi
   return agentHandle ? buildAgentListHandles({ prefix: agentSubHandle({ base: agentHandle, action }), ids }) : undefined;
 }
 
-function MemoryListCounts({ savedCount, extractionCount }: { savedCount: number; extractionCount: number }) {
-  const t = useT();
+function MemoryListCounts({ savedCount, extractionCount, useTHook = useT }: { savedCount: number; extractionCount: number; useTHook?: typeof useT; }) {
+  const t = useTHook();
   return (
     <div className="memory-management-counts">
       <span className="memory-source-badge">{savedCount} {t('saved')}</span>
@@ -43,14 +43,16 @@ function MemoryFilterPills({
   filter,
   onFilterChange,
   agentHandle,
+  useTHook = useT,
 }: {
   entries: MemoryEntrySummary[];
   extractionCount: number;
   filter: MemoryFilter;
   onFilterChange: (filter: MemoryFilter) => void;
   agentHandle: string | undefined;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   const typeLabel = useMemo(() => memoryTypeLabels(t), [t]);
   return (
     <div className="library-filters">
@@ -88,13 +90,15 @@ function MemoryExtractionActions({
   onRefreshExtractions,
   isRefreshing,
   agentHandle,
+  useTHook = useT,
 }: {
   onClearExtractions: () => void;
   onRefreshExtractions: () => void;
   isRefreshing: boolean;
   agentHandle: string | undefined;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   return (
     <>
       <button
@@ -122,8 +126,8 @@ function MemoryExtractionActions({
   );
 }
 
-function MemoryListEmpty() {
-  const t = useT();
+function MemoryListEmpty({ useTHook = useT }: { useTHook?: typeof useT } = {}) {
+  const t = useTHook();
   return (
     // Empty state: one clear "no rows yet" line and a one-sentence
     // primer that explains the mechanism (talk in chat, fact gets
@@ -191,6 +195,40 @@ function MemoryListRows({
   );
 }
 
+/** Filter pills plus, while extractions are listed, their clear / refresh actions. */
+function MemoryListToolbar({ entries, extractionCount, filter, onFilterChange, onClearExtractions, onRefreshExtractions, isRefreshing, agentHandle }: {
+  entries: MemoryEntrySummary[];
+  extractionCount: number;
+  filter: 'all' | MemoryType;
+  onFilterChange: (filter: 'all' | MemoryType) => void;
+  onClearExtractions: () => void;
+  onRefreshExtractions: () => void;
+  isRefreshing: boolean;
+  agentHandle: string | undefined;
+}) {
+  return (
+  <div className="library-toolbar is-row">
+    <MemoryFilterPills
+      entries={entries}
+      extractionCount={extractionCount}
+      filter={filter}
+      onFilterChange={onFilterChange}
+      agentHandle={agentHandle}
+    />
+    <div className="memory-management-actions">
+      {extractionCount > 0 ? (
+        <MemoryExtractionActions
+          onClearExtractions={onClearExtractions}
+          onRefreshExtractions={onRefreshExtractions}
+          isRefreshing={isRefreshing}
+          agentHandle={agentHandle}
+        />
+      ) : null}
+    </div>
+  </div>
+  );
+}
+
 export function MemoryList({
   sectionRef,
   entries,
@@ -210,6 +248,7 @@ export function MemoryList({
   onDeleteEntry,
   onDeleteExtraction,
   agentHandle,
+  useTHook = useT,
 }: {
   sectionRef: MutableRefObject<HTMLElement | null>;
   entries: MemoryEntrySummary[];
@@ -230,8 +269,9 @@ export function MemoryList({
   onDeleteExtraction: (id: string) => void;
   /** This section's own agent handle — see `MemorySettingsPanel`'s `agentHandle` doc. */
   agentHandle?: string;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   return (
     <section ref={sectionRef} className="settings-section settings-section-card memory-records-section">
       <div className="memory-management-panel">
@@ -243,25 +283,16 @@ export function MemoryList({
           <MemoryListCounts savedCount={entries.length} extractionCount={visibleExtractions.length} />
         </div>
 
-        <div className="library-toolbar is-row">
-          <MemoryFilterPills
-            entries={entries}
-            extractionCount={visibleExtractions.length}
-            filter={filter}
-            onFilterChange={onFilterChange}
-            agentHandle={agentHandle}
-          />
-          <div className="memory-management-actions">
-            {visibleExtractions.length > 0 ? (
-              <MemoryExtractionActions
-                onClearExtractions={onClearExtractions}
-                onRefreshExtractions={onRefreshExtractions}
-                isRefreshing={isRefreshing}
-                agentHandle={agentHandle}
-              />
-            ) : null}
-          </div>
-        </div>
+        <MemoryListToolbar
+          entries={entries}
+          extractionCount={visibleExtractions.length}
+          filter={filter}
+          onFilterChange={onFilterChange}
+          onClearExtractions={onClearExtractions}
+          onRefreshExtractions={onRefreshExtractions}
+          isRefreshing={isRefreshing}
+          agentHandle={agentHandle}
+        />
 
         <div className="library-content memory-unified-list">
           {unifiedMemoryCount === 0 ? (

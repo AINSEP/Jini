@@ -7,13 +7,11 @@
 // `@jini-ai/ui`'s own (`features/connectors`) — it has no theme prop (that
 // concern was already dropped when the connectors canary shipped; a host
 // resolving theme-swapped logo URLs does so before handing `logoUrl` in).
-import { useMemo } from 'react';
 import type {  Connector,  ConnectorStatusMap } from '../../../connectors/types.js';
 import {
   connectorAttemptDetail,
   connectorAttemptTitle,
   formatConnectorContextBytes,
-  memoryTypeLabels,
 } from '../../formatters.js';
 import type {
   ConnectorMemoryAttempt,
@@ -24,6 +22,7 @@ import { ConnectorLogo } from '../../../connectors/index.js';
 import { Icon } from '../../../../react/components/Icon.js';
 import { useT } from '../../../i18n/index.js';
 import { MemoryExtractionCard } from './MemoryExtractionCard.js';
+import { MemorySuggestionPanel } from './MemorySuggestionPanel.js';
 
 type Translate = ReturnType<typeof useT>;
 
@@ -92,12 +91,14 @@ function MemoryConnectButton({
   connector,
   state,
   onConnectMemoryConnector,
+  useTHook = useT,
 }: {
   connector: Connector;
   state: ConnectorRowState;
   onConnectMemoryConnector: (connectorId: string) => void;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   return (
     <button
       type="button"
@@ -117,8 +118,8 @@ function MemoryConnectButton({
   );
 }
 
-function MemoryConnectorPicker({ selected }: { selected: boolean }) {
-  const t = useT();
+function MemoryConnectorPicker({ selected, useTHook = useT }: { selected: boolean; useTHook?: typeof useT; }) {
+  const t = useTHook();
   return (
     <span className={`memory-connector-picker${selected ? ' is-selected' : ''}`}>
       <span className="memory-connector-picker-box" aria-hidden="true">
@@ -134,13 +135,15 @@ function MemoryConnectorRow({
   context,
   toggleConnectorSelection,
   onConnectMemoryConnector,
+  useTHook = useT,
 }: {
   connector: Connector;
   context: ConnectorRowContext;
   toggleConnectorSelection: (connectorId: string) => void;
   onConnectMemoryConnector: (connectorId: string) => void;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   const state = connectorRowState({ connector, context });
   const { connected, selected } = state;
   return (
@@ -179,12 +182,14 @@ function MemoryConnectedSummary({
   connectorsLoading,
   connectedCount,
   onOpenConnectors,
+  useTHook = useT,
 }: {
   connectorsLoading: boolean;
   connectedCount: number;
   onOpenConnectors: (() => void) | undefined;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   return (
     <div className="memory-source-summary memory-connected-summary">
       <span className="memory-block-icon">
@@ -212,6 +217,7 @@ function MemoryConnectorRunBar({
   selectedCount,
   connectorScanLabel,
   onSuggestConnectorMemory,
+  useTHook = useT,
 }: {
   enabled: boolean;
   connectorExtracting: boolean;
@@ -220,8 +226,9 @@ function MemoryConnectorRunBar({
   selectedCount: number;
   connectorScanLabel: string;
   onSuggestConnectorMemory: () => void;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   return (
     <div className="memory-connector-actions memory-connector-runbar">
       <span className="hint">
@@ -241,105 +248,16 @@ function MemoryConnectorRunBar({
   );
 }
 
-function MemorySuggestionCard({
-  suggestion,
-  selected,
-  typeLabel,
-  toggleConnectorSuggestion,
-}: {
-  suggestion: MemorySuggestion;
-  selected: boolean;
-  typeLabel: string;
-  toggleConnectorSuggestion: (suggestionId: string) => void;
-}) {
-  const t = useT();
-  const sourceLabel = suggestion.source?.connectorName || suggestion.source?.toolTitle || t('Connected apps');
-  return (
-    <label className={`memory-suggestion-card${selected ? ' is-selected' : ''}`}>
-      <span className="memory-connector-check">
-        <input type="checkbox" checked={selected} onChange={() => toggleConnectorSuggestion(suggestion.id)} />
-        <span aria-hidden="true">{selected ? <Icon name="check" size={13} /> : null}</span>
-      </span>
-      <span className="memory-suggestion-copy">
-        <span className="memory-suggestion-title">
-          <strong>{suggestion.name}</strong>
-          <span className="memory-type-badge">{typeLabel}</span>
-        </span>
-        {suggestion.description ? <small>{suggestion.description}</small> : null}
-        <span className="memory-suggestion-body">{suggestion.body}</span>
-      </span>
-      <span className="memory-connector-state is-connected">{sourceLabel}</span>
-    </label>
-  );
-}
-
-function MemorySuggestionPanel({
-  connectorSuggestions,
-  selectedSuggestionIds,
-  selectedConnectorSuggestions,
-  connectorSaving,
-  toggleConnectorSuggestion,
-  onSaveConnectorSuggestions,
-  onDiscardConnectorSuggestions,
-}: {
-  connectorSuggestions: MemorySuggestion[];
-  selectedSuggestionIds: Set<string>;
-  selectedConnectorSuggestions: MemorySuggestion[];
-  connectorSaving: boolean;
-  toggleConnectorSuggestion: (suggestionId: string) => void;
-  onSaveConnectorSuggestions: () => void;
-  onDiscardConnectorSuggestions: () => void;
-}) {
-  const t = useT();
-  const typeLabel = useMemo(() => memoryTypeLabels(t), [t]);
-  return (
-    <div className="memory-suggestion-panel">
-      <div className="memory-subsection-head">
-        <div>
-          <h4>{t('Suggested memories')}</h4>
-          <p className="hint">{t('Review design-related memories before saving them.')}</p>
-        </div>
-        <span className="memory-source-badge">
-          {selectedConnectorSuggestions.length} {t('selected')}
-        </span>
-      </div>
-      <div className="memory-suggestion-list">
-        {connectorSuggestions.map((suggestion) => (
-          <MemorySuggestionCard
-            key={suggestion.id}
-            suggestion={suggestion}
-            selected={selectedSuggestionIds.has(suggestion.id)}
-            typeLabel={typeLabel[suggestion.type]}
-            toggleConnectorSuggestion={toggleConnectorSuggestion}
-          />
-        ))}
-      </div>
-      <div className="memory-connector-actions">
-        <button
-          type="button"
-          className="primary memory-source-action"
-          onClick={() => void onSaveConnectorSuggestions()}
-          disabled={connectorSaving || selectedConnectorSuggestions.length === 0}
-        >
-          <Icon name={connectorSaving ? 'refresh' : 'check'} size={14} className={connectorSaving ? 'icon-spin' : ''} />
-          <span>{connectorSaving ? t('Saving') : t('Save selected')}</span>
-        </button>
-        <button type="button" className="ghost memory-source-action" onClick={onDiscardConnectorSuggestions} disabled={connectorSaving}>
-          {t('Discard')}
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function MemoryConnectorDiagnostics({
   connectorAttempts,
   connectorContextBytes,
+  useTHook = useT,
 }: {
   connectorAttempts: ConnectorMemoryAttempt[];
   connectorContextBytes: number;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   return (
     <div className="memory-connector-diagnostics" aria-label={t('Connected app read status')}>
       <div className="memory-connector-diagnostics-head">
@@ -371,13 +289,15 @@ function MemoryScanHistory({
   nowClock,
   onOpenPreview,
   onDeleteExtraction,
+  useTHook = useT,
 }: {
   connectorExtractions: MemoryExtractionRecord[];
   nowClock: number;
   onOpenPreview: (id: string) => void;
   onDeleteExtraction: (id: string) => void;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   return (
     <details className="memory-scan-history">
       <summary>
@@ -428,10 +348,11 @@ export interface MemoryConnectedPanelProps {
   nowClock: number;
   onOpenPreview: (id: string) => void;
   onDeleteExtraction: (id: string) => void;
+  useTHook?: typeof useT;
 }
 
-function MemoryConnectorPickerHead({ selectedCount }: { selectedCount: number }) {
-  const t = useT();
+function MemoryConnectorPickerHead({ selectedCount, useTHook = useT }: { selectedCount: number; useTHook?: typeof useT; }) {
+  const t = useTHook();
   return (
     <div className="memory-connector-picker-head">
       <div>
@@ -445,8 +366,8 @@ function MemoryConnectorPickerHead({ selectedCount }: { selectedCount: number })
   );
 }
 
-function MemoryConnectorWorkbench(props: MemoryConnectedPanelProps) {
-  const t = useT();
+function MemoryConnectorWorkbench({ useTHook = useT, ...props }: MemoryConnectedPanelProps) {
+  const t = useTHook();
   const { connectorStatuses, connectorsLoading, selectedConnectorIds, connectingConnectorIds, pendingConnectorAuthIds } = props;
   const { connectorConnectErrors, connectorIdsWithDetails, selectedConnectedConnectorIds } = props;
   const rowContext: ConnectorRowContext = {

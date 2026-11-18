@@ -3,7 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { FileDropzoneLightbox } from '../../../react/components/FileDropzoneLightbox.js';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import type { FileDropzonePreviewState } from '../../../types.js';
 
 function file(name: string, type = '', size = 0): File {
@@ -20,6 +20,9 @@ const EMPTY_PREVIEWS: FileDropzonePreviewState = {
 // below goes through `document`/`screen` (which searches the whole
 // document by default) rather than RTL's `render()` container div, which
 // the portal content lives outside of.
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('FileDropzoneLightbox', () => {
   it('renders an image stage', () => {
@@ -194,5 +197,11 @@ describe('FileDropzoneLightbox', () => {
       </I18nProvider>,
     );
     expect(screen.getByText("Pas d'aperçu.")).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    const f = file('a.bin', 'application/octet-stream');
+    render(<FileDropzoneLightbox file={f} previews={EMPTY_PREVIEWS} onClose={vi.fn()} useTHook={useQuotingT} />);
+    expect(screen.getByText('«No inline preview for this file type.»')).toBeInTheDocument();
   });
 });

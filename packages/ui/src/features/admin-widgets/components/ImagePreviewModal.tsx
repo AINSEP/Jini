@@ -26,9 +26,9 @@ export function ImagePreviewModal({
   onClose,
   useModal,
   agentHandle: suppliedHandle,
-  closeLabel = "Close preview",
-}: ImagePreviewModalProps) {
-  const handle = useAgentHandle({ agentHandle: suppliedHandle });
+  closeLabel = "Close preview", useAgentHandleHook = useAgentHandle,
+}: ImagePreviewModalProps & { useAgentHandleHook?: typeof useAgentHandle }) {
+  const handle = useAgentHandleHook({ agentHandle: suppliedHandle });
   return (
     <Lightbox
       open={open}

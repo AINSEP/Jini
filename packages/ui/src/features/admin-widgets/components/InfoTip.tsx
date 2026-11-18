@@ -46,8 +46,8 @@ export interface InfoTipProps {
 }
 
 /** Focus/hover tooltip that portals outside clipping ancestors; Escape dismisses in place. */
-export function InfoTip({ label, triggerLabel, descriptionId, placement: preferredPlacement, useTip = useInfoTip, agentHandle: suppliedHandle, icon }: InfoTipProps) {
-  const handle = useAgentHandle({ agentHandle: suppliedHandle });
+export function InfoTip({ label, triggerLabel, descriptionId, placement: preferredPlacement, useTip = useInfoTip, agentHandle: suppliedHandle, icon, useAgentHandleHook = useAgentHandle }: InfoTipProps & { useAgentHandleHook?: typeof useAgentHandle }) {
+  const handle = useAgentHandleHook({ agentHandle: suppliedHandle });
   const inline = preferredPlacement === "inline";
   const { open, placement, coords, iconRef, bubbleRef, show, hide, leave, toggle, pointerDown, handleIconKeyDown } = useTip({}, { placement: inline ? undefined : preferredPlacement });
   const autoId = useId();
@@ -62,7 +62,7 @@ export function InfoTip({ label, triggerLabel, descriptionId, placement: preferr
         tabIndex={0}
         aria-label={name}
         aria-expanded={open}
-        {...(describedBy ? { "aria-describedby": describedBy } : {})}
+        {...describedByAttrs({ describedBy })}
         onMouseEnter={show}
         onMouseLeave={leave}
         onFocus={show}
@@ -70,7 +70,7 @@ export function InfoTip({ label, triggerLabel, descriptionId, placement: preferr
         onPointerDown={pointerDown}
         onClick={toggle}
         onKeyDown={handleIconKeyDown}
-        {...(handle ? agentHandle({ handle }, { role: "button", label: name }) : {})}
+        {...triggerAgentAttrs({ handle, name })}
       >
         {icon ?? "ⓘ"}
       </span>
@@ -78,6 +78,16 @@ export function InfoTip({ label, triggerLabel, descriptionId, placement: preferr
       {open ? <InfoTipOpenCopy label={label} inline={inline} placement={placement} coords={coords} iconRef={iconRef} bubbleRef={bubbleRef} /> : null}
     </span>
   );
+}
+
+/** `aria-describedby` only when the full text is actually described by a hidden copy. */
+function describedByAttrs({ describedBy }: { describedBy: string | undefined }, _options = {}): Record<string, string> {
+  return describedBy ? { "aria-describedby": describedBy } : {};
+}
+
+/** The trigger's agent handle attributes, none when the tip is excluded from agent handles. */
+function triggerAgentAttrs({ handle, name }: { handle: string | undefined; name: string }, _options = {}): Record<string, unknown> {
+  return handle ? agentHandle({ handle }, { role: "button", label: name }) : {};
 }
 
 /**

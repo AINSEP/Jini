@@ -17,8 +17,9 @@ function MemoryIndexEditorFooter({
   onIndexDraftChange,
   onSaveIndex,
   busy,
-}: Omit<MemoryIndexEditorCardProps, 'index'>) {
-  const t = useT();
+  useTHook = useT,
+}: Omit<MemoryIndexEditorCardProps, 'index'> & { useTHook?: typeof useT }) {
+  const t = useTHook();
   return (
     <div
       style={{
@@ -55,8 +56,8 @@ function MemoryIndexEditorFooter({
   );
 }
 
-function MemoryIndexEditorCard({ index, indexDraft, onIndexDraftChange, onSaveIndex, busy }: MemoryIndexEditorCardProps) {
-  const t = useT();
+function MemoryIndexEditorCard({ index, indexDraft, onIndexDraftChange, onSaveIndex, busy, useTHook = useT }: MemoryIndexEditorCardProps & { useTHook?: typeof useT }) {
+  const t = useTHook();
   return (
     <details className="library-group memory-advanced-card">
       <summary className="memory-details-summary">
@@ -82,8 +83,8 @@ type MemoryTreeCardProps = Pick<
   'memoryTree' | 'treeFolders' | 'treeChildren' | 'onStartEdit'
 >;
 
-function MemoryTreeCard({ memoryTree, treeFolders, treeChildren, onStartEdit }: MemoryTreeCardProps) {
-  const t = useT();
+function MemoryTreeCard({ memoryTree, treeFolders, treeChildren, onStartEdit, useTHook = useT }: MemoryTreeCardProps & { useTHook?: typeof useT }) {
+  const t = useTHook();
   if (treeFolders.length === 0) return null;
   return (
     <details className="library-group memory-advanced-card">
@@ -111,12 +112,14 @@ function MemoryTreeFolderCard({
   folder,
   childNodes,
   onStartEdit,
+  useTHook = useT,
 }: {
   folder: MemoryTreeNode;
   childNodes: MemoryTreeNode[];
   onStartEdit: (id: string) => void;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   return (
           <div className="library-card" style={{ alignItems: 'stretch' }}>
             <div className="library-card-info" style={{ width: '100%' }}>
@@ -147,8 +150,8 @@ function MemoryTreeFolderCard({
   );
 }
 
-function MemoryTreeChildRow({ child, onStartEdit }: { child: MemoryTreeNode; onStartEdit: (id: string) => void }) {
-  const t = useT();
+function MemoryTreeChildRow({ child, onStartEdit, useTHook = useT }: { child: MemoryTreeNode; onStartEdit: (id: string) => void; useTHook?: typeof useT; }) {
+  const t = useTHook();
   return (
     <li className="memory-tree-child-row">
       <span style={{ minWidth: 0 }}>
@@ -187,11 +190,12 @@ export interface MemoryAdvancedModalProps {
   treeFolders: MemoryTreeNode[];
   treeChildren: Map<string, MemoryTreeNode[]>;
   onStartEdit: (id: string) => void;
+  useTHook?: typeof useT;
 }
 
-export function MemoryAdvancedModal(props: MemoryAdvancedModalProps) {
+export function MemoryAdvancedModal({ useTHook = useT, ...props }: MemoryAdvancedModalProps) {
   const { open, modalHost, onClose } = props;
-  const t = useT();
+  const t = useTHook();
   if (!open || !modalHost) return null;
   return createPortal(
     <div

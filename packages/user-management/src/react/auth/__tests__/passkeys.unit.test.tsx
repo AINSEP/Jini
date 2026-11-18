@@ -74,3 +74,25 @@ test('cancelling the MFA screen while a prompt is open never submits its late br
   await new Promise(done => setTimeout(done, 0));
   expect(port.complete).not.toHaveBeenCalled(); expect(onComplete).not.toHaveBeenCalled();
 });
+
+test('passkey sign-in renders the busy state and error of the injected hook and routes its click to the injected signIn', async () => {
+  const user = userEvent.setup(), signIn = vi.fn();
+  const useFake = vi.fn(() => ({ busy: false, error: 'Fake passkey failure', signIn }));
+  render(<PasskeySignIn port={{} as never} pendingToken="t" onComplete={vi.fn()} translate={translate} usePasskeySignInHook={useFake as never} />);
+  expect(screen.getByRole('alert')).toHaveTextContent('Fake passkey failure');
+  await user.click(screen.getByRole('button', { name: 'Use a passkey' }));
+  expect(signIn).toHaveBeenCalledTimes(1);
+  expect(useFake).toHaveBeenCalledWith(expect.objectContaining({ pendingToken: 't' }));
+});
+
+test('passkey settings render the credentials of the injected hook and revoke through its action', async () => {
+  const user = userEvent.setup(), action = vi.fn();
+  const useFake = vi.fn(() => ({
+    status: { isOwner: true, credentials: [{ id: 'cred-1' }] }, error: undefined, busy: false,
+    password: 'pw', setPassword: vi.fn(), code: '123456', setCode: vi.fn(), action,
+  }));
+  render(<PasskeySettings port={{} as never} translate={translate} usePasskeySettingsHook={useFake as never} />);
+  expect(screen.getByRole('heading', { name: 'Passkeys' })).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Add passkey' }));
+  expect(action).toHaveBeenCalledWith();
+});

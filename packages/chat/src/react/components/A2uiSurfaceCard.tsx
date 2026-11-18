@@ -173,12 +173,16 @@ export interface A2uiSurfaceCardProps extends ExtEventRenderProps {
   onAgentAction?: (runId: string | undefined, message: unknown) => void | Promise<A2uiAgentActionOutcome>;
 }
 
+/** Hooks A2uiSurfaceCard calls; defaults to the real ones, a test hands in fakes. */
+export const defaultA2uiSurfaceCardHooks = { useT, useChatSurfaces, useA2uiSurfaceCard };
+export type A2uiSurfaceCardHooks = typeof defaultA2uiSurfaceCardHooks;
+
 /** Registered against `ext-event-renderer-registry.ts`'s `'a2ui'` name — see module doc. */
-export function A2uiSurfaceCard({ events, runId, onAgentAction, clock, registry: registryProp }: A2uiSurfaceCardProps) {
-  const t = useT();
-  const surfaces = useChatSurfaces();
+export function A2uiSurfaceCard({ events, runId, onAgentAction, clock, registry: registryProp, hooks = defaultA2uiSurfaceCardHooks }: A2uiSurfaceCardProps & { hooks?: A2uiSurfaceCardHooks | undefined }) {
+  const t = hooks.useT();
+  const surfaces = hooks.useChatSurfaces();
   const registry = registryProp ?? surfaces.interactiveUi.defaultRegistry;
-  const { interpreter, surfaceId, root, refusalNotice, pendingAgentAction, localActionResult, deliveryFailureNotice, handleAction, formatLocalActionValue } = useA2uiSurfaceCard({ events, runId, onAgentAction, registry, t, clock });
+  const { interpreter, surfaceId, root, refusalNotice, pendingAgentAction, localActionResult, deliveryFailureNotice, handleAction, formatLocalActionValue } = hooks.useA2uiSurfaceCard({ events, runId, onAgentAction, registry, t, clock });
 
   if (!root) {
     return refusalNotice ? (

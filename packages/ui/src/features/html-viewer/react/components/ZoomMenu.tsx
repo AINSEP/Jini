@@ -9,14 +9,16 @@ export interface ZoomMenuProps {
   onToggle(): void;
   onClose(): void;
   onSelect(level: number): void;
+  useTHook?: typeof useT;
+  useDismissOnOutsideOrEscapeHook?: typeof useDismissOnOutsideOrEscape;
 }
 
 /** Percentage zoom trigger + preset dropdown, matching the source's zoom-menu shape. Outside-click/Escape dismiss is local to this component (small, self-contained UI behavior — see `features/version-manager/`'s `VersionPromptPopover` for the same pattern). */
-export function ZoomMenu({ zoom, levels, isOpen, onToggle, onClose, onSelect }: ZoomMenuProps) {
-  const t = useT();
+export function ZoomMenu({ zoom, levels, isOpen, onToggle, onClose, onSelect, useTHook = useT, useDismissOnOutsideOrEscapeHook = useDismissOnOutsideOrEscape }: ZoomMenuProps) {
+  const t = useTHook();
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
-  useDismissOnOutsideOrEscape({ onDismiss: onClose }, { enabled: isOpen, containerRef: wrapRef });
+  useDismissOnOutsideOrEscapeHook({ onDismiss: onClose }, { enabled: isOpen, containerRef: wrapRef });
 
   return (
     <div className="jini-zoom-menu" ref={wrapRef}>

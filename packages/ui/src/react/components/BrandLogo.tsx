@@ -22,6 +22,7 @@ export interface BrandLogoProps {
   resolveBrandLogoUrl?: (brandId: string) => string;
   /** Builds a favicon URL for `host`. Defaults to Google's public favicon service. */
   resolveFaviconUrl?: (host: string, size: number) => string;
+  useBrandLogoHook?: typeof useBrandLogo;
 }
 
 // ---------------------------------------------------------------------------
@@ -163,9 +164,9 @@ export function useBrandLogo(props: BrandLogoProps): UseBrandLogoResult {
 // Component — dumb render, all logic delegated above.
 // ---------------------------------------------------------------------------
 
-export function BrandLogo(props: BrandLogoProps) {
+export function BrandLogo({ useBrandLogoHook = useBrandLogo, ...props }: BrandLogoProps) {
   const { name, className, fallbackClassName } = props;
-  const { src, fallback } = useBrandLogo(props);
+  const { src, fallback } = useBrandLogoHook(props);
 
   if (!src) {
     return (

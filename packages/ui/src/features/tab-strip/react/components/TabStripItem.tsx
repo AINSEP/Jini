@@ -19,6 +19,9 @@ export interface TabStripItemProps extends AgentControlProps {
   closeLabel?: string | undefined;
   /** Overrides the default `×` close-button glyph. */
   closeIcon?: ReactNode | undefined;
+  useAgentHandleHook?: typeof useAgentHandle;
+  useTHook?: typeof useT;
+  useTabStripItemHook?: typeof useTabStripItem;
 }
 
 /**
@@ -43,12 +46,15 @@ export function TabStripItem({
   onClose,
   closeLabel,
   closeIcon,
+  useAgentHandleHook = useAgentHandle,
+  useTHook = useT,
+  useTabStripItemHook = useTabStripItem,
   ...agentProps
 }: TabStripItemProps) {
-  const base = useAgentHandle(agentProps);
-  const t = useT();
+  const base = useAgentHandleHook(agentProps);
+  const t = useTHook();
   const resolvedCloseLabel = closeLabel ?? t('Close tab');
-  const { showClose, handleClick, handleKeyDown, handleClose, className } = useTabStripItem({ tab, active, dragging, dragOverEdge, dragProps, onActivate, onClose });
+  const { showClose, handleClick, handleKeyDown, handleClose, className } = useTabStripItemHook({ tab, active, dragging, dragOverEdge, dragProps, onActivate, onClose });
 
   return (
     <div

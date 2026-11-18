@@ -95,6 +95,10 @@ export interface ConfirmDialogProps {
   agentMayConfirm?: boolean;
 }
 
+/** Hooks ConfirmDialog calls; defaults to the real ones, a test hands in fakes. */
+export const defaultConfirmDialogHooks = { useConfirmDialogCancelLabel, useConfirmController };
+export type ConfirmDialogHooks = typeof defaultConfirmDialogHooks;
+
 /**
  * UI-kit's confirmation planner owns the sub-handle segments appended to the caller's base:
  * literals chosen by the mechanism, never host data. Neither needs sanitizing, unlike
@@ -126,11 +130,11 @@ export function ConfirmDialog({
   useDialog = useConfirmDialog,
   agentHandle: baseHandle,
   agentMayConfirm = true,
-  ...props
-}: ConfirmDialogProps, _optional: Record<string, never> = {}) {
+  hooks = defaultConfirmDialogHooks, ...props
+}: ConfirmDialogProps & { hooks?: ConfirmDialogHooks | undefined }, _optional: Record<string, never> = {}) {
   const tone = resolveTone({}, props);
-  const cancelLabel = useConfirmDialogCancelLabel({}, { explicit: props.cancelLabel });
-  const controller = useConfirmController({
+  const cancelLabel = hooks.useConfirmDialogCancelLabel({}, { explicit: props.cancelLabel });
+  const controller = hooks.useConfirmController({
     open: props.open, title: props.title, body: props.body, confirmLabel: props.confirmLabel,
     cancelLabel, tone, agentMayConfirm,
     ...(baseHandle === undefined ? {} : { agentHandle: baseHandle }),

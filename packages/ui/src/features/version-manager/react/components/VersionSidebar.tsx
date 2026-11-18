@@ -18,8 +18,8 @@ export interface VersionSidebarProps<TVersion extends VersionRecord> {
   restoredFrom: (version: TVersion) => TVersion | null;
 }
 
-function VersionSearchBox({ search, onSearchChange }: Pick<VersionSidebarProps<VersionRecord>, 'search' | 'onSearchChange'>) {
-  const t = useT();
+function VersionSearchBox({ search, onSearchChange, useTHook = useT }: Pick<VersionSidebarProps<VersionRecord>, 'search' | 'onSearchChange'> & { useTHook?: typeof useT }) {
+  const t = useTHook();
   return (
     <div className="jini-version-search">
       <input
@@ -43,8 +43,8 @@ function VersionSearchBox({ search, onSearchChange }: Pick<VersionSidebarProps<V
   );
 }
 
-function VersionSkeletonList() {
-  const t = useT();
+function VersionSkeletonList({ useTHook = useT }: { useTHook?: typeof useT } = {}) {
+  const t = useTHook();
   return (
     <div className="jini-version-skeleton-list" role="status" aria-label={t('Loading versions…')}>
       {[0, 1, 2, 3].map((row) => (
@@ -72,8 +72,9 @@ function VersionSidebarItem<TVersion extends VersionRecord>({
   sourceLabel,
   sourceClassName,
   restoredFrom,
-}: VersionSidebarItemProps<TVersion>) {
-  const t = useT();
+  useTHook = useT,
+}: VersionSidebarItemProps<TVersion> & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const itemRestoredFrom = restoredFrom(version);
   const prefetch = () => onPrefetch(version.id);
   return (
@@ -123,8 +124,9 @@ export function VersionSidebar<TVersion extends VersionRecord>({
   sourceLabel,
   sourceClassName,
   restoredFrom,
-}: VersionSidebarProps<TVersion>) {
-  const t = useT();
+  useTHook = useT,
+}: VersionSidebarProps<TVersion> & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const noResultsMessage = visibleVersions.length === 0 ? t('No results for “{query}”.', { query: search.trim() }) : null;
   const emptyMessage = versions.length === 0 ? t('No versions yet.') : noResultsMessage;
 

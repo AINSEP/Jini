@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import { TabbedDialog } from '../../../react/components/TabbedDialog.js';
 import type { TabbedDialogTab } from '../../../react/components/TabbedDialog.js';
 
@@ -20,6 +20,9 @@ function makeTabs(): TabbedDialogTab[] {
     { id: 'notifications', label: 'Notifications', navHint: 'Sound & desktop', panel: <div data-testid="panel-notifications">Notifications panel</div> },
   ];
 }
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('TabbedDialog', () => {
   it('renders the initially active tab panel and header', () => {
@@ -207,5 +210,10 @@ describe('TabbedDialog', () => {
       expect(screen.getByTestId('settings-dialog-backdrop')).toBeInTheDocument();
       expect(screen.getByRole('dialog')).toHaveAttribute('aria-modal', 'true');
     });
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    render(<TabbedDialog tabs={makeTabs()} onClose={() => {}} useTHook={useQuotingT} />);
+    expect(screen.getByRole('button', { name: '«Close»' })).toBeInTheDocument();
   });
 });

@@ -9,14 +9,15 @@ export interface ScheduleFieldsProps {
   onMinuteChange: (minute: number) => void;
   onTimeChange: (time: string) => void;
   onTimezoneChange: (timezone: string) => void;
+  useTHook?: typeof useT;
 }
 
 /**
  * The kind-dependent input row: an "hour minute" number field for
  * `'hourly'`, or a time + timezone pair for every other kind.
  */
-export function ScheduleFields({ state, timezones, onMinuteChange, onTimeChange, onTimezoneChange }: ScheduleFieldsProps) {
-  const t = useT();
+export function ScheduleFields({ state, timezones, onMinuteChange, onTimeChange, onTimezoneChange, useTHook = useT }: ScheduleFieldsProps) {
+  const t = useTHook();
 
   if (!showsTimeFields(state.kind)) {
     return (

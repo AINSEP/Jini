@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import type { VersionRecord } from '../../../types.js';
 import { VersionSidebar, type VersionSidebarProps } from '../../../react/components/VersionSidebar.js';
 
@@ -28,6 +28,9 @@ function defaultProps(overrides: Partial<VersionSidebarProps<VersionRecord>> = {
     ...overrides,
   };
 }
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('VersionSidebar', () => {
   it('shows a loading skeleton while loading', () => {
@@ -115,5 +118,10 @@ describe('VersionSidebar', () => {
     );
     expect(screen.getByPlaceholderText('Rechercher…')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Effacer' })).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    render(<VersionSidebar {...defaultProps({ versions: [], visibleVersions: [] })} useTHook={useQuotingT} />);
+    expect(screen.getByText('«No versions yet.»')).toBeInTheDocument();
   });
 });

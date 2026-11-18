@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { ResourceRowList } from '../react/components/ResourceRowList.js';
-import { I18nProvider } from '../../i18n/index.js';
+import { I18nProvider, type useT } from '../../i18n/index.js';
 import type { ResourceRowListDependencies, ResourceRowListPort } from '../ports.js';
 import type { ResourceRowItem, ResourceStatusOption } from '../types.js';
 
@@ -27,6 +27,9 @@ function fakeDependencies(overrides: Partial<ResourceRowListPort<ResourceRowItem
     },
   };
 }
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('ResourceRowList', () => {
   it('loads and renders rows', async () => {
@@ -214,5 +217,11 @@ describe('ResourceRowList', () => {
     await waitFor(() => expect(screen.getByText('Nightly digest')).toBeInTheDocument());
     await userEvent.click(screen.getByRole('button', { name: 'Run' }));
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("Echec de l'action."));
+  });
+
+  it('renders the translator supplied through useTHook', async () => {
+    render(<ResourceRowList dependencies={fakeDependencies()} title="Automations" statusOptions={STATUS_OPTIONS} onRowAction={() => {}} useTHook={useQuotingT} />);
+    expect(screen.getByText('«Loading…»')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('Nightly digest')).toBeInTheDocument());
   });
 });

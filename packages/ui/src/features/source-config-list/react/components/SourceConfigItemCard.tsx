@@ -91,10 +91,10 @@ export type SourceConfigItemCardProps<TSource extends SourceConfigItem> = Source
  * state privately. That sequencing is the honest shape of the card, not a
  * limitation of the markup.
  */
-export function SourceConfigItemCard<TSource extends SourceConfigItem>(props: SourceConfigItemCardProps<TSource>) {
+export function SourceConfigItemCard<TSource extends SourceConfigItem>({ useItemCardEditHook = useItemCardEdit, ...props }: SourceConfigItemCardProps<TSource> & { useItemCardEditHook?: typeof useItemCardEdit }) {
   const { source, fieldSpecs, agentHandle } = props;
   const [expanded, setExpanded] = useState(false);
-  const edit = useItemCardEdit(props);
+  const edit = useItemCardEditHook(props);
   const label = sourceDisplayLabel(source, fieldSpecs);
 
   return (
@@ -121,8 +121,8 @@ function isAnyActionPending({ removing, refreshing, settingTrust, updating }: So
 }
 
 /** Always visible (no expand needed) — but only when the source declares `enabled` at all and the host can update it. */
-function ItemCardEnabledToggle<TSource extends SourceConfigItem>({ source, capabilities, updating, onUpdate, agentHandle, label }: ItemCardPartProps<TSource>) {
-  const t = useT();
+function ItemCardEnabledToggle<TSource extends SourceConfigItem>({ source, capabilities, updating, onUpdate, agentHandle, label, useTHook = useT }: ItemCardPartProps<TSource> & { useTHook?: typeof useT }) {
+  const t = useTHook();
   if (source.enabled === undefined || !capabilities.canUpdate) return null;
   const enabledLabel = t('Enable {name}', { name: label });
   return (
@@ -146,8 +146,9 @@ function ItemCardSummary<TSource extends SourceConfigItem>({
   label,
   expanded,
   onToggle,
-}: ItemCardPartProps<TSource> & { expanded: boolean; onToggle: () => void }) {
-  const t = useT();
+  useTHook = useT,
+}: ItemCardPartProps<TSource> & { expanded: boolean; onToggle: () => void } & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const trustOption = trustOptions?.find((option) => option.value === source.trust);
   return (
     <button
@@ -169,9 +170,9 @@ function ItemCardSummary<TSource extends SourceConfigItem>({
 }
 
 /** The trust selector (capability- and options-gated), Refresh (capability-gated) and the always-present Remove. */
-function ItemCardActions<TSource extends SourceConfigItem>(props: ItemCardPartProps<TSource>) {
+function ItemCardActions<TSource extends SourceConfigItem>({ useTHook = useT, ...props }: ItemCardPartProps<TSource> & { useTHook?: typeof useT }) {
   const { capabilities, refreshing, removing, onRefresh, onRemove, agentHandle } = props;
-  const t = useT();
+  const t = useTHook();
   const anyActionPending = isAnyActionPending(props);
   return (
     <div className="source-config-item-card-actions">
@@ -199,8 +200,8 @@ function ItemCardActions<TSource extends SourceConfigItem>(props: ItemCardPartPr
   );
 }
 
-function ItemCardTrustSelect<TSource extends SourceConfigItem>(props: ItemCardPartProps<TSource>) {
-  const t = useT();
+function ItemCardTrustSelect<TSource extends SourceConfigItem>({ useTHook = useT, ...props }: ItemCardPartProps<TSource> & { useTHook?: typeof useT }) {
+  const t = useTHook();
   // Narrow on `props` itself (not a destructured copy) so the non-empty `trustOptions` check also
   // proves `onTrustChange` present — the `SourceTrustSelectorProps` union binds the two.
   if (!props.capabilities.canSetTrust || !props.trustOptions || props.trustOptions.length === 0) return null;
@@ -279,9 +280,9 @@ function ItemCardBody<TSource extends SourceConfigItem>(props: ItemCardPartProps
   );
 }
 
-function ItemCardEditToggle<TSource extends SourceConfigItem>(props: ItemCardPartProps<TSource> & { edit: ItemCardEdit }) {
+function ItemCardEditToggle<TSource extends SourceConfigItem>({ useTHook = useT, ...props }: ItemCardPartProps<TSource> & { edit: ItemCardEdit } & { useTHook?: typeof useT }) {
   const { updating, agentHandle, edit } = props;
-  const t = useT();
+  const t = useTHook();
   if (!edit.editing) {
     return (
       <div className="source-config-item-card-edit-toggle">
@@ -318,8 +319,8 @@ function ItemCardEditToggle<TSource extends SourceConfigItem>(props: ItemCardPar
   );
 }
 
-function ItemCardEditFields<TSource extends SourceConfigItem>({ source, fieldSpecs, agentHandle, label, edit }: ItemCardPartProps<TSource> & { edit: ItemCardEdit }) {
-  const t = useT();
+function ItemCardEditFields<TSource extends SourceConfigItem>({ source, fieldSpecs, agentHandle, label, edit, useTHook = useT }: ItemCardPartProps<TSource> & { edit: ItemCardEdit } & { useTHook?: typeof useT }) {
+  const t = useTHook();
   return (
     <div className="source-config-item-card-edit-fields">
       <label className="source-config-field" htmlFor={`source-config-item-card-${source.id}-label`}>
@@ -353,8 +354,8 @@ function ItemCardEditFields<TSource extends SourceConfigItem>({ source, fieldSpe
   );
 }
 
-function ItemCardReadOnlyFields<TSource extends SourceConfigItem>({ source, fieldSpecs }: SourceConfigItemCardProps<TSource>) {
-  const t = useT();
+function ItemCardReadOnlyFields<TSource extends SourceConfigItem>({ source, fieldSpecs, useTHook = useT }: SourceConfigItemCardProps<TSource> & { useTHook?: typeof useT }) {
+  const t = useTHook();
   return (
     <dl className="source-config-item-card-fields">
       {fieldSpecs.map((spec) => (

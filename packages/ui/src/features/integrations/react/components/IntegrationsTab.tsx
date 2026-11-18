@@ -33,6 +33,30 @@ export interface IntegrationsTabProps {
    * install/uninstall toggle all derive their own `data-agent-*` handle from this ONE base.
    */
   agentHandle?: string;
+  /** Hooks the tab calls; defaults to the real ones, a test hands in fakes. */
+  hooks?: IntegrationsTabHooks | undefined;
+}
+
+export const defaultIntegrationsTabHooks = { useT, useMcpInstallInfo };
+export type IntegrationsTabHooks = typeof defaultIntegrationsTabHooks;
+
+/** The per-client install affordances: the Codex toggle, and the one-click link when the client has one. */
+function ClientInstallActions({ client, resolved, info, port, agentHandle }: {
+  client: McpClientDescriptor | undefined;
+  resolved: McpClientSnippet | null;
+  info: McpInstallInfo | null;
+  port: McpIntegrationsPort;
+  agentHandle: string | undefined;
+}) {
+  return (
+    <>
+      {client?.id === 'codex' ? (
+        <CodexInstallToggleButton port={port} {...childHandleProps({ agentHandle, action: 'codex-toggle' })} />
+      ) : null}
+
+      {resolved?.deeplink && info ? <DeeplinkInstallRow deeplink={resolved.deeplink} info={info} agentHandle={agentHandle} /> : null}
+    </>
+  );
 }
 
 /**
@@ -52,11 +76,12 @@ export function IntegrationsTab({
   capabilitiesTitle,
   capabilities,
   agentHandle,
+  hooks = defaultIntegrationsTabHooks,
 }: IntegrationsTabProps) {
-  const t = useT();
+  const t = hooks.useT();
   const resolvedPort = useMemo(() => port ?? createFakeMcpIntegrationsPort(), [port]);
   const [clientId, setClientId] = useState<McpClientId>(initialClientId);
-  const { info, error, loading } = useMcpInstallInfo(resolvedPort);
+  const { info, error, loading } = hooks.useMcpInstallInfo(resolvedPort);
   const { client, resolved } = resolveClientSnippet({ clients, clientId, serverName, info });
 
   return (
@@ -76,11 +101,7 @@ export function IntegrationsTab({
 
         {resolved ? <p className="jini-mcp-instruction">{t(resolved.instructionTemplate, resolved.instructionVars)}</p> : null}
 
-        {client?.id === 'codex' ? (
-          <CodexInstallToggleButton port={resolvedPort} {...childHandleProps({ agentHandle, action: 'codex-toggle' })} />
-        ) : null}
-
-        {resolved?.deeplink && info ? <DeeplinkInstallRow deeplink={resolved.deeplink} info={info} agentHandle={agentHandle} /> : null}
+        <ClientInstallActions client={client} resolved={resolved} info={info} port={resolvedPort} agentHandle={agentHandle} />
 
         <InstallSnippet resolved={resolved} loading={loading} error={error} />
 
@@ -151,15 +172,15 @@ function childHandleProps({ agentHandle, action }: { agentHandle: string | undef
 }
 
 /** Inline card for a failed install-info fetch; nothing while there is no error. */
-function DaemonErrorCard({ error }: { error: string | null }) {
-  const t = useT();
+function DaemonErrorCard({ error, useTHook = useT }: { error: string | null; useTHook?: typeof useT; }) {
+  const t = useTHook();
   if (!error) return null;
   return <div className="jini-empty-card jini-empty-card-error">{t('Could not reach the daemon: {error}', { error })}</div>;
 }
 
 /** "What this server can do" card: the host's title and lines, or the generic defaults. */
-function CapabilitiesCard({ title, lines }: { title: string | undefined; lines: readonly string[] | undefined }) {
-  const t = useT();
+function CapabilitiesCard({ title, lines, useTHook = useT }: { title: string | undefined; lines: readonly string[] | undefined; useTHook?: typeof useT; }) {
+  const t = useTHook();
   const resolvedCapabilitiesTitle = title ?? t('What this server can do');
   const resolvedCapabilities = lines ?? [
     t('Read your project files'),
@@ -179,8 +200,8 @@ function CapabilitiesCard({ title, lines }: { title: string | undefined; lines: 
 }
 
 /** One-click deeplink install, inert (no `href`, `aria-disabled`) while a prerequisite is missing. */
-function DeeplinkInstallRow({ deeplink, info, agentHandle }: { deeplink: string; info: McpInstallInfo; agentHandle: string | undefined }) {
-  const t = useT();
+function DeeplinkInstallRow({ deeplink, info, agentHandle, useTHook = useT }: { deeplink: string; info: McpInstallInfo; agentHandle: string | undefined; useTHook?: typeof useT; }) {
+  const t = useTHook();
   const prerequisiteMissing = isMcpInstallPrerequisiteMissing(info);
   return (
     <div className="jini-mcp-deeplink-row">
@@ -209,8 +230,8 @@ function DeeplinkInstallRow({ deeplink, info, agentHandle }: { deeplink: string;
 }
 
 /** The generated snippet, or a loading / could-not-resolve placeholder while there is none. */
-function InstallSnippet({ resolved, loading, error }: { resolved: McpClientSnippet | null; loading: boolean; error: string | null }) {
-  const t = useT();
+function InstallSnippet({ resolved, loading, error, useTHook = useT }: { resolved: McpClientSnippet | null; loading: boolean; error: string | null; useTHook?: typeof useT; }) {
+  const t = useTHook();
   const errorPlaceholder = error ? t('Could not resolve install paths.') : '';
   const placeholder = loading ? t('Loading install paths…') : errorPlaceholder;
   return (
@@ -223,8 +244,8 @@ function InstallSnippet({ resolved, loading, error }: { resolved: McpClientSnipp
 }
 
 /** Build/Node warning, shown only once install info has loaded and reports a missing prerequisite. */
-function PrerequisiteWarning({ info }: { info: McpInstallInfo | null }) {
-  const t = useT();
+function PrerequisiteWarning({ info, useTHook = useT }: { info: McpInstallInfo | null; useTHook?: typeof useT; }) {
+  const t = useTHook();
   if (!info || !isMcpInstallPrerequisiteMissing(info)) return null;
   return (
     <div className="jini-empty-card jini-empty-card-warning">

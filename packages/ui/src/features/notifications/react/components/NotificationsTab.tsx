@@ -41,7 +41,12 @@ export interface NotificationsTabProps {
   labels?: NotificationsTabLabels;
   /** This tab's own agent handle — see other tabs' `agentHandle` doc for the split. */
   agentHandle?: string;
+  /** Hooks the tab calls; defaults to the real ones, a test hands in fakes. */
+  hooks?: NotificationsTabHooks | undefined;
 }
+
+export const defaultNotificationsTabHooks = { useT, useNotificationsTab };
+export type NotificationsTabHooks = typeof defaultNotificationsTabHooks;
 
 /**
  * Completion-sound toggle/picker + browser desktop-notification permission
@@ -71,9 +76,10 @@ export function NotificationsTab({
   testNotificationBody,
   labels,
   agentHandle,
+  hooks = defaultNotificationsTabHooks,
 }: NotificationsTabProps) {
-  const t = useT();
-  const { permission, testStatus, completionSoundTitle, completionSoundHint, successSoundLabel, failureSoundLabel, desktopTitle, desktopHint, desktopUnsupported, desktopBlocked, sendTestLabel, testSentLabel, testFailedLabel, activeLabel, offLabel, toggleSound, toggleDesktop, sendTestNotification } = useNotificationsTab({ preferences, onChange, testNotificationTitle, testNotificationBody, labels, t });
+  const t = hooks.useT();
+  const { permission, testStatus, completionSoundTitle, completionSoundHint, successSoundLabel, failureSoundLabel, desktopTitle, desktopHint, desktopUnsupported, desktopBlocked, sendTestLabel, testSentLabel, testFailedLabel, activeLabel, offLabel, toggleSound, toggleDesktop, sendTestNotification } = hooks.useNotificationsTab({ preferences, onChange, testNotificationTitle, testNotificationBody, labels, t });
 
   return (
     <section className="jini-settings-section jini-settings-notifications">
@@ -95,28 +101,13 @@ export function NotificationsTab({
         </div>
 
         {preferences.soundEnabled ? (
-          <>
-            <SoundPicker
-              label={successSoundLabel}
-              sounds={SUCCESS_SOUNDS}
-              selectedSoundId={preferences.successSoundId}
-              preferenceKey="successSoundId"
-              onChange={onChange}
-              previewSound={playSound}
-              agentHandle={agentHandle}
-              action="success-sound"
-            />
-            <SoundPicker
-              label={failureSoundLabel}
-              sounds={FAILURE_SOUNDS}
-              selectedSoundId={preferences.failureSoundId}
-              preferenceKey="failureSoundId"
-              onChange={onChange}
-              previewSound={playSound}
-              agentHandle={agentHandle}
-              action="failure-sound"
-            />
-          </>
+          <NotificationSoundPickers
+            preferences={preferences}
+            onChange={onChange}
+            successSoundLabel={successSoundLabel}
+            failureSoundLabel={failureSoundLabel}
+            agentHandle={agentHandle}
+          />
         ) : null}
       </div>
 
@@ -163,6 +154,40 @@ export function NotificationsTab({
   );
 }
 
+/** The success and failure sound pickers, shown while completion sounds are on. */
+function NotificationSoundPickers({ preferences, onChange, successSoundLabel, failureSoundLabel, agentHandle }: {
+  preferences: NotificationsPreferences;
+  onChange: NotificationsTabProps['onChange'];
+  successSoundLabel: string;
+  failureSoundLabel: string;
+  agentHandle: string | undefined;
+}) {
+  return (
+    <>
+      <SoundPicker
+        label={successSoundLabel}
+        sounds={SUCCESS_SOUNDS}
+        selectedSoundId={preferences.successSoundId}
+        preferenceKey="successSoundId"
+        onChange={onChange}
+        previewSound={playSound}
+        agentHandle={agentHandle}
+        action="success-sound"
+      />
+      <SoundPicker
+        label={failureSoundLabel}
+        sounds={FAILURE_SOUNDS}
+        selectedSoundId={preferences.failureSoundId}
+        preferenceKey="failureSoundId"
+        onChange={onChange}
+        previewSound={playSound}
+        agentHandle={agentHandle}
+        action="failure-sound"
+      />
+    </>
+  );
+}
+
 function NotificationToggle({
   title, enabled, onToggle, activeLabel, offLabel, agentHandle, action, disabled,
 }: {
@@ -194,6 +219,7 @@ function NotificationToggle({
 
 function SoundPicker({
   label, sounds, selectedSoundId, preferenceKey, onChange, previewSound, agentHandle, action,
+  useTHook = useT,
 }: {
   label: string;
   sounds: SoundOption[];
@@ -203,8 +229,9 @@ function SoundPicker({
   previewSound: typeof playSound;
   agentHandle: string | undefined;
   action: 'success-sound' | 'failure-sound';
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   const handles = agentHandle
     ? buildAgentListHandles({ prefix: agentSubHandle({ base: agentHandle, action }), ids: sounds.map((sound) => sound.id) })
     : undefined;

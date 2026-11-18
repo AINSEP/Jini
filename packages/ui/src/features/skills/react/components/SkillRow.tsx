@@ -62,6 +62,7 @@ export interface SkillRowProps {
   labels?: SkillRowLabels | undefined;
   /** This row's own agent handle — `SkillsTab` derives one per skill via `buildAgentListHandles`. */
   agentHandle?: string;
+  useTHook?: typeof useT;
 }
 
 /**
@@ -98,8 +99,9 @@ export function SkillRow({
   onSubmitEdit,
   labels,
   agentHandle,
+  useTHook = useT,
 }: SkillRowProps) {
-  const l = resolveLabels({ defaults: DEFAULT_SKILL_ROW_LABELS, t: useT() }, { labels });
+  const l = resolveLabels({ defaults: DEFAULT_SKILL_ROW_LABELS, t: useTHook() }, { labels });
   const builtIn = isBuiltInSkill(skill);
   // Built-in skills are never edited in place — "editing" one creates a
   // user-owned override, so every edit affordance says so.
@@ -118,43 +120,19 @@ export function SkillRow({
           agentHandle={agentHandle}
         />
 
-        <div className="jini-skills-row-actions">
-          {isDeletableSkill(skill) && confirmDelete ? (
-            <SkillRowDeleteConfirm
-              onCommitDelete={onCommitDelete}
-              onCancelDelete={onCancelDelete}
-              labels={l}
-              agentHandle={agentHandle}
-            />
-          ) : (
-            <SkillRowEditDeleteActions
-              skill={skill}
-              editActionLabel={editActionLabel}
-              onStartEdit={onStartEdit}
-              onArmDelete={onArmDelete}
-              labels={l}
-              agentHandle={agentHandle}
-            />
-          )}
-          {/* `toggle-switch`/`toggle-switch-sm` + a `.toggle-slider` sibling is
-              OD's real switch chrome (`viewer/memory.css`), ported wholesale
-              during the 2026-07-31 OD-parity pass — see settings-dialog.css's
-              own comment on `.toggle-switch`. This previously wrapped the
-              checkbox in `.jini-toggle-row` (built for Privacy's full-width
-              standalone toggle rows) with no slider span at all, so the CSS
-              track+thumb (`input:checked + .toggle-slider`) had no element to
-              attach to and could never render regardless of styling. */}
-          <label className="toggle-switch toggle-switch-sm jini-skills-row-enable" title={l.enableToggleLabel}>
-            <input
-              type="checkbox"
-              checked={enabled}
-              onChange={(event) => onToggleEnabled(event.target.checked)}
-              aria-label={l.enableToggleLabel}
-              {...agentHandleProps({}, { base: agentHandle, action: 'enabled', role: 'checkbox', label: l.enableToggleLabel })}
-            />
-            <span className="toggle-slider" />
-          </label>
-        </div>
+        <SkillRowActions
+          skill={skill}
+          enabled={enabled}
+          confirmDelete={confirmDelete}
+          editActionLabel={editActionLabel}
+          onStartEdit={onStartEdit}
+          onArmDelete={onArmDelete}
+          onCancelDelete={onCancelDelete}
+          onCommitDelete={onCommitDelete}
+          onToggleEnabled={onToggleEnabled}
+          labels={l}
+          agentHandle={agentHandle}
+        />
       </div>
 
       {confirmBuiltInEdit ? (
@@ -186,6 +164,61 @@ export function SkillRow({
           {...editFormHandleProps}
         />
       ) : null}
+    </div>
+  );
+}
+
+/** The header's right side: delete confirmation or edit/delete, then the enable switch. */
+function SkillRowActions({ skill, enabled, confirmDelete, editActionLabel, onStartEdit, onArmDelete, onCancelDelete, onCommitDelete, onToggleEnabled, labels: l, agentHandle }: {
+  skill: SkillRowProps['skill'];
+  enabled: boolean;
+  confirmDelete: boolean;
+  editActionLabel: string;
+  onStartEdit: () => void;
+  onArmDelete: () => void;
+  onCancelDelete: () => void;
+  onCommitDelete: () => void;
+  onToggleEnabled: (enabled: boolean) => void;
+  labels: ResolvedSkillRowLabels;
+  agentHandle: string | undefined;
+}) {
+  return (
+    <div className="jini-skills-row-actions">
+      {isDeletableSkill(skill) && confirmDelete ? (
+        <SkillRowDeleteConfirm
+          onCommitDelete={onCommitDelete}
+          onCancelDelete={onCancelDelete}
+          labels={l}
+          agentHandle={agentHandle}
+        />
+      ) : (
+        <SkillRowEditDeleteActions
+          skill={skill}
+          editActionLabel={editActionLabel}
+          onStartEdit={onStartEdit}
+          onArmDelete={onArmDelete}
+          labels={l}
+          agentHandle={agentHandle}
+        />
+      )}
+      {/* `toggle-switch`/`toggle-switch-sm` + a `.toggle-slider` sibling is
+          OD's real switch chrome (`viewer/memory.css`), ported wholesale
+          during the 2026-07-31 OD-parity pass — see settings-dialog.css's
+          own comment on `.toggle-switch`. This previously wrapped the
+          checkbox in `.jini-toggle-row` (built for Privacy's full-width
+          standalone toggle rows) with no slider span at all, so the CSS
+          track+thumb (`input:checked + .toggle-slider`) had no element to
+          attach to and could never render regardless of styling. */}
+      <label className="toggle-switch toggle-switch-sm jini-skills-row-enable" title={l.enableToggleLabel}>
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(event) => onToggleEnabled(event.target.checked)}
+          aria-label={l.enableToggleLabel}
+          {...agentHandleProps({}, { base: agentHandle, action: 'enabled', role: 'checkbox', label: l.enableToggleLabel })}
+        />
+        <span className="toggle-slider" />
+      </label>
     </div>
   );
 }

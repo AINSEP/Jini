@@ -2,12 +2,15 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { MentionCategoryTabs } from '../../../react/components/MentionCategoryTabs.js';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 
 const CATEGORIES = [
   { id: 'skills', label: 'Skills' },
   { id: 'plugins', label: 'Plugins' },
 ];
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('MentionCategoryTabs', () => {
   it('renders the All tab plus every category, marking the active one selected', () => {
@@ -44,5 +47,10 @@ describe('MentionCategoryTabs', () => {
     );
     expect(screen.getByRole('tab', { name: 'Tout' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Compétences' })).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    render(<MentionCategoryTabs categories={CATEGORIES} active="all" onChange={vi.fn()} useTHook={useQuotingT} />);
+    expect(screen.getByRole('tab', { name: '«All»' })).toBeInTheDocument();
   });
 });

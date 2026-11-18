@@ -24,6 +24,28 @@ export interface AssetCardProps<TAsset extends AssetGridItem> {
   onDeleteAsset?: ((id: string) => void) | undefined;
   /** Host-owned extra actions row (e.g. an "open origin" link) rendered alongside the generic Remove action. */
   renderCardExtra?: ((asset: TAsset) => ReactNode) | undefined;
+  /** Hooks the card calls; defaults to the real ones, a test hands in fakes. */
+  hooks?: AssetCardHooks | undefined;
+}
+
+export const defaultAssetCardHooks = { useT, useInView, useAssetCard };
+export type AssetCardHooks = typeof defaultAssetCardHooks;
+
+function AssetCardBadges({ sourceLabel, kindLabel }: Pick<AssetCardProps<AssetGridItem>, 'sourceLabel' | 'kindLabel'>) {
+  return (
+    <>
+      {sourceLabel ? (
+        <span className="asset-grid-card-badge" data-badge="source">
+          {sourceLabel}
+        </span>
+      ) : null}
+      {kindLabel ? (
+        <span className="asset-grid-card-badge" data-badge="kind">
+          {kindLabel}
+        </span>
+      ) : null}
+    </>
+  );
 }
 
 function renderCardActions<TAsset extends AssetGridItem>(
@@ -60,12 +82,13 @@ export function AssetCard<TAsset extends AssetGridItem>({
   onPreview,
   onDeleteAsset,
   renderCardExtra,
+  hooks = defaultAssetCardHooks,
 }: AssetCardProps<TAsset>) {
-  const t = useT();
-  const { ref, inView } = useInView<HTMLDivElement>({ once: true, rootMargin: '300px' });
+  const t = hooks.useT();
+  const { ref, inView } = hooks.useInView<HTMLDivElement>({ once: true, rootMargin: '300px' });
   const selectionValue = selected ? 'true' : 'false';
 
-  const { handlePreviewClick, handleCheckboxClick } = useAssetCard({ asset, index, onToggle, onRange, onPreview });
+  const { handlePreviewClick, handleCheckboxClick } = hooks.useAssetCard({ asset, index, onToggle, onRange, onPreview });
 
   return (
     <figure
@@ -106,16 +129,7 @@ export function AssetCard<TAsset extends AssetGridItem>({
             </svg>
           ) : null}
         </button>
-        {sourceLabel ? (
-          <span className="asset-grid-card-badge" data-badge="source">
-            {sourceLabel}
-          </span>
-        ) : null}
-        {kindLabel ? (
-          <span className="asset-grid-card-badge" data-badge="kind">
-            {kindLabel}
-          </span>
-        ) : null}
+        <AssetCardBadges sourceLabel={sourceLabel} kindLabel={kindLabel} />
       </div>
       <figcaption className="asset-grid-card-meta">
         <button type="button" className="asset-grid-card-title" title={title} onClick={() => onPreview(asset.id)}>

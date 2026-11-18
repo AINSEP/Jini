@@ -1,10 +1,10 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../i18n/index.js';
 import { MCP_CLIENTS } from '../../../constants.js';
 import { createFakeMcpIntegrationsPort } from '../../../dependencies.js';
-import { IntegrationsTab } from '../../../react/components/IntegrationsTab.js';
+import { IntegrationsTab, defaultIntegrationsTabHooks } from '../../../react/components/IntegrationsTab.js';
 
 describe('IntegrationsTab', () => {
   it('loads install info and renders a snippet containing the given serverName', async () => {
@@ -229,5 +229,17 @@ describe('IntegrationsTab', () => {
     expect(container.querySelector('.jini-mcp-instruction')).toBeNull();
     expect(container.querySelector('.jini-mcp-deeplink-row')).toBeNull();
     expect(container.querySelector('.jini-codex-install-row')).toBeNull();
+  });
+
+  it('renders the daemon error and the translator from the injected hooks', () => {
+    const useFakeInstallInfo = vi.fn(() => ({ info: null, error: 'daemon down', loading: false }));
+    render(
+      <IntegrationsTab
+        hooks={{ ...defaultIntegrationsTabHooks, useT: () => (key) => `«${key}»`, useMcpInstallInfo: useFakeInstallInfo }}
+      />,
+    );
+    expect(screen.getByText('«Restart your client after installing.»')).toBeInTheDocument();
+    expect(screen.getAllByText(/daemon down/).length).toBeGreaterThan(0);
+    expect(useFakeInstallInfo).toHaveBeenCalledTimes(1);
   });
 });

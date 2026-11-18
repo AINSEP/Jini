@@ -6,7 +6,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import { MemoryEntryCard } from '../../../react/components/MemoryEntryCard.js';
 import type { MemoryEntrySummary } from '../../../types.js';
 
@@ -37,6 +37,9 @@ function renderCard(props: Partial<Parameters<typeof MemoryEntryCard>[0]> = {}) 
   );
   return { ...utils, onOpenPreview, onStartEdit, onDelete };
 }
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('MemoryEntryCard', () => {
   it('renders the entry name and description', () => {
@@ -99,5 +102,11 @@ describe('MemoryEntryCard', () => {
     expect(screen.getByTitle('Aperçu')).toBeInTheDocument();
     expect(screen.getByTitle('Modifier')).toBeInTheDocument();
     expect(screen.getByTitle('Supprimer')).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    renderCard({ useTHook: useQuotingT });
+    expect(screen.getByTitle('«Preview»')).toBeInTheDocument();
+    expect(screen.getByTitle('«Edit»')).toBeInTheDocument();
   });
 });

@@ -29,10 +29,12 @@ export interface VersionManagerModalProps<TVersion extends VersionRecord> {
 
 function VersionManagerSidebar<TVersion extends VersionRecord>({
   controller,
+  useI18nHook = useI18n,
 }: {
   controller: VersionManagerController<TVersion>;
+  useI18nHook?: typeof useI18n;
 }) {
-  const { t, locale } = useI18n();
+  const { t, locale } = useI18nHook();
   const { versions, visibleVersions, versionById, selectedVersion, search, setSearch, showSearch, loading } = controller;
   const countLabel = versions.length === 1 ? t('1 version') : t('{count} versions', { count: versions.length });
   return (
@@ -58,11 +60,13 @@ function VersionManagerSidebar<TVersion extends VersionRecord>({
 function VersionHeaderActions<TVersion extends VersionRecord>({
   controller,
   onClose,
+  useI18nHook = useI18n,
 }: {
   controller: VersionManagerController<TVersion>;
   onClose: () => void;
+  useI18nHook?: typeof useI18n;
 }) {
-  const { t } = useI18n();
+  const { t } = useI18nHook();
   const { selectedVersion, restoreDisabled, restoring, restore, openInNewTab, loadingContent } = controller;
   return (
     <div className="jini-version-actions">
@@ -174,8 +178,11 @@ export function VersionManagerModal<TVersion extends VersionRecord>({
   dependencies = defaultVersionManagerDependencies as unknown as VersionManagerDependencies<TVersion>,
   viewportPresets,
   useVersionManager: useVersionManagerHook = useVersionManager,
-}: VersionManagerModalProps<TVersion>) {
-  const { t } = useI18n();
+  useI18nHook = useI18n,
+  useCopyToClipboardHook = useCopyToClipboard,
+  useVersionManagerEscapeHook = useVersionManagerEscape,
+}: VersionManagerModalProps<TVersion> & { useI18nHook?: typeof useI18n; useCopyToClipboardHook?: typeof useCopyToClipboard; useVersionManagerEscapeHook?: typeof useVersionManagerEscape }) {
+  const { t } = useI18nHook();
   const controller = useVersionManagerHook(dependencies, {
     fileRef,
     currentContent,
@@ -183,9 +190,9 @@ export function VersionManagerModal<TVersion extends VersionRecord>({
     onRestoredCleanly: onClose,
     ...(viewportPresets ? { viewportPresets } : {}),
   });
-  const { copied, copy } = useCopyToClipboard(dependencies.clipboard);
+  const { copied, copy } = useCopyToClipboardHook(dependencies.clipboard);
 
-  const promptOpenRef = useVersionManagerEscape({ onClose });
+  const promptOpenRef = useVersionManagerEscapeHook({ onClose });
 
   return createPortal(
     <div
@@ -223,6 +230,18 @@ interface VersionMetadataProps<TVersion extends VersionRecord> {
   onOpenChange: (open: boolean) => void;
 }
 
+/** What the metadata row shows about the selected version, or about the file when none is selected. */
+function selectedVersionFields<TVersion extends VersionRecord>(
+  { selectedVersion, versionById, fileName, locale }: Pick<VersionMetadataProps<TVersion>, 'selectedVersion' | 'versionById' | 'fileName'> & { locale: string },
+  _options: Record<string, never> = {},
+) {
+  return {
+    selectedPrompt: selectedVersion?.prompt?.trim() ?? '',
+    selectedDate: selectedVersion ? formatVersionDateTime(selectedVersion.createdAt, locale) : fileName,
+    selectedRestoredFrom: selectedVersion ? restoredFromVersion(selectedVersion, versionById) : null,
+  };
+}
+
 function VersionMetadata<TVersion extends VersionRecord>({
   selectedVersion,
   versionById,
@@ -230,11 +249,10 @@ function VersionMetadata<TVersion extends VersionRecord>({
   copied,
   onCopy,
   onOpenChange,
-}: VersionMetadataProps<TVersion>) {
-  const { t, locale } = useI18n();
-  const selectedPrompt = selectedVersion?.prompt?.trim() ?? '';
-  const selectedDate = selectedVersion ? formatVersionDateTime(selectedVersion.createdAt, locale) : fileName;
-  const selectedRestoredFrom = selectedVersion ? restoredFromVersion(selectedVersion, versionById) : null;
+  useI18nHook = useI18n,
+}: VersionMetadataProps<TVersion> & { useI18nHook?: typeof useI18n }) {
+  const { t, locale } = useI18nHook();
+  const { selectedPrompt, selectedDate, selectedRestoredFrom } = selectedVersionFields({ selectedVersion, versionById, fileName, locale });
 
   return (
     <div className="jini-version-meta">

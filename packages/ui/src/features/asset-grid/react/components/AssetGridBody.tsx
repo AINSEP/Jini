@@ -27,8 +27,9 @@ export function AssetGridBody<TAsset extends AssetGridItem>({
   onMouseDown,
   selecting,
   renderCard,
-}: AssetGridBodyProps<TAsset>) {
-  const t = useT();
+  useTHook = useT,
+}: AssetGridBodyProps<TAsset> & { useTHook?: typeof useT }) {
+  const t = useTHook();
 
   if (viewMode === 'timeline') {
     const groups = groupByDay(assets, getDayKey);

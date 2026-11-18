@@ -26,8 +26,9 @@ export function MentionResultsList<T extends MentionItem<ReactNode>>({
   onPick,
   selectedIcon,
   emptyPlaceholder = 'Start typing to search.',
-}: MentionResultsListProps<T>) {
-  const t = useT();
+  useTHook = useT,
+}: MentionResultsListProps<T> & { useTHook?: typeof useT }) {
+  const t = useTHook();
 
   return (
     <div className="jini-mention-results">

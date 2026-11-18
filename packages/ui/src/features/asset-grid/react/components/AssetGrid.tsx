@@ -43,6 +43,36 @@ export interface AssetGridProps<TAsset extends AssetGridItem> {
   /** Custom hook overrides for dependency injection / testing. */
   useWiredAssetGridData?: typeof useWiredAssetGridData;
   useAssetGridSelection?: typeof useAssetGridSelection;
+  /** Hooks the grid calls itself; defaults to the real ones, a test hands in fakes. */
+  hooks?: AssetGridHooks | undefined;
+}
+
+export const defaultAssetGridHooks = { useT, useAssetGridView };
+export type AssetGridHooks = typeof defaultAssetGridHooks;
+
+function DeleteFeedback({
+  deleteError,
+  confirmDeleteOpen,
+  count,
+  onCancel,
+  onConfirm,
+}: {
+  deleteError: string | null | undefined;
+  confirmDeleteOpen: boolean;
+  count: number;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <>
+      {deleteError ? (
+        <p className="jini-hint jini-hint-error" role="alert">
+          {deleteError}
+        </p>
+      ) : null}
+      {confirmDeleteOpen ? <DeleteConfirmDialog count={count} onCancel={onCancel} onConfirm={onConfirm} /> : null}
+    </>
+  );
 }
 
 function renderGridContent<TAsset extends AssetGridItem>(
@@ -85,10 +115,11 @@ export function AssetGrid<TAsset extends AssetGridItem>({
   initialViewMode = 'grid',
   useWiredAssetGridData: useWiredAssetGridDataHook = useWiredAssetGridData,
   useAssetGridSelection: useAssetGridSelectionHook = useAssetGridSelection,
+  hooks = defaultAssetGridHooks,
 }: AssetGridProps<TAsset>) {
-  const t = useT();
+  const t = hooks.useT();
 
-  const { kind, setKind, source, setSource, search, setSearch, kindFacets, sourceFacets, viewMode, setViewMode, assets, loading, reload, selectedIds, selectAll, clearSelection, containerRef, band, dragging, onMouseDown, requestDeleteSelected, confirmDeleteOpen, setConfirmDeleteOpen, deleteError, getDayKey, renderCard, confirmDelete } = useAssetGridView({ active, selectors, dependencies, configuredKindFacets, configuredSourceFacets, renderThumbnail, renderThumbnailPlaceholder, renderCardExtra, onDeleteAsset, onDeleteSelected, onPreview, isPreviewOpen, searchDebounceMs, liveUpdateCoalesceMs, initialViewMode, useWiredAssetGridDataHook, useAssetGridSelectionHook });
+  const { kind, setKind, source, setSource, search, setSearch, kindFacets, sourceFacets, viewMode, setViewMode, assets, loading, reload, selectedIds, selectAll, clearSelection, containerRef, band, dragging, onMouseDown, requestDeleteSelected, confirmDeleteOpen, setConfirmDeleteOpen, deleteError, getDayKey, renderCard, confirmDelete } = hooks.useAssetGridView({ active, selectors, dependencies, configuredKindFacets, configuredSourceFacets, renderThumbnail, renderThumbnailPlaceholder, renderCardExtra, onDeleteAsset, onDeleteSelected, onPreview, isPreviewOpen, searchDebounceMs, liveUpdateCoalesceMs, initialViewMode, useWiredAssetGridDataHook, useAssetGridSelectionHook });
 
   return (
     <div className="asset-grid-root">
@@ -134,19 +165,13 @@ export function AssetGrid<TAsset extends AssetGridItem>({
 
       <SelectionBand band={band} />
 
-      {deleteError ? (
-        <p className="jini-hint jini-hint-error" role="alert">
-          {deleteError}
-        </p>
-      ) : null}
-
-      {confirmDeleteOpen ? (
-        <DeleteConfirmDialog
-          count={selectedIds.size}
-          onCancel={() => setConfirmDeleteOpen(false)}
-          onConfirm={() => void confirmDelete()}
-        />
-      ) : null}
+      <DeleteFeedback
+        deleteError={deleteError}
+        confirmDeleteOpen={confirmDeleteOpen}
+        count={selectedIds.size}
+        onCancel={() => setConfirmDeleteOpen(false)}
+        onConfirm={() => void confirmDelete()}
+      />
     </div>
   );
 }

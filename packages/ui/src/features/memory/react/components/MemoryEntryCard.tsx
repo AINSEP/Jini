@@ -20,6 +20,7 @@ export function MemoryEntryCard({
   onStartEdit,
   onDelete,
   agentHandle,
+  useTHook = useT,
 }: {
   entry: MemoryEntrySummary;
   previewId: string | null;
@@ -29,8 +30,9 @@ export function MemoryEntryCard({
   onDelete: (id: string) => void;
   /** This card's own agent handle — `MemoryList` derives one per entry. */
   agentHandle?: string;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   return (
     <div className="library-card">
       <div className="library-card-info">

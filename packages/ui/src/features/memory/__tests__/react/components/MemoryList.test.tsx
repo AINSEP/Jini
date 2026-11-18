@@ -6,7 +6,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createRef, type MutableRefObject } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import { MemoryList } from '../../../react/components/MemoryList.js';
 import type { MemoryEntrySummary, MemoryExtractionRecord } from '../../../types.js';
 
@@ -49,6 +49,9 @@ function renderList(props: Partial<Parameters<typeof MemoryList>[0]> = {}) {
   );
   return { ...utils, onFilterChange, onClearExtractions, onRefreshExtractions, ...handlers };
 }
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('MemoryList', () => {
   it('renders the saved count and the entry card for each filtered entry', () => {
@@ -217,5 +220,10 @@ describe('MemoryList', () => {
     await userEvent.click(remove as HTMLElement);
     expect(onDeleteExtraction).toHaveBeenCalledWith('r9');
     expect(onDeleteEntry).not.toHaveBeenCalled();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    renderList({ useTHook: useQuotingT });
+    expect(screen.getByText('«Saved memory»')).toBeInTheDocument();
   });
 });

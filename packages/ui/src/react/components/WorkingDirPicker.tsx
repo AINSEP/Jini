@@ -55,6 +55,8 @@ export interface WorkingDirPickerProps {
   labels?: WorkingDirLabels;
   /** Custom hook override for dependency injection / testing. */
   useWorkingDirPicker?: typeof useWorkingDirPicker;
+  useWorkingDirFocusHandoffHook?: typeof useWorkingDirFocusHandoff;
+  useWorkingDirPanelNavigationHook?: typeof useWorkingDirPanelNavigation;
 }
 
 export const DEFAULT_WORKING_DIR_LABELS = {
@@ -409,15 +411,17 @@ export function WorkingDirPicker({
   onOpen,
   labels,
   useWorkingDirPicker: useWorkingDirPickerHook = useWorkingDirPicker,
+  useWorkingDirFocusHandoffHook = useWorkingDirFocusHandoff,
+  useWorkingDirPanelNavigationHook = useWorkingDirPanelNavigation,
 }: WorkingDirPickerProps) {
   const panelId = useId();
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const picker = useWorkingDirPickerHook({ onPickDirectory, onSelectRecent, onClear, onOpen, labels });
   const { open, wrapRef, labels: t, toggle, showRecent, hideRecent } = picker;
-  useWorkingDirFocusHandoff({ open, triggerRef, panelRef });
+  useWorkingDirFocusHandoffHook({ open, triggerRef, panelRef });
 
-  const handlePanelKeyDown = useWorkingDirPanelNavigation({ showRecent, hideRecent });
+  const handlePanelKeyDown = useWorkingDirPanelNavigationHook({ showRecent, hideRecent });
 
   return (
     <div

@@ -19,6 +19,7 @@ export function MemoryExtractionCard({
   onOpenPreview,
   onDelete,
   agentHandle,
+  useTHook = useT,
 }: {
   record: MemoryExtractionRecord;
   /** Wall clock so relative ages ("12s ago") re-render without freezing. */
@@ -27,8 +28,9 @@ export function MemoryExtractionCard({
   onDelete: (id: string) => void;
   /** This card's own agent handle — `MemoryList` derives one per extraction record. */
   agentHandle?: string;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   const desc = describeRecord(record, t);
   const title = extractionCardTitle(record, t);
   const meta = extractionCardMeta(record, nowClock, t);

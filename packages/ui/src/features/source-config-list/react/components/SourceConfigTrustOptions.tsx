@@ -6,8 +6,8 @@ import type { SourceTrustOption } from '../../types.js';
  * form's and each item card's): a hidden, disabled "Select…" placeholder while
  * no trust value is chosen yet, then one option per `trustOptions` entry.
  */
-export function SourceConfigTrustOptions({ trust, trustOptions }: { trust?: string | undefined; trustOptions: readonly SourceTrustOption[] }) {
-  const t = useT();
+export function SourceConfigTrustOptions({ trust, trustOptions, useTHook = useT }: { trust?: string | undefined; trustOptions: readonly SourceTrustOption[]; useTHook?: typeof useT; }) {
+  const t = useTHook();
   return (
     <>
       {!trust ? (

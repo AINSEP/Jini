@@ -51,9 +51,13 @@ export interface ArtifactViewProps {
   annotation?: Omit<AnnotationCanvasProps, 'children'> | undefined;
 }
 
-export function ArtifactView({ file, registry, hints, srcDocOptions, slots, className, annotation }: ArtifactViewProps) {
-  const t = useT();
-  const { match, wrap } = useArtifactView({ file, registry, hints, annotation });
+/** Hooks ArtifactView calls; defaults to the real ones, a test hands in fakes. */
+export const defaultArtifactViewHooks = { useT, useArtifactView };
+export type ArtifactViewHooks = typeof defaultArtifactViewHooks;
+
+export function ArtifactView({ file, registry, hints, srcDocOptions, slots, className, annotation, hooks = defaultArtifactViewHooks }: ArtifactViewProps & { hooks?: ArtifactViewHooks | undefined }) {
+  const t = hooks.useT();
+  const { match, wrap } = hooks.useArtifactView({ file, registry, hints, annotation });
 
   if (!match) {
     return wrap(

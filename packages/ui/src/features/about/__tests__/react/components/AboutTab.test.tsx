@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import { ABOUT_UPDATE_KEYS } from '../../../rules.js';
 import type { AboutUpdatePrimaryAction, UpdaterModel } from '../../../types.js';
 import { AboutTab } from '../../../react/components/AboutTab.js';
@@ -32,6 +32,9 @@ function renderTab(
     />,
   );
 }
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('AboutTab', () => {
   it('shows an empty-state card and nothing else when appVersionInfo is null', () => {
@@ -358,5 +361,12 @@ describe('AboutTab', () => {
     });
     await userEvent.click(screen.getByTestId('about-update-action'));
     expect(onPerformUpdateAction).toHaveBeenCalledWith('download');
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    render(
+      <AboutTab appVersionInfo={versionInfo()} updaterModel={model()} onPerformUpdateAction={vi.fn().mockResolvedValue(undefined)} onOpenReleaseLink={vi.fn()} useTHook={useQuotingT} />,
+    );
+    expect(screen.getByText('«Version»')).toBeInTheDocument();
   });
 });

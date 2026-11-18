@@ -12,6 +12,7 @@ export interface AgentCliEnvFieldsProps {
   fields: readonly AgentCliEnvFieldSpec[];
   config: LocalCliConfig;
   onChange: (agentId: string, envKey: string, value: string) => void;
+  useTHook?: typeof useT;
 }
 
 /**
@@ -28,8 +29,8 @@ export interface AgentCliEnvFieldsProps {
  * reason). The origin's AMR-wallet `agentCliEnvIntent` bookkeeping is not
  * ported — see `nextConfigForAgentCliEnvChange`'s doc.
  */
-export function AgentCliEnvFields({ agentId, fields, config, onChange }: AgentCliEnvFieldsProps) {
-  const t = useT();
+export function AgentCliEnvFields({ agentId, fields, config, onChange, useTHook = useT }: AgentCliEnvFieldsProps) {
+  const t = useTHook();
   const idBase = useId();
   const relevant = cliEnvFieldsForAgent(fields, agentId);
   if (relevant.length === 0) return null;

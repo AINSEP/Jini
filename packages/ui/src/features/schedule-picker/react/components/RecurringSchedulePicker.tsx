@@ -23,6 +23,7 @@ export interface RecurringSchedulePickerProps {
   disabled?: boolean;
   /** Custom hook override for dependency injection / testing. */
   useRecurringSchedulePicker?: typeof useRecurringSchedulePicker;
+  useTHook?: typeof useT;
 }
 
 /**
@@ -46,8 +47,9 @@ export function RecurringSchedulePicker({
   timezones,
   disabled = false,
   useRecurringSchedulePicker: useRecurringSchedulePickerHook = useRecurringSchedulePicker,
+  useTHook = useT,
 }: RecurringSchedulePickerProps) {
-  const t = useT();
+  const t = useTHook();
   const picker = useRecurringSchedulePickerHook({ value, onChange, timezones });
 
   return (

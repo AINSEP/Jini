@@ -41,7 +41,12 @@ export interface SkillsTabProps {
    * ONE base.
    */
   agentHandle?: string;
+  /** Hooks the tab calls; defaults to the real ones, a test hands in fakes. */
+  hooks?: SkillsTabHooks | undefined;
 }
+
+export const defaultSkillsTabHooks = { useT, useSkillsTab };
+export type SkillsTabHooks = typeof defaultSkillsTabHooks;
 
 /**
  * Skill library: search + source/mode/category filters, a create form, and
@@ -51,37 +56,19 @@ export interface SkillsTabProps {
  * host-defined. All filtering/search/count logic lives in this feature's
  * own `rules.ts`; this component only renders it.
  */
-export function SkillsTab({ port, disabledSkillIds, onToggleEnabled, locale = 'en', labels, agentHandle }: SkillsTabProps) {
-  const t = useT();
-  const tab = useSkillsTab({ port, locale });
+export function SkillsTab({ port, disabledSkillIds, onToggleEnabled, locale = 'en', labels, agentHandle, hooks = defaultSkillsTabHooks }: SkillsTabProps) {
+  const t = hooks.useT();
+  const tab = hooks.useSkillsTab({ port, locale });
   const l = resolveLabels({ defaults: DEFAULT_SKILLS_TAB_LABELS, t }, { labels });
   const loadErrorLabel = labels?.loadErrorLabel ?? t('Could not load skills: {error}', { error: tab.loadError ?? '' });
 
-  const createFormHandleProps = agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'create-form' }) } : {};
   return (
     <section className="jini-settings-section jini-settings-skills">
       <SkillsTabToolbar tab={tab} labels={l} agentHandle={agentHandle} />
 
-      {tab.loadError ? (
-        <div className="jini-empty-card jini-empty-card-error">
-          <strong>{loadErrorLabel}</strong>
-        </div>
-      ) : null}
+      {tab.loadError ? <SkillsLoadError label={loadErrorLabel} /> : null}
 
-      {tab.creating ? (
-        <SkillDraftForm
-          heading={l.newSkillLabel}
-          draft={tab.draft}
-          onDraftChange={tab.setDraft}
-          error={tab.draftError}
-          saving={tab.draftSaving}
-          isEdit={false}
-          onCancel={tab.cancelDraft}
-          onSubmit={tab.submitDraft}
-          labels={labels}
-          {...createFormHandleProps}
-        />
-      ) : null}
+      {tab.creating ? <SkillsCreateForm tab={tab} heading={l.newSkillLabel} labels={labels} agentHandle={agentHandle} /> : null}
 
       {!tab.loading && tab.filteredSkills.length === 0 ? (
         <div className="jini-empty-card">
@@ -98,6 +85,39 @@ export function SkillsTab({ port, disabledSkillIds, onToggleEnabled, locale = 'e
         />
       )}
     </section>
+  );
+}
+
+/** The registry could not be loaded; shown in place of an empty list. */
+function SkillsLoadError({ label }: { label: string }) {
+  return (
+    <div className="jini-empty-card jini-empty-card-error">
+      <strong>{label}</strong>
+    </div>
+  );
+}
+
+/** The inline "New skill" form, handled as its own agent sub-handle of the tab. */
+function SkillsCreateForm({ tab, heading, labels, agentHandle }: {
+  tab: UseSkillsTabResult;
+  heading: string;
+  labels: SkillsTabLabels | undefined;
+  agentHandle: string | undefined;
+}) {
+  const handleProps = agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'create-form' }) } : {};
+  return (
+    <SkillDraftForm
+      heading={heading}
+      draft={tab.draft}
+      onDraftChange={tab.setDraft}
+      error={tab.draftError}
+      saving={tab.draftSaving}
+      isEdit={false}
+      onCancel={tab.cancelDraft}
+      onSubmit={tab.submitDraft}
+      labels={labels}
+      {...handleProps}
+    />
   );
 }
 

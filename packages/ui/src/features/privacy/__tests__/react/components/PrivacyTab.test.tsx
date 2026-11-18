@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { AGENT_ELEMENT_ATTRIBUTE } from '@jini-ai/core/agent-handles';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import type { PrivacyConsentState } from '../../../types.js';
 import { PrivacyTab } from '../../../react/components/PrivacyTab.js';
 
@@ -164,5 +164,13 @@ describe('PrivacyTab', () => {
         'settings-privacy-delete-my-data',
       );
     });
+  });
+});
+
+describe('PrivacyTab injected translator', () => {
+  it('renders the output of the injected translator hook instead of the provider dictionary', () => {
+    const useQuotingT: typeof useT = () => (key) => `«${key}»`;
+    render(<PrivacyTab state={undecidedState()} onChange={() => {}} now={() => NOW} useTHook={useQuotingT} />);
+    expect(screen.getByRole('button', { name: /«Anonymous metrics»/ })).toBeInTheDocument();
   });
 });

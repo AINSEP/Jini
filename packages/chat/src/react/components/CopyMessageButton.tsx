@@ -13,6 +13,8 @@ interface CopyMessageButtonProps {
   label: string;
   /** Optional hover tooltip; icon-only buttons outside a message action row have no other visible label. */
   title?: string | undefined;
+  useTHook?: typeof useT;
+  useCopyToClipboardHook?: typeof useCopyToClipboard;
 }
 
 /**
@@ -25,9 +27,9 @@ interface CopyMessageButtonProps {
  * @param props.title - Optional hover tooltip (already translated); swaps to "Copied" like the label.
  * @complexity O(1) — one child hook call, no branching beyond the copied-state read.
  */
-export function CopyMessageButton({ agentHandle, text, label, title }: CopyMessageButtonProps) {
-  const t = useT();
-  const { copied, copy } = useCopyToClipboard();
+export function CopyMessageButton({ agentHandle, text, label, title, useTHook = useT, useCopyToClipboardHook = useCopyToClipboard }: CopyMessageButtonProps) {
+  const t = useTHook();
+  const { copied, copy } = useCopyToClipboardHook();
   return (
     <>
       <button

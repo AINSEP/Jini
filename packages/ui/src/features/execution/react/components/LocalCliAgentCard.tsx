@@ -37,6 +37,33 @@ export interface LocalCliAgentCardProps {
   /** This card's own agent handle — see `ExecutionTab`'s `agentHandle` doc; `LocalCliAgentList`
    *  derives one distinct handle per agent and passes it here. */
   agentHandle?: string;
+  /** Hooks the card calls; defaults to the real ones, a test hands in fakes. */
+  hooks?: LocalCliAgentCardHooks | undefined;
+}
+
+export const defaultLocalCliAgentCardHooks = { useT, useLocalCliAgentCard };
+export type LocalCliAgentCardHooks = typeof defaultLocalCliAgentCardHooks;
+
+/** The header's Test action; only a selected card with a test handler shows it. */
+function LocalCliAgentTestButton({ agent, onTest, testing, agentHandle, t }: {
+  agent: DetectedAgent;
+  onTest: (agent: DetectedAgent) => void;
+  testing: boolean;
+  agentHandle: string | undefined;
+  t: ReturnType<typeof useT>;
+}) {
+  return (
+    <button
+      type="button"
+      className={'jini-btn jini-agent-card-test' + (testing ? ' is-loading' : '')}
+      data-testid={`jini-agent-test-${agent.id}`}
+      disabled={testing}
+      onClick={() => onTest(agent)}
+      {...agentHandleProps({}, { base: agentHandle, action: 'test', role: 'button', label: t('Test') })}
+    >
+      {testing ? t('Testing…') : t('Test')}
+    </button>
+  );
 }
 
 /**
@@ -71,9 +98,10 @@ export function LocalCliAgentCard({
   agentTest,
   onRescan,
   agentHandle,
+  hooks = defaultLocalCliAgentCardHooks,
 }: LocalCliAgentCardProps) {
-  const t = useT();
-  const card = useLocalCliAgentCard({ agent, config, agentTest, cliEnvFields, onModelChange, onReasoningChange, onRescan, onTest, t });
+  const t = hooks.useT();
+  const card = hooks.useLocalCliAgentCard({ agent, config, agentTest, cliEnvFields, onModelChange, onReasoningChange, onRescan, onTest, t });
 
   return (
     <div
@@ -90,16 +118,7 @@ export function LocalCliAgentCard({
           renderIcon={renderIcon} agentHandle={agentHandle}
         />
         {selected && onTest ? (
-          <button
-            type="button"
-            className={'jini-btn jini-agent-card-test' + (card.testing ? ' is-loading' : '')}
-            data-testid={`jini-agent-test-${agent.id}`}
-            disabled={card.testing}
-            onClick={() => onTest(agent)}
-            {...agentHandleProps({}, { base: agentHandle, action: 'test', role: 'button', label: t('Test') })}
-          >
-            {card.testing ? t('Testing…') : t('Test')}
-          </button>
+          <LocalCliAgentTestButton agent={agent} onTest={onTest} testing={card.testing} agentHandle={agentHandle} t={t} />
         ) : null}
       </div>
 
@@ -151,9 +170,9 @@ function LocalCliAgentSelection({ agent, config, selected, onSelect, renderIcon,
 }
 
 /** Detection metadata and the compact model summary for the card's identity. */
-function LocalCliAgentSummary({ agent, config, selected }:
-  Pick<LocalCliAgentCardProps, 'agent' | 'config' | 'selected'>) {
-  const t = useT();
+function LocalCliAgentSummary({ agent, config, selected, useTHook = useT }:
+  Pick<LocalCliAgentCardProps, 'agent' | 'config' | 'selected'> & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const description = agent.description ?? DEFAULT_AGENT_DESCRIPTIONS[agent.id];
   const meta = agentMetaLabel(agent, {
     authRequired: t('Authentication required'),

@@ -15,10 +15,11 @@ export interface ChatFabProps {
   readonly 'aria-label'?: string;
   readonly 'aria-controls'?: string;
   readonly 'aria-haspopup'?: 'dialog';
+  useChatFabDragHook?: typeof useChatFabDrag;
 }
 
-export function ChatFab({ open, onToggle, label = 'chat', 'aria-label': accessibleLabel, 'aria-controls': controls, 'aria-haspopup': popup }: ChatFabProps) {
-  const { buttonRef, position, onPointerDown, onPointerMove, onPointerUp, onPointerCancel } = useChatFabDrag({ onClick: onToggle });
+export function ChatFab({ open, onToggle, label = 'chat', 'aria-label': accessibleLabel, 'aria-controls': controls, 'aria-haspopup': popup, useChatFabDragHook = useChatFabDrag }: ChatFabProps) {
+  const { buttonRef, position, onPointerDown, onPointerMove, onPointerUp, onPointerCancel } = useChatFabDragHook({ onClick: onToggle });
 
   return (
     <button

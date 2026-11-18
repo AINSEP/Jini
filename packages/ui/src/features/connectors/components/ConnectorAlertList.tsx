@@ -6,11 +6,12 @@ export interface ConnectorAlertListProps {
   alerts: readonly ConnectorPanelAlert[];
   onOpenDetails: (connectorId: string) => void;
   openDetailsAriaLabel?: (name: string) => string;
+  useTHook?: typeof useT;
 }
 
 /** Background authorization-failure alerts for connectors not currently open in the detail drawer. */
-export function ConnectorAlertList({ alerts, onOpenDetails, openDetailsAriaLabel }: ConnectorAlertListProps) {
-  const t = useT();
+export function ConnectorAlertList({ alerts, onOpenDetails, openDetailsAriaLabel, useTHook = useT }: ConnectorAlertListProps) {
+  const t = useTHook();
   const resolvedOpenDetailsAriaLabel = openDetailsAriaLabel ?? ((name: string) => t('Open details for {name}', { name }));
   if (alerts.length === 0) return null;
   return (

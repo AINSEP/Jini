@@ -1,8 +1,11 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import { InstructionsTab } from '../../../react/components/InstructionsTab.js';
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('InstructionsTab', () => {
   it('renders the bound value and calls onChange as the user types', async () => {
@@ -48,5 +51,10 @@ describe('InstructionsTab', () => {
       </I18nProvider>,
     );
     expect(screen.getByText('Instructions personnalisées')).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    render(<InstructionsTab value="" onChange={vi.fn()} useTHook={useQuotingT} />);
+    expect(screen.getByText('«Custom instructions»')).toBeInTheDocument();
   });
 });

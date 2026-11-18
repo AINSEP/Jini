@@ -15,6 +15,7 @@ export interface PopoverItemProps extends AgentControlProps {
    *  so unchanged call sites with short fixed labels don't grow a noisy
    *  duplicate tooltip. */
   title?: string;
+  useAgentHandleHook?: typeof useAgentHandle;
 }
 
 /**
@@ -24,8 +25,8 @@ export interface PopoverItemProps extends AgentControlProps {
  * Origin: `PopoverItem` from the vendored schedule/mention god-component
  * (recon r6 §1.19) — generic, no product types.
  */
-export function PopoverItem({ selected = false, selectedIcon, label, hint, onClick, title, ...agentProps }: PopoverItemProps) {
-  const base = useAgentHandle(agentProps);
+export function PopoverItem({ selected = false, selectedIcon, label, hint, onClick, title, useAgentHandleHook = useAgentHandle, ...agentProps }: PopoverItemProps) {
+  const base = useAgentHandleHook(agentProps);
   return (
     <button
       {...agentHandleProps({}, { base, role: 'button', label })}

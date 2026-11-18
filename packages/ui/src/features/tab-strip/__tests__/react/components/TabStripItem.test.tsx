@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import type { TabStripTab } from '../../../types.js';
 import type { TabStripItemDragProps } from '../../../react/hooks/useTabStripDragReorder.js';
 import { TabStripItem } from '../../../react/components/TabStripItem.js';
@@ -19,6 +19,9 @@ function dragProps(overrides: Partial<TabStripItemDragProps> = {}): TabStripItem
     ...overrides,
   };
 }
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('TabStripItem', () => {
   it('renders host-injected content', () => {
@@ -281,5 +284,12 @@ describe('TabStripItem agent handles', () => {
     rerender(<TabStripItem {...props} agentHandle={false} />);
     expect(screen.getByRole('tab')).not.toHaveAttribute('data-agent-element');
     expect(screen.getByRole('button')).not.toHaveAttribute('data-agent-element');
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    render(
+      <TabStripItem tab={tab({ id: 'a' })} active={false} dragging={false} dragOverEdge={null} dragProps={dragProps()} onActivate={() => {}} onClose={() => {}} useTHook={useQuotingT} />,
+    );
+    expect(screen.getByRole('button', { name: '«Close tab»' })).toBeInTheDocument();
   });
 });

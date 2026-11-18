@@ -3,7 +3,10 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { FileDropzoneNameList } from './FileDropzoneNameList.js';
-import { I18nProvider } from '../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../i18n/index.js';
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('FileDropzoneNameList', () => {
   it('renders nothing for an empty names list', () => {
@@ -37,5 +40,10 @@ describe('FileDropzoneNameList', () => {
       </I18nProvider>,
     );
     expect(screen.getByRole('button', { name: 'Retirer a.txt' })).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    render(<FileDropzoneNameList names={['a.txt']} onRemoveName={vi.fn()} ariaLabel="Selections" useTHook={useQuotingT} />);
+    expect(screen.getByRole('button', { name: '«Remove {name}»' })).toBeInTheDocument();
   });
 });

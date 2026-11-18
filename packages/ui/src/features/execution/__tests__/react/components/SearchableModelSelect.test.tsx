@@ -216,4 +216,28 @@ describe('SearchableModelSelect agent handles', () => {
     expect(screen.getByRole('searchbox')).not.toHaveAttribute('data-agent-element');
     for (const option of screen.getAllByRole('option')) expect(option).not.toHaveAttribute('data-agent-element');
   });
+
+  it('renders the options and handle supplied through the injected hooks', () => {
+    const useAgentHandleHook = vi.fn(() => 'fake-handle');
+    render(
+      <SearchableModelSelect
+        models={[]}
+        value="x"
+        onChange={vi.fn()}
+        ariaLabel="Model"
+        searchPlaceholder="Search models"
+        useAgentHandleHook={useAgentHandleHook}
+        useSearchableModelSelectHook={() => ({
+          query: '',
+          setQuery: vi.fn(),
+          searchRef: { current: null },
+          shouldShowSearch: false,
+          visibleOptions: [{ value: 'x', label: 'Injected option' }],
+          handleOpenChange: vi.fn(),
+        })}
+      />,
+    );
+    expect(screen.getByRole('combobox').textContent).toContain('Injected option');
+    expect(useAgentHandleHook).toHaveBeenCalled();
+  });
 });

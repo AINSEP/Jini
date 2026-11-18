@@ -203,11 +203,15 @@ function resolveSelectTriggerHandleProps(
   return base ? agentHandle({ handle: base }, { role: "button", label: ariaLabel ?? placeholder ?? "Select an option" }) : {};
 }
 
+/** Hooks Select calls; defaults to the real ones, a test hands in fakes. */
+export const defaultSelectHooks = { useAgentHandle, useOverlayContainer, useSelectOptionRef };
+export type SelectHooks = typeof defaultSelectHooks;
+
 /** Controlled searchable listbox with viewport positioning, dialog-local portals and keyboard navigation. */
-export function Select(props: SelectProps) {
-  const { value, onChange, options, placeholder, id, disabled, useDropdown = useSelectDropdown, agentHandle: suppliedBase, translate, t = translate ?? ((key: string) => key) } = props;
-  const base = useAgentHandle({ agentHandle: suppliedBase });
-  const overlayContainer = useOverlayContainer({});
+export function Select({ hooks = defaultSelectHooks, useDropdown = useSelectDropdown, ...props }: SelectProps & { hooks?: SelectHooks | undefined }) {
+  const { value, onChange, options, placeholder, id, disabled, agentHandle: suppliedBase, translate, t = translate ?? ((key: string) => key) } = props;
+  const base = hooks.useAgentHandle({ agentHandle: suppliedBase });
+  const overlayContainer = hooks.useOverlayContainer({});
   const ariaLabel = props["aria-label"];
   const ariaLabelledBy = props["aria-labelledby"];
 
@@ -234,7 +238,7 @@ export function Select(props: SelectProps) {
     setQuery,
   } = useDropdown({ value, onChange, options }, { disabled });
 
-  const setOptionRef = useSelectOptionRef({ optionRefs });
+  const setOptionRef = hooks.useSelectOptionRef({ optionRefs });
 
   const triggerLabel = resolveSelectTriggerLabel({ selectedOption: selectedOption, placeholder: placeholder }, { t: t });
   const activeDescendant = resolveSelectTriggerActiveDescendant(open, highlightedIndex, optionId);

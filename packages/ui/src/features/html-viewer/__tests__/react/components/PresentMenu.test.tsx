@@ -1,8 +1,11 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import { PresentMenu } from '../../../react/components/PresentMenu.js';
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('PresentMenu', () => {
   it('is closed by default and can be disabled', () => {
@@ -70,5 +73,10 @@ describe('PresentMenu', () => {
     expect(screen.getByRole('menuitem', { name: 'Dans cet onglet' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Plein écran' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Nouvel onglet' })).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    render(<PresentMenu disabled={false} onPresentInline={vi.fn()} onPresentFullscreen={vi.fn()} onPresentInNewTab={vi.fn()} useTHook={useQuotingT} />);
+    expect(screen.getByRole('button', { name: '«Present»' })).toBeInTheDocument();
   });
 });

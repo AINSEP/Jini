@@ -83,8 +83,9 @@ export function ResourceBoard<TItem extends ResourceBoardItem<TBody>, TBody = un
   dependencies, statusOptions, toneMap, defaultStatus, normalizeStatus, sortOptions = [], initialSort, storageScopeKey,
   defaultViewMode, enableBulkDelete = true, onOpenItem, onCreate, createLabel, onRenameRequest, onCustomItemAction,
   refreshToken, renderBody, useWiredResourceBoard: useWiredResourceBoardHook = useWiredResourceBoard,
-}: ResourceBoardProps<TItem, TBody>) {
-  const t = useT();
+  useTHook = useT,
+}: ResourceBoardProps<TItem, TBody> & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const board = useWiredResourceBoardHook<TItem>(
     resourceBoardHookParams<TItem>(
       { dependencies, statusOptions },

@@ -12,15 +12,17 @@ export interface SnippetBlockProps {
   copyAriaLabel?: string;
   copyLabel?: string;
   copiedLabel?: string;
+  useTHook?: typeof useT;
+  useSnippetBlockHook?: typeof useSnippetBlock;
 }
 
 /**
  * A read-only code block with a copy-to-clipboard button. Origin: the
  * `<pre>`/copy-button markup inline in `IntegrationsSection`.
  */
-export function SnippetBlock({ snippet, language, placeholder, copyAriaLabel, copyLabel, copiedLabel }: SnippetBlockProps) {
-  const t = useT();
-  const { copied, onCopy } = useSnippetBlock({ snippet });
+export function SnippetBlock({ snippet, language, placeholder, copyAriaLabel, copyLabel, copiedLabel, useTHook = useT, useSnippetBlockHook = useSnippetBlock }: SnippetBlockProps) {
+  const t = useTHook();
+  const { copied, onCopy } = useSnippetBlockHook({ snippet });
 
   const resolvedCopyLabel = copyLabel ?? t('Copy');
   const resolvedCopiedLabel = copiedLabel ?? t('Copied');

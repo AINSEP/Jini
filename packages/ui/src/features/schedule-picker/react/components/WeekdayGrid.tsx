@@ -5,11 +5,12 @@ export interface WeekdayGridProps {
   weekdays: WeekdayOption[];
   active: Weekday;
   onChange: (weekday: Weekday) => void;
+  useTHook?: typeof useT;
 }
 
 /** The single-select weekday button grid, shown for the `'weekly'` schedule kind. */
-export function WeekdayGrid({ weekdays, active, onChange }: WeekdayGridProps) {
-  const t = useT();
+export function WeekdayGrid({ weekdays, active, onChange, useTHook = useT }: WeekdayGridProps) {
+  const t = useTHook();
   return (
     <div className="jini-schedule-picker__weekdays" aria-label={t('Weekday')}>
       {weekdays.map((d) => (

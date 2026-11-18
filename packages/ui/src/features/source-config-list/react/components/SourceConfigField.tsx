@@ -35,6 +35,8 @@ export interface SourceConfigFieldProps {
    * rendered DOM is byte-identical to before this prop existed.
    */
   agentHandle?: string;
+  useTHook?: typeof useT;
+  useSecretRevealHook?: typeof useSecretReveal;
 }
 
 /**
@@ -68,12 +70,12 @@ export interface SourceConfigFieldProps {
  * type into it. That refusal lives in `@jini-ai/agentic`'s own guards and is
  * not something this component either grants or can route around.
  */
-export function SourceConfigField({ spec, value, error, disabled = false, idPrefix = 'source-config-field', agentHandle, onChange }: SourceConfigFieldProps) {
-  const t = useT();
+export function SourceConfigField({ spec, value, error, disabled = false, idPrefix = 'source-config-field', agentHandle, onChange, useTHook = useT, useSecretRevealHook = useSecretReveal }: SourceConfigFieldProps) {
+  const t = useTHook();
   const inputId = `${idPrefix}-${spec.key}`;
   const errorId = error ? `${inputId}-error` : undefined;
   const fieldLabel = t(spec.label);
-  const { revealed, toggleRevealed, isLockedSecret } = useSecretReveal({ kind: spec.kind, value, label: fieldLabel });
+  const { revealed, toggleRevealed, isLockedSecret } = useSecretRevealHook({ kind: spec.kind, value, label: fieldLabel });
   const shared: SharedControlProps = {
     disabled,
     'aria-invalid': Boolean(error) || undefined,
@@ -179,11 +181,12 @@ interface FieldControlProps {
   shared: SharedControlProps;
   reveal: RevealToggleProps;
   isLockedSecret: boolean;
+  useTHook?: typeof useT;
 }
 
 /** Picks the control for `spec.kind`: a select, a (secret-)textarea, a password input, or a plain text/url input. */
-function SourceConfigFieldControl(props: FieldControlProps) {
-  const t = useT();
+function SourceConfigFieldControl({ useTHook = useT, ...props }: FieldControlProps) {
+  const t = useTHook();
   const { spec, value, inputId, shared } = props;
   const placeholder = spec.placeholder ? t(spec.placeholder) : undefined;
   if (spec.kind === 'select') return <SelectControl spec={spec} value={value} inputId={inputId} shared={shared} placeholder={placeholder} />;
@@ -198,8 +201,9 @@ function SelectControl({
   inputId,
   shared,
   placeholder,
-}: Pick<FieldControlProps, 'spec' | 'value' | 'inputId' | 'shared'> & { placeholder: string | undefined }) {
-  const t = useT();
+  useTHook = useT,
+}: Pick<FieldControlProps, 'spec' | 'value' | 'inputId' | 'shared'> & { placeholder: string | undefined } & { useTHook?: typeof useT }) {
+  const t = useTHook();
   return (
     <select id={inputId} value={value} {...shared}>
       <option value="" disabled hidden>
@@ -214,8 +218,8 @@ function SelectControl({
   );
 }
 
-function TextareaControl({ spec, value, inputId, shared, reveal, isLockedSecret, placeholder }: FieldControlProps & { placeholder: string | undefined }) {
-  const t = useT();
+function TextareaControl({ spec, value, inputId, shared, reveal, isLockedSecret, placeholder, useTHook = useT }: FieldControlProps & { placeholder: string | undefined } & { useTHook?: typeof useT }) {
+  const t = useTHook();
   if (spec.kind !== 'secret-textarea') {
     return <span className="source-config-field-row"><textarea id={inputId} value={value} placeholder={placeholder} {...shared} /></span>;
   }
@@ -243,8 +247,8 @@ function TextareaControl({ spec, value, inputId, shared, reveal, isLockedSecret,
   );
 }
 
-function PasswordControl({ spec, value, inputId, shared, reveal, placeholder }: FieldControlProps & { placeholder: string | undefined }) {
-  const t = useT();
+function PasswordControl({ spec, value, inputId, shared, reveal, placeholder, useTHook = useT }: FieldControlProps & { placeholder: string | undefined } & { useTHook?: typeof useT }) {
+  const t = useTHook();
   return (
     <span className="source-config-field-row">
       <SecretInput
