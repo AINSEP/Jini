@@ -103,12 +103,28 @@ export type RemoveWidgetFn = (required: {
   priorMarker?: string | null;
 }) => Promise<{ ok: true; version: number | null } | { ok: false; reason: "not-found" | "version-changed" }>;
 
-/** Structural reference-index row: the host owns extraction and persistence. */
+/**
+ * One row of the derived reference index: the source content object refers to a target at `fieldPath`.
+ * Rows are extracted and replaced in the same transaction as the source write, never by a follow-up job,
+ * and the index can be rebuilt from live entries at any time. Safe-delete's where-used check reads it.
+ * Structural: the host owns extraction and persistence.
+ */
 export interface EntryRefRow {
   readonly workspaceId: UUID;
   readonly sourceEntryId: UUID;
+  /**
+   * Where the reference sits: `widget-area-placement` (a `widget_area` entry's `bodyJson.placements`),
+   * `widget-embed` (a `widgetEmbed` node anywhere in a `bodyJson`), `config-field` (a ref-typed field in a
+   * widget instance's `fields.ext.widget.*` config), `page-html-embed` (a `data-embed-type` marker in an
+   * html-format page body: a plain HTML string written outside the entries write path, hence its own kind).
+   */
   readonly sourceKind: "widget-area-placement" | "widget-embed" | "config-field" | "page-html-embed";
+  /** JSON-path-shaped locator within the source (e.g. `bodyJson.placements[2]`, `fields.ext.widget.config.formDefinitionId`). */
   readonly fieldPath: string;
+  /**
+   * `entry` (a durable content object), `term` (a taxonomy term; narrower, soft coverage) or `asset`
+   * (a media asset: a different storage domain from entries, so it gets its own kind rather than overloading `entry`).
+   */
   readonly targetKind: "entry" | "term" | "asset";
   readonly targetId: UUID;
 }
