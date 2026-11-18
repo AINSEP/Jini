@@ -110,15 +110,22 @@ function inlineSelection(agentId: string, env: ModelDiscoveryContext['env']): st
 function envSelection(agentId: string, env: ModelDiscoveryContext['env']): string | undefined {
   return (CONFIG_FILES.get(agentId)?.modelEnv || []).map((key) => scalar(env[key])).find(Boolean);
 }
+function configuredSelection(agentId: string, context: ModelDiscoveryContext, settings: {
+  settingsModel: string | undefined; contents: readonly { file: ConfigFile; raw: string | null }[];
+}): string | undefined {
+  const { settingsModel, contents } = settings;
+  // Precedence, strongest first: launch model, Claude --settings, model env, inline config content, config files.
+  const launchSelection = context.model || settingsModel;
+  return launchSelection || envSelection(agentId, context.env) || inlineSelection(agentId, context.env) || fileSelection(agentId, contents, context.profile);
+}
+
 export async function readModelConfiguration(agentId: string, context: ModelDiscoveryContext, deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<{ selection?: string; fingerprintMaterial: string }> {
   context = await withProjectRoot(agentId, context, deps, signal);
   const files = modelConfigFiles(agentId, context);
   const contents = await Promise.all(files.map(async (file) => ({ file, raw: await deps.fs.read(file.path, { signal }) })));
   const settingsRaw = await (CONFIG_FILES.get(agentId)?.settingsRaw?.(context, deps, signal) ?? null);
   const settingsModel = settingsRaw ? scalar(parseSettingsJson(settingsRaw)?.model) : undefined;
-  // Precedence, strongest first: launch model, Claude --settings, model env, inline config content, config files.
-  const launchSelection = context.model || settingsModel;
-  const selection = launchSelection || envSelection(agentId, context.env) || inlineSelection(agentId, context.env) || fileSelection(agentId, contents, context.profile);
+  const selection = configuredSelection(agentId, context, { settingsModel, contents });
   // Material is hashed by the orchestration layer and is never exposed over HTTP.
   return { ...(selection ? { selection } : {}), fingerprintMaterial: JSON.stringify([contents.map(({ file, raw }) => [file.path, raw]), settingsRaw || '']) };
 }

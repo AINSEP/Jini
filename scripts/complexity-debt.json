@@ -21,20 +21,6 @@
     "value": 42
   },
   {
-    "file": "packages/agent-runtime/src/executables.ts",
-    "function": "inspectAgentExecutableResolution",
-    "line": 311,
-    "rule": "complexity",
-    "value": 12
-  },
-  {
-    "file": "packages/agent-runtime/src/model-discovery-config.ts",
-    "function": "readModelConfiguration",
-    "line": 113,
-    "rule": "complexity",
-    "value": 12
-  },
-  {
     "file": "packages/chat/src/core/question-form/scan.ts",
     "function": "balancedObjectEnd",
     "line": 339,
@@ -87,13 +73,6 @@
     "file": "packages/core/src/tool-input-normalization.ts",
     "function": "normalizeEntry",
     "line": 162,
-    "rule": "sonarjs/cognitive-complexity",
-    "value": 11
-  },
-  {
-    "file": "packages/daemon/src/frontend-session-registry.ts",
-    "function": "assertSessionCapacity",
-    "line": 217,
     "rule": "sonarjs/cognitive-complexity",
     "value": 11
   },

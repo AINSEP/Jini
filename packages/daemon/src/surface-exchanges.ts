@@ -108,6 +108,152 @@ function initialSurfaceDeadlines({ leased, nowMs, idleTtlMs, maxLifetimeMs }: {
   return { idle: nowMs + idleTtlMs, lifetime: nowMs + maxLifetimeMs };
 }
 
+interface SurfaceStoreContext {
+  deps: Parameters<typeof createSurfaceExchangeStore>[0];
+  openExchanges: Map<string, Registered>;
+  restoration: ReturnType<typeof createSurfaceRestoration>;
+  idleTtlMs: number;
+  maxLifetimeMs: number;
+}
+
+function createSurfaceConversationState(context: SurfaceStoreContext, { binding, emit }: Parameters<SurfaceExchangeStore['open']>[0]) {
+  const { deps, openExchanges, restoration, idleTtlMs, maxLifetimeMs } = context;
+  // Waiting without a live emitter is a deadlock; reject before allocating any timers or ID.
+  if (typeof emit !== 'function') throw new Error('surface exchange requires an emitter');
+  const id = deps.idGenerator.newId();
+  if (!id || openExchanges.has(id)) throw new Error('surface exchange ID must be unique and nonempty');
+  const lifetime = emit.exchangeLifetime;
+  // Only the executor can supply this lease. Plain emitters (including bounded visitor
+  // confirmations) retain their existing deadlines. No card/tool needs its own TTL override.
+  const leased = lifetime !== undefined && lifetime.principalId === binding.principalId;
+  const recovery = leased ? restoration.track({ id, binding, lifetime }) : undefined;
+  const inbox: Record<string, unknown>[] = [];
+  const waiters: ((message: SurfaceMessage) => void)[] = [];
+  let terminal: SurfaceMessage | undefined;
+  let cancelIdle: (() => void) | undefined;
+  let cancelLifetime: (() => void) | undefined;
+  const deadlines = initialSurfaceDeadlines({ leased, nowMs: deps.clock.nowMs(), idleTtlMs, maxLifetimeMs });
+  const lifetimeDeadline = deadlines.lifetime;
+  let idleDeadline = deadlines.idle;
+  return { id, lifetime, leased, recovery, inbox, waiters, terminal: terminal as SurfaceMessage | undefined,
+    cancelIdle: cancelIdle as (() => void) | undefined, cancelLifetime: cancelLifetime as (() => void) | undefined,
+    lifetimeDeadline, idleDeadline, binding, emit };
+}
+
+function createSurfaceConversationLifecycle(context: SurfaceStoreContext, state: ReturnType<typeof createSurfaceConversationState>) {
+  const { deps, openExchanges, idleTtlMs, maxLifetimeMs } = context;
+  const { id, lifetime, recovery, waiters, leased, lifetimeDeadline } = state;
+  const closeOnAbort = () => end({ status: 'abandoned' });
+  function end(reason: SurfaceMessage): void {
+    if (state.terminal) return;
+    state.terminal = reason;
+    state.cancelIdle?.();
+    state.cancelLifetime?.();
+    openExchanges.delete(id);
+    lifetime?.signal.removeEventListener('abort', closeOnAbort);
+    recovery?.end();
+    while (waiters.length > 0) waiters.shift()!(reason);
+  }
+  function expireIfDue(): void {
+    const at = deps.clock.nowMs();
+    if (at >= state.idleDeadline || at >= lifetimeDeadline) end({ status: 'expired' });
+  }
+  function armIdle(): void {
+    if (state.terminal || leased) return;
+    state.cancelIdle?.();
+    state.idleDeadline = deps.clock.nowMs() + idleTtlMs;
+    state.cancelIdle = deps.scheduler.schedule({ delayMs: idleTtlMs, callback: () => end({ status: 'expired' }) });
+  }
+  /** Install the lifetime and idle timers; a scheduler failure cancels whichever is already live. */
+  function installTimers(): void {
+    try {
+      if (!leased) state.cancelLifetime = deps.scheduler.schedule({ delayMs: maxLifetimeMs, callback: () => end({ status: 'expired' }) });
+      armIdle();
+    } catch (error) {
+      // Only the lifetime timer can be live here: `armIdle` is the last statement, and it assigns
+      // `cancelIdle` only once its own `schedule` call has returned, so a throw there leaves it unset.
+      state.cancelLifetime?.();
+      throw error;
+    }
+  }
+  return { end, expireIfDue, armIdle, installTimers, closeOnAbort };
+}
+
+function createSurfaceConversation(state: ReturnType<typeof createSurfaceConversationState>, lifecycle: ReturnType<typeof createSurfaceConversationLifecycle>): ReturnType<SurfaceExchangeStore['open']> {
+  const { id, recovery, binding, lifetime, emit, inbox, waiters, lifetimeDeadline } = state;
+  const { expireIfDue, armIdle, end } = lifecycle;
+  return {
+    id,
+    async send({ emission }, _optional = {}) {
+      expireIfDue();
+      if (state.terminal) throw new SurfaceExchangeEndedError({ id, terminal: state.terminal });
+      armIdle();
+      const sent = recovery === undefined ? emission : { ...emission, payload: { ...emission.payload,
+        surfaceExchange: { exchangeId: id, toolId: binding.toolId, runId: lifetime!.runId } } };
+      await recovery?.send({ emission: sent });
+      await emit(sent);
+    },
+    async receive(_args: Record<string, never>, _optional = {}) {
+      expireIfDue();
+      // Preserve the original FIFO contract: already delivered answers precede terminal status.
+      const buffered = inbox.shift();
+      if (buffered) { armIdle(); return { status: 'received', params: buffered }; }
+      if (state.terminal) return state.terminal;
+      return new Promise<SurfaceMessage>(resolve => waiters.push(resolve));
+    },
+    close(_args: Record<string, never>, _optional = {}) { end({ status: 'abandoned' }); },
+    expiresAtMs() { return Math.min(state.idleDeadline, lifetimeDeadline); },
+  };
+}
+
+function createSurfaceExchangeOpener(context: SurfaceStoreContext): SurfaceExchangeStore['open'] {
+  const { openExchanges } = context;
+  return function open({ binding, emit }, _optional = {}) {
+    const state = createSurfaceConversationState(context, { binding, emit });
+    const { id, recovery, waiters, inbox, leased, lifetime } = state;
+    const lifecycle = createSurfaceConversationLifecycle(context, state);
+    // Register only after both timers are installed, so scheduler failure leaves no discoverable exchange.
+    lifecycle.installTimers();
+    openExchanges.set(id, {
+      binding: { ...binding },
+      accept(params) {
+        lifecycle.expireIfDue();
+        if (state.terminal) return;
+        recovery?.answered();
+        lifecycle.armIdle();
+        const waiter = waiters.shift();
+        if (waiter) waiter({ status: 'received', params });
+        // The human can answer while the handler composes its next send. Queue rather than
+        // drop: dropping would deadlock the exchange on an answer already given.
+        else inbox.push(params);
+      },
+    });
+    if (leased) {
+      lifetime!.signal.addEventListener('abort', lifecycle.closeOnAbort, { once: true });
+      if (lifetime!.signal.aborted) lifecycle.closeOnAbort();
+    }
+    return createSurfaceConversation(state, lifecycle);
+  };
+}
+
+function createSurfaceDelivery(context: SurfaceStoreContext): SurfaceExchangeStore['deliver'] {
+  const { deps, openExchanges } = context;
+  return function deliver(requiredArgs: Pick<SurfaceDeliverySpec, "exchangeId" | "params" | "principalId">, optionalArgs: Pick<SurfaceDeliverySpec, "toolId" | "channel"> = {}) {
+    const spec: SurfaceDeliverySpec = { ...requiredArgs, ...optionalArgs };
+    const entry = openExchanges.get(spec.exchangeId);
+    // Unknown and closed are the same situation to a human whose dialog is no longer waiting.
+    if (!entry) return { ok: false, reason: 'unknown-or-closed' };
+    const toolMismatch = spec.toolId !== undefined && entry.binding.toolId !== spec.toolId;
+    const channelMismatch = (entry.binding.channel ?? deps.defaultChannel) !== (spec.channel ?? deps.defaultChannel);
+    if (toolMismatch || channelMismatch || entry.binding.principalId !== spec.principalId) {
+      // A wrong-binding delivery must not consume a conversation the right human is still having.
+      return { ok: false, reason: 'binding-mismatch' };
+    }
+    entry.accept(spec.params);
+    return openExchanges.has(spec.exchangeId) ? { ok: true } : { ok: false, reason: 'unknown-or-closed' };
+  };
+}
+
 /**
  * Creates an in-process store of open surface exchanges.
  *
@@ -133,116 +279,11 @@ export function createSurfaceExchangeStore(
   const openExchanges = new Map<string, Registered>();
   const restoration = createSurfaceRestoration({ clock: deps.clock, defaultChannel: deps.defaultChannel,
     deliver: (required, optional) => store.deliver(required, optional) });
+  const context = { deps, openExchanges, restoration, idleTtlMs, maxLifetimeMs };
   const store: SurfaceExchangeStore = {
     restore: restoration.restore,
-    open({ binding, emit }, _optional = {}) {
-      // Waiting without a live emitter is a deadlock; reject before allocating any timers or ID.
-      if (typeof emit !== 'function') throw new Error('surface exchange requires an emitter');
-      const id = deps.idGenerator.newId();
-      if (!id || openExchanges.has(id)) throw new Error('surface exchange ID must be unique and nonempty');
-      const lifetime = emit.exchangeLifetime;
-      // Only the executor can supply this lease. Plain emitters (including bounded visitor
-      // confirmations) retain their existing deadlines. No card/tool needs its own TTL override.
-      const leased = lifetime !== undefined && lifetime.principalId === binding.principalId;
-      const recovery = leased ? restoration.track({ id, binding, lifetime }) : undefined;
-      const inbox: Record<string, unknown>[] = [];
-      const waiters: ((message: SurfaceMessage) => void)[] = [];
-      let terminal: SurfaceMessage | undefined;
-      let cancelIdle: (() => void) | undefined;
-      let cancelLifetime: (() => void) | undefined;
-      const deadlines = initialSurfaceDeadlines({ leased, nowMs: deps.clock.nowMs(), idleTtlMs, maxLifetimeMs });
-      const lifetimeDeadline = deadlines.lifetime;
-      let idleDeadline = deadlines.idle;
-      const closeOnAbort = () => end({ status: 'abandoned' });
-      function end(reason: SurfaceMessage): void {
-        if (terminal) return;
-        terminal = reason;
-        cancelIdle?.();
-        cancelLifetime?.();
-        openExchanges.delete(id);
-        lifetime?.signal.removeEventListener('abort', closeOnAbort);
-        recovery?.end();
-        while (waiters.length > 0) waiters.shift()!(reason);
-      }
-      function expireIfDue(): void {
-        const at = deps.clock.nowMs();
-        if (at >= idleDeadline || at >= lifetimeDeadline) end({ status: 'expired' });
-      }
-      function armIdle(): void {
-        if (terminal || leased) return;
-        cancelIdle?.();
-        idleDeadline = deps.clock.nowMs() + idleTtlMs;
-        cancelIdle = deps.scheduler.schedule({ delayMs: idleTtlMs, callback: () => end({ status: 'expired' }) });
-      }
-      /** Install the lifetime and idle timers; a scheduler failure cancels whichever is already live. */
-      function installTimers(): void {
-        try {
-          if (!leased) cancelLifetime = deps.scheduler.schedule({ delayMs: maxLifetimeMs, callback: () => end({ status: 'expired' }) });
-          armIdle();
-        } catch (error) {
-          // Only the lifetime timer can be live here: `armIdle` is the last statement, and it assigns
-          // `cancelIdle` only once its own `schedule` call has returned, so a throw there leaves it unset.
-          cancelLifetime?.();
-          throw error;
-        }
-      }
-      // Register only after both timers are installed, so scheduler failure leaves no discoverable exchange.
-      installTimers();
-      openExchanges.set(id, {
-        binding: { ...binding },
-        accept(params) {
-          expireIfDue();
-          if (terminal) return;
-          recovery?.answered();
-          armIdle();
-          const waiter = waiters.shift();
-          if (waiter) waiter({ status: 'received', params });
-          // The human can answer while the handler composes its next send. Queue rather than
-          // drop: dropping would deadlock the exchange on an answer already given.
-          else inbox.push(params);
-        },
-      });
-      if (leased) {
-        lifetime.signal.addEventListener('abort', closeOnAbort, { once: true });
-        if (lifetime.signal.aborted) closeOnAbort();
-      }
-      return {
-        id,
-        async send({ emission }, _optional = {}) {
-          expireIfDue();
-          if (terminal) throw new SurfaceExchangeEndedError({ id, terminal });
-          armIdle();
-          const sent = recovery === undefined ? emission : { ...emission, payload: { ...emission.payload,
-            surfaceExchange: { exchangeId: id, toolId: binding.toolId, runId: lifetime!.runId } } };
-          await recovery?.send({ emission: sent });
-          await emit(sent);
-        },
-        async receive(_args: Record<string, never>, _optional = {}) {
-          expireIfDue();
-          // Preserve the original FIFO contract: already delivered answers precede terminal status.
-          const buffered = inbox.shift();
-          if (buffered) { armIdle(); return { status: 'received', params: buffered }; }
-          if (terminal) return terminal;
-          return new Promise<SurfaceMessage>(resolve => waiters.push(resolve));
-        },
-        close(_args: Record<string, never>, _optional = {}) { end({ status: 'abandoned' }); },
-        expiresAtMs() { return Math.min(idleDeadline, lifetimeDeadline); },
-      };
-    },
-    deliver(requiredArgs: Pick<SurfaceDeliverySpec, "exchangeId" | "params" | "principalId">, optionalArgs: Pick<SurfaceDeliverySpec, "toolId" | "channel"> = {}) {
-      const spec: SurfaceDeliverySpec = { ...requiredArgs, ...optionalArgs };
-      const entry = openExchanges.get(spec.exchangeId);
-      // Unknown and closed are the same situation to a human whose dialog is no longer waiting.
-      if (!entry) return { ok: false, reason: 'unknown-or-closed' };
-      const toolMismatch = spec.toolId !== undefined && entry.binding.toolId !== spec.toolId;
-      const channelMismatch = (entry.binding.channel ?? deps.defaultChannel) !== (spec.channel ?? deps.defaultChannel);
-      if (toolMismatch || channelMismatch || entry.binding.principalId !== spec.principalId) {
-        // A wrong-binding delivery must not consume a conversation the right human is still having.
-        return { ok: false, reason: 'binding-mismatch' };
-      }
-      entry.accept(spec.params);
-      return openExchanges.has(spec.exchangeId) ? { ok: true } : { ok: false, reason: 'unknown-or-closed' };
-    },
+    open: createSurfaceExchangeOpener(context),
+    deliver: createSurfaceDelivery(context),
     findTypedAnswerTarget({ principalId, toolId }, _optional = {}) {
       let found: string | undefined;
       for (const [id, entry] of openExchanges) {
