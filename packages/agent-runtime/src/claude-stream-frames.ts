@@ -295,15 +295,15 @@ export function assistantText({ content }: { content: unknown[] }, _optional: Re
 }
 
 export function isUnstreamedTextBlock(
-  { block,
-  alreadyStreamed }: { block: Record<string, unknown>; alreadyStreamed: boolean }, _optional: Record<string, never> = {},
+  block: Record<string, unknown>,
+  { alreadyStreamed }: { alreadyStreamed: boolean },
 ): block is Record<string, unknown> & { text: string } {
   return !alreadyStreamed && block.type === 'text' && typeof block.text === 'string' && block.text.length > 0;
 }
 
 export function isUnstreamedThinkingBlock(
-  { block,
-  alreadyStreamed }: { block: Record<string, unknown>; alreadyStreamed: boolean }, _optional: Record<string, never> = {},
+  block: Record<string, unknown>,
+  { alreadyStreamed }: { alreadyStreamed: boolean },
 ): block is Record<string, unknown> & { thinking: string } {
   return (
     !alreadyStreamed && block.type === 'thinking' && typeof block.thinking === 'string' && block.thinking.length > 0

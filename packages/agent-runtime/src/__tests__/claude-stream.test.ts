@@ -1704,44 +1704,44 @@ describe('assistantText', () => {
 
 describe('isUnstreamedTextBlock', () => {
   it('returns true for a non-empty text block that has not already streamed', () => {
-    expect(isUnstreamedTextBlock({ block: { type: 'text', text: 'hi' }, alreadyStreamed: false })).toBe(true);
+    expect(isUnstreamedTextBlock({ type: 'text', text: 'hi' }, { alreadyStreamed: false })).toBe(true);
   });
 
   it('returns false when alreadyStreamed is true', () => {
-    expect(isUnstreamedTextBlock({ block: { type: 'text', text: 'hi' }, alreadyStreamed: true })).toBe(false);
+    expect(isUnstreamedTextBlock({ type: 'text', text: 'hi' }, { alreadyStreamed: true })).toBe(false);
   });
 
   it('returns false for a non-text block type', () => {
-    expect(isUnstreamedTextBlock({ block: { type: 'thinking', text: 'hi' }, alreadyStreamed: false })).toBe(false);
+    expect(isUnstreamedTextBlock({ type: 'thinking', text: 'hi' }, { alreadyStreamed: false })).toBe(false);
   });
 
   it('returns false when text is missing or not a string', () => {
-    expect(isUnstreamedTextBlock({ block: { type: 'text' }, alreadyStreamed: false })).toBe(false);
-    expect(isUnstreamedTextBlock({ block: { type: 'text', text: 42 }, alreadyStreamed: false })).toBe(false);
+    expect(isUnstreamedTextBlock({ type: 'text' }, { alreadyStreamed: false })).toBe(false);
+    expect(isUnstreamedTextBlock({ type: 'text', text: 42 }, { alreadyStreamed: false })).toBe(false);
   });
 
   it('returns false for an empty text string', () => {
-    expect(isUnstreamedTextBlock({ block: { type: 'text', text: '' }, alreadyStreamed: false })).toBe(false);
+    expect(isUnstreamedTextBlock({ type: 'text', text: '' }, { alreadyStreamed: false })).toBe(false);
   });
 });
 
 describe('isUnstreamedThinkingBlock', () => {
   it('returns true for a non-empty thinking block that has not already streamed', () => {
-    expect(isUnstreamedThinkingBlock({ block: { type: 'thinking', thinking: 'hmm' }, alreadyStreamed: false })).toBe(true);
+    expect(isUnstreamedThinkingBlock({ type: 'thinking', thinking: 'hmm' }, { alreadyStreamed: false })).toBe(true);
   });
 
   it('returns false when alreadyStreamed is true', () => {
-    expect(isUnstreamedThinkingBlock({ block: { type: 'thinking', thinking: 'hmm' }, alreadyStreamed: true })).toBe(false);
+    expect(isUnstreamedThinkingBlock({ type: 'thinking', thinking: 'hmm' }, { alreadyStreamed: true })).toBe(false);
   });
 
   it('returns false for a non-thinking block type', () => {
-    expect(isUnstreamedThinkingBlock({ block: { type: 'text', thinking: 'hmm' }, alreadyStreamed: false })).toBe(false);
+    expect(isUnstreamedThinkingBlock({ type: 'text', thinking: 'hmm' }, { alreadyStreamed: false })).toBe(false);
   });
 
   it('returns false when thinking is missing, not a string, or empty', () => {
-    expect(isUnstreamedThinkingBlock({ block: { type: 'thinking' }, alreadyStreamed: false })).toBe(false);
-    expect(isUnstreamedThinkingBlock({ block: { type: 'thinking', thinking: 42 }, alreadyStreamed: false })).toBe(false);
-    expect(isUnstreamedThinkingBlock({ block: { type: 'thinking', thinking: '' }, alreadyStreamed: false })).toBe(false);
+    expect(isUnstreamedThinkingBlock({ type: 'thinking' }, { alreadyStreamed: false })).toBe(false);
+    expect(isUnstreamedThinkingBlock({ type: 'thinking', thinking: 42 }, { alreadyStreamed: false })).toBe(false);
+    expect(isUnstreamedThinkingBlock({ type: 'thinking', thinking: '' }, { alreadyStreamed: false })).toBe(false);
   });
 });
 

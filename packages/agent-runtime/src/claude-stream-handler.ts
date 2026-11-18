@@ -352,11 +352,11 @@ function handleAssistantContentBlock(s: StreamCtx, { block, ctx }: {
     handleToolUseBlock(s, { block });
     return;
   }
-  if (isUnstreamedTextBlock({ block, alreadyStreamed: ctx.textAlreadyStreamed })) {
+  if (isUnstreamedTextBlock(block, { alreadyStreamed: ctx.textAlreadyStreamed })) {
     emitSafeText({ s, msgId: ctx.textMsgId, text: block.text, eventType: 'text_delta' });
     return;
   }
-  if (isUnstreamedThinkingBlock({ block, alreadyStreamed: ctx.thinkingAlreadyStreamed })) {
+  if (isUnstreamedThinkingBlock(block, { alreadyStreamed: ctx.thinkingAlreadyStreamed })) {
     emitSafeText({ s, msgId: ctx.thinkingMsgId, text: block.thinking, eventType: 'thinking_delta' });
   }
 }
