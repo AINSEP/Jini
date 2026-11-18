@@ -49,7 +49,7 @@ export function fileDropzoneStagingKey(file: File): string {
 
 /** CSS-safe, collision-resistant `@font-face` family name for a staged font at `index`. */
 export function fileDropzoneFontFamilyName(file: File, index: number): string {
-  const slug = trimChars(file.name.replace(/[^a-z0-9]+/gi, '-'), '-').slice(0, 24);
+  const slug = trimChars({ value: file.name.replace(/[^a-z0-9]+/gi, '-'), chars: '-' }).slice(0, 24);
   return `jini-file-dropzone-font-${index}-${slug || 'font'}`;
 }
 

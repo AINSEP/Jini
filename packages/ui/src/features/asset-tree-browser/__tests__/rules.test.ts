@@ -361,12 +361,12 @@ describe('buildBreadcrumbSegments', () => {
 
 describe('filesFromClipboardData', () => {
   it('null clipboardData yields no files', () => {
-    expect(filesFromClipboardData(null)).toEqual([]);
+    expect(filesFromClipboardData({ clipboardData: null })).toEqual([]);
   });
 
   it('prefers clipboardData.files when present', () => {
     const f = new File(['x'], 'x.png');
-    const files = filesFromClipboardData({ files: [f], items: [] } as unknown as DataTransfer);
+    const files = filesFromClipboardData({ clipboardData: { files: [f], items: [] } as unknown as DataTransfer });
     expect(files).toEqual([f]);
   });
 
@@ -377,7 +377,7 @@ describe('filesFromClipboardData', () => {
       { kind: 'string', getAsFile: () => null },
       { kind: 'file', getAsFile: () => null },
     ];
-    const files = filesFromClipboardData({ files: [], items } as unknown as DataTransfer);
+    const files = filesFromClipboardData({ clipboardData: { files: [], items } as unknown as DataTransfer });
     expect(files).toEqual([f]);
   });
 });
@@ -412,7 +412,7 @@ describe('extensionForMimeType', () => {
 
 describe('shouldIgnoreClipboardFilePaste', () => {
   it('false for a non-HTMLElement target', () => {
-    expect(shouldIgnoreClipboardFilePaste(null)).toBe(false);
+    expect(shouldIgnoreClipboardFilePaste({ target: null })).toBe(false);
   });
 
   it('true for a contenteditable ancestor', () => {
@@ -420,15 +420,15 @@ describe('shouldIgnoreClipboardFilePaste', () => {
     div.setAttribute('contenteditable', 'true');
     const span = document.createElement('span');
     div.appendChild(span);
-    expect(shouldIgnoreClipboardFilePaste(span)).toBe(true);
+    expect(shouldIgnoreClipboardFilePaste({ target: span })).toBe(true);
   });
 
   it.each(['input', 'textarea', 'select'])('true for a %s target', (tag) => {
-    expect(shouldIgnoreClipboardFilePaste(document.createElement(tag))).toBe(true);
+    expect(shouldIgnoreClipboardFilePaste({ target: document.createElement(tag) })).toBe(true);
   });
 
   it('false for a generic element', () => {
-    expect(shouldIgnoreClipboardFilePaste(document.createElement('div'))).toBe(false);
+    expect(shouldIgnoreClipboardFilePaste({ target: document.createElement('div') })).toBe(false);
   });
 });
 

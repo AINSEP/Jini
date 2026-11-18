@@ -77,7 +77,7 @@ function sanitizeHandleSegment(segment: string): string {
     .replace(/([a-z0-9])([A-Z])/g, (_match, first, second) => `${first}${HANDLE_SEPARATOR}${second}`)
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, HANDLE_SEPARATOR);
-  return trimChars(separated, '-');
+  return trimChars({ value: separated, chars: '-' });
 }
 
 /**

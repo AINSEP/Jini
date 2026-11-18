@@ -231,18 +231,16 @@ export function useAnnotationCanvas(options: UseAnnotationCanvasOptions): Annota
     const ctx = cvs.getContext('2d');
     if (!ctx) return;
     const draft = boxDraftRef.current ? normalizedRectFromPoints(boxDraftRef.current.start, boxDraftRef.current.current) : null;
-    redrawStrokesAndBoxes(
+    redrawStrokesAndBoxes({
       ctx,
-      {
-        strokes: strokesRef.current,
-        drawingStroke: drawingRef.current,
-        selectionBoxes: draft ? [...selectionBoxesRef.current, draft] : selectionBoxesRef.current,
-        boxDraft: null,
-      },
-      cvs.width,
-      cvs.height,
-      window.devicePixelRatio || 1,
-    );
+      strokes: strokesRef.current,
+      drawingStroke: drawingRef.current,
+      selectionBoxes: draft ? [...selectionBoxesRef.current, draft] : selectionBoxesRef.current,
+      boxDraft: null,
+      width: cvs.width,
+      height: cvs.height,
+      dpr: window.devicePixelRatio || 1,
+    });
   }, []);
 
   const redrawFrameRef = useRef<number | null>(null);
@@ -599,8 +597,8 @@ export function useAnnotationCanvas(options: UseAnnotationCanvasOptions): Annota
     if (!drag || drag.id !== mark.id) return;
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect || rect.width <= 0 || rect.height <= 0) return;
-    const nx = clamp01(drag.originX + ((e.clientX - rect.left) / rect.width - drag.startX));
-    const ny = clamp01(drag.originY + ((e.clientY - rect.top) / rect.height - drag.startY));
+    const nx = clamp01({ value: drag.originX + ((e.clientX - rect.left) / rect.width - drag.startX) });
+    const ny = clamp01({ value: drag.originY + ((e.clientY - rect.top) / rect.height - drag.startY) });
     drag.curX = nx;
     drag.curY = ny;
     if (Math.abs(nx - drag.originX) > 0.002 || Math.abs(ny - drag.originY) > 0.002) drag.moved = true;
@@ -694,7 +692,7 @@ export function useAnnotationCanvas(options: UseAnnotationCanvasOptions): Annota
 
   function boxBounds(): Rect | null {
     const boxes = selectionBoxesRef.current.map((box) => normalizedRectToCanvasRect(box)).filter((box): box is Rect => Boolean(box));
-    return mergeRects(boxes);
+    return mergeRects({ rects: boxes });
   }
 
   function lastBoxBounds(): Rect | null {
@@ -732,7 +730,7 @@ export function useAnnotationCanvas(options: UseAnnotationCanvasOptions): Annota
         rects.push({ x: left, y: top, width: 1, height: 1 });
       }
     }
-    return mergeRects(rects);
+    return mergeRects({ rects });
   }
 
   function strokeBounds(): Rect | null {
@@ -749,7 +747,7 @@ export function useAnnotationCanvas(options: UseAnnotationCanvasOptions): Annota
   }
 
   function annotationBounds(): Rect | undefined {
-    return mergeBounds([boxBounds(), strokeBounds(), textBounds(), captureTarget?.position ?? null]);
+    return mergeBounds({ rects: [boxBounds(), strokeBounds(), textBounds(), captureTarget?.position ?? null] });
   }
 
   function markKind() {
@@ -803,14 +801,14 @@ export function useAnnotationCanvas(options: UseAnnotationCanvasOptions): Annota
     ctx.drawImage(bg, 0, 0, snap.w, snap.h);
     const sx = snap.w / Math.max(1, frameRect.width);
     const sy = snap.h / Math.max(1, frameRect.height);
-    compositeMarksOntoCanvas(
+    compositeMarksOntoCanvas({
       ctx,
-      { target: captureTarget, selectionBoxes: selectionBoxesRef.current, strokes: strokesRef.current, textMarks: textMarksRef.current },
-      snap.w,
-      snap.h,
-      sx,
-      sy,
-    );
+      target: captureTarget, selectionBoxes: selectionBoxesRef.current, strokes: strokesRef.current, textMarks: textMarksRef.current,
+      outputWidth: snap.w,
+      outputHeight: snap.h,
+      scaleX: sx,
+      scaleY: sy,
+    });
     return new Promise((resolve) => out.toBlob((b) => resolve(b), 'image/png'));
   }
 
@@ -952,7 +950,7 @@ export function useAnnotationCanvas(options: UseAnnotationCanvasOptions): Annota
     showCanvas,
     textLayerVisible,
     chromeHidden,
-    textFontPx: textFontSizePx(frameSize.h),
+    textFontPx: textFontSizePx({ frameHeight: frameSize.h }),
     dockPlacement,
     markTool,
     markToolMenuOpen,

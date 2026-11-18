@@ -9,7 +9,7 @@ export function renderAdminThemeVariables({ theme }: { readonly theme: AdminThem
   if (colorScheme !== 'light' && colorScheme !== 'dark') throw new TypeError('Invalid resolved color scheme');
   const checked = validateAdminTheme({ theme });
   if (!checked.valid) throw new TypeError(checked.errors.join('; '));
-  const values = adminThemeColorKeys.map((key) => `--jini-${kebabThemeKey(key)}:${theme[colorScheme][key]};`);
+  const values = adminThemeColorKeys.map((key) => `--jini-${kebabThemeKey({ key })}:${theme[colorScheme][key]};`);
   values.push(`--jini-font-body:${theme.fonts.body};`, `--jini-font-heading:${theme.fonts.heading};`,
     `--jini-font-mono:${theme.fonts.mono ?? defaultAdminTheme.fonts.mono};`, `--jini-radius:${theme.radius ?? defaultAdminTheme.radius};`);
   return `:root{color-scheme:${colorScheme};${values.join('')}}`;

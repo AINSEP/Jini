@@ -55,7 +55,7 @@ export function listSupportedTimezones(): string[] {
  * else takes the last `/`-segment and replaces underscores with spaces
  * (`'America/Los_Angeles'` -> `'Los Angeles'`).
  */
-export function tzCityLabel(timezone: string): string {
+export function tzCityLabel({ timezone }: { timezone: string }, _optional: Record<string, never> = {}): string {
   if (timezone === 'UTC') return 'UTC';
   // `String.split` always returns an array with at least one element, so
   // `.pop()` on it is never `undefined` here — the non-null assertion just

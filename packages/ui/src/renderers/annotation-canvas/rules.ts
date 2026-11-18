@@ -18,12 +18,12 @@ import type {
   Rect,
 } from './types.js';
 
-export function clamp(value: number, min: number, max: number): number {
+export function clamp({ value, min, max }: { value: number; min: number; max: number }, _optional: Record<string, never> = {}): number {
   if (max < min) return min;
   return Math.min(Math.max(value, min), max);
 }
 
-export function clamp01(value: number): number {
+export function clamp01({ value }: { value: number }, _optional: Record<string, never> = {}): number {
   return Math.min(1, Math.max(0, value));
 }
 
@@ -131,8 +131,8 @@ export function computeDockPlacement(input: DockPlacementInput): DockPlacement {
 
   for (const candidate of candidates) {
     if (!candidate.fits) continue;
-    const clampedLeft = clamp(candidate.left, safeLeft, safeRight);
-    const clampedTop = clamp(candidate.top, safeTop, safeBottom);
+    const clampedLeft = clamp({ value: candidate.left, min: safeLeft, max: safeRight });
+    const clampedTop = clamp({ value: candidate.top, min: safeTop, max: safeBottom });
     // No separate `rectsOverlap` re-check is needed here: a candidate's own
     // `fits` test already requires DRAW_DOCK_GAP of clearance from the anchor
     // on that candidate's offset axis, and the clamp bounds on that same axis
@@ -159,7 +159,7 @@ export function computeDockPlacement(input: DockPlacementInput): DockPlacement {
 }
 
 /** Merges up to N optional bounding rects into one enclosing rect. Returns `undefined` when none are present (matches the origin's "no annotation bounds to report" case). */
-export function mergeBounds(rects: ReadonlyArray<Rect | null | undefined>): Rect | undefined {
+export function mergeBounds({ rects }: { rects: ReadonlyArray<Rect | null | undefined> }, _optional: Record<string, never> = {}): Rect | undefined {
   const present = rects.filter((r): r is Rect => Boolean(r));
   if (present.length === 0) return undefined;
   if (present.length === 1) return present[0];
@@ -171,7 +171,7 @@ export function mergeBounds(rects: ReadonlyArray<Rect | null | undefined>): Rect
 }
 
 /** Collapses a set of normalized selection boxes (already scaled to canvas pixels) into one enclosing rect, or `null` if there are none. */
-export function mergeRects(rects: ReadonlyArray<Rect>): Rect | null {
+export function mergeRects({ rects }: { rects: ReadonlyArray<Rect> }, _optional: Record<string, never> = {}): Rect | null {
   if (rects.length === 0) return null;
   const left = Math.min(...rects.map((r) => r.x));
   const top = Math.min(...rects.map((r) => r.y));

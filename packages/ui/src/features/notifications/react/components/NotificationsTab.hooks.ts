@@ -37,7 +37,7 @@ export function useNotificationsTab({ preferences, onChange, testNotificationTit
   const toggleSound = () => {
     const next = !preferences.soundEnabled;
     onChange({ soundEnabled: next });
-    if (next) playSound(preferences.successSoundId);
+    if (next) playSound({ id: preferences.successSoundId });
   };
 
   const toggleDesktop = async () => {

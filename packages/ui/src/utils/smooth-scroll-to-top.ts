@@ -21,7 +21,7 @@
 
 import { unitBezier } from './unit-bezier.js';
 
-const EASE_OUT = unitBezier(0.23, 1, 0.32, 1);
+const EASE_OUT = unitBezier({ x1: 0.23, y1: 1, x2: 0.32, y2: 1 });
 const MIN_DURATION_MS = 260;
 const MAX_DURATION_MS = 600;
 // Each extra ~6px of distance buys 1ms, so a viewport-sized hop lands near

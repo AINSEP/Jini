@@ -24,7 +24,7 @@ export function RemixIcon({ name, size = 14, className, style }: RemixIconProps)
 
   return (
     <i
-      className={withClassName(`ri-${name}`, className)}
+      className={withClassName({ base: `ri-${name}`, extra: className })}
       aria-hidden="true"
       style={{
         fontSize: size,

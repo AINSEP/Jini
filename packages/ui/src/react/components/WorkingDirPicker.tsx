@@ -426,7 +426,7 @@ export function WorkingDirPicker({
   return (
     <div
       ref={wrapRef}
-      className={withClassName('jini-working-dir-picker', className)}
+      className={withClassName({ base: 'jini-working-dir-picker', extra: className })}
       data-testid="working-dir-picker"
     >
       <WorkingDirTrigger

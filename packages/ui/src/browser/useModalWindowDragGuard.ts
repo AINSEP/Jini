@@ -12,8 +12,8 @@ export const MODAL_WINDOW_DRAG_STRIP_HEIGHT = 56;
  * `backdropSelector`.
  */
 export function eventHitsModalWindowDragStrip(
-  event: MouseEvent | PointerEvent,
-  backdropSelector: string,
+  { event, backdropSelector }: { event: MouseEvent | PointerEvent; backdropSelector: string },
+  _optional: Record<string, never> = {},
 ): boolean {
   const target = event.target;
   return (
@@ -54,7 +54,7 @@ export function useModalWindowDragGuard(options: UseModalWindowDragGuardOptions)
     if (!enabled) return undefined;
 
     const stopBackdropDismissInDragStrip = (event: MouseEvent | PointerEvent) => {
-      if (eventHitsModalWindowDragStrip(event, backdropSelector)) {
+      if (eventHitsModalWindowDragStrip({ event, backdropSelector })) {
         event.stopPropagation();
       }
     };

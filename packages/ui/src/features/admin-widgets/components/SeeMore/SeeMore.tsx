@@ -53,7 +53,7 @@ export function resolveSeeMoreView({
 } = {}): SeeMoreView {
   return {
     wrapperClassName: className ? `see-more ${className}` : "see-more",
-    textClassName: withClassName(expanded ? "see-more-text is-expanded" : "see-more-text", textClassName),
+    textClassName: withClassName({ base: expanded ? "see-more-text is-expanded" : "see-more-text", extra: textClassName }),
     toggleClassName: toggleClassName ? `see-more-toggle ${toggleClassName}` : "see-more-toggle",
     toggleLabel: expanded ? lessLabel : moreLabel,
   };

@@ -208,5 +208,5 @@ export function snippetForClient(clientId: McpClientId, serverName: string, info
   // and only `methodLabelForClient` gets updated: with every current case
   // returning, `unhandledCase`'s `never` parameter makes `tsc` require this
   // switch to be exhaustive too.
-  return unhandledCase(clientId);
+  return unhandledCase({ _value: clientId });
 }

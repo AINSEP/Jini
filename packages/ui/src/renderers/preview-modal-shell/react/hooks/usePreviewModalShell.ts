@@ -189,9 +189,9 @@ function useStageMeasurement({ stageFrameRef, sidebarOpen, activeId, designWidth
     return () => cancelAnimationFrame(raf);
   }, [sidebarOpen, activeId, stageFrameRef]);
 
-  const scale = computeStageScale(stageSize.w, designWidth);
+  const scale = computeStageScale({ stageWidth: stageSize.w, designWidth });
   const scalerStyle = useMemo(
-    () => computeScalerStyle(stageSize, designWidth, scale),
+    () => computeScalerStyle({ stageSize, designWidth, scale }),
     [scale, stageSize.w, stageSize.h, designWidth],
   );
   return { stageSize, scale, scalerStyle };
@@ -201,7 +201,7 @@ export function usePreviewModalShell<V extends PreviewModalViewLike>(
   options: UsePreviewModalShellOptions<V>,
 ): PreviewModalShellController<V> {
   const { views, initialViewId, onView, onClose, sidebarDefaultOpen = false, sidebarOnToggle, sidebarContentKey } = options;
-  const [activeId, setActiveId] = useState<string>(resolveInitialViewId(views, initialViewId));
+  const [activeId, setActiveId] = useState<string>(resolveInitialViewId({ views, initialViewId }));
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(sidebarDefaultOpen);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const stageFrameRef = useRef<HTMLDivElement | null>(null);
@@ -228,7 +228,7 @@ export function usePreviewModalShell<V extends PreviewModalViewLike>(
   return {
     activeId,
     setActiveId,
-    activeView: findActiveView(views, activeId),
+    activeView: findActiveView({ views, activeId }),
     ...fullscreenState,
     sidebarOpen,
     setSidebarOpen,

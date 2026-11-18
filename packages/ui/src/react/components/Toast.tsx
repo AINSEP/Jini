@@ -119,7 +119,7 @@ export function toastClassName(options: {
   leaving: boolean;
 }): string {
   const { tone, placement, className, leaving } = options;
-  const base = withClassName(`jini-toast tone-${tone} placement-${placement}`, className);
+  const base = withClassName({ base: `jini-toast tone-${tone} placement-${placement}`, extra: className });
   return leaving ? `${base} leaving` : base;
 }
 

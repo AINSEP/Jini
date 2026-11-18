@@ -28,14 +28,14 @@ describe('normalizePastedFile', () => {
   it('applies the rename to clipboard files from both the files list and the items list', () => {
     vi.useFakeTimers({ now: new Date('2026-01-02T03:04:05.000Z') });
     const unnamed = new File(['x'], '', { type: 'image/png' });
-    const viaFiles = filesFromClipboardData({ files: [unnamed], items: [] } as unknown as DataTransfer);
+    const viaFiles = filesFromClipboardData({ clipboardData: { files: [unnamed], items: [] } as unknown as DataTransfer });
     expect(viaFiles.map((f) => f.name)).toEqual(['pasted-2026-01-02T03-04-05.png']);
-    const viaItems = filesFromClipboardData({ files: [], items: [
+    const viaItems = filesFromClipboardData({ clipboardData: { files: [], items: [
       { kind: 'string', getAsFile: () => null },
       { kind: 'file', getAsFile: () => null },
       { kind: 'file', getAsFile: () => unnamed },
-    ] } as unknown as DataTransfer);
+    ] } as unknown as DataTransfer });
     expect(viaItems.map((f) => f.name)).toEqual(['pasted-2026-01-02T03-04-05.png']);
-    expect(filesFromClipboardData(null)).toEqual([]);
+    expect(filesFromClipboardData({ clipboardData: null })).toEqual([]);
   });
 });

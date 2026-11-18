@@ -14,7 +14,7 @@ import { highlightCode } from '../shiki.js';
 describe('highlightCode (SSR)', () => {
   it('uses the light theme when document is undefined, regardless of matchMedia', () => {
     expect(typeof document).toBe('undefined');
-    return highlightCode('const ssr = true;', 'javascript').then((html) => {
+    return highlightCode({ code: 'const ssr = true;', lang: 'javascript' }).then((html) => {
       expect(html).toContain('github-light-default');
     });
   }, 20000);

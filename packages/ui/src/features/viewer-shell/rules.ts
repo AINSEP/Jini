@@ -266,9 +266,9 @@ export function computeSplitPaneScrollTarget(params: {
     const isEditorSource = sourcePane === 'editor';
     const sourceOffsets = isEditorSource ? editorOffsets : previewOffsets;
     const targetOffsets = isEditorSource ? previewOffsets : editorOffsets;
-    const sourceAnchors = buildScrollAnchors(sourceOffsets, source.scrollHeight);
-    const targetAnchors = buildScrollAnchors(targetOffsets, target.scrollHeight);
-    const mapped = mapScrollPosition(source.scrollTop, sourceAnchors, targetAnchors);
+    const sourceAnchors = buildScrollAnchors({ blockOffsets: sourceOffsets, scrollHeight: source.scrollHeight });
+    const targetAnchors = buildScrollAnchors({ blockOffsets: targetOffsets, scrollHeight: target.scrollHeight });
+    const mapped = mapScrollPosition({ value: source.scrollTop, source: sourceAnchors, target: targetAnchors });
     return Math.max(0, Math.min(scrollRange(target), mapped));
   }
   return scrollTopForRatio(target, scrollRatio(source));

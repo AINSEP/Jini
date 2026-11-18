@@ -10,7 +10,8 @@
 export const DEFAULT_VISUAL_STABILITY_STORAGE_KEY = 'jini:visual-stability';
 
 export function isVisualStabilityMode(
-  storageKey: string = DEFAULT_VISUAL_STABILITY_STORAGE_KEY,
+  _required: Record<string, never>,
+  { storageKey = DEFAULT_VISUAL_STABILITY_STORAGE_KEY }: { storageKey?: string | undefined } = {},
 ): boolean {
   if (typeof window === 'undefined') return false;
   try {

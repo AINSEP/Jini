@@ -88,7 +88,7 @@ function postProcessMarkdownHtml(html: string): string {
 
 function normalizeSafeHref(href: string): string | null {
   const decoded = decodeHref(href);
-  const stripped = trimTrailingWhere(decoded, (char) => /[!"')}\],.;:\s]/.test(char));
+  const stripped = trimTrailingWhere({ value: decoded, isTrimmed: (char) => /[!"')}\],.;:\s]/.test(char) });
   if (
     ['#', '/', './', '../'].some(prefix => stripped.startsWith(prefix)) ||
     /^https?:\/\//i.test(stripped) ||

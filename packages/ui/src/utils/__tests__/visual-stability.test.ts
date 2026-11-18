@@ -26,32 +26,32 @@ describe('isVisualStabilityMode', () => {
   });
 
   it('returns false when window is entirely absent (Node default, no DOM at all)', () => {
-    expect(isVisualStabilityMode()).toBe(false);
+    expect(isVisualStabilityMode({})).toBe(false);
   });
 
   it('returns false when the flag is unset', () => {
     vi.stubGlobal('window', { localStorage: fakeLocalStorage() });
-    expect(isVisualStabilityMode()).toBe(false);
+    expect(isVisualStabilityMode({})).toBe(false);
   });
 
   it('returns true when the default key is set to "1"', () => {
     vi.stubGlobal('window', {
       localStorage: fakeLocalStorage({ [DEFAULT_VISUAL_STABILITY_STORAGE_KEY]: '1' }),
     });
-    expect(isVisualStabilityMode()).toBe(true);
+    expect(isVisualStabilityMode({})).toBe(true);
   });
 
   it('returns false for any value other than exactly "1"', () => {
     vi.stubGlobal('window', {
       localStorage: fakeLocalStorage({ [DEFAULT_VISUAL_STABILITY_STORAGE_KEY]: 'true' }),
     });
-    expect(isVisualStabilityMode()).toBe(false);
+    expect(isVisualStabilityMode({})).toBe(false);
   });
 
   it('honors a custom storage key', () => {
     vi.stubGlobal('window', { localStorage: fakeLocalStorage({ 'host:custom-key': '1' }) });
-    expect(isVisualStabilityMode('host:custom-key')).toBe(true);
-    expect(isVisualStabilityMode()).toBe(false);
+    expect(isVisualStabilityMode({}, { storageKey: 'host:custom-key' })).toBe(true);
+    expect(isVisualStabilityMode({})).toBe(false);
   });
 
   it('returns false rather than throwing when localStorage access throws', () => {
@@ -62,6 +62,6 @@ describe('isVisualStabilityMode', () => {
         },
       },
     });
-    expect(isVisualStabilityMode()).toBe(false);
+    expect(isVisualStabilityMode({})).toBe(false);
   });
 });

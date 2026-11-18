@@ -50,7 +50,7 @@ function dosTime(d: Date): { time: number; date: number } {
  * @complexity O(n) time / O(n) extra space in total entry byte size — one
  *   pass per entry to encode, CRC, and append its local + central headers.
  */
-export function buildZip(entries: ZipEntry[]): Blob {
+export function buildZip({ entries }: { entries: ZipEntry[] }, _optional: Record<string, never> = {}): Blob {
   const enc = new TextEncoder();
   const now = dosTime(new Date());
 

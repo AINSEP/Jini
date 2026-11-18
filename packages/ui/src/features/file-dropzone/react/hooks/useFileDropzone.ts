@@ -73,10 +73,10 @@ function useClipboardFilePaste({ enablePaste, stageFiles }: { enablePaste: boole
   useEffect(() => {
     if (!enablePaste) return undefined;
     function onPaste(event: ClipboardEvent) {
-      if (shouldIgnoreClipboardFilePaste(event.target) || shouldIgnoreClipboardFilePaste(document.activeElement)) {
+      if (shouldIgnoreClipboardFilePaste({ target: event.target }) || shouldIgnoreClipboardFilePaste({ target: document.activeElement })) {
         return;
       }
-      const pasted = filesFromClipboardData(event.clipboardData);
+      const pasted = filesFromClipboardData({ clipboardData: event.clipboardData });
       if (pasted.length === 0) return;
       event.preventDefault();
       stageFiles(pasted);

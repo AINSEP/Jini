@@ -40,7 +40,7 @@ export interface Rect {
 /** A stroke is "closed" if its last point lands back near its first —
  *  within `closeThreshold` px — and it has enough points to plausibly
  *  enclose an area. */
-export function isClosedLoop(points: readonly Point[], closeThreshold = 28): boolean {
+export function isClosedLoop({ points }: { points: readonly Point[] }, { closeThreshold = 28 }: { closeThreshold?: number | undefined } = {}): boolean {
   if (points.length < 4) return false;
   const first = points[0]!;
   const last = points[points.length - 1]!;
@@ -60,7 +60,7 @@ export function rectContains(outer: Rect, inner: Rect): boolean {
 /** Do line segments `a1`→`a2` and `b1`→`b2` intersect? Standard
  *  parametric-line-intersection test; parallel (or coincident) segments
  *  never intersect under this test. */
-export function lineIntersectsLine(a1: Point, a2: Point, b1: Point, b2: Point): boolean {
+export function lineIntersectsLine({ a1, a2, b1, b2 }: { a1: Point; a2: Point; b1: Point; b2: Point }, _optional: Record<string, never> = {}): boolean {
   const denominator = (a2.x - a1.x) * (b2.y - b1.y) - (a2.y - a1.y) * (b2.x - b1.x);
   if (denominator === 0) return false;
   const ua = ((b2.x - b1.x) * (a1.y - b1.y) - (b2.y - b1.y) * (a1.x - b1.x)) / denominator;
@@ -107,7 +107,7 @@ function rectHoldsPoint({ rect, point }: { rect: Rect; point: Point }): boolean 
 
 /** Does segment `from`→`to` cross any of the 4 edges (top, right, bottom, left) of the rect with these `corners`? */
 function segmentCrossesRectEdges({ from, to, corners }: { from: Point; to: Point; corners: readonly Point[] }): boolean {
-  return corners.some((corner, index) => lineIntersectsLine(from, to, corner, corners[(index + 1) % corners.length]!));
+  return corners.some((corner, index) => lineIntersectsLine({ a1: from, a2: to, b1: corner, b2: corners[(index + 1) % corners.length]! }));
 }
 
 /** Does the polyline `points` pass through `rect`, either by a point

@@ -39,7 +39,7 @@ function consumeValue({ st, ch }: { st: CssPrettyState; ch: string }, _options: 
 }
 
 function openRule({ st }: { st: CssPrettyState }, _options: object = {}): boolean {
-  st.out = trimTrailingChars(st.out, ' \t');
+  st.out = trimTrailingChars({ value: st.out, chars: ' \t' });
   st.out += ' {';
   st.depth++;
   st.atDeclStart = true;
@@ -51,7 +51,7 @@ function openRule({ st }: { st: CssPrettyState }, _options: object = {}): boolea
 
 function closeRule({ st }: { st: CssPrettyState }, _options: object = {}): boolean {
   st.depth = Math.max(0, st.depth - 1);
-  st.out = trimTrailingChars(st.out, ' \t');
+  st.out = trimTrailingChars({ value: st.out, chars: ' \t' });
   // A `}` immediately after `{` (an empty rule) needs no newline before it; otherwise close on
   // its own indented line.
   if (!st.out.endsWith('{')) st.out += '\n' + INDENT.repeat(st.depth);

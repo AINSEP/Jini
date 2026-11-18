@@ -6,10 +6,10 @@ describe('isImeComposing', () => {
   const fakeEvent = {} as ReactKeyboardEvent<HTMLInputElement>;
 
   it('trusts the composing ref over the event when true', () => {
-    expect(isImeComposing(fakeEvent, true)).toBe(true);
+    expect(isImeComposing({ _event: fakeEvent, composing: true })).toBe(true);
   });
 
   it('trusts the composing ref over the event when false', () => {
-    expect(isImeComposing(fakeEvent, false)).toBe(false);
+    expect(isImeComposing({ _event: fakeEvent, composing: false })).toBe(false);
   });
 });

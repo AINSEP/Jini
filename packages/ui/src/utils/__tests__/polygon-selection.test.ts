@@ -10,23 +10,23 @@ import {
 
 describe('isClosedLoop', () => {
   it('is false for fewer than 4 points', () => {
-    expect(isClosedLoop([{ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 2 }])).toBe(false);
+    expect(isClosedLoop({ points: [{ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 2 }] })).toBe(false);
   });
 
   it('is true when the last point lands back near the first', () => {
     const points = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 2, y: 2 }];
-    expect(isClosedLoop(points)).toBe(true);
+    expect(isClosedLoop({ points })).toBe(true);
   });
 
   it('is false when the last point is far from the first', () => {
     const points = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 100, y: 100 }];
-    expect(isClosedLoop(points)).toBe(false);
+    expect(isClosedLoop({ points })).toBe(false);
   });
 
   it('respects a custom close threshold', () => {
     const points = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 40, y: 0 }];
-    expect(isClosedLoop(points, 10)).toBe(false);
-    expect(isClosedLoop(points, 50)).toBe(true);
+    expect(isClosedLoop({ points }, { closeThreshold: 10 })).toBe(false);
+    expect(isClosedLoop({ points }, { closeThreshold: 50 })).toBe(true);
   });
 });
 
@@ -48,19 +48,19 @@ describe('rectContains', () => {
 
 describe('lineIntersectsLine', () => {
   it('detects a crossing between two segments', () => {
-    expect(lineIntersectsLine({ x: 0, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }, { x: 10, y: 0 })).toBe(true);
+    expect(lineIntersectsLine({ a1: { x: 0, y: 0 }, a2: { x: 10, y: 10 }, b1: { x: 0, y: 10 }, b2: { x: 10, y: 0 } })).toBe(true);
   });
 
   it('is false for non-crossing segments', () => {
-    expect(lineIntersectsLine({ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 5 }, { x: 1, y: 5 })).toBe(false);
+    expect(lineIntersectsLine({ a1: { x: 0, y: 0 }, a2: { x: 1, y: 0 }, b1: { x: 0, y: 5 }, b2: { x: 1, y: 5 } })).toBe(false);
   });
 
   it('is false for parallel (zero-denominator) segments', () => {
-    expect(lineIntersectsLine({ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 1 }, { x: 10, y: 1 })).toBe(false);
+    expect(lineIntersectsLine({ a1: { x: 0, y: 0 }, a2: { x: 10, y: 0 }, b1: { x: 0, y: 1 }, b2: { x: 10, y: 1 } })).toBe(false);
   });
 
   it('is false when segments would cross if extended but do not within their bounds', () => {
-    expect(lineIntersectsLine({ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 5, y: 0 }, { x: 6, y: 1 })).toBe(false);
+    expect(lineIntersectsLine({ a1: { x: 0, y: 0 }, a2: { x: 1, y: 1 }, b1: { x: 5, y: 0 }, b2: { x: 6, y: 1 } })).toBe(false);
   });
 });
 

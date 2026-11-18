@@ -40,7 +40,7 @@ function isDarkMode(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches;
 }
 
-export async function highlightCode(code: string, lang: string): Promise<string> {
+export async function highlightCode({ code, lang }: { code: string; lang: string }, _optional: Record<string, never> = {}): Promise<string> {
   const dark = isDarkMode();
   const cacheKey = `${dark ? 'd' : 'l'}:${lang}:${code}`;
   const cached = cache.get(cacheKey);

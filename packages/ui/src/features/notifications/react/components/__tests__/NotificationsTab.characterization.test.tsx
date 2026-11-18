@@ -76,7 +76,7 @@ describe('NotificationsTab characterization before L141 refactoring', () => {
         expect(button.getAttribute('data-agent-element')).toBe(agentHandle ? `notify-${group.action}-${group.ids[index]}` : null);
         await userEvent.click(button);
         expect(onChange).toHaveBeenLastCalledWith({ [group.key]: group.ids[index] });
-        expect(notifications.playSound).toHaveBeenLastCalledWith(group.ids[index]);
+        expect(notifications.playSound).toHaveBeenLastCalledWith({ id: group.ids[index] });
       }
     }
   });

@@ -41,7 +41,7 @@ export interface FileWithRelativePath extends File {
 
 // --- clipboard-paste ---------------------------------------------------
 
-export function filesFromClipboardData(clipboardData: DataTransfer | null): File[] {
+export function filesFromClipboardData({ clipboardData }: { clipboardData: DataTransfer | null }, _optional: Record<string, never> = {}): File[] {
   const files = Array.from(clipboardData?.files ?? []);
   if (files.length > 0) return files.map(normalizePastedFile);
   const items = Array.from(clipboardData?.items ?? []);
@@ -65,7 +65,7 @@ export function normalizePastedFile(file: File): File {
 }
 
 /** Whether a global paste event landed on a text-entry target that owns paste itself (so a page-wide clipboard-upload listener should ignore it). */
-export function shouldIgnoreClipboardFilePaste(target: EventTarget | null): boolean {
+export function shouldIgnoreClipboardFilePaste({ target }: { target: EventTarget | null }, _optional: Record<string, never> = {}): boolean {
   if (!(target instanceof HTMLElement)) return false;
   if (target.closest('[contenteditable="true"]')) return true;
   const tagName = target.tagName.toLowerCase();
@@ -146,7 +146,7 @@ function fileFromEntry(entry: FileSystemFileEntryWithFile): Promise<FileWithRela
     entry.file(
       (file) => resolve(Object.assign(file, { relativePath: relativePathFromEntry(entry) })),
       (error) => {
-        reject(createFileSystemReadError('Could not read dropped file', error));
+        reject(createFileSystemReadError({ action: 'Could not read dropped file', error }));
       },
     );
   });
@@ -155,7 +155,7 @@ function fileFromEntry(entry: FileSystemFileEntryWithFile): Promise<FileWithRela
 function readEntryBatch(reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> {
   return new Promise((resolve, reject) => {
     reader.readEntries(resolve, (error) => {
-      reject(createFileSystemReadError('Could not read dropped folder', error));
+      reject(createFileSystemReadError({ action: 'Could not read dropped folder', error }));
     });
   });
 }

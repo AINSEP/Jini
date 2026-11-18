@@ -140,7 +140,7 @@ const SOUND_PLAYERS: Record<SoundId, (c: AudioContext) => void> = {
 };
 
 /** Plays a registered sound id. No-ops silently on any failure (never throws into UI code). */
-export function playSound(id: SoundId): void {
+export function playSound({ id }: { id: SoundId }, _optional: Record<string, never> = {}): void {
   const c = getCtx();
   if (!c) return;
   const player = SOUND_PLAYERS[id];
@@ -152,12 +152,12 @@ export function playSound(id: SoundId): void {
   }
 }
 
-export function previewSuccess(id: SoundId): void {
-  playSound(id);
+export function previewSuccess({ id }: { id: SoundId }, _optional: Record<string, never> = {}): void {
+  playSound({ id });
 }
 
-export function previewFailure(id: SoundId): void {
-  playSound(id);
+export function previewFailure({ id }: { id: SoundId }, _optional: Record<string, never> = {}): void {
+  playSound({ id });
 }
 
 export function notificationPermission(): NotificationPermission | 'unsupported' {

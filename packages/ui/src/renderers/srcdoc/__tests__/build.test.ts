@@ -14,125 +14,125 @@ import type { SrcDocBridge } from '../bridge.js';
 
 describe('sanitizePreviewTitle', () => {
   it('replaces filesystem-unsafe characters with a hyphen', () => {
-    expect(sanitizePreviewTitle('Q3: Report / Draft')).toBe('Q3- Report - Draft');
+    expect(sanitizePreviewTitle({ text: 'Q3: Report / Draft' })).toBe('Q3- Report - Draft');
   });
 
   it('strips a leading ~$ lock-file prefix, including doubled prefixes', () => {
-    expect(sanitizePreviewTitle('~$~$Invoice')).toBe('Invoice');
+    expect(sanitizePreviewTitle({ text: '~$~$Invoice' })).toBe('Invoice');
   });
 
   it('leaves an already-safe title untouched', () => {
-    expect(sanitizePreviewTitle('Weekly Update')).toBe('Weekly Update');
+    expect(sanitizePreviewTitle({ text: 'Weekly Update' })).toBe('Weekly Update');
   });
 });
 
 describe('sanitizeTitleInDoc', () => {
   it('sanitizes the real <title> in the head', () => {
     const doc = '<!doctype html><html><head><title>Bad: Title?</title></head><body></body></html>';
-    expect(sanitizeTitleInDoc(doc)).toContain('<title>Bad- Title-</title>');
+    expect(sanitizeTitleInDoc({ html: doc })).toContain('<title>Bad- Title-</title>');
   });
 
   it('ignores a <title>-like string inside a <script> block', () => {
     const doc =
       '<!doctype html><html><head><script>var s = "<title>fake</title>";</script></head><body></body></html>';
-    expect(sanitizeTitleInDoc(doc)).toBe(doc);
+    expect(sanitizeTitleInDoc({ html: doc })).toBe(doc);
   });
 
   it('decodes HTML entities, then re-sanitizes the decoded result (& is itself a disallowed filename character)', () => {
     const doc = '<html><head><title>Caf&eacute; &amp; Bar</title></head><body></body></html>';
-    expect(sanitizeTitleInDoc(doc)).toContain('<title>Café - Bar</title>');
+    expect(sanitizeTitleInDoc({ html: doc })).toContain('<title>Café - Bar</title>');
   });
 
   it('returns the input unchanged when there is no <title>', () => {
     const doc = '<html><head></head><body>hi</body></html>';
-    expect(sanitizeTitleInDoc(doc)).toBe(doc);
+    expect(sanitizeTitleInDoc({ html: doc })).toBe(doc);
   });
 
   it('skips a <title>-like string inside an HTML comment and sanitizes the real title after it', () => {
     const doc = '<html><head><!-- <title>fake</title> --><title>Real: Title</title></head><body></body></html>';
-    expect(sanitizeTitleInDoc(doc)).toContain('<title>Real- Title</title>');
+    expect(sanitizeTitleInDoc({ html: doc })).toContain('<title>Real- Title</title>');
   });
 
   it('returns the input unchanged when an unterminated HTML comment prevents finding any title', () => {
     const doc = '<html><head><!-- never closes<title>Real</title></head><body></body></html>';
-    expect(sanitizeTitleInDoc(doc)).toBe(doc);
+    expect(sanitizeTitleInDoc({ html: doc })).toBe(doc);
   });
 
   it('returns the input unchanged when a <script> block before the title never closes (malformed doc)', () => {
     const doc = '<html><head><script>var s = "<title>fake</title>";';
-    expect(sanitizeTitleInDoc(doc)).toBe(doc);
+    expect(sanitizeTitleInDoc({ html: doc })).toBe(doc);
   });
 
   it('returns the input unchanged when <title> opens but never closes', () => {
     const doc = '<html><head><title>Oops, no closing tag';
-    expect(sanitizeTitleInDoc(doc)).toBe(doc);
+    expect(sanitizeTitleInDoc({ html: doc })).toBe(doc);
   });
 
   it('returns the input unchanged when <title itself never closes with a >', () => {
     const doc = '<title ';
-    expect(sanitizeTitleInDoc(doc)).toBe(doc);
+    expect(sanitizeTitleInDoc({ html: doc })).toBe(doc);
   });
 
   it('decodes numeric and hex character references in the title', () => {
     const doc = '<html><head><title>&#65;&#x42; Report</title></head><body></body></html>';
-    expect(sanitizeTitleInDoc(doc)).toContain('<title>AB Report</title>');
+    expect(sanitizeTitleInDoc({ html: doc })).toContain('<title>AB Report</title>');
   });
 
   it('replaces an out-of-range numeric character reference with the Unicode replacement character', () => {
     const doc = '<html><head><title>&#99999999;bad</title></head><body></body></html>';
-    expect(sanitizeTitleInDoc(doc)).toContain(`<title>�bad</title>`);
+    expect(sanitizeTitleInDoc({ html: doc })).toContain(`<title>�bad</title>`);
   });
 
   it('preserves every source character outside title content, including tag case and quoted > attributes', () => {
     const before = "<!DOCTYPE html>\n<html><head data-note='>'><!-- İ --><TITLE data-note='>'>";
     const after = "</TITLE  >\n<style>p { color: red; }</style></head><body data-x='&amp;'>Hi</body></html>";
-    expect(sanitizeTitleInDoc(before + '  Q3: &eacute;?  ' + after)).toBe(before + 'Q3- é-' + after);
+    expect(sanitizeTitleInDoc({ html: before + '  Q3: &eacute;?  ' + after })).toBe(before + 'Q3- é-' + after);
   });
 
   it('uses the full HTML entity set and accepts semicolon-free numeric references', () => {
     const doc = '<title>A&nbsp;B &NotEqualTilde; &#65 &#x42</title>';
-    expect(sanitizeTitleInDoc(doc)).toBe('<title>A\u00a0B ≂̸ A B</title>');
+    expect(sanitizeTitleInDoc({ html: doc })).toBe('<title>A\u00a0B ≂̸ A B</title>');
   });
 
   it('decodes character references once rather than interpreting decoded ampersands again', () => {
-    expect(sanitizeTitleInDoc('<title>&amp;lt;</title>')).toBe('<title>-lt;</title>');
+    expect(sanitizeTitleInDoc({ html: '<title>&amp;lt;</title>' })).toBe('<title>-lt;</title>');
   });
 
   it('uses HTML replacement rules for nulls, surrogates and legacy numeric references', () => {
-    expect(sanitizeTitleInDoc('<title>&#0;&#xD800;&#128;</title>')).toBe('<title>��€</title>');
+    expect(sanitizeTitleInDoc({ html: '<title>&#0;&#xD800;&#128;</title>' })).toBe('<title>��€</title>');
   });
 
   it('ignores fake titles in styles, templates and attributes before the real head title', () => {
     const before = '<head><meta data-note="<title>Fake: Attribute</title>"><style>p::before { content: "<title>Fake: Style</title>"; }</style><template><title>Fake: Template</title></template>';
     const after = '</head><body>Original</body>';
-    expect(sanitizeTitleInDoc(before + '<title>Real: Title</title>' + after)).toBe(before + '<title>Real- Title</title>' + after);
+    expect(sanitizeTitleInDoc({ html: before + '<title>Real: Title</title>' + after })).toBe(before + '<title>Real- Title</title>' + after);
   });
 
   it('sanitizes only the first head title and leaves subsequent titles unchanged', () => {
-    expect(sanitizeTitleInDoc('<head><title>First: Title</title><title>Second: Title</title></head>'))
+    expect(sanitizeTitleInDoc({ html: '<head><title>First: Title</title><title>Second: Title</title></head>' }))
       .toBe('<head><title>First- Title</title><title>Second: Title</title></head>');
   });
 
   it('leaves titles outside the head untouched', () => {
     const doc = '<html><head></head><body><title>Body: Title</title><svg><title>SVG: Title</title></svg></body></html>';
-    expect(sanitizeTitleInDoc(doc)).toBe(doc);
+    expect(sanitizeTitleInDoc({ html: doc })).toBe(doc);
   });
 
   it('locates a title under an implicit head without adding missing document markup', () => {
-    expect(sanitizeTitleInDoc('<html><title>Implicit: Head</title><body>Hi</body>'))
+    expect(sanitizeTitleInDoc({ html: '<html><title>Implicit: Head</title><body>Hi</body>' }))
       .toBe('<html><title>Implicit- Head</title><body>Hi</body>');
   });
 });
 
 describe('splice helpers', () => {
   it('injectAfterHeadOpen splices right after <head>', () => {
-    expect(injectAfterHeadOpen('<html><head><meta/></head></html>', '<X/>')).toBe(
+    expect(injectAfterHeadOpen({ doc: '<html><head><meta/></head></html>', payload: '<X/>' })).toBe(
       '<html><head><X/><meta/></head></html>',
     );
   });
 
   it('injectAfterHeadOpen prepends when there is no <head>', () => {
-    expect(injectAfterHeadOpen('<div/>', '<X/>')).toBe('<X/><div/>');
+    expect(injectAfterHeadOpen({ doc: '<div/>', payload: '<X/>' })).toBe('<X/><div/>');
   });
 
   it.each([
@@ -140,30 +140,30 @@ describe('splice helpers', () => {
     ['<html><head data-note=">">', '<html><head data-note=">"><meta data-probe>'],
     ['<html><script>const fake = "<head>";</script>', '<html><meta data-probe><script>const fake = "<head>";</script>'],
   ])('injectAfterHeadOpen uses parsed offsets for %s', (doc, expected) => {
-    expect(injectAfterHeadOpen(doc, '<meta data-probe>')).toBe(expected);
+    expect(injectAfterHeadOpen({ doc, payload: '<meta data-probe>' })).toBe(expected);
   });
 
   it('injectBeforeHeadEnd splices right before the real </head>', () => {
-    expect(injectBeforeHeadEnd('<html><head><meta/></head><body></body></html>', '<X/>')).toBe(
+    expect(injectBeforeHeadEnd({ doc: '<html><head><meta/></head><body></body></html>', payload: '<X/>' })).toBe(
       '<html><head><meta/><X/></head><body></body></html>',
     );
   });
 
   it('injectBeforeHeadEnd ignores a </head> literal inside a <script>', () => {
     const doc = '<html><head><script>"</head>"</script></head><body></body></html>';
-    expect(injectBeforeHeadEnd(doc, '<X/>')).toBe(
+    expect(injectBeforeHeadEnd({ doc, payload: '<X/>' })).toBe(
       '<html><head><script>"</head>"</script><X/></head><body></body></html>',
     );
   });
 
   it('injectBeforeBodyEnd splices right before the real </body>', () => {
-    expect(injectBeforeBodyEnd('<html><body><p>hi</p></body></html>', '<X/>')).toBe(
+    expect(injectBeforeBodyEnd({ doc: '<html><body><p>hi</p></body></html>', payload: '<X/>' })).toBe(
       '<html><body><p>hi</p><X/></body></html>',
     );
   });
 
   it('injectBeforeHeadEnd falls back to DOMParser when the doc has no <head> tag and no </head> at all', () => {
-    const out = injectBeforeHeadEnd('<html><body>hi</body></html>', '<meta data-probe="1">');
+    const out = injectBeforeHeadEnd({ doc: '<html><body>hi</body></html>', payload: '<meta data-probe="1">' });
     expect(out.toLowerCase()).toContain('<head>');
     expect(out).toContain('<meta data-probe="1">');
   });
@@ -172,7 +172,7 @@ describe('splice helpers', () => {
     // Exercises `serializeHtmlDocument`'s `doc.doctype ? ... : ''` true
     // branch — the DOMParser-fallback test above uses a doctype-less
     // fragment, which only ever exercises the false ('') side.
-    const out = injectBeforeHeadEnd('<!doctype html><html><body>hi</body></html>', '<meta data-probe="1">');
+    const out = injectBeforeHeadEnd({ doc: '<!doctype html><html><body>hi</body></html>', payload: '<meta data-probe="1">' });
     expect(out.toLowerCase().startsWith('<!doctype html>')).toBe(true);
     expect(out).toContain('<meta data-probe="1">');
   });
@@ -187,7 +187,7 @@ describe('splice helpers', () => {
     globalThis.DOMParser = ThrowingDOMParser as unknown as typeof DOMParser;
     try {
       const doc = '<html>just a fragment, no head or body tag at all</html>';
-      expect(injectBeforeHeadEnd(doc, '<X/>')).toBe(`<X/>${doc}`);
+      expect(injectBeforeHeadEnd({ doc, payload: '<X/>' })).toBe(`<X/>${doc}`);
     } finally {
       globalThis.DOMParser = originalDOMParser;
     }
@@ -197,13 +197,13 @@ describe('splice helpers', () => {
     // No `</head>` anywhere (so the lastIndexOf search misses), but a real
     // `<head>` opening tag is present — reuses the parsed opener rather
     // than falling through to the DOMParser branch at all.
-    const out = injectBeforeHeadEnd('<html><head><meta charset="utf-8"></html>', '<X/>');
+    const out = injectBeforeHeadEnd({ doc: '<html><head><meta charset="utf-8"></html>', payload: '<X/>' });
     expect(out).toBe('<html><head><X/><meta charset="utf-8"></html>');
   });
 
   it('injectBeforeHeadEnd uses the parsed opener past fake heads and quoted delimiters', () => {
     const doc = '<html><!-- <head> --><head data-note=">"><meta charset="utf-8"></html>';
-    expect(injectBeforeHeadEnd(doc, '<meta data-probe>')).toBe(
+    expect(injectBeforeHeadEnd({ doc, payload: '<meta data-probe>' })).toBe(
       '<html><!-- <head> --><head data-note=">"><meta data-probe><meta charset="utf-8"></html>',
     );
   });
@@ -212,12 +212,12 @@ describe('splice helpers', () => {
     // With no <body> anywhere, `limit` falls back to `lower.length` rather
     // than a body-relative offset; a normal open+close <head> with no body
     // still splices correctly.
-    const out = injectBeforeHeadEnd('<html><head><meta/></head></html>', '<X/>');
+    const out = injectBeforeHeadEnd({ doc: '<html><head><meta/></head></html>', payload: '<X/>' });
     expect(out).toBe('<html><head><meta/><X/></head></html>');
   });
 
   it('injectBeforeBodyEnd falls back to DOMParser when the doc has no <body> tag and no </body> at all', () => {
-    const out = injectBeforeBodyEnd('<html><head></head></html>', '<script data-probe="1"></script>');
+    const out = injectBeforeBodyEnd({ doc: '<html><head></head></html>', payload: '<script data-probe="1"></script>' });
     expect(out.toLowerCase()).toContain('<body>');
     expect(out).toContain('<script data-probe="1"></script>');
   });
@@ -232,7 +232,7 @@ describe('splice helpers', () => {
     globalThis.DOMParser = ThrowingDOMParser as unknown as typeof DOMParser;
     try {
       const doc = '<html>just a fragment, no head or body tag at all</html>';
-      expect(injectBeforeBodyEnd(doc, '<X/>')).toBe(`${doc}<X/>`);
+      expect(injectBeforeBodyEnd({ doc, payload: '<X/>' })).toBe(`${doc}<X/>`);
     } finally {
       globalThis.DOMParser = originalDOMParser;
     }
@@ -244,7 +244,7 @@ describe('sanitizeTitleInDoc malformed-markup edge cases', () => {
     // Truncated markup must remain unchanged rather than yield a guessed
     // title range or throw while the streaming source is incomplete.
     const doc = '<html><script>x</script';
-    expect(sanitizeTitleInDoc(doc)).toBe(doc);
+    expect(sanitizeTitleInDoc({ html: doc })).toBe(doc);
   });
 
   it('preserves a title after leading body text containing Turkish dotted capital I', () => {
@@ -252,7 +252,7 @@ describe('sanitizeTitleInDoc malformed-markup edge cases', () => {
     // safely address the source. Leading text also places this title outside
     // the head; the parser must leave it untouched.
     const doc = 'İ'.repeat(8) + '<title>Foo</title>';
-    expect(sanitizeTitleInDoc(doc)).toBe(doc);
+    expect(sanitizeTitleInDoc({ html: doc })).toBe(doc);
   });
 });
 
@@ -268,7 +268,7 @@ describe('buildSrcDoc', () => {
     '<html lang="<head>"><script src="https://evil.example/p.js"></script></html>',
   ])('places CSP in the parsed head before authored scripts: %s', html => {
     const policy = "script-src 'none'";
-    const output = buildSrcDoc(html, { csp: policy, previewFocusGuard: true, baseHref: '/assets/' });
+    const output = buildSrcDoc({ html }, { csp: policy, previewFocusGuard: true, baseHref: '/assets/' });
     const parsed = new DOMParser().parseFromString(output, 'text/html');
     const metas = parsed.querySelectorAll('meta[http-equiv="Content-Security-Policy"]');
     expect(metas).toHaveLength(1);
@@ -283,43 +283,43 @@ describe('buildSrcDoc', () => {
   });
 
   it('wraps a bare fragment in a minimal document', () => {
-    const doc = buildSrcDoc('<p>hi</p>');
+    const doc = buildSrcDoc({ html: '<p>hi</p>' });
     expect(doc).toContain('<!doctype html>');
     expect(doc).toContain('<p>hi</p>');
   });
 
   it('passes a full document through without re-wrapping', () => {
-    const doc = buildSrcDoc('<!doctype html><html><head></head><body><p>hi</p></body></html>');
+    const doc = buildSrcDoc({ html: '<!doctype html><html><head></head><body><p>hi</p></body></html>' });
     expect(doc.match(/<html>/g)).toHaveLength(1);
   });
 
   it('injects the default strict CSP by default', () => {
-    const doc = buildSrcDoc('<p>hi</p>');
+    const doc = buildSrcDoc({ html: '<p>hi</p>' });
     expect(doc).toContain('Content-Security-Policy');
     expect(doc).toContain(DEFAULT_SRC_DOC_CSP);
   });
 
   it('skips CSP injection when csp is false', () => {
-    const doc = buildSrcDoc('<p>hi</p>', { csp: false });
+    const doc = buildSrcDoc({ html: '<p>hi</p>' }, { csp: false });
     expect(doc).not.toContain('Content-Security-Policy');
   });
 
   it('accepts a custom CSP string', () => {
-    const doc = buildSrcDoc('<p>hi</p>', { csp: "default-src 'self'" });
+    const doc = buildSrcDoc({ html: '<p>hi</p>' }, { csp: "default-src 'self'" });
     expect(doc).toContain("default-src 'self'");
   });
 
   it('always injects the same-origin sandbox shim', () => {
-    expect(buildSrcDoc('<p>hi</p>')).toContain('data-jini-sandbox-shim');
+    expect(buildSrcDoc({ html: '<p>hi</p>' })).toContain('data-jini-sandbox-shim');
   });
 
   it('injects the focus guard only when requested', () => {
-    expect(buildSrcDoc('<p>hi</p>')).not.toContain('data-jini-preview-focus-guard');
-    expect(buildSrcDoc('<p>hi</p>', { previewFocusGuard: true })).toContain('data-jini-preview-focus-guard');
+    expect(buildSrcDoc({ html: '<p>hi</p>' })).not.toContain('data-jini-preview-focus-guard');
+    expect(buildSrcDoc({ html: '<p>hi</p>' }, { previewFocusGuard: true })).toContain('data-jini-preview-focus-guard');
   });
 
   it('injects a <base href> when provided', () => {
-    expect(buildSrcDoc('<p>hi</p>', { baseHref: 'https://example.com/artifact/' })).toContain(
+    expect(buildSrcDoc({ html: '<p>hi</p>' }, { baseHref: 'https://example.com/artifact/' })).toContain(
       '<base href="https://example.com/artifact/">',
     );
   });
@@ -332,22 +332,22 @@ describe('buildSrcDoc', () => {
         throw new Error('nope');
       },
     };
-    const doc = buildSrcDoc('<p>hi</p>', { bridges: [ok, broken] });
+    const doc = buildSrcDoc({ html: '<p>hi</p>' }, { bridges: [ok, broken] });
     expect(doc).toContain('<div id="ok"></div>');
   });
 
   it('always ends with the srcdoc-transport-activation listener', () => {
-    expect(buildSrcDoc('<p>hi</p>')).toContain('data-jini-srcdoc-transport-activation');
+    expect(buildSrcDoc({ html: '<p>hi</p>' })).toContain('data-jini-srcdoc-transport-activation');
   });
 
   it('returns the lazy transport shell when lazyTransport is set', () => {
-    expect(buildSrcDoc('<p>hi</p>', { lazyTransport: true })).toBe(buildLazySrcDocTransport());
+    expect(buildSrcDoc({ html: '<p>hi</p>' }, { lazyTransport: true })).toBe(buildLazySrcDocTransport());
   });
 
   it('injects the base href/sandbox shim/focus guard into the implicit head when no <head> is authored', () => {
     // A full document (starts with <html>, so buildSrcDoc passes it through
     // unwrapped) must still receive all safety tags before its body content.
-    const doc = buildSrcDoc('<html><body>Hi</body></html>', {
+    const doc = buildSrcDoc({ html: '<html><body>Hi</body></html>' }, {
       baseHref: 'https://example.com/artifact/',
       previewFocusGuard: true,
     });
@@ -358,7 +358,7 @@ describe('buildSrcDoc', () => {
 
   it('injects the sandbox shim/focus guard into the implicit head without a baseHref', () => {
     // Safety insertion cannot depend on a host base URL supplying a head.
-    const doc = buildSrcDoc('<html><body>Hi</body></html>', { previewFocusGuard: true });
+    const doc = buildSrcDoc({ html: '<html><body>Hi</body></html>' }, { previewFocusGuard: true });
     expect(doc).not.toContain('<base href');
     expect(doc).toContain('data-jini-sandbox-shim');
     expect(doc).toContain('data-jini-preview-focus-guard');
@@ -368,7 +368,7 @@ describe('buildSrcDoc', () => {
     // Starts with <!doctype so buildSrcDoc treats it as a full document and
     // passes it through unwrapped, but the fragment itself has no <head> or
     // <body> tag anywhere; the safety tags must precede the plain content.
-    const doc = buildSrcDoc('<!doctype html>just plain content, no head or body tags', {
+    const doc = buildSrcDoc({ html: '<!doctype html>just plain content, no head or body tags' }, {
       baseHref: 'https://example.com/other/',
       previewFocusGuard: true,
     });
@@ -390,7 +390,7 @@ describe('buildLazySrcDocTransport', () => {
 describe('srcdoc activation sender boundary', () => {
   it.each([
     ['lazy shell', () => buildLazySrcDocTransport(), 'script[data-jini-lazy-srcdoc-transport]'],
-    ['active document', () => buildSrcDoc('<p>preview</p>'), 'script[data-jini-srcdoc-transport-activation]'],
+    ['active document', () => buildSrcDoc({ html: '<p>preview</p>' }), 'script[data-jini-srcdoc-transport-activation]'],
   ] as const)('%s accepts replacement HTML only from its parent', (_name, build, selector) => {
     const parsed = new DOMParser().parseFromString(build(), 'text/html');
     const script = parsed.querySelector(selector)!.textContent!;
@@ -452,7 +452,7 @@ describe('buildSrcDoc byte-for-byte output pins', () => {
   };
 
   it('pins a bare fragment with default options', () => {
-    expect(buildSrcDoc('<p>hi</p>')).toMatchInlineSnapshot(`
+    expect(buildSrcDoc({ html: '<p>hi</p>' })).toMatchInlineSnapshot(`
       "<!doctype html>
       <html>
         <head><script data-jini-sandbox-shim>(function(){
@@ -533,7 +533,7 @@ describe('buildSrcDoc byte-for-byte output pins', () => {
 
   it('pins a full document with title, base href, focus guard, custom CSP and a bridge', () => {
     expect(
-      buildSrcDoc('<!doctype html><html><head><title>Q3: Plan</title></head><body><p>x</p></body></html>', {
+      buildSrcDoc({ html: '<!doctype html><html><head><title>Q3: Plan</title></head><body><p>x</p></body></html>' }, {
         baseHref: '/a/b/',
         previewFocusGuard: true,
         csp: "default-src 'self' \"q\"",
@@ -647,7 +647,7 @@ describe('buildSrcDoc byte-for-byte output pins', () => {
   });
 
   it('pins csp:false with an empty bridge list', () => {
-    expect(buildSrcDoc('<html><body>b</body></html>', { csp: false, bridges: [] })).toMatchInlineSnapshot(`
+    expect(buildSrcDoc({ html: '<html><body>b</body></html>' }, { csp: false, bridges: [] })).toMatchInlineSnapshot(`
       "<html><script data-jini-sandbox-shim>(function(){
         function makeStore(){
           var data = {};
@@ -720,7 +720,7 @@ describe('buildSrcDoc byte-for-byte output pins', () => {
   });
 
   it('pins an empty-string csp as no CSP meta', () => {
-    expect(buildSrcDoc('<html><head></head><body></body></html>', { csp: '' })).toMatchInlineSnapshot(`
+    expect(buildSrcDoc({ html: '<html><head></head><body></body></html>' }, { csp: '' })).toMatchInlineSnapshot(`
       "<html><head><script data-jini-sandbox-shim>(function(){
         function makeStore(){
           var data = {};
@@ -793,7 +793,7 @@ describe('buildSrcDoc byte-for-byte output pins', () => {
   });
 
   it('pins the lazy transport shell regardless of html', () => {
-    expect(buildSrcDoc('<p>ignored</p>', { lazyTransport: true, csp: 'x' })).toBe(buildLazySrcDocTransport());
+    expect(buildSrcDoc({ html: '<p>ignored</p>' }, { lazyTransport: true, csp: 'x' })).toBe(buildLazySrcDocTransport());
   });
 });
 
@@ -804,12 +804,12 @@ describe('head/body splicers without a usable DOMParser', () => {
 
   it('injectBeforeHeadEnd prepends when DOMParser does not exist', () => {
     vi.stubGlobal('DOMParser', undefined);
-    expect(injectBeforeHeadEnd('<p>frag</p>', '<X/>')).toBe('<X/><p>frag</p>');
+    expect(injectBeforeHeadEnd({ doc: '<p>frag</p>', payload: '<X/>' })).toBe('<X/><p>frag</p>');
   });
 
   it('injectBeforeBodyEnd appends when DOMParser does not exist', () => {
     vi.stubGlobal('DOMParser', undefined);
-    expect(injectBeforeBodyEnd('<p>frag</p>', '<X/>')).toBe('<p>frag</p><X/>');
+    expect(injectBeforeBodyEnd({ doc: '<p>frag</p>', payload: '<X/>' })).toBe('<p>frag</p><X/>');
   });
 
   it('injectBeforeHeadEnd serializes the parsed document unchanged when it has no head element', () => {
@@ -821,6 +821,6 @@ describe('head/body splicers without a usable DOMParser', () => {
       }
     }
     vi.stubGlobal('DOMParser', HeadlessDOMParser);
-    expect(injectBeforeHeadEnd('<p>frag</p>', '<X/>')).toBe('<!doctype html>\n<html><body></body></html>');
+    expect(injectBeforeHeadEnd({ doc: '<p>frag</p>', payload: '<X/>' })).toBe('<!doctype html>\n<html><body></body></html>');
   });
 });

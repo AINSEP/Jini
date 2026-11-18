@@ -226,7 +226,7 @@ function ShellStage({
   useTHook?: typeof useT;
 }) {
   const t = useTHook();
-  const status = deriveContentStatus(controller.activeView);
+  const status = deriveContentStatus({ view: controller.activeView });
   return (
   <div
     style={{ display: 'flex', flex: 1, minHeight: 0 }}

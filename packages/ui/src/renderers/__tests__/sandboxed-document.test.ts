@@ -10,58 +10,58 @@ import {
 
 describe('isFullHtmlDocument', () => {
   it('recognizes a doctype document', () => {
-    expect(isFullHtmlDocument('<!doctype html><html></html>')).toBe(true);
+    expect(isFullHtmlDocument({ html: '<!doctype html><html></html>' })).toBe(true);
   });
 
   it('recognizes an <html>-first document (no doctype)', () => {
-    expect(isFullHtmlDocument('<html><body>hi</body></html>')).toBe(true);
+    expect(isFullHtmlDocument({ html: '<html><body>hi</body></html>' })).toBe(true);
   });
 
   it('is case-insensitive and tolerates leading whitespace', () => {
-    expect(isFullHtmlDocument('  \n<!DOCTYPE HTML><html></html>')).toBe(true);
+    expect(isFullHtmlDocument({ html: '  \n<!DOCTYPE HTML><html></html>' })).toBe(true);
   });
 
   it('treats a bare fragment as not-a-full-document', () => {
-    expect(isFullHtmlDocument('<div>hello</div>')).toBe(false);
+    expect(isFullHtmlDocument({ html: '<div>hello</div>' })).toBe(false);
   });
 });
 
 describe('wrapFragmentAsDocument', () => {
   it('wraps a bare fragment in a minimal document shell', () => {
-    const result = wrapFragmentAsDocument('<h1>Hi</h1>');
+    const result = wrapFragmentAsDocument({ html: '<h1>Hi</h1>' });
     expect(result).toContain('<!doctype html>');
     expect(result).toContain('<body><h1>Hi</h1></body>');
   });
 
   it('leaves an already-full document untouched', () => {
     const doc = '<!doctype html><html><body>x</body></html>';
-    expect(wrapFragmentAsDocument(doc)).toBe(doc);
+    expect(wrapFragmentAsDocument({ html: doc })).toBe(doc);
   });
 });
 
 describe('injectBaseHref', () => {
   it('injects into an existing <head>', () => {
-    const result = injectBaseHref('<html><head><title>t</title></head></html>', 'https://example.com/');
+    const result = injectBaseHref({ doc: '<html><head><title>t</title></head></html>', baseHref: 'https://example.com/' });
     expect(result).toBe(
       '<html><head><base href="https://example.com/"><title>t</title></head></html>',
     );
   });
 
   it('synthesizes a <head> when there is <html> but no <head>', () => {
-    const result = injectBaseHref('<html><body>x</body></html>', 'https://example.com/');
+    const result = injectBaseHref({ doc: '<html><body>x</body></html>', baseHref: 'https://example.com/' });
     expect(result).toBe(
       '<html><head><base href="https://example.com/"></head><body>x</body></html>',
     );
   });
 
   it('prepends when there is neither <html> nor <head>', () => {
-    expect(injectBaseHref('hi', 'https://example.com/')).toBe(
+    expect(injectBaseHref({ doc: 'hi', baseHref: 'https://example.com/' })).toBe(
       '<base href="https://example.com/">hi',
     );
   });
 
   it('escapes attribute-breaking characters in the href', () => {
-    const result = injectBaseHref('<head></head>', 'https://example.com/?a=1&b="2"');
+    const result = injectBaseHref({ doc: '<head></head>', baseHref: 'https://example.com/?a=1&b="2"' });
     expect(result).toContain('href="https://example.com/?a=1&amp;b=&quot;2&quot;"');
   });
 });
@@ -322,7 +322,7 @@ describe('buildFocusGuardScript', () => {
 
 describe('buildSandboxedDocument', () => {
   it('wraps a fragment and injects the storage shim by default', () => {
-    const { html, isFullDocument } = buildSandboxedDocument('<p>hi</p>');
+    const { html, isFullDocument } = buildSandboxedDocument({ html: '<p>hi</p>' });
     expect(isFullDocument).toBe(false);
     expect(html).toContain('<!doctype html>');
     expect(html).toContain('data-jini-sandbox-shim');
@@ -330,30 +330,30 @@ describe('buildSandboxedDocument', () => {
   });
 
   it('reports isFullDocument true for an already-full document, unwrapped', () => {
-    const { isFullDocument, html } = buildSandboxedDocument(
-      '<!doctype html><html><body>hi</body></html>',
-    );
+    const { isFullDocument, html } = buildSandboxedDocument({
+      html: '<!doctype html><html><body>hi</body></html>',
+    });
     expect(isFullDocument).toBe(true);
     expect(html).toContain('<body>hi</body>');
   });
 
   it('injects the base href when provided', () => {
-    const { html } = buildSandboxedDocument('<p>hi</p>', { baseHref: 'https://cdn.test/' });
+    const { html } = buildSandboxedDocument({ html: '<p>hi</p>' }, { baseHref: 'https://cdn.test/' });
     expect(html).toContain('<base href="https://cdn.test/">');
   });
 
   it('omits the storage shim when storageShim is false', () => {
-    const { html } = buildSandboxedDocument('<p>hi</p>', { storageShim: false });
+    const { html } = buildSandboxedDocument({ html: '<p>hi</p>' }, { storageShim: false });
     expect(html).not.toContain('data-jini-sandbox-shim');
   });
 
   it('injects the focus guard only when requested', () => {
-    const { html } = buildSandboxedDocument('<p>hi</p>', { focusGuard: true });
+    const { html } = buildSandboxedDocument({ html: '<p>hi</p>' }, { focusGuard: true });
     expect(html).toContain('data-jini-focus-guard');
   });
 
   it('composes base href, shim, and focus guard together in one document', () => {
-    const { html } = buildSandboxedDocument('<p>hi</p>', {
+    const { html } = buildSandboxedDocument({ html: '<p>hi</p>' }, {
       baseHref: 'https://cdn.test/',
       focusGuard: true,
     });
