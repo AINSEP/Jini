@@ -31,7 +31,7 @@ async function step(work) {
   try {
     await work();
   } catch (error) {
-    status = failureText(error);
+    status = failureText({ error });
     statusTone = 'error';
     statusRetry = error?.retryable === true ? () => step(work) : undefined;
   }
@@ -45,44 +45,44 @@ async function useSpreadsheet(spreadsheetId) {
 }
 
 function savedList() {
-  if (view.destinations.length === 0) return h('p', { class: 'muted empty' }, ['No form sends to Google Sheets yet.']);
-  return h('ul', { class: 'rows' }, view.destinations.map((entry) => h('li', { class: 'card destination' }, [
-    h('p', {}, [h('strong', {}, [entry.formSlug]), ` → ${entry.title} / ${entry.tabTitle}`]),
-    entry.sameAccount === false ? h('p', { class: 'notice warn' }, ['Chosen with a different Google account than the one connected now. Choose its spreadsheet again.']) : null,
-    h('div', { class: 'actions' }, [h('button', { type: 'button', class: 'small', onClick: () => step(async () => { view = await call('remove-destination', { formSlug: entry.formSlug }); status = `Removed ${entry.formSlug}. ${EXTERNAL_ROWS_NOTE}`; statusTone = 'ok'; }) }, ['Remove'])]),
-  ])));
+  if (view.destinations.length === 0) return h({ tag: 'p' }, { props: { class: 'muted empty' }, children: ['No form sends to Google Sheets yet.'] });
+  return h({ tag: 'ul' }, { props: { class: 'rows' }, children: view.destinations.map((entry) => h({ tag: 'li' }, { props: { class: 'card destination' }, children: [
+    h({ tag: 'p' }, { props: {}, children: [h({ tag: 'strong' }, { props: {}, children: [entry.formSlug] }), ` → ${entry.title} / ${entry.tabTitle}`] }),
+    entry.sameAccount === false ? h({ tag: 'p' }, { props: { class: 'notice warn' }, children: ['Chosen with a different Google account than the one connected now. Choose its spreadsheet again.'] }) : null,
+    h({ tag: 'div' }, { props: { class: 'actions' }, children: [h({ tag: 'button' }, { props: { type: 'button', class: 'small', onClick: () => step(async () => { view = await call('remove-destination', { formSlug: entry.formSlug }); status = `Removed ${entry.formSlug}. ${EXTERNAL_ROWS_NOTE}`; statusTone = 'ok'; }) }, children: ['Remove'] })] }),
+  ] })) });
 }
 
 function spreadsheetChooser() {
-  const options = view.picked.map((sheet) => h('option', { value: sheet.spreadsheetId, ...(draft.spreadsheet?.spreadsheetId === sheet.spreadsheetId ? { selected: true } : {}) }, [sheet.title]));
-  return h('div', { class: 'field-stack' }, [
-    view.picked.length > 0 ? h('label', {}, ['Spreadsheet', h('select', { onChange: (event) => step(() => useSpreadsheet(event.target.value)) }, [h('option', { value: '' }, ['Choose…']), ...options])]) : null,
+  const options = view.picked.map((sheet) => h({ tag: 'option' }, { props: { value: sheet.spreadsheetId, ...(draft.spreadsheet?.spreadsheetId === sheet.spreadsheetId ? { selected: true } : {}) }, children: [sheet.title] }));
+  return h({ tag: 'div' }, { props: { class: 'field-stack' }, children: [
+    view.picked.length > 0 ? h({ tag: 'label' }, { props: {}, children: ['Spreadsheet', h({ tag: 'select' }, { props: { onChange: (event) => step(() => useSpreadsheet(event.target.value)) }, children: [h({ tag: 'option' }, { props: { value: '' }, children: ['Choose…'] }), ...options] })] }) : null,
     // Same rule as the Picker panel: no start data (or an unavailable mode) means nothing to open.
-    bootstrap !== undefined && bootstrap.mode !== 'unavailable' ? h('button', { type: 'button', onClick: () => step(async () => {
+    bootstrap !== undefined && bootstrap.mode !== 'unavailable' ? h({ tag: 'button' }, { props: { type: 'button', onClick: () => step(async () => {
       const chosen = await chooseSpreadsheet({ client, bootstrap, onStatus: (text) => { status = text; render(); } });
       if (chosen === null) { status = CANCELLED_TEXT; return; }
       status = '';
       await useSpreadsheet(chosen.spreadsheetId);
       view = await call('list-destinations');
-    }) }, ['Choose another spreadsheet']) : null,
-  ]);
+    }) }, children: ['Choose another spreadsheet'] }) : null,
+  ] });
 }
 
 function tabChooser() {
   if (draft.spreadsheet === null) return null;
-  return h('label', {}, ['Tab', h('select', { onChange: (event) => { draft.sheetId = Number(event.target.value); } },
-    draft.tabs.map((tab) => h('option', { value: String(tab.sheetId), ...(tab.sheetId === draft.sheetId ? { selected: true } : {}) }, [tab.title])))]);
+  return h({ tag: 'label' }, { props: {}, children: ['Tab', h({ tag: 'select' }, { props: { onChange: (event) => { draft.sheetId = Number(event.target.value); } },
+    children: draft.tabs.map((tab) => h({ tag: 'option' }, { props: { value: String(tab.sheetId), ...(tab.sheetId === draft.sheetId ? { selected: true } : {}) }, children: [tab.title] })) })] });
 }
 
 /** Site choices use their stable slug as the value and their title as plain text. An empty list
  * still means discovery is supported; typing is only for hosts that lack the capability.
  * @complexity O(f) for the host's at most 200 choices. */
 function formChooser() {
-  if (view.forms === undefined) return h('label', {}, ['Form short name', h('input', { type: 'text', value: draft.formSlug, maxlength: '64', autocomplete: 'off', onInput: (event) => { draft.formSlug = event.target.value.trim(); } })]);
-  return h('label', {}, ['Form', h('select', { name: 'formSlug', ...(view.forms.length === 0 ? { disabled: true } : {}), onChange: (event) => { draft.formSlug = event.target.value; } }, [
-    h('option', { value: '' }, [view.forms.length === 0 ? 'No forms available' : 'Choose a form…']),
-    ...view.forms.map((form) => h('option', { value: form.slug, ...(draft.formSlug === form.slug ? { selected: true } : {}) }, [form.title])),
-  ])]);
+  if (view.forms === undefined) return h({ tag: 'label' }, { props: {}, children: ['Form short name', h({ tag: 'input' }, { props: { type: 'text', value: draft.formSlug, maxlength: '64', autocomplete: 'off', onInput: (event) => { draft.formSlug = event.target.value.trim(); } } })] });
+  return h({ tag: 'label' }, { props: {}, children: ['Form', h({ tag: 'select' }, { props: { name: 'formSlug', ...(view.forms.length === 0 ? { disabled: true } : {}), onChange: (event) => { draft.formSlug = event.target.value; } }, children: [
+    h({ tag: 'option' }, { props: { value: '' }, children: [view.forms.length === 0 ? 'No forms available' : 'Choose a form…'] }),
+    ...view.forms.map((form) => h({ tag: 'option' }, { props: { value: form.slug, ...(draft.formSlug === form.slug ? { selected: true } : {}) }, children: [form.title] })),
+  ] })] });
 }
 
 /** What the person still has to fill in before a save can work, or null. @complexity O(f), at most 200 form choices. */
@@ -96,16 +96,16 @@ function missingForSave() {
 
 function editor() {
   const ready = bootstrap !== undefined && bootstrap.mode !== 'unavailable';
-  return h('section', { class: 'card', 'aria-labelledby': 'add-heading' }, [
-    h('div', { class: 'head' }, [
-      h('h2', { id: 'add-heading' }, ['Send a form to a spreadsheet']),
-      ready ? tip('About choosing a spreadsheet', pickerIntro({ bootstrap }), { bodyClass: 'intro' }) : null,
-    ]),
+  return h({ tag: 'section' }, { props: { class: 'card', 'aria-labelledby': 'add-heading' }, children: [
+    h({ tag: 'div' }, { props: { class: 'head' }, children: [
+      h({ tag: 'h2' }, { props: { id: 'add-heading' }, children: ['Send a form to a spreadsheet'] }),
+      ready ? tip({ label: 'About choosing a spreadsheet', text: pickerIntro({ bootstrap }) }, { bodyClass: 'intro' }) : null,
+    ] }),
     formChooser(),
     spreadsheetChooser(),
     tabChooser(),
-    h('label', { class: 'check confirm-rows' }, [h('input', { type: 'checkbox', ...(draft.confirmed ? { checked: true } : {}), onChange: (event) => { draft.confirmed = event.target.checked; } }), EXTERNAL_ROWS_NOTE]),
-    h('div', { class: 'actions' }, [h('button', { type: 'button', class: 'primary', onClick: () => step(async () => {
+    h({ tag: 'label' }, { props: { class: 'check confirm-rows' }, children: [h({ tag: 'input' }, { props: { type: 'checkbox', ...(draft.confirmed ? { checked: true } : {}), onChange: (event) => { draft.confirmed = event.target.checked; } } }), EXTERNAL_ROWS_NOTE] }),
+    h({ tag: 'div' }, { props: { class: 'actions' }, children: [h({ tag: 'button' }, { props: { type: 'button', class: 'primary', onClick: () => step(async () => {
       // Checked here first so the person reads what is missing, not the host's schema refusal.
       const missing = missingForSave();
       if (missing !== null) { status = missing; statusTone = 'error'; return; }
@@ -114,20 +114,20 @@ function editor() {
       // spreadsheetId (minLength 1), and that id is non-empty only once `draft.spreadsheet` is set.
       status = `Saved: ${draft.formSlug} sends to ${draft.spreadsheet.title}.`;
       statusTone = 'ok';
-    }) }, ['Save destination'])]),
-  ]);
+    }) }, children: ['Save destination'] })] }),
+  ] });
 }
 
 function render() {
   // Not ready (no start data, Sheets off, not connected): the reason is the visible notice.
   const ready = bootstrap !== undefined && bootstrap.mode !== 'unavailable';
-  show(app,
-    ready ? null : h('p', { class: 'notice warn intro' }, [pickerIntro({ bootstrap })]),
+  show({ root: app },
+    { nodes: [ready ? null : h({ tag: 'p' }, { props: { class: 'notice warn intro' }, children: [pickerIntro({ bootstrap })] }),
     status ? notice({ text: status, tone: statusTone, retry: statusRetry }) : null,
     ...(view === undefined ? [] : [
-      h('section', { class: 'card', 'aria-labelledby': 'saved-heading' }, [h('h2', { id: 'saved-heading' }, ['Saved destinations']), savedList()]),
+      h({ tag: 'section' }, { props: { class: 'card', 'aria-labelledby': 'saved-heading' }, children: [h({ tag: 'h2' }, { props: { id: 'saved-heading' }, children: ['Saved destinations'] }), savedList()] }),
       editor(),
-    ]));
+    ])] });
 }
 
 /**
@@ -136,7 +136,7 @@ function render() {
  * last line starts the real one.
  * @param {{ window: Window, document: Document }} required
  */
-export function initDestinationPanel(required) {
+export function initDestinationPanel(required, _optional = {}) {
   client = connectToHost({ window: required.window });
   app = required.document.getElementById('app');
   draft = { formSlug: '', spreadsheet: null, tabs: [], sheetId: null, confirmed: false };
