@@ -7,6 +7,8 @@ export interface ConsentPreviewFrameProps {
   status?: string;
   initialWidth?: ConsentPreviewWidth;
   dictionary?: Readonly<Record<string, string>>;
+  /** Seam for tests: the width hook, defaulted to the real one. */
+  useConsentPreviewWidthHook?: typeof useConsentPreviewWidth;
 }
 
 const WIDTHS: readonly { id: ConsentPreviewWidth; label: string }[] = [{ id: 'phone', label: 'Phone' }, { id: 'desktop', label: 'Desktop' }];
@@ -14,9 +16,9 @@ const WIDTHS: readonly { id: ConsentPreviewWidth; label: string }[] = [{ id: 'ph
 /** The real rendered page with the banner, inert. The HTML is only ever the `srcdoc` of an iframe
  * with an empty `sandbox`: no scripts, forms, popups or same-origin access, and it never enters the
  * host DOM. Phone is 320px, the narrowest width the banner must still work at. */
-export function ConsentPreviewFrame({ html, status = '', initialWidth = 'desktop', dictionary = {} }: ConsentPreviewFrameProps) {
+export function ConsentPreviewFrame({ html, status = '', initialWidth = 'desktop', dictionary = {}, useConsentPreviewWidthHook = useConsentPreviewWidth }: ConsentPreviewFrameProps) {
   const t = createConsentTranslator({ dictionary });
-  const { width, setWidth } = useConsentPreviewWidth({ initial: initialWidth });
+  const { width, setWidth } = useConsentPreviewWidthHook({ initial: initialWidth });
   return <section className="jini-consent-preview" aria-label={t('Banner preview')}>
     <div className="jini-consent-preview-widths" role="group" aria-label={t('Preview width')}>
       {WIDTHS.map(option => <button key={option.id} type="button" className="jini-btn-secondary" aria-pressed={width === option.id} onClick={() => setWidth(option.id)}>{t(option.label)}</button>)}

@@ -79,46 +79,10 @@
         "packages/ui/src/features/execution/react/components/AgentDiagnosticRow.tsx"
       ]
     },
-    "AgentPluginFileContent::useAgentPluginFileContent": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/agent-plugins/react/components/AgentPluginFileContent.tsx"
-      ]
-    },
-    "AgentPluginFileTree::useAgentPluginFileTree": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/agent-plugins/react/components/AgentPluginFileTree.tsx"
-      ]
-    },
-    "AgentPluginInspector::useAgentPluginInspector": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/agent-plugins/react/components/AgentPluginInspector.tsx"
-      ]
-    },
-    "AgentPluginListPanel::useAgentPluginPanel": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/agent-plugins/react/components/AgentPluginListPanel.tsx"
-      ]
-    },
-    "AgentPluginRow::useAgentPluginRow": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/agent-plugins/react/components/AgentPluginRow.tsx"
-      ]
-    },
     "AgentPluginUsage::useT": {
       "count": 1,
       "files": [
         "packages/chat/src/react/features/chat-pane/components/AgentPluginUsage.tsx"
-      ]
-    },
-    "AgentPluginsPage::useAgentPluginsPage": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/agent-plugins/react/pages/AgentPluginsPage.tsx"
       ]
     },
     "AgentRuntimePicker::useAgentHandle": {
@@ -395,12 +359,6 @@
       "count": 1,
       "files": [
         "packages/user-management/src/admin/react/tabs/AuthTab.tsx"
-      ]
-    },
-    "BannerModeFields::useConsentSettingsPanel": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/consent/react/ConsentFields.tsx"
       ]
     },
     "BashCard::useT": {
@@ -911,30 +869,6 @@
       "count": 1,
       "files": [
         "packages/ui/src/features/connectors/ConnectorsBrowser.tsx"
-      ]
-    },
-    "ConsentBannerFields::useConsentSettingsPanel": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/consent/react/ConsentFields.tsx"
-      ]
-    },
-    "ConsentLookFields::useConsentSettingsPanel": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/consent/react/ConsentFields.tsx"
-      ]
-    },
-    "ConsentPreviewFrame::useConsentPreviewWidth": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/consent/react/ConsentPreviewFrame.tsx"
-      ]
-    },
-    "ConsentRulesFields::useConsentSettingsPanel": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/consent/react/ConsentFields.tsx"
       ]
     },
     "ConversationList::useConversationListView": {
@@ -1519,12 +1453,6 @@
         "packages/ui/src/features/viewer-shell/react/components/MarkdownSplitPane.tsx"
       ]
     },
-    "MarketplaceTab::useMarketplaceTab": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/agent-plugins/react/tabs/MarketplaceTab.tsx"
-      ]
-    },
     "McpUiHost::useChatSurfaces": {
       "count": 1,
       "files": [
@@ -2017,12 +1945,6 @@
         "packages/user-management/src/admin/react/components/PolicyRow.tsx"
       ]
     },
-    "PolicyVersionInput::usePolicyVersionInput": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/consent/react/ConsentFields.tsx"
-      ]
-    },
     "PooledIframe::useIsServerRender": {
       "count": 1,
       "files": [
@@ -2099,12 +2021,6 @@
       "count": 1,
       "files": [
         "packages/ui/src/features/connectors/components/ProviderTabBar.tsx"
-      ]
-    },
-    "ProvidersTab::useProvidersTab": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/source-control/react/tabs/ProvidersTab.tsx"
       ]
     },
     "QuestionForm::useQuestionAnswers": {
@@ -2591,18 +2507,6 @@
       "count": 1,
       "files": [
         "packages/ui/src/features/source-config-list/react/components/SourceConfigTrustOptions.tsx"
-      ]
-    },
-    "SourceControlCredentialFields::useSourceControlCredentialFields": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/source-control/react/components/SourceControlCredentialFields.tsx"
-      ]
-    },
-    "SourceControlPage::useSourceControlPage": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/source-control/react/pages/SourceControlPage.tsx"
       ]
     },
     "SrcDocSandbox::useT": {

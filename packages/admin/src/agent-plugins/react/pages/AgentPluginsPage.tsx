@@ -4,8 +4,8 @@ import type { ModulePageProps } from '../../../core/react/bind-react.js';
 import { AgentPluginsPageContext, useAgentPluginsPage } from '../hooks/AgentPluginsPage.hooks.js';
 import { AgentPluginInspector } from '../components/AgentPluginInspector.js';
 import { agentPluginsMessagesEn as m } from '../../messages.en.js';
-export function AgentPluginsPage(props: ModulePageProps, _optional = {}) {
-  const vm = useAgentPluginsPage(props);
+export function AgentPluginsPage({ useAgentPluginsPageHook = useAgentPluginsPage, ...props }: ModulePageProps & { useAgentPluginsPageHook?: typeof useAgentPluginsPage }, _optional = {}) {
+  const vm = useAgentPluginsPageHook(props);
   return <section data-jini-part="agent-plugins.page"><h1>{props.description.label}</h1>{vm.denied ? <Notice tone="danger">{m.denied}</Notice> : <AgentPluginsPageContext.Provider value={vm.scope}>
     <p>{m.description}</p><Tabs label="Agent Plugin views" value={vm.activeId} items={vm.items} onValueChange={vm.onValueChange} />
     <Suspense fallback={<Spinner label={m.loading} />}>{vm.ActiveTab && <vm.ActiveTab params={vm.params} permissions={vm.permissions} />}</Suspense>
