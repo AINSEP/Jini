@@ -73,7 +73,7 @@ Base 104 files / 1246 tests -> final **109 files / 1279 tests** (+5 files, +33 t
 | `npm run typecheck` | exit 0 |
 | `npm run check:size`, `check:complexity`, `check:architecture` | exit 1 on the base worktree and **byte-identical output after** (base red); `check:hooks` and `check:errors` exit 0, identical |
 | `npx vitest run --maxWorkers=2` in `apps/admin`: `src/features/{users,members,auth,security}` | 49-50 files / 1232 tests green after the helper fix (the first run, before `894fae06b`, had 14 red; before `fb2031357` 48 red) |
-| full `apps/admin` suite | see "Left" |
+| full `apps/admin` suite (`npx vitest run --maxWorkers=2`) | 895 of 896 files, 14789 tests passed, 2 skipped; the one failing file is the ENV chart-provider artifact under "Left" |
 
 ## Overlaps with parallel runs
 Jini: `packages/user-management/**`, `scripts/injection-debt.json` (hand-deleted keys only), `scripts/size-debt.json` (one value lowered). Tovu: `apps/admin/src/__tests__/render-with-jini-kits.tsx` and two users tests (test files only; INDEX §4 lists `jini-kits.ts`/`main.tsx` for R1c/R2a, which I did not touch).
