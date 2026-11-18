@@ -233,7 +233,7 @@ export function useMemoryConnectors(
 ): MemoryConnectorsController {
   const auth = useConnectorAuthState(port);
   const catalogue = useConnectorCatalogue(port, auth);
-  const selection = useConnectorSelection(catalogue.connectors, catalogue.connectorStatuses);
+  const selection = useConnectorSelection({ connectors: catalogue.connectors, connectorStatuses: catalogue.connectorStatuses });
   const suggestions = useConnectorSuggestions({
     port,
     ...coord,

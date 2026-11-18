@@ -294,7 +294,10 @@ function buildMemoryConnectors(connectors: Connector[], connectorStatuses: Conne
 }
 
 /** Memory-app connector rows + which of them are selected for a scan. */
-export function useConnectorSelection(connectors: Connector[], connectorStatuses: ConnectorStatusMap) {
+export function useConnectorSelection({ connectors, connectorStatuses }: {
+  connectors: Connector[];
+  connectorStatuses: ConnectorStatusMap;
+}) {
   const [selectedConnectorIds, setSelectedConnectorIds] = useState<Set<string>>(() => new Set());
 
   const memoryConnectors = useMemo(
