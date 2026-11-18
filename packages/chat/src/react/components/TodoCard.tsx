@@ -26,8 +26,6 @@ export function TodoCard({ todos, runStreaming, onDismiss, useTHook = useT }: To
   const [overrideExpanded, setOverrideExpanded] = useState<boolean | null>(null);
   const expanded = overrideExpanded ?? defaultExpanded;
 
-  const showDismiss = Boolean(onDismiss) && allComplete;
-
   return (
     <div className={`op-card op-todo${expanded ? '' : ' op-todo-collapsed'}`}>
       <div className="op-card-head op-todo-head">
@@ -50,11 +48,7 @@ export function TodoCard({ todos, runStreaming, onDismiss, useTHook = useT }: To
             {expanded ? <Icon name="chevron-down" size={11} /> : <Icon name="chevron-right" size={11} />}
           </span>
         </button>
-        {showDismiss ? (
-          <button type="button" className="op-todo-done" onClick={() => onDismiss?.()} title={t('Dismiss')}>
-            {t('Done')}
-          </button>
-        ) : null}
+        <TodoDismissButton onDismiss={onDismiss} allComplete={allComplete} t={t} />
       </div>
       <div className={`accordion-collapsible${expanded ? ' open' : ''}`}>
         <div className="accordion-collapsible-inner">
@@ -71,6 +65,16 @@ export function TodoCard({ todos, runStreaming, onDismiss, useTHook = useT }: To
         </div>
       </div>
     </div>
+  );
+}
+
+/** The "Done" action; only a fully completed list the host can dismiss shows it. */
+function TodoDismissButton({ onDismiss, allComplete, t }: { onDismiss: (() => void) | undefined; allComplete: boolean; t: ReturnType<typeof useT> }) {
+  if (!onDismiss || !allComplete) return null;
+  return (
+    <button type="button" className="op-todo-done" onClick={() => onDismiss()} title={t('Dismiss')}>
+      {t('Done')}
+    </button>
   );
 }
 
