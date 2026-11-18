@@ -230,6 +230,18 @@ interface VersionMetadataProps<TVersion extends VersionRecord> {
   onOpenChange: (open: boolean) => void;
 }
 
+/** What the metadata row shows about the selected version, or about the file when none is selected. */
+function selectedVersionFields<TVersion extends VersionRecord>(
+  { selectedVersion, versionById, fileName, locale }: Pick<VersionMetadataProps<TVersion>, 'selectedVersion' | 'versionById' | 'fileName'> & { locale: string },
+  _options: Record<string, never> = {},
+) {
+  return {
+    selectedPrompt: selectedVersion?.prompt?.trim() ?? '',
+    selectedDate: selectedVersion ? formatVersionDateTime(selectedVersion.createdAt, locale) : fileName,
+    selectedRestoredFrom: selectedVersion ? restoredFromVersion(selectedVersion, versionById) : null,
+  };
+}
+
 function VersionMetadata<TVersion extends VersionRecord>({
   selectedVersion,
   versionById,
@@ -240,9 +252,7 @@ function VersionMetadata<TVersion extends VersionRecord>({
   useI18nHook = useI18n,
 }: VersionMetadataProps<TVersion> & { useI18nHook?: typeof useI18n }) {
   const { t, locale } = useI18nHook();
-  const selectedPrompt = selectedVersion?.prompt?.trim() ?? '';
-  const selectedDate = selectedVersion ? formatVersionDateTime(selectedVersion.createdAt, locale) : fileName;
-  const selectedRestoredFrom = selectedVersion ? restoredFromVersion(selectedVersion, versionById) : null;
+  const { selectedPrompt, selectedDate, selectedRestoredFrom } = selectedVersionFields({ selectedVersion, versionById, fileName, locale });
 
   return (
     <div className="jini-version-meta">

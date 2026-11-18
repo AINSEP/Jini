@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import { DEFAULT_VIEWPORT_PRESETS } from '../../../../viewer-shell/index.js';
-import { VersionPreviewFrame } from '../../../react/components/VersionPreviewFrame.js';
+import { VersionPreviewFrame, defaultVersionPreviewFrameHooks } from '../../../react/components/VersionPreviewFrame.js';
 
 function baseProps() {
   return {
@@ -95,7 +95,21 @@ describe('VersionPreviewFrame', () => {
   });
 
   it('renders the translator supplied through useTHook', () => {
-    render(<VersionPreviewFrame {...baseProps()} useTHook={useQuotingT} />);
+    render(<VersionPreviewFrame {...baseProps()} hooks={{ ...defaultVersionPreviewFrameHooks, useT: useQuotingT }} />);
     expect(screen.getByText('«No preview available.»')).toBeInTheDocument();
+  });
+
+  it('scales a fixed-size preset to the canvas size reported by the injected measuring hook', () => {
+    const useFakeCanvasSize = (() => [{ current: null }, { width: 300, height: 10000 }]) as typeof defaultVersionPreviewFrameHooks.usePreviewCanvasSize;
+    render(
+      <VersionPreviewFrame
+        {...baseProps()}
+        previewDocument="<p/>"
+        viewport="mobile"
+        hooks={{ ...defaultVersionPreviewFrameHooks, usePreviewCanvasSize: useFakeCanvasSize }}
+      />,
+    );
+    const viewportEl = document.querySelector('.jini-preview-viewport') as HTMLElement;
+    expect(Number(viewportEl.style.getPropertyValue('--preview-scale'))).toBeLessThan(1);
   });
 });
