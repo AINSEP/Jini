@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider, type TranslationDict, type useT } from '../../../../i18n/index.js';
 import { AgentCliEnvFields } from '../../../react/components/AgentCliEnvFields.js';
 import { AgentDiagnosticRow } from '../../../react/components/AgentDiagnosticRow.js';
-import { LocalCliAgentCard } from '../../../react/components/LocalCliAgentCard.js';
+import { ByokProviderForm, defaultByokProviderFormHooks } from '../../../react/components/ByokProviderForm.js';
+import { LocalCliAgentCard, defaultLocalCliAgentCardHooks } from '../../../react/components/LocalCliAgentCard.js';
 import { LocalCliAgentList } from '../../../react/components/LocalCliAgentList.js';
 import type { AgentCliEnvFieldSpec, AgentDiagnostic, DetectedAgent } from '../../../types.js';
 
@@ -74,7 +75,7 @@ const cardProps = {
 
 describe('LocalCliAgentCard hooks', () => {
   it('renders the translator supplied through useTHook', () => {
-    render(<LocalCliAgentCard {...cardProps} selected useTHook={useQuotingT} />);
+    render(<LocalCliAgentCard {...cardProps} selected hooks={{ ...defaultLocalCliAgentCardHooks, useT: useQuotingT }} />);
     expect(screen.getByRole('button', { name: '«Test»' })).toBeInTheDocument();
   });
 
@@ -103,5 +104,25 @@ describe('LocalCliAgentList hooks', () => {
   it('renders the translated string from the real provider, not the key', () => {
     render(inFrench(<LocalCliAgentList {...listProps} />));
     expect(screen.getByText(/Vos CLI/)).toBeInTheDocument();
+  });
+});
+
+describe('ByokProviderForm hooks', () => {
+  const formProps = {
+    config: { protocol: 'anthropic' as const, providerId: 'custom', apiKey: '', baseUrl: '', model: '' },
+    onConfigChange: vi.fn(),
+    preset: null,
+    modelDiscovery: { status: 'idle' as const },
+    connectionTest: { status: 'idle' as const },
+    onTestConnection: vi.fn(),
+  };
+
+  it('renders the injected translator and hands its props to the injected form hook', () => {
+    const useFormSpy = vi.fn(defaultByokProviderFormHooks.useByokProviderForm);
+    render(<ByokProviderForm {...formProps} hooks={{ useT: useQuotingT, useByokProviderForm: useFormSpy }} />);
+    expect(screen.getByRole('heading', { name: '«Custom endpoint»' })).toBeInTheDocument();
+    expect(useFormSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ config: formProps.config, preset: null, apiKeyStoredExternally: false }),
+    );
   });
 });

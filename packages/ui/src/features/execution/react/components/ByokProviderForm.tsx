@@ -126,9 +126,12 @@ export interface ByokProviderFormProps {
   collapseAdvanced?: boolean;
   /** Paint required-field errors after that field loses focus; validation gates stay immediate. */
   deferMissingFeedback?: boolean;
-  useTHook?: typeof useT;
-  useByokProviderFormHook?: typeof useByokProviderForm;
+  /** Hooks the form calls; defaults to the real ones, a test hands in fakes. */
+  hooks?: ByokProviderFormHooks | undefined;
 }
+
+export const defaultByokProviderFormHooks = { useT, useByokProviderForm };
+export type ByokProviderFormHooks = typeof defaultByokProviderFormHooks;
 
 /** What every field part of the card shares: the config it edits, the one-key patcher, and the
  *  validation state from `useByokFieldValidation`. */
@@ -144,6 +147,11 @@ interface ByokFieldPartProps {
 /** `' is-missing'` when `field` is a required field the operator still has to fill. */
 function missingClass(validation: ByokFieldPartProps['validation'], field: 'apiKey' | 'baseUrl' | 'model'): string {
   return validation.isMissing({ field }) ? ' is-missing' : '';
+}
+
+function ByokCardTitle({ preset, useTHook = useT }: { preset: ProviderPreset | null; useTHook?: typeof useT }) {
+  const t = useTHook();
+  return <h4 className="jini-byok-card-title">{preset ? preset.title : t('Custom endpoint')}</h4>;
 }
 
 /**
@@ -170,11 +178,9 @@ export function ByokProviderForm({
   apiKeyActions,
   collapseAdvanced = false,
   deferMissingFeedback = false,
-  useTHook = useT,
-  useByokProviderFormHook = useByokProviderForm,
+  hooks = defaultByokProviderFormHooks,
 }: ByokProviderFormProps) {
-  const t = useTHook();
-  const { revealKey, setRevealKey, explicitCustomModel, setExplicitCustomModel, validation, patch } = useByokProviderFormHook({ config, onConfigChange, preset, apiKeyStoredExternally, deferMissingFeedback });
+  const { revealKey, setRevealKey, explicitCustomModel, setExplicitCustomModel, validation, patch } = hooks.useByokProviderForm({ config, onConfigChange, preset, apiKeyStoredExternally, deferMissingFeedback });
   const part: ByokFieldPartProps = { config, patch, preset, agentHandle, validation };
 
   const connectionFields = <ByokConnectionFields {...part} />;
@@ -182,7 +188,7 @@ export function ByokProviderForm({
   return (
     <div className="jini-byok-card">
       <div className="jini-byok-card-head">
-        <h4 className="jini-byok-card-title">{preset ? preset.title : t('Custom endpoint')}</h4>
+        <ByokCardTitle preset={preset} useTHook={hooks.useT} />
       </div>
 
       {presetRequiresApiKey(preset) ? (
