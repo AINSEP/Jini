@@ -44,7 +44,7 @@ function listInputSchema(kinds: readonly TrashEntityType[]) {
         minItems: 1,
         description: "Optional filter. Omit it to see everything the caller is allowed to see.",
       },
-      limit: { type: "integer", minimum: 1, maximum: 100, description: "Rows per page. Default 25." },
+      limit: { type: "integer", minimum: 1, maximum: 100, clamp: true, description: "Rows per page. Default 25." },
       cursor: {
         type: "string",
         minLength: 1,
