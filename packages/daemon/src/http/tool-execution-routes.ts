@@ -31,7 +31,8 @@ import { bearerTokenFromHeader, statusForError } from '@jini-ai/core/contracts/s
 import { isLoopbackPeerAddress } from '@jini-ai/core/net';
 import { nodeTimingSafeEqual } from './node-timing-safe-equal.js';
 import type { ToolExecutionResult, ToolExecutor } from '../tool-executor.js';
-import { TOOL_EXECUTIONS_ROUTE_PATH, type ToolExecutionWireError, type ToolExecutionWireLine, type ToolExecutionWireRequest } from '../remote-tool-executor.js';
+import { TOOL_EXECUTIONS_ROUTE_PATH, type ToolExecutionWireLine, type ToolExecutionWireRequest } from '../remote-tool-executor.js';
+import { wireError, type RunWithToolContext } from './tool-execution-stream.js';
 
 export { TOOL_EXECUTIONS_ROUTE_PATH };
 export const TOOL_CATALOG_ROUTE_PATH = '/internal/tool-catalog';
@@ -44,9 +45,6 @@ export interface ToolExecutionRouteTarget {
   post(path: string, ...handlers: Array<RequestHandler | ErrorRequestHandler>): unknown;
   get(path: string, ...handlers: RequestHandler[]): unknown;
 }
-
-/** Runs one call inside host context (e.g. an AsyncLocalStorage scope) built from the wire `context`. */
-export type RunWithToolContext = <T>(required: { readonly context: unknown; readonly fn: () => Promise<T> }, optional?: Record<string, never>) => Promise<T>;
 
 export interface ToolExecutionRoutesRequired {
   readonly app: ToolExecutionRouteTarget;
@@ -128,12 +126,6 @@ function parseExecutionRequest(body: unknown): ToolExecutionWireRequest | null {
     input: body.input,
     ...(body.context === undefined ? {} : { context: body.context }),
   };
-}
-
-function wireError(error: unknown): ToolExecutionWireError {
-  if (!(error instanceof Error)) return { name: 'Error', message: String(error) };
-  const code = (error as { code?: unknown }).code;
-  return { name: error.name, message: error.message, ...(typeof code === 'string' ? { code } : {}) };
 }
 
 /**

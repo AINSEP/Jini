@@ -367,8 +367,8 @@ export {
   xaiSearchRoute,
 } from './xai.js';
 export * from './run-credentials.js';
+export type { RunWithToolContext } from './tool-execution-stream.js';
 export type {
-  RunWithToolContext,
   ToolExecutionRouteTarget,
   ToolExecutionRoutesOptional,
   ToolExecutionRoutesRequired,
@@ -390,6 +390,6 @@ export { createTavilyResearchProvider } from './research-tavily.adapter.js';
 export { createFrontendGuestScope } from './frontend-guest-scope.js';
 export type { FrontendHookInput } from './frontend-hook-input.js';
 export { tryRestoreSurface } from './surface-restoration.js';
-export { registerFrontendRequestRoute } from './frontend-request-route.js';
-export type { FrontendRequestRouteRequired } from './frontend-request-route.js';
+export { frontendRequestRoutes } from './frontend-request-route.js';
+export type { FrontendRequestRoutesRequired } from './frontend-request-route.js';
 export { deliverSurfaceCallback, isSurfaceCallbackPermitted, SURFACE_TYPED_ANSWER_REFUSAL, type SurfaceCallbackInput } from './surface-callback.js';

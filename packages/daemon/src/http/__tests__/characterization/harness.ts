@@ -26,7 +26,7 @@ import { connectorsRoutes } from '../../connectors.js';
 import { daemonStatusRoutes } from '../../daemon-status.js';
 import { daemonDbRoutes } from '../../db-ops.js';
 import { delegatedToolRoutes } from '../../delegated-tools.js';
-import { registerFrontendRequestRoute } from '../../frontend-request-route.js';
+import { frontendRequestRoutes } from '../../frontend-request-route.js';
 import { frontendSessionRoutes } from '../../frontend-sessions.js';
 import { healthRoutes } from '../../health.js';
 import { hostToolsRoutes } from '../../host-tools.js';
@@ -139,7 +139,7 @@ const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-par
   ['component-catalog', ({ adapter, deps, mountList }) => mountList(componentCatalogRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['attachments', ({ app, adapter, deps }) => registerAttachmentRoutes({ app, deps: deps({ acquireActivity: undefined }), adapter })],
   ['message-relay', ({ app, deps }) => registerMessageRelayRoutes({ app, agentExecutor: deps(), runScopedCallers: undefined })],
-  ['frontend-request-route', ({ app, deps }) => registerFrontendRequestRoute({ app, path: '/api/frontend-requests', control: deps(), executor: deps(), resolveOwner: (deps() as { resolveOwner: never }).resolveOwner, capabilityIds: ['characterization.capability'] })],
+  ['frontend-request-route', ({ adapter, deps, mountList }) => mountList(frontendRequestRoutes({ path: '/api/frontend-requests', control: deps(), executor: deps(), resolveOwner: (deps() as { resolveOwner: never }).resolveOwner, capabilityIds: ['characterization.capability'], host: routeHost(adapter) }))],
 ];
 
 /** Keepalive timers on Node's clock, as the preset binds them (unref'd), so a row that fakes `setInterval` sees the route's ping. */

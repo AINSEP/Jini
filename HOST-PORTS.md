@@ -552,9 +552,9 @@ Everything a Jini package asks its host to bind or register: `*Port`, `*Kit`, `*
 | `daemonDbRoutes` | registry | function | `packages/daemon/src/http/db-ops.ts:292` |
 | `DelegatedToolsHttpDeps` | deps | interface | `packages/daemon/src/http/delegated-tools.ts:89` |
 | `delegatedToolRoutes` | registry | function | `packages/daemon/src/http/delegated-tools.ts:382` |
-| `registerFrontendRequestRoute` | registry | function | `packages/daemon/src/http/frontend-request-route.ts:44` |
+| `frontendRequestRoutes` | registry | function | `packages/daemon/src/http/frontend-request-route.ts:87` |
 | `FrontendSessionsHttpDeps` | deps | interface | `packages/daemon/src/http/frontend-sessions.ts:110` |
-| `registerFrontendSessionRoutes` | registry | function | `packages/daemon/src/http/frontend-sessions.ts:289` |
+| `frontendSessionRoutes` | registry | function | `packages/daemon/src/http/frontend-sessions.ts:352` |
 | `HealthHttpDeps` | deps | interface | `packages/daemon/src/http/health.ts:65` |
 | `healthRoutes` | registry | function | `packages/daemon/src/http/health.ts:124` |
 | `HostToolsOpenInDeps` | deps | interface | `packages/daemon/src/http/host-tools.ts:342` |

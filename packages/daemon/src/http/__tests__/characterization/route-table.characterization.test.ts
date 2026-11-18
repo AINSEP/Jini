@@ -165,7 +165,7 @@ const ROUTE_TABLE: Readonly<Record<string, readonly string[]>> = {
     'POST /api/runs/:runId/messages/claim [anonymous/3]',
   ],
   'frontend-request-route': [
-    'POST /api/frontend-requests [anonymous/2]',
+    'POST /api/frontend-requests [frontend-session-owner]',
   ],
 };
 

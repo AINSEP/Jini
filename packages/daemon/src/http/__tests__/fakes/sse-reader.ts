@@ -21,7 +21,8 @@ export interface FrameReader {
 }
 
 /** @param required.response - A streaming answer (it must have a body). */
-export function readFrames({ response }: { readonly response: Response }, _optional: Record<string, never> = {}): FrameReader {
+/** @param optional.separator - What ends one frame: a blank line for an event stream (default), `\n` for a line stream. */
+export function readFrames({ response }: { readonly response: Response }, { separator = '\n\n' }: { readonly separator?: string } = {}): FrameReader {
   if (response.body === null) throw new Error('the response has no body to read frames from');
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
@@ -41,10 +42,10 @@ export function readFrames({ response }: { readonly response: Response }, _optio
     try { await Promise.race([readOnce(), deadline]); } finally { clearTimeout(timer); }
   }
   const take = (): string | undefined => {
-    const at = pending.indexOf('\n\n');
+    const at = pending.indexOf(separator);
     if (at < 0) return undefined;
     const frame = pending.slice(0, at);
-    pending = pending.slice(at + 2);
+    pending = pending.slice(at + separator.length);
     return frame;
   };
   return {
