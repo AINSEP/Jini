@@ -243,17 +243,17 @@ Source: [types.ts](../../src/settings/types.ts), [ports.ts](../../src/settings/p
 
 ```ts
 declare function validateDefinitionInput( input: DefinitionInput ): { valid: true } | { valid: false; error: DefinitionInvalidError | SecretNotSupportedError };
-declare function validateValueAgainstSchema(schema: SettingValueSchema, value: JsonValue): boolean;
-declare function invalidateDefinitionNamespaceCache(repo: SettingsRepoPort, namespace: string): void;
+declare function validateValueAgainstSchema(required: { schema: SettingValueSchema; value: JsonValue }, optional: Record<string, never> = {}): boolean;
+declare function invalidateDefinitionNamespaceCache(required: { repo: SettingsRepoPort; namespace: string }, optional: Record<string, never> = {}): void;
 declare function invalidateWorkspaceSettingsCache(_required: { repo: SettingsRepoPort; workspaceId: string }, _optional: { principalId?: string | undefined } = {}): void;
 declare function resolveDefinitionRaw( deps: { repo: SettingsRepoPort }, input: { namespace: string; key: string; workspaceId: string | null } ): Promise<SettingDefinitionRecord | null>;
 declare function resolveDefinition( deps: { repo: SettingsRepoPort }, input: { namespace: string; key: string; workspaceId: string | null } ): Promise<SettingDefinitionRecord | null>;
-declare function getEffective( deps: { repo: SettingsRepoPort }, input: { namespace: string; key: string; scopeContext: SettingScopeContext } ): Promise<ResolvedSetting | null>;
+declare function getEffective( required: { deps: { repo: SettingsRepoPort }; namespace: string; key: string; scopeContext: SettingScopeContext }, optional: { coercers?: ReadonlyMap<string, SettingCoercer> } = {} ): Promise<ResolvedSetting | null>;
 declare function deriveRequiredPermission(input: { scope: SettingScope; targetPrincipalId?: UUID | undefined; callerPrincipalId: UUID; }): string;
 declare function registerDefinitions( required: RegisterDefinitionsRequired ): Promise<{ registered: string[] }>;
 declare function set(required: SetValueRequired): Promise<{ value: JsonValue; revisionSeq: number }>;
 declare function clear(required: ClearValueRequired): Promise<{ revisionSeq: number }>;
-declare function resetNamespace( required: ResetNamespaceRequired, keysInNamespace: string[] ): Promise<{ clearedCount: number; revisionSeqs: number[] }>;
+declare function resetNamespace( required: ResetNamespaceRequired & { keysInNamespace: string[] }, optional: Record<string, never> = {} ): Promise<{ clearedCount: number; revisionSeqs: number[] }>;
 declare function renameDefinition( required: RenameDefinitionRequired ): Promise<{ settingId: string; markerSettingId: string }>;
 declare function retypeDefinition( required: RetypeDefinitionRequired ): Promise<{ settingId: string; version: number }>;
 declare function reconcileDefinitionDefault( required: ReconcileDefinitionDefaultRequired ): Promise<{ settingId: string; changed: boolean }>;
@@ -265,11 +265,11 @@ declare function collectChangedNamespaces( { revisions, viewer, resolveNamespace
 declare function parseNonRegisterDefinitionOp({ op }: { op: string }, _optional: Record<string, never> = {}): NonRegisterDefinitionOp | null;
 declare function ensureSettingDefinitions( deps: EnsureSettingDefinitionsDeps, input: EnsureSettingDefinitionsInput, ): Promise<void>;
 declare function ensureSettingsUiTabDefinitions( deps: EnsureSettingDefinitionsDeps, input: EnsureSettingsUiTabDefinitionsInput, ): Promise<void>;
-declare function resolveAgentWritablePreference(settingId: string): AgentWritablePreference | undefined;
+declare function resolveAgentWritablePreference(required: { settingId: string }, optional: Record<string, never> = {}): AgentWritablePreference | undefined;
 declare function getSettingsAgentToolCatalog(): AgentToolDefinition[];
 declare function buildSettingsRegistrations(routeDeps: SettingsToolDeps): ToolRegistration[];
 declare function translateSettingsDialog({ locale, key }: { locale: string; key: string }, _optional: Record<string, never> = {}): string;
-declare function findAgentWriteRule(rules: readonly AgentSettingWriteRule[], target: { namespace: string; key: string }): AgentSettingWriteRule | undefined;
+declare function findAgentWriteRule(required: { rules: readonly AgentSettingWriteRule[]; target: { namespace: string; key: string } }, optional: Record<string, never> = {}): AgentSettingWriteRule | undefined;
 ```
 
 Types/data: `SettingScope`, `SettingOwnerKind`, `DefinitionStatus`, `ValueState`, `RevisionEntityKind`, `RevisionOp`, `SCOPE_BIT`, `SettingValueSchema`, `SettingDefinitionRecord`, `SettingValueRecord`, `SettingRevisionRecord`, `SettingScopeContext`, `SettingsRepoPort`, `DefinitionInput`, `ResolvedSetting`, `AuthorizeFn`, `SettingsWriteServiceDeps`, `RegisterDefinitionsRequired`, `SetValueRequired`, `ClearValueRequired`, `ResetNamespaceRequired`, `RenameDefinitionRequired`, `RetypeDefinitionRequired`, `ReconcileDefinitionDefaultRequired`, `DeprecateDefinitionRequired`, `TombstoneDefinitionRequired`, `PurgeServiceDeps`, `PurgeTenantSettingsRequired`, `ChangeFeedViewer`, `ChangeFeedBatch`, `DefinitionOpRequestItem`, `DefinitionOpContext`, `DefinitionOpHandler`, `NON_REGISTER_DEFINITION_OP_NAMES`, `NonRegisterDefinitionOp`, `NON_REGISTER_DEFINITION_OPS`, `SettingDefinitionSpec`, `EnsureSettingDefinitionsDeps`, `EnsureSettingDefinitionsInput`, `INSTRUCTIONS_NAMESPACE`, `NOTIFICATIONS_NAMESPACE`, `PRIVACY_NAMESPACE`, `APPEARANCE_NAMESPACE`, `LANGUAGE_NAMESPACE`, `EnsureSettingsUiTabDefinitionsInput`, `AgentWritablePreference`, `AGENT_PREFERENCE_WRITE_SCOPE`, `AGENT_WRITABLE_PREFERENCES`, `AGENT_WRITABLE_PREFERENCE_IDS`, `AGENT_PREFERENCE_REQUIRED_SCOPE_BIT`, `SettingsAgentToolSideEffect`, `SettingsAgentToolDefinition`, `SettingsToolDeps`, `settingsDerivedRisk`, `SETTINGS_DIALOG_DICTIONARIES`, `AgentSettingWriteRule`, `AGENT_WRITE_CONFIRMATION_SETTINGS`, `AGENT_WRITE_DENIED_SETTINGS`, `SettingsValueWriteToolId`, `SettingsWriteConfirmation`.
@@ -300,8 +300,8 @@ Wiring (adapters/context are host-provided):
 
 ```ts
 import { getEffective, set } from "@jini-ai/cms/settings";
-const resolved = await getEffective({ repo: settingsRepo },
-  { namespace, key, scopeContext: { workspaceId, principalId } });
+const resolved = await getEffective({ deps: { repo: settingsRepo },
+  namespace, key, scopeContext: { workspaceId, principalId } });
 const written = await set({ deps: { repo: settingsRepo, clock, ids: idGen, authorize, principals },
   input: { namespace, key, scope: "workspace", workspaceId, callerPrincipalId, value } });
 ```

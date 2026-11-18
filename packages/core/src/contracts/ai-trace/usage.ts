@@ -48,7 +48,7 @@ export function normalizeAiUsage({ usage }: { usage: unknown }, _options: Record
 }
 
 /** Adds two nullable counters; `null + null` stays `null` so "never reported" survives totals. */
-export function addNullable(a: number | null, b: number | null): number | null {
+export function addNullable({ a, b }: { a: number | null; b: number | null }, _optional: Record<string, never> = {}): number | null {
   if (a === null && b === null) return null;
   return (a ?? 0) + (b ?? 0);
 }

@@ -13,7 +13,7 @@ export type DbRow = Record<string, any>;
  * @param s - raw column value as stored in SQLite (typically `string | null`)
  * @returns parsed value, or `undefined` if the input is absent or unparseable
  */
-export function parseJsonOrUndef(s: unknown): any {
+export function parseJsonOrUndef({ s }: { s: unknown }, _optional: Record<string, never> = {}): any {
   if (typeof s !== 'string' || !s) return undefined;
   try {
     return JSON.parse(s);

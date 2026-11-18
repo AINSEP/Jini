@@ -163,7 +163,7 @@ export function createNodeDaemonProcessAdapter(required: NodeDaemonProcessRequir
         catch { child.kill({}, { signal: "SIGTERM" }); }
       }
       const snapshots = await snapshotRequest;
-      const pids = collectProcessTreePids(snapshots, [pid]);
+      const pids = collectProcessTreePids({ processes: snapshots, rootPids: [pid] });
       const result = await (options.stopProcesses ?? stopProcesses)(pids);
       if (result.remainingPids.length > 0) throw new Error(`daemon processes still running: ${result.remainingPids.join(", ")}`);
       await required.registry.removeIfCurrent({ pid });

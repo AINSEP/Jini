@@ -18,6 +18,6 @@ export const AGENT_WRITE_CONFIRMATION_SETTINGS: readonly AgentSettingWriteRule[]
 export const AGENT_WRITE_DENIED_SETTINGS: readonly AgentSettingWriteRule[] = [];
 
 /** Returns the first matching namespace/key rule, or undefined; pure, O(r) in fixed rules. */
-export function findAgentWriteRule(rules: readonly AgentSettingWriteRule[], target: { namespace: string; key: string }): AgentSettingWriteRule | undefined {
+export function findAgentWriteRule({ rules, target }: { rules: readonly AgentSettingWriteRule[]; target: { namespace: string; key: string } }, _optional: Record<string, never> = {}): AgentSettingWriteRule | undefined {
   return rules.find((rule) => rule.namespace === target.namespace && (rule.key === undefined || rule.key === target.key));
 }

@@ -338,7 +338,7 @@ function gateCheckedCurrentGrants({ verdict, config }: { verdict: void | Federat
  */
 function assertAdmittedGrants({ deps, config, call }: { deps: FederationDeps; config: FederatedMcpConnectionConfig; call: FederatedCallTarget }): void {
   const refusal = refusalForAdmittedToolUnderCurrentGrants({ tool: call, grants: config });
-  const reason = revocationReasonForToolRefusal(refusal);
+  const reason = revocationReasonForToolRefusal({ refusal });
   if (refusal === null || reason === null) return;
   throw new ToolInputError({ message: `${deps.errorCode}_${reason.toUpperCase().replace(/-/g, "_")}: ` +
     `${federatedToolId({ connectionId: config.connectionId, remoteName: call.remoteName })}: ` +

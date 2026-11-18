@@ -932,12 +932,12 @@ describe('agent-sessions CRUD', () => {
 
 describe('core helpers', () => {
   it('parseJsonOrUndef parses valid JSON and swallows everything else', () => {
-    expect(parseJsonOrUndef('{"a":1}')).toEqual({ a: 1 });
-    expect(parseJsonOrUndef('[1,2]')).toEqual([1, 2]);
-    expect(parseJsonOrUndef('not json')).toBeUndefined();
-    expect(parseJsonOrUndef('')).toBeUndefined();
-    expect(parseJsonOrUndef(null)).toBeUndefined();
-    expect(parseJsonOrUndef(42)).toBeUndefined();
+    expect(parseJsonOrUndef({ s: '{"a":1}' })).toEqual({ a: 1 });
+    expect(parseJsonOrUndef({ s: '[1,2]' })).toEqual([1, 2]);
+    expect(parseJsonOrUndef({ s: 'not json' })).toBeUndefined();
+    expect(parseJsonOrUndef({ s: '' })).toBeUndefined();
+    expect(parseJsonOrUndef({ s: null })).toBeUndefined();
+    expect(parseJsonOrUndef({ s: 42 })).toBeUndefined();
   });
 
   it('row narrows a get() result to DbRow | null', () => {

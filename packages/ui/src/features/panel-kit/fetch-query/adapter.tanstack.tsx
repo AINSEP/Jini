@@ -114,7 +114,7 @@ function saveResult<T>({ scope, key, previous, incoming }: {
   if (result.generation !== history.replacement) return scope.client.getQueryData<PublishedResult<T>>(key)!;
   if ('error' in result) {
     // Earlier data stays useful, but a failed refresh is not a fresh cache hit.
-    if (result.request === history.request) { history.error = toQueryError(result.error); query.invalidate(); }
+    if (result.request === history.request) { history.error = toQueryError({ value: result.error }); query.invalidate(); }
     throw result.error;
   }
   if (result.request === history.request) history.error = null;
@@ -184,7 +184,7 @@ function useFetchMutation<TInput, TOutput>({ run }: Pick<FetchMutationOptions<TI
     void promise.catch(() => {});
     return promise;
   }, [mutateAsync]);
-  return { mutate, status: mutation.status, error: mutation.status === 'error' ? toQueryError(mutation.error) : null, reset };
+  return { mutate, status: mutation.status, error: mutation.status === 'error' ? toQueryError({ value: mutation.error }) : null, reset };
 }
 
 /** The query template a loader's reads start from (see `useCachedLoader`'s own comment on it). */
@@ -236,7 +236,7 @@ function useCachedLoader<T>({ key, fetch }: CachedLoaderDefaults<T>, { staleTime
       // `fetch` is the loader's optional default; `withCachedLoaderFetch` rejects an argument-less read
       // that has none before any query is built (see `CachedLoaderDefaults`).
       load: (requested: CachedLoaderDefaults<T> = { key, fetch }, { staleTime: readStaleTime = staleTime }: { staleTime?: number } = {}) =>
-        withCachedLoaderFetch(requested, required => loadLoaderQuery({ scope, options, required, staleTime: readStaleTime })),
+        withCachedLoaderFetch({ ...requested, read: required => loadLoaderQuery({ scope, options, required, staleTime: readStaleTime }) }),
       replace: ({ value }: { value: T }) => {
         const query = scope.client.getQueryCache().build(scope.client, options);
         const history = historyFor({ scope, query });

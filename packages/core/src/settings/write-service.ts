@@ -162,7 +162,7 @@ export async function registerDefinitions(
     if (!validation.valid) throw validation.error;
 
     registered.push(await saveRegisteredDefinition({ deps, definitionInput, callerPrincipalId: input.callerPrincipalId }));
-    invalidateDefinitionNamespaceCache(deps.repo, definitionInput.namespace);
+    invalidateDefinitionNamespaceCache({ repo: deps.repo, namespace: definitionInput.namespace });
   }
 
   return { registered };
@@ -432,7 +432,7 @@ export async function set(required: SetValueRequired, optional: SettingsValueWri
 
   const definition = await resolveScopedDefinitionOrThrow(deps, input);
 
-  if (!validateValueAgainstSchema(definition.schema, input.value)) {
+  if (!validateValueAgainstSchema({ schema: definition.schema, value: input.value })) {
     throw new ValueValidationFailedError(
       `value for '${input.namespace}.${input.key}' does not match the definition schema`
     );
@@ -520,8 +520,8 @@ export interface ResetNamespaceRequired {
  * See docs/decisions/DR-003-settings-ledger-invariants.md.
  */
 export async function resetNamespace(
-  required: ResetNamespaceRequired,
-  keysInNamespace: string[]
+  { keysInNamespace, ...required }: ResetNamespaceRequired & { keysInNamespace: string[] },
+  _optional: Record<string, never> = {},
 ): Promise<{ clearedCount: number; revisionSeqs: number[] }> {
   const { deps, input } = required;
 
@@ -774,8 +774,8 @@ export async function renameDefinition(
 
   // Both the old (alias-marker) namespace and the new (active-row) namespace
   // need a fresh definition-cache read after a rename.
-  invalidateDefinitionNamespaceCache(deps.repo, input.namespace);
-  invalidateDefinitionNamespaceCache(deps.repo, input.newNamespace);
+  invalidateDefinitionNamespaceCache({ repo: deps.repo, namespace: input.namespace });
+  invalidateDefinitionNamespaceCache({ repo: deps.repo, namespace: input.newNamespace });
   return result;
 }
 
@@ -893,7 +893,7 @@ export async function retypeDefinition(
 
   const result = await deps.repo.transaction(() => writeRetypedVersion({ deps, input, current }));
 
-  invalidateDefinitionNamespaceCache(deps.repo, input.namespace);
+  invalidateDefinitionNamespaceCache({ repo: deps.repo, namespace: input.namespace });
   return result;
 }
 
@@ -926,7 +926,7 @@ export async function extendDefinitionScopes({ deps, input }: {
       beforeJson: { scopes: current.scopes }, afterJson: { scopes }, defVersion: current.version,
       actor: input.callerPrincipalId, originPluginId: null, changeSetId: null, createdAt: now });
   });
-  invalidateDefinitionNamespaceCache(deps.repo, input.namespace);
+  invalidateDefinitionNamespaceCache({ repo: deps.repo, namespace: input.namespace });
 }
 
 export interface ReconcileDefinitionDefaultRequired {
@@ -994,7 +994,7 @@ export async function reconcileDefinitionDefault(
     return { settingId: current.settingId, changed: false };
   }
 
-  if (!validateValueAgainstSchema(current.schema, input.defaultValue)) {
+  if (!validateValueAgainstSchema({ schema: current.schema, value: input.defaultValue })) {
     throw new ValueValidationFailedError(
       `cannot reconcile the default of '${input.namespace}.${input.key}': the source default does not satisfy the definition's own schema (type '${current.schema.type}')`
     );
@@ -1023,7 +1023,7 @@ export async function reconcileDefinitionDefault(
     });
   });
 
-  invalidateDefinitionNamespaceCache(deps.repo, input.namespace);
+  invalidateDefinitionNamespaceCache({ repo: deps.repo, namespace: input.namespace });
   return { settingId: current.settingId, changed: true };
 }
 
@@ -1085,7 +1085,7 @@ async function transitionDefinitionStatus(
     return { settingId: current.settingId, version: current.version };
   });
 
-  invalidateDefinitionNamespaceCache(deps.repo, input.namespace);
+  invalidateDefinitionNamespaceCache({ repo: deps.repo, namespace: input.namespace });
   return result;
 }
 

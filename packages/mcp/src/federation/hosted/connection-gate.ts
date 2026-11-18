@@ -71,7 +71,7 @@ export function createHostedMcpConnectionGate(deps: HostedMcpConnectionGatePorts
     const record = await readConnectionRowOrRefuse(deps, connectionId);
     await assertProvisioningPluginEnabled({ deps, record });
     const isPreset = call.origin?.kind === "preset";
-    const refusal = isPreset ? null : rosterRefusalFor(record, call);
+    const refusal = isPreset ? null : rosterRefusalFor({ record, call });
     if (refusal !== null) {
       offerPluginAccessCard({ deps, record, refusal });
       throw deps.revoked({ serverId: connectionId, label: record?.label ?? null, remoteName: call.remoteName, reason: refusal });

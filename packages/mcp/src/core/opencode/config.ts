@@ -53,7 +53,8 @@ export function buildOpenCodeMcpConfigContent(
   );
   const config: Record<string, unknown> = { ...options.extraConfig, ...nonEmptyField({ key: 'mcp', value: mcp }) };
   if (externalDirectory) {
-    const priorPermission = isPlainObject(config.permission) ? config.permission : {};
+    const permission = { v: config.permission };
+    const priorPermission = isPlainObject(permission) ? permission.v : {};
     config.permission = {
       ...priorPermission,
       external_directory: externalDirectory,

@@ -25,7 +25,7 @@ function deps(writes: string[]): FederatedApprovalDeps {
 
 function remember(call: FederatedCallConfirmationRequest, choice: "chat" | "always", approvals: FederatedApprovalDeps, { withKeys = true } = {}) {
   const notified: string[] = [];
-  const keys = approvalContext(context, call, withKeys ? approvals : undefined, "d");
+  const keys = approvalContext({ context, request: call, approvals: withKeys ? approvals : undefined, fingerprintDomain: "d" });
   return { notified, done: rememberApproval({ context, request: call, keys, approvals, choice,
     options: { webhooks: { approvalRemembered: async ({ scope }) => { notified.push(scope); } } } }) };
 }
@@ -62,7 +62,7 @@ describe("rememberApproval guards", () => {
   });
 
   test("the keys carry the call's fingerprint", () => {
-    expect(approvalContext(context, request, undefined, "d")).toEqual({
+    expect(approvalContext({ context, request, approvals: undefined, fingerprintDomain: "d" })).toEqual({
       fingerprint: federatedToolApprovalFingerprint({ identity: request, fingerprintDomain: "d" }), chatKey: undefined, alwaysKey: undefined,
     });
   });

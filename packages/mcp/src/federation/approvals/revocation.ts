@@ -44,7 +44,7 @@ export function rosterRefusalFor({ record, call }: { record: ConnectionRosterSna
   if (record.admissionRevision !== call.origin.admissionRevision) return "changed";
   if (!record.enabled) return "turned-off";
   if (record.disconnected) return "disconnected";
-  return revocationReasonForToolRefusal(refusalForAdmittedToolUnderCurrentGrants({ tool: call, grants: record.grants }));
+  return revocationReasonForToolRefusal({ refusal: refusalForAdmittedToolUnderCurrentGrants({ tool: call, grants: record.grants }) });
 }
 
 /** One roster read plus its refusal. A failed read or check is reported and fails closed as
@@ -56,7 +56,7 @@ async function readRosterRefusal(
   // A row that was read but cannot be judged keeps its label on the refusal.
   let record: ConnectionRosterSnapshot | null = null;
   try {
-    record = await roster.findByServerId({ serverId: connectionId }, scopeOption(scope));
+    record = await roster.findByServerId({ serverId: connectionId }, scopeOption({ scope }));
     return { record, reason: rosterRefusalFor({ record, call }) };
   } catch (error) {
     report({ connectionId, stage: "store", error });
@@ -82,7 +82,7 @@ export function createFederatedConnectionRevocationGate(required: {
     const { record, reason } = await readRosterRefusal({ roster: required.roster, connectionId, call }, { scope: optional.scope, report });
     if (reason === null) return "current-grants-checked";
     const refusal = { serverId: connectionId, label: record?.label ?? null, remoteName: call.remoteName, reason };
-    try { await optional.webhooks?.connectionRefused(refusal, scopeOption(optional.scope)); }
+    try { await optional.webhooks?.connectionRefused(refusal, scopeOption({ scope: optional.scope })); }
     catch (error) { report({ connectionId, stage: "webhook", error }); }
     throw required.errorFactory.create(refusal);
   };

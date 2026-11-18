@@ -79,7 +79,7 @@ export function toTaxonomy(row: Selectable<TaxonomyRow>): Taxonomy {
   return {
     id: row.id,
     name: row.name,
-    hierarchical: toBool(row.hierarchical) === true,
+    hierarchical: toBool({ value: row.hierarchical }) === true,
     status: row.status,
     updatedAt: row.updated_at,
     version: row.version,

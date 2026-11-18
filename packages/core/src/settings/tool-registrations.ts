@@ -178,7 +178,7 @@ async function describeDefinitionForAgent(
     ? await resolveDefinitionRaw({ repo: routeDeps.settingsRepo }, { namespace: def.namespace, key: def.key, workspaceId: routeDeps.workspaceId })
     : def;
   const coordinates = resolved ? [def, resolved] : [def];
-  const matchesAny = (list: readonly AgentSettingWriteRule[]) => coordinates.some((coordinate) => !!findAgentWriteRule(list, coordinate));
+  const matchesAny = (list: readonly AgentSettingWriteRule[]) => coordinates.some((coordinate) => !!findAgentWriteRule({ rules: list, target: coordinate }));
   const denied = matchesAny(rules.denied);
   const confirmationRequired = matchesAny(rules.confirmation);
   const scopes = resolved?.scopes ?? def.scopes;
@@ -255,7 +255,7 @@ async function getEffectiveHandler(routeDeps: SettingsToolDeps, ctx: ToolHandler
 
   const data: Array<{ key: string; value: unknown; sourceLayer: string; defVersion: number }> = [];
   for (const key of keys) {
-    const resolved = await getEffective({ repo: routeDeps.settingsRepo }, { namespace, key, scopeContext: { workspaceId, principalId } });
+    const resolved = await getEffective({ deps: { repo: routeDeps.settingsRepo }, namespace, key, scopeContext: { workspaceId, principalId } });
     if (resolved) data.push({ key, value: resolved.value, sourceLayer: resolved.sourceLayer, defVersion: resolved.defVersion });
   }
 
@@ -302,7 +302,7 @@ async function setUiPreferenceHandler(routeDeps: SettingsToolDeps, ctx: ToolHand
   // validation, and this is the check that still holds if a stale or bypassed descriptor lets
   // an unlisted id through. Rejected BEFORE `settingsUiTabsReady` is awaited so an unlisted id
   // cannot even be used to probe which definitions exist.
-  const preference = resolveAgentWritablePreference(settingId);
+  const preference = resolveAgentWritablePreference({ settingId });
   if (!preference) {
     throw new Error(
       `'${settingId}' is not an agent-writable preference. Allowed: ${AGENT_WRITABLE_PREFERENCE_IDS.join(", ")}.`,
@@ -356,8 +356,8 @@ async function setUiPreferenceHandler(routeDeps: SettingsToolDeps, ctx: ToolHand
 
 export function buildSettingsRegistrations(routeDeps: SettingsToolDeps): ToolRegistration[] {
   const handlers: Record<string, ToolHandler> = {
-    settings_set_value: buildSettingsValueWriteHandler(routeDeps, "settings_set_value"),
-    settings_clear_value: buildSettingsValueWriteHandler(routeDeps, "settings_clear_value"),
+    settings_set_value: buildSettingsValueWriteHandler({ deps: routeDeps, toolId: "settings_set_value" }),
+    settings_clear_value: buildSettingsValueWriteHandler({ deps: routeDeps, toolId: "settings_clear_value" }),
     settings_list_definitions: (ctx) => listDefinitionsHandler(routeDeps, ctx),
     settings_get_effective: (ctx) => getEffectiveHandler(routeDeps, ctx),
     settings_get_raw: (ctx) => getRawHandler(routeDeps, ctx),

@@ -11,13 +11,13 @@ describe('withCachedLoaderFetch', () => {
   it('forwards the key and fetch to the read and resolves with its value', async () => {
     const fetch = vi.fn(async () => 'value');
     const read = vi.fn(async ({ fetch: f }: { key: readonly unknown[]; fetch: () => Promise<string> }) => f());
-    await expect(withCachedLoaderFetch({ key: ['a', 1], fetch }, read)).resolves.toBe('value');
+    await expect(withCachedLoaderFetch({ key: ['a', 1], fetch, read })).resolves.toBe('value');
     expect(read).toHaveBeenCalledWith({ key: ['a', 1], fetch });
   });
 
   it('rejects with the named missing-fetch error and never runs the read when no fetch exists', async () => {
     const read = vi.fn(async () => 'never');
-    await expect(withCachedLoaderFetch<string>({ key: ['themes', 'source', 't1'] }, read)).rejects.toThrow(
+    await expect(withCachedLoaderFetch<string>({ key: ['themes', 'source', 't1'], read })).rejects.toThrow(
       'Cached loader for key ["themes","source","t1"] has no default fetch: call load({ key, fetch }) with a fetch of its own',
     );
     expect(read).not.toHaveBeenCalled();
@@ -25,7 +25,7 @@ describe('withCachedLoaderFetch', () => {
 
   it('treats an explicit undefined fetch the same as an omitted one', async () => {
     const read = vi.fn(async () => 'never');
-    await expect(withCachedLoaderFetch<string>({ key: ['k'], fetch: undefined }, read)).rejects.toEqual(missingCachedLoaderFetchError(['k']));
+    await expect(withCachedLoaderFetch<string>({ key: ['k'], fetch: undefined, read })).rejects.toEqual(missingCachedLoaderFetchError({ key: ['k'] }));
     expect(read).not.toHaveBeenCalled();
   });
 });

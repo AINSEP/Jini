@@ -1,7 +1,8 @@
 import { isLoopbackHostname } from '@jini-ai/core/net';
 import type { McpAuthMode, McpServerConfig } from './config.js';
 
-export function isPlainObject(v: unknown): v is Record<string, unknown> {
+export function isPlainObject(required: { v: unknown }, _optional: Record<string, never> = {}): required is { v: Record<string, unknown> } {
+  const { v } = required;
   return Boolean(v) && typeof v === 'object' && !Array.isArray(v);
 }
 

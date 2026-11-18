@@ -56,8 +56,8 @@ test("getEffective returns the global value when only a global value exists (AC-
   });
 
   const result = await getEffective(
-    { repo },
-    { namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1", principalId: "p-1" } }
+    { deps: { repo },
+    namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1", principalId: "p-1" } }
   );
 
   assert.equal(result?.value, "atlas");
@@ -69,8 +69,8 @@ test("getEffective returns the definition's validated default when no layer has 
   const repo = new InMemorySettingsRepo({ definitions: [def] });
 
   const result = await getEffective(
-    { repo },
-    { namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1", principalId: "p-1" } }
+    { deps: { repo },
+    namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1", principalId: "p-1" } }
   );
 
   assert.equal(result?.value, "paper");
@@ -86,8 +86,8 @@ test("getEffective prefers workspace over global, and user over workspace (layer
   });
 
   const workspaceOnly = await getEffective(
-    { repo },
-    { namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1" } }
+    { deps: { repo },
+    namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1" } }
   );
   assert.equal(workspaceOnly?.value, "ws-val");
   assert.equal(workspaceOnly?.sourceLayer, "workspace");
@@ -101,8 +101,8 @@ test("getEffective prefers workspace over global, and user over workspace (layer
     ],
   });
   const userResult = await getEffective(
-    { repo: withUserValue },
-    { namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1", principalId: "p-1" } }
+    { deps: { repo: withUserValue },
+    namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1", principalId: "p-1" } }
   );
   assert.equal(userResult?.value, "user-val");
   assert.equal(userResult?.sourceLayer, "user");
@@ -119,8 +119,8 @@ test("getEffective treats a cleared row as absent, falling through to the next l
   });
 
   const result = await getEffective(
-    { repo },
-    { namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1" } }
+    { deps: { repo },
+    namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1" } }
   );
   assert.equal(result?.value, "global-val");
   assert.equal(result?.sourceLayer, "global");
@@ -142,12 +142,12 @@ test("getEffective resolves a renamed setting transparently by its old key (AC-0
   });
 
   const byOldKey = await getEffective(
-    { repo },
-    { namespace: "core.presentation", key: "oldKey", scopeContext: {} }
+    { deps: { repo },
+    namespace: "core.presentation", key: "oldKey", scopeContext: {} }
   );
   const byNewKey = await getEffective(
-    { repo },
-    { namespace: "core.presentation", key: "newKey", scopeContext: {} }
+    { deps: { repo },
+    namespace: "core.presentation", key: "newKey", scopeContext: {} }
   );
 
   assert.equal(byOldKey?.value, "resolved-val");
@@ -159,8 +159,8 @@ test("getEffective returns null for a tombstoned key (EC-10)", async () => {
   const repo = new InMemorySettingsRepo({ definitions: [def] });
 
   const result = await getEffective(
-    { repo },
-    { namespace: def.namespace, key: def.key, scopeContext: {} }
+    { deps: { repo },
+    namespace: def.namespace, key: def.key, scopeContext: {} }
   );
   assert.equal(result, null);
 });
@@ -172,8 +172,8 @@ test("getEffective coerces a value stored under a stale def_version in memory, n
   const repo = new InMemorySettingsRepo({ definitions: [def], globalValues: [staleValue] });
 
   const result = await getEffective(
-    { repo },
-    { namespace: def.namespace, key: def.key, scopeContext: {} },
+    { deps: { repo },
+    namespace: def.namespace, key: def.key, scopeContext: {} },
     { coercers },
   );
 

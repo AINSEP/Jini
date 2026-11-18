@@ -131,7 +131,7 @@ function registerValueRoutes(kit: RouteKit): void {
   const { required: { app, workspaceId, service, routes, permissions }, wrap, check } = kit;
   const mutate = (operation: ValueMutationOperation): Handler => async (req, res, callerPrincipalId) => {
     const body = bodyOf(req);
-    const fields = readValueMutation(body, operation);
+    const fields = readValueMutation({ body, operation });
     if (!fields) { validation(res, VALUE_MUTATION_REQUIRED[operation]); return; }
     const { namespace, key, scope } = fields;
     const target = resolveTargetWorkspaceId({ workspaceId, input: { bodyWorkspaceId: body.workspaceId, scope } });

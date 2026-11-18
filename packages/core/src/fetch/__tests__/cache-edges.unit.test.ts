@@ -39,11 +39,11 @@ afterEach(() => { vi.useRealTimers(); });
 describe('toQueryError', () => {
   it('passes Errors through and wraps a meaningful string, otherwise uses a fixed message', () => {
     const error = new TypeError('bad');
-    expect(toQueryError(error)).toBe(error);
-    expect(toQueryError('offline')).toEqual(new Error('offline'));
-    expect(toQueryError('   ')).toEqual(new Error('request failed'));
-    expect(toQueryError({ status: 500 })).toEqual(new Error('request failed'));
-    expect(toQueryError(undefined)).toEqual(new Error('request failed'));
+    expect(toQueryError({ value: error })).toBe(error);
+    expect(toQueryError({ value: 'offline' })).toEqual(new Error('offline'));
+    expect(toQueryError({ value: '   ' })).toEqual(new Error('request failed'));
+    expect(toQueryError({ value: { status: 500 } })).toEqual(new Error('request failed'));
+    expect(toQueryError({ value: undefined })).toEqual(new Error('request failed'));
   });
 });
 

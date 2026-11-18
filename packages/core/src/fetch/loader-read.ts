@@ -5,7 +5,7 @@ import type { CachedLoaderDefaults, CachedLoaderOptions, QueryKey } from './type
  * `fetch`. Named, rather than left to a `TypeError: fetch is not a function` from deep inside a cache
  * adapter, so the misuse points at the call site that needs to pass `{ key, fetch }`.
  */
-export function missingCachedLoaderFetchError(key: QueryKey): Error {
+export function missingCachedLoaderFetchError({ key }: { key: QueryKey }, _optional: Record<string, never> = {}): Error {
   return new Error(`Cached loader for key ${JSON.stringify(key)} has no default fetch: call load({ key, fetch }) with a fetch of its own`);
 }
 
@@ -17,10 +17,10 @@ export function missingCachedLoaderFetchError(key: QueryKey): Error {
  * Shared by every `FetchQueryAdapter` so each adapter's `load` stays a single straight-line call.
  */
 export function withCachedLoaderFetch<T>(
-  required: CachedLoaderDefaults<T>,
-  read: (resolved: Pick<CachedLoaderOptions<T>, 'key' | 'fetch'>) => Promise<T>,
+  required: CachedLoaderDefaults<T> & { read: (resolved: Pick<CachedLoaderOptions<T>, 'key' | 'fetch'>) => Promise<T> },
+  _optional: Record<string, never> = {},
 ): Promise<T> {
-  const { key, fetch } = required;
-  if (fetch === undefined) return Promise.reject(missingCachedLoaderFetchError(key));
+  const { key, fetch, read } = required;
+  if (fetch === undefined) return Promise.reject(missingCachedLoaderFetchError({ key }));
   return read({ key, fetch });
 }

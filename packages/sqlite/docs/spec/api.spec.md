@@ -16,7 +16,7 @@ Methods: `append({runId,event,data}, {dedupeKey?} = {})`, `replay({runId,afterCu
 
 ## Database values and inspection
 
-Runtime exports are `inspectSqliteDatabase({db,file})`, `verifySqliteIntegrity(options: VerifyDbOptions)` with quick still in its required options object, `parseJsonOrUndef(value)`, `row(value)` and `rows(values)`. The row helpers retain positional inputs. Types: DaemonDbStatusReport, DaemonDbTableInfo, DbIntegrityIssue, DbIntegrityIssueKind, DbIntegrityReport, SqliteDb, VerifyDbOptions, DbRow, JsonObject. JSON aliases are imported/re-exported by the db owner; no new facade wire model exists. [Canonical DB contract](../../../db/docs/spec/api.spec.md).
+Runtime exports are `inspectSqliteDatabase({db,file})`, `verifySqliteIntegrity(options: VerifyDbOptions)` with quick still in its required options object, `parseJsonOrUndef({ s: value }, optional = {})`, `row(value)` and `rows(values)`. The row helpers retain positional inputs. Types: DaemonDbStatusReport, DaemonDbTableInfo, DbIntegrityIssue, DbIntegrityIssueKind, DbIntegrityReport, SqliteDb, VerifyDbOptions, DbRow, JsonObject. JSON aliases are imported/re-exported by the db owner; no new facade wire model exists. [Canonical DB contract](../../../db/docs/spec/api.spec.md).
 
 ## Chat history and legacy rows
 

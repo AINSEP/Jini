@@ -23,7 +23,7 @@ export function toActivationRecord({ row }: { row: PluginActivationRow }, _optio
     pluginId: row.plugin_id,
     workspaceId: row.workspace_id,
     version: row.version,
-    enabled: toBool(row.enabled) === true,
+    enabled: toBool({ value: row.enabled }) === true,
     updatedAt: row.updated_at,
     ...(row.quarantined_at === null ? {} : { quarantinedAt: row.quarantined_at }),
     ...(row.quarantine_reason === null ? {} : { quarantineReason: row.quarantine_reason }),

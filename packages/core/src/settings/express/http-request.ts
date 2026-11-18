@@ -42,7 +42,8 @@ export const VALUE_MUTATION_REQUIRED: Record<ValueMutationOperation, string> = {
 };
 /** The fields a value write needs, or null when one is missing or the scope is unknown. Pure, O(1). */
 export function readValueMutation(
-  body: Record<string, unknown>, operation: ValueMutationOperation,
+  { body, operation }: { body: Record<string, unknown>; operation: ValueMutationOperation },
+  _optional: Record<string, never> = {},
 ): { namespace: string; key: string; scope: SettingScope } | null {
   const namespace = String(body.namespace ?? "");
   const key = String(body.key ?? "");

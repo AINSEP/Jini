@@ -297,7 +297,7 @@ function resolveProcessDeps(options: CreateAgentExecutorOptions): ResolvedProces
     createCommandInvocation: options.createCommandInvocation ?? createCommandInvocation,
     spawn: options.spawn ?? nodeSpawn,
     listProcessSnapshots: options.listProcessSnapshots ?? listProcessSnapshots,
-    collectProcessTreePids: options.collectProcessTreePids ?? (({ processes, rootPids }) => collectProcessTreePids(processes, rootPids)),
+    collectProcessTreePids: options.collectProcessTreePids ?? (({ processes, rootPids }) => collectProcessTreePids({ processes, rootPids })),
     stopProcesses: options.stopProcesses ?? (({ pids }) => stopProcesses(pids)),
   };
 }

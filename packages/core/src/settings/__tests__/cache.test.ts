@@ -91,21 +91,21 @@ test("AC-19: a global write to namespace N invalidates only that namespace's glo
   // Populate 3 distinct layer-cache entries: global (via a workspace with no
   // override), workspace (ws-1), and user (ws-1, p-1).
   const globalRead = await getEffective(
-    { repo },
-    { namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-2" } }
+    { deps: { repo },
+    namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-2" } }
   );
   assert.equal(globalRead?.value, "g-initial");
   assert.equal(globalRead?.sourceLayer, "global");
 
   const workspaceRead = await getEffective(
-    { repo },
-    { namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1" } }
+    { deps: { repo },
+    namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1" } }
   );
   assert.equal(workspaceRead?.value, "ws-initial");
 
   const userRead = await getEffective(
-    { repo },
-    { namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1", principalId: "p-1" } }
+    { deps: { repo },
+    namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1", principalId: "p-1" } }
   );
   assert.equal(userRead?.value, "u-initial");
 
@@ -116,8 +116,8 @@ test("AC-19: a global write to namespace N invalidates only that namespace's glo
   });
 
   const globalAfter = await getEffective(
-    { repo },
-    { namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-2" } }
+    { deps: { repo },
+    namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-2" } }
   );
   assert.equal(globalAfter?.value, "g-updated", "the global write must be visible to a workspace with no override");
 
@@ -127,15 +127,15 @@ test("AC-19: a global write to namespace N invalidates only that namespace's glo
   // staying INVISIBLE behind a stale cache entry — an assertion that could only ever hold while
   // the cache existed, and which passed just as happily when the cache was wrong.
   const workspaceAfter = await getEffective(
-    { repo },
-    { namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1" } }
+    { deps: { repo },
+    namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1" } }
   );
   assert.equal(workspaceAfter?.value, "ws-initial", "a global write must not disturb the workspace layer (no fan-out)");
   assert.equal(workspaceAfter?.sourceLayer, "workspace");
 
   const userAfter = await getEffective(
-    { repo },
-    { namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1", principalId: "p-1" } }
+    { deps: { repo },
+    namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1", principalId: "p-1" } }
   );
   assert.equal(userAfter?.value, "u-initial", "a global write must not disturb the user layer either");
   assert.equal(userAfter?.sourceLayer, "user");
@@ -169,7 +169,7 @@ for (const layer of ["global", "workspace", "user"] as const) {
       ...(layer === "user" ? { userValues: [seed] } : {}),
     });
 
-    const before = await getEffective({ repo }, { namespace: def.namespace, key: def.key, scopeContext });
+    const before = await getEffective({ deps: { repo }, namespace: def.namespace, key: def.key, scopeContext });
     assert.equal(before?.value, "before", "sanity: the seeded value is what the first read resolves");
 
     const mutated = { ...seed, valueJson: "after" };
@@ -177,7 +177,7 @@ for (const layer of ["global", "workspace", "user"] as const) {
     else if (layer === "workspace") await repo.saveWorkspaceValue(mutated);
     else await repo.saveUserValue(mutated);
 
-    const after = await getEffective({ repo }, { namespace: def.namespace, key: def.key, scopeContext });
+    const after = await getEffective({ deps: { repo }, namespace: def.namespace, key: def.key, scopeContext });
     assert.equal(
       after?.value,
       "after",
@@ -197,10 +197,10 @@ test("AC-19 (workspace scope): a workspace-scope write invalidates only that wor
   });
   const principals = new InMemorySettingsPrincipalLookup([]);
 
-  await getEffective({ repo }, { namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1" } });
+  await getEffective({ deps: { repo }, namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1" } });
   const ws2Before = await getEffective(
-    { repo },
-    { namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-2" } }
+    { deps: { repo },
+    namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-2" } }
   );
   assert.equal(ws2Before?.value, "ws2-initial");
 
@@ -217,14 +217,14 @@ test("AC-19 (workspace scope): a workspace-scope write invalidates only that wor
   });
 
   const ws1After = await getEffective(
-    { repo },
-    { namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1" } }
+    { deps: { repo },
+    namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1" } }
   );
   assert.equal(ws1After?.value, "ws1-updated");
 
   const ws2After = await getEffective(
-    { repo },
-    { namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-2" } }
+    { deps: { repo },
+    namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-2" } }
   );
   assert.equal(ws2After?.value, "ws2-initial", "a ws-1 write must not reach ws-2's row (tenant isolation, no fan-out)");
 });
@@ -239,8 +239,8 @@ test("clear() invalidates the value cache so a subsequent getEffective reflects 
   const principals = new InMemorySettingsPrincipalLookup([]);
 
   const before = await getEffective(
-    { repo },
-    { namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1" } }
+    { deps: { repo },
+    namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1" } }
   );
   assert.equal(before?.value, "ws-initial");
 
@@ -250,8 +250,8 @@ test("clear() invalidates the value cache so a subsequent getEffective reflects 
   });
 
   const after = await getEffective(
-    { repo },
-    { namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1" } }
+    { deps: { repo },
+    namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1" } }
   );
   assert.equal(after?.value, "g-fallback", "clear() must invalidate the cached workspace entry, falling through to global");
   assert.equal(after?.sourceLayer, "global");
@@ -278,14 +278,14 @@ test("AC-20: the definition cache is workspace-qualified -- two workspaces with 
   const repo = new InMemorySettingsRepo({ definitions: [defA, defB] });
 
   const resultA1 = await getEffective(
-    { repo },
-    { namespace: "site.appearance", key: "theme", scopeContext: { workspaceId: "ws-A" } }
+    { deps: { repo },
+    namespace: "site.appearance", key: "theme", scopeContext: { workspaceId: "ws-A" } }
   );
   assert.equal(resultA1?.value, "paper-A");
 
   const resultB1 = await getEffective(
-    { repo },
-    { namespace: "site.appearance", key: "theme", scopeContext: { workspaceId: "ws-B" } }
+    { deps: { repo },
+    namespace: "site.appearance", key: "theme", scopeContext: { workspaceId: "ws-B" } }
   );
   assert.equal(resultB1?.value, "paper-B", "ws-B must resolve its own definition, never ws-A's cached one");
 
@@ -294,8 +294,8 @@ test("AC-20: the definition cache is workspace-qualified -- two workspaces with 
   await repo.saveDefinition({ ...defA, defaultValue: "paper-A-MUTATED" });
 
   const resultA2 = await getEffective(
-    { repo },
-    { namespace: "site.appearance", key: "theme", scopeContext: { workspaceId: "ws-A" } }
+    { deps: { repo },
+    namespace: "site.appearance", key: "theme", scopeContext: { workspaceId: "ws-A" } }
   );
   assert.equal(
     resultA2?.value,
@@ -304,8 +304,8 @@ test("AC-20: the definition cache is workspace-qualified -- two workspaces with 
   );
 
   const resultB2 = await getEffective(
-    { repo },
-    { namespace: "site.appearance", key: "theme", scopeContext: { workspaceId: "ws-B" } }
+    { deps: { repo },
+    namespace: "site.appearance", key: "theme", scopeContext: { workspaceId: "ws-B" } }
   );
   assert.equal(resultB2?.value, "paper-B", "ws-B's cache entry must remain distinct and correct");
 });
@@ -314,7 +314,7 @@ test("retypeDefinition invalidates the definition cache so getEffective picks up
   const def = definition({ coercionTag: null });
   const repo = new InMemorySettingsRepo({ definitions: [def] });
 
-  const before = await getEffective({ repo }, { namespace: def.namespace, key: def.key, scopeContext: {} });
+  const before = await getEffective({ deps: { repo }, namespace: def.namespace, key: def.key, scopeContext: {} });
   assert.equal(before?.value, "default");
 
   await retypeDefinition({
@@ -331,7 +331,7 @@ test("retypeDefinition invalidates the definition cache so getEffective picks up
     },
   });
 
-  const after = await getEffective({ repo }, { namespace: def.namespace, key: def.key, scopeContext: {} });
+  const after = await getEffective({ deps: { repo }, namespace: def.namespace, key: def.key, scopeContext: {} });
   assert.equal(
     after?.value,
     "retyped-default",
@@ -343,7 +343,7 @@ test("tombstoneDefinition invalidates the definition cache so getEffective immed
   const def = definition();
   const repo = new InMemorySettingsRepo({ definitions: [def] });
 
-  const before = await getEffective({ repo }, { namespace: def.namespace, key: def.key, scopeContext: {} });
+  const before = await getEffective({ deps: { repo }, namespace: def.namespace, key: def.key, scopeContext: {} });
   assert.ok(before, "must resolve before tombstoning");
 
   await tombstoneDefinition({
@@ -357,7 +357,7 @@ test("tombstoneDefinition invalidates the definition cache so getEffective immed
     },
   });
 
-  const after = await getEffective({ repo }, { namespace: def.namespace, key: def.key, scopeContext: {} });
+  const after = await getEffective({ deps: { repo }, namespace: def.namespace, key: def.key, scopeContext: {} });
   assert.equal(after, null, "tombstoneDefinition must invalidate the cached (still-active) definition entry");
 });
 
@@ -365,7 +365,7 @@ test("deprecateDefinition invalidates the definition cache", async () => {
   const def = definition();
   const repo = new InMemorySettingsRepo({ definitions: [def] });
 
-  await getEffective({ repo }, { namespace: def.namespace, key: def.key, scopeContext: {} });
+  await getEffective({ deps: { repo }, namespace: def.namespace, key: def.key, scopeContext: {} });
 
   await deprecateDefinition({
     deps: { repo, clock, ids, authorize: alwaysAllow, principals: new InMemorySettingsPrincipalLookup([]) },
@@ -381,7 +381,7 @@ test("deprecateDefinition invalidates the definition cache", async () => {
   // Deprecated defs are excluded from findActiveDefinition entirely, so the
   // slot now resolves to "not found" -- proves the cache was refreshed
   // rather than continuing to serve the pre-deprecate active row.
-  const after = await getEffective({ repo }, { namespace: def.namespace, key: def.key, scopeContext: {} });
+  const after = await getEffective({ deps: { repo }, namespace: def.namespace, key: def.key, scopeContext: {} });
   assert.equal(after, null);
 });
 
@@ -389,7 +389,7 @@ test("renameDefinition invalidates the definition cache for both the old and new
   const def = definition({ namespace: "core.ns", key: "oldKey" });
   const repo = new InMemorySettingsRepo({ definitions: [def] });
 
-  const beforeOld = await getEffective({ repo }, { namespace: "core.ns", key: "oldKey", scopeContext: {} });
+  const beforeOld = await getEffective({ deps: { repo }, namespace: "core.ns", key: "oldKey", scopeContext: {} });
   assert.equal(beforeOld?.value, "default");
 
   await renameDefinition({
@@ -405,8 +405,8 @@ test("renameDefinition invalidates the definition cache for both the old and new
     },
   });
 
-  const afterOld = await getEffective({ repo }, { namespace: "core.ns", key: "oldKey", scopeContext: {} });
-  const afterNew = await getEffective({ repo }, { namespace: "core.ns", key: "newKey", scopeContext: {} });
+  const afterOld = await getEffective({ deps: { repo }, namespace: "core.ns", key: "oldKey", scopeContext: {} });
+  const afterNew = await getEffective({ deps: { repo }, namespace: "core.ns", key: "newKey", scopeContext: {} });
   assert.deepEqual(afterOld, afterNew, "the renamed key must resolve transparently by both old and new name");
   assert.equal(afterOld?.value, "default");
 });
@@ -419,8 +419,8 @@ test("purgeTenantSettings invalidates the workspace-scope cache entry it deletes
   });
 
   const before = await getEffective(
-    { repo },
-    { namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1" } }
+    { deps: { repo },
+    namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1" } }
   );
   assert.equal(before?.value, "ws-value");
 
@@ -430,8 +430,8 @@ test("purgeTenantSettings invalidates the workspace-scope cache entry it deletes
   });
 
   const after = await getEffective(
-    { repo },
-    { namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1" } }
+    { deps: { repo },
+    namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1" } }
   );
   assert.equal(after?.value, "default", "purge must invalidate the workspace cache entry, falling back to default");
 });
@@ -447,12 +447,12 @@ test("purgeTenantSettings scoped to a principalId invalidates only that principa
   });
 
   await getEffective(
-    { repo },
-    { namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1", principalId: "p-1" } }
+    { deps: { repo },
+    namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1", principalId: "p-1" } }
   );
   const p2Before = await getEffective(
-    { repo },
-    { namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1", principalId: "p-2" } }
+    { deps: { repo },
+    namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1", principalId: "p-2" } }
   );
   assert.equal(p2Before?.value, "p2-value");
 
@@ -462,15 +462,15 @@ test("purgeTenantSettings scoped to a principalId invalidates only that principa
   });
 
   const p1After = await getEffective(
-    { repo },
-    { namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1", principalId: "p-1" } }
+    { deps: { repo },
+    namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1", principalId: "p-1" } }
   );
   assert.equal(p1After?.value, "default", "p-1's purged row must be gone, so the read falls through to the default");
 
   // No fan-out from a single-principal purge, asserted on the data: p-2's row must survive intact.
   const p2After = await getEffective(
-    { repo },
-    { namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1", principalId: "p-2" } }
+    { deps: { repo },
+    namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1", principalId: "p-2" } }
   );
   assert.equal(p2After?.value, "p2-value", "a purge scoped to p-1 must not delete p-2's row");
   assert.equal(p2After?.sourceLayer, "user");
@@ -481,8 +481,8 @@ test("registerDefinitions bumps the namespace's definition-cache epoch (no stale
   const principals = new InMemorySettingsPrincipalLookup([]);
 
   const beforeRegister = await getEffective(
-    { repo },
-    { namespace: "core.fresh", key: "k", scopeContext: {} }
+    { deps: { repo },
+    namespace: "core.fresh", key: "k", scopeContext: {} }
   );
   assert.equal(beforeRegister, null, "not yet registered");
 
@@ -507,8 +507,8 @@ test("registerDefinitions bumps the namespace's definition-cache epoch (no stale
   });
 
   const afterRegister = await getEffective(
-    { repo },
-    { namespace: "core.fresh", key: "k", scopeContext: {} }
+    { deps: { repo },
+    namespace: "core.fresh", key: "k", scopeContext: {} }
   );
   assert.equal(afterRegister?.value, "fresh-default");
 });

@@ -137,7 +137,7 @@ export class SqlEntryRepo implements EntryRepoPort, EntryListPort, EntryDisplayL
           .execute()
       );
     } catch (error) {
-      if (isUniqueViolation(error)) throw trashedSlugConflict({ slug: record.slug });
+      if (isUniqueViolation({ err: error })) throw trashedSlugConflict({ slug: record.slug });
       throw error;
     } finally {
       this.onWriteSettled({ repo: this });
