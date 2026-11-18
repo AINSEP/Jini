@@ -13,6 +13,7 @@ export * from './ops-contracts.js';
 export * from './ops-descriptors.js';
 export * from './config-contracts.js';
 export * from './config-descriptors.js';
+export * from './config-injection.js';
 export * from './ops-tool-contracts.js';
 export * from './ops-runner.js';
 export * from './ops-secrets.js';

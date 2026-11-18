@@ -250,6 +250,7 @@
    "asDeployConfigGeneratorModule": "function:727dbf7a03",
    "asDeployOpsModule": "function:796e8d5ebe",
    "asDeployTargetModule": "function:4f7274652b",
+   "assertNoConfigInjection": "function:a6652ba652",
    "assertNotRedirected": "function:7a0647a2bc",
    "boundContext": "function:e416576700",
    "buildDeployOpsRegistrations": "function:1b6075121f",
