@@ -233,7 +233,7 @@
   {
     "file": "packages/daemon/src/agent-executor/launch.ts",
     "function": "<file>",
-    "line": 826,
+    "line": 848,
     "rule": "max-lines",
     "value": 1044
   },

@@ -8,9 +8,9 @@ export type { PreparedClaudeConfigDir, ClaudeConfigDirSeams, ClaudeConfigDirIsol
 import type { DelegatedResultCorrelation } from '../delegated-result-correlation.js';
 import type { StdoutJournalBlobPort } from '../tool-result-diagnostics.js';
 import type { MessageAttachmentImage } from '../attachment-content.js';
-import type { probeMcpBridge } from './mcp-bridge-probe.js';
+import type { McpBridgeProbe } from './mcp-bridge-probe.js';
+import type { AgentExecutorRuntimePorts } from '../ports/runtime.js';
 import type {
-   spawn as nodeSpawn,
    ChildProcess,
 } from 'node:child_process';
 import type {
@@ -38,10 +38,6 @@ import type {
    AcpPermissionHandler,
 } from '@jini-ai/agent-runtime';
 import type { PromptAugmenter } from '@jini-ai/core/contracts/agents';
-import type { createCommandInvocation } from '@jini-ai/platform/command';
-import type {
-   listProcessSnapshots,
-} from '@jini-ai/platform/process';
 import type { ProcessSnapshot, StopProcessesResult } from '@jini-ai/core/contracts/runtime';
 import type {
    RunByteJournal,
@@ -556,8 +552,10 @@ export interface CreateAgentExecutorOptions extends ClaudeExecutorOptions, Codex
   readonly delegatedResultCorrelation?: DelegatedResultCorrelation;
   /** Required with correlation + byte journal: exact stdout blobs and durable reference records. */
   readonly stdoutJournalBlobs?: StdoutJournalBlobPort;
-  /** Host environment snapshot; baseline spawn keys and source config paths are allowlisted. */
-  readonly hostEnv?: NodeJS.ProcessEnv;
+  /** Host environment snapshot; baseline spawn keys and source config paths are allowlisted. Required: the executor never reads the ambient process env. */
+  readonly hostEnv: NodeJS.ProcessEnv;
+  /** The host's OS-facing implementations (spawn, process control, file lock, atomic writer, command shell). */
+  readonly runtime: AgentExecutorRuntimePorts;
   readonly runtimeState?: AgentRuntimeState;
   readonly lifecycle: RunLifecycle;
   /** Resolves/pins the concrete starting model against the actual launch scope. */
@@ -572,12 +570,8 @@ export interface CreateAgentExecutorOptions extends ClaudeExecutorOptions, Codex
   readonly assertClaudeFilesystemSupport?: typeof assertClaudeFilesystemSupport;
   /** @default the real `@jini-ai/agent-runtime` PATH-env composer */
   readonly applyAgentLaunchEnv?: typeof applyAgentLaunchEnv;
-  /** @default the real `@jini-ai/platform` cross-platform invocation builder */
-  readonly createCommandInvocation?: typeof createCommandInvocation;
-  /** @default `node:child_process`'s `spawn` */
-  readonly spawn?: typeof nodeSpawn;
-  /** Diagnostic bridge probe; independent of the agent spawn seam. @default the real MCP initialize probe. */
-  readonly probeMcpBridge?: typeof probeMcpBridge;
+  /** Diagnostic bridge probe; independent of the agent spawn seam. @default the real MCP initialize probe, spawned through `runtime.spawn`. */
+  readonly probeMcpBridge?: McpBridgeProbe;
   /** @default the real `@jini-ai/agent-runtime` ACP session transport */
   readonly attachAcpSession?: typeof attachAcpSession;
   /**
@@ -605,12 +599,6 @@ export interface CreateAgentExecutorOptions extends ClaudeExecutorOptions, Codex
    * @default the real `@jini-ai/agent-runtime` log-file stager
    */
   readonly prepareAgentLogFile?: typeof prepareAgentLogFile;
-  /** @default the real `@jini-ai/platform` process-snapshot enumerator */
-  readonly listProcessSnapshots?: typeof listProcessSnapshots;
-  /** @default the real `@jini-ai/platform` descendant-PID collector */
-  readonly collectProcessTreePids?: CollectProcessTreePidsPort;
-  /** @default the real `@jini-ai/platform` SIGTERM→SIGKILL escalator */
-  readonly stopProcesses?: StopProcessesPort;
   /** Host-owned sink for a process-tree cleanup failure (SEC-007) — e.g. EPERM stopping descendants. @default logs a redacted diagnostic via `console.error` */
   readonly onCleanupFailure?: (context: AgentCleanupFailureContext) => void;
   /**

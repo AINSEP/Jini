@@ -12,7 +12,7 @@ const manifest = JSON.parse(readFileSync(new URL('package.json', root), 'utf8'))
 /** One subpath per binding family; a later lane adds its own entry in its own commit. */
 const SURFACE: Readonly<Record<string, { readonly module: object; readonly names: readonly string[] }>> = {
   './fs': { module: fsBindings, names: ['nodeAtomicWriter', 'nodeFileLock'] },
-  './process': { module: processBindings, names: ['createProcessControlPort', 'nodeProcessControl'] },
+  './process': { module: processBindings, names: ['createProcessControlPort', 'createSpawnPort', 'nodeCommandShell', 'nodeProcessControl', 'nodeSpawnPort'] },
 };
 
 describe('@jini-ai/node-adapters public surface', () => {

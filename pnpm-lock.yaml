@@ -83,6 +83,9 @@ importers:
       '@jini-ai/http-kit':
         specifier: workspace:*
         version: link:../../packages/http-kit
+      '@jini-ai/node-adapters':
+        specifier: workspace:*
+        version: link:../../packages/node-adapters
       '@jini-ai/oauth':
         specifier: workspace:*
         version: link:../../packages/oauth
@@ -254,6 +257,9 @@ importers:
       '@jini-ai/memory':
         specifier: workspace:*
         version: link:../../packages/memory
+      '@jini-ai/node-adapters':
+        specifier: workspace:*
+        version: link:../../packages/node-adapters
       '@jini-ai/platform':
         specifier: workspace:*
         version: link:../../packages/platform
@@ -831,6 +837,9 @@ importers:
       '@jini-ai/http-kit':
         specifier: workspace:*
         version: link:../http-kit
+      '@jini-ai/node-adapters':
+        specifier: workspace:^
+        version: link:../node-adapters
       '@types/better-sqlite3':
         specifier: ^7.6.11
         version: 7.6.13
@@ -1340,6 +1349,9 @@ importers:
       '@jini-ai/http-kit':
         specifier: workspace:^
         version: link:../http-kit
+      '@jini-ai/node-adapters':
+        specifier: workspace:^
+        version: link:../node-adapters
       '@jini-ai/platform':
         specifier: workspace:^
         version: link:../platform

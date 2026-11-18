@@ -5,6 +5,7 @@ import { createInMemoryEventLog } from '../../event-log.js';
 import { createRunLifecycle } from '../../run-lifecycle.js';
 import { createAgentExecutor } from '../index.js';
 import { fixtureLaunchModel } from './model-discovery-fixture.js';
+import { runtimeFixture } from './runtime-fixture.js';
 
 const CEILING_ENV = 'CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS';
 
@@ -20,8 +21,8 @@ async function captureSpawnEnv(
     captured = argsOrOptions && 'env' in argsOrOptions ? argsOrOptions.env : options?.env;
     throw new Error('Fixture stops after capturing spawn');
   };
-  const executor = createAgentExecutor({ lifecycle }, {
-    hostEnv: {},
+  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: spawn }) }, {
+    
     getAgentDef,
     resolveModelForLaunch: fixtureLaunchModel,
     ensureAgentCapabilities: async () => {},
@@ -30,7 +31,7 @@ async function captureSpawnEnv(
       launchPath: '/fake/agent', launchKind: 'selected', childPathPrepend: [], diagnostic: null,
     }),
     applyAgentLaunchEnv: ({ env: launchEnv }) => launchEnv,
-    spawn,
+    
   });
   const { run } = await lifecycle.start({ contextRef: 'background-ceiling' });
   await expect(executor.run(

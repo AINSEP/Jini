@@ -1,5 +1,8 @@
 import { EventEmitter } from 'node:events';
-import type { ChildProcess, spawn as nodeSpawn } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
+import type { RuntimePlatform } from '@jini-ai/core/contracts/runtime';
+import type { SpawnFunction } from '@jini-ai/node-adapters/process';
+import { runtimeFixture, type RuntimeFixtureScript } from './runtime-fixture.js';
 import { vi } from 'vitest';
 import type { AgentLaunchResolution, RuntimeAgentDef, RuntimeLock } from '@jini-ai/core/contracts/agents';
 import { createInMemoryEventLog } from '../../event-log.js';
@@ -49,9 +52,10 @@ export const launchAt = (launchPath: string) => (): AgentLaunchResolution => ({
 
 export const stopResult = { alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] };
 
-export type SpawnPort = typeof nodeSpawn;
-type StopPort = NonNullable<Parameters<typeof createAgentExecutor>[1]>['stopProcesses'];
-type ListPort = NonNullable<Parameters<typeof createAgentExecutor>[1]>['listProcessSnapshots'];
+/** Node's own positional spawn shape: the spies keep asserting `(command, args, options)`. */
+export type SpawnPort = SpawnFunction;
+type StopPort = NonNullable<RuntimeFixtureScript['stopProcesses']>;
+type ListPort = NonNullable<RuntimeFixtureScript['listProcessSnapshots']>;
 
 export interface Rig {
   readonly events: string[];
@@ -69,6 +73,8 @@ export function createRig(input: {
   readonly listProcessSnapshots?: ListPort;
   readonly stopProcesses?: StopPort;
   readonly hostEnv?: NodeJS.ProcessEnv;
+  /** The command shell's pinned platform; default Linux. */
+  readonly platform?: RuntimePlatform;
 }): Rig {
   const events: string[] = [];
   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
@@ -77,14 +83,19 @@ export function createRig(input: {
     acquire: async () => { events.push('acquire'); return { release: () => { events.push('release'); } }; },
   };
   const def = { ...input.def, runtimeLock: lock, needsAgentLogFile: true } satisfies RuntimeAgentDef;
-  const executor = createAgentExecutor({ lifecycle }, {
-    hostEnv: input.hostEnv ?? { PATH: '/bin' }, resolveModelForLaunch: fixtureLaunchModel,
+  const executor = createAgentExecutor({
+    lifecycle, hostEnv: input.hostEnv ?? { PATH: '/bin' },
+    runtime: runtimeFixture({
+      spawn: input.spawn,
+      listProcessSnapshots: input.listProcessSnapshots ?? (async () => []),
+      stopProcesses: input.stopProcesses ?? (async () => stopResult),
+      ...(input.platform ? { platform: input.platform } : {}),
+    }),
+  }, {
+    resolveModelForLaunch: fixtureLaunchModel,
     getAgentDef: ({ id }) => (id === def.id ? def : null),
     resolveAgentLaunch: launchAt(input.launchPath ?? '/fake/bin'), applyAgentLaunchEnv: ({ env }) => env,
     prepareAgentLogFile: (async () => ({ path: '/fake/agent.log', cleanup: async () => { events.push('cleanup'); } })) as never,
-    spawn: input.spawn,
-    listProcessSnapshots: input.listProcessSnapshots ?? (async () => []),
-    stopProcesses: input.stopProcesses ?? (async () => stopResult),
     onCleanupFailure,
   });
   const start = async (): Promise<string> => (await lifecycle.start({ contextRef: 'r8a' })).run.id;

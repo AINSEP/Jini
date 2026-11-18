@@ -1,16 +1,10 @@
-import { ChildProcess } from 'node:child_process';
-import * as childProcess from 'node:child_process';
+import { ChildProcess, type SpawnOptions } from 'node:child_process';
 import { describe, expect, it, vi } from 'vitest';
 import type { RuntimeLockHandoffContext, RuntimeLockHold } from '@jini-ai/core/contracts/agents';
 import * as executor from '../../index.js';
 import * as compatibilityEntry from '../../agent-executor.js';
 import * as splitEntry from '../index.js';
 import { armHandoffWatcher } from '../handoff.js';
-
-vi.mock('node:child_process', async (importOriginal) => ({
-  ...await importOriginal<typeof import('node:child_process')>(),
-  spawn: vi.fn(),
-}));
 
 describe('agent executor split parity', () => {
   it('preserves every published runtime export and shares function and error-class identity across entries', () => {
@@ -83,15 +77,15 @@ describe('agent executor split parity', () => {
   // PARITY
   it('keeps spawn synchronous so the caller can immediately register listeners', () => {
     const child = new ChildProcess();
-    const spawnChild = vi.mocked(childProcess.spawn).mockReturnValue(child);
+    const spawnChild = vi.fn((_required: { command: string; args: readonly string[] }, _options?: SpawnOptions) => child);
     const childEnv = { PATH: '/bin' };
     const result = executor.spawnAgentChildProcess({ input: {
       cwd: '/workspace', childEnv,
       invocation: { command: 'agent', args: ['--stdio'], windowsVerbatimArguments: false },
-    }, deps: { spawn: childProcess.spawn } });
+    }, deps: { spawn: spawnChild } });
     expect(result).toEqual({ kind: 'ok', child });
     expect(spawnChild).toHaveBeenCalledTimes(1);
-    expect(spawnChild).toHaveBeenCalledWith('agent', ['--stdio'], {
+    expect(spawnChild).toHaveBeenCalledWith({ command: 'agent', args: ['--stdio'] }, {
       cwd: '/workspace', env: childEnv, stdio: ['pipe', 'pipe', 'pipe'], windowsVerbatimArguments: false,
     });
     if (result.kind !== 'ok') throw new Error('Expected synchronous spawn success');
@@ -100,7 +94,6 @@ describe('agent executor split parity', () => {
     const failure = new Error('early spawn error');
     child.emit('error', failure);
     expect(onError).toHaveBeenCalledWith(failure);
-    spawnChild.mockReset();
   });
 
   // PARITY

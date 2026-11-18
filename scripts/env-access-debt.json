@@ -94,27 +94,6 @@
     },
     {
       "rule": "HW9-env-access",
-      "file": "packages/daemon/src/agent-executor/launch.ts",
-      "line": 1011,
-      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
-      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
-    },
-    {
-      "rule": "HW9-env-access",
-      "file": "packages/daemon/src/agent-executor/launch.ts",
-      "line": 1017,
-      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
-      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
-    },
-    {
-      "rule": "HW9-env-access",
-      "file": "packages/daemon/src/agent-executor/mcp-bridge-probe.ts",
-      "line": 61,
-      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
-      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
-    },
-    {
-      "rule": "HW9-env-access",
       "file": "packages/daemon/src/close-status.ts",
       "line": 81,
       "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",

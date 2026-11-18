@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { createAgentExecutor, createInMemoryEventLog, createRunLifecycle } from '@jini-ai/daemon';
 import type { AgentLaunchResolution } from '@jini-ai/core/contracts/agents';
 import { acpFixtureDef } from './acp-fixture.js';
+import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
+import { nodeCommandShell, nodeProcessControl, nodeSpawnPort } from '@jini-ai/node-adapters/process';
+import type { AgentExecutorRuntimePorts } from '@jini-ai/daemon/ports/runtime';
 
 describe('minimal host static ACP definition', () => {
   it('runs the real permission and prompt exchange with no discovery ports', async () => {
@@ -11,7 +14,10 @@ describe('minimal host static ACP definition', () => {
     const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
     const launch: AgentLaunchResolution = { selectedPath: process.execPath, pathResolvedPath: process.execPath, configuredOverridePath: null, launchPath: process.execPath, launchKind: 'selected', childPathPrepend: [], diagnostic: null };
     let permissions = 0;
-    const executor = createAgentExecutor({ lifecycle }, {
+    const executor = createAgentExecutor({
+      lifecycle, hostEnv: process.env,
+      runtime: { spawn: nodeSpawnPort, processes: nodeProcessControl, fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell({ env: process.env }) },
+    }, {
       getAgentDef: () => def, resolveAgentLaunch: () => launch, applyAgentLaunchEnv: ({ env }) => env,
       ensureAgentCapabilities: async () => {},
       acpPermissionHandler: async () => { permissions++; return { outcome: 'selected', optionId: 'allow' }; },

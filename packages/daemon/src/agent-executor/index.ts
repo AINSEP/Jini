@@ -163,7 +163,7 @@ export { mergeEnvContentMcpConfig, mergeEnvContentInstructions } from './opencod
 export { mergeMcpJsonContent } from './mcp-json-file.js';
 export { buildCodexMcpServerToml, buildCodexHomeConfigToml } from './codex/home-config.js';
 export { resolveSourceCodexHomeDir, prepareCodexHomeIfNeeded } from './codex/home-staging.js';
-export { probeMcpBridge, type McpBridgeProbeResult } from './mcp-bridge-probe.js';
+export { probeMcpBridge, type McpBridgeProbe, type McpBridgeProbeEntry, type McpBridgeProbeResult } from './mcp-bridge-probe.js';
 export { DEFAULT_BUFFERED_STDOUT_MAX_BYTES } from './child-stdout.js';
 export { runAcpDispatch } from './acp-events.js';
 export { runPiRpcDispatch } from './pi-rpc-events.js';

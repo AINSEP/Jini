@@ -21,6 +21,14 @@ import { type AgentLaunchResolution } from '@jini-ai/core/contracts/agents';
 import { fetchWithTimeout } from '@jini-ai/platform';
 import { FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
 import { createLocalNodeDaemon } from '@jini-ai/server';
+import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
+import { nodeCommandShell, nodeProcessControl, nodeSpawnPort } from '@jini-ai/node-adapters/process';
+import type { AgentExecutorRuntimePorts } from '@jini-ai/daemon/ports/runtime';
+
+/** The Node implementations of the OS-facing ports the agent executor needs, bound from the env this host owns. */
+function executorRuntimeFor({ hostEnv }: { hostEnv: NodeJS.ProcessEnv }, _optional: Record<string, never> = {}): AgentExecutorRuntimePorts {
+  return { spawn: nodeSpawnPort, processes: nodeProcessControl, fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell({ env: hostEnv }) };
+}
 
 interface DaemonStatusBody {
   ok?: boolean;
@@ -69,7 +77,7 @@ async function main(): Promise<void> {
         }
 
         if (request.agentId === 'acp-fixture') {
-          const executor = createAgentExecutor({ lifecycle }, {
+          const executor = createAgentExecutor({ lifecycle, hostEnv: runtime.hostEnv, runtime: executorRuntimeFor({ hostEnv: runtime.hostEnv }) }, {
             ...runtimeExecutorOptions,
             getAgentDef: ({ id }) => (id === 'acp-fixture' ? acpFixtureDef() : null),
             resolveAgentLaunch: () =>

@@ -13,6 +13,7 @@
     "@jini-ai/db": "workspace:*",
     "@jini-ai/http-kit": "workspace:*",
     "@jini-ai/oauth": "workspace:*",
+    "@jini-ai/node-adapters": "workspace:*",
     "@jini-ai/platform": "workspace:*",
     "@jini-ai/registry": "workspace:*",
     "@jini-ai/server": "workspace:*",

@@ -13,7 +13,7 @@ import type { StdoutJournalBlobPort } from '../tool-result-diagnostics.js';
 import type { RunLifecycle } from '../run-lifecycle.js';
 import type { RunByteJournal } from '../continuation/journal.js';
 import type { RunMessageRelay } from './message-relay.js';
-import type { probeMcpBridge } from './mcp-bridge-probe.js';
+import type { McpBridgeProbe, McpBridgeProbeEntry } from './mcp-bridge-probe.js';
 import type { TerminateChildTreeDeps, ChildDrivenStreamFormat, AgentCleanupFailureContext,
   ContinuationOptions, ClassifyFailure, StdinCloseHandle, StreamHandler } from './contracts.js';
 
@@ -54,8 +54,8 @@ export interface WireChildLifecycleContext extends TerminateChildTreeDeps {
    * {@link MCP_BRIDGE_UNAVAILABLE} instead of letting it continue without the host's tools.
    */
   readonly expectsJiniBridge: boolean;
-  readonly bridgeProbeEntry: Parameters<typeof probeMcpBridge>[0]['entry'] | undefined;
-  readonly probeMcpBridge: typeof probeMcpBridge;
+  readonly bridgeProbeEntry: McpBridgeProbeEntry | undefined;
+  readonly probeMcpBridge: McpBridgeProbe;
 }
 
 export interface ChildRunSignals {
