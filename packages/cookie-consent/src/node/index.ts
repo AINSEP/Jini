@@ -56,7 +56,7 @@ interface ConsentFilesEnv {
   readonly inventories: Map<string, Map<string, number>>;
 }
 
-function isErrorCode(error: unknown, code: string): boolean {
+function isErrorCode({ error, code }: { error: unknown; code: string }): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === code;
 }
 
@@ -80,7 +80,7 @@ async function consentInventory(env: ConsentFilesEnv, { directory }: { directory
   let names: string[];
   try { names = await env.filesystem.readdir(directory); }
   catch (error) {
-    if (isErrorCode(error, 'ENOENT')) names = [];
+    if (isErrorCode({ error, code: 'ENOENT' })) names = [];
     else throw error;
   }
   const entries: Array<[string, number]> = [];
@@ -99,12 +99,15 @@ async function enforceConsentCapacity(env: ConsentFilesEnv, { directory, retaine
   for (const [name, timestamp] of retained) {
     if (retained.size < env.maximumRecords && timestamp >= cutoff) break;
     try { await env.filesystem.unlink(path.join(directory, name)); }
-    catch (error) { if (!isErrorCode(error, 'ENOENT')) throw error; }
+    catch (error) { if (!isErrorCode({ error, code: 'ENOENT' })) throw error; }
     retained.delete(name);
   }
 }
 
-async function syncConsentDirectory(env: ConsentFilesEnv, directoryPath: string): Promise<void> {
+async function syncConsentDirectory({ env, directoryPath }: {
+  env: ConsentFilesEnv;
+  directoryPath: string;
+}): Promise<void> {
   if (env.platform === 'win32') return;
   const directory = await env.filesystem.open(directoryPath, 'r');
   try { await directory.sync(); } finally { await directory.close(); }
@@ -119,7 +122,7 @@ async function readConsentText({ filesystem }: ConsentFilesEnv, filePath: string
     } finally { await handle.close(); }
   }
   catch (error) {
-    if (isErrorCode(error, 'ENOENT')) return null;
+    if (isErrorCode({ error, code: 'ENOENT' })) return null;
     throw error;
   }
 }
@@ -136,12 +139,12 @@ async function writeConsentJson(env: ConsentFilesEnv, { filePath, record }: { fi
       await enforceConsentCapacity(env, { directory: directoryPath, retained });
       await env.filesystem.link(staging, filePath);
       retained.set(path.basename(filePath), env.nowMs());
-      await syncConsentDirectory(env, path.dirname(filePath));
+      await syncConsentDirectory({ env, directoryPath: path.dirname(filePath) });
     } finally { await env.filesystem.unlink(staging); }
   } });
 }
 
-async function retireConsentFile(env: ConsentFilesEnv, filePath: string): Promise<void> {
+async function retireConsentFile({ env, filePath }: { env: ConsentFilesEnv; filePath: string }): Promise<void> {
   const directoryPath = path.dirname(filePath);
   await serializeConsentWrite(env, { directory: directoryPath, operation: async () => {
     const text = await readConsentText(env, filePath);
@@ -151,9 +154,9 @@ async function retireConsentFile(env: ConsentFilesEnv, filePath: string): Promis
     const archived = path.join(directoryPath, 'retired', path.basename(filePath));
     if (await readConsentText(env, archived) === null) await writeConsentJson(env, { filePath: archived, record: JSON.parse(text) as ConsentRecord });
     try { await env.filesystem.unlink(filePath); }
-    catch (error) { if (!isErrorCode(error, 'ENOENT')) throw error; }
+    catch (error) { if (!isErrorCode({ error, code: 'ENOENT' })) throw error; }
     env.inventories.get(directoryPath)?.delete(path.basename(filePath));
-    await syncConsentDirectory(env, directoryPath);
+    await syncConsentDirectory({ env, directoryPath });
   } });
 }
 
@@ -164,7 +167,7 @@ export function createNodeConsentFiles({ atomicWrite }: { atomicWrite: ConsentAt
   assertLimits({ maximumRecords, retentionMs });
   const env: ConsentFilesEnv = { atomicWrite, filesystem, uniqueId, maximumRecords, retentionMs, nowMs, platform, writes: new Map(), inventories: new Map() };
   return {
-    retire: ({ filePath }, _options = {}) => retireConsentFile(env, filePath),
+    retire: ({ filePath }, _options = {}) => retireConsentFile({ env, filePath }),
     readText: ({ filePath }) => readConsentText(env, filePath),
     writeJson: (required, _options = {}) => writeConsentJson(env, required),
   };
