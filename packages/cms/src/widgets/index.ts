@@ -16,5 +16,6 @@ export * from "./write-service.js";
 export * from "./embed-service.js";
 export * from "./region-area-service.js";
 export * from "./repo.memory.js";
+export * from "./entry-refs.memory.js";
 export { resolvePageWidgets } from "./resolver-service.js";
 export type { ResolvePageWidgetsDeps, ResolvePageWidgetsInput, ResolvePageWidgetsRequired, ResolvePageWidgetsResult } from "./resolver-service.js";
