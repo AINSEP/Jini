@@ -56,6 +56,7 @@
       "./presentation/sql": "node",
       "./content-types/sql": "node",
       "./entries/sql": "node",
+      "./trash/sql": "node",
       "./redirects/express": "node",
       "./redirects/spa": "universal",
       "./redirects/host-config": "universal",
@@ -373,6 +374,11 @@
       "types": "./dist/entries/sql/index.d.ts",
       "import": "./dist/entries/sql/index.js",
       "default": "./dist/entries/sql/index.js"
+    },
+    "./trash/sql": {
+      "types": "./dist/trash/sql/index.d.ts",
+      "import": "./dist/trash/sql/index.js",
+      "default": "./dist/trash/sql/index.js"
     },
     "./redirects/express": {
       "types": "./dist/redirects/express/index.d.ts",
