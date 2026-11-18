@@ -569,5 +569,21 @@
    "updateSubscription": "function:aa2758ec64",
    "verifySignature": "function:fe9b057aa1"
   }
+ },
+ "./webhooks/tools": {
+  "types": "./dist/webhooks/tools/index.d.ts",
+  "symbols": {
+   "AgentToolDefinition": "type:e8bd587e9c",
+   "AgentToolSideEffect": "type:1baebbfbe6",
+   "WebhooksDeletePrepared": "interface:99e0571bd2",
+   "WebhooksDeleteSteps": "interface:85d87b9202",
+   "WebhooksNotConfirmedResult": "type:b9a4a40de3",
+   "WebhooksPackageToolDeps": "interface:755145bf8e",
+   "WebhooksToolSurfaces": "interface:6cc3e4f1cc",
+   "buildWebhooksToolRegistrations": "function:8a0a44a3ea",
+   "getWebhooksAgentToolCatalog": "function:27a1ef3956",
+   "toWebhookDeliveryView": "function:5919d91c9f",
+   "webhooksDerivedRisk": "variable:b058cd467f"
+  }
  }
 }

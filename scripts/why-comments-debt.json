@@ -124,6 +124,26 @@
     {
       "id": "65377600f4f5",
       "reason": "The claim that the version, list and preview state cannot split cleanly is false: the hook was split into useVersionManager.state.ts sub-hooks, and the new doc says so."
+    },
+    {
+      "id": "0b872d31b7e7",
+      "reason": "Moved or reworded, not lost: bigram containment 0.89 of this block's text in packages/daemon/src/http/frontend-sessions.ts (merge-3 classification; the checker counts only verbatim survivors). Was packages/daemon/src/http/__tests__/frontend-sessions.test.ts:416."
+    },
+    {
+      "id": "57670a135133",
+      "reason": "Moved or reworded, not lost: bigram containment 0.83 of this block's text in packages/daemon/src/http/__tests__/route-manifest.test.ts (merge-3 classification; the checker counts only verbatim survivors). Was packages/daemon/src/http/__tests__/route-manifest.test.ts:59."
+    },
+    {
+      "id": "f6a1c0d79c03",
+      "reason": "Moved or reworded, not lost: bigram containment 0.80 of this block's text in packages/daemon/src/http/model-proxy.ts (merge-3 classification; the checker counts only verbatim survivors). Was packages/daemon/src/http/model-proxy.ts:649."
+    },
+    {
+      "id": "f7a37986a688",
+      "reason": "Moved or reworded, not lost: bigram containment 0.80 of this block's text in packages/daemon/src/http/tool-execution-routes.ts (merge-3 classification; the checker counts only verbatim survivors). Was packages/daemon/src/http/tool-execution-routes.ts:1."
+    },
+    {
+      "id": "c0a02747365d",
+      "reason": "Moved or reworded, not lost: bigram containment 0.80 of this block's text in packages/core/src/contracts/server/sse.ts (merge-3 classification; the checker counts only verbatim survivors). Was packages/http-kit/src/raw-sse.ts:24."
     }
   ]
 }

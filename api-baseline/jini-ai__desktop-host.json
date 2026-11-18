@@ -94,6 +94,19 @@
    "withRenderTimeout": "function:dae2891c14"
   }
  },
+ "./app-version": {
+  "types": "./dist/app-version/index.d.ts",
+  "symbols": {
+   "AppVersionBridge": "interface:26697ee6a6",
+   "AppVersionLoader": "interface:2a2600d289",
+   "AppVersionState": "interface:2b3caa61b9",
+   "UpdateCheck": "interface:4ad6a01fe1",
+   "UpdateCheckBridge": "interface:2e84917678",
+   "UpdateCheckState": "interface:62411dcfc3",
+   "createAppVersionLoader": "function:67ea30d0c0",
+   "createUpdateCheck": "function:32d7b58b49"
+  }
+ },
  "./bridge": {
   "types": "./dist/bridge.d.ts",
   "symbols": {

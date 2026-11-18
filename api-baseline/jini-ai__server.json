@@ -50,6 +50,8 @@
    "defineJiniFeature": "function:ba198541c8",
    "installGracefulShutdown": "function:8d2865853c",
    "isCapabilityId": "function:50ce5c97a1",
+   "mountRoutes": "function:0dbfa9cc02",
+   "nodeSessionTimer": "variable:b6c161fda8",
    "normalizeDaemonBindHost": "function:bb7e0affc8",
    "projectDetectedAgent": "function:e75e0470fc",
    "resolveBoundPort": "function:c45558f65c",

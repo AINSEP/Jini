@@ -122,15 +122,23 @@
   "types": "./dist/kernel/sqlite/index.d.ts",
   "symbols": {
    "SqliteConnectionSource": "type:1707c05d7b",
+   "SqliteExtendedTableColumn": "interface:6ddb8257b0",
+   "SqliteForeignKeyViolation": "interface:59fa9a6f9b",
    "SqliteKernel": "type:d1c327c5ff",
+   "SqliteSchemaObject": "interface:b008fa55da",
+   "SqliteTableColumn": "interface:bd95fca47f",
    "closeSqliteConnection": "function:274e0f10b7",
    "copySqliteInto": "function:255d28ac1e",
    "openMemorySqliteKernel": "function:0f8c8de60b",
    "openSqliteFileKernel": "function:1f8b570353",
    "sqliteClientOf": "function:2fae2e045c",
    "sqliteConnectionOf": "function:ca28dfdc9b",
+   "sqliteForeignKeyCheckedTransaction": "function:15d5101097",
    "sqliteKernel": "function:4970204962",
-   "sqliteOps": "function:139fde617e"
+   "sqliteOps": "function:139fde617e",
+   "sqliteSchemaObjects": "function:f7599de86f",
+   "sqliteTableExtendedInfo": "function:279d143bb8",
+   "sqliteTableInfo": "function:0cac4b9ae7"
   }
  },
  "./kernel/store-copy": {
@@ -476,6 +484,23 @@
    "OriginTables": "interface:756c63ce2a",
    "SqlOriginSettingRepo": "class:8f37d8b218",
    "registerConfiguredOrigin": "function:51aa4653bf"
+  }
+ },
+ "./events": {
+  "types": "./dist/events/index.d.ts",
+  "symbols": {
+   "ChangeSetItemsTable": "interface:04159e78e1",
+   "ChangeSetSqlOptional": "type:d5677dc40c",
+   "ChangeSetSqlRequired": "interface:8fcb4cb8ba",
+   "ChangeSetTables": "interface:b1deefe524",
+   "ChangeSetsTable": "interface:c3b56ad52b",
+   "OutboxEventsTable": "interface:4d66e6c483",
+   "OutboxSqlOptional": "type:a0fa436d1f",
+   "OutboxSqlRequired": "interface:2a86d5a818",
+   "OutboxTables": "interface:581ba7a1a6",
+   "SqlChangeSetRepo": "class:b207d7521a",
+   "SqlOutboxAdapter": "class:f9d241c408",
+   "outboxEventValues": "function:8905363407"
   }
  }
 }

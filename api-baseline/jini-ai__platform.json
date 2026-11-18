@@ -541,6 +541,30 @@
    "undeclaredFieldsIn": "function:f518578870"
   }
  },
+ "./mail/email-template-operations": {
+  "types": "./dist/mail/email-template-operations.d.ts",
+  "symbols": {
+   "EMAIL_TEMPLATE_NAME_MAX": "variable:230452cf72",
+   "EmailTemplateDetail": "interface:d90e8261a8",
+   "EmailTemplateHtmlSession": "interface:25e55e8f33",
+   "EmailTemplateInputError": "class:c3dd61f490",
+   "EmailTemplateNotFoundError": "class:f844e6d659",
+   "EmailTemplatePreview": "interface:50c251fb97",
+   "EmailTemplateRecord": "interface:fee5c59d43",
+   "EmailTemplateStore": "interface:b30c282a6f",
+   "EmailTemplateSummary": "interface:d601608958",
+   "EmailTemplateVersionConflictError": "class:c5d9f29237",
+   "createEmailTemplate": "function:38a26aecc6",
+   "editEmailTemplate": "function:184913846f",
+   "getEmailTemplate": "function:22142993ec",
+   "listEmailTemplates": "function:da7a576dd6",
+   "previewEmailTemplate": "function:4c98e14b7d",
+   "readFieldValues": "function:ce16db2ff5",
+   "renameEmailTemplate": "function:4d11e63891",
+   "renderEmailTemplateForSend": "function:50a87e0552",
+   "requireText": "function:454ca09cb3"
+  }
+ },
  "./mail/senders": {
   "types": "./dist/mail/senders.d.ts",
   "symbols": {
@@ -805,7 +829,9 @@
    "readHtmlDocument": "function:5234eb8ae1",
    "readWebFetchInput": "function:6c2b7e03cc",
    "stripActiveHtml": "function:cb253acd90",
-   "stripHtmlPresentation": "function:1e18c79fb9"
+   "stripHtmlPresentation": "function:1e18c79fb9",
+   "webFetchPageInputSchema": "function:0c764238f6",
+   "webFetchPageToolDefinition": "function:ee6b1ed669"
   }
  }
 }

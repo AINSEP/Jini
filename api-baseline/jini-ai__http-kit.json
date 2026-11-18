@@ -46,6 +46,7 @@
    "normalizeLocalAuthority": "function:bd90bc6a31",
    "passesSameOriginGuard": "function:cff4462e58",
    "rawInput": "function:42089ccc5f",
+   "recordRouteRegistrations": "function:f8f43d79ac",
    "registerApiBearerAuthMiddleware": "function:a1563bf718",
    "registerApiOriginGuardMiddleware": "function:81fe30bb0e",
    "rejectOversizedJsonBody": "function:d053045660",
@@ -86,6 +87,7 @@
    "UnhandledErrorReport": "interface:2bd72ddd17",
    "createNodeDispatcher": "function:1dc46a4947",
    "maxReserializedJsonBytes": "function:6c318b6388",
+   "nodeRequestHeaders": "function:0fb47c7701",
    "sendWebResponse": "function:acf54277f6"
   }
  },

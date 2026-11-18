@@ -2992,10 +2992,13 @@
    "SiteListFilter": "type:06a7492e5f",
    "SiteListItem": "interface:64093115f5",
    "SiteListPrefs": "interface:289c79e908",
+   "SiteListPrefsController": "interface:0124b4e252",
+   "SiteListPrefsPort": "interface:43e099b74c",
    "SiteListSort": "type:747d94080e",
    "SiteListToolbar": "function:4ca42d5a6b",
    "SiteListToolbarCopy": "interface:1176bf2546",
    "parseSiteListPrefs": "function:ff022d3a39",
+   "useSiteListPrefs": "function:e10863c362",
    "useSiteListView": "function:c30cb0856b"
   }
  },

@@ -350,6 +350,7 @@
  "./consent/react": {
   "types": "./dist/consent/react/index.d.ts",
   "symbols": {
+   "CONSENT_PREVIEW_DESKTOP_WIDTH": "variable:f2e37bdec8",
    "ConsentAppearanceView": "interface:726ea9ab6d",
    "ConsentBannerFields": "function:d9a581c4d7",
    "ConsentFieldProblem": "interface:3030577d40",
@@ -361,7 +362,8 @@
    "ConsentRulesFields": "function:3786afe7aa",
    "ConsentSettingsPanel": "function:8bea6b0fb1",
    "ConsentSettingsPanelProps": "interface:dd4f588135",
-   "ConsentSettingsView": "interface:ab7afbb3aa"
+   "ConsentSettingsView": "interface:ab7afbb3aa",
+   "consentPreviewScale": "function:8b92fa47bc"
   }
  },
  "./contracts/*": {
