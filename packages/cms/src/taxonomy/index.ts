@@ -141,3 +141,6 @@ export {
 export {
   taxonomyAgentToolCatalog,
 } from "./agent-tools.js";
+
+export { buildTaxonomyToolRegistrations, taxonomyDerivedRisk } from "./tool-registrations.js";
+export type { TaxonomyMergeDialog, TaxonomyMergeGateway, TaxonomyPackageToolDeps, TaxonomyToolSurfaces } from "./tool-handlers.types.js";
