@@ -105,3 +105,25 @@ describe('credential-bearing URL names and quoted header values chat once remove
     expect(redactUserText({ text })).toEqual(kept(text));
   });
 });
+
+// Second review of the engine rules (chat-redaction-fix-2): chat's answer for each class, pinned. The rules live in core.
+describe('classes found by the second review', () => {
+  const removed = (text: string, count = 1) => ({ text, secretRedacted: true, count });
+  it.each([
+    ['x-auth-token: Token abcdefgh12345678', 'x-auth-token: [token removed]'],
+    ['Proxy-Authorization: abcdefgh12345678', 'Proxy-Authorization: [token removed]'],
+    ['Authorization: Digest username="bob", realm="my realm", response="abc def"', 'Authorization: Digest [token removed]'],
+    ['password: correct horse battery staple', 'password: [token removed]'],
+    ['Password:\nhunter2', 'Password:\n[token removed]'],
+    ['{"user password": "hunter2"}', '{"user password": "[token removed]"}'],
+    ['DB_PASSWORD=\nhunter2', 'DB_PASSWORD=\n[token removed]'],
+    ['https://x.test/a?activation_code=123456', 'https://x.test/a?activation_code=[token removed]'],
+    ['https://user:pw@host.example.com,bob@example.com', 'https://[token removed]@host.example.com,bob@example.com'],
+    [`sk_live_${'a1'.repeat(10)}_x`, '[token removed]_x'],
+  ])('removes the credential in %j', (text, expected) => {
+    expect(redactUserText({ text })).toEqual(removed(expected));
+  });
+  it.each(['Sort key: name', 'Token v2.0.14-rc1abcdefgh released', 'Password: Must be 8 chars', 'I forgot my password: help me'])('keeps %j', text => {
+    expect(redactUserText({ text })).toEqual(kept(text));
+  });
+});
