@@ -24,8 +24,9 @@ export function connectToHost(required, _optional = {}) {
 
 /**
  * An element with attributes, event handlers (`on<Event>` functions) and children (strings become text).
- * @param {{ tag: string }} required
- * @param {{ props?: Record<string, string | boolean | Function | undefined>, children?: Array<Node | string | null | undefined> }} [optional]
+ * @param {string} required.tag
+ * @param {Record<string, string | boolean | Function | undefined>} [optional.props]
+ * @param {Array<Node | string | null | undefined>} [optional.children]
  * @returns {HTMLElement}
  */
 export function h({ tag }, { props = {}, children = [] } = {}) {
