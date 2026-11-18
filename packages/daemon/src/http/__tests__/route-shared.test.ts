@@ -7,7 +7,8 @@ import { createCommitLatch } from '../sse-commit.js';
 import { createManualScheduler, fakeDaemonRouteHost } from './fakes/route-host.js';
 
 const text = (status: number, body: string): Response => new Response(body, { status });
-const request = (signal?: AbortSignal): Request => new Request('http://daemon.test/lines', { method: 'POST', ...(signal ? { signal } : {}) });
+/** The signal of a request that nobody aborts, or the one a test passes. */
+const request = (signal?: AbortSignal): { signal: AbortSignal } => ({ signal: signal ?? new AbortController().signal });
 
 describe('gated', () => {
   const route: ServerRoute = { method: 'GET', path: '/api/thing', handler: () => text(200, 'handled') };
@@ -81,7 +82,7 @@ describe('createLineStream', () => {
   const read = async (response: Response): Promise<string> => response.text();
 
   it('answers 200 as newline-delimited JSON that must not be cached, one line per write, and ends when told', async () => {
-    const stream = createLineStream({ scheduler: createManualScheduler(), request: request() });
+    const stream = createLineStream({ scheduler: createManualScheduler(), signal: request().signal });
     expect(stream.response.status).toBe(200);
     expect(stream.response.headers.get('content-type')).toBe('application/x-ndjson');
     expect(stream.response.headers.get('cache-control')).toBe('no-store');
@@ -93,7 +94,7 @@ describe('createLineStream', () => {
   });
 
   it('a write after the end is dropped, and ending twice is harmless', async () => {
-    const stream = createLineStream({ scheduler: createManualScheduler(), request: request() });
+    const stream = createLineStream({ scheduler: createManualScheduler(), signal: request().signal });
     stream.write({ line: 1 });
     stream.end();
     stream.write({ line: 2 });
@@ -103,7 +104,7 @@ describe('createLineStream', () => {
 
   it('schedules no timer and writes nothing between lines unless a keepalive interval is given', async () => {
     const scheduler = createManualScheduler();
-    const stream = createLineStream({ scheduler, request: request() });
+    const stream = createLineStream({ scheduler, signal: request().signal });
     expect(scheduler.pending).toBe(0);
     scheduler.advance(60_000);
     stream.end();
@@ -112,7 +113,7 @@ describe('createLineStream', () => {
 
   it('writes a keepalive line at each interval while open, and cancels its timer at the end', async () => {
     const scheduler = createManualScheduler();
-    const stream = createLineStream({ scheduler, request: request() }, { keepAliveMs: 15_000 });
+    const stream = createLineStream({ scheduler, signal: request().signal }, { keepAliveMs: 15_000 });
     expect(scheduler.pending).toBe(1);
     scheduler.advance(14_999);
     stream.write({ line: 'before' });
@@ -127,7 +128,7 @@ describe('createLineStream', () => {
   it('a caller whose request is aborted aborts the signal, stops the keepalive and drops later writes', async () => {
     const caller = new AbortController();
     const scheduler = createManualScheduler();
-    const stream = createLineStream({ scheduler, request: request(caller.signal) }, { keepAliveMs: 15_000 });
+    const stream = createLineStream({ scheduler, signal: request(caller.signal).signal }, { keepAliveMs: 15_000 });
     stream.write({ line: 'kept' });
     caller.abort();
     expect(stream.signal.aborted).toBe(true);
@@ -139,7 +140,7 @@ describe('createLineStream', () => {
 
   it('a caller that stops reading aborts the signal and stops the keepalive', async () => {
     const scheduler = createManualScheduler();
-    const stream = createLineStream({ scheduler, request: request() }, { keepAliveMs: 15_000 });
+    const stream = createLineStream({ scheduler, signal: request().signal }, { keepAliveMs: 15_000 });
     await stream.response.body!.cancel();
     expect(stream.signal.aborted).toBe(true);
     expect(scheduler.pending).toBe(0);
@@ -148,7 +149,7 @@ describe('createLineStream', () => {
 
   it('a request that was already aborted gets an empty, ended answer, an aborted signal and no timer', async () => {
     const scheduler = createManualScheduler();
-    const stream = createLineStream({ scheduler, request: request(AbortSignal.abort()) }, { keepAliveMs: 15_000 });
+    const stream = createLineStream({ scheduler, signal: request(AbortSignal.abort()).signal }, { keepAliveMs: 15_000 });
     expect(stream.signal.aborted).toBe(true);
     expect(scheduler.pending).toBe(0);
     expect(await read(stream.response)).toBe('');

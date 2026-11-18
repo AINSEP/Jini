@@ -61,7 +61,7 @@ function streamCapability({ request, host, control, executor, owner, envelope, r
   readonly request: Request; readonly host: DaemonRouteHost; readonly control: FrontendRequestRoutesRequired['control']; readonly executor: FrontendRequestRoutesRequired['executor'];
   readonly owner: FrontendSessionOwner; readonly envelope: FrontendRequest; readonly runId: string;
 }): Response {
-  const stream = createLineStream({ scheduler: host.scheduler, request }, { keepAliveMs: 15_000 });
+  const stream = createLineStream({ scheduler: host.scheduler, signal: request.signal }, { keepAliveMs: 15_000 });
   const boundExecutor: Pick<ToolExecutor, 'execute'> = {
     execute: async (call, options = {}) => {
       const signal = options.signal!;
