@@ -34,10 +34,11 @@
  * {@link createExecuteReadonlyDelegatedToolTool} for the failure that motivated it.
  */
 import { delegatedResultMarker } from '@jini-ai/protocol';
-import { batchOutcomeFor, isReadOnlyTool, type ExposedToolDescriptor } from '@jini-ai/core';
+import { batchOutcomeFor, isReadOnlyTool, withNormalizationNotes, type ExposedToolDescriptor } from '@jini-ai/core';
 import { parseMcpToolInputSchema } from '../adapters/protocol.js';
 import { randomUUID } from 'node:crypto';
 import { postDaemonJson } from '../daemon-client.js';
+import { postWithFamilyRetry, type DelegatedCallBody } from './family-retry.js';
 import { daemonCallOptions, requireString, type McpToolContext, type McpToolDef } from '../tool-protocol.js';
 import { resolveMcpToolName } from '../tool-arguments.js';
 
@@ -79,6 +80,18 @@ function unwrapMcpContentEnvelope(result: unknown): unknown {
   if (result['status'] !== 'completed') return result;
   if (!isRecord(output) || !Array.isArray(output['content'])) return result;
   return output;
+}
+
+/**
+ * What the model gets for one settled delegated call: the unwrapped MCP envelope, the correlation marker when the host
+ * negotiated it (for the request that produced this answer) and, after a family retry, the retry's note.
+ */
+function shapeDelegatedResult({ call, markers }: { readonly call: { readonly data: DelegatedToolExecuteResponse; readonly toolUseId: string; readonly note?: string }; readonly markers: boolean }): unknown {
+  const unwrapped = unwrapMcpContentEnvelope(call.data.result);
+  // Only an unwrapped MCP envelope can correlate against the bridge's saved content digest.
+  const output = !markers || !isRecord(unwrapped) || !Array.isArray(unwrapped.content) ? unwrapped
+    : { ...unwrapped, content: [delegatedResultMarker({ toolUseId: call.toolUseId }), ...unwrapped.content] };
+  return call.note === undefined ? output : withNormalizationNotes({ output, notes: [call.note] });
 }
 
 /**
@@ -217,7 +230,7 @@ function createDelegatedGateway(
         requireReadOnly: variant.requireReadOnly === true }, {});
       if (local !== undefined) return local;
       const toolUseId = generateToolUseId({});
-      const body: Record<string, unknown> = {
+      const body: DelegatedCallBody = {
         runId,
         toolUseId,
         toolId: resolveMcpToolName({ name: toolId }, { isRegistered: candidate => ctx.diagnosticToolIds?.includes(candidate) ?? false }),
@@ -227,14 +240,11 @@ function createDelegatedGateway(
         input: args.input ?? {},
         ...(variant.requireReadOnly === undefined ? {} : { requireReadOnly: variant.requireReadOnly }),
       };
-      const data = await postDaemonJson<DelegatedToolExecuteResponse>({ baseUrl: ctx.baseUrl, route: '/api/delegated-tool-calls', body: body }, {
-        ...daemonCallOptions({ ctx }),
-        timeoutMs,
-      });
-      const output = unwrapMcpContentEnvelope(data.result);
-      // Only an unwrapped MCP envelope can correlate against the bridge's saved content digest.
-      if (!options.delegatedResultMarkers || !isRecord(output) || !Array.isArray(output.content)) return output;
-      return { ...output, content: [delegatedResultMarker({ toolUseId }), ...output.content] };
+      const call = await postWithFamilyRetry({
+        post: request => postDaemonJson<DelegatedToolExecuteResponse>({ baseUrl: ctx.baseUrl, route: '/api/delegated-tool-calls', body: request }, { ...daemonCallOptions({ ctx }), timeoutMs }),
+        body, newToolUseId: generateToolUseId,
+      }, ctx.signal === undefined ? {} : { signal: ctx.signal });
+      return shapeDelegatedResult({ call, markers: options.delegatedResultMarkers === true });
     },
   };
 }
