@@ -128,7 +128,7 @@ export function resetStageTimer(run: AcpRun, { label }: { label: string }): void
   // the next tick and kills the session immediately.
   if (stageTimeoutMs <= 0 || run.pendingPermissionRequests.size > 0) return;
   run.stageTimer = setTimeout(() => {
-    failRun(run, { message: `ACP ${label} timed out after ${stageTimeoutMs}ms` });
+    failRun({ run, message: `ACP ${label} timed out after ${stageTimeoutMs}ms` });
   }, stageTimeoutMs);
 }
 
@@ -225,7 +225,7 @@ function buildFailurePayload({ message, options }: { message: string; options: F
   };
 }
 
-export function failRun(run: AcpRun, { message }: { message: string }, options: FailOptions = {}): void {
+export function failRun({ run, message }: { run: AcpRun; message: string }, options: FailOptions = {}): void {
   if (run.finished) return;
   run.finished = true;
   run.fatal = true;
@@ -244,7 +244,7 @@ export function writeRpc(run: AcpRun, rpc: { id: JsonRpcId; method: string; para
   try {
     sendRpc(run.stdin, rpc.id, rpc.method, rpc.params);
   } catch (err) {
-    failRun(run, { message: `stdin write failed: ${errorMessage(err)}` });
+    failRun({ run, message: `stdin write failed: ${errorMessage(err)}` });
   }
 }
 
@@ -470,7 +470,7 @@ export function buildAcpEffects(run: AcpRun): AcpSessionEffects {
   const { options, resolved } = run;
   return {
     send: options.send,
-    fail: (message, failOptions) => failRun(run, { message }, failOptions),
+    fail: (message, failOptions) => failRun({ run, message }, failOptions),
     failWithPayload: (payload) => failWithPayload(run, payload),
     writeRpc: (id, method, params, timeoutLabel) => writeRpc(run, { id, method, params, timeoutLabel }),
     sendPrompt: () => sendPrompt(run),
@@ -511,7 +511,8 @@ function handleChildClose(run: AcpRun, { parser, exit }: {
   clearStageTimer(run);
   parser.flush();
   if (!run.finished && !run.aborted && !run.fatal) {
-    failRun(run, {
+    failRun({
+      run,
       message: `ACP session exited before completion (code=${exit.code ?? 'null'}, signal=${exit.signal ?? 'none'})`,
     });
   }
@@ -524,8 +525,8 @@ export function wireAcpProcessListeners({ run, parser }: { run: AcpRun; parser: 
   child.stderr?.setEncoding('utf8');
   child.stderr?.on('data', (chunk: string) => handleStderrChunk(run, { chunk }));
   child.on('close', (code, signal) => handleChildClose(run, { parser, exit: { code, signal } }));
-  child.on('error', (err: Error) => failRun(run, { message: err.message }));
-  stdin.on('error', (err: Error) => failRun(run, { message: `stdin error: ${err.message}` }));
+  child.on('error', (err: Error) => failRun({ run, message: err.message }));
+  stdin.on('error', (err: Error) => failRun({ run, message: `stdin error: ${err.message}` }));
 }
 
 /** Sends the `initialize` request that opens the ACP handshake. */

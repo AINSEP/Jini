@@ -940,7 +940,7 @@ export function attachAcpSession(requiredArgs: Pick<AttachAcpSessionOptions, "ch
   const run = createAcpRun({ options, resolved: resolveAcpSessionOptionDefaults(options) });
   const effects = buildAcpEffects(run);
   const parser = createJsonLineStream({
-    onError: error => failRun(run, { message: error.message }),
+    onError: error => failRun({ run, message: error.message }),
     onMessage: ({ message: raw, rawLine }) => handleAcpMessage({ run, effects, raw, rawLine }),
   });
   wireAcpProcessListeners({ run, parser });
