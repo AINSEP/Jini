@@ -441,32 +441,11 @@
     "value": 701
   },
   {
-    "file": "packages/commerce/src/browser/checkout.ts",
-    "function": "installCommerceCheckout",
-    "line": 17,
-    "rule": "max-lines-per-function",
-    "value": 117
-  },
-  {
-    "file": "packages/commerce/src/browser/checkout.ts",
-    "function": "installCommerceCheckout.required.document.querySelectorAll<HTMLFormElement>(\"form[data-commerce-checkout]\").forEach callback",
-    "line": 18,
-    "rule": "max-lines-per-function",
-    "value": 115
-  },
-  {
     "file": "packages/commerce/src/payments/ledger/rows.ts",
     "function": "<file>",
     "line": 658,
     "rule": "max-lines",
     "value": 726
-  },
-  {
-    "file": "packages/commerce/src/react/Payments.tsx",
-    "function": "Payments",
-    "line": 26,
-    "rule": "max-lines-per-function",
-    "value": 103
   },
   {
     "file": "packages/cookie-consent/src/client/runtime.ts",

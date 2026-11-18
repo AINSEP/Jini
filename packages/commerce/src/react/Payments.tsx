@@ -44,90 +44,114 @@ export function Payments({ locale = "en", providers = [], usePaymentsHook = useP
       </div>
 
       <div className="dash-panels">
-        <section className="dash-panel" aria-labelledby="commerce-payment-providers">
-          <div className="dash-panel-head">
-            <h2 className="dash-panel-title" id="commerce-payment-providers">
-              {t("Payment providers")}
-            </h2>
-            <span className="status status-disabled">{t("Setup required")}</span>
-          </div>
-          <div className="dash-panel-body">
-            <p>
-              {t("Provider adapters remain separate from Commerce. Connectors can change without changing the payment journey shown here.")}
-            </p>
-            <div className="page-actions" aria-label={t("Planned payment provider adapters")}>
-              {providers.map(provider => <span key={provider.id} className="status status-disabled">{provider.displayName}</span>)}
-            </div>
-          </div>
-        </section>
+        {renderPaymentProviders(t, providers)}
 
-        <section className="dash-panel" aria-labelledby="commerce-catalog-pricing">
-          <div className="dash-panel-head">
-            <h2 className="dash-panel-title" id="commerce-catalog-pricing">
-              {t("Catalog and pricing")}
-            </h2>
-            <span className="status status-disabled">{t("Planned")}</span>
-          </div>
-          <div className="dash-panel-body">
-            <p>
-              {t("Products, one-time prices, recurring plans, and the customer subscription lifecycle remain separate Commerce capabilities.")}
-            </p>
-            <div className="page-actions">
-              <a
-                className="btn-secondary"
-                href="/admin/products"
-                {...agentHandle({ handle: "payments-open-products" }, { role: "link", label: "Go to Products" })}
-              >
-                {t("Open products")}
-              </a>
-              <a
-                className="btn-secondary"
-                href="/admin/subscriptions"
-                {...agentHandle({ handle: "payments-open-subscriptions" }, { role: "link", label: "Go to Subscriptions" })}
-              >
-                {t("Open subscriptions")}
-              </a>
-            </div>
-          </div>
-        </section>
+        {renderCatalogPricing(t)}
 
-        <section className="dash-panel" aria-labelledby="commerce-checkout-orders">
-          <div className="dash-panel-head">
-            <h2 className="dash-panel-title" id="commerce-checkout-orders">
-              {t("Checkout and orders")}
-            </h2>
-            <span className="status status-disabled">{t("Planned")}</span>
-          </div>
-          <div className="dash-panel-body">
-            <p>
-              {t("Checkout sessions, operation receipts, and provider webhook reconciliation require the approved plan/execute backend boundary before this screen can operate them.")}
-            </p>
-            <div className="page-actions">
-              <a
-                className="btn-secondary"
-                href="/admin/orders"
-                {...agentHandle({ handle: "payments-open-orders" }, { role: "link", label: "Go to Orders" })}
-              >
-                {t("Open orders")}
-              </a>
-            </div>
-          </div>
-        </section>
+        {renderCheckoutOrders(t)}
 
-        <section className="dash-panel" aria-labelledby="commerce-revenue-reporting">
-          <div className="dash-panel-head">
-            <h2 className="dash-panel-title" id="commerce-revenue-reporting">
-              {t("Revenue reporting")}
-            </h2>
-            <span className="status status-disabled">{t("Awaiting read model")}</span>
-          </div>
-          <div className="dash-panel-body">
-            <p>
-              {t("No revenue totals or trends are shown until a Commerce projection has an approved contract and real source data.")}
-            </p>
-          </div>
-        </section>
+        {renderRevenueReporting(t)}
       </div>
     </div>
+  );
+}
+
+function renderPaymentProviders(t: ReturnType<typeof usePayments>, providers: readonly ProviderSummary[]): ReactElement {
+  return (
+    <section className="dash-panel" aria-labelledby="commerce-payment-providers">
+      <div className="dash-panel-head">
+        <h2 className="dash-panel-title" id="commerce-payment-providers">
+          {t("Payment providers")}
+        </h2>
+        <span className="status status-disabled">{t("Setup required")}</span>
+      </div>
+      <div className="dash-panel-body">
+        <p>
+          {t("Provider adapters remain separate from Commerce. Connectors can change without changing the payment journey shown here.")}
+        </p>
+        <div className="page-actions" aria-label={t("Planned payment provider adapters")}>
+          {providers.map(provider => <span key={provider.id} className="status status-disabled">{provider.displayName}</span>)}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function renderCatalogPricing(t: ReturnType<typeof usePayments>): ReactElement {
+  return (
+    <section className="dash-panel" aria-labelledby="commerce-catalog-pricing">
+      <div className="dash-panel-head">
+        <h2 className="dash-panel-title" id="commerce-catalog-pricing">
+          {t("Catalog and pricing")}
+        </h2>
+        <span className="status status-disabled">{t("Planned")}</span>
+      </div>
+      <div className="dash-panel-body">
+        <p>
+          {t("Products, one-time prices, recurring plans, and the customer subscription lifecycle remain separate Commerce capabilities.")}
+        </p>
+        <div className="page-actions">
+          <a
+            className="btn-secondary"
+            href="/admin/products"
+            {...agentHandle({ handle: "payments-open-products" }, { role: "link", label: "Go to Products" })}
+          >
+            {t("Open products")}
+          </a>
+          <a
+            className="btn-secondary"
+            href="/admin/subscriptions"
+            {...agentHandle({ handle: "payments-open-subscriptions" }, { role: "link", label: "Go to Subscriptions" })}
+          >
+            {t("Open subscriptions")}
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function renderCheckoutOrders(t: ReturnType<typeof usePayments>): ReactElement {
+  return (
+    <section className="dash-panel" aria-labelledby="commerce-checkout-orders">
+      <div className="dash-panel-head">
+        <h2 className="dash-panel-title" id="commerce-checkout-orders">
+          {t("Checkout and orders")}
+        </h2>
+        <span className="status status-disabled">{t("Planned")}</span>
+      </div>
+      <div className="dash-panel-body">
+        <p>
+          {t("Checkout sessions, operation receipts, and provider webhook reconciliation require the approved plan/execute backend boundary before this screen can operate them.")}
+        </p>
+        <div className="page-actions">
+          <a
+            className="btn-secondary"
+            href="/admin/orders"
+            {...agentHandle({ handle: "payments-open-orders" }, { role: "link", label: "Go to Orders" })}
+          >
+            {t("Open orders")}
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function renderRevenueReporting(t: ReturnType<typeof usePayments>): ReactElement {
+  return (
+    <section className="dash-panel" aria-labelledby="commerce-revenue-reporting">
+      <div className="dash-panel-head">
+        <h2 className="dash-panel-title" id="commerce-revenue-reporting">
+          {t("Revenue reporting")}
+        </h2>
+        <span className="status status-disabled">{t("Awaiting read model")}</span>
+      </div>
+      <div className="dash-panel-body">
+        <p>
+          {t("No revenue totals or trends are shown until a Commerce projection has an approved contract and real source data.")}
+        </p>
+      </div>
+    </section>
   );
 }
