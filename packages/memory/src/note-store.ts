@@ -209,9 +209,7 @@ interface NoteStoreState {
 function serializeMutation<T>(s: NoteStoreState, { dataDir, operation }: {
   dataDir: string;
   operation: () => Promise<T>;
-}, { _optional = {} }: {
-  _optional?: Record<string, never>;
-} = {}): Promise<T> {
+}, { _optional = {} }: { _optional?: Record<string, never> } = {}): Promise<T> {
   const { mutationTails } = s;
   const key = path.resolve(dir(s, { dataDir }));
   const previous = mutationTails.get(key) ?? Promise.resolve();
@@ -237,11 +235,7 @@ async function ensureDir(s: NoteStoreState, { dirPath }: { dirPath: string }): P
  * first (matching the store's historical "writes create their directory"
  * behavior); read paths never create directories as a side effect.
  */
-async function resolveContainedDir(s: NoteStoreState, { lexicalDir, dataDir, create }: {
-  lexicalDir: string;
-  dataDir: string;
-  create: boolean;
-}): Promise<string> {
+async function resolveContainedDir(s: NoteStoreState, { lexicalDir, dataDir, create }: { lexicalDir: string; dataDir: string; create: boolean }): Promise<string> {
   const { fsp } = s;
   if (create) await ensureDir(s, { dirPath: lexicalDir });
   const realRoot = await fsp.realpath(dataDir);
@@ -359,11 +353,7 @@ function deriveId(s: NoteStoreState, { type, name }: { type: string; name: strin
   return `${safeType}_n${h.toString(36)}`;
 }
 
-async function containedEntryPath(s: NoteStoreState, { dataDir, id, create }: {
-  dataDir: string;
-  id: string;
-  create: boolean;
-}): Promise<string> {
+async function containedEntryPath(s: NoteStoreState, { dataDir, id, create }: { dataDir: string; id: string; create: boolean }): Promise<string> {
   if (!isValidId(id)) throw new Error('invalid note id');
   const base = await resolveContainedDir(s, { lexicalDir: dir(s, { dataDir }), dataDir, create });
   return path.join(base, `${id}.md`);
@@ -498,12 +488,7 @@ function parseIndexLinkIds(indexBody: string): Set<string> {
   return ids;
 }
 
-async function ensureIndexHasEntry(s: NoteStoreState, { dataDir, id, name, description }: {
-  dataDir: string;
-  id: string;
-  name: string;
-  description: string;
-}): Promise<void> {
+async function ensureIndexHasEntry(s: NoteStoreState, { dataDir, id, name, description }: { dataDir: string; id: string; name: string; description: string }): Promise<void> {
   const current = await readIndex(s, { dataDir });
   const lines = current.split(/\r?\n/);
   const link = `${id}.md`;

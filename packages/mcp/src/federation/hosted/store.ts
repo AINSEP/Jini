@@ -489,10 +489,7 @@ async function openExternalMcpEnv(
  * tools vanished, and the reason string is the only thing carrying that at boot. The admin tab's
  * `needs_reauth` badge is the out-of-band half of the same signal.
  */
-function oauthStatusFailure({ record, settingsLink }: {
-  record: ExternalMcpServerRecord;
-  settingsLink: string;
-}): Omit<ExternalMcpConfigFailure, "serverId"> | null {
+function oauthStatusFailure({ record, settingsLink }: { record: ExternalMcpServerRecord; settingsLink: string }): Omit<ExternalMcpConfigFailure, "serverId"> | null {
   const status = resolveExternalMcpOAuthStatus(record);
   if (status === "connected") return null;
   if (status === "needs_reauth") {

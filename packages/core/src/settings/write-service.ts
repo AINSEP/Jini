@@ -674,11 +674,7 @@ async function assertRenameTargetFree(deps: SettingsWriteServiceDeps, input: Ren
 }
 
 /** Sequential rename: retarget every prior marker pointing at the OLD name to the NEW name. */
-async function retargetPriorAliasMarkers({ deps, input, now }: {
-  deps: SettingsWriteServiceDeps;
-  input: RenameInput;
-  now: string;
-}): Promise<void> {
+async function retargetPriorAliasMarkers({ deps, input, now }: { deps: SettingsWriteServiceDeps; input: RenameInput; now: string }): Promise<void> {
   const siblings = await deps.repo.listActiveDefinitions({ workspaceId: input.workspaceId });
   for (const sibling of siblings) {
     if (
@@ -697,12 +693,7 @@ async function retargetPriorAliasMarkers({ deps, input, now }: {
 }
 
 /** Step 2: insert a fresh v1 alias marker at the OLD name pointing at the NEW name. */
-async function insertRenameAliasMarker({ deps, input, current, now }: {
-  deps: SettingsWriteServiceDeps;
-  input: RenameInput;
-  current: SettingDefinitionRecord;
-  now: string;
-}): Promise<string> {
+async function insertRenameAliasMarker({ deps, input, current, now }: { deps: SettingsWriteServiceDeps; input: RenameInput; current: SettingDefinitionRecord; now: string }): Promise<string> {
   const markerSettingId = deps.ids.newId();
   await deps.repo.saveDefinition({
     settingId: markerSettingId,
@@ -726,11 +717,7 @@ async function insertRenameAliasMarker({ deps, input, current, now }: {
   return markerSettingId;
 }
 
-async function applyRenameInTransaction({ deps, input, current }: {
-  deps: SettingsWriteServiceDeps;
-  input: RenameInput;
-  current: SettingDefinitionRecord;
-}): Promise<{ settingId: string; markerSettingId: string }> {
+async function applyRenameInTransaction({ deps, input, current }: { deps: SettingsWriteServiceDeps; input: RenameInput; current: SettingDefinitionRecord }): Promise<{ settingId: string; markerSettingId: string }> {
   const now = kernelNowIso({ clock: deps.clock });
 
   // Step 1: move the active row to the new name -- same setting_id, same version.
