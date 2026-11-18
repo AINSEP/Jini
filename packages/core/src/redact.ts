@@ -791,7 +791,7 @@ function collectLabeledSecrets({ text, add }: SpanPass, earlier: readonly Span[]
       continue;
     }
     const value = extentOf(start);
-    if (isColonProse({ text, match, start, quoted: value.quoted }) || covered(start, value) || isMaskedValue(text.slice(start, value.end))) {
+    if (isColonProse({ text, match, start, value }) || covered(start, value) || isMaskedValue(text.slice(start, value.end))) {
       regex.lastIndex = start;
       continue;
     }
@@ -802,12 +802,13 @@ function collectLabeledSecrets({ text, add }: SpanPass, earlier: readonly Span[]
 
 /** After a colon (never `=`), an unquoted value that reads as prose or a placeholder is not a credential:
  * "Password: (skipped)", "password: must be at least 8 characters". The scan resumes at the value. */
-function isColonProse({ text, match, start, quoted }: { text: string; match: RegExpExecArray; start: number; quoted: boolean }): boolean {
+function isColonProse({ text, match, start, value }: { text: string; match: RegExpExecArray; start: number; value: LabelValue }): boolean {
   const head = match[0].slice(0, -1);
   const colon = head.indexOf(':');
-  if (quoted || colon === -1 || head.includes('=')) return false;
+  if (value.quoted || colon === -1 || head.includes('=')) return false;
   const rest = /^[^\r\n]*/.exec(text.slice(start, start + 200))?.[0] ?? '';
-  return isProseAfterColon({ rest, gap: head.slice(colon + 1) });
+  const before = text.slice(Math.max(0, match.index - 16), match.index + (match[1] ?? '').length);
+  return isProseAfterColon({ rest, gap: head.slice(colon + 1) }, { before, label: match[2] ?? '', token: value.end - start });
 }
 
 /** Preserve quoted diagnostic/JSON values, including the closing quote on truncated echoes. */

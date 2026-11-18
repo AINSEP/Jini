@@ -46,5 +46,5 @@ export function authSchemeValueRanges({ text }: { readonly text: string }): Valu
  * as HTTP clients write it in prose and logs; the credential may sit on the line after it (a header wrapped over two lines). The leading lookahead lets the lookbehind run only where a
  * value can start, so a long whitespace run is not rescanned from every position inside it. */
 export const BARE_SCHEME_TOKEN_PATTERNS: readonly SecretRedactionPattern[] = [
-  { name: 'bearer_token', regex: /(?=[A-Za-z0-9._~+/=:-])(?<=\b(?:Basic|Token)\s{1,16})(?=[A-Za-z0-9._~+/=:-]*\d)[A-Za-z0-9._~+/=:-]{16,}/g },
+  { name: 'bearer_token', regex: /(?=[A-Za-z0-9._~+/=:-])(?<=\b(?:Basic|Token)\s{1,16})(?=[A-Za-z0-9._~+/=:-]*\d)(?!v?\d{1,4}\.\d)[A-Za-z0-9._~+/=:-]{16,}/g },
 ];

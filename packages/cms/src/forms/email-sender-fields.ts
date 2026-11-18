@@ -29,9 +29,10 @@ export function describeFormEmailFields({ definition }: { definition: FormDefini
   return [...emailAnswerFields({ definition }).map(field => ({ token: formEmailFieldToken({ field }), label: field.label, required: field.required })), ...BUILTINS.map(field => ({ ...field }))];
 }
 
-function safeText({ value }: { value: string }, _optional: Record<string, never> = {}): string | undefined {
-  // MOVE: Reuse core's credential vocabulary without treating ordinary email addresses as secrets.
-  return redactSecrets({ input: value }, { redactPii: false }) === value ? value : undefined;
+function safeText({ value }: { value: string }, _optional: Record<string, never> = {}): string {
+  // MOVE: Reuse core's credential vocabulary without treating ordinary email addresses as secrets. Core masks only the
+  // credential part of an answer; the rest of what the person wrote still reaches the mail.
+  return redactSecrets({ input: value }, { redactPii: false });
 }
 
 function answerText(required: { field: FieldDescriptor; value: unknown }, _optional: Record<string, never> = {}): string | undefined {

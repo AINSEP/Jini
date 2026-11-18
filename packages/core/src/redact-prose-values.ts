@@ -23,13 +23,27 @@ const PLACEHOLDER_RES: readonly RegExp[] = [
   /^[A-Za-z]+[ \t]+[A-Za-z]/,
 ];
 
+// `key` also names a database or sorting column ("Sort key: name", "Primary key: 1"). After a colon, a short value
+// behind one of these qualifiers is an answer, not a credential. The list is closed on purpose: any other word
+// before `key` (`secret key`, `private key`, `signing key`) keeps the strict reading, and a bare `key: abc` is
+// still masked. The `=` form never gets this reading.
+const KEY_QUALIFIER_BEFORE = /(?:^|[^A-Za-z])(?:sort|primary|foreign|partition|cache|group|order|hash|map|composite|unique|lookup|index|natural|surrogate|join|shard|clustering|search|row)[ \t]+$/i;
+const QUALIFIED_KEY_MAX_VALUE = 11;
+
 /**
  * True when the unquoted value after a colon should be left readable.
  * @param required.rest - The text from the first value character to the end of its line.
  * @param required.gap - The text between the colon and that character. A line break in it means the value
  *   is empty and `rest` belongs to the next line.
+ * @param optional.before - The text before the label on its line (qualifier words such as "Sort").
+ * @param optional.label - The credential word before the colon, as written.
+ * @param optional.token - The length of the value's first token.
  * @complexity O(1): every pattern is anchored and bounded by the first word.
  */
-export function isProseAfterColon({ rest, gap }: { readonly rest: string; readonly gap: string }): boolean {
+export function isProseAfterColon(
+  { rest, gap }: { readonly rest: string; readonly gap: string },
+  { before = '', label = '', token = 0 }: { readonly before?: string; readonly label?: string; readonly token?: number } = {},
+): boolean {
+  if (label.toLowerCase() === 'key' && token <= QUALIFIED_KEY_MAX_VALUE && KEY_QUALIFIER_BEFORE.test(before)) return true;
   return /[\r\n]/.test(gap) || PLACEHOLDER_RES.some(pattern => pattern.test(rest));
 }
