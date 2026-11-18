@@ -350,12 +350,10 @@ const commentsGetSettingsHandler = ({ deps }: CommentsHandlerArgs): ToolHandler 
 const commentsUpdateSettingsHandler = ({ deps }: CommentsHandlerArgs): ToolHandler => async (ctx) => {
   const patch = requireCommentsSettingsPatch(requireInputRecord({ input: ctx.input }));
 
-  // No explicit pre-check here, unlike every other Comments handler: `setCommentsSettings`
-  // (settings.ts) self-enforces internally — its `set()` call is invoked with
-  // `requiredPermissionOverride: 'comments.configure'` HARD-CODED inside settings.ts itself, so
-  // the host binding passes its `authorize` through, which is exactly ADR-021 §2's "one evaluator",
-  // reached the domain-function way Forms/Identity use, not the explicit-handler way the rest
-  // of this file uses. See settings.ts's own comment on that override for why.
+  // No explicit pre-check here, unlike every other Comments handler: the host's settings port
+  // self-enforces the configure permission inside its own write, which is ADR-021 §2's "one
+  // evaluator" reached the domain-function way Forms/Identity use, not the explicit-handler way the
+  // rest of this file uses. The host binding documents that override beside the port it supplies.
   await deps.commentsSettingsReady;
   ctx.signal.throwIfAborted();
   const settings = await deps.commentsSettings.set(
