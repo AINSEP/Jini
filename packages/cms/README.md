@@ -135,6 +135,17 @@ declared envelope owners of the code-registered types as data; the adapter has n
 its entry and revision tables, the two JSON dialect helpers (`EntryJsonDialectPort`, from the same kernel) and an
 `onWriteSettled` hook the repository calls after every save and transaction, success or failure.
 
+`./entries` also exports `TrashAwareInMemoryEntryRepo`, the in-memory twin of that repository (the Trash hidden from every read, the
+`findAny*` / `saveAny` / `hardDelete` seam); its required `onWriteSettled` hook is called after a save, a transaction (also on
+failure), a `saveAny` and a `hardDelete` that removed a row.
+
+`./trash` also exports the registry types (`TrashEntry`, `TrashRegistry`, `TrashMarkerSpec` and the specs they hold) and
+`trashEntityLockKey`, the one lock key a Trash transition takes for an entity. `./trash/sql` (node) is the Kysely adapter for
+`TrashRepoPort` (`SqlTrashRepo`: the host passes its storage kernel and the name of its `trashed_items` table) with the
+registry-driven query kit a host's table adapter is built from: `notTrashed` (a `WHERE` condition) and `isTrashedRecord`
+(its flat-record twin), `readLiveSnapshot`, `entryWhere` and `loose`. `createTableTrashAdapter` is the one `TrashAdapter` for every registry entry: the host
+passes the entry, its storage kernel (read on first use) and the name of its `trashed_items` table.
+
 **Still to move:** `post`, `seo`, `comments`, `redirects`, `newsletter`,
 `members`. Widgets are exposed through the universal and node entries above.
 The nested forms package is maintained by its separate owner and is excluded from this parent package.
