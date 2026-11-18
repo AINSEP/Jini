@@ -10,6 +10,8 @@
    "EntityNotLiveError": "class:96aef90dd0",
    "ForbiddenError": "class:afffa8dd07",
    "KeysetPosition": "type:8d2d265f72",
+   "PostStatus": "type:5adf203907",
+   "PublicPostKind": "type:5021e95e78",
    "RequireToolPermissionOptional": "interface:9debdb6bb9",
    "RequireToolPermissionRequired": "interface:9f8bee49fa",
    "adaptLegacyAuthorize": "function:daa83f3d53",
@@ -194,6 +196,8 @@
    "EntityNotLiveError": "class:96aef90dd0",
    "ForbiddenError": "class:afffa8dd07",
    "KeysetPosition": "type:8d2d265f72",
+   "PostStatus": "type:5adf203907",
+   "PublicPostKind": "type:5021e95e78",
    "RequireToolPermissionOptional": "interface:9debdb6bb9",
    "RequireToolPermissionRequired": "interface:9f8bee49fa",
    "adaptLegacyAuthorize": "function:daa83f3d53",
@@ -219,6 +223,8 @@
    "ForbiddenError": "class:afffa8dd07",
    "InMemoryChangeSetRepo": "class:95dba47558",
    "KeysetPosition": "type:8d2d265f72",
+   "PostStatus": "type:5adf203907",
+   "PublicPostKind": "type:5021e95e78",
    "RequireToolPermissionOptional": "interface:9debdb6bb9",
    "RequireToolPermissionRequired": "interface:9f8bee49fa",
    "RevertChangeSetDeps": "interface:0157fef301",
@@ -269,6 +275,7 @@
    "EntryLifecycleOp": "type:d6f04ed80e",
    "EntryListPort": "interface:698480b814",
    "EntryNotFoundError": "class:fc0d657098",
+   "EntryPublishReadPort": "interface:3b79336064",
    "EntryRecord": "interface:6990a056ce",
    "EntryRepoPort": "interface:bf35acd880",
    "EntryRevisionInput": "interface:7202ef098d",
@@ -282,6 +289,7 @@
    "OutboxPort": "interface:c3388e2007",
    "OwningContentType": "interface:b52d2c03c2",
    "PublishUnpublishEntryRequired": "interface:de7f2393ad",
+   "TrashableEntryRecord": "type:446a18efbf",
    "UpdateEntryRequired": "interface:f26d08447a",
    "ValidateFieldsResult": "interface:45c2ee91cc",
    "VersionConflictError": "class:d6595a95a4",
@@ -1177,6 +1185,7 @@
    "ListRedirectsDeps": "interface:79b53dcc5e",
    "ListRedirectsFilter": "interface:b10fbfbb2f",
    "ListRedirectsRequired": "interface:144efb49a6",
+   "MANAGE_REDIRECTS_PERMISSION": "variable:64bb1f9dc9",
    "MAX_IMPORT_BATCH_SIZE": "variable:43fad09641",
    "MAX_PRIORITY": "variable:6a82249d47",
    "MAX_TARGET_LENGTH": "variable:95bc65aa89",
@@ -1223,6 +1232,7 @@
    "RedirectTargetNotAllowedError": "class:787909a5bd",
    "RedirectTargetOracle": "type:14d0a4cb61",
    "RedirectValidationError": "class:a86e219d9c",
+   "RedirectsPackageToolDeps": "interface:9d504b74bc",
    "RedirectsWriteDeps": "interface:ca75f2cea3",
    "RegisterRedirectHitOutboxHandlerDeps": "interface:1feb4a4859",
    "RemoveRedirectFn": "type:1d8387a4a9",
@@ -1237,6 +1247,7 @@
    "VALID_STATUS_CODES": "variable:de29bf880f",
    "ValidatePatternRequired": "interface:a833e357d3",
    "assertRedirectSourceAllowed": "function:37ce3f2068",
+   "buildRedirectsToolRegistrations": "function:562ebdeeb6",
    "checkRedirectFieldsWouldWrite": "function:ce7e6dc45e",
    "checkRedirectLocation": "function:c8ac21303b",
    "checkSameOriginDestination": "function:818c12ced6",
@@ -1245,6 +1256,7 @@
    "compareTieBreak": "function:8a02019c07",
    "createRedirect": "function:9296e829d1",
    "createRedirectResolver": "function:12a7d77769",
+   "getRedirectsAgentToolCatalog": "function:cb4e375713",
    "importRedirects": "function:55e068aba2",
    "isReferrerAliasLocation": "function:42ce39cc45",
    "listRedirects": "function:c10ce162f4",
@@ -1252,6 +1264,7 @@
    "redirectMatcher": "variable:8c12c2d457",
    "redirectPathKey": "function:85b02fd26e",
    "redirectPrefixMatches": "function:c82421fd17",
+   "redirectsDerivedRisk": "variable:94d3d42d1e",
    "registerRedirectHitOutboxHandler": "function:bbb3f3cb17",
    "sameRedirectPath": "function:b9c00b0171",
    "siteRelativeTargetReason": "function:c1c4730e9e",
@@ -1426,6 +1439,7 @@
    "createSitemapService": "function:8bc0b0de51",
    "deriveExcerpt": "function:a461090be0",
    "escapeXml": "function:da7d208da9",
+   "extractPlainTextFromHtml": "function:c57d32b242",
    "getEntryMeta": "function:5ee5204b81",
    "renderLlmsTxt": "function:bb2dd7f86c",
    "renderRssXml": "function:f78936e2d0",
@@ -1601,6 +1615,7 @@
   "types": "./dist/taxonomy/index.d.ts",
   "symbols": {
    "AssignTermsRequired": "interface:14d76329c5",
+   "AssignedTermView": "interface:4ef4085dbe",
    "AssignmentCountEntryTermRepoPort": "interface:dc229e226a",
    "AuthorizeFn": "type:df7119441b",
    "ConfirmMergeTermRequired": "interface:465ce9541c",
@@ -1617,6 +1632,7 @@
    "DeleteTaxonomyRequired": "interface:d20dc57fbb",
    "DeleteTermRequired": "interface:58baa2e83e",
    "EntryRecordLookupPort": "interface:a4bc084b2a",
+   "EntryTermReadPort": "interface:bb78371b8c",
    "EntryTermRepoPort": "interface:9494fb756c",
    "EntryTermsCleanupPort": "interface:3eb672d9d8",
    "ExecuteMergeTermRequired": "interface:4380afe962",
@@ -1641,12 +1657,17 @@
    "Taxonomy": "interface:de1d9b6e86",
    "TaxonomyHasAssignedContentError": "class:09c6107db4",
    "TaxonomyListPort": "interface:f11662f7d3",
+   "TaxonomyMergeGateway": "interface:2bcb27e5e1",
+   "TaxonomyMergePrepared": "interface:a43b1b2319",
    "TaxonomyNotApplicableError": "class:d8a85eee7b",
    "TaxonomyNotHierarchicalError": "class:6f0818fd91",
+   "TaxonomyPackageToolDeps": "interface:2993a55b9a",
+   "TaxonomyPublishReadPort": "interface:ac0b248c82",
    "TaxonomyRecordNotFoundError": "class:4d5fa18ed6",
    "TaxonomyRepoPort": "interface:d117952d13",
    "TaxonomyRevisionRepoPort": "interface:b17b53de45",
    "TaxonomyRevisionRow": "interface:cdde74f69e",
+   "TaxonomyToolSurfaces": "interface:e74fac4e78",
    "TaxonomyVersionConflictError": "class:6f68c6b727",
    "TaxonomyWithTerms": "interface:fd7c1c6964",
    "Term": "interface:8b5b143dd9",
@@ -1654,6 +1675,7 @@
    "TermHasChildTermsError": "class:b07e2b95fc",
    "TermListPort": "interface:bd8236f9fe",
    "TermNotFoundError": "class:3c3df64ae4",
+   "TermPublishReadPort": "interface:cc196bea65",
    "TermRecordNotFoundError": "class:0bf2b16c50",
    "TermRepoPort": "interface:e288407d7b",
    "TermTreeLookup": "interface:66415a8fab",
@@ -1662,6 +1684,7 @@
    "WorkspaceMismatchError": "class:aa87a7b96e",
    "WriteServiceDeps": "interface:c77d98e94f",
    "assignTerms": "function:bdb4b5a79c",
+   "buildTaxonomyToolRegistrations": "function:c13c0f788c",
    "confirmMergeTerm": "function:243dc702cc",
    "createContentLookup": "function:fae4060e9f",
    "createEntryBackedContentLookup": "function:756fb58c8c",
@@ -1680,6 +1703,7 @@
    "planMergeTerm": "function:eb6b00ef5d",
    "renameTerm": "function:77b132899b",
    "taxonomyAgentToolCatalog": "variable:22228eff9f",
+   "taxonomyDerivedRisk": "variable:6f3826079b",
    "toTaxonomyOutbox": "function:002c9e9a0d",
    "unassignTerms": "function:c885f468ad",
    "validateContentJoin": "function:702f15ae4f",
@@ -1844,12 +1868,15 @@
    "WidgetVersionConflictError": "class:c87d7089f3",
    "WidgetWriteServiceDeps": "interface:5c14f8daf9",
    "WidgetsAuthorizeFn": "type:14fc175234",
+   "WidgetsPackageToolDeps": "interface:aa2c4e6969",
    "adoptLegacyTrashedWidgets": "function:ab8dd36600",
    "areaDocWithPlacements": "function:fe6e9a8e5b",
    "bindWidgetArea": "function:1982fdbb74",
    "buildWidgetAreaFieldsJson": "function:35aeb570a1",
    "buildWidgetInstanceFieldsJson": "function:c16834d5fd",
+   "buildWidgetsToolRegistrations": "function:42333d3dae",
    "collectWidgetConfigStrings": "function:feb2560b33",
+   "copyBodyJsonWithFreshEmbedPlacements": "function:29884457ce",
    "createEntryLockState": "function:fe3a6b1f4c",
    "createWidgetInstance": "function:6dc5f0fe6f",
    "emptyWidgetAreaDoc": "function:3229ca883f",
@@ -1884,6 +1911,8 @@
    "validateWidgetConfig": "function:dda806a743",
    "validateWidgetEmbedMutation": "function:e5e47e51b3",
    "widgetAreaSlug": "function:a5595189e7",
+   "widgetsAgentToolCatalog": "variable:e520cc7dfe",
+   "widgetsDerivedRisk": "variable:fe8acc5ac6",
    "withEntryLock": "function:93e1d19b33"
   }
  },
@@ -1906,6 +1935,8 @@
    "GalleryImageRenderer": "type:2fa0728935",
    "MAX_HTML_EMBEDS_PER_PAGE": "variable:9efb522a88",
    "MEDIA_ELEMENT_ATTRIBUTE_NAMES": "variable:2e5bc9a8f0",
+   "MediaHtmlEvent": "interface:d3ae570116",
+   "MediaHtmlReport": "type:249b212e5f",
    "PageHtmlEmbedRef": "interface:671b817726",
    "PluginExportRender": "interface:002bb4ca8c",
    "PluginExportTemplate": "interface:e587079599",
@@ -1916,9 +1947,11 @@
    "fillPluginExportTemplate": "function:be068c06b9",
    "normalizeLegacyWidgetMarkers": "function:74010712ee",
    "renderGallery": "function:f3c640c8f2",
+   "renderMediaRawHtml": "function:15476cd7ac",
    "resolveGalleryWidgetMedia": "function:39692034ee",
    "resolveHtmlPageEmbeds": "function:28993b1574",
    "resolvePluginExportEmbeds": "function:71640a03c6",
+   "sanitizePageHtml": "function:d80bf8b509",
    "scanHtmlEmbeds": "function:bc8a20a9b2",
    "substituteHtmlEmbeds": "function:eaebca1764",
    "substitutePluginExport": "function:17409970c4",
@@ -2064,6 +2097,72 @@
    "updateWorkspace": "function:c774d88fa2",
    "validateWorkspaceNameAndSlug": "function:cb18cd6a5d",
    "workspaceDerivedRisk": "variable:b258942f6c"
+  }
+ },
+ "./content-types/sql": {
+  "types": "./dist/content-types/sql/index.d.ts",
+  "symbols": {
+   "ContentTypeRevisionTableRow": "interface:feacd3c737",
+   "ContentTypeSqlRequired": "interface:57db562569",
+   "ContentTypeTableRow": "interface:c13275d31a",
+   "ContentTypeTables": "interface:c36ea733a8",
+   "SqlContentTypeRepo": "class:a790535fb9"
+  }
+ },
+ "./entries/sql": {
+  "types": "./dist/entries/sql/index.d.ts",
+  "symbols": {
+   "EntryJsonDialectPort": "interface:78367dd50c",
+   "EntryRevisionTableRow": "interface:b4701720a4",
+   "EntrySqlRequired": "interface:b432dfca48",
+   "EntryTableRow": "interface:b35900f80d",
+   "EntryTables": "interface:8474ce470e",
+   "SqlEntryRepo": "class:c7263f4112"
+  }
+ },
+ "./navigation/sql": {
+  "types": "./dist/navigation/sql/index.d.ts",
+  "symbols": {
+   "MenuTableRow": "interface:90dc5a330d",
+   "NavLocationBindingTableRow": "interface:9a11a13e62",
+   "NavigationSqlRequired": "interface:dddb40f954",
+   "NavigationTables": "interface:861e52a022",
+   "SqlMenuRepo": "class:894f4a50d7",
+   "SqlNavLocationBindingRepo": "class:3ca724f166"
+  }
+ },
+ "./presentation/sql": {
+  "types": "./dist/presentation/sql/index.d.ts",
+  "symbols": {
+   "PresentationSettingsTableRow": "interface:65224a5e1c",
+   "PresentationSqlRequired": "interface:3abee4ec37",
+   "PresentationTables": "interface:5bfb457f2f",
+   "SqlPresentationSettingsRepo": "class:566b906dff"
+  }
+ },
+ "./taxonomy/sql": {
+  "types": "./dist/taxonomy/sql/index.d.ts",
+  "symbols": {
+   "EntryTermRow": "interface:f1e85925f6",
+   "SqlEntryTermRepo": "class:5a40ccca69",
+   "SqlTaxonomyRepo": "class:a2b81275af",
+   "SqlTaxonomyRevisionRepo": "class:562489f307",
+   "SqlTermRepo": "class:e87ef2be85",
+   "TaxonomyRevisionTableRow": "interface:de0dd4bbc4",
+   "TaxonomyRow": "interface:50eb46c12c",
+   "TaxonomySqlRequired": "interface:d87e2fb458",
+   "TaxonomyTables": "interface:ad1fff6a51",
+   "TermRow": "interface:533aaf3fc2"
+  }
+ },
+ "./workspace/sql": {
+  "types": "./dist/workspace/sql/index.d.ts",
+  "symbols": {
+   "SqlWorkspaceRepo": "class:6c07c736bf",
+   "WorkspaceSqlRequired": "interface:32f1b514a8",
+   "WorkspaceTables": "interface:946ece707f",
+   "WorkspacesTable": "interface:7ee61024eb",
+   "workspaceRepoFor": "function:601af3e42b"
   }
  }
 }

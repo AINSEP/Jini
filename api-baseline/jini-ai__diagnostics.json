@@ -311,5 +311,12 @@
   "symbols": {
    "FakeCaptureClock": "class:147d19cde2"
   }
+ },
+ "./web-evidence/capture-clock": {
+  "types": "./dist/web-evidence/capture-clock.d.ts",
+  "symbols": {
+   "CaptureClock": "interface:7eb2803d88",
+   "REAL_CAPTURE_CLOCK": "variable:e1cf471793"
+  }
  }
 }

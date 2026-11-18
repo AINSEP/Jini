@@ -51,6 +51,7 @@
    "MAX_OUTBOX_ATTEMPTS": "variable:de677384b7",
    "OutboxClaim": "interface:81c81feccd",
    "OutboxDrainer": "interface:4ef9cf9e14",
+   "OutboxFailureCodes": "interface:3c1c65d02f",
    "OutboxPort": "interface:197df4ac81",
    "OutboxRecord": "interface:321375a84e",
    "OutboxRetryPolicy": "interface:c3c629f3d5",

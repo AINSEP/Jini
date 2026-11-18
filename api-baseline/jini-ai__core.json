@@ -570,12 +570,15 @@
    "ExternalMcpConnectStart": "type:74ac06009d",
    "ExternalMcpDeviceStart": "interface:d37a0889df",
    "ExternalMcpOAuthGrant": "type:cc72e195ea",
+   "ExternalMcpOAuthRuntimePatch": "interface:3791a4d730",
    "ExternalMcpOAuthStatus": "type:7af3ec3d45",
    "ExternalMcpOAuthTokenResolverPort": "interface:82f4d888fd",
    "ExternalMcpOAuthView": "interface:44bd9d4849",
+   "ExternalMcpReplacedSecrets": "interface:1ae911d481",
    "ExternalMcpRevocationReason": "type:1dfa871cd8",
    "ExternalMcpSealedOAuthPayload": "interface:96a5268c51",
    "ExternalMcpServerConfig": "interface:b2fba32a39",
+   "ExternalMcpServerKey": "interface:0d4170aa39",
    "ExternalMcpServerRecord": "interface:ce8abdffed",
    "ExternalMcpServerRepoPort": "interface:33c19ab2bc",
    "ExternalMcpServerTarget": "type:dafc62cd48",
@@ -1176,6 +1179,7 @@
    "VERSION_REQUIRED_CODE": "variable:dcd545a058",
    "VERSION_REQUIRED_MESSAGE": "variable:a9c30fdea0",
    "VersionConflictBody": "interface:0db199e181",
+   "applyInternalChange": "function:4b9cf53fb0",
    "assertVersionedWrite": "function:9b526b6de2",
    "fromSettingsRevisionConflict": "function:1ccc99cc86",
    "parseExpectedVersion": "function:235796dab9",
@@ -1682,6 +1686,23 @@
    "createRecordingReporter": "function:2bb26a5e30",
    "createRecordingTracker": "function:fedae55ab5",
    "createSequenceIds": "function:73f349d19e"
+  }
+ },
+ "./tool-call-text": {
+  "types": "./dist/tool-call-text.d.ts",
+  "symbols": {
+   "toolCallText": "function:7fbc1152a2",
+   "toolFamilySentence": "function:cfdc79d692",
+   "unknownToolSentence": "function:e8b99859f4"
+  }
+ },
+ "./tool-input-repairs": {
+  "types": "./dist/tool-input-repairs.d.ts",
+  "symbols": {
+   "MissingArgumentGuidance": "interface:96b44d8d24",
+   "assertRepairKeywords": "function:db7f7d38e9",
+   "clampDeclaredBounds": "function:80355df88f",
+   "missingArgumentGuidance": "function:6e67772d50"
   }
  }
 }

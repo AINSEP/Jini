@@ -30,6 +30,7 @@
    "CreateRunLifecycleInput": "interface:36461b1dd5",
    "CreateRunScopedContextStoreOptions": "interface:392adf4663",
    "CreateTerminalSessionManagerOptions": "interface:c0c7c6d0c6",
+   "CreateTerminalSessionManagerRequired": "interface:a305a224ed",
    "CreateTerminalSessionOptions": "interface:05a931569e",
    "CreateTerminalToolRegistrationsOptions": "interface:c6bce26a4a",
    "CreateToolExecutorOptions": "interface:dedb0cc16f",
@@ -378,6 +379,7 @@
    "DaemonDbTableInfo": "interface:728e48fbf8",
    "DaemonDbToolRegistrations": "interface:edc29b1f31",
    "DaemonDbVacuumResult": "interface:fb3437621e",
+   "DaemonRouteHost": "interface:2ead375f26",
    "DaemonShutdownResponse": "interface:1cdb58352f",
    "DaemonStatusDeps": "interface:d7ab3c6ffd",
    "DaemonStatusResponse": "interface:51b6aa4d33",
@@ -393,6 +395,7 @@
    "DelegatedToolsInternalErrorContext": "interface:e928467d92",
    "FRONTEND_SESSION_RESPONSE_ROUTE_PATH": "variable:95daf471f5",
    "FRONTEND_SESSION_STREAM_ROUTE_PATH": "variable:3a1f492218",
+   "FamilySelector": "interface:270ebe03ac",
    "FrontendBindErrorContext": "interface:7e68066924",
    "FrontendControl": "interface:54d6aa200d",
    "FrontendHttpExtension": "type:f54e5a8471",
@@ -468,6 +471,7 @@
    "ResearchSearchResponse": "interface:0d91accb6b",
    "ResearchSource": "interface:66ae9ccac3",
    "ResolveWorkspaceRootOptions": "interface:eed457f9fb",
+   "RouteRegistration": "interface:fc8554ff12",
    "RoutineDeleteResponse": "interface:f4f6781dbb",
    "RoutineHttpDeps": "interface:2c9ea8bbbe",
    "RoutineListResponse": "interface:93d24da8d8",
@@ -511,6 +515,8 @@
    "ToolExecutionRouteTarget": "interface:ec6bc28765",
    "ToolExecutionRoutesOptional": "interface:52fb82dba7",
    "ToolExecutionRoutesRequired": "interface:be27b94a57",
+   "ToolFamilyDescription": "interface:83d46454df",
+   "ToolFamilyPort": "interface:551f6c4689",
    "VersionResponse": "interface:a5ba7f7d31",
    "WorkspaceRootDeniedError": "class:29913509de",
    "WorkspaceRootRequest": "interface:becd271f56",
@@ -904,6 +910,61 @@
    "withToolCallAnalytics": "function:8c6ea69727",
    "withToolCallObservability": "function:37e149a071",
    "withToolFailureRecovery": "function:c0fa822302"
+  }
+ },
+ "./exclusive-run-lease": {
+  "types": "./dist/exclusive-run-lease.d.ts",
+  "symbols": {
+   "ExclusiveRunLease": "interface:6ca3162397",
+   "ExclusiveRunLeaseAcquisition": "type:8ac5230780",
+   "createExclusiveRunLease": "function:180eae088b"
+  }
+ },
+ "./ports/agent-runtime": {
+  "types": "./dist/ports/agent-runtime.d.ts",
+  "symbols": {
+   "AgentRuntimePort": "interface:3c55c218ee",
+   "AgentStreamHandler": "interface:d72de2cf9b",
+   "AgentStreamSink": "type:af3b37412a",
+   "BaseUrlGuardPort": "interface:685d407b4b",
+   "BaseUrlValidationResult": "interface:2075b47da4"
+  }
+ },
+ "./ports/process": {
+  "types": "./dist/ports/process.d.ts",
+  "symbols": {
+   "ProcessSpawnPort": "type:a895608d4a"
+  }
+ },
+ "./ports/provider-http": {
+  "types": "./dist/ports/provider-http.d.ts",
+  "symbols": {
+   "AnthropicToolTurnResult": "interface:41dcca06cb",
+   "PinnedFetch": "type:464c546835",
+   "PinnedFetchInit": "interface:f50fb07b77",
+   "PinnedFetchResponse": "interface:0f3c968107",
+   "ProviderToolTurnPort": "interface:0986ca39a3",
+   "ProviderToolTurnResult": "interface:794cf99464",
+   "ProviderTurnEventRecord": "interface:aab17ed56e"
+  }
+ },
+ "./ports/runtime": {
+  "types": "./dist/ports/runtime.d.ts",
+  "symbols": {
+   "AgentExecutorRuntimePorts": "interface:68c7117fb6"
+  }
+ },
+ "./ports/xai-oauth": {
+  "types": "./dist/ports/xai-oauth.d.ts",
+  "symbols": {
+   "OAuthCallbackListener": "interface:36c82c83ed",
+   "OAuthCallbackOutcome": "type:5d2f8ce9c4",
+   "OAuthPendingAuthorizations": "interface:4a6a5bed16",
+   "OAuthPkceProviderConfig": "interface:8d4e003bd4",
+   "OAuthTokenResponse": "interface:85b8074deb",
+   "ResolvedOAuthCredential": "interface:06484d1d94",
+   "StoredOAuthToken": "interface:a2fc95ca3d",
+   "XaiOAuthPort": "interface:c8205a2610"
   }
  }
 }

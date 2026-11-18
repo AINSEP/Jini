@@ -71,6 +71,8 @@
    "AdminNavGroup": "interface:7da6b80859",
    "AdminNavItem": "interface:27c563540a",
    "AdminPanel": "interface:e82eec9ab0",
+   "AdminPanelAccessDeclaration": "type:281a7549a7",
+   "AdminPanelAccessEntry": "type:985f8dc57e",
    "AdminPlugin": "interface:8cdb0fa809",
    "AdminPolicy": "interface:1769ce67e6",
    "AdminRecoveryDeepLinkResult": "interface:925915db2d",
@@ -161,6 +163,7 @@
    "eraseEntityPort": "function:98f1b15d19",
    "getErasedEntityPort": "function:3218676069",
    "hasPermission": "function:21c5e3ddfa",
+   "isPanelAccessible": "function:13d35c94b8",
    "listErasedEntityPorts": "function:abea4bf941",
    "loadNamespaceValues": "function:ddfb80eb9b",
    "matchRoute": "function:43a5be05bb",
@@ -171,7 +174,8 @@
    "resolveAgentPageId": "function:bfc1b97df6",
    "resolvePanels": "function:6f02ee31d6",
    "saveChangedEntries": "function:add1fa0f1c",
-   "stripTrailingSlash": "function:21e8a87467"
+   "stripTrailingSlash": "function:21e8a87467",
+   "withoutInaccessiblePanels": "function:ceb49acc39"
   }
  },
  "./agent-plugins": {
@@ -436,6 +440,8 @@
    "AdminNavGroup": "interface:7da6b80859",
    "AdminNavItem": "interface:27c563540a",
    "AdminPanel": "interface:e82eec9ab0",
+   "AdminPanelAccessDeclaration": "type:281a7549a7",
+   "AdminPanelAccessEntry": "type:985f8dc57e",
    "AdminPlugin": "interface:8cdb0fa809",
    "AdminPolicy": "interface:1769ce67e6",
    "AdminRecoveryDeepLinkResult": "interface:925915db2d",
@@ -526,6 +532,7 @@
    "eraseEntityPort": "function:98f1b15d19",
    "getErasedEntityPort": "function:3218676069",
    "hasPermission": "function:21c5e3ddfa",
+   "isPanelAccessible": "function:13d35c94b8",
    "listErasedEntityPorts": "function:abea4bf941",
    "loadNamespaceValues": "function:ddfb80eb9b",
    "matchRoute": "function:43a5be05bb",
@@ -536,7 +543,8 @@
    "resolveAgentPageId": "function:bfc1b97df6",
    "resolvePanels": "function:6f02ee31d6",
    "saveChangedEntries": "function:add1fa0f1c",
-   "stripTrailingSlash": "function:21e8a87467"
+   "stripTrailingSlash": "function:21e8a87467",
+   "withoutInaccessiblePanels": "function:ceb49acc39"
   }
  },
  "./core/module": {
@@ -790,7 +798,9 @@
   "symbols": {
    "AdminShell": "function:e37d1d4706",
    "AdminShellAppearance": "interface:3b58d2a937",
+   "AdminShellBaseProps": "interface:314614d305",
    "AdminShellContext": "interface:ec65a27792",
+   "AdminShellHostProps": "interface:dd9c950ae5",
    "AdminShellLabels": "interface:35df642712",
    "AdminShellModel": "interface:6033cac52a",
    "AdminShellNavigationPort": "interface:f3d28f90df",
@@ -800,7 +810,10 @@
    "AdminShellSession": "interface:a004033128",
    "AdminShellSessionController": "interface:753148519f",
    "AdminShellSessionPort": "interface:5ec6ebcfe2",
+   "AdminShellSessionSource": "type:7d01ca8624",
    "AdminShellSessionState": "type:59b3cb6021",
+   "AdminShellSidebarArgs": "interface:631d20116a",
+   "AdminShellSidebarProps": "interface:8114245305",
    "AdminShellSlotArgs": "interface:4507e4c45f",
    "AdminShellSlots": "interface:46da8622d0",
    "AdminThemeEnvironment": "interface:34f58a288c",
@@ -1031,7 +1044,9 @@
   "symbols": {
    "AdminShell": "function:e37d1d4706",
    "AdminShellAppearance": "interface:3b58d2a937",
+   "AdminShellBaseProps": "interface:314614d305",
    "AdminShellContext": "interface:ec65a27792",
+   "AdminShellHostProps": "interface:dd9c950ae5",
    "AdminShellLabels": "interface:35df642712",
    "AdminShellModel": "interface:6033cac52a",
    "AdminShellNavigationPort": "interface:f3d28f90df",
@@ -1041,7 +1056,10 @@
    "AdminShellSession": "interface:a004033128",
    "AdminShellSessionController": "interface:753148519f",
    "AdminShellSessionPort": "interface:5ec6ebcfe2",
+   "AdminShellSessionSource": "type:7d01ca8624",
    "AdminShellSessionState": "type:59b3cb6021",
+   "AdminShellSidebarArgs": "interface:631d20116a",
+   "AdminShellSidebarProps": "interface:8114245305",
    "AdminShellSlotArgs": "interface:4507e4c45f",
    "AdminShellSlots": "interface:46da8622d0",
    "AdminThemeEnvironment": "interface:34f58a288c",

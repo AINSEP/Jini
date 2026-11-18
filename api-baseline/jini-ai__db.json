@@ -443,5 +443,39 @@
    "siteSchemaName": "function:835102398f",
    "topologicalTableCopyOrder": "function:2c3b2df947"
   }
+ },
+ "./gated-mutations": {
+  "types": "./dist/gated-mutations/index.d.ts",
+  "symbols": {
+   "GatedMutationTokensTable": "interface:5592201e73",
+   "SqlTokenStore": "class:c7b45d3032",
+   "TokenStoreSqlRequired": "interface:9a60f0f192",
+   "TokenStoreTables": "interface:32c5084db7"
+  }
+ },
+ "./settings": {
+  "types": "./dist/settings/index.d.ts",
+  "symbols": {
+   "SettingDefinitionsTable": "interface:74abfccadc",
+   "SettingRevisionsTable": "interface:3255dec598",
+   "SettingValuesGlobalTable": "interface:3d4026ffd9",
+   "SettingValuesUserTable": "interface:8155e0b275",
+   "SettingValuesWorkspaceTable": "interface:988b9e61cb",
+   "SettingsSqlRequired": "interface:a140c4da48",
+   "SettingsTables": "interface:bf5d407fd3",
+   "SqlSettingsRepo": "class:881d21d532"
+  }
+ },
+ "./verified-origin": {
+  "types": "./dist/verified-origin/index.d.ts",
+  "symbols": {
+   "ConfiguredOriginWriteResult": "type:ef0fac38e5",
+   "OriginSettingsTable": "interface:0f3a1ca7cb",
+   "OriginSqlOptional": "interface:b788ff27df",
+   "OriginSqlRequired": "interface:e3c90c443a",
+   "OriginTables": "interface:756c63ce2a",
+   "SqlOriginSettingRepo": "class:8f37d8b218",
+   "registerConfiguredOrigin": "function:51aa4653bf"
+  }
  }
 }
