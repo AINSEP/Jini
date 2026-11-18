@@ -29,7 +29,7 @@ export function clampSlideIndex({ index, count }: { index: number; count: number
  * non-negative numeric `active`/`count` (and `active` within range) becomes
  * real state.
  */
-export function parseDeckStateMessage({ data }: { data: unknown }, _optional: Record<string, never> = {}): DeckSlideState | null {
+export function parseDeckStateMessage({ data }: { data: unknown }, _optional?: Record<string, never>): DeckSlideState | null {
   if (typeof data !== 'object' || data === null) return null;
   const { active, count } = data as Record<string, unknown>;
   if (typeof active !== 'number' || typeof count !== 'number') return null;

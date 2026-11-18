@@ -25,10 +25,10 @@ export function statusToneFor({ status, toneMap }: { status: string; toneMap: Re
  */
 export function groupItemsByStatus<TItem extends { status?: string }>(
   { items, statusOrder }: { items: readonly TItem[]; statusOrder: readonly string[] },
-  options: {
+  options?: {
     defaultStatus?: string;
     normalizeStatus?: (status: string) => string;
-  } = {},
+  },
 ): Map<string, TItem[]> {
   const normalize = options?.normalizeStatus ?? ((status: string) => status);
   const fallback = options?.defaultStatus;
