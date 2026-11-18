@@ -32,7 +32,7 @@
  * - Luhn algorithm (credit cards): https://en.wikipedia.org/wiki/Luhn_algorithm
  */
 
-import { authSchemeValueRanges, BARE_SCHEME_TOKEN_PATTERNS } from './redact-auth-schemes.js';
+import { authSchemeValueRanges, BARE_SCHEME_TOKEN_PATTERNS, DIGEST_VALUE } from './redact-auth-schemes.js';
 import { labelAliasValueRanges } from './redact-label-aliases.js';
 import { isProseAfterColon } from './redact-prose-values.js';
 import { forEachOccurrence, forwardFinder, unescapedQuoteFinder } from './redact-text-scan.js';
@@ -291,8 +291,21 @@ export const GENERATED_MARKER_RE = new RegExp(GENERATED_MARKER, 'g');
 const CARD_CANDIDATE = /\b(?:\d[ -]?){12,18}\d\b/g;
 // Inspect/JSON credentials can contain spaces and escaped quotes; consume the entire value.
 const QUOTED_SECRET_VALUE = String.raw`"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'`;
-const API_KEY_HEADER =
-  new RegExp(`(^|[^?&\\w])(["']?)(x-api-key|api-key|x-goog-api-key|x-auth-token)\\2(\\s*[:=]\\s*)(${QUOTED_SECRET_VALUE}|[^\\s,;"'#}]+)`, 'gi');
+// Header names whose whole value is the credential. A scheme word before the credential belongs to the value:
+// masking only the word leaves the credential visible (`x-auth-token: Token <value>`). A scheme word alone
+// describes the header and stays readable.
+const API_KEY_HEADER_NAMES = 'x-api-key|api-key|x-goog-api-key|x-auth-token';
+const HEADER_SCHEME_WORDS = 'Bearer|Token|ApiKey|Digest|Basic';
+const SCHEME_BEARING_VALUE = `(?:Digest[ \\t]+${DIGEST_VALUE}|(?:${HEADER_SCHEME_WORDS})[ \\t]+[^\\s,;"'#}]+)`;
+const SCHEME_WORD_ALONE = `(?:${HEADER_SCHEME_WORDS})(?:[\\s"'.,;:)\\]}]|$)`;
+const headerRule = (names: string, value: string): RegExp =>
+  new RegExp(`(^|[^?&\\w])(["']?)(${names})\\2(\\s*[:=]\\s*)(${QUOTED_SECRET_VALUE}|${value})`, 'gi');
+// The proxy header keeps its scheme word readable like `Authorization` does (the auth-scheme rules own a value
+// that has one); only a value with no scheme word, which no other rule reads, is masked here.
+const API_KEY_HEADERS: readonly RegExp[] = [
+  headerRule(API_KEY_HEADER_NAMES, `${SCHEME_BEARING_VALUE}|(?!${SCHEME_WORD_ALONE})[^\\s,;"'#}]+`),
+  headerRule('proxy-authorization', `(?!${HEADER_SCHEME_WORDS}(?![A-Za-z0-9_-]))[^\\s,;"'#}]+`),
+];
 const API_KEY_QUERY = /([?&](?:key|api_key|api-key)=)[^&#\s,;"']+/gi;
 
 // The length guard and the per-digit `d < 0 || d > 9` guard from the origin
@@ -718,16 +731,18 @@ function collectKeyedCredentials(pass: SpanPass): void {
  * @complexity O(n) over input characters, no I/O. */
 function collectApiKeyHeaders(pass: SpanPass): void {
   const hints = emptyAssignmentRanges(pass.text);
-  collectMatches(pass, API_KEY_HEADER, (match, index) => {
-    const labelStart = index + (match[1] ?? '').length;
-    if (hints.has(labelStart)) return undefined;
-    const value = match[5] ?? '';
-    if (isMaskedValue(value)) return undefined;
-    const end = index + match[0].length;
-    // A quoted value keeps its quotes around the marker.
-    const quoted = /^["']/.test(value) ? 1 : 0;
-    return { start: end - value.length + quoted, end: end - quoted, category: CATEGORY.apiKeyHeader };
-  });
+  for (const rule of API_KEY_HEADERS) {
+    collectMatches(pass, rule, (match, index) => {
+      const labelStart = index + (match[1] ?? '').length;
+      if (hints.has(labelStart)) return undefined;
+      const value = match[5] ?? '';
+      if (isMaskedValue(value)) return undefined;
+      const end = index + match[0].length;
+      // A quoted value keeps its quotes around the marker.
+      const quoted = /^["']/.test(value) ? 1 : 0;
+      return { start: end - value.length + quoted, end: end - quoted, category: CATEGORY.apiKeyHeader };
+    });
+  }
 }
 
 /** Secret-named URL query/fragment values; values already masked keep their category. */
@@ -924,7 +939,7 @@ function exactSyntaxRanges({ text }: { text: string }, _options = {}): Span[] {
   const pass = { text, add };
   collectMatches(pass, new RegExp(`${GENERATED_MARKER}|\\[redacted\\]`, 'gi'), (m, at) => ({ start: at, end: at + m[0].length, category: 'syntax' }));
   collectMatches(pass, MASK_AWARE_LABELED_SECRET_RE, (m, at) => ({ start: at, end: at + m[0].length - 1, category: 'syntax' }));
-  collectMatches(pass, /\bBearer\s+|\bhttps?:\/\/|(?:x-api-key|api-key|x-goog-api-key|x-auth-token)\s*[:=]\s*/gi,
+  collectMatches(pass, new RegExp(`\\bBearer\\s+|\\bhttps?:\\/\\/|(?:${API_KEY_HEADER_NAMES}|proxy-authorization)\\s*[:=]\\s*`, 'gi'),
     (m, at) => ({ start: at, end: at + m[0].length, category: 'syntax' }));
   collectMatches(pass, URL_SECRET_PARAM_RE, (m, at) => ({ start: at, end: at + m[0].indexOf('=') + 1, category: 'syntax' }));
   return mergeSpans(ranges);
