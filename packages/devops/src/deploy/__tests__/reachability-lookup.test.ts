@@ -1,6 +1,7 @@
 import type { lookup } from 'node:dns';
 import { describe, expect, it, vi } from 'vitest';
 import { createReachabilityLookup } from '../node.js';
+import { platformBindings } from './platform-bindings.js';
 
 type ResolverCallback = (error: NodeJS.ErrnoException | null, address?: unknown, family?: number) => void;
 
@@ -14,7 +15,7 @@ function fixedResolver(result: { error?: NodeJS.ErrnoException; address?: unknow
 
 function resolve(resolver: typeof lookup, options: object = {}) {
   const callback = vi.fn();
-  createReachabilityLookup({}, { lookupImpl: resolver })('deploy.example', options, callback);
+  createReachabilityLookup(platformBindings, { lookupImpl: resolver })('deploy.example', options, callback);
   return callback;
 }
 

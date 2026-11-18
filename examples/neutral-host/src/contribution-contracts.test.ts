@@ -167,7 +167,7 @@ const CONTRACTS: Readonly<Record<string, ContractCheck>> = {
     contract: OBJECT_STORE_CONTRACT, filename: `${PREFIX}object-stores.json`, parse: ({ raw }) => parseObjectStoresFile({ raw }),
     validate: ({ exported }) => objectStoreProviderFault({ provider: exported }) ?? exported,
   })),
-  'search-providers': viaDefinition(defineSearchProviderContribution({ filename: `${PREFIX}search-providers.json` })),
+  'search-providers': viaDefinition(defineSearchProviderContribution({ filename: `${PREFIX}search-providers.json`, define: spec => defineProviderContribution(spec) })),
   'source-control': sourceControl,
 };
 

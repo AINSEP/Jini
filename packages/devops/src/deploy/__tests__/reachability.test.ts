@@ -1,9 +1,10 @@
 import { lookup } from 'node:dns';
 import { createNodeReachabilityPorts } from '../node.js';
+import { platformBindings } from './platform-bindings.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { checkDeploymentUrl, normalizeDeploymentUrl, waitForReachableDeploymentUrl } from '../reachability.js';
 
-const { guard } = createNodeReachabilityPorts({});
+const { guard } = createNodeReachabilityPorts(platformBindings);
 
 /** Read global fetch at call time so existing transport stubs and real DNS tests retain their seams. */
 const fetchPort = ({ url }: { url: string }, { init }: { init?: RequestInit } = {}) => fetch(url, init);
@@ -192,7 +193,7 @@ describe('checkDeploymentUrl', () => {
       // Agent's connect-time `lookup` (wired via the injected `lookupImpl`) refusing to connect,
       // not from a mocked network layer — this is what proves the dispatcher is actually
       // attached to the fetch call, mirroring asset-cache's own createValidatingLookup coverage.
-      const result = await checkDeploymentUrl({ url: 'https://rebinding-attacker.example', ...createNodeReachabilityPorts({}, { lookupImpl: fixedLookup('169.254.169.254') }) }, { timeoutMs: 2_000 });
+      const result = await checkDeploymentUrl({ url: 'https://rebinding-attacker.example', ...createNodeReachabilityPorts(platformBindings, { lookupImpl: fixedLookup('169.254.169.254') }) }, { timeoutMs: 2_000 });
       expect(result.reachable).toBe(false);
       expect(result.statusMessage).toContain('Public link is not reachable yet');
     });
@@ -202,7 +203,7 @@ describe('checkDeploymentUrl', () => {
       // documentation, so it is not classified as private, but nothing listens there, so the
       // real connection attempt itself fails. This proves the guard let a public-looking
       // address through to the actual connect step instead of rejecting it.
-      const result = await checkDeploymentUrl({ url: 'https://not-actually-there.example', ...createNodeReachabilityPorts({}, { lookupImpl: fixedLookup('192.0.2.1') }) }, { timeoutMs: 1_000 });
+      const result = await checkDeploymentUrl({ url: 'https://not-actually-there.example', ...createNodeReachabilityPorts(platformBindings, { lookupImpl: fixedLookup('192.0.2.1') }) }, { timeoutMs: 1_000 });
       expect(result.reachable).toBe(false);
       expect(result.statusMessage).not.toContain('private address');
     });

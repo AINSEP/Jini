@@ -1,11 +1,12 @@
 import { createNodeReachabilityPorts } from '../node.js';
+import { platformBindings } from './platform-bindings.js';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { checkDeploymentUrl, waitForReachableDeploymentUrl, type ReachabilityFetchPort } from '../reachability.js';
 
-const { guard } = createNodeReachabilityPorts({});
+const { guard } = createNodeReachabilityPorts(platformBindings);
 
 beforeEach(() => { vi.useFakeTimers(); });
 afterEach(() => { vi.useRealTimers(); });

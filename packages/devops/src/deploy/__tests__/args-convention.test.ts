@@ -1,4 +1,5 @@
 import { createNodeReachabilityPorts } from '../node.js';
+import { platformBindings } from './platform-bindings.js';
 import { describe, expect, it, vi } from 'vitest';
 import {
   DeployError, assertNotRedirected, checkDeploymentUrl,
@@ -7,7 +8,7 @@ import {
   safeProjectLabel, waitForReachableDeploymentUrl, type DeployTarget, type ReachabilityFetchPort,
 } from '../index.js';
 
-const { guard } = createNodeReachabilityPorts({});
+const { guard } = createNodeReachabilityPorts(platformBindings);
 
 describe('deploy required arguments and optional arguments', () => {
   it('preserves label, URL, redirect and error behavior through object arguments', () => {
