@@ -1,0 +1,350 @@
+diff --git a/.changeset/agent-plugins-lifecycle-file-ports.md b/.changeset/agent-plugins-lifecycle-file-ports.md
+new file mode 100644
+index 00000000..f9b13b38
+--- /dev/null
++++ b/.changeset/agent-plugins-lifecycle-file-ports.md
+@@ -0,0 +1,5 @@
++---
++"@jini-ai/agent-plugins": minor
++---
++
++The plugin lifecycle takes its file lock and its atomic journal writer as required ports (`fileLock`, `atomicWriter` on `AgentPluginLifecyclePorts`) instead of importing them from `@jini-ai/platform`. Hosts that spread `createNodeAgentPluginEffects({})` get both already; a host that builds its own effects must now supply them.
+diff --git a/api-baseline/jini-ai__agent-plugins.json b/api-baseline/jini-ai__agent-plugins.json
+index 1f1da6f3..dc93d3ab 100644
+--- a/api-baseline/jini-ai__agent-plugins.json
++++ b/api-baseline/jini-ai__agent-plugins.json
+@@ -510,7 +510,7 @@
+    "AgentPluginLayout": "type:08d4efab5f",
+    "AgentPluginLayoutPort": "interface:d85ecc33eb",
+    "AgentPluginLifecycleOptional": "type:5e69b9ca3d",
+-   "AgentPluginLifecyclePorts": "interface:5080d2f8ad",
++   "AgentPluginLifecyclePorts": "interface:84c6df1f4e",
+    "AgentPluginLifecycleRequired": "type:5ed9a704ff",
+    "AgentPluginManifest": "interface:9bdfdd5a99",
+    "AgentPluginMcpConfig": "interface:c642887fd5",
+@@ -734,7 +734,7 @@
+  "./lifecycle/node": {
+   "types": "./dist/lifecycle/node.d.ts",
+   "symbols": {
+-   "createNodeAgentPluginEffects": "function:aa0c709cec"
++   "createNodeAgentPluginEffects": "function:aa31bc30ce"
+   }
+  },
+  "./lifecycle/tools": {
+diff --git a/packages/agent-plugins/docs/spec/api.spec.md b/packages/agent-plugins/docs/spec/api.spec.md
+index b7216152..5cb6676f 100644
+--- a/packages/agent-plugins/docs/spec/api.spec.md
++++ b/packages/agent-plugins/docs/spec/api.spec.md
+@@ -118,7 +118,7 @@ String-valued path/id/query fields in this table are `string`; flags are `boolea
+ 
+ `provisionAgentPluginMcp({ mcpProvisioning, workspaceId, installed })`, `syncAgentPluginMcpEnabled({ mcpProvisioning, workspaceId, pluginId, enabled })`, and `removeAgentPluginMcp({ mcpProvisioning, workspaceId, pluginId })` each return `Promise<void>` with no second argument. They perform the named host operation, then roster notification. Install, enable, and uninstall do not invoke them automatically.
+ 
+-`createNodeAgentPluginEffects({}, { filesystem?: FilesystemPort } = {})` returns `{ filesystem, clock, ids, process }`; injected native filesystem effects retain their identity. The wrapper factory and wrapper FileHandle/NodeFilesystem types are removed. Generic locks/errors/holder types come directly from `@jini-ai/platform/fs/file-lock`; activation passes 15000ms timeout, 10000ms staleness and 10ms polling.
++`createNodeAgentPluginEffects({}, { filesystem?: FilesystemPort } = {})` returns `{ filesystem, fileLock, atomicWriter, clock, ids, process }` (`fileLock` and `atomicWriter` are the lifecycle's required file ports, bound to platform's functions); injected native filesystem effects retain their identity. The wrapper factory and wrapper FileHandle/NodeFilesystem types are removed. Generic locks/errors/holder types come directly from `@jini-ai/platform/fs/file-lock`; activation passes 15000ms timeout, 10000ms staleness and 10ms polling.
+ 
+ `createYauzlAgentPluginArchiveReader({ yauzl: YauzlPort }): AgentPluginArchiveReaderPort` has no second argument. The exported `YauzlPort`, `YauzlZipFile`, and `YauzlEntry` model the peer library's positional `fromBufferPromise(buffer, options)`, `eachEntry()`, `openReadStreamPromise(entry)`, and `close()` APIs. The consumer supplies the compatible library; imports do not load it automatically.
+ 
+diff --git a/packages/agent-plugins/src/lifecycle/__tests__/unit/activation-edges.unit.test.ts b/packages/agent-plugins/src/lifecycle/__tests__/unit/activation-edges.unit.test.ts
+index 3452dda2..0c49c64a 100644
+--- a/packages/agent-plugins/src/lifecycle/__tests__/unit/activation-edges.unit.test.ts
++++ b/packages/agent-plugins/src/lifecycle/__tests__/unit/activation-edges.unit.test.ts
+@@ -20,10 +20,10 @@ async function workspace(): Promise<string> {
+   temporaries.push(dir);
+   return dir;
+ }
+-const { filesystem, clock, ids, process: hostProcess } = ports;
++const { filesystem, fileLock, clock, ids, process: hostProcess } = ports;
+ /** Each call gets a fresh port object, so each gets its own activation module instance. */
+ function activations(overrides: { filesystem?: FilesystemPort; platform?: NodeJS.Platform } = {}, onEvent?: (event: { message: string }) => void) {
+-  const required = { filesystem: overrides.filesystem ?? filesystem, clock, ids,
++  const required = { filesystem: overrides.filesystem ?? filesystem, fileLock, clock, ids,
+     process: overrides.platform ? { ...hostProcess, platform: overrides.platform } : hostProcess };
+   return onEvent ? createAgentPluginActivations(required, { onEvent }) : createAgentPluginActivations(required);
+ }
+diff --git a/packages/agent-plugins/src/lifecycle/__tests__/unit/file-ports.unit.test.ts b/packages/agent-plugins/src/lifecycle/__tests__/unit/file-ports.unit.test.ts
+new file mode 100644
+index 00000000..fa79b066
+--- /dev/null
++++ b/packages/agent-plugins/src/lifecycle/__tests__/unit/file-ports.unit.test.ts
+@@ -0,0 +1,94 @@
++/**
++ * @file The lifecycle takes its file lock and its atomic journal writer as required ports, and passes
++ * them exactly the options it passed to the platform functions before: argument shapes, the
++ * `filesystem` (lock) versus `fs` (writer) option names, and the error a lock refusal becomes.
++ */
++import { afterEach, describe, expect, test } from 'vitest';
++import * as fs from 'node:fs/promises';
++import os from 'node:os';
++import path from 'node:path';
++import { FileLockTimeoutError, type FileLockPort } from '@jini-ai/core/contracts/runtime';
++import { fakeAtomicWriter, fakeFileLock } from '@jini-ai/core/contracts/runtime/testing';
++import { ACTIVATIONS_LOCK_FILENAME, AgentPluginActivationsBusyError, createAgentPluginActivations } from '../../activation.js';
++import { createPersistentStateModule } from '../../persistent-state.js';
++import { createAgentPluginUpdateStore } from '../../update-store.js';
++import { createAgentPluginLayout } from '../../layout.js';
++import type { AgentPluginLifecyclePorts } from '../../ports.js';
++import { ports as baseline } from '../test-support.js';
++import { forceRemove } from '../fixtures/force-remove.js';
++
++const temporaries: string[] = [];
++afterEach(async () => { for (const dir of temporaries.splice(0)) await forceRemove(dir); });
++async function tempRoot(): Promise<string> {
++  const dir = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'lifecycle-file-ports-')));
++  temporaries.push(dir);
++  return dir;
++}
++
++describe('activation write lock', () => {
++  test('is taken on the activations lock with the 15s / 10s / 10ms budget and the injected filesystem', async () => {
++    const root = await tempRoot();
++    const fileLock = fakeFileLock();
++    const activations = createAgentPluginActivations({ ...baseline, fileLock });
++    await activations.setAgentPluginActivation({ workspaceRoot: root, pluginId: 'plugin-a', enabled: true, actor: 'operator' });
++    expect(fileLock.calls).toHaveLength(1);
++    const [call] = fileLock.calls;
++    expect(call?.lockPath).toBe(path.join(root, ACTIVATIONS_LOCK_FILENAME));
++    expect(call?.options).toMatchObject({ timeoutMs: 15_000, staleMs: 10_000, pollMs: 10 });
++    expect((call?.options as { filesystem?: unknown }).filesystem).toBe(baseline.filesystem);
++  });
++
++  test('a lock timeout reaches the caller as the busy error naming its holder, and nothing is written', async () => {
++    const root = await tempRoot();
++    const holder = { pid: 4242, hostname: 'other-host', token: 'other-writer', acquiredAt: new Date(0).toISOString() };
++    const fileLock: FileLockPort<AgentPluginLifecyclePorts['filesystem']> = {
++      withFileLock: async ({ lockPath }) => { throw new FileLockTimeoutError({ lockPath, holder, waitedMs: 15_000 }); },
++    };
++    const activations = createAgentPluginActivations({ ...baseline, fileLock });
++    const action = activations.setAgentPluginActivation({ workspaceRoot: root, pluginId: 'plugin-a', enabled: true, actor: 'operator' });
++    await expect(action).rejects.toBeInstanceOf(AgentPluginActivationsBusyError);
++    await expect(action).rejects.toMatchObject({ holder });
++    await expect(fs.stat(path.join(root, 'activations.json'))).rejects.toMatchObject({ code: 'ENOENT' });
++  });
++
++  test('any other lock failure reaches the caller unchanged', async () => {
++    const root = await tempRoot();
++    const failure = Object.assign(new Error('lock directory is read-only'), { code: 'EROFS' });
++    const fileLock: FileLockPort<AgentPluginLifecyclePorts['filesystem']> = { withFileLock: async () => { throw failure; } };
++    const activations = createAgentPluginActivations({ ...baseline, fileLock });
++    await expect(activations.setAgentPluginActivation({ workspaceRoot: root, pluginId: 'plugin-a', enabled: true, actor: 'operator' }))
++      .rejects.toBe(failure);
++  });
++});
++
++describe('persistent state lock', () => {
++  test('never ages out and creates its parent directory', async () => {
++    const root = await tempRoot();
++    const fileLock = fakeFileLock();
++    const state = createPersistentStateModule({ ...baseline, fileLock });
++    await state.withIdentityLock({ workspaceRoot: root, run: async () => undefined });
++    expect(fileLock.calls.map(call => call.lockPath)).toEqual([path.join(root, '.publisher-identity.lock')]);
++    expect(fileLock.calls[0]?.options).toMatchObject({ staleMs: Infinity, createParent: true });
++    expect((fileLock.calls[0]?.options as { filesystem?: unknown }).filesystem).toBe(baseline.filesystem);
++  });
++});
++
++describe('update journal write', () => {
++  test('is private from creation and names the filesystem `fs`, not `filesystem`', async () => {
++    const root = await tempRoot();
++    const atomicWriter = fakeAtomicWriter();
++    const layout = createAgentPluginLayout({ root });
++    await fs.mkdir(layout.forWorkspace({ workspaceId: 'workspace-a' }).root, { recursive: true });
++    const store = createAgentPluginUpdateStore({ ports: { ...baseline, layout, atomicWriter }, workspaceId: 'workspace-a', pluginId: 'plugin-a' });
++    const journal = { schemaVersion: 1, state: 'pending', transactionId: 'tx-1', pluginId: 'plugin-a' } as unknown as Parameters<typeof store.write>[0]['journal'];
++    await store.write({ journal });
++    expect(atomicWriter.writes).toHaveLength(1);
++    const [write] = atomicWriter.writes;
++    expect(write?.method).toBe('writeJson');
++    expect(path.basename(write?.filePath ?? '')).toBe('update-journal.json');
++    expect(write?.options).toMatchObject({ createParent: true, mode: 0o600 });
++    expect((write?.options as { fs?: unknown }).fs).toBe(baseline.filesystem);
++    expect(write?.options).not.toHaveProperty('filesystem');
++    expect(JSON.parse(String(atomicWriter.files.get(write?.filePath ?? '')))).toMatchObject({ transactionId: 'tx-1' });
++  });
++});
+diff --git a/packages/agent-plugins/src/lifecycle/__tests__/unit/native-effects.contract.test.ts b/packages/agent-plugins/src/lifecycle/__tests__/unit/native-effects.contract.test.ts
+index 25b9acde..f91d1350 100644
+--- a/packages/agent-plugins/src/lifecycle/__tests__/unit/native-effects.contract.test.ts
++++ b/packages/agent-plugins/src/lifecycle/__tests__/unit/native-effects.contract.test.ts
+@@ -1,5 +1,8 @@
+ import { expect, test, vi } from 'vitest';
+ import * as fs from 'node:fs/promises';
++import os from 'node:os';
++import path from 'node:path';
++import { forceRemove } from '../fixtures/force-remove.js';
+ import { createNodeAgentPluginEffects } from '../../node.js';
+ 
+ // REGRESSION: fails if createNodeAgentPluginEffects wraps the injected native filesystem.
+@@ -25,3 +28,30 @@ test('only an ESRCH probe authorizes reclaiming a local process lock', () => {
+     expect(effects.process.isAlive({ pid: process.pid })).toBe(false);
+   } finally { probe.mockRestore(); }
+ });
++
++// REGRESSION: fails if the bound writer ignores `fs` (the writer's name for the filesystem) or the mode.
++test('the bound atomic writer writes the journal owner-only from creation, through the injected filesystem', async () => {
++  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'native-effects-writer-'));
++  try {
++    const filePath = path.join(root, 'plugin', 'update-journal.json');
++    const rename = vi.fn(fs.rename);
++    await createNodeAgentPluginEffects({}).atomicWriter.writeJson({ filePath, data: { state: 'pending' } }, { fs: { ...fs, rename }, createParent: true, mode: 0o600 });
++    expect(rename).toHaveBeenCalledTimes(1);
++    expect(JSON.parse(await fs.readFile(filePath, 'utf8'))).toEqual({ state: 'pending' });
++    if (process.platform !== 'win32') expect((await fs.stat(filePath)).mode & 0o777).toBe(0o600);
++  } finally { await forceRemove(root); }
++});
++
++// REGRESSION: fails if the bound lock ignores `filesystem` (the lock's name for it) or leaves the lock behind.
++test('the bound file lock runs the section under the injected filesystem and releases the lock', async () => {
++  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'native-effects-lock-'));
++  try {
++    const lockPath = path.join(root, 'state', 'activations.json.lock');
++    const open = vi.fn(fs.open);
++    const filesystem = { ...fs, open };
++    const result = await createNodeAgentPluginEffects({}).fileLock.withFileLock({ lockPath, run: async () => 'ran' }, { filesystem, createParent: true, timeoutMs: 1000 });
++    expect(result).toBe('ran');
++    expect(open).toHaveBeenCalled();
++    await expect(fs.stat(lockPath)).rejects.toMatchObject({ code: 'ENOENT' });
++  } finally { await forceRemove(root); }
++});
+diff --git a/packages/agent-plugins/src/lifecycle/activation.ts b/packages/agent-plugins/src/lifecycle/activation.ts
+index 737ba146..f0c56547 100644
+--- a/packages/agent-plugins/src/lifecycle/activation.ts
++++ b/packages/agent-plugins/src/lifecycle/activation.ts
+@@ -49,7 +49,6 @@ import {
+   type FileLockHolder,
+   type HeldFileLock,
+ } from "@jini-ai/core/contracts/runtime";
+-import { withFileLock } from "@jini-ai/platform/fs/file-lock";
+ import type { AgentPluginLifecyclePorts } from "./ports.js";
+ 
+ /**
+@@ -175,7 +174,7 @@ export interface DeleteAgentPluginActivationRequired {
+   readonly pluginId: string;
+ }
+ 
+-type ActivationPorts = Pick<AgentPluginLifecyclePorts, "filesystem" | "clock" | "ids" | "process" | "onEvent">;
++type ActivationPorts = Pick<AgentPluginLifecyclePorts, "filesystem" | "fileLock" | "clock" | "ids" | "process" | "onEvent">;
+ 
+ function buildModule(ports: ActivationPorts) {
+   const randomUUID = () => ports.ids.newId();
+@@ -816,7 +815,7 @@ function buildModule(ports: ActivationPorts) {
+       await mkdir(workspaceRoot, { recursive: true, mode: 0o700 });
+       const lockPath = path.join(workspaceRoot, ACTIVATIONS_LOCK_FILENAME);
+       try {
+-        return await withFileLock({ lockPath, run: write }, {
++        return await ports.fileLock.withFileLock({ lockPath, run: write }, {
+           timeoutMs: 15_000, staleMs: 10_000, pollMs: 10,
+           filesystem: ports.filesystem, clock: ports.clock, monotonicMs: () => ports.clock.monotonicMs(),
+           process: ports.process,
+diff --git a/packages/agent-plugins/src/lifecycle/node.ts b/packages/agent-plugins/src/lifecycle/node.ts
+index e1f71d68..934e22ea 100644
+--- a/packages/agent-plugins/src/lifecycle/node.ts
++++ b/packages/agent-plugins/src/lifecycle/node.ts
+@@ -3,21 +3,29 @@ import { randomInt, randomUUID } from 'node:crypto';
+ import os from 'node:os';
+ import { performance } from 'node:perf_hooks';
+ import { setTimeout } from 'node:timers/promises';
+-import { readBootIdentity } from '@jini-ai/platform/fs/file-lock';
++import type { AtomicFileWriterPort, FileLockPort } from '@jini-ai/core/contracts/runtime';
++import { writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
++import { readBootIdentity, withFileLock } from '@jini-ai/platform/fs/file-lock';
+ import type { AgentPluginClockPort, AgentPluginIdsPort, AgentPluginProcessPort, FilesystemPort } from './ports.js';
+ 
+ /** Granularity of the uniform [0, 1) value: crypto.randomInt's largest exclusive bound (2^48 - 1). */
+ const RANDOM_RESOLUTION = 2 ** 48 - 1;
+ 
+-/** Opt-in native effects. Layout, fetch, guard, namespace and provisioning remain host-owned. */
++/** Opt-in native effects. Layout, fetch, guard, namespace and provisioning remain host-owned.
++ * `fileLock` and `atomicWriter` are platform's own functions, which accept the lifecycle's
++ * `filesystem` option (the `FileLockPort<never>` of `@jini-ai/node-adapters/fs` would refuse it). */
+ export function createNodeAgentPluginEffects(_required: Record<string, never>, optional: { readonly filesystem?: FilesystemPort } = {}): {
+   filesystem: FilesystemPort;
++  fileLock: FileLockPort<FilesystemPort>;
++  atomicWriter: Pick<AtomicFileWriterPort<FilesystemPort>, 'writeJson'>;
+   clock: AgentPluginClockPort;
+   ids: AgentPluginIdsPort;
+   process: AgentPluginProcessPort;
+ } {
+   return {
+     filesystem: optional.filesystem ?? nativeFilesystem,
++    fileLock: { withFileLock } satisfies FileLockPort<FilesystemPort>,
++    atomicWriter: { writeJson: writeJsonFileAtomicAsync } satisfies Pick<AtomicFileWriterPort<FilesystemPort>, 'writeJson'>,
+     clock: {
+       nowMs: () => Date.now(),
+       monotonicMs: () => performance.now(),
+diff --git a/packages/agent-plugins/src/lifecycle/persistent-state.ts b/packages/agent-plugins/src/lifecycle/persistent-state.ts
+index b9e295b0..7adec572 100644
+--- a/packages/agent-plugins/src/lifecycle/persistent-state.ts
++++ b/packages/agent-plugins/src/lifecycle/persistent-state.ts
+@@ -1,7 +1,6 @@
+ import { resolveAgentPluginLifecycleNamespace } from '../core/identity-namespace.js';
+ import { createPluginMemory, migratePluginLayout, assertPluginStatePath, withPluginStateLock } from '../../core/persistent-state.js';
+ import path from 'node:path';
+-import { withFileLock } from '@jini-ai/platform/fs/file-lock';
+ import { createPackagePathsModule } from './package-paths.js';
+ import { parseAgentPluginManifest } from './manifest.js';
+ import type { AgentPluginLifecyclePorts } from './ports.js';
+@@ -12,7 +11,7 @@ export function createPersistentStateModule(ports: AgentPluginLifecyclePorts, _o
+   const effects = {
+     filesystem: ports.filesystem,
+     contain: ({ root, entryPath }: { root: string; entryPath: string }) => assertContainedOnDisk(root, entryPath),
+-    withLock: <T>({ lockPath, run }: { lockPath: string; run(): Promise<T> }) => withFileLock({ lockPath, run }, {
++    withLock: <T>({ lockPath, run }: { lockPath: string; run(): Promise<T> }) => ports.fileLock.withFileLock({ lockPath, run }, {
+       filesystem: ports.filesystem, clock: ports.clock, process: ports.process,
+       hostname: () => ports.process.hostname({}), token: () => ports.ids.newId(),
+       monotonicMs: () => ports.clock.monotonicMs(), sleep: ({ durationMs }) => ports.clock.sleep({ ms: durationMs }),
+diff --git a/packages/agent-plugins/src/lifecycle/ports.ts b/packages/agent-plugins/src/lifecycle/ports.ts
+index a4907604..2091c95c 100644
+--- a/packages/agent-plugins/src/lifecycle/ports.ts
++++ b/packages/agent-plugins/src/lifecycle/ports.ts
+@@ -1,5 +1,5 @@
+ import type { Clock, IdGenerator } from "@jini-ai/core/primitives";
+-import type { BootIdentity } from "@jini-ai/core/contracts/runtime";
++import type { AtomicFileWriterPort, BootIdentity, FileLockPort } from "@jini-ai/core/contracts/runtime";
+ import type { AgentPluginServerMetadataReader } from './manifest.js';
+ import type { AgentPluginLayoutPort } from './layout.js';
+ import type { AgentPluginDeliveryMode, InstalledAgentPlugin } from './types.js';
+@@ -51,6 +51,10 @@ export interface AgentPluginLifecyclePorts {
+   readonly retiredBundledPlugins: ReadonlyMap<string, string | readonly string[]>;
+   readonly bundledArchiveMagic: string;
+   readonly filesystem: FilesystemPort;
++  /** Exclusive file lock; the host binds it (`@jini-ai/node-adapters/agent-plugins`), never defaulted here. */
++  readonly fileLock: FileLockPort<FilesystemPort>;
++  /** Atomic JSON writer for the update journal; bound by the host like `fileLock`. */
++  readonly atomicWriter: Pick<AtomicFileWriterPort<FilesystemPort>, 'writeJson'>;
+   readonly clock: AgentPluginClockPort;
+   readonly ids: AgentPluginIdsPort;
+   readonly process: AgentPluginProcessPort;
+diff --git a/packages/agent-plugins/src/lifecycle/update-store.ts b/packages/agent-plugins/src/lifecycle/update-store.ts
+index 579039cd..fe32d19c 100644
+--- a/packages/agent-plugins/src/lifecycle/update-store.ts
++++ b/packages/agent-plugins/src/lifecycle/update-store.ts
+@@ -1,5 +1,4 @@
+ import path from 'node:path';
+-import { writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
+ import { createPersistentStateModule } from './persistent-state.js';
+ import type { AgentPluginLifecyclePorts } from './ports.js';
+ 
+@@ -96,7 +95,7 @@ export function createAgentPluginUpdateStore({ ports, workspaceId, pluginId }: {
+   async function write({ journal, history = false }: { journal: AgentPluginUpdateJournal; history?: boolean }, _optional = {}): Promise<void> {
+     const filePath = history ? path.join(root, 'update-history', `${journal.transactionId}.json`) : journalPath;
+     await contain({ entryPath: filePath });
+-    await writeJsonFileAtomicAsync({ filePath, data: journal }, { fs: ports.filesystem,
++    await ports.atomicWriter.writeJson({ filePath, data: journal }, { fs: ports.filesystem,
+       createParent: true, mode: 0o600, platform: ports.process.platform, tempName: () => ports.ids.newId() });
+   }
+   async function clear(_required: Record<string, never>, _optional = {}): Promise<void> {
+diff --git a/scripts/injection-debt.json b/scripts/injection-debt.json
+index f1f29748..65a04372 100644
+--- a/scripts/injection-debt.json
++++ b/scripts/injection-debt.json
+@@ -18,10 +18,7 @@
+   {"rule": "L5-injected-edge", "file": "packages/agent-plugins/core/commerce-server.mjs", "spec": "@jini-ai/commerce", "kind": "export-from", "count": 1, "lane": "R12"},
+   {"rule": "L5-injected-edge", "file": "packages/agent-plugins/package.json", "spec": "@jini-ai/commerce", "kind": "manifest-peer", "count": 1, "lane": "R12"},
+   {"rule": "L5-injected-edge", "file": "packages/agent-plugins/package.json", "spec": "@jini-ai/platform", "kind": "manifest-peer", "count": 1, "lane": "L-PLATFORM"},
+-  {"rule": "L5-injected-edge", "file": "packages/agent-plugins/src/lifecycle/activation.ts", "spec": "@jini-ai/platform/fs/file-lock", "kind": "import", "count": 1, "lane": "L-PLATFORM"},
+   {"rule": "L5-injected-edge", "file": "packages/agent-plugins/src/lifecycle/node.ts", "spec": "@jini-ai/platform/fs/file-lock", "kind": "import", "count": 1, "lane": "L-PLATFORM"},
+-  {"rule": "L5-injected-edge", "file": "packages/agent-plugins/src/lifecycle/persistent-state.ts", "spec": "@jini-ai/platform/fs/file-lock", "kind": "import", "count": 1, "lane": "L-PLATFORM"},
+-  {"rule": "L5-injected-edge", "file": "packages/agent-plugins/src/lifecycle/update-store.ts", "spec": "@jini-ai/platform/fs", "kind": "import", "count": 1, "lane": "L-PLATFORM"},
+   {"rule": "L5-injected-edge", "file": "packages/agent-runtime/package.json", "spec": "@jini-ai/integrations", "kind": "manifest-dependencies", "count": 1, "lane": "L-AGENTS"},
+   {"rule": "L5-injected-edge", "file": "packages/agent-runtime/package.json", "spec": "@jini-ai/oauth", "kind": "manifest-dependencies", "count": 1, "lane": "L-AGENTS"},
+   {"rule": "L5-injected-edge", "file": "packages/agent-runtime/package.json", "spec": "@jini-ai/platform", "kind": "manifest-dependencies", "count": 1, "lane": "L-PLATFORM"},
