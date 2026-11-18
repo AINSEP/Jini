@@ -22,11 +22,10 @@
  *   `ToolExecutor` again (see the daemon module's doc for why a full
  *   authorize/confirm round-trip per keystroke would make a terminal
  *   unusable).
- * - Adapts `deps.manager.attach`'s push/end sink to `sse.ts`'s generic SSE
- *   channel, the same way `runs.ts` adapts `RunLifecycle.stream`.
+ * - Adapts `deps.manager.attach`'s push/end sink to core's SSE stream, the
+ *   same way `runs.ts` adapts `RunLifecycle.stream`.
  */
 import { randomUUID } from 'node:crypto';
-import type { Express, Request, Response } from 'express';
 import type { Principal } from '@jini-ai/core';
 import type {
   TerminalSessionActionResult,
@@ -36,12 +35,26 @@ import type {
 import type { TerminalSseSink } from '@jini-ai/core/contracts/runtime';
 import { TERMINAL_CREATE_TOOL_ID } from '../index.js';
 import type { ToolExecutionResult, ToolExecutor } from '../index.js';
-import { createApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
-import { type RouteHostContext, guardSameOrigin, validationError, statusForError, type SseEvent, err, ok, type Result, type RouteInputContext } from '@jini-ai/core/contracts/server';
+import { createApiError, createApiErrorResponse, type ApiError } from '@jini-ai/protocol';
 import { reportRouteInternalError } from '@jini-ai/http-kit';
-import { sendApiError } from '@jini-ai/http-kit';
-import { createSseChannel, requestedAfterCursor } from '@jini-ai/http-kit';
+import {
+  createSseStream,
+  defineJsonRoute,
+  err,
+  jsonResponse,
+  lastEventCursor,
+  ok,
+  sameOriginRefusal,
+  statusForError,
+  validationError,
+  type ReportRouteInternalError,
+  type Result,
+  type RouteInputContext,
+  type SseEvent,
+} from '@jini-ai/core/contracts/server';
+import type { DaemonRouteHost } from './route-host.js';
+import { gated, gatedJsonRoute, withHostReporter, type DaemonRoute } from './route-table.js';
+import { SSE_CHARSET_HEADERS } from './sse-wire.js';
 import { denyAllWorkspaceRoots, type WorkspaceRootResolver } from './workspace-root.js';
 import { isRecord, readOptionalNonEmptyString, readOptionalNumber, resolveResourceRoot, withoutUndefined } from './resource-request.js';
 
@@ -62,6 +75,8 @@ export interface TerminalsHttpDeps {
   readonly resolveRoot?: WorkspaceRootResolver;
   /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
   readonly onInternalError?: (context: TerminalsInternalErrorContext) => void;
+  /** Makes the request ID and writes the log line for an internal failure. {@link terminalRoutes} sets it to the host's reporter; a caller that runs a route's `handle` itself may omit it and gets `@jini-ai/http-kit`'s. */
+  readonly reportInternalError?: ReportRouteInternalError;
 }
 
 /** Every one-off `terminal.create` tool call gets its own opaque `RunRef` — matching `db-ops.ts`'s `freshRun()`: these are single requests, not steps of a longer-lived agent run. */
@@ -81,7 +96,8 @@ function toolResultToApiResult(deps: TerminalsHttpDeps, result: ToolExecutionRes
     case 'cancelled':
     case 'failed': {
       const message = 'The terminal could not be opened. Try again; if it keeps failing, copy the request ID and report this problem.';
-      return err({ error: reportRouteInternalError<Omit<TerminalsInternalErrorContext, 'correlationId'>>({ report: { source: 'terminal-create', error: result.status === 'failed' ? result.error : result.status }, logSource: 'terminal-create', message }, { onInternalError: deps.onInternalError }) });
+      // No host sink: `reportRouteInternalError`'s default line keeps the failure observable, never silent.
+      return err({ error: (deps.reportInternalError ?? reportRouteInternalError)<Omit<TerminalsInternalErrorContext, 'correlationId'>>({ report: { source: 'terminal-create', error: result.status === 'failed' ? result.error : result.status }, logSource: 'terminal-create', message }, { onInternalError: deps.onInternalError }) });
     }
     default: {
       // Unreachable: every tool result status has a case above, and a new one fails typecheck here.
@@ -169,8 +185,8 @@ export interface TerminalActionResponse {
  * killed between the ownership check and the critical section, per `@jini-ai/daemon`'s
  * `terminal-session.ts` `currentSnapshot`) — is directly unit-testable against a synthetic
  * `TerminalSessionActionResult` rather than requiring a real, hard-to-deterministically-force race
- * through the full `TerminalSessionManager`. Matches this file's own `createDeferredEndGate`
- * precedent for the same "extract into a directly-testable pure function" shape.
+ * through the full `TerminalSessionManager`. Same "extract into a directly-testable pure function" shape as
+ * the other route files' parse helpers.
  */
 export function actionResultToApiResult({ result, notFoundMessage }: { readonly result: TerminalSessionActionResult; readonly notFoundMessage: string }, _optional: Record<string, never> = {}): Result<TerminalActionResponse> {
   if (result.status === 'not-found') return err({ error: createApiError({ code: 'NOT_FOUND', message: notFoundMessage }) });
@@ -226,135 +242,77 @@ export const terminalKillRoute = defineJsonRoute<string, TerminalActionResponse,
 /** `DELETE /api/terminals/:id` — alias for `kill`, matching OD's dual `POST .../kill` / `DELETE` routes. */
 export const terminalDeleteRoute = defineJsonRoute<string, TerminalActionResponse, TerminalsHttpDeps>({ method: 'delete', path: '/api/terminals/:id', parse: parseTerminalId, handle: ({ input: id, deps }) => handleKill(id, deps) }, { requireSameOrigin: true });
 
-/** The wire shape `sse.ts`'s generic channel streams for a terminal — the underlying `@jini-ai/platform` event's `id`/`event`/`data` triple, reshaped to `SseEvent`'s `opaqueCursor`/`kind` naming. */
+/** The wire shape the stream carries for a terminal — the underlying `@jini-ai/platform` event's `id`/`event`/`data` triple, reshaped to `SseEvent`'s `opaqueCursor`/`kind` naming. */
 interface TerminalWireEvent extends SseEvent {
   readonly data: unknown;
 }
 
-/** The one method {@link createDeferredEndGate} needs from `sse.ts`'s channel — narrowed so the gate is unit-testable against a bare fake, not a real `SseChannel`. */
-interface DeferredEndChannel {
-  end(): void;
-}
+/** Path the terminal output stream is mounted at. */
+const TERMINAL_STREAM_ROUTE_PATH = '/api/terminals/:id/stream';
+
+const errorResponse = ({ error }: { readonly error: ApiError }): Response => jsonResponse({ status: statusForError({ error }), body: createApiErrorResponse({ error }) });
 
 /**
- * The `channelOpened`/`endRequestedBeforeOpen` state machine `registerTerminalEventStream`'s
- * `TerminalSseSink.end()` needs, extracted into its own directly-testable unit — see that
- * function's inline comment for *why* the deferral exists (an already-exited session's replay
- * path can call `end()` before `open()` has ever run).
+ * Opens `GET /api/terminals/:id/stream`: the session's output as SSE, with `Last-Event-ID`/`afterCursor` reconnect replay.
  *
- * **On the `markOpened()`-then-`end()` ordering (opened=true when `end()` runs):** this is the
- * ordering every *currently reachable* production call graph in this repo takes for a live
- * session that exits while already streaming — but it is unreachable through that graph, not
- * unreachable in principle. `@jini-ai/platform`'s `TerminalService.finish()` (`packages/platform/src/
- * terminal.ts`) calls `sink.send('exit', ...)` immediately before `sink.end()` for every live
- * client; `send()` here forwards straight to `channel.enqueue()`, whose `isEndEvent: (e) => e.kind
- * === 'exit'` match auto-closes the channel *synchronously inside that same `enqueue()` call* —
- * which synchronously runs `registerTerminalEventStream`'s own `channel.onClose` callback, which
- * detaches this sink from `TerminalService`'s `session.clients` before `finish()`'s own, separate
- * `sink.end()` loop ever runs. That loop iterates `session.clients` fresh at call time (not a
- * snapshot taken before `emit()`), so by the time it runs, this sink has already removed itself —
- * `sink.end()` is consequently never invoked while `channelOpened` is `true` via any call graph
- * this repo's own `@jini-ai/platform` + `@jini-ai/daemon/http` composition can currently produce (confirmed by
- * instrumenting the real call path directly, not inferred from reading the source — a synchronous
- * console probe in `end()` never fired across this file's full "live-exit-while-streaming" test).
- * That is a fact about today's specific `TerminalService`/`SseChannel` wiring, not a proof that no
- * future caller of `TerminalSseSink` could ever call `end()` post-open (a hypothetical non-SSE
- * sink, or a future `TerminalService` exit reason not preceded by a matching `send()`, would hit
- * exactly this branch) — so the branch stays as real, intentional defensive code, tested directly
- * here rather than deleted for being unreachable *today* or left silently uncovered.
+ * `deps.manager.attach` is synchronous and may deliver the whole replay, and even call `sink.end()`, from inside
+ * that one call (an already-exited session). Everything it sends before it returns is history already held
+ * in memory, so it is queued as `backlog` (it does not count against the live-frame cap), and `sink.end()`
+ * ends the stream after the frames already queued: an exited session's replay is delivered whole, then the stream ends.
+ * An unknown session is answered as JSON 404 before any frame is produced. The stream has no heartbeat: this route never sent one.
  */
-export function createDeferredEndGate({ channel }: { readonly channel: DeferredEndChannel }, _optional: Record<string, never> = {}): { markOpened(): void; end(): void } {
-  let opened = false;
-  let endRequestedBeforeOpen = false;
-  return {
-    markOpened(): void {
-      opened = true;
-      // Idempotent-safe even if the queued 'exit' event already auto-closed the channel via
-      // `isEndEvent` during `open()`'s own drain (`channel.end()` is documented safe to call twice).
-      if (endRequestedBeforeOpen) channel.end();
-    },
-    end(): void {
-      if (opened) {
-        channel.end();
-      } else {
-        endRequestedBeforeOpen = true;
-      }
-    },
+function openTerminalStream(
+  { request, id, deps, host }: { readonly request: Request; readonly id: string; readonly deps: TerminalsHttpDeps; readonly host: DaemonRouteHost },
+  _optional: Record<string, never> = {},
+): Response {
+  const cursor = lastEventCursor({ request });
+  let attachedSink: TerminalSseSink | null = null;
+  let attaching = true;
+  const stream = createSseStream<TerminalWireEvent>({ scheduler: host.scheduler }, {
+    signal: request.signal, keepAliveMs: false, headers: SSE_CHARSET_HEADERS,
+    isEndEvent: ({ event }) => event.kind === 'exit',
+    onClose: () => { const sink = attachedSink; attachedSink = null; if (sink) deps.manager.detach({ id, sink }); },
+  });
+  const sink: TerminalSseSink = {
+    send: (event, data, eventId) => stream.send({ event: { opaqueCursor: String(eventId), kind: event, data } }, { backlog: attaching }),
+    end: () => stream.end(),
   };
+  const result = deps.manager.attach({ principal: deps.principal, id, lastEventId: cursor === null ? 0 : Number(cursor), sink });
+  attaching = false;
+  if (result === 'not-found') {
+    stream.end();
+    return errorResponse({ error: createApiError({ code: 'NOT_FOUND', message: `terminal "${id}" was not found` }) });
+  }
+  // The client may have left while `attach` ran: detach now instead of leaking the sink.
+  if (result === 'attached') {
+    if (stream.closed) deps.manager.detach({ id, sink });
+    else attachedSink = sink;
+  }
+  return stream.response;
 }
 
-/**
- * `GET /api/terminals/:id/stream` — SSE, with `Last-Event-ID`/`afterCursor`
- * reconnect replay (via `sse.ts`'s `requestedAfterCursor`, the same helper
- * `runs.ts` uses). Adapts `deps.manager.attach`'s push/end
- * `TerminalSseSink` to `sse.ts`'s generic channel, mirroring
- * `runRoutes`'s event stream's adaptation of `RunLifecycle.stream`.
- *
- * Bypasses `mountJsonRoute` (raw `app.get`, for the SSE response shape), so it does not get
- * `requireSameOrigin` for free the way the JSON routes above do — the guard is applied here
- * directly, before the SSE channel is opened, so a cross-origin request never gets a stream.
- */
-export function registerTerminalEventStream({ app, deps, adapter }: { readonly app: Express; readonly deps: TerminalsHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
-  app.get('/api/terminals/:id/stream', (req: Request, res: Response) => {
-    const origin = guardSameOrigin({ req, origin: adapter });
-    if (!origin.ok) {
-      sendApiError({ res, status: statusForError({ error: origin.error }), error: origin.error });
-      return;
-    }
-    const id = req.params.id;
-    if (typeof id !== 'string' || id.length === 0) {
-      sendApiError({ res, status: 400, error: createApiError({ code: 'BAD_REQUEST', message: 'id must be a non-empty path parameter' }) });
-      return;
-    }
-    const cursor = requestedAfterCursor(req);
-    const lastEventId = cursor === null ? 0 : Number(cursor);
-
-    const channel = createSseChannel<TerminalWireEvent>({ res }, { isEndEvent: ({ event }) => event.kind === 'exit' });
-
-    // `deps.manager.attach` can call `sink.end()` synchronously, from inside the very call below
-    // (an already-exited session's replay path) — before the channel has ever been `open()`ed. If
-    // `end()` mapped straight to `channel.end()`, that would end the response with the queued
-    // backlog never flushed (headers never even sent). `createDeferredEndGate` defers the actual
-    // `channel.end()` call until after `open()` has drained whatever `send()` already queued — see
-    // that function's own doc for the full reachability analysis of its other branch.
-    const deferredEnd = createDeferredEndGate({ channel });
-    const sink: TerminalSseSink = {
-      send(event, data, eventId) {
-        channel.enqueue({ event: { opaqueCursor: String(eventId), kind: event, data } });
-      },
-      end() {
-        deferredEnd.end();
-      },
-    };
-
-    let attachedSink: TerminalSseSink | null = null;
-    channel.onClose({
-      callback: () => {
-        if (attachedSink) deps.manager.detach({ id, sink: attachedSink });
-      }
-    });
-
-    const result = deps.manager.attach({ principal: deps.principal, id, lastEventId, sink });
-    if (result === 'not-found') {
-      channel.abandon();
-      sendApiError({ res, status: 404, error: createApiError({ code: 'NOT_FOUND', message: `terminal "${id}" was not found` }) });
-      return;
-    }
-    if (result === 'attached') {
-      attachedSink = sink;
-    }
-    channel.open();
-    deferredEnd.markOpened();
+/** `GET /api/terminals/:id/stream`. The same-origin check runs before the manager is touched, so a cross-origin request never gets a stream. */
+function terminalStreamRoute({ deps, host }: { readonly deps: TerminalsHttpDeps; readonly host: DaemonRouteHost }): DaemonRoute {
+  return gated({
+    route: {
+      method: 'GET', path: TERMINAL_STREAM_ROUTE_PATH,
+      // The route table never matches an empty `:id` segment, so `params.id` is always a non-empty string here.
+      handler: ({ request, params }) => sameOriginRefusal({ request, origin: host.context }) ?? openTerminalStream({ request, id: params.id ?? '', deps, host }),
+    },
+    gates: [{ name: 'same-origin' }],
   });
 }
 
-/** Mounts every terminal route (`list`/`create`/`stdin`/`resize`/`kill`/`delete`/`stream`) on `app`. A pack's `http(app, services)` calls this directly. */
-export function registerTerminalRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: TerminalsHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
-  mountJsonRoute({ app, spec: terminalListRoute, deps, adapter });
-  mountJsonRoute({ app, spec: terminalCreateRoute, deps, adapter });
-  mountJsonRoute({ app, spec: terminalStdinRoute, deps, adapter });
-  mountJsonRoute({ app, spec: terminalResizeRoute, deps, adapter });
-  mountJsonRoute({ app, spec: terminalKillRoute, deps, adapter });
-  mountJsonRoute({ app, spec: terminalDeleteRoute, deps, adapter });
-  registerTerminalEventStream({ app, deps, adapter });
+/** Every terminal route (`list`/`create`/`stdin`/`resize`/`kill`/`delete`/`stream`) as data. A pack's `http` mounts the list. Internal failures go through the host's reporter. */
+export function terminalRoutes({ deps, host }: { readonly deps: TerminalsHttpDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
+  const routeDeps = withHostReporter({ deps, host });
+  return [
+    gatedJsonRoute({ spec: terminalListRoute, deps: routeDeps, host }),
+    gatedJsonRoute({ spec: terminalCreateRoute, deps: routeDeps, host }),
+    gatedJsonRoute({ spec: terminalStdinRoute, deps: routeDeps, host }),
+    gatedJsonRoute({ spec: terminalResizeRoute, deps: routeDeps, host }),
+    gatedJsonRoute({ spec: terminalKillRoute, deps: routeDeps, host }),
+    gatedJsonRoute({ spec: terminalDeleteRoute, deps: routeDeps, host }),
+    terminalStreamRoute({ deps: routeDeps, host }),
+  ];
 }

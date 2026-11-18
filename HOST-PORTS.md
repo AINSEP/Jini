@@ -576,8 +576,7 @@ Everything a Jini package asks its host to bind or register: `*Port`, `*Kit`, `*
 | `RunHttpDeps` | deps | interface | `packages/daemon/src/http/runs.ts:57` |
 | `runRoutes` | registry | function | `packages/daemon/src/http/runs.ts:355` |
 | `TerminalsHttpDeps` | deps | interface | `packages/daemon/src/http/terminals.ts:57` |
-| `registerTerminalEventStream` | registry | function | `packages/daemon/src/http/terminals.ts:298` |
-| `registerTerminalRoutes` | registry | function | `packages/daemon/src/http/terminals.ts:353` |
+| `terminalRoutes` | registry | function | `packages/daemon/src/http/terminals.ts:307` |
 | `ToolCatalogHttpDeps` | deps | interface | `packages/daemon/src/http/tool-catalog.ts:67` |
 | `toolCatalogRoutes` | registry | function | `packages/daemon/src/http/tool-catalog.ts:113` |
 | `registerToolExecutionRoutes` | registry | function | `packages/daemon/src/http/tool-execution-routes.ts:226` |

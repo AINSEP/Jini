@@ -6,7 +6,7 @@
  *
  * The load-bearing property is that a family's **tools and its routes are the same pack**. Before
  * this module, `create-local-node-daemon.ts` registered the terminal tool and the three `daemon.db.*`
- * tools into a private registry in one place, and mounted `registerTerminalRoutes`/
+ * tools into a private registry in one place, and mounted `terminalRoutes`/
  * `daemonDbRoutes` in another — so gating only the route registrations would have left
  * `jini.terminal.create` registered and still reachable through the always-mounted
  * `POST /api/delegated-tool-calls`. Here, a feature that is not selected contributes neither, and
@@ -38,7 +38,7 @@ import {
   searchToolCatalog,
 } from '@jini-ai/registry/tool-catalog/sqlite';
 import { inspectSqliteDatabase, verifySqliteIntegrity } from '@jini-ai/db/sqlite'; import type { SqliteDb } from '@jini-ai/core/contracts/storage';
-import { xaiRoutes, connectorsRoutes, routineRoutes, mediaRoutes, hostToolsRoutes, healthRoutes, daemonDbRoutes, researchRoutes, delegatedToolRoutes, activeContextRoutes, daemonStatusRoutes, agentRoutes, toolCatalogRoutes, createDaemonDbToolRegistrations, denyAllWorkspaceRoots, registerFrontendSessionRoutes, memoryRoutes, registerModelProxyRoutes, remoteRunEventRoutes, runRoutes, registerTerminalRoutes, type AgentSummary, type DaemonDbOperations, type DaemonDbVacuumResult, type DelegatedToolExecuteRequest, type FrontendSessionsHttpDeps, type MediaHttpDeps, type MemoryHttpDeps, type RemoteToolBridgeTokenConfig, type RoutineHttpDeps, type RunStartHandler, type WorkspaceRootResolver } from '@jini-ai/daemon/http';
+import { xaiRoutes, connectorsRoutes, routineRoutes, mediaRoutes, hostToolsRoutes, healthRoutes, daemonDbRoutes, researchRoutes, delegatedToolRoutes, activeContextRoutes, daemonStatusRoutes, agentRoutes, toolCatalogRoutes, createDaemonDbToolRegistrations, denyAllWorkspaceRoots, registerFrontendSessionRoutes, memoryRoutes, registerModelProxyRoutes, remoteRunEventRoutes, runRoutes, terminalRoutes, type AgentSummary, type DaemonDbOperations, type DaemonDbVacuumResult, type DelegatedToolExecuteRequest, type FrontendSessionsHttpDeps, type MediaHttpDeps, type MemoryHttpDeps, type RemoteToolBridgeTokenConfig, type RoutineHttpDeps, type RunStartHandler, type WorkspaceRootResolver } from '@jini-ai/daemon/http';
 import type { Express } from 'express';
 
 import { defineJiniFeature, type FeatureBuildContext, type JiniFeature } from './feature.js';
@@ -406,12 +406,12 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
             createTerminalToolRegistrations({ manager: services.manager }).create,
           ],
           http: ({ app, services }) =>
-            registerTerminalRoutes({ app: app as Express, deps: {
+            mountRoutes({ app, routes: terminalRoutes({ deps: {
                 manager: services.manager,
                 toolExecutor: services.context.kernel.toolExecutor,
                 principal: options.terminal?.principal ?? LOCAL_DAEMON_PRINCIPAL,
                 resolveRoot: options.terminal?.resolveWorkspaceRoot ?? denyAllWorkspaceRoots,
-              }, adapter: services.context.adapter }),
+              }, host: services.context.routeHost }) }),
           dispose: ({ services }, _optional = {}) => services.manager.shutdownActive(),
         }),
       };

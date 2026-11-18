@@ -238,13 +238,12 @@ export type {
   TerminalsInternalErrorContext,
 } from './terminals.js';
 export {
-  registerTerminalEventStream,
-  registerTerminalRoutes,
   terminalCreateRoute,
   terminalDeleteRoute,
   terminalKillRoute,
   terminalListRoute,
   terminalResizeRoute,
+  terminalRoutes,
   terminalStdinRoute,
 } from './terminals.js';
 export type { ModelProxyHttpDeps, ModelProxyInternalErrorContext } from './model-proxy.js';

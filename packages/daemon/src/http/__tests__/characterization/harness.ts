@@ -38,7 +38,7 @@ import { remoteRunEventRoutes } from '../../remote-run-events.js';
 import { researchRoutes } from '../../research.js';
 import { routineRoutes } from '../../routines.js';
 import { runRoutes } from '../../runs.js';
-import { registerTerminalRoutes } from '../../terminals.js';
+import { terminalRoutes } from '../../terminals.js';
 import { toolCatalogRoutes } from '../../tool-catalog.js';
 import { registerToolExecutionRoutes } from '../../tool-execution-routes.js';
 import { xaiRoutes } from '../../xai.js';
@@ -119,7 +119,7 @@ const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-par
   ['host-tools', ({ adapter, deps, mountList }) => mountList(hostToolsRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['model-proxy', ({ app, adapter, deps }) => registerModelProxyRoutes({ app, deps: deps(), adapter })],
   ['active-context', ({ adapter, deps, mountList }) => mountList(activeContextRoutes({ deps: deps(), host: routeHost(adapter) }))],
-  ['terminals', ({ app, adapter, deps }) => registerTerminalRoutes({ app, deps: deps(), adapter })],
+  ['terminals', ({ adapter, deps, mountList }) => mountList(terminalRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['db-ops', ({ adapter, deps, mountList }) => mountList(daemonDbRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['tool-catalog', ({ adapter, deps, mountList }) => mountList(toolCatalogRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['delegated-tools', ({ adapter, deps, mountList }) => mountList(delegatedToolRoutes({ deps: deps(), host: routeHost(adapter) }))],
