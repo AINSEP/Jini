@@ -47,6 +47,44 @@ export interface MemorySettingsPanelProps {
   useTHook?: typeof useT;
 }
 
+/** The "Memories" / "How it works" segmented view switch. */
+function MemoryViewSwitch({ topTab, onTopTabChange, agentHandle, t }: {
+  topTab: MemorySettingsPanelProps['topTab'];
+  onTopTabChange: MemorySettingsPanelProps['onTopTabChange'];
+  agentHandle: string | undefined;
+  t: ReturnType<typeof useT>;
+}) {
+  return (
+    <div
+      className="jini-seg-control memory-panel-seg"
+      role="tablist"
+      aria-label={t('Memory view')}
+      style={{ '--seg-cols': 2 } as CSSProperties}
+    >
+      <button
+        type="button"
+        role="tab"
+        aria-selected={topTab === 'memories'}
+        className={'jini-seg-btn' + (topTab === 'memories' ? ' active' : '')}
+        onClick={() => onTopTabChange('memories')}
+        {...agentHandleProps({}, { base: agentHandle, ...({ action: 'view-memories', role: 'button', label: t('Memories') }) })}
+      >
+        <span className="jini-seg-title">{t('Memories')}</span>
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={topTab === 'how'}
+        className={'jini-seg-btn' + (topTab === 'how' ? ' active' : '')}
+        onClick={() => onTopTabChange('how')}
+        {...agentHandleProps({}, { base: agentHandle, ...({ action: 'view-how', role: 'button', label: t('How it works') }) })}
+      >
+        <span className="jini-seg-title">{t('How it works')}</span>
+      </button>
+    </div>
+  );
+}
+
 export function MemorySettingsPanel({
   enabled,
   onToggleEnabled,
@@ -76,33 +114,7 @@ export function MemorySettingsPanel({
           </p>
         </div>
         <div className="memory-panel-head-controls">
-          <div
-            className="jini-seg-control memory-panel-seg"
-            role="tablist"
-            aria-label={t('Memory view')}
-            style={{ '--seg-cols': 2 } as CSSProperties}
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={topTab === 'memories'}
-              className={'jini-seg-btn' + (topTab === 'memories' ? ' active' : '')}
-              onClick={() => onTopTabChange('memories')}
-              {...agentHandleProps({}, { base: agentHandle, ...({ action: 'view-memories', role: 'button', label: t('Memories') }) })}
-            >
-              <span className="jini-seg-title">{t('Memories')}</span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={topTab === 'how'}
-              className={'jini-seg-btn' + (topTab === 'how' ? ' active' : '')}
-              onClick={() => onTopTabChange('how')}
-              {...agentHandleProps({}, { base: agentHandle, ...({ action: 'view-how', role: 'button', label: t('How it works') }) })}
-            >
-              <span className="jini-seg-title">{t('How it works')}</span>
-            </button>
-          </div>
+          <MemoryViewSwitch topTab={topTab} onTopTabChange={onTopTabChange} agentHandle={agentHandle} t={t} />
           <button
             type="button"
             className="memory-icon-btn"

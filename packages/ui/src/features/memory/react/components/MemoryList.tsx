@@ -195,6 +195,40 @@ function MemoryListRows({
   );
 }
 
+/** Filter pills plus, while extractions are listed, their clear / refresh actions. */
+function MemoryListToolbar({ entries, extractionCount, filter, onFilterChange, onClearExtractions, onRefreshExtractions, isRefreshing, agentHandle }: {
+  entries: MemoryEntrySummary[];
+  extractionCount: number;
+  filter: 'all' | MemoryType;
+  onFilterChange: (filter: 'all' | MemoryType) => void;
+  onClearExtractions: () => void;
+  onRefreshExtractions: () => void;
+  isRefreshing: boolean;
+  agentHandle: string | undefined;
+}) {
+  return (
+  <div className="library-toolbar is-row">
+    <MemoryFilterPills
+      entries={entries}
+      extractionCount={extractionCount}
+      filter={filter}
+      onFilterChange={onFilterChange}
+      agentHandle={agentHandle}
+    />
+    <div className="memory-management-actions">
+      {extractionCount > 0 ? (
+        <MemoryExtractionActions
+          onClearExtractions={onClearExtractions}
+          onRefreshExtractions={onRefreshExtractions}
+          isRefreshing={isRefreshing}
+          agentHandle={agentHandle}
+        />
+      ) : null}
+    </div>
+  </div>
+  );
+}
+
 export function MemoryList({
   sectionRef,
   entries,
@@ -249,25 +283,16 @@ export function MemoryList({
           <MemoryListCounts savedCount={entries.length} extractionCount={visibleExtractions.length} />
         </div>
 
-        <div className="library-toolbar is-row">
-          <MemoryFilterPills
-            entries={entries}
-            extractionCount={visibleExtractions.length}
-            filter={filter}
-            onFilterChange={onFilterChange}
-            agentHandle={agentHandle}
-          />
-          <div className="memory-management-actions">
-            {visibleExtractions.length > 0 ? (
-              <MemoryExtractionActions
-                onClearExtractions={onClearExtractions}
-                onRefreshExtractions={onRefreshExtractions}
-                isRefreshing={isRefreshing}
-                agentHandle={agentHandle}
-              />
-            ) : null}
-          </div>
-        </div>
+        <MemoryListToolbar
+          entries={entries}
+          extractionCount={visibleExtractions.length}
+          filter={filter}
+          onFilterChange={onFilterChange}
+          onClearExtractions={onClearExtractions}
+          onRefreshExtractions={onRefreshExtractions}
+          isRefreshing={isRefreshing}
+          agentHandle={agentHandle}
+        />
 
         <div className="library-content memory-unified-list">
           {unifiedMemoryCount === 0 ? (

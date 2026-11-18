@@ -553,28 +553,10 @@
         "packages/chat/src/embed-widget/react/embed.tsx"
       ]
     },
-    "EntityDetail::useEntityDetail": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/react/entities/EntityDetail.tsx"
-      ]
-    },
-    "EntityEditor::useEntityEdit": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/react/entities/EntityEdit.tsx"
-      ]
-    },
     "EntityField::useAgentHandle": {
       "count": 1,
       "files": [
         "packages/admin/src/react/entities/EntityField.tsx"
-      ]
-    },
-    "EntityList::useEntityList": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/react/entities/EntityList.tsx"
       ]
     },
     "EntryPicker::useSeoCopy": {
@@ -1162,7 +1144,9 @@
     },
     "QueueActionsCell::useQueueActionsCell": {
       "count": 1,
-      "files": []
+      "files": [
+        "packages/admin/src/comments/react/components/QueueActionsCell.tsx"
+      ]
     },
     "QueueSection::useQueueSection": {
       "count": 1,
