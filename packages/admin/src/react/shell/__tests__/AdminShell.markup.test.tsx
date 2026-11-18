@@ -1,8 +1,8 @@
-import { cleanup, render } from '@testing-library/react';
+import { cleanup } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { AdminShell } from '../AdminShell.js';
 import type { AdminShellHostProps } from '../types.js';
-import { authenticated, baseFields, ports } from './shell-fixture.js';
+import { authenticated, baseFields, ports, renderWithKit as render } from './shell-fixture.js';
 
 // J2 steps 3 and 4: an absent new slot renders exactly the markup the shell rendered before it existed.
 // The snapshot was taken before any slot was added; a diff here is a change to what hosts see.

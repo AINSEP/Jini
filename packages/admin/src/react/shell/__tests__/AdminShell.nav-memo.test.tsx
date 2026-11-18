@@ -1,8 +1,8 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { AdminShell } from '../AdminShell.js';
 import type { AdminShellHostProps, AdminShellProps } from '../types.js';
-import { authenticated, baseFields, ports } from './shell-fixture.js';
+import { authenticated, baseFields, ports, renderWithKit as render } from './shell-fixture.js';
 
 // J2 step 2: the nav is derived once per (panels, capabilities, permissions, translateNav, route), not once per render.
 afterEach(cleanup);

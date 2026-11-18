@@ -1,9 +1,9 @@
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, screen } from '@testing-library/react';
 import { afterEach, expect, expectTypeOf, it, vi } from 'vitest';
 import { AdminShell } from '../AdminShell.js';
 import type { AdminShellAppearance } from '../theme-ports.js';
 import type { AdminShellHostProps, AdminShellProps, AdminShellSessionController } from '../types.js';
-import { baseFields, baseProps, controller, operator, ports, type Ports } from './shell-fixture.js';
+import { baseFields, baseProps, controller, operator, ports, type Ports, renderWithKit as render } from './shell-fixture.js';
 
 // J2 step 1: every hook the shell calls arrives as a prop defaulted to the real hook, so each
 // test hands the shell a fake and asserts the real one's collaborator was never touched.

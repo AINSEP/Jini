@@ -1,10 +1,10 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { AdminNavGroup } from '../../../core/manifest/rules.js';
 import { Sidebar } from '../../components/Sidebar.js';
 import { AdminShell } from '../AdminShell.js';
 import type { AdminShellHostProps, AdminShellPanel, AdminShellSlots } from '../types.js';
-import { authenticated, baseFields, operator, panels, ports, controller } from './shell-fixture.js';
+import { authenticated, baseFields, operator, panels, ports, controller, renderWithKit as render } from './shell-fixture.js';
 
 // J2 step 3: `slots.sidebar` replaces the shell's fixed sidebar arrangement with a host-composed one.
 beforeEach(() => localStorage.clear());

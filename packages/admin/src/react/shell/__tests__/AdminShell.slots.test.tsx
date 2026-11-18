@@ -1,9 +1,9 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 import { createContext, useContext, useEffect, type ReactNode } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { AdminShell } from '../AdminShell.js';
 import type { AdminShellHostProps, AdminShellPanel, AdminShellSessionController, AdminShellSlots } from '../types.js';
-import { authenticated, baseFields, controller, operator, ports } from './shell-fixture.js';
+import { authenticated, baseFields, controller, operator, ports, renderWithKit as render } from './shell-fixture.js';
 
 // J2 step 4: the frame and the small slots a host needs to put its own chrome around the shell.
 beforeEach(() => localStorage.clear());

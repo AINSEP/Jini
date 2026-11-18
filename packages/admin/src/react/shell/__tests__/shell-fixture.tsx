@@ -1,4 +1,8 @@
+import { render, type RenderOptions, type RenderResult } from '@testing-library/react';
+import type { ReactElement, ReactNode } from 'react';
 import { vi } from 'vitest';
+import { AdminKitProvider } from '../../kit.js';
+import { fakeAdminKit } from '../../testing-kit.js';
 import type {
   AdminShellBaseProps, AdminShellNavigationPort, AdminShellPanel, AdminShellProps, AdminShellSession, AdminShellSessionController, AdminShellSessionPort,
 } from '../types.js';
@@ -56,3 +60,12 @@ export const authenticated = (): (() => AdminShellSessionController) => {
   const host = controller({ status: 'authenticated', session: operator });
   return () => host;
 };
+
+/**
+ * `render` with the host kit above the shell: the shell reads its theme functions from the nearest
+ * `AdminKitProvider` (R1c), so every shell test mounts under the fake kit instead of the real host's.
+ */
+export function renderWithKit(ui: ReactElement, options: Omit<RenderOptions, 'wrapper'> = {}): RenderResult {
+  const wrapper = ({ children }: { children: ReactNode }) => <AdminKitProvider kit={fakeAdminKit()}>{children}</AdminKitProvider>;
+  return render(ui, { ...options, wrapper });
+}
