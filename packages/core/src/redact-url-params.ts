@@ -15,8 +15,11 @@
 // verifier; one-time login and verification codes) are masked, each as a whole name.
 const URL_SECRET_WORDS = 'token|key|secret|signature|sig|password|passwd|pwd|auth|authorization|credential';
 // The set of exact code names above (also activation, reset, invite, ...): not "anything ending in code": zipcode, promo_code and error_code are public values.
-const URL_CODE_NAMES = 'code_verifier|code|otp|totp|(?:activation|authorization|auth|verification|verify|confirmation|confirm|login|signin|session|device|'
-  + 'security|access|reset|recovery|invite|invitation|magic|pairing|oauth|sms|mfa|otp|two[_.-]?factor|one[_.-]?time)[_.-]?code';
+// Backup, scratch and emergency codes sign a person in once the second factor is lost, so they are credentials too. A
+// name may be plural (`recovery_codes`) and carry one leading qualifier word (`mfa_backup_code`), which still has to
+// end in one of these credential code names.
+const URL_CODE_NAMES = 'code_verifier|code|otp|totp|(?:[a-z0-9]{1,32}[_.-])?(?:activation|authorization|auth|verification|verify|confirmation|confirm|login|signin|session|device|'
+  + 'security|access|reset|recovery|invite|invitation|magic|pairing|oauth|sms|mfa|otp|backup|scratch|emergency|two[_.-]?factor|one[_.-]?time)[_.-]?codes?';
 export const URL_SECRET_PARAM_RE = new RegExp(
   `[?&#;]((?:${URL_CODE_NAMES})(?==)|[\\w.-]{0,128}?(?:${URL_SECRET_WORDS})s?(?=[._=-])[\\w.-]{0,128})=[^&;\\s"'<>()]+`,
   'gi',
