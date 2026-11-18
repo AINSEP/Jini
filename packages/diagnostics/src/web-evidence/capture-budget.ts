@@ -26,7 +26,7 @@ export interface CaptureBudget {
 }
 
 /** A request value that is not a finite, positive number adds nothing. */
-const extraMs = (value: number | undefined, unitMs: number): number =>
+const extraMs = ({ value, unitMs }: { value: number | undefined; unitMs: number }): number =>
   value !== undefined && Number.isFinite(value) && value > 0 ? value * unitMs : 0;
 
 /** The time one capture may take: the base, plus what the request itself asks for, up to the cap.
@@ -36,7 +36,7 @@ export function captureBudget(
   { settleMs, fullPage, waitForSeconds }: CaptureRequest,
   { baseMs, fullPageMs, capMs, reserveMs }: CaptureBudgetLimits,
 ): CaptureBudget {
-  const waitMs = waitForSeconds === undefined ? extraMs(settleMs, 1) : extraMs(waitForSeconds, 1_000);
+  const waitMs = waitForSeconds === undefined ? extraMs({ value: settleMs, unitMs: 1 }) : extraMs({ value: waitForSeconds, unitMs: 1_000 });
   const totalMs = Math.min(capMs, baseMs + waitMs + (fullPage === true ? fullPageMs : 0));
   if (!(reserveMs > 0 && reserveMs < totalMs)) {
     throw new RangeError(`capture reserve ${reserveMs}ms must be above 0 and below the capture total ${totalMs}ms`);
