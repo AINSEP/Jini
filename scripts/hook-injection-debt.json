@@ -319,12 +319,6 @@
         "packages/chat/src/react/components/QuestionForm.tsx"
       ]
     },
-    "QueueActionsCell::useQueueActionsCell": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/comments/react/components/QueueActionsCell.tsx"
-      ]
-    },
     "RoleRow::useRoleRow": {
       "count": 1,
       "files": [
