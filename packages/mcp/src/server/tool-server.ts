@@ -325,7 +325,12 @@ function createCallToolHandler(cfg: HostConfig, { toolIndex, ctx, resultPages }:
   };
 }
 
-function registerResourceHandlers(cfg: HostConfig, server: ReturnType<HostConfig['createServer']>, ctx: McpToolContext, withActivity: ActivityTracker): void {
+function registerResourceHandlers({ cfg, server, ctx, withActivity }: {
+  cfg: HostConfig;
+  server: ReturnType<HostConfig['createServer']>;
+  ctx: McpToolContext;
+  withActivity: ActivityTracker;
+}): void {
   const { resources, resourceIndex } = cfg;
   server.setRequestHandler({
     schema: ListResourcesRequestSchema,
@@ -366,7 +371,7 @@ async function connectHost(cfg: HostConfig, { transport, withActivity }: {
     handler: withActivity(async () => ({ tools: toolsToList({ tools: [...toolIndex.values()] }) })),
   });
   server.setRequestHandler({ schema: CallToolRequestSchema, handler: withActivity(createCallToolHandler(cfg, { toolIndex, ctx, resultPages })) });
-  if (resources.length > 0) registerResourceHandlers(cfg, server, ctx, withActivity);
+  if (resources.length > 0) registerResourceHandlers({ cfg, server, ctx, withActivity });
 
   try {
     await server.connect({ transport });

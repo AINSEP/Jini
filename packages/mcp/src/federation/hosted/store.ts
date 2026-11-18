@@ -489,7 +489,10 @@ async function openExternalMcpEnv(
  * tools vanished, and the reason string is the only thing carrying that at boot. The admin tab's
  * `needs_reauth` badge is the out-of-band half of the same signal.
  */
-function oauthStatusFailure(record: ExternalMcpServerRecord, settingsLink: string): Omit<ExternalMcpConfigFailure, "serverId"> | null {
+function oauthStatusFailure({ record, settingsLink }: {
+  record: ExternalMcpServerRecord;
+  settingsLink: string;
+}): Omit<ExternalMcpConfigFailure, "serverId"> | null {
   const status = resolveExternalMcpOAuthStatus(record);
   if (status === "connected") return null;
   if (status === "needs_reauth") {
@@ -517,7 +520,7 @@ async function resolveExternalMcpAccessToken(
     const shared = await oauth?.resolveSharedAccessToken?.({ serverId: record.serverId });
     if (shared !== undefined) return { ok: true, token: shared, shared: true };
   } catch { return { ok: false, reason: `This shared connection is no longer granted to this site. Choose it again or sign in from ${settingsLink}.` }; }
-  const statusFailure = oauthStatusFailure(record, settingsLink);
+  const statusFailure = oauthStatusFailure({ record, settingsLink });
   if (statusFailure !== null) return { ok: false, ...statusFailure };
   if (!oauth) {
     return { ok: false, reason: "this process was not wired with an OAuth token resolver, so its access token cannot be obtained" };
