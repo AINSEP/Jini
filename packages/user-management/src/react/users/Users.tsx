@@ -83,31 +83,15 @@ export interface UsersBaseProps extends Omit<UsersDependencies, "translate">, Us
   renderServerLabel?: ((required: { value: string }) => ReactNode) | undefined;
 }
 
-type UsersHookOverrides = {
-  useSelectedUsersHook?: typeof useUsers | UsersHook | undefined;
-  useFields?: typeof useResetPasswordFields | undefined;
-};
-type UsersCustomHookOverrides = Omit<UsersHookOverrides, "useSelectedUsersHook"> & {
-  useSelectedUsersHook?: UsersHook | undefined;
-};
-
 /**
  * `translate` is only ever forwarded to the hook, so it is required exactly when the default
  * {@link useUsers} (or a hook typed like it) runs, and optional when the host supplies a
  * {@link UsersHook} that does not read it — instead of a dead `translate={key => key}` stub.
  */
 export type UsersProps = UsersBaseProps & (
-  | { useUsersHook?: typeof useUsers | UsersHook | undefined; translate: Translate; hooks?: UsersHookOverrides | undefined }
-  | { useUsersHook: UsersHook; translate?: Translate | undefined; hooks?: UsersCustomHookOverrides | undefined }
-  | { useUsersHook?: typeof useUsers | UsersHook | undefined; translate?: Translate | undefined; hooks: UsersCustomHookOverrides & { useSelectedUsersHook: UsersHook } }
+  | { useUsersHook?: typeof useUsers | undefined; translate: Translate }
+  | { useUsersHook: UsersHook; translate?: Translate | undefined }
 );
-
-// Widening `useUsers` to `UsersHook` is sound only through the `UsersProps` union: whenever the
-// selected hook requires `translate`, it is required by the props. TypeScript cannot correlate the
-// destructured props itself.
-function resolveUsersHook(override: typeof useUsers | UsersHook | undefined): UsersHook {
-  return (override ?? useUsers) as UsersHook;
-}
 
 interface NewUserFormProps {
   username: string;
@@ -648,18 +632,7 @@ interface UserResetPasswordDialogProps {
   t: (key: string) => string;
   /** Injectable seam for the confirm-field + reveal-toggle state. Defaults to the real
    *  {@link useResetPasswordFields}. */
-  useFields?: typeof useResetPasswordFields | undefined;
-  hooks?: { useFields?: typeof useResetPasswordFields | undefined };
-}
-
-/** Resolves `useFields` to the real hook when no override is passed, because ESLint's
- *  cyclomatic-complexity rule counts a default parameter value evaluated inside a function's OWN
- *  body as one of that function's own branches; a call out to a separately-scoped resolver does
- *  not. */
-function resolveResetPasswordFieldsHook(
-  override: typeof useResetPasswordFields | undefined,
-): typeof useResetPasswordFields {
-  return override ?? useResetPasswordFields;
+  useFields?: typeof useResetPasswordFields;
 }
 
 /** The reset-password dialog — extracted from `Users` verbatim, since extended with the confirm
@@ -674,7 +647,12 @@ function UserResetPasswordDialog({
   passwordSaving,
   confirmResetPassword,
   t,
-  useFields: useFieldsProp, hooks: { useFields = resolveResetPasswordFieldsHook(useFieldsProp) } = {},
+  // A `resolveResetPasswordFieldsHook` helper used to do this: it resolved `useFields` to the real
+  // hook when no override is passed, because ESLint's cyclomatic-complexity rule counts a default
+  // parameter value evaluated inside a function's OWN body as one of that function's own branches;
+  // a call out to a separately-scoped resolver does not. The hook-injection gate only accepts a
+  // defaulted prop, and with it this dialog is complexity 6 (limit 10), so the default lives here.
+  useFields = useResetPasswordFields,
 }: UserResetPasswordDialogProps) {
   const fields = useFields({ resetPasswordFor, newPassword });
   const displayedError = fields.mismatch ? t("Passwords do not match.") : passwordError;
@@ -837,9 +815,12 @@ function userManageController({ controller, roles, policies }: {
   };
 }
 
-export function Users({ useUsersHook, hooks: { useSelectedUsersHook = resolveUsersHook(useUsersHook), useFields } = {}, port, translate: injectedTranslate, queryScope,
+export function Users({ useUsersHook = useUsers, port, translate: injectedTranslate, queryScope,
   openOwnPasswordReset, onOwnPasswordResetClosed, passwordResetNotice, renderServerLabel }: UsersProps) {
-  const controller = useSelectedUsersHook({ port, translate: injectedTranslate as Translate, queryScope }, {
+  // Widening `useUsers` to `UsersHook` is sound only through the `UsersProps` union: whenever
+  // `useUsersHook` is omitted or typed as `useUsers`, `translate` is required, so the default hook
+  // never runs without it. TypeScript cannot correlate the two destructured props itself.
+  const controller = (useUsersHook as UsersHook)({ port, translate: injectedTranslate, queryScope }, {
     openOwnPasswordReset, onOwnPasswordResetClosed, passwordResetNotice,
   });
   const {
@@ -962,7 +943,6 @@ export function Users({ useUsersHook, hooks: { useSelectedUsersHook = resolveUse
         t={t}
       />
       <UserResetPasswordDialog
-        useFields={useFields}
         resetPasswordFor={resetPasswordFor}
         setResetPasswordFor={setResetPasswordFor}
         newPassword={newPassword}
