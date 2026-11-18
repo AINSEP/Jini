@@ -188,7 +188,7 @@ describe('emitWithTextSuppressor', () => {
   it('forwards a text_delta event when visible text survives', () => {
     const s = createDsmlArtifactTextSuppressor();
     const onEvent = vi.fn();
-    const emitted = emitWithTextSuppressor(s, onEvent, 'hello');
+    const emitted = emitWithTextSuppressor({ suppressor: s, onEvent, text: 'hello' });
     expect(emitted).toBe(true);
     expect(onEvent).toHaveBeenCalledWith({ type: 'text_delta', delta: 'hello' });
   });
@@ -196,7 +196,7 @@ describe('emitWithTextSuppressor', () => {
   it('does not forward an event when nothing survives suppression', () => {
     const s = createDsmlArtifactTextSuppressor();
     const onEvent = vi.fn();
-    const emitted = emitWithTextSuppressor(s, onEvent, '<artifact>hidden');
+    const emitted = emitWithTextSuppressor({ suppressor: s, onEvent, text: '<artifact>hidden' });
     expect(emitted).toBe(false);
     expect(onEvent).not.toHaveBeenCalled();
   });

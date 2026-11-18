@@ -16,33 +16,33 @@ describe('isRecord', () => {
 
 describe('errorMessage', () => {
   it('returns the message of an Error instance', () => {
-    expect(errorMessage(new Error('boom'))).toBe('boom');
+    expect(errorMessage({ err: new Error('boom') })).toBe('boom');
   });
   it('stringifies non-Error values', () => {
-    expect(errorMessage('plain')).toBe('plain');
-    expect(errorMessage(7)).toBe('7');
+    expect(errorMessage({ err: 'plain' })).toBe('plain');
+    expect(errorMessage({ err: 7 })).toBe('7');
   });
 });
 
 describe('errorCode', () => {
   it('extracts a string code field', () => {
-    expect(errorCode({ code: 'EPIPE' })).toBe('EPIPE');
+    expect(errorCode({ err: { code: 'EPIPE' } })).toBe('EPIPE');
   });
   it('returns undefined when code is missing, not a string, or value is not a record', () => {
-    expect(errorCode({})).toBeUndefined();
-    expect(errorCode({ code: 42 })).toBeUndefined();
-    expect(errorCode('not a record')).toBeUndefined();
-    expect(errorCode(null)).toBeUndefined();
+    expect(errorCode({ err: {} })).toBeUndefined();
+    expect(errorCode({ err: { code: 42 } })).toBeUndefined();
+    expect(errorCode({ err: 'not a record' })).toBeUndefined();
+    expect(errorCode({ err: null })).toBeUndefined();
   });
 });
 
 describe('getRecord', () => {
   it('returns the value when it is a record', () => {
     const v = { a: 1 };
-    expect(getRecord(v)).toBe(v);
+    expect(getRecord({ value: v })).toBe(v);
   });
   it('returns undefined otherwise', () => {
-    expect(getRecord(null)).toBeUndefined();
-    expect(getRecord('x')).toBeUndefined();
+    expect(getRecord({ value: null })).toBeUndefined();
+    expect(getRecord({ value: 'x' })).toBeUndefined();
   });
 });

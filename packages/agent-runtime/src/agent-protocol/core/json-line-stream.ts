@@ -34,7 +34,7 @@ function resetPendingJson(state: JsonLineAccumulatorState): void {
   state.pendingJsonLineCount = 0;
 }
 
-export function emitJsonLine(candidate: string, onMessage: (requiredArgs: { message: unknown; rawLine: string }) => void): boolean {
+export function emitJsonLine({ candidate, onMessage }: { candidate: string; onMessage: (requiredArgs: { message: unknown; rawLine: string }) => void }, _optional: Record<string, never> = {}): boolean {
   try {
     onMessage({ message: JSON.parse(candidate), rawLine: candidate });
     return true;
@@ -47,61 +47,55 @@ export function emitJsonLine(candidate: string, onMessage: (requiredArgs: { mess
 // Either resolves it (parses, or gives up and re-processes `trimmed` fresh)
 // or keeps accumulating.
 export function continuePendingJsonLine(
-  state: JsonLineAccumulatorState,
-  trimmed: string,
-  onMessage: (requiredArgs: { message: unknown; rawLine: string }) => void,
-  onError?: (error: RangeError) => void,
+  { state, trimmed, onMessage }: { state: JsonLineAccumulatorState; trimmed: string; onMessage: (requiredArgs: { message: unknown; rawLine: string }) => void }, { onError }: { onError?: ((error: RangeError) => void) | undefined } = {},
 ): void {
   // Enforce aggregate limits before JSON.parse; a complete closing line earns no exemption.
   if (state.pendingJson.length + 1 + trimmed.length > 128_000 || state.pendingJsonLineCount >= 256) {
     resetPendingJson(state);
     onError?.(new RangeError(MULTILINE_LIMIT_MESSAGE));
     // A complete physical frame may follow a stray opening line; its own line budget still applies.
-    handleJsonLine(state, trimmed, onMessage, onError);
+    handleJsonLine({ state, line: trimmed, onMessage }, { onError });
     return;
   }
   const nextCandidate = `${state.pendingJson}\n${trimmed}`;
-  if (emitJsonLine(nextCandidate, onMessage)) {
+  if (emitJsonLine({ candidate: nextCandidate, onMessage })) {
     resetPendingJson(state);
     return;
   }
   state.pendingJsonLineCount += 1;
-  const classification = classifyJsonCandidate(nextCandidate);
+  const classification = classifyJsonCandidate({ value: nextCandidate });
   if (classification === 'incomplete') {
     state.pendingJson = nextCandidate;
     return;
   }
   resetPendingJson(state);
-  handleJsonLine(state, trimmed, onMessage, onError);
+  handleJsonLine({ state, line: trimmed, onMessage }, { onError });
 }
 
 // ACP is line-delimited JSON-RPC, but a few bridges have emitted
 // pretty-printed JSON during startup. Keep a bounded aggregate so an
 // otherwise valid multiline initialize response does not get discarded
 // line-by-line and leave the session stuck in spawn pending.
-export function tryStartPendingJsonLine(state: JsonLineAccumulatorState, trimmed: string, onError?: (error: RangeError) => void): void {
+export function tryStartPendingJsonLine({ state, trimmed }: { state: JsonLineAccumulatorState; trimmed: string }, { onError }: { onError?: ((error: RangeError) => void) | undefined } = {}): void {
   if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return;
   if (trimmed.length > 128_000) {
     onError?.(new RangeError(MULTILINE_LIMIT_MESSAGE));
     return;
   }
-  if (classifyJsonCandidate(trimmed) === 'incomplete') startPendingJson(state, trimmed);
+  if (classifyJsonCandidate({ value: trimmed }) === 'incomplete') startPendingJson(state, trimmed);
 }
 
 export function handleJsonLine(
-  state: JsonLineAccumulatorState,
-  line: string,
-  onMessage: (requiredArgs: { message: unknown; rawLine: string }) => void,
-  onError?: (error: RangeError) => void,
+  { state, line, onMessage }: { state: JsonLineAccumulatorState; line: string; onMessage: (requiredArgs: { message: unknown; rawLine: string }) => void }, { onError }: { onError?: ((error: RangeError) => void) | undefined } = {},
 ): void {
   const trimmed = line.trim();
   if (!trimmed) return;
   if (state.pendingJson) {
-    continuePendingJsonLine(state, trimmed, onMessage, onError);
+    continuePendingJsonLine({ state, trimmed, onMessage }, { onError });
     return;
   }
-  if (emitJsonLine(trimmed, onMessage)) return;
-  tryStartPendingJsonLine(state, trimmed, onError);
+  if (emitJsonLine({ candidate: trimmed, onMessage })) return;
+  tryStartPendingJsonLine({ state, trimmed }, { onError });
 }
 
 /**
@@ -117,18 +111,19 @@ export function handleJsonLine(
  *
  * @param requiredArgs.onMessage - Called with `{ message, rawLine }` for each
  *   successfully parsed JSON value and its raw reassembled line string.
- * @param requiredArgs.onError - Reports a physical-line or multiline overflow to the host's failure path.
+ * @param optionalArgs.onError - Reports a physical-line or multiline overflow to the host's failure path.
  *   When omitted, feed throws RangeError. Oversized content is never delivered.
  * @returns An object with `feed({ chunk })` for incremental input and `flush()` to
  *   drain any residual buffered content at stream end.
  */
-export function createJsonLineStream({ onMessage, onError = error => { throw error; } }: {
+export function createJsonLineStream({ onMessage }: {
   onMessage: (requiredArgs: { message: unknown; rawLine: string }) => void;
+}, { onError = error => { throw error; } }: {
   onError?: (error: RangeError) => void;
-}) {
+} = {}) {
   const state: JsonLineAccumulatorState = { pendingJson: '', pendingJsonLineCount: 0 };
   const lines = createBoundedLineStream({
-    onLine: line => handleJsonLine(state, line, onMessage, onError),
+    onLine: line => handleJsonLine({ state, line, onMessage }, { onError }),
     onOverflow: error => { resetPendingJson(state); onError(error); },
   });
 
@@ -174,7 +169,7 @@ export interface JsonScanState {
 // classification once the candidate is already decided.
 export type JsonScanStepResult = 'invalid' | 'incomplete' | { nextIndex: number };
 
-export function afterValue(state: JsonScanState): void {
+export function afterValue({ state }: { state: JsonScanState }, _optional: Record<string, never> = {}): void {
   const parent = state.stack.at(-1);
   if (!parent) {
     state.rootComplete = true;
@@ -195,10 +190,10 @@ export function afterValue(state: JsonScanState): void {
 // dead-branch discipline. See archived provenance ledger.
 function closeFrame(state: JsonScanState): void {
   state.stack.pop();
-  afterValue(state);
+  afterValue({ state });
 }
 
-export function parseString(value: string, start: number): number | null {
+export function parseString({ value, start }: { value: string; start: number }, _optional: Record<string, never> = {}): number | null {
   for (let index = start + 1; index < value.length; index += 1) {
     const char = value[index];
     if (char === '\\') {
@@ -213,7 +208,7 @@ export function parseString(value: string, start: number): number | null {
 /** Index of a scanned value's last character, `null` when the input ends mid-value, `false` when it is not valid JSON. */
 type JsonScanEnd = number | null | false;
 
-export function parseLiteral(value: string, start: number, literal: string): JsonScanEnd {
+export function parseLiteral({ value, start, literal }: { value: string; start: number; literal: string }, _optional: Record<string, never> = {}): JsonScanEnd {
   for (let offset = 0; offset < literal.length; offset += 1) {
     const char = value[start + offset];
     if (char === undefined) return null;
@@ -236,20 +231,20 @@ function parseOptionalSign(value: string, start: number): number {
   return value[start] === '-' ? start + 1 : start;
 }
 
-export function parseIntegerDigits(value: string, start: number): number | false {
+export function parseIntegerDigits({ value, start }: { value: string; start: number }, _optional: Record<string, never> = {}): number | false {
   if (value[start] === '0') return start + 1;
   if (isDigit(value[start])) return consumeDigits(value, start);
   return false;
 }
 
-export function parseFractionDigits(value: string, start: number): number | false {
+export function parseFractionDigits({ value, start }: { value: string; start: number }, _optional: Record<string, never> = {}): number | false {
   if (value[start] !== '.') return start;
   const digitsStart = start + 1;
   if (!isDigit(value[digitsStart])) return false;
   return consumeDigits(value, digitsStart);
 }
 
-export function parseExponentDigits(value: string, start: number): number | false {
+export function parseExponentDigits({ value, start }: { value: string; start: number }, _optional: Record<string, never> = {}): number | false {
   if (value[start] !== 'e' && value[start] !== 'E') return start;
   let digitsStart = start + 1;
   if (value[digitsStart] === '+' || value[digitsStart] === '-') digitsStart += 1;
@@ -257,28 +252,28 @@ export function parseExponentDigits(value: string, start: number): number | fals
   return consumeDigits(value, digitsStart);
 }
 
-export function parseNumber(value: string, start: number): number | false {
+export function parseNumber({ value, start }: { value: string; start: number }, _optional: Record<string, never> = {}): number | false {
   const afterSign = parseOptionalSign(value, start);
-  const afterInteger = parseIntegerDigits(value, afterSign);
+  const afterInteger = parseIntegerDigits({ value, start: afterSign });
   if (afterInteger === false) return false;
-  const afterFraction = parseFractionDigits(value, afterInteger);
+  const afterFraction = parseFractionDigits({ value, start: afterInteger });
   if (afterFraction === false) return false;
-  const afterExponent = parseExponentDigits(value, afterFraction);
+  const afterExponent = parseExponentDigits({ value, start: afterFraction });
   if (afterExponent === false) return false;
   return afterExponent - 1;
 }
 
-export function parseStringValue(state: JsonScanState, index: number): number | null {
-  const end = parseString(state.value, index);
+export function parseStringValue({ state, index }: { state: JsonScanState; index: number }, _optional: Record<string, never> = {}): number | null {
+  const end = parseString({ value: state.value, start: index });
   if (end === null) return null;
-  afterValue(state);
+  afterValue({ state });
   return end;
 }
 
-export function parseNumberValue(state: JsonScanState, index: number): number | false {
-  const end = parseNumber(state.value, index);
+export function parseNumberValue({ state, index }: { state: JsonScanState; index: number }, _optional: Record<string, never> = {}): number | false {
+  const end = parseNumber({ value: state.value, start: index });
   if (end === false) return false;
-  afterValue(state);
+  afterValue({ state });
   return end;
 }
 
@@ -287,67 +282,61 @@ function openContainer(state: JsonScanState, index: number, frame: JsonScanFrame
   return index;
 }
 
-export function parseLiteralValue(state: JsonScanState, index: number, literal: string): JsonScanEnd {
-  const end = parseLiteral(state.value, index, literal);
-  if (typeof end === 'number') afterValue(state);
+export function parseLiteralValue({ state, index, literal }: { state: JsonScanState; index: number; literal: string }, _optional: Record<string, never> = {}): JsonScanEnd {
+  const end = parseLiteral({ value: state.value, start: index, literal });
+  if (typeof end === 'number') afterValue({ state });
   return end;
 }
 
 const LITERAL_STARTS: Record<string, string> = { t: 'true', f: 'false', n: 'null' };
 
-export function parseValue(state: JsonScanState, index: number): JsonScanEnd {
+export function parseValue({ state, index }: { state: JsonScanState; index: number }, _optional: Record<string, never> = {}): JsonScanEnd {
   const char = state.value[index];
-  if (char === '"') return parseStringValue(state, index);
+  if (char === '"') return parseStringValue({ state, index });
   if (char === '{') return openContainer(state, index, { kind: 'object', expect: 'keyOrEnd' });
   if (char === '[') return openContainer(state, index, { kind: 'array', expect: 'valueOrEnd' });
   if (char !== undefined && char in LITERAL_STARTS) {
     // `char in LITERAL_STARTS` just confirmed this key is present.
-    return parseLiteralValue(state, index, LITERAL_STARTS[char]!);
+    return parseLiteralValue({ state, index, literal: LITERAL_STARTS[char]! });
   }
   // `parseValue` is only ever called (below, and from the step handlers)
   // with an `index` already known to be within `value`'s bounds, so `char`
   // is always defined here; the non-null assertion documents that instead
   // of a `?? ''` fallback that could never actually be exercised.
-  if (char === '-' || /\d/.test(char!)) return parseNumberValue(state, index);
+  if (char === '-' || /\d/.test(char!)) return parseNumberValue({ state, index });
   return false;
 }
 
-export function stepRootFrame(state: JsonScanState, index: number): JsonScanStepResult {
+export function stepRootFrame({ state, index }: { state: JsonScanState; index: number }, _optional: Record<string, never> = {}): JsonScanStepResult {
   if (state.rootComplete) return 'invalid';
-  const end = parseValue(state, index);
+  const end = parseValue({ state, index });
   if (end === false) return 'invalid';
   if (end === null) return 'incomplete';
   return { nextIndex: end };
 }
 
 export function stepObjectKeyOrEnd(
-  state: JsonScanState,
-  current: JsonObjectScanFrame,
-  index: number,
-  char: string,
+  { state, current, index, char }: { state: JsonScanState; current: JsonObjectScanFrame; index: number; char: string }, _optional: Record<string, never> = {},
 ): JsonScanStepResult {
   if (char === '}') {
     closeFrame(state);
     return { nextIndex: index };
   }
   if (char !== '"') return 'invalid';
-  const end = parseString(state.value, index);
+  const end = parseString({ value: state.value, start: index });
   if (end === null) return 'incomplete';
   current.expect = 'colon';
   return { nextIndex: end };
 }
 
-export function stepObjectColon(current: JsonObjectScanFrame, index: number, char: string): JsonScanStepResult {
+export function stepObjectColon({ current, index, char }: { current: JsonObjectScanFrame; index: number; char: string }, _optional: Record<string, never> = {}): JsonScanStepResult {
   if (char !== ':') return 'invalid';
   current.expect = 'value';
   return { nextIndex: index };
 }
 
 export function stepObjectCommaOrEnd(
-  state: JsonScanState,
-  current: JsonObjectScanFrame,
-  index: number,
-  char: string,
+  { state, current, index, char }: { state: JsonScanState; current: JsonObjectScanFrame; index: number; char: string }, _optional: Record<string, never> = {},
 ): JsonScanStepResult {
   if (char === '}') {
     closeFrame(state);
@@ -359,38 +348,32 @@ export function stepObjectCommaOrEnd(
 }
 
 export function stepObjectFrame(
-  state: JsonScanState,
-  current: JsonObjectScanFrame,
-  index: number,
-  char: string,
+  { state, current, index, char }: { state: JsonScanState; current: JsonObjectScanFrame; index: number; char: string }, _optional: Record<string, never> = {},
 ): JsonScanStepResult {
-  if (current.expect === 'keyOrEnd') return stepObjectKeyOrEnd(state, current, index, char);
-  if (current.expect === 'colon') return stepObjectColon(current, index, char);
+  if (current.expect === 'keyOrEnd') return stepObjectKeyOrEnd({ state, current, index, char });
+  if (current.expect === 'colon') return stepObjectColon({ current, index, char });
   if (current.expect === 'value') {
-    const end = parseValue(state, index);
+    const end = parseValue({ state, index });
     if (end === false) return 'invalid';
     if (end === null) return 'incomplete';
     return { nextIndex: end };
   }
-  return stepObjectCommaOrEnd(state, current, index, char);
+  return stepObjectCommaOrEnd({ state, current, index, char });
 }
 
-export function stepArrayValueOrEnd(state: JsonScanState, index: number, char: string): JsonScanStepResult {
+export function stepArrayValueOrEnd({ state, index, char }: { state: JsonScanState; index: number; char: string }, _optional: Record<string, never> = {}): JsonScanStepResult {
   if (char === ']') {
     closeFrame(state);
     return { nextIndex: index };
   }
-  const end = parseValue(state, index);
+  const end = parseValue({ state, index });
   if (end === false) return 'invalid';
   if (end === null) return 'incomplete';
   return { nextIndex: end };
 }
 
 export function stepArrayCommaOrEnd(
-  state: JsonScanState,
-  current: JsonArrayScanFrame,
-  index: number,
-  char: string,
+  { state, current, index, char }: { state: JsonScanState; current: JsonArrayScanFrame; index: number; char: string }, _optional: Record<string, never> = {},
 ): JsonScanStepResult {
   if (char === ']') {
     closeFrame(state);
@@ -402,24 +385,21 @@ export function stepArrayCommaOrEnd(
 }
 
 export function stepArrayFrame(
-  state: JsonScanState,
-  current: JsonArrayScanFrame,
-  index: number,
-  char: string,
+  { state, current, index, char }: { state: JsonScanState; current: JsonArrayScanFrame; index: number; char: string }, _optional: Record<string, never> = {},
 ): JsonScanStepResult {
   return current.expect === 'valueOrEnd'
-    ? stepArrayValueOrEnd(state, index, char)
-    : stepArrayCommaOrEnd(state, current, index, char);
+    ? stepArrayValueOrEnd({ state, index, char })
+    : stepArrayCommaOrEnd({ state, current, index, char });
 }
 
 // Dispatches to the step handler for whatever frame is on top of the
 // stack (or the root frame when the stack is empty).
-export function selectStep(state: JsonScanState, index: number, char: string): JsonScanStepResult {
+export function selectStep({ state, index, char }: { state: JsonScanState; index: number; char: string }, _optional: Record<string, never> = {}): JsonScanStepResult {
   const current = state.stack.at(-1);
-  if (!current) return stepRootFrame(state, index);
+  if (!current) return stepRootFrame({ state, index });
   return current.kind === 'object'
-    ? stepObjectFrame(state, current, index, char)
-    : stepArrayFrame(state, current, index, char);
+    ? stepObjectFrame({ state, current, index, char })
+    : stepArrayFrame({ state, current, index, char });
 }
 
 /**
@@ -437,7 +417,7 @@ export function selectStep(state: JsonScanState, index: number, char: string): J
  * @param value - A string candidate to classify, typically one or more
  *   accumulated stdout lines from an ACP subprocess.
  */
-export function classifyJsonCandidate(value: string): 'complete' | 'incomplete' | 'invalid' {
+export function classifyJsonCandidate({ value }: { value: string }, _optional: Record<string, never> = {}): 'complete' | 'incomplete' | 'invalid' {
   const state: JsonScanState = { value, stack: [], rootComplete: false };
 
   let index = 0;
@@ -448,7 +428,7 @@ export function classifyJsonCandidate(value: string): 'complete' | 'incomplete' 
     // guard that could never actually trigger.
     const char = value[index]!;
     // Whitespace between tokens is skipped; a step reports the last index it consumed.
-    const step = /\s/.test(char) ? null : selectStep(state, index, char);
+    const step = /\s/.test(char) ? null : selectStep({ state, index, char });
     if (step === 'invalid' || step === 'incomplete') return step;
     index = (step === null ? index : step.nextIndex) + 1;
   }

@@ -60,26 +60,26 @@ describe('handleTurnStart', () => {
 describe('buildTokenUsage', () => {
   it('extracts every known numeric field', () => {
     expect(
-      buildTokenUsage({ input: 1, output: 2, cacheRead: 3, cacheWrite: 4, totalTokens: 10 }),
+      buildTokenUsage({ u: { input: 1, output: 2, cacheRead: 3, cacheWrite: 4, totalTokens: 10 } }),
     ).toEqual({ input_tokens: 1, output_tokens: 2, cached_read_tokens: 3, cached_write_tokens: 4, total_tokens: 10 });
   });
 
   it('omits fields that are absent or non-numeric', () => {
-    expect(buildTokenUsage({ input: 'nope' })).toEqual({});
-    expect(buildTokenUsage({})).toEqual({});
+    expect(buildTokenUsage({ u: { input: 'nope' } })).toEqual({});
+    expect(buildTokenUsage({ u: {} })).toEqual({});
   });
 });
 
 describe('emitTurnEndUsage', () => {
   it('sends nothing when the usage object has no known numeric fields', () => {
     const send = vi.fn();
-    emitTurnEndUsage({}, send, ctx());
+    emitTurnEndUsage({ u: {}, send, ctx: ctx() });
     expect(send).not.toHaveBeenCalled();
   });
 
   it('sends a usage event with cost.total when present', () => {
     const send = vi.fn();
-    emitTurnEndUsage({ input: 1, cost: { total: 0.5 } }, send, ctx({ runStartedAt: 1000 }));
+    emitTurnEndUsage({ u: { input: 1, cost: { total: 0.5 } }, send, ctx: ctx({ runStartedAt: 1000 }) });
     expect(send).toHaveBeenCalledWith({ event: 'agent', payload: {
       type: 'usage',
       usage: { input_tokens: 1 },
@@ -90,13 +90,13 @@ describe('emitTurnEndUsage', () => {
 
   it('falls back to cost.totalCost when cost.total is absent', () => {
     const send = vi.fn();
-    emitTurnEndUsage({ input: 1, cost: { totalCost: 0.25 } }, send, ctx());
+    emitTurnEndUsage({ u: { input: 1, cost: { totalCost: 0.25 } }, send, ctx: ctx() });
     expect(send).toHaveBeenCalledWith({ event: 'agent', payload: expect.objectContaining({ costUsd: 0.25 }) });
   });
 
   it('sends costUsd: null when there is no cost object at all', () => {
     const send = vi.fn();
-    emitTurnEndUsage({ input: 1 }, send, ctx());
+    emitTurnEndUsage({ u: { input: 1 }, send, ctx: ctx() });
     expect(send).toHaveBeenCalledWith({ event: 'agent', payload: expect.objectContaining({ costUsd: null }) });
   });
 });
@@ -104,26 +104,26 @@ describe('emitTurnEndUsage', () => {
 describe('emitTurnEndErrorIfPresent', () => {
   it('sends nothing when stopReason is not "error"', () => {
     const send = vi.fn();
-    emitTurnEndErrorIfPresent({ stopReason: 'stop' }, {}, send);
+    emitTurnEndErrorIfPresent({ message: { stopReason: 'stop' }, raw: {}, send });
     expect(send).not.toHaveBeenCalled();
   });
 
   it('sends nothing when message is undefined', () => {
     const send = vi.fn();
-    emitTurnEndErrorIfPresent(undefined, {}, send);
+    emitTurnEndErrorIfPresent({ message: undefined, raw: {}, send });
     expect(send).not.toHaveBeenCalled();
   });
 
   it('uses errorMessage when present', () => {
     const send = vi.fn();
     const raw = { type: 'turn_end' };
-    emitTurnEndErrorIfPresent({ stopReason: 'error', errorMessage: 'boom' }, raw, send);
+    emitTurnEndErrorIfPresent({ message: { stopReason: 'error', errorMessage: 'boom' }, raw, send });
     expect(send).toHaveBeenCalledWith({ event: 'agent', payload: { type: 'error', message: 'boom', raw } });
   });
 
   it('falls back to a generic message when errorMessage is absent', () => {
     const send = vi.fn();
-    emitTurnEndErrorIfPresent({ stopReason: 'error' }, {}, send);
+    emitTurnEndErrorIfPresent({ message: { stopReason: 'error' }, raw: {}, send });
     expect(send).toHaveBeenCalledWith({ event: 'agent', payload: expect.objectContaining({ message: 'Pi agent error' }) });
   });
 });

@@ -25,65 +25,65 @@ describe('isPathUnderRoot', () => {
   const root = path.resolve('/srv', 'uploads');
 
   it('accepts the root itself and paths nested under it', () => {
-    expect(isPathUnderRoot(root, root)).toBe(true);
-    expect(isPathUnderRoot(path.join(root, 'a.png'), root)).toBe(true);
-    expect(isPathUnderRoot(path.join(root, 'nested', 'deep', 'b.png'), root)).toBe(true);
+    expect(isPathUnderRoot({ realPath: root, resolvedRoot: root })).toBe(true);
+    expect(isPathUnderRoot({ realPath: path.join(root, 'a.png'), resolvedRoot: root })).toBe(true);
+    expect(isPathUnderRoot({ realPath: path.join(root, 'nested', 'deep', 'b.png'), resolvedRoot: root })).toBe(true);
   });
 
   // The `+ path.sep` in the implementation is what makes this false. Dropping
   // it turns a plain `startsWith` into the classic sibling-prefix escape, where
   // a directory merely *named* like the root passes the containment check.
   it('rejects a sibling directory that shares the root as a string prefix', () => {
-    expect(isPathUnderRoot(`${root}-evil/leak.png`, root)).toBe(false);
-    expect(isPathUnderRoot(`${root}2/leak.png`, root)).toBe(false);
-    expect(isPathUnderRoot(`${root}-evil`, root)).toBe(false);
+    expect(isPathUnderRoot({ realPath: `${root}-evil/leak.png`, resolvedRoot: root })).toBe(false);
+    expect(isPathUnderRoot({ realPath: `${root}2/leak.png`, resolvedRoot: root })).toBe(false);
+    expect(isPathUnderRoot({ realPath: `${root}-evil`, resolvedRoot: root })).toBe(false);
   });
 
   it('rejects paths outside the root and parent directories', () => {
-    expect(isPathUnderRoot(path.resolve('/etc', 'passwd'), root)).toBe(false);
-    expect(isPathUnderRoot(path.dirname(root), root)).toBe(false);
-    expect(isPathUnderRoot('', root)).toBe(false);
+    expect(isPathUnderRoot({ realPath: path.resolve('/etc', 'passwd'), resolvedRoot: root })).toBe(false);
+    expect(isPathUnderRoot({ realPath: path.dirname(root), resolvedRoot: root })).toBe(false);
+    expect(isPathUnderRoot({ realPath: '', resolvedRoot: root })).toBe(false);
   });
 });
 
 describe('firstDialogOptionResult', () => {
   it('returns cancelled when opts is not an array', () => {
-    expect(firstDialogOptionResult(undefined)).toEqual({ cancelled: true });
-    expect(firstDialogOptionResult('nope')).toEqual({ cancelled: true });
+    expect(firstDialogOptionResult({ opts: undefined })).toEqual({ cancelled: true });
+    expect(firstDialogOptionResult({ opts: 'nope' })).toEqual({ cancelled: true });
   });
 
   it('returns cancelled for an empty array', () => {
-    expect(firstDialogOptionResult([])).toEqual({ cancelled: true });
+    expect(firstDialogOptionResult({ opts: [] })).toEqual({ cancelled: true });
   });
 
   it('wraps a plain string option as { value }', () => {
-    expect(firstDialogOptionResult(['first', 'second'])).toEqual({ value: 'first' });
+    expect(firstDialogOptionResult({ opts: ['first', 'second'] })).toEqual({ value: 'first' });
   });
 
   it('uses the label field of an object option', () => {
-    expect(firstDialogOptionResult([{ label: 'First Option', value: 'v1' }])).toEqual({ value: 'First Option' });
+    expect(firstDialogOptionResult({ opts: [{ label: 'First Option', value: 'v1' }] })).toEqual({ value: 'First Option' });
   });
 
   it('falls back to the value field when no label is present', () => {
-    expect(firstDialogOptionResult([{ value: 'v1' }])).toEqual({ value: 'v1' });
+    expect(firstDialogOptionResult({ opts: [{ value: 'v1' }] })).toEqual({ value: 'v1' });
   });
 
   it('falls back to an empty string when the first option is a bare object with neither label nor value', () => {
-    expect(firstDialogOptionResult([{}])).toEqual({ value: '' });
+    expect(firstDialogOptionResult({ opts: [{}] })).toEqual({ value: '' });
   });
 });
 
 describe('piImageMimeType', () => {
   it('maps every known extension to its mime type', () => {
-    expect(piImageMimeType('.png')).toBe('image/png');
-    expect(piImageMimeType('.gif')).toBe('image/gif');
-    expect(piImageMimeType('.webp')).toBe('image/webp');
+    expect(piImageMimeType({ ext: '.png' })).toBe('image/png');
+    expect(piImageMimeType({ ext: '.gif' })).toBe('image/gif');
+    expect(piImageMimeType({ ext: '.webp' })).toBe('image/webp');
   });
 
   it('falls back to image/jpeg for .jpg, .jpeg, and unrecognized extensions', () => {
-    expect(piImageMimeType('.jpg')).toBe('image/jpeg');
-    expect(piImageMimeType('.jpeg')).toBe('image/jpeg');
-    expect(piImageMimeType('.bmp')).toBe('image/jpeg');
+    expect(piImageMimeType({ ext: '.jpg' })).toBe('image/jpeg');
+    expect(piImageMimeType({ ext: '.jpeg' })).toBe('image/jpeg');
+    expect(piImageMimeType({ ext: '.bmp' })).toBe('image/jpeg');
   });
 });
 
@@ -105,14 +105,14 @@ describe('tryReadImagePayload / buildPiImagePayloads', () => {
   }
 
   it('returns null for a non-string or empty path without touching the filesystem', () => {
-    expect(tryReadImagePayload(undefined, dir, 0)).toBeNull();
-    expect(tryReadImagePayload('', dir, 0)).toBeNull();
-    expect(tryReadImagePayload(42, dir, 0)).toBeNull();
+    expect(tryReadImagePayload({ imgPath: undefined, uploadRoot: dir, totalBytesSoFar: 0 })).toBeNull();
+    expect(tryReadImagePayload({ imgPath: '', uploadRoot: dir, totalBytesSoFar: 0 })).toBeNull();
+    expect(tryReadImagePayload({ imgPath: 42, uploadRoot: dir, totalBytesSoFar: 0 })).toBeNull();
   });
 
   it('reads a valid image under uploadRoot and returns its base64 payload and size', () => {
     const imgPath = writeImage('a.png', 12);
-    const result = tryReadImagePayload(imgPath, dir, 0);
+    const result = tryReadImagePayload({ imgPath, uploadRoot: dir, totalBytesSoFar: 0 });
     expect(result).not.toBeNull();
     expect(result!.payload.type).toBe('image');
     expect(result!.payload.mimeType).toBe('image/png');
@@ -123,18 +123,18 @@ describe('tryReadImagePayload / buildPiImagePayloads', () => {
   it('returns null for a path that does not resolve to a regular file', () => {
     const subdir = path.join(dir, 'sub.png');
     fs.mkdirSync(subdir);
-    expect(tryReadImagePayload(subdir, dir, 0)).toBeNull();
+    expect(tryReadImagePayload({ imgPath: subdir, uploadRoot: dir, totalBytesSoFar: 0 })).toBeNull();
   });
 
   it('returns null for a nonexistent path rather than throwing', () => {
-    expect(tryReadImagePayload(path.join(dir, 'missing.png'), dir, 0)).toBeNull();
+    expect(tryReadImagePayload({ imgPath: path.join(dir, 'missing.png'), uploadRoot: dir, totalBytesSoFar: 0 })).toBeNull();
   });
 
   it('reports unreadable attachments without exposing a path or interrupting the remaining images', () => {
     const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
     try {
       const good = writeImage('readable.png', 3);
-      expect(buildPiImagePayloads([path.join(dir, 'private-missing.png'), good], dir)).toEqual([
+      expect(buildPiImagePayloads({ imagePaths: [path.join(dir, 'private-missing.png'), good], uploadRoot: dir })).toEqual([
         { type: 'image', data: Buffer.alloc(3, 1).toString('base64'), mimeType: 'image/png' },
       ]);
       expect(warning.mock.calls).toEqual([['[pi-rpc] Image attachment could not be read; skipping it.']]);
@@ -147,7 +147,7 @@ describe('tryReadImagePayload / buildPiImagePayloads', () => {
     const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-rpc-outside-'));
     try {
       const imgPath = writeImage('b.png');
-      expect(tryReadImagePayload(imgPath, outsideDir, 0)).toBeNull();
+      expect(tryReadImagePayload({ imgPath, uploadRoot: outsideDir, totalBytesSoFar: 0 })).toBeNull();
     } finally {
       fs.rmSync(outsideDir, { recursive: true, force: true });
     }
@@ -155,30 +155,30 @@ describe('tryReadImagePayload / buildPiImagePayloads', () => {
 
   it('returns null for a disallowed extension', () => {
     const imgPath = writeImage('c.txt');
-    expect(tryReadImagePayload(imgPath, dir, 0)).toBeNull();
+    expect(tryReadImagePayload({ imgPath, uploadRoot: dir, totalBytesSoFar: 0 })).toBeNull();
   });
 
   it('returns null when the remaining byte budget would be exceeded', () => {
     const imgPath = writeImage('d.png', 100);
-    expect(tryReadImagePayload(imgPath, dir, MAX_TOTAL_IMAGE_BYTES - 50)).toBeNull();
+    expect(tryReadImagePayload({ imgPath, uploadRoot: dir, totalBytesSoFar: MAX_TOTAL_IMAGE_BYTES - 50 })).toBeNull();
   });
 
   it('skips the uploadRoot re-check entirely when uploadRoot is undefined', () => {
     const imgPath = writeImage('e.png');
-    const result = tryReadImagePayload(imgPath, undefined, 0);
+    const result = tryReadImagePayload({ imgPath, uploadRoot: undefined, totalBytesSoFar: 0 });
     expect(result).not.toBeNull();
   });
 
   it('buildPiImagePayloads returns an empty array for undefined or empty imagePaths', () => {
-    expect(buildPiImagePayloads(undefined, dir)).toEqual([]);
-    expect(buildPiImagePayloads([], dir)).toEqual([]);
+    expect(buildPiImagePayloads({ imagePaths: undefined, uploadRoot: dir })).toEqual([]);
+    expect(buildPiImagePayloads({ imagePaths: [], uploadRoot: dir })).toEqual([]);
   });
 
   it('buildPiImagePayloads accumulates valid images and skips invalid ones, preserving order', () => {
     const good1 = writeImage('f.png');
     const bad = writeImage('g.txt');
     const good2 = writeImage('h.gif');
-    const images = buildPiImagePayloads([good1, bad, good2], dir);
+    const images = buildPiImagePayloads({ imagePaths: [good1, bad, good2], uploadRoot: dir });
     expect(images).toHaveLength(2);
     expect(images[0]!.mimeType).toBe('image/png');
     expect(images[1]!.mimeType).toBe('image/gif');
@@ -186,14 +186,14 @@ describe('tryReadImagePayload / buildPiImagePayloads', () => {
 
   it('buildPiImagePayloads stops at MAX_IMAGE_COUNT even with more valid paths available', () => {
     const paths = Array.from({ length: MAX_IMAGE_COUNT + 3 }, (_, i) => writeImage(`img-${i}.png`));
-    const images = buildPiImagePayloads(paths, dir);
+    const images = buildPiImagePayloads({ imagePaths: paths, uploadRoot: dir });
     expect(images).toHaveLength(MAX_IMAGE_COUNT);
   });
 
   it('buildPiImagePayloads stops accepting once the total byte budget would be exceeded', () => {
     const big1 = writeImage('big1.png', MAX_TOTAL_IMAGE_BYTES - 100);
     const big2 = writeImage('big2.png', 200);
-    const images = buildPiImagePayloads([big1, big2], dir);
+    const images = buildPiImagePayloads({ imagePaths: [big1, big2], uploadRoot: dir });
     expect(images).toHaveLength(1);
   });
 });

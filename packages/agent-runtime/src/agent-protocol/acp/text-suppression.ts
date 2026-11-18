@@ -202,9 +202,7 @@ function createTaggedTextSuppressor(args: {
  * @returns `true` when a `text_delta` was emitted, `false` otherwise.
  */
 export function emitWithTextSuppressor(
-  suppressor: ArtifactTextSuppressor,
-  onEvent: EventSink,
-  text: string,
+  { suppressor, onEvent, text }: { suppressor: ArtifactTextSuppressor; onEvent: EventSink; text: string }, _optional: Record<string, never> = {},
 ): boolean {
   const delta = suppressor.strip(text);
   if (!delta) return false;
