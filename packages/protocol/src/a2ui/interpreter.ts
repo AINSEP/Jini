@@ -205,7 +205,10 @@ function notify(ctx: InterpreterCtx): void {
   for (const listener of ctx.listeners) listener({});
 }
 
-function applyComponentsList(ctx: InterpreterCtx, surface: SurfaceState, wireComponents: ComponentsList): RendererToAgentMessage[] {
+function applyComponentsList(ctx: InterpreterCtx, { surface, wireComponents }: {
+  surface: SurfaceState;
+  wireComponents: ComponentsList;
+}): RendererToAgentMessage[] {
   const errors: RendererToAgentMessage[] = [];
   wireComponents.forEach((wireComponent, index) => {
     const { id, component: type, ...rest } = wireComponent;
@@ -254,7 +257,7 @@ function handleCreateSurface(ctx: InterpreterCtx, message: Extract<AgentToRender
     pendingActions: new Map(),
   };
   ctx.surfaces.set(surfaceId, surface);
-  return components ? applyComponentsList(ctx, surface, components) : [];
+  return components ? applyComponentsList(ctx, { surface, wireComponents: components }) : [];
 }
 
 function handleUpdateComponents(ctx: InterpreterCtx, message: Extract<AgentToRendererMessage, { updateComponents: unknown }>): RendererToAgentMessage[] {
@@ -263,7 +266,7 @@ function handleUpdateComponents(ctx: InterpreterCtx, message: Extract<AgentToRen
   if (!surface) {
     return [buildValidationFailedMessage({ surfaceId, path: '/updateComponents/surfaceId', message: `Unknown surfaceId "${surfaceId}" — createSurface must be sent first.` })];
   }
-  return applyComponentsList(ctx, surface, components);
+  return applyComponentsList(ctx, { surface, wireComponents: components });
 }
 
 function handleUpdateDataModel(ctx: InterpreterCtx, message: Extract<AgentToRendererMessage, { updateDataModel: unknown }>): RendererToAgentMessage[] {
@@ -331,7 +334,7 @@ function dispatchAgentMessage(ctx: InterpreterCtx, message: AgentToRendererMessa
   return handleActionResponse(ctx, message);
 }
 
-function applyAgentMessage(ctx: InterpreterCtx, { raw }: { raw: unknown }, _optional: Record<string, never> = {}): ApplyMessageResult {
+function applyAgentMessage(ctx: InterpreterCtx, { raw }: { raw: unknown }): ApplyMessageResult {
   const parsed = parseAgentToRendererMessage({ raw });
   if (!parsed.ok) return buildParseFailureResult({ parsed, raw });
 
@@ -340,36 +343,43 @@ function applyAgentMessage(ctx: InterpreterCtx, { raw }: { raw: unknown }, _opti
   return { rendererMessages };
 }
 
-function getSurface(ctx: InterpreterCtx, { surfaceId }: { surfaceId: string }, _optional: Record<string, never> = {}): SurfaceSnapshot | undefined {
+function getSurface(ctx: InterpreterCtx, { surfaceId }: { surfaceId: string }): SurfaceSnapshot | undefined {
   const surface = ctx.surfaces.get(surfaceId);
   if (!surface) return undefined;
   return { surfaceId: surface.surfaceId, catalogId: surface.catalogId, components: surface.components, dataModel: surface.dataModel };
 }
 
-function getRoot(ctx: InterpreterCtx, { surfaceId }: { surfaceId: string }, _optional: Record<string, never> = {}): ComponentInstance | undefined {
+function getRoot(ctx: InterpreterCtx, { surfaceId }: { surfaceId: string }): ComponentInstance | undefined {
   return ctx.surfaces.get(surfaceId)?.components.get('root');
 }
 
-function resolve(ctx: InterpreterCtx, { surfaceId, value }: { surfaceId: string; value: DynamicValue }, { itemBasePath, itemIndex }: { itemBasePath?: string | undefined; itemIndex?: number | undefined } = {}) {
+function resolve({ ctx, surfaceId, value }: {
+  ctx: InterpreterCtx;
+  surfaceId: string;
+  value: DynamicValue;
+}, { itemBasePath, itemIndex }: {
+  itemBasePath?: string | undefined;
+  itemIndex?: number | undefined;
+} = {}) {
   const surface = ctx.surfaces.get(surfaceId);
   const itemScope = itemBasePath !== undefined && itemIndex !== undefined ? { basePath: itemBasePath, index: itemIndex } : undefined;
   return resolveDynamicValue({ value, ctx: { dataModel: surface?.dataModel, catalog: ctx.catalog, side: 'renderer' } }, { itemScope });
 }
 
-function resolveActionContext(ctx: InterpreterCtx, context: Record<string, DynamicValue> | undefined, surfaceId: string): Record<string, unknown> {
+function resolveActionContext(ctx: InterpreterCtx, { context, surfaceId }: {
+  context: Record<string, DynamicValue> | undefined;
+  surfaceId: string;
+}): Record<string, unknown> {
   const resolved: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(context ?? {})) {
-    const result = resolve(ctx, { surfaceId, value });
+    const result = resolve({ ctx, surfaceId, value });
     resolved[key] = result.ok ? result.value : null;
   }
   return resolved;
 }
 
 /** Looks up the surface, component, and `action` prop `buildAction` needs, or the specific reason it can't. */
-function resolveActionTarget(ctx: InterpreterCtx, 
-  surfaceId: string,
-  componentId: string,
-): { ok: true; surface: SurfaceState; action: Action } | { ok: false; reason: string } {
+function resolveActionTarget(ctx: InterpreterCtx, { surfaceId, componentId }: { surfaceId: string; componentId: string }): { ok: true; surface: SurfaceState; action: Action } | { ok: false; reason: string } {
   const surface = ctx.surfaces.get(surfaceId);
   if (!surface) return { ok: false, reason: `unknown surfaceId "${surfaceId}"` };
   const component = surface.components.get(componentId);
@@ -380,13 +390,13 @@ function resolveActionTarget(ctx: InterpreterCtx,
 }
 
 /** Builds the `action` wire envelope for an agent-event action, registering a pending response if `wantResponse` was set. */
-function buildAgentEventAction(ctx: InterpreterCtx, 
-  surface: SurfaceState,
-  surfaceId: string,
-  componentId: string,
-  event: AgentActionEvent,
-  now: (required: Record<string, never>) => number,
-): BuildActionResult {
+function buildAgentEventAction(ctx: InterpreterCtx, { surface, surfaceId, componentId, event, now }: {
+  surface: SurfaceState;
+  surfaceId: string;
+  componentId: string;
+  event: AgentActionEvent;
+  now: (required: Record<string, never>) => number;
+}): BuildActionResult {
   const { name, context, wantResponse, responsePath } = event;
   const actionId = wantResponse ? ctx.ids.next({}) : undefined;
   if (actionId) {
@@ -397,15 +407,21 @@ function buildAgentEventAction(ctx: InterpreterCtx,
     surfaceId,
     sourceComponentId: componentId,
     timestamp: new Date(now({})).toISOString(),
-    context: resolveActionContext(ctx, context, surfaceId),
+    context: resolveActionContext(ctx, { context, surfaceId }),
     ...(wantResponse !== undefined ? { wantResponse } : {}),
     ...(actionId !== undefined ? { actionId } : {}),
   };
   return { ok: true, kind: 'agent', message: buildActionMessage({ payload }) };
 }
 
-function buildAction(ctx: InterpreterCtx, { surfaceId, componentId }: { surfaceId: string; componentId: string }, { now }: { now?: ((required: Record<string, never>) => number) | undefined } = {}): BuildActionResult {
-  const target = resolveActionTarget(ctx, surfaceId, componentId);
+function buildAction({ ctx, surfaceId, componentId }: {
+  ctx: InterpreterCtx;
+  surfaceId: string;
+  componentId: string;
+}, { now }: {
+  now?: ((required: Record<string, never>) => number) | undefined;
+} = {}): BuildActionResult {
+  const target = resolveActionTarget(ctx, { surfaceId, componentId });
   if (!target.ok) return target;
   const { surface, action } = target;
 
@@ -419,18 +435,24 @@ function buildAction(ctx: InterpreterCtx, { surfaceId, componentId }: { surfaceI
   // malformed third shape could never have made it into `component.props.action` in the first
   // place. (Not defensively branched-and-left-untested, per this package's own testing
   // discipline — see the zod-issues-array comments above for the same principle.)
-  return buildAgentEventAction(ctx, surface, surfaceId, componentId, action.event, now ?? (() => ctx.clock.nowMs()));
+  return buildAgentEventAction(ctx, {
+    surface,
+    surfaceId,
+    componentId,
+    event: action.event,
+    now: now ?? (() => ctx.clock.nowMs()),
+  });
 }
 
 export function createA2uiInterpreter({ catalog, clock, ids }: { catalog: Catalog; clock: Clock; ids: A2uiIdsPort }, _optional: Record<string, never> = {}): A2uiInterpreter {
   const ctx: InterpreterCtx = { catalog, clock, ids, surfaces: new Map(), listeners: new Set() };
   return {
-    applyAgentMessage: (required, optional) => applyAgentMessage(ctx, required, optional),
-    getSurface: (required, optional) => getSurface(ctx, required, optional),
+    applyAgentMessage: (required) => applyAgentMessage(ctx, required),
+    getSurface: (required) => getSurface(ctx, required),
     listSurfaceIds: (_required: Record<string, never>) => [...ctx.surfaces.keys()],
-    getRoot: (required, optional) => getRoot(ctx, required, optional),
-    buildAction: (required, optional) => buildAction(ctx, required, optional),
-    resolve: (required, optional) => resolve(ctx, required, optional),
+    getRoot: (required) => getRoot(ctx, required),
+    buildAction: (required, optional) => buildAction({ ctx, ...required }, optional),
+    resolve: (required, optional) => resolve({ ctx, ...required }, optional),
     subscribe: ({ listener }: { listener: (required: Record<string, never>) => void }) => {
       ctx.listeners.add(listener);
       return (_required: Record<string, never>) => { ctx.listeners.delete(listener); };
