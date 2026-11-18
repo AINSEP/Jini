@@ -418,8 +418,8 @@ function useSuggestAction(
   st: SuggestionState,
 ) {
   const [connectorExtracting, setConnectorExtracting] = useState(false);
-  // Button disabled state is only visible after React commits. This ref makes
-  // the scan re-entrancy guard synchronous too, so two calls in one
+  // Button disabled state is only visible after React commits. These refs make
+  // the scan/save re-entrancy guards synchronous too, so two calls in one
   // event batch cannot duplicate remote work or race stale results back in.
   const connectorExtractionInFlightRef = useRef(false);
   const {
@@ -471,6 +471,7 @@ function useSuggestAction(
 /** Save the selected suggestions as memory entries, reconciling partial successes. */
 function useSaveAction({ port, reload }: ConnectorSuggestionsDeps, st: SuggestionState) {
   const [connectorSaving, setConnectorSaving] = useState(false);
+  // Synchronous save re-entrancy guard: see `connectorExtractionInFlightRef` in `useSuggestAction` for why a ref, not state.
   const connectorSaveInFlightRef = useRef(false);
   const { selectedConnectorSuggestions, setConnectorSuggestions, setSelectedSuggestionIds, setConnectorStatus, setConnectorError } = st;
 

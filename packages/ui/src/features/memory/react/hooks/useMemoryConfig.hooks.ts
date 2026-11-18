@@ -153,7 +153,11 @@ function runOptimisticToggle(ctx: OptimisticToggleContext, next: boolean): Promi
   });
 }
 
-/** A list response can have raced an optimistic PATCH: leave both the visible value and its rollback baseline alone until that setting's queue settles (the write's onSettled then reconciles it). */
+/**
+ * A list response can have raced an optimistic PATCH. Keep both the
+ * visible value and its rollback baseline untouched until that setting's
+ * queue settles; the write's onSettled callback then reconciles it.
+ */
 function hydrateFlag(queue: ConfigWriteQueue, next: boolean, apply: (value: boolean) => void) {
   if (!hasUnsettledConfigWrite(queue)) apply(next);
 }
