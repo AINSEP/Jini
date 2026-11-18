@@ -115,7 +115,12 @@ export interface AdminShellLabels {
  * and {@link AdminShellHostProps} for the two session sources.
  */
 export interface AdminShellBaseProps extends AdminShellContext {
-  /** The theme hook, defaulted to the real `useAdminTheme`. Pass a fake in tests; see J3 for a host that paints itself. */
+  /**
+   * The theme hook, defaulted to the real `useAdminTheme`. Pass a fake in tests, or, for a host that
+   * owns its theme controller (themes, the settings that store them and the root attributes), a hook
+   * that returns `undefined`: the shell then paints nothing on `themeEnvironment.target` and hands no
+   * `appearance` to the slots. The hook still receives `{ userId, workspace }` and the theme options.
+   */
   readonly useThemeHook?: typeof useAdminTheme;
   /** The route-snapshot hook, defaulted to the shell's own `useShellRoute` (reads `navigation`). */
   readonly useRouteHook?: typeof useShellRoute;
