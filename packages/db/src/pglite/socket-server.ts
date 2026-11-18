@@ -105,7 +105,7 @@ interface Job {
 }
 
 /** A Postgres ErrorResponse frame. */
-export function errorResponseFrame(severity: "ERROR" | "FATAL", code: string, message: string): Buffer {
+export function errorResponseFrame({ severity, code, message }: { severity: "ERROR" | "FATAL"; code: string; message: string }, _optional: Record<string, never> = {}): Buffer {
   const field = (tag: string, value: string) => Buffer.concat([Buffer.from(tag), Buffer.from(`${value}\0`)]);
   const body = Buffer.concat([field("S", severity), field("V", severity), field("C", code), field("M", message), Buffer.from([0])]);
   const head = Buffer.alloc(5);
@@ -371,7 +371,7 @@ export class PgliteSocketServer {
       options.log?.(`connection #${id} idle in transaction; rolling back`);
       this.connections
         .get(id)
-        ?.terminate(errorResponseFrame("FATAL", "25P03", "terminating connection due to idle-in-transaction timeout"));
+        ?.terminate(errorResponseFrame({ severity: "FATAL", code: "25P03", message: "terminating connection due to idle-in-transaction timeout" }));
     });
   }
 
@@ -432,7 +432,7 @@ export class PgliteSocketServer {
 
   private accept(socket: SocketServerClient): void {
     if (this.server === null || this.connections.size >= this.maxConnections) {
-      socket.write(errorResponseFrame("FATAL", "53300", "sorry, too many clients already"));
+      socket.write(errorResponseFrame({ severity: "FATAL", code: "53300", message: "sorry, too many clients already" }));
       endSocket(socket, false);
       return;
     }

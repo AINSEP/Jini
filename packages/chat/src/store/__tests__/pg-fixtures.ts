@@ -49,7 +49,7 @@ async function pgPair(){
  try{
   await a.execute(sql`CREATE SCHEMA ${sql.id(schema)}`);
   await a.transaction(async()=>{await a.execute(sql`SET LOCAL search_path TO ${sql.id(schema)}`);await applyFixtureSchema(a);});
-  const ka=scopeToSchema(a,schema),kb=scopeToSchema(b,schema);
+  const ka=scopeToSchema({ kernel: a, schema }),kb=scopeToSchema({ kernel: b, schema });
   return {a:fixture(ka,createPostgresChatStore,createPostgresChatMaintenance,async()=>{}),b:fixture(kb,createPostgresChatStore,createPostgresChatMaintenance,async()=>{}),
    close:async()=>{try{await a.execute(sql`DROP SCHEMA ${sql.id(schema)} CASCADE`);}finally{await Promise.all([a.close(),b.close()]);}}};
  }catch(error){await Promise.all([a.close(),b.close()]);throw error;}

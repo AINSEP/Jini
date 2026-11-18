@@ -52,13 +52,13 @@ export async function ensurePluginIdentityTable(
   _optional: Record<string, never> = {}
 ): Promise<void> {
   const kernel = pluginKernel({ store });
-  const text = sql.raw(columnTypeSql(kernel.dialect, "TEXT"));
+  const text = sql.raw(columnTypeSql({ dialect: kernel.dialect, affinity: "TEXT" }));
   await kernel.execute(sql`CREATE TABLE IF NOT EXISTS _plugin_identity (
        plugin_id ${text} PRIMARY KEY,
        source_url ${text} NOT NULL,
        publisher ${text} NOT NULL,
        signature ${text},
-       minted_at ${sql.raw(columnTypeSql(kernel.dialect, "INTEGER"))} NOT NULL
+       minted_at ${sql.raw(columnTypeSql({ dialect: kernel.dialect, affinity: "INTEGER" }))} NOT NULL
      )`);
 }
 

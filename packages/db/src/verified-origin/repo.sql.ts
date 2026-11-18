@@ -74,7 +74,7 @@ export class SqlOriginSettingRepo implements OriginSettingRepoPort {
 
   async findByWorkspaceId({ workspaceId }: { workspaceId: UUID }, _optional: Record<string, never> = {}): Promise<VerifiedOrigin | null> {
     const row = await this.row(workspaceId);
-    return row ? toVerifiedOrigin(row) : null;
+    return row ? toVerifiedOrigin({ row }) : null;
   }
 
   async findRedirectAllowlist({ workspaceId }: { workspaceId: UUID }, _optional: Record<string, never> = {}): Promise<string[]> {

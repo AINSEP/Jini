@@ -32,7 +32,7 @@ it('retains cumulative session snapshots through a real SQLite close/reopen and 
     const before = conversationUsage({ messages: await original.messages({ conversationId: 'c' }) });
     db.close();
     db = new Database(path);
-    const reloaded = createSqliteChatStore({ clock: testClock, kernel: sqliteKernel<ChatDatabase>(db), scope });
+    const reloaded = createSqliteChatStore({ clock: testClock, kernel: sqliteKernel<ChatDatabase>({ source: db }), scope });
     const page = await reloaded.pageMessages({ conversationId: 'c' });
     expect(page.items.map(message => message.events)).toEqual([
       [{ kind: 'usage', cumulativeCostUsd: 2.05, costSessionId: 's' }],

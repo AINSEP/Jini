@@ -24,7 +24,7 @@ async function pair(){
  const a=openPostgresKernel<AgentSessionDatabase>({pg,connectionString:connection.href}),b=openPostgresKernel<AgentSessionDatabase>({pg,connectionString:connection.href});
  try {
   await a.execute(sql`CREATE SCHEMA ${sql.id(name)}`);
-  const ka=scopeToSchema(a,name),kb=scopeToSchema(b,name);await schema(ka);
+  const ka=scopeToSchema({ kernel: a, schema: name }),kb=scopeToSchema({ kernel: b, schema: name });await schema(ka);
   return {a:ka,b:kb,close:async()=>{try{await a.execute(sql`DROP SCHEMA ${sql.id(name)} CASCADE`);}finally{await Promise.all([a.close(),b.close()]);}}};
  }catch(error){await Promise.all([a.close(),b.close()]);throw error;}
 }

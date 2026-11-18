@@ -9,8 +9,8 @@ export const ENTRY_TABLES: EntryTables = { entries: "entries", revisions: "entry
 /** The JSON dialect port a host binds from the SAME kernel it passes to the repository. */
 export function jsonPortFor(kernel: ContentKernel): EntryJsonDialectPort {
   return {
-    scalarEquals: ({ column, path, value }) => jsonScalarEquals(kernel.dialect, column, path, value),
-    sortKey: ({ column, path }) => jsonSortKey(kernel.dialect, column, path),
+    scalarEquals: ({ column, path, value }) => jsonScalarEquals({ dialect: kernel.dialect, column, path, value }),
+    sortKey: ({ column, path }) => jsonSortKey({ dialect: kernel.dialect, column, path }),
   };
 }
 

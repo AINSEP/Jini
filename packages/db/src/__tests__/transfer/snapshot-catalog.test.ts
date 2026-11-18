@@ -15,7 +15,7 @@ function snapshotOf(sql: string): TransferSource {
   const original = new Database(":memory:");
   try {
     original.exec(sql);
-    const source = openSqliteSnapshotSource({ bytes: original.serialize() }, { open: (bytes, options) => sqliteSnapshotClient({ db: new Database(bytes, options) }) });
+    const source = openSqliteSnapshotSource({ bytes: original.serialize(), open: (bytes, options) => sqliteSnapshotClient({ db: new Database(bytes, options) }) });
     open.push(source);
     return source;
   } finally { original.close(); }
@@ -81,7 +81,7 @@ it("treats a table whose stored definition is absent as an ordinary (non-virtual
     }),
     close: () => {},
   };
-  const source = openSqliteSnapshotSource({ bytes: Buffer.alloc(32) }, { open: () => client });
+  const source = openSqliteSnapshotSource({ bytes: Buffer.alloc(32), open: () => client });
   expect(source.layout("legacy")).toEqual({ virtual: false, columns: [{ name: "id", declaredType: "INTEGER", notNull: true, defaultSql: null, primaryKeyPosition: 1 }], foreignKeys: [], indexes: [] });
 });
 

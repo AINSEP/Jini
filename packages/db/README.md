@@ -74,7 +74,7 @@ const connection = openSqliteConnection({
   filePath: 'app.db',
   open: (filePath, options) => new Database(filePath, options),
 });
-const local = sqliteKernel<MyDb>(connection);
+const local = sqliteKernel<MyDb>({ source: connection });
 const embedded = openPgliteKernel<MyDb>({ PGlite }, { dataDir: './pgdata' });
 const server = openPostgresKernel<MyDb>({ pg, connectionString: process.env.DATABASE_URL! });
 await runMigrations(local, steps, { ledgerTable: 'app_migrations', appName: 'My app' });
@@ -101,8 +101,8 @@ application name, owner lock filename, run directory name, driver modules and wa
 - `runMigrations(kernel, steps, { ledgerTable, appName })`: the ledger name is required.
 - `startPgliteOwner({ dataDir, PGlite, lockFileName, runDirName })`: both filesystem names belong to
   the consumer. The socket uses a private short Unix path rather than TCP.
-- `pgliteOps(kernel, { PGlite, ledgerTable, ownerLockFileName }, { pgliteOwner })` and
-  `postgresOps(kernel, { ledgerTable })`: compaction verifies the host's ledger.
+- `pgliteOps({ kernel, PGlite, ledgerTable, ownerLockFileName }, { pgliteOwner })` and
+  `postgresOps({ kernel, ledgerTable })`: compaction verifies the host's ledger.
 
 `DbOpsPort` is the restore-point contract with an injected watermark reader. `StorageOps` is the
 kernel copy/compaction contract. They remain distinct because their operations and inputs differ.
@@ -156,7 +156,7 @@ file/table/integrity reports. Neither opens a connection. `./core` exports the g
 ## Transfer and assistant tools (j03)
 
 `@jini-ai/db/transfer` imports without Kysely, a driver, or core. Supply an opener to
-`openSqliteSnapshotSource({ bytes }, { open })`. A consumer owns its table layouts, order,
+`openSqliteSnapshotSource({ bytes, open })`. A consumer owns its table layouts, order,
 exclusion reasons and all four required `TransferNaming` fields (`defaultSchema`, `markerTable`,
 `unvalidatedTable`, `schemaPrefix`). `planTransfer({ sources })` raises
 `IncompleteTransferPlanError` for every source table lacking a copied layout or a nonblank
@@ -185,7 +185,7 @@ independent risk checks and error adapters around the returned registrations.
 
 `DatabaseReadToolPorts.clock` uses `Clock` from `@jini-ai/core/primitives` and exposes
 `nowMs()`. Restore-point timestamps use the canonical `nowIso({ clock })` helper.
-`databaseFile<DB>(kernel: StorageKernel<DB>)` accepts a typed kernel without erasing
+`databaseFile<DB>({ kernel }: { kernel: StorageKernel<DB> }, _optional = {})` accepts a typed kernel without erasing
 its database schema; SQLite file lookup and null results are unchanged.
 
 Interactive transfer handlers follow core's two-object invocation contract:
@@ -226,7 +226,7 @@ declare function withSqliteTransaction<T>(
 ```
 
 The host's `database` must support `statement.safeIntegers(true)`. The factory memoizes one
-borrowed wrapper per handle; `sqliteKernel(client)` supplies its matching kernel. Safe bigint
+borrowed wrapper per handle; `sqliteKernel({ source: client })` supplies its matching kernel. Safe bigint
 cells and write metadata become numbers; overflow throws `SqliteClientError` with code
 `unsafe_integer`. Blobs and floats retain their values. Iteration decodes one row at a time.
 The wrapper's `close()` does nothing. Mixing raw and checked kernel ownership is refused.

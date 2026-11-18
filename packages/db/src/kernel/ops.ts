@@ -52,7 +52,7 @@ export class StorageOpError extends Error {
  * A guard each op calls first: neither SQLite nor Postgres can `VACUUM` inside a transaction.
  * @throws {Error} when `kernel` is inside a transaction.
  */
-export function outsideTransactionOf(kernel: KyselyKernel<unknown>): (op: keyof StorageOps) => void {
+export function outsideTransactionOf({ kernel }: { kernel: KyselyKernel<unknown> }, _optional: Record<string, never> = {}): (op: keyof StorageOps) => void {
   return (op) => {
     if (kernel.inTransaction()) throw new Error(`storage op ${op} must be called outside a transaction`);
   };
@@ -65,7 +65,7 @@ export function outsideTransactionOf(kernel: KyselyKernel<unknown>): (op: keyof 
  *
  * @throws {StorageOpError} the ledger cannot be read, or holds no rows.
  */
-export async function verifyLedgerReadBack(kernel: KyselyKernel<unknown>, ledgerTable: string): Promise<void> {
+export async function verifyLedgerReadBack({ kernel, ledgerTable }: { kernel: KyselyKernel<unknown>; ledgerTable: string }, _optional: Record<string, never> = {}): Promise<void> {
   let anyStep: unknown[];
   try {
     // One row when the ledger holds any step, none when it is empty: no count to null-check.

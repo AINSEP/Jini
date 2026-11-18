@@ -23,7 +23,7 @@ afterEach(async () => {
 
 /** The adapter's columns with no NOT NULL and no key: the loosest schema a host could give it. */
 async function looseSqliteVault(): Promise<{ kernel: KyselyKernel<SecretsVaultDatabase>; repo: SqlSecretsVaultRepo }> {
-  const kernel = sqliteKernel<SecretsVaultDatabase>(new Database(":memory:"));
+  const kernel = sqliteKernel<SecretsVaultDatabase>({ source: new Database(":memory:") });
   kernels.push(kernel);
   await kernel.execute(sql`CREATE TABLE secrets_vault (
     workspace_id TEXT, id TEXT, kind TEXT, owner_key TEXT, principal_id TEXT, binding TEXT, provider TEXT,

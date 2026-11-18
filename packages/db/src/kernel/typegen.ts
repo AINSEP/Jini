@@ -67,8 +67,8 @@ function columnType(column: ColumnRow): string {
  * @param required.source one line naming where the reference database came from (printed in the header).
  */
 export async function renderDatabaseTypes(
-  kernel: KyselyKernel<unknown>,
-  required: { interfaceName: string; source: string; regenerate: string }
+  { kernel, ...required }: { kernel: KyselyKernel<unknown> } & { interfaceName: string; source: string; regenerate: string },
+  _optional: Record<string, never> = {}
 ): Promise<string> {
   if (kernel.dialect !== "postgres") throw new Error("typegen reads a Postgres reference database");
   const rows = await kernel.query<ColumnRow>(

@@ -120,7 +120,7 @@ function freshSqliteContentKernel<R, DB>(options: DialectOptions<R, DB>): Sqlite
   // SPEC-033 — defense in depth: the original content connection retries a second connection's lock.
   db.pragma("busy_timeout = 5000");
   sqliteConnections.push(db);
-  const base = sqliteKernel<DB>(db);
+  const base = sqliteKernel<DB>({ source: db });
   const created = base.ready.then(() => options.createTables(base, "sqlite"));
   created.catch(() => {});
   return heldUntil({ kernel: base, pending: created }, {});

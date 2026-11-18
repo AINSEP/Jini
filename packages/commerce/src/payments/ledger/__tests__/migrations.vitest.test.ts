@@ -50,7 +50,7 @@ function derive(id: string): string {
     .replace(/(^|[^:])\/\/.*$/gm, "$1")
     .replace(/\s+/g, " ")
     .trim();
-  return sourceChecksum(text);
+  return sourceChecksum({ text });
 }
 
 /** Every `NNNN_name.ts` step file, so a step that exists but is not pinned (or not registered) is caught. */
@@ -180,7 +180,7 @@ describe("payments ledger migrations", () => {
     try {
       await kernel.run((db) => db.schema.createTable("commerce_operator_actions").addColumn("id", "text").execute());
       await expect(migrateCommercePayments({ kernel, runMigrations }, { atomicity })).rejects.toThrow(/commerce_operator_actions.*already exists/);
-      const tables = await listTables(kernel);
+      const tables = await listTables({ kernel });
       expect(tables.includes(LEDGER_TABLES.payments)).toBe(atomicity === "step");
       expect(tables.includes(COMMERCE_PAYMENTS_LEDGER_TABLE)).toBe(atomicity === "step");
       const auditColumns = await kernel.query<{ name: string }>(sql`PRAGMA table_info(commerce_operator_actions)`);
@@ -207,7 +207,7 @@ describe("payments ledger migrations", () => {
     try {
       const first = await migrateCommercePayments({ kernel, runMigrations });
       expect(first.applied).toEqual([PAYMENTS_LEDGER_ID, PAYMENTS_OPERATOR_ACTIONS_ID, PAYMENTS_ATTEMPT_RECOVERY_ID, PAYMENTS_INTENT_REPLAY_ID]);
-      const tables = await listTables(kernel);
+      const tables = await listTables({ kernel });
       expect(tables).toEqual(expect.arrayContaining([...Object.values(LEDGER_TABLES), COMMERCE_PAYMENTS_LEDGER_TABLE]));
       const second = await migrateCommercePayments({ kernel, runMigrations });
       expect(second).toEqual({ applied: [], alreadyApplied: [PAYMENTS_LEDGER_ID, PAYMENTS_OPERATOR_ACTIONS_ID, PAYMENTS_ATTEMPT_RECOVERY_ID, PAYMENTS_INTENT_REPLAY_ID], notes: [] });

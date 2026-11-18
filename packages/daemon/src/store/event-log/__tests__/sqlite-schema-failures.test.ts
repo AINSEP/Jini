@@ -19,7 +19,7 @@ it('skips all DDL for an injected pre-migrated borrowed DB in host mode; default
     const log = createSqliteEventLog({ db, clock: testClock }, { schemaSetup: 'host' });
     expect(exec).not.toHaveBeenCalled();
     await log.append({ runId: 'r', event: 'e', data: 1 });
-    const kernelLog = await createKernelSqliteEventLog({ kernel: sqliteKernel<SqliteEventLogDatabase>(db), clock: testClock }, { schemaSetup: 'host' });
+    const kernelLog = await createKernelSqliteEventLog({ kernel: sqliteKernel<SqliteEventLogDatabase>({ source: db }), clock: testClock }, { schemaSetup: 'host' });
     expect(exec).not.toHaveBeenCalled();
     expect(await kernelLog.listRunIds({})).toEqual(['r']);
     expect(pragma).not.toHaveBeenCalled();
@@ -35,7 +35,7 @@ it.each(['missing', 'incompatible'])('host schema mode rejects %s tables and pre
   const exec = vi.spyOn(db, 'exec');
   try {
     expect(() => createSqliteEventLog({ db, clock: testClock }, { schemaSetup: 'host' })).toThrow(/no such/);
-    await expect(createKernelSqliteEventLog({ kernel: sqliteKernel<SqliteEventLogDatabase>(db), clock: testClock }, { schemaSetup: 'host' })).rejects.toThrow(/no such/);
+    await expect(createKernelSqliteEventLog({ kernel: sqliteKernel<SqliteEventLogDatabase>({ source: db }), clock: testClock }, { schemaSetup: 'host' })).rejects.toThrow(/no such/);
     expect(exec).not.toHaveBeenCalled();
     expect(db.open).toBe(true);
   } finally { db.close(); }
@@ -82,7 +82,7 @@ describe.each(['sync', 'kernel'] as const)('%s statement failures', mode => {
     try {
       const log = mode === 'sync'
         ? createSqliteEventLog({ db: injected, clock: testClock }, { maxEntriesPerRun: 1 })
-        : await createKernelSqliteEventLog({ kernel: sqliteKernel<SqliteEventLogDatabase>(injected), clock: testClock }, { maxEntriesPerRun: 1 });
+        : await createKernelSqliteEventLog({ kernel: sqliteKernel<SqliteEventLogDatabase>({ source: injected }), clock: testClock }, { maxEntriesPerRun: 1 });
       await log.append({ runId: 'r', event: 'e', data: 1 }, { dedupeKey: 'first' });
       const rows = db.prepare('SELECT * FROM jini_event_log_entries').all();
       fault = true;
@@ -99,7 +99,7 @@ describe.each(['sync', 'kernel'] as const)('%s statement failures', mode => {
 it('serialization failure rolls back a newly created run under either transaction mechanism', async () => {
   const db = new Database(':memory:');
   try {
-    const logs = [createSqliteEventLog({ db, clock: testClock }), await createKernelSqliteEventLog({ kernel: sqliteKernel<SqliteEventLogDatabase>(db), clock: testClock })];
+    const logs = [createSqliteEventLog({ db, clock: testClock }), await createKernelSqliteEventLog({ kernel: sqliteKernel<SqliteEventLogDatabase>({ source: db }), clock: testClock })];
     const data: { self?: unknown } = {}; data.self = data;
     for (const log of logs) {
       await expect(log.append({ runId: 'r', event: 'e', data })).rejects.toThrow(/circular/i);

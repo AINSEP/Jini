@@ -147,7 +147,7 @@ describe("the pre-change backup", () => {
     await runMigrations(kernel, [tableStep("0001_first", "first_t")], { ledgerTable: LEDGER, backupPath });
 
     assert.deepEqual(tablesInFile(backupPath), ["existing_t"]);
-    assert.deepEqual((await listTables(kernel)).sort(), [LEDGER, "existing_t", "first_t"]);
+    assert.deepEqual((await listTables({ kernel })).sort(), [LEDGER, "existing_t", "first_t"]);
   });
 });
 
@@ -158,7 +158,7 @@ describe("the ledger's Postgres schema", () => {
       runMigrations(kernel, [tableStep("0001_first", "first_t")], { ledgerTable: LEDGER, schema: "history_a" }),
       (error: unknown) => error instanceof Error && error.message === "a migration ledger schema ('history_a') needs Postgres, not sqlite"
     );
-    assert.deepEqual(await listTables(kernel), []);
+    assert.deepEqual(await listTables({ kernel }), []);
   });
 
   test("holds the ledger in the named schema, created with it, and a rerun reads it from there", async () => {
@@ -173,7 +173,7 @@ describe("the ledger's Postgres schema", () => {
 
     const recorded = await kernel.query<{ id: string; checksum: string }>(sql`SELECT id, checksum FROM history_a.app_migrations`);
     assert.deepEqual(recorded, [{ id: "0001_first", checksum: sum("a") }]);
-    assert.equal(await hasLedger(kernel, LEDGER), false, "no ledger in the default schema");
+    assert.equal(await hasLedger({ kernel, ledgerTable: LEDGER }), false, "no ledger in the default schema");
     assert.deepEqual(await runMigrations(kernel, steps, { ledgerTable: LEDGER, schema: "history_a" }), {
       applied: [],
       alreadyApplied: ["0001_first"],

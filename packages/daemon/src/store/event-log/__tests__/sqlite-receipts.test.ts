@@ -17,7 +17,7 @@ type ReceiptOptions = SqliteEventLogOptions & { clock?: { nowMs(): number } };
 const factories = {
   sync: async (db: Database.Database, { clock = testClock, ...options }: ReceiptOptions) => createSqliteEventLog({ db, clock }, options),
   kernel: (db: Database.Database, { clock = testClock, ...options }: ReceiptOptions) =>
-    createKernelSqliteEventLog({ kernel: sqliteKernel<SqliteEventLogDatabase>(db), clock }, options),
+    createKernelSqliteEventLog({ kernel: sqliteKernel<SqliteEventLogDatabase>({ source: db }), clock }, options),
 };
 
 // Shared contracts must hold under both the sync driver and kernel transaction mechanisms.

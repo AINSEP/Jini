@@ -195,7 +195,7 @@ export class SqlSecretsVaultRepo implements VaultRepoPort {
     return this.write(input.workspaceId, async () => {
       const row = await this.kernel.run(db => db.updateTable("secrets_vault").set(eb => {
         let meta: Expression<unknown> = eb.ref("meta");
-        for (const [key, value] of Object.entries(input.patch)) meta = jsonSet(this.kernel.dialect, meta, [key], value);
+        for (const [key, value] of Object.entries(input.patch)) meta = jsonSet({ dialect: this.kernel.dialect, column: meta, path: [key], value });
         return { meta: meta as Expression<string>, revision: eb("revision", "+", 1), updated_at: input.updatedAt };
       }).where("workspace_id", "=", input.workspaceId).where("id", "=", input.id)
         .where("revision", "=", input.expectedRevision).returningAll().executeTakeFirst());

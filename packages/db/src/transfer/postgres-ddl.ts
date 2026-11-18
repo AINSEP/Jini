@@ -7,9 +7,9 @@ const tag = (sqlTag = "transfer") => {
 };
 export function quoteIdent({ name }: { name: string }, _optional = {}) { return ddl.quoteIdent(name); }
 export function quoteLiteral({ value }: { value: string }, _optional = {}) { return ddl.quoteLiteral(value); }
-export function qualified({ schema, table }: { schema: string; table: string }, _optional = {}) { return ddl.qualified(schema, table); }
-export function fitIdentifier({ name }: { name: string }, _optional = {}) { return ddl.fitIdentifier(name); }
-export function createTableSql({ schema, table }: { schema: string; table: TransferTable }, _optional = {}) { return ddl.createTableSql(schema, table); }
-export function indexSql({ schema, table }: { schema: string; table: TransferTable }, _optional = {}) { return ddl.indexSql(schema, table); }
-export function reseedIdentitySql({ schema, table }: { schema: string; table: TransferTable }, optional: { sqlTag?: string | undefined } = {}) { return ddl.reseedIdentitySql(schema, table, tag(optional.sqlTag)); }
-export function constraintSql({ schema, tables, unvalidatedTable }: { schema: string; tables: readonly TransferTable[]; unvalidatedTable: string }, optional: { sqlTag?: string | undefined } = {}) { return ddl.constraintSql(schema, tables, unvalidatedTable, tag(optional.sqlTag)); }
+export function qualified({ schema, table }: { schema: string; table: string }, _optional = {}) { return ddl.qualified({ schema, table }); }
+export function fitIdentifier({ name }: { name: string }, _optional = {}) { return ddl.fitIdentifier({ name }); }
+export function createTableSql({ schema, table }: { schema: string; table: TransferTable }, _optional = {}) { return ddl.createTableSql({ schema, table }); }
+export function indexSql({ schema, table }: { schema: string; table: TransferTable }, _optional = {}) { return ddl.indexSql({ schema, table }); }
+export function reseedIdentitySql({ schema, table }: { schema: string; table: TransferTable }, optional: { sqlTag?: string | undefined } = {}) { return ddl.reseedIdentitySql({ schema, table }, { sqlTag: tag(optional.sqlTag) }); }
+export function constraintSql({ schema, tables, unvalidatedTable }: { schema: string; tables: readonly TransferTable[]; unvalidatedTable: string }, optional: { sqlTag?: string | undefined } = {}) { return ddl.constraintSql({ schema, tables, unvalidatedTable }, { sqlTag: tag(optional.sqlTag) }); }

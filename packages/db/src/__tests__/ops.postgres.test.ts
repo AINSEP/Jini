@@ -28,7 +28,7 @@ after(async () => {
 });
 
 test("Postgres copyTo is refused with what to do instead", async () => {
-  await assert.rejects(postgresOps(kernel, { ledgerTable: "app_migrations" }).copyTo("/never"), (err: unknown) => {
+  await assert.rejects(postgresOps({ kernel, ledgerTable: "app_migrations" }).copyTo("/never"), (err: unknown) => {
     assert.ok(err instanceof StorageOpNotSupportedError);
     assert.equal(
       err.message,
@@ -39,13 +39,13 @@ test("Postgres copyTo is refused with what to do instead", async () => {
 });
 
 test("Postgres compactAndVerify refuses a missing ledger, then passes once it has a step", async () => {
-  await assert.rejects(postgresOps(kernel, { ledgerTable: "app_migrations" }).compactAndVerify(), (err: unknown) => {
+  await assert.rejects(postgresOps({ kernel, ledgerTable: "app_migrations" }).compactAndVerify(), (err: unknown) => {
     assert.ok(err instanceof StorageOpError);
     assert.match(err.message, /^the migration ledger app_migrations cannot be read back: relation "app_migrations" does not exist/);
     return true;
   });
   await kernel.execute(sql`CREATE TABLE app_migrations (id text PRIMARY KEY)`);
   await kernel.execute(sql`INSERT INTO app_migrations VALUES ('0000_test')`);
-  await postgresOps(kernel, { ledgerTable: "app_migrations" }).compactAndVerify();
-  await assert.rejects(kernel.transaction(async () => postgresOps(kernel, { ledgerTable: "app_migrations" }).compactAndVerify()), /must be called outside a transaction/);
+  await postgresOps({ kernel, ledgerTable: "app_migrations" }).compactAndVerify();
+  await assert.rejects(kernel.transaction(async () => postgresOps({ kernel, ledgerTable: "app_migrations" }).compactAndVerify()), /must be called outside a transaction/);
 });

@@ -49,7 +49,7 @@ export class SqlTokenStore implements TokenStorePort {
   }
 
   async save({ record }: { record: ConfirmationTokenRecord }, _optional: Record<string, never> = {}): Promise<void> {
-    const row = toRow(record);
+    const row = toRow({ record });
     await this.kernel.run((db) =>
       db
         .withTables<Record<string, GatedMutationTokensTable>>()
@@ -64,7 +64,7 @@ export class SqlTokenStore implements TokenStorePort {
     const row = await this.kernel.run((db) =>
       this.from(db).selectAll().where("confirmation_token", "=", token).executeTakeFirst()
     );
-    return row ? toRecord(row) : null;
+    return row ? toRecord({ row }) : null;
   }
 
   /** See this file's own header for what makes this single-use on every dialect. */
@@ -79,7 +79,7 @@ export class SqlTokenStore implements TokenStorePort {
       );
       if (!row) return { redeemed: false, record: null };
 
-      const record = toRecord(row);
+      const record = toRecord({ row });
       if (!isRedeemable({ record, now: params.now })) return { redeemed: false, record };
 
       const result = await this.kernel.run((db) =>

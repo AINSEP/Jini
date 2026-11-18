@@ -57,15 +57,15 @@ export async function registerConfiguredOrigin(
       await kernel.run((db) =>
         view(db)
           .insertInto(tables.origins)
-          .values({ workspace_id: workspaceId, ...originColumns(verified), redirect_allowlist_json: "[]", egress_allowlist_json: "[]" })
+          .values({ workspace_id: workspaceId, ...originColumns({ origin: verified }), redirect_allowlist_json: "[]", egress_allowlist_json: "[]" })
           .execute()
       );
       return "inserted";
     }
 
-    if (sameOrigin(existing, verified)) return "unchanged";
+    if (sameOrigin({ row: existing, origin: verified })) return "unchanged";
 
-    await kernel.run((db) => view(db).updateTable(tables.origins).set(originColumns(verified)).where("workspace_id", "=", workspaceId).execute());
+    await kernel.run((db) => view(db).updateTable(tables.origins).set(originColumns({ origin: verified })).where("workspace_id", "=", workspaceId).execute());
     return "updated";
   });
 }

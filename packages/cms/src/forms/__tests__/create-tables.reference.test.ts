@@ -58,8 +58,8 @@ test("sqlite: createFormsTables matches the reference DDL's catalog", async () =
   const reference = new Database(":memory:");
   const created = new Database(":memory:");
   try {
-    await createReferenceTables(sqliteKernel(reference), "sqlite");
-    await createFormsTables({ kernel: sqliteKernel(created), tables });
+    await createReferenceTables(sqliteKernel({ source: reference }), "sqlite");
+    await createFormsTables({ kernel: sqliteKernel({ source: created }), tables });
     const expected = sqliteSchema(reference);
     assert.equal(expected.flatMap((t) => t.indexes).length, 7, "reference has 5 named indexes and 2 primary-key autoindexes");
     assert.deepEqual(sqliteSchema(created), expected);

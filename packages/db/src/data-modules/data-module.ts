@@ -453,7 +453,7 @@ function validate(decl: DataModuleDecl): void {
  * SQLite). The same text is what `_plugin_migrations.ddl` records.
  */
 function columnSql(kernel: PluginKernel, col: ColumnDecl): string {
-  let ddl = `"${col.name}" ${columnTypeSql(kernel.dialect, col.type)}`;
+  let ddl = `"${col.name}" ${columnTypeSql({ dialect: kernel.dialect, affinity: col.type })}`;
   if (col.primaryKey) ddl += " PRIMARY KEY";
   if (col.notNull) ddl += " NOT NULL";
   return ddl;
@@ -473,21 +473,21 @@ function indexSql(fqTableName: string, idx: IndexDecl): { indexName: string; sql
 
 /** Core's own migration timeline, extended to admit plugin entries later (ADR-023 §12). */
 async function ensureJournal(kernel: PluginKernel): Promise<void> {
-  const text = sql.raw(columnTypeSql(kernel.dialect, "TEXT"));
+  const text = sql.raw(columnTypeSql({ dialect: kernel.dialect, affinity: "TEXT" }));
   await kernel.execute(sql`CREATE TABLE IF NOT EXISTS _plugin_migrations (
-       id ${sql.raw(autoIdColumnSql(kernel.dialect))},
+       id ${sql.raw(autoIdColumnSql({ dialect: kernel.dialect }))},
        plugin_id ${text} NOT NULL,
        table_name ${text} NOT NULL,
        ddl ${text} NOT NULL,
        snapshot_path ${text},
-       at ${sql.raw(columnTypeSql(kernel.dialect, "INTEGER"))} NOT NULL
+       at ${sql.raw(columnTypeSql({ dialect: kernel.dialect, affinity: "INTEGER" }))} NOT NULL
      )`);
 }
 
 async function existingTables(kernel: PluginKernel, names: string[]): Promise<Set<string>> {
   if (names.length === 0) return new Set();
   const wanted = new Set(names);
-  return new Set((await listTables(kernel)).filter((name) => wanted.has(name)));
+  return new Set((await listTables({ kernel })).filter((name) => wanted.has(name)));
 }
 
 interface ExistingColumnInfo {
@@ -519,7 +519,7 @@ interface ReconciliationPlan {
  * `pragma_table_info`, whose ordinal `pk` it already reads as "is part of the primary key").
  */
 async function getExistingColumns(kernel: PluginKernel, fqTableName: string): Promise<Map<string, ExistingColumnInfo>> {
-  const columns = await listColumns(kernel, fqTableName);
+  const columns = await listColumns({ kernel, table: fqTableName });
   return new Map(columns.map((c) => [c.name, { type: c.type, notNull: c.notNull, primaryKey: c.primaryKey }]));
 }
 
@@ -559,7 +559,7 @@ function planMissingColumn(tableName: string, col: ColumnDecl): ColumnDecl {
  */
 function assertColumnTypeMatches(kernel: PluginKernel, tableName: string, col: ColumnDecl, existingCol: ExistingColumnInfo): void {
   // Type names compare case-insensitively (SQLite's own rule): `listColumns` reports lower case.
-  if (existingCol.type === columnTypeSql(kernel.dialect, col.type).toLowerCase()) return;
+  if (existingCol.type === columnTypeSql({ dialect: kernel.dialect, affinity: col.type }).toLowerCase()) return;
   throw new DeclError(
     "COLUMN_TYPE_MISMATCH",
     `table ${tableName} column "${col.name}" is declared ${col.type} but the live column is ` +
@@ -654,7 +654,7 @@ interface IndexReconciliationPlan {
  * indexes) were never declared through `IndexDecl` or created by this module's own `indexSql`.
  */
 async function planIndexReconciliation(kernel: PluginKernel, table: TableDecl, fqTableName: string): Promise<IndexReconciliationPlan> {
-  const existingIndexes = await listIndexes(kernel, fqTableName);
+  const existingIndexes = await listIndexes({ kernel, table: fqTableName });
   const indexesToAdd: IndexDecl[] = [];
   const indexesToRecreate: IndexDecl[] = [];
   for (const idx of table.indexes ?? []) {
@@ -722,7 +722,7 @@ async function recordMigration(
  * only covers the alter path this fix adds, matching `missingColumns`'s scope one level up.
  */
 async function verifyAlteredIndexes(kernel: PluginKernel, alteration: TableAlterationPlan): Promise<string[]> {
-  const nowExistingIndexes = await listIndexes(kernel, alteration.fqTableName);
+  const nowExistingIndexes = await listIndexes({ kernel, table: alteration.fqTableName });
   const declaredIndexes = [...alteration.indexesToAdd, ...alteration.indexesToRecreate];
   return declaredIndexes
     .map((idx) => indexSql(alteration.fqTableName, idx).indexName)

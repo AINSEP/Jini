@@ -10,7 +10,7 @@ let kernel: KyselyKernel<SecretsVaultDatabase>;
 let repo: SqlSecretsVaultRepo;
 let reads: string[];
 beforeEach(async () => {
-  kernel = sqliteKernel<SecretsVaultDatabase>(new Database(":memory:"));
+  kernel = sqliteKernel<SecretsVaultDatabase>({ source: new Database(":memory:") });
   await kernel.execute(sql`CREATE TABLE secrets_vault (
     workspace_id TEXT NOT NULL, id TEXT NOT NULL, kind TEXT NOT NULL, owner_key TEXT NOT NULL,
     principal_id TEXT, binding TEXT, provider TEXT, label TEXT NOT NULL, is_default BOOLEAN NOT NULL,

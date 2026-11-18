@@ -23,7 +23,7 @@ after(() => fs.rmSync(tmp, { recursive: true, force: true }));
 for (const source of [':memory:', path.join(tmp, 'missing-directory-source.db')]) {
   test(`SQLite backupTo reports a missing destination directory for ${source === ':memory:' ? 'memory' : 'file'} sources`, async () => {
     const client = new Database(source);
-    const kernel = sqliteKernel<unknown>(client);
+    const kernel = sqliteKernel<unknown>({ source: client });
     const directory = path.join(tmp, 'missing', 'nested');
     try {
       await assert.rejects(kernel.backupTo(path.join(directory, 'copy.db')), (error: unknown) => {
@@ -39,7 +39,7 @@ for (const source of [':memory:', path.join(tmp, 'missing-directory-source.db')]
 
 test("kernel refuses copies on low destination space before creating a file", async () => {
   const client = new Database(path.join(tmp, "budget-source.db"));
-  const kernel = sqliteKernel<unknown>(client);
+  const kernel = sqliteKernel<unknown>({ source: client });
   const target = path.join(tmp, "budget-copy.db");
   const space = await fsp.statfs(tmp);
   const probe = vi.spyOn(fsp, "statfs").mockResolvedValue({ ...space, bavail: 0 });
@@ -51,7 +51,7 @@ test("kernel refuses copies on low destination space before creating a file", as
 
 test("SQLite backupTo writes a readable copy with the committed rows", async () => {
   const client = new Database(path.join(tmp, "source.db"));
-  const kernel = sqliteKernel<unknown>(client);
+  const kernel = sqliteKernel<unknown>({ source: client });
   await kernel.execute(sql`CREATE TABLE t (id text)`);
   await kernel.execute(sql`INSERT INTO t VALUES ('a')`);
   await kernel.backupTo(path.join(tmp, "copy.db"));

@@ -19,7 +19,7 @@ interface HostDatabase extends SqliteEventLogDatabase {
 
 it('awaits readiness, routes through the injected kernel, and never closes it', async () => {
   const db = new Database(':memory:');
-  const real = sqliteKernel<HostDatabase>(db);
+  const real = sqliteKernel<HostDatabase>({ source: db });
   let release!: () => void;
   const run = vi.spyOn(real, 'run');
   const transaction = vi.spyOn(real, 'transaction');
@@ -55,7 +55,7 @@ it('awaits readiness, routes through the injected kernel, and never closes it', 
 it('commits event and projection together and rolls back both on projection failure or host refusal', async () => {
   const db = new Database(':memory:');
   db.exec(`${SQLITE_EVENT_LOG_SCHEMA} CREATE TABLE projection (id TEXT PRIMARY KEY, value INTEGER NOT NULL);`);
-  const kernel = sqliteKernel<HostDatabase>(db);
+  const kernel = sqliteKernel<HostDatabase>({ source: db });
   try {
     const log = await createKernelSqliteEventLog({ kernel, clock: testClock }, { schemaSetup: 'host' });
     const event = { runId: 'r', event: 'e', data: 1 };
@@ -89,7 +89,7 @@ it('commits event and projection together and rolls back both on projection fail
 
 it('blocks concurrent callers until an outer transaction completes, then allocates contiguous cursors', async () => {
   const db = new Database(':memory:');
-  const kernel = sqliteKernel<SqliteEventLogDatabase>(db);
+  const kernel = sqliteKernel<SqliteEventLogDatabase>({ source: db });
   let release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
   let entered!: () => void;
@@ -116,7 +116,7 @@ it('blocks concurrent callers until an outer transaction completes, then allocat
 it('replay reads one snapshot: run, oldest retained cursor and entries come from a single statement', async () => {
   const db = new Database(':memory:');
   try {
-    const log = await createKernelSqliteEventLog({ kernel: sqliteKernel<SqliteEventLogDatabase>(db), clock: testClock }, { maxEntriesPerRun: 3 });
+    const log = await createKernelSqliteEventLog({ kernel: sqliteKernel<SqliteEventLogDatabase>({ source: db }), clock: testClock }, { maxEntriesPerRun: 3 });
     for (const n of [1, 2, 3, 4, 5]) await log.append({ runId: 'r', event: 'e', data: n });
     const prepare = vi.spyOn(db, 'prepare');
     // One statement leaves no point where another process could evict between gap check and read.
@@ -144,12 +144,12 @@ it('replays through a read-only kernel with host-managed schema', async () => {
   const path = join(dir, 'log.db');
   try {
     const writer = new Database(path);
-    const seeded = await createKernelSqliteEventLog({ kernel: sqliteKernel<SqliteEventLogDatabase>(writer), clock: testClock });
+    const seeded = await createKernelSqliteEventLog({ kernel: sqliteKernel<SqliteEventLogDatabase>({ source: writer }), clock: testClock });
     await seeded.append({ runId: 'r', event: 'e', data: 1 });
     writer.close();
     const reader = new Database(path, { readonly: true, fileMustExist: true });
     try {
-      const log = await createKernelSqliteEventLog({ kernel: sqliteKernel<SqliteEventLogDatabase>(reader), clock: testClock }, { schemaSetup: 'host' });
+      const log = await createKernelSqliteEventLog({ kernel: sqliteKernel<SqliteEventLogDatabase>({ source: reader }), clock: testClock }, { schemaSetup: 'host' });
       expect(await log.replay({ runId: 'r', afterCursor: null }))
         .toMatchObject({ kind: 'ok', entries: [{ id: '1', event: 'e', data: 1 }] });
     } finally { reader.close(); }
@@ -158,7 +158,7 @@ it('replays through a read-only kernel with host-managed schema', async () => {
 
 it('replays inside a host run() body on the same executor', async () => {
   const db = new Database(':memory:');
-  const kernel = sqliteKernel<SqliteEventLogDatabase>(db);
+  const kernel = sqliteKernel<SqliteEventLogDatabase>({ source: db });
   try {
     const log = await createKernelSqliteEventLog({ kernel, clock: testClock });
     await log.append({ runId: 'r', event: 'e', data: 1 });
@@ -169,7 +169,7 @@ it('replays inside a host run() body on the same executor', async () => {
 
 it('rejects non-SQLite kernels and propagates readiness failures without querying or closing', async () => {
   const db = new Database(':memory:');
-  const real = sqliteKernel<SqliteEventLogDatabase>(db);
+  const real = sqliteKernel<SqliteEventLogDatabase>({ source: db });
   const run = vi.spyOn(real, 'run');
   const close = vi.fn(async () => {});
   try {

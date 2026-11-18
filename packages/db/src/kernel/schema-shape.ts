@@ -31,7 +31,7 @@ export interface SchemaShape {
 const squash = (text: string) => text.replace(/\s+/g, " ").trim();
 
 /** Every user table's shape (internal and `sqlite_`/`pg_` tables excluded), keyed by table name. */
-export async function readSchemaShape(kernel: KyselyKernel<unknown>, optional: { exclude?: readonly string[] } = {}): Promise<SchemaShape> {
+export async function readSchemaShape({ kernel }: { kernel: KyselyKernel<unknown> }, optional: { exclude?: readonly string[] } = {}): Promise<SchemaShape> {
   const exclude = new Set(optional.exclude ?? []);
   const shape = kernel.dialect === "sqlite" ? await sqliteShape(kernel) : await postgresShape(kernel);
   for (const name of exclude) delete shape.tables[name];
@@ -136,7 +136,7 @@ async function postgresShape(kernel: KyselyKernel<unknown>): Promise<SchemaShape
 }
 
 /** The main database file of a SQLite kernel; null for an in-memory database or a Postgres kernel. */
-export async function databaseFile<DB>(kernel: KyselyKernel<DB>): Promise<string | null> {
+export async function databaseFile<DB>({ kernel }: { kernel: KyselyKernel<DB> }, _optional: Record<string, never> = {}): Promise<string | null> {
   if (kernel.dialect !== "sqlite") return null;
   const rows = await kernel.query<{ file: string }>(sql`SELECT file FROM pragma_database_list WHERE name = 'main'`);
   return rows[0]?.file ? rows[0].file : null;

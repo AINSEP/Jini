@@ -92,7 +92,7 @@ export interface MigrationReport {
 }
 
 /** Throws on duplicate, unordered or malformed ids and on a checksum that is not sha256 hex. */
-export function assertValidSteps(steps: readonly MigrationStep<KyselyKernel<unknown>>[]): void {
+export function assertValidSteps({ steps }: { steps: readonly MigrationStep<KyselyKernel<unknown>>[] }, _optional: Record<string, never> = {}): void {
   let previous = "";
   for (const step of steps) {
     if (!MIGRATION_ID.test(step.id)) throw new Error(`migration id '${step.id}' is not NNNN_snake_name`);
@@ -219,7 +219,7 @@ export async function runMigrations(
   steps: readonly MigrationStep<KyselyKernel<unknown>>[],
   options: MigrationOptions
 ): Promise<MigrationReport> {
-  assertValidSteps(steps);
+  assertValidSteps({ steps });
   kernel.require("interactiveTransactions");
   validateExtensions({ options, steps });
   if (options.atomicity === "batch") ownedTransactionOf({ kernel }).assertAvailable();
@@ -271,7 +271,7 @@ async function preparePendingStep({ kernel, context, step, backedUp }: { kernel:
 /** The pre-change copy (see the file header). Outside any transaction: a backup cannot run inside one. */
 async function backUpBeforeChange(kernel: KyselyKernel<unknown>, context: MigrationContext): Promise<void> {
   const target = context.backupPath;
-  if (target === undefined || !kernel.capabilities.backup || (await listTables(kernel)).length === 0) return;
+  if (target === undefined || !kernel.capabilities.backup || (await listTables({ kernel })).length === 0) return;
   // The folder is made only when a copy is taken, so a run with nothing to copy leaves none behind.
   fs.mkdirSync(path.dirname(path.resolve(target)), { recursive: true });
   try {
@@ -286,12 +286,12 @@ async function backUpBeforeChange(kernel: KyselyKernel<unknown>, context: Migrat
 }
 
 async function ledgerExists(kernel: KyselyKernel<unknown>, ledger: Ledger): Promise<boolean> {
-  if (ledger.schema === undefined) return tableExists(kernel, ledger.table);
+  if (ledger.schema === undefined) return tableExists({ kernel, table: ledger.table });
   const [row] = await kernel.query<{ found: string | null }>(sql`SELECT to_regclass(${ledger.schema + "." + ledger.table})::text AS found`);
   return row?.found != null;
 }
 
 /** True when `kernel`'s database has the ledger `ledgerTable` (it has been through {@link runMigrations}). */
-export async function hasLedger(kernel: KyselyKernel<unknown>, ledgerTable: string): Promise<boolean> {
-  return tableExists(kernel, ledgerTable);
+export async function hasLedger({ kernel, ledgerTable }: { kernel: KyselyKernel<unknown>; ledgerTable: string }, _optional: Record<string, never> = {}): Promise<boolean> {
+  return tableExists({ kernel, table: ledgerTable });
 }

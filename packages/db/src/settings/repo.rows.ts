@@ -130,7 +130,7 @@ export function toDefinitionRecord(row: Selectable<SettingDefinitionsTable>): Se
 }
 
 /** Every definition column an upsert may rewrite: all but the identity (`setting_id`, `version`) and `created_at`. */
-export function toDefinitionUpdate(record: SettingDefinitionRecord) {
+export function toDefinitionUpdate({ record }: { record: SettingDefinitionRecord }, _optional: Record<string, never> = {}) {
   return {
     workspace_id: record.workspaceId,
     namespace: record.namespace,
@@ -149,8 +149,8 @@ export function toDefinitionUpdate(record: SettingDefinitionRecord) {
   };
 }
 
-export function toDefinitionRow(record: SettingDefinitionRecord): Insertable<SettingDefinitionsTable> {
-  return { setting_id: record.settingId, version: record.version, created_at: record.createdAt, ...toDefinitionUpdate(record) };
+export function toDefinitionRow({ record }: { record: SettingDefinitionRecord }, _optional: Record<string, never> = {}): Insertable<SettingDefinitionsTable> {
+  return { setting_id: record.settingId, version: record.version, created_at: record.createdAt, ...toDefinitionUpdate({ record }) };
 }
 
 export function toValueRecord(
@@ -174,7 +174,7 @@ export function toValueRecord(
 
 /** The columns every value table shares, as written. `state='set'` always serializes the value (even
  *  JSON `null`) as text so it's distinguishable from a SQL-NULL 'cleared' row. */
-export function valueColumns(record: SettingValueRecord) {
+export function valueColumns({ record }: { record: SettingValueRecord }, _optional: Record<string, never> = {}) {
   return {
     value_json: record.state === "cleared" ? null : JSON.stringify(record.valueJson),
     state: record.state,

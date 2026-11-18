@@ -44,7 +44,7 @@ export interface OpenKernel {
 
 /** A fresh in-memory database of the dialect with the five tables applied. */
 export async function openSettingsKernel({ dialect }: { dialect: "sqlite" | "postgres" }, _optional: Record<string, never> = {}): Promise<OpenKernel> {
-  const opened: KyselyKernel<unknown> = dialect === "sqlite" ? sqliteKernel<unknown>(new Database(":memory:")) : openPgliteKernel({ PGlite });
+  const opened: KyselyKernel<unknown> = dialect === "sqlite" ? sqliteKernel<unknown>({ source: new Database(":memory:") }) : openPgliteKernel({ PGlite });
   for (const statement of dialect === "sqlite" ? sqliteStatements : postgresStatements) await opened.execute(sql.raw(statement));
   return { kernel: opened, dialect, close: () => opened.close() };
 }

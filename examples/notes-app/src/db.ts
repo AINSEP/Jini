@@ -38,7 +38,7 @@ export interface NotesTables {
 export async function openAppDatabase({ filePath }: { filePath: string }, _optional: Record<string, never> = {}) {
   mkdirSync(dirname(filePath), { recursive: true });
   const connection = openSqliteConnection({ filePath, open: ({ filePath: path }) => new Database(path) });
-  const kernel = sqliteKernel<NotesTables>(connection);
+  const kernel = sqliteKernel<NotesTables>({ source: connection });
   await kernel.ready;
 
   await createFormsTables({ kernel, tables: FORMS_TABLES });

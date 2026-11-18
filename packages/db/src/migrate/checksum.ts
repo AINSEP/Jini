@@ -9,6 +9,6 @@ import { createHash } from "node:crypto";
  *
  * @complexity O(length of `text`).
  */
-export function sourceChecksum(text: string): string {
+export function sourceChecksum({ text }: { text: string }, _optional: Record<string, never> = {}): string {
   return createHash("sha256").update(text, "utf8").digest("hex");
 }

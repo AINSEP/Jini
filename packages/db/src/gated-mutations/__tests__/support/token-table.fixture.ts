@@ -14,7 +14,7 @@ const DDL = "CREATE TABLE gated_mutation_tokens (confirmation_token text PRIMARY
 
 /** A fresh in-memory database of the dialect with the token table applied. */
 export async function openTokenKernel({ dialect }: { dialect: "sqlite" | "postgres" }, _optional: Record<string, never> = {}): Promise<KyselyKernel<unknown>> {
-  const kernel: KyselyKernel<unknown> = dialect === "sqlite" ? sqliteKernel<unknown>(new Database(":memory:")) : openPgliteKernel({ PGlite });
+  const kernel: KyselyKernel<unknown> = dialect === "sqlite" ? sqliteKernel<unknown>({ source: new Database(":memory:") }) : openPgliteKernel({ PGlite });
   await kernel.execute(sql.raw(DDL));
   return kernel;
 }

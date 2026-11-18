@@ -14,7 +14,7 @@ import type { KyselyKernel } from "../kernel/port.js";
 
 // Follow kernel.test.ts's embedded-driver matrix; there is no shared vault contract harness.
 const cases = [
-  { name: "sqlite", kernel: sqliteKernel<SecretsVaultDatabase>(new Database(":memory:")) },
+  { name: "sqlite", kernel: sqliteKernel<SecretsVaultDatabase>({ source: new Database(":memory:") }) },
   { name: "pglite", kernel: openPgliteKernel<SecretsVaultDatabase>({ PGlite }) },
 ];
 afterAll(async () => { for (const { kernel } of cases) await kernel.close(); });
