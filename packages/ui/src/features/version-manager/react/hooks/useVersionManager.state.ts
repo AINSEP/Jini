@@ -200,11 +200,11 @@ export function useSelectedContent({
 }
 
 /** Search box state + the searchable text for each version. */
-export function useVersionSearch<TVersion extends VersionRecord>(
-  versions: TVersion[],
-  locale: string,
-  tRef: TRef,
-) {
+export function useVersionSearch<TVersion extends VersionRecord>({ versions, locale, tRef }: {
+  versions: TVersion[];
+  locale: string;
+  tRef: TRef;
+}) {
   const [search, setSearch] = useState('');
   const versionById = useMemo(() => buildVersionIndex(versions), [versions]);
   const showSearch = shouldShowVersionSearch(versions.length, SEARCH_VISIBLE_THRESHOLD);
@@ -392,7 +392,7 @@ export function useVersionSelection<TVersion extends VersionRecord>({
 }: VersionSelectionParams<TVersion>) {
   const { contentCacheRef, primeVersionContent } = useVersionContentCache(port, fileRef);
   const list = useVersionList({ port, fileRef, currentContent, tRef, contentCacheRef, setError });
-  const searchState = useVersionSearch(list.versions, locale, tRef);
+  const searchState = useVersionSearch({ versions: list.versions, locale, tRef });
   const selectedVersion = resolveSelectedVersion(list.versions, searchState.versionById, list.selectedId);
   const content = useSelectedContent({
     selectedId: list.selectedId, currentContent, tRef, contentCacheRef, primeVersionContent, preserveErrorOnNextSelectionRef, setError,
