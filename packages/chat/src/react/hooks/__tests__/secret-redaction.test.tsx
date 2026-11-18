@@ -1,7 +1,6 @@
 import { act, fireEvent, renderHook, screen } from '../../__tests__/fake-chat-kit.js';
 import { renderWithChatSurfaces } from '../../__tests__/fake-chat-surfaces.js';
 import { expect, it } from 'vitest';
-import { formatDroppedFolderPaths } from '@jini-ai/ui/core';
 import { useConversation } from '../useConversation.js';
 import { useChatPane } from '../../features/chat-pane/hooks/useChatPane.hooks.js';
 import { ChatPane } from '../../features/chat-pane/components/ChatPane.js';
@@ -135,18 +134,18 @@ it('pane notice uses the host translator and exposes only safe metadata to open 
   expect(signals).toEqual([{ secretRedacted: true, count: 1 }]);
 });
 
+// b2c3f637e: the folder picker quotes whitespace-containing paths before they reach chat, so the expected text is written out.
 it.each([
-  '/Users/la/Documents/Tovu/Some-Folder2026',
-  '~/Documents/Customer-Portal2026/SourceFiles',
-  String.raw`C:\Projects\CustomerPortal2026ProductionSourceFilesAndDocuments`,
-  String.raw`\\FileServer\Projects\CustomerPortal2026ProductionSourceFilesAndDocuments`,
-  '/Users/alex/Client Work/CustomerPortal2026ProductionSourceFilesAndDocuments',
-])('sends a picked folder intact without showing a key warning: %s', async path => {
+  ['/Users/la/Documents/Tovu/Some-Folder2026', '/Users/la/Documents/Tovu/Some-Folder2026'],
+  ['~/Documents/Customer-Portal2026/SourceFiles', '~/Documents/Customer-Portal2026/SourceFiles'],
+  [String.raw`C:\Projects\CustomerPortal2026ProductionSourceFilesAndDocuments`, String.raw`C:\Projects\CustomerPortal2026ProductionSourceFilesAndDocuments`],
+  [String.raw`\\FileServer\Projects\CustomerPortal2026ProductionSourceFilesAndDocuments`, String.raw`\\FileServer\Projects\CustomerPortal2026ProductionSourceFilesAndDocuments`],
+  ['/Users/alex/Client Work/CustomerPortal2026ProductionSourceFilesAndDocuments', '"/Users/alex/Client Work/CustomerPortal2026ProductionSourceFilesAndDocuments"'],
+])('sends a picked folder intact without showing a key warning: %s', async (_path, pasted) => {
   const transport = createFakeChatTransport();
   const signals: unknown[] = [];
   const contexts: string[] = [];
-  // b2c3f637e: the picker quotes whitespace-containing paths before they reach chat.
-  const prompt = `Please inspect ${formatDroppedFolderPaths([path])}`;
+  const prompt = `Please inspect ${pasted}`;
   renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} initialSelection={{ agentId: 'a' }} initialDraft={prompt}
     onSecretRedacted={signal => signals.push(signal)} runContext={({ prompt }) => { contexts.push(prompt); return {}; }} />);
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send' })); });

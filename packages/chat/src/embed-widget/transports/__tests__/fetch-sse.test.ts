@@ -4,9 +4,9 @@ import { afterEach, beforeEach, describe, it } from "vitest";
 import type { AgentEvent, ChatMessage } from "@jini-ai/chat/core";
 import type { ChatTransport, RunHandlers, StartRunInput } from "@jini-ai/chat/react";
 
-import { decodeSseStream } from '@jini-ai/agent-runtime/providers/sse-decode';
+import { decodeSseStream } from '@jini-ai/core/primitives';
 import { createFetchSseTransport, buildJsonChatRequest, mapJsonChatSseFrame } from '../fetch-sse.js';
-// The browser-safe decoder has a dedicated public leaf. Rebuild agent-runtime before this suite.
+// The decoder is core's own primitive (agent-runtime re-exports it); that agent-runtime's export fits the decoder port is the host binding's to prove.
 let fetchPort: typeof fetch;
 const createTransport = () => createFetchSseTransport({
   endpoint: CHAT_URL, agentId: 'example-agent', fetch: (url, init) => fetchPort(url, init),
