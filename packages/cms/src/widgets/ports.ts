@@ -107,7 +107,7 @@ export type RemoveWidgetFn = (required: {
  * One row of the derived reference index: the source content object refers to a target at `fieldPath`.
  * Rows are extracted and replaced in the same transaction as the source write, never by a follow-up job,
  * and the index can be rebuilt from live entries at any time. Safe-delete's where-used check reads it.
- * Structural: the host owns extraction and persistence.
+ * `extractEntryRefs`/`extractHtmlEntryRefs` (`entry-refs-extractor.ts`) extract rows; the host persists them.
  */
 export interface EntryRefRow {
   readonly workspaceId: UUID;
@@ -129,7 +129,7 @@ export interface EntryRefRow {
   readonly targetId: UUID;
 }
 
-/** The one reference-index operation widgets performs; no extractor implementation is copied. */
+/** Persistence of the reference index; the host implements it (`InMemoryEntryRefsRepo` is the in-memory one). */
 export interface EntryRefsRepoPort {
   /**
    * Replace every row for a given source entry with the freshly-extracted set (idempotent re-extraction
