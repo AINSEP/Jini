@@ -1,5 +1,6 @@
 /** One credential policy for chat text; secure card values must bypass this text-only boundary. */
 import { redactSecretsWithCounts } from '@jini-ai/core';
+import { locationFinder } from './user-text-locations.js';
 import type { ChatMessage, SecretRedactionSignal } from './messages.js';
 export type { SecretRedactionSignal } from './messages.js';
 
@@ -31,17 +32,6 @@ function entropy(text: string): number {
     bits -= probability * Math.log2(probability);
   }
   return bits;
-}
-
-/** Recognize identifier paths, including the fragment after a space in a typed path.
- * Require multiple segments and readable words: arbitrary base64 and long digit-mixed runs
- * must still reach the entropy guard. Specific credential rules have already run. */
-function isIdentifierPath({ text }: { readonly text: string }, _options = {}): boolean {
-  const segments = text.replace(/^(?:[a-z]:|~)?[\\/]*/i, '').split(/[\\/]/).filter(Boolean);
-  return segments.length >= 2 && segments.every(segment =>
-    /^[a-z][a-z0-9]*(?:[-_.][a-z0-9]+)*$/.test(segment)
-    || segment.split(/[-_.]/).every(word => /^[A-Z]$/.test(word)
-      || /^[A-Z]?[a-z]{2,}(?:[A-Z][a-z]{2,}|[0-9]{1,4}(?=[A-Z][a-z]{2,}|$))*$/.test(word)));
 }
 
 /** A piece of a random key: long, both letter cases, and a character-class change at most positions.
@@ -78,22 +68,10 @@ export function redactUserText({ text }: { readonly text: string }, { secretFiel
   const r = redactSecretsWithCounts({ input: protectedText }, { redactPii: false });
   const base = { text: r.redacted, redactions: Object.values(r.counts).reduce((a, b) => a + b, 0) };
   let count = base.redactions;
-  // Exempt locations only AFTER specific secret rules. Only quoted paths may contain whitespace;
-  // unquoted paths and URLs end there, and at , | ; and invisible separators, so an adjacent
-  // secret glued after them cannot inherit the exemption.
-  // A quoted path ends at its first matching quote, which must sit on a word boundary, so an
-  // apostrophe later in the line ("don't") cannot close an unterminated quote and exempt the gap.
-  // Require a root boundary so a slash inside an opaque token cannot exempt that token, and a
-  // folder after the root so a bare "/" + token is not mistaken for a path.
-  const locations = [
-    ...[...base.text.matchAll(/\b[a-z][a-z0-9+.-]*:\/\/[^\s<>"'`,|;\u200B-\u200D\uFEFF]+|(?<!\w)(["'`])(?:~\/|[a-z]:[\\/]|\\\\|\/)[^\r\n"'`\\/]+[\\/](?:(?!\1)[^\r\n])*\1(?!\w)|(?<![\w+\/=\\~.-])(?:~\/|[a-z]:[\\/]|\\\\|\/)[^\s<>"'`,|;\u200B-\u200D\uFEFF\\/]+[\\/][^\s<>"'`,|;\u200B-\u200D\uFEFF]*/gi)]
-      .map(match => ({ match, url: /^[a-z][a-z0-9+.-]*:\/\//i.test(match[0]) })),
-    // The part of a hand-typed unquoted path after a space (Work/CustomerPortal…) has no root.
-    ...[...base.text.matchAll(/[^\s<>"'`,|;\u200B-\u200D\uFEFF]+/g)]
-      .filter(match => isIdentifierPath({ text: match[0] })).map(match => ({ match, url: false })),
-  ].map(({ match, url }) => ({ start: match.index!, end: match.index! + match[0].length, url }));
+  // Exempt locations only AFTER specific secret rules; see locationFinder for what counts as one.
+  const locate = locationFinder({ text: base.text });
   let cleaned = base.text.replace(/(?<![A-Za-z0-9_+\/=-])[A-Za-z0-9_+\/=-]{40,}(?![A-Za-z0-9_+\/=-])/g, (candidate: string, offset: number) => {
-    const location = locations.find(span => offset >= span.start && offset + candidate.length <= span.end);
+    const location = locate(offset, offset + candidate.length);
     // A key glued straight onto a path (/proj/KEY) is still checked; URLs keep their opaque ids.
     if (location && (location.url || !candidate.split(/[\\/]/).some(isOpaqueSegment))) return candidate;
     if (!isRandomLookingToken({ text: candidate })) return candidate;
