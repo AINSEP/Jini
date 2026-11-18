@@ -211,19 +211,23 @@ function surfaceInteraction(
   return { expiresAtMs, toolCall };
 }
 
+/** Hooks McpUiSurfaceCard calls; defaults to the real ones, a test hands in fakes. */
+export const defaultMcpUiSurfaceCardHooks = { useT, useSurfaceRecovery, useSurfaceQuestionCall, useSurfaceExpiry };
+export type McpUiSurfaceCardHooks = typeof defaultMcpUiSurfaceCardHooks;
+
 /** Registered against `ext-event-renderer-registry.ts`'s `'mcp-ui'` name — see module doc. */
-export function McpUiSurfaceCard({ events, sandboxProxyUrl, onToolCall, onOpenLink, maxHeight, call, runStreaming, expiryClock, answered, onAnswered, onAnswerText, answerText, answerRecorded }: McpUiSurfaceCardProps) {
-  const t = useT();
+export function McpUiSurfaceCard({ events, sandboxProxyUrl, onToolCall, onOpenLink, maxHeight, call, runStreaming, expiryClock, answered, onAnswered, onAnswerText, answerText, answerRecorded, hooks = defaultMcpUiSurfaceCardHooks }: McpUiSurfaceCardProps & { hooks?: McpUiSurfaceCardHooks | undefined }) {
+  const t = hooks.useT();
   const originalResources = useMemo(() => latestResourcesByUri(events), [events]);
-  const recovery = useSurfaceRecovery({ resource: originalResources.length === 1 ? originalResources[0] : undefined,
+  const recovery = hooks.useSurfaceRecovery({ resource: originalResources.length === 1 ? originalResources[0] : undefined,
     call, runStreaming, onToolCall });
   const { resources, currentEvents, currentCall } = recoveredView({ recovery, resources: originalResources, events, call });
   // One card per slot is the registered shape (`mcpUiSurfaceSlotKey`), so `call` belongs to exactly
   // that card. A group holding several URIs has no single call to judge them by, and stays live.
   const single = resources.length === 1 ? resources[0] : undefined;
-  const { displayCall, input, standalone } = useSurfaceQuestionCall({ events: currentEvents, call: currentCall });
+  const { displayCall, input, standalone } = hooks.useSurfaceQuestionCall({ events: currentEvents, call: currentCall });
   const { expiresAtMs, toolCall } = surfaceInteraction({ resource: single, answered, onToolCall: recovery.onToolCall, onAnswered, onAnswerText, call: displayCall });
-  const expiry = useSurfaceExpiry(
+  const expiry = hooks.useSurfaceExpiry(
     { expiresAtMs },
     expiryClock === undefined ? {} : { clock: expiryClock },
   );
@@ -232,10 +236,20 @@ export function McpUiSurfaceCard({ events, sandboxProxyUrl, onToolCall, onOpenLi
     : closedSurfaceLabel({ t, call: currentCall, runStreaming: recovery.live || runStreaming,
       documentsForUri: currentEvents.length, expired: expiry?.expired === true });
   // A completed call answered the original document; a replacement outcome or retry owns its view.
-  const answer = (currentEvents.length === 1 ? questionAnswerFromResult({ result: currentCall?.result, input }) : undefined) ?? answerText;
+  const answer = recordedOrTypedAnswer({ events: currentEvents, call: currentCall, input, answerText });
   return <SurfaceCardContent resources={resources} single={single} answerRecorded={answerRecorded}
     answer={answer} closed={closed} call={displayCall} standalone={standalone} t={t} sandboxProxyUrl={sandboxProxyUrl}
     toolCall={toolCall} onOpenLink={onOpenLink} maxHeight={maxHeight} expiry={expiry} />;
+}
+
+/** A completed call's answer, when exactly one document was shown for it; else the answer the host typed. */
+function recordedOrTypedAnswer({ events, call, input, answerText }: {
+  events: readonly unknown[];
+  call: ExtEventCall | undefined;
+  input: ExtEventCall['input'];
+  answerText: string | undefined;
+}, _options = {}): string | undefined {
+  return (events.length === 1 ? questionAnswerFromResult({ result: call?.result, input }) : undefined) ?? answerText;
 }
 
 /** What the card shows after recovery: a restored document replaces the originals and leaves no call to judge it by. */

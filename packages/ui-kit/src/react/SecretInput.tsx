@@ -12,10 +12,10 @@ export interface SecretInputProps extends Omit<InputHTMLAttributes<HTMLInputElem
 /** Masked native input with controlled or local reveal state. Keep its toggle outside a label:
  * the toggle's name must never join the input's accessible name. Hosts own styling and copy.
  * @complexity O(1). */
-export const SecretInput = forwardRef<HTMLInputElement, SecretInputProps>(function SecretInput(props, ref) {
+export const SecretInput = forwardRef<HTMLInputElement, SecretInputProps & { useSecretRevealHook?: typeof useSecretReveal }>(function SecretInput({ useSecretRevealHook = useSecretReveal, ...props }, ref) {
   // The toggle props are pulled off so they never reach the DOM `<input>`.
   const { label, toggleLabels, toggleAttrs, revealed, onRevealedChange, ...inputProps } = props;
-  const reveal = useSecretReveal({ value: inputProps.value, labels: toggleLabels ?? { show: `Show ${label}`, hide: `Hide ${label}` } },
+  const reveal = useSecretRevealHook({ value: inputProps.value, labels: toggleLabels ?? { show: `Show ${label}`, hide: `Hide ${label}` } },
     { ...(revealed === undefined ? {} : { revealed }), ...(onRevealedChange ? { onRevealedChange } : {}) });
   return <span className="jini-secret">
     {/* spellCheck off: once revealed as type="text", enhanced spellcheck would send the secret out. */}

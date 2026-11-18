@@ -501,8 +501,8 @@ function closeTableDialog(dialog: HTMLDialogElement): void {
   dialog.removeAttribute('open');
 }
 
-function TableBlock(props: TableBlockProps): ReactNode {
-  const { wrapRef, isOverflowing } = useTableOverflow();
+function TableBlock({ useTableOverflowHook = useTableOverflow, ...props }: TableBlockProps & { useTableOverflowHook?: typeof useTableOverflow }): ReactNode {
+  const { wrapRef, isOverflowing } = useTableOverflowHook();
   const [expanded, setExpanded] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
 

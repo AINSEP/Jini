@@ -313,8 +313,8 @@ export interface McpUiLabHostFrameProps {
  * `registerToolRenderer('show_mcpui_widget', ...)` card a live agent run triggers, so both paths
  * exercise the identical Host implementation rather than a chat-only reimplementation.
  */
-export function McpUiLabHostFrame({ mode, sessionKey, title }: McpUiLabHostFrameProps) {
-  const host = useMcpUiLabHost({
+export function McpUiLabHostFrame({ mode, sessionKey, title, useMcpUiLabHostHook = useMcpUiLabHost }: McpUiLabHostFrameProps & { useMcpUiLabHostHook?: typeof useMcpUiLabHost }) {
+  const host = useMcpUiLabHostHook({
     mode,
     sessionKey,
     viewOrigin: MCPUI_LAB_VIEW_ORIGIN,

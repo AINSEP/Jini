@@ -23,10 +23,10 @@ import { usePayments } from "./Payments.hooks.js";
  * ```
  * @complexity O(n) time and space for n supplied provider summaries; no I/O.
  */
-export function Payments({ locale = "en", providers = [] }: {
-  locale?: (string) | undefined; providers?: readonly ProviderSummary[];
+export function Payments({ locale = "en", providers = [], usePaymentsHook = usePayments }: {
+  locale?: (string) | undefined; providers?: readonly ProviderSummary[]; usePaymentsHook?: typeof usePayments;
 } = {}): ReactElement {
-  const t = usePayments({ locale });
+  const t = usePaymentsHook({ locale });
   return (
     <div className="page">
       <div className="page-header">

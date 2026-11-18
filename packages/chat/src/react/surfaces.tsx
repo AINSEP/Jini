@@ -58,7 +58,7 @@ export function useChatSurfaces(): ChatSurfaces {
   return surfaces;
 }
 /** Same-name facade, so McpUiSurfaceCard changes only its import line. */
-export function McpUiHost(props: McpUiHostProps) {
-  const { Host } = useChatSurfaces().mcpUi;
+export function McpUiHost({ useChatSurfacesHook = useChatSurfaces, ...props }: McpUiHostProps & { useChatSurfacesHook?: typeof useChatSurfaces }) {
+  const { Host } = useChatSurfacesHook().mcpUi;
   return <Host {...props} />;
 }

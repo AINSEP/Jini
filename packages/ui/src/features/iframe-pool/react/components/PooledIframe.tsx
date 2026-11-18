@@ -48,12 +48,13 @@ function useIsServerRender() {
  * instead of reloading. Renders a plain `<iframe>` during SSR, since the
  * pool is a client-only concept.
  */
-export const PooledIframe = forwardRef<HTMLIFrameElement, PooledIframeProps>(function PooledIframe({
+export const PooledIframe = forwardRef<HTMLIFrameElement, PooledIframeProps & { useIsServerRenderHook?: typeof useIsServerRender }>(function PooledIframe({
   cacheKey,
   src,
+  useIsServerRenderHook = useIsServerRender,
   ...props
 }, forwardedRef) {
-  const isServerRender = useIsServerRender();
+  const isServerRender = useIsServerRenderHook();
   if (isServerRender) return <iframe {...props} src={src} />;
   return (
     <ClientPooledIframe
@@ -65,12 +66,13 @@ export const PooledIframe = forwardRef<HTMLIFrameElement, PooledIframeProps>(fun
   );
 });
 
-const ClientPooledIframe = forwardRef<HTMLIFrameElement, PooledIframeProps>(function ClientPooledIframe({
+const ClientPooledIframe = forwardRef<HTMLIFrameElement, PooledIframeProps & { useIframeKeepAlivePoolHook?: typeof useIframeKeepAlivePool }>(function ClientPooledIframe({
   cacheKey,
   src,
+  useIframeKeepAlivePoolHook = useIframeKeepAlivePool,
   ...props
 }, forwardedRef) {
-  const pool = useIframeKeepAlivePool();
+  const pool = useIframeKeepAlivePoolHook();
   const hostRef = useRef<HTMLDivElement | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const propsRef = useRef<PooledIframeProps>({ cacheKey, src, ...props });
