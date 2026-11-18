@@ -19,8 +19,14 @@ export interface ValueRange {
 // belong to it. `[ \t]` rather than `\s` keeps the value on its header's line. The header name may carry
 // the proxy prefix; a name glued to a longer word or hyphenated name (`x-authorization`) is not the header.
 const HEADER = String.raw`(?<![A-Za-z0-9_-])(?:proxy-)?authorization["']?[ \t]*[:=][ \t]*["']?`;
+// One `name=value` parameter: a quoted value may hold spaces, commas and escaped quotes (`realm="my realm"`),
+// and an unclosed quote runs to the line end. Reading whole parameters, not whitespace-split words, is what
+// keeps `response="abc def"` from ending the match at the space and leaving the rest of the response visible.
+const DIGEST_PARAM = String.raw`[A-Za-z][\w-]*=(?:"(?:\\.|[^"\\\r\n])*"?|[^\s,"')]*)`;
+/** Regex source of a Digest parameter list; a bare non-parameter value after `Digest` is read as one token. */
+export const DIGEST_VALUE = String.raw`(?:${DIGEST_PARAM}(?:[ \t]*,[ \t]*${DIGEST_PARAM})*|[^\s,)]+(?:,[ \t]*[^\s,)]+)*)`;
 const SCHEME_VALUE_RE = new RegExp(
-  `${HEADER}(?:(?:Token|ApiKey)[ \\t]+(?<single>[^\\s"'),;]+)|Digest[ \\t]+(?<list>[^\\s,)]+(?:,[ \\t]*[^\\s,)]+)*))`,
+  `${HEADER}(?:(?:Token|ApiKey)[ \\t]+(?<single>[^\\s"'),;]+)|Digest[ \\t]+(?<list>${DIGEST_VALUE}))`,
   'gi',
 );
 
