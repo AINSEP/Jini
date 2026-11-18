@@ -85,6 +85,13 @@ export {
   type ImportTermOptional,
 } from "./write-service.js";
 
+export type {
+  AssignedTermView,
+  EntryTermReadPort,
+  TaxonomyPublishReadPort,
+  TermPublishReadPort,
+} from "./read-ports.js";
+
 export {
   listTaxonomiesWithTerms,
   type TaxonomyListPort,
@@ -134,3 +141,6 @@ export {
 export {
   taxonomyAgentToolCatalog,
 } from "./agent-tools.js";
+
+export { buildTaxonomyToolRegistrations, taxonomyDerivedRisk } from "./tool-registrations.js";
+export type { TaxonomyMergeGateway, TaxonomyMergePrepared, TaxonomyPackageToolDeps, TaxonomyToolSurfaces } from "./tool-handlers.types.js";

@@ -12,3 +12,5 @@ export * from "./resolver.js";
 export * from "./hit-sink.js";
 export * from "./redirects.js";
 export * from "./target-gate.js";
+export * from "./agent-tools.js";
+export * from "./tool-registrations.js";

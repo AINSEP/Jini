@@ -29,7 +29,7 @@ Configuration writes only through the injected guarded settings writer; no deliv
 | `./settings` | universal | One-release compatibility re-export of `@jini-ai/core/settings`. |
 | `./settings/express` | node | One-release compatibility re-export of `@jini-ai/core/settings/express`. |
 | `./widgets` / `./widgets/markers` / `./widgets/resolvers` | universal | Widget contracts, markers and resolution services; no HTML parser. |
-| `./widgets/html` | node | HTML scanning/substitution, fragment validation and plugin-export template resolution. |
+| `./widgets/html` | node | HTML scanning/substitution, fragment validation, plugin-export template resolution, page-body sanitizing and media Raw HTML resolution (diagnostics through an injected `report`). |
 | `./html/style-values` | universal | CSS-value allowlists for author strings a renderer writes into a `style` attribute (`safeTextAlign`, `safeAspectRatio`). |
 
 Hosts that sanitize SVG uploads or ingest documents through `./media` must install the optional peers
@@ -109,6 +109,19 @@ parser. Node hosts use `./navigation/node`, which re-exports the navigation API 
 parse5 normalization to create/update, merge and tool registration. The existing validation,
 raw-HTML permission checks, OCC and outbox owners remain unchanged; an unconfigured universal
 HTML write fails before saving rather than persisting markup that could escape its theme container.
+
+`./workspace/sql` (node) is the Kysely adapter for `WorkspaceRepoPort`: the host passes its storage
+kernel and its own `workspaces` table name; the adapter has no table or product defaults.
+
+`./taxonomy/sql` (node) is the Kysely adapter for the taxonomy ports (`SqlTaxonomyRepo`, `SqlTermRepo`,
+`SqlEntryTermRepo`, `SqlTaxonomyRevisionRepo`): the host passes its storage kernel, the names of its four
+taxonomy tables and the workspace each repository is scoped to; the adapter has no table or product defaults.
+The universal `./taxonomy` entry carries the read-port types (`TaxonomyPublishReadPort`, `TermPublishReadPort`,
+`AssignedTermView`, `EntryTermReadPort`) those repositories also satisfy.
+
+`./navigation/sql` (node) is the Kysely adapter for `MenuRepoPort` and `NavLocationBindingRepoPort`
+(`SqlMenuRepo`, `SqlNavLocationBindingRepo`): the host passes its storage kernel and the names of its menus and
+location-binding tables; the adapter has no table or product defaults.
 
 **Still to move:** `post`, `seo`, `comments`, `redirects`, `newsletter`,
 `members`. Widgets are exposed through the universal and node entries above.
