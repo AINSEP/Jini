@@ -9,6 +9,7 @@ import { TabStripItem } from './TabStripItem.js';
 import { TabStripFrame } from './TabStripFrame.js';
 
 export interface TabStripProps extends AgentControlProps {
+  useAgentHandleHook?: typeof useAgentHandle;
   tabs: TabStripTab[];
   activeTabId: string | null;
   onActivate: (tabId: string) => void;
@@ -57,9 +58,10 @@ export function TabStrip({
   ariaLabel,
   className,
   useTabStripDragReorder: useTabStripDragReorderHook = useTabStripDragReorder,
+  useAgentHandleHook = useAgentHandle,
   ...agentProps
 }: TabStripProps) {
-  const base = useAgentHandle(agentProps);
+  const base = useAgentHandleHook(agentProps);
   const { draggingTabId, dragOverTarget, stripRef, stripDragProps, getItemDragProps } = useTabStripDragReorderHook({
     tabs,
     onReorder,

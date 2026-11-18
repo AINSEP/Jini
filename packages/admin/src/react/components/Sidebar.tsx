@@ -258,6 +258,7 @@ function RailTooltip(props: { target: TooltipTarget | null }) {
 // ---------------------------------------------------------------------------
 
 export interface SidebarProps {
+  hooks?: { useSidebarRail?: typeof useSidebarRail };
   /** The active panel's id — matched against `AdminNavItem.id` by `Sidebar.Nav`. */
   activeId: string;
   /** Where the admin is mounted. Defaults to `/core`'s `DEFAULT_ADMIN_BASE`. */
@@ -301,7 +302,8 @@ const sidebarStorage: Pick<Storage, 'getItem' | 'setItem'> = {
 };
 
 function SidebarRoot(props: SidebarProps) {
-  const rail = useSidebarRail({ storage: sidebarStorage, events: window }, {
+  const { useSidebarRail: useSidebarRailHook = useSidebarRail } = props.hooks ?? {};
+  const rail = useSidebarRailHook({ storage: sidebarStorage, events: window }, {
     storageKey: props.railStorageKey, defaultCollapsed: props.railDefaultCollapsed,
     railOverride: props.railOverride, onCollapsedChange: props.onRailCollapsedChange,
   });
@@ -364,6 +366,7 @@ function SidebarRoot(props: SidebarProps) {
 // ---------------------------------------------------------------------------
 
 export interface SidebarMobileHeaderProps {
+  useSidebarHook?: typeof useSidebar;
   onClose: () => void;
   /** @default "Navigation" */
   title?: ReactNode;
@@ -379,7 +382,8 @@ export interface SidebarMobileHeaderProps {
  * actually inside the drawer they just opened.
  */
 function SidebarMobileHeader(props: SidebarMobileHeaderProps) {
-  const { open } = useSidebar();
+  const { useSidebarHook = useSidebar } = props;
+  const { open } = useSidebarHook();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -405,6 +409,7 @@ function SidebarMobileHeader(props: SidebarMobileHeaderProps) {
 }
 
 export interface SidebarNavProps {
+  hooks?: { useSidebar?: typeof useSidebar; useNavSections?: typeof useNavSections };
   /** From `/core`'s `buildNav({ panels: resolvePanels({ panels }, context) })`. */
   groups: readonly AdminNavGroup[];
   /** Label on a `soon` item's badge. @default "Soon" */
@@ -426,8 +431,9 @@ export interface SidebarNavProps {
 }
 
 function SidebarNav(props: SidebarNavProps) {
-  const { activeId, base, collapsed, railTooltipProps } = useSidebar();
-  const sections = useNavSections({ storage: sidebarStorage, events: window });
+  const { useSidebar: useSidebarHook = useSidebar, useNavSections: useNavSectionsHook = useNavSections } = props.hooks ?? {};
+  const { activeId, base, collapsed, railTooltipProps } = useSidebarHook();
+  const sections = useNavSectionsHook({ storage: sidebarStorage, events: window });
 
   return (
     <>
@@ -546,6 +552,7 @@ function SidebarFooter(props: SidebarFooterProps) {
 }
 
 export interface SidebarRailToggleProps {
+  useSidebarHook?: typeof useSidebar;
   /** @default "Expand sidebar" */
   expandLabel?: string;
   /** @default "Collapse sidebar" */
@@ -558,7 +565,8 @@ export interface SidebarRailToggleProps {
  * control and no rail concept.
  */
 function SidebarRailToggle(props: SidebarRailToggleProps) {
-  const { collapsed, toggleRail } = useSidebar();
+  const { useSidebarHook = useSidebar } = props;
+  const { collapsed, toggleRail } = useSidebarHook();
   const label = collapsed ? (props.expandLabel ?? 'Expand sidebar') : (props.collapseLabel ?? 'Collapse sidebar');
 
   return (

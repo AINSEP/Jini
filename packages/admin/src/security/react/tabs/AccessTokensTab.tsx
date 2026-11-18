@@ -2,8 +2,9 @@ import { Button, TextField, Select, Notice, ConfirmDialog, Spinner } from '../..
 import type { TabViewProps } from '../../../core/react/bind-react.js';
 import { useAccessTokensTab } from '../hooks/AccessTokensTab.hooks.js';
 import { CredentialEditor } from '../components/CredentialEditor.js';
-export function AccessTokensTab(props: TabViewProps, _optional = {}) {
-  const vm = useAccessTokensTab(props);
+export function AccessTokensTab(props: TabViewProps & { useAccessTokensTabHook?: typeof useAccessTokensTab }, _optional = {}) {
+  const { useAccessTokensTabHook = useAccessTokensTab } = props;
+  const vm = useAccessTokensTabHook(props);
   return vm.denied ? <Notice tone="danger">Permission denied</Notice> : <section aria-label="Access tokens">
     <TextField label="Search tokens" type="search" value={vm.query} onValueChange={vm.onQuery} /><Select label="Category" value={vm.category} options={vm.categories} onValueChange={vm.onCategory} />
     <p role="status">{vm.matched} of {vm.total} tokens saved</p><Button onPress={vm.reload} disabled={vm.saving}>Reload</Button>
