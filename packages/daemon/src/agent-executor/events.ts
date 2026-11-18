@@ -27,11 +27,8 @@ import {
   createQoderStreamHandler,
   attachAcpSession,
   attachPiRpcSession,
-  type AcpMcpServerInput,
-  type AcpPermissionHandler,
-  type AcpSessionController,
-  type PiRpcSession,
 } from '@jini-ai/agent-runtime';
+import type { AcpMcpServerInput, AcpPermissionHandler, AcpSessionController, PiRpcSession } from '../ports/agent-runtime-sessions.js';
 import { type RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import {
   classifyRunCloseStatus,

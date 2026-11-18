@@ -13,9 +13,7 @@ import { buildCodexMcpDelivery } from './codex/mcp-delivery.js';
 import type { McpDeliveryBuildInput } from './mcp-delivery-types.js';
 export { prepareClaudeConfigDirIfNeeded, resolveSourceClaudeConfigDir } from './claude/config-dir.js';
 export { mergeEnvContentMcpConfig, mergeEnvContentInstructions } from './opencode/mcp-config.js';
-import type {
-   AcpMcpServerInput,
-} from '@jini-ai/agent-runtime';
+import type { AcpMcpServerInput } from '../ports/agent-runtime-sessions.js';
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import {
   isRecord,
