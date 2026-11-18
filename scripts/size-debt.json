@@ -749,13 +749,6 @@
     "value": 134
   },
   {
-    "file": "packages/sandbox/src/e2b/wrap-e2b-sandbox.ts",
-    "function": "wrapE2bSandbox",
-    "line": 170,
-    "rule": "max-lines-per-function",
-    "value": 197
-  },
-  {
     "file": "packages/search/src/indexer.ts",
     "function": "createSearchIndexer",
     "line": 93,
@@ -817,13 +810,6 @@
     "line": 402,
     "rule": "max-lines-per-function",
     "value": 124
-  },
-  {
-    "file": "packages/sidecar/src/supervision/supervisor.ts",
-    "function": "createDaemonSupervisor",
-    "line": 89,
-    "rule": "max-lines-per-function",
-    "value": 208
   },
   {
     "file": "packages/ui/src/features/admin-widgets/components/Select/Select.tsx",
