@@ -45,7 +45,7 @@ function pageEmitting(responses, { gotoError, scrollHeight = 1500 } = {}) {
 
 describe("argument parsing and pure helpers", () => {
   it("parses integer flags, ignores unknown arguments, and falls back on missing values", () => {
-    expect(parseArgs(["--url", "https://s.test", "--out", "o", "--scroll-step", "350px", "--extra", "--settle"])).toEqual({
+    expect(parseArgs({ argv: ["--url", "https://s.test", "--out", "o", "--scroll-step", "350px", "--extra", "--settle"] })).toEqual({
       url: "https://s.test",
       out: "o",
       scrollStep: 350,
@@ -53,22 +53,22 @@ describe("argument parsing and pure helpers", () => {
       maxMs: 90000,
       help: false,
     });
-    expect(parseArgs(["-h", "--max-ms", "1000"])).toMatchObject({ help: true, maxMs: 1000 });
+    expect(parseArgs({ argv: ["-h", "--max-ms", "1000"] })).toMatchObject({ help: true, maxMs: 1000 });
   });
 
   it("urlToLocalPath drops the query and maps directories to index.html", () => {
     const origin = "https://s.test";
-    expect(urlToLocalPath("https://s.test", origin)).toBe("index.html");
-    expect(urlToLocalPath("https://s.test/docs/", origin)).toBe("docs/index.html");
-    expect(urlToLocalPath("https://s.test/a/b.js?v=1", origin)).toBe("a/b.js");
+    expect(urlToLocalPath({ u: "https://s.test", origin })).toBe("index.html");
+    expect(urlToLocalPath({ u: "https://s.test/docs/", origin })).toBe("docs/index.html");
+    expect(urlToLocalPath({ u: "https://s.test/a/b.js?v=1", origin })).toBe("a/b.js");
   });
 
   it("isOwnUrl accepts the origin with or without a path, and nothing else", () => {
     const origin = "https://s.test";
-    expect(isOwnUrl("https://s.test", origin)).toBe(true);
-    expect(isOwnUrl("https://s.test/", origin)).toBe(true);
-    expect(isOwnUrl("https://s.test/x", origin)).toBe(true);
-    expect(isOwnUrl("https://s.test.evil/x", origin)).toBe(false);
+    expect(isOwnUrl({ url: "https://s.test", origin })).toBe(true);
+    expect(isOwnUrl({ url: "https://s.test/", origin })).toBe(true);
+    expect(isOwnUrl({ url: "https://s.test/x", origin })).toBe(true);
+    expect(isOwnUrl({ url: "https://s.test.evil/x", origin })).toBe(false);
   });
 
   it("thirdPartyReport dedupes hosts, keeps unparsable urls verbatim, and flags locked webfont CSS", () => {
@@ -80,7 +80,7 @@ describe("argument parsing and pure helpers", () => {
       { url: "https://fonts.googleapis.com/css2?family=Inter" },
       { url: "not a url" },
     ];
-    expect(thirdPartyReport(all, "https://s.test")).toEqual({
+    expect(thirdPartyReport({ all, origin: "https://s.test" })).toEqual({
       hosts: ["cdn.x.test", "use.typekit.net", "fonts.googleapis.com", "not a url"],
       webfont_css_to_selfhost: ["https://use.typekit.net/abc123.css", "https://fonts.googleapis.com/css2?family=Inter"],
     });

@@ -136,21 +136,21 @@ function sparseEnv(window = {}) {
 
 describe("parseArgs", () => {
   it("parses widths and defaults, rejecting unknown flags", () => {
-    expect(parseArgs(["--url", "https://s.test", "--widths", "1280, 0,abc,375", "--wait", "0"])).toEqual({
+    expect(parseArgs({ argv: ["--url", "https://s.test", "--widths", "1280, 0,abc,375", "--wait", "0"] })).toEqual({
       url: "https://s.test",
       outDir: "RECON",
       label: "site",
       widths: [1280, 375],
       waitMs: 0,
     });
-    expect(parseArgs(["-h", "--out", "R", "--label", "clone", "--widths"])).toMatchObject({ help: true, outDir: "R", label: "clone", widths: [] });
-    expect(() => parseArgs(["--zoom"])).toThrow("Unexpected argument: --zoom");
+    expect(parseArgs({ argv: ["-h", "--out", "R", "--label", "clone", "--widths"] })).toMatchObject({ help: true, outDir: "R", label: "clone", widths: [] });
+    expect(() => parseArgs({ argv: ["--zoom"] })).toThrow("Unexpected argument: --zoom");
   });
 });
 
 describe("collectSignals", () => {
   it("extracts structure, styles, fonts, resources, motion, and framework signals", async () => {
-    const signals = await collectSignals(createFakePage({ env: richEnv() }));
+    const signals = await collectSignals({ page: createFakePage({ env: richEnv() }) });
     expect(signals).toMatchObject({
       href: "https://s.test/",
       title: "Rich",
@@ -224,13 +224,13 @@ describe("collectSignals", () => {
   });
 
   it("falls back cleanly on an empty page and reads framework globals from window", async () => {
-    const empty = await collectSignals(createFakePage({ env: sparseEnv() }));
+    const empty = await collectSignals({ page: createFakePage({ env: sparseEnv() }) });
     expect(empty).toMatchObject({ title: "", lang: "", bodyTextChars: 0, h1: [], metaDescription: "", fonts: [], cssVariables: [], fontFaces: [] });
     expect(empty.palette).toEqual({ body: null, header: null, nav: null, main: null, footer: null, buttons: [] });
     expect(Object.values(empty.frameworks).every((flag) => flag === false)).toBe(true);
 
-    const globals = await collectSignals(
-      createFakePage({ env: sparseEnv({ __REACT_DEVTOOLS_GLOBAL_HOOK__: {}, __VUE__: 1, __NUXT__: {}, THREE: {}, gsap: {}, Lenis: class {} }) }),
+    const globals = await collectSignals({
+      page: createFakePage({ env: sparseEnv({ __REACT_DEVTOOLS_GLOBAL_HOOK__: {}, __VUE__: 1, __NUXT__: {}, THREE: {}, gsap: {}, Lenis: class {} }) }) }
     );
     expect(globals.frameworks).toEqual({ react: true, next: false, vue: true, nuxt: true, svelte: false, astro: false, three: true, gsap: true, lenis: true });
   });
@@ -240,21 +240,21 @@ describe("scrollThroughPage", () => {
   it("steps through the full height, then returns to the top", async () => {
     const env = browserEnv({ document: fakeDocument({ html: { scrollHeight: 1500 } }) });
     const page = createFakePage({ env });
-    await scrollThroughPage(page);
+    await scrollThroughPage({ page });
     expect(env.window.scrolls).toEqual([[0, 0], [0, 700], [0, 1400], [0, 0]]);
-    await scrollThroughPage(page, 1000);
+    await scrollThroughPage({ page }, { stepPx: 1000 });
     expect(env.window.scrolls.slice(4)).toEqual([[0, 0], [0, 1000], [0, 0]]);
   });
 });
 
 describe("summary", () => {
   it("summarizeFlags lists only true framework flags", () => {
-    expect(summarizeFlags({ frameworks: { react: true, vue: false, astro: true } })).toEqual(["react", "astro"]);
-    expect(summarizeFlags({})).toEqual([]);
+    expect(summarizeFlags({ signals: { frameworks: { react: true, vue: false, astro: true } } })).toEqual(["react", "astro"]);
+    expect(summarizeFlags({ signals: {} })).toEqual([]);
   });
 
   it("renders signal fallbacks for a run without captures", () => {
-    const md = summaryMarkdown({ label: "x", url: "u", console: { errors: [], pageErrors: [1] }, captures: [] });
+    const md = summaryMarkdown({ data: { label: "x", url: "u", console: { errors: [], pageErrors: [1] }, captures: [] } });
     expect(md).toContain("- Title: \n- Lang: \n- Viewports: \n- Framework signals: none");
     expect(md).toContain("- Canvas count: 0\n- Video count: 0\n- Image count: 0\n- Link count: 0\n- Console errors: 0\n- Page errors: 1");
     expect(md).toContain("- Loaded families: none\n- @font-face rules: 0; font files: 0");
@@ -277,7 +277,7 @@ describe("summary", () => {
       fontFaces: [{}],
       resources: { fonts: ["a", "b"], images: ["i"] },
     };
-    const md = summaryMarkdown({ label: "orig", url: "u", console: { errors: [1, 2], pageErrors: [] }, captures: [{ viewport: { width: 1440 }, screenshot: "s/a.png", signals }, { viewport: { width: 390 }, screenshot: "s/b.png", signals: {} }] });
+    const md = summaryMarkdown({ data: { label: "orig", url: "u", console: { errors: [1, 2], pageErrors: [] }, captures: [{ viewport: { width: 1440 }, screenshot: "s/a.png", signals }, { viewport: { width: 390 }, screenshot: "s/b.png", signals: {} }] } });
     expect(md.split("\n")).toEqual([
       "# orig recon",
       "",

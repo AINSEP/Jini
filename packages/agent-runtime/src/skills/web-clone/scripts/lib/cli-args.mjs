@@ -44,13 +44,13 @@ function applyArg({ out, argv, i, options, strict }) {
 }
 
 /** Value parser: the raw string, or `fallback` when missing/empty. */
-export const text = (fallback) => (raw) => raw || fallback;
+export const text = ({ fallback }, _optional = {}) => (raw) => raw || fallback;
 
 /** Value parser: `Number(raw || fallback)` (so "--wait" alone → the default). */
-export const num = (fallback) => (raw) => Number(raw || fallback);
+export const num = ({ fallback }, _optional = {}) => (raw) => Number(raw || fallback);
 
 /** Value parser: `parseInt(raw || fallback, 10)`. */
-export const int = (fallback) => (raw) => parseInt(raw || fallback, 10);
+export const int = ({ fallback }, _optional = {}) => (raw) => parseInt(raw || fallback, 10);
 
 /** The `--help` / `-h` pair every script accepts. */
 export const HELP_OPTIONS = {

@@ -28,19 +28,19 @@ const ARG_SPEC = {
   defaults: { url: "", out: "", scrollStep: 700, settle: 2500, maxMs: 90000, help: false },
   options: {
     ...HELP_OPTIONS,
-    "--url": { key: "url", parse: text("") },
-    "--out": { key: "out", parse: text("") },
-    "--scroll-step": { key: "scrollStep", parse: int("700") },
-    "--settle": { key: "settle", parse: int("2500") },
-    "--max-ms": { key: "maxMs", parse: int("90000") },
+    "--url": { key: "url", parse: text({ fallback: "" }) },
+    "--out": { key: "out", parse: text({ fallback: "" }) },
+    "--scroll-step": { key: "scrollStep", parse: int({ fallback: "700" }) },
+    "--settle": { key: "settle", parse: int({ fallback: "2500" }) },
+    "--max-ms": { key: "maxMs", parse: int({ fallback: "90000" }) },
   },
 };
 
-export function parseArgs(argv) {
+export function parseArgs({ argv }, _optional = {}) {
   return parseCliArgs({ argv, ...ARG_SPEC }, { strict: false });
 }
 
-export function usage(log = console.log) {
+export function usage({}, { log = console.log } = {}) {
   log(`mirror-site.mjs — 静态构建站全量资产镜像(1:1 忠实复刻)
 
   node scripts/mirror-site.mjs --url <URL> --out <dir> [--scroll-step 700] [--settle 2500] [--max-ms 90000]
@@ -51,7 +51,7 @@ export function usage(log = console.log) {
 }
 
 // 同源资产 URL → 本地相对路径(去 query；目录结尾存 index.html)
-export function urlToLocalPath(u, origin) {
+export function urlToLocalPath({ u, origin }, _optional = {}) {
   let p = u.slice(origin.length);
   const q = p.indexOf("?");
   if (q >= 0) p = p.slice(0, q);
@@ -76,7 +76,7 @@ async function captureAllRequests(page, args, deps) {
 }
 
 /** 同源资产(含 origin 本身与 origin/)。 */
-export function isOwnUrl(url, origin) {
+export function isOwnUrl({ url, origin }, _optional = {}) {
   return url.startsWith(origin + "/") || url === origin || url === origin + "/";
 }
 
@@ -85,7 +85,7 @@ export function isOwnUrl(url, origin) {
 async function downloadOwnAssets(ctx, ownUrls, origin, siteDir, deps) {
   const tally = { ok: 0, fail: 0, failed: [] };
   for (const r of ownUrls) {
-    const rel = urlToLocalPath(r.url, origin);
+    const rel = urlToLocalPath({ u: r.url, origin });
     const dest = path.join(siteDir, rel);
     try {
       const resp = await ctx.request.get(r.url); // 复用浏览器网络栈(cookie/TUN/代理一致)
@@ -106,7 +106,7 @@ function hostOf(url) {
 }
 
 // 第三方 + webfont 提示
-export function thirdPartyReport(all, origin) {
+export function thirdPartyReport({ all, origin }, _optional = {}) {
   const thirdHosts = [...new Set(all.filter((r) => !r.url.startsWith(origin)).map((r) => hostOf(r.url)))];
   const webfontCss = all.map((r) => r.url).filter((u) => /use\.typekit\.net\/[a-z0-9]+\.css|fonts\.googleapis\.com\/css/i.test(u));
   return { hosts: thirdHosts, webfont_css_to_selfhost: webfontCss };
@@ -142,14 +142,14 @@ async function mirror(args, deps) {
   await captureAllRequests(page, args, deps);
 
   const all = [...responses.entries()].map(([url, m], index) => ({ id: assetId({ index }), url, ...m }));
-  const ownUrls = all.filter((r) => isOwnUrl(r.url, origin));
+  const ownUrls = all.filter((r) => isOwnUrl({ url: r.url, origin }));
 
   deps.log(`▸ 捕获请求 ${all.length} 个；同源 ${ownUrls.length} 个，开始下载…`);
   const tally = await downloadOwnAssets(ctx, ownUrls, origin, siteDir, deps);
 
-  const third = thirdPartyReport(all, origin);
+  const third = thirdPartyReport({ all, origin });
   deps.fs.writeFileSync(path.join(outRoot, "mirror-manifest.json"), JSON.stringify(all, null, 2));
-  deps.fs.writeFileSync(path.join(outRoot, "own-asset-urls.txt"), ownUrls.map((r) => urlToLocalPath(r.url, origin)).sort().join("\n") + "\n");
+  deps.fs.writeFileSync(path.join(outRoot, "own-asset-urls.txt"), ownUrls.map((r) => urlToLocalPath({ u: r.url, origin })).sort().join("\n") + "\n");
   deps.fs.writeFileSync(path.join(outRoot, "third-party.json"), JSON.stringify(third, null, 2));
 
   printReport({ tally, third, siteDir }, deps.log);
@@ -163,9 +163,9 @@ async function mirror(args, deps) {
  */
 export async function main({ argv }, deps = {}) {
   const io = { ...DEFAULT_DEPS, ...deps };
-  const args = parseArgs(argv);
+  const args = parseArgs({ argv });
   if (args.help || !args.url || !args.out) {
-    usage(io.log);
+    usage({}, { log: io.log });
     return args.help ? 0 : 1;
   }
   await mirror(args, io);
