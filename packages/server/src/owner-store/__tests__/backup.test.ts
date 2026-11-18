@@ -111,6 +111,12 @@ test.each([
   const doc = v2(); doc.entries.push({ ...first, id: "entry-3", label: "Other", ...patch }); await rejected(doc);
 });
 
+test("a known but non-copyable kind is refused (VAULT_KINDS accepts it, only isCopyableKind rejects it)", async () => {
+  const doc = publishedV1();
+  doc.entries.push({ ...entryView(second), id: "entry-3", kind: "mcp-env", meta: {} });
+  await rejected(doc);
+});
+
 test.each(["duplicate", "version", "extra-field", "format"])("rejects an authenticated but invalid %s snapshot", async mode => {
   const doc = v2();
   if (mode === "duplicate") doc.entries.push(doc.entries[0]);

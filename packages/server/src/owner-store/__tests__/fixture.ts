@@ -48,3 +48,16 @@ export async function legacyStore({ entries = [], grants = [] }: {
   } finally { await kernel.close(); }
   return { directory, filePath, keyFilePath, saved, cleanup: () => rmSync(directory, { recursive: true, force: true }) };
 }
+
+/** Put one row straight into a legacy store through a vault that authorizes everything, so a test can plant what the reader must refuse. */
+export async function putRaw(store: { filePath: string; keyFilePath: string }, row: Parameters<SecretsVaultService["put"]>[0]) {
+  const kernel = openSqliteFileKernel<unknown>({ filePath: store.filePath, open });
+  try {
+    const keyring = new EnvOrFileKeyring({ env: { read: () => undefined }, envVarName: "OWNER_STORE_KEY",
+      keyFilePath: store.keyFilePath, hkdfSalt: "jini-owner-store-v1", allowFileFallback: true, allowFileAutoGenerate: false });
+    const vault = new SecretsVaultService({ repo: new SqlSecretsVaultRepo({ kernel: kernel as never }), keyring,
+      sealer: new AesGcmSecretSealer({ keyring }), metaParsers: createVaultMetaParsers({}), authorize: async () => {},
+      now: () => new Date().toISOString(), newId: () => randomUUID() });
+    await vault.put(row);
+  } finally { await kernel.close(); }
+}
