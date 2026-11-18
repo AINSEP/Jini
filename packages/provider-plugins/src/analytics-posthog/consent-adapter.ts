@@ -3,7 +3,7 @@
  * only an aggregate pageview; full mode loads the pinned posthog-js SDK. The browser checks that SDK
  * against its SHA-256 (SRI) and never runs other bytes. Cleans up through the consent client's generic storage purge,
  * which the client hands to every `onState` and `grant` call (this module is delivered to the browser on its own and cannot import it). */
-import type { ConsentAdapter, ConsentState, PurgeStorage, Revoker, StoragePrefixes } from '@jini-ai/cookie-consent';
+import type { ConsentAdapter, ConsentState, PurgeStorage, Revoker, StoragePrefixes } from './contract.js';
 
 /** Public browser config only: the project key is publishable, `host` is the same-origin collector path.
  * Release and environment are trusted deployment labels, never copied from visitor event properties. */

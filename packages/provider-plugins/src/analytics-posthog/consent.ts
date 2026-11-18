@@ -2,7 +2,7 @@
  * it chooses and lists `adapter` (a lazy `consent-adapter` entry) in the consent page config. The browser
  * imports the adapter only on an analytics grant; the adapter then loads the pinned SDK with SRI. */
 import { readFile } from 'node:fs/promises';
-import type { ConsentState, LazyAdapter, RawContribution } from '@jini-ai/cookie-consent';
+import type { ConsentState, LazyAdapter, RawContribution } from './contract.js';
 import type { BrowserAnalyticsContribution } from '@jini-ai/core/contracts/observability';
 import { anonymousPageview, POSTHOG_STORAGE, type PostHogConsentConfig } from './consent-adapter.js';
 
