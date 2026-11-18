@@ -34,6 +34,8 @@
       "./primitives": "universal",
       "./fetch": "universal",
       "./text": "universal",
+      "./text/diagnostic-vocabulary": "universal",
+      "./text/masked-identifier-rows": "universal",
       "./agent-handles": "universal",
       "./settings": "universal",
       "./settings/express": "node",
@@ -232,6 +234,16 @@
       "types": "./dist/text/index.d.ts",
       "import": "./dist/text/index.js",
       "default": "./dist/text/index.js"
+    },
+    "./text/diagnostic-vocabulary": {
+      "types": "./dist/text/diagnostic-vocabulary.d.ts",
+      "import": "./dist/text/diagnostic-vocabulary.js",
+      "default": "./dist/text/diagnostic-vocabulary.js"
+    },
+    "./text/masked-identifier-rows": {
+      "types": "./dist/text/masked-identifier-rows.d.ts",
+      "import": "./dist/text/masked-identifier-rows.js",
+      "default": "./dist/text/masked-identifier-rows.js"
     },
     "./agent-handles": {
       "types": "./dist/agent-handles/index.d.ts",
