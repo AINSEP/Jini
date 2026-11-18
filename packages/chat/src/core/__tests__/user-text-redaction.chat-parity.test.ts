@@ -91,3 +91,17 @@ describe('prose and form placeholders after a credential word and a colon', () =
     expect(redactUserText({ text: '- API key: abc\n- Notes: x' })).toEqual({ text: '- API key: [token removed]\n- Notes: x', secretRedacted: true, count: 1 });
   });
 });
+
+describe('credential-bearing URL names and quoted header values chat once removed whole', () => {
+  it.each([
+    ['https://x.test/cb?code_verifier=abc&state=1', 'https://x.test/cb?code_verifier=[token removed]&state=1'],
+    ["const token = 'Bearer two words'", "const token = '[token removed]'"],
+    ['{"Authorization":"Token abc123"}', '{"Authorization":"[token removed]"}'],
+  ])('removes the value in %j', (text, expected) => {
+    expect(redactUserText({ text })).toEqual({ text: expected, secretRedacted: true, count: 1 });
+  });
+  it('keeps a PKCE challenge, which is public', () => {
+    const text = 'https://x.test/a?code_challenge=abc&code_challenge_method=S256';
+    expect(redactUserText({ text })).toEqual(kept(text));
+  });
+});

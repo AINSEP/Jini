@@ -360,12 +360,13 @@ export const NON_SECRET_TOKEN_RE = new RegExp(`^(?:${CORRELATION_ID}|delegated-t
 // Bare URL key/token parameters already have owners; leave their empty values and categories
 // to those collectors instead of treating the following `&page=...` as a label's value.
 const RUNTIME_SECRET_LABELS = `${SERIALIZED_SECRET_LABELS}|(?<![?&])(?:key)`;
-// A value that is an auth scheme word is not the credential: the scheme rules own the value after it
-// (Bearer, Token, ApiKey, Digest, Basic), and a scheme word alone (`Authorization: Bearer`) describes a header.
+// A value that is an auth scheme word is not the credential: the scheme rules own the value after an unquoted
+// Bearer, Token, ApiKey or Digest (a quoted value stays masked whole by this rule, and Basic by its own rule),
+// and a scheme word alone (`Authorization: Bearer`) describes a header.
 const AUTH_SCHEME_WORD = '(?:Bearer|Token|ApiKey|Digest|Basic)';
 const MASK_AWARE_LABELED_SECRET_RE = new RegExp(
   `(?<![\\w-])(["']?)(${RUNTIME_SECRET_LABELS})\\1\\s*[:=]\\s*`
-    + `(?!["']?${AUTH_SCHEME_WORD}(?:[ \\t]+\\S|[\\s"'\x60.,;:)\\]}]|$))(?!${GENERATED_MARKER}[;&])((?!&)\\S)`,
+    + `(?!(?:Bearer\\s+\\S|(?:Token|ApiKey|Digest)[ \\t]+\\S|${AUTH_SCHEME_WORD}(?:[\\s"'\x60.,;:)\\]}]|$)))(?!${GENERATED_MARKER}[;&])((?!&)\\S)`,
   'gi',
 );
 // A label can name another label; resume at it instead of consuming `token:` and leaking its value.
@@ -406,10 +407,11 @@ const SIGNED_QUERY_RE = /([?&](?:signature|sig|x-amz-signature|x-goog-signature|
 // Match through a trailing fragment; field separators (&/;), quotes, parentheses or whitespace end it.
 // Both name runs are bounded so a long separator-free run costs linear time, not quadratic.
 // `code` is deliberately not a word: postal, promo and error codes (zipcode, promo_code) end in it and are
-// not credentials. Only the exact name `code` (an OAuth authorization code) is masked, as its own alternative.
+// not credentials. Only exact names that carry a credential (`code`, an OAuth authorization code; the PKCE
+// verifier; one-time login and verification codes) are masked, each as a whole name.
 const URL_SECRET_WORDS = 'token|key|secret|signature|sig|password|passwd|pwd|auth|authorization|credential';
 const URL_SECRET_PARAM_RE = new RegExp(
-  `[?&#;](code(?==)|[\\w.-]{0,128}?(?:${URL_SECRET_WORDS})s?(?=[._=-])[\\w.-]{0,128})=[^&;\\s"'<>()]+`,
+  `[?&#;]((?:code|code_verifier|device_code|session_code|verification_code|login_code|otp_code)(?==)|[\\w.-]{0,128}?(?:${URL_SECRET_WORDS})s?(?=[._=-])[\\w.-]{0,128})=[^&;\\s"'<>()]+`,
   'gi',
 );
 // A parameter the labeled rule already names (password, client_secret, ...) keeps that category.

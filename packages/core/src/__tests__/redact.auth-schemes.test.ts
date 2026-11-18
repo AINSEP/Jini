@@ -26,7 +26,6 @@ describe('auth schemes other than Bearer', () => {
     ['Authorization: Token abc123def456', 'Authorization: Token [REDACTED:api_key_header]'],
     ['authorization: token abc123', 'authorization: token [REDACTED:api_key_header]'],
     ['Authorization: ApiKey abc123', 'Authorization: ApiKey [REDACTED:api_key_header]'],
-    ['"Authorization": "Token abc123"', '"Authorization": "Token [REDACTED:api_key_header]"'],
     ['Authorization: Digest username="bob", realm="x", response="abc"', 'Authorization: Digest [REDACTED:api_key_header]'],
     ['sent (Authorization: Token abc123): refused', 'sent (Authorization: Token [REDACTED:api_key_header]): refused'],
   ])('masks the value in %j', (input, redacted) => {
@@ -40,6 +39,20 @@ describe('auth schemes other than Bearer', () => {
     ['Token abcdef0123456789abcdef', 'Token [REDACTED:bearer_token]'],
     ['sent Basic dXNlcjpwYXNzd29yZDEy now', 'sent Basic [REDACTED:bearer_token] now'],
   ])('masks a bare long scheme credential in %j', (input, redacted) => {
+    expect(run(input).redacted).toBe(redacted);
+  });
+});
+
+// A quoted value is masked whole by the label rule, as before the scheme rules existed: a quoted
+// "Token two words" must not leave the words after the first one, and a Basic value ending in a brace
+// or quote character must not leave its tail.
+describe('quoted header values stay masked whole', () => {
+  it.each([
+    ['"Authorization": "Token abc123"', '"Authorization": "[REDACTED:labeled_secret]"'],
+    ['{ \'Authorization\': \'Bearer abc123def456ghi789\' }', '{ \'Authorization\': \'[REDACTED:labeled_secret]\' }'],
+    ["const token = 'Bearer two words'", "const token = '[REDACTED:labeled_secret]'"],
+    ['{"Authorization":"Basic ${basic}"}', '{"Authorization":"[REDACTED:labeled_secret]"}'],
+  ])('masks the whole value in %j', (input, redacted) => {
     expect(run(input).redacted).toBe(redacted);
   });
 });
