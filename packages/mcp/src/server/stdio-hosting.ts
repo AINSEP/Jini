@@ -148,7 +148,7 @@ function trackTask<T>(state: HostingState, { task, signal }: { task: () => Promi
 }
 
 /** Settles once `result` settled and its response write completed, or the run stopped; never rejects. */
-async function awaitResponseWritten({ output, stop }: HostingState, result: Promise<unknown>): Promise<void> {
+async function awaitResponseWritten({ output, stop }: HostingState, { result }: { result: Promise<unknown> }): Promise<void> {
   await result.then(() => {}, () => {});
   await setImmediate();
   // Abortable unlike writesDone: a write still pending at dispose never drains.
@@ -210,7 +210,7 @@ export function createStdioHosting({ stdin, stdout, options }: { stdin: Readable
     streams,
     guardTransport: ({ transport }: { transport: McpTransportLike }): void => guardTransport(state, transport),
     track: <T>(required: { task: () => Promise<T>; signal: AbortSignal | undefined }): Promise<T> => trackTask(state, required),
-    responseWritten: ({ result }: { result: Promise<unknown> }): Promise<void> => awaitResponseWritten(state, result),
+    responseWritten: ({ result }: { result: Promise<unknown> }): Promise<void> => awaitResponseWritten(state, { result }),
     watch: ({ close }: { close: () => void }): void => watchEof({ state, close }),
     /** Idempotent detach; queued handlers that have not started are skipped.
      * @returns The first recorded failure, which the run rejects with. */
