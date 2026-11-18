@@ -11,13 +11,12 @@ import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import { errorMessage } from '../values.js';
 import type {
   McpJsonInjectionOptions,
-  McpJsonServerEntry,
   McpHttpEndpoint,
   McpBridgeDelivery,
   PreparedCodexHome,
   FailBeforeSpawn,
 } from '../contracts.js';
-import { defaultReadMcpJsonFile, defaultWriteMcpJsonFile } from '../mcp-bridge.js';
+import { defaultReadMcpJsonFile, defaultWriteMcpJsonFile, type McpJsonServerEntry } from '../mcp-json-file.js';
 import { buildCodexHomeConfigToml } from './home-config.js';
 import { assertCodexHomeConfigParses, assertStagedHomeIsolated, CodexMcpIsolationError, codexIsolationRefusalMessage } from './isolation.js';
 import { omitKeys } from '../../core/omit-keys.js';

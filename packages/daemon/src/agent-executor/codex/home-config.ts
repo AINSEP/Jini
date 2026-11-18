@@ -1,5 +1,5 @@
-import type { McpHttpEndpoint, McpJsonServerEntry, McpJsonInjectionOptions } from '../contracts.js';
-import { JINI_MCP_SERVER_KEY } from '../mcp-bridge.js';
+import type { McpHttpEndpoint, McpJsonInjectionOptions } from '../contracts.js';
+import { JINI_MCP_SERVER_KEY, type McpJsonServerEntry } from '../mcp-json-file.js';
 
 /**
  * TOML basic-string escaping for the narrow value shapes {@link buildCodexMcpServerToml} emits (a

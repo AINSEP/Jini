@@ -1,6 +1,7 @@
 import type { CodexExecutorOptions, CodexMcpHomeOptions } from './codex/contracts.js';
 import type { ClaudeExecutorOptions } from './claude/contracts.js';
 import type { PiExecutorOptions } from './pi/contracts.js';
+import type { McpJsonServerEntry } from './mcp-json-file.js';
 export type { PreparedCodexHome } from './codex/contracts.js';
 export type { PreparedClaudeConfigDir, ClaudeConfigDirSeams, ClaudeConfigDirIsolationOptions } from './claude/contracts.js';
 
@@ -474,18 +475,6 @@ export interface McpJsonInjectionOptions extends CodexMcpHomeOptions {
    */
   readonly removeFile?: ({ path }: { readonly path: string }) => Promise<void>;
 
-}
-
-/** One `.mcp.json` `mcpServers` entry — the shape Claude Code's own config schema expects. */
-export interface McpJsonServerEntry {
-  readonly command: string;
-  readonly args: string[];
-  readonly env: Readonly<Record<string, string>> & {
-    readonly JINI_RUN_ID: string;
-    readonly JINI_DAEMON_URL: string;
-    /** Present only when the host supplied a `credential` resolver — see {@link McpJsonInjectionOptions.credential}. */
-    readonly JINI_DAEMON_TOKEN?: string;
-  };
 }
 
 /**

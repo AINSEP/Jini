@@ -153,7 +153,6 @@ export {
   MCP_BRIDGE_UNAVAILABLE,
   unavailableJiniBridgeStatus,
   buildMcpJsonServerEntry,
-  mergeMcpJsonContent,
   buildAcpMcpBridgeServers,
   mergeEnvContentMcpConfig,
   mergeEnvContentInstructions,
@@ -163,6 +162,7 @@ export {
   writeMcpJsonIfNeeded,
   prepareClaudeConfigDirIfNeeded,
 } from './mcp-bridge.js';
+export { mergeMcpJsonContent } from './mcp-json-file.js';
 export { buildCodexMcpServerToml, buildCodexHomeConfigToml } from './codex/home-config.js';
 export { resolveSourceCodexHomeDir, prepareCodexHomeIfNeeded } from './codex/home-staging.js';
 export { probeMcpBridge, type McpBridgeProbeResult } from './mcp-bridge-probe.js';

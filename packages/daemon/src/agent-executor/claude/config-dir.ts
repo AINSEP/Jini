@@ -3,7 +3,7 @@ import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import type { ClaudeConfigDirIsolationOptions, ClaudeConfigDirSeams, FailBeforeSpawn, PreparedClaudeConfigDir } from '../contracts.js';
-import { defaultReadMcpJsonFile, defaultWriteMcpJsonFile } from '../mcp-bridge.js';
+import { defaultReadMcpJsonFile, defaultWriteMcpJsonFile } from '../mcp-json-file.js';
 import { errorMessage } from '../values.js';
 
 export const CLAUDE_CONFIG_DIR_ENV = 'CLAUDE_CONFIG_DIR';

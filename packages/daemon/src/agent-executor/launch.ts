@@ -99,11 +99,11 @@ import {
 import {
   mergeEnvContentMcpConfig,
   mergeEnvContentInstructions,
-  defaultRemoveMcpJsonFile,
   resolveMcpBridgeForRun,
   writeMcpJsonIfNeeded,
   prepareClaudeConfigDirIfNeeded,
 } from './mcp-bridge.js';
+import { defaultRemoveMcpJsonFile } from './mcp-json-file.js';
 import { CODEX_HOME_ENV, codexHttpMcpStaging, prepareCodexHomeIfNeeded, resolveCodexDisablePlugins, withStagedCodexHome } from './codex/home-staging.js';
 import { CLAUDE_CONFIG_DIR_ENV, withStagedClaudeConfigDir } from './claude/config-dir.js';
 import { claudeFilesystemAdapter } from './claude/filesystem.js';
