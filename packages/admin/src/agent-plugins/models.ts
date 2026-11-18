@@ -1,15 +1,18 @@
-import type { InstalledAgentPlugin, InstalledAgentPluginSkill, SetAgentPluginEnabledInput } from '@jini-ai/agent-plugins/lifecycle';
-
-/** HTTP presentation projection; installation paths/digests never enter the browser. */
-export interface AgentPluginSummary extends Pick<InstalledAgentPlugin, 'pluginId'> {
-  readonly version: InstalledAgentPlugin['version'] | null;
-  readonly description: InstalledAgentPlugin['description'] | null;
-  readonly keywords: NonNullable<InstalledAgentPlugin['keywords']>;
-  readonly skills: readonly (Pick<InstalledAgentPluginSkill, 'name'> & { readonly summary: string })[];
+/**
+ * HTTP presentation projection; installation paths/digests never enter the browser.
+ * Restated from the plugin lifecycle's `InstalledAgentPlugin` (only the fields the screen reads) so admin owns its
+ * plugin-list port; `__tests__/installed-plugin-fit.typecheck.ts` fails to compile when the lifecycle's types drift.
+ */
+export interface AgentPluginSummary {
+  readonly pluginId: string;
+  readonly version: string | null;
+  readonly description: string | null;
+  readonly keywords: readonly string[];
+  readonly skills: readonly { readonly name: string; readonly summary: string }[];
   readonly mcpServerIds: readonly string[];
-  readonly enabled: SetAgentPluginEnabledInput['enabled'];
+  readonly enabled: boolean;
 }
-export type AgentPluginActivationInput = Pick<SetAgentPluginEnabledInput, 'pluginId' | 'enabled'>;
+export interface AgentPluginActivationInput { readonly pluginId: string; readonly enabled: boolean }
 export interface AgentPluginPackageFile {
   readonly relativePath: string;
   readonly sizeBytes: number;
@@ -18,7 +21,7 @@ export interface AgentPluginPackageFile {
 }
 /** The existing read-only route's bounded listing, not lifecycle's on-disk files array. */
 export interface AgentPluginFiles {
-  readonly pluginId: InstalledAgentPlugin['pluginId'];
+  readonly pluginId: string;
   readonly files: readonly AgentPluginPackageFile[];
   readonly truncated: boolean;
   readonly limits: { readonly maxFiles: number; readonly maxEntries: number; readonly maxFileBytes: number; readonly maxTotalBytes: number };
