@@ -11,7 +11,7 @@ spec_mode: reverse_spec
 
 ESM. Root and supervisor/node use Node; generic supervisor and respawn policy are universal. The export map exposes `@jini-ai/sidecar`, `@jini-ai/sidecar/respawn-policy`, and `@jini-ai/sidecar/supervisor`. The root re-exports policy and the generic supervisor; Node defaults are isolated at `@jini-ai/sidecar/supervisor/node`. Importing creates no server, timer or child process.
 
-Signatures below describe current source. Two-object APIs separate required data from optional settings; `optional = {}` denotes an implementation default. A signature with one object or no arguments is an existing exception: consumers must not assume a second object is accepted by its TypeScript declaration. Shared base types have not been relocated by this contract.
+Signatures below describe current source. Two-object APIs separate required data from optional settings; `optional = {}` denotes an implementation default. Plain helper functions also declare an empty optional object defaulting to `{}` when no settings are shown; port methods retain their declared signatures. Shared base types have not been relocated by this contract.
 
 ## Root: contract and path resolution
 

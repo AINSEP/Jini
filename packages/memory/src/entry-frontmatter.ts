@@ -35,7 +35,7 @@ export interface EntryFrontmatter {
  * @param raw - The full file contents.
  * @returns The parsed frontmatter fields and the body with the block removed.
  */
-export function parseEntryFrontmatter({ raw }: { raw: string }): { data: EntryFrontmatter; body: string } {
+export function parseEntryFrontmatter({ raw }: { raw: string }, _optional: Record<string, never> = {}): { data: EntryFrontmatter; body: string } {
   const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(raw);
   if (!match) return { data: { name: '', description: '', type: '' }, body: raw };
   // Both capture groups are `*`-quantified (zero-or-more), so a successful

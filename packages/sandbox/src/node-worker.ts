@@ -87,7 +87,7 @@ export function resolveDefaultTimeoutMs({ rawValue, defaultTimeoutMs, maxTimeout
   rawValue: string | undefined;
   defaultTimeoutMs: number;
   maxTimeoutMs: number;
-}): number {
+}, _optional: Record<string, never> = {}): number {
   if (rawValue === undefined || !/^\d+$/.test(rawValue.trim())) return defaultTimeoutMs;
   const parsed = Number(rawValue.trim());
   if (!Number.isSafeInteger(parsed) || parsed <= 0 || parsed > maxTimeoutMs) return defaultTimeoutMs;
@@ -232,6 +232,6 @@ export function createNodeWorkerFactory({ env }: { env: NodeJS.ProcessEnv }, opt
  * @returns WorkerScheduler using native timers.
  * @complexity O(1) per schedule/cancel.
  */
-export function createNodeWorkerScheduler(_required: Record<string, never>): WorkerScheduler {
+export function createNodeWorkerScheduler(_required: Record<string, never>, _optional: Record<string, never> = {}): WorkerScheduler {
   return { schedule: ({ delayMs, run }) => { const timer = setTimeout(run, delayMs); return () => clearTimeout(timer); } };
 }

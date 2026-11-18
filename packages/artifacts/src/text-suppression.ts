@@ -56,7 +56,7 @@ export function createTaggedTextSuppressor(args: {
   closeRe: RegExp;
   isPossibleOpen: (required: { text: string }) => boolean;
   isPossibleClose: (required: { text: string }) => boolean;
-}): ArtifactTextSuppressor {
+}, _optional: Record<string, never> = {}): ArtifactTextSuppressor {
   let suppressing = false;
   let candidate = '';
   let suppressedChars = 0;
@@ -140,7 +140,7 @@ export function createTaggedTextSuppressor(args: {
 
 /** Feeds `text` through `suppressor` and emits a `text_delta` on `onEvent` only when something survives. Returns whether an event was emitted. */
 export function emitWithTextSuppressor(
-  { suppressor, onEvent, text }: { suppressor: ArtifactTextSuppressor; onEvent: StreamEventSink; text: string },
+  { suppressor, onEvent, text }: { suppressor: ArtifactTextSuppressor; onEvent: StreamEventSink; text: string }, _optional: Record<string, never> = {},
 ): boolean {
   const delta = suppressor.strip({ text });
   if (!delta) return false;
@@ -173,7 +173,7 @@ function compactTagCandidate(text: string, stripChars: RegExp): string | null {
  * case-insensitively against any of `tagNames`. Replaces the origin's
  * hardcoded "DSML" tag-name family with a caller-supplied vocabulary.
  */
-export function createXmlTagTextSuppressor({ tagNames }: { tagNames: readonly string[] }): ArtifactTextSuppressor {
+export function createXmlTagTextSuppressor({ tagNames }: { tagNames: readonly string[] }, _optional: Record<string, never> = {}): ArtifactTextSuppressor {
   const canonicals = tagNames.map((t) => t.toLowerCase());
   const namesPattern = canonicals.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
   const openRe = new RegExp(`(?:<\\s*\\|?\\s*(?:${namesPattern})\\b[^>]*>)`, 'i');
@@ -213,7 +213,7 @@ function isPossibleToolCallClose(text: string): boolean {
 }
 
 /** Suppresses a `<tool_call>...</tool_call>` or `<edit>...</edit>` block — a generic agent-protocol convention, not product-branded. */
-export function createToolCallTextSuppressor(_required: Record<string, never>): ArtifactTextSuppressor {
+export function createToolCallTextSuppressor(_required: Record<string, never>, _optional: Record<string, never> = {}): ArtifactTextSuppressor {
   return createTaggedTextSuppressor({
     openRe: TOOL_CALL_OPEN_RE,
     closeRe: TOOL_CALL_CLOSE_RE,

@@ -42,7 +42,7 @@ function assertNoSymlinks(dir: string): void {
 }
 
 async function main(): Promise<void> {
-  const hostPkg = readPackageJson(minimalHostDir);
+  const hostPkg = readPackageJson({ dir: minimalHostDir });
   const rootDeps = jiniDependencyNames(hostPkg);
   if (rootDeps.length === 0) {
     throw new Error(
@@ -57,7 +57,7 @@ async function main(): Promise<void> {
   try {
     // 1-3: build every package in the closure, dependency-first, pack each, rewrite @jini-ai/* deps
     // to file: sibling tarball paths — the shared core both this file and pack-for-external-use.ts use.
-    const { closure, tarballPathByName } = buildAndPackClosure(repoRoot, rootDeps, packDestDir);
+    const { closure, tarballPathByName } = buildAndPackClosure({ repoRoot, rootNames: rootDeps, destDir: packDestDir });
     const packedTarballs = closure.map((name) => tarballPathByName.get(name)!);
 
     // 4. Copy examples/minimal-host into a scratch directory and rewrite its own @jini-ai/* deps to

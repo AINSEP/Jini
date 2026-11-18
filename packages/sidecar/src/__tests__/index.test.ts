@@ -169,33 +169,33 @@ describe("@jini-ai/sidecar — ipc-path", () => {
 describe("@jini-ai/sidecar — net", () => {
   it("closeServer is a no-op on a server that was never listening", async () => {
     const server = createNetServer();
-    await expect(closeServer(server)).resolves.toBeUndefined();
+    await expect(closeServer({ server })).resolves.toBeUndefined();
   });
 
   it("closeServer closes a listening server", async () => {
-    const server = await listenOnPort(0, "127.0.0.1");
+    const server = await listenOnPort({ port: 0, host: "127.0.0.1" });
     expect(server.listening).toBe(true);
-    await closeServer(server);
+    await closeServer({ server });
     expect(server.listening).toBe(false);
   });
 
   it("listenOnPort rejects when the port is already bound by another server", async () => {
-    const first = await listenOnPort(0, "127.0.0.1");
+    const first = await listenOnPort({ port: 0, host: "127.0.0.1" });
     const address = first.address();
     if (address == null || typeof address === "string") throw new Error("expected a TCP address");
-    await expect(listenOnPort(address.port, "127.0.0.1")).rejects.toThrow(`listen EADDRINUSE: address already in use 127.0.0.1:${address.port}`);
-    await closeServer(first);
+    await expect(listenOnPort({ port: address.port, host: "127.0.0.1" })).rejects.toThrow(`listen EADDRINUSE: address already in use 127.0.0.1:${address.port}`);
+    await closeServer({ server: first });
   });
 
   it("closeServer rejects when the underlying server.close() callback itself reports an error", async () => {
-    const server = await listenOnPort(0, "127.0.0.1");
+    const server = await listenOnPort({ port: 0, host: "127.0.0.1" });
     try {
       const boom = new Error("close failed");
       vi.spyOn(server, "close").mockImplementation(((cb?: (err?: Error) => void) => {
         cb?.(boom);
         return server;
       }) as typeof server.close);
-      await expect(closeServer(server)).rejects.toBe(boom);
+      await expect(closeServer({ server })).rejects.toBe(boom);
     } finally {
       vi.restoreAllMocks();
       await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -437,13 +437,13 @@ describe("@jini-ai/sidecar — port allocation", () => {
   });
 
   it("rejects a forced port that is genuinely unavailable at the OS level (not just reserved)", async () => {
-    const occupied = await listenOnPort(0, "127.0.0.1");
+    const occupied = await listenOnPort({ port: 0, host: "127.0.0.1" });
     const address = occupied.address();
     if (address == null || typeof address === "string") throw new Error("expected a TCP address");
     try {
       await expect(allocatePort({}, { port: address.port })).rejects.toThrow(/is not available/);
     } finally {
-      await closeServer(occupied);
+      await closeServer({ server: occupied });
     }
   });
 

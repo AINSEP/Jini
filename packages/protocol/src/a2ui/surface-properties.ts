@@ -26,7 +26,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  *
  * @complexity O(1).
  */
-export function a2uiSurfaceIdOf({ message }: { message: unknown }): string | undefined {
+export function a2uiSurfaceIdOf({ message }: { message: unknown }, _optional: Record<string, never> = {}): string | undefined {
   if (!isRecord(message)) return undefined;
   for (const key of SURFACE_SCOPED_KEYS) {
     const body = message[key];
@@ -42,7 +42,7 @@ export function a2uiSurfaceIdOf({ message }: { message: unknown }): string | und
  *
  * @complexity O(1).
  */
-export function displayOnlySurfaceIdOf({ message }: { message: unknown }): string | undefined {
+export function displayOnlySurfaceIdOf({ message }: { message: unknown }, _optional: Record<string, never> = {}): string | undefined {
   const body = isRecord(message) ? message.createSurface : undefined;
   if (!isRecord(body) || typeof body.surfaceId !== 'string') return undefined;
   const properties = body.surfaceProperties;

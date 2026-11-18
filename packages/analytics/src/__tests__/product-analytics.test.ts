@@ -32,7 +32,7 @@ test("P21: guards and single-provider fanout preserve browser contributions for 
 
 test("noop: one shared frozen port, and the guard keeps it as-is (zero cost when unconfigured)", () => {
   const noop = createNoopProductAnalytics({});
-  expect(isNoopProductAnalytics(noop)).toBe(true);
+  expect(isNoopProductAnalytics({ port: noop })).toBe(true);
   expect(Object.isFrozen(noop)).toBe(true);
   expect(withProductAnalyticsGuards({ inner: noop, consent: () => true })).toBe(noop);
 });

@@ -11,16 +11,16 @@ spec_mode: reverse_spec
 
 `@jini-ai/protocol` exports only `.` (`src/index.ts`): wire types, registry Zod schemas, pure helpers, and adapter interfaces. It requires Zod at runtime; it requires no host services for its helpers. There are no supported deep imports.
 
-Signatures below describe current source. The notation separates required and optional objects where source does; one-object functions and Zod methods do not accept an invented second options object. `JsonPrimitive` and `JsonValue` are imported internally from `@jini-ai/core/primitives`, not exported by protocol.
+Signatures below describe current source. Plain helper functions take a required object and a second object defaulting to `{}`; Zod methods retain their own signatures. `JsonPrimitive` and `JsonValue` are imported internally from `@jini-ai/core/primitives`, not exported by protocol.
 
 ## Helpers and constants
 
 ```ts
-isTerminalRunState({ state }: { state: RunState }): boolean;
-encodeRunContextRef({ payload }: { payload: RunContextPayload }): string;
-decodeRunContextRef({ contextRef }: { contextRef: string }): RunContextPayload | undefined;
+isTerminalRunState({ state }: { state: RunState }, _optional: Record<string, never> = {}): boolean;
+encodeRunContextRef({ payload }: { payload: RunContextPayload }, _optional: Record<string, never> = {}): string;
+decodeRunContextRef({ contextRef }: { contextRef: string }, _optional: Record<string, never> = {}): RunContextPayload | undefined;
 createApiError({ code, message }: Pick<ApiError, 'code' | 'message'>, optionalArgs: Omit<ApiError, 'code' | 'message'> = {}): ApiError;
-createApiErrorResponse({ error }: { error: ApiError }): ApiErrorResponse;
+createApiErrorResponse({ error }: { error: ApiError }, _optional: Record<string, never> = {}): ApiErrorResponse;
 ```
 
 `RUN_STATES` is `queued, starting, running, succeeded, failed, cancelled`; `TERMINAL_RUN_STATES` contains the last three. `RUN_PROTOCOL_VERSION` is `1`. `GENERIC_ERROR_CODES` is the error-code tuple in [errors.spec.md](errors.spec.md).

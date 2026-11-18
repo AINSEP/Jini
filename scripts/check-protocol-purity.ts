@@ -22,7 +22,7 @@ export interface CheckProtocolPurityOptions {
 }
 
 function checkProtocolImports({ root, absFile, file, violations }: { root: string; absFile: string; file: string; violations: Violation[] }): void {
-  for (const ref of extractImports(absFile)) {
+  for (const ref of extractImports({ absFilePath: absFile })) {
     const spec = ref.specifier;
 
     if (spec.startsWith('@jini-ai/')) {
@@ -56,7 +56,7 @@ export async function checkProtocolPurity(
   const root = options.repoRoot ?? REPO_ROOT;
   const violations: Violation[] = [];
   const protocolSrc = options.protocolSrc ?? join(root, 'packages', 'protocol', 'src');
-  const files = listSourceFiles(protocolSrc);
+  const files = listSourceFiles({ dir: protocolSrc });
 
   for (const absFile of files) {
     const file = relative(root, absFile).split('\\').join('/');

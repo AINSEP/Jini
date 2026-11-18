@@ -72,7 +72,7 @@ function buildPendingPackages(required: {
 
 async function main(): Promise<void> {
   const dryRun = process.argv.includes('--dry-run');
-  const registry = discoverJiniPackages(repoRoot);
+  const registry = discoverJiniPackages({ workspaceRoot: repoRoot });
 
   const onlyShortNames = parseOnlyFlag(process.argv.slice(2));
   const rootNames = onlyShortNames
@@ -84,7 +84,7 @@ async function main(): Promise<void> {
     : [...registry.keys()];
 
   // `pnpm publish` refuses a private package outright, so one in the closure would end the run.
-  const closure = computeClosure(registry, rootNames).filter((name) => registry.get(name)!.pkg.private !== true);
+  const closure = computeClosure({ registry, rootNames }).filter((name) => registry.get(name)!.pkg.private !== true);
   for (const name of closure) assertJiniPackagePublicationAllowed({ name });
 
   try {

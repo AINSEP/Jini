@@ -15,7 +15,7 @@ export interface DebtEntry { rule: string; file: string; spec: string; kind: str
 export interface InjectionException { owner: string; target: string; specGlob: string; ownerQuestion: string; approved: string; note: string }
 export interface DebtViolation { rule: string; file: string; reason: string }
 
-export const keyOf = (item: { rule: string; file: string; spec: string; kind: string }): string =>
+export const keyOf = (item: { rule: string; file: string; spec: string; kind: string }, _optional: Record<string, never> = {}): string =>
   [item.rule, item.file, item.spec, item.kind].join('\u0000');
 
 function readList<T>(required: { path: string; field: string }, _optional: Record<string, never> = {}): T[] {

@@ -341,7 +341,7 @@ function deriveId(s: NoteStoreState, { type, name }: { type: string; name: strin
   const joined = raw
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_');
-  const cleaned = trimBoth(joined, '_').slice(0, 48);
+  const cleaned = trimBoth({ text: joined, char: '_' }).slice(0, 48);
   if (cleaned.length > 0) return `${safeType}_${cleaned}`;
   // FNV-1a 32-bit on the original name — deterministic, dependency-free,
   // and avoids colliding two purely-non-ASCII names on the same fallback slug.
@@ -650,7 +650,7 @@ async function buildTree(s: NoteStoreState, { dataDir }: { dataDir: string }): P
 export function createNoteStore(config: NoteStoreConfig, optional: NoteStoreOptionalArgs = {}): NoteStore {
   const now = optional.now ?? Date.now;
   const subdir = optional.subdir ?? 'notes';
-  assertSafeSubdir(subdir);
+  assertSafeSubdir({ subdir });
   const events = new EventEmitter();
   events.setMaxListeners(64);
   const s: NoteStoreState = {

@@ -433,7 +433,7 @@
    "8:catch-reads-error"
   ],
   "imports": [],
-  "code": "try {\n    return JSON.parse(text) as T;\n  } catch {\n    const match = outermostBraces(text);\n    if (match !== null) {\n      try {\n        return JSON.parse(match) as T;\n      } catch {\n        // Fall through to the shared throw below.\n      }\n    }\n    throw new Error('llm-provider: response was not valid JSON');\n  }"
+  "code": "try {\n    return JSON.parse(text) as T;\n  } catch {\n    const match = outermostBraces({ text });\n    if (match !== null) {\n      try {\n        return JSON.parse(match) as T;\n      } catch {\n        // Fall through to the shared throw below.\n      }\n    }\n    throw new Error('llm-provider: response was not valid JSON');\n  }"
  },
  {
   "site": "packages/oauth/src/discovery.ts:106",

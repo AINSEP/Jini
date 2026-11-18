@@ -33,7 +33,7 @@ function isSourceEntry(entry: string, includeJavaScript = false): boolean {
 /** Recursively lists TS source under `dir`, skipping declarations and generated/dependency trees.
  * Runtime-closure analysis also opts into build-free JavaScript source; neutrality checks opt into JSON.
  */
-export function listSourceFiles(dir: string, options: { includeJavaScript?: boolean; includeJson?: boolean } = {}): string[] {
+export function listSourceFiles({ dir }: { dir: string }, options: { includeJavaScript?: boolean; includeJson?: boolean } = {}): string[] {
   const out: string[] = [];
   let entries: string[];
   try {
@@ -46,7 +46,7 @@ export function listSourceFiles(dir: string, options: { includeJavaScript?: bool
     const full = join(dir, entry);
     const st = statSync(full);
     if (st.isDirectory()) {
-      out.push(...listSourceFiles(full, options));
+      out.push(...listSourceFiles({ dir: full }, options));
     } else if ((options.includeJson && entry.endsWith('.json')) || isSourceEntry(entry, options.includeJavaScript)) {
       out.push(full);
     }
@@ -85,7 +85,7 @@ function stringChunk(c: string, next: string | undefined, quote: string): { text
  * false positives on every single file that documents what it de-branded (found empirically:
  * the first real `pnpm guard` run below flagged 7 files, all 7 comment-only).
  */
-export function stripComments(source: string): string {
+export function stripComments({ source }: { source: string }, _optional: Record<string, never> = {}): string {
   let out = '';
   let inLineComment = false;
   let inBlockComment = false;
@@ -134,7 +134,7 @@ export function stripComments(source: string): string {
 }
 
 /** Shared maintained AST reader; includes deferred loads so lazy imports cannot hide required peers. */
-export function extractImports(absFilePath: string): ImportRef[] {
+export function extractImports({ absFilePath }: { absFilePath: string }, _optional: Record<string, never> = {}): ImportRef[] {
   return runtimeImportReferences({ compiler: ts, file: absFilePath, source: readFileSync(absFilePath, 'utf8') })
     .map(ref => ({ ...ref, file: toRepoRelative(absFilePath), typeOnly: ref.typeOnly ?? false }));
 }

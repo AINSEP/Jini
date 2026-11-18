@@ -11,7 +11,7 @@ const isSpace = (char: string | undefined): boolean => char !== undefined && /\s
  * run overlap.
  * @complexity O(css length).
  */
-export function cssUrlTokens(css: string): CssUrlToken[] {
+export function cssUrlTokens({ css }: { css: string }, _optional: Record<string, never> = {}): CssUrlToken[] {
   const tokens: CssUrlToken[] = [];
   const stops = createStopFinder(css);
   let from = css.indexOf('url(');

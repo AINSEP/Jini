@@ -34,7 +34,7 @@ export function decodeSkillBase64({ value }: { value: string }, { maxBytes = MAX
 
 export function validateSkillPath({ filePath }: { filePath: string }, _optional: Record<string, never> = {}): void {
   const badShape = typeof filePath !== "string" || filePath.length === 0 || filePath.length > 240;
-  if (badShape || hasUnsafePathCharacter(filePath) || path.posix.isAbsolute(filePath) || filePath.split("/").some(p => !p || p === "." || p === ".." || p.startsWith("."))) throw new SkillInputError({ message: `Unsafe skill file path: ${filePath}` });
+  if (badShape || hasUnsafePathCharacter({ value: filePath }) || path.posix.isAbsolute(filePath) || filePath.split("/").some(p => !p || p === "." || p === ".." || p.startsWith("."))) throw new SkillInputError({ message: `Unsafe skill file path: ${filePath}` });
 }
 
 /** Strict frontmatter for new installs; the legacy disk loader remains backwards compatible. */

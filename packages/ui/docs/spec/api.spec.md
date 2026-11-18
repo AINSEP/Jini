@@ -222,9 +222,9 @@ createEarlyMessageBuffer(maxBuffered: number = MAX_BUFFERED_MESSAGES): EarlyMess
 // push(message): void; subscribe(handler): () => void; readonly backlogSize: number
 createUIResource(spec: { uri: UIResourceUri; htmlString: string; preferredFrameSize?: readonly [string, string]; actionPlan?: McpUiActionPlan; meta?: Readonly<Record<string, unknown>>; }): UIResource
 buildUIToolResult(spec: { modelText: string; ui: UIResource; meta?: Readonly<Record<string, unknown>>; }): UIToolResult
-parseUIResource(value: unknown): UIResource | undefined
-readPreferredFrameSize(resource: UIResource): readonly [string,string] | undefined
-readActionPlan(resource: UIResource): McpUiActionPlan | undefined
+parseUIResource({ value }: { value: unknown }, _optional: Record<string, never> = {}): UIResource | undefined
+readPreferredFrameSize({ resource }: { resource: UIResource }, _optional: Record<string, never> = {}): readonly [string,string] | undefined
+readActionPlan({ resource }: { resource: UIResource }, _optional: Record<string, never> = {}): McpUiActionPlan | undefined
 escapeHtml(value: string): string
 escapeJsValue(value: unknown): string
 escapeJsString(value: string): string

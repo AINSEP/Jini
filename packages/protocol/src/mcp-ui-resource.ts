@@ -215,6 +215,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function isUIResourceUri(value: unknown): value is UIResourceUri {
+  return typeof value === 'string' && value.startsWith('ui://');
+}
+
 /**
  * Narrows an arbitrary value to a {@link UIResource}.
  *
@@ -228,13 +232,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * @returns The narrowed resource, or `undefined` when the value is not one.
  * @complexity O(1) — `text` is not scanned, only type-checked.
  */
-export function parseUIResource(value: unknown): UIResource | undefined {
+export function parseUIResource({ value }: { value: unknown }, _optional: Record<string, never> = {}): UIResource | undefined {
   if (!isRecord(value) || value['type'] !== 'resource') return undefined;
   const resource = value['resource'];
   if (!isRecord(resource)) return undefined;
 
   const uri = resource['uri'];
-  if (typeof uri !== 'string' || !uri.startsWith('ui://')) return undefined;
+  if (!isUIResourceUri(uri)) return undefined;
 
   const mimeType = resource['mimeType'];
   if (typeof mimeType !== 'string') return undefined;
@@ -261,7 +265,7 @@ export function parseUIResource(value: unknown): UIResource | undefined {
  * @returns The pair, or `undefined` when absent or malformed — a host that gets `undefined` should
  * size the frame itself rather than trusting a half-present hint.
  */
-export function readPreferredFrameSize(resource: UIResource): readonly [string, string] | undefined {
+export function readPreferredFrameSize({ resource }: { resource: UIResource }, _optional: Record<string, never> = {}): readonly [string, string] | undefined {
   const raw = resource.resource._meta?.[MCP_UI_PREFERRED_FRAME_SIZE_META_KEY];
   if (!Array.isArray(raw) || raw.length !== 2) return undefined;
   const [width, height] = raw as readonly unknown[];
@@ -286,6 +290,10 @@ function parseActionPlanAction(value: unknown): McpUiActionPlanAction | undefine
   return { id, label, variant };
 }
 
+function actionPlanMeta(resource: UIResource): unknown {
+  return resource.resource._meta?.[MCP_UI_ACTION_PLAN_META_KEY];
+}
+
 /**
  * Reads the action-plan hint a resource's `_meta` may carry — see {@link MCP_UI_ACTION_PLAN_META_KEY}.
  *
@@ -297,8 +305,8 @@ function parseActionPlanAction(value: unknown): McpUiActionPlanAction | undefine
  *
  * @returns The plan, or `undefined` when absent or malformed.
  */
-export function readActionPlan(resource: UIResource): McpUiActionPlan | undefined {
-  const raw = resource.resource._meta?.[MCP_UI_ACTION_PLAN_META_KEY];
+export function readActionPlan({ resource }: { resource: UIResource }, _optional: Record<string, never> = {}): McpUiActionPlan | undefined {
+  const raw = actionPlanMeta(resource);
   if (!isRecord(raw)) return undefined;
   const title = raw['title'];
   if (typeof title !== 'string') return undefined;
@@ -322,7 +330,7 @@ export function readActionPlan(resource: UIResource): McpUiActionPlan | undefine
  * `undefined` shows no countdown rather than one built on a malformed value.
  * @complexity O(1).
  */
-export function readExpiresAt(resource: UIResource): number | undefined {
+export function readExpiresAt({ resource }: { resource: UIResource }, _optional: Record<string, never> = {}): number | undefined {
   const raw = resource.resource._meta?.[MCP_UI_EXPIRES_AT_META_KEY];
   return typeof raw === 'number' && Number.isFinite(raw) ? raw : undefined;
 }

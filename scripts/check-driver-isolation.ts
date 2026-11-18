@@ -200,10 +200,10 @@ export async function checkDriverIsolation(
   const violations: Violation[] = [];
 
   for (const target of collectTargets(packagesDir)) {
-    for (const absFile of listSourceFiles(target.neutralDir)) {
+    for (const absFile of listSourceFiles({ dir: target.neutralDir })) {
       const file = relative(root, absFile).split('\\').join('/');
 
-      for (const ref of extractImports(absFile)) {
+      for (const ref of extractImports({ absFilePath: absFile })) {
         const violation = evaluateImport(absFile, ref.specifier, target, file);
         if (violation) violations.push(violation);
       }

@@ -23,7 +23,7 @@ export interface SupervisorRegistry {
  * @returns A registry port with object arguments at all data-bearing boundaries.
  * @complexity O(1) operations, excluding filesystem I/O.
  */
-export function createSupervisorRegistry({ registryPath }: { registryPath: string }): SupervisorRegistry {
+export function createSupervisorRegistry({ registryPath }: { registryPath: string }, _optional: Record<string, never> = {}): SupervisorRegistry {
   return {
     readLive: () => readLiveDaemonRegistryRecord({ registryPath }),
     write: ({ record }) => writeDaemonRegistryRecord({ registryPath, record }),
@@ -177,7 +177,7 @@ export function createNodeDaemonProcessAdapter(required: NodeDaemonProcessRequir
  * @returns Scheduler using setTimeout and clearTimeout.
  * @complexity O(1) per schedule/cancel.
  */
-export function createNodeSupervisorScheduler(_required: Record<string, never>): SupervisorScheduler {
+export function createNodeSupervisorScheduler(_required: Record<string, never>, _optional: Record<string, never> = {}): SupervisorScheduler {
   return { schedule: ({ delayMs, run }) => { const timer = setTimeout(run, delayMs); return () => clearTimeout(timer); } };
 }
 

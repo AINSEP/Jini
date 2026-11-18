@@ -11,7 +11,7 @@ import type { NoteChangeEvent, NoteEntrySummary } from './note-store.js';
  * "valid type" is bound to a specific store's `validTypes` set.
  */
 export function isValidUpsertInput(
-  { name, type, isType }: { name: string; type: string; isType: (required: { type: unknown }) => boolean },
+  { name, type, isType }: { name: string; type: string; isType: (required: { type: unknown }) => boolean }, _optional: Record<string, never> = {},
 ): boolean {
   return Boolean(name) && isType({ type });
 }
@@ -27,7 +27,7 @@ export function resolveUpsertEntryId(
     id?: string | undefined; type: string; name: string;
     isId: (required: { id: string }) => boolean;
     deriveId: (required: { type: string; name: string }) => string;
-  },
+  }, _optional: Record<string, never> = {},
 ): string {
   return id && isId({ id }) ? id : deriveIdFn({ type, name });
 }

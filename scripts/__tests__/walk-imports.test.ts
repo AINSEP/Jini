@@ -7,13 +7,13 @@ import { extractImports, listSourceFiles, stripComments } from '../lib/walk-impo
 describe('shared import extraction', () => {
   it('masks line and block comments while preserving literal contents, escapes and offsets', () => {
     const source = '"https://host"; // note\n/*block\nend*/ `raw // text`; \'it\\\'s /*text*/\'';
-    expect(stripComments(source)).toBe('"https://host";        \n       \n      `raw // text`; \'it\\\'s /*text*/\'');
+    expect(stripComments({ source })).toBe('"https://host";        \n       \n      `raw // text`; \'it\\\'s /*text*/\'');
   });
   let directory: string;
   function refs(source: string) {
     const file = join(directory, 'entry.ts');
     writeFileSync(file, source);
-    return extractImports(file).map(({ specifier, typeOnly }) => ({ specifier, typeOnly }));
+    return extractImports({ absFilePath: file }).map(({ specifier, typeOnly }) => ({ specifier, typeOnly }));
   }
   beforeEach(() => { directory = mkdtempSync(join(tmpdir(), 'jini-walk-imports-')); });
   afterEach(() => rmSync(directory, { recursive: true, force: true }));
@@ -73,7 +73,7 @@ describe('shared import extraction', () => {
   it('inventories mts/cts source, skips declarations and optionally includes build-free JS', () => {
     for (const name of ['one.ts', 'two.mts', 'three.cts', 'four.js', 'five.cjs', 'one.d.ts', 'two.d.mts'])
       writeFileSync(join(directory, name), '');
-    expect(listSourceFiles(directory).map(file => file.slice(directory.length + 1)).sort()).toEqual(['one.ts', 'three.cts', 'two.mts']);
-    expect(listSourceFiles(directory, { includeJavaScript: true })).toHaveLength(5);
+    expect(listSourceFiles({ dir: directory }).map(file => file.slice(directory.length + 1)).sort()).toEqual(['one.ts', 'three.cts', 'two.mts']);
+    expect(listSourceFiles({ dir: directory }, { includeJavaScript: true })).toHaveLength(5);
   });
 });
