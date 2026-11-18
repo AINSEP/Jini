@@ -106,6 +106,7 @@ Tool handlers receive required execution context first and optional `{ emitSurfa
 | `./contracts/blob` | Backend-agnostic blob storage port and `StorageError`. |
 | `./contracts/admin-module` | `adminPort` token and the admin module contract types (`defineAdminModule`, `AdminModule`, `AdminDescription`, port map types). Admin hosts and plugin authors import it from core; `@jini-ai/admin` consumes it. |
 | `./contracts/runtime` | Fs-lock, atomic-writer, process, command, pty, http and guarded-reader port types plus pure helpers (`planCommandInvocation`, `omitEnvironmentKeys`, `collectProcessTreePids`). Node implementations live in `@jini-ai/platform`. |
+| `./contracts/runtime/testing` | Test-only in-memory fakes of the runtime ports (`fakeFileLock`, `fakeAtomicWriter`, `fakeProcessControl`, `fakeHttpFetch`, `fakeGuardedHttp`): each records the arguments it was given, in order, and does no I/O. For tests of other packages; never import from production code. |
 | `./records` | `canonicalJson({ value })`, async WebCrypto `canonicalArgumentDigest({ args, crypto })`, and `CanonicalJsonError`; recursively sorted Unicode code-point keys, strict JSON validation, and lowercase SHA-256 hex. |
 | `./contracts/storage` | Library-neutral storage kernel (`StorageKernel<Handle, Schema>`, generic over the host's query handle), row/value helpers, SQLite client shapes and the migration-step type. Kernels and drivers live in `@jini-ai/db`; the command/event vocabulary is `./contracts/events`. |
 | `./contracts/forms`, `./contracts/charts`, `./contracts/plugin-sdk` | What form-collection, chart and plugin providers implement. Types and pure helpers only. |
@@ -141,6 +142,7 @@ class and factory identities.
 | Subpath | API and required ports |
 |---|---|
 | `./gated-mutations` | `plan`, `confirm`, `execute`, `authorizeForHooks`; authorization, clock, ID generation, complete opaque token generation, TTL, token store and mutation hooks. Includes token lifecycle and composite actor-reference helpers. |
+| `./approval-batch-chain` | `createChainedBatchHandler({ prepare, run, targetKey, successor }, { maxItems, targetNoun })`; direct batch whose same-target items apply in order, each pinned to the version the batch's own previous write reported (`run` returns `{ output, committed }`; `successor` is synchronous, no I/O). |
 | `./model-facing-tool-errors` | `forbiddenRule`, `reclassifyToolError`, `withModelFacingErrors`, `withModelFacingRegistrationErrors`, `callerSafeErrorMessage`; callers own ordered error allowlists and fallback wording. |
 | `./contribution-registry` | `createContributionRegistry({ keyOf })`; instance-owned replacement by key, with detached array snapshots. |
 | `./naming` | `deriveAvailableName`, `deriveDuplicateName`, `MAX_SUFFIX_ATTEMPTS`; required collision predicate, suffix formatter and exhaustion message policy. |
@@ -281,3 +283,5 @@ loads this adapter; neither entry is re-exported by the kernel root.
 
 The former `@jini-ai/cms/settings` and `@jini-ai/cms/settings/express` entries re-export these
 owners for one release. New consumers should import the core subpaths directly.
+
+`@jini-ai/core/text` also exports `redactOAuthUrls({ text, pattern, replacement })`: replaces every match of a provider-owned pattern and leaves all other bytes intact (a non-global pattern replaces only its first match). The caller owns the pattern and the replacement.

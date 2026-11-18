@@ -457,9 +457,6 @@ importers:
         specifier: workspace:^
         version: link:../core
     devDependencies:
-      '@jini-ai/agent-runtime':
-        specifier: workspace:^
-        version: link:../agent-runtime
       esbuild:
         specifier: ^0.28.1
         version: 0.28.1
@@ -480,9 +477,6 @@ importers:
         specifier: workspace:^
         version: link:../core
     devDependencies:
-      '@jini-ai/platform':
-        specifier: workspace:*
-        version: link:../platform
       '@types/better-sqlite3':
         specifier: ^7.6.11
         version: 7.6.13
@@ -501,9 +495,6 @@ importers:
 
   packages/chat:
     dependencies:
-      '@jini-ai/agentic':
-        specifier: workspace:^
-        version: link:../agentic
       '@jini-ai/core':
         specifier: workspace:^
         version: link:../core
@@ -529,6 +520,9 @@ importers:
       '@jini-ai/agent-runtime':
         specifier: workspace:*
         version: link:../agent-runtime
+      '@jini-ai/agentic':
+        specifier: workspace:^
+        version: link:../agentic
       '@jini-ai/ui':
         specifier: workspace:^
         version: link:../ui
@@ -604,9 +598,6 @@ importers:
       '@jini-ai/core':
         specifier: workspace:^
         version: link:../core
-      '@jini-ai/platform':
-        specifier: workspace:^
-        version: link:../platform
       '@jini-ai/sidecar':
         specifier: workspace:^
         version: link:../sidecar
@@ -704,18 +695,12 @@ importers:
         specifier: workspace:^
         version: link:../core
     devDependencies:
-      '@jini-ai/agentic':
-        specifier: workspace:*
-        version: link:../agentic
       '@jini-ai/cms':
         specifier: workspace:*
         version: link:../cms
       '@jini-ai/db':
         specifier: workspace:*
         version: link:../db
-      '@jini-ai/ui':
-        specifier: workspace:*
-        version: link:../ui
       '@testing-library/jest-dom':
         specifier: ^6.0.0
         version: 6.9.1
@@ -943,9 +928,6 @@ importers:
       '@jini-ai/core':
         specifier: workspace:^
         version: link:../core
-      '@jini-ai/platform':
-        specifier: workspace:^
-        version: link:../platform
       '@jini-ai/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -982,9 +964,6 @@ importers:
       '@cfworker/json-schema':
         specifier: ^4.1.1
         version: 4.1.1
-      '@jini-ai/db':
-        specifier: workspace:^
-        version: link:../db
       '@jini-ai/oauth':
         specifier: workspace:*
         version: link:../oauth
@@ -1024,6 +1003,19 @@ importers:
         version: link:../daemon
 
   packages/memory:
+    devDependencies:
+      '@vitest/coverage-v8':
+        specifier: ^2.1.9
+        version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(jsdom@26.1.0)(lightningcss@1.33.0)(sass@1.51.0))
+
+  packages/node-adapters:
+    dependencies:
+      '@jini-ai/core':
+        specifier: workspace:^
+        version: link:../core
+      '@jini-ai/platform':
+        specifier: workspace:^
+        version: link:../platform
     devDependencies:
       '@vitest/coverage-v8':
         specifier: ^2.1.9
@@ -1241,9 +1233,6 @@ importers:
       '@jini-ai/core':
         specifier: workspace:^
         version: link:../core
-      '@jini-ai/platform':
-        specifier: workspace:^
-        version: link:../platform
       '@jini-ai/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -1251,6 +1240,9 @@ importers:
       '@jini-ai/db':
         specifier: workspace:*
         version: link:../db
+      '@jini-ai/platform':
+        specifier: workspace:^
+        version: link:../platform
       '@types/better-sqlite3':
         specifier: ^7.6.11
         version: 7.6.13
@@ -1378,21 +1370,12 @@ importers:
 
   packages/ui:
     dependencies:
-      '@jini-ai/agentic':
-        specifier: workspace:^
-        version: link:../agentic
       '@jini-ai/core':
         specifier: workspace:^
         version: link:../core
-      '@jini-ai/platform':
-        specifier: workspace:^
-        version: link:../platform
       '@jini-ai/protocol':
         specifier: workspace:^
         version: link:../protocol
-      '@jini-ai/ui-kit':
-        specifier: workspace:^
-        version: link:../ui-kit
       micromark:
         specifier: ^4.0.0
         version: 4.0.2
@@ -1406,9 +1389,15 @@ importers:
       '@jini-ai/agent-runtime':
         specifier: workspace:^
         version: link:../agent-runtime
+      '@jini-ai/agentic':
+        specifier: workspace:^
+        version: link:../agentic
       '@jini-ai/integrations':
         specifier: workspace:^
         version: link:../integrations
+      '@jini-ai/ui-kit':
+        specifier: workspace:^
+        version: link:../ui-kit
       '@mcp-ui/client':
         specifier: 7.1.1
         version: 7.1.1(@cfworker/json-schema@4.1.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -1540,9 +1529,6 @@ importers:
       '@jini-ai/admin':
         specifier: workspace:*
         version: link:../admin
-      '@jini-ai/agentic':
-        specifier: workspace:*
-        version: link:../agentic
       '@jini-ai/cms':
         specifier: workspace:*
         version: link:../cms

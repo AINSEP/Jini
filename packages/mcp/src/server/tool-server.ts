@@ -9,6 +9,7 @@
  */
 import type { Readable, Writable } from 'node:stream';
 import { createToolExposure, type ToolDescriptor } from '@jini-ai/core';
+import type { Logger } from '@jini-ai/core/primitives';
 import type { McpTransportLike } from './ports.js';
 export type { McpTransportLike } from './ports.js';
 import { adaptSdkTransport, resolveSdkTransport } from './sdk-transport.js';
@@ -29,6 +30,7 @@ import type {
   ReadResourceResult,
 } from '@modelcontextprotocol/sdk/types.js';
 import { createMcpIdleExitController } from '../client/client.js';
+import { startCallProgress, type CallProgressExtra, type CallProgressScheduler } from './call-progress.js';
 import { buildResourceIndex, handleResourceRead, resourcesToList, type McpResourceDef } from './resource-protocol.js';
 import { buildToolIndex, handleToolCall, toolsToList, type McpToolContext, type McpToolDef } from './tool-protocol.js';
 import { createTypedDelegatedToolTool, type CreateExecuteDelegatedToolToolOptions } from './tools/delegated-tool.js';
@@ -49,7 +51,7 @@ export interface McpServerLike {
     schema: typeof CallToolRequestSchema;
     handler: (
       requiredArgs: { request: { params: { name: string; arguments?: Record<string, unknown> } } },
-      optionalArgs?: { extra?: { signal?: AbortSignal } },
+      optionalArgs?: { extra?: CallProgressExtra },
     ) => Promise<CallToolResult>;
   }): void;
   setRequestHandler(args: { schema: typeof ListResourcesRequestSchema; handler: () => Promise<ListResourcesResult> }): void;
@@ -87,6 +89,9 @@ export interface McpToolServerOptions extends StdioHostingOptions {
   readonly resources?: readonly McpResourceDef[];
   /** Free-text guidance surfaced to the MCP client alongside the tool list. Optional — omit for a caller with nothing to add beyond each tool's own `description`. */
   readonly instructions?: string;
+  /** Progress keepalive of a slow `tools/call`: its timer (default real timers) and the log for a failed send (default stderr console). */
+  readonly progressScheduler?: CallProgressScheduler;
+  readonly logger?: Logger;
   /** Idle-exit window in ms. Defaults to {@link DEFAULT_IDLE_MS}. */
   readonly idleMs?: number;
   /** Defaults to the global `fetch`; threaded into every tool call's {@link McpToolContext}. */
@@ -296,7 +301,7 @@ type ToolCallScope = {
 
 function createCallToolHandler(cfg: HostConfig, { toolIndex, ctx, resultPages }: ToolCallScope) {
   const { options } = cfg;
-  return async ({ request }: { request: { params: { name: string; arguments?: Record<string, unknown> } } }, { extra }: { extra?: { signal?: AbortSignal } } = {}) => {
+  return async ({ request }: { request: { params: { name: string; arguments?: Record<string, unknown> } } }, { extra }: { extra?: CallProgressExtra } = {}) => {
     const callContext = extra?.signal !== undefined ? { ...ctx, signal: extra.signal } : ctx;
     let checkedMessages = resolveMcpToolName({ name: request.params.name }, { isRegistered: candidate => toolIndex.has(candidate) }) === 'check_messages';
     const callLocalTool: NonNullable<McpToolContext['callLocalTool']> = async ({ name, input, requireReadOnly }, _optional = {}) => {
@@ -309,8 +314,10 @@ function createCallToolHandler(cfg: HostConfig, { toolIndex, ctx, resultPages }:
       // Keep nesting bounded: a local gateway's own handler receives the base context.
       return handleToolCall({ name, tools: toolIndex, ctx: callContext }, { rawArgs: input });
     };
+    // One keepalive per CLI call: the nested `callLocalTool` await above is deliberately not wrapped.
+    const progress = startCallProgress({ extra }, { scheduler: options.progressScheduler, logger: options.logger });
     const result = await handleToolCall({ name: request.params.name, tools: toolIndex,
-      ctx: { ...callContext, callLocalTool } }, { rawArgs: request.params.arguments });
+      ctx: { ...callContext, callLocalTool } }, { rawArgs: request.params.arguments }).finally(progress.stop);
     // A delegated check must keep its trusted nonce and claim only once, just like a direct check.
     const readableResult = checkedMessages ? result : (resultPages?.project({ result }) ?? result);
     if (!options.messageRelay || checkedMessages) return readableResult;

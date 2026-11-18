@@ -23,6 +23,7 @@ test('publishes user management from its canonical folder and preserves runtime 
     './server': 'node',
     './react': 'browser',
     './react/testing': 'browser',
+    './react/kit': 'browser',
     './admin': 'universal',
     './admin/react': 'browser',
     './admin/adapters/http': 'universal',
@@ -34,8 +35,9 @@ test('publishes user management from its canonical folder and preserves runtime 
     const paths = value as { import: string; types: string; default: string };
     expect(paths.types, entry).toBe(paths.import.replace(/\.js$/, '.d.ts'));
     expect(paths.default, entry).toBe(paths.import);
-    const source = paths.import.replace('./dist/', './src/').replace(/\.js$/, '.ts');
-    expect(existsSync(join(packageRoot, source)), entry).toBe(true);
+    const stem = paths.import.replace('./dist/', './src/').replace(/\.js$/, '');
+    // A React entry that renders JSX (kit.tsx) has a .tsx source; every other entry is plain .ts.
+    expect(existsSync(join(packageRoot, `${stem}.ts`)) || existsSync(join(packageRoot, `${stem}.tsx`)), entry).toBe(true);
   }
   expect(existsSync(new URL('../../../identity/package.json', import.meta.url))).toBe(false);
 });

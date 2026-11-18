@@ -1,0 +1,9 @@
+[
+  {"file": "src/node-server.ts", "gap": "G1", "maxLines": 210},
+  {"file": "src/notes-repo.ts", "gap": "G2", "maxLines": 59},
+  {"file": "src/db.ts", "gap": "G2", "maxLines": 75},
+  {"file": "src/ports.ts", "gap": "G17", "maxLines": 51},
+  {"file": "src/gaps/origin-guard.ts", "gap": "G-ORIGIN", "maxLines": 39},
+  {"file": "src/gaps/entity-routes.ts", "gap": "G6", "maxLines": 75},
+  {"file": "src/gaps/note-search.ts", "gap": "G3", "maxLines": 16}
+]

@@ -19,11 +19,11 @@
  * (`packages/daemon/src/delegated-tool-bridge.ts`) — finding a tool id here grants nothing.
  */
 import type { AgentToolSideEffect } from '@jini-ai/core';
-import type { Express } from 'express';
 import { createApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
-import { type RouteHostContext, err, ok } from '@jini-ai/core/contracts/server';
+import { defineJsonRoute, err, jsonRoute, ok, type JsonRouteSpec } from '@jini-ai/core/contracts/server';
 import { parseCatalogDescribeInput, parseCatalogSearchInput } from './catalog-route-input.js';
+import type { DaemonRouteHost } from './route-host.js';
+import { gated, type DaemonRoute } from './route-table.js';
 
 export interface ToolCatalogSearchHit {
   readonly readOnly?: boolean;
@@ -106,8 +106,14 @@ export const toolCatalogDescribeRoute = defineJsonRoute<{ id: string }, ToolCata
   },
 }, { requireSameOrigin: true });
 
-/** Mounts both tool-catalog routes on `app`. A pack's `http({ app, services })` calls this directly. */
-export function registerToolCatalogRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: ToolCatalogHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
-  mountJsonRoute({ app, spec: toolCatalogSearchRoute, deps, adapter });
-  mountJsonRoute({ app, spec: toolCatalogDescribeRoute, deps, adapter });
+/**
+ * Both tool-catalog routes as data, each behind the same-origin gate its spec declares. A host
+ * mounts the list; the routes never see the host's app.
+ */
+export function toolCatalogRoutes({ deps, host }: { readonly deps: ToolCatalogHttpDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
+  const json = <I, O>(spec: JsonRouteSpec<I, O, ToolCatalogHttpDeps>): DaemonRoute => gated({
+    route: jsonRoute({ spec: { ...spec, maxBodyBytes: host.jsonBodyMaxBytes }, deps, reportInternalError: host.reportInternalError }, { host: host.context }),
+    gates: spec.requireSameOrigin ? [{ name: 'same-origin' }] : [],
+  });
+  return [json(toolCatalogSearchRoute), json(toolCatalogDescribeRoute)];
 }

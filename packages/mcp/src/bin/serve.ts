@@ -42,6 +42,7 @@ import { fileURLToPath } from 'node:url';
 import { isLoopbackHostname } from '@jini-ai/core/net';
 import { createMcpToolServer as createMcpToolServerDefault } from '../server/tool-server.js';
 import { assembleRunToolHost } from '../server/run-tool-host.js';
+import { createLoopbackFetch } from '../server/loopback-fetch.js';
 import type { McpMessageRelay } from '../server/message-relay.js';
 
 /** The one run this process is scoped to for its entire lifetime. Set by the spawning daemon, never by the MCP client. */
@@ -165,11 +166,12 @@ export async function serve(_requiredArgs: Record<string, never>, deps: ServeDep
   const messageRelay = resolveMessageRelay({ env, runId, writeErr, exit });
   try {
     const diagnosticToolIds = parseLaunchToolIds({ env, key: 'JINI_DIAGNOSTIC_TOOL_IDS' });
+    // The daemon call has no header wait of its own (global fetch gives up after 300 s); the caller's signal and each route's deadline still end it.
     // Absent credential => no `authHeaders` at all => byte-identical request headers to before this
     // env var existed. See DAEMON_TOKEN_ENV_VAR's doc for why an unset value is not a startup failure.
     const assembled = await assembleRunToolHost({ runId, resolveBaseUrl }, {
       ...delegatedGatewayOptions,
-      ...definedOnly({ credential: env[DAEMON_TOKEN_ENV_VAR], fetchImpl: deps.fetchImpl,
+      ...definedOnly({ credential: env[DAEMON_TOKEN_ENV_VAR], fetchImpl: deps.fetchImpl ?? createLoopbackFetch(),
         messageRelayNonce: messageRelay?.nonce }),
       startupToolIds: parseLaunchToolIds({ env, key: STARTUP_TOOL_IDS_ENV_VAR }),
       ...(diagnosticToolIds.length ? { diagnosticToolIds } : {}),

@@ -168,7 +168,7 @@ export type {
   ToolCatalogSearchHit,
 } from './tool-catalog.js';
 export {
-  registerToolCatalogRoutes,
+  toolCatalogRoutes,
   toolCatalogDescribeRoute,
   toolCatalogSearchRoute,
 } from './tool-catalog.js';

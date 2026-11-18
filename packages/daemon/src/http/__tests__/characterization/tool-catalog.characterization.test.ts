@@ -193,25 +193,24 @@ describe('tool catalog routes, every answer', () => {
     });
   });
 
-  describe('the headers of a success, and the conditional request they make possible', () => {
-    it('a success carries a length and a weak validator', async () => {
+  // DM-ETAG (owner decision 2026-11-17): a success states its length (a finished body, as before) and no
+  // longer carries a validator or answers 304. Browser fetch sends no-cache, so clients got 200 in full anyway.
+  describe('the headers of a success, and the conditional request', () => {
+    it('a success carries a length and no validator', async () => {
       const answer = await probe({ harness, route: 'GET /api/tools/search?q=alpha' });
       expect(answer.headers.get('content-length')).toBe(String(SEARCH_BODY.length));
-      expect(answer.headers.get('etag')).toMatch(/^W\/"[0-9a-f]+-[A-Za-z0-9+/]+"$/);
+      expect(answer.headers.get('etag')).toBeNull();
     });
 
-    // Sent with `node:http`, as a browser cache revalidates: `fetch` adds `Cache-Control: no-cache` to a
-    // request that names a validator itself, and the framework then answers 200 in full.
-    it('a request that names that validator, as a browser cache sends it, is answered 304 with no body (the catalog is still asked)', async () => {
-      const etag = (await probe({ harness, route: 'GET /api/tools/search?q=alpha' })).headers.get('etag')!;
-      catalog.searches.length = 0;
+    // Sent with `node:http`, as a browser cache revalidates (`fetch` adds `Cache-Control: no-cache`).
+    it('a request naming a validator, as a browser cache sends it, is answered 200 in full (the catalog is asked)', async () => {
       const answer = await new Promise<{ status: number | undefined; body: string }>((resolve, reject) => {
-        httpGet(`${harness.origin}/api/tools/search?q=alpha`, { headers: { 'if-none-match': etag } }, (response) => {
+        httpGet(`${harness.origin}/api/tools/search?q=alpha`, { headers: { 'if-none-match': 'W/"any-validator"' } }, (response) => {
           let body = '';
           response.setEncoding('utf8').on('data', (chunk: string) => { body += chunk; }).on('end', () => resolve({ status: response.statusCode, body }));
         }).on('error', reject);
       });
-      expect(answer).toEqual({ status: 304, body: '' });
+      expect(answer).toEqual({ status: 200, body: SEARCH_BODY });
       expect(catalog.searches).toHaveLength(1);
     });
   });

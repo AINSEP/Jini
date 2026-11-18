@@ -1,4 +1,4 @@
-import type { PaymentMode, WebhookFact } from "@jini-ai/commerce/payments/kernel";
+import type { PaymentMode, StripeProviderContext, WebhookFact } from "./contract.js";
 import { readSession } from "./session-reading.js";
 
 export type Translation = { kind: "facts"; facts: readonly WebhookFact[] } | { kind: "ignored" } | { kind: "malformed"; reason: string };
@@ -25,9 +25,9 @@ function readEnvelope({ event }: { event: unknown }, _optional: Record<string, n
 /** Classifies an already signature-verified event without I/O or input mutation.
  * @returns Stable inbox facts, ignored foreign/unsupported events, or a malformed reason.
  * @complexity O(n) in the session's currency text; constant fields and at most one fact.
- * @example translateStripeEvent({ event, mode: ctx.account.mode }) */
+ * @example translateStripeEvent({ event, mode: ctx.account.mode, errors }) */
 export function translateStripeEvent(
-  { event, mode }: { event: unknown; mode: PaymentMode }, _optional: Record<string, never> = {}
+  { event, mode, errors }: { event: unknown; mode: PaymentMode; errors: Pick<StripeProviderContext, "moneyProblem"> }, _optional: Record<string, never> = {}
 ): Translation {
   const supportedEvents = new Set(["checkout.session.completed", "checkout.session.expired",
     "checkout.session.async_payment_succeeded", "checkout.session.async_payment_failed"]);
@@ -35,7 +35,7 @@ export function translateStripeEvent(
   if (envelope === null || !Number.isFinite(envelope.created * 1000)) return { kind: "malformed", reason: "invalid event envelope" };
   if (envelope.livemode !== (mode === "live")) return { kind: "malformed", reason: "event mode differs from account" };
   if (!supportedEvents.has(envelope.type)) return { kind: "ignored" };
-  const reading = readSession({ object: envelope.object, mode }, { eventType: envelope.type });
+  const reading = readSession({ object: envelope.object, mode, errors }, { eventType: envelope.type });
   if (reading.kind === "foreign") return { kind: "ignored" };
   if (reading.kind === "malformed") return reading;
   const providerRef = reading.kind === "id_only" ? reading.sessionId : reading.evidence.providerRef;

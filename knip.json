@@ -352,6 +352,7 @@
         "src/index.ts",
         "src/composition.ts",
         "src/gated-mutations.ts",
+        "src/approval-batch-chain.ts",
         "src/model-facing-tool-errors.ts",
         "src/contribution-registry.ts",
         "src/naming.ts",

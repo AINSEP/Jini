@@ -7,6 +7,7 @@ import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { checkPackageLayers } from '../check-package-layers.js';
 import { loadDebt, loadExceptions, specMatches } from '../lib/injection-debt.js';
+import { injectedEdgeFindings, type Edge } from '../lib/injection-edges.js';
 import { importSites } from '../lib/import-sites.js';
 import { REPO_ROOT } from '../lib/walk-imports.js';
 
@@ -179,6 +180,61 @@ describe('L5-injected-edge', () => {
     expect(gate()).toContain(`${L5} packages/daemon/src/b.ts`);
   });
 
+  describe('runtime-adapter packages (owner decision OD-3)', () => {
+    const adapterMessage = 'only a host or a host preset may import a runtime-adapter package';
+    const edge = (owner: string, target: string, kind: string): Edge => ({ owner, target, spec: `@jini-ai/${target}/x`, kind, file: `packages/${owner}/src/a.ts` });
+    const reasons = (edges: Edge[]): string[] => injectedEdgeFindings({
+      edges, exceptions: [], presets: new Set(['server']), adapters: new Set(['node-adapters']),
+    }).map(finding => finding.reason);
+
+    beforeEach(() => {
+      manifest('node-adapters', { dependencies: { '@jini-ai/core': '*', '@jini-ai/platform': '*' }, jini: { kind: 'runtime-adapter' } });
+      manifest('daemon', { dependencies: { '@jini-ai/core': '*' } });
+    });
+
+    it('lets an adapter import platform as a value', () => {
+      put('packages/node-adapters/src/a.ts', "import { run } from '@jini-ai/platform/fs'; export { run };");
+      expect(gate()).toEqual([]);
+    });
+
+    it.each(['type-import', 'import-type', 'jsdoc-import'])('lets an adapter name a domain port type (%s)', kind => {
+      expect(reasons([edge('node-adapters', 'daemon', kind)])).toEqual([]);
+    });
+
+    it('lets an adapter name a domain port type, written as a source import type and declared as a peer', () => {
+      manifest('node-adapters', { dependencies: { '@jini-ai/core': '*' }, peerDependencies: { '@jini-ai/daemon': '*' }, jini: { kind: 'runtime-adapter' } });
+      put('packages/node-adapters/src/a.ts', "import type { P } from '@jini-ai/daemon'; export type Q = P;");
+      expect(gate()).toEqual([]);
+    });
+
+    it('fails an adapter that imports a domain package as a value, or declares it as a dependency', () => {
+      manifest('node-adapters', { dependencies: { '@jini-ai/core': '*', '@jini-ai/daemon': '*' }, jini: { kind: 'runtime-adapter' } });
+      put('packages/node-adapters/src/a.ts', "import { run } from '@jini-ai/daemon'; export { run };");
+      expect(gate()).toEqual([`${L5} packages/node-adapters/package.json`, `${L5} packages/node-adapters/src/a.ts`]);
+      expect(reasons([edge('node-adapters', 'daemon', 'import')])).toEqual([expect.stringContaining('only @jini-ai/core and @jini-ai/protocol may be imported')]);
+    });
+
+    it('lets an adapter declare a domain package as a peer', () => {
+      expect(reasons([edge('node-adapters', 'daemon', 'manifest-peer')])).toEqual([]);
+    });
+
+    it('fails a domain package that imports an adapter, with the adapter reason', () => {
+      put('packages/daemon/src/a.ts', "import { fs } from '@jini-ai/node-adapters/fs'; export { fs };");
+      expect(gate()).toContain(`${L5} packages/daemon/src/a.ts`);
+      expect(reasons([edge('daemon', 'node-adapters', 'import')])).toEqual([expect.stringContaining(adapterMessage)]);
+    });
+
+    it('lets a host preset import an adapter', () => {
+      manifest('server', { dependencies: { '@jini-ai/node-adapters': '*' }, jini: { kind: 'host-preset' } });
+      put('packages/server/src/a.ts', "import { fs } from '@jini-ai/node-adapters/fs'; export { fs };");
+      expect(gate()).toEqual([]);
+    });
+
+    it('fails an adapter that imports a host preset', () => {
+      expect(reasons([edge('node-adapters', 'server', 'import')])).toEqual([expect.stringContaining('nothing may import a host-preset package')]);
+    });
+  });
+
   it('reports test-only cross-package imports as advisory, never failing; /testing and /conformance are allowed', () => {
     manifest('daemon', { dependencies: { '@jini-ai/core': '*' }, devDependencies: { '@jini-ai/platform': '*' } });
     put('packages/daemon/src/__tests__/a.test.ts', "import { f } from '@jini-ai/platform/fs'; import { g } from '@jini-ai/platform/testing'; import { h } from '@jini-ai/devops/conformance'; export { f, g, h };");
@@ -294,11 +350,11 @@ describe('helpers', () => {
 });
 
 describe('the real workspace baseline', () => {
-  it('ships a parsable debt file, no exceptions, and passes the gate', () => {
+  it('ships a parsable debt file, only Q2 exceptions (pinned exactly in injection-exceptions.q2.test.ts), and passes the gate', () => {
     const entries = loadDebt({ root: REPO_ROOT });
     expect(entries.length).toBeGreaterThan(0);
     expect(entries.every(entry => entry.count > 0 && entry.lane.length > 0)).toBe(true);
-    expect(loadExceptions({ root: REPO_ROOT })).toEqual([]);
+    expect(loadExceptions({ root: REPO_ROOT }).filter(item => item.ownerQuestion !== 'Q2' || !['sqlite', 'infra'].includes(item.owner))).toEqual([]);
     expect(checkPackageLayers({ repoRoot: REPO_ROOT }, { warn: () => undefined })).toEqual([]);
   }, 180_000);
 });

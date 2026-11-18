@@ -40,8 +40,9 @@ import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 import { join } from 'node:path';
 
-import { createCommandInvocation } from '@jini-ai/platform/command';
+import { planCommandInvocation } from '@jini-ai/core/contracts/runtime';
 
+import { ambientCommandShell } from './invocation.js';
 import { sanitizeCustomModel } from './models.js';
 import type { RuntimeEnv, RuntimeModelOption } from '@jini-ai/core/contracts/agents';
 
@@ -204,7 +205,8 @@ export interface ClaudeCodeModelIo {
 function runInitializeProbe(bin: string, env: RuntimeEnv): Promise<string | null> {
   return new Promise((resolve) => {
     try {
-      const invocation = createCommandInvocation({ command: bin, args: [...CLAUDE_CODE_INITIALIZE_ARGS], env });
+      const { platform, fallbackComSpec } = ambientCommandShell();
+      const invocation = planCommandInvocation({ command: bin, platform, env }, { args: [...CLAUDE_CODE_INITIALIZE_ARGS], fallbackComSpec });
       const child = execFile(
         invocation.command,
         invocation.args,

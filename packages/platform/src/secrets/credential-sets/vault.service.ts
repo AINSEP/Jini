@@ -336,7 +336,9 @@ export class SecretsVaultService {
     return { status: "copied", ...(last4 ? { last4 } : {}) };
   }
   /** Overwrite keeps the target's default, revision chain and creation time. A new copy leaves
-   * placement unspecified, so the repo's first-row rule applies (never the source's default flag). */
+   * placement unspecified, so the repo's first-row rule applies (never the source's default flag).
+   * An overwrite opens its fresh seal again before writing (see `assertOpensTo`), so a seal that cannot
+   * be read back leaves the existing target row as it was; a first copy does not. */
   private async writeCopy({ source, record, targetIdentity, existing }:
     { source: SecretsVaultService; record: VaultRecord; targetIdentity: VaultIdentity; existing: VaultRecord | null }): Promise<VaultRecord> {
     if (existing && !isCompatibleOverwrite({ existing, record })) throw new VaultError({ code: "context" });
@@ -345,7 +347,11 @@ export class SecretsVaultService {
       ? { isDefault: existing.isDefault, revision: existing.revision + 1, createdAt: existing.createdAt }
       : { isDefault: undefined, revision: 1, createdAt: now };
     const candidate = this.parse({ ...record, ...targetIdentity, ...placement, updatedAt: now });
-    candidate.sealed = await this.seal({ context: targetIdentity, payload: await source.open(record) });
+    const payload = await source.open(record);
+    candidate.sealed = await this.seal({ context: targetIdentity, payload });
+    // Overwrite replaces a secret that opens today, so a seal that cannot be read back must not reach
+    // the repo. A first copy has nothing to lose and, like put and prepare, adds no open.
+    if (existing) await this.assertOpensTo({ record: existing, sealed: candidate.sealed, payload });
     // Reuse the source's hint policy without guessing a token field from a structured payload.
     const hintless = record.kind === "database-destination";
     candidate.last4 = hintless ? null : summary(record).last4;

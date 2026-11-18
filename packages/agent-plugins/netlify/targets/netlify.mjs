@@ -13,13 +13,23 @@ import { createHash } from "node:crypto";
  * only the files Netlify reports as `required`, poll to a terminal `state`, then wait for the public
  * URL. Built against Netlify's OpenAPI contract (https://open-api.netlify.com).
  *
- * @typedef {import("@jini-ai/devops/deploy").DeployFile} DeployFile
- * @typedef {import("@jini-ai/devops/deploy").DeployTarget} DeployTarget
+ * Structural copies of the `@jini-ai/devops/deploy` plugin ABI (a plugin cannot import the package that
+ * defines its host): `DeployFile`, the installed-module `HostDeployTarget` (here `DeployTarget`, with the
+ * positional `checkReachability(url)`), its `DeployPublishResult` / `DeploymentUrlCheck`, and the
+ * `DeployError` instance the host kit constructs. The host proves the fit; keep them field for field.
+ * @typedef {{ file: string, data: Buffer | Uint8Array | string, contentType?: string, sourcePath?: string }} DeployFile
+ * @typedef {Error & { status: number, details: Record<string, unknown> | string | undefined, code?: string | undefined }} DeployError
+ * @typedef {{ reachable: boolean, status?: "ready" | "protected" | "failed" | "link-delayed", statusCode?: number, statusMessage?: string,
+ *   providerMetadata?: Record<string, unknown> }} DeploymentUrlCheck
+ * @typedef {{ targetId: string, url: string, deploymentId?: string, status: "ready" | "protected" | "failed" | "link-delayed",
+ *   statusMessage?: string, reachableAt?: number, providerMetadata?: Record<string, unknown> }} DeployPublishResult
+ * @typedef {{ readonly id: string, resolvePublicUrl?(required: { projectName: string }, optional?: Record<string, never>): Promise<string>,
+ *   publish(input: PublishInput): Promise<DeployPublishResult>, checkReachability(url: string): Promise<DeploymentUrlCheck> }} DeployTarget
  * @typedef {Record<string, unknown>} JsonObject
  * @typedef {{ fetch(url: string, init: RequestInit, options: { timeoutMs: number }): Promise<Response>,
  *   timeouts: { QUICK: number, DEPLOY: number, UPLOAD: number }, sleep(ms: number): Promise<void>,
  *   checkDeploymentUrl: Function, waitForReachableDeploymentUrl: Function, normalizeDeploymentUrl(url: unknown): string,
- *   safeDnsLabel(raw: unknown): string, DeployError: typeof import("@jini-ai/devops/deploy").DeployError }} DeployHostKit
+ *   safeDnsLabel(raw: unknown): string, DeployError: new (message: string, status?: number, details?: DeployError["details"]) => DeployError }} DeployHostKit
  * @typedef {{ files: DeployFile[], projectName: string, responseHeaders?: Readonly<Record<string, string>> }} PublishInput
  */
 

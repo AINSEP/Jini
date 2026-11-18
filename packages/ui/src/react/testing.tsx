@@ -1,10 +1,9 @@
-import { render, type RenderResult } from '@testing-library/react';
 import { useState } from 'react';
-import type { ReactElement } from 'react';
-import { UiKitProvider } from '../kit.js';
-import type { SecretReveal, UiKit } from '../kit.js';
+import type { SecretReveal, UiKit } from './kit.js';
 
-/** A minimal in-memory kit for ui tests: no component library involved. */
+/** A minimal in-memory kit for tests of ui and of the packages whose screens render under it
+ *  (`@jini-ai/ui/react/testing`): no component library involved. The render helper that mounts it
+ *  stays in `__tests__/render-with-ui-kit.tsx`, so this published entry never imports a test library. */
 export const fakeUiKit: UiKit = {
   components: {
     SecretInput: ({ label, value, onChange, ref }) => (
@@ -19,7 +18,3 @@ export const fakeUiKit: UiKit = {
     },
   },
 };
-
-export function renderWithUiKit(ui: ReactElement, optional: { kit?: UiKit } = {}): RenderResult {
-  return render(<UiKitProvider kit={optional.kit ?? fakeUiKit}>{ui}</UiKitProvider>);
-}

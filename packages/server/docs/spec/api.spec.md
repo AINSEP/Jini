@@ -88,16 +88,7 @@ await daemon.stop();
 
 BuiltInFeatureOptions groups host seams for health, runs, agents, hostTools, terminal, daemonDb, delegatedToolCalls, remoteRunEvents, xai, daemonStatus, memory, routines, media and frontendSessions. Required options for a selected feature are checked while composing it. The full current group shapes are in [builtin-features.ts](../../src/builtin-features.ts); no default host memory/routine/media engine is invented.
 
-`createFrontendControl` is re-exported from `@jini-ai/http-kit`:
-
-```ts
-createFrontendControl(
-  { capabilities, resolveBindToken },
-  { policy?, timeoutMs?, maxOutputBytes?, onBindError? } = {},
-): FrontendControl;
-```
-
-The resolver takes `{request: RunCreateRequest}` and returns a bind token or undefined. Return is `{httpExtension, toolRegistrations, bindOnStarted}`; wire all three to the host's routes, registry and start driver. Default policy denies; default capability timeout is 30000 ms. Bind failure is reported without failing the run. Re-exported `CreateFrontendControlOptions`, `FrontendControl`, `FrontendBindErrorContext`, `FrontendHttpExtension` remain owned by http-kit.
+`createFrontendControl` is **not** exported from `@jini-ai/server`: it is owned by `@jini-ai/daemon/http`, and a host imports it from there (see `@jini-ai/daemon`'s API spec for its signature, resolver, defaults and the `FrontendControl` it returns). Wire its `httpExtension`, `toolRegistrations` and `bindOnStarted` to the host's routes, registry and start driver.
 
 ## Backend selection and local storage
 

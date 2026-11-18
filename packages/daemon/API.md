@@ -17,7 +17,7 @@ read-only policy entry do not load HTTP or Express.
 - **Kernel route packs, ready to mount** — one `register*Routes` function per concern: runs
   (`registerRunRoutes`), agents (`registerAgentRoutes`), memory (`registerMemoryRoutes`),
   routines (`registerRoutineRoutes`), terminals (`registerTerminalRoutes`), db-ops
-  (`registerDaemonDbRoutes` + tool registrations), tool catalog (`registerToolCatalogRoutes`),
+  (`registerDaemonDbRoutes` + tool registrations), tool catalog (`toolCatalogRoutes`),
   delegated tools (`registerDelegatedToolRoutes`), remote run events
   (`registerRemoteRunEventRoutes`), frontend sessions (`registerFrontendSessionRoutes`), active
   context (`registerActiveContextRoutes`), host tools (`registerHostToolsRoutes`), model proxy

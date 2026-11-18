@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { redactOAuthUrls } from '../src/index.js';
+import { redactOAuthUrls } from '../redact-urls.js';
 
 test('redacts every URL the provider-owned pattern matches and leaves every other byte intact', () => {
     const text = 'open https://auth.example.com/authorize?code=abc then https://auth.example.com/token\n(done)';

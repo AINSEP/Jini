@@ -104,8 +104,6 @@ The lookup copies and validates every resolved address before returning any addr
 
 `createPendingAuthorizationStore({ clock, randomBytesFn }, { ttlMs?, maxEntries?, scheduler? })` returns the async owner-bound contract and is available at the root and `/testing`. Its synchronous payload option is `createPendingAuthorizationStore<T>({ clock }, { expiry: ({ value, ttlMs }) => epochMs, scheduler?, ttlMs?, maxEntries?, exclusiveExpiry? })`. Payload methods are `put({ state, value })`, `consume({ state })`, `size({})`, `stop({})`. Both modes share a bounded map (256 by default), single-use consumption, a ten-minute default TTL, and timer cancellation when empty. `scheduler.every({ intervalMs, run })` returns a cancellation closure. `exclusiveExpiry: true` keeps legacy callback expiry at age > TTL; owner-bound state expires at the deadline.
 
-`redactOAuthUrls({ text, pattern, replacement })` preserves all unmatched bytes. Hosts own its pattern and replacement.
-
 `defaultOAuthMessages` supplies neutral reserved-parameter and registration-recovery copy. Pass `messages` in argument two of browser authorization or registration (including cached `getOrRegister`). Protocol identity is `clientDisplayName` (`client_name`), `softwareId`, and `redirectUris`; the obsolete prose-only `productName` option is removed.
 
 ## Loopback receiver

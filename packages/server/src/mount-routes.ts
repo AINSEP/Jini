@@ -32,7 +32,8 @@ export function mountRoutes(
   { rawBody = false }: { readonly rawBody?: boolean } = {},
 ): void {
   const target = layerTarget(app);
-  const dispatcher = createNodeDispatcher();
+  // Express answered these routes before they were lists; callers kept their spellings, so the answers stay.
+  const dispatcher = createNodeDispatcher({}, { expressCompatible: true });
   for (const route of routes) dispatcher.server.route(route);
   target.use((req, res, next) => {
     const locals = res.locals === undefined ? {} : { locals: res.locals };

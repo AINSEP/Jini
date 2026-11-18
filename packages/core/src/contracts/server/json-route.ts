@@ -143,7 +143,10 @@ const NULL_BODY_STATUSES: ReadonlySet<number> = new Set([204, 205, 304]);
  */
 export function jsonResponse({ status, body }: { readonly status: number; readonly body: unknown }, { headers = {} }: { readonly headers?: Readonly<Record<string, string>> } = {}): Response {
   if (NULL_BODY_STATUSES.has(status)) return new Response(null, { status, headers });
-  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8', ...headers } });
+  const text = JSON.stringify(body);
+  // The length is stated here because only the producer knows the body is a finished string: a host that
+  // writes a `Response` cannot tell it from a stream without buffering, and Express sent this header too.
+  return new Response(text, { status, headers: { 'content-type': 'application/json; charset=utf-8', 'content-length': String(new TextEncoder().encode(text).byteLength), ...headers } });
 }
 
 const errorAnswer = ({ error }: { readonly error: ServerApiError }): Response =>

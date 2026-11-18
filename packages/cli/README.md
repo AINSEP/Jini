@@ -94,4 +94,4 @@ Text sanitization and terminal control stripping now live at `@jini-ai/core/text
 bounded lowercase-marker output preserved. Former direct `redactSecretLike` callers use core
 `redactSecrets({ input }, { policy: 'aggressive' })`; this explicit policy emits category markers
 and also masks recognized PII. Core's default stays conservative for diagnostics. The CLI keeps
-`sanitizeUnknownDeep` for bounded recursive JSON. Loopback warnings use `@jini-ai/platform/net`.
+`sanitizeUnknownDeep` for bounded recursive JSON. Loopback warnings use `@jini-ai/core/net`.

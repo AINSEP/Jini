@@ -1,4 +1,6 @@
-import { paymentError, type Outcome, type PaymentErrorCode, type ProviderContext } from "@jini-ai/commerce/payments/kernel";
+import type { Outcome, PaymentErrorCode, ProviderContext, StripeProviderContext } from "./contract.js";
+
+type ErrorBuilder = Pick<StripeProviderContext, "paymentError">;
 
 const STATUS_CODES: Readonly<Record<number, PaymentErrorCode>> = {
   400: "INVALID_REQUEST", 401: "NO_CREDENTIALS_CONFIGURED", 402: "DECLINED",
@@ -21,11 +23,11 @@ function rejectionCode({ status, type }: { status: number; type: unknown }, _opt
 }
 
 /** Classifies a response without exposing provider messages or throwing. O(1) time/space. */
-export function stripeOutcome({ status, json }: { status: number; json: unknown }, _optional: Record<string, never> = {}): Outcome<Readonly<Record<string, unknown>>> {
+export function stripeOutcome({ status, json, errors }: { status: number; json: unknown; errors: ErrorBuilder }, _optional: Record<string, never> = {}): Outcome<Readonly<Record<string, unknown>>> {
   const value = record({ value: json });
   if (status >= 200 && status < 300 && value !== null) return { kind: "ok", value };
   const code = rejectionCode({ status, type: record({ value: value?.error })?.type });
-  return { kind: code === null ? "unknown" : "rejected", error: paymentError(
+  return { kind: code === null ? "unknown" : "rejected", error: errors.paymentError(
     { code: code ?? "PROVIDER_ERROR", message: "payment provider request did not confirm success" },
     { retryable: code === null || status === 429, providerStatus: status }
   ) };
@@ -35,7 +37,7 @@ export function stripeOutcome({ status, json }: { status: number; json: unknown 
  * No response or exception text escapes into payment errors. Deadlines bound the single call.
  * @complexity O(n) time/space in encoded form and bounded response size; one HTTP call. */
 export async function stripeRequest(
-  { ctx, method, path }: { ctx: ProviderContext; method: "GET" | "POST"; path: string },
+  { ctx, method, path, errors }: { ctx: ProviderContext; method: "GET" | "POST"; path: string; errors: ErrorBuilder },
   optional: { form?: ReadonlyArray<readonly [string, string]>; idempotencyKey?: string } = {}
 ): Promise<Outcome<Readonly<Record<string, unknown>>>> {
   // Keep retrieve responses aligned with the webhook endpoint version documented by setup.
@@ -50,9 +52,9 @@ export async function stripeRequest(
     } });
     let json: unknown;
     try { json = JSON.parse(response.bodyText); } catch { json = null; }
-    return stripeOutcome({ status: response.status, json });
+    return stripeOutcome({ status: response.status, json, errors });
   } catch {
-    return { kind: "unknown", error: paymentError(
+    return { kind: "unknown", error: errors.paymentError(
       { code: "TRANSPORT_ERROR", message: "payment provider request could not be confirmed" }, { retryable: true }
     ) };
   }

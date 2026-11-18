@@ -8,7 +8,7 @@
   },
   "scripts": {
     "test:scripts": "vitest run scripts/__tests__ && pnpm run test:scripts:node",
-    "test:scripts:node": "node --import tsx --test --test-concurrency=1 scripts/__tests__/check-hardwiring.test.ts scripts/__tests__/integration/infra-retirement.integration.test.ts scripts/__tests__/sync-software-engineering.test.mjs scripts/__tests__/check-hook-injection.test.mjs",
+    "test:scripts:node": "node --import tsx --test --test-concurrency=1 scripts/__tests__/check-hardwiring.test.ts scripts/__tests__/integration/infra-retirement.integration.test.ts scripts/__tests__/sync-software-engineering.test.mjs scripts/__tests__/check-hook-injection.test.mjs scripts/__tests__/check-why-comments.test.mjs",
     "guard": "node --import tsx ./scripts/guard.ts",
     "api:check": "node --import tsx ./scripts/check-api-surface.ts",
     "api:update": "node --import tsx ./scripts/check-api-surface.ts --update",
@@ -27,6 +27,7 @@
     "check:complexity": "node ./scripts/check-complexity.mjs",
     "check:size": "node ./scripts/check-size.mjs",
     "check:hooks": "node ./scripts/check-hook-injection.mjs",
+    "check:why-comments": "node ./scripts/check-why-comments.mjs",
     "complexity:strict": "eslint --no-error-on-unmatched-pattern --no-inline-config --ignore-pattern '**/{__tests__,__measurements__,__mocks__,fixtures,test,tests,vendor,.build}/**' --ignore-pattern '**/*.{test,spec,typecheck}.*' --ignore-pattern '**/*.d.{ts,mts,cts}' --rule '{\"complexity\":[\"error\",10],\"sonarjs/cognitive-complexity\":[\"error\",10]}' \"packages/*/src/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}\" \"packages/cms/forms/src/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}\" \"packages/agent-plugins/*/**/*.mjs\"",
     "quality:knip": "knip --config knip.json --no-exit-code",
     "quality:depcruise": "bash scripts/quality-depcruise.sh",
