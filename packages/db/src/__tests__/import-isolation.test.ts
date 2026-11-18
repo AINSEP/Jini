@@ -16,7 +16,7 @@ function violations(file: string, source: string): string[] {
     // The vault is a typed SQL repo over kernel.run, with JSON patches and binary promotion
     // ordering. Keep its Kysely query body here rather than adding vault policy to the kernel.
     // This exact-file allowance grants no driver access and does not cover other vault modules.
-    if (is("kysely") && !/^(kernel|migrate|data-modules)\//.test(file) && file !== "secrets-vault/repo.sql.ts") problems.push(`kysely outside kernel/migrate: ${specifier}`);
+    if (is("kysely") && !/^(kernel|migrate|data-modules|settings)\//.test(file) && file !== "secrets-vault/repo.sql.ts") problems.push(`kysely outside kernel/migrate: ${specifier}`);
     if (drivers.some(is) && !typeOnly) problems.push(`runtime driver: ${specifier}`);
     if (is("@electric-sql/pglite") && typeOnly && !/^(pglite|kernel\/pglite)\//.test(file)) {
       problems.push(`PGlite types outside pglite: ${specifier}`);
@@ -103,6 +103,8 @@ describe("database import isolation", () => {
   it("permits the narrow SQL/type imports and ignores comments and string lookalikes", () => {
     expect(violations("secrets-vault/repo.sql.ts", 'import { sql, type Kysely } from "kysely";')).toEqual([]);
     expect(violations("secrets-vault/repo.sql.ts", 'import Database from "better-sqlite3";')).toEqual(["runtime driver: better-sqlite3"]);
+    expect(violations("settings/repo.sql.ts", 'import type { Kysely } from "kysely";')).toEqual([]);
+    expect(violations("settings/repo.sql.ts", 'import Database from "better-sqlite3";')).toEqual(["runtime driver: better-sqlite3"]);
     expect(violations("kernel/pglite/ok.ts", 'import { type PGlite } from "@electric-sql/pglite"; export type { PGlite } from "@electric-sql/pglite"; import { sql } from "kysely";')).toEqual([]);
     expect(violations("core/ok.ts", '// import pg from "pg";\nconst text = `import("kysely")`;')).toEqual([]);
   });

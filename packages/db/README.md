@@ -37,8 +37,8 @@ the tsx CommonJS bootstrap can resolve the subpaths without an active `import` c
 migration. Value writes are unconditional last-write-wins upserts and every revision append serializes on the
 one install-wide `setting_revisions` lock.
 
-`kysely` is an optional peer (`^0.29.6`), imported as a value or type only under `src/kernel/`
-and `src/migrate/`. `better-sqlite3`, `pg` and `@electric-sql/pglite` are also optional peers.
+`kysely` is an optional peer (`^0.29.6`), imported as a value or type only under `src/kernel/`,
+`src/migrate/`, `src/settings/` and `src/secrets-vault/`. `better-sqlite3`, `pg` and `@electric-sql/pglite` are also optional peers.
 Production code never imports a driver at runtime. PGlite type imports are confined to
 `src/pglite/` and `src/kernel/pglite/`; SQLite and Postgres use structural types.
 

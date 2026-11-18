@@ -97,6 +97,23 @@ const SUBPATHS: Record<string, { dirs: string[]; probe: string; kernel?: boolean
         && JSON.stringify(calls) === '[["selectFrom","secrets_vault"],["selectAll"],["where","workspace_id","=","workspace"],["where","id","=","missing"]]';
     })()`,
   },
+  settings: {
+    dirs: ["settings"],
+    probe: `await (async () => {
+      const calls = [];
+      const query = {
+        selectAll() { calls.push(["selectAll"]); return this; },
+        where(...args) { calls.push(["where", ...args]); return this; },
+        limit(n) { calls.push(["limit", n]); return this; },
+        async executeTakeFirst() { return undefined; },
+      };
+      const db = { withTables() { return db; }, selectFrom: table => { calls.push(["selectFrom", table]); return query; } };
+      const kernel = { run: fn => fn(db) };
+      const repo = new m.SqlSettingsRepo({ kernel, tables: { definitions: "d", valuesGlobal: "g", valuesWorkspace: "w", valuesUser: "u", revisions: "r" } });
+      return await repo.getGlobalValue("missing") === null
+        && JSON.stringify(calls) === '[["selectFrom","g"],["selectAll"],["where","setting_id","=","missing"],["limit",1]]';
+    })()`,
+  },
   "owner-store": {
     // Migration metadata loads without Kysely; up() lazily loads the kernel's DDL adapter.
     dirs: ["owner-store", "owner-store/migrations"],
