@@ -126,6 +126,7 @@ describe('frontendSessionRoutes', () => {
     expect(registry.sessionFor({ runId: 'run-1' })).toEqual({ sessionId: 'session-1', capabilities: ['page.click'] });
     await frames.cancel();
     await expect(pending).rejects.toThrow('detached before answering');
+    // The binding goes with it, so a later call fails closed instead of hanging.
     expect(registry.sessionFor({ runId: 'run-1' })).toBeUndefined();
   });
 
@@ -147,9 +148,11 @@ describe('frontendSessionRoutes', () => {
   it('mints a random session id when the host supplies no generator, and never one the caller chose', async () => {
     const registry = createFrontendSessionRegistry({});
     const { fetch } = setup({ registry, randomIds: true });
+    // An id chosen by the caller could collide with, or impersonate, an attached session.
     const frames = readFrames({ response: await fetch(new Request(`${STREAM}?capability=page.click&sessionId=attacker-chosen`)) });
     const attached = frameData((await frames.next())[0]) as { type: string; sessionId: string };
     expect(attached.type).toBe('attached');
+    // A real UUID, not an empty or predictable placeholder.
     expect(attached.sessionId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
     await frames.cancel();
   });

@@ -61,6 +61,7 @@ function streamCapability({ request, host, control, executor, owner, envelope, r
   readonly request: Request; readonly host: DaemonRouteHost; readonly control: FrontendRequestRoutesRequired['control']; readonly executor: FrontendRequestRoutesRequired['executor'];
   readonly owner: FrontendSessionOwner; readonly envelope: FrontendRequest; readonly runId: string;
 }): Response {
+  // Human confirmation may outlive the proxy's idle-body timeout; never poll for an answer.
   const stream = createLineStream({ scheduler: host.scheduler, signal: request.signal }, { keepAliveMs: 15_000 });
   const boundExecutor: Pick<ToolExecutor, 'execute'> = {
     execute: async (call, options = {}) => {

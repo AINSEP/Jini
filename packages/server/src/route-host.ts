@@ -36,6 +36,11 @@ export function presetRouteHost(required: { readonly context: RouteHostContext; 
     context: required.context,
     reportInternalError: reportRouteInternalError,
     scheduler: nodeIntervalScheduler,
+    // The daemon's Node binding for core's injected constant-time byte comparison (moved here from the
+    // deleted daemon `http/node-timing-safe-equal.ts`). Core's `timingSafeTokenMatch` takes the comparison as a
+    // port so the universal kernel imports no Node; a daemon gate uses this, never `===` (a plain compare
+    // short-circuits on the first differing byte and leaks the matching prefix length).
+    // `node:crypto`'s constant-time comparison, adapted to core's object-argument port.
     // The constant-time compare itself. Routes reach it only through core's `timingSafeTokenMatch`, which compares lengths first.
     timingSafeEqual: ({ left, right }) => timingSafeEqual(left, right),
     jsonBodyMaxBytes: maxReserializedJsonBytes({ parserLimitBytes: required.parserLimitBytes }),
