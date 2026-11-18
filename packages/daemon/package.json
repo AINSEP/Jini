@@ -30,7 +30,8 @@
       "./run-credentials": "node",
       "./tool-recovery": "node",
       "./chat-settings": "node",
-      "./ports/agent-runtime": "node"
+      "./ports/agent-runtime": "node",
+      "./exclusive-run-lease": "universal"
     },
     "isolation": {
       "shared": [
@@ -109,6 +110,11 @@
       "types": "./dist/scheduler.d.ts",
       "import": "./dist/scheduler.js",
       "default": "./dist/scheduler.js"
+    },
+    "./exclusive-run-lease": {
+      "types": "./dist/exclusive-run-lease.d.ts",
+      "import": "./dist/exclusive-run-lease.js",
+      "default": "./dist/exclusive-run-lease.js"
     },
     "./tool-audit": {
       "types": "./dist/tool-audit.d.ts",
