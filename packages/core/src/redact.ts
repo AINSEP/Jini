@@ -420,11 +420,14 @@ const SIGNED_QUERY_RE = /([?&](?:signature|sig|x-amz-signature|x-goog-signature|
 // Match through a trailing fragment; field separators (&/;), quotes, parentheses or whitespace end it.
 // Both name runs are bounded so a long separator-free run costs linear time, not quadratic.
 // `code` is deliberately not a word: postal, promo and error codes (zipcode, promo_code) end in it and are
-// not credentials. Only exact names that carry a credential (`code`, an OAuth authorization code; the PKCE
-// verifier; one-time login and verification codes) are masked, each as a whole name.
+// not credentials. Only the names that carry a credential (`code`, an OAuth authorization code; the PKCE
+// verifier; one-time login, activation and verification codes: see URL_CODE_NAMES) are masked, each as a whole name.
 const URL_SECRET_WORDS = 'token|key|secret|signature|sig|password|passwd|pwd|auth|authorization|credential';
+// The names are a set, not "anything ending in code": zipcode, promo_code and error_code are public values.
+const URL_CODE_NAMES = 'code_verifier|code|otp|totp|(?:activation|authorization|auth|verification|verify|confirmation|confirm|login|signin|session|device|'
+  + 'security|access|reset|recovery|invite|invitation|magic|pairing|oauth|sms|mfa|otp|two[_.-]?factor|one[_.-]?time)[_.-]?code';
 const URL_SECRET_PARAM_RE = new RegExp(
-  `[?&#;]((?:code|code_verifier|device_code|session_code|verification_code|login_code|otp_code)(?==)|[\\w.-]{0,128}?(?:${URL_SECRET_WORDS})s?(?=[._=-])[\\w.-]{0,128})=[^&;\\s"'<>()]+`,
+  `[?&#;]((?:${URL_CODE_NAMES})(?==)|[\\w.-]{0,128}?(?:${URL_SECRET_WORDS})s?(?=[._=-])[\\w.-]{0,128})=[^&;\\s"'<>()]+`,
   'gi',
 );
 // A parameter the labeled rule already names (password, client_secret, ...) keeps that category.
