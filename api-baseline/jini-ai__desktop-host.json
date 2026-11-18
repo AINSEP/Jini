@@ -94,6 +94,29 @@
    "withRenderTimeout": "function:dae2891c14"
   }
  },
+ "./bridge": {
+  "types": "./dist/bridge.d.ts",
+  "symbols": {
+   "JINI_HOST_CLIENT_TYPES": "variable:74b2df4dc4",
+   "JINI_HOST_GLOBAL": "variable:529e91f252",
+   "JINI_HOST_VERSION": "variable:fb38b12dd2",
+   "JiniHostActionResult": "type:d37a93a738",
+   "JiniHostBridge": "interface:87f2328b12",
+   "JiniHostClient": "interface:e519e43169",
+   "JiniHostClientType": "type:cb91cb8a66",
+   "JiniHostFailure": "interface:c61f288fa4",
+   "JiniHostGlobalScope": "type:9e9f4235d2",
+   "JiniHostUpdaterAvailability": "interface:1788f63ce5",
+   "JiniHostUpdaterNamespace": "interface:e9c9b153fe",
+   "checkJiniHostUpdaterAvailability": "function:0168aae3e7",
+   "detectJiniHostClientType": "function:458d543b98",
+   "getJiniHost": "function:4dc09f1e88",
+   "isJiniHostAvailable": "function:c7b05550d6",
+   "isJiniHostBridge": "function:b8844acb37",
+   "openHostExternalUrl": "function:d83766d7bd",
+   "openHostPath": "function:4f992b693c"
+  }
+ },
  "./bridge-testing": {
   "types": "./dist/bridge-testing.d.ts",
   "symbols": {

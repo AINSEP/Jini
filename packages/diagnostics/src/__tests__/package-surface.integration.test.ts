@@ -19,6 +19,8 @@ const entries = {
   "./web-evidence": ["web-evidence/index", "universal"],
   "./web-evidence/playwright": ["web-evidence/playwright-browser", "node"],
   "./domain-dns": ["domain-dns/index", "node"],
+  "./local-text": ["local-text", "node"],
+  "./console-tee": ["console-tee", "node"],
 } as const;
 
 describe("published diagnostics surface", () => {
