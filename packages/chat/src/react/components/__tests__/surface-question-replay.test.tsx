@@ -2,7 +2,8 @@ import { screen, waitFor } from '../../__tests__/fake-chat-kit.js';
 import { fakeChatSurfaces, renderWithChatSurfaces as renderWithSurfaces } from '../../__tests__/fake-chat-surfaces.js';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
-import { buildFormSurface, buildOutcomeSurface, type McpUiHostProps } from '@jini-ai/ui/mcp-ui';
+import type { McpUiHostProps } from '../../surfaces.js';
+import { githubFormSurfaceAt, retryFormSurface, savedOutcomeSurface } from '../../__tests__/fixtures/mcp-ui-surfaces.js';
 import { acceptedInputUserEvent } from '../../../core/accepted-input.js';
 import { SURFACE_QUESTION_META_KEY } from '../../../core/question-answer.js';
 import type { AgentEvent, ChatMessage } from '../../../core/index.js';
@@ -18,13 +19,10 @@ const StubHost = ({ onToolCall, title, html }: McpUiHostProps) => <section aria-
   </section>;
 const renderWithChatSurfaces = (ui: Parameters<typeof renderWithSurfaces>[0]) => renderWithSurfaces(ui, { surfaces: fakeChatSurfaces({ mcpUi: { Host: StubHost } }) });
 
-const uri = 'ui://host/ask-choice/principal/one';
+const uri = 'ui://host/ask-choice/principal/one' as const;
 const question = { title: 'Agent plugins', options: [{ value: 'github', label: 'GitHub' }] };
-function card(surfaceUri = uri): AgentEvent {
-  const ui = buildFormSurface({ uri: surfaceUri as `ui://${string}`, title: question.title, toolName: 'answer', submitLabel: 'Use',
-    fields: [{ kind: 'multi-enum', name: 'selections', label: 'Matching plugins',
-      options: [{ value: 'github', label: 'GitHub — Lets the assistant use the repository' }] }],
-  });
+function card(surfaceUri: `ui://${string}` = uri): AgentEvent {
+  const ui = githubFormSurfaceAt({ uri: surfaceUri });
   return { kind: 'ext', name: 'mcp-ui', data: { ...ui, resource: { ...ui.resource,
     _meta: { ...ui.resource._meta, [SURFACE_QUESTION_META_KEY]: question },
   } } };
@@ -105,7 +103,7 @@ it.each(['earlier receipt', 'retry', 'duplicate receipt'] as const)('keeps the l
 
 it('renders the outcome at the confirmation URI after its receipt, including JSON reload', () => {
   registerMcpUiSurfaceRenderer({ sandboxProxyUrl: new URL('https://sandbox.test/proxy.html') });
-  const outcome = buildOutcomeSurface({ uri, title: 'Saved', state: 'success', message: 'The operation completed.' });
+  const outcome = savedOutcomeSurface;
   const events: AgentEvent[] = [card(), receipt(), { kind: 'ext', name: 'mcp-ui', data: outcome }];
   const view = renderWithChatSurfaces(<MessageRow message={message(JSON.parse(JSON.stringify(events)), 'succeeded')} />);
   expect(screen.getByRole('region', { name: 'Saved' }).getAttribute('data-surface-html')).toBe(outcome.resource.text);
@@ -115,7 +113,7 @@ it('renders the outcome at the confirmation URI after its receipt, including JSO
 
 it('keeps an outcome visible when the original tool result produces a later answer receipt', () => {
   registerMcpUiSurfaceRenderer({ sandboxProxyUrl: new URL('https://sandbox.test/proxy.html') });
-  const outcome = buildOutcomeSurface({ uri, title: 'Saved', state: 'success', message: 'The operation completed.' });
+  const outcome = savedOutcomeSurface;
   const events: AgentEvent[] = [
     { kind: 'tool_use', id: 'ask', name: 'assistant_ask_choice', input: question }, card(),
     { kind: 'ext', name: 'mcp-ui', data: outcome },
@@ -142,7 +140,7 @@ it('reopens a reused URI after a live answer without carrying the previous deliv
 it('labels an answer from the retried question instead of the document it replaced', async () => {
   registerMcpUiSurfaceRenderer({ sandboxProxyUrl: new URL('https://sandbox.test/proxy.html'),
     onToolCall: vi.fn().mockResolvedValue({ delivered: true }) });
-  const resource = buildFormSurface({ uri, title: 'Retry plugins', toolName: 'answer', submitLabel: 'Use', fields: [] });
+  const resource = retryFormSurface;
   const retry: AgentEvent = { kind: 'ext', name: 'mcp-ui', data: { ...resource, resource: { ...resource.resource,
     _meta: { ...resource.resource._meta, [SURFACE_QUESTION_META_KEY]: {
       title: 'Retry plugins', options: [{ value: 'github', label: 'GitHub retry' }],
@@ -156,7 +154,7 @@ it('labels an answer from the retried question instead of the document it replac
 });
 
 it('keeps rendering the same document without parsing its HTML again', () => {
-  const resource = buildOutcomeSurface({ uri, title: 'Saved', state: 'success', message: 'The operation completed.' });
+  const resource = savedOutcomeSurface;
   const events = [resource];
   const parser = vi.spyOn(DOMParser.prototype, 'parseFromString');
   const sandboxProxyUrl = new URL('https://sandbox.test/proxy.html');

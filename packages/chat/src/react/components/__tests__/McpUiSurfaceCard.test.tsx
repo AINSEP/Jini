@@ -14,8 +14,7 @@
  * invoking the real callback function, in `@jini-ai/ui`'s `useMcpUiHost.test.tsx`.
  */
 import { waitFor } from '../../__tests__/fake-chat-kit.js';
-import { renderWithChatSurfaces } from '../../__tests__/fake-chat-surfaces.js';
-import { hostChatSurfaces } from '../../__tests__/host-chat-surfaces.js';
+import { fakeChatSurfaces, recordingMcpUiHost, renderWithChatSurfaces } from '../../__tests__/fake-chat-surfaces.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MCP_UI_EXT_EVENT_NAME, McpUiSurfaceCard, mcpUiSurfaceSlotKey, registerMcpUiSurfaceRenderer } from '../McpUiSurfaceCard.js';
 import {
@@ -256,39 +255,47 @@ describe('McpUiSurfaceCard', () => {
     });
   });
 
-  it('renders one real sandboxed iframe per resource, pointed at the given sandbox proxy URL', async () => {
-    const { container } = renderWithChatSurfaces(<McpUiSurfaceCard {...BASE_PROPS} events={[resourceEvent('ui://a/1', '<p>one</p>')]} />, { surfaces: hostChatSurfaces() });
+  // The host is a fake of chat's own port: these cases assert what chat PASSES it. What the real host
+  // renders from those props (sandbox iframe src, aria-label, height style) is ui's subject, proved in
+  // ui's McpUiHost.test.tsx (C-CHAT-DEPS S6).
+  it('passes each resource to the host with the given sandbox proxy URL', async () => {
+    const host = recordingMcpUiHost();
+    const { container } = renderWithChatSurfaces(<McpUiSurfaceCard {...BASE_PROPS} events={[resourceEvent('ui://a/1', '<p>one</p>')]} />, { surfaces: fakeChatSurfaces({ mcpUi: { Host: host.Host } }) });
     await waitFor(() => expect(container.querySelectorAll('iframe')).toHaveLength(1));
-    const frame = container.querySelector('iframe')!;
-    expect(frame.src).toBe(SANDBOX_URL.href);
+    expect(host.latestByUri()).toEqual([expect.objectContaining({ sandboxProxyUrl: SANDBOX_URL, html: '<p>one</p>', toolName: 'ui://a/1' })]);
+    expect(host.latestByUri()[0]!.sandboxProxyUrl.href).toBe(SANDBOX_URL.href);
   });
 
   it('collapses repeated events for one URI to the latest document, not two dialogs', async () => {
+    const host = recordingMcpUiHost();
     const { container } = renderWithChatSurfaces(
       <McpUiSurfaceCard
         {...BASE_PROPS}
         events={[resourceEvent('ui://a/1', '<p>first</p>'), resourceEvent('ui://a/1', '<p>second</p>')]}
-      />, { surfaces: hostChatSurfaces() }
+      />, { surfaces: fakeChatSurfaces({ mcpUi: { Host: host.Host } }) }
     );
     await waitFor(() => expect(container.querySelectorAll('iframe')).toHaveLength(1));
-    // One resource, one card wrapper — the "second" event replaced "first" rather than stacking.
-    expect(container.querySelectorAll('[data-mcpui-host]')).toHaveLength(1);
+    // One resource, one host — the "second" event replaced "first" rather than stacking.
+    expect(host.latestByUri().map((props) => props.html)).toEqual(['<p>second</p>']);
+    expect(host.renders.every((props) => props.html === '<p>second</p>')).toBe(true);
   });
 
-  it('renders distinct URIs as separate views, in first-appearance order', async () => {
+  it('renders distinct URIs as separate views, in first-appearance order, each with its latest document', async () => {
+    const host = recordingMcpUiHost();
     const { container } = renderWithChatSurfaces(
       <McpUiSurfaceCard
         {...BASE_PROPS}
         events={[resourceEvent('ui://a/1', '<p>a</p>'), resourceEvent('ui://b/2', '<p>b</p>'), resourceEvent('ui://a/1', '<p>a2</p>')]}
-      />, { surfaces: hostChatSurfaces() }
+      />, { surfaces: fakeChatSurfaces({ mcpUi: { Host: host.Host } }) }
     );
-    await waitFor(() => expect(container.querySelectorAll('[data-mcpui-host]')).toHaveLength(2));
-    const wrappers = [...container.querySelectorAll('[data-mcpui-host]')];
-    expect(wrappers.map((wrapper) => wrapper.getAttribute('aria-label'))).toEqual(['ui://a/1', 'ui://b/2']);
+    await waitFor(() => expect(container.querySelectorAll('iframe')).toHaveLength(2));
+    expect(host.latestByUri().map((props) => [props.title, props.html])).toEqual([['ui://a/1', '<p>a2</p>'], ['ui://b/2', '<p>b</p>']]);
+    expect([...container.querySelectorAll('iframe')].map((frame) => frame.getAttribute('data-uri'))).toEqual(['ui://a/1', 'ui://b/2']);
   });
 
-  it('honors a preferred frame height as the initial (pre-handshake) height, and ignores a non-pixel one', () => {
-    const { container } = renderWithChatSurfaces(
+  it('passes a preferred frame height as initialHeight, and nothing for a non-pixel or absent one', () => {
+    const host = recordingMcpUiHost();
+    renderWithChatSurfaces(
       <McpUiSurfaceCard
         {...BASE_PROPS}
         events={[
@@ -296,14 +303,13 @@ describe('McpUiSurfaceCard', () => {
           resourceEvent('ui://b/2', '<p>b</p>', { [MCP_UI_PREFERRED_FRAME_SIZE_META_KEY]: ['auto', 'auto'] }),
           resourceEvent('ui://c/3', '<p>c</p>'),
         ]}
-      />, { surfaces: hostChatSurfaces() }
+      />, { surfaces: fakeChatSurfaces({ mcpUi: { Host: host.Host } }) }
     );
-    const wrapperFor = (uri: string) =>
-      [...container.querySelectorAll('[data-mcpui-host]')].find((el) => el.getAttribute('aria-label') === uri) as HTMLElement;
-    expect(wrapperFor('ui://a/1').style.height).toBe('480px');
-    // "auto" parses to NaN — falling back to the default beats rendering height: NaNpx.
-    expect(wrapperFor('ui://b/2').style.height).toBe('220px');
-    expect(wrapperFor('ui://c/3').style.height).toBe('220px');
+    const heightFor = (uri: string) => host.latestByUri().find((props) => props.toolName === uri)!.initialHeight;
+    expect(heightFor('ui://a/1')).toBe(480);
+    // "auto" parses to NaN — passing nothing (the host's default) beats passing initialHeight: NaN.
+    expect(heightFor('ui://b/2')).toBeUndefined();
+    expect(heightFor('ui://c/3')).toBeUndefined();
   });
 
   it('says so visibly when an mcp-ui event carried nothing renderable', () => {

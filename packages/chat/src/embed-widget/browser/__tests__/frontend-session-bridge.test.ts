@@ -1,7 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { createFrontendSessionBridge, openFetchFrontendStream } from '../frontend-session-bridge.js';
-import type { PageDriver } from '@jini-ai/agentic';
-import { createDriverPagePort } from '@jini-ai/agentic/dom';
+import { fakeChatPagePort } from '../../../react/__tests__/fake-page-port.js';
 
 afterEach(() => { vi.unstubAllGlobals(); });
 
@@ -99,7 +98,7 @@ it('park aborts page work before a fresh attachment can execute it', async () =>
       const source = new EventTarget(); events.push(source);
       return { addEventListener: source.addEventListener.bind(source) as EventSource['addEventListener'], close() {} };
     },
-  }, { page: createDriverPagePort({ driver: { click } as unknown as PageDriver }), pageApproval: {
+  }, { page: fakeChatPagePort({}, { run: () => click() }), pageApproval: {
     isDirect: () => false,
     request: ({ signal }) => { approvalSignal = signal; return new Promise(resolve => { approve = resolve; }); },
   } });
@@ -226,10 +225,7 @@ it('both widget hosts use explicit claims, header authentication, live tokens an
   const bridge = createFrontendSessionBridge({ baseUrl: '', endpointPrefix: '/public/frontend', headers: () => ({ 'x-tab': 'credential' }),
     openStream: ({ url, headers }) => { opened = url; expect(headers).toEqual({ 'x-tab': 'credential' }); return { addEventListener: events.addEventListener.bind(events) as EventSource['addEventListener'], close() {} }; },
     fetch: vi.fn(async (url, init) => { calls.push({ url: String(url), init: init! }); order.push('acknowledged'); return new Response('{"settled":true}'); }) as typeof fetch,
-  }, { capabilityIds: ['page.click'], page: createDriverPagePort({ driver: {
-    findElements: async () => [{ handle: 'menu', label: 'Menu', labelTruncated: false }], listPages: async () => [],
-    click: async () => { order.push('clicked'); }, scrollTo: async () => {},
-  } as unknown as PageDriver }),
+  }, { capabilityIds: ['page.click'], page: fakeChatPagePort({}, { run: () => { order.push('clicked'); } }),
     onBeforeResponse: () => { order.push('persisted'); }, onAfterResponse: () => { order.push('after'); },
   });
   expect(opened).toBe('/public/frontend/stream?capability=page.click');

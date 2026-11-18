@@ -1,8 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createFrontendSessionBridge } from '../frontend-session-bridge.js';
-import type { PageDriver } from '@jini-ai/agentic';
-import { createDriverPagePort } from '@jini-ai/agentic/dom';
+import { fakeChatPagePort, type FakeChatPagePort } from '../../__tests__/fake-page-port.js';
 
 /**
  * The browser half of agent control, against a scripted daemon.
@@ -54,21 +53,12 @@ function postedBodies(): Array<Record<string, unknown>> {
     JSON.parse((init as RequestInit).body as string) as Record<string, unknown>);
 }
 
-function createDriver(overrides: Partial<PageDriver> = {}): PageDriver {
-  return {
-    findElements: vi.fn(async () => [
-      { handle: 'save-button', role: 'button' as const, label: 'Save', labelTruncated: false, page: 'home' },
-    ]),
-    listPages: vi.fn(async () => [{ id: 'home', label: 'Home' }]),
-    selectOption: vi.fn(async () => undefined),
-    describeField: vi.fn(async () => null),
-    highlight: vi.fn(async () => undefined),
-    scrollTo: vi.fn(async () => undefined),
-    click: vi.fn(async () => undefined),
-    fill: vi.fn(async () => undefined),
-    navigate: vi.fn(async () => undefined),
-    ...overrides,
-  };
+/** What the port was asked to run for one capability, in order. */
+const executed = (page: FakeChatPagePort, capabilityId: string) => page.calls.filter(call => call.capabilityId === capabilityId);
+
+/** A port whose every call is refused, as the real executor refuses an input that fails its schema. */
+function refusingPort() {
+  return fakeChatPagePort({}, { run: ({ capabilityId }) => { throw new Error(`${capabilityId}: "handle" is required`); } });
 }
 
 /** Lets the bridge's own promise chains run to completion. */
@@ -88,15 +78,15 @@ afterEach(() => {
 });
 
 describe('capability claims', () => {
-  it('claims only the chat verbs for a surface with no page driver', () => {
+  it('claims only the chat verbs for a surface with no page port', () => {
     createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch });
     const url = FakeEventSource.opened[0] ?? '';
     expect(url).toContain('capability=chat.send_message');
     expect(url).not.toContain('capability=page.click');
   });
 
-  it('claims the page verbs once a driver is wired', () => {
-    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page: createDriverPagePort({ driver: createDriver() }) });
+  it('claims the page verbs once a page port is wired', () => {
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page: fakeChatPagePort() });
     expect(FakeEventSource.opened[0]).toContain('capability=page.click');
   });
 
@@ -136,7 +126,7 @@ describe('attachment', () => {
   });
 
   it('answers to the session it is currently attached as, not the one it first attached as', async () => {
-    const bridge = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page: createDriverPagePort({ driver: createDriver() }) });
+    const bridge = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page: fakeChatPagePort() });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's2', bindToken: 't2' });
     FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: { handle: 'save-button' } });
@@ -181,21 +171,21 @@ describe('attachment', () => {
 });
 
 describe('routing invocations', () => {
-  it('runs a page verb through the driver and answers with its result', async () => {
-    const driver = createDriver();
-    const bridge = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page: createDriverPagePort({ driver }) });
+  it('runs a page verb through the page port and answers with its result', async () => {
+    const page = fakeChatPagePort({}, { results: { 'page.click': { clicked: 'save-button' } } });
+    const bridge = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: { handle: 'save-button' } });
     await flush();
 
-    expect(driver.click).toHaveBeenCalledWith({ handle: 'save-button' });
+    expect(executed(page, 'page.click').map(call => call.input)).toEqual([{ handle: 'save-button' }]);
     expect(postedBodies()[0]).toMatchObject({ invocationId: 'i1', ok: true, output: { clicked: 'save-button' } });
     void bridge;
   });
 
   it('hands chat verbs to the pane instead of serving them here', async () => {
     const seen: string[] = [];
-    const bridge = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page: createDriverPagePort({ driver: createDriver() }) });
+    const bridge = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page: fakeChatPagePort() });
     bridge.bridgeAccess.subscribe((action) => seen.push(action.capabilityId));
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'chat.set_draft', input: { text: 'hi' } });
@@ -235,31 +225,30 @@ describe('routing invocations', () => {
     expect(postedBodies()[0]).toMatchObject({ ok: false, message: 'nothing on this page serves "cms.publish"' });
   });
 
-  it('reports a refusal from the executor rather than swallowing it', async () => {
-    const bridge = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page: createDriverPagePort({ driver: createDriver() }) });
+  it('reports a refusal from the page port rather than swallowing it', async () => {
+    const bridge = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page: refusingPort() });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: {} });
     await flush();
-    // Substring, not exact-equality: `executePageCapability` now appends the capability's input
-    // schema to a validation-error message (ai-control-plane.md §29.4's "schema-on-error"), so the
-    // real refusal text is longer than this test's original snapshot — the intent here is "the
-    // executor's refusal propagates unmodified", not "the message never changes shape".
+    // Substring, not exact-equality: the real executor appends the capability's input schema to a
+    // validation-error message (ai-control-plane.md §29.4's "schema-on-error"), so the intent here is
+    // "the port's refusal propagates unmodified", not "the message never has a fixed shape".
     expect(postedBodies()[0]).toMatchObject({ ok: false, message: expect.stringContaining('page.click: "handle" is required') });
     void bridge;
   });
 
   it('defaults a missing input to an empty object rather than failing on the frame', async () => {
-    const driver = createDriver();
-    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page: createDriverPagePort({ driver }) });
+    const page = fakeChatPagePort();
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'page.find_elements' });
     await flush();
-    expect(driver.findElements).toHaveBeenCalledWith({}, {});
+    expect(page.calls).toEqual([expect.objectContaining({ capabilityId: 'page.find_elements', input: {} })]);
   });
 
   it('announces every invocation before running it, which is what a user sees as an activity trail', async () => {
     const onInvocation = vi.fn();
-    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page: createDriverPagePort({ driver: createDriver() }), onInvocation });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page: fakeChatPagePort(), onInvocation });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: { handle: 'save-button' } });
     await flush();
@@ -270,8 +259,8 @@ describe('routing invocations', () => {
 describe('replay suppression', () => {
   it('never runs the same invocation twice, because a button is not idempotent', async () => {
     // The daemon redelivers when an answer never arrived. The click already happened.
-    const driver = createDriver();
-    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page: createDriverPagePort({ driver }) });
+    const page = fakeChatPagePort();
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     const frame = { type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: { handle: 'save-button' } };
     FakeEventSource.last?.emit(frame);
@@ -279,13 +268,13 @@ describe('replay suppression', () => {
     FakeEventSource.last?.emit(frame);
     await flush();
 
-    expect(driver.click).toHaveBeenCalledTimes(1);
+    expect(executed(page, 'page.click')).toHaveLength(1);
     expect(postedBodies()[1]).toMatchObject({ ok: false, message: 'already executed on this surface' });
   });
 
   it('does not announce a redelivery as a fresh action', async () => {
     const onInvocation = vi.fn();
-    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page: createDriverPagePort({ driver: createDriver() }), onInvocation });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page: fakeChatPagePort(), onInvocation });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     const frame = { type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: { handle: 'save-button' } };
     FakeEventSource.last?.emit(frame);
@@ -295,8 +284,8 @@ describe('replay suppression', () => {
   });
 
   it('forgets the oldest ids rather than growing without bound on a long-lived tab', async () => {
-    const driver = createDriver();
-    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page: createDriverPagePort({ driver }) });
+    const page = fakeChatPagePort();
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     for (let index = 0; index < 300; index += 1) {
       FakeEventSource.last?.emit({ type: 'invocation', invocationId: `i${index}`, capabilityId: 'page.click', input: { handle: 'save-button' } });
@@ -306,11 +295,11 @@ describe('replay suppression', () => {
     // bounded set. Recent ids, which are the ones a retry actually concerns, are still protected.
     FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i0', capabilityId: 'page.click', input: { handle: 'save-button' } });
     await flush();
-    expect(driver.click).toHaveBeenCalledTimes(301);
+    expect(executed(page, 'page.click')).toHaveLength(301);
 
     FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i299', capabilityId: 'page.click', input: { handle: 'save-button' } });
     await flush();
-    expect(driver.click).toHaveBeenCalledTimes(301);
+    expect(executed(page, 'page.click')).toHaveLength(301);
   });
 });
 
@@ -335,7 +324,7 @@ describe('malformed and unexpected frames', () => {
 
   it('ignores a frame type this build has never heard of, so the daemon can grow its vocabulary', async () => {
     const onError = vi.fn();
-    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page: createDriverPagePort({ driver: createDriver() }), onError });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page: fakeChatPagePort(), onError });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'heartbeat', at: 1 });
     await flush();
@@ -347,16 +336,16 @@ describe('malformed and unexpected frames', () => {
     // `String(undefined)` produces the literal string `"undefined"`, indistinguishable from a
     // second frame that also omits the field -- the replay-dedupe set then wrongly refused the
     // second as "already executed" when it never ran. Both malformed frames must now be dropped
-    // via onError instead, and neither may reach the driver.
-    const driver = createDriver();
+    // via onError instead, and neither may reach the page port.
+    const page = fakeChatPagePort();
     const onError = vi.fn();
-    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page: createDriverPagePort({ driver }), onError });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page, onError });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'invocation', capabilityId: 'page.click', input: { handle: 'a' } });
     await flush();
     FakeEventSource.last?.emit({ type: 'invocation', capabilityId: 'page.click', input: { handle: 'b' } });
     await flush();
-    expect(driver.click).not.toHaveBeenCalled();
+    expect(executed(page, 'page.click')).toHaveLength(0);
     expect(onError).toHaveBeenCalledTimes(2);
   });
 
@@ -390,7 +379,7 @@ describe('answering the daemon', () => {
   it('routes a failed answer to onError rather than leaving an unhandled rejection', async () => {
     const onError = vi.fn();
     fetchMock.mockRejectedValue(new Error('offline'));
-    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page: createDriverPagePort({ driver: createDriver() }), onError });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page: fakeChatPagePort(), onError });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: { handle: 'save-button' } });
     await flush();
@@ -399,7 +388,7 @@ describe('answering the daemon', () => {
 
   it('swallows a failed answer when the host registered no error sink', async () => {
     fetchMock.mockRejectedValue(new Error('offline'));
-    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page: createDriverPagePort({ driver: createDriver() }) });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page: fakeChatPagePort() });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: { handle: 'save-button' } });
     await expect(flush()).resolves.toBeUndefined();
@@ -415,16 +404,16 @@ describe('answering the daemon', () => {
 
   it('swallows a failed refusal post when the host registered no error sink', async () => {
     fetchMock.mockRejectedValue(new Error('offline'));
-    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page: createDriverPagePort({ driver: createDriver() }) });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page: refusingPort() });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: {} });
     await expect(flush()).resolves.toBeUndefined();
   });
 
-  it('reports a driver refusal even when posting that refusal also fails', async () => {
+  it('reports a port refusal even when posting that refusal also fails', async () => {
     const onError = vi.fn();
     fetchMock.mockRejectedValue(new Error('offline'));
-    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page: createDriverPagePort({ driver: createDriver() }), onError });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page: refusingPort(), onError });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: {} });
     await flush();
@@ -512,7 +501,7 @@ describe('frame and transport boundaries', () => {
 
   it('does not report a failed "already executed" refusal post to onError', async () => {
     const onError = vi.fn<(error: unknown) => void>();
-    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page: createDriverPagePort({ driver: createDriver() }), onError });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { page: fakeChatPagePort(), onError });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     const frame = { type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: { handle: 'save-button' } };
     FakeEventSource.last?.emit(frame);
@@ -523,7 +512,7 @@ describe('frame and transport boundaries', () => {
     expect(onError).not.toHaveBeenCalled();
   });
 
-  it('routes a page.* id to a "page." executor when no page driver is wired', async () => {
+  it('routes a page.* id to a "page." executor when no page port is wired', async () => {
     const executor = vi.fn(async () => 'from executor');
     createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { executors: { 'page.': executor } });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
@@ -547,9 +536,9 @@ describe('page actions through the app approval channel', () => {
     fetchMock.mockImplementation(async () => ({ ok: true, status: 200, json: async () => ({ settled: true }) }));
     let decide!: (answer: { confirmed: true } | { confirmed: false; reason: 'declined' }) => void;
     const request = vi.fn((_args: { capabilityId: string; input: Record<string, unknown>; signal: AbortSignal }) => new Promise<{ confirmed: true } | { confirmed: false; reason: 'declined' }>(resolve => { decide = resolve; }));
-    const driver = createDriver();
+    const page = fakeChatPagePort({}, { results: { 'page.click': { clicked: 'save-button' } } });
     const bridge = createFrontendSessionBridge({ baseUrl: '', fetch: globalThis.fetch, openStream: ({ url }) => new EventSource(url) }, {
-      page: createDriverPagePort({ driver }), pageApproval: { isDirect: () => false, request },
+      page, pageApproval: { isDirect: () => false, request },
     });
     const source = FakeEventSource.last!;
     source.emit({ type: 'attached', sessionId: 'tab', bindToken: 'token' });
@@ -557,14 +546,14 @@ describe('page actions through the app approval channel', () => {
     source.emit({ type: 'invocation', invocationId: 'protected', capabilityId: 'page.click', input });
     await flush();
     expect(request).toHaveBeenCalledTimes(1);
-    expect(driver.click).not.toHaveBeenCalled();
+    expect(executed(page, 'page.click')).toHaveLength(0);
     // Neither the caller nor a mutable description can replace the input the effect will use.
     input.handle = 'different-button';
     request.mock.calls[0]![0].input.handle = 'forged-button';
     decide(confirmed ? { confirmed: true } : { confirmed: false, reason: 'declined' });
     await flush();
-    expect(driver.click).toHaveBeenCalledTimes(confirmed ? 1 : 0);
-    if (confirmed) expect(driver.click).toHaveBeenCalledWith({ handle: 'save-button' });
+    expect(executed(page, 'page.click')).toHaveLength(confirmed ? 1 : 0);
+    if (confirmed) expect(executed(page, 'page.click').map(call => call.input)).toContainEqual({ handle: 'save-button' });
     expect(postedBodies().filter(body => body.phase === 'approval-pending')).toHaveLength(1);
     expect(postedBodies().filter(body => body.phase === 'execution-started'))
       .toEqual([expect.objectContaining({ decision: confirmed ? 'approved' : 'declined' })]);
@@ -572,16 +561,16 @@ describe('page actions through the app approval channel', () => {
     source.emit({ type: 'invocation', invocationId: 'protected', capabilityId: 'page.click', input: { handle: 'save-button' } });
     await flush();
     expect(request).toHaveBeenCalledTimes(1);
-    expect(driver.click).toHaveBeenCalledTimes(confirmed ? 1 : 0);
+    expect(executed(page, 'page.click')).toHaveLength(confirmed ? 1 : 0);
     bridge.close();
   });
 
   it.each(['cancelled', 'disconnect', 'close'])('a late approval after %s cannot click', async mode => {
     fetchMock.mockImplementation(async () => ({ ok: true, status: 200, json: async () => ({ settled: true }) }));
     let approve!: () => void;
-    const driver = createDriver();
+    const page = fakeChatPagePort();
     const bridge = createFrontendSessionBridge({ baseUrl: '', fetch: globalThis.fetch, openStream: ({ url }) => new EventSource(url) }, {
-      page: createDriverPagePort({ driver }), pageApproval: { isDirect: () => false, request: () => new Promise(resolve => { approve = () => resolve({ confirmed: true }); }) },
+      page, pageApproval: { isDirect: () => false, request: () => new Promise(resolve => { approve = () => resolve({ confirmed: true }); }) },
     });
     const source = FakeEventSource.last!;
     source.emit({ type: 'attached', sessionId: 'tab', bindToken: 'token' });
@@ -591,20 +580,20 @@ describe('page actions through the app approval channel', () => {
     if (mode === 'disconnect') source.fail();
     if (mode === 'close') bridge.close();
     approve(); await flush();
-    expect(driver.click).not.toHaveBeenCalled();
+    expect(executed(page, 'page.click')).toHaveLength(0);
     bridge.close();
   });
 
   it('does not open a dialog or act for an already expired server invocation', async () => {
     fetchMock.mockImplementation(async () => ({ ok: true, status: 200, json: async () => ({ settled: false }) }));
-    const request = vi.fn(); const driver = createDriver();
+    const request = vi.fn(); const page = fakeChatPagePort();
     const bridge = createFrontendSessionBridge({ baseUrl: '', fetch: globalThis.fetch, openStream: ({ url }) => new EventSource(url) }, {
-      page: createDriverPagePort({ driver }), pageApproval: { isDirect: () => false, request },
+      page, pageApproval: { isDirect: () => false, request },
     });
     FakeEventSource.last!.emit({ type: 'attached', sessionId: 'tab', bindToken: 'token' });
     FakeEventSource.last!.emit({ type: 'invocation', invocationId: 'expired', capabilityId: 'page.click', input: { handle: 'save-button' } });
     await flush();
-    expect(request).not.toHaveBeenCalled(); expect(driver.click).not.toHaveBeenCalled();
+    expect(request).not.toHaveBeenCalled(); expect(executed(page, 'page.click')).toHaveLength(0);
     bridge.close();
   });
 });

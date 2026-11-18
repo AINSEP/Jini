@@ -1,7 +1,6 @@
 import { createRef } from 'react';
 import { act, fakeChatKit, fireEvent, screen, waitFor, within } from '../../../../__tests__/fake-chat-kit.js';
-import { renderWithChatSurfaces } from '../../../../__tests__/fake-chat-surfaces.js';
-import { hostChatSurfaces } from '../../../../__tests__/host-chat-surfaces.js';
+import { fakeChatSurfaces, renderWithChatSurfaces } from '../../../../__tests__/fake-chat-surfaces.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -622,24 +621,15 @@ describe('ChatPane', () => {
    * dropped on the floor here (only `enabled`/`bridgeAccess` were forwarded), so no host could ever
    * reach the hook's WebMCP branch through the public component, regardless of what it passed.
    */
-  it('registers this pane\'s own tools with document.modelContext when agentControl.webmcp is true', () => {
-    const registerTool = vi.fn();
-    Object.defineProperty(globalThis.document, 'modelContext', {
-      configurable: true,
-      writable: true,
-      value: { registerTool, unregisterTool: vi.fn() },
-    });
-    try {
-      const transport = createFakeChatTransport();
-      renderWithChatSurfaces(
-        <ChatPane transport={transport} agents={agents} agentControl={{ enabled: true, webmcp: true }} />,
-        // WebMCP detection is the host's page port; bind the detector a host binds.
-        { surfaces: hostChatSurfaces() },
-      );
-      expect(registerTool).toHaveBeenCalled();
-    } finally {
-      Reflect.deleteProperty(globalThis.document as unknown as Record<string, unknown>, 'modelContext');
-    }
+  it('registers this pane\'s own tools with the page port\'s model context when agentControl.webmcp is true', () => {
+    const registerTool = vi.fn(async () => {});
+    const transport = createFakeChatTransport();
+    renderWithChatSurfaces(
+      <ChatPane transport={transport} agents={agents} agentControl={{ enabled: true, webmcp: true }} />,
+      // WebMCP detection is the host's page port; hand the pane a context of this test's own.
+      { surfaces: fakeChatSurfaces({ page: { getModelContext: () => ({ registerTool, unregisterTool: vi.fn() }) } }) },
+    );
+    expect(registerTool).toHaveBeenCalled();
   });
 
   it('shows a rescan failure as an alert while keeping the last good inventory on screen', async () => {
