@@ -11,3 +11,4 @@ export * from "./page-head.js";
 export * from "./write-service.js";
 export * from "./xml-escape.js";
 export * from "./sitemap-documents.js";
+export * from "./html-plain-text.js";

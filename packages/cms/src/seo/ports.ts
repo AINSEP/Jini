@@ -35,6 +35,7 @@
 import type { JsonValue } from "@jini-ai/core/primitives";
 import type { MediaRecord } from "../media/types.js";
 import type { TransformDefinitionRepoPort } from "../media/ports.js";
+import type { PublicPostKind } from "../core/post-vocabulary.js";
 import type {
   HeadElement, PageHeadContext, RobotsPolicy, SeoAnalysis, SeoMeta, SeoSettings,
   SitemapCollectContext, SitemapEntry,
@@ -46,7 +47,7 @@ export interface SeoPostRecord {
   workspaceId: string;
   title: string;
   slug: string;
-  kind: "post" | "page";
+  kind: PublicPostKind;
   status: string;
   bodyFormat: "doc" | "html";
   bodyJson: JsonValue;
