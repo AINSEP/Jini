@@ -93,7 +93,27 @@ mails an answer partly masked (two round-2 cms pins now expect the whole-answer 
 
 ## Gates on the tip (exact command -> exit code)
 
-GATES_PLACEHOLDER
+All run at `317c0b56a` (the last code commit), Node 24.22.3.
+
+| command | exit | notes |
+|---|---|---|
+| `pnpm --no-bail -r build` | 0 | |
+| `pnpm guard` | 0 | |
+| `node scripts/check-size.mjs` | 0 | `redact.ts` under its 554 debt after the split |
+| `node scripts/check-complexity.mjs` | 0 | 17 entries |
+| `node scripts/check-why-comments.mjs --base 6d692b92` (this run's base) | 0 | 0 lost |
+| `node scripts/check-why-comments.mjs --base origin/refactor/terra --merge-base` (branch base `4c189236`) | 1 | 19 lost blocks, same count as round 1, in 12 files none of which this run touched |
+| `node scripts/check-hook-injection.mjs` | 1 | same rows on `6d692b92` (ui files, not touched) |
+| `node scripts/check-error-gate.mjs --strict` | 1 | 20 new/worse rows, identical list on `6d692b92`; none in a file this run touched |
+| `pnpm api:check` | 0 | no export of core, cms or chat changed by this run; listed diffs are earlier branch commits |
+| core `npx vitest run --maxWorkers=2 --minWorkers=1` | 0 | 228 files / 3563 tests (baseline 219 / 3441) |
+| chat, same | 0 | 307 + 1 skipped files / 4524 + 1 skipped tests (baseline 305 / 4507) |
+| cms, same | 0 | 339 / 4089 (baseline 338 / 4085) |
+| diagnostics, same | 0 | 61 / 998 (baseline 61 / 998) |
+| analytics, same | 0 | 15 / 225 (baseline 15 / 225) |
+
+No test was deleted or skipped: every package count went up or stayed equal. Four earlier pins changed on purpose and
+are named above (two core blank-line pins, two cms whole-answer pins).
 
 ## Core callers
 
