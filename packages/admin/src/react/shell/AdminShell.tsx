@@ -2,7 +2,7 @@ import { useId, useMemo, type ReactNode } from 'react';
 import { Sidebar } from '../components/Sidebar.js';
 import { resolveAdminShellModel, type AdminShellModel } from './model.js';
 import type { useShellDrawer } from './AdminShell.hooks.js';
-import { resolveShellHooks } from './shell-hooks.js';
+import { resolveShellHooks, resolveShellIds } from './shell-hooks.js';
 import type { useAdminTheme } from './use-admin-theme.js';
 import type { AdminShellAppearance } from './theme-ports.js';
 import type { AdminNavGroup } from '../../core/manifest/rules.js';
@@ -75,7 +75,39 @@ function renderShellSidebar({ props, view, drawer, id }: {
 interface ShellLayoutArgs {
   readonly props: AdminShellBaseProps; readonly context: AdminShellContext; readonly controller: AdminShellSessionController;
   readonly session: AdminShellSession; readonly appearance: AdminShellAppearance | undefined; readonly routePath: string;
-  readonly drawer: ReturnType<typeof useShellDrawer>; readonly sidebarId: string; readonly mainId: string;
+  readonly drawer: ReturnType<typeof useShellDrawer>; readonly ids: { readonly sidebar: string; readonly main: string };
+}
+
+/** The topbar, `<main>` with the routed panel (or `noAccess`) and the host's `afterMain` content. */
+function ShellMainColumn({ props, view, drawer, ids }: {
+  readonly props: AdminShellBaseProps; readonly view: ShellView; readonly drawer: ReturnType<typeof useShellDrawer>;
+  readonly ids: ShellLayoutArgs['ids'];
+}): ReactNode {
+  const { model, slotArgs } = view;
+  return (
+    <div className="admin-main-col">
+      <div className="admin-topbar">
+        <button type="button" className="admin-topbar-toggle" aria-expanded={drawer.open} aria-controls={ids.sidebar}
+          aria-label={drawer.open ? props.labels.closeNavigation : props.labels.openNavigation}
+          onClick={() => drawer.setOpen((open) => !open)}>
+          <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true"><path d="M2.5 5h13M2.5 9h13M2.5 13h13" /></svg>
+        </button>
+        <span className="admin-topbar-title">{props.title}</span>
+        {props.slots.topbar}
+      </div>
+      <main ref={props.mainRef} id={ids.main} className="admin-content" tabIndex={-1} data-agent-page={model.agentPageId ?? undefined}>
+        {renderRoutedPanel({ model, slots: props.slots, slotArgs })}
+      </main>
+      {props.slots.afterMain}
+    </div>
+  );
+}
+
+/** The host's `assistantAside` when given, otherwise the built-in pane for `slots.assistant`. */
+function renderAssistant(slots: AdminShellBaseProps['slots']): ReactNode {
+  const { assistant, assistantAside } = slots;
+  if (assistantAside) return assistantAside;
+  return assistant && <aside className="admin-assistant-pane" aria-label={assistant.label} hidden={!assistant.open}>{assistant.content}</aside>;
 }
 
 /**
@@ -84,7 +116,7 @@ interface ShellLayoutArgs {
  * a drawer toggle or a theme repaint re-renders the shell without rebuilding either.
  */
 function ShellLayout({ args }: { readonly args: ShellLayoutArgs }): ReactNode {
-  const { props, context, controller, session, appearance, routePath, drawer, sidebarId, mainId } = args;
+  const { props, context, controller, session, appearance, routePath, drawer, ids } = args;
   const { panels, capabilities, defaultPanelId, translateNav } = props;
   const model = useMemo(() => resolveAdminShellModel({ panels, session, routePath, defaultPanelId }, capabilities ? { capabilities } : {}),
     [panels, capabilities, session, routePath, defaultPanelId]);
@@ -94,31 +126,18 @@ function ShellLayout({ args }: { readonly args: ShellLayoutArgs }): ReactNode {
     ...(appearance ? { appearance } : {}),
   };
   const view: ShellView = { model, slotArgs, nav };
-  const assistant = props.slots.assistant;
-
-  return (
+  const layout = (
     <div className={['admin-layout', props.className].filter(Boolean).join(' ')}>
-      <a href={`#${mainId}`} className="skip-link">{props.labels.skipToContent}</a>
-      {renderShellSidebar({ props, view, drawer, id: sidebarId })}
+      <a href={`#${ids.main}`} className="skip-link">{props.labels.skipToContent}</a>
+      {renderShellSidebar({ props, view, drawer, id: ids.sidebar })}
+      {props.slots.beforeMain}
       {drawer.open && <button type="button" className="sidebar-backdrop" aria-label={props.labels.closeNavigation} onClick={() => drawer.setOpen(false)} />}
-      <div className="admin-main-col">
-        <div className="admin-topbar">
-          <button type="button" className="admin-topbar-toggle" aria-expanded={drawer.open} aria-controls={sidebarId}
-            aria-label={drawer.open ? props.labels.closeNavigation : props.labels.openNavigation}
-            onClick={() => drawer.setOpen((open) => !open)}>
-            <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true"><path d="M2.5 5h13M2.5 9h13M2.5 13h13" /></svg>
-          </button>
-          <span className="admin-topbar-title">{props.title}</span>
-          {props.slots.topbar}
-        </div>
-        <main ref={props.mainRef} id={mainId} className="admin-content" tabIndex={-1} data-agent-page={model.agentPageId ?? undefined}>
-          {renderRoutedPanel({ model, slots: props.slots, slotArgs })}
-        </main>
-      </div>
-      {assistant && <aside className="admin-assistant-pane" aria-label={assistant.label} hidden={!assistant.open}>{assistant.content}</aside>}
+      <ShellMainColumn props={props} view={view} drawer={drawer} ids={ids} />
+      {renderAssistant(props.slots)}
       {props.slots.overlays?.(slotArgs)}
     </div>
   );
+  return props.slots.frame ? props.slots.frame({ ...slotArgs, children: layout }) : layout;
 }
 
 /**
@@ -138,5 +157,5 @@ export function AdminShell(props: AdminShellProps | AdminShellHostProps): ReactN
   const id = useId();
 
   if (state.status !== 'authenticated') return renderSessionGate({ props, context, state, refresh: controller.refresh });
-  return <ShellLayout args={{ props, context, controller, session: state.session, appearance, routePath, drawer, sidebarId: `${id}-sidebar`, mainId: `${id}-main` }} />;
+  return <ShellLayout args={{ props, context, controller, session: state.session, appearance, routePath, drawer, ids: resolveShellIds({ ids: props.ids, baseId: id }) }} />;
 }

@@ -32,3 +32,16 @@ function resolveSessionHook(props: AdminShellProps | AdminShellHostProps): Shell
   const { session, useSessionHook = useAdminShellSession } = props;
   return (context) => useSessionHook({ port: session, context });
 }
+
+/**
+ * The sidebar and main DOM ids: the host's when given, otherwise derived from a generated base id.
+ * @param args Required host `ids` (may be absent) and the generated base id.
+ * @param _options Reserved; none today.
+ * @returns The two ids every reference (skip link, `aria-controls`, `<nav id>`, `<main id>`) reads from.
+ */
+export function resolveShellIds(
+  { ids, baseId }: { readonly ids: AdminShellProps['ids']; readonly baseId: string },
+  _options: Record<string, never> = {},
+): { readonly sidebar: string; readonly main: string } {
+  return { sidebar: ids?.sidebar ?? `${baseId}-sidebar`, main: ids?.main ?? `${baseId}-main` };
+}

@@ -74,6 +74,19 @@ export interface AdminShellSlots {
   readonly topbar?: ReactNode;
   readonly overlays?: (args: AdminShellSlotArgs) => ReactNode;
   /**
+   * Wraps the whole authenticated layout (root element, sidebar, main column, assistant and overlays
+   * all inside `children`): the place for providers the panels, the dock and the overlays must share.
+   * Not called for the checking, anonymous and error states. Re-key your provider on `session.user.id`
+   * to remount it when the operator changes.
+   */
+  readonly frame?: (args: AdminShellSlotArgs & { readonly children: ReactNode }) => ReactNode;
+  /** Rendered between the sidebar and the drawer backdrop (a host confirm dialog, for example). */
+  readonly beforeMain?: ReactNode;
+  /** Rendered inside the main column, right after `<main>` (a host's floating controls, for example). */
+  readonly afterMain?: ReactNode;
+  /** Rendered **instead of** the built-in assistant `<aside>`, which then is not rendered even if `assistant` is set. */
+  readonly assistantAside?: ReactNode;
+  /**
    * Rendered in `<main>` instead of the routed panel when the operator may not use it (`model.access`
    * is `'denied'`). The URL, route and agent page id stay the denied panel's own. Absent: an empty
    * `<main>`. Client-side visibility only; the server stays the authority.
@@ -115,6 +128,8 @@ export interface AdminShellBaseProps extends AdminShellContext {
   readonly themePreferenceStore?: AdminThemePreferenceStorePort;
   readonly onColorSchemeChange?: (args: { readonly preference: ColorSchemePreference }) => void;
   readonly adminBase: string;
+  /** DOM ids of the sidebar `<nav>` and the `<main>`; each defaults to a generated one. The skip link, the topbar toggle's `aria-controls`, the nav and main all read from them. */
+  readonly ids?: { readonly sidebar?: string; readonly main?: string };
   readonly defaultPanelId: string;
   readonly railStorageKey: string;
   readonly title: ReactNode;
