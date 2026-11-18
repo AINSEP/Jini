@@ -5,10 +5,11 @@ import type { EntryRecord, EntryStatus } from "../types.js";
 import type { EntryJsonDialectPort } from "./json-dialect-port.js";
 
 /**
- * @file Row mapping for `entries` / `entry_revisions`, shared by every dialect: the columns are copied from the
- * host's generated schema in the same key order (snake_case, JSON as text); the host's own type-level pin fails if a
- * later copy drifts from it. Neutral on purpose — no repo, no driver. The table NAMES, the JSON dialect helpers and
- * the write-settled hook are host-owned ({@link EntrySqlRequired}).
+ * @file Row mapping for `entries` / `entry_revisions`, shared by every dialect: the columns are the
+ * generated `ContentDatabase` types (snake_case, JSON as text). Neutral on purpose — no repo, no
+ * driver. They are copied from the host's generated schema in the same key order; the host's own type-level pin fails
+ * if a later copy drifts from it. The table NAMES, the JSON dialect helpers and the write-settled hook are host-owned
+ * ({@link EntrySqlRequired}).
  */
 
 export interface EntryTableRow {

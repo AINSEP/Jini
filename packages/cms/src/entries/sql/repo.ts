@@ -21,13 +21,16 @@ import {
 /**
  * @file THE durable `EntryRepoPort` + `EntryListPort` (and the display / exclude-types / publish
  * read ports): one Kysely query body for every database the storage kernel drives (SQLite, PGlite,
- * Postgres). The second rule-of-two adapter (`../repo.memory.ts` is the first). Table names, the JSON dialect
- * helpers and the write-settled hook are host-owned.
+ * Postgres). The second rule-of-two adapter (`trash-aware-memory-repo.ts` is the first);
+ * `repo.sqlite.ts` keeps `SqliteEntryRepo` as a thin subclass built from the content db handle.
  *
  * Trash: a row with `deleted_at` set is in the Trash (only widgets get there today). Every read here
  * hides it, so every widget reader — region placements, embeds, the admin list — treats a trashed
  * widget as missing (the REQ-28 placeholder). `save` never writes `deleted_at` and never touches a
  * trashed row; only the Trash moves a row in or out.
+ *
+ * In this package: the host keeps `SqliteEntryRepo` and its memory twin; table names, the JSON dialect helpers and
+ * the write-settled hook are host-owned.
  */
 
 type EntriesSelect = SelectQueryBuilder<EntryTableViews, string, EntryTableRow>;
@@ -194,7 +197,7 @@ export class SqlEntryRepo implements EntryRepoPort, EntryListPort, EntryDisplayL
   }
 
   /**
-   * Review fix 3b (the host's list-port doc for {@link EntryListExcludingTypesPort}) — same shape as
+   * Review fix 3b (`public-list.ts`'s {@link EntryListExcludingTypesPort} doc) — same shape as
    * {@link listByWorkspace}, but `excludeTypes` rows are filtered out in SQL, before `LIMIT`, so
    * they can never crowd a bounded result out of real content.
    *
