@@ -1450,7 +1450,10 @@ describe('model-proxy pins — the real guarded transport is the default when no
     }
     expect(injectedFetch).not.toHaveBeenCalled();
     const events = writtenEvents(res);
-    expect(JSON.stringify(events[0]!.data)).toContain('Internal IPs blocked');
+    // DM-R3-3: the client gets fixed words and the request ID; the guard's own text goes to the host's sink.
+    expect(events[0]!.data).toEqual({ type: 'error', message: expect.stringContaining('The assistant response stopped.'), code: lastHost.reports[0]!.requestId });
+    expect(JSON.stringify(events)).not.toContain('Internal IPs blocked');
+    expect(JSON.stringify(lastHost.reports[0]!.report)).toContain('Internal IPs blocked');
     expect(events.at(-1)!.kind).toBe('end');
   });
 });

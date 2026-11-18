@@ -428,8 +428,10 @@ describe('model proxy streams (POST /api/proxy/<provider>/stream)', () => {
   const validBody = JSON.stringify({ apiKey: 'characterization-key', model: 'llama3', baseUrl: 'http://127.0.0.1:11434', messages: [{ role: 'user', content: 'hi' }] });
   let harness: RouteHarness;
   let transportCalls = 0;
+  const proxyIncidents: Array<{ correlationId: string; provider: string; error: unknown }> = [];
   beforeAll(async () => {
     harness = await startRouteHarness({}, { familyDeps: { 'model-proxy': {
+      onInternalError: (incident: { correlationId: string; provider: string; error: unknown }) => { proxyIncidents.push(incident); },
       dnsLookup: undefined,
       fetchImpl: async () => { transportCalls += 1; throw new Error(INTERNAL_FAILURE_MARKER); },
     } } });
@@ -443,20 +445,22 @@ describe('model proxy streams (POST /api/proxy/<provider>/stream)', () => {
     expect(transportCalls).toBe(0);
   });
 
-  it('a transport failure after the stream is open is reported inside it, as an error event and an end event; today the error event carries the transport\'s own message', async () => {
-    const before = harness.internalErrors.length;
+  // DM-R3-3 (owner decision 2026-11-17): the upstream's own text never reaches the client; it goes to the host's error sink.
+  it('a transport failure after the stream is open is reported inside it as fixed words plus a request ID, and the real text goes to the host sink', async () => {
+    proxyIncidents.length = 0;
     const stream = await openStream({ harness, route }, { body: validBody });
     expect(stream.response.status).toBe(200);
     expectHeaders(stream.response, EVENT_STREAM_HEADERS);
-    // Recorded as it is: the provider turn turns a failed upstream call into an error event with
-    // that failure's message, so the text reaches the client. The route itself threw nothing, so
-    // nothing is reported to the host's sink.
-    expect(await stream.rest()).toEqual([
-      frame({ opaqueCursor: '0', kind: 'error', data: { type: 'error', message: INTERNAL_FAILURE_MARKER } } as never),
+    const frames = await stream.rest();
+    expect(proxyIncidents).toHaveLength(1);
+    const [incident] = proxyIncidents;
+    expect(frames).toEqual([
+      frame({ opaqueCursor: '0', kind: 'error', data: { type: 'error', message: 'The assistant response stopped. Review any completed actions before starting another turn. Copy the request ID and report this problem.', code: incident!.correlationId } } as never),
       frame({ opaqueCursor: '1', kind: 'end', data: { type: 'end', reason: 'error' } } as never),
     ]);
-    expect(transportCalls).toBe(1);
-    expect(harness.internalErrors).toHaveLength(before);
+    expect(JSON.stringify(frames)).not.toContain(INTERNAL_FAILURE_MARKER);
+    expect(incident).toMatchObject({ provider: 'ollama', error: expect.objectContaining({ message: INTERNAL_FAILURE_MARKER }) });
+    expect(transportCalls).toBeGreaterThanOrEqual(1);
   });
 
   it('sends nothing but its events: no timer is scheduled for a proxy stream', async () => {

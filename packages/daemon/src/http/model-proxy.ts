@@ -403,6 +403,21 @@ function reportProxyError(
 }
 
 /**
+ * What a client may be told about one turn event. A provider turn turns a failed upstream call into an
+ * `error` event carrying that failure's own text, which can quote a credential, a URL or a host path:
+ * the client gets fixed words and the request ID, and the full event goes to the host's error sink.
+ * Every other event passes through unchanged.
+ */
+function clientSafeEvent(
+  { event, host, provider }: { readonly event: AnyProxyTurnEvent; readonly host: DaemonRouteHost; readonly provider: ProxyProvider },
+  { onInternalError }: { readonly onInternalError?: InternalErrorSink | undefined } = {},
+): AnyProxyTurnEvent {
+  if (event.type !== 'error') return event;
+  const code = reportProxyError({ host, provider, error: event }, { onInternalError });
+  return { type: 'error', message: PROXY_STREAM_STOPPED_MESSAGE, code } as AnyProxyTurnEvent;
+}
+
+/**
  * Opens the stream and starts the turn. The provider is not awaited before the response is returned: the
  * stream is the answer, and the turn's events (and its failure, if it rejects) arrive inside it. Every
  * reachable exit path inside every turn-runner emits exactly one `'end'`-kind event before its promise
@@ -420,7 +435,7 @@ function openProxyStream(
     isEndEvent: ({ event }) => event.kind === 'end',
   });
   // An async closure so a runner that throws before returning a promise is reported like one that rejects.
-  void (async () => entry.run(parsed, (event) => stream.send({ event: toStreamEvent(nextSeq(), event as AnyProxyTurnEvent) })))()
+  void (async () => entry.run(parsed, (event) => stream.send({ event: toStreamEvent(nextSeq(), clientSafeEvent({ event: event as AnyProxyTurnEvent, host, provider }, { onInternalError })) })))()
     .catch((error: unknown) => {
       const correlationId = reportProxyError({ host, provider, error }, { onInternalError });
       // `send` is a documented no-op once the stream is closed, so these two are safe to send unconditionally.
