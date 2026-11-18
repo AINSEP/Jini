@@ -135,6 +135,10 @@ declared envelope owners of the code-registered types as data; the adapter has n
 its entry and revision tables, the two JSON dialect helpers (`EntryJsonDialectPort`, from the same kernel) and an
 `onWriteSettled` hook the repository calls after every save and transaction, success or failure.
 
+`./entries` also exports `TrashAwareInMemoryEntryRepo`, the in-memory twin of that repository (the Trash hidden from every read, the
+`findAny*` / `saveAny` / `hardDelete` seam); its required `onWriteSettled` hook is called after a save, a transaction (also on
+failure), a `saveAny` and a `hardDelete` that removed a row.
+
 **Still to move:** `post`, `seo`, `comments`, `redirects`, `newsletter`,
 `members`. Widgets are exposed through the universal and node entries above.
 The nested forms package is maintained by its separate owner and is excluded from this parent package.
