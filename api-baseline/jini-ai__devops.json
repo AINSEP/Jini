@@ -81,6 +81,14 @@
    "withoutTrailingSlashes": "function:c7d5cf1b07"
   }
  },
+ "./checks/env-access": {
+  "types": "./dist/checks/env-access.d.ts",
+  "symbols": {
+   "ENV_ACCESS_RULES": "variable:cc740d81dc",
+   "EnvAccessSource": "interface:1169651cc3",
+   "createEnvAccessInspector": "function:f9be6ef611"
+  }
+ },
  "./checks/memory-soak": {
   "types": "./dist/checks/memory-soak.d.ts",
   "symbols": {
@@ -95,7 +103,7 @@
    "HARDWIRING_RULES": "variable:8ee605bf47",
    "HardwiringSource": "interface:10a1ed9d2a",
    "HardwiringViolation": "interface:d82aab580a",
-   "createHardwiringInspector": "function:0780609c10",
+   "createHardwiringInspector": "function:1f2d3b1405",
    "createNodeEnvLoader": "function:b8c6ce509b",
    "createNodeFilesystem": "function:ac338603b7",
    "createNodeProcessRunner": "function:9b0bd95283",
@@ -104,7 +112,7 @@
    "diffHardwiringDebt": "function:cf51c79a30",
    "displayGraphFile": "function:ad7234a875",
    "installedPublicFunctions": "function:e8965c876c",
-   "runHardwiring": "function:1447facd4b",
+   "runHardwiring": "function:a4a205965b",
    "sourceFiles": "function:1872565a70"
   }
  },
@@ -113,7 +121,7 @@
   "symbols": {
    "CheckLoggerPort": "interface:30311d5853",
    "CompileProject": "interface:d87c5b3e09",
-   "DependencyManifest": "interface:e249e88147",
+   "DependencyManifest": "interface:122cda0085",
    "FilesystemPort": "interface:aea11d749e",
    "LinksProject": "interface:8b80f3c3e9",
    "PackageInstallerPort": "interface:cb6d61e781",
@@ -282,9 +290,12 @@
  "./deploy/node": {
   "types": "./dist/deploy/node.d.ts",
   "symbols": {
-   "createNodeReachabilityPorts": "function:9b3e97330c",
-   "createReachabilityDispatcher": "function:18d85e50c1",
-   "createReachabilityLookup": "function:7c435d10d0"
+   "NodeReachabilityRequired": "interface:11afde115e",
+   "ReachabilityLookupRequired": "interface:1283922f08",
+   "ValidatingLookup": "type:3eca63b8e0",
+   "createNodeReachabilityPorts": "function:525c41c998",
+   "createReachabilityDispatcher": "function:c99016eb69",
+   "createReachabilityLookup": "function:c0f13a08c2"
   }
  },
  "./dns": {

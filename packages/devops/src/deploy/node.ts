@@ -1,9 +1,21 @@
 import type { LookupAddress, lookup } from 'node:dns';
 import type { LookupFunction } from 'node:net';
 import { Agent, type Dispatcher } from 'undici';
-import { assertSafePublicUrl, createValidatingLookup } from '@jini-ai/platform';
 import type { ReachabilityArgs } from './reachability.js';
 
+/** The lookup platform's `createValidatingLookup` returns: it resolves, then refuses private addresses. */
+export type ValidatingLookup = (hostname: string, options: unknown, callback: (error: Error | null, address?: unknown, family?: number) => void) => void;
+
+/** What the Node reachability transport needs from the host's platform binding. The host passes
+ * platform's `createValidatingLookup`; the policy of using it at connection time stays here. */
+export interface ReachabilityLookupRequired {
+  readonly createValidatingLookup: (lookupImpl?: typeof lookup) => ValidatingLookup;
+}
+
+/** `ReachabilityLookupRequired` plus platform's `assertSafePublicUrl` (the synchronous URL guard). */
+export interface NodeReachabilityRequired extends ReachabilityLookupRequired {
+  readonly assertSafeUrl: (raw: string) => URL;
+}
 
 function isLookupAddress(value: unknown): value is LookupAddress {
   if (value === null || typeof value !== 'object') return false;
@@ -17,8 +29,8 @@ function isLookupAddress(value: unknown): value is LookupAddress {
  * `{ address, family }[]` list returned for `all: true` lookups. Anything else is refused rather
  * than forwarded untyped to the socket.
  */
-export function createReachabilityLookup(_required: Record<string, never>, { lookupImpl }: { lookupImpl?: typeof lookup } = {}): LookupFunction {
-  const validatingLookup = createValidatingLookup(lookupImpl);
+export function createReachabilityLookup(required: ReachabilityLookupRequired, { lookupImpl }: { lookupImpl?: typeof lookup } = {}): LookupFunction {
+  const validatingLookup = required.createValidatingLookup(lookupImpl);
   return (hostname, options, callback) => {
     validatingLookup(hostname, options, (error, address, family) => {
       if (error) { callback(error, ''); return; }
@@ -29,8 +41,8 @@ export function createReachabilityLookup(_required: Record<string, never>, { loo
   };
 }
 
-export function createReachabilityDispatcher(_required: Record<string, never>, { lookupImpl }: { lookupImpl?: typeof lookup } = {}): Agent {
-  return new Agent({ connect: { lookup: createReachabilityLookup({}, lookupImpl ? { lookupImpl } : {}) } });
+export function createReachabilityDispatcher(required: ReachabilityLookupRequired, { lookupImpl }: { lookupImpl?: typeof lookup } = {}): Agent {
+  return new Agent({ connect: { lookup: createReachabilityLookup(required, lookupImpl ? { lookupImpl } : {}) } });
 }
 
 /**
@@ -45,15 +57,15 @@ export function createReachabilityDispatcher(_required: Record<string, never>, {
  * Native fetch uses that Agent's dispatch method; no port casts are needed.
  */
 export function createNodeReachabilityPorts(
-  _required: Record<string, never>,
+  required: NodeReachabilityRequired,
   options: { fetch?: typeof globalThis.fetch; lookupImpl?: typeof lookup; dispatcher?: Dispatcher } = {},
 ): Pick<ReachabilityArgs, 'fetch' | 'guard'> & { close(): Promise<void> } {
   let dispatcher: Dispatcher | undefined = options.dispatcher;
   return {
     close: async () => { if (!options.dispatcher) await dispatcher?.close(); },
-    guard: { assertSafeUrl: ({ raw }) => assertSafePublicUrl(raw) },
+    guard: { assertSafeUrl: ({ raw }) => required.assertSafeUrl(raw) },
     fetch: ({ url }, { init } = {}) => {
-      dispatcher ??= createReachabilityDispatcher({}, options.lookupImpl ? { lookupImpl: options.lookupImpl } : {});
+      dispatcher ??= createReachabilityDispatcher(required, options.lookupImpl ? { lookupImpl: options.lookupImpl } : {});
       const guardedInit: RequestInit = { ...init };
       Object.defineProperty(guardedInit, 'dispatcher', {
         value: dispatcher, enumerable: true, configurable: true, writable: true,
