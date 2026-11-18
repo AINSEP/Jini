@@ -216,7 +216,7 @@ function createSharedMcpSelection(
 }
 
 function createSharedMcpAttempts(access: ReturnType<typeof createSharedSignInAccess>) {
-  const { deps, ports, owner, siteId, invalidState, unavailable, bindingFor } = access;
+  const { deps, ports, owner, attachments, siteId, invalidState, unavailable, bindingFor } = access;
   async function assertAttempt(serverId: string, credentialId: string, generation: number) {
     const [binding, record, granted] = await Promise.all([bindingFor({ serverId }), owner.records.read({ key: credentialId }), attachments.isAttached({ siteId, keyId: credentialId })]);
     if (binding?.credentialId !== credentialId || !granted || !record) throw invalidState();
