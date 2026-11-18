@@ -6,5 +6,6 @@ export * from "./write-service.js";
 export * from "./spam.heuristic.js";
 export * from "./sanitize.js";
 export * from "./errors.js";
+export * from "./settings-limits.js";
 export * from "./repo.memory.js";
 export * from "./module.js";

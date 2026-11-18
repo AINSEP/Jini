@@ -9,6 +9,7 @@ import * as ingress from "../ingress.js";
 import * as moduleExports from "../module.js";
 import * as repoMemory from "../repo.memory.js";
 import * as sanitize from "../sanitize.js";
+import * as settingsLimits from "../settings-limits.js";
 import * as spam from "../spam.heuristic.js";
 import * as types from "../types.js";
 import * as writeService from "../write-service.js";
@@ -126,7 +127,7 @@ describe("createCommentsModule wiring", () => {
 
 describe("@jini-ai/cms/comments barrel", () => {
   test("re-exports every module's runtime surface by identity, and nothing else", () => {
-    const sources = [types, hooks, ingress, writeService, spam, sanitize, errors, repoMemory, moduleExports];
+    const sources = [types, hooks, ingress, writeService, spam, sanitize, errors, settingsLimits, repoMemory, moduleExports];
     const expected = new Map<string, unknown>();
     for (const source of sources) for (const [name, value] of Object.entries(source)) expected.set(name, value);
     assert.deepEqual(Object.keys(comments).sort(), [...expected.keys()].sort());
