@@ -43,8 +43,8 @@ export function authSchemeValueRanges({ text }: { readonly text: string }): Valu
 
 /** A Basic or Token credential outside a header: 16+ characters of the token alphabet with a digit, so prose
  * ("Basic authentication is not supported", "Token expired") is untouched. The scheme word is case-sensitive
- * as HTTP clients write it in prose and logs. The leading lookahead lets the lookbehind run only where a
+ * as HTTP clients write it in prose and logs; the credential may sit on the line after it (a header wrapped over two lines). The leading lookahead lets the lookbehind run only where a
  * value can start, so a long whitespace run is not rescanned from every position inside it. */
 export const BARE_SCHEME_TOKEN_PATTERNS: readonly SecretRedactionPattern[] = [
-  { name: 'bearer_token', regex: /(?=[A-Za-z0-9._~+/=:-])(?<=\b(?:Basic|Token)[ \t]+)(?=[A-Za-z0-9._~+/=:-]*\d)[A-Za-z0-9._~+/=:-]{16,}/g },
+  { name: 'bearer_token', regex: /(?=[A-Za-z0-9._~+/=:-])(?<=\b(?:Basic|Token)\s{1,16})(?=[A-Za-z0-9._~+/=:-]*\d)[A-Za-z0-9._~+/=:-]{16,}/g },
 ];

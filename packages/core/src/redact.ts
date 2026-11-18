@@ -161,6 +161,9 @@ export interface SecretRedactionPattern {
   regex: RegExp;
 }
 
+// Key rules end with their last alphabet character and carry no trailing `\b`: a boundary after a run whose
+// alphabet holds `-` or `_` fails when the key ends in one or is followed by `_`, which left the final character
+// (or the whole key, for `sk_live_...` followed by `_`) visible.
 // Order matters: list specific rules before more general ones. Langfuse
 // keys (`sk-lf-...`) would otherwise be eaten by the generic `sk-...`
 // rule and labeled as a generic OpenAI-style key.
@@ -174,17 +177,17 @@ const PHONE_AREA_CODE = /(?:\(\d{3}\)|\d{3})/;
 const PATTERNS: readonly SecretRedactionPattern[] = [
   // Langfuse public/secret keys (pk-lf- / sk-lf-). Must run before the
   // generic sk- rule so the more specific label wins.
-  { name: 'langfuse_key', regex: /\b(?:pk|sk)-lf-[A-Za-z0-9-]{16,}\b/g },
+  { name: 'langfuse_key', regex: /\b(?:pk|sk)-lf-[A-Za-z0-9-]{16,}/g },
 
   // Anthropic / OpenAI-style keys: 'sk-' + optional sub-prefix + base64-ish.
   // Both vendors plus a long tail of OpenAI-compatible providers (DeepSeek,
   // MiniMax, Together, etc.) ship keys in this shape, so a single rule
   // covers most "sk-..." secrets a user might paste into a prompt.
   // 16+: chat's user-text guard masked 16-character tails; one engine now serves both.
-  { name: 'sk_key', regex: /\bsk-(?:proj-|live-|test-|ant-)?[A-Za-z0-9_-]{16,}\b/g },
+  { name: 'sk_key', regex: /\bsk-(?:proj-|live-|test-|ant-)?[A-Za-z0-9_-]{16,}/g },
 
   // GitHub personal / OAuth / server / user-server / refresh tokens.
-  { name: 'github_token', regex: /\bgh[opsur]_[A-Za-z0-9]{36,}\b/g },
+  { name: 'github_token', regex: /\bgh[opsur]_[A-Za-z0-9]{36,}/g },
 
   // GitHub legacy 40-hex personal access tokens that ship with no prefix
   // are indistinguishable from a sha1 hash, so we don't try to match them
@@ -206,15 +209,15 @@ const PATTERNS: readonly SecretRedactionPattern[] = [
   // refused a token preceded by `-` (e.g. a URL path segment `/-xoxb-…`) and the entropy fallback below
   // exempts URLs, so without this rule such a token would reach storage and model history. Only drop
   // it once the shared rule covers that case: it does now, because \b sits between '-' and 'x'.
-  { name: 'slack_token', regex: /\bxox[abprs]-[0-9A-Za-z-]{10,}\b/g },
+  { name: 'slack_token', regex: /\bxox[abprs]-[0-9A-Za-z-]{10,}/g },
 
   // Stripe keys.
-  { name: 'stripe_key', regex: /\b(?:sk|pk|rk)_(?:live|test)_[0-9a-zA-Z]{16,}\b/g },
+  { name: 'stripe_key', regex: /\b(?:sk|pk|rk)_(?:live|test)_[0-9a-zA-Z]{16,}/g },
 
   // JSON Web Tokens. The "header.payload.signature" triple is distinctive
   // enough that false positives are rare (the literal "eyJ" prefix is the
   // base64 encoding of '{"' which is how every JOSE header starts).
-  { name: 'jwt', regex: /(?<!\w)(?<!(?<!\w)eyJ[A-Za-z0-9_-]*?)eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g },
+  { name: 'jwt', regex: /(?<!\w)(?<!(?<!\w)eyJ[A-Za-z0-9_-]*?)eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g },
 
   // Bearer tokens in HTTP Authorization header copy/paste. We only match
   // the value, not the literal 'Bearer ', so the marker stays readable in

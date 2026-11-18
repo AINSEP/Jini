@@ -29,7 +29,8 @@ describe('temporary AWS access key ids', () => {
   it('masks ASIA plus 16 capitals and digits', () => {
     expect(run('id ASIAABCDEFGHIJKLMNOP end')).toEqual({ redacted: 'id [REDACTED:aws_access_key] end', counts: { aws_access_key: 1 } });
   });
-  it.each(['ASIAABCDEFGHIJKLMNOPQ', 'ASIAABCDEFGHIJKLMNO', 'xASIAABCDEFGHIJKLMNOP', 'asiaabcdefghijklmnop'])('keeps %j', input => {
+  // Changed by redact.vendor-boundaries.test.ts: a key id glued to a lowercase word or `_` is masked, as the AKIA one is.
+  it.each(['ASIAABCDEFGHIJKLMNOPQ', 'ASIAABCDEFGHIJKLMNO', 'asiaabcdefghijklmnop'])('keeps %j', input => {
     expect(run(input)).toEqual({ redacted: input, counts: {} });
   });
 });
