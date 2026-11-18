@@ -19,6 +19,7 @@ export type {
 } from "./types.js";
 
 export type { EntryListPort } from "./list.js";
+export type { EntryPublishReadPort, TrashableEntryRecord } from "./publish-read-port.js";
 export { listEntries } from "./list.js";
 
 export type {
