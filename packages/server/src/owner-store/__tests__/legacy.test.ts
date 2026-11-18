@@ -74,7 +74,7 @@ test("reading a missing owner.db fails without creating it", async () => {
 
 test("a non-copyable row in the store is a recovery error", async () => {
   const store = await setup({ entries: [input] });
-  await putRaw(store, { ...input, kind: "mcp-env", meta: {}, ...ownerContext({ kind: "mcp-env", ownerKey: "plugin", binding: null }) });
+  await putRaw(store, { ...input, meta: {}, ...ownerContext({ kind: "mcp-env", ownerKey: "plugin", binding: null }) });
   await expect(readLegacyOwnerStore({ filePath: store.filePath, keyFilePath: store.keyFilePath, open })).rejects.toBeInstanceOf(OwnerStoreRecoveryError);
 });
 
