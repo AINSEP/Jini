@@ -55,7 +55,7 @@ async function readAccount(deps: ApiConnectionServiceDeps, accessToken: string):
 }
 
 async function currentRecord(deps: ApiConnectionServiceDeps, attempt: ApiConnectionAttempt): Promise<ApiConnectionRecord> {
-  const record = await deps.records.read({ key: attempt.key }) ?? blankRecord({ deps, requiredArgs: attempt });
+  const record = await deps.records.read({ key: attempt.key }) ?? blankRecord({ deps, ...attempt });
   // A reconnect, switch, disconnect or newer completed attempt moved the generation: this one is stale.
   if (record.generation !== attempt.generation) {
     throw new ApiConnectionError({ code: 'attempt-superseded',
@@ -71,10 +71,10 @@ async function currentRecord(deps: ApiConnectionServiceDeps, attempt: ApiConnect
 }
 
 /** The stored live tokens, or null when none are stored or they are unreadable to this host. */
-export async function loadReadableTokens({ deps, requiredArgs }: { deps: ApiConnectionServiceDeps; requiredArgs: { readonly key: string } }): Promise<OAuthTokenSet | null> {
+export async function loadReadableTokens({ deps, ...requiredArgs }: { deps: ApiConnectionServiceDeps } & { readonly key: string }, _optional: Record<string, never> = {}): Promise<OAuthTokenSet | null> {
   // A row sealed for another client (the host changed its OAuth client) has no usable refresh token.
   return deps.tokens.load({ key: requiredArgs.key }).catch((error: unknown) => {
-    if (isUnreadableTokenRecord(error)) return null;
+    if (isUnreadableTokenRecord({ error })) return null;
     throw error;
   });
 }
@@ -83,7 +83,7 @@ export async function loadReadableTokens({ deps, requiredArgs }: { deps: ApiConn
 async function keepRefreshToken(deps: ApiConnectionServiceDeps, record: ApiConnectionRecord, tokens: OAuthTokenSet,
   account: ApiConnectionAccount): Promise<OAuthTokenSet> {
   if (tokens.refreshToken !== null || record.account?.accountId !== account.accountId) return tokens;
-  const existing = await loadReadableTokens({ deps, requiredArgs: { key: record.key } });
+  const existing = await loadReadableTokens({ deps, key: record.key });
   return existing?.refreshToken ? { ...tokens, refreshToken: existing.refreshToken } : tokens;
 }
 
@@ -108,7 +108,7 @@ async function commitConnect(deps: ApiConnectionServiceDeps, record: ApiConnecti
   }
   const kept = await keepRefreshToken(deps, record, tokens, account);
   assertRenewable(kept);
-  await installCredential({ deps, requiredArgs: { current: record, tokens: kept, account, grantedScopes } });
+  await installCredential({ deps, current: record, tokens: kept, account, grantedScopes });
 }
 
 async function stageSwitch(deps: ApiConnectionServiceDeps, record: ApiConnectionRecord, attempt: ApiConnectionAttempt,
@@ -130,7 +130,8 @@ async function stageSwitch(deps: ApiConnectionServiceDeps, record: ApiConnection
 }
 
 export async function finishAuthorization(
-  { deps, requiredArgs }: { deps: ApiConnectionServiceDeps; requiredArgs: { readonly attempt: ApiConnectionAttempt; readonly tokens: OAuthTokenSet; readonly callbackFields: Readonly<Record<string, string>> } },
+  { deps, ...requiredArgs }: { deps: ApiConnectionServiceDeps } & { readonly attempt: ApiConnectionAttempt; readonly tokens: OAuthTokenSet; readonly callbackFields: Readonly<Record<string, string>> },
+  _optional: Record<string, never> = {},
 ): Promise<CompletedAuthorization> {
   const { attempt, tokens } = requiredArgs;
   const grantedScopes = grantedScopesOf(tokens, attempt.requestedScopes);

@@ -27,20 +27,20 @@ export interface OwnedRecordArgs { readonly connectionRef: string; readonly work
  * A service bound to one plugin connection must never act on another plugin's record, and a ref
  * from another workspace is refused here too, so a host cannot serve one by forgetting to check.
  */
-export function isOwnedRecord({ record, deps, workspaceId }: { record: ApiConnectionRecord; deps: Pick<RecordDeps, 'descriptor'>; workspaceId: string }): boolean {
+export function isOwnedRecord({ record, deps, workspaceId }: { record: ApiConnectionRecord; deps: Pick<RecordDeps, 'descriptor'>; workspaceId: string }, _optional: Record<string, never> = {}): boolean {
   return record.pluginId === deps.descriptor.pluginId && record.connectionId === deps.descriptor.connectionId
     && record.workspaceId === workspaceId;
 }
 
 /** Load a record owned by this service's plugin connection in `workspaceId`, or throw `connection-not-found`. */
-export async function loadOwnedRecord({ deps, requiredArgs }: { deps: RecordDeps; requiredArgs: OwnedRecordArgs }): Promise<ApiConnectionRecord> {
+export async function loadOwnedRecord({ deps, ...requiredArgs }: { deps: RecordDeps } & OwnedRecordArgs, _optional: Record<string, never> = {}): Promise<ApiConnectionRecord> {
   const record = await deps.records.read({ key: requiredArgs.connectionRef });
   if (record === null || !isOwnedRecord({ record, deps, workspaceId: requiredArgs.workspaceId })) throw connectionNotFound();
   return record;
 }
 
 /** Empty record for a first connect; revision 0 means "absent" to compare-and-set. */
-export function blankRecord({ deps, requiredArgs }: { deps: RecordDeps; requiredArgs: { readonly key: string; readonly workspaceId: string } }): ApiConnectionRecord {
+export function blankRecord({ deps, ...requiredArgs }: { deps: RecordDeps } & { readonly key: string; readonly workspaceId: string }, _optional: Record<string, never> = {}): ApiConnectionRecord {
   return {
     key: requiredArgs.key, workspaceId: requiredArgs.workspaceId,
     pluginId: deps.descriptor.pluginId, connectionId: deps.descriptor.connectionId,
@@ -50,7 +50,7 @@ export function blankRecord({ deps, requiredArgs }: { deps: RecordDeps; required
 }
 
 /** Apply `patch` iff nobody wrote since `current` was read; returns the stored record. */
-export async function writeRecord({ deps, current, patch }: { deps: RecordDeps; current: ApiConnectionRecord; patch: RecordPatch }): Promise<ApiConnectionRecord> {
+export async function writeRecord({ deps, current, patch }: { deps: RecordDeps; current: ApiConnectionRecord; patch: RecordPatch }, _optional: Record<string, never> = {}): Promise<ApiConnectionRecord> {
   const next: ApiConnectionRecord = { ...current, ...patch, revision: current.revision + 1, updatedAt: nowIso({ clock: deps.clock }) };
   const written = await deps.records.compareAndSet({ key: current.key, expectedRevision: current.revision, record: next });
   if (!written) {

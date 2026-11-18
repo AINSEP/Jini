@@ -15,22 +15,22 @@ const SCOPE_TOKEN = /^[\x21\x23-\x5b\x5d-\x7e]{1,512}$/;
 const MAX_CALLBACK_PARAMS = 64;
 const OAUTH_CALLBACK_NAMES = ['state', 'code', 'error'] as const;
 
-export function requestInvalid(detail: string): ApiConnectionError {
+export function requestInvalid({ detail }: { detail: string }, _optional: Record<string, never> = {}): ApiConnectionError {
   return new ApiConnectionError({
     code: 'request-invalid',
     message: `The connection request is invalid (${detail}). Start connecting again from the connection settings.`,
   });
 }
 
-export function assertId(required: { value: unknown; name: string }): asserts required is { value: string; name: string } {
-  if (typeof required.value !== 'string' || required.value === '' || required.value.length > MAX_ID_LENGTH) throw requestInvalid(required.name);
+export function assertId(required: { value: unknown; name: string }, _optional: Record<string, never> = {}): asserts required is { value: string; name: string } {
+  if (typeof required.value !== 'string' || required.value === '' || required.value.length > MAX_ID_LENGTH) throw requestInvalid({ detail: required.name });
 }
 
 /** Non-empty, de-duplicated scope list in RFC 6749 token syntax. */
-export function checkScopes(value: unknown): readonly string[] {
+export function checkScopes({ value }: { value: unknown }, _optional: Record<string, never> = {}): readonly string[] {
   if (!Array.isArray(value) || value.length === 0 || value.length > MAX_SCOPES
     || !value.every(scope => typeof scope === 'string' && SCOPE_TOKEN.test(scope))) {
-    throw requestInvalid('the plugin resolved no valid scope set');
+    throw requestInvalid({ detail: 'the plugin resolved no valid scope set' });
   }
   return [...new Set(value as string[])];
 }
@@ -38,21 +38,22 @@ export function checkScopes(value: unknown): readonly string[] {
 /** Keep only allowlisted names; refuse a declared value over its limit rather than truncate it. */
 export function pickBoundedFields(
   { fields, values, where }: { fields: readonly ApiConnectionBoundedField[]; values: Readonly<Record<string, string>>; where: string },
+  _optional: Record<string, never> = {},
 ): Record<string, string> {
   const picked: Record<string, string> = {};
   for (const field of fields) {
     const value = values[field.name];
     if (value === undefined) continue;
-    if (typeof value !== 'string' || value.length > field.maxLength) throw requestInvalid(`${where} '${field.name}' is too large`);
+    if (typeof value !== 'string' || value.length > field.maxLength) throw requestInvalid({ detail: `${where} '${field.name}' is too large` });
     picked[field.name] = value;
   }
   return picked;
 }
 
 /** Every name a caller passes must be declared; silently ignoring one would hide a plugin bug. */
-export function checkStartParams({ fields, values }: { fields: readonly ApiConnectionBoundedField[]; values: Readonly<Record<string, string>> }): Record<string, string> {
+export function checkStartParams({ fields, values }: { fields: readonly ApiConnectionBoundedField[]; values: Readonly<Record<string, string>> }, _optional: Record<string, never> = {}): Record<string, string> {
   const unknown = Object.keys(values).find(name => !fields.some(field => field.name === name));
-  if (unknown !== undefined) throw requestInvalid(`start parameter '${unknown}' is not declared by the plugin`);
+  if (unknown !== undefined) throw requestInvalid({ detail: `start parameter '${unknown}' is not declared by the plugin` });
   return pickBoundedFields({ fields, values, where: 'start parameter' });
 }
 
@@ -63,11 +64,11 @@ export interface CheckedCallback {
 }
 
 /** Bound the raw callback before anything is consumed; OAuth names are validated by the core. */
-export function checkCallbackParams({ value, limits }: { value: Readonly<Record<string, string>>; limits: { readonly maxAuthorizationStateLength: number; readonly maxCallbackFieldLength: number } }): CheckedCallback {
+export function checkCallbackParams({ value, limits }: { value: Readonly<Record<string, string>>; limits: { readonly maxAuthorizationStateLength: number; readonly maxCallbackFieldLength: number } }, _optional: Record<string, never> = {}): CheckedCallback {
   const entries = Object.entries(value);
   if (entries.length > MAX_CALLBACK_PARAMS
     || !entries.every(([, raw]) => typeof raw === 'string' && raw.length <= Math.max(limits.maxCallbackFieldLength, limits.maxAuthorizationStateLength))) {
-    throw requestInvalid('the callback carried too many or oversized fields');
+    throw requestInvalid({ detail: 'the callback carried too many or oversized fields' });
   }
   const checked: Record<string, string> = {};
   for (const name of OAUTH_CALLBACK_NAMES) if (typeof value[name] === 'string') checked[name] = value[name];

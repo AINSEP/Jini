@@ -108,7 +108,7 @@ function routeKeyFor(surface: MediaSurface, audioKind: AudioKind | undefined): s
  * directly-testable pure function" pattern `context.ts`'s
  * `buildRenderContext` already established for the same reason.
  */
-export function lookupRoute({ routes, providerId, routeKey }: { routes: Readonly<Record<string, Readonly<Record<string, Renderer>>>>; providerId: string; routeKey: string }): Renderer | undefined {
+export function lookupRoute({ routes, providerId, routeKey }: { routes: Readonly<Record<string, Readonly<Record<string, Renderer>>>>; providerId: string; routeKey: string }, _optional: Record<string, never> = {}): Renderer | undefined {
   return routes[providerId]?.[routeKey];
 }
 

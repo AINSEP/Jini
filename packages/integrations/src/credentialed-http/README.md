@@ -23,7 +23,7 @@ and credential stripping on cross-origin redirects; this module checks the initi
 The registry adapter owns trust, duplicate rules across contributions, and filesystem loading.
 Self-describing schemes win over Basic; Basic wins over Bearer.
 
-`probeCredentialConnection({ connection, url, schemes }, { httpClient })` performs one GET and
+`probeCredentialConnection({ connection, url, schemes, httpClient })` performs one GET and
 returns only `"ok"` (2xx), `"refused"` (401/403), or `"unavailable"` (transport failure or other
 HTTP status). It sends no body, refuses redirects, and imposes a 10-second timeout and total
 deadline. An explicit `method` is accepted only when it is `"GET"`; other methods and malformed

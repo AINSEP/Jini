@@ -114,7 +114,7 @@ export interface MediaTaskStore {
 function reconcileTasks(
   { tasks, options }: { tasks: Map<string, MediaTask>; options: MediaTaskReconcileOptions },
 ): MediaTaskReconcileResult {
-  assertValidTerminalTtl(options.terminalTtlMs);
+  assertValidTerminalTtl({ terminalTtlMs: options.terminalTtlMs });
   const now = options.now ?? Date.now();
   const cutoff = now - options.terminalTtlMs;
   let interrupted = 0;

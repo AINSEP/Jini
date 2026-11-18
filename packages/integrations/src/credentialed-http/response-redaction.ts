@@ -21,7 +21,7 @@ const BODY_WITHHELD_SHORT_TOKEN_MARKER = "[body withheld: credential too short t
 
 // Match secrets embedded in diagnostic header values too, not just values equal to a full secret.
 // Whole-header removal has no partial-mangling failure mode and therefore applies at any length.
-export function redactResponseHeaders({ headers, secrets }: { headers: Readonly<Record<string, string>>; secrets: readonly string[] }): Record<string, string> {
+export function redactResponseHeaders({ headers, secrets }: { headers: Readonly<Record<string, string>>; secrets: readonly string[] }, _optional: Record<string, never> = {}): Record<string, string> {
   const result: Record<string, string> = {};
   for (const [key, value] of Object.entries(headers)) {
     const forbidden = FORBIDDEN_RESPONSE_HEADER_NAMES.has(key.trim().toLowerCase());
@@ -33,7 +33,7 @@ export function redactResponseHeaders({ headers, secrets }: { headers: Readonly<
 
 // Reflecting responses must not send injected credentials back through the model; retain all other
 // provider text instead of replacing the provider's answer with an authentication diagnosis.
-export function redactSecretSubstrings({ text, secrets }: { text: string; secrets: readonly string[] }): string {
+export function redactSecretSubstrings({ text, secrets }: { text: string; secrets: readonly string[] }, _optional: Record<string, never> = {}): string {
   return secrets.reduce((acc, secret) => (secret === "" ? acc : acc.split(secret).join(REDACTED_MARKER)), text);
 }
 
@@ -44,7 +44,7 @@ const MIN_SAFE_TRUNCATED_TAIL_PREFIX_LENGTH = 4;
 // A size cap can cut a reflected secret mid-token, so whole-secret replacement alone leaks its
 // prefix. Use the longest matching suffix across all secrets to remove the whole fragment; only
 // truncated bodies qualify, since matching complete bodies could remove innocent trailing text.
-export function redactTruncatedTail({ body, secrets }: { body: string; secrets: readonly string[] }): string {
+export function redactTruncatedTail({ body, secrets }: { body: string; secrets: readonly string[] }, _optional: Record<string, never> = {}): string {
   let longestMatch = 0;
   for (const secret of secrets) {
     for (let len = Math.min(secret.length, body.length); len >= MIN_SAFE_TRUNCATED_TAIL_PREFIX_LENGTH; len--) {
@@ -59,7 +59,7 @@ export function redactTruncatedTail({ body, secrets }: { body: string; secrets: 
 
 // Gate on the raw token: a scheme-prefixed header is longer and cannot make a short token safe.
 // The second pass is conditional because a complete response has no cap-cut fragment to repair.
-export function resolveRedactedResponseBody({ bodyText, token, secrets, bodyTruncated }: { bodyText: string; token: string; secrets: readonly string[]; bodyTruncated: boolean }): string {
+export function resolveRedactedResponseBody({ bodyText, token, secrets, bodyTruncated }: { bodyText: string; token: string; secrets: readonly string[]; bodyTruncated: boolean }, _optional: Record<string, never> = {}): string {
   if (token.length < MIN_SAFE_BODY_REDACTION_TOKEN_LENGTH) return BODY_WITHHELD_SHORT_TOKEN_MARKER;
   const redacted = redactSecretSubstrings({ text: bodyText, secrets });
   return bodyTruncated ? redactTruncatedTail({ body: redacted, secrets }) : redacted;

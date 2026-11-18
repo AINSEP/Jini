@@ -274,7 +274,7 @@ export async function createSqliteMediaTaskStore(
     },
 
     async reconcileOnBoot(options: MediaTaskReconcileOptions): Promise<MediaTaskReconcileResult> {
-      assertValidTerminalTtl(options.terminalTtlMs);
+      assertValidTerminalTtl({ terminalTtlMs: options.terminalTtlMs });
       return reconcileTxn(options);
     },
 

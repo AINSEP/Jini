@@ -319,7 +319,7 @@ function cloneRecord(row: AsyncOperationRecord): AsyncOperationRecord {
 }
 
 /** Exported for the same reason as `TERMINAL_STATUSES` — see its doc. */
-export function assertTransition({ from, to }: { from: AsyncOperationStatus; to: AsyncOperationStatus }): void {
+export function assertTransition({ from, to }: { from: AsyncOperationStatus; to: AsyncOperationStatus }, _optional: Record<string, never> = {}): void {
   if (!ALLOWED_TRANSITIONS[from]) {
     throw new RangeError(`Invalid async operation status: "${from}"`);
   }
@@ -372,7 +372,7 @@ function patchedNullable<K extends NullablePatchKey>(
  * @throws `Error` for credential material; `RangeError` for an illegal transition.
  */
 export function mergeAsyncOperationPatch(
-  { existing, patch, now }: { existing: AsyncOperationRecord; patch: AsyncOperationPatch; now: number },
+  { existing, patch, now }: { existing: AsyncOperationRecord; patch: AsyncOperationPatch; now: number }, _optional: Record<string, never> = {},
 ): AsyncOperationRecord {
   if ('state' in patch) assertNoCredentialMaterial({ state: patch.state });
   const status = patch.status ?? existing.status;

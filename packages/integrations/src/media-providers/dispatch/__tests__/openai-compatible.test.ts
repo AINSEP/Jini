@@ -106,33 +106,33 @@ describe('sniffImageExt', () => {
 
 describe('resolveSpeechFormat', () => {
   it('defaults to mp3 when undefined', () => {
-    expect(resolveSpeechFormat(undefined)).toBe('mp3');
+    expect(resolveSpeechFormat({ requested: undefined })).toBe('mp3');
   });
 
   it('passes through a recognized format', () => {
-    expect(resolveSpeechFormat('wav')).toBe('wav');
-    expect(resolveSpeechFormat('opus')).toBe('opus');
+    expect(resolveSpeechFormat({ requested: 'wav' })).toBe('wav');
+    expect(resolveSpeechFormat({ requested: 'opus' })).toBe('opus');
   });
 });
 
 describe('detectAzureEndpoint', () => {
   it('detects *.azure.com hosts', () => {
-    expect(detectAzureEndpoint('https://x.cognitiveservices.azure.com/openai/deployments/gpt-image-2')).toBe(true);
-    expect(detectAzureEndpoint('https://x.openai.azure.com/openai/deployments/foo')).toBe(true);
+    expect(detectAzureEndpoint({ baseUrl: 'https://x.cognitiveservices.azure.com/openai/deployments/gpt-image-2' })).toBe(true);
+    expect(detectAzureEndpoint({ baseUrl: 'https://x.openai.azure.com/openai/deployments/foo' })).toBe(true);
   });
 
   it('detects /openai/deployments/ path segments regardless of host', () => {
-    expect(detectAzureEndpoint('/openai/deployments/foo?api-version=2024-02-01')).toBe(true);
+    expect(detectAzureEndpoint({ baseUrl: '/openai/deployments/foo?api-version=2024-02-01' })).toBe(true);
   });
 
   it('returns false for the standard OpenAI endpoint and local URLs', () => {
-    expect(detectAzureEndpoint('https://api.openai.com/v1')).toBe(false);
-    expect(detectAzureEndpoint('http://localhost:8080/v1')).toBe(false);
+    expect(detectAzureEndpoint({ baseUrl: 'https://api.openai.com/v1' })).toBe(false);
+    expect(detectAzureEndpoint({ baseUrl: 'http://localhost:8080/v1' })).toBe(false);
   });
 
   it('returns false for non-string/empty input', () => {
-    expect(detectAzureEndpoint('')).toBe(false);
-    expect(detectAzureEndpoint(undefined as unknown as string)).toBe(false);
+    expect(detectAzureEndpoint({ baseUrl: '' })).toBe(false);
+    expect(detectAzureEndpoint({ baseUrl: undefined as unknown as string })).toBe(false);
   });
 });
 
@@ -219,15 +219,15 @@ describe('buildOpenAICompatibleGenerationUrl / buildOpenAIImageUrl / buildOpenAI
   });
 
   it('builds the images/edits URL', () => {
-    expect(buildOpenAIImageEditUrl('https://api.openai.com/v1')).toBe('https://api.openai.com/v1/images/edits');
+    expect(buildOpenAIImageEditUrl({ baseUrl: 'https://api.openai.com/v1' })).toBe('https://api.openai.com/v1/images/edits');
   });
 
   it('buildOpenAIImageEditUrl falls back to naive concat on an unparseable base URL', () => {
-    expect(buildOpenAIImageEditUrl('not a url')).toBe('not a url/images/edits');
+    expect(buildOpenAIImageEditUrl({ baseUrl: 'not a url' })).toBe('not a url/images/edits');
   });
 
   it('builds the videos/generations URL', () => {
-    expect(buildOpenAIVideoUrl('https://api.imagerouter.io/v1/openai')).toBe('https://api.imagerouter.io/v1/openai/videos/generations');
+    expect(buildOpenAIVideoUrl({ baseUrl: 'https://api.imagerouter.io/v1/openai' })).toBe('https://api.imagerouter.io/v1/openai/videos/generations');
   });
 });
 

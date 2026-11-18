@@ -36,7 +36,8 @@ export function toStatusView(record: ApiConnectionRecord): ApiConnectionStatusVi
  * @complexity One record read and, only for a connected record, one token-store load; no HTTP.
  */
 export async function getApiConnectionStatus(
-  { deps, requiredArgs }: { deps: Pick<ApiConnectionServiceDeps, 'records' | 'descriptor' | 'tokens'>; requiredArgs: OwnedRecordArgs },
+  { deps, ...requiredArgs }: { deps: Pick<ApiConnectionServiceDeps, 'records' | 'descriptor' | 'tokens'> } & OwnedRecordArgs,
+  _optional: Record<string, never> = {},
 ): Promise<ApiConnectionStatusView> {
   const record = await deps.records.read({ key: requiredArgs.connectionRef });
   if (record === null) {
@@ -46,7 +47,7 @@ export async function getApiConnectionStatus(
   if (!isOwnedRecord({ record, deps, workspaceId: requiredArgs.workspaceId })) throw connectionNotFound();
   if (record.status === 'connected') {
     const tokens = await deps.tokens.load({ key: record.key }).catch((error: unknown) => {
-      if (isUnreadableTokenRecord(error)) return null;
+      if (isUnreadableTokenRecord({ error })) return null;
       throw error;
     });
     if (tokens === null) return toStatusView({ ...record, status: 'reconnect-required' });

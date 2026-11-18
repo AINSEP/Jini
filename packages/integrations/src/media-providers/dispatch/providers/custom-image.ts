@@ -67,7 +67,7 @@ const customImageAdapter: VendorAdapter<CustomImageMeta> = {
     if (ctx.imageRef?.dataUrl) {
       body.response_format = 'b64_json';
       body.images = [{ image_url: ctx.imageRef.dataUrl }];
-      url = buildOpenAIImageEditUrl(baseUrl);
+      url = buildOpenAIImageEditUrl({ baseUrl });
     }
 
     return {

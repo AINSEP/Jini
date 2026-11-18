@@ -10,7 +10,7 @@ import { completeApiConnectionAuthorization, startApiConnectionAuthorization } f
 import { assertClientWiring, type ApiConnectionServiceDeps } from './deps.js';
 import { getApiConnectionStatus } from './status.js';
 
-type Bound<F> = F extends (required: { deps: ApiConnectionServiceDeps; requiredArgs: infer A }, ...rest: infer O) => infer R ? (requiredArgs: A, ...rest: O) => R : never;
+type Bound<F> = F extends (required: infer A, ...rest: infer O) => infer R ? (requiredArgs: Omit<A, 'deps'>, ...rest: O) => R : never;
 
 export interface ApiConnectionService {
   readonly start: Bound<typeof startApiConnectionAuthorization>;
@@ -27,12 +27,12 @@ export function createApiConnectionService(deps: ApiConnectionServiceDeps): ApiC
   assertClientWiring(deps);
   const accessTokens = createApiConnectionAccessTokens(deps);
   return {
-    start: (requiredArgs, optionalArgs) => startApiConnectionAuthorization({ deps, requiredArgs }, optionalArgs),
-    complete: (requiredArgs) => completeApiConnectionAuthorization({ deps, requiredArgs }),
-    confirmSwitchAccount: (requiredArgs) => confirmSwitchAccount({ deps, requiredArgs }),
-    cancelSwitchAccount: (requiredArgs) => cancelSwitchAccount({ deps, requiredArgs }),
-    disconnect: (requiredArgs) => disconnectApiConnection({ deps, requiredArgs }),
-    getStatus: (requiredArgs) => getApiConnectionStatus({ deps, requiredArgs }),
+    start: (requiredArgs, optionalArgs) => startApiConnectionAuthorization({ deps, ...requiredArgs }, optionalArgs),
+    complete: (requiredArgs) => completeApiConnectionAuthorization({ deps, ...requiredArgs }),
+    confirmSwitchAccount: (requiredArgs) => confirmSwitchAccount({ deps, ...requiredArgs }),
+    cancelSwitchAccount: (requiredArgs) => cancelSwitchAccount({ deps, ...requiredArgs }),
+    disconnect: (requiredArgs) => disconnectApiConnection({ deps, ...requiredArgs }),
+    getStatus: (requiredArgs) => getApiConnectionStatus({ deps, ...requiredArgs }),
     getAccessToken: (...args) => accessTokens.getAccessToken(...args),
   };
 }

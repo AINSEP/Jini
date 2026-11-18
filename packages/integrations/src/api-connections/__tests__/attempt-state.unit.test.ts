@@ -25,32 +25,32 @@ async function caught(promise: Promise<unknown>): Promise<unknown> {
 function opener(deps = unitDeps(), browserBinding: unknown = BROWSER_BINDING) {
   const opened: ApiConnectionAttempt[] = [];
   // Malformed input on purpose when a test passes a non-string: hosts read it from an untyped cookie jar.
-  return { deps, opened, adapter: attemptOpener({ deps, requiredArgs: { browserBinding: browserBinding as string,
-    onOpen: ({ attempt: value }) => { opened.push(value); } } }) };
+  return { deps, opened, adapter: attemptOpener({ deps, browserBinding: browserBinding as string,
+    onOpen: ({ attempt: value }) => { opened.push(value); } }) };
 }
 
 describe('attemptSealer', () => {
   it('stores the attempt with the verifier, callback URI and a ten-minute lifetime', async () => {
     const deps = unitDeps();
-    const pending = await attemptSealer({ deps, requiredArgs: { draft: draft() } }).seal({ entry: ENTRY });
+    const pending = await attemptSealer({ deps, draft: draft() }).seal({ entry: ENTRY });
     const stored = deps.records.attempts.get(pending.state);
     expect(stored).toMatchObject({ codeVerifier: 'verifier-1', redirectUri: ENTRY.redirectUri, createdAt: '2026-10-20T10:00:00.000Z',
       expiresAt: new Date(Date.parse('2026-10-20T10:00:00.000Z') + ATTEMPT_TTL_MS).toISOString() });
   });
 
   it('returns the pending entry for the core with the requested scopes and provider id', async () => {
-    const pending = await attemptSealer({ deps: unitDeps(), requiredArgs: { draft: draft() } }).seal({ entry: ENTRY });
+    const pending = await attemptSealer({ deps: unitDeps(), draft: draft() }).seal({ entry: ENTRY });
     expect([pending.providerId, pending.scopes, pending.ownerKey]).toEqual([PROVIDER_ID, ['acme.files'], draft().ownerKey]);
   });
 
   it('uses fresh state for every attempt', async () => {
-    const sealer = attemptSealer({ deps: unitDeps(), requiredArgs: { draft: draft() } });
+    const sealer = attemptSealer({ deps: unitDeps(), draft: draft() });
     const [first, second] = [await sealer.seal({ entry: ENTRY }), await sealer.seal({ entry: ENTRY })];
     expect(first.state).not.toBe(second.state);
   });
 
   it('refuses to open state (the core changed its contract)', async () => {
-    const error = await caught(attemptSealer({ deps: unitDeps(), requiredArgs: { draft: draft() } }).open({ state: 's', ownerKey: 'o', providerId: PROVIDER_ID,
+    const error = await caught(attemptSealer({ deps: unitDeps(), draft: draft() }).open({ state: 's', ownerKey: 'o', providerId: PROVIDER_ID,
       redirectUri: ENTRY.redirectUri }));
     expect(error instanceof OAuthError && error.code).toBe('OAUTH_INVALID_STATE');
   });
@@ -58,10 +58,10 @@ describe('attemptSealer', () => {
 
 describe('hashBrowserBinding', () => {
   it('is the base64url SHA-256 of the binding', () => {
-    expect(hashBrowserBinding('abc')).toBe('ungWv48Bz-pBQUDeXa4iI7ADYaOWF3qctBD_YfIAFa0');
+    expect(hashBrowserBinding({ value: 'abc' })).toBe('ungWv48Bz-pBQUDeXa4iI7ADYaOWF3qctBD_YfIAFa0');
   });
   it('hashes a non-string as the empty string', () => {
-    expect(hashBrowserBinding(undefined)).toBe(hashBrowserBinding(''));
+    expect(hashBrowserBinding({ value: undefined })).toBe(hashBrowserBinding({ value: '' }));
   });
 });
 

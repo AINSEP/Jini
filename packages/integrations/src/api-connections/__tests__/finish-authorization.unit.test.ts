@@ -19,7 +19,7 @@ async function refusal(promise: Promise<unknown>): Promise<ApiConnectionError> {
 }
 
 const finish = (deps: UnitDeps, over: Parameters<typeof attempt>[0] = {}, set = tokens('new')) =>
-  finishAuthorization({ deps, requiredArgs: { attempt: attempt(over), tokens: set, callbackFields: { picked: 'file-1' } } });
+  finishAuthorization({ deps, attempt: attempt(over), tokens: set, callbackFields: { picked: 'file-1' } });
 
 /** Hooks whose identity answer is a value a misbehaving plugin could return. */
 function hooksAnswering(account: unknown) {

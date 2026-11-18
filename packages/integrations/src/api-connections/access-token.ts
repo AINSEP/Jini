@@ -58,7 +58,7 @@ async function markReconnectRequired(deps: ApiConnectionServiceDeps, key: string
 async function assertUnchangedSince(deps: ApiConnectionServiceDeps, requiredArgs: OwnedRecordArgs & {
   readonly checked: ApiConnectionRecord; readonly expectedAccountId: string | undefined;
 }): Promise<void> {
-  const current = await loadOwnedRecord({ deps, requiredArgs });
+  const current = await loadOwnedRecord({ deps, ...requiredArgs });
   assertServable(current, requiredArgs.expectedAccountId);
   if (current.generation !== requiredArgs.checked.generation) {
     throw new ApiConnectionError({ code: 'storage-conflict',
@@ -87,10 +87,10 @@ export function createApiConnectionAccessTokens(deps: ApiConnectionServiceDeps):
   return {
     async getAccessToken(requiredArgs, optionalArgs = {}) {
       const { expectedAccountId } = optionalArgs;
-      const record = await loadOwnedRecord({ deps, requiredArgs });
+      const record = await loadOwnedRecord({ deps, ...requiredArgs });
       assertServable(record, expectedAccountId);
       const accessToken = await refresher.getAccessToken({ key: record.key }).catch(async (error: unknown) => {
-        if (isUnreadableTokenRecord(error)) {
+        if (isUnreadableTokenRecord({ error })) {
           await markReconnectRequired(deps, record.key, { expectedGeneration: record.generation });
           throw new ApiConnectionError(REFUSALS['reconnect-required'], { cause: error });
         }

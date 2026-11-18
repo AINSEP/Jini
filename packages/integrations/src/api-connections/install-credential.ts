@@ -13,12 +13,13 @@ import { writeRecord } from './records.js';
 import type { ApiConnectionAccount, ApiConnectionRecord } from './types.js';
 
 export async function installCredential(
-  { deps, requiredArgs }: { deps: Pick<ApiConnectionServiceDeps, 'records' | 'tokens' | 'clock' | 'descriptor'>; requiredArgs: {
+  { deps, ...requiredArgs }: { deps: Pick<ApiConnectionServiceDeps, 'records' | 'tokens' | 'clock' | 'descriptor'> } & {
     readonly current: ApiConnectionRecord;
     readonly tokens: OAuthTokenSet;
     readonly account: ApiConnectionAccount;
     readonly grantedScopes: readonly string[];
-  } },
+  },
+  _optional: Record<string, never> = {},
 ): Promise<ApiConnectionRecord> {
   const fenced = await writeRecord({ deps, current: requiredArgs.current, patch: {
     status: 'reconnect-required', generation: requiredArgs.current.generation + 1, staged: null,

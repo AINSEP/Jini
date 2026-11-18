@@ -32,7 +32,7 @@ describe('writeRecord', () => {
 
   it('creates a first record from the blank record (revision 0 means absent)', async () => {
     const deps = unitDeps();
-    const written = await writeRecord({ deps, current: blankRecord({ deps, requiredArgs: { key: KEY, workspaceId: 'ws-1' } }), patch: { status: 'reconnect-required' } });
+    const written = await writeRecord({ deps, current: blankRecord({ deps, key: KEY, workspaceId: 'ws-1' }), patch: { status: 'reconnect-required' } });
     expect([written.revision, written.pluginId, written.connectionId]).toEqual([1, 'acme-office', 'account']);
   });
 });
@@ -41,16 +41,16 @@ describe('loadOwnedRecord', () => {
   it('loads a record of this plugin connection in the caller workspace', async () => {
     const deps = unitDeps();
     await seedRecord(deps, connectedRecord());
-    expect((await loadOwnedRecord({ deps, requiredArgs: { connectionRef: KEY, workspaceId: 'ws-1' } })).key).toBe(KEY);
+    expect((await loadOwnedRecord({ deps, connectionRef: KEY, workspaceId: 'ws-1' })).key).toBe(KEY);
   });
 
   it('refuses a record of another connection id of the same plugin', async () => {
     const deps = unitDeps();
     await seedRecord(deps, connectedRecord({ connectionId: 'other' }));
-    expect(await caught(loadOwnedRecord({ deps, requiredArgs: { connectionRef: KEY, workspaceId: 'ws-1' } }))).toMatchObject({ code: 'connection-not-found' });
+    expect(await caught(loadOwnedRecord({ deps, connectionRef: KEY, workspaceId: 'ws-1' }))).toMatchObject({ code: 'connection-not-found' });
   });
 
   it('refuses a ref with no record', async () => {
-    expect(await caught(loadOwnedRecord({ deps: unitDeps(), requiredArgs: { connectionRef: KEY, workspaceId: 'ws-1' } }))).toMatchObject({ code: 'connection-not-found' });
+    expect(await caught(loadOwnedRecord({ deps: unitDeps(), connectionRef: KEY, workspaceId: 'ws-1' }))).toMatchObject({ code: 'connection-not-found' });
   });
 });

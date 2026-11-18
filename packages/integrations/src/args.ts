@@ -5,7 +5,7 @@ export type RequiredArgs<T> = Pick<T, {
 export type OptionalArgs<T> = Pick<T, Exclude<keyof T, keyof RequiredArgs<T>>>;
 
 /** Package-local composition helper; public APIs expose the two records directly. */
-export function partitionArgs<T extends object, K extends keyof T>({ value, requiredKeys }: { value: T; requiredKeys: readonly K[] }): [Pick<T, K>, Omit<T, K>] {
+export function partitionArgs<T extends object, K extends keyof T>({ value, requiredKeys }: { value: T; requiredKeys: readonly K[] }, _optional: Record<string, never> = {}): [Pick<T, K>, Omit<T, K>] {
   const required: Partial<T> = {};
   const optional: Partial<T> = {};
   for (const key of Object.keys(value) as (keyof T)[]) {

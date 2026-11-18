@@ -91,7 +91,7 @@ interface OpenAITarget {
 function resolveOpenAITarget({ credentials }: { credentials: ProviderCredentials }): OpenAITarget {
   const apiKey = credentials.apiKey!; // requireCredential already validated this.
   const rawBase = credentials.baseUrl || OPENAI_DEFAULT_BASE_URL;
-  const azure = detectAzureEndpoint(rawBase);
+  const azure = detectAzureEndpoint({ baseUrl: rawBase });
   const headers: Record<string, string> = {
     authorization: `Bearer ${apiKey}`,
     'content-type': 'application/json',

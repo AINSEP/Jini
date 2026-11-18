@@ -17,7 +17,7 @@ const VALID_SPEECH_FORMATS: ReadonlySet<MediaSpeechFormat> = new Set(['mp3', 'wa
 export const OPENAI_TTS_VOICES: ReadonlySet<string> = new Set(['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer', 'verse']);
 
 /** Validates a caller-requested speech format, defaulting to `'mp3'` for anything unrecognized. */
-export function resolveSpeechFormat(requested: MediaSpeechFormat | undefined): MediaSpeechFormat {
+export function resolveSpeechFormat({ requested }: { requested: MediaSpeechFormat | undefined }, _optional: Record<string, never> = {}): MediaSpeechFormat {
   return requested && VALID_SPEECH_FORMATS.has(requested) ? requested : 'mp3';
 }
 
@@ -45,7 +45,7 @@ export function standardImageAspectFor(
 }
 
 /** Truncates a string for inclusion in an error message, appending an ellipsis when truncated. */
-export function truncate({ s, n }: { s: unknown; n: number }): string {
+export function truncate({ s, n }: { s: unknown; n: number }, _optional: Record<string, never> = {}): string {
   const v = String(s || '');
   if (v.length <= n) return v;
   return v.slice(0, n - 1) + '…';
@@ -113,7 +113,7 @@ export const AZURE_DEFAULT_API_VERSION = '2024-02-01';
  *     https://api.openai.com/v1
  *     http://localhost:8080/v1
  */
-export function detectAzureEndpoint(baseUrl: string): boolean {
+export function detectAzureEndpoint({ baseUrl }: { baseUrl: string }, _optional: Record<string, never> = {}): boolean {
   if (typeof baseUrl !== 'string' || !baseUrl) return false;
   if (/\.azure\.com\b/i.test(baseUrl)) return true;
   if (/\/openai\/deployments\//i.test(baseUrl)) return true;
@@ -123,6 +123,7 @@ export function detectAzureEndpoint(baseUrl: string): boolean {
 /** Rewrites a pathname to end in `/{endpoint}/generations` or (images only) `/images/edits`, preserving any other path prefix. */
 export function normalizeOpenAICompatiblePath(
   { pathname, endpoint, mode }: { pathname: string; endpoint: 'images' | 'videos'; mode: 'generations' | 'edits' },
+  _optional: Record<string, never> = {},
 ): string {
   const strippedPath = trimCharsEnd({ text: pathname, chars: '/' });
   const generationsSuffix = `/${endpoint}/generations`;
@@ -156,12 +157,12 @@ function applyDefaultAzureApiVersion(parsed: URL, isAzure: boolean): void {
 }
 
 /** Builds the full `/{endpoint}/generations` URL, preserving any user-supplied query string. */
-export function buildOpenAICompatibleGenerationUrl({ baseUrl, endpoint }: { baseUrl: string; endpoint: 'images' | 'videos' }): string {
+export function buildOpenAICompatibleGenerationUrl({ baseUrl, endpoint }: { baseUrl: string; endpoint: 'images' | 'videos' }, _optional: Record<string, never> = {}): string {
   return buildOpenAICompatibleUrl(baseUrl, endpoint, 'generations');
 }
 
 /** Builds the `/images/generations` URL, appending the default Azure `api-version` when the caller didn't supply one. */
-export function buildOpenAIImageUrl({ baseUrl, isAzure }: { baseUrl: string; isAzure: boolean }): string {
+export function buildOpenAIImageUrl({ baseUrl, isAzure }: { baseUrl: string; isAzure: boolean }, _optional: Record<string, never> = {}): string {
   const url = buildOpenAICompatibleGenerationUrl({ baseUrl, endpoint: 'images' });
   let parsed: URL;
   try {
@@ -176,12 +177,12 @@ export function buildOpenAIImageUrl({ baseUrl, isAzure }: { baseUrl: string; isA
 }
 
 /** Builds the `/images/edits` URL (used when a reference image is present). */
-export function buildOpenAIImageEditUrl(baseUrl: string): string {
+export function buildOpenAIImageEditUrl({ baseUrl }: { baseUrl: string }, _optional: Record<string, never> = {}): string {
   return buildOpenAICompatibleUrl(baseUrl, 'images', 'edits');
 }
 
 /** Builds the `/videos/generations` URL. */
-export function buildOpenAIVideoUrl(baseUrl: string): string {
+export function buildOpenAIVideoUrl({ baseUrl }: { baseUrl: string }, _optional: Record<string, never> = {}): string {
   return buildOpenAICompatibleGenerationUrl({ baseUrl, endpoint: 'videos' });
 }
 
@@ -213,7 +214,7 @@ export function openaiSizeFor({ model }: { model: string }, { aspect }: { aspect
 }
 
 /** Builds the `/audio/speech` URL, appending the default Azure `api-version` when the caller didn't supply one. */
-export function buildOpenAISpeechUrl({ baseUrl, isAzure }: { baseUrl: string; isAzure: boolean }): string {
+export function buildOpenAISpeechUrl({ baseUrl, isAzure }: { baseUrl: string; isAzure: boolean }, _optional: Record<string, never> = {}): string {
   let parsed: URL;
   try {
     parsed = new URL(baseUrl);
@@ -227,7 +228,7 @@ export function buildOpenAISpeechUrl({ baseUrl, isAzure }: { baseUrl: string; is
 }
 
 /** Parses an OpenAI-compatible JSON response, throwing a clear, provider-tagged error on a non-OK status or non-JSON body. */
-export async function parseOpenAICompatibleJson({ resp, providerTag }: { resp: Response; providerTag: string }): Promise<unknown> {
+export async function parseOpenAICompatibleJson({ resp, providerTag }: { resp: Response; providerTag: string }, _optional: Record<string, never> = {}): Promise<unknown> {
   const text = await resp.text();
   if (!resp.ok) {
     throw new Error(`${providerTag} ${resp.status}: ${truncate({ s: text, n: 240 })}`);

@@ -38,6 +38,6 @@ export class OAuthTokenStoreError extends IntegrationError {
 /** True for a stored row this owner cannot open (sealed for another client id, or malformed). Only
  * a new sign-in can replace such a row, so callers treat it as "no usable credential" instead of
  * failing for good. Other store failures (vault outages, conflicts) are not this. */
-export function isUnreadableTokenRecord(error: unknown): boolean {
+export function isUnreadableTokenRecord({ error }: { error: unknown }, _optional: Record<string, never> = {}): boolean {
   return error instanceof OAuthTokenStoreError && (error.code === "owner-mismatch" || error.code === "invalid-record");
 }

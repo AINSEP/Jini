@@ -78,7 +78,7 @@ function stagedSwitchUsable(record: ApiConnectionRecord, actorId: string, nowMs:
  */
 async function revokeStoredCredential(deps: Pick<ApiConnectionDisconnectDeps, 'tokens' | 'hooks'>, key: string): Promise<RevocationResult> {
   const tokens = await deps.tokens.loadForRevocation({ key }).catch((error: unknown) => {
-    if (isUnreadableTokenRecord(error)) return 'unreadable' as const;
+    if (isUnreadableTokenRecord({ error })) return 'unreadable' as const;
     throw error;
   });
   // Nothing can ever revoke with an unreadable row; keeping it would block every later sign-in.
@@ -110,15 +110,16 @@ function firstFailure(results: readonly RevocationResult[]): ApiConnectionRevoca
 }
 
 export async function confirmSwitchAccount(
-  { deps, requiredArgs }: { deps: ApiConnectionServiceDeps; requiredArgs: OwnedRecordArgs & { readonly actorId: string } },
+  { deps, ...requiredArgs }: { deps: ApiConnectionServiceDeps } & OwnedRecordArgs & { readonly actorId: string },
+  _optional: Record<string, never> = {},
 ): Promise<ApiConnectionSwitchResult> {
-  const record = await loadOwnedRecord({ deps, requiredArgs });
+  const record = await loadOwnedRecord({ deps, ...requiredArgs });
   if (!stagedSwitchUsable(record, requiredArgs.actorId, deps.clock.nowMs())) throw switchNotStaged();
   const stagedKey = stagedTokenKey({ key: record.key });
   const tokens = await deps.tokens.load({ key: stagedKey });
   if (tokens === null) throw switchNotStaged();
   const staged = record.staged!;
-  const updated = await installCredential({ deps, requiredArgs: { current: record, tokens, account: staged.account, grantedScopes: staged.grantedScopes } });
+  const updated = await installCredential({ deps, current: record, tokens, account: staged.account, grantedScopes: staged.grantedScopes });
   await deps.tokens.delete({ key: stagedKey });
   return toStatusView(updated);
 }
@@ -128,9 +129,10 @@ export async function confirmSwitchAccount(
  * provider does not confirm, the switch stays staged (still confirmable) and cancelling again retries.
  */
 export async function cancelSwitchAccount(
-  { deps, requiredArgs }: { deps: ApiConnectionServiceDeps; requiredArgs: OwnedRecordArgs },
+  { deps, ...requiredArgs }: { deps: ApiConnectionServiceDeps } & OwnedRecordArgs,
+  _optional: Record<string, never> = {},
 ): Promise<ApiConnectionDisconnectResult> {
-  const record = await loadOwnedRecord({ deps, requiredArgs });
+  const record = await loadOwnedRecord({ deps, ...requiredArgs });
   // Without a staged record the slot can only hold a confirmed switch's copy of the live grant
   // (or a credential a pending disconnect owns): revoking it here would cut off the live account.
   if (record.staged === null) return { ...toStatusView(record), remoteRevocation: 'not-needed' };
@@ -142,9 +144,10 @@ export async function cancelSwitchAccount(
 
 /** Disconnect and revoke the live and any staged credential; call again to retry a `pending` revocation. */
 export async function disconnectApiConnection(
-  { deps, requiredArgs }: { deps: ApiConnectionDisconnectDeps; requiredArgs: OwnedRecordArgs },
+  { deps, ...requiredArgs }: { deps: ApiConnectionDisconnectDeps } & OwnedRecordArgs,
+  _optional: Record<string, never> = {},
 ): Promise<ApiConnectionDisconnectResult> {
-  const record = await loadOwnedRecord({ deps, requiredArgs });
+  const record = await loadOwnedRecord({ deps, ...requiredArgs });
   // Stop use before any network call: no token is served or refreshed once the generation moves.
   const stopped = record.status === 'revocation-pending' ? record
     : await writeRecord({ deps, current: record, patch: { status: 'revocation-pending', generation: record.generation + 1, staged: null } });

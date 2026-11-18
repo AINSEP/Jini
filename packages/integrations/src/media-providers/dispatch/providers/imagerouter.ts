@@ -111,7 +111,7 @@ const imageRouterVideoAdapter: VendorAdapter<ImageRouterVideoMeta> = {
     };
 
     return {
-      url: buildOpenAIVideoUrl(baseUrl),
+      url: buildOpenAIVideoUrl({ baseUrl }),
       init: jsonPostInit({ ctx, body }, { apiKey }),
       meta: { wireModel, size, seconds },
     };

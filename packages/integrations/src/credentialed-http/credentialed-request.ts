@@ -318,7 +318,7 @@ export interface CredentialConnectionProbeInput {
  * @example await probeCredentialConnection({ connection, url, schemes, httpClient });
  */
 export async function probeCredentialConnection(
-  required: CredentialConnectionProbeInput & { httpClient: HttpClientPort },
+  required: CredentialConnectionProbeInput & { httpClient: HttpClientPort }, _optional: Record<string, never> = {},
 ): Promise<CredentialConnectionProbeStatus> {
   if (required.method !== undefined && required.method !== "GET") {
     throw new CredentialedRequestValidationError({ message: "credential probes only support GET" });
@@ -330,7 +330,7 @@ export async function probeCredentialConnection(
     // URL parse errors may contain their input; probe failures must never echo caller values.
     throw new CredentialedRequestValidationError({ message: "credential probe requires an absolute HTTP(S) URL without embedded credentials" });
   }
-  return classifyCredentialProbeStatus(await sendCredentialGet({ ...required, url, httpClient: required.httpClient }, { strict: true }));
+  return classifyCredentialProbeStatus(await sendCredentialGet({ ...required, url }, { strict: true }));
 }
 
 /** One bodyless authenticated GET shared by the probe and verification. Returns the HTTP status,

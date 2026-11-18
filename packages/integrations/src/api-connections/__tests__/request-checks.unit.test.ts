@@ -38,32 +38,32 @@ describe('assertId', () => {
 
 describe('checkScopes', () => {
   it('removes duplicates and keeps the plugin order', () => {
-    expect(checkScopes(['b.read', 'a.read', 'b.read'])).toEqual(['b.read', 'a.read']);
+    expect(checkScopes({ value: ['b.read', 'a.read', 'b.read'] })).toEqual(['b.read', 'a.read']);
   });
 
   it('refuses a value that is not a list', () => {
-    expect(refusal(() => checkScopes('a.read'))).toContain('no valid scope set');
+    expect(refusal(() => checkScopes({ value: 'a.read' }))).toContain('no valid scope set');
   });
 
   it('refuses an empty scope list', () => {
-    expect(refusal(() => checkScopes([]))).toContain('no valid scope set');
+    expect(refusal(() => checkScopes({ value: [] }))).toContain('no valid scope set');
   });
 
   it('refuses more than 64 scopes', () => {
-    expect(refusal(() => checkScopes(Array.from({ length: 65 }, (_, index) => `s${index}`)))).toContain('no valid scope set');
+    expect(refusal(() => checkScopes({ value: Array.from({ length: 65 }, (_, index) => `s${index}`) }))).toContain('no valid scope set');
   });
 
   it('refuses a scope containing a space (two scopes smuggled into one)', () => {
-    expect(refusal(() => checkScopes(['a.read b.write']))).toContain('no valid scope set');
+    expect(refusal(() => checkScopes({ value: ['a.read b.write'] }))).toContain('no valid scope set');
   });
 
   it('refuses a scope containing a double quote or backslash', () => {
-    expect([refusal(() => checkScopes(['a"b'])), refusal(() => checkScopes(['a\\b']))].every(message => message.includes('no valid scope set')))
+    expect([refusal(() => checkScopes({ value: ['a"b'] })), refusal(() => checkScopes({ value: ['a\\b'] }))].every(message => message.includes('no valid scope set')))
       .toBe(true);
   });
 
   it('refuses a non-string scope', () => {
-    expect(refusal(() => checkScopes([42]))).toContain('no valid scope set');
+    expect(refusal(() => checkScopes({ value: [42] }))).toContain('no valid scope set');
   });
 });
 
