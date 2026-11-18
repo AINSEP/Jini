@@ -70,7 +70,7 @@ function authServerMetadata(config: OAuthPkceProviderConfig): AuthorizationServe
  * `authorizeUrl` and receiving the callback at `redirectUri`. When the
  * callback arrives, pass `state` and `code` to {@link completeOAuthPkce}.
  */
-export function beginOAuthPkce(input: BeginOAuthPkceInput): BeginOAuthPkceResult {
+export function beginOAuthPkce(input: BeginOAuthPkceInput, _optional: Record<string, never> = {}): BeginOAuthPkceResult {
   const { config, pending, redirectUri } = input;
   const codeVerifier = generateCodeVerifier();
   const codeChallenge = deriveCodeChallenge({ verifier: codeVerifier });

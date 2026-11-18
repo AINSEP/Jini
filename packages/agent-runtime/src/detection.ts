@@ -127,7 +127,7 @@ function notInvocableCause(code: unknown): NotInvocableCause | undefined {
 function unavailableModels(def: RuntimeAgentDef): FetchedRuntimeModels {
   // `fallbackModels` is a required field on `RuntimeAgentDef`, never
   // `undefined` for a well-typed def.
-  const catalog = offlineSnapshot('', Date.now(), def.fallbackModels);
+  const catalog = offlineSnapshot({ fingerprint: '', now: Date.now(), fallback: def.fallbackModels });
   return { models: catalog.models, source: 'fallback', catalog, defaultModelResolution: { status: 'unresolved', reason: 'Agent executable is unavailable.' } };
 }
 
@@ -391,7 +391,7 @@ function stripFns(def: RuntimeAgentDef): Omit<DetectedAgent, 'models' | 'modelsS
   // matter extra because they carry closures — `JSON.stringify` would drop
   // the functions but keep their enclosing objects, publishing a misleading
   // `{"buffering":"until-close"}` / `{}` instead of omitting them.
-  return omitKeys(def, [
+  return omitKeys({ source: def, keys: [
     'discoverModels',
     'resolveDefaultModel',
     'buildArgs',
@@ -411,7 +411,7 @@ function stripFns(def: RuntimeAgentDef): Omit<DetectedAgent, 'models' | 'modelsS
     'needsAgentLogFile',
     'stdoutPolicy',
     'runtimeLock',
-  ]);
+  ] });
 }
 
 /** Cache executable/version/help/auth per host and effective launch; only expired catalogs refresh.

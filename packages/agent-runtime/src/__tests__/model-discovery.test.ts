@@ -90,14 +90,14 @@ describe('shared adapter conformance', () => {
   });
   it('does not start an already cancelled effect', async () => {
     const controller = new AbortController(); controller.abort(); let calls = 0;
-    await expect(withModelProbeTimeout(async () => { calls++; }, 1000, controller.signal)).rejects.toThrow('Probe cancelled');
+    await expect(withModelProbeTimeout({ work: async () => { calls++; }, timeoutMs: 1000 }, { parent: controller.signal })).rejects.toThrow('Probe cancelled');
     expect(calls).toBe(0);
   });
   it('aborts the effect port on timeout without retaining its error text', async () => {
     let stopped = false;
-    await expect(withModelProbeTimeout((signal) => new Promise<never>(() => {
+    await expect(withModelProbeTimeout({ work: (signal) => new Promise<never>(() => {
       signal.addEventListener('abort', () => { stopped = true; });
-    }), 1)).rejects.toThrow('Probe timed out');
+    }), timeoutMs: 1 })).rejects.toThrow('Probe timed out');
     expect(stopped).toBe(true);
   });
   it('discovers additions and removals without editing a def or merging static hints', async () => {
@@ -343,13 +343,13 @@ describe('parser fixtures', () => {
   });
   it('parses the Pi stdout table and authoritative RPC state', () => {
     expect(parsePiModels({ stdout: 'provider model name\nopenai gpt-new GPT New\n' })?.map((row) => row.id)).toEqual(['default', 'openai/gpt-new']);
-    expect(parsePiRpcMetadata('{"type":"response","command":"get_available_models","success":true,"data":{"models":[{"provider":"openai","id":"gpt-new","name":"GPT New"}]}}\n{"type":"response","command":"get_state","success":true,"data":{"model":{"provider":"openai","id":"gpt-new"}}}\n')).toEqual({ models: [{ id: 'openai/gpt-new', label: 'GPT New', identityKind: 'concrete', provider: 'openai' }], defaultSelectionId: 'openai/gpt-new', source: 'rpc', coverage: 'account' });
+    expect(parsePiRpcMetadata({ stdout: '{"type":"response","command":"get_available_models","success":true,"data":{"models":[{"provider":"openai","id":"gpt-new","name":"GPT New"}]}}\n{"type":"response","command":"get_state","success":true,"data":{"model":{"provider":"openai","id":"gpt-new"}}}\n' })).toEqual({ models: [{ id: 'openai/gpt-new', label: 'GPT New', identityKind: 'concrete', provider: 'openai' }], defaultSelectionId: 'openai/gpt-new', source: 'rpc', coverage: 'account' });
   });
   it('keeps Grok gateway rows as routing modes and provider-qualified IDs', () => {
     expect(parseGrokBuildModels({ stdout: 'Default model: vercel-ai-gateway\n- vercel-ai-gateway\n• xai/grok-new\nYou are not authenticated\n' }).filter((row) => row.id !== 'default')).toEqual([{ id: 'vercel-ai-gateway', label: 'vercel-ai-gateway', identityKind: 'routing-mode' }, { id: 'xai/grok-new', label: 'xai/grok-new', identityKind: 'concrete' }]);
   });
   it('retains Claude alias evidence and context-window variants', () => {
-    const parsed = parseClaudeInitializeMetadata('{"type":"control_response","response":{"subtype":"success","response":{"models":[{"value":"opus","resolvedModel":"claude-opus-new[1m]","displayName":"Claude Opus New"}]}}}');
+    const parsed = parseClaudeInitializeMetadata({ stdout: '{"type":"control_response","response":{"subtype":"success","response":{"models":[{"value":"opus","resolvedModel":"claude-opus-new[1m]","displayName":"Claude Opus New"}]}}}' });
     expect(parsed?.models).toEqual([{ id: 'opus', label: 'Claude Opus New', identityKind: 'alias', resolvedId: 'claude-opus-new[1m]' }, { id: 'claude-opus-new[1m]', label: 'Claude Opus New', identityKind: 'concrete' }]);
   });
   it('labels the Claude native default with its exact resolved ID, including the context variant', async () => {
@@ -371,7 +371,7 @@ describe('parser fixtures', () => {
     });
   });
   it('does not guess a concrete Claude default when initialize omits resolved evidence', () => {
-    expect(parseClaudeInitializeMetadata('{"type":"control_response","response":{"subtype":"success","response":{"models":[{"value":"default","displayName":"Default (recommended)"}]}}}')).toEqual({ models: [], source: 'rpc', coverage: 'account' });
+    expect(parseClaudeInitializeMetadata({ stdout: '{"type":"control_response","response":{"subtype":"success","response":{"models":[{"value":"default","displayName":"Default (recommended)"}]}}}' })).toEqual({ models: [], source: 'rpc', coverage: 'account' });
   });
 });
 

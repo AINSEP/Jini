@@ -25,8 +25,8 @@ const OPENCODE_CACHE_USAGE_FIELDS: UsageFields = [
 function formatOpenCodeUsage(tokens: unknown): Usage | null {
   if (!isRecord(tokens)) return null;
   const usage: Usage = {
-    ...pickUsage(tokens, OPENCODE_USAGE_FIELDS),
-    ...(isRecord(tokens.cache) ? pickUsage(tokens.cache, OPENCODE_CACHE_USAGE_FIELDS) : {}),
+    ...pickUsage({ source: tokens, fields: OPENCODE_USAGE_FIELDS }),
+    ...(isRecord(tokens.cache) ? pickUsage({ source: tokens.cache, fields: OPENCODE_CACHE_USAGE_FIELDS }) : {}),
   };
   return Object.keys(usage).length > 0 ? usage : null;
 }
@@ -41,12 +41,12 @@ function handleOpenCodeStepStart(obj: JsonObject, onEvent: StreamEventHandler): 
   // `agent_sessions` and replay it as `run -s <id>` next turn. OpenCode
   // stamps it on every stream event; step_start is the turn opener, so a
   // create turn always exposes it here.
-  onEvent({ type: 'status', label: 'running', sessionId: nonEmptyString(obj.sessionID) });
+  onEvent({ type: 'status', label: 'running', sessionId: nonEmptyString({ value: obj.sessionID }) });
   return true;
 }
 
 function handleOpenCodeText(obj: JsonObject, onEvent: StreamEventHandler): boolean {
-  const text = nonEmptyString(openCodePart(obj).text);
+  const text = nonEmptyString({ value: openCodePart(obj).text });
   if (!text) return false;
   onEvent({ type: 'text_delta', delta: text });
   return true;
@@ -63,14 +63,14 @@ function handleOpenCodeToolUse(obj: JsonObject, onEvent: StreamEventHandler, sta
       type: 'tool_use',
       id: part.callID,
       name: part.tool,
-      input: safeParseJson(statePart.input) ?? statePart.input ?? null,
+      input: safeParseJson({ value: statePart.input }) ?? statePart.input ?? null,
     });
   }
   if (statePart.status === 'completed') {
     onEvent({
       type: 'tool_result',
       toolUseId: part.callID,
-      content: stringifyContent(statePart.output),
+      content: stringifyContent({ value: statePart.output }),
       isError: false,
     });
   }
@@ -81,7 +81,7 @@ function handleOpenCodeStepFinish(obj: JsonObject, onEvent: StreamEventHandler):
   const part = openCodePart(obj);
   const usage = formatOpenCodeUsage(part.tokens);
   if (usage) {
-    onEvent({ type: 'usage', usage, costUsd: optionalNumber(part.cost) });
+    onEvent({ type: 'usage', usage, costUsd: optionalNumber({ value: part.cost }) });
   }
   return true;
 }
@@ -99,7 +99,7 @@ function handleOpenCodeError(obj: JsonObject, onEvent: StreamEventHandler): bool
   // the daemon's existing error-handling path recognises it without
   // further wiring.
   const message = extractErrorMessage({ value: obj.error ?? obj.message, fallback: 'OpenCode error' });
-  onEvent({ type: 'error', message, raw: stringifyContent(obj) });
+  onEvent({ type: 'error', message, raw: stringifyContent({ value: obj }) });
   return true;
 }
 

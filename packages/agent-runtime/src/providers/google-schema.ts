@@ -276,6 +276,6 @@ export function findNumericEnumPaths({ schema }: { schema: unknown }, { prefix =
   return findNumericEnumPathsValue(schema, prefix);
 }
 /** Reverses Gemini's numeric enum stringification without mutating the incoming tool argument. Paths use dot-separated property names. */
-export function coerceNumericEnumStringsToNumbers({ input, paths }: { input: unknown; paths: readonly string[] }): unknown {
+export function coerceNumericEnumStringsToNumbers({ input, paths }: { input: unknown; paths: readonly string[] }, _optional: Record<string, never> = {}): unknown {
   return coerceNumericEnumStringsToNumbersValue(input, paths);
 }

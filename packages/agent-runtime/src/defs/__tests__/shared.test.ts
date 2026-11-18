@@ -47,7 +47,7 @@ describe('parseLineSeparatedModels', () => {
 
 describe('buildClaudeMcpConfigArgs', () => {
   it('emits --strict-mcp-config then --mcp-config <path> for a staged path', () => {
-    expect(buildClaudeMcpConfigArgs({ mcpJsonPath: '/work/proj/.mcp.json' })).toEqual([
+    expect(buildClaudeMcpConfigArgs({ runtimeContext: { mcpJsonPath: '/work/proj/.mcp.json' } })).toEqual([
       '--strict-mcp-config',
       '--mcp-config',
       '/work/proj/.mcp.json',
@@ -55,39 +55,39 @@ describe('buildClaudeMcpConfigArgs', () => {
   });
 
   it('emits nothing when no path was staged (the default for an unconfigured host)', () => {
-    expect(buildClaudeMcpConfigArgs({})).toEqual([]);
+    expect(buildClaudeMcpConfigArgs({ runtimeContext: {} })).toEqual([]);
   });
 
   it('emits nothing for an empty-string path rather than a dangling --mcp-config flag', () => {
-    expect(buildClaudeMcpConfigArgs({ mcpJsonPath: '' })).toEqual([]);
+    expect(buildClaudeMcpConfigArgs({ runtimeContext: { mcpJsonPath: '' } })).toEqual([]);
   });
 
   it('emits only --strict-mcp-config without a staged path when native tool access is off', () => {
-    expect(buildClaudeMcpConfigArgs({}, { nativeToolAccess: false })).toEqual(['--strict-mcp-config']);
+    expect(buildClaudeMcpConfigArgs({ runtimeContext: {} }, { nativeToolAccess: false })).toEqual(['--strict-mcp-config']);
   });
 
   it('emits only --strict-mcp-config without a staged path when user MCP is locked', () => {
-    expect(buildClaudeMcpConfigArgs({}, { nativeCapabilities: { userMcp: false } })).toEqual(['--strict-mcp-config']);
+    expect(buildClaudeMcpConfigArgs({ runtimeContext: {} }, { nativeCapabilities: { userMcp: false } })).toEqual(['--strict-mcp-config']);
   });
 
   it('drops --strict-mcp-config for a trusted cli-parity bypass run with a staged path', () => {
-    expect(buildClaudeMcpConfigArgs({ mcpJsonPath: '/p/.mcp.json' }, { cliParity: true, permissionMode: 'bypass' })).toEqual(['--mcp-config', '/p/.mcp.json']);
+    expect(buildClaudeMcpConfigArgs({ runtimeContext: { mcpJsonPath: '/p/.mcp.json' } }, { cliParity: true, permissionMode: 'bypass' })).toEqual(['--mcp-config', '/p/.mcp.json']);
   });
 
   it('keeps --strict-mcp-config for cli parity outside bypass mode', () => {
-    expect(buildClaudeMcpConfigArgs({ mcpJsonPath: '/p/.mcp.json' }, { cliParity: true, permissionMode: 'default' })).toEqual(['--strict-mcp-config', '--mcp-config', '/p/.mcp.json']);
+    expect(buildClaudeMcpConfigArgs({ runtimeContext: { mcpJsonPath: '/p/.mcp.json' } }, { cliParity: true, permissionMode: 'default' })).toEqual(['--strict-mcp-config', '--mcp-config', '/p/.mcp.json']);
   });
 
   it('keeps --strict-mcp-config for a cli-parity bypass run whose native tool access is off', () => {
-    expect(buildClaudeMcpConfigArgs({ mcpJsonPath: '/p/.mcp.json' }, { cliParity: true, permissionMode: 'bypass', nativeToolAccess: false })).toEqual(['--strict-mcp-config', '--mcp-config', '/p/.mcp.json']);
+    expect(buildClaudeMcpConfigArgs({ runtimeContext: { mcpJsonPath: '/p/.mcp.json' } }, { cliParity: true, permissionMode: 'bypass', nativeToolAccess: false })).toEqual(['--strict-mcp-config', '--mcp-config', '/p/.mcp.json']);
   });
 
   it('keeps --strict-mcp-config for a cli-parity bypass run whose user MCP is locked', () => {
-    expect(buildClaudeMcpConfigArgs({ mcpJsonPath: '/p/.mcp.json' }, { cliParity: true, permissionMode: 'bypass', nativeCapabilities: { userMcp: false } })).toEqual(['--strict-mcp-config', '--mcp-config', '/p/.mcp.json']);
+    expect(buildClaudeMcpConfigArgs({ runtimeContext: { mcpJsonPath: '/p/.mcp.json' } }, { cliParity: true, permissionMode: 'bypass', nativeCapabilities: { userMcp: false } })).toEqual(['--strict-mcp-config', '--mcp-config', '/p/.mcp.json']);
   });
 
   it('emits nothing for a non-string path a loosely-typed caller might pass', () => {
-    expect(buildClaudeMcpConfigArgs({ mcpJsonPath: 42 as unknown as string })).toEqual([]);
+    expect(buildClaudeMcpConfigArgs({ runtimeContext: { mcpJsonPath: 42 as unknown as string } })).toEqual([]);
   });
 
   // The point of extracting this helper: the two defs declaring `'claude-mcp-json'` must not drift
@@ -98,7 +98,7 @@ describe('buildClaudeMcpConfigArgs', () => {
     const mcpArgvOf = (args: string[]): string[] => args.slice(args.indexOf('--strict-mcp-config'));
     const claudeArgs = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: runtimeContext });
     const codebuddyArgs = codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: runtimeContext });
-    expect(mcpArgvOf(claudeArgs)).toEqual(buildClaudeMcpConfigArgs(runtimeContext));
+    expect(mcpArgvOf(claudeArgs)).toEqual(buildClaudeMcpConfigArgs({ runtimeContext }));
     expect(mcpArgvOf(codebuddyArgs)).toEqual(mcpArgvOf(claudeArgs));
   });
 });

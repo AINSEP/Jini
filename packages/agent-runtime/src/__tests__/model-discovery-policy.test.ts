@@ -231,7 +231,7 @@ describe('createAgentModelDiscovery catalog lifecycle', () => {
     const port = createAgentModelDiscovery({ agentId: 'claude', configuration, deps, probes: hostProbes() });
     expect(await port.discoverModels({ context })).toEqual({ models: offlineRows, source: 'offline-fallback', freshness: 'offline-fallback',
       fetchedAt: '1970-01-01T00:00:00.005Z', expiresAt: new Date(5 + MODEL_NEGATIVE_TTL_MS).toISOString(), coverage: 'configured',
-      launchFingerprint: modelLaunchFingerprint(context), diagnostics: [{ code: 'offline', message: 'Model discovery could not reach its source.' }] });
+      launchFingerprint: modelLaunchFingerprint({ context }), diagnostics: [{ code: 'offline', message: 'Model discovery could not reach its source.' }] });
   });
 
   it('serves a fresh cached catalog without probing again', async () => {
@@ -585,7 +585,7 @@ describe('modelDiscoveryForDef static ports', () => {
   it('defaults to the first concrete fallback row', async () => {
     const catalog = await modelDiscoveryForDef({ def: { fallbackModels: rows }, deps: hostDeps() }).discoverModels({ context });
     expect(catalog.defaultSelectionId).toBe('static-a');
-    expect(catalog.launchFingerprint).toBe(modelLaunchFingerprint(context));
+    expect(catalog.launchFingerprint).toBe(modelLaunchFingerprint({ context }));
   });
 
   it('serves an empty catalog with no default when the definition has no fallbacks', async () => {

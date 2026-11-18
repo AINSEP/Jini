@@ -5,10 +5,10 @@ function emitKimiToolCalls(toolCalls: unknown[], onEvent: StreamEventHandler): v
   for (const rawCall of toolCalls) {
     const call = isRecord(rawCall) ? rawCall : {};
     const fn = isRecord(call.function) ? call.function : {};
-    const id = trimmedNonBlank(call.id);
-    const name = trimmedNonBlank(fn.name);
+    const id = trimmedNonBlank({ value: call.id });
+    const name = trimmedNonBlank({ value: fn.name });
     if (!id || !name) continue;
-    const input = safeParseJson(fn.arguments) ?? fn.arguments ?? null;
+    const input = safeParseJson({ value: fn.arguments }) ?? fn.arguments ?? null;
     onEvent({ type: 'tool_use', id, name, input });
   }
 }
@@ -18,19 +18,19 @@ function handleKimiAssistant(obj: JsonObject, onEvent: StreamEventHandler): bool
     emitKimiToolCalls(obj.tool_calls, onEvent);
     return true;
   }
-  const text = nonEmptyString(obj.content);
+  const text = nonEmptyString({ value: obj.content });
   if (!text) return false;
   onEvent({ type: 'text_delta', delta: text });
   return true;
 }
 
 function handleKimiToolResult(obj: JsonObject, onEvent: StreamEventHandler): boolean {
-  const toolUseId = trimmedNonBlank(obj.tool_call_id);
+  const toolUseId = trimmedNonBlank({ value: obj.tool_call_id });
   if (!toolUseId) return false;
   onEvent({
     type: 'tool_result',
     toolUseId,
-    content: stringifyContent(obj.content),
+    content: stringifyContent({ value: obj.content }),
     isError: false,
   });
   return true;

@@ -21,7 +21,7 @@ function isGoogleAssistantText(obj: JsonObject): boolean {
 }
 
 function handleGoogleInit(obj: JsonObject, onEvent: StreamEventHandler): boolean {
-  onEvent(initializingStatus(obj));
+  onEvent(initializingStatus({ obj }));
   return true;
 }
 
@@ -35,8 +35,8 @@ function handleGoogleMessage(obj: JsonObject, onEvent: StreamEventHandler, state
 
 function handleGoogleToolUse(obj: JsonObject, onEvent: StreamEventHandler, state: ParserState): boolean {
   if (typeof obj.tool_id !== 'string' || typeof obj.tool_name !== 'string') return false;
-  const input = safeParseJson(obj.parameters) ?? obj.parameters ?? null;
-  const todoInput = obj.tool_name === 'write_todos' ? todoWriteInputFromParsedValue(input) : null;
+  const input = safeParseJson({ value: obj.parameters }) ?? obj.parameters ?? null;
+  const todoInput = obj.tool_name === 'write_todos' ? todoWriteInputFromParsedValue({ value: input }) : null;
   if (todoInput) {
     onEvent({
       type: 'tool_use',
@@ -64,7 +64,7 @@ function handleGoogleToolResult(obj: JsonObject, onEvent: StreamEventHandler): b
   const errorMessage = error ? extractErrorMessage({ value: error, fallback: '' }) : '';
   const output = typeof obj.output === 'string'
     ? obj.output
-    : errorMessage || stringifyContent(obj.output);
+    : errorMessage || stringifyContent({ value: obj.output });
   onEvent({
     type: 'tool_result',
     toolUseId: obj.tool_id,
@@ -83,7 +83,7 @@ function handleGoogleError(obj: JsonObject, onEvent: StreamEventHandler): boolea
   if (severity === 'warning') {
     onEvent({ type: 'status', label: 'warning', detail: message });
   } else {
-    onEvent({ type: 'error', message, raw: stringifyContent(obj) });
+    onEvent({ type: 'error', message, raw: stringifyContent({ value: obj }) });
   }
   return true;
 }
@@ -99,15 +99,15 @@ function handleGoogleResult(obj: JsonObject, onEvent: StreamEventHandler): boole
     onEvent({
       type: 'error',
       message: extractErrorMessage({ value: obj.error, fallback: 'Google stream error' }),
-      raw: stringifyContent(obj),
+      raw: stringifyContent({ value: obj }),
     });
     return true;
   }
   if (!isRecord(obj.stats)) return true;
   onEvent({
     type: 'usage',
-    usage: pickUsage(obj.stats, GOOGLE_USAGE_FIELDS),
-    durationMs: optionalNumber(obj.stats.duration_ms),
+    usage: pickUsage({ source: obj.stats, fields: GOOGLE_USAGE_FIELDS }),
+    durationMs: optionalNumber({ value: obj.stats.duration_ms }),
   });
   return true;
 }
@@ -125,7 +125,7 @@ const GOOGLE_FRAME_HANDLERS: ReadonlyMap<unknown, FrameHandler> = new Map<unknow
 export function handleLegacyGoogleStreamEvent(obj: unknown, onEvent: StreamEventHandler, state: ParserState): boolean {
   if (!isRecord(obj)) return false;
   if (!isGoogleAssistantText(obj)) {
-    flushPendingArtifactText(state, onEvent);
+    flushPendingArtifactText({ state, onEvent });
   }
   return dispatchFrame({ handlers: GOOGLE_FRAME_HANDLERS, obj, onEvent, state });
 }
@@ -182,7 +182,7 @@ function artifactOpenCandidateLength(text: string, openTag: string): number {
   return 0;
 }
 
-export function flushPendingArtifactText(state: ParserState, onEvent: StreamEventHandler): void {
+export function flushPendingArtifactText({ state, onEvent }: { state: ParserState; onEvent: StreamEventHandler }, _optional: Record<string, never> = {}): void {
   const delta = `${state.legacyGoogle.pendingArtifactText}${state.legacyGoogle.artifactOpenCandidate}`;
   if (!delta) return;
   state.legacyGoogle.pendingArtifactText = '';

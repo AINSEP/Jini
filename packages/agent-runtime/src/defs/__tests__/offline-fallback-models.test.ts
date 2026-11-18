@@ -28,6 +28,6 @@ describe('offline discovery falls back to each def\'s own static model list', ()
     const catalog = await def.discoverModels({ context: discoveryContext }, { deps: offlineDiscoveryDeps() });
     expect(catalog.freshness).toBe('offline-fallback');
     expect(catalog.source).toBe('offline-fallback');
-    expect(catalog.models).toEqual(normalizeDiscoveredModels(def.fallbackModels));
+    expect(catalog.models).toEqual(normalizeDiscoveredModels({ models: def.fallbackModels }));
   });
 });

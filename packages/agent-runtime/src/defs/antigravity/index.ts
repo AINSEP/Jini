@@ -89,7 +89,7 @@ const OAUTH_URL_PLACEHOLDER = '[redacted sign-in URL]';
  * @complexity O(n) in the buffered text length.
  * @overallScore 100/100
  */
-export function redactAntigravityAuthUrls({ fullText }: { fullText: string }): string {
+export function redactAntigravityAuthUrls({ fullText }: { fullText: string }, _optional: Record<string, never> = {}): string {
   return redactOAuthUrls({ text: fullText, pattern: OAUTH_URL_PATTERN, replacement: OAUTH_URL_PLACEHOLDER });
 }
 

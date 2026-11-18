@@ -42,7 +42,7 @@ const CONFIG_FILES: ReadonlyMap<string, ModelConfigAdapter> = new Map([
 ]);
 /** Config-file resolvers read only settings, never auth-store contents. Precedence is applied
  * from global to workspace/local. Unknown native priorities remain unresolved, not invented. */
-export function modelConfigFiles(agentId: string, context: ModelDiscoveryContext): ConfigFile[] {
+export function modelConfigFiles({ agentId, context }: { agentId: string; context: ModelDiscoveryContext }, _optional: Record<string, never> = {}): ConfigFile[] {
   const env = context.env;
   const home = env.HOME || homedir();
   const user = (name: string) => join(home, name);
@@ -59,11 +59,11 @@ const JSON_MODEL_PARSERS: ReadonlyMap<string, (model: unknown, settings: Record<
   ['defaultModel', parsePiDefaultModel],
 ]);
 function parseJsonModel(file: ConfigFile, raw: string): string | undefined {
-  const settings = parseSettingsJson(raw);
+  const settings = parseSettingsJson({ raw });
   const model = dotted(settings, file.key || 'model');
   // Cursor's model object subkeys are undocumented: never guess which one is the effective id.
   const parse = file.key ? JSON_MODEL_PARSERS.get(file.key) : undefined;
-  return parse ? parse(model, settings) : scalar(model);
+  return parse ? parse(model, settings) : scalar({ value: model });
 }
 /** Every quoted `model = "..."` assignment with the TOML section it appears in. */
 function tomlModelAssignments(raw: string): { section: string; model: string }[] {
@@ -83,9 +83,9 @@ function parseTomlModel(file: ConfigFile, raw: string, profile?: string): string
   const profileChoice = profile ? lastIn(`profiles.${profile}`) : undefined;
   return profileChoice || lastIn(file.key === 'models.model' ? 'models' : '');
 }
-export function parseConfiguredModel(file: ConfigFile, raw: string, profile?: string): string | undefined {
+export function parseConfiguredModel({ file, raw }: { file: ConfigFile; raw: string }, { profile }: { profile?: string | undefined } = {}): string | undefined {
   if (file.format === 'json') return parseJsonModel(file, raw);
-  if (file.format === 'yaml') return scalar(yamlModelCapture(raw));
+  if (file.format === 'yaml') return scalar({ value: yamlModelCapture({ raw }) });
   return parseTomlModel(file, raw, profile);
 }
 async function withProjectRoot(agentId: string, context: ModelDiscoveryContext, deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<ModelDiscoveryContext> {
@@ -98,24 +98,25 @@ function fileSelection(agentId: string, contents: readonly { file: ConfigFile; r
   const select = CONFIG_FILES.get(agentId)?.fileSelection;
   if (select) return select(contents);
   let selection: string | undefined;
-  for (const { file, raw } of contents) if (raw !== null) selection = parseConfiguredModel(file, raw, profile) || selection;
+  for (const { file, raw } of contents) if (raw !== null) selection = parseConfiguredModel({ file, raw }, { profile }) || selection;
   return selection;
 }
 function inlineSelection(agentId: string, env: ModelDiscoveryContext['env']): string | undefined {
   const key = CONFIG_FILES.get(agentId)?.inlineConfigEnv;
   const inline = key ? env[key] : undefined;
-  return inline ? scalar(parseSettingsJson(inline)?.model) : undefined;
+  return inline ? scalar({ value: parseSettingsJson({ raw: inline })?.model }) : undefined;
 }
 /** The first listed model variable with a value wins. */
 function envSelection(agentId: string, env: ModelDiscoveryContext['env']): string | undefined {
-  return (CONFIG_FILES.get(agentId)?.modelEnv || []).map((key) => scalar(env[key])).find(Boolean);
+  return (CONFIG_FILES.get(agentId)?.modelEnv || []).map((key) => scalar({ value: env[key] })).find(Boolean);
 }
-export async function readModelConfiguration(agentId: string, context: ModelDiscoveryContext, deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<{ selection?: string; fingerprintMaterial: string }> {
+function modelSettingsRaw(agentId: string, context: ModelDiscoveryContext, deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<string | null> | null { return CONFIG_FILES.get(agentId)?.settingsRaw?.(context, deps, signal) ?? null; }
+export async function readModelConfiguration({ agentId, context, deps, signal }: { agentId: string; context: ModelDiscoveryContext; deps: ModelDiscoveryDeps; signal: AbortSignal }, _optional: Record<string, never> = {}): Promise<{ selection?: string; fingerprintMaterial: string }> {
   context = await withProjectRoot(agentId, context, deps, signal);
-  const files = modelConfigFiles(agentId, context);
+  const files = modelConfigFiles({ agentId, context });
   const contents = await Promise.all(files.map(async (file) => ({ file, raw: await deps.fs.read(file.path, { signal }) })));
-  const settingsRaw = await (CONFIG_FILES.get(agentId)?.settingsRaw?.(context, deps, signal) ?? null);
-  const settingsModel = settingsRaw ? scalar(parseSettingsJson(settingsRaw)?.model) : undefined;
+  const settingsRaw = await modelSettingsRaw(agentId, context, deps, signal);
+  const settingsModel = settingsRaw ? scalar({ value: parseSettingsJson({ raw: settingsRaw })?.model }) : undefined;
   // Precedence, strongest first: launch model, Claude --settings, model env, inline config content, config files.
   const launchSelection = context.model || settingsModel;
   const selection = launchSelection || envSelection(agentId, context.env) || inlineSelection(agentId, context.env) || fileSelection(agentId, contents, context.profile);

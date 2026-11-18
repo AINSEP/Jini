@@ -36,44 +36,44 @@ function anthropicCatalog(...ids: string[]): Response {
 
 describe('resolveAnthropicCredential', () => {
   it('reads ANTHROPIC_API_KEY and defaults the base URL', () => {
-    expect(resolveAnthropicCredential({ ANTHROPIC_API_KEY: 'sk-test' })).toEqual({
+    expect(resolveAnthropicCredential({ env: { ANTHROPIC_API_KEY: 'sk-test' } })).toEqual({
       apiKey: 'sk-test',
       baseUrl: 'https://api.anthropic.com',
     });
   });
 
   it('honours an explicit ANTHROPIC_BASE_URL', () => {
-    expect(resolveAnthropicCredential({ ANTHROPIC_API_KEY: 'sk-test', ANTHROPIC_BASE_URL: 'https://proxy.example.com' })).toEqual({
+    expect(resolveAnthropicCredential({ env: { ANTHROPIC_API_KEY: 'sk-test', ANTHROPIC_BASE_URL: 'https://proxy.example.com' } })).toEqual({
       apiKey: 'sk-test',
       baseUrl: 'https://proxy.example.com',
     });
   });
 
   it('returns null for an absent or whitespace-only key', () => {
-    expect(resolveAnthropicCredential({})).toBeNull();
-    expect(resolveAnthropicCredential({ ANTHROPIC_API_KEY: '   ' })).toBeNull();
+    expect(resolveAnthropicCredential({ env: {} })).toBeNull();
+    expect(resolveAnthropicCredential({ env: { ANTHROPIC_API_KEY: '   ' } })).toBeNull();
   });
 
   // ANTHROPIC_AUTH_TOKEN is a bearer credential; `listProviderModels`' anthropic protocol sends
   // `x-api-key`. Accepting it here would 401 on every detection pass and read as a bad key.
   it('does not accept ANTHROPIC_AUTH_TOKEN as an x-api-key credential', () => {
-    expect(resolveAnthropicCredential({ ANTHROPIC_AUTH_TOKEN: 'bearer-token' })).toBeNull();
+    expect(resolveAnthropicCredential({ env: { ANTHROPIC_AUTH_TOKEN: 'bearer-token' } })).toBeNull();
   });
 });
 
 describe('mergeLiveModels', () => {
   it('keeps the whole fallback list, in order, and appends only new live ids', () => {
-    const merged = mergeLiveModels(FALLBACK, [
+    const merged = mergeLiveModels({ fallback: FALLBACK, live: [
       { id: 'claude-opus-5', label: 'CLAUDE-OPUS-5' },
       { id: 'claude-fable-6', label: 'Fable 6' },
-    ]);
+    ] });
     expect(merged.map((m) => m.id)).toEqual(['default', 'fable', 'claude-opus-5', 'claude-fable-6']);
     // The fallback's own label wins for an id present in both — the alias rows read as aliases.
     expect(merged.find((m) => m.id === 'claude-opus-5')?.label).toBe('claude-opus-5');
   });
 
   it('de-duplicates repeats within the live list itself', () => {
-    const merged = mergeLiveModels([], [{ id: 'a', label: 'A' }, { id: 'a', label: 'A again' }]);
+    const merged = mergeLiveModels({ fallback: [], live: [{ id: 'a', label: 'A' }, { id: 'a', label: 'A again' }] });
     expect(merged.map((m) => m.id)).toEqual(['a']);
   });
 });
@@ -170,13 +170,13 @@ describe("claudeAgentDef.fetchModels — the def's own resolution order", () => 
     resetAnthropicLiveModelCacheForTesting();
     // The credential-free CLI step finds nothing here, so these cases pin the BYOK path exactly as
     // it behaved before that step existed — and no real `claude` is ever spawned by this suite.
-    setClaudeCodeModelIoForTesting({ runInitialize: async () => null, readConfigFile: async () => null });
+    setClaudeCodeModelIoForTesting({ io: { runInitialize: async () => null, readConfigFile: async () => null } });
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
     resetAnthropicLiveModelCacheForTesting();
-    setClaudeCodeModelIoForTesting(null);
+    setClaudeCodeModelIoForTesting({ io: null });
   });
 
   it('reaches live discovery when no mmd routes file resolves without adding static hints', async () => {

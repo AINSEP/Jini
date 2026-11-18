@@ -305,7 +305,7 @@ export interface GoogleStreamState {
 }
 
 /** Adds the shared `input_tokens`/`output_tokens` fields (the only ones the chat usage reducers read) to raw Gemini `usageMetadata` and emits usage. */
-export function applyGoogleUsage({ state, data, onEvent }: { state: GoogleStreamState; data: Record<string, unknown>; onEvent: (event: GoogleTurnEvent) => void }): void {
+export function applyGoogleUsage({ state, data, onEvent }: { state: GoogleStreamState; data: Record<string, unknown>; onEvent: (event: GoogleTurnEvent) => void }, _optional: Record<string, never> = {}): void {
   if (!isRecord(data.usageMetadata)) return;
   const usage = data.usageMetadata;
   const candidateTokens = typeof usage.candidatesTokenCount === 'number' ? usage.candidatesTokenCount : undefined;
@@ -327,7 +327,7 @@ function firstGoogleCandidate(data: Record<string, unknown>): unknown {
 }
 
 /** Checks `data.promptFeedback` for a documented block reason and, if present, emits the `error` event for it (the caller emits `end` — see `processGoogleFrame`). Returns whether the frame loop should stop. */
-export function handleGoogleBlockedPrompt({ data, onEvent }: { data: Record<string, unknown>; onEvent: (event: GoogleTurnEvent) => void }): boolean {
+export function handleGoogleBlockedPrompt({ data, onEvent }: { data: Record<string, unknown>; onEvent: (event: GoogleTurnEvent) => void }, _optional: Record<string, never> = {}): boolean {
   if (!isRecord(data.promptFeedback) || typeof data.promptFeedback.blockReason !== 'string') return false;
   onEvent({ type: 'error', message: `prompt blocked: ${data.promptFeedback.blockReason}`, code: data.promptFeedback.blockReason });
   return true;
@@ -343,12 +343,12 @@ function googleCandidateParts(candidate: Record<string, unknown>): readonly unkn
  * once the guard flags contamination (the caller ends the turn immediately), otherwise
  * `'continue'` — same contract as `anthropic-messages.ts#handleAnthropicTextDelta`.
  */
-export function handleGoogleTextPart({ state, text, onEvent }: { state: GoogleStreamState; text: string; onEvent: (event: GoogleTurnEvent) => void }): 'continue' | 'break' {
+export function handleGoogleTextPart({ state, text, onEvent }: { state: GoogleStreamState; text: string; onEvent: (event: GoogleTurnEvent) => void }, _optional: Record<string, never> = {}): 'continue' | 'break' {
   return emitGuardedTextDelta({ state, text: text, onEvent });
 }
 
 /** `rawPart.functionCall` must already be confirmed a record by the caller. Reads `thoughtSignature` off `rawPart` (a sibling of `functionCall`, not a member of it) — see `GoogleFunctionCallPart.thoughtSignature`'s doc for why only a non-empty string is carried. */
-export function handleGoogleFunctionCallPart({ state, rawPart, onEvent }: { state: GoogleStreamState; rawPart: Record<string, unknown>; onEvent: (event: GoogleTurnEvent) => void }): void {
+export function handleGoogleFunctionCallPart({ state, rawPart, onEvent }: { state: GoogleStreamState; rawPart: Record<string, unknown>; onEvent: (event: GoogleTurnEvent) => void }, _optional: Record<string, never> = {}): void {
   const fc = rawPart.functionCall as Record<string, unknown>;
   const name = typeof fc.name === 'string' ? fc.name : null;
   if (!name) return;
@@ -360,7 +360,7 @@ export function handleGoogleFunctionCallPart({ state, rawPart, onEvent }: { stat
 }
 
 /** Dispatches one part between the text and function-call handlers above. Returns `'break'` once a text part contaminates the guard, else `'continue'`. */
-export function processGoogleRawPart({ state, rawPart, onEvent }: { state: GoogleStreamState; rawPart: unknown; onEvent: (event: GoogleTurnEvent) => void }): 'continue' | 'break' {
+export function processGoogleRawPart({ state, rawPart, onEvent }: { state: GoogleStreamState; rawPart: unknown; onEvent: (event: GoogleTurnEvent) => void }, _optional: Record<string, never> = {}): 'continue' | 'break' {
   if (!isRecord(rawPart)) return 'continue';
   if (typeof rawPart.text === 'string' && rawPart.text.length > 0) {
     return handleGoogleTextPart({ state: state, text: rawPart.text, onEvent: onEvent });
@@ -389,7 +389,7 @@ export type GoogleFrameOutcome = { readonly action: 'continue' } | { readonly ac
  * nesting-penalized top-level `if`s into one function call plus one outcome check — see
  * `runSingleGoogleRequest`'s loop below.
  */
-export function processGoogleFrame({ state, data, onEvent }: { state: GoogleStreamState; data: Record<string, unknown>; onEvent: (event: GoogleTurnEvent) => void }): GoogleFrameOutcome {
+export function processGoogleFrame({ state, data, onEvent }: { state: GoogleStreamState; data: Record<string, unknown>; onEvent: (event: GoogleTurnEvent) => void }, _optional: Record<string, never> = {}): GoogleFrameOutcome {
   applyGoogleUsage({ state: state, data: data, onEvent: onEvent });
 
   const rawCandidate = firstGoogleCandidate(data);
@@ -643,14 +643,14 @@ function splitGoogleToolResultContent(content: string | readonly GoogleToolResul
  * `finishReason` comparison (see module doc, point 2, for why Gemini's `finishReason` enum cannot
  * be used here).
  */
-export function googleLoopExitReason({ outcome, toolTurns, maxToolTurns }: { outcome: SingleRequestOutcome; toolTurns: number; maxToolTurns: number }): GoogleTurnEndReason | null {
+export function googleLoopExitReason({ outcome, toolTurns, maxToolTurns }: { outcome: SingleRequestOutcome; toolTurns: number; maxToolTurns: number }, _optional: Record<string, never> = {}): GoogleTurnEndReason | null {
   if (outcome.toolCalls.length === 0) return 'stop';
   if (toolTurns >= maxToolTurns) return 'max_tool_turns';
   return null;
 }
 
 /** Builds the `model`-role `Content`'s `parts` recording the pending tool calls — text (if any) followed by one `functionCall` part per call, each with its `thoughtSignature` spread back on as a sibling field, in the same shape the response delivered it and only when the response actually carried one (a `functionCall` part with no signature is legal; one with an empty-string signature is not). */
-export function buildGoogleAssistantParts({ text, toolCalls }: { text: string; toolCalls: readonly GoogleToolCall[] }): GooglePart[] {
+export function buildGoogleAssistantParts({ text, toolCalls }: { text: string; toolCalls: readonly GoogleToolCall[] }, _optional: Record<string, never> = {}): GooglePart[] {
   return [
     ...(text ? [{ text } as const] : []),
     ...toolCalls.map(
@@ -675,7 +675,7 @@ export interface GoogleToolExecutionOutcome {
  * functionResponse" section for why images travel this way instead of a separate follow-up
  * message (unlike `openai-chat.ts`/`azure-chat.ts`).
  */
-export async function executeGoogleToolCalls({ executeTool, calls, onEvent }: { executeTool: GoogleToolExecutor; calls: readonly GoogleToolCall[]; onEvent: (event: GoogleTurnEvent) => void }
+export async function executeGoogleToolCalls({ executeTool, calls, onEvent }: { executeTool: GoogleToolExecutor; calls: readonly GoogleToolCall[]; onEvent: (event: GoogleTurnEvent) => void }, _optional: Record<string, never> = {}
 ): Promise<GoogleToolExecutionOutcome> {
   const functionResponseParts: GooglePart[] = [];
   const followUpParts: GooglePart[] = [];
@@ -725,7 +725,7 @@ export async function runGoogleToolTurn(requiredArgs: Pick<GoogleTurnOptions, "a
   const maxToolTurns = options.maxToolTurns ?? DEFAULT_MAX_TOOL_TURNS;
   const executeTool = options.executeTool;
 
-  const endGuard = createTurnEndGuard<GoogleTurnEvent>(options.onEvent, (reason) => ({ type: 'end', reason }));
+  const endGuard = createTurnEndGuard<GoogleTurnEvent>({ onEvent: options.onEvent, makeEndEvent: (reason) => ({ type: 'end', reason }) });
   const emitEnd = endGuard.emitEnd;
 
   let contents = options.contents.slice();

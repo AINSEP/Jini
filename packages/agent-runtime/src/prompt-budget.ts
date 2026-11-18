@@ -144,7 +144,7 @@ const WINDOWS_CREATE_PROCESS_HEADROOM = 256;
 // Pure: takes `resolvedBin` explicitly so a test on macOS can pass a fake
 // `C:\\…\\deepseek.cmd` path and exercise the same math the daemon would
 // run on Windows.
-export function checkWindowsCmdShimCommandLineBudget({ def, resolvedBin, args }: { def: RuntimeAgentDef | null | undefined; resolvedBin: unknown; args: unknown }
+export function checkWindowsCmdShimCommandLineBudget({ def, resolvedBin, args }: { def: RuntimeAgentDef | null | undefined; resolvedBin: unknown; args: unknown }, _optional: Record<string, never> = {}
 ): RuntimePromptBudgetError | null {
   if (!def || typeof def.maxPromptArgBytes !== 'number') return null;
   if (typeof resolvedBin !== 'string' || !/\.(bat|cmd)$/i.test(resolvedBin)) return null;
@@ -213,7 +213,7 @@ function looksLikeWindowsPath(p: string): boolean {
 // pass a fake `C:\…\deepseek.exe` and exercise the same math the daemon
 // would run on Windows. The libuv quoting math lives in
 // `quoteForWindowsDirectExe` above.
-export function checkWindowsDirectExeCommandLineBudget({ def, resolvedBin, args }: { def: RuntimeAgentDef | null | undefined; resolvedBin: unknown; args: unknown }
+export function checkWindowsDirectExeCommandLineBudget({ def, resolvedBin, args }: { def: RuntimeAgentDef | null | undefined; resolvedBin: unknown; args: unknown }, _optional: Record<string, never> = {}
 ): RuntimePromptBudgetError | null {
   if (!def || typeof def.maxPromptArgBytes !== 'number') return null;
   if (typeof resolvedBin !== 'string' || resolvedBin.length === 0) return null;

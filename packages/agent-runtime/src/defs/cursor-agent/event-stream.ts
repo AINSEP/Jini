@@ -93,7 +93,7 @@ export function handleCursorEvent(obj: unknown, onEvent: StreamEventHandler, sta
   if (!isRecord(obj)) return false;
 
   if (obj.type === 'system' && obj.subtype === 'init') {
-    onEvent(initializingStatus(obj));
+    onEvent(initializingStatus({ obj }));
     return true;
   }
 
@@ -102,8 +102,8 @@ export function handleCursorEvent(obj: unknown, onEvent: StreamEventHandler, sta
   if (obj.type === 'result' && isRecord(obj.usage)) {
     onEvent({
       type: 'usage',
-      usage: pickUsage(obj.usage, CURSOR_USAGE_FIELDS),
-      durationMs: optionalNumber(obj.duration_ms),
+      usage: pickUsage({ source: obj.usage, fields: CURSOR_USAGE_FIELDS }),
+      durationMs: optionalNumber({ value: obj.duration_ms }),
     });
     return true;
   }

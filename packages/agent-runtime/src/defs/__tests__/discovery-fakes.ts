@@ -23,6 +23,6 @@ export function offlineDiscoveryDeps(): ModelDiscoveryDeps {
 }
 
 /** The CLI listing call prints `stdout`; every other probe behaves as offline. */
-export function cliOutputDiscoveryDeps(stdout: string): ModelDiscoveryDeps {
+export function cliOutputDiscoveryDeps({ stdout }: { stdout: string }, _optional: Record<string, never> = {}): ModelDiscoveryDeps {
   return { ...offlineDiscoveryDeps(), process: { async run() { return { stdout, stderr: '' }; } } };
 }

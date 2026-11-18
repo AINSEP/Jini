@@ -17,9 +17,9 @@ export * from './model-discovery.js';
 
 /** Reuse the existing probe owners, including their credential, cancellation and cache guards. */
 const nativeModelDiscoveryProbes: ModelDiscoveryProbes = {
-  catalog: ({ agentId, context, configuration, deps, signal }, _optional = {}) => probeAgentCatalog(agentId, context, configuration, deps, signal),
-  cliCache: ({ agentId, context, deps, signal }, _optional = {}) => probeCliCache(agentId, context, deps, signal),
-  timeoutMs: ({ agentId }, _optional = {}) => modelProbeTimeoutMs(agentId),
+  catalog: ({ agentId, context, configuration, deps, signal }, _optional = {}) => probeAgentCatalog({ agentId, context, configuration, deps, signal }),
+  cliCache: ({ agentId, context, deps, signal }, _optional = {}) => probeCliCache({ agentId, context, deps, signal }),
+  timeoutMs: ({ agentId }, _optional = {}) => modelProbeTimeoutMs({ agentId }),
 };
 
 // These forwarding signatures deliberately retain the published API. New policy APIs use

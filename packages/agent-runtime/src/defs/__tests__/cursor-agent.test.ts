@@ -205,13 +205,13 @@ describe('cursorAgentDef.discoverModels', () => {
   });
 
   it('parses `cursor-agent models` output through the def\'s listing parser', async () => {
-    const catalog = await cursorAgentDef.discoverModels({ context: discoveryContext }, { deps: cliOutputDiscoveryDeps('Available models\ngpt-5 - GPT 5\n') });
+    const catalog = await cursorAgentDef.discoverModels({ context: discoveryContext }, { deps: cliOutputDiscoveryDeps({ stdout: 'Available models\ngpt-5 - GPT 5\n' }) });
     expect(catalog.freshness).toBe('fresh');
     expect(catalog.models).toEqual([expect.objectContaining({ id: 'gpt-5', label: 'GPT 5' })]);
   });
 
   it('treats the unauthenticated "No models available" message as no listing and falls back', async () => {
-    const catalog = await cursorAgentDef.discoverModels({ context: discoveryContext }, { deps: cliOutputDiscoveryDeps('No models available for this account.\n') });
+    const catalog = await cursorAgentDef.discoverModels({ context: discoveryContext }, { deps: cliOutputDiscoveryDeps({ stdout: 'No models available for this account.\n' }) });
     expect(catalog.freshness).not.toBe('fresh');
     expect(catalog.models.map((model) => model.id)).toEqual(['auto', 'sonnet-4', 'sonnet-4-thinking', 'gpt-5']);
   });

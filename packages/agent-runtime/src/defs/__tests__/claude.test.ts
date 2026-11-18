@@ -328,7 +328,7 @@ describe('claudeAgentDef.fetchModels', () => {
 
   beforeEach(() => {
     dir = mkdtempSync(path.join(tmpdir(), 'agent-runtime-claude-fetchmodels-test-'));
-    setClaudeCodeModelIoForTesting(silentIo);
+    setClaudeCodeModelIoForTesting({ io: silentIo });
     resetAnthropicLiveModelCacheForTesting();
   });
 
@@ -336,7 +336,7 @@ describe('claudeAgentDef.fetchModels', () => {
     rmSync(dir, { recursive: true, force: true });
     if (originalHome === undefined) delete process.env.HOME;
     else process.env.HOME = originalHome;
-    setClaudeCodeModelIoForTesting(null);
+    setClaudeCodeModelIoForTesting({ io: null });
     resetAnthropicLiveModelCacheForTesting();
     vi.restoreAllMocks();
   });
@@ -350,10 +350,10 @@ describe('claudeAgentDef.fetchModels', () => {
   const noRoutes = () => ({ HOME: dir, MMD_MODEL_ROUTES_FILE: path.join(dir, 'no-routes.json') });
 
   it('returns only the CLI picker catalog with NO credential (subscription-only install)', async () => {
-    setClaudeCodeModelIoForTesting(cliAnswering([
+    setClaudeCodeModelIoForTesting({ io: cliAnswering([
       { value: 'opus[1m]', resolvedModel: 'claude-opus-5-5[1m]', displayName: 'Opus (1M context)' },
       { value: 'sonnet', resolvedModel: 'claude-sonnet-5', displayName: 'Sonnet' },
-    ]));
+    ]) });
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(() => {
       throw new Error('no network call should have been attempted');
     });
@@ -374,20 +374,20 @@ describe('claudeAgentDef.fetchModels', () => {
       'utf8',
     );
     // Real file read against the temp HOME; only the CLI spawn is faked.
-    setClaudeCodeModelIoForTesting({
+    setClaudeCodeModelIoForTesting({ io: {
       runInitialize: async () => null,
       readConfigFile: async (p) => (await import('node:fs/promises')).readFile(p, 'utf8').catch(() => null),
-    });
+    } });
     const result = await claudeAgentDef.fetchModels!({ resolvedBin: 'claude', env: noRoutes() });
     expect(result!.map((m) => m.id)).toEqual(['claude-fable-6']);
   });
 
   it('returns null (static list renders) when the CLI and a malformed ~/.claude.json both give nothing', async () => {
     writeFileSync(path.join(dir, '.claude.json'), '{not json', 'utf8');
-    setClaudeCodeModelIoForTesting({
+    setClaudeCodeModelIoForTesting({ io: {
       runInitialize: async () => 'error: unknown option\n',
       readConfigFile: async (p) => (await import('node:fs/promises')).readFile(p, 'utf8').catch(() => null),
-    });
+    } });
     await expect(claudeAgentDef.fetchModels!({ resolvedBin: 'claude', env: noRoutes() })).resolves.toBeNull();
   });
 
@@ -400,7 +400,7 @@ describe('claudeAgentDef.fetchModels', () => {
     expect(byokOnly!.map((m) => m.id)).toEqual(['claude-api-only-1']);
 
     resetAnthropicLiveModelCacheForTesting();
-    setClaudeCodeModelIoForTesting(cliAnswering([{ value: 'claude-opus-5-5' }]));
+    setClaudeCodeModelIoForTesting({ io: cliAnswering([{ value: 'claude-opus-5-5' }]) });
     const both = await claudeAgentDef.fetchModels!({ resolvedBin: 'claude', env: { ...noRoutes(), ANTHROPIC_API_KEY: 'sk-a' } });
     expect(both!.map((m) => m.id)).toEqual(['claude-opus-5-5', 'claude-api-only-1']);
   });

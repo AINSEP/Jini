@@ -43,17 +43,17 @@ async function probeError(promise: Promise<unknown>): Promise<string> {
 describe('parseClaudeInitializeMetadata', () => {
   it('returns null when no line is a successful control response with a model array', () => {
     const lines = ['not json', 'null', '{"type":"other"}', JSON.stringify({ type: 'control_response', response: { subtype: 'error' } }), JSON.stringify({ type: 'control_response' }), JSON.stringify({ type: 'control_response', response: { subtype: 'success', response: { models: 'x' } } })];
-    expect(parseClaudeInitializeMetadata(lines.join('\n'))).toBeNull();
+    expect(parseClaudeInitializeMetadata({ stdout: lines.join('\n') })).toBeNull();
   });
   it('uses only the first matching control response', () => {
-    const parsed = parseClaudeInitializeMetadata([claudeInit([{ value: 'model-a' }]), claudeInit([{ value: 'model-b' }])].join('\n'));
+    const parsed = parseClaudeInitializeMetadata({ stdout: [claudeInit([{ value: 'model-a' }]), claudeInit([{ value: 'model-b' }])].join('\n') });
     expect(parsed?.models.map(row => row.id)).toEqual(['model-a']);
   });
   it('skips empty rows and rows without a string value', () => {
-    expect(parseClaudeInitializeMetadata(claudeInit([null, { value: 3 }, { value: 'model-a' }]))?.models).toEqual([{ id: 'model-a', label: 'model-a', identityKind: 'concrete' }]);
+    expect(parseClaudeInitializeMetadata({ stdout: claudeInit([null, { value: 3 }, { value: 'model-a' }]) })?.models).toEqual([{ id: 'model-a', label: 'model-a', identityKind: 'concrete' }]);
   });
   it('falls back from a blank display name to the resolved id, then the selection id', () => {
-    const parsed = parseClaudeInitializeMetadata(claudeInit([{ value: ' sonnet ', resolvedModel: ' claude-sonnet-x ', displayName: '  ' }, { value: 'opus', resolvedModel: 7 }]));
+    const parsed = parseClaudeInitializeMetadata({ stdout: claudeInit([{ value: ' sonnet ', resolvedModel: ' claude-sonnet-x ', displayName: '  ' }, { value: 'opus', resolvedModel: 7 }]) });
     expect(parsed?.models).toEqual([
       { id: 'sonnet', label: 'claude-sonnet-x', identityKind: 'alias', resolvedId: 'claude-sonnet-x' },
       { id: 'claude-sonnet-x', label: 'claude-sonnet-x', identityKind: 'concrete' },
@@ -61,10 +61,10 @@ describe('parseClaudeInitializeMetadata', () => {
     ]);
   });
   it('marks a row whose resolved id equals its id as concrete without a duplicate row', () => {
-    expect(parseClaudeInitializeMetadata(claudeInit([{ value: 'model-a', resolvedModel: 'model-a', displayName: 'Model A' }]))?.models).toEqual([{ id: 'model-a', label: 'Model A', identityKind: 'concrete', resolvedId: 'model-a' }]);
+    expect(parseClaudeInitializeMetadata({ stdout: claudeInit([{ value: 'model-a', resolvedModel: 'model-a', displayName: 'Model A' }]) })?.models).toEqual([{ id: 'model-a', label: 'Model A', identityKind: 'concrete', resolvedId: 'model-a' }]);
   });
   it('drops a default row that resolves to a non-concrete id and claims no default', () => {
-    expect(parseClaudeInitializeMetadata(claudeInit([{ value: 'default', resolvedModel: 'opus' }]))).toEqual({ models: [], source: 'rpc', coverage: 'account' });
+    expect(parseClaudeInitializeMetadata({ stdout: claudeInit([{ value: 'default', resolvedModel: 'opus' }]) })).toEqual({ models: [], source: 'rpc', coverage: 'account' });
   });
 });
 
@@ -74,52 +74,52 @@ describe('parsePiRpcMetadata', () => {
       '{"type":"response","success":true,"command":"get_available_models","data":{"models":[{"provider":"p"},{"provider":"p","id":"m1"}]}}',
       '{"type":"response","success":true,"command":"get_available_models","data":{}}',
       '{"type":"response","success":true,"command":"get_state","data":{"model":{"provider":"p"}}}'].join('\n');
-    expect(parsePiRpcMetadata(stdout)).toEqual({ models: [{ id: 'p/m1', label: 'm1', provider: 'p', identityKind: 'concrete' }], source: 'rpc', coverage: 'account' });
+    expect(parsePiRpcMetadata({ stdout })).toEqual({ models: [{ id: 'p/m1', label: 'm1', provider: 'p', identityKind: 'concrete' }], source: 'rpc', coverage: 'account' });
   });
   it('throws a TypeError on a JSON null line (pinned current behaviour, not a deliberate refusal)', () => {
-    expect(() => parsePiRpcMetadata('null')).toThrow(TypeError);
+    expect(() => parsePiRpcMetadata({ stdout: 'null' })).toThrow(TypeError);
   });
   it('refuses output without any model rows as malformed', () => {
-    expect(() => parsePiRpcMetadata('{"type":"response","success":true,"command":"get_state","data":{"model":{"provider":"p","id":"x"}}}')).toThrow(new ModelProbeError('malformed-response'));
+    expect(() => parsePiRpcMetadata({ stdout: '{"type":"response","success":true,"command":"get_state","data":{"model":{"provider":"p","id":"x"}}}' })).toThrow(new ModelProbeError('malformed-response'));
   });
 });
 
 describe('probeCliCache', () => {
   it('reads the Codex cache under CODEX_HOME and keeps slug, value and id rows', async () => {
     const fake = fakeDeps({ files: { '/codex/models_cache.json': JSON.stringify({ models: [{ slug: 'a', display_name: 'A' }, { value: 'b', displayName: 'B' }, { id: 'c' }, { other: 1 }] }) } });
-    expect(await probeCliCache('codex', { ...context, env: { CODEX_HOME: '/codex' } }, fake.deps, signal)).toEqual({ models: [
+    expect(await probeCliCache({ agentId: 'codex', context: { ...context, env: { CODEX_HOME: '/codex' } }, deps: fake.deps, signal })).toEqual({ models: [
       { id: 'a', label: 'A', identityKind: 'concrete' }, { id: 'b', label: 'B', identityKind: 'concrete' }, { id: 'c', label: 'c', identityKind: 'concrete' },
     ], source: 'cli-cache', coverage: 'observed' });
   });
   it('returns no Codex rows when the cache has no model array', async () => {
     const fake = fakeDeps({ files: { '/home/fake/.codex/models_cache.json': '{}' } });
-    expect((await probeCliCache('codex', context, fake.deps, signal)).models).toEqual([]);
+    expect((await probeCliCache({ agentId: 'codex', context, deps: fake.deps, signal })).models).toEqual([]);
   });
   it('qualifies OpenCode cache rows by provider and skips providers without models', async () => {
     const fake = fakeDeps({ files: { '/xdg/opencode/models.json': JSON.stringify({ openai: { models: { 'gpt-x': { name: 'GPT X' }, 'gpt-y': {} } }, empty: null, bare: {} }) } });
-    expect((await probeCliCache('opencode', { ...context, env: { HOME: '/home/fake', XDG_CACHE_HOME: '/xdg' } }, fake.deps, signal)).models).toEqual([
+    expect((await probeCliCache({ agentId: 'opencode', context: { ...context, env: { HOME: '/home/fake', XDG_CACHE_HOME: '/xdg' } }, deps: fake.deps, signal })).models).toEqual([
       { id: 'openai/gpt-x', label: 'GPT X', provider: 'openai', identityKind: 'concrete' },
       { id: 'openai/gpt-y', label: 'openai/gpt-y', provider: 'openai', identityKind: 'concrete' },
     ]);
   });
   it('reads the OpenCode cache under the home cache directory by default', async () => {
     const fake = fakeDeps({ files: { '/home/fake/.cache/opencode/models.json': '{}' } });
-    expect((await probeCliCache('opencode', context, fake.deps, signal)).models).toEqual([]);
+    expect((await probeCliCache({ agentId: 'opencode', context, deps: fake.deps, signal })).models).toEqual([]);
   });
   it('reads Claude and CodeBuddy option caches from their settings files', async () => {
     const cache = JSON.stringify({ additionalModelOptionsCache: [{ value: 'model-a' }] });
     const fake = fakeDeps({ files: { '/claude/.claude.json': cache, '/home/fake/.claude.json': '{}', '/home/fake/.codebuddy/settings.json': cache } });
-    expect((await probeCliCache('claude', { ...context, env: { HOME: '/home/fake', CLAUDE_CONFIG_DIR: '/claude' } }, fake.deps, signal)).models).toEqual([{ id: 'model-a', label: 'model-a', identityKind: 'concrete' }]);
-    expect((await probeCliCache('claude', context, fake.deps, signal)).models).toEqual([]);
-    expect((await probeCliCache('codebuddy', context, fake.deps, signal)).models).toEqual([{ id: 'model-a', label: 'model-a', identityKind: 'concrete' }]);
+    expect((await probeCliCache({ agentId: 'claude', context: { ...context, env: { HOME: '/home/fake', CLAUDE_CONFIG_DIR: '/claude' } }, deps: fake.deps, signal })).models).toEqual([{ id: 'model-a', label: 'model-a', identityKind: 'concrete' }]);
+    expect((await probeCliCache({ agentId: 'claude', context, deps: fake.deps, signal })).models).toEqual([]);
+    expect((await probeCliCache({ agentId: 'codebuddy', context, deps: fake.deps, signal })).models).toEqual([{ id: 'model-a', label: 'model-a', identityKind: 'concrete' }]);
   });
   it('refuses agents without a cache as unsupported', async () => {
-    expect(await probeError(probeCliCache('kimi', context, fakeDeps().deps, signal))).toBe('unsupported-version');
+    expect(await probeError(probeCliCache({ agentId: 'kimi', context, deps: fakeDeps().deps, signal }))).toBe('unsupported-version');
   });
   it('reports a missing or unreadable cache as offline', async () => {
     const fake = fakeDeps({ files: { '/home/fake/.codebuddy/settings.json': '[1]' } });
-    expect(await probeError(probeCliCache('codex', context, fake.deps, signal))).toBe('offline');
-    expect(await probeError(probeCliCache('codebuddy', context, fake.deps, signal))).toBe('offline');
+    expect(await probeError(probeCliCache({ agentId: 'codex', context, deps: fake.deps, signal }))).toBe('offline');
+    expect(await probeError(probeCliCache({ agentId: 'codebuddy', context, deps: fake.deps, signal }))).toBe('offline');
   });
 });
 
@@ -177,67 +177,67 @@ describe('probeProviderApi', () => {
 describe('probeAgentCatalog routing', () => {
   it('sends declared ACP agents to the ACP port with their arguments', async () => {
     const fake = fakeDeps();
-    expect(await probeAgentCatalog('trae-cli', context, config({}), fake.deps, signal)).toBe(rpcResult);
+    expect(await probeAgentCatalog({ agentId: 'trae-cli', context, configuration: config({}), deps: fake.deps, signal })).toBe(rpcResult);
     expect(fake.calls).toEqual(['acp:acp serve']);
   });
   it('sends Pi and Droid to the RPC port', async () => {
     const fake = fakeDeps();
-    for (const agentId of ['pi', 'droid']) await probeAgentCatalog(agentId, context, config({}), fake.deps, signal);
+    for (const agentId of ['pi', 'droid']) await probeAgentCatalog({ agentId, context, configuration: config({}), deps: fake.deps, signal });
     expect(fake.calls).toEqual(['rpc:pi', 'rpc:droid']);
   });
   it('sends Aider, Qwen and Mimo to the provider API', async () => {
     const fake = fakeDeps();
-    for (const agentId of ['aider', 'qwen', 'mimo']) expect((await probeAgentCatalog(agentId, context, config({}), fake.deps, signal)).source).toBe('provider-api');
+    for (const agentId of ['aider', 'qwen', 'mimo']) expect((await probeAgentCatalog({ agentId, context, configuration: config({}), deps: fake.deps, signal })).source).toBe('provider-api');
   });
   it('uses Claude initialize metadata first', async () => {
     const fake = fakeDeps({ stdout: claudeInit([{ value: 'model-a' }]) });
-    expect((await probeAgentCatalog('claude', context, config({}), fake.deps, signal)).source).toBe('rpc');
+    expect((await probeAgentCatalog({ agentId: 'claude', context, configuration: config({}), deps: fake.deps, signal })).source).toBe('rpc');
   });
   it('falls back from Claude initialize to the provider API, then the cache', async () => {
     const fake = fakeDeps({ files: { '/home/fake/.claude.json': JSON.stringify({ additionalModelOptionsCache: [{ value: 'model-c' }] }) } });
-    expect((await probeAgentCatalog('claude', context, config({}), fake.deps, signal)).source).toBe('provider-api');
+    expect((await probeAgentCatalog({ agentId: 'claude', context, configuration: config({}), deps: fake.deps, signal })).source).toBe('provider-api');
     fake.deps.credential.connection = async () => null;
-    expect(await probeAgentCatalog('claude', context, config({}), fake.deps, signal)).toEqual({ models: [{ id: 'model-c', label: 'model-c', identityKind: 'concrete' }], source: 'cli-cache', coverage: 'observed' });
+    expect(await probeAgentCatalog({ agentId: 'claude', context, configuration: config({}), deps: fake.deps, signal })).toEqual({ models: [{ id: 'model-c', label: 'model-c', identityKind: 'concrete' }], source: 'cli-cache', coverage: 'observed' });
   });
   it('falls back from CodeBuddy initialize straight to its cache', async () => {
     const fake = fakeDeps({ files: { '/home/fake/.codebuddy/settings.json': '{}' } });
-    expect((await probeAgentCatalog('codebuddy', context, config({}), fake.deps, signal)).source).toBe('cli-cache');
+    expect((await probeAgentCatalog({ agentId: 'codebuddy', context, configuration: config({}), deps: fake.deps, signal })).source).toBe('cli-cache');
     expect(fake.calls).toEqual(['process']);
     fake.deps.process.run = async () => ({ stdout: claudeInit([{ value: 'model-a' }]), stderr: '' });
-    expect((await probeAgentCatalog('codebuddy', context, config({}), fake.deps, signal)).source).toBe('rpc');
+    expect((await probeAgentCatalog({ agentId: 'codebuddy', context, configuration: config({}), deps: fake.deps, signal })).source).toBe('rpc');
   });
   it('caps declared listings at the agent budget, reserving two seconds for disk-cache agents', async () => {
     const fake = fakeDeps({ stdout: 'model-a\n' });
     const parse = ({ stdout }: { stdout: string }) => stdout.trim() ? [{ id: stdout.trim(), label: stdout.trim(), identityKind: 'concrete' as const }] : null;
-    await probeAgentCatalog('codex', context, config({ args: ['debug'], parse, timeoutMs: 9_500 }), fake.deps, signal);
-    await probeAgentCatalog('antigravity', context, config({ args: ['models'], parse, timeoutMs: 9_500 }), fake.deps, signal);
-    await probeAgentCatalog('antigravity', context, config({ args: ['models'], parse }), fake.deps, signal);
+    await probeAgentCatalog({ agentId: 'codex', context, configuration: config({ args: ['debug'], parse, timeoutMs: 9_500 }), deps: fake.deps, signal });
+    await probeAgentCatalog({ agentId: 'antigravity', context, configuration: config({ args: ['models'], parse, timeoutMs: 9_500 }), deps: fake.deps, signal });
+    await probeAgentCatalog({ agentId: 'antigravity', context, configuration: config({ args: ['models'], parse }), deps: fake.deps, signal });
     expect(fake.runs.map(run => run.timeoutMs)).toEqual([8_000, 9_500, 8_000]);
   });
   it('recovers a failed Codex or OpenCode listing from the disk cache', async () => {
     const fake = fakeDeps({ files: { '/home/fake/.codex/models_cache.json': '{"models":[{"slug":"a"}]}' } });
     failingProcess(fake.deps, new Error('listing failed'));
-    expect((await probeAgentCatalog('codex', context, config({ args: ['debug'] }), fake.deps, signal)).source).toBe('cli-cache');
+    expect((await probeAgentCatalog({ agentId: 'codex', context, configuration: config({ args: ['debug'] }), deps: fake.deps, signal })).source).toBe('cli-cache');
     fake.files.set('/home/fake/.cache/opencode/models.json', '{}');
-    expect((await probeAgentCatalog('opencode', context, config({ args: ['models'] }), fake.deps, signal)).source).toBe('cli-cache');
+    expect((await probeAgentCatalog({ agentId: 'opencode', context, configuration: config({ args: ['models'] }), deps: fake.deps, signal })).source).toBe('cli-cache');
   });
   it('rethrows the listing error when the disk cache also fails', async () => {
     const fake = fakeDeps();
     failingProcess(fake.deps, new Error('listing failed'));
-    expect(await probeError(probeAgentCatalog('opencode', context, config({ args: ['models'] }), fake.deps, signal))).toBe('other:listing failed');
+    expect(await probeError(probeAgentCatalog({ agentId: 'opencode', context, configuration: config({ args: ['models'] }), deps: fake.deps, signal }))).toBe('other:listing failed');
   });
   it('rethrows a failed listing for agents without a disk cache', async () => {
     const fake = fakeDeps();
     failingProcess(fake.deps, new Error('listing failed'));
-    expect(await probeError(probeAgentCatalog('antigravity', context, config({ args: ['models'] }), fake.deps, signal))).toBe('other:listing failed');
+    expect(await probeError(probeAgentCatalog({ agentId: 'antigravity', context, configuration: config({ args: ['models'] }), deps: fake.deps, signal }))).toBe('other:listing failed');
   });
   it('parses generic CLI listings for undeclared CLI agents', async () => {
     const fake = fakeDeps({ stdout: 'Models\n- model-a - Model A\n' });
-    expect(await probeAgentCatalog('crush', context, config({}), fake.deps, signal)).toEqual({ models: [{ id: 'model-a', label: 'Model A', identityKind: 'concrete' }], source: 'cli', coverage: 'account' });
+    expect(await probeAgentCatalog({ agentId: 'crush', context, configuration: config({}), deps: fake.deps, signal })).toEqual({ models: [{ id: 'model-a', label: 'Model A', identityKind: 'concrete' }], source: 'cli', coverage: 'account' });
     expect(fake.runs[0]!.args).toEqual(['models']);
   });
   it('refuses agents with no discovery category as unsupported', async () => {
-    expect(await probeError(probeAgentCatalog('unknown-agent', context, config({}), fakeDeps().deps, signal))).toBe('unsupported-version');
+    expect(await probeError(probeAgentCatalog({ agentId: 'unknown-agent', context, configuration: config({}), deps: fakeDeps().deps, signal }))).toBe('unsupported-version');
   });
 });
 
@@ -247,30 +247,30 @@ describe('probeAgentCatalog for AMR', () => {
     const fake = fakeDeps();
     const rows = [{ id: 'default', label: 'Default', identityKind: 'routing-mode' as const }, { id: 'model-a', label: 'A', identityKind: 'concrete' as const }];
     fake.deps.acp.probe = async () => amrMetadata(rows);
-    expect((await probeAgentCatalog('amr', context, config({}), fake.deps, signal)).defaultSelectionId).toBe('model-a');
+    expect((await probeAgentCatalog({ agentId: 'amr', context, configuration: config({}), deps: fake.deps, signal })).defaultSelectionId).toBe('model-a');
     fake.deps.acp.probe = async () => amrMetadata(rows, 'native-x');
-    expect((await probeAgentCatalog('amr', context, config({}), fake.deps, signal)).defaultSelectionId).toBe('native-x');
-    expect((await probeAgentCatalog('amr', { ...context, env: { VELA_DEFAULT_MODEL: 'env-x' } }, config(), fake.deps, signal)).defaultSelectionId).toBe('env-x');
+    expect((await probeAgentCatalog({ agentId: 'amr', context, configuration: config({}), deps: fake.deps, signal })).defaultSelectionId).toBe('native-x');
+    expect((await probeAgentCatalog({ agentId: 'amr', context: { ...context, env: { VELA_DEFAULT_MODEL: 'env-x' } }, configuration: config(), deps: fake.deps, signal })).defaultSelectionId).toBe('env-x');
     expect(fake.runs).toEqual([]);
   });
   it('falls back to the JSON list command when ACP has no concrete model', async () => {
     const fake = fakeDeps({ stdout: 'listed' });
     fake.deps.acp.probe = async () => amrMetadata([{ id: 'default', label: 'Default', identityKind: 'routing-mode' }]);
     const parse = () => [{ id: 'default', label: 'Default', identityKind: 'routing-mode' as const }, { id: 'model-b', label: 'B', identityKind: 'concrete' as const }];
-    expect(await probeAgentCatalog('amr', context, config({ parse }), fake.deps, signal)).toEqual({ models: parse(), source: 'cli', coverage: 'account', defaultSelectionId: 'model-b' });
+    expect(await probeAgentCatalog({ agentId: 'amr', context, configuration: config({ parse }), deps: fake.deps, signal })).toEqual({ models: parse(), source: 'cli', coverage: 'account', defaultSelectionId: 'model-b' });
     expect(fake.runs).toEqual([{ args: ['model', 'list', '--format', 'json'], timeoutMs: 10_000 }]);
-    expect((await probeAgentCatalog('amr', { ...context, env: { VELA_DEFAULT_MODEL: 'env-x' } }, config({ parse }), fake.deps, signal)).defaultSelectionId).toBe('env-x');
+    expect((await probeAgentCatalog({ agentId: 'amr', context: { ...context, env: { VELA_DEFAULT_MODEL: 'env-x' } }, configuration: config({ parse }), deps: fake.deps, signal })).defaultSelectionId).toBe('env-x');
   });
   it('claims no default when the list command yields no native row', async () => {
     const fake = fakeDeps();
     fake.deps.acp.probe = async () => { throw new Error('acp down'); };
-    expect(await probeAgentCatalog('amr', context, config({}), fake.deps, signal)).toEqual({ models: [], source: 'cli', coverage: 'account' });
+    expect(await probeAgentCatalog({ agentId: 'amr', context, configuration: config({}), deps: fake.deps, signal })).toEqual({ models: [], source: 'cli', coverage: 'account' });
   });
   it('rethrows the ACP failure without listing once the probe is cancelled', async () => {
     const fake = fakeDeps();
     const controller = new AbortController(); controller.abort();
     fake.deps.acp.probe = async () => { throw new Error('acp cancelled'); };
-    expect(await probeError(probeAgentCatalog('amr', context, config({}), fake.deps, controller.signal))).toBe('other:acp cancelled');
+    expect(await probeError(probeAgentCatalog({ agentId: 'amr', context, configuration: config({}), deps: fake.deps, signal: controller.signal }))).toBe('other:acp cancelled');
     expect(fake.runs).toEqual([]);
   });
 });
@@ -308,28 +308,28 @@ describe('default credential connection', () => {
 
 describe('shared CLI adapters', () => {
   it('gives ACP and RPC-style agents a longer probe budget', () => {
-    expect([modelProbeTimeoutMs('kilo'), modelProbeTimeoutMs('claude'), modelProbeTimeoutMs('droid'), modelProbeTimeoutMs('crush')]).toEqual([15_000, 15_000, 15_000, 10_000]);
+    expect([modelProbeTimeoutMs({ agentId: 'kilo' }), modelProbeTimeoutMs({ agentId: 'claude' }), modelProbeTimeoutMs({ agentId: 'droid' }), modelProbeTimeoutMs({ agentId: 'crush' })]).toEqual([15_000, 15_000, 15_000, 10_000]);
   });
   it('reports the CLI default model line and refuses unparseable output', async () => {
     const fake = fakeDeps({ stdout: 'Default model: model-a\nmodel-a\n' });
     const parse = ({ stdout }: { stdout: string }) => stdout.includes('model-a') ? [{ id: 'model-a', label: 'A', identityKind: 'concrete' as const }] : null;
-    expect((await probeCliSubcommand(context, config({ parse }), fake.deps, signal)).defaultSelectionId).toBe('model-a');
+    expect((await probeCliSubcommand({ context, config: config({ parse }), deps: fake.deps, signal })).defaultSelectionId).toBe('model-a');
     expect(fake.runs[0]).toEqual({ args: [], timeoutMs: 8_000 });
-    expect(await probeError(probeCliSubcommand(context, config({ args: ['x'] }), fake.deps, signal))).toBe('malformed-response');
+    expect(await probeError(probeCliSubcommand({ context, config: config({ args: ['x'] }), deps: fake.deps, signal }))).toBe('malformed-response');
   });
   it('reads generic JSON listings as arrays or a models field', async () => {
     const fake = fakeDeps({ stdout: JSON.stringify(['model-a', { id: 'model-b', name: 'B' }, { model: 'model-c' }, { other: 1 }, null]) });
-    expect((await probeAgentCatalog('qoder', context, config(), fake.deps, signal)).models).toEqual([
+    expect((await probeAgentCatalog({ agentId: 'qoder', context, configuration: config(), deps: fake.deps, signal })).models).toEqual([
       { id: 'model-a', label: 'model-a', identityKind: 'concrete' }, { id: 'model-b', label: 'B', identityKind: 'concrete' }, { id: 'model-c', label: 'model-c', identityKind: 'concrete' },
     ]);
     const wrapped = fakeDeps({ stdout: JSON.stringify({ models: ['model-d'] }) });
-    expect((await probeAgentCatalog('amp', context, config(), wrapped.deps, signal)).models.map(row => row.id)).toEqual(['model-d']);
+    expect((await probeAgentCatalog({ agentId: 'amp', context, configuration: config(), deps: wrapped.deps, signal })).models.map(row => row.id)).toEqual(['model-d']);
   });
   it('falls back to line parsing for JSON without a model list', async () => {
     const fake = fakeDeps({ stdout: '0' });
-    expect((await probeAgentCatalog('deepseek', context, config(), fake.deps, signal)).models).toEqual([{ id: '0', label: '0', identityKind: 'concrete' }]);
+    expect((await probeAgentCatalog({ agentId: 'deepseek', context, configuration: config(), deps: fake.deps, signal })).models).toEqual([{ id: '0', label: '0', identityKind: 'concrete' }]);
     const object = fakeDeps({ stdout: '{"model":"x"}' });
-    expect((await probeAgentCatalog('deepseek', context, config(), object.deps, signal)).models).toEqual([]);
+    expect((await probeAgentCatalog({ agentId: 'deepseek', context, configuration: config(), deps: object.deps, signal })).models).toEqual([]);
   });
 });
 
@@ -337,21 +337,21 @@ describe('probeClaudeInitialize', () => {
   const init = claudeInit([{ value: 'default', resolvedModel: 'model-a' }]);
   it('passes setting sources and hook-disabled inline settings, claiming the concrete default', async () => {
     const fake = fakeDeps({ stdout: init });
-    const result = await probeClaudeInitialize({ ...context, settingSources: ['user', 'project'], settings: ' {"model":"m"}' }, fake.deps, signal);
+    const result = await probeClaudeInitialize({ context: { ...context, settingSources: ['user', 'project'], settings: ' {"model":"m"}' }, deps: fake.deps, signal });
     expect(result.defaultSelectionId).toBe('model-a');
     expect(fake.runs[0]!.args.slice(-4)).toEqual(['--setting-sources', 'user,project', '--settings', '{"model":"m","disableAllHooks":true}']);
     expect(fake.runs[0]!.timeoutMs).toBe(15_000);
   });
   it('reads a settings file and skips the flag when it is missing or unparseable', async () => {
     const fake = fakeDeps({ stdout: init, files: { '/s.json': '{"a":1}', '/bad.json': 'nope' } });
-    await probeClaudeInitialize({ ...context, settings: '/s.json' }, fake.deps, signal);
-    await probeClaudeInitialize({ ...context, settings: '/bad.json' }, fake.deps, signal);
-    await probeClaudeInitialize({ ...context, settings: '/missing.json' }, fake.deps, signal);
+    await probeClaudeInitialize({ context: { ...context, settings: '/s.json' }, deps: fake.deps, signal });
+    await probeClaudeInitialize({ context: { ...context, settings: '/bad.json' }, deps: fake.deps, signal });
+    await probeClaudeInitialize({ context: { ...context, settings: '/missing.json' }, deps: fake.deps, signal });
     const settingsFlags = fake.runs.map(run => run.args.filter(arg => arg === '--settings').length);
     expect(settingsFlags).toEqual([settingsFlags[2]! + 1, settingsFlags[2], settingsFlags[2]]);
   });
   it('refuses an initialize reply without models as malformed', async () => {
-    expect(await probeError(probeClaudeInitialize(context, fakeDeps({ stdout: claudeInit([]) }).deps, signal))).toBe('malformed-response');
+    expect(await probeError(probeClaudeInitialize({ context, deps: fakeDeps({ stdout: claudeInit([]) }).deps, signal }))).toBe('malformed-response');
   });
 });
 

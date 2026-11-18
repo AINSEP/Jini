@@ -5,7 +5,7 @@ import { assessNativeToolPolicy } from '@jini-ai/agent-runtime/native-tool-polic
 import type { ChatAgentFailurePort, ChatAgentPolicyPort } from '../agents-port.js';
 
 export const policy = {
-  modelIdentityKind: ({ id }) => modelIdentityKind(id),
+  modelIdentityKind: ({ id }) => modelIdentityKind({ id }),
   concreteModelOptions: required => concreteModelOptions(required),
   modelReasoningOptions: required => modelReasoningOptions(required),
   assessNativeToolPolicy: required => assessNativeToolPolicy(required),

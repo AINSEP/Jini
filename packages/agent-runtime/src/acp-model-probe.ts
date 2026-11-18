@@ -23,7 +23,7 @@ let activeAcpModelProbe: AcpModelProbe = nativeAcpModelProbe;
 
 /** Compatibility setter for unbound definitions. Owned hosts keep their selected transport.
  * Pass `null` to restore the native transport for the legacy wrapper. */
-export function setAcpModelProbe({ probe }: { probe: AcpModelProbe | null }): void {
+export function setAcpModelProbe({ probe }: { probe: AcpModelProbe | null }, _optional: Record<string, never> = {}): void {
   activeAcpModelProbe = probe ?? nativeAcpModelProbe;
 }
 

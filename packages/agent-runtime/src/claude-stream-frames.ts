@@ -58,7 +58,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 const WRITE_TOOL_NAMES: ReadonlySet<string> = new Set(['Write', 'Edit', 'write_file', 'replace']);
 
-export function toolInputPath(input: Record<string, unknown>): string {
+export function toolInputPath({ input }: { input: Record<string, unknown> }, _optional: Record<string, never> = {}): string {
   if (typeof input.file_path === 'string') return input.file_path;
   if (typeof input.path === 'string') return input.path;
   return '';
@@ -79,7 +79,7 @@ const TASK_STATUS_ALIASES: Readonly<Record<string, RuntimeTask['status']>> = {
   cancelled: 'stopped',
 };
 
-export function normalizeTaskStatus(value: unknown): RuntimeTask['status'] {
+export function normalizeTaskStatus({ value }: { value: unknown }, _optional: Record<string, never> = {}): RuntimeTask['status'] {
   if (typeof value !== 'string') return 'pending';
   return TASK_STATUS_ALIASES[value] ?? 'pending';
 }
@@ -108,7 +108,7 @@ function nextGeneratedRuntimeTaskId(counter: RuntimeTaskIdCounter): string {
 export function runtimeTaskIdFromCreate({ input, counter }: {
   input: Record<string, unknown>;
   counter: RuntimeTaskIdCounter;
-}): string {
+}, _optional: Record<string, never> = {}): string {
   if (typeof input.taskId === 'string' && input.taskId) {
     const numericId = Number(input.taskId);
     if (Number.isSafeInteger(numericId) && numericId >= counter.next) {
@@ -123,7 +123,7 @@ export function applyTaskCreate({ input, tasks, counter }: {
   input: Record<string, unknown>;
   tasks: Map<string, RuntimeTask>;
   counter: RuntimeTaskIdCounter;
-}): boolean {
+}, _optional: Record<string, never> = {}): boolean {
   const content = firstString(input.subject, input.description) ?? '';
   if (!content) return false;
   const id = runtimeTaskIdFromCreate({ input, counter });
@@ -131,7 +131,7 @@ export function applyTaskCreate({ input, tasks, counter }: {
   tasks.set(id, {
     id,
     content,
-    status: normalizeTaskStatus(input.status),
+    status: normalizeTaskStatus({ value: input.status }),
     ...(activeForm ? { activeForm } : {}),
   });
   return true;
@@ -140,7 +140,7 @@ export function applyTaskCreate({ input, tasks, counter }: {
 export function applyTaskUpdate({ input, tasks }: {
   input: Record<string, unknown>;
   tasks: Map<string, RuntimeTask>;
-}): boolean {
+}, _optional: Record<string, never> = {}): boolean {
   if (typeof input.taskId !== 'string') return false;
   const existing = tasks.get(input.taskId);
   if (!existing) return false;
@@ -149,7 +149,7 @@ export function applyTaskUpdate({ input, tasks }: {
   tasks.set(input.taskId, {
     ...existing,
     content,
-    status: normalizeTaskStatus(input.status),
+    status: normalizeTaskStatus({ value: input.status }),
     ...(activeForm ? { activeForm } : {}),
   });
   return true;
@@ -161,7 +161,7 @@ export function emitCanonicalTaskSnapshot({ toolUseId, name, input, registry, on
   input: unknown;
   registry: TaskRegistry;
   onEvent: EventSink;
-}): boolean {
+}, _optional: Record<string, never> = {}): boolean {
   if (typeof toolUseId !== 'string' || typeof name !== 'string' || !isRecord(input)) return false;
   if (registry.seenToolUseIds.has(toolUseId)) return true;
   const applied = name === 'TaskCreate'
@@ -195,10 +195,10 @@ export function emitCanonicalTaskSnapshot({ toolUseId, name, input, registry, on
   return true;
 }
 
-export function isFileWriteToolUse({ name, input }: { name: unknown; input: unknown }): boolean {
+export function isFileWriteToolUse({ name, input }: { name: unknown; input: unknown }, _optional: Record<string, never> = {}): boolean {
   if (typeof name !== 'string' || !isRecord(input)) return false;
   if (!WRITE_TOOL_NAMES.has(name)) return false;
-  if (/\.(html|htm|css|js|jsx|ts|tsx|md)$/iu.test(toolInputPath(input))) return true;
+  if (/\.(html|htm|css|js|jsx|ts|tsx|md)$/iu.test(toolInputPath({ input }))) return true;
   return typeof input.content === 'string' || typeof input.new_string === 'string';
 }
 
@@ -216,22 +216,22 @@ export function isFileWriteToolUse({ name, input }: { name: unknown; input: unkn
 // receive (see archived provenance ledger), replaced by a one-line type assertion
 // (classification 4: TS-required, no real runtime path) so the
 // parameter can stay `unknown` without disturbing the call sites.
-export function fileWriteContent(input: unknown): string | null {
+export function fileWriteContent({ input }: { input: unknown }, _optional: Record<string, never> = {}): string | null {
   const record = input as Record<string, unknown>;
   if (typeof record.content === 'string') return record.content;
   if (typeof record.new_string === 'string') return record.new_string;
   return null;
 }
 
-export function isHtmlWriteToolInput(input: unknown): boolean {
+export function isHtmlWriteToolInput({ input }: { input: unknown }, _optional: Record<string, never> = {}): boolean {
   const record = input as Record<string, unknown>;
   const rawPath = record.file_path ?? record.filePath;
   if (typeof rawPath === 'string' && /\.(?:html?|xhtml)$/i.test(rawPath)) return true;
-  const content = fileWriteContent(input);
+  const content = fileWriteContent({ input });
   return typeof content === 'string' && /<!doctype\s+html\b|<html\b/i.test(content);
 }
 
-export function artifactOpenCandidateLength({ text, openTag }: { text: string; openTag: string }): number {
+export function artifactOpenCandidateLength({ text, openTag }: { text: string; openTag: string }, _optional: Record<string, never> = {}): number {
   const max = Math.min(openTag.length - 1, text.length);
   for (let len = max; len > 0; len -= 1) {
     if (openTag.startsWith(text.slice(-len))) return len;
@@ -244,7 +244,7 @@ function isHtmlArtifact(candidate: string): boolean {
   return /\btype\s*=\s*["']text\/html["']/i.test(openTag);
 }
 
-export function normalizeArtifactEchoContent(value: string): string {
+export function normalizeArtifactEchoContent({ value }: { value: string }, _optional: Record<string, never> = {}): string {
   const normalized = value
     .replace(/^\uFEFF/, '')
     .replace(/\r\n?/g, '\n');
@@ -273,18 +273,18 @@ function trimEchoPadding(text: string): string {
   return text.slice(start, end);
 }
 
-export function isRedundantWrittenArtifact({ candidate, ctx }: { candidate: string; ctx: ArtifactEchoContext }): boolean {
+export function isRedundantWrittenArtifact({ candidate, ctx }: { candidate: string; ctx: ArtifactEchoContext }, _optional: Record<string, never> = {}): boolean {
   const gt = candidate.indexOf('>');
   const close = candidate.lastIndexOf('</artifact>');
   if (gt === -1 || close === -1 || close <= gt) return false;
   if (ctx.suppressHtmlArtifactsAfterFileWrite && isHtmlArtifact(candidate) && ctx.wroteHtmlFileThisTurn) {
     return true;
   }
-  const body = normalizeArtifactEchoContent(candidate.slice(gt + 1, close));
+  const body = normalizeArtifactEchoContent({ value: candidate.slice(gt + 1, close) });
   return ctx.recentWriteContents.some((content) => content === body);
 }
 
-export function assistantText(content: unknown[]): string {
+export function assistantText({ content }: { content: unknown[] }, _optional: Record<string, never> = {}): string {
   const parts: string[] = [];
   for (const block of content) {
     if (isRecord(block) && block.type === 'text' && typeof block.text === 'string') {
@@ -295,15 +295,15 @@ export function assistantText(content: unknown[]): string {
 }
 
 export function isUnstreamedTextBlock(
-  block: Record<string, unknown>,
-  alreadyStreamed: boolean,
+  { block,
+  alreadyStreamed }: { block: Record<string, unknown>; alreadyStreamed: boolean }, _optional: Record<string, never> = {},
 ): block is Record<string, unknown> & { text: string } {
   return !alreadyStreamed && block.type === 'text' && typeof block.text === 'string' && block.text.length > 0;
 }
 
 export function isUnstreamedThinkingBlock(
-  block: Record<string, unknown>,
-  alreadyStreamed: boolean,
+  { block,
+  alreadyStreamed }: { block: Record<string, unknown>; alreadyStreamed: boolean }, _optional: Record<string, never> = {},
 ): block is Record<string, unknown> & { thinking: string } {
   return (
     !alreadyStreamed && block.type === 'thinking' && typeof block.thinking === 'string' && block.thinking.length > 0
@@ -323,7 +323,7 @@ export interface McpServerStatus {
  * without its tools (the 2026-10-01 desktop incident). Entries without a string name and status are
  * dropped rather than guessed at.
  */
-export function initMcpServers(obj: Record<string, unknown>): McpServerStatus[] | undefined {
+export function initMcpServers({ obj }: { obj: Record<string, unknown> }, _optional: Record<string, never> = {}): McpServerStatus[] | undefined {
   if (!Array.isArray(obj.mcp_servers)) return undefined;
   return obj.mcp_servers.flatMap((server) =>
     isRecord(server) && typeof server.name === 'string' && typeof server.status === 'string'
@@ -332,9 +332,9 @@ export function initMcpServers(obj: Record<string, unknown>): McpServerStatus[] 
   );
 }
 
-export function handleSystemMessage(obj: Record<string, unknown>, onEvent: EventSink): void {
+export function handleSystemMessage({ obj, onEvent }: { obj: Record<string, unknown>; onEvent: EventSink }, _optional: Record<string, never> = {}): void {
   if (obj.subtype === 'init') {
-    const mcpServers = initMcpServers(obj);
+    const mcpServers = initMcpServers({ obj });
     onEvent({
       type: 'status',
       label: 'initializing',
@@ -349,7 +349,7 @@ export function handleSystemMessage(obj: Record<string, unknown>, onEvent: Event
   }
 }
 
-export function stringifyToolResult(content: unknown): string {
+export function stringifyToolResult({ content }: { content: unknown }, _optional: Record<string, never> = {}): string {
   if (typeof content === 'string') return content;
   if (Array.isArray(content)) {
     return content
@@ -361,7 +361,7 @@ export function stringifyToolResult(content: unknown): string {
 
 // `user` messages in a stream-json transcript are usually tool_result
 // wrappers from prior turns.
-export function handleUserMessage(obj: Record<string, unknown>, onEvent: EventSink): void {
+export function handleUserMessage({ obj, onEvent }: { obj: Record<string, unknown>; onEvent: EventSink }, _optional: Record<string, never> = {}): void {
   if (!isRecord(obj.message) || !Array.isArray(obj.message.content)) return;
   for (const block of obj.message.content) {
     if (!isRecord(block)) continue;
@@ -371,7 +371,7 @@ export function handleUserMessage(obj: Record<string, unknown>, onEvent: EventSi
         type: 'tool_result',
         toolUseId: block.tool_use_id,
         // Keep original pixels until the daemon verifies the run, outcome and digest.
-        content: stringifyToolResult(block.content),
+        content: stringifyToolResult({ content: block.content }),
         ...(delegated ? { delegatedToolUseId: delegated.marker.toolUseId, delegatedResultContent: delegated.content } : {}),
         isError: Boolean(block.is_error),
       });
@@ -383,7 +383,7 @@ export function applyInputJsonDelta({ state, partialJson, onEvent }: {
   state: BlockState | undefined;
   partialJson: string;
   onEvent: EventSink;
-}): void {
+}, _optional: Record<string, never> = {}): void {
   if (!state || state.type !== 'tool_use') return;
   state.input += partialJson;
   if (typeof state.id === 'string' && typeof state.name === 'string') {
@@ -400,11 +400,11 @@ export function emitAssistantErrorIfPresent({ obj, content, onEvent }: {
   obj: Record<string, unknown>;
   content: unknown[];
   onEvent: EventSink;
-}): void {
+}, _optional: Record<string, never> = {}): void {
   if (typeof obj.error !== 'string' || !obj.error.trim()) return;
   onEvent({
     type: 'error',
-    message: assistantText(content) || obj.error,
+    message: assistantText({ content }) || obj.error,
     code: obj.error,
   });
 }

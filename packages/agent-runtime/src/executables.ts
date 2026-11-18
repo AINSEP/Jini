@@ -201,7 +201,7 @@ export function agentSearchDirs(_required: Record<string, never> = {}, options: 
 // The `*_BIN` environment variable that overrides PATH detection for a given
 // agent id (e.g. `cursor-agent` → `CURSOR_AGENT_BIN`), or null when the agent
 // has no override key. Drives the `setEnv` / `clearEnv` fix intents.
-export function agentBinEnvKey({ agentId }: { agentId: string | undefined }): string | null {
+export function agentBinEnvKey({ agentId }: { agentId: string | undefined }, _optional: Record<string, never> = {}): string | null {
   if (!agentId) return null;
   return AGENT_BIN_ENV_KEYS.get(agentId) ?? null;
 }
@@ -275,7 +275,7 @@ const PACKAGED_EXECUTABLES: ReadonlyMap<string, typeof packagedAmrExecutable> = 
 const APP_BUNDLE_EXECUTABLES: ReadonlyMap<string, typeof codexAppBundleExecutable> = new Map([['codex', codexAppBundleExecutable]]);
 
 export function resolveAmrOpenCodeExecutable({  }: {  }, { env = process.env, state = defaultRuntimeState }: ExecutableResolutionOptions = {}): string | null {
-  return resolveAmrCompanion({ env, state }, EXECUTABLE_HELPERS);
+  return resolveAmrCompanion({ options: { env, state }, services: EXECUTABLE_HELPERS });
 }
 
 // Exported for tests: the no-override `/Applications` branch can't be
@@ -284,7 +284,7 @@ export function resolveAmrOpenCodeExecutable({  }: {  }, { env = process.env, st
 // assert the built candidate list directly to catch a path typo or
 // ordering regression in the common real-world install case.
 export function codexAppBundleCandidates(_required: Record<string, never> = {}, options: ExecutableResolutionOptions = {}): string[] {
-  return codexBundleCandidates(withDefaults(options), EXECUTABLE_HELPERS);
+  return codexBundleCandidates({ options: withDefaults(options), services: EXECUTABLE_HELPERS });
 }
 
 // Resolve the first available binary for an agent definition. Tries

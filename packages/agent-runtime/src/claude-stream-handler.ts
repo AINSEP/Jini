@@ -139,7 +139,7 @@ function createStreamCtx({ onEvent, options }: {
 export function createStreamHandlerImpl({ onEvent, options }: {
   onEvent: EventSink;
   options: ClaudeStreamHandlerOptions;
-}) {
+}, _optional: Record<string, never> = {}) {
   const s = createStreamCtx({ onEvent, options });
   return {
     feed: ({ chunk }: { chunk: string }) => feed(s, { chunk }),
@@ -169,10 +169,10 @@ function emitToolUse(s: StreamCtx, { id, name, input }: { id: unknown; name: unk
   if (emitCanonicalTaskSnapshot({ toolUseId: id, name, input, registry: s.taskRegistry, onEvent: s.onEvent })) return;
   if (isFileWriteToolUse({ name, input })) {
     s.suppressNextArtifactText = true;
-    const content = fileWriteContent(input);
+    const content = fileWriteContent({ input });
     if (content) {
-      s.wroteHtmlFileThisTurn = s.wroteHtmlFileThisTurn || isHtmlWriteToolInput(input);
-      s.recentWriteContents.push(normalizeArtifactEchoContent(content));
+      s.wroteHtmlFileThisTurn = s.wroteHtmlFileThisTurn || isHtmlWriteToolInput({ input });
+      s.recentWriteContents.push(normalizeArtifactEchoContent({ value: content }));
       if (s.recentWriteContents.length > 5) s.recentWriteContents.shift();
     }
   }
@@ -352,11 +352,11 @@ function handleAssistantContentBlock(s: StreamCtx, { block, ctx }: {
     handleToolUseBlock(s, { block });
     return;
   }
-  if (isUnstreamedTextBlock(block, ctx.textAlreadyStreamed)) {
+  if (isUnstreamedTextBlock({ block, alreadyStreamed: ctx.textAlreadyStreamed })) {
     emitSafeText({ s, msgId: ctx.textMsgId, text: block.text, eventType: 'text_delta' });
     return;
   }
-  if (isUnstreamedThinkingBlock(block, ctx.thinkingAlreadyStreamed)) {
+  if (isUnstreamedThinkingBlock({ block, alreadyStreamed: ctx.thinkingAlreadyStreamed })) {
     emitSafeText({ s, msgId: ctx.thinkingMsgId, text: block.thinking, eventType: 'thinking_delta' });
   }
 }
@@ -451,7 +451,7 @@ function handleObject(s: StreamCtx, { obj }: { obj: unknown }) {
   s.segmentUsage.setSession({ id: obj.session_id });
   switch (obj.type) {
     case 'system':
-      handleSystemMessage(obj, s.onEvent);
+      handleSystemMessage({ obj, onEvent: s.onEvent });
       return;
     case 'stream_event':
       if (isRecord(obj.event)) handleStreamEvent(s, { ev: obj.event });
@@ -460,7 +460,7 @@ function handleObject(s: StreamCtx, { obj }: { obj: unknown }) {
       handleAssistantMessage(s, { obj });
       return;
     case 'user':
-      handleUserMessage(obj, s.onEvent);
+      handleUserMessage({ obj, onEvent: s.onEvent });
       return;
     case 'result':
       handleResultMessage(s, { obj });

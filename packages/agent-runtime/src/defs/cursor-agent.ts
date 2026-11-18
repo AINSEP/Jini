@@ -20,7 +20,7 @@ function parseCursorAgentModelLine(line: string): RuntimeModelOption | null {
   return { id, label: match[2]?.trim() || id };
 }
 
-export function parseCursorAgentModels({ stdout }: { stdout: string }): RuntimeModelOption[] | null {
+export function parseCursorAgentModels({ stdout }: { stdout: string }, _optional: Record<string, never> = {}): RuntimeModelOption[] | null {
   const lines = String(stdout || '')
     .split('\n')
     .map((line) => line.trim())
