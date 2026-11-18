@@ -16,7 +16,9 @@ Setup: Node 24.22.3 in `~/.local/node24`; Jini `pnpm install --frozen-lockfile` 
 | `0dfa0d1c` | J2 step 3: `slots.sidebar` |
 | `0d9d830a` | J2 step 4a: `frame`, `beforeMain`, `afterMain`, `assistantAside`, `ids` |
 | `50058a40` | J2 step 4b: topbar toggle `strokeLinecap="round"` (snapshot changes by that attribute only) |
-| (report commit) | this file + `.changeset/admin-shell-slots.md` |
+| `933a1fb2` | this report + `.changeset/admin-shell-slots.md` |
+| `d9b0c65d` | restore a why-comment sentence the new `check:why-comments` gate (on newer `refactor/terra`) reported as lost (`resolveShellView` was folded into `ShellLayout`) |
+| (this report revision) | post-merge validation section below |
 
 ## Baseline (unmodified `65d73b0d`) and result
 | Gate | Base | Head |
@@ -60,6 +62,9 @@ C3, C4 (both), C5, C7, C9, C11 print nothing. C8 (S-FN50 + `check:size` + `check
 
 ## Shared files edited (overlap list for the other ~25 live runs)
 Jini: `packages/admin/**` only, plus `scripts/hook-injection-debt.json` (deletions only: 4 `AdminShell::` keys; a conflict with another run is possible if it also edits that file near those keys) and two files in `.changeset/`. Nothing in Tovu. `git pull --rebase origin refactor/terra` before each push was clean every time.
+
+## Validation against the newer `refactor/terra` (it moved 103 commits during the run, to `4c189236`)
+The branch history was NOT rebased (rebasing would have rewritten already-pushed SHAs and needed a force-push, which is banned). Instead a scratch merge of `origin/refactor/terra` into `wave2/admin-j` was tested locally and discarded: **merges with no conflict**. On that merged tree after `pnpm --no-bail -r build` (exit 0): admin suite 227 files / 2,925 tests pass; `pnpm guard` ok; `pnpm check:size`, `pnpm check:complexity` ok; `pnpm check:why-comments` ok after `d9b0c65d` (it was red before, my doing: 1 lost comment); hook gate shows admin at 93 direct calls, no new line. Still red on that tree and not in files this branch touches (the branch diff against terra is `packages/admin/**`, `scripts/hook-injection-debt.json`, two changesets, this report): `check:log-safety` (`packages/http-kit/src/node-bridge.ts`), `check:errors` (WARN mode, `packages/ui/...`), `check:cross-package` (ENV: `fatal: bad revision '35c4961af'` in this shallow clone). A first `pnpm guard` before a full rebuild reported 1 violation (`antigravity` def: stale `@jini-ai/core` dist); it went away after the rebuild (ENV). Whoever merges to terra should rebase or merge, then rerun `check:why-comments`.
 
 ## Tovu check (no Tovu code changed; judge 2 said J1/J2 steps 1-4 cannot break a current screen: verified)
 `JINI_PACKAGES_DIR=/home/user/Jini/packages npm run link:jini` (74 links) then `npm --prefix apps/admin run typecheck`: exit 0. `npm --prefix apps/admin run test -- --maxWorkers=2` on `lib/__tests__/panel-access.unit.test.ts`, `__tests__/unit/app-panel-permissions` and `__tests__/app-boot-request-volume.test.tsx`: 3 files, 51 tests pass (judge-2 baseline 51); `src/__tests__/unit/app-*`: 25 files, 258 tests pass. Then `npm run unlink:jini` (working tree clean). Tovu's own gates (`check:size`, `check:complexity`, `check:boundaries`) were not run: judge 2 recorded them red on base for `apps/website` files and nothing here touches Tovu.
