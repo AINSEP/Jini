@@ -171,7 +171,11 @@ interface UpdateCtx {
   readonly state: UpdateState;
 }
 
-function logError(ctx: UpdateCtx, build: (required: { message: string }) => string, error: unknown): void {
+function logError({ ctx, build, error }: {
+  ctx: UpdateCtx;
+  build: (required: { message: string }) => string;
+  error: unknown;
+}): void {
   ctx.deps.log({ message: build({ message: describeErrorForLog({ err: error }) }) });
 }
 
@@ -198,13 +202,13 @@ function onDownloaded(ctx: UpdateCtx, info: { version: string }): void {
   // Promise wrapping catches a prompt that throws synchronously as well as a rejection.
   Promise.resolve().then(() => deps.promptUpdateReady({ version: info.version })).then(
     restart => { if (restart && !state.stopped) requestRestart(ctx); },
-    error => logError(ctx, messages.promptFailed, error),
+    error => logError({ ctx, build: messages.promptFailed, error }),
   );
 }
 
-function onUpdaterError(ctx: UpdateCtx, error: unknown): void {
+function onUpdaterError({ ctx, error }: { ctx: UpdateCtx; error: unknown }): void {
   if (ctx.state.stopped) return;
-  logError(ctx, ctx.messages.error, error);
+  logError({ ctx, build: ctx.messages.error, error });
   // A failed Squirrel handoff must release the held quit rather than leave the app hanging.
   if (ctx.state.installStarted) ctx.deps.quit();
 }
@@ -213,10 +217,10 @@ function registerUpdaterListeners(ctx: UpdateCtx): void {
   const { updater } = ctx.deps;
   if (isNativeUpdater(updater)) {
     updater.on('update-downloaded', (info: { version: string }) => onDownloaded(ctx, info));
-    updater.on('error', (error: unknown) => onUpdaterError(ctx, error));
+    updater.on('error', (error: unknown) => onUpdaterError({ ctx, error }));
   } else {
     updater.on({ event: 'update-downloaded', listener: ({ payload }) => onDownloaded(ctx, payload) });
-    updater.on({ event: 'error', listener: ({ payload }) => onUpdaterError(ctx, payload) });
+    updater.on({ event: 'error', listener: ({ payload }) => onUpdaterError({ ctx, error: payload }) });
   }
 }
 
@@ -224,16 +228,16 @@ function otherInstances({ deps }: UpdateCtx): number { return deps.presence.read
 function heartbeat(ctx: UpdateCtx): void {
   const { deps } = ctx;
   try { deps.presence.write({ record: { pid: deps.pid, startedAt: ctx.startedAt, heartbeatAt: ctx.now() } }); }
-  catch (error) { logError(ctx, ctx.messages.presenceWriteFailed, error); }
+  catch (error) { logError({ ctx, build: ctx.messages.presenceWriteFailed, error }); }
 }
 function check(ctx: UpdateCtx): void {
   const { state } = ctx;
   state.lastCheckAt = ctx.now(); state.checking = true;
   let result: ReturnType<UpdaterLike['checkForUpdates']>;
   try { result = ctx.deps.updater.checkForUpdates(); }
-  catch (error) { state.checking = false; logError(ctx, ctx.messages.checkFailed, error); return; }
+  catch (error) { state.checking = false; logError({ ctx, build: ctx.messages.checkFailed, error }); return; }
   result.then(value => value?.downloadPromise ?? null)
-    .catch(error => logError(ctx, ctx.messages.checkFailed, error))
+    .catch(error => logError({ ctx, build: ctx.messages.checkFailed, error }))
     .finally(() => { state.checking = false; });
 }
 function tick(ctx: UpdateCtx): void {
@@ -262,7 +266,7 @@ function startInstall(ctx: UpdateCtx, { silent, relaunch }: { silent: boolean; r
   catch (error) {
     timers.clear({ timer: fallback });
     handles.splice(handles.indexOf(fallback), 1);
-    logError(ctx, ctx.messages.error, error);
+    logError({ ctx, build: ctx.messages.error, error });
     return false;
   }
   return true;
