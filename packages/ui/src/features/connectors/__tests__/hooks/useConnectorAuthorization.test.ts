@@ -268,7 +268,12 @@ function useHarness(port: ReturnType<typeof createFakeConnectorsPort>, storage: 
   return renderHook(
     ({ connectors }: { connectors: Connector[] }) => {
       const setConnectors = vi.fn();
-      return useConnectorAuthorization(port, storage, bridge, { connectors, setConnectors });
+      return useConnectorAuthorization({
+        port,
+        authPendingStorage: storage,
+        authBridge: bridge,
+        params: { connectors, setConnectors },
+      });
     },
     { initialProps: { connectors: [makeConnector()] } },
   );
@@ -294,10 +299,15 @@ describe('useConnectorAuthorization', () => {
     const onAuthResult = vi.fn();
     const { result } = renderHook(() => {
       const setConnectors = vi.fn();
-      return useConnectorAuthorization(port, storage, bridge, {
+      return useConnectorAuthorization({
+        port,
+        authPendingStorage: storage,
+        authBridge: bridge,
+        params: {
         connectors: [makeConnector()],
         setConnectors,
         onAuthResult,
+      },
       });
     });
 
@@ -317,7 +327,12 @@ describe('useConnectorAuthorization', () => {
     const onAuthResult = vi.fn();
     const { result } = renderHook(() => {
       const setConnectors = vi.fn();
-      return useConnectorAuthorization(port, storage, bridge, { connectors: [makeConnector()], setConnectors, onAuthResult });
+      return useConnectorAuthorization({
+        port,
+        authPendingStorage: storage,
+        authBridge: bridge,
+        params: { connectors: [makeConnector()], setConnectors, onAuthResult },
+      });
     });
 
     await act(async () => {
@@ -342,7 +357,12 @@ describe('useConnectorAuthorization', () => {
     const { bridge } = makeControllableBridge();
     const { result } = renderHook(() => {
       const setConnectors = vi.fn();
-      return useConnectorAuthorization(port, storage, bridge, { connectors: [makeConnector()], setConnectors });
+      return useConnectorAuthorization({
+        port,
+        authPendingStorage: storage,
+        authBridge: bridge,
+        params: { connectors: [makeConnector()], setConnectors },
+      });
     });
 
     let firstCallDone = false;
@@ -369,7 +389,12 @@ describe('useConnectorAuthorization', () => {
     const { bridge } = makeControllableBridge();
     const { result } = renderHook(() => {
       const setConnectors = vi.fn();
-      return useConnectorAuthorization(port, storage, bridge, { connectors: [makeConnector({ status: 'available' })], setConnectors });
+      return useConnectorAuthorization({
+        port,
+        authPendingStorage: storage,
+        authBridge: bridge,
+        params: { connectors: [makeConnector({ status: 'available' })], setConnectors },
+      });
     });
 
     // Seed a stale error/cancel-failed flag as if a prior attempt failed.
@@ -387,7 +412,12 @@ describe('useConnectorAuthorization', () => {
     const { bridge, fireAuthCallback } = makeControllableBridge();
     renderHook(() => {
       const setConnectors = vi.fn();
-      return useConnectorAuthorization(port, storage, bridge, { connectors: [makeConnector()], setConnectors });
+      return useConnectorAuthorization({
+        port,
+        authPendingStorage: storage,
+        authBridge: bridge,
+        params: { connectors: [makeConnector()], setConnectors },
+      });
     });
 
     expect(fetchStatuses).not.toHaveBeenCalled();
@@ -415,7 +445,12 @@ describe('useConnectorAuthorization', () => {
     const { bridge, fireRefocus } = makeControllableBridge();
     const { result } = renderHook(() => {
       const setConnectors = vi.fn();
-      return useConnectorAuthorization(port, storage, bridge, { connectors: [makeConnector()], setConnectors });
+      return useConnectorAuthorization({
+        port,
+        authPendingStorage: storage,
+        authBridge: bridge,
+        params: { connectors: [makeConnector()], setConnectors },
+      });
     });
 
     expect(result.current.pending.slack).toBeDefined();
@@ -437,7 +472,12 @@ describe('useConnectorAuthorization', () => {
     const { bridge } = makeControllableBridge();
     const { result } = renderHook(() => {
       const setConnectors = vi.fn();
-      return useConnectorAuthorization(port, storage, bridge, { connectors: [makeConnector()], setConnectors });
+      return useConnectorAuthorization({
+        port,
+        authPendingStorage: storage,
+        authBridge: bridge,
+        params: { connectors: [makeConnector()], setConnectors },
+      });
     });
 
     expect(result.current.pending.slack).toBeUndefined();
@@ -450,7 +490,12 @@ describe('useConnectorAuthorization', () => {
     const { bridge, fireRefocus } = makeControllableBridge();
     renderHook(() => {
       const setConnectors = vi.fn();
-      return useConnectorAuthorization(port, storage, bridge, { connectors: [makeConnector()], setConnectors });
+      return useConnectorAuthorization({
+        port,
+        authPendingStorage: storage,
+        authBridge: bridge,
+        params: { connectors: [makeConnector()], setConnectors },
+      });
     });
 
     await act(async () => {
@@ -471,7 +516,12 @@ describe('useConnectorAuthorization', () => {
       const { bridge } = makeControllableBridge();
       renderHook(() => {
         const setConnectors = vi.fn();
-        return useConnectorAuthorization(port, storage, bridge, { connectors: [makeConnector()], setConnectors, pollMs: 1000 });
+        return useConnectorAuthorization({
+          port,
+          authPendingStorage: storage,
+          authBridge: bridge,
+          params: { connectors: [makeConnector()], setConnectors, pollMs: 1000 },
+        });
       });
 
       await act(async () => {
@@ -495,7 +545,12 @@ describe('useConnectorAuthorization', () => {
     const { bridge } = makeControllableBridge();
     const { result } = renderHook(() => {
       const setConnectors = vi.fn();
-      return useConnectorAuthorization(port, storage, bridge, { connectors: [makeConnector()], setConnectors });
+      return useConnectorAuthorization({
+        port,
+        authPendingStorage: storage,
+        authBridge: bridge,
+        params: { connectors: [makeConnector()], setConnectors },
+      });
     });
 
     await act(async () => {
@@ -519,7 +574,12 @@ describe('useConnectorAuthorization', () => {
     const { bridge, fireRefocus } = makeControllableBridge();
     const { result } = renderHook(() => {
       const setConnectors = vi.fn();
-      return useConnectorAuthorization(port, storage, bridge, { connectors: [makeConnector()], setConnectors });
+      return useConnectorAuthorization({
+        port,
+        authPendingStorage: storage,
+        authBridge: bridge,
+        params: { connectors: [makeConnector()], setConnectors },
+      });
     });
     expect(result.current.pending.slack).toBeDefined();
 
@@ -557,7 +617,12 @@ describe('useConnectorAuthorization', () => {
     const { bridge, fireRefocus } = makeControllableBridge();
     const { result } = renderHook(() => {
       const setConnectors = vi.fn();
-      return useConnectorAuthorization(port, storage, bridge, { connectors: [makeConnector()], setConnectors });
+      return useConnectorAuthorization({
+        port,
+        authPendingStorage: storage,
+        authBridge: bridge,
+        params: { connectors: [makeConnector()], setConnectors },
+      });
     });
 
     vi.setSystemTime(Date.now() + 30);
@@ -578,7 +643,12 @@ describe('useConnectorAuthorization', () => {
     const { bridge } = makeControllableBridge();
     const { result } = renderHook(() => {
       const setConnectors = vi.fn();
-      return useConnectorAuthorization(port, storage, bridge, { connectors: [makeConnector()], setConnectors });
+      return useConnectorAuthorization({
+        port,
+        authPendingStorage: storage,
+        authBridge: bridge,
+        params: { connectors: [makeConnector()], setConnectors },
+      });
     });
 
     // Seed cancelFailed via the public API (its fallback path), and
@@ -612,7 +682,12 @@ describe('useConnectorAuthorization', () => {
     const onAuthResult = vi.fn();
     const { result } = renderHook(() => {
       const setConnectors = vi.fn();
-      return useConnectorAuthorization(port, storage, bridge, { connectors: [makeConnector()], setConnectors, onAuthResult });
+      return useConnectorAuthorization({
+        port,
+        authPendingStorage: storage,
+        authBridge: bridge,
+        params: { connectors: [makeConnector()], setConnectors, onAuthResult },
+      });
     });
 
     await expect(
@@ -639,7 +714,12 @@ describe('useConnectorAuthorization', () => {
     const onAuthResult = vi.fn();
     const { result } = renderHook(() => {
       const setConnectors = vi.fn();
-      return useConnectorAuthorization(port, storage, bridge, { connectors: [makeConnector()], setConnectors, onAuthResult });
+      return useConnectorAuthorization({
+        port,
+        authPendingStorage: storage,
+        authBridge: bridge,
+        params: { connectors: [makeConnector()], setConnectors, onAuthResult },
+      });
     });
 
     await act(async () => {
@@ -661,10 +741,15 @@ describe('useConnectorAuthorization', () => {
     const onConnectorsChanged = vi.fn();
     const { result } = renderHook(() => {
       const setConnectors = vi.fn();
-      return useConnectorAuthorization(port, storage, bridge, {
+      return useConnectorAuthorization({
+        port,
+        authPendingStorage: storage,
+        authBridge: bridge,
+        params: {
         connectors: [makeConnector()],
         setConnectors,
         onConnectorsChanged,
+      },
       });
     });
 
@@ -683,11 +768,16 @@ describe('useConnectorAuthorization', () => {
     const onAuthResult = vi.fn();
     const { result } = renderHook(() => {
       const setConnectors = vi.fn();
-      return useConnectorAuthorization(port, storage, bridge, {
+      return useConnectorAuthorization({
+        port,
+        authPendingStorage: storage,
+        authBridge: bridge,
+        params: {
         connectors: [makeConnector()],
         setConnectors,
         onConnectorsChanged,
         onAuthResult,
+      },
       });
     });
 
@@ -717,7 +807,12 @@ describe('useConnectorAuthorization', () => {
     const onAuthResult = vi.fn();
     const { result } = renderHook(() => {
       const setConnectors = vi.fn();
-      return useConnectorAuthorization(port, storage, bridge, { connectors: [makeConnector()], setConnectors, onAuthResult });
+      return useConnectorAuthorization({
+        port,
+        authPendingStorage: storage,
+        authBridge: bridge,
+        params: { connectors: [makeConnector()], setConnectors, onAuthResult },
+      });
     });
 
     await expect(
@@ -741,7 +836,12 @@ describe('useConnectorAuthorization', () => {
     const { bridge } = makeControllableBridge();
     const { result } = renderHook(() => {
       const setConnectors = vi.fn();
-      return useConnectorAuthorization(port, storage, bridge, { connectors: [makeConnector()], setConnectors });
+      return useConnectorAuthorization({
+        port,
+        authPendingStorage: storage,
+        authBridge: bridge,
+        params: { connectors: [makeConnector()], setConnectors },
+      });
     });
 
     // Seed an authError, and separately force a cancel-failure to seed
@@ -773,7 +873,12 @@ describe('useConnectorAuthorization', () => {
     const { bridge } = makeControllableBridge();
     const { result } = renderHook(() => {
       const setConnectors = vi.fn();
-      return useConnectorAuthorization(port, storage, bridge, { connectors: [makeConnector()], setConnectors });
+      return useConnectorAuthorization({
+        port,
+        authPendingStorage: storage,
+        authBridge: bridge,
+        params: { connectors: [makeConnector()], setConnectors },
+      });
     });
 
     await act(async () => {
@@ -792,7 +897,12 @@ describe('useConnectorAuthorization', () => {
     const { bridge } = makeControllableBridge();
     const { result } = renderHook(() => {
       const setConnectors = vi.fn();
-      return useConnectorAuthorization(port, storage, bridge, { connectors: [makeConnector()], setConnectors });
+      return useConnectorAuthorization({
+        port,
+        authPendingStorage: storage,
+        authBridge: bridge,
+        params: { connectors: [makeConnector()], setConnectors },
+      });
     });
 
     await act(async () => {
@@ -808,10 +918,15 @@ describe('useConnectorAuthorization', () => {
     const onConnectorsChanged = vi.fn();
     const { result } = renderHook(() => {
       const setConnectors = vi.fn();
-      return useConnectorAuthorization(port, storage, bridge, {
+      return useConnectorAuthorization({
+        port,
+        authPendingStorage: storage,
+        authBridge: bridge,
+        params: {
         connectors: [makeConnector({ status: 'available' })], // differs from the port's real status
         setConnectors,
         onConnectorsChanged,
+      },
       });
     });
 
@@ -832,7 +947,12 @@ describe('useConnectorAuthorization', () => {
     const onAuthResult = vi.fn();
     const { result } = renderHook(() => {
       const setConnectors = vi.fn();
-      return useConnectorAuthorization(port, storage, bridge, { connectors: [makeConnector()], setConnectors, onAuthResult });
+      return useConnectorAuthorization({
+        port,
+        authPendingStorage: storage,
+        authBridge: bridge,
+        params: { connectors: [makeConnector()], setConnectors, onAuthResult },
+      });
     });
 
     await expect(
@@ -860,7 +980,12 @@ describe('useConnectorAuthorization', () => {
     const onAuthResult = vi.fn();
     const { result } = renderHook(() => {
       const setConnectors = vi.fn();
-      return useConnectorAuthorization(port, storage, bridge, { connectors: [makeConnector()], setConnectors, onAuthResult });
+      return useConnectorAuthorization({
+        port,
+        authPendingStorage: storage,
+        authBridge: bridge,
+        params: { connectors: [makeConnector()], setConnectors, onAuthResult },
+      });
     });
 
     // authError.slack is undefined here — this also exercises the
@@ -891,7 +1016,12 @@ describe('useConnectorAuthorization', () => {
     const { bridge } = makeControllableBridge();
     const { result } = renderHook(() => {
       const setConnectors = vi.fn();
-      return useConnectorAuthorization(port, storage, bridge, { connectors: [makeConnector()], setConnectors });
+      return useConnectorAuthorization({
+        port,
+        authPendingStorage: storage,
+        authBridge: bridge,
+        params: { connectors: [makeConnector()], setConnectors },
+      });
     });
 
     await act(async () => {

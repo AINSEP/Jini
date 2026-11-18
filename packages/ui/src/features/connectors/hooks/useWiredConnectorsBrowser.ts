@@ -56,11 +56,16 @@ export function useWiredConnectorsBrowser(params: UseWiredConnectorsBrowserParam
   const deps = useMemo(() => dependencies ?? createFakeConnectorsDependencies(), [dependencies]);
 
   const catalog = useConnectorCatalogHook(deps.data, { unlocked, refreshKey: catalogRefreshKey });
-  const authorization = useConnectorAuthorizationHook(deps.data, deps.authPendingStorage, deps.authBridge, {
-    connectors: catalog.connectors,
-    setConnectors: catalog.setConnectors,
-    ...(onConnectorsChanged ? { onConnectorsChanged } : {}),
-    ...(onConnectorAuthResult ? { onAuthResult: onConnectorAuthResult } : {}),
+  const authorization = useConnectorAuthorizationHook({
+    port: deps.data,
+    authPendingStorage: deps.authPendingStorage,
+    authBridge: deps.authBridge,
+    params: {
+      connectors: catalog.connectors,
+      setConnectors: catalog.setConnectors,
+      ...(onConnectorsChanged ? { onConnectorsChanged } : {}),
+      ...(onConnectorAuthResult ? { onAuthResult: onConnectorAuthResult } : {}),
+    },
   });
   const toolPreviewRetryToken = `${unlocked ? 'configured' : 'unconfigured'}:${String(catalogRefreshKey)}`;
   const detail = useConnectorDetailHook(deps.data, {

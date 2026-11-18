@@ -306,12 +306,12 @@ function useCancelAuthorization({ port, updateConnector, reloadStatuses, setCanc
  * authorizations on window refocus (a system-browser auth flow has no
  * opener to post back to, so this is the only way that path resolves).
  */
-export function useConnectorAuthorization(
-  port: ConnectorsPort,
-  authPendingStorage: ConnectorAuthPendingStoragePort,
-  authBridge: ConnectorAuthBridgePort,
-  params: UseConnectorAuthorizationParams,
-): ConnectorAuthorizationController {
+export function useConnectorAuthorization({ port, authPendingStorage, authBridge, params }: {
+  port: ConnectorsPort;
+  authPendingStorage: ConnectorAuthPendingStoragePort;
+  authBridge: ConnectorAuthBridgePort;
+  params: UseConnectorAuthorizationParams;
+}): ConnectorAuthorizationController {
   const { connectors, setConnectors, onConnectorsChanged, onAuthResult, pollMs = CONNECTOR_AUTH_PENDING_POLL_MS } = params;
 
   const [pending, setPending] = useState<ConnectorAuthorizationPendingState>(() =>
