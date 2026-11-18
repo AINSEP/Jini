@@ -34,3 +34,17 @@ describe('a URL query parameter whose name only ends in "code"', () => {
     expect(redactUserText({ text: 'https://x.test/cb?code=abc&state=1' })).toEqual({ text: 'https://x.test/cb?code=[token removed]&state=1', secretRedacted: true, count: 1 });
   });
 });
+
+describe('vendor key shapes chat once masked at any length', () => {
+  const tail = (length: number) => 'aB3xK9'.repeat(Math.ceil(length / 6)).slice(0, length);
+  it.each([
+    ['a payment-provider webhook secret', `whsec_${tail(24)}`],
+    ['a GitHub token with 30 characters', `ghs_${tail(30)}`],
+    ['a temporary AWS key id', 'ASIAABCDEFGHIJKLMNOP'],
+  ])('removes %s', (_name, key) => {
+    expect(redactUserText({ text: `use ${key} now` })).toEqual({ text: 'use [token removed] now', secretRedacted: true, count: 1 });
+  });
+  it.each(['whsec_abc', `ghs_${tail(29)}`])('keeps %j', text => {
+    expect(redactUserText({ text })).toEqual(kept(text));
+  });
+});

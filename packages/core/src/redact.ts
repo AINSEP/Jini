@@ -32,6 +32,8 @@
  * - Luhn algorithm (credit cards): https://en.wikipedia.org/wiki/Luhn_algorithm
  */
 
+import { VENDOR_SHAPE_PATTERNS } from './redact-vendor-shapes.js';
+
 /** Credential-shape vocabulary for secret-only redaction; no I/O or host dependencies. */
 
 export interface SecretShapePattern {
@@ -655,6 +657,7 @@ const PII_PATTERNS = PATTERNS.filter((pattern) => PII_PATTERN_NAMES.includes(pat
 function credentialPatterns(extraPatterns: readonly SecretRedactionPattern[]): SecretRedactionPattern[] {
   return [
     ...NON_PII_PATTERNS,
+    ...VENDOR_SHAPE_PATTERNS,
     ...SECRET_SHAPE_PATTERNS.map((shape) => ({ name: CATEGORY.credential, regex: shape.pattern })),
     ...extraPatterns,
   ];
