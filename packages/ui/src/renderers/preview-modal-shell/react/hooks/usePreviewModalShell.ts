@@ -105,6 +105,7 @@ function usePrimaryMenu() {
   const [primaryMenuOpen, setPrimaryMenuOpen] = useState(false);
   const primaryMenuRef = useRef<HTMLDivElement | null>(null);
 
+  // Outside-click / Escape dismissal for the split-button's secondary menu.
   useEffect(() => {
     if (!primaryMenuOpen) return undefined;
     const onDoc = (e: MouseEvent) => {

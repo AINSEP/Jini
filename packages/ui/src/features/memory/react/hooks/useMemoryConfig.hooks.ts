@@ -153,7 +153,11 @@ function runOptimisticToggle({ ctx, next }: { ctx: OptimisticToggleContext; next
   });
 }
 
-/** A list response can have raced an optimistic PATCH: leave both the visible value and its rollback baseline alone until that setting's queue settles (the write's onSettled then reconciles it). */
+/**
+ * A list response can have raced an optimistic PATCH. Keep both the
+ * visible value and its rollback baseline untouched until that setting's
+ * queue settles; the write's onSettled callback then reconciles it.
+ */
 function hydrateFlag({ queue, next, apply }: {
   queue: ConfigWriteQueue;
   next: boolean;

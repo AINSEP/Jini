@@ -36,6 +36,6 @@ export interface CodexMcpHomeOptions {
 }
 
 export interface CodexExecutorOptions {
-  /** Host policy; native executor composition resolves its env default when absent. */
+  /** Explicit host/run policy; environment defaults belong to native composition. Native executor composition resolves its env default when absent. */
   readonly codexDisablePlugins?: boolean;
 }

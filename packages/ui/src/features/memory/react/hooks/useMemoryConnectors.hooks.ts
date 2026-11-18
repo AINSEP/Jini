@@ -240,6 +240,12 @@ export function useMemoryConnectors(
     selectedConnectedConnectorIds: selection.selectedConnectedConnectorIds,
   });
   const onConnectMemoryConnector = useConnectAction({ port, auth, catalogue });
+
+  // NOTE: the OAuth mid-auth status poll and popup-callback message listener are
+  // deliberately NOT effects here — they open accumulating browser
+  // subscriptions, so a host orchestrator (a guaranteed single instance) owns
+  // them and drives `refreshConnectorStatuses` below. See the file header.
+
   const { connectorStatuses, connectorsLoading, connectorLoadError, reloadConnectors, refreshConnectorStatuses } = catalogue;
   const { memoryConnectors, connectedMemoryConnectors, connectedCount, selectedConnectedConnectorIds } = selection;
   const idleScanLabel = selectedConnectedConnectorIds.length === 0 ? 'Select apps to scan' : 'Scan selected apps';

@@ -331,6 +331,7 @@ export function attachPiRpcSession(requiredArgs: Pick<PiRpcSessionOptions, "chil
   // accepts `images` as an array of {type, data, mimeType} objects where
   // `data` is base64-encoded file contents.
   run.images = buildPiImagePayloads(imagePaths, uploadRoot);
+  // ---- Outbound: send new_session (if parentSession provided) then prompt via RPC ----
   // If a prior session file path is provided, send new_session with
   // parentSession so pi loads the prior conversation history into the
   // new session, enabling conversational continuity across edit rounds.

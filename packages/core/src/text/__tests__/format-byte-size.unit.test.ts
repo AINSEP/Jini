@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { formatByteSize } from '../format-byte-size.js';
 
 describe('formatByteSize', () => {
+  // 1024-based units must agree with upload caps; MB/GB keep precision so different clips
+  // do not misleadingly collapse to the same whole-number size.
   it.each([
     [0, '0 B'], [823, '823 B'], [823.6, '824 B'], [1023, '1023 B'],
     [1024, '1 KB'], [839_680, '820 KB'], [1023 * 1024, '1023 KB'],
