@@ -316,7 +316,7 @@
  "./comments/adapters/memory": {
   "types": "./dist/comments/adapters/memory.d.ts",
   "symbols": {
-   "createMemoryCommentsApi": "function:d849c40e53"
+   "createMemoryCommentsApi": "function:9989c6717e"
   }
  },
  "./comments/conformance": {

@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createAdmin } from "../../../core/module/create-admin.js";
 import { AdminConfigError } from "../../../core/module/create-admin.js";
 import type { AdminComment, CommentsSettings } from "../../../core/ports/comments.js";
-import { createMemoryCommentsApi } from "../../adapters/memory.js";
+import { memoryCommentsApi } from "../../__tests__/fakes/comment-repo.js";
 import { englishComments, type CommentsTranslator } from "../../messages.en.js";
 import { emptyRowState } from "../../rules.js";
 import { comments, CommentQueueScopeProvider, useCommentsPorts } from "../index.js";
@@ -37,7 +37,7 @@ describe("comments module page", () => {
   it("lazily loads the queue page through the bound module and renders it with the host translator", async () => {
     const feature = comments({}, { t: shout });
     const session = { me: async () => ({ user: { id: "operator", username: "operator" }, effectivePermissions: ["comments.read"] }) };
-    const admin = createAdmin({ modules: [feature], ports: { commentsApi: createMemoryCommentsApi({ items: [COMMENT] }), commentsSession: session } }, { permissions: ["comments.read"] });
+    const admin = createAdmin({ modules: [feature], ports: { commentsApi: memoryCommentsApi({ items: [COMMENT] }), commentsSession: session } }, { permissions: ["comments.read"] });
     const { Page } = feature.react.pages.queue;
     render(
       <FetchQueryProvider>

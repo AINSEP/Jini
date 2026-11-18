@@ -1,5 +1,5 @@
-import { InMemoryCommentRepo } from '@jini-ai/cms/comments';
 import { optionalOneOf, readToolLimit } from '@jini-ai/core';
+import type { AdminCommentRepoFactory } from '../../core/ports/comment-repo.js';
 import type { AdminComment, AdminCommentsPort, CommentsSettings, CommentStatus } from '../../core/ports/comments.js';
 import { AdminApiError } from '../../core/transport/errors.js';
 
@@ -28,19 +28,19 @@ function describeInvalidSettings({ settings }: { settings: CommentsSettings }, _
   return rule ? `${rule[0]} must be ${rule[2]}` : null;
 }
 
-/** Isolated admin contract fixture over the existing CMS memory repository.
+/** Isolated admin contract fixture over a comment repository the host (or test) supplies.
  * Keyset paging, optimistic concurrency and deletion belong to that repository, not this screen.
  * Settings here are an ephemeral read-your-writes fixture; production persistence stays in the
  * host's layered settings ledger. No ingress, auth, outbox or trash-index service is simulated.
- * @param required Seeded comments and settings, copied so later writes cannot alter input fixtures.
+ * @param required The repository factory, plus seeded comments and settings, copied so later writes cannot alter input fixtures.
  * @param optional Workspace scope and deterministic clock for moderation metadata.
  * @returns The core API with immutable snapshots and decoded status/body errors.
  */
 export function createMemoryCommentsApi(
-  { items = [], settings = DEFAULT_SETTINGS }: { items?: readonly AdminComment[]; settings?: CommentsSettings },
+  { items = [], settings = DEFAULT_SETTINGS, repoFactory }: { items?: readonly AdminComment[]; settings?: CommentsSettings; repoFactory: AdminCommentRepoFactory },
   { workspaceId = items[0]?.workspaceId ?? '__comments-memory__', now = () => '2026-10-07T00:00:00.000Z' }: { workspaceId?: string; now?: () => string } = {},
 ): AdminCommentsPort {
-  const repo = new InMemoryCommentRepo({ initialComments: items.map(item => ({ ...item, workspaceId: item.workspaceId ?? workspaceId })) });
+  const repo = repoFactory({ initialComments: items.map(item => ({ ...item, workspaceId: item.workspaceId ?? workspaceId })) });
   let storedSettings = Object.freeze({ ...settings });
   function failure(message: string, status: number, body?: Record<string, unknown>): never {
     throw new AdminApiError({ message, status }, { body });
