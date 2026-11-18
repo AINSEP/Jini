@@ -243,21 +243,30 @@ async function declaredFor<State>(ctx: HostCtx<State>, input: { readonly pluginI
 }
 
 /** A token read whose stored tokens belong to another client turns into a durable reconnect-required refusal. */
-async function refuseChangedClient<State>(ctx: HostCtx<State>, connectionRef: string, error: unknown): Promise<never> {
+async function refuseChangedClient<State>({ ctx, connectionRef, error }: {
+  ctx: HostCtx<State>;
+  connectionRef: string;
+  error: unknown;
+}): Promise<never> {
   if (!isUnreadableTokenRecord(error) && !wrapsUnreadableTokenRecord(error)) throw error;
   const record = await ctx.required.apiConnectionStorage.records.read({ key: connectionRef });
   if (record?.status === "connected") await markReconnectRequired(ctx, record);
   throw clientChanged(error);
 }
 
-async function getScopedAccessToken<State>(ctx: HostCtx<State>, scope: { readonly pluginId: string }, input: { readonly connectionRef: string }, options: AccessOptions): Promise<string> {
+async function getScopedAccessToken<State>({ ctx, scope, input, options }: {
+  ctx: HostCtx<State>;
+  scope: { readonly pluginId: string };
+  input: { readonly connectionRef: string };
+  options: AccessOptions;
+}): Promise<string> {
   const { required, shared } = ctx;
   const connection = await declaredFor(ctx, { pluginId: scope.pluginId, connectionRef: input.connectionRef });
   if (!connection) throw notAvailable();
   await ctx.budgets.charge({ workspaceId: required.workspaceId, pluginId: scope.pluginId, connectionId: connection.descriptor.connectionId, connectionRef: input.connectionRef, budgets: connection.budgets });
   if (shared && await shared.hasBinding(connection)) return shared.getAccessToken(connection, options);
   return serviceFor(ctx, { connection }).getAccessToken({ connectionRef: input.connectionRef, workspaceId: required.workspaceId }, options)
-    .catch((error: unknown) => refuseChangedClient(ctx, input.connectionRef, error));
+    .catch((error: unknown) => refuseChangedClient({ ctx, connectionRef: input.connectionRef, error }));
 }
 
 /**
@@ -269,7 +278,7 @@ async function getScopedAccessToken<State>(ctx: HostCtx<State>, scope: { readonl
  */
 function accessTokensFor<State>(ctx: HostCtx<State>, scope: { readonly pluginId: string }) {
   return {
-    getAccessToken: (input: { readonly connectionRef: string }, options: AccessOptions = {}): Promise<string> => getScopedAccessToken(ctx, scope, input, options),
+    getAccessToken: (input: { readonly connectionRef: string }, options: AccessOptions = {}): Promise<string> => getScopedAccessToken({ ctx, scope, input, options }),
   };
 }
 

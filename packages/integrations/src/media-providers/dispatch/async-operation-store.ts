@@ -394,7 +394,10 @@ export function mergeAsyncOperationPatch(
 
 type OperationRows = Map<string, AsyncOperationRecord>;
 
-function createRow(input: RequiredArgs<AsyncOperationCreateInput> & OptionalArgs<AsyncOperationCreateInput>, now: number): AsyncOperationRecord {
+function createRow({ input, now }: {
+  input: RequiredArgs<AsyncOperationCreateInput> & OptionalArgs<AsyncOperationCreateInput>;
+  now: number;
+}): AsyncOperationRecord {
   return {
     schemaVersion: ASYNC_OPERATION_SCHEMA_VERSION,
     id: input.id,
@@ -416,19 +419,28 @@ function createRow(input: RequiredArgs<AsyncOperationCreateInput> & OptionalArgs
   };
 }
 
-function createOperation(rows: OperationRows, required: RequiredArgs<AsyncOperationCreateInput>, optional: OptionalArgs<AsyncOperationCreateInput>): AsyncOperationRecord {
+function createOperation({ rows, required, optional }: {
+  rows: OperationRows;
+  required: RequiredArgs<AsyncOperationCreateInput>;
+  optional: OptionalArgs<AsyncOperationCreateInput>;
+}): AsyncOperationRecord {
   const input = { ...required, ...optional };
   if (rows.has(input.id)) {
     throw new Error(`async operation "${input.id}" already exists`);
   }
   assertValidCreateInput({ input });
 
-  const row = createRow(input, Date.now());
+  const row = createRow({ input, now: Date.now() });
   rows.set(row.id, row);
   return cloneRecord(row);
 }
 
-function updateOperation(rows: OperationRows, { id, patch }: { id: string; patch: AsyncOperationPatch }, options: AsyncOperationUpdateOptions | undefined): AsyncOperationRecord | null {
+function updateOperation({ rows, id, patch, options }: {
+  rows: OperationRows;
+  id: string;
+  patch: AsyncOperationPatch;
+  options: AsyncOperationUpdateOptions | undefined;
+}): AsyncOperationRecord | null {
   const existing = rows.get(id);
   if (!existing) return null;
   // Fenced, like releaseLease: a caller writing against a lease it no longer holds gets a
@@ -504,7 +516,7 @@ export function createInMemoryAsyncOperationStore(): AsyncOperationStore {
 
   return {
     async create(required: RequiredArgs<AsyncOperationCreateInput>, optional: OptionalArgs<AsyncOperationCreateInput> = {}): Promise<AsyncOperationRecord> {
-      return createOperation(rows, required, optional);
+      return createOperation({ rows, required, optional });
     },
 
     async get({ id }: { id: string }): Promise<AsyncOperationRecord | null> {
@@ -513,7 +525,7 @@ export function createInMemoryAsyncOperationStore(): AsyncOperationStore {
     },
 
     async update(required: { id: string; patch: AsyncOperationPatch }, { options }: { options?: AsyncOperationUpdateOptions | undefined } = {}): Promise<AsyncOperationRecord | null> {
-      return updateOperation(rows, required, options);
+      return updateOperation({ rows, ...required, options });
     },
 
     async listByOwner({ ownerRef }: { ownerRef: string }): Promise<AsyncOperationRecord[]> {
