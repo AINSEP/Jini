@@ -222,7 +222,7 @@ function writeEntries({ state, ctx, entries }: {
 }
 
 /** Settle every queued task up to and including `taskId`, in write order. */
-function settleThrough({ queued, indexes, settled }: MemoryProviderState, taskId: string): void {
+function settleThrough({ queued, indexes, settled }: MemoryProviderState, { taskId }: { taskId: string }): void {
   const ids = [...queued.keys()];
   // awaitTask calls this only when `taskId` is queued, so indexOf is never -1.
   for (const queuedId of ids.slice(0, ids.indexOf(taskId) + 1)) {
@@ -235,7 +235,10 @@ function settleThrough({ queued, indexes, settled }: MemoryProviderState, taskId
   }
 }
 
-async function guarded<T>({ opts, indexes }: MemoryProviderState, ctx: SearchProviderContext, run: (index: Index) => ProviderResult<T>): Promise<ProviderResult<T>> {
+async function guarded<T>({ opts, indexes }: MemoryProviderState, { ctx, run }: {
+  ctx: SearchProviderContext;
+  run: (index: Index) => ProviderResult<T>;
+}): Promise<ProviderResult<T>> {
   if (!opts.available({ ctx })) return unavailable();
   const index = indexes.get(ctx.indexName);
   return index === undefined ? missing(ctx.indexName) : run(index);
@@ -247,7 +250,7 @@ async function awaitProviderTask({ state, ctx, taskId }: {
   taskId: string;
 }): Promise<ProviderResult<SearchTaskState>> {
   if (!state.opts.available({ ctx })) return unavailable();
-  if (state.queued.has(taskId)) settleThrough(state, taskId);
+  if (state.queued.has(taskId)) settleThrough(state, { taskId });
   if (state.settled.has(taskId)) return providerOk({ value: 'succeeded' });
   return providerRejected({ code: 'not_found', message: `task '${taskId}' is not known` });
 }
@@ -283,15 +286,18 @@ function createBaseProvider(state: MemoryProviderState): SearchProvider {
       });
     },
     async query(ctx, { query }) {
-      return guarded(state, ctx, index => runQuery(index, query, typoTolerance, ctx));
+      return guarded(state, { ctx, run: index => runQuery(index, query, typoTolerance, ctx) });
     },
     async revisionOf(ctx, { keys }) {
-      return guarded(state, ctx, index => providerOk({
+      return guarded(state, {
+        ctx,
+        run: index => providerOk({
         value: keys.map((key): SearchRevisionState => {
           const entry = index.get(encodeSearchKey({ key }));
           return entry === undefined ? { key, revision: null, deleted: false } : { key, revision: entry.revision, deleted: entry.document === undefined };
         }),
-      }));
+      }),
+      });
     },
   };
 }
