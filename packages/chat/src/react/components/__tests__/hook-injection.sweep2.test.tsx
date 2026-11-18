@@ -8,6 +8,8 @@ import { SentAttachmentButton } from '../SentAttachment.js';
 import { ToolCallGroup, defaultToolCallGroupHooks } from '../ToolCallGroup.js';
 import { ConversationList, defaultConversationListHooks } from '../ConversationList.js';
 import { AttachmentPreviewModal, defaultAttachmentPreviewModalHooks } from '../AttachmentPreviewModal.js';
+import { AttachmentTray } from '../AttachmentTray.js';
+import { McpUiHost } from '../../surfaces.js';
 import { ThinkingBlock } from '../MessageRow.js';
 import { AgentPluginUsage } from '../../features/chat-pane/components/AgentPluginUsage.js';
 
@@ -108,5 +110,24 @@ describe('hooks wrapped by a spy that still drives the real view-model', () => {
     render(<AttachmentPreviewModal attachment={attachment} onClose={vi.fn()} hooks={{ useT: useQuotingT, useAttachmentPreviewModal: useModal }} />);
     expect(useModal).toHaveBeenCalledWith(expect.objectContaining({ attachment }));
     expect(document.querySelector('dialog')?.getAttribute('aria-label')).toBe('«{name} preview{"name":"notes.txt"}»');
+  });
+});
+
+describe('AttachmentTray and the surfaces facade', () => {
+  it('AttachmentTray labels its remove buttons with the injected translator and opens through the injected gallery', () => {
+    const open = vi.fn();
+    const useGallery = vi.fn(() => ({ open, close: vi.fn(), opened: undefined, navigation: undefined }));
+    const attachment = { name: 'doc.pdf', path: 'doc.pdf', kind: 'file' } as never;
+    render(
+      <AttachmentTray attachments={[attachment]} onRemove={vi.fn()} renderItem={() => <i>chip</i>} hooks={{ useT: useQuotingT, useAttachmentGallery: useGallery as never }} />,
+    );
+    expect(useGallery).toHaveBeenCalledWith({ attachments: [attachment] });
+    expect(document.querySelector('[aria-label^="«Remove {name}"]')).not.toBeNull();
+  });
+
+  it('McpUiHost renders the Host of the surfaces returned by the injected hook', () => {
+    const Host = (props: { html: string }) => <p data-testid="fake-host">{props.html}</p>;
+    render(<McpUiHost title="Fake" html="<p>hi</p>" sandboxProxyUrl={new URL('https://x.example/')} useChatSurfacesHook={(() => ({ mcpUi: { Host } })) as never} />);
+    expect(screen.getByTestId('fake-host')).toHaveTextContent('<p>hi</p>');
   });
 });
