@@ -140,7 +140,7 @@ function DraftLocationCard({ draft, index, state, labels, defaultControlLabel }:
   return (
     <div className="jini-project-location-card">
       <div className="jini-project-location-card-main">
-        <strong>{locationLabel(draft.path)}</strong>
+        <strong>{locationLabel({ locationPath: draft.path })}</strong>
         <code>{draft.path}</code>
         <small className="jini-hint">{labels.rowHint}</small>
       </div>

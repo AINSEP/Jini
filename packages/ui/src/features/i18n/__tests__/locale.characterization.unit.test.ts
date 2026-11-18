@@ -37,6 +37,6 @@ describe('resolveSystemLocale characterization', () => {
   ];
 
   it.each(cases)('$name', ({ languages, supportedLocales, expected }) => {
-    expect(resolveSystemLocale(languages, supportedLocales)).toBe(expected);
+    expect(resolveSystemLocale({ languages, supportedLocales })).toBe(expected);
   });
 });

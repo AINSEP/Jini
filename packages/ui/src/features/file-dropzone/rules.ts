@@ -26,7 +26,7 @@ export function fileDropzoneKind(file: File): FileDropzoneKind {
 }
 
 /** Kinds renderable straight from an object URL (`blob:`). Fonts also need one (`FontFace` loads from a URL); text is read via `FileReader`/`Blob.text()` instead. */
-export function fileDropzoneNeedsObjectUrl(kind: FileDropzoneKind): boolean {
+export function fileDropzoneNeedsObjectUrl({ kind }: { kind: FileDropzoneKind }, _optional: Record<string, never> = {}): boolean {
   return ['image', 'video', 'audio', 'pdf', 'html', 'font'].includes(kind);
 }
 
@@ -35,7 +35,7 @@ export function fileDropzoneExtensionLabel(file: File): string {
   return (fileDropzoneExtension(file) || 'file').toUpperCase().slice(0, 4);
 }
 
-export function fileDropzoneSizeLabel(bytes: number): string {
+export function fileDropzoneSizeLabel({ bytes }: { bytes: number }, _optional: Record<string, never> = {}): string {
   if (!bytes || bytes <= 0) return '';
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
@@ -48,16 +48,15 @@ export function fileDropzoneStagingKey(file: File): string {
 }
 
 /** CSS-safe, collision-resistant `@font-face` family name for a staged font at `index`. */
-export function fileDropzoneFontFamilyName(file: File, index: number): string {
+export function fileDropzoneFontFamilyName({ file, index }: { file: File; index: number }, _optional: Record<string, never> = {}): string {
   const slug = trimChars(file.name.replace(/[^a-z0-9]+/gi, '-'), '-').slice(0, 24);
   return `jini-file-dropzone-font-${index}-${slug || 'font'}`;
 }
 
 /** Whether a selection is large enough (by count or total bytes) to warrant a loading affordance while it's staged. */
 export function fileDropzoneShouldShowProcessing(
-  files: readonly File[],
-  fileCountThreshold: number,
-  totalBytesThreshold: number,
+  { files, fileCountThreshold, totalBytesThreshold }: { files: readonly File[]; fileCountThreshold: number; totalBytesThreshold: number },
+  _optional: Record<string, never> = {},
 ): boolean {
   if (files.length >= fileCountThreshold) return true;
   const totalBytes = files.reduce((sum, file) => sum + file.size, 0);

@@ -132,14 +132,14 @@ export function PrivacyTab({ state, onChange, labels, now = Date.now, agentHandl
             label={metricsLabel}
             hint={metricsHint}
             checked={state.telemetry.metrics === true}
-            onChange={(v) => onChange(nextStateForTelemetryPatch(state, { metrics: v }, now()))}
+            onChange={(v) => onChange(nextStateForTelemetryPatch({ state, patch: { metrics: v }, now: now() }))}
             {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'metrics-toggle' }) } : {})}
           />
           <ToggleRow
             label={contentLabel}
             hint={contentHint}
             checked={state.telemetry.content === true}
-            onChange={(v) => onChange(nextStateForTelemetryPatch(state, { content: v }, now()))}
+            onChange={(v) => onChange(nextStateForTelemetryPatch({ state, patch: { content: v }, now: now() }))}
             {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'content-toggle' }) } : {})}
           />
         </div>
@@ -167,7 +167,7 @@ export function PrivacyTab({ state, onChange, labels, now = Date.now, agentHandl
           <button
             type="button"
             className="jini-button jini-button-ghost"
-            onClick={() => onChange(nextStateForDeleteMyData(state, now()))}
+            onClick={() => onChange(nextStateForDeleteMyData({ state, now: now() }))}
             {...agentHandleProps({}, { base: agentHandle, ...({ action: 'delete-my-data', role: 'button', label: deleteMyDataLabel }) })}
           >
             <Icon name="trash" size={13} />

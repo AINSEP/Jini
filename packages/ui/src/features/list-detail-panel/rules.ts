@@ -9,8 +9,8 @@ import type { ListDetailItem } from './types.js';
  * the new pick.
  */
 export function resolveListDetailSelection<TItem extends ListDetailItem>(
-  items: readonly TItem[],
-  currentId: string | null,
+  { items, currentId }: { items: readonly TItem[]; currentId: string | null },
+  _optional: Record<string, never> = {},
 ): string | null {
   if (items.length === 0) return null;
   if (currentId !== null && items.some((item) => item.id === currentId)) return currentId;
@@ -19,8 +19,8 @@ export function resolveListDetailSelection<TItem extends ListDetailItem>(
 
 /** Find the summary item matching `selectedId`, or `null` if absent/unselected. */
 export function findSelectedItem<TItem extends ListDetailItem>(
-  items: readonly TItem[],
-  selectedId: string | null,
+  { items, selectedId }: { items: readonly TItem[]; selectedId: string | null },
+  _optional: Record<string, never> = {},
 ): TItem | null {
   if (selectedId === null) return null;
   return items.find((item) => item.id === selectedId) ?? null;

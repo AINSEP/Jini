@@ -9,7 +9,7 @@ export function useAssetTreeFileRow({ path, onOpen, onSelectPreview, onOpenMenu 
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
     const now = Date.now();
-    if (isDoubleActivation(lastActivationRef.current, now)) {
+    if (isDoubleActivation({ lastTimestampMs: lastActivationRef.current, nowMs: now })) {
       lastActivationRef.current = undefined;
       onOpen(path);
     } else {

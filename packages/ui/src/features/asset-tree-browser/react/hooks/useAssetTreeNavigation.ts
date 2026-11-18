@@ -66,7 +66,7 @@ export function useAssetTreeNavigation<TFile extends AssetTreeFileItem>(
   // directory disappears — otherwise navigating into an empty folder that
   // later loses its files would leave the panel stuck showing nothing.
   useEffect(() => {
-    const corrected = nextExistingAncestorDir(files, folders, currentDir);
+    const corrected = nextExistingAncestorDir({ files, folders, currentDir });
     if (corrected !== null) setCurrentDir(corrected);
     // `setCurrentDir` intentionally excluded: it's `useCallback`-stable given
     // a stable `onNavStateChange`, and including it here would be a no-op
@@ -76,12 +76,12 @@ export function useAssetTreeNavigation<TFile extends AssetTreeFileItem>(
   }, [files, folders, currentDir]);
 
   const { dirsAtCurrentDir, filesAtCurrentDir } = useMemo(
-    () => deriveTreeChildren(files, folders, currentDir),
+    () => deriveTreeChildren({ files, folders, currentDir }),
     [files, folders, currentDir],
   );
 
   const sections = useMemo(
-    () => groupFilesByKind(filesAtCurrentDir, sectionOrder, getKind, getModifiedAt),
+    () => groupFilesByKind({ files: filesAtCurrentDir, sectionOrder, getKind, getModifiedAt }),
     [filesAtCurrentDir, sectionOrder, getKind, getModifiedAt],
   );
 

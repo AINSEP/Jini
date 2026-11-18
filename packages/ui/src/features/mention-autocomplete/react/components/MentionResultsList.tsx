@@ -43,9 +43,9 @@ export function MentionResultsList<T extends MentionItem<ReactNode>>({
           <div className="jini-mention-section__items">
             {group.items.map((item) => (
               <MentionResultItem
-                key={mentionSelectionKey(group.category.id, item.id)}
+                key={mentionSelectionKey({ categoryId: group.category.id, itemId: item.id })}
                 item={item}
-                selected={selectedIds.has(mentionSelectionKey(group.category.id, item.id))}
+                selected={selectedIds.has(mentionSelectionKey({ categoryId: group.category.id, itemId: item.id }))}
                 onPick={() => onPick(item)}
                 selectedIcon={selectedIcon}
               />

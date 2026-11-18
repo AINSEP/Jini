@@ -22,11 +22,11 @@ export function useListDetailSelection<TItem extends ListDetailItem>(
   initialSelectedId: string | null = null,
 ): UseListDetailSelectionResult {
   const [selectedId, setSelectedId] = useState<string | null>(() =>
-    resolveListDetailSelection(items, initialSelectedId),
+    resolveListDetailSelection({ items, currentId: initialSelectedId }),
   );
 
   useEffect(() => {
-    setSelectedId((current) => resolveListDetailSelection(items, current));
+    setSelectedId((current) => resolveListDetailSelection({ items, currentId: current }));
   }, [items]);
 
   const select = useCallback((id: string | null) => {

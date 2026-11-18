@@ -41,7 +41,7 @@ export function useCommandPalette(
   const [cursor, setCursor] = useState(0);
 
   const results = useMemo(
-    () => rankItems(items, query, dependencies.recents.read(scopeKey)),
+    () => rankItems({ items, query, recentIds: dependencies.recents.read(scopeKey) }),
     [items, query, scopeKey, dependencies.recents],
   );
 
@@ -65,7 +65,7 @@ export function useCommandPalette(
       event.preventDefault();
       if (results.length === 0) return;
       const direction = event.key === 'ArrowDown' ? 1 : -1;
-      setCursor((current) => nextCursor(current, results.length, direction));
+      setCursor((current) => nextCursor({ current, total: results.length, direction }));
       return;
     }
     if (event.key === 'Enter') {

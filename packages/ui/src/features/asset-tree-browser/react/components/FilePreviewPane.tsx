@@ -55,7 +55,7 @@ export function FilePreviewPane<TFile>({
   useTHook = useT,
 }: FilePreviewPaneProps<TFile> & { useTHook?: typeof useT }) {
   const t = useTHook();
-  const relativeTime = relativeTimeResult(modifiedAt);
+  const relativeTime = relativeTimeResult({ ts: modifiedAt });
   const timeLabel = relativeTime.translatable ? t(relativeTime.label, relativeTime.params) : relativeTime.label;
   const openLabel = `${t('Open')} ${path}`;
 
@@ -98,8 +98,8 @@ export function FilePreviewPane<TFile>({
         <div className="asset-tree-preview-stats">
           {t('Modified {time} · {size} · {ext}', {
             time: timeLabel,
-            size: humanBytes(size),
-            ext: fileExtensionLabel(path),
+            size: humanBytes({ n: size }),
+            ext: fileExtensionLabel({ path }),
           })}
         </div>
         {downloadHref ? (

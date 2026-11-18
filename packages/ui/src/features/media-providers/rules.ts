@@ -22,7 +22,7 @@ function filled(value: string | undefined): boolean {
  * back. This is the predicate that decides whether a local edit is worth
  * preserving over the server's copy.
  */
-export function hasRecoverableFields(entry: MediaProviderCredentials | null | undefined): boolean {
+export function hasRecoverableFields({ entry }: { entry: MediaProviderCredentials | null | undefined }, _optional: Record<string, never> = {}): boolean {
   return filled(entry?.apiKey) || filled(entry?.baseUrl) || filled(entry?.model);
 }
 
@@ -32,14 +32,14 @@ export function hasRecoverableFields(entry: MediaProviderCredentials | null | un
  * Broader than `hasRecoverableFields` on purpose: for "is this provider set
  * up?" a server-held key the UI cannot see still counts as set up.
  */
-export function isEntryPresent(entry: MediaProviderCredentials | null | undefined): boolean {
-  return hasRecoverableFields(entry) || Boolean(entry?.apiKeyConfigured) || filled(entry?.apiKeyTail);
+export function isEntryPresent({ entry }: { entry: MediaProviderCredentials | null | undefined }, _optional: Record<string, never> = {}): boolean {
+  return hasRecoverableFields({ entry }) || Boolean(entry?.apiKeyConfigured) || filled(entry?.apiKeyTail);
 }
 
 /** Inverse of `isEntryPresent`, kept as its own name because call sites read
  *  far better as "is empty" than as a negation. */
-export function isEntryEmpty(entry: MediaProviderCredentials | null | undefined): boolean {
-  return !isEntryPresent(entry);
+export function isEntryEmpty({ entry }: { entry: MediaProviderCredentials | null | undefined }, _optional: Record<string, never> = {}): boolean {
+  return !isEntryPresent({ entry });
 }
 
 /**
@@ -50,14 +50,14 @@ export function isEntryEmpty(entry: MediaProviderCredentials | null | undefined)
  * and must be dropped, or the UI keeps claiming a provider is configured after
  * the server has forgotten it.
  */
-export function isMarkerOnlyEntry(entry: MediaProviderCredentials | null | undefined): boolean {
-  return isEntryPresent(entry) && !hasRecoverableFields(entry);
+export function isMarkerOnlyEntry({ entry }: { entry: MediaProviderCredentials | null | undefined }, _optional: Record<string, never> = {}): boolean {
+  return isEntryPresent({ entry }) && !hasRecoverableFields({ entry });
 }
 
 /** Whether any provider in the map is configured. */
-export function hasAnyConfiguredProvider(providers: MediaProviderMap | null | undefined): boolean {
+export function hasAnyConfiguredProvider({ providers }: { providers: MediaProviderMap | null | undefined }, _optional: Record<string, never> = {}): boolean {
   if (!providers) return false;
-  return Object.values(providers).some((entry) => isEntryPresent(entry));
+  return Object.values(providers).some((entry) => isEntryPresent({ entry }));
 }
 
 /**
@@ -96,29 +96,32 @@ export function hasAnyConfiguredProvider(providers: MediaProviderMap | null | un
  * authoritative for this merge, and they are dropped whichever case runs.
  */
 export function mergeDaemonProviders(
-  localProviders: MediaProviderMap | null | undefined,
-  daemonProviders: MediaProviderMap | null | undefined,
-  options?: { preserveLocalProviderIds?: ReadonlySet<string>; dropProviderIds?: ReadonlySet<string> },
+  { localProviders, daemonProviders }: { localProviders: MediaProviderMap | null | undefined; daemonProviders: MediaProviderMap | null | undefined },
+  options: { preserveLocalProviderIds?: ReadonlySet<string>; dropProviderIds?: ReadonlySet<string> } = {},
 ): MediaProviderMap {
   const dropped = options?.dropProviderIds;
   const local = withoutProviderIds({ map: { ...(localProviders ?? {}) } }, { dropped });
 
   if (daemonProviders == null) return local;
 
-  if (!hasAnyConfiguredProvider(daemonProviders)) {
-    return Object.fromEntries(Object.entries(local).filter(([, entry]) => !isMarkerOnlyEntry(entry)));
+  if (!hasAnyConfiguredProvider({ providers: daemonProviders })) {
+    return Object.fromEntries(Object.entries(local).filter(([, entry]) => !isMarkerOnlyEntry({ entry })));
   }
 
   const preserveIds = options?.preserveLocalProviderIds;
   const merged: MediaProviderMap = { ...local };
   for (const [providerId, daemonEntry] of Object.entries(daemonProviders)) {
-    if (!isEntryPresent(daemonEntry) || dropped?.has(providerId)) continue;
+    if (!shouldMergeDaemonEntry({ providerId, daemonEntry, dropped })) continue;
     merged[providerId] = mergeDaemonEntry(
       { providerId, daemonEntry, localEntry: merged[providerId] },
       { preserveIds },
     );
   }
   return merged;
+}
+
+function shouldMergeDaemonEntry({ providerId, daemonEntry, dropped }: { providerId: string; daemonEntry: MediaProviderCredentials; dropped: ReadonlySet<string> | undefined }, _optional: Record<string, never> = {}): boolean {
+  return isEntryPresent({ entry: daemonEntry }) && !dropped?.has(providerId);
 }
 
 /** `map` minus every id in `dropped` (see `mergeDaemonProviders`'s `dropProviderIds`). */
@@ -141,7 +144,7 @@ function mergeDaemonEntry(
   }: { providerId: string; daemonEntry: MediaProviderCredentials; localEntry: MediaProviderCredentials | undefined },
   { preserveIds }: { preserveIds?: ReadonlySet<string> | undefined },
 ): MediaProviderCredentials {
-  const preserveLocalEdit = Boolean(preserveIds?.has(providerId)) && hasRecoverableFields(localEntry);
+  const preserveLocalEdit = Boolean(preserveIds?.has(providerId)) && hasRecoverableFields({ entry: localEntry });
   return preserveLocalEdit ? { ...daemonEntry, ...localEntry } : { ...daemonEntry };
 }
 
@@ -154,12 +157,12 @@ function mergeDaemonEntry(
  * clobber it; that path belongs to an explicit save, not an automatic sync.
  */
 export function shouldSyncLocalProvidersToDaemon(
-  localProviders: MediaProviderMap | null | undefined,
-  daemonProviders: MediaProviderMap | null | undefined,
+  { localProviders, daemonProviders }: { localProviders: MediaProviderMap | null | undefined; daemonProviders: MediaProviderMap | null | undefined },
+  _optional: Record<string, never> = {},
 ): boolean {
   if (daemonProviders == null) return false;
-  if (hasAnyConfiguredProvider(daemonProviders)) return false;
-  return Object.values(localProviders ?? {}).some((entry) => hasRecoverableFields(entry));
+  if (hasAnyConfiguredProvider({ providers: daemonProviders })) return false;
+  return Object.values(localProviders ?? {}).some((entry) => hasRecoverableFields({ entry }));
 }
 
 /**
@@ -172,8 +175,8 @@ export function shouldSyncLocalProvidersToDaemon(
  * {@link isProviderBaseUrlInvalid}'s question, asked separately.
  */
 export function resolveProviderBaseUrl(
-  entry: MediaProviderCredentials | null | undefined,
-  defaultBaseUrl: string | undefined,
+  { entry, defaultBaseUrl }: { entry: MediaProviderCredentials | null | undefined; defaultBaseUrl: string | undefined },
+  _optional: Record<string, never> = {},
 ): string {
   const typed = entry?.baseUrl?.trim();
   if (typed) return typed;
@@ -191,16 +194,16 @@ export function resolveProviderBaseUrl(
  * supplied, persisted, and paired with a real API key that is then sent to
  * whatever it names. See `utils/endpoint-policy.ts`.
  */
-export function isProviderBaseUrlInvalid(entry: MediaProviderCredentials | null | undefined): boolean {
+export function isProviderBaseUrlInvalid({ entry }: { entry: MediaProviderCredentials | null | undefined }, _optional: Record<string, never> = {}): boolean {
   const typed = entry?.baseUrl?.trim();
   if (!typed) return false;
   return !isAllowedEndpointUrl({ raw: typed });
 }
 
 /** Every provider id in the map whose typed base URL is unacceptable — the save gate's input. */
-export function invalidBaseUrlProviderIds(providers: MediaProviderMap | null | undefined): readonly string[] {
+export function invalidBaseUrlProviderIds({ providers }: { providers: MediaProviderMap | null | undefined }, _optional: Record<string, never> = {}): readonly string[] {
   if (!providers) return [];
-  return Object.keys(providers).filter((id) => isProviderBaseUrlInvalid(providers[id]));
+  return Object.keys(providers).filter((id) => isProviderBaseUrlInvalid({ entry: providers[id] }));
 }
 
 /**
@@ -220,9 +223,8 @@ export function invalidBaseUrlProviderIds(providers: MediaProviderMap | null | u
  * is silently skipped rather than fabricating an entry.
  */
 export function sortProvidersByConfigured<T extends { id: string; label: string }>(
-  catalog: readonly T[],
-  providers: MediaProviderMap | null | undefined,
-  pinnedIds: readonly string[] = [],
+  { catalog, providers }: { catalog: readonly T[]; providers: MediaProviderMap | null | undefined },
+  { pinnedIds = [] }: { pinnedIds?: readonly string[] | undefined } = {},
 ): readonly T[] {
   const pinnedSet = new Set(pinnedIds);
   const pinned = pinnedIds
@@ -231,8 +233,8 @@ export function sortProvidersByConfigured<T extends { id: string; label: string 
   const rest = catalog
     .filter((item) => !pinnedSet.has(item.id))
     .sort((a, b) => {
-      const aConfigured = isEntryPresent(providers?.[a.id]);
-      const bConfigured = isEntryPresent(providers?.[b.id]);
+      const aConfigured = isEntryPresent({ entry: providers?.[a.id] });
+      const bConfigured = isEntryPresent({ entry: providers?.[b.id] });
       if (aConfigured !== bConfigured) return aConfigured ? -1 : 1;
       return a.label.localeCompare(b.label);
     });
@@ -258,7 +260,7 @@ const KEY_TAIL_MAX_LENGTH = 4;
  * prefix that makes it look masked. Clamping here means the display cannot leak
  * more than it promises no matter what the server sends.
  */
-export function maskedKeyLabel(entry: MediaProviderCredentials | null | undefined): string | null {
+export function maskedKeyLabel({ entry }: { entry: MediaProviderCredentials | null | undefined }, _optional: Record<string, never> = {}): string | null {
   const tail = entry?.apiKeyTail?.trim();
   if (tail) return `••••${tail.slice(-KEY_TAIL_MAX_LENGTH)}`;
   const local = entry?.apiKey?.trim();

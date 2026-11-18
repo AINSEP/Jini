@@ -34,7 +34,7 @@ export function useDeckNavigation(
   const handlers = useMemo(
     () => ({
       [DECK_STATE_MESSAGE_TYPE]: (message: { type: string }) => {
-        const next = parseDeckStateMessage(message);
+        const next = parseDeckStateMessage({ data: message });
         if (next) setSlideState(next);
       },
     }),
@@ -52,9 +52,9 @@ export function useDeckNavigation(
 
   return {
     slideState,
-    counterLabel: slideCounterLabel(slideState),
-    canGoPrev: canGoPrev(slideState),
-    canGoNext: canGoNext(slideState),
+    counterLabel: slideCounterLabel({ state: slideState }),
+    canGoPrev: canGoPrev({ state: slideState }),
+    canGoNext: canGoNext({ state: slideState }),
     goNext: useCallback(() => navigate('next'), [navigate]),
     goPrev: useCallback(() => navigate('prev'), [navigate]),
     goFirst: useCallback(() => navigate('first'), [navigate]),

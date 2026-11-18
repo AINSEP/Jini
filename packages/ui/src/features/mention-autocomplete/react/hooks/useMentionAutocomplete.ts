@@ -90,13 +90,13 @@ function useMentionTextareaHandlers({
   const refreshFromTextarea = () => {
     const textarea = textareaRef.current;
     if (!textarea) return;
-    setMention(readMentionTrigger(textarea.value, textarea.selectionStart ?? textarea.value.length, triggerChar));
+    setMention(readMentionTrigger({ value: textarea.value, cursor: textarea.selectionStart ?? textarea.value.length }, { triggerChar }));
   };
 
   const onTextareaChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
     const nextValue = event.target.value;
     onValueChange(nextValue);
-    setMention(readMentionTrigger(nextValue, event.target.selectionStart ?? nextValue.length, triggerChar));
+    setMention(readMentionTrigger({ value: nextValue, cursor: event.target.selectionStart ?? nextValue.length }, { triggerChar }));
   };
 
   const onTextareaKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
@@ -127,7 +127,7 @@ function useMentionSelection<T extends MentionItem>(
 
   const addItem = (item: T) => {
     setSelectedItems((current) => {
-      if (current.some((existing) => mentionSelectionKey(existing.category, existing.id) === mentionSelectionKey(item.category, item.id))) {
+      if (current.some((existing) => mentionSelectionKey({ categoryId: existing.category, itemId: existing.id }) === mentionSelectionKey({ categoryId: item.category, itemId: item.id }))) {
         return current;
       }
       const next = [...current, item];
@@ -138,15 +138,15 @@ function useMentionSelection<T extends MentionItem>(
 
   const removeItem = (item: T) => {
     setSelectedItems((current) => {
-      const key = mentionSelectionKey(item.category, item.id);
-      const next = current.filter((existing) => mentionSelectionKey(existing.category, existing.id) !== key);
+      const key = mentionSelectionKey({ categoryId: item.category, itemId: item.id });
+      const next = current.filter((existing) => mentionSelectionKey({ categoryId: existing.category, itemId: existing.id }) !== key);
       onSelectionChange?.(next);
       return next;
     });
   };
 
   const selectedKeys = useMemo(
-    () => new Set(selectedItems.map((item) => mentionSelectionKey(item.category, item.id))),
+    () => new Set(selectedItems.map((item) => mentionSelectionKey({ categoryId: item.category, itemId: item.id }))),
     [selectedItems],
   );
 
@@ -177,11 +177,11 @@ function useMentionResults<T extends MentionItem>({
   // per-kind `.slice(0, 10)` rather than one shared cap across every
   // category combined.
   const filteredItems = useMemo(
-    () => filterMentionItems(items, query, getSearchText, items.length),
+    () => filterMentionItems({ items, query }, { getSearchText, maxResults: items.length }),
     [items, query, getSearchText],
   );
   return useMemo(
-    () => groupItemsByCategory(filteredItems, categories, activeCategory, maxResultsPerCategory),
+    () => groupItemsByCategory({ items: filteredItems, categories }, { activeFilter: activeCategory, maxItemsPerCategory: maxResultsPerCategory }),
     [filteredItems, categories, activeCategory, maxResultsPerCategory],
   );
 }
@@ -223,7 +223,7 @@ export function useMentionAutocomplete<T extends MentionItem>({
   useDismissOnOutsideOrEscape({ onDismiss: closeMention }, { enabled: mention !== null, containerRef });
 
   const pickItem = (item: T) => {
-    const { nextValue, cursor } = insertMentionToken(value, mention, buildMentionToken(item.label, triggerChar));
+    const { nextValue, cursor } = insertMentionToken({ value, match: mention, token: buildMentionToken({ label: item.label }, { triggerChar }) });
     onValueChange(nextValue);
     setMention(null);
     addItem(item);
@@ -242,7 +242,7 @@ export function useMentionAutocomplete<T extends MentionItem>({
     activeCategory,
     setActiveCategory,
     groups,
-    hasResults: hasAnyResults(groups),
+    hasResults: hasAnyResults({ groups }),
     selectedItems,
     selectedKeys,
     onTextareaChange: handlers.onTextareaChange,

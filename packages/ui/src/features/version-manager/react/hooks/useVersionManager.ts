@@ -95,7 +95,7 @@ export function useVersionManager<TVersion extends VersionRecord>(
     prefetchVersion: (id: string) => {
       void primeVersionContent(id);
     },
-    restoredFrom: (version: TVersion) => restoredFromVersion(version, versionById),
+    restoredFrom: (version: TVersion) => restoredFromVersion({ version, versionById }),
     loading: selection.loading,
     loadingContent,
     error,

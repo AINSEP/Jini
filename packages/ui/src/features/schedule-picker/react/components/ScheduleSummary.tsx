@@ -22,7 +22,7 @@ export function translatedScheduleSummaryLabel(
   schedule: ScheduleValue,
   weekdays?: WeekdayOption[],
 ): string {
-  const parts = decomposeSchedule(schedule, weekdays);
+  const parts = decomposeSchedule({ schedule }, { weekdays });
   if (parts.kind === 'hourly') return `${t('Hourly')} at :${parts.minute}`;
   return `${t(parts.freq)} at ${parts.time} · ${parts.tz}`;
 }
@@ -35,7 +35,7 @@ export function translatedScheduleSummaryLabel(
  */
 export function ScheduleSummary({ schedule, weekdays, useTHook = useT }: ScheduleSummaryProps) {
   const t = useTHook();
-  const parts = decomposeSchedule(schedule, weekdays);
+  const parts = decomposeSchedule({ schedule }, { weekdays });
 
   if (parts.kind === 'hourly') {
     return (

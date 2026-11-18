@@ -7,15 +7,15 @@ import type {
 
 /** Compare the pointer with the target rectangle's midpoint. Plain coordinates keep this rule
  * independent of DOM/event types. */
-export function dropEdgeFromPointerX(pointerX: number, rect: Pick<TabStripElementRect, 'left' | 'width'>): TabStripDropEdge {
+export function dropEdgeFromPointerX({ pointerX, rect }: { pointerX: number; rect: Pick<TabStripElementRect, 'left' | 'width'> }, _optional: Record<string, never> = {}): TabStripDropEdge {
   return pointerX > rect.left + rect.width / 2 ? 'after' : 'before';
 }
 
 /** Land after a pinned target even when its left half was hit; pinned tabs must stay leftmost.
  * Hosts supply the pinned ids, so the rule does not assume one special entry tab. */
 export function coercePinnedDropTarget(
-  target: TabStripDragTarget,
-  pinnedTabIds: ReadonlySet<string>,
+  { target, pinnedTabIds }: { target: TabStripDragTarget; pinnedTabIds: ReadonlySet<string> },
+  _optional: Record<string, never> = {},
 ): TabStripDragTarget {
   if (target.edge === 'before' && pinnedTabIds.has(target.tabId)) {
     return { tabId: target.tabId, edge: 'after' };
@@ -34,10 +34,8 @@ export function coercePinnedDropTarget(
  * back in at index (+1 for 'after')" algorithm in both files.
  */
 export function reorderTabIds(
-  tabIds: readonly string[],
-  sourceId: string,
-  targetId: string,
-  edge: TabStripDropEdge,
+  { tabIds, sourceId, targetId, edge }: { tabIds: readonly string[]; sourceId: string; targetId: string; edge: TabStripDropEdge },
+  _optional: Record<string, never> = {},
 ): string[] {
   const original = tabIds as string[];
   if (sourceId === targetId) return original;
@@ -48,10 +46,10 @@ export function reorderTabIds(
   if (targetIndex < 0) return original;
 
   nextIds.splice(edge === 'after' ? targetIndex + 1 : targetIndex, 0, sourceId);
-  return arraysEqual(nextIds, tabIds) ? original : nextIds;
+  return arraysEqual({ a: nextIds, b: tabIds }) ? original : nextIds;
 }
 
-export function arraysEqual(a: readonly string[], b: readonly string[]): boolean {
+export function arraysEqual({ a, b }: { a: readonly string[]; b: readonly string[] }, _optional: Record<string, never> = {}): boolean {
   if (a.length !== b.length) return false;
   return a.every((value, index) => value === b[index]);
 }
@@ -72,9 +70,8 @@ export function dragTargetKey(target: TabStripDragTarget): string {
  * half we're past, after the last candidate otherwise" loop exactly.
  */
 export function findNearestDropTarget(
-  pointerX: number,
-  elements: ReadonlyArray<{ id: string; rect: TabStripElementRect }>,
-  sourceId: string,
+  { pointerX, elements, sourceId }: { pointerX: number; elements: ReadonlyArray<{ id: string; rect: TabStripElementRect }>; sourceId: string },
+  _optional: Record<string, never> = {},
 ): TabStripDragTarget | null {
   let lastTarget: TabStripDragTarget | null = null;
   for (const element of elements) {
@@ -103,7 +100,7 @@ export function pinnedTabIdSet(tabs: readonly TabStripTab[]): Set<string> {
  * disabled) when there's nothing to reorder against
  * (`draggable={!isPinned && state.tabs.length > 1}`).
  */
-export function isTabDraggable(tab: TabStripTab, tabs: readonly TabStripTab[]): boolean {
+export function isTabDraggable({ tab, tabs }: { tab: TabStripTab; tabs: readonly TabStripTab[] }, _optional: Record<string, never> = {}): boolean {
   if (tabs.length <= 1) return false;
   return tab.draggable ?? !tab.pinned;
 }
@@ -111,7 +108,7 @@ export function isTabDraggable(tab: TabStripTab, tabs: readonly TabStripTab[]): 
 /** Whether `tab` should render a close button, given an `onClose` handler
  *  is supplied. Pinned tabs are never closable, matching both source
  *  shapes (`WorkspaceTabsBar.tsx`'s entry tab, gated the same way). */
-export function isTabClosable(tab: TabStripTab, hasCloseHandler: boolean): boolean {
+export function isTabClosable({ tab, hasCloseHandler }: { tab: TabStripTab; hasCloseHandler: boolean }, _optional: Record<string, never> = {}): boolean {
   if (tab.pinned) return false;
   if (!hasCloseHandler) return false;
   return tab.closable ?? true;

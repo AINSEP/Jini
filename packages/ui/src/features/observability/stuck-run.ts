@@ -43,7 +43,7 @@ export interface TrackRunStartOptions {
  *
  * @overallScore 100
  */
-export function trackRunStart(runId: string, options: TrackRunStartOptions = {}): void {
+export function trackRunStart({ runId }: { runId: string }, options: TrackRunStartOptions = {}): void {
   if (typeof window === 'undefined') return;
   cancelRun(runId);
   const now = Date.now();
@@ -61,7 +61,7 @@ export function trackRunStart(runId: string, options: TrackRunStartOptions = {})
 }
 
 /** Records progress on `runId`, rescheduling its stuck-timeout. No-ops for an untracked/already-stuck run. */
-export function trackRunProgress(runId: string): void {
+export function trackRunProgress({ runId }: { runId: string }, _optional: Record<string, never> = {}): void {
   const entry = runs.get(runId);
   if (!entry || entry.emitted) return;
   entry.lastProgressAt = Date.now();
@@ -74,7 +74,7 @@ export function trackRunProgress(runId: string): void {
  * been reported stuck, also reports a `client_run_unstuck` recovery event
  * so a host's dashboard can pair the two.
  */
-export function trackRunTerminal(runId: string, terminalState: string): void {
+export function trackRunTerminal({ runId, terminalState }: { runId: string; terminalState: string }, _optional: Record<string, never> = {}): void {
   const entry = runs.get(runId);
   if (!entry) return;
   clearTimeout(entry.timer);

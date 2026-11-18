@@ -8,7 +8,7 @@ import type { ResourceBoardItem, ResourceStatusTone, ResourceStatusToneMap } fro
 // --- Shared: status tone ------------------------------------------------
 
 /** Resolves a status value's visual tone from a host-supplied map, defaulting to `'neutral'` for any status the host didn't classify. */
-export function statusToneFor(status: string, toneMap: ResourceStatusToneMap | undefined): ResourceStatusTone {
+export function statusToneFor({ status, toneMap }: { status: string; toneMap: ResourceStatusToneMap | undefined }, _optional: Record<string, never> = {}): ResourceStatusTone {
   return toneMap?.[status] ?? DEFAULT_STATUS_TONE;
 }
 
@@ -24,12 +24,11 @@ export function statusToneFor(status: string, toneMap: ResourceStatusToneMap | u
  * isn't in `statusOrder` at all, rather than silently dropping it.
  */
 export function groupItemsByStatus<TItem extends { status?: string }>(
-  items: readonly TItem[],
-  statusOrder: readonly string[],
-  options?: {
+  { items, statusOrder }: { items: readonly TItem[]; statusOrder: readonly string[] },
+  options: {
     defaultStatus?: string;
     normalizeStatus?: (status: string) => string;
-  },
+  } = {},
 ): Map<string, TItem[]> {
   const normalize = options?.normalizeStatus ?? ((status: string) => status);
   const fallback = options?.defaultStatus;
@@ -47,7 +46,7 @@ export function groupItemsByStatus<TItem extends { status?: string }>(
 }
 
 /** Case-insensitive substring match over an item's `title`/`subtitle` — mirrors DesignsTab's own `filter.trim().toLowerCase()` project-name (+ live-artifact title) search. An empty/whitespace-only query returns every item unchanged. */
-export function filterBoardItemsByQuery<TItem extends ResourceBoardItem>(items: readonly TItem[], query: string): TItem[] {
+export function filterBoardItemsByQuery<TItem extends ResourceBoardItem>({ items, query }: { items: readonly TItem[]; query: string }, _optional: Record<string, never> = {}): TItem[] {
   const trimmed = query.trim().toLowerCase();
   if (!trimmed) return [...items];
   return items.filter((item) => {
@@ -64,7 +63,7 @@ export function filterBoardItemsByQuery<TItem extends ResourceBoardItem>(items: 
  * (returns items in their original order) rather than an error, so a host
  * can safely add a sort option before wiring every item's `sortValues`.
  */
-export function sortBoardItems<TItem extends ResourceBoardItem>(items: readonly TItem[], sortOptionValue: string | undefined): TItem[] {
+export function sortBoardItems<TItem extends ResourceBoardItem>({ items, sortOptionValue }: { items: readonly TItem[]; sortOptionValue: string | undefined }, _optional: Record<string, never> = {}): TItem[] {
   if (!sortOptionValue) return [...items];
   return [...items]
     .map((item, index) => ({ item, index, value: item.sortValues?.[sortOptionValue] }))
@@ -79,7 +78,7 @@ export function sortBoardItems<TItem extends ResourceBoardItem>(items: readonly 
 }
 
 /** Toggles one id in a selection set, returning a new `Set` (DesignsTab's `toggleSelected`). */
-export function toggleSelectedId(selected: ReadonlySet<string>, id: string): Set<string> {
+export function toggleSelectedId({ selected, id }: { selected: ReadonlySet<string>; id: string }, _optional: Record<string, never> = {}): Set<string> {
   const next = new Set(selected);
   if (next.has(id)) next.delete(id);
   else next.add(id);
@@ -92,7 +91,7 @@ export function toggleSelectedId(selected: ReadonlySet<string>, id: string): Set
  * the SAME set instance when nothing needed pruning, so a caller can skip a
  * re-render via reference equality.
  */
-export function pruneSelectedIds(selected: ReadonlySet<string>, validIds: ReadonlySet<string>): ReadonlySet<string> {
+export function pruneSelectedIds({ selected, validIds }: { selected: ReadonlySet<string>; validIds: ReadonlySet<string> }, _optional: Record<string, never> = {}): ReadonlySet<string> {
   let changed = false;
   const next = new Set<string>();
   for (const id of selected) {

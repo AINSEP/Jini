@@ -285,10 +285,10 @@ export function AboutTab({
   const silentUpdates = useSilentUpdatesToggleHook({ allowSilentUpdates, onSilentUpdatePreferenceChange });
 
   const control = useMemo(
-    () => deriveAboutUpdateControl(updaterModel, appVersionInfo),
+    () => deriveAboutUpdateControl({ model: updaterModel, appVersionInfo }),
     [updaterModel, appVersionInfo],
   );
-  const actionDisabled = isAboutUpdateActionDisabled(control, updaterModel, actionBusy);
+  const actionDisabled = isAboutUpdateActionDisabled({ control, model: updaterModel }, { actionBusy });
   const resolvedLabels = resolveLabels({ t }, { labels });
 
   // `handlePrimaryAction` only exists when there is an action to run — it is

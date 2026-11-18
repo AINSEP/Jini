@@ -16,7 +16,7 @@ export function RevisionHistoryList<TMeta = unknown>({ revisions, useTHook = use
         <div key={revision.id} className="jini-revision-history-list__row">
           <span className={`jini-revision-history-list__status is-${revision.status}`}>{t(revision.status)}</span>
           <strong>{revision.sectionTitle ?? t('General revision')}</strong>
-          <small>{formatRevisionTimestamp(revision.updatedAt)}</small>
+          <small>{formatRevisionTimestamp({ value: revision.updatedAt })}</small>
         </div>
       ))}
     </section>

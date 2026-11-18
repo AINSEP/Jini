@@ -10,9 +10,8 @@ import type { IframeKeepAlivePoolEntry } from './types.js';
  * mechanics are independently testable and reusable outside this feature.
  */
 export function selectLruEvictions<TKey>(
-  entries: readonly IframeKeepAlivePoolEntry<TKey>[],
-  activeKeys: ReadonlySet<TKey>,
-  maxMounted: number,
+  { entries, activeKeys, maxMounted }: { entries: readonly IframeKeepAlivePoolEntry<TKey>[]; activeKeys: ReadonlySet<TKey>; maxMounted: number },
+  _optional: Record<string, never> = {},
 ): TKey[] {
   const inactiveByLru = entries
     .filter((entry) => !activeKeys.has(entry.key))
@@ -34,10 +33,8 @@ export function selectLruEvictions<TKey>(
  * restricted to inactive entries unless `includeActive` is set.
  */
 export function selectMatchingEvictions<TKey>(
-  entries: readonly IframeKeepAlivePoolEntry<TKey>[],
-  activeKeys: ReadonlySet<TKey>,
-  predicate: (entry: IframeKeepAlivePoolEntry<TKey>) => boolean,
-  includeActive: boolean,
+  { entries, activeKeys, predicate, includeActive }: { entries: readonly IframeKeepAlivePoolEntry<TKey>[]; activeKeys: ReadonlySet<TKey>; predicate: (entry: IframeKeepAlivePoolEntry<TKey>) => boolean; includeActive: boolean },
+  _optional: Record<string, never> = {},
 ): TKey[] {
   return entries
     .filter((entry) => (includeActive || !activeKeys.has(entry.key)) && predicate(entry))

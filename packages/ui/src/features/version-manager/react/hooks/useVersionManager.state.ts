@@ -207,18 +207,18 @@ export function useVersionSearch<TVersion extends VersionRecord>({ versions, loc
 }) {
   const [search, setSearch] = useState('');
   const versionById = useMemo(() => buildVersionIndex(versions), [versions]);
-  const showSearch = shouldShowVersionSearch(versions.length, SEARCH_VISIBLE_THRESHOLD);
+  const showSearch = shouldShowVersionSearch({ versionCount: versions.length, threshold: SEARCH_VISIBLE_THRESHOLD });
 
   const describeVersion = useCallback(
     (version: TVersion): string => {
-      const from = restoredFromVersion(version, versionById);
+      const from = restoredFromVersion({ version, versionById });
       return [
         `v${version.version}`,
         `version ${version.version}`,
         version.prompt ?? '',
         version.label ?? '',
-        tRef.current(versionSourceLabel(version.source)),
-        formatVersionDateTime(version.createdAt, locale),
+        tRef.current(versionSourceLabel({ source: version.source })),
+        formatVersionDateTime({ value: version.createdAt, locale }),
         from ? `v${from.version}` : '',
       ]
         .join(' ')
@@ -228,7 +228,7 @@ export function useVersionSearch<TVersion extends VersionRecord>({ versions, loc
   );
 
   const visibleVersions = useMemo(
-    () => (showSearch ? filterVersionsBySearch(versions, search, describeVersion) : versions),
+    () => (showSearch ? filterVersionsBySearch({ versions, search, describe: describeVersion }) : versions),
     [showSearch, versions, search, describeVersion],
   );
 
@@ -393,14 +393,12 @@ export function useVersionSelection<TVersion extends VersionRecord>({
   const { contentCacheRef, primeVersionContent } = useVersionContentCache(port, fileRef);
   const list = useVersionList({ port, fileRef, currentContent, tRef, contentCacheRef, setError });
   const searchState = useVersionSearch({ versions: list.versions, locale, tRef });
-  const selectedVersion = resolveSelectedVersion(list.versions, searchState.versionById, list.selectedId);
+  const selectedVersion = resolveSelectedVersion({ versions: list.versions, versionById: searchState.versionById, selectedId: list.selectedId });
   const content = useSelectedContent({
     selectedId: list.selectedId, currentContent, tRef, contentCacheRef, primeVersionContent, preserveErrorOnNextSelectionRef, setError,
   });
   const selectedContentMatchesVersion = contentMatchesSelection(
-    list.selectedId,
-    content.selectedContentVersionId,
-    content.selectedContent,
+    { selectedId: list.selectedId, selectedContentVersionId: content.selectedContentVersionId, selectedContent: content.selectedContent },
   );
   return { ...list, ...searchState, ...content, contentCacheRef, primeVersionContent, selectedVersion, selectedContentMatchesVersion };
 }
