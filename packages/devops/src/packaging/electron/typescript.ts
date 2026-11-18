@@ -29,7 +29,12 @@ function isCreator(scan: Scan, node: ts.Expression): boolean {
   if (c.isIdentifier(node)) return lookup(scan, node) === 'creator';
   return c.isPropertyAccessExpression(node) && node.name.text === 'createRequire';
 }
-function bind(scan: Scan, node: ts.Node, name: string, value: Binding): void {
+function bind({ scan, node, name, value }: {
+  scan: Scan;
+  node: ts.Node;
+  name: string;
+  value: Binding;
+}): void {
   const scope = scopeOf(scan, node);
   const values = scan.scopes.get(scope) ?? new Map<string, Binding>();
   values.set(name, value);
@@ -40,17 +45,17 @@ function variableBinding(scan: Scan, node: ts.Node): void {
   if (!c.isVariableDeclaration(node) || !c.isIdentifier(node.name)) return;
   const init = node.initializer;
   const value = init && c.isCallExpression(init) && isCreator(scan, init.expression) ? 'require' : 'other';
-  bind(scan, node, node.name.text, value);
+  bind({ scan, node, name: node.name.text, value });
 }
 /** A declared function or class (e.g. a factory-local `function require(capability)`) shadows the module require in its scope. */
 function declarationBinding(scan: Scan, node: ts.Node): void {
   const { c } = scan;
-  if ((c.isFunctionDeclaration(node) || c.isClassDeclaration(node)) && node.name) bind(scan, node, node.name.text, 'other');
+  if ((c.isFunctionDeclaration(node) || c.isClassDeclaration(node)) && node.name) bind({ scan, node, name: node.name.text, value: 'other' });
 }
 function collectBindings(scan: Scan, node: ts.Node): void {
   const { c } = scan;
-  if (c.isImportSpecifier(node) && (node.propertyName ?? node.name).text === 'createRequire') bind(scan, node, node.name.text, 'creator');
-  if (c.isParameter(node) && c.isIdentifier(node.name)) bind(scan, node, node.name.text, 'other');
+  if (c.isImportSpecifier(node) && (node.propertyName ?? node.name).text === 'createRequire') bind({ scan, node, name: node.name.text, value: 'creator' });
+  if (c.isParameter(node) && c.isIdentifier(node.name)) bind({ scan, node, name: node.name.text, value: 'other' });
   variableBinding(scan, node);
   declarationBinding(scan, node);
   c.forEachChild(node, child => collectBindings(scan, child));
@@ -65,7 +70,10 @@ function inlineTypes({ c }: Scan, clause: ts.NamedImportBindings | ts.NamedExpor
   if (!c.isNamedImports(clause) && !c.isNamedExports(clause)) return false;
   return clause.elements.length > 0 && clause.elements.every(e => e.isTypeOnly);
 }
-function erased(scan: Scan, node: ts.ImportDeclaration | ts.ExportDeclaration): boolean {
+function erased({ scan, node }: {
+  scan: Scan;
+  node: ts.ImportDeclaration | ts.ExportDeclaration;
+}): boolean {
   if (scan.c.isImportDeclaration(node)) {
     const clause = node.importClause;
     return Boolean(clause?.isTypeOnly || (!clause?.name && inlineTypes(scan, clause?.namedBindings)));
@@ -82,7 +90,7 @@ function callReference(scan: Scan, node: ts.CallExpression): Reference | undefin
 }
 function reference(scan: Scan, node: ts.Node): Reference | undefined {
   const { c } = scan;
-  if (c.isImportDeclaration(node) || c.isExportDeclaration(node)) return { literal: node.moduleSpecifier, kind: 'import', syntax: c.isImportDeclaration(node) ? 'import' : 'export', typeOnly: erased(scan, node) };
+  if (c.isImportDeclaration(node) || c.isExportDeclaration(node)) return { literal: node.moduleSpecifier, kind: 'import', syntax: c.isImportDeclaration(node) ? 'import' : 'export', typeOnly: erased({ scan, node }) };
   if (c.isImportEqualsDeclaration(node) && c.isExternalModuleReference(node.moduleReference)) return { literal: node.moduleReference.expression, kind: 'require', syntax: 'import-equals', typeOnly: node.isTypeOnly };
   return c.isCallExpression(node) ? callReference(scan, node) : undefined;
 }
