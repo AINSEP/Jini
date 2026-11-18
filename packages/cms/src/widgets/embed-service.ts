@@ -364,6 +364,81 @@ async function writeHostBody(
   return result.value.entry;
 }
 
+function postEmbedInverse(priorPost: PostRecord) {
+  return {
+    title: priorPost.title,
+    slug: priorPost.slug,
+    bodyJson: priorPost.bodyJson,
+    status: priorPost.status,
+    templateChoice: priorPost.templateChoice ?? null,
+    overridesThemePage: priorPost.overridesThemePage ?? null,
+    ...(priorPost.ext !== undefined ? { ext: priorPost.ext } : {}),
+  };
+}
+
+function updatePostEmbedBody(deps: EmbedServiceDeps, current: PostRecord, { workspaceId, actor, baseVersion, nextBodyJson }: { workspaceId: UUID; actor: { principalId: UUID; kind: string }; baseVersion: number; nextBodyJson: unknown }) {
+  return deps.host.posts.updatePost({
+    deps: {
+      repo: deps.postRepo,
+      clock: deps.clock,
+      outbox: deps.outbox,
+      beforeSaveHook: deps.beforeSaveHook,
+    },
+    input: {
+      workspaceId,
+      id: current.id,
+      title: current.title,
+      slug: current.slug,
+      status: current.status,
+      bodyJson: nextBodyJson as JsonObject,
+      expectedVersion: baseVersion,
+      actorId: actor.principalId,
+      // `actor.kind` is this call's real provenance ("user" for the admin HTTP routes,
+      // "agent" for the widget tool surface — see `InsertWidgetEmbedInput.actor`'s own
+      // doc). Only a non-"user" kind is delegated — mirrors `tool-registrations.ts`'s
+      // identical delegatedBy* convention for `post_revisions` attribution.
+      delegatedByWorkspaceId: actor.kind === "user" ? undefined : workspaceId,
+      delegatedById: actor.kind === "user" ? undefined : actor.principalId,
+    },
+  });
+}
+
+function restorePostEmbedBody(deps: EmbedServiceDeps, priorPost: PostRecord, { workspaceId, actor }: { workspaceId: UUID; actor: { principalId: UUID; kind: string } }) {
+  return deps.host.posts.restorePostForward({
+    deps: {
+      repo: deps.postRepo,
+      clock: deps.clock,
+      outbox: deps.outbox,
+      forgetRemoved: deps.forgetRemovedPost,
+    },
+    input: {
+      prior: priorPost,
+      actorId: actor.principalId,
+      // Mirrors the forward write's own delegatedBy* convention just above.
+      delegatedByWorkspaceId: actor.kind === "user" ? undefined : workspaceId,
+      delegatedById: actor.kind === "user" ? undefined : actor.principalId,
+    },
+  });
+}
+
+function rethrowPostEmbedError(deps: EmbedServiceDeps, err: unknown, { workspaceId, actor, current }: { workspaceId: UUID; actor: { principalId: UUID }; current: PostRecord }): never {
+  if (deps.host.posts.isVersionConflict(err)) {
+    throw new WidgetVersionConflictError({ message: err.message, currentVersion: err.currentVersion });
+  }
+  if (deps.host.posts.isNotFound(err)) {
+    // Trash race between `loadEmbedHost`'s check and this write — same not-found shape either way.
+    throw new WidgetEmbedHostNotFoundError({ message: `host entry '${current.id}' was not found in workspace '${workspaceId}' (it must be the id of an existing, non-trashed post, page, or content entry)` }
+    );
+  }
+  if (err instanceof ForbiddenError) {
+    // Reformatted to match `authorize-helper.ts`'s `requireWidgetPermission` wording (not
+    // `executeCommand`'s own message verbatim) so `widgetForbiddenToResponse`'s regex extracts
+    // `permission`/`reason` identically regardless of which of the two gates rejected the caller.
+    throw new WidgetForbiddenError({ message: `principal '${actor.principalId}' lacks permission 'content.write' (${err.reason})` });
+  }
+  throw err;
+}
+
 /** REQ-44's post/page host arm — writes through the SAME command-gateway + `updatePost` chokepoint
  *  the live TipTap editor's own Save path uses (`routes/posts/update.ts`), so a post/page embed
  *  mutation gets an identical change-set/rollback unit of work (ADR-047 Amendment 6, D2). Only
@@ -405,80 +480,21 @@ async function writePostHostBody(
         captureInverse: async () => {
           priorPost = await deps.postRepo.findById({ workspaceId, id: current.id });
           if (!priorPost) return null;
-          return {
-            title: priorPost.title,
-            slug: priorPost.slug,
-            bodyJson: priorPost.bodyJson,
-            status: priorPost.status,
-            templateChoice: priorPost.templateChoice ?? null,
-            overridesThemePage: priorPost.overridesThemePage ?? null,
-            ...(priorPost.ext !== undefined ? { ext: priorPost.ext } : {}),
-          };
+          return postEmbedInverse(priorPost);
         },
         execute: () =>
-          deps.host.posts.updatePost({
-            deps: {
-              repo: deps.postRepo,
-              clock: deps.clock,
-              outbox: deps.outbox,
-              beforeSaveHook: deps.beforeSaveHook,
-            },
-            input: {
-              workspaceId,
-              id: current.id,
-              title: current.title,
-              slug: current.slug,
-              status: current.status,
-              bodyJson: nextBodyJson as JsonObject,
-              expectedVersion: baseVersion,
-              actorId: actor.principalId,
-              // `actor.kind` is this call's real provenance ("user" for the admin HTTP routes,
-              // "agent" for the widget tool surface — see `InsertWidgetEmbedInput.actor`'s own
-              // doc). Only a non-"user" kind is delegated — mirrors `tool-registrations.ts`'s
-              // identical delegatedBy* convention for `post_revisions` attribution.
-              delegatedByWorkspaceId: actor.kind === "user" ? undefined : workspaceId,
-              delegatedById: actor.kind === "user" ? undefined : actor.principalId,
-            },
-          }),
+          updatePostEmbedBody(deps, current, { workspaceId, actor, baseVersion, nextBodyJson }),
         captureEntityVersion: ({ result }) => result.post.version,
         rollback: async () => {
           if (!priorPost) return;
-          await deps.host.posts.restorePostForward({
-            deps: {
-              repo: deps.postRepo,
-              clock: deps.clock,
-              outbox: deps.outbox,
-              forgetRemoved: deps.forgetRemovedPost,
-            },
-            input: {
-              prior: priorPost,
-              actorId: actor.principalId,
-              // Mirrors the forward write's own delegatedBy* convention just above.
-              delegatedByWorkspaceId: actor.kind === "user" ? undefined : workspaceId,
-              delegatedById: actor.kind === "user" ? undefined : actor.principalId,
-            },
-          });
+          await restorePostEmbedBody(deps, priorPost, { workspaceId, actor });
         },
       },
     });
     await extractAndStoreEmbedRefs(deps, workspaceId, { id: result.post.id, type: result.post.kind, bodyJson: result.post.bodyJson });
     return result.post;
   } catch (err) {
-    if (deps.host.posts.isVersionConflict(err)) {
-      throw new WidgetVersionConflictError({ message: err.message, currentVersion: err.currentVersion });
-    }
-    if (deps.host.posts.isNotFound(err)) {
-      // Trash race between `loadEmbedHost`'s check and this write — same not-found shape either way.
-      throw new WidgetEmbedHostNotFoundError({ message: `host entry '${current.id}' was not found in workspace '${workspaceId}' (it must be the id of an existing, non-trashed post, page, or content entry)` }
-      );
-    }
-    if (err instanceof ForbiddenError) {
-      // Reformatted to match `authorize-helper.ts`'s `requireWidgetPermission` wording (not
-      // `executeCommand`'s own message verbatim) so `widgetForbiddenToResponse`'s regex extracts
-      // `permission`/`reason` identically regardless of which of the two gates rejected the caller.
-      throw new WidgetForbiddenError({ message: `principal '${actor.principalId}' lacks permission 'content.write' (${err.reason})` });
-    }
-    throw err;
+    rethrowPostEmbedError(deps, err, { workspaceId, actor, current });
   }
 }
 

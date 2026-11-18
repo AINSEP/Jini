@@ -2,6 +2,14 @@ import type { TaxonomyListPort, TermListPort } from "../../taxonomy/index.js";
 import type { PageHtmlEmbedRef } from "../html/html-embeds.js";
 import type { WidgetRenderIR } from "../types.js";
 
+function findTaxonomy(taxonomies: Awaited<ReturnType<TaxonomyListPort["list"]>>, key: string) {
+  // Names are human-readable targets, but unlike slugs are not guaranteed unique.
+  // An ambiguous name is unresolved, never an arbitrary choice; real ids win.
+  const matches = taxonomies.filter((taxonomy) => taxonomy.name === key);
+  const taxonomy = taxonomies.find((candidate) => candidate.id === key) ?? (matches.length === 1 ? matches[0] : undefined);
+  return taxonomy;
+}
+
 /** Workspace-scoped read ports are supplied by the host, like the other HTML embed resolvers. */
 export async function resolveTaxonomyEmbeds(
   { refs, deps }: { refs: readonly PageHtmlEmbedRef[]; deps: { taxonomyRepo?: TaxonomyListPort; termRepo?: TermListPort } },
@@ -15,10 +23,7 @@ export async function resolveTaxonomyEmbeds(
   for (const ref of refs) {
     const key = ref.id;
     if (!key) continue;
-    // Names are human-readable targets, but unlike slugs are not guaranteed unique.
-    // An ambiguous name is unresolved, never an arbitrary choice; real ids win.
-    const matches = taxonomies.filter((taxonomy) => taxonomy.name === key);
-    const taxonomy = taxonomies.find((candidate) => candidate.id === key) ?? (matches.length === 1 ? matches[0] : undefined);
+    const taxonomy = findTaxonomy(taxonomies, key);
     if (taxonomy) {
       let terms = termsById.get(taxonomy.id);
       if (!terms) {
