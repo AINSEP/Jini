@@ -1,7 +1,6 @@
 import { sql } from "kysely";
-import { jsonScalarEquals, jsonSortKey } from "@jini-ai/db/kernel";
 import type { StorageDialect } from "@jini-ai/core/contracts/storage";
-import type { ContentKernel } from "../../../core/__tests__/support/dialect-matrix.js";
+import { type ContentKernel, jsonScalarEquals, jsonSortKey } from "../../../core/__tests__/support/dialect-matrix.js";
 import type { EntryJsonDialectPort, EntryTables } from "../../sql/index.js";
 
 /** The table names the dialect tests pass in: the adapter has no defaults, so the fixture names them. */

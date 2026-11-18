@@ -5,7 +5,7 @@ import type BetterSqlite3 from "better-sqlite3";
 import { sql } from "kysely";
 import { sqliteKernel, type SqliteKernel } from "@jini-ai/db/kernel/sqlite";
 import { openPgliteKernel, type PgKernel } from "@jini-ai/db/kernel/pglite";
-import type { KyselyKernel } from "@jini-ai/db/kernel";
+import { jsonScalarEquals, jsonSortKey, type KyselyKernel } from "@jini-ai/db/kernel";
 import type { StorageDialect } from "@jini-ai/core/contracts/storage";
 
 /**
@@ -33,6 +33,9 @@ import type { StorageDialect } from "@jini-ai/core/contracts/storage";
  *   emptied before the repo's first call. Suites must make their repo before using it and run
  *   their tests one after another (Vitest's sequential default inside a file). Closed after the file.
  */
+
+/** The host's two dialect-specific JSON helpers, re-exported so a domain fixture needs no `@jini-ai/db` import of its own. */
+export { jsonScalarEquals, jsonSortKey };
 
 export type ContentKernel<DB = unknown> = KyselyKernel<DB>;
 export type SqliteContentKernel<DB = unknown> = SqliteKernel<DB>;
