@@ -147,7 +147,7 @@ export function createNodeAuthoritativeDnsResolver(
     return publicOnly(addresses)[0];
   };
 
-  const askParent = (address: string, zone: string) => askParentServer({ address, zone, exchange, randomId, timeoutMs });
+  const askParent = ({ address, zone }: { address: string; zone: string }) => askParentServer({ address, zone, exchange, randomId, timeoutMs });
 
   /** The parent's delegation of `zone`, from the first parent server that gives a usable reply. */
   const delegation = async (zone: string, parent: string): Promise<ProviderResult<readonly string[]>> => {
@@ -155,7 +155,7 @@ export function createNodeAuthoritativeDnsResolver(
     if (servers.status !== 'ok') return servers;
     for (const server of servers.value) {
       const address = await nameserverAddress(server);
-      const result = address === undefined ? undefined : await askParent(address, zone);
+      const result = address === undefined ? undefined : await askParent({ address, zone });
       if (result !== undefined && result.status !== 'unknown') return result;
     }
     return providerUnknown({ code: 'network', message: `No nameserver of ${parent} answered for the delegation of ${zone}.` });
