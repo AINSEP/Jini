@@ -79,14 +79,14 @@ test("HTML-mode tokens come from authored control names, never DOM ids or labels
   assert.deepEqual(event.recipients, [{ id: "email", address: { email: "ada@example.org" } }]);
 });
 
-test("files, hidden metadata, IPs and credential fields never escape, and a credential inside an answer is masked in place", async () => {
+test("files, hidden metadata, IPs and credential fields never escape, and an answer holding a credential is masked whole", async () => {
   const f = fixture();
   f.definition.fields.push(field({ id: "upload", type: "file" }), field({ id: "api_key" }), field({ id: "source_ip" }), field({ id: "internal", type: "hidden" }), field({ id: "notes" }));
   Object.assign(f.submission.data, { upload: { mediaId: "secret-file", filename: "private.pdf", contentType: "application/pdf", byteSize: 5 }, api_key: "private", source_ip: "203.0.113.9", internal: "hidden", notes: "password=private", extra: "not declared" });
   const description = await f.sender.describeSource(context);
   assert.deepEqual(description.fields.map(value => value.token), ["person", "email", "message", "notes", "site_name", "site_url", "submitted_at"]);
   const event = await f.sender.resolveEvent({ ...context, eventId: "s1" });
-  assert.deepEqual(event, { occurredAt: "2026-10-22T20:00:00Z", values: { person: "Ada", email: "ada@example.org", notes: "password=[REDACTED:labeled_secret]", site_name: "Example site", site_url: "https://example.org", submitted_at: "2026-10-22T20:00:00Z" }, recipients: [{ id: "email", address: { email: "ada@example.org" } }] });
+  assert.deepEqual(event, { occurredAt: "2026-10-22T20:00:00Z", values: { person: "Ada", email: "ada@example.org", notes: "[REDACTED:credential]", site_name: "Example site", site_url: "https://example.org", submitted_at: "2026-10-22T20:00:00Z" }, recipients: [{ id: "email", address: { email: "ada@example.org" } }] });
   assert.equal(JSON.stringify(event).includes("private"), false);
 });
 

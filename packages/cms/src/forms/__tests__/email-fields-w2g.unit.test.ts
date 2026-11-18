@@ -27,7 +27,7 @@ test('mail tokens namespace builtin collisions and never export private or undec
   });
 });
 
-test('a choice array holding a credential keeps its other values and masks only the credential', () => {
+test('a choice array holding a credential keeps its other values and masks the credential option whole', () => {
   const secret = ['ghp', 'abcdefghijklmnopqrstuvwxyz0123456789'].join('_');
   const options = [{ label: 'First', value: 'a' }, { label: 'Private', value: secret }];
   const form = definition({ fields: [field({ id: 'safe' }, { type: 'multi-select', options }),
@@ -35,6 +35,6 @@ test('a choice array holding a credential keeps its other values and masks only 
   const submission: FormSubmissionRecord = { id: 's', workspaceId: 'site', formDefinitionId: 'form',
     data: { safe: ['a'], unsafe: ['a', secret], invalid: 'not a number' }, sourceIp: null, submittedAt: '2026-10-28' };
   expect(resolveFormEmailValues({ definition: form, submission, site: { name: 'Host', url: '/' } })).toEqual({
-    safe: 'a', unsafe: 'a, [REDACTED:github_token]', site_name: 'Host', site_url: '/', submitted_at: '2026-10-28',
+    safe: 'a', unsafe: 'a, [REDACTED:credential]', site_name: 'Host', site_url: '/', submitted_at: '2026-10-28',
   });
 });

@@ -29,10 +29,14 @@ export function describeFormEmailFields({ definition }: { definition: FormDefini
   return [...emailAnswerFields({ definition }).map(field => ({ token: formEmailFieldToken({ field }), label: field.label, required: field.required })), ...BUILTINS.map(field => ({ ...field }))];
 }
 
+// Mail cannot be recalled once sent. Core masks the part of an answer it recognises as the credential, which for a
+// multiword password after a label ("Password: blue sky river 42") can be only its first word; so an answer in which
+// core finds any credential is mailed as one marker, never with its other words.
+const MASKED_ANSWER = "[REDACTED:credential]";
+
 function safeText({ value }: { value: string }, _optional: Record<string, never> = {}): string {
-  // MOVE: Reuse core's credential vocabulary without treating ordinary email addresses as secrets. Core masks only the
-  // credential part of an answer; the rest of what the person wrote still reaches the mail.
-  return redactSecrets({ input: value }, { redactPii: false });
+  // MOVE: Reuse core's credential vocabulary without treating ordinary email addresses as secrets.
+  return redactSecrets({ input: value }, { redactPii: false }) === value ? value : MASKED_ANSWER;
 }
 
 function answerText(required: { field: FieldDescriptor; value: unknown }, _optional: Record<string, never> = {}): string | undefined {
@@ -41,7 +45,8 @@ function answerText(required: { field: FieldDescriptor; value: unknown }, _optio
   const value = resolved.value;
   if (typeof value === "string") return safeText({ value });
   if (typeof value === "boolean" || typeof value === "number") return String(value);
-  if (Array.isArray(value)) return safeText({ value: value.join(", ") });
+  // Each chosen option is its own answer: one credential-shaped option is masked whole, the others stay readable.
+  if (Array.isArray(value)) return value.map(item => safeText({ value: String(item) })).join(", ");
   return undefined;
 }
 
