@@ -131,9 +131,17 @@ export interface EntryRefRow {
 
 /** The one reference-index operation widgets performs; no extractor implementation is copied. */
 export interface EntryRefsRepoPort {
+  /**
+   * Replace every row for a given source entry with the freshly-extracted set (idempotent re-extraction
+   * on every write, never an incremental patch).
+   */
   replaceForSource(required: { workspaceId: UUID; sourceEntryId: UUID; refs: readonly EntryRefRow[] }): Promise<void>;
+  /** Every reference originating FROM a given source entry (re-extraction on update). */
   findBySource(required: { workspaceId: UUID; sourceEntryId: UUID }): Promise<EntryRefRow[]>;
+  /** Where-used: every reference pointing AT a given target (the disclosure and the safe-delete check). */
   findByTarget(required: { workspaceId: UUID; targetKind: EntryRefRow["targetKind"]; targetId: UUID }): Promise<EntryRefRow[]>;
+  /** Drop every row for a source entry (the source itself was force-purged). */
   removeBySource(required: { workspaceId: UUID; sourceEntryId: UUID }): Promise<void>;
+  /** Full rebuild for a workspace from live entries: the index is derived and rebuildable by definition. */
   rebuildForWorkspace(required: { workspaceId: UUID; refs: readonly EntryRefRow[] }): Promise<void>;
 }
