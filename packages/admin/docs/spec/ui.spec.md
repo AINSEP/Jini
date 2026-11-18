@@ -45,17 +45,23 @@ A RowMenuItem requires `key`, `label`, `onSelect()`; optional `tone` and depreca
 
 `AdminShellProps` requires `apiBase`, `workspace`, `adminBase`, `defaultPanelId`, `railStorageKey`, `title: ReactNode`, `session: AdminShellSessionPort`, `navigation: AdminShellNavigationPort`, `panels`, `slots`, and all labels. Labels are `navigation`, `openNavigation`, `closeNavigation`, `skipToContent`, `loading`, `sessionError`, `retry`, `expandSidebar`, `collapseSidebar`, `soon`; no product copy is supplied by the shell.
 
-Optional props are `capabilities`, `railDefaultCollapsed`, `collapsibleGroups`, `translateNav({groups})`, `mainRef`, `className`, `theme`, `colorScheme`, `themeEnvironment`, `themePreferenceStore`, `onColorSchemeChange({preference})`.
+Optional props are `ids` (`{sidebar?, main?}`: the `<nav>` and `<main>` DOM ids, defaulting to generated ones; the skip link, the topbar toggle's `aria-controls`, the nav and main all read from them), `useSessionHook`/`useThemeHook`/`useRouteHook`/`useDrawerHook` (each defaulted to the real hook), `capabilities`, `railDefaultCollapsed`, `collapsibleGroups`, `translateNav({groups})`, `mainRef`, `className`, `theme`, `colorScheme`, `themeEnvironment`, `themePreferenceStore`, `onColorSchemeChange({preference})`.
 
 | Slot | Shape / visibility |
 |---|---|
 | login, required | `({context, refreshSession}) => ReactNode`; anonymous only |
 | sessionError | `({error, retry}) => ReactNode`; otherwise built-in alert/retry button |
+| sidebar | `(args: AdminShellSidebarArgs) => ReactNode`; replaces the built-in sidebar arrangement. Args: slot args plus `nav` (visible, translated groups), `sidebarProps` (exactly what the built-in sidebar passes to `<Sidebar>`: `activeId`, `base`, `open`, `id`, `label`, `railStorageKey`, `railDefaultCollapsed`) and `setDrawerOpen(open)` (the shell's one drawer state). Absent: today's markup. `sidebarHeader`/`sidebarFooter` are not rendered when present |
 | sidebarHeader | ReactNode, authenticated |
 | sidebarFooter | `(AdminShellSlotArgs) => ReactNode`, after rail toggle |
 | topbar | ReactNode, after title |
 | overlays | `(AdminShellSlotArgs) => ReactNode`, authenticated |
+| noAccess | `(AdminShellSlotArgs) => ReactNode`; rendered in `<main>` instead of the routed panel when `model.access` is `'denied'`; absent: empty `<main>` |
 | assistant | `{content: ReactNode, label: string, open: boolean}`; authenticated aside, stays mounted with hidden when closed |
+| frame | `(slotArgs & {children}) => ReactNode`; wraps the whole authenticated layout (root element and everything in it), for providers shared by panels, dock and overlays. Not called for checking, anonymous or error states |
+| beforeMain | ReactNode, between the sidebar and the drawer backdrop |
+| afterMain | ReactNode, inside the main column right after `<main>` |
+| assistantAside | ReactNode rendered instead of the built-in assistant `<aside>` (wins when `assistant` is also set) |
 
 Render args carry context, session and route; slot args also carry logout, refreshSession and optional appearance. The shell passes these args to the resolved panel renderer. The host owns login implementation, assistant controls/content, overlays, labels and actual API adapters. No logout button is built in; place one in a slot.
 
