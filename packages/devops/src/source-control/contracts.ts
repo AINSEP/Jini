@@ -118,6 +118,8 @@ export interface CommitOrchestrationArgs extends CommitExportArgs {
 }
 export interface CommitOptions { branch?: string; validateTarget?: RepositoryTargetValidator }
 export type CommitFailureCode = 'INVALID_CONFIG' | 'NO_CREDENTIALS_CONFIGURED' | 'EXPORT_FAILED' | 'REPOSITORY_NOT_FOUND' | 'NO_CHANGES' | 'DIVERGED_BRANCH' | 'NETWORK_UNREACHABLE' | 'PROVIDER_ERROR';
+/** A success's `divergedPaths` is the provider's list passed through verbatim and always present (`[]` when it names none), so a
+ *  caller can tell a person exactly what survived a shrinking publish because it could not be verified as still the host's own. */
 export type SourceControlCommitOutcome =
   | { ok: false; code: CommitFailureCode; message: string }
   | { ok: true; owner: string; repo: string; branch: string; branchCreated: boolean; commitSha: string; commitUrl: string; filesChanged: number; filesDeleted: number; divergedPaths: readonly string[] };
