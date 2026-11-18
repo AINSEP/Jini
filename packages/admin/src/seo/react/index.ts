@@ -16,12 +16,12 @@ export function seo(
   const defaults: SeoReactOptions = { siteUrl, ...optional };
   const page = async () => {
     const { SeoPage } = await import('./pages/SeoPage.js');
-    return { default: (props: import('../../core/react/bind-react.js').ModulePageProps) =>
+    return { default: (props: import('@jini-ai/core/contracts/admin-module').ModulePageProps) =>
       createElement<import('./pages/SeoPage.js').SeoProps>(SeoPage, { tabId: props.requestedTab, onTabChange: props.onTabChange }) };
   };
   const tab = (id: 'SeoDefaultsModuleTab' | 'SeoSitemapModuleTab' | 'SeoEntriesModuleTab') => async () => {
     const views = await import('./hooks/SeoModuleTabs.js');
-    return { default: (props: import('../../core/react/bind-react.js').TabViewProps) =>
+    return { default: (props: import('@jini-ai/core/contracts/admin-module').TabViewProps) =>
       createElement(views[id], props) };
   };
   // The unchanged shell owns its active panel and banners. Standalone lazy tab mounts reuse those

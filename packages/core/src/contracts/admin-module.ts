@@ -4,6 +4,7 @@
  * The registry (`createAdmin`) lives in the admin package; a module package imports only this file.
  */
 import { token, type Token } from '../token.js';
+import type { ControllerStore } from '../admin-runtime/controller-store.js';
 /** Admin port tokens are core tokens, frozen so a registered identity cannot be mutated after boot. */
 export type AdminPortToken<T = unknown, Id extends string = string> = Token<T, Id>;
 export function adminPort<T, const Id extends string = string>(
@@ -105,6 +106,57 @@ export interface AdminInstance {
     optional?: Record<string, never>,
   ): ScopedPorts<M>;
   dispose(required?: Record<string, never>, optional?: Record<string, never>): void;
+}
+/** What the shell passes a module's tab view. */
+export interface TabViewProps {
+  readonly params: Readonly<Record<string, unknown>>;
+  readonly permissions?: readonly string[];
+}
+/** What the shell passes a module's page. `Tab` is the renderer's tab component; core names no UI library. */
+export interface ModulePageProps<Tab = unknown> {
+  readonly tabs: Readonly<Record<string, Tab>>;
+  readonly description: AdminDescription['pages'][number];
+  readonly requestedTab?: string;
+  readonly onTabChange?: (required: { tab: string }, optional?: Record<string, never>) => void;
+}
+type ViewLoader = () => Promise<{ readonly default: unknown }>;
+/** One lazy loader per page and per tab of the module. */
+export type ModuleViews<M extends AdminModule> = {
+  readonly [P in keyof M['pages']]: {
+    readonly page: ViewLoader;
+    readonly tabs: { readonly [T in keyof M['pages'][P]['tabs']]: ViewLoader };
+  };
+};
+/** A module's bound views. `Page`, `Tab` and `Provider` are the renderer's component types. */
+export interface ModuleBinding<M extends AdminModule, Page, Tab, Provider> {
+  readonly module: M;
+  readonly pages: {
+    readonly [P in keyof M['pages']]: {
+      readonly Page: Page;
+      readonly tabs: { readonly [T in keyof M['pages'][P]['tabs']]: Tab };
+    };
+  };
+  readonly Provider: Provider;
+  usePorts(required?: Record<string, never>, optional?: Record<string, never>): ScopedPorts<M>;
+}
+/** Creates the controller after commit, disposes it on cleanup, and reads its snapshot. */
+export type UseAdminController = <C extends ControllerStore<unknown>>(
+  required: { create: () => C; dependencies: readonly unknown[] },
+  optional?: { start?: (required: { controller: C }, optional?: Record<string, never>) => void },
+) => { controller: C | null; snapshot: ReturnType<C['getSnapshot']> | null };
+/**
+ * The renderer helpers a module's screens receive from the host. Owner answer 2026-11-17 (J4):
+ * a module package states this contract and is injected with the implementation; it never imports
+ * one, so the host (which wires `@jini-ai/admin`'s React pair) decides which renderer runs.
+ * `bindReact` is a method so the implementation may take the renderer's own context type for
+ * `context`, the module's ports context (method parameters are checked bivariantly).
+ */
+export interface AdminModuleUi<Page, Tab, Provider> {
+  bindReact<const M extends AdminModule>(
+    required: { module: M; views: ModuleViews<M> },
+    optional?: { context?: object },
+  ): ModuleBinding<M, Page, Tab, Provider>;
+  readonly useController: UseAdminController;
 }
 /** Definition is data only; boot validates identities before any factory runs. */
 export function defineAdminModule<const M extends AdminModule>(

@@ -2,13 +2,16 @@ import { useInvalidate } from '../../../react/kit.js';
 import { MEDIA_QUERY_KEYS, useMediaLibraryQuery, useMediaProvidersQuery } from './MediaQuery.hooks.js';
 import type { ReactNode } from 'react';
 import { createElement, createContext, useContext, useEffect, useState } from 'react';
-import type { ModulePageProps } from '../../../core/react/bind-react.js';
+import type { ComponentType } from 'react';
+import type { ModulePageProps, TabViewProps } from '@jini-ai/core/contracts/admin-module';
 import { useController } from '../../../core/react/use-controller.js';
 import { createLibraryController } from '../../controllers/library.controller.js';
 import { useMediaPorts } from './MediaPorts.hooks.js';
 import type { LibraryState } from '../../controllers/library.controller.js';
 import { AllIcon, ImageIcon, VideoIcon, CloudIcon } from '../components/MediaIcons.js';
 import { resolveActiveTab } from '../../rules.js';
+/** The shell passes this page its tabs as renderable components. */
+type TabbedPageProps = ModulePageProps<ComponentType<TabViewProps>>;
 export const MediaLibraryContext = createContext<{ controller: ReturnType<typeof createLibraryController> | null; snapshot: LibraryState | null } | null>(null);
 export function useSharedMediaLibrary(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
   return useContext(MediaLibraryContext);
@@ -20,7 +23,7 @@ export function settleFromCache(
 ) {
   controller?.settleLibrary({ ...(query.data ? { all: query.data } : {}), error: query.error });
 }
-export interface MediaPageProps extends ModulePageProps { readonly headerActions?: ReactNode }
+export interface MediaPageProps extends TabbedPageProps { readonly headerActions?: ReactNode }
 export function useMediaPage(props: MediaPageProps, _optional: Record<string, never> = {}) {
   const [localTab, setLocalTab] = useState('all');
   const { mediaApi, mediaEvents, mediaProviders } = useMediaPorts();

@@ -2,7 +2,7 @@ import { createElement } from 'react';
 import type { ComponentType, ReactNode } from 'react';
 import type { AdminInstance } from '@jini-ai/core/contracts/admin-module';
 import { bindReact } from '../../core/react/bind-react.js';
-import type { ModulePageProps } from '../../core/react/bind-react.js';
+import type { ModulePageProps } from '@jini-ai/core/contracts/admin-module';
 import { widgetsModule } from '../widgets.module.js';
 import { WidgetsPortsContext, WidgetsOptionsContext } from './hooks/WidgetsPorts.hooks.js';
 import type { WidgetsReactOptions } from './hooks/WidgetsPorts.hooks.js';

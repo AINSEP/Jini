@@ -1,5 +1,5 @@
 import { Button, TextField, Notice, ConfirmDialog, Spinner } from '../../../react/kit.js';
-import type { TabViewProps } from '../../../core/react/bind-react.js';
+import type { TabViewProps } from '@jini-ai/core/contracts/admin-module';
 import { useRootKeyTab } from '../hooks/RootKeyTab.hooks.js';
 type RootKeyView = ReturnType<typeof useRootKeyTab>;
 function RootKeyMessages({ vm }: { vm: RootKeyView }) {

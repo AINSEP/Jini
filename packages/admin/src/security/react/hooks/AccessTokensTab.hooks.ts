@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useController } from '../../../core/react/use-controller.js';
-import type { TabViewProps } from '../../../core/react/bind-react.js';
+import type { TabViewProps } from '@jini-ai/core/contracts/admin-module';
 import { createAccessTokensController } from '../../controllers/access-tokens.controller.js';
 import { createOtherCredentialsController } from '../../controllers/other-credentials.controller.js';
 import type { CredentialSummary, OtherCredentialSummary, CredentialCategory } from '../../models.js';

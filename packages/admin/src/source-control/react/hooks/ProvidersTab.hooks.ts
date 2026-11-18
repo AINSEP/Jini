@@ -1,4 +1,4 @@
-import type { TabViewProps } from '../../../core/react/bind-react.js';
+import type { TabViewProps } from '@jini-ai/core/contracts/admin-module';
 import { useController } from '../../../core/react/use-controller.js';
 import { createSourceControlController } from '../../controllers/source-control.controller.js';
 import type { SourceControlCredential, SourceControlDraft, SourceControlField, SourceControlProviderInfo, SourceControlState } from '../../models.js';

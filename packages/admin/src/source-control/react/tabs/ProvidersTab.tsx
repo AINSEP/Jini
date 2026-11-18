@@ -1,5 +1,5 @@
 import { Button, Notice, Spinner } from '../../../react/kit.js';
-import type { TabViewProps } from '../../../core/react/bind-react.js';
+import type { TabViewProps } from '@jini-ai/core/contracts/admin-module';
 import { useProvidersTab } from '../hooks/ProvidersTab.hooks.js';
 import { SourceControlProviderRow } from '../components/SourceControlProviderRow.js';
 export function ProvidersTab({ useProvidersTabHook = useProvidersTab, ...props }: TabViewProps & { useProvidersTabHook?: typeof useProvidersTab }, _optional = {}) {

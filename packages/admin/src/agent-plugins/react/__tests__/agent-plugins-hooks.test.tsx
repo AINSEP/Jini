@@ -10,7 +10,8 @@ import { useAgentPluginPanel } from '../hooks/AgentPluginPanel.hooks.js';
 import { AgentPluginsPageContext, useAgentPluginsPage, useAgentPluginsPageScope } from '../hooks/AgentPluginsPage.hooks.js';
 import type { AgentPluginsPageScope } from '../hooks/AgentPluginsPage.hooks.js';
 import { AgentPluginsPortsContext } from '../hooks/AgentPluginsPorts.hooks.js';
-import type { ModulePageProps } from '../../../react/bind-react.js';
+import type { ComponentType } from 'react';
+import type { ModulePageProps, TabViewProps } from '@jini-ai/core/contracts/admin-module';
 import { agentPluginsMessagesEn as m } from '../../messages.en.js';
 import type { AgentPluginFiles, AgentPluginSummary, AgentPluginsState } from '../../models.js';
 import type { AgentPluginsApiPort } from '../../ports.js';
@@ -183,7 +184,7 @@ describe('useAgentPluginsPage', () => {
     const admin = createAdmin({ modules: [feature], ports: { agentPluginsApi: api } }, { permissions: grants });
     const { tabs } = feature.react.pages.agentPlugins;
     let first: ReturnType<typeof useAgentPluginsPage> | undefined;
-    const props: ModulePageProps = { tabs, description: admin.describe().pages[0]!, ...(requestedTab ? { requestedTab } : {}), ...(onTabChange ? { onTabChange } : {}) };
+    const props: ModulePageProps<ComponentType<TabViewProps>> = { tabs, description: admin.describe().pages[0]!, ...(requestedTab ? { requestedTab } : {}), ...(onTabChange ? { onTabChange } : {}) };
     const view = renderHook(() => { const vm = useAgentPluginsPage(props); first ??= vm; return vm; }, { wrapper: portsWrapper(api) });
     return { ...view, api, tabs, first: () => first! };
   }

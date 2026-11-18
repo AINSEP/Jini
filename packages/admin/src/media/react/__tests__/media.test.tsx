@@ -14,8 +14,8 @@ import { KitProvider, createKit } from '@jini-ai/ui-kit/react';
 import { AdminKitProvider, Button, Dialog, TextField } from '../../../react/kit.js';
 import type { ButtonProps } from '../../../react/kit.js';
 import { MediaPurgeDialog } from '../components/MediaPurgeDialog.js';
-import { useController } from '../../../react/use-controller.js';
-import { bindReact } from '../../../react/bind-react.js';
+import { useController } from '../../../core/react/use-controller.js';
+import { bindReact } from '../../../core/react/bind-react.js';
 import { realEmbedPolicy } from '../../__tests__/fakes/embed-policy.js';
 // Lazy tab imports can exceed the default 1s under concurrent workspace builds.
 configure({ asyncUtilTimeout: 5000 });

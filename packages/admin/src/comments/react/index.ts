@@ -26,7 +26,7 @@ export function comments(
     queue: {
       page: async () => {
         const { CommentsPage } = await import('./pages/CommentsPage.js');
-        return { default: (_props: import('../../core/react/bind-react.js').ModulePageProps) => createElement(CommentsPage, {}) };
+        return { default: (_props: import('@jini-ai/core/contracts/admin-module').ModulePageProps) => createElement(CommentsPage, {}) };
       },
       tabs: {},
     },

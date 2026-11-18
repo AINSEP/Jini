@@ -1,6 +1,9 @@
 import { useState } from 'react';
-import type { ModulePageProps } from '../../../core/react/bind-react.js';
-export function useSecurityPage(props: ModulePageProps, _optional = {}) {
+import type { ComponentType } from 'react';
+import type { ModulePageProps, TabViewProps } from '@jini-ai/core/contracts/admin-module';
+/** The shell passes this page its tabs as renderable components. */
+type TabbedPageProps = ModulePageProps<ComponentType<TabViewProps>>;
+export function useSecurityPage(props: TabbedPageProps, _optional = {}) {
   const [local, setLocal] = useState('access-tokens');
   const visible = props.description.visible ? props.description.tabs.filter(t => t.visible) : [];
   const active = visible.find(t => t.id.endsWith(`.${props.requestedTab ?? local}`)) ?? visible[0];

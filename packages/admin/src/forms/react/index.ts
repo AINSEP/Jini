@@ -1,6 +1,6 @@
 import { createElement } from 'react';
 import { bindReact } from '../../core/react/bind-react.js';
-import type { ModulePageProps } from '../../core/react/bind-react.js';
+import type { ModulePageProps } from '@jini-ai/core/contracts/admin-module';
 import type { AdminInstance } from '@jini-ai/core/contracts/admin-module';
 import type { ReactNode } from 'react';
 import { formsModule } from '../forms.module.js';

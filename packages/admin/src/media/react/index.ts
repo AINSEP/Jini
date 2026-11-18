@@ -76,7 +76,7 @@ export function media(
         library: {
           page: async () => {
             const { MediaPage } = await import('./pages/MediaPage.js');
-            return { default: (props: import('../../react/bind-react.js').ModulePageProps) =>
+            return { default: (props: import('./hooks/MediaPage.hooks.js').MediaPageProps) =>
               createElement(MediaPage, { ...props, headerActions }) };
           },
           tabs: {

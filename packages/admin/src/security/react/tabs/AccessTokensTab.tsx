@@ -1,5 +1,5 @@
 import { Button, TextField, Select, Notice, ConfirmDialog, Spinner } from '../../../react/kit.js';
-import type { TabViewProps } from '../../../core/react/bind-react.js';
+import type { TabViewProps } from '@jini-ai/core/contracts/admin-module';
 import { useAccessTokensTab } from '../hooks/AccessTokensTab.hooks.js';
 import { CredentialEditor } from '../components/CredentialEditor.js';
 export function AccessTokensTab(props: TabViewProps, _optional = {}) {
