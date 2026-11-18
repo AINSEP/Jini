@@ -204,6 +204,7 @@ host · [README](packages/desktop-host/README.md)
 | Entry point | What it does | Key exports / assets | Runtime | Used by |
 |---|---|---|---|---|
 | `@jini-ai/desktop-host` | Desktop shell ports, host bridge, paths, logging, single instance and sidecar launch. | `DesktopHostPorts`, `getJiniHost`, `createNodeSidecarLauncher` | node (desktop) | none yet |
+| `@jini-ai/desktop-host/bridge` | Probe and call the `window.__jini__` desktop bridge from renderer code without the Node-side root entry. | `getJiniHost`, `isJiniHostAvailable`, `openHostExternalUrl`, `openHostPath` | universal | Tovu: desktop |
 | `@jini-ai/desktop-host/bridge-testing` | Mock/install the desktop bridge for renderer fixtures. | `createMockJiniHost`, `installMockJiniHost` | universal | none yet |
 | `@jini-ai/desktop-host/electron` | Assemble injected Electron window, protocol, shell and render-service ports. | `createElectronDesktopHost`, `createElectronRenderService` | node (desktop) | none yet |
 | `@jini-ai/desktop-host/tauri` | Assemble injected Tauri ports; render service remains unimplemented. | `createTauriDesktopHost`, `createTauriRenderService` | node (desktop) | none yet |
@@ -609,6 +610,8 @@ diagnostics · [README](packages/diagnostics/README.md) · [On-demand UI perform
 | `@jini-ai/diagnostics/web-evidence` | Capture bounded page structure, network/storage/cookie evidence with trusted host URLs. | `collectPageStructure`, `collectPageEvidence`, `normalizeSitePath` | universal | Tovu: website |
 | `@jini-ai/diagnostics/web-evidence/playwright` | Adapt injected Playwright browser operations to web evidence capture. | `openPlaywrightSiteEvidenceBrowser` | node | Tovu: website |
 | `@jini-ai/diagnostics/domain-dns` | Bounded public DNS/TLS/domain diagnostics over explicit resolver/network ports. | `readPublicDomain`, `readPublicDnsName`, `createDomainDnsChecks` | node | Tovu: website |
+| `@jini-ai/diagnostics/local-text` | Redact credentials and mask the literal home directory in local child, native and gate output. | `redactLocalText` | node | Tovu: desktop, website |
+| `@jini-ai/diagnostics/console-tee` | Redact then capture console output and child-process streams without ever breaking the original output. | `installConsoleTee`, `createRedactedOutputSink` | node | Tovu: desktop, website |
 
 ## tooling · `@jini-ai/plugins`
 

@@ -56,6 +56,8 @@ const safe = redactText({ text: 'Authorization: Bearer example123456' });
 | `web-evidence` | universal | Bounded observation collector, same-origin helpers, the own-site path guard (`resolveSameOriginPath` with an injected pathname policy), the bounded body reader, the cookie-shape projection, browser/origin/policy ports and browser-serialized DOM structure capture. DOM capture itself runs in a page. |
 | `web-evidence/playwright` | node | Optional adapter opened with `openPlaywrightSiteEvidenceBrowser({}, options)`. Core evidence imports never load Playwright. |
 | `domain-dns` | node | Hostname validators, record types, `DomainDnsInputError` and `createDomainDnsChecks(deps)`, over injected authorization, resolver, TLS and expected-host ports. |
+| `local-text` | node | `redactLocalText({ text }, { homeDir, platformPath })`: the shared redactor plus the literal home directory masked as `~`; a filesystem-root home masks nothing. |
+| `console-tee` | node | `installConsoleTee({ buffer }, { target, source, redact, onFailure })` and `createRedactedOutputSink({ sink, redact }, limits)`: redact-then-capture for console output and child-process streams, over a structural `ConsoleTeeBuffer` port. A failing redactor emits fixed placeholder text; a failing buffer never stops the original console call. |
 
 ```ts
 import { redactSecretShapes } from '@jini-ai/diagnostics/redaction/secrets-only';
