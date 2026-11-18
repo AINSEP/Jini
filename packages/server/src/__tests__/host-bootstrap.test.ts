@@ -9,27 +9,27 @@ import {
 
 describe('normalizeDaemonBindHost', () => {
   it('trims and returns a well-formed host string', () => {
-    expect(normalizeDaemonBindHost(' 0.0.0.0 ')).toBe('0.0.0.0');
+    expect(normalizeDaemonBindHost({ input: ' 0.0.0.0 ' })).toBe('0.0.0.0');
   });
 
   it('falls back to the loopback default for undefined', () => {
-    expect(normalizeDaemonBindHost(undefined)).toBe(DEFAULT_DAEMON_BIND_HOST);
+    expect(normalizeDaemonBindHost({ input: undefined })).toBe(DEFAULT_DAEMON_BIND_HOST);
   });
 
   it('falls back to the loopback default for null', () => {
-    expect(normalizeDaemonBindHost(null)).toBe(DEFAULT_DAEMON_BIND_HOST);
+    expect(normalizeDaemonBindHost({ input: null })).toBe(DEFAULT_DAEMON_BIND_HOST);
   });
 
   it('falls back to the loopback default for an empty string', () => {
-    expect(normalizeDaemonBindHost('')).toBe(DEFAULT_DAEMON_BIND_HOST);
+    expect(normalizeDaemonBindHost({ input: '' })).toBe(DEFAULT_DAEMON_BIND_HOST);
   });
 
   it('falls back to the loopback default for a whitespace-only string', () => {
-    expect(normalizeDaemonBindHost('   ')).toBe(DEFAULT_DAEMON_BIND_HOST);
+    expect(normalizeDaemonBindHost({ input: '   ' })).toBe(DEFAULT_DAEMON_BIND_HOST);
   });
 
   it('coerces a non-string value to its string form', () => {
-    expect(normalizeDaemonBindHost(127)).toBe('127');
+    expect(normalizeDaemonBindHost({ input: 127 })).toBe('127');
   });
 });
 

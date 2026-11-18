@@ -205,7 +205,7 @@ async function readOpenManifest(handle: FileHandle): Promise<SiteManifestRead> {
   const refused = (unreadable: string): SiteManifestRead => ({ missing: false, manifestValue: null, unreadable });
   if (!(await handle.stat()).isFile()) return refused("is not a regular file");
   // `+ 1` catches a file that grew past the cap after `stat`.
-  const bytes = await readAtMost(handle, MAX_SITE_MANIFEST_BYTES + 1);
+  const bytes = await readAtMost({ handle, maxBytes: MAX_SITE_MANIFEST_BYTES + 1 });
   if (bytes.length > MAX_SITE_MANIFEST_BYTES) return refused(`is larger than ${MAX_SITE_MANIFEST_BYTES} bytes`);
   return { missing: false, manifestValue: parseManifestJson(bytes.toString("utf8")) };
 }

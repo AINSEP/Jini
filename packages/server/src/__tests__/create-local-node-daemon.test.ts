@@ -145,53 +145,53 @@ function findExternalIPv4Address(): string | null {
 
 describe('resolveBoundPort', () => {
   it('returns the port from a real AddressInfo-shaped address', () => {
-    expect(resolveBoundPort({ port: 7456 })).toBe(7456);
+    expect(resolveBoundPort({ address: { port: 7456 } })).toBe(7456);
   });
 
   it('returns null for a null address (not yet listening)', () => {
-    expect(resolveBoundPort(null)).toBeNull();
+    expect(resolveBoundPort({ address: null })).toBeNull();
   });
 
   it('returns null for a string address (a Unix domain socket path)', () => {
-    expect(resolveBoundPort('/tmp/some.sock')).toBeNull();
+    expect(resolveBoundPort({ address: '/tmp/some.sock' })).toBeNull();
   });
 
   it('returns null for a non-positive port', () => {
-    expect(resolveBoundPort({ port: 0 })).toBeNull();
+    expect(resolveBoundPort({ address: { port: 0 } })).toBeNull();
   });
 });
 
 describe('resolveReportHost', () => {
   it('substitutes 127.0.0.1 for an all-interfaces IPv4 bind host', () => {
-    expect(resolveReportHost('0.0.0.0')).toBe('127.0.0.1');
+    expect(resolveReportHost({ bindHost: '0.0.0.0' })).toBe('127.0.0.1');
   });
 
   it('substitutes 127.0.0.1 for an all-interfaces IPv6 bind host', () => {
-    expect(resolveReportHost('::')).toBe('127.0.0.1');
+    expect(resolveReportHost({ bindHost: '::' })).toBe('127.0.0.1');
   });
 
   it('echoes back any other IPv4 host unchanged', () => {
-    expect(resolveReportHost('192.168.1.10')).toBe('192.168.1.10');
-    expect(resolveReportHost('127.0.0.1')).toBe('127.0.0.1');
+    expect(resolveReportHost({ bindHost: '192.168.1.10' })).toBe('192.168.1.10');
+    expect(resolveReportHost({ bindHost: '127.0.0.1' })).toBe('127.0.0.1');
   });
 
   it('brackets an IPv6 literal, because an unbracketed one produces a URL that will not parse', () => {
     // `http://::1:5000` is not a URL — `new URL()` throws on it, and so does anything that hands
     // the reported base URL to `fetch`. The authority form needs brackets.
-    expect(resolveReportHost('::1')).toBe('[::1]');
-    expect(resolveReportHost('fd00::1')).toBe('[fd00::1]');
+    expect(resolveReportHost({ bindHost: '::1' })).toBe('[::1]');
+    expect(resolveReportHost({ bindHost: 'fd00::1' })).toBe('[fd00::1]');
   });
 
   it('leaves an already-bracketed IPv6 literal alone rather than double-bracketing it', () => {
-    expect(resolveReportHost('[::1]')).toBe('[::1]');
+    expect(resolveReportHost({ bindHost: '[::1]' })).toBe('[::1]');
   });
 
   it('still maps the all-interfaces IPv6 bind host to IPv4 loopback, unbracketed', () => {
-    expect(resolveReportHost('::')).toBe('127.0.0.1');
+    expect(resolveReportHost({ bindHost: '::' })).toBe('127.0.0.1');
   });
 
   it('leaves a hostname containing no colon alone', () => {
-    expect(resolveReportHost('localhost')).toBe('localhost');
+    expect(resolveReportHost({ bindHost: 'localhost' })).toBe('localhost');
   });
 });
 
@@ -209,7 +209,7 @@ describe('buildDaemonDbOperations', () => {
   it('inspect() reports the real schema/table/row-count inventory', async () => {
     const { db, file } = makeDb();
     try {
-      const operations = buildDaemonDbOperations(db, file);
+      const operations = buildDaemonDbOperations({ db, file });
       const report = await operations.inspect();
       expect(report.kind).toBe('sqlite');
       expect(report.location).toBe(file);
@@ -223,7 +223,7 @@ describe('buildDaemonDbOperations', () => {
   it('verify() reports ok:true against a healthy database', async () => {
     const { db, file } = makeDb();
     try {
-      const operations = buildDaemonDbOperations(db, file);
+      const operations = buildDaemonDbOperations({ db, file });
       const report = await operations.verify({ quick: false });
       expect(report.ok).toBe(true);
       expect(report.issues).toEqual([]);
@@ -235,7 +235,7 @@ describe('buildDaemonDbOperations', () => {
   it('vacuum() really shrinks/rewrites the file and reports real before/after sizes', async () => {
     const { db, file } = makeDb();
     try {
-      const operations = buildDaemonDbOperations(db, file);
+      const operations = buildDaemonDbOperations({ db, file });
       const result = await operations.vacuum();
       expect(result.ok).toBe(true);
       expect(result.beforeBytes).toBeGreaterThan(0);

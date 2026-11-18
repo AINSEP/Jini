@@ -44,7 +44,7 @@ test('device error metadata cannot carry an unrecognized provider value', async 
   expect(JSON.stringify(error)).not.toContain(providerSecret);
 });
 test('callback error metadata cannot carry an unrecognized provider value', () => {
-  expect(JSON.stringify(toCallbackError(providerSecret))).not.toContain(providerSecret);
-  expect(toCallbackError('access_denied').message).toBe('authorization was declined');
-  expect(toCallbackError('access_denied').providerErrorCode).toBe('access_denied');
+  expect(JSON.stringify(toCallbackError({ rawError: providerSecret }))).not.toContain(providerSecret);
+  expect(toCallbackError({ rawError: 'access_denied' }).message).toBe('authorization was declined');
+  expect(toCallbackError({ rawError: 'access_denied' }).providerErrorCode).toBe('access_denied');
 });

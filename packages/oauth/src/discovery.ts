@@ -88,8 +88,8 @@ function authorizationServerMetadataCandidates(issuer: URL, allowOriginFallback:
     return paths.map(path => new URL(path, issuer));
 }
 function readDiscoveredEndpoint(document: Record<string, unknown>, key: string, guard: OAuthUrlGuard): string | null {
-    const endpoint = readOptionalString(document[key]);
-    if (endpoint !== null) assertSafeProviderEndpoint(endpoint, `discovered ${key.replaceAll('_', ' ')}`, guard);
+    const endpoint = readOptionalString({ value: document[key] });
+    if (endpoint !== null) assertSafeProviderEndpoint({ raw: endpoint, label: `discovered ${key.replaceAll('_', ' ')}`, guard });
     return endpoint;
 }
 function isTerminalDiscoveryFailure(error: unknown): error is OAuthError {
@@ -131,7 +131,7 @@ export async function fetchAuthorizationServerMetadata(requiredArgs: OAuthDiscov
     readonly metadataPolicy?: OAuthDiscoveryPolicy | 'none';
     readonly allowOriginFallback?: boolean;
 } = {}): Promise<DiscoveredAuthorizationServer> {
-    const issuer = assertSafeProviderEndpoint(requiredArgs.issuer, 'authorization server issuer', requiredArgs.guard);
+    const issuer = assertSafeProviderEndpoint({ raw: requiredArgs.issuer, label: 'authorization server issuer', guard: requiredArgs.guard });
     const policy = optionalArgs.metadataPolicy === 'none' ? null : optionalArgs.metadataPolicy ?? createIssuerBoundDiscoveryPolicy({});
     for (const candidate of authorizationServerMetadataCandidates(issuer, optionalArgs.allowOriginFallback === true)) {
         let document: Record<string, unknown>;
@@ -151,13 +151,13 @@ export async function fetchAuthorizationServerMetadata(requiredArgs: OAuthDiscov
 export async function discoverProtectedResourceMetadata(requiredArgs: OAuthDiscoveryDeps & {
     readonly resourceUrl: string;
 }, optionalArgs: { readonly wwwAuthenticate?: string; readonly timeoutMs?: number } = {}): Promise<DiscoveredProtectedResource | null> {
-    const resource = assertSafeProviderEndpoint(requiredArgs.resourceUrl, 'protected resource URL', requiredArgs.guard);
+    const resource = assertSafeProviderEndpoint({ raw: requiredArgs.resourceUrl, label: 'protected resource URL', guard: requiredArgs.guard });
     const advertised = optionalArgs.wwwAuthenticate === undefined ? null : parseResourceMetadataUrl({ wwwAuthenticate: optionalArgs.wwwAuthenticate });
     const suffix = trimCharsEnd({ text: resource.pathname, chars: '/' });
     // RFC 9728 inserts the path after the well-known segment. Retain the root fallback.
     const candidates = advertised === null
         ? [...new Set([`/.well-known/oauth-protected-resource${suffix}`, '/.well-known/oauth-protected-resource'])].map(path => new URL(path, resource))
-        : [assertSafeProviderEndpoint(advertised, 'protected resource metadata endpoint', requiredArgs.guard)];
+        : [assertSafeProviderEndpoint({ raw: advertised, label: 'protected resource metadata endpoint', guard: requiredArgs.guard })];
     for (const candidate of candidates) {
         try {
             const document = await fetchMetadataDocument({ deps: requiredArgs, candidate,
@@ -167,7 +167,7 @@ export async function discoverProtectedResourceMetadata(requiredArgs: OAuthDisco
             const advertisedResource = document.resource as string;
             assertResourceAllowed({ resource, advertisedResource });
             return { resource: advertisedResource,
-                authorizationServers: readStringArray(document.authorization_servers), scopesSupported: readStringArray(document.scopes_supported) };
+                authorizationServers: readStringArray({ value: document.authorization_servers }), scopesSupported: readStringArray({ value: document.scopes_supported }) };
         } catch (error) {
             if (isTerminalDiscoveryFailure(error)) throw error;
         }
@@ -175,7 +175,7 @@ export async function discoverProtectedResourceMetadata(requiredArgs: OAuthDisco
     return null;
 }
 export async function discoverAuthorizationServer(requiredArgs: OAuthRequiredArgs<OAuthDiscoveryDeps & DiscoverAuthorizationServerInput>, optionalArgs: OAuthOptionalArgs<OAuthDiscoveryDeps & DiscoverAuthorizationServerInput> = {}): Promise<DiscoveredOAuthConfiguration> {
-    const resource = assertSafeProviderEndpoint(requiredArgs.resourceUrl, 'protected resource URL', requiredArgs.guard);
+    const resource = assertSafeProviderEndpoint({ raw: requiredArgs.resourceUrl, label: 'protected resource URL', guard: requiredArgs.guard });
     const metadata = await discoverProtectedResourceMetadata(requiredArgs, optionalArgs);
     const scopes = optionalArgs.wwwAuthenticate === undefined ? [] : parseWwwAuthenticateScopes({ wwwAuthenticate: optionalArgs.wwwAuthenticate });
     const resourceScopes = selectResourceScopes({ scopes, metadata });
@@ -194,7 +194,7 @@ export async function discoverAuthorizationServer(requiredArgs: OAuthRequiredArg
 
 function safeAdvertisedIssuers({ metadata, guard }: { metadata: DiscoveredProtectedResource | null; guard: OAuthDiscoveryDeps['guard'] }): string[] {
     return (metadata?.authorizationServers ?? []).filter(issuer => {
-        try { assertSafeProviderEndpoint(issuer, 'authorization server issuer', guard); return true; }
+        try { assertSafeProviderEndpoint({ raw: issuer, label: 'authorization server issuer', guard }); return true; }
         catch { return false; }
     });
 }
@@ -206,13 +206,13 @@ function projectAuthorizationServerMetadata({ document, requiredArgs }: {
     const tokenEndpoint = readDiscoveredEndpoint(document, 'token_endpoint', requiredArgs.guard);
     if (tokenEndpoint === null) return null;
     return {
-        issuer: readOptionalString(document.issuer) ?? requiredArgs.issuer, tokenEndpoint,
+        issuer: readOptionalString({ value: document.issuer }) ?? requiredArgs.issuer, tokenEndpoint,
         authorizationEndpoint: readDiscoveredEndpoint(document, 'authorization_endpoint', requiredArgs.guard),
         deviceAuthorizationEndpoint: readDiscoveredEndpoint(document, 'device_authorization_endpoint', requiredArgs.guard),
         registrationEndpoint: readDiscoveredEndpoint(document, 'registration_endpoint', requiredArgs.guard),
-        scopesSupported: readStringArray(document.scopes_supported), grantTypesSupported: readStringArray(document.grant_types_supported),
-        codeChallengeMethodsSupported: readStringArray(document.code_challenge_methods_supported),
-        tokenEndpointAuthMethodsSupported: readStringArray(document.token_endpoint_auth_methods_supported),
+        scopesSupported: readStringArray({ value: document.scopes_supported }), grantTypesSupported: readStringArray({ value: document.grant_types_supported }),
+        codeChallengeMethodsSupported: readStringArray({ value: document.code_challenge_methods_supported }),
+        tokenEndpointAuthMethodsSupported: readStringArray({ value: document.token_endpoint_auth_methods_supported }),
     };
 }
 

@@ -110,7 +110,7 @@ for (const [raw, code, kept] of [
     ["a".repeat(65), "OAUTH_PROVIDER_REJECTED", undefined],
 ] as const) {
     test(`F1: callback error ${JSON.stringify(raw).slice(0, 30)} → ${code}, providerErrorCode kept=${kept !== undefined}`, () => {
-        const error = toCallbackError(raw);
+        const error = toCallbackError({ rawError: raw });
         assert.equal(error.code, code);
         assert.equal(error.providerErrorCode, kept);
     });

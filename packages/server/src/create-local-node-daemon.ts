@@ -74,7 +74,7 @@ export { classifyRunFailureForRetry } from './kernel-base.js';
  * @complexity O(1).
  * @overallScore 100/100
  */
-export function resolveBoundPort(address: { port: number } | string | null): number | null {
+export function resolveBoundPort({ address }: { address: { port: number } | string | null }, _optional: Record<string, never> = {}): number | null {
   if (address == null || typeof address === 'string') return null;
   return address.port > 0 ? address.port : null;
 }
@@ -96,7 +96,7 @@ export function resolveBoundPort(address: { port: number } | string | null): num
  * @complexity O(1).
  * @overallScore 100/100
  */
-export function resolveReportHost(bindHost: string): string {
+export function resolveReportHost({ bindHost }: { bindHost: string }, _optional: Record<string, never> = {}): string {
   if (bindHost === '0.0.0.0' || bindHost === '::') return '127.0.0.1';
   // A colon can only mean "IPv6 literal" here: a bind host is a host, never a `host:port` pair, and
   // no DNS name or IPv4 address contains one.
@@ -366,7 +366,7 @@ export async function createLocalNodeDaemon<const Packs extends readonly AnyPack
 export async function createLocalNodeDaemon(
   config: CreateLocalNodeDaemonConfig<readonly AnyPack[], string>,
 ): Promise<LocalNodeDaemon> {
-  const host = normalizeDaemonBindHost(config.host ?? DEFAULT_HOST);
+  const host = normalizeDaemonBindHost({ input: config.host ?? DEFAULT_HOST });
   // Origin checks must retain this daemon's bind host without mutating the caller or process env.
   const env = { ...(config.env ?? process.env), [DEFAULT_BIND_HOST_ENV_VAR]: host };
   const requestedPort = config.port ?? 0;
@@ -490,7 +490,7 @@ export async function createLocalNodeDaemon(
         server.keepAliveTimeout = 120_000;
         server.headersTimeout = 125_000;
 
-        const boundPort = resolveBoundPort(server.address());
+        const boundPort = resolveBoundPort({ address: server.address() });
         if (!boundPort) {
           failToBind(
             new Error(`@jini-ai/server: daemon failed to resolve listening port (address=${JSON.stringify(server.address())})`),
@@ -498,7 +498,7 @@ export async function createLocalNodeDaemon(
           return;
         }
         resolvedPortRef.current = boundPort;
-        const reportedUrl = `http://${resolveReportHost(host)}:${boundPort}`;
+        const reportedUrl = `http://${resolveReportHost({ bindHost: host })}:${boundPort}`;
 
         // Writing the discovery record is async; this promise must not resolve — handing the URL
         // back to the caller — until the record a same-machine CLI would read is in place.
@@ -507,7 +507,7 @@ export async function createLocalNodeDaemon(
             try {
               await writeDaemonRegistryRecord({ registryPath, record: {
                 url: reportedUrl,
-                host: resolveReportHost(host),
+                host: resolveReportHost({ bindHost: host }),
                 port: boundPort,
                 pid: process.pid,
                 startedAt: new Date().toISOString(),

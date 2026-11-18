@@ -77,15 +77,15 @@ export async function beginAuthorizationCode(requiredArgs: BeginAuthorizationCod
             code: "OAUTH_UNSUPPORTED_GRANT", message: `provider '${provider.providerId}' declares no authorization endpoint`,
             operatorAction: "Configure this provider's authorization endpoint, or connect it with the device grant instead."
         });
-    const authorizationUrl = assertSafeProviderEndpoint(provider.authorizationEndpoint, "authorization endpoint", deps.guard);
-    const redirectUri = assertSafeProviderEndpoint(input.redirectUri, "redirect URI", deps.guard);
+    const authorizationUrl = assertSafeProviderEndpoint({ raw: provider.authorizationEndpoint, label: "authorization endpoint", guard: deps.guard });
+    const redirectUri = assertSafeProviderEndpoint({ raw: input.redirectUri, label: "redirect URI", guard: deps.guard });
     if (!deps.options.redirectUris.some(uri => new URL(uri).href === redirectUri.href))
         throw new OAuthError({
             code: 'OAUTH_INVALID_REQUEST', message: 'redirect URI is not in the configured client identity',
             operatorAction: 'Register this callback URL before connecting.'
         });
     applyExtraAuthorizationParams(authorizationUrl, input.extraAuthorizationParams, optionalArgs.messages ?? defaultOAuthMessages);
-    applyResourceIndicators(authorizationUrl.searchParams, input.resource);
+    applyResourceIndicators({ params: authorizationUrl.searchParams, resource: input.resource });
     const scopes = input.scopes ?? provider.defaultScopes;
     const pkce = provider.usesPkce ? createPkcePair({ randomBytesFn: deps.randomBytesFn }) : undefined;
     const authorization = {
@@ -120,7 +120,7 @@ export async function completeAuthorizationCode(requiredArgs: CompleteAuthorizat
         : await deps.pending.take({ state: input.params.state, ownerKey: input.ownerKey });
     if (entry.providerId !== deps.provider.providerId) throw invalidState({});
     if (input.params.error !== undefined)
-        throw toCallbackError(input.params.error);
+        throw toCallbackError({ rawError: input.params.error });
     const code = input.params.code;
     if (code === undefined || code === "")
         throw new OAuthError({
@@ -153,7 +153,7 @@ function assertCallbackShape(params: AuthorizationCallbackParams): void {
         });
 }
 /** Maps a callback `error` parameter to a typed failure; the raw value is kept only when it is a recognized protocol code. */
-export function toCallbackError(rawError: string): OAuthError {
+export function toCallbackError({ rawError }: { rawError: string }, _optional: Record<string, never> = {}): OAuthError {
     const providerErrorCode = OAUTH_PROTOCOL_ERROR_CODES.has(rawError) ? rawError : undefined;
     const denied = providerErrorCode === 'access_denied';
     return new OAuthError({

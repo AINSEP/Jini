@@ -20,7 +20,7 @@ export interface RevokeOAuthTokenInput {
 export async function revokeOAuthToken(requiredArgs: OAuthRequiredArgs<OAuthHttpPorts & RevokeOAuthTokenInput>,
     optionalArgs: OAuthOptionalArgs<OAuthHttpPorts & RevokeOAuthTokenInput> = {}): Promise<void> {
     const { client, token, guard, fetchFn } = requiredArgs;
-    const endpoint = assertSafeProviderEndpoint(requiredArgs.revocationEndpoint, 'revocation endpoint', guard);
+    const endpoint = assertSafeProviderEndpoint({ raw: requiredArgs.revocationEndpoint, label: 'revocation endpoint', guard });
     const guardedFetch = createOAuthCustomFetch({
         fetchFn, guard, timeoutMs: optionalArgs.timeoutMs ?? DEFAULT_TOKEN_REQUEST_TIMEOUT_MS,
         endpointLabel: 'revocation endpoint', responseMessages: {

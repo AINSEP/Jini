@@ -51,7 +51,7 @@ export function createOAuthCustomFetch({ fetchFn, guard, timeoutMs, endpointLabe
       fetch.status = response.status;
       await assertOAuthResponseNotRedirect({ response });
       // Bound the body before upstream JSON buffering, keeping the deadline active through consumption.
-      const text = await readBoundedOAuthText(response, responseMessages, maxResponseBytes);
+      const text = await readBoundedOAuthText({ response, messages: responseMessages }, { maxBytes: maxResponseBytes });
       return new Response(response.body === null ? null : text, {
         status: response.status, statusText: response.statusText, headers: response.headers,
       });

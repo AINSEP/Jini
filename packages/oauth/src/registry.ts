@@ -24,7 +24,7 @@ export function assertValidOAuthProvider({ descriptor, guard }: {
             operatorAction: "Declare at least one of the browser-redirect or device-code grants."
         });
     }
-    assertSafeProviderEndpoint(descriptor.tokenEndpoint, "token endpoint", guard);
+    assertSafeProviderEndpoint({ raw: descriptor.tokenEndpoint, label: "token endpoint", guard });
     if (descriptor.supportedGrants.includes("authorization_code")) {
         if (!descriptor.authorizationEndpoint) {
             throw new OAuthError({
@@ -32,7 +32,7 @@ export function assertValidOAuthProvider({ descriptor, guard }: {
                 operatorAction: "Add this provider's authorization endpoint URL."
             });
         }
-        assertSafeProviderEndpoint(descriptor.authorizationEndpoint, "authorization endpoint", guard);
+        assertSafeProviderEndpoint({ raw: descriptor.authorizationEndpoint, label: "authorization endpoint", guard });
     }
     if (descriptor.supportedGrants.includes("device_code")) {
         if (!descriptor.deviceAuthorizationEndpoint) {
@@ -41,7 +41,7 @@ export function assertValidOAuthProvider({ descriptor, guard }: {
                 operatorAction: "Add this provider's device authorization endpoint URL."
             });
         }
-        assertSafeProviderEndpoint(descriptor.deviceAuthorizationEndpoint, "device authorization endpoint", guard);
+        assertSafeProviderEndpoint({ raw: descriptor.deviceAuthorizationEndpoint, label: "device authorization endpoint", guard });
     }
 }
 export function buildOperatorOAuthProvider(requiredArgs: OAuthRequiredArgs<OperatorOAuthProviderInput> & {

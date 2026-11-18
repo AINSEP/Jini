@@ -35,7 +35,7 @@ describe('OAuth URL guard characterization', () => {
     const guard = createOAuthUrlGuard({ assertAllowed: ({ url, label }) => {
       calls.push(`${label} ${url.href}`); url.hostname = 'changed.example';
     } });
-    expect(assertSafeProviderEndpoint(' https://AUTH.example:443/token ', 'token endpoint', guard).href).toBe('https://auth.example/token');
+    expect(assertSafeProviderEndpoint({ raw: ' https://AUTH.example:443/token ', label: 'token endpoint', guard }).href).toBe('https://auth.example/token');
     expect(calls).toEqual(['token endpoint https://auth.example/token']);
   });
 
