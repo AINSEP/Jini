@@ -41,8 +41,12 @@ one install-wide `setting_revisions` lock.
 `@jini-ai/core/gated-mutations`. It takes the kernel and one host-owned table name; redemption is single-use under a
 per-token lock, and the plan binding is checked by the core service, not the store.
 
+`@jini-ai/db/verified-origin` is the Kysely adapter (`SqlOriginSettingRepo`) for the verified-origin port declared in
+`@jini-ai/core/contracts/server/verified-origin`, plus `registerConfiguredOrigin`, the insert-or-correct writer for an
+operator-declared origin (origin columns only, under a per-workspace lock). It takes the kernel and one host-owned table name.
+
 `kysely` is an optional peer (`^0.29.6`), imported as a value or type only under `src/kernel/`,
-`src/migrate/`, `src/settings/`, `src/gated-mutations/` and `src/secrets-vault/`. `better-sqlite3`, `pg` and `@electric-sql/pglite` are also optional peers.
+`src/migrate/`, `src/settings/`, `src/gated-mutations/`, `src/verified-origin/` and `src/secrets-vault/`. `better-sqlite3`, `pg` and `@electric-sql/pglite` are also optional peers.
 Production code never imports a driver at runtime. PGlite type imports are confined to
 `src/pglite/` and `src/kernel/pglite/`; SQLite and Postgres use structural types.
 

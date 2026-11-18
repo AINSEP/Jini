@@ -129,6 +129,22 @@ const SUBPATHS: Record<string, { dirs: string[]; probe: string; kernel?: boolean
         && JSON.stringify(events) === '["begin","lock:gated_mutation_tokens:tok","read"]';
     })()`,
   },
+  "verified-origin": {
+    dirs: ["verified-origin"],
+    probe: `await (async () => {
+      const calls = [];
+      const query = {
+        selectAll() { calls.push(["selectAll"]); return this; },
+        where(...args) { calls.push(["where", ...args]); return this; },
+        async executeTakeFirst() { return undefined; },
+      };
+      const db = { withTables() { return db; }, selectFrom: table => { calls.push(["selectFrom", table]); return query; } };
+      const repo = new m.SqlOriginSettingRepo({ kernel: { run: fn => fn(db) }, tables: { origins: "o" } });
+      return await repo.findByWorkspaceId({ workspaceId: "ws" }) === null
+        && typeof m.registerConfiguredOrigin === "function"
+        && JSON.stringify(calls) === '[["selectFrom","o"],["selectAll"],["where","workspace_id","=","ws"]]';
+    })()`,
+  },
   "owner-store": {
     // Migration metadata loads without Kysely; up() lazily loads the kernel's DDL adapter.
     dirs: ["owner-store", "owner-store/migrations"],
