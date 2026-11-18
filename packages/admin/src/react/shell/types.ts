@@ -97,6 +97,11 @@ export interface AdminShellBaseProps extends AdminShellContext {
   readonly capabilities?: readonly string[];
   readonly railDefaultCollapsed?: boolean;
   readonly collapsibleGroups?: readonly string[];
+  /**
+   * Localizes or relabels the nav. The shell memoizes its result on this function's identity, so a host
+   * must pass a **stable** function (wrap one that closes over locale in `useCallback`): a new function
+   * on every render rebuilds the nav on every render.
+   */
   readonly translateNav?: (args: { readonly groups: readonly AdminNavGroup[] }) => readonly AdminNavGroup[];
   /** Optional page-driver/measurement seam; the host owns any agent or screenshot integration. */
   readonly mainRef?: Ref<HTMLElement>;
