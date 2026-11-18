@@ -5,7 +5,7 @@ import type { UUID } from "@jini-ai/core/primitives";
 import { originColumns, sameOrigin, type OriginSettingsTable } from "./repo.rows.js";
 import type { OriginTables } from "./repo.sql.js";
 
-/** What {@link registerConfiguredOrigin} did, so the host can log it. */
+/** What {@link registerConfiguredOriginOn} did, so the composition root can log it. */
 export type ConfiguredOriginWriteResult = "inserted" | "updated" | "unchanged";
 
 /**

@@ -50,6 +50,7 @@ export interface OriginSqlOptional {
 }
 
 export class SqlOriginSettingRepo implements OriginSettingRepoPort {
+  /** @param options.after - Reads wait for it (the composition root's boot write); see the file header. */
   protected readonly kernel: StorageKernel<Kysely<unknown>, unknown>;
   protected readonly tables: OriginTables;
   private readonly after: Promise<unknown> | undefined;
