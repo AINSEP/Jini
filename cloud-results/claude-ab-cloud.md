@@ -1,6 +1,6 @@
 # claude-ab/cookie-consent-cloud — ARGS RULE on packages/cookie-consent
 
-Base `6c9effae4`. Per the run rules, nothing was run: no tests, build, typecheck or install. The evidence is code edits plus `git grep`.
+Base `6c9effae4`. Nothing was run (no tests, build, typecheck or install). The evidence is the code edits and `git grep`.
 
 ## Functions changed (old -> new)
 - `src/client/dom.ts:readCookie` `(doc, name)` -> `({ doc, name }, _optional = {})`
@@ -26,11 +26,11 @@ Each `_optional` added here is typed `Record<string, never>`.
 - `client/dom.ts:bindBanner` implements `ConsentBridge.mount`. It is registered as `mount: bindBanner` and typed by `BootOptions.bindBanner`.
 - `REGION_SLOT.accept`, `ADAPTER_SLOT.accept` and `BRIDGE_SLOT.accept` implement the `SlotKind` interface.
 - The `ConsentCssSyntaxError` constructor is a class constructor.
-- These already comply: `createCookieConsent` (runtime), `bootWithContext` ×2, `purgeStorage`, `declaredFrames`, `installFeatures`, `declaredScripts`, `bindBridges`, `allows`, `validateScripts`, `regionFrom`, `choicesFor`, `clamp`, `effective`, `parseStored`, `createPluginRegistry`, the 3 `consent-file` functions, `renderBanner`, `compileConsentCss`, `parseConsentCss`, `renderScriptAssets`, `declaredScriptDelivery`, `handleReceipt`, `readConsent`, `headerResolver`, `resolveRegion` and the 4 `node/index.ts` exports.
-- Private functions were not touched: `features`, `installPage`, `reloadStalePage`, `expireEverywhere` and others.
+- 26 other exports already comply, for example `createCookieConsent` (runtime), `bootWithContext`, `purgeStorage`, the policy/plugins/consent-file/render/server/node exports and `installFeatures`.
+- Private functions were not touched.
 
 ## Callers repointed
-Proof grep: `git grep -nP "\b(readCookie|writeCookie|purge|activateInert|browserPorts|boot|safeHref|scopedSelector|readPage|waiting)\((?!\{|\))"` over `packages/cookie-consent`, `examples`, `packages/provider-plugins` and `scripts` returns nothing. The same grep repo-wide for the unique names over all listed file types finds only `packages/devops/src/static-export/transforms.ts:15/125`, which is devops' own local `safeHref`.
+Proof grep: `git grep -nP "\b(readCookie|writeCookie|purge|activateInert|browserPorts|boot|safeHref|scopedSelector|readPage|waiting)\((?!\{|\))"` over `packages/cookie-consent`, `examples`, `packages/provider-plugins` and `scripts` returns nothing. Repo-wide, the same grep for the unique names finds only devops' own local `safeHref` (`static-export/transforms.ts`).
 - **@jini-ai/cookie-consent production code: 26 call sites.**
   - `dom.ts`: `waiting` ×3
   - `runtime.ts`: 15 sites, covering `readCookie` 3, `writeCookie` 1, `purge` 3, `activateInert` 1, `waiting` 1, `browserPorts` 3, `readPage` 2 and `boot` 1
@@ -41,7 +41,7 @@ Proof grep: `git grep -nP "\b(readCookie|writeCookie|purge|activateInert|browser
 - **@jini-ai/cookie-consent tests: 41 call sites, call sites only.**
   - `anonymous` 7, `bridges.unit` 2, `client` 9, `client-dom` 12, `css` 6, `render` 5
   - No assertion or case was changed. The explicit `safeHref({ url: undefined })` and `purge({ doc })` cases are kept.
-- **Other packages: 0.** `provider-plugins` uses `createCookieConsent` and `purgeStorage`, and neither call shape changed. Its `browserPorts()` is its own local function.
+- **Other packages: 0.** `provider-plugins` uses `createCookieConsent` and `purgeStorage`, and neither call shape changed.
 - **.mjs/.cjs callers:** `packages/cookie-consent/scripts/build-client.mjs:32 parityCss({ colors: null })` still works because only an optional parameter was added. `examples/cookie-consent-standalone/server.mjs` calls none of the changed functions.
 
 ## Docs updated
@@ -49,7 +49,7 @@ Proof grep: `git grep -nP "\b(readCookie|writeCookie|purge|activateInert|browser
 - The README, CHANGELOG and example READMEs show none of the changed call shapes, so none needed edits.
 
 ## Tovu callers
-Checked with `git -C Tovu grep origin/refactor/terra -- apps packages development` per name, and on the 60 files that mention `cookie-consent`.
+Checked with `git -C Tovu grep origin/refactor/terra -- apps packages development` per name and over the 60 files that mention `cookie-consent`.
 - `apps/website/src/features/consent/validation.ts:57`: `safeHref(config.privacyPolicyUrl)` -> `safeHref({ url: config.privacyPolicyUrl })`
 - `apps/website/src/features/consent/validation.ts:58`: `safeHref(config.secondaryLinkUrl)` -> `safeHref({ url: config.secondaryLinkUrl })`
 - `development/scripts/__tests__/check-menu-href-allowlist-sync.test.ts:129` has `safeHref(x)` only inside a fixture string that a scanner reads and never runs. Updating it is optional: `safeHref({ url: x })`.
