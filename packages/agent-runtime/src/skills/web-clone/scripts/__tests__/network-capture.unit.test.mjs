@@ -6,29 +6,29 @@ import { createFakeBrowser, createFakePage, createOutput, fakeResponse, playwrig
 
 describe("argument parsing and pure helpers", () => {
   it("parses flags with defaults and rejects unknown ones", () => {
-    expect(parseArgs(["--url", "https://s.test", "--wait", "0", "--max-bytes"])).toEqual({
+    expect(parseArgs({ argv: ["--url", "https://s.test", "--wait", "0", "--max-bytes"] })).toEqual({
       url: "https://s.test",
       outDir: "RECON/network",
       label: "site",
       waitMs: 0,
       maxBytes: 1000000,
     });
-    expect(parseArgs(["-h", "--out", "o", "--label", "clone"])).toMatchObject({ help: true, outDir: "o", label: "clone" });
-    expect(() => parseArgs(["--nope"])).toThrow("Unexpected argument: --nope");
+    expect(parseArgs({ argv: ["-h", "--out", "o", "--label", "clone"] })).toMatchObject({ help: true, outDir: "o", label: "clone" });
+    expect(() => parseArgs({ argv: ["--nope"] })).toThrow("Unexpected argument: --nope");
   });
 
   it("safeFixtureName derives a sanitized, hashed name with a json/txt extension", () => {
-    expect(safeFixtureName("https://s.test/api/v1/items?x=1", "application/json")).toMatch(/^api-v1-items-[0-9a-f]{10}\.json$/);
-    expect(safeFixtureName("https://s.test/", "text/plain")).toMatch(/^response-[0-9a-f]{10}\.txt$/);
+    expect(safeFixtureName({ url: "https://s.test/api/v1/items?x=1", contentType: "application/json" })).toMatch(/^api-v1-items-[0-9a-f]{10}\.json$/);
+    expect(safeFixtureName({ url: "https://s.test/", contentType: "text/plain" })).toMatch(/^response-[0-9a-f]{10}\.txt$/);
   });
 
   it("shouldSave keeps only xhr/fetch bodies with a textual content type", () => {
-    expect(shouldSave("xhr", "application/json")).toBe(true);
-    expect(shouldSave("fetch", "application/graphql-response+json")).toBe(true);
-    expect(shouldSave("fetch", "text/javascript")).toBe(true);
-    expect(shouldSave("fetch", "image/png")).toBe(false);
-    expect(shouldSave("fetch", undefined)).toBe(false);
-    expect(shouldSave("script", "text/javascript")).toBe(false);
+    expect(shouldSave({ resourceType: "xhr", contentType: "application/json" })).toBe(true);
+    expect(shouldSave({ resourceType: "fetch", contentType: "application/graphql-response+json" })).toBe(true);
+    expect(shouldSave({ resourceType: "fetch", contentType: "text/javascript" })).toBe(true);
+    expect(shouldSave({ resourceType: "fetch", contentType: "image/png" })).toBe(false);
+    expect(shouldSave({ resourceType: "fetch", contentType: undefined })).toBe(false);
+    expect(shouldSave({ resourceType: "script", contentType: "text/javascript" })).toBe(false);
   });
 });
 

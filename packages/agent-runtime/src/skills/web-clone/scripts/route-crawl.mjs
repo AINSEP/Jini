@@ -12,7 +12,7 @@ import { trimDashes } from "./lib/trim-dashes.mjs";
 // tests pass fakes (no real browser, captured output, fixed clock).
 const DEFAULT_DEPS = { fs, loadPlaywright, launchChromium, log: console.log, error: console.error, now: () => new Date() };
 
-export function usage(log = console.log) {
+export function usage({}, { log = console.log } = {}) {
   log(`Usage:
   node scripts/route-crawl.mjs --url <url> --out RECON/routes [--label original] [--max-pages 25] [--max-depth 2] [--width 1440] [--wait 800] [--allow-subdomains]
 
@@ -33,23 +33,23 @@ const ARG_SPEC = {
   },
   options: {
     ...HELP_OPTIONS,
-    "--url": { key: "url", parse: text("") },
-    "--out": { key: "outDir", parse: text("RECON/routes") },
-    "--label": { key: "label", parse: text("site") },
-    "--max-pages": { key: "maxPages", parse: num("25") },
-    "--max-depth": { key: "maxDepth", parse: num("2") },
-    "--width": { key: "width", parse: num("1440") },
-    "--wait": { key: "waitMs", parse: num("800") },
+    "--url": { key: "url", parse: text({ fallback: "" }) },
+    "--out": { key: "outDir", parse: text({ fallback: "RECON/routes" }) },
+    "--label": { key: "label", parse: text({ fallback: "site" }) },
+    "--max-pages": { key: "maxPages", parse: num({ fallback: "25" }) },
+    "--max-depth": { key: "maxDepth", parse: num({ fallback: "2" }) },
+    "--width": { key: "width", parse: num({ fallback: "1440" }) },
+    "--wait": { key: "waitMs", parse: num({ fallback: "800" }) },
     "--allow-subdomains": { key: "allowSubdomains", flag: true },
   },
 };
 
-export function parseArgs(argv) {
+export function parseArgs({ argv }, _optional = {}) {
   return parseCliArgs({ argv, ...ARG_SPEC });
 }
 
 /** Canonical http(s) URL (no hash, sorted query, no trailing slash), or "". */
-export function normalizeUrl(rawUrl, baseUrl) {
+export function normalizeUrl({ rawUrl, baseUrl }, _optional = {}) {
   let normalized = "";
   try {
     const url = new URL(rawUrl, baseUrl);
@@ -64,7 +64,7 @@ export function normalizeUrl(rawUrl, baseUrl) {
   return normalized;
 }
 
-export function sameSite(candidate, origin, allowSubdomains) {
+export function sameSite({ candidate, origin, allowSubdomains }, _optional = {}) {
   const url = new URL(candidate);
   const root = new URL(origin);
   if (url.origin === root.origin) return true;
@@ -74,9 +74,9 @@ export function sameSite(candidate, origin, allowSubdomains) {
 // Only called with normalized http(s) URLs, whose hostname is never empty
 // and always keeps at least one [a-z0-9] after sanitizing — so the cleaned
 // name can never be empty.
-export function routeFileName(url) {
+export function routeFileName({ url }, _optional = {}) {
   const parsed = new URL(url);
-  const clean = trimDashes(`${parsed.hostname}${parsed.pathname}`.replace(/[^a-z0-9._-]+/gi, "-")).slice(0, 90);
+  const clean = trimDashes({ text: `${parsed.hostname}${parsed.pathname}`.replace(/[^a-z0-9._-]+/gi, "-") }).slice(0, 90);
   const hash = crypto.createHash("sha1").update(url).digest("hex").slice(0, 8);
   return `${clean}-${hash}.png`;
 }
@@ -90,7 +90,7 @@ function routeRow(route) {
   return `| ${route.depth} | ${route.status || ""} | ${pathLabel} | ${title} | ${h1} | ${route.linkCount} | ${route.screenshot} |`;
 }
 
-export function summarizeMarkdown(result) {
+export function summarizeMarkdown({ result }, _optional = {}) {
   const lines = [
     `# ${result.label} route map`,
     "",
@@ -114,7 +114,7 @@ export function summarizeMarkdown(result) {
   return `${lines.join("\n")}\n`;
 }
 
-export async function collectPage(page) {
+export async function collectPage({ page }, _optional = {}) {
   return page.evaluate(() => {
     const text = (node) => (node?.textContent || "").trim().replace(/\s+/g, " ");
     const links = Array.from(document.querySelectorAll("a[href]")).map((a) => ({
@@ -147,9 +147,9 @@ export async function collectPage(page) {
 
 function enqueueLinks(links, current, crawl) {
   for (const link of links) {
-    const nextUrl = normalizeUrl(link.href, current.url);
+    const nextUrl = normalizeUrl({ rawUrl: link.href, baseUrl: current.url });
     const fresh = nextUrl && !crawl.seen.has(nextUrl);
-    if (fresh && sameSite(nextUrl, crawl.startUrl, crawl.args.allowSubdomains)) {
+    if (fresh && sameSite({ candidate: nextUrl, origin: crawl.startUrl, allowSubdomains: crawl.args.allowSubdomains })) {
       crawl.queue.push({ url: nextUrl, depth: current.depth + 1, from: current.url });
     }
   }
@@ -169,8 +169,8 @@ async function visit(page, current, crawl) {
     const response = await page.goto(current.url, { waitUntil: "domcontentloaded", timeout: 45000 });
     await page.waitForLoadState("networkidle", { timeout: 6000 }).catch(() => {});
     if (args.waitMs > 0) await page.waitForTimeout(args.waitMs);
-    const data = await collectPage(page);
-    const screenshotPath = path.join(dirs.screenshotsDir, routeFileName(current.url));
+    const data = await collectPage({ page });
+    const screenshotPath = path.join(dirs.screenshotsDir, routeFileName({ url: current.url }));
     await page.screenshot({ path: screenshotPath, fullPage: true });
     crawl.routes.push({
       url: current.url,
@@ -214,7 +214,7 @@ async function crawlRoutes(page, crawl) {
 }
 
 async function crawlSite(args, deps) {
-  const startUrl = normalizeUrl(args.url, args.url);
+  const startUrl = normalizeUrl({ rawUrl: args.url, baseUrl: args.url });
   if (!startUrl) throw new CliUsageError("Invalid --url: pass an absolute http(s) URL.");
 
   const outDir = path.resolve(args.outDir);
@@ -242,7 +242,7 @@ async function crawlSite(args, deps) {
   const jsonFile = path.join(outDir, `${args.label}-route-map.json`);
   const mdFile = path.join(outDir, `${args.label}-route-map.md`);
   deps.fs.writeFileSync(jsonFile, `${JSON.stringify(result, null, 2)}\n`);
-  deps.fs.writeFileSync(mdFile, summarizeMarkdown(result));
+  deps.fs.writeFileSync(mdFile, summarizeMarkdown({ result }));
   deps.log(jsonFile);
   return 0;
 }
@@ -254,9 +254,9 @@ async function crawlSite(args, deps) {
 export async function main({ argv }, deps = {}) {
   const io = { ...DEFAULT_DEPS, ...deps };
   return runCli({ label: "route-crawl", body: () => {
-    const args = parseArgs(argv);
+    const args = parseArgs({ argv });
     if (args.help || !args.url) {
-      usage(io.log);
+      usage({}, { log: io.log });
       return args.help ? 0 : 1;
     }
     return crawlSite(args, io);

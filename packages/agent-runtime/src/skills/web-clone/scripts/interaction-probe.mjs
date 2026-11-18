@@ -12,7 +12,7 @@ import { errorClassLabel } from "./lib/diagnostic-labels.mjs";
 // tests pass fakes (no real browser, captured output, fixed clock).
 const DEFAULT_DEPS = { fs, loadPlaywright, launchChromium, log: console.log, error: console.error, now: () => new Date() };
 
-export function usage(log = console.log) {
+export function usage({}, { log = console.log } = {}) {
   log(`Usage:
   node scripts/interaction-probe.mjs --url <url> --out RECON/interactions [--label original] [--max-clicks 12] [--max-hovers 8] [--wait 800] [--width 1440]
 
@@ -32,26 +32,26 @@ const ARG_SPEC = {
   },
   options: {
     ...HELP_OPTIONS,
-    "--url": { key: "url", parse: text("") },
-    "--out": { key: "outDir", parse: text("RECON/interactions") },
-    "--label": { key: "label", parse: text("site") },
-    "--max-clicks": { key: "maxClicks", parse: num("12") },
-    "--max-hovers": { key: "maxHovers", parse: num("8") },
-    "--wait": { key: "waitMs", parse: num("800") },
-    "--width": { key: "width", parse: num("1440") },
+    "--url": { key: "url", parse: text({ fallback: "" }) },
+    "--out": { key: "outDir", parse: text({ fallback: "RECON/interactions" }) },
+    "--label": { key: "label", parse: text({ fallback: "site" }) },
+    "--max-clicks": { key: "maxClicks", parse: num({ fallback: "12" }) },
+    "--max-hovers": { key: "maxHovers", parse: num({ fallback: "8" }) },
+    "--wait": { key: "waitMs", parse: num({ fallback: "800" }) },
+    "--width": { key: "width", parse: num({ fallback: "1440" }) },
   },
 };
 
-export function parseArgs(argv) {
+export function parseArgs({ argv }, _optional = {}) {
   return parseCliArgs({ argv, ...ARG_SPEC });
 }
 
-export function shortHash(value) {
+export function shortHash({ value }, _optional = {}) {
   return crypto.createHash("sha1").update(value).digest("hex").slice(0, 10);
 }
 
-export function safeFileName(label) {
-  return trimDashes(label.replace(/[^a-z0-9._-]+/gi, "-")).slice(0, 90) || "step";
+export function safeFileName({ label }, _optional = {}) {
+  return trimDashes({ text: label.replace(/[^a-z0-9._-]+/gi, "-") }).slice(0, 90) || "step";
 }
 
 function actionRow(action, index) {
@@ -60,7 +60,7 @@ function actionRow(action, index) {
   return `| ${index + 1} | ${action.type} | ${target} | ${action.changed ? "yes" : "no"} | ${urlAfter} | ${action.screenshot || ""} |`;
 }
 
-export function markdown(result) {
+export function markdown({ result }, _optional = {}) {
   const lines = [
     `# ${result.label} interaction probe`,
     "",
@@ -82,7 +82,7 @@ export function markdown(result) {
   return `${lines.join("\n")}\n`;
 }
 
-export async function snapshot(page) {
+export async function snapshot({ page }, _optional = {}) {
   return page.evaluate(() => {
     const visible = (selector) => Array.from(document.querySelectorAll(selector)).filter((node) => {
       const rect = node.getBoundingClientRect();
@@ -112,7 +112,7 @@ export async function snapshot(page) {
   });
 }
 
-export async function hashSnapshot(page, state) {
+export async function hashSnapshot({ page, state }, _optional = {}) {
   const htmlHash = await page.evaluate(() => {
     const html = document.documentElement.outerHTML;
     let hash = 0;
@@ -124,7 +124,7 @@ export async function hashSnapshot(page, state) {
   return { ...state, htmlHash };
 }
 
-export async function candidates(page) {
+export async function candidates({ page }, _optional = {}) {
   return page.evaluate(() => {
     function selectorFor(node) {
       if (node.id && !/\s/.test(node.id)) return `#${CSS.escape(node.id)}`;
@@ -192,14 +192,14 @@ export async function candidates(page) {
   });
 }
 
-export function hasChanged(before, after) {
+export function hasChanged({ before, after }, _optional = {}) {
   if (before.url !== after.url) return true;
   if (before.htmlHash !== after.htmlHash) return true;
   if (before.scrollY !== after.scrollY) return true;
   return JSON.stringify(before.counts) !== JSON.stringify(after.counts);
 }
 
-export async function freshPage(browser, args, network, consoleErrors) {
+export async function freshPage({ browser, args, network, consoleErrors }, _optional = {}) {
   const page = await browser.newPage({ viewport: { width: args.width, height: 900 }, deviceScaleFactor: 1 });
   page.on("console", (message) => {
     if (message.type() === "error") consoleErrors.push(message.text());
@@ -234,25 +234,25 @@ const ACTION_PERFORMERS = {
   },
 };
 
-export async function captureAction(page, outDir, index, action, before) {
+export async function captureAction({ page, outDir, index, action, before }, _optional = {}) {
   await ACTION_PERFORMERS[action.type](page, action);
   await page.waitForTimeout(450);
-  const after = await hashSnapshot(page, await snapshot(page));
+  const after = await hashSnapshot({ page, state: await snapshot({ page }) });
   const actionLabel = `${action.type}-${action.target || action.selector || "page"}`;
-  const screenshotName = `${String(index + 1).padStart(2, "0")}-${safeFileName(actionLabel)}-${shortHash(JSON.stringify(action))}.png`;
+  const screenshotName = `${String(index + 1).padStart(2, "0")}-${safeFileName({ label: actionLabel })}-${shortHash({ value: JSON.stringify(action) })}.png`;
   const screenshotPath = path.join(outDir, "screenshots", screenshotName);
   await page.screenshot({ path: screenshotPath, fullPage: true });
   return {
     ...action,
     before,
     after,
-    changed: hasChanged(before, after),
+    changed: hasChanged({ before, after }),
     screenshot: path.relative(outDir, screenshotPath),
   };
 }
 
 /** The scripted action list: two scrolls, hovers, safe clicks, canvas drags. */
-export function planActions(discovered, args) {
+export function planActions({ discovered, args }, _optional = {}) {
   const label = (item) => item.text || item.ariaLabel || item.selector;
   return [
     { type: "scroll", target: "middle", ratio: 0.5 },
@@ -267,11 +267,11 @@ export function planActions(discovered, args) {
 // the next; a failing action is recorded (unchanged, with its error) rather
 // than aborting the probe.
 async function runAction(browser, args, evidence, outDir, index, action) {
-  const page = await freshPage(browser, args, evidence.network, evidence.consoleErrors);
-  const before = await hashSnapshot(page, await snapshot(page));
+  const page = await freshPage({ browser, args, network: evidence.network, consoleErrors: evidence.consoleErrors });
+  const before = await hashSnapshot({ page, state: await snapshot({ page }) });
   let result;
   try {
-    result = await captureAction(page, outDir, index, action, before);
+    result = await captureAction({ page, outDir, index, action, before });
   } catch (error) {
     result = { ...action, before, after: before, changed: false, screenshot: "", error: errorClassLabel({ error }) };
   } finally {
@@ -280,7 +280,7 @@ async function runAction(browser, args, evidence, outDir, index, action) {
   return result;
 }
 
-export function summarizeFindings(discovered, results) {
+export function summarizeFindings({ discovered, results }, _optional = {}) {
   const changedCount = results.filter((action) => action.changed).length;
   const findings = [
     `${discovered.interactive.length} visible interactive candidates discovered`,
@@ -292,9 +292,9 @@ export function summarizeFindings(discovered, results) {
 }
 
 async function discover(browser, args, evidence, outDir) {
-  const seedPage = await freshPage(browser, args, evidence.network, evidence.consoleErrors);
-  const initial = await hashSnapshot(seedPage, await snapshot(seedPage));
-  const discovered = await candidates(seedPage);
+  const seedPage = await freshPage({ browser, args, network: evidence.network, consoleErrors: evidence.consoleErrors });
+  const initial = await hashSnapshot({ page: seedPage, state: await snapshot({ page: seedPage }) });
+  const discovered = await candidates({ page: seedPage });
   await seedPage.screenshot({ path: path.join(outDir, "screenshots", "00-initial.png"), fullPage: true });
   await seedPage.close();
   return { initial, discovered };
@@ -309,7 +309,7 @@ async function probe(args, deps) {
   const evidence = { network: [], consoleErrors: [] };
   const { initial, discovered } = await discover(browser, args, evidence, outDir);
 
-  const actions = planActions(discovered, args);
+  const actions = planActions({ discovered, args });
   const results = [];
   for (let index = 0; index < actions.length; index += 1) {
     results.push(await runAction(browser, args, evidence, outDir, index, actions[index]));
@@ -325,12 +325,12 @@ async function probe(args, deps) {
     actions: results,
     network: evidence.network,
     consoleErrors: evidence.consoleErrors,
-    findings: summarizeFindings(discovered, results),
+    findings: summarizeFindings({ discovered, results }),
   };
   const jsonFile = path.join(outDir, `${args.label}-interactions.json`);
   const mdFile = path.join(outDir, `${args.label}-interactions.md`);
   deps.fs.writeFileSync(jsonFile, `${JSON.stringify(result, null, 2)}\n`);
-  deps.fs.writeFileSync(mdFile, markdown(result));
+  deps.fs.writeFileSync(mdFile, markdown({ result }));
   deps.log(jsonFile);
   return 0;
 }
@@ -342,9 +342,9 @@ async function probe(args, deps) {
 export async function main({ argv }, deps = {}) {
   const io = { ...DEFAULT_DEPS, ...deps };
   return runCli({ label: "interaction-probe", body: () => {
-    const args = parseArgs(argv);
+    const args = parseArgs({ argv });
     if (args.help || !args.url) {
-      usage(io.log);
+      usage({}, { log: io.log });
       return args.help ? 0 : 1;
     }
     return probe(args, io);

@@ -10,7 +10,7 @@ import { replaceCssUrls } from "./lib/css-url.mjs";
 // exercised against a temp directory (or any fs-shaped fake).
 const DEFAULT_DEPS = { fs, cwd: () => process.cwd(), log: console.log, error: console.error };
 
-export function usage(log = console.log) {
+export function usage({}, { log = console.log } = {}) {
   log(`Usage:
   node scripts/od-preview-rewrite.mjs [--project <clone-dir>]
 
@@ -19,7 +19,7 @@ file preview and exported zip can render the clone from nested entry files.
 `);
 }
 
-export function parseArgs(argv, cwd) {
+export function parseArgs({ argv, cwd }, _optional = {}) {
   return parseCliArgs({
     argv,
     defaults: { project: cwd, help: false },
@@ -72,10 +72,10 @@ const projectAssetPrefixes = new Set([
 
 const hostRootPrefixes = new Set(["api", "artifacts", "frames"]);
 
-export function walk(fsPort, dir, files = []) {
+export function walk({ fsPort, dir }, { files = [] } = {}) {
   for (const entry of fsPort.readdirSync(dir, { withFileTypes: true })) {
     if (entry.isDirectory()) {
-      if (!skipDirs.has(entry.name)) walk(fsPort, path.join(dir, entry.name), files);
+      if (!skipDirs.has(entry.name)) walk({ fsPort, dir: path.join(dir, entry.name) }, { files });
       continue;
     }
     if (includeExt.has(path.extname(entry.name).toLowerCase())) {
@@ -117,7 +117,7 @@ function looksLikeProjectAsset(parts) {
  * targets a host route (/api, /artifacts, /frames), does not look like an
  * asset, or does not exist in the project.
  */
-export function rootAssetPath(project, value) {
+export function rootAssetPath({ project, value }, _optional = {}) {
   const pathOnly = rootPathOnly(value);
   if (!pathOnly) return null;
   const decodedPath = decodeOrKeep(pathOnly);
@@ -128,11 +128,11 @@ export function rootAssetPath(project, value) {
   return decodedPath;
 }
 
-export function suffixFor(value) {
+export function suffixFor({ value }, _optional = {}) {
   return value.match(/^[^?#]*([?#][\s\S]*)$/)?.[1] ?? "";
 }
 
-export function relativeRef(projectRoot, ownerFile, targetPath, suffix) {
+export function relativeRef({ projectRoot, ownerFile, targetPath, suffix }, _optional = {}) {
   const fromDir = path.dirname(ownerFile);
   const target = path.join(projectRoot, targetPath);
   let rel = path.relative(fromDir, target).split(path.sep).join("/");
@@ -140,13 +140,13 @@ export function relativeRef(projectRoot, ownerFile, targetPath, suffix) {
   return `${rel}${suffix}`;
 }
 
-export function rewriteRootRef(project, ownerFile, value) {
-  const target = rootAssetPath(project, value);
+export function rewriteRootRef({ project, ownerFile, value }, _optional = {}) {
+  const target = rootAssetPath({ project, value });
   if (!target) return value;
-  return relativeRef(project.root, ownerFile, target, suffixFor(value));
+  return relativeRef({ projectRoot: project.root, ownerFile, targetPath: target, suffix: suffixFor({ value }) });
 }
 
-export function rewriteSrcset(project, ownerFile, srcset) {
+export function rewriteSrcset({ project, ownerFile, srcset }, _optional = {}) {
   return srcset
     .split(",")
     .map((candidate) => {
@@ -157,7 +157,7 @@ export function rewriteSrcset(project, ownerFile, srcset) {
       const body = candidate.trim();
       if (!body) return candidate;
       const [url, ...descriptors] = body.split(/\s+/);
-      return `${leading}${[rewriteRootRef(project, ownerFile, url), ...descriptors].join(" ")}${trailing}`;
+      return `${leading}${[rewriteRootRef({ project, ownerFile, value: url }), ...descriptors].join(" ")}${trailing}`;
     })
     .join(",");
 }
@@ -166,24 +166,24 @@ export function rewriteSrcset(project, ownerFile, srcset) {
 // `\/(?!\/)[^'")]+` reference group admitted.
 const isRootRelativeRef = (ref) => ref.length >= 2 && ref[0] === "/" && ref[1] !== "/";
 
-export function rewriteCssUrls(project, ownerFile, text) {
-  return replaceCssUrls(
+export function rewriteCssUrls({ project, ownerFile, text }, _optional = {}) {
+  return replaceCssUrls({
     text,
-    (match, quote, value) => {
-      const rewritten = rewriteRootRef(project, ownerFile, value);
+    replacer: (match, quote, value) => {
+      const rewritten = rewriteRootRef({ project, ownerFile, value });
       if (rewritten === value) return match;
       const q = quote || "";
       return `url(${q}${rewritten}${q})`;
-    },
+    } },
     { accept: isRootRelativeRef },
   );
 }
 
-export function rewriteHtmlAttrs(project, ownerFile, text) {
+export function rewriteHtmlAttrs({ project, ownerFile, text }, _optional = {}) {
   let next = text.replace(
     /(\s)(src|href|poster|data-src|data-tool-chip-src)\s*=\s*(['"])([\s\S]*?)\3/gi,
     (match, space, name, quote, value) => {
-      const rewritten = rewriteRootRef(project, ownerFile, value);
+      const rewritten = rewriteRootRef({ project, ownerFile, value });
       if (rewritten === value) return match;
       return `${space}${name}=${quote}${rewritten}${quote}`;
     },
@@ -191,7 +191,7 @@ export function rewriteHtmlAttrs(project, ownerFile, text) {
   next = next.replace(
     /(\s)srcset\s*=\s*(['"])([\s\S]*?)\2/gi,
     (match, space, quote, value) => {
-      const rewritten = rewriteSrcset(project, ownerFile, value);
+      const rewritten = rewriteSrcset({ project, ownerFile, srcset: value });
       if (rewritten === value) return match;
       return `${space}srcset=${quote}${rewritten}${quote}`;
     },
@@ -199,12 +199,12 @@ export function rewriteHtmlAttrs(project, ownerFile, text) {
   return next;
 }
 
-export function rewriteFile(project, file) {
+export function rewriteFile({ project, file }, _optional = {}) {
   const before = project.fs.readFileSync(file, "utf8");
   const ext = path.extname(file).toLowerCase();
-  let after = rewriteCssUrls(project, file, before);
+  let after = rewriteCssUrls({ project, ownerFile: file, text: before });
   if (ext === ".html" || ext === ".htm" || ext === ".svg") {
-    after = rewriteHtmlAttrs(project, file, after);
+    after = rewriteHtmlAttrs({ project, ownerFile: file, text: after });
   }
   if (after === before) return false;
   project.fs.writeFileSync(file, after);
@@ -213,8 +213,8 @@ export function rewriteFile(project, file) {
 
 function rewriteProject(args, deps) {
   const project = { root: path.resolve(args.project), fs: deps.fs };
-  const files = walk(deps.fs, project.root);
-  const changed = files.filter((file) => rewriteFile(project, file));
+  const files = walk({ fsPort: deps.fs, dir: project.root });
+  const changed = files.filter((file) => rewriteFile({ project, file }));
   for (const file of changed) {
     deps.log(path.relative(project.root, file).split(path.sep).join("/"));
   }
@@ -229,9 +229,9 @@ function rewriteProject(args, deps) {
 export async function main({ argv }, deps = {}) {
   const io = { ...DEFAULT_DEPS, ...deps };
   return runCli({ label: "od-preview-rewrite", body: () => {
-    const args = parseArgs(argv, io.cwd());
+    const args = parseArgs({ argv, cwd: io.cwd() });
     if (args.help) {
-      usage(io.log);
+      usage({}, { log: io.log });
       return 0;
     }
     return rewriteProject(args, io);

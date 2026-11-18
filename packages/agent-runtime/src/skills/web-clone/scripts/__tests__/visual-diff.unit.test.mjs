@@ -65,42 +65,42 @@ const clone = { naturalWidth: 2, naturalHeight: 2, pixel: (x, y) => (y === 0 && 
 
 describe("parseArgs and helpers", () => {
   it("parses flags with defaults and rejects unknown ones", () => {
-    expect(parseArgs(["--original", "a.png", "--clone", "b.png", "--threshold", "0.2", "--out"])).toEqual({
+    expect(parseArgs({ argv: ["--original", "a.png", "--clone", "b.png", "--threshold", "0.2", "--out"] })).toEqual({
       original: "a.png",
       clone: "b.png",
       out: "visual-diff.json",
       diff: "",
       threshold: 0.2,
     });
-    expect(parseArgs(["-h", "--diff", "d.png", "--threshold"])).toMatchObject({ help: true, diff: "d.png", threshold: 0.08 });
-    expect(() => parseArgs(["--fast"])).toThrow("Unexpected argument: --fast");
+    expect(parseArgs({ argv: ["-h", "--diff", "d.png", "--threshold"] })).toMatchObject({ help: true, diff: "d.png", threshold: 0.08 });
+    expect(() => parseArgs({ argv: ["--fast"] })).toThrow("Unexpected argument: --fast");
   });
 
   it("imageDataUrl base64-encodes the file with a mime from its extension", () => {
     const dir = tempDir();
     for (const name of ["a.jpg", "b.JPEG", "c.png", "d"]) fs.writeFileSync(path.join(dir, name), "hi");
-    expect(imageDataUrl(path.join(dir, "a.jpg"))).toBe("data:image/jpeg;base64,aGk=");
-    expect(imageDataUrl(path.join(dir, "b.JPEG"))).toBe("data:image/jpeg;base64,aGk=");
-    expect(imageDataUrl(path.join(dir, "c.png"))).toBe("data:image/png;base64,aGk=");
-    expect(imageDataUrl(path.join(dir, "d"))).toBe("data:image/png;base64,aGk=");
+    expect(imageDataUrl({ file: path.join(dir, "a.jpg") })).toBe("data:image/jpeg;base64,aGk=");
+    expect(imageDataUrl({ file: path.join(dir, "b.JPEG") })).toBe("data:image/jpeg;base64,aGk=");
+    expect(imageDataUrl({ file: path.join(dir, "c.png") })).toBe("data:image/png;base64,aGk=");
+    expect(imageDataUrl({ file: path.join(dir, "d") })).toBe("data:image/png;base64,aGk=");
   });
 
   it("scoreFromDiff maps (ratio, mean) into the 5 → 1 bands, requiring both limits", () => {
-    expect(scoreFromDiff(0, 0)).toBe(5);
-    expect(scoreFromDiff(0.01, 0.01)).toBe(5);
-    expect(scoreFromDiff(0.04, 0.02)).toBe(4.5);
-    expect(scoreFromDiff(0.005, 0.05)).toBe(4);
-    expect(scoreFromDiff(0.16, 0.08)).toBe(3);
-    expect(scoreFromDiff(0.3, 0.14)).toBe(2);
-    expect(scoreFromDiff(0.31, 0)).toBe(1);
-    expect(scoreFromDiff(0, 0.15)).toBe(1);
+    expect(scoreFromDiff({ diffRatio: 0, meanAbsDiff: 0 })).toBe(5);
+    expect(scoreFromDiff({ diffRatio: 0.01, meanAbsDiff: 0.01 })).toBe(5);
+    expect(scoreFromDiff({ diffRatio: 0.04, meanAbsDiff: 0.02 })).toBe(4.5);
+    expect(scoreFromDiff({ diffRatio: 0.005, meanAbsDiff: 0.05 })).toBe(4);
+    expect(scoreFromDiff({ diffRatio: 0.16, meanAbsDiff: 0.08 })).toBe(3);
+    expect(scoreFromDiff({ diffRatio: 0.3, meanAbsDiff: 0.14 })).toBe(2);
+    expect(scoreFromDiff({ diffRatio: 0.31, meanAbsDiff: 0 })).toBe(1);
+    expect(scoreFromDiff({ diffRatio: 0, meanAbsDiff: 0.15 })).toBe(1);
   });
 });
 
 describe("compareInBrowser", () => {
   it("compares on a white canvas sized to the larger image and paints a diff overlay", async () => {
     const page = createFakePage({ env: diffEnv({ A: original, B: clone }) });
-    const result = await compareInBrowser(page, "A", "B", 0.08);
+    const result = await compareInBrowser({ page, original: "A", clone: "B", threshold: 0.08 });
     expect(result).toMatchObject({
       original: { width: 2, height: 1 },
       clone: { width: 2, height: 2 },
@@ -119,7 +119,7 @@ describe("compareInBrowser", () => {
 
   it("rejects when an image cannot be loaded", async () => {
     const page = createFakePage({ env: diffEnv({ A: original }) });
-    await expect(compareInBrowser(page, "A", "data:image/png;base64,broken", 0.08)).rejects.toThrow("Failed to load image: data:image/png;base64,broken");
+    await expect(compareInBrowser({ page, original: "A", clone: "data:image/png;base64,broken", threshold: 0.08 })).rejects.toThrow("Failed to load image: data:image/png;base64,broken");
   });
 });
 
@@ -139,7 +139,7 @@ describe("main", () => {
     const cloneFile = path.join(dir, "clone.png");
     fs.writeFileSync(originalFile, "original-bytes");
     fs.writeFileSync(cloneFile, "clone-bytes");
-    const registry = { [imageDataUrl(originalFile)]: original, [imageDataUrl(cloneFile)]: clone };
+    const registry = { [imageDataUrl({ file: originalFile })]: original, [imageDataUrl({ file: cloneFile })]: clone };
     const browser = createFakeBrowser(() => createFakePage({ env: diffEnv(registry) }));
     const outFile = path.join(dir, "out", "visual-diff.json");
     const diffFile = path.join(dir, "diffs", "diff.png");
@@ -159,7 +159,7 @@ describe("main", () => {
     const dir = tempDir();
     const a = path.join(dir, "a.png");
     fs.writeFileSync(a, "same");
-    const browser = createFakeBrowser(() => createFakePage({ env: diffEnv({ [imageDataUrl(a)]: original }) }));
+    const browser = createFakeBrowser(() => createFakePage({ env: diffEnv({ [imageDataUrl({ file: a })]: original }) }));
     const outFile = path.join(dir, "same.json");
     const out = createOutput();
     expect(await main({ argv: ["--original", a, "--clone", a, "--out", outFile] }, { ...out, ...playwrightPorts(browser) })).toBe(0);
