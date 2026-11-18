@@ -139,18 +139,6 @@
         "packages/chat/src/react/features/chat-pane/components/AgentRuntimePicker.tsx"
       ]
     },
-    "AnalyzePanel::useAnalyzePanel": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/pages/SeoPage.tsx"
-      ]
-    },
-    "AnalyzePanel::useSeoCopy": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/pages/SeoPage.tsx"
-      ]
-    },
     "AnnotationCanvas::useAnnotationCanvas": {
       "count": 1,
       "files": [
@@ -1141,12 +1129,6 @@
         "packages/admin/src/react/entities/EntityList.tsx"
       ]
     },
-    "EntryPicker::useSeoCopy": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/pages/SeoPage.tsx"
-      ]
-    },
     "ErrorBadge::useT": {
       "count": 1,
       "files": [
@@ -1645,12 +1627,6 @@
         "packages/admin/src/media/react/components/MediaPicker.tsx"
       ]
     },
-    "MediaPickerBridge::useMediaPickerBridge": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/components/MediaPickerBridge.tsx"
-      ]
-    },
     "MediaPreview::useMediaCard": {
       "count": 1,
       "files": [
@@ -1679,18 +1655,6 @@
       "count": 1,
       "files": [
         "packages/admin/src/media/react/components/MediaPurgeDialog.tsx"
-      ]
-    },
-    "MediaRefField::useMediaRefPresentation": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/components/MediaRefField.tsx"
-      ]
-    },
-    "MediaRefField::useSeoCopy": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/components/MediaRefField.tsx"
       ]
     },
     "MemberRow::useMemberRow": {
@@ -2288,12 +2252,6 @@
         "packages/ui/src/features/schedule-picker/react/components/RecurringSchedulePicker.tsx"
       ]
     },
-    "RedirectsPage::useRedirectsPage": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/redirects/react/pages/RedirectsPage.tsx"
-      ]
-    },
     "ResourceBoard::useT": {
       "count": 1,
       "files": [
@@ -2540,60 +2498,6 @@
         "packages/chat/src/react/components/SentAttachment.tsx"
       ]
     },
-    "Seo::useSeoCopy": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/pages/SeoPage.tsx"
-      ]
-    },
-    "Seo::useSeoOptions": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/pages/SeoPage.tsx"
-      ]
-    },
-    "Seo::useSeoPageActions": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/pages/SeoPage.tsx"
-      ]
-    },
-    "Seo::useSeoTabs": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/pages/SeoPage.tsx"
-      ]
-    },
-    "SeoDefaultsTab::useSeoCopy": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/pages/SeoPage.tsx"
-      ]
-    },
-    "SeoDefaultsTab::useSeoDefaults": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/pages/SeoPage.tsx"
-      ]
-    },
-    "SeoEntryPanel::useSeoCopy": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/pages/SeoPage.tsx"
-      ]
-    },
-    "SeoEntrySection::useSeoCopy": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/pages/SeoPage.tsx"
-      ]
-    },
-    "SeoSitemapTab::useSeoCopy": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/pages/SeoPage.tsx"
-      ]
-    },
     "SettingsDialogShell::useT": {
       "count": 1,
       "files": [
@@ -2652,66 +2556,6 @@
       "count": 1,
       "files": [
         "packages/admin/src/react/components/Sidebar.tsx"
-      ]
-    },
-    "SitemapModal::useSeoCopy": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/components/SitemapModal.tsx"
-      ]
-    },
-    "SitemapModal::useSitemapModalRegenerate": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/components/SitemapModal.tsx"
-      ]
-    },
-    "SitemapModal::useSitemapPresentation": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/components/SitemapModal.tsx"
-      ]
-    },
-    "SitemapModalBody::useSeoCopy": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/components/SitemapModal.tsx"
-      ]
-    },
-    "SitemapModalHeaderActions::useSeoCopy": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/components/SitemapModal.tsx"
-      ]
-    },
-    "SitemapModalHeaderActions::useSitemapPresentation": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/components/SitemapModal.tsx"
-      ]
-    },
-    "SitemapModalHeaderActions::useSitemapViewToggle": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/components/SitemapModal.tsx"
-      ]
-    },
-    "SitemapModalTable::useSeoCopy": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/components/SitemapModal.tsx"
-      ]
-    },
-    "SitemapModalTable::useSeoOptions": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/components/SitemapModal.tsx"
-      ]
-    },
-    "SitemapModalTable::useSitemapTable": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/components/SitemapModal.tsx"
       ]
     },
     "SketchEditor::useI18n": {

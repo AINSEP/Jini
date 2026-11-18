@@ -1,5 +1,7 @@
+import type { ReactNode } from "react";
 import { useSeoTabs } from "../hooks/SeoPage.hooks.js";
 import type { SeoTabController, SeoTabId } from "../hooks/SeoPage.hooks.js";
+import type { SeoCopy } from "../components/SeoEntryFields.js";
 
 
 import { TabBar } from "../../../react/kit.js";
@@ -104,13 +106,75 @@ export interface SeoProps {
    *  for `useCustomSelect`. Defaulted to the real hook, so production callers (`panels.tsx`) pass
    *  nothing and behave exactly as before. */
   useSeoHook?: typeof useWiredSeo;
+  useSeoCopyHook?: typeof useSeoCopy;
+  useSeoOptionsHook?: typeof useSeoOptions;
+  useSeoPageActionsHook?: typeof useSeoPageActions;
+  useSeoTabsHook?: typeof useSeoTabs;
   onTabChange?: ((required: { tab: string }, optional?: Record<string, never>) => void) | undefined;
 }
 
-export function Seo({ tabId, onTabChange, useSeoHook = useWiredSeo }: SeoProps = {}) {
-  const t = useSeoCopy();
-  const { headerActions } = useSeoOptions();
-  const { changeTab } = useSeoPageActions({ onTabChange });
+/** Page title block and the host's header slot. */
+function SeoPageHeader({ locale, headerActions, t }: { locale: string; headerActions: ReactNode; t: SeoCopy }) {
+  return (
+    <div className="jini-page-header">
+      <div className="jini-page-header-text">
+        <p className="jini-page-kicker">{t({ locale: locale, key: "Marketing" })}</p>
+        <h1 className="jini-page-title">SEO</h1>
+        <p className="jini-page-description">
+          {t({ locale: locale, key: "Site-wide defaults for meta titles, descriptions, social previews, and robots directives." })}
+        </p>
+      </div>
+      <div className="jini-page-actions">
+        {headerActions}
+      </div>
+    </div>
+  );
+}
+
+/** Load/save/regenerate outcomes of the whole screen. */
+function SeoBanners({ error, notice }: { error: string | null; notice: string | null }) {
+  // Both banners stay on the SHELL, above the tab strip, not inside a panel: `error` and
+  // `notice` come from `useWiredSeo()` and describe the screen's own load/save/regenerate
+  // outcomes, which are not owned by whichever tab happens to be open. A save confirmation
+  // rendered inside the Site defaults panel would also be the one thing on the screen that
+  // silently disappears when the operator switches tabs.
+  return (
+    <>
+          {error ? <div className="jini-notice jini-notice-error">{error}</div> : null}
+    {notice ? <div className="jini-notice">{notice}</div> : null}
+    </>
+  );
+}
+
+/** The sitemap modal, mounted only while the shell says it is open. */
+function SeoSitemapModalSlot({ open, locale, sitemapEnabled, saving, regenerateSitemap, closeSitemapModal }: {
+  open: boolean; locale: string; sitemapEnabled: boolean; saving: boolean; regenerateSitemap: () => Promise<boolean>; closeSitemapModal: () => void;
+}) {
+  // The sitemap modal stays on the shell rather than inside `SeoSitemapTab`: it is a portal-
+  // shaped overlay over the whole page, and `sitemapModalOpen`/`closeSitemapModal` are shell
+  // state from `useWiredSeo()`. Unchanged from before the tab conversion.
+  return (
+    <>
+          {open ? (
+      <SitemapModal
+        locale={locale}
+        sitemapEnabled={sitemapEnabled}
+        regenerating={saving}
+        onRegenerate={regenerateSitemap}
+        onClose={closeSitemapModal}
+      />
+    ) : null}
+    </>
+  );
+}
+
+export function Seo({
+  tabId, onTabChange, useSeoHook = useWiredSeo, useSeoCopyHook = useSeoCopy, useSeoOptionsHook = useSeoOptions,
+  useSeoPageActionsHook = useSeoPageActions, useSeoTabsHook = useSeoTabs,
+}: SeoProps = {}) {
+  const t = useSeoCopyHook();
+  const { headerActions } = useSeoOptionsHook();
+  const { changeTab } = useSeoPageActionsHook({ onTabChange });
   const {
     settings,
     error,
@@ -127,7 +191,7 @@ export function Seo({ tabId, onTabChange, useSeoHook = useWiredSeo }: SeoProps =
   } = useSeoHook();
 
   // Locale is a context-backed hook; it must run on the loading/error renders too.
-  const { activeTabId, tabs } = useSeoTabs({ tabId });
+  const { activeTabId, tabs } = useSeoTabsHook({ tabId });
   if (error && !settings) return <div className="jini-page"><div className="jini-notice jini-notice-error">{error}</div></div>;
   if (!settings) return <div className="jini-page"><div className="jini-notice">{t({ locale: locale, key: "Loading SEO settings…" })}</div></div>;
 
@@ -144,25 +208,8 @@ export function Seo({ tabId, onTabChange, useSeoHook = useWiredSeo }: SeoProps =
 
   return (
     <div className="jini-page jini-seo-page">
-      <div className="jini-page-header">
-        <div className="jini-page-header-text">
-          <p className="jini-page-kicker">{t({ locale: locale, key: "Marketing" })}</p>
-          <h1 className="jini-page-title">SEO</h1>
-          <p className="jini-page-description">
-            {t({ locale: locale, key: "Site-wide defaults for meta titles, descriptions, social previews, and robots directives." })}
-          </p>
-        </div>
-        <div className="jini-page-actions">
-          {headerActions}
-        </div>
-      </div>
-      {/* Both banners stay on the SHELL, above the tab strip, not inside a panel: `error` and
-          `notice` come from `useWiredSeo()` and describe the screen's own load/save/regenerate
-          outcomes, which are not owned by whichever tab happens to be open. A save confirmation
-          rendered inside the Site defaults panel would also be the one thing on the screen that
-          silently disappears when the operator switches tabs. */}
-      {error ? <div className="jini-notice jini-notice-error">{error}</div> : null}
-      {notice ? <div className="jini-notice">{notice}</div> : null}
+      <SeoPageHeader locale={locale} headerActions={headerActions} t={t} />
+      <SeoBanners error={error} notice={notice} />
 
       <TabBar
         ariaLabel="SEO"
@@ -173,18 +220,7 @@ export function Seo({ tabId, onTabChange, useSeoHook = useWiredSeo }: SeoProps =
       />
       {seoTabPanel({ activeTabId, controller })}
 
-      {/* The sitemap modal stays on the shell rather than inside `SeoSitemapTab`: it is a portal-
-          shaped overlay over the whole page, and `sitemapModalOpen`/`closeSitemapModal` are shell
-          state from `useWiredSeo()`. Unchanged from before the tab conversion. */}
-      {sitemapModalOpen ? (
-        <SitemapModal
-          locale={locale}
-          sitemapEnabled={settings.sitemapEnabled}
-          regenerating={saving}
-          onRegenerate={regenerateSitemap}
-          onClose={closeSitemapModal}
-        />
-      ) : null}
+      <SeoSitemapModalSlot open={sitemapModalOpen} locale={locale} sitemapEnabled={settings.sitemapEnabled} saving={saving} regenerateSitemap={regenerateSitemap} closeSitemapModal={closeSitemapModal} />
     </div>
   );
 }

@@ -19,10 +19,12 @@ import { SeoCrawlingSection, SeoSaveActions, SeoSearchAppearanceSection, SeoSoci
  * inline `??`/`||` field reads — same fields, same fallbacks, same payload, just not written in the
  * `.tsx`.
  */
-export function SeoDefaultsTab({ controller }: { controller: SeoTabController }) {
-  const t = useSeoCopy();
+export function SeoDefaultsTab({ controller, useSeoCopyHook = useSeoCopy, useSeoDefaultsHook = useSeoDefaults }: {
+  controller: SeoTabController; useSeoCopyHook?: typeof useSeoCopy; useSeoDefaultsHook?: typeof useSeoDefaults;
+}) {
+  const t = useSeoCopyHook();
   const { locale, settings, saving, defaultOgImage, setDefaultOgImage } = controller;
-  const { submit } = useSeoDefaults({ save: controller.save });
+  const { submit } = useSeoDefaultsHook({ save: controller.save });
 
   return (
     <form

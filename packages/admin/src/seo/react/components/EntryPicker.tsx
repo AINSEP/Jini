@@ -10,6 +10,7 @@ export interface EntryPickerProps {
   /** Dependency injection seam for tests — the same convention `@jini-ai/ui`'s `CustomSelect` uses
    *  for `useCustomSelect`. */
   useEntryPickerHook?: typeof useWiredEntryPicker;
+  useSeoCopyHook?: typeof useSeoCopy;
 }
 
 /** Searchable picker over every page + post, sourced from the already-existing `listPosts`/`listPages`
@@ -18,8 +19,8 @@ export interface EntryPickerProps {
  * right?"). The shared admin-widgets `Select` already types-to-filter and handles the keyboard, so
  * rows are just grouped Pages/Posts with a pill only for the non-published exceptions
  * (`entryPickerOptions` in `rules.ts`). */
-export function EntryPicker({ locale, entryId, onChange, useEntryPickerHook = useWiredEntryPicker }: EntryPickerProps) {
-  const t = useSeoCopy();
+export function EntryPicker({ locale, entryId, onChange, useEntryPickerHook = useWiredEntryPicker, useSeoCopyHook = useSeoCopy }: EntryPickerProps) {
+  const t = useSeoCopyHook();
   const { entries, options, error } = useEntryPickerHook();
 
   if (error) return <div className="jini-notice jini-notice-error">{error}</div>;

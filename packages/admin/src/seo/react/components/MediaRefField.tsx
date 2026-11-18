@@ -55,6 +55,8 @@ export interface MediaRefFieldProps {
   /** Injectable seam for the picker's own state — same convention as `MediaPickerDialog`'s own
    *  `useDialog` prop. Defaults to the real {@link useWiredMediaRefField}. */
   useField?: typeof useWiredMediaRefField;
+  useSeoCopyHook?: typeof useSeoCopy;
+  useMediaRefPresentationHook?: typeof useMediaRefPresentation;
 }
 
 export function MediaRefField({
@@ -68,9 +70,11 @@ export function MediaRefField({
   emptyHint,
   inherited = false,
   useField = useWiredMediaRefField,
+  useSeoCopyHook = useSeoCopy,
+  useMediaRefPresentationHook = useMediaRefPresentation,
 }: MediaRefFieldProps) {
-  const t = useSeoCopy();
-  const { Picker = MediaPickerBridge } = useMediaRefPresentation({ value });
+  const t = useSeoCopyHook();
+  const { Picker = MediaPickerBridge } = useMediaRefPresentationHook({ value });
   const { pickerOpen, openPicker, closePicker, handleSelect, clear, previewUrl, file, accept, onPreviewLoad, onPreviewError } = useField({ value, onChange });
   const labelId = `${id}-label`;
 

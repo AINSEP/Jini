@@ -11,10 +11,11 @@ function issueStatusClass(severity: string): string {
 /** Read-only score + issues view (REQ-07) — exact field names read off `SeoAnalysis`/`SeoIssue`
  * (`src/seo/types.ts`), not guessed. No state of its own — only the severity sort, which lives in
  * `rules.ts` as `sortIssuesBySeverity`. */
-export function AnalyzePanel(props: { locale: string; analysis: SeoEntryAnalysis }) {
-  const t = useSeoCopy();
-  const { locale } = props;
-  const { sortedIssues, tone } = useAnalyzePanel({ analysis: props.analysis });
+export function AnalyzePanel({ locale, analysis, useSeoCopyHook = useSeoCopy, useAnalyzePanelHook = useAnalyzePanel }: {
+  locale: string; analysis: SeoEntryAnalysis; useSeoCopyHook?: typeof useSeoCopy; useAnalyzePanelHook?: typeof useAnalyzePanel;
+}) {
+  const t = useSeoCopyHook();
+  const { sortedIssues, tone } = useAnalyzePanelHook({ analysis });
 
   /* Heading + score pill on one line, issues as a compact list (owner, 2026-10-15: the bare
      "Score: 100 / No issues." read as unstyled text). The pill reuses the issue pills' status
@@ -24,7 +25,7 @@ export function AnalyzePanel(props: { locale: string; analysis: SeoEntryAnalysis
       <div className="jini-seo-analyze-head">
         <h3 id="seo-analysis-heading">{t({ locale: locale, key: "Analysis" })}</h3>
         <span className={`jini-status jini-status-${tone} jini-seo-score`}>
-          {t({ locale: locale, key: "Score:" })} <strong>{props.analysis.score}</strong>
+          {t({ locale: locale, key: "Score:" })} <strong>{analysis.score}</strong>
         </span>
       </div>
       {sortedIssues.length === 0 ? (

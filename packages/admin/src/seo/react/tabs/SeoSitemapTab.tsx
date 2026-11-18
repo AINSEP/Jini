@@ -22,8 +22,8 @@ import { SeoSection } from "../components/SeoSection.js";
  * It also has to exist at all — a `role="tab"` button is not in a screen reader's heading list, so
  * a panel with no `<h2>` leaves that reader nothing but the page `H1`.
  */
-export function SeoSitemapTab({ controller }: { controller: SeoTabController }) {
-  const t = useSeoCopy();
+export function SeoSitemapTab({ controller, useSeoCopyHook = useSeoCopy }: { controller: SeoTabController; useSeoCopyHook?: typeof useSeoCopy }) {
+  const t = useSeoCopyHook();
   const { locale, settings, saving, regenerateSitemap, openSitemapModal } = controller;
 
   return (

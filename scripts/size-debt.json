@@ -14,13 +14,6 @@
     "value": 88
   },
   {
-    "file": "packages/admin/src/redirects/react/pages/RedirectsPage.tsx",
-    "function": "RedirectsPage",
-    "line": 22,
-    "rule": "max-lines-per-function",
-    "value": 111
-  },
-  {
     "file": "packages/admin/src/widgets/react/pages/WidgetInstanceEditor.tsx",
     "function": "WidgetInstanceEditor",
     "line": 32,

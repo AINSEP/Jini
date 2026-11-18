@@ -14,6 +14,7 @@ export interface SeoEntryPanelProps {
   locale: string;
   entryId: string;
   useSeoEntryPanelHook?: typeof useWiredSeoEntryPanel;
+  useSeoCopyHook?: typeof useSeoCopy;
 }
 
 /** Per-entry overrides edit form (REQ-06). Pre-fills from `getSeoEntry`'s resolved meta, but
@@ -37,8 +38,8 @@ export interface SeoEntryPanelProps {
 // 2026-10-20: exemption retired under the ≤10/≤10 bar — the head row, the "Search appearance"
 // group, the "Social preview" group and its X disclosure are now their own components below, each
 // scoring ≤10. The fallback chains themselves are unchanged and still read in form order.
-function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntryPanel }: SeoEntryPanelProps) {
-  const t = useSeoCopy();
+function SeoEntryPanel({ locale, entryId, useSeoEntryPanelHook = useWiredSeoEntryPanel, useSeoCopyHook = useSeoCopy }: SeoEntryPanelProps) {
+  const t = useSeoCopyHook();
   const { resolved, analysis, loadError, saving, saveError, notice, fieldValue, setField, save, touched, ogImageInherited = false } = useSeoEntryPanelHook({ entryId });
 
   if (loadError) return <div className="jini-notice jini-notice-error">{loadError}</div>;
@@ -108,6 +109,7 @@ function SeoEntryHead({ locale, t, saving, touched, save }: Pick<SeoEntryPanelCo
 export interface SeoEntrySectionProps {
   locale: string;
   useSeoEntrySectionHook?: typeof useSeoEntrySection;
+  useSeoCopyHook?: typeof useSeoCopy;
 }
 
 /** Section wrapper (REQ-06/07) — entry picker over the per-entry edit + analyze panels. This IS the
@@ -120,8 +122,8 @@ export interface SeoEntrySectionProps {
  *  and nothing else — the exact regression `deployment/HistoryTab.tsx`'s own comment records
  *  measuring live on its tab. It is also not a duplicate: the tab reads "Pages & posts" (what you
  *  pick from), the heading reads "Per-entry SEO" (what you are editing). */
-export function SeoEntrySection({ locale, useSeoEntrySectionHook = useSeoEntrySection }: SeoEntrySectionProps) {
-  const t = useSeoCopy();
+export function SeoEntrySection({ locale, useSeoEntrySectionHook = useSeoEntrySection, useSeoCopyHook = useSeoCopy }: SeoEntrySectionProps) {
+  const t = useSeoCopyHook();
   const { entryId, setEntryId } = useSeoEntrySectionHook();
 
   return (

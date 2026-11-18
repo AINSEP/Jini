@@ -50,6 +50,9 @@ export interface SitemapModalProps {
    *  {@link useWiredSitemapModal}; a test can pass a fake here to exercise this component's
    *  rendering against a fixed `SitemapModalController`. */
   useModal?: typeof useWiredSitemapModal;
+  useSeoCopyHook?: typeof useSeoCopy;
+  useSitemapPresentationHook?: typeof useSitemapPresentation;
+  useSitemapModalRegenerateHook?: typeof useSitemapModalRegenerate;
 }
 
 /** The header's raw-XML link + table/raw toggle — only shown once there is a real response to
@@ -57,10 +60,13 @@ export interface SitemapModalProps {
  *  blocks.
  *
  * @complexity O(1). */
-function SitemapModalHeaderActions({ locale, modal }: { locale: string; modal: SitemapModalController }) {
-  const { sourceUrl } = useSitemapPresentation({ locale, modal });
-  const { toggleView } = useSitemapViewToggle({ modal });
-  const t = useSeoCopy();
+function SitemapModalHeaderActions({ locale, modal, useSitemapPresentationHook = useSitemapPresentation, useSitemapViewToggleHook = useSitemapViewToggle, useSeoCopyHook = useSeoCopy }: {
+  locale: string; modal: SitemapModalController;
+  useSitemapPresentationHook?: typeof useSitemapPresentation; useSitemapViewToggleHook?: typeof useSitemapViewToggle; useSeoCopyHook?: typeof useSeoCopy;
+}) {
+  const { sourceUrl } = useSitemapPresentationHook({ locale, modal });
+  const { toggleView } = useSitemapViewToggleHook({ modal });
+  const t = useSeoCopyHook();
   return (
     <div className="sitemap-modal-header-actions">
       <a
@@ -99,10 +105,13 @@ function SitemapModalHeaderActions({ locale, modal }: { locale: string; modal: S
  *
  * @complexity O(1) to render — `entries`/`filteredEntries` are already computed by
  *   `useSitemapModal` (memoized there), this only maps them to JSX. */
-function SitemapModalTable({ locale, modal }: { locale: string; modal: SitemapModalController }) {
-  const t = useSeoCopy();
-  const { formatDate = formatTimestamp } = useSeoOptions();
-  const { rowHandles } = useSitemapTable({ modal });
+function SitemapModalTable({ locale, modal, useSeoCopyHook = useSeoCopy, useSeoOptionsHook = useSeoOptions, useSitemapTableHook = useSitemapTable }: {
+  locale: string; modal: SitemapModalController;
+  useSeoCopyHook?: typeof useSeoCopy; useSeoOptionsHook?: typeof useSeoOptions; useSitemapTableHook?: typeof useSitemapTable;
+}) {
+  const t = useSeoCopyHook();
+  const { formatDate = formatTimestamp } = useSeoOptionsHook();
+  const { rowHandles } = useSitemapTableHook({ modal });
   if (modal.entries.length === 0) return <div className="notice">{t({ locale: locale, key: "The sitemap has no URLs yet." })}</div>;
 
   return (
@@ -162,12 +171,14 @@ function SitemapModalBody({
   locale,
   sitemapEnabled,
   modal,
+  useSeoCopyHook = useSeoCopy,
 }: {
   locale: string;
   sitemapEnabled: boolean;
   modal: SitemapModalController;
+  useSeoCopyHook?: typeof useSeoCopy;
 }) {
-  const t = useSeoCopy();
+  const t = useSeoCopyHook();
   if (!sitemapEnabled) {
     return (
       <div className="notice">
@@ -194,11 +205,14 @@ export function SitemapModal({
   onRegenerate,
   onClose,
   useModal = useWiredSitemapModal,
+  useSeoCopyHook = useSeoCopy,
+  useSitemapPresentationHook = useSitemapPresentation,
+  useSitemapModalRegenerateHook = useSitemapModalRegenerate,
 }: SitemapModalProps, _optional: Record<string, never> = {}) {
-  const t = useSeoCopy();
+  const t = useSeoCopyHook();
   const modal = useModal({ enabled: sitemapEnabled, onClose });
-  const { title } = useSitemapPresentation({ locale, modal });
-  const { handleRegenerate } = useSitemapModalRegenerate({ onRegenerate });
+  const { title } = useSitemapPresentationHook({ locale, modal });
+  const { handleRegenerate } = useSitemapModalRegenerateHook({ onRegenerate });
   // Native modality keeps Tab from reaching the background, as MediaPickerDialog now does too.
 
   return (
