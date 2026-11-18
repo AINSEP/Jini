@@ -1,6 +1,6 @@
 import { SecretInput } from '../kit.js';
 
-import { useTotpSettings, useTotpSettingsForm } from './TotpSettings.hooks.js';
+import { useTotpSettings as useTotpSettings_, useTotpSettingsForm as useTotpSettingsForm_ } from './TotpSettings.hooks.js';
 
 import { type Translate } from '@jini-ai/core/text';
 export interface TotpSettingsPort {
@@ -13,14 +13,16 @@ export interface TotpSettingsPort {
 /** Owner settings hold setup secrets only until confirmation/cancellation or unmount.
  * @complexity O(1): one bounded status read on mount and one request per explicit action; no polling.
  */
-export function TotpSettings({ port, translate: t }: { port: TotpSettingsPort; translate: Translate }) {
+export function TotpSettings({ port, translate: t, hooks: { useTotpSettings = useTotpSettings_, useTotpSettingsForm = useTotpSettingsForm_ } = {} }: { port: TotpSettingsPort; translate: Translate; hooks?: { useTotpSettings?: typeof useTotpSettings_; useTotpSettingsForm?: typeof useTotpSettingsForm_ } }) {
   const { status, error } = useTotpSettings({ port, t });
   if (error) return <p role="alert">{error}</p>;
   if (!status?.isOwner || !status.available) return null;
-  return <TotpSettingsForm port={port} enrolled={status.enrolled} t={t} />;
+  return <TotpSettingsForm port={port} enrolled={status.enrolled} t={t} hooks={{ useTotpSettingsForm }} />;
 }
 
-function TotpSettingsForm({ port, enrolled: initialEnrolled, t }: { port: TotpSettingsPort; enrolled: boolean; t: Translate }) {
+const isTotpRemovalDisabled = ({ busy, password, code }: { busy: boolean; password: string; code: string }) => busy || !password || !code;
+
+function TotpSettingsForm({ port, enrolled: initialEnrolled, t, hooks: { useTotpSettingsForm = useTotpSettingsForm_ } = {} }: { port: TotpSettingsPort; enrolled: boolean; t: Translate; hooks?: { useTotpSettingsForm?: typeof useTotpSettingsForm_ } }) {
   const { enrolled, setup, password, setPassword, code, setCode, busy, error, message, passwordId, clear, enroll, confirm, remove } = useTotpSettingsForm({ port, initialEnrolled, t });
   return <section className="card">
     <h3>{t('Authenticator app')}</h3>
@@ -36,7 +38,7 @@ function TotpSettingsForm({ port, enrolled: initialEnrolled, t }: { port: TotpSe
       <SecretInput id={passwordId} label={t('Current owner password')} autoComplete="current-password" data-agent-private="" value={password} onChange={event => setPassword(event.target.value)} />
       <CodeInput code={code} setCode={setCode} t={t} visible={enrolled} />
       <button disabled={busy || !password}>{t(enrolled ? 'Replace authenticator' : 'Set up authenticator')}</button>
-      {enrolled ? <button type="button" disabled={busy || !password || !code} onClick={remove}>{t('Remove authenticator')}</button> : null}
+      {enrolled ? <button type="button" disabled={isTotpRemovalDisabled({ busy, password, code })} onClick={remove}>{t('Remove authenticator')}</button> : null}
     </form>}
     {error ? <p role="alert">{error}</p> : null}
     {message ? <p role="status">{message}</p> : null}

@@ -83,15 +83,31 @@ export interface UsersBaseProps extends Omit<UsersDependencies, "translate">, Us
   renderServerLabel?: ((required: { value: string }) => ReactNode) | undefined;
 }
 
+type UsersHookOverrides = {
+  useSelectedUsersHook?: typeof useUsers | UsersHook | undefined;
+  useFields?: typeof useResetPasswordFields | undefined;
+};
+type UsersCustomHookOverrides = Omit<UsersHookOverrides, "useSelectedUsersHook"> & {
+  useSelectedUsersHook?: UsersHook | undefined;
+};
+
 /**
  * `translate` is only ever forwarded to the hook, so it is required exactly when the default
  * {@link useUsers} (or a hook typed like it) runs, and optional when the host supplies a
  * {@link UsersHook} that does not read it — instead of a dead `translate={key => key}` stub.
  */
 export type UsersProps = UsersBaseProps & (
-  | { useUsersHook?: typeof useUsers | undefined; translate: Translate }
-  | { useUsersHook: UsersHook; translate?: Translate | undefined }
+  | { useUsersHook?: typeof useUsers | UsersHook | undefined; translate: Translate; hooks?: UsersHookOverrides | undefined }
+  | { useUsersHook: UsersHook; translate?: Translate | undefined; hooks?: UsersCustomHookOverrides | undefined }
+  | { useUsersHook?: typeof useUsers | UsersHook | undefined; translate?: Translate | undefined; hooks: UsersCustomHookOverrides & { useSelectedUsersHook: UsersHook } }
 );
+
+// Widening `useUsers` to `UsersHook` is sound only through the `UsersProps` union: whenever the
+// selected hook requires `translate`, it is required by the props. TypeScript cannot correlate the
+// destructured props itself.
+function resolveUsersHook(override: typeof useUsers | UsersHook | undefined): UsersHook {
+  return (override ?? useUsers) as UsersHook;
+}
 
 interface NewUserFormProps {
   username: string;
@@ -632,7 +648,8 @@ interface UserResetPasswordDialogProps {
   t: (key: string) => string;
   /** Injectable seam for the confirm-field + reveal-toggle state. Defaults to the real
    *  {@link useResetPasswordFields}. */
-  useFields?: typeof useResetPasswordFields;
+  useFields?: typeof useResetPasswordFields | undefined;
+  hooks?: { useFields?: typeof useResetPasswordFields | undefined };
 }
 
 /** Resolves `useFields` to the real hook when no override is passed, because ESLint's
@@ -657,9 +674,8 @@ function UserResetPasswordDialog({
   passwordSaving,
   confirmResetPassword,
   t,
-  useFields: useFieldsProp,
+  useFields: useFieldsProp, hooks: { useFields = resolveResetPasswordFieldsHook(useFieldsProp) } = {},
 }: UserResetPasswordDialogProps) {
-  const useFields = resolveResetPasswordFieldsHook(useFieldsProp);
   const fields = useFields({ resetPasswordFor, newPassword });
   const displayedError = fields.mismatch ? t("Passwords do not match.") : passwordError;
 
@@ -821,13 +837,9 @@ function userManageController({ controller, roles, policies }: {
   };
 }
 
-export function Users({ useUsersHook, port, translate: injectedTranslate, queryScope,
+export function Users({ useUsersHook, hooks: { useSelectedUsersHook = resolveUsersHook(useUsersHook), useFields } = {}, port, translate: injectedTranslate, queryScope,
   openOwnPasswordReset, onOwnPasswordResetClosed, passwordResetNotice, renderServerLabel }: UsersProps) {
-  // Widening `useUsers` to `UsersHook` is sound only through the `UsersProps` union: whenever
-  // `useUsersHook` is omitted or typed as `useUsers`, `translate` is required, so the default hook
-  // never runs without it. TypeScript cannot correlate the two destructured props itself.
-  const useSelectedUsersHook = (useUsersHook ?? useUsers) as UsersHook;
-  const controller = useSelectedUsersHook({ port, translate: injectedTranslate, queryScope }, {
+  const controller = useSelectedUsersHook({ port, translate: injectedTranslate as Translate, queryScope }, {
     openOwnPasswordReset, onOwnPasswordResetClosed, passwordResetNotice,
   });
   const {
@@ -950,6 +962,7 @@ export function Users({ useUsersHook, port, translate: injectedTranslate, queryS
         t={t}
       />
       <UserResetPasswordDialog
+        useFields={useFields}
         resetPasswordFor={resetPasswordFor}
         setResetPasswordFor={setResetPasswordFor}
         newPassword={newPassword}
