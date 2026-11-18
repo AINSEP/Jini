@@ -22,8 +22,6 @@ export {
 } from './route-registration-guard.js';
 export type { CreateSseChannelOptions, SseChannel } from './sse.js';
 export { createSseChannel, requestedAfterCursor, sendRawApiError } from './sse.js';
-export type { CreateSseResponseOptions, SseConnection } from './raw-sse.js';
-export { createSseResponse } from './raw-sse.js';
 export { mountPackHttp } from './pack-http.js';
 export type {
   ApiBearerAuthMiddlewareDeps,

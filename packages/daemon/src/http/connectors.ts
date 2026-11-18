@@ -478,7 +478,7 @@ export const connectorsDbQueryRoute = defineJsonRoute<DbQueryRequest, Connectors
 //
 // `RealtimeProvider.subscribe` deliberately has no route here: a request/response JSON route has
 // no way to keep a subscription alive to push future events back to the caller — that's inherently
-// a streaming/websocket concern (matching this package's own `sse.ts`/`raw-sse.ts` machinery for
+// a streaming/websocket concern (matching this package's own `sse.ts` machinery for
 // *other* long-lived channels), out of scope for this route pack. `publish` is the one
 // realtime operation that fits the request/response shape every other route in this file already
 // uses.
