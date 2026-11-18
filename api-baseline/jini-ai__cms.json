@@ -362,7 +362,7 @@
    "FormDeliveryQueuedJob": "type:e939e2677e",
    "FormDeliveryReferenceJob": "interface:e55f0a5765",
    "FormDeliveryResult": "type:42b196658f",
-   "FormDeliveryRetryPolicy": "interface:f4a2d1af99",
+   "FormDeliveryRetryPolicy": "interface:683dbff68e",
    "FormDeliverySnapshot": "interface:9ddccc84b7",
    "FormDeliveryState": "type:4a3b059a0c",
    "FormDeliverySubmission": "interface:1ae513d900",

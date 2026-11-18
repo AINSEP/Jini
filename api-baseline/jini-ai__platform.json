@@ -641,10 +641,13 @@
    "CredentialProviderDescriptor": "interface:aa071b30ab",
    "InMemoryVaultRepo": "class:ff386cd9e2",
    "MatchableCredential": "interface:262c2772ce",
-   "SecretsVaultService": "class:8df5af70df",
+   "SecretsVaultService": "class:360eb0058d",
    "VaultArchiveEntry": "interface:c05b98d4b8",
    "VaultCopyInput": "interface:734381db36",
    "VaultPutInput": "interface:111d6be46a",
+   "VaultResealRefusalStep": "type:0283a61223",
+   "VaultResealRefusedError": "class:f8ae98bb27",
+   "VaultRotateOptions": "interface:38bcf0b27a",
    "VaultServiceDeps": "interface:035a05df8a",
    "buildVaultAad": "function:d2b34c1ebe",
    "captureVaultArchive": "function:5b93308990",
@@ -682,7 +685,10 @@
   "types": "./dist/secrets/testing.d.ts",
   "symbols": {
    "FixedRootKeyKeyring": "class:0e104d6480",
-   "InMemoryKeyring": "class:9b922f29e3"
+   "InMemoryKeyring": "class:9b922f29e3",
+   "SecretSealerContractRule": "type:ef4bd6b06d",
+   "SecretSealerContractSubject": "interface:37b6169644",
+   "secretSealerContractViolations": "function:afea5a44f5"
   }
  },
  "./shell": {

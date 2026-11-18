@@ -17,6 +17,8 @@
    "CHAT_RUN_STATUSES": "variable:97da0abe3b",
    "COLLAPSED_DETAIL_MAX_CHARS": "variable:05e7a609d0",
    "CREDENTIAL_CARD_GUIDANCE": "variable:7b4b7e68d3",
+   "ChatAgentFailurePort": "interface:6faa9c10ad",
+   "ChatAgentPolicyPort": "interface:42b96c0ee7",
    "ChatAttachment": "interface:09c6600a09",
    "ChatConversation": "interface:80a815ecb9",
    "ChatHistoryMaintenance": "interface:96a37f6da3",
@@ -245,6 +247,8 @@
    "CHAT_RUN_STATUSES": "variable:97da0abe3b",
    "COLLAPSED_DETAIL_MAX_CHARS": "variable:05e7a609d0",
    "CREDENTIAL_CARD_GUIDANCE": "variable:7b4b7e68d3",
+   "ChatAgentFailurePort": "interface:6faa9c10ad",
+   "ChatAgentPolicyPort": "interface:42b96c0ee7",
    "ChatAttachment": "interface:09c6600a09",
    "ChatConversation": "interface:80a815ecb9",
    "ChatHistoryMaintenance": "interface:96a37f6da3",
@@ -416,20 +420,24 @@
   }
  },
  "./core/ag-ui": {
-  "types": "./dist/core/ag-ui/entry.d.ts",
+  "types": "./dist/core/ag-ui/event-projection.d.ts",
   "symbols": {
    "AgUiEvent": "type:32e7fed7ba",
-   "AgUiToAgentTranslationState": "interface:2ecbb38ab0",
    "AgUiTranslationState": "interface:658c3b150a",
    "CustomEventNames": "interface:5e0d9dd150",
    "EventIdGenerator": "interface:eebab26b20",
-   "RunAgentWirePayload": "interface:81380cef8e",
    "closeAgUiRun": "function:8abb007214",
-   "createAgUiToAgentTranslationState": "function:557852fdee",
    "createAgUiTranslationState": "function:9f3f65fe3c",
-   "reduceAgentWirePayload": "function:b2e568362d",
-   "translateAgUiEventToAgentEvent": "function:f12838d4e8",
    "translateAgentEventToAgUi": "function:f5da5df6c5"
+  }
+ },
+ "./core/ag-ui/reduction": {
+  "types": "./dist/core/ag-ui/event-reduction.d.ts",
+  "symbols": {
+   "AgUiOpenToolCall": "interface:b1c00b797a",
+   "AgUiToAgentTranslationState": "interface:98a40a23e5",
+   "createAgUiToAgentTranslationState": "function:557852fdee",
+   "translateAgUiEventToAgentEvent": "function:f12838d4e8"
   }
  },
  "./core/run-events": {
@@ -814,6 +822,17 @@
  "./react/styles/reference.css": {
   "types": null,
   "symbols": {}
+ },
+ "./server/ag-ui/run-input": {
+  "types": "./dist/core/ag-ui/run-input.d.ts",
+  "symbols": {
+   "AgUiChatMessage": "interface:9e7c5dee2a",
+   "AgUiRunBody": "interface:3cb6f89905",
+   "AgUiRunIdPort": "interface:9803f4caf8",
+   "AgUiRunInput": "interface:2786920692",
+   "resolveAgUiMessages": "function:fcfaf2db4d",
+   "resolveAgUiRunInput": "function:fc716f3a3f"
+  }
  },
  "./server/durable-runs": {
   "types": "./dist/server/durable-runs/entry.d.ts",

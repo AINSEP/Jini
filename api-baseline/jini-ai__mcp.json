@@ -298,7 +298,7 @@
   "types": "./dist/federation/hosted/index.d.ts",
   "symbols": {
    "CapabilityDeliveryOptions": "interface:2415bc76f5",
-   "CapabilityDeliveryRequired": "interface:5e8687535b",
+   "CapabilityDeliveryRequired": "interface:2af463eda8",
    "CapabilitySubscribable": "interface:47408c0ccb",
    "EXTERNAL_MCP_AUTH_MODES": "variable:5011036208",
    "EXTERNAL_MCP_OAUTH_GRANTS": "variable:60d747ddef",
@@ -329,7 +329,7 @@
    "PinnedCapability": "interface:c24d1a5ad8",
    "PinnedCapabilityNames": "interface:c98489575b",
    "PinnedCapabilityRequired": "interface:3d0167b98a",
-   "PinnedCapabilityRuntime": "interface:74a5b3ad11",
+   "PinnedCapabilityRuntime": "interface:4c7cebe9b3",
    "SUPPORTED_EXTERNAL_MCP_TRANSPORTS": "variable:1312b2f139",
    "applyExternalMcpAccess": "function:c27c5ff48b",
    "createHostedMcpConnectionGate": "function:f8a1342561",
