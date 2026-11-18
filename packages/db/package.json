@@ -138,6 +138,11 @@
       "import": "./dist/settings/index.js",
       "default": "./dist/settings/index.js"
     },
+    "./gated-mutations": {
+      "types": "./dist/gated-mutations/index.d.ts",
+      "import": "./dist/gated-mutations/index.js",
+      "default": "./dist/gated-mutations/index.js"
+    },
     "./data-modules": {
       "types": "./dist/data-modules/index.d.ts",
       "import": "./dist/data-modules/index.js",
@@ -202,6 +207,9 @@
       ],
       "settings": [
         "./dist/settings/index.d.ts"
+      ],
+      "gated-mutations": [
+        "./dist/gated-mutations/index.d.ts"
       ],
       "data-modules": [
         "./dist/data-modules/index.d.ts"

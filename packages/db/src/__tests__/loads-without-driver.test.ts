@@ -114,6 +114,21 @@ const SUBPATHS: Record<string, { dirs: string[]; probe: string; kernel?: boolean
         && JSON.stringify(calls) === '[["selectFrom","g"],["selectAll"],["where","setting_id","=","missing"],["limit",1]]';
     })()`,
   },
+  "gated-mutations": {
+    dirs: ["gated-mutations"],
+    probe: `await (async () => {
+      const events = [];
+      const kernel = {
+        transaction: async fn => { events.push("begin"); return fn(); },
+        lockKey: async key => { events.push("lock:" + key); },
+        run: async () => { events.push("read"); return undefined; },
+      };
+      const repo = new m.SqlTokenStore({ kernel, tables: { tokens: "t" } });
+      const result = await repo.tryRedeem({ token: "tok", now: "2026-11-18T00:00:00.000Z" });
+      return result.redeemed === false && result.record === null
+        && JSON.stringify(events) === '["begin","lock:gated_mutation_tokens:tok","read"]';
+    })()`,
+  },
   "owner-store": {
     // Migration metadata loads without Kysely; up() lazily loads the kernel's DDL adapter.
     dirs: ["owner-store", "owner-store/migrations"],
