@@ -7,13 +7,6 @@
     "value": 114
   },
   {
-    "file": "packages/admin/src/forms/react/hooks/use-form-editor.hooks.ts",
-    "function": "useFormEditor",
-    "line": 133,
-    "rule": "max-lines-per-function",
-    "value": 151
-  },
-  {
     "file": "packages/admin/src/media/react/hooks/LibraryTab.hooks.ts",
     "function": "useLibraryTab",
     "line": 114,
