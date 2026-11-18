@@ -32,6 +32,17 @@ const FUNCTION_WORD_START = new RegExp(`^(?:${[
   'choose', 'select', 'provide', 'add', 'change', 'reset', 'forgot', 'forgotten', 'lost', 'required', 'needed', 'invalid', 'incorrect', 'wrong',
   'expired', 'missing', 'empty', 'blank', 'help', 'hint', 'note', 'remember',
 ].join('|')})[ \\t]`, 'i');
+// A single word this long is never read as the start of a sentence: the rules chat used before masked any 12+ character
+// token after a credential label, and a long letters-only password typed mid-sentence ("my password: <word> thanks")
+// must stay masked. Sentences after a label start with short words.
+const OPAQUE_WORD_MIN = 12;
+// A sentence about the credential that begins with the label's own word ("Password: Passwords expire every 90 days")
+// is a policy line, not a passphrase: nobody's password is the name of the field followed by more words.
+const startsWithLabelWord = ({ rest, label }: { rest: string; label: string }): boolean => {
+  const word = /^[A-Za-z]+/.exec(rest)?.[0].toLowerCase() ?? '';
+  const name = label.toLowerCase();
+  return name !== '' && (word === name || word === `${name}s`);
+};
 // A label that starts its line (after a list marker, a number or a bracket) is an assignment, not a sentence.
 const NUMBERED_LIST_PREFIX = /^\s*\d+[.)]\s+/;
 const isFieldStart = (before: string): boolean => !/[A-Za-z0-9]/.test(before.replace(NUMBERED_LIST_PREFIX, ''));
@@ -74,7 +85,8 @@ export function isProseAfterColon(
   if (isQualifiedKey({ before, label, token }) || PLACEHOLDER_RES.some(pattern => pattern.test(rest))) return true;
   const breaks = gap.match(/\n/g)?.length ?? 0;
   if (breaks > 0) return isNextLineProse({ rest, breaks, label });
-  return SENTENCE_START.test(rest) && (!isFieldStart(before) || FUNCTION_WORD_START.test(rest));
+  if (!SENTENCE_START.test(rest) || token >= OPAQUE_WORD_MIN) return false;
+  return !isFieldStart(before) || FUNCTION_WORD_START.test(rest) || startsWithLabelWord({ rest, label });
 }
 
 /** Length of the value to mask when a field-start label is followed by a plain-word passphrase, which runs to the
