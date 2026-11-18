@@ -37,7 +37,8 @@ export function toVerifiedOrigin(row: OriginRow): VerifiedOrigin {
   return createVerifiedOrigin(candidate);
 }
 
-/** The origin columns only — deliberately NOT the allowlist columns. See `registerConfiguredOrigin`. */
+/** The origin columns only — deliberately NOT the allowlist columns. See
+ *  {@link registerConfiguredOriginOn}. */
 export function originColumns(origin: VerifiedOrigin) {
   return {
     scheme: origin.scheme,
