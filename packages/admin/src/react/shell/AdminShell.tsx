@@ -90,7 +90,7 @@ function ShellMainColumn({ props, view, drawer, ids }: {
         <button type="button" className="admin-topbar-toggle" aria-expanded={drawer.open} aria-controls={ids.sidebar}
           aria-label={drawer.open ? props.labels.closeNavigation : props.labels.openNavigation}
           onClick={() => drawer.setOpen((open) => !open)}>
-          <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true"><path d="M2.5 5h13M2.5 9h13M2.5 13h13" /></svg>
+          <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true"><path d="M2.5 5h13M2.5 9h13M2.5 13h13" strokeLinecap="round" /></svg>
         </button>
         <span className="admin-topbar-title">{props.title}</span>
         {props.slots.topbar}
