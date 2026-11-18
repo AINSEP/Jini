@@ -260,7 +260,6 @@ export function createHtmlRegionTarget(
 ): EditTarget {
   const { store, parser } = deps;
   const maxPartLength = options.maxPartLength ?? 256 * 1024;
-  const regionDeps = { store, parser };
 
   /** Splices `content` into `region`'s inner range, preserving every byte outside it. */
   function spliced(html: string, region: ParsedRegion, content: string): string {
@@ -268,7 +267,7 @@ export function createHtmlRegionTarget(
   }
 
   return {
-    listParts: () => listRegionParts(regionDeps),
+    listParts: () => listRegionParts(deps),
 
     async readPart({ id }: { readonly id: PartId }): Promise<string> {
       const html = await store.read();
@@ -290,7 +289,7 @@ export function createHtmlRegionTarget(
       await store.write({ html: spliced(html, found.region, content) });
     },
 
-    snapshot: () => snapshotRegions(regionDeps),
+    snapshot: () => snapshotRegions(deps),
 
     /**
      * Restores each region's content in one pass.
@@ -308,6 +307,6 @@ export function createHtmlRegionTarget(
       }
     },
 
-    validate: (candidate) => validateRegionCandidate(regionDeps, candidate, maxPartLength),
+    validate: (candidate) => validateRegionCandidate(deps, candidate, maxPartLength),
   };
 }
