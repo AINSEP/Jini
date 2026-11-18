@@ -41,7 +41,7 @@ describe('a prefixed credential name whose value is on the next line', () => {
     expect(run(first.redacted).redacted).toBe(expected);
   });
   it.each([
-    'DB_PASSWORD=\nDB_USER=app', 'DB_PASSWORD=\n', 'DB_PASSWORD:\n- Notes: x', 'APP_SECRET:\nNotes:\nmore', 'DB_PASSWORD=\nsome words here', 'DB_PASSWORD=\n\nhunter2',
+    'DB_PASSWORD=\nDB_USER=app', 'DB_PASSWORD=\n', 'DB_PASSWORD:\n- Notes: x', 'APP_SECRET:\nNotes:\nmore', 'DB_PASSWORD=\nsome words here', 'APP_SECRET:\n\nhunter2',
   ])('keeps the next line when it is another assignment, a list item, prose or not adjacent: %j', input => {
     expect(run(input)).toEqual({ redacted: input, counts: {} });
   });

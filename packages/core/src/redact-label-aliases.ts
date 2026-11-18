@@ -21,6 +21,10 @@ const NAME = String.raw`(?<![A-Za-z0-9])(?<name>(?:[A-Za-z0-9]{1,32}[_-]){0,6}(?
 // empty quoted hint, a truncated quote); a second rule over the same value would widen or re-cut those spans.
 const ENGINE_LABEL_NAMES: ReadonlySet<string> = new Set(['password', 'secret', 'token', 'apikey', 'accesstoken', 'refreshtoken', 'clientsecret', 'privatekey']);
 const isEngineLabelName = (name: string | undefined): boolean => ENGINE_LABEL_NAMES.has((name ?? '').toLowerCase().replace(/[-_]/g, ''));
+// The engine's rules cannot read a name right after a `-` (`--token=x`: its label must not follow a hyphen) or a label in
+// backslash-escaped JSON (`{\"token\":\"x\"}`), so those forms are read here even for the engine's own names.
+const ownedByEngine = ({ name, before, escaped }: { name: string | undefined; before: string | undefined; escaped: boolean }): boolean =>
+  isEngineLabelName(name) && before !== '-' && !escaped;
 const QUOTED = String.raw`"(?:\\.|[^"\\\r\n])*"?|'(?:\\.|[^'\\\r\n])*'?`;
 // `label=value`: the value is one unquoted run or a quoted string; an unclosed quote runs to the line end.
 const ASSIGNMENT_RE = new RegExp(`${NAME}[ \\t]*=[ \\t]*(?<value>${QUOTED}|[^\\s"'&,;})]+)`, 'gi');
@@ -42,8 +46,10 @@ const CREDENTIAL_KEY_END = /(?:^|[ _.-])(?:password|passwd|pwd|secret|token|api[
 // A prefixed name (`DB_PASSWORD=`, `my-token:`) with nothing after the sign, then ONE token on the next line: the
 // value of an env file or a wrapped form line. A line that is itself an assignment (`NEXT=1`), a heading
 // (`Notes:`), a list item or several words is not a value; the line after it is not read.
+// After `=` any number of blank lines may separate the name from its value, as the engine's own rules read it; after a
+// colon one line break only (a blank line after a colon starts a new paragraph).
 const NEXT_LINE_RE = new RegExp(
-  `${NAME}[ \\t]*[:=][ \\t]*\\r?\\n[ \\t]*(?<value>${QUOTED}|(?![\\w.-]+[=:])[^\\s"'&,;})-][^\\s"'&,;})]*)[ \\t]*(?=\\r?\\n|$)`,
+  `${NAME}(?:[ \\t]*=[ \\t]*(?:\\r?\\n[ \\t]*)+|[ \\t]*:[ \\t]*\\r?\\n[ \\t]*)(?<value>${QUOTED}|(?![\\w.-]+[=:])[^\\s"'&,;})-][^\\s"'&,;})]*)[ \\t]*(?=\\r?\\n|$)`,
   'gi',
 );
 
@@ -73,7 +79,7 @@ function assignedValueRange({ match }: { readonly match: RegExpMatchArray }): Va
 /** Ranges after `label=`; names the engine's own rules own are left to them. */
 function assignmentRanges({ text }: { readonly text: string }): ValueRange[] {
   return [...text.matchAll(ASSIGNMENT_RE)]
-    .filter(match => !isEngineLabelName(match.groups?.name))
+    .filter(match => !ownedByEngine({ name: match.groups?.name, before: text[(match.index ?? 0) - 1], escaped: false }))
     .map(match => assignedValueRange({ match }));
 }
 
@@ -87,7 +93,7 @@ function colonValueRange({ match }: { readonly match: RegExpMatchArray }): Value
 /** Ranges after `label:` in a quoted value or a single long token. */
 function colonRanges({ text }: { readonly text: string }): ValueRange[] {
   return [...text.matchAll(COLON_RE)]
-    .filter(match => !isEngineLabelName(match.groups?.name))
+    .filter(match => !ownedByEngine({ name: match.groups?.name, before: text[(match.index ?? 0) - 1], escaped: match.groups?.open?.startsWith('\\') === true }))
     .map(match => colonValueRange({ match }));
 }
 
