@@ -16,8 +16,8 @@ function audit(input: { root: string; scan: string[]; packageRoots?: string[] })
     import { createNodePackagingFilesystem } from ${JSON.stringify(new URL('../node.ts', import.meta.url).href)};
     import { createNodeRuntimeResolver } from ${JSON.stringify(new URL('../staged-closure-node.ts', import.meta.url).href)};
     import { createTypeScriptImportReader } from ${JSON.stringify(new URL('../typescript.ts', import.meta.url).href)};
-    const input = JSON.parse(process.argv[1]);
-    console.log(JSON.stringify(auditStagedClosure({ ...input, fs: createNodePackagingFilesystem({}), imports: createTypeScriptImportReader({ compiler: ts }), resolver: createNodeRuntimeResolver({}) })));
+    const { packageRoots, ...input } = JSON.parse(process.argv[1]);
+    console.log(JSON.stringify(auditStagedClosure({ ...input, fs: createNodePackagingFilesystem({}), imports: createTypeScriptImportReader({ compiler: ts }), resolver: createNodeRuntimeResolver({}) }, { packageRoots })));
   `;
   const result = spawnSync(process.execPath, ['--experimental-import-meta-resolve', '--import', 'tsx', '--input-type=module', '--eval', script, JSON.stringify(input)], { cwd: directory, encoding: 'utf8', timeout: 15_000 });
   assert.equal(result.status, 0, result.stderr);

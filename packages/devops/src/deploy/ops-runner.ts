@@ -97,7 +97,7 @@ function normalizeResponse({ deps, response, transportTruncated, host, label }: 
  * `allowDelete` is set only by the secret-removal verb, so no other verb's module can send a DELETE.
  */
 /** @agent-note The request port must recheck abort at actual I/O after asynchronous auth-scheme loading. */
-export async function boundContext({deps,platform,explicit}: {deps:DeployOpsRuntime;platform:LoadedDeployOps;explicit?:string | undefined}, {signal,allowDelete}: {signal?:AbortSignal | undefined;allowDelete?:boolean} = {}): Promise<DeployOpsContext> {
+export async function boundContext({deps,platform}: {deps:DeployOpsRuntime;platform:LoadedDeployOps}, {explicit,signal,allowDelete}: {explicit?:string | undefined;signal?:AbortSignal | undefined;allowDelete?:boolean} = {}): Promise<DeployOpsContext> {
   if (!deps.credentials.available) throw new ToolInputError({ message: "Deployment ops HTTP client is unavailable. Restart the site to rebuild its tool dependencies." });
   const label = await credentialLabel(deps, platform, explicit);
   /** One guarded path for every method, so a write can never get a looser binding than a read. */
@@ -131,13 +131,13 @@ export async function boundContext({deps,platform,explicit}: {deps:DeployOpsRunt
 
 type Operation = "status" | "logs" | "listTargets";
 /** @agent-note loadDeployOps must enforce current admission on each invocation rather than reuse an earlier registry. */
-export function runDeployOps(required:{deps:DeployOpsRuntime;input:DeployOpsInput;operation:"status"}, optional:{signal?:AbortSignal | undefined}):Promise<DeployOpsStatus>;
+export function runDeployOps(required:{deps:DeployOpsRuntime;input:DeployOpsInput;operation:"status"}, optional?:{signal?:AbortSignal | undefined}):Promise<DeployOpsStatus>;
 
-export function runDeployOps(required:{deps:DeployOpsRuntime;input:DeployOpsInput;operation:"logs"}, optional:{signal?:AbortSignal | undefined}):Promise<DeployOpsLogs>;
+export function runDeployOps(required:{deps:DeployOpsRuntime;input:DeployOpsInput;operation:"logs"}, optional?:{signal?:AbortSignal | undefined}):Promise<DeployOpsLogs>;
 
-export function runDeployOps(required:{deps:DeployOpsRuntime;input:DeployOpsInput;operation:"listTargets"}, optional:{signal?:AbortSignal | undefined}):Promise<DeployOpsTargets>;
+export function runDeployOps(required:{deps:DeployOpsRuntime;input:DeployOpsInput;operation:"listTargets"}, optional?:{signal?:AbortSignal | undefined}):Promise<DeployOpsTargets>;
 
-export function runDeployOps(required:{deps:DeployOpsRuntime;input:DeployOpsInput;operation:Operation}, optional:{signal?:AbortSignal | undefined}):Promise<DeployOpsStatus|DeployOpsLogs|DeployOpsTargets>;
+export function runDeployOps(required:{deps:DeployOpsRuntime;input:DeployOpsInput;operation:Operation}, optional?:{signal?:AbortSignal | undefined}):Promise<DeployOpsStatus|DeployOpsLogs|DeployOpsTargets>;
 /**
  * Read through a freshly gated installed adapter, passing only a bound GET facade to the module.
  * @param deps - Saved-credential ports, audited HTTP client with redirects disabled, and test seams.
@@ -146,14 +146,14 @@ export function runDeployOps(required:{deps:DeployOpsRuntime;input:DeployOpsInpu
  * @param signal - Cancels before further requests and propagates to the transport.
  * @throws {ToolInputError} Unknown platforms, credential/host/auth failures or cancelled requests.
  * @complexity Time: O(credentials + response size) plus bounded adapter requests. Space: O(response size).
- * @example await runDeployOps(deps, { platform: platformId, target: targetId }, "status", signal);
+ * @example await runDeployOps({ deps, input: { platform: platformId, target: targetId }, operation: "status" }, { signal });
  */
-export async function runDeployOps({deps,input,operation}: {deps:DeployOpsRuntime;input:DeployOpsInput;operation:Operation}, {signal}: {signal?:AbortSignal | undefined}): Promise<DeployOpsStatus | DeployOpsLogs | DeployOpsTargets> {
+export async function runDeployOps({deps,input,operation}: {deps:DeployOpsRuntime;input:DeployOpsInput;operation:Operation}, {signal}: {signal?:AbortSignal | undefined} = {}): Promise<DeployOpsStatus | DeployOpsLogs | DeployOpsTargets> {
   if (signal?.aborted) throw aborted();
   const registry = await deps.loadDeployOps({ workspaceId: deps.workspaceId });
   const platform = requireDeployPlatform({registry,id:input.platform}, {});
   if (operation === "listTargets" && !platform.module.listTargets) throw new ToolInputError({ message: `Deployment ops platform '${input.platform}' does not support listing targets. Supply a target for ${deps.toolIds.status}.` });
-  const ctx = await boundContext({deps,platform,explicit:input.credentialLabel}, {signal});
+  const ctx = await boundContext({ deps, platform }, { signal, explicit:input.credentialLabel });
   if (signal?.aborted) throw aborted();
   if (operation === "listTargets") return platform.module.listTargets!(ctx, { org: input.org });
   if (operation === "logs") return platform.module.logs(ctx, { ...input, limit: input.limit ?? 100 });
@@ -198,7 +198,7 @@ export async function runDeploy(required: { deps: DeployOpsRuntime; input: Deplo
     const deployable = registry.list().filter(p => typeof p.module.deploy === "function").map(p => p.descriptor.id);
     throw new ToolInputError({ message: `Deployment ops platform '${input.platform}' cannot deploy; it is observe-only. Platforms that can deploy: ${deployable.join(", ") || "(none)"}.` });
   }
-  const ctx = await boundContext({deps,platform,explicit:input.credentialLabel}, {signal});
+  const ctx = await boundContext({ deps, platform }, { signal, explicit:input.credentialLabel });
   if (signal?.aborted) throw aborted();
   const adapterInput = await deployAdapterInput({ deps, input });
   const result = await platform.module.deploy(ctx, adapterInput);
@@ -267,29 +267,29 @@ function waitSettings({ deps, input }: { deps: { clock?: WaitClock | undefined; 
 
 /**
  * Poll immediately and every 10s, bounding sleeps and in-flight polls by the remaining deadline.
- * @param deps - Status reader, optional monotonic clock/sleep seam, and initial unknown observation.
- * @param input - Desired condition, timeout (default 180s; validated by the tool handler), and abort signal.
+ * @param required - Status reader and desired condition.
+ * @param optional - Monotonic clock/sleep seam, initial observation, timeout (default 180s; validated by the tool handler), and abort signal.
  * @returns Reached flag, elapsed seconds, attempted poll count and last observation; timeout is a result.
  * @throws {ToolInputError} Cancellation or a refusal from the status reader.
  * @complexity Time: O(timeout / 10s) polls. Space: O(one status response).
- * @example await waitForDeployOps({ status }, { until: "healthy", timeoutSeconds: 180, signal });
+ * @example await waitForDeployOps({ status, until: "healthy" }, { timeoutSeconds: 180, signal });
  */
-export async function waitForDeployOps(deps: { status(signal: AbortSignal): Promise<DeployOpsStatus>; clock?: WaitClock | undefined; initial?: DeployOpsStatus }, input: { until: "healthy" | "finished"; timeoutSeconds?: number; signal?: AbortSignal | undefined }): Promise<DeployOpsWaitResult> {
-  const { clock, started, deadline, initial } = waitSettings({ deps, input }, {});
+export async function waitForDeployOps(required: { status(signal: AbortSignal): Promise<DeployOpsStatus>; until: "healthy" | "finished" }, optional: { clock?: WaitClock | undefined; initial?: DeployOpsStatus; timeoutSeconds?: number; signal?: AbortSignal | undefined } = {}): Promise<DeployOpsWaitResult> {
+  const { clock, started, deadline, initial } = waitSettings({ deps: optional, input: optional }, {});
   let polls = 0;
   let last = initial;
   const result = (reached: boolean): DeployOpsWaitResult => ({ reached, waitedSeconds: Math.min((clock.now() - started) / 1000, (deadline - started) / 1000), polls, last });
   while (clock.now() < deadline) {
-    if (input.signal?.aborted) throw aborted();
+    if (optional.signal?.aborted) throw aborted();
     polls++;
-    const observation = await pollBeforeDeadline({ status: deps.status, clock, deadline }, { signal: input.signal });
+    const observation = await pollBeforeDeadline({ status: required.status, clock, deadline }, { signal: optional.signal });
     if (observation === TIMEOUT) return result(false);
     last = observation;
     if (clock.now() > deadline) return result(false);
-    if (reachedCondition({ until: input.until, state: last.state }, {})) return result(true);
-    await sleepBeforeDeadline({ clock, deadline }, { signal: input.signal });
+    if (reachedCondition({ until: required.until, state: last.state }, {})) return result(true);
+    await sleepBeforeDeadline({ clock, deadline }, { signal: optional.signal });
   }
-  if (input.signal?.aborted) throw aborted();
+  if (optional.signal?.aborted) throw aborted();
   return result(false);
 }
 

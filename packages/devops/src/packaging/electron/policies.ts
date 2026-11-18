@@ -6,12 +6,12 @@ export interface StalenessShell { relative: string; marker: string; buildWith: s
 
 /** Independent live signals; a quiet sample still requires post-package byte verification. */
 export function treeQuietProblems(required: {
-  surface: string; watcherRunning: boolean; gitDirtyPaths?: readonly string[]; movingPaths?: readonly string[];
-}): string[] {
+  surface: string; watcherRunning: boolean;
+}, optional: { gitDirtyPaths?: readonly string[]; movingPaths?: readonly string[] } = {}): string[] {
   const problems: string[] = [];
   if (required.watcherRunning) problems.push(`a build watch process is rewriting ${required.surface}; stop it before packaging.`);
-  if (required.gitDirtyPaths?.length) problems.push(`${required.surface} has uncommitted changes: ${required.gitDirtyPaths.join(', ')}.`);
-  if (required.movingPaths?.length) problems.push(`${required.surface} is still being written to: ${required.movingPaths.join(', ')} changed during this check.`);
+  if (optional.gitDirtyPaths?.length) problems.push(`${required.surface} has uncommitted changes: ${optional.gitDirtyPaths.join(', ')}.`);
+  if (optional.movingPaths?.length) problems.push(`${required.surface} is still being written to: ${optional.movingPaths.join(', ')} changed during this check.`);
   return problems;
 }
 /** Conservative bundle-input policy, shared by source timestamp scanning. */

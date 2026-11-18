@@ -6,7 +6,7 @@ export class RepositoryPathError extends Error {}
  * @throws RepositoryPathError for malformed values, absolute paths, controls or traversal.
  * @complexity O(folder length), no effects.
  */
-export function normalizeRepositoryFolder({ folder = '' }: { folder?: unknown }, _options = {}): string {
+export function normalizeRepositoryFolder(_required: Record<string, never>, { folder = '' }: { folder?: unknown } = {}): string {
   if (typeof folder !== 'string') throw new RepositoryPathError('Target folder must be a string.');
   const value = folder.replaceAll('\\', '/');
   if (value.startsWith('/') || /[:\x00-\x1f\x7f]/.test(value)) throw new RepositoryPathError('Target folder must be relative and contain no controls or drive prefix.');
@@ -17,7 +17,7 @@ export function normalizeRepositoryFolder({ folder = '' }: { folder?: unknown },
 
 /** Canonical file paths cannot normalize into a different path or into repository root. */
 function canonicalFilePath({ path }: { path: string }, _options = {}): boolean {
-  try { return path !== '' && normalizeRepositoryFolder({ folder: path }) === path; }
+  try { return path !== '' && normalizeRepositoryFolder({}, { folder: path }) === path; }
   catch { return false; }
 }
 
@@ -25,8 +25,8 @@ function canonicalFilePath({ path }: { path: string }, _options = {}): boolean {
  * @throws RepositoryPathError for invalid folders or noncanonical file paths.
  * @complexity O(folder + path length), no effects.
  */
-export function prefixRepositoryPath({ folder, path }: { folder?: string | undefined; path: string }, _options = {}): string {
-  const normalized = normalizeRepositoryFolder({ folder });
+export function prefixRepositoryPath({ path }: { path: string }, { folder }: { folder?: string | undefined } = {}): string {
+  const normalized = normalizeRepositoryFolder({}, { folder });
   if (!canonicalFilePath({ path })) throw new RepositoryPathError('Repository file path must be a canonical relative path.');
   return normalized ? `${normalized}/${path}` : path;
 }
@@ -35,9 +35,9 @@ export function prefixRepositoryPath({ folder, path }: { folder?: string | undef
  * @returns False for malformed or noncanonical paths, including sibling prefix collisions.
  * @complexity O(folder + path length), no effects.
  */
-export function repositoryPathContained({ folder, path }: { folder?: string | undefined; path: string }, _options = {}): boolean {
+export function repositoryPathContained({ path }: { path: string }, { folder }: { folder?: string | undefined } = {}): boolean {
   try {
-    const normalized = normalizeRepositoryFolder({ folder });
+    const normalized = normalizeRepositoryFolder({}, { folder });
     return canonicalFilePath({ path }) && (normalized === '' || path.startsWith(`${normalized}/`));
   } catch { return false; }
 }

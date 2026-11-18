@@ -125,10 +125,10 @@ describe('withIsolatedPackagedTree', () => {
 describe('walkPayloadFiles', () => {
   const fs = memoryFs({ files: { '/p/dist/a.js': '', '/p/dist/skills/x/SKILL.md': '', '/p/dist/keep/skills/y.js': '', '/p/dist/keep/z.js': '' } });
   test('lists every file under the root, depth first', () => {
-    expect(walkPayloadFiles({ root: '/p/dist' }, { fs }).sort()).toEqual(['/p/dist/a.js', '/p/dist/keep/skills/y.js', '/p/dist/keep/z.js', '/p/dist/skills/x/SKILL.md']);
+    expect(walkPayloadFiles({ root: '/p/dist', fs }).sort()).toEqual(['/p/dist/a.js', '/p/dist/keep/skills/y.js', '/p/dist/keep/z.js', '/p/dist/skills/x/SKILL.md']);
   });
   test('a directory the host prunes is skipped whole; the root itself is never pruned', () => {
     const skip = vi.fn(({ relative }: { relative: string }) => relative === 'skills' || relative === '');
-    expect(walkPayloadFiles({ root: '/p/dist' }, { fs, skipDirectory: skip }).sort()).toEqual(['/p/dist/a.js', '/p/dist/keep/skills/y.js', '/p/dist/keep/z.js']);
+    expect(walkPayloadFiles({ root: '/p/dist', fs }, { skipDirectory: skip }).sort()).toEqual(['/p/dist/a.js', '/p/dist/keep/skills/y.js', '/p/dist/keep/z.js']);
   });
 });

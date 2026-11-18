@@ -33,7 +33,7 @@ describe('sourceFiles', () => {
     const { root, put } = tree();
     for (const file of ['b.mts', 'a.cjs', 'c.jsx', 'd.tsx', 'e.d.mts', 'f.d.ts', 'g.css', 'h.test.ts', 'build/x.ts', '__measurements__/y.ts']) put(file, '');
     expect(sourceFiles({ directory: root }).map((file) => file.slice(root.length + 1))).toEqual(['a.cjs', 'b.mts', 'c.jsx', 'd.tsx']);
-    expect(sourceFiles({ directory: root, declarations: true }).map((file) => file.slice(root.length + 1))).toEqual(['a.cjs', 'b.mts', 'c.jsx', 'd.tsx', 'e.d.mts', 'f.d.ts']);
+    expect(sourceFiles({ directory: root }, { declarations: true }).map((file) => file.slice(root.length + 1))).toEqual(['a.cjs', 'b.mts', 'c.jsx', 'd.tsx', 'e.d.mts', 'f.d.ts']);
   });
 });
 
@@ -61,14 +61,14 @@ describe('createResolver', () => {
     const { root, put } = tree();
     put('src/entry.ts', '');
     put('node_modules/secret-token-name/index.d.ts', 'export declare const v: number;');
-    const resolve = createResolver({ root, compiler: ts, runtime: true });
+    const resolve = createResolver({ root, compiler: ts }, { runtime: true });
     expect(() => resolve('secret-token-name', join(root, 'src/entry.ts'))).toThrow(/^Unresolved code import in src\/entry\.ts \(specifier omitted\); refusing an incomplete public\/plugin graph\.$/);
   });
 
   it('applies only the first matching alias', () => {
     const { root, put } = tree();
     put('src/entry.ts', ''); put('one/x.ts', ''); put('two/x.ts', '');
-    const resolve = createResolver({ root, compiler: ts, aliases: { '#a/': join(root, 'one'), '#': join(root, 'two') } });
+    const resolve = createResolver({ root, compiler: ts }, { aliases: { '#a/': join(root, 'one'), '#': join(root, 'two') } });
     expect(resolve('#a/x', join(root, 'src/entry.ts'))).toBe(join(root, 'one/x.ts'));
     expect(resolve('#/x', join(root, 'src/entry.ts'))).toBe(join(root, 'two/x.ts'));
   });
@@ -86,7 +86,7 @@ describe('displayGraphFile', () => {
   it('honours custom authored directories', () => {
     const { root, put } = tree();
     put('site/package.json', JSON.stringify({ name: 'site' }));
-    expect(displayGraphFile({ root, file: join(root, 'site/view.tsx'), authoredDirectories: ['site'] })).toBe('site/view.tsx');
+    expect(displayGraphFile({ root, file: join(root, 'site/view.tsx') }, { authoredDirectories: ['site'] })).toBe('site/view.tsx');
     expect(displayGraphFile({ root, file: join(root, 'site/view.tsx') })).toBe('node_modules/site');
   });
 });
@@ -202,7 +202,7 @@ describe('runHardwiring', () => {
     writeFileSync(debtPath, JSON.stringify({ violations: [stale] }));
     const logs: string[] = []; const errors: string[] = [];
     const fresh = violation('HW8-provider-url', 'new.ts');
-    const added = await runHardwiring({ debtPath, baselineComment: 'unused', collect: async () => [fresh], logger: { log: (line) => { logs.push(line); }, error: (line) => { errors.push(line); } } });
+    const added = await runHardwiring({ debtPath, baselineComment: 'unused', collect: async () => [fresh] }, { logger: { log: (line) => { logs.push(line); }, error: (line) => { errors.push(line); } } });
     expect(added).toEqual([fresh]);
     expect(logs).toContain(`[hardwiring] 1 stale debt occurrences; remove them from ${debtPath}.`);
     expect(logs).toContain('[hardwiring] HW8-provider-url: 1 total; 1 new');
@@ -218,8 +218,7 @@ describe('runHardwiring', () => {
     writeFileSync(debtPath, JSON.stringify({ violations: [known] }));
     const logs: string[] = []; const errors: string[] = [];
     const fresh = violation('HW12-env-import-time', 'new.ts');
-    const added = await runHardwiring({ debtPath, baselineComment: 'unused', collect: () => [known, fresh], logger: { log: (line) => { logs.push(line); }, error: (line) => { errors.push(line); } } },
-      { rules: ['HW9-env-access', 'HW12-env-import-time'] });
+    const added = await runHardwiring({ debtPath, baselineComment: 'unused', collect: () => [known, fresh] }, { rules: ['HW9-env-access', 'HW12-env-import-time'], logger: { log: (line) => { logs.push(line); }, error: (line) => { errors.push(line); } } });
     expect(added).toEqual([fresh]);
     expect(logs).toEqual(['[hardwiring] HW9-env-access: 1 total; 0 new', '[hardwiring] HW12-env-import-time: 1 total; 1 new']);
     expect(errors).toEqual(['[hardwiring] HW12-env-import-time new.ts:3: fixture reason']);
@@ -236,6 +235,6 @@ describe('runHardwiring', () => {
 
   it('a missing debt file is an error, not an empty baseline', async () => {
     const { root } = tree();
-    await expect(runHardwiring({ debtPath: join(root, 'missing.json'), baselineComment: 'x', collect: () => [], logger: { log: () => {}, error: () => {} } })).rejects.toThrow(/ENOENT/);
+    await expect(runHardwiring({ debtPath: join(root, 'missing.json'), baselineComment: 'x', collect: () => [] }, { logger: { log: () => {}, error: () => {} } })).rejects.toThrow(/ENOENT/);
   });
 });

@@ -269,7 +269,8 @@ function fetchTimeout(required: { fetchTimeoutMs: number | undefined }): number 
 /** Drive the caller's actual app, retaining exact written bytes and reporting each failed item.
  * Startup/output/inventory errors throw; an opened app always closes. No singleton state is used.
  */
-export async function exportSite(required: ExportSiteArgs, optional: ExportSiteOptions = {}): Promise<ExportReport> {
+export async function exportSite(input: Omit<ExportSiteArgs, 'assetUrls' | 'assetPathFailureReason' | 'discoverRoutes'>, optional: ExportSiteOptions & Pick<ExportSiteArgs, 'assetUrls' | 'assetPathFailureReason' | 'discoverRoutes'> = {}): Promise<ExportReport> {
+  const required = { ...input, ...optional };
   const basePath = normalizeBasePath({ raw: optional.basePath ?? '' });
   const timeoutMs = fetchTimeout({ fetchTimeoutMs: optional.fetchTimeoutMs });
   await required.writer.prepare({ outputDir: required.outputDir }, { clean: optional.clean ?? false });

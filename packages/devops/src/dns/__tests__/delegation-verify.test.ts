@@ -7,26 +7,26 @@ import { fakeResolver } from './fakes.js';
 describe('checkDelegation', () => {
   test('reads the NS set and reports it delegated', async () => {
     const resolver = fakeResolver({ ns: { 'example.test': ['NS2.host.test.', 'ns1.host.test', 'ns1.host.test'] } });
-    const result = await checkDelegation({ zone: 'Example.Test.' }, { resolver });
+    const result = await checkDelegation({ zone: 'Example.Test.', resolver });
     expect(result).toMatchObject({ zone: 'example.test', state: 'delegated', nameservers: ['ns1.host.test', 'ns2.host.test'], missing: [], unexpected: [] });
   });
 
   test('requires the expected set exactly, naming leftovers and missing servers', async () => {
     const resolver = fakeResolver({ ns: { 'example.test': ['ns1.old.test', 'ns1.new.test'] } });
-    const wrong = await checkDelegation({ zone: 'example.test', expectedNameservers: ['NS1.new.test.', 'ns2.new.test'] }, { resolver });
+    const wrong = await checkDelegation({ zone: 'example.test', resolver }, { expectedNameservers: ['NS1.new.test.', 'ns2.new.test'] });
     expect(wrong).toMatchObject({ state: 'not_delegated', missing: ['ns2.new.test'], unexpected: ['ns1.old.test'] });
     expect(wrong.reason).toContain('registrar');
-    const right = await checkDelegation({ zone: 'example.test', expectedNameservers: ['ns1.new.test', 'ns1.old.test'] }, { resolver });
+    const right = await checkDelegation({ zone: 'example.test', resolver }, { expectedNameservers: ['ns1.new.test', 'ns1.old.test'] });
     expect(right.state).toBe('delegated');
   });
 
   test('NXDOMAIN or an empty NS set is not delegated', async () => {
-    expect((await checkDelegation({ zone: 'gone.test' }, { resolver: fakeResolver({}) })).state).toBe('not_delegated');
-    expect((await checkDelegation({ zone: 'empty.test' }, { resolver: fakeResolver({ ns: { 'empty.test': [] } }) })).state).toBe('not_delegated');
+    expect((await checkDelegation({ zone: 'gone.test', resolver: fakeResolver({}) })).state).toBe('not_delegated');
+    expect((await checkDelegation({ zone: 'empty.test', resolver: fakeResolver({ ns: { 'empty.test': [] } }) })).state).toBe('not_delegated');
   });
 
   test.each(['timeout', 'refused', 'throw'] as const)('a %s answer is unknown, never not_delegated', async answer => {
-    const result = await checkDelegation({ zone: 'example.test' }, { resolver: fakeResolver({ ns: { 'example.test': answer } }) });
+    const result = await checkDelegation({ zone: 'example.test', resolver: fakeResolver({ ns: { 'example.test': answer } }) });
     expect(result.state).toBe('unknown');
     expect(result.nameservers).toEqual([]);
   });
@@ -76,7 +76,7 @@ describe('verifyRequirements', () => {
 
   test('asks every authoritative nameserver and reports propagated when all agree', async () => {
     const resolver = fakeResolver({ ns, records: { 'www.example.test|A': ['192.0.2.1'] } });
-    const result = await verifyRequirements({ zone: 'example.test', requirements: [requirement([www])] }, { resolver });
+    const result = await verifyRequirements({ zone: 'example.test', requirements: [requirement([www])], resolver });
     expect(result.state).toBe('propagated');
     expect(result.nameservers).toEqual(['ns1.host.test', 'ns2.host.test']);
     expect(result.records[0]?.byNameserver.map(observation => observation.nameserver)).toEqual(['ns1.host.test', 'ns2.host.test']);
@@ -85,54 +85,54 @@ describe('verifyRequirements', () => {
 
   test('one server still answering old data keeps the record pending', async () => {
     const resolver = fakeResolver({ ns, records: { 'ns1.host.test|www.example.test|A': ['192.0.2.1'], 'ns2.host.test|www.example.test|A': ['192.0.2.9'] } });
-    expect((await verifyRequirements({ zone: 'example.test', requirements: [requirement([www])] }, { resolver })).state).toBe('pending');
+    expect((await verifyRequirements({ zone: 'example.test', requirements: [requirement([www])], resolver })).state).toBe('pending');
   });
 
   test('wrong data everywhere is a mismatch, and outranks other records', async () => {
     const resolver = fakeResolver({ ns, records: { 'www.example.test|A': ['192.0.2.9'], 'www.example.test|TXT': 'timeout' } });
-    const result = await verifyRequirements({ zone: 'example.test', requirements: [requirement([www, { type: 'TXT', name: 'www.example.test', value: 'x' }])] }, { resolver });
+    const result = await verifyRequirements({ zone: 'example.test', requirements: [requirement([www, { type: 'TXT', name: 'www.example.test', value: 'x' }])], resolver });
     expect(result.records.map(record => record.state)).toEqual(['mismatch', 'unknown']);
     expect(result.state).toBe('mismatch');
   });
 
   test('missing data (NODATA/NXDOMAIN) is pending; transport failures are unknown', async () => {
     const pending = fakeResolver({ ns, records: { 'ns1.host.test|www.example.test|A': [], 'ns2.host.test|www.example.test|A': 'nxdomain' } });
-    expect((await verifyRequirements({ zone: 'example.test', requirements: [requirement([www])] }, { resolver: pending })).state).toBe('pending');
+    expect((await verifyRequirements({ zone: 'example.test', requirements: [requirement([www])], resolver: pending })).state).toBe('pending');
     for (const failure of ['refused', 'throw', 'timeout'] as const) {
       const resolver = fakeResolver({ ns, records: { 'ns1.host.test|www.example.test|A': ['192.0.2.1'], 'ns2.host.test|www.example.test|A': failure } });
-      const result = await verifyRequirements({ zone: 'example.test', requirements: [requirement([www])] }, { resolver });
+      const result = await verifyRequirements({ zone: 'example.test', requirements: [requirement([www])], resolver });
       expect(result.state).toBe('unknown');
       expect(result.records[0]?.byNameserver[1]?.state).toBe('unknown');
     }
   });
 
   test('without readable nameservers every record is unknown', async () => {
-    const failing = await verifyRequirements({ zone: 'example.test', requirements: [requirement([www])] }, { resolver: fakeResolver({ ns: { 'example.test': 'timeout' } }) });
+    const failing = await verifyRequirements({ zone: 'example.test', requirements: [requirement([www])], resolver: fakeResolver({ ns: { 'example.test': 'timeout' } }) });
     expect(failing).toMatchObject({ state: 'unknown', nameservers: [], records: [{ state: 'unknown', byNameserver: [] }] });
     expect(failing.reason).toMatch(/could not be read/);
-    const empty = await verifyRequirements({ zone: 'example.test', requirements: [requirement([www])] }, { resolver: fakeResolver({ ns: { 'example.test': [] } }) });
+    const empty = await verifyRequirements({ zone: 'example.test', requirements: [requirement([www])], resolver: fakeResolver({ ns: { 'example.test': [] } }) });
     expect(empty.reason).toMatch(/no authoritative nameservers/);
   });
 
   // Regression (review 13-dns #6): one matching answer used to mark the whole RRset propagated.
   test('an address RRset still holding an obsolete value is a mismatch, not propagated', async () => {
     const stale = fakeResolver({ ns, records: { 'www.example.test|A': ['192.0.2.1', '192.0.2.9'] } });
-    const result = await verifyRequirements({ zone: 'example.test', requirements: [requirement([www])] }, { resolver: stale });
+    const result = await verifyRequirements({ zone: 'example.test', requirements: [requirement([www])], resolver: stale });
     expect(result.records[0]?.byNameserver.map(observation => observation.state)).toEqual(['mismatch', 'mismatch']);
     expect(result.state).toBe('mismatch');
     const both = fakeResolver({ ns, records: { 'www.example.test|A': ['192.0.2.1', '192.0.2.2'] } });
     const second = { ...www, value: '192.0.2.2' };
-    expect((await verifyRequirements({ zone: 'example.test', requirements: [requirement([www]), requirement([second])] }, { resolver: both })).state).toBe('propagated');
+    expect((await verifyRequirements({ zone: 'example.test', requirements: [requirement([www]), requirement([second])], resolver: both })).state).toBe('propagated');
   });
 
   test('two SPF records at a name are a mismatch even when one carries the required mechanism', async () => {
     const spf = { type: 'TXT' as const, name: 'example.test', value: 'v=spf1 include:mail.test -all' };
     const duplicate = fakeResolver({ ns, records: { 'example.test|TXT': ['"v=spf1 include:mail.test -all"', '"v=spf1 a -all"', '"site-verification=1"'] } });
-    expect((await verifyRequirements({ zone: 'example.test', requirements: [requirement([spf])] }, { resolver: duplicate })).state).toBe('mismatch');
+    expect((await verifyRequirements({ zone: 'example.test', requirements: [requirement([spf])], resolver: duplicate })).state).toBe('mismatch');
     const single = fakeResolver({ ns, records: { 'example.test|TXT': ['"v=spf1 a include:mail.test -all"', '"v=spf1-lookalike"', '"site-verification=1"'] } });
-    expect((await verifyRequirements({ zone: 'example.test', requirements: [requirement([spf])] }, { resolver: single })).state).toBe('propagated');
+    expect((await verifyRequirements({ zone: 'example.test', requirements: [requirement([spf])], resolver: single })).state).toBe('propagated');
     const plainTxt = fakeResolver({ ns, records: { 'example.test|TXT': ['"token"', '"v=spf1 a -all"', '"v=spf1 mx -all"'] } });
-    expect((await verifyRequirements({ zone: 'example.test', requirements: [requirement([{ type: 'TXT', name: 'example.test', value: 'token' }])] }, { resolver: plainTxt })).state).toBe('propagated');
+    expect((await verifyRequirements({ zone: 'example.test', requirements: [requirement([{ type: 'TXT', name: 'example.test', value: 'token' }])], resolver: plainTxt })).state).toBe('propagated');
   });
 
   test('aggregate ranks mismatch over unknown over pending', () => {

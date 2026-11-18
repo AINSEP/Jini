@@ -6,7 +6,7 @@ import { normalizeRepositoryFolder, prefixRepositoryPath } from './repository-pa
 /** Folder validation precedes credentials, rendering and all provider effects. */
 function folderError(required: { folder?: string; supportsFolder?: boolean }, optional: { committing?: boolean } = {}): string | null {
   try {
-    const folder = normalizeRepositoryFolder(required);
+    const folder = normalizeRepositoryFolder({}, { folder: required.folder });
     if (folder && optional.committing && required.supportsFolder !== true) return 'This provider does not support folder commits.';
     return null;
   } catch (error) { return (error as Error).message; }
@@ -28,7 +28,7 @@ async function exportIntoRunDirectory(input: CommitExportArgs, claim: (outputDir
     if (failure) return { ok: false, code: 'EXPORT_FAILED', message: `refused to commit: ${failure.count} ${failure.kind}(s) failed to export (first: '${failure.identifier}' — ${failure.reason})` };
     const files = [...report.routes.succeeded.map(toCommitFile), ...report.assets.succeeded.map(toCommitFile)];
     // Validate every folder-relative path while export failures still use the safe outcome channel.
-    for (const file of files) prefixRepositoryPath({ folder: input.folder, path: file.path });
+    for (const file of files) prefixRepositoryPath({ path: file.path }, { folder: input.folder });
     return { ok: true, files };
   } catch (error) {
     return { ok: false, code: 'EXPORT_FAILED', message: `export failed before committing could start: ${input.describeError({ error })}` };
@@ -47,12 +47,13 @@ async function exportForCommit(input: CommitExportArgs): Promise<ExportResult> {
 }
 
 /** Run a real fresh export, without credentials or repository I/O. */
-export async function previewCommitExport(required: CommitExportArgs, optional: CommitOptions = {}): Promise<PreviewCommitExportResult> {
-  const error = validateCommitTarget(required, optional) ?? folderError(required);
+export async function previewCommitExport(required: Omit<CommitExportArgs, 'folder'>, optional: CommitOptions & Pick<CommitExportArgs, 'folder'> = {}): Promise<PreviewCommitExportResult> {
+  const input = { ...required, ...optional };
+  const error = validateCommitTarget(required, optional) ?? folderError(input);
   if (error) return { ok: false, code: 'INVALID_CONFIG', message: error };
-  const exported = await exportForCommit(required);
+  const exported = await exportForCommit(input);
   if (!exported.ok) return exported;
-  return { ok: true, fileCount: exported.files.length, totalBytes: exported.files.reduce((sum, file) => sum + Buffer.byteLength(file.data), 0), paths: exported.files.map(file => prefixRepositoryPath({ folder: required.folder, path: file.path })).sort().slice(0, 50) };
+  return { ok: true, fileCount: exported.files.length, totalBytes: exported.files.reduce((sum, file) => sum + Buffer.byteLength(file.data), 0), paths: exported.files.map(file => prefixRepositoryPath({ path: file.path }, { folder: input.folder })).sort().slice(0, 50) };
 }
 
 const PROVIDER_FAILURE_CODES = { 'repository-not-found': 'REPOSITORY_NOT_FOUND', 'no-changes': 'NO_CHANGES', diverged: 'DIVERGED_BRANCH', 'network-unreachable': 'NETWORK_UNREACHABLE', 'provider-error': 'PROVIDER_ERROR' } as const;
@@ -73,7 +74,7 @@ async function resolveProviderCredential(required: CommitOrchestrationArgs): Pro
 async function commitExportedFiles(required: { args: CommitOrchestrationArgs; token: string; files: CommitFile[] }, optional: CommitOptions): Promise<SourceControlCommitOutcome> {
   const { args, token, files } = required;
   try {
-    const folder = normalizeRepositoryFolder(args);
+    const folder = normalizeRepositoryFolder({}, { folder: args.folder });
     const result = await args.adapter.commitSite({ token, owner: args.owner, repo: args.repo, commitMessage: args.commitMessage, files, ...(folder ? { folder } : {}) }, optional.branch !== undefined ? { branch: optional.branch } : {});
     if (!result.ok) return { ok: false, code: PROVIDER_FAILURE_CODES[result.code], message: result.message };
     return { ...result, owner: args.owner, repo: args.repo, divergedPaths: result.divergedPaths ?? [] };
@@ -81,12 +82,13 @@ async function commitExportedFiles(required: { args: CommitOrchestrationArgs; to
 }
 
 /** Resolve one provider's credential, export into an isolated host-owned directory and commit once. */
-export async function commitSiteToSourceControl(required: CommitOrchestrationArgs, optional: CommitOptions = {}): Promise<SourceControlCommitOutcome> {
-  const configError = validateCommitTarget(required, optional) ?? folderError(required, { committing: true });
+export async function commitSiteToSourceControl(required: Omit<CommitOrchestrationArgs, 'folder' | 'supportsFolder'>, optional: CommitOptions & Pick<CommitOrchestrationArgs, 'folder' | 'supportsFolder'> = {}): Promise<SourceControlCommitOutcome> {
+  const input = { ...required, ...optional };
+  const configError = validateCommitTarget(required, optional) ?? folderError(input, { committing: true });
   if (configError) return { ok: false, code: 'INVALID_CONFIG', message: configError };
-  const resolved = await resolveProviderCredential(required);
+  const resolved = await resolveProviderCredential(input);
   if (!resolved.ok) return resolved;
-  const exported = await exportForCommit(required);
+  const exported = await exportForCommit(input);
   if (!exported.ok) return exported;
-  return commitExportedFiles({ args: required, token: resolved.credential.token, files: exported.files }, optional);
+  return commitExportedFiles({ args: input, token: resolved.credential.token, files: exported.files }, optional);
 }

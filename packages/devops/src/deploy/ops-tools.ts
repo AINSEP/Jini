@@ -74,7 +74,7 @@ async function observationHandler({ deps, input, name }: { deps: DeployOpsRuntim
   if (name === deps.toolIds.logs) return await runDeployOps({deps,input:{ ...args, limit: integer(input, "limit", 100, 1, 500) },operation:"logs"}, {signal});
   if (name === deps.toolIds.status) return await runDeployOps({deps,input:args,operation:"status"}, {signal});
   if (input.until !== "healthy" && input.until !== "finished") throw new ToolInputError({ message: "until must be 'healthy' or 'finished'." });
-  return await waitForDeployOps({ status: signal => runDeployOps({deps,input:args,operation:"status"}, {signal}), clock: deps.waitClock, initial: { platform: args.platform, target: args.target, state: "unknown", summary: "No status received before timeout.", items: [], checkedAt: nowIso({ clock: deps.clock }) } }, { until: input.until, timeoutSeconds: integer(input, "timeoutSeconds", 180, 10, MAX_WAIT_SECONDS), signal });
+  return await waitForDeployOps({ status: signal => runDeployOps({deps,input:args,operation:"status"}, {signal}), until: input.until }, { timeoutSeconds: integer(input, "timeoutSeconds", 180, 10, MAX_WAIT_SECONDS), signal, clock: deps.waitClock, initial: { platform: args.platform, target: args.target, state: "unknown", summary: "No status received before timeout.", items: [], checkedAt: nowIso({ clock: deps.clock }) } });
 }
 
 /** Permission precedes any plugin/credential read. Handler input validation is independent of the schema. */

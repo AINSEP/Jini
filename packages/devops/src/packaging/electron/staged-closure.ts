@@ -83,7 +83,8 @@ function resolveEdge(required: { file: string; specifier: string; kind: 'import'
  * @throws on an invalid scan root, escaping package link, or a parser without runtime references.
  * @complexity O(files + edges × Node resolution cost); each reached file is parsed once.
  */
-export function auditStagedClosure(input: StagedClosureInput, _options: Record<string, never> = {}): StagedClosureAudit {
+export function auditStagedClosure(required: Omit<StagedClosureInput, 'packageRoots' | 'hostModules'>, optional: Pick<StagedClosureInput, 'packageRoots' | 'hostModules'> = {}): StagedClosureAudit {
+  const input = { ...required, ...optional };
   if (!input.imports.references) throw new Error('staged closure requires an AST runtime-reference reader');
   const root = input.fs.realpath({ path: input.root });
   const queue = [...new Set([...input.scan.flatMap(directory => codeFiles({ directory, root, fs: input.fs })),

@@ -77,7 +77,7 @@ const nextStep = (deps:DeployOpsRuntime, platform: LoadedDeployOps, target: stri
 export async function runListSecrets(required: { deps: DeployOpsRuntime; input: SecretTargetInput }, optional: { signal?: AbortSignal | undefined } = {}) {
   const { deps, input } = required; const { signal } = optional;
   const platform = await secretsPlatform(deps, input.platform, signal);
-  const ctx = await boundContext({deps,platform,explicit:input.credentialLabel}, {signal});
+  const ctx = await boundContext({ deps, platform }, { signal, explicit:input.credentialLabel });
   const listed = await listNormalized(platform, ctx, input.target);
   return { platform: input.platform, target: input.target, ...listed, ...applies(platform) };
 }
@@ -156,7 +156,7 @@ export async function runSetSecret(required: { deps: DeployOpsRuntime; input: Se
   const platform = await secretsPlatform(deps, input.platform, signal);
   validateSetInput(platform, input);
   const siteKey = input.source.kind === "site-key" ? requireSiteKey(deps) : undefined;
-  const ctx = await boundContext({deps,platform,explicit:input.credentialLabel}, {signal});
+  const ctx = await boundContext({ deps, platform }, { signal, explicit:input.credentialLabel });
   const value = await resolveValue({ deps, platform, ctx, input, siteKey }, { typedValue: optional.typedValue });
   const comparison = await compareCurrent(platform, ctx, input, value, signal);
   const source = describeSource({ source: input.source }, {});
@@ -193,7 +193,7 @@ export async function runUnsetSecret(required: { deps: DeployOpsRuntime; input: 
   const { deps, input } = required; const { signal, confirm } = optional;
   const platform = await secretsPlatform(deps, input.platform, signal);
   requireName(input.name);
-  const ctx = await boundContext({deps,platform,explicit:input.credentialLabel}, {signal,allowDelete:true});
+  const ctx = await boundContext({ deps, platform }, { signal, allowDelete:true, explicit:input.credentialLabel });
   const listed = await listNormalized(platform, ctx, input.target);
   const base = { platform: input.platform, target: input.target, name: input.name, ...applies(platform) };
   if (!listed.truncated && !listed.secrets.some(s => s.name === input.name)) return { ...base, removed: false, deployNeeded: false, summary: `'${input.name}' is not set on '${input.target}'; nothing was removed.` };

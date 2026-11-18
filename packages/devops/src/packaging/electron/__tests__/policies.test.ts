@@ -3,7 +3,7 @@ import { test } from 'vitest';
 import { treeQuietProblems, isBundleInput, shellStalenessFailure, parseNpmLsPaths, prebuildTarget, resolveTargets, resolveNpmLsCommand, strippableReason } from '../policies.js';
 test('quiet, watcher, dirty and moving signals remain distinct; fresh checkout mtimes are irrelevant', () => {
   assert.deepEqual(treeQuietProblems({ watcherRunning: false, surface: 'shell' }), []);
-  const problems = treeQuietProblems({ watcherRunning: true, surface: 'shell', gitDirtyPaths: ['src/foo.js'], movingPaths: ['dist'] });
+  const problems = treeQuietProblems({ watcherRunning: true, surface: 'shell' }, { gitDirtyPaths: ['src/foo.js'], movingPaths: ['dist'] });
   assert.equal(problems.length, 3); assert.match(problems[0]!, /watch/); assert.match(problems[1]!, /src\/foo.js/); assert.match(problems[2]!, /dist/);
 });
 test('twelve-day-stale bundle is refused with the caller remedy; zero/newer/equal timestamps defer or pass', () => {
