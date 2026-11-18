@@ -55,6 +55,8 @@ export { I18nProvider, useI18n, useT, type I18nContextValue, type TranslationDic
 export { SrcDocSandbox, type SrcDocSandboxProps } from './react/components/SrcDocSandbox.js';
 export {
   ArtifactView,
+  defaultArtifactViewHooks,
+  type ArtifactViewHooks,
   type ArtifactViewProps,
   type ArtifactViewSlot,
   type ArtifactViewSlotProps,
