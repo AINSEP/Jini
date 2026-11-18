@@ -25,3 +25,12 @@ describe('a password with @ inside a database connection URL', () => {
     expect(redactUserText({ text })).toEqual(kept(text));
   });
 });
+
+describe('a URL query parameter whose name only ends in "code"', () => {
+  it.each(['https://x.test/a?zipcode=90210', 'https://x.test/a?promo_code=SAVE10&page=2', 'https://x.test/a?error_code=42'])('keeps %j', text => {
+    expect(redactUserText({ text })).toEqual(kept(text));
+  });
+  it('still removes an OAuth callback code', () => {
+    expect(redactUserText({ text: 'https://x.test/cb?code=abc&state=1' })).toEqual({ text: 'https://x.test/cb?code=[token removed]&state=1', secretRedacted: true, count: 1 });
+  });
+});

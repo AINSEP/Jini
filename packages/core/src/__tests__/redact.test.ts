@@ -306,7 +306,8 @@ describe('@jini-ai/core — redact — redactSecrets', () => {
     },
   );
 
-  it.each(['?sessionKey', '?authtoken', '?zipcode', '?x_pwd', '?keys'])('masks names whose segment ends in a secret word: %s', (name) => {
+  // `?zipcode` moved to redact.url-code-param.test.ts: `code` is no longer a secret word, only the exact name is.
+  it.each(['?sessionKey', '?authtoken', '?x_pwd', '?keys'])('masks names whose segment ends in a secret word: %s', (name) => {
     expect(redactSecrets({ input: `https://example.com/${name}=v1&page=2` }))
       .toBe(`https://example.com/${name}=[REDACTED:url_secret_param]&page=2`);
   });

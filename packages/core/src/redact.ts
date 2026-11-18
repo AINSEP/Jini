@@ -396,9 +396,11 @@ const SIGNED_QUERY_RE = /([?&](?:signature|sig|x-amz-signature|x-goog-signature|
 // monkey) are masked too; over-masking a URL value is the cheaper failure. Empty values stay.
 // Match through a trailing fragment; field separators (&/;), quotes, parentheses or whitespace end it.
 // Both name runs are bounded so a long separator-free run costs linear time, not quadratic.
-const URL_SECRET_WORDS = 'token|key|secret|signature|sig|code|password|passwd|pwd|auth|authorization|credential';
+// `code` is deliberately not a word: postal, promo and error codes (zipcode, promo_code) end in it and are
+// not credentials. Only the exact name `code` (an OAuth authorization code) is masked, as its own alternative.
+const URL_SECRET_WORDS = 'token|key|secret|signature|sig|password|passwd|pwd|auth|authorization|credential';
 const URL_SECRET_PARAM_RE = new RegExp(
-  `[?&#;]([\\w.-]{0,128}?(?:${URL_SECRET_WORDS})s?(?=[._=-])[\\w.-]{0,128})=[^&;\\s"'<>()]+`,
+  `[?&#;](code(?==)|[\\w.-]{0,128}?(?:${URL_SECRET_WORDS})s?(?=[._=-])[\\w.-]{0,128})=[^&;\\s"'<>()]+`,
   'gi',
 );
 // A parameter the labeled rule already names (password, client_secret, ...) keeps that category.
