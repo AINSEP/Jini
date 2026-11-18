@@ -1,49 +1,63 @@
 import { expect, it } from 'vitest';
-import type { Request, Response } from 'express';
 import { createFrontendGuestScope } from '../frontend-guest-scope.js';
+import type { FrontendHookInput } from '../frontend-hook-input.js';
+
+/** A hook input over a fake of the one `Headers` method the scope reads (a real `Headers` refuses the non-Latin-1 text one test sends). */
+const input = ({ cookie = '', tab = '', origin = 'same' }: { cookie?: string; tab?: string; origin?: string } = {}): FrontendHookInput => ({
+  request: { method: 'GET', headers: { get: (name: string) => ({ cookie, 'x-frontend-tab': tab, origin })[name] ?? null } as unknown as Headers },
+  locals: {},
+});
+/** The cookie value out of `Set-Cookie` text. */
+const cookieOf = (setCookie: string): string => decodeURIComponent(setCookie.split(';')[0]!);
 
 it('rejects same-character-count non-ASCII signatures in guest cookies and tab credentials without throwing', async () => {
-  const scope = createFrontendGuestScope({ workspaceId: 'site', cookieName: 'visitor', cookiePath: '/public', allowsRequest: async () => true });
-  let cookie = '';
-  const request = (value = '', tab = '') => ({ secure: true, get: (name: string) => ({ cookie: value, 'x-frontend-tab': tab }[name]) }) as Request;
-  const res = { cookie: (_name: string, value: string) => { cookie = `visitor=${value}`; }, setHeader() {} } as unknown as Response;
-  const issued = await scope.issue({ req: request(), res });
+  const scope = createFrontendGuestScope({ workspaceId: 'site', cookieName: 'visitor', cookiePath: '/public', allowsRequest: async () => true, isSecureRequest: () => true });
+  const issued = await scope.issue(input());
   expect(issued).not.toBeNull();
+  const cookie = cookieOf(issued!.setCookie);
   const [payload, signature] = issued!.tabCredential.split('.');
   expect(signature).toHaveLength(43);
   // These all retain the HMAC's JS string length but encode to a different UTF-8 byte length.
   for (const character of ['é', '中', '\ud800']) {
     const malformed = `${payload}.${character}${signature!.slice(1)}`;
-    await expect(scope.resolveOwner({ req: request(cookie, malformed) })).resolves.toBeNull();
+    await expect(scope.resolveOwner(input({ cookie, tab: malformed }))).resolves.toBeNull();
     const badCookie = `visitor=${cookie.slice('visitor='.length).split('.')[0]}.${character}${signature!.slice(1)}`;
-    await expect(scope.resolveGuest({ req: request(badCookie) })).resolves.toBeUndefined();
-    await expect(scope.resolveOwner({ req: request(badCookie, issued!.tabCredential) })).resolves.toBeNull();
-    await expect(scope.issue({ req: request(badCookie), res })).resolves.toHaveProperty('tabCredential');
+    await expect(scope.resolveGuest(input({ cookie: badCookie }))).resolves.toBeUndefined();
+    await expect(scope.resolveOwner(input({ cookie: badCookie, tab: issued!.tabCredential }))).resolves.toBeNull();
+    await expect(scope.issue(input({ cookie: badCookie }))).resolves.toHaveProperty('tabCredential');
   }
 });
 
 it('guest and tab credentials are independently minted, scoped, expiring and origin-gated', async () => {
   let now = 100; const cookies: string[] = [];
-  const scope = createFrontendGuestScope({ workspaceId: 'site', cookieName: 'visitor', cookiePath: '/public', allowsRequest: async ({ req }) => req.get('origin') === 'same' }, { now: () => now, lifetimeMs: 10 });
-  const request = (cookie = '', tab = '', origin = 'same') => ({ secure: true, get: (name: string) => ({ cookie, 'x-frontend-tab': tab, origin }[name]) }) as Request;
-  const res = { cookie: (_name: string, value: string, options: { httpOnly: boolean; secure: boolean; sameSite: string }) => {
-    expect(options).toMatchObject({ httpOnly: true, secure: true, sameSite: 'strict' }); cookies.push(`visitor=${value}`);
-  }, setHeader() {} } as unknown as Response;
-  const first = await scope.issue({ req: request(), res });
+  const scope = createFrontendGuestScope({ workspaceId: 'site', cookieName: 'visitor', cookiePath: '/public', allowsRequest: async ({ request }) => request.headers.get('origin') === 'same', isSecureRequest: () => true }, { now: () => now, lifetimeMs: 10 });
+  const issue = async (cookie = '') => { const issued = await scope.issue(input({ cookie })); cookies.push(cookieOf(issued!.setCookie)); return issued; };
+  const first = await issue();
   const firstCookie = cookies.at(-1)!;
-  const second = await scope.issue({ req: request(firstCookie), res });
-  const owner = await scope.resolveOwner({ req: request(firstCookie, first!.tabCredential) });
-  const next = await scope.resolveOwner({ req: request(firstCookie, second!.tabCredential) });
+  const second = await issue(firstCookie);
+  const owner = await scope.resolveOwner(input({ cookie: firstCookie, tab: first!.tabCredential }));
+  const next = await scope.resolveOwner(input({ cookie: firstCookie, tab: second!.tabCredential }));
   expect(owner?.principalId).toBe(next?.principalId);
   expect(owner?.tabId).not.toBe(next?.tabId);
-  expect(await scope.resolveOwner({ req: request(`visitor=${first!.tabCredential}`, first!.tabCredential) })).toBeNull();
-  expect(await scope.resolveOwner({ req: request(firstCookie, firstCookie.slice('visitor='.length)) })).toBeNull();
-  await scope.issue({ req: request(`visitor=${first!.tabCredential}`), res });
+  expect(await scope.resolveOwner(input({ cookie: `visitor=${first!.tabCredential}`, tab: first!.tabCredential }))).toBeNull();
+  expect(await scope.resolveOwner(input({ cookie: firstCookie, tab: firstCookie.slice('visitor='.length) }))).toBeNull();
+  await issue(`visitor=${first!.tabCredential}`);
   expect(cookies.at(-1)).not.toBe(firstCookie);
-  await scope.issue({ req: request(), res });
-  expect(await scope.resolveOwner({ req: request(cookies.at(-1), first!.tabCredential) })).toBeNull();
-  expect(await scope.resolveOwner({ req: request(firstCookie, first!.tabCredential, 'cross') })).toBeNull();
-  expect(await scope.resolveOwner({ req: request(firstCookie, first!.tabCredential + 'forged') })).toBeNull();
+  await issue();
+  expect(await scope.resolveOwner(input({ cookie: cookies.at(-1)!, tab: first!.tabCredential }))).toBeNull();
+  expect(await scope.resolveOwner(input({ cookie: firstCookie, tab: first!.tabCredential, origin: 'cross' }))).toBeNull();
+  expect(await scope.resolveOwner(input({ cookie: firstCookie, tab: first!.tabCredential + 'forged' }))).toBeNull();
   now += 11;
-  expect(await scope.resolveOwner({ req: request(firstCookie, first!.tabCredential) })).toBeNull();
+  expect(await scope.resolveOwner(input({ cookie: firstCookie, tab: first!.tabCredential }))).toBeNull();
+});
+
+it('hands the host\'s own answer for "is this HTTPS" to the cookie, and never leaks the cookie into what the caller sends back', async () => {
+  const seen: FrontendHookInput[] = [];
+  for (const secure of [true, false]) {
+    const scope = createFrontendGuestScope({ workspaceId: 'site', cookieName: 'visitor', cookiePath: '/public', allowsRequest: async () => true, isSecureRequest: (hook) => { seen.push(hook); return secure; } }, { now: () => 1_700_000_000_000, lifetimeMs: 30 * 60_000 });
+    const issued = await scope.issue(input());
+    expect(issued!.setCookie).toMatch(new RegExp(`^visitor=[A-Za-z0-9_.%-]+; Max-Age=1800; Path=/public; Expires=Tue, 14 Nov 2023 22:43:20 GMT; HttpOnly;${secure ? ' Secure;' : ''} SameSite=Strict$`));
+    expect(issued!.tabCredential).not.toContain(issued!.setCookie.split(';')[0]!.slice('visitor='.length));
+  }
+  expect(seen).toHaveLength(2);
 });
