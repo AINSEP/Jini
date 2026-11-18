@@ -223,10 +223,10 @@ interface ParsedProxyCommon {
 
 /** The required shared fields, in the order `parseCommon` reports them. */
 function firstRequiredFieldError(body: Record<string, unknown>): ApiError | undefined {
-  if (!nonEmptyString(body.apiKey)) return requiredFieldError('apiKey', 'apiKey must be a non-empty string', 'required non-empty string');
-  if (!nonEmptyString(body.model)) return requiredFieldError('model', 'model must be a non-empty string', 'required non-empty string');
+  if (!nonEmptyString(body.apiKey)) return requiredFieldError({ path: 'apiKey', message: 'apiKey must be a non-empty string', issue: 'required non-empty string' });
+  if (!nonEmptyString(body.model)) return requiredFieldError({ path: 'model', message: 'model must be a non-empty string', issue: 'required non-empty string' });
   if (!Array.isArray(body.messages) || body.messages.length === 0) {
-    return requiredFieldError('messages', 'messages must be a non-empty array', 'required non-empty array');
+    return requiredFieldError({ path: 'messages', message: 'messages must be a non-empty array', issue: 'required non-empty array' });
   }
   return undefined;
 }
@@ -254,14 +254,14 @@ function firstRequiredFieldError(body: Record<string, unknown>): ApiError | unde
  */
 function parseCommon(body: unknown): Result<ParsedProxyCommon> {
   if (!isRecord(body)) return err({ error: validationError({ message: 'body must be a JSON object' }) });
-  const error = firstRequiredFieldError(body) ?? firstOptionalFieldError(body, COMMON_OPTIONAL_CHECKS);
+  const error = firstRequiredFieldError(body) ?? firstOptionalFieldError({ record: body, checks: COMMON_OPTIONAL_CHECKS });
   if (error) return err({ error });
   return ok({
     value: {
       apiKey: body.apiKey as string,
       model: body.model as string,
       messages: body.messages as unknown[],
-      ...(pickDefined(body, COMMON_OPTIONAL_CHECKS.map(([field]) => field)) as Partial<ParsedProxyCommon>),
+      ...(pickDefined({ source: body, keys: COMMON_OPTIONAL_CHECKS.map(([field]) => field) }) as Partial<ParsedProxyCommon>),
     },
   });
 }
@@ -271,9 +271,9 @@ function extendParsed<Parsed extends ParsedProxyCommon>(
   { base, record, checks }: { readonly base: ParsedProxyCommon; readonly record: Record<string, unknown>; readonly checks: readonly OptionalFieldCheck[] },
   { required = {} }: { readonly required?: Partial<Parsed> } = {},
 ): Result<Parsed> {
-  const error = firstOptionalFieldError(record, checks);
+  const error = firstOptionalFieldError({ record, checks });
   if (error) return err({ error });
-  const optional = pickDefined(record, checks.map(([field]) => field)) as Partial<Parsed>;
+  const optional = pickDefined({ source: record, keys: checks.map(([field]) => field) }) as Partial<Parsed>;
   return ok({ value: { ...base, ...required, ...optional } as Parsed });
 }
 
@@ -299,7 +299,7 @@ function parseAnthropicProxyRequest(body: unknown): Result<ParsedAnthropicProxyR
   if (!common.ok) return common;
   const record = body as Record<string, unknown>;
   if (!isPositiveFiniteNumber(record.maxTokens)) {
-    return err({ error: requiredFieldError('maxTokens', 'maxTokens must be a positive number', 'required positive number') });
+    return err({ error: requiredFieldError({ path: 'maxTokens', message: 'maxTokens must be a positive number', issue: 'required positive number' }) });
   }
   return extendParsed<ParsedAnthropicProxyRequest>({ base: common.value, record, checks: ANTHROPIC_OPTIONAL_CHECKS }, { required: { maxTokens: record.maxTokens } });
 }
@@ -341,11 +341,11 @@ function parseAzureProxyRequest(body: unknown): Result<ParsedAzureProxyRequest> 
   // Truthiness only, unlike `apiVersion`'s trim check: a whitespace-only baseUrl passes here and
   // fails inside the turn-runner instead (pinned as "reported, not fixed").
   if (!baseUrl) {
-    return err({ error: requiredFieldError('baseUrl', 'baseUrl must be a non-empty string', 'required non-empty string') });
+    return err({ error: requiredFieldError({ path: 'baseUrl', message: 'baseUrl must be a non-empty string', issue: 'required non-empty string' }) });
   }
   const apiVersion = nonEmptyString(record.apiVersion);
   if (!apiVersion) {
-    return err({ error: requiredFieldError('apiVersion', 'apiVersion must be a non-empty string', 'required non-empty string') });
+    return err({ error: requiredFieldError({ path: 'apiVersion', message: 'apiVersion must be a non-empty string', issue: 'required non-empty string' }) });
   }
   return extendParsed<ParsedAzureProxyRequest>({ base: common.value, record, checks: [TOOLS_CHECK] }, { required: { baseUrl, apiVersion } });
 }
@@ -508,7 +508,7 @@ function buildProxyProviderRegistry(deps: ModelProxyHttpDeps): Record<string, Pr
         runAnthropicToolTurn(
           { apiKey: parsed.apiKey, model: parsed.model, maxTokens: parsed.maxTokens, messages: parsed.messages as unknown as readonly AnthropicMessageParam[], onEvent },
           {
-            ...pickDefined(parsed, ['baseUrl', 'apiVersion', 'system', 'temperature', 'maxToolTurns', 'extraHeaders']),
+            ...pickDefined({ source: parsed, keys: ['baseUrl', 'apiVersion', 'system', 'temperature', 'maxToolTurns', 'extraHeaders'] }),
             ...toolsOption<AnthropicToolDef>(parsed.tools),
             ...transportOptions(deps),
             ...(deps.anthropicExecuteTool ? { executeTool: (call: AnthropicToolCall): Promise<AnthropicToolResult> => deps.anthropicExecuteTool!(call) } : {}),
@@ -521,7 +521,7 @@ function buildProxyProviderRegistry(deps: ModelProxyHttpDeps): Record<string, Pr
         runOpenAiToolTurn(
           { apiKey: parsed.apiKey, model: parsed.model, messages: parsed.messages as unknown as readonly OpenAiMessageParam[], onEvent },
           {
-            ...pickDefined(parsed, ['baseUrl', 'temperature', 'maxTokens', 'maxToolTurns', 'extraHeaders']),
+            ...pickDefined({ source: parsed, keys: ['baseUrl', 'temperature', 'maxTokens', 'maxToolTurns', 'extraHeaders'] }),
             ...toolsOption<OpenAiFunctionToolDef>(parsed.tools),
             ...transportOptions(deps),
             ...(deps.openaiExecuteTool ? { executeTool: (call: OpenAiToolCall): Promise<OpenAiToolResult> => deps.openaiExecuteTool!(call) } : {}),
@@ -535,7 +535,7 @@ function buildProxyProviderRegistry(deps: ModelProxyHttpDeps): Record<string, Pr
           { apiKey: parsed.apiKey, baseUrl: parsed.baseUrl, model: parsed.model, messages: parsed.messages as unknown as readonly AzureMessageParam[], onEvent },
           {
             apiVersion: parsed.apiVersion,
-            ...pickDefined(parsed, ['temperature', 'maxTokens', 'maxToolTurns', 'extraHeaders']),
+            ...pickDefined({ source: parsed, keys: ['temperature', 'maxTokens', 'maxToolTurns', 'extraHeaders'] }),
             ...toolsOption<AzureFunctionToolDef>(parsed.tools),
             ...transportOptions(deps),
             ...(deps.azureExecuteTool ? { executeTool: (call: AzureToolCall): Promise<AzureToolResult> => deps.azureExecuteTool!(call) } : {}),
@@ -548,7 +548,7 @@ function buildProxyProviderRegistry(deps: ModelProxyHttpDeps): Record<string, Pr
         runGoogleToolTurn(
           { apiKey: parsed.apiKey, model: parsed.model, contents: parsed.messages as unknown as readonly GoogleContent[], onEvent },
           {
-            ...pickDefined(parsed, ['baseUrl', 'system', 'temperature', 'maxOutputTokens', 'maxToolTurns', 'extraHeaders']),
+            ...pickDefined({ source: parsed, keys: ['baseUrl', 'system', 'temperature', 'maxOutputTokens', 'maxToolTurns', 'extraHeaders'] }),
             ...toolsOption<GoogleToolDef>(parsed.tools),
             ...transportOptions(deps),
             ...(deps.googleExecuteTool ? { executeTool: (call: GoogleToolCall): Promise<GoogleToolResult> => deps.googleExecuteTool!(call) } : {}),
@@ -561,7 +561,7 @@ function buildProxyProviderRegistry(deps: ModelProxyHttpDeps): Record<string, Pr
         runOllamaToolTurn(
           { apiKey: parsed.apiKey, model: parsed.model, messages: parsed.messages as unknown as readonly OllamaMessageParam[], onEvent },
           {
-            ...pickDefined(parsed, ['baseUrl', 'temperature', 'maxTokens', 'maxToolTurns', 'extraHeaders']),
+            ...pickDefined({ source: parsed, keys: ['baseUrl', 'temperature', 'maxTokens', 'maxToolTurns', 'extraHeaders'] }),
             ...toolsOption<OllamaFunctionToolDef>(parsed.tools),
             ...transportOptions(deps),
             ...(deps.ollamaExecuteTool ? { executeTool: (call: OllamaToolCall): Promise<OllamaToolResult> => deps.ollamaExecuteTool!(call) } : {}),

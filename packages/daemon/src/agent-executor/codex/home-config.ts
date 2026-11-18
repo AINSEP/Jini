@@ -32,7 +32,7 @@ function tomlString(value: string): string {
 }
 
 /** A TOML key: bare when TOML allows it, quoted otherwise — host-supplied bridge env names are not guaranteed bare-safe. */
-export function tomlKey(key: string): string {
+export function tomlKey({ key }: { key: string }, _optional: Record<string, never> = {}): string {
   return /^[A-Za-z0-9_-]+$/.test(key) ? key : tomlString(key);
 }
 
@@ -71,7 +71,7 @@ export function buildCodexMcpServerToml({ entry, toolApprovalOwner }: { readonly
     `tool_timeout_sec = ${CODEX_TOOL_TIMEOUT_SEC}\n${approval}`;
   const envLines = Object.entries(entry.env)
     .filter((pair): pair is [string, string] => typeof pair[1] === 'string')
-    .map(([key, value]) => `${tomlKey(key)} = ${tomlString(value)}`);
+    .map(([key, value]) => `${tomlKey({ key })} = ${tomlString(value)}`);
   if (envLines.length === 0) return serverTable;
   return `${serverTable}\n[mcp_servers.${JINI_MCP_SERVER_KEY}.env]\n${envLines.join('\n')}\n`;
 }

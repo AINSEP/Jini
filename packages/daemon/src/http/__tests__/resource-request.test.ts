@@ -10,11 +10,11 @@ import { denyAllWorkspaceRoots, type WorkspaceRootResolver } from '../workspace-
 
 describe('isRecord', () => {
   it('accepts a plain object', () => {
-    expect(isRecord({ a: 1 })).toBe(true);
+    expect(isRecord({ value: { a: 1 } })).toBe(true);
   });
 
   it.each([[null], [[]], ['x'], [1], [undefined]])('rejects %j', (value) => {
-    expect(isRecord(value)).toBe(false);
+    expect(isRecord({ value })).toBe(false);
   });
 });
 

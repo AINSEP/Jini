@@ -30,7 +30,7 @@ export async function createKernelSqliteEventLog<DB extends SqliteEventLogDataba
   optional: SqliteEventLogOptions = {},
 ): Promise<SqliteEventLogWithReceipts> {
   const { kernel, clock } = required;
-  const maxEntriesPerRun = resolveMaxEntriesPerRun(optional.maxEntriesPerRun);
+  const maxEntriesPerRun = resolveMaxEntriesPerRun({ value: optional.maxEntriesPerRun });
   if (!kernel || kernel.dialect !== 'sqlite' || kernel.transport !== 'better-sqlite3') {
     throw new Error('createKernelSqliteEventLog: pass a SQLite better-sqlite3 kernel');
   }
@@ -50,7 +50,7 @@ export async function createKernelSqliteEventLog<DB extends SqliteEventLogDataba
     },
     async replay({ runId, afterCursor }: { runId: string; afterCursor: string | null }): Promise<EventLogReplayResult> {
       // Validate even when the run is unknown, matching the synchronous adapter.
-      assertValidReplayCursor(afterCursor);
+      assertValidReplayCursor({ afterCursor });
       // One statement for all three reads: another process cannot evict between the gap check
       // and the entry read, which would otherwise return a gap reported as ok. A statement, not a
       // transaction, so replay works on read-only kernels and inside a host's run() body.

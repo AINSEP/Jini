@@ -6,7 +6,7 @@ import { isRecord } from '../values.js';
 export class CodexMcpIsolationError extends Error {}
 
 /** The user-facing refusal for a {@link CodexMcpIsolationError} reason. */
-export function codexIsolationRefusalMessage(reason: string): string {
+export function codexIsolationRefusalMessage({ reason }: { reason: string }, _optional: Record<string, never> = {}): string {
   return `Codex can't run with 'Your MCP servers' off: ${reason} Turn it on in the assistant settings, or choose Claude.`;
 }
 
@@ -61,7 +61,8 @@ export function assertStagedHomeIsolated({ homeConfig, path }: { readonly homeCo
   } catch {
     throw refusal;
   }
-  const ids = isRecord(config.mcp_servers) ? Object.keys(config.mcp_servers) : [];
+  const servers = { value: config.mcp_servers };
+  const ids = isRecord(servers) ? Object.keys(servers.value) : [];
   if (ids.some(id => id !== JINI_MCP_SERVER_KEY)) throw refusal;
   assertTrustsNoProject(config, path);
 }

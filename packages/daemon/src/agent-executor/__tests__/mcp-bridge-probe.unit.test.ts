@@ -141,12 +141,12 @@ describe('bridgeUnavailableMessage', () => {
   const original = 'The assistant\'s tools did not load (MCP bridge "jini" status: failed). The run was stopped instead of continuing without them.';
   const failed = { ok: false, exitCode: 1, signal: null, stderrTail: `preamble\n${missingSdk}\nstack frame`, elapsedMs: 2 };
   it('keeps the existing message without a probe or when probing succeeds', () => {
-    expect(bridgeUnavailableMessage('failed')).toBe(original);
-    expect(bridgeUnavailableMessage('failed', { ...failed, ok: true })).toBe(original);
+    expect(bridgeUnavailableMessage({ status: 'failed' })).toBe(original);
+    expect(bridgeUnavailableMessage({ status: 'failed' }, { probe: { ...failed, ok: true } })).toBe(original);
   });
   it('chooses the first Error line, falling back to the last stderr line', () => {
-    expect(bridgeUnavailableMessage('failed', failed)).toBe(`${original} Bridge exited with code 1: ${missingSdk}`);
-    expect(bridgeUnavailableMessage('failed', { ...failed, stderrTail: 'first\nlast\n' })).toBe(`${original} Bridge exited with code 1: last`);
+    expect(bridgeUnavailableMessage({ status: 'failed' }, { probe: failed })).toBe(`${original} Bridge exited with code 1: ${missingSdk}`);
+    expect(bridgeUnavailableMessage({ status: 'failed' }, { probe: { ...failed, stderrTail: 'first\nlast\n' } })).toBe(`${original} Bridge exited with code 1: last`);
   });
 });
 

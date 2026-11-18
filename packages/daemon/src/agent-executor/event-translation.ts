@@ -48,13 +48,14 @@ export function extractUsageTokens({ rawUsage }: { readonly rawUsage: Record<str
  * @overallScore 100/100
  */
 function translateUsagePayload({ rawEvent }: { rawEvent: Record<string, unknown> }): RunAgentPayload {
-  const rawUsage = isRecord(rawEvent.usage) ? rawEvent.usage : undefined;
+  const record = { value: rawEvent.usage };
+  const rawUsage = isRecord(record) ? record.value : undefined;
   const usage = extractUsageTokens({ rawUsage: rawUsage });
   const costUsd = asOptionalNumber(rawEvent.costUsd);
   const cumulativeCostUsd = asOptionalNumber(rawEvent.cumulativeCostUsd);
-  const costSessionId = asOptionalString(rawEvent.costSessionId);
+  const costSessionId = asOptionalString({ value: rawEvent.costSessionId });
   const durationMs = asOptionalNumber(rawEvent.durationMs);
-  const stopReason = asOptionalString(rawEvent.stopReason);
+  const stopReason = asOptionalString({ value: rawEvent.stopReason });
   return {
     type: 'usage',
     ...(usage !== undefined ? { usage } : {}),
@@ -67,15 +68,15 @@ function translateUsagePayload({ rawEvent }: { rawEvent: Record<string, unknown>
 }
 
 export function translateStatusEvent({ rawEvent }: { readonly rawEvent: Record<string, unknown> }): AgentRuntimeEventTranslation {
-  const model = asOptionalString(rawEvent.model);
+  const model = asOptionalString({ value: rawEvent.model });
   const ttftMs = asOptionalNumber(rawEvent.ttftMs);
-  const detail = asOptionalString(rawEvent.detail);
-  const sessionId = asOptionalString(rawEvent.sessionId);
+  const detail = asOptionalString({ value: rawEvent.detail });
+  const sessionId = asOptionalString({ value: rawEvent.sessionId });
   return {
     kind: 'agent',
     payload: {
       type: 'status',
-      label: asString(rawEvent.label, 'unknown'),
+      label: asString({ value: rawEvent.label }, { fallback: 'unknown' }),
       ...(model !== undefined ? { model } : {}),
       ...(ttftMs !== undefined ? { ttftMs } : {}),
       ...(detail !== undefined ? { detail } : {}),
@@ -86,7 +87,7 @@ export function translateStatusEvent({ rawEvent }: { readonly rawEvent: Record<s
 }
 
 function translateTextDeltaEvent(rawEvent: Record<string, unknown>): AgentRuntimeEventTranslation {
-  return { kind: 'agent', payload: { type: 'text_delta', delta: asString(rawEvent.delta) } };
+  return { kind: 'agent', payload: { type: 'text_delta', delta: asString({ value: rawEvent.delta }) } };
 }
 
 function translateThinkingStartEvent(): AgentRuntimeEventTranslation {
@@ -94,20 +95,21 @@ function translateThinkingStartEvent(): AgentRuntimeEventTranslation {
 }
 
 function translateThinkingDeltaEvent(rawEvent: Record<string, unknown>): AgentRuntimeEventTranslation {
-  return { kind: 'agent', payload: { type: 'thinking_delta', delta: asString(rawEvent.delta) } };
+  return { kind: 'agent', payload: { type: 'thinking_delta', delta: asString({ value: rawEvent.delta }) } };
 }
 
 function translateToolUseEvent(rawEvent: Record<string, unknown>): AgentRuntimeEventTranslation {
+  const bridgeCall = { value: rawEvent.bridgeCall };
   return {
     kind: 'agent',
     payload: {
       type: 'tool_use',
-      id: asString(rawEvent.id),
-      name: asString(rawEvent.name),
+      id: asString({ value: rawEvent.id }),
+      name: asString({ value: rawEvent.name }),
       input: rawEvent.input ?? null,
-      ...(isRecord(rawEvent.bridgeCall) && typeof rawEvent.bridgeCall.name === 'string'
-        ? { bridgeCall: { name: rawEvent.bridgeCall.name, input: rawEvent.bridgeCall.input,
-          ...(rawEvent.bridgeCall.buffered === true ? { buffered: true } : {}) } } : {}),
+      ...(isRecord(bridgeCall) && typeof bridgeCall.value.name === 'string'
+        ? { bridgeCall: { name: bridgeCall.value.name, input: bridgeCall.value.input,
+          ...(bridgeCall.value.buffered === true ? { buffered: true } : {}) } } : {}),
     },
   };
 }
@@ -117,22 +119,22 @@ function translateToolInputDeltaEvent(rawEvent: Record<string, unknown>): AgentR
     kind: 'agent',
     payload: {
       type: 'tool_input_delta',
-      id: asString(rawEvent.id),
-      name: asString(rawEvent.name),
-      delta: asString(rawEvent.delta),
+      id: asString({ value: rawEvent.id }),
+      name: asString({ value: rawEvent.name }),
+      delta: asString({ value: rawEvent.delta }),
     },
   };
 }
 
 export function translateToolResultEvent({ rawEvent }: { readonly rawEvent: Record<string, unknown> }): AgentRuntimeEventTranslation {
-  const delegatedToolUseId = asOptionalString(rawEvent.delegatedToolUseId);
+  const delegatedToolUseId = asOptionalString({ value: rawEvent.delegatedToolUseId });
   const isError = typeof rawEvent.isError === 'boolean' ? rawEvent.isError : undefined;
   return {
     kind: 'agent',
     payload: {
       type: 'tool_result',
-      toolUseId: asString(rawEvent.toolUseId),
-      content: asString(rawEvent.content),
+      toolUseId: asString({ value: rawEvent.toolUseId }),
+      content: asString({ value: rawEvent.content }),
       ...(delegatedToolUseId !== undefined ? { delegatedToolUseId } : {}),
       ...(isError !== undefined ? { isError } : {}),
     },
@@ -144,12 +146,12 @@ function translateUsageEvent(rawEvent: Record<string, unknown>): AgentRuntimeEve
 }
 
 function translateRawEvent(rawEvent: Record<string, unknown>): AgentRuntimeEventTranslation {
-  return { kind: 'agent', payload: { type: 'raw', line: asString(rawEvent.line) } };
+  return { kind: 'agent', payload: { type: 'raw', line: asString({ value: rawEvent.line }) } };
 }
 
 export function translateErrorEvent({ rawEvent }: { readonly rawEvent: Record<string, unknown> }): AgentRuntimeEventTranslation {
-  const code = asOptionalString(rawEvent.code);
-  const message = asString(rawEvent.message, 'Unknown agent error');
+  const code = asOptionalString({ value: rawEvent.code });
+  const message = asString({ value: rawEvent.message }, { fallback: 'Unknown agent error' });
   return {
     kind: 'error',
     payload: { message, ...(code !== undefined ? { error: { code, message } } : {}) },
@@ -161,7 +163,7 @@ export function translateTurnEndEvent({ rawEvent }: { readonly rawEvent: Record<
   // event (no RunAgentPayload variant represents it) — run() reacts to
   // it directly to close stdin (or, for gap 3, decide whether to inject
   // a tool result and keep it open instead). See module doc.
-  const stopReason = asOptionalString(rawEvent.stopReason);
+  const stopReason = asOptionalString({ value: rawEvent.stopReason });
   return { kind: 'turn-end', ...(stopReason !== undefined ? { stopReason } : {}) };
 }
 
@@ -209,11 +211,12 @@ const EVENT_TYPE_TRANSLATORS: Readonly<Record<string, (rawEvent: Record<string, 
  * @overallScore 100/100
  */
 export function translateAgentRuntimeEvent({ rawEvent }: { readonly rawEvent: unknown }): AgentRuntimeEventTranslation {
-  if (!isRecord(rawEvent) || typeof rawEvent.type !== 'string') {
+  const record = { value: rawEvent };
+  if (!isRecord(record) || typeof record.value.type !== 'string') {
     return { kind: 'ignored' };
   }
-  const translator = EVENT_TYPE_TRANSLATORS[rawEvent.type];
-  return translator ? translator(rawEvent) : { kind: 'ignored' };
+  const translator = EVENT_TYPE_TRANSLATORS[record.value.type];
+  return translator ? translator(record.value) : { kind: 'ignored' };
 }
 
 /**
@@ -221,11 +224,13 @@ export function translateAgentRuntimeEvent({ rawEvent }: { readonly rawEvent: un
  * ACP adapters may add a structured `error` member, but a daemon driver must
  * never make one vendor's error shape part of the run protocol.
  */
-export function translateAcpError(payload: unknown): RunErrorPayload {
-  if (!isRecord(payload)) return { message: asString(payload, 'ACP agent failed') };
-  const message = asString(payload.message, 'ACP agent failed');
-  const error = isRecord(payload.error) ? payload.error : null;
-  const code = error ? asOptionalString(error.code) : undefined;
+export function translateAcpError({ payload }: { payload: unknown }, _optional: Record<string, never> = {}): RunErrorPayload {
+  const record = { value: payload };
+  if (!isRecord(record)) return { message: asString({ value: payload }, { fallback: 'ACP agent failed' }) };
+  const message = asString({ value: record.value.message }, { fallback: 'ACP agent failed' });
+  const errorRecord = { value: record.value.error };
+  const error = isRecord(errorRecord) ? errorRecord.value : null;
+  const code = error ? asOptionalString({ value: error.code }) : undefined;
   const retryable = error && typeof error.retryable === 'boolean' ? error.retryable : undefined;
   return {
     message,
@@ -233,7 +238,7 @@ export function translateAcpError(payload: unknown): RunErrorPayload {
       ? {
           error: {
             code,
-            message: asString(error?.message, message),
+            message: asString({ value: error?.message }, { fallback: message }),
             ...(retryable !== undefined ? { retryable } : {}),
           },
         }

@@ -116,8 +116,9 @@ export interface TerminalCreateRequest {
 }
 
 function parseTerminalCreate(input: RouteInputContext): Result<TerminalCreateRequest> {
-  const body = input.body;
-  if (!isRecord(body)) return err({ error: validationError({ message: 'body must be a JSON object' }) });
+  const record = { value: input.body };
+  if (!isRecord(record)) return err({ error: validationError({ message: 'body must be a JSON object' }) });
+  const body = record.value;
   const resourceRef = body.resourceRef;
   if (typeof resourceRef !== 'string' || resourceRef.length === 0) {
     return err({ error: validationError({ message: 'resourceRef is required' }, { issues: [{ path: 'resourceRef', message: 'required non-empty string' }] }) });
@@ -196,8 +197,9 @@ export function actionResultToApiResult({ result, notFoundMessage }: { readonly 
 function parseStdinInput(input: RouteInputContext): Result<{ id: string; data: string }> {
   const parsedId = parseTerminalId(input);
   if (!parsedId.ok) return parsedId;
-  if (!isRecord(input.body)) return err({ error: validationError({ message: 'body must be a JSON object' }) });
-  const data = input.body.data;
+  const body = { value: input.body };
+  if (!isRecord(body)) return err({ error: validationError({ message: 'body must be a JSON object' }) });
+  const data = body.value.data;
   if (typeof data !== 'string') {
     return err({ error: validationError({ message: 'data (string) is required' }, { issues: [{ path: 'data', message: 'required string' }] }) });
   }
@@ -215,9 +217,10 @@ export const terminalStdinRoute = defineJsonRoute<{ id: string; data: string }, 
 function parseResizeInput(input: RouteInputContext): Result<{ id: string; cols: number; rows: number }> {
   const parsedId = parseTerminalId(input);
   if (!parsedId.ok) return parsedId;
-  if (!isRecord(input.body)) return err({ error: validationError({ message: 'body must be a JSON object' }) });
-  const cols = Number(input.body.cols);
-  const rows = Number(input.body.rows);
+  const body = { value: input.body };
+  if (!isRecord(body)) return err({ error: validationError({ message: 'body must be a JSON object' }) });
+  const cols = Number(body.value.cols);
+  const rows = Number(body.value.rows);
   if (!Number.isFinite(cols) || !Number.isFinite(rows)) {
     return err({ error: validationError({ message: 'cols and rows (numbers) are required' }) });
   }

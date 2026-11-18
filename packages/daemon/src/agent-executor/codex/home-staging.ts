@@ -23,7 +23,7 @@ import { omitKeys } from '../../core/omit-keys.js';
 
 export const CODEX_HOME_ENV = 'CODEX_HOME';
 
-export function resolveCodexDisablePlugins(value: boolean | undefined, env: NodeJS.ProcessEnv): boolean {
+export function resolveCodexDisablePlugins({ value, env }: { value: boolean | undefined; env: NodeJS.ProcessEnv }, _optional: Record<string, never> = {}): boolean {
   return value ?? (env.CODEX_DISABLE_PLUGINS === '1');
 }
 
@@ -50,7 +50,7 @@ export function resolveSourceCodexHomeDir({ hostEnv }: { readonly hostEnv: NodeJ
  * `mcp_skill_dependencies.rs`), and `codex exec` is `codex_exec` without it.
  */
 export function withStagedCodexHome({ env, codexHomeDir }: { readonly env: NodeJS.ProcessEnv; readonly codexHomeDir: string }, _options = {}): NodeJS.ProcessEnv {
-  return { ...omitKeys(env, ['CODEX_INTERNAL_ORIGINATOR_OVERRIDE']), CODEX_HOME: codexHomeDir };
+  return { ...omitKeys({ source: env, keys: ['CODEX_INTERNAL_ORIGINATOR_OVERRIDE'] }), CODEX_HOME: codexHomeDir };
 }
 
 function defaultMkdtempCodexHome({ prefix }: { readonly prefix: string }): Promise<string> {
@@ -254,10 +254,10 @@ export async function prepareCodexHomeIfNeeded({ input, deps }: { readonly input
     await deps.releaseStagedResources();
     if (err instanceof CodexMcpIsolationError) {
       return deps.failBeforeSpawn({ runId: input.runId, code: 'NATIVE_TOOL_POLICY_UNSUPPORTED',
-        message: codexIsolationRefusalMessage(err.message) });
+        message: codexIsolationRefusalMessage({ reason: err.message }) });
     }
     return deps.failBeforeSpawn(
-      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not stage a CODEX_HOME for agent "${input.def.id}": ${errorMessage(err)}` },
+      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not stage a CODEX_HOME for agent "${input.def.id}": ${errorMessage({ err })}` },
     );
   }
 }

@@ -36,25 +36,25 @@ describe('model-proxy-fields — firstOptionalFieldError', () => {
   ];
 
   it('returns undefined when every present field is well-typed and absent ones are skipped', () => {
-    expect(firstOptionalFieldError({ a: 'x' }, checks)).toBeUndefined();
+    expect(firstOptionalFieldError({ record: { a: 'x' }, checks })).toBeUndefined();
   });
 
   it('treats an explicitly-undefined field as absent', () => {
-    expect(firstOptionalFieldError({ a: undefined, b: undefined }, checks)).toBeUndefined();
+    expect(firstOptionalFieldError({ record: { a: undefined, b: undefined }, checks })).toBeUndefined();
   });
 
   it('treats null as present, so it fails the type test', () => {
-    expect(firstOptionalFieldError({ b: null }, checks)).toEqual({ code: 'BAD_REQUEST', message: 'b must be a number when provided' });
+    expect(firstOptionalFieldError({ record: { b: null }, checks })).toEqual({ code: 'BAD_REQUEST', message: 'b must be a number when provided' });
   });
 
   it('reports only the first failing field in check order', () => {
-    expect(firstOptionalFieldError({ b: 'no', a: 1 }, checks)).toEqual({ code: 'BAD_REQUEST', message: 'a must be a string when provided' });
+    expect(firstOptionalFieldError({ record: { b: 'no', a: 1 }, checks })).toEqual({ code: 'BAD_REQUEST', message: 'a must be a string when provided' });
   });
 });
 
 describe('model-proxy-fields — requiredFieldError', () => {
   it('carries a single validation issue naming the field', () => {
-    expect(requiredFieldError('apiKey', 'apiKey must be a non-empty string', 'required non-empty string')).toEqual({
+    expect(requiredFieldError({ path: 'apiKey', message: 'apiKey must be a non-empty string', issue: 'required non-empty string' })).toEqual({
       code: 'BAD_REQUEST',
       message: 'apiKey must be a non-empty string',
       details: { kind: 'validation', issues: [{ path: 'apiKey', message: 'required non-empty string' }] },
@@ -64,17 +64,17 @@ describe('model-proxy-fields — requiredFieldError', () => {
 
 describe('model-proxy-fields — pickDefined', () => {
   it('omits keys whose value is undefined, including explicitly-undefined ones', () => {
-    const picked = pickDefined({ a: 1, b: undefined as number | undefined }, ['a', 'b']);
+    const picked = pickDefined({ source: { a: 1, b: undefined as number | undefined }, keys: ['a', 'b'] });
     expect(picked).toEqual({ a: 1 });
     expect(Object.keys(picked)).toEqual(['a']);
   });
 
   it('keeps falsy-but-defined values (0, empty string, null, false)', () => {
-    expect(pickDefined({ z: 0, e: '', n: null, f: false }, ['z', 'e', 'n', 'f'])).toEqual({ z: 0, e: '', n: null, f: false });
+    expect(pickDefined({ source: { z: 0, e: '', n: null, f: false }, keys: ['z', 'e', 'n', 'f'] })).toEqual({ z: 0, e: '', n: null, f: false });
   });
 
   it('copies only the listed keys, in list order', () => {
-    const picked = pickDefined({ a: 1, b: 2, c: 3 }, ['c', 'a']);
+    const picked = pickDefined({ source: { a: 1, b: 2, c: 3 }, keys: ['c', 'a'] });
     expect(Object.keys(picked)).toEqual(['c', 'a']);
   });
 });
