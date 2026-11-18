@@ -34,7 +34,7 @@ export function decideMemberLogin(required: {
   unlinked: boolean;
   connectMemberId?: string;
   emailProofVerified?: boolean;
-}, _options = {}): LinkDecision {
+}, _options: Record<string, never> = {}): LinkDecision {
   const { member, subjectLinked, unlinked, connectMemberId, identity, emailProofVerified } = required;
   const refused = admission({ member, connectMemberId });
   if (refused) return refused;
