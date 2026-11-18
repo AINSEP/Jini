@@ -23,7 +23,7 @@ import { createFileWriter, createGitDataClient } from "./write-files.mjs";
  *   assertNotRedirected(response: Response, hostName: string): void,
  *   isRedirectRefusal(error: unknown): boolean,
  *   httpClient: { send(request: { method: string, url: string, headers: Record<string, string>, body?: string,
- *     timeoutMs: number }): Promise<{ status: number, bodyText: string, headers?: Record<string, string> }> },
+ *     timeoutMs: number }, options?: { redirect?: "follow" | "error" | "manual" }): Promise<{ status: number, bodyText: string, headers?: Record<string, string> }> },
  *   describeTransportError(error: unknown): { refusal: string | undefined, logDetail: string },
  *   sleep?(ms: number): Promise<void>,
  * }} Kit
@@ -65,16 +65,22 @@ export default {
       /**
        * `GET /user` -> `login`, the public name GitHub prints in every profile URL (never email, plan
        * or org membership). Best effort: any failure is `null`, never a throw.
+       *
+       * Sent through the guarded `kit.httpClient` with `redirect: "error"`, never `kit.fetch`: this call
+       * carries the bearer token, so it gets the host's egress checks like every other credentialed call,
+       * and a redirect is a refusal (the credential is never replayed to wherever an answer points).
        * @param {string} token
        */
       async readAccountLabel(token) {
         try {
-          const resp = await kit.fetch(`${GITHUB_API}/user`, {
+          const resp = await kit.httpClient.send({
+            method: "GET",
+            url: `${GITHUB_API}/user`,
             headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" },
-            signal: AbortSignal.timeout(ACCOUNT_LABEL_PROBE_TIMEOUT_MS),
-          });
-          if (!resp.ok) return null;
-          const body = await resp.json();
+            timeoutMs: ACCOUNT_LABEL_PROBE_TIMEOUT_MS,
+          }, { redirect: "error" });
+          if (resp.status < 200 || resp.status > 299) return null;
+          const body = JSON.parse(resp.bodyText);
           const login = typeof body === "object" && body !== null ? body.login : undefined;
           return typeof login === "string" && login !== "" ? login : null;
         } catch {

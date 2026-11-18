@@ -15,32 +15,65 @@ test("validateTarget: accepts GitHub-shaped owner/repo names and names the bad o
   assert.equal(provider.validateTarget({ owner: "acme", repo: "r".repeat(101) }), `invalid GitHub repo '${"r".repeat(100)}'`);
 });
 
-/** A kit whose `fetch` answers from `answer` and records each call. */
-function fetchKit(answer) {
-  const calls = [];
-  const { kit } = scriptedKit([]);
-  kit.fetch = async (url, init) => {
-    calls.push({ url, init });
-    if (answer instanceof Error) throw answer;
-    return answer;
-  };
-  return { kit, calls };
-}
-const jsonResponse = (status, body) => new Response(typeof body === "string" ? body : JSON.stringify(body), { status });
+const NATIVE_FETCH_FORBIDDEN = async () => { throw new Error("the credentialed account probe must not use kit.fetch"); };
 
-test("readAccountLabel: GET /user with the token, bounded, and returns only the login", async () => {
-  const { kit, calls } = fetchKit(jsonResponse(200, { login: "octo", email: "secret@example.com" }));
+/** A kit whose guarded `httpClient` answers from `answer` (an Error is thrown, as a transport failure is). */
+function probeKit(answer) {
+  const { kit, requests, sendOptions } = scriptedKit([answer]);
+  kit.fetch = NATIVE_FETCH_FORBIDDEN;
+  return { kit, requests, sendOptions };
+}
+const jsonResponse = (status, body) => res(status, body);
+
+test("readAccountLabel: GET /user with the token through the guarded client, bounded, redirects refused, login only", async () => {
+  const { kit, requests, sendOptions } = probeKit(jsonResponse(200, { login: "octo", email: "secret@example.com" }));
   assert.equal(await provider.create({ kit }).readAccountLabel("tok1"), "octo");
-  assert.equal(calls[0].url, "https://api.github.com/user");
-  assert.deepEqual(calls[0].init.headers, { Authorization: "Bearer tok1", Accept: "application/vnd.github+json" });
-  assert.ok(calls[0].init.signal instanceof AbortSignal);
+  assert.deepEqual(requests, [{ method: "GET", url: "https://api.github.com/user", headers: { Authorization: "Bearer tok1", Accept: "application/vnd.github+json" }, timeoutMs: 10_000 }]);
+  assert.deepEqual(sendOptions, [{ redirect: "error" }]);
 });
 
 test("readAccountLabel: every failure is null, never a throw", async () => {
-  const answers = [jsonResponse(401, { login: "x" }), jsonResponse(200, "null"), jsonResponse(200, "[]"), jsonResponse(200, { login: "" }), jsonResponse(200, { login: 3 }), jsonResponse(200, "not json"), new Error("offline")];
+  const answers = [jsonResponse(401, { login: "x" }), jsonResponse(302, { login: "x" }), jsonResponse(200, "null"), jsonResponse(200, "[]"), jsonResponse(200, { login: "" }), jsonResponse(200, { login: 3 }), jsonResponse(200, "not json"), new Error("offline")];
   for (const answer of answers) {
-    assert.equal(await provider.create(fetchKit(answer)).readAccountLabel("t"), null);
+    assert.equal(await provider.create(probeKit(answer)).readAccountLabel("t"), null);
   }
+});
+
+const EVIL_ORIGIN = "https://redirected.example.invalid";
+
+/**
+ * A kit shaped like production on both outbound paths, with an API that answers `GET /user` with a
+ * redirect to another host. `fetch` follows redirects (native `fetch` defaults to `redirect: "follow"`)
+ * and `httpClient.send` is the guarded client (it refuses a redirect when the caller passes
+ * `redirect: "error"`). `wire` lists every request that reached a host, with its credential header.
+ */
+function redirectingKit() {
+  const wire = [];
+  const reach = (url, headers) => {
+    wire.push({ url, authorization: headers.Authorization });
+    return url.startsWith(EVIL_ORIGIN) ? { status: 200, body: { login: "attacker-controlled" } } : { status: 302, location: `${EVIL_ORIGIN}/user` };
+  };
+  const { kit } = scriptedKit([]);
+  kit.fetch = async (url, init) => {
+    let answer = reach(url, init.headers);
+    if (answer.status === 302) answer = reach(answer.location, init.headers);
+    return new Response(JSON.stringify(answer.body), { status: answer.status });
+  };
+  kit.httpClient.send = async (request, options = {}) => {
+    const answer = reach(request.url, request.headers);
+    if (answer.status !== 302) return res(answer.status, answer.body);
+    if (options.redirect === "error") throw new Error("redirect response refused by the request's redirect policy");
+    return res(200, reach(answer.location, request.headers).body);
+  };
+  return { kit, wire };
+}
+
+test("readAccountLabel: a redirect is refused; no request with the credential reaches the redirected host", async () => {
+  const { kit, wire } = redirectingKit();
+  assert.equal(await provider.create({ kit }).readAccountLabel("tok-secret"), null);
+  assert.deepEqual(wire.filter((hit) => hit.url.startsWith(EVIL_ORIGIN)), [], "the redirect target was contacted");
+  assert.equal(wire.length, 1);
+  assert.equal(wire[0].authorization, "Bearer tok-secret");
 });
 
 test("create: exposes the write and backup operations, the backup ones on the retrying long-idle client", async () => {

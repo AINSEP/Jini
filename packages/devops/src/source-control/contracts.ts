@@ -85,7 +85,14 @@ export interface FileSourcePort { export(required: { outputDir: string }, option
 export interface CommitLayoutPort {
   outputDirectory(required: { workspaceId: string; providerId: string; runId: string }): string;
   cleanup(required: { outputDir: string }): Promise<void>;
+  /** The files to commit, arranged from the finished export (for example a host's static-download layout).
+   *  Absent: the succeeded routes then the succeeded assets, as exported. A throw refuses the commit as
+   *  `EXPORT_FAILED`, worded by `describeError` with stage `'arrange'`; every arranged path is still validated
+   *  against the destination folder. Runs before `cleanup`, so an arrangement may read the output directory. */
+  arrangeFiles?(required: { report: ExportReport }): readonly CommitFile[];
 }
+/** Where in a commit an error arose, so a host can word each stage's failure on its own. */
+export type CommitErrorStage = 'export' | 'arrange' | 'credential' | 'commit';
 export interface CommitExportArgs {
   folder?: string;
   workspaceId: string;
@@ -96,10 +103,19 @@ export interface CommitExportArgs {
   files: FileSourcePort;
   layout: CommitLayoutPort;
   ids: { next(required: Record<string, never>): string };
-  /** Must return caller-safe text without credentials. */
-  describeError(required: { error: unknown }): string;
+  /** Must return caller-safe text without credentials. `stage` names where the error arose (absent: unspecified). */
+  describeError(required: { error: unknown; stage?: CommitErrorStage }): string;
 }
-export interface CommitOrchestrationArgs extends CommitExportArgs { supportsFolder?: boolean; credentials: CredentialResolverPort; adapter: Pick<SourceControlProviderOperations, 'commitSite'> }
+export interface CommitOrchestrationArgs extends CommitExportArgs {
+  supportsFolder?: boolean;
+  credentials: CredentialResolverPort;
+  /** The one seam to the git host: `commitSite` is called exactly once and with no pre-flight, so every repository, branch
+   *  and network outcome is discovered after the human confirmed. */
+  adapter: Pick<SourceControlProviderOperations, 'commitSite'>;
+  /** The whole refusal sentence when no credential is configured for the provider (a host can say where to connect one).
+   *  Absent: a generic sentence naming the provider. Must not contain credentials. */
+  describeMissingCredential?(required: { providerId: string }): string;
+}
 export interface CommitOptions { branch?: string; validateTarget?: RepositoryTargetValidator }
 export type CommitFailureCode = 'INVALID_CONFIG' | 'NO_CREDENTIALS_CONFIGURED' | 'EXPORT_FAILED' | 'REPOSITORY_NOT_FOUND' | 'NO_CHANGES' | 'DIVERGED_BRANCH' | 'NETWORK_UNREACHABLE' | 'PROVIDER_ERROR';
 export type SourceControlCommitOutcome =
