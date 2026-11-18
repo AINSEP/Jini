@@ -45,16 +45,19 @@ interface RolesCtx {
     editableRole(roleId: string): RoleRecord;
     editablePolicy(policyId: string): PolicyRecord;
 }
-const failRoles = (code: string, message: string): never => { throw new RolesApiError({ code, message }); };
+const failRoles = ({ code, message }: { code: string; message: string }): never => { throw new RolesApiError({ code, message }); };
 
-function createRolesCtx(workspaceId: string, options: MemoryRolesOptions): RolesCtx {
+function createRolesCtx({ workspaceId, options }: {
+  workspaceId: string;
+  options: MemoryRolesOptions;
+}): RolesCtx {
     const grants = Object.freeze([...(options.permissions ?? [])]), catalog = new Set(options.catalog ?? BUILTIN_PERMISSIONS.map(p => p.id));
     const roles = new Map(inWorkspace(options.roles, workspaceId).map(r => [r.id, { ...r }]));
     const policies = new Map(inWorkspace(options.policies, workspaceId).map(p => [p.id, { ...p }]));
     const permissions = new Map(inWorkspace(options.policyPermissions, workspaceId).map(p => [p.id, { ...p }]));
     let sequence = 0;
-    const getRole = (roleId: string) => roles.get(roleId) ?? failRoles('RESOURCE_NOT_FOUND', 'Role not found.');
-    const getPolicy = (policyId: string) => policies.get(policyId) ?? failRoles('RESOURCE_NOT_FOUND', 'Policy not found.');
+    const getRole = (roleId: string) => roles.get(roleId) ?? failRoles({ code: 'RESOURCE_NOT_FOUND', message: 'Role not found.' });
+    const getPolicy = (policyId: string) => policies.get(policyId) ?? failRoles({ code: 'RESOURCE_NOT_FOUND', message: 'Policy not found.' });
     return {
         workspaceId, options, grants, catalog, roles, policies, permissions, getPolicy,
         id() {
@@ -65,29 +68,29 @@ function createRolesCtx(workspaceId: string, options: MemoryRolesOptions): Roles
         },
         write(o) {
             check(o); if (!canManageRoles({ permissions: grants })) {
-                failRoles('FORBIDDEN', 'Missing role.manage.');
+                failRoles({ code: 'FORBIDDEN', message: 'Missing role.manage.' });
             }
         },
         name(v) {
             const n = v.trim().normalize('NFC'); if (!n) {
-                failRoles('VALIDATION_ERROR', 'Name is required.');
+                failRoles({ code: 'VALIDATION_ERROR', message: 'Name is required.' });
             }
             return n;
         },
         unique(map, n, except) {
             if ([...map.values()].some(r => r.id !== except && r.name.toLowerCase() === n.toLowerCase())) {
-                failRoles('RESOURCE_CONFLICT', 'Name already exists.');
+                failRoles({ code: 'RESOURCE_CONFLICT', message: 'Name already exists.' });
             }
         },
         editableRole(roleId) {
             const r = getRole(roleId); if (r.isBuiltin) {
-                failRoles('VALIDATION_ERROR', 'Built-in role is immutable.');
+                failRoles({ code: 'VALIDATION_ERROR', message: 'Built-in role is immutable.' });
             }
             return r;
         },
         editablePolicy(policyId) {
             const p = getPolicy(policyId); if (p.isBuiltin || p.isFrozen) {
-                failRoles('VALIDATION_ERROR', 'Built-in or frozen policy is immutable.');
+                failRoles({ code: 'VALIDATION_ERROR', message: 'Built-in or frozen policy is immutable.' });
             }
             return p;
         },
@@ -102,7 +105,7 @@ function roleOperations(ctx: RolesCtx): Pick<RolesApiPort, 'listRoles' | 'create
         async updateRole(r, o = {}) { ctx.write(o); const old = ctx.editableRole(r.roleId), n = ctx.name(r.name); ctx.unique(roles, n, old.id); const role = { ...old, name: n }; roles.set(role.id, role); return { role: { ...role } }; },
         async deleteRole(r, o = {}) {
             ctx.write(o); ctx.editableRole(r.roleId); if (options.referencedRoleIds?.includes(r.roleId)) {
-                failRoles('RESOURCE_CONFLICT', 'Role is still assigned.');
+                failRoles({ code: 'RESOURCE_CONFLICT', message: 'Role is still assigned.' });
             }
             roles.delete(r.roleId);
         },
@@ -116,13 +119,13 @@ function policyOperations(ctx: RolesCtx): Pick<RolesApiPort, 'listPolicies' | 'c
         async createPolicy(r, o = {}) { ctx.write(o); const n = ctx.name(r.name); ctx.unique(policies, n); const policy: PolicyRecord = { id: ctx.id(), workspaceId, name: n, isBuiltin: false, isFrozen: false, ...(o.description !== undefined ? { description: o.description } : {}) }; policies.set(policy.id, policy); return { policy: { ...policy } }; },
         async updatePolicy(r, o = {}) {
             ctx.write(o); const old = ctx.editablePolicy(r.policyId); if (o.name === undefined && o.description === undefined) {
-                failRoles('VALIDATION_ERROR', 'At least one of name or description is required.');
+                failRoles({ code: 'VALIDATION_ERROR', message: 'At least one of name or description is required.' });
             }
             const n = o.name === undefined ? old.name : ctx.name(o.name); ctx.unique(policies, n, old.id); const policy = { ...old, name: n, ...(o.description !== undefined ? { description: o.description } : {}) }; policies.set(policy.id, policy); return { policy: { ...policy } };
         },
         async deletePolicy(r, o = {}) {
             ctx.write(o); ctx.editablePolicy(r.policyId); if (options.referencedPolicyIds?.includes(r.policyId)) {
-                failRoles('RESOURCE_CONFLICT', 'Policy is still attached.');
+                failRoles({ code: 'RESOURCE_CONFLICT', message: 'Policy is still attached.' });
             }
             policies.delete(r.policyId); for (const p of permissions.values()) {
                 if (p.policyId === r.policyId) {
@@ -142,11 +145,11 @@ function permissionOperations(ctx: RolesCtx): Pick<RolesApiPort, 'listPolicyPerm
             ctx.write(o);
             ctx.editablePolicy(r.policyId);
             if (!catalog.has(r.permission)) {
-                failRoles('PERMISSION_UNKNOWN', 'Unrecognized permission.');
+                failRoles({ code: 'PERMISSION_UNKNOWN', message: 'Unrecognized permission.' });
             }
 
             if (!hasAdminGrant({ permissions: grants, permission: r.permission })) {
-                failRoles('GRANT_EXCEEDS_ISSUER', 'Grant exceeds issuer.');
+                failRoles({ code: 'GRANT_EXCEEDS_ISSUER', message: 'Grant exceeds issuer.' });
             }
 
             const resourceType = o.resourceType || null;
@@ -156,7 +159,7 @@ function permissionOperations(ctx: RolesCtx): Pick<RolesApiPort, 'listPolicyPerm
         },
         async removePolicyPermission(r, o = {}) {
             ctx.write(o); ctx.editablePolicy(r.policyId); const p = permissions.get(r.policyPermissionId); if (!p || p.policyId !== r.policyId) {
-                failRoles('RESOURCE_NOT_FOUND', 'Permission not found on this policy.');
+                failRoles({ code: 'RESOURCE_NOT_FOUND', message: 'Permission not found on this policy.' });
             }
             permissions.delete(r.policyPermissionId);
         },
@@ -168,7 +171,7 @@ function permissionOperations(ctx: RolesCtx): Pick<RolesApiPort, 'listPolicyPerm
 export function createMemoryRolesApi({ workspaceId }: {
     workspaceId: string;
 }, options: MemoryRolesOptions = {}): RolesApiPort {
-    const ctx = createRolesCtx(workspaceId, options);
+    const ctx = createRolesCtx({ workspaceId, options });
     return { ...roleOperations(ctx), ...policyOperations(ctx), ...permissionOperations(ctx) };
 }
 /** Complete fake ownership data. Production hosts must resolve effective unconstrained wildcard
