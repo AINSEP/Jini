@@ -114,6 +114,17 @@ test("the nine forms tools are wired in catalog order with their authored risk",
   assert.equal(formsDerivedRisk.get("forms_delivery_status"), "none");
 });
 
+test("the update tool's published text names the host's read, or a neutral one, and never a placeholder or a tool id of its own", () => {
+  const text = (hostReads?: { readRef: (required: { entity: string }) => string }) =>
+    JSON.stringify(buildFormsToolRegistrations({ deps: makeFixture().deps }, { hostReads }).map((registration) => registration.descriptor));
+  assert.ok(text({ readRef: ({ entity }) => `host_read.${entity}` }).includes("host_read.form_definition"));
+  assert.ok(text().includes("the form definition read tool"));
+  for (const published of [text(), text({ readRef: ({ entity }) => `host_read.${entity}` })]) {
+    assert.ok(!published.includes("{{read:"));
+    assert.ok(!published.includes("content_read"));
+  }
+});
+
 test("every tool refuses a principal without the permission", async () => {
   const fixture = makeFixture();
   const formId = await seedForm(fixture);

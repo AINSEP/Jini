@@ -163,9 +163,8 @@ const SUBMISSION_ID_SCHEMA = {
   description: "The submission's id, as returned by forms_list_submissions.",
 } as const;
 
-/** `content_read.form_definition`'s input — it takes no arguments at all, matching how
- * `content_read.identity_user`/`content_read.identity_role`/`content_read.menu` are this codebase's convention for a
- * small, bounded catalog: one unfiltered list IS the domain's "search", not a separate capability. */
+/** The form-definition read's input — it takes no arguments at all, matching how the host's identity-user, identity-role and menu
+ * reads are this codebase's convention for a small, bounded catalog: one unfiltered list IS the domain's "search", not a separate capability. */
 const NO_INPUT_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -237,7 +236,7 @@ export const formsAgentToolCatalog: AgentToolDefinition[] = [
   {
     name: "forms_update_definition",
     description:
-      "Updates an existing form definition's name, field list, notification recipients, or public collection provider. Call forms_list_providers before selecting a provider and explain its answer location and validation; republish all affected static pages and Cloudflare manifests after switching. The slug is immutable and is ignored if supplied. Existing field ids cannot be dropped — omitting one is rejected, not treated as a deletion. Pass expectedVersion from content_read.form_definition; if someone changed it since, nothing is saved and you must re-read.",
+      "Updates an existing form definition's name, field list, notification recipients, or public collection provider. Call forms_list_providers before selecting a provider and explain its answer location and validation; republish all affected static pages and Cloudflare manifests after switching. The slug is immutable and is ignored if supplied. Existing field ids cannot be dropped — omitting one is rejected, not treated as a deletion. Pass expectedVersion from {{read:form_definition}}; if someone changed it since, nothing is saved and you must re-read.",
     sideEffects: "mutates-durable-state",
     authorization: { permission: FORMS_MANAGE_PERMISSION },
     inputSchema: {
@@ -246,7 +245,7 @@ export const formsAgentToolCatalog: AgentToolDefinition[] = [
       required: ["formId", "expectedVersion"],
       properties: {
         formId: FORM_ID_SCHEMA,
-        expectedVersion: { type: "integer", minimum: 0, description: "The record's version from content_read.form_definition. Required." },
+        expectedVersion: { type: "integer", minimum: 0, description: "The record's version from {{read:form_definition}}. Required." },
         name: { type: "string", minLength: 1, maxLength: MAX_NAME_LENGTH, description: "New form name. Omit to leave unchanged." },
         fields: FIELDS_SCHEMA,
         notify: NOTIFY_SCHEMA,

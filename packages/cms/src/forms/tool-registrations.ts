@@ -15,6 +15,8 @@
  */
 import {
   buildDomainRegistrations,
+  resolveHostReadText,
+  type HostReadVocabulary,
   type AgentToolSideEffect,
   type ToolHandler,
   type ToolRegistration,
@@ -30,7 +32,7 @@ import {
   FormSubmissionValidationError,
 } from "./errors.js";
 import {
-  CATALOG_BY_ID,
+  formsCatalogById,
   formsCreateDefinitionHandler,
   formsListDefinitionsHandler,
   formsListProvidersHandler,
@@ -95,8 +97,8 @@ export const formsDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Ma
  * though no tool in this catalog currently reaches it; its `fieldErrors` detail rides on the
  * property, not in the `message` this surfaces.
  */
-const FORMS_MODEL_FACING_ERRORS: readonly ModelFacingErrorRule[] = [
-  versionConflictRule({ readToolId: "content_read.form_definition" }),
+const formsModelFacingErrors = ({ hostReads }: { hostReads?: HostReadVocabulary | undefined }, _optional = {}): readonly ModelFacingErrorRule[] => [
+  versionConflictRule({ readToolId: resolveHostReadText({ text: "{{read:form_definition}}" }, { hostReads }) }),
   forbiddenRule({ domainPrefix: "FORMS", error: ForbiddenError }),
   { error: FormDefinitionNotFoundError, code: "FORMS_DEFINITION_NOT_FOUND" },
   { error: FormSubmissionNotFoundError, code: "FORMS_SUBMISSION_NOT_FOUND" },
@@ -110,8 +112,11 @@ const FORMS_MODEL_FACING_ERRORS: readonly ModelFacingErrorRule[] = [
  * authored risk map and the typed-error mapping. Carries no host search vocabulary or approval
  * policy: `buildFormsRegistrations` binds those.
  */
-export function buildFormsToolRegistrations({ deps }: { deps: FormsPackageToolDeps }, _optional = {}): ToolRegistration[] {
-  const args = { deps };
+export function buildFormsToolRegistrations(
+  { deps }: { deps: FormsPackageToolDeps },
+  { hostReads }: { hostReads?: HostReadVocabulary | undefined } = {},
+): ToolRegistration[] {
+  const args = { deps, hostReads };
   const handlers: Record<string, ToolHandler> = {
     forms_list_providers: formsListProvidersHandler(args),
     forms_list_definitions: formsListDefinitionsHandler(args),
@@ -129,13 +134,13 @@ export function buildFormsToolRegistrations({ deps }: { deps: FormsPackageToolDe
   return buildDomainRegistrations({
     domain: "forms",
     catalogModule: "forms/agent-tools.ts",
-    catalog: CATALOG_BY_ID,
+    catalog: formsCatalogById({ hostReads }),
     // The whole map at once, so no handler can be the one that forgot — see
     // `withModelFacingErrors`' own doc for why a per-call-site reshape is the defect this avoids.
     // Composes with the three handlers' inner `withSchemaOnRejection` rather than competing with
     // it: a shape rejection is already a `ToolInputError` by the time it reaches here, and
     // `reclassifyToolError` returns those untouched.
-    handlers: withModelFacingErrors({ handlers, rules: FORMS_MODEL_FACING_ERRORS }),
+    handlers: withModelFacingErrors({ handlers, rules: formsModelFacingErrors({ hostReads }) }),
     derivedRisk: formsDerivedRisk,
   });
 }

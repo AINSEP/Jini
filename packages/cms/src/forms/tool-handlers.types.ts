@@ -9,6 +9,7 @@ import type { CreateFormDefinitionRequired, FormWriteServiceDeps, SetFormDefinit
 import type { FormCollectionRegistry } from "../core/form-collection.js";
 import type { FormCommandExecutorPort, FormDefinitionRepoPort, FormSubmissionRepoPort } from "./ports.js";
 import type { FormDefinitionRecord, NotifyConfig } from "./types.js";
+import type { HostReadVocabulary } from "@jini-ai/core";
 import type { FormDeliveryJobStatus } from "./delivery/status.js";
 
 /** The gateway dependencies of one form-definition write, before the host binds its policy. */
@@ -86,7 +87,8 @@ export interface FormsPackageToolDeps {
   deriveDuplicateName: DeriveDuplicateName;
 }
 
-/** What every forms tool handler factory is given: the deps. */
+/** What every forms tool handler factory is given: the deps, and how the host names its reads in model-facing text. */
 export interface FormsHandlerArgs {
   deps: FormsPackageToolDeps;
+  hostReads?: HostReadVocabulary | undefined;
 }

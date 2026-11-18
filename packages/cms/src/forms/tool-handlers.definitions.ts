@@ -2,8 +2,11 @@ import {
   AGENT_TOOL_PRINCIPAL_KIND,
   indexCatalogById,
   requireInputRecord,
+  resolveHostReadRefs,
+  resolveHostReadText,
   requireString,
   withSchemaOnRejection,
+  type HostReadVocabulary,
   type ToolHandler,
 } from "@jini-ai/core";
 import { adaptLegacyAuthorize, requireToolPermission } from "../core/tools/args.js";
@@ -13,10 +16,21 @@ import { FormFieldValidationError } from "./errors.js";
 import { createFormCollectionRegistry, describeFormCollectionProviders } from "../core/form-collection.js";
 import type { FieldDescriptor, FormDefinitionRecord, FormDefinitionStatus, NotifyConfig } from "./types.js";
 import type { FormAuthoring } from "./fields-json.js";
-import { formsAgentToolCatalog } from "./agent-tools.js";
+import { formsAgentToolCatalog, type AgentToolDefinition } from "./agent-tools.js";
 import type { FormsHandlerArgs, FormsPackageToolDeps } from "./tool-handlers.types.js";
 
-export const CATALOG_BY_ID = indexCatalogById({ catalog: formsAgentToolCatalog });
+const NEUTRAL_CATALOG_KEY = {};
+const catalogsByVocabulary = new WeakMap<object, ReadonlyMap<string, AgentToolDefinition>>();
+
+/** The forms catalog with the host's read wording filled in; built once per vocabulary, not once per call. */
+export function formsCatalogById({ hostReads }: { hostReads?: HostReadVocabulary | undefined }, _optional = {}): ReadonlyMap<string, AgentToolDefinition> {
+  const key = hostReads ?? NEUTRAL_CATALOG_KEY;
+  const known = catalogsByVocabulary.get(key);
+  if (known) return known;
+  const built = indexCatalogById({ catalog: resolveHostReadRefs({ value: formsAgentToolCatalog }, { hostReads }) });
+  catalogsByVocabulary.set(key, built);
+  return built;
+}
 
 /**
  * The only Forms rejection worth decorating with the published schema.
@@ -156,11 +170,11 @@ export const formsListDefinitionsHandler = ({ deps }: FormsHandlerArgs, _optiona
     }) };
 };
 
-export const formsCreateDefinitionHandler = ({ deps }: FormsHandlerArgs, _optional = {}): ToolHandler => async (ctx) => {
+export const formsCreateDefinitionHandler = ({ deps, hostReads }: FormsHandlerArgs, _optional = {}): ToolHandler => async (ctx) => {
     const input = requireInputRecord({ input: ctx.input });
     return withSchemaOnRejection({
       toolId: "forms_create_definition",
-      catalog: CATALOG_BY_ID,
+      catalog: formsCatalogById({ hostReads }),
       isShapeRejection: isFormsShapeRejection,
       fn: async () => {
         const { definition } = await deps.formWrites.create({
@@ -180,14 +194,14 @@ export const formsCreateDefinitionHandler = ({ deps }: FormsHandlerArgs, _option
     });
 };
 
-export const formsUpdateDefinitionHandler = ({ deps }: FormsHandlerArgs, _optional = {}): ToolHandler => async (ctx) => {
+export const formsUpdateDefinitionHandler = ({ deps, hostReads }: FormsHandlerArgs, _optional = {}): ToolHandler => async (ctx) => {
     const input = requireInputRecord({ input: ctx.input });
     return withSchemaOnRejection({
       toolId: "forms_update_definition",
-      catalog: CATALOG_BY_ID,
+      catalog: formsCatalogById({ hostReads }),
       isShapeRejection: isFormsShapeRejection,
       fn: async () => {
-        const expectedVersion = requireExpectedVersion({ value: input.expectedVersion, readToolId: "content_read.form_definition" });
+        const expectedVersion = requireExpectedVersion({ value: input.expectedVersion, readToolId: resolveHostReadText({ text: "{{read:form_definition}}" }, { hostReads }) });
         const { definition } = await deps.formWrites.update({
           deps: formsDeps(deps),
           input: {
@@ -202,11 +216,11 @@ export const formsUpdateDefinitionHandler = ({ deps }: FormsHandlerArgs, _option
     });
 };
 
-export const formsSetDefinitionStatusHandler = ({ deps }: FormsHandlerArgs, _optional = {}): ToolHandler => async (ctx) => {
+export const formsSetDefinitionStatusHandler = ({ deps, hostReads }: FormsHandlerArgs, _optional = {}): ToolHandler => async (ctx) => {
     const input = requireInputRecord({ input: ctx.input });
     return withSchemaOnRejection({
       toolId: "forms_set_definition_status",
-      catalog: CATALOG_BY_ID,
+      catalog: formsCatalogById({ hostReads }),
       isShapeRejection: isFormsShapeRejection,
       fn: async () => {
         const { definition } = await deps.formWrites.setStatus({
