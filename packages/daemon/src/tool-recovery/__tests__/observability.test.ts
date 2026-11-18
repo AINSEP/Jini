@@ -1,7 +1,8 @@
 /** Each tool call becomes one observed operation; execution errors are reported, input errors are not. */
 import { expect, test } from "vitest";
 import { ToolInputError } from "@jini-ai/core";
-import { withToolCallObservability, ToolExecutionFailure, UNREGISTERED_TOOL_LABEL, UNIDENTIFIED_USER_LABEL, type ToolCallObservability } from "../index.js";
+import type { ObservabilityPort } from "@jini-ai/core/contracts/observability";
+import { withToolCallObservability, ToolExecutionFailure, UNREGISTERED_TOOL_LABEL, UNIDENTIFIED_USER_LABEL } from "../index.js";
 import type { ToolExecutionResult, ToolExecutor } from "../../tool-executor.js";
 
 type Recorded = { name: string; start: Record<string, unknown>; end?: Record<string, unknown>; durationMs?: number; errors: unknown[] };
@@ -10,7 +11,7 @@ type Recorded = { name: string; start: Record<string, unknown>; end?: Record<str
 function createFakePort() {
   let now = 0; let active: Recorded | undefined;
   const operations: Recorded[] = []; const orphanErrors: unknown[] = [];
-  const port: ToolCallObservability = {
+  const port: Pick<ObservabilityPort, "trackOperation" | "reportError"> = {
     trackOperation: ({ name, attributes = {} }) => {
       const op: Recorded = { name, start: { ...attributes }, errors: [] }; const startedAt = now;
       operations.push(op);

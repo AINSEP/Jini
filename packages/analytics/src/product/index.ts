@@ -19,39 +19,14 @@
  * by the host only when installed, enabled and configured; the contract names no vendor.
  */
 import { redactSecrets, redactSecretsWithCounts } from "@jini-ai/core";
+import type { ProductAiGeneration, ProductAnalyticsPort, ProductEventProperties } from "@jini-ai/core/contracts/observability";
 import type { JsonObject } from "@jini-ai/core/primitives";
 
 import { validateEventProps } from "../privacy.js";
 export { createAiGenerationSink } from "./ai-generations.js";
 export { fanOutProductAnalytics } from "./fanout.js";
 export { injectBrowserAnalytics, renderBrowserAnalytics, resolveBrowserAnalyticsMode } from './browser.js';
-export type { BrowserAnalyticsMode, BrowserAnalyticsConsent, BrowserAnalyticsContribution } from './browser.js';
-
-export type ProductEventProperties = Readonly<Record<string, string | number | boolean>>;
-
-/** One thing a user did. `name` is a fixed snake_case label (`assistant_tool_call`), never user text. */
-export interface ProductEvent { name: string; userId: string; properties?: ProductEventProperties; }
-/** Who the user is, in pseudonymous traits only (a plan, a role, a locale — never a name or e-mail). */
-export interface ProductIdentity { userId: string; traits?: ProductEventProperties; }
-
-/** A model generation's neutral metadata. Text is separate so metadata-only providers cannot leak it. */
-export interface ProductAiGeneration { userId: string; properties: ProductEventProperties; input?: string; output?: string; }
-
-/** The port features call. Never throws, never blocks: delivery is the adapter's background job. */
-export interface ProductAnalyticsPort {
-  /** Optional trusted browser contribution; it contains only publishable browser configuration. */
-  browserAnalytics?(required: { surface: 'site' | 'admin' }, optional?: Record<string, never>): import('./browser.js').BrowserAnalyticsContribution;
-  /** Resolves after local consent/admission only; remote delivery remains in the background. */
-  capture(event: ProductEvent): void | Promise<void>;
-  identify(identity: ProductIdentity): void;
-  /** Optional capability; providers without LLM analytics keep their existing contract. */
-  captureAiGeneration?(required: ProductAiGeneration, optional?: Record<string, never>): void;
-  /** Explicit provider opt-in only. The default records counts and metadata, never transcript text. */
-  readonly includeAiContent?: boolean;
-}
-
-/** What a vendor provider subpath returns: the port plus the host-owned teardown (flush + close). */
-export interface ProductAnalyticsAdapter { port: ProductAnalyticsPort; dispose(): Promise<void>; }
+export type { BrowserAnalyticsMode, BrowserAnalyticsConsent } from './browser.js';
 
 const NOOP: ProductAnalyticsPort = Object.freeze({ capture: () => {}, identify: () => {} });
 

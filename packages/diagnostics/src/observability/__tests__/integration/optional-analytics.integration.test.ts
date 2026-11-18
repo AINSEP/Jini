@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createNoopTracker } from "../../tracker-noop.js";
-import { createNoopObservabilityPort } from "../../noop.js";
-import type { ErrorReport } from "../../ports.js";
+import { createNoopObservabilityPort } from "@jini-ai/core/contracts/observability";
+import type { ErrorReport } from "@jini-ai/core/contracts/observability";
 
 const analytics = vi.hoisted(() => ({
   load: vi.fn(() => {

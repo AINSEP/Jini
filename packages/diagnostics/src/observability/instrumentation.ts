@@ -1,6 +1,6 @@
 import type { HttpClientPort } from "@jini-ai/core/primitives";
-import type { DbQueryTracker, ObservabilityPort } from './ports.js';
-import { isNoopObservabilityPort } from './noop.js';
+import type { DbQueryTracker, ObservabilityPort } from '@jini-ai/core/contracts/observability';
+import { isNoopObservabilityPort } from '@jini-ai/core/contracts/observability';
 
 /**
  * @file Decorators that put a host's existing chokepoints on the observability port: the storage

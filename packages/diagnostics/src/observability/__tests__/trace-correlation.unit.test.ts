@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { combineObservabilityPorts } from '../fanout.js';
 import { createHookObservabilityPort } from '../hooks.js';
-import { createNoopObservabilityPort } from '../noop.js';
+import { createNoopObservabilityPort } from '@jini-ai/core/contracts/observability';
 import { createTracker } from '../tracker.js';
-import type { ErrorReport } from '../ports.js';
+import type { ErrorReport } from '@jini-ai/core/contracts/observability';
 
 const ids = { traceId: 'a'.repeat(32), spanId: 'b'.repeat(16) };
 

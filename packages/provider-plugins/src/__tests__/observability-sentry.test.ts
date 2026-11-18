@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { test, vi } from "vitest";
 import { NodeClient, createTransport, getCurrentScope } from "@sentry/node";
 import { InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
+import { createNoopObservabilityPort } from '@jini-ai/core/contracts/observability';
 import { combineObservabilityPorts } from '@jini-ai/diagnostics/observability';
 import { createTracker } from '@jini-ai/diagnostics/observability/node';
 import { createOtelObservabilityAdapter } from '../observability-opentelemetry/opentelemetry.js';
@@ -316,7 +317,6 @@ test.each([
 });
 
 test('crashUpload is absent on noop and when a borrowed client has no usable configured DSN', async () => {
-  const { createNoopObservabilityPort } = await import('@jini-ai/diagnostics/observability');
   assert.equal(Object.hasOwn(createNoopObservabilityPort({}), 'crashUpload'), false);
   for (const dsn of ['', 'not-a-dsn', 'https://sentry.invalid/123', 'https://public@sentry.invalid/no-project']) {
     const resource = createSentryObservabilityAdapter({ config: { ...CONFIG, dsn } }, {

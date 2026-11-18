@@ -2,9 +2,10 @@
  * exception events over injected, OTel-shaped factory ports. Vendor code lives in its provider, so the
  * vendor-neutral port package never names OTel. */
 import type {
- AgentRunStatus, ExporterFactory, ObservabilityConfigEnabled, ObservabilityHelpers, ObservabilityPort, SpanScopePort,
+ ExporterFactory, ObservabilityConfigEnabled, ObservabilityHelpers, SpanScopePort,
  TraceSpanKind, TraceSpanPort, TracerPort, TracerProviderFactory,
 } from './contract.js';
+import type { AgentRunStatus, ObservabilityPort } from '@jini-ai/core/contracts/observability';
 
 
 export type { ExporterFactory, TraceSpanKind, TracerPort, TracerProviderFactory } from './contract.js';

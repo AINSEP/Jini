@@ -35,7 +35,12 @@ import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { BatchSpanProcessor, ParentBasedSampler, AlwaysOnSampler, type ReadableSpan, type SpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { MeterProvider, PeriodicExportingMetricReader, type IMetricReader } from "@opentelemetry/sdk-metrics";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import { errorType, redactLabel, redactOperationAttributes, type MetricInput, type MetricOptions, type ObservabilityAdapter, type ObservabilityConfigEnabled, type TraceSpanPort } from "@jini-ai/diagnostics/observability";
+import { errorType, redactLabel, redactOperationAttributes, type ObservabilityConfigEnabled, type TraceSpanPort } from "@jini-ai/diagnostics/observability";
+import {
+  type MetricInput,
+  type MetricOptions,
+  type ObservabilityAdapter,
+} from "@jini-ai/core/contracts/observability";
 import { createOtelObservabilityPort, type ExporterFactory, type TraceSpanKind, type TracerPort, type TracerProviderFactory } from "./otel-port.js";
 import { createAsyncLocalSpanScope } from "@jini-ai/diagnostics/observability/node";
 import { createProviderTelemetryReporter, type ProviderTelemetryOptions } from "../telemetry-reporter.js";

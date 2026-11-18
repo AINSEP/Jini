@@ -1,24 +1,7 @@
 /** Browser behavior is contributed by the selected analytics provider, never by a vendor in core. */
+import type { BrowserAnalyticsContribution } from '@jini-ai/core/contracts/observability';
 export type BrowserAnalyticsMode = 'pending' | 'anonymous' | 'full';
 export interface BrowserAnalyticsConsent { hasChoice: boolean; analytics: boolean; gpc?: boolean }
-export interface BrowserAnalyticsContribution {
-  /** Trusted plugin code: a function expression returning a `(mode) => void` controller. */
-  readonly source: string;
-  /** Exact origins required by this contribution, including anonymous delivery. */
-  readonly origins: readonly string[];
-  readonly supportsStatic: boolean;
-  /** Server-only same-origin asset/collection adapter. Never serialized into page source.
-   * The host admits collection with its existing consent owner before invoking this port. */
-  readonly http?: {
-    readonly path: string;
-    handle(required: { method: string; path: string; body: Uint8Array; contentType: string }, optional?: Record<string, never>): Promise<{ status: number; body: string | Uint8Array; contentType?: string; cacheControl?: string }>;
-  };
-  /** Mode changes retire identities/replay synchronously before starting the next mode. */
-  readonly supportsLiveConsent?: boolean;
-  /** Host-owned live check; a changed revision retires this page's SDKs until reload. */
-  readonly configuration?: { readonly url: string; readonly revision: string };
-}
-
 /** Explicit choice is required even in opt-out regions. GPC can only remove a grant. O(1). */
 export function resolveBrowserAnalyticsMode(required: BrowserAnalyticsConsent, _optional = {}): BrowserAnalyticsMode {
   if (!required.hasChoice) return 'pending';

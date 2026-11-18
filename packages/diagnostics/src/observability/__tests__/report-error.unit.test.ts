@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { createNoopObservabilityPort, type ErrorReport, type ObservabilityPort } from "../index.js";
+import {
+  createNoopObservabilityPort,
+  type ErrorReport,
+  type ObservabilityPort,
+} from "@jini-ai/core/contracts/observability";
 
 import { combineObservabilityPorts } from "../fanout.js";
 import { redactedError, reportErrorOnce, runWithErrorReportScope, type ErrorReportScope } from "../report-error.js";

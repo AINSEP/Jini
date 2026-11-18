@@ -20,7 +20,10 @@
  */
 import { PostHog, type PostHogOptions } from "posthog-node";
 
-import type { ProductAnalyticsAdapter, ProductAnalyticsPort } from "@jini-ai/analytics/product";
+import type {
+  ProductAnalyticsAdapter,
+  ProductAnalyticsPort,
+} from "@jini-ai/core/contracts/observability";
 import { createProviderTelemetryReporter, type ProviderTelemetryOptions } from "../telemetry-reporter.js";
 
 export interface PostHogConfigEnabled {

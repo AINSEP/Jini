@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { createNoopObservabilityPort } from "../observability/noop.js";
+import { createNoopObservabilityPort, isNoopObservabilityPort } from "../observability.js";
 
 /**
  * @file The no-op port is the default almost every self-hosted install actually runs
@@ -39,4 +39,17 @@ test("the returned tracker is frozen — end cannot be reassigned to add real wo
       throw new Error("should never run");
     };
   });
+});
+
+test("every call returns the one shared frozen port, so a disabled install allocates no port at all", () => {
+  const first = createNoopObservabilityPort({});
+  assert.equal(createNoopObservabilityPort({}), first);
+  assert.ok(Object.isFrozen(first));
+});
+
+test("isNoopObservabilityPort is true for the shared port and false for a hand-built or spread copy", () => {
+  const shared = createNoopObservabilityPort({});
+  assert.equal(isNoopObservabilityPort(shared), true);
+  assert.equal(isNoopObservabilityPort({ ...shared }), false);
+  assert.equal(isNoopObservabilityPort({ ...shared, supportsMetric: true }), false);
 });

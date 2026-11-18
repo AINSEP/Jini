@@ -8,7 +8,7 @@
    "AgentExecutorCompatibility": "type:d7e6572140",
    "AgentExecutorError": "class:002c14c504",
    "AgentExecutorErrorCode": "type:5b986c1879",
-   "AgentExecutorRunInput": "interface:000cef5c12",
+   "AgentExecutorRunInput": "interface:4b8be83387",
    "AgentExecutorToken": "variable:7eb22f24b3",
    "AgentRuntimeEventTranslation": "type:cf1251b451",
    "AiTracingOptions": "interface:15e54105db",
@@ -29,7 +29,7 @@
    "CreateRemoteToolEventRecorderOptions": "interface:84671d3fb1",
    "CreateRunLifecycleInput": "interface:36461b1dd5",
    "CreateRunScopedContextStoreOptions": "interface:392adf4663",
-   "CreateTerminalSessionManagerOptions": "interface:c0c7c6d0c6",
+   "CreateTerminalSessionManagerRequired": "interface:a305a224ed",
    "CreateTerminalSessionOptions": "interface:05a931569e",
    "CreateTerminalToolRegistrationsOptions": "interface:c6bce26a4a",
    "CreateToolExecutorOptions": "interface:dedb0cc16f",
@@ -230,7 +230,7 @@
    "createRunByteJournal": "function:bf7fc41980",
    "createRunLifecycle": "function:bbea4686a4",
    "createRunScopedContextStore": "function:340f42c49d",
-   "createTerminalSessionManager": "function:32d35d0494",
+   "createTerminalSessionManager": "function:568e6759b9",
    "createTerminalToolRegistrations": "function:3f97b79fb5",
    "createToolExecutor": "function:025407f80a",
    "dataDirHasExistingPayload": "function:c41d56bced",
@@ -261,7 +261,7 @@
    "parseToolExecutionLine": "function:fb38c1ce4c",
    "partsInTimezone": "function:3ab00af627",
    "prepareClaudeConfigDirIfNeeded": "function:42cd264f1e",
-   "prepareCodexHomeIfNeeded": "function:23da56a722",
+   "prepareCodexHomeIfNeeded": "function:db4ff0b0cc",
    "prepareMessageAttachments": "function:380a3b9cc5",
    "prepareSystemPromptOverlayFileIfNeeded": "function:88e4c257e3",
    "probeMcpBridge": "function:2a85ddcd69",
@@ -274,7 +274,7 @@
    "resolveIdempotentReplayRunId": "function:a48a6ce7be",
    "resolveImageDeliveryAndArgvBudget": "function:e7be8dc555",
    "resolveLaunch": "function:7165062195",
-   "resolveMcpBridgeForRun": "function:fc3b6bc4bc",
+   "resolveMcpBridgeForRun": "function:7896de45ff",
    "resolveRunEnv": "function:93e2f4cc72",
    "resolveSourceClaudeConfigDir": "function:2094564739",
    "resolveSourceCodexHomeDir": "function:4402140049",
@@ -307,7 +307,7 @@
    "validateSchedule": "function:75f5093d8c",
    "validateTarget": "function:16e0abf48e",
    "withAiTracing": "function:1be50e4832",
-   "writeMcpJsonIfNeeded": "function:5e204a8a75"
+   "writeMcpJsonIfNeeded": "function:68fef20ca6"
   }
  },
  "./chat-settings": {
@@ -378,6 +378,7 @@
    "DaemonDbTableInfo": "interface:728e48fbf8",
    "DaemonDbToolRegistrations": "interface:edc29b1f31",
    "DaemonDbVacuumResult": "interface:fb3437621e",
+   "DaemonRouteHost": "interface:2ead375f26",
    "DaemonShutdownResponse": "interface:1cdb58352f",
    "DaemonStatusDeps": "interface:d7ab3c6ffd",
    "DaemonStatusResponse": "interface:51b6aa4d33",
@@ -468,6 +469,7 @@
    "ResearchSearchResponse": "interface:0d91accb6b",
    "ResearchSource": "interface:66ae9ccac3",
    "ResolveWorkspaceRootOptions": "interface:eed457f9fb",
+   "RouteRegistration": "interface:fc8554ff12",
    "RoutineDeleteResponse": "interface:f4f6781dbb",
    "RoutineHttpDeps": "interface:2c9ea8bbbe",
    "RoutineListResponse": "interface:93d24da8d8",
@@ -509,7 +511,7 @@
    "ToolCatalogQuery": "interface:f62c108a54",
    "ToolCatalogSearchHit": "interface:5b92608775",
    "ToolExecutionRouteTarget": "interface:ec6bc28765",
-   "ToolExecutionRoutesOptional": "interface:52fb82dba7",
+   "ToolExecutionRoutesOptional": "interface:5f8b1a7a78",
    "ToolExecutionRoutesRequired": "interface:be27b94a57",
    "VersionResponse": "interface:a5ba7f7d31",
    "WorkspaceRootDeniedError": "class:29913509de",
@@ -628,12 +630,12 @@
    "registerRunRoutes": "function:dc2acb889e",
    "registerTerminalEventStream": "function:40f2544fce",
    "registerTerminalRoutes": "function:02e3925cfc",
-   "registerToolExecutionRoutes": "function:90e443dd9b",
+   "registerToolExecutionRoutes": "function:44e88dea02",
    "registerXaiRoutes": "function:a0892e7dbd",
    "remoteToolResultRoute": "variable:d6b04c12a9",
    "remoteToolUseRoute": "variable:96008ba684",
-   "requireRemoteToolBridgeToken": "function:3b162820ed",
-   "requireToolExecutionCaller": "function:54364e7167",
+   "requireRemoteToolBridgeToken": "function:12b2cd2030",
+   "requireToolExecutionCaller": "function:2940f21200",
    "researchSearchRoute": "variable:9bf21cd6d0",
    "resolveEntry": "function:4959806f0c",
    "resolveHostToolLaunchPlan": "function:b2a4a4f47a",
@@ -672,6 +674,28 @@
    "xaiOauthDisconnectRoute": "variable:55235a1261",
    "xaiOauthStartRoute": "variable:96956b81c1",
    "xaiSearchRoute": "variable:eb7347380f"
+  }
+ },
+ "./ports/agent-runtime": {
+  "types": "./dist/ports/agent-runtime.d.ts",
+  "symbols": {
+   "AgentRuntimePort": "interface:3c55c218ee",
+   "AgentStreamHandler": "interface:d72de2cf9b",
+   "AgentStreamSink": "type:af3b37412a",
+   "BaseUrlGuardPort": "interface:685d407b4b",
+   "BaseUrlValidationResult": "interface:2075b47da4"
+  }
+ },
+ "./ports/process": {
+  "types": "./dist/ports/process.d.ts",
+  "symbols": {
+   "ProcessSpawnPort": "type:a895608d4a"
+  }
+ },
+ "./ports/runtime": {
+  "types": "./dist/ports/runtime.d.ts",
+  "symbols": {
+   "AgentExecutorRuntimePorts": "interface:68c7117fb6"
   }
  },
  "./read-only-tools": {
@@ -832,12 +856,6 @@
    "resolveConfirmationDecision": "function:c172b291a6"
   }
  },
- "./terminal": {
-  "types": "./dist/terminal.adapter.d.ts",
-  "symbols": {
-   "loadRealSpawnPty": "function:2858d082dc"
-  }
- },
  "./tool-audit": {
   "types": "./dist/tool-audit.d.ts",
   "symbols": {
@@ -879,7 +897,6 @@
    "TOOL_CALL_OPERATION": "variable:315bd25fa1",
    "TOOL_ERROR_ID_PATTERN": "variable:fc94271a66",
    "ToolCallAnalytics": "interface:cd35f22181",
-   "ToolCallObservability": "interface:125feab6ba",
    "ToolExecutionFailure": "class:ec50090d71",
    "ToolFailureDiagnostic": "interface:674b7ea437",
    "ToolFailureRecord": "interface:40ae71dfa8",
@@ -893,7 +910,6 @@
    "isRedactedToolFailure": "function:223c968cf3",
    "issueCredentialSetup": "function:d0b6a4430a",
    "issueToolFailureDiagnostic": "function:b76881baa6",
-   "mintToolErrorId": "function:30b8f27eaf",
    "pseudonymousUserId": "function:29dd589c6c",
    "readToolErrorId": "function:3f1e3661d8",
    "redactFailedResult": "function:7425868d06",
@@ -902,7 +918,7 @@
    "withRedactedToolFailures": "function:4ef424c880",
    "withSurfaceExchangeLifetime": "function:1ebdf18430",
    "withToolCallAnalytics": "function:8c6ea69727",
-   "withToolCallObservability": "function:37e149a071",
+   "withToolCallObservability": "function:68f134459b",
    "withToolFailureRecovery": "function:c0fa822302"
   }
  }

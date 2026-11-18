@@ -3,7 +3,7 @@ import { test } from "vitest";
 import { createErrorDescriber } from "@jini-ai/core";
 
 import { InMemorySpanExporter, createAsyncScope, createPort } from "./otel-fakes.js";
-import { createNoopObservabilityPort } from "@jini-ai/diagnostics/observability";
+import { createNoopObservabilityPort, isNoopObservabilityPort } from "@jini-ai/core/contracts/observability";
 import { createHookObservabilityPort } from "@jini-ai/diagnostics/observability";
 import { describeReportedError } from "@jini-ai/diagnostics/observability";
 import { errorType, redactOperationAttributes } from "@jini-ai/diagnostics/observability";
@@ -114,7 +114,6 @@ test("C61: redact multiline secrets before applying the stack line limit", () =>
 
 test("combineObservabilityPorts: noop-only is the noop; one live port still delivers its signals", async () => {
   const { combineObservabilityPorts } = await import("@jini-ai/diagnostics/observability");
-  const { isNoopObservabilityPort } = await import("@jini-ai/diagnostics/observability");
   assert.ok(isNoopObservabilityPort(combineObservabilityPorts({ ports: [createNoopObservabilityPort({}), createNoopObservabilityPort({})] })));
   const exporter = new InMemorySpanExporter();
   const port = combineObservabilityPorts({ ports: [createNoopObservabilityPort({}), createPort(CONFIG, exporter)] });

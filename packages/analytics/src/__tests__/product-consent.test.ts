@@ -1,5 +1,10 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { withProductAnalyticsGuards, type ProductAnalyticsPort, type ProductEvent, type ProductIdentity } from "../product/index.js";
+import { withProductAnalyticsGuards } from "../product/index.js";
+import {
+  type ProductAnalyticsPort,
+  type ProductEvent,
+  type ProductIdentity,
+} from "@jini-ai/core/contracts/observability";
 
 function deferredConsent() {
   let resolve!: (allowed: boolean) => void;

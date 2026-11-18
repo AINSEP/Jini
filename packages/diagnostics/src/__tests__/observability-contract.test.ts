@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { createNoopObservabilityPort } from "../observability/noop.js";
-import type { ObservabilityPort, RequestTrackingInput, RequestTrackingOutcome } from "../observability/ports.js";
+import { createNoopObservabilityPort } from "@jini-ai/core/contracts/observability";
+import type {
+  ObservabilityPort,
+  RequestTrackingInput,
+  RequestTrackingOutcome,
+} from "@jini-ai/core/contracts/observability";
 
 /**
  * @file Table-driven proof that every adapter satisfies `ObservabilityPort`'s CONTRACT (not just

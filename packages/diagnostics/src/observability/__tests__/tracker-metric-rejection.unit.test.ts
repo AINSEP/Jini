@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createNoopObservabilityPort } from "../noop.js";
+import { createNoopObservabilityPort } from "@jini-ai/core/contracts/observability";
 import { createTracker } from "../tracker.js";
 
 const WARNING = "[tracker] a telemetry provider failed; application work continues";

@@ -34,7 +34,11 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
 import { NodeClient, captureException, defaultStackParser, makeNodeTransport, startInactiveSpan, startNewTrace, withActiveSpan, withScope, type NodeOptions, type Span } from "@sentry/node";
-import { createNoopObservabilityPort, describeReportedError, redactOperationAttributes, type ObservabilityAdapter } from "@jini-ai/diagnostics/observability";
+import { describeReportedError, redactOperationAttributes } from "@jini-ai/diagnostics/observability";
+import {
+  createNoopObservabilityPort,
+  type ObservabilityAdapter,
+} from "@jini-ai/core/contracts/observability";
 import { createProviderTelemetryReporter, type ProviderTelemetryOptions } from "../telemetry-reporter.js";
 import { trimTrailingSlashes } from '../trim-trailing-slashes.js';
 
