@@ -329,7 +329,7 @@ export async function handleToolCall(
     const { args, notes } = await normalizeCallArguments({ tool, rawArgs: rawArgs ?? {} });
     const validation = validatorForTool(tool).validate(args);
     if (!validation.valid) {
-      return errorResult({ message: `invalid arguments for ${tool.name}: ${sanitizeUntrustedText({ text: argumentShapeMessage({ errors: validation.errors, inputSchema: wireInputSchema(tool) }, { includeContract: tool.argumentNormalization?.schemaInput === true }) }, {
+      return errorResult({ message: `invalid arguments for ${tool.name}: ${sanitizeUntrustedText({ text: argumentShapeMessage({ errors: validation.errors, inputSchema: wireInputSchema(tool) }, { includeContract: tool.argumentNormalization?.schemaInput === true, isKnownTool: id => diagnosticToolIds.includes(id) }) }, {
         diagnosticToolIds,
         // A complete bounded contract must survive the default 500-character diagnostic cap.
         maxLength: 4608,

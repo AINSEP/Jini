@@ -10,6 +10,7 @@
  */
 import type { OutputUnit } from '@cfworker/json-schema';
 import { decodeToolInputObject, unwrapToolInputEnvelope } from '@jini-ai/core';
+import { missingArgumentGuidance } from '@jini-ai/core/tool-input-repairs';
 import type { Tool } from './adapters/protocol.js';
 
 /** Argument normalization's input contract, shared with the dispatcher without a reverse import. */
@@ -165,12 +166,29 @@ function pointerToFieldPath({ instanceLocation }: { instanceLocation: string }):
  * The supply/remove instruction for a `required` or `additionalProperties` error, whose message
  * quotes the offending property name; `undefined` for any other error, or when no name is quoted.
  */
-function namedFieldMessage({ error, path }: { error: OutputUnit; path: string }): string | undefined {
+function namedFieldMessage(
+  { error, path, inputSchema, isKnownTool }: { error: OutputUnit; path: string; inputSchema?: unknown; isKnownTool?: (toolId: string) => boolean },
+): string | undefined {
   if (error.keyword !== 'required' && error.keyword !== 'additionalProperties') return undefined;
   const field = error.error.match(/"(.*)"/)?.[1];
   if (field === undefined) return undefined;
   const key = path ? `${path}.${field}` : field;
-  return error.keyword === 'required' ? `supply required argument \`${key}\`` : `remove unknown argument \`${key}\``;
+  if (error.keyword !== 'required') return `remove unknown argument \`${key}\``;
+  return `supply required argument \`${key}\`${obtainFromClause({ field, path, inputSchema }, isKnownTool === undefined ? {} : { isKnownTool })}`;
+}
+
+/**
+ * `; list valid values with <tool>` for a top-level required argument whose schema declares `obtainFrom`
+ * and names a tool the run can see; empty otherwise. The validator already said the field is absent, so
+ * the guidance is read against an empty input and only this field's entry is used.
+ */
+function obtainFromClause(
+  { field, path, inputSchema }: { field: string; path: string; inputSchema: unknown },
+  { isKnownTool }: { isKnownTool?: (toolId: string) => boolean } = {},
+): string {
+  if (path !== '') return '';
+  const entry = missingArgumentGuidance({ inputSchema, input: {} }, isKnownTool === undefined ? {} : { isKnownTool }).find(({ property }) => property === field);
+  return entry === undefined ? '' : `; list valid values with ${entry.toolId}`;
 }
 
 /** A complete small contract for repair diagnostics. Never truncate a schema into a misleading
@@ -210,13 +228,13 @@ export function withArgumentContract(
  */
 export function argumentShapeMessage(
   { errors, inputSchema }: { errors: readonly OutputUnit[]; inputSchema?: unknown },
-  { includeContract = false }: { includeContract?: boolean } = {},
+  { includeContract = false, isKnownTool }: { includeContract?: boolean; isKnownTool?: (toolId: string) => boolean } = {},
 ): string {
   // Keep the additionalProperties diagnostic ahead of its generic false-schema child.
   const error = errors.find((entry) => entry.keyword === 'required' || entry.keyword === 'additionalProperties' || entry.instanceLocation !== '#') ?? errors[0];
   if (error === undefined) return 'supply arguments matching the declared input schema';
   const path = pointerToFieldPath({ instanceLocation: error.instanceLocation });
-  const message = namedFieldMessage({ error, path }) ?? `change \`${path || 'arguments'}\`: ${error.error}`;
+  const message = namedFieldMessage({ error, path, inputSchema, ...(isKnownTool === undefined ? {} : { isKnownTool }) }) ?? `change \`${path || 'arguments'}\`: ${error.error}`;
   // Wrong keys also need the accepted names and units, not a sequence of remove/retry guesses.
   if (!includeContract && !errors.some(entry => ['required', 'items'].includes(entry.keyword))) return message;
   return withArgumentContract({ message, inputSchema });

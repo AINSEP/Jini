@@ -43,6 +43,7 @@ import {
 } from '@jini-ai/core/contracts/server';
 import * as readOnlyTools from '../core/read-only-tools.js';
 import { resolveToolTarget, unknownToolDetails, unknownToolMessage } from '../core/tool-target.js';
+import { withValidationGuidance } from './validation-guidance.js';
 import type { ToolFamilyPort } from '../core/tool-family.js';
 
 export interface DelegatedToolExecuteRequest {
@@ -415,7 +416,7 @@ export const delegatedToolExecuteRoute = defineJsonRoute<
         input: input.input,
         ...(signal !== undefined ? { signal } : {}),
       });
-      return toolExecutionResultWithRecovery(deps, { principal, runId: input.runId, toolId: input.toolId, result });
+      return toolExecutionResultWithRecovery(deps, { principal, runId: input.runId, toolId: input.toolId, result: withValidationGuidance({ result, toolId: input.toolId, input: input.input, registry: deps.toolRegistry }) });
     } catch (error) {
       if (error instanceof ToolInputError) {
         return err({ error: createApiError({ code: 'BAD_REQUEST', message: error.message }) });

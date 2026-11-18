@@ -4,7 +4,9 @@
  * `clamp: true` and declares `minimum` and/or `maximum` has an out-of-range number moved to the
  * nearest bound, with a note. Clamping is opt-in per property because it is only safe for page,
  * size and wait controls; a number that selects, addresses, prices or authorizes must be refused,
- * never moved. Pure: no I/O, no clock, no `node:` import, and it never mutates the caller's input.
+ * never moved. The other declaration is `obtainFrom`: a property names the tool that lists its valid
+ * values, so a call missing it is told where to look. Pure: no I/O, no clock, no `node:` import, and
+ * it never mutates the caller's input.
  */
 import { isNonArrayRecord } from './records.js';
 
@@ -83,8 +85,15 @@ export function clampDeclaredBounds(
   return { input: clampObject({ value: input, schema: inputSchema, prefix: '', depth: 0, notes }), notes };
 }
 
-/** Checks one property's `clamp` declaration; throws the message naming its path. */
+/** Checks one property's `obtainFrom` declaration; throws the message naming its path. */
+function assertObtainFromDeclaration({ property, path }: { property: Record<string, unknown>; path: string }): void {
+  if (!Object.hasOwn(property, 'obtainFrom')) return;
+  if (typeof property.obtainFrom !== 'string' || property.obtainFrom.length === 0) throw new Error(`obtainFrom on '${path}' must be the id of a tool`);
+}
+
+/** Checks one property's repair declarations; throws the message naming its path. */
 function assertClampDeclaration({ property, path }: { property: Record<string, unknown>; path: string }): void {
+  assertObtainFromDeclaration({ property, path });
   if (!Object.hasOwn(property, 'clamp')) return;
   if (typeof property.clamp !== 'boolean') throw new Error(`clamp on '${path}' must be true or false`);
   if (property.clamp && declaredBounds(property) === undefined) {
@@ -92,7 +101,7 @@ function assertClampDeclaration({ property, path }: { property: Record<string, u
   }
 }
 
-/** Walks the properties of one object schema, to depth 6, checking every `clamp` declaration. */
+/** Walks the properties of one object schema, to depth 6, checking every `clamp` and `obtainFrom` declaration. */
 function assertObjectSchema({ schema, prefix, depth }: { schema: Record<string, unknown>; prefix: string; depth: number }): void {
   const properties = isObject(schema.properties) ? schema.properties : {};
   for (const [name, property] of Object.entries(properties)) {
@@ -104,11 +113,12 @@ function assertObjectSchema({ schema, prefix, depth }: { schema: Record<string, 
 
 /**
  * Throws when a schema declares a repair the call-time code would silently ignore: `clamp` that is
- * not a boolean, or `clamp: true` on a property that is not numeric or has no bound. A registry-wide
+ * not a boolean, `clamp: true` on a property that is not numeric or has no bound, or `obtainFrom`
+ * that is not a non-empty string. A registry-wide
  * gate calls this for every published schema so a mistyped declaration fails in CI, not in a run.
  *
  * @param required.inputSchema - The tool's input schema.
- * @throws Error naming the property path (`clamp on 'page.size' …`).
+ * @throws Error naming the property path (`clamp on 'page.size' …`, `obtainFrom on 'themeId' …`).
  * @complexity O(p) for p schema properties visited, to depth 6; no effects.
  */
 export function assertRepairKeywords(
@@ -116,4 +126,47 @@ export function assertRepairKeywords(
   _optional: Record<string, never> = {},
 ): void {
   if (isObject(inputSchema)) assertObjectSchema({ schema: inputSchema, prefix: '', depth: 0 });
+}
+
+/** One required property the input lacks, and the tool its schema names as the place valid values come from. */
+export interface MissingArgumentGuidance {
+  readonly property: string;
+  readonly toolId: string;
+  /** The same words on every path that gives this guidance. */
+  readonly sentence: string;
+}
+
+/** The tool a required property's schema names as its source of valid values, or `undefined` when the property is present or declares none. */
+function obtainFromTool(
+  { property, inputSchema, given }: { property: unknown; inputSchema: Record<string, unknown>; given: Record<string, unknown> },
+): string | undefined {
+  if (typeof property !== 'string' || Object.hasOwn(given, property) || !isObject(inputSchema.properties)) return undefined;
+  const declared = inputSchema.properties[property];
+  return isObject(declared) && typeof declared.obtainFrom === 'string' ? declared.obtainFrom : undefined;
+}
+
+/**
+ * The guidance for each required top-level property that the input lacks and whose schema declares
+ * `obtainFrom`: the tool that lists its valid values. A tool the caller cannot see is never named,
+ * and a present property or one without `obtainFrom` gets nothing. Reads the schema only; the
+ * caller decides which failure the guidance belongs to.
+ *
+ * @param required.inputSchema - The tool's input schema.
+ * @param required.input - The input the call carried; one that is not an object has no properties.
+ * @param optional.isKnownTool - Whether the caller can see a tool id; omitted means every id is visible.
+ * @returns One entry per such property, in the schema's `required` order; empty when there is nothing to say.
+ * @complexity O(r) for r required properties; no effects, no mutation.
+ */
+export function missingArgumentGuidance(
+  { inputSchema, input }: { readonly inputSchema: unknown; readonly input: unknown },
+  { isKnownTool = () => true }: { readonly isKnownTool?: (toolId: string) => boolean } = {},
+): readonly MissingArgumentGuidance[] {
+  if (!isObject(inputSchema) || !Array.isArray(inputSchema.required)) return [];
+  const given = isObject(input) ? input : {};
+  const entries: MissingArgumentGuidance[] = [];
+  for (const property of inputSchema.required) {
+    const toolId = obtainFromTool({ property, inputSchema, given });
+    if (toolId !== undefined && isKnownTool(toolId)) entries.push({ property, toolId, sentence: `List valid values for \`${property}\` with ${toolId}.` });
+  }
+  return entries;
 }
