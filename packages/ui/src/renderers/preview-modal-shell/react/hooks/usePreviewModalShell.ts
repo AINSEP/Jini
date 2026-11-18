@@ -47,7 +47,10 @@ export interface PreviewModalShellController<V extends PreviewModalViewLike> {
 }
 
 /** Fullscreen flag + enter/exit; Escape in fullscreen exits it instead of closing the modal. */
-function useFullscreen(stageRef: RefObject<HTMLDivElement | null>, onClose: () => void) {
+function useFullscreen({ stageRef, onClose }: {
+  stageRef: RefObject<HTMLDivElement | null>;
+  onClose: () => void;
+}) {
   const [fullscreen, setFullscreen] = useState(false);
 
   // Close on Escape. In fullscreen, the first Escape exits fullscreen
@@ -216,7 +219,7 @@ export function usePreviewModalShell<V extends PreviewModalViewLike>(
     onView?.(activeId);
   }, [activeId, onView]);
 
-  const fullscreenState = useFullscreen(stageRef, onClose);
+  const fullscreenState = useFullscreen({ stageRef, onClose });
   const primaryMenu = usePrimaryMenu();
   useBodyScrollLock();
   const stage = useStageMeasurement({ stageFrameRef, sidebarOpen, activeId, designWidth: options.designWidth ?? 1280 });

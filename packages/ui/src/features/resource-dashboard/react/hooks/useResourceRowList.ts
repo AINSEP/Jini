@@ -49,10 +49,10 @@ export interface ResourceRowListController<TRow extends ResourceRowItem> {
 }
 
 /** Loads the row list; bumping `refreshToken` re-fetches. */
-function useRowListLoader<TRow extends ResourceRowItem>(
-  port: ResourceRowListPort<TRow>,
-  refreshToken: string | number | undefined,
-) {
+function useRowListLoader<TRow extends ResourceRowItem>({ port, refreshToken }: {
+  port: ResourceRowListPort<TRow>;
+  refreshToken: string | number | undefined;
+}) {
   const [rows, setRows] = useState<TRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -178,7 +178,7 @@ export function useResourceRowList<TRow extends ResourceRowItem>(
   params: UseResourceRowListParams<TRow>,
 ): ResourceRowListController<TRow> {
   const { port, refreshToken } = params;
-  const { rows, loading, error, reload } = useRowListLoader(port, refreshToken);
+  const { rows, loading, error, reload } = useRowListLoader({ port, refreshToken });
   const { historyLoadingRowId, historyByRowId, fetchHistoryFor } = useRowHistory(port);
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
   const { actionError, isRowBusy, dispatchRowAction } = useRowActionDispatch({ reload, expandedRowId, fetchHistoryFor });

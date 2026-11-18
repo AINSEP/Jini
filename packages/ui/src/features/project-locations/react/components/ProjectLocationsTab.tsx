@@ -67,11 +67,11 @@ type TabState = ReturnType<typeof useProjectLocationsTab>;
 type ResolvedLabels = Required<ProjectLocationsTabLabels>;
 type DefaultControlLabel = ReturnType<typeof createDefaultControlLabel>;
 
-function resolveNotices(
-  result: TabState['result'],
-  labels: ResolvedLabels,
-  t: ReturnType<typeof useT>,
-): { notice: string | null; errorNotice: string | null } {
+function resolveNotices({ result, labels, t }: {
+  result: TabState['result'];
+  labels: ResolvedLabels;
+  t: ReturnType<typeof useT>;
+}): { notice: string | null; errorNotice: string | null } {
   const noticeByStatus: Partial<Record<typeof result.status, string>> = {
     'no-folder-selected': labels.noFolderSelectedLabel,
     duplicate: labels.duplicateLabel,
@@ -175,7 +175,7 @@ export function ProjectLocationsTab({ port, defaultLocationId, onDefaultLocation
   const { drafts, builtIn, effectiveDefaultLocationId, saving, result, addFolder, setDefaultLocationId } = state;
   const copy = resolveLabels({ t }, labels);
   const defaultControlLabel = createDefaultControlLabel({ defaultBadge: copy.defaultBadge, makeDefaultLabel: copy.makeDefaultLabel });
-  const { notice, errorNotice } = resolveNotices(result, copy, t);
+  const { notice, errorNotice } = resolveNotices({ result, labels: copy, t });
 
   return (
     <section className="jini-settings-section jini-settings-project-locations">

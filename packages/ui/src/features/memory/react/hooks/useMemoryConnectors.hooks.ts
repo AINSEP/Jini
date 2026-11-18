@@ -178,11 +178,11 @@ export function applyMemoryConnectorConnectResult(
 }
 
 /** The per-connector connect flow (OAuth start), guarded against re-entrancy per connector id. */
-function useConnectAction(
-  port: MemoryConnectorsPort,
-  auth: ReturnType<typeof useConnectorAuthState>,
-  catalogue: ReturnType<typeof useConnectorCatalogue>,
-) {
+function useConnectAction({ port, auth, catalogue }: {
+  port: MemoryConnectorsPort;
+  auth: ReturnType<typeof useConnectorAuthState>;
+  catalogue: ReturnType<typeof useConnectorCatalogue>;
+}) {
   const { setConnectorConnectErrors, setPendingConnectorAuthIds, setConnectingConnectorIds, connectingConnectorIdsRef } = auth;
   const { setConnectors, connectorCatalogueGuardRef, refreshConnectorStatuses } = catalogue;
 
@@ -239,7 +239,7 @@ export function useMemoryConnectors(
     ...coord,
     selectedConnectedConnectorIds: selection.selectedConnectedConnectorIds,
   });
-  const onConnectMemoryConnector = useConnectAction(port, auth, catalogue);
+  const onConnectMemoryConnector = useConnectAction({ port, auth, catalogue });
   const { connectorStatuses, connectorsLoading, connectorLoadError, reloadConnectors, refreshConnectorStatuses } = catalogue;
   const { memoryConnectors, connectedMemoryConnectors, connectedCount, selectedConnectedConnectorIds } = selection;
   const idleScanLabel = selectedConnectedConnectorIds.length === 0 ? 'Select apps to scan' : 'Scan selected apps';
