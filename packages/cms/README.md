@@ -143,7 +143,8 @@ failure), a `saveAny` and a `hardDelete` that removed a row.
 `trashEntityLockKey`, the one lock key a Trash transition takes for an entity. `./trash/sql` (node) is the Kysely adapter for
 `TrashRepoPort` (`SqlTrashRepo`: the host passes its storage kernel and the name of its `trashed_items` table) with the
 registry-driven query kit a host's table adapter is built from: `notTrashed` (a `WHERE` condition) and `isTrashedRecord`
-(its flat-record twin), `readLiveSnapshot`, `entryWhere` and `loose`.
+(its flat-record twin), `readLiveSnapshot`, `entryWhere` and `loose`. `createTableTrashAdapter` is the one `TrashAdapter` for every registry entry: the host
+passes the entry, its storage kernel (read on first use) and the name of its `trashed_items` table.
 
 **Still to move:** `post`, `seo`, `comments`, `redirects`, `newsletter`,
 `members`. Widgets are exposed through the universal and node entries above.
