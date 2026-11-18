@@ -87,18 +87,22 @@ function borderTable(needle: string): Int32Array {
 }
 
 // Characters that end a URL in running text. They may appear in a password, but a password's `@` is only
-// followed by more password: once one of them sits between two `@`, the later `@` belongs to other text.
-const URL_END_PUNCTUATION = /[,;()<>"'`]/;
+// followed by more password: once a HOST NAME followed by one of them sits between two `@`, the later `@` belongs to
+// other text (`host.example.com,bob@example.com`). A password fragment before the punctuation (`p@ss,<tail>@host`) is
+// not host-shaped (no dot, no port), so the userinfo keeps running and the tail stays masked. The host is a dotted
+// name, `localhost` or a bracketed IPv6 literal, with an optional port.
+const HOST_THEN_URL_END = /^(?:[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+|localhost|\[[0-9A-Fa-f:.]+\])(?::\d{1,5})?[,;()<>"'`]/;
 
 /** Length of the userinfo in an authority's text up to its last `@` (`authority` ends before that `@`): the
- * part before the first `@`, plus each later `@` segment that holds no URL-ending punctuation. A password may
- * hold unencoded `@` signs (`u:p@ss@host`), but `host,bob@example.com` is a host followed by an address.
+ * part before the first `@`, plus each later `@` segment that does not start with a host followed by URL-ending
+ * punctuation. A password may hold unencoded `@`, `,` and `;` (`u:p@ss,w;rd@host`), but `host,bob@example.com` is a
+ * host followed by an address.
  * @complexity O(n) in the authority's length; each segment is read once. */
 export function userinfoLength({ authority }: { readonly authority: string }): number {
   const text = `${authority}@`;
   let end = text.indexOf('@');
   for (let next = text.indexOf('@', end + 1); next !== -1; next = text.indexOf('@', next + 1)) {
-    if (URL_END_PUNCTUATION.test(text.slice(end + 1, next))) break;
+    if (HOST_THEN_URL_END.test(text.slice(end + 1, next))) break;
     end = next;
   }
   return end;
