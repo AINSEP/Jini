@@ -64,3 +64,17 @@ describe('custom auth headers and auth schemes other than Bearer', () => {
     expect(redactUserText({ text })).toEqual(kept(text));
   });
 });
+
+describe('label aliases with short values', () => {
+  it.each(['passwd', 'pwd', 'id_token', 'auth_token', 'signing_secret', 'webhook_secret'])('removes the value of %s', label => {
+    expect(redactUserText({ text: `${label}=abc` })).toEqual({ text: `${label}=[token removed]`, secretRedacted: true, count: 1 });
+    expect(redactUserText({ text: `{"${label}":"abc"}` })).toEqual({ text: `{"${label}":"[token removed]"}`, secretRedacted: true, count: 1 });
+  });
+  it.each([['DB_PASSWORD=abc', 'DB_PASSWORD=[token removed]'], ['my note: app_secret=abc ok', 'my note: app_secret=[token removed] ok']])(
+    'removes the value of a prefixed name in %j', (text, expected) => {
+      expect(redactUserText({ text })).toEqual({ text: expected, secretRedacted: true, count: 1 });
+    });
+  it.each(['pwd command prints the cwd', 'cd /home/user && pwd', 'passwd: hunter2', 'token_count=12'])('keeps %j', text => {
+    expect(redactUserText({ text })).toEqual(kept(text));
+  });
+});

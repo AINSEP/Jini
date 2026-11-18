@@ -33,6 +33,7 @@
  */
 
 import { authSchemeValueRanges, BARE_SCHEME_TOKEN_PATTERNS } from './redact-auth-schemes.js';
+import { labelAliasValueRanges } from './redact-label-aliases.js';
 import { VENDOR_SHAPE_PATTERNS } from './redact-vendor-shapes.js';
 
 /** Credential-shape vocabulary for secret-only redaction; no I/O or host dependencies. */
@@ -554,6 +555,7 @@ function collectSpans({ text }: { text: string }, options: SecretRedactionOption
   collectPatterns({ text, add, patterns: credentialPatterns(options.extraPatterns ?? []) });
   collectKeyedCredentials({ text, add });
   collectLabeledSecrets({ text, add }, spans);
+  for (const { start, end } of labelAliasValueRanges({ text, isMasked: isMaskedValue })) add(start, end, CATEGORY.labeledSecret);
   if (options.policy === 'aggressive') collectOpaqueTokens({ text, add }, new Set(options.diagnosticToolIds));
   if (options.redactPii !== false) collectPii({ text, add }, spans);
   return spans;
