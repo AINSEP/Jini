@@ -119,6 +119,10 @@ taxonomy tables and the workspace each repository is scoped to; the adapter has 
 The universal `./taxonomy` entry carries the read-port types (`TaxonomyPublishReadPort`, `TermPublishReadPort`,
 `AssignedTermView`, `EntryTermReadPort`) those repositories also satisfy.
 
+`./navigation/sql` (node) is the Kysely adapter for `MenuRepoPort` and `NavLocationBindingRepoPort`
+(`SqlMenuRepo`, `SqlNavLocationBindingRepo`): the host passes its storage kernel and the names of its menus and
+location-binding tables; the adapter has no table or product defaults.
+
 **Still to move:** `post`, `seo`, `comments`, `redirects`, `newsletter`,
 `members`. Widgets are exposed through the universal and node entries above.
 The nested forms package is maintained by its separate owner and is excluded from this parent package.

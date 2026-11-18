@@ -52,6 +52,7 @@
       "./redirects/sql": "node",
       "./workspace/sql": "node",
       "./taxonomy/sql": "node",
+      "./navigation/sql": "node",
       "./redirects/express": "node",
       "./redirects/spa": "universal",
       "./redirects/host-config": "universal",
@@ -350,6 +351,11 @@
       "types": "./dist/taxonomy/sql/index.d.ts",
       "import": "./dist/taxonomy/sql/index.js",
       "default": "./dist/taxonomy/sql/index.js"
+    },
+    "./navigation/sql": {
+      "types": "./dist/navigation/sql/index.d.ts",
+      "import": "./dist/navigation/sql/index.js",
+      "default": "./dist/navigation/sql/index.js"
     },
     "./redirects/express": {
       "types": "./dist/redirects/express/index.d.ts",
