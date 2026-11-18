@@ -4,7 +4,7 @@ import { test } from "vitest";
 import { humanConfirmedHandler, ToolInputError, ToolPermissionDeniedError, type AgentToolDefinition, type ToolExecutionContext, type ToolRegistration } from "@jini-ai/core";
 import type { GatedMutationHooks } from "@jini-ai/core/gated-mutations";
 import { MERGE_TOOL_ID } from "../tool-handlers.js";
-import type { TaxonomyMergeDialog, TaxonomyPackageToolDeps } from "../tool-handlers.types.js";
+import type { TaxonomyMergePrepared, TaxonomyPackageToolDeps } from "../tool-handlers.types.js";
 import { taxonomyAgentToolCatalog } from "../agent-tools.js";
 import { buildTaxonomyToolRegistrations, taxonomyDerivedRisk } from "../tool-registrations.js";
 import { InMemoryContentLookup, InMemoryEntryTermRepo, InMemoryTaxonomyRepo, InMemoryTaxonomyRevisionRepo, InMemoryTermRepo } from "../repo.memory.js";
@@ -40,6 +40,7 @@ function ctx(input: Record<string, unknown>): ToolExecutionContext {
 function makeFixture(options: { allow?: boolean; answer?: Confirmation } = {}) {
   const allow = options.allow ?? true;
   const calls: string[] = [];
+  const asked: TaxonomyMergePrepared[] = [];
   const events: string[] = [];
   const entryTermRepo = new InMemoryEntryTermRepo();
   const termRepo = new InMemoryTermRepo();
@@ -69,29 +70,37 @@ function makeFixture(options: { allow?: boolean; answer?: Confirmation } = {}) {
       if (!result.allowed) throw new ToolPermissionDeniedError({ message: `principal '${principalId}' is not authorized for '${permission}' (${result.reason})`, permission, reason: result.reason });
     },
     mergeTermHooks: ({ fromTermId, intoTermId }) => hooksFor({ entryTermRepo, fromTermId, intoTermId, calls }),
-    mergeGateway: {
-      plan: async ({ hooks }) => { calls.push("plan"); const plan = await hooks.computePlan({}); return { domain: "taxonomy.merge", planId: "plan-1", planHash: plan.planHash, details: plan.details }; },
-      confirm: async () => { calls.push("confirm"); return { confirmationToken: "tok-1" }; },
-      execute: async ({ hooks }) => { calls.push("execute"); return hooks.executeMutation({ planHash: "h", details: {} as never }); },
-    },
-    humanConfirmedHandler: (_surfaces, spec) => humanConfirmedHandler({
-      prepare: ({ ctx: context }) => spec.prepare({ ctx: context }),
-      askHuman: async ({ prepared }) => {
-        dialogs.push(spec.dialog(prepared));
-        return (options.answer ?? "confirm") === "decline" ? { confirmed: false, result: { [spec.flag]: false, cancelled: true } } : { confirmed: true };
-      },
-      run: ({ ctx: context, prepared, confirmer }) => spec.run({ ctx: context, prepared, confirmer }),
-    }),
+    mergeGateway: fakeGateway({ calls }),
+    mergeConfirmedHandler: fakeConfirmedHandler({ answer: options.answer ?? "confirm", asked }),
     refuseUnexpectedKeys: (input, allowed) => {
       const extra = Object.keys(input).find((key) => !allowed.includes(key));
       if (extra !== undefined) throw new ToolInputError({ message: `'${extra}' is not an input of this tool.` });
     },
     toSlug: ({ text }) => `slug:${text.toLowerCase()}`,
   };
-  const dialogs: TaxonomyMergeDialog[] = [];
   const tools = buildTaxonomyToolRegistrations({ deps, surfaces: { surfaceExchanges: {} as never }, catalog: CATALOG });
   const call = (id: string, input: Record<string, unknown>) => find(tools, id).handler(ctx(input));
-  return { deps, tools, call, calls, events, dialogs, entryTermRepo, termRepo };
+  return { deps, tools, call, calls, events, asked, entryTermRepo, termRepo };
+}
+
+function fakeGateway({ calls }: { calls: string[] }): TaxonomyPackageToolDeps["mergeGateway"] {
+  return {
+    plan: async ({ hooks }) => { calls.push("plan"); const plan = await hooks.computePlan({}); return { domain: "taxonomy.merge", planId: "plan-1", planHash: plan.planHash, details: plan.details }; },
+    confirm: async () => { calls.push("confirm"); return { confirmationToken: "tok-1" }; },
+    execute: async ({ hooks }) => { calls.push("execute"); return hooks.executeMutation({ planHash: "h", details: {} as never }); },
+  };
+}
+
+/** The kit's `humanConfirmedHandler` (the registration kit requires it for this tool) with the human's answer fixed. */
+function fakeConfirmedHandler({ answer, asked }: { answer: Confirmation; asked: TaxonomyMergePrepared[] }): TaxonomyPackageToolDeps["mergeConfirmedHandler"] {
+  return (_surfaces, spec) => humanConfirmedHandler({
+    prepare: ({ ctx: context }) => spec.prepare({ ctx: context }),
+    askHuman: async ({ prepared }) => {
+      asked.push(prepared);
+      return answer === "decline" ? { confirmed: false, result: { [spec.flag]: false, cancelled: true } } : { confirmed: true };
+    },
+    run: ({ ctx: context, prepared, confirmer }) => spec.run({ ctx: context, prepared, confirmer }),
+  });
 }
 
 function find(tools: ToolRegistration[], id: string): ToolRegistration {
@@ -183,8 +192,7 @@ test(`${MERGE_TOOL_ID}: confirmed -> plan, confirm, execute in order, then the a
   assert.deepEqual(fixture.calls, ["plan", "confirm", "execute", "mutate"]);
   assert.equal(await fixture.entryTermRepo.countByTerm({ termId: fromTermId }), 0);
   assert.equal(await fixture.entryTermRepo.countByTerm({ termId: intoTermId }), 1);
-  assert.equal(fixture.dialogs[0]?.title, "Merge Alpha into Beta?");
-  assert.deepEqual(fixture.dialogs[0]?.details, [{ label: "Merge away", value: "Alpha" }, { label: "Keep", value: "Beta" }]);
+  assert.deepEqual([fixture.asked[0]?.fromName, fixture.asked[0]?.intoName, fixture.asked[0]?.plan.details.overlappingContentCount], ["Alpha", "Beta", 0]);
 });
 
 test(`${MERGE_TOOL_ID}: declined -> no confirm, no execute, no repo write`, async () => {

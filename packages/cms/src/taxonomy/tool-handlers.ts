@@ -17,7 +17,7 @@ import { adaptLegacyAuthorize, requireToolPermission } from "../core/tools/index
 import { listTaxonomiesWithTerms } from "./list.js";
 import { confirmMergeTerm, executeMergeTerm, planMergeTerm } from "./merge-term.js";
 import { toTaxonomyOutbox } from "./repo.memory.js";
-import type { TaxonomyHandlerArgs, TaxonomyPackageToolDeps } from "./tool-handlers.types.js";
+import type { TaxonomyHandlerArgs, TaxonomyMergePrepared, TaxonomyPackageToolDeps } from "./tool-handlers.types.js";
 import { assignTerms, createTaxonomy, createTerm, isContentTypeOnAllowList, renameTerm, unassignTerms, type WriteServiceDeps } from "./write-service.js";
 
 export const MERGE_TOOL_ID = "taxonomy_execute_merge_term";
@@ -205,14 +205,7 @@ export const taxonomyPlanMergeTermHandler = ({ deps }: TaxonomyHandlerArgs): Too
   });
 };
 
-type MergePrepared = {
-  hooks: ReturnType<typeof mergeHooksFor>;
-  plan: Awaited<ReturnType<typeof planMergeTerm>>;
-  fromName: string;
-  intoName: string;
-};
-
-async function mergePrepare({ deps, ctx }: { deps: TaxonomyPackageToolDeps; ctx: ToolExecutionContext }, _optional = {}): Promise<MergePrepared> {
+async function mergePrepare({ deps, ctx }: { deps: TaxonomyPackageToolDeps; ctx: ToolExecutionContext }, _optional = {}): Promise<TaxonomyMergePrepared> {
   const input = requireInputRecord({ input: ctx.input });
   deps.refuseUnexpectedKeys(input, ["fromTermId", "intoTermId"]);
   const fromTermId = requireString({ input: input, key: "fromTermId" });
@@ -230,26 +223,8 @@ async function mergePrepare({ deps, ctx }: { deps: TaxonomyPackageToolDeps; ctx:
   return { hooks, plan, fromName: await termName({ deps, id: fromTermId }), intoName: await termName({ deps, id: intoTermId }) };
 }
 
-function mergeDialog({ plan, fromName, intoName }: MergePrepared, _optional = {}) {
-  return {
-    toolId: MERGE_TOOL_ID,
-    errorCode: "TAXONOMY",
-    title: `Merge ${fromName} into ${intoName}?`,
-    details: [
-      { label: "Merge away", value: fromName },
-      { label: "Keep", value: intoName },
-      ...(plan.details.overlappingContentCount > 0
-        ? [{ label: "Tagged with both", value: String(plan.details.overlappingContentCount) }]
-        : []),
-    ],
-    warning: `Everything tagged ${fromName} is re-tagged ${intoName}, and ${fromName} is retired. This can't be undone.`,
-    danger: true,
-    confirmLabel: "Merge terms",
-  };
-}
-
 async function mergeRun(
-  { deps, ctx, prepared: { hooks, plan }, confirmer }: { deps: TaxonomyPackageToolDeps; ctx: ToolExecutionContext; prepared: MergePrepared; confirmer: HumanConfirmer },
+  { deps, ctx, prepared: { hooks, plan }, confirmer }: { deps: TaxonomyPackageToolDeps; ctx: ToolExecutionContext; prepared: TaxonomyMergePrepared; confirmer: HumanConfirmer },
   _optional = {},
 ): Promise<unknown> {
   const { token } = await confirmMergeTerm({
@@ -284,9 +259,8 @@ async function mergeRun(
 // Plans as the agent, asks the human, then confirms as the human and executes as the agent —
 // the gateway's own check sequence (authorize, token, actor-class, plan hash) runs unchanged.
 export const taxonomyExecuteMergeTermHandler = ({ deps, surfaces }: TaxonomyHandlerArgs): ToolHandler =>
-  deps.humanConfirmedHandler(surfaces, {
+  deps.mergeConfirmedHandler(surfaces, {
     flag: "merged",
     prepare: ({ ctx }) => mergePrepare({ deps, ctx }),
-    dialog: (prepared) => mergeDialog(prepared),
     run: ({ ctx, prepared, confirmer }) => mergeRun({ deps, ctx, prepared, confirmer }),
   });

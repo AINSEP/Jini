@@ -9,7 +9,7 @@ import type { GatedMutationHooks, GatewayPlan, PrincipalKind } from "@jini-ai/co
 import type { Clock } from "@jini-ai/core/primitives";
 import type { HumanConfirmer, SurfaceExchangeStore, ToolExecutionContext, ToolHandler } from "@jini-ai/core";
 import type { TaxonomyListPort, TermListPort } from "./list.js";
-import type { MergeTermPlanDetails } from "./merge-term.js";
+import type { MergeTermPlanDetails, planMergeTerm } from "./merge-term.js";
 import type {
   ContentLookupPort,
   ContentTypeTaxonomyPolicyPort,
@@ -30,15 +30,12 @@ export interface TaxonomyMergeGateway {
 
 export type MergeHooks = GatedMutationHooks<MergeTermPlanDetails, { mergedCount: number }>;
 
-/** The confirm dialog a human sees before a merge; the host's dialog spec accepts this shape. */
-export interface TaxonomyMergeDialog {
-  toolId: string;
-  errorCode: string;
-  title: string;
-  details: Array<{ label: string; value: string }>;
-  warning: string;
-  danger: boolean;
-  confirmLabel: string;
+/** What the merge handler prepares and the host's confirm dialog describes: the plan and both term names. */
+export interface TaxonomyMergePrepared {
+  hooks: MergeHooks;
+  plan: Awaited<ReturnType<typeof planMergeTerm>>;
+  fromName: string;
+  intoName: string;
 }
 
 export interface TaxonomyToolSurfaces {
@@ -71,13 +68,16 @@ export interface TaxonomyPackageToolDeps {
   authorizeContentEdit(required: { principalId: string; contentType: string }, optional?: Record<string, never>): Promise<void>;
   mergeTermHooks(required: { fromTermId: string; intoTermId: string; actorId: string }, optional?: Record<string, never>): MergeHooks;
   mergeGateway: TaxonomyMergeGateway;
-  humanConfirmedHandler<TPrepared>(
+  /**
+   * The merge's human confirmation: the host asks the human (wording, locale and transport are
+   * the host's), and only on the human's click calls `run`. `flag` is the result key for "did it run".
+   */
+  mergeConfirmedHandler(
     surfaces: TaxonomyToolSurfaces,
     spec: {
       flag: string;
-      prepare: (required: { ctx: ToolExecutionContext }) => Promise<TPrepared>;
-      dialog: (prepared: TPrepared) => TaxonomyMergeDialog;
-      run: (required: { ctx: ToolExecutionContext; prepared: TPrepared; confirmer: HumanConfirmer }) => Promise<unknown>;
+      prepare: (required: { ctx: ToolExecutionContext }) => Promise<TaxonomyMergePrepared>;
+      run: (required: { ctx: ToolExecutionContext; prepared: TaxonomyMergePrepared; confirmer: HumanConfirmer }) => Promise<unknown>;
     },
   ): ToolHandler;
   refuseUnexpectedKeys(input: Record<string, unknown>, allowed: readonly string[]): void;
