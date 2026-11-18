@@ -16,9 +16,11 @@ export interface ValueRange {
 
 // A single token follows `Token` and `ApiKey`; a Digest header is a comma-separated parameter list
 // (`username="bob", realm="x", response="..."`), so its value runs over the whole list and its quotes
-// belong to it. `[ \t]` rather than `\s` keeps the value on its header's line. The header name may carry
-// the proxy prefix; a name glued to a longer word or hyphenated name (`x-authorization`) is not the header.
-const HEADER = String.raw`(?<![A-Za-z0-9_-])(?:proxy-)?authorization["']?[ \t]*[:=][ \t]*["']?`;
+// belong to it. The scheme word and its value may sit on the lines after the header name (a header wrapped by a
+// terminal or a mail client), as the diagnostics rules chat used before read them; the parameter list itself stays on
+// the value's line. The header name may carry the proxy prefix; a name glued to a longer word or hyphenated name
+// (`x-authorization`) is not the header.
+const HEADER = String.raw`(?<![A-Za-z0-9_-])(?:proxy-)?authorization["']?\s*[:=]\s*["']?`;
 // One `name=value` parameter: a quoted value may hold spaces, commas and escaped quotes (`realm="my realm"`),
 // and an unclosed quote runs to the line end. Reading whole parameters, not whitespace-split words, is what
 // keeps `response="abc def"` from ending the match at the space and leaving the rest of the response visible.
@@ -26,7 +28,7 @@ const DIGEST_PARAM = String.raw`[A-Za-z][\w-]*=(?:"(?:\\.|[^"\\\r\n])*"?|[^\s,"'
 /** Regex source of a Digest parameter list; a bare non-parameter value after `Digest` is read as one token. */
 export const DIGEST_VALUE = String.raw`(?:${DIGEST_PARAM}(?:[ \t]*,[ \t]*${DIGEST_PARAM})*|[^\s,)]+(?:,[ \t]*[^\s,)]+)*)`;
 const SCHEME_VALUE_RE = new RegExp(
-  `${HEADER}(?:(?:Token|ApiKey)[ \\t]+(?<single>[^\\s"'),;]+)|Digest[ \\t]+(?<list>${DIGEST_VALUE}))`,
+  `${HEADER}(?:(?:Token|ApiKey)\\s+(?<single>[^\\s"'),;]+)|Digest\\s+(?<list>${DIGEST_VALUE}))`,
   'gi',
 );
 
@@ -43,10 +45,11 @@ export function authSchemeValueRanges({ text }: { readonly text: string }): Valu
 
 /** A Basic or Token credential outside a header: 16+ characters of the token alphabet with a digit, so prose
  * ("Basic authentication is not supported", "Token expired") is untouched. The scheme word is case-sensitive
- * as HTTP clients write it in prose and logs; the credential may sit on the line after it (a header wrapped over two lines). The leading lookahead lets the lookbehind run only where a
- * value can start, so a long whitespace run is not rescanned from every position inside it. */
+ * as HTTP clients write it in prose and logs; the credential may sit on a later line or after any run of padding (a
+ * header wrapped over several lines). The leading lookahead lets the lookbehind run only where a value can start, and
+ * the lookbehind's whitespace run can only succeed right after that run, so each run is read once: linear time. */
 export const BARE_SCHEME_TOKEN_PATTERNS: readonly SecretRedactionPattern[] = [
-  { name: 'bearer_token', regex: /(?=[A-Za-z0-9._~+/=:-])(?<=\b(?:Basic|Token)\s{1,16})(?=[A-Za-z0-9._~+/=:-]*\d)(?!v?\d{1,4}\.\d)[A-Za-z0-9._~+/=:-]{16,}/g },
+  { name: 'bearer_token', regex: /(?=[A-Za-z0-9._~+/=:-])(?<=\b(?:Basic|Token)\s+)(?=[A-Za-z0-9._~+/=:-]*\d)(?!v?\d{1,4}\.\d)[A-Za-z0-9._~+/=:-]{16,}/g },
 ];
 
 // Header names whose whole value is the credential. A scheme word before it belongs to the value (`x-auth-token: Token <v>`);

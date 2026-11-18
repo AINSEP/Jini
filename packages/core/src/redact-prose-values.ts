@@ -51,8 +51,11 @@ const QUALIFIED_KEY_MAX_VALUE = 11;
 const isQualifiedKey = ({ before, label, token }: { before: string; label: string; token: number }): boolean =>
   label.toLowerCase() === 'key' && token <= QUALIFIED_KEY_MAX_VALUE && KEY_QUALIFIER_BEFORE.test(before);
 
-/** The value after a line break is prose unless it is one bare token on the line right after the label. */
-const isNextLineProse = ({ rest, breaks }: { rest: string; breaks: number }): boolean => breaks > 1 || !isSingleTokenLine(rest);
+/** The value after a line break is prose unless it is one bare token on the line right after the label. A header name
+ * (`Authorization:`) never heads a paragraph, so its single-token value may follow blank lines, as the diagnostics
+ * rules chat used before read it. */
+const isNextLineProse = ({ rest, breaks, label }: { rest: string; breaks: number; label: string }): boolean =>
+  (breaks > 1 && label.toLowerCase() !== 'authorization') || !isSingleTokenLine(rest);
 
 /**
  * True when the unquoted value after a colon should be left readable.
@@ -70,7 +73,7 @@ export function isProseAfterColon(
 ): boolean {
   if (isQualifiedKey({ before, label, token }) || PLACEHOLDER_RES.some(pattern => pattern.test(rest))) return true;
   const breaks = gap.match(/\n/g)?.length ?? 0;
-  if (breaks > 0) return isNextLineProse({ rest, breaks });
+  if (breaks > 0) return isNextLineProse({ rest, breaks, label });
   return SENTENCE_START.test(rest) && (!isFieldStart(before) || FUNCTION_WORD_START.test(rest));
 }
 
