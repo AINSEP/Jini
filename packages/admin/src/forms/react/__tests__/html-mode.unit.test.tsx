@@ -5,6 +5,7 @@ import { FetchQueryProvider } from "@jini-ai/ui/fetch-query";
 import type { AdminFormDefinition } from "../../models.js";
 import { FormEditor } from "../pages/FormEditor.js";
 import { useFormEditor } from "./legacy-ports.js";
+import { FormsCatalogScope } from "./catalog-scope.js";
 import { createFakeFormsPort } from "./legacy-ports.js";
 import { formHtmlEmbed, formHtmlStarter, formAnswerColumns } from "../../html-rules.js";
 import { fakeFormsCatalog } from '../../__tests__/fakes/forms-catalog.js';
@@ -14,7 +15,7 @@ const form: AdminFormDefinition = {
   fields: [{ id: "email", label: "Email", type: "email", required: true }],
   notify: { enabled: false, recipients: [] }, createdAt: "2026-10-04", updatedAt: "2026-10-04",
 };
-const wrapper = ({ children }: { children: React.ReactNode }) => <FetchQueryProvider>{children}</FetchQueryProvider>;
+const wrapper = ({ children }: { children: React.ReactNode }) => <FetchQueryProvider><FormsCatalogScope>{children}</FormsCatalogScope></FetchQueryProvider>;
 afterEach(() => vi.unstubAllGlobals());
 
 describe("HTML form authoring — owner acceptance 2026-10-04", () => {

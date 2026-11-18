@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render as renderPlain, screen, type RenderOptions } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AdminFormDefinition } from "../../models.js";
+import { FormsCatalogScope } from "./catalog-scope.js";
 import { FormEditorFieldsBody, type FormEditorFieldsBodyProps } from "../components/FormEditorFieldsBody.js";
 
 /**
@@ -10,6 +11,8 @@ import { FormEditorFieldsBody, type FormEditorFieldsBodyProps } from "../compone
  */
 
 const t = (key: string) => key;
+// The fields table reads the forms catalog from the module scope.
+const render = (ui: React.ReactElement, options: RenderOptions = {}) => renderPlain(ui, { wrapper: FormsCatalogScope, ...options });
 const providers = [
   { id: "builtin", label: "Built-in inbox", fields: [], answers: "Answers stay in the built-in inbox.", validation: "Built-in checks apply.", frameOrigins: [], available: true },
   { id: "formspree", label: "Formspree", fields: [{ key: "endpoint", label: "Public form endpoint", type: "url" as const }], answers: "Answers go directly to your Formspree account.", validation: "Browser and Formspree validation apply.", helpText: "Enable the selected plugin before collecting answers.", frameOrigins: [], available: true },

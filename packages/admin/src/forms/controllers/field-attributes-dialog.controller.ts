@@ -1,3 +1,4 @@
+import type { FormsCatalogPort } from "../../core/ports/forms-catalog.js";
 import { createFormsDraftStore } from "./draft-store.js";
 import type { AdminFormField } from "../models.js";
 import { attrRowsFromField, updateAttrRow, removeAttrRow, addAttrRow, buildFieldAttributesPatch, type AttrRow } from "../rules.js";
@@ -9,8 +10,8 @@ export interface FieldAttributesDialogState {
   settings: FieldSettingsForm;
   error: string | null;
 }
-export function initialFieldAttributesDialogState({ field }: { field: AdminFormField }, _optional = {}): FieldAttributesDialogState {
-  return { className: field.className ?? "", rows: attrRowsFromField({ field }), settings: settingsFormFromField({ field }), error: null };
+export function initialFieldAttributesDialogState({ field, catalog }: { field: AdminFormField; catalog: FormsCatalogPort }, _optional = {}): FieldAttributesDialogState {
+  return { className: field.className ?? "", rows: attrRowsFromField({ field }), settings: settingsFormFromField({ field, catalog }), error: null };
 }
 /** Add or remove one value from a list setting (accepted uploads, default choices). */
 const toggled = (values: string[], value: string, on: boolean): string[] => {
@@ -26,8 +27,8 @@ function mergeSubmitPatches(settings: ReturnType<typeof buildFieldSettingsPatch>
   return { ok: true as const, patch: { ...settings.patch, ...attributes.patch } };
 }
 /** A headless section store. React owns subscriptions/effects, never this state. */
-export function createFieldAttributesDialogController({ field }: { field: AdminFormField }, _optional = {}) {
-  const store = createFormsDraftStore({ initial: initialFieldAttributesDialogState({ field }) });
+export function createFieldAttributesDialogController({ field, catalog }: { field: AdminFormField; catalog: FormsCatalogPort }, _optional = {}) {
+  const store = createFormsDraftStore({ initial: initialFieldAttributesDialogState({ field, catalog }) });
   const editSettings = (change: (settings: FieldSettingsForm) => FieldSettingsForm) => store.update({ key: 'settings', value: change });
   const editOptions = (change: (rows: OptionRow[]) => OptionRow[]) => editSettings(settings => ({ ...settings, options: change(settings.options) }));
   return {
@@ -60,7 +61,7 @@ export function createFieldAttributesDialogController({ field }: { field: AdminF
     /** Settings are checked first: they sit above the attribute rows in the dialog. */
     submit(_required: Record<string, never>, _options = {}) {
       const snapshot = store.getSnapshot();
-      const settings = buildFieldSettingsPatch({ form: snapshot.settings, field });
+      const settings = buildFieldSettingsPatch({ form: snapshot.settings, field, catalog });
       const attributes = buildFieldAttributesPatch(snapshot);
       const result = mergeSubmitPatches(settings, attributes);
       store.update({ key: 'error', value: result.ok ? null : result.error });

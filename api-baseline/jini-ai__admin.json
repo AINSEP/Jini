@@ -592,7 +592,7 @@
    "attrRowsFromField": "function:0fbe193d06",
    "blankField": "function:90ceef73a9",
    "buildFieldAttributesPatch": "function:ac7f1ce4fc",
-   "createFieldAttributesDialogController": "function:0d0f9c0b7e",
+   "createFieldAttributesDialogController": "function:25df844072",
    "createFormEditorController": "function:4877ae30bc",
    "createFormFieldsEditorController": "function:a4a40d1e88",
    "createFormSubmissionDetailController": "function:1b0207dbb7",

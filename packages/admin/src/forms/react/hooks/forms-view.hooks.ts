@@ -1,14 +1,14 @@
 import { buildAgentListHandles } from '@jini-ai/core/agent-handles';
 import type { ChangeEvent, MutableRefObject } from 'react';
 import { fieldDisplayName, formRowMenuItems, FORM_TABS, type FormDateLine } from '../../rules.js';
-import { fieldSettingsFor, fieldTypeGroups, labelChangePatch, retypeField, UPLOAD_CHOICES } from '../../field-settings.js';
+import { fieldSettingsFor, fieldTypeGroups, labelChangePatch, maxUploadMb, retypeField, uploadChoices } from '../../field-settings.js';
 import type { FormFieldsEditorController } from './use-form-fields-editor.hooks.js';
 import type { FieldAttributesDialogController } from './use-field-attributes-dialog.hooks.js';
 import type { FieldSettingsForm } from '../../field-settings.js';
 import type { FormSubmissionsController } from './use-form-submissions.hooks.js';
 import type { FormEditorFieldsBodyProps } from '../components/FormEditorFieldsBody.js';
 import type { AdminFormDefinition, AdminFormField } from '../../models.js';
-import { useFormsOptions, FormsPortsContext } from './FormsPorts.hooks.js';
+import { useFormsOptions, useFormsPorts, FormsPortsContext } from './FormsPorts.hooks.js';
 import { useContext } from 'react';
 /** Publication actions keep their original DOM at the host slot. */
 export function useFormsListView({ forms, t, formatFormDates, toggleStatus, setPendingDelete }: {
@@ -35,7 +35,8 @@ export function useFormsListView({ forms, t, formatFormDates, toggleStatus, setP
 /** Bind every field-row callback and focus ref outside the markup. */
 export function useFormFieldsView({ fields, existingFieldIds, controller }: {
   fields: AdminFormField[]; existingFieldIds: string[]; controller: FormFieldsEditorController;
-}, _optional = {}) {
+}, { usePorts = useFormsPorts }: { usePorts?: typeof useFormsPorts } = {}) {
+  const { formsCatalog: catalog } = usePorts();
   const handles = buildAgentListHandles({ prefix: 'form-field', ids: fields.map(field => field.id) });
   const index = controller.editingAttrsIndex;
   return {
@@ -47,10 +48,10 @@ export function useFormFieldsView({ fields, existingFieldIds, controller }: {
     },
     rows: fields.map((field, index) => ({ field, index, base: handles[index]!, isExisting: existingFieldIds.includes(field.id), displayName: fieldDisplayName({ field, index }),
       // Registry-driven: the type picker's groups and whether this type has a text length.
-      typeGroups: fieldTypeGroups({ current: field.type }), hasLength: fieldSettingsFor({ type: field.type }).length,
+      typeGroups: fieldTypeGroups({ current: field.type, catalog }), hasLength: fieldSettingsFor({ type: field.type, catalog }).length,
       onId: (e: ChangeEvent<HTMLInputElement>) => controller.updateField(index, { id: e.target.value }),
       onLabel: (e: ChangeEvent<HTMLInputElement>) => controller.updateField(index, labelChangePatch({ field, label: e.target.value, isExisting: existingFieldIds.includes(field.id) })),
-      onType: (e: ChangeEvent<HTMLSelectElement>) => controller.replaceField(index, retypeField({ field, type: e.target.value })),
+      onType: (e: ChangeEvent<HTMLSelectElement>) => controller.replaceField(index, retypeField({ field, type: e.target.value, catalog })),
       onRequired: (e: ChangeEvent<HTMLInputElement>) => controller.updateField(index, { required: e.target.checked }),
       onMaxLength: (e: ChangeEvent<HTMLInputElement>) => controller.updateField(index, { maxLength: e.target.value ? Number(e.target.value) : null }),
       ref: (el: HTMLButtonElement | null) => { controller.kebabRefs.current[index] = el; },
@@ -80,8 +81,9 @@ function defaultInputTypeFor<B extends string>(kind: string | null, boundsType: 
   return kind === 'text' || kind === 'textarea' ? 'text' : null;
 }
 /** Bind the settings section's controls; which ones render comes from the field's registry kind. */
-export function useFieldSettingsView({ field, controller, t }: { field: AdminFormField; controller: FieldAttributesDialogController; t: (key: string) => string }, _optional = {}) {
-  const settings = fieldSettingsFor({ type: field.type });
+export function useFieldSettingsView({ field, controller, t }: { field: AdminFormField; controller: FieldAttributesDialogController; t: (key: string) => string }, { usePorts = useFormsPorts }: { usePorts?: typeof useFormsPorts } = {}) {
+  const { formsCatalog: catalog } = usePorts();
+  const settings = fieldSettingsFor({ type: field.type, catalog });
   const form = controller.settings;
   const value = (key: 'placeholder' | 'helpText' | 'defaultText' | 'minLength' | 'maxLength' | 'pattern' | 'min' | 'max' | 'step' | 'maxFileSizeMb') =>
     (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => controller.setSettings({ [key]: e.target.value } as Partial<FieldSettingsForm>);
@@ -90,7 +92,7 @@ export function useFieldSettingsView({ field, controller, t }: { field: AdminFor
   const kind = settings.defaultKind;
   const boundsType = settings.bounds ?? 'number';
   return {
-    settings, form, boundsType,
+    settings, form, boundsType, maxUploadMb: maxUploadMb({ catalog }),
     boundsClass: settings.bounds === 'number' ? 'field-settings-num' : 'field-settings-compact',
     /** `<input type>` for a typed default, or `null` when the default is a box or a choice. */
     defaultInputType: defaultInputTypeFor(kind, boundsType),
@@ -116,7 +118,7 @@ export function useFieldSettingsView({ field, controller, t }: { field: AdminFor
       onUp: () => controller.moveOption(row._rowId, -1), onDown: () => controller.moveOption(row._rowId, 1),
       onRemove: () => controller.removeOption(row._rowId),
     })),
-    uploads: UPLOAD_CHOICES.map(choice => ({ ...choice, checked: form.accept.includes(choice.value),
+    uploads: uploadChoices({ catalog }).map(choice => ({ ...choice, checked: form.accept.includes(choice.value),
       handle: `form-field-settings-accept-${choice.label.toLowerCase()}`,
       onToggle: (e: ChangeEvent<HTMLInputElement>) => controller.toggleAccept(choice.value, e.target.checked) })),
   };
