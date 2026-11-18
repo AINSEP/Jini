@@ -24,7 +24,9 @@ const HEADER = String.raw`(?<![A-Za-z0-9_-])(?:proxy-)?authorization["']?\s*[:=]
 // One `name=value` parameter: a quoted value may hold spaces, commas and escaped quotes (`realm="my realm"`),
 // and an unclosed quote runs to the line end. Reading whole parameters, not whitespace-split words, is what
 // keeps `response="abc def"` from ending the match at the space and leaving the rest of the response visible.
-const DIGEST_PARAM = String.raw`[A-Za-z][\w-]*=(?:"(?:\\.|[^"\\\r\n])*"?|[^\s,"')]*)`;
+// Spaces or tabs may surround `=` (`response = "..."`, as some clients and hand-written examples write it); without
+// them the list ended after the first name and every later parameter, the response included, was shown.
+const DIGEST_PARAM = String.raw`[A-Za-z][\w-]*[ \t]*=[ \t]*(?:"(?:\\.|[^"\\\r\n])*"?|[^\s,"')]*)`;
 /** Regex source of a Digest parameter list; a bare non-parameter value after `Digest` is read as one token. */
 export const DIGEST_VALUE = String.raw`(?:${DIGEST_PARAM}(?:[ \t]*,[ \t]*${DIGEST_PARAM})*|[^\s,)]+(?:,[ \t]*[^\s,)]+)*)`;
 const SCHEME_VALUE_RE = new RegExp(
