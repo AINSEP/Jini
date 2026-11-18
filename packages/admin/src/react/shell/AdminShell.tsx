@@ -7,7 +7,7 @@ import type { useAdminTheme } from './use-admin-theme.js';
 import type { AdminShellAppearance } from './theme-ports.js';
 import type { AdminNavGroup } from '../../core/manifest/rules.js';
 import type {
-  AdminShellBaseProps, AdminShellContext, AdminShellHostProps, AdminShellProps, AdminShellSession, AdminShellSessionController, AdminShellSessionState, AdminShellSlotArgs,
+  AdminShellBaseProps, AdminShellContext, AdminShellHostProps, AdminShellProps, AdminShellSession, AdminShellSessionController, AdminShellSessionState, AdminShellSidebarProps, AdminShellSlotArgs,
 } from './types.js';
 
 type ThemeOptions = NonNullable<Parameters<typeof useAdminTheme>[1]>;
@@ -45,12 +45,11 @@ function renderRoutedPanel({ model, slots, slotArgs }: {
 interface ShellView { readonly model: AdminShellModel; readonly slotArgs: AdminShellSlotArgs; readonly nav: readonly AdminNavGroup[] }
 
 /** The manifest-driven sidebar: header slot, nav groups, rail toggle and footer slot. */
-function ShellSidebar({ props, view, open, id }: {
-  readonly props: AdminShellBaseProps; readonly view: ShellView; readonly open: boolean; readonly id: string;
+function ShellSidebar({ props, view, sidebarProps }: {
+  readonly props: AdminShellBaseProps; readonly view: ShellView; readonly sidebarProps: AdminShellSidebarProps;
 }): ReactNode {
   return (
-    <Sidebar activeId={view.model.route.panelId} base={props.adminBase} open={open} id={id}
-      label={props.labels.navigation} railStorageKey={props.railStorageKey} railDefaultCollapsed={props.railDefaultCollapsed ?? false}>
+    <Sidebar {...sidebarProps}>
       {props.slots.sidebarHeader}
       <Sidebar.Nav groups={view.nav} soonLabel={props.labels.soon} collapsibleGroups={props.collapsibleGroups ?? []} />
       <Sidebar.Footer>
@@ -59,6 +58,18 @@ function ShellSidebar({ props, view, open, id }: {
       </Sidebar.Footer>
     </Sidebar>
   );
+}
+
+/** The host's `slots.sidebar` composition when given, otherwise the built-in {@link ShellSidebar}. */
+function renderShellSidebar({ props, view, drawer, id }: {
+  readonly props: AdminShellBaseProps; readonly view: ShellView; readonly drawer: ReturnType<typeof useShellDrawer>; readonly id: string;
+}): ReactNode {
+  const sidebarProps: AdminShellSidebarProps = {
+    activeId: view.model.route.panelId, base: props.adminBase, open: drawer.open, id, label: props.labels.navigation,
+    railStorageKey: props.railStorageKey, railDefaultCollapsed: props.railDefaultCollapsed ?? false,
+  };
+  if (!props.slots.sidebar) return <ShellSidebar props={props} view={view} sidebarProps={sidebarProps} />;
+  return props.slots.sidebar({ ...view.slotArgs, nav: view.nav, sidebarProps, setDrawerOpen: drawer.setOpen });
 }
 
 interface ShellLayoutArgs {
@@ -88,7 +99,7 @@ function ShellLayout({ args }: { readonly args: ShellLayoutArgs }): ReactNode {
   return (
     <div className={['admin-layout', props.className].filter(Boolean).join(' ')}>
       <a href={`#${mainId}`} className="skip-link">{props.labels.skipToContent}</a>
-      <ShellSidebar props={props} view={view} open={drawer.open} id={sidebarId} />
+      {renderShellSidebar({ props, view, drawer, id: sidebarId })}
       {drawer.open && <button type="button" className="sidebar-backdrop" aria-label={props.labels.closeNavigation} onClick={() => drawer.setOpen(false)} />}
       <div className="admin-main-col">
         <div className="admin-topbar">

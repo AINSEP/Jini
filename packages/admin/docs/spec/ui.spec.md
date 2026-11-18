@@ -51,6 +51,7 @@ Optional props are `capabilities`, `railDefaultCollapsed`, `collapsibleGroups`, 
 |---|---|
 | login, required | `({context, refreshSession}) => ReactNode`; anonymous only |
 | sessionError | `({error, retry}) => ReactNode`; otherwise built-in alert/retry button |
+| sidebar | `(args: AdminShellSidebarArgs) => ReactNode`; replaces the built-in sidebar arrangement. Args: slot args plus `nav` (visible, translated groups), `sidebarProps` (exactly what the built-in sidebar passes to `<Sidebar>`: `activeId`, `base`, `open`, `id`, `label`, `railStorageKey`, `railDefaultCollapsed`) and `setDrawerOpen(open)` (the shell's one drawer state). Absent: today's markup. `sidebarHeader`/`sidebarFooter` are not rendered when present |
 | sidebarHeader | ReactNode, authenticated |
 | sidebarFooter | `(AdminShellSlotArgs) => ReactNode`, after rail toggle |
 | topbar | ReactNode, after title |

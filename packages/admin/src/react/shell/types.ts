@@ -38,9 +38,37 @@ export interface AdminShellSlotArgs extends AdminShellRenderArgs {
   readonly refreshSession: () => Promise<void>;
 }
 
+/** Exactly what the built-in sidebar hands to `<Sidebar>`; a host's own arrangement spreads it. */
+export interface AdminShellSidebarProps {
+  readonly activeId: string;
+  readonly base: string;
+  readonly open: boolean;
+  readonly id: string;
+  readonly label: string;
+  readonly railStorageKey: string;
+  readonly railDefaultCollapsed: boolean;
+}
+
+/** Arguments of `slots.sidebar`: the slot args plus what a host needs to compose its own sidebar. */
+export interface AdminShellSidebarArgs extends AdminShellSlotArgs {
+  /** The visible groups, after `translateNav`. */
+  readonly nav: readonly AdminNavGroup[];
+  readonly sidebarProps: AdminShellSidebarProps;
+  /** The shell's one drawer state: the topbar toggle and the backdrop use the same one. */
+  readonly setDrawerOpen: (open: boolean) => void;
+}
+
 export interface AdminShellSlots {
   readonly login: (args: { readonly context: AdminShellContext; readonly refreshSession: () => Promise<void> }) => ReactNode;
   readonly sessionError?: (args: { readonly error: unknown; readonly retry: () => Promise<void> }) => ReactNode;
+  /**
+   * Replaces the built-in `<Sidebar>` arrangement (header slot, one nav, rail toggle and footer).
+   * Render `<Sidebar {...sidebarProps}>` with your own children: `Sidebar` is a compound component
+   * built for that. Rail override stays a `Sidebar` prop you pass (`railOverride`, `onRailCollapsedChange`).
+   * Absent: the built-in sidebar, with exactly the markup it always had. `sidebarHeader` and
+   * `sidebarFooter` belong to the built-in arrangement and are not rendered when this is present.
+   */
+  readonly sidebar?: (args: AdminShellSidebarArgs) => ReactNode;
   readonly sidebarHeader?: ReactNode;
   readonly sidebarFooter?: (args: AdminShellSlotArgs) => ReactNode;
   readonly topbar?: ReactNode;
