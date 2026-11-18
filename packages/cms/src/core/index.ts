@@ -52,3 +52,4 @@ export * from './tools/args.js';
 export type { AuthorizationPort, AuthorizationRequired, AuthorizationOptional } from './authorization.js';
 
 export { encodeKeysetCursor, decodeKeysetCursor, type KeysetPosition } from "./keyset-cursor.js";
+export type { PostStatus, PublicPostKind } from "./post-vocabulary.js";

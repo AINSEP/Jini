@@ -1,5 +1,5 @@
 import type { SeoPostRecord } from "../../ports.js";
-import { extractPlainTextFromHtml } from "./html-plain-text.fixture.js";
+import { extractPlainTextFromHtml } from "../../html-plain-text.js";
 
 export interface PostRecord extends SeoPostRecord {
   createdAt?: string | null | undefined;
@@ -90,7 +90,7 @@ export class InMemoryPostRepo {
   async readAutosave(_input: { workspaceId: string; postId?: string; id?: string }) { return null; }
   async writeAutosave(_input: unknown) { return { applied: true }; }
   async clearAutosave(_input: unknown) {}
-  extractPlainText({ html }: { html: string }) { return extractPlainTextFromHtml(html); }
+  extractPlainText({ html }: { html: string }) { return extractPlainTextFromHtml({ html }); }
   isTrashed({ post }: { post: SeoPostRecord }) { return post.deletedAt != null; }
 }
 

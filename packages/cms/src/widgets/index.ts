@@ -18,3 +18,4 @@ export * from "./region-area-service.js";
 export * from "./repo.memory.js";
 export { resolvePageWidgets } from "./resolver-service.js";
 export type { ResolvePageWidgetsDeps, ResolvePageWidgetsInput, ResolvePageWidgetsRequired, ResolvePageWidgetsResult } from "./resolver-service.js";
+export * from "./duplicate-embeds.js";
