@@ -369,18 +369,20 @@ export {
 export * from './run-credentials.js';
 export type { RunWithToolContext } from './tool-execution-stream.js';
 export type {
-  ToolExecutionRouteTarget,
+  AuthorizeToolRun,
   ToolExecutionRoutesOptional,
   ToolExecutionRoutesRequired,
+  ToolRunAuthorization,
+  ToolRunVerdict,
 } from './tool-execution-routes.js';
 export {
   DEFAULT_TOOL_EXEC_MAX_BODY_BYTES,
-  DEFAULT_TOOL_EXEC_TOKEN_ENV_VAR,
-  registerToolExecutionRoutes,
-  requireToolExecutionCaller,
   TOOL_CATALOG_ROUTE_PATH,
   TOOL_EXECUTIONS_ROUTE_PATH,
+  toolExecutionRoutes,
 } from './tool-execution-routes.js';
+export type { ToolExecutionCallerRefusal } from './tool-execution-caller.js';
+export { DEFAULT_TOOL_EXEC_TOKEN_ENV_VAR, toolExecutionCallerRefusal } from './tool-execution-caller.js';
 export type { AttachmentLookup, AttachmentLookupRequest, AttachmentLookupRoutesRequired } from './attachment-lookup-routes.js';
 export { ATTACHMENT_LOOKUP_ROUTE_PATH, attachmentLookupRoutes } from './attachment-lookup-routes.js';
 export type { RemoteAttachmentLookupOptional, RemoteAttachmentLookupRequired } from '../remote-attachment-lookup.js';

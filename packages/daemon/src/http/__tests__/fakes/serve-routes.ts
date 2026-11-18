@@ -6,8 +6,8 @@
 import type { ServerRoute } from '@jini-ai/core/contracts/server';
 import { createInMemoryServer } from '@jini-ai/core/contracts/server/testing';
 
-/** Mounts `routes` on an in-memory server and returns its `fetch`. */
-export function serveRoutes({ routes }: { readonly routes: readonly ServerRoute[] }, _optional: Record<string, never> = {}): (request: Request) => Promise<Response> {
+/** Mounts `routes` on an in-memory server and returns its `fetch` (its second argument names the socket peer, for a gate that reads it). */
+export function serveRoutes({ routes }: { readonly routes: readonly ServerRoute[] }, _optional: Record<string, never> = {}): ReturnType<typeof createInMemoryServer>['fetch'] {
   const { server, fetch } = createInMemoryServer();
   for (const route of routes) server.route(route);
   return fetch;

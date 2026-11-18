@@ -3,7 +3,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { fakeTimingSafeEqual } from '@jini-ai/core/contracts/server/testing';
 import { messageRelayRoutes } from '../message-relay.js';
 import { serveRoutes } from './fakes/serve-routes.js';
-import { requireToolExecutionCaller } from '../tool-execution-routes.js';
+import { toolExecutionCallerRefusal } from '../tool-execution-caller.js';
 
 /**
  * Characterization of the three bearer gates the daemon's route groups mount, pinned through the public
@@ -27,9 +27,18 @@ function run(gate: (req: Request, res: Response, next: NextFunction) => void, re
   return { sent, next };
 }
 
-describe('requireToolExecutionCaller', () => {
+/** The decision as the Express-shaped fakes below call it: only the header and the peer address are read. */
+function gateFor(_required: Record<string, never>, { env, timingSafeEqual = fakeTimingSafeEqual() }: { env: Record<string, string | undefined>; timingSafeEqual?: Parameters<typeof toolExecutionCallerRefusal>[0]['timingSafeEqual'] }) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const refusal = toolExecutionCallerRefusal({ authorization: req.get('authorization'), peerAddress: req.socket?.remoteAddress, env, timingSafeEqual });
+    if (refusal === null) next();
+    else res.status(refusal.status).json({ error: refusal.error });
+  };
+}
+
+describe('toolExecutionCallerRefusal', () => {
   const env = { JINI_TOOL_EXEC_TOKEN: TOKEN };
-  const gate = requireToolExecutionCaller({}, { env });
+  const gate = gateFor({}, { env });
 
   it('admits a loopback caller presenting the exact token', () => {
     const { next, sent } = run(gate, request({ authorization: `Bearer ${TOKEN}` }));
@@ -66,7 +75,7 @@ describe('requireToolExecutionCaller', () => {
     }
   });
   it('fails closed when no token is configured', () => {
-    const unconfigured = run(requireToolExecutionCaller({}, { env: {} }), request({ authorization: `Bearer ${TOKEN}` }));
+    const unconfigured = run(gateFor({}, { env: {} }), request({ authorization: `Bearer ${TOKEN}` }));
     expect([unconfigured.next.mock.calls.length, unconfigured.sent.body?.error.code]).toEqual([0, 'NOT_CONFIGURED']);
   });
 });
@@ -100,7 +109,7 @@ describe('messageRelayRoutes bearer parsing', () => {
  */
 describe('the tool-execution gate compares through the injected constant-time port', () => {
   const gates = [
-    { name: 'requireToolExecutionCaller', build: (timingSafeEqual: ReturnType<typeof fakeTimingSafeEqual>) => requireToolExecutionCaller({}, { env: { JINI_TOOL_EXEC_TOKEN: TOKEN }, timingSafeEqual }) },
+    { name: 'toolExecutionCallerRefusal', build: (timingSafeEqual: ReturnType<typeof fakeTimingSafeEqual>) => gateFor({}, { env: { JINI_TOOL_EXEC_TOKEN: TOKEN }, timingSafeEqual }) },
   ];
   it.each(gates)('$name: a same-length wrong token is refused and the port is asked exactly once with two equal-length arrays', ({ build }) => {
     const compare = fakeTimingSafeEqual();

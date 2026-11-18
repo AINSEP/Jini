@@ -40,7 +40,7 @@ import { routineRoutes } from '../../routines.js';
 import { runRoutes } from '../../runs.js';
 import { terminalRoutes } from '../../terminals.js';
 import { toolCatalogRoutes } from '../../tool-catalog.js';
-import { registerToolExecutionRoutes } from '../../tool-execution-routes.js';
+import { toolExecutionRoutes, type AuthorizeToolRun } from '../../tool-execution-routes.js';
 import { xaiRoutes } from '../../xai.js';
 
 /** The text every stand-in dependency throws. A response that contains it has leaked an internal error. */
@@ -98,7 +98,7 @@ export function throwingDeps(known: Readonly<Record<string, unknown>> = {}): nev
   }) as never;
 }
 
-type Mount = (required: { app: Express; adapter: RouteHostContext; deps: (known?: Readonly<Record<string, unknown>>) => never; mountList: (routes: readonly ServerRoute[]) => void }) => void;
+type Mount = (required: { app: Express; adapter: RouteHostContext; deps: (known?: Readonly<Record<string, unknown>>) => never; mountList: (routes: readonly ServerRoute[], optional?: { rawBody?: boolean }) => void }) => void;
 
 /** Token env for the two bearer gates; never the real process env. */
 const gateEnv = { JINI_TOOL_EXEC_TOKEN: HARNESS_BEARER_TOKEN, JINI_REMOTE_TOOL_BRIDGE_TOKEN: HARNESS_BEARER_TOKEN };
@@ -110,10 +110,10 @@ const gateEnv = { JINI_TOOL_EXEC_TOKEN: HARNESS_BEARER_TOKEN, JINI_REMOTE_TOOL_B
  */
 const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-parser')[] = [
   ['health', ({ adapter, deps, mountList }) => mountList(healthRoutes({ deps: deps(), host: routeHost(adapter) }))],
-  ['tool-execution-routes', ({ app, deps }) => {
+  ['tool-execution-routes', ({ adapter, deps, mountList }) => {
     // The host's run check is optional; a test that wants one supplies it as this family's `authorizeRun`.
-    const { authorizeRun } = deps({ authorizeRun: undefined }) as { authorizeRun: RequestHandler | undefined };
-    registerToolExecutionRoutes({ app, executor: deps(), listToolsFor: (deps() as { listToolsFor: never }).listToolsFor }, { env: gateEnv, ...(authorizeRun ? { authorizeRun } : {}) });
+    const { authorizeRun } = deps({ authorizeRun: undefined }) as { authorizeRun: AuthorizeToolRun | undefined };
+    mountList(toolExecutionRoutes({ executor: deps(), listToolsFor: (deps() as { listToolsFor: never }).listToolsFor, env: gateEnv, host: routeHost(adapter) }, { ...(authorizeRun ? { authorizeRun } : {}) }), { rawBody: true });
   }],
   ['attachment-lookup-routes', ({ adapter, deps, mountList }) => mountList(attachmentLookupRoutes({ store: deps(), host: routeHost(adapter) }))],
   'json-parser',
@@ -158,10 +158,10 @@ function routeHost(adapter: RouteHostContext): DaemonRouteHost {
  * bridge, with the parser above it (`parsedBody`) and Express's own answers kept. Each route is recorded
  * as its method, path and gate names, so the route-table pin reads the same for a list as for `app.get`.
  */
-function mountRouteList({ app, family, routes, described }: { app: Express; family: string; routes: readonly ServerRoute[]; described: DescribedRoute[] }): void {
+function mountRouteList({ app, family, routes, described }: { app: Express; family: string; routes: readonly ServerRoute[]; described: DescribedRoute[] }, { rawBody = false }: { rawBody?: boolean } = {}): void {
   const dispatcher = createNodeDispatcher({}, { expressCompatible: true });
   for (const route of routes) dispatcher.server.route(route);
-  app.use((req, res, next) => { void dispatcher.handle({ incoming: req, out: res }, { next, parsedBody: (req as { body?: unknown }).body, locals: res.locals }); });
+  app.use((req, res, next) => { void dispatcher.handle({ incoming: req, out: res }, { next, locals: res.locals, ...(rawBody ? {} : { parsedBody: (req as { body?: unknown }).body }) }); });
   for (const route of describeRoutes({ routes })) described.push({ family, method: route.method, path: route.path, layers: route.gates });
 }
 
@@ -190,7 +190,7 @@ function mountEverything({ app, adapter, familyDeps }: { app: Express; adapter: 
       continue;
     }
     const [family, mount] = entry;
-    mount({ app: recordingApp({ app, family, routes }), adapter, mountList: (list) => mountRouteList({ app, family, routes: list, described: routes }), deps: (known = {}) => throwingDeps({ onInternalError: adapter.onInternalError, ...known, ...familyDeps[family] }) });
+    mount({ app: recordingApp({ app, family, routes }), adapter, mountList: (list, optional) => mountRouteList({ app, family, routes: list, described: routes }, optional), deps: (known = {}) => throwingDeps({ onInternalError: adapter.onInternalError, ...known, ...familyDeps[family] }) });
   }
   return routes;
 }

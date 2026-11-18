@@ -105,7 +105,6 @@
   {"rule": "L5-injected-edge", "file": "packages/daemon/src/http/research.ts", "spec": "@jini-ai/http-kit", "kind": "import", "count": 1, "lane": "L-ROUTES"},
   {"rule": "L5-injected-edge", "file": "packages/daemon/src/http/runs.ts", "spec": "@jini-ai/http-kit", "kind": "import", "count": 1, "lane": "L-ROUTES"},
   {"rule": "L5-injected-edge", "file": "packages/daemon/src/http/terminals.ts", "spec": "@jini-ai/http-kit", "kind": "import", "count": 1, "lane": "L-ROUTES"},
-  {"rule": "L5-injected-edge", "file": "packages/daemon/src/http/tool-execution-routes.ts", "spec": "@jini-ai/http-kit", "kind": "import", "count": 1, "lane": "L-ROUTES"},
   {"rule": "L5-injected-edge", "file": "packages/daemon/src/http/xai.ts", "spec": "@jini-ai/agent-runtime", "kind": "import", "count": 1, "lane": "L-AGENTS"},
   {"rule": "L5-injected-edge", "file": "packages/daemon/src/http/xai.ts", "spec": "@jini-ai/http-kit", "kind": "import", "count": 1, "lane": "L-ROUTES"},
   {"rule": "L5-injected-edge", "file": "packages/daemon/src/session-coordination.ts", "spec": "@jini-ai/agent-runtime", "kind": "import", "count": 1, "lane": "L-AGENTS"},
