@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { AdminNavGroup } from '../manifest/rules.js';
-import { isPanelAccessible, withoutInaccessiblePanels } from '../permissions/rules.js';
+import { isPanelAccessible, withoutInaccessiblePanels } from '../panel-access.js';
+
+/** The nav-group shape a host passes (admin's `AdminNavGroup`), declared here because core must not import admin. */
+interface AdminNavGroup {
+  readonly label?: string;
+  readonly items: readonly { readonly id: string; readonly href: string; readonly label: string }[];
+}
 
 /** The built-in editor role's grants: copied as data from a host's panel-access table (T6). */
 const EDITOR = ['content.read', 'content.write', 'content.publish', 'content.delete', 'media.read', 'media.upload', 'media.update', 'media.delete', 'theme.set'];

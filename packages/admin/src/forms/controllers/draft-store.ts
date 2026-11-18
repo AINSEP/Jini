@@ -1,4 +1,4 @@
-import { createControllerStore } from '../../core/module/controller-store.js';
+import { createControllerStore } from '@jini-ai/core/admin-runtime';
 /** Section controllers share only the typed draft-update mechanism, not domain decisions. */
 export function createFormsDraftStore<S extends object>({ initial }: { initial: S }, _optional = {}) {
   const store = createControllerStore({ initial });

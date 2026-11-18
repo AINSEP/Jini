@@ -1,4 +1,4 @@
-import { describeErrorForLog } from '@jini-ai/core/model-facing-tool-errors';
+import { describeErrorForLog } from '../model-facing-tool-errors.js';
 
 /**
  * @file The error contract every admin route group throws, host-supplied or Jini-shipped.

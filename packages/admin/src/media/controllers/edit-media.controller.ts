@@ -1,4 +1,4 @@
-import { createControllerStore } from '../../core/module/controller-store.js';
+import { createControllerStore } from '@jini-ai/core/admin-runtime';
 import type { MediaApiPort } from '../ports.js';
 import type { MediaAsset, MediaMetadataPatch, UploadInput } from '../models.js';
 import { diffMediaMetadata, canReplaceMedia } from '../rules.js';

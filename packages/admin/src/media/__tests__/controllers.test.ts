@@ -6,7 +6,7 @@ import { createProvidersController } from '../controllers/providers.controller.j
 import { runMediaApiConformance } from '../conformance/media-api.conformance.js';
 import type { MediaAsset } from '../models.js';
 import type { MediaApiPort } from '../ports.js';
-import { AdminApiError } from '../../core/transport/errors.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 const image = { filename: 'photo.png', contentType: 'image/png', dataBase64: 'test-bytes' };
 describe('memory API and controllers', () => {
   it('passes the exported adapter checklist', async () => {

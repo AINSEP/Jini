@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '../../../__tests__/fetch-query-support.js';
 import { createElement, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { AdminApiError } from '../../../core/transport/errors.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import { createMemoryWidgetsApi } from '../../adapters/memory.js';
 import { WidgetsOptionsContext, WidgetsPortsContext, type WidgetsReactOptions } from '../hooks/WidgetsPorts.hooks.js';
 import { useWidgetRegions, useWiredWidgetRegions, type WidgetRegionsController } from '../hooks/use-widget-regions.hooks.js';

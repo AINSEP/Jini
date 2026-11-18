@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react';
 import type { ComponentType, ReactNode } from 'react';
-import { AdminConfigError } from '../../../core/module/create-admin.js';
+import { AdminConfigError } from '@jini-ai/core/admin-runtime';
 import type { AdminFormsPort, FormsCatalogPort, FormsTrashPort, FormsEventsPort, FormsNavigationPort } from '../../ports.js';
 import type { FormsTranslator } from '../../models.js';
 import { translateForms } from '../../messages.en.js';

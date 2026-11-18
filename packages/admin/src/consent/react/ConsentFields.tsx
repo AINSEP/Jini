@@ -23,6 +23,8 @@ export interface ConsentFieldsProps {
   dictionary?: Readonly<Record<string, string>> | undefined;
   /** Host max lengths per text field; the defaults are the engine's loosest bounds. */
   limits?: Readonly<Partial<Record<TextKey | 'policyVersion', number>>> | undefined;
+  /** Seam for tests: the handlers hook, defaulted to the real one. */
+  useConsentSettingsPanelHook?: typeof useConsentSettingsPanel | undefined;
 }
 
 const BANNER_FIELDS: readonly { key: TextKey; label: string; multiline?: boolean }[] = [
@@ -68,10 +70,10 @@ function Field({ label, field, problems, children }: { label: string; field: str
 
 /** Host-supplied banner modes. Native radios provide keyboard selection; the hint keeps its space
  * while hidden, and the parent fieldset supplies the disabled state. */
-function BannerModeFields({ value, onChange, dictionary, modes }: Pick<ConsentFieldsProps, 'value' | 'onChange' | 'dictionary'> & { modes: readonly NonNullable<ConsentSettingsView['bannerMode']>[] }) {
+function BannerModeFields({ value, onChange, dictionary, modes, useConsentSettingsPanelHook = useConsentSettingsPanel }: Pick<ConsentFieldsProps, 'value' | 'onChange' | 'dictionary' | 'useConsentSettingsPanelHook'> & { modes: readonly NonNullable<ConsentSettingsView['bannerMode']>[] }) {
   const id = useId();
   const t = createConsentTranslator({ dictionary });
-  const handlers = useConsentSettingsPanel({ value, onChange });
+  const handlers = useConsentSettingsPanelHook({ value, onChange });
   return <fieldset className="jini-consent-banner-modes" aria-describedby={value.bannerMode === 'headless' ? `${id}-mode-hint` : undefined}>
       <legend>{t('Banner mode')}</legend>
       <div className="jini-consent-banner-options">{modes.map(mode => <label key={mode}>
@@ -87,11 +89,11 @@ function BannerModeFields({ value, onChange, dictionary, modes }: Pick<ConsentFi
 /** Banner copy and its links. Optional host modes report only a mode patch; the host's independent
  * enabled switch stays authoritative. Text is always plain text.
  * @example <ConsentBannerFields value={value} onChange={onChange} bannerModes={['jini', 'headless', 'off']} /> */
-export function ConsentBannerFields({ value, onChange, disabled = false, problems, dictionary, limits = {}, bannerModes }: ConsentFieldsProps & { bannerModes?: readonly NonNullable<ConsentSettingsView['bannerMode']>[] | undefined }) {
+export function ConsentBannerFields({ value, onChange, disabled = false, problems, dictionary, limits = {}, bannerModes, useConsentSettingsPanelHook = useConsentSettingsPanel }: ConsentFieldsProps & { bannerModes?: readonly NonNullable<ConsentSettingsView['bannerMode']>[] | undefined }) {
   const t = createConsentTranslator({ dictionary });
-  const handlers = useConsentSettingsPanel({ value, onChange });
+  const handlers = useConsentSettingsPanelHook({ value, onChange });
   return <fieldset disabled={disabled} className="jini-consent-settings-fields"><legend>{t('Banner text')}</legend>
-    {bannerModes && <BannerModeFields value={value} onChange={onChange} dictionary={dictionary} modes={bannerModes} />}
+    {bannerModes && <BannerModeFields value={value} onChange={onChange} dictionary={dictionary} modes={bannerModes} useConsentSettingsPanelHook={useConsentSettingsPanelHook} />}
     {BANNER_FIELDS.map(({ key, label, multiline }) => <Field key={key} label={t(label)} field={key} problems={problems}>{aria => multiline
       ? <textarea className="jini-input" value={value[key] ?? ''} maxLength={limits[key] ?? 2000} rows={3} onChange={handlers.text(key)} {...aria} />
       : <input className="jini-input" type="text" value={value[key] ?? ''} maxLength={limits[key] ?? 2000} onChange={handlers.text(key)} {...aria} />}</Field>)}
@@ -100,10 +102,10 @@ export function ConsentBannerFields({ value, onChange, disabled = false, problem
 }
 
 /** On/off, region behavior and the version that re-asks visitors when it changes. */
-export function ConsentRulesFields({ value, onChange, disabled = false, problems, dictionary, limits = {}, regionModes = ['auto', 'opt-in', 'opt-out'] }: ConsentFieldsProps & { regionModes?: readonly ConsentSettingsView['regionMode'][] }) {
+export function ConsentRulesFields({ value, onChange, disabled = false, problems, dictionary, limits = {}, regionModes = ['auto', 'opt-in', 'opt-out'], useConsentSettingsPanelHook = useConsentSettingsPanel }: ConsentFieldsProps & { regionModes?: readonly ConsentSettingsView['regionMode'][] }) {
   const id = useId();
   const t = createConsentTranslator({ dictionary });
-  const handlers = useConsentSettingsPanel({ value, onChange });
+  const handlers = useConsentSettingsPanelHook({ value, onChange });
   const modes = regionModes.includes(value.regionMode) ? regionModes : [value.regionMode, ...regionModes];
   return <fieldset disabled={disabled} className="jini-consent-settings-fields"><legend>{t('Rules')}</legend>
     <button type="button" className={value.enabled ? 'jini-toggle-row on' : 'jini-toggle-row'} role="switch" aria-checked={value.enabled} aria-labelledby={`${id}-enabled`} aria-describedby={`${id}-hint`} onClick={handlers.toggle}>
@@ -120,10 +122,10 @@ export function ConsentRulesFields({ value, onChange, disabled = false, problems
 
 /** Placement, bounded appearance tokens and allowlisted custom CSS. The engine checks contrast and
  * CSS safety; its problems arrive on the `appearance` field and show under the custom CSS. */
-export function ConsentLookFields({ value, onChange, disabled = false, problems, dictionary, placements = Object.keys(PLACEMENT_LABELS), useThemeKit = useAdminThemeKit }: ConsentFieldsProps & { placements?: readonly string[]; /** The host's theme kit; defaults to the kit the nearest `AdminKitProvider` supplies. */ useThemeKit?: () => AdminThemeKit }) {
+export function ConsentLookFields({ value, onChange, disabled = false, problems, dictionary, placements = Object.keys(PLACEMENT_LABELS), useConsentSettingsPanelHook = useConsentSettingsPanel, useThemeKit = useAdminThemeKit }: ConsentFieldsProps & { placements?: readonly string[]; /** The host's theme kit; defaults to the kit the nearest `AdminKitProvider` supplies. */ useThemeKit?: () => AdminThemeKit }) {
   const { defaultAdminTheme } = useThemeKit();
   const t = createConsentTranslator({ dictionary });
-  const handlers = useConsentSettingsPanel({ value, onChange });
+  const handlers = useConsentSettingsPanelHook({ value, onChange });
   const appearance = value.appearance ?? {};
   return <fieldset disabled={disabled} className="jini-consent-settings-fields"><legend>{t('Look & position')}</legend>
     <Field label={t('Position')} field="placement" problems={problems}>{aria => <select className="jini-input" value={value.placement ?? placements[0]} onChange={handlers.placement} {...aria}>
@@ -153,8 +155,8 @@ function ColorToken({ label, value, fallback, resetLabel, onChange }: { label: s
 
 /** Keep transient empty edits local; only a valid policy version reaches autosave.
  * Native validity gives keyboard users an actionable error. @complexity O(version length), <=128. */
-function PolicyVersionInput({ value, onChange, maxLength, aria }: Pick<ConsentFieldsProps, 'onChange'> & { value: string; maxLength: number; aria: object }) {
-  const { draft, change, blur } = usePolicyVersionInput({ value, onChange });
+export function PolicyVersionInput({ value, onChange, maxLength, aria, usePolicyVersionInputHook = usePolicyVersionInput }: Pick<ConsentFieldsProps, 'onChange'> & { value: string; maxLength: number; aria: object; usePolicyVersionInputHook?: typeof usePolicyVersionInput }) {
+  const { draft, change, blur } = usePolicyVersionInputHook({ value, onChange });
   return <input className="jini-input" type="text" value={draft} required pattern={String.raw`.*\S.*`} maxLength={maxLength}
     onChange={change} onBlur={blur} {...aria} />;
 }

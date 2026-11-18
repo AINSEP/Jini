@@ -27,7 +27,7 @@ import type { GatedConfirmResult, GatedOperation, GatedPlanResult } from '../gat
 export interface AdminLedgerRow {
   readonly id: string;
   /** Host-defined event kind (e.g. `"migration"`, `"restore"`, `"restore-point-created"`) — not
-   *  enumerated here; see `../transport/errors.ts`'s header for the same reasoning applied to error
+   *  enumerated here; see `@jini-ai/core/admin-runtime`'s `admin-api-error.ts`'s header for the same reasoning applied to error
    *  codes instead of ledger kinds. */
   readonly kind: string;
   readonly createdAt: string;

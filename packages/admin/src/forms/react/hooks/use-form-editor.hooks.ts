@@ -2,16 +2,16 @@ import type { FormProviderDescription } from "@jini-ai/core/contracts/forms";
 import type { AdminFormProviderSelection, AdminFormsPort } from "../../../core/ports/forms.js";
 import type { FormsCatalogPort } from "../../../core/ports/forms-catalog.js";
 import { formView } from "../../models.js";
-import { describeApiError } from "../../../core/transport/errors.js";
+import { describeApiError } from '@jini-ai/core/admin-runtime';
 import { useFormsPorts, useFormsOptions } from "./FormsPorts.hooks.js";
 import { useController } from "../../../core/react/use-controller.js";
-import { createFormEditorController, initialFormEditorState, type FormEditorState } from "../../controllers/form-editor.controller.js";
-import { formHtmlEmbed, formAnswerColumns, type FormAnswerColumn } from "../../html-rules.js";
-import { useEffect, useRef, useState } from "react";
-import { useDirtyGuard, useFetchMutation, useFetchQuery } from "../../../react/kit.js";
-import { formEditorBaseline, formEditorDraft } from "../../form-editor-dirty.js";
-import type { AdminFormDefinition, AdminFormField, AdminFormNotify } from "../../models.js";
-import { FORM_TABS, KEYS, existingFieldIdsOf, nextTabIndex, visibleFormEditorError } from "../../rules.js";
+import { createFormEditorController, initialFormEditorState } from "../../controllers/form-editor.controller.js";
+import { formAnswerColumns, type FormAnswerColumn } from "../../html-rules.js";
+import type { AdminFormDefinition, AdminFormField } from "../../models.js";
+import { existingFieldIdsOf } from "../../rules.js";
+import {
+  useFormEditorActions, useFormEditorLeave, useFormEditorMutations, useFormEditorOutcome, useFormEditorQueries, useFormEditorSeed, useFormEditorSetters, useFormEditorTabs,
+} from "./use-form-editor-parts.hooks.js";
 
 /**
  * @file Everything the FormEditor SCREEN does — load, save, status toggle, and the Fields/
@@ -122,11 +122,6 @@ export interface FormEditorController {
   t: (key: string) => string;
 }
 
-/** Ordinary Builder saves keep their existing endpoint/permissions; a mode change is explicit. */
-function authoringPatch({ mode, html, savedMode }: { mode: "builder" | "html"; html: string; savedMode: "builder" | "html" | undefined }) {
-  if (mode === "html") return { mode, html };
-  return savedMode === "html" ? { mode } : {};
-}
 /** Load and save the editor through its injected port, preserving authoring and collection metadata.
  * @complexity O(f + b) draft state for fields/HTML bytes; one definition request per save, no provider I/O.
  * @overallScore 95 — Low: the existing screen lifecycle remains one hook with independently tested callbacks. */
@@ -134,208 +129,40 @@ export function useFormEditor(
   props: { formId: string; tab: "fields" | "submissions"; port: AdminFormsPort; catalog: FormsCatalogPort; navigate: (path: string) => void; t: (key: string) => string },
   { clipboard }: { clipboard?: { writeText: (text: string) => Promise<void> } } = {},
 ): FormEditorController {
-  const { port, catalog, navigate, t } = props;
-  const { tab } = props;
+  const { port, catalog, navigate, t, tab } = props;
   const isNew = props.formId === "new";
   const { controller: stateController, snapshot: stateSnapshot } = useController({ create: () => createFormEditorController({ catalog }), dependencies: [] });
   const state = stateSnapshot ?? initialFormEditorState({});
-  const { form, mode, html, copyFeedback, name, slug, fields, notify, provider } = state;
-  const setProvider = (value: AdminFormProviderSelection) => stateController?.update({ key: "provider", value });
-  const setForm = (value: FormEditorStateValue<"form">) => stateController?.update({ key: "form", value });
-  const setHtml = (value: FormEditorStateValue<"html">) => stateController?.update({ key: "html", value });
-  const setCopyFeedback = (value: FormEditorStateValue<"copyFeedback">) => stateController?.update({ key: "copyFeedback", value });
-  const setName = (value: FormEditorStateValue<"name">) => stateController?.update({ key: "name", value });
-  const setSlug = (value: FormEditorStateValue<"slug">) => stateController?.update({ key: "slug", value });
-  const setFields = (value: FormEditorStateValue<"fields">) => stateController?.update({ key: "fields", value });
-  // No UI edits this (owner ask 2026-09-22 removed the notify checkbox/recipients input from the
+  const { form, mode, html, copyFeedback, name, slug, fields, provider } = state;
+  const setters = useFormEditorSetters({ stateController });
+  // No UI edits `notify` (owner ask 2026-09-22 removed the notify checkbox/recipients input from the
   // Fields tab — a future outside mail integration will design its own way to set it). Seeded from
   // the loaded form and carried through unchanged on every save, so an operator saving a form never
   // wipes out a `notify` setting that predates this UI removal. Lives in the section controller, not a
   // `const`, only so `handleSave`'s existing-form branch can resync it from the write's own response
   // exactly like `form`/`name`/`slug`/`fields` already do below.
-  // Roving-tabindex focus targets for the tab strip below, indexed the same as `FORM_TABS` — see
-  // `nextTabIndex`'s doc comment for why the index math itself lives outside the component.
-  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
-
-  const discovery = useFetchQuery({ key: ["forms", "providers"], fetch: async () => {
-    if (!port.listFormProviders) throw new Error("Form provider settings are unavailable.");
-    return { data: await port.listFormProviders({}) };
-  } });
-  const list = useFetchQuery({ key: KEYS.form(props.formId), fetch: () => port.getFormDefinition({ id: props.formId }).then(form => ({ data: formView({ form }) })) }, { enabled: !isNew });
-
-  // Seeds `form`/`name`/`slug`/`fields`/`notify` from `list.data` exactly once per `formId` — see
-  // this file's own header for the regression this guards against (a background refetch of the SAME
-  // formId must not clobber in-progress edits).
-  const seededFormIdRef = useRef<string | null>(null);
-  const seededControllerRef = useRef<typeof stateController>(null);
-  useEffect(() => {
-    if (seededControllerRef.current !== stateController) { seededControllerRef.current = stateController; seededFormIdRef.current = null; }
-    if (seededFormIdRef.current !== props.formId) seededFormIdRef.current = null;
-    if (!stateController) return;
-    if (isNew || list.status === "loading" || !list.data) return;
-    if (seededFormIdRef.current === props.formId) return;
-    seededFormIdRef.current = props.formId;
-
-    const loaded = list.data.data;
-    stateController.seed({ form: loaded });
-  }, [props.formId, isNew, list.status, list.data, stateController]);
-
-  // None of these invalidate `KEYS.form(props.formId)` — only `KEYS.list`. `handleSave`/
-  // `handleStatusToggle` below already set `form` (and, for save, the rest of the seeded fields)
-  // directly from each mutation's own response, so invalidating this hook's OWN read key would only
-  // buy a redundant background refetch of data already in hand — the same reasoning
-  // `use-collection-entry-editor.hooks.ts`'s `save()`/`toggleLifecycle()` document for why THEIR
-  // `invalidates` names only the sibling `KEYS.entries(...)`, never their own `KEYS.entry(...)`.
-  const updateMutation = useFetchMutation({
-    run: ({ input }: { input: { name: string; fields: AdminFormField[]; notify: AdminFormNotify; provider?: AdminFormProviderSelection; mode?: "builder" | "html"; html?: string | undefined } }) =>
-      // Targets the loaded record's real id, never `props.formId` directly — the admin URL now
-      // carries the form's slug when one resolves (ui-fixes-backlog.md #8), so `props.formId` may
-      // itself BE that slug. `form.id` is always the real id regardless of which one the URL held,
-      // which is what lets the PUT route stay id-only (no matching slug support needed — see
-      // `get-by-id.ts`'s own comment on why only the GET route resolves either). The `?? props
-      // .formId` fallback only matters if this ever fired before `form` loaded, which it can't:
-      // `FormEditor.tsx`'s `!isNew && !form` guards keep the whole editor (Save button included)
-      // off-screen until `form` is set.
-      port.updateFormDefinition({ id: form?.id ?? props.formId }, input),
-  }, {
-    invalidates: [KEYS.list],
-  });
-  const createMutation = useFetchMutation({
-    run: ({ input }: { input: { name: string; slug: string; fields: AdminFormField[]; notify: AdminFormNotify; provider?: AdminFormProviderSelection; mode?: "builder" | "html"; html?: string | undefined } }) =>
-      port.createFormDefinition({ name: input.name, slug: input.slug, fields: input.fields, ...(input.provider ? { provider: input.provider } : {}), ...(input.mode ? { mode: input.mode, html: input.html } : {}) }, { notify: input.notify }),
-  }, {
-    invalidates: [KEYS.list],
-  });
-  const statusMutation = useFetchMutation({
-    run: ({ input }: { input: { id: string; status: "active" | "disabled" } }) => port.updateFormDefinition({ id: input.id }, { status: input.status }),
-  }, {
-    invalidates: [KEYS.list],
-  });
-
-  function onModeChange(next: "builder" | "html") {
-    stateController?.changeMode({ mode: next }, { submitLabel: t("Send") });
-  }
-
-  async function copyEmbed() {
-    if (!form) return;
-    try {
-      await (clipboard ?? navigator.clipboard).writeText(formHtmlEmbed({ slug: form.slug }));
-      setCopyFeedback(t("Copied!"));
-    } catch { setCopyFeedback(t("Could not copy embed")); }
-  }
-
-  async function handleSave() {
-    // Ordinary Builder saves keep their existing endpoint/permissions. A mode change is explicit.
-    const authoring = { ...authoringPatch({ mode, html, savedMode: form?.mode }), ...(provider.id !== "builtin" || form?.provider ? { provider } : {}) };
-    try {
-      if (isNew) {
-        // `notify` here is always this hook's own blank default — a new form has no earlier value
-        // to carry through, and there is no UI on this screen to set one instead.
-        const created = await createMutation.mutate({ input: { name, slug, fields, notify, ...authoring } });
-        // Slug, not id — see this hook's own file header / `get-by-id.ts` for the id-or-slug
-        // resolution this now lands on (ui-fixes-backlog.md #8).
-        navigate(`/forms/${created.slug}`);
-      } else {
-        // `notify` is the value this hook seeded from the loaded form and has never changed since —
-        // sent back unchanged so saving name/slug/field edits can never wipe a stored notify setting
-        // (see this hook's own `notify` state comment).
-        // Set directly from the write's own response — `updateMutation` doesn't invalidate this
-        // hook's own `KEYS.form(id)` read (see the mutations' own comment above), so there is no
-        // background refetch to wait for or to accidentally clobber an in-progress edit with.
-        // Mirrors `use-collection-entry-editor.hooks.ts`'s `save()`.
-        const updatedCore = await updateMutation.mutate({ input: { name, fields, notify, ...authoring } });
-        const updated = formView({ form: updatedCore });
-        stateController?.seed({ form: updated });
-      }
-    } catch {
-      // already surfaced through updateMutation.error/createMutation.error -> error below
-    }
-  }
-
-  async function handleStatusToggle() {
-    if (!form) return;
-    try {
-      const updatedCore = await statusMutation.mutate({ input: {
-        id: form.id,
-        status: form.status === "active" ? "disabled" : "active",
-      } });
-      setForm(formView({ form: updatedCore }));
-    } catch {
-      // already surfaced through statusMutation.error -> error below
-    }
-  }
-
-  // Same guard as the post and widget editors (reload/close prompt included); the in-app Back
-  // gets the admin's confirm modal rather than `confirmLeave`'s `window.confirm`.
-  const { isDirty } = useDirtyGuard({ current: formEditorDraft({ name, slug, fields, mode, html, provider }), original: formEditorBaseline({ form, isNew }) });
-  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
-  const leave = {
-    confirmOpen: leaveConfirmOpen,
-    onBack(event: { preventDefault: () => void }) {
-      event.preventDefault();
-      if (!isDirty) { navigate("/forms"); return; }
-      setLeaveConfirmOpen(true);
-    },
-    confirm() {
-      setLeaveConfirmOpen(false);
-      navigate("/forms");
-    },
-    cancel: () => setLeaveConfirmOpen(false),
-  };
-
-  const saving = updateMutation.status === "pending" || createMutation.status === "pending" || statusMutation.status === "pending";
-  const error = visibleFormEditorError({
-    updateError: updateMutation.error,
-    createError: createMutation.error,
-    statusError: statusMutation.error,
-    listError: list.error,
-    hasForm: form !== null,
-    saveFallback: t("save failed"),
-    statusUpdateFallback: t("status update failed"),
-    loadFormFallback: t("failed to load form"),
-  });
-
-  // Navigates to `/forms/:formId` or `/forms/:formId/submissions` (ADR-063) — `panels.tsx`'s
-  // `forms` panel keys `FormEditor` off `ctx.params.formId` on BOTH routes, so this is a route
-  // change, not a remount: in-progress Fields edits survive a trip to Submissions and back.
-  function onTabChange(nextTab: "fields" | "submissions") {
-    navigate(nextTab === "submissions" ? `/forms/${props.formId}/submissions` : `/forms/${props.formId}`);
-  }
-
-  function onTabsKeyDown(e: React.KeyboardEvent) {
-    const currentIndex = FORM_TABS.findIndex((t) => t.id === tab);
-    const index = nextTabIndex({ key: e.key, currentIndex });
-    if (index === null) return;
-    e.preventDefault();
-    onTabChange(FORM_TABS[index]!.id);
-    tabRefs.current[index]?.focus();
-  }
+  const { discovery, list } = useFormEditorQueries({ port, formId: props.formId, isNew });
+  useFormEditorSeed({ stateController, formId: props.formId, isNew, list });
+  const mutations = useFormEditorMutations({ port, form, formId: props.formId });
+  const actions = useFormEditorActions({ isNew, state, stateController, setters, mutations, navigate, t, clipboard });
+  const leave = useFormEditorLeave({ state, isNew, navigate });
+  const { saving, error } = useFormEditorOutcome({ mutations, list, form, t });
+  const tabs = useFormEditorTabs({ tab, formId: props.formId, navigate });
 
   return {
     isNew,
-    form, provider, setProvider,
+    form, provider, setProvider: setters.setProvider,
     providers: discovery.data?.data,
     providersError: discovery.error ? `${t("Could not load form providers")}: ${describeApiError({ e: discovery.error, fallback: t("The settings service did not respond. Try opening this editor again.") })}` : null,
-    mode, onModeChange, html, setHtml, copyEmbed, copyFeedback,
+    mode, onModeChange: actions.onModeChange, html, setHtml: setters.setHtml, copyEmbed: actions.copyEmbed, copyFeedback,
     answerColumns: formAnswerColumns({ fields: form?.fields ?? [] }, { yes: t("Yes"), no: t("No") }),
-    name,
-    setName,
-    slug,
-    setSlug,
-    fields,
-    setFields,
-    tab,
-    onTabChange,
-    error,
-    saving,
+    name, setName: setters.setName, slug, setSlug: setters.setSlug, fields, setFields: setters.setFields,
+    tab, onTabChange: tabs.onTabChange, error, saving,
     existingFieldIds: existingFieldIdsOf({ form }),
     showTabs: !isNew && form !== null,
-    tabRefs,
-    onTabsKeyDown,
-    handleSave,
-    handleStatusToggle,
-    leave,
-    t,
+    tabRefs: tabs.tabRefs, onTabsKeyDown: tabs.onTabsKeyDown,
+    handleSave: actions.handleSave, handleStatusToggle: actions.handleStatusToggle,
+    leave, t,
   };
 }
 
@@ -347,8 +174,6 @@ export function useFormEditor(
  * `FormEditor.tsx` composes this and a test composes {@link useFormEditor} with
  * `the memory adapter`, a fake `navigate`, and a fake `t`.
  */
-type FormEditorStateValue<K extends keyof FormEditorState> = FormEditorState[K] | ((current: FormEditorState[K]) => FormEditorState[K]);
-
 export function useWiredFormEditor(props: { formId: string; tab: "fields" | "submissions" }, _optional = {}): FormEditorController {
   const { formsApi, formsCatalog, formsNavigation } = useFormsPorts();
   const { t, clipboard, adminBase } = useFormsOptions();

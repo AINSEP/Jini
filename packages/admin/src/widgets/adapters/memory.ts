@@ -1,4 +1,4 @@
-import { AdminApiError } from '../../core/transport/errors.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import type { AdminWidgetsPort } from '../ports.js';
 import type { AdminWidget, AdminWidgetArea, AdminWidgetPlacement, AdminWidgetRegionBinding, AdminWidgetWhereUsed } from '../models.js';
 export interface MemoryWidgetsSeed {

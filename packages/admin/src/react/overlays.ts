@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { createControllerStore } from '../core/module/controller-store.js';
+import { createControllerStore } from '@jini-ai/core/admin-runtime';
 export interface OverlayEntry {
   readonly id: number;
   readonly render: () => ReactNode;

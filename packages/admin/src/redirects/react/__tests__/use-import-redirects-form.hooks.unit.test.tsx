@@ -6,7 +6,7 @@ import type { RedirectImportRule } from "./legacy-harness.js";
 import { createFakeRedirectsPort } from "./legacy-harness.js";
 import { useImportRedirectsForm, useWiredImportRedirectsForm } from "./legacy-harness.js";
 import type { AdminRedirectsPort } from "../../../core/ports/redirects.js";
-import { AdminApiError } from "../../../core/transport/errors.js";
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import { createMemoryRedirectsApi } from "../../adapters/memory.js";
 import { translateRedirectsEn } from "../../messages.en.js";
 import { useImportRedirectsForm as useCoreImportRedirectsForm } from "../hooks/use-import-redirects-form.hooks.js";

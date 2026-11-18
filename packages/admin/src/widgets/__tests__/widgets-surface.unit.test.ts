@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AdminApiError } from '../../core/transport/errors.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import * as widgets from '../index.js';
 import { createHttpWidgetsApi, type WidgetsTransportPort } from '../adapters/http.js';
 import { createMemoryWidgetsApi } from '../adapters/memory.js';

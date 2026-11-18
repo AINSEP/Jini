@@ -2,8 +2,8 @@ import { MediaCard } from './MediaCard.js';
 import { useMediaGrid } from '../hooks/MediaGrid.hooks.js';
 import type { MediaGridProps } from '../hooks/MediaGrid.hooks.js';
 export type { MediaGridProps } from '../hooks/MediaGrid.hooks.js';
-export function MediaGrid(props: MediaGridProps, _optional: Record<string, never> = {}) {
-  const vm = useMediaGrid(props);
+export function MediaGrid({ useMediaGridHook = useMediaGrid, ...props }: MediaGridProps & { useMediaGridHook?: typeof useMediaGrid }, _optional: Record<string, never> = {}) {
+  const vm = useMediaGridHook(props);
   return (
     <div className={vm.className} data-jini-part="media.grid" ref={vm.gridRef} tabIndex={-1} aria-label="Media library">
       {vm.actions.length ? (

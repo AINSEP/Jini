@@ -1,8 +1,7 @@
-import { agentHandle } from '@jini-ai/core/agent-handles';
 import { ConfirmDialog } from '../../../react/components/ConfirmDialog/ConfirmDialog.js';
 import { useWiredFormEditor } from "../hooks/use-form-editor.hooks.js";
-import { FormEditorFieldsBody } from "../components/FormEditorFieldsBody.js";
-import { FormEditorHeaderText } from "../components/FormEditorHeaderText.js";
+import { FormEditorFieldsSlot } from "../components/FormEditorFieldsSlot.js";
+import { FormEditorHeader } from "../components/FormEditorHeader.js";
 import { FormEditorTabStrip } from "../components/FormEditorTabStrip.js";
 import { FormEditorMainPanel } from "../components/FormEditorMainPanel.js";
 export interface FormEditorProps {
@@ -22,30 +21,8 @@ export interface FormEditorProps {
  * `const`, because a `const` assigned inside `FormEditor` still executes in that function's own
  * scope — every branch inside it would still count toward `FormEditor`'s own complexity score. */
 export function FormEditor({ formId, tab, useFormEditorHook = useWiredFormEditor }: FormEditorProps, _optional: Record<string, never> = {}) {
-  const {
-    answerColumns, provider, setProvider, providers, providersError,
-    mode, onModeChange, html, setHtml, copyEmbed, copyFeedback,
-    isNew,
-    form,
-    name,
-    setName,
-    slug,
-    setSlug,
-    fields,
-    setFields,
-    tab: activeTab,
-    onTabChange,
-    error,
-    saving,
-    existingFieldIds,
-    showTabs,
-    tabRefs,
-    onTabsKeyDown,
-    handleSave,
-    handleStatusToggle,
-    leave,
-    t,
-  } = useFormEditorHook({ formId, tab });
+  const editor = useFormEditorHook({ formId, tab });
+  const { answerColumns, isNew, form, name, tab: activeTab, onTabChange, error, showTabs, tabRefs, onTabsKeyDown, leave, t } = editor;
 
   if (!isNew && !form && !error) return <div className="notice">{t("Loading form…")}</div>;
   // Previously this was the ONLY guard, and it only covers the pre-error case — once the load
@@ -61,66 +38,11 @@ export function FormEditor({ formId, tab, useFormEditorHook = useWiredFormEditor
   // reference shape this now matches).
   if (!isNew && !form && error) return <div className="notice error">{error}</div>;
 
-  // Shared between the "new form" (no tabs, always visible) and "existing form, Fields tab"
-  // views — kept as one JSX value instead of two copies so the two paths can't drift.
-  const fieldsBody = (
-    <FormEditorFieldsBody
-      mode={mode} onModeChange={onModeChange} html={html} onHtmlChange={setHtml} onCopyEmbed={copyEmbed} copyFeedback={copyFeedback}
-      provider={provider} onProviderChange={setProvider} providers={providers} providersError={providersError}
-      name={name}
-      onNameChange={setName}
-      slug={slug}
-      onSlugChange={setSlug}
-      isNew={isNew}
-      fields={fields}
-      existingFieldIds={existingFieldIds}
-      onFieldsChange={setFields}
-      form={form}
-      saving={saving}
-      onStatusToggle={handleStatusToggle}
-      onSave={handleSave}
-      t={t}
-    />
-  );
+  const fieldsBody = <FormEditorFieldsSlot editor={editor} />;
 
   return (
     <div className="page">
-      {/* `page-header-split` (the same modifier `PageEditorHeader`/`PostEditor` use on the shared
-          `.page-header`, `styles.css`) — back link alone at the far left, title block centred.
-          Forms has no Save/Delete group living in this header (that's inside the fields panel
-          below), so the header's third rail just stays empty, same as the editors' post-move
-          state. */}
-      <div
-        className="page-header page-header-split"
-        {...agentHandle({ handle: "form-editor-header" }, {
-          role: "region",
-          label: "Form editor header — title and the Back to forms link",
-        })}
-      >
-        <div className="page-header-lead">
-          {/* Plain `<a className="btn-secondary">`, not a `<button>` nested inside an `<a>`
-              (invalid HTML, undefined activation behaviour) — same `a.btn-*` mechanism
-              `Dashboard.tsx`'s "View site ↗" already uses. Arrow sits outside `t()`, matching
-              `FormSubmissionDetail`'s own `&larr; {t("Back")}` below — the glyph is not part of
-              the translated string, so no locale block needs to change.
-
-              Visible label shortened to a plain "← Back" (owner, 2026-09-22 — every editor's back
-              button reads the same short way now). The destination stays legible: `aria-label`
-              carries the full "Back to forms" phrase for screen readers, and `agentHandle`'s own
-              `label` (a stable, untranslated identifier — never live text, see `handle.ts`) already
-              said "Back to the list of all forms" for agents, unchanged by this. */}
-          <a
-            className="btn-secondary"
-            href="/admin/forms"
-            aria-label={t("Back to forms")}
-            onClick={leave.onBack}
-            {...agentHandle({ handle: "form-editor-back" }, { role: "link", label: "Back to the list of all forms" })}
-          >
-            &larr; {t("Back")}
-          </a>
-        </div>
-        <FormEditorHeaderText isNew={isNew} name={name} t={t} />
-      </div>
+      <FormEditorHeader isNew={isNew} name={name} onBack={leave.onBack} t={t} />
       {error ? <div className="notice error">{error}</div> : null}
 
       <FormEditorTabStrip showTabs={showTabs} tab={activeTab} onTabChange={onTabChange} tabRefs={tabRefs} onTabsKeyDown={onTabsKeyDown} t={t} />

@@ -1,8 +1,10 @@
 import { useWidgetsLibraryView } from '../hooks/page-views.hooks.js';
+import { TrashWidgetDialog } from '../components/TrashWidgetDialog.js';
+import { widgetsLibraryColumns } from '../components/WidgetTableColumns.js';
+import { WidgetsLibraryHeader } from '../components/WidgetPageHeaders.js';
 import { useWidgetsOptions } from '../hooks/WidgetsPorts.hooks.js';
 import { type AdminWidgetType } from "../../models.js";
 
-import { ConfirmDialog } from "../../../react/components/ConfirmDialog/ConfirmDialog.js";
 import { DataTable } from "../../../react/components/DataTable.js";
 import { agentHandle } from "@jini-ai/core/agent-handles";
 import { widgetTypeLabel } from "../../rules.js";
@@ -26,13 +28,15 @@ export interface WidgetsLibraryProps {
    * Defaulted to the real hook, so production callers pass nothing and behave exactly as before.
    */
   useWidgetsLibraryHook?: typeof useWiredWidgetsLibrary | undefined;
+  useWidgetsLibraryViewHook?: typeof useWidgetsLibraryView | undefined;
+  useWidgetsOptionsHook?: typeof useWidgetsOptions | undefined;
 }
 
 export { WidgetsLibraryNotices } from '../components/WidgetsLibraryNotices.js';
 import { WidgetsLibraryNotices } from '../components/WidgetsLibraryNotices.js';
 
-export function WidgetsLibrary({ useWidgetsLibraryHook = useWiredWidgetsLibrary }: WidgetsLibraryProps = {}) {
-  const { widgetTypes, headerActions, statusLabel } = useWidgetsOptions();
+export function WidgetsLibrary({ useWidgetsLibraryHook = useWiredWidgetsLibrary, useWidgetsLibraryViewHook = useWidgetsLibraryView, useWidgetsOptionsHook = useWidgetsOptions }: WidgetsLibraryProps = {}) {
+  const { widgetTypes, headerActions, statusLabel } = useWidgetsOptionsHook();
   const {
     widgets,
     error,
@@ -47,51 +51,14 @@ export function WidgetsLibrary({ useWidgetsLibraryHook = useWiredWidgetsLibrary 
     cancelTrash,
     t,
     rowHandleById,
-  } = useWidgetsLibraryView({ useWidgetsLibraryHook });
-  const pendingTrashTitle = pendingTrash?.title ?? "";
+  } = useWidgetsLibraryViewHook({ useWidgetsLibraryHook });
 
   if (error && !widgets) return <div className="notice error">{error}</div>;
   if (!widgets) return <div className="notice">{t("Loading widgets…")}</div>;
 
   return (
     <div className="page">
-      <div className="page-header">
-        <div className="page-header-text">
-          <p className="page-kicker">{t("Content")}</p>
-          <h1 className="page-title">{t("Widgets")}</h1>
-          <p className="page-description">
-            {t("Create reusable content blocks and place them into your theme's widget regions.")}
-          </p>
-        </div>
-        <div className="page-actions">
-          {headerActions}
-          <a
-            href="/admin/widgets/regions"
-            {...agentHandle({ handle: "widgets-regions-link" }, { role: "link", label: "Go to Widget Regions" })}
-          >
-            {t("Regions →")}
-          </a>
-          <select
-            value={createType}
-            onChange={(e) => setCreateType(e.target.value as AdminWidgetType)}
-            aria-label={t("Widget type to create")}
-            {...agentHandle({ handle: "widgets-create-type" }, { role: "field", label: "Widget type to create" })}
-          >
-            {widgetTypes.map((o) => (
-              <option key={o.value} value={o.value}>
-                {widgetTypeLabel({ widgetType: o.value, types: widgetTypes }, { t })}
-              </option>
-            ))}
-          </select>
-          <a
-            className="btn-primary"
-            href={`/admin/widgets/new?type=${createType}`}
-            {...agentHandle({ handle: "widgets-add-new" }, { role: "link", label: "Create a new widget of the selected type" })}
-          >
-            {t("Add New")}
-          </a>
-        </div>
-      </div>
+      <WidgetsLibraryHeader t={t} headerActions={headerActions} createType={createType} setCreateType={setCreateType} widgetTypes={widgetTypes} />
       <WidgetsLibraryNotices error={error} skippedCount={skippedCount} skippedIds={skippedIds} t={t} />
       <DataTable
         rows={widgets}
@@ -104,71 +71,9 @@ export function WidgetsLibrary({ useWidgetsLibraryHook = useWiredWidgetsLibrary 
             </div>
           </div>
         }
-        columns={[
-          {
-            key: "title",
-            header: t("Title"),
-            cell: (widget) => (
-              <a
-                // Slug, not id (2026-09-22, URL-uses-slug — mirrors `FormsList.tsx`'s
-                // `/admin/forms/${form.slug}` row link): the editor resolves either
-                // (`read-service.ts`'s `getWidgetInstance`), but the slug is the readable one.
-                href={`/admin/widgets/${widget.slug}`}
-                {...agentHandle({ handle: `${rowHandleById.get(widget.id)}-edit` }, { role: "link", label: `Edit the "${widget.title}" widget` })}
-              >
-                {widget.title}
-              </a>
-            ),
-          },
-          {
-            key: "type",
-            header: t("Type"),
-            cell: (widget) => widgetTypeLabel({ widgetType: widget.widgetType, types: widgetTypes }, { t }),
-          },
-          {
-            key: "slug",
-            header: t("Slug"),
-            // Monospace like Collections' "Key" column (`Collections.tsx`) — a slug is an
-            // identifier, not prose.
-            cell: (widget) => <code>{widget.slug}</code>,
-          },
-          {
-            key: "status",
-            header: t("Status"),
-            cell: (widget) => <span className={`status status-${widget.status}`}>{(statusLabel ?? t)(widget.status)}</span>,
-          },
-          {
-            key: "actions",
-            // Not converted to a `RowMenu` — this is the row's only action (see report: a menu
-            // with one item is pure overhead over a direct button). Still labeled for
-            // accessibility, matching `Roles.tsx`/`Users.tsx`'s existing pattern for an actions
-            // column that isn't a bare `<th></th>`.
-            headerLabel: t("Actions"),
-            cell: (widget) => (
-              <button
-                onClick={() => requestTrash(widget)}
-                {...agentHandle({ handle: `${rowHandleById.get(widget.id)}-trash` }, {
-                  role: "button",
-                  label: `Move "${widget.title}" to trash`,
-                })}
-              >
-                {t("Trash")}
-              </button>
-            ),
-          },
-        ]}
+        columns={widgetsLibraryColumns({ t, widgetTypes, statusLabel, rowHandleById, requestTrash })}
       />
-      <ConfirmDialog
-        open={pendingTrash !== null}
-        agentHandle="widgets-trash"
-        title={t("Move to trash?")}
-        body={pendingTrash ? <p>{t('Move "{title}" to trash?').replace("{title}", () => pendingTrashTitle)}</p> : null}
-        confirmLabel={t("Move to trash")}
-        destructive
-        pending={trashing}
-        onConfirm={confirmTrash}
-        onCancel={cancelTrash}
-      />
+      <TrashWidgetDialog t={t} pendingTrash={pendingTrash} trashing={trashing} confirmTrash={confirmTrash} cancelTrash={cancelTrash} />
     </div>
   );
 }

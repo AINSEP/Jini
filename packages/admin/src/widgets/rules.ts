@@ -1,4 +1,4 @@
-import { AdminApiError, describeApiError } from '../core/transport/errors.js';
+import { AdminApiError, describeApiError } from '@jini-ai/core/admin-runtime';
 import type { AdminWidget, AdminWidgetPlacement, AdminWidgetType, WidgetTypeOption, WidgetsTranslate, WidgetSlugRedirectPath, WidgetEditorParams } from './models.js';
 import { widgetsEnglish } from './messages.en.js';
 export const WIDGETS_LIBRARY_RESOURCE = 'widgets-library';

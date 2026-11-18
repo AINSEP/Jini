@@ -7,42 +7,6 @@
         "packages/admin/src/security/react/tabs/AccessTokensTab.tsx"
       ]
     },
-    "AgentPluginFileContent::useAgentPluginFileContent": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/agent-plugins/react/components/AgentPluginFileContent.tsx"
-      ]
-    },
-    "AgentPluginFileTree::useAgentPluginFileTree": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/agent-plugins/react/components/AgentPluginFileTree.tsx"
-      ]
-    },
-    "AgentPluginInspector::useAgentPluginInspector": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/agent-plugins/react/components/AgentPluginInspector.tsx"
-      ]
-    },
-    "AgentPluginListPanel::useAgentPluginPanel": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/agent-plugins/react/components/AgentPluginListPanel.tsx"
-      ]
-    },
-    "AgentPluginRow::useAgentPluginRow": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/agent-plugins/react/components/AgentPluginRow.tsx"
-      ]
-    },
-    "AgentPluginsPage::useAgentPluginsPage": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/agent-plugins/react/pages/AgentPluginsPage.tsx"
-      ]
-    },
     "AgentRuntimePicker::useAgentHandle": {
       "count": 1,
       "files": [
@@ -61,28 +25,10 @@
         "packages/chat/src/react/features/chat-pane/components/AgentRuntimePicker.tsx"
       ]
     },
-    "AnalyzePanel::useAnalyzePanel": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/pages/SeoPage.tsx"
-      ]
-    },
-    "AnalyzePanel::useSeoCopy": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/pages/SeoPage.tsx"
-      ]
-    },
     "AuthTab::useAuthTab": {
       "count": 1,
       "files": [
         "packages/user-management/src/admin/react/tabs/AuthTab.tsx"
-      ]
-    },
-    "BannerModeFields::useConsentSettingsPanel": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/consent/react/ConsentFields.tsx"
       ]
     },
     "BrowserViewportControls::useDismissOnOutsideOrEscape": {
@@ -205,12 +151,6 @@
         "packages/chat/src/react/components/ChatSettingsDialog.tsx"
       ]
     },
-    "CommentsPage::useCommentsPage": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/comments/react/pages/CommentsPage.tsx"
-      ]
-    },
     "Composer::useAgentHandle": {
       "count": 1,
       "files": [
@@ -227,30 +167,6 @@
       "count": 1,
       "files": [
         "packages/chat/src/react/components/Composer.tsx"
-      ]
-    },
-    "ConsentBannerFields::useConsentSettingsPanel": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/consent/react/ConsentFields.tsx"
-      ]
-    },
-    "ConsentLookFields::useConsentSettingsPanel": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/consent/react/ConsentFields.tsx"
-      ]
-    },
-    "ConsentPreviewFrame::useConsentPreviewWidth": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/consent/react/ConsentPreviewFrame.tsx"
-      ]
-    },
-    "ConsentRulesFields::useConsentSettingsPanel": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/consent/react/ConsentFields.tsx"
       ]
     },
     "CredentialEditor::useCredentialEditor": {
@@ -295,160 +211,16 @@
         "packages/chat/src/react/components/QuestionForm.tsx"
       ]
     },
-    "EditMediaPanel::useEditMediaPanel": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/media/react/components/EditMediaPanel.tsx"
-      ]
-    },
     "EntityField::useAgentHandle": {
       "count": 1,
       "files": [
         "packages/admin/src/react/entities/EntityField.tsx"
       ]
     },
-    "EntryPicker::useSeoCopy": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/pages/SeoPage.tsx"
-      ]
-    },
-    "FieldAttributesDialog::useFieldAttributesView": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/forms/react/components/FieldAttributesDialog.tsx"
-      ]
-    },
-    "FieldSettingsSection::useFieldSettingsView": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/forms/react/components/FieldSettingsSection.tsx"
-      ]
-    },
-    "FormEditorFieldsBody::useFormFieldsBodyView": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/forms/react/components/FormEditorFieldsBody.tsx"
-      ]
-    },
-    "FormEditorTabStrip::useFormTabStripView": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/forms/react/components/FormEditorTabStrip.tsx"
-      ]
-    },
-    "FormFieldsEditor::useFormFieldsView": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/forms/react/components/FormFieldsEditor.tsx"
-      ]
-    },
-    "FormSubmissionDetail::useFormSubmissionDate": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/forms/react/components/FormSubmissionDetail.tsx"
-      ]
-    },
-    "FormSubmissions::useFormSubmissionDate": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/forms/react/components/FormSubmissions.tsx"
-      ]
-    },
-    "FormSubmissions::useSubmissionsView": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/forms/react/components/FormSubmissions.tsx"
-      ]
-    },
-    "FormsList::useFormsListView": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/forms/react/pages/FormsList.tsx"
-      ]
-    },
-    "LibraryTab::useLibraryTab": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/media/react/tabs/LibraryTab.tsx"
-      ]
-    },
     "LoginPage::useLoginPage": {
       "count": 1,
       "files": [
         "packages/user-management/src/admin/react/pages/LoginPage.tsx"
-      ]
-    },
-    "MarketplaceTab::useMarketplaceTab": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/agent-plugins/react/tabs/MarketplaceTab.tsx"
-      ]
-    },
-    "MediaCard::useMediaCard": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/media/react/components/MediaCard.tsx"
-      ]
-    },
-    "MediaDialog::useMediaDialog": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/media/react/components/MediaDialog.tsx"
-      ]
-    },
-    "MediaGrid::useMediaGrid": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/media/react/components/MediaGrid.tsx"
-      ]
-    },
-    "MediaLightbox::useMediaLightbox": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/media/react/components/MediaLightbox.tsx"
-      ]
-    },
-    "MediaPage::useMediaPage": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/media/react/pages/MediaPage.tsx"
-      ]
-    },
-    "MediaPicker::useMediaPicker": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/media/react/components/MediaPicker.tsx"
-      ]
-    },
-    "MediaPickerBridge::useMediaPickerBridge": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/components/MediaPickerBridge.tsx"
-      ]
-    },
-    "MediaPreview::useMediaCard": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/media/react/components/MediaCard.tsx"
-      ]
-    },
-    "MediaPurgeDialog::useMediaPurgeDialog": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/media/react/components/MediaPurgeDialog.tsx"
-      ]
-    },
-    "MediaRefField::useMediaRefPresentation": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/components/MediaRefField.tsx"
-      ]
-    },
-    "MediaRefField::useSeoCopy": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/components/MediaRefField.tsx"
       ]
     },
     "MemberRow::useMemberRow": {
@@ -517,19 +289,6 @@
         "packages/user-management/src/admin/react/components/PolicyRow.tsx"
       ]
     },
-    "PolicyVersionInput::usePolicyVersionInput": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/consent/react/ConsentFields.tsx"
-      ]
-    },
-    "ProvidersTab::useProvidersTab": {
-      "count": 2,
-      "files": [
-        "packages/admin/src/media/react/tabs/ProvidersTab.tsx",
-        "packages/admin/src/source-control/react/tabs/ProvidersTab.tsx"
-      ]
-    },
     "QuestionForm::useQuestionAnswers": {
       "count": 1,
       "files": [
@@ -564,30 +323,6 @@
       "count": 1,
       "files": [
         "packages/admin/src/comments/react/components/QueueActionsCell.tsx"
-      ]
-    },
-    "QueueSection::useQueueSection": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/comments/react/components/QueueSection.tsx"
-      ]
-    },
-    "QueueTable::useQueueTable": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/comments/react/components/QueueSection.tsx"
-      ]
-    },
-    "QueueToolbar::useQueueToolbar": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/comments/react/components/QueueSection.tsx"
-      ]
-    },
-    "RedirectsPage::useRedirectsPage": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/redirects/react/pages/RedirectsPage.tsx"
       ]
     },
     "RoleRow::useRoleRow": {
@@ -650,66 +385,6 @@
         "packages/admin/src/security/react/pages/SecurityPage.tsx"
       ]
     },
-    "Seo::useSeoCopy": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/pages/SeoPage.tsx"
-      ]
-    },
-    "Seo::useSeoOptions": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/pages/SeoPage.tsx"
-      ]
-    },
-    "Seo::useSeoPageActions": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/pages/SeoPage.tsx"
-      ]
-    },
-    "Seo::useSeoTabs": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/pages/SeoPage.tsx"
-      ]
-    },
-    "SeoDefaultsTab::useSeoCopy": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/pages/SeoPage.tsx"
-      ]
-    },
-    "SeoDefaultsTab::useSeoDefaults": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/pages/SeoPage.tsx"
-      ]
-    },
-    "SeoEntryPanel::useSeoCopy": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/pages/SeoPage.tsx"
-      ]
-    },
-    "SeoEntrySection::useSeoCopy": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/pages/SeoPage.tsx"
-      ]
-    },
-    "SeoSitemapTab::useSeoCopy": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/pages/SeoPage.tsx"
-      ]
-    },
-    "SettingsSection::useSettingsSection": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/comments/react/components/SettingsSection.tsx"
-      ]
-    },
     "SidebarMobileHeader::useSidebar": {
       "count": 1,
       "files": [
@@ -740,82 +415,10 @@
         "packages/admin/src/react/components/Sidebar.tsx"
       ]
     },
-    "SitemapModal::useSeoCopy": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/components/SitemapModal.tsx"
-      ]
-    },
-    "SitemapModal::useSitemapModalRegenerate": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/components/SitemapModal.tsx"
-      ]
-    },
-    "SitemapModal::useSitemapPresentation": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/components/SitemapModal.tsx"
-      ]
-    },
-    "SitemapModalBody::useSeoCopy": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/components/SitemapModal.tsx"
-      ]
-    },
-    "SitemapModalHeaderActions::useSeoCopy": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/components/SitemapModal.tsx"
-      ]
-    },
-    "SitemapModalHeaderActions::useSitemapPresentation": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/components/SitemapModal.tsx"
-      ]
-    },
-    "SitemapModalHeaderActions::useSitemapViewToggle": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/components/SitemapModal.tsx"
-      ]
-    },
-    "SitemapModalTable::useSeoCopy": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/components/SitemapModal.tsx"
-      ]
-    },
-    "SitemapModalTable::useSeoOptions": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/components/SitemapModal.tsx"
-      ]
-    },
-    "SitemapModalTable::useSitemapTable": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/seo/react/components/SitemapModal.tsx"
-      ]
-    },
     "Slot::useAdminKit": {
       "count": 1,
       "files": [
         "packages/admin/src/react/kit.tsx"
-      ]
-    },
-    "SourceControlCredentialFields::useSourceControlCredentialFields": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/source-control/react/components/SourceControlCredentialFields.tsx"
-      ]
-    },
-    "SourceControlPage::useSourceControlPage": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/source-control/react/pages/SourceControlPage.tsx"
       ]
     },
     "TabStrip::useAgentHandle": {
@@ -834,12 +437,6 @@
       "count": 1,
       "files": [
         "packages/user-management/src/react/auth/TotpSettings.tsx"
-      ]
-    },
-    "UploadButton::useUploadButton": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/media/react/components/UploadButton.tsx"
       ]
     },
     "UserResetPasswordDialog::useFields": {
@@ -876,54 +473,6 @@
       "count": 1,
       "files": [
         "packages/user-management/src/admin/react/tabs/UsersTab.tsx"
-      ]
-    },
-    "WidgetInstanceEditor::useWidgetInstanceEditorView": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/widgets/react/pages/WidgetInstanceEditor.tsx"
-      ]
-    },
-    "WidgetInstanceEditor::useWidgetsOptions": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/widgets/react/pages/WidgetInstanceEditor.tsx"
-      ]
-    },
-    "WidgetRegionEditor::useWidgetRegionEditorView": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/widgets/react/pages/WidgetRegionEditor.tsx"
-      ]
-    },
-    "WidgetRegionEditor::useWidgetsOptions": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/widgets/react/pages/WidgetRegionEditor.tsx"
-      ]
-    },
-    "WidgetRegions::useWidgetRegionsView": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/widgets/react/pages/WidgetRegions.tsx"
-      ]
-    },
-    "WidgetRegions::useWidgetsOptions": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/widgets/react/pages/WidgetRegions.tsx"
-      ]
-    },
-    "WidgetsLibrary::useWidgetsLibraryView": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/widgets/react/pages/WidgetsLibrary.tsx"
-      ]
-    },
-    "WidgetsLibrary::useWidgetsOptions": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/widgets/react/pages/WidgetsLibrary.tsx"
       ]
     }
   }

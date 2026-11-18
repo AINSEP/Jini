@@ -1,5 +1,5 @@
 import { render, screen, waitFor, within } from "../../../__tests__/fetch-query-support.js";
-import { AdminApiError } from "../../../core/transport/errors.js";
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import userEvent from "@testing-library/user-event";
 import { assert, afterEach, describe, expect, it, vi } from "vitest";
 

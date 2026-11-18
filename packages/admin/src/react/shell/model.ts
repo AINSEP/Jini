@@ -1,5 +1,5 @@
 import { buildNav, resolveAgentPageId, resolvePanels, type AdminNavGroup } from '../../core/manifest/rules.js';
-import { isPanelAccessible } from '../../core/permissions/rules.js';
+import { isPanelAccessible } from '@jini-ai/core/admin-runtime';
 import { matchRoute } from '../../core/routing/rules.js';
 import type { AdminRoute } from '../../core/routing/types.js';
 import type { AdminShellPanel, AdminShellSession } from './types.js';

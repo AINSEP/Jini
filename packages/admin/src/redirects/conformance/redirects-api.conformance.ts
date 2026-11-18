@@ -1,4 +1,4 @@
-import { AdminApiError } from '../../core/transport/errors.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import type { AdminRedirect, AdminRedirectCreateInput, AdminRedirectsPort } from '../../core/ports/redirects.js';
 
 /** Records each passing check by name; the first failing check aborts the whole run. */

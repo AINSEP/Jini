@@ -1,5 +1,4 @@
-import { createControllerStore } from '../../core/module/controller-store.js';
-import { describeApiError } from '../../core/transport/errors.js';
+import { createControllerStore, describeApiError } from '@jini-ai/core/admin-runtime';
 import type { MediaProvidersPort } from '../ports.js';
 import type { MediaProvider } from '../models.js';
 export function createProvidersController(

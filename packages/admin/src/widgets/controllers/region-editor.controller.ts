@@ -1,5 +1,4 @@
-import { createControllerStore } from '../../core/module/controller-store.js';
-import { describeApiError } from '../../core/transport/errors.js';
+import { createControllerStore, describeApiError } from '@jini-ai/core/admin-runtime';
 import { buildDraftPlacement, movePlacement, resolveWidgetRegionSaveError, widgetApiError } from '../rules.js';
 import { widgetsEnglish } from '../messages.en.js';
 import type { AdminWidgetsPort } from '../ports.js';

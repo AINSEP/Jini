@@ -5,7 +5,7 @@ import { createAgentPluginsController } from '../../controllers/agent-plugins.co
 import type { AgentPluginsState } from '../../models.js';
 import { AGENT_PLUGINS_READ, agentPluginDisableCopy, humanizeAgentPluginId } from '../../rules.js';
 import { useAgentPluginsPorts } from './AgentPluginsPorts.hooks.js';
-import { AdminConfigError } from '../../../core/module/index.js';
+import { AdminConfigError } from '@jini-ai/core/admin-runtime';
 export interface AgentPluginsPageScope {
   readonly controller: ReturnType<typeof createAgentPluginsController> | null;
   readonly snapshot: Readonly<AgentPluginsState> | null;

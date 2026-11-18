@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AdminFormDefinition, AdminFormField, AdminFormSubmission, AdminFormUpdatePatch } from '../../core/ports/forms.js';
-import { AdminApiError } from '../../core/transport/errors.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import { createMemoryFormsApi } from '../adapters/memory.js';
 
 const field = (id: string): AdminFormField => ({ id, type: 'text', label: id, required: false });

@@ -3,7 +3,7 @@ import { memoryCommentsApi } from './fakes/comment-repo.js';
 import { createMemoryCommentsApi } from '../adapters/memory.js';
 import type { AdminCommentRepo } from '../../core/ports/comment-repo.js';
 import type { AdminComment, CommentModerationAction, CommentsSettings } from '../../core/ports/comments.js';
-import { AdminApiError } from '../../core/transport/errors.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 
 const SEED: AdminComment = { id: 'c1', entryId: 'e1', parentId: null, threadRootId: 'c1',
   depth: 0, status: 'pending', authorPrincipalId: null, authorName: 'Reader', authorEmail: null,

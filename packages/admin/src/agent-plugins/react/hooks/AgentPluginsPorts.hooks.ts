@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import { AdminConfigError } from '../../../core/module/index.js';
+import { AdminConfigError } from '@jini-ai/core/admin-runtime';
 import type { AgentPluginsApiPort } from '../../ports.js';
 export interface AgentPluginsPorts { readonly agentPluginsApi: AgentPluginsApiPort }
 export const AgentPluginsPortsContext = createContext<AgentPluginsPorts | null>(null);

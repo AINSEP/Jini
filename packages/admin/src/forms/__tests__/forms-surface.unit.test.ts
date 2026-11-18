@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AdminApiError } from "../../core/transport/errors.js";
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import * as barrel from "../index.js";
 import { createHttpFormsApi, type FormsTransportPort } from "../adapters/http.js";
 import { formView } from "../models.js";

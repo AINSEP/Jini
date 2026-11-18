@@ -58,6 +58,7 @@
       "./contracts/runtime": "universal",
       "./contracts/runtime/testing": "universal",
       "./contracts/admin-module": "universal",
+      "./admin-runtime": "universal",
       "./contracts/forms": "universal",
       "./contracts/charts": "universal",
       "./contracts/plugin-sdk": "universal",
@@ -368,6 +369,11 @@
       "types": "./dist/contracts/admin-module.d.ts",
       "import": "./dist/contracts/admin-module.js",
       "default": "./dist/contracts/admin-module.js"
+    },
+    "./admin-runtime": {
+      "types": "./dist/admin-runtime/index.d.ts",
+      "import": "./dist/admin-runtime/index.js",
+      "default": "./dist/admin-runtime/index.js"
     },
     "./contracts/forms": {
       "types": "./dist/contracts/forms.d.ts",

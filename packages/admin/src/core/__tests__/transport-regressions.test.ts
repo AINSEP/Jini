@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { AdminApiError } from '../transport/errors.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import { createHttpTransport, type AdminFetch } from '../transport/http.js';
 
 afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });

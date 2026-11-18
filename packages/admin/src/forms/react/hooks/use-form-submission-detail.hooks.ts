@@ -5,7 +5,7 @@ import { useFormsPorts, useFormsOptions } from "./FormsPorts.hooks.js";
 import { useController } from "../../../core/react/use-controller.js";
 import { createFormSubmissionDetailController, initialFormSubmissionDetailState, type FormSubmissionDetailState } from "../../controllers/form-submission-detail.controller.js";
 import type { AdminFormSubmission } from "../../models.js";
-import { describeApiError as describeCoreApiError } from "../../../core/transport/errors.js";
+import { describeApiError as describeCoreApiError } from '@jini-ai/core/admin-runtime';
 const describeApiError = (e: unknown, fallback: string) => describeCoreApiError({ e, fallback });
 import { useFetchMutation, useFetchQuery, useInvalidate } from "../../../react/kit.js";
 import { KEYS, describeTrashError } from "../../rules.js";

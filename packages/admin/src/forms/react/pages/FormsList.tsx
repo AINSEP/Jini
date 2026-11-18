@@ -1,9 +1,7 @@
-import { ConfirmDialog } from '../../../react/components/ConfirmDialog/ConfirmDialog.js';
 import { DataTable } from '../../../react/components/DataTable.js';
-import { RowMenu } from '../../../react/components/RowMenu/RowMenu.js';
-import { agentHandle } from '@jini-ai/core/agent-handles';
 import { useWiredFormsList } from '../hooks/use-forms-list.hooks.js';
 import { useFormsListView } from '../hooks/forms-view.hooks.js';
+import { FormsListDeleteDialog, FormsListHeader, formsListColumns } from '../components/FormsListParts.js';
 /**
  * @file Forms list screen (SPEC-010 ui.spec.md §2.1/§3.1) — the `/admin/forms` route.
  * Mirrors `Menus.tsx`/`Posts.tsx`'s fetch/loading/error/table convention. Layout now follows the
@@ -38,12 +36,14 @@ export interface FormsListProps {
    * convention. Defaulted to the real hook, so `panels.tsx` passes nothing.
    */
   useFormsListHook?: typeof useWiredFormsList;
+  /** Same seam for the view-model hook that builds the table rows. */
+  useFormsListViewHook?: typeof useFormsListView;
 }
 
-export function FormsList({ useFormsListHook = useWiredFormsList }: FormsListProps = {}, _optional: Record<string, never> = {}) {
+export function FormsList({ useFormsListHook = useWiredFormsList, useFormsListViewHook = useFormsListView }: FormsListProps = {}, _optional: Record<string, never> = {}) {
   const { forms, formatFormDates, error, rowSavingId, toggleStatus, pendingDelete, setPendingDelete, removeForm, t } = useFormsListHook();
 
-  const { rows, cancelDelete, headerActions } = useFormsListView({ forms, t, formatFormDates, toggleStatus, setPendingDelete });
+  const { rows, cancelDelete, headerActions } = useFormsListViewHook({ forms, t, formatFormDates, toggleStatus, setPendingDelete });
 
   if (error && !forms) return <div className="notice error">{error}</div>;
   if (!forms) return <div className="notice">{t("Loading forms…")}</div>;
@@ -58,29 +58,7 @@ export function FormsList({ useFormsListHook = useWiredFormsList }: FormsListPro
   // `api.updateForm({ status })` call.
   return (
     <div className="page">
-      <div
-        className="page-header"
-        {...agentHandle({ handle: "forms-header" }, { role: "region", label: "Forms list header — page title and the New form button" })}
-      >
-        <div className="page-header-text">
-          <p className="page-kicker">{t("Content")}</p>
-          <h1 className="page-title">{t("Forms")}</h1>
-          <p className="page-description">{t("Manage the forms embedded across the site and their submissions.")}</p>
-        </div>
-        <div className="page-actions">
-          {headerActions}
-          {/* Plain `<a className="btn-primary">`, not a `<button>` nested inside an `<a>` (invalid
-              HTML, undefined activation behaviour) — same `a.btn-*` mechanism `Dashboard.tsx`'s
-              "View site ↗" already uses. */}
-          <a
-            className="btn-primary"
-            href="/admin/forms/new"
-            {...agentHandle({ handle: "forms-new" }, { role: "link", label: "Create a new form" })}
-          >
-            {t("New form")}
-          </a>
-        </div>
-      </div>
+      <FormsListHeader headerActions={headerActions} t={t} />
       {error ? <div className="notice error">{error}</div> : null}
       <DataTable<(typeof rows)[number]>
         rows={rows}
@@ -93,71 +71,9 @@ export function FormsList({ useFormsListHook = useWiredFormsList }: FormsListPro
             </div>
           </div>
         }
-        columns={[
-          {
-            key: "name",
-            header: t("Name"),
-            cell: (form, index) => (
-              <a
-                href={`/admin/forms/${form.slug}`}
-                {...agentHandle({ handle: `${form.rowHandle}-edit` }, {
-                  role: "link",
-                  label: "Open this form's editor",
-                })}
-              >
-                {form.name}
-              </a>
-            ),
-          },
-          { key: "slug", header: t("Slug"), cell: (form) => form.slug },
-          {
-            key: "dates",
-            header: t("Created / Updated"),
-            // One `<time>` per line (created, then updated — or one line when never edited). The
-            // visible text is the bare short date; the event word lives in the hover title and the
-            // screen-reader text only, since the header already names both events.
-            cell: (form) => (
-              <span className="forms-dates">
-                {form.dates.map((line) => (
-                  <time key={line.kind} className="forms-dates-line" dateTime={line.dateTime} title={line.label}>
-                    <span aria-hidden="true">{line.text}</span>
-                    <span className="visually-hidden">{line.label}</span>
-                  </time>
-                ))}
-              </span>
-            ),
-          },
-          { key: "fields", header: t("Fields"), cell: (form) => form.fields.length },
-          {
-            key: "actions",
-            header: t("More"),
-            cell: (form, index) => (
-              <RowMenu
-                triggerLabel={form.menuLabel}
-                agentHandle={`${form.rowHandle}-menu`}
-                items={form.menuItems}
-              />
-            ),
-          },
-        ]}
+        columns={formsListColumns({ t })}
       />
-      <ConfirmDialog
-        open={pendingDelete !== null}
-        agentHandle="forms-delete"
-        title={t("Move to trash?")}
-        body={
-          pendingDelete ? (
-            <p>
-              {t("Move")} &quot;{pendingDelete.name}&quot; {t("to trash? It will disappear from the site and from this list.")}
-            </p>
-          ) : null
-        }
-        confirmLabel={t("Move to trash")}
-        destructive
-        pending={pendingDelete !== null && rowSavingId === pendingDelete.id}
-        onConfirm={removeForm}
-        onCancel={cancelDelete}
-      />
+      <FormsListDeleteDialog pendingDelete={pendingDelete} rowSavingId={rowSavingId} removeForm={removeForm} cancelDelete={cancelDelete} t={t} />
     </div>
   );
 }

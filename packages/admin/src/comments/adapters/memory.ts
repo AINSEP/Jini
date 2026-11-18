@@ -1,7 +1,7 @@
 import { optionalOneOf, readToolLimit } from '@jini-ai/core';
 import type { AdminCommentRepoFactory } from '../../core/ports/comment-repo.js';
 import type { AdminComment, AdminCommentsPort, CommentsSettings, CommentStatus } from '../../core/ports/comments.js';
-import { AdminApiError } from '../../core/transport/errors.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 
 const DEFAULT_SETTINGS: CommentsSettings = {
   enabled: true, requireModeration: true, maxDepth: 5, closeAfterDays: null,

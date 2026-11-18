@@ -59,7 +59,7 @@ export interface AdminMediaPort {
   trashMedia(requiredArgs: { id: string }): Promise<AdminMedia>;
   /**
    * Hard purge. Irreversible — see the file header. Expect a conflict-class rejection (with a
-   * referencing-entities list on the error body, per `../transport/errors.ts`'s "`body` is kept
+   * referencing-entities list on the error body, per `@jini-ai/core/admin-runtime`'s `admin-api-error.ts`'s "`body` is kept
    * raw" decision) when the asset is still trashed-but-referenced elsewhere, and a not-found-class
    * rejection when it has not been trashed first.
    */

@@ -1,4 +1,4 @@
-import { createControllerStore } from '../../core/module/controller-store.js';
+import { createControllerStore } from '@jini-ai/core/admin-runtime';
 import type { AdminRedirect } from '../../core/ports/redirects.js';
 /** Fetch-query owns request/cache states; this controller owns confirmation and write sequencing. */
 export interface RedirectsActions {

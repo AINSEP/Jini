@@ -1,4 +1,4 @@
-import { AdminApiError } from '../../../../core/transport/errors.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import { createHttpWidgetsApi } from '../../../adapters/http.js';
 import type { WidgetsTransportPort } from '../../../adapters/http.js';
 export type * from '../../../models.js';

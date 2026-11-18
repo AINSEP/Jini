@@ -1,4 +1,4 @@
-import { createControllerStore } from '../../core/module/controller-store.js';
+import { createControllerStore } from '@jini-ai/core/admin-runtime';
 import { buildMediaRef } from '../rules.js';
 import type { SeoMediaSelection } from '../models.js';
 /** The parent owns the controlled value; this controller owns only picker visibility. */

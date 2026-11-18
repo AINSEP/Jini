@@ -1,6 +1,4 @@
-import { createControllerStore } from '../../core/module/controller-store.js';
-import { hasPermission } from '../../core/permissions/rules.js';
-import { describeApiError } from '../../core/transport/errors.js';
+import { createControllerStore, hasPermission, describeApiError } from '@jini-ai/core/admin-runtime';
 import type { AdminComment, AdminCommentsPort, AdminCommentsQueuePage, CommentModerationAction, CommentStatus } from '../../core/ports/comments.js';
 import type { CommentQueueState } from '../models.js';
 import { describeModerationError, emptyRowState, type RowActionState } from '../rules.js';

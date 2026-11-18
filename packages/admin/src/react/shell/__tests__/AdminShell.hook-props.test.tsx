@@ -1,7 +1,7 @@
 import { act, cleanup, screen } from '@testing-library/react';
 import { afterEach, expect, expectTypeOf, it, vi } from 'vitest';
 import { AdminShell } from '../AdminShell.js';
-import type { AdminShellAppearance } from '../theme-ports.js';
+import type { AdminShellAppearance, AdminThemeEnvironment } from '../theme-ports.js';
 import type { AdminShellHostProps, AdminShellProps, AdminShellSessionController } from '../types.js';
 import { baseFields, baseProps, controller, operator, ports, type Ports, renderWithKit as render } from './shell-fixture.js';
 
@@ -31,6 +31,42 @@ it('useThemeHook: a fake appearance reaches the slots and the real theme hook ne
   expect(screen.getByText('Appearance dark')).toBeInTheDocument();
   expect(useThemeHook).toHaveBeenCalledWith({ userId: 'u1', workspace: { projectId: 'p1' } }, expect.any(Object));
   expect(p.themePreferenceStore.read).not.toHaveBeenCalled();
+});
+
+// J3: a host that paints its own theme passes a hook returning undefined. The shell then writes
+// nothing to the theme target (two painters would fight over the same attributes) and exposes no appearance.
+function paintedByHost() {
+  const target = document.createElement('div');
+  const media = { matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() };
+  const themeEnvironment: AdminThemeEnvironment = { target, document, matchMedia: () => media };
+  return { target, themeEnvironment, media };
+}
+
+it('useThemeHook returning undefined: the shell paints no attribute on the theme target and slots get no appearance', () => {
+  const p = ports();
+  const { target, themeEnvironment } = paintedByHost();
+  const useThemeHook = vi.fn(() => undefined);
+  const props = baseProps(p);
+  const seen: Array<AdminShellAppearance | undefined> = [];
+  render(<AdminShell {...props} useSessionHook={() => controller({ status: 'authenticated', session })} useThemeHook={useThemeHook}
+    themeEnvironment={themeEnvironment}
+    slots={{ ...props.slots, overlays: ({ appearance }) => { seen.push(appearance); return <p>Painted by host</p>; } }} />);
+  expect(screen.getByText('Painted by host')).toBeInTheDocument();
+  expect(useThemeHook).toHaveBeenCalledWith({ userId: 'u1', workspace: { projectId: 'p1' } }, expect.any(Object));
+  expect(target.getAttributeNames()).toEqual([]);
+  expect(seen.length).toBeGreaterThan(0);
+  expect(seen.every((appearance) => appearance === undefined)).toBe(true);
+});
+
+it('useThemeHook absent: the real theme hook paints data-color-scheme on the same target (the contrast to the test above)', () => {
+  const p = ports();
+  const { target, themeEnvironment } = paintedByHost();
+  render(<AdminShell {...baseProps(p)} useSessionHook={() => controller({ status: 'authenticated', session })} themeEnvironment={themeEnvironment} />);
+  expect(target.getAttribute('data-color-scheme')).toBe('light');
+});
+
+it('useThemeHook: the hook type may return undefined (a host that paints itself)', () => {
+  expectTypeOf<NonNullable<AdminShellProps['useThemeHook']>>().returns.toEqualTypeOf<AdminShellAppearance | undefined>();
 });
 
 it('useRouteHook: a fake route dispatches the panel and the real navigation port is never read', () => {

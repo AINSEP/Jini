@@ -5,7 +5,7 @@ import {
   useInvalidate,
   useFetchQueryScope,
 } from '../../../react/kit.js';
-import { AdminConfigError } from '../../../core/module/create-admin.js';
+import { AdminConfigError } from '@jini-ai/core/admin-runtime';
 import { useController } from '../../../core/react/use-controller.js';
 import type { AdminComment, AdminCommentsPort, AdminCommentsQueuePage, CommentModerationAction, CommentStatus } from '../../../core/ports/comments.js';
 import type { CommentQueueState } from '../../models.js';

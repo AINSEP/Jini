@@ -1,4 +1,4 @@
-import { createControllerStore } from '../../core/module/controller-store.js';
+import { createControllerStore } from '@jini-ai/core/admin-runtime';
 import type { OtherCredentialsPort } from '../ports.js';
 import type { OtherCredentialSummary, OtherStoreId } from '../models.js';
 import { OTHER_STORES, otherWritePermission } from '../rules.js';

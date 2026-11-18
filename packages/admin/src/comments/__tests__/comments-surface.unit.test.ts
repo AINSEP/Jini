@@ -4,7 +4,7 @@ import { createHttpCommentsApi, createHttpCommentsSession, type CommentsTranspor
 import { createCommentQueueController } from '../controllers/comment-queue.controller.js';
 import { createCommentSettingsController } from '../controllers/comment-settings.controller.js';
 import { createCommentsController } from '../controllers/comments.controller.js';
-import { AdminApiError } from '../../core/transport/errors.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import type { AdminComment, AdminCommentsPort, CommentsSettings } from '../../core/ports/comments.js';
 
 const SETTINGS: CommentsSettings = { enabled: true, requireModeration: true, maxDepth: 5, closeAfterDays: null, spamAutoRejectScore: 0.5, maxPerIpPerHour: 20 };

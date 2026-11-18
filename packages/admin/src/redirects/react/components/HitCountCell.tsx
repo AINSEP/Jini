@@ -1,5 +1,5 @@
 import { agentHandle } from '@jini-ai/core/agent-handles';
-import { describeApiError } from '../../../core/transport/errors.js';
+import { describeApiError } from '@jini-ai/core/admin-runtime';
 import type { RedirectsTranslate as Translate } from '../../models.js';
 import { useWiredHitCountCell } from '../hooks/wired.hooks.js';
 export interface HitCountCellProps {

@@ -11,7 +11,8 @@ import { interpolate } from '@jini-ai/core/text';
  *  an em dash when the operator's permissions leave no items, plus this row's own error (if the
  *  last action against it failed). Top-level rather than an inline `cell` closure so it has its
  *  own directly-testable scope, per `commentRowMenuItems`'s own risk ranking. */
-export function QueueActionsCell(props: {
+export function QueueActionsCell({ useQueueActionsCellHook = useQueueActionsCell, ...props }: {
+  useQueueActionsCellHook?: typeof useQueueActionsCell;
   comment: AdminComment;
   agentHandleBase: string;
   permissions: readonly string[];
@@ -21,7 +22,7 @@ export function QueueActionsCell(props: {
   onModerate: (comment: AdminComment, action: CommentModerationAction) => void;
   onRequestPurge: (comment: AdminComment) => void;
 }) {
-  const { menuItems } = useQueueActionsCell(props);
+  const { menuItems } = useQueueActionsCellHook(props);
   return (
     <>
       {menuItems.length > 0 ? (

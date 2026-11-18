@@ -34,7 +34,7 @@ export interface AdminPlugin {
   readonly source: "built-in" | "site";
   /** Trust tier driving how much a panel should warn before enabling this extension — lower
    *  numbers are more trusted. Not ordered numerically on the wire on purpose (host-defined
-   *  labels), see `../transport/errors.ts`'s header for the same "vocabulary belongs to the host"
+   *  labels), see `@jini-ai/core/admin-runtime`'s `admin-api-error.ts`'s header for the same "vocabulary belongs to the host"
    *  reasoning applied to error codes. */
   readonly tier: "tier-1" | "tier-2" | "tier-3";
   /** Whether the extension currently passes the host's own structural/compatibility checks —

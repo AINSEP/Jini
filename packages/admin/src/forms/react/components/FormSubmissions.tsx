@@ -11,13 +11,23 @@ export interface FormSubmissionsProps {
   /** Translator closure — see `FormEditor()`'s own `t`. */
   t: (key: string) => string;
   answerColumns?: FormAnswerColumn[];
+  /** Same seam for the date formatter and the row view-model hooks. */
+  useFormSubmissionDateHook?: typeof useFormSubmissionDate;
+  useSubmissionsViewHook?: typeof useSubmissionsView;
 }
 
-export function FormSubmissions({ formId, useFormSubmissionsHook = useWiredFormSubmissions, t, answerColumns = [] }: FormSubmissionsProps) {
-  const formatDate = useFormSubmissionDate({});
+export function FormSubmissions({
+  formId,
+  useFormSubmissionsHook = useWiredFormSubmissions,
+  useFormSubmissionDateHook = useFormSubmissionDate,
+  useSubmissionsViewHook = useSubmissionsView,
+  t,
+  answerColumns = [],
+}: FormSubmissionsProps) {
+  const formatDate = useFormSubmissionDateHook({});
   const controller = useFormSubmissionsHook({ formId });
   const { submissions, nextCursor, error, selectedId, loadingMore } = controller;
-  const { rows, back, loadMore } = useSubmissionsView({ controller });
+  const { rows, back, loadMore } = useSubmissionsViewHook({ controller });
 
   if (selectedId) {
     return (
