@@ -134,7 +134,7 @@ const COMPOUND = /^(?:[a-z][a-z0-9-]*|\*)?(?:[.#][a-z][\w-]*)*(?::(?:hover|focus
 const ROOTS = /^(?:#jini-consent|\.jini-consent|\.jini-consent-reopen)(?=$|[\s>:])/;
 
 /** Normalized selector, or null when it leaves the banner scope or could break Reject parity. @complexity O(selector length). */
-export function scopedSelector(selector: string): string | null {
+export function scopedSelector({ selector }: { selector: string }, _optional: Record<string, never> = {}): string | null {
   const normalized = selector.trim().split('>').map(part => part.trim()).join(' > ').replace(/\s+/g, ' ');
   if (!ROOTS.test(normalized)) return null;
   const compounds = normalized.split(' ').filter(part => part !== '>');
@@ -158,7 +158,7 @@ function declarationProblem({ declaration, selector, media }: { declaration: Con
 function ruleProblems(rule: ConsentCssRule): ConsentCssProblem[] {
   const problems: ConsentCssProblem[] = [];
   for (const raw of rule.selector.split(',')) {
-    const selector = scopedSelector(raw);
+    const selector = scopedSelector({ selector: raw });
     if (!selector) { problems.push({ code: 'selector', message: `"${raw.trim()}" must start with #jini-consent and may not use attribute, structural or sibling selectors (Accept and Reject must look alike).`, offset: rule.offset, selector: raw.trim() }); continue; }
     for (const declaration of rule.declarations) {
       const problem = declarationProblem({ declaration, selector, media: rule.media });
@@ -177,7 +177,7 @@ function tokenRule(tokens: ConsentAppearanceTokens): ConsentCssRule {
   return { selector: CONSENT_CSS_SCOPE, declarations, offset: 0 };
 }
 
-const isRoot = (rule: ConsentCssRule) => rule.media === undefined && rule.selector.split(',').some(s => scopedSelector(s) === CONSENT_CSS_SCOPE);
+const isRoot = (rule: ConsentCssRule) => rule.media === undefined && rule.selector.split(',').some(s => scopedSelector({ selector: s }) === CONSENT_CSS_SCOPE);
 
 /** Last root color declaration wins, matching the emitted cascade. Null = no customized color, so the theme
  * colors of the base styles stay in charge; one customized side is checked against the default other side.
@@ -195,7 +195,7 @@ function finalColors(rules: readonly ConsentCssRule[]): Colors | null {
  * one fill and border, controls inherit the root's validated colors, and the region/GPC variants are
  * CSS-toggled from <html> attributes so the markup is the same for every visitor. Unknown region = strict:
  * the opt-in variant (with Reject) shows unless the client has positively set opt-out. @complexity O(1). */
-export function parityCss({ colors }: { colors: Colors | null }): string {
+export function parityCss({ colors }: { colors: Colors | null }, _optional: Record<string, never> = {}): string {
   const root = CONSENT_CSS_SCOPE;
   // Derived text and button fills must use the same validated palette as the root.
   const rootColors = colors ? `--consent-bg:${colors.background}!important;--consent-fg:${colors.text}!important;background:${colors.background}!important;color:${colors.text}!important;` : '';
@@ -252,7 +252,7 @@ function withoutRootColors(rules: readonly ConsentCssRule[]): ConsentCssRule[] {
 
 /** Emit only validated selectors/declarations, retaining their optional width condition. @complexity O(rule bytes). */
 function emitRule(rule: ConsentCssRule): string {
-  const selectors = rule.selector.split(',').map(s => scopedSelector(s)).join(',');
+  const selectors = rule.selector.split(',').map(s => scopedSelector({ selector: s })).join(',');
   const declarations = rule.declarations.map(({ property, value }) => `${property}:${value}`).join(';');
   const css = `${selectors}{${declarations}}`;
   return rule.media === undefined ? css : `@media ${rule.media}{${css}}`;
