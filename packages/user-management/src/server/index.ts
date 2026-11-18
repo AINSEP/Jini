@@ -39,3 +39,4 @@ export { parseLoginProviders } from './login-providers.js';
 export {
   MemberLoginError, type LoginProvider, type LoginProviderPreset, type MemberLoginOutcomeCode, type VerifiedLoginIdentity,
 } from './login-types.js';
+export { decideMemberLogin, type LinkDecision, type LoginLinkMember } from './link-policy.js';

@@ -29,6 +29,7 @@ export type { AuthorizationCallbackParams, BeginAuthorizationCodeDeps, BeginAuth
 export type { BeginStatelessAuthorizationCodeDeps, CompleteStatelessAuthorizationCodeDeps } from './authorization-code.js';
 export { createSealedAuthorizationState, MAX_AUTHORIZATION_STATE_LENGTH } from './sealed-state.js';
 export type { AuthorizationStateCodec, SealedAuthorizationState } from './sealed-state.js';
+export { createSealerStateCodec, type SealerStateCodecPorts } from './sealed-state-codec.js';
 export { beginDeviceAuthorization, pollDeviceAuthorizationOnce } from './device-code.js';
 export type { DeviceAuthorization, DeviceAuthorizationDeps, BeginDeviceAuthorizationInput, PollDeviceAuthorizationInput } from './device-code.js';
 export { createTokenRefresher } from './refresh.js';
