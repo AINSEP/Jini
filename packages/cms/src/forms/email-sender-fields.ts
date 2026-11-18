@@ -35,7 +35,9 @@ export function describeFormEmailFields({ definition }: { definition: FormDefini
 const MASKED_ANSWER = "[REDACTED:credential]";
 
 function safeText({ value }: { value: string }, _optional: Record<string, never> = {}): string {
-  // MOVE: Reuse core's credential vocabulary without treating ordinary email addresses as secrets.
+  // MOVE: Reuse core's credential vocabulary without treating ordinary email addresses as secrets. Core masks only the
+  // credential part of an answer, and for a multiword password that part can be one word, so the rest of what the person
+  // wrote no longer reaches the mail when core finds a credential in it.
   return redactSecrets({ input: value }, { redactPii: false }) === value ? value : MASKED_ANSWER;
 }
 

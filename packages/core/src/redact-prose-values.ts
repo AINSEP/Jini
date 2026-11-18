@@ -48,10 +48,10 @@ const startsWithLabelWord = ({ rest, label }: { rest: string; label: string }): 
 // A label that starts its line (after a list marker, a number or a bracket) is an assignment, not a sentence.
 const NUMBERED_LIST_PREFIX = /^\s*\d+[.)]\s+/;
 const isFieldStart = (before: string): boolean => !/[A-Za-z0-9]/.test(before.replace(NUMBERED_LIST_PREFIX, ''));
-// The line after a label ("Password:" then "hunter2") holds its value when it is one token, or when its first token is
-// shaped like a credential (a quoted string, letters with digits, or 12+ characters) even with more text after it
-// ("<key> --verbose"); blank lines may come first. A list item ("- Notes: x"), another label ("Notes:"), or a line of
-// plain words is the next thing in a form or a paragraph, not a value. This is how the rules chat used before read it.
+// A single token alone on the line after the label ("Password:" then "hunter2") is its value; a list item
+// ("- Notes: x"), another label ("Notes:"), or several plain words is the next thing in a form, not a value. A first
+// token shaped like a credential (a quoted string, letters with digits, or 12+ characters) is the value even with more
+// text after it ("<key> --verbose"), and blank lines may come first: this is how the rules chat used before read it.
 const CREDENTIAL_SHAPED_TOKEN = /^(?:["'][^\s"']+["']|(?=[^\s]*\d)(?=[^\s]*[A-Za-z])[^\s]+|[^\s]{12,})(?=\s|$)/;
 /** True when `line` (the text of the first non-blank line after a label, to its end) starts with the label's value.
  * @complexity O(line): every pattern is anchored. */
@@ -95,7 +95,9 @@ export function isProseAfterColon(
   { before, label, token }: { readonly before: string; readonly label: string; readonly token: number },
 ): boolean {
   if (isQualifiedKey({ before, label, value: rest.slice(0, token) }) || PLACEHOLDER_RES.some(pattern => pattern.test(rest))) return true;
-  // A header name never heads a paragraph: whatever starts the line after `Authorization:` is its credential.
+  // The value after a line break is prose unless it is one bare token on the line after the label, or starts with a
+  // credential-shaped token (see isNextLineValue). A header name never heads a paragraph: whatever starts the line after
+  // `Authorization:` is its credential.
   if (gap.includes('\n')) return label.toLowerCase() !== 'authorization' && !isNextLineValue({ line: rest });
   if (!SENTENCE_START.test(rest) || token >= OPAQUE_WORD_MIN) return false;
   return !isFieldStart(before) || FUNCTION_WORD_START.test(rest) || startsWithLabelWord({ rest, label });

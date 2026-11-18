@@ -75,24 +75,32 @@ function urlSpans(text: string): Span[] {
   return spans;
 }
 
-/** URLs and rooted or quoted paths as one left-to-right scan: the earliest match wins and the scan resumes at its end,
- * a URL winning a tie, exactly as one alternation regex with the URL first would read them.
- * @complexity O(n): each URL and each path match is visited once. */
-function rootedSpans(text: string): Span[] {
-  const urls = urlSpans(text);
+/** `next(from)`: the first rooted or quoted path at or after `from`. @complexity O(n) over non-decreasing calls. */
+function pathFinder(text: string): (from: number) => Span | undefined {
   const paths = new RegExp(PATH_SOURCE, 'gi');
-  const nextPath = (from: number): Span | undefined => {
+  return (from) => {
     paths.lastIndex = from;
     const match = paths.exec(text);
     return match ? { start: match.index, end: match.index + match[0].length, url: false } : undefined;
   };
+}
+
+/** The span that starts first; a URL wins a tie, as the URL came first in the former alternation. */
+const earlier = (url: Span | undefined, path: Span | undefined): Span | undefined =>
+  url && (!path || url.start <= path.start) ? url : path;
+
+/** URLs and rooted or quoted paths as one left-to-right scan: the earliest match wins and the scan resumes at its end,
+ * exactly as one alternation regex with the URL first would read them.
+ * @complexity O(n): each URL and each path match is visited once. */
+function rootedSpans(text: string): Span[] {
+  const urls = urlSpans(text);
+  const nextPath = pathFinder(text);
   const spans: Span[] = [];
   let path = nextPath(0);
   for (let at = 0, u = 0; ;) {
     while (u < urls.length && urls[u]!.start < at) u += 1;
     if (path && path.start < at) path = nextPath(at);
-    const url = urls[u];
-    const next = url && (!path || url.start <= path.start) ? url : path;
+    const next = earlier(urls[u], path);
     if (!next) return spans;
     spans.push(next);
     at = next.end;

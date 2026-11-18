@@ -32,9 +32,10 @@
  * - Luhn algorithm (credit cards): https://en.wikipedia.org/wiki/Luhn_algorithm
  */
 
-import { API_KEY_HEADER_NAMES, apiKeyHeaderRules, authSchemeValueRanges, BARE_SCHEME_TOKEN_PATTERNS } from './redact-auth-schemes.js';
+import { API_KEY_HEADER_NAMES, apiKeyHeaderRules, AUTH_HEADER_LABEL_BEFORE, authSchemeValueRanges, BARE_SCHEME_TOKEN_PATTERNS, COOKIE_ASSIGNMENT_RE } from './redact-auth-schemes.js';
 import { labelAliasValueRanges } from './redact-label-aliases.js';
 import { colonReading } from './redact-prose-values.js';
+import { quotedHintRanges } from './redact-quoted-hints.js';
 import { forEachOccurrence, forwardFinder, unescapedQuoteFinder, userinfoLength } from './redact-text-scan.js';
 import { URL_SECRET_PARAM_RE } from './redact-url-params.js';
 import { VENDOR_SHAPE_PATTERNS } from './redact-vendor-shapes.js';
@@ -367,9 +368,6 @@ const RUNTIME_SECRET_LABELS = `${SERIALIZED_SECRET_LABELS}|(?<![?&])(?:key)`;
 // Bearer, Token, ApiKey or Digest (a quoted value stays masked whole by this rule, and Basic by its own rule),
 // and a scheme word alone (`Authorization: Bearer`) describes a header.
 const AUTH_SCHEME_WORD = '(?:Bearer|Token|ApiKey|Digest|Basic)';
-// Only an auth header's value starts with a scheme word. After any other label (`password=Bearer`) the word is the
-// credential itself and is masked, as the rules chat used before masked it.
-const AUTH_HEADER_LABEL_BEFORE = `(?<=(?:authorization|api-key|x-api-key|x-goog-api-key)["']?\\s*[:=]\\s*)`;
 const MASK_AWARE_LABELED_SECRET_RE = new RegExp(
   `(?<![\\w-])(["']?)(${RUNTIME_SECRET_LABELS})\\1\\s*[:=]\\s*`
     + `(?!${AUTH_HEADER_LABEL_BEFORE}(?:Bearer\\s+\\S|(?:Token|ApiKey|Digest)[ \\t]+\\S|${AUTH_SCHEME_WORD}(?:[\\s"'\x60.,;:)\\]}]|$)))(?!${GENERATED_MARKER}[;&])((?!&)\\S)`,
@@ -390,8 +388,6 @@ const SHORT_BEARER_RE = new RegExp(`\\bBearer\\s+["']?(?!${GENERATED_MARKER}(?=$
 const BASIC_AUTH_RE = /\bauthorization["']?\s*[:=]\s*["']?(Basic\s+[^\s"',;}]+)/gi;
 // Cookie pairs belong to one header value, including pairs after a semicolon and a space.
 const COOKIE_HEADER_RE = /\bcookie\s*:\s*([^\r\n]+)/gi;
-// `cookie=` is a cookie header written as an assignment: each `; name=value` pair after the first is part of its value.
-const COOKIE_ASSIGNMENT_RE = /\b(?:set-)?cookie\s*=\s*([^\s;"']+(?:;[ \t]*[^\s;="']+=[^\s;"']*)*)/gi;
 const PROVIDER_API_KEY_QUERY = /([?&]key=)([^&\s"']+)/gi;
 // URL userinfo and signed query values have explicit credential context; unlike opaque runs,
 // they are safe to recognize in the conservative policy. Keep scheme/host and query names
@@ -948,19 +944,9 @@ function emptyAssignmentRanges(text: string): Set<number> {
 }
 
 /** Preserve the hint's quotes and neighboring fields; O(n) scan, no I/O. */
-// A value glued right after a hint's closing quote (`"password: "<value>""`, a nested quote pasted without escapes) is
-// the credential itself; a hint followed by a space, `+` or punctuation is concatenation and keeps what follows.
-const GLUED_HINT_VALUE = /[^\s"'`,;)}\]+]+/y;
-
 function collectEmptyQuotedAssignments(pass: SpanPass): void {
-  const glued = new RegExp(GLUED_HINT_VALUE.source, 'y');
-  for (const match of pass.text.matchAll(new RegExp(QUOTED_SECRET_VALUE, 'g'))) {
-    if (!EMPTY_QUOTED_ASSIGNMENT_RE.test(match[0].slice(1, -1))) continue;
-    const end = match.index + match[0].length;
-    pass.add(match.index + 1, end - 1, CATEGORY.labeledSecret);
-    glued.lastIndex = end;
-    const value = glued.exec(pass.text)?.[0];
-    if (value) pass.add(end, end + value.length, CATEGORY.labeledSecret);
+  for (const { start, end } of quotedHintRanges({ text: pass.text, quoted: QUOTED_SECRET_VALUE, hint: EMPTY_QUOTED_ASSIGNMENT_RE })) {
+    pass.add(start, end, CATEGORY.labeledSecret);
   }
 }
 

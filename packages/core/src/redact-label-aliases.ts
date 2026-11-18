@@ -48,12 +48,13 @@ const QUOTED_KEY_RE = new RegExp(
   'g',
 );
 const CREDENTIAL_KEY_END = /(?:^|[ _.-])(?:password|passwd|pwd|secret|token|api[ _-]?key|private[ _-]?key|access[ _-]?key|secret[ _-]?key|client[ _-]?secret|(?:access|refresh|auth|id)[ _-]?token|(?:signing|webhook)[ _-]?secret)$/i;
-// A name (`DB_PASSWORD=`, `my-token:`, `passwd:`) with nothing after the sign, then its value on a later line: the
-// value of an env file or a wrapped form line. A line that is itself an assignment (`NEXT=1`), a heading (`Notes:`) or
-// a list item is not a value; the line after it is not read. Blank lines may come first in both forms.
-// After `=` the first token of that line is the value, as the engine's own rules read `password=` (the `=` form never
-// reads as prose). After a colon the line is read as the engine's labels read it (`isNextLineValue`: one token, or a
-// credential-shaped first token), so a paragraph of plain words after `passwd:` stays readable.
+// A prefixed name (`DB_PASSWORD=`, `my-token:`) or a standalone alias (`passwd:`) with nothing after the sign, then ONE
+// token on the next line: the value of an env file or a wrapped form line. A line that is itself an assignment (`NEXT=1`),
+// a heading (`Notes:`), a list item or several plain words is not a value; the line after it is not read.
+// After `=` any number of blank lines may separate the name from its value, and the first token of that line is the
+// value, as the engine's own rules read `password=` (the `=` form never reads as prose). After a colon blank lines may
+// come first too, and the line is read as the engine's labels read it (`isNextLineValue`: one token, or a
+// credential-shaped first token followed by more text), so a paragraph of plain words after `passwd:` stays readable.
 const NEXT_LINE_VALUE = String.raw`(?<value>${QUOTED}|(?![\w.-]+[=:])[^\s"'&,;})-][^\s"'&,;})]*)`;
 const NEXT_LINE_ASSIGNMENT_RE = new RegExp(`${NAME}[ \\t]*=[ \\t]*(?:\\r?\\n[ \\t]*)+${NEXT_LINE_VALUE}`, 'gi');
 // The name may be a quoted JSON key (`{"passwd":` then the value on a later line).

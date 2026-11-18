@@ -47,9 +47,10 @@ export function authSchemeValueRanges({ text }: { readonly text: string }): Valu
 
 /** A Basic or Token credential outside a header: 16+ characters of the token alphabet with a digit, so prose
  * ("Basic authentication is not supported", "Token expired") is untouched. The scheme word is case-sensitive
- * as HTTP clients write it in prose and logs; the credential may sit on a later line or after any run of padding (a
- * header wrapped over several lines). The leading lookahead lets the lookbehind run only where a value can start, and
- * the lookbehind's whitespace run can only succeed right after that run, so each run is read once: linear time. */
+ * as HTTP clients write it in prose and logs; the credential may sit on the line after it (a header wrapped over two lines),
+ * or after blank lines or any run of padding. The leading lookahead lets the lookbehind run only where a
+ * value can start, so a long whitespace run is not rescanned from every position inside it: the lookbehind's whitespace
+ * run can only succeed right after that run, so each run is read once. */
 export const BARE_SCHEME_TOKEN_PATTERNS: readonly SecretRedactionPattern[] = [
   { name: 'bearer_token', regex: /(?=[A-Za-z0-9._~+/=:-])(?<=\b(?:Basic|Token)\s+)(?=[A-Za-z0-9._~+/=:-]*\d)(?!v?\d{1,4}\.\d)[A-Za-z0-9._~+/=:-]{16,}/g },
 ];
@@ -72,3 +73,10 @@ export function apiKeyHeaderRules({ quoted }: { readonly quoted: string }): read
     rule('proxy-authorization', `(?!${HEADER_SCHEME_WORDS}(?![A-Za-z0-9_-]))[^\\s,;"'#}]+`),
   ];
 }
+
+// Only an auth header's value starts with a scheme word. After any other label (`password=Bearer`) the word is the
+// credential itself and is masked, as the rules chat used before masked it. Regex source of a lookbehind for the label.
+export const AUTH_HEADER_LABEL_BEFORE = `(?<=(?:authorization|api-key|x-api-key|x-goog-api-key)["']?\\s*[:=]\\s*)`;
+
+// `cookie=` is a cookie header written as an assignment: each `; name=value` pair after the first is part of its value.
+export const COOKIE_ASSIGNMENT_RE = /\b(?:set-)?cookie\s*=\s*([^\s;"']+(?:;[ \t]*[^\s;="']+=[^\s;"']*)*)/gi;
