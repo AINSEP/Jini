@@ -19,6 +19,8 @@ import * as resolver from "../resolver.js";
 import * as hitSink from "../hit-sink.js";
 import * as redirects from "../redirects.js";
 import * as targetGate from "../target-gate.js";
+import * as agentTools from "../agent-tools.js";
+import * as toolRegistrations from "../tool-registrations.js";
 import * as sqlRepo from "../sql/repo.js";
 import * as sqlRows from "../sql/repo.rows.js";
 import * as portsInternal from "../ports.internal.js";
@@ -30,7 +32,7 @@ function expectReexports(barrel: object, owners: object[]) {
 }
 
 test("the redirects entry re-exports every runtime binding of its framework-free modules, and no SQL adapter", () => {
-  expectReexports(entry, [types, ports, matcher, pathKey, order, referrerAlias, reservedDestination, repoMemory, capture, resolver, hitSink, redirects, targetGate]);
+  expectReexports(entry, [types, ports, matcher, pathKey, order, referrerAlias, reservedDestination, repoMemory, capture, resolver, hitSink, redirects, targetGate, agentTools, toolRegistrations]);
   expect("SqlRedirectRepo" in entry).toBe(false);
 });
 
