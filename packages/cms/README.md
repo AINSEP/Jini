@@ -110,6 +110,19 @@ parse5 normalization to create/update, merge and tool registration. The existing
 raw-HTML permission checks, OCC and outbox owners remain unchanged; an unconfigured universal
 HTML write fails before saving rather than persisting markup that could escape its theme container.
 
+`./workspace/sql` (node) is the Kysely adapter for `WorkspaceRepoPort`: the host passes its storage
+kernel and its own `workspaces` table name; the adapter has no table or product defaults.
+
+`./taxonomy/sql` (node) is the Kysely adapter for the taxonomy ports (`SqlTaxonomyRepo`, `SqlTermRepo`,
+`SqlEntryTermRepo`, `SqlTaxonomyRevisionRepo`): the host passes its storage kernel, the names of its four
+taxonomy tables and the workspace each repository is scoped to; the adapter has no table or product defaults.
+The universal `./taxonomy` entry carries the read-port types (`TaxonomyPublishReadPort`, `TermPublishReadPort`,
+`AssignedTermView`, `EntryTermReadPort`) those repositories also satisfy.
+
+`./navigation/sql` (node) is the Kysely adapter for `MenuRepoPort` and `NavLocationBindingRepoPort`
+(`SqlMenuRepo`, `SqlNavLocationBindingRepo`): the host passes its storage kernel and the names of its menus and
+location-binding tables; the adapter has no table or product defaults.
+
 **Still to move:** `post`, `seo`, `comments`, `redirects`, `newsletter`,
 `members`. Widgets are exposed through the universal and node entries above.
 The nested forms package is maintained by its separate owner and is excluded from this parent package.
