@@ -1,0 +1,52 @@
+# xpkg-c12obs-r12 (Jini branch `wave3/xpkg-c12obs-r12`)
+
+**Status: C12-OBS DONE (Jini + Tovu). R12c DONE except the drift-guard relocation (blocked, see below). R12b NOT STARTED (budget).**
+Base: Jini `4c1892368`, Tovu `ada11733f` (= `origin/refactor/terra`). Env: Node v24.11.1, pnpm 10.33.2, vitest `--maxWorkers=2 --minWorkers=1`.
+
+## Pushed commits
+| Repo | SHA | What |
+|---|---|---|
+| Jini | `23b113e79` | C12-OBS (M1): observability contract into `@jini-ai/core/contracts/observability` |
+| Tovu | `75a3eafb1` | C12-OBS (Tovu): 92 files repointed (checked against Jini `23b113e79`) |
+| Jini | `f71bc65cf` | R12c: OTel / Sentry / PostHog / charts providers take helpers from the host |
+| Tovu | `196cb5fc6` | R12c (Tovu): register `observabilityProviderContract`, bind span scope + failure classifier |
+Both on branch `wave3/xpkg-c12obs-r12`. Pushes confirmed. The Tovu C12-OBS push ran the desktop pre-push hook once red (apps/desktop had no `node_modules`: `electron` unresolvable), I `npm ci`'d apps/desktop, symlinked `node_modules/@jini-ai/*` to the local Jini, ran its gates (typecheck, `src/product-telemetry.test.ts` 10/10) and the hook then passed on its own: **no `--no-verify` used anywhere**.
+
+## Prerequisites (C12-OBS §0)
+All guard blobs matched; `git apply --check` of the prepared patch OK; dry-run `rows 167; applied 153, already 0, keep 1, manual 13, other-phase 0, STALE 0, ERROR 0; files changed 129`; completeness script printed nothing.
+Base ratchets recorded before the first edit (`/tmp/base-*`): Jini guard 0, check:why-comments 0, check:errors 0, check:size 0, check:complexity 0, api:check 0, **check:hooks exit 1 (BASE-RED, 32 entries, unchanged by me)**. Tovu typecheck/why-comments/hooks/errors all 0.
+
+## C12-OBS
+- RED proof: patch applied, `observability.ts` moved away: `Failed to load url ../observability.js`; restored: core noop test 6/6.
+- Applier `--phase wave`: `rows 167; applied 150, already 2, keep 1, manual 13, other-phase 1, STALE 0, ERROR 0; files changed 126` (exactly the sheet's line).
+- Restatement deletions done: daemon `ToolCallObservability` + `Attributes` (now `Pick<ObservabilityPort,'trackOperation'|'reportError'>`), http-kit `HttpRequestObservabilityPort` (README + api.spec reworded), provider-plugins `contract.ts` `TraceIds/AgentRunStatus/RequestTracker/ObservabilityPort/TrackerScope` (kept `OperationAttributes`/`TraceIds` as core imports). No provider-plugins manifest edit.
+- MANUAL rows: package-surface list edited (2 names removed); otel-operations `:117` and sentry `:318` dynamic imports replaced by static core imports; the other rows need no edit (as the sheet says); Tovu `agent-daemon-core-rpc.integration.test.ts:89` no edit.
+- Fix beyond the sheet: the applier left two unused type imports in `analytics/src/product/index.ts` (S8 caught them): removed.
+- Shared files: 3 injection-debt keys deleted by hand; `api:update` committed for core, diagnostics, analytics, daemon, http-kit only (7 other baselines it rewrote reverted: pre-existing drift); changeset `.changeset/core-observability-contract.md`.
+- Gates (Jini): all 6 package builds 0; tests core 2981, diagnostics 993, analytics 224, daemon 4729(+1 skipped), http-kit 570, provider-plugins 883, all green; `pnpm typecheck` 0; guard 0 (only the advisory test-import count moved 392 -> 386); api:check 0; check:size/complexity/errors/why-comments identical to base; check:hooks identical to base (red). S3, S4, S6, S10, S11 print nothing; S8 (22 files) nothing after the import fix; S13 prints nothing; base purity for `contracts/observability` prints nothing. S9: the two noop functions kept their signatures (`createNoopObservabilityPort(_required)`, `isNoopObservabilityPort(port)`; `(required, optional = {})` reshape stays M2's); the three other lines are `withToolCallObservability`/`createRequestTrackingMiddleware`/`applyRequestTracking` whose param TYPE changed to the core `Pick`.
+- S7: the restatement doc comments were deleted with their types. **Gate miss of mine, fixed in the R12c commit:** I ran `check:why-comments` before committing, so it saw no diff; after the commit it flagged 2 lost blocks (daemon, http-kit). Restored verbatim as `//` comments above the new imports in `f71bc65cf`.
+- Tovu: typecheck 0 (linked to Jini `23b113e79`); check:why-comments/hooks/errors = base; 53 changed test files run: 638 tests, 4 fail; the same 4 fail on the unmodified pair (rebuilt Jini base + stashed Tovu): 2x `AGENT_PLUGIN_SET_ENABLED post-activation discovery`, `deps-provider-plugin-boot` EACCES case (running as root, ENV), `webhook-delivery-worker.shutdown` URL text. **BASE-RED, no new line.** The test run left a stray `sites/tovu-dev/.form-files-protected-v1`: deleted, not committed.
+
+## R12c
+Facts re-read first: `observabilityProviderContract` (diagnostics) still carries all 6 context helpers; it fits `PluginProviderContract` without a cast (Tovu typecheck 0 with it in `PROVIDER_CONTRACTS`).
+- Tests first (`provider-context.test.ts`): RED = `Failed to load url ../observability-opentelemetry/configuration.js`; charts: 2 new cases RED (`applyTheme` ignored). GREEN after the code. Mutation: OTel metric path bypassing the host redactor -> the span/metric redaction test goes red, restored.
+- Providers: new per-folder `configuration.ts` readers (`readOpenTelemetryHost`, `readSentryContext`, `readPostHogTelemetry`) with typed errors raised at initialize (`observability_opentelemetry_context_missing`, `observability_sentry_context_missing`, `analytics_posthog_context_missing`); redaction helpers are required (no passthrough). `createOtelObservabilityAdapter({config, context, scope}, options)`, `createSentryObservabilityAdapter({config, context}, options)`, `createPostHogProductAnalyticsAdapter({config, describeTelemetryFailure}, options)`, `createProviderTelemetryReporter({endpoint, describeTelemetryFailure}, optional)`: the reporter's three callers all updated in this commit. `ProviderTelemetryReport`/`DescribeTelemetryFailure` are local structural copies in `telemetry-reporter.ts`. Sentry got its own `contract.ts` (providers never import each other).
+- **PostHog gap in the sheet:** its `product_analytics` contract is inline in Tovu and has no `context`, so `describeTelemetryFailure` arrives as a factory option (`optional.describeTelemetryFailure`) bound by Tovu at both initialize sites (`provider-plugins.ts`, `product-telemetry.ts`). The sheet says only "update all three callers".
+- `createAsyncLocalSpanScope`: arrives as `optional.scope` (Tovu binds a fresh one per initialization, both sites).
+- Charts: both mounts read `input.applyTheme`; the `@jini-ai/ui/charts/browser` import is gone from src (tests bind the real applier).
+- Packed-artifact tests: standalone options for the OTel/Sentry/PostHog entries; real-host initialize with `factoryOptions`; three new typed-error cases through the real provider host. artifact.integration 19/19; provider-plugins 892/892.
+- Drift guard `provider-plugins/src/__tests__/observability-contract-drift.typecheck.ts` (8 members, both directions, run by `tsc`); proven by widening a union (1 error). It needed two local type fixes (`errorType`'s `describer` option) to be mutual.
+- Debt: 7 injection-debt keys deleted by hand; one `why-comments-debt.json` entry (id `f62abc9055e0`, the OTel `contract.ts` header sentence about "structural copies of the port types", obsolete now); changeset `provider-plugins-observability-context.md` (provider-plugins minor). api:check 0 (no provider-plugins baseline change). Manifest: `@jini-ai/diagnostics` and `@jini-ai/ui` stay devDependencies (tests import them).
+- Gates (f71bc65cf vs base 23b113e79): typecheck 0, guard 0, S3/S4/S6/S10/S11/S13 nothing, S8 (16 files) nothing; S9 lists the three adapters + three readers above, each a (required, optional) shape.
+- Tovu (`196cb5fc6`): `provider-contracts.ts` swaps the inline entry for `observabilityProviderContract` (deleted comment now lives at diagnostics `provider-contract.ts:11`; the port check is diagnostics' identical `PORT_METHODS`); `provider-plugins.ts` + `product-telemetry.ts` bind `scope` / `describeTelemetryFailure`. Typecheck 0. 15 test files (provider-plugins, provider-contracts, product-telemetry...): 181 tests, 6 fail: 2x AGENT_PLUGIN_SET_ENABLED + `[postgres]` (ENV: no Postgres) are base-red; `recharts-package-pin` x2 and `serve-command` "identity re-seed failure" **also fail on the unmodified pair** (verified: Jini base rebuilt, Tovu stashed). The recharts pin compares the PUBLISHED package bytes, so it will need the reviewed re-pin at the next release regardless.
+
+## STOP / not done
+1. **R12c drift-guard relocation into `packages/integration-tests` (and the `git mv` of R12a's payments half): BLOCKED.** The package does not exist on terra (G-TESTS-0 stopped on the `minimumReleaseAge` install trap until 2026-11-19; see `cloud-results/xpkg-wave1b.md`). I put R12c's half beside R12a's existing one (`provider-plugins/src/__tests__/`, same precedent as R12a deviation 3). Both move later with `git mv`, no assertion edits.
+2. **R12b not started** (cookie-consent `purge` plumbing + browser-artifact privacy tests + PostHog contract.ts for the consent types): out of budget. Its analytics precondition is met (`ProductAnalyticsPort` is in `core/src/contracts/observability`). The 4 runtime call sites to change, per the sheet: `cookie-consent/src/client/runtime.ts:57,59,83,135`. The three injection-debt keys R12b would retire for analytics are already gone (C12-OBS).
+3. Not run: full Tovu suite (only changed/related files), Tovu check:size/check:complexity/architecture.
+
+## Overlaps with parallel runs
+`scripts/injection-debt.json` (deletions only), `api-baseline/jini-ai__{core,diagnostics,analytics,daemon,http-kit}.json` (regenerated; rebase then `pnpm api:update`), `packages/core/package.json` + README (one export), `packages/provider-plugins/**` (R12a landed; R12b next), Tovu `composition/{provider-contracts,provider-plugins,product-telemetry}.ts` and 92 files under `apps/website`, one under `apps/desktop`.
+
+## Next step
+Run R12b from this branch (`wave3/xpkg-c12obs-r12`): sheet `R12-providers.md` §R12b; first the `cookie-consent` `purge` field + the 4 call sites (privacy tests against the built browser artifact first), then `analytics-posthog/contract.ts` for the 6 consent types. After 2026-11-19: create `packages/integration-tests` and move both drift guards.
