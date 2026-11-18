@@ -94,12 +94,15 @@ interface StreamCtx {
   wroteHtmlFileThisTurn: boolean;
 }
 
-function createStreamCtx(onEvent: EventSink, options: ClaudeStreamHandlerOptions): StreamCtx {
+function createStreamCtx({ onEvent, options }: {
+  onEvent: EventSink;
+  options: ClaudeStreamHandlerOptions;
+}): StreamCtx {
   const s: StreamCtx = {
     onEvent,
     options,
     lines: createBoundedLineStream({
-      onLine: line => { const trimmed = line.trim(); if (trimmed) feedLine(s, trimmed); },
+      onLine: line => { const trimmed = line.trim(); if (trimmed) feedLine(s, { line: trimmed }); },
       onOverflow: error => onEvent({ type: 'error', message: error.message, code: 'STREAM_LINE_TOO_LARGE' }),
     }),
     segmentUsage: createClaudeSegmentUsage({}, {
@@ -133,15 +136,18 @@ function createStreamCtx(onEvent: EventSink, options: ClaudeStreamHandlerOptions
 }
 
 /** Builds the `{ feed, flush }` handler `createClaudeStreamHandler` returns. */
-export function createStreamHandlerImpl(onEvent: EventSink, options: ClaudeStreamHandlerOptions) {
-  const s = createStreamCtx(onEvent, options);
+export function createStreamHandlerImpl({ onEvent, options }: {
+  onEvent: EventSink;
+  options: ClaudeStreamHandlerOptions;
+}) {
+  const s = createStreamCtx({ onEvent, options });
   return {
     feed: ({ chunk }: { chunk: string }) => feed(s, { chunk }),
     flush: () => flush(s),
   };
 }
 
-function emitTurnEnd(s: StreamCtx, stopReason: string): void {
+function emitTurnEnd(s: StreamCtx, { stopReason }: { stopReason: string }): void {
   // `\u0001` prefixes the synthetic key so it can never collide with a real
   // message id, which is why this is safe to compare in the same slot.
   const messageKey = s.currentMessageId ?? `\u0001anon${s.anonymousMessageEpoch}`;
@@ -155,13 +161,13 @@ function emitTurnEnd(s: StreamCtx, stopReason: string): void {
   }
 }
 
-function emitToolUse(s: StreamCtx, id: unknown, name: unknown, input: unknown): void {
+function emitToolUse(s: StreamCtx, { id, name, input }: { id: unknown; name: unknown; input: unknown }): void {
   if (typeof id === 'string') {
     if (s.streamedToolUseIds.has(id)) return;
     s.streamedToolUseIds.add(id);
   }
-  if (emitCanonicalTaskSnapshot(id, name, input, s.taskRegistry, s.onEvent)) return;
-  if (isFileWriteToolUse(name, input)) {
+  if (emitCanonicalTaskSnapshot({ toolUseId: id, name, input, registry: s.taskRegistry, onEvent: s.onEvent })) return;
+  if (isFileWriteToolUse({ name, input })) {
     s.suppressNextArtifactText = true;
     const content = fileWriteContent(input);
     if (content) {
@@ -178,7 +184,7 @@ function emitToolUse(s: StreamCtx, id: unknown, name: unknown, input: unknown): 
   });
 }
 
-function blockKey(s: StreamCtx, index: unknown): string {
+function blockKey(s: StreamCtx, { index }: { index: unknown }): string {
   return `${s.currentMessageId ?? 'anon'}:${index}`;
 }
 
@@ -196,7 +202,7 @@ function blockKey(s: StreamCtx, index: unknown): string {
 // any compensating security benefit. See PR #3303 review
 // r3324xxxxxx. Thinking is passed through unguarded; only the
 // user-visible text channel is policed.
-function getOrCreateRoleGuard(s: StreamCtx, msgId: string): RoleMarkerGuard {
+function getOrCreateRoleGuard(s: StreamCtx, { msgId }: { msgId: string }): RoleMarkerGuard {
   let guard = s.roleGuards.get(msgId);
   if (!guard) {
     guard = createRoleMarkerGuard({ messageId: msgId });
@@ -205,16 +211,21 @@ function getOrCreateRoleGuard(s: StreamCtx, msgId: string): RoleMarkerGuard {
   return guard;
 }
 
-function emitSafeText(s: StreamCtx, msgId: string | null, text: string, eventType: 'text_delta' | 'thinking_delta' = 'text_delta') {
+function emitSafeText({ s, msgId, text, eventType }: {
+  s: StreamCtx;
+  msgId: string | null;
+  text: string;
+  eventType: 'text_delta' | 'thinking_delta';
+}) {
   if (eventType === 'text_delta') {
-    text = stripDuplicateArtifactText(s, text);
+    text = stripDuplicateArtifactText(s, { text });
     if (!text) return;
   }
   if (eventType !== 'text_delta' || !msgId) {
     s.onEvent({ type: eventType, delta: text });
     return;
   }
-  const guard = getOrCreateRoleGuard(s, msgId);
+  const guard = getOrCreateRoleGuard(s, { msgId });
   if (guard.contaminated) return;
 
   const safe = guard.feedText({ text: text });
@@ -230,7 +241,7 @@ function emitSafeText(s: StreamCtx, msgId: string | null, text: string, eventTyp
 // Resolves an in-progress `<artifact>...</artifact>` echo once its close
 // tag has arrived: drops it if it duplicates a recent file write, then
 // resumes stripping on whatever text followed the close tag.
-function resolveDuplicateArtifactCandidate(s: StreamCtx, current: string): string {
+function resolveDuplicateArtifactCandidate(s: StreamCtx, { current }: { current: string }): string {
   s.duplicateArtifactCandidate += current;
   const closeIndex = s.duplicateArtifactCandidate.indexOf('</artifact>');
   if (closeIndex === -1) return '';
@@ -240,22 +251,25 @@ function resolveDuplicateArtifactCandidate(s: StreamCtx, current: string): strin
   s.duplicateArtifactCandidate = '';
   s.suppressDuplicateArtifactText = false;
   s.suppressNextArtifactText = false;
-  const duplicate = isRedundantWrittenArtifact(candidate, {
-    suppressHtmlArtifactsAfterFileWrite: s.options.suppressHtmlArtifactsAfterFileWrite === true,
-    wroteHtmlFileThisTurn: s.wroteHtmlFileThisTurn,
-    recentWriteContents: s.recentWriteContents,
+  const duplicate = isRedundantWrittenArtifact({
+    candidate,
+    ctx: {
+      suppressHtmlArtifactsAfterFileWrite: s.options.suppressHtmlArtifactsAfterFileWrite === true,
+      wroteHtmlFileThisTurn: s.wroteHtmlFileThisTurn,
+      recentWriteContents: s.recentWriteContents,
+    },
   });
   if (s.options.suppressHtmlArtifactsAfterFileWrite !== true) {
     s.recentWriteContents.length = 0;
   }
-  return `${duplicate ? '' : candidate}${stripDuplicateArtifactText(s, rest)}`;
+  return `${duplicate ? '' : candidate}${stripDuplicateArtifactText(s, { text: rest })}`;
 }
 
 // No open `<artifact` tag has been seen yet: either buffer a partial tag
 // prefix at the end of `current` so it can match across chunk boundaries,
 // or pass the text through untouched.
-function bufferPartialArtifactOpenTag(s: StreamCtx, current: string, openTag: string): string {
-  const candidateLength = artifactOpenCandidateLength(current, openTag);
+function bufferPartialArtifactOpenTag(s: StreamCtx, { current, openTag }: { current: string; openTag: string }): string {
+  const candidateLength = artifactOpenCandidateLength({ text: current, openTag });
   if ((s.suppressNextArtifactText || s.recentWriteContents.length > 0) && candidateLength > 0) {
     s.artifactOpenCandidate = current.slice(-candidateLength);
     return current.slice(0, -candidateLength);
@@ -265,16 +279,16 @@ function bufferPartialArtifactOpenTag(s: StreamCtx, current: string, openTag: st
 
 // An `<artifact` open tag just arrived: start accumulating it as a
 // duplicate-write candidate and flush whatever text preceded it.
-function startDuplicateArtifactCandidate(s: StreamCtx, current: string, openIndex: number): string {
+function startDuplicateArtifactCandidate(s: StreamCtx, { current, openIndex }: { current: string; openIndex: number }): string {
   s.suppressDuplicateArtifactText = true;
   s.suppressNextArtifactText = false;
   s.duplicateArtifactCandidate = current.slice(openIndex);
   const prefix = `${s.pendingArtifactText}${current.slice(0, openIndex)}`;
   s.pendingArtifactText = '';
-  return `${prefix}${stripDuplicateArtifactText(s, '')}`;
+  return `${prefix}${stripDuplicateArtifactText(s, { text: '' })}`;
 }
 
-function stripDuplicateArtifactText(s: StreamCtx, text: string): string {
+function stripDuplicateArtifactText(s: StreamCtx, { text }: { text: string }): string {
   if (
     !s.suppressNextArtifactText &&
     !s.suppressDuplicateArtifactText &&
@@ -287,13 +301,13 @@ function stripDuplicateArtifactText(s: StreamCtx, text: string): string {
   const current = `${s.artifactOpenCandidate}${text}`;
   s.artifactOpenCandidate = '';
   if (s.suppressDuplicateArtifactText) {
-    return resolveDuplicateArtifactCandidate(s, current);
+    return resolveDuplicateArtifactCandidate(s, { current });
   }
   const openIndex = current.indexOf(openTag);
   if (openIndex === -1) {
-    return bufferPartialArtifactOpenTag(s, current, openTag);
+    return bufferPartialArtifactOpenTag(s, { current, openTag });
   }
-  return startDuplicateArtifactCandidate(s, current, openIndex);
+  return startDuplicateArtifactCandidate(s, { current, openIndex });
 }
 
 function feed(s: StreamCtx, { chunk }: { chunk: string }) {
@@ -301,7 +315,7 @@ function feed(s: StreamCtx, { chunk }: { chunk: string }) {
 }
 
 /** One complete, non-blank line: a JSON object is handled, anything else passes through raw. */
-function feedLine(s: StreamCtx, line: string) {
+function feedLine(s: StreamCtx, { line }: { line: string }) {
   let obj;
   try {
     obj = JSON.parse(line);
@@ -309,7 +323,7 @@ function feedLine(s: StreamCtx, line: string) {
     s.onEvent({ type: 'raw', line });
     return;
   }
-  handleObject(s, obj);
+  handleObject(s, { obj });
 }
 
 function flush(s: StreamCtx) {
@@ -319,31 +333,31 @@ function flush(s: StreamCtx) {
   if (s.segmentUsage.hasObserved()) s.onEvent({ type: 'usage', ...s.segmentUsage.finish({ result: {}, interrupted: true }), stopReason: null });
 }
 
-function handleToolUseBlock(s: StreamCtx, block: Record<string, unknown>): void {
+function handleToolUseBlock(s: StreamCtx, { block }: { block: Record<string, unknown> }): void {
   if (typeof block.id === 'string' && s.streamedToolUseIds.has(block.id)) return;
-  emitToolUse(s, block.id, block.name, block.input ?? null);
+  emitToolUse(s, { id: block.id, name: block.name, input: block.input ?? null });
 }
 
-function handleAssistantContentBlock(s: StreamCtx, 
-  block: unknown,
+function handleAssistantContentBlock(s: StreamCtx, { block, ctx }: {
+  block: unknown;
   ctx: {
     textMsgId: string | null;
     thinkingMsgId: string | null;
     textAlreadyStreamed: boolean;
     thinkingAlreadyStreamed: boolean;
-  },
-): void {
+  };
+}): void {
   if (!isRecord(block)) return;
   if (block.type === 'tool_use') {
-    handleToolUseBlock(s, block);
+    handleToolUseBlock(s, { block });
     return;
   }
   if (isUnstreamedTextBlock(block, ctx.textAlreadyStreamed)) {
-    emitSafeText(s, ctx.textMsgId, block.text);
+    emitSafeText({ s, msgId: ctx.textMsgId, text: block.text, eventType: 'text_delta' });
     return;
   }
   if (isUnstreamedThinkingBlock(block, ctx.thinkingAlreadyStreamed)) {
-    emitSafeText(s, ctx.thinkingMsgId, block.thinking, 'thinking_delta');
+    emitSafeText({ s, msgId: ctx.thinkingMsgId, text: block.thinking, eventType: 'thinking_delta' });
   }
 }
 
@@ -352,7 +366,7 @@ function handleAssistantContentBlock(s: StreamCtx,
 // streaming id), and whether that channel already streamed via deltas.
 // Also owns the message-id/epoch bookkeeping side effects that must
 // happen exactly once per assistant wrapper.
-function resolveAssistantMessageIds(s: StreamCtx, message: Record<string, unknown>): {
+function resolveAssistantMessageIds(s: StreamCtx, { message }: { message: Record<string, unknown> }): {
   textMsgId: string | null;
   thinkingMsgId: string | null;
   textAlreadyStreamed: boolean;
@@ -382,12 +396,12 @@ function resolveAssistantMessageIds(s: StreamCtx, message: Record<string, unknow
 // the text as a single delta — but only if no streaming deltas already
 // covered it (older Claude Code without --include-partial-messages
 // delivers text only here; newer builds stream it and would duplicate).
-function handleAssistantMessage(s: StreamCtx, obj: Record<string, unknown>): void {
+function handleAssistantMessage(s: StreamCtx, { obj }: { obj: Record<string, unknown> }): void {
   const message = obj.message;
   if (!isRecord(message) || !Array.isArray(message.content)) return;
   if (typeof message.model === 'string') s.onEvent({ type: 'status', label: 'model', model: message.model });
   const { textMsgId, thinkingMsgId, textAlreadyStreamed, thinkingAlreadyStreamed } =
-    resolveAssistantMessageIds(s, message);
+    resolveAssistantMessageIds(s, { message });
   s.segmentUsage.observe({ messageId: usageMessageKey(s), usage: message.usage });
   // Per-turn `stop_reason` is emitted as `turn_end` AFTER the content
   // blocks have been processed (see below). When `--include-partial-
@@ -399,7 +413,7 @@ function handleAssistantMessage(s: StreamCtx, obj: Record<string, unknown>): voi
   const stopReason = typeof message.stop_reason === 'string' ? message.stop_reason : null;
 
   for (const block of message.content) {
-    handleAssistantContentBlock(s, block, { textMsgId, thinkingMsgId, textAlreadyStreamed, thinkingAlreadyStreamed });
+    handleAssistantContentBlock(s, { block, ctx: { textMsgId, thinkingMsgId, textAlreadyStreamed, thinkingAlreadyStreamed } });
   }
 
   // Surface the turn_end signal now that every tool_use in this
@@ -407,14 +421,14 @@ function handleAssistantMessage(s: StreamCtx, obj: Record<string, unknown>): voi
   // handler sees the final `stop_reason` before deciding whether to
   // close stream-json input stdin.
   if (stopReason) {
-    emitTurnEnd(s, stopReason);
+    emitTurnEnd(s, { stopReason });
   }
-  emitAssistantErrorIfPresent(obj, message.content, s.onEvent);
+  emitAssistantErrorIfPresent({ obj, content: message.content, onEvent: s.onEvent });
   s.currentMessageStreamedText = false;
   s.currentMessageStreamedThinking = false;
 }
 
-function handleResultMessage(s: StreamCtx, obj: Record<string, unknown>): void {
+function handleResultMessage(s: StreamCtx, { obj }: { obj: Record<string, unknown> }): void {
   // The first non-empty string of `stop_reason`, then `terminal_reason`; otherwise null.
   const stopReason: string | null =
     [obj.stop_reason, obj.terminal_reason].find((reason): reason is string => typeof reason === 'string' && reason !== '') ?? null;
@@ -423,7 +437,7 @@ function handleResultMessage(s: StreamCtx, obj: Record<string, unknown>): void {
   // is the only frame carrying `end_turn`. Surface it as a turn boundary
   // so AgentExecutor can close stream-json stdin and reap the process.
   if (stopReason) {
-    emitTurnEnd(s, stopReason);
+    emitTurnEnd(s, { stopReason });
   }
   s.onEvent({
     type: 'usage',
@@ -432,7 +446,7 @@ function handleResultMessage(s: StreamCtx, obj: Record<string, unknown>): void {
   });
 }
 
-function handleObject(s: StreamCtx, obj: unknown) {
+function handleObject(s: StreamCtx, { obj }: { obj: unknown }) {
   if (!isRecord(obj)) return;
   s.segmentUsage.setSession({ id: obj.session_id });
   switch (obj.type) {
@@ -440,21 +454,21 @@ function handleObject(s: StreamCtx, obj: unknown) {
       handleSystemMessage(obj, s.onEvent);
       return;
     case 'stream_event':
-      if (isRecord(obj.event)) handleStreamEvent(s, obj.event);
+      if (isRecord(obj.event)) handleStreamEvent(s, { ev: obj.event });
       return;
     case 'assistant':
-      handleAssistantMessage(s, obj);
+      handleAssistantMessage(s, { obj });
       return;
     case 'user':
       handleUserMessage(obj, s.onEvent);
       return;
     case 'result':
-      handleResultMessage(s, obj);
+      handleResultMessage(s, { obj });
       return;
   }
 }
 
-function handleMessageStart(s: StreamCtx, ev: Record<string, unknown>): void {
+function handleMessageStart(s: StreamCtx, { ev }: { ev: Record<string, unknown> }): void {
   if (isRecord(ev.message) && typeof ev.message.model === 'string') s.onEvent({ type: 'status', label: 'model', model: ev.message.model });
   flushPendingArtifactText(s);
   // Clean up per-message role-marker guard from the previous message.
@@ -470,8 +484,8 @@ function handleMessageStart(s: StreamCtx, ev: Record<string, unknown>): void {
   }
 }
 
-function handleContentBlockStart(s: StreamCtx, index: unknown, block: Record<string, unknown>): void {
-  const key = blockKey(s, index);
+function handleContentBlockStart(s: StreamCtx, { index, block }: { index: unknown; block: Record<string, unknown> }): void {
+  const key = blockKey(s, { index });
   s.blocks.set(key, {
     type: block.type,
     name: block.name,
@@ -484,31 +498,31 @@ function handleContentBlockStart(s: StreamCtx, index: unknown, block: Record<str
   }
 }
 
-function handleContentBlockDelta(s: StreamCtx, index: unknown, delta: Record<string, unknown>): void {
-  const state = s.blocks.get(blockKey(s, index));
+function handleContentBlockDelta(s: StreamCtx, { index, delta }: { index: unknown; delta: Record<string, unknown> }): void {
+  const state = s.blocks.get(blockKey(s, { index }));
 
   if (delta.type === 'text_delta' && typeof delta.text === 'string') {
     if (s.currentMessageId) s.textStreamed.add(s.currentMessageId);
     s.currentMessageStreamedText = true;
-    emitSafeText(s, s.currentMessageId, delta.text);
+    emitSafeText({ s, msgId: s.currentMessageId, text: delta.text, eventType: 'text_delta' });
     return;
   }
   if (delta.type === 'thinking_delta' && typeof delta.thinking === 'string') {
     if (s.currentMessageId) s.thinkingStreamed.add(s.currentMessageId);
     s.currentMessageStreamedThinking = true;
-    emitSafeText(s, s.currentMessageId, delta.thinking, 'thinking_delta');
+    emitSafeText({ s, msgId: s.currentMessageId, text: delta.thinking, eventType: 'thinking_delta' });
     return;
   }
   if (delta.type === 'input_json_delta' && typeof delta.partial_json === 'string') {
-    applyInputJsonDelta(state, delta.partial_json, s.onEvent);
+    applyInputJsonDelta({ state, partialJson: delta.partial_json, onEvent: s.onEvent });
   }
 }
 
 /** Emits a finished tool_use block from its streamed JSON text, else from its complete input value. */
-function emitFinishedToolBlock(s: StreamCtx, state: BlockState, id: string): void {
+function emitFinishedToolBlock(s: StreamCtx, { state, id }: { state: BlockState; id: string }): void {
   if (state.input.trim()) {
     try {
-      emitToolUse(s, id, state.name, JSON.parse(state.input));
+      emitToolUse(s, { id, name: state.name, input: JSON.parse(state.input) });
       s.streamedToolUseIds.add(id);
     } catch {
       // Fall through to the final assistant wrapper's input if the
@@ -517,14 +531,14 @@ function emitFinishedToolBlock(s: StreamCtx, state: BlockState, id: string): voi
     return;
   }
   if (state.inputValue === undefined) return;
-  emitToolUse(s, id, state.name, state.inputValue);
+  emitToolUse(s, { id, name: state.name, input: state.inputValue });
   s.streamedToolUseIds.add(id);
 }
 
-function handleContentBlockStop(s: StreamCtx, ev: Record<string, unknown>): void {
-  const key = blockKey(s, ev.index);
+function handleContentBlockStop(s: StreamCtx, { ev }: { ev: Record<string, unknown> }): void {
+  const key = blockKey(s, { index: ev.index });
   const state = s.blocks.get(key);
-  if (state?.type === 'tool_use' && typeof state.id === 'string') emitFinishedToolBlock(s, state, state.id);
+  if (state?.type === 'tool_use' && typeof state.id === 'string') emitFinishedToolBlock(s, { state, id: state.id });
   s.blocks.delete(key);
 }
 
@@ -533,32 +547,32 @@ function usageMessageKey(s: StreamCtx): string {
   return s.currentMessageId ?? `anon${s.anonymousMessageEpoch}`;
 }
 
-function handleMessageDeltaStreamEvent(s: StreamCtx, ev: Record<string, unknown>): void {
+function handleMessageDeltaStreamEvent(s: StreamCtx, { ev }: { ev: Record<string, unknown> }): void {
   s.segmentUsage.observe({ messageId: usageMessageKey(s), usage: ev.usage ?? (isRecord(ev.delta) ? ev.delta.usage : undefined) });
-  if (isRecord(ev.delta)) handleMessageDeltaEvent(s, ev.delta);
+  if (isRecord(ev.delta)) handleMessageDeltaEvent(s, { delta: ev.delta });
 }
 
-function handleMessageDeltaEvent(s: StreamCtx, delta: Record<string, unknown>): void {
+function handleMessageDeltaEvent(s: StreamCtx, { delta }: { delta: Record<string, unknown> }): void {
   const stopReason = typeof delta.stop_reason === 'string' ? delta.stop_reason : null;
-  if (stopReason) emitTurnEnd(s, stopReason);
+  if (stopReason) emitTurnEnd(s, { stopReason });
 }
 
-function handleStreamEvent(s: StreamCtx, ev: Record<string, unknown>) {
+function handleStreamEvent(s: StreamCtx, { ev }: { ev: Record<string, unknown> }) {
   switch (ev.type) {
     case 'message_start':
-      handleMessageStart(s, ev);
+      handleMessageStart(s, { ev });
       return;
     case 'content_block_start':
-      if (isRecord(ev.content_block)) handleContentBlockStart(s, ev.index, ev.content_block);
+      if (isRecord(ev.content_block)) handleContentBlockStart(s, { index: ev.index, block: ev.content_block });
       return;
     case 'content_block_delta':
-      if (isRecord(ev.delta)) handleContentBlockDelta(s, ev.index, ev.delta);
+      if (isRecord(ev.delta)) handleContentBlockDelta(s, { index: ev.index, delta: ev.delta });
       return;
     case 'content_block_stop':
-      handleContentBlockStop(s, ev);
+      handleContentBlockStop(s, { ev });
       return;
     case 'message_delta':
-      handleMessageDeltaStreamEvent(s, ev);
+      handleMessageDeltaStreamEvent(s, { ev });
       return;
   }
 }
@@ -573,5 +587,5 @@ function flushPendingArtifactText(s: StreamCtx) {
   s.suppressDuplicateArtifactText = false;
   s.recentWriteContents.length = 0;
   s.wroteHtmlFileThisTurn = false;
-  emitSafeText(s, s.currentMessageId, text);
+  emitSafeText({ s, msgId: s.currentMessageId, text, eventType: 'text_delta' });
 }

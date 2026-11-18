@@ -56,7 +56,7 @@ export function createAgUiTranslationState({ ids, customEventNames }: { ids: Eve
   return { openTextMessageId: null, openReasoningMessageId: null, nextId: 0, ids, customEventNames: { ...customEventNames } };
 }
 
-function mintId(state: AgUiTranslationState, prefix: string): string {
+function mintId({ state, prefix }: { state: AgUiTranslationState; prefix: string }): string {
   state.nextId += 1;
   return state.ids.next({ prefix, ordinal: state.nextId });
 }
@@ -80,7 +80,7 @@ function handleTextAgentEvent(event: Extract<AgentEvent, { kind: "text" }>, stat
   const events: AgUiEvent[] = [];
   if (state.openReasoningMessageId) events.push(...closeOpenMessages(state));
   if (!state.openTextMessageId) {
-    state.openTextMessageId = mintId(state, "msg");
+    state.openTextMessageId = mintId({ state, prefix: "msg" });
     events.push({ type: EventType.TEXT_MESSAGE_START, messageId: state.openTextMessageId, role: "assistant" });
   }
   events.push({ type: EventType.TEXT_MESSAGE_CONTENT, messageId: state.openTextMessageId, delta: event.text });
@@ -91,7 +91,7 @@ function handleThinkingAgentEvent(event: Extract<AgentEvent, { kind: "thinking" 
   const events: AgUiEvent[] = [];
   if (state.openTextMessageId) events.push(...closeOpenMessages(state));
   if (!state.openReasoningMessageId) {
-    state.openReasoningMessageId = mintId(state, "reasoning");
+    state.openReasoningMessageId = mintId({ state, prefix: "reasoning" });
     events.push({ type: EventType.REASONING_START, messageId: state.openReasoningMessageId });
     events.push({ type: EventType.REASONING_MESSAGE_START, messageId: state.openReasoningMessageId, role: "reasoning" });
   }
@@ -123,7 +123,7 @@ function handleToolResultAgentEvent(
   return [
     {
       type: EventType.TOOL_CALL_RESULT,
-      messageId: mintId(state, "tool_result_msg"),
+      messageId: mintId({ state, prefix: "tool_result_msg" }),
       toolCallId: event.toolUseId,
       content: event.content,
       role: "tool",

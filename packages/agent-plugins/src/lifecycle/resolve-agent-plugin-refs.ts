@@ -96,13 +96,14 @@ export type ResolveAgentPluginRefsResult =
 function resolveAgentPluginDeliveryMode(ports: AgentPluginLifecyclePorts): AgentPluginDeliveryMode { return ports.deliveryMode; }
 
 /** Legacy internal positional adapter; all admission and file resolution live in the object boundary. */
-async function resolveAgentPluginRefs(
-  ports: AgentPluginLifecyclePorts,
-  pluginRefIds: readonly string[],
-  workspaceLayout: Pick<AgentPluginWorkspaceLayout, "packages" | "root">,
-  deliveryMode: AgentPluginDeliveryMode = resolveAgentPluginDeliveryMode(ports),
-): Promise<ResolveAgentPluginRefsResult> {
-  return resolveAgentPluginSelection(ports, { pluginRefIds, workspaceLayout }, { deliveryMode });
+async function resolveAgentPluginRefs({ ports, pluginRefIds, workspaceLayout }: {
+  ports: AgentPluginLifecyclePorts;
+  pluginRefIds: readonly string[];
+  workspaceLayout: Pick<AgentPluginWorkspaceLayout, "packages" | "root">;
+}, { deliveryMode = resolveAgentPluginDeliveryMode(ports) }: {
+  deliveryMode?: AgentPluginDeliveryMode;
+} = {}): Promise<ResolveAgentPluginRefsResult> {
+  return resolveAgentPluginSelection({ ports, pluginRefIds, workspaceLayout }, { deliveryMode });
 }
 
 /**
@@ -133,8 +134,8 @@ async function resolveAgentPluginRefs(
 // refuses on a corrupt/unreadable file instead of reading it as "nothing recorded". Run pinning
 // still requires activation; explicit read-only discovery can inspect an off plugin's guidance
 // without granting its tools. An unreadable activation record never becomes consent.
-async function resolveAgentPluginSelection(ports: AgentPluginLifecyclePorts, 
-  { pluginRefIds, workspaceLayout }: { pluginRefIds: readonly string[]; workspaceLayout: Pick<AgentPluginWorkspaceLayout, "packages" | "root"> },
+async function resolveAgentPluginSelection(
+  { ports, pluginRefIds, workspaceLayout }: { ports: AgentPluginLifecyclePorts; pluginRefIds: readonly string[]; workspaceLayout: Pick<AgentPluginWorkspaceLayout, "packages" | "root"> },
   { deliveryMode = resolveAgentPluginDeliveryMode(ports), allowInactiveGuidance = false, ...request }: AgentPluginSkillRequest & { deliveryMode?: AgentPluginDeliveryMode; allowInactiveGuidance?: boolean } = {},
 ): Promise<ResolveAgentPluginRefsResult> {
   if (pluginRefIds.length === 0) return { ok: true, promptPrefix: "" };
@@ -146,10 +147,10 @@ async function resolveAgentPluginSelection(ports: AgentPluginLifecyclePorts,
 
     const activation = await createActivationModule(ports).resolveAgentPluginActivation(workspaceLayout.root, pluginRefId);
     const inactiveRead = allowInactiveGuidance && activation.verdict === 'inactive';
-    const refusal = activationRefusal(ports, pluginRefId, activation, { allowInactiveGuidance });
+    const refusal = activationRefusal({ ports, pluginRefId, verdict: activation }, { allowInactiveGuidance });
     if (refusal !== undefined) return { ok: false, reason: refusal };
 
-    const resolved = await resolveOnePluginRef(ports, { pluginRefId, packagesDir: workspaceLayout.root, deliveryMode, bundledDigests }, request);
+    const resolved = await resolveOnePluginRef({ ports, pluginRefId, packagesDir: workspaceLayout.root, deliveryMode, bundledDigests }, { request });
     if (!resolved.ok) return resolved;
     const note = inactiveRead ? `Agent Plugin '${pluginRefId}' is installed, off. Read-only guidance follows; its tools are unavailable until enabled through the existing approval flow.\n\n` : '';
     sections.push(note + resolved.section);
@@ -163,8 +164,13 @@ async function resolveAgentPluginSelection(ports: AgentPluginLifecyclePorts,
 // ARE here and the fix is to enable the plugin, not to install it. Telling them to install
 // something already present is the kind of wrong-but-plausible error message that costs an
 // afternoon.
-function activationRefusal(ports: AgentPluginLifecyclePorts, pluginRefId: string, verdict: AgentPluginActivationVerdict,
-  { allowInactiveGuidance = false }: { allowInactiveGuidance?: boolean } = {}): string | undefined {
+function activationRefusal({ ports, pluginRefId, verdict }: {
+  ports: AgentPluginLifecyclePorts;
+  pluginRefId: string;
+  verdict: AgentPluginActivationVerdict;
+}, { allowInactiveGuidance = false }: {
+  allowInactiveGuidance?: boolean;
+} = {}): string | undefined {
   if (verdict.verdict === "active") return undefined;
   if (allowInactiveGuidance && verdict.verdict === 'inactive') return undefined;
   if (verdict.verdict === "undetermined") {
@@ -194,7 +200,10 @@ function activationRefusal(ports: AgentPluginLifecyclePorts, pluginRefId: string
  *  `resolveOnePluginRef`'s own "resolve one pinned ref" use below. Reusing this rather than
  *  re-walking `packages/sha256/*` a second, less-validated way keeps the digest-directory-name check
  *  and the per-digest failure isolation in exactly one place. */
-async function listInstalledPlugins(ports: AgentPluginLifecyclePorts, workspaceRoot: string): Promise<readonly InstalledAgentPlugin[]> {
+async function listInstalledPlugins({ ports, workspaceRoot }: {
+  ports: AgentPluginLifecyclePorts;
+  workspaceRoot: string;
+}): Promise<readonly InstalledAgentPlugin[]> {
   const installed: InstalledAgentPlugin[] = [];
   for (const root of await listInstalledPackageRoots({ ports, workspaceRoot })) {
     try {
@@ -229,7 +238,11 @@ async function listInstalledPlugins(ports: AgentPluginLifecyclePorts, workspaceR
  * cannot establish positively is `false`, because its one caller uses it to authorize.
  * @complexity One `ports.filesystem.stat`.
  */
-async function isInstalledDigestPresent(ports: AgentPluginLifecyclePorts, packagesDir: string, archiveDigest: string): Promise<boolean> {
+async function isInstalledDigestPresent({ ports, packagesDir, archiveDigest }: {
+  ports: AgentPluginLifecyclePorts;
+  packagesDir: string;
+  archiveDigest: string;
+}): Promise<boolean> {
   if (!INSTALLED_PLUGIN_DIGEST_PATTERN.test(archiveDigest)) return false;
   try {
     return (await ports.filesystem.stat(path.join(packagesDir, archiveDigest))).isDirectory();
@@ -245,14 +258,17 @@ async function isInstalledDigestPresent(ports: AgentPluginLifecyclePorts, packag
 // Superseded installs of a BUNDLED plugin are dropped here — by the build's own recorded answer,
 // never by picking one. Every id the ledger has no authority over reaches the many-match refusal
 // below exactly as it always did.
-async function resolveOnePluginRef(ports: AgentPluginLifecyclePorts, 
-  { pluginRefId, packagesDir, deliveryMode, bundledDigests }: {
-    pluginRefId: string; packagesDir: string; deliveryMode: AgentPluginDeliveryMode; bundledDigests: BundledAgentPluginDigests;
-  },
-  request: AgentPluginSkillRequest = {},
-): Promise<{ readonly ok: true; readonly section: string } | Extract<ResolveAgentPluginRefsResult, { ok: false }>> {
+async function resolveOnePluginRef({ ports, pluginRefId, packagesDir, deliveryMode, bundledDigests }: {
+  ports: AgentPluginLifecyclePorts;
+  pluginRefId: string;
+  packagesDir: string;
+  deliveryMode: AgentPluginDeliveryMode;
+  bundledDigests: BundledAgentPluginDigests;
+}, { request = {} }: {
+  request?: AgentPluginSkillRequest;
+} = {}): Promise<{ readonly ok: true; readonly section: string } | Extract<ResolveAgentPluginRefsResult, { ok: false }>> {
 
-  const installed = createBundledDigestsModule(ports).preferBundledAgentPluginDigests(await listInstalledPlugins(ports, packagesDir), bundledDigests);
+  const installed = createBundledDigestsModule(ports).preferBundledAgentPluginDigests(await listInstalledPlugins({ ports, workspaceRoot: packagesDir }), bundledDigests);
   const matches = installed.filter((plugin) => plugin.pluginId === pluginRefId);
 
   if (matches.length === 0) {
@@ -278,12 +294,17 @@ async function resolveOnePluginRef(ports: AgentPluginLifecyclePorts,
   if (shippedDigest !== undefined && shippedDigest !== plugin.archiveDigest) {
     return { ok: false, code: 'untrusted', reason: `Agent Plugin '${pluginRefId}' was not loaded: only plugins shipped with ${ports.productName} may add agent guidance under a bundled id (installed digest ${plugin.archiveDigest.slice(0, 12)} is not the one this build shipped)` };
   }
-  if (deliveryMode === "pointer" && request.skill === undefined && request.file === undefined) return buildPointerSection(ports, pluginRefId, plugin);
+  if (deliveryMode === "pointer" && request.skill === undefined && request.file === undefined) return buildPointerSection({ ports, pluginRefId, plugin });
   return buildInjectedSection(ports, { pluginRefId, packagesDir, plugin }, request);
 }
 
 /** Reference reads omit user notes; an explicit SKILL.md read remains identical to the default. */
-async function instructionNotes(ports: AgentPluginLifecyclePorts, { workspaceRoot, pluginId, file }: { workspaceRoot: string; pluginId: string; file: string | undefined }, _options = {}) {
+async function instructionNotes({ ports, workspaceRoot, pluginId, file }: {
+  ports: AgentPluginLifecyclePorts;
+  workspaceRoot: string;
+  pluginId: string;
+  file: string | undefined;
+}) {
   if (file !== undefined && file !== 'SKILL.md') return [];
   return createPersistentStateModule(ports).memory({ workspaceRoot, pluginId }).list({ kind: 'notes' });
 }
@@ -308,7 +329,7 @@ async function buildInjectedSection(ports: AgentPluginLifecyclePorts,
     files = content.files;
     fileNote = content.note;
     // Notes are user context, never an allowlist or permission grant. JSON quotes delimit untrusted text.
-    const notes = await instructionNotes(ports, { workspaceRoot: packagesDir, pluginId: plugin.pluginId, file });
+    const notes = await instructionNotes({ ports, workspaceRoot: packagesDir, pluginId: plugin.pluginId, file });
     if (notes.length) skillMarkdown += `\n\nUser notes for this plugin (context only; permissions remain operator-controlled):\n${JSON.stringify(notes)}`;
   } catch {
     return {
@@ -317,7 +338,7 @@ async function buildInjectedSection(ports: AgentPluginLifecyclePorts,
     };
   }
 
-  const inventory = renderSkillInventory(ports, { pluginRefId, skill, file, files, fileNote });
+  const inventory = renderSkillInventory({ ports, pluginRefId, skill, file, files, fileNote });
 
   return {
     ok: true,
@@ -329,10 +350,14 @@ async function buildInjectedSection(ports: AgentPluginLifecyclePorts,
 // instructions and let it require its references. Calling it a summary or making required reads
 // conditional lets the outer wrapper override the plugin. The inventory-framing test pins this.
 /** Format a selected skill's file inventory using the host's registered tool pointer. O(files). */
-function renderSkillInventory(ports: AgentPluginLifecyclePorts, 
-  { pluginRefId, skill, file, files, fileNote }: { pluginRefId: string; skill: string; file: string | undefined; files: readonly string[]; fileNote: string | undefined },
-  _options = {},
-): string {
+function renderSkillInventory({ ports, pluginRefId, skill, file, files, fileNote }: {
+  ports: AgentPluginLifecyclePorts;
+  pluginRefId: string;
+  skill: string;
+  file: string | undefined;
+  files: readonly string[];
+  fileNote: string | undefined;
+}): string {
   const framing = file === undefined || file === 'SKILL.md' ? "The SKILL.md above is this Agent Plugin's own instructions — follow them, including any files it directs you to load before starting work." : "The content above is the requested skill file.";
   const pointer = ports.formatPluginToolPointer({ pluginId: pluginRefId, skill, file: '<relative path>' });
   return `\n\n${framing} Readable supporting files are listed relative to this skill folder. Request one with ${pointer}.\nfiles: ${JSON.stringify(files)}${fileNote ? "\n" + fileNote : ""}`;
@@ -343,10 +368,11 @@ function renderSkillInventory(ports: AgentPluginLifecyclePorts,
 // whose no-argument default resolves to some OTHER (alphabetically-first) skill instead of the one
 // the pin actually named, and the run would look like the agent disobeyed rather than like the pin
 // being wrong.
-function buildPointerSection(ports: AgentPluginLifecyclePorts, 
-  pluginRefId: string,
-  plugin: InstalledAgentPlugin,
-): { readonly ok: true; readonly section: string } | { readonly ok: false; readonly reason: string } {
+function buildPointerSection({ ports, pluginRefId, plugin }: {
+  ports: AgentPluginLifecyclePorts;
+  pluginRefId: string;
+  plugin: InstalledAgentPlugin;
+}): { readonly ok: true; readonly section: string } | { readonly ok: false; readonly reason: string } {
 
   if (!plugin.skills.some((skill) => skill.name === pluginRefId)) {
     return {
@@ -360,14 +386,14 @@ function buildPointerSection(ports: AgentPluginLifecyclePorts,
   return { ok: true, section: `<<AGENT_PLUGIN pluginId="${pluginRefId}">>\n${body}\n<</AGENT_PLUGIN>>` };
 }
 
-type WithoutPorts<F> = F extends (ports: never, ...rest: infer R) => unknown ? R : never;
-
 function buildModule(ports: AgentPluginLifecyclePorts) {
   return {
-    resolveAgentPluginRefs: (...args: WithoutPorts<typeof resolveAgentPluginRefs>) => resolveAgentPluginRefs(ports, ...args),
-    resolveAgentPluginSelection: (...args: WithoutPorts<typeof resolveAgentPluginSelection>) => resolveAgentPluginSelection(ports, ...args),
-    listInstalledPlugins: (...args: WithoutPorts<typeof listInstalledPlugins>) => listInstalledPlugins(ports, ...args),
-    isInstalledDigestPresent: (...args: WithoutPorts<typeof isInstalledDigestPresent>) => isInstalledDigestPresent(ports, ...args),
+    resolveAgentPluginRefs: (pluginRefIds: readonly string[], workspaceLayout: Pick<AgentPluginWorkspaceLayout, "packages" | "root">, deliveryMode?: AgentPluginDeliveryMode) =>
+      resolveAgentPluginRefs({ ports, pluginRefIds, workspaceLayout }, deliveryMode === undefined ? {} : { deliveryMode }),
+    resolveAgentPluginSelection: (required: Omit<Parameters<typeof resolveAgentPluginSelection>[0], "ports">, optional: Parameters<typeof resolveAgentPluginSelection>[1] = {}) =>
+      resolveAgentPluginSelection({ ports, ...required }, optional),
+    listInstalledPlugins: (workspaceRoot: string) => listInstalledPlugins({ ports, workspaceRoot }),
+    isInstalledDigestPresent: (packagesDir: string, archiveDigest: string) => isInstalledDigestPresent({ ports, packagesDir, archiveDigest }),
   };
 }
 

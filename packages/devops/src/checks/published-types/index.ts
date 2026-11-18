@@ -40,7 +40,10 @@ function validateScope(scope: string): void {
 }
 
 /** Pins must name packages inside the checked scope; anything else is a caller error, not a project failure. */
-function validatePins(pins: Readonly<Record<string, string>>, scope: string): void {
+function validatePins({ pins, scope }: {
+  pins: Readonly<Record<string, string>>;
+  scope: string;
+}): void {
   const name = new RegExp(`^${escapeRegex(scope)}/[a-z0-9][a-z0-9._-]*$`);
   for (const pinned of Object.keys(pins)) if (!name.test(pinned)) throw new TypeError(`pin outside scope ${scope}: ${pinned}`);
 }
@@ -167,7 +170,16 @@ function projectDependencies({ project, manifest, scope, pins }: { project: Publ
   return { ...registryDependencies({ manifest, scope }), ...(project.mode === 'links' ? {} : pins) };
 }
 
-async function checkCompile(project: CompileProject, manifest: DependencyManifest, deps: Record<string, string>, scope: string, fs: FilesystemPort, runner: ProcessRunnerPort, installer: PackageInstallerPort, keepScratch: boolean): Promise<PublishedTypesResult> {
+async function checkCompile({ project, manifest, deps, scope, fs, runner, installer, keepScratch }: {
+  project: CompileProject;
+  manifest: DependencyManifest;
+  deps: Record<string, string>;
+  scope: string;
+  fs: FilesystemPort;
+  runner: ProcessRunnerPort;
+  installer: PackageInstallerPort;
+  keepScratch: boolean;
+}): Promise<PublishedTypesResult> {
   if (Object.keys(deps).length === 0) return emptyResult(project.key, 'skipped', 'no registry-resolved scoped dependencies');
   const failed = await failedPrerequisite({ project, runner });
   if (failed) return emptyResult(project.key, 'prerequisite-error', combined(failed));
@@ -206,7 +218,7 @@ export async function check({ projects, scope, fs, runner, installer }: {
   keepScratch?: boolean;
 } = {}): Promise<PublishedTypesReport> {
   validateScope(scope);
-  validatePins(pins, scope);
+  validatePins({ pins, scope });
   if (projects.length === 0) throw new TypeError('at least one project is required');
   const results: PublishedTypesResult[] = [];
   for (const project of projects) {
@@ -214,7 +226,7 @@ export async function check({ projects, scope, fs, runner, installer }: {
     try {
       const manifest = JSON.parse(fs.readText({ path: project.manifestPath })) as DependencyManifest;
       const deps = projectDependencies({ project, manifest, scope, pins });
-      result = project.mode === 'links' ? checkLinks(project, deps, fs) : await checkCompile(project, manifest, deps, scope, fs, runner, installer, keepScratch);
+      result = project.mode === 'links' ? checkLinks(project, deps, fs) : await checkCompile({ project, manifest, deps, scope, fs, runner, installer, keepScratch });
     } catch (error) {
       result = emptyResult(project.key, 'operation-error', error instanceof Error ? error.message : String(error));
     }

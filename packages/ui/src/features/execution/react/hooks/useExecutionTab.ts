@@ -75,12 +75,12 @@ function useAliveRef(detectionTimer: { current: ReturnType<typeof setTimeout> | 
 }
 
 /** Local-agent detection / rescan, polling while the host reports discovery still pending. */
-function useAgentDetection(
-  port: ExecutionPort,
-  autoDetect: boolean,
-  alive: AliveRef,
-  detectionTimer: { current: ReturnType<typeof setTimeout> | undefined },
-) {
+function useAgentDetection({ port, autoDetect, alive, detectionTimer }: {
+  port: ExecutionPort;
+  autoDetect: boolean;
+  alive: AliveRef;
+  detectionTimer: { current: ReturnType<typeof setTimeout> | undefined };
+}) {
   const [agents, setAgents] = useState<readonly DetectedAgent[]>([]);
   const [scan, setScan] = useState<AgentScanState>({ status: 'idle' });
   const detectionTicket = useRef(0);
@@ -128,7 +128,11 @@ function useAgentDetection(
 }
 
 /** Provider connection test. */
-function useConnectionTest(port: ExecutionPort, alive: AliveRef, describeProbeErrorRef: DescribeProbeErrorRef) {
+function useConnectionTest({ port, alive, describeProbeErrorRef }: {
+  port: ExecutionPort;
+  alive: AliveRef;
+  describeProbeErrorRef: DescribeProbeErrorRef;
+}) {
   const [connectionTest, setConnectionTest] = useState<ConnectionTestState>({ status: 'idle' });
   const connectionTestTicket = useRef(0);
 
@@ -203,7 +207,11 @@ function useAgentTestAction(port: ExecutionPort, alive: AliveRef) {
 }
 
 /** Optional model discovery for the selected provider. */
-function useModelDiscovery(port: ExecutionPort, alive: AliveRef, describeProbeErrorRef: DescribeProbeErrorRef) {
+function useModelDiscovery({ port, alive, describeProbeErrorRef }: {
+  port: ExecutionPort;
+  alive: AliveRef;
+  describeProbeErrorRef: DescribeProbeErrorRef;
+}) {
   const [modelDiscovery, setModelDiscovery] = useState<ModelDiscoveryState>({ status: 'idle' });
   const modelDiscoveryTicket = useRef(0);
 
@@ -276,10 +284,10 @@ export function useExecutionTab({
   // The timer lives with detection but the unmount effect must run first, so it is created here.
   const detectionTimerHolder = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const alive = useAliveRef(detectionTimerHolder);
-  const detection = useAgentDetection(port, autoDetect, alive, detectionTimerHolder);
-  const { connectionTest, testConnection } = useConnectionTest(port, alive, describeProbeErrorRef);
+  const detection = useAgentDetection({ port, autoDetect, alive, detectionTimer: detectionTimerHolder });
+  const { connectionTest, testConnection } = useConnectionTest({ port, alive, describeProbeErrorRef });
   const { agentTest, testAgent } = useAgentTestAction(port, alive);
-  const { modelDiscovery, loadModels, resetModelDiscovery } = useModelDiscovery(port, alive, describeProbeErrorRef);
+  const { modelDiscovery, loadModels, resetModelDiscovery } = useModelDiscovery({ port, alive, describeProbeErrorRef });
 
   return {
     agents: detection.agents,

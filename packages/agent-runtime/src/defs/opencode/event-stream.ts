@@ -98,10 +98,7 @@ function handleOpenCodeError(obj: JsonObject, onEvent: StreamEventHandler): bool
   // Shape mirrors the qoder-stream contract (`{type, message, raw}`) so
   // the daemon's existing error-handling path recognises it without
   // further wiring.
-  const message = extractErrorMessage(
-    obj.error ?? obj.message,
-    'OpenCode error',
-  );
+  const message = extractErrorMessage({ value: obj.error ?? obj.message, fallback: 'OpenCode error' });
   onEvent({ type: 'error', message, raw: stringifyContent(obj) });
   return true;
 }
@@ -116,6 +113,6 @@ const OPENCODE_FRAME_HANDLERS: ReadonlyMap<unknown, FrameHandler> = new Map<unkn
 
 export function handleOpenCodeEvent(obj: unknown, onEvent: StreamEventHandler, state: ParserState): boolean {
   if (!isRecord(obj)) return false;
-  return dispatchFrame(OPENCODE_FRAME_HANDLERS, obj, onEvent, state);
+  return dispatchFrame({ handlers: OPENCODE_FRAME_HANDLERS, obj, onEvent, state });
 }
 

@@ -291,7 +291,11 @@ function resolveProbeConfig(options: DetectAcpModelsOptions): ProbeConfig {
   };
 }
 
-function finishProbe<T extends ModelOption[] | Error>(run: ProbeRun, fn: (value: T) => void, value: T): void {
+function finishProbe<T extends ModelOption[] | Error>({ run, fn, value }: {
+  run: ProbeRun;
+  fn: (value: T) => void;
+  value: T;
+}): void {
   if (run.settled) return;
   run.settled = true;
   if (run.timer) clearTimeout(run.timer);
@@ -300,25 +304,29 @@ function finishProbe<T extends ModelOption[] | Error>(run: ProbeRun, fn: (value:
   else finishAcpProbeProcess({ child: run.child, complete: () => fn(value) });
 }
 
-function failProbe(run: ProbeRun, message: string): void {
-  finishProbe(run, run.reject, new Error(message));
+function failProbe({ run, message }: { run: ProbeRun; message: string }): void {
+  finishProbe({ run, fn: run.reject, value: new Error(message) });
 }
 
 function writeProbeRpc(run: ProbeRun, rpc: { id: JsonRpcId; method: string; params: unknown }): void {
   try {
     sendRpc(run.child.stdin, rpc.id, rpc.method, rpc.params);
   } catch (err) {
-    failProbe(run, `stdin write failed: ${errorMessage(err)}`);
+    failProbe({ run, message: `stdin write failed: ${errorMessage(err)}` });
   }
 }
 
-function handleProbeRpcError(run: ProbeRun, obj: UnknownRecord | null, rpcErr: string): void {
+function handleProbeRpcError({ run, obj, rpcErr }: {
+  run: ProbeRun;
+  obj: UnknownRecord | null;
+  rpcErr: string;
+}): void {
   // JSON-RPC -32603 "Internal error" during model detection:
   // If this is for the current expected-id (initialize/session/new),
   // it's a real probe failure — reject immediately.
   // Otherwise it's cleanup noise — suppress it.
   if (asObject(obj?.error)?.code === -32603 && obj?.id !== run.expectedId) return;
-  failProbe(run, rpcErr);
+  failProbe({ run, message: rpcErr });
 }
 
 function handleProbeResult(run: ProbeRun, result: UnknownRecord): void {
@@ -330,14 +338,14 @@ function handleProbeResult(run: ProbeRun, result: UnknownRecord): void {
   }
   config.onSessionResult?.(result);
   const models = normalizeModels({ models: result.models, defaultModelOption: config.defaultModelOption }, { configOptions: result.configOptions });
-  finishProbe(run, run.resolve, models);
+  finishProbe({ run, fn: run.resolve, value: models });
 }
 
-function handleProbeMessage(run: ProbeRun, raw: unknown): void {
+function handleProbeMessage({ run, raw }: { run: ProbeRun; raw: unknown }): void {
   const obj = asObject(raw);
   const rpcErr = rpcErrorMessage(raw);
   if (rpcErr) {
-    handleProbeRpcError(run, obj, rpcErr);
+    handleProbeRpcError({ run, obj, rpcErr });
     return;
   }
   const result = asObject(obj?.result);
@@ -347,35 +355,46 @@ function handleProbeMessage(run: ProbeRun, raw: unknown): void {
 
 type ProbeParser = ReturnType<typeof createJsonLineStream>;
 
-function handleProbeStdout(run: ProbeRun, parser: ProbeParser, chunk: string): void {
+function handleProbeStdout({ run, parser, chunk }: {
+  run: ProbeRun;
+  parser: ProbeParser;
+  chunk: string;
+}): void {
   run.stdoutBytes += Buffer.byteLength(String(chunk), 'utf8');
-  if (run.stdoutBytes > 8 * 1024 * 1024) { failProbe(run, 'ACP metadata output exceeded its limit'); return; }
+  if (run.stdoutBytes > 8 * 1024 * 1024) { failProbe({ run, message: 'ACP metadata output exceeded its limit' }); return; }
   parser.feed({ chunk: chunk });
 }
 
-function handleProbeClose(run: ProbeRun, parser: ProbeParser, exit: { code: number | null; signal: NodeJS.Signals | null }): void {
+function handleProbeClose({ run, parser, exit }: {
+  run: ProbeRun;
+  parser: ProbeParser;
+  exit: { code: number | null; signal: NodeJS.Signals | null };
+}): void {
   run.closed = true;
   parser.flush();
   if (run.settled) return;
   const errTail = run.stderrBuf.trim();
   const suffix = errTail ? ` stderr=${errTail}` : '';
-  failProbe(run, `ACP model detection exited code=${exit.code} signal=${exit.signal ?? 'none'}${suffix}`);
+  failProbe({
+    run,
+    message: `ACP model detection exited code=${exit.code} signal=${exit.signal ?? 'none'}${suffix}`,
+  });
 }
 
 function wireProbeListeners(run: ProbeRun): void {
   const { child } = run;
   const parser = createJsonLineStream({
-    onError: error => failProbe(run, error.message),
-    onMessage: ({ message: raw }) => handleProbeMessage(run, raw),
+    onError: error => failProbe({ run, message: error.message }),
+    onMessage: ({ message: raw }) => handleProbeMessage({ run, raw }),
   });
-  child.stdout.on('data', (chunk) => handleProbeStdout(run, parser, chunk));
+  child.stdout.on('data', (chunk) => handleProbeStdout({ run, parser, chunk }));
   child.stdout.on('close', () => parser.flush());
-  child.stdin.on('error', (err) => failProbe(run, `stdin error: ${err.message}`));
+  child.stdin.on('error', (err) => failProbe({ run, message: `stdin error: ${err.message}` }));
   child.stderr.on('data', (chunk) => {
     run.stderrBuf = `${run.stderrBuf}${chunk}`.slice(-16_000);
   });
-  child.on('error', (err) => failProbe(run, `spawn failed: ${err.message}`));
-  child.on('close', (code, signal) => handleProbeClose(run, parser, { code, signal }));
+  child.on('error', (err) => failProbe({ run, message: `spawn failed: ${err.message}` }));
+  child.on('close', (code, signal) => handleProbeClose({ run, parser, exit: { code, signal } }));
 }
 
 function startProbe({ config, resolve, reject }: {
@@ -393,13 +412,13 @@ function startProbe({ config, resolve, reject }: {
   child.stderr.setEncoding('utf8');
   const run: ProbeRun = {
     config, child, resolve, reject, settled: false, closed: false, stderrBuf: '', stdoutBytes: 0,
-    expectedId: 1, timer: null, abort: () => failProbe(run, 'ACP model detection aborted'),
+    expectedId: 1, timer: null, abort: () => failProbe({ run, message: 'ACP model detection aborted' }),
   };
   config.signal?.addEventListener('abort', run.abort, { once: true });
   wireProbeListeners(run);
   if (config.effectiveTimeoutMs > 0) {
     run.timer = setTimeout(() => {
-      failProbe(run, `ACP model detection timed out after ${config.effectiveTimeoutMs}ms`);
+      failProbe({ run, message: `ACP model detection timed out after ${config.effectiveTimeoutMs}ms` });
     }, config.effectiveTimeoutMs);
   }
   writeProbeRpc(run, { id: 1, method: 'initialize', params: {

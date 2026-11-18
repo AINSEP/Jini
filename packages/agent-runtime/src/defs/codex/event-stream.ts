@@ -233,7 +233,7 @@ function completeCodexCommand(item: CodexItem, onEvent: StreamEventHandler, stat
  * @complexity O(n) time/space for n diagnostic characters, including the shared sanitizer pass.
  */
 function codexMcpFailureContent({ item }: { item: CodexItem }, _options = {}): string {
-  const error = trimmedNonBlank(extractErrorMessage(item.error, ''));
+  const error = trimmedNonBlank(extractErrorMessage({ value: item.error, fallback: '' }));
   const result = isRecord(item.result) ? item.result : {};
   const blocks = Array.isArray(result.content) ? result.content : [];
   // Keep text verbatim until sanitizing so JSON error envelopes retain codes and recovery hints.
@@ -242,7 +242,7 @@ function codexMcpFailureContent({ item }: { item: CodexItem }, _options = {}): s
     .map(block => trimmedNonBlank(block.text))
     .filter(Boolean)
     .join('\n');
-  const structuredText = extractErrorMessage(result.structured_content, '');
+  const structuredText = extractErrorMessage({ value: result.structured_content, fallback: '' });
   const diagnostic = error || text || trimmedNonBlank(structuredText) || 'MCP tool call failed';
   return sanitizeUntrustedText({ text: diagnostic });
 }
@@ -312,7 +312,7 @@ function codexItemFrame(
 }
 
 function handleCodexError(obj: JsonObject, onEvent: StreamEventHandler, state: ParserState): boolean {
-  const message = extractErrorMessage(obj.message ?? obj.error, 'Codex error');
+  const message = extractErrorMessage({ value: obj.message ?? obj.error, fallback: 'Codex error' });
   // Reconnecting events are recoverable — treat as status warning, not fatal
   if (isRecoverableCodexReconnect(message)) {
     onEvent({ type: 'status', label: message });
@@ -323,7 +323,7 @@ function handleCodexError(obj: JsonObject, onEvent: StreamEventHandler, state: P
 }
 
 function handleCodexTurnFailed(obj: JsonObject, onEvent: StreamEventHandler, state: ParserState): boolean {
-  emitCodexErrorOnce(extractErrorMessage(obj.error ?? obj.message, 'Codex turn failed'), onEvent, state);
+  emitCodexErrorOnce(extractErrorMessage({ value: obj.error ?? obj.message, fallback: 'Codex turn failed' }), onEvent, state);
   return true;
 }
 
@@ -374,6 +374,6 @@ const CODEX_FRAME_HANDLERS: ReadonlyMap<unknown, FrameHandler> = new Map<unknown
 
 export function handleCodexEvent(obj: unknown, onEvent: StreamEventHandler, state: ParserState): boolean {
   if (!isRecord(obj)) return false;
-  return dispatchFrame(CODEX_FRAME_HANDLERS, obj, onEvent, state);
+  return dispatchFrame({ handlers: CODEX_FRAME_HANDLERS, obj, onEvent, state });
 }
 

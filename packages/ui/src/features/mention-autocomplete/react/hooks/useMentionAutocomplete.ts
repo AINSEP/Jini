@@ -58,7 +58,10 @@ export interface UseMentionAutocompleteResult<T extends MentionItem> {
 }
 
 /** Re-focus the textarea and place the cursor after a pick (the picker never takes focus). */
-function restoreTextareaCursor(textarea: HTMLTextAreaElement | null, cursor: number) {
+function restoreTextareaCursor({ textarea, cursor }: {
+  textarea: HTMLTextAreaElement | null;
+  cursor: number;
+}) {
   requestAnimationFrame(() => {
     if (!textarea) return;
     textarea.focus();
@@ -224,7 +227,7 @@ export function useMentionAutocomplete<T extends MentionItem>({
     onValueChange(nextValue);
     setMention(null);
     addItem(item);
-    restoreTextareaCursor(textareaRef.current, cursor);
+    restoreTextareaCursor({ textarea: textareaRef.current, cursor });
   };
 
   const query = (mention?.query ?? '').trim();

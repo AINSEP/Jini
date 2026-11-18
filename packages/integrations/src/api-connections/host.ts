@@ -146,7 +146,10 @@ function clientFor<State>({ required, byoClients }: HostCtx<State>, connection: 
   return byo ? byoOAuthClient(byo, required.runtime) : resolveClient(connection, required.runtime, required.env, required.messages);
 }
 
-function tokensFor<State>({ required }: HostCtx<State>, connection: DeclaredApiConnection, clientId: string) {
+function tokensFor<State>({ required }: HostCtx<State>, { connection, clientId }: {
+  connection: DeclaredApiConnection;
+  clientId: string;
+}) {
   const owner = { workspaceId: required.workspaceId, pluginId: connection.pluginId, connectionId: connection.descriptor.connectionId, clientId };
   return required.apiConnectionStorage.tokensFor({ owner });
 }
@@ -170,7 +173,7 @@ async function tokensForAnotherClient<State>(ctx: HostCtx<State>, record: ApiCon
   if (!connection) return false;
   let clientId: string;
   try { clientId = clientFor(ctx, connection).client.clientId; } catch { return false; }
-  return tokensFor(ctx, connection, clientId).load({ key: record.key }).then(() => false, (error: unknown) => {
+  return tokensFor(ctx, { connection, clientId }).load({ key: record.key }).then(() => false, (error: unknown) => {
     if (isUnreadableTokenRecord(error)) return true;
     throw error;
   });
@@ -188,7 +191,10 @@ async function apiOriginsFor<State>(ctx: HostCtx<State>, input: { readonly works
   return (await listConnections(ctx, { pluginId: input.pluginId })).flatMap((connection) => connection.apiOrigins);
 }
 
-function byoCallbackUrl<State>({ required }: HostCtx<State>, connection: DeclaredApiConnection, origin: string | undefined): string {
+function byoCallbackUrl<State>({ required }: HostCtx<State>, { connection, origin }: {
+  connection: DeclaredApiConnection;
+  origin: string | undefined;
+}): string {
   if (!origin) throw setupRefused(required.messages.noPublicOrigin({ label: connection.descriptor.label }));
   return `${origin}${required.callbackPath}`;
 }
@@ -203,7 +209,7 @@ function hostedCallbackUrl<State>(ctx: HostCtx<State>, { connection }: { readonl
   const origin = required.publicOrigin();
   // A BYO web client is the admin's own registration: they registered this site's own callback.
   const byo = ctx.byoClients.get(connection);
-  if (byo && !(byo instanceof ApiConnectionError)) return byoCallbackUrl(ctx, connection, origin);
+  if (byo && !(byo instanceof ApiConnectionError)) return byoCallbackUrl(ctx, { connection, origin });
   const allowed = [...(connection.clients.web?.redirectOrigins ?? []), ...configuredOrigins(required.env, required.messages.callbackOriginsEnv)];
   if (allowed.length === 0) {
     throw setupRefused(required.messages.missingReturnAddress({ label: connection.descriptor.label }));
@@ -229,7 +235,7 @@ function serviceFor<State>(ctx: HostCtx<State>, input: { readonly connection: De
     descriptor: connection.descriptor, client, clientKind,
     appOptions: { ...required.appIdentity, redirectUris: redirectUri ? [redirectUri] : [] },
     hooks: hooksFor(ctx, connection),
-    records: required.apiConnectionStorage.records, tokens: tokensFor(ctx, connection, client.clientId),
+    records: required.apiConnectionStorage.records, tokens: tokensFor(ctx, { connection, clientId: client.clientId }),
     fetchFn: required.oauthHttp.fetchFn, guard: required.oauthHttp.guard, clock: required.clock, oauth: required.oauth,
     randomBytesFn: ({ byteLength }) => randomBytes(byteLength),
     sleep: ({ ms }) => new Promise((resolve) => { setTimeout(resolve, ms); }),
@@ -243,21 +249,30 @@ async function declaredFor<State>(ctx: HostCtx<State>, input: { readonly pluginI
 }
 
 /** A token read whose stored tokens belong to another client turns into a durable reconnect-required refusal. */
-async function refuseChangedClient<State>(ctx: HostCtx<State>, connectionRef: string, error: unknown): Promise<never> {
+async function refuseChangedClient<State>({ ctx, connectionRef, error }: {
+  ctx: HostCtx<State>;
+  connectionRef: string;
+  error: unknown;
+}): Promise<never> {
   if (!isUnreadableTokenRecord(error) && !wrapsUnreadableTokenRecord(error)) throw error;
   const record = await ctx.required.apiConnectionStorage.records.read({ key: connectionRef });
   if (record?.status === "connected") await markReconnectRequired(ctx, record);
   throw clientChanged(error);
 }
 
-async function getScopedAccessToken<State>(ctx: HostCtx<State>, scope: { readonly pluginId: string }, input: { readonly connectionRef: string }, options: AccessOptions): Promise<string> {
+async function getScopedAccessToken<State>({ ctx, scope, input, options }: {
+  ctx: HostCtx<State>;
+  scope: { readonly pluginId: string };
+  input: { readonly connectionRef: string };
+  options: AccessOptions;
+}): Promise<string> {
   const { required, shared } = ctx;
   const connection = await declaredFor(ctx, { pluginId: scope.pluginId, connectionRef: input.connectionRef });
   if (!connection) throw notAvailable();
   await ctx.budgets.charge({ workspaceId: required.workspaceId, pluginId: scope.pluginId, connectionId: connection.descriptor.connectionId, connectionRef: input.connectionRef, budgets: connection.budgets });
   if (shared && await shared.hasBinding(connection)) return shared.getAccessToken(connection, options);
   return serviceFor(ctx, { connection }).getAccessToken({ connectionRef: input.connectionRef, workspaceId: required.workspaceId }, options)
-    .catch((error: unknown) => refuseChangedClient(ctx, input.connectionRef, error));
+    .catch((error: unknown) => refuseChangedClient({ ctx, connectionRef: input.connectionRef, error }));
 }
 
 /**
@@ -269,7 +284,7 @@ async function getScopedAccessToken<State>(ctx: HostCtx<State>, scope: { readonl
  */
 function accessTokensFor<State>(ctx: HostCtx<State>, scope: { readonly pluginId: string }) {
   return {
-    getAccessToken: (input: { readonly connectionRef: string }, options: AccessOptions = {}): Promise<string> => getScopedAccessToken(ctx, scope, input, options),
+    getAccessToken: (input: { readonly connectionRef: string }, options: AccessOptions = {}): Promise<string> => getScopedAccessToken({ ctx, scope, input, options }),
   };
 }
 

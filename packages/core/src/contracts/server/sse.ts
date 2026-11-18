@@ -87,7 +87,7 @@ export function createSseStream<E extends SseEvent>(
     options.onClose?.();
     state.wake?.();
   };
-  const push = (text: string, { counted }: { readonly counted: boolean }): void => {
+  const push = ({ text, counted }: { text: string; counted: boolean }): void => {
     if (state.closed || state.ending) return;
     // A client that stopped reading is disconnected rather than buffered without limit: a closed
     // stream is an observable signal it can reconnect from, silently dropped frames are not.
@@ -96,7 +96,7 @@ export function createSseStream<E extends SseEvent>(
     if (counted) state.counted += 1;
     state.wake?.();
   };
-  if (options.keepAliveMs !== false) timer = scheduler.every({ callback: () => push(': ping\n\n', { counted: true }), intervalMs: options.keepAliveMs ?? 15_000 });
+  if (options.keepAliveMs !== false) timer = scheduler.every({ callback: () => push({ text: ': ping\n\n', counted: true }), intervalMs: options.keepAliveMs ?? 15_000 });
   options.signal?.addEventListener('abort', close, { once: true });
   // A client that disconnected while the handler was still setting up never fires 'abort' again.
   if (options.signal?.aborted) close();
@@ -107,7 +107,7 @@ export function createSseStream<E extends SseEvent>(
   return {
     response: new Response(body, { status: 200, headers: sseHeaders(options.headers) }),
     send({ event }, { backlog = false } = {}) {
-      push(format({ event }), { counted: !backlog });
+      push({ text: format({ event }), counted: !backlog });
       if (options.isEndEvent?.({ event })) state.ending = true;
       if (state.ending) state.wake?.();
     },

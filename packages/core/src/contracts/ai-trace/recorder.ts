@@ -119,14 +119,14 @@ interface RecorderCtx {
 
 type RunError = { message: string; code?: string | null } | null;
 
-function capture(c: RecorderCtx, text: string | null | undefined) {
+function capture({ c, text }: { c: RecorderCtx; text: string | null | undefined }) {
   return captureText({ text }, c.captureOptions);
 }
 
 /** Streamed text: `full` redacts the kept text; other modes report the count without having kept it. */
-function captureStreamed(c: RecorderCtx, text: string, chars: number) {
+function captureStreamed({ c, text, chars }: { c: RecorderCtx; text: string; chars: number }) {
   if (chars === 0 || c.captureOptions.mode === 'off') return null;
-  return c.keepText ? capture(c, text) : { chars };
+  return c.keepText ? capture({ c, text }) : { chars };
 }
 
 function record(c: RecorderCtx, event: AiTraceEvent): void {
@@ -143,7 +143,7 @@ function startRun(c: RecorderCtx, { input = null }: { input?: string | null }): 
   c.runInput = input;
   c.lastBoundary = c.now();
   const { options } = c;
-  record(c, { kind: 'run_started', traceId: c.traceId, runId: c.runId, at: c.lastBoundary, agentId: c.agentId, provider: options.provider ?? null, model: c.model, sessionId: options.sessionId ?? null, input: capture(c, input), tags: options.tags ?? [] });
+  record(c, { kind: 'run_started', traceId: c.traceId, runId: c.runId, at: c.lastBoundary, agentId: c.agentId, provider: options.provider ?? null, model: c.model, sessionId: options.sessionId ?? null, input: capture({ c, text: input }), tags: options.tags ?? [] });
 }
 
 function noteRunInput(c: RecorderCtx, { input }: { input: string }): void {
@@ -168,7 +168,11 @@ function resolveCost(c: RecorderCtx, { usage, reported }: { usage: AiTokenUsage 
   return estimated === null ? { costUsd: null, costSource: null } : { costUsd: estimated, costSource: 'estimated' };
 }
 
-function addToTotals(c: RecorderCtx, usage: AiTokenUsage | null, costUsd: number | null): void {
+function addToTotals({ c, usage, costUsd }: {
+  c: RecorderCtx;
+  usage: AiTokenUsage | null;
+  costUsd: number | null;
+}): void {
   const { totals } = c;
   totals.turns += 1;
   totals.inputTokens = addNullable(totals.inputTokens, usage?.inputTokens ?? null);
@@ -208,9 +212,9 @@ function closeTurn(c: RecorderCtx): void {
   const endedAt = c.now();
   const usage = open.usage;
   const { costUsd, costSource } = resolveCost(c, { usage, reported: open.reportedCost });
-  const errorContent = capture(c, open.error);
-  record(c, { kind: 'model_turn', traceId: c.traceId, turnId: open.id, toolCallCount: open.toolCallCount, index: open.index, startedAt: open.startedAt, endedAt, model: c.model, input: open.index === 0 ? capture(c, c.runInput) : null, output: captureStreamed(c, open.output, open.outputChars), reasoning: captureStreamed(c, open.reasoning, open.reasoningChars), usage, costUsd, costSource, ttftMs: ttftOf(open), stopReason: open.stopReason, error: open.error === null ? null : errorContent?.text ?? 'model_error', errorContent, errorCode: safeCode(c, { code: open.errorCode }) });
-  addToTotals(c, usage, costUsd);
+  const errorContent = capture({ c, text: open.error });
+  record(c, { kind: 'model_turn', traceId: c.traceId, turnId: open.id, toolCallCount: open.toolCallCount, index: open.index, startedAt: open.startedAt, endedAt, model: c.model, input: open.index === 0 ? capture({ c, text: c.runInput }) : null, output: captureStreamed({ c, text: open.output, chars: open.outputChars }), reasoning: captureStreamed({ c, text: open.reasoning, chars: open.reasoningChars }), usage, costUsd, costSource, ttftMs: ttftOf(open), stopReason: open.stopReason, error: open.error === null ? null : errorContent?.text ?? 'model_error', errorContent, errorCode: safeCode(c, { code: open.errorCode }) });
+  addToTotals({ c, usage, costUsd });
   c.turn = null;
   c.lastBoundary = endedAt;
 }
@@ -219,7 +223,7 @@ function emitTool(c: RecorderCtx, { tool, result }: { tool: PendingTool; result:
   const errorClass = result.isError ? classifyToolError({ content: result.content ?? '' }) : null;
   c.totals.toolCalls += 1;
   if (result.isError) c.totals.toolErrors += 1;
-  record(c, { kind: 'tool_call', traceId: c.traceId, toolCallId: tool.id, turnId: tool.turnId, name: tool.name, input: capture(c, stringifyForCapture({ value: tool.input })), output: capture(c, result.content), isError: result.isError, errorClass, startedAt: tool.startedAt, endedAt: result.endedAt });
+  record(c, { kind: 'tool_call', traceId: c.traceId, toolCallId: tool.id, turnId: tool.turnId, name: tool.name, input: capture({ c, text: stringifyForCapture({ value: tool.input }) }), output: capture({ c, text: result.content }), isError: result.isError, errorClass, startedAt: tool.startedAt, endedAt: result.endedAt });
 }
 
 function onStatus(c: RecorderCtx, event: AgentEvent): void {
@@ -329,11 +333,11 @@ function flushOpenWork(c: RecorderCtx): void {
 function runError(c: RecorderCtx, { outcome, error }: { outcome: AiRunOutcome; error: RunError }): Extract<AiTraceEvent, { kind: 'run_finished' }>['error'] {
   const message = error?.message ?? (outcome === 'failed' ? c.lastError : null);
   if (!message) return null;
-  const content = capture(c, message);
+  const content = capture({ c, text: message });
   return { message: content?.text ?? 'run_error', code: safeCode(c, { code: error?.code ?? c.lastErrorCode }), content };
 }
 
-function finishRun(c: RecorderCtx, { outcome }: { outcome: AiRunOutcome }, { error = null }: { error?: RunError } = {}): void {
+function finishRun({ c, outcome }: { c: RecorderCtx; outcome: AiRunOutcome }, { error = null }: { error?: RunError } = {}): void {
   if (c.finished) return;
   if (!c.started) startRun(c, {});
   flushOpenWork(c);
@@ -377,6 +381,6 @@ export function createAiTraceRecorder(
     start: (args) => startRun(c, args),
     noteInput: (args) => noteRunInput(c, args),
     observe: (event) => observeEvent(c, event),
-    finish: (outcome, extra) => finishRun(c, outcome, extra),
+    finish: (outcome, extra) => finishRun({ c, ...outcome }, extra),
   };
 }

@@ -189,22 +189,22 @@ interface StoreState {
   onRowsChanged: (rows: MemoryExtractionRecord[]) => void;
 }
 
-function commit(st: StoreState, next: MemoryExtractionRecord[]): number {
+function commit({ st, next }: { st: StoreState; next: MemoryExtractionRecord[] }): number {
   st.clock += 1;
   st.rows = next;
   st.onRowsChanged(st.rows);
   return st.clock;
 }
 
-function markPendingDelete(st: StoreState, id: string): void {
+function markPendingDelete({ st, id }: { st: StoreState; id: string }): void {
   st.pendingDeletes.set(id, (st.pendingDeletes.get(id) ?? 0) + 1);
 }
 
 /** Returns true when this was the LAST in-flight delete for the id. Every
- *  call site pairs this with a prior `markPendingDelete(id)` (beginDelete
+ *  call site pairs this with a prior `markPendingDelete({ st: id })` (beginDelete
  *  always precedes the settle path that calls this), so `pendingDeletes`
  *  is guaranteed to already hold `id` here. */
-function unmarkPendingDelete(st: StoreState, id: string): boolean {
+function unmarkPendingDelete({ st, id }: { st: StoreState; id: string }): boolean {
   const count = st.pendingDeletes.get(id)! - 1;
   if (count <= 0) {
     st.pendingDeletes.delete(id);
@@ -222,13 +222,13 @@ function applyClearedFrame(st: StoreState): void {
   const owned = new Set([...st.rows.map((row) => row.id), ...st.pendingDeletes.keys(), ...st.deferred.keys()]);
   for (const id of owned) st.tombstones.add(id);
   st.deferred.clear();
-  st.clearStamp = commit(st, []);
+  st.clearStamp = commit({ st, next: [] });
 }
 
 function applyDeletedFrame(st: StoreState, { id }: { id: string }): void {
   st.deferred.delete(id);
   st.tombstones.add(id);
-  commit(st, st.rows.filter((row) => row.id !== id));
+  commit({ st, next: st.rows.filter((row) => row.id !== id) });
 }
 
 function deferFrame(st: StoreState, ev: MemoryExtractionEvent): void {
@@ -248,7 +248,7 @@ function upsertFrame(st: StoreState, ev: MemoryExtractionEvent): void {
   } else {
     next = [ev, ...st.rows].slice(0, MAX_ROWS);
   }
-  st.rowStamp.set(ev.id, commit(st, next));
+  st.rowStamp.set(ev.id, commit({ st, next }));
 }
 
 function applyFrame(st: StoreState, ev: MemoryExtractionEvent): void {
@@ -272,7 +272,11 @@ function applyFrame(st: StoreState, ev: MemoryExtractionEvent): void {
 }
 
 /** The snapshot's rows this client may accept (none when a clear supersedes the read). */
-function acceptSnapshotRows(st: StoreState, confirmed: MemoryExtractionRecord[], sinceClock: number) {
+function acceptSnapshotRows({ st, confirmed, sinceClock }: {
+  st: StoreState;
+  confirmed: MemoryExtractionRecord[];
+  sinceClock: number;
+}) {
   // An authoritative clear younger than this read supersedes the whole
   // snapshot — every row in it is pre-clear as far as the client can
   // order, so nothing from it may come back. A clear still IN FLIGHT
@@ -285,11 +289,11 @@ function acceptSnapshotRows(st: StoreState, confirmed: MemoryExtractionRecord[],
 }
 
 /** Live rows kept newest-first, content-merged with the snapshot's copy; stale-and-absent rows dropped. */
-function survivingRows(
-  st: StoreState,
-  acceptedById: Map<string, MemoryExtractionRecord>,
-  sinceClock: number,
-): MemoryExtractionRecord[] {
+function survivingRows({ st, acceptedById, sinceClock }: {
+  st: StoreState;
+  acceptedById: Map<string, MemoryExtractionRecord>;
+  sinceClock: number;
+}): MemoryExtractionRecord[] {
   // Live rows keep their newest-first positions, content-merged with the
   // snapshot's version of the same id (rule B). A row the snapshot no
   // longer has (evicted server-side, or removed by another client) is
@@ -316,14 +320,14 @@ function survivingRows(
     });
 }
 
-function commitSnapshot(
-  st: StoreState,
-  confirmed: MemoryExtractionRecord[],
-  sinceClock: number,
-): MemoryExtractionRecord[] {
-  const accepted = acceptSnapshotRows(st, confirmed, sinceClock);
+function commitSnapshot({ st, confirmed, sinceClock }: {
+  st: StoreState;
+  confirmed: MemoryExtractionRecord[];
+  sinceClock: number;
+}): MemoryExtractionRecord[] {
+  const accepted = acceptSnapshotRows({ st, confirmed, sinceClock });
   const acceptedById = new Map(accepted.map((row) => [row.id, row] as const));
-  const survivors = survivingRows(st, acceptedById, sinceClock);
+  const survivors = survivingRows({ st, acceptedById, sinceClock });
   const survivorIds = new Set(survivors.map((row) => row.id));
   const merged = [...survivors];
   for (const row of accepted) {
@@ -334,7 +338,7 @@ function commitSnapshot(
     if (at === -1) merged.push(row);
     else merged.splice(at, 0, row);
   }
-  const revision = commit(st, merged);
+  const revision = commit({ st, next: merged });
   for (const row of accepted) st.rowStamp.set(row.id, revision);
   return st.rows;
 }
@@ -343,12 +347,12 @@ function createDeleteOps(st: StoreState): Pick<ExtractionHistoryStore, 'beginDel
   return {
     beginDelete(id) {
       const previousRows = st.rows;
-      markPendingDelete(st, id);
-      const startClock = commit(st, st.rows.filter((row) => row.id !== id));
+      markPendingDelete({ st, id });
+      const startClock = commit({ st, next: st.rows.filter((row) => row.id !== id) });
       return { previousRows, startClock };
     },
     settleDeleteSuccess(id) {
-      if (unmarkPendingDelete(st, id)) st.deferred.delete(id);
+      if (unmarkPendingDelete({ st, id })) st.deferred.delete(id);
       st.tombstones.add(id);
       // Re-filter against `rows` here too (belt-and-suspenders): the
       // pending-delete checks in commitSnapshot/applyFrame already keep `id`
@@ -359,10 +363,10 @@ function createDeleteOps(st: StoreState): Pick<ExtractionHistoryStore, 'beginDel
       // restoreIfUnchanged (checked against ITS OWN startClock) correctly
       // treat this confirmation as something that happened since it started,
       // rather than silently letting a stale previousRows restore win.
-      commit(st, st.rows.filter((row) => row.id !== id));
+      commit({ st, next: st.rows.filter((row) => row.id !== id) });
     },
     settleDeleteFailure(id) {
-      if (!unmarkPendingDelete(st, id)) return;
+      if (!unmarkPendingDelete({ st, id })) return;
       const buffered = st.deferred.get(id);
       st.deferred.delete(id);
       // Replay routes back through applyFrame so a still-pending CLEAR
@@ -378,7 +382,7 @@ function createClearOps(st: StoreState): Pick<ExtractionHistoryStore, 'beginClea
       const previousRows = st.rows;
       const ownedIds = new Set([...st.rows.map((row) => row.id), ...st.pendingDeletes.keys()]);
       st.pendingClears += 1;
-      const startClock = commit(st, []);
+      const startClock = commit({ st, next: [] });
       return { previousRows, startClock, ownedIds };
     },
     settleClearSuccess(token) {
@@ -392,7 +396,7 @@ function createClearOps(st: StoreState): Pick<ExtractionHistoryStore, 'beginClea
       st.deferred.clear();
       // Re-assert the wipe (see settleDeleteSuccess for why) and stamp it as
       // the authoritative clear point for in-flight reads.
-      st.clearStamp = commit(st, []);
+      st.clearStamp = commit({ st, next: [] });
     },
     settleClearFailure() {
       st.pendingClears = Math.max(0, st.pendingClears - 1);
@@ -426,13 +430,13 @@ export function createExtractionHistoryStore(
   return {
     rows: () => st.rows,
     snapshotClock: () => st.clock,
-    commitSnapshot: (confirmed, sinceClock) => commitSnapshot(st, confirmed, sinceClock),
+    commitSnapshot: (confirmed, sinceClock) => commitSnapshot({ st, confirmed, sinceClock }),
     applyFrame: (ev) => applyFrame(st, ev),
     ...createDeleteOps(st),
     ...createClearOps(st),
     restoreIfUnchanged(token) {
       if (st.clock !== token.startClock) return;
-      commit(st, token.previousRows);
+      commit({ st, next: token.previousRows });
     },
   };
 }

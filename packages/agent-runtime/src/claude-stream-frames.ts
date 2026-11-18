@@ -105,7 +105,10 @@ function nextGeneratedRuntimeTaskId(counter: RuntimeTaskIdCounter): string {
   return id;
 }
 
-export function runtimeTaskIdFromCreate(input: Record<string, unknown>, counter: RuntimeTaskIdCounter): string {
+export function runtimeTaskIdFromCreate({ input, counter }: {
+  input: Record<string, unknown>;
+  counter: RuntimeTaskIdCounter;
+}): string {
   if (typeof input.taskId === 'string' && input.taskId) {
     const numericId = Number(input.taskId);
     if (Number.isSafeInteger(numericId) && numericId >= counter.next) {
@@ -116,14 +119,14 @@ export function runtimeTaskIdFromCreate(input: Record<string, unknown>, counter:
   return nextGeneratedRuntimeTaskId(counter);
 }
 
-export function applyTaskCreate(
-  input: Record<string, unknown>,
-  tasks: Map<string, RuntimeTask>,
-  counter: RuntimeTaskIdCounter,
-): boolean {
+export function applyTaskCreate({ input, tasks, counter }: {
+  input: Record<string, unknown>;
+  tasks: Map<string, RuntimeTask>;
+  counter: RuntimeTaskIdCounter;
+}): boolean {
   const content = firstString(input.subject, input.description) ?? '';
   if (!content) return false;
-  const id = runtimeTaskIdFromCreate(input, counter);
+  const id = runtimeTaskIdFromCreate({ input, counter });
   const activeForm = typeof input.activeForm === 'string' ? input.activeForm : undefined;
   tasks.set(id, {
     id,
@@ -134,7 +137,10 @@ export function applyTaskCreate(
   return true;
 }
 
-export function applyTaskUpdate(input: Record<string, unknown>, tasks: Map<string, RuntimeTask>): boolean {
+export function applyTaskUpdate({ input, tasks }: {
+  input: Record<string, unknown>;
+  tasks: Map<string, RuntimeTask>;
+}): boolean {
   if (typeof input.taskId !== 'string') return false;
   const existing = tasks.get(input.taskId);
   if (!existing) return false;
@@ -149,18 +155,18 @@ export function applyTaskUpdate(input: Record<string, unknown>, tasks: Map<strin
   return true;
 }
 
-export function emitCanonicalTaskSnapshot(
-  toolUseId: unknown,
-  name: unknown,
-  input: unknown,
-  registry: TaskRegistry,
-  onEvent: EventSink,
-): boolean {
+export function emitCanonicalTaskSnapshot({ toolUseId, name, input, registry, onEvent }: {
+  toolUseId: unknown;
+  name: unknown;
+  input: unknown;
+  registry: TaskRegistry;
+  onEvent: EventSink;
+}): boolean {
   if (typeof toolUseId !== 'string' || typeof name !== 'string' || !isRecord(input)) return false;
   if (registry.seenToolUseIds.has(toolUseId)) return true;
   const applied = name === 'TaskCreate'
-    ? applyTaskCreate(input, registry.tasks, registry.counter)
-    : name === 'TaskUpdate' && applyTaskUpdate(input, registry.tasks);
+    ? applyTaskCreate({ input, tasks: registry.tasks, counter: registry.counter })
+    : name === 'TaskUpdate' && applyTaskUpdate({ input, tasks: registry.tasks });
   if (!applied) return false;
   // Coverage-driven refactor (2026-07-18, no behavior change): the
   // original OD source guarded this emission with
@@ -189,7 +195,7 @@ export function emitCanonicalTaskSnapshot(
   return true;
 }
 
-export function isFileWriteToolUse(name: unknown, input: unknown): boolean {
+export function isFileWriteToolUse({ name, input }: { name: unknown; input: unknown }): boolean {
   if (typeof name !== 'string' || !isRecord(input)) return false;
   if (!WRITE_TOOL_NAMES.has(name)) return false;
   if (/\.(html|htm|css|js|jsx|ts|tsx|md)$/iu.test(toolInputPath(input))) return true;
@@ -225,7 +231,7 @@ export function isHtmlWriteToolInput(input: unknown): boolean {
   return typeof content === 'string' && /<!doctype\s+html\b|<html\b/i.test(content);
 }
 
-export function artifactOpenCandidateLength(text: string, openTag: string): number {
+export function artifactOpenCandidateLength({ text, openTag }: { text: string; openTag: string }): number {
   const max = Math.min(openTag.length - 1, text.length);
   for (let len = max; len > 0; len -= 1) {
     if (openTag.startsWith(text.slice(-len))) return len;
@@ -246,28 +252,28 @@ export function normalizeArtifactEchoContent(value: string): string {
 }
 
 /** Length of the padding token (whitespace, or a literal `\r`/`\n` escape) starting at `index`; 0 if none. */
-function echoPaddingAt(text: string, index: number): number {
+function echoPaddingAt({ text, index }: { text: string; index: number }): number {
   if (/\s/.test(text.charAt(index))) return 1;
   return text.startsWith('\\r', index) || text.startsWith('\\n', index) ? 2 : 0;
 }
 
 /** Length of the padding token ending just before `end`; 0 if none. */
-function echoPaddingBefore(text: string, end: number): number {
+function echoPaddingBefore({ text, end }: { text: string; end: number }): number {
   if (end > 0 && /\s/.test(text.charAt(end - 1))) return 1;
-  return end > 1 && echoPaddingAt(text, end - 2) === 2 ? 2 : 0;
+  return end > 1 && echoPaddingAt({ text, index: end - 2 }) === 2 ? 2 : 0;
 }
 
 /** Strips leading and trailing runs of whitespace and literal `\r`/`\n` escapes. Same result as
  *  `text.replace(/^(?:\s|\\r|\\n)+|(?:\s|\\r|\\n)+$/g, '')`, without its quadratic backtracking. */
 function trimEchoPadding(text: string): string {
   let start = 0;
-  for (let step = echoPaddingAt(text, start); step > 0; step = echoPaddingAt(text, start)) start += step;
+  for (let step = echoPaddingAt({ text, index: start }); step > 0; step = echoPaddingAt({ text, index: start })) start += step;
   let end = text.length;
-  for (let step = echoPaddingBefore(text, end); step > 0 && end - step >= start; step = echoPaddingBefore(text, end)) end -= step;
+  for (let step = echoPaddingBefore({ text, end }); step > 0 && end - step >= start; step = echoPaddingBefore({ text, end })) end -= step;
   return text.slice(start, end);
 }
 
-export function isRedundantWrittenArtifact(candidate: string, ctx: ArtifactEchoContext): boolean {
+export function isRedundantWrittenArtifact({ candidate, ctx }: { candidate: string; ctx: ArtifactEchoContext }): boolean {
   const gt = candidate.indexOf('>');
   const close = candidate.lastIndexOf('</artifact>');
   if (gt === -1 || close === -1 || close <= gt) return false;
@@ -373,7 +379,11 @@ export function handleUserMessage(obj: Record<string, unknown>, onEvent: EventSi
   }
 }
 
-export function applyInputJsonDelta(state: BlockState | undefined, partialJson: string, onEvent: EventSink): void {
+export function applyInputJsonDelta({ state, partialJson, onEvent }: {
+  state: BlockState | undefined;
+  partialJson: string;
+  onEvent: EventSink;
+}): void {
   if (!state || state.type !== 'tool_use') return;
   state.input += partialJson;
   if (typeof state.id === 'string' && typeof state.name === 'string') {
@@ -386,7 +396,11 @@ export function applyInputJsonDelta(state: BlockState | undefined, partialJson: 
   }
 }
 
-export function emitAssistantErrorIfPresent(obj: Record<string, unknown>, content: unknown[], onEvent: EventSink): void {
+export function emitAssistantErrorIfPresent({ obj, content, onEvent }: {
+  obj: Record<string, unknown>;
+  content: unknown[];
+  onEvent: EventSink;
+}): void {
   if (typeof obj.error !== 'string' || !obj.error.trim()) return;
   onEvent({
     type: 'error',

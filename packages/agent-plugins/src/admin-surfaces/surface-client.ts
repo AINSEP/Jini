@@ -171,7 +171,7 @@ interface ClientState {
 }
 
 /** Tells the host this surface's height (only when it changed), so the frame fits its content. */
-function reportHeight(state: ClientState, height: number): void {
+function reportHeight({ state, height }: { state: ClientState; height: number }): void {
   const { init } = state;
   if (init === undefined || !Number.isFinite(height) || height === state.lastHeight) return;
   state.lastHeight = height;
@@ -179,7 +179,7 @@ function reportHeight(state: ClientState, height: number): void {
 }
 
 /** Replaces the applied tokens: a token the new theme no longer sends falls back to the surface's CSS. */
-function applyTheme(state: ClientState, value: unknown): void {
+function applyTheme({ state, value }: { state: ClientState; value: unknown }): void {
   const next = acceptedTheme(value);
   if (next === undefined) return;
   const { themeRoot } = state;
@@ -192,15 +192,23 @@ function applyTheme(state: ClientState, value: unknown): void {
   state.currentTheme = next;
 }
 
-function onInit(state: ClientState, event: AdminSurfaceIncomingMessage, data: Message): void {
+function onInit({ state, event, data }: {
+  state: ClientState;
+  event: AdminSurfaceIncomingMessage;
+  data: Message;
+}): void {
   if (state.init !== undefined || typeof data.mountId !== 'string') return;
   state.init = { mountId: data.mountId, origin: event.origin, bootstrap: data.bootstrap };
-  applyTheme(state, data.theme);
-  state.stopSize = state.size?.((height) => reportHeight(state, height));
+  applyTheme({ state, value: data.theme });
+  state.stopSize = state.size?.((height) => reportHeight({ state, height }));
   state.resolveReady();
 }
 
-function onResponse(state: ClientState, event: AdminSurfaceIncomingMessage, data: Message): void {
+function onResponse({ state, event, data }: {
+  state: ClientState;
+  event: AdminSurfaceIncomingMessage;
+  data: Message;
+}): void {
   const { init, pending } = state;
   if (event.origin !== init?.origin || data.mountId !== init.mountId || typeof data.requestId !== 'string') return;
   const waiting = pending.get(data.requestId);
@@ -215,18 +223,23 @@ function onResponse(state: ClientState, event: AdminSurfaceIncomingMessage, data
 function onParentMessage(state: ClientState, event: AdminSurfaceIncomingMessage): void {
   if (event.source !== state.parent) return;
   if (isMessage(event.data, 'init')) {
-    onInit(state, event, event.data);
+    onInit({ state, event, data: event.data });
     return;
   }
   if (isMessage(event.data, 'theme')) {
-    if (event.origin === state.init?.origin && event.data.mountId === state.init.mountId) applyTheme(state, event.data.theme);
+    if (event.origin === state.init?.origin && event.data.mountId === state.init.mountId) applyTheme({ state, value: event.data.theme });
     return;
   }
-  if (isMessage(event.data, 'action-response')) onResponse(state, event, event.data);
+  if (isMessage(event.data, 'action-response')) onResponse({ state, event, data: event.data });
 }
 
 /** Posts one request of `kind` to the host origin and waits for its `action-response`. */
-async function sendRequest(state: ClientState, ready: Promise<void>, kind: string, fields: Readonly<Record<string, unknown>>): Promise<unknown> {
+async function sendRequest({ state, ready, kind, fields }: {
+  state: ClientState;
+  ready: Promise<void>;
+  kind: string;
+  fields: Readonly<Record<string, unknown>>;
+}): Promise<unknown> {
   if (state.init === undefined) await ready;
   const { mountId, origin } = state.init!;
   state.nextRequest += 1;
@@ -250,7 +263,10 @@ function readBootstrap(state: ClientState): unknown {
 }
 
 /** Stops listening and rejects every pending call. */
-function closeClient(state: ClientState, unsubscribe: () => void): void {
+function closeClient({ state, unsubscribe }: {
+  state: ClientState;
+  unsubscribe: () => void;
+}): void {
   unsubscribe();
   state.stopSize?.();
   for (const [requestId, waiting] of state.pending) {
@@ -289,13 +305,18 @@ export function createAdminSurfaceClient(
   return {
     ready,
     /** Asks the host to run one declared action; resolves with its result. */
-    call: (input: { readonly action: string; readonly payload: unknown }): Promise<unknown> => sendRequest(state, ready, 'action-request', { action: input.action, payload: input.payload }),
+    call: (input: { readonly action: string; readonly payload: unknown }): Promise<unknown> => sendRequest({
+      state,
+      ready,
+      kind: 'action-request',
+      fields: { action: input.action, payload: input.payload },
+    }),
     /** Asks the host to open `url` outside the sandbox; only https links on the surface's declared
      * `linkOrigins` open, and the host decides how (new tab, system browser). Rejects with the host's refusal. */
-    openLink: async (input: { readonly url: string }): Promise<void> => { await sendRequest(state, ready, 'open-link', { url: input.url }); },
+    openLink: async (input: { readonly url: string }): Promise<void> => { await sendRequest({ state, ready, kind: 'open-link', fields: { url: input.url } }); },
     bootstrap: (): unknown => readBootstrap(state),
     /** The host's theme as applied, or `undefined` when the host sent none. */
     theme: (): AdminSurfaceClientTheme | undefined => state.currentTheme,
-    close: (): void => closeClient(state, unsubscribe),
+    close: (): void => closeClient({ state, unsubscribe }),
   };
 }

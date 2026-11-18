@@ -61,7 +61,7 @@ function handleGoogleToolUse(obj: JsonObject, onEvent: StreamEventHandler, state
 function handleGoogleToolResult(obj: JsonObject, onEvent: StreamEventHandler): boolean {
   if (typeof obj.tool_id !== 'string') return false;
   const error = isRecord(obj.error) ? obj.error : null;
-  const errorMessage = error ? extractErrorMessage(error, '') : '';
+  const errorMessage = error ? extractErrorMessage({ value: error, fallback: '' }) : '';
   const output = typeof obj.output === 'string'
     ? obj.output
     : errorMessage || stringifyContent(obj.output);
@@ -76,10 +76,10 @@ function handleGoogleToolResult(obj: JsonObject, onEvent: StreamEventHandler): b
 
 function handleGoogleError(obj: JsonObject, onEvent: StreamEventHandler): boolean {
   const severity = typeof obj.severity === 'string' ? obj.severity.toLowerCase() : '';
-  const message = extractErrorMessage(
-    obj.message ?? obj.error,
-    severity === 'warning' ? 'Google stream warning' : 'Google stream error',
-  );
+  const message = extractErrorMessage({
+    value: obj.message ?? obj.error,
+    fallback: severity === 'warning' ? 'Google stream warning' : 'Google stream error',
+  });
   if (severity === 'warning') {
     onEvent({ type: 'status', label: 'warning', detail: message });
   } else {
@@ -98,7 +98,7 @@ function handleGoogleResult(obj: JsonObject, onEvent: StreamEventHandler): boole
   if (obj.status === 'error' || isRecord(obj.error)) {
     onEvent({
       type: 'error',
-      message: extractErrorMessage(obj.error, 'Google stream error'),
+      message: extractErrorMessage({ value: obj.error, fallback: 'Google stream error' }),
       raw: stringifyContent(obj),
     });
     return true;
@@ -127,7 +127,7 @@ export function handleLegacyGoogleStreamEvent(obj: unknown, onEvent: StreamEvent
   if (!isGoogleAssistantText(obj)) {
     flushPendingArtifactText(state, onEvent);
   }
-  return dispatchFrame(GOOGLE_FRAME_HANDLERS, obj, onEvent, state);
+  return dispatchFrame({ handlers: GOOGLE_FRAME_HANDLERS, obj, onEvent, state });
 }
 
 function stripDuplicateArtifactText(text: string, state: ParserState): string {

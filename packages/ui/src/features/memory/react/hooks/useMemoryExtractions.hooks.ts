@@ -41,7 +41,11 @@ export interface MemoryExtractionsController {
 type SetLoadError = (error: string | null) => void;
 
 /** Commit-guarded reload of the history; returns the rows that actually committed. */
-function useExtractionReload(port: MemoryExtractionsPort, store: ExtractionHistoryStore, setLoadError: SetLoadError) {
+function useExtractionReload({ port, store, setLoadError }: {
+  port: MemoryExtractionsPort;
+  store: ExtractionHistoryStore;
+  setLoadError: SetLoadError;
+}) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   // Orders reloadExtractions() against itself (rule A, via the slice's
   // shared primitive): two overlapping reloads race two INDEPENDENT server
@@ -103,7 +107,11 @@ function useExtractionReload(port: MemoryExtractionsPort, store: ExtractionHisto
 }
 
 /** Optimistic delete-one / clear-all, each recovering server truth on failure. */
-function useExtractionMutations(port: MemoryExtractionsPort, store: ExtractionHistoryStore, setLoadError: SetLoadError) {
+function useExtractionMutations({ port, store, setLoadError }: {
+  port: MemoryExtractionsPort;
+  store: ExtractionHistoryStore;
+  setLoadError: SetLoadError;
+}) {
   const onDeleteExtraction = useCallback(
     async (id: string) => {
       // Optimistic removal: drop the row immediately so the click feels
@@ -189,8 +197,8 @@ export function useMemoryExtractions(port: MemoryExtractionsPort): MemoryExtract
   // keeps store state and the rendered rows resolved together.
   if (!storeRef.current) storeRef.current = createExtractionHistoryStore(setExtractions);
   const store = storeRef.current;
-  const { isRefreshing, reloadExtractions } = useExtractionReload(port, store, setLoadError);
-  const mutations = useExtractionMutations(port, store, setLoadError);
+  const { isRefreshing, reloadExtractions } = useExtractionReload({ port, store, setLoadError });
+  const mutations = useExtractionMutations({ port, store, setLoadError });
   const applyExtractionEvent = useCallback((ev: MemoryExtractionEvent) => store.applyFrame(ev), [store]);
   // The "no API key" banner only shows when the most recent attempt skipped
   // for that specific reason. We don't show it for memory-disabled (the

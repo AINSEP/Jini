@@ -64,11 +64,11 @@ type TabIdRef = { current: string | null };
 type FlagRef = { current: boolean };
 
 /** The tab under the pointer, as a drop target (edge from pointer X); null when the pointer isn't over another tab. */
-function targetFromHoveredItem(
-  strip: HTMLElement,
-  event: { clientX: number; target: EventTarget | null },
-  sourceId: string,
-): TabStripDragTarget | null {
+function targetFromHoveredItem({ strip, event, sourceId }: {
+  strip: HTMLElement;
+  event: { clientX: number; target: EventTarget | null };
+  sourceId: string;
+}): TabStripDragTarget | null {
   const eventTarget = event.target;
   if (!(eventTarget instanceof HTMLElement)) return null;
   const itemElement = eventTarget.closest<HTMLElement>(`[${TAB_STRIP_ITEM_ID_ATTRIBUTE}]`);
@@ -80,14 +80,14 @@ function targetFromHoveredItem(
 }
 
 /** Hit-test the strip: the hovered tab first, else the nearest tab edge (covers the gap after the last tab). */
-function locateDropTarget(
-  strip: HTMLElement,
-  tabs: TabStripTab[],
-  event: { clientX: number; target: EventTarget | null },
-  sourceId: string,
-): TabStripDragTarget | null {
+function locateDropTarget({ strip, tabs, event, sourceId }: {
+  strip: HTMLElement;
+  tabs: TabStripTab[];
+  event: { clientX: number; target: EventTarget | null };
+  sourceId: string;
+}): TabStripDragTarget | null {
   const pinnedIds = pinnedTabIdSet(tabs);
-  const hovered = targetFromHoveredItem(strip, event, sourceId);
+  const hovered = targetFromHoveredItem({ strip, event, sourceId });
   if (hovered) return coercePinnedDropTarget(hovered, pinnedIds);
 
   const elements = Array.from(
@@ -171,7 +171,10 @@ function pulseIfNewTarget(
 }
 
 /** Keep the existing target object when the key is unchanged, avoiding a re-render. */
-function keepIfSameTarget(current: TabStripDragTarget | null, next: TabStripDragTarget) {
+function keepIfSameTarget({ current, next }: {
+  current: TabStripDragTarget | null;
+  next: TabStripDragTarget;
+}) {
   return current && dragTargetKey(current) === dragTargetKey(next) ? current : next;
 }
 
@@ -199,20 +202,23 @@ function useStripDragProps({
   setDragOverTarget,
   clearDragState,
 }: StripDragDeps): UseTabStripDragReorderResult['stripDragProps'] {
-  const findDropTarget = (event: { clientX: number; target: EventTarget | null }, sourceId: string) => {
+  const findDropTarget = ({ event, sourceId }: {
+  event: { clientX: number; target: EventTarget | null };
+  sourceId: string;
+}) => {
     const strip = stripRef.current;
-    return strip ? locateDropTarget(strip, tabs, event, sourceId) : null;
+    return strip ? locateDropTarget({ strip, tabs, event, sourceId }) : null;
   };
 
   return {
     onDragOver: (event) => {
       const sourceId = draggingTabIdRef.current ?? event.dataTransfer.getData('text/plain');
       if (!sourceId) return;
-      const target = findDropTarget(event, sourceId);
+      const target = findDropTarget({ event, sourceId });
       if (!target) return;
       event.preventDefault();
       event.dataTransfer.dropEffect = 'move';
-      setDragOverTarget((current) => keepIfSameTarget(current, target));
+      setDragOverTarget((current) => keepIfSameTarget({ current, next: target }));
       pulseIfNewTarget({ dragHapticTargetRef, haptics, target });
       if (reorderTiming === 'live') {
         onReorder(sourceId, target.tabId, target.edge);
@@ -221,7 +227,7 @@ function useStripDragProps({
     onDrop: (event) => {
       const sourceId = draggingTabIdRef.current ?? event.dataTransfer.getData('text/plain');
       if (sourceId) event.preventDefault();
-      const target = sourceId ? findDropTarget(event, sourceId) : null;
+      const target = sourceId ? findDropTarget({ event, sourceId }) : null;
       if (sourceId && target) {
         onReorder(sourceId, target.tabId, target.edge);
         haptics.pulse(TAB_STRIP_DROP_HAPTIC_MS);

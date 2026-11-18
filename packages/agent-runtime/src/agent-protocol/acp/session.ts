@@ -940,7 +940,7 @@ export function attachAcpSession(requiredArgs: Pick<AttachAcpSessionOptions, "ch
   const run = createAcpRun({ options, resolved: resolveAcpSessionOptionDefaults(options) });
   const effects = buildAcpEffects(run);
   const parser = createJsonLineStream({
-    onError: error => failRun(run, error.message),
+    onError: error => failRun({ run, message: error.message }),
     onMessage: ({ message: raw, rawLine }) => handleAcpMessage({ run, effects, raw, rawLine }),
   });
   wireAcpProcessListeners({ run, parser });
@@ -955,7 +955,7 @@ function handleAcpMessage({ run, effects, raw, rawLine }: {
   rawLine: string;
 }): void {
   if (run.aborted || run.finished) return;
-  resetStageTimer(run, 'response');
+  resetStageTimer(run, { label: 'response' });
   const obj = asObject(raw);
   if (!obj) return;
   // First well-formed ACP JSON-RPC message = CLI ready. Caller dedupes, so

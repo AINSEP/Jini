@@ -106,7 +106,10 @@ const EMPTY_LEDGER: ReadonlyMap<string, string> = new Map();
  * module could have resolved simply stays the explicit error it already was.
  * @complexity One file read plus O(p) in the recorded plugin count.
  */
-async function readBundledAgentPluginDigests(ports: AgentPluginLifecyclePorts, workspaceRoot: string): Promise<BundledAgentPluginDigests> {
+async function readBundledAgentPluginDigests({ ports, workspaceRoot }: {
+  ports: AgentPluginLifecyclePorts;
+  workspaceRoot: string;
+}): Promise<BundledAgentPluginDigests> {
   let raw: string;
   try {
     raw = await ports.filesystem.readFile(path.join(workspaceRoot, BUNDLED_DIGESTS_FILENAME), "utf8");
@@ -169,7 +172,7 @@ async function recordBundledAgentPluginDigests(ports: AgentPluginLifecyclePorts,
 }): Promise<void> {
   if (required.seeded.length === 0) return;
 
-  const existing = await readBundledAgentPluginDigests(ports, required.workspaceRoot);
+  const existing = await readBundledAgentPluginDigests({ ports, workspaceRoot: required.workspaceRoot });
   const merged = new Map(existing);
   const seededAt = (required.now?.({}) ?? new Date(ports.clock.nowMs())).toISOString();
 
@@ -179,7 +182,7 @@ async function recordBundledAgentPluginDigests(ports: AgentPluginLifecyclePorts,
   }
 
   const plugins = Object.fromEntries([...merged].map(([pluginId, archiveDigest]) => [pluginId, { archiveDigest, seededAt }]));
-  await writeLedgerAtomically(ports, required.workspaceRoot, plugins);
+  await writeLedgerAtomically({ ports, workspaceRoot: required.workspaceRoot, plugins });
 }
 
 /**
@@ -231,7 +234,7 @@ async function removeBundledAgentPluginDigest(ports: AgentPluginLifecyclePorts, 
 
   const remaining: Record<string, unknown> = { ...parsed.plugins };
   delete remaining[required.pluginId];
-  await writeLedgerAtomically(ports, required.workspaceRoot, remaining);
+  await writeLedgerAtomically({ ports, workspaceRoot: required.workspaceRoot, plugins: remaining });
   return true;
 }
 
@@ -240,7 +243,11 @@ async function removeBundledAgentPluginDigest(ports: AgentPluginLifecyclePorts, 
  *  `writeActivationsAtomically` uses, minus its cross-process lock: this file has exactly one writer
  *  (the boot seeder, retirement included), and two concurrent boots of the SAME build write byte-identical content.
  *  @complexity One write and one rename. */
-async function writeLedgerAtomically(ports: AgentPluginLifecyclePorts, workspaceRoot: string, plugins: Readonly<Record<string, unknown>>): Promise<void> {
+async function writeLedgerAtomically({ ports, workspaceRoot, plugins }: {
+  ports: AgentPluginLifecyclePorts;
+  workspaceRoot: string;
+  plugins: Readonly<Record<string, unknown>>;
+}): Promise<void> {
   const finalPath = path.join(workspaceRoot, BUNDLED_DIGESTS_FILENAME);
   const tempPath = `${finalPath}.tmp-${ports.process.pid}-${ports.ids.newId()}`;
   try {
@@ -325,7 +332,7 @@ function isPlainObject(value: unknown): value is Readonly<Record<string, unknown
 
 function buildModule(ports: AgentPluginLifecyclePorts) {
   return {
-    readBundledAgentPluginDigests: (workspaceRoot: string) => readBundledAgentPluginDigests(ports, workspaceRoot),
+    readBundledAgentPluginDigests: (workspaceRoot: string) => readBundledAgentPluginDigests({ ports, workspaceRoot }),
     normalizeBundledDigests,
     recordBundledAgentPluginDigests: (required: Parameters<typeof recordBundledAgentPluginDigests>[1]) => recordBundledAgentPluginDigests(ports, required),
     removeBundledAgentPluginDigest: (required: Parameters<typeof removeBundledAgentPluginDigest>[1]) => removeBundledAgentPluginDigest(ports, required),

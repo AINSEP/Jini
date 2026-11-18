@@ -338,11 +338,11 @@ export function attachPiRpcSession(requiredArgs: Pick<PiRpcSessionOptions, "chil
   // intentionally contain only the latest user turn, so continuing after a
   // failed parent load would silently drop prior conversation context.
   if (parentSession) {
-    run.parentSessionRpcId = sendPiCommand(run, 'new_session', { parentSession });
+    run.parentSessionRpcId = sendPiCommand({ run, type: 'new_session' }, { params: { parentSession } });
   } else {
     sendPiPrompt(run);
   }
-  wirePiOutput(run, child, stdout);
+  wirePiOutput({ run, child, stdout });
   return buildPiRpcSession(run);
 }
 
@@ -366,7 +366,7 @@ interface PiRun {
   images: PiImagePayload[];
 }
 
-function sendPiCommand(run: PiRun, type: string, params: PiRpcParams = {}): number | null {
+function sendPiCommand({ run, type }: { run: PiRun; type: string }, { params = {} }: { params?: PiRpcParams } = {}): number | null {
   if (!run.stdinOpen) return null;
   const id = run.nextRpcId;
   run.nextRpcId += 1;
@@ -375,13 +375,15 @@ function sendPiCommand(run: PiRun, type: string, params: PiRpcParams = {}): numb
 }
 
 function sendPiPrompt(run: PiRun): void {
-  run.promptRpcId = sendPiCommand(run, 'prompt', {
+  run.promptRpcId = sendPiCommand({ run, type: 'prompt' }, {
+    params: {
     message: run.options.prompt,
     ...(run.images.length > 0 ? { images: run.images } : {}),
+  },
   });
 }
 
-function failPi(run: PiRun, message: string, code?: string): void {
+function failPi({ run, message }: { run: PiRun; message: string }, { code }: { code?: string } = {}): void {
   if (run.finished) return;
   run.finished = true;
   run.fatal = true;
@@ -392,7 +394,7 @@ function failPi(run: PiRun, message: string, code?: string): void {
 function wirePiStdin(run: PiRun): void {
   run.stdin.on('error', (err: unknown) => {
     if (errorCode(err) !== 'EPIPE') {
-      failPi(run, `stdin: ${errorMessage(err)}`);
+      failPi({ run, message: `stdin: ${errorMessage(err)}` });
     }
   });
   run.stdin.on('close', () => {
@@ -414,7 +416,7 @@ function handlePiAgentEnd(run: PiRun): void {
   try {
     run.stdin.end();
   } catch (err: unknown) {
-    failPi(run, `stdin close: ${errorMessage(err)}`);
+    failPi({ run, message: `stdin close: ${errorMessage(err)}` });
   }
   // Grace period before SIGTERM lets resource-constrained machines drain a slow event loop.
   // The host supplies timing explicitly, resolving PI_GRACEFUL_SHUTDOWN_MS at composition.
@@ -423,7 +425,7 @@ function handlePiAgentEnd(run: PiRun): void {
   }, gracefulShutdownMs);
 }
 
-function handlePiMessage(run: PiRun, raw: unknown): void {
+function handlePiMessage({ run, raw }: { run: PiRun; raw: unknown }): void {
   if (!isRecord(raw)) return;
   // Once finished (agent_end or abort), stop processing — the run is
   // over, so no more agent events should be emitted. We still drain
@@ -442,7 +444,7 @@ function handlePiMessage(run: PiRun, raw: unknown): void {
       raw,
       parentSessionRpcId: run.parentSessionRpcId,
       promptRpcId: run.promptRpcId,
-      fail: (message, code) => failPi(run, message, code),
+      fail: (message, code) => failPi({ run, message }, code === undefined ? {} : { code }),
       sendPromptCommand: () => sendPiPrompt(run),
     });
     return;
@@ -456,20 +458,24 @@ function handlePiMessage(run: PiRun, raw: unknown): void {
 }
 
 // ---- Inbound: parse stdout events ----
-function wirePiOutput(run: PiRun, child: ChildProcess, stdout: NonNullable<ChildProcess['stdout']>): void {
+function wirePiOutput({ run, child, stdout }: {
+  run: PiRun;
+  child: ChildProcess;
+  stdout: NonNullable<ChildProcess['stdout']>;
+}): void {
   const parser = createJsonLineStream({
-    onError: error => failPi(run, `parser: ${error.message}`),
-    onMessage: ({ message: raw }: { message: unknown }) => handlePiMessage(run, raw),
+    onError: error => failPi({ run, message: `parser: ${error.message}` }),
+    onMessage: ({ message: raw }: { message: unknown }) => handlePiMessage({ run, raw }),
   });
   stdout.on('data', (chunk: Buffer | string) => {
     try {
       parser.feed({ chunk: typeof chunk === 'string' ? chunk : chunk.toString('utf8') });
     } catch (err) {
-      failPi(run, `parser: ${errorMessage(err)}`);
+      failPi({ run, message: `parser: ${errorMessage(err)}` });
     }
   });
   stdout.on('close', () => parser.flush());
-  child.on('error', (err: unknown) => failPi(run, errorMessage(err)));
+  child.on('error', (err: unknown) => failPi({ run, message: errorMessage(err) }));
 }
 
 function buildPiRpcSession(run: PiRun): PiRpcSession {
@@ -487,7 +493,7 @@ function buildPiRpcSession(run: PiRun): PiRpcSession {
       // not by this method.
       if (run.finished || run.options.child.killed) return;
       run.finished = true;
-      sendPiCommand(run, 'abort');
+      sendPiCommand({ run, type: 'abort' });
     },
   };
 }

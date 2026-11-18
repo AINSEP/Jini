@@ -79,7 +79,11 @@ export interface MemoryEntriesController {
 type SetLoadError = (error: string | null) => void;
 
 /** Filtered entries plus the folder / child-node views of the memory tree. */
-function useMemoryTreeViews(entries: MemoryEntrySummary[], memoryTree: MemoryTreeNode[], filter: 'all' | MemoryType) {
+function useMemoryTreeViews({ entries, memoryTree, filter }: {
+  entries: MemoryEntrySummary[];
+  memoryTree: MemoryTreeNode[];
+  filter: 'all' | MemoryType;
+}) {
   const filtered = useMemo(() => {
     if (filter === 'all') return entries;
     return entries.filter((e) => e.type === filter);
@@ -163,7 +167,7 @@ function useEntriesSnapshot(port: MemoryEntriesPort, coord: MemoryEntriesCoordin
     }
   }, [port, captureConfigHydrationRevision, hydrateConfig]);
 
-  const views = useMemoryTreeViews(entries, memoryTree, filter);
+  const views = useMemoryTreeViews({ entries, memoryTree, filter });
 
   return {
     rootDir, index, setIndex, entries, loadError, setLoadError, memoryTree, filter, setFilter,

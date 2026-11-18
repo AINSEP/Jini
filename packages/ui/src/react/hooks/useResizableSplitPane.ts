@@ -283,7 +283,10 @@ function useDragRefs(widthRef: DragRefs['widthRef'], preferredWidthRef: DragRefs
 }
 
 /** Applies the last queued pointer X (RAF-throttled by the caller) to the pane width. */
-function createPendingMoveFlusher(refs: DragRefs, applyWidth: (width: number, opts: ApplyWidthOptions) => number) {
+function createPendingMoveFlusher({ refs, applyWidth }: {
+  refs: DragRefs;
+  applyWidth: (width: number, opts: ApplyWidthOptions) => number;
+}) {
   const updateWidthFromClientX = (clientX: number) => {
     // Non-null assertion, not a guard: finishResize (the only place
     // resizeStateRef is cleared) always tears down the pointermove
@@ -321,7 +324,7 @@ interface PointerDragDeps {
 
 /** Starts a window-level pointer drag session (move/up/cancel/blur), recording the start state. */
 function beginPointerDrag({ event, container, refs, applyWidth, restoreStartWidth, finishResize }: PointerDragDeps) {
-  const flushPendingPointerMove = createPendingMoveFlusher(refs, applyWidth);
+  const flushPendingPointerMove = createPendingMoveFlusher({ refs, applyWidth });
 
   refs.resizeStateRef.current = {
     startClientX: event.clientX,
@@ -376,11 +379,11 @@ function teardownDrag(refs: DragRefs) {
 type SplitPaneWidth = ReturnType<typeof useSplitPaneWidth>;
 
 /** Pointer-drag resizing: the `isResizing` flag, drag session lifecycle, and the handle's pointer/blur handlers. */
-function usePointerResize(
-  config: SplitPaneConfig,
-  containerRef: RefObject<HTMLDivElement | null>,
-  paneWidth: SplitPaneWidth,
-) {
+function usePointerResize({ config, containerRef, paneWidth }: {
+  config: SplitPaneConfig;
+  containerRef: RefObject<HTMLDivElement | null>;
+  paneWidth: SplitPaneWidth;
+}) {
   const { storageKey, minWidth, maxWidthOption } = config;
   const { widthRef, preferredWidthRef, applyWidth, renderPreferredWidth } = paneWidth;
   const [isResizing, setIsResizing] = useState(false);
@@ -433,11 +436,11 @@ function usePointerResize(
 
 
 /** ArrowLeft/ArrowRight/Home/End on the handle (RTL-aware), persisting each committed width. */
-function useKeyboardResize(
-  config: SplitPaneConfig,
-  containerRef: RefObject<HTMLDivElement | null>,
-  paneWidth: SplitPaneWidth,
-) {
+function useKeyboardResize({ config, containerRef, paneWidth }: {
+  config: SplitPaneConfig;
+  containerRef: RefObject<HTMLDivElement | null>;
+  paneWidth: SplitPaneWidth;
+}) {
   const { storageKey, minWidth, maxWidthOption, keyboardStep } = config;
   const { widthRef, maxWidthRef, applyWidth } = paneWidth;
 
@@ -468,8 +471,8 @@ export function useResizableSplitPane(
   const config = resolveSplitPaneConfig(options);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const paneWidth = useSplitPaneWidth(config, containerRef);
-  const { isResizing, onHandlePointerDown, onHandleBlur } = usePointerResize(config, containerRef, paneWidth);
-  const onHandleKeyDown = useKeyboardResize(config, containerRef, paneWidth);
+  const { isResizing, onHandlePointerDown, onHandleBlur } = usePointerResize({ config, containerRef, paneWidth });
+  const onHandleKeyDown = useKeyboardResize({ config, containerRef, paneWidth });
   const { width, maxWidth, secondaryMinWidth, secondaryTrack } = paneWidth;
 
   return {

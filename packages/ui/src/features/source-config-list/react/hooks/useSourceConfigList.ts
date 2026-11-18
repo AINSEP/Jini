@@ -96,11 +96,12 @@ function useSourceListLoader<TSource extends SourceConfigItem>(port: SourceConfi
 }
 
 /** Marks `key`/`kind` pending for the duration of `task`, even if it throws. */
-async function runPending<T>(
-  setPendingKeys: SetPendingKeys,
-  { key, kind }: { key: string; kind: SourceActionKind },
-  task: () => Promise<T>,
-): Promise<T> {
+async function runPending<T>({ setPendingKeys, key, kind, task }: {
+  setPendingKeys: SetPendingKeys;
+  key: string;
+  kind: SourceActionKind;
+  task: () => Promise<T>;
+}): Promise<T> {
   setPendingKeys((current) => withPendingAction(current, key, kind));
   try {
     return await task();
@@ -120,9 +121,14 @@ function useSourceTester<TSource extends SourceConfigItem>(
     async (id: string | undefined, draft?: SourceFieldValues) => {
       if (!port.testSource) return;
       const key = id ?? DRAFT_TEST_SCOPE;
-      await runPending(setPendingKeys, { key, kind: 'test' }, async () => {
+      await runPending({
+        setPendingKeys,
+        key,
+        kind: 'test',
+        task: async () => {
         const result = await port.testSource!(id, draft);
         setTestResults((current) => ({ ...current, [key]: result }));
+      },
       });
     },
     [port, setPendingKeys],
@@ -147,9 +153,14 @@ function useSourceMutations<TSource extends SourceConfigItem>({
 
   const remove = useCallback(
     async (id: string) => {
-      await runPending(setPendingKeys, { key: id, kind: 'remove' }, async () => {
+      await runPending({
+        setPendingKeys,
+        key: id,
+        kind: 'remove',
+        task: async () => {
         const ok = await port.removeSource(id);
         if (ok) setSources((current) => removeSourceById(current, id));
+      },
       });
     },
     [port, setSources, setPendingKeys],
@@ -157,9 +168,14 @@ function useSourceMutations<TSource extends SourceConfigItem>({
 
   const patchWith = useCallback(
     (kind: SourceActionKind, id: string, call: () => Promise<TSource | null | undefined>) =>
-      runPending(setPendingKeys, { key: id, kind }, async () => {
+      runPending({
+        setPendingKeys,
+        key: id,
+        kind,
+        task: async () => {
         const updated = await call();
         if (updated) setSources((current) => updateSourceById(current, id, updated));
+      },
       }),
     [setSources, setPendingKeys],
   );

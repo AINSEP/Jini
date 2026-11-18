@@ -116,7 +116,10 @@ const MAX_SOURCE_FILES = 2048;
  * @complexity O(f log f + b) for sorting f selected files and reading b bytes, plus traversal.
  * Supplied limits bound source I/O; `install.ts` independently retains its extraction ceilings.
  */
-async function packAgentPluginDirectory(ports: AgentPluginLifecyclePorts, sourceDir: string, options: PackAgentPluginDirectoryOptional = {}): Promise<PackedAgentPluginArchive> {
+async function packAgentPluginDirectory({ ports, sourceDir }: {
+  ports: AgentPluginLifecyclePorts;
+  sourceDir: string;
+}, options: PackAgentPluginDirectoryOptional = {}): Promise<PackedAgentPluginArchive> {
   const state = createPackingState(ports, { options });
   assertPackingLimit({ state, name: 'maxArchiveBytes', value: state.archiveBytes });
   await refuseRoot(ports, { sourceDir, state });
@@ -398,11 +401,9 @@ function refuseEntry({ state, entryPath, symlink }: { state: PackingState; entry
   if (policy === 'reject') throw new Error(`bundled agent plugin refuses ${symlink ? 'symlink' : 'special file'} '${entryPath}'`);
 }
 
-type WithoutPorts<F> = F extends (ports: never, ...rest: infer R) => unknown ? R : never;
-
 function buildModule(ports: AgentPluginLifecyclePorts) {
   return {
-    packAgentPluginDirectory: (...args: WithoutPorts<typeof packAgentPluginDirectory>) => packAgentPluginDirectory(ports, ...args),
+    packAgentPluginDirectory: (sourceDir: string, options: PackAgentPluginDirectoryOptional = {}) => packAgentPluginDirectory({ ports, sourceDir }, options),
     createBundledSourceArchiveReader: () => createBundledSourceArchiveReader(ports),
   };
 }

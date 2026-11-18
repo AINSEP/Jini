@@ -49,25 +49,25 @@ function packageName(specifier: string): string {
   return specifier.split('/').slice(0, specifier.startsWith('@') ? 2 : 1).join('/');
 }
 
-function parse(c: typeof ts, { file, source }: { file: string; source: string }, _options: Record<string, never> = {}): ts.SourceFile {
-  const tree = c.createSourceFile(file, source, c.ScriptTarget.Latest, true, scriptKind(c, file));
+function parse({ c, file, source }: { c: typeof ts; file: string; source: string }): ts.SourceFile {
+  const tree = c.createSourceFile(file, source, c.ScriptTarget.Latest, true, scriptKind({ c, file }));
   const failure = syntaxError({ tree, file });
   if (failure) throw failure;
   return tree;
 }
 
-function scriptKind(c: typeof ts, file: string): ts.ScriptKind {
+function scriptKind({ c, file }: { c: typeof ts; file: string }): ts.ScriptKind {
   if (/\.[jt]sx$/.test(file)) return c.ScriptKind.TSX;
   return /\.[cm]?js$/.test(file) ? c.ScriptKind.JS : c.ScriptKind.TS;
 }
 
-function member(c: typeof ts, node: ts.Node, name: string): boolean {
+function member({ c, node, name }: { c: typeof ts; node: ts.Node; name: string }): boolean {
   if (c.isPropertyAccessExpression(node)) return node.name.text === name;
   return c.isElementAccessExpression(node) && c.isStringLiteralLike(node.argumentExpression) && node.argumentExpression.text === name;
 }
 
 function env(c: typeof ts, node: ts.Node): boolean {
-  return member(c, node, 'env') && 'expression' in node && c.isIdentifier(node.expression as ts.Node) &&
+  return member({ c, node, name: 'env' }) && 'expression' in node && c.isIdentifier(node.expression as ts.Node) &&
     (node.expression as ts.Identifier).text === 'process';
 }
 
@@ -82,14 +82,22 @@ function erasedImport(node: ts.ImportDeclaration): boolean {
   return node.importClause?.isTypeOnly === true;
 }
 
-function kept(literal: ts.Node, typeOnly: boolean, includeTypeOnly: boolean): ts.Node | undefined {
+function kept({ literal, typeOnly, includeTypeOnly }: {
+  literal: ts.Node;
+  typeOnly: boolean;
+  includeTypeOnly: boolean;
+}): ts.Node | undefined {
   return includeTypeOnly || !typeOnly ? literal : undefined;
 }
 
-function declarationLiteral(c: typeof ts, node: ts.Node, includeTypeOnly: boolean): ts.Node | undefined {
-  if (c.isImportDeclaration(node)) return kept(node.moduleSpecifier, erasedImport(node), includeTypeOnly);
-  if (c.isExportDeclaration(node) && node.moduleSpecifier) return kept(node.moduleSpecifier, node.isTypeOnly, includeTypeOnly);
-  if (c.isImportEqualsDeclaration(node) && c.isExternalModuleReference(node.moduleReference)) return kept(node.moduleReference.expression, node.isTypeOnly, includeTypeOnly);
+function declarationLiteral({ c, node, includeTypeOnly }: {
+  c: typeof ts;
+  node: ts.Node;
+  includeTypeOnly: boolean;
+}): ts.Node | undefined {
+  if (c.isImportDeclaration(node)) return kept({ literal: node.moduleSpecifier, typeOnly: erasedImport(node), includeTypeOnly });
+  if (c.isExportDeclaration(node) && node.moduleSpecifier) return kept({ literal: node.moduleSpecifier, typeOnly: node.isTypeOnly, includeTypeOnly });
+  if (c.isImportEqualsDeclaration(node) && c.isExternalModuleReference(node.moduleReference)) return kept({ literal: node.moduleReference.expression, typeOnly: node.isTypeOnly, includeTypeOnly });
   return undefined;
 }
 
@@ -99,14 +107,18 @@ function loadCallLiteral(c: typeof ts, node: ts.Node): ts.Node | undefined {
   return load ? node.arguments[0] : undefined;
 }
 
-function importLiteral(c: typeof ts, node: ts.Node, includeTypeOnly: boolean): ts.Node | undefined {
-  return loadCallLiteral(c, node) ?? declarationLiteral(c, node, includeTypeOnly);
+function importLiteral({ c, node, includeTypeOnly }: {
+  c: typeof ts;
+  node: ts.Node;
+  includeTypeOnly: boolean;
+}): ts.Node | undefined {
+  return loadCallLiteral(c, node) ?? declarationLiteral({ c, node, includeTypeOnly });
 }
 
-function imports(c: typeof ts, { tree, includeTypeOnly = false }: { tree: ts.SourceFile; includeTypeOnly?: boolean }, _options: Record<string, never> = {}): RuntimeImport[] {
+function imports({ c, tree }: { c: typeof ts; tree: ts.SourceFile }, { includeTypeOnly = false }: { includeTypeOnly?: boolean } = {}): RuntimeImport[] {
   const found: RuntimeImport[] = [];
   function visit(node: ts.Node): void {
-    const literal = importLiteral(c, node, includeTypeOnly);
+    const literal = importLiteral({ c, node, includeTypeOnly });
     if (literal && c.isStringLiteralLike(literal)) found.push({ specifier: literal.text, node });
     c.forEachChild(node, visit);
   }
@@ -127,7 +139,7 @@ function declaredFunctions(c: typeof ts, statement: ts.Statement): { name: strin
   });
 }
 
-function exportedFunctions(c: typeof ts, { tree }: { tree: ts.SourceFile }, _options: Record<string, never> = {}): { name: string; node: ts.Node }[] {
+function exportedFunctions({ c, tree }: { c: typeof ts; tree: ts.SourceFile }): { name: string; node: ts.Node }[] {
   const locals = new Map<string, ts.Node>();
   const found: { name: string; node: ts.Node }[] = [];
   for (const statement of tree.statements) {
@@ -137,11 +149,15 @@ function exportedFunctions(c: typeof ts, { tree }: { tree: ts.SourceFile }, _opt
       if (exported) found.push(item);
     }
   }
-  for (const statement of tree.statements) found.push(...exportedAliases(c, statement, locals));
+  for (const statement of tree.statements) found.push(...exportedAliases({ c, statement, locals }));
   return found;
 }
 
-function exportedAliases(c: typeof ts, statement: ts.Statement, locals: ReadonlyMap<string, ts.Node>): { name: string; node: ts.Node }[] {
+function exportedAliases({ c, statement, locals }: {
+  c: typeof ts;
+  statement: ts.Statement;
+  locals: ReadonlyMap<string, ts.Node>;
+}): { name: string; node: ts.Node }[] {
   if (!c.isExportDeclaration(statement) || statement.moduleSpecifier || statement.isTypeOnly) return [];
   if (!statement.exportClause || !c.isNamedExports(statement.exportClause)) return [];
   return statement.exportClause.elements.flatMap((item) => {
@@ -150,7 +166,13 @@ function exportedAliases(c: typeof ts, statement: ts.Statement, locals: Readonly
   });
 }
 
-function violation(tree: ts.SourceFile, node: ts.Node, rule: string, reason: string, identity: string): HardwiringViolation {
+function violation({ tree, node, rule, reason, identity }: {
+  tree: ts.SourceFile;
+  node: ts.Node;
+  rule: string;
+  reason: string;
+  identity: string;
+}): HardwiringViolation {
   const fingerprint = createHash('sha256').update(identity).digest('hex');
   return { rule, file: tree.fileName, line: tree.getLineAndCharacterOfPosition(node.getStart(tree)).line + 1, reason, fingerprint };
 }
@@ -178,34 +200,42 @@ function moduleScope(c: typeof ts, node: ts.Node): boolean {
 }
 
 /** BindingName is Identifier | ObjectBindingPattern | ArrayBindingPattern; array holes are OmittedExpressions. */
-function binds(c: typeof ts, name: ts.BindingName, id: string): boolean {
+function binds({ c, name, id }: { c: typeof ts; name: ts.BindingName; id: string }): boolean {
   if (c.isIdentifier(name)) return name.text === id;
-  return name.elements.some((e) => c.isBindingElement(e) && binds(c, e.name, id));
+  return name.elements.some((e) => c.isBindingElement(e) && binds({ c, name: e.name, id }));
 }
 
-function scopeBinds(c: typeof ts, scope: ts.Node, id: string): boolean {
-  if (c.isFunctionLike(scope)) return scope.parameters.some((p) => binds(c, p.name, id));
-  if (c.isCatchClause(scope)) return Boolean(scope.variableDeclaration && binds(c, scope.variableDeclaration.name, id));
-  if (c.isBlock(scope) || c.isSourceFile(scope)) return scope.statements.some((statement) => statementBinds(c, statement, id));
+function scopeBinds({ c, scope, id }: { c: typeof ts; scope: ts.Node; id: string }): boolean {
+  if (c.isFunctionLike(scope)) return scope.parameters.some((p) => binds({ c, name: p.name, id }));
+  if (c.isCatchClause(scope)) return Boolean(scope.variableDeclaration && binds({ c, name: scope.variableDeclaration.name, id }));
+  if (c.isBlock(scope) || c.isSourceFile(scope)) return scope.statements.some((statement) => statementBinds({ c, statement, id }));
   return false;
 }
 
 /** A lexical binding of `id` (parameter, destructured name, local, import) shadows the global of that name. */
-function hasLocalBinding(c: typeof ts, node: ts.Node, id: string): boolean {
-  for (let scope: ts.Node | undefined = node.parent; scope; scope = scope.parent) if (scopeBinds(c, scope, id)) return true;
+function hasLocalBinding({ c, node, id }: { c: typeof ts; node: ts.Node; id: string }): boolean {
+  for (let scope: ts.Node | undefined = node.parent; scope; scope = scope.parent) if (scopeBinds({ c, scope, id })) return true;
   return false;
 }
 
-function isGlobalThisMember(c: typeof ts, value: ts.Expression | undefined, id: string): boolean {
-  if (!value || !member(c, value, id) || !('expression' in value)) return false;
+function isGlobalThisMember({ c, value, id }: {
+  c: typeof ts;
+  value: ts.Expression | undefined;
+  id: string;
+}): boolean {
+  if (!value || !member({ c, node: value, name: id }) || !('expression' in value)) return false;
   const target = value.expression as ts.Node;
   return c.isIdentifier(target) && target.text === 'globalThis';
 }
 
-function statementBinds(c: typeof ts, statement: ts.Statement, id: string): boolean {
+function statementBinds({ c, statement, id }: {
+  c: typeof ts;
+  statement: ts.Statement;
+  id: string;
+}): boolean {
   // Renaming the global to a local of the same name is still a global call, not an injected port.
   if (c.isVariableStatement(statement)) return statement.declarationList.declarations.some((d) =>
-    binds(c, d.name, id) && !isGlobalThisMember(c, d.initializer, id));
+    binds({ c, name: d.name, id }) && !isGlobalThisMember({ c, value: d.initializer, id }));
   if (c.isFunctionDeclaration(statement)) return statement.name?.text === id;
   if (!c.isImportDeclaration(statement) || !statement.importClause) return false;
   const clause = statement.importClause;
@@ -228,7 +258,11 @@ function declarationIdentity(c: typeof ts, name: ts.BindingName): string {
   return name.elements.map(element => c.isBindingElement(element) ? declarationIdentity(c, element.name) : '').join(',');
 }
 
-function mutableModuleState(c: typeof ts, node: ts.Node, tree: ts.SourceFile): boolean {
+function mutableModuleState({ c, node, tree }: {
+  c: typeof ts;
+  node: ts.Node;
+  tree: ts.SourceFile;
+}): boolean {
   if (!c.isVariableDeclaration(node) || !moduleScope(c, node) || !c.isVariableDeclarationList(node.parent)) return false;
   // A flag test, not a boolean `&&`: the Const bit marks `const` (and `await using`) lists.
   const constBinding = (node.parent.flags & c.NodeFlags.Const) !== 0;
@@ -241,13 +275,17 @@ function mutableModuleState(c: typeof ts, node: ts.Node, tree: ts.SourceFile): b
 
 function globalFetchCall(c: typeof ts, node: ts.Node): boolean {
   if (!c.isCallExpression(node)) return false;
-  if (c.isIdentifier(node.expression)) return node.expression.text === 'fetch' && !hasLocalBinding(c, node, 'fetch');
-  if (!member(c, node.expression, 'fetch') || !('expression' in node.expression)) return false;
+  if (c.isIdentifier(node.expression)) return node.expression.text === 'fetch' && !hasLocalBinding({ c, node, id: 'fetch' });
+  if (!member({ c, node: node.expression, name: 'fetch' }) || !('expression' in node.expression)) return false;
   const object = node.expression.expression as ts.Node;
   return c.isIdentifier(object) && object.text === 'globalThis';
 }
 
-function uncoveredDefault(c: typeof ts, node: ts.Node, covered: ReadonlySet<string> | undefined): boolean {
+function uncoveredDefault({ c, node, covered }: {
+  c: typeof ts;
+  node: ts.Node;
+  covered: ReadonlySet<string> | undefined;
+}): boolean {
   if (!c.isBinaryExpression(node) || node.operatorToken.kind !== c.SyntaxKind.QuestionQuestionToken) return false;
   const fallback = node.right;
   const insecure = (c.isStringLiteralLike(fallback) && fallback.text.startsWith('dev-only-insecure-')) ||
@@ -263,44 +301,95 @@ function apiUrl(c: typeof ts, node: ts.Node): boolean {
 }
 
 /** Resolution runs for every edge, even without a plugin identity: a host resolver may fail closed on unresolved code. */
-function targetPlugin(input: HardwiringSource, specifier: string): string | undefined {
+function targetPlugin({ input, specifier }: { input: HardwiringSource; specifier: string }): string | undefined {
   const target = input.resolveImport?.(specifier, input.file);
   return target ? input.pluginIdentity?.(target) : undefined;
 }
 
-function inspectImports(input: HardwiringSource, tree: ts.SourceFile, refs: readonly RuntimeImport[]): HardwiringViolation[] {
+function inspectImports({ input, tree, refs }: {
+  input: HardwiringSource;
+  tree: ts.SourceFile;
+  refs: readonly RuntimeImport[];
+}): HardwiringViolation[] {
   const found: HardwiringViolation[] = [];
   const plugin = input.pluginIdentity?.(input.file);
   const vendorOwner = adapter(input.file);
   for (const ref of refs) {
-    if (!vendorOwner && vendor(ref.specifier)) found.push(violation(tree, ref.node, 'HW2-vendor-adapter', 'Driver/vendor dependency belongs in an adapter, kernel or provider.', ref.specifier));
-    const other = targetPlugin(input, ref.specifier);
-    if (plugin && other && other !== plugin) found.push(violation(tree, ref.node, 'HW9-plugin-import', `Import crosses ${plugin} → ${other}; plugins must communicate through host ports.`, ref.specifier));
+    if (!vendorOwner && vendor(ref.specifier)) found.push(violation({
+      tree,
+      node: ref.node,
+      rule: 'HW2-vendor-adapter',
+      reason: 'Driver/vendor dependency belongs in an adapter, kernel or provider.',
+      identity: ref.specifier,
+    }));
+    const other = targetPlugin({ input, specifier: ref.specifier });
+    if (plugin && other && other !== plugin) found.push(violation({
+      tree,
+      node: ref.node,
+      rule: 'HW9-plugin-import',
+      reason: `Import crosses ${plugin} → ${other}; plugins must communicate through host ports.`,
+      identity: ref.specifier,
+    }));
   }
   return found;
 }
 
 /** Analyze authored source; host policies supply export ownership, refusal coverage and import resolution. */
-function inspect(c: typeof ts, input: HardwiringSource, _options: Record<string, never> = {}): HardwiringViolation[] {
-  const tree = parse(c, input);
-  const refs = imports(c, { tree, includeTypeOnly: true });
-  const found = inspectImports(input, tree, refs);
-  const report = (node: ts.Node, rule: string, reason: string, identity: string) => found.push(violation(tree, node, rule, reason, identity));
+function inspect({ c, input }: { c: typeof ts; input: HardwiringSource }): HardwiringViolation[] {
+  const tree = parse({ c, ...input });
+  const refs = imports({ c, tree }, { includeTypeOnly: true });
+  const found = inspectImports({ input, tree, refs });
+  const report = ({ node, rule, reason, identity }: {
+  node: ts.Node;
+  rule: string;
+  reason: string;
+  identity: string;
+}) => found.push(violation({ tree, node, rule, reason, identity }));
   const jini = input.mode === 'jini';
   const envExempt = /(?:^|\/)(?:bin|cli|testing)[/.]/.test(input.file);
   const ownsUrls = urlOwner(input.file);
   if (!jini && !refs.some((ref) => ref.specifier.startsWith('@jini-ai/'))) {
-    for (const item of exportedFunctions(c, { tree })) if (input.jiniExports?.has(item.name)) report(item.node, 'HW5-jini-export', `Export ${item.name} duplicates a Jini function without using its owner.`, item.name);
+    for (const item of exportedFunctions({ c, tree })) if (input.jiniExports?.has(item.name)) report({
+      node: item.node,
+      rule: 'HW5-jini-export',
+      reason: `Export ${item.name} duplicates a Jini function without using its owner.`,
+      identity: item.name,
+    });
   }
   function visitJini(node: ts.Node): void {
-    if (!envExempt && env(c, node) && !isEnvDefault(c, node)) report(node, 'HW1-env-default', 'process.env is allowed only as an injected environment default (?? process.env or env = process.env).', envKey(c, node.parent) ?? 'process.env');
-    if (mutableModuleState(c, node, tree)) report(node, 'HW3-module-state', 'Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.', declarationIdentity(c, (node as ts.VariableDeclaration).name));
-    if (input.server && globalFetchCall(c, node)) report(node, 'HW4-injected-fetch', 'Call an injected fetch port; the global fetch may only supply its default.', (node as ts.CallExpression).expression.getText(tree));
+    if (!envExempt && env(c, node) && !isEnvDefault(c, node)) report({
+      node,
+      rule: 'HW1-env-default',
+      reason: 'process.env is allowed only as an injected environment default (?? process.env or env = process.env).',
+      identity: envKey(c, node.parent) ?? 'process.env',
+    });
+    if (mutableModuleState({ c, node, tree })) report({
+      node,
+      rule: 'HW3-module-state',
+      reason: 'Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.',
+      identity: declarationIdentity(c, (node as ts.VariableDeclaration).name),
+    });
+    if (input.server && globalFetchCall(c, node)) report({
+      node,
+      rule: 'HW4-injected-fetch',
+      reason: 'Call an injected fetch port; the global fetch may only supply its default.',
+      identity: (node as ts.CallExpression).expression.getText(tree),
+    });
   }
   function visit(node: ts.Node): void {
     if (jini) visitJini(node);
-    if (uncoveredDefault(c, node, input.bootCoveredEnv)) report(node, 'HW6-boot-default', 'Unsafe development default has no matching environment check in the production refusal gate.', envKey(c, (node as ts.BinaryExpression).left) ?? (node as ts.BinaryExpression).left.getText(tree));
-    if (!ownsUrls && apiUrl(c, node)) report(node, 'HW8-provider-url', 'Vendor API URL belongs in a provider, adapter or catalog.', (node as ts.StringLiteralLike).text);
+    if (uncoveredDefault({ c, node, covered: input.bootCoveredEnv })) report({
+      node,
+      rule: 'HW6-boot-default',
+      reason: 'Unsafe development default has no matching environment check in the production refusal gate.',
+      identity: envKey(c, (node as ts.BinaryExpression).left) ?? (node as ts.BinaryExpression).left.getText(tree),
+    });
+    if (!ownsUrls && apiUrl(c, node)) report({
+      node,
+      rule: 'HW8-provider-url',
+      reason: 'Vendor API URL belongs in a provider, adapter or catalog.',
+      identity: (node as ts.StringLiteralLike).text,
+    });
     c.forEachChild(node, visit);
   }
   visit(tree);
@@ -322,24 +411,30 @@ function reactSpecifier(specifier: string): boolean {
   return /^react(?:-dom)?(?:\/|$)/.test(specifier) || /(?:^|\/)node_modules\/react(?:-dom)?(?:\/|$)/.test(specifier);
 }
 
-function implicitReact(c: typeof ts, tree: ts.SourceFile, file: string, displayFile: (file: string) => string): HardwiringViolation | undefined {
+function implicitReact({ c, tree, file, displayFile }: {
+  c: typeof ts;
+  tree: ts.SourceFile;
+  file: string;
+  displayFile: (file: string) => string;
+}): HardwiringViolation | undefined {
   // Vite's automatic JSX runtime adds an import even when source imports only erased types.
   if (file.includes('/node_modules/')) return undefined;
   const jsx = firstJsx(c, tree);
   if (!jsx) return undefined;
-  return { ...violation(tree, jsx, 'HW7-public-react', 'Automatic JSX runtime imports React into the public-site bundle.', 'jsx'), file: displayFile(file) };
+  return { ...violation({ tree, node: jsx, rule: 'HW7-public-react', reason: 'Automatic JSX runtime imports React into the public-site bundle.', identity: 'jsx' }), file: displayFile(file) };
 }
 
 /** Traverse every runtime edge, including dynamic imports, barrels and CommonJS requires.
  * O(V + E) visits with a set: cycles and diamond imports never rescan a module.
  * Host resolver supplies browser/package-export conditions and fails on unresolved code edges.
  */
-function inspectPublicGraph(c: typeof ts, { entries, readSource, resolveImport, displayFile }: {
+function inspectPublicGraph({ c, entries, readSource, resolveImport, displayFile }: {
+  c: typeof ts;
   entries: readonly string[];
   readSource: (file: string) => string;
   resolveImport: (specifier: string, file: string) => string | undefined;
   displayFile: (file: string) => string;
-}, _options: Record<string, never> = {}): HardwiringViolation[] {
+}): HardwiringViolation[] {
   const seen = new Set<string>();
   const pending = [...entries];
   const found: HardwiringViolation[] = [];
@@ -353,16 +448,16 @@ function inspectPublicGraph(c: typeof ts, { entries, readSource, resolveImport, 
     } else found.push(item);
   }
   function scanModule(file: string): void {
-    const tree = parse(c, { file, source: readSource(file) });
-    for (const ref of imports(c, { tree })) {
+    const tree = parse({ c, file, source: readSource(file) });
+    for (const ref of imports({ c, tree })) {
       if (reactSpecifier(ref.specifier)) {
-        reportGraph({ ...violation(tree, ref.node, 'HW7-public-react', 'Public-site runtime graph must not load React or React DOM.', ref.specifier), file: displayFile(file) });
+        reportGraph({ ...violation({ tree, node: ref.node, rule: 'HW7-public-react', reason: 'Public-site runtime graph must not load React or React DOM.', identity: ref.specifier }), file: displayFile(file) });
         continue;
       }
       const resolved = resolveImport(ref.specifier, file);
       if (resolved) pending.push(resolved);
     }
-    const implicit = implicitReact(c, tree, file, displayFile);
+    const implicit = implicitReact({ c, tree, file, displayFile });
     if (implicit) reportGraph(implicit);
   }
   for (let cursor = 0; cursor < pending.length; cursor++) {
@@ -380,18 +475,25 @@ function inspectPublicGraph(c: typeof ts, { entries, readSource, resolveImport, 
  */
 export function createHardwiringInspector({ compiler: c }: { compiler: typeof ts }, _options: Record<string, never> = {}) {
   return {
-    inspect: (input: HardwiringSource, _options: Record<string, never> = {}) => inspect(c, input),
-    inspectPublicGraph: (required: Parameters<typeof inspectPublicGraph>[1], _options: Record<string, never> = {}) => inspectPublicGraph(c, required),
-    parse: (required: { file: string; source: string }, _options: Record<string, never> = {}) => parse(c, required),
-    imports: (required: { tree: ts.SourceFile; includeTypeOnly?: boolean }, _options: Record<string, never> = {}) => imports(c, required),
-    exportedFunctions: (required: { tree: ts.SourceFile }, _options: Record<string, never> = {}) => exportedFunctions(c, required),
+    inspect: (input: HardwiringSource, _options: Record<string, never> = {}) => inspect({ c, input }),
+    inspectPublicGraph: (required: Omit<Parameters<typeof inspectPublicGraph>[0], 'c'>, _options: Record<string, never> = {}) => inspectPublicGraph({ c, ...required }),
+    parse: (required: { file: string; source: string }, _options: Record<string, never> = {}) => parse({ c, ...required }),
+    imports: ({ tree, includeTypeOnly }: { tree: ts.SourceFile; includeTypeOnly?: boolean }, _options: Record<string, never> = {}) =>
+      imports({ c, tree }, includeTypeOnly === undefined ? {} : { includeTypeOnly }),
+    exportedFunctions: (required: { tree: ts.SourceFile }, _options: Record<string, never> = {}) => exportedFunctions({ c, ...required }),
     envKey: ({ node }: { node: ts.Node }, _options: Record<string, never> = {}) => envKey(c, node),
-    hasLocalBinding: ({ node, name }: { node: ts.Node; name: string }, _options: Record<string, never> = {}) => hasLocalBinding(c, node, name),
+    hasLocalBinding: ({ node, name }: { node: ts.Node; name: string }, _options: Record<string, never> = {}) => hasLocalBinding({ c, node, id: name }),
     // Shared with the env-access rules (env-access.ts), so both audits agree on what `process.env` and module scope mean.
     isProcessEnv: ({ node }: { node: ts.Node }, _options: Record<string, never> = {}) => env(c, node),
     isModuleScope: ({ node }: { node: ts.Node }, _options: Record<string, never> = {}) => moduleScope(c, node),
     violation: (required: { tree: ts.SourceFile; node: ts.Node; rule: string; reason: string; identity: string }, _options: Record<string, never> = {}) =>
-      violation(required.tree, required.node, required.rule, required.reason, required.identity),
+      violation({
+        tree: required.tree,
+        node: required.node,
+        rule: required.rule,
+        reason: required.reason,
+        identity: required.identity,
+      }),
   };
 }
 

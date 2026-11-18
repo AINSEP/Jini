@@ -173,14 +173,18 @@ function pushEntry({ undoStack, redoStack, limit }: HistoryState, entry: History
  * Replay part contents directly, deliberately skipping `validate` — see this module's doc for
  * why an intermediate state of a multi-part rewind must not be judged.
  */
-async function replayChanges(target: EditTarget, changes: readonly PartChange[], side: "before" | "after"): Promise<void> {
+async function replayChanges({ target, changes, side }: {
+  target: EditTarget;
+  changes: readonly PartChange[];
+  side: "before" | "after";
+}): Promise<void> {
   for (const change of changes) {
     await target.replacePart({ id: change.id, content: side === "before" ? change.before : change.after });
   }
 }
 
 /** A view of the target whose writes are recorded into `changes`. */
-function recordingTarget(target: EditTarget, changes: PartChange[]): EditTarget {
+function recordingTarget({ target, changes }: { target: EditTarget; changes: PartChange[] }): EditTarget {
   return {
     listParts: () => target.listParts(),
     readPart: (args) => target.readPart(args),
@@ -202,11 +206,11 @@ function recordingTarget(target: EditTarget, changes: PartChange[]): EditTarget 
   };
 }
 
-async function runTransaction<T>(
-  state: HistoryState,
-  work: (recording: EditTarget) => Promise<T>,
-  label: string | undefined
-): Promise<T> {
+async function runTransaction<T>({ state, work, label }: {
+  state: HistoryState;
+  work: (recording: EditTarget) => Promise<T>;
+  label: string | undefined;
+}): Promise<T> {
   if (state.transactionOpen) {
     throw new Error(
       "a transaction is already open — overlapping transactions would interleave their changes into one another's entries"
@@ -216,7 +220,7 @@ async function runTransaction<T>(
 
   const changes: PartChange[] = [];
   try {
-    return await work(recordingTarget(state.target, changes));
+    return await work(recordingTarget({ target: state.target, changes }));
   } finally {
     state.transactionOpen = false;
     // Committed even when `work` threw: partial writes already reached the artifact, and the
@@ -236,7 +240,7 @@ async function undoLast(state: HistoryState): Promise<HistoryEntry | null> {
   // that failed.
   const entry = undoStack[undoStack.length - 1];
   if (!entry) return null;
-  await replayChanges(state.target, [...entry.changes].reverse(), "before");
+  await replayChanges({ target: state.target, changes: [...entry.changes].reverse(), side: "before" });
   undoStack.pop();
   redoStack.push(entry);
   return entry;
@@ -247,7 +251,7 @@ async function redoLast(state: HistoryState): Promise<HistoryEntry | null> {
   // Peeked for the same reason as `undo` above, in the other direction.
   const entry = redoStack[redoStack.length - 1];
   if (!entry) return null;
-  await replayChanges(state.target, entry.changes, "after");
+  await replayChanges({ target: state.target, changes: entry.changes, side: "after" });
   redoStack.pop();
   undoStack.push(entry);
   return entry;
@@ -271,7 +275,7 @@ async function restoreSnapshot(state: HistoryState, snapshot: Snapshot): Promise
   // listed part with the content it had before, which is a no-op for the ones never reached.
   const entry: HistoryEntry = { label: `restore ${snapshot.id}`, changes };
   pushEntry(state, entry);
-  await replayChanges(target, changes, "after");
+  await replayChanges({ target, changes, side: "after" });
   return entry;
 }
 
@@ -294,7 +298,7 @@ export function createEditHistory(
     transaction: <T>(
       { work }: { readonly work: (recording: EditTarget) => Promise<T> },
       { label }: { readonly label?: string } = {}
-    ): Promise<T> => runTransaction(state, work, label),
+    ): Promise<T> => runTransaction({ state, work, label }),
 
     canUndo: () => undoStack.length > 0,
     canRedo: () => redoStack.length > 0,

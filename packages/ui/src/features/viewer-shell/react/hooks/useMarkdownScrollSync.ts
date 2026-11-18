@@ -32,11 +32,11 @@ type PaneRef = MutableRefObject<MarkdownScrollPane>;
 type ProgrammaticScroll = { pane: MarkdownScrollPane; top: number } | null;
 
 /** Cached editor block offsets, invalidated whenever the source text changes. */
-function useEditorBlockOffsets(
-  editorRef: RefObject<HTMLTextAreaElement | null>,
-  blockLines: number[],
-  sourceText: string,
-) {
+function useEditorBlockOffsets({ editorRef, blockLines, sourceText }: {
+  editorRef: RefObject<HTMLTextAreaElement | null>;
+  blockLines: number[];
+  sourceText: string;
+}) {
   const editorBlockOffsetsRef = useRef<{ width: number; offsets: number[] } | null>(null);
 
   useEffect(() => {
@@ -229,7 +229,7 @@ export function useMarkdownScrollSync(options: UseMarkdownScrollSyncOptions): Us
   const { mode, sourceText, editorRef, previewRef, previewSelector, resyncKey } = options;
   const activePaneRef = useRef<MarkdownScrollPane>('editor');
   const blockLines = useMemo(() => extractMarkdownBlockLines(sourceText), [sourceText]);
-  const getEditorBlockOffsets = useEditorBlockOffsets(editorRef, blockLines, sourceText);
+  const getEditorBlockOffsets = useEditorBlockOffsets({ editorRef, blockLines, sourceText });
   const guard = useProgrammaticScrollGuard(activePaneRef);
   const applyScrollSync = useApplyScrollSync({
     mode, editorRef, previewRef, previewSelector, blockLineCount: blockLines.length, getEditorBlockOffsets,

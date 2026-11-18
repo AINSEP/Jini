@@ -51,11 +51,14 @@ const PLAN_REFUSALS: Partial<Record<AgentPluginUpdatePlan['action'], { code: str
 
 /** Verifies and stages the candidate through the installer, then runs the transaction in its
  * publish guard. @throws AgentPluginUpdateError, AgentPluginHostIncompatibleError, install errors. */
-async function updateAgentPlugin(scope: UpdateScope, required: UpdateAgentPluginRequired, _optional: Record<string, never> = {}): Promise<UpdateAgentPluginResult> {
+async function updateAgentPlugin({ scope, required }: {
+  scope: UpdateScope;
+  required: UpdateAgentPluginRequired;
+}): Promise<UpdateAgentPluginResult> {
   const input = { ...required, layout: scope.ports.layout };
   const outcomes: UpdateAgentPluginResult[] = [];
   await scope.installAgentPlugin(input, { publishGuard: async ({ plugin, publish }) => {
-    const outcome = await updateLocked(scope, { required: input, candidate: plugin, publish });
+    const outcome = await updateLocked({ scope, required: input, candidate: plugin, publish });
     outcomes.push(outcome);
     return outcome.plugin;
   } });
@@ -65,25 +68,31 @@ async function updateAgentPlugin(scope: UpdateScope, required: UpdateAgentPlugin
 }
 
 /** All validation precedes the first live-state mutation. @complexity O(p) installed plugins. */
-async function updateLocked(scope: UpdateScope, { required, candidate, publish }: {
-  required: UpdateAgentPluginRequired; candidate: InstalledAgentPlugin; publish: () => Promise<InstalledAgentPlugin>;
-}, _optional = {}): Promise<UpdateAgentPluginResult> {
+async function updateLocked({ scope, required, candidate, publish }: {
+  scope: UpdateScope;
+  required: UpdateAgentPluginRequired;
+  candidate: InstalledAgentPlugin;
+  publish: () => Promise<InstalledAgentPlugin>;
+}): Promise<UpdateAgentPluginResult> {
   // The installer locked the candidate's id; refuse before reading another plugin's state.
   if (candidate.pluginId !== required.pluginId) throw new AgentPluginUpdateError(PLAN_REFUSALS['id-mismatch']!);
   const store = createAgentPluginUpdateStore({ ports: scope.ports, workspaceId: required.workspaceId, pluginId: required.pluginId });
   await settleAgentPluginUpdateJournal({ store });
-  const target = await readTarget(scope, { required });
+  const target = await readTarget({ scope, required });
   const plan = planAgentPluginUpdate({ installed: { ...target.previous, enabled: target.enabled }, candidate });
   if (plan.action === 'none') return { plugin: target.previous, enabled: target.enabled, alreadyInstalled: true, warnings: [] };
   const refusal = PLAN_REFUSALS[plan.action];
   if (refusal) throw new AgentPluginUpdateError(refusal);
   const warnings = admissionWarnings({ target, candidate, planWarnings: plan.warnings });
-  const plugin = await performUpdate(scope, { required, store, target, candidate, publish });
+  const plugin = await performUpdate({ scope, transaction: { required, store, target, candidate, publish } });
   return { plugin, enabled: target.enabled, alreadyInstalled: false, warnings };
 }
 
 /** Exactly one live revision at the previewed digest, operator-installed, with a readable decision. */
-async function readTarget(scope: UpdateScope, { required }: { required: UpdateAgentPluginRequired }, _optional = {}): Promise<UpdateTarget> {
+async function readTarget({ scope, required }: {
+  scope: UpdateScope;
+  required: UpdateAgentPluginRequired;
+}): Promise<UpdateTarget> {
   const workspaceRoot = scope.ports.layout.forWorkspace({ workspaceId: required.workspaceId }).root;
   const installed = await scope.refs.listInstalledPlugins(workspaceRoot);
   const matches = installed.filter(plugin => plugin.pluginId === required.pluginId);
@@ -113,9 +122,12 @@ function admissionWarnings({ target, candidate, planWarnings }: {
 
 /** Records intent, switches revisions, then files the audit. A failed audit filing after commit
  * does not undo the update: the committed journal stays and the next update or boot files it. */
-async function performUpdate(scope: UpdateScope, transaction: UpdateTransaction, _optional = {}): Promise<InstalledAgentPlugin> {
-  const journal = await beginJournal(scope, transaction);
-  const installed = await switchRevision(scope, { ...transaction, journal });
+async function performUpdate({ scope, transaction }: {
+  scope: UpdateScope;
+  transaction: UpdateTransaction;
+}): Promise<InstalledAgentPlugin> {
+  const journal = await beginJournal({ scope, ...transaction });
+  const installed = await switchRevision({ scope, ...transaction, journal });
   try { await transaction.store.finish({ journal: { ...journal, state: 'committed', result: 'updated' } }); }
   catch {
     scope.ports.onEvent?.({ event: 'agent-plugin-update-audit-deferred', message: `Plugin '${journal.pluginId}': the committed update will be filed in its history at the next boot.` });
@@ -123,7 +135,7 @@ async function performUpdate(scope: UpdateScope, transaction: UpdateTransaction,
   return installed;
 }
 
-async function beginJournal(scope: UpdateScope, { required, store, target, candidate }: UpdateTransaction, _optional = {}): Promise<AgentPluginUpdateJournal> {
+async function beginJournal({ scope, required, store, target, candidate }: UpdateTransaction & { scope: UpdateScope }): Promise<AgentPluginUpdateJournal> {
   const { previous, enabled } = target;
   const settingsSnapshot = await required.snapshotSettings({ workspaceId: required.workspaceId, pluginId: previous.pluginId }, {});
   const journal: AgentPluginUpdateJournal = { schemaVersion: 1, state: 'pending', transactionId: scope.ports.ids.newId(),
@@ -147,43 +159,57 @@ async function beginJournal(scope: UpdateScope, { required, store, target, candi
  * journal for boot and reports PLUGIN_ROLLBACK_INCOMPLETE carrying both errors. The candidate is
  * re-enabled only after its MCP roster is provisioned, so an MCP failure leaves it off even when
  * the rollback that follows cannot finish. */
-async function switchRevision(scope: UpdateScope, { required, store, target, publish, journal }: UpdateTransaction & { journal: AgentPluginUpdateJournal }, _optional = {}): Promise<InstalledAgentPlugin> {
+async function switchRevision({ scope, required, store, target, publish, journal }: UpdateTransaction & { scope: UpdateScope; journal: AgentPluginUpdateJournal }): Promise<InstalledAgentPlugin> {
   const { workspaceId } = required;
-  await disableBeforeSwitch(scope, { workspaceId, store, journal });
+  await disableBeforeSwitch({ scope, workspaceId, store, journal });
   let current = journal;
   try {
-    await freezeRollback(scope, { store, previous: target.previous });
+    await freezeRollback({ scope, store, previous: target.previous });
     const installed = await publish();
     // `current` follows the durable record: recovery re-provisions MCP only once `published` is on disk.
     const published: AgentPluginUpdateJournal = { ...journal, state: 'published' };
     await store.write({ journal: published });
     current = published;
     await provisionAgentPluginMcp({ mcpProvisioning: scope.ports.mcpProvisioning, workspaceId, installed });
-    await setActivation(scope, { workspaceId, journal, enabled: journal.enabled });
+    await setActivation({ scope, workspaceId, journal, enabled: journal.enabled });
     await store.write({ journal: { ...journal, state: 'committed', result: 'updated' } });
     return installed;
   } catch (cause) {
-    throw await rollBackAfterFailure(scope, { workspaceId, journal: current, cause });
+    throw await rollBackAfterFailure({ scope, workspaceId, journal: current, cause });
   }
 }
 
 /** If the first switch-off fails no byte has moved and scope.activation is unchanged, so there is
  * nothing to recover: the intent is dropped instead of being left pending for boot. */
-async function disableBeforeSwitch(scope: UpdateScope, { workspaceId, store, journal }: { workspaceId: string; store: UpdateTransaction['store']; journal: AgentPluginUpdateJournal }, _optional = {}): Promise<void> {
-  try { await setActivation(scope, { workspaceId, journal, enabled: false }); }
+async function disableBeforeSwitch({ scope, workspaceId, store, journal }: {
+  scope: UpdateScope;
+  workspaceId: string;
+  store: UpdateTransaction['store'];
+  journal: AgentPluginUpdateJournal;
+}): Promise<void> {
+  try { await setActivation({ scope, workspaceId, journal, enabled: false }); }
   catch (cause) { await store.clear({}); throw cause; }
 }
 
 /** Moves the old revision out of `package/sha256` (reusing uninstall's staging move) and refreezes it. */
-async function freezeRollback(scope: UpdateScope, { store, previous }: { store: UpdateTransaction['store']; previous: InstalledAgentPlugin }, _optional = {}): Promise<void> {
+async function freezeRollback({ scope, store, previous }: {
+  scope: UpdateScope;
+  store: UpdateTransaction['store'];
+  previous: InstalledAgentPlugin;
+}): Promise<void> {
   const rollbackRoot = store.rollbackRoot({ digest: previous.archiveDigest });
   await scope.removal.stageForRemoval(path.dirname(previous.packageRoot), previous.packageRoot, { quarantined: rollbackRoot });
   await scope.ports.filesystem.chmod(rollbackRoot, 0o555);
 }
 
-async function rollBackAfterFailure(scope: UpdateScope, { workspaceId, journal, cause }: { workspaceId: string; journal: AgentPluginUpdateJournal; cause: unknown }, _optional = {}): Promise<unknown> {
+async function rollBackAfterFailure({ scope, workspaceId, journal, cause }: {
+  scope: UpdateScope;
+  workspaceId: string;
+  journal: AgentPluginUpdateJournal;
+  cause: unknown;
+}): Promise<unknown> {
   try {
-    await restoreUpdate(scope, { workspaceId, journal });
+    await restoreUpdate({ scope, workspaceId, journal });
     return cause;
   } catch (rollbackError) {
     return new AgentPluginUpdateError({ code: 'PLUGIN_ROLLBACK_INCOMPLETE', message: 'The update failed and its rollback did not finish; restart the host to recover.' },
@@ -191,7 +217,12 @@ async function rollBackAfterFailure(scope: UpdateScope, { workspaceId, journal, 
   }
 }
 
-async function setActivation(scope: UpdateScope, { workspaceId, journal, enabled }: { workspaceId: string; journal: AgentPluginUpdateJournal; enabled: boolean }, _optional = {}) {
+async function setActivation({ scope, workspaceId, journal, enabled }: {
+  scope: UpdateScope;
+  workspaceId: string;
+  journal: AgentPluginUpdateJournal;
+  enabled: boolean;
+}) {
   return scope.activation.setAgentPluginActivation({ workspaceRoot: scope.ports.layout.forWorkspace({ workspaceId }).root,
     pluginId: journal.pluginId, enabled, actor: journal.actor }, { origin: 'operator-installed' });
 }
@@ -207,15 +238,19 @@ async function setActivation(scope: UpdateScope, { workspaceId, journal, enabled
  * installed bytes at start. A host whose boot binding has no MCP port (it throws) therefore gets the
  * degraded outcome below rather than a journal that fails every boot.
  */
-async function restoreUpdate(scope: UpdateScope, { workspaceId, journal }: { workspaceId: string; journal: AgentPluginUpdateJournal }, _optional = {}): Promise<void> {
+async function restoreUpdate({ scope, workspaceId, journal }: {
+  scope: UpdateScope;
+  workspaceId: string;
+  journal: AgentPluginUpdateJournal;
+}): Promise<void> {
   const store = createAgentPluginUpdateStore({ ports: scope.ports, workspaceId, pluginId: journal.pluginId });
   const oldRoot = store.liveRoot({ digest: journal.fromDigest });
-  await setActivation(scope, { workspaceId, journal, enabled: false });
-  await restoreOldBytes(scope, { store, journal, oldRoot });
-  if (journal.state === 'published' && !await reprovisionOld(scope, { workspaceId, journal, oldRoot })) {
+  await setActivation({ scope, workspaceId, journal, enabled: false });
+  await restoreOldBytes({ scope, store, journal, oldRoot });
+  if (journal.state === 'published' && !await reprovisionOld({ scope, workspaceId, journal, oldRoot })) {
     scope.ports.onEvent?.({ event: 'agent-plugin-update-recovered-disabled', message: `Plugin '${journal.pluginId}': the previous revision is back but its MCP servers could not be re-provisioned; it stays off until an operator enables it.` });
   } else {
-    await setActivation(scope, { workspaceId, journal, enabled: journal.enabled });
+    await setActivation({ scope, workspaceId, journal, enabled: journal.enabled });
   }
   await store.finish({ journal: { ...journal, result: 'rolled-back' } });
 }
@@ -223,7 +258,12 @@ async function restoreUpdate(scope: UpdateScope, { workspaceId, journal }: { wor
 /** Removes the candidate and puts the old revision back live. Refreezing runs whichever branch
  * ran, so a crash between an earlier reinstate rename and its refreeze is repaired here.
  * @throws AgentPluginUpdateError PLUGIN_ROLLBACK_MISSING, PLUGIN_UPDATE_PATH_UNSAFE. */
-async function restoreOldBytes(scope: UpdateScope, { store, journal, oldRoot }: { store: UpdateTransaction['store']; journal: AgentPluginUpdateJournal; oldRoot: string }, _optional = {}): Promise<void> {
+async function restoreOldBytes({ scope, store, journal, oldRoot }: {
+  scope: UpdateScope;
+  store: UpdateTransaction['store'];
+  journal: AgentPluginUpdateJournal;
+  oldRoot: string;
+}): Promise<void> {
   const rollbackRoot = store.rollbackRoot({ digest: journal.fromDigest });
   const oldLive = await store.realDirectoryExists({ root: oldRoot });
   if (!oldLive && !await store.realDirectoryExists({ root: rollbackRoot })) {
@@ -241,7 +281,12 @@ async function restoreOldBytes(scope: UpdateScope, { store, journal, oldRoot }: 
 
 /** @returns false when the old revision's MCP roster could not be re-provisioned; the bytes are
  * already back, so the caller degrades to "restored but off" instead of wedging the journal. */
-async function reprovisionOld(scope: UpdateScope, { workspaceId, journal, oldRoot }: { workspaceId: string; journal: AgentPluginUpdateJournal; oldRoot: string }, _optional = {}): Promise<boolean> {
+async function reprovisionOld({ scope, workspaceId, journal, oldRoot }: {
+  scope: UpdateScope;
+  workspaceId: string;
+  journal: AgentPluginUpdateJournal;
+  oldRoot: string;
+}): Promise<boolean> {
   try {
     const installed = await scope.index.indexInstalledRoot({ packageRoot: oldRoot, archiveDigest: journal.fromDigest });
     await provisionAgentPluginMcp({ mcpProvisioning: scope.ports.mcpProvisioning, workspaceId, installed });
@@ -254,12 +299,12 @@ async function reprovisionOld(scope: UpdateScope, { workspaceId, journal, oldRoo
  * failure is rethrown afterwards. Bundled plugins have no update journal and get no decisions.
  * @complexity O(p + f) workspace entries and retained rollback files.
  */
-async function reconcileAgentPluginUpdates(scope: UpdateScope, { workspaceId }: { workspaceId: string }, _optional: Record<string, never> = {}): Promise<void> {
+async function reconcileAgentPluginUpdates({ scope, workspaceId }: { scope: UpdateScope; workspaceId: string }): Promise<void> {
   const workspaceRoot = scope.ports.layout.forWorkspace({ workspaceId }).root;
   const failures: unknown[] = [];
-  for (const pluginId of await listPluginStateIds(scope, { workspaceId })) {
+  for (const pluginId of await listPluginStateIds({ scope, workspaceId })) {
     try {
-      await scope.persistent.withPluginLock({ workspaceRoot, pluginId, run: () => reconcilePlugin(scope, { workspaceId, pluginId }) });
+      await scope.persistent.withPluginLock({ workspaceRoot, pluginId, run: () => reconcilePlugin({ scope, workspaceId, pluginId }) });
     } catch (error) {
       failures.push(error);
       scope.ports.onEvent?.({ event: 'agent-plugin-update-recovery-failed', message: `Plugin '${pluginId}': an interrupted update could not be recovered (${errorCode({ error })}); it is kept off until a later boot recovers it.` });
@@ -270,7 +315,7 @@ async function reconcileAgentPluginUpdates(scope: UpdateScope, { workspaceId }: 
 
 /** Workspace entries that can be plugin state roots. Reserved names (staging, packages, memory,
  * data) and invalid ids are rejected by the layout itself and are skipped, never locked. */
-async function listPluginStateIds(scope: UpdateScope, { workspaceId }: { workspaceId: string }, _optional = {}): Promise<string[]> {
+async function listPluginStateIds({ scope, workspaceId }: { scope: UpdateScope; workspaceId: string }): Promise<string[]> {
   const workspace = scope.ports.layout.forWorkspace({ workspaceId });
   let entries;
   try { entries = await scope.ports.filesystem.readdir(workspace.root, { withFileTypes: true }); }
@@ -286,14 +331,18 @@ function isPluginStateRoot({ workspace, pluginId }: { workspace: ReturnType<Agen
   catch { return false; }
 }
 
-async function reconcilePlugin(scope: UpdateScope, { workspaceId, pluginId }: { workspaceId: string; pluginId: string }, _optional = {}): Promise<void> {
+async function reconcilePlugin({ scope, workspaceId, pluginId }: {
+  scope: UpdateScope;
+  workspaceId: string;
+  pluginId: string;
+}): Promise<void> {
   const store = createAgentPluginUpdateStore({ ports: scope.ports, workspaceId, pluginId });
-  const switchOff = (error: unknown) => switchOffUnrecovered(scope, { workspaceId, pluginId, error });
+  const switchOff = (error: unknown) => switchOffUnrecovered({ scope, workspaceId, pluginId, error });
   const journal = await store.read({}).catch(switchOff);
   // A committed update only needs finishing; any other journal is rolled back.
   const committed = journal?.state === 'committed';
   if (journal && committed) await store.finish({ journal });
-  if (journal && !committed) await restoreUpdate(scope, { workspaceId, journal }).catch(switchOff);
+  if (journal && !committed) await restoreUpdate({ scope, workspaceId, journal }).catch(switchOff);
   for (const rollbackRoot of await store.listRollbackRoots({})) await scope.removal.removeFrozenPackageTree(rollbackRoot);
 }
 
@@ -301,7 +350,12 @@ async function reconcilePlugin(scope: UpdateScope, { workspaceId, pluginId }: { 
  * effort; the journal stays, so the next boot retries) and rethrows. A failure only filing a
  * committed audit or collecting rollback bytes never reaches here. Bundled plugins never get a
  * journal from this module and are never touched. */
-async function switchOffUnrecovered(scope: UpdateScope, { workspaceId, pluginId, error }: { workspaceId: string; pluginId: string; error: unknown }, _optional = {}): Promise<never> {
+async function switchOffUnrecovered({ scope, workspaceId, pluginId, error }: {
+  scope: UpdateScope;
+  workspaceId: string;
+  pluginId: string;
+  error: unknown;
+}): Promise<never> {
   const workspaceRoot = scope.ports.layout.forWorkspace({ workspaceId }).root;
   try {
     if (!await scope.activation.isAgentPluginRecordedAsBundled(workspaceRoot, pluginId)) {
@@ -325,8 +379,6 @@ interface UpdateScope {
   readonly persistent: ReturnType<typeof createPersistentStateModule>;
   readonly index: ReturnType<typeof createInstalledPackageIndex>;
 }
-
-type WithoutPorts<F> = F extends (scope: never, ...rest: infer R) => unknown ? R : never;
 
 /** Update transaction owner for operator-installed plugins (bundled ones stay seed-managed).
  *
@@ -361,8 +413,8 @@ export function createUpdateModule(ports: AgentPluginLifecyclePorts, optional: {
     index: createInstalledPackageIndex({ ports }),
   };
   return {
-    updateAgentPlugin: (...args: WithoutPorts<typeof updateAgentPlugin>) => updateAgentPlugin(scope, ...args),
-    reconcileAgentPluginUpdates: (...args: WithoutPorts<typeof reconcileAgentPluginUpdates>) => reconcileAgentPluginUpdates(scope, ...args),
+    updateAgentPlugin: (required: UpdateAgentPluginRequired, _optional: Record<string, never> = {}) => updateAgentPlugin({ scope, required }),
+    reconcileAgentPluginUpdates: ({ workspaceId }: { workspaceId: string }, _optional: Record<string, never> = {}) => reconcileAgentPluginUpdates({ scope, workspaceId }),
   };
 }
 

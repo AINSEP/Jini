@@ -37,7 +37,11 @@ export function createAgUiToAgentTranslationState({ customEventNames }: { custom
 /** The `TOOL_CALL_ARGS` case of {@link translateAgUiEventToAgentEvent} — accumulates one delta onto
  *  the in-flight call's buffer, a silent no-op for an id with no matching `TOOL_CALL_START`. Split
  *  out so this `if` is scored in its own complexity budget rather than the switch's. */
-function accumulateToolCallArgs(toolCallId: string, delta: string, state: AgUiToAgentTranslationState): void {
+function accumulateToolCallArgs({ toolCallId, delta, state }: {
+  toolCallId: string;
+  delta: string;
+  state: AgUiToAgentTranslationState;
+}): void {
   const call = state.toolCalls.get(toolCallId);
   if (call) call.argsJson += delta;
 }
@@ -53,7 +57,10 @@ function translateAgUiStepStart({ event }: { event: AgUiEvent }, _options = {}):
 /** The `TOOL_CALL_END` case of {@link translateAgUiEventToAgentEvent} — parses the accumulated
  *  args buffer (already removed from `state` by the caller) into one `tool_use` event, or `[]` for
  *  an id with no matching `TOOL_CALL_START`. */
-function finalizeToolCallAgentEvent(toolCallId: string, call: AgUiOpenToolCall | undefined): AgentEvent[] {
+function finalizeToolCallAgentEvent({ toolCallId, call }: {
+  toolCallId: string;
+  call: AgUiOpenToolCall | undefined;
+}): AgentEvent[] {
   if (!call) return [];
   let input: unknown = {};
   try {
@@ -104,13 +111,13 @@ export function translateAgUiEventToAgentEvent({ event, state }: { event: AgUiEv
       return [];
 
     case EventType.TOOL_CALL_ARGS:
-      accumulateToolCallArgs(event.toolCallId, event.delta, state);
+      accumulateToolCallArgs({ toolCallId: event.toolCallId, delta: event.delta, state });
       return [];
 
     case EventType.TOOL_CALL_END: {
       const call = state.toolCalls.get(event.toolCallId);
       state.toolCalls.delete(event.toolCallId);
-      return finalizeToolCallAgentEvent(event.toolCallId, call);
+      return finalizeToolCallAgentEvent({ toolCallId: event.toolCallId, call });
     }
 
     case EventType.TOOL_CALL_RESULT:

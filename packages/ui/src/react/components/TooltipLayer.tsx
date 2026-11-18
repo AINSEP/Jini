@@ -111,10 +111,12 @@ type SetTooltipState = Dispatch<SetStateAction<TooltipState | null>>;
 type TouchTap = { target: HTMLElement | null; wasOpen: boolean } | null;
 
 /** Pure reducer step for showing `target`: reuse `current` when nothing changed, else (re)start hidden for measuring. */
-function nextStateForShow(
-  current: TooltipState | null,
-  { target, text, placement }: { target: HTMLElement; text: string; placement: TooltipPlacement },
-): TooltipState {
+function nextStateForShow({ current, target, text, placement }: {
+  current: TooltipState | null;
+  target: HTMLElement;
+  text: string;
+  placement: TooltipPlacement;
+}): TooltipState {
   if (current?.target === target) {
     if (current.text === text && current.placement === placement) return current;
     return { ...current, text, placement };
@@ -123,7 +125,10 @@ function nextStateForShow(
 }
 
 /** Pure reducer step for repositioning: null when the target is gone/expanded, `current` when unchanged. */
-function nextStateForPosition(current: TooltipState | null, node: HTMLDivElement | null): TooltipState | null {
+function nextStateForPosition({ current, node }: {
+  current: TooltipState | null;
+  node: HTMLDivElement | null;
+}): TooltipState | null {
   if (!current) return null;
   if (!document.contains(current.target)) return null;
   if (current.target.getAttribute('aria-expanded') === 'true') return null;
@@ -202,7 +207,7 @@ function useTooltipActions({ rafRef, setState, restoreNativeTitle, suppressNativ
     if (!text) return;
     suppressNativeTitle(target);
     const placement = tooltipPlacement(target);
-    setState((current) => nextStateForShow(current, { target, text, placement }));
+    setState((current) => nextStateForShow({ current, target, text, placement }));
   }, [suppressNativeTitle, setState]);
 
   return { hideTooltip, hideTooltipForActivation, showTooltip };
@@ -298,7 +303,10 @@ function createFocusKeyHandlers(deps: TooltipEventDeps) {
 }
 
 /** Delegates pointer/focus/keyboard events on `document` (and resize/scroll on `window`) to the tooltip actions. */
-function useTooltipEventDelegation(deps: TooltipEventDeps, scheduleUpdatePosition: () => void) {
+function useTooltipEventDelegation({ deps, scheduleUpdatePosition }: {
+  deps: TooltipEventDeps;
+  scheduleUpdatePosition: () => void;
+}) {
   const { showTooltip, hideTooltip, hideTooltipForActivation, suppressNativeTitle } = deps;
   const { lastInputRef, touchTapRef, openTargetRef } = deps;
 
@@ -334,10 +342,10 @@ function useTooltipEventDelegation(deps: TooltipEventDeps, scheduleUpdatePositio
 }
 
 /** Hides the tip as soon as its target stops being a valid trigger (class/attr/disabled changes). */
-function useTargetMutationGuard(
-  target: HTMLElement | undefined,
-  hideTooltip: (options?: { restoreTitle?: boolean }) => void,
-) {
+function useTargetMutationGuard({ target, hideTooltip }: {
+  target: HTMLElement | undefined;
+  hideTooltip: (options?: { restoreTitle?: boolean }) => void;
+}) {
   useEffect(() => {
     if (!target || typeof MutationObserver === 'undefined') return undefined;
     const observer = new MutationObserver(() => {
@@ -374,7 +382,7 @@ export function useTooltipLayer(): UseTooltipLayerResult {
   const { hideTooltip, showTooltip } = actions;
 
   const updatePosition = useCallback(() => {
-    setState((current) => nextStateForPosition(current, tooltipRef.current));
+    setState((current) => nextStateForPosition({ current, node: tooltipRef.current }));
   }, []);
 
   const scheduleUpdatePosition = useCallback(() => {
@@ -398,11 +406,11 @@ export function useTooltipLayer(): UseTooltipLayerResult {
     };
   }, [restoreNativeTitle]);
 
-  useTargetMutationGuard(state?.target, hideTooltip);
-  useTooltipEventDelegation(
-    { lastInputRef, touchTapRef, openTargetRef, suppressNativeTitle, ...actions },
+  useTargetMutationGuard({ target: state?.target, hideTooltip });
+  useTooltipEventDelegation({
+    deps: { lastInputRef, touchTapRef, openTargetRef, suppressNativeTitle, ...actions },
     scheduleUpdatePosition,
-  );
+  });
 
   return { state, tooltipRef, showTooltip, hideTooltip };
 }

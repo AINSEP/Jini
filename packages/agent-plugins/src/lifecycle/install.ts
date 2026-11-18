@@ -179,7 +179,11 @@ const SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/;
 /** Publisher ids are metadata, never filesystem segments. The workspace identity lock
  * serializes installs under different local names competing for one qualified id.
  * @complexity O(d) manifest reads for d installed revisions; no executable imports. */
-async function assertIdentityAvailable(ports: AgentPluginLifecyclePorts, workspaceRoot: string, candidate: InstalledAgentPlugin): Promise<void> {
+async function assertIdentityAvailable({ ports, workspaceRoot, candidate }: {
+  ports: AgentPluginLifecyclePorts;
+  workspaceRoot: string;
+  candidate: InstalledAgentPlugin;
+}): Promise<void> {
   // Installed roots are canonical paths; compare against the same root even when the host
   // supplied an OS alias (macOS /var -> /private/var). Containment still rejects escaped links.
   workspaceRoot = await ports.filesystem.realpath(workspaceRoot);
@@ -210,10 +214,11 @@ async function assertIdentityAvailable(ports: AgentPluginLifecyclePorts, workspa
  * prior bytes. Cleanup faults warn without turning an accepted install into a failed install.
  * @complexity O(d + f), d workspace revisions, f files in this plugin's superseded packages.
  */
-async function pruneSupersededRevisions(ports: AgentPluginLifecyclePorts,
-  { workspaceRoot, installed }: { workspaceRoot: string; installed: InstalledAgentPlugin },
-  _optional: Record<string, never> = {},
-): Promise<void> {
+async function pruneSupersededRevisions({ ports, workspaceRoot, installed }: {
+  ports: AgentPluginLifecyclePorts;
+  workspaceRoot: string;
+  installed: InstalledAgentPlugin;
+}): Promise<void> {
   try {
     const removal = createUninstallModule(ports);
     for (const root of await listInstalledPackageRoots({ ports, workspaceRoot })) {
@@ -294,20 +299,24 @@ async function publishPackage(scope: InstallScope): Promise<InstalledAgentPlugin
   await createPersistentStateModule(ports).assertOwnedPath({ workspaceRoot: workspaceLayout.root, entryPath: path.relative(workspaceLayout.root, packagesDir) });
   await ports.filesystem.mkdir(packagesDir, { recursive: true, mode: 0o700 });
   const finalRoot = await createPackagePathsModule(ports).assertContainedOnDisk(packagesDir, digest);
-  await ensurePluginOwnedDirs(ports, workspaceLayout, pluginId);
+  await ensurePluginOwnedDirs({ ports, workspaceLayout, pluginId });
   if (await reuseOrSetAsideExisting(ports, { packagesDir, finalRoot, extractionRoot, pluginId })) {
-    scope.published = await indexInstalledRoot(ports, finalRoot, digest);
+    scope.published = await indexInstalledRoot({ ports, packageRoot: finalRoot, archiveDigest: digest });
     return scope.published;
   }
-  await publish(ports, extractionRoot, finalRoot);
-  await freezeTree(ports, finalRoot, executablePaths);
+  await publish({ ports, extractionRoot, finalRoot });
+  await freezeTree({ ports, root: finalRoot, executables: executablePaths });
   /** Absolute, read-only (frozen) path to the extracted package root. */
   scope.published = { ...indexed, packageRoot: finalRoot };
   return scope.published;
 }
 
 /** Creates (owned, 0700) the plugin's data and learned/notes memory directories. */
-async function ensurePluginOwnedDirs(ports: AgentPluginLifecyclePorts, workspaceLayout: InstallScope["workspaceLayout"], pluginId: string): Promise<void> {
+async function ensurePluginOwnedDirs({ ports, workspaceLayout, pluginId }: {
+  ports: AgentPluginLifecyclePorts;
+  workspaceLayout: InstallScope["workspaceLayout"];
+  pluginId: string;
+}): Promise<void> {
   for (const directory of [workspaceLayout.pluginDataDir({ pluginId }),
     workspaceLayout.pluginMemoryDir({ pluginId, kind: 'learned' }),
     workspaceLayout.pluginMemoryDir({ pluginId, kind: 'notes' })]) {
@@ -327,7 +336,7 @@ function publishWithinPluginLock(scope: InstallScope) {
     // The journal lives under the layout this install was given, the one it publishes into.
     await settleAgentPluginUpdateJournal({ store: createAgentPluginUpdateStore({ ports: { ...ports, layout: required.layout }, workspaceId: required.workspaceId, pluginId: indexed.pluginId }) });
     const installed = await (optional.publishGuard ? optional.publishGuard({ plugin: indexed, publish: () => publishPackage(scope) }, {}) : publishPackage(scope));
-    if (scope.published && optional.pruneSupersededRevisions !== false) await pruneSupersededRevisions(ports, { workspaceRoot: workspaceLayout.root, installed: scope.published });
+    if (scope.published && optional.pruneSupersededRevisions !== false) await pruneSupersededRevisions({ ports, workspaceRoot: workspaceLayout.root, installed: scope.published });
     return installed;
   } });
 }
@@ -336,7 +345,7 @@ function publishWithinPluginLock(scope: InstallScope) {
 function publishUnderIdentityLock(scope: InstallScope): Promise<InstalledAgentPlugin> {
   const { ports, workspaceLayout, indexed } = scope;
   return createPersistentStateModule(ports).withIdentityLock({ workspaceRoot: workspaceLayout.root, run: async () => {
-    await assertIdentityAvailable(ports, workspaceLayout.root, indexed);
+    await assertIdentityAvailable({ ports, workspaceRoot: workspaceLayout.root, candidate: indexed });
     if (ports.identityAdmission) return ports.identityAdmission({ id: indexed.id!, localId: indexed.pluginId, run: () => publishWithinPluginLock(scope) }, {});
     return publishWithinPluginLock(scope);
   } });
@@ -359,10 +368,10 @@ function publishUnderIdentityLock(scope: InstallScope): Promise<InstalledAgentPl
 // transaction directory itself must never be left behind — on success `ports.filesystem.rename` already moved
 // `extractionRoot` out of it, so this only ever removes the (now-empty, or failure-abandoned)
 // temp directory, never the published package.
-async function installAgentPlugin(ports: AgentPluginLifecyclePorts,
-  required: InstallAgentPluginRequired,
-  optional: InstallAgentPluginOptional = {}
-): Promise<InstalledAgentPlugin> {
+async function installAgentPlugin({ ports, required }: {
+  ports: AgentPluginLifecyclePorts;
+  required: InstallAgentPluginRequired;
+}, optional: InstallAgentPluginOptional = {}): Promise<InstalledAgentPlugin> {
   const { archive, expectedSha256, archiveReader, layout, workspaceId } = required;
   const workspaceLayout = layout.forWorkspace({ workspaceId });
   const digest = verifyArchiveBytes({ archive, expectedSha256 });
@@ -373,8 +382,8 @@ async function installAgentPlugin(ports: AgentPluginLifecyclePorts,
   await ports.filesystem.mkdir(extractionRoot, { mode: 0o700 });
 
   try {
-    const executablePaths = await extractEntries(ports, archiveReader.entries({ archive }), extractionRoot);
-    const indexed = await indexInstalledRoot(ports, extractionRoot, digest);
+    const executablePaths = await extractEntries({ ports, entries: archiveReader.entries({ archive }), extractionRoot });
+    const indexed = await indexInstalledRoot({ ports, packageRoot: extractionRoot, archiveDigest: digest });
     if (optional.previewOnly) return indexed;
     return await publishUnderIdentityLock({ ports, required, optional, workspaceLayout, digest, indexed, extractionRoot, executablePaths, published: undefined });
   } finally {
@@ -383,7 +392,11 @@ async function installAgentPlugin(ports: AgentPluginLifecyclePorts,
 }
 
 /** Reads an extracted or installed package root into its indexed plugin record. */
-function indexInstalledRoot(ports: AgentPluginLifecyclePorts, packageRoot: string, archiveDigest: string) {
+function indexInstalledRoot({ ports, packageRoot, archiveDigest }: {
+  ports: AgentPluginLifecyclePorts;
+  packageRoot: string;
+  archiveDigest: string;
+}) {
   return createInstalledPackageIndex({ ports }).indexInstalledRoot({ packageRoot, archiveDigest });
 }
 
@@ -400,8 +413,8 @@ function indexInstalledRoot(ports: AgentPluginLifecyclePorts, packageRoot: strin
 async function reuseOrSetAsideExisting(ports: AgentPluginLifecyclePorts,
   { packagesDir, finalRoot, extractionRoot, pluginId }: { packagesDir: string; finalRoot: string; extractionRoot: string; pluginId: string },
 ): Promise<boolean> {
-  if (!(await isRealDirectory(ports, finalRoot))) return false;
-  if (await sameTree(ports, finalRoot, extractionRoot)) return true;
+  if (!(await isRealDirectory({ ports, target: finalRoot }))) return false;
+  if (await sameTree({ ports, left: finalRoot, right: extractionRoot })) return true;
   const aside = path.join(packagesDir, `.modified-${path.basename(finalRoot).slice(0, 12)}-${randomUUID()}`);
   await createUninstallModule(ports).stageForRemoval(packagesDir, finalRoot, { quarantined: aside });
   ports.onEvent?.({ event: 'agent-plugin-modified-revision-preserved', message: `Plugin '${pluginId}': an installed revision no longer matched its digest; it was kept at '${aside}' and the verified bytes were reinstalled.` });
@@ -409,7 +422,11 @@ async function reuseOrSetAsideExisting(ports: AgentPluginLifecyclePorts,
 }
 
 /** Same entry names, kinds and file bytes, recursively. @complexity O(f + b). */
-async function sameTree(ports: AgentPluginLifecyclePorts, left: string, right: string): Promise<boolean> {
+async function sameTree({ ports, left, right }: {
+  ports: AgentPluginLifecyclePorts;
+  left: string;
+  right: string;
+}): Promise<boolean> {
   const [leftEntries, rightEntries] = await Promise.all([ports.filesystem.readdir(left, { withFileTypes: true }), ports.filesystem.readdir(right, { withFileTypes: true })]);
   if (leftEntries.length !== rightEntries.length) return false;
   const rightByName = new Map(rightEntries.map(entry => [entry.name, entry]));
@@ -417,13 +434,17 @@ async function sameTree(ports: AgentPluginLifecyclePorts, left: string, right: s
     const other = rightByName.get(entry.name);
     if (!other || entry.isDirectory() !== other.isDirectory() || entry.isFile() !== other.isFile()) return false;
     const [leftPath, rightPath] = [path.join(left, entry.name), path.join(right, entry.name)];
-    if (!(await (entry.isDirectory() ? sameTree(ports, leftPath, rightPath) : sameFile(ports, leftPath, rightPath)))) return false;
+    if (!(await (entry.isDirectory() ? sameTree({ ports, left: leftPath, right: rightPath }) : sameFile({ ports, left: leftPath, right: rightPath })))) return false;
   }
   return true;
 }
 
 /** Size first, so a grown file is rejected without reading it. */
-async function sameFile(ports: AgentPluginLifecyclePorts, left: string, right: string): Promise<boolean> {
+async function sameFile({ ports, left, right }: {
+  ports: AgentPluginLifecyclePorts;
+  left: string;
+  right: string;
+}): Promise<boolean> {
   if ((await ports.filesystem.stat(left)).size !== (await ports.filesystem.stat(right)).size) return false;
   return Buffer.from(await ports.filesystem.readFile(left)).equals(Buffer.from(await ports.filesystem.readFile(right)));
 }
@@ -438,7 +459,10 @@ function symlinkRejectionMessage(entry: AgentPluginArchiveEntry): string {
 
 /** `createPackagePathsModule(ports).normalizePackageEntryPath()`, with its thrown error re-shaped into the module's own
  * `AgentPluginInstallError` vocabulary. */
-function normalizeEntryPathOrThrow(ports: AgentPluginLifecyclePorts, entryPath: string): string {
+function normalizeEntryPathOrThrow({ ports, entryPath }: {
+  ports: AgentPluginLifecyclePorts;
+  entryPath: string;
+}): string {
   try {
     return createPackagePathsModule(ports).normalizePackageEntryPath(entryPath);
   } catch (error) {
@@ -447,7 +471,11 @@ function normalizeEntryPathOrThrow(ports: AgentPluginLifecyclePorts, entryPath: 
 }
 
 /** `createPackagePathsModule(ports).assertContainedOnDisk()`, with its thrown error re-shaped the same way. */
-async function resolveContainedDestinationOrThrow(ports: AgentPluginLifecyclePorts, extractionRoot: string, normalized: string): Promise<string> {
+async function resolveContainedDestinationOrThrow({ ports, extractionRoot, normalized }: {
+  ports: AgentPluginLifecyclePorts;
+  extractionRoot: string;
+  normalized: string;
+}): Promise<string> {
   try {
     return await createPackagePathsModule(ports).assertContainedOnDisk(extractionRoot, normalized);
   } catch (error) {
@@ -479,14 +507,14 @@ async function extractOneEntry(ports: AgentPluginLifecyclePorts, args: {
     throw new AgentPluginInstallError({ code: "SYMLINK_ENTRY_REJECTED", message: symlinkRejectionMessage(entry) });
   }
 
-  const normalized = normalizeEntryPathOrThrow(ports, entry.entryPath);
+  const normalized = normalizeEntryPathOrThrow({ ports, entryPath: entry.entryPath });
 
   if (seen.has(normalized)) {
     throw new AgentPluginInstallError({ code: "DUPLICATE_ENTRY", message: `duplicate archive entry '${normalized}' — refusing a second write over an already-vetted first one` });
   }
   seen.add(normalized);
 
-  const destination = await resolveContainedDestinationOrThrow(ports, extractionRoot, normalized);
+  const destination = await resolveContainedDestinationOrThrow({ ports, extractionRoot, normalized });
 
   if (entry.kind === "directory") {
     await ports.filesystem.mkdir(destination, { recursive: true, mode: 0o700 });
@@ -540,10 +568,11 @@ function tooManyEntriesError(): AgentPluginInstallError {
 /** Extracts every entry into `extractionRoot`, enforcing every hardening rule in this module's
  * header. Returns the set of archive-relative paths the archive marked executable, for
  * {@link freezeTree} to preserve the `+x` bit on. */
-async function extractEntries(ports: AgentPluginLifecyclePorts,
-  entries: AsyncIterable<AgentPluginArchiveEntry>,
-  extractionRoot: string,
-): Promise<ReadonlySet<string>> {
+async function extractEntries({ ports, entries, extractionRoot }: {
+  ports: AgentPluginLifecyclePorts;
+  entries: AsyncIterable<AgentPluginArchiveEntry>;
+  extractionRoot: string;
+}): Promise<ReadonlySet<string>> {
   const seen = new Set<string>();
   const executablePaths = new Set<string>();
   let entryCount = 0;
@@ -609,13 +638,17 @@ async function writeContainedFile(ports: AgentPluginLifecyclePorts, params: {
  * does NOT claim" discipline): this is best-effort defense against an ACCIDENTAL same-process write
  * into what is supposed to be a read-only `PLUGIN_ROOT`, not a security boundary against a
  * determined attacker already running code as this same OS user — that user can `ports.filesystem.chmod` again. */
-async function freezeTree(ports: AgentPluginLifecyclePorts, root: string, executables: ReadonlySet<string>, prefix = ""): Promise<void> {
+async function freezeTree({ ports, root, executables }: {
+  ports: AgentPluginLifecyclePorts;
+  root: string;
+  executables: ReadonlySet<string>;
+}, { prefix = "" }: { prefix?: string } = {}): Promise<void> {
   for (const entry of await ports.filesystem.readdir(root, { withFileTypes: true })) {
     const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
     const absolute = path.join(root, entry.name);
 
     if (entry.isDirectory()) {
-      await freezeTree(ports, absolute, executables, relative);
+      await freezeTree({ ports, root: absolute, executables }, { prefix: relative });
       await ports.filesystem.chmod(absolute, 0o555);
     } else {
       await ports.filesystem.chmod(absolute, executables.has(relative) ? 0o555 : 0o444);
@@ -631,7 +664,11 @@ async function freezeTree(ports: AgentPluginLifecyclePorts, root: string, execut
 // macOS reports EACCES, rather than ENOTEMPTY, when the winning install has already
 // frozen its destination directory. Still require a real directory below: a permission
 // failure with no published winner must remain PUBLISH_FAILED.
-async function publish(ports: AgentPluginLifecyclePorts, extractionRoot: string, finalRoot: string): Promise<void> {
+async function publish({ ports, extractionRoot, finalRoot }: {
+  ports: AgentPluginLifecyclePorts;
+  extractionRoot: string;
+  finalRoot: string;
+}): Promise<void> {
   try {
     await ports.filesystem.rename(extractionRoot, finalRoot);
   } catch (error) {
@@ -639,7 +676,7 @@ async function publish(ports: AgentPluginLifecyclePorts, extractionRoot: string,
     if (!isErrnoException(error) || (error.code !== "EEXIST" && error.code !== "ENOTEMPTY" && error.code !== "EACCES")) {
       throw new AgentPluginInstallError({ code: "PUBLISH_FAILED", message: `failed to publish the extracted package to '${finalRoot}'` }, { cause: error });
     }
-    if (!(await isRealDirectory(ports, finalRoot))) {
+    if (!(await isRealDirectory({ ports, target: finalRoot }))) {
       throw new AgentPluginInstallError({ code: "PUBLISH_FAILED", message: `'${finalRoot}' exists but is not a real, published package directory` }, { cause: error });
     }
     // Lost the race to a concurrent install of identical bytes — the bytes at `finalRoot` are the
@@ -647,7 +684,10 @@ async function publish(ports: AgentPluginLifecyclePorts, extractionRoot: string,
   }
 }
 
-async function isRealDirectory(ports: AgentPluginLifecyclePorts, target: string): Promise<boolean> {
+async function isRealDirectory({ ports, target }: {
+  ports: AgentPluginLifecyclePorts;
+  target: string;
+}): Promise<boolean> {
   try {
     const info = await ports.filesystem.stat(target);
     return info.isDirectory();
@@ -665,13 +705,11 @@ function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
   return typeof error === "object" && error !== null && "code" in error;
 }
 
-type WithoutPorts<F> = F extends (ports: never, ...rest: infer R) => unknown ? R : never;
-
 function buildModule(ports: AgentPluginLifecyclePorts) {
   return {
     maxAgentPluginInstallArchiveBytes,
-    installAgentPlugin: (...args: WithoutPorts<typeof installAgentPlugin>) => installAgentPlugin(ports, ...args),
-    indexInstalledRoot: (packageRoot: string, archiveDigest: string) => indexInstalledRoot(ports, packageRoot, archiveDigest),
+    installAgentPlugin: (required: InstallAgentPluginRequired, optional: InstallAgentPluginOptional = {}) => installAgentPlugin({ ports, required }, optional),
+    indexInstalledRoot: (packageRoot: string, archiveDigest: string) => indexInstalledRoot({ ports, packageRoot, archiveDigest }),
   };
 }
 

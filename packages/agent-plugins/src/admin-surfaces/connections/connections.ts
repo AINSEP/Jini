@@ -76,7 +76,10 @@ type ConnectionsScope<Connection extends AdminSurfaceDeclaredConnection> = Admin
   readonly signal?: AbortSignal | undefined;
 };
 
-async function resolveConnection<Connection extends AdminSurfaceDeclaredConnection>(scope: ConnectionsScope<Connection>, connectionId: string): Promise<{ readonly connection: Connection; readonly connectionRef: string }> {
+async function resolveConnection<Connection extends AdminSurfaceDeclaredConnection>({ scope, connectionId }: {
+  scope: ConnectionsScope<Connection>;
+  connectionId: string;
+}): Promise<{ readonly connection: Connection; readonly connectionRef: string }> {
   const { host, pluginId, workspaceId } = scope;
   const connection = workspaceId === host.workspaceId ? (await host.listConnections({ pluginId })).find((candidate) => candidate.descriptor.connectionId === connectionId) : undefined;
   if (!connection) throw host.notAvailable();
@@ -84,13 +87,20 @@ async function resolveConnection<Connection extends AdminSurfaceDeclaredConnecti
 }
 
 /** Account actions need the admin the route authenticated; Jini checks it too. */
-async function resolveForActor<Connection extends AdminSurfaceDeclaredConnection>(scope: ConnectionsScope<Connection>, connectionId: string) {
+async function resolveForActor<Connection extends AdminSurfaceDeclaredConnection>({ scope, connectionId }: {
+  scope: ConnectionsScope<Connection>;
+  connectionId: string;
+}) {
   if (scope.principalId === undefined) throw scope.host.notAvailable();
-  return { ...(await resolveConnection(scope, connectionId)), actorId: scope.principalId };
+  return { ...(await resolveConnection({ scope, connectionId })), actorId: scope.principalId };
 }
 
 /** An action's result view, its staged-switch label re-read from the record so an expired one never shows. */
-async function viewAfterAction<Connection extends AdminSurfaceDeclaredConnection>(host: AdminSurfaceConnectionsHost<Connection>, connectionRef: string, view: AdminSurfaceStatusView): Promise<StatusSource> {
+async function viewAfterAction<Connection extends AdminSurfaceDeclaredConnection>({ host, connectionRef, view }: {
+  host: AdminSurfaceConnectionsHost<Connection>;
+  connectionRef: string;
+  view: AdminSurfaceStatusView;
+}): Promise<StatusSource> {
   return { ...view, pendingSwitch: liveStagedAccount(host, (await host.readRecord({ key: connectionRef }))?.staged) };
 }
 
@@ -121,9 +131,12 @@ function watchDesktopCompletion<Connection extends AdminSurfaceDeclaredConnectio
   );
 }
 
-async function connectionStatus<Connection extends AdminSurfaceDeclaredConnection>(scope: ConnectionsScope<Connection>, connectionId: string): Promise<AdminSurfaceConnectionStatus> {
+async function connectionStatus<Connection extends AdminSurfaceDeclaredConnection>({ scope, connectionId }: {
+  scope: ConnectionsScope<Connection>;
+  connectionId: string;
+}): Promise<AdminSurfaceConnectionStatus> {
   const { host } = scope;
-  const { connection, connectionRef } = await resolveConnection(scope, connectionId);
+  const { connection, connectionRef } = await resolveConnection({ scope, connectionId });
   if (host.sharedOAuth && await host.sharedOAuth.hasBinding(connection)) {
     const shared = await host.sharedOAuth.getStatus(connection);
     const account = shared?.account ?? null;
@@ -133,14 +146,14 @@ async function connectionStatus<Connection extends AdminSurfaceDeclaredConnectio
   return statusFrom(host, connection, record ? { ...record, pendingSwitch: liveStagedAccount(host, record.staged) } : NEVER_CONNECTED, connectionRef);
 }
 
-async function beginSignIn<Connection extends AdminSurfaceDeclaredConnection>(
-  scope: ConnectionsScope<Connection>,
-  args: { readonly connectionId: string; readonly action: keyof typeof ADMIN_SURFACE_ACTION_INTENTS },
-  optional: { readonly scopeSetIds?: readonly string[] | undefined; readonly startParams?: Readonly<Record<string, string>> | undefined },
-): Promise<AdminSurfaceAuthorizationStart> {
+async function beginSignIn<Connection extends AdminSurfaceDeclaredConnection>({ scope, args, optional }: {
+  scope: ConnectionsScope<Connection>;
+  args: { readonly connectionId: string; readonly action: keyof typeof ADMIN_SURFACE_ACTION_INTENTS };
+  optional: { readonly scopeSetIds?: readonly string[] | undefined; readonly startParams?: Readonly<Record<string, string>> | undefined };
+}): Promise<AdminSurfaceAuthorizationStart> {
   const { host, pluginId } = scope;
   const { connectionId, action } = args;
-  const { connection, actorId } = await resolveForActor(scope, connectionId);
+  const { connection, actorId } = await resolveForActor({ scope, connectionId });
   const shared = await isSharedBinding(host, connection);
   if (shared && ADMIN_SURFACE_ACTION_INTENTS[action] === "switch-account") throw host.notAvailable();
   const start = await host.startSignIn({ connection, actorId, intent: ADMIN_SURFACE_ACTION_INTENTS[action], scopeSetIds: optional.scopeSetIds ?? [],
@@ -154,27 +167,34 @@ async function beginSignIn<Connection extends AdminSurfaceDeclaredConnection>(
 }
 
 /** Confirm or cancel a staged account switch; refused for a shared-app binding, which never stages one. */
-async function settleSwitch<Connection extends AdminSurfaceDeclaredConnection>(scope: ConnectionsScope<Connection>, connectionId: string, settle: "confirm" | "cancel"): Promise<AdminSurfaceConnectionStatus> {
+async function settleSwitch<Connection extends AdminSurfaceDeclaredConnection>({ scope, connectionId, settle }: {
+  scope: ConnectionsScope<Connection>;
+  connectionId: string;
+  settle: "confirm" | "cancel";
+}): Promise<AdminSurfaceConnectionStatus> {
   const { host, workspaceId } = scope;
-  const { connection, connectionRef, actorId } = await resolveForActor(scope, connectionId);
+  const { connection, connectionRef, actorId } = await resolveForActor({ scope, connectionId });
   if (await isSharedBinding(host, connection)) throw host.notAvailable();
   const service = host.service({ connection });
   const view = settle === "confirm"
     ? await service.confirmSwitchAccount({ connectionRef, workspaceId, actorId })
     : await service.cancelSwitchAccount({ connectionRef, workspaceId });
-  return statusFrom(host, connection, await viewAfterAction(host, connectionRef, view), connectionRef);
+  return statusFrom(host, connection, await viewAfterAction({ host, connectionRef, view }), connectionRef);
 }
 
-async function disconnectConnection<Connection extends AdminSurfaceDeclaredConnection>(scope: ConnectionsScope<Connection>, connectionId: string) {
+async function disconnectConnection<Connection extends AdminSurfaceDeclaredConnection>({ scope, connectionId }: {
+  scope: ConnectionsScope<Connection>;
+  connectionId: string;
+}) {
   const { host, workspaceId } = scope;
-  const { connection, connectionRef } = await resolveForActor(scope, connectionId);
+  const { connection, connectionRef } = await resolveForActor({ scope, connectionId });
   if (host.sharedOAuth && await host.sharedOAuth.hasBinding(connection)) {
     await host.sharedOAuth.stopUsing(connection);
     return { ...(await statusFrom(host, connection, NEVER_CONNECTED, connectionRef)), revocation: "not-needed" as const };
   }
   const outcome = await host.service({ connection }).disconnect({ connectionRef, workspaceId });
   // Same vocabulary on both sides: the provider's outcome passes through unchanged.
-  return { ...(await statusFrom(host, connection, await viewAfterAction(host, connectionRef, outcome), connectionRef)), revocation: outcome.remoteRevocation };
+  return { ...(await statusFrom(host, connection, await viewAfterAction({ host, connectionRef, view: outcome }), connectionRef)), revocation: outcome.remoteRevocation };
 }
 
 /**
@@ -188,17 +208,17 @@ export function createAdminSurfaceConnections<Connection extends AdminSurfaceDec
   const { host, pluginId, workspaceId } = required;
   return {
     async getAccessToken({ connectionId }) {
-      const { connectionRef } = await resolveForActor(required, connectionId);
+      const { connectionRef } = await resolveForActor({ scope: required, connectionId });
       const pinned = host.pinnedTokenOptions?.({ signal: required.signal, connectionRef }) ?? {};
       return host.getAccessToken({ workspaceId, pluginId, connectionRef }, pinned);
     },
-    status: ({ connectionId }) => connectionStatus(required, connectionId),
-    begin: (args, optional = {}) => beginSignIn(required, args, optional),
-    confirmSwitch: ({ connectionId }) => settleSwitch(required, connectionId, "confirm"),
-    cancelSwitch: ({ connectionId }) => settleSwitch(required, connectionId, "cancel"),
-    disconnect: ({ connectionId }) => disconnectConnection(required, connectionId),
+    status: ({ connectionId }) => connectionStatus({ scope: required, connectionId }),
+    begin: (args, optional = {}) => beginSignIn({ scope: required, args, optional }),
+    confirmSwitch: ({ connectionId }) => settleSwitch({ scope: required, connectionId, settle: "confirm" }),
+    cancelSwitch: ({ connectionId }) => settleSwitch({ scope: required, connectionId, settle: "cancel" }),
+    disconnect: ({ connectionId }) => disconnectConnection({ scope: required, connectionId }),
     async takeCallbackFields({ connectionId, attemptId }) {
-      await resolveConnection(required, connectionId);
+      await resolveConnection({ scope: required, connectionId });
       return host.callbackInbox.take({ workspaceId, pluginId, connectionId, attemptId });
     },
   };

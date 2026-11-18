@@ -56,11 +56,11 @@ export async function startOAuthCallbackListener(requiredArgs: Pick<StartOAuthCa
   const input: StartOAuthCallbackListenerInput = { ...optionalArgs, ...requiredArgs };
   const st: ListenerState = { input, consumed: false, stopped: false, server: null, timer: null };
   const server = http.createServer((req, res) => {
-    void handleRequest(st, req, res);
+    void handleRequest({ st, req, res });
   });
   await listenServer(server, { host: input.host, port: input.port });
   st.server = server;
-  startTimeout(st, input.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  startTimeout({ st, timeoutMs: input.timeoutMs ?? DEFAULT_TIMEOUT_MS });
   const addr = server.address() as AddressInfo;
   return {
     address: { host: addr.address, port: addr.port },
@@ -112,35 +112,47 @@ async function stopListener(st: ListenerState): Promise<void> {
   await closeServer(st);
 }
 
-function respondText(res: http.ServerResponse, status: number, body: string): void {
+function respondText({ res, status, body }: {
+  res: http.ServerResponse;
+  status: number;
+  body: string;
+}): void {
   res.statusCode = status;
   res.setHeader('content-type', 'text/plain; charset=utf-8');
   res.end(body);
 }
 
-async function handleRequest(st: ListenerState, req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+async function handleRequest({ st, req, res }: {
+  st: ListenerState;
+  req: http.IncomingMessage;
+  res: http.ServerResponse;
+}): Promise<void> {
   const { host, port, path: callbackPath } = st.input;
   if (st.consumed || !req.url) {
-    respondText(res, 410, 'Listener already consumed.');
+    respondText({ res, status: 410, body: 'Listener already consumed.' });
     return;
   }
   let parsed: URL;
   try {
     parsed = new URL(req.url, `http://${host}:${port}`);
   } catch {
-    respondText(res, 400, 'Bad request.');
+    respondText({ res, status: 400, body: 'Bad request.' });
     return;
   }
   // Ignore favicon.ico and any other path so the browser's incidental
   // requests don't consume the slot meant for the callback path.
   if (parsed.pathname !== callbackPath) {
-    respondText(res, 404, 'Not found.');
+    respondText({ res, status: 404, body: 'Not found.' });
     return;
   }
-  await dispatchCallback(st, parsed.searchParams, res);
+  await dispatchCallback({ st, params: parsed.searchParams, res });
 }
 
-async function dispatchCallback(st: ListenerState, params: URLSearchParams, res: http.ServerResponse): Promise<void> {
+async function dispatchCallback({ st, params, res }: {
+  st: ListenerState;
+  params: URLSearchParams;
+  res: http.ServerResponse;
+}): Promise<void> {
   const { expectedState, onCallback } = st.input;
   const outcome = callbackOutcome({ params, expectedState });
   const consumesListener = callbackConsumesListener({ params, expectedState, outcome });
@@ -189,7 +201,7 @@ function listenServer(server: http.Server, { host, port }: { host: string; port:
   });
 }
 
-function startTimeout(st: ListenerState, timeoutMs: number): void {
+function startTimeout({ st, timeoutMs }: { st: ListenerState; timeoutMs: number }): void {
   st.timer = setTimeout(() => {
     Promise.resolve(
       st.input.onCallback({
