@@ -2,11 +2,13 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import type { FormEvent, ReactNode } from 'react';
 import { expect, test, vi } from 'vitest';
 import { FetchQueryProvider } from '@jini-ai/ui/panel-kit';
+import { realUmKit } from './fetch-query-support.js';
+import { UserManagementKitProvider } from '../kit.js';
 import { useUsers } from '../index.js';
 import { createFakeRolesPort, createFakeUsersPort } from '../testing.js';
 
 const translate = (key: string) => key;
-function wrapper({ children }: { children: ReactNode }) { return <FetchQueryProvider>{children}</FetchQueryProvider>; }
+function wrapper({ children }: { children: ReactNode }) { return <FetchQueryProvider><UserManagementKitProvider kit={realUmKit}>{children}</UserManagementKitProvider></FetchQueryProvider>; }
 const submit = () => ({ preventDefault: vi.fn() }) as unknown as FormEvent;
 
 test('user creation, grants, email and status writes preserve exact port payloads and refresh the roster', async () => {

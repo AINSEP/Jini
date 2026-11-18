@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { RowMenu, ConfirmDialog } from "@jini-ai/admin/react";
+import { RowMenu, ConfirmDialog } from "../kit.js";
 import { agentHandle, buildAgentListHandles } from "@jini-ai/core/agent-handles";
 import type { AdminMember } from "../models.js";
 

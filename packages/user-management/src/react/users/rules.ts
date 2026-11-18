@@ -1,7 +1,7 @@
 import type { AdminIdentityUser } from "../models.js";
-import type { QueryKey } from "@jini-ai/ui/panel-kit";
+import type { QueryKey } from "@jini-ai/core/fetch";
 import { describeIdentityError } from "../errors.js";
-import type { RowMenuItem } from "@jini-ai/admin/react";
+import type { RowMenuItem } from "../kit.js";
 
 import { type Translate } from '@jini-ai/core/text';
 /**

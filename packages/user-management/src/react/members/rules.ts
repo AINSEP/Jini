@@ -1,7 +1,7 @@
 import type { AdminMember } from "../models.js";
 
 import { describeIdentityError } from "../errors.js";
-import type { RowMenuItem } from "@jini-ai/admin/react";
+import type { RowMenuItem } from "../kit.js";
 
 import { type Translate } from '@jini-ai/core/text';
 /**

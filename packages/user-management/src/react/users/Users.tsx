@@ -1,6 +1,6 @@
 import { useId, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import type { AdminIdentityUser, AdminPolicy, AdminRole } from "../models.js";
-import { RowMenu, ConfirmDialog } from "@jini-ai/admin/react";
+import { RowMenu, ConfirmDialog, InfoTip, SecretInput } from "../kit.js";
 import { agentHandle, buildAgentListHandles } from "@jini-ai/core/agent-handles";
 
 import { grantOptionLabel, type UserAccountCapabilities } from "./rules.js";
@@ -8,8 +8,6 @@ import { UserGrantCells, UserNameCell, UserStatusCell, userRowMenuItemsFor } fro
 import { useUsers, type UsersController, type UsersDependencies, type UsersOptions } from "./hooks/use-users.hooks.js";
 import type { ReactNode } from "react";
 
-import { InfoTip } from "@jini-ai/ui/admin-widgets";
-import { SecretInput } from "@jini-ai/ui";
 import { createResetPasswordConfirmHandler, useResetPasswordFields } from "./hooks/use-reset-password-fields.hooks.js";
 import { ChangeUsernameDialog } from "./ChangeUsernameDialog.js";
 

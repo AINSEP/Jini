@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { RowMenuItem } from "@jini-ai/admin/react";
+import type { RowMenuItem } from "../kit.js";
 import { agentHandle } from "@jini-ai/core/agent-handles";
 
 import type { AdminIdentityUser, AdminPolicy, AdminRole } from "../models.js";
