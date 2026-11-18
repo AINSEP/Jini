@@ -1,0 +1,134 @@
+diff --git a/packages/chat/package.json b/packages/chat/package.json
+index 06ad8584..ced7100c 100644
+--- a/packages/chat/package.json
++++ b/packages/chat/package.json
+@@ -241,8 +241,6 @@
+   },
+   "dependencies": {
+     "@jini-ai/core": "workspace:^",
+-    "@jini-ai/db": "workspace:^",
+-    "@jini-ai/diagnostics": "workspace:^",
+     "@jini-ai/protocol": "workspace:^",
+     "kysely": "^0.29.6"
+   },
+@@ -258,12 +256,9 @@
+     "@radix-ui/react-label": "^2.1.15",
+     "@radix-ui/react-radio-group": "^1.4.7",
+     "@radix-ui/react-select": "^2.3.7",
+-    "@radix-ui/react-slot": "^1.3.3",
+-    "@jini-ai/agent-runtime": "^0.7.0",
+-    "@jini-ai/ui": "^0.7.0"
++    "@radix-ui/react-slot": "^1.3.3"
+   },
+   "devDependencies": {
+-    "@jini-ai/ui-kit": "workspace:^",
+     "@mcp-ui/client": "7.1.1",
+     "@radix-ui/react-checkbox": "^1.3.11",
+     "@radix-ui/react-label": "^2.1.15",
+@@ -288,12 +283,8 @@
+     "@electric-sql/pglite": "0.5.8",
+     "pg": "8.23.0",
+     "@ag-ui/core": "0.0.58",
+-    "@jini-ai/agent-runtime": "workspace:*",
+-    "@jini-ai/agentic": "workspace:^",
+     "@jini-ai/protocol": "workspace:^",
+-    "@jini-ai/ui": "workspace:^",
+     "@jini-ai/core": "workspace:^",
+-    "@jini-ai/diagnostics": "workspace:^",
+     "fast-check": "4.3.0"
+   },
+   "typesVersions": {
+@@ -403,12 +394,6 @@
+     "@radix-ui/react-slot": {
+       "optional": true
+     },
+-    "@jini-ai/agent-runtime": {
+-      "optional": true
+-    },
+-    "@jini-ai/ui": {
+-      "optional": true
+-    },
+     "react": {
+       "optional": true
+     },
+diff --git a/packages/chat/src/__tests__/dbpkg-chat-manifest.test.ts b/packages/chat/src/__tests__/dbpkg-chat-manifest.test.ts
+index 10133c1e..73a94b62 100644
+--- a/packages/chat/src/__tests__/dbpkg-chat-manifest.test.ts
++++ b/packages/chat/src/__tests__/dbpkg-chat-manifest.test.ts
+@@ -25,21 +25,17 @@ it('publishes every isolated extraction entry with its browser or universal clas
+     '@radix-ui/react-radio-group': '^1.4.7',
+     '@radix-ui/react-select': '^2.3.7',
+     '@radix-ui/react-slot': '^1.3.3',
+-    '@jini-ai/agent-runtime': '^0.7.0',
+-    '@jini-ai/ui': '^0.7.0',
+   };
+   expect(manifest.peerDependencies).toEqual(expectedPeers);
+   expect(manifest.peerDependenciesMeta).toEqual(
+     Object.fromEntries(Object.keys(expectedPeers).map(name => [name, { optional: true }])),
+   );
+   expect(manifest.devDependencies['@ag-ui/core']).toBe('0.0.58');
+-  expect(manifest.devDependencies['@jini-ai/agent-runtime']).toBe('workspace:*');
++  expect(manifest.devDependencies).not.toHaveProperty('@jini-ai/agent-runtime');
+   // Default widget/bridge features need these at runtime; the dependency contract makes
+   // them regular dependencies. Only opt-in subpaths and host UI peers remain optional.
+   expect(manifest.dependencies).toEqual({
+     '@jini-ai/core': 'workspace:^',
+-    '@jini-ai/db': 'workspace:^',
+-    '@jini-ai/diagnostics': 'workspace:^',
+     // Wave B: core's run-activity reads A2UI surface ids from protocol, so it is required (7b601411).
+     '@jini-ai/protocol': 'workspace:^',
+     'kysely': '^0.29.6',
+diff --git a/packages/chat/src/store/__tests__/manifest.test.ts b/packages/chat/src/store/__tests__/manifest.test.ts
+index a1096560..1bd5f023 100644
+--- a/packages/chat/src/store/__tests__/manifest.test.ts
++++ b/packages/chat/src/store/__tests__/manifest.test.ts
+@@ -17,16 +17,16 @@ it('makes every SQL, React and surface-card UI peer optional, with one pinned de
+  // The surface-card peers became optional in d5abdfbc; Recharts is now artifact-owned.
+  const peers={'better-sqlite3':'^13.0.0','@electric-sql/pglite':'0.5.8',pg:'^8.23.0',react:'^18.3.0 || ^19.0.0','react-dom':'^18.3.0 || ^19.0.0','@ag-ui/core':'0.0.58',
+   '@mcp-ui/client':'7.1.1','@radix-ui/react-checkbox':'^1.3.11','@radix-ui/react-label':'^2.1.15','@radix-ui/react-radio-group':'^1.4.7','@radix-ui/react-select':'^2.3.7','@radix-ui/react-slot':'^1.3.3'};
+- const jiniPeers={'@jini-ai/agent-runtime':'^0.7.0','@jini-ai/ui':'^0.7.0'};
++ // C-CHAT-DEPS S6-d: no @jini-ai/* peers; hosts declare @jini-ai/ui and agent-runtime themselves (chat reaches them only through its kit and policy ports).
++ const jiniPeers={};
+  expect(manifest.peerDependencies).toEqual({...peers,...jiniPeers});
+  // SQL stores and surface cards use core's default clock at runtime, so core is required.
+- // Default widget/bridge/SQL entries load db, diagnostics and Kysely, so they became regular
+- // dependencies (deaf9cc, squashed; pinned alike by dbpkg-chat-manifest.test.ts).
+  // Wave B made protocol required: core's run-activity reads A2UI surface ids from it (7b601411).
+- expect(manifest.dependencies).toEqual({'@jini-ai/core':'workspace:^','@jini-ai/db':'workspace:^',
+-  '@jini-ai/diagnostics':'workspace:^','@jini-ai/protocol':'workspace:^',kysely:'^0.29.6'});
+- // @jini-ai/agentic is imported only by chat tests (G-STALE-DEPS row 14), so it is a devDependency, never a dependency.
+- expect(manifest.devDependencies['@jini-ai/agentic']).toBe('workspace:^');
++ // C-CHAT-DEPS S6-d: db and diagnostics left the dependencies (chat opens no kernel and runs on core's redaction engine).
++ expect(manifest.dependencies).toEqual({'@jini-ai/core':'workspace:^','@jini-ai/protocol':'workspace:^',kysely:'^0.29.6'});
++ // Chat's tests import no ui, agentic, agent-runtime, ui-kit or diagnostics; db stays a devDependency for its ./testing/* entries only.
++ for(const name of ['@jini-ai/agentic','@jini-ai/agent-runtime','@jini-ai/ui','@jini-ai/ui-kit','@jini-ai/diagnostics']) expect(manifest.devDependencies).not.toHaveProperty(name);
++ expect(manifest.devDependencies['@jini-ai/db']).toBe('workspace:*');
+  for(const name of Object.keys({...peers,...jiniPeers})){
+   expect(manifest.peerDependenciesMeta[name]).toEqual({optional:true});
+   expect(manifest.dependencies??{}).not.toHaveProperty(name);
+diff --git a/scripts/injection-debt.json b/scripts/injection-debt.json
+index ecc10173..2ae7c41c 100644
+--- a/scripts/injection-debt.json
++++ b/scripts/injection-debt.json
+@@ -31,10 +31,6 @@
+   {"rule": "L5-injected-edge", "file": "packages/agent-runtime/src/model-discovery-adapters.ts", "spec": "@jini-ai/integrations/media-providers/catalog", "kind": "dynamic", "count": 1, "lane": "L-AGENTS"},
+   {"rule": "L5-injected-edge", "file": "packages/agent-runtime/src/model-discovery-adapters.ts", "spec": "@jini-ai/integrations/media-providers/catalog", "kind": "import-type", "count": 2, "lane": "L-AGENTS"},
+   {"rule": "L5-injected-edge", "file": "packages/agent-runtime/src/providers/pkce.ts", "spec": "@jini-ai/oauth", "kind": "import", "count": 1, "lane": "L-AGENTS"},
+-  {"rule": "L5-injected-edge", "file": "packages/chat/package.json", "spec": "@jini-ai/agent-runtime", "kind": "manifest-peer", "count": 1, "lane": "L-AGENTS"},
+-  {"rule": "L5-injected-edge", "file": "packages/chat/package.json", "spec": "@jini-ai/db", "kind": "manifest-dependencies", "count": 1, "lane": "L-STORAGE"},
+-  {"rule": "L5-injected-edge", "file": "packages/chat/package.json", "spec": "@jini-ai/diagnostics", "kind": "manifest-dependencies", "count": 1, "lane": "L-PLATFORM"},
+-  {"rule": "L5-injected-edge", "file": "packages/chat/package.json", "spec": "@jini-ai/ui", "kind": "manifest-peer", "count": 1, "lane": "L-KIT-CHAT"},
+   {"rule": "L5-injected-edge", "file": "packages/cms/forms/package.json", "spec": "@jini-ai/cms", "kind": "manifest-dependencies", "count": 1, "lane": "R9"},
+   {"rule": "L5-injected-edge", "file": "packages/cms/forms/src/ports.ts", "spec": "@jini-ai/cms/core", "kind": "import-type", "count": 1, "lane": "L-STORAGE"},
+   {"rule": "L5-injected-edge", "file": "packages/cms/package.json", "spec": "@jini-ai/db", "kind": "manifest-peer", "count": 1, "lane": "L-STORAGE"},
+diff --git a/.changeset/chat-manifest-trim.md b/.changeset/chat-manifest-trim.md
+new file mode 100644
+index 00000000..d37e7856
+--- /dev/null
++++ b/.changeset/chat-manifest-trim.md
+@@ -0,0 +1,5 @@
++---
++"@jini-ai/chat": minor
++---
++
++`@jini-ai/chat` declares no `@jini-ai/*` package except `@jini-ai/core` and `@jini-ai/protocol` (and `kysely`). `@jini-ai/db` and `@jini-ai/diagnostics` leave its dependencies, and the optional `@jini-ai/agent-runtime` and `@jini-ai/ui` peers are gone: chat reaches them only through its kit and policy ports, so a host declares `@jini-ai/ui` and `@jini-ai/agent-runtime` itself and binds them (all three Tovu hosts already do).

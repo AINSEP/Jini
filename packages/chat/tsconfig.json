@@ -14,10 +14,6 @@
     // Offline checkout resolution until the owner refreshes workspace links. Emitted imports
     // retain public package specifiers; no source from db is compiled into this package.
     "paths": {
-      "@jini-ai/db/core": ["./../db/dist/core/index.d.ts"],
-      "@jini-ai/db/kernel": ["./../db/dist/kernel/index.d.ts"],
-      "@jini-ai/db/kernel/sqlite": ["./../db/dist/kernel/sqlite/index.d.ts"],
-      "@jini-ai/db/sqlite": ["./../db/dist/sqlite/index.d.ts"],
       "kysely": ["./../db/node_modules/kysely/dist/index.d.ts"]
     }
   },
