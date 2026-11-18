@@ -28,16 +28,16 @@ import type { AuthorizeFn, EventBusPort, OutboxPort } from "@jini-ai/core/contra
 import { withModelFacingErrors } from "@jini-ai/core/model-facing-tool-errors";
 import { requireExpectedVersion, versionConflictRule } from "@jini-ai/core/optimistic-concurrency";
 import { adaptLegacyAuthorize, requireToolPermission } from "../core/tools/index.js";
-import { getSeoAgentToolCatalog } from "./agent-tools.js";
+import { getSeoAgentToolCatalog, type AgentToolDefinition } from "./agent-tools.js";
 import { SeoFieldValidationError, SeoInvalidCanonicalUrlError, SeoSettingsValidationError } from "./errors.js";
 import { analyzeEntry, getEntryMeta, type GetEntryMetaDeps } from "./seo.js";
+import { resolveHostReadRefs, resolveHostReadText, type HostReadVocabulary } from "../core/tools/host-read-vocabulary.js";
 import type { createSitemapService, SitemapInvalidationDeps } from "./sitemap.js";
 import type { SeoExtFieldsPatch, SeoSettings } from "./types.js";
 import { setEntrySeoOverrides, type SetEntrySeoOverridesRequired } from "./write-service.js";
 
 const MANAGE_SEO_PERMISSION = "admin.seo.manage";
 
-const CATALOG_BY_ID = indexCatalogById({ catalog: getSeoAgentToolCatalog() });
 
 /**
  * Builds `setEntrySeoOverrides`'s `patch` from `ctx.input` by dropping only `entryId` (the one key
@@ -124,10 +124,12 @@ export interface SeoPackageToolDeps {
   readonly seoSettings: SeoSettingsPort;
 }
 
-/** What every handler factory reads: the package deps and the sitemap invalidation they share. */
+/** What every handler factory reads: the package deps, the sitemap invalidation they share, and the catalog and entry-meta read wording resolved through the host's vocabulary. */
 interface SeoHandlerArgs {
   deps: SeoPackageToolDeps;
   requestInvalidation: (input: { workspaceId: string }) => Promise<void>;
+  catalog: ReadonlyMap<string, AgentToolDefinition>;
+  entryMetaRead: string;
 }
 
 const seoGetEntryMetaHandler = ({ deps }: SeoHandlerArgs): ToolHandler => async (ctx) => {
@@ -148,17 +150,17 @@ const seoAnalyzeEntryHandler = ({ deps }: SeoHandlerArgs): ToolHandler => async 
   return { analysis };
 };
 
-const seoSetEntryOverridesHandler = ({ deps, requestInvalidation }: SeoHandlerArgs): ToolHandler => async (ctx) => {
+const seoSetEntryOverridesHandler = ({ deps, requestInvalidation, catalog, entryMetaRead }: SeoHandlerArgs): ToolHandler => async (ctx) => {
   const input = requireInputRecord({ input: ctx.input });
   const entryId = requireString({ input: input, key: "entryId" });
-  const expectedVersion = requireExpectedVersion({ value: input.expectedVersion, readToolId: "content_read.seo_entry_meta" });
+  const expectedVersion = requireExpectedVersion({ value: input.expectedVersion, readToolId: entryMetaRead });
   await deps.seoReady;
 
   // Self-enforcing chokepoint (see file header) — no requireToolPermission call here.
   ctx.signal.throwIfAborted();
   const { overrides } = await withSchemaOnRejection({
       toolId: "seo_set_entry_overrides",
-      catalog: CATALOG_BY_ID,
+      catalog,
       isShapeRejection: ({ error }) => error instanceof SeoFieldValidationError || error instanceof SeoInvalidCanonicalUrlError,
       fn: () =>
       setEntrySeoOverrides({
@@ -182,7 +184,7 @@ const seoGetSettingsHandler = ({ deps }: SeoHandlerArgs): ToolHandler => async (
   return { settings };
 };
 
-const seoSetSettingsHandler = ({ deps, requestInvalidation }: SeoHandlerArgs): ToolHandler => async (ctx) => {
+const seoSetSettingsHandler = ({ deps, requestInvalidation, catalog }: SeoHandlerArgs): ToolHandler => async (ctx) => {
   const input = requireInputRecord({ input: ctx.input });
   await deps.seoReady;
   // The one exception to the single-evaluator rule in the file header (2026-10-05):
@@ -192,7 +194,7 @@ const seoSetSettingsHandler = ({ deps, requestInvalidation }: SeoHandlerArgs): T
   await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: deps.authorize }), workspaceId: deps.workspaceId, principalId: ctx.principal.id, permission: MANAGE_SEO_PERMISSION }, { entityType: "seo-settings" });
 
   ctx.signal.throwIfAborted();
-  const settings = await withSchemaOnRejection({ toolId: "seo_set_settings", catalog: CATALOG_BY_ID, isShapeRejection: ({ error }) => error instanceof SeoSettingsValidationError, fn: () =>
+  const settings = await withSchemaOnRejection({ toolId: "seo_set_settings", catalog, isShapeRejection: ({ error }) => error instanceof SeoSettingsValidationError, fn: () =>
       deps.seoSettings.set({ workspaceId: deps.workspaceId, patch: seoSettingsPatchFromInput(input), callerPrincipalId: ctx.principal.id }) });
   return { settings };
 };
@@ -211,7 +213,12 @@ const seoRegenerateSitemapHandler = ({ deps, requestInvalidation }: SeoHandlerAr
  * The package-side builder: the id -> handler table over the SEO catalog. It takes no host metadata
  * (search vocabulary, approval policy); the host binding adds it.
  */
-export function buildSeoToolRegistrations({ deps }: { deps: SeoPackageToolDeps }, _optional = {}): ToolRegistration[] {
+export function buildSeoToolRegistrations(
+  { deps }: { deps: SeoPackageToolDeps },
+  { hostReads }: { hostReads?: HostReadVocabulary | undefined } = {},
+): ToolRegistration[] {
+  const catalog = indexCatalogById({ catalog: resolveHostReadRefs({ value: getSeoAgentToolCatalog() }, { hostReads }) });
+  const entryMetaRead = resolveHostReadText({ text: "{{read:seo_entry_meta}}" }, { hostReads });
   // Bind delivery to the existing outbox owner; the same service handles local invalidation.
   const invalidationDeps = {
     outbox: deps.outbox, bus: deps.bus, clock: deps.clock,
@@ -219,7 +226,7 @@ export function buildSeoToolRegistrations({ deps }: { deps: SeoPackageToolDeps }
   };
   const requestInvalidation = (input: { workspaceId: string }) =>
     deps.sitemapService.requestSitemapInvalidation({ deps: invalidationDeps, input }, {});
-  const args: SeoHandlerArgs = { deps, requestInvalidation };
+  const args: SeoHandlerArgs = { deps, requestInvalidation, catalog, entryMetaRead };
   const handlers: Record<string, ToolHandler> = {
     seo_get_entry_meta: seoGetEntryMetaHandler(args),
     seo_analyze_entry: seoAnalyzeEntryHandler(args),
@@ -232,8 +239,8 @@ export function buildSeoToolRegistrations({ deps }: { deps: SeoPackageToolDeps }
   return buildDomainRegistrations({
     domain: "seo",
     catalogModule: "seo/agent-tools.ts",
-    catalog: CATALOG_BY_ID,
-    handlers: withModelFacingErrors({ handlers, rules: [versionConflictRule({ readToolId: "content_read.seo_entry_meta" })] }),
+    catalog,
+    handlers: withModelFacingErrors({ handlers, rules: [versionConflictRule({ readToolId: entryMetaRead })] }),
     derivedRisk: seoDerivedRisk,
   });
 }

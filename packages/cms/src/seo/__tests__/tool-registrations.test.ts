@@ -75,9 +75,18 @@ describe("buildSeoToolRegistrations", () => {
     expect((failure as Error).message).toContain("Schema for 'seo_set_settings'");
   });
 
-  it("requires the read version to write entry overrides", async () => {
+  it("requires the read version to write entry overrides, naming the read the host's vocabulary gives", async () => {
+    const { deps } = makeDeps();
+    const registrations = buildSeoToolRegistrations({ deps }, { hostReads: { readRef: ({ entity }) => `host_read.${entity}` } });
+    await expect(run(registrations, "seo_set_entry_overrides", { entryId: "post-1", title: "T" })).rejects.toThrow("host_read.seo_entry_meta");
+    expect(JSON.stringify(registrations.map((r) => r.descriptor))).not.toContain("{{read:");
+  });
+
+  it("names the read neutrally, never a tool id, when the host binds no vocabulary", async () => {
     const { registrations } = makeDeps();
-    await expect(run(registrations, "seo_set_entry_overrides", { entryId: "post-1", title: "T" })).rejects.toThrow("content_read.seo_entry_meta");
+    const failure = await run(registrations, "seo_set_entry_overrides", { entryId: "post-1", title: "T" }).catch((error: unknown) => error);
+    expect((failure as Error).message).toContain("the seo entry meta read tool");
+    expect((failure as Error).message).not.toContain("content_read");
   });
 
   it("regenerates the sitemap cache and then requests invalidation with the outbox, bus, clock and dispatcher", async () => {

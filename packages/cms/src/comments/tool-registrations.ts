@@ -26,11 +26,11 @@ import { ForbiddenError } from "../core/commands/command.js";
 import { adaptLegacyAuthorize, requireToolPermission } from "../core/tools/index.js";
 import { commentsAgentToolCatalog } from "./agent-tools.js";
 import { CommentNotFoundError, CommentsSettingsValidationError, CommentVersionConflictError } from "./errors.js";
+import { resolveHostReadRefs, type HostReadVocabulary } from "../core/tools/host-read-vocabulary.js";
 import type { CommentRepoPort } from "./ports.js";
 import { COMMENT_STATUSES, type CommentsSettings, type CommentStatus, type ModerationAction, type ModerationQueuePage } from "./types.js";
 import type { CommentWriteService } from "./write-service.js";
 
-const CATALOG_BY_ID = indexCatalogById({ catalog: commentsAgentToolCatalog });
 
 /** The model relays this verbatim, so it says what is off and that nothing stored was lost. */
 function providerNote({ providerId, adapterReady }: { providerId: string | null; adapterReady: boolean }, _options = {}): string {
@@ -409,7 +409,7 @@ const commentsRestoreCommentHandler = ({ deps }: CommentsHandlerArgs): ToolHandl
  */
 export function buildCommentsToolRegistrations(
   { deps, surfaces }: { deps: CommentsPackageToolDeps; surfaces: CommentsPackageSurfaces },
-  _optional = {},
+  { hostReads }: { hostReads?: HostReadVocabulary | undefined } = {},
 ): ToolRegistration[] {
   const args: CommentsHandlerArgs = { deps, surfaces };
   const handlers: Record<string, ToolHandler> = {
@@ -429,7 +429,7 @@ export function buildCommentsToolRegistrations(
   return buildDomainRegistrations({
     domain: "comments",
     catalogModule: "comments/agent-tools.ts",
-    catalog: CATALOG_BY_ID,
+    catalog: indexCatalogById({ catalog: resolveHostReadRefs({ value: commentsAgentToolCatalog }, { hostReads }) }),
     // Wrapped once over the whole map, never per handler — see `withModelFacingErrors`' own doc.
     handlers: withModelFacingErrors({ handlers, rules: commentsModelFacingRules({ settingsForbiddenError: deps.settingsForbiddenError }) }),
     derivedRisk: commentsDerivedRisk,

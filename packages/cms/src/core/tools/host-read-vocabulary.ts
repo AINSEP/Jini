@@ -14,7 +14,7 @@
  */
 
 /** Entities whose read-back the CMS tool text points a model at. */
-export type HostReadEntity = "redirect" | "taxonomy" | "widget_region" | "widget_instance" | "content_post";
+export type HostReadEntity = "redirect" | "taxonomy" | "widget_region" | "widget_instance" | "content_post" | "comment_moderation_queue" | "seo_entry_meta";
 
 /** How the host names the tool call that reads an entity back. */
 export interface HostReadVocabulary {
@@ -24,7 +24,7 @@ export interface HostReadVocabulary {
 
 /** Wording for a host that binds no vocabulary: names the read, never a tool id. */
 export const NEUTRAL_HOST_READ_VOCABULARY: HostReadVocabulary = {
-  readRef: ({ entity }) => `the ${entity.replace("_", " ")} read tool`,
+  readRef: ({ entity }) => `the ${entity.replaceAll("_", " ")} read tool`,
 };
 
 /** The placeholder a static catalog text carries for `entity`. */

@@ -57,11 +57,11 @@ export type AgentToolActorClassRule = "confirmer-must-equal-own-delegatedBy" | "
  */
 export type AgentToolDefinition = SharedAgentToolDefinition & { sideEffects: AgentToolSideEffect };
 
-/** A comment's id, as returned by `content_read.comment_moderation_queue`'s `items[].id`. */
+/** A comment's id, as returned by the moderation queue read's `items[].id`. */
 const COMMENT_ID_SCHEMA = {
   type: "string",
   minLength: 1,
-  description: "The comment's id. Get it from content_read.comment_moderation_queue's items[].id.",
+  description: "The comment's id. Get it from {{read:comment_moderation_queue}}'s items[].id.",
 } as const;
 
 /** `expectedVersion` — every moderation-action tool takes this for optimistic concurrency (mirrors `CommentRecord.version`). */
