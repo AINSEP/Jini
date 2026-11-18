@@ -13,14 +13,18 @@ export interface SentAttachmentButtonProps {
   objectUrls?: ObjectUrlPort | undefined;
 }
 
+/** Hooks SentAttachmentButton calls; defaults to the real ones, a test hands in fakes. */
+export const defaultSentAttachmentButtonHooks = { useT, useSentAttachmentThumbnail };
+export type SentAttachmentButtonHooks = typeof defaultSentAttachmentButtonHooks;
+
 /**
  * One attachment on a sent user message: a small image thumbnail when this browser still holds the
  * image's bytes, otherwise the filename chip. Either way a click opens the preview modal, and the
  * accessible name stays "Open {name}".
  */
-export function SentAttachmentButton({ attachment, onOpen, renderAttachment, objectUrls }: SentAttachmentButtonProps) {
-  const t = useT();
-  const { thumbnailUrl, onThumbnailError } = useSentAttachmentThumbnail(
+export function SentAttachmentButton({ attachment, onOpen, renderAttachment, objectUrls, hooks = defaultSentAttachmentButtonHooks }: SentAttachmentButtonProps & { hooks?: SentAttachmentButtonHooks | undefined }) {
+  const t = hooks.useT();
+  const { thumbnailUrl, onThumbnailError } = hooks.useSentAttachmentThumbnail(
     { attachment, hostRendered: renderAttachment !== undefined },
     objectUrls === undefined ? {} : { objectUrls },
   );

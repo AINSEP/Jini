@@ -11,6 +11,10 @@ export interface ConversationTitleEditorProps {
   'data-testid'?: string;
 }
 
+/** Hooks ConversationTitleEditor calls; defaults to the real ones, a test hands in fakes. */
+export const defaultConversationTitleEditorHooks = { useT, useConversationTitleEditor };
+export type ConversationTitleEditorHooks = typeof defaultConversationTitleEditorHooks;
+
 /**
  * Shared inline rename lifecycle. Enter/blur save once; Escape, empty and unchanged drafts cancel.
  * Snapshots the raw title on mount so a background title refresh cannot become a user edit.
@@ -18,9 +22,9 @@ export interface ConversationTitleEditorProps {
  * @complexity O(n) time/space to trim a draft of n code units; the saved title is bounded.
  * @example <ConversationTitleEditor title={title} onCommit={rename} onCancel={close} />
  */
-export function ConversationTitleEditor({ title, onCommit, onCancel, className = 'jini-conv-rename', 'data-testid': testId }: ConversationTitleEditorProps) {
-  const t = useT();
-  const { draft, setDraft, finish, handleKeyDown } = useConversationTitleEditor({ title, onCommit, onCancel });
+export function ConversationTitleEditor({ title, onCommit, onCancel, className = 'jini-conv-rename', 'data-testid': testId, hooks = defaultConversationTitleEditorHooks }: ConversationTitleEditorProps & { hooks?: ConversationTitleEditorHooks | undefined }) {
+  const t = hooks.useT();
+  const { draft, setDraft, finish, handleKeyDown } = hooks.useConversationTitleEditor({ title, onCommit, onCancel });
 
   return <input
     autoFocus
@@ -46,8 +50,8 @@ export interface ConversationTitleProps {
  * @complexity O(1) outside the shared editor's draft normalization.
  * @example <ConversationTitle key={id} title={rawTitle} displayTitle={label} onRename={rename} />
  */
-export function ConversationTitle({ title, displayTitle, onRename, disabled = false }: ConversationTitleProps) {
-  const t = useT();
+export function ConversationTitle({ title, displayTitle, onRename, disabled = false, useTHook = useT }: ConversationTitleProps & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const [editing, setEditing] = useState(false);
   return editing ? <ConversationTitleEditor title={title} onCancel={() => setEditing(false)} onCommit={(next) => {
     setEditing(false);

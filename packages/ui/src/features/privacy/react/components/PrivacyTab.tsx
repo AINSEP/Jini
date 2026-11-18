@@ -101,8 +101,8 @@ function resolveInstallationLabels(
  * `ADS-memory/reports/jini-port/recon/r6-god-component-internals.md` §1.3; this task is
  * the first full verification (see `archived UI source map`).
  */
-export function PrivacyTab({ state, onChange, labels, now = Date.now, agentHandle }: PrivacyTabProps) {
-  const t = useT();
+export function PrivacyTab({ state, onChange, labels, now = Date.now, agentHandle, useTHook = useT }: PrivacyTabProps & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const decided = hasMadeConsentDecision(state);
 
   const labelOverrides = labels ?? {};

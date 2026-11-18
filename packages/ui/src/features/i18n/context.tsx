@@ -113,9 +113,9 @@ export function I18nProvider<D extends TranslationDict = TranslationDict>({
   detectSystemLocale,
   persistence,
   syncDocumentAttributes = true,
-  children,
-}: I18nProviderProps<D>) {
-  const value = useI18nProvider({ dictionaries, fallbackLocale, initialLocale, rtlLocales, detectSystemLocale, persistence, syncDocumentAttributes });
+  children, useI18nProviderHook = useI18nProvider,
+}: I18nProviderProps<D> & { useI18nProviderHook?: typeof useI18nProvider }) {
+  const value = useI18nProviderHook({ dictionaries, fallbackLocale, initialLocale, rtlLocales, detectSystemLocale, persistence, syncDocumentAttributes });
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }

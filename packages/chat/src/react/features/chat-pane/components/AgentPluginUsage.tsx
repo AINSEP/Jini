@@ -30,8 +30,8 @@ function resolveAgentPluginStrip(
 }
 
 /** One per-chat usage strip; removing a name persists its exclusion for future turns. */
-export function AgentPluginUsage({ conversationId, messages }: { conversationId?: string | null; messages: readonly ChatMessage[] }) {
-  const t = useT();
+export function AgentPluginUsage({ conversationId, messages, useTHook = useT }: { conversationId?: string | null; messages: readonly ChatMessage[] } & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const [, setRevision] = useState(0);
   useEffect(() => {
     const refresh = () => setRevision(value => value + 1);

@@ -21,9 +21,13 @@ export interface AttachmentPreviewModalProps {
   navigation?: AttachmentPreviewNavigation | undefined;
 }
 
-export function AttachmentPreviewModal({ attachment, onClose, navigation }: AttachmentPreviewModalProps) {
-  const t = useT();
-  const c = useAttachmentPreviewModal({ attachment: attachment, onClose: onClose, navigation });
+/** Hooks AttachmentPreviewModal calls; defaults to the real ones, a test hands in fakes. */
+export const defaultAttachmentPreviewModalHooks = { useT, useAttachmentPreviewModal };
+export type AttachmentPreviewModalHooks = typeof defaultAttachmentPreviewModalHooks;
+
+export function AttachmentPreviewModal({ attachment, onClose, navigation, hooks = defaultAttachmentPreviewModalHooks }: AttachmentPreviewModalProps & { hooks?: AttachmentPreviewModalHooks | undefined }) {
+  const t = hooks.useT();
+  const c = hooks.useAttachmentPreviewModal({ attachment: attachment, onClose: onClose, navigation });
 
   return (
     <dialog
@@ -79,8 +83,8 @@ function AttachmentPreviewBody({ attachment, preview }: AttachmentPreviewBodyPro
   return <AttachmentMetaCard attachment={attachment} sizeLabel={preview.sizeLabel} />;
 }
 
-function AttachmentTextPane({ preview }: { preview: AttachmentPreviewController }) {
-  const t = useT();
+function AttachmentTextPane({ preview, useTHook = useT }: { preview: AttachmentPreviewController } & { useTHook?: typeof useT }) {
+  const t = useTHook();
   if (preview.textLoading) return <div className="jini-attachment-preview-loading">{t('Loading…')}</div>;
   return (
     <>
@@ -94,8 +98,8 @@ function AttachmentTextPane({ preview }: { preview: AttachmentPreviewController 
   );
 }
 
-function AttachmentMetaCard({ attachment, sizeLabel }: { attachment: ChatAttachment; sizeLabel: AttachmentPreviewController['sizeLabel'] }) {
-  const t = useT();
+function AttachmentMetaCard({ attachment, sizeLabel, useTHook = useT }: { attachment: ChatAttachment; sizeLabel: AttachmentPreviewController['sizeLabel'] } & { useTHook?: typeof useT }) {
+  const t = useTHook();
   return (
     <div className="jini-attachment-preview-meta">
       <div className="jini-attachment-preview-meta-row">
@@ -118,8 +122,8 @@ function AttachmentMetaCard({ attachment, sizeLabel }: { attachment: ChatAttachm
 }
 
 /** Previous/next side by side in the bottom-right corner, with the "2 / 5" position before them. */
-function AttachmentPreviewNav({ navigation }: { navigation: AttachmentPreviewNavigation }) {
-  const t = useT();
+function AttachmentPreviewNav({ navigation, useTHook = useT }: { navigation: AttachmentPreviewNavigation } & { useTHook?: typeof useT }) {
+  const t = useTHook();
   return (
     <div className="jini-attachment-preview-nav">
       <span className="jini-attachment-preview-count" aria-live="polite">

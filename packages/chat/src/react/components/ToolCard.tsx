@@ -60,8 +60,8 @@ const RetriedContext = createContext(false);
 /** A Jini registry tool id: dotted, lowercase, snake_case segments — `page.fill`, `daemon.db.vacuum`, `chat.send_message`. Never matches an agent-vendor tool name (`Bash`, `Write`, `mcp__jini__execute_delegated_tool`), which is the point — this is how a canonical delegated-tool event is told apart from everything else. */
 const JINI_TOOL_ID_PATTERN = /^[a-z][a-z_]*(\.[a-z][a-z_]*)+$/;
 
-export function ToolCard({ use, result, runStreaming, runSucceeded, projectFileNames, onRequestOpenFile, retried = false }: ToolCardProps) {
-  const registry = useToolRendererRegistry();
+export function ToolCard({ use, result, runStreaming, runSucceeded, projectFileNames, onRequestOpenFile, retried = false, useToolRendererRegistryHook = useToolRendererRegistry }: ToolCardProps & { useToolRendererRegistryHook?: typeof useToolRendererRegistry }) {
+  const registry = useToolRendererRegistryHook();
   // Resolve vendor dialects for rendering only; tool ids and stored events stay intact.
   const presentation = toolPresentation(use);
   use = { ...use, ...presentation };
@@ -164,8 +164,8 @@ function renderToolCardBody(args: ToolCardBodyArgs): ReactNode {
  * target ({@link toolRowTarget}). One place, so a tool id the family table doesn't know (`content_post_update`,
  * `mcp__acme__theme_list_files`) still reads as a label and never as its raw name and JSON args.
  */
-function ToolRowHead({ name, input, result, runStreaming, runSucceeded }: CardProps & { name: string }) {
-  const t = useT();
+function ToolRowHead({ name, input, result, runStreaming, runSucceeded, useTHook = useT }: CardProps & { name: string } & { useTHook?: typeof useT }) {
+  const t = useTHook();
   // Streaming deltas recreate result envelopes; parse only when the target's inputs change.
   // A failed event's payload describes the error even when it contains human-looking names.
   const resultContent = result?.content;
@@ -240,15 +240,15 @@ function FamilyCard({ call, className, title, meta, shimmer = false, after, deta
   );
 }
 
-function SearchToolsCard({ input, result, runStreaming, runSucceeded }: CardProps) {
-  const t = useT();
+function SearchToolsCard({ input, result, runStreaming, runSucceeded, useTHook = useT }: CardProps & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const obj = (input ?? {}) as { query?: string; limit?: number };
   const call = { input, result, runStreaming, runSucceeded };
   return <FamilyCard call={call} className="op-jini-tool" shimmer title={t('Search tools')} meta={obj.query ? <span className="op-meta">{obj.query}</span> : null} after={<FileErrorDetail result={result} />} />;
 }
 
-function DescribeToolCard({ input, result, runStreaming, runSucceeded }: CardProps) {
-  const t = useT();
+function DescribeToolCard({ input, result, runStreaming, runSucceeded, useTHook = useT }: CardProps & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const obj = (input ?? {}) as { id?: string };
   const call = { input, result, runStreaming, runSucceeded };
   return <FamilyCard call={call} className="op-jini-tool" shimmer title={t('Describe tool')} meta={obj.id ? <span className="op-meta">{obj.id}</span> : null} after={<FileErrorDetail result={result} />} />;
@@ -259,8 +259,8 @@ interface FileToolCtx {
   onRequestOpenFile?: ((name: string) => void) | undefined;
 }
 
-function OpenInTabButton({ filePath, ctx }: { filePath: string; ctx: FileToolCtx }) {
-  const t = useT();
+function OpenInTabButton({ filePath, ctx, useTHook = useT }: { filePath: string; ctx: FileToolCtx } & { useTHook?: typeof useT }) {
+  const t = useTHook();
   if (!ctx.onRequestOpenFile) return null;
   if (!filePath || filePath === '(unnamed)') return null;
   // `String.prototype.split` always returns a non-empty array, so `.pop()` on it can
@@ -283,8 +283,8 @@ interface CardProps {
   runSucceeded: boolean;
 }
 
-function FileWriteCard({ input, result, runStreaming, runSucceeded, ctx }: CardProps & { ctx: FileToolCtx }) {
-  const t = useT();
+function FileWriteCard({ input, result, runStreaming, runSucceeded, ctx, useTHook = useT }: CardProps & { ctx: FileToolCtx } & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const obj = (input ?? {}) as { file_path?: string; filePath?: string; path?: string; content?: string };
   const file = obj.file_path ?? obj.filePath ?? obj.path ?? '(unnamed)';
   // See OpenInTabButton's baseName comment: `.split('/').pop()` is never undefined.
@@ -304,8 +304,8 @@ function FileWriteCard({ input, result, runStreaming, runSucceeded, ctx }: CardP
   );
 }
 
-function FileEditCard({ input, result, runStreaming, runSucceeded, ctx }: CardProps & { ctx: FileToolCtx }) {
-  const t = useT();
+function FileEditCard({ input, result, runStreaming, runSucceeded, ctx, useTHook = useT }: CardProps & { ctx: FileToolCtx } & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const obj = (input ?? {}) as { file_path?: string; filePath?: string; path?: string; edits?: { old_string?: string; new_string?: string }[] };
   const file = obj.file_path ?? obj.filePath ?? obj.path ?? '(unnamed)';
   // See OpenInTabButton's baseName comment: `.split('/').pop()` is never undefined.
@@ -324,8 +324,8 @@ function FileEditCard({ input, result, runStreaming, runSucceeded, ctx }: CardPr
   );
 }
 
-function FileReadCard({ input, result, runStreaming, runSucceeded, ctx }: CardProps & { ctx: FileToolCtx }) {
-  const t = useT();
+function FileReadCard({ input, result, runStreaming, runSucceeded, ctx, useTHook = useT }: CardProps & { ctx: FileToolCtx } & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const obj = (input ?? {}) as { file_path?: string; filePath?: string; path?: string; offset?: unknown };
   const file = obj.file_path ?? obj.filePath ?? obj.path ?? '(unnamed)';
   // See OpenInTabButton's baseName comment: `.split('/').pop()` is never undefined.
@@ -341,8 +341,8 @@ function FileReadCard({ input, result, runStreaming, runSucceeded, ctx }: CardPr
   );
 }
 
-function BashCard({ input, result, runStreaming, runSucceeded }: CardProps) {
-  const t = useT();
+function BashCard({ input, result, runStreaming, runSucceeded, useTHook = useT }: CardProps & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const obj = (input ?? {}) as { command?: string; description?: string };
   const command = obj.command ?? '';
   const desc = obj.description;
@@ -350,8 +350,8 @@ function BashCard({ input, result, runStreaming, runSucceeded }: CardProps) {
   return <FamilyCard call={call} className="op-bash" shimmer title={t('Bash')} meta={desc ? <span className="op-meta op-desc">{desc}</span> : null} detailInput={command} />;
 }
 
-function GlobCard({ input, result, runStreaming, runSucceeded }: CardProps) {
-  const t = useT();
+function GlobCard({ input, result, runStreaming, runSucceeded, useTHook = useT }: CardProps & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const obj = (input ?? {}) as { pattern?: string; path?: string };
   const call = { input, result, runStreaming, runSucceeded };
   return <FamilyCard call={call} className="op-search" title={t('Search files')} meta={<span className="op-meta">
@@ -360,8 +360,8 @@ function GlobCard({ input, result, runStreaming, runSucceeded }: CardProps) {
   </span>} />;
 }
 
-function GrepCard({ input, result, runStreaming, runSucceeded }: CardProps) {
-  const t = useT();
+function GrepCard({ input, result, runStreaming, runSucceeded, useTHook = useT }: CardProps & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const obj = (input ?? {}) as { pattern?: string; path?: string };
   const call = { input, result, runStreaming, runSucceeded };
   return <FamilyCard call={call} className="op-search" title={t('Search content')} meta={<span className="op-meta">
@@ -370,15 +370,15 @@ function GrepCard({ input, result, runStreaming, runSucceeded }: CardProps) {
   </span>} />;
 }
 
-function WebFetchCard({ input, result, runStreaming, runSucceeded }: CardProps) {
-  const t = useT();
+function WebFetchCard({ input, result, runStreaming, runSucceeded, useTHook = useT }: CardProps & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const obj = (input ?? {}) as { url?: string };
   const call = { input, result, runStreaming, runSucceeded };
   return <FamilyCard call={call} className="op-web" title={t('Fetch')} meta={<span className="op-meta">{obj.url ?? ''}</span>} />;
 }
 
-function WebSearchCard({ input, result, runStreaming, runSucceeded }: CardProps) {
-  const t = useT();
+function WebSearchCard({ input, result, runStreaming, runSucceeded, useTHook = useT }: CardProps & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const obj = (input ?? {}) as { query?: string };
   const call = { input, result, runStreaming, runSucceeded };
   return <FamilyCard call={call} className="op-web" title={t('Search')} meta={<span className="op-meta">{obj.query ?? ''}</span>} />;
@@ -444,8 +444,8 @@ function CollapsedReaderText({ call }: { call: CardProps }) {
 }
 
 /** The call's input, its result (or why there is none), and any extra `children` — see `describeToolCallDetail` for the redaction and formatting rules. */
-function ToolCallDetail({ input, result, runStreaming, runSucceeded, children }: CardProps & { children?: ReactNode }) {
-  const t = useT();
+function ToolCallDetail({ input, result, runStreaming, runSucceeded, children, useTHook = useT }: CardProps & { children?: ReactNode } & { useTHook?: typeof useT }) {
+  const t = useTHook();
   // Only mounted on expansion: keep the compact preview cheap without losing any of the stored
   // call when the person opens it. The core formatter still owns formatting and secret redaction.
   const detail = describeToolCallDetail({ input: input, result: result }, { runStreaming: runStreaming, runSucceeded: runSucceeded, maxChars: Infinity });
@@ -460,8 +460,8 @@ function ToolCallDetail({ input, result, runStreaming, runSucceeded, children }:
 }
 
 /** A failed result: neutral "Retried" when a later call of the same tool succeeded, else red. */
-function ErrorBadge({ result }: { result: ToolResultEvent }) {
-  const t = useT();
+function ErrorBadge({ result, useTHook = useT }: { result: ToolResultEvent } & { useTHook?: typeof useT }) {
+  const t = useTHook();
   if (useContext(RetriedContext))
     return (
       <span className="op-status op-status-retried" title={t('Retried')}>
@@ -475,8 +475,8 @@ function ErrorBadge({ result }: { result: ToolResultEvent }) {
   );
 }
 
-function ResultBadge({ result, runStreaming, runSucceeded }: { result?: ToolResultEvent | undefined; runStreaming: boolean; runSucceeded: boolean }) {
-  const t = useT();
+function ResultBadge({ result, runStreaming, runSucceeded, useTHook = useT }: { result?: ToolResultEvent | undefined; runStreaming: boolean; runSucceeded: boolean } & { useTHook?: typeof useT }) {
+  const t = useTHook();
   if (!result && runStreaming)
     return (
       <span className="op-status op-status-running" title={t('Running')}>

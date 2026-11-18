@@ -147,13 +147,17 @@ function isRunInProgress(runStatus: ChatRunStatus | undefined): boolean {
   return runStatus !== undefined && !isTerminalRunStatus({ status: runStatus });
 }
 
+/** Hooks UsageSummary calls; defaults to the real ones, a test hands in fakes. */
+export const defaultUsageSummaryHooks = { useT, useUsageSummary };
+export type UsageSummaryHooks = typeof defaultUsageSummaryHooks;
+
 /** One "Done · 6m 29s · $0.41 · total $2.50" line from reported usage, never estimated (the total is
  * left off when `showTotal` is false). Partial usage stays partial; output tokens are available to
  * assistive technology and in the tooltip. */
-export function UsageSummary({ usage, showTotal, message, awaitingAnswer }: { usage: ChatUsageSummary; showTotal: boolean; message?: ChatMessage; awaitingAnswer?: boolean }) {
-  const t = useT();
+export function UsageSummary({ usage, showTotal, message, awaitingAnswer, hooks = defaultUsageSummaryHooks }: { usage: ChatUsageSummary; showTotal: boolean; message?: ChatMessage; awaitingAnswer?: boolean } & { hooks?: UsageSummaryHooks | undefined }) {
+  const t = hooks.useT();
   const label = usageEndLabel({ usage, ...(message === undefined ? {} : { message }), ...(awaitingAnswer === undefined ? {} : { awaitingAnswer }) });
-  const { text, title, ariaLabel } = useUsageSummary({ usage }, { showTotal, label });
+  const { text, title, ariaLabel } = hooks.useUsageSummary({ usage }, { showTotal, label });
   if (!text) return null;
   return (
     <div className="jini-message-usage" title={title} role="note" aria-label={ariaLabel}>
@@ -195,15 +199,16 @@ function flatToolGroups(
 
 /** The model's reasoning, folded under a "Thinking" summary so it never crowds the answer. */
 /** A host status belongs to the run that emitted it, regardless of the current picker selection. */
-function RunAccessNotice({ events }: { events: readonly AgentEvent[] | undefined }) {
-  const t = useT();
+function RunAccessNotice({ show, events, useTHook = useT }: { show: boolean; events: readonly AgentEvent[] | undefined } & { useTHook?: typeof useT }) {
+  const t = useTHook();
+  if (!show) return null;
   const notice = events?.find(event => event.kind === 'status' && event.label === 'full_cli_access');
   if (notice?.kind !== 'status' || !notice.detail) return null;
   return <div className="jini-chat-pane__notice" role="status">{t(notice.detail)}</div>;
 }
 
-export function ThinkingBlock({ text }: { text: string }) {
-  const t = useT();
+export function ThinkingBlock({ text, useTHook = useT }: { text: string } & { useTHook?: typeof useT }) {
+  const t = useTHook();
   if (!text.trim()) return null;
   return (
     <details className="jini-message-thinking">
@@ -221,13 +226,13 @@ function messageAwaitingAnswer(
 }
 
 export function AssistantMessageFooter(
-  { message, usageEvent, showUsageTotal, terminalNotice, pending, runInProgress, runStreaming, runSending, sendingLabel, visibleContent, isAnsweredCard }: {
+  { message, usageEvent, showUsageTotal, terminalNotice, pending, runInProgress, runStreaming, runSending, sendingLabel, visibleContent, isAnsweredCard, useTHook = useT }: {
     message: ChatMessage; usageEvent: ChatUsageSummary | undefined; showUsageTotal: boolean; terminalNotice: string | null;
     pending: boolean; runInProgress: boolean; runStreaming?: boolean; runSending: boolean; visibleContent: string; isAnsweredCard: IsAnsweredCard;
     sendingLabel: string | undefined;
-  },
+  } & { useTHook?: typeof useT },
 ) {
-  const t = useT();
+  const t = useTHook();
   return <>
       {usageEvent ? <UsageSummary usage={usageEvent} showTotal={showUsageTotal} message={message}
         awaitingAnswer={isAwaitingAnswer({ events: message.events }, { isAnsweredCard })} /> : null}
@@ -261,31 +266,42 @@ type AssistantBlock = MessageBlock<ToolTimelineRow>;
  * are replaced, never mutated, so identity is a sound change signal.
  */
 export const MessageRow = memo(function MessageRow({
-  showUsageTotal = true,
-  showUsageLine = true,
-  toolCallDisplay = 'show',
-  showThinking = false,
-  runStreaming = false,
-  runSending = false,
-  runSucceeded = false,
-  questionFormInteractive = false,
-  ...props
-}: MessageRowProps) {
-  const answerContexts = useSurfaceAnswerContexts({ events: props.message.events });
+  useSurfaceAnswerContextsHook = useSurfaceAnswerContexts, ...props
+}: MessageRowProps & { useSurfaceAnswerContextsHook?: typeof useSurfaceAnswerContexts }) {
+  const answerContexts = useSurfaceAnswerContextsHook({ events: props.message.events });
   const message = useMemo(() => props.message.events === undefined ? props.message : {
     ...props.message, events: projectAcceptedInputEvents({ events: props.message.events }, answerContexts),
   }, [props.message, answerContexts]);
   if (message.role === 'user') return <UserMessageRow {...props} message={message} />;
-  return <AssistantMessageRow {...props} message={message} {...{ showUsageTotal, showUsageLine, toolCallDisplay, showThinking, runStreaming, runSending, runSucceeded, questionFormInteractive }} />;
+  return <AssistantMessageRow {...resolveDisplayProps(props)} message={message} />;
 });
 
-function UserMessageRow({ message, renderAttachment }: Pick<MessageRowProps, 'message' | 'renderAttachment'>) {
-  const t = useT();
+/** `MessageRow`'s display props with their defaults applied, ready for `AssistantMessageRow`. */
+function resolveDisplayProps(props: MessageRowProps, _options = {}): ResolvedMessageRowProps {
+  const {
+    showUsageTotal = true,
+    showUsageLine = true,
+    toolCallDisplay = 'show',
+    showThinking = false,
+    runStreaming = false,
+    runSending = false,
+    runSucceeded = false,
+    questionFormInteractive = false,
+  } = props;
+  return { ...props, showUsageTotal, showUsageLine, toolCallDisplay, showThinking, runStreaming, runSending, runSucceeded, questionFormInteractive };
+}
+
+/** Hooks UserMessageRow calls; defaults to the real ones, a test hands in fakes. */
+const defaultUserMessageRowHooks = { useT, useAttachmentGallery };
+type UserMessageRowHooks = typeof defaultUserMessageRowHooks;
+
+function UserMessageRow({ message, renderAttachment, hooks = defaultUserMessageRowHooks }: Pick<MessageRowProps, 'message' | 'renderAttachment'> & { hooks?: UserMessageRowHooks | undefined }) {
+  const t = hooks.useT();
   // Which attachment chip (if any) this row's preview modal is open for. Row-local, not
   // module-level: two attachments in the same message can never be "open" at once, but two
   // different messages opening their own attachments independently is fine and expected.
   // Previous/next steps through this message's images only.
-  const gallery = useAttachmentGallery({ attachments: message.attachments ?? NO_ATTACHMENTS });
+  const gallery = hooks.useAttachmentGallery({ attachments: message.attachments ?? NO_ATTACHMENTS });
   return (
     <div
       className="jini-message jini-message-user"
@@ -331,6 +347,10 @@ function lastFinishedReplyIndex({ runInProgress, usage }: {
   return !runInProgress && !usage.footer ? usage.replies.findLastIndex(value => value !== undefined) : -1;
 }
 
+/** Hooks AssistantMessageRow calls; defaults to the real ones, a test hands in fakes. */
+const defaultAssistantMessageRowHooks = { useExtEventRendererRegistry, useMessageUsage, useToolTimeline, useExtEventGroups, useAnsweredCards, useAssistantMessageRenderers };
+type AssistantMessageRowHooks = typeof defaultAssistantMessageRowHooks;
+
 function AssistantMessageRow({
   showAccessNotice = true,
   message,
@@ -347,13 +367,13 @@ function AssistantMessageRow({
   questionFormSubmittedAnswers,
   onQuestionFormSubmit,
   projectFileNames,
-  onRequestOpenFile,
-}: ResolvedMessageRowProps) {
-  const registry = useExtEventRendererRegistry();
-  const messageUsage = useMessageUsage({ message, ...(usageSummary === undefined ? {} : { summary: usageSummary }) });
-  const timeline = useToolTimeline({ events: message.events }, { runStreaming, runSucceeded });
-  const extGroups = useExtEventGroups({ events: message.events }, { slotOf: (name, data) => registry.slot({ name, data }) });
-  const answeredCards = useAnsweredCards({ slotOf: registry.slot, events: message.events ?? [], groups: extGroups, runStreaming, runStatus: message.runStatus });
+  onRequestOpenFile, hooks = defaultAssistantMessageRowHooks,
+}: ResolvedMessageRowProps & { hooks?: AssistantMessageRowHooks | undefined }) {
+  const registry = hooks.useExtEventRendererRegistry();
+  const messageUsage = hooks.useMessageUsage({ message, ...(usageSummary === undefined ? {} : { summary: usageSummary }) });
+  const timeline = hooks.useToolTimeline({ events: message.events }, { runStreaming, runSucceeded });
+  const extGroups = hooks.useExtEventGroups({ events: message.events }, { slotOf: (name, data) => registry.slot({ name, data }) });
+  const answeredCards = hooks.useAnsweredCards({ slotOf: registry.slot, events: message.events ?? [], groups: extGroups, runStreaming, runStatus: message.runStatus });
 
   const terminalNotice = assistantTerminalNotice({ message, runStreaming, runSucceeded, extGroups, registry });
   const visibleContent = stripArtifact({ content: message.content });
@@ -373,7 +393,7 @@ function AssistantMessageRow({
 
   const flatTools = flatToolGroups({ message, rows: timeline.rows, registry, displayBlocks }, { toolCallDisplay });
   const flatExtGroups = extGroups.filter(group => group.name !== MID_RUN_USER_MESSAGE_EXT_EVENT_NAME);
-  const { renderBlock, renderExtGroup, renderAssistantSection } = useAssistantMessageRenderers({
+  const { renderBlock, renderExtGroup, renderAssistantSection } = hooks.useAssistantMessageRenderers({
     message, rows: timeline.rows, runStreaming, runSucceeded, projectFileNames, onRequestOpenFile,
     toolCallDisplay, registry, answeredCards, runInProgress, awaitingAnswer, questionFormInteractive,
     questionFormSubmittedAnswers, onQuestionFormSubmit, usage, showUsageLine, showUsageTotal,
@@ -384,14 +404,14 @@ function AssistantMessageRow({
   // in their original receipt order, outside the assistant's actions and usage footer.
   // Keep the same child-array nesting as the interleaved path so React preserves the footer.
   if (blocks === null) return <>
-    {showAccessNotice && <RunAccessNotice events={message.events} />}
+    <RunAccessNotice show={showAccessNotice} events={message.events} />
     {[renderAssistantSection({ section: null, key: message.id, footer: true })]}
     {extGroups.filter(group => group.name === MID_RUN_USER_MESSAGE_EXT_EVENT_NAME).map(renderExtGroup)}
   </>;
   // A reply boundary without reported usage renders nothing; it must not create an empty row's gap.
   const visibleBlocks = blocks.filter(block => block.kind !== 'reply-end' || (showUsageLine && usage.replies[block.index] !== undefined));
   const { sections, footerIndex } = transcriptSections({ blocks: visibleBlocks, runInProgress });
-  return <>{showAccessNotice && <RunAccessNotice events={message.events} />}{sections.map((section, index) => isUserSection({ section })
+  return <><RunAccessNotice show={showAccessNotice} events={message.events} />{sections.map((section, index) => isUserSection({ section })
     ? <React.Fragment key={section[0]!.key}>{section.map(renderBlock)}</React.Fragment>
     : renderAssistantSection({ section, key: section[0]?.key ?? message.id, footer: index === footerIndex }))}</>;
 }
@@ -415,15 +435,19 @@ function isUserSection({ section }: { section: readonly AssistantBlock[] | undef
   return block?.kind === 'ext' && block.name === MID_RUN_USER_MESSAGE_EXT_EVENT_NAME;
 }
 
+/** Hooks RunActivityLine calls; defaults to the real ones, a test hands in fakes. */
+const defaultRunActivityLineHooks = { useT, useRunActivity };
+type RunActivityLineHooks = typeof defaultRunActivityLineHooks;
+
 /**
  * The live "what is it doing" line under a running reply (see `core/run-activity.ts`). Replaces the
  * old "Thinking…" placeholder, which vanished for good as soon as the first tool row appeared.
  * Kept a separate component so its one-second tick re-renders only this line, not the whole row.
  * A host's already-localized sending label is used verbatim until acceptance.
  */
-function RunActivityLine({ events, active, isAnsweredCard, sending, sendingLabel }: { events: AgentEvent[] | undefined; active: boolean; isAnsweredCard: IsAnsweredCard; sending: boolean; sendingLabel: string | undefined }) {
-  const t = useT();
-  const activityLabel = useRunActivity({ events: events, active: active }, { isAnsweredCard });
+function RunActivityLine({ events, active, isAnsweredCard, sending, sendingLabel, hooks = defaultRunActivityLineHooks }: { events: AgentEvent[] | undefined; active: boolean; isAnsweredCard: IsAnsweredCard; sending: boolean; sendingLabel: string | undefined } & { hooks?: RunActivityLineHooks | undefined }) {
+  const t = hooks.useT();
+  const activityLabel = hooks.useRunActivity({ events: events, active: active }, { isAnsweredCard });
   // Until the server accepts the start the turn is still on its way: "Thinking…" there read as the
   // model working while the text had not even arrived (owner, 2026-10-27). No timeout.
   const label = active && sending ? sendingLabel ?? t('Sending…') : continuingRunNotice({ events, active }, {}) ?? activityLabel;

@@ -18,9 +18,9 @@ interface IframeKeepAliveProviderProps {
  */
 export function IframeKeepAliveProvider({
   children,
-  maxMounted = DEFAULT_MAX_MOUNTED_IFRAMES,
-}: IframeKeepAliveProviderProps) {
-  const { parkedHostRef, pool } = useIframeKeepAliveProvider({ maxMounted });
+  maxMounted = DEFAULT_MAX_MOUNTED_IFRAMES, useIframeKeepAliveProviderHook = useIframeKeepAliveProvider,
+}: IframeKeepAliveProviderProps & { useIframeKeepAliveProviderHook?: typeof useIframeKeepAliveProvider }) {
+  const { parkedHostRef, pool } = useIframeKeepAliveProviderHook({ maxMounted });
 
   return (
     <IframeKeepAliveContext.Provider value={pool}>

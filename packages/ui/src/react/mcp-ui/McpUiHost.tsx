@@ -31,17 +31,21 @@ export interface McpUiHostProps extends McpUiHostOptions {
   readonly maxHeight?: number | undefined;
 }
 
+/** Hooks McpUiHost calls; defaults to the real ones, a test hands in fakes. */
+export const defaultMcpUiHostHooks = { useHostSurfaceTokens, useMcpUiHost };
+export type McpUiHostHooks = typeof defaultMcpUiHostHooks;
+
 /**
  * Renders a View and runs its protocol session.
  *
  * @param props - See {@link McpUiHostProps}.
  */
-export function McpUiHost(props: McpUiHostProps) {
+export function McpUiHost({ hooks = defaultMcpUiHostHooks, ...props }: McpUiHostProps & { hooks?: McpUiHostHooks | undefined }) {
   const { title, className } = props;
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const hostTokens = useHostSurfaceTokens(wrapperRef);
+  const hostTokens = hooks.useHostSurfaceTokens(wrapperRef);
   const { html, sessionKey } = resolveThemedViewSession({ html: props.html, sessionKey: props.sessionKey, hostTokens });
-  const host = useMcpUiHost({ ...props, html, sessionKey });
+  const host = hooks.useMcpUiHost({ ...props, html, sessionKey });
   const height = resolveFrameHeight({ reported: host.size?.height }, props);
 
   return (

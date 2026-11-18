@@ -8,9 +8,13 @@ export const NativeDialog = forwardRef<HTMLDialogElement, DialogProps>(function 
   const vm = useNativeDialog({ ...props, ref });
   return <dialog {...vm.props}><h2 className="jini-dialog-title" id={vm.titleId} data-jini-part="kit.dialog-title">{vm.title}</h2>{vm.children}<Button {...vm.closeProps}>{vm.closeLabel}</Button></dialog>;
 });
-export function NativeConfirmDialog(props: ConfirmViewProps, _optional: Record<string, never> = {}) {
-  const Button = useKitContext({})?.kit.components.Button ?? NativeButton;
-  const vm = useNativeConfirm(props, { Button });
+/** Hooks NativeConfirmDialog calls; defaults to the real ones, a test hands in fakes. */
+export const defaultNativeConfirmDialogHooks = { useKitContext, useNativeConfirm };
+export type NativeConfirmDialogHooks = typeof defaultNativeConfirmDialogHooks;
+
+export function NativeConfirmDialog({ hooks = defaultNativeConfirmDialogHooks, ...props }: ConfirmViewProps & { hooks?: NativeConfirmDialogHooks | undefined }, _optional: Record<string, never> = {}) {
+  const Button = hooks.useKitContext({})?.kit.components.Button ?? NativeButton;
+  const vm = hooks.useNativeConfirm(props, { Button });
   return <dialog {...vm.props}>
     <h2 className="jini-confirm-dialog-title" {...vm.controller.titleAttrs}>{vm.controller.title}</h2>
     <div className="jini-confirm-dialog-body" data-jini-part="confirm.body">{vm.controller.body}<p className="jini-confirm-dialog-consequence" {...vm.controller.consequenceAttrs}>{vm.controller.consequence}</p>{vm.controller.error}</div>

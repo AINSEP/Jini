@@ -17,8 +17,8 @@ export interface EmbedChatHeaderArgs {
   readonly closeAction?: ReactNode;
 }
 /** Two-step reset with safe initial focus, Cancel and host-wide Escape. O(1) state and listeners. */
-export function EmbedChatHeader({ title, hasMessages, onReset, copy, keyboard, closeAction }: EmbedChatHeaderArgs) {
-  const { confirming, cancel, requestReset, confirmReset, headerRef, resetButtonRef } = useEmbedChatHeader({ hasMessages, onReset, keyboard });
+export function EmbedChatHeader({ title, hasMessages, onReset, copy, keyboard, closeAction, useEmbedChatHeaderHook = useEmbedChatHeader }: EmbedChatHeaderArgs & { useEmbedChatHeaderHook?: typeof useEmbedChatHeader }) {
+  const { confirming, cancel, requestReset, confirmReset, headerRef, resetButtonRef } = useEmbedChatHeaderHook({ hasMessages, onReset, keyboard });
   return <div className="jini-chat-pane__header" ref={headerRef}>
     <div className="jini-chat-pane__heading">
       {copy.eyebrow && <span className="jini-chat-pane__eyebrow">{copy.eyebrow}</span>}

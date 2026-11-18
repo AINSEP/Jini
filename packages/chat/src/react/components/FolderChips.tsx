@@ -12,8 +12,8 @@ function folderName({ path }: { path: string }, _options = {}): string {
 type OnRemove = (input: { path: string }, options?: {}) => void;
 
 /** One folder: last name (full path on hover), copy, and × when removable. */
-function FolderChip({ base, path, onRemove }: { base: string | undefined; path: string; onRemove?: OnRemove | undefined }) {
-  const t = useT();
+function FolderChip({ base, path, onRemove, useTHook = useT }: { base: string | undefined; path: string; onRemove?: OnRemove | undefined } & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const segment = agentHandleSegment({ value: path });
   const copyLabel = t('Copy folder path: {path}', { path });
   const removeLabel = t('Remove folder: {path}', { path });
@@ -27,19 +27,23 @@ function FolderChip({ base, path, onRemove }: { base: string | undefined; path: 
   </li>;
 }
 
+/** Hooks FolderChips calls; defaults to the real ones, a test hands in fakes. */
+export const defaultFolderChipsHooks = { useT, useFolderChips };
+export type FolderChipsHooks = typeof defaultFolderChipsHooks;
+
 /**
  * Shared composer/sent-message folder indicator; references never participate in uploads.
  * One folder shows its chip directly; a "Folders (n)" toggle would only repeat its name.
  */
-export function FolderChips({ agentHandle, folders = [], onRemove }: {
+export function FolderChips({ agentHandle, folders = [], onRemove, hooks = defaultFolderChipsHooks }: {
   /** Inherited Composer base; standalone sent-message folders remain opt-in. */
   agentHandle?: string | false | undefined;
   folders?: readonly string[] | undefined;
   onRemove?: OnRemove | undefined;
-}) {
+} & { hooks?: FolderChipsHooks | undefined }) {
   const base = agentHandle || undefined;
-  const t = useT();
-  const { expanded, setExpanded, id, list } = useFolderChips({ folders, renderChip: path => <FolderChip key={path} base={base} path={path} onRemove={onRemove} /> });
+  const t = hooks.useT();
+  const { expanded, setExpanded, id, list } = hooks.useFolderChips({ folders, renderChip: path => <FolderChip key={path} base={base} path={path} onRemove={onRemove} /> });
   if (folders.length === 0) return null;
   if (folders.length === 1) return <div className="jini-folder-chips">{list()}</div>;
   return <div className="jini-folder-chips">

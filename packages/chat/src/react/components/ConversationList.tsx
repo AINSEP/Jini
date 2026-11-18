@@ -111,6 +111,10 @@ function ConversationActions({ itemId, editing, canRename, canDelete, onRename, 
   </>;
 }
 
+/** Hooks ConversationList calls; defaults to the real ones, a test hands in fakes. */
+export const defaultConversationListHooks = { useT, useConversationListView };
+export type ConversationListHooks = typeof defaultConversationListHooks;
+
 export function ConversationList({
   conversations: savedConversations,
   activeConversationId,
@@ -123,10 +127,10 @@ export function ConversationList({
   createDisabled = false,
   emptyState,
   triggerLabel,
-  nativeTitle = true,
-}: ConversationListProps) {
-  const t = useT();
-  const { open, setOpen, query, setQuery, conversations, rawTitles, editingId, setEditingId, rootRef, visible, now, commitRename, startRename, requestDelete, active, emptyLabel, scheduleSelect, createConversation } = useConversationListView({ savedConversations, activeConversationId, onSelect, onCreate, onDelete, onRename, onSearch, confirmDelete, emptyState, t });
+  nativeTitle = true, hooks = defaultConversationListHooks,
+}: ConversationListProps & { hooks?: ConversationListHooks | undefined }) {
+  const t = hooks.useT();
+  const { open, setOpen, query, setQuery, conversations, rawTitles, editingId, setEditingId, rootRef, visible, now, commitRename, startRename, requestDelete, active, emptyLabel, scheduleSelect, createConversation } = hooks.useConversationListView({ savedConversations, activeConversationId, onSelect, onCreate, onDelete, onRename, onSearch, confirmDelete, emptyState, t });
 
   return (
     <div className="jini-conv" ref={rootRef}>

@@ -33,10 +33,14 @@ export type AttachmentTrayProps = AttachmentTraySlot & {
   uploading?: boolean | undefined;
 };
 
-export function AttachmentTray({ agentHandle, attachments, onRemove, renderItem, objectUrls, uploading = false }: AttachmentTrayProps) {
+/** Hooks AttachmentTray calls; defaults to the real ones, a test hands in fakes. */
+export const defaultAttachmentTrayHooks = { useT, useAttachmentGallery };
+export type AttachmentTrayHooks = typeof defaultAttachmentTrayHooks;
+
+export function AttachmentTray({ agentHandle, attachments, onRemove, renderItem, objectUrls, uploading = false, hooks = defaultAttachmentTrayHooks }: AttachmentTrayProps & { hooks?: AttachmentTrayHooks | undefined }) {
   const base = agentHandle || undefined;
-  const t = useT();
-  const gallery = useAttachmentGallery({ attachments });
+  const t = hooks.useT();
+  const gallery = hooks.useAttachmentGallery({ attachments });
   if (attachments.length === 0 && !uploading) return null;
   return (
     <div className="jini-attachment-tray" data-testid="composer-attachment-tray">
@@ -69,14 +73,18 @@ export function AttachmentTray({ agentHandle, attachments, onRemove, renderItem,
   );
 }
 
-function DefaultAttachmentChip({ base, attachment, onOpen, objectUrls }: {
+/** Hooks DefaultAttachmentChip calls; defaults to the real ones, a test hands in fakes. */
+const defaultDefaultAttachmentChipHooks = { useT, useSentAttachmentThumbnail };
+type DefaultAttachmentChipHooks = typeof defaultDefaultAttachmentChipHooks;
+
+function DefaultAttachmentChip({ base, attachment, onOpen, objectUrls, hooks = defaultDefaultAttachmentChipHooks }: {
   base: string | undefined;
   attachment: ChatAttachment;
   onOpen: (attachment: ChatAttachment) => void;
   objectUrls: ObjectUrlPort | undefined;
-}) {
-  const t = useT();
-  const { thumbnailUrl, onThumbnailError } = useSentAttachmentThumbnail(
+} & { hooks?: DefaultAttachmentChipHooks | undefined }) {
+  const t = hooks.useT();
+  const { thumbnailUrl, onThumbnailError } = hooks.useSentAttachmentThumbnail(
     { attachment },
     objectUrls === undefined ? {} : { objectUrls },
   );

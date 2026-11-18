@@ -33,19 +33,19 @@ export const NativeSwitch = forwardRef<HTMLInputElement, SwitchProps>(function N
   const vm = useNativeCheckbox({ ...props, ref }, { role: 'switch' });
   return <label className="jini-checkbox-field" htmlFor={vm.id}><input {...vm.props} />{vm.label}</label>;
 });
-export function NativeToast(props: ToastProps, _optional: Record<string, never> = {}) {
-  const vm = useNativeToast(props);
+export function NativeToast({ useNativeToastHook = useNativeToast, ...props }: ToastProps & { useNativeToastHook?: typeof useNativeToast }, _optional: Record<string, never> = {}) {
+  const vm = useNativeToastHook(props);
   return <div {...vm.props}>{vm.message}{vm.dismiss}</div>;
 }
-export function NativeNotice(props: NoticeProps, _optional: Record<string, never> = {}) {
-  const vm = useNativeNotice(props);
+export function NativeNotice({ useNativeNoticeHook = useNativeNotice, ...props }: NoticeProps & { useNativeNoticeHook?: typeof useNativeNotice }, _optional: Record<string, never> = {}) {
+  const vm = useNativeNoticeHook(props);
   return <div {...vm.props}>{vm.children}</div>;
 }
-export function NativeSpinner(props: SpinnerProps, _optional: Record<string, never> = {}) {
-  const vm = useNativeSpinner(props);
+export function NativeSpinner({ useNativeSpinnerHook = useNativeSpinner, ...props }: SpinnerProps & { useNativeSpinnerHook?: typeof useNativeSpinner }, _optional: Record<string, never> = {}) {
+  const vm = useNativeSpinnerHook(props);
   return <span {...vm.props}>◌</span>;
 }
-export function NativeBadge(props: BadgeProps, _optional: Record<string, never> = {}) {
-  const vm = useNativeBadge(props);
+export function NativeBadge({ useNativeBadgeHook = useNativeBadge, ...props }: BadgeProps & { useNativeBadgeHook?: typeof useNativeBadge }, _optional: Record<string, never> = {}) {
+  const vm = useNativeBadgeHook(props);
   return <span {...vm.props}>{vm.children}</span>;
 }

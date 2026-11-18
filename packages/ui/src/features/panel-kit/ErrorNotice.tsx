@@ -18,8 +18,8 @@ export interface ErrorNoticeProps extends CopyToClipboardOptions {
  * Failed writes leave the details available for manual copying; feedback resets with the incident.
  * @complexity O(copyText length) per render/copy; one clipboard write plus the existing fallback on rejection.
  */
-export function ErrorNotice({ failure, t = text => text, className = 'notice error', role = 'alert', ...ports }: ErrorNoticeProps) {
-  const { feedback, copy } = useErrorNotice({ failure, ports });
+export function ErrorNotice({ failure, t = text => text, className = 'notice error', role = 'alert', useErrorNoticeHook = useErrorNotice, ...ports }: ErrorNoticeProps & { useErrorNoticeHook?: typeof useErrorNotice }) {
+  const { feedback, copy } = useErrorNoticeHook({ failure, ports });
   return (
     <div className={className} role={role}>
       <p>{failure.message}</p>

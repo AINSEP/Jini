@@ -27,8 +27,8 @@ export interface ProgressCardProps {
  * `GenerationStatusCard` occurrences; see `archived UI source map` for
  * provenance and what was dropped.
  */
-export function ProgressCard({ data, maxSteps = 6, maxSecondaryItems = 5 }: ProgressCardProps) {
-  const t = useT();
+export function ProgressCard({ data, maxSteps = 6, maxSecondaryItems = 5, useTHook = useT }: ProgressCardProps & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const title = data.title ?? t(defaultProgressCardTitle(data.status));
   const detail = data.detail ?? t(defaultProgressCardDetail(data.status));
   const secondaryHeading = t(data.secondaryItemsLabel ?? 'Files touched');

@@ -19,10 +19,10 @@ export interface PasskeySettingsPort {
 }
 
 /** Explicit alternative to a TOTP code; password proof remains required. O(1), two single-send calls. */
-export function PasskeySignIn({ port, pendingToken, onComplete, translate: t, ceremony = runPasskeyCeremony }: {
+export function PasskeySignIn({ port, pendingToken, onComplete, translate: t, ceremony = runPasskeyCeremony, usePasskeySignInHook = usePasskeySignIn }: {
   port: PasskeySignInPort; pendingToken: string; onComplete: () => void | Promise<void>; translate: Translate; ceremony?: Ceremony;
-}) {
-  const { busy, error, signIn } = usePasskeySignIn({ port, pendingToken, onComplete, t, ceremony });
+} & { usePasskeySignInHook?: typeof usePasskeySignIn }) {
+  const { busy, error, signIn } = usePasskeySignInHook({ port, pendingToken, onComplete, t, ceremony });
   return <div><button type="button" disabled={busy} onClick={signIn}>{t(busy ? 'Waiting for passkey…' : 'Use a passkey')}</button>
     {error ? <p role="alert">{error}</p> : null}</div>;
 }
@@ -30,8 +30,8 @@ export function PasskeySignIn({ port, pendingToken, onComplete, translate: t, ce
 /** Settings use the same owner password/TOTP management policy, with public credential ids only.
  * @complexity O(n), n <= 5 credentials; one mount read and explicit single-send actions, no polling.
  */
-export function PasskeySettings({ port, translate: t, ceremony = runPasskeyCeremony }: { port: PasskeySettingsPort; translate: Translate; ceremony?: Ceremony }) {
-  const { status, error, busy, password, setPassword, code, setCode, action } = usePasskeySettings({ port, t, ceremony });
+export function PasskeySettings({ port, translate: t, ceremony = runPasskeyCeremony, usePasskeySettingsHook = usePasskeySettings }: { port: PasskeySettingsPort; translate: Translate; ceremony?: Ceremony } & { usePasskeySettingsHook?: typeof usePasskeySettings }) {
+  const { status, error, busy, password, setPassword, code, setCode, action } = usePasskeySettingsHook({ port, t, ceremony });
   if (!status?.isOwner) return error ? <p role="alert">{error}</p> : null;
   return <section className="card"><h3>{t('Passkeys')}</h3>
     <p>{t('Use a passkey after your password instead of an authenticator code. Keep your authenticator app and recovery codes as a fallback.')}</p>

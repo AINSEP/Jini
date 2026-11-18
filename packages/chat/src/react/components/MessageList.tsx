@@ -78,6 +78,10 @@ function renderMessageRow(
   );
 }
 
+/** Hooks MessageList calls; defaults to the real ones, a test hands in fakes. */
+export const defaultMessageListHooks = { useConversationUsage, useMessageListAutoScroll };
+export type MessageListHooks = typeof defaultMessageListHooks;
+
 /**
  * Memoized: the pane re-renders on every composer keystroke, and re-rendering a long transcript
  * (hundreds of tool rows, MCP-UI cards, markdown) per key made typing lag (owner report
@@ -91,14 +95,14 @@ export const MessageList = memo(function MessageList({
   onScrolled,
   pendingPrompt,
   pendingPrompts,
-  ...rowProps
-}: MessageListProps) {
+  hooks = defaultMessageListHooks, ...rowProps
+}: MessageListProps & { hooks?: MessageListHooks | undefined }) {
   const messages = useMemo(() => projectAcceptedInputMessages({ messages: sourceMessages }), [sourceMessages]);
-  const usageByMessage = useConversationUsage({ messages });
+  const usageByMessage = hooks.useConversationUsage({ messages });
   // Derive from the conversation's saved events, so replay/remount does not repeat the notice.
   const accessNoticeId = useMemo(() => messages.find(message => message.role === 'assistant'
     && message.events?.some(event => event.kind === 'status' && event.label === 'full_cli_access' && event.detail))?.id, [messages]);
-  const { containerRef, onScroll, awayFromLatest, jumpToLatest } = useMessageListAutoScroll({ messages, scrollIntent }, onScrolled !== undefined ? { onScrolled } : {});
+  const { containerRef, onScroll, awayFromLatest, jumpToLatest } = hooks.useMessageListAutoScroll({ messages, scrollIntent }, onScrolled !== undefined ? { onScrolled } : {});
 
   return (
     <div
@@ -131,8 +135,8 @@ export const MessageList = memo(function MessageList({
  * Sticky, zero-height last child of the scroll container, so the button floats centred just above
  * the composer without a wrapper element changing the pane's flex layout.
  */
-function JumpToLatest({ onJump }: { onJump: () => void }) {
-  const t = useT();
+function JumpToLatest({ onJump, useTHook = useT }: { onJump: () => void } & { useTHook?: typeof useT }) {
+  const t = useTHook();
   return (
     <div className="jini-message-list__jump">
       <button type="button" className="jini-message-list__jump-btn" onClick={onJump}>
@@ -145,13 +149,17 @@ function JumpToLatest({ onJump }: { onJump: () => void }) {
   );
 }
 
+/** Hooks QueuedMessage calls; defaults to the real ones, a test hands in fakes. */
+const defaultQueuedMessageHooks = { useT, useAttachmentGallery };
+type QueuedMessageHooks = typeof defaultQueuedMessageHooks;
+
 /** One cancelable queue receipt; attachment rendering reuses the sent-message preview owner. */
-function QueuedMessage({ prompt, renderAttachment }: {
+function QueuedMessage({ prompt, renderAttachment, hooks = defaultQueuedMessageHooks }: {
   prompt: PendingPrompt; renderAttachment: MessageRowProps['renderAttachment'];
-}) {
-  const t = useT();
+} & { hooks?: QueuedMessageHooks | undefined }) {
+  const t = hooks.useT();
   const attachments = prompt.attachments ?? [];
-  const gallery = useAttachmentGallery({ attachments });
+  const gallery = hooks.useAttachmentGallery({ attachments });
   return (
     <div
       className="jini-chat-pane__queued"

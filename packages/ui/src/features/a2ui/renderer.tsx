@@ -139,8 +139,8 @@ function RenderNode({ interpreter, surfaceId, registry, componentId, ancestors, 
  * basic layout/text primitives with `registry`-sourced components. See `RenderNode`'s own doc
  * for coverage and the fallback resolution order.
  */
-export function A2uiSurfaceRenderer({ interpreter, surfaceId, registry, fallback }: A2uiSurfaceRendererProps) {
-  const root = useA2uiSurfaceRoot({ interpreter: interpreter, surfaceId: surfaceId });
+export function A2uiSurfaceRenderer({ interpreter, surfaceId, registry, fallback, useA2uiSurfaceRootHook = useA2uiSurfaceRoot }: A2uiSurfaceRendererProps & { useA2uiSurfaceRootHook?: typeof useA2uiSurfaceRoot }) {
+  const root = useA2uiSurfaceRootHook({ interpreter: interpreter, surfaceId: surfaceId });
   if (!root) return fallback ?? null;
 
   const onAction = createA2uiActionHandler({ interpreter, surfaceId });
