@@ -10,6 +10,7 @@
  * line are masked too. No I/O, no host state.
  */
 import type { ValueRange } from './redact-auth-schemes.js';
+import { isNextLineValue } from './redact-prose-values.js';
 
 const LABELS = 'password|passwd|pwd|client_secret|secret_access_key|signing_secret|webhook_secret|api_key|apikey|'
   + 'access_token|refresh_token|id_token|auth_token|private_key|secret|token';
@@ -30,8 +31,8 @@ const QUOTED = String.raw`"(?:\\.|[^"\\\r\n])*"?|'(?:\\.|[^'\\\r\n])*'?`;
 const ASSIGNMENT_RE = new RegExp(`${NAME}[ \\t]*=[ \\t]*(?<value>${QUOTED}|[^\\s"'&,;})]+)`, 'gi');
 // A quoted value may hold backslash escapes (`"a\\"b"`, `"C:\\\\keys"`); an escape is read as one unit so an escaped quote
 // does not end the value early and a backslash does not stop it (the closing quote still must not be escaped). A quoted
-// value may also sit on the line after the key, as pretty-printed or wrapped JSON puts it.
-const NEXT_LINE_QUOTE = String.raw`(?:\r?\n[ \t]*)?`;
+// value may also sit on a later line than the key, as pretty-printed or wrapped JSON puts it.
+const NEXT_LINE_QUOTE = String.raw`(?:\r?\n[ \t]*)*`;
 // `"label": "value"` and `{ label: 'value' }` (also inside an escaped JSON string), or a bare single token.
 const COLON_RE = new RegExp(
   `(?<open>\\\\?["']?)${NAME}\\k<open>[ \\t]*:[ \\t]*`
@@ -47,17 +48,22 @@ const QUOTED_KEY_RE = new RegExp(
   'g',
 );
 const CREDENTIAL_KEY_END = /(?:^|[ _.-])(?:password|passwd|pwd|secret|token|api[ _-]?key|private[ _-]?key|access[ _-]?key|secret[ _-]?key|client[ _-]?secret|(?:access|refresh|auth|id)[ _-]?token|(?:signing|webhook)[ _-]?secret)$/i;
-// A prefixed name (`DB_PASSWORD=`, `my-token:`) with nothing after the sign, then ONE token on the next line: the
-// value of an env file or a wrapped form line. A line that is itself an assignment (`NEXT=1`), a heading
-// (`Notes:`), a list item or several words is not a value; the line after it is not read.
-// After `=` any number of blank lines may separate the name from its value, and the first token of that line is the
-// value, as the engine's own rules read `password=` (the `=` form never reads as prose). After a colon one line break
-// only (a blank line starts a new paragraph) and the line must be that one token.
+// A name (`DB_PASSWORD=`, `my-token:`, `passwd:`) with nothing after the sign, then its value on a later line: the
+// value of an env file or a wrapped form line. A line that is itself an assignment (`NEXT=1`), a heading (`Notes:`) or
+// a list item is not a value; the line after it is not read. Blank lines may come first in both forms.
+// After `=` the first token of that line is the value, as the engine's own rules read `password=` (the `=` form never
+// reads as prose). After a colon the line is read as the engine's labels read it (`isNextLineValue`: one token, or a
+// credential-shaped first token), so a paragraph of plain words after `passwd:` stays readable.
 const NEXT_LINE_VALUE = String.raw`(?<value>${QUOTED}|(?![\w.-]+[=:])[^\s"'&,;})-][^\s"'&,;})]*)`;
-const NEXT_LINE_RES: readonly RegExp[] = [
-  new RegExp(`${NAME}[ \\t]*=[ \\t]*(?:\\r?\\n[ \\t]*)+${NEXT_LINE_VALUE}`, 'gi'),
-  new RegExp(`${NAME}[ \\t]*:[ \\t]*\\r?\\n[ \\t]*${NEXT_LINE_VALUE}[ \\t]*(?=\\r?\\n|$)`, 'gi'),
-];
+const NEXT_LINE_ASSIGNMENT_RE = new RegExp(`${NAME}[ \\t]*=[ \\t]*(?:\\r?\\n[ \\t]*)+${NEXT_LINE_VALUE}`, 'gi');
+// The name may be a quoted JSON key (`{"passwd":` then the value on a later line).
+const NEXT_LINE_COLON_RE = new RegExp(`(?<open>["']?)${NAME}\\k<open>[ \\t]*:[ \\t]*(?:\\r?\\n[ \\t]*)+${NEXT_LINE_VALUE}`, 'gi');
+
+/** The value's line from its first character, bounded like the engine's colon reading (200 characters). */
+const valueLine = ({ text, match }: { readonly text: string; readonly match: RegExpMatchArray }): string => {
+  const start = (match.index ?? 0) + match[0].length - (match.groups?.value ?? '').length;
+  return /^[^\r\n]*/.exec(text.slice(start, start + 200))?.[0] ?? '';
+};
 
 /** Ranges of the quoted value after a multiword quoted credential key. */
 function quotedKeyRanges({ text }: { readonly text: string }): ValueRange[] {
@@ -68,7 +74,8 @@ function quotedKeyRanges({ text }: { readonly text: string }): ValueRange[] {
 
 /** Ranges of a next-line value after a prefixed name; the engine's own exact names are left to its rules. */
 function nextLineRanges({ text }: { readonly text: string }): ValueRange[] {
-  return NEXT_LINE_RES.flatMap(rule => [...text.matchAll(rule)])
+  const colonValues = [...text.matchAll(NEXT_LINE_COLON_RE)].filter(match => isNextLineValue({ line: valueLine({ text, match }) }));
+  return [...text.matchAll(NEXT_LINE_ASSIGNMENT_RE), ...colonValues]
     .filter(match => !ownedByEngine({ name: match.groups?.name, before: text[(match.index ?? 0) - 1], escaped: false }))
     .map(match => assignedValueRange({ match }));
 }

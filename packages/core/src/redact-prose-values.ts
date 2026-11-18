@@ -48,9 +48,17 @@ const startsWithLabelWord = ({ rest, label }: { rest: string; label: string }): 
 // A label that starts its line (after a list marker, a number or a bracket) is an assignment, not a sentence.
 const NUMBERED_LIST_PREFIX = /^\s*\d+[.)]\s+/;
 const isFieldStart = (before: string): boolean => !/[A-Za-z0-9]/.test(before.replace(NUMBERED_LIST_PREFIX, ''));
-// A single token alone on the line after the label ("Password:" then "hunter2") is its value; a list item
-// ("- Notes: x"), another label ("Notes:"), or several words is the next thing in a form, not a value.
-const isSingleTokenLine = (rest: string): boolean => /^[^\s]+[ \t]*$/.test(rest) && !/^[-*•]/.test(rest) && !/^[\w.-]+[=:]/.test(rest);
+// The line after a label ("Password:" then "hunter2") holds its value when it is one token, or when its first token is
+// shaped like a credential (a quoted string, letters with digits, or 12+ characters) even with more text after it
+// ("<key> --verbose"); blank lines may come first. A list item ("- Notes: x"), another label ("Notes:"), or a line of
+// plain words is the next thing in a form or a paragraph, not a value. This is how the rules chat used before read it.
+const CREDENTIAL_SHAPED_TOKEN = /^(?:["'][^\s"']+["']|(?=[^\s]*\d)(?=[^\s]*[A-Za-z])[^\s]+|[^\s]{12,})(?=\s|$)/;
+/** True when `line` (the text of the first non-blank line after a label, to its end) starts with the label's value.
+ * @complexity O(line): every pattern is anchored. */
+export function isNextLineValue({ line }: { readonly line: string }): boolean {
+  if (/^[-*•]/.test(line) || /^[\w.-]+[=:]/.test(line)) return false;
+  return /^[^\s]+[ \t]*$/.test(line) || CREDENTIAL_SHAPED_TOKEN.test(line);
+}
 // Several plain words after a field-start label ("password: correct horse battery staple") are a passphrase.
 const PASSPHRASE = /^[A-Za-z]+(?:[ \t]+[A-Za-z]+){1,7}[.!?]?[ \t]*$/;
 
@@ -70,17 +78,13 @@ const isQualifiedKey = ({ before, label, value }: { before: string; label: strin
   label.toLowerCase() === 'key' && (value.length <= QUALIFIED_KEY_MAX_VALUE || isReadableIdentifier(value))
   && KEY_QUALIFIER_BEFORE.test(before);
 
-/** The value after a line break is prose unless it is one bare token on the line right after the label. A header name
- * (`Authorization:`) never heads a paragraph, so its single-token value may follow blank lines, as the diagnostics
- * rules chat used before read it. */
-const isNextLineProse = ({ rest, breaks, label }: { rest: string; breaks: number; label: string }): boolean =>
-  (breaks > 1 && label.toLowerCase() !== 'authorization') || !isSingleTokenLine(rest);
+
 
 /**
  * True when the unquoted value after a colon should be left readable.
  * @param required.rest - The text from the first value character to the end of its line.
  * @param required.gap - The text between the colon and that character. A line break in it means the value
- *   is on the next line, which is a credential only when it is one bare token.
+ *   is on a later line, which is a credential only as {@link isNextLineValue} reads it.
  * @param context.before - The text before the label on its line (qualifier words such as "Sort").
  * @param context.label - The credential word before the colon, as written.
  * @param context.token - The length of the value's first token.
@@ -91,8 +95,8 @@ export function isProseAfterColon(
   { before, label, token }: { readonly before: string; readonly label: string; readonly token: number },
 ): boolean {
   if (isQualifiedKey({ before, label, value: rest.slice(0, token) }) || PLACEHOLDER_RES.some(pattern => pattern.test(rest))) return true;
-  const breaks = gap.match(/\n/g)?.length ?? 0;
-  if (breaks > 0) return isNextLineProse({ rest, breaks, label });
+  // A header name never heads a paragraph: whatever starts the line after `Authorization:` is its credential.
+  if (gap.includes('\n')) return label.toLowerCase() !== 'authorization' && !isNextLineValue({ line: rest });
   if (!SENTENCE_START.test(rest) || token >= OPAQUE_WORD_MIN) return false;
   return !isFieldStart(before) || FUNCTION_WORD_START.test(rest) || startsWithLabelWord({ rest, label });
 }

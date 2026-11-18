@@ -27,7 +27,8 @@ describe('a credential assignment written with a colon is not prose', () => {
   it.each([
     'Password: Must be 8 chars', 'Secret: it is a surprise', 'Password: please choose another', 'Token: the one you were sent', 'password: must be at least 8 characters',
     'I forgot my password: help me', 'Please set the password: then save', 'What is token: in JWT?',
-    'Password:\n\nhunter2', 'Password:\n- Notes: x', 'Password:\nNotes:', 'Password:\n(skipped)', 'Password:\nnone', 'Password:\nnext line', 'Token:\n1 2 3',
+    // 'Password:\n\nhunter2' moved to redact.next-line-values-r3.test.ts: the rules chat used before masked a value after blank lines.
+    'Password:\n- Notes: x', 'Password:\nNotes:', 'Password:\n(skipped)', 'Password:\nnone', 'Password:\nnext line', 'Token:\n1 2 3',
     'Password: (skipped)', 'API key: none', 'Secret: TBD',
   ])('keeps the prose or placeholder %j', input => {
     expect(run(input)).toEqual({ redacted: input, counts: {} });

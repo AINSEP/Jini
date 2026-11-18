@@ -948,11 +948,19 @@ function emptyAssignmentRanges(text: string): Set<number> {
 }
 
 /** Preserve the hint's quotes and neighboring fields; O(n) scan, no I/O. */
+// A value glued right after a hint's closing quote (`"password: "<value>""`, a nested quote pasted without escapes) is
+// the credential itself; a hint followed by a space, `+` or punctuation is concatenation and keeps what follows.
+const GLUED_HINT_VALUE = /[^\s"'`,;)}\]+]+/y;
+
 function collectEmptyQuotedAssignments(pass: SpanPass): void {
+  const glued = new RegExp(GLUED_HINT_VALUE.source, 'y');
   for (const match of pass.text.matchAll(new RegExp(QUOTED_SECRET_VALUE, 'g'))) {
-    if (EMPTY_QUOTED_ASSIGNMENT_RE.test(match[0].slice(1, -1))) {
-      pass.add(match.index + 1, match.index + match[0].length - 1, CATEGORY.labeledSecret);
-    }
+    if (!EMPTY_QUOTED_ASSIGNMENT_RE.test(match[0].slice(1, -1))) continue;
+    const end = match.index + match[0].length;
+    pass.add(match.index + 1, end - 1, CATEGORY.labeledSecret);
+    glued.lastIndex = end;
+    const value = glued.exec(pass.text)?.[0];
+    if (value) pass.add(end, end + value.length, CATEGORY.labeledSecret);
   }
 }
 
