@@ -27,7 +27,7 @@ import type { McpUiLabViewMode } from './mcpui-lab-view.js';
  * would still lose anything posted between mount-commit and effect-run under a slow/deferred
  * effect — Suspense, a lazy import, an expensive first render).
  */
-const earlyMessages = createEarlyMessageBuffer({});
+const earlyMessages = createEarlyMessageBuffer();
 if (typeof window !== 'undefined') {
   window.addEventListener('message', (event: MessageEvent) => {
     earlyMessages.push({ data: event.data, origin: event.origin, source: event.source });
