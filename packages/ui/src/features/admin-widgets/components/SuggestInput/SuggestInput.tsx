@@ -36,12 +36,16 @@ export interface SuggestInputProps {
   scrollOptionIntoView?: ((option: Element) => void) | undefined;
 }
 
-export function SuggestInput({ value, onValueChange, suggestions, onPick, onKeyDown, placeholder, disabled, className, limit, agentHandle: suppliedHandle, agentLabel, useSuggest = useSuggestInput, scrollOptionIntoView, ...rest }: SuggestInputProps) {
-  const handle = useAgentHandle({ agentHandle: suppliedHandle });
+/** Hooks SuggestInput calls; defaults to the real ones, a test hands in fakes. */
+export const defaultSuggestInputHooks = { useAgentHandle, useScrollHighlightedIntoView, useSuggestOptionIds };
+export type SuggestInputHooks = typeof defaultSuggestInputHooks;
+
+export function SuggestInput({ value, onValueChange, suggestions, onPick, onKeyDown, placeholder, disabled, className, limit, agentHandle: suppliedHandle, agentLabel, useSuggest = useSuggestInput, scrollOptionIntoView, hooks = defaultSuggestInputHooks, ...rest }: SuggestInputProps & { hooks?: SuggestInputHooks | undefined }) {
+  const handle = hooks.useAgentHandle({ agentHandle: suppliedHandle });
   const vm = useSuggest({ value, suggestions }, { limit });
   const listRef = useRef<HTMLUListElement>(null);
-  useScrollHighlightedIntoView({ listRef, scrollTarget: vm.scrollTarget }, { scrollIntoView: scrollOptionIntoView });
-  const { listId, optionId } = useSuggestOptionIds({});
+  hooks.useScrollHighlightedIntoView({ listRef, scrollTarget: vm.scrollTarget }, { scrollIntoView: scrollOptionIntoView });
+  const { listId, optionId } = hooks.useSuggestOptionIds({});
   return (
     <span className={className ? `jini-suggest-input ${className}` : 'jini-suggest-input'}>
       <input

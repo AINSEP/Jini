@@ -35,8 +35,8 @@ const DEFAULT_LABELS = { close: "Close preview", previous: "Previous", next: "Ne
 // than a card over a dim backdrop) so the media can take nearly all of the screen.
 /** Full-viewport media lightbox: title and counter top-left, close top-right, the media as large
  *  as fits, caller actions bottom-left and the previous/next pair together bottom-right. */
-export function Lightbox(props: LightboxProps) {
-  const { open, title, children, actions, className, partAttrs = {}, useLightboxHook = useLightbox } = props;
+export function Lightbox({ useLightboxHook = useLightbox, ...props }: LightboxProps) {
+  const { open, title, children, actions, className, partAttrs = {} } = props;
   const labels = { ...DEFAULT_LABELS, ...props.labels };
   const titleId = useId();
   const vm = useLightboxHook({ open, onClose: props.onClose, index: props.index, count: props.count, onNavigate: props.onNavigate });
