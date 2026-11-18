@@ -1,6 +1,7 @@
 /** Universal SEO domain: pure producers and services, with host-owned dependencies supplied as ports. */
 export * from "./types.js";
 export * from "./errors.js";
+export * from "./settings-limits.js";
 export * from "./ports.js";
 export * from "./absolute-url.js";
 export * from "./seo.js";
