@@ -566,7 +566,7 @@ Everything a Jini package asks its host to bind or register: `*Port`, `*Kit`, `*
 | `MessageRelayHttpDeps` | deps | interface | `packages/daemon/src/http/message-relay.ts:6` |
 | `registerMessageRelayRoutes` | registry | function | `packages/daemon/src/http/message-relay.ts:46` |
 | `ModelProxyHttpDeps` | deps | interface | `packages/daemon/src/http/model-proxy.ts:159` |
-| `registerModelProxyRoutes` | registry | function | `packages/daemon/src/http/model-proxy.ts:647` |
+| `modelProxyRoutes` | registry | function | `packages/daemon/src/http/model-proxy.ts:620` |
 | `RemoteRunEventHttpDeps` | deps | interface | `packages/daemon/src/http/remote-run-events.ts:46` |
 | `remoteRunEventRoutes` | registry | function | `packages/daemon/src/http/remote-run-events.ts:269` |
 | `ResearchHttpDeps` | deps | interface | `packages/daemon/src/http/research.ts:141` |

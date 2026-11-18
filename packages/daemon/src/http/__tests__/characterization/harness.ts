@@ -33,7 +33,7 @@ import { hostToolsRoutes } from '../../host-tools.js';
 import { mediaRoutes } from '../../media.js';
 import { memoryRoutes } from '../../memory.js';
 import { registerMessageRelayRoutes } from '../../message-relay.js';
-import { registerModelProxyRoutes } from '../../model-proxy.js';
+import { modelProxyRoutes } from '../../model-proxy.js';
 import { remoteRunEventRoutes } from '../../remote-run-events.js';
 import { researchRoutes } from '../../research.js';
 import { routineRoutes } from '../../routines.js';
@@ -117,7 +117,7 @@ const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-par
   ['runs', ({ adapter, deps, mountList }) => mountList(runRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['agents', ({ adapter, deps, mountList }) => mountList(agentRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['host-tools', ({ adapter, deps, mountList }) => mountList(hostToolsRoutes({ deps: deps(), host: routeHost(adapter) }))],
-  ['model-proxy', ({ app, adapter, deps }) => registerModelProxyRoutes({ app, deps: deps(), adapter })],
+  ['model-proxy', ({ adapter, deps, mountList }) => mountList(modelProxyRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['active-context', ({ adapter, deps, mountList }) => mountList(activeContextRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['terminals', ({ adapter, deps, mountList }) => mountList(terminalRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['db-ops', ({ adapter, deps, mountList }) => mountList(daemonDbRoutes({ deps: deps(), host: routeHost(adapter) }))],

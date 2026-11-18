@@ -247,7 +247,7 @@ export {
   terminalStdinRoute,
 } from './terminals.js';
 export type { ModelProxyHttpDeps, ModelProxyInternalErrorContext } from './model-proxy.js';
-export { registerModelProxyRoutes } from './model-proxy.js';
+export { modelProxyRoutes } from './model-proxy.js';
 export type { HealthHttpDeps, HealthReadinessResult, LivenessResponse, ReadinessResponse, VersionResponse } from './health.js';
 export {
   apiHealthRoute,

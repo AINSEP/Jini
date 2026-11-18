@@ -21,7 +21,7 @@ read-only policy entry do not load HTTP or Express.
   delegated tools (`delegatedToolRoutes`), remote run events
   (`remoteRunEventRoutes`), frontend sessions (`registerFrontendSessionRoutes`), active
   context (`activeContextRoutes`), host tools (`hostToolsRoutes`), model proxy
-  (`registerModelProxyRoutes`), connectors — auth/db/storage/realtime provider seams (no payments slot: money moves only through `@jini-ai/commerce`)
+  (`modelProxyRoutes`), connectors — auth/db/storage/realtime provider seams (no payments slot: money moves only through `@jini-ai/commerce`)
   (`connectorsRoutes`), research (`researchRoutes`), media
   (`mediaRoutes`), and xai (`xaiRoutes`). Each exports its own `*HttpDeps` type so
   you inject exactly the backing services it needs.

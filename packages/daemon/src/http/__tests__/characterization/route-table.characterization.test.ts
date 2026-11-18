@@ -45,12 +45,12 @@ const ROUTE_TABLE: Readonly<Record<string, readonly string[]>> = {
     'POST /api/resources/:resourceRef/open-in [same-origin]',
   ],
   'model-proxy': [
-    'POST /api/proxy/anthropic/stream [anonymous/2]',
-    'POST /api/proxy/openai/stream [anonymous/2]',
-    'POST /api/proxy/azure/stream [anonymous/2]',
-    'POST /api/proxy/google/stream [anonymous/2]',
-    'POST /api/proxy/ollama/stream [anonymous/2]',
-    'POST /api/proxy/:provider/stream [anonymous/2]',
+    'POST /api/proxy/anthropic/stream [same-origin]',
+    'POST /api/proxy/openai/stream [same-origin]',
+    'POST /api/proxy/azure/stream [same-origin]',
+    'POST /api/proxy/google/stream [same-origin]',
+    'POST /api/proxy/ollama/stream [same-origin]',
+    'POST /api/proxy/:provider/stream [same-origin]',
   ],
   'active-context': [
     'POST /api/active [same-origin]',
