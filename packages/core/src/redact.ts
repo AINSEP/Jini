@@ -384,7 +384,11 @@ const PROVIDER_API_KEY_QUERY = /([?&]key=)([^&\s"']+)/gi;
 // (`'a.'.repeat(20000)` blocked ~3.6 s), trying a bounded scheme at every position cost ~2 s on
 // 10 MiB of `'eyJ-'`, and a 32-character scheme lookbehind missed longer schemes.
 // The same authority syntax also appears in scheme-relative URLs (`//user:pw@host`).
-const URL_CREDENTIALS_RE = /\/\/([^/\s?#@]+)@/g;
+// The userinfo may itself contain `@` (a database password that was never percent-encoded:
+// `postgres://u:p@ss4@host/db`): `@` is not excluded from it, so the greedy run backtracks to the LAST `@` of
+// the authority and the whole password is masked. Matching started at `//` and `/` is excluded, so runs of
+// different `//` starts never overlap and the scan stays linear.
+const URL_CREDENTIALS_RE = /\/\/([^/\s?#]+)@/g;
 const SIGNED_QUERY_RE = /([?&](?:signature|sig|x-amz-signature|x-goog-signature|access_token|refresh_token)=)([^&#\s,;"']+)/gi;
 // A secret word must END a name segment (split at . _ - or the name's end): api_key, apiKey,
 // authtoken, X-Amz-Signature and custom.Token-value are masked, while author, keyword, design,
