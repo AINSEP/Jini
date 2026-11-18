@@ -78,7 +78,7 @@ const aihubmixImageAdapter: VendorAdapter<AIHubMixImageMeta> = {
     if (classifyAIHubMixModel(wireModel) === 'gemini') {
       const aspect = ctx.aspect || '1:1';
       return {
-        url: aihubmixGeminiImageUrl(baseUrl, wireModel),
+        url: aihubmixGeminiImageUrl({ baseUrl, wireModel }),
         init: withRequestInit(ctx, {
           method: 'POST',
           redirect: 'error',
@@ -103,7 +103,7 @@ const aihubmixImageAdapter: VendorAdapter<AIHubMixImageMeta> = {
       model: wireModel,
       prompt: ctx.prompt || DEFAULT_IMAGE_PROMPT,
       n: 1,
-      size: openaiSizeFor(wireModel, ctx.aspect),
+      size: openaiSizeFor({ model: wireModel }, { aspect: ctx.aspect }),
     };
     if (wireModel.startsWith('dall-e-')) {
       body.response_format = 'b64_json';
@@ -113,7 +113,7 @@ const aihubmixImageAdapter: VendorAdapter<AIHubMixImageMeta> = {
     }
 
     return {
-      url: buildOpenAIImageUrl(baseUrl, false),
+      url: buildOpenAIImageUrl({ baseUrl, isAzure: false }),
       init: withRequestInit(ctx, {
         method: 'POST',
         headers: { 'content-type': 'application/json', ...aihubmixHeaders(apiKey) },
@@ -157,13 +157,13 @@ async function parseGeminiImageResponse({ resp, meta }: { resp: Response; meta: 
 async function parseOpenAIImageResponse({ resp, ctx, meta }: { resp: Response; ctx: RenderContext; meta: AIHubMixImageMeta }): Promise<RenderResult> {
   const text = await resp.text();
   if (!resp.ok) {
-    throw new Error(`aihubmix ${resp.status}: ${truncate(text, 240)}`);
+    throw new Error(`aihubmix ${resp.status}: ${truncate({ s: text, n: 240 })}`);
   }
   let data: { data?: unknown };
   try {
     data = JSON.parse(text);
   } catch {
-    throw new Error(`aihubmix non-JSON response: ${truncate(text, 200)}`);
+    throw new Error(`aihubmix non-JSON response: ${truncate({ s: text, n: 200 })}`);
   }
   const entry = Array.isArray(data.data) ? (data.data[0] as { b64_json?: string; url?: string } | undefined) : undefined;
   if (!entry) throw new Error('aihubmix response had no data[0]');
@@ -207,7 +207,7 @@ const aihubmixTTSAdapter: VendorAdapter<AIHubMixTTSMeta> = {
     const voice = requestedVoice && OPENAI_TTS_VOICES.has(requestedVoice) ? requestedVoice : 'alloy';
 
     return {
-      url: buildOpenAISpeechUrl(baseUrl, false),
+      url: buildOpenAISpeechUrl({ baseUrl, isAzure: false }),
       init: withRequestInit(ctx, {
         method: 'POST',
         headers: { 'content-type': 'application/json', ...aihubmixHeaders(apiKey) },

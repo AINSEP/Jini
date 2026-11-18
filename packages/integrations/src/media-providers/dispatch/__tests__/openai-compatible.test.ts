@@ -23,16 +23,16 @@ afterEach(() => {
 
 describe('truncate', () => {
   it('returns the string unchanged when within the limit', () => {
-    expect(truncate('hello', 10)).toBe('hello');
+    expect(truncate({ s: 'hello', n: 10 })).toBe('hello');
   });
 
   it('truncates and appends an ellipsis when over the limit', () => {
-    expect(truncate('hello world', 5)).toBe('hell…');
+    expect(truncate({ s: 'hello world', n: 5 })).toBe('hell…');
   });
 
   it('coerces non-string/nullish input to a string', () => {
-    expect(truncate(undefined, 10)).toBe('');
-    expect(truncate(123, 10)).toBe('123');
+    expect(truncate({ s: undefined, n: 10 })).toBe('');
+    expect(truncate({ s: 123, n: 10 })).toBe('123');
   });
 });
 
@@ -138,76 +138,76 @@ describe('detectAzureEndpoint', () => {
 
 describe('normalizeOpenAICompatiblePath', () => {
   it('appends /images/generations when the path has no suffix', () => {
-    expect(normalizeOpenAICompatiblePath('/v1', 'images', 'generations')).toBe('/v1/images/generations');
+    expect(normalizeOpenAICompatiblePath({ pathname: '/v1', endpoint: 'images', mode: 'generations' })).toBe('/v1/images/generations');
   });
 
   it('rewrites /images/generations -> /images/edits when mode is edits', () => {
-    expect(normalizeOpenAICompatiblePath('/v1/images/generations', 'images', 'edits')).toBe('/v1/images/edits');
+    expect(normalizeOpenAICompatiblePath({ pathname: '/v1/images/generations', endpoint: 'images', mode: 'edits' })).toBe('/v1/images/edits');
   });
 
   it('rewrites /images/edits -> /images/generations when mode is generations', () => {
-    expect(normalizeOpenAICompatiblePath('/v1/images/edits', 'images', 'generations')).toBe('/v1/images/generations');
+    expect(normalizeOpenAICompatiblePath({ pathname: '/v1/images/edits', endpoint: 'images', mode: 'generations' })).toBe('/v1/images/generations');
   });
 
   it('is idempotent when the path already ends in the target suffix', () => {
-    expect(normalizeOpenAICompatiblePath('/v1/images/generations', 'images', 'generations')).toBe('/v1/images/generations');
-    expect(normalizeOpenAICompatiblePath('/v1/images/edits', 'images', 'edits')).toBe('/v1/images/edits');
+    expect(normalizeOpenAICompatiblePath({ pathname: '/v1/images/generations', endpoint: 'images', mode: 'generations' })).toBe('/v1/images/generations');
+    expect(normalizeOpenAICompatiblePath({ pathname: '/v1/images/edits', endpoint: 'images', mode: 'edits' })).toBe('/v1/images/edits');
   });
 
   it('videos has no edits suffix, so edits mode still appends /videos/generations', () => {
-    expect(normalizeOpenAICompatiblePath('/v1', 'videos', 'edits')).toBe('/v1/videos/generations');
+    expect(normalizeOpenAICompatiblePath({ pathname: '/v1', endpoint: 'videos', mode: 'edits' })).toBe('/v1/videos/generations');
   });
 
   it('videos already ending in /videos/generations with edits mode falls through to the unchanged path (no edits suffix to rewrite to)', () => {
-    expect(normalizeOpenAICompatiblePath('/v1/videos/generations', 'videos', 'edits')).toBe('/v1/videos/generations');
+    expect(normalizeOpenAICompatiblePath({ pathname: '/v1/videos/generations', endpoint: 'videos', mode: 'edits' })).toBe('/v1/videos/generations');
   });
 });
 
 describe('normalizeOpenAICompatiblePath edge cases', () => {
   it('strips every trailing slash before matching a suffix', () => {
-    expect(normalizeOpenAICompatiblePath('/v1/images/generations///', 'images', 'generations')).toBe('/v1/images/generations');
+    expect(normalizeOpenAICompatiblePath({ pathname: '/v1/images/generations///', endpoint: 'images', mode: 'generations' })).toBe('/v1/images/generations');
   });
 
   it('appends /images/edits to a bare path in edits mode', () => {
-    expect(normalizeOpenAICompatiblePath('/v1/', 'images', 'edits')).toBe('/v1/images/edits');
+    expect(normalizeOpenAICompatiblePath({ pathname: '/v1/', endpoint: 'images', mode: 'edits' })).toBe('/v1/images/edits');
   });
 
   it('appends /images/generations to an empty path', () => {
-    expect(normalizeOpenAICompatiblePath('', 'images', 'generations')).toBe('/images/generations');
+    expect(normalizeOpenAICompatiblePath({ pathname: '', endpoint: 'images', mode: 'generations' })).toBe('/images/generations');
   });
 
   it('keeps an /images/edits path in edits mode', () => {
-    expect(normalizeOpenAICompatiblePath('/v1/images/edits/', 'images', 'edits')).toBe('/v1/images/edits');
+    expect(normalizeOpenAICompatiblePath({ pathname: '/v1/images/edits/', endpoint: 'images', mode: 'edits' })).toBe('/v1/images/edits');
   });
 
   it('does not treat /images/edits as a known suffix for the videos endpoint', () => {
-    expect(normalizeOpenAICompatiblePath('/v1/images/edits', 'videos', 'generations')).toBe('/v1/images/edits/videos/generations');
+    expect(normalizeOpenAICompatiblePath({ pathname: '/v1/images/edits', endpoint: 'videos', mode: 'generations' })).toBe('/v1/images/edits/videos/generations');
   });
 
   it('keeps a /videos/generations path in generations mode', () => {
-    expect(normalizeOpenAICompatiblePath('/v1/videos/generations', 'videos', 'generations')).toBe('/v1/videos/generations');
+    expect(normalizeOpenAICompatiblePath({ pathname: '/v1/videos/generations', endpoint: 'videos', mode: 'generations' })).toBe('/v1/videos/generations');
   });
 });
 
 describe('buildOpenAICompatibleGenerationUrl / buildOpenAIImageUrl / buildOpenAIImageEditUrl / buildOpenAIVideoUrl', () => {
   it('builds a standard images generations URL', () => {
-    expect(buildOpenAIImageUrl('https://api.openai.com/v1', false)).toBe('https://api.openai.com/v1/images/generations');
+    expect(buildOpenAIImageUrl({ baseUrl: 'https://api.openai.com/v1', isAzure: false })).toBe('https://api.openai.com/v1/images/generations');
   });
 
   it('appends the default azure api-version when azure and none supplied', () => {
-    const url = buildOpenAIImageUrl('https://x.openai.azure.com/openai/deployments/gpt-image-2', true);
+    const url = buildOpenAIImageUrl({ baseUrl: 'https://x.openai.azure.com/openai/deployments/gpt-image-2', isAzure: true });
     expect(url).toContain('/images/generations');
     expect(url).toContain('api-version=2024-02-01');
   });
 
   it('preserves a caller-supplied api-version instead of overriding it', () => {
-    const url = buildOpenAIImageUrl('https://x.openai.azure.com/openai/deployments/gpt-image-2?api-version=2025-01-01', true);
+    const url = buildOpenAIImageUrl({ baseUrl: 'https://x.openai.azure.com/openai/deployments/gpt-image-2?api-version=2025-01-01', isAzure: true });
     expect(url).toContain('api-version=2025-01-01');
     expect(url).not.toContain('2024-02-01');
   });
 
   it('falls back to naive concat on an unparseable base URL', () => {
-    expect(buildOpenAICompatibleGenerationUrl('not a url', 'images')).toBe('not a url/images/generations');
+    expect(buildOpenAICompatibleGenerationUrl({ baseUrl: 'not a url', endpoint: 'images' })).toBe('not a url/images/generations');
   });
 
   it('buildOpenAIImageUrl falls back to naive concat when even the fallback string is not a parseable URL', () => {
@@ -215,7 +215,7 @@ describe('buildOpenAICompatibleGenerationUrl / buildOpenAIImageUrl / buildOpenAI
     // the non-URL string 'not a url/images/generations' via its own catch;
     // wrapping THAT in `new URL(...)` inside buildOpenAIImageUrl throws too,
     // exercising buildOpenAIImageUrl's own separate catch block.
-    expect(buildOpenAIImageUrl('not a url', false)).toBe('not a url/images/generations');
+    expect(buildOpenAIImageUrl({ baseUrl: 'not a url', isAzure: false })).toBe('not a url/images/generations');
   });
 
   it('builds the images/edits URL', () => {
@@ -233,71 +233,71 @@ describe('buildOpenAICompatibleGenerationUrl / buildOpenAIImageUrl / buildOpenAI
 
 describe('buildOpenAISpeechUrl', () => {
   it('appends /audio/speech to the base URL', () => {
-    expect(buildOpenAISpeechUrl('https://api.openai.com/v1', false)).toBe('https://api.openai.com/v1/audio/speech');
+    expect(buildOpenAISpeechUrl({ baseUrl: 'https://api.openai.com/v1', isAzure: false })).toBe('https://api.openai.com/v1/audio/speech');
   });
 
   it('appends the default azure api-version when azure and none supplied', () => {
-    const url = buildOpenAISpeechUrl('https://x.openai.azure.com/openai/deployments/tts', true);
+    const url = buildOpenAISpeechUrl({ baseUrl: 'https://x.openai.azure.com/openai/deployments/tts', isAzure: true });
     expect(url).toContain('/audio/speech');
     expect(url).toContain('api-version=2024-02-01');
   });
 
   it('falls back to naive concat on an unparseable base URL', () => {
-    expect(buildOpenAISpeechUrl('not a url', false)).toBe('not a url/audio/speech');
+    expect(buildOpenAISpeechUrl({ baseUrl: 'not a url', isAzure: false })).toBe('not a url/audio/speech');
   });
 });
 
 describe('openaiSizeFor', () => {
   it('picks a size tuned to the aspect ratio for gpt-image-* models', () => {
-    expect(openaiSizeFor('gpt-image-2', '16:9')).toBe('1792x1024');
-    expect(openaiSizeFor('gpt-image-2', '9:16')).toBe('1024x1792');
-    expect(openaiSizeFor('gpt-image-2', '4:3')).toBe('1408x1056');
-    expect(openaiSizeFor('gpt-image-2', '3:4')).toBe('1056x1408');
-    expect(openaiSizeFor('gpt-image-2', undefined)).toBe('1024x1024');
+    expect(openaiSizeFor({ model: 'gpt-image-2' }, { aspect: '16:9' })).toBe('1792x1024');
+    expect(openaiSizeFor({ model: 'gpt-image-2' }, { aspect: '9:16' })).toBe('1024x1792');
+    expect(openaiSizeFor({ model: 'gpt-image-2' }, { aspect: '4:3' })).toBe('1408x1056');
+    expect(openaiSizeFor({ model: 'gpt-image-2' }, { aspect: '3:4' })).toBe('1056x1408');
+    expect(openaiSizeFor({ model: 'gpt-image-2' }, { aspect: undefined })).toBe('1024x1024');
   });
 
   it('picks a size for dall-e-3', () => {
-    expect(openaiSizeFor('dall-e-3', '16:9')).toBe('1792x1024');
-    expect(openaiSizeFor('dall-e-3', '9:16')).toBe('1024x1792');
-    expect(openaiSizeFor('dall-e-3', undefined)).toBe('1024x1024');
+    expect(openaiSizeFor({ model: 'dall-e-3' }, { aspect: '16:9' })).toBe('1792x1024');
+    expect(openaiSizeFor({ model: 'dall-e-3' }, { aspect: '9:16' })).toBe('1024x1792');
+    expect(openaiSizeFor({ model: 'dall-e-3' }, { aspect: undefined })).toBe('1024x1024');
   });
 
   it('dall-e-2 only supports the square size', () => {
-    expect(openaiSizeFor('dall-e-2', '16:9')).toBe('1024x1024');
+    expect(openaiSizeFor({ model: 'dall-e-2' }, { aspect: '16:9' })).toBe('1024x1024');
   });
 
   it('gpt-image-* falls back to the square size for an unlisted aspect', () => {
-    expect(openaiSizeFor('gpt-image-1', '21:9')).toBe('1024x1024');
+    expect(openaiSizeFor({ model: 'gpt-image-1' }, { aspect: '21:9' })).toBe('1024x1024');
   });
 
   it('dall-e-3 does not use the gpt-image 4:3 / 3:4 sizes', () => {
-    expect(openaiSizeFor('dall-e-3', '4:3')).toBe('1024x1024');
-    expect(openaiSizeFor('dall-e-3', '3:4')).toBe('1024x1024');
+    expect(openaiSizeFor({ model: 'dall-e-3' }, { aspect: '4:3' })).toBe('1024x1024');
+    expect(openaiSizeFor({ model: 'dall-e-3' }, { aspect: '3:4' })).toBe('1024x1024');
   });
 
   it('matches the gpt-image- family by prefix only (a non-prefixed id gets the square size)', () => {
-    expect(openaiSizeFor('my-gpt-image-2', '16:9')).toBe('1024x1024');
+    expect(openaiSizeFor({ model: 'my-gpt-image-2' }, { aspect: '16:9' })).toBe('1024x1024');
   });
 
   it('matches dall-e-3 exactly (a suffixed id gets the square size)', () => {
-    expect(openaiSizeFor('dall-e-3-hd', '16:9')).toBe('1024x1024');
+    expect(openaiSizeFor({ model: 'dall-e-3-hd' }, { aspect: '16:9' })).toBe('1024x1024');
   });
 });
 
 describe('parseOpenAICompatibleJson', () => {
   it('parses a JSON body on a successful response', async () => {
     const resp = new Response(JSON.stringify({ ok: true }), { status: 200 });
-    await expect(parseOpenAICompatibleJson(resp, 'test')).resolves.toEqual({ ok: true });
+    await expect(parseOpenAICompatibleJson({ resp, providerTag: 'test' })).resolves.toEqual({ ok: true });
   });
 
   it('throws a provider-tagged, truncated error on a non-OK status', async () => {
     const resp = new Response('x'.repeat(500), { status: 500 });
-    await expect(parseOpenAICompatibleJson(resp, 'test')).rejects.toThrow(/^test 500: x+…$/);
+    await expect(parseOpenAICompatibleJson({ resp, providerTag: 'test' })).rejects.toThrow(/^test 500: x+…$/);
   });
 
   it('throws a clear error on a non-JSON body', async () => {
     const resp = new Response('not json', { status: 200 });
-    await expect(parseOpenAICompatibleJson(resp, 'test')).rejects.toThrow(/non-JSON response/);
+    await expect(parseOpenAICompatibleJson({ resp, providerTag: 'test' })).rejects.toThrow(/non-JSON response/);
   });
 });
 

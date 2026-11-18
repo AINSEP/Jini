@@ -14,11 +14,11 @@ const CALLBACK = 'http://127.0.0.1:47011/callback';
 
 const start = (deps: UnitDeps, over: Partial<{ intent: ApiConnectionIntent; workspaceId: string; redirectUri: string }> = {},
   optional: { startParams?: Record<string, string> } = {}) =>
-  startApiConnectionAuthorization(deps, { workspaceId: 'ws-1', actorId: 'actor-1', intent: 'connect', scopeSetIds: ['files'],
-    redirectUri: CALLBACK, ...over }, optional);
+  startApiConnectionAuthorization({ deps, requiredArgs: { workspaceId: 'ws-1', actorId: 'actor-1', intent: 'connect', scopeSetIds: ['files'],
+    redirectUri: CALLBACK, ...over } }, optional);
 
 const complete = (deps: UnitDeps, callbackParams: Record<string, string>, { redirectUri = CALLBACK, browserBinding = '' } = {}) =>
-  completeApiConnectionAuthorization(deps, { workspaceId: 'ws-1', actorId: 'actor-1', redirectUri, callbackParams, browserBinding });
+  completeApiConnectionAuthorization({ deps, requiredArgs: { workspaceId: 'ws-1', actorId: 'actor-1', redirectUri, callbackParams, browserBinding } });
 
 async function caught(promise: Promise<unknown>): Promise<unknown> {
   return promise.then(() => { throw new Error('expected a refusal'); }, (error: unknown) => error);

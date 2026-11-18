@@ -234,7 +234,7 @@ export async function createSqliteAsyncOperationStore(
     // Fenced exactly like `releaseLease` and the in-memory store: a caller writing against a
     // lease it no longer holds gets the row back unchanged, not an overwrite.
     if (isFencedOut({ existing, options })) return existing;
-    const next = mergeAsyncOperationPatch({ existing, patch }, { now: Date.now() });
+    const next = mergeAsyncOperationPatch({ existing, patch, now: Date.now() });
     updateStmt.run(next.status, next.attempts, next.nextPollAt, jsonOrNull(next.state), jsonOrNull(next.result), jsonOrNull(next.error), next.leaseOwner, next.leaseExpiresAt, next.updatedAt, id);
     return rowToOperation(getStmt.get(id)!);
 });

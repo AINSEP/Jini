@@ -23,7 +23,7 @@ export async function renderStub({ ctx, providerId, integrated }: { ctx: RenderC
     ]);
     return {
       bytes: png,
-      providerNote: `${note} · aspect=${ctx.aspect} · prompt=${truncate(ctx.prompt, 60)}`,
+      providerNote: `${note} · aspect=${ctx.aspect} · prompt=${truncate({ s: ctx.prompt, n: 60 })}`,
       suggestedExt: '.png',
     };
   }
@@ -35,7 +35,7 @@ export async function renderStub({ ctx, providerId, integrated }: { ctx: RenderC
     const mdat = Buffer.from([0x00, 0x00, 0x00, 0x08, 0x6d, 0x64, 0x61, 0x74]);
     return {
       bytes: Buffer.concat([ftyp, mdat]),
-      providerNote: `${note} · aspect=${ctx.aspect} · length=${ctx.length ?? '?'}s · prompt=${truncate(ctx.prompt, 60)}`,
+      providerNote: `${note} · aspect=${ctx.aspect} · length=${ctx.length ?? '?'}s · prompt=${truncate({ s: ctx.prompt, n: 60 })}`,
       suggestedExt: '.mp4',
     };
   }

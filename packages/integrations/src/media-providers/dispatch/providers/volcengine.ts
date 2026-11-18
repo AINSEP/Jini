@@ -68,18 +68,18 @@ const volcengineImageAdapter: VendorAdapter = {
       // accept different size enums), so it must see the pre-alias catalog
       // model, not the post-alias wire name — matching `openai.ts`'s own
       // `renderOpenAIImage` (which carries the same origin-code comment).
-      size: openaiSizeFor(ctx.model, ctx.aspect),
+      size: openaiSizeFor({ model: ctx.model }, { aspect: ctx.aspect }),
     };
 
     return {
-      url: buildOpenAIImageUrl(baseUrl, false),
+      url: buildOpenAIImageUrl({ baseUrl, isAzure: false }),
       init: jsonPostInit({ ctx, body }, { apiKey }),
       meta: undefined,
     };
   },
 
   async parseResponse({ resp, ctx }: { resp: Response; ctx: RenderContext }): Promise<RenderResult> {
-    const data = await parseOpenAICompatibleJson(resp, 'volcengine image');
+    const data = await parseOpenAICompatibleJson({ resp, providerTag: 'volcengine image' });
     const bytes = await bytesFromOpenAICompatibleData({ data, providerTag: 'volcengine image' }, ctx);
     return {
       bytes,

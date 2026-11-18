@@ -319,7 +319,7 @@ function cloneRecord(row: AsyncOperationRecord): AsyncOperationRecord {
 }
 
 /** Exported for the same reason as `TERMINAL_STATUSES` — see its doc. */
-export function assertTransition(from: AsyncOperationStatus, to: AsyncOperationStatus): void {
+export function assertTransition({ from, to }: { from: AsyncOperationStatus; to: AsyncOperationStatus }): void {
   if (!ALLOWED_TRANSITIONS[from]) {
     throw new RangeError(`Invalid async operation status: "${from}"`);
   }
@@ -372,12 +372,11 @@ function patchedNullable<K extends NullablePatchKey>(
  * @throws `Error` for credential material; `RangeError` for an illegal transition.
  */
 export function mergeAsyncOperationPatch(
-  { existing, patch }: { existing: AsyncOperationRecord; patch: AsyncOperationPatch },
-  { now }: { now: number },
+  { existing, patch, now }: { existing: AsyncOperationRecord; patch: AsyncOperationPatch; now: number },
 ): AsyncOperationRecord {
   if ('state' in patch) assertNoCredentialMaterial({ state: patch.state });
   const status = patch.status ?? existing.status;
-  assertTransition(existing.status, status);
+  assertTransition({ from: existing.status, to: status });
   return {
     ...existing,
     status,
@@ -446,7 +445,7 @@ function updateOperation({ rows, id, patch, options }: {
   // Fenced, like releaseLease: a caller writing against a lease it no longer holds gets a
   // no-op, not an overwrite of whoever holds (or now holds none of) it.
   if (isFencedOut({ existing, options })) return cloneRecord(existing);
-  const merged = mergeAsyncOperationPatch({ existing, patch }, { now: Date.now() });
+  const merged = mergeAsyncOperationPatch({ existing, patch, now: Date.now() });
   // Store a private copy of `state` so the caller's patch object never aliases the row.
   const next: AsyncOperationRecord = { ...merged, state: cloneState(merged.state) };
   rows.set(id, next);

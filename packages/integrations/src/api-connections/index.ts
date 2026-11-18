@@ -36,7 +36,7 @@ export function disconnectApiConnection(
   { deps, ...connection }: { readonly deps: ApiConnectionDisconnectDeps; readonly connectionRef: string; readonly workspaceId: string },
   _optional: Record<string, never> = {},
 ) {
-  return runDisconnect(deps, connection);
+  return runDisconnect({ deps, requiredArgs: connection });
 }
 export {
   asApiConnectionHooksModule, checkApiConnectionClientNamespace, parseApiConnectionsFile,

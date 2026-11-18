@@ -327,17 +327,17 @@ describe('hydrateAsyncOperationRecord pins', () => {
 describe('assertTransition pins', () => {
   it('refuses an unknown from-status with a RangeError', () => {
     // Malformed-input fixture: a status outside the union, as a corrupt row would carry.
-    expect(() => assertTransition('bogus' as AsyncOperationStatus, 'polling')).toThrow(new RangeError('Invalid async operation status: "bogus"'));
+    expect(() => assertTransition({ from: 'bogus' as AsyncOperationStatus, to: 'polling' })).toThrow(new RangeError('Invalid async operation status: "bogus"'));
   });
 
   it('throws a TypeError, not the RangeError, for an Object.prototype key as from-status (reported, not fixed)', () => {
     // Malformed-input fixture: the transition table is a plain object, so "toString" resolves via the prototype.
-    expect(() => assertTransition('toString' as AsyncOperationStatus, 'polling')).toThrow(TypeError);
+    expect(() => assertTransition({ from: 'toString' as AsyncOperationStatus, to: 'polling' })).toThrow(TypeError);
   });
 
   it('allows every self-transition', () => {
     for (const status of ['submitted', 'polling', 'succeeded', 'failed', 'unknown'] as const) {
-      expect(() => assertTransition(status, status)).not.toThrow();
+      expect(() => assertTransition({ from: status, to: status })).not.toThrow();
     }
   });
 });

@@ -164,7 +164,7 @@ const senseAudioImageAdapter: VendorAdapter<SenseAudioImageMeta> = {
   async parseResponse({ resp, ctx, request }: { resp: Response; ctx: RenderContext; request: VendorRequest<SenseAudioImageMeta> }): Promise<RenderResult> {
     const respText = await resp.text();
     if (!resp.ok) {
-      throw new Error(`senseaudio image ${resp.status}: ${truncate(respText, 240)}`);
+      throw new Error(`senseaudio image ${resp.status}: ${truncate({ s: respText, n: 240 })}`);
     }
     const url = extractSenseAudioImageUrl({ respText });
     const bytes = await downloadSenseAudioImage({ url, ctx });
@@ -188,7 +188,7 @@ function extractSenseAudioImageUrl({ respText }: { respText: string }): string {
   try {
     data = JSON.parse(respText);
   } catch {
-    throw new Error(`senseaudio image non-JSON: ${truncate(respText, 200)}`);
+    throw new Error(`senseaudio image non-JSON: ${truncate({ s: respText, n: 200 })}`);
   }
   if (data.base_resp && data.base_resp.status_code !== 0) {
     throw new Error(`senseaudio image api error ${data.base_resp.status_code}: ${data.base_resp.status_msg || 'unknown'}`);

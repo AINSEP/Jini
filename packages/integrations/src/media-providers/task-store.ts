@@ -120,7 +120,7 @@ function reconcileTasks(
   let interrupted = 0;
   let deleted = 0;
   for (const task of [...tasks.values()]) {
-    const action = reconcileAction(task, now, cutoff);
+    const action = reconcileAction({ task, now, cutoff });
     switch (action.kind) {
       case 'interrupt':
         tasks.set(task.id, action.next);
@@ -147,7 +147,7 @@ export function createInMemoryMediaTaskStore(): MediaTaskStore {
       if (tasks.has(input.id)) {
         throw new Error(`media task "${input.id}" already exists`);
       }
-      const task = buildNewTask(input, Date.now());
+      const task = buildNewTask({ input, now: Date.now() });
       tasks.set(task.id, task);
       return cloneTask(task);
     },
@@ -160,7 +160,7 @@ export function createInMemoryMediaTaskStore(): MediaTaskStore {
     async update(id: string, patch: MediaTaskPatch): Promise<MediaTask | null> {
       const existing = tasks.get(id);
       if (!existing) return null;
-      const next = applyTaskPatch(existing, patch, Date.now());
+      const next = applyTaskPatch({ existing, patch, now: Date.now() });
       tasks.set(id, next);
       return cloneTask(next);
     },

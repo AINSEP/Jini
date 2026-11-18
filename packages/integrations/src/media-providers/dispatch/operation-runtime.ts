@@ -96,7 +96,7 @@ async function performSigned(
   timeoutMs: number,
 ): Promise<Response> {
   const signed = await deps.signer({ request: request });
-  return fetchMediaOutbound({ url: signed.url, timeoutMs }, { ...deps, httpClient: requireMediaHttpClient(deps), init: signed.init });
+  return fetchMediaOutbound({ url: signed.url, timeoutMs, httpClient: requireMediaHttpClient(deps) }, { ...deps, init: signed.init });
 }
 
 /** Thread only the outbound capability into parsers; stores and signers remain runtime-private.
@@ -172,7 +172,7 @@ export async function startOperation<Meta>(required: RequiredArgs<OperationRunti
   const operationId = newId();
 
   // Before any HTTP call — this ordering IS the crash-safety mechanism.
-  await deps.store.create(...partitionArgs({
+  await deps.store.create(...partitionArgs({ value: {
     id: operationId,
     providerId: params.providerId,
     routeKey: params.routeKey,
@@ -180,7 +180,7 @@ export async function startOperation<Meta>(required: RequiredArgs<OperationRunti
     maxAttempts: params.maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
     deadlineAt: startedAt + (params.deadlineMs ?? DEFAULT_DEADLINE_MS),
     nextPollAt: startedAt,
-}, ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"]));
+}, requiredKeys: ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"] }));
 
   const settle = (async (): Promise<StartOperationOutcome> => {
     const submitted = await submitAndParse(deps, params);
@@ -262,12 +262,12 @@ export async function pollDueOperations(required: RequiredArgs<OperationRuntimeD
   const deps: OperationRuntimeDeps = { ...required, ...optional };
   const params: PollDueParams = { ...required, ...optional };
   const now = deps.clock ?? Date.now;
-  const claimed = await deps.store.claimDue(...partitionArgs({
+  const claimed = await deps.store.claimDue(...partitionArgs({ value: {
     now: now(),
     leaseOwner: params.leaseOwner,
     leaseMs: params.leaseMs,
     ...(params.limit !== undefined ? { limit: params.limit } : {}),
-}, ["now", "leaseOwner", "leaseMs"]));
+}, requiredKeys: ["now", "leaseOwner", "leaseMs"] }));
 
   const tally: Record<PollBucket, number> = { completed: 0, failed: 0, pending: 0, unknown: 0 };
   for (const row of claimed) {
@@ -463,7 +463,7 @@ export async function recoverAfterRestart(required: RequiredArgs<OperationRuntim
  */
 async function collectSubmitted(store: AsyncOperationStore): Promise<AsyncOperationRecord[]> {
   const seen = new Map<string, AsyncOperationRecord>();
-  for (const row of await store.claimDue(...partitionArgs({ now: Number.MAX_SAFE_INTEGER, leaseOwner: RECOVERY_LEASE_OWNER, leaseMs: 0, limit: Number.MAX_SAFE_INTEGER }, ["now", "leaseOwner", "leaseMs"]))) {
+  for (const row of await store.claimDue(...partitionArgs({ value: { now: Number.MAX_SAFE_INTEGER, leaseOwner: RECOVERY_LEASE_OWNER, leaseMs: 0, limit: Number.MAX_SAFE_INTEGER }, requiredKeys: ["now", "leaseOwner", "leaseMs"] }))) {
     if (row.status === 'submitted') seen.set(row.id, row);
     await store.releaseLease({ id: row.id, leaseOwner: RECOVERY_LEASE_OWNER });
   }
