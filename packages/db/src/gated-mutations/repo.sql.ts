@@ -25,7 +25,7 @@ import { toRecord, toRow, type GatedMutationTokensTable } from "./repo.rows.js";
  *
  * Architectural role:
  * Infrastructure adapter. `core/gated-mutations` never imports this file — it depends only on
- * `TokenStorePort`; composition roots (`apps/website/src/server/runtime/composition/deps.ts`) bind the concrete class.
+ * `TokenStorePort`; composition roots bind the concrete class.
  */
 
 /** Host-owned table name. No schema or product table default lives in the adapter. */

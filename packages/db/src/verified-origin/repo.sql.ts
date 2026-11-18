@@ -13,7 +13,7 @@ import { toVerifiedOrigin, type OriginRow, type OriginSettingsTable } from "./re
  *
  * Purpose:
  * The workspace's verified origin and its two allowlists previously lived only in-memory in the
- * real running server (`apps/website/src/server/runtime/composition/deps.ts`) — worse, hardcoded fresh into the constructor's seed
+ * real running server's composition root — worse, hardcoded fresh into the constructor's seed
  * array on every boot, not even genuinely "seeded once." This adapter makes the row durable.
  *
  * The READ adapter is read-only by design (matches `OriginSettingRepoPort`, which declares no write
@@ -24,7 +24,7 @@ import { toVerifiedOrigin, type OriginRow, type OriginSettingsTable } from "./re
  * 1. {@link seedDevCapabilityOriginOn} — the idempotent find-or-create dev default
  *    (the current loopback listener), preserving operator registrations.
  * 2. {@link registerConfiguredOriginOn} — the operator-declared public origin, from
- *    `features/origin/configured-origin.ts`'s `TOVU_PUBLIC_URL` resolver (2026-09-18; design note:
+ *    `features/origin/configured-origin.ts`'s public-URL resolver (2026-09-18; design note:
  *    `ADS-memory/reports/2026-09-18-public-origin-registration-design.md`). This is what finally
  *    closes the "no way to register a real production origin" gap this header used to disclose as
  *    permanent, and it is why production's sitemap can emit absolute URLs again.
