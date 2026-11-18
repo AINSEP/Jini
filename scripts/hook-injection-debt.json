@@ -739,12 +739,6 @@
         "packages/ui/src/features/viewer-shell/react/components/CommentSidePanel.tsx"
       ]
     },
-    "CommentsPage::useCommentsPage": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/comments/react/pages/CommentsPage.tsx"
-      ]
-    },
     "ComponentKitPreview::useT": {
       "count": 1,
       "files": [
@@ -2149,30 +2143,6 @@
         "packages/chat/src/react/components/QuestionsPanel.tsx"
       ]
     },
-    "QueueActionsCell::useQueueActionsCell": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/comments/react/components/QueueSection.tsx"
-      ]
-    },
-    "QueueSection::useQueueSection": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/comments/react/components/QueueSection.tsx"
-      ]
-    },
-    "QueueTable::useQueueTable": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/comments/react/components/QueueSection.tsx"
-      ]
-    },
-    "QueueToolbar::useQueueToolbar": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/comments/react/components/QueueSection.tsx"
-      ]
-    },
     "QueuedMessage::useAttachmentGallery": {
       "count": 1,
       "files": [
@@ -2441,12 +2411,6 @@
       "count": 1,
       "files": [
         "packages/ui/src/features/settings/dialog/react/components/SettingsDialogShell.tsx"
-      ]
-    },
-    "SettingsSection::useSettingsSection": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/comments/react/components/SettingsSection.tsx"
       ]
     },
     "ShellHeader::useT": {

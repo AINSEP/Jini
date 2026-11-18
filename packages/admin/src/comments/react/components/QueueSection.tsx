@@ -12,16 +12,18 @@ import { interpolate } from '@jini-ai/core/text';
 const STATUS_OPTIONS: readonly CommentStatus[] = ["pending", "approved", "spam", "trash"];
 
 /** The status-filter `<select>` — pure presentation, no state of its own. */
-function QueueToolbar({
+export function QueueToolbar({
   status,
   onStatusChange,
   t,
+  useQueueToolbarHook = useQueueToolbar,
 }: {
   status: CommentStatus;
   onStatusChange: (s: CommentStatus) => void;
   t: CommentsTranslator;
+  useQueueToolbarHook?: typeof useQueueToolbar;
 }) {
-  const { onChange } = useQueueToolbar({ onStatusChange });
+  const { onChange } = useQueueToolbarHook({ onStatusChange });
   return (
     <div className="toolbar">
       <div className="field">
@@ -47,7 +49,8 @@ function QueueToolbar({
 
 /** The populated-queue view: the table plus its "Load more" pager. Only rendered once
  *  `QueueItemsView` has already ruled out the loading/empty states. */
-function QueueTable(props: {
+export function QueueTable({ useQueueTableHook = useQueueTable, ...props }: {
+  useQueueTableHook?: typeof useQueueTable;
   items: readonly AdminComment[];
   nextCursor: string | null;
   loadingMore: boolean;
@@ -59,7 +62,7 @@ function QueueTable(props: {
   onModerate: (comment: AdminComment, action: CommentModerationAction) => void;
   onRequestPurge: (comment: AdminComment) => void;
 }) {
-  const { columns } = useQueueTable(props);
+  const { columns } = useQueueTableHook(props);
   return (
     <>
       <DataTable
@@ -153,7 +156,7 @@ export interface QueueSectionProps {
 
 /** Exported (2026-08-14, previously module-private) so `QueueSection.unit.test.tsx` can drive its
  *  own DI seam directly — the same reason `AiAssistant.tsx`'s `AdminExecutionMode` is exported. */
-export function QueueSection(props: QueueSectionProps) {
+export function QueueSection({ useQueueSectionHook = useQueueSection, ...props }: QueueSectionProps & { useQueueSectionHook?: typeof useQueueSection }) {
   const {
     t,
     status,
@@ -170,7 +173,7 @@ export function QueueSection(props: QueueSectionProps) {
     onPurge,
     onCancelPurge,
     purgeBusy,
-  } = useQueueSection(props);
+  } = useQueueSectionHook(props);
 
   if (error && !items) return <div className="notice error">{error}</div>;
 

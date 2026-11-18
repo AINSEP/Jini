@@ -1,12 +1,5 @@
 [
   {
-    "file": "packages/admin/src/comments/react/components/SettingsSection.tsx",
-    "function": "SettingsSection",
-    "line": 17,
-    "rule": "max-lines-per-function",
-    "value": 114
-  },
-  {
     "file": "packages/agent-plugins/src/lifecycle/activation.ts",
     "function": "buildModule",
     "line": 175,

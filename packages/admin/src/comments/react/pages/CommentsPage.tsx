@@ -12,8 +12,8 @@ export interface CommentsProps {
   useCommentsHook?: typeof useWiredComments;
 }
 
-export function CommentsPage(props: CommentsProps = {}) {
-  const { permissions, error, t, canRead, canConfigure } = useCommentsPage(props);
+export function CommentsPage({ useCommentsPageHook = useCommentsPage, ...props }: CommentsProps & { useCommentsPageHook?: typeof useCommentsPage } = {}) {
+  const { permissions, error, t, canRead, canConfigure } = useCommentsPageHook(props);
 
   if (error) return <div className="notice error">{error}</div>;
   if (!permissions) return <div className="notice">{t("Loading Comments…")}</div>;
