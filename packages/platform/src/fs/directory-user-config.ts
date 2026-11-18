@@ -60,6 +60,26 @@ export function createDirectoryUserConfig(
   const expand = (value: string) => canonicalPath({ path: resolveDirectoryHome({ homeDir, defaultFolder, envName, env: {}, setting: value }, { cwd, ...(directoryOptions.platform ? { platform: directoryOptions.platform } : {}) }) });
   const distinct = (values: readonly string[]) => [...new Set(values.map(expand))];
   const legacyHomes = distinct(legacyHomePaths);
+  const syncProvider = (sitesHome: string) => detectDirectorySync({ dir: sitesHome, homeDir, documents: directories.documents }, { ...directoryOptions, env, canonicalPath });
+  const context = { homeDir, defaultFolder, envName, policy, fileAt, canonicalPath, exists, isDirectory, removeFile,
+    env, report, directories, paths, defaultHome, localHome, filePath, file, expand, distinct, legacyHomes, syncProvider };
+  const stored = createUserConfigStore(context);
+  const read = createUserConfigReader(context, stored);
+  const { update, updateRoots } = createUserConfigMutations(context, { stored, read });
+  const databasePath = createUserConfigDatabasePaths(context, read);
+  return { read, update, updateRoots, databasePath, filePath, ...directories, ...createUserConfigViews(context, { stored, read }) };
+}
+
+type UserConfigContext = Omit<Parameters<typeof createDirectoryUserConfig>[0], "removeFile"> & {
+  removeFile: Parameters<typeof createDirectoryUserConfig>[0]["removeFile"];
+  env: NodeJS.ProcessEnv; report: (message: string) => void;
+  directories: ReturnType<typeof resolveUserDataDirectories>; paths: typeof path;
+  defaultHome: string; localHome: string; filePath: string; file: DurableJsonFile;
+  expand: (value: string) => string; distinct: (values: readonly string[]) => string[];
+  legacyHomes: string[]; syncProvider: (sitesHome: string) => ReturnType<typeof detectDirectorySync>;
+};
+
+function createUserConfigStore({ file, filePath, report }: UserConfigContext) {
   function stored(locked = false): Partial<DirectoryUserConfig> {
     const result = file.read({});
     if (result.state === "missing") return {};
@@ -77,7 +97,10 @@ export function createDirectoryUserConfig(
     }
     return {};
   }
-  const syncProvider = (sitesHome: string) => detectDirectorySync({ dir: sitesHome, homeDir, documents: directories.documents }, { ...directoryOptions, env, canonicalPath });
+  return stored;
+}
+
+function createUserConfigReader({ defaultHome, expand, legacyHomes, paths, policy, env, envName, syncProvider, distinct }: UserConfigContext, stored: ReturnType<typeof createUserConfigStore>) {
   function read(_required: Record<string, never>, _options = {}): DirectoryUserConfig {
     const saved = stored();
     // Old default pointers follow the owner-selected nesting rule; arbitrary custom homes and
@@ -93,6 +116,10 @@ export function createDirectoryUserConfig(
     // Saved roots are extras; policy roots remain implicit unless the environment overrides them.
     return fromEnv !== undefined ? fromEnv.split(",").map((root) => root.trim()).filter(Boolean) : [...(policy.sourceRoots ?? []), ...(saved.siteRoots ?? [])];
   }
+  return read;
+}
+
+function createUserConfigValidation({ expand, exists, isDirectory, env, envName, policy, distinct }: UserConfigContext) {
   // Prefer explicit settings, never coerce an existing regular file into a directory.
   function assertDirectories(checked: Partial<DirectoryUserConfig>): void {
     for (const directory of [checked.sitesHome, ...(checked.siteRoots ?? [])]) {
@@ -114,6 +141,12 @@ export function createDirectoryUserConfig(
     if (incremental && checked.siteRoots?.length === 0) delete next.siteRoots;
     return next;
   }
+  return { assertDirectories, assertNotOverridden, merged };
+}
+
+function createUserConfigMutations(context: UserConfigContext, { stored, read }: { stored: ReturnType<typeof createUserConfigStore>; read: ReturnType<typeof createUserConfigReader> }) {
+  const { file, removeFile, filePath, distinct, policy } = context;
+  const { assertDirectories, assertNotOverridden, merged } = createUserConfigValidation(context);
   function update({ patch }: { patch: Partial<DirectoryUserConfig> }, { transform }: { transform?: (current: DirectoryUserConfig, saved: Partial<DirectoryUserConfig>) => Partial<DirectoryUserConfig> } = {}): DirectoryUserConfig {
     // Compute incremental root changes inside the same lock as the write: a sibling process's
     // added root must not disappear because this caller previously read an older array.
@@ -137,6 +170,10 @@ export function createDirectoryUserConfig(
       return { siteRoots: distinct([...(saved.siteRoots ?? []), ...add]).filter((root) => !excluded.has(root) && !protectedRoots.has(root)) };
     } });
   }
+  return { update, updateRoots };
+}
+
+function createUserConfigDatabasePaths({ fileAt, exists, report, directories }: UserConfigContext, read: ReturnType<typeof createUserConfigReader>) {
   // A move journal is written before copying; the old name stays authoritative until verification
   // retires it. Recovery never guesses from two DB sizes/timestamps or asks users to delete data.
   function moveMarker(source: string, candidates: readonly string[]): { markerPath: string; target: string; backup: string } | undefined {
@@ -184,7 +221,11 @@ export function createDirectoryUserConfig(
     if (filename !== "content.db") return path.join(path.dirname(databasePath({ dir, id, filename: "content.db" })), filename);
     return read({}).databases === "inSite" ? inSite : appData;
   }
-  return { read, update, updateRoots, databasePath, filePath, ...directories,
+  return databasePath;
+}
+
+function createUserConfigViews({ distinct, legacyHomes, exists, isDirectory, policy, env, paths, directories, canonicalPath, syncProvider, localHome }: UserConfigContext, { stored, read }: { stored: ReturnType<typeof createUserConfigStore>; read: ReturnType<typeof createUserConfigReader> }) {
+  return {
     // Discovery/catalog callers list real old homes. Pointer normalization and creation admission
     // may inspect the supported spellings even before their directories have been created.
     legacyHomes: (_required: Record<string, never>, { includeMissing = false }: { includeMissing?: boolean } = {}) =>
