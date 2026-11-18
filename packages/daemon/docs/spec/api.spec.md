@@ -331,7 +331,7 @@ Registrars use `({app: Express, deps: D, adapter: AdapterContext}, {}) => void`.
 | `componentCatalogRoutes` | `({deps: ComponentCatalogHttpDeps, host: DaemonRouteHost}, {}) => DaemonRoute[]`; catalog declares `search({query}, {limit?}) => readonly ComponentCatalogSearchHit[]`, `describe({id}, {}) => ComponentCatalogEntry \| null`; the routes are data a host mounts |
 | `delegatedToolRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them); `DelegatedToolsHttpDeps`: `lifecycle`, `toolExecutor`, `resolvePrincipal({request}) => Principal \| Promise<Principal>`; optional `toolRegistry`, `onInternalError`, `isModelSafeToolFailure({result})`, `describeInternalError(context)` |
 | `remoteRunEventRoutes` | `({ deps: RemoteRunEventHttpDeps, host: DaemonRouteHost }) => DaemonRoute[]`; deps: `lifecycle`, `recorder: RemoteToolEventRecorder`, `env`; optional `tokenConfig`, `onInternalError`. Both routes are returned behind the `remote-bridge-token` gate |
-| `registerFrontendSessionRoutes` | `FrontendSessionsHttpDeps`: `registry: FrontendSessionRegistry`; optional `newSessionId()`, `onInternalError` |
+| `frontendSessionRoutes` | `({ deps: FrontendSessionsHttpDeps, host: DaemonRouteHost }, {}) => DaemonRoute[]`; `FrontendSessionsHttpDeps`: `registry: FrontendSessionRegistry`, required `setTimer`; optional `newSessionId()`, `resolveOwner(FrontendHookInput)`, `resolveCapacityKeys(FrontendHookInput & { owner? })` |
 | `terminalRoutes` | `TerminalsHttpDeps`: `manager: TerminalSessionManager`, `toolExecutor`, `principal`; optional `resolveRoot`, `onInternalError` |
 | `modelProxyRoutes` | `ModelProxyHttpDeps`: optional provider tool executors `anthropicExecuteTool`, `openaiExecuteTool`, `azureExecuteTool`, `googleExecuteTool`, `ollamaExecuteTool`; optional `onInternalError`, `fetchImpl`, `dnsLookup` |
 | `connectorsRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them); `ConnectorsHttpDeps`: optional `auth`, `storage`, `db`, `realtime` provider ports (no payments slot — removed 2026-10-21, ungated money movement) and `onInternalError`; omitted providers return unavailable |
@@ -411,8 +411,7 @@ MemoryNoteStore methods take objects: `dir/readConfig/readIndex/listEntries/buil
 | `denyAllDaemonDbPolicy` | `ToolPolicy`, always denies; tool ids `DB_INSPECT_TOOL_ID = 'daemon.db.inspect'`, `DB_VERIFY_TOOL_ID = 'daemon.db.verify'`, `DB_VACUUM_TOOL_ID = 'daemon.db.vacuum'` |
 | `remoteToolBridgeTokenGate` | `({ env, timingSafeEqual }, { tokenConfig?: {tokenEnvVar?} } = {}) => ServerMiddleware` |
 | `readOnlyRefusalMessage` | `({toolId}, {}) => string`; gateway compatibility wording; `READ_ONLY_UNVERIFIABLE_MESSAGE` is also public |
-| `parseCapabilityQuery` | `({raw: unknown}, {}) => readonly string[] \| null` |
-| `handleFrontendSessionStream` | `({req,res,deps: FrontendSessionsHttpDeps}, {}) => void`; caller must apply authorization/origin guard first |
+| `parseCapabilityQuery` | `({ searchParams }, {}) => readonly string[] | null`; a bracketed `capability[` key is refused |
 | `createFrontendControl` | `({capabilities: readonly FrontendCapabilitySpec[], resolveBindToken: ({request:RunCreateRequest}) => string \| undefined}, {policy?, timeoutMs?, maxOutputBytes?, onBindError?} = {}) => FrontendControl` |
 | `currentPlatform` / `applicableForPlatform` | `({}, {nodePlatform?} = {}) => Platform`; `({entry:CatalogueEntry,platform}, {}) => boolean` |
 | `defaultProbeEnv`, `pathDirs` | `({}, {}) => HostToolProbeEnv`; **one object** `(probeEnv) => string[]` |
@@ -428,7 +427,7 @@ MemoryNoteStore methods take objects: `dir/readConfig/readIndex/listEntries/buil
 | `handleAttachmentUpload` / `handleAttachmentCleanup` | `({req,res,deps,state:{activeUploads:number}}, {})` / `({req,res,deps}, {}) => Promise<void>`; origin/auth is the caller's responsibility |
 | `AttachmentRejectedError` | `new AttachmentRejectedError({reason,message}, {})`; exposes reason |
 
-`FrontendControl` exposes `httpExtension({app,context:{adapter}}, {}) => void`, `toolRegistrations`, and `bindOnStarted(context: RunStartContext) => void | Promise<void>`. It hides its session registry. `RunStartContext = {request,run,lifecycle}`. `HostToolProbeEnv = {access({path,mode}):Promise<void>,env,platform}`; native spawn is optional. `Platform` is `darwin | win32 | linux | unknown`; `RealPlatform` excludes unknown. `HostEditor` and `HostEditorsResponse` expose display/availability metadata rather than tool execution authority.
+`FrontendControl` exposes `routes({ host }, {}) => DaemonRoute[]`, `toolRegistrations`, and `bindOnStarted(context: RunStartContext) => void | Promise<void>`. It hides its session registry. `RunStartContext = {request,run,lifecycle}`. `HostToolProbeEnv = {access({path,mode}):Promise<void>,env,platform}`; native spawn is optional. `Platform` is `darwin | win32 | linux | unknown`; `RealPlatform` excludes unknown. `HostEditor` and `HostEditorsResponse` expose display/availability metadata rather than tool execution authority.
 
 `AttachmentStore` async methods: `createBatchDirectory({batchId}) => string`, `register({input:{batchId,path,name,kind,size,ownerId?}}) => StoredAttachment`, `claim({attachments,runId}) => AttachmentClaim`, `resolveForRun({ref,runId}) => StoredAttachment | undefined`, `listPendingForOwner({ownerId}) => PendingAttachmentSummary[]`, `deleteUnclaimed({batchId,paths}) => void`, `cleanupRun({runId}) => void`, `pruneExpired({}, {now?}) => void`, and current parameterless `dispose() => void`. `StoredAttachment = {path,name,kind,size?,order?}`; upload path is an opaque capability, claimed path is absolute and server-private. `AttachmentClaim = {attachments,batchDirectory?}`. POST `/api/attachments?batch=...&name=...` accepts raw bytes and returns 201 `{attachment}`; DELETE same path accepts `{batchId,paths:string[]}` and returns 204. `ATTACHMENTS_ROUTE_PATH` is public.
 
@@ -512,7 +511,7 @@ These names are also reachable through the current export map. Parameter declara
 | `ContinuationTransport` | type; [continuation-transport.ts](../../src/continuation/continuation-transport.ts) |
 | `CreateDaemonDbToolRegistrationsOptions`, `DaemonDbInternalErrorContext`, `DaemonDbOperations`, `DaemonDbTableInfo`, `DaemonDbToolRegistrations`, `DbIntegrityIssue`, `DbIntegrityIssueKind` | type; [db-ops.ts](../../src/http/db-ops.ts) |
 | `CreateDefaultRunStartHandlerOptions`, `ResolveRunInputContext`, `ResolvedRunInput`, `RunStartDriverContext` | interface; [run-start-handler.ts](../../src/continuation/run-start-handler.ts) |
-| `CreateFrontendControlOptions`, `FrontendBindErrorContext`, `FrontendHttpExtension` | type; [frontend-control.ts](../../src/http/frontend-control.ts) |
+| `CreateFrontendControlOptions`, `FrontendBindErrorContext` | type; [frontend-control.ts](../../src/http/frontend-control.ts) |
 | `CreateRunScopedContextStoreOptions` | interface; [run-scoped-context-store.ts](../../src/continuation/run-scoped-context-store.ts) |
 | `CreateTerminalSessionOptions`, `TerminalSessionListFilter` | interface; [terminal-session.ts](../../src/terminal-session.ts) |
 | `DEFAULT_SURFACE_IDLE_TTL_MS`, `DEFAULT_SURFACE_MAX_LIFETIME_MS` | const; [surface-exchanges.ts](../../src/surface-exchanges.ts) |

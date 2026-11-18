@@ -19,7 +19,7 @@ read-only policy entry do not load HTTP or Express.
   routines (`routineRoutes`), terminals (`terminalRoutes`), db-ops
   (`daemonDbRoutes` + tool registrations), tool catalog (`toolCatalogRoutes`),
   delegated tools (`delegatedToolRoutes`), remote run events
-  (`remoteRunEventRoutes`), frontend sessions (`registerFrontendSessionRoutes`), active
+  (`remoteRunEventRoutes`), frontend sessions (`frontendSessionRoutes`), active
   context (`activeContextRoutes`), host tools (`hostToolsRoutes`), model proxy
   (`modelProxyRoutes`), connectors — auth/db/storage/realtime provider seams (no payments slot: money moves only through `@jini-ai/commerce`)
   (`connectorsRoutes`), research (`researchRoutes`), media

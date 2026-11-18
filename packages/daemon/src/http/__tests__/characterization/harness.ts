@@ -27,7 +27,7 @@ import { daemonStatusRoutes } from '../../daemon-status.js';
 import { daemonDbRoutes } from '../../db-ops.js';
 import { delegatedToolRoutes } from '../../delegated-tools.js';
 import { registerFrontendRequestRoute } from '../../frontend-request-route.js';
-import { registerFrontendSessionRoutes } from '../../frontend-sessions.js';
+import { frontendSessionRoutes } from '../../frontend-sessions.js';
 import { healthRoutes } from '../../health.js';
 import { hostToolsRoutes } from '../../host-tools.js';
 import { mediaRoutes } from '../../media.js';
@@ -50,6 +50,9 @@ export const INTERNAL_FAILURE_MARKER = 'characterization-internal-failure-do-not
 export const HARNESS_BEARER_TOKEN = 'characterization-bearer-token';
 
 /** Where the scoped (host-authenticated) frontend-session variant is mounted, beside the default one. */
+/** The expiry timer a frontend-session owner would get: nothing here waits for a TTL, so it never fires. */
+const NEVER_FIRING_TIMER = (): { cancel(): void } => ({ cancel: () => undefined });
+
 export const SCOPED_FRONTEND_PREFIX = '/api/scoped-frontend-sessions';
 
 /** One registration as the framework recorded it: the verb (or `USE` for a path gate), the path and the layers in run order. */
@@ -130,8 +133,8 @@ const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-par
   ['memory', ({ adapter, deps, mountList }) => mountList(memoryRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['routines', ({ adapter, deps, mountList }) => mountList(routineRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['media', ({ adapter, deps, mountList }) => mountList(mediaRoutes({ deps: deps(), host: routeHost(adapter) }))],
-  ['frontend-sessions', ({ app, adapter, deps }) => registerFrontendSessionRoutes({ app, deps: deps({ routePrefix: undefined, resolveOwner: undefined }), adapter })],
-  ['frontend-sessions (scoped)', ({ app, adapter, deps }) => registerFrontendSessionRoutes({ app, deps: deps({ routePrefix: SCOPED_FRONTEND_PREFIX }), adapter })],
+  ['frontend-sessions', ({ adapter, deps, mountList }) => mountList(frontendSessionRoutes({ deps: deps({ routePrefix: undefined, resolveOwner: undefined, setTimer: NEVER_FIRING_TIMER }), host: routeHost(adapter) }))],
+  ['frontend-sessions (scoped)', ({ adapter, deps, mountList }) => mountList(frontendSessionRoutes({ deps: deps({ routePrefix: SCOPED_FRONTEND_PREFIX, setTimer: NEVER_FIRING_TIMER }), host: routeHost(adapter) }))],
   ['daemon-status', ({ adapter, deps, mountList }) => mountList(daemonStatusRoutes({ deps: deps({ requestShutdown: () => undefined }), host: routeHost(adapter) }))],
   ['component-catalog', ({ adapter, deps, mountList }) => mountList(componentCatalogRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['attachments', ({ app, adapter, deps }) => registerAttachmentRoutes({ app, deps: deps({ acquireActivity: undefined }), adapter })],
@@ -139,9 +142,15 @@ const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-par
   ['frontend-request-route', ({ app, deps }) => registerFrontendRequestRoute({ app, path: '/api/frontend-requests', control: deps(), executor: deps(), resolveOwner: (deps() as { resolveOwner: never }).resolveOwner, capabilityIds: ['characterization.capability'] })],
 ];
 
+/** Keepalive timers on Node's clock, as the preset binds them (unref'd), so a row that fakes `setInterval` sees the route's ping. */
+const nodeIntervalScheduler: DaemonRouteHost['scheduler'] = {
+  every: ({ callback, intervalMs }) => { const timer = setInterval(callback, intervalMs); timer.unref(); return timer; },
+  cancel: ({ handle }) => { clearInterval(handle as NodeJS.Timeout); },
+};
+
 /** The host a route list is given: the harness's own origin policy and sink, the real reporter, and the body limit a host derives from the blanket parser (100 KB). */
 function routeHost(adapter: RouteHostContext): DaemonRouteHost {
-  return { ...fakeDaemonRouteHost(), context: adapter, reportInternalError: reportRouteInternalError, jsonBodyMaxBytes: maxReserializedJsonBytes({ parserLimitBytes: 102_400 }) };
+  return { ...fakeDaemonRouteHost(), scheduler: nodeIntervalScheduler, context: adapter, reportInternalError: reportRouteInternalError, jsonBodyMaxBytes: maxReserializedJsonBytes({ parserLimitBytes: 102_400 }) };
 }
 
 /**

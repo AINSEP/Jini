@@ -142,13 +142,12 @@ const ROUTE_TABLE: Readonly<Record<string, readonly string[]>> = {
     'GET /api/media/tasks []',
   ],
   'frontend-sessions': [
-    'GET /api/frontend-sessions/stream [anonymous/2]',
-    'POST /api/frontend-sessions/:sessionId/responses [anonymous/2]',
+    'GET /api/frontend-sessions/stream [same-origin]',
+    'POST /api/frontend-sessions/:sessionId/responses [same-origin]',
   ],
   'frontend-sessions (scoped)': [
-    'GET /api/scoped-frontend-sessions/stream [anonymous/2]',
-    'POST /api/scoped-frontend-sessions/:sessionId/responses [anonymous/3]',
-    'POST /api/scoped-frontend-sessions/:sessionId/responses [anonymous/2]',
+    'GET /api/scoped-frontend-sessions/stream [frontend-session-owner]',
+    'POST /api/scoped-frontend-sessions/:sessionId/responses [frontend-session-owner]',
   ],
   'daemon-status': [
     'GET /api/daemon/status []',
@@ -182,7 +181,7 @@ describe('daemon route table', () => {
     expect(describeRouteTable({ routes: harness.routes })).toEqual(ROUTE_TABLE);
   });
 
-  it('is 100 routes and 1 path gate (the scoped frontend-session mount adds its own stream and response route; the two remote-run-event gates now sit in front of their routes as `remote-bridge-token`)', async () => {
+  it('is 100 routes and no Express path gate (the scoped frontend-session mount adds its own stream and response route; its owner gate and the two remote-run-event gates now sit in front of their routes as named gates)', async () => {
     harness = await startRouteHarness();
     const scoped = harness.routes.filter((route) => route.family === 'frontend-sessions (scoped)');
     const rest = harness.routes.filter((route) => route.family !== 'frontend-sessions (scoped)');
@@ -190,9 +189,7 @@ describe('daemon route table', () => {
     // message-relay's claim handler takes `next` to hand its errors on; it answers, so it is a route, not a gate.
     const gates = [...rest, ...scoped].filter((route) => isGate(route) && route.family !== 'message-relay');
     expect(rest.filter((route) => route.method !== 'USE')).toHaveLength(100);
-    expect(gates.map((route) => `${route.method} ${route.path}`)).toEqual([
-      'POST /api/scoped-frontend-sessions/:sessionId/responses',
-    ]);
+    expect(gates.map((route) => `${route.method} ${route.path}`)).toEqual([]);
     expect(scoped.filter((route) => !isGate(route))).toHaveLength(2);
   });
 

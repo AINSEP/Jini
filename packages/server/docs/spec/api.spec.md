@@ -97,7 +97,7 @@ createFrontendControl(
 ): FrontendControl;
 ```
 
-The resolver takes `{request: RunCreateRequest}` and returns a bind token or undefined. Return is `{httpExtension, toolRegistrations, bindOnStarted}`; wire all three to the host's routes, registry and start driver. Default policy denies; default capability timeout is 30000 ms. Bind failure is reported without failing the run. Re-exported `CreateFrontendControlOptions`, `FrontendControl`, `FrontendBindErrorContext`, `FrontendHttpExtension` remain owned by http-kit.
+The resolver takes `{request: RunCreateRequest}` and returns a bind token or undefined. `setTimer` is required (the host's one-shot timer; the preset exports `nodeSessionTimer`). Return is `{routes, toolRegistrations, bindOnStarted}`; `routes({ host })` is a route list for `mountRoutes`; wire all three to the host's routes, registry and start driver. Default policy denies; default capability timeout is 30000 ms. Bind failure is reported without failing the run. Re-exported `CreateFrontendControlOptions`, `FrontendControl`, `FrontendBindErrorContext` remain owned by http-kit.
 
 ## Backend selection and local storage
 

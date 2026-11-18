@@ -213,22 +213,21 @@ export type {
   FrontendSessionResponseBody,
   FrontendSessionResponseRequest,
   FrontendSessionStreamEvent,
+  FrontendSessionTimer,
   FrontendSessionsHttpDeps,
 } from './frontend-sessions.js';
 export {
   FRONTEND_SESSION_RESPONSE_ROUTE_PATH,
   FRONTEND_SESSION_STREAM_ROUTE_PATH,
   frontendSessionResponseRoute,
-  handleFrontendSessionStream,
+  frontendSessionRoutes,
   parseCapabilityQuery,
-  registerFrontendSessionRoutes,
 } from './frontend-sessions.js';
 export { createFrontendControl } from './frontend-control.js';
 export type {
   CreateFrontendControlOptions,
   FrontendBindErrorContext,
   FrontendControl,
-  FrontendHttpExtension,
 } from './frontend-control.js';
 export type {
   TerminalActionResponse,

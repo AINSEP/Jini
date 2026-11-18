@@ -3,7 +3,7 @@
  *
  * A Server-Sent Events primitive typed only against `node:http`'s `IncomingMessage`/
  * `ServerResponse` — Express's `req`/`res` already satisfy these directly (`Response` extends
- * `http.ServerResponse`), so `frontend-sessions.ts`'s `handleFrontendSessionStream` hands them
+ * `http.ServerResponse`), so a host that streams from its own Express route can hand them
  * straight through with no adapter of its own.
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';

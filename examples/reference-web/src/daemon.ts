@@ -14,7 +14,7 @@ import { createDiskAttachmentStore, mediaRoutes, memoryRoutes, registerAttachmen
 import { createBuiltinVendorAdapterRegistry, createMediaDispatchEngine, createSqliteMediaTaskStore } from '@jini-ai/integrations/media-providers';
 import { createNodeMediaHttpClient } from '@jini-ai/integrations/media-providers/node';
 import { createExtractionLog, createNoteStore, createVerifyLog } from '@jini-ai/memory';
-import { createFrontendControl, createLocalNodeDaemon, installGracefulShutdown, mountRoutes } from '@jini-ai/server';
+import { createFrontendControl, createLocalNodeDaemon, installGracefulShutdown, mountRoutes, nodeSessionTimer } from '@jini-ai/server';
 import { CHAT_CAPABILITIES } from '@jini-ai/chat/core';
 import { PAGE_CAPABILITIES } from '@jini-ai/agentic';
 import type { RunAgentPayload } from '@jini-ai/protocol';
@@ -376,6 +376,7 @@ async function main(): Promise<void> {
    * demo on loopback; a real product supplies a policy that consults its own roles.
    */
   const frontendControl = createFrontendControl({
+    setTimer: nodeSessionTimer,
     capabilities: [...PAGE_CAPABILITIES, ...CHAT_CAPABILITIES, ...WEBMCP_LAB_CAPABILITIES],
     resolveBindToken: ({ request }) => {
       try {
@@ -406,7 +407,7 @@ async function main(): Promise<void> {
         PROJECTS.has(resourceRef) ? resolve(repoRoot, 'examples/sample-projects', resourceRef) : undefined,
       toolRegistrations: [...frontendControl.toolRegistrations, showMcpUiWidgetTool],
       httpExtensions: [
-        (app, context) => frontendControl.httpExtension({ app, context }),
+        (app, context) => mountRoutes({ app, routes: frontendControl.routes({ host: context.routeHost }) }),
         (app) => {
           // Served from THIS daemon's own origin — a genuinely different port than the Vite dev
           // server hosting `McpUiLab.tsx` — because the MCP Apps spec requires the View to be a

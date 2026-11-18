@@ -1,12 +1,21 @@
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
-import { EventEmitter } from 'node:events';
 import express from 'express';
-import type { RouteHostContext } from '@jini-ai/core/contracts/server';
+import { reportRouteInternalError } from '@jini-ai/http-kit';
+import { createNodeDispatcher } from '@jini-ai/http-kit/node-bridge';
+import { createInMemoryServer } from '@jini-ai/core/contracts/server/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createLocalTestOrigin } from './fixtures/local-origin.js';
 
-import { createFrontendControl } from '../frontend-control.js';
+import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { createFrontendControl as createControl } from '../frontend-control.js';
+
+/** The host's timer: nothing in these tests waits for a session TTL, so a timer that never fires is the honest fake. */
+const NO_TIMER = (): { cancel(): void } => ({ cancel: () => undefined });
+
+/** `createFrontendControl` with the host's timer supplied, which every caller must do. */
+const createFrontendControl: (required: Omit<Parameters<typeof createControl>[0], 'setTimer'>, optional?: Parameters<typeof createControl>[1]) => ReturnType<typeof createControl> =
+  (required, optional = {}) => createControl({ ...required, setTimer: NO_TIMER }, optional);
 
 const PAGE_CLICK = { id: 'page.click', description: 'Activate one control.' } as const;
 const PAGE_FILL = { id: 'page.fill', description: 'Type into one field.' } as const;
@@ -33,12 +42,14 @@ describe('createFrontendControl', () => {
     }
   });
 
-  /** Mounts the bundle's own extension — the only route to the registry a host is given. */
+  /** Mounts the bundle's own routes — the only route to the registry a host is given. */
   async function listen(control: ReturnType<typeof createFrontendControl>): Promise<string> {
     const app = express();
     app.use(express.json());
     const { adapter, portRef: resolvedPortRef } = createLocalTestOrigin();
-    control.httpExtension({ app, context: { adapter } });
+    const dispatcher = createNodeDispatcher({}, { expressCompatible: true });
+    for (const route of control.routes({ host: { ...fakeDaemonRouteHost(), context: adapter, reportInternalError: reportRouteInternalError } })) dispatcher.server.route(route);
+    app.use((req, res, next) => { void dispatcher.handle({ incoming: req, out: res }, { next, parsedBody: (req as { body?: unknown }).body, locals: res.locals }); });
     const server = await new Promise<Server>((resolve, reject) => {
       const s = app.listen(0, '127.0.0.1', () => resolve(s));
       s.once('error', reject);
@@ -87,7 +98,7 @@ describe('createFrontendControl', () => {
     it('exposes only the extension, the registrations and the run/request bind hooks', () => {
       const control = createFrontendControl({ capabilities: [PAGE_CLICK], resolveBindToken: () => undefined });
 
-      expect(Object.keys(control).sort()).toEqual(['bindOnStarted', 'bindRequest', 'httpExtension', 'toolRegistrations']);
+      expect(Object.keys(control).sort()).toEqual(['bindOnStarted', 'bindRequest', 'routes', 'toolRegistrations']);
     });
 
     // The registry's invoke() drives a real user's screen with no policy, confirmation, timeout or
@@ -271,32 +282,20 @@ describe('createFrontendControl', () => {
     });
   });
 
-  describe('session.onInternalError (log safety, row 5d)', () => {
-    it('hands a stream failure to the host sink with the request ID the 500 answer carries', () => {
-      const onInternalError = vi.fn();
-      const control = createFrontendControl({ capabilities: [PAGE_CLICK], resolveBindToken: () => undefined, session: { onInternalError } });
-      // Capture the GET handler directly, as frontend-sessions.test.ts does: only a failing SSE
-      // handshake reaches this path, which a live server cannot produce reliably.
-      let getHandler: ((req: unknown, res: unknown) => unknown) | undefined;
-      const fakeApp = {
-        get: (_path: string, handler: (req: unknown, res: unknown) => unknown) => { getHandler = handler; },
-        post: () => undefined,
-      };
-      const { adapter: adapter, portRef: adapterPortRef } = createLocalTestOrigin({}, { port: 4310 });
-      control.httpExtension({ app: fakeApp as never, context: { adapter: adapter as never } });
+  describe('host reporter (log safety, row 5d)', () => {
+    it('hands a stream failure to the host reporter with the request ID the 500 answer carries, and keeps the error out of the body', async () => {
       const failure = new Error('boom api_key=SECRETSECRETSECRETSECRET');
-      const status = vi.fn().mockReturnThis();
-      const json = vi.fn();
-      const res = { headersSent: false, writableEnded: false, writeHead: vi.fn(() => { throw failure; }), write: vi.fn(), end: vi.fn(), status, json };
-      getHandler?.(Object.assign(new EventEmitter(), { query: {}, headers: { host: '127.0.0.1:4310' } }), res);
+      const control = createFrontendControl({ capabilities: [PAGE_CLICK], resolveBindToken: () => undefined, session: { resolveOwner: async () => { throw failure; } } });
+      const host = fakeDaemonRouteHost();
+      const { server, fetch } = createInMemoryServer();
+      for (const route of control.routes({ host })) server.route(route);
 
-      expect(onInternalError).toHaveBeenCalledTimes(1);
-      const context = onInternalError.mock.calls[0]?.[0];
-      expect(context).toMatchObject({ source: 'stream', logSource: 'frontend-sessions:stream' });
-      expect(context?.error).toBe(failure);
-      expect(status).toHaveBeenCalledWith(500);
-      expect(json).toHaveBeenCalledWith({ error: { code: 'INTERNAL_ERROR', message: 'The page connection could not be opened. Reload the page; if it keeps failing, copy the request ID and report this problem.', requestId: context?.correlationId } });
-      expect(JSON.stringify(json.mock.calls)).not.toMatch(/boom|SECRETSECRET/);
+      const response = await fetch(new Request('http://local/api/frontend-sessions/stream'));
+
+      expect(response.status).toBe(500);
+      expect(host.reports).toHaveLength(1);
+      expect(host.reports[0]).toMatchObject({ logSource: 'frontend-sessions:stream', report: { source: 'stream', error: failure } });
+      expect(await response.json()).toEqual({ error: { code: 'INTERNAL_ERROR', message: 'The page connection could not be opened. Reload the page; if it keeps failing, copy the request ID and report this problem.', requestId: host.reports[0]?.requestId } });
     });
   });
 });
