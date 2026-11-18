@@ -1,4 +1,4 @@
-import { act, render, renderHook, screen, within } from '@testing-library/react';
+import { act, render, renderHook, screen, within } from './fake-chat-kit.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { ChatSettingsDialog } from '../components/ChatSettingsDialog.js';

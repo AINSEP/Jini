@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { screen } from '../../__tests__/fake-chat-kit.js';
 import { renderWithChatSurfaces } from '../../__tests__/fake-chat-surfaces.js';
 import { expect, it } from 'vitest';
 import { z } from 'zod';

@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react';
+import { render } from '../../../../__tests__/fake-chat-kit.js';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   CHAT_PANE_CONTROLS_HEIGHT_CSS_VAR,

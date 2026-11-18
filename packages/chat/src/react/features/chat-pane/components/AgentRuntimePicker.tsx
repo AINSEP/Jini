@@ -1,11 +1,8 @@
-import { modelReasoningOptions } from '@jini-ai/agent-runtime/model-selection';
 import { friendlyModelLabel, pickerModelValue, pickerCatalogNote, pickerModelOptions, shortModelLabel } from '../model-options.js';
 import { useId, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { AgentIcon, RemixIcon, SearchableModelSelect, useAgentHandle, useOverlayContainer } from '@jini-ai/ui';
+import { AgentIcon, InfoTip, RemixIcon, SearchableModelSelect, useAgentHandle, useChatAgentPolicy, useOverlayContainer } from '../../../kit.js';
 import { agentHandleProps, agentHandleSegment } from '@jini-ai/core/agent-handles';
-import { InfoTip } from '@jini-ai/ui/admin-widgets';
-import { assessNativeToolPolicy } from '@jini-ai/agent-runtime/native-tool-policy';
 
 import { useT } from '../../../hooks/context.js';
 import { definedProps } from '../../../util/defined-props.js';
@@ -60,8 +57,9 @@ function NativeToolPolicyWarning({ agent, policy, isApi }: {
   agent: ChatPaneAgent | undefined; policy: import('@jini-ai/core/contracts/agents').NativeToolPolicyInput | undefined; isApi: boolean;
 }): ReactNode {
   const t = useT();
+  const agents = useChatAgentPolicy();
   if (!agent || isApi) return null;
-  const warning = policy ? assessNativeToolPolicy({ def: agent, policy }) : null;
+  const warning = policy ? agents.assessNativeToolPolicy({ def: agent, policy }) : null;
   return <>
     {agent.fullCliAccessNote ? <FullAccessNoteTip note={agent.fullCliAccessNote} t={t} /> : null}
     {warning ? <InfoTip label={t(warning)} triggerLabel={t('Agent permissions required')}
@@ -174,6 +172,7 @@ interface RuntimeAgentRowProps {
 }
 
 function RuntimeAgentRow({ base, agent, active, noteId, onChange, agentIconBasePath, t }: RuntimeAgentRowProps): ReactNode {
+  const policy = useChatAgentPolicy();
   const status = runtimeAgentStatus({ agent: agent });
   // The note's icon is a control of its own, so it sits beside the radio, never inside it.
   return (
@@ -187,7 +186,7 @@ function RuntimeAgentRow({ base, agent, active, noteId, onChange, agentIconBaseP
         aria-current={active ? 'true' : undefined}
         aria-label={`${agent.name} · ${status}`}
         {...(noteId ? { 'aria-describedby': noteId } : {})}
-        onClick={() => onChange(defaultChatPaneSelection({ agent: agent }))}
+        onClick={() => onChange(defaultChatPaneSelection({ agent: agent, policy }))}
       >
         <AgentIcon
           id={agent.id}
@@ -235,11 +234,12 @@ interface RuntimeBarMenusProps {
  * choices for it, rather than an empty menu.
  */
 function RuntimeBarMenus({ base, selectedAgent, value, onChange, modelLabel, t }: RuntimeBarMenusProps): ReactNode {
+  const policy = useChatAgentPolicy();
   if (!selectedAgent) return null;
   // Raw catalog ids (an offline fallback list's rows) read as friendly names in the bar and its list.
-  const models = pickerModelOptions(selectedAgent).map((row) => ({ ...row, label: friendlyModelLabel({ label: row.label }) }));
-  const selectedModelId = pickerModelValue(selectedAgent, value.model);
-  const efforts = modelReasoningOptions({ agent: selectedAgent, model: models.find(option => option.id === selectedModelId) });
+  const models = pickerModelOptions({ agent: selectedAgent, policy }).map((row) => ({ ...row, label: friendlyModelLabel({ label: row.label }) }));
+  const selectedModelId = pickerModelValue({ agent: selectedAgent, policy }, { requested: value.model });
+  const efforts = policy.modelReasoningOptions({ agent: selectedAgent, model: models.find(option => option.id === selectedModelId) });
   const modelName = friendlyModelLabel({ label: modelLabel });
   return (
     <>
@@ -250,12 +250,12 @@ function RuntimeBarMenus({ base, selectedAgent, value, onChange, modelLabel, t }
           valueLabel={modelName}
           // The agent icon sits right beside it, so the bar drops the vendor word and caps the rest.
           triggerLabel={shortModelLabel({ label: modelLabel, agentId: selectedAgent.id })}
-          value={pickerModelValue(selectedAgent, value.model)}
+          value={pickerModelValue({ agent: selectedAgent, policy }, { requested: value.model })}
           options={models}
           note={pickerCatalogNote(selectedAgent, t)}
           width={260}
           onSelect={(model) => onChange(value.reasoning ? resolveChatPaneSelection({
-            agents: [selectedAgent], requested: { ...value, model },
+            agents: [selectedAgent], requested: { ...value, model }, policy,
           }) : { agentId: value.agentId, model })}
         />
       ) : null}

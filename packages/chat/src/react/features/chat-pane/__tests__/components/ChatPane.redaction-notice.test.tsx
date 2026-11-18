@@ -1,4 +1,4 @@
-import { act, fireEvent, screen } from '@testing-library/react';
+import { act, fireEvent, screen } from '../../../../__tests__/fake-chat-kit.js';
 import { renderWithChatSurfaces } from '../../../../__tests__/fake-chat-surfaces.js';
 import { expect, it } from 'vitest';
 import { ChatPane } from '../../components/ChatPane.js';

@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '../../__tests__/fake-chat-kit.js';
 import { renderWithChatSurfaces } from '../../__tests__/fake-chat-surfaces.js';
 import { hostChatSurfaces } from '../../__tests__/host-chat-surfaces.js';
 import userEvent from '@testing-library/user-event';

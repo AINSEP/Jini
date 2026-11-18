@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { screen } from '../../__tests__/fake-chat-kit.js';
 import { renderWithChatSurfaces } from '../../__tests__/fake-chat-surfaces.js';
 import { expect, it } from 'vitest';
 import { MCP_UI_EXPIRES_AT_META_KEY, MCP_UI_MIME_TYPE } from '@jini-ai/protocol/mcp-ui';

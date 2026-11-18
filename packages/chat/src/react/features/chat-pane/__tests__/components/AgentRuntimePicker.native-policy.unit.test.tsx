@@ -1,4 +1,4 @@
-import { act, screen } from '@testing-library/react';
+import { act, fakeAgentPolicy, fakeChatKit, screen } from '../../../../__tests__/fake-chat-kit.js';
 import { renderWithChatSurfaces } from '../../../../__tests__/fake-chat-surfaces.js';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
@@ -61,18 +61,16 @@ it.each(['claude', 'codex'])('keeps %s selectable under the existing tool limits
   expect(screen.getByRole('radio', { name: agentId === 'claude' ? /Claude/ : /Codex/ })).toBeEnabled();
 });
 
-it('discloses unsupported adapter limits through an accessible tip without a toolbar paragraph', async () => {
-  const user = userEvent.setup();
-  renderWithChatSurfaces(<AgentRuntimePicker agents={agents} value={{ agentId: 'other' }} onChange={vi.fn()} nativeToolPolicy={policy} />);
+it('discloses the port\'s refusal through an accessible tip without a toolbar paragraph', () => {
+  // The wording and the rule that decides it are the agent runtime's (the host binds it); chat shows what the port says.
+  const refusal = "PORT REFUSAL: Another CLI can't run with these tool limits. Change them in gear → More settings → Agent permissions.";
+  const kit = fakeChatKit({ agents: { ...fakeAgentPolicy(), assessNativeToolPolicy: ({ def }) => (def.name === 'Another CLI' ? refusal : null) } });
+  renderWithChatSurfaces(<AgentRuntimePicker agents={agents} value={{ agentId: 'other' }} onChange={vi.fn()} nativeToolPolicy={policy} />, { kit });
   expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   const icon = screen.getByRole('button', { name: 'Agent permissions required' });
   expect(icon).toHaveAccessibleDescription(/Another CLI can't run/);
   expect(icon).toHaveAccessibleDescription(/gear → More settings → Agent permissions/);
   expect(screen.getByText(/Another CLI can't run/).closest('p')).toBeNull();
-  await user.pointer({ keys: '[TouchA]', target: icon });
-  expect(icon).toHaveAttribute('aria-expanded', 'true');
-  await user.pointer({ keys: '[TouchA]', target: icon });
-  act(() => icon.blur());
   act(() => icon.focus());
   expect(icon).toHaveAttribute('aria-expanded', 'true');
 });

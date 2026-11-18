@@ -4,7 +4,7 @@ import {
   type DragEvent,
   type DragEventHandler,
 } from 'react';
-import { useFileDropTarget } from '@jini-ai/ui';
+import { useFileDropTarget } from '../../../kit.js';
 
 export interface UseChatPaneFileDropOptions {
   enabled: boolean;

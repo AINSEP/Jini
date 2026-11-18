@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook } from '../../../../__tests__/fake-chat-kit.js';
 import type { DragEvent } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 

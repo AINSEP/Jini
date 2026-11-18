@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within } from '../../__tests__/fake-chat-kit.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { executePageCapability, type FindElementsResult } from '@jini-ai/agentic/core';

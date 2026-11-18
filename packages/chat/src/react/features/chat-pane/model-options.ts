@@ -1,4 +1,4 @@
-import { concreteModelOptions, modelIdentityKind } from '@jini-ai/agent-runtime/model-selection';
+import type { ChatAgentPolicyPort } from '../../../core/agents-port.js';
 import type { I18nAdapter } from '../../slots.js';
 import type { ChatPaneAgent, ChatPaneAgentOption } from './types.js';
 import { claudeBarVendorWords } from './claude/model-options.js';
@@ -8,8 +8,9 @@ import { antigravityBarVendorWords } from './antigravity/model-options.js';
 // Model names and timestamps are metadata; only surrounding picker copy is translated.
 const passthrough: I18nAdapter['t'] = key => key;
 
-export function isConcretePickerModel(id: string): boolean {
-  return modelIdentityKind(id) === 'concrete';
+/** `policy` is the agent runtime's model-selection rules, which the host binds (see the ChatKit `agents` slot). */
+export function isConcretePickerModel({ id, policy }: { id: string; policy: ChatAgentPolicyPort }, _optional = {}): boolean {
+  return policy.modelIdentityKind({ id }) === 'concrete';
 }
 /** Aliases are selectable only as their evidence-backed concrete ID. Never render a Default row.
  * Keeps the first position per concrete ID, upgrading raw-ID labels from later human labels.
@@ -17,23 +18,29 @@ export function isConcretePickerModel(id: string): boolean {
  * @returns Distinct concrete picker rows without changing the source catalog. No side effects or errors.
  * @complexity O(n) time and space in catalog rows, using insertion-ordered Map keys.
  */
-export function pickerModelOptions(agent: ChatPaneAgent): ChatPaneAgentOption[] {
-  return concreteModelOptions(agent);
+export function pickerModelOptions({ agent, policy }: { agent: ChatPaneAgent; policy: ChatAgentPolicyPort }, _optional = {}): ChatPaneAgentOption[] {
+  return policy.concreteModelOptions(agent);
 }
-export function configuredPickerModel(agent: ChatPaneAgent): string | undefined {
+export function configuredPickerModel({ agent, policy }: { agent: ChatPaneAgent; policy: ChatAgentPolicyPort }, _optional = {}): string | undefined {
   if (agent.supportsConcreteModelSelection === false) return undefined;
   const resolution = agent.defaultModelResolution;
-  return resolution?.status === 'resolved' && isConcretePickerModel(resolution.id) ? resolution.id : undefined;
+  return resolution?.status === 'resolved' && isConcretePickerModel({ id: resolution.id, policy }) ? resolution.id : undefined;
 }
-export function pickerModelLabel(agent: ChatPaneAgent | undefined, requested?: string, t: I18nAdapter['t'] = passthrough): string {
+export function pickerModelLabel(
+  { agent, policy }: { agent: ChatPaneAgent | undefined; policy: ChatAgentPolicyPort },
+  { requested, t = passthrough }: { requested?: string | undefined; t?: I18nAdapter['t'] } = {},
+): string {
   if (!agent) return t('Choose model');
-  const id = !requested || requested === 'default' ? configuredPickerModel(agent) : requested;
-  if (!id || !isConcretePickerModel(id)) return t('Choose model');
-  return pickerModelOptions(agent).find((row) => row.id === id)?.label || id;
+  const id = !requested || requested === 'default' ? configuredPickerModel({ agent, policy }) : requested;
+  if (!id || !isConcretePickerModel({ id, policy })) return t('Choose model');
+  return pickerModelOptions({ agent, policy }).find((row) => row.id === id)?.label || id;
 }
-export function pickerModelValue(agent: ChatPaneAgent, requested?: string): string {
-  const id = requested && requested !== 'default' ? requested : configuredPickerModel(agent);
-  return id && pickerModelOptions(agent).some((row) => row.id === id) ? id : '';
+export function pickerModelValue(
+  { agent, policy }: { agent: ChatPaneAgent; policy: ChatAgentPolicyPort },
+  { requested }: { requested?: string | undefined } = {},
+): string {
+  const id = requested && requested !== 'default' ? requested : configuredPickerModel({ agent, policy });
+  return id && pickerModelOptions({ agent, policy }).some((row) => row.id === id) ? id : '';
 }
 export function pickerCatalogNote(agent: ChatPaneAgent, t: I18nAdapter['t'] = passthrough): string | undefined {
   const catalog = agent.modelCatalog;

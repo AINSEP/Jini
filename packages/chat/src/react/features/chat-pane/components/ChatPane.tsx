@@ -3,7 +3,7 @@ type WorkingDirectoryControlPlacement = 'below' | 'composer' | 'none';
 import { AgentPluginUsage } from './AgentPluginUsage.js';
 import { SECRET_REDACTED_NOTICE } from '../../../../core/user-text-redaction.js';
 import { useEffect, useId, useMemo, useRef, type ReactNode } from 'react';
-import { WorkingDirPicker, useAgentHandle } from '@jini-ai/ui';
+import { WorkingDirPicker, useAgentHandle } from '../../../kit.js';
 
 import { Composer } from '../../../components/Composer.js';
 import { appendComposerDiscovery } from '../../../components/composer-discovery.js';

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fakeChatKit, fireEvent, render, screen } from '../../../../__tests__/fake-chat-kit.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { RuntimeDropUp, type RuntimeDropUpProps } from '../../components/RuntimeDropUp.js';
@@ -32,7 +32,12 @@ describe('RuntimeDropUp tooltip bubble', () => {
 
   it('flips the bubble below a trigger at the very top of the viewport', () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(rect(0));
-    render(<RuntimeDropUp {...props} />);
+    // Where the bubble fits is the kit's info-tip hook (measured with the real one in the UI package);
+    // chat's part is styling the bubble by the placement the hook reports.
+    const kit = fakeChatKit();
+    const place = kit.hooks.useInfoTip;
+    kit.hooks.useInfoTip = (required, optional) => place(required, { ...optional, placement: 'bottom' });
+    render(<RuntimeDropUp {...props} />, { kit });
     fireEvent.mouseEnter(screen.getByRole('button', { name: 'Model: GPT-5.6-Terra' }));
     expect(bubble()).toHaveAttribute('class', 'info-tip-bubble info-tip-bubble-below');
   });

@@ -6,7 +6,7 @@ import type { AgentServiceFailureCode, ModelIdentityKind, NativeToolPolicyInput,
 export interface ChatAgentPolicyPort {
   modelIdentityKind(required: { id: string }): ModelIdentityKind;
   concreteModelOptions(required: { models?: readonly RuntimeModelOption[]; supportsConcreteModelSelection?: boolean; defaultModelResolution?: { status: string; id?: string } }): RuntimeModelOption[];
-  modelReasoningOptions(required: { agent: { reasoningOptions?: readonly RuntimeReasoningOption[]; reasoningInModelId?: { levels: readonly RuntimeReasoningOption[] } }; model?: Pick<RuntimeModelOption, 'reasoning'> }): RuntimeReasoningOption[];
+  modelReasoningOptions(required: { agent: { reasoningOptions?: readonly RuntimeReasoningOption[]; reasoningInModelId?: { levels: readonly RuntimeReasoningOption[] } }; model?: Pick<RuntimeModelOption, 'reasoning'> | undefined }): RuntimeReasoningOption[];
   /** A plain-words refusal to show before sending, or `null` when the policy allows the run. */
   assessNativeToolPolicy(required: { def: { name: string; supportsNativeToolAccess?: boolean; fullCliAccessOnly?: boolean }; policy: NativeToolPolicyInput }): string | null;
 }

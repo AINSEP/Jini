@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook } from '../../__tests__/fake-chat-kit.js';
 import { expect, test, vi } from 'vitest';
 import { useSurfaceRecovery } from '../useSurfaceRecovery.js';
 import { SURFACE_EXCHANGE_META } from '../../../core/surface-recovery.js';

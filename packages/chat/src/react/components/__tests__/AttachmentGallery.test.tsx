@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '../../__tests__/fake-chat-kit.js';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { ChatAttachment, ChatMessage } from '../../../core/index.js';
 import {

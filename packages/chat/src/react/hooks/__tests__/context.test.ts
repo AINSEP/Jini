@@ -1,4 +1,4 @@
-import { renderHook } from '@testing-library/react';
+import { renderHook } from '../../__tests__/fake-chat-kit.js';
 import { describe, expect, it } from 'vitest';
 import { useAnalytics, useArtifactRegistry, useChatTransport, useI18n, useProjectContext, useT } from '../context.js';
 

@@ -5,7 +5,7 @@
  * rename in its original switcher and silently lost it in the newer one. A behaviour that can
  * regress by omission needs a test that fails when it does.
  */
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '../../__tests__/fake-chat-kit.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 

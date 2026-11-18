@@ -1,6 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef } from 'react';
-import { TabBar } from '@jini-ai/ui/tab-strip';
-import { InfoTip } from '@jini-ai/ui/admin-widgets';
+import { InfoTip, TabBar } from '../kit.js';
 import { useChatSettingsView, type ChatPermissionsPort, type ChatSettingsSection } from './ChatSettingsDialog.hooks.js';
 import { ChatSettingsSegmented } from './ChatSettingsSegmented.js';
 

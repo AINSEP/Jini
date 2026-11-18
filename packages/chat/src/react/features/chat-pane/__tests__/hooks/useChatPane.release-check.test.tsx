@@ -1,4 +1,4 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '../../../../__tests__/fake-chat-kit.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createFakeChatTransport } from '../../../../hooks/testing/fake-transport.js';
 import { __resetComposerDraftCacheForTests } from '../../../../hooks/composer-draft-cache.js';

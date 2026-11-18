@@ -4,6 +4,7 @@ import type { UserTextRedaction, UserTextRedactionOptions } from '../../../../co
 import { useUserTextGuard } from '../../../hooks/useUserTextGuard.js';
 import { isAwaitingAnswer } from '../../../../core/run-activity.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useChatAgentPolicy } from '../../../kit.js';
 
 import {
   appendQueuedTurn,
@@ -402,6 +403,7 @@ async function uploadAttachmentBatch(
 }
 
 export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
+  const policy = useChatAgentPolicy();
   const guard = useUserTextGuard(options);
   const [activeUploadCount, setActiveUploadCount] = useState(0);
   const [attachmentError, setAttachmentError] = useState<Error | null>(null);
@@ -448,10 +450,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     workingDirectoryAccess: options.workingDirectoryAccess,
   } }));
   const requestedSelection = options.selection ?? internalSelection;
-  const resolvedSelection = useMemo(
-    () => resolveChatPaneSelection({ agents: options.agents, requested: requestedSelection }),
-    [options.agents, requestedSelection],
-  );
+  const resolvedSelection = useMemo(() => resolveChatPaneSelection({ agents: options.agents, requested: requestedSelection, policy }), [options.agents, requestedSelection, policy]);
   // Inline inventories and controlled selections can be new objects on every render. Keep the
   // normalized value stable so synchronizing it into composer state cannot feed a render loop.
   const selection = useMemo(() => definedProps({ source: {
@@ -555,11 +554,11 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   ]);
 
   const setSelection = useCallback((next: ChatPaneAgentSelection) => {
-    const validated = resolveChatPaneSelection({ agents: options.agents, requested: next });
+    const validated = resolveChatPaneSelection({ agents: options.agents, requested: next, policy });
     setInternalSelection(validated);
     composer.setAgent(validated);
     options.onSelectionChange?.(validated);
-  }, [composer, options.agents, options.onSelectionChange]);
+  }, [composer, options.agents, options.onSelectionChange, policy]);
 
   const sendBlocker = resolvePaneSendBlocker({
     model: selection.model,
@@ -569,7 +568,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     workingDirectoryPending: workingDirectoryState.workingDirectoryPending,
     workingDirectoryInvalid: workingDirectoryState.workingDirectoryInvalid,
     workingDirectoryError: workingDirectoryState.workingDirectoryError,
-  }, { apiModeConfigured: options.apiModeConfigured });
+  }, { apiModeConfigured: options.apiModeConfigured, policy });
   const canSend = sendBlocker === null && composer.canSubmit;
   // Read after `await` in `answerWaitingQuestion`, where the render-time `composer.draft` is stale.
   const latestComposerRef = useRef(composer);
@@ -1139,10 +1138,11 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
 
 /** What blocks Send right now; optional sendability keys stay absent rather than `undefined`. */
 function resolvePaneSendBlocker(
-  { model, ...state }: Omit<ChatPaneSendability, 'model' | 'apiModeConfigured'> & { readonly model: string | undefined },
-  { apiModeConfigured }: { readonly apiModeConfigured?: boolean | undefined } = {},
+  { model, ...state }: Omit<ChatPaneSendability, 'model' | 'apiModeConfigured' | 'policy'> & { readonly model: string | undefined },
+  { apiModeConfigured, policy }: { readonly apiModeConfigured?: boolean | undefined; readonly policy: ChatPaneSendability['policy'] },
 ): ChatPaneSendBlocker | null {
   return findChatPaneSendBlocker({
+    policy,
     ...(model ? { model } : {}),
     ...state,
     // `exactOptionalPropertyTypes` rejects `apiModeConfigured: undefined` outright, so this stays a

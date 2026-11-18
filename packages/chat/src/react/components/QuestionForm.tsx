@@ -19,7 +19,7 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useState, type Cha
 import type { DirectionCard, FormOption, QuestionForm as QuestionFormType } from '../../core/index.js';
 import { formatFormAnswers, formOptionValueForLabel, redactQuestionAnswers, isSecretQuestion, withoutSecretQuestionDefaults, questionTextInputProps, questionTextareaProps } from '../../core/index.js';
 import { useT } from '../hooks/context.js';
-import { SecretInput, SecretTextarea } from '@jini-ai/ui';
+import { SecretInput, SecretTextarea } from '../kit.js';
 
 export interface QuestionFormFileSubmission {
   questionId: string;

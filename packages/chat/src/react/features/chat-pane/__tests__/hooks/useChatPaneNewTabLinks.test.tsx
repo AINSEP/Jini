@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent } from '../../../../__tests__/fake-chat-kit.js';
 import { describe, expect, it, vi } from 'vitest';
 
 import { newTabLinkHref, useChatPaneNewTabLinks } from '../../hooks/useChatPaneNewTabLinks.hooks.js';

@@ -1,5 +1,5 @@
 import { createRef } from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '../../__tests__/fake-chat-kit.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ComposerDiscoveryMenu, ComposerSlashMenu } from '../ComposerDiscovery.js';
 import type { ComposerDiscoveryMenuProps } from '../ComposerDiscovery.js';

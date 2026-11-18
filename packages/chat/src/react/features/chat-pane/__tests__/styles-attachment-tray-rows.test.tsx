@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '../../../__tests__/fake-chat-kit.js';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AttachmentTray } from '../../../components/AttachmentTray.js';
 import { CHAT_PANE_STYLES } from '../styles.js';

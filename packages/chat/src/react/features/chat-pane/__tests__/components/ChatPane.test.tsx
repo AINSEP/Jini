@@ -1,12 +1,11 @@
 import { createRef } from 'react';
-import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, fakeChatKit, fireEvent, screen, waitFor, within } from '../../../../__tests__/fake-chat-kit.js';
 import { renderWithChatSurfaces } from '../../../../__tests__/fake-chat-surfaces.js';
 import { hostChatSurfaces } from '../../../../__tests__/host-chat-surfaces.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ChatMessage } from '@jini-ai/chat';
-import { FILE_SYSTEM_READ_ERROR_MESSAGE } from '@jini-ai/ui';
 import { createFakeChatTransport } from '../../../../hooks/testing/fake-transport.js';
 import { ChatPane } from '../../components/ChatPane.js';
 import { createTypedAnswerPoster } from '../../create-typed-answer-poster.js';
@@ -684,31 +683,19 @@ describe('ChatPane', () => {
     expect(await screen.findByRole('radio', { name: /Claude CLI/ })).toBeInTheDocument();
   });
 
-  it('reports a read error banner when a dropped item cannot be read from disk', async () => {
+  it('reports the kit drop target\'s read error as a banner (reading a dropped folder is the kit\'s; proved in the UI package)', async () => {
+    const READ_ERROR = 'Could not read one or more dropped files or folders.';
+    const kit = fakeChatKit();
+    kit.hooks.useFileDropTarget = () => ({ draggingFiles: false, dropReadError: READ_ERROR, clearDropReadError: () => {}, onDragEnter: () => {}, onDragOver: () => {}, onDragLeave: () => {}, onDrop: () => {} });
     const transport = createFakeChatTransport();
     const uploadAttachments = vi.fn(async (files: File[]) => files.map((file) => ({
       path: `/tmp/${file.name}`,
       name: file.name,
       kind: 'file' as const,
     })));
-    renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} uploadAttachments={uploadAttachments} />);
+    renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} uploadAttachments={uploadAttachments} />, { kit });
 
-    const target = screen.getByTestId('chat-pane-file-drop-target');
-    const unreadableItem = {
-      kind: 'file',
-      webkitGetAsEntry: () => ({
-        isFile: true,
-        isDirectory: false,
-        file: (_resolve: (file: File) => void, reject: (error: Error) => void) => {
-          reject(new Error('permission denied'));
-        },
-      }),
-    };
-    fireEvent.drop(target, {
-      dataTransfer: { types: ['Files'], items: [unreadableItem], files: [] },
-    });
-
-    expect(await screen.findByText(FILE_SYSTEM_READ_ERROR_MESSAGE)).toBeInTheDocument();
+    expect(await screen.findByText(READ_ERROR)).toBeInTheDocument();
     expect(uploadAttachments).not.toHaveBeenCalled();
   });
 

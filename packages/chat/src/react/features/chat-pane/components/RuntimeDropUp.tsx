@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { RemixIcon, infoTipBubbleStyle, useInfoTip, useAgentHandle } from '@jini-ai/ui';
+import { RemixIcon, useAgentHandle, useChatKit, useInfoTip } from '../../../kit.js';
 
 import { agentHandleProps, agentHandleSegment } from '@jini-ai/core/agent-handles';
 import { createRuntimeDropUpTipHandler, useRuntimeDropUp, type UseRuntimeDropUpResult } from '../hooks/useRuntimeDropUp.hooks.js';
@@ -28,6 +28,7 @@ type RuntimeDropUpTip = ReturnType<typeof useInfoTip>;
 
 /** The full `valueLabel` in the same white bubble `InfoTip` uses, portalled to `document.body`. */
 function RuntimeDropUpTipBubble({ tip, valueLabel }: { tip: RuntimeDropUpTip; valueLabel: string }): ReactNode {
+  const { infoTipBubbleStyle } = useChatKit().styles;
   return createPortal(
     <span
       ref={tip.bubbleRef}

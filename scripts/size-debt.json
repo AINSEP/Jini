@@ -268,9 +268,9 @@
   {
     "file": "packages/chat/src/react/features/chat-pane/hooks/useChatPane.hooks.ts",
     "function": "useChatPane",
-    "line": 404,
+    "line": 405,
     "rule": "max-lines-per-function",
-    "value": 618
+    "value": 616
   },
   {
     "file": "packages/chat/src/react/features/chat-pane/hooks/useChatPane.hooks.ts",

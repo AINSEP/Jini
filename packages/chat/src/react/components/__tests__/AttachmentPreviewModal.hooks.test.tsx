@@ -1,4 +1,4 @@
-import { act, cleanup, render } from '@testing-library/react';
+import { act, cleanup, render } from '../../__tests__/fake-chat-kit.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ChatAttachment } from '../../../core/index.js';
 import {

@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react';
+import { render } from '../../__tests__/fake-chat-kit.js';
 import { describe, expect, it } from 'vitest';
 import { Icon, type IconName } from '../Icon.js';
 

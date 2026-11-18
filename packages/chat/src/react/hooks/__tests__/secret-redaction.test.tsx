@@ -1,4 +1,4 @@
-import { act, fireEvent, renderHook, screen } from '@testing-library/react';
+import { act, fireEvent, renderHook, screen } from '../../__tests__/fake-chat-kit.js';
 import { renderWithChatSurfaces } from '../../__tests__/fake-chat-surfaces.js';
 import { expect, it } from 'vitest';
 import { formatDroppedFolderPaths } from '@jini-ai/ui/core';
@@ -104,18 +104,18 @@ it('a secret text or textarea question gets the shared eye toggle, named from ch
   const { container } = renderWithChatSurfaces(<JiniChatProvider transport={createFakeChatTransport()} i18n={{ locale: 'es', t }}><QuestionForm form={form} interactive onSubmit={() => undefined} /></JiniChatProvider>);
   const input = container.querySelector('input')!;
   const area = container.querySelector('textarea')!;
-  expect(input.closest('.jini-secret')).not.toBeNull();
-  expect(area.closest('.jini-secret--multiline')).not.toBeNull();
+  // Masking itself is the kit's SecretInput/SecretTextarea; chat's part is choosing them and naming the toggle.
+  expect(input.type).toBe('password');
   expect(input).toHaveAccessibleName('Key');
   expect(area).toHaveAccessibleName('Account JSON');
-  expect((area.style as CSSStyleDeclaration & { WebkitTextSecurity: string }).WebkitTextSecurity).toBe('disc');
+  expect(area).toHaveAttribute('data-masked', 'true');
   fireEvent.click(screen.getByRole('button', { name: 'Mostrar Key' }));
   expect(input.type).toBe('text');
   expect(screen.getByRole('button', { name: 'Ocultar Key' })).not.toHaveAttribute('aria-pressed');
   fireEvent.click(screen.getByRole('button', { name: 'Mostrar Account JSON' }));
-  expect((area.style as CSSStyleDeclaration & { WebkitTextSecurity: string }).WebkitTextSecurity).toBe('none');
+  expect(area).toHaveAttribute('data-masked', 'false');
   fireEvent.click(screen.getByRole('button', { name: 'Ocultar Account JSON' }));
-  expect((area.style as CSSStyleDeclaration & { WebkitTextSecurity: string }).WebkitTextSecurity).toBe('disc');
+  expect(area).toHaveAttribute('data-masked', 'true');
 });
 
 it('ordinary labelled answers still pass secret-shaped pasted text through the guard', () => {

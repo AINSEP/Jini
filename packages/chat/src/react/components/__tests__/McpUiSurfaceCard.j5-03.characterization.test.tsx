@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { screen } from '../../__tests__/fake-chat-kit.js';
 import { fakeChatSurfaces, renderWithChatSurfaces as renderWithSurfaces } from '../../__tests__/fake-chat-surfaces.js';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { McpUiHostProps } from '../../surfaces.js';

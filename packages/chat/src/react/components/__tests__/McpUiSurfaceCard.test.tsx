@@ -13,7 +13,7 @@
  * equivalent behavior (maxHeight clamping a real onSizeChanged report) is covered directly, by
  * invoking the real callback function, in `@jini-ai/ui`'s `useMcpUiHost.test.tsx`.
  */
-import { waitFor } from '@testing-library/react';
+import { waitFor } from '../../__tests__/fake-chat-kit.js';
 import { renderWithChatSurfaces } from '../../__tests__/fake-chat-surfaces.js';
 import { hostChatSurfaces } from '../../__tests__/host-chat-surfaces.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';

@@ -4,7 +4,7 @@
  * message row, ~750 ms per key in the dev build. The probe below is an ext-event renderer, which
  * `MessageRow` calls on every one of its own renders — so its call count is the row's render count.
  */
-import { fireEvent, screen } from '@testing-library/react';
+import { fireEvent, screen } from '../../../../__tests__/fake-chat-kit.js';
 import { renderWithChatSurfaces } from '../../../../__tests__/fake-chat-surfaces.js';
 import { afterEach, describe, expect, it } from 'vitest';
 

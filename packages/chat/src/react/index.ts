@@ -407,6 +407,15 @@ export type { SurfaceRecoveryInfo } from '../core/surface-recovery.js';
 
 // Hosts bind the rich-surface implementations (MCP-UI iframe host, interactive registry, WebMCP probe) once, at the React root.
 export { ChatSurfacesProvider, useChatSurfaces, McpUiHost } from './surfaces.js';
+export {
+  ChatKitProvider, useChatKit, useChatAgentPolicy, TabBar, InfoTip, RemixIcon, AgentIcon, SecretInput, SecretTextarea, SearchableModelSelect,
+  WorkingDirPicker, useAgentHandle, useOverlayContainer, useInfoTip, useFileDropTarget, useFocusTrap,
+} from './kit.js';
+export type {
+  ChatKit, ChatKitComponents, ChatKitHooks, ChatIconProps, ChatAgentIconProps, ChatInfoTipProps, ChatInfoTipController, ChatTabBarProps, ChatTabBarTab,
+  ChatSecretInputProps, ChatSecretTextareaProps, ChatModelSelectProps, ChatWorkingDirPickerProps, ChatFileDropTarget,
+} from './kit.js';
+export type { ChatAgentPolicyPort } from '../core/agents-port.js';
 export type {
   ChatSurfaces,
   McpUiHostProps,

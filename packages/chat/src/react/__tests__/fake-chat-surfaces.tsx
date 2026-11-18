@@ -1,8 +1,8 @@
 import type { ReactElement, ReactNode } from 'react';
-import type { RenderHookOptions, RenderResult } from '@testing-library/react';
-// Kit-scoped render: chat panes and cards reach ui's kit-backed selects and secret inputs, so the
-// surfaces wrapper also needs the UiKitProvider a host mounts at its root.
-import { render, renderHook } from './ui-kit-render-support.js';
+import type { RenderHookOptions, RenderResult } from './fake-chat-kit.js';
+// Chat panes and cards render through the ChatKit, so the surfaces wrapper also mounts the fake kit.
+import { render, renderHook } from './fake-chat-kit.js';
+import type { ChatKit } from '../kit.js';
 import { z } from 'zod';
 import {
   ChatSurfacesProvider,
@@ -40,22 +40,15 @@ export function fakeChatSurfaces(overrides: Partial<ChatSurfaces> = {}): ChatSur
   };
 }
 
-/** Provider wrapper, so `rerender` keeps the surfaces too. */
-function surfacesWrapper(surfaces: ChatSurfaces) {
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return <ChatSurfacesProvider surfaces={surfaces}>{children}</ChatSurfacesProvider>;
-  };
-}
-
-export function renderWithChatSurfaces(ui: ReactElement, { surfaces = fakeChatSurfaces() }: { surfaces?: ChatSurfaces } = {}): RenderResult {
+export function renderWithChatSurfaces(ui: ReactElement, { surfaces = fakeChatSurfaces(), kit }: { surfaces?: ChatSurfaces; kit?: ChatKit } = {}): RenderResult {
   // Explicit return type: the inferred one names a pnpm-internal @testing-library/dom path, and
   // this helper ships in the declaration build (TS2742).
-  return render(ui, { wrapper: surfacesWrapper(surfaces) });
+  return render(ui, { surfaces, ...(kit ? { kit } : {}) });
 }
 
 export function renderHookWithChatSurfaces<Result, Props>(
   callback: (props: Props) => Result,
   { surfaces = fakeChatSurfaces(), ...options }: Omit<RenderHookOptions<Props>, 'wrapper'> & { surfaces?: ChatSurfaces } = {},
 ) {
-  return renderHook(callback, { ...options, wrapper: surfacesWrapper(surfaces) });
+  return renderHook(callback, { ...options, wrapper: ({ children }) => <ChatSurfacesProvider surfaces={surfaces}>{children}</ChatSurfacesProvider> });
 }

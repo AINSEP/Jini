@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '../../__tests__/fake-chat-kit.js';
 import { afterEach, expect, it } from 'vitest';
 import type { ChatMessage } from '../../../core/index.js';
 import { clearExtEventRenderers, registerExtEventRenderer } from '../../ext-event-renderer-registry.js';

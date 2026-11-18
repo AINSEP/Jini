@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '../../__tests__/fake-chat-kit.js';
 import { describe, expect, it, vi } from 'vitest';
 import { createDomPageDriver } from '@jini-ai/agentic/dom';
 import { Composer, type ComposerProps } from '../Composer.js';

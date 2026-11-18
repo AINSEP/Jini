@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fakeChatKit, fireEvent, render, screen } from '../../../react/__tests__/fake-chat-kit.js';
 import { expect, it } from 'vitest';
 import { useEmbedChatDialog } from '../dialog.hooks.js';
 
@@ -17,18 +17,20 @@ function Widget() {
   </>;
 }
 
-it('traps both Tab directions, respects consumed Escape, closes and restores the bubble', () => {
-  const { unmount } = render(<Widget />);
+it('asks the kit to trap focus in the panel only while open, respects consumed Escape, closes and restores the bubble', () => {
+  // Tab wrapping is the kit's `useFocusTrap` (proved with the real one in the UI package); chat's part is
+  // handing it the panel and the open state.
+  const traps: { container: Element | null; active: boolean | undefined }[] = [];
+  const kit = fakeChatKit();
+  kit.hooks.useFocusTrap = ({ containerRef }, { active } = {}) => { traps.push({ container: containerRef.current, active }); };
+  const { unmount } = render(<Widget />, { kit });
   const launcher = screen.getByRole('button', { name: 'Chat' });
+  expect(traps.at(-1)?.active).toBe(false);
   launcher.focus();
   fireEvent.click(launcher);
-  const first = screen.getByRole('button', { name: 'First' });
+  expect(traps.at(-1)).toMatchObject({ active: true, container: screen.getByRole('dialog') });
   const last = screen.getByRole('button', { name: 'Last' });
   last.focus();
-  fireEvent.keyDown(last, { key: 'Tab' });
-  expect(document.activeElement).toBe(first);
-  fireEvent.keyDown(first, { key: 'Tab', shiftKey: true });
-  expect(document.activeElement).toBe(last);
   const consumed = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
   consumed.preventDefault();
   fireEvent(last, consumed);
@@ -36,6 +38,7 @@ it('traps both Tab directions, respects consumed Escape, closes and restores the
   fireEvent.keyDown(last, { key: 'Escape' });
   expect(screen.queryByRole('dialog')).toBeNull();
   expect(launcher).toHaveAttribute('aria-expanded', 'false');
+  expect(traps.at(-1)?.active).toBe(false);
   expect(document.activeElement).toBe(launcher);
   unmount();
   fireEvent.keyDown(window, { key: 'Tab' });

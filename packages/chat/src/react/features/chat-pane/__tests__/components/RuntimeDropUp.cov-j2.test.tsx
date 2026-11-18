@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '../../../../__tests__/fake-chat-kit.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { RuntimeDropUp, type RuntimeDropUpProps } from '../../components/RuntimeDropUp.js';

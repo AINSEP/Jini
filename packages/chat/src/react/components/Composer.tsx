@@ -18,7 +18,7 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
-import { RemixIcon, useAgentHandle } from '@jini-ai/ui';
+import { RemixIcon, useAgentHandle } from '../kit.js';
 import { agentHandleProps, agentHandleSegment } from '@jini-ai/core/agent-handles';
 import { useT } from '../hooks/context.js';
 import { AttachmentTray } from './AttachmentTray.js';

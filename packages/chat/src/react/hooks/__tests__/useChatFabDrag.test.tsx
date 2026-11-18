@@ -1,4 +1,4 @@
-import { act, render } from '@testing-library/react';
+import { act, render } from '../../__tests__/fake-chat-kit.js';
 import { forwardRef, useImperativeHandle } from 'react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {

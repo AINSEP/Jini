@@ -21,6 +21,9 @@ import {
 } from '../rules.js';
 import type { ChatPaneSendability, ChatPaneSendBlocker } from '../rules.js';
 import type { ByokRuntimeSummary, ChatPaneAgent, ChatPaneAgentSelection } from '../types.js';
+import { fakeAgentPolicy } from '../../../__tests__/fake-chat-kit.js';
+// The agent runtime's model rules are the host's; these tests exercise chat's own logic over a fake of that port.
+const policy = fakeAgentPolicy();
 
 const agents: ChatPaneAgent[] = [
   {
@@ -71,22 +74,21 @@ describe('chat-pane selection rules', () => {
     { agentId: 'claude' },
     { agentId: 'claude', model: 'retired-model' },
   ])('resolves an off-list native default to a sendable model for selection %j', (requested) => {
-    const selection = resolveChatPaneSelection({ agents: [claude], requested });
-    expect(defaultChatPaneSelection({ agent: claude })).toEqual({ agentId: 'claude', model: 'claude-opus-5-5' });
+    const selection = resolveChatPaneSelection({ agents: [claude], requested, policy });
+    expect(defaultChatPaneSelection({ agent: claude, policy })).toEqual({ agentId: 'claude', model: 'claude-opus-5-5' });
     expect(selection).toEqual({ agentId: 'claude', model: 'claude-opus-5-5' });
     expect(findChatPaneSendBlocker({
       selectedAgent: claude, model: selection.model!, isStreaming: false, activeUploadCount: 0,
-      workingDirectoryPending: false, workingDirectoryInvalid: false, workingDirectoryError: null,
-    })).toBeNull();
+      workingDirectoryPending: false, workingDirectoryInvalid: false, workingDirectoryError: null, policy })).toBeNull();
   });
 
   it('ignores synthetic defaults and chooses a concrete entry for legacy inventories', () => {
-    expect(defaultChatPaneSelection({ agent: agents[0]! })).toEqual({
+    expect(defaultChatPaneSelection({ agent: agents[0]!, policy })).toEqual({
       agentId: 'codex',
       model: 'gpt-5.6-terra',
       reasoning: 'default',
     });
-    expect(defaultChatPaneSelection({ agent: agents[1]! })).toEqual({
+    expect(defaultChatPaneSelection({ agent: agents[1]!, policy })).toEqual({
       agentId: 'claude',
       model: 'claude-sonnet-5',
     });
@@ -94,24 +96,24 @@ describe('chat-pane selection rules', () => {
       id: 'reasoning-only',
       name: 'Reasoning only',
       reasoningOptions: [{ id: 'high', label: 'High' }],
-    } })).toEqual({
+    }, policy })).toEqual({
       agentId: 'reasoning-only',
       reasoning: 'high',
     });
   });
 
   it('resolves an absent or unavailable selection to the first available agent', () => {
-    expect(resolveChatPaneSelection({ agents: agents, requested: { agentId: '' } })).toEqual({
+    expect(resolveChatPaneSelection({ agents: agents, requested: { agentId: '' }, policy })).toEqual({
       agentId: 'codex',
       model: 'gpt-5.6-terra',
       reasoning: 'default',
     });
-    expect(resolveChatPaneSelection({ agents: agents, requested: { agentId: 'missing' } })).toEqual({
+    expect(resolveChatPaneSelection({ agents: agents, requested: { agentId: 'missing' }, policy })).toEqual({
       agentId: 'codex',
       model: 'gpt-5.6-terra',
       reasoning: 'default',
     });
-    expect(resolveChatPaneSelection({ agents: [], requested: { agentId: 'codex' } })).toEqual({ agentId: '' });
+    expect(resolveChatPaneSelection({ agents: [], requested: { agentId: 'codex' }, policy })).toEqual({ agentId: '' });
   });
 
   it('preserves valid explicit model/reasoning choices for an available agent', () => {
@@ -119,7 +121,7 @@ describe('chat-pane selection rules', () => {
       agentId: 'codex',
       model: 'gpt-5.6-terra',
       reasoning: 'high',
-    } })).toEqual({
+    }, policy })).toEqual({
       agentId: 'codex',
       model: 'gpt-5.6-terra',
       reasoning: 'high',
@@ -131,7 +133,7 @@ describe('chat-pane selection rules', () => {
       agentId: 'codex',
       model: 'forged-model',
       reasoning: 'forged-reasoning',
-    } })).toEqual({
+    }, policy })).toEqual({
       agentId: 'codex',
       model: 'gpt-5.6-terra',
       reasoning: 'default',
@@ -147,7 +149,7 @@ describe('chat-pane selection rules', () => {
       agentId: 'custom',
       model: 'host/custom-model',
       reasoning: 'forged',
-    } })).toEqual({
+    }, policy })).toEqual({
       agentId: 'custom',
       model: 'host/custom-model',
     });
@@ -163,6 +165,7 @@ describe('chat-pane selection rules', () => {
 
   it('allows sending once every readiness input clears', () => {
     const ready: ChatPaneSendability = {
+      policy,
       selectedAgent: { available: true },
       isStreaming: false,
       activeUploadCount: 0,
@@ -170,11 +173,12 @@ describe('chat-pane selection rules', () => {
       workingDirectoryInvalid: false,
       workingDirectoryError: null,
     };
-    expect(findChatPaneSendBlocker(ready)).toBeNull();
+    expect(findChatPaneSendBlocker({ ...ready, policy })).toBeNull();
   });
 
   it('blocks a send to a selected agent that has gone unavailable, distinct from none selected', () => {
     const ready: ChatPaneSendability = {
+      policy,
       selectedAgent: { available: true },
       isStreaming: false,
       activeUploadCount: 0,
@@ -182,14 +186,15 @@ describe('chat-pane selection rules', () => {
       workingDirectoryInvalid: false,
       workingDirectoryError: null,
     };
-    expect(findChatPaneSendBlocker({ ...ready, selectedAgent: undefined }))
+    expect(findChatPaneSendBlocker({ ...ready, selectedAgent: undefined, policy }))
       .toBe('no-agent-selected');
-    expect(findChatPaneSendBlocker({ ...ready, selectedAgent: { available: false } }))
+    expect(findChatPaneSendBlocker({ ...ready, selectedAgent: { available: false }, policy }))
       .toBe('agent-unavailable');
   });
 
   it('reports the first applicable blocker in priority order when several inputs are unready', () => {
     const ready: ChatPaneSendability = {
+      policy,
       selectedAgent: { available: true },
       isStreaming: false,
       activeUploadCount: 0,
@@ -201,15 +206,14 @@ describe('chat-pane selection rules', () => {
       ...ready,
       isStreaming: true,
       activeUploadCount: 1,
-      workingDirectoryInvalid: true,
-    })).toBe('streaming');
-    expect(findChatPaneSendBlocker({ ...ready, activeUploadCount: 2, workingDirectoryInvalid: true }))
+      workingDirectoryInvalid: true, policy })).toBe('streaming');
+    expect(findChatPaneSendBlocker({ ...ready, activeUploadCount: 2, workingDirectoryInvalid: true, policy }))
       .toBe('uploads-pending');
-    expect(findChatPaneSendBlocker({ ...ready, workingDirectoryPending: true, workingDirectoryInvalid: true }))
+    expect(findChatPaneSendBlocker({ ...ready, workingDirectoryPending: true, workingDirectoryInvalid: true, policy }))
       .toBe('working-directory-pending');
-    expect(findChatPaneSendBlocker({ ...ready, workingDirectoryInvalid: true }))
+    expect(findChatPaneSendBlocker({ ...ready, workingDirectoryInvalid: true, policy }))
       .toBe('working-directory-invalid');
-    expect(findChatPaneSendBlocker({ ...ready, workingDirectoryError: new Error('disk unavailable') }))
+    expect(findChatPaneSendBlocker({ ...ready, workingDirectoryError: new Error('disk unavailable'), policy }))
       .toBe('working-directory-error');
   });
 
@@ -271,6 +275,7 @@ describe('chat-pane selection rules', () => {
 
   describe('findChatPaneSendBlocker: BYOK/API bypass of the CLI-selection blocker', () => {
     const ready: ChatPaneSendability = {
+      policy,
       selectedAgent: undefined,
       isStreaming: false,
       activeUploadCount: 0,
@@ -282,15 +287,15 @@ describe('chat-pane selection rules', () => {
     it('lets a configured BYOK turn send with zero agents on PATH', () => {
       // Reproduces the owner-reported bug: a Docker host with no agent CLIs installed could never
       // use a genuinely working BYOK setup, because the pane gated purely on CLI selection.
-      expect(findChatPaneSendBlocker({ ...ready, apiModeConfigured: true })).toBeNull();
+      expect(findChatPaneSendBlocker({ ...ready, apiModeConfigured: true, policy })).toBeNull();
     });
 
     it('still blocks local-CLI mode with zero agents on PATH — no regression', () => {
-      expect(findChatPaneSendBlocker({ ...ready, apiModeConfigured: false }))
+      expect(findChatPaneSendBlocker({ ...ready, apiModeConfigured: false, policy }))
         .toBe('no-agent-selected');
       // `apiModeConfigured` omitted entirely (the pre-existing shape every other test in this file
       // uses) must behave identically to explicit `false`.
-      expect(findChatPaneSendBlocker(ready)).toBe('no-agent-selected');
+      expect(findChatPaneSendBlocker({ ...ready, policy })).toBe('no-agent-selected');
     });
   });
 
@@ -494,6 +499,7 @@ describe('findChatPaneSendBlocker: model resolution', () => {
     launchFingerprint: 'fingerprint',
   };
   const ready: ChatPaneSendability = {
+      policy,
     selectedAgent: { available: true, modelCatalog },
     model: 'gpt-5.6-terra',
     isStreaming: false,
@@ -505,43 +511,41 @@ describe('findChatPaneSendBlocker: model resolution', () => {
   const { model: _model, ...noModel } = ready;
 
   it('allows a catalog agent with a concrete model', () => {
-    expect(findChatPaneSendBlocker(ready)).toBeNull();
+    expect(findChatPaneSendBlocker({ ...ready, policy })).toBeNull();
   });
 
   it('blocks a catalog agent with no model chosen', () => {
-    expect(findChatPaneSendBlocker({ ...noModel })).toBe('model-unresolved');
+    expect(findChatPaneSendBlocker({ ...noModel, policy })).toBe('model-unresolved');
   });
 
   it('blocks a catalog agent whose model is only an alias', () => {
-    expect(findChatPaneSendBlocker({ ...ready, model: 'default' })).toBe('model-unresolved');
+    expect(findChatPaneSendBlocker({ ...ready, model: 'default', policy })).toBe('model-unresolved');
   });
 
   it('blocks an agent that refuses concrete model selection even with a concrete model', () => {
     expect(findChatPaneSendBlocker({
       ...ready,
-      selectedAgent: { available: true, supportsConcreteModelSelection: false },
-    })).toBe('model-unresolved');
+      selectedAgent: { available: true, supportsConcreteModelSelection: false }, policy })).toBe('model-unresolved');
   });
 
   it('does not require a model from an agent without a catalog', () => {
-    expect(findChatPaneSendBlocker({ ...noModel, selectedAgent: { available: true } }))
+    expect(findChatPaneSendBlocker({ ...noModel, selectedAgent: { available: true }, policy }))
       .toBeNull();
   });
 
   it('skips model resolution once API mode is configured', () => {
-    expect(findChatPaneSendBlocker({ ...noModel, apiModeConfigured: true })).toBeNull();
+    expect(findChatPaneSendBlocker({ ...noModel, apiModeConfigured: true, policy })).toBeNull();
   });
 
   it('reports a model problem ahead of streaming', () => {
-    expect(findChatPaneSendBlocker({ ...noModel, isStreaming: true })).toBe('model-unresolved');
+    expect(findChatPaneSendBlocker({ ...noModel, isStreaming: true, policy })).toBe('model-unresolved');
   });
 
   it('still reports an unavailable selected agent when API mode is configured', () => {
     expect(findChatPaneSendBlocker({
       ...ready,
       selectedAgent: { available: false },
-      apiModeConfigured: true,
-    })).toBe('agent-unavailable');
+      apiModeConfigured: true, policy })).toBe('agent-unavailable');
   });
 });
 
@@ -605,16 +609,16 @@ describe('model-specific reasoning selection', () => {
   };
   it('preserves Default and model-supported choices but drops unsupported explicit effort', () => {
     for (const reasoning of ['default', 'high']) {
-      expect(resolveChatPaneSelection({ agents: [agent], requested: { agentId: agent.id, model: 'gpt-a', reasoning } })).toEqual({ agentId: agent.id, model: 'gpt-a', reasoning });
+      expect(resolveChatPaneSelection({ agents: [agent], requested: { agentId: agent.id, model: 'gpt-a', reasoning }, policy })).toEqual({ agentId: agent.id, model: 'gpt-a', reasoning });
     }
-    expect(resolveChatPaneSelection({ agents: [agent], requested: { agentId: agent.id, model: 'gpt-b', reasoning: 'high' } })).toEqual({ agentId: agent.id, model: 'gpt-b', reasoning: 'default' });
+    expect(resolveChatPaneSelection({ agents: [agent], requested: { agentId: agent.id, model: 'gpt-b', reasoning: 'high' }, policy })).toEqual({ agentId: agent.id, model: 'gpt-b', reasoning: 'default' });
   });
   it('chooses a model-supported fallback when no Default is advertised', () => {
     const noDefault = { ...agent, reasoningOptions: [high, low] };
-    expect(resolveChatPaneSelection({ agents: [noDefault], requested: { agentId: agent.id, model: 'gpt-b', reasoning: 'high' } })).toEqual({ agentId: agent.id, model: 'gpt-b', reasoning: 'low' });
-    expect(resolveChatPaneSelection({ agents: [noDefault], requested: { agentId: agent.id, model: 'gpt-empty', reasoning: 'high' } })).toEqual({ agentId: agent.id, model: 'gpt-empty' });
+    expect(resolveChatPaneSelection({ agents: [noDefault], requested: { agentId: agent.id, model: 'gpt-b', reasoning: 'high' }, policy })).toEqual({ agentId: agent.id, model: 'gpt-b', reasoning: 'low' });
+    expect(resolveChatPaneSelection({ agents: [noDefault], requested: { agentId: agent.id, model: 'gpt-empty', reasoning: 'high' }, policy })).toEqual({ agentId: agent.id, model: 'gpt-empty' });
   });
   it('does not create separate reasoning for a suffix runtime', () => {
-    expect(defaultChatPaneSelection({ agent: { ...agent, reasoningInModelId: { levels: [high] } } })).toEqual({ agentId: agent.id, model: 'gpt-a' });
+    expect(defaultChatPaneSelection({ agent: { ...agent, reasoningInModelId: { levels: [high] } }, policy })).toEqual({ agentId: agent.id, model: 'gpt-a' });
   });
 });

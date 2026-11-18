@@ -1,4 +1,4 @@
-import { renderHook } from '@testing-library/react';
+import { renderHook } from '../../../react/__tests__/fake-chat-kit.js';
 import { describe, expect, it, vi } from 'vitest';
 import { useEmbedChatDialog } from '../dialog.hooks.js';
 

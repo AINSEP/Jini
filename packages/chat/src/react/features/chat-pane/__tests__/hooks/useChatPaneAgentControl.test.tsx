@@ -1,4 +1,4 @@
-import { act, waitFor } from '@testing-library/react';
+import { act, waitFor } from '../../../../__tests__/fake-chat-kit.js';
 import { getAgentModelContext } from '@jini-ai/agentic/dom';
 import { fakeChatSurfaces, renderHookWithChatSurfaces } from '../../../../__tests__/fake-chat-surfaces.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';

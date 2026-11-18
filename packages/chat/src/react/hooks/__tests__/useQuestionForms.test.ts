@@ -1,4 +1,4 @@
-import { renderHook } from '@testing-library/react';
+import { renderHook } from '../../__tests__/fake-chat-kit.js';
 import { describe, expect, it } from 'vitest';
 import type { ChatMessage, QuestionForm } from '../../../core/index.js';
 import { parseSubmittedAnswers, useQuestionForms } from '../useQuestionForms.js';

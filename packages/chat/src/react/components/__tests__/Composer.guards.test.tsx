@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '../../__tests__/fake-chat-kit.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Composer, type ComposerProps } from '../Composer.js';
 import { useComposer } from '../../hooks/useComposer.js';
