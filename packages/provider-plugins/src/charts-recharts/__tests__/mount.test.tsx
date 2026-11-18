@@ -1,7 +1,11 @@
 import './dom-setup.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, waitFor } from '@testing-library/react';
-import { mount, supportsRechartsSpec } from '../client/provider.js';
+import { applyChartTheme } from '@jini-ai/ui/charts/browser';
+import { mount as providerMount, supportsRechartsSpec } from '../client/provider.js';
+
+/** The host binds the UI's real theme applier through the mount input; tests do the same. */
+const mount = (input: Omit<Parameters<typeof providerMount>[0], 'applyTheme'>, options?: Parameters<typeof providerMount>[1]) => providerMount({ applyTheme: applyChartTheme, ...input }, options);
 import type { ChartSpec, ChartInstance } from '@jini-ai/core/contracts/charts';
 
 const spec: ChartSpec = { kind: 'bar', data: [{ month: 'Jan', revenue: 100 }, { month: 'Feb', revenue: 150 }], categoryKey: 'month', series: [{ key: 'revenue' }] };
@@ -28,6 +32,20 @@ describe('standalone Recharts vanilla lifecycle', () => {
     act(() => instance.destroy({}));
     expect(element.children).toHaveLength(0);
     element.remove();
+  });
+
+  it('applies the theme through the applier the host passed in the mount input, on mount and update', async () => {
+    const element = document.createElement('div'); document.body.append(element); const calls: unknown[] = [];
+    const applyTheme = (input: { element: HTMLElement; theme: { mode: string } }) => { calls.push([input.element === element, input.theme.mode]); };
+    let instance!: ChartInstance;
+    act(() => { instance = providerMount({ element, spec, theme: { mode: 'light' }, applyTheme }); });
+    await instance.ready;
+    let updated: void | Promise<void> = undefined;
+    act(() => { updated = instance.update({ spec, theme: { mode: 'dark' } }); });
+    await updated!;
+    expect(calls).toEqual([[true, 'light'], [true, 'dark']]);
+    expect(element.dataset.chartTheme).toBeUndefined();
+    act(() => instance.destroy({})); element.remove();
   });
 
   it('keeps roots independent and supports all three existing kinds', async () => {

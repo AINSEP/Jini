@@ -1,12 +1,13 @@
 /** Mounts a built browser chart provider's exact bytes in a private jsdom window, from a node-environment
  * test (the artifact test packs with npm and esbuild, which a jsdom test environment breaks). */
+import { applyChartTheme } from '@jini-ai/ui/charts/browser';
 import { JSDOM } from 'jsdom';
 import { pathToFileURL } from 'node:url';
 import { vi } from 'vitest';
 
 interface BuiltChartInstance { readonly ready?: Promise<void>; destroy(input: Record<string, never>): void }
 interface BuiltChartModule {
-  mount(input: { element: HTMLElement; spec: Record<string, unknown>; theme: { mode: 'light' } }): BuiltChartInstance;
+  mount(input: { element: HTMLElement; spec: Record<string, unknown>; theme: { mode: 'light' }; applyTheme: typeof applyChartTheme }): BuiltChartInstance;
 }
 export interface BuiltChartDom {
   /** Mounts one chart, waits for its commit and returns the drawn element and its destroy. */
@@ -44,7 +45,7 @@ export async function openBuiltChart({ javascript }: { javascript: string }, _op
     async draw({ spec }) {
       const element = window.document.createElement('div');
       window.document.body.append(element);
-      const instance = chart.mount({ element, spec, theme: { mode: 'light' } });
+      const instance = chart.mount({ element, spec, theme: { mode: 'light' }, applyTheme: applyChartTheme });
       await instance.ready;
       return { element, destroy: () => { instance.destroy({}); element.remove(); } };
     },

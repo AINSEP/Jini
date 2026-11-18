@@ -11,6 +11,7 @@ import { computePluginIntegrity } from '@jini-ai/plugins/host/node';
 import type { PluginManifest } from '@jini-ai/plugins/host';
 import { buildProviderPlugin } from '../../../../../scripts/testing/provider-plugin.js';
 import { assertPluginPackageIsolation } from '../../../../../scripts/check-plugin-isolation.js';
+import { withHost } from "../../__tests__/observability-host.js";
 
 const exec = promisify(execFile);
 const packageRoot = fileURLToPath(new URL('../../../', import.meta.url));
@@ -85,10 +86,10 @@ it('resolves the package manifest and artifact export outside the workspace with
 it.each([undefined, false, true])('installed OTel artifact gates injected export processors with exportEnabled=%s', async exportEnabled => {
   const { createOpenTelemetryProvider } = await import(pathToFileURL(path.join(artifact, 'server/index.mjs')).href);
   const spans: unknown[] = [];
-  const resource = createOpenTelemetryProvider({ serviceName: 'fixture', endpoint: 'https://collector.invalid' }, {
+  const resource = createOpenTelemetryProvider({ serviceName: 'fixture', endpoint: 'https://collector.invalid' }, withHost({
     exportEnabled, metricReaders: [],
     spanProcessors: [{ onStart() {}, onEnd(span: unknown) { spans.push(span); }, async shutdown() {}, async forceFlush() {} }],
-  });
+  }));
   try {
     const op = resource.port.trackOperation({ name: 'telemetry.test' });
     op.run(() => resource.port.reportError({ error: new Error('test error'), context: { operation: 'telemetry.test' } }));

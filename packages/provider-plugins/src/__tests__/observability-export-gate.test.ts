@@ -5,6 +5,7 @@ import { observabilityExportAllowed } from '@jini-ai/diagnostics/observability';
 import { reportErrorOnce, runWithErrorReportScope } from '@jini-ai/diagnostics/observability/node';
 import { createSentryObservabilityAdapter } from '../observability-sentry/sentry.js';
 import { createSentryProvider } from '../observability-sentry/index.js';
+import { OBSERVABILITY_CONTEXT, hostScope, withHost } from "./observability-host.js";
 
 const config = { enabled: true as const, dsn: 'https://public@sentry.invalid/1', tracesSampleRate: 1 };
 function recorder() {
@@ -25,9 +26,9 @@ test.each([
   ['checkout debug override', { development: true, forceEnable: true }, true],
 ] as const)('%s gates errors, manual test errors, and sampled spans', async (_name, facts, allowed) => {
   const recording = recorder();
-  const resource = createSentryProvider({ ...config, environment: 'production' }, {
+  const resource = createSentryProvider({ ...config, environment: 'production' }, withHost({
     transport: recording.transport, exportEnabled: observabilityExportAllowed(facts),
-  });
+  }));
   try {
     const browserError = Object.assign(new Error('browser failure'), { name: 'AdminBrowserError' });
     expect(resource.port.reportError({ error: browserError, context: { operation: 'admin.browser.error' } })).toBeUndefined();
@@ -41,7 +42,7 @@ test.each([
 test('missing export permission disables the private SDK client without changing admission or request dedup', async () => {
   const recording = recorder();
   const options = vi.spyOn(NodeClient.prototype, 'getOptions');
-  const resource = createSentryObservabilityAdapter({ config }, { transport: recording.transport });
+  const resource = createSentryObservabilityAdapter({ context: OBSERVABILITY_CONTEXT, config }, { transport: recording.transport });
   try {
     const scope = { reported: false };
     const error = new Error('same occurrence');
@@ -60,7 +61,7 @@ test('an enabled supplied client cannot bypass a denied gate and remains host-ow
   const recording = recorder();
   const client = new NodeClient({ ...config, stackParser: defaultStackParser, integrations: [], enableRuntimeChannelInjection: false, transport: recording.transport });
   const close = vi.spyOn(client, 'close');
-  const resource = createSentryObservabilityAdapter({ config }, { client, exportEnabled: false });
+  const resource = createSentryObservabilityAdapter({ context: OBSERVABILITY_CONTEXT, config }, { client, exportEnabled: false });
   try {
     expect(resource.port.reportError({ error: new Error('blocked'), context: { operation: 'local' } })).toBeUndefined();
     const operation = resource.port.trackOperation({ name: 'blocked' });
@@ -85,7 +86,7 @@ test.each([undefined, false, true])('OTel exportEnabled=%s gates supplied proces
   const metrics = new InMemoryMetricExporter(AggregationTemporality.CUMULATIVE);
   const reader = new PeriodicExportingMetricReader({ exporter: metrics, exportIntervalMillis: 60_000 });
   const processor = new SimpleSpanProcessor(spans);
-  const resource = createOtelObservabilityAdapter({ config: { enabled: true, serviceName: 'fixture', tracerName: 'fixture', endpoint: 'https://collector.invalid/v1/traces' } }, {
+  const resource = createOtelObservabilityAdapter({ context: OBSERVABILITY_CONTEXT, scope: hostScope(), config: { enabled: true, serviceName: 'fixture', tracerName: 'fixture', endpoint: 'https://collector.invalid/v1/traces' } }, {
     ...(exportEnabled === undefined ? {} : { exportEnabled }), spanProcessors: [processor], metricReaders: [reader],
   });
   try {
@@ -109,12 +110,12 @@ test.each([undefined, false, true])('OTel exportEnabled=%s gates supplied proces
 
 test('saved provider input cannot grant export permission and allowed borrowed clients can still send', async () => {
   const recording = recorder();
-  const denied = createSentryProvider({ ...config, exportEnabled: true }, { transport: recording.transport });
+  const denied = createSentryProvider({ ...config, exportEnabled: true }, withHost({ transport: recording.transport }));
   try { denied.port.reportError({ error: new Error('card cannot enable'), context: { operation: 'telemetry.test' } }); }
   finally { await denied.dispose({}); }
   expect(recording.sends).toEqual([]);
   const client = new NodeClient({ ...config, stackParser: defaultStackParser, integrations: [], enableRuntimeChannelInjection: false, transport: recording.transport });
-  const allowed = createSentryObservabilityAdapter({ config }, { client, exportEnabled: true });
+  const allowed = createSentryObservabilityAdapter({ context: OBSERVABILITY_CONTEXT, config }, { client, exportEnabled: true });
   try {
     allowed.port.reportError({ error: new Error('allowed'), context: { operation: 'telemetry.test' } });
     await client.flush(1000);

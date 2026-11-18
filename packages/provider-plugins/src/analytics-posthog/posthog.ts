@@ -24,7 +24,7 @@ import type {
   ProductAnalyticsAdapter,
   ProductAnalyticsPort,
 } from "@jini-ai/core/contracts/observability";
-import { createProviderTelemetryReporter, type ProviderTelemetryOptions } from "../telemetry-reporter.js";
+import { createProviderTelemetryReporter, type DescribeTelemetryFailure, type ProviderTelemetryOptions } from "../telemetry-reporter.js";
 
 export interface PostHogConfigEnabled {
   enabled: true; apiKey: string; host: string;
@@ -41,11 +41,12 @@ export interface PostHogAdapterOptions extends ProviderTelemetryOptions {
 }
 
 /**
+ * @param required The configuration and the failure classifier the host binds (diagnostics' `describeTelemetryFailure`).
  * @returns `{ port, dispose }`; `dispose` flushes (or drops exports after host retirement), shuts the client down and never throws.
  * @complexity O(1) per event; delivery is batched in the background by the SDK.
  */
-export function createPostHogProductAnalyticsAdapter({ config }: { config: PostHogConfigEnabled }, options: PostHogAdapterOptions = {}): ProductAnalyticsAdapter {
-  const reporter = createProviderTelemetryReporter({ endpoint: config.host }, options);
+export function createPostHogProductAnalyticsAdapter({ config, describeTelemetryFailure }: { config: PostHogConfigEnabled; describeTelemetryFailure: DescribeTelemetryFailure }, options: PostHogAdapterOptions = {}): ProductAnalyticsAdapter {
+  const reporter = createProviderTelemetryReporter({ endpoint: config.host, describeTelemetryFailure }, options);
   const client = new PostHog(config.apiKey, {
     host: config.host,
     flushAt: options.flushAt ?? 20,

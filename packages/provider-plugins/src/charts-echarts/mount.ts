@@ -8,8 +8,8 @@ import type {
   ChartMountOptions,
   ChartRenderInput,
   ChartSpec,
+  ChartThemeApplier,
 } from '@jini-ai/core/contracts/charts';
-import { applyChartTheme } from '@jini-ai/ui/charts/browser';
 import { ECHARTS_PROVIDER_ID, supportsEChartsSpec } from './descriptor.js';
 import { buildEChartsOption, chartTitle } from './option.js';
 
@@ -64,10 +64,10 @@ function observeWidth({ surface, chart }: { surface: HTMLElement; chart: ECharts
 /** Mount/update/destroy implements the UI vanilla ABI. ECharts draws synchronously, so `ready` is already
  * settled and a failing draw throws from mount or update, where the host's fallback chain catches it.
  * @throws {UnsupportedChartSpecError} The spec is outside what this artifact draws (see supportsEChartsSpec).
- * @example mount({ element, spec, theme })
+ * @example mount({ element, spec, theme, applyTheme })
  */
 export function mount(
-  { element, ...input }: ChartRenderInput & { element: HTMLElement },
+  { element, applyTheme, ...input }: ChartRenderInput & { element: HTMLElement; applyTheme: ChartThemeApplier<HTMLElement> },
   _options: ChartMountOptions = {},
 ): ChartInstance {
   if (!supportsEChartsSpec({ spec: input.spec })) throw new UnsupportedChartSpecError();
@@ -79,7 +79,7 @@ export function mount(
   function render(next: ChartRenderInput): void {
     if (destroyed) return;
     if (!supportsEChartsSpec({ spec: next.spec })) throw new UnsupportedChartSpecError();
-    applyChartTheme({ element, theme: next.theme });
+    applyTheme({ element, theme: next.theme });
     describeFrame({ ...frame, spec: next.spec, descriptionId });
     chart.setOption(buildEChartsOption({ spec: next.spec }), { replaceMerge: REPLACED_COMPONENTS });
   }

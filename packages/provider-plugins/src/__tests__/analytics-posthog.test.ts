@@ -4,7 +4,11 @@ import { expect, test, vi } from "vitest";
 import { PostHog } from "posthog-node";
 
 import { withProductAnalyticsGuards } from "@jini-ai/analytics/product";
-import { createPostHogProductAnalyticsAdapter } from "../analytics-posthog/posthog.js";
+import { createPostHogProductAnalyticsAdapter as rawPostHogAdapter } from "../analytics-posthog/posthog.js";
+import { describeTelemetryFailure, withHost } from "./observability-host.js";
+
+/** The host binds diagnostics' failure classifier; these tests bind the real one the same way. */
+const createPostHogProductAnalyticsAdapter = (required: { config: Parameters<typeof rawPostHogAdapter>[0]["config"] }, options?: Parameters<typeof rawPostHogAdapter>[1]) => rawPostHogAdapter({ ...required, describeTelemetryFailure }, options);
 import plugin, { createPostHogProvider } from "../analytics-posthog/index.js";
 
 /** A fetch that keeps every batch PostHog sends, decoded. */
@@ -24,7 +28,7 @@ test('revoked PostHog queues are dropped on shutdown while a fresh client still 
   const { batches, fetch } = recordingFetch();
   for (const revoked of [true, false]) {
     const retirement = new AbortController();
-    const resource = createPostHogProvider({ apiKey: 'phc_test_dummy', host: 'https://posthog.invalid' }, { fetch, signal: retirement.signal });
+    const resource = createPostHogProvider({ apiKey: 'phc_test_dummy', host: 'https://posthog.invalid' }, withHost({ fetch, signal: retirement.signal }));
     resource.port.capture({ name: revoked ? 'revoked' : 'fresh', userId: 'fixture-install' });
     resource.port.identify({ userId: 'fixture-install', traits: { plan: 'fixture' } });
     if (revoked) retirement.abort();
@@ -35,7 +39,7 @@ test('revoked PostHog queues are dropped on shutdown while a fresh client still 
 
 test('every product capture is profile-less, including attempts to override the flag', async () => {
   const { batches, fetch } = recordingFetch();
-  const resource = createPostHogProvider({ apiKey: 'phc_test_dummy', host: 'https://posthog.invalid' }, { fetch });
+  const resource = createPostHogProvider({ apiKey: 'phc_test_dummy', host: 'https://posthog.invalid' }, withHost({ fetch }));
   try {
     resource.port.capture({ name: 'app_started', userId: 'fixture-install' });
     resource.port.capture({ name: 'desktop_action', userId: 'fixture-install', properties: { action: 'open_admin', $process_person_profile: true } });
@@ -66,17 +70,17 @@ test("plugin setup only registers the product-analytics factory", () => {
 
 test('the factory rejects private keys and credential-bearing hosts before constructing an SDK', () => {
   const apiKey = ['phc', 'fixture'].join('_');
-  expect(() => createPostHogProvider({ apiKey: ['phx', 'private', 'fixture'].join('_'), host: 'https://posthog.invalid' }))
+  expect(() => createPostHogProvider({ apiKey: ['phx', 'private', 'fixture'].join('_'), host: 'https://posthog.invalid' }, withHost()))
     .toThrow(new TypeError('Use a PostHog project key starting with phc_, not a personal API key.'));
   const host = new URL('https://posthog.invalid');
   host.username = ['fixture', 'user'].join('-'); host.password = ['fixture', 'password'].join('-');
-  expect(() => createPostHogProvider({ apiKey, host: host.href }))
+  expect(() => createPostHogProvider({ apiKey, host: host.href }, withHost()))
     .toThrow(new TypeError('Use an HTTP or HTTPS host URL without credentials.'));
 });
 
 test("the factory port behind the host's guards: consent false sends nothing; PII-shaped properties are dropped", async () => {
   const { batches, fetch } = recordingFetch();
-  const resource = createPostHogProvider({ apiKey: " phc_test_dummy ", host: "https://posthog.invalid" }, { fetch, flushAt: 1 });
+  const resource = createPostHogProvider({ apiKey: " phc_test_dummy ", host: "https://posthog.invalid" }, withHost({ fetch, flushAt: 1 }));
   let consent = false;
   const guarded = withProductAnalyticsGuards({ inner: resource.port, consent: () => consent });
   guarded.capture({ name: "assistant_tool_call", userId: "u1" });
@@ -96,11 +100,11 @@ test.each([
   [{ apiKey: "phc" }, "host must be a non-empty string"],
   [{ apiKey: "phc", host: {} }, "host must be a non-empty string"],
 ])("the factory refuses %j", (input, message) => {
-  expect(() => createPostHogProvider(input)).toThrow(new TypeError(message));
+  expect(() => createPostHogProvider(input, withHost())).toThrow(new TypeError(message));
 });
 
 test("dispose never throws when the SDK shutdown fails", async () => {
-  const resource = createPostHogProvider({ apiKey: ['phc', 'fixture'].join('_'), host: "https://posthog.invalid" }, { fetch: async () => { throw new Error("offline"); }, flushAt: 1 });
+  const resource = createPostHogProvider({ apiKey: ['phc', 'fixture'].join('_'), host: "https://posthog.invalid" }, withHost({ fetch: async () => { throw new Error("offline"); }, flushAt: 1 }));
   resource.port.capture({ name: "x", userId: "u1" });
   await expect(resource.dispose({})).resolves.toBeUndefined();
 });
@@ -138,7 +142,7 @@ test("a rejected SDK shutdown is swallowed by dispose", async () => {
 test("site attribution: every captured event carries the host's attribution properties (not overridable by the event) and its $groups", async () => {
   const { batches, fetch } = recordingFetch();
   const resource = createPostHogProvider({ apiKey: "phc_test_dummy", host: "https://posthog.invalid",
-    attribution: { attributes: { site_id: "site-123", site_slug: "blog", environment: "local", project_id: "proj-9" }, groups: { site: "site-123" } } }, { fetch, flushAt: 1 });
+    attribution: { attributes: { site_id: "site-123", site_slug: "blog", environment: "local", project_id: "proj-9" }, groups: { site: "site-123" } } }, withHost({ fetch, flushAt: 1 }));
   resource.port.capture({ name: "post_published", userId: "u1", properties: { site_id: "spoofed", outcome: "ok" } });
   resource.port.capture({ name: "plugin_toggled", userId: "u1" });
   await resource.dispose({});
@@ -153,7 +157,7 @@ test("site attribution: every captured event carries the host's attribution prop
 test("site attribution: identify events carry the host's attribution and $groups; traits cannot override site_id (Codex fix-lane MED)", async () => {
   const { batches, fetch } = recordingFetch();
   const resource = createPostHogProvider({ apiKey: "phc_test_dummy", host: "https://posthog.invalid",
-    attribution: { attributes: { site_id: "site-123", site_slug: "blog", environment: "local", project_id: "proj-9" }, groups: { site: "site-123" } } }, { fetch, flushAt: 1 });
+    attribution: { attributes: { site_id: "site-123", site_slug: "blog", environment: "local", project_id: "proj-9" }, groups: { site: "site-123" } } }, withHost({ fetch, flushAt: 1 }));
   resource.port.identify({ userId: "u1", traits: { site_id: "spoofed", plan: "self-hosted", constructor: "kept", toString: "kept too" } });
   resource.port.identify({ userId: "u2" });
   await resource.dispose({});
@@ -171,7 +175,7 @@ test("site attribution: identify events carry the host's attribution and $groups
 test("LLM analytics maps neutral metadata to PostHog's event contract with authoritative site identity and no text by default", async () => {
   const { batches, fetch } = recordingFetch();
   const resource = createPostHogProvider({ apiKey: ["phc", "fixture"].join("_"), host: "https://posthog.invalid",
-    attribution: { attributes: { site_id: "s1", site_slug: "blog", environment: "local" }, groups: { site: "s1" } } }, { fetch, flushAt: 1 });
+    attribution: { attributes: { site_id: "s1", site_slug: "blog", environment: "local" }, groups: { site: "s1" } } }, withHost({ fetch, flushAt: 1 }));
   expect(resource.port.includeAiContent).toBe(false);
   resource.port.captureAiGeneration!({ userId: "site:s1", properties: {
     model: "model-1", provider: "anthropic", inputTokens: 12, outputTokens: 4, cacheReadTokens: 2,
@@ -192,7 +196,7 @@ test("LLM analytics maps neutral metadata to PostHog's event contract with autho
 
 test("LLM content setting is explicit and guarded by operator consent; input and output use PostHog message shapes", async () => {
   const { batches, fetch } = recordingFetch();
-  const resource = createPostHogProvider({ apiKey: ["phc", "fixture"].join("_"), host: "https://posthog.invalid", includePromptsAndResponses: "true" }, { fetch, flushAt: 1 });
+  const resource = createPostHogProvider({ apiKey: ["phc", "fixture"].join("_"), host: "https://posthog.invalid", includePromptsAndResponses: "true" }, withHost({ fetch, flushAt: 1 }));
   let consent = false;
   const port = withProductAnalyticsGuards({ inner: resource.port, consent: () => consent });
   expect(port.includeAiContent).toBe(true);
@@ -207,10 +211,10 @@ test("LLM content setting is explicit and guarded by operator consent; input and
 
 test.each([200, 401, 429])('PostHog factory reports real HTTP %i with no private response text', async status => {
   const reports: import('@jini-ai/diagnostics/observability').ProviderTelemetryReport[] = [];
-  const resource = createPostHogProvider({ apiKey: 'phc_test_dummy', host: 'https://posthog.invalid' }, {
+  const resource = createPostHogProvider({ apiKey: 'phc_test_dummy', host: 'https://posthog.invalid' }, withHost({
     reportTelemetry: (report: import('@jini-ai/diagnostics/observability').ProviderTelemetryReport) => { reports.push(report); },
     fetch: async () => ({ status, text: async () => 'private provider response', json: async () => ({}) }), flushAt: 1,
-  });
+  }));
   resource.port.capture({ name: 'telemetry_test', userId: 'owner' });
   await resource.dispose({});
   expect(reports.at(-1)).toEqual({ phase: 'export', outcome: status === 200 ? 'ok' : 'failed', host: 'posthog.invalid',
@@ -222,7 +226,7 @@ test.each([200, 401, 429])('PostHog factory reports real HTTP %i with no private
 test.each(['visitor:ephemeral', 'fixture-install', 'system', 'owner:1'])('server counters for %s cannot create person profiles, even through caller or attribution overrides', async userId => {
   const { batches, fetch } = recordingFetch();
   const resource = createPostHogProvider({ apiKey: 'phc_fixture', host: 'https://posthog.invalid',
-    attribution: { attributes: { $process_person_profile: 'true' }, groups: {} } }, { fetch, flushAt: 1 });
+    attribution: { attributes: { $process_person_profile: 'true' }, groups: {} } }, withHost({ fetch, flushAt: 1 }));
   resource.port.capture({ name: 'form_submitted', userId, properties: { eventId: 'committed-event', $process_person_profile: true, $insert_id: 'spoofed' } });
   await resource.dispose({});
   const events = batches.flatMap(batch => batch.body.batch);
@@ -235,7 +239,7 @@ test.each(['visitor:ephemeral', 'fixture-install', 'system', 'owner:1'])('server
 
 test('all server captures and AI generations suppress person profiles regardless of subject or caller overrides', async () => {
   const { batches, fetch } = recordingFetch();
-  const resource = createPostHogProvider({ apiKey: 'phc_fixture', host: 'https://posthog.invalid' }, { fetch, flushAt: 1 });
+  const resource = createPostHogProvider({ apiKey: 'phc_fixture', host: 'https://posthog.invalid' }, withHost({ fetch, flushAt: 1 }));
   resource.port.capture({ name: 'visitor_event', userId: 'visitor:ephemeral', properties: { $process_person_profile: true } });
   resource.port.capture({ name: 'owner_event', userId: 'owner:1' });
   resource.port.capture({ name: 'owner_choice', userId: 'owner:1', properties: { $process_person_profile: true } });
@@ -248,7 +252,7 @@ test('all server captures and AI generations suppress person profiles regardless
 
 test("the port offers a cookie-consent adapter with only public config, mounted where the host says", async () => {
   const resource = createPostHogProvider({ apiKey: "phc_test_dummy", host: "https://posthog.invalid", sessionReplay: "true",
-    attribution: { attributes: { site_id: "site-123" }, groups: {} } });
+    attribution: { attributes: { site_id: "site-123" }, groups: {} } }, withHost());
   const { adapter, http } = (resource.port as unknown as { consentAdapter(required: { path: string }): { adapter: { config: Record<string, unknown> }; http: { path: string } } })
     .consentAdapter({ path: "/_consent/posthog" });
   expect(http.path).toBe("/_consent/posthog");

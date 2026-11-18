@@ -1,4 +1,5 @@
 import type { Express, RequestHandler } from 'express';
+// Structural port satisfied by diagnostics/observability, with host-owned logging and tracing.
 import type { ObservabilityPort } from '@jini-ai/core/contracts/observability';
 import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
 

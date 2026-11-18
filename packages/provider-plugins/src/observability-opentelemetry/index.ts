@@ -4,7 +4,7 @@ import {
   PluginProviderStartupError,
   type PluginSdk,
 } from '@jini-ai/core/contracts/plugin-sdk';
-import { resolveObservabilityConfig } from '@jini-ai/diagnostics/observability';
+import { readOpenTelemetryHost } from './configuration.js';
 import { createOtelObservabilityAdapter, type OtelAdapterOptions } from './opentelemetry.js';
 import { attributionOf } from '../attribution.js';
 import manifest from './jini.plugin.json' with { type: 'json' };
@@ -108,15 +108,18 @@ function startOpenTelemetryAdapter(required: Parameters<typeof createOtelObserva
  * @param required `{ serviceName, tracerName?, endpoint?, tracesEndpoint?, auth?, username?, token?, headers? }`; credentials are
  *   `token` (+ `username`; see {@link otlpAuthHeaders}) and/or `headers` (object or the card's `Name=Value,…` text). `tracerName` defaults to `serviceName`. `attribution.attributes`
  *   (host-named, e.g. which site) go on every span's resource.
- * @param optional `{ exportEnabled?, spanProcessors?, metricReaders? }`: explicit host permission
+ * @param optional `{ context, scope, exportEnabled?, spanProcessors?, metricReaders? }`: `context` is diagnostics' helpers as the
+ *   domain's provider contract registers them, `scope` the host's active-span scope; explicit host permission
  *   (defaults false) and SDK test seams. Denied instances keep local tracing without exporters.
- * @returns `{ port, dispose }`. @throws TypeError on missing endpoint or malformed input.
+ * @returns `{ port, dispose }`. @throws OpenTelemetryProviderConfigError at initialize when `context` or `scope` is incomplete;
+ *   TypeError on missing endpoint or malformed input.
  */
 export function createOpenTelemetryProvider(required: Readonly<Record<string, unknown>>, optional: Readonly<Record<string, unknown>> = {}) {
   const endpoint = text(required.endpoint, 'endpoint');
   const tracesEndpoint = text(required.tracesEndpoint, 'tracesEndpoint');
   const serviceName = text(required.serviceName, 'serviceName');
-  const config = resolveObservabilityConfig({
+  const { context, scope } = readOpenTelemetryHost({ context: optional.context, scope: optional.scope });
+  const config = context.resolveObservabilityConfig({
     serviceName: serviceName ?? '', tracerName: text(required.tracerName, 'tracerName') ?? serviceName ?? '',
   }, { ...(endpoint === undefined ? {} : { endpoint }), ...(tracesEndpoint === undefined ? {} : { tracesEndpoint }) });
   if (!config.enabled) throw new TypeError('an OTLP endpoint is required');
@@ -128,7 +131,7 @@ export function createOpenTelemetryProvider(required: Readonly<Record<string, un
   const options: OtelAdapterOptions = { exportEnabled: optional.exportEnabled === true, endpoint, metricReaders, ...(headers ? { headers } : {}), ...(spanProcessors ? { spanProcessors } : {}), resourceAttributes,
     signal: optional.signal as AbortSignal | undefined,
     reportTelemetry: optional.reportTelemetry as OtelAdapterOptions['reportTelemetry'], info: optional.info as OtelAdapterOptions['info'] };
-  const { port, dispose } = startOpenTelemetryAdapter({ config }, options);
+  const { port, dispose } = startOpenTelemetryAdapter({ config, context, scope }, options);
   return { port, dispose: (_required: Record<string, never>, _optional: Record<string, never> = {}) => dispose() };
 }
 

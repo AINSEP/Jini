@@ -5,6 +5,7 @@ import { createPostHogProvider } from '../analytics-posthog/index.js';
 import { postHogBrowserContribution } from '../analytics-posthog/browser.js';
 import { postHogConsentContribution } from '../analytics-posthog/consent.js';
 import { anonymousPageview, createPostHogConsentAdapter, sanitizeEvent } from '../analytics-posthog/consent-adapter.js';
+import { withHost } from "./observability-host.js";
 
 const attributes = { site_id: 'site-1', release: 'web@abc123', environment: 'staging', project_id: 'private-project', site_slug: 'private-slug' };
 const expected = { site_id: 'site-1', release: 'web@abc123', environment: 'staging' };
@@ -13,7 +14,7 @@ const consent = { ...base, siteId: attributes.site_id, release: attributes.relea
 const location = { origin: 'https://site.example', pathname: '/account', hostname: 'site.example' };
 
 it('wires host release and environment to both browser contributions while keeping other site metadata private', async () => {
-  const resource = createPostHogProvider({ ...base, attribution: { attributes, groups: { site: 'site-1' } } });
+  const resource = createPostHogProvider({ ...base, attribution: { attributes, groups: { site: 'site-1' } } }, withHost());
   try {
     const browser = resource.port.browserAnalytics({ surface: 'site' });
     expect(browser.source).toContain('web@abc123');

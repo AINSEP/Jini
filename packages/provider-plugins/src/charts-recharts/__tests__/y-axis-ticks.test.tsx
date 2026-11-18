@@ -8,7 +8,11 @@ import './dom-setup.js';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { act } from '@testing-library/react';
 import type { ChartInstance } from '@jini-ai/core/contracts/charts';
-import { mount } from '../client/provider.js';
+import { applyChartTheme } from '@jini-ai/ui/charts/browser';
+import { mount as providerMount } from '../client/provider.js';
+
+/** The host binds the UI's real theme applier through the mount input; tests do the same. */
+const mount = (input: Omit<Parameters<typeof providerMount>[0], 'applyTheme'>, options?: Parameters<typeof providerMount>[1]) => providerMount({ applyTheme: applyChartTheme, ...input }, options);
 
 beforeEach(() => {
   // Recharts' ResponsiveContainer and tick sizing read getBoundingClientRect; jsdom reports 0x0,

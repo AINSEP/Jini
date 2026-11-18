@@ -34,7 +34,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
 import { NodeClient, captureException, defaultStackParser, makeNodeTransport, startInactiveSpan, startNewTrace, withActiveSpan, withScope, type NodeOptions, type Span } from "@sentry/node";
-import { describeReportedError, redactOperationAttributes } from "@jini-ai/diagnostics/observability";
+import type { SentryProviderContext } from "./contract.js";
 import {
   createNoopObservabilityPort,
   type ObservabilityAdapter,
@@ -66,7 +66,7 @@ const SPAN_STATUS_OK = 1;
 const SPAN_STATUS_ERROR = 2;
 
 /** The redacted error an error tracker may see: type, capped message and stack with secret shapes blanked. */
-function sanitizedError(error: unknown): Error {
+function sanitizedError({ error, describeReportedError }: { error: unknown; describeReportedError: SentryProviderContext["describeReportedError"] }): Error {
   const { type, message, stack } = describeReportedError({ error });
   const sanitized = new Error(message);
   sanitized.name = type;
@@ -101,6 +101,7 @@ function minidumpEndpoint({ dsn }: { dsn: string }, _options = {}): string | und
 }
 
 /**
+ * @param required The configuration and diagnostics' helpers as the host binds them (`context`); never imported here.
  * @param options Host export permission, SDK seams and local diagnostics. Missing permission denies.
  * @returns `{ port, dispose }`: allowed operations/errors reach Sentry; denied errors still admit
  *   locally, and native upload configuration is withheld;
@@ -108,10 +109,10 @@ function minidumpEndpoint({ dsn }: { dsn: string }, _options = {}): string | und
  * @throws SDK construction errors (an invalid DSN) during setup.
  * @complexity O(1) per signal, excluding the SDK's own buffered send.
  */
-export function createSentryObservabilityAdapter({ config }: { config: SentryConfigEnabled }, options: SentryAdapterOptions = {}): ObservabilityAdapter {
+export function createSentryObservabilityAdapter({ config, context: helpers }: { config: SentryConfigEnabled; context: SentryProviderContext }, options: SentryAdapterOptions = {}): ObservabilityAdapter {
   const exportEnabled = options.exportEnabled === true;
   const owned = options.client === undefined;
-  const reporter = createProviderTelemetryReporter({ endpoint: config.dsn }, options);
+  const reporter = createProviderTelemetryReporter({ endpoint: config.dsn, describeTelemetryFailure: helpers.describeTelemetryFailure }, options);
   const transport: NonNullable<NodeOptions["transport"]> = (input) => {
     const inner = (options.transport ?? makeNodeTransport)(input);
     return { ...inner, async send(envelope) {
@@ -143,7 +144,7 @@ export function createSentryObservabilityAdapter({ config }: { config: SentryCon
       // A host-owned enabled client must never receive denied spans. Work still runs locally.
       if (!exportEnabled) return createNoopObservabilityPort({}).trackOperation({ name, attributes });
       const parentSpan = active.getStore();
-      const safe = redactOperationAttributes({ attributes });
+      const safe = helpers.redactOperationAttributes({ attributes });
       const span = inClient(() => (parentSpan
         ? startInactiveSpan({ name, op: name, attributes: safe, parentSpan })
         : startNewTrace(() => startInactiveSpan({ name, op: name, attributes: safe, forceTransaction: true }))));
@@ -153,7 +154,7 @@ export function createSentryObservabilityAdapter({ config }: { config: SentryCon
         end({ outcome, failed, attributes: settled = {} }) {
           if (ended) return;
           ended = true;
-          span.setAttributes(redactOperationAttributes({ attributes: { ...settled, "operation.outcome": outcome } }));
+          span.setAttributes(helpers.redactOperationAttributes({ attributes: { ...settled, "operation.outcome": outcome } }));
           span.setStatus(failed ? { code: SPAN_STATUS_ERROR, message: outcome } : { code: SPAN_STATUS_OK });
           span.end();
         },
@@ -165,8 +166,8 @@ export function createSentryObservabilityAdapter({ config }: { config: SentryCon
       if (!exportEnabled && !owned) return undefined;
       try {
         const span = active.getStore();
-        const capture = () => captureException(sanitizedError(error), { ...(context.level ? { level: context.level } : {}), tags: { operation: context.operation }, contexts: {
-          operation: redactOperationAttributes({ attributes: context.attributes ?? {} }),
+        const capture = () => captureException(sanitizedError({ error, describeReportedError: helpers.describeReportedError }), { ...(context.level ? { level: context.level } : {}), tags: { operation: context.operation }, contexts: {
+          operation: helpers.redactOperationAttributes({ attributes: context.attributes ?? {} }),
           ...(context.trace ? { otel: { trace_id: context.trace.traceId, span_id: context.trace.spanId } } : {}),
         } });
         inClient(() => (span ? withActiveSpan(span, capture) : capture()));

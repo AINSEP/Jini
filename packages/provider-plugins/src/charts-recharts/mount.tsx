@@ -5,8 +5,8 @@ import type {
   ChartInstance,
   ChartMountOptions,
   ChartRenderInput,
+  ChartThemeApplier,
 } from '@jini-ai/core/contracts/charts';
-import { applyChartTheme } from '@jini-ai/ui/charts/browser';
 import { BarChart } from './bar-chart.js';
 import { LineChart } from './line-chart.js';
 import { PieChart } from './pie-chart.js';
@@ -45,10 +45,10 @@ function ProviderChart({ spec, onReady }: ChartRenderInput & { onReady: () => vo
 
 /** Mount/update/destroy implements the UI vanilla ABI; no host React instance is shared.
  * @throws {UnsupportedChartSpecError} The single-series artifact cannot render the supplied spec.
- * @example mount({ element, spec, theme }, { onError: reportProviderFailure })
+ * @example mount({ element, spec, theme, applyTheme }, { onError: reportProviderFailure })
  */
 export function mount(
-  { element, ...input }: ChartRenderInput & { element: HTMLElement },
+  { element, applyTheme, ...input }: ChartRenderInput & { element: HTMLElement; applyTheme: ChartThemeApplier<HTMLElement> },
   options: ChartMountOptions = {},
 ): ChartInstance {
   if (!supportsRechartsSpec({ spec: input.spec })) throw new UnsupportedChartSpecError();
@@ -60,7 +60,7 @@ export function mount(
   function render(next: ChartRenderInput): Promise<void> {
     if (destroyed) return Promise.resolve();
     if (!supportsRechartsSpec({ spec: next.spec })) throw new UnsupportedChartSpecError();
-    pending?.resolve(); applyChartTheme({ element, theme: next.theme });
+    pending?.resolve(); applyTheme({ element, theme: next.theme });
     return new Promise((resolve, reject) => {
       const task = { resolve, reject }; pending = task;
       root.render(<ProviderBoundary onError={reportError} revision={task}>
