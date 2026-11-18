@@ -12,12 +12,12 @@ export const createCookieConsent: typeof createCore = (required, options) => {
 };
 
 function features(win: Window & typeof globalThis, api: JiniConsentApi | undefined, options: BootOptions): JiniConsentApi | undefined {
-  if (api) installFeatures({ api, doc: win.document, config: readPage(win.document)!, reload: options.ports?.reload ?? (() => win.location.reload()) }, { bindBanner: options.bindBanner });
+  if (api) installFeatures({ api, doc: win.document, config: readPage({ doc: win.document })!, reload: options.ports?.reload ?? (() => win.location.reload()) }, { bindBanner: options.bindBanner });
   return api;
 }
 
-export function boot(win: Window & typeof globalThis = window, options: BootOptions = {}): JiniConsentApi | undefined {
-  return features(win, bootCore(win, { ...options, bindBanner: undefined }), options);
+export function boot(_required: object = {}, { win = window, ...options }: BootOptions & { win?: Window & typeof globalThis } = {}): JiniConsentApi | undefined {
+  return features(win, bootCore({}, { ...options, win, bindBanner: undefined }), options);
 }
 
 export async function bootWithContext({ win }: { win: Window & typeof globalThis }, options: BootOptions = {}): Promise<JiniConsentApi | undefined> {

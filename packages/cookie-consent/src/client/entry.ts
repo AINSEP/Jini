@@ -4,4 +4,4 @@
 import { bindBanner } from './dom.js';
 import { boot } from './index.js';
 
-boot(window, { bindBanner });
+boot({}, { win: window, bindBanner });

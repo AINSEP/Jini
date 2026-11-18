@@ -22,7 +22,7 @@ const within = (p: Promise<unknown>, ms: number) => Promise.race([p, new Promise
 const quiet = (fn: () => void) => { try { fn(); } catch { /* a broken plugin or listener never blocks consent */ } };
 const durableEvidence = (evidence?: Evidence) => evidence?.mode === 'durable' ? evidence : null;
 
-/** @example createCookieConsent({ config, ports: browserPorts(window) }, { evidence: { mode: 'local' } }) */
+/** @example createCookieConsent({ config, ports: browserPorts({ win: window }) }, { evidence: { mode: 'local' } }) */
 export function createCookieConsent({ config, ports }: { config: ClientConfig; ports: ClientPorts }, options: ClientOptions = {}): JiniConsentApi {
   const { doc } = ports;
   const plugins = options.plugins ?? createPluginRegistry({}, { slots: [ADAPTER_SLOT] });
@@ -32,8 +32,8 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
   const ran = new Set<Optional>();                                    // categories whose raw inert tags executed
   const anonymous = config.banner === 'off';
   const maxAgeMs = (config.maxAgeDays ?? 180) * DAY_MS;
-  const region = regionFrom({ configured: config.regionMode, hint: anonymous ? null : readCookie(doc, REGION_COOKIE) });
-  const fromCookie = () => anonymous ? null : parseStored({ raw: readCookie(doc, CONSENT_COOKIE) });
+  const region = regionFrom({ configured: config.regionMode, hint: anonymous ? null : readCookie({ doc, name: REGION_COOKIE }) });
+  const fromCookie = () => anonymous ? null : parseStored({ raw: readCookie({ doc, name: CONSENT_COOKIE }) });
   let stored = fromCookie();
   let cookiePersisted = true;
   let state = compute();
@@ -43,8 +43,8 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
   }
   function persist(): void {
     const value = JSON.stringify(stored);
-    writeCookie(doc, { name: CONSENT_COOKIE, value, maxAgeS: maxAgeMs / 1000 }, { domain: config.cookieDomain });
-    cookiePersisted = readCookie(doc, CONSENT_COOKIE) === value;
+    writeCookie({ doc, name: CONSENT_COOKIE, value, maxAgeS: maxAgeMs / 1000 }, { domain: config.cookieDomain });
+    cookiePersisted = readCookie({ doc, name: CONSENT_COOKIE }) === value;
   }
 
   /** Off-mode adapters load for identity cleanup even at none; only permitted levels grant.
@@ -71,7 +71,7 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
     const revoker = await run.result;
     if (!revoker) return false;
     const clean = await Promise.resolve().then(() => revoker.revoke?.()).catch(() => false);
-    if (!anonymous && slot.generation === generation) purge(doc, slot.adapter?.storage ?? slot.entry.storage);
+    if (!anonymous && slot.generation === generation) purge({ doc }, { storage: slot.adapter?.storage ?? slot.entry.storage });
     return !clean;
   }
   function reconcile(next: ConsentState): void {
@@ -83,7 +83,7 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
       quiet(() => slot.adapter?.onState?.({ state: next }));
     }
     // Raw tags cannot promise anonymous behavior; only declared adapters can.
-    if (!anonymous) activateInert(doc, { allowed: next.allowed, ran });
+    if (!anonymous) activateInert({ doc, allowed: next.allowed, ran });
     const rawRevoked = OPTIONAL.some(c => ran.has(c) && !next.allowed[c]);
     void Promise.all(stops).then(dirty => { if (rawRevoked || dirty.includes(true)) ports.reload(); });
   }
@@ -122,7 +122,7 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
     persist();
     const now = apply();                                                // denial is live here, before any network
     const sent = confirm(stored, previousId);
-    if (durable && waiting(now)) await within(sent, durable.waitMs ?? 1500);
+    if (durable && waiting({ state: now })) await within(sent, durable.waitMs ?? 1500);
     return state;
   }
 
@@ -131,7 +131,7 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
     const slot: Slot = { entry, generation: 0, adapter: typeof (entry as ConsentAdapter).grant === 'function' ? entry as ConsentAdapter : undefined };
     slots.set(entry.id, slot);
     if (anonymous || state.allowed[entry.category]) start(slot);
-    else purge(doc, entry.storage);                     // leftovers of an expired or withdrawn choice
+    else purge({ doc }, { storage: entry.storage });    // leftovers of an expired or withdrawn choice
     quiet(() => slot.adapter?.onState?.({ state }));                    // lazy adapters get state once loaded
   }
   function syncSlots(items: readonly Contribution[]): void {
@@ -173,7 +173,7 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
   return api;
 }
 
-export function browserPorts(win: Window & typeof globalThis): ClientPorts {
+export function browserPorts({ win }: { win: Window & typeof globalThis }, _optional: Record<string, never> = {}): ClientPorts {
   return {
     doc: win.document, fetch: win.fetch.bind(win), now: Date.now, reload: () => win.location.reload(),
     gpc: () => (win.navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl === true || win.navigator.doNotTrack === '1',
@@ -187,21 +187,21 @@ export interface BootOptions {
   bindBanner?: ((required: { api: JiniConsentApi; doc: Document }) => void) | undefined;
 }
 
-export function readPage(doc: Document): PageConfig | null {
+export function readPage({ doc }: { doc: Document }, _optional: Record<string, never> = {}): PageConfig | null {
   try { return JSON.parse(doc.getElementById(CONFIG_ID)?.textContent ?? '') as PageConfig; } catch { return null; }
 }
 
 /** Reads #jini-consent-config, installs window.jiniConsent, drains and replaces the pre-boot queue.
  * A missing or broken config installs nothing, so nothing optional can run (fail closed). */
-export function boot(win: Window & typeof globalThis = window, { ports = browserPorts(win), bindBanner }: BootOptions = {}): JiniConsentApi | undefined {
+export function boot(_required: object = {}, { win = window, ports = browserPorts({ win }), bindBanner }: BootOptions & { win?: Window & typeof globalThis } = {}): JiniConsentApi | undefined {
   if (win.jiniConsent) return win.jiniConsent;
   const doc = win.document;
-  const page = readPage(doc);
+  const page = readPage({ doc });
   if (!page) return undefined;
   return installPage(win, page, { ports, bindBanner });
 }
 
-function installPage(win: Window & typeof globalThis, page: PageConfig, { ports = browserPorts(win), bindBanner }: BootOptions): JiniConsentApi {
+function installPage(win: Window & typeof globalThis, page: PageConfig, { ports = browserPorts({ win }), bindBanner }: BootOptions): JiniConsentApi {
   // The parsed page already satisfies ClientConfig; avoid copying it just to omit evidence.
   const doc = win.document;
   const api = createCookieConsent({ config: page, ports }, { evidence: page.evidence });
@@ -219,10 +219,10 @@ function installPage(win: Window & typeof globalThis, page: PageConfig, { ports 
  * Missing/disabled config and failed context install nothing; no polling or storage reads. */
 export async function bootWithContext({ win }: { win: Window & typeof globalThis }, options: BootOptions = {}): Promise<JiniConsentApi | undefined> {
   if (win.jiniConsent) return win.jiniConsent;
-  const page = readPage(win.document);
+  const page = readPage({ doc: win.document });
   if (!page || page.banner === 'off') return undefined;
-  if (!page.context) return boot(win, options);
-  const ports = options.ports ?? browserPorts(win);
+  if (!page.context) return boot({}, { ...options, win });
+  const ports = options.ports ?? browserPorts({ win });
   try {
     const context: unknown = await ports.fetch(page.context, { credentials: 'same-origin', cache: 'no-store' })
       .then(response => response.ok ? response.json() : null);
@@ -253,6 +253,6 @@ function validContext(value: unknown): value is { enabled: true; policy: string;
  * @example purgeStorage({ doc: document, storage: { cookies: ['vendor_'], local: ['vendor_'] } })
  * @complexity O(cookies + local keys), O(keys) temporary space; no new identity or network. */
 export function purgeStorage({ doc, storage }: { doc: Document; storage: StoragePrefixes }, _optional = {}): void {
-  purge(doc, storage);
+  purge({ doc }, { storage });
 }
 export { bindBanner, installOpeners } from './dom.js';

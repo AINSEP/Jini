@@ -397,9 +397,9 @@ describe('boot, queue and banner', () => {
     window.jiniConsentQueue = [{ id: 'queued', kind: ADAPTER_KIND, category: 'analytics', grant }] as never;
     const ready = vi.fn();
     document.addEventListener('jini:consent-ready', ready);
-    const api = boot(window, { ports: makePorts(), bindBanner })!;
+    const api = boot({}, { win: window, ports: makePorts(), bindBanner })!;
     expect(window.jiniConsent).toBe(api);
-    expect(boot(window)).toBe(api);                            // idempotent
+    expect(boot({}, { win: window })).toBe(api);                            // idempotent
     expect(ready).toHaveBeenCalledTimes(1);
     const banner = document.getElementById('jini-consent')!;
     expect(banner.hidden).toBe(false);
@@ -431,7 +431,7 @@ describe('boot, queue and banner', () => {
   test('while the banner is open, other clicks keep their default (links navigate, preferences expand)', () => {
     page('jini');
     document.body.insertAdjacentHTML('beforeend', '<a href="/blog" id="nav">Blog</a>');
-    boot(window, { ports: makePorts(), bindBanner });
+    boot({}, { win: window, ports: makePorts(), bindBanner });
     expect(document.documentElement.hasAttribute('data-consent-open')).toBe(true);
     const clicks = [document.getElementById('nav')!, document.querySelector('#jini-consent summary')!].map(el => {
       const click = new MouseEvent('click', { bubbles: true, cancelable: true });
@@ -446,7 +446,7 @@ describe('boot, queue and banner', () => {
     const node = document.getElementById('jini-consent-config')!;
     node.textContent = JSON.stringify({ ...JSON.parse(node.textContent!), evidence: DURABLE });
     let answer!: (r: Response) => void;
-    const api = boot(window, { ports: makePorts({ fetch: vi.fn(() => new Promise<Response>(r => { answer = r; })) }), bindBanner })!;
+    const api = boot({}, { win: window, ports: makePorts({ fetch: vi.fn(() => new Promise<Response>(r => { answer = r; })) }), bindBanner })!;
     const banner = document.getElementById('jini-consent')!;
     banner.querySelector<HTMLButtonElement>('[data-consent-action="accept"]')!.click();
     await new Promise(r => setTimeout(r, 40));
@@ -461,7 +461,7 @@ describe('boot, queue and banner', () => {
   test('a "My own" banner drives the same API; a GPC visitor gets locked boxes in the Jini banner', async () => {
     page('headless');
     expect(document.getElementById('jini-consent')).toBeNull();
-    const api = boot(window, { ports: makePorts() })!;
+    const api = boot({}, { win: window, ports: makePorts() })!;
     const opened = vi.fn();
     document.addEventListener('jini:consent-open', opened);
     document.getElementById('footer')!.click();
@@ -471,15 +471,15 @@ describe('boot, queue and banner', () => {
 
     delete window.jiniConsent;
     page('jini');
-    boot(window, { ports: makePorts({ gpc: () => true }), bindBanner });
+    boot({}, { win: window, ports: makePorts({ gpc: () => true }), bindBanner });
     expect(document.querySelector<HTMLInputElement>('input[name="marketing"]')!.disabled).toBe(true);
     expect(document.querySelector<HTMLInputElement>('input[name="functional"]')!.disabled).toBe(false);
   });
 
   test('a missing or broken config installs nothing (fail closed)', () => {
-    expect(boot(window)).toBeUndefined();
+    expect(boot({}, { win: window })).toBeUndefined();
     document.head.innerHTML = '<script type="application/json" id="jini-consent-config">{broken</script>';
-    expect(boot(window)).toBeUndefined();
+    expect(boot({}, { win: window })).toBeUndefined();
     expect(window.jiniConsent).toBeUndefined();
     expect(() => bindBanner({ api: createCookieConsent({ config: config(), ports: makePorts() }), doc: document })).not.toThrow();
   });
@@ -494,7 +494,7 @@ describe('boot, queue and banner', () => {
   });
 
   test('browserPorts reads GPC from navigator and binds fetch', () => {
-    const ports = browserPorts(window);
+    const ports = browserPorts({ win: window });
     expect(ports.doc).toBe(document);
     expect(ports.gpc()).toBe(false);
     Object.defineProperty(navigator, 'globalPrivacyControl', { value: true, configurable: true });

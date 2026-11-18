@@ -9,18 +9,18 @@ const codes = (result: { problems: { code: string }[] }) => result.problems.map(
 
 describe('scopedSelector', () => {
   test('anything under the banner scope is allowed; .jini-consent maps to the #jini-consent scope', () => {
-    expect(scopedSelector('#jini-consent')).toBe('#jini-consent');
-    expect(scopedSelector('  .jini-consent   h2 ')).toBe('#jini-consent h2');
-    expect(scopedSelector('#jini-consent>.jini-consent-actions  button:hover')).toBe('#jini-consent > .jini-consent-actions button:hover');
-    expect(scopedSelector('.jini-consent-reopen:focus-visible')).toBe('.jini-consent-reopen:focus-visible');
-    expect(scopedSelector('#jini-consent *')).toBe('#jini-consent *');
+    expect(scopedSelector({ selector: '#jini-consent' })).toBe('#jini-consent');
+    expect(scopedSelector({ selector: '  .jini-consent   h2 ' })).toBe('#jini-consent h2');
+    expect(scopedSelector({ selector: '#jini-consent>.jini-consent-actions  button:hover' })).toBe('#jini-consent > .jini-consent-actions button:hover');
+    expect(scopedSelector({ selector: '.jini-consent-reopen:focus-visible' })).toBe('.jini-consent-reopen:focus-visible');
+    expect(scopedSelector({ selector: '#jini-consent *' })).toBe('#jini-consent *');
   });
 
   test('out-of-scope, attribute, structural, pseudo-element and sibling selectors are refused (Reject parity)', () => {
     for (const s of ['body', '#jini-consentx', '.jini-consent-links', 'div #jini-consent', '#jini-consent [data-consent-action="accept"]',
       '#jini-consent button:first-child', '#jini-consent button:not(.x)', '#jini-consent button::before',
       '#jini-consent button + button', '#jini-consent button ~ button', '#jini-consent button:nth-child(2)', '#jini-consent > ']) {
-      expect(scopedSelector(s), s).toBeNull();
+      expect(scopedSelector({ selector: s }), s).toBeNull();
     }
   });
 });

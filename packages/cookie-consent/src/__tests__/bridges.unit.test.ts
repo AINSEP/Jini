@@ -11,7 +11,7 @@ test('custom bridge uses receipt and GPC enforced state and disposes on removal'
   let bridgeApi: JiniConsentApi | undefined;
   window.jiniConsentQueue = [{ id: 'outside-cmp', kind: BRIDGE_KIND, mount: ({ api }: { api: JiniConsentApi }) => { bridgeApi = api; return dispose; } }] as never;
   const builtin = vi.fn();
-  const api = boot(window, { bindBanner: builtin, ports: { doc: document, fetch: vi.fn(), now: Date.now, gpc: () => true, reload: vi.fn(), importModule: vi.fn() } })!;
+  const api = boot({}, { win: window, bindBanner: builtin, ports: { doc: document, fetch: vi.fn(), now: Date.now, gpc: () => true, reload: vi.fn(), importModule: vi.fn() } })!;
   expect(bridgeApi).toBe(api);
   expect(builtin).not.toHaveBeenCalled();
   await bridgeApi!.set({ action: 'accept' });
@@ -27,7 +27,7 @@ function bridgePage(plugins: unknown[]) {
   delete window.jiniConsent;
   window.jiniConsentQueue = plugins as never;
   const builtin = vi.fn();
-  const api = boot(window, { bindBanner: builtin, ports: { doc: document, fetch: vi.fn(), now: Date.now, gpc: () => false, reload: vi.fn(), importModule: vi.fn() } })!;
+  const api = boot({}, { win: window, bindBanner: builtin, ports: { doc: document, fetch: vi.fn(), now: Date.now, gpc: () => false, reload: vi.fn(), importModule: vi.fn() } })!;
   return { api, builtin };
 }
 

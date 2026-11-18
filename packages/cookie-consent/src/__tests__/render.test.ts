@@ -115,12 +115,12 @@ describe('preview', () => {
 
 describe('safeHref', () => {
   test('local paths and https only', () => {
-    expect(safeHref(undefined)).toBeNull();
-    expect(safeHref('')).toBeNull();
-    expect(safeHref('/privacy#a')).toBe('/privacy#a');
-    expect(safeHref('https://example.com/p')).toBe('https://example.com/p');
+    expect(safeHref({ url: undefined })).toBeNull();
+    expect(safeHref({ url: '' })).toBeNull();
+    expect(safeHref({ url: '/privacy#a' })).toBe('/privacy#a');
+    expect(safeHref({ url: 'https://example.com/p' })).toBe('https://example.com/p');
     for (const bad of ['//evil.com', '/a b', '/a\\b', 'http://example.com', 'javascript:alert(1)', 'data:text/html,x', 'https://u:p@example.com', 'privacy', 'mailto:a@b.c']) {
-      expect(safeHref(bad), bad).toBeNull();
+      expect(safeHref({ url: bad }), bad).toBeNull();
     }
   });
 });
@@ -128,7 +128,7 @@ describe('safeHref', () => {
 describe('resolveCopy', () => {
   test('owner strings override defaults; non-strings fall back; secondary link is optional', () => {
     expect(resolveCopy()).toEqual({ ...DEFAULT_COPY });
-    const copy = resolveCopy({ title: 'Hi', message: 5 as never, secondaryLinkLabel: 'T', secondaryLinkUrl: 7 as never, categoryLabels: { analytics: 'Stats', marketing: null as never } });
+    const copy = resolveCopy({}, { title: 'Hi', message: 5 as never, secondaryLinkLabel: 'T', secondaryLinkUrl: 7 as never, categoryLabels: { analytics: 'Stats', marketing: null as never } });
     expect(copy.title).toBe('Hi');
     expect(copy.message).toBe(DEFAULT_COPY.message);
     expect(copy.secondaryLinkLabel).toBe('T');
