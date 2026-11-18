@@ -33,6 +33,7 @@ type RunErrorPayload = { message: string; error?: ApiError };
 | `RATE_LIMITED`, `UPSTREAM_UNAVAILABLE` | Capacity or upstream failure | Retry according to host policy and supplied retryable metadata |
 | `TOOL_TOKEN_MISSING`, `TOOL_TOKEN_INVALID`, `TOOL_TOKEN_EXPIRED` | Tool credential failure | Acquire a valid credential |
 | `TOOL_ENDPOINT_DENIED`, `TOOL_OPERATION_DENIED`, `TOOL_NOT_AVAILABLE` | Tool boundary refusal | Select an available, authorized operation |
+| `UNKNOWN_TOOL` | The named tool id is not registered (a missing run stays `NOT_FOUND`) | Find a registered tool id with the discovery tool and call again |
 | `INTERNAL_ERROR` | Internal failure | Surface requestId and use host recovery policy |
 
 These constants never trigger errors by themselves. No HTTP status mapping or automatic retry is supplied. `retryable` is optional, with no implied default.

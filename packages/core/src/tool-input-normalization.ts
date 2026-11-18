@@ -1,6 +1,7 @@
 import { isNonArrayRecord } from './records.js';
 import { ToolInputError, ToolInputNormalizationError } from './tool-input-errors.js';
 import { unwrapToolInputEnvelope } from './tool-input-envelope.js';
+import { clampDeclaredBounds } from './tool-input-repairs.js';
 export { ToolInputNormalizationError } from './tool-input-errors.js';
 
 /** A value-free account of canonicalization; domain hooks use the same contract as the gate. */
@@ -257,7 +258,10 @@ async function normalizeWithinGate(
     notes.push(...result.notes);
   }
   if (isObjectTool(schema) && !object(normalized)) throw new ToolInputError({ message: `${registration.descriptor.id}: normalization must produce one input object.` });
-  return { input: walkRoot({ input: normalized, schema, notes, validateClosed: true, keysOnly: false }), notes };
+  const final = walkRoot({ input: normalized, schema, notes, validateClosed: true, keysOnly: false });
+  // After number coercion, so a string "8300" gets the coercion note and then the clamp's note.
+  const clamped = clampDeclaredBounds({ input: final, inputSchema: schema });
+  return { input: clamped.input, notes: [...notes, ...clamped.notes] };
 }
 
 /** Keep result shapes intact and make rewrite notes visible in plain and MCP tool results. */

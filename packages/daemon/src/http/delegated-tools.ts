@@ -42,6 +42,7 @@ import {
   type RouteInputContext,
 } from '@jini-ai/core/contracts/server';
 import * as readOnlyTools from '../core/read-only-tools.js';
+import { resolveToolTarget, unknownToolMessage } from '../core/tool-target.js';
 
 export interface DelegatedToolExecuteRequest {
   readonly runId: string;
@@ -159,6 +160,30 @@ function checkReadOnlyConstraint(
   });
   if (refusal === null) return null;
   return createApiError({ code: 'TOOL_OPERATION_DENIED', message: refusal });
+}
+
+/**
+ * The one answer to a tool id the route's registry does not hold, on both gateways: `404 UNKNOWN_TOOL`
+ * with the closest names, never a denial. Reads descriptors only. A route mounted without a
+ * `toolRegistry` has nothing to decide with: the unconstrained gateway leaves the decision to the
+ * executor (as before), and the read-only gateway refuses as unverifiable in the check after this one.
+ */
+function checkToolTarget(
+  deps: DelegatedToolsHttpDeps,
+  input: DelegatedToolExecuteRequest,
+): ReturnType<typeof createApiError> | null {
+  if (deps.toolRegistry === undefined) return null;
+  const target = resolveToolTarget({ toolId: input.toolId, input: input.input, registry: deps.toolRegistry });
+  if (target.kind === 'tool') return null;
+  return createApiError({ code: 'UNKNOWN_TOOL', message: unknownToolMessage({ target }) });
+}
+
+/** The gates that read descriptors only, in their one order: the target decision, then the read-only constraint. */
+function checkToolGates(
+  deps: DelegatedToolsHttpDeps,
+  input: DelegatedToolExecuteRequest,
+): ReturnType<typeof createApiError> | null {
+  return checkToolTarget(deps, input) ?? checkReadOnlyConstraint(deps, input);
 }
 
 /** Plain words for a server fault behind a tool call: the model reads them, so they say what to do next. */
@@ -311,8 +336,9 @@ async function toolExecutionResultWithRecovery(deps: DelegatedToolsHttpDeps, req
  * `POST /api/delegated-tool-calls` — executes one delegated tool call against an already-started
  * run. Maps `ToolExecutionResult.status` to the HTTP response via `toolExecutionResultToApiResult`
  * above — mirroring `db-ops.ts`'s precedent for the identical status union rather than treating
- * every business outcome as a `200`. An unregistered `toolId` throws `ToolInputError` and answers
- * `400 BAD_REQUEST`. A genuinely unexpected throw (such as a race where the run
+ * every business outcome as a `200`. A `toolId` the route's `toolRegistry` does not hold answers
+ * `404 UNKNOWN_TOOL` before anything else runs; without a `toolRegistry` the executor's `ToolInputError`
+ * for an unregistered `toolId` still answers `400 BAD_REQUEST`. A genuinely unexpected throw (such as a race where the run
  * became terminal between this route's existence check and the bridge's first emitted event)
  * reaches the same SEC-005 redaction path.
  */
@@ -327,12 +353,14 @@ export const delegatedToolExecuteRoute = defineJsonRoute<
       return err({ error: createApiError({ code: 'NOT_FOUND', message: `run "${input.runId}" was not found` }) });
     }
 
+    // The target decision comes first and answers before any other gate: a tool id the registry does
+    // not hold is a missing tool (404 UNKNOWN_TOOL), not a refused one.
     // Before `resolvePrincipal`, and long before the bridge: a refused call must cost nothing
     // downstream and must leave no trace of an execution that was never going to happen. It sits
     // after the run-existence check only so that a bad `runId` still answers 404 the way it always
     // did, regardless of the constraint.
-    const readOnlyRefusal = checkReadOnlyConstraint(deps, input);
-    if (readOnlyRefusal !== null) return err({ error: readOnlyRefusal });
+    const refusal = checkToolGates(deps, input);
+    if (refusal !== null) return err({ error: refusal });
 
     let principal: Principal;
     try {

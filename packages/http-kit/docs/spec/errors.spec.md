@@ -38,6 +38,7 @@ Mounted JSON errors use `{error: ApiError}`. `ApiError` includes required `code`
 | `SERVICE_UNAVAILABLE`, `NOT_CONFIGURED` | 503 | Readiness false or missing connector/research/xAI capability; configure/wait |
 | `TOOL_TOKEN_MISSING`, `TOOL_TOKEN_INVALID`, `TOOL_TOKEN_EXPIRED` | 401 | Tool credential policy failures; obtain a valid credential |
 | `TOOL_ENDPOINT_DENIED`, `TOOL_OPERATION_DENIED` | 403 | Executor/read-only/confirmation policy refusal; obtain permission or select an allowed operation |
+| `UNKNOWN_TOOL` | 404 | The tool id is not in the route's registry; use the closest names in the message or search for the tool |
 | `TOOL_NOT_AVAILABLE` | 503 | Executor dependency unavailable; configure the capability |
 | `TOOL_EXECUTION_FAILED` | 422 | Delegated failed result explicitly vouched model-safe by the host; act on the disclosed message |
 | `REMOTE_TOOL_BRIDGE_NOT_CONFIGURED` | 503 | Dedicated bridge token absent; configure the host secret |
