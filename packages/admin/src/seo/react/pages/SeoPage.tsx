@@ -1,12 +1,11 @@
-import { useAnalyzePanel, useSeoDefaults, useSeoTabs } from "../hooks/SeoPage.hooks.js";
+import { useSeoDefaults, useSeoTabs } from "../hooks/SeoPage.hooks.js";
 import type { SeoTabController, SeoTabId } from "../hooks/SeoPage.hooks.js";
 
 import { agentHandle } from "@jini-ai/core/agent-handles";
 
-import { TabBar, InfoTip, WidgetSelect as Select } from "../../../react/kit.js";
+import { TabBar, InfoTip } from "../../../react/kit.js";
 import { useSeoCopy, useSeoOptions } from "../hooks/SeoPorts.hooks.js";
 import { actionLabel, orEmpty, xIsCustomized, xResolvedValue } from "../../rules.js";
-import { useWiredEntryPicker } from "../hooks/use-entry-picker.hooks.js";
 import { useWiredSeoEntryPanel } from "../hooks/use-seo-entry-panel.hooks.js";
 import { useSeoEntrySection } from "../hooks/use-seo-entry-section.hooks.js";
 import { useWiredSeo } from "../hooks/use-seo.hooks.js";
@@ -14,8 +13,12 @@ import { useSeoPageActions, sitemapStateLabel } from "../hooks/SeoPage.hooks.js"
 import { MediaRefField } from "../components/MediaRefField.js";
 import { SitemapModal } from "../components/SitemapModal.js";
 
-import type { SeoEntryAnalysis, SeoEntryPanelController } from "../../models.js";
+import type { SeoEntryPanelController } from "../../models.js";
 import { SeoSection } from "../components/SeoSection.js";
+import { EntryPicker } from "../components/EntryPicker.js";
+import { AnalyzePanel } from "../components/AnalyzePanel.js";
+
+
 
 
 /**
@@ -77,93 +80,6 @@ import { SeoSection } from "../components/SeoSection.js";
  * changed is the constraint that matters — all seven fields still live in one `<form>`, submitted
  * as one `FormData`, with nothing about them conditional.
  */
-
-export interface EntryPickerProps {
-  locale: string;
-  entryId: string;
-  onChange: (entryId: string) => void;
-  /** Dependency injection seam for tests — the same convention `@jini-ai/ui`'s `CustomSelect` uses
-   *  for `useCustomSelect`. */
-  useEntryPickerHook?: typeof useWiredEntryPicker;
-}
-
-/** Searchable picker over every page + post, sourced from the already-existing `listPosts`/`listPages`
- * routes (REQ-06). It was a native `<select>`; with a few dozen entries that opened as one tall OS
- * list with "(published)" after every row (owner, 2026-10-15: "we have a searchable dropdown
- * right?"). The shared admin-widgets `Select` already types-to-filter and handles the keyboard, so
- * rows are just grouped Pages/Posts with a pill only for the non-published exceptions
- * (`entryPickerOptions` in `rules.ts`). */
-function EntryPicker({ locale, entryId, onChange, useEntryPickerHook = useWiredEntryPicker }: EntryPickerProps) {
-  const t = useSeoCopy();
-  const { entries, options, error } = useEntryPickerHook();
-
-  if (error) return <div className="jini-notice jini-notice-error">{error}</div>;
-  if (!entries) return <div className="jini-notice">{t({ locale: locale, key: "Loading entries…" })}</div>;
-
-  /* The "Entry" caption is no longer painted (owner, 2026-09-06: "you can actually just get rid of
-     'Entry'") — the placeholder already says "Choose an entry…", so the visible word was saying it
-     twice. It stays the control's accessible name (now `aria-label` on the combobox trigger) rather
-     than leaving a placeholder-only control with no name at all. The i18n key is unchanged. */
-  return (
-    <div className="jini-seo-entry-picker">
-      <Select
-        value={entryId}
-        onChange={onChange}
-        options={options ?? []}
-        placeholder={t({ locale: locale, key: "Choose an entry…" })}
-        aria-label={t({ locale: locale, key: "Entry" })}
-        agentHandle="seo-entry-picker"
-        translate={(key) => t({ locale, key })}
-      />
-    </div>
-  );
-}
-
-/** Status-chip modifier for an issue: errors read as failures, warnings as warnings, anything else as success. */
-function issueStatusClass(severity: string): string {
-  if (severity === "error") return "failure";
-  return severity === "warning" ? "warning" : "success";
-}
-
-/** Read-only score + issues view (REQ-07) — exact field names read off `SeoAnalysis`/`SeoIssue`
- * (`src/seo/types.ts`), not guessed. No state of its own — only the severity sort, which lives in
- * `rules.ts` as `sortIssuesBySeverity`. */
-function AnalyzePanel(props: { locale: string; analysis: SeoEntryAnalysis }) {
-  const t = useSeoCopy();
-  const { locale } = props;
-  const { sortedIssues, tone } = useAnalyzePanel({ analysis: props.analysis });
-
-  /* Heading + score pill on one line, issues as a compact list (owner, 2026-10-15: the bare
-     "Score: 100 / No issues." read as unstyled text). The pill reuses the issue pills' status
-     tones, so the score and the issues under it speak one colour language. */
-  return (
-    <section className="jini-seo-analyze-panel" aria-labelledby="seo-analysis-heading">
-      <div className="jini-seo-analyze-head">
-        <h3 id="seo-analysis-heading">{t({ locale: locale, key: "Analysis" })}</h3>
-        <span className={`jini-status jini-status-${tone} jini-seo-score`}>
-          {t({ locale: locale, key: "Score:" })} <strong>{props.analysis.score}</strong>
-        </span>
-      </div>
-      {sortedIssues.length === 0 ? (
-        <p className="jini-seo-analyze-empty">{t({ locale: locale, key: "No issues." })}</p>
-      ) : (
-        <ul className="jini-seo-issues">
-          {sortedIssues.map((issue, i) => (
-            <li key={`${issue.code}-${i}`} className="jini-seo-issue">
-              <span className={`jini-status jini-status-${issueStatusClass(issue.severity)}`}>
-                {issue.severity}
-              </span>
-              <span className="jini-seo-issue-text">
-                {issue.message}
-                {issue.field ? <span className="jini-muted-cell"> ({issue.field})</span> : null}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
 
 export interface SeoEntryPanelProps {
   locale: string;
