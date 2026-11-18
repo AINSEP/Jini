@@ -5,7 +5,7 @@ import { useController } from "../../../core/react/use-controller.js";
 import { createFormSubmissionsController, initialFormSubmissionsState, type FormSubmissionsState } from "../../controllers/form-submissions.controller.js";
 import { useCallback, useEffect, useRef } from "react";
 import type { AdminFormSubmission } from "../../models.js";
-import { describeApiError as describeCoreApiError } from "../../../core/transport/errors.js";
+import { describeApiError as describeCoreApiError } from '@jini-ai/core/admin-runtime';
 const describeApiError = (e: unknown, fallback: string) => describeCoreApiError({ e, fallback });
 import { useFetchQuery, useInvalidate, useSettlementGeneration } from "../../../react/kit.js";
 import { KEYS } from "../../rules.js";

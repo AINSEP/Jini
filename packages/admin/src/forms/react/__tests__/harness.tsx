@@ -2,7 +2,7 @@ import { createFormCollectionRegistry, describeFormCollectionProviders } from '@
 import { useMemo, type ReactNode } from 'react';
 import { FetchQueryProvider } from '@jini-ai/ui/fetch-query';
 import { createHttpTransport } from '../../../core/transport/http.js';
-import { AdminApiError } from '../../../core/transport/errors.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import { createAdminShellNavigation } from '../../../browser/shell-navigation.js';
 import { createHttpFormsApi, createHttpFormsTrash, type FormsTransportPort } from '../../adapters/http.js';
 import { FormsPortsContext, FormsOptionsContext } from '../hooks/FormsPorts.hooks.js';

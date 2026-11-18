@@ -1,4 +1,4 @@
-import { createControllerStore } from '../../core/module/controller-store.js';
+import { createControllerStore } from '@jini-ai/core/admin-runtime';
 import type { SourceControlApiPort } from '../ports.js';
 import type { SourceControlState, SourceControlDraft, SourceControlCredential, SourceControlConnection, SourceControlProviderInfo } from '../models.js';
 import { blankSourceControlDraft, sourceControlProviders, defaultSourceControlCredential, sourceControlReady, buildSourceControlConnection, sourceControlSummary, sourceControlErrorMessage } from '../rules.js';

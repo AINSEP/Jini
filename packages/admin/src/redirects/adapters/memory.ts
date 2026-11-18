@@ -1,4 +1,4 @@
-import { AdminApiError } from '../../core/transport/errors.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import type { AdminRedirect, AdminRedirectCreateInput, AdminRedirectHitStats, AdminRedirectImportResult, AdminRedirectsPort } from '../../core/ports/redirects.js';
 /** Presentation backend, not a routing engine: host validators/origin policy remain server owned.
  * Optional validation lets a host model its own open match vocabulary without a second schema.

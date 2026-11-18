@@ -1,6 +1,6 @@
 import type { FormProviderDescription } from '@jini-ai/core/contracts/forms';
 import type { AdminFormsPort, AdminFormDefinition, AdminFormSubmission, AdminFormUpdatePatch } from '../../core/ports/forms.js';
-import { AdminApiError } from '../../core/transport/errors.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import type { FormsTrashPort } from '../ports.js';
 // Keep this disposable browser fixture independent of the CMS runtime.
 const DEFAULT_PROVIDERS: readonly FormProviderDescription[] = [{ id: 'builtin', label: 'Built-in', fields: [], answers: 'Answers are stored in the built-in inbox.', validation: 'The built-in receiver validates the declared form fields.', frameOrigins: [], available: true }];

@@ -5,7 +5,7 @@
 import { createElement, useMemo, type ReactNode } from 'react';
 import { createAdmin } from '../../../core/module/create-admin.js';
 import { createHttpTransport } from '../../../core/transport/http.js';
-import { AdminApiError } from '../../../core/transport/errors.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import type { AdminComment, AdminCommentsPort, AdminCommentsQueuePage, CommentsSettings, CommentModerationAction, CommentStatus } from '../../../core/ports/comments.js';
 import { createMemoryCommentsApi } from '../../adapters/memory.js';
 import { createHttpCommentsApi, createHttpCommentsSession, type CommentsTransportPort } from '../../adapters/http.js';

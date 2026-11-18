@@ -1,5 +1,5 @@
 import type { RowMenuItem } from "../react/components/RowMenu/RowMenu.js";
-import { AdminApiError as ApiError, describeApiError as describeCoreApiError } from "../core/transport/errors.js";
+import { AdminApiError as ApiError, describeApiError as describeCoreApiError } from '@jini-ai/core/admin-runtime';
 import type { AdminFormDefinition, AdminFormField } from "./models.js";
 const describeApiError = (e: unknown, fallback: string) => describeCoreApiError({ e, fallback });
 import type { QueryKey } from "@jini-ai/core/fetch";

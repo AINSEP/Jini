@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from '../../../__tests__/fetch-query-support.js';
-import { AdminConfigError } from '../../../core/module/index.js';
+import { AdminConfigError } from '@jini-ai/core/admin-runtime';
 import { createOverlayController } from '../../../react/overlays.js';
 import { createMemoryMediaApi } from '../../adapters/memory.js';
 import type { MediaAsset } from '../../models.js';

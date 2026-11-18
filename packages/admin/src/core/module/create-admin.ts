@@ -10,15 +10,7 @@ import type {
   PortMap,
   PortValues,
 } from '@jini-ai/core/contracts/admin-module';
-const bulletLine = (issue: string) => `- ${issue}`;
-export class AdminConfigError extends Error {
-  readonly issues: readonly string[];
-  constructor({ issues }: { issues: readonly string[] }, _optional: Record<string, never> = {}) {
-    super(`Invalid admin configuration:\n${issues.map(bulletLine).join('\n')}`);
-    this.name = 'AdminConfigError';
-    this.issues = Object.freeze([...issues]);
-  }
-}
+import { AdminConfigError } from '@jini-ai/core/admin-runtime';
 type UnionToIntersection<U> = (U extends unknown ? (x: U) => void : never) extends (
   x: infer I,
 ) => void

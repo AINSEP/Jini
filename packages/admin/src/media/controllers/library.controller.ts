@@ -1,4 +1,4 @@
-import { createControllerStore } from '../../core/module/controller-store.js';
+import { createControllerStore } from '@jini-ai/core/admin-runtime';
 import { queryMedia, countMediaTabs, canRestoreMedia, isRetryableMediaError } from '../rules.js';
 import type { MediaApiPort } from '../ports.js';
 import type { MediaAsset, MediaQuery, UploadInput } from '../models.js';

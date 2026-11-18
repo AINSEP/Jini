@@ -1,6 +1,5 @@
 import type { AdminComment, CommentModerationAction, CommentsSettings, CommentStatus } from '../core/ports/comments.js';
-import { describeApiError } from '../core/transport/errors.js';
-import { hasPermission } from '../core/permissions/rules.js';
+import { describeApiError, hasPermission } from '@jini-ai/core/admin-runtime';
 import type { RowMenuItem } from '../react/components/RowMenu/RowMenu.js';
 import { englishComments, type CommentsTranslator } from './messages.en.js';
 

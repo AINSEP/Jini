@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import { AdminConfigError } from '../../../core/module/create-admin.js';
+import { AdminConfigError } from '@jini-ai/core/admin-runtime';
 import type { AdminCommentsPort } from '../../../core/ports/comments.js';
 import type { CommentsEventsPort, CommentsSessionPort } from '../../ports.js';
 import { englishComments, type CommentsTranslator } from '../../messages.en.js';

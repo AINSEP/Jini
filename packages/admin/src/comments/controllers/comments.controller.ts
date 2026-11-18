@@ -1,5 +1,4 @@
-import { createControllerStore } from '../../core/module/controller-store.js';
-import { describeApiError } from '../../core/transport/errors.js';
+import { createControllerStore, describeApiError } from '@jini-ai/core/admin-runtime';
 import type { CommentsState } from '../models.js';
 
 /** Permissions settle from the shared query cache; absent grants default to denied. */

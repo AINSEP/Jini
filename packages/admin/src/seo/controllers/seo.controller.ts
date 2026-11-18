@@ -1,4 +1,4 @@
-import { createControllerStore } from '../../core/module/controller-store.js';
+import { createControllerStore } from '@jini-ai/core/admin-runtime';
 import type { AdminSeoPort } from '../ports.js';
 import { initialSeoState, describeSeoError } from '../models.js';
 import type { SeoState, SeoTranslator, SeoSettingsPatch } from '../models.js';

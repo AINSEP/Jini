@@ -4,7 +4,7 @@
  * which is what makes the shell's behaviour testable without rendering anything.
  */
 
-import { hasPermission } from '../permissions/rules.js';
+import { hasPermission } from '@jini-ai/core/admin-runtime';
 import type { AdminNavEntry, AdminPanel } from './types.js';
 
 /** What the host has actually wired, as seen by the registry. */

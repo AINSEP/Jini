@@ -1,7 +1,6 @@
 import type { AdminCommentsPort, AdminCommentsQueuePage, CommentsSettings } from '../../core/ports/comments.js';
 import type { CommentsSessionPort } from '../ports.js';
-import { AdminApiError } from '../../core/transport/errors.js';
-import { querySuffix } from '../../core/transport/query-suffix.js';
+import { AdminApiError, querySuffix } from '@jini-ai/core/admin-runtime';
 
 /** The host owns auth, URL prefixes, retries, serialization, and decoded status/body errors. */
 export interface CommentsTransportPort {
@@ -39,7 +38,7 @@ export function createHttpCommentsApi(
       if (options.cursor) params.set('cursor', options.cursor);
       if (options.limit) params.set('limit', String(options.limit));
       const qs = params.toString();
-      return request<AdminCommentsQueuePage>({ transport, path: `${base}/queue${querySuffix(qs)}`, method: 'GET' });
+      return request<AdminCommentsQueuePage>({ transport, path: `${base}/queue${querySuffix({ query: qs })}`, method: 'GET' });
     },
     async moderateComment({ commentId, action, expectedVersion }, options = {}) {
       await request<void>({ transport, path: `${base}/${encodeURIComponent(commentId)}/${action}`, method: 'POST', body: { expectedVersion, note: options.note } });

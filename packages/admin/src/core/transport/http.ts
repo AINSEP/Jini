@@ -8,7 +8,7 @@
  * `.catch(() => ({}))` outcome on a body that is not JSON, while distinguishing it from parsed null.
  */
 
-import { AdminApiError } from './errors.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import type { AdminClient, AdminRouteGroupFactory, AdminTransport } from './types.js';
 
 /**

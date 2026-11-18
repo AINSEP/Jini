@@ -1,7 +1,7 @@
 import type { FormProviderDescription } from "@jini-ai/core/contracts/forms";
 import type { AdminFormProviderSelection, AdminFormsPort } from "../../../core/ports/forms.js";
 import { formView } from "../../models.js";
-import { describeApiError } from "../../../core/transport/errors.js";
+import { describeApiError } from '@jini-ai/core/admin-runtime';
 import { useFormsPorts, useFormsOptions } from "./FormsPorts.hooks.js";
 import { useController } from "../../../core/react/use-controller.js";
 import { createFormEditorController, initialFormEditorState, type FormEditorState } from "../../controllers/form-editor.controller.js";

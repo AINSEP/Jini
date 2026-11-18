@@ -1,5 +1,4 @@
-import { createControllerStore } from '../../core/module/controller-store.js';
-import { hasPermission } from '../../core/permissions/rules.js';
+import { createControllerStore, hasPermission } from '@jini-ai/core/admin-runtime';
 import type { AdminCommentsPort, CommentsSettings } from '../../core/ports/comments.js';
 import type { CommentSettingsState } from '../models.js';
 import { buildSettingsPatch, validateSettingsPatch, visibleCommentSettingsError } from '../rules.js';

@@ -3,7 +3,7 @@
  */
 import { createElement } from 'react';
 import type { AdminRedirect, AdminRedirectCreateInput, AdminRedirectHitStats, AdminRedirectImportResult, AdminRedirectsPort } from '../../../core/ports/redirects.js';
-import { AdminApiError } from '../../../core/transport/errors.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import { createHttpRedirectsApi } from '../../adapters/http.js';
 import { createMemoryRedirectsApi } from '../../adapters/memory.js';
 import { useRedirects as useCoreRedirects } from '../hooks/use-redirects.hooks.js';

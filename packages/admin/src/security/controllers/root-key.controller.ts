@@ -1,4 +1,4 @@
-import { createControllerStore } from '../../core/module/controller-store.js';
+import { createControllerStore } from '@jini-ai/core/admin-runtime';
 import type { RootKeyPort } from '../ports.js';
 import type { RootKeyStatus, RootKeyPreview, RootKeyResult } from '../models.js';
 import { ROOT_KEY_PERMISSION, START_FRESH_CONFIRMATION, isRootKeyLocked } from '../rules.js';

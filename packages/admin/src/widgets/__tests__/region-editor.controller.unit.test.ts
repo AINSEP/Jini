@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { AdminApiError } from '../../core/transport/errors.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import { createMemoryWidgetsApi } from '../adapters/memory.js';
 import { createWidgetRegionEditorController } from '../controllers/region-editor.controller.js';
 import type { AdminWidgetsPort } from '../ports.js';

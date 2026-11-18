@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import { AdminConfigError } from '../../../core/module/index.js';
+import { AdminConfigError } from '@jini-ai/core/admin-runtime';
 import type { AdminRedirectsPort } from '../../../core/ports/redirects.js';
 import type { RedirectsEventsPort } from '../../ports.js';
 export interface RedirectsPorts { readonly redirectsApi: AdminRedirectsPort; readonly redirectsEvents?: RedirectsEventsPort }

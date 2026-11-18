@@ -1,7 +1,8 @@
 import { StrictMode, Suspense } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, renderHook, screen } from '../../../__tests__/fetch-query-support.js';
-import { AdminConfigError, createAdmin } from '../../../core/module/index.js';
+import { AdminConfigError } from '@jini-ai/core/admin-runtime';
+import { createAdmin } from '../../../core/module/index.js';
 import { agentPlugins } from '../index.js';
 import { createMemoryAgentPluginsApi } from '../../adapters/memory.js';
 import { AgentPluginListPanel } from '../components/AgentPluginListPanel.js';

@@ -1,4 +1,4 @@
-import { createControllerStore } from '../../core/module/controller-store.js';
+import { createControllerStore } from '@jini-ai/core/admin-runtime';
 /** Button-controlled query gate: many mounted rows never cause a burst of hit requests.
  * @example createHitCountController({}, {});
  */

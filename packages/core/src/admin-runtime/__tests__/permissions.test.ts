@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasPermission } from '../permissions/rules.js';
+import { hasPermission } from '../panel-access.js';
 
 describe('hasPermission', () => {
   it('matches an exact grant', () => {

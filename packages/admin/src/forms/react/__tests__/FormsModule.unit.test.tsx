@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import ts from 'typescript';
 import { FetchQueryProvider } from '@jini-ai/ui/fetch-query';
 import { createAdmin } from '../../../core/module/create-admin.js';
-import { AdminApiError } from '../../../core/transport/errors.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import { createMemoryFormsApi } from '../../adapters/memory.js';
 import { forms } from '../index.js';
 

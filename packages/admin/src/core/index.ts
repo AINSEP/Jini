@@ -29,22 +29,8 @@ export {
   stripTrailingSlash,
 } from './routing/rules.js';
 
-// Permissions — affordance only, never an authorization boundary.
-export {
-  hasPermission,
-  isPanelAccessible,
-  withoutInaccessiblePanels,
-  type AdminPanelAccessDeclaration,
-  type AdminPanelAccessEntry,
-} from './permissions/rules.js';
-
 // Transport — the seam every route group is built on.
-export {
-  AdminApiError,
-  createAdminClient,
-  createHttpTransport,
-  describeApiError,
-} from './transport/index.js';
+export { createAdminClient, createHttpTransport } from './transport/index.js';
 export type {
   AdminClient,
   AdminRouteGroupFactory,

@@ -14,7 +14,7 @@
  * cannot satisfy.
  *
  * **An error-code enum.** Codes like `GRANT_EXCEEDS_ISSUER` and `OWNER_REQUIRED` are real and
- * load-bearing, but their operator-facing *wording* is host-specific — see `transport/errors.ts`
+ * load-bearing, but their operator-facing *wording* is host-specific — see `@jini-ai/core/admin-runtime`'s `admin-api-error.ts`
  * on why a shared code->message table is a regression. Panels read `AdminApiError.code` and map
  * it themselves.
  *

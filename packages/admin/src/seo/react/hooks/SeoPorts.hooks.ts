@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import { AdminConfigError } from '../../../core/module/index.js';
+import { AdminConfigError } from '@jini-ai/core/admin-runtime';
 import type { AdminSeoPort, SeoEventsPort } from '../../ports.js';
 import type { MediaPickerPort } from '../../../contracts/media-picker.js';
 import type { SeoReactOptions } from '../options.js';

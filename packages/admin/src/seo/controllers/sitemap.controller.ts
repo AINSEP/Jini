@@ -1,4 +1,4 @@
-import { createControllerStore } from '../../core/module/controller-store.js';
+import { createControllerStore } from '@jini-ai/core/admin-runtime';
 import type { AdminSeoPort } from '../ports.js';
 import type { SitemapState, SitemapModalView } from '../models.js';
 /** Disabled is terminal, distinct from loading. Refetch generations ignore older responses. */

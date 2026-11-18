@@ -1,7 +1,7 @@
 import { DataTable } from '../../../react/components/DataTable.js';
 import { ConfirmDialog } from '../../../react/components/ConfirmDialog/ConfirmDialog.js';
 import { agentHandle } from '@jini-ai/core/agent-handles';
-import { describeApiError } from '../../../core/transport/errors.js';
+import { describeApiError } from '@jini-ai/core/admin-runtime';
 import { ImportRedirectsForm } from '../components/ImportRedirectsForm.js';
 import { useWiredRedirects } from '../hooks/wired.hooks.js';
 import { useRedirectsPage } from '../hooks/RedirectsPage.hooks.js';

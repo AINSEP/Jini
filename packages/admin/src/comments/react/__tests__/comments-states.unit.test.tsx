@@ -4,7 +4,7 @@ import { FetchQueryProvider } from "@jini-ai/ui/fetch-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createAdmin } from "../../../core/module/create-admin.js";
-import { AdminConfigError } from "../../../core/module/create-admin.js";
+import { AdminConfigError } from '@jini-ai/core/admin-runtime';
 import type { AdminComment, CommentsSettings } from "../../../core/ports/comments.js";
 import { createMemoryCommentsApi } from "../../adapters/memory.js";
 import { englishComments, type CommentsTranslator } from "../../messages.en.js";

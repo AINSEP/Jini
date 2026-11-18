@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react';
 import type { MediaApiPort, MediaProvidersPort, MediaEventsPort } from '../../ports.js';
-import { AdminConfigError } from '../../../core/module/index.js';
+import { AdminConfigError } from '@jini-ai/core/admin-runtime';
 export interface MediaPorts {
   readonly mediaApi: MediaApiPort;
   readonly mediaProviders?: MediaProvidersPort;

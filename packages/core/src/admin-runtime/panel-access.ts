@@ -22,8 +22,6 @@
  * actually allowed.
  */
 
-import type { AdminNavGroup } from '../manifest/rules.js';
-import type { AdminPanel } from '../manifest/types.js';
 
 /**
  * True iff `permissions` grants `permission` — either an exact match, or the unconstrained owner
@@ -37,7 +35,17 @@ export function hasPermission({ permissions, permission }: { readonly permission
 }
 
 /** What {@link isPanelAccessible} reads from a panel: its two permission declarations. */
-export type AdminPanelAccessDeclaration = Pick<AdminPanel, 'permissions' | 'anyOfPermissions'>;
+export interface AdminPanelAccessDeclaration {
+  /** All-of: every one must be held. */
+  readonly permissions?: readonly string[];
+  /** Any-of: at least one must be held. */
+  readonly anyOfPermissions?: readonly string[];
+}
+
+/** The part of a nav group this rule reads: rows that carry the id of the panel they open. */
+export interface AdminNavGroupShape {
+  readonly items: readonly { readonly id: string }[];
+}
 
 /** A declaration plus the id that ties it to a nav row. */
 export type AdminPanelAccessEntry = AdminPanelAccessDeclaration & { readonly id: string };
@@ -79,14 +87,14 @@ export function isPanelAccessible(
  *
  * @complexity O(n + p + n * d * m): a Map over p panels, then n nav rows.
  */
-export function withoutInaccessiblePanels(
+export function withoutInaccessiblePanels<G extends AdminNavGroupShape>(
   { groups, panels, permissions }: {
-    readonly groups: readonly AdminNavGroup[];
+    readonly groups: readonly G[];
     readonly panels: readonly AdminPanelAccessEntry[];
     readonly permissions: readonly string[] | undefined;
   },
   _options: Record<string, never> = {},
-): readonly AdminNavGroup[] {
+): readonly G[] {
   if (permissions === undefined) return groups;
   const panelsById = new Map(panels.map((panel) => [panel.id, panel] as const));
   return groups

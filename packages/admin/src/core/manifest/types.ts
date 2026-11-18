@@ -173,7 +173,7 @@ export interface AdminPanel<TRender = unknown> {
    * is implied by the others. When `permissions` is also declared, both must pass.
    *
    * Unlike `permissions`, this is not applied by `resolvePanels`: it is read by
-   * `isPanelAccessible` / `withoutInaccessiblePanels` (`core/permissions/rules.ts`), which the shell
+   * `isPanelAccessible` / `withoutInaccessiblePanels` (`@jini-ai/core/admin-runtime`), which the shell
    * uses for nav visibility and the `noAccess` screen. Same contract: **affordance only, never an
    * authorization boundary**; the server re-checks every operation.
    */

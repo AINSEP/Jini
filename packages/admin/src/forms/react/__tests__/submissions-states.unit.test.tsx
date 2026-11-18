@@ -1,11 +1,10 @@
 import { Component, Suspense, type ReactNode } from "react";
-import { AdminApiError } from '../../../core/transport/errors.js';
+import { AdminApiError, AdminConfigError } from '@jini-ai/core/admin-runtime';
 import { act, cleanup, render, renderHook, screen, waitFor } from "../../../__tests__/fetch-query-support.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FetchQueryProvider } from "@jini-ai/ui/fetch-query";
 
 import { createAdmin } from "../../../core/module/create-admin.js";
-import { AdminConfigError } from "../../../core/module/create-admin.js";
 import type { AdminFormDefinition as CoreForm, AdminFormSubmission as CoreSubmission } from "../../../core/ports/forms.js";
 import { createMemoryFormsApi } from "../../adapters/memory.js";
 import type { AdminFormDefinition, AdminFormSubmission } from "../../models.js";

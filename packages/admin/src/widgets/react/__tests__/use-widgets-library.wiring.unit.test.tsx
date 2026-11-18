@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '../../../__tests__/fetch-query-support.js';
 import { describe, expect, it, vi } from 'vitest';
-import { AdminApiError } from '../../../core/transport/errors.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import { createMemoryWidgetsApi } from '../../adapters/memory.js';
 import { useWidgetsLibrary, type WidgetsLibraryController } from '../hooks/use-widgets-library.hooks.js';
 import type { AdminWidget } from '../../models.js';

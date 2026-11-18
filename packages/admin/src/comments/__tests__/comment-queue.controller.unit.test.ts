@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createCommentQueueController } from '../controllers/comment-queue.controller.js';
 import type { AdminComment, AdminCommentsPort, AdminCommentsQueuePage, CommentStatus } from '../../core/ports/comments.js';
-import { AdminApiError } from '../../core/transport/errors.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import type { CommentsTranslator } from '../messages.en.js';
 
 const ALL = ['comments.moderate', 'comments.delete', 'comments.delete.force'];

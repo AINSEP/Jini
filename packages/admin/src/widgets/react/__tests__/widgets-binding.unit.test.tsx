@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, renderHook, screen, waitFor } from '../../.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FetchQueryProvider } from '@jini-ai/ui/fetch-query';
 import { createAdmin } from '../../../core/module/index.js';
-import { AdminApiError } from '../../../core/transport/errors.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import { createMemoryWidgetsApi, type MemoryWidgetsSeed } from '../../adapters/memory.js';
 import type { AdminWidgetsPort } from '../../ports.js';
 import type { AdminWidget } from '../../models.js';
