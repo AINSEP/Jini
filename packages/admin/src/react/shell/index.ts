@@ -4,7 +4,7 @@ export { useAdminShellSession } from './use-admin-shell-session.js';
 export type {
   AdminShellBaseProps, AdminShellContext, AdminShellHostProps, AdminShellLabels, AdminShellNavigationPort, AdminShellPanel, AdminShellProps,
   AdminShellRenderArgs, AdminShellSession, AdminShellSessionController, AdminShellSessionPort,
-  AdminShellSessionSource, AdminShellSessionState, AdminShellSlotArgs, AdminShellSlots,
+  AdminShellSessionSource, AdminShellSessionState, AdminShellSidebarArgs, AdminShellSidebarProps, AdminShellSlotArgs, AdminShellSlots,
 } from './types.js';
 export type { AdminThemePreferenceStorePort, AdminThemeEnvironment, AdminShellAppearance } from './theme-ports.js';
 export { useAdminTheme } from './use-admin-theme.js';
