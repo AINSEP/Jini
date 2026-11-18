@@ -3,8 +3,46 @@ export { formsApiToken, formsTrashToken, formsEventsToken, formsNavigationToken 
 export type { AdminFormsPort, FormsTrashPort, FormsEventsPort, FormsNavigationPort } from './ports.js';
 export type { AdminFormDefinition, AdminFormField, AdminFormNotify, AdminFormSubmission, FormsTranslator } from './models.js';
 export { formsMessagesEn, translateForms } from './messages.en.js';
-export * from './rules.js';
-export * from './html-rules.js';
+export {
+  FORMS_LIST_RESOURCE,
+  newestUpdatedForms,
+  formDateDisplay,
+  formDatesLines,
+  KEYS,
+  visibleFormEditorError,
+  formsListError,
+  describeTrashError,
+  formRowMenuItems,
+  FIELD_TYPES,
+  FORM_TABS,
+  nextTabIndex,
+  blankField,
+  fieldDisplayName,
+  updateFormField,
+  replaceFormField,
+  addFormField,
+  removeFormField,
+  existingFieldIdsOf,
+  ATTRIBUTE_NAME_PATTERN,
+  MAX_CLASS_NAME_LENGTH,
+  MAX_ATTRIBUTES_PER_FIELD,
+  ATTRIBUTE_NAME_SUGGESTIONS,
+  attrRowsFromField,
+  updateAttrRow,
+  removeAttrRow,
+  addAttrRow,
+  buildFieldAttributesPatch,
+} from './rules.js';
+export type { FormDateLine, FormRowMenuHandlers, AttrRow, FieldAttributesSubmitResult } from './rules.js';
+export {
+  formAnswerColumns,
+  formAnswerFile,
+  formatFormAnswer,
+  formSubmissionRows,
+  formHtmlStarter,
+  formHtmlEmbed,
+} from './html-rules.js';
+export type { FormAnswerColumn, FormAnswerDisplay, FormAnswerFile } from './html-rules.js';
 export { createFormsListController } from './controllers/forms-list.controller.js';
 export { createFormEditorController } from './controllers/form-editor.controller.js';
 export { createFormFieldsEditorController } from './controllers/form-fields-editor.controller.js';
