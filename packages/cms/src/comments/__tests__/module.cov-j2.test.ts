@@ -3,6 +3,7 @@ import { describe, test } from "vitest";
 
 import { InMemoryOutbox } from "../../redirects/__tests__/support/events.fixture.js";
 import * as comments from "../index.js";
+import * as agentTools from "../agent-tools.js";
 import * as errors from "../errors.js";
 import * as hooks from "../hooks.js";
 import * as ingress from "../ingress.js";
@@ -11,6 +12,7 @@ import * as repoMemory from "../repo.memory.js";
 import * as sanitize from "../sanitize.js";
 import * as settingsLimits from "../settings-limits.js";
 import * as spam from "../spam.heuristic.js";
+import * as toolRegistrations from "../tool-registrations.js";
 import * as types from "../types.js";
 import * as writeService from "../write-service.js";
 import type { CommentEntryView, CommentsModuleDeps } from "../module.js";
@@ -127,7 +129,7 @@ describe("createCommentsModule wiring", () => {
 
 describe("@jini-ai/cms/comments barrel", () => {
   test("re-exports every module's runtime surface by identity, and nothing else", () => {
-    const sources = [types, hooks, ingress, writeService, spam, sanitize, errors, settingsLimits, repoMemory, moduleExports];
+    const sources = [types, hooks, ingress, writeService, spam, sanitize, errors, settingsLimits, agentTools, toolRegistrations, repoMemory, moduleExports];
     const expected = new Map<string, unknown>();
     for (const source of sources) for (const [name, value] of Object.entries(source)) expected.set(name, value);
     assert.deepEqual(Object.keys(comments).sort(), [...expected.keys()].sort());
