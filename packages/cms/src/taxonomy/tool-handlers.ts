@@ -12,9 +12,8 @@
  * the source term's assignments with no Trash or undo. On the human's click it confirms as that
  * human and executes as the agent acting for them.
  */
-import { AGENT_TOOL_PRINCIPAL_KIND, optionalString, requireInputRecord, requireString, ToolInputError, type HumanConfirmer, type ToolExecutionContext, type ToolHandler } from "@jini-ai/core";
+import { AGENT_TOOL_PRINCIPAL_KIND, optionalString, requireInputRecord, requireString, ToolInputError, type HumanConfirmer, type ToolExecutionContext, type ToolHandler, hostReadRef, resolveHostReadText } from "@jini-ai/core";
 import { adaptLegacyAuthorize, requireToolPermission } from "../core/tools/index.js";
-import { hostReadRef, resolveHostReadText } from "../core/tools/host-read-vocabulary.js";
 import { listTaxonomiesWithTerms } from "./list.js";
 import { confirmMergeTerm, executeMergeTerm, planMergeTerm } from "./merge-term.js";
 import { toTaxonomyOutbox } from "./repo.memory.js";

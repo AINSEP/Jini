@@ -16,7 +16,7 @@
  * the unexpected-key refusal as ports (`CommentsPackageToolDeps`), and adds its own search
  * vocabulary and approval policy around the registrations this file builds.
  */
-import { buildDomainRegistrations, indexCatalogById, optionalOneOf, optionalString, readToolLimit, requireInputRecord, requireNumber, requireString, type AgentToolSideEffect, type SurfaceExchangeStore, type ToolExecutionContext, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, optionalOneOf, optionalString, readToolLimit, requireInputRecord, requireNumber, requireString, type AgentToolSideEffect, type SurfaceExchangeStore, type ToolExecutionContext, type ToolHandler, type ToolRegistration, resolveHostReadRefs, type HostReadVocabulary } from "@jini-ai/core";
 // `ToolInputError` specifically: it is the marker the daemon's tool executor reads to classify a
 // rejection 400 rather than redacting it into a message-stripped 500.
 import { ToolInputError } from "@jini-ai/core";
@@ -26,7 +26,6 @@ import { ForbiddenError } from "../core/commands/command.js";
 import { adaptLegacyAuthorize, requireToolPermission } from "../core/tools/index.js";
 import { commentsAgentToolCatalog } from "./agent-tools.js";
 import { CommentNotFoundError, CommentsSettingsValidationError, CommentVersionConflictError } from "./errors.js";
-import { resolveHostReadRefs, type HostReadVocabulary } from "../core/tools/host-read-vocabulary.js";
 import type { CommentRepoPort } from "./ports.js";
 import { COMMENT_STATUSES, type CommentsSettings, type CommentStatus, type ModerationAction, type ModerationQueuePage } from "./types.js";
 import type { CommentWriteService } from "./write-service.js";

@@ -1,6 +1,5 @@
 import { expect, it } from "vitest";
-import type { ToolExecutionContext } from "@jini-ai/core";
-import { NEUTRAL_HOST_READ_VOCABULARY, hostReadRef, resolveHostReadRefs, type HostReadVocabulary } from "../host-read-vocabulary.js";
+import { NEUTRAL_HOST_READ_VOCABULARY, hostReadRef, resolveHostReadRefs, type HostReadVocabulary, type ToolExecutionContext } from "@jini-ai/core";
 import { buildRedirectsToolRegistrations, type RedirectsPackageToolDeps } from "../../../redirects/tool-registrations.js";
 import { buildWidgetsToolRegistrations } from "../../../widgets/tool-registrations.js";
 import type { WidgetsPackageToolDeps } from "../../../widgets/tool-handlers.types.js";

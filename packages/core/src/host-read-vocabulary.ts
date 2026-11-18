@@ -1,20 +1,20 @@
 /**
- * @file The host's read-tool vocabulary: how model-facing CMS text names the host's tool that reads
+ * @file The host's read-tool vocabulary: how model-facing domain-package text names the host's tool that reads
  * an entity back ("call X to list valid terms", "as returned by X").
  *
  * Why this is a port: the read tool is a host product's tool id (a host publishes its reads as one
  * family, and the engine may not name any host tool — `scripts/check-engine-boundaries.ts`'s
- * `HOST_TOOL_NAMES`). The CMS text therefore names an *entity* and the host says how it reads it;
+ * `HOST_TOOL_NAMES`). The package text therefore names an *entity* and the host says how it reads it;
  * a host that binds nothing gets neutral wording, so no tool id the host never registered reaches a
  * model. Same mechanism as the daemon's `ToolFamilyPort`: product names reach a model through a
  * host-supplied port, never through engine source.
  *
- * Architectural role: `core/tools` kernel — domain catalogs write `{{read:<entity>}}` placeholders
+ * Architectural role: tool kit (with `model-facing-tool-errors`) — domain catalogs write `{{read:<entity>}}` placeholders
  * in static text and `resolveHostReadRefs` fills them when a domain's registrations are built.
  */
 
-/** Entities whose read-back the CMS tool text points a model at. */
-export type HostReadEntity = "redirect" | "taxonomy" | "widget_region" | "widget_instance" | "content_post" | "comment_moderation_queue" | "seo_entry_meta";
+/** An entity whose read-back a domain's tool text points a model at, named by the domain (e.g. `redirect`, `seo_entry_meta`). */
+export type HostReadEntity = string;
 
 /** How the host names the tool call that reads an entity back. */
 export interface HostReadVocabulary {

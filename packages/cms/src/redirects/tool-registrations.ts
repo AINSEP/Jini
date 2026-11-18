@@ -14,11 +14,10 @@
  * Host policy is bound by the host, not here: the host's tool metadata (search vocabulary,
  * approval/confirmation policy) is applied around these registrations with `withToolMetadata`.
  */
-import { buildDomainRegistrations, indexCatalogById, isRecord, optionalBoolean, optionalNumber, optionalOneOf, optionalString, requireInputRecord, requireNumber, requireString, ToolInputError, type AgentToolSideEffect, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, isRecord, optionalBoolean, optionalNumber, optionalOneOf, optionalString, requireInputRecord, requireNumber, requireString, ToolInputError, type AgentToolSideEffect, type ToolHandler, type ToolRegistration, resolveHostReadRefs, type HostReadVocabulary } from "@jini-ai/core";
 import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
 import { forbiddenRule, withModelFacingErrors, type ModelFacingErrorRule } from "@jini-ai/core/model-facing-tool-errors";
 import { ForbiddenError } from "../core/commands/command.js";
-import { resolveHostReadRefs, type HostReadVocabulary } from "../core/tools/host-read-vocabulary.js";
 import { adaptLegacyAuthorize, requireToolPermission } from "../core/tools/args.js";
 import { getRedirectsAgentToolCatalog, MANAGE_REDIRECTS_PERMISSION } from "./agent-tools.js";
 import type { RedirectHitSink, RedirectRepoPort } from "./ports.js";

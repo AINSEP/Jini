@@ -1,4 +1,5 @@
 import type { AgentToolDefinition as SharedAgentToolDefinition } from "@jini-ai/core";
+import { hostReadRef } from "@jini-ai/core";
 /**
  * @file The Widgets agent-tool catalog — this domain's instance of the per-domain `agent-tools.ts`
  * convention the other domain catalogs follow.
@@ -47,7 +48,6 @@ import type { AgentToolDefinition as SharedAgentToolDefinition } from "@jini-ai/
  * the published `widgetType` enum cannot drift from what the domain actually accepts.
  */
 
-import { hostReadRef } from "../core/tools/host-read-vocabulary.js";
 import { WIDGET_TYPE_REGISTRATIONS } from "./registry.js";
 
 const MUTATES_DURABLE_STATE = "mutates-durable-state";

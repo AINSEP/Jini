@@ -4,9 +4,8 @@
  * against in `tool-handlers.types.ts`. The host's search vocabulary and approval policy are applied
  * by the host, around the result.
  */
-import { buildDomainRegistrations, indexCatalogById, ToolPermissionDeniedError, type AgentToolDefinition, type AgentToolSideEffect, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, ToolPermissionDeniedError, type AgentToolDefinition, type AgentToolSideEffect, type ToolHandler, type ToolRegistration, type HostReadVocabulary } from "@jini-ai/core";
 import { forbiddenRule, withModelFacingErrors } from "@jini-ai/core/model-facing-tool-errors";
-import type { HostReadVocabulary } from "../core/tools/host-read-vocabulary.js";
 import {
   MERGE_TOOL_ID,
   taxonomyAssignTermsHandler,

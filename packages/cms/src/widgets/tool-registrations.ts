@@ -17,8 +17,7 @@
  * either way, just relocated. This domain calls the widgets-specific helper rather than the kit's
  * generic `requireToolPermission` precisely so both paths reach the identical gate function.
  */
-import { buildDomainRegistrations, indexCatalogById, ToolInputError, withSchemaOnRejection, type AgentToolSideEffect, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
-import { hostReadRef, resolveHostReadRefs, resolveHostReadText, type HostReadVocabulary } from "../core/tools/host-read-vocabulary.js";
+import { buildDomainRegistrations, indexCatalogById, ToolInputError, withSchemaOnRejection, type AgentToolSideEffect, type ToolHandler, type ToolRegistration, hostReadRef, resolveHostReadRefs, resolveHostReadText, type HostReadVocabulary } from "@jini-ai/core";
 import { widgetsAgentToolCatalog } from "./agent-tools.js";
 import { WidgetEmbedReorderCountMismatchError } from "./embed-service.js";
 import { WidgetAreaConflictError, WidgetAreaNotFoundError, WidgetConfigValidationError, WidgetEmbedGuardrailError, WidgetEmbedHostNotFoundError, WidgetEmbedHostUnsupportedError, WidgetEmbedPlacementNotFoundError, WidgetForbiddenError, WidgetInstanceNotFoundError, WidgetTypeUnregisteredError, WidgetVersionConflictError } from "./errors.js";

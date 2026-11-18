@@ -7,8 +7,7 @@
 import type { AuthorizeFn, OutboxPort, TransactionalRepoPort } from "@jini-ai/core/contracts/events";
 import type { GatedMutationHooks, GatewayPlan, PrincipalKind } from "@jini-ai/core/gated-mutations";
 import type { Clock } from "@jini-ai/core/primitives";
-import type { HostReadVocabulary } from "../core/tools/host-read-vocabulary.js";
-import type { HumanConfirmer, SurfaceExchangeStore, ToolExecutionContext, ToolHandler } from "@jini-ai/core";
+import type { HostReadVocabulary, HumanConfirmer, SurfaceExchangeStore, ToolExecutionContext, ToolHandler } from "@jini-ai/core";
 import type { TaxonomyListPort, TermListPort } from "./list.js";
 import type { MergeTermPlanDetails, planMergeTerm } from "./merge-term.js";
 import type {

@@ -23,7 +23,7 @@
  *    tools already use (contrast `features/workspace/tool-registrations.ts`'s `workspace_update`,
  *    which self-enforces nothing and is checked only at the handler).
  */
-import { buildDomainRegistrations, indexCatalogById, requireInputRecord, requireNoInput, requireString, withSchemaOnRejection, type AgentToolSideEffect, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, requireInputRecord, requireNoInput, requireString, withSchemaOnRejection, type AgentToolSideEffect, type ToolHandler, type ToolRegistration, resolveHostReadRefs, resolveHostReadText, type HostReadVocabulary } from "@jini-ai/core";
 import type { AuthorizeFn, EventBusPort, OutboxPort } from "@jini-ai/core/contracts/events";
 import { withModelFacingErrors } from "@jini-ai/core/model-facing-tool-errors";
 import { requireExpectedVersion, versionConflictRule } from "@jini-ai/core/optimistic-concurrency";
@@ -31,7 +31,6 @@ import { adaptLegacyAuthorize, requireToolPermission } from "../core/tools/index
 import { getSeoAgentToolCatalog, type AgentToolDefinition } from "./agent-tools.js";
 import { SeoFieldValidationError, SeoInvalidCanonicalUrlError, SeoSettingsValidationError } from "./errors.js";
 import { analyzeEntry, getEntryMeta, type GetEntryMetaDeps } from "./seo.js";
-import { resolveHostReadRefs, resolveHostReadText, type HostReadVocabulary } from "../core/tools/host-read-vocabulary.js";
 import type { createSitemapService, SitemapInvalidationDeps } from "./sitemap.js";
 import type { SeoExtFieldsPatch, SeoSettings } from "./types.js";
 import { setEntrySeoOverrides, type SetEntrySeoOverridesRequired } from "./write-service.js";

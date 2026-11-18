@@ -48,7 +48,6 @@
 export * from './commands/command.js';
 export * from './entity-liveness.js';
 export * from './tools/args.js';
-export * from './tools/host-read-vocabulary.js';
 
 export type { AuthorizationPort, AuthorizationRequired, AuthorizationOptional } from './authorization.js';
 
