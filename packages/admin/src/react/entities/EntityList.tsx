@@ -9,9 +9,9 @@ import { useEntityList } from './EntityList.hooks.js';
  * Host translation, registry and navigation are injected, and this list uses the existing DataTable.
  * Relation choices are bounded to 100, expose truncation and retain raw IDs for unresolved labels.
  */
-export function EntityList(props: EntityListProps) {
+export function EntityList({ useListHook = useEntityList, ...props }: EntityListProps & { readonly useListHook?: typeof useEntityList }) {
   const { entityName, registry, translate, routes } = props;
-  const { port, entries, position, setWalk, result } = useEntityList({ entityName, registry, limitParam: props.limitParam });
+  const { port, entries, position, setWalk, result } = useListHook({ entityName, registry, limitParam: props.limitParam, refreshToken: props.refreshToken, search: props.search });
   if (port === null) return <p role="alert">{translate({ key: 'Unknown entity' })}</p>;
   if (result.error) return <p role="alert">{translate({ key: 'Unable to load rows' })}</p>;
   if (result.loading || !result.data) return <p role="status">{translate({ key: 'Loading' })}</p>;

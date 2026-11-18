@@ -17,6 +17,7 @@
       "./server": "node",
       "./react": "browser",
       "./react/testing": "browser",
+      "./react/kit": "browser",
       "./admin": "universal",
       "./admin/react": "browser",
       "./admin/adapters/http": "universal",
@@ -27,7 +28,6 @@
       "argon2": "opt-in: argon2 password hashing; import @jini-ai/user-management/server — Argon2 password hashing could not load argon2. Install argon2 to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/ui": "opt-in: ui integrations; import @jini-ai/user-management/react — UI integrations could not load @jini-ai/ui. Install @jini-ai/ui to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/admin": "opt-in: admin modules; import @jini-ai/user-management/react — Admin modules could not load @jini-ai/admin. Install @jini-ai/admin to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/agentic": "opt-in: agent-aware ui and protocols; import @jini-ai/user-management/react — Agent-aware UI and protocols could not load @jini-ai/agentic. Install @jini-ai/agentic to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/ui-kit": "opt-in: ui kit integrations; import @jini-ai/user-management/react — UI kit integrations could not load @jini-ai/ui-kit. Install @jini-ai/ui-kit to enable this feature, or check its installed version and native binaries.",
       "react": "opt-in: react user-management ui; import @jini-ai/user-management/react — React user-management UI could not load react. Install react to enable this feature, or check its installed version.",
       "react-dom": "opt-in: react user-management ui; import @jini-ai/user-management/react — React user-management UI could not load react-dom. Install react-dom to enable this feature, or check its installed version."
@@ -55,6 +55,11 @@
       "types": "./dist/react/testing.d.ts",
       "import": "./dist/react/testing.js",
       "default": "./dist/react/testing.js"
+    },
+    "./react/kit": {
+      "types": "./dist/react/kit.d.ts",
+      "import": "./dist/react/kit.js",
+      "default": "./dist/react/kit.js"
     },
     "./admin": {
       "types": "./dist/admin/index.d.ts",
@@ -108,7 +113,6 @@
   },
   "peerDependencies": {
     "@jini-ai/admin": "^0.7.0",
-    "@jini-ai/agentic": "^0.7.0",
     "@jini-ai/ui": "^0.7.0",
     "@jini-ai/ui-kit": "^0.7.0",
     "argon2": "^0.44.0",
@@ -117,7 +121,6 @@
   },
   "devDependencies": {
     "@jini-ai/admin": "workspace:*",
-    "@jini-ai/agentic": "workspace:*",
     "@jini-ai/cms": "workspace:*",
     "@jini-ai/core": "workspace:^",
     "@jini-ai/ui": "workspace:*",
@@ -143,9 +146,6 @@
       "optional": true
     },
     "@jini-ai/admin": {
-      "optional": true
-    },
-    "@jini-ai/agentic": {
       "optional": true
     },
     "@jini-ai/ui-kit": {

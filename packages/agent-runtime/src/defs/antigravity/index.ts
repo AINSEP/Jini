@@ -1,5 +1,5 @@
 import { createAgentModelDiscovery } from '../../model-discovery-native.js';
-import { redactOAuthUrls } from '@jini-ai/oauth';
+import { redactOAuthUrls } from '@jini-ai/core/text';
 import { DEFAULT_MODEL_OPTION } from '../shared.js';
 import type {
   RuntimeAgentDef,

@@ -1,3 +1,4 @@
+// GAP: G17 no public no-op outbox/dispatcher (sheet G2)
 /**
  * @file The smallest port implementations the cms services need. Clock, ids, the content-type
  * repo, the change-set repo, the entry-outbox wrapper and the rate limiter come from Jini; everything marked

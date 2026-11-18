@@ -27,6 +27,20 @@ between packages based on one — the locked/incubating/admitted gate (and the "
 locked 14" framing behind it) was removed 2026-07-28 at the user's explicit direction. `UNLOCKED.md`
 is a historical record of that removed mechanism, not something `pnpm guard` enforces.
 
+### `kind: "runtime-adapter"` — Node bindings of ports (owner decision OD-3, 2026-11-16)
+
+A package with `jini.kind: "runtime-adapter"` (today `@jini-ai/node-adapters`) binds `@jini-ai/platform`
+functions to the ports a domain package declares, and does nothing else: it exports bindings only and
+assembles no daemon, server or kernel. `pnpm guard` (rule `L5-injected-edge`) holds it to three lines:
+
+- it may import `core`, `protocol` and `platform`, and may name a domain's port **types** (a type-only import,
+  declared as a peer); a value import of a domain package, or a domain package in `dependencies`, fails;
+- only a host or a host preset (`server`, `cli`) may import it, never a domain package;
+- it never imports a host preset.
+
+It has no root barrel: one `exports` subpath per binding family, each added in the commit that adds its
+source file and test. `node-pty` stays in the `server` preset because it carries a native build.
+
 ### `entries` — when one `runtime` can't describe every export subpath
 
 `runtime` is a single value, but a package can ship more than one `exports` subpath (`.`,

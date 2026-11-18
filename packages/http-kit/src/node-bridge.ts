@@ -56,6 +56,17 @@ export interface NodeDispatcherOptions {
    * host passes its own API key shape). Ignored when `onUnhandledError` is given: that sink owns redaction.
    */
   readonly redactionPatterns?: readonly SecretRedactionPattern[];
+  /**
+   * For a host that replaces Express routes with route lists and must keep answering what Express
+   * answered. Paths match as Express 4 matches by default (fixed segments ignore letter case, one
+   * trailing slash is accepted); a `:name` segment that is not valid percent-encoding is a 400
+   * (handed to the host as an error with `status` 400 when `next` is given, so its own error page
+   * answers, otherwise a plain-words 400); and an OPTIONS request for a path some route owns is
+   * answered here, 200 with `Allow` and the methods as the body, as Express answered it. That last
+   * answer is for a host with no CORS layer above the dispatcher: a CORS layer answers a preflight
+   * itself and the request never gets here. Default `false`: exact paths, and OPTIONS goes to the host.
+   */
+  readonly expressCompatible?: boolean;
 }
 
 export interface NodeDispatcher {
@@ -236,13 +247,23 @@ export async function sendWebResponse({ response, res }: { response: Response; r
   if (await pipeBody({ body: response.body, out })) out.end();
 }
 
-function plainText({ status, text }: { status: number; text: string }, { headers = {} }: { headers?: Record<string, string> } = {}): Response {
-  return new Response(text, { status, headers: { 'content-type': 'text/plain; charset=utf-8', ...headers } });
+/** A finished plain-text answer; its length is stated, as Express stated it (a stream's is not, so only finished bodies get one). */
+function plainText({ status, text }: { status: number; text: string }, { headers = {}, type = 'text/plain; charset=utf-8' }: { headers?: Record<string, string>; type?: string } = {}): Response {
+  return new Response(text, { status, headers: { 'content-type': type, 'content-length': String(Buffer.byteLength(text)), ...headers } });
+}
+
+const MALFORMED_PATH_TEXT = 'The request address is not valid. A part of it is not valid percent-encoding.';
+
+/** What Express answers an OPTIONS request with when a route owns the path: the allowed methods, as the `Allow` header and as the body. */
+function optionsResponse({ allow }: { allow: readonly string[] }): Response {
+  const methods = allow.join(',');
+  return plainText({ status: 200, text: methods }, { headers: { allow: methods }, type: 'text/html; charset=utf-8' });
 }
 
 /** The dispatcher's own answer when no route takes the request (`match` null = no usable URL). */
 function unroutedResponse(match: RouteMatch | null): Response {
   if (!match) return plainText({ status: 400, text: 'The request address is not valid. Check the URL and the Host header.' });
+  if (match.kind === 'malformed-path') return plainText({ status: 400, text: MALFORMED_PATH_TEXT });
   if (match.kind === 'method-not-allowed') return plainText({ status: 405, text: 'Method Not Allowed' }, { headers: { allow: match.allow.join(', ') } });
   return plainText({ status: 404, text: 'Not Found' });
 }
@@ -286,6 +307,7 @@ interface Dispatch {
   readonly method: string;
   readonly options: NodeDispatchOptions;
   readonly onUnhandledError: (required: UnhandledErrorReport) => void;
+  readonly expressCompatible: boolean;
 }
 
 /** Calls the matched route and writes its answer; a handler failure goes to `next(error)` or a plain 500. */
@@ -323,32 +345,53 @@ async function serveRoute({ incoming, out, method, options, onUnhandledError }: 
   }
 }
 
+/** Writes an answer the dispatcher itself chose; a failed write cuts the connection. */
+function answerItself({ dispatch, response }: { dispatch: Dispatch; response: Response }): Promise<void> {
+  return sendWebResponse({ response, res: dispatch.out }, { headOnly: dispatch.method === 'HEAD' })
+    .catch(() => { dispatch.out.destroy(); });
+}
+
+/**
+ * The answers an `expressCompatible` dispatcher gives instead of falling through: OPTIONS on a path a route owns, and a 400 for a
+ * malformed `:name` segment. `undefined` means "not one of these", and the ordinary fall-through applies.
+ */
+function expressAnswer({ dispatch, match }: { dispatch: Dispatch; match: RouteMatch | null }): Promise<void> | undefined {
+  if (!dispatch.expressCompatible || !match) return undefined;
+  if (match.kind === 'method-not-allowed' && dispatch.method === 'OPTIONS') return answerItself({ dispatch, response: optionsResponse({ allow: match.allow }) });
+  if (match.kind !== 'malformed-path') return undefined;
+  if (!dispatch.options.next) return answerItself({ dispatch, response: unroutedResponse(match) });
+  dispatch.options.next(Object.assign(new Error(MALFORMED_PATH_TEXT), { status: 400, statusCode: 400, expose: true }));
+  return Promise.resolve();
+}
+
 /**
  * Creates a dispatcher with an empty route table.
  * @param optional.onUnhandledError - Where a handler failure goes when no `next` was given, with the reference its 500 shows (default: redacted, to stderr).
  * @param optional.redactionPatterns - Host key shapes the default stderr sink also masks.
+ * @param optional.expressCompatible - Keep Express's answers for path spellings, a bad percent-escape and OPTIONS (see {@link NodeDispatcherOptions}).
  */
 export function createNodeDispatcher(
   _required: Record<string, never> = {},
-  { onUnhandledError, redactionPatterns = [] }: NodeDispatcherOptions = {},
+  { onUnhandledError, redactionPatterns = [], expressCompatible = false }: NodeDispatcherOptions = {},
 ): NodeDispatcher {
-  const table = createRouteTable();
+  const table = createRouteTable({}, { lenientPaths: expressCompatible });
   const report = containedSink(onUnhandledError ?? stderrSink(redactionPatterns));
   const dispatch = async (dispatchArgs: Dispatch): Promise<void> => {
     const target = requestTarget({ incoming: dispatchArgs.incoming, origin: dispatchArgs.options.origin });
     const match = target ? table.match({ method: dispatchArgs.method, pathname: target.pathname }) : null;
     if (target && match?.kind === 'route') return serveRoute(dispatchArgs, { url: target.url, match });
+    const answer = expressAnswer({ dispatch: dispatchArgs, match });
+    if (answer) return answer;
     // Not ours (or no usable URL): the host's own routes and validation decide, as before the dispatcher.
     if (dispatchArgs.options.next) return dispatchArgs.options.next();
-    return sendWebResponse({ response: unroutedResponse(match), res: dispatchArgs.out }, { headOnly: dispatchArgs.method === 'HEAD' })
-      .catch(() => { dispatchArgs.out.destroy(); });
+    return answerItself({ dispatch: dispatchArgs, response: unroutedResponse(match) });
   };
   return {
     server: { route: (route) => table.route(route) },
     handle({ incoming, out }, options = {}) {
       // The promise never rejects (the Express adapter discards it): anything left is reported and
       // the connection cut. `report` is contained, and the cut runs even if it were not.
-      return dispatch({ incoming, out, method: incoming.method ?? 'GET', options, onUnhandledError: report }).catch((error: unknown) => {
+      return dispatch({ incoming, out, method: incoming.method ?? 'GET', options, onUnhandledError: report, expressCompatible }).catch((error: unknown) => {
         try {
           report({ error, reference: newErrorReference() });
         } finally {

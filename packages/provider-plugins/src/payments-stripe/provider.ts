@@ -1,4 +1,4 @@
-import { paymentError, type PaymentProvider, type ProviderCapabilities } from "@jini-ai/commerce/payments/kernel";
+import type { PaymentProvider, ProviderCapabilities, StripeProviderContext } from "./contract.js";
 import { STRIPE_CURRENCIES } from "./amount.js";
 import { createCheckoutSession } from "./checkout-session.js";
 import { stripeRequest } from "./http.js";
@@ -12,12 +12,12 @@ export const STRIPE_CAPABILITIES: ProviderCapabilities = { refunds: "none", capt
 /** Retrieves one session with its PI; incomplete or mismatched snapshots cannot confirm money.
  * @returns Evidence or a typed HTTP/unknown outcome; never infers failure from missing evidence.
  * @complexity O(n) in reference/response size; one deadline-bounded HTTP request. */
-const retrieve: NonNullable<PaymentProvider["retrieve"]> = async ({ providerRef, ctx }, _optional = {}) => {
-  const result = await stripeRequest({ ctx, method: "GET", path: `/v1/checkout/sessions/${encodeURIComponent(providerRef)}?expand%5B%5D=payment_intent` });
+const createRetrieve = ({ errors }: { errors: StripeProviderContext }): NonNullable<PaymentProvider["retrieve"]> => async ({ providerRef, ctx }, _optional = {}) => {
+  const result = await stripeRequest({ ctx, method: "GET", path: `/v1/checkout/sessions/${encodeURIComponent(providerRef)}?expand%5B%5D=payment_intent`, errors });
   if (result.kind !== "ok") return result;
-  const reading = readSession({ object: result.value, mode: ctx.account.mode });
+  const reading = readSession({ object: result.value, mode: ctx.account.mode, errors });
   if (reading.kind !== "evidence" || reading.evidence.providerRef !== providerRef) return {
-    kind: "unknown", error: paymentError({ code: "PROVIDER_ERROR", message: "checkout session evidence could not be confirmed" }, { retryable: true }),
+    kind: "unknown", error: errors.paymentError({ code: "PROVIDER_ERROR", message: "checkout session evidence could not be confirmed" }, { retryable: true }),
   };
   return { kind: "ok", value: reading.evidence };
 };
@@ -25,28 +25,29 @@ const retrieve: NonNullable<PaymentProvider["retrieve"]> = async ({ providerRef,
 /** Verifies exact bytes before JSON parsing and translates only authenticated events.
  * @returns Facts, an empty ignored set, or a typed signature/payload rejection; no HTTP.
  * @complexity O(n) time/space in signed body/header bytes. */
-const verifyWebhook: PaymentProvider["verifyWebhook"] = async ({ rawBody, headers, ctx }, _optional = {}) => {
+const createVerifyWebhook = ({ errors }: { errors: StripeProviderContext }): PaymentProvider["verifyWebhook"] => async ({ rawBody, headers, ctx }, _optional = {}) => {
   if (!verifyStripeSignature({ rawBody, header: headers["stripe-signature"], secret: ctx.credentials.webhookSecret ?? "", nowMs: ctx.now() })) return {
-    kind: "rejected", error: paymentError({ code: "SIGNATURE_INVALID", message: "invalid webhook signature" }),
+    kind: "rejected", error: errors.paymentError({ code: "SIGNATURE_INVALID", message: "invalid webhook signature" }),
   };
   let event: unknown;
   try { event = JSON.parse(Buffer.from(rawBody).toString("utf8")); } catch {
-    return { kind: "rejected", error: paymentError({ code: "INVALID_REQUEST", message: "invalid webhook JSON" }) };
+    return { kind: "rejected", error: errors.paymentError({ code: "INVALID_REQUEST", message: "invalid webhook JSON" }) };
   }
-  const translated = translateStripeEvent({ event, mode: ctx.account.mode });
-  if (translated.kind === "malformed") return { kind: "rejected", error: paymentError({ code: "INVALID_REQUEST", message: translated.reason }) };
+  const translated = translateStripeEvent({ event, mode: ctx.account.mode, errors });
+  if (translated.kind === "malformed") return { kind: "rejected", error: errors.paymentError({ code: "INVALID_REQUEST", message: translated.reason }) };
   return { kind: "ok", value: translated.kind === "ignored" ? [] : translated.facts };
 };
 
 /** Assembles the stateless Phase 1 translator; credentials and I/O remain per-call host ports.
  * @returns A commerce provider with hosted Checkout, signed webhooks and payment retrieval.
  * @complexity O(1) assembly; methods retain no account state.
- * @example createStripePaymentProvider({}) */
+ * @example createStripePaymentProvider({ errors: context }) */
 export function createStripePaymentProvider(
-  _required: Record<string, never>, _optional: Record<string, never> = {}
+  { errors }: { errors: StripeProviderContext }, _optional: Record<string, never> = {}
 ): PaymentProvider {
   return { id: "stripe", displayName: "Stripe", credentialKeys: ["secretKey", "webhookSecret"], capabilities: STRIPE_CAPABILITIES,
     // Stripe retains keys for at least 24 hours; stop an hour before pruning can create a new charge.
     intentReplayWindowMs: 23 * 60 * 60 * 1_000,
-    createIntent: (required, _optional = {}) => createCheckoutSession(required), retrieve, verifyWebhook };
+    createIntent: (required, _optional = {}) => createCheckoutSession({ ...required, errors }),
+    retrieve: createRetrieve({ errors }), verifyWebhook: createVerifyWebhook({ errors }) };
 }

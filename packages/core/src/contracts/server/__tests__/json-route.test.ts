@@ -13,6 +13,18 @@ describe('jsonResponse', () => {
     expect(res.headers.get('x-y')).toBe('z');
     expect(await res.json()).toEqual({ a: 1 });
   });
+
+  it('states the body length in bytes (not characters), so a host that writes the Response can send a Content-Length', () => {
+    const body = { text: 'é€😀' };
+    const expected = String(Buffer.byteLength(JSON.stringify(body)));
+    expect(jsonResponse({ status: 200, body }).headers.get('content-length')).toBe(expected);
+    expect(expected).not.toBe(String(JSON.stringify(body).length));
+  });
+
+  it('keeps a length the caller set, and sends no length with a body-less status', () => {
+    expect(jsonResponse({ status: 200, body: { a: 1 } }, { headers: { 'content-length': '999' } }).headers.get('content-length')).toBe('999');
+    expect(jsonResponse({ status: 204, body: undefined }).headers.get('content-length')).toBeNull();
+  });
 });
 
 

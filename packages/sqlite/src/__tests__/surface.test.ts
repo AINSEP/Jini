@@ -23,3 +23,8 @@ it('the shim has no driver dependencies or runtime references to the removed pac
  expect(Object.keys(manifest.dependencies).sort()).toEqual(['@jini-ai/chat','@jini-ai/core','@jini-ai/daemon','@jini-ai/db','@jini-ai/registry']);
  expect(readFileSync(new URL('../index.ts',import.meta.url),'utf8')).not.toContain('sqlite-chat');
 });
+it('declares no export of its own in index.ts: a frozen forwarder only re-exports, so a new local type, interface, function or constant is a surface change',()=>{
+ const root=ts.createSourceFile('index.ts',readFileSync(new URL('../index.ts',import.meta.url),'utf8'),ts.ScriptTarget.Latest,true);
+ const own=root.statements.filter(node=>!ts.isExportDeclaration(node) && !ts.isImportDeclaration(node) && (ts.getCombinedModifierFlags(node as ts.Declaration) & ts.ModifierFlags.Export)!==0 || ts.isExportAssignment(node));
+ expect(own.map(node=>node.getText())).toEqual([]);
+});

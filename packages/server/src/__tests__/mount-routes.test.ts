@@ -105,6 +105,21 @@ describe('mountRoutes', () => {
     expect(Buffer.from(await from(response) as number[]).toString('utf8')).toBe('{"spaced":1}');
   });
 
+  it('answers the spellings Express answered: another case, a trailing slash, OPTIONS, and 400 for a bad escape in an id', async () => {
+    const app = express();
+    mountRoutes({ app, routes: [
+      { method: 'GET', path: '/api/things', handler: says('list') },
+      { method: 'GET', path: '/api/things/:id', handler: ({ params }) => jsonResponse({ status: 200, body: { from: params.id } }) },
+    ] });
+    const origin = await listen(app);
+    expect(await from(await fetch(`${origin}/API/Things/`))).toBe('list');
+    expect(await from(await fetch(`${origin}/api/things/Ab/`))).toBe('Ab');
+    const options = await fetch(`${origin}/api/things`, { method: 'OPTIONS' });
+    expect([options.status, options.headers.get('allow'), await options.text()]).toEqual([200, 'GET,HEAD', 'GET,HEAD']);
+    const bad = await fetch(`${origin}/api/things/%E0%A4%A`);
+    expect([bad.status, bad.headers.get('content-type')]).toEqual([400, 'text/html; charset=utf-8']);
+  });
+
   it('refuses an app it cannot add a handler to, saying what it needs', () => {
     expect(() => { mountRoutes({ app: {}, routes: [] }); }).toThrow(new TypeError('mountRoutes needs an app with a use(handler) method (the preset\'s Express app); it was given something else.'));
     expect(() => { mountRoutes({ app: null, routes: [] }); }).toThrow(TypeError);

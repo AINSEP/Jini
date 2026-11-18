@@ -14,6 +14,17 @@ describe('createInMemoryServer', () => {
   });
 });
 
+describe('createInMemoryServer({ lenientPaths })', () => {
+  it('matches the way Express does and answers a malformed :name segment 400', async () => {
+    const { server, fetch } = createInMemoryServer({}, { lenientPaths: true });
+    server.route({ method: 'GET', path: '/api/items/:id', handler: ({ params }) => new Response(params.id) });
+    expect(await (await fetch(new Request('http://local/API/Items/Ab/'))).text()).toBe('Ab');
+    const bad = await fetch(new Request('http://local/api/items/%E0%A4%A'));
+    expect([bad.status, (await bad.json() as { error: { code: string } }).error.code]).toEqual([400, 'BAD_REQUEST']);
+    expect((await fetch(new Request('http://local/api/other'))).status).toBe(404);
+  });
+});
+
 describe('fakeTimingSafeEqual', () => {
   const bytes = (...values: number[]) => new Uint8Array(values);
   it('compares byte by byte and records each pair it was asked about', () => {

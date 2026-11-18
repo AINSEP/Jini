@@ -2810,6 +2810,12 @@
    "useUiKit": "function:9e77f30077"
   }
  },
+ "./react/testing": {
+  "types": "./dist/react/testing.d.ts",
+  "symbols": {
+   "fakeUiKit": "variable:61bcd0f11f"
+  }
+ },
  "./remixicon.css": {
   "types": null,
   "symbols": {}

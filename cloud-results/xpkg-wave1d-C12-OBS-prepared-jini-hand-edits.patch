@@ -1,0 +1,464 @@
+diff --git a/packages/analytics/src/product/browser.ts b/packages/analytics/src/product/browser.ts
+index bb36f5fe..cc728228 100644
+--- a/packages/analytics/src/product/browser.ts
++++ b/packages/analytics/src/product/browser.ts
+@@ -1,24 +1,7 @@
+ /** Browser behavior is contributed by the selected analytics provider, never by a vendor in core. */
++import type { BrowserAnalyticsContribution } from '@jini-ai/core/contracts/observability';
+ export type BrowserAnalyticsMode = 'pending' | 'anonymous' | 'full';
+ export interface BrowserAnalyticsConsent { hasChoice: boolean; analytics: boolean; gpc?: boolean }
+-export interface BrowserAnalyticsContribution {
+-  /** Trusted plugin code: a function expression returning a `(mode) => void` controller. */
+-  readonly source: string;
+-  /** Exact origins required by this contribution, including anonymous delivery. */
+-  readonly origins: readonly string[];
+-  readonly supportsStatic: boolean;
+-  /** Server-only same-origin asset/collection adapter. Never serialized into page source.
+-   * The host admits collection with its existing consent owner before invoking this port. */
+-  readonly http?: {
+-    readonly path: string;
+-    handle(required: { method: string; path: string; body: Uint8Array; contentType: string }, optional?: Record<string, never>): Promise<{ status: number; body: string | Uint8Array; contentType?: string; cacheControl?: string }>;
+-  };
+-  /** Mode changes retire identities/replay synchronously before starting the next mode. */
+-  readonly supportsLiveConsent?: boolean;
+-  /** Host-owned live check; a changed revision retires this page's SDKs until reload. */
+-  readonly configuration?: { readonly url: string; readonly revision: string };
+-}
+-
+ /** Explicit choice is required even in opt-out regions. GPC can only remove a grant. O(1). */
+ export function resolveBrowserAnalyticsMode(required: BrowserAnalyticsConsent, _optional = {}): BrowserAnalyticsMode {
+   if (!required.hasChoice) return 'pending';
+diff --git a/packages/analytics/src/product/index.ts b/packages/analytics/src/product/index.ts
+index a8b74738..cca695e1 100644
+--- a/packages/analytics/src/product/index.ts
++++ b/packages/analytics/src/product/index.ts
+@@ -19,39 +19,14 @@
+  * by the host only when installed, enabled and configured; the contract names no vendor.
+  */
+ import { redactSecrets, redactSecretsWithCounts } from "@jini-ai/core";
++import type { ProductAiGeneration, ProductAnalyticsPort, ProductEvent, ProductEventProperties, ProductIdentity } from "@jini-ai/core/contracts/observability";
+ import type { JsonObject } from "@jini-ai/core/primitives";
+ 
+ import { validateEventProps } from "../privacy.js";
+ export { createAiGenerationSink } from "./ai-generations.js";
+ export { fanOutProductAnalytics } from "./fanout.js";
+ export { injectBrowserAnalytics, renderBrowserAnalytics, resolveBrowserAnalyticsMode } from './browser.js';
+-export type { BrowserAnalyticsMode, BrowserAnalyticsConsent, BrowserAnalyticsContribution } from './browser.js';
+-
+-export type ProductEventProperties = Readonly<Record<string, string | number | boolean>>;
+-
+-/** One thing a user did. `name` is a fixed snake_case label (`assistant_tool_call`), never user text. */
+-export interface ProductEvent { name: string; userId: string; properties?: ProductEventProperties; }
+-/** Who the user is, in pseudonymous traits only (a plan, a role, a locale — never a name or e-mail). */
+-export interface ProductIdentity { userId: string; traits?: ProductEventProperties; }
+-
+-/** A model generation's neutral metadata. Text is separate so metadata-only providers cannot leak it. */
+-export interface ProductAiGeneration { userId: string; properties: ProductEventProperties; input?: string; output?: string; }
+-
+-/** The port features call. Never throws, never blocks: delivery is the adapter's background job. */
+-export interface ProductAnalyticsPort {
+-  /** Optional trusted browser contribution; it contains only publishable browser configuration. */
+-  browserAnalytics?(required: { surface: 'site' | 'admin' }, optional?: Record<string, never>): import('./browser.js').BrowserAnalyticsContribution;
+-  /** Resolves after local consent/admission only; remote delivery remains in the background. */
+-  capture(event: ProductEvent): void | Promise<void>;
+-  identify(identity: ProductIdentity): void;
+-  /** Optional capability; providers without LLM analytics keep their existing contract. */
+-  captureAiGeneration?(required: ProductAiGeneration, optional?: Record<string, never>): void;
+-  /** Explicit provider opt-in only. The default records counts and metadata, never transcript text. */
+-  readonly includeAiContent?: boolean;
+-}
+-
+-/** What a vendor provider subpath returns: the port plus the host-owned teardown (flush + close). */
+-export interface ProductAnalyticsAdapter { port: ProductAnalyticsPort; dispose(): Promise<void>; }
++export type { BrowserAnalyticsMode, BrowserAnalyticsConsent } from './browser.js';
+ 
+ const NOOP: ProductAnalyticsPort = Object.freeze({ capture: () => {}, identify: () => {} });
+ 
+diff --git a/packages/core/README.md b/packages/core/README.md
+index 452d3eb6..23843e69 100644
+--- a/packages/core/README.md
++++ b/packages/core/README.md
+@@ -103,6 +103,7 @@ Tool handlers receive required execution context first and optional `{ emitSurfa
+ | `./fetch` | Framework-neutral query contracts and `FetchQueryCache`; inject transport callbacks, `Clock`, scheduler and connectivity/focus ports. No React, DOM or TanStack dependency. |
+ | `./net` | Literal host classification (loopback, blocked and deployed API hosts) and the `FETCH_TIMEOUT_MS` classes. Pure, no Node imports. |
+ | `./contracts/capabilities` | Agent capability vocabulary (`CapabilityDef`, input-schema types) and the pure `findCapability`/`findCapabilityInputError`/`availableCapabilities` helpers. |
++| `./contracts/observability` | The vendor-neutral observability vocabulary: `ObservabilityPort`, its request/DB/outbound/agent-run/operation trackers, `ErrorReport`, `TraceIds`, the product-analytics port (`ProductAnalyticsPort` and its event types, `BrowserAnalyticsContribution`) and the frozen disabled port (`createNoopObservabilityPort`, `isNoopObservabilityPort`). Guards, fan-out and vendor adapters live in `@jini-ai/diagnostics` and `@jini-ai/analytics`. |
+ | `./contracts/blob` | Backend-agnostic blob storage port and `StorageError`. |
+ | `./contracts/admin-module` | `adminPort` token and the admin module contract types (`defineAdminModule`, `AdminModule`, `AdminDescription`, port map types). Admin hosts and plugin authors import it from core; `@jini-ai/admin` consumes it. |
+ | `./contracts/runtime` | Fs-lock, atomic-writer, process, command, pty, http and guarded-reader port types plus pure helpers (`planCommandInvocation`, `omitEnvironmentKeys`, `collectProcessTreePids`). Node implementations live in `@jini-ai/platform`. |
+diff --git a/packages/core/package.json b/packages/core/package.json
+index 788ea195..3a80de69 100644
+--- a/packages/core/package.json
++++ b/packages/core/package.json
+@@ -46,6 +46,7 @@
+       "./contracts/hosted-mcp": "universal",
+       "./contracts/agents": "universal",
+       "./contracts/ai-trace": "universal",
++      "./contracts/observability": "universal",
+       "./contracts/storage": "universal",
+       "./contracts/events": "universal",
+       "./contracts/capabilities": "universal",
+@@ -303,6 +304,11 @@
+       "import": "./dist/contracts/ai-trace/index.js",
+       "default": "./dist/contracts/ai-trace/index.js"
+     },
++    "./contracts/observability": {
++      "types": "./dist/contracts/observability.d.ts",
++      "import": "./dist/contracts/observability.js",
++      "default": "./dist/contracts/observability.js"
++    },
+     "./contracts/storage": {
+       "types": "./dist/contracts/storage.d.ts",
+       "import": "./dist/contracts/storage.js",
+diff --git a/packages/diagnostics/src/__tests__/observability-noop.test.ts b/packages/core/src/contracts/__tests__/observability-noop.test.ts
+similarity index 74%
+rename from packages/diagnostics/src/__tests__/observability-noop.test.ts
+rename to packages/core/src/contracts/__tests__/observability-noop.test.ts
+index a686c922..01e2d9b3 100644
+--- a/packages/diagnostics/src/__tests__/observability-noop.test.ts
++++ b/packages/core/src/contracts/__tests__/observability-noop.test.ts
+@@ -1,7 +1,7 @@
+ import assert from "node:assert/strict";
+ import { test } from "vitest";
+ 
+-import { createNoopObservabilityPort } from "../observability/noop.js";
++import { createNoopObservabilityPort, isNoopObservabilityPort } from "../observability.js";
+ 
+ /**
+  * @file The no-op port is the default almost every self-hosted install actually runs
+@@ -40,3 +40,16 @@ test("the returned tracker is frozen — end cannot be reassigned to add real wo
+     };
+   });
+ });
++
++test("every call returns the one shared frozen port, so a disabled install allocates no port at all", () => {
++  const first = createNoopObservabilityPort({});
++  assert.equal(createNoopObservabilityPort({}), first);
++  assert.ok(Object.isFrozen(first));
++});
++
++test("isNoopObservabilityPort is true for the shared port and false for a hand-built or spread copy", () => {
++  const shared = createNoopObservabilityPort({});
++  assert.equal(isNoopObservabilityPort(shared), true);
++  assert.equal(isNoopObservabilityPort({ ...shared }), false);
++  assert.equal(isNoopObservabilityPort({ ...shared, supportsMetric: true }), false);
++});
+diff --git a/packages/core/src/contracts/observability.ts b/packages/core/src/contracts/observability.ts
+new file mode 100644
+index 00000000..98158747
+--- /dev/null
++++ b/packages/core/src/contracts/observability.ts
+@@ -0,0 +1,163 @@
++/** Vendor-neutral inbound request lifecycle. Route patterns, rather than raw paths, label metrics. */
++/**
++ * Consumers speak in request lifecycle terms rather than Span/Tracer SDK types. That permits
++ * replacing the instrumentation system itself, not merely its exporter backend. Add signals
++ * only against real instrumentation call sites; guessed DB/outbound/agent shapes would couple
++ * consumers to contracts whose lifecycle has not yet been established.
++ * The DB/outbound/agent signals below were each shaped after their first real call site: the
++ * storage kernel's run/transaction body, the guarded HTTP client's send, and a host's agent-run
++ * watcher. Inputs carry ids and fixed labels only; adapters own redaction of anything raw.
++ */
++export interface RequestTrackingInput { method: string; path: string; }
++export interface RequestTrackingOptions { requestId?: string; }
++/** The mount-aware pattern is available only after routing; raw paths are known at request start.
++ * Use a fixed 'unmatched' label for misses: attacker-controlled paths would make grouping unbounded. */
++export interface RequestTrackingOutcome { statusCode: number; routePattern: string; }
++/** Runs work inside a tracker's scope, so signals that work starts are attributed to it. */
++export interface TrackerScope { run<T>(fn: () => T): T; }
++export interface RequestTracker {
++ readonly requestId?: string;
++ // The response lifecycle owns completion; callers should end once when the response finishes.
++ end(outcome: RequestTrackingOutcome): void;
++ /** Optional so adapters written before scoping still satisfy the port; callers fall back to fn(). */
++ run?<T>(fn: () => T): T;
++}
++/** `system` is the engine family (`sqlite`, `postgresql`); statement text never crosses the port. */
++export interface DbQueryTrackingInput { system: string; }
++/** Like a route pattern, the operation and table are known only once the query has been built. */
++export interface DbQueryTrackingOutcome { operation: string; table?: string; error?: unknown; }
++export interface DbQueryTracker extends TrackerScope { end(outcome: DbQueryTrackingOutcome): void; }
++/** The raw URL is handed over whole; adapters keep scheme/host/port and drop path, query and userinfo. */
++export interface OutboundCallTrackingInput { method: string; url: string; }
++/** `statusCode` when a response arrived, `error` when the call failed before one did. */
++export interface OutboundCallTrackingOutcome { statusCode?: number; error?: unknown; }
++export interface OutboundCallTracker extends TrackerScope { end(outcome: OutboundCallTrackingOutcome): void; }
++export interface AgentRunTrackingInput { runId: string; }
++export interface AgentRunTrackingOptions { conversationId?: string; agentName?: string; }
++/** `interrupted`: the run vanished (its process restarted). `abandoned`: the watcher gave up unproven. */
++export type AgentRunStatus = 'succeeded' | 'failed' | 'canceled' | 'interrupted' | 'abandoned';
++export interface AgentRunTrackingOutcome { status: AgentRunStatus; error?: unknown; }
++export interface AgentRunTracker extends TrackerScope { end(outcome: AgentRunTrackingOutcome): void; }
++/** Fixed labels and ids only (a tool id, a run id): never user text, paths, or values a caller sent. */
++export type OperationAttributes = Readonly<Record<string, string | number>>;
++/**
++ * A feature-level unit of work (one tool call, one publish, one backup) that no transport signal
++ * names: the HTTP request, DB queries and outbound calls it makes nest under it. `name` is a fixed
++ * dotted label (`tool.call`), never per-call text, so grouping stays bounded.
++ */
++export interface OperationTrackingInput { name: string; attributes?: OperationAttributes; }
++/** `outcome` is the feature's own fixed label (`completed`, `denied`, `timed-out`); `failed` says
++ * whether that outcome is a failure, which only the feature can judge (a denial is not one). */
++export interface OperationTrackingOutcome { outcome: string; failed: boolean; attributes?: OperationAttributes; }
++export interface OperationTracker extends TrackerScope { end(outcome: OperationTrackingOutcome): void; }
++/** Correlation assigned by an active tracing implementation; readers never generate IDs. */
++export interface TraceIds { readonly traceId: string; readonly spanId: string; }
++/**
++ * An error worth an incident report (an error tracker's issue; a trace's exception event), as
++ * opposed to an expected failure a tracker's outcome already records. `error` is handed over raw:
++ * adapters own redaction (see `describeReportedError`), exactly as they do for request targets.
++ */
++export interface ErrorReport { error: unknown; context: { operation: string; attributes?: OperationAttributes; level?: 'warning' | 'error'; trace?: TraceIds }; }
++/** Native crash upload configuration. Provider-specific field names stay opaque to hosts. */
++export interface CrashUpload { submitURL: string; globalExtra: Readonly<Record<string, string>>; }
++/** Vendor-neutral numeric measurement; names and units are fixed labels, never user text. */
++export interface MetricInput { name: string; value: number; }
++export interface MetricOptions {
++ kind?: 'counter' | 'gauge' | 'histogram';
++ unit?: string;
++ attributes?: OperationAttributes;
++}
++export interface ObservabilityPort {
++ /** Current structural tracing scope, absent outside a trace. Never generates an ID. */
++ activeTraceIds?(required?: Record<string, never>, optional?: Record<string, never>): TraceIds | undefined;
++ /** Explicit capability: a callable noop metric does not imply local metric admission. */
++ readonly supportsMetric?: boolean;
++ /** Records one measurement; adapters without a metrics backend use a no-op. */
++ metric(input: MetricInput, options?: MetricOptions): void | Promise<void>;
++ trackRequest(input: RequestTrackingInput, options?: RequestTrackingOptions): RequestTracker;
++ trackDbQuery(input: DbQueryTrackingInput): DbQueryTracker;
++ trackOutboundCall(input: OutboundCallTrackingInput): OutboundCallTracker;
++ trackAgentRun(input: AgentRunTrackingInput, options?: AgentRunTrackingOptions): AgentRunTracker;
++ trackOperation(input: OperationTrackingInput): OperationTracker;
++ /** Called inside a tracker's run() it is attributed to that tracker's work. False refuses local admission; void accepts it. */
++ reportError(report: ErrorReport): boolean | void | Promise<boolean | void>;
++ /** Configuration only; the host owns crash collection, consent and upload lifecycle. */
++ crashUpload?(required: { release: string; environment: string }, optional?: Record<string, never>): CrashUpload;
++}
++/** What a vendor provider subpath returns: the port plus the host-owned lifecycle hook. The host
++ * registers `dispose` with its teardown (a closed site, a stopped process) so SDK clients, timers
++ * and exit listeners are released (review 2026-10-25 #6). `dispose` never throws. */
++export interface ObservabilityAdapter { port: ObservabilityPort; dispose(): Promise<void>; }
++
++/* ---------- product analytics port ---------- */
++export type ProductEventProperties = Readonly<Record<string, string | number | boolean>>;
++
++/** One thing a user did. `name` is a fixed snake_case label (`assistant_tool_call`), never user text. */
++export interface ProductEvent { name: string; userId: string; properties?: ProductEventProperties; }
++/** Who the user is, in pseudonymous traits only (a plan, a role, a locale — never a name or e-mail). */
++export interface ProductIdentity { userId: string; traits?: ProductEventProperties; }
++
++/** A model generation's neutral metadata. Text is separate so metadata-only providers cannot leak it. */
++export interface ProductAiGeneration { userId: string; properties: ProductEventProperties; input?: string; output?: string; }
++
++/** The port features call. Never throws, never blocks: delivery is the adapter's background job. */
++export interface ProductAnalyticsPort {
++  /** Optional trusted browser contribution; it contains only publishable browser configuration. */
++  browserAnalytics?(required: { surface: 'site' | 'admin' }, optional?: Record<string, never>): BrowserAnalyticsContribution;
++  /** Resolves after local consent/admission only; remote delivery remains in the background. */
++  capture(event: ProductEvent): void | Promise<void>;
++  identify(identity: ProductIdentity): void;
++  /** Optional capability; providers without LLM analytics keep their existing contract. */
++  captureAiGeneration?(required: ProductAiGeneration, optional?: Record<string, never>): void;
++  /** Explicit provider opt-in only. The default records counts and metadata, never transcript text. */
++  readonly includeAiContent?: boolean;
++}
++
++/** What a vendor provider subpath returns: the port plus the host-owned teardown (flush + close). */
++export interface ProductAnalyticsAdapter { port: ProductAnalyticsPort; dispose(): Promise<void>; }
++
++/** Browser contribution of a product-analytics provider; the port's `browserAnalytics` returns it, so it lives with the port. */
++export interface BrowserAnalyticsContribution {
++  /** Trusted plugin code: a function expression returning a `(mode) => void` controller. */
++  readonly source: string;
++  /** Exact origins required by this contribution, including anonymous delivery. */
++  readonly origins: readonly string[];
++  readonly supportsStatic: boolean;
++  /** Server-only same-origin asset/collection adapter. Never serialized into page source.
++   * The host admits collection with its existing consent owner before invoking this port. */
++  readonly http?: {
++    readonly path: string;
++    handle(required: { method: string; path: string; body: Uint8Array; contentType: string }, optional?: Record<string, never>): Promise<{ status: number; body: string | Uint8Array; contentType?: string; cacheControl?: string }>;
++  };
++  /** Mode changes retire identities/replay synchronously before starting the next mode. */
++  readonly supportsLiveConsent?: boolean;
++  /** Host-owned live check; a changed revision retires this page's SDKs until reload. */
++  readonly configuration?: { readonly url: string; readonly revision: string };
++}
++
++/* ---------- the disabled port ---------- */
++const run = <T>(fn: () => T): T => fn();
++const NOOP_TRACKER: RequestTracker = Object.freeze({ end(): void {}, run });
++// One frozen tracker serves every non-request signal too: their end() outcomes differ only in type.
++const NOOP_SIGNAL_TRACKER: DbQueryTracker & OutboundCallTracker & AgentRunTracker & OperationTracker = Object.freeze({ end(): void {}, run });
++// One frozen port, built at module load: identity is the test for "telemetry is off", so no registry of built ports is kept.
++const NOOP_PORT: ObservabilityPort = Object.freeze({
++ supportsMetric: false,
++ activeTraceIds: () => undefined,
++ trackRequest: () => NOOP_TRACKER,
++ trackDbQuery: () => NOOP_SIGNAL_TRACKER,
++ trackOutboundCall: () => NOOP_SIGNAL_TRACKER,
++ trackAgentRun: () => NOOP_SIGNAL_TRACKER,
++ trackOperation: () => NOOP_SIGNAL_TRACKER,
++ reportError: () => false,
++ metric: () => {},
++});
++/** Creates disabled telemetry; every request shares one frozen tracker without allocation. */
++export function createNoopObservabilityPort(_required: Record<string, never>): ObservabilityPort {
++ return NOOP_PORT;
++}
++/** True for a port this module built. Decorators use it to skip wrapping entirely when telemetry is
++ * off, so a disabled install pays no per-query or per-call indirection, not merely no export. */
++export function isNoopObservabilityPort(port: ObservabilityPort): boolean {
++ return port === NOOP_PORT;
++}
+diff --git a/packages/diagnostics/src/observability/index.ts b/packages/diagnostics/src/observability/index.ts
+index c69ce03e..bbdd4f6b 100644
+--- a/packages/diagnostics/src/observability/index.ts
++++ b/packages/diagnostics/src/observability/index.ts
+@@ -1,7 +1,6 @@
+ export * from './config.js';
+ export * from './export-policy.js';
+ export * from './ports.js';
+-export * from './noop.js';
+ export { redactOperationAttributes, errorType, redactLabel } from './otel.js';
+ export * from './errors.js';
+ export * from './fanout.js';
+diff --git a/packages/diagnostics/src/observability/noop.ts b/packages/diagnostics/src/observability/noop.ts
+deleted file mode 100644
+index 195da886..00000000
+--- a/packages/diagnostics/src/observability/noop.ts
++++ /dev/null
+@@ -1,27 +0,0 @@
+-import type { AgentRunTracker, DbQueryTracker, ObservabilityPort, OperationTracker, OutboundCallTracker, RequestTracker } from './ports.js';
+-const run = <T>(fn: () => T): T => fn();
+-const NOOP_TRACKER: RequestTracker = Object.freeze({ end(): void {}, run });
+-// One frozen tracker serves every non-request signal too: their end() outcomes differ only in type.
+-const NOOP_SIGNAL_TRACKER: DbQueryTracker & OutboundCallTracker & AgentRunTracker & OperationTracker = Object.freeze({ end(): void {}, run });
+-const NOOP_PORTS = new WeakSet<ObservabilityPort>();
+-/** Creates disabled telemetry; every request shares one frozen tracker without allocation. */
+-export function createNoopObservabilityPort(_required: Record<string, never>): ObservabilityPort {
+- const port: ObservabilityPort = {
+-  supportsMetric: false,
+-  activeTraceIds: () => undefined,
+-  trackRequest: () => NOOP_TRACKER,
+-  trackDbQuery: () => NOOP_SIGNAL_TRACKER,
+-  trackOutboundCall: () => NOOP_SIGNAL_TRACKER,
+-  trackAgentRun: () => NOOP_SIGNAL_TRACKER,
+-  trackOperation: () => NOOP_SIGNAL_TRACKER,
+-  reportError: () => false,
+-  metric: () => {},
+- };
+- NOOP_PORTS.add(port);
+- return port;
+-}
+-/** True for a port this module built. Decorators use it to skip wrapping entirely when telemetry is
+- * off, so a disabled install pays no per-query or per-call indirection, not merely no export. */
+-export function isNoopObservabilityPort(port: ObservabilityPort): boolean {
+- return NOOP_PORTS.has(port);
+-}
+diff --git a/packages/diagnostics/src/observability/ports.ts b/packages/diagnostics/src/observability/ports.ts
+index 176e9848..1a6bd558 100644
+--- a/packages/diagnostics/src/observability/ports.ts
++++ b/packages/diagnostics/src/observability/ports.ts
+@@ -1,89 +1,6 @@
+-/** Vendor-neutral inbound request lifecycle. Route patterns, rather than raw paths, label metrics. */
+-/**
+- * Consumers speak in request lifecycle terms rather than Span/Tracer SDK types. That permits
+- * replacing the instrumentation system itself, not merely its exporter backend. Add signals
+- * only against real instrumentation call sites; guessed DB/outbound/agent shapes would couple
+- * consumers to contracts whose lifecycle has not yet been established.
+- * The DB/outbound/agent signals below were each shaped after their first real call site: the
+- * storage kernel's run/transaction body, the guarded HTTP client's send, and a host's agent-run
+- * watcher. Inputs carry ids and fixed labels only; adapters own redaction of anything raw.
+- */
+-export interface RequestTrackingInput { method: string; path: string; }
+-export interface RequestTrackingOptions { requestId?: string; }
+-/** The mount-aware pattern is available only after routing; raw paths are known at request start.
+- * Use a fixed 'unmatched' label for misses: attacker-controlled paths would make grouping unbounded. */
+-export interface RequestTrackingOutcome { statusCode: number; routePattern: string; }
+-/** Runs work inside a tracker's scope, so signals that work starts are attributed to it. */
+-export interface TrackerScope { run<T>(fn: () => T): T; }
+-export interface RequestTracker {
+- readonly requestId?: string;
+- // The response lifecycle owns completion; callers should end once when the response finishes.
+- end(outcome: RequestTrackingOutcome): void;
+- /** Optional so adapters written before scoping still satisfy the port; callers fall back to fn(). */
+- run?<T>(fn: () => T): T;
+-}
+-/** `system` is the engine family (`sqlite`, `postgresql`); statement text never crosses the port. */
+-export interface DbQueryTrackingInput { system: string; }
+-/** Like a route pattern, the operation and table are known only once the query has been built. */
+-export interface DbQueryTrackingOutcome { operation: string; table?: string; error?: unknown; }
+-export interface DbQueryTracker extends TrackerScope { end(outcome: DbQueryTrackingOutcome): void; }
+-/** The raw URL is handed over whole; adapters keep scheme/host/port and drop path, query and userinfo. */
+-export interface OutboundCallTrackingInput { method: string; url: string; }
+-/** `statusCode` when a response arrived, `error` when the call failed before one did. */
+-export interface OutboundCallTrackingOutcome { statusCode?: number; error?: unknown; }
+-export interface OutboundCallTracker extends TrackerScope { end(outcome: OutboundCallTrackingOutcome): void; }
+-export interface AgentRunTrackingInput { runId: string; }
+-export interface AgentRunTrackingOptions { conversationId?: string; agentName?: string; }
+-/** `interrupted`: the run vanished (its process restarted). `abandoned`: the watcher gave up unproven. */
+-export type AgentRunStatus = 'succeeded' | 'failed' | 'canceled' | 'interrupted' | 'abandoned';
+-export interface AgentRunTrackingOutcome { status: AgentRunStatus; error?: unknown; }
+-export interface AgentRunTracker extends TrackerScope { end(outcome: AgentRunTrackingOutcome): void; }
+-/** Fixed labels and ids only (a tool id, a run id): never user text, paths, or values a caller sent. */
+-export type OperationAttributes = Readonly<Record<string, string | number>>;
+-/**
+- * A feature-level unit of work (one tool call, one publish, one backup) that no transport signal
+- * names: the HTTP request, DB queries and outbound calls it makes nest under it. `name` is a fixed
+- * dotted label (`tool.call`), never per-call text, so grouping stays bounded.
+- */
+-export interface OperationTrackingInput { name: string; attributes?: OperationAttributes; }
+-/** `outcome` is the feature's own fixed label (`completed`, `denied`, `timed-out`); `failed` says
+- * whether that outcome is a failure, which only the feature can judge (a denial is not one). */
+-export interface OperationTrackingOutcome { outcome: string; failed: boolean; attributes?: OperationAttributes; }
+-export interface OperationTracker extends TrackerScope { end(outcome: OperationTrackingOutcome): void; }
+-/** Correlation assigned by an active tracing implementation; readers never generate IDs. */
+-export interface TraceIds { readonly traceId: string; readonly spanId: string; }
+-/**
+- * An error worth an incident report (an error tracker's issue; a trace's exception event), as
+- * opposed to an expected failure a tracker's outcome already records. `error` is handed over raw:
+- * adapters own redaction (see `describeReportedError`), exactly as they do for request targets.
+- */
+-export interface ErrorReport { error: unknown; context: { operation: string; attributes?: OperationAttributes; level?: 'warning' | 'error'; trace?: TraceIds }; }
+-/** Native crash upload configuration. Provider-specific field names stay opaque to hosts. */
+-export interface CrashUpload { submitURL: string; globalExtra: Readonly<Record<string, string>>; }
+-/** Vendor-neutral numeric measurement; names and units are fixed labels, never user text. */
+-export interface MetricInput { name: string; value: number; }
+-export interface MetricOptions {
+- kind?: 'counter' | 'gauge' | 'histogram';
+- unit?: string;
+- attributes?: OperationAttributes;
+-}
+-export interface ObservabilityPort {
+- /** Current structural tracing scope, absent outside a trace. Never generates an ID. */
+- activeTraceIds?(required?: Record<string, never>, optional?: Record<string, never>): TraceIds | undefined;
+- /** Explicit capability: a callable noop metric does not imply local metric admission. */
+- readonly supportsMetric?: boolean;
+- /** Records one measurement; adapters without a metrics backend use a no-op. */
+- metric(input: MetricInput, options?: MetricOptions): void | Promise<void>;
+- trackRequest(input: RequestTrackingInput, options?: RequestTrackingOptions): RequestTracker;
+- trackDbQuery(input: DbQueryTrackingInput): DbQueryTracker;
+- trackOutboundCall(input: OutboundCallTrackingInput): OutboundCallTracker;
+- trackAgentRun(input: AgentRunTrackingInput, options?: AgentRunTrackingOptions): AgentRunTracker;
+- trackOperation(input: OperationTrackingInput): OperationTracker;
+- /** Called inside a tracker's run() it is attributed to that tracker's work. False refuses local admission; void accepts it. */
+- reportError(report: ErrorReport): boolean | void | Promise<boolean | void>;
+- /** Configuration only; the host owns crash collection, consent and upload lifecycle. */
+- crashUpload?(required: { release: string; environment: string }, optional?: Record<string, never>): CrashUpload;
+-}
++import type { RequestTrackingOutcome, TraceIds } from '@jini-ai/core/contracts/observability';
++// The signal vocabulary (trackers, ObservabilityPort, ErrorReport, ...) lives in @jini-ai/core/contracts/observability;
++// what stays here is diagnostics' own request-logging and span SPI.
+ export interface RequestObservation extends RequestTrackingOutcome {
+  requestId: string; method: string; durationMs: number;
+ }
+@@ -106,7 +23,3 @@ export interface SpanScopePort {
+  active(): TraceSpanPort | undefined;
+  run<T>(required: { span: TraceSpanPort; fn: () => T }): T;
+ }
+-/** What a vendor provider subpath returns: the port plus the host-owned lifecycle hook. The host
+- * registers `dispose` with its teardown (a closed site, a stopped process) so SDK clients, timers
+- * and exit listeners are released (review 2026-10-25 #6). `dispose` never throws. */
+-export interface ObservabilityAdapter { port: ObservabilityPort; dispose(): Promise<void>; }
