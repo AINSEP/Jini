@@ -96,7 +96,7 @@ async function makeFixture(outcome: Outcome = "confirm"): Promise<Fixture> {
   };
   await repo.insert(seededRecord("sub-1"));
   const surfaces = { surfaceExchanges: {} as never };
-  return { deps, repo, deliveries, saves, allow, confirm, registrations: () => buildWebhooksToolRegistrations({ deps, surfaces }) };
+  return { deps, repo, deliveries, saves, allow, confirm, registrations: () => buildWebhooksToolRegistrations({ deps, surfaces }, { hostReads: HOST_READS }) };
 }
 
 function ctx(input: unknown, signal: AbortSignal = new AbortController().signal): ToolExecutionContext {
@@ -111,6 +111,21 @@ function caller(fixture: Fixture) {
     return Promise.resolve(found.handler(ctx(input, signal)));
   };
 }
+
+const HOST_READS = { readRef: ({ entity }: { entity: string }) => `host_read.${entity}` };
+
+test("the published text names the host's read, or a neutral one, never a placeholder or a tool id of its own", async () => {
+  const { deps } = await makeFixture();
+  const surfaces = { surfaceExchanges: {} as never };
+  const text = (hostReads?: { readRef: (required: { entity: string }) => string }) =>
+    JSON.stringify(buildWebhooksToolRegistrations({ deps, surfaces }, { hostReads }).map((registration) => registration.descriptor));
+  assert.ok(text({ readRef: ({ entity }) => `host_read.${entity}` }).includes("host_read.webhook_subscription"));
+  assert.ok(text().includes("the webhook subscription read tool"));
+  for (const published of [text(), text({ readRef: ({ entity }) => `host_read.${entity}` })]) {
+    assert.ok(!published.includes("{{read:"));
+    assert.ok(!published.includes("content_read"));
+  }
+});
 
 test("the registrations are the six catalog tools, in order, with the authored risk map", async () => {
   const fixture = await makeFixture();
@@ -235,11 +250,11 @@ test("update with a stale expectedVersion reaches the model as the conflict enve
   await assert.rejects(call("webhooks_update_subscription", { ...input, label: "Second", expectedVersion: 1 }), (error: unknown) => {
     assert.ok(error instanceof ToolInputError, `got ${(error as Error)?.constructor?.name}`);
     assert.match(error.message, /NOT applied/);
-    assert.match(error.message, /content_read\.webhook_subscription/);
+    assert.match(error.message, /host_read\.webhook_subscription/);
     return true;
   });
   assert.equal((await fixture.repo.findById({ workspaceId: WORKSPACE_ID, id: "sub-1" }))?.label, "First");
-  await assert.rejects(call("webhooks_update_subscription", input), /content_read\.webhook_subscription/);
+  await assert.rejects(call("webhooks_update_subscription", input), /host_read\.webhook_subscription/);
 });
 
 test("delete confirmed: the prepared snapshot is frozen, the subscription is soft-deleted once and reported", async () => {

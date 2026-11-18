@@ -17,7 +17,10 @@ import {
   ToolPermissionDeniedError,
   buildDomainRegistrations,
   indexCatalogById,
+  resolveHostReadRefs,
+  resolveHostReadText,
   type AgentToolSideEffect,
+  type HostReadVocabulary,
   type ToolHandler,
   type ToolRegistration,
 } from "@jini-ai/core";
@@ -35,7 +38,6 @@ import {
 } from "./tool-handlers.js";
 import type { WebhooksPackageToolDeps, WebhooksToolSurfaces } from "./tool-handlers.types.js";
 
-const CATALOG_BY_ID = indexCatalogById({ catalog: getWebhooksAgentToolCatalog() });
 
 /**
  * This wiring layer's OWN risk classification, authored from what each handler below actually
@@ -80,8 +82,8 @@ export const webhooksDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new
  * `WebhookDeliveryVetoedError` (`delivery.ts`) is absent for a different reason — it is raised on
  * the OUTBOUND send path, which no tool in this catalog calls, so listing it would be speculative.
  */
-const WEBHOOKS_MODEL_FACING_ERRORS: readonly ModelFacingErrorRule[] = [
-  versionConflictRule({ readToolId: "content_read.webhook_subscription" }),
+const webhooksModelFacingErrors = ({ hostReads }: { hostReads?: HostReadVocabulary | undefined }, _optional = {}): readonly ModelFacingErrorRule[] => [
+  versionConflictRule({ readToolId: resolveHostReadText({ text: "{{read:webhook_subscription}}" }, { hostReads }) }),
   forbiddenRule({ domainPrefix: "WEBHOOKS", error: ToolPermissionDeniedError }),
   { error: WebhookSubscriptionNotFoundError, code: "WEBHOOKS_SUBSCRIPTION_NOT_FOUND" },
   { error: WebhookSubscriptionValidationError, code: "WEBHOOKS_VALIDATION_FAILED" },
@@ -94,9 +96,9 @@ const WEBHOOKS_MODEL_FACING_ERRORS: readonly ModelFacingErrorRule[] = [
  */
 export function buildWebhooksToolRegistrations(
   { deps, surfaces }: { deps: WebhooksPackageToolDeps; surfaces: WebhooksToolSurfaces },
-  _optional = {},
+  { hostReads }: { hostReads?: HostReadVocabulary | undefined } = {},
 ): ToolRegistration[] {
-  const args = { deps, surfaces };
+  const args = { deps, surfaces, hostReads };
   const handlers: Record<string, ToolHandler> = {
     webhooks_list_subscriptions: webhooksListSubscriptionsHandler(args),
     webhooks_get_deliveries: webhooksGetDeliveriesHandler(args),
@@ -109,10 +111,10 @@ export function buildWebhooksToolRegistrations(
   return buildDomainRegistrations({
     domain: "integrations",
     catalogModule: "webhooks/agent-tools.ts",
-    catalog: CATALOG_BY_ID,
+    catalog: indexCatalogById({ catalog: resolveHostReadRefs({ value: getWebhooksAgentToolCatalog() }, { hostReads }) }),
     // The whole map at once, so no handler can be the one that forgot — see
     // `withModelFacingErrors`' own doc for why a per-call-site reshape is the defect this avoids.
-    handlers: withModelFacingErrors({ handlers, rules: WEBHOOKS_MODEL_FACING_ERRORS }),
+    handlers: withModelFacingErrors({ handlers, rules: webhooksModelFacingErrors({ hostReads }) }),
     derivedRisk: webhooksDerivedRisk,
   });
 }

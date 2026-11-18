@@ -8,6 +8,8 @@ import {
   requireNoInput,
   requireString,
   requireToolPermission,
+  resolveHostReadText,
+  type HostReadVocabulary,
   type ToolHandler,
 } from "@jini-ai/core";
 import { requireExpectedVersion } from "@jini-ai/core/optimistic-concurrency";
@@ -52,6 +54,7 @@ function egressTargetCheck(routeDeps: WebhooksPackageToolDeps) {
 interface WebhookHandlerArgs {
   deps: WebhooksPackageToolDeps;
   surfaces: WebhooksToolSurfaces;
+  hostReads?: HostReadVocabulary | undefined;
 }
 
 /** The deps bag the subscription write-service takes, over the route deps and its egress check. */
@@ -118,9 +121,9 @@ export const webhooksCreateSubscriptionHandler = ({ deps }: WebhookHandlerArgs, 
 };
 
 /** Uses the existing validation/egress owner and never exposes signing material. */
-export const webhooksUpdateSubscriptionHandler = ({ deps }: WebhookHandlerArgs, _optional = {}): ToolHandler => async (ctx) => {
+export const webhooksUpdateSubscriptionHandler = ({ deps, hostReads }: WebhookHandlerArgs, _optional = {}): ToolHandler => async (ctx) => {
   const input = requireInputRecord({ input: ctx.input });
-  const expectedVersion = requireExpectedVersion({ value: input.expectedVersion, readToolId: "content_read.webhook_subscription" });
+  const expectedVersion = requireExpectedVersion({ value: input.expectedVersion, readToolId: resolveHostReadText({ text: "{{read:webhook_subscription}}" }, { hostReads }) });
   const subscriptionId = requireString({ input, key: "subscriptionId" });
   await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: deps.authorize }), workspaceId: deps.workspaceId, principalId: ctx.principal.id, permission: MANAGE_INTEGRATIONS_PERMISSION }, { entityType: "webhook_subscription", entityId: subscriptionId });
   if (!Array.isArray(input.topics) || !input.topics.every(topic => typeof topic === "string")) {

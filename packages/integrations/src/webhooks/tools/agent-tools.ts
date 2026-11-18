@@ -77,7 +77,7 @@ export type AgentToolDefinition = SharedAgentToolDefinition & { sideEffects: Age
 const SUBSCRIPTION_ID_PROPERTY = {
   type: "string",
   minLength: 1,
-  description: "A webhook subscription's id, as returned by webhooks_create_subscription or content_read.webhook_subscription.",
+  description: "A webhook subscription's id, as returned by webhooks_create_subscription or {{read:webhook_subscription}}.",
 } as const;
 
 const SUBSCRIPTION_ID_SCHEMA = {
@@ -136,10 +136,10 @@ const GET_DELIVERIES_SCHEMA = {
 
 const UPDATE_SUBSCRIPTION_TOOL: AgentToolDefinition = {
   name: "webhooks_update_subscription",
-  description: "Replaces a webhook subscription's label, HTTPS targetUrl and topics by subscriptionId. Supply all three fields; use content_read.webhook_subscription to read current values first. Returns {subscription}, with signing version metadata but no secret. Status and signing generation stay unchanged. Missing ids, empty labels/topics, malformed targets, denied permission and disallowed egress are refused. Requires admin.integrations.manage. Pass expectedVersion from content_read.webhook_subscription; if someone changed it since, nothing is saved and you must re-read.",
+  description: "Replaces a webhook subscription's label, HTTPS targetUrl and topics by subscriptionId. Supply all three fields; use {{read:webhook_subscription}} to read current values first. Returns {subscription}, with signing version metadata but no secret. Status and signing generation stay unchanged. Missing ids, empty labels/topics, malformed targets, denied permission and disallowed egress are refused. Requires admin.integrations.manage. Pass expectedVersion from {{read:webhook_subscription}}; if someone changed it since, nothing is saved and you must re-read.",
   sideEffects: "mutates-durable-state", authorization: { permission: MANAGE_INTEGRATIONS_PERMISSION },
   inputSchema: { type: "object", additionalProperties: false, required: ["subscriptionId", "label", "targetUrl", "topics", "expectedVersion"], properties: {
-    expectedVersion: { type: "integer", minimum: 0, description: "The record's version from content_read.webhook_subscription. Required." },
+    expectedVersion: { type: "integer", minimum: 0, description: "The record's version from {{read:webhook_subscription}}. Required." },
     subscriptionId: { type: "string", minLength: 1 }, label: { type: "string", minLength: 1 }, targetUrl: { type: "string", minLength: 1 }, topics: { type: "array", minItems: 1, items: { type: "string" } },
   } },
 };
