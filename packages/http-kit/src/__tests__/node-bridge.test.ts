@@ -2,7 +2,7 @@ import { createServer, request as httpRequest, type IncomingMessage, type Server
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
-import { createNodeDispatcher, type NodeDispatcher } from '../node-bridge.js';
+import { createNodeDispatcher, nodeRequestHeaders, type NodeDispatcher } from '../node-bridge.js';
 import { jsonResponse, readJsonBody } from '@jini-ai/core/contracts/server';
 
 let open: HttpServer | undefined;
@@ -277,5 +277,38 @@ describe('createNodeDispatcher mounted in Express (the host adapter shape)', () 
     expect([boom.status, await boom.json()]).toEqual([500, { error: 'host handler' }]);
     expect(hostErrors).toHaveLength(1);
     expect((await fetch(`${base}/cookies`)).headers.getSetCookie()).toHaveLength(2);
+  });
+});
+
+describe('nodeRequestHeaders', () => {
+  const incomingWith = (headers: IncomingMessage['headers']): IncomingMessage => ({ headers } as IncomingMessage);
+
+  it('gives the web headers of a Node request: one entry per name, a repeated header joined as Node joined it, names lower-case', () => {
+    const headers = nodeRequestHeaders({ incoming: incomingWith({ host: 'a.test', cookie: 'a=1; b=2', 'x-forwarded-for': '203.0.113.1, 192.0.2.9' }) });
+    expect(headers.get('host')).toBe('a.test');
+    expect(headers.get('cookie')).toBe('a=1; b=2');
+    expect(headers.get('x-forwarded-for')).toBe('203.0.113.1, 192.0.2.9');
+  });
+
+  it('turns a header Node keeps as a list (set-cookie) into one entry per value, and skips an undefined one', () => {
+    const headers = nodeRequestHeaders({ incoming: incomingWith({ 'set-cookie': ['a=1', 'b=2'], missing: undefined }) });
+    expect(headers.getSetCookie()).toEqual(['a=1', 'b=2']);
+    expect(headers.has('missing')).toBe(false);
+  });
+
+  it('is the view a route handler gets: the same headers over a real socket, a repeated header joined by Node', async () => {
+    const dispatcher = createNodeDispatcher();
+    dispatcher.server.route({ method: 'GET', path: '/h', handler: ({ request }) => jsonResponse({ status: 200, body: { cookie: request.headers.get('cookie'), custom: request.headers.get('x-twice') } }) });
+    const base = await listen(createServer((incoming, out) => {
+      expect(Object.fromEntries(nodeRequestHeaders({ incoming }))).toMatchObject({ cookie: 'a=1; b=2', 'x-twice': 'one, two' });
+      void dispatcher.handle({ incoming, out });
+    }));
+    const answer = await new Promise<string>((resolve, reject) => {
+      const req = httpRequest(`${base}/h`, { headers: { cookie: ['a=1', 'b=2'], 'x-twice': ['one', 'two'] } }, (response) => {
+        let text = ''; response.on('data', (chunk) => { text += String(chunk); }); response.on('end', () => resolve(text));
+      });
+      req.on('error', reject); req.end();
+    });
+    expect(JSON.parse(answer)).toEqual({ cookie: 'a=1; b=2', custom: 'one, two' });
   });
 });
