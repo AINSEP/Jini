@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from './ui-kit-render-support.js';
 import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider, useT, type useT as UseT } from '../features/i18n/index.js';
 import type { I18nContextValue } from '../features/i18n/index.js';
@@ -9,6 +9,11 @@ import { ErrorNotice } from '../features/panel-kit/ErrorNotice.js';
 import { SeeMore } from '../features/admin-widgets/components/SeeMore/SeeMore.js';
 import { InfoTip } from '../features/admin-widgets/components/InfoTip.js';
 import { ImagePreviewModal } from '../features/admin-widgets/components/ImagePreviewModal.js';
+import { Select, defaultSelectHooks } from '../features/admin-widgets/components/Select/Select.js';
+import { SuggestInput, defaultSuggestInputHooks } from '../features/admin-widgets/components/SuggestInput/SuggestInput.js';
+import { Lightbox } from '../features/admin-widgets/components/Lightbox/Lightbox.js';
+import { ArtifactView } from '../renderers/react/components/ArtifactView.js';
+import { McpUiHost } from '../react/mcp-ui/McpUiHost.js';
 import { A2uiSurfaceRenderer } from '../features/a2ui/renderer.js';
 import { IframeKeepAliveProvider } from '../features/iframe-pool/react/components/IframeKeepAliveProvider.js';
 import { PooledIframe } from '../features/iframe-pool/react/components/PooledIframe.js';
@@ -94,5 +99,54 @@ describe('iframe pool', () => {
   it('PooledIframe renders a plain iframe when the injected server-render hook says so', () => {
     render(<PooledIframe cacheKey="k" src="about:blank" title="plain" useIsServerRenderHook={() => true} />);
     expect(screen.getByTitle('plain').tagName).toBe('IFRAME');
+  });
+});
+
+describe('Select and SuggestInput hooks', () => {
+  it('Select takes its agent handle from the injected hooks', () => {
+    const useAgentHandle = vi.fn(() => 'select-fake');
+    const { container } = render(
+      <Select value="" onChange={vi.fn()} options={[{ value: 'a', label: 'A' }]} aria-label="Pick one" hooks={{ ...defaultSelectHooks, useAgentHandle: useAgentHandle as never }} />,
+    );
+    expect(useAgentHandle).toHaveBeenCalledWith({ agentHandle: undefined });
+    expect(container.querySelector('[data-agent-element^="select-fake"], [data-agent-handle^="select-fake"]')).not.toBeNull();
+  });
+
+  it('SuggestInput takes its option ids from the injected hooks', () => {
+    const useSuggestOptionIds = vi.fn(() => ({ listId: 'fake-list', optionId: (index: number) => `fake-opt-${index}` }));
+    render(
+      <SuggestInput value="a" onValueChange={vi.fn()} suggestions={['abc']} onPick={vi.fn()} aria-label="Suggest" hooks={{ ...defaultSuggestInputHooks, useSuggestOptionIds: useSuggestOptionIds as never }} />,
+    );
+    expect(screen.getByRole('combobox', { name: 'Suggest' })).toHaveAttribute('aria-controls', 'fake-list');
+  });
+});
+
+describe('Lightbox', () => {
+  it('renders the view-model of the injected hook', () => {
+    const useFakeLightbox = vi.fn(() => ({ dialogRef: { current: null }, onCancel: vi.fn(), onBackdropClick: vi.fn(), onKeyDown: vi.fn(), index: 0 }));
+    render(<Lightbox open title="Fake title" onClose={vi.fn()} useLightboxHook={useFakeLightbox as never}><img alt="shown" /></Lightbox>);
+    expect(useFakeLightbox).toHaveBeenCalledWith(expect.objectContaining({ open: true }));
+    expect(document.querySelector('dialog')).not.toBeNull();
+  });
+});
+
+describe('ArtifactView', () => {
+  it('shows the injected translator copy when the injected view hook finds no renderer', () => {
+    const useNoMatch = vi.fn(() => ({ match: undefined, wrap: (node: React.ReactNode) => <section data-testid="wrapped">{node}</section> }));
+    render(<ArtifactView file={{ path: 'a.xyz', content: '' } as never} registry={{} as never} hooks={{ useT: useQuotingT, useArtifactView: useNoMatch as never }} />);
+    expect(screen.getByTestId('wrapped')).toHaveTextContent('«No renderer is registered for this artifact.»');
+    expect(useNoMatch).toHaveBeenCalledWith(expect.objectContaining({ file: expect.anything() }));
+  });
+});
+
+describe('McpUiHost', () => {
+  it('reports the state of the injected host hook and waits for host tokens', () => {
+    const useHostSurfaceTokens = vi.fn(() => undefined);
+    const useMcpUiHost = vi.fn(() => ({ state: 'fake-state', size: undefined, rendererRef: { current: null }, rendererProps: {} }));
+    const { container } = render(
+      <McpUiHost html="<p/>" sessionKey="s" title="Fake host" sandboxProxyUrl={new URL("https://sandbox.example/")} hooks={{ useHostSurfaceTokens: useHostSurfaceTokens as never, useMcpUiHost: useMcpUiHost as never }} />,
+    );
+    expect(container.querySelector('[data-mcpui-host]')).toHaveAttribute('data-mcpui-state', 'fake-state');
+    expect(useHostSurfaceTokens).toHaveBeenCalledTimes(1);
   });
 });
