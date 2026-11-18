@@ -70,3 +70,23 @@ export function visibleToolFamily(
   const selector = visibleSelector({ selector: description.selector, members });
   return { id: familyId, members, ...(selector === undefined ? {} : { selector }) };
 }
+
+/**
+ * The member a request's input points at through the group's selector, for ranking suggestions only.
+ *
+ * @returns The member id, or `undefined` when the input carries no selector value the group knows.
+ * @complexity O(k) for k selector keys.
+ */
+export function selectedFamilyMember(
+  { family, input }: { readonly family: ToolFamily; readonly input: unknown },
+  _optional: Record<string, never> = {},
+): string | undefined {
+  if (family.selector === undefined || typeof input !== 'object' || input === null || Array.isArray(input)) return undefined;
+  const fields = input as Record<string, unknown>;
+  const { keys, byValue } = family.selector;
+  for (const key of keys) {
+    const value = fields[key];
+    if (typeof value === 'string' && Object.hasOwn(byValue, value)) return byValue[value];
+  }
+  return undefined;
+}

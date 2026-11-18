@@ -38,10 +38,19 @@ describe('resolveToolTarget', () => {
     expect(hidden).toEqual(madeUp);
   });
 
-  it('ranks with a content_read resource selector from the input without dispatching it', () => {
-    const registry = registryWith(['content_read.theme', 'content_read.backup_restore_point']);
-    const target = resolveToolTarget({ toolId: 'content_read', input: { resource: 'theme' }, registry });
+  it('does not read a selector from the input when no family port is given', () => {
+    const registry = registryWith(['content_read.backup_restore_point', 'content_read.theme']);
+    const target = resolveToolTarget({ toolId: 'content_read', input: { resource: 'backup' }, registry });
     expect(unknown(target).candidates).toEqual(['content_read.theme', 'content_read.backup_restore_point']);
+  });
+
+  it('ranks the member a family selector points at first, without dispatching it', () => {
+    const registry = registryWith(['content_read.backup_restore_point', 'content_read.theme']);
+    const families: ToolFamilyPort = { describeFamily: () => ({
+      members: ['content_read.backup_restore_point', 'content_read.theme'], selector: { keys: ['resource'], byValue: { backup: 'content_read.backup_restore_point' } },
+    }) };
+    const target = resolveToolTarget({ toolId: 'content_read', input: { resource: 'backup' }, registry }, { families });
+    expect(unknown(target).candidates).toEqual(['content_read.backup_restore_point', 'content_read.theme']);
   });
 });
 

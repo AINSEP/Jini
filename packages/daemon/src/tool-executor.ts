@@ -444,10 +444,10 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
   }
 
   /** Throws the typed unknown-tool input error, naming up to eight similarity-ranked registrations.
-   * Input is used only for a diagnostic resource hint; this never dispatches an alternate tool. */
-  function assertKnownTool({ registry: invocationRegistry, toolId, input }: { registry: ToolRegistry; toolId: string; input: unknown }): void {
+   * This never dispatches an alternate tool. */
+  function assertKnownTool({ registry: invocationRegistry, toolId }: { registry: ToolRegistry; toolId: string }): void {
     if (invocationRegistry.has({ toolId })) return;
-    const candidates = toolCandidates({ toolId, tools: invocationRegistry.list({}), input });
+    const candidates = toolCandidates({ toolId, tools: invocationRegistry.list({}) });
     const hint = candidates.length > 0 ? `; did you mean ${candidates.join(', ')}?` : '';
     throw new ToolInputError({ message: `ToolExecutor: unknown tool "${toolId}"${hint}` });
   }
@@ -687,7 +687,7 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     // policy that hangs or throws used to still leave a record behind. `has()` only confirms
     // existence, never returns a handler, so this doesn't reopen the leak authorizeToolInvocation
     // closed — that gate still runs, still unconditionally, inside the call below.
-    assertKnownTool({ registry: invocationRegistry, toolId, input });
+    assertKnownTool({ registry: invocationRegistry, toolId });
 
     const executionId = openAudit(principal, run, toolId);
 

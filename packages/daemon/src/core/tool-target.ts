@@ -2,7 +2,7 @@ import type { ToolDescriptor, ToolRegistry } from '@jini-ai/core';
 import type { ApiError } from '@jini-ai/protocol';
 import { toolFamilySentence, unknownToolSentence } from '@jini-ai/core/tool-call-text';
 import { toolCandidates } from './tool-candidates.js';
-import { visibleToolFamily, type ToolFamily, type ToolFamilyPort } from './tool-family.js';
+import { selectedFamilyMember, visibleToolFamily, type ToolFamily, type ToolFamilyPort } from './tool-family.js';
 
 /**
  * The one answer to "which tool did this request name?", read from descriptors only: a registered
@@ -23,7 +23,7 @@ const MCP_LOCAL_CHECK_MESSAGES = 'check_messages';
  * never tells a caller whether another registry holds the id.
  *
  * @param required.toolId - The id the request named.
- * @param required.input - The request's input; `toolCandidates` reads a selector from it for ranking only.
+ * @param required.input - The request's input; read only through a group's selector, to rank the selected member first.
  * @param required.registry - The run's registry; only `list` is called.
  * @param optional.families - Host-owned groups; absent means no groups. Asked only about an id the registry does not hold,
  *   and what it names is filtered by this registry before anything is shown.
@@ -40,7 +40,9 @@ export function resolveToolTarget(
   const description = families?.describeFamily({ familyId: toolId });
   const family = description === undefined ? undefined
     : visibleToolFamily({ familyId: toolId, description, visibleIds: new Set(tools.map(({ id }) => id)) });
-  return { kind: 'unknown', toolId, candidates: toolCandidates({ toolId, tools, input }), ...(family === undefined ? {} : { family }) };
+  const selected = family === undefined ? undefined : selectedFamilyMember({ family, input });
+  const candidates = toolCandidates({ toolId, tools, ...(selected === undefined ? {} : { target: selected }) });
+  return { kind: 'unknown', toolId, candidates, ...(family === undefined ? {} : { family }) };
 }
 
 /**

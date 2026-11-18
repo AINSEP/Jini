@@ -49,7 +49,7 @@ describe('@jini-ai/daemon — ToolExecutor — authorization', () => {
       .rejects.toMatchObject({ name: 'ToolInputError', message: 'ToolExecutor: unknown tool "content_read"; did you mean content_read.menu, content_read.page?' });
   });
 
-  it('suggests the explicit resource first without dispatching or authorizing an alternate tool', async () => {
+  it('suggests by name similarity only: the input never picks a candidate, and no alternate tool is dispatched or authorized', async () => {
     const handler = vi.fn(async () => 'unused');
     const authorize = vi.fn(() => 'allow' as const);
     const registry = registryWith(...['content_read.backup_restore_point', 'content_read.theme'].map((id): ToolRegistration => ({
