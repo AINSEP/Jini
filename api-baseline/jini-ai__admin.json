@@ -669,6 +669,7 @@
  "./media": {
   "types": "./dist/media/index.d.ts",
   "symbols": {
+   "EmbedPolicyPort": "interface:f4e1b44a23",
    "LibraryState": "interface:d445026d8b",
    "MediaApiPort": "interface:1916bf9814",
    "MediaAsset": "interface:631ed84eb6",
@@ -706,7 +707,7 @@
    "mediaEmbedSnippet": "function:2aa7cd1051",
    "mediaFileName": "function:9c31019620",
    "mediaMessagesEn": "variable:97fdd567a9",
-   "mediaModule": "variable:5ea691a9e3",
+   "mediaModule": "variable:42f31979fa",
    "mediaProvidersToken": "variable:e59103c9f5",
    "mediaRowHandles": "function:9f13947bba",
    "parseMediaHtmlAttributes": "function:d1fb6b4500",
@@ -743,7 +744,7 @@
   "symbols": {
    "GallerySelectionImage": "interface:5813edeafb",
    "MediaPageProps": "interface:4dce242531",
-   "media": "function:8f8ab53f68",
+   "media": "function:6f8f4709b8",
    "useGallerySelection": "function:5db3088add",
    "useMediaPorts": "function:2c6688f2b3"
   }

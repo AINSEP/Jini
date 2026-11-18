@@ -1,5 +1,6 @@
 import { adminPort } from '@jini-ai/core/contracts/admin-module';
 import type { EmbedPolicyPort } from '../core/ports/embed-policy.js';
+export type { EmbedPolicyPort } from '../core/ports/embed-policy.js';
 import type {
   MediaAsset,
   MediaQuery,

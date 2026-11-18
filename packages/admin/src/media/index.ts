@@ -1,6 +1,6 @@
 export { mediaModule } from './media.module.js';
 export { mediaApiToken, embedPolicyToken, mediaProvidersToken } from './ports.js';
-export type { MediaApiPort, MediaProvidersPort, MediaEventsPort } from './ports.js';
+export type { EmbedPolicyPort, MediaApiPort, MediaProvidersPort, MediaEventsPort } from './ports.js';
 export type {
   MediaAsset,
   MediaQuery,
