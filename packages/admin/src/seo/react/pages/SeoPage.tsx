@@ -1,18 +1,18 @@
-import { useSeoDefaults, useSeoTabs } from "../hooks/SeoPage.hooks.js";
+import { useSeoTabs } from "../hooks/SeoPage.hooks.js";
 import type { SeoTabController, SeoTabId } from "../hooks/SeoPage.hooks.js";
 
-import { agentHandle } from "@jini-ai/core/agent-handles";
 
 import { TabBar } from "../../../react/kit.js";
 import { useSeoCopy, useSeoOptions } from "../hooks/SeoPorts.hooks.js";
-import { actionLabel, orEmpty } from "../../rules.js";
 import { useWiredSeo } from "../hooks/use-seo.hooks.js";
-import { useSeoPageActions, sitemapStateLabel } from "../hooks/SeoPage.hooks.js";
-import { MediaRefField } from "../components/MediaRefField.js";
+import { useSeoPageActions } from "../hooks/SeoPage.hooks.js";
 import { SitemapModal } from "../components/SitemapModal.js";
 
-import { SeoSection } from "../components/SeoSection.js";
 import { SeoEntrySection } from "../components/SeoEntryPanel.js";
+import { SeoSitemapTab } from "../tabs/SeoSitemapTab.js";
+import { SeoDefaultsTab } from "../tabs/SeoDefaultsTab.js";
+
+
 
 
 
@@ -63,6 +63,10 @@ import { SeoEntrySection } from "../components/SeoEntryPanel.js";
  * ESLint gate scores functions independently of which file they sit in, so the ceiling is
  * satisfied either way — only the organizational preference differs, and the debt key decides it.
  *
+ * Superseded by the JM2-pre split (2026-11-18): that debt key is gone with the file's size debt, so
+ * `SeoEntryPanel`, `SeoSection`, `EntryPicker`, `AnalyzePanel` and the entry form groups now live in
+ * `react/components/`, and the two tab bodies in `react/tabs/`. This file keeps only the shell.
+ *
  * ## Out of the cards (2026-09-06, same day)
  *
  * Owner, on the screen the section above describes: "for seo can you take the stuff out of the
@@ -84,223 +88,6 @@ import { SeoEntrySection } from "../components/SeoEntryPanel.js";
  *  none of these is meaningful without the others, so naming the group is what lets a test hand a
  *  panel a controller instead of assembling one out of parts. */
 
-
-/**
- * The "Site defaults" tab — the site-wide `seo.*` settings form, moved here verbatim from `Seo`'s
- * own body.
- *
- * ONE addition beyond relocation: the two `.field-group`s now carry headings ("Search appearance",
- * "Crawling"). They are the grouping an operator already thinks in — every SEO tool they have used
- * separates what search/social show from whether to be indexed at all — and the form had no
- * internal hierarchy whatsoever before, just seven controls in a row. Expressing it as headings
- * INSIDE one tab rather than as more tabs is deliberate and load-bearing: see `react/hooks/SeoPage.hooks.ts`'s
- * header for why splitting this form across panels would silently blank fields on save.
- *
- * The submit handler is now one call to `buildSeoSettingsPatch` (`react/hooks/SeoPage.hooks.ts`) rather than seven
- * inline `??`/`||` field reads — same fields, same fallbacks, same payload, just not written in the
- * `.tsx`.
- */
-export function SeoDefaultsTab({ controller }: { controller: SeoTabController }) {
-  const t = useSeoCopy();
-  const { locale, settings, saving, defaultOgImage, setDefaultOgImage } = controller;
-  const { submit } = useSeoDefaults({ save: controller.save });
-
-  return (
-    <form
-      className="jini-seo-panel jini-seo-panel--full"
-      {...agentHandle({ handle: "seo-defaults-form" }, {
-        role: "form",
-        label: "Site-wide SEO defaults — title template, meta description, social image, robots",
-      })}
-      onSubmit={submit}
-    >
-      <SeoSection title={t({ locale: locale, key: "Search appearance" })}>
-        <div className="jini-field">
-          <label className="jini-field-label" htmlFor="seo-title-template">
-            {t({ locale: locale, key: "Title template (must contain %s)" })}
-          </label>
-          <input
-            className="jini-input"
-            id="seo-title-template"
-            name="titleTemplate"
-            defaultValue={settings.titleTemplate}
-            {...agentHandle({ handle: "seo-title-template" }, {
-              role: "field",
-              label: "Site-wide title template; %s is replaced by the page's own title",
-            })}
-          />
-        </div>
-        <div className="jini-field">
-          <label className="jini-field-label" htmlFor="seo-default-description">
-            {t({ locale: locale, key: "Default meta description" })}
-          </label>
-          <textarea
-            className="jini-textarea"
-            id="seo-default-description"
-            name="defaultDescription"
-            defaultValue={orEmpty({ value: settings.defaultDescription })}
-            {...agentHandle({ handle: "seo-default-description" }, {
-              role: "field",
-              label: "Fallback meta description for pages that set none of their own",
-            })}
-          />
-        </div>
-      </SeoSection>
-
-      {/* Its own group, not a tail on "Search appearance". These two fields are what a link to this
-          site looks like when it is PASTED somewhere — a different question from what a search
-          result looks like, and the split every SEO tool an operator has already used makes. The
-          form previously ran all four together in one unlabelled `.field-group`, so the OG image
-          read as a search-result setting. */}
-      <SeoSection
-        title={t({ locale: locale, key: "Social preview" })}
-        tip={t({ locale: locale, key: "Used by Facebook, LinkedIn, Slack, Discord, iMessage, WhatsApp and X/Twitter" })}
-      >
-        <MediaRefField
-          locale={locale}
-          id="seo-default-og-image"
-          name="defaultOgImage"
-          label={t({ locale: locale, key: "Default preview image" })}
-          value={defaultOgImage}
-          onChange={setDefaultOgImage}
-          agentHandle="seo-default-og-image"
-        />
-        <div className="jini-field">
-          <label className="jini-field-label" htmlFor="seo-twitter-site">
-            {t({ locale: locale, key: "X/Twitter @handle" })}
-          </label>
-          <input
-            className="jini-input"
-            id="seo-twitter-site"
-            name="twitterSite"
-            defaultValue={orEmpty({ value: settings.twitterSite })}
-            {...agentHandle({ handle: "seo-twitter-site" }, {
-              role: "field",
-              label: "The site's Twitter @handle, used in Twitter card metadata",
-            })}
-          />
-        </div>
-      </SeoSection>
-
-      <SeoSection title={t({ locale: locale, key: "Crawling" })}>
-        <label className="jini-form-checkbox-field">
-          <input
-            className="jini-input"
-            type="checkbox"
-            name="noindex"
-            defaultChecked={settings.defaultRobots.noindex}
-            {...agentHandle({ handle: "seo-default-noindex" }, {
-              role: "checkbox",
-              label: "Ask search engines not to index pages by default",
-            })}
-          />
-          {t({ locale: locale, key: "Default noindex" })}
-        </label>
-        <label className="jini-form-checkbox-field">
-          <input
-            className="jini-input"
-            type="checkbox"
-            name="nofollow"
-            defaultChecked={settings.defaultRobots.nofollow}
-            {...agentHandle({ handle: "seo-default-nofollow" }, {
-              role: "checkbox",
-              label: "Ask search engines not to follow links by default",
-            })}
-          />
-          {t({ locale: locale, key: "Default nofollow" })}
-        </label>
-        <label className="jini-form-checkbox-field">
-          <input
-            className="jini-input"
-            type="checkbox"
-            name="sitemapEnabled"
-            defaultChecked={settings.sitemapEnabled}
-            {...agentHandle({ handle: "seo-sitemap-enabled" }, {
-              role: "checkbox",
-              label: "Whether this site publishes a sitemap at all",
-            })}
-          />
-          {t({ locale: locale, key: "Sitemap enabled" })}
-        </label>
-      </SeoSection>
-
-      <div className="jini-editor-actions jini-form-actions jini-seo-actions">
-        <button
-          className="jini-btn"
-          type="submit"
-          disabled={saving}
-          {...agentHandle({ handle: "seo-save-settings" }, {
-            role: "button",
-            label: "Save the site-wide SEO defaults above",
-          })}
-        >
-          {actionLabel({ pending: saving, pendingLabel: t({ locale: locale, key: "Saving…" }), idleLabel: t({ locale: locale, key: "Save settings" }) })}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-/**
- * The "Sitemap" tab — the two sitemap actions, moved here verbatim, plus one line this screen never
- * had: whether a sitemap is being published at all.
- *
- * That line is the reason this is a tab rather than a footnote on Site defaults. The switch
- * ("Sitemap enabled") cannot move here — it belongs to the defaults form's `FormData` submit, see
- * `react/hooks/SeoPage.hooks.ts`'s header — so without a state read, an operator who had sitemaps switched off
- * would find a Regenerate button that appears live and reports success while publishing nothing.
- * Reporting the state instead of duplicating the control keeps exactly one switch on the screen.
- *
- * Wrapped in a `.card` like the defaults form beside it, rather than left as loose text on the
- * page — rendered side by side the uncontained version read as an unfinished panel next to a
- * carded one. The heading is "Cached sitemap", not "Sitemap": it names what the card acts on
- * without restating the tab label, the same way `deployment/OverviewTab.tsx`'s cards are titled.
- * It also has to exist at all — a `role="tab"` button is not in a screen reader's heading list, so
- * a panel with no `<h2>` leaves that reader nothing but the page `H1`.
- */
-export function SeoSitemapTab({ controller }: { controller: SeoTabController }) {
-  const t = useSeoCopy();
-  const { locale, settings, saving, regenerateSitemap, openSitemapModal } = controller;
-
-  return (
-    <div
-      className="jini-seo-panel jini-seo-panel--full"
-      {...agentHandle({ handle: "seo-sitemap" }, {
-        role: "region",
-        label: "Sitemap — force a rebuild of the cached sitemap",
-      })}
-    >
-      <SeoSection title={t({ locale: locale, key: "Cached sitemap" })}>
-        <p className="jini-card-lead">{sitemapStateLabel({ sitemapEnabled: settings.sitemapEnabled }, { t: key => t({ locale, key }) })}</p>
-        <p>{t({ locale: locale, key: "Rebuild the sitemap now to include the latest published content." })}</p>
-        <span className="jini-editor-actions">
-          <button
-            className="jini-btn jini-btn-secondary"
-            disabled={saving}
-            onClick={regenerateSitemap}
-            {...agentHandle({ handle: "seo-regenerate-sitemap" }, {
-              role: "button",
-              label: "Rebuild the cached sitemap now, bypassing the cache",
-            })}
-          >
-            {actionLabel({ pending: saving, pendingLabel: t({ locale: locale, key: "Working…" }), idleLabel: t({ locale: locale, key: "Regenerate sitemap" }) })}
-          </button>
-          <button
-            type="button"
-            className="jini-btn jini-btn-secondary"
-            onClick={openSitemapModal}
-            {...agentHandle({ handle: "seo-view-sitemap" }, {
-              role: "button",
-              label: "Open a modal showing the sitemap's URLs, or its raw XML",
-            })}
-          >
-            {t({ locale: locale, key: "View sitemap" })}
-          </button>
-        </span>
-      </SeoSection>
-    </div>
-  );
-}
 
 /** Dispatches the one active tab's panel as a flat if-chain — a plain function rather than a
  *  ternary written directly in `Seo`'s JSX, which would be counted against that component's own

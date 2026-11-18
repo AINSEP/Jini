@@ -21,20 +21,6 @@
     "value": 111
   },
   {
-    "file": "packages/admin/src/seo/react/pages/SeoPage.tsx",
-    "function": "SeoDefaultsTab",
-    "line": 526,
-    "rule": "max-lines-per-function",
-    "value": 133
-  },
-  {
-    "file": "packages/admin/src/seo/react/pages/SeoPage.tsx",
-    "function": "<file>",
-    "line": 725,
-    "rule": "max-lines",
-    "value": 587
-  },
-  {
     "file": "packages/admin/src/widgets/react/pages/WidgetInstanceEditor.tsx",
     "function": "WidgetInstanceEditor",
     "line": 32,

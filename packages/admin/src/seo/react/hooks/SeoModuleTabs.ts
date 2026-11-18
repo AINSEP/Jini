@@ -1,7 +1,8 @@
 import { createElement } from 'react';
 import type { ComponentType } from 'react';
 import type { TabViewProps } from '../../../core/react/bind-react.js';
-import { SeoDefaultsTab, SeoSitemapTab } from '../pages/SeoPage.js';
+import { SeoDefaultsTab } from '../tabs/SeoDefaultsTab.js';
+import { SeoSitemapTab } from '../tabs/SeoSitemapTab.js';
 import { SeoEntrySection } from '../components/SeoEntryPanel.js';
 import { useWiredSeo } from './use-seo.hooks.js';
 import { useSeoCopy } from './SeoPorts.hooks.js';

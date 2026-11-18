@@ -1,5 +1,5 @@
 import { agentHandle } from "@jini-ai/core/agent-handles";
-import { TabBar, InfoTip } from "../../../react/kit.js";
+import { InfoTip } from "../../../react/kit.js";
 import { useSeoCopy } from "../hooks/SeoPorts.hooks.js";
 import { useWiredSeoEntryPanel } from "../hooks/use-seo-entry-panel.hooks.js";
 import { useSeoEntrySection } from "../hooks/use-seo-entry-section.hooks.js";
