@@ -54,7 +54,7 @@ export function isOk(response, _optional = {}) {
   return response.status >= 200 && response.status < 300;
 }
 
-/** @param {{ value: unknown, field: string }} required */
+/** @param {{ value: unknown, field: string }} required @param {unknown} required.value @param {string} required.field */
 export function extractStringField({ value, field }, _optional = {}) {
   if (typeof value !== "object" || value === null) return "";
   const candidate = /** @type {Record<string, unknown>} */ (value)[field];

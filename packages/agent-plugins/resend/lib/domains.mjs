@@ -22,7 +22,7 @@ const DNS_TYPES = new Set(['TXT', 'MX', 'CNAME']);
 /** @type {Readonly<Record<number, string>>} */
 const REJECTED_CODES = { 401: 'unauthorized', 403: 'forbidden', 404: 'not_found' };
 
-/** `Retry-After` (seconds) in ms, when present and sane. @param {{ headers: Readonly<Record<string, string>> | undefined }} required */
+/** `Retry-After` (seconds) in ms, when present and sane. @param {{ headers: Readonly<Record<string, string>> | undefined }} required @param {Readonly<Record<string, string>> | undefined} required.headers */
 export function retryAfterMs({ headers }, _optional = {}) {
   const raw = headers?.['retry-after'] ?? headers?.['Retry-After'] ?? '';
   const seconds = raw.trim() === '' ? Number.NaN : Number(raw);
@@ -92,7 +92,7 @@ export function domainState({ status }, _optional = {}) {
   return status === 'failed' ? 'failed' : 'pending';
 }
 
-/** A relative record name under `domain` as a full name. @param {{ name: string, domain: string }} required */
+/** A relative record name under `domain` as a full name. @param {{ name: string, domain: string }} required @param {string} required.name @param {string} required.domain */
 export function qualify({ name, domain }, _optional = {}) {
   const lower = name.toLowerCase();
   if (lower === '' || lower === '@' || lower === domain) return domain;
