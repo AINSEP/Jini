@@ -975,7 +975,7 @@
    "deleteMenu": "function:568f3f5648",
    "findBoundMenu": "function:65c4ed4203",
    "injectMenuDropdownScript": "function:bcb05b256b",
-   "isAllowedHref": "function:da15c02e56",
+   "isAllowedHref": "function:598750378a",
    "isMenuHtmlAuthoring": "function:d457f8b494",
    "menuHtmlInputProblem": "function:8df9b2ecb9",
    "menuVersionConflictError": "function:e8a5a5236a",
@@ -986,6 +986,7 @@
    "renderMenuToggle": "function:d16bc93417",
    "resolveForLocation": "function:98311bec63",
    "resolveMenuDoc": "function:02a92bca06",
+   "toAllowedHref": "function:45db2e4c06",
    "updateMenuTree": "function:94c01edaf1",
    "validateAndCloneTree": "function:ef6a58ffa5"
   }
@@ -996,6 +997,14 @@
    "MENU_DROPDOWN_SCRIPT": "variable:2696cc8d04",
    "injectMenuDropdownScript": "function:bcb05b256b",
    "renderMenuToggle": "function:d16bc93417"
+  }
+ },
+ "./navigation/href": {
+  "types": "./dist/navigation/href.d.ts",
+  "symbols": {
+   "ALLOWED_HREF_SHAPES_DESCRIPTION": "variable:1fc7003b00",
+   "isAllowedHref": "function:598750378a",
+   "toAllowedHref": "function:45db2e4c06"
   }
  },
  "./navigation/node": {
@@ -1095,7 +1104,7 @@
    "deleteMenu": "function:568f3f5648",
    "findBoundMenu": "function:65c4ed4203",
    "injectMenuDropdownScript": "function:bcb05b256b",
-   "isAllowedHref": "function:da15c02e56",
+   "isAllowedHref": "function:598750378a",
    "isMenuHtmlAuthoring": "function:d457f8b494",
    "menuHtmlInputProblem": "function:8df9b2ecb9",
    "menuVersionConflictError": "function:e8a5a5236a",
@@ -1107,6 +1116,7 @@
    "renderMenuToggle": "function:d16bc93417",
    "resolveForLocation": "function:98311bec63",
    "resolveMenuDoc": "function:02a92bca06",
+   "toAllowedHref": "function:45db2e4c06",
    "updateMenuTree": "function:05e5ac652e",
    "validateAndCloneTree": "function:ef6a58ffa5"
   }

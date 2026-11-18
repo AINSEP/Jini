@@ -38,6 +38,7 @@
       "./html/style-values": "universal",
       "./navigation/types": "universal",
       "./navigation/dropdown": "universal",
+      "./navigation/href": "universal",
       "./navigation/node": "node",
       "./media/slug": "universal",
       "./forms": "universal",
@@ -275,6 +276,11 @@
       "types": "./dist/navigation/dropdown.d.ts",
       "import": "./dist/navigation/dropdown.js",
       "default": "./dist/navigation/dropdown.js"
+    },
+    "./navigation/href": {
+      "types": "./dist/navigation/href.d.ts",
+      "import": "./dist/navigation/href.js",
+      "default": "./dist/navigation/href.js"
     },
     "./navigation/node": {
       "types": "./dist/navigation/node/index.d.ts",

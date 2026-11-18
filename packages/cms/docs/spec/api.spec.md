@@ -72,11 +72,12 @@ const applied = await executeCommand({
 
 ### `./navigation`
 
-Source: [types.ts](../../src/navigation/types.ts), [ports.ts](../../src/navigation/ports.ts), [contracts.ts](../../src/navigation/contracts.ts), [read-model.ts](../../src/navigation/read-model.ts), [repo.memory.ts](../../src/navigation/repo.memory.ts), [menu-service.ts](../../src/navigation/menu-service.ts), [resolver.ts](../../src/navigation/resolver.ts), [reconcile.ts](../../src/navigation/reconcile.ts), [agent-tools.ts](../../src/navigation/agent-tools.ts), [tool-registrations.ts](../../src/navigation/tool-registrations.ts).
+Source: [types.ts](../../src/navigation/types.ts), [ports.ts](../../src/navigation/ports.ts), [contracts.ts](../../src/navigation/contracts.ts), [read-model.ts](../../src/navigation/read-model.ts), [repo.memory.ts](../../src/navigation/repo.memory.ts), [menu-service.ts](../../src/navigation/menu-service.ts), [href.ts](../../src/navigation/href.ts), [resolver.ts](../../src/navigation/resolver.ts), [reconcile.ts](../../src/navigation/reconcile.ts), [agent-tools.ts](../../src/navigation/agent-tools.ts), [tool-registrations.ts](../../src/navigation/tool-registrations.ts).
 
 ```ts
 declare function createNavMenuReadModel(deps: NavMenuReadModelDeps, optional: NavMenuReadModelOptions = {}): NavMenuReadModel;
-declare function isAllowedHref({ rawHref }: { rawHref: string }, _optional: Record<string, never> = {}): boolean;
+declare function isAllowedHref({ rawHref }: { rawHref: unknown }, _optional: Record<string, never> = {}): boolean;
+declare function toAllowedHref({ rawHref }: { rawHref: unknown }, _optional: Record<string, never> = {}): string;
 declare function validateAndCloneTree( { items }: { items: readonly NavItemNode[] }, limits: TreeValidationLimits = {} ): NavItemNode[];
 declare function createMenu( required: CreateMenuRequired, optional: CreateMenuOptional = {} ): Promise<{ menu: NavMenuEntry }>;
 declare function updateMenuTree( required: UpdateMenuTreeRequired, optional: UpdateMenuTreeOptional = {} ): Promise<{ menu: NavMenuEntry }>;

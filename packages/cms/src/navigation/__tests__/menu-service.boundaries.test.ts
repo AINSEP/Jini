@@ -10,7 +10,6 @@ import type { DomainEvent, OutboxPort } from "@jini-ai/core/contracts/events";
 import {
   assignLocation,
   createMenu,
-  isAllowedHref,
   MenuConflictError,
   MenuNotFoundError,
   MenuValidationError,
@@ -19,6 +18,7 @@ import {
   updateMenuTree,
   validateAndCloneTree,
 } from "../menu-service.js";
+import { isAllowedHref } from "../href.js";
 import { InMemoryMenuRepo, InMemoryNavLocationBindingRepo } from "../repo.memory.js";
 import { NAV_DOC_TYPE, type NavItemNode, type NavMenuEntry } from "../types.js";
 

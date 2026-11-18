@@ -295,6 +295,7 @@
         "src/widgets/html/gallery-render.ts",
         "src/navigation/types.ts",
         "src/navigation/dropdown.ts",
+        "src/navigation/href.ts",
         "src/navigation/node/index.ts",
         "src/media/slug.ts",
         "src/forms/index.ts",

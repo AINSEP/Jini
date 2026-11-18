@@ -3,17 +3,16 @@ import { test } from "vitest";
 
 import type { DomainEvent, OutboxPort } from "@jini-ai/core/contracts/events";
 import {
-  ALLOWED_HREF_SHAPES_DESCRIPTION,
   assignLocation,
   createMenu,
   deleteMenu,
-  isAllowedHref,
   MenuConflictError,
   MenuLocationBoundError,
   MenuNotFoundError,
   MenuValidationError,
   updateMenuTree,
 } from "../menu-service.js";
+import { ALLOWED_HREF_SHAPES_DESCRIPTION, isAllowedHref } from "../href.js";
 import { InMemoryMenuRepo, InMemoryNavLocationBindingRepo } from "../repo.memory.js";
 import type { NavItemNode } from "../types.js";
 
@@ -1013,9 +1012,10 @@ test("updateMenuTree refuses a trashed menu with ENTITY_IN_TRASH and leaves it u
   assert.equal(after?.doc.items.length, 0);
 });
 
-// REGRESSION: fails if the private URL resolution base is changed away from safehref.invalid.
-test("href resolution uses the neutral private sentinel", () => {
-  assert.equal(isAllowedHref({ rawHref: "//safehref.invalid/path" }), true);
+// REGRESSION: fails if the private URL resolution base is changed away from safehref.invalid, or if a single
+// base is used again: a protocol-relative href aimed at that one host then passes as "same origin".
+test("href resolution never treats a protocol-relative href as same-origin, not even to its own placeholder host", () => {
+  assert.equal(isAllowedHref({ rawHref: "//safehref.invalid/path" }), false);
   // PARITY: an ordinary origin-relative path is admitted; a different network origin is refused.
   assert.equal(isAllowedHref({ rawHref: "/path" }), true);
   assert.equal(isAllowedHref({ rawHref: "//different.invalid/path" }), false);
