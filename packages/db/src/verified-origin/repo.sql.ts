@@ -5,14 +5,37 @@ import type { UUID } from "@jini-ai/core/primitives";
 import { toVerifiedOrigin, type OriginRow, type OriginSettingsTable } from "./repo.rows.js";
 
 /**
- * @file THE durable `OriginSettingRepoPort` adapter: one Kysely query body for every dialect the storage
- * kernel drives (SQLite, PGlite, Postgres). The read adapter is read-only by design (the port declares no
- * write method); the operator-declared origin write is the standalone `registerConfiguredOrigin`
- * (`register.ts`), not a port method.
+ * @file ADR-046 Phase 1 — THE durable `OriginSettingRepoPort` adapter: one Kysely query body for
+ * every dialect (storage plan §4, ADR-066); ADR-006 rule-of-two "second adapter" half,
+ * `Jini packages/http-kit/src/verified-origin/repo.memory.ts`'s `InMemoryOriginSettingRepo` is the first.
+ * `sqlite/origin-repo.sqlite.ts` is the thin layer the composition root builds from the content db
+ * handle.
  *
- * Writes are async (the kernel is), so a host may hand the read adapter its boot write's promise as `after`:
- * every read waits for it, and a boot write that failed fails the reads instead of letting them see a
- * half-booted row.
+ * Purpose:
+ * The workspace's verified origin and its two allowlists previously lived only in-memory in the
+ * real running server (`apps/website/src/server/runtime/composition/deps.ts`) — worse, hardcoded fresh into the constructor's seed
+ * array on every boot, not even genuinely "seeded once." This adapter makes the row durable.
+ *
+ * The READ adapter is read-only by design (matches `OriginSettingRepoPort`, which declares no write
+ * method). Writes are two standalone boot-time functions below, not port methods — ADR-006's
+ * rule-of-two says don't abstract before the second adapter needs it, and there is still only one
+ * durable adapter:
+ *
+ * 1. {@link seedDevCapabilityOriginOn} — the idempotent find-or-create dev default
+ *    (the current loopback listener), preserving operator registrations.
+ * 2. {@link registerConfiguredOriginOn} — the operator-declared public origin, from
+ *    `features/origin/configured-origin.ts`'s `TOVU_PUBLIC_URL` resolver (2026-09-18; design note:
+ *    `ADS-memory/reports/2026-09-18-public-origin-registration-design.md`). This is what finally
+ *    closes the "no way to register a real production origin" gap this header used to disclose as
+ *    permanent, and it is why production's sitemap can emit absolute URLs again.
+ *
+ * Both writers are async (the kernel is), so the composition root hands the read adapter the boot
+ * write's promise as `after`: every read waits for it, and a boot write that failed fails the reads
+ * instead of letting them see a half-booted row.
+ *
+ * Still open, and still a real gap: no ADMIN route or reachability/ownership VERIFICATION flow
+ * exists (ADR-040's own "Open" section keeps that as a v0.1 item). Registration authority today is
+ * "whoever can set this deployment's process environment", nothing weaker and nothing stronger.
  */
 
 /** Host-owned table name. No schema or product table default lives in the adapter. */

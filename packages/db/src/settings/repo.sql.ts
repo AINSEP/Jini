@@ -21,12 +21,13 @@ import {
 } from "./repo.rows.js";
 
 /**
- * @file THE `SettingsRepoPort` adapter: one Kysely query body for every dialect the storage kernel
- * drives (SQLite, PGlite, Postgres). Satisfies the same port as `@jini-ai/core/settings`'
- * `InMemorySettingsRepo`.
+ * @file THE `SettingsRepoPort` adapter (SPEC-007, rule-of-two #2): one Kysely query body for every dialect
+ * the storage kernel drives (storage plan §4, ADR-066). Satisfies the same port as `@jini-ai/core/settings`'
+ * `InMemorySettingsRepo`; the host's `repo.sqlite.ts` is the thin subclass the call sites build from the
+ * content db handle.
  *
- * `transaction` is the kernel's: a write service's callback may await repo calls inside it, which the
- * kernel allows (on SQLite it is one immediate transaction).
+ * `transaction` is the kernel's: `write-service.ts`'s chokepoint callback awaits repo calls inside it, which
+ * the kernel allows (ADR-028 §4's "`BEGIN IMMEDIATE` -> ... -> COMMIT" on SQLite).
  */
 
 /** Host-owned table names. No schema or product table defaults live in the adapter. */
@@ -331,7 +332,7 @@ export class SqlSettingsRepo implements SettingsRepoPort {
    * outer one; an unrelated caller (another request) waits its turn instead of landing inside it —
    * the kernel tracks this per async context, so two independent root calls never merge (the defect
    * an instance-level depth counter once had). A caller that needs several writes to commit together
-   * opens ONE transaction around them.
+   * opens ONE transaction around them — see `resetNamespace`.
    */
   async transaction<T>(fn: () => Promise<T>): Promise<T> {
     return this.kernel.transaction(fn);

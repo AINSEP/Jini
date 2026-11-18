@@ -4,17 +4,28 @@ import { isRedeemable, type ConfirmationTokenRecord, type TokenStorePort } from 
 import { toRecord, toRow, type GatedMutationTokensTable } from "./repo.rows.js";
 
 /**
- * @file THE durable `TokenStorePort` adapter: one Kysely query body for every dialect the storage kernel
- * drives (SQLite, PGlite, Postgres), so confirmation tokens survive a process restart.
+ * @file SPEC-022 durability fix — THE durable `TokenStorePort` adapter: one Kysely query body for
+ * every dialect (storage plan §4, ADR-066). `sqlite/gated-mutation-token-repo.sqlite.ts` is the
+ * thin subclass the composition root builds from the content db handle.
  *
- * `tryRedeem` is single-use on every dialect: the read, the `isRedeemable` check and the conditional write
- * run inside one kernel transaction holding `lockKey` on the token, so no other redemption of the same
- * token can interleave (SQLite: `BEGIN IMMEDIATE` holds the write lock; Postgres: a transaction advisory
- * lock — READ COMMITTED alone would let two redeems both read `minted`). The update is also conditioned on
- * the status it read, so a missed lock could never turn into a second redemption.
+ * Purpose:
+ * `core/gated-mutations/token.ts`'s own file header disclosed that a durable token store "is not
+ * required by this test slice" and shipped only `InMemoryTokenStore`. That made the
+ * `gated-mutations` capability-inventory entry `hasDurableAdapter: false` — a `classification:
+ * "production"` capability with no durable adapter, which `production-readiness-gate.ts`'s
+ * `collectDurabilityFailures` unconditionally fails on. This adapter closes that gap: confirmation
+ * tokens survive a process restart via the `gated_mutation_tokens` table (migration `0052`).
  *
- * The adapter sees only `{ token, now }`: the plan, scope and confirmer binding is checked by the core gateway
- * service that consumes the redeemed record, not here.
+ * `tryRedeem` is single-use on every dialect: the read, the `isRedeemable` check and the
+ * conditional write run inside one kernel transaction holding `lockKey` on the token, so no other
+ * redemption of the same token can interleave (SQLite: `BEGIN IMMEDIATE` holds the write lock;
+ * Postgres: a transaction advisory lock — READ COMMITTED alone would let two redeems both read
+ * `minted`). The update is also conditioned on the status it read, so a missed lock could never
+ * turn into a second redemption.
+ *
+ * Architectural role:
+ * Infrastructure adapter. `core/gated-mutations` never imports this file — it depends only on
+ * `TokenStorePort`; composition roots (`apps/website/src/server/runtime/composition/deps.ts`) bind the concrete class.
  */
 
 /** Host-owned table name. No schema or product table default lives in the adapter. */

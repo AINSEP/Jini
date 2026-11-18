@@ -95,7 +95,7 @@ export type ValueRow = Pick<
 /**
  * `coercion_json` holds the coercer tag as a JSON string (`"identity"`): the column is jsonb on
  * Postgres, which rejects a bare tag. A SQLite row written before that holds the bare tag itself;
- * a migration rewrites those, and this still reads one as-is.
+ * migration `0003_coercion_json_as_json` rewrites those, and this still reads one as-is.
  */
 function decodeCoercionTag({ text }: { text: string | null }, _optional: Record<string, never> = {}): string | null {
   if (text == null) return null;

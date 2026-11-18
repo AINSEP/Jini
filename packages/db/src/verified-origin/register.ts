@@ -9,23 +9,32 @@ import type { OriginTables } from "./repo.sql.js";
 export type ConfiguredOriginWriteResult = "inserted" | "updated" | "unchanged";
 
 /**
- * Registers the operator-declared public origin — insert-or-correct, NOT find-or-create. A host's idempotent
- * boot seed (find-or-create) must never clobber a registered origin; this is the one authority that IS
- * allowed to correct the row: whoever can set the deployment's process environment, which is strictly more
- * privileged than an admin-UI login. Without a correcting writer, an origin persisted by a first boot would
- * be immortal under find-or-create and could never be fixed without a hand-written migration.
+ * Registers the operator-declared public origin — insert-or-correct, NOT find-or-create.
  *
- * WRITES THE ORIGIN COLUMNS ONLY. `redirect_allowlist_json` and `egress_allowlist_json` are left exactly as
- * found. A blind full-row overwrite would silently empty both, which fail-closes every egress-target check — a
- * behavior change with no relationship to the origin it is here to fix.
+ * This is deliberately a different function with a different contract from
+ * {@link seedDevCapabilityOriginOn}, not a change to it. The certified idempotency test
+ * (`features/origin/__tests__/repo.contract.test.ts`) protects "a re-run of the boot seed can never
+ * clobber a real registered origin", and that assertion stands unchanged: the dev seed only refreshes its own loopback listener
+ * scheme and port. What this function adds is the one authority that IS allowed to correct the
+ * row — whoever can set this deployment's process environment (the host's secret store /
+ * the deploy workflow's non-secret env inputs to the hosting plugin), which is strictly more privileged than an admin-UI login and can already deploy
+ * arbitrary code. Without a correcting writer, production's `http://localhost:3000` row — durably
+ * persisted by the first production boot and immortal under find-or-create — could never be fixed without a
+ * hand-written migration against the live DB.
  *
- * The read and the write run in one kernel transaction under `lockKey` on the workspace's row, so two booting
- * processes cannot both see "no row" and both insert.
+ * WRITES THE ORIGIN COLUMNS ONLY. `redirect_allowlist_json` and `egress_allowlist_json` are left
+ * exactly as found. A blind full-row overwrite would silently empty both, which in production
+ * fail-closes every `isAllowedEgressTarget` check — a behavior change with no relationship to the
+ * origin it is here to fix. Pinned by that suite's "preserves both allowlists" test.
  *
- * @param required.origin - Re-validated through `createVerifiedOrigin`, so the scheme/source invariant cannot
- * be bypassed by a caller that hand-built the object.
+ * The read and the write run in one kernel transaction under `lockKey` on the workspace's row, so
+ * two booting processes cannot both see "no row" and both insert.
+ *
+ * @param origin - Re-validated through `createVerifiedOrigin`, so the ADR-040 scheme/source
+ * invariant cannot be bypassed by a caller that hand-built the object.
  * @returns which write happened, for the boot log.
- * @throws {InsecureOriginSourceError} if `origin` violates the scheme/source invariant.
+ * @throws {InsecureOriginSourceError} if `origin` violates the scheme/source invariant. Callers
+ * pass `resolveConfiguredOrigin`'s output, which can never produce that combination.
  * @complexity O(1) — one indexed lookup plus at most one write.
  */
 export async function registerConfiguredOrigin(
