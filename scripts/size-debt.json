@@ -557,7 +557,7 @@
     "function": "<file>",
     "line": 878,
     "rule": "max-lines",
-    "value": 974
+    "value": 973
   },
   {
     "file": "packages/platform/src/download.ts",
