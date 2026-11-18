@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import { DEFAULT_NOTIFICATIONS_PREFERENCES } from '../../../constants.js';
-import { NotificationsTab } from '../../../react/components/NotificationsTab.js';
+import { NotificationsTab, defaultNotificationsTabHooks } from '../../../react/components/NotificationsTab.js';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -169,7 +169,39 @@ describe('NotificationsTab', () => {
   });
 
   it('renders the translator supplied through useTHook', () => {
-    render(<NotificationsTab preferences={DEFAULT_NOTIFICATIONS_PREFERENCES} onChange={() => {}} useTHook={useQuotingT} />);
+    render(<NotificationsTab preferences={DEFAULT_NOTIFICATIONS_PREFERENCES} onChange={() => {}} hooks={{ ...defaultNotificationsTabHooks, useT: useQuotingT }} />);
     expect(screen.getByRole('button', { name: /«Completion sound»/ })).toBeInTheDocument();
+  });
+
+  it('renders the state returned by the injected tab hook', async () => {
+    const toggleSound = vi.fn();
+    const labelNames = [
+      'completionSoundHint', 'successSoundLabel', 'failureSoundLabel', 'desktopHint', 'desktopUnsupported', 'sendTestLabel',
+      'testSentLabel', 'testFailedLabel',
+    ] as const;
+    const useFakeTab = () => ({
+      ...Object.fromEntries(labelNames.map((name) => [name, name])),
+      permission: 'denied' as const,
+      testStatus: null,
+      completionSoundTitle: 'Fake sound title',
+      desktopTitle: 'Fake desktop title',
+      desktopBlocked: 'Fake blocked notice',
+      activeLabel: 'Yes',
+      offLabel: 'No',
+      toggleSound,
+      toggleDesktop: vi.fn(),
+      sendTestNotification: vi.fn(),
+    }) as unknown as ReturnType<typeof defaultNotificationsTabHooks.useNotificationsTab>;
+    render(
+      <NotificationsTab
+        preferences={DEFAULT_NOTIFICATIONS_PREFERENCES}
+        onChange={() => {}}
+        hooks={{ ...defaultNotificationsTabHooks, useNotificationsTab: useFakeTab }}
+      />,
+    );
+    expect(screen.getByText('Fake blocked notice')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Fake desktop title' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Fake sound title' }));
+    expect(toggleSound).toHaveBeenCalledTimes(1);
   });
 });

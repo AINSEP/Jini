@@ -1,10 +1,10 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider, type TranslationDict, type useT } from '../../../i18n/index.js';
 import { ConnectorAlertList } from '../../components/ConnectorAlertList.js';
 import { ConnectorGrid } from '../../components/ConnectorGrid.js';
 import { ConnectorCard } from '../../components/ConnectorCard.js';
-import { ConnectorDetailDrawer } from '../../components/ConnectorDetailDrawer.js';
+import { ConnectorDetailDrawer, defaultConnectorDetailDrawerHooks } from '../../components/ConnectorDetailDrawer.js';
 import { ConnectorSearchBar } from '../../components/ConnectorSearchBar.js';
 import { ProviderTabBar } from '../../components/ProviderTabBar.js';
 import type { Connector } from '../../types.js';
@@ -68,8 +68,14 @@ describe('ConnectorCard translation hook', () => {
 
 describe('ConnectorDetailDrawer translation hook', () => {
   it('renders the translator supplied through useTHook', () => {
-    render(<ConnectorDetailDrawer {...drawerProps} authorizationCancelFailed useTHook={useQuotingT} />);
+    render(<ConnectorDetailDrawer {...drawerProps} authorizationCancelFailed hooks={{ ...defaultConnectorDetailDrawerHooks, useT: useQuotingT }} />);
     expect(screen.getByText("«Couldn't cancel authorization. Try again.»")).toBeInTheDocument();
+  });
+
+  it('hands the close callback to the injected modal-behavior hook', () => {
+    const useFakeModalBehavior = vi.fn();
+    render(<ConnectorDetailDrawer {...drawerProps} hooks={{ ...defaultConnectorDetailDrawerHooks, useDrawerModalBehavior: useFakeModalBehavior }} />);
+    expect(useFakeModalBehavior).toHaveBeenCalledWith(expect.objectContaining({ onClose: drawerProps.onClose }));
   });
 
   it('renders the translated label from the real provider, not the key', () => {

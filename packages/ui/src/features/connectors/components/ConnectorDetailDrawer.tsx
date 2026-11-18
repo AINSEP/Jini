@@ -35,9 +35,12 @@ export interface ConnectorDetailDrawerProps {
   continueInBrowserLabel?: string;
   /** This drawer's own agent handle — see `ConnectorsBrowser`'s `agentHandle` doc. */
   agentHandle?: string;
-  useTHook?: typeof useT;
-  useDrawerModalBehaviorHook?: typeof useDrawerModalBehavior;
+  /** Hooks the drawer calls; defaults to the real ones, a test hands in fakes. */
+  hooks?: ConnectorDetailDrawerHooks | undefined;
 }
+
+export const defaultConnectorDetailDrawerHooks = { useT, useDrawerModalBehavior };
+export type ConnectorDetailDrawerHooks = typeof defaultConnectorDetailDrawerHooks;
 
 interface ConnectorDrawerHeadProps {
   connector: Connector;
@@ -347,6 +350,45 @@ function useDrawerModalBehavior({
   }, [onClose]);
 }
 
+/** The description with its browser-authorization prompt, then any authorization failure. */
+function ConnectorDrawerNotices({
+  connector,
+  flags,
+  authorizationError,
+  authorizationCancelFailed,
+  cancelFailedMessage,
+  continueInBrowserLabel,
+  onOpenExternalUrl,
+  t,
+}: {
+  connector: Connector;
+  flags: ConnectorActionFlags;
+  authorizationError: string | null;
+  authorizationCancelFailed: boolean;
+  cancelFailedMessage: string | undefined;
+  continueInBrowserLabel: string | undefined;
+  onOpenExternalUrl: ((url: string) => void) | undefined;
+  t: ReturnType<typeof useT>;
+}) {
+  return (
+    <>
+      {connector.description ? (
+        <ConnectorDrawerAbout
+          description={connector.description}
+          isAuthorizationPending={flags.isAuthorizationPending}
+          redirectUrl={flags.redirectUrl}
+          continueInBrowserLabel={continueInBrowserLabel}
+          onOpenExternalUrl={onOpenExternalUrl}
+        />
+      ) : null}
+      {authorizationError ? <ConnectorDrawerAlert message={authorizationError} /> : null}
+      {authorizationCancelFailed ? (
+        <ConnectorDrawerAlert message={cancelFailedMessage ?? t("Couldn't cancel authorization. Try again.")} />
+      ) : null}
+    </>
+  );
+}
+
 /**
  * Modal detail drawer with a paginated tool list. Keeps its own
  * escape-key-to-close and body-scroll-lock behavior inline (standard modal
@@ -375,14 +417,13 @@ export function ConnectorDetailDrawer({
   cancelFailedMessage,
   continueInBrowserLabel,
   agentHandle,
-  useTHook = useT,
-  useDrawerModalBehaviorHook = useDrawerModalBehavior,
+  hooks = defaultConnectorDetailDrawerHooks,
 }: ConnectorDetailDrawerProps) {
-  const t = useTHook();
+  const t = hooks.useT();
   const flags = connectorActionFlags({ connector, pendingAction, authorizationPending, disabled });
   const closeBtnRef = useRef<HTMLButtonElement | null>(null);
   const categoryLabel = getCategoryLabel(connector.category);
-  useDrawerModalBehaviorHook({ onClose, closeBtnRef });
+  hooks.useDrawerModalBehavior({ onClose, closeBtnRef });
 
   return (
     <div
@@ -412,19 +453,16 @@ export function ConnectorDetailDrawer({
         />
 
         <div className="connector-drawer-body">
-          {connector.description ? (
-            <ConnectorDrawerAbout
-              description={connector.description}
-              isAuthorizationPending={flags.isAuthorizationPending}
-              redirectUrl={flags.redirectUrl}
-              continueInBrowserLabel={continueInBrowserLabel}
-              onOpenExternalUrl={onOpenExternalUrl}
-            />
-          ) : null}
-          {authorizationError ? <ConnectorDrawerAlert message={authorizationError} /> : null}
-          {authorizationCancelFailed ? (
-            <ConnectorDrawerAlert message={cancelFailedMessage ?? t("Couldn't cancel authorization. Try again.")} />
-          ) : null}
+          <ConnectorDrawerNotices
+            connector={connector}
+            flags={flags}
+            authorizationError={authorizationError}
+            authorizationCancelFailed={authorizationCancelFailed}
+            cancelFailedMessage={cancelFailedMessage}
+            continueInBrowserLabel={continueInBrowserLabel}
+            onOpenExternalUrl={onOpenExternalUrl}
+            t={t}
+          />
 
           <ConnectorDrawerDetails
             connector={connector}

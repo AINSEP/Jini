@@ -42,6 +42,38 @@ export interface AppearanceTabProps {
   useTHook?: typeof useT;
 }
 
+/** The system / light / dark segmented control. */
+function AppearanceThemeControl({ theme, onThemeChange, ariaLabel, agentHandle, t }: {
+  theme: AppearanceTabProps['theme'];
+  onThemeChange: AppearanceTabProps['onThemeChange'];
+  ariaLabel: string;
+  agentHandle: string | undefined;
+  t: ReturnType<typeof useT>;
+}) {
+  return (
+    <div
+      className="jini-seg-control"
+      role="group"
+      aria-label={ariaLabel}
+      style={{ '--seg-cols': THEME_OPTIONS.length } as CSSProperties}
+    >
+      {THEME_OPTIONS.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          className={'jini-seg-btn' + (theme === option.value ? ' active' : '')}
+          aria-pressed={theme === option.value}
+          onClick={() => onThemeChange(option.value)}
+          {...agentHandleProps({}, { base: agentHandle, ...({ action: `theme-${option.value}`, role: 'button', label: t(option.label) }) })}
+        >
+          {option.icon ? <Icon name={option.icon} size={14} aria-hidden="true" /> : null}
+          <span className="jini-seg-title">{t(option.label)}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /**
  * Theme (system/light/dark) segmented control + accent-color swatch grid
  * with a custom color picker. Origin: `AppearanceSection` in
@@ -77,26 +109,13 @@ export function AppearanceTab({
 
   return (
     <section className="jini-settings-section jini-settings-appearance">
-      <div
-        className="jini-seg-control"
-        role="group"
-        aria-label={resolvedAriaLabel}
-        style={{ '--seg-cols': THEME_OPTIONS.length } as CSSProperties}
-      >
-        {THEME_OPTIONS.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            className={'jini-seg-btn' + (theme === option.value ? ' active' : '')}
-            aria-pressed={theme === option.value}
-            onClick={() => onThemeChange(option.value)}
-            {...agentHandleProps({}, { base: agentHandle, ...({ action: `theme-${option.value}`, role: 'button', label: t(option.label) }) })}
-          >
-            {option.icon ? <Icon name={option.icon} size={14} aria-hidden="true" /> : null}
-            <span className="jini-seg-title">{t(option.label)}</span>
-          </button>
-        ))}
-      </div>
+      <AppearanceThemeControl
+        theme={theme}
+        onThemeChange={onThemeChange}
+        ariaLabel={resolvedAriaLabel}
+        agentHandle={agentHandle}
+        t={t}
+      />
 
       <div className="jini-field">
         <span className="jini-field-label">{resolvedAccentLabel}</span>
