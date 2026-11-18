@@ -32,3 +32,28 @@ export * from "./reconcile-attachments.js";
 
 export * from "./destination-contracts.js";
 export * from "./destination-descriptors.js";
+
+export * from "./delivery-status-limits.js";
+
+/** The agent-tool surface for this domain (see `agent-tools.ts` for the catalog's contract). */
+export { formsAgentToolCatalog } from "./agent-tools.js";
+
+/**
+ * The agent-tool wiring for this domain. `FormsPackageToolDeps` is declared structurally, so a host
+ * satisfies it with whatever it already has; the host supplies the audited write wrappers, the
+ * slug rule and the duplicate-name search (see `tool-handlers.types.ts`).
+ */
+export { buildFormsToolRegistrations, formsDerivedRisk } from "./tool-registrations.js";
+export type {
+  DeriveDuplicateName,
+  FormsPackageToolDeps,
+  FormsSlugPolicy,
+  FormsToolDeliveryStatusPort,
+  FormsToolDeliveryStatusRow,
+  FormsToolPullPort,
+  FormsToolWriteDeps,
+  FormsWriteOps,
+} from "./tool-handlers.types.js";
+
+/** `content_duplicate`'s `"form"` implementation, over the same deps as the tools. */
+export { duplicateFormDefinition, type DuplicateFormRequired } from "./duplicate-form.js";

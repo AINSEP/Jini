@@ -1,5 +1,7 @@
 # Webhooks
 
+Agent tools over these services live in `tools/` (`@jini-ai/integrations/webhooks/tools`): the six-tool catalog, handlers, authored risk map and views take the host's repositories, origin registry, authorizer and delete-confirmation port; the host binds its own search vocabulary and dialog wording.
+
 The approved subset is subscriptions, delivery, signing and their ports. There are no DB,
 plugin, root-key custody or UI adapters. The host supplies HTTP, repositories, envelope store,
 clock, IDs, URL policy and signer. Existing wire envelopes and retry scheduling are preserved.
