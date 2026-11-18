@@ -31,7 +31,7 @@ export class SqlContentTypeRepo implements ContentTypeRepoPort, ContentTypeListP
   }
 
   /**
-   * Upserts a content-type row by its synthetic `(workspaceId, key)` id — full-replace
+   * Upserts a `content_types` row by its synthetic `(workspaceId, key)` id — full-replace
    * semantics, matching `InMemoryContentTypeRepo.save`'s `Map.set` behavior exactly.
    *
    * @complexity O(1).

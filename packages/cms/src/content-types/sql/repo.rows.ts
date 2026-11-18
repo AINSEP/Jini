@@ -4,10 +4,11 @@ import type { ContentTypeFieldDef, ContentTypeRecord, ContentTypeStatus } from "
 import type { ContentTypeRevisionInput } from "../write-service.js";
 
 /**
- * @file Row mapping for the host's content-type and content-type-revision tables, shared by every dialect: the
- * columns are copied from the host's generated schema in the same key order (snake_case, JSON as text); the host's own
- * type-level pin fails if a later copy drifts from it. Neutral on purpose — no repo, no driver. The table NAMES and
- * the declared owners are host-owned ({@link ContentTypeSqlRequired}).
+ * @file Row mapping for `content_types` / `content_type_revisions`, shared by every dialect: the
+ * columns are the generated `ContentDatabase` types (snake_case, JSON as text). Neutral on purpose —
+ * no repo, no driver. They are copied from the host's generated schema in the same key order; the host's own
+ * type-level pin fails if a later copy drifts from it. The table NAMES and the declared owners are host-owned
+ * ({@link ContentTypeSqlRequired}).
  */
 
 export interface ContentTypeTableRow {
@@ -101,9 +102,10 @@ export function contentTypeRowMapper({ declaredOwners }: { declaredOwners: Reado
   const declaredOwnerFor = (key: string): string | undefined => (Object.prototype.hasOwnProperty.call(declaredOwners, key) ? declaredOwners[key] : undefined);
 
   /**
-   * One content-type row as a {@link ContentTypeRecord}. The envelope `owner` has no column: it is
-   * restored from the declared owners (a code fact for code-registered types), and left off entirely
-   * for every other type so those records stay byte-identical to before `owner` existed.
+   * One `content_types` row as a {@link ContentTypeRecord}. The envelope `owner` has no column: it is
+   * restored from `declared-owners.ts` (a code fact for code-registered types), and left off entirely
+   * for every other type so those records stay byte-identical to before `owner` existed. Here `declared-owners.ts` is
+   * the data the host passes as `declaredOwners`.
    */
   function toRecord(row: Selectable<ContentTypeTableRow>): ContentTypeRecord {
     const owner = declaredOwnerFor(row.key);
@@ -121,7 +123,7 @@ export function contentTypeRowMapper({ declaredOwners }: { declaredOwners: Reado
 
   /**
    * `toRecord`'s inverse: the exact column values one whole-row save persists (compact JSON text).
-   * Throws for an `owner` that the declared owners would not restore on read: with no column to hold
+   * Throws for an `owner` that `declared-owners.ts` would not restore on read: with no column to hold
    * it, saving would drop it silently and the next read would validate that type's entries under the
    * wrong namespace.
    */
