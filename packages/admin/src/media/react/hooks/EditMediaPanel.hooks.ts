@@ -6,6 +6,7 @@ import type { MediaApiPort } from '../../ports.js';
 import type { MediaAsset, MediaMetadataPatch, UploadInput } from '../../models.js';
 import { canReplaceMedia, mediaEmbedSnippet, parseOptionalPixelSize, safeMediaUrl } from '../../rules.js';
 import { parseMediaHtmlAttributes, describeMediaHtmlAttributeError } from '../../html-attributes.js';
+import { useMediaPorts } from './MediaPorts.hooks.js';
 export interface EditMediaPanelProps {
   readonly api: MediaApiPort;
   readonly item: MediaAsset;
@@ -102,7 +103,8 @@ function useCopyRows({ item }: { item: MediaAsset }) {
       },
     }));
 }
-export function useEditMediaPanel(props: EditMediaPanelProps, _optional: Record<string, never> = {}) {
+export function useEditMediaPanel(props: EditMediaPanelProps, { usePorts = useMediaPorts }: { usePorts?: typeof useMediaPorts } = {}) {
+  const { embedPolicy } = usePorts();
   const cached = useMediaLibraryQuery({ api: props.api }, { enabled: false });
   const { controller, snapshot } = useController({
     create: () => createEditMediaController({ api: cached.api, item: props.item }),
@@ -113,7 +115,7 @@ export function useEditMediaPanel(props: EditMediaPanelProps, _optional: Record<
   const titleRef = useAutofocusTitle({ ready: !!snapshot });
   // Live hint ONLY: invalid attributes must never gate saving unrelated dirty metadata.
   // The server revalidates atomically and reports errors through the usual save banner.
-  const parsed = parseMediaHtmlAttributes({ text: snapshot?.draft.htmlAttributes ?? '' });
+  const parsed = parseMediaHtmlAttributes({ text: snapshot?.draft.htmlAttributes ?? '', policy: embedPolicy });
   const hint = parsed.error ? describeMediaHtmlAttributeError({ error: parsed.error }) : null;
   const fields = buildEditFields({ snapshot, controller, titleRef, hint });
   const fieldRows = [[0, 1], [2], [3, 4], [5, 6], [7], [8]].map((indexes, index) => ({ id: index, className: indexes.length > 1 ? 'jini-field-row' : 'jini-field-group-row', fields: indexes.map(i => fields[i]!) }));

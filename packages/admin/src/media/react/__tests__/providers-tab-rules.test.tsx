@@ -5,6 +5,7 @@ import type { AdminMediaProvidersKit, MediaProviderCredentials, MediaProviderMap
 import { MediaPortsContext } from '../hooks/MediaPorts.hooks.js';
 import { useProvidersTab } from '../hooks/ProvidersTab.hooks.js';
 import type { MediaApiPort, MediaProvidersPort } from '../../ports.js';
+import { realEmbedPolicy } from '../../__tests__/fakes/embed-policy.js';
 
 const change = (value: string) => ({ currentTarget: { value } }) as ChangeEvent<HTMLInputElement>;
 
@@ -38,7 +39,7 @@ function sentinelRules(state: { invalidIds: readonly string[]; present: boolean;
 
 function mount(rules: AdminMediaProvidersKit['rules']) {
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <MediaPortsContext.Provider value={{ mediaApi: {} as MediaApiPort, mediaProviders: emptyService }}>{children}</MediaPortsContext.Provider>
+    <MediaPortsContext.Provider value={{ embedPolicy: realEmbedPolicy, mediaApi: {} as MediaApiPort, mediaProviders: emptyService }}>{children}</MediaPortsContext.Provider>
   );
   return renderHook(() => useProvidersTab({}, { useRules: () => rules }), { wrapper });
 }

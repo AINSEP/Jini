@@ -9,6 +9,7 @@ import { MediaCard } from '../components/MediaCard.js';
 import { MediaLightbox } from '../components/MediaLightbox.js';
 import { UploadButton } from '../components/UploadButton.js';
 import type { MediaApiPort } from '../../ports.js';
+import { realEmbedPolicy } from '../../__tests__/fakes/embed-policy.js';
 const input = { filename: 'photo.png', contentType: 'image/png', dataBase64: 'aA==' };
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 async function fixture() {
@@ -19,7 +20,7 @@ async function fixture() {
 }
 function page(api: MediaApiPort) {
   const feature = media({ overlays: createOverlayController({}) }, { headerActions: <button>Publish media</button> });
-  const admin = createAdmin({ modules: [feature], ports: { mediaApi: api } }, { permissions: ['media.read', 'media.update', 'media.trash', 'media.restore', 'media.delete.force'] });
+  const admin = createAdmin({ modules: [feature], ports: { embedPolicy: realEmbedPolicy, mediaApi: api } }, { permissions: ['media.read', 'media.update', 'media.trash', 'media.restore', 'media.delete.force'] });
   const { Page, tabs } = feature.react.pages.library;
   return render(<feature.react.Provider admin={admin}><Suspense fallback="Loading"><Page tabs={tabs} description={admin.describe().pages[0]!} /></Suspense></feature.react.Provider>);
 }

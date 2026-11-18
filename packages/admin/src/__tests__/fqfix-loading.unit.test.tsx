@@ -17,6 +17,7 @@ import { Seo } from '../seo/react/pages/SeoPage.js';
 import { SeoPortsContext, SeoOptionsContext } from '../seo/react/hooks/SeoPorts.hooks.js';
 import type { AdminWidget } from '../widgets/models.js';
 import type { SeoEntryMeta } from '../seo/models.js';
+import { realEmbedPolicy } from '../media/__tests__/fakes/embed-policy.js';
 
 it('clears a media failure after successful cache settlement, including an empty library', () => {
   const controller = createLibraryController({ api: createMemoryMediaApi({}) });
@@ -97,7 +98,7 @@ describe.each(['builtin', 'tanstack'] as const)('editor/cache regressions with %
     const source = createMemoryMediaProviders({ providers: [{ id: 'example', label: 'Example', configured: false }] });
     let reads = 0;
     const port = { ...source, list: async () => { reads++; return source.list({}); } };
-    const portsWrapper = ({ children }: { children: ReactNode }) => <Provider><MediaPortsContext.Provider value={{ mediaApi: api, mediaProviders: port }}>{children}</MediaPortsContext.Provider></Provider>;
+    const portsWrapper = ({ children }: { children: ReactNode }) => <Provider><MediaPortsContext.Provider value={{ embedPolicy: realEmbedPolicy, mediaApi: api, mediaProviders: port }}>{children}</MediaPortsContext.Provider></Provider>;
     const { result } = renderHook(() => ({ providers: useProvidersTab(), library: useMediaLibraryQuery({ api }), catalogue: useMediaProvidersQuery({ port }) }), { wrapper: portsWrapper });
     await waitFor(() => expect(result.current.providers.reloadDisabled).toBe(false));
     await waitFor(() => expect(result.current.catalogue.query.data).toHaveLength(1));

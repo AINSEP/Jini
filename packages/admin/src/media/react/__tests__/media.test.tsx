@@ -16,6 +16,7 @@ import type { ButtonProps } from '../../../react/kit.js';
 import { MediaPurgeDialog } from '../components/MediaPurgeDialog.js';
 import { useController } from '../../../react/use-controller.js';
 import { bindReact } from '../../../react/bind-react.js';
+import { realEmbedPolicy } from '../../__tests__/fakes/embed-policy.js';
 // Lazy tab imports can exceed the default 1s under concurrent workspace builds.
 configure({ asyncUtilTimeout: 5000 });
 afterEach(cleanup);
@@ -26,7 +27,7 @@ async function fixture() {
   const overlays = createOverlayController({});
   const module = media({ overlays });
   const admin = createAdmin(
-    { modules: [module], ports: { mediaApi: api } },
+    { modules: [module], ports: { embedPolicy: realEmbedPolicy, mediaApi: api } },
     {
       permissions: [
         'media.read',
@@ -75,7 +76,7 @@ describe('media React slice', () => {
     });
     const consumerBinding = bindReact({ module: consumer, views: {} });
     const admin = createAdmin(
-      { modules: [module, consumer], ports: { mediaApi: api } },
+      { modules: [module, consumer], ports: { embedPolicy: realEmbedPolicy, mediaApi: api } },
       { permissions: ['media.read'] },
     );
     const selected = vi.fn();
@@ -119,7 +120,7 @@ describe('media React slice', () => {
       pages: {},
     });
     const admin = createAdmin(
-      { modules: [module, consumer], ports: { mediaApi: api } },
+      { modules: [module, consumer], ports: { embedPolicy: realEmbedPolicy, mediaApi: api } },
       { permissions: ['media.read'] },
     );
     const picker: MediaPickerPort = admin.scope({ module: consumer }).mediaPicker;
@@ -150,7 +151,7 @@ describe('media React slice', () => {
       requires: { mediaPicker: mediaPickerToken },
       pages: {},
     });
-    const admin = createAdmin({ modules: [module, consumer], ports: { mediaApi: api } });
+    const admin = createAdmin({ modules: [module, consumer], ports: { embedPolicy: realEmbedPolicy, mediaApi: api } });
     await expect(
       admin.scope({ module: consumer }).mediaPicker.pick({ accept: [] }),
     ).rejects.toThrow('Permission denied');
@@ -278,7 +279,7 @@ it('renders the optional credential tab without exposing saved secrets', async (
     providers: [{ id: 'example', label: 'Example', configured: false }],
   });
   const admin = createAdmin(
-    { modules: [module], ports: { mediaApi: api, mediaProviders: providers } },
+    { modules: [module], ports: { embedPolicy: realEmbedPolicy, mediaApi: api, mediaProviders: providers } },
     { permissions: ['media.read', 'media.providers'] },
   );
   const { Page, tabs } = module.react.pages.library;
@@ -318,7 +319,7 @@ it('renders a read-only media page when write grants are absent', async () => {
   const { api, overlays } = await fixture();
   const module = media({ overlays });
   const admin = createAdmin(
-    { modules: [module], ports: { mediaApi: api } },
+    { modules: [module], ports: { embedPolicy: realEmbedPolicy, mediaApi: api } },
     { permissions: ['media.read'] },
   );
   const { Page, tabs } = module.react.pages.library;
