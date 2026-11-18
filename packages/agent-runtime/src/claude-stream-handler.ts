@@ -160,8 +160,8 @@ function emitToolUse(s: StreamCtx, id: unknown, name: unknown, input: unknown): 
     if (s.streamedToolUseIds.has(id)) return;
     s.streamedToolUseIds.add(id);
   }
-  if (emitCanonicalTaskSnapshot(id, name, input, s.taskRegistry, s.onEvent)) return;
-  if (isFileWriteToolUse(name, input)) {
+  if (emitCanonicalTaskSnapshot({ toolUseId: id, name, input, registry: s.taskRegistry, onEvent: s.onEvent })) return;
+  if (isFileWriteToolUse({ name, input })) {
     s.suppressNextArtifactText = true;
     const content = fileWriteContent(input);
     if (content) {
@@ -240,10 +240,13 @@ function resolveDuplicateArtifactCandidate(s: StreamCtx, current: string): strin
   s.duplicateArtifactCandidate = '';
   s.suppressDuplicateArtifactText = false;
   s.suppressNextArtifactText = false;
-  const duplicate = isRedundantWrittenArtifact(candidate, {
-    suppressHtmlArtifactsAfterFileWrite: s.options.suppressHtmlArtifactsAfterFileWrite === true,
-    wroteHtmlFileThisTurn: s.wroteHtmlFileThisTurn,
-    recentWriteContents: s.recentWriteContents,
+  const duplicate = isRedundantWrittenArtifact({
+    candidate,
+    ctx: {
+      suppressHtmlArtifactsAfterFileWrite: s.options.suppressHtmlArtifactsAfterFileWrite === true,
+      wroteHtmlFileThisTurn: s.wroteHtmlFileThisTurn,
+      recentWriteContents: s.recentWriteContents,
+    },
   });
   if (s.options.suppressHtmlArtifactsAfterFileWrite !== true) {
     s.recentWriteContents.length = 0;
@@ -255,7 +258,7 @@ function resolveDuplicateArtifactCandidate(s: StreamCtx, current: string): strin
 // prefix at the end of `current` so it can match across chunk boundaries,
 // or pass the text through untouched.
 function bufferPartialArtifactOpenTag(s: StreamCtx, current: string, openTag: string): string {
-  const candidateLength = artifactOpenCandidateLength(current, openTag);
+  const candidateLength = artifactOpenCandidateLength({ text: current, openTag });
   if ((s.suppressNextArtifactText || s.recentWriteContents.length > 0) && candidateLength > 0) {
     s.artifactOpenCandidate = current.slice(-candidateLength);
     return current.slice(0, -candidateLength);
@@ -409,7 +412,7 @@ function handleAssistantMessage(s: StreamCtx, obj: Record<string, unknown>): voi
   if (stopReason) {
     emitTurnEnd(s, stopReason);
   }
-  emitAssistantErrorIfPresent(obj, message.content, s.onEvent);
+  emitAssistantErrorIfPresent({ obj, content: message.content, onEvent: s.onEvent });
   s.currentMessageStreamedText = false;
   s.currentMessageStreamedThinking = false;
 }
@@ -500,7 +503,7 @@ function handleContentBlockDelta(s: StreamCtx, index: unknown, delta: Record<str
     return;
   }
   if (delta.type === 'input_json_delta' && typeof delta.partial_json === 'string') {
-    applyInputJsonDelta(state, delta.partial_json, s.onEvent);
+    applyInputJsonDelta({ state, partialJson: delta.partial_json, onEvent: s.onEvent });
   }
 }
 
