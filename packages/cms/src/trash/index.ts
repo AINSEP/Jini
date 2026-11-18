@@ -5,3 +5,5 @@ export * from "./follow-ups.js";
 export * from "./repo.memory.js";
 export * from "./cursor.js";
 export * from "./adapters/record-store.js";
+export * from "./agent-tools.js";
+export * from "./tool-registrations.js";
