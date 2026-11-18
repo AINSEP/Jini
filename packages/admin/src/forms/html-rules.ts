@@ -23,7 +23,7 @@ export function formAnswerColumns({ fields }: { fields: readonly AdminFormField[
   });
 }
 
-/** The stored shape of a file-field answer (`FormFileReference` in `@jini-ai/cms/forms`). */
+/** The stored shape of a file-field answer (the forms domain's `FormFileReference`). */
 export interface FormAnswerFile { mediaId: string; filename: string; byteSize?: number }
 
 /** Narrows a stored answer to an uploaded-file reference.

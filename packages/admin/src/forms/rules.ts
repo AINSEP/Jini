@@ -3,7 +3,6 @@ import { AdminApiError as ApiError, describeApiError as describeCoreApiError } f
 import type { AdminFormDefinition, AdminFormField } from "./models.js";
 const describeApiError = (e: unknown, fallback: string) => describeCoreApiError({ e, fallback });
 import type { QueryKey } from "@jini-ai/core/fetch";
-import { FIELD_TYPE_REGISTRY, type FieldType } from "@jini-ai/cms/forms";
 
 /**
  * @file Pure logic for the `forms` feature (`FormEditor.tsx` — see `FormsList.tsx`'s own
@@ -260,9 +259,6 @@ export function formRowMenuItems({ form, handlers, t }: { form: AdminFormDefinit
     { key: "delete", label: t("Delete"), tone: "danger", onSelect: () => handlers.onDelete(form) },
   ];
 }
-
-/** Every registered field type, in registry order; the picker groups them via `field-settings.ts`. */
-export const FIELD_TYPES = Object.keys(FIELD_TYPE_REGISTRY) as FieldType[];
 
 /** The two tab-panel views on an existing form's editor (`formId !== "new"`). */
 export const FORM_TABS = [
