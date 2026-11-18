@@ -66,11 +66,11 @@ describe('assertSafePublicUrl refusals (status + message)', () => {
 
 describe('isCacheableExternalUrl edges', () => {
   it('accepts an uppercase scheme and extension, and trims whitespace', () => {
-    expect(isCacheableExternalUrl('  HTTPS://cdn.example.com/A.PNG  ')).toBe(true);
+    expect(isCacheableExternalUrl({ raw: '  HTTPS://cdn.example.com/A.PNG  ' })).toBe(true);
   });
 
   it('rejects an extension that only appears mid-path', () => {
-    expect(isCacheableExternalUrl('https://cdn.example.com/a.png/evil')).toBe(false);
+    expect(isCacheableExternalUrl({ raw: 'https://cdn.example.com/a.png/evil' })).toBe(false);
   });
 });
 
@@ -114,11 +114,11 @@ describe('assetCacheKey containment', () => {
     'https://cdn.example.com/..\\..\\windows\\system32\\a.png',
     'https://cdn.example.com/C:\\Windows\\a.png',
   ])('maps %s to a 64-char lowercase hex key (no separators, no drive letter)', (url) => {
-    expect(assetCacheKey(url)).toMatch(/^[0-9a-f]{64}$/);
+    expect(assetCacheKey({ rawUrl: url })).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it('trims before hashing, so padded and bare urls share a key', () => {
-    expect(assetCacheKey('  https://cdn.example.com/a.png\n')).toBe(assetCacheKey('https://cdn.example.com/a.png'));
+    expect(assetCacheKey({ rawUrl: '  https://cdn.example.com/a.png\n' })).toBe(assetCacheKey({ rawUrl: 'https://cdn.example.com/a.png' }));
   });
 });
 
@@ -314,7 +314,7 @@ describe('createAssetCache boundaries', () => {
     const cache = cacheWith(async () => new Response(new Uint8Array(3), { headers: { 'content-type': 'image/gif' } }));
     const url = 'https://cdn.example.com/a.gif';
     await cache.get(url);
-    const key = assetCacheKey(url);
+    const key = assetCacheKey({ rawUrl: url });
     expect((await readdir(dir)).sort()).toEqual([key, `${key}.json`].sort());
   });
 

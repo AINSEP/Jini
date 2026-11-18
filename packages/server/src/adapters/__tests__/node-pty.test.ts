@@ -70,7 +70,7 @@ describe('loadRealSpawnPty', () => {
 
     const spawnPty = await loadRealSpawnPty({  });
 
-    expect(ensureSpawnHelperExecutableMock).toHaveBeenCalledWith(['/fake/candidate/spawn-helper']);
+    expect(ensureSpawnHelperExecutableMock).toHaveBeenCalledWith({}, { candidatePaths: ['/fake/candidate/spawn-helper'] });
     const [candidatesCallOptions] = spawnHelperCandidatePathsMock.mock.calls[0]!;
     expect(typeof candidatesCallOptions?.resolve).toBe('function');
     // The injected resolver must actually resolve something (this module's own `node-pty`

@@ -111,7 +111,7 @@ function resolveNodePtyEntryPoint(specifier: string): string {
  *
  * @param candidatePaths - Defaults to {@link spawnHelperCandidatePaths}'s result.
  */
-export function ensureSpawnHelperExecutable(candidatePaths: string[] = spawnHelperCandidatePaths()): void {
+export function ensureSpawnHelperExecutable(_required: Record<string, never>, { candidatePaths = spawnHelperCandidatePaths() }: { candidatePaths?: string[] | undefined } = {}): void {
   for (const file of candidatePaths) {
     try {
       const stat = fs.statSync(file);
@@ -130,8 +130,8 @@ export function ensureSpawnHelperExecutable(candidatePaths: string[] = spawnHelp
  * win32), and finally a per-platform default.
  */
 export function resolveShell(
-  requested?: string | null,
-  options: { platform?: NodeJS.Platform; env?: NodeJS.ProcessEnv } = {},
+  _required: Record<string, never>,
+  { requested, ...options }: { requested?: string | null | undefined; platform?: NodeJS.Platform; env?: NodeJS.ProcessEnv | undefined } = {},
 ): string {
   const explicit = typeof requested === 'string' && requested.trim() ? requested.trim() : null;
   if (explicit) return explicit;
@@ -302,7 +302,7 @@ export function createTerminalService(options: CreateTerminalServiceOptions): Te
     const id = randomUUID();
     const cols = clampDimension(createOptions.cols, DEFAULT_COLS);
     const rows = clampDimension(createOptions.rows, DEFAULT_ROWS);
-    const shell = resolveShell(createOptions.shell);
+    const shell = resolveShell({}, { requested: createOptions.shell });
     const pty = spawnPty(shell, [], {
       name: 'xterm-color',
       cols,

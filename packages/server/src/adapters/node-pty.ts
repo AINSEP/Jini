@@ -55,7 +55,7 @@ function toPtyProcess(pty: IPty): PtyProcess {
  */
 export async function loadRealSpawnPty(_requiredArgs: Record<string, never>, _optionalArgs: Record<string, never> = {}): Promise<PtySpawn> {
   ensureSpawnHelperExecutable(
-    spawnHelperCandidatePaths({ resolve: (specifier) => hostRequire.resolve(specifier) }),
+    {}, { candidatePaths: spawnHelperCandidatePaths({ resolve: (specifier) => hostRequire.resolve(specifier) }) },
   );
   const nodePty = await loadOptionalPeer({ feature: 'Interactive terminals', dependency: 'node-pty', load: () => import('node-pty') });
   return (shell: string, args: string[], options: PtySpawnOptions) =>

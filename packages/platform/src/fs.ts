@@ -50,7 +50,7 @@ export type RemovePathBestEffortResult = {
  * @param target - The path to test for containment.
  * @returns `true` when `target` resolves to `root` or a descendant of it.
  */
-export function pathContains(root: string, target: string): boolean {
+export function pathContains({ root, target }: { root: string; target: string }, _optional: Record<string, never> = {}): boolean {
   const resolvedRoot = resolve(root);
   const resolvedTarget = resolve(target);
   const rel = relative(resolvedRoot, resolvedTarget);
@@ -77,8 +77,7 @@ function destinationExistsError(destinationPath: string): NodeJS.ErrnoException 
  * @throws `EEXIST` when the destination exists and `overwrite` is not set.
  */
 export async function atomicCopyFile(
-  sourcePath: string,
-  destinationPath: string,
+  { sourcePath, destinationPath }: { sourcePath: string; destinationPath: string },
   options: AtomicCopyFileOptions = {},
 ): Promise<AtomicCopyFileResult> {
   const source = resolve(sourcePath);
@@ -125,7 +124,7 @@ export async function atomicCopyFile(
  * @returns `{ removed: true }` on success, or `{ removed: false, error }` on failure.
  */
 export async function removePathBestEffort(
-  path: string,
+  { path }: { path: string },
   options: RemovePathBestEffortOptions = {},
 ): Promise<RemovePathBestEffortResult> {
   try {
@@ -144,7 +143,7 @@ export async function removePathBestEffort(
  * @param maxLines - The maximum number of trailing lines to return (default 80).
  * @returns The trailing non-empty lines (empty array on error).
  */
-export async function readLogTail(filePath: string, maxLines = 80): Promise<string[]> {
+export async function readLogTail({ filePath }: { filePath: string }, { maxLines = 80 }: { maxLines?: number | undefined } = {}): Promise<string[]> {
   try {
     const payload = await readFile(filePath, "utf8");
     return payload.split(/\r?\n/).filter((line) => line.length > 0).slice(-maxLines);

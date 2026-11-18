@@ -50,8 +50,8 @@ function cleanOptionalPath(value: string | undefined): string | null {
  * first, then the CLI's own package location.
  */
 export function resolveDaemonCliPath(
-  config: ResourcePathsConfig,
-  env: NodeJS.ProcessEnv = process.env,
+  { config }: { config: ResourcePathsConfig },
+  { env = process.env }: { env?: NodeJS.ProcessEnv | undefined } = {},
 ): string {
   const configured =
     cleanOptionalPath(env[config.cliPathEnvVar]) ?? cleanOptionalPath(env[config.cliPathFallbackEnvVar]);
@@ -130,7 +130,7 @@ export function resolveDaemonResourceRoot(
 }
 
 /** Joins `segment` under `resourceRoot` when present, else returns `fallback`. */
-export function resolveDaemonResourceDir(resourceRoot: string | null, segment: string, fallback: string): string {
+export function resolveDaemonResourceDir({ resourceRoot, segment, fallback }: { resourceRoot: string | null; segment: string; fallback: string }, _optional: Record<string, never> = {}): string {
   return resourceRoot ? path.join(resourceRoot, segment) : fallback;
 }
 
@@ -154,9 +154,9 @@ export function resolveDaemonPluginPreviewsDir(
     return path.isAbsolute(override) ? override : path.resolve(projectRoot, override);
   }
   return resolveDaemonResourceDir(
-    resourceRoot ?? null,
-    path.join('data', 'plugin-previews'),
-    path.join(projectRoot, 'data', 'plugin-previews'),
+    { resourceRoot: resourceRoot ?? null,
+    segment: path.join('data', 'plugin-previews'),
+    fallback: path.join(projectRoot, 'data', 'plugin-previews') },
   );
 }
 
@@ -171,9 +171,7 @@ export interface ResolveDataDirOptions {
  * diagnostic-rich error otherwise.
  */
 export function resolveDataDir(
-  config: ResourcePathsConfig,
-  raw: string | undefined,
-  projectRoot: string,
+  { config, raw, projectRoot }: { config: ResourcePathsConfig; raw: string | undefined; projectRoot: string },
   options: ResolveDataDirOptions = {},
 ): string {
   const value = raw?.trim();
@@ -184,7 +182,7 @@ export function resolveDataDir(
     return path.join(projectRoot, config.defaultDataDirName);
   }
 
-  const resolved = resolveProjectRelativePath(value, projectRoot);
+  const resolved = resolveProjectRelativePath({ raw: value, projectRoot });
   try {
     fs.mkdirSync(resolved, { recursive: true });
     fs.accessSync(resolved, fs.constants.W_OK);

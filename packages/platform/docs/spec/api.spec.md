@@ -19,16 +19,16 @@ Root namespace exports `filesystem`, `guardedHttp`, `mail`, `smtp`, `secrets`, `
 | Export | Current signature / return | Consumer dependencies or defaults |
 |---|---|---|
 | `createCommandInvocation` | `({ command: string, args?: string[], env?: NodeJS.ProcessEnv }): CommandInvocation` | OS and env; args `[]`, env process.env |
-| `createPackageManagerInvocation` | `(args: string[], env = process.env): CommandInvocation` | Optional npm_execpath; fallback corepack pnpm |
-| `mergeProxyAwareEnv` | `(platform: NodeJS.Platform, ...sources: ProcessEnv[]): ProcessEnv` | Explicit platform and env sources |
-| `parseMacosScutilProxyOutput` | `(stdout: string, platform = 'darwin'): ProcessEnv` | Pure parser |
-| `parseWindowsInternetSettingsProxyOutput` | `({ proxyEnable, proxyOverride?, proxyServer? }, platform = 'win32'): ProcessEnv` | Strings of registry-command output |
+| `createPackageManagerInvocation` | `({ args }: { args: string[] }, { env = process.env }: { env?: NodeJS.ProcessEnv | undefined } = {}): CommandInvocation` | Optional npm_execpath; fallback corepack pnpm |
+| `mergeProxyAwareEnv` | `({ platform, sources }: { platform: NodeJS.Platform; sources: Array<NodeJS.ProcessEnv | Record<string, string | undefined>> }, _optional: Record<string, never> = {}): ProcessEnv` | Explicit platform and env sources |
+| `parseMacosScutilProxyOutput` | `({ stdout }: { stdout: string }, { platform = "darwin" }: { platform?: NodeJS.Platform | undefined } = {}): ProcessEnv` | Pure parser |
+| `parseWindowsInternetSettingsProxyOutput` | `(input: { proxyEnable: string; proxyOverride?: string; proxyServer?: string }, { platform = "win32" }: { platform?: NodeJS.Platform | undefined } = {}): ProcessEnv` | Strings of registry-command output |
 | `resolveSystemProxyEnv` | `(options: ResolveSystemProxyEnvOptions = {}): ProcessEnv` | Optional platform/runCommand; native commands default to 2000 ms |
-| `createProcessStampArgs` | `(stamp: T, contract: ProcessStampContract<T>): string[]` | Host normalizers, fields and flags |
-| `readFlagValue` | `(args: readonly string[], flagName: string): string | null` | Pure flag decoder |
-| `readProcessStamp`, `readProcessStampFromCommand` | `(args: readonly string[] / command: string, contract): T | null` | Host stamp normalizer |
-| `matchesProcessStamp` | `(stamp: T, criteria: Partial<T> | undefined, contract): boolean` | Host normalizers |
-| `matchesStampedProcess` | `(processInfo: Pick<ProcessSnapshot, 'command'>, criteria, contract): boolean` | Same stamp contract |
+| `createProcessStampArgs` | `({ stamp, contract }: { stamp: TStamp; contract: ProcessStampContract<TStamp> }, _optional: Record<string, never> = {}): string[]` | Host normalizers, fields and flags |
+| `readFlagValue` | `({ args, flagName }: { args: readonly string[]; flagName: string }, _optional: Record<string, never> = {}): string | null` | Pure flag decoder |
+| `readProcessStamp`, `readProcessStampFromCommand` | `({ args / command, contract }, _optional: Record<string, never> = {}): T | null` | Host stamp normalizer |
+| `matchesProcessStamp` | `({ stamp, criteria, contract }: { stamp: TStamp; criteria: TCriteria | undefined; contract: ProcessStampContract<TStamp, TCriteria> }, _optional: Record<string, never> = {}): boolean` | Host normalizers |
+| `matchesStampedProcess` | `({ processInfo, criteria, contract }: { processInfo: Pick<ProcessSnapshot, "command">; criteria: TCriteria | undefined; contract: ProcessStampContract<TStamp, TCriteria> }, _optional: Record<string, never> = {}): boolean` | Same stamp contract |
 | `spawnBackgroundProcess` | `(request: SpawnProcessRequest): Promise<{ pid: number }>` | Executable; optional cwd/env/logFd/detached, detached default true |
 | `spawnLoggedProcess` | `(request: SpawnProcessRequest): Promise<ChildProcess>` | Same; detached default false |
 | `isProcessAlive` | `(pid: number | null | undefined): boolean` | OS liveness probe |
@@ -36,12 +36,13 @@ Root namespace exports `filesystem`, `guardedHttp`, `mail`, `smtp`, `secrets`, `
 | `listProcessSnapshots` | `(): Promise<ProcessSnapshot[]>` | Native ps or PowerShell |
 | `collectProcessTreePids` | `(processes: ProcessSnapshot[], rootPids: (number | null | undefined)[]): number[]` | Supplied process snapshot |
 | `stopProcesses` | `(pids: (number | null | undefined)[]): Promise<StopProcessesResult>` | Native signal escalation |
-| `pathContains` | `(root: string, target: string): boolean` | Lexical resolved paths |
-| `atomicCopyFile` | `(sourcePath: string, destinationPath: string, options: AtomicCopyFileOptions = {}): Promise<AtomicCopyFileResult>` | Optional overwrite, default false |
-| `removePathBestEffort` | `(path: string, options: RemovePathBestEffortOptions = {}): Promise<RemovePathBestEffortResult>` | Recursive default true |
-| `readLogTail` | `(filePath: string, maxLines = 80): Promise<string[]>` | Native filesystem |
-| `waitForHttpOk` | `(url: string, { timeoutMs = 20000 } = {}): Promise<true>` | Global fetch; retry interval 150 ms |
-| `execFileBuffered`, `execCommandViaLoginShell` | `(command: string, args: readonly string[], opts: ExecFileOptions = {}): Promise<BufferedCommandResult>` | Native child execution; timeout 120000 ms, buffer 1 MiB |
+| `pathContains` | `({ root, target }: { root: string; target: string }, _optional: Record<string, never> = {}): boolean` | Lexical resolved paths |
+| `atomicCopyFile` | `({ sourcePath, destinationPath }: { sourcePath: string; destinationPath: string }, options: AtomicCopyFileOptions = {}): Promise<AtomicCopyFileResult>` | Optional overwrite, default false |
+| `removePathBestEffort` | `({ path }: { path: string }, options: RemovePathBestEffortOptions = {}): Promise<RemovePathBestEffortResult>` | Recursive default true |
+| `readLogTail` | `({ filePath }: { filePath: string }, { maxLines = 80 }: { maxLines?: number | undefined } = {}): Promise<string[]>` | Native filesystem |
+| `waitForHttpOk` | `({ url }: { url: string }, { timeoutMs = 20000, probe }: HttpWaitOptions = {}): Promise<true>` | Global fetch; retry interval 150 ms |
+| `execFileBuffered` | `(command: string, args: readonly string[], opts: ExecFileOptions = {}): Promise<BufferedCommandResult>` | Native child execution; timeout 120000 ms, buffer 1 MiB |
+| `execCommandViaLoginShell` | `({ command, args }: { command: string; args: readonly string[] }, opts: ExecFileOptions = {}): Promise<BufferedCommandResult>` | Native child execution; timeout 120000 ms, buffer 1 MiB |
 
 Types: `CommandInvocation` is `{ command, args, windowsVerbatimArguments? }`; `CommandInvocationRequest` is its input shape. `SystemProxyCommandRunner(command, args): string` and `ResolveSystemProxyEnvOptions` allow proxy command injection. `ProcessStampShape`, `ProcessStampField`, `ProcessStampContract`, and `StampedProcessMatchCriteria` carry generic stamp contracts. A stamp contract supplies `normalizeStamp(input)`, `normalizeStampCriteria(input?)`, `stampFields`, and `stampFlags`.
 
@@ -50,17 +51,17 @@ Types: `CommandInvocation` is `{ command, args, windowsVerbatimArguments? }`; `C
 ```ts
 import { createCommandInvocation, atomicCopyFile, removePathBestEffort } from '@jini-ai/platform';
 const invocation = createCommandInvocation({ command: 'worker', args: ['--mode=batch'] });
-await atomicCopyFile('/var/lib/app/source.bin', '/var/lib/app/output.bin', { overwrite: false });
-await removePathBestEffort('/var/lib/app/temporary');
+await atomicCopyFile({ sourcePath: '/var/lib/app/source.bin', destinationPath: '/var/lib/app/output.bin' }, { overwrite: false });
+await removePathBestEffort({ path: '/var/lib/app/temporary' });
 ```
 
 ## ./fetch-with-timeout (also root)
 
-`fetchWithTimeout(url: string | URL, init: RequestInit = {}, options: FetchWithTimeoutOptions): Promise<Response>` uses a required third object `{ timeoutMs: number }`. `FetchTimeoutError` and `FETCH_TIMEOUT_MS` are also exported. Constants: QUICK 15000, DEPLOY 30000, UPLOAD 120000, GENERATE 600000 ms. This helper has no injectable fetch parameter; use the guarded client for policy-aware egress.
+`fetchWithTimeout({ url, ...options }: { url: string | URL } & FetchWithTimeoutOptions, { init = {} }: { init?: RequestInit | undefined } = {}): Promise<Response>` requires `url` and `timeoutMs`. `FetchTimeoutError` and `FETCH_TIMEOUT_MS` are also exported. Constants: QUICK 15000, DEPLOY 30000, UPLOAD 120000, GENERATE 600000 ms. The required input accepts the existing optional `fetch` transport port; use the guarded client for policy-aware egress.
 
 ```ts
 import { fetchWithTimeout, FETCH_TIMEOUT_MS } from '@jini-ai/platform/fetch-with-timeout';
-const response = await fetchWithTimeout('https://example.test/status', {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK });
+const response = await fetchWithTimeout({ url: 'https://example.test/status', timeoutMs: FETCH_TIMEOUT_MS.QUICK }, { init: {} });
 ```
 
 `createDeadlineSignal({ waitMs: number }, options?: DeadlineSignalOptions): { signal: AbortSignal; dispose(): void }`
@@ -91,24 +92,24 @@ must destructure `{ signal, dispose }` and dispose in `finally`.
 
 | Export | Current signature / return |
 |---|---|
-| `expandHomePrefix` | `(raw: string): string` |
-| `resolveProjectRelativePath` | `(raw: string, projectRoot: string): string` |
+| `expandHomePrefix` | `({ raw }: { raw: string }, _optional: Record<string, never> = {}): string` |
+| `resolveProjectRelativePath` | `({ raw, projectRoot }: { raw: string; projectRoot: string }, _optional: Record<string, never> = {}): string` |
 | `wellKnownUserToolchainBins` | `(options: WellKnownUserToolchainOptions = {}): string[]` |
-| `resolveDaemonCliPath` | `(config: ResourcePathsConfig, env = process.env): string` |
+| `resolveDaemonCliPath` | `({ config }: { config: ResourcePathsConfig }, { env = process.env }: { env?: NodeJS.ProcessEnv | undefined } = {}): string` |
 | `resolveProcessResourcesPath` | `(config, processInfo: { resourcesPath?: string; execPath: string } = process): string | null` |
 | `resolveDaemonResourceRoot` | `(config, options: ResolveDaemonResourceRootOptions = {}): string | null` |
-| `resolveDaemonResourceDir` | `(resourceRoot: string | null, segment: string, fallback: string): string` |
+| `resolveDaemonResourceDir` | `({ resourceRoot, segment, fallback }: { resourceRoot: string | null; segment: string; fallback: string }, _optional: Record<string, never> = {}): string` |
 | `resolveDaemonPluginPreviewsDir` | `(config, options: ResolveDaemonPluginPreviewsDirOptions): string` |
-| `resolveDataDir` | `(config, raw: string | undefined, projectRoot: string, options: ResolveDataDirOptions = {}): string` |
+| `resolveDataDir` | `({ config, raw, projectRoot }: { config: ResourcePathsConfig; raw: string | undefined; projectRoot: string }, options: ResolveDataDirOptions = {}): string` |
 | `isSandboxModeEnabled` | `(config: SandboxEnvConfig, env = process.env): boolean` |
 | `sandboxImportAllowedRoots` | `(config, env = process.env): string[]` |
-| `isSandboxImportedProjectRootAllowed` | `(config, projectRoot: string, env = process.env): boolean` |
-| `sandboxImportedProjectRootUnavailableReason` | `(config, projectRoot, env = process.env): string | null` |
-| `resolveSandboxRuntimeConfig` | `(enabled: boolean, dataDir: string): SandboxRuntimeConfig` |
-| `resolveSandboxRuntimeConfigFromEnv` | `(config, env, projectRoot): SandboxRuntimeConfig | null` |
+| `isSandboxImportedProjectRootAllowed` | `({ config, projectRoot }: { config: SandboxEnvConfig; projectRoot: string }, { env = process.env }: { env?: Record<string, string | undefined> | undefined } = {}): boolean` |
+| `sandboxImportedProjectRootUnavailableReason` | `({ config, projectRoot }: { config: SandboxEnvConfig; projectRoot: string }, { env = process.env }: { env?: Record<string, string | undefined> | undefined } = {}): string | null` |
+| `resolveSandboxRuntimeConfig` | `({ enabled, dataDir }: { enabled: boolean; dataDir: string }, _optional: Record<string, never> = {}): SandboxRuntimeConfig` |
+| `resolveSandboxRuntimeConfigFromEnv` | `({ config, env, projectRoot }: { config: SandboxEnvConfig; env: Record<string, string | undefined>; projectRoot: string }, _optional: Record<string, never> = {}): SandboxRuntimeConfig | null` |
 | `sandboxAgentProfilesConfigPath` | `(config, runtime: SandboxRuntimeConfig): string` |
 | `ensureSandboxRuntimeDirs` | `(runtime): void` |
-| `applySandboxRuntimeEnv` | `(config, baseEnv: ProcessEnv, runtime): ProcessEnv` |
+| `applySandboxRuntimeEnv` | `({ config, baseEnv, runtime }: { config: SandboxEnvConfig; baseEnv: NodeJS.ProcessEnv; runtime: SandboxRuntimeConfig }, _optional: Record<string, never> = {}): ProcessEnv` |
 
 `WellKnownUserToolchainOptions` contains `home?`, `includeSystemBins?`, and `env?`. It supplies candidate directories, not a PATH mutation or installation. Resource configuration requires caller-chosen strings `cliPathEnvVar`, `cliPathFallbackEnvVar`, `cliPackageName`, `resourceRootEnvVar`, `pluginPreviewsDirEnvVar`, `dataDirEnvVar`, `defaultDataDirName`, `windowsResourceBinSegment`.
 
@@ -137,7 +138,7 @@ interface TerminalService {
 
 `PtySpawn(shell, args, options: PtySpawnOptions): PtyProcess` receives name/dimensions/cwd/env. The process provides onData/onExit/write/resize/kill. All named terminal types are root exports.
 
-Helpers: `spawnHelperCandidatePaths({ platform?, resolve? } = {}): string[]`, `ensureSpawnHelperExecutable(candidatePaths = spawnHelperCandidatePaths()): void`, and `resolveShell(requested?: string | null, { platform?, env? } = {}): string`.
+Helpers: `spawnHelperCandidatePaths({ platform?, resolve? } = {}): string[]`, `ensureSpawnHelperExecutable({}, { candidatePaths = spawnHelperCandidatePaths() } = {}): void`, and `resolveShell({}, { requested?, platform?, env? } = {}): string`.
 
 ```ts
 import { createTerminalService } from '@jini-ai/platform';
@@ -165,12 +166,12 @@ undici's `Agent`/`Dispatcher` types.
 | `createAssetCacheDispatcher` | `({}, { lookupImpl? } = {}): Agent` | Optional DNS callback adapter; uses platform's required undici dependency |
 | `AssetCache.close` | `(): Promise<void>` | Closes the default dispatcher; the host owns injected dispatchers |
 | `AssetCache.get` | `(rawUrl: string): Promise<AssetCacheResult>` | URL |
-| `isCacheableExternalUrl` | `(raw: unknown): raw is string` | Media HTTP(S) URL predicate |
-| `assetCacheRewriteUrl` | `(raw: string, routePath = '/api/asset-cache'): string` | Consumer route mounting |
+| `isCacheableExternalUrl` | `(required: { raw: unknown }, _optional: Record<string, never> = {}): required is { raw: string }` | Media HTTP(S) URL predicate |
+| `assetCacheRewriteUrl` | `({ raw }: { raw: string }, { routePath = '/api/asset-cache' }: { routePath?: string | undefined } = {}): string` | Consumer route mounting |
 | `assertSafePublicUrl` | `(raw: string): URL` | Literal URL guard |
 | `isPrivateAddress` | `(address: string): boolean` | IP classifier |
 | `createValidatingLookup` | `(lookupImpl = nativeDnsLookup): DnsLookupCallback` | Optional DNS callback adapter |
-| `assetCacheKey` | `(rawUrl: string): string` | SHA-256 URL digest |
+| `assetCacheKey` | `({ rawUrl }: { rawUrl: string }, _optional: Record<string, never> = {}): string` | SHA-256 URL digest |
 | `signSigV4` | `(input: SignSigV4Input): SignSigV4Result` | Request and host-resolved credentials; mutable headers |
 | `encodeS3PathSegment` | `(segment: string): string` | Pure URI encoding |
 | `new LocalBlobStorage` | `(root: string)` | Filesystem root |

@@ -309,9 +309,8 @@ async function readResponseChunk(
  * genuine network error) propagates unchanged.
  */
 export async function fetchWithTimeout(
-  url: string | URL,
-  init: RequestInit = {},
-  options: FetchWithTimeoutOptions,
+  { url, ...options }: { url: string | URL } & FetchWithTimeoutOptions,
+  { init = {} }: { init?: RequestInit | undefined } = {},
 ): Promise<Response> {
   return executeFetchWithTimeout({ url, init, timeoutMs: options.timeoutMs, consume: async ({ response }) => response }, options);
 }

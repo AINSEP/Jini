@@ -225,8 +225,7 @@ export function createDaemonChatTransport(): ChatTransport {
       // Proves which tab started this run so page.* calls can be routed back to it.
       const frontendBindToken = nonEmptyRunOption(context.frontendBindToken);
       const response = await fetchWithTimeout(
-        '/api/runs',
-        {
+        { url: '/api/runs', timeoutMs: FETCH_TIMEOUT_MS.QUICK }, { init: {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
@@ -242,8 +241,7 @@ export function createDaemonChatTransport(): ChatTransport {
             agentId,
           }),
           signal: input.signal,
-        },
-        { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+        } },
       );
       if (!response.ok) throw await readApiError(response);
       const body = (await response.json()) as RunResponseWire;
@@ -259,9 +257,7 @@ export function createDaemonChatTransport(): ChatTransport {
     },
     async fetchRunStatus(runId) {
       const response = await fetchWithTimeout(
-        `/api/runs/${encodeURIComponent(runId)}`,
-        {},
-        { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+        { url: `/api/runs/${encodeURIComponent(runId)}`, timeoutMs: FETCH_TIMEOUT_MS.QUICK }, { init: {} },
       );
       if (response.status === 404) return null;
       if (!response.ok) throw await readApiError(response);
@@ -269,13 +265,11 @@ export function createDaemonChatTransport(): ChatTransport {
     },
     async stopRun(runId) {
       const response = await fetchWithTimeout(
-        `/api/runs/${encodeURIComponent(runId)}/cancel`,
-        {
+        { url: `/api/runs/${encodeURIComponent(runId)}/cancel`, timeoutMs: FETCH_TIMEOUT_MS.QUICK }, { init: {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ reason: 'Canceled from Jini Playground' }),
-        },
-        { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+        } },
       );
       if (!response.ok) throw await readApiError(response);
     },

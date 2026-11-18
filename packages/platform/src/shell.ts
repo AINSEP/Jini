@@ -86,8 +86,7 @@ function buildLoginShellCommand(innerCommand: string): string {
  * @returns The buffered result.
  */
 export function execCommandViaLoginShell(
-  command: string,
-  args: readonly string[],
+  { command, args }: { command: string; args: readonly string[] },
   opts: ExecFileOptions = {},
 ): Promise<BufferedCommandResult> {
   if (process.platform === "win32") return execFileBuffered(command, args, opts);

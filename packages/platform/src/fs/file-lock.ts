@@ -37,13 +37,13 @@ export function isContendedLockError({ code, platform }: { code: string | undefi
   return code === "EEXIST" || (code === "EPERM" && platform === "win32");
 }
 function isContended(error: unknown): boolean {
-  return isContendedLockError({ code: errorCodeOf(error), platform: process.platform });
+  return isContendedLockError({ code: errorCodeOf({ error }), platform: process.platform });
 }
 function isAbsentOrContended(error: unknown): boolean {
-  const code = errorCodeOf(error);
+  const code = errorCodeOf({ error });
   return code === "ENOENT" || isContendedLockError({ code, platform: process.platform });
 }
-function rethrowUnlessMissing(error: unknown): void { if (errorCodeOf(error) !== "ENOENT") throw error; }
+function rethrowUnlessMissing(error: unknown): void { if (errorCodeOf({ error }) !== "ENOENT") throw error; }
 function validPid(pid: unknown): pid is number { return typeof pid === "number" && Number.isSafeInteger(pid) && pid > 0; }
 function isHolderRecord(value: unknown): value is Omit<FileLockHolder, "bootId"> & { bootId?: unknown } {
   if (typeof value !== "object" || value === null) return false;
@@ -81,7 +81,7 @@ function intervals(options: FileLockOptions) {
   return { timeoutMs, staleMs, pollMs };
 }
 function defaultProcessPort(): NonNullable<FileLockOptions["process"]> {
-  return { pid: process.pid, bootIdentity: () => readBootIdentity({}), isAlive: ({ pid }: { pid: number }) => { try { process.kill(pid, 0); return true; } catch (error) { return errorCodeOf(error) !== "ESRCH"; } } };
+  return { pid: process.pid, bootIdentity: () => readBootIdentity({}), isAlive: ({ pid }: { pid: number }) => { try { process.kill(pid, 0); return true; } catch (error) { return errorCodeOf({ error }) !== "ESRCH"; } } };
 }
 function settings(options: FileLockOptions) {
   const checked = intervals(options);
@@ -162,7 +162,7 @@ function rethrowReleaseError(error: unknown, completed: boolean, options: FileLo
 interface LockContext<Filesystem> { lockPath: string; raw: string; filesystem: Filesystem; s: Settings; options: FileLockOptions; }
 function inspectSync(lockPath: string, filesystem: FileLockSyncFilesystem): LockSnapshot | undefined {
   let descriptor: number;
-  try { descriptor = filesystem.openSync(lockPath, "r"); } catch (error) { return fallbackIf(error, isAbsentOrContended, undefined); }
+  try { descriptor = filesystem.openSync(lockPath, "r"); } catch (error) { return fallbackIf({ error, matches: isAbsentOrContended, fallback: undefined }); }
   try {
     const info = filesystem.fstatSync(descriptor), raw = filesystem.readFileSync(descriptor, "utf8");
     return { raw, holder: parseHolder(raw), mtimeMs: info.mtimeMs, ino: info.ino, dev: info.dev };
@@ -170,7 +170,7 @@ function inspectSync(lockPath: string, filesystem: FileLockSyncFilesystem): Lock
 }
 async function inspectAsync(lockPath: string, filesystem: FileLockAsyncFilesystem): Promise<LockSnapshot | undefined> {
   let handle: Awaited<ReturnType<FileLockAsyncFilesystem["open"]>>;
-  try { handle = await filesystem.open(lockPath, "r"); } catch (error) { return fallbackIf(error, isAbsentOrContended, undefined); }
+  try { handle = await filesystem.open(lockPath, "r"); } catch (error) { return fallbackIf({ error, matches: isAbsentOrContended, fallback: undefined }); }
   try {
     const info = await handle.stat(), raw = await handle.readFile("utf8");
     return { raw, holder: parseHolder(raw), mtimeMs: info.mtimeMs, ino: info.ino, dev: info.dev };
@@ -189,7 +189,7 @@ function tryCreateSync(ctx: LockContext<FileLockSyncFilesystem>): FileIdentity |
   const { lockPath, filesystem } = ctx;
   let descriptor: number;
   try { descriptor = filesystem.openSync(lockPath, "wx", 0o600); }
-  catch (error) { return fallbackIf(error, isContended, undefined); }
+  catch (error) { return fallbackIf({ error, matches: isContended, fallback: undefined }); }
   let identity: FileIdentity;
   try {
     identity = filesystem.fstatSync(descriptor);
@@ -254,7 +254,7 @@ async function removeFailedCreationAsync({ lockPath, filesystem }: LockContext<F
 async function tryCreateAsync(ctx: LockContext<FileLockAsyncFilesystem>): Promise<FileIdentity | undefined> {
   let handle: AsyncHandle;
   try { handle = await ctx.filesystem.open(ctx.lockPath, "wx", 0o600); }
-  catch (error) { return fallbackIf(error, isContended, undefined); }
+  catch (error) { return fallbackIf({ error, matches: isContended, fallback: undefined }); }
   let identity: FileIdentity;
   try { identity = await handle.stat(); await handle.writeFile(ctx.raw, "utf8"); }
   catch (error) { await removeFailedCreationAsync(ctx, handle); throw error; }

@@ -7,12 +7,12 @@ import { GithubApiRegistryClient } from '../github-client.js';
 // Bind the existing platform timeout behavior to the transport port; global fetch is stubbed below.
 const http: HttpClientPort = {
   async send({ request }, optional = {}) {
-    const response = await fetchWithTimeout(request.url, {
+    const response = await fetchWithTimeout({ url: request.url, timeoutMs: request.totalDeadlineMs ?? request.idleTimeoutMs ?? request.timeoutMs ?? 15_000 }, { init: {
       method: request.method, headers: request.headers,
       ...(request.body === undefined ? {} : { body: request.body }),
       ...(request.signal === undefined ? {} : { signal: request.signal }),
       ...(optional.redirect === undefined ? {} : { redirect: optional.redirect }),
-    }, { timeoutMs: request.totalDeadlineMs ?? request.idleTimeoutMs ?? request.timeoutMs ?? 15_000 });
+    } });
     return { status: response.status, headers: Object.fromEntries(response.headers.entries()), bodyText: await response.text() };
   },
 };

@@ -43,7 +43,7 @@ function ambientComSpec(ambient: NodeJS.ProcessEnv = process.env): string | unde
  * @param env - Environment to read `npm_execpath` / `ComSpec` from (defaults to `process.env`).
  * @returns The `{ command, args }` invocation that runs the package manager.
  */
-export function createPackageManagerInvocation(args: string[], env: NodeJS.ProcessEnv = process.env): CommandInvocation {
+export function createPackageManagerInvocation({ args }: { args: string[] }, { env = process.env }: { env?: NodeJS.ProcessEnv | undefined } = {}): CommandInvocation {
   const execPath = env.npm_execpath;
   if (execPath) {
     if (nodeLoadablePackageManagerExtensions.has(extname(execPath).toLowerCase())) {

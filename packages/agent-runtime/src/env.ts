@@ -95,7 +95,7 @@ function applyAgentHousekeeping({ env, agentId }: { env: NodeJS.ProcessEnv; agen
 export function spawnEnvForAgent({ agentId, baseEnv }: { agentId: string; baseEnv: RuntimeEnvMap }, { configuredEnv = {}, systemProxyEnv = resolveSystemProxyEnv(), hooks = {} }: { configuredEnv?: unknown; systemProxyEnv?: RuntimeEnvMap; hooks?: SpawnEnvHooks } = {}
 ): NodeJS.ProcessEnv {
   const expandedConfiguredEnv = expandConfiguredEnv({ configuredEnv: configuredEnv });
-  const env = mergeProxyAwareEnv(process.platform, systemProxyEnv, baseEnv, expandedConfiguredEnv);
+  const env = mergeProxyAwareEnv({ platform: process.platform, sources: [systemProxyEnv, baseEnv, expandedConfiguredEnv] });
 
   applyAgentHousekeeping({ env, agentId });
 

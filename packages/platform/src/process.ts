@@ -90,8 +90,8 @@ function errorCode(error: unknown): string | null {
  * @returns The `--flag=value` argument strings, one per stamp field.
  */
 export function createProcessStampArgs<TStamp extends ProcessStampShape>(
-  stamp: TStamp,
-  contract: ProcessStampContract<TStamp>,
+  { stamp, contract }: { stamp: TStamp; contract: ProcessStampContract<TStamp> },
+  _optional: Record<string, never> = {},
 ): string[] {
   const normalized = contract.normalizeStamp(stamp);
   return contract.stampFields.map((field) => {
@@ -116,7 +116,7 @@ function commandArgs(command: string): string[] {
  * @param flagName - The flag name (including any leading dashes).
  * @returns The flag's value, or `null` when the flag is absent.
  */
-export function readFlagValue(args: readonly string[], flagName: string): string | null {
+export function readFlagValue({ args, flagName }: { args: readonly string[]; flagName: string }, _optional: Record<string, never> = {}): string | null {
   const inlinePrefix = `${flagName}=`;
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
@@ -137,12 +137,12 @@ export function readFlagValue(args: readonly string[], flagName: string): string
  * @returns The decoded stamp, or `null` when it cannot be normalized.
  */
 export function readProcessStamp<TStamp extends ProcessStampShape>(
-  args: readonly string[],
-  contract: ProcessStampContract<TStamp>,
+  { args, contract }: { args: readonly string[]; contract: ProcessStampContract<TStamp> },
+  _optional: Record<string, never> = {},
 ): TStamp | null {
   try {
     const input = Object.fromEntries(
-      contract.stampFields.map((field) => [field, readFlagValue(args, contract.stampFlags[field])]),
+      contract.stampFields.map((field) => [field, readFlagValue({ args, flagName: contract.stampFlags[field] })]),
     );
     return contract.normalizeStamp(input);
   } catch {
@@ -158,10 +158,10 @@ export function readProcessStamp<TStamp extends ProcessStampShape>(
  * @returns The decoded stamp, or `null` when it cannot be normalized.
  */
 export function readProcessStampFromCommand<TStamp extends ProcessStampShape>(
-  command: string,
-  contract: ProcessStampContract<TStamp>,
+  { command, contract }: { command: string; contract: ProcessStampContract<TStamp> },
+  _optional: Record<string, never> = {},
 ): TStamp | null {
-  return readProcessStamp(commandArgs(command), contract);
+  return readProcessStamp({ args: commandArgs(command), contract });
 }
 
 /**
@@ -175,9 +175,8 @@ export function readProcessStampFromCommand<TStamp extends ProcessStampShape>(
  * @returns `true` when every specified criterion matches the stamp.
  */
 export function matchesProcessStamp<TStamp extends ProcessStampShape, TCriteria extends Partial<TStamp> = Partial<TStamp>>(
-  stamp: TStamp,
-  criteria: TCriteria | undefined,
-  contract: ProcessStampContract<TStamp, TCriteria>,
+  { stamp, criteria, contract }: { stamp: TStamp; criteria: TCriteria | undefined; contract: ProcessStampContract<TStamp, TCriteria> },
+  _optional: Record<string, never> = {},
 ): boolean {
   const normalizedStamp = contract.normalizeStamp(stamp);
   const normalizedCriteria = contract.normalizeStampCriteria(criteria ?? {});
@@ -197,12 +196,11 @@ export function matchesProcessStamp<TStamp extends ProcessStampShape, TCriteria 
  * @returns `true` when the command carries a decodable stamp that matches.
  */
 export function matchesStampedProcess<TStamp extends ProcessStampShape, TCriteria extends Partial<TStamp> = Partial<TStamp>>(
-  processInfo: Pick<ProcessSnapshot, "command">,
-  criteria: TCriteria | undefined,
-  contract: ProcessStampContract<TStamp, TCriteria>,
+  { processInfo, criteria, contract }: { processInfo: Pick<ProcessSnapshot, "command">; criteria: TCriteria | undefined; contract: ProcessStampContract<TStamp, TCriteria> },
+  _optional: Record<string, never> = {},
 ): boolean {
-  const stamp = readProcessStampFromCommand(processInfo.command, contract);
-  return stamp != null && matchesProcessStamp(stamp, criteria, contract);
+  const stamp = readProcessStampFromCommand({ command: processInfo.command, contract });
+  return stamp != null && matchesProcessStamp({ stamp, criteria, contract });
 }
 
 /** @internal Build the stdio triple for a spawned process, routing stdout/stderr to a log fd when provided. */

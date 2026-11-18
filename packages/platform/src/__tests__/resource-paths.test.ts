@@ -43,19 +43,19 @@ async function makeTempDir(prefix: string): Promise<string> {
 
 describe('@jini-ai/platform — resource-paths — resolveDaemonCliPath', () => {
   it('prefers the primary env var', () => {
-    expect(resolveDaemonCliPath(CONFIG, { [CONFIG.cliPathEnvVar]: '/explicit/cli.js' })).toBe(
+    expect(resolveDaemonCliPath({ config: CONFIG }, { env: { [CONFIG.cliPathEnvVar]: '/explicit/cli.js' } })).toBe(
       path.resolve('/explicit/cli.js'),
     );
   });
 
   it('falls back to the legacy env var', () => {
-    expect(resolveDaemonCliPath(CONFIG, { [CONFIG.cliPathFallbackEnvVar]: '/legacy/cli.js' })).toBe(
+    expect(resolveDaemonCliPath({ config: CONFIG }, { env: { [CONFIG.cliPathFallbackEnvVar]: '/legacy/cli.js' } })).toBe(
       path.resolve('/legacy/cli.js'),
     );
   });
 
   it('resolves the CLI package location when neither env var is set', () => {
-    const resolved = resolveDaemonCliPath(CONFIG, {});
+    const resolved = resolveDaemonCliPath({ config: CONFIG }, { env: {} });
     expect(resolved.endsWith(path.join('dist', 'cli.js'))).toBe(true);
   });
 });
@@ -111,11 +111,11 @@ describe('@jini-ai/platform — resource-paths — resolveDaemonResourceRoot', (
 
 describe('@jini-ai/platform — resource-paths — resolveDaemonResourceDir', () => {
   it('joins under the resource root when present', () => {
-    expect(resolveDaemonResourceDir('/resources', 'data/x', '/fallback')).toBe(path.join('/resources', 'data/x'));
+    expect(resolveDaemonResourceDir({ resourceRoot: '/resources', segment: 'data/x', fallback: '/fallback' })).toBe(path.join('/resources', 'data/x'));
   });
 
   it('uses the fallback when resourceRoot is null', () => {
-    expect(resolveDaemonResourceDir(null, 'data/x', '/fallback')).toBe('/fallback');
+    expect(resolveDaemonResourceDir({ resourceRoot: null, segment: 'data/x', fallback: '/fallback' })).toBe('/fallback');
   });
 });
 
@@ -155,12 +155,12 @@ describe('@jini-ai/platform — resource-paths — resolveDaemonPluginPreviewsDi
 
 describe('@jini-ai/platform — resource-paths — resolveDataDir', () => {
   it('defaults to <projectRoot>/<defaultDataDirName> when unset', () => {
-    expect(resolveDataDir(CONFIG, undefined, '/project')).toBe(path.join('/project', '.fake'));
-    expect(resolveDataDir(CONFIG, '   ', '/project')).toBe(path.join('/project', '.fake'));
+    expect(resolveDataDir({ config: CONFIG, raw: undefined, projectRoot: '/project' })).toBe(path.join('/project', '.fake'));
+    expect(resolveDataDir({ config: CONFIG, raw: '   ', projectRoot: '/project' })).toBe(path.join('/project', '.fake'));
   });
 
   it('throws when unset and requireExplicit is set', () => {
-    expect(() => resolveDataDir(CONFIG, undefined, '/project', { requireExplicit: true })).toThrow(
+    expect(() => resolveDataDir({ config: CONFIG, raw: undefined, projectRoot: '/project' }, { requireExplicit: true })).toThrow(
       /FAKE_DATA_DIR is required/,
     );
   });
@@ -168,7 +168,7 @@ describe('@jini-ai/platform — resource-paths — resolveDataDir', () => {
   it('creates and returns a writable explicit data dir, expanding home-relative values', async () => {
     const parent = await makeTempDir('jini-resource-paths-datadir-');
     const target = join(parent, 'nested', 'data');
-    const resolved = resolveDataDir(CONFIG, target, '/unused-root');
+    const resolved = resolveDataDir({ config: CONFIG, raw: target, projectRoot: '/unused-root' });
     expect(resolved).toBe(target);
     expect(existsSync(target)).toBe(true);
   });
@@ -178,7 +178,7 @@ describe('@jini-ai/platform — resource-paths — resolveDataDir', () => {
     const blockerFile = join(parent, 'blocker');
     await writeFile(blockerFile, 'not a directory', 'utf8');
     const target = join(blockerFile, 'nested');
-    expect(() => resolveDataDir(CONFIG, target, '/unused-root')).toThrow(/FAKE_DATA_DIR ".*" is not writable/);
+    expect(() => resolveDataDir({ config: CONFIG, raw: target, projectRoot: '/unused-root' })).toThrow(/FAKE_DATA_DIR ".*" is not writable/);
   });
 
   it('falls back to $USER/$LOGNAME/"unknown" in the diagnostic when os.userInfo() itself throws', async () => {
@@ -191,7 +191,7 @@ describe('@jini-ai/platform — resource-paths — resolveDataDir', () => {
       throw new Error('user info unavailable in this environment');
     });
     try {
-      expect(() => resolveDataDir(CONFIG, target, '/unused-root')).toThrow(/Current user: /);
+      expect(() => resolveDataDir({ config: CONFIG, raw: target, projectRoot: '/unused-root' })).toThrow(/Current user: /);
     } finally {
       spy.mockRestore();
     }
@@ -210,13 +210,13 @@ describe('@jini-ai/platform — resource-paths — resolveDataDir', () => {
 
       delete process.env.USER;
       process.env.LOGNAME = 'fallback-logname';
-      expect(() => resolveDataDir(CONFIG, join(blockerFile, 'nested'), '/unused-root')).toThrow(
+      expect(() => resolveDataDir({ config: CONFIG, raw: join(blockerFile, 'nested'), projectRoot: '/unused-root' })).toThrow(
         /Current user: fallback-logname/,
       );
 
       delete process.env.USER;
       delete process.env.LOGNAME;
-      expect(() => resolveDataDir(CONFIG, join(blockerFile, 'nested'), '/unused-root')).toThrow(
+      expect(() => resolveDataDir({ config: CONFIG, raw: join(blockerFile, 'nested'), projectRoot: '/unused-root' })).toThrow(
         /Current user: unknown/,
       );
     } finally {

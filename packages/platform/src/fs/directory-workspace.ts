@@ -30,7 +30,7 @@ export function createNodeDirectoryWorkspace(
     prefix: "Directory workspace", lockTimeout: ({ lockPath }) => `Timed out waiting for file lock: ${lockPath}`,
   } }, { staleMs: Infinity });
   const config = userConfig ? createDirectoryUserConfig({ homeDir, defaultFolder, envName, policy: userConfig,
-    fileAt, canonicalPath, removeFile: ({ filePath }) => ports.filesystem.rmSync(filePath, { force: true }), isDirectory: (file) => ports.filesystem.statSync(file).isDirectory(), exists: (file) => { try { ports.filesystem.statSync(file); return true; } catch (error) { return fallbackIfMissing(error, false); } },
+    fileAt, canonicalPath, removeFile: ({ filePath }) => ports.filesystem.rmSync(filePath, { force: true }), isDirectory: (file) => ports.filesystem.statSync(file).isDirectory(), exists: (file) => { try { ports.filesystem.statSync(file); return true; } catch (error) { return fallbackIfMissing({ error, fallback: false }); } },
   }, { env, cwd, report: (message) => ports.report.error({ message }), ...directoryOptions }) : undefined;
   const settings = fileAt(config?.filePath ?? settingsFile);
   function readSetting(): string | undefined {
@@ -59,7 +59,7 @@ export function createNodeDirectoryWorkspace(
       if (!temporary && !fixturePattern!.test(entry.id)) return false;
       // A live temp-path folder is a real site. Only ENOENT proves this candidate is stale.
       try { ports.filesystem.statSync(entry.path); return false; }
-      catch (error) { return fallbackIfMissing(error, true); }
+      catch (error) { return fallbackIfMissing({ error, fallback: true }); }
     },
     reportDiscarded: ({ entries }) => ports.report.error({ message: `Directory workspace: removed ${entries.length} test/temporary catalog entries: ${entries.map((entry) => entry.id).join(", ")}` }),
   } : {});
@@ -129,7 +129,7 @@ export function createNodeDirectoryWorkspace(
       const selected = home();
       const parent = config?.legacyHomes({}, { includeMissing: true }).includes(path.dirname(selected)) ? path.dirname(path.dirname(selected)) : path.dirname(selected);
       try { return ports.filesystem.statSync(parent).isDirectory(); }
-      catch (error) { return fallbackIfMissing(error, false); }
+      catch (error) { return fallbackIfMissing({ error, fallback: false }); }
     },
     legacyHomes: (_required: Record<string, never>, _options = {}) => config?.legacyHomes({}) ?? [],
     /** Commit a verified move's catalog and every injected path reference as one locked unit.
