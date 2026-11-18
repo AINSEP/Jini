@@ -29,7 +29,7 @@ Configuration writes only through the injected guarded settings writer; no deliv
 | `./settings` | universal | One-release compatibility re-export of `@jini-ai/core/settings`. |
 | `./settings/express` | node | One-release compatibility re-export of `@jini-ai/core/settings/express`. |
 | `./widgets` / `./widgets/markers` / `./widgets/resolvers` | universal | Widget contracts, markers and resolution services; no HTML parser. |
-| `./widgets/html` | node | HTML scanning/substitution, fragment validation and plugin-export template resolution. |
+| `./widgets/html` | node | HTML scanning/substitution, fragment validation, plugin-export template resolution, page-body sanitizing and media Raw HTML resolution (diagnostics through an injected `report`). |
 | `./html/style-values` | universal | CSS-value allowlists for author strings a renderer writes into a `style` attribute (`safeTextAlign`, `safeAspectRatio`). |
 
 Hosts that sanitize SVG uploads or ingest documents through `./media` must install the optional peers
