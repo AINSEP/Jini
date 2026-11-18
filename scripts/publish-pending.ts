@@ -13,6 +13,8 @@
  * GitHub OIDC token), so there is no token here; the workflow must already have built `dist/`.
  * When `GITHUB_STEP_SUMMARY` is set, the outcome per package is written to the job summary.
  *
+ * Prerelease versions (any version containing `-`) are published with `--tag next`, never `latest`.
+ *
  * Usage:
  *   tsx scripts/publish-pending.ts                        # publish (CI only)
  *   tsx scripts/publish-pending.ts --only ui,chat         # just these (short or full names)
@@ -76,6 +78,19 @@ function publishOrder(registry: ReadonlyMap<string, JiniPackageEntry>, names: re
   };
   for (const name of names) visit(name, []);
   return order;
+}
+
+/**
+ * Arguments for `npm publish <tarball>`. npm refuses a prerelease version (any version with a
+ * `-`, e.g. `0.7.1-next.0`) unless a dist-tag is given, and without one a stable version would
+ * take `latest`. Prereleases therefore publish with `--tag next`, so `latest` never moves.
+ * @returns The argument vector following `npm`.
+ * @complexity O(1).
+ */
+export function publishArgs({ tarball, version }: { tarball: string; version: string }): string[] {
+  const args = ['publish', tarball, '--access', 'public', '--provenance'];
+  if (version.includes('-')) args.push('--tag', 'next');
+  return args;
 }
 
 function packAndCheck(name: string, entry: JiniPackageEntry): string {
@@ -174,8 +189,9 @@ export async function main(): Promise<void> {
     const tarballs = await preparePluginRelease({ repoRoot, registry, pending });
     for (const name of pending) {
       const tarball = tarballs.get(name)!;
-      execFileSync('npm', ['publish', tarball, '--access', 'public', '--provenance'], { stdio: 'inherit' });
-      rows.push([`${name}@${registry.get(name)!.pkg.version}`, 'published']);
+      const version = registry.get(name)!.pkg.version!;
+      execFileSync('npm', publishArgs({ tarball, version }), { stdio: 'inherit' });
+      rows.push([`${name}@${version}`, 'published']);
     }
   } catch (error) {
     rows.push(['Release', 'stopped before completion; see the step log']);
