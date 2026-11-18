@@ -368,8 +368,9 @@ const CHAINED_LABEL_RE = new RegExp(`(?:${RUNTIME_SECRET_LABELS})\\b["']?\\s*[:=
 // Explicit authorization syntax catches even short values. Exempt scheme descriptions in prose
 // ("Bearer token authentication") is not a credential. Only a value that is exactly one of the
 // words in the second lookahead (plus one closing sentence mark) is exempt, so a credential that
-// merely starts with one ("auth-1a2b", "token.abc") is still masked.
-const SHORT_BEARER_RE = new RegExp(`Bearer\\s+["']?(?!${GENERATED_MARKER}(?=$|[\\s"',;<>}]))(?!(?:tokens?|authentication|authorization|auth|scheme|credentials?)[.!?:)]?(?![^\\s"',;<>}]))(?=([^\\s"',;<>}]+))`, 'gi');
+// merely starts with one ("auth-1a2b", "token.abc") is still masked. The scheme word must start a word:
+// a name that only ends in it (TokenBearer) is prose and must not take the next word as a credential.
+const SHORT_BEARER_RE = new RegExp(`\\bBearer\\s+["']?(?!${GENERATED_MARKER}(?=$|[\\s"',;<>}]))(?!(?:tokens?|authentication|authorization|auth|scheme|credentials?)[.!?:)]?(?![^\\s"',;<>}]))(?=([^\\s"',;<>}]+))`, 'gi');
 const BASIC_AUTH_RE = /\bauthorization["']?\s*[:=]\s*["']?(Basic\s+[^\s"',;}]+)/gi;
 // Cookie pairs belong to one header value, including pairs after a semicolon and a space.
 const COOKIE_HEADER_RE = /\bcookie\s*:\s*([^\r\n]+)/gi;
