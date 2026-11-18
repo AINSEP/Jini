@@ -134,7 +134,7 @@ export const commentsAgentToolCatalog: AgentToolDefinition[] = [
           enum: [...COMMENT_STATUSES],
           description: "Filter by moderation status. Defaults to 'pending' if omitted.",
         },
-        limit: { type: "integer", minimum: 1, maximum: 100, description: "Max rows to return (1-100). Defaults to 20." },
+        limit: { type: "integer", minimum: 1, maximum: 100, clamp: true, description: "Max rows to return (1-100). Defaults to 20." },
         cursor: { type: "string", description: "Opaque keyset cursor from a previous call's nextCursor. Omit for the first page." },
       },
     },
