@@ -32,6 +32,11 @@ the tsx CommonJS bootstrap can resolve the subpaths without an active `import` c
 `@jini-ai/db/secrets-vault` takes its credential validation and error contracts from `@jini-ai/core/contracts/vault`
 (plus Kysely for SQL); it no longer needs `@jini-ai/platform`, which is not a peer of this package.
 
+`@jini-ai/db/settings` is the Kysely adapter (`SqlSettingsRepo`) for the settings repository port declared in
+`@jini-ai/core/settings`. It takes the kernel and five host-owned table names; it owns no schema, no default table name and no
+migration. Value writes are unconditional last-write-wins upserts and every revision append serializes on the
+one install-wide `setting_revisions` lock.
+
 `kysely` is an optional peer (`^0.29.6`), imported as a value or type only under `src/kernel/`
 and `src/migrate/`. `better-sqlite3`, `pg` and `@electric-sql/pglite` are also optional peers.
 Production code never imports a driver at runtime. PGlite type imports are confined to
