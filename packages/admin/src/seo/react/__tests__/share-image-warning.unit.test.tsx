@@ -2,7 +2,7 @@
 import { act, renderHook, waitFor, render, screen, fireEvent } from '../../../__tests__/fetch-query-support.js';
 import { expect, test, vi } from 'vitest';
 import { FetchQueryProvider } from '@jini-ai/ui/fetch-query';
-import { SeoEntrySection } from '../pages/SeoPage.js';
+import { SeoEntrySection } from '../components/SeoEntryPanel.js';
 import type { SyntheticEvent } from 'react';
 import { useMediaRefField } from '../hooks/MediaRefField.hooks.js';
 import { useShareImageWarning } from '../hooks/use-share-image-warning.hooks.js';
