@@ -28,13 +28,6 @@
     "value": 12
   },
   {
-    "file": "packages/agent-runtime/src/model-discovery-config.ts",
-    "function": "readModelConfiguration",
-    "line": 113,
-    "rule": "complexity",
-    "value": 12
-  },
-  {
     "file": "packages/chat/src/core/question-form/scan.ts",
     "function": "balancedObjectEnd",
     "line": 339,

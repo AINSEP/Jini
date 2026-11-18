@@ -149,7 +149,7 @@ it('disposal waits for an in-flight model-catalog refresh before clearing the st
   const state = createAgentRuntimeState({});
   let release!: () => void;
   const { offlineSnapshot } = await import('../model-discovery.js');
-  const pending = new Promise<ReturnType<typeof offlineSnapshot>>(resolve => { release = () => resolve(offlineSnapshot('fingerprint', 0, [])); });
+  const pending = new Promise<ReturnType<typeof offlineSnapshot>>(resolve => { release = () => resolve(offlineSnapshot({ fingerprint: 'fingerprint', now: 0, fallback: [] })); });
   state.modelCatalog.set('in-flight', { pending });
   const runtime = createNativeAgentRuntime({ env: {} }, { state });
   let disposed = false;

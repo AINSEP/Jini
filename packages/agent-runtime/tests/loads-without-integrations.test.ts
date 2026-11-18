@@ -43,7 +43,7 @@ describe('@jini-ai/agent-runtime without its optional integrations peer', () => 
         typeof discovery.discoverModels,
         typeof discovery.resolveDefaultModel,
         deps.cache === runtime.state.modelCatalog,
-        m.parseClaudeInitializeMetadata('invalid'),
+        m.parseClaudeInitializeMetadata({ stdout: 'invalid' }),
       ]));
       await runtime.dispose({});
     `);

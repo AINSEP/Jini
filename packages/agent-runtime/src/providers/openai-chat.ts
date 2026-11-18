@@ -784,8 +784,7 @@ export function buildOpenAiAssistantToolCallMessage({ text, toolCalls }: { text:
 }
 
 /** Appends the batch's `tool` messages plus, when present, the single labeled-image follow-up message — see module doc's "Tool messages cannot carry an image" section for why the follow-up is at most one message per batch. */
-export function buildOpenAiToolExchangeMessages({ toolResultMessages, followUpParts }: { toolResultMessages: readonly OpenAiMessageParam[]; followUpParts: readonly OpenAiContentPart[] }, _optional: Record<string, never> = {}
-): OpenAiMessageParam[] {
+export function buildOpenAiToolExchangeMessages({ toolResultMessages, followUpParts }: { toolResultMessages: readonly OpenAiMessageParam[]; followUpParts: readonly OpenAiContentPart[] }, _optional: Record<string, never> = {}): OpenAiMessageParam[] {
   return [...toolResultMessages, ...(followUpParts.length > 0 ? [{ role: 'user' as const, content: followUpParts }] : [])];
 }
 
