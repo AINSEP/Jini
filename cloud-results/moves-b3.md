@@ -5,7 +5,7 @@ Run: COMPLETE for the list given (one slice executed; the other two were already
 ## DONE
 | slice | Jini | Tovu |
 |---|---|---|
-| SP-email-templates-1 (operations.ts -> `@jini-ai/platform/mail/email-template-operations`; Tovu keeps `emailTemplateStore`) | fdcf829c | d26c9a8c (code), + why-debt commit (10 entries) |
+| SP-email-templates-1 (operations.ts -> `@jini-ai/platform/mail/email-template-operations`; Tovu keeps `emailTemplateStore`) | fdcf829c | fee53aed (code), d26c9a8c (10 why-debt entries) |
 Sheet source: split-email-templates.md from plan/w1-sheets-e (largest). Counts re-verified on this base: PERL-1 42/4/5/5/7 exactly as the sheet; all OLD import texts occurred once.
 
 ## Already done by moves-b2 (verified present on the base, NOT redone)
