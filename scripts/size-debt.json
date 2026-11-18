@@ -478,9 +478,9 @@
   {
     "file": "packages/core/src/redact.ts",
     "function": "<file>",
-    "line": 874,
+    "line": 886,
     "rule": "max-lines",
-    "value": 601
+    "value": 562
   },
   {
     "file": "packages/core/src/settings/write-service.ts",

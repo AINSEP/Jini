@@ -17,7 +17,8 @@ const LABELS = 'password|passwd|pwd|client_secret|secret_access_key|signing_secr
 const NAME = String.raw`(?<![A-Za-z0-9])(?<name>(?:[A-Za-z0-9]{1,32}[_-]){0,6}(?:${LABELS}))`;
 // The engine's own label rules already own these exact names and keep their structure (a chained label, an
 // empty quoted hint, a truncated quote); a second rule over the same value would widen or re-cut those spans.
-const ENGINE_LABEL_NAME_RE = /^(?:password|secret|token|api[-_]?key|access[-_]?token|refresh[-_]?token|client[-_]?secret|private[-_]?key)$/i;
+const ENGINE_LABEL_NAMES: ReadonlySet<string> = new Set(['password', 'secret', 'token', 'apikey', 'accesstoken', 'refreshtoken', 'clientsecret', 'privatekey']);
+const isEngineLabelName = (name: string | undefined): boolean => ENGINE_LABEL_NAMES.has((name ?? '').toLowerCase().replace(/[-_]/g, ''));
 const QUOTED = String.raw`"(?:\\.|[^"\\\r\n])*"?|'(?:\\.|[^'\\\r\n])*'?`;
 // `label=value`: the value is one unquoted run or a quoted string; an unclosed quote runs to the line end.
 const ASSIGNMENT_RE = new RegExp(`${NAME}[ \\t]*=[ \\t]*(?<value>${QUOTED}|[^\\s"'&,;})]+)`, 'gi');
@@ -37,24 +38,33 @@ function assignedValueRange({ match }: { readonly match: RegExpMatchArray }): Va
   return { start: start + 1, end: value.length > 1 && value.endsWith(value[0]!) ? end - 1 : end };
 }
 
+/** Ranges after `label=`; names the engine's own rules own are left to them. */
+function assignmentRanges({ text }: { readonly text: string }): ValueRange[] {
+  return [...text.matchAll(ASSIGNMENT_RE)]
+    .filter(match => !isEngineLabelName(match.groups?.name))
+    .map(match => assignedValueRange({ match }));
+}
+
+/** The value range of a colon match: inside its quotes, or the bare token. */
+function colonValueRange({ match }: { readonly match: RegExpMatchArray }): ValueRange {
+  const { quoted, bare, quote } = match.groups ?? {};
+  const end = (match.index ?? 0) + match[0].length - (quote?.length ?? 0);
+  return { start: end - (quoted ?? bare ?? '').length, end };
+}
+
+/** Ranges after `label:` in a quoted value or a single long token. */
+function colonRanges({ text }: { readonly text: string }): ValueRange[] {
+  return [...text.matchAll(COLON_RE)]
+    .filter(match => !isEngineLabelName(match.groups?.name))
+    .map(match => colonValueRange({ match }));
+}
+
 /** Value ranges of aliased and prefixed credential labels. `isMasked` tells an already-generated marker,
  * which is not a new credential. O(n) in the text for fixed pattern work per start.
  * @param required.text - The text to scan; never mutated. */
 export function labelAliasValueRanges(
   { text, isMasked }: { readonly text: string; readonly isMasked: (value: string) => boolean },
 ): ValueRange[] {
-  const ranges: ValueRange[] = [];
-  const keep = (range: ValueRange): void => {
-    if (range.end > range.start && !isMasked(text.slice(range.start, range.end))) ranges.push(range);
-  };
-  for (const match of text.matchAll(ASSIGNMENT_RE)) {
-    if (!ENGINE_LABEL_NAME_RE.test(match.groups?.name ?? '')) keep(assignedValueRange({ match }));
-  }
-  for (const match of text.matchAll(COLON_RE)) {
-    if (ENGINE_LABEL_NAME_RE.test(match.groups?.name ?? '')) continue;
-    const value = match.groups?.quoted ?? match.groups?.bare ?? '';
-    const end = (match.index ?? 0) + match[0].length - (match.groups?.quote?.length ?? 0);
-    keep({ start: end - value.length, end });
-  }
-  return ranges;
+  return [...assignmentRanges({ text }), ...colonRanges({ text })]
+    .filter(({ start, end }) => end > start && !isMasked(text.slice(start, end)));
 }

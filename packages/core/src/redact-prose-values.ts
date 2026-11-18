@@ -7,6 +7,9 @@
  * that does not look like prose ("API key: abc") is still a credential. No I/O, no host state.
  */
 
+// Chat's question-form answer line once carried this note, now deleted with its workaround: One answer line.
+// Chat's "(skipped)" placeholder never reaches the redactor: after a label such as "API key:" the shared engine
+// reads the next word as a credential value. The placeholder rule below owns that case for every caller.
 // Words that say "no value was given". Matched whole, with optional closing sentence punctuation.
 const NO_VALUE_WORDS = 'none|n\\/a|na|null|nil|yes|no|true|false|tbd|todo|empty|unknown|unset|required|optional|pending|missing|hidden|redacted|masked|skipped|needed';
 const PLACEHOLDER_RES: readonly RegExp[] = [
