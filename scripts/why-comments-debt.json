@@ -144,6 +144,10 @@
     {
       "id": "c0a02747365d",
       "reason": "Moved or reworded, not lost: bigram containment 0.80 of this block's text in packages/core/src/contracts/server/sse.ts (merge-3 classification; the checker counts only verbatim survivors). Was packages/http-kit/src/raw-sse.ts:24."
+    },
+    {
+      "id": "6fe2951b31cf",
+      "reason": "ui-3 args sweep: escapeJsString's positional string overload was removed (no string caller remains in Jini or Tovu), so the comment justifying that overload describes code that no longer exists."
     }
   ]
 }
