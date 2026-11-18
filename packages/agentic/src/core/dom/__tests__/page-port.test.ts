@@ -92,6 +92,10 @@ describe('createDriverPagePort', () => {
 
   it('refuses an input that fails the capability schema before any driver method runs', async () => {
     const driver = createDriver();
+    // Substring, not exact-equality: `executePageCapability` now appends the capability's input
+    // schema to a validation-error message (ai-control-plane.md §29.4's "schema-on-error"), so the
+    // real refusal text is longer than this test's original snapshot — the intent here is "the
+    // executor's refusal propagates unmodified", not "the message never changes shape".
     await expect(createDriverPagePort({ driver }).execute({ capabilityId: 'page.click', input: {} })).rejects.toThrow('page.click: "handle" is required');
     expect(driver.click).not.toHaveBeenCalled();
   });

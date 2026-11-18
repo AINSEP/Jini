@@ -275,7 +275,7 @@ describe('McpUiSurfaceCard', () => {
       />, { surfaces: fakeChatSurfaces({ mcpUi: { Host: host.Host } }) }
     );
     await waitFor(() => expect(container.querySelectorAll('iframe')).toHaveLength(1));
-    // One resource, one host — the "second" event replaced "first" rather than stacking.
+    // One resource, one card wrapper — the "second" event replaced "first" rather than stacking (one host).
     expect(host.latestByUri().map((props) => props.html)).toEqual(['<p>second</p>']);
     expect(host.renders.every((props) => props.html === '<p>second</p>')).toBe(true);
   });
@@ -307,7 +307,7 @@ describe('McpUiSurfaceCard', () => {
     );
     const heightFor = (uri: string) => host.latestByUri().find((props) => props.toolName === uri)!.initialHeight;
     expect(heightFor('ui://a/1')).toBe(480);
-    // "auto" parses to NaN — passing nothing (the host's default) beats passing initialHeight: NaN.
+    // "auto" parses to NaN — falling back to the default beats rendering height: NaNpx (here: pass no initialHeight).
     expect(heightFor('ui://b/2')).toBeUndefined();
     expect(heightFor('ui://c/3')).toBeUndefined();
   });

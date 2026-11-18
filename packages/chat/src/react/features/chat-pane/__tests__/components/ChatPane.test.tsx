@@ -626,7 +626,7 @@ describe('ChatPane', () => {
     const transport = createFakeChatTransport();
     renderWithChatSurfaces(
       <ChatPane transport={transport} agents={agents} agentControl={{ enabled: true, webmcp: true }} />,
-      // WebMCP detection is the host's page port; hand the pane a context of this test's own.
+      // WebMCP detection is the host's page port; bind the detector a host binds (here, a context of this test's own).
       { surfaces: fakeChatSurfaces({ page: { getModelContext: () => ({ registerTool, unregisterTool: vi.fn() }) } }) },
     );
     expect(registerTool).toHaveBeenCalled();

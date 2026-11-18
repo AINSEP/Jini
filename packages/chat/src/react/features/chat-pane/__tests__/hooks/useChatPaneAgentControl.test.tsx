@@ -22,10 +22,12 @@ const agents: ChatPaneAgent[] = [
 ];
 
 /**
- * WebMCP detection goes through the host's `ChatSurfaces.page` port. These cases hand the hook a
- * context of their own through that port and assert what the hook does with it. Where a real browser
- * keeps that context (`document` first, then the deprecated `navigator` alias) is the host binding's
- * subject and is proved in agentic's `model-context.test.ts`.
+ * WebMCP detection now goes through the host's `ChatSurfaces.page` port. These cases install a
+ * `document.modelContext` and assert what the hook does with it, so they bind the same detector a
+ * host binds (agentic's `getAgentModelContext`) instead of the default fake, which finds nothing.
+ * They now hand the hook a context of their own through that port instead; where a real browser keeps
+ * that context (`document` first, then the deprecated `navigator` alias) is proved in agentic's
+ * `model-context.test.ts`.
  */
 let hostContext: AgentModelContextLike | undefined;
 const renderAgentControl: typeof renderHookWithChatSurfaces = (callback, options = {}) =>
@@ -36,7 +38,7 @@ interface RegisteredTool {
   execute: (args: Record<string, unknown>) => Promise<unknown>;
 }
 
-/** Minimal stand-in for the WebMCP context the page port hands the hook. */
+/** Minimal stand-in for the draft `document.modelContext` surface the hook feature-detects (handed over by the page port). */
 function installModelContext(): {
   tools: Map<string, RegisteredTool>;
   registerCalls: number;
@@ -394,7 +396,7 @@ describe('useChatPaneAgentControl — bridge response delivery', () => {
 
 describe('useChatPaneAgentControl — host surface detection', () => {
   it('is a no-op when no host surface exists at all', () => {
-    // The page port finds no context: registration must simply not happen
+    // Neither document nor navigator carries modelContext (the page port finds none): registration must simply not happen
     // rather than throw, since this is the common case in every browser today.
     expect(() => renderControlledPane()).not.toThrow();
   });
