@@ -18,6 +18,9 @@
  *
  * The steps live in `table-adapter.{context,rows,cascade,transitions,purge}.ts`; this file binds them to one entry.
  */
+import type { StorageKernel } from "@jini-ai/core/contracts/storage";
+import type { Kysely } from "kysely";
+
 import type { TrashAdapter } from "../ports.js";
 import type { TrashEntry } from "../registry-types.js";
 import type { TrashTables } from "./repo.js";
@@ -26,11 +29,11 @@ import { purgeRow } from "./table-adapter.purge.js";
 import { hideRow, unhideRow } from "./table-adapter.transitions.js";
 
 /** Everything the host must bind; a missing binding is a compile error. */
-export interface TableTrashRequired {
+export interface TableTrashRequired<DB = unknown> {
   entry: TrashEntry;
   /** Read on first use, not at construction: a composition root may hand in a lazy proxy whose database should not open
    *  until a Trash call actually needs it. Never destructured here. */
-  readonly kernel: TableTrashKernel;
+  readonly kernel: StorageKernel<Kysely<DB>, unknown>;
   tables: TrashTables;
 }
 
@@ -40,11 +43,13 @@ export interface TableTrashRequired {
  * @complexity O(1) to construct; each method is O(1) plus whatever index its `where` matches, plus
  *             O(k) for `purge`'s k `purgeFirst` cascades (each still a single indexed statement).
  */
-export function createTableTrashAdapter(required: TableTrashRequired, _optional: Record<string, never> = {}): TrashAdapter {
+export function createTableTrashAdapter<DB>(required: TableTrashRequired<DB>, _optional: Record<string, never> = {}): TrashAdapter {
   let resolved: TableTrashKernel | undefined;
   const ctx: TableTrashContext = {
     entry: required.entry,
-    kernel: () => (resolved ??= required.kernel),
+    // The one place the host's schema type is erased: every query below names its table at runtime from the registry
+    // entry, so no static table type could describe it. Read here, on first use, never at construction.
+    kernel: () => (resolved ??= required.kernel as unknown as TableTrashKernel),
     tables: required.tables,
   };
   return {
