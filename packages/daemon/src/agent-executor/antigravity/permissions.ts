@@ -2,7 +2,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { McpBridgeDelivery } from '../contracts.js';
 import { promises as fs } from 'node:fs';
-import { backupOriginalOnce, withFileLock, writeFileAtomicAsync } from '@jini-ai/platform/fs';
+import type { AtomicFileWriterPort, FileLockPort } from '@jini-ai/core/contracts/runtime';
 import { isRecord } from '../values.js';
 
 /** Read the current settings text; a missing file is undefined, every other failure rejects. */
@@ -36,23 +36,24 @@ function grantedAllowList(allow: readonly unknown[], rule: string): unknown[] | 
 
 /**
  * Persist one server's MCP grant for agy, which has no run-scoped settings override.
- * Reuses the platform lock and atomic writer; keeps the first existing file as a backup.
+ * Holds the host's lock and writes through the host's atomic writer, which also keeps the first
+ * existing file as a backup (lock, then backup, then write; the lock is released on every path).
  * Invalid settings and I/O failures reject before spawn rather than widening permissions.
  * @complexity O(settings bytes), including the allow-list scan; bounded by the settings file.
  */
 export async function ensureAntigravityMcpPermission(
-  { settingsPath, serverName }: { settingsPath: string; serverName: string },
+  { settingsPath, serverName, fileLock, writer }: { settingsPath: string; serverName: string; fileLock: FileLockPort; writer: AtomicFileWriterPort },
   _options: Record<string, never> = {},
 ): Promise<void> {
   if (!/^[\w.-]+$/.test(serverName)) throw new Error('Invalid MCP server name');
   const rule = `mcp(${serverName}/*)`;
-  await withFileLock({ lockPath: `${settingsPath}.jini-lock`, run: async () => {
+  await fileLock.withFileLock({ lockPath: `${settingsPath}.jini-lock`, run: async () => {
     const raw = await readSettingsText(settingsPath);
     const { settings, permissions, allow } = parseSettings(raw);
     const nextAllow = grantedAllowList(allow, rule);
     if (nextAllow === null) return;
-    if (raw !== undefined) await backupOriginalOnce({ filePath: settingsPath });
-    await writeFileAtomicAsync({ filePath: settingsPath, content: `${JSON.stringify({
+    if (raw !== undefined) await writer.backupOriginalOnce({ filePath: settingsPath });
+    await writer.writeText({ filePath: settingsPath, content: `${JSON.stringify({
       ...settings, permissions: { ...permissions, allow: nextAllow },
     }, null, 2)}\n` }, { refuseSymlink: true });
   } }, { createParent: true, timeoutMs: 5000 });
@@ -60,9 +61,9 @@ export async function ensureAntigravityMcpPermission(
 
 /** Prepare this CLI's persistent MCP permission before an env-passthrough launch. */
 export async function prepareAntigravityBridge(
-  { delivery, serverName }: { delivery: McpBridgeDelivery | null; serverName: string },
+  { delivery, serverName, fileLock, writer }: { delivery: McpBridgeDelivery | null; serverName: string; fileLock: FileLockPort; writer: AtomicFileWriterPort },
   { ensurePermission }: { ensurePermission: typeof ensureAntigravityMcpPermission },
 ): Promise<void> {
   if (delivery?.kind !== 'env-passthrough') return;
-  await ensurePermission({ settingsPath: join(homedir(), '.gemini', 'antigravity-cli', 'settings.json'), serverName });
+  await ensurePermission({ settingsPath: join(homedir(), '.gemini', 'antigravity-cli', 'settings.json'), serverName, fileLock, writer });
 }
