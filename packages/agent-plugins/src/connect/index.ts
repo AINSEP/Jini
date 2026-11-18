@@ -13,6 +13,7 @@ export * from './connect-sign-in-wait.js';
 export * from './connect-tool.js';
 export * from './access-token-tool.js';
 export * from './token-sign-in.js';
+export * from './token-map.js';
 export * from './import-access-token.js';
 export * from './grant-signed-in-defaults.js';
 export * from './apply-tool-renames.js';
