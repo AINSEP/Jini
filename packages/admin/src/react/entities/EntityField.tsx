@@ -61,7 +61,12 @@ function NumberInput(props: EntityFieldProps): ReactNode {
 
 export function EntityField({ useAgentHandleHook = useAgentHandle, ...required }: EntityFieldProps): ReactNode {
   const base = useAgentHandleHook({ agentHandle: required.agentHandle });
-  const props: EntityFieldProps = { ...required, agentHandle: base ?? false };
+  return <EntityFieldInput {...required} agentHandle={base ?? false} />;
+}
+
+/** The kind-specific control, split from `EntityField` so the injected-hook default does not push
+ *  the kind switch past the complexity limit. */
+function EntityFieldInput(props: EntityFieldProps): ReactNode {
   const { field, value, onChange } = props;
   switch (field.kind) {
     case 'json': return <textarea {...commonProps(props)} value={props.text} onChange={(e) => props.onTextChange({ text: e.target.value })} />;

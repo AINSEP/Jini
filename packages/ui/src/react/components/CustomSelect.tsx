@@ -496,9 +496,7 @@ function CustomSelectMenuOptions({ options, value, activeValue, optionIdByValue,
  * trigger button and the listbox menu.
  */
 export function CustomSelect({
-  value,
-  options,
-  onChange,
+  value, options, onChange,
   ariaLabel,
   labelledBy,
   className,
@@ -512,10 +510,8 @@ export function CustomSelect({
   onFocus,
   menuHeader,
   onOpenChange,
-  useCustomSelect: useCustomSelectHook = useCustomSelect,
-  useAgentHandleHook = useAgentHandle,
-  useOverlayContainerHook = useOverlayContainer,
-  useCustomSelectOriginThemeHook = useCustomSelectOriginTheme,
+  useCustomSelect: useCustomSelectHook = useCustomSelect, useAgentHandleHook = useAgentHandle,
+  useOverlayContainerHook = useOverlayContainer, useCustomSelectOriginThemeHook = useCustomSelectOriginTheme,
   ...agentProps
 }: CustomSelectProps) {
   const {
