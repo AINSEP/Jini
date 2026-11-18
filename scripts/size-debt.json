@@ -858,14 +858,14 @@
     "function": "useAnnotationCanvas",
     "line": 179,
     "rule": "max-lines-per-function",
-    "value": 739
+    "value": 737
   },
   {
     "file": "packages/ui/src/renderers/annotation-canvas/react/hooks/useAnnotationCanvas.ts",
     "function": "<file>",
     "line": 583,
     "rule": "max-lines",
-    "value": 880
+    "value": 878
   },
   {
     "file": "packages/user-management/src/admin/adapters/memory.ts",
