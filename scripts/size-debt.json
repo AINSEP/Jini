@@ -7,13 +7,6 @@
     "value": 114
   },
   {
-    "file": "packages/admin/src/media/react/hooks/LibraryTab.hooks.ts",
-    "function": "useLibraryTab",
-    "line": 114,
-    "rule": "max-lines-per-function",
-    "value": 88
-  },
-  {
     "file": "packages/admin/src/widgets/react/pages/WidgetInstanceEditor.tsx",
     "function": "WidgetInstanceEditor",
     "line": 32,
