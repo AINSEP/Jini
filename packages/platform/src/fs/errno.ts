@@ -6,7 +6,9 @@ export function errorCodeOf({ error }: { error: unknown }, _optional: Record<str
 }
 
 /** Returns `fallback` when `matches(error)` and rethrows anything else, so an expected failure reads
- *  `catch (error) { return fallbackIf({ error, matches: isExpected, fallback: undefined }); }`. @complexity O(matches). */
+ *  `catch (error) { return fallbackIf(error, isExpected, undefined); }`. @complexity O(matches). */
+// With the (required, optional = {}) args shape that call is spelled
+// `fallbackIf({ error, matches: isExpected, fallback: undefined })`.
 export function fallbackIf<T>({ error, matches, fallback }: { error: unknown; matches: (error: unknown) => boolean; fallback: T }, _optional: Record<string, never> = {}): T {
   if (matches(error)) return fallback;
   throw error;
