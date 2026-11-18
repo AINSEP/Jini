@@ -9,7 +9,7 @@
  */
 import { redactQuestionAnswers, isSecretQuestion } from './secret-answers.js';
 import { CREDENTIAL_CARD_GUIDANCE, redactUserText } from '../user-text-redaction.js';
-import type { FormOption, QuestionForm } from './types.js';
+import type { FormOption, FormQuestion, QuestionForm } from './types.js';
 
 /**
  * Format a finished set of answers into a prose user message the agent can
@@ -21,12 +21,21 @@ import type { FormOption, QuestionForm } from './types.js';
 export function formatFormAnswers({ form, answers }: { form: QuestionForm; answers: Record<string, string | string[]> }): string {
   const safe = redactQuestionAnswers({ form, answers });
   const lines: string[] = [];
-  lines.push(`[form answers — ${form.id}]`);
+  lines.push(redactUserText({ text: `[form answers — ${form.id}]` }).text);
   for (const q of form.questions) {
-    lines.push(`- ${q.label}: ${answerDisplay(q, safe.answers[q.id])}`);
+    lines.push(answerLine({ question: q, shown: answerDisplay(q, safe.answers[q.id]) }));
   }
   if (safe.secretRedacted || form.questions.some(question => isSecretQuestion({ question }))) lines.push(CREDENTIAL_CARD_GUIDANCE);
-  return redactUserText({ text: lines.join('\n') }).text;
+  return lines.join('\n');
+}
+
+const SKIPPED = '(skipped)';
+
+/** One answer line. Chat's "(skipped)" placeholder never reaches the redactor: after a label such
+ * as "API key:" the shared engine reads the next word as a credential value. */
+function answerLine({ question, shown }: { question: FormQuestion; shown: string }, _optional = {}): string {
+  if (shown === SKIPPED) return `- ${redactUserText({ text: question.label }).text}: ${SKIPPED}`;
+  return redactUserText({ text: `- ${question.label}: ${shown}` }).text;
 }
 
 type OptionHolder = { options?: FormOption[] | undefined };
@@ -35,10 +44,10 @@ type OptionHolder = { options?: FormOption[] | undefined };
 // empty answer of either shape reads as skipped.
 function answerDisplay(question: OptionHolder, answer: string | string[] | undefined): string {
   if (Array.isArray(answer)) {
-    return answer.length > 0 ? answer.map((value) => formOptionDisplayForValue(question, value)).join(', ') : '(skipped)';
+    return answer.length > 0 ? answer.map((value) => formOptionDisplayForValue(question, value)).join(', ') : SKIPPED;
   }
   const value = typeof answer === 'string' ? answer.trim() : '';
-  return value ? formOptionDisplayForValue(question, value) : '(skipped)';
+  return value ? formOptionDisplayForValue(question, value) : SKIPPED;
 }
 
 function findOption(question: OptionHolder, labelOrValue: string): FormOption | undefined {

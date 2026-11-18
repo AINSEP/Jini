@@ -1,5 +1,5 @@
 /** One credential policy for chat text; secure card values must bypass this text-only boundary. */
-import { redactSecretShapes, type RedactionRule } from '@jini-ai/diagnostics/redaction/secrets-only';
+import { redactSecretsWithCounts } from '@jini-ai/core';
 import type { ChatMessage, SecretRedactionSignal } from './messages.js';
 export type { SecretRedactionSignal } from './messages.js';
 
@@ -18,17 +18,9 @@ export interface UserTextRedactionOptions {
 export const SECRET_REDACTED_NOTICE = 'I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.';
 export const CREDENTIAL_CARD_GUIDANCE = 'Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.';
 const REMOVED = '[token removed]';
-const INTERNAL_REMOVED = '[REDACTED:chat_secret]';
+// A marker core's engine generates itself, so core treats it as already masked on a second pass.
+const INTERNAL_REMOVED = '[REDACTED:credential]';
 const REDACTION_MARKER = /\[REDACTED:[^\]\r\n]+\]/g;
-const CHAT_RULES: readonly RedactionRule[] = [
-  { kind: 'chat_key', pattern: /(?<![A-Za-z0-9_-])sk-[A-Za-z0-9_-]{16,}/g, replacement: () => INTERNAL_REMOVED },
-  // Kept on top of the shared Slack rule: that rule refuses a token preceded by `-` (e.g. a URL path
-  // segment `/-xoxb-…`) and the entropy fallback below exempts URLs, so without this rule such a token
-  // would reach storage and model history. Only drop it once the shared rule covers that case.
-  { kind: 'chat_key', pattern: /(?<!\w)xox[baprs]-[A-Za-z0-9-]{16,}/g, replacement: () => INTERNAL_REMOVED },
-  // Explicit authorization syntax catches even short values. Exempt scheme descriptions in prose.
-  { kind: 'chat_bearer', pattern: /\bBearer[ \t]+(?!\[REDACTED)(?!(?:token|tokens|authentication|authorization|auth|scheme|credentials?)\b)[\w.~+\/=-]+/gi, replacement: () => 'Bearer ' + INTERNAL_REMOVED },
-];
 
 function entropy(text: string): number {
   const counts = new Map<string, number>();
@@ -83,7 +75,8 @@ export function redactUserText({ text }: { readonly text: string }, { secretFiel
     literalMarkers.set(key, marker);
     return key;
   }).replaceAll(REMOVED, INTERNAL_REMOVED);
-  const base = redactSecretShapes({ text: protectedText, policy: { additionalRules: CHAT_RULES } });
+  const r = redactSecretsWithCounts({ input: protectedText }, { redactPii: false });
+  const base = { text: r.redacted, redactions: Object.values(r.counts).reduce((a, b) => a + b, 0) };
   let count = base.redactions;
   // Exempt locations only AFTER specific secret rules. Only quoted paths may contain whitespace;
   // unquoted paths and URLs end there, and at , | ; and invisible separators, so an adjacent
