@@ -109,6 +109,8 @@ export interface CommitExportArgs {
 export interface CommitOrchestrationArgs extends CommitExportArgs {
   supportsFolder?: boolean;
   credentials: CredentialResolverPort;
+  /** The one seam to the git host: `commitSite` is called exactly once and with no pre-flight, so every repository, branch
+   *  and network outcome is discovered after the human confirmed. */
   adapter: Pick<SourceControlProviderOperations, 'commitSite'>;
   /** The whole refusal sentence when no credential is configured for the provider (a host can say where to connect one).
    *  Absent: a generic sentence naming the provider. Must not contain credentials. */

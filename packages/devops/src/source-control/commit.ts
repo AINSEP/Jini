@@ -32,7 +32,9 @@ function folderError(required: { folder?: string; supportsFolder?: boolean }, op
   } catch (error) { return (error as Error).message; }
 }
 
-/** Normalize platform separators without changing the retained byte payload. */
+/** Normalize platform separators without changing the retained byte payload. An export's `outputFile` is already
+ *  commit-relative but uses the platform separator (`path.relative`), and a stray backslash from a Windows host would
+ *  be a wrong path in a git tree entry, not a normalized one. */
 export function toCommitFile(required: { outputFile: string; data: string | Buffer }): CommitFile {
   return { path: required.outputFile.replace(/\\/g, '/'), data: required.data };
 }
