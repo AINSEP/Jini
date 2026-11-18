@@ -6,7 +6,7 @@ import { selectTranslate, type EntityTranslate } from './types.js';
 import { fromDatetimeLocalValue, toDatetimeLocalValue, type RelationIndex } from './rules.js';
 
 interface EntityFieldProps {
-  readonly hooks?: { useAgentHandle?: typeof useAgentHandle };
+  readonly useAgentHandleHook?: typeof useAgentHandle;
   readonly agentHandle?: string | false | undefined;
   readonly inputId: string;
   readonly field: AdminEntityField;
@@ -59,8 +59,7 @@ function NumberInput(props: EntityFieldProps): ReactNode {
     onChange={(e) => onChange({ value: e.target.value === '' ? undefined : Number(e.target.value) })} />;
 }
 
-export function EntityField(required: EntityFieldProps): ReactNode {
-  const { useAgentHandle: useAgentHandleHook = useAgentHandle } = required.hooks ?? {};
+export function EntityField({ useAgentHandleHook = useAgentHandle, ...required }: EntityFieldProps): ReactNode {
   const base = useAgentHandleHook({ agentHandle: required.agentHandle });
   const props: EntityFieldProps = { ...required, agentHandle: base ?? false };
   const { field, value, onChange } = props;

@@ -32,7 +32,9 @@ export interface CustomSelectGroup {
 export type CustomSelectItem = CustomSelectOption | CustomSelectGroup;
 
 export interface CustomSelectProps extends AgentControlProps {
-  hooks?: { useAgentHandle?: typeof useAgentHandle; useOverlayContainer?: typeof useOverlayContainer; useCustomSelectOriginTheme?: typeof useCustomSelectOriginTheme };
+  useAgentHandleHook?: typeof useAgentHandle;
+  useOverlayContainerHook?: typeof useOverlayContainer;
+  useCustomSelectOriginThemeHook?: typeof useCustomSelectOriginTheme;
   value: string;
   options: CustomSelectItem[];
   onChange: (value: string) => void;
@@ -511,7 +513,9 @@ export function CustomSelect({
   menuHeader,
   onOpenChange,
   useCustomSelect: useCustomSelectHook = useCustomSelect,
-  hooks: { useAgentHandle: useAgentHandleHook = useAgentHandle, useOverlayContainer: useOverlayContainerHook = useOverlayContainer, useCustomSelectOriginTheme: useCustomSelectOriginThemeHook = useCustomSelectOriginTheme } = {},
+  useAgentHandleHook = useAgentHandle,
+  useOverlayContainerHook = useOverlayContainer,
+  useCustomSelectOriginThemeHook = useCustomSelectOriginTheme,
   ...agentProps
 }: CustomSelectProps) {
   const {

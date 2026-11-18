@@ -258,7 +258,7 @@ function RailTooltip(props: { target: TooltipTarget | null }) {
 // ---------------------------------------------------------------------------
 
 export interface SidebarProps {
-  hooks?: { useSidebarRail?: typeof useSidebarRail };
+  useSidebarRailHook?: typeof useSidebarRail;
   /** The active panel's id — matched against `AdminNavItem.id` by `Sidebar.Nav`. */
   activeId: string;
   /** Where the admin is mounted. Defaults to `/core`'s `DEFAULT_ADMIN_BASE`. */
@@ -301,8 +301,7 @@ const sidebarStorage: Pick<Storage, 'getItem' | 'setItem'> = {
   setItem: (key, value) => localStorage.setItem(key, value),
 };
 
-function SidebarRoot(props: SidebarProps) {
-  const { useSidebarRail: useSidebarRailHook = useSidebarRail } = props.hooks ?? {};
+function SidebarRoot({ useSidebarRailHook = useSidebarRail, ...props }: SidebarProps) {
   const rail = useSidebarRailHook({ storage: sidebarStorage, events: window }, {
     storageKey: props.railStorageKey, defaultCollapsed: props.railDefaultCollapsed,
     railOverride: props.railOverride, onCollapsedChange: props.onRailCollapsedChange,
@@ -381,8 +380,7 @@ export interface SidebarMobileHeaderProps {
  * rather than staying on the topbar toggle behind it, so a keyboard or screen-reader user is
  * actually inside the drawer they just opened.
  */
-function SidebarMobileHeader(props: SidebarMobileHeaderProps) {
-  const { useSidebarHook = useSidebar } = props;
+function SidebarMobileHeader({ useSidebarHook = useSidebar, ...props }: SidebarMobileHeaderProps) {
   const { open } = useSidebarHook();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -409,7 +407,8 @@ function SidebarMobileHeader(props: SidebarMobileHeaderProps) {
 }
 
 export interface SidebarNavProps {
-  hooks?: { useSidebar?: typeof useSidebar; useNavSections?: typeof useNavSections };
+  useSidebarHook?: typeof useSidebar;
+  useNavSectionsHook?: typeof useNavSections;
   /** From `/core`'s `buildNav({ panels: resolvePanels({ panels }, context) })`. */
   groups: readonly AdminNavGroup[];
   /** Label on a `soon` item's badge. @default "Soon" */
@@ -430,8 +429,7 @@ export interface SidebarNavProps {
   collapsibleGroups?: readonly string[];
 }
 
-function SidebarNav(props: SidebarNavProps) {
-  const { useSidebar: useSidebarHook = useSidebar, useNavSections: useNavSectionsHook = useNavSections } = props.hooks ?? {};
+function SidebarNav({ useSidebarHook = useSidebar, useNavSectionsHook = useNavSections, ...props }: SidebarNavProps) {
   const { activeId, base, collapsed, railTooltipProps } = useSidebarHook();
   const sections = useNavSectionsHook({ storage: sidebarStorage, events: window });
 
@@ -564,8 +562,7 @@ export interface SidebarRailToggleProps {
  * button. Typically hidden by the host stylesheet inside the mobile drawer, which has its own close
  * control and no rail concept.
  */
-function SidebarRailToggle(props: SidebarRailToggleProps) {
-  const { useSidebarHook = useSidebar } = props;
+function SidebarRailToggle({ useSidebarHook = useSidebar, ...props }: SidebarRailToggleProps) {
   const { collapsed, toggleRail } = useSidebarHook();
   const label = collapsed ? (props.expandLabel ?? 'Expand sidebar') : (props.collapseLabel ?? 'Collapse sidebar');
 

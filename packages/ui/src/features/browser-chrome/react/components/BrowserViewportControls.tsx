@@ -13,7 +13,8 @@ function viewportIconName(viewport: BrowserViewportId): string {
 }
 
 export interface BrowserViewportControlsProps {
-  hooks?: { useT?: typeof useT; useDismissOnOutsideOrEscape?: typeof useDismissOnOutsideOrEscape };
+  useTHook?: typeof useT;
+  useDismissOnOutsideOrEscapeHook?: typeof useDismissOnOutsideOrEscape;
   viewport: BrowserViewportId;
   onViewport: (viewport: BrowserViewportId) => void;
   disabled?: boolean;
@@ -32,7 +33,8 @@ export interface BrowserViewportControlsProps {
  * `features/browser-chrome/` section before building a second one.
  */
 export function BrowserViewportControls({
-  hooks: { useT: useTHook = useT, useDismissOnOutsideOrEscape: useDismissHook = useDismissOnOutsideOrEscape } = {},
+  useTHook = useT,
+  useDismissOnOutsideOrEscapeHook = useDismissOnOutsideOrEscape,
   viewport,
   onViewport,
   disabled,
@@ -43,7 +45,7 @@ export function BrowserViewportControls({
   const menuRef = useRef<HTMLDivElement | null>(null);
   const activePreset = presets.find((preset) => preset.id === viewport) ?? presets[0];
 
-  useDismissHook({ onDismiss: () => setOpen(false) }, { enabled: open, containerRef: menuRef });
+  useDismissOnOutsideOrEscapeHook({ onDismiss: () => setOpen(false) }, { enabled: open, containerRef: menuRef });
 
   if (!activePreset) return null;
 
