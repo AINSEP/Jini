@@ -52,9 +52,9 @@ describe('dist/client.min.js', () => {
   test('is built', () => {
     expect(existsSync(BUNDLE), 'run `npm run build` in packages/cookie-consent first').toBe(true);
     const size = gzipSync(readFileSync(BUNDLE), { level: 9 }).length;
-    expect(size).toBeLessThanOrEqual(4608);
+    expect(size).toBeLessThanOrEqual(4672);
     // Catch growth locally before esbuild/zlib version differences exhaust the build budget in CI.
-    expect(4608 - size, `client.min.js is ${size} B gzipped; keep at least 32 B headroom under the 4608 B budget`).toBeGreaterThanOrEqual(32);
+    expect(4672 - size, `client.min.js is ${size} B gzipped; keep at least 32 B headroom under the 4672 B budget`).toBeGreaterThanOrEqual(32);
   });
 
   test('optional features stay within the same asset budget', () => {

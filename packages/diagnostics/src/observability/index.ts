@@ -1,7 +1,6 @@
 export * from './config.js';
 export * from './export-policy.js';
 export * from './ports.js';
-export * from './noop.js';
 export { redactOperationAttributes, errorType, redactLabel } from './otel.js';
 export * from './errors.js';
 export * from './fanout.js';

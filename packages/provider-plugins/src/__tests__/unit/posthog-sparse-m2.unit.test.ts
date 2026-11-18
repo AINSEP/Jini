@@ -1,6 +1,10 @@
 import { afterEach, expect, test, vi } from 'vitest';
 import { PostHog } from 'posthog-node';
-import { createPostHogProductAnalyticsAdapter } from '../../analytics-posthog/posthog.js';
+import { createPostHogProductAnalyticsAdapter as rawPostHogAdapter } from '../../analytics-posthog/posthog.js';
+import { describeTelemetryFailure } from "../observability-host.js";
+
+/** The host binds diagnostics' failure classifier; these tests bind the real one the same way. */
+const createPostHogProductAnalyticsAdapter = (required: { config: Parameters<typeof rawPostHogAdapter>[0]["config"] }, options?: Parameters<typeof rawPostHogAdapter>[1]) => rawPostHogAdapter({ ...required, describeTelemetryFailure }, options);
 
 afterEach(() => { vi.restoreAllMocks(); });
 

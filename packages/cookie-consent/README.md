@@ -119,4 +119,4 @@ An engine parity block is always added after the owner's CSS. `compileConsentCss
 
 ## Size
 
-`dist/client.min.js` owns state and the live context request; `dist/extensions.min.js` owns the banner binding, declared-script loading and bridges. Each asset retains the 4,608-byte gzip ceiling, and the build prints both measured sizes. At this revision they are approximately 4.5 KB and 1.8 KB gzipped. Serve both for the built-in banner or declarations; a headless ESM host may import only the pieces it uses.
+`dist/client.min.js` owns state and the live context request; `dist/extensions.min.js` owns the banner binding, declared-script loading and bridges. The extensions asset keeps a 4,608-byte gzip ceiling and the client asset 4,672 bytes (it also hands each adapter call the storage purge); the build prints both measured sizes. At this revision they are approximately 4.5 KB and 1.8 KB gzipped. Serve both for the built-in banner or declarations; a headless ESM host may import only the pieces it uses.

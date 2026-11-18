@@ -1,7 +1,12 @@
-import type { AgentRunTrackingOutcome, OperationTrackingOutcome, RequestTrackingOutcome, TrackerScope } from "./ports.js";
+import type {
+  AgentRunTrackingOutcome,
+  OperationTrackingOutcome,
+  RequestTrackingOutcome,
+  TrackerScope,
+} from "@jini-ai/core/contracts/observability";
 import type { AgentSpanOptions, OperationSpanOptions, RequestSpanOptions, Tracker, TrackerErrorContext, TrackerOptions, TrackerProviders, TrackerSpan } from "./tracker-types.js";
 import { createNoopTracker } from "./tracker-noop.js";
-import { isNoopObservabilityPort } from "./noop.js";
+import { isNoopObservabilityPort } from "@jini-ai/core/contracts/observability";
 import { combineObservabilityPorts } from "./fanout.js";
 import { reportErrorOnce, runWithErrorReportScope } from "./report-error.js";
 

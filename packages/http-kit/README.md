@@ -67,8 +67,8 @@ Bearer gates require their environment and token variable names in argument one;
 The async limiter uses core `Clock.nowMs()` and keeps non-empty-key validation.
 
 `./observability` supplies `applyRequestTracking` and
-`createRequestTrackingMiddleware` over the diagnostics-compatible
-`HttpRequestObservabilityPort`. Mount first to include refusals and unmatched
+`createRequestTrackingMiddleware` over core's
+`ObservabilityPort` (`Pick<ObservabilityPort, 'trackRequest'>`). Mount first to include refusals and unmatched
 requests; route labels are read at response completion.
 
 

@@ -4,7 +4,11 @@ import {
   createFanOutAiTraceSink,
   createRecordingAiTraceSink,
 } from "@jini-ai/core/contracts/ai-trace";
-import { createAiGenerationSink, createNoopProductAnalytics, withProductAnalyticsGuards, type ProductAiGeneration, type ProductAnalyticsPort } from "../product/index.js";
+import { createAiGenerationSink, createNoopProductAnalytics, withProductAnalyticsGuards } from "../product/index.js";
+import {
+  type ProductAiGeneration,
+  type ProductAnalyticsPort,
+} from "@jini-ai/core/contracts/observability";
 
 function recordingAnalytics({ includeAiContent = false }: { includeAiContent?: boolean } = {}) {
   const events: ProductAiGeneration[] = [];

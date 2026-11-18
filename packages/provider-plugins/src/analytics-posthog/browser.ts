@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import type { BrowserAnalyticsContribution } from '@jini-ai/analytics/product';
+import type { BrowserAnalyticsContribution } from '@jini-ai/core/contracts/observability';
 import { forwardCollectorEvent, POSTHOG_BROWSER_VERSION, SDK_FILE, validatePostHogBrowserConfig } from './consent.js';
 import { postHogBrowserAttributes } from './consent-adapter.js';
 

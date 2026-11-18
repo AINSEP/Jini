@@ -1,9 +1,9 @@
 /** @file PostHog's cookie-consent adapter: the browser module imported for grants or off-mode identity cleanup.
  * Built to `server/consent-adapter.mjs` and served same-origin by `consent.ts`. Anonymous mode sends
  * only an aggregate pageview; full mode loads the pinned posthog-js SDK. The browser checks that SDK
- * against its SHA-256 (SRI) and never runs other bytes. Reuses the consent package's generic storage purge. */
-import { purgeStorage } from '@jini-ai/cookie-consent/client';
-import type { ConsentAdapter, ConsentState, Revoker, StoragePrefixes } from '@jini-ai/cookie-consent';
+ * against its SHA-256 (SRI) and never runs other bytes. Cleans up through the consent client's generic storage purge,
+ * which the client hands to every `onState` and `grant` call (this module is delivered to the browser on its own and cannot import it). */
+import type { ConsentAdapter, ConsentState, PurgeStorage, Revoker, StoragePrefixes } from './contract.js';
 
 /** Public browser config only: the project key is publishable, `host` is the same-origin collector path.
  * Release and environment are trusted deployment labels, never copied from visitor event properties. */
@@ -156,17 +156,17 @@ export function createPostHogConsentAdapter({ ports }: { ports: PostHogConsentPo
   let client: PostHogClient | null = null;
   /** Remove only this provider's leftovers; storage can be unavailable in embedded browsers.
    * @complexity O(cookies + local keys), no storage creation or network. */
-  function onState({ state }: { state: ConsentState }, _optional = {}): void {
+  function onState({ state, purge }: { state: ConsentState; purge: PurgeStorage }, _optional = {}): void {
     if (state.analyticsLevel === 'full' || !ports.doc) return;
     // A sandboxed frame throws on document.cookie; cleanup must never block the anonymous pageview.
-    try { purgeStorage({ doc: ports.doc, storage: POSTHOG_STORAGE }); } catch { /* nothing readable to purge */ }
+    try { purge({ doc: ports.doc, storage: POSTHOG_STORAGE }); } catch { /* nothing readable to purge */ }
   }
   return {
     onState,
     id: 'posthog', kind: 'consent-adapter', category: 'analytics', supportsAnonymous: true, storage: POSTHOG_STORAGE,
-    async grant({ config, state, signal }): Promise<Revoker | null> {
+    async grant({ config, state, signal, purge }): Promise<Revoker | null> {
       if (signal.aborted) return null;
-      onState({ state });
+      onState({ state, purge });
       if (state.analyticsLevel === 'none') return null;
       if (state.analyticsLevel === 'anonymous') return grantAnonymous({ config, signal, ports });
       let sdk: PostHogSdk;

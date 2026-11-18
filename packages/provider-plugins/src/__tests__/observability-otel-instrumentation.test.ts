@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { InMemorySpanExporter, createAsyncScope, createPort } from "./otel-fakes.js";
 
 import { describeQueryNode, instrumentStorageKernel, trackFetch, trackHttpClient } from "@jini-ai/diagnostics/observability";
-import { createNoopObservabilityPort } from "@jini-ai/diagnostics/observability";
+import { createNoopObservabilityPort } from "@jini-ai/core/contracts/observability";
 import type { ObservabilityConfigEnabled } from "@jini-ai/diagnostics/observability";
 import type { HttpClientPort, HttpRequest } from "@jini-ai/core/primitives";
 

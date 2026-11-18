@@ -122,7 +122,7 @@ const allowed = await registry.isAllowedRedirectTarget({ context: { workspaceId 
 
 ## `/observability`
 
-**One-object** `createRequestTrackingMiddleware({observability:HttpRequestObservabilityPort}) => RequestHandler`, `applyRequestTracking({app:Express,observability}) => void`. Port `trackRequest({method,path}) => {end({statusCode,routePattern}):void}`. Mount first so refusals/unmatched requests are recorded.
+**One-object** `createRequestTrackingMiddleware({observability:Pick<ObservabilityPort,'trackRequest'>}) => RequestHandler`, `applyRequestTracking({app:Express,observability}) => void`. Core `ObservabilityPort`; the slice used is `trackRequest({method,path}) => {end({statusCode,routePattern}):void}`. Mount first so refusals/unmatched requests are recorded.
 
 ```ts
 import { applyRequestTracking } from '@jini-ai/http-kit/observability';

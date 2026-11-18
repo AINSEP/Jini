@@ -4,7 +4,11 @@ import { test } from "vitest";
 import { InMemorySpanExporter, createPort } from "./otel-fakes.js";
 
 import type { ObservabilityConfigEnabled } from "@jini-ai/diagnostics/observability";
-import type { ObservabilityPort, RequestTrackingInput, RequestTrackingOutcome } from "@jini-ai/diagnostics/observability";
+import type {
+  ObservabilityPort,
+  RequestTrackingInput,
+  RequestTrackingOutcome,
+} from "@jini-ai/core/contracts/observability";
 
 /**
  * @file Table-driven proof that every adapter satisfies `ObservabilityPort`'s CONTRACT (not just

@@ -1,5 +1,6 @@
 import { parseNpmPackJson } from '../../../../scripts/lib/npm-pack-json.js';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
+import { observabilityProviderContract } from '@jini-ai/diagnostics/observability';
 import { paymentsProviderContract, type PaymentProvider, type ProviderContext } from '@jini-ai/commerce/payments/kernel';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -19,6 +20,7 @@ import { assertPluginPackageIsolation } from '../../../../scripts/check-plugin-i
 import { ADAPTER_FILE, POSTHOG_BROWSER_VERSION, POSTHOG_SDK_INTEGRITY, SDK_FILE } from '../analytics-posthog/consent.js';
 import type { createPostHogProvider } from '../analytics-posthog/index.js';
 import { admitBrowserProviderAssets, previewSitePluginInstall, installSitePlugin, loadPlugin, snapshotPluginModuleGraph } from '@jini-ai/plugins/host/node';
+import { describeTelemetryFailure, hostScope } from './observability-host.js';
 import { openBuiltChart } from './browser-provider-dom.js';
 
 const exec = promisify(execFile);
@@ -45,16 +47,24 @@ type ServerSpec = { contract: string; id: string; validate: (port: unknown) => b
   /** The helpers the domain's contract registration hands the factory as `optional.context`; the real host passes them through `initialize`. */
   context?: Readonly<Record<string, unknown>>;
   /** Source text of the factory's optional argument in the standalone Node process, which cannot import a domain package. */
-  standaloneOptions?: string };
+  standaloneOptions?: string;
+  /** What the real host adds to `host.initialize`'s `factoryOptions` for this contract (the span scope, the telemetry classifier). */
+  factoryOptions?: Readonly<Record<string, unknown>> };
 /** A browser-only provider: its exact `browserProviders` declaration (kind `chart`, contract version 1). */
 type BrowserSpec = { browser: { id: string; kinds: readonly string[]; javascript: string; stylesheet?: string } };
 const isBrowserSpec = (spec: ServerSpec | BrowserSpec): spec is BrowserSpec => 'browser' in spec;
+/** The standalone Node process cannot import diagnostics, so it gets inert stand-ins with the same shapes the host binds. */
+const STANDALONE_OBSERVABILITY_OPTIONS = `{ scope: { active: () => undefined, run: ({ fn }) => fn() }, describeTelemetryFailure: () => ({}), context: {
+  redactOperationAttributes: ({ attributes }) => ({ ...attributes }), errorType: () => 'Error', redactLabel: ({ text }) => text,
+  describeReportedError: () => ({ type: 'Error', message: '' }), describeTelemetryFailure: () => ({}),
+  resolveObservabilityConfig: (required, optional = {}) => ({ enabled: true, serviceName: required.serviceName, tracerName: required.tracerName, endpoint: optional.endpoint + '/v1/traces' }) } }`;
 /** Per plugin source, one server or browser spec. */
 const SPECS: Record<string, ServerSpec | BrowserSpec> = {
   'ai-trace-langfuse': { contract: 'ai_trace', id: 'langfuse', validate: port => typeof (port as { record?: unknown })?.record === 'function',
     input: () => ({ publicKey: 'pk-lf-unused', secretKey: 'sk-lf-unused', baseUrl: 'http://langfuse.invalid' }) },
   'analytics-posthog': { contract: 'product_analytics', id: 'posthog', validate: port => typeof (port as { capture?: unknown })?.capture === 'function',
-    input: () => ({ apiKey: 'phc_unused', host: 'https://posthog.invalid' }) },
+    input: () => ({ apiKey: 'phc_unused', host: 'https://posthog.invalid' }),
+    factoryOptions: { describeTelemetryFailure }, standaloneOptions: '{ describeTelemetryFailure: () => ({}) }' },
   'fixture-provider': { contract: 'fixture', id: 'fixture', validate: port => typeof (port as { read?: unknown })?.read === 'function', input: namespace => ({ value: namespace }),
     probe: port => (port as { read(required: Record<string, never>): unknown }).read({}) },
   'formspree': { contract: 'form_collection', id: 'formspree', validate: port => typeof (port as { plan?: unknown })?.plan === 'function', input: () => ({}) },
@@ -62,10 +72,11 @@ const SPECS: Record<string, ServerSpec | BrowserSpec> = {
   'payments-stripe': { contract: 'payments', id: 'stripe', validate: port => paymentsProviderContract.validate({ provider: port }) === undefined,
     input: () => ({}), context: paymentsProviderContract.context,
     standaloneOptions: '{ context: { paymentError: required => required, moneyProblem: () => null } }' },
-  'observability-opentelemetry': { contract: 'observability', id: 'opentelemetry', validate: port => typeof (port as { trackRequest?: unknown })?.trackRequest === 'function',
-    input: () => ({ serviceName: 'artifact-test', tracerName: 'artifact', endpoint: 'http://127.0.0.1:9', headers: { authorization: 'Bearer unused' } }) },
-  'observability-sentry': { contract: 'observability', id: 'sentry', validate: port => typeof (port as { reportError?: unknown })?.reportError === 'function',
-    input: () => ({ dsn: 'https://public@sentry.invalid/1' }) },
+  'observability-opentelemetry': { contract: 'observability', id: 'opentelemetry', validate: port => observabilityProviderContract.validate({ provider: port }) === undefined,
+    input: () => ({ serviceName: 'artifact-test', tracerName: 'artifact', endpoint: 'http://127.0.0.1:9', headers: { authorization: 'Bearer unused' } }),
+    context: observabilityProviderContract.context, standaloneOptions: STANDALONE_OBSERVABILITY_OPTIONS, factoryOptions: { scope: hostScope() } },
+  'observability-sentry': { contract: 'observability', id: 'sentry', validate: port => observabilityProviderContract.validate({ provider: port }) === undefined,
+    input: () => ({ dsn: 'https://public@sentry.invalid/1' }), context: observabilityProviderContract.context, standaloneOptions: STANDALONE_OBSERVABILITY_OPTIONS, factoryOptions: { scope: hostScope() } },
   'charts-recharts': { browser: { id: 'plugin.recharts', kinds: ['bar', 'line', 'pie'], javascript: 'client/provider.js', stylesheet: 'client/styles.css' } },
   'charts-echarts': { browser: { id: 'plugin.echarts', kinds: ['bar', 'line', 'area', 'pie', 'donut', 'scatter', 'stacked-bar'], javascript: 'client/provider.js', stylesheet: 'client/styles.css' } },
 };
@@ -217,7 +228,7 @@ it.each(SERVER_IDS)('%s: packs, installs and loads identical standalone bytes wi
     const { registry } = await installAndLoad({ pluginId, artifact, manifest, namespace, runtimeSdkVersion });
     const providerHost = createPluginProviderHost({ contributions: registry, contracts: [{ contract: spec.contract, validate: ({ provider }) => spec.validate(provider) ? undefined : 'invalid port',
       ...(spec.context ? { context: spec.context } : {}) }] });
-    const lease = (await providerHost.initialize({ contract: spec.contract, id: spec.id, input: spec.input(namespace) }))!;
+    const lease = (await providerHost.initialize({ contract: spec.contract, id: spec.id, input: spec.input(namespace) }, { factoryOptions: spec.factoryOptions ?? {} }))!;
     expect(spec.validate(lease.port)).toBe(true);
     if (pluginId === 'payments-stripe') {
       const port = lease.port as PaymentProvider;
@@ -283,6 +294,29 @@ it('payments-stripe: initialize fails with the typed configuration error when th
   const host = await stripeProviderHost({ namespace: 'stripe-no-context' });
   await expect(host.initialize({ contract: 'payments', id: 'stripe', input: {} })).rejects.toMatchObject({
     code: 'payments_stripe_context_missing', details: 'optional.context is missing: paymentError, moneyProblem',
+  });
+}, 60_000);
+
+/** A packed observability or analytics entry, installed through the real host installer, with a contract the caller shapes. */
+async function packedProviderHost(required: { pluginId: string; contract: string; namespace: string; context?: Readonly<Record<string, unknown>> }) {
+  const { artifact } = artifacts.get(required.pluginId)!;
+  const manifest = JSON.parse(await readFile(path.join(artifact, 'jini.plugin.json'), 'utf8')) as PluginManifest;
+  const { registry } = await installAndLoad({ pluginId: required.pluginId, artifact, manifest, namespace: required.namespace, runtimeSdkVersion: '0.1.0' });
+  return createPluginProviderHost({ contributions: registry, contracts: [{ contract: required.contract, validate: () => undefined, ...(required.context ? { context: required.context } : {}) }] });
+}
+
+it.each([
+  ['observability-opentelemetry', 'opentelemetry', 'observability', 'observability_opentelemetry_context_missing', 'optional.context / optional.scope is missing: redactOperationAttributes, errorType, redactLabel, describeReportedError, describeTelemetryFailure, resolveObservabilityConfig, scope'],
+  ['observability-sentry', 'sentry', 'observability', 'observability_sentry_context_missing', 'optional.context is missing: redactOperationAttributes, describeReportedError, describeTelemetryFailure'],
+] as const)('%s: initialize fails with the typed configuration error when the host binds no helpers', async (pluginId, id, contract, code, details) => {
+  const host = await packedProviderHost({ pluginId, contract, namespace: `${pluginId}-no-context` });
+  await expect(host.initialize({ contract, id, input: SPECS[pluginId] && !isBrowserSpec(SPECS[pluginId]!) ? (SPECS[pluginId] as ServerSpec).input('x') : {} })).rejects.toMatchObject({ code, details });
+}, 60_000);
+
+it('analytics-posthog: initialize fails with the typed configuration error when the host binds no telemetry classifier', async () => {
+  const host = await packedProviderHost({ pluginId: 'analytics-posthog', contract: 'product_analytics', namespace: 'posthog-no-context' });
+  await expect(host.initialize({ contract: 'product_analytics', id: 'posthog', input: (SPECS['analytics-posthog'] as ServerSpec).input('x') })).rejects.toMatchObject({
+    code: 'analytics_posthog_context_missing', details: 'optional.describeTelemetryFailure is missing',
   });
 }, 60_000);
 

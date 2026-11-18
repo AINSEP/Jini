@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { withProductAnalyticsGuards, type ProductEvent } from "@jini-ai/analytics/product";
+import { withProductAnalyticsGuards } from "@jini-ai/analytics/product";
 import { combineObservabilityPorts } from "../fanout.js";
 import { createNoopTracker } from "../tracker-noop.js";
 import { createTracker } from "../tracker.js";
-import { createNoopObservabilityPort } from "../noop.js";
+import { createNoopObservabilityPort, type ProductEvent } from "@jini-ai/core/contracts/observability";
 import { runWithErrorReportScope } from "../report-error.js";
 import * as errorReporting from "../report-error.js";
-import type { ErrorReport, ObservabilityPort } from "../ports.js";
+import type { ErrorReport, ObservabilityPort } from "@jini-ai/core/contracts/observability";
 
 const WARNING = "[tracker] a telemetry provider failed; application work continues";
 const event: ProductEvent = { name: "post_created", userId: "principal-1" };

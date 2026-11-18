@@ -49,6 +49,7 @@
       "./contracts/hosted-mcp": "universal",
       "./contracts/agents": "universal",
       "./contracts/ai-trace": "universal",
+      "./contracts/observability": "universal",
       "./contracts/storage": "universal",
       "./contracts/events": "universal",
       "./contracts/capabilities": "universal",
@@ -322,6 +323,11 @@
       "types": "./dist/contracts/ai-trace/index.d.ts",
       "import": "./dist/contracts/ai-trace/index.js",
       "default": "./dist/contracts/ai-trace/index.js"
+    },
+    "./contracts/observability": {
+      "types": "./dist/contracts/observability.d.ts",
+      "import": "./dist/contracts/observability.js",
+      "default": "./dist/contracts/observability.js"
     },
     "./contracts/storage": {
       "types": "./dist/contracts/storage.d.ts",

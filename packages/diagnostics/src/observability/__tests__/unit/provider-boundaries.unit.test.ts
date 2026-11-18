@@ -3,13 +3,14 @@ import { createTelemetryDeliveryMonitor, describeTelemetryFailure } from '../../
 import { describeReportedError } from '../../errors.js';
 import { combineObservabilityPorts } from '../../fanout.js';
 import { createHookObservabilityPort } from '../../hooks.js';
-import { createNoopObservabilityPort } from '../../noop.js';
+import { createNoopObservabilityPort } from '@jini-ai/core/contracts/observability';
 import { errorType } from '../../otel.js';
 import { redactedError, reportErrorOnce, runWithErrorReportScope } from '../../report-error.js';
 import { createTelemetryTestProbe } from '../../telemetry-test.js';
 import { createNoopTracker } from '../../tracker-noop.js';
 import { createTracker, createTrackerWarning } from '../../tracker.js';
-import type { ObservabilityPort, TraceSpanPort } from '../../ports.js';
+import type { TraceSpanPort } from '../../ports.js';
+import type { ObservabilityPort } from '@jini-ai/core/contracts/observability';
 
 afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
 

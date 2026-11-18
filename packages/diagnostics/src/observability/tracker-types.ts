@@ -1,4 +1,16 @@
-import type { AgentRunTrackingInput, AgentRunTrackingOptions, AgentRunTrackingOutcome, ObservabilityPort, OperationAttributes, OperationTrackingOutcome, RequestTrackingInput, RequestTrackingOptions, RequestTrackingOutcome, MetricInput, MetricOptions } from "./ports.js";
+import type {
+  AgentRunTrackingInput,
+  AgentRunTrackingOptions,
+  AgentRunTrackingOutcome,
+  ObservabilityPort,
+  OperationAttributes,
+  OperationTrackingOutcome,
+  RequestTrackingInput,
+  RequestTrackingOptions,
+  RequestTrackingOutcome,
+  MetricInput,
+  MetricOptions,
+} from "@jini-ai/core/contracts/observability";
 
 /** Capture-only consumer port; higher-layer analytics adapters satisfy it structurally. */
 interface CaptureEvent { name: string; userId: string; properties?: Readonly<Record<string, string | number | boolean>>; }
@@ -31,7 +43,7 @@ export interface AgentSpanOptions { agent: AgentRunTrackingInput & AgentRunTrack
  * Required fields precede optional settings; no provider-specific types cross this boundary. */
 export interface Tracker {
   /** Current tracing IDs, absent without an active span; optional for older host facades. */
-  activeTraceIds?(required?: Record<string, never>, optional?: Record<string, never>): import('./ports.js').TraceIds | undefined;
+  activeTraceIds?(required?: Record<string, never>, optional?: Record<string, never>): import('@jini-ai/core/contracts/observability').TraceIds | undefined;
   /** Awaitable local admission; does not wait for remote delivery. */
   capture(input: Pick<CaptureEvent, "name" | "userId">, options?: Pick<CaptureEvent, "properties">): void | Promise<void>;
   error(input: { error: Error }, options?: { context?: TrackerErrorContext }): void;

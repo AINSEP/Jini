@@ -18,12 +18,13 @@ import { OTLPExporterBase } from "@opentelemetry/otlp-exporter-base";
 import { createAsyncLocalSpanScope } from "@jini-ai/diagnostics/observability/node";
 import type { ObservabilityConfigEnabled } from "@jini-ai/diagnostics/observability";
 
+import { OBSERVABILITY_CONTEXT, describeTelemetryFailure, hostScope, withHost } from "./observability-host.js";
 import { createOtelFactories as otelFactories, createOtelObservabilityAdapter as otelAdapter } from "../observability-opentelemetry/opentelemetry.js";
 import plugin, { createOpenTelemetryProvider as openTelemetryProvider, otlpAuthHeaders, otlpHeadersOf } from "../observability-opentelemetry/index.js";
 
-const createOtelFactories: typeof otelFactories = (required, optional = {}) => otelFactories(required, { exportEnabled: true, ...optional });
-const createOtelObservabilityAdapter: typeof otelAdapter = (required, optional = {}) => otelAdapter(required, { exportEnabled: true, ...optional });
-const createOpenTelemetryProvider: typeof openTelemetryProvider = (required, optional = {}) => openTelemetryProvider(required, { exportEnabled: true, ...optional });
+const createOtelFactories = (required: Record<string, never>, optional: Parameters<typeof otelFactories>[1] = {}) => otelFactories({ describeTelemetryFailure }, { exportEnabled: true, ...optional });
+const createOtelObservabilityAdapter = (required: { config: ObservabilityConfigEnabled }, optional: Parameters<typeof otelAdapter>[1] = {}) => otelAdapter({ ...required, context: OBSERVABILITY_CONTEXT, scope: hostScope() }, { exportEnabled: true, ...optional });
+const createOpenTelemetryProvider: typeof openTelemetryProvider = (required, optional = {}) => openTelemetryProvider(required, withHost({ exportEnabled: true, ...optional }));
 
 const TEST_CONFIG: ObservabilityConfigEnabled = {
   enabled: true,
@@ -611,7 +612,7 @@ test("span admission caps attribute count and value length, including late attri
   const processor: import("@opentelemetry/sdk-trace-base").SpanProcessor = {
     onStart() {}, onEnd(span) { finished.push(span); }, async shutdown() {}, async forceFlush() {},
   };
-  const factories = createOtelFactories({}, { exportEnabled: true, spanProcessors: [processor] });
+  const factories = createOtelFactories({ describeTelemetryFailure }, { exportEnabled: true, spanProcessors: [processor] });
   try {
     const provider = factories.tracerProviderFactory.create({ serviceName: "limits", exporter: undefined });
     const span = provider.getTracer({ name: "limits" }).startSpan({ name: "bounded", kind: "internal", attributes: { long: "x".repeat(2000) } });

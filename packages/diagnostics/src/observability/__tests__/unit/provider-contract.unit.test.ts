@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import { describeReportedError } from '../../errors.js';
 import { redactOperationAttributes } from '../../otel.js';
 import { observabilityProviderContract } from '../../provider-contract.js';
-import { createNoopObservabilityPort } from '../../noop.js';
+import { createNoopObservabilityPort } from '@jini-ai/core/contracts/observability';
 
 it('accepts a real port and refuses anything missing a tracking method', () => {
   expect(observabilityProviderContract.validate({ provider: createNoopObservabilityPort({}) })).toBeUndefined();

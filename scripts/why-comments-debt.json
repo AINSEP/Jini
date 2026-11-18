@@ -2,6 +2,10 @@
   "version": 1,
   "allow": [
     {
+      "id": "f62abc9055e0",
+      "reason": "R12c: the observability provider contract no longer restates the domain port types (they come from @jini-ai/core/contracts/observability), so 'structural copies of the port types, the provider never imports the domain' is obsolete; the new header says what the file holds now and the drift guard (observability-contract-drift.typecheck.ts) proves the copied helper shapes."
+    },
+    {
       "id": "15004f5ecbb6",
       "reason": "Provenance claim is false now: invocation.ts no longer imports createCommandInvocation from @jini-ai/platform; it plans with core's planCommandInvocation. The module header was rewritten to say so."
     },

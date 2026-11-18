@@ -6,9 +6,10 @@
  * executor is wrapped. Written by the design; expected RED for all four until the fix lands.
  */
 import { describe, expect, test } from "vitest";
+import type { ObservabilityPort } from "@jini-ai/core/contracts/observability";
 import type { ToolExecutionResult, ToolExecutor } from "../../tool-executor.js";
 import { withToolCallAnalytics } from "../analytics.js";
-import { withToolCallObservability, type ToolCallObservability } from "../observability.js";
+import { withToolCallObservability } from "../observability.js";
 import { withFederatedRefusalDiagnosis } from "../federated-refusal.js";
 import { withRedactedToolFailures } from "../redaction.js";
 
@@ -22,7 +23,7 @@ function recordingInner(seen: unknown[]): ToolExecutor {
   };
 }
 
-const observability: ToolCallObservability = {
+const observability: Pick<ObservabilityPort, "trackOperation" | "reportError"> = {
   trackOperation: () => ({ run: (fn) => fn(), end: () => {} }),
   reportError: () => {},
 };

@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
 import { redactSecrets } from "@jini-ai/core";
-import type { ObservabilityPort } from "./ports.js";
+import type { ObservabilityPort } from "@jini-ai/core/contracts/observability";
 
 /**
  * @file The shared way a host hands an error to `ObservabilityPort.reportError` (provider wave 2,

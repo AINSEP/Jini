@@ -54,9 +54,9 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
     const ctl = new AbortController();
     const load = Promise.resolve(slot.adapter ?? ports.importModule((slot.entry as LazyAdapter).src).then(m => (slot.adapter = m.default)));
     const result = load.then(adapter => {
-      quiet(() => adapter.onState?.({ state }));
+      quiet(() => adapter.onState?.({ state, purge: purgeStorage }));
       if (ctl.signal.aborted || anonymous && state.analyticsLevel === 'none') return null;                              // withdrawn first: nothing ran
-      return Promise.resolve().then(() => adapter.grant({ config: slot.entry.config ?? adapter.config, state, signal: ctl.signal }))
+      return Promise.resolve().then(() => adapter.grant({ config: slot.entry.config ?? adapter.config, state, signal: ctl.signal, purge: purgeStorage }))
         .then((r = {}) => r, () => ({}));                            // a grant that threw may have run code
     }, () => null);                                                     // import failed: nothing ran
     slot.run = { ctl, result };
@@ -80,7 +80,7 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
       const allowed = anonymous ? next.analyticsLevel === 'anonymous' : next.allowed[slot.entry.category];
       if (allowed && !slot.run) start(slot);
       if (!allowed && slot.run) stops.push(stop(slot));
-      quiet(() => slot.adapter?.onState?.({ state: next }));
+      quiet(() => slot.adapter?.onState?.({ state: next, purge: purgeStorage }));
     }
     // Raw tags cannot promise anonymous behavior; only declared adapters can.
     if (!anonymous) activateInert(doc, { allowed: next.allowed, ran });
@@ -132,7 +132,7 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
     slots.set(entry.id, slot);
     if (anonymous || state.allowed[entry.category]) start(slot);
     else purge(doc, entry.storage);                     // leftovers of an expired or withdrawn choice
-    quiet(() => slot.adapter?.onState?.({ state }));                    // lazy adapters get state once loaded
+    quiet(() => slot.adapter?.onState?.({ state, purge: purgeStorage }));                    // lazy adapters get state once loaded
   }
   function syncSlots(items: readonly Contribution[]): void {
     const ids = new Set(items.map(i => i.id));

@@ -108,7 +108,10 @@ export const ADAPTER_KIND = 'consent-adapter';
 export interface StoragePrefixes { cookies?: readonly string[]; local?: readonly string[] }
 /** revoke() true = fully stopped; false or missing = the page reloads to be clean. */
 export interface Revoker { revoke?(): boolean | Promise<boolean> }
-export interface GrantInput<C> { config: C; state: ConsentState; signal: AbortSignal }
+/** The shape of the client's `purgeStorage`: removes the named cookie and localStorage prefixes from `doc`. */
+export type PurgeStorage = (required: { doc: Document; storage: StoragePrefixes }, optional?: object) => void;
+/** `purge` is the client runtime's own purge: a separately delivered adapter module cannot import it. */
+export interface GrantInput<C> { config: C; state: ConsentState; signal: AbortSignal; purge: PurgeStorage }
 /** Lives in the vendor's plugin. grant() returns null when it ran no vendor code (signal aborted first). */
 export interface ConsentAdapter<C = unknown> extends Contribution<typeof ADAPTER_KIND> {
   category: Optional;
@@ -118,7 +121,7 @@ export interface ConsentAdapter<C = unknown> extends Contribution<typeof ADAPTER
   storage?: StoragePrefixes;
   grant(required: GrantInput<C>, optional?: object): Promise<Revoker | null> | Revoker | null;
   /** Receives levels for cleanup even without a grant; must never start denied analytics. */
-  onState?(required: { state: ConsentState }, optional?: object): void;
+  onState?(required: { state: ConsentState; purge: PurgeStorage }, optional?: object): void;
 }
 /** Page-config form: `src` is imported on grant, or for cleanup when off and supportsAnonymous.
  * An adapter that must signal before any grant in other banner modes (a

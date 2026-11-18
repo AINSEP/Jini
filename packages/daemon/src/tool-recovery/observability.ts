@@ -3,25 +3,17 @@
  * delegated, BYOK and visitor tool call already passes through, so instrumenting it here covers
  * them all without touching a single tool handler or route.
  *
- * The port is taken structurally ({@link ToolCallObservability}), not imported: this package does not
- * depend on `@jini-ai/diagnostics`, and `ObservabilityPort` satisfies the slice as-is. That keeps the
- * daemon free of any observability vendor AND of the diagnostics package; the host composes them.
+ * The port type comes from `@jini-ai/core/contracts/observability`, which keeps this package free of
+ * `@jini-ai/diagnostics`. That keeps the daemon free of any observability vendor AND of the diagnostics
+ * package; the host composes them.
  * A host whose telemetry is off should not wrap at all (diagnostics' `isNoopObservabilityPort`), so
  * a disabled install keeps its exact executor object and pays no wrapper frame.
  */
 import { redactSecrets, ToolInputError, type Principal, type RunRef } from "@jini-ai/core";
+// The two `ObservabilityPort` methods this decorator calls; the port itself satisfies it.
+import type { ObservabilityPort } from "@jini-ai/core/contracts/observability";
 import type { ToolExecutionResult, ToolExecutionStatus, ToolExecutor } from "../tool-executor.js";
 import { decorateToolExecutor } from "./decorate-executor.js";
-
-type Attributes = Readonly<Record<string, string | number>>;
-/** The two `ObservabilityPort` methods this decorator calls; the port itself satisfies it. */
-export interface ToolCallObservability {
-  trackOperation(input: { name: string; attributes?: Attributes }): {
-    run<T>(fn: () => T): T;
-    end(outcome: { outcome: string; failed: boolean; attributes?: Attributes }): void;
-  };
-  reportError(report: { error: unknown; context: { operation: string; attributes?: Attributes } }): void;
-}
 
 export const TOOL_CALL_OPERATION = "tool.call";
 
@@ -79,7 +71,7 @@ function errorKindOf(result: ToolExecutionResult): string | undefined {
  * @returns A drop-in `ToolExecutor`; results and throws pass through unchanged; other methods delegate.
  * @complexity O(1) beyond `inner`'s own cost.
  */
-export function withToolCallObservability({ inner, observability }: { inner: ToolExecutor; observability: ToolCallObservability }, { isRegisteredTool }: { isRegisteredTool?: IsRegisteredTool } = {}): ToolExecutor {
+export function withToolCallObservability({ inner, observability }: { inner: ToolExecutor; observability: Pick<ObservabilityPort, "trackOperation" | "reportError"> }, { isRegisteredTool }: { isRegisteredTool?: IsRegisteredTool } = {}): ToolExecutor {
   return decorateToolExecutor({ inner,
     execute: async (
       { principal, run, toolId, input }: { principal: Principal; run: RunRef; toolId: string; input: unknown },

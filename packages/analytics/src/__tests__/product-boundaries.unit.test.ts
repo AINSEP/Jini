@@ -1,7 +1,10 @@
 import { expect, it, vi } from 'vitest';
 import { createAiTraceRecorder } from '@jini-ai/core/contracts/ai-trace';
-import { createAiGenerationSink, createNoopProductAnalytics, isNoopProductAnalytics, withProductAnalyticsGuards,
-  type ProductAiGeneration, type ProductAnalyticsPort } from '../product/index.js';
+import { createAiGenerationSink, createNoopProductAnalytics, isNoopProductAnalytics, withProductAnalyticsGuards } from '../product/index.js';
+import {
+  type ProductAiGeneration,
+  type ProductAnalyticsPort,
+} from '@jini-ai/core/contracts/observability';
 import { injectBrowserAnalytics } from '../product/browser.js';
 
 it('keeps full-content generations sparse when the stream has no prompt or answer', () => {

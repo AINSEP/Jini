@@ -3,15 +3,19 @@ import assert from "node:assert/strict";
 import { test, vi } from "vitest";
 import { NodeClient, createTransport, getCurrentScope } from "@sentry/node";
 import { InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
+import { createNoopObservabilityPort } from '@jini-ai/core/contracts/observability';
 import { combineObservabilityPorts } from '@jini-ai/diagnostics/observability';
 import { createTracker } from '@jini-ai/diagnostics/observability/node';
-import { createOtelObservabilityAdapter } from '../observability-opentelemetry/opentelemetry.js';
+import { OBSERVABILITY_CONTEXT, hostScope, withHost } from './observability-host.js';
+import { createOtelObservabilityAdapter as rawOtelAdapter } from '../observability-opentelemetry/opentelemetry.js';
 
 import { createSentryObservabilityAdapter as sentryAdapter, type SentryConfigEnabled } from "../observability-sentry/sentry.js";
 
+/** The host binds diagnostics' helpers and a span scope; these tests bind the real ones the same way. */
+const createOtelObservabilityAdapter = (required: { config: Parameters<typeof rawOtelAdapter>[0]["config"] }, options?: Parameters<typeof rawOtelAdapter>[1]) => rawOtelAdapter({ ...required, context: OBSERVABILITY_CONTEXT, scope: hostScope() }, options);
 const CONFIG: SentryConfigEnabled = { enabled: true, dsn: "https://public@sentry.invalid/1", tracesSampleRate: 1 };
-const createSentryObservabilityAdapter: typeof sentryAdapter = (required, options = {}) =>
-  sentryAdapter(required, { exportEnabled: true, ...options });
+const createSentryObservabilityAdapter = (required: { config: SentryConfigEnabled }, options: Parameters<typeof sentryAdapter>[1] = {}) =>
+  sentryAdapter({ ...required, context: OBSERVABILITY_CONTEXT }, { exportEnabled: true, ...options });
 const SECRET = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
 
 test.each(['ftp://public@sentry.invalid/123', 'https://%ZZ@sentry.invalid/123'])
@@ -229,16 +233,16 @@ test("plugin factory: validates its card input, defaults to errors only, and reu
     [{ dsn: CONFIG.dsn, environment: 1 }, "environment must be a string"],
     [{ dsn: CONFIG.dsn, tracesSampleRate: 2 }, "tracesSampleRate must be within 0..1"], [{ dsn: CONFIG.dsn, tracesSampleRate: -0.1 }, "tracesSampleRate must be within 0..1"],
     [{ dsn: CONFIG.dsn, tracesSampleRate: "1" }, "tracesSampleRate must be within 0..1"], [{ dsn: CONFIG.dsn, tracesSampleRate: Number.NaN }, "tracesSampleRate must be within 0..1"],
-  ] as const) assert.throws(() => createSentryProvider(input as Record<string, unknown>), { name: "TypeError", message });
+  ] as const) assert.throws(() => createSentryProvider(input as Record<string, unknown>, withHost()), { name: "TypeError", message });
   const { items, transport } = recordingTransport();
-  const resource = createSentryProvider({ dsn: ` ${CONFIG.dsn} `, environment: "production" }, { exportEnabled: true, transport });
+  const resource = createSentryProvider({ dsn: ` ${CONFIG.dsn} `, environment: "production" }, withHost({ exportEnabled: true, transport }));
   resource.port.trackOperation({ name: "unsampled" }).end({ outcome: "completed", failed: false });
   resource.port.reportError({ error: new Error("boom"), context: { operation: "x" } });
   await flush(); await resource.dispose({});
   assert.deepEqual(items.map((item) => item.type), ["event"], "rate 0: errors are sent, operations are not sampled");
   assert.equal(items[0]?.payload.environment, "production");
   let closed = 0;
-  const hosted = createSentryProvider({ dsn: CONFIG.dsn }, { client: { close: async () => { closed += 1; return true; }, getOptions: () => ({}) } });
+  const hosted = createSentryProvider({ dsn: CONFIG.dsn }, withHost({ client: { close: async () => { closed += 1; return true; }, getOptions: () => ({}) } }));
   await hosted.dispose({});
   assert.equal(closed, 0);
 });
@@ -252,7 +256,7 @@ test("site attribution: every exception and transaction carries the host's attri
   const { createSentryProvider } = await import("../observability-sentry/index.js");
   const attribution = { attributes: { "tovu.site.id": "uuid-of-site-b", "tovu.site.slug": "site-b", "deployment.environment": "desktop", "tovu.project.id": "project-x" } };
   const { items, transport } = recordingTransport();
-  const resource = createSentryProvider({ dsn: CONFIG.dsn, release: 'tovu@1.2.3+abcdef0', environment: "", tracesSampleRate: 1, attribution }, { exportEnabled: true, transport });
+  const resource = createSentryProvider({ dsn: CONFIG.dsn, release: 'tovu@1.2.3+abcdef0', environment: "", tracesSampleRate: 1, attribution }, withHost({ exportEnabled: true, transport }));
   const tracker = resource.port.trackOperation({ name: "site.publish" });
   tracker.run(() => resource.port.reportError({ error: new Error("inside"), context: { operation: "site.publish" } }));
   tracker.end({ outcome: "completed", failed: false });
@@ -267,12 +271,12 @@ test("site attribution: every exception and transaction carries the host's attri
   }
   // An explicit card environment wins over the host's deployment environment.
   const second = recordingTransport();
-  const explicit = createSentryProvider({ dsn: CONFIG.dsn, environment: "staging", attribution }, { exportEnabled: true, transport: second.transport });
+  const explicit = createSentryProvider({ dsn: CONFIG.dsn, environment: "staging", attribution }, withHost({ exportEnabled: true, transport: second.transport }));
   explicit.port.reportError({ error: new Error("boom"), context: { operation: "x" } });
   await flush(); await explicit.dispose({});
   assert.equal(second.items[0]?.payload.environment, "staging");
   assert.equal(second.items[0]?.payload.tags["tovu.site.id"], "uuid-of-site-b");
-  assert.throws(() => createSentryProvider({ dsn: CONFIG.dsn, attribution: { attributes: { n: 1 } } }), { name: "TypeError" });
+  assert.throws(() => createSentryProvider({ dsn: CONFIG.dsn, attribution: { attributes: { n: 1 } } }, withHost()), { name: "TypeError" });
 });
 
 test('release reaches the private client and delivered event without global initialization or default integrations', async () => {
@@ -282,7 +286,7 @@ test('release reaches the private client and delivered event without global init
   const init = vi.spyOn(NodeClient.prototype, 'init');
   const previousClient = getCurrentScope().getClient();
   try {
-    const resource = createSentryProvider({ dsn: CONFIG.dsn, release: 'fixture-app@1.2.3' }, { exportEnabled: true, transport });
+    const resource = createSentryProvider({ dsn: CONFIG.dsn, release: 'fixture-app@1.2.3' }, withHost({ exportEnabled: true, transport }));
     try {
       resource.port.reportError({ error: new Error('fixture failure'), context: { operation: 'fixture' } });
       await flush();
@@ -297,7 +301,7 @@ test('release reaches the private client and delivered event without global init
       assert.equal(getCurrentScope().getClient(), previousClient);
     } finally { await resource.dispose({}); }
     assert.deepEqual(items.filter(item => item.type === 'event').map(item => item.payload.release), ['fixture-app@1.2.3']);
-    assert.throws(() => createSentryProvider({ dsn: CONFIG.dsn, release: 42 }), { name: 'TypeError', message: 'release must be a string' });
+    assert.throws(() => createSentryProvider({ dsn: CONFIG.dsn, release: 42 }, withHost()), { name: 'TypeError', message: 'release must be a string' });
   } finally { options.mockRestore(); init.mockRestore(); }
 });
 
@@ -316,7 +320,6 @@ test.each([
 });
 
 test('crashUpload is absent on noop and when a borrowed client has no usable configured DSN', async () => {
-  const { createNoopObservabilityPort } = await import('@jini-ai/diagnostics/observability');
   assert.equal(Object.hasOwn(createNoopObservabilityPort({}), 'crashUpload'), false);
   for (const dsn of ['', 'not-a-dsn', 'https://sentry.invalid/123', 'https://public@sentry.invalid/no-project']) {
     const resource = createSentryObservabilityAdapter({ config: { ...CONFIG, dsn } }, {

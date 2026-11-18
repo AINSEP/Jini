@@ -1,5 +1,9 @@
 import type { AiTraceModelTurn, AiTraceSink } from "@jini-ai/core/contracts/ai-trace";
-import type { ProductAiGeneration, ProductAnalyticsPort, ProductEventProperties } from "./index.js";
+import type {
+  ProductAiGeneration,
+  ProductAnalyticsPort,
+  ProductEventProperties,
+} from "@jini-ai/core/contracts/observability";
 
 /** Pure model-turn projection; unknown counters are omitted, timing is converted from ms to seconds.
  * @complexity O(1), a fixed metadata bag and no retained text. */

@@ -1,5 +1,12 @@
-import type { ErrorReport, ObservabilityPort, TrackerScope } from './ports.js';
-import { createNoopObservabilityPort, isNoopObservabilityPort } from './noop.js';
+import type {
+  ErrorReport,
+  ObservabilityPort,
+  TrackerScope,
+} from '@jini-ai/core/contracts/observability';
+import {
+  createNoopObservabilityPort,
+  isNoopObservabilityPort,
+} from '@jini-ai/core/contracts/observability';
 
 type Tracker<O> = Partial<TrackerScope> & { end(outcome: O): void };
 type Signal = 'trackRequest' | 'trackDbQuery' | 'trackOutboundCall' | 'trackAgentRun' | 'trackOperation';

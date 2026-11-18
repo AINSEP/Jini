@@ -1,7 +1,12 @@
 /** Product analytics: the guard rules. The PostHog provider's SDK tests live with its plugin (`@jini-ai/provider-plugins`). */
 import { expect, test } from "vitest";
 
-import { createNoopProductAnalytics, fanOutProductAnalytics, isNoopProductAnalytics, withProductAnalyticsGuards, type BrowserAnalyticsContribution, type ProductEvent, type ProductAnalyticsPort } from "../product/index.js";
+import { createNoopProductAnalytics, fanOutProductAnalytics, isNoopProductAnalytics, withProductAnalyticsGuards } from "../product/index.js";
+import {
+  type BrowserAnalyticsContribution,
+  type ProductEvent,
+  type ProductAnalyticsPort,
+} from "@jini-ai/core/contracts/observability";
 
 const SECRET = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
 
