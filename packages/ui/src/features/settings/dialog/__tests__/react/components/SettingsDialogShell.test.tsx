@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
+import type { useT } from '../../../../../i18n/index.js';
 import { SettingsDialogShell } from '../../../react/components/SettingsDialogShell.js';
 import type { SettingsDialogTab } from '../../../react/components/SettingsDialogShell.js';
 
@@ -49,5 +50,13 @@ describe('SettingsDialogShell', () => {
     );
     expect(screen.getByTestId('panel-appearance')).toBeInTheDocument();
     expect(screen.getByTestId('autosave-pill')).toBeInTheDocument();
+  });
+});
+
+describe('SettingsDialogShell injected translator', () => {
+  it('labels its default close affordance with the injected translator hook', () => {
+    const useQuotingT: typeof useT = () => (key) => `«${key}»`;
+    render(<SettingsDialogShell tabs={makeTabs()} initialActiveTabId="appearance" useTHook={useQuotingT} />);
+    expect(screen.getAllByRole('button').some((button) => (button.getAttribute('aria-label') ?? button.textContent ?? '').includes('«'))).toBe(true);
   });
 });

@@ -10,6 +10,7 @@ import { ConversationList, defaultConversationListHooks } from '../ConversationL
 import { AttachmentPreviewModal, defaultAttachmentPreviewModalHooks } from '../AttachmentPreviewModal.js';
 import { AttachmentTray } from '../AttachmentTray.js';
 import { McpUiHost } from '../../surfaces.js';
+import { A2uiSurfaceCard } from '../A2uiSurfaceCard.js';
 import { ThinkingBlock } from '../MessageRow.js';
 import { AgentPluginUsage } from '../../features/chat-pane/components/AgentPluginUsage.js';
 
@@ -129,5 +130,30 @@ describe('AttachmentTray and the surfaces facade', () => {
     const Host = (props: { html: string }) => <p data-testid="fake-host">{props.html}</p>;
     render(<McpUiHost title="Fake" html="<p>hi</p>" sandboxProxyUrl={new URL('https://x.example/')} useChatSurfacesHook={(() => ({ mcpUi: { Host } })) as never} />);
     expect(screen.getByTestId('fake-host')).toHaveTextContent('<p>hi</p>');
+  });
+});
+
+describe('A2uiSurfaceCard', () => {
+  const surfaces = { interactiveUi: { defaultRegistry: { list: () => [], resolveById: () => undefined } } };
+  const card = (view: Record<string, unknown>) => render(
+    <A2uiSurfaceCard
+      name="a2ui"
+      events={[]}
+      runId="r1"
+      runStreaming={false}
+      runSucceeded
+      clock={{ now: () => 0 } as never}
+      hooks={{ useT: useQuotingT, useChatSurfaces: (() => surfaces) as never, useA2uiSurfaceCard: (() => ({ root: undefined, ...view })) as never }}
+    />,
+  );
+
+  it('shows the refusal reason of the injected card hook through the injected translator', () => {
+    card({ refusalNotice: 'bad catalog' });
+    expect(screen.getByRole('status')).toHaveTextContent('«A2UI surface refused: {reason}{"reason":"bad catalog"}»');
+  });
+
+  it('shows the waiting notice when the injected card hook has no root yet', () => {
+    card({});
+    expect(screen.getByRole('status')).toHaveTextContent('«Waiting for the agent to send a root component…»');
   });
 });
