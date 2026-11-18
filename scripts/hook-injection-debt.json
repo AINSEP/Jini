@@ -67,30 +67,6 @@
         "packages/ui/src/features/source-config-list/react/components/SourceConfigAddForm.tsx"
       ]
     },
-    "AdminShell::useAdminShellSession": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/react/shell/AdminShell.tsx"
-      ]
-    },
-    "AdminShell::useAdminTheme": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/react/shell/AdminShell.tsx"
-      ]
-    },
-    "AdminShell::useShellDrawer": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/react/shell/AdminShell.tsx"
-      ]
-    },
-    "AdminShell::useShellRoute": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/react/shell/AdminShell.tsx"
-      ]
-    },
     "AgentCliEnvFields::useT": {
       "count": 1,
       "files": [
