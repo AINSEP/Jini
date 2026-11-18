@@ -9,6 +9,7 @@
  * an external MCP OAuth endpoint; public-URL SSRF validation is therefore outside this contract.
  */
 import { sanitizeUntrustedText } from '@jini-ai/core/text';
+import { envelopeVocabulary } from './call-vocabulary.js';
 import { describeDaemonFailure, isRecognizedEnvelope, type DaemonFailureText } from './daemon-error-text.js';
 
 /** Request deadline. Generous enough for a slow tool call, short enough that a stalled daemon doesn't hang a stdio server turn forever. */
@@ -65,6 +66,8 @@ export class DaemonResponseTooLargeError extends Error {
 export interface DaemonRequestOptions {
   /** Exact host-registered IDs that may appear in diagnostics; credentials are always redacted. */
   diagnosticToolIds?: readonly string[];
+  /** Further exact tokens this call may keep (names it was allowed to read); never a registration predicate. */
+  trustedTokens?: readonly string[];
   /** Defaults to the global `fetch`; inject for tests. */
   fetchImpl?: typeof fetch;
   headers?: Record<string, string>;
@@ -189,7 +192,8 @@ export function safeDiagnostic({ text }: { text: string }, options: DaemonReques
   return sanitizeUntrustedText({ text: redacted }, {
     keepIdentifiers: true,
     exactSecrets: headerSecrets,
-    ...(options.diagnosticToolIds === undefined ? {} : { diagnosticToolIds: options.diagnosticToolIds }),
+    ...(options.diagnosticToolIds === undefined && options.trustedTokens === undefined ? {}
+      : { diagnosticToolIds: [...(options.diagnosticToolIds ?? []), ...(options.trustedTokens ?? [])] }),
   });
 }
 
@@ -202,7 +206,9 @@ function buildDaemonHttpError(
   const readable = isRecognizedEnvelope({ data: body.data });
   if (readable) {
     const failure = describeDaemonFailure({ status, data: body.data, readable });
-    return new DaemonHttpError({ ...failure, message: safeDiagnostic({ text: failure.message }, options), status });
+    // The envelope's own names are trusted for this one format; a name masked here cannot be restored by a later pass.
+    const trustedTokens = [...(options.trustedTokens ?? []), ...envelopeVocabulary(failure)];
+    return new DaemonHttpError({ ...failure, message: safeDiagnostic({ text: failure.message }, { ...options, trustedTokens }), status });
   }
   const error = new DaemonTransportFailure({ status, route: route.split('?', 1)[0] ?? route,
     contentType: resp.headers?.get?.('content-type') ?? null, bodyBytes: body.bytes });

@@ -257,6 +257,14 @@ function publicationOutcome({ toolId, delta }: { toolId: string; delta: ToolExpo
   return published === undefined ? { skipped: 'not-found' } : { wireName: published.wireName };
 }
 
+/** Most descriptors one run keeps for error vocabularies; later ones are still published, just not held. */
+const MAX_HELD_DESCRIPTORS = 512;
+
+/** Remembers a validated descriptor so a gateway call for it can name its inputs in an error. Not an execution catalog. */
+function holdDescriptor({ held, descriptor }: { held: Map<string, ToolDescriptor>; descriptor: ToolDescriptor }): void {
+  if (held.has(descriptor.id) || held.size < MAX_HELD_DESCRIPTORS) held.set(descriptor.id, descriptor);
+}
+
 /**
  * Own only the MCP projection/dispatch index. F0 owns immutable exposure, and the daemon catalog
  * supplies each descriptor; the temporary source below is not another definition catalog.
@@ -264,8 +272,8 @@ function publicationOutcome({ toolId, delta }: { toolId: string; delta: ToolExpo
  * @throws On malformed schemas, invalid exposure limits, or an embedding without notification support.
  * @complexity O(n + s) per promotion for n bounded exposed tools and s schema bytes; no daemon I/O.
  */
-function createToolPublisher({ index, server, options }: {
-  index: Map<string, McpToolDef>; server: McpServerLike; options: McpDelegatedToolsOptions | undefined;
+function createToolPublisher({ index, server, options, held }: {
+  index: Map<string, McpToolDef>; server: McpServerLike; options: McpDelegatedToolsOptions | undefined; held: Map<string, ToolDescriptor>;
 }): McpToolContext['publishTool'] {
   if (!options) return undefined;
   const notify = server.sendToolListChanged?.bind(server);
@@ -278,13 +286,14 @@ function createToolPublisher({ index, server, options }: {
   });
   // Validate before promotion: malformed descriptors must not consume a pinned name or budget.
   const validate = (descriptor: ToolDescriptor) => createTypedDelegatedToolTool({ runId: options.runId, tool: { wireName: descriptor.id, descriptor } }, options);
-  for (const descriptor of descriptors) validate(descriptor);
+  for (const descriptor of descriptors) { validate(descriptor); holdDescriptor({ held, descriptor }); }
   const initial = exposure.promote({ toolIds: descriptors.map(descriptor => descriptor.id) });
   for (const tool of initial.snapshot.tools) index.set(tool.wireName, createTypedDelegatedToolTool({ runId: options.runId, tool }, options));
   descriptors = [];
   let notificationPending = false;
   return async ({ descriptor }, _optional = {}) => {
     validate(descriptor);
+    holdDescriptor({ held, descriptor });
     descriptors = [descriptor];
     const delta = exposure.promote({ toolIds: [descriptor.id] });
     descriptors = [];
@@ -377,8 +386,9 @@ async function connectHost(cfg: HostConfig, { transport, withActivity }: {
     },
   });
 
-  const publishTool = createToolPublisher({ index: toolIndex, server, options: options.delegatedTools });
-  if (publishTool) ctx = { ...ctx, publishTool };
+  const held = new Map<string, ToolDescriptor>();
+  const publishTool = createToolPublisher({ index: toolIndex, server, options: options.delegatedTools, held });
+  if (publishTool) ctx = { ...ctx, publishTool, descriptorFor: ({ toolId }) => held.get(toolId) };
 
   server.setRequestHandler({
     schema: ListToolsRequestSchema,

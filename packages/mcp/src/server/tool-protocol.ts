@@ -52,7 +52,8 @@ import { Validator, type Schema } from '@cfworker/json-schema';
 import { ContentBlockSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
 import { argumentShapeMessage, isRecord, normalizeToolArguments, resolveMcpToolName, withArgumentContract, type McpToolArgumentContract } from './tool-arguments.js';
-import { safeDiagnostic, type DaemonRequestOptions } from './daemon-client.js';
+import { DaemonHttpError, safeDiagnostic, type DaemonRequestOptions } from './daemon-client.js';
+import { callVocabulary, envelopeVocabulary } from './call-vocabulary.js';
 import { scopeNestedSchemaRefs } from './schema-ref-scope.js';
 
 /** Why a described tool was not published as its own tool: a full list, a full schema budget, or no such descriptor. */
@@ -97,6 +98,13 @@ export interface McpToolContext {
   readonly signal?: AbortSignal;
   /** Records a daemon answer that was not a readable envelope and returns the error ID the model is told. Forwarded by {@link daemonCallOptions}. */
   readonly reportFailure?: DaemonRequestOptions['reportFailure'];
+  /**
+   * Names this call's errors may keep (its schema's property names, the caller's own slug arguments), built per call
+   * before the daemon is asked. A separate list from {@link McpToolContext.diagnosticToolIds}, which also decides what is registered.
+   */
+  readonly diagnosticVocabulary?: readonly string[];
+  /** The descriptor this run holds for a tool id (published or described), so a gateway call can read the domain schema. */
+  readonly descriptorFor?: (required: { toolId: string }) => ToolDescriptor | undefined;
 }
 
 /**
@@ -120,6 +128,7 @@ export function daemonCallOptions({ ctx }: { ctx: McpToolContext }, _options = {
     ...(ctx.authHeaders !== undefined ? { headers: { ...ctx.authHeaders } } : {}),
     ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}),
     ...(ctx.reportFailure !== undefined ? { reportFailure: ctx.reportFailure } : {}),
+    ...(ctx.diagnosticVocabulary !== undefined ? { trustedTokens: ctx.diagnosticVocabulary } : {}),
   };
 }
 
@@ -300,6 +309,16 @@ function normalizationErrorResult(
   return errorResult({ message: `invalid arguments for ${tool.name}: ${sanitizeUntrustedText({ text: diagnostic }, { diagnosticToolIds, maxLength: 4608 })}` });
 }
 
+/** The context with this call's vocabulary; an empty one leaves the context as it was. */
+function withVocabulary({ ctx, vocabulary }: { ctx: McpToolContext; vocabulary: readonly string[] }): McpToolContext {
+  return vocabulary.length > 0 ? { ...ctx, diagnosticVocabulary: vocabulary } : ctx;
+}
+
+/** The second pass keeps what the first kept: the call's vocabulary plus the names the daemon's envelope carried on the error. */
+function trustedTokensAfter({ err, vocabulary }: { err: unknown; vocabulary: readonly string[] }): readonly string[] {
+  return err instanceof DaemonHttpError ? [...vocabulary, ...envelopeVocabulary(err)] : vocabulary;
+}
+
 /**
  * `tools/call` dispatch: looks up `name` in `tools`, normalizes aliases/wrapper input, then
  * validates the canonical arguments against the tool's
@@ -343,11 +362,14 @@ export async function handleToolCall(
   } catch (err) {
     return normalizationErrorResult({ tool, error: err, diagnosticToolIds });
   }
+  // Complete before the first daemon request: its error is formatted once, and a name masked then cannot be restored.
+  const vocabulary = callVocabulary({ toolName: tool.name, inputSchema: tool.inputSchema, args: validatedArgs, toolIds: [], descriptorFor: ctx.descriptorFor });
+  ctx = withVocabulary({ ctx, vocabulary });
   try {
     const result = await tool.handler({ args: validatedArgs, ctx: ctx });
     return okResult({ payload: withNormalizationNotes({ output: result, notes: normalizationNotes }) });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return errorResult({ message: safeDiagnostic({ text: message }, daemonCallOptions({ ctx })) });
+    return errorResult({ message: safeDiagnostic({ text: message }, { ...daemonCallOptions({ ctx }), trustedTokens: trustedTokensAfter({ err, vocabulary }) }) });
   }
 }

@@ -36,41 +36,43 @@ function isSecretProperty({ name, schema }: { name: string; schema: unknown }): 
   return SECRET_NAME_RE.test(name) || (isRecord(schema) && (schema.writeOnly === true || schema.format === 'password'));
 }
 
+/** The property names declared directly on a schema node, and the child schemas to walk next. */
+function schemaChildren({ node }: { node: Record<string, unknown> }): { names: string[]; children: unknown[] } {
+  const properties = isRecord(node.properties) ? Object.entries(node.properties) : [];
+  const branches = SCHEMA_BRANCHES.flatMap(branch => (Array.isArray(node[branch]) ? node[branch] as unknown[] : []));
+  return {
+    names: properties.map(([name]) => name).filter(name => PROPERTY_NAME_RE.test(name)),
+    children: [...properties.map(([, child]) => child), node.items, ...branches],
+  };
+}
+
 /** Property names of a schema, depth-bounded and count-bounded; names outside the identifier shape are skipped. */
 function schemaPropertyNames({ schema }: { schema: unknown }): string[] {
   const names = new Set<string>();
   const walk = (node: unknown, depth: number): void => {
     if (!isRecord(node) || depth > MAX_SCHEMA_DEPTH || names.size >= MAX_SCHEMA_NAMES) return;
-    if (isRecord(node.properties)) {
-      for (const [name, child] of Object.entries(node.properties)) {
-        if (names.size < MAX_SCHEMA_NAMES && PROPERTY_NAME_RE.test(name)) names.add(name);
-        walk(child, depth + 1);
-      }
-    }
-    walk(node.items, depth + 1);
-    for (const branch of SCHEMA_BRANCHES) if (Array.isArray(node[branch])) for (const child of node[branch]) walk(child, depth + 1);
+    const found = schemaChildren({ node });
+    for (const name of found.names) if (names.size < MAX_SCHEMA_NAMES) names.add(name);
+    for (const child of found.children) walk(child, depth + 1);
   };
   walk(schema, 0);
   return [...names];
 }
 
+/** The string values of `fields` in `record` that have the shape `shape`. */
+function shapedStrings({ record, fields, shape }: { record: Record<string, unknown>; fields: readonly string[]; shape: RegExp }): string[] {
+  return fields.flatMap(field => { const value = record[field]; return typeof value === 'string' && shape.test(value) ? [value] : []; });
+}
+
 /** Identifiers from the envelope's fixed fields, each kept only when it has the shape that field has. */
 function envelopeTokens({ details }: { details: unknown }): string[] {
   if (!isRecord(details)) return [];
-  const tokens: string[] = [];
-  for (const field of ['toolId', 'pendingToolId'] as const) {
-    const value = details[field];
-    if (typeof value === 'string' && TOOL_ID_RE.test(value)) tokens.push(value);
-  }
-  for (const field of ['executionId', 'jobId', 'requestId', 'errorId'] as const) {
-    const value = details[field];
-    if (typeof value === 'string' && CORRELATION_ID_RE.test(value)) tokens.push(value);
-  }
-  const { inputNames } = details;
-  if (Array.isArray(inputNames)) {
-    for (const name of inputNames.slice(0, MAX_INPUT_NAMES)) if (typeof name === 'string' && PROPERTY_NAME_RE.test(name)) tokens.push(name);
-  }
-  return tokens;
+  const inputNames = Array.isArray(details.inputNames) ? details.inputNames.slice(0, MAX_INPUT_NAMES) as unknown[] : [];
+  return [
+    ...shapedStrings({ record: details, fields: ['toolId', 'pendingToolId'], shape: TOOL_ID_RE }),
+    ...shapedStrings({ record: details, fields: ['executionId', 'jobId', 'requestId', 'errorId'], shape: CORRELATION_ID_RE }),
+    ...inputNames.filter((name): name is string => typeof name === 'string' && PROPERTY_NAME_RE.test(name)),
+  ];
 }
 
 /** Slug-shaped string arguments of this call that are not secret-marked and that no secret rule would mask. */

@@ -319,7 +319,7 @@ describe('handleToolCall', () => {
     await handleToolCall({ name: 't', tools, ctx }, { rawArgs: { runId: 'r1' } });
     expect(seenArgs).toEqual({ runId: 'r1' });
     // handleToolCall adds the index's own tool names as trusted diagnostic IDs.
-    expect(seenCtx).toEqual({ ...ctx, diagnosticToolIds: ['t'] });
+    expect(seenCtx).toEqual({ ...ctx, diagnosticToolIds: ['t'], diagnosticVocabulary: ['runId'] });
   });
 
   it('rejects arguments missing a required field before the handler ever runs, as an isError result', async () => {

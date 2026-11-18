@@ -96,7 +96,7 @@ describe('searchToolsTool.inputSchema limit bounds', () => {
     const result = await call(limit);
     expect(result.isError).toBeUndefined();
     expect(getDaemonJson).toHaveBeenCalledWith(
-      { baseUrl: 'http://d.example', route: `/api/tools/search?q=q&limit=${bound}` }, { fetchImpl: ctx.fetchImpl, diagnosticToolIds: ['search_tools'] },
+      { baseUrl: 'http://d.example', route: `/api/tools/search?q=q&limit=${bound}` }, { fetchImpl: ctx.fetchImpl, diagnosticToolIds: ['search_tools'], trustedTokens: ['query', 'limit', 'max_results'] },
     );
   });
 
@@ -111,7 +111,7 @@ describe('searchToolsTool.inputSchema limit bounds', () => {
     const result = await call(limit);
     expect(result.isError).toBeUndefined();
     expect(getDaemonJson).toHaveBeenCalledWith(
-      { baseUrl: 'http://d.example', route: `/api/tools/search?q=q&limit=${limit}` }, { fetchImpl: ctx.fetchImpl, diagnosticToolIds: ['search_tools'] },
+      { baseUrl: 'http://d.example', route: `/api/tools/search?q=q&limit=${limit}` }, { fetchImpl: ctx.fetchImpl, diagnosticToolIds: ['search_tools'], trustedTokens: ['query', 'limit', 'max_results'] },
     );
   });
 });
