@@ -6,7 +6,7 @@ import { widgetsModule } from '../widgets.module.js';
 import { WidgetsPortsContext, WidgetsOptionsContext, WidgetsControllerContext } from './hooks/WidgetsPorts.hooks.js';
 import type { WidgetsReactOptions } from './hooks/WidgetsPorts.hooks.js';
 export type { WidgetsReactOptions, WidgetsSlots } from './hooks/WidgetsPorts.hooks.js';
-export { useWidgetsPorts, useWidgetsOptions } from './hooks/WidgetsPorts.hooks.js';
+export { useWidgetsPorts, useWidgetsOptions, WidgetsControllerContext } from './hooks/WidgetsPorts.hooks.js';
 export type { WidgetsLibraryProps } from './pages/WidgetsLibrary.js';
 export type { WidgetInstanceEditorProps } from './pages/WidgetInstanceEditor.js';
 export type { WidgetRegionsProps } from './pages/WidgetRegions.js';

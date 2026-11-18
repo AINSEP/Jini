@@ -3,7 +3,7 @@ import type { AdminInstance, AdminModuleUi } from '@jini-ai/core/contracts/admin
 import { agentPluginsModule } from '../agent-plugins.module.js';
 import { AgentPluginsPortsContext, AgentPluginsControllerContext } from './hooks/AgentPluginsPorts.hooks.js';
 import { agentPluginsMessagesEn as m } from '../messages.en.js';
-export { useAgentPluginsPorts } from './hooks/AgentPluginsPorts.hooks.js';
+export { useAgentPluginsPorts, AgentPluginsControllerContext } from './hooks/AgentPluginsPorts.hooks.js';
 /** The host injects the renderer helpers; this module states the contract and imports no implementation. */
 type ModuleUi<Page, Tab> = AdminModuleUi<Page, Tab, ComponentType<{ admin: AdminInstance; children: ReactNode }>>;
 /** Host-owned bundled policy copy. All page/tab loaders remain lazy. */

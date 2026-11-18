@@ -8,7 +8,7 @@ import type { FormsReactOptions } from './hooks/FormsPorts.hooks.js';
 // A native dynamic import would queue before that read and leave the loading notice forever.
 import { FormsList } from './pages/FormsList.js';
 export type { FormsReactOptions, FormsPorts } from './hooks/FormsPorts.hooks.js';
-export { FormsPortsContext, FormsOptionsContext, useFormsPorts } from './hooks/FormsPorts.hooks.js';
+export { FormsPortsContext, FormsOptionsContext, useFormsPorts, FormsControllerContext } from './hooks/FormsPorts.hooks.js';
 export { useFormsList } from './hooks/use-forms-list.hooks.js';
 export { useFormEditor } from './hooks/use-form-editor.hooks.js';
 export type { FormsListProps } from './pages/FormsList.js';

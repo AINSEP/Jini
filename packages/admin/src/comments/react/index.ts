@@ -11,7 +11,7 @@ export { useComments, useWiredComments } from './hooks/use-comments.hooks.js';
 export type { CommentQueueScope } from './hooks/use-comment-queue.hooks.js';
 export { CommentQueueScopeProvider, useCommentQueue, useWiredCommentQueue } from './hooks/use-comment-queue.hooks.js';
 export { useCommentSettings, useWiredCommentSettings } from './hooks/use-comment-settings.hooks.js';
-export { useCommentsPorts } from './hooks/CommentsPorts.hooks.js';
+export { useCommentsPorts, CommentsControllerContext } from './hooks/CommentsPorts.hooks.js';
 
 /** The host injects the renderer helpers; this module states the contract and imports no implementation. */
 type ModuleUi<Page, Tab> = AdminModuleUi<Page, Tab, ComponentType<{ admin: AdminInstance; children: ReactNode }>>;

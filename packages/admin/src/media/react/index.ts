@@ -12,7 +12,7 @@ import type { MediaApiPort } from '../ports.js';
 import type { MediaPickerPort } from '../../contracts/media-picker.js';
 import { MediaPortsContext, MediaControllerContext } from './hooks/MediaPorts.hooks.js';
 export type { MediaPageProps } from './hooks/MediaPage.hooks.js';
-export { useMediaPorts } from './hooks/MediaPorts.hooks.js';
+export { useMediaPorts, MediaControllerContext } from './hooks/MediaPorts.hooks.js';
 /** The host injects the renderer helpers; this module states the contract and imports no implementation. */
 type ModuleUi<Page, Tab> = AdminModuleUi<Page, Tab, ComponentType<{ admin: AdminInstance; children: ReactNode }>>;
 /** The host's overlay renders the picker outside this module's Provider, so the picker carries the

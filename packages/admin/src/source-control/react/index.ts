@@ -2,7 +2,7 @@ import { createElement, type ComponentType, type ReactNode } from 'react';
 import type { AdminInstance, AdminModuleUi } from '@jini-ai/core/contracts/admin-module';
 import { sourceControlModule } from '../source-control.module.js';
 import { SourceControlPortsContext, SourceControlControllerContext } from './hooks/SourceControlPorts.hooks.js';
-export { useSourceControlPorts } from './hooks/SourceControlPorts.hooks.js';
+export { useSourceControlPorts, SourceControlControllerContext } from './hooks/SourceControlPorts.hooks.js';
 /** The host injects the renderer helpers; this module states the contract and imports no implementation. */
 type ModuleUi<Page, Tab> = AdminModuleUi<Page, Tab, ComponentType<{ admin: AdminInstance; children: ReactNode }>>;
 export function sourceControl<Page, Tab>({ ui }: { ui: ModuleUi<Page, Tab> }, _optional = {}) {

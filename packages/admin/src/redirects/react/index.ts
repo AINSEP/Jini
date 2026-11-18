@@ -5,7 +5,7 @@ import { RedirectsPortsContext, RedirectsControllerContext } from './hooks/Redir
 import { RedirectsOptionsContext } from './hooks/RedirectsOptions.hooks.js';
 import type { RedirectsReactOptions } from './hooks/RedirectsOptions.hooks.js';
 export type { RedirectsReactOptions, RedirectsRenderMessageInput } from './hooks/RedirectsOptions.hooks.js';
-export { useRedirectsPorts } from './hooks/RedirectsPorts.hooks.js';
+export { useRedirectsPorts, RedirectsControllerContext } from './hooks/RedirectsPorts.hooks.js';
 export { useRedirects } from './hooks/use-redirects.hooks.js';
 export { useHitCountCell } from './hooks/use-hit-count-cell.hooks.js';
 export { useImportRedirectsForm } from './hooks/use-import-redirects-form.hooks.js';

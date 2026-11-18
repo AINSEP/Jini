@@ -4,7 +4,7 @@ import { seoModule } from '../seo.module.js';
 import { SeoPortsContext, SeoOptionsContext, SeoControllerContext } from './hooks/SeoPorts.hooks.js';
 import type { SeoReactOptions } from './options.js';
 export type { SeoReactOptions, SeoMediaPickerSlotProps } from './options.js';
-export { useSeoPorts } from './hooks/SeoPorts.hooks.js';
+export { useSeoPorts, SeoControllerContext } from './hooks/SeoPorts.hooks.js';
 export { resolveSeoTabs, sitemapStateLabel } from './hooks/SeoPage.hooks.js';
 export type { SeoProps } from './pages/SeoPage.js';
 /** The host injects the renderer helpers; this module states the contract and imports no implementation. */
