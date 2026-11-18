@@ -7,8 +7,6 @@ import { MIMO_CONFIG_ENV } from './mimo/constants.js';
 import { buildClaudeMcpDelivery, writeMcpJsonForRun } from './claude/mcp-delivery.js';
 import { buildCodexMcpDelivery } from './codex/mcp-delivery.js';
 import type { McpDeliveryBuildInput } from './mcp-delivery-types.js';
-export { prepareClaudeConfigDirIfNeeded, resolveSourceClaudeConfigDir } from './claude/config-dir.js';
-export { mergeEnvContentMcpConfig, mergeEnvContentInstructions } from './opencode/mcp-config.js';
 import type {
    AcpMcpServerInput,
 } from '@jini-ai/agent-runtime';

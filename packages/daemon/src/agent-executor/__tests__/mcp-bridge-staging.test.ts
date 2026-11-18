@@ -9,10 +9,10 @@ import { createInMemoryEventLog } from '../../event-log.js';
 import { createRunLifecycle } from '../../run-lifecycle.js';
 import { runAcpDispatch } from '../events.js';
 import {
-  prepareClaudeConfigDirIfNeeded,
   unavailableJiniBridgeStatus,
   writeMcpJsonIfNeeded,
 } from '../mcp-bridge.js';
+import { prepareClaudeConfigDirIfNeeded } from '../claude/config-dir.js';
 import { defaultRemoveMcpJsonFile } from '../mcp-json-file.js';
 import { prepareCodexHomeIfNeeded } from '../codex/home-staging.js';
 
