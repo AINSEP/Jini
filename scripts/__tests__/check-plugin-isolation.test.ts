@@ -192,6 +192,16 @@ describe('plugin package installation isolation', () => {
         expect(pack([`package/${path}`])).toThrow(`@jini-ai/provider-plugins: another plugin's payload in ${path}`);
       });
 
+    it.each(['otel-port.js', 'otel-port.d.ts', 'contract.js', 'contract.d.ts'])(
+      'accepts the OpenTelemetry port library entry: dist/observability-opentelemetry/%s', file => {
+        expect(pack([`package/dist/observability-opentelemetry/${file}`])).not.toThrow();
+      });
+
+    it.each(['dist/observability-opentelemetry/otel-port.js.map', 'dist/observability-opentelemetry/nested/x.js', 'dist/other/otel-port.js'])(
+      'refuses anything else under dist/: %s', path => {
+        expect(pack([`package/${path}`])).toThrow(`@jini-ai/provider-plugins: unexpected packed file ${path}`);
+      });
+
     it('accepts a provider formerly shipped as a standalone wrapper', () => {
       expect(pack(['package/plugins/analytics-posthog/0.6.19/server/index.mjs'])).not.toThrow();
     });

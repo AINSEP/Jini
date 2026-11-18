@@ -198,13 +198,17 @@ function isRetainedLicenseRecord(required: { rest: readonly string[] }): boolean
     && /^(?:(?:licen[sc]e|copying|notice)(?:$|[.-][^/]*)|SOURCE|package-license\.json)$/i.test(rest[3] ?? '');
 }
 
+/** The typed library entry of the OpenTelemetry adapter port (`./observability-opentelemetry/port`):
+ * compiled `.js` and `.d.ts` files directly under `dist/observability-opentelemetry/`, nothing deeper. */
+const OTEL_PORT_LIBRARY_PATH = /^dist\/observability-opentelemetry\/[a-z0-9-]+(?:\.d\.ts|\.js)$/;
+
 /** One packed path of the provider distribution: `catalog.json`, or a `plugins/<id>/` payload of a
  * reviewed provider source that has no package of its own and names no other plugin inside it. */
 function assertProviderDistributionPath(required: {
   path: string; pluginIds: ReadonlySet<string>; providerSourceExists: (input: { id: string }) => boolean;
 }): void {
   const { path, pluginIds } = required;
-  if (documentation.has(path) || path === 'catalog.json') return;
+  if (documentation.has(path) || path === 'catalog.json' || OTEL_PORT_LIBRARY_PATH.test(path)) return;
   const [root, id = '', ...rest] = path.split('/');
   if (root !== 'plugins' || !required.providerSourceExists({ id })) throw new TypeError(`${PROVIDER_PLUGINS_PACKAGE}: unexpected packed file ${path}`);
   // `<version>/licenses/<npm-package>/<record>`: the folder is named after a bundled npm package
