@@ -123,6 +123,18 @@ The universal `./taxonomy` entry carries the read-port types (`TaxonomyPublishRe
 (`SqlMenuRepo`, `SqlNavLocationBindingRepo`): the host passes its storage kernel and the names of its menus and
 location-binding tables; the adapter has no table or product defaults.
 
+`./presentation/sql` (node) is the Kysely adapter for `PresentationSettingsRepoPort` (`SqlPresentationSettingsRepo`): the host
+passes its storage kernel and the name of its presentation-settings table; the adapter has no table or product defaults.
+
+`./content-types/sql` (node) is the Kysely adapter for `ContentTypeRepoPort` and `ContentTypeListPort`
+(`SqlContentTypeRepo`): the host passes its storage kernel, the names of its content-type and revision tables, and the
+declared envelope owners of the code-registered types as data; the adapter has no table or owner defaults.
+
+`./entries/sql` (node) is the Kysely adapter for `EntryRepoPort`, `EntryListPort`, `EntryDisplayListPort`,
+`EntryListExcludingTypesPort` and `EntryPublishReadPort` (`SqlEntryRepo`): the host passes its storage kernel, the names of
+its entry and revision tables, the two JSON dialect helpers (`EntryJsonDialectPort`, from the same kernel) and an
+`onWriteSettled` hook the repository calls after every save and transaction, success or failure.
+
 **Still to move:** `post`, `seo`, `comments`, `redirects`, `newsletter`,
 `members`. Widgets are exposed through the universal and node entries above.
 The nested forms package is maintained by its separate owner and is excluded from this parent package.

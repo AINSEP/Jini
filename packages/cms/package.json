@@ -54,6 +54,9 @@
       "./workspace/sql": "node",
       "./taxonomy/sql": "node",
       "./navigation/sql": "node",
+      "./presentation/sql": "node",
+      "./content-types/sql": "node",
+      "./entries/sql": "node",
       "./redirects/express": "node",
       "./redirects/spa": "universal",
       "./redirects/host-config": "universal",
@@ -359,6 +362,21 @@
       "types": "./dist/navigation/sql/index.d.ts",
       "import": "./dist/navigation/sql/index.js",
       "default": "./dist/navigation/sql/index.js"
+    },
+    "./presentation/sql": {
+      "types": "./dist/presentation/sql/index.d.ts",
+      "import": "./dist/presentation/sql/index.js",
+      "default": "./dist/presentation/sql/index.js"
+    },
+    "./content-types/sql": {
+      "types": "./dist/content-types/sql/index.d.ts",
+      "import": "./dist/content-types/sql/index.js",
+      "default": "./dist/content-types/sql/index.js"
+    },
+    "./entries/sql": {
+      "types": "./dist/entries/sql/index.d.ts",
+      "import": "./dist/entries/sql/index.js",
+      "default": "./dist/entries/sql/index.js"
     },
     "./redirects/express": {
       "types": "./dist/redirects/express/index.d.ts",

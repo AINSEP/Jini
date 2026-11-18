@@ -11,6 +11,7 @@ export interface CollectionListQuery {
   readonly where: readonly { readonly field: string; readonly value: string | number | boolean }[];
   readonly sort: { readonly by: "published" | "updated" | "title" | { readonly field: string }; readonly dir: "asc" | "desc" };
   readonly limit: number;
+  readonly offset?: number;
 }
 export interface EntryDisplayListPort {
   listPublishedForDisplay(required: { readonly workspaceId: string; readonly query: CollectionListQuery }): Promise<EntryRecord[]>;
