@@ -76,7 +76,7 @@ test("POSIX termination signals the group and reuses platform descendant escalat
   mocks.collect.mockReturnValue([43, 42]); mocks.stop.mockResolvedValue({ remainingPids: [] }); mocks.remove.mockResolvedValue(undefined);
   await createNodeDaemonProcessAdapter({ command: "node", args: [], cwd: "/host", env: {}, registry }, { platform: "linux" }).terminateProcess({ child });
   expect(kill).toHaveBeenCalledWith(-42, "SIGTERM");
-  expect(mocks.collect).toHaveBeenCalledWith([{ pid: 43, ppid: 42, command: "worker" }], [42]);
+  expect(mocks.collect).toHaveBeenCalledWith({ processes: [{ pid: 43, ppid: 42, command: "worker" }], rootPids: [42] });
   expect(mocks.stop).toHaveBeenCalledWith([43, 42]); expect(mocks.remove).toHaveBeenCalledWith({ registryPath: "/host/daemon.json", pid: 42 });
 });
 
