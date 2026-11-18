@@ -9,6 +9,7 @@
  * an external MCP OAuth endpoint; public-URL SSRF validation is therefore outside this contract.
  */
 import { sanitizeUntrustedText } from '@jini-ai/core/text';
+import { describeDaemonFailure, isRecognizedEnvelope, type DaemonFailureText } from './daemon-error-text.js';
 
 /** Request deadline. Generous enough for a slow tool call, short enough that a stalled daemon doesn't hang a stdio server turn forever. */
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -21,10 +22,33 @@ const DEFAULT_MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
  */
 export class DaemonHttpError extends Error {
   readonly status: number;
-  constructor({ message, status }: { message: string; status: number }) {
+  /** From the envelope; absent when the answer carried none. */
+  readonly code?: string;
+  readonly requestId?: string;
+  readonly details?: Record<string, unknown>;
+  constructor({ message, status, code, requestId, details }: { message: string; status: number; code?: string | undefined; requestId?: string | undefined; details?: Record<string, unknown> | undefined }) {
     super(message);
     this.status = status;
+    if (code !== undefined) this.code = code;
+    if (requestId !== undefined) this.requestId = requestId;
+    if (details !== undefined) this.details = details;
     this.name = 'DaemonHttpError';
+  }
+}
+
+/** What the reporter records for an unreadable answer: its shape only (status, route without query, content type, size), never body text. */
+export class DaemonTransportFailure extends Error {
+  readonly status: number;
+  readonly route: string;
+  readonly contentType: string | null;
+  readonly bodyBytes: number;
+  constructor({ status, route, contentType, bodyBytes }: { status: number; route: string; contentType: string | null; bodyBytes: number }) {
+    super(`the daemon answered HTTP ${status} on ${route} with an unreadable ${contentType ?? 'untyped'} body of ${bodyBytes} bytes`);
+    this.status = status;
+    this.route = route;
+    this.contentType = contentType;
+    this.bodyBytes = bodyBytes;
+    this.name = 'DaemonTransportFailure';
   }
 }
 
@@ -50,10 +74,14 @@ export interface DaemonRequestOptions {
   maxResponseBytes?: number;
   /** Caller-supplied cancellation signal; combined with the internal timeout signal, so either one aborts the request. */
   signal?: AbortSignal;
+  /** Records an unreadable answer (never an envelope) once and returns the error ID shown to the model; structurally `ErrorReporter['record']`. */
+  reportFailure?: (required: { error: unknown; step: string }) => { errorId: string };
 }
 
-interface DaemonErrorEnvelope {
-  error?: { code?: unknown; message?: unknown };
+/** A read body: the parsed JSON (`{}` when it was not JSON) and its size in bytes. */
+interface DaemonBody {
+  readonly data: unknown;
+  readonly bytes: number;
 }
 
 function parseJsonLoose(text: string): unknown {
@@ -73,7 +101,7 @@ function assertDeclaredLengthWithinLimit(resp: Response, maxBytes: number): void
 }
 
 /** Decodes a body stream chunk by chunk, rejecting as soon as the running byte total passes `maxBytes`. Always releases the reader lock. */
-async function readStreamWithLimit(reader: ReadableStreamDefaultReader<Uint8Array>, maxBytes: number): Promise<string> {
+async function readStreamWithLimit(reader: ReadableStreamDefaultReader<Uint8Array>, maxBytes: number): Promise<{ text: string; bytes: number }> {
   const decoder = new TextDecoder();
   let text = '';
   let total = 0;
@@ -85,17 +113,18 @@ async function readStreamWithLimit(reader: ReadableStreamDefaultReader<Uint8Arra
       if (total > maxBytes) throw new DaemonResponseTooLargeError({ limitBytes: maxBytes });
       text += decoder.decode(chunk, { stream: true });
     }
-    return text + decoder.decode();
+    return { text: text + decoder.decode(), bytes: total };
   } finally {
     reader.releaseLock();
   }
 }
 
 /** `resp.text()` fallback for response-like doubles with no reader, byte-checked (UTF-8) before it is parsed. */
-async function readTextWithLimit(resp: Response, maxBytes: number): Promise<string> {
+async function readTextWithLimit(resp: Response, maxBytes: number): Promise<{ text: string; bytes: number }> {
   const text = await resp.text();
-  if (Buffer.byteLength(text, 'utf8') > maxBytes) throw new DaemonResponseTooLargeError({ limitBytes: maxBytes });
-  return text;
+  const bytes = Buffer.byteLength(text, 'utf8');
+  if (bytes > maxBytes) throw new DaemonResponseTooLargeError({ limitBytes: maxBytes });
+  return { text, bytes };
 }
 
 /**
@@ -106,13 +135,13 @@ async function readTextWithLimit(resp: Response, maxBytes: number): Promise<stri
  * that isn't valid JSON resolves to `{}` rather than throwing — a malformed daemon response should
  * surface as a normal non-2xx/shape mismatch to the caller, not an opaque parse exception.
  */
-async function readJsonWithLimit(resp: Response, maxBytes: number): Promise<unknown> {
+async function readJsonWithLimit(resp: Response, maxBytes: number): Promise<DaemonBody> {
   assertDeclaredLengthWithinLimit(resp, maxBytes);
   const body = resp.body;
-  const text = body != null && typeof body.getReader === 'function'
+  const { text, bytes } = body != null && typeof body.getReader === 'function'
     ? await readStreamWithLimit(body.getReader(), maxBytes)
     : await readTextWithLimit(resp, maxBytes);
-  return parseJsonLoose(text);
+  return { data: parseJsonLoose(text), bytes };
 }
 
 /** Formats a `fetch()` rejection (network-unreachable) into a message safe to surface as an MCP tool error. */
@@ -164,13 +193,22 @@ export function safeDiagnostic({ text }: { text: string }, options: DaemonReques
   });
 }
 
-/** Formats a non-2xx daemon response into a message safe to surface as an MCP tool error. */
-function formatDaemonHttpError({ status, data }: { status: number; data: unknown }, options: DaemonRequestOptions): string {
-  const envelope = data as DaemonErrorEnvelope;
-  const code = typeof envelope?.error?.code === 'string' ? envelope.error.code : undefined;
-  const rawMessage = typeof envelope?.error?.message === 'string' ? envelope.error.message : undefined;
-  const detail = [code, rawMessage].filter(value => value !== undefined).join(': ');
-  return safeDiagnostic({ text: detail ? `HTTP ${status}: ${detail}` : `HTTP ${status}` }, options);
+/** The error of a non-2xx answer: a recognized envelope through the sanitizer; anything else reported once and shown as fixed words plus the returned ID. */
+function buildDaemonHttpError(
+  { resp, route, body }: { resp: Response; route: string; body: DaemonBody },
+  options: DaemonRequestOptions,
+): DaemonHttpError {
+  const { status } = resp;
+  const readable = isRecognizedEnvelope({ data: body.data });
+  if (readable) {
+    const failure = describeDaemonFailure({ status, data: body.data, readable });
+    return new DaemonHttpError({ ...failure, message: safeDiagnostic({ text: failure.message }, options), status });
+  }
+  const error = new DaemonTransportFailure({ status, route: route.split('?', 1)[0] ?? route,
+    contentType: resp.headers?.get?.('content-type') ?? null, bodyBytes: body.bytes });
+  const errorId = options.reportFailure?.({ error, step: 'mcp daemon call' }).errorId;
+  const failure: DaemonFailureText = describeDaemonFailure({ status, data: body.data, readable }, { ...(errorId === undefined ? {} : { errorId }) });
+  return new DaemonHttpError({ message: failure.message, status });
 }
 
 interface DaemonRequestInit {
@@ -204,7 +242,7 @@ function buildFetchInit(init: DaemonRequestInit, { headers, signal }: { headers:
 }
 
 /** Reads the body under the byte cap, converting a cap overrun into a redacted `Error`; any other read failure propagates unchanged. */
-async function readBodyOrExplain({ resp, url, maxResponseBytes }: { resp: Response; url: string; maxResponseBytes: number }, options: DaemonRequestOptions): Promise<unknown> {
+async function readBodyOrExplain({ resp, url, maxResponseBytes }: { resp: Response; url: string; maxResponseBytes: number }, options: DaemonRequestOptions): Promise<DaemonBody> {
   try {
     return await readJsonWithLimit(resp, maxResponseBytes);
   } catch (err) {
@@ -239,11 +277,9 @@ async function requestDaemonJson(
       throw new Error(formatConnectionFailure(err, baseUrl, options));
     }
 
-    const data = await readBodyOrExplain({ resp, url, maxResponseBytes: options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES }, options);
-    if (!resp.ok) {
-      throw new DaemonHttpError({ message: formatDaemonHttpError({ status: resp.status, data }, options), status: resp.status });
-    }
-    return data;
+    const body = await readBodyOrExplain({ resp, url, maxResponseBytes: options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES }, options);
+    if (!resp.ok) throw buildDaemonHttpError({ resp, route, body }, options);
+    return body.data;
   } finally {
     deadline.clear();
   }

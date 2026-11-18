@@ -21,21 +21,11 @@ async function messageOf({ status, body, contentType }: { status: number; body: 
   throw new Error('expected the call to throw');
 }
 
-/** Pins what the client prints today for answers that are not a nested envelope. Rows 1 to 4 are the bare statuses S8 removes. */
-describe('daemon client: bare status (characterization)', () => {
-  it('an HTML 500 prints only the status', async () => {
-    const body = "<html><body>PRIVATE-CANARY draft of the owner's page</body></html>";
-    expect(await messageOf({ status: 500, body, contentType: 'text/html' })).toBe('HTTP 500');
-  });
-  it('a flat 404 envelope prints only the status', async () => {
-    expect(await messageOf({ status: 404, body: '{"error":"a live run is required"}', contentType: 'application/json' })).toBe('HTTP 404');
-  });
-  it('a flat 503 envelope prints only the status', async () => {
-    expect(await messageOf({ status: 503, body: '{"error":"site scope is closed"}', contentType: 'application/json' })).toBe('HTTP 503');
-  });
-  it('an empty 500 prints only the status', async () => {
-    expect(await messageOf({ status: 500, body: '', contentType: 'text/plain' })).toBe('HTTP 500');
-  });
+/**
+ * The nested-envelope form that stays byte-identical for old readers. The four bare-status rows this file
+ * pinned before S8 are replaced by `daemon-client.unreadable-answer.test.ts`.
+ */
+describe('daemon client: nested envelope (characterization)', () => {
   it('a nested envelope prints status, code and message', async () => {
     const body = '{"error":{"code":"TOOL_OPERATION_DENIED","message":"x"}}';
     expect(await messageOf({ status: 403, body, contentType: 'application/json' })).toBe('HTTP 403: TOOL_OPERATION_DENIED: x');

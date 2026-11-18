@@ -42,6 +42,8 @@ export interface RunToolHostOptions {
   readonly delegatedResultMarkers?: boolean;
   readonly generateToolUseId?: (required: Record<string, never>) => string;
   readonly fetchImpl?: typeof fetch;
+  /** Records a daemon answer that was not a readable envelope and returns the error ID shown to the model. */
+  readonly reportFailure?: McpToolServerOptions['reportFailure'];
 }
 export interface RunToolHost {
   readonly required: McpToolServerRequiredArgs;
@@ -70,7 +72,7 @@ export async function assembleRunToolHost(input: RunToolHostInput, options: RunT
     resources: [...KERNEL_RESOURCES, createSiteGuideResource({ runId }, delegatedGatewayOptions)],
     instructions: INSTRUCTIONS, resultPaging: true,
     ...definedOnly({ authHeaders: options.credential ? { Authorization: `Bearer ${options.credential}` } : undefined,
-      fetchImpl: options.fetchImpl, diagnosticToolIds: options.diagnosticToolIds }),
+      fetchImpl: options.fetchImpl, diagnosticToolIds: options.diagnosticToolIds, reportFailure: options.reportFailure }),
     ...(messageRelay ? { messageRelay, instructions: `${INSTRUCTIONS} ${messageRelayInstructions(messageRelay)}` } : {}),
   };
   const initialTools = await resolveStartupTools({ toolIds: options.startupToolIds ?? [], resolveBaseUrl, serverOptions });
@@ -123,7 +125,7 @@ async function resolveStartupTools({ toolIds, resolveBaseUrl, serverOptions }: {
   const ctx = {
     baseUrl: await resolveBaseUrl(),
     fetchImpl: serverOptions.fetchImpl ?? fetch,
-    ...definedOnly({ authHeaders: serverOptions.authHeaders, diagnosticToolIds: serverOptions.diagnosticToolIds }),
+    ...definedOnly({ authHeaders: serverOptions.authHeaders, diagnosticToolIds: serverOptions.diagnosticToolIds, reportFailure: serverOptions.reportFailure }),
     // Collection only: the exposure built later from `descriptors` decides what is published, and the
     // describe result this answers is discarded, so nothing here is promised to a caller.
     publishTool: async ({ descriptor }: { descriptor: ToolDescriptor }): Promise<ToolPublication> => { descriptors.push(descriptor); return { skipped: 'not-found' }; },

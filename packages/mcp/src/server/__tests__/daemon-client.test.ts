@@ -154,7 +154,7 @@ describe('getDaemonJson / postDaemonJson', () => {
     const fetchImpl = vi.fn(async () => streamResponse(404, [new TextEncoder().encode('{}')]));
     await expect(getDaemonJson({ baseUrl: 'http://d.example', route: '/api/active' }, { fetchImpl })).rejects.toMatchObject({
       status: 404,
-      message: 'HTTP 404',
+      message: 'The tool service refused this call (HTTP 404) and its answer was not readable. Check the arguments; if they are right, tell the user the tool service refused the call.',
     });
   });
 
@@ -445,12 +445,12 @@ describe('daemon-client pinned branches (characterization)', () => {
 
   it('ignores non-string code and message fields in a non-2xx envelope', async () => {
     const fetchImpl = vi.fn(async () => realStreamResponse([encode('{"error":{"code":7,"message":["x"]}}')], { status: 400 }));
-    await expect(getDaemonJson(BASE, { fetchImpl })).rejects.toThrow(/^HTTP 400$/);
+    await expect(getDaemonJson(BASE, { fetchImpl })).rejects.toThrow('The tool service refused this call (HTTP 400) and its answer was not readable. Check the arguments; if they are right, tell the user the tool service refused the call.');
   });
 
-  it('formats a non-2xx JSON null body as a bare status', async () => {
+  it('says a non-2xx JSON null body was not readable', async () => {
     const fetchImpl = vi.fn(async () => realStreamResponse([encode('null')], { status: 502 }));
-    await expect(getDaemonJson(BASE, { fetchImpl })).rejects.toMatchObject({ name: 'DaemonHttpError', status: 502, message: 'HTTP 502' });
+    await expect(getDaemonJson(BASE, { fetchImpl })).rejects.toMatchObject({ name: 'DaemonHttpError', status: 502, message: 'The tool service failed (HTTP 502) and its answer was not readable. Do not retry the same call; tell the user the tool service failed.' });
   });
 
   it('sends GET without a content-type and without a body', async () => {
@@ -471,7 +471,7 @@ describe('daemon-client pinned branches (characterization)', () => {
     const secret = 'Bearer ' + 'tok'.repeat(4);
     const fetchImpl = vi.fn(async () => realStreamResponse([encode('{}')], { status: 401 }));
     const error = await getDaemonJson(BASE, { fetchImpl, headers: { authorization: secret } }).catch((e: Error) => e);
-    expect((error as Error).message).toBe('HTTP 401');
+    expect((error as Error).message).toBe('The tool service refused this call (HTTP 401) and its answer was not readable. Check the arguments; if they are right, tell the user the tool service refused the call.');
   });
 
   it('rejects with the timeout reason naming the route and deadline', async () => {

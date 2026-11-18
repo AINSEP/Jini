@@ -36,14 +36,15 @@
  * `resolveDaemonUrl` throws, and this file's own top-level error boundary turns that into a clean
  * stderr message + non-zero exit rather than an unhandled rejection.
  */
-import { existsSync, realpathSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import type { Readable, Writable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { isLoopbackHostname } from '@jini-ai/core/net';
-import { createMcpToolServer as createMcpToolServerDefault } from '../server/tool-server.js';
+import { createMcpToolServer as createMcpToolServerDefault, type McpToolServerOptions } from '../server/tool-server.js';
 import { assembleRunToolHost } from '../server/run-tool-host.js';
 import { createLoopbackFetch } from '../server/loopback-fetch.js';
 import type { McpMessageRelay } from '../server/message-relay.js';
+import { createStdioReportFailure } from './stdio-error-reporter.js';
 
 /** The one run this process is scoped to for its entire lifetime. Set by the spawning daemon, never by the MCP client. */
 export const RUN_ID_ENV_VAR = 'JINI_RUN_ID';
@@ -97,6 +98,8 @@ export interface ServeDeps {
   readonly stdin?: Readable;
   /** @default process.stdout */
   readonly stdout?: Writable;
+  /** Records a daemon answer that was not a readable envelope and returns its error ID. @default the stderr-backed reporter of this process */
+  readonly reportFailure?: McpToolServerOptions['reportFailure'];
 }
 
 /** This executable has no flags or discovery phase: its spawning host supplies the environment. */
@@ -175,6 +178,7 @@ export async function serve(_requiredArgs: Record<string, never>, deps: ServeDep
         messageRelayNonce: messageRelay?.nonce }),
       startupToolIds: parseLaunchToolIds({ env, key: STARTUP_TOOL_IDS_ENV_VAR }),
       ...(diagnosticToolIds.length ? { diagnosticToolIds } : {}),
+      reportFailure: deps.reportFailure ?? createStdioReportFailure({ version: readPackageVersion() }),
     });
     await createMcpToolServerFn(assembled.required, { ...assembled.options,
       ...definedOnly({ stdin: deps.stdin, stdout: deps.stdout }),
@@ -242,6 +246,12 @@ function parseLaunchToolIds({ env, key }: { env: NodeJS.ProcessEnv; key: string 
     throw new Error(`${key} must be a JSON array of registered tool IDs`);
   }
   return toolIds;
+}
+
+// The package manifest sits two levels above both `src/bin` and `dist/bin`.
+function readPackageVersion(): string {
+  const manifest = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string };
+  return manifest.version;
 }
 
 // Only run for real when this module is the actual process entrypoint (`node dist/bin/serve.js`,

@@ -95,6 +95,8 @@ export interface McpToolContext {
    * Without it, a human could answer that dialog after the model was told the call failed.
    */
   readonly signal?: AbortSignal;
+  /** Records a daemon answer that was not a readable envelope and returns the error ID the model is told. Forwarded by {@link daemonCallOptions}. */
+  readonly reportFailure?: DaemonRequestOptions['reportFailure'];
 }
 
 /**
@@ -117,6 +119,7 @@ export function daemonCallOptions({ ctx }: { ctx: McpToolContext }, _options = {
     ...(ctx.diagnosticToolIds !== undefined ? { diagnosticToolIds: ctx.diagnosticToolIds } : {}),
     ...(ctx.authHeaders !== undefined ? { headers: { ...ctx.authHeaders } } : {}),
     ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}),
+    ...(ctx.reportFailure !== undefined ? { reportFailure: ctx.reportFailure } : {}),
   };
 }
 

@@ -85,6 +85,8 @@ export interface McpToolServerOptions extends StdioHostingOptions {
   readonly delegatedTools?: McpDelegatedToolsOptions;
   /** Trusted daemon registration IDs carried into every error sanitizer. */
   readonly diagnosticToolIds?: readonly string[];
+  /** Records a daemon answer that was not a readable envelope and returns its error ID; copied into every tool context. */
+  readonly reportFailure?: McpToolContext['reportFailure'];
   /** The bounded, explicit read-only resource list this server hosts. Duplicate uris throw at construction time. Omit (or pass an empty array) for a tools-only server — `capabilities.resources` is only advertised when this is non-empty. */
   readonly resources?: readonly McpResourceDef[];
   /** Free-text guidance surfaced to the MCP client alongside the tool list. Optional — omit for a caller with nothing to add beyond each tool's own `description`. */
@@ -162,6 +164,7 @@ function buildToolContext({ resolvedBaseUrl }: { resolvedBaseUrl: string }, opti
     baseUrl: String(resolvedBaseUrl).replace(/\/$/, ''),
     fetchImpl: options.fetchImpl ?? fetch,
     ...(options.authHeaders !== undefined ? { authHeaders: options.authHeaders } : {}),
+    ...(options.reportFailure !== undefined ? { reportFailure: options.reportFailure } : {}),
   };
 }
 
