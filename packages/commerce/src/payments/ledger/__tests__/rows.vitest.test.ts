@@ -190,7 +190,7 @@ describe("encodeMinor: the one integer encoder every write uses", () => {
 });
 
 describe("entry points", () => {
-  test("payments/kernel carries the port, records and memory adapter; the SQL half (kysely, @jini-ai/db at runtime) is ledger/sql", async () => {
+  test("payments/kernel carries the port, records and memory adapter; the SQL half (kysely at runtime, the host's @jini-ai/db kernel injected) is ledger/sql", async () => {
     const kernel: Record<string, unknown> = await import("../../kernel.js");
     expect(typeof kernel.memoryPaymentsLedger).toBe("function");
     expect(typeof kernel.decodeMinor).toBe("function");

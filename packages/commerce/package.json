@@ -32,7 +32,6 @@
       ]
     },
     "optionalPeers": {
-      "@jini-ai/db": "opt-in: database-backed adapters; import @jini-ai/commerce/payments/ledger/sql — Database-backed adapters could not load @jini-ai/db. Install @jini-ai/db to enable this feature, or check its installed version and native binaries.",
       "kysely": "opt-in: sql storage adapters; import @jini-ai/commerce/payments/ledger/sql — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries.",
       "express": "opt-in: express commerce routes; import @jini-ai/commerce/http — Express commerce routes could not load express. Install express to enable this feature, or check its installed version.",
       "react": "opt-in: react commerce ui; import @jini-ai/commerce/react — React commerce UI could not load react. Install react to enable this feature, or check its installed version."
@@ -126,7 +125,6 @@
     "@jini-ai/core": "workspace:^"
   },
   "peerDependencies": {
-    "@jini-ai/db": "^0.7.0",
     "kysely": "^0.29.6",
     "express": "^4.21.0 || ^5.0.0",
     "react": "^18.3.0 || ^19.0.0"
@@ -152,9 +150,6 @@
     "@vitest/coverage-v8": "^2.1.9"
   },
   "peerDependenciesMeta": {
-    "@jini-ai/db": {
-      "optional": true
-    },
     "kysely": {
       "optional": true
     },

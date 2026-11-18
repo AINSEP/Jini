@@ -4,11 +4,12 @@ import { openMemorySqliteKernel } from '@jini-ai/db/kernel/sqlite';
 import { memoryPaymentsLedger } from '../repo.memory.js';
 import { migrateCommercePayments, sqlPaymentsLedger } from '../sql.js';
 import { payment } from './ledger-contract.js';
+import { runMigrations } from '@jini-ai/db/migrate';
 
 for (const adapter of ['memory', 'sqlite']) test(`${adapter}: attention quarantine reads are bounded and oldest first`, async () => {
   const kernel = adapter === 'sqlite' ? openMemorySqliteKernel<unknown>({ open: (file, options) => new Database(file, options) }) : null;
   try {
-    if (kernel) await migrateCommercePayments({ kernel });
+    if (kernel) await migrateCommercePayments({ kernel, runMigrations });
     const ledger = kernel ? sqlPaymentsLedger({ kernel }) : memoryPaymentsLedger();
     await ledger.transaction({ fn: async tx => {
       await tx.insertPayment({ payment: payment() });

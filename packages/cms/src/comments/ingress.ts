@@ -26,10 +26,10 @@
 import type { Clock as ClockPort, IdGenerator as IdGeneratorPort, UUID } from "@jini-ai/core/primitives";
 import { nowIso } from "@jini-ai/core/primitives";
 import type { OutboxPort } from "@jini-ai/core/contracts/events";
-import type { RateLimiter as HttpRateLimiter } from "@jini-ai/http-kit/rate-limit";
+import type { RateLimiter } from "@jini-ai/core/contracts/server";
 
 /** Only the request check belongs to ingress; limiter construction and diagnostics are host policy. */
-export type CommentRateLimiter = Pick<HttpRateLimiter, "check">;
+export type CommentRateLimiter = Pick<RateLimiter, "check">;
 import type { CommentHookRegistry } from "./hooks.js";
 import type {
   CommentIngressPolicy,

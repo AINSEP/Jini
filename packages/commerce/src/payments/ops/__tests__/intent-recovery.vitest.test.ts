@@ -12,6 +12,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import type { LedgerTx, PaymentsLedger } from "../../ledger/repo.js";
 import { createPaymentsOperator } from "../service.js";
 import { SCRIPTED, USD, timedOut, world, type WorldOptions } from "./harness.js";
+import { runMigrations } from "@jini-ai/db/migrate";
 
 const AGE = 60_000;
 const request = { scope: SCRIPTED, amount: USD(10_000), idempotencyKey: "recover-order", reference: "order-1" };
@@ -35,7 +36,7 @@ async function recoveryWorld(ledgerKind: RecoveryKind, options: Pick<WorldOption
     await kernel.close();
     try { await admin.execute(sql`DROP SCHEMA ${sql.id(schema)} CASCADE`); } finally { await admin.close(); }
   });
-  await migrateCommercePayments({ kernel });
+  await migrateCommercePayments({ kernel, runMigrations });
   const ledger = sqlPaymentsLedger({ kernel });
   return world({ wrapLedger: () => options.wrapLedger ? options.wrapLedger(ledger) : ledger });
 }
@@ -200,7 +201,7 @@ test("a closed and reopened SQLite database retains enough state for same-key re
   const open = () => openSqliteFileKernel<unknown>({ filePath: join(directory, "ledger.sqlite"), open: (file, options) => new Database(file, options) });
   let kernel = open();
   try {
-    await migrateCommercePayments({ kernel });
+    await migrateCommercePayments({ kernel, runMigrations });
     const ledger = sqlPaymentsLedger({ kernel });
     const initial = await world({ wrapLedger: () => ledger });
     Object.assign(initial.scripted.provider, { intentReplayWindowMs: 23 * 60 * AGE });
@@ -209,7 +210,7 @@ test("a closed and reopened SQLite database retains enough state for same-key re
     if (first.ok || !first.payment) throw new Error("expected unknown");
     const original = initial.scripted.calls[0]!.req;
     await kernel.close(); kernel = open();
-    expect((await migrateCommercePayments({ kernel })).applied).toEqual([]);
+    expect((await migrateCommercePayments({ kernel, runMigrations })).applied).toEqual([]);
     const restarted = await world({ wrapLedger: () => sqlPaymentsLedger({ kernel }) });
     Object.assign(restarted.scripted.provider, { intentReplayWindowMs: 23 * 60 * AGE });
     restarted.tick(AGE * 2);

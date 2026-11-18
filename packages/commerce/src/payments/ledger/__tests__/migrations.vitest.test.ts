@@ -120,7 +120,7 @@ describe("payments ledger migrations", () => {
       await kernel.execute(sql`INSERT INTO commerce_outbox
         (id, workspace_id, mode, topic, aggregate_id, payload_json, created_at, published_at)
         VALUES ('z-legacy', 'ws-1', 'live', 'payment.succeeded', 'pay-1', '{"minor":101}', 307, NULL)`);
-      expect(await migrateCommercePayments({ kernel })).toEqual({
+      expect(await migrateCommercePayments({ kernel, runMigrations })).toEqual({
         applied: [PAYMENTS_OPERATOR_ACTIONS_ID, PAYMENTS_ATTEMPT_RECOVERY_ID, PAYMENTS_INTENT_REPLAY_ID], alreadyApplied: [PAYMENTS_LEDGER_ID], notes: [],
       });
       await ledger.transaction({ fn: async (tx) => {
@@ -148,7 +148,7 @@ describe("payments ledger migrations", () => {
           { id: "legacy-attempt", currency: null, amountMinor: null }, { id: "new-attempt", currency: "JPY", amountMinor: 601 },
         ]);
       } });
-      expect(await migrateCommercePayments({ kernel })).toEqual({
+      expect(await migrateCommercePayments({ kernel, runMigrations })).toEqual({
         applied: [], alreadyApplied: [PAYMENTS_LEDGER_ID, PAYMENTS_OPERATOR_ACTIONS_ID, PAYMENTS_ATTEMPT_RECOVERY_ID, PAYMENTS_INTENT_REPLAY_ID], notes: [],
       });
       expect(await ledger.transaction({ fn: (tx) => tx.getPayment({ workspaceId: "ws-1", mode: "live", id: "pay-1" }) })).toEqual({ ...payment(), version: 1 });
@@ -161,7 +161,7 @@ describe("payments ledger migrations", () => {
     const { COMMERCE_PAYMENTS_LEDGER_TABLE, migrateCommercePayments } = await history();
     const kernel = openKernel();
     try {
-      await migrateCommercePayments({ kernel }, { clock: { nowMs: () => 1_700_000_000_123 }, atomicity: "batch" });
+      await migrateCommercePayments({ kernel, runMigrations }, { clock: { nowMs: () => 1_700_000_000_123 }, atomicity: "batch" });
       const rows = await kernel.query<{ id: string; applied_at: string }>(sql.raw(`SELECT id, applied_at FROM ${COMMERCE_PAYMENTS_LEDGER_TABLE} ORDER BY id`));
       expect(rows).toEqual([
         { id: PAYMENTS_LEDGER_ID, applied_at: "2023-11-14T22:13:20.123Z" },
@@ -179,7 +179,7 @@ describe("payments ledger migrations", () => {
     const kernel = openKernel();
     try {
       await kernel.run((db) => db.schema.createTable("commerce_operator_actions").addColumn("id", "text").execute());
-      await expect(migrateCommercePayments({ kernel }, { atomicity })).rejects.toThrow(/commerce_operator_actions.*already exists/);
+      await expect(migrateCommercePayments({ kernel, runMigrations }, { atomicity })).rejects.toThrow(/commerce_operator_actions.*already exists/);
       const tables = await listTables(kernel);
       expect(tables.includes(LEDGER_TABLES.payments)).toBe(atomicity === "step");
       expect(tables.includes(COMMERCE_PAYMENTS_LEDGER_TABLE)).toBe(atomicity === "step");
@@ -192,7 +192,7 @@ describe("payments ledger migrations", () => {
         expect(outboxColumns.map((row) => row.name)).toEqual(["id", "workspace_id", "mode", "topic", "aggregate_id", "payload_json", "created_at", "published_at"]);
       }
       await kernel.run((db) => db.schema.dropTable("commerce_operator_actions").execute());
-      expect(await migrateCommercePayments({ kernel }, { atomicity })).toEqual({
+      expect(await migrateCommercePayments({ kernel, runMigrations }, { atomicity })).toEqual({
         applied: atomicity === "step" ? [PAYMENTS_OPERATOR_ACTIONS_ID, PAYMENTS_ATTEMPT_RECOVERY_ID, PAYMENTS_INTENT_REPLAY_ID] : [PAYMENTS_LEDGER_ID, PAYMENTS_OPERATOR_ACTIONS_ID, PAYMENTS_ATTEMPT_RECOVERY_ID, PAYMENTS_INTENT_REPLAY_ID],
         alreadyApplied: atomicity === "step" ? [PAYMENTS_LEDGER_ID] : [], notes: [],
       });
@@ -205,11 +205,11 @@ describe("payments ledger migrations", () => {
     const { COMMERCE_PAYMENTS_LEDGER_TABLE, migrateCommercePayments } = await history();
     const kernel = openKernel();
     try {
-      const first = await migrateCommercePayments({ kernel });
+      const first = await migrateCommercePayments({ kernel, runMigrations });
       expect(first.applied).toEqual([PAYMENTS_LEDGER_ID, PAYMENTS_OPERATOR_ACTIONS_ID, PAYMENTS_ATTEMPT_RECOVERY_ID, PAYMENTS_INTENT_REPLAY_ID]);
       const tables = await listTables(kernel);
       expect(tables).toEqual(expect.arrayContaining([...Object.values(LEDGER_TABLES), COMMERCE_PAYMENTS_LEDGER_TABLE]));
-      const second = await migrateCommercePayments({ kernel });
+      const second = await migrateCommercePayments({ kernel, runMigrations });
       expect(second).toEqual({ applied: [], alreadyApplied: [PAYMENTS_LEDGER_ID, PAYMENTS_OPERATOR_ACTIONS_ID, PAYMENTS_ATTEMPT_RECOVERY_ID, PAYMENTS_INTENT_REPLAY_ID], notes: [] });
       const indexes = await kernel.query<{ name: string }>(sql`SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'commerce_%' ORDER BY name`);
       expect(indexes.map((row) => row.name)).toEqual(expect.arrayContaining([
@@ -227,7 +227,7 @@ describe("payments ledger migrations", () => {
     const { migrateCommercePayments } = await history();
     const kernel = openKernel();
     try {
-      await migrateCommercePayments({ kernel });
+      await migrateCommercePayments({ kernel, runMigrations });
       const integers = new Set<string>();
       for (const table of Object.values(LEDGER_TABLES)) {
         const columns = await kernel.query<{ name: string; type: string; notnull: number; pk: number }>(sql.raw(`PRAGMA table_info(${table})`));
@@ -261,7 +261,7 @@ describe("payments ledger migrations", () => {
     const kernel = openKernel();
     try {
       await runMigrations(kernel, [paymentsLedger({ checksum: "0".repeat(64) })], { ledgerTable: COMMERCE_PAYMENTS_LEDGER_TABLE });
-      await expect(migrateCommercePayments({ kernel })).rejects.toBeInstanceOf(MigrationChecksumError);
+      await expect(migrateCommercePayments({ kernel, runMigrations })).rejects.toBeInstanceOf(MigrationChecksumError);
     } finally {
       await kernel.close();
     }

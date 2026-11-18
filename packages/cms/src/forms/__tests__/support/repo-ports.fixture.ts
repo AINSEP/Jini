@@ -1,6 +1,6 @@
 /** Legacy test-call shapes, bound to the real package repos (no copied repository lifecycle). */
 import type { StorageKernel } from "@jini-ai/core/contracts/storage";
-import type { KyselyKernel } from "@jini-ai/db/kernel";
+import { listColumns, type KyselyKernel } from "@jini-ai/db/kernel";
 import { InMemoryFormDefinitionRepo, InMemoryFormSubmissionRepo as MemorySubmissionRepo } from "../../repo.memory.js";
 import { formDefinitionRepoFor as definitionRepoFor, SqlFormSubmissionRepo, createSubmissionIpRetentionRepo as retentionRepoFor } from "../../sql/index.js";
 import type { FormSubmissionDatabase } from "../../sql/tables.js";
@@ -37,5 +37,5 @@ export function formSubmissionRepoFor<DB>(kernel: StorageKernel<Kysely<DB>, DB>)
   return new LegacySqlSubmissionRepo({ kernel: kernel as unknown as StorageKernel<Kysely<FormSubmissionDatabase>, FormSubmissionDatabase>, tables });
 }
 export function createSubmissionIpRetentionRepo<DB>({ kernel }: { kernel: KyselyKernel<DB> }) {
-  return retentionRepoFor({ kernel, tables });
+  return retentionRepoFor({ kernel, tables, columns: ({ table }) => listColumns(kernel, table) });
 }

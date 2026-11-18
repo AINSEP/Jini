@@ -10,6 +10,7 @@ import { COMMERCE_PAYMENTS_LEDGER_TABLE, migrateCommercePayments } from "../migr
 import { sqlPaymentsLedger } from "../repo.sql.js";
 import { LEDGER_TABLES } from "../rows.js";
 import { ledgerContract } from "./ledger-contract.js";
+import { runMigrations } from "@jini-ai/db/migrate";
 
 /**
  * @file The SQL adapter on a REAL Postgres — the dialect where BIGINT reads back as a string,
@@ -37,7 +38,7 @@ if (url === undefined || url === "") {
   ledgerContract("sql/postgres", async () => {
     const kernel = openPostgresKernel<unknown>({ pg, connectionString: url }, { max: 4 });
     await reset(kernel);
-    await migrateCommercePayments({ kernel });
+    await migrateCommercePayments({ kernel, runMigrations });
     return { ledger: sqlPaymentsLedger({ kernel }), close: () => kernel.close() };
   });
 }

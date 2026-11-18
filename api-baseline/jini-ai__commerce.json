@@ -354,11 +354,11 @@
   "types": "./dist/payments/ledger/sql.d.ts",
   "symbols": {
    "COMMERCE_PAYMENTS_LEDGER_TABLE": "variable:87152beda2",
-   "COMMERCE_PAYMENTS_MIGRATIONS": "variable:b5b18eccf8",
+   "COMMERCE_PAYMENTS_MIGRATIONS": "variable:be11ef5c20",
    "PAYMENTS_LEDGER_ID": "variable:ba4176b291",
    "PAYMENTS_OPERATOR_ACTIONS_ID": "variable:99a0bf57e2",
    "constraintKindOf": "function:c6fb94d80a",
-   "migrateCommercePayments": "function:89517fc934",
+   "migrateCommercePayments": "function:f742a03f72",
    "paymentsLedger": "function:286daf6fbf",
    "paymentsOperatorActions": "function:f52924669f",
    "pinnedChecksum": "function:aac55f3739",

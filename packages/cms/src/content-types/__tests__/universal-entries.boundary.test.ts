@@ -12,6 +12,7 @@ const builtins = new Set(builtinModules.map((name) => name.replace(/^node:/, "")
 type Manifest = {
   exports: Record<string, string | { import: string }>;
   jini: { entries: Record<string, string> };
+  dependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
   peerDependenciesMeta?: Record<string, { optional: boolean }>;
 };
@@ -96,11 +97,19 @@ function resolveRuntimeImport(from: string, specifier: string): string {
 const manifest: Manifest = JSON.parse(readFileSync(resolve(packageRoot, "package.json"), "utf8"));
 const universalEntries = Object.entries(manifest.jini.entries).filter(([, runtime]) => runtime === "universal");
 
-// REGRESSION: the folded domains use verified-origin; keep its peer optional and publishable,
-// rather than restoring "workspace:*" to peerDependencies or requiring it for unrelated entries.
-test("CMS declares the used HTTP toolkit peer with an optional registry range", () => {
-  expect(manifest.peerDependencies?.["@jini-ai/http-kit"]).toMatch(/^\^\d+\.\d+\.\d+$/); // a registry caret range, never "workspace:*"; not pinned to one release
-  expect(manifest.peerDependenciesMeta?.["@jini-ai/http-kit"]).toEqual({ optional: true });
+// REGRESSION: the folded domains once used http-kit's verified-origin and rate-limit types, so the
+// toolkit was an optional peer. Both moved to @jini-ai/core, so CMS must not declare the toolkit as
+// a production dependency again (tests may still import it as a devDependency).
+test("CMS declares no production dependency on the HTTP toolkit", () => {
+  const production = { ...manifest.dependencies, ...manifest.peerDependencies, ...manifest.peerDependenciesMeta };
+  expect(Object.keys(production)).not.toContain("@jini-ai/http-kit");
+});
+
+// REGRESSION: the forms SQL adapter once imported the database toolkit's catalog helper. The host
+// now injects it (`columns`), so the toolkit must not come back as a production dependency.
+test("CMS declares no production dependency on the database toolkit", () => {
+  const production = { ...manifest.dependencies, ...manifest.peerDependencies, ...manifest.peerDependenciesMeta };
+  expect(Object.keys(production)).not.toContain("@jini-ai/db");
 });
 
 // REGRESSION: fails if index-provisioning.ts restores import { createHash } from "node:crypto".
