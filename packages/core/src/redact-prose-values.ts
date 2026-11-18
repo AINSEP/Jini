@@ -48,29 +48,60 @@ const PASSPHRASE = /^[A-Za-z]+(?:[ \t]+[A-Za-z]+){1,7}[.!?]?[ \t]*$/;
 const KEY_QUALIFIER_BEFORE = /(?:^|[^A-Za-z])(?:sort|primary|foreign|partition|cache|group|order|hash|map|composite|unique|lookup|index|natural|surrogate|join|shard|clustering|search|row)[ \t]+$/i;
 const QUALIFIED_KEY_MAX_VALUE = 11;
 
+const isQualifiedKey = ({ before, label, token }: { before: string; label: string; token: number }): boolean =>
+  label.toLowerCase() === 'key' && token <= QUALIFIED_KEY_MAX_VALUE && KEY_QUALIFIER_BEFORE.test(before);
+
+/** The value after a line break is prose unless it is one bare token on the line right after the label. */
+const isNextLineProse = ({ rest, breaks }: { rest: string; breaks: number }): boolean => breaks > 1 || !isSingleTokenLine(rest);
+
 /**
  * True when the unquoted value after a colon should be left readable.
  * @param required.rest - The text from the first value character to the end of its line.
  * @param required.gap - The text between the colon and that character. A line break in it means the value
  *   is on the next line, which is a credential only when it is one bare token.
- * @param optional.before - The text before the label on its line (qualifier words such as "Sort").
- * @param optional.label - The credential word before the colon, as written.
- * @param optional.token - The length of the value's first token.
+ * @param context.before - The text before the label on its line (qualifier words such as "Sort").
+ * @param context.label - The credential word before the colon, as written.
+ * @param context.token - The length of the value's first token.
  * @complexity O(1): every pattern is anchored and bounded by the first word.
  */
 export function isProseAfterColon(
   { rest, gap }: { readonly rest: string; readonly gap: string },
-  { before = '', label = '', token = 0 }: { readonly before?: string; readonly label?: string; readonly token?: number } = {},
+  { before, label, token }: { readonly before: string; readonly label: string; readonly token: number },
 ): boolean {
-  if (label.toLowerCase() === 'key' && token <= QUALIFIED_KEY_MAX_VALUE && KEY_QUALIFIER_BEFORE.test(before)) return true;
-  if (PLACEHOLDER_RES.some(pattern => pattern.test(rest))) return true;
+  if (isQualifiedKey({ before, label, token }) || PLACEHOLDER_RES.some(pattern => pattern.test(rest))) return true;
   const breaks = gap.match(/\n/g)?.length ?? 0;
-  if (breaks > 0) return breaks > 1 || !isSingleTokenLine(rest);
+  if (breaks > 0) return isNextLineProse({ rest, breaks });
   return SENTENCE_START.test(rest) && (!isFieldStart(before) || FUNCTION_WORD_START.test(rest));
 }
 
 /** Length of the value to mask when a field-start label is followed by a plain-word passphrase, which runs to the
  * line end; 0 otherwise (the value is its first token). @complexity O(1): anchored and bounded to eight words. */
-export function passphraseLength({ rest, before }: { readonly rest: string; readonly before: string }): number {
+function passphraseLength({ rest, before }: { readonly rest: string; readonly before: string }): number {
   return isFieldStart(before) && PASSPHRASE.test(rest) ? rest.trimEnd().length : 0;
+}
+
+/** The text between the colon and the value, or undefined when the label is followed by `=` or no colon at all. */
+function colonGap({ match }: { readonly match: RegExpExecArray }): string | undefined {
+  const head = match[0].slice(0, -1);
+  const colon = head.indexOf(':');
+  return colon === -1 || head.includes('=') ? undefined : head.slice(colon + 1);
+}
+
+/** After a colon (never `=`), an unquoted value that reads as prose or a placeholder is not a credential:
+ * "Password: (skipped)", "password: must be at least 8 characters". The scan resumes at the value. */
+// A passphrase of plain words after a field-start label widens the value from its first token to the line end; a
+// quoted value is never prose, and `colonGap` is undefined for `=` or a missing colon, which never read as prose.
+// The window before the label is bounded to 200 characters so a long line with many labels costs O(1) per label.
+export function colonReading(
+  { text, match, start, value }: { readonly text: string; readonly match: RegExpExecArray; readonly start: number; readonly value: { readonly end: number; readonly quoted: boolean } },
+): { readonly prose: boolean; readonly end: number } {
+  const gap = colonGap({ match });
+  if (value.quoted || gap === undefined) return { prose: false, end: value.end };
+  const rest = /^[^\r\n]*/.exec(text.slice(start, start + 200))?.[0] ?? '';
+  const labelStart = match.index + (match[1] ?? '').length;
+  const window = text.slice(Math.max(0, labelStart - 200), labelStart);
+  const before = window.slice(window.lastIndexOf('\n') + 1);
+  if (isProseAfterColon({ rest, gap }, { before, label: match[2] ?? '', token: value.end - start })) return { prose: true, end: value.end };
+  const phrase = passphraseLength({ rest, before });
+  return { prose: false, end: phrase > value.end - start && !gap.includes('\n') ? start + phrase : value.end };
 }

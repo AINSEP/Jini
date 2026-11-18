@@ -480,7 +480,7 @@
     "function": "<file>",
     "line": 886,
     "rule": "max-lines",
-    "value": 562
+    "value": 554
   },
   {
     "file": "packages/core/src/settings/write-service.ts",

@@ -32,10 +32,11 @@
  * - Luhn algorithm (credit cards): https://en.wikipedia.org/wiki/Luhn_algorithm
  */
 
-import { authSchemeValueRanges, BARE_SCHEME_TOKEN_PATTERNS, DIGEST_VALUE } from './redact-auth-schemes.js';
+import { API_KEY_HEADER_NAMES, apiKeyHeaderRules, authSchemeValueRanges, BARE_SCHEME_TOKEN_PATTERNS } from './redact-auth-schemes.js';
 import { labelAliasValueRanges } from './redact-label-aliases.js';
-import { isProseAfterColon, passphraseLength } from './redact-prose-values.js';
+import { colonReading } from './redact-prose-values.js';
 import { forEachOccurrence, forwardFinder, unescapedQuoteFinder, userinfoLength } from './redact-text-scan.js';
+import { URL_SECRET_PARAM_RE } from './redact-url-params.js';
 import { VENDOR_SHAPE_PATTERNS } from './redact-vendor-shapes.js';
 
 /** Credential-shape vocabulary for secret-only redaction; no I/O or host dependencies. */
@@ -161,9 +162,8 @@ export interface SecretRedactionPattern {
   regex: RegExp;
 }
 
-// Key rules end with their last alphabet character and carry no trailing `\b`: a boundary after a run whose
-// alphabet holds `-` or `_` fails when the key ends in one or is followed by `_`, which left the final character
-// (or the whole key, for `sk_live_...` followed by `_`) visible.
+// Key rules end with their last alphabet character, with no trailing `\b`: it fails after a final `-` or before
+// `_`, which left that character (or all of `sk_live_...` followed by `_`) visible.
 // Order matters: list specific rules before more general ones. Langfuse
 // keys (`sk-lf-...`) would otherwise be eaten by the generic `sk-...`
 // rule and labeled as a generic OpenAI-style key.
@@ -294,21 +294,7 @@ export const GENERATED_MARKER_RE = new RegExp(GENERATED_MARKER, 'g');
 const CARD_CANDIDATE = /\b(?:\d[ -]?){12,18}\d\b/g;
 // Inspect/JSON credentials can contain spaces and escaped quotes; consume the entire value.
 const QUOTED_SECRET_VALUE = String.raw`"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'`;
-// Header names whose whole value is the credential. A scheme word before the credential belongs to the value:
-// masking only the word leaves the credential visible (`x-auth-token: Token <value>`). A scheme word alone
-// describes the header and stays readable.
-const API_KEY_HEADER_NAMES = 'x-api-key|api-key|x-goog-api-key|x-auth-token';
-const HEADER_SCHEME_WORDS = 'Bearer|Token|ApiKey|Digest|Basic';
-const SCHEME_BEARING_VALUE = `(?:Digest[ \\t]+${DIGEST_VALUE}|(?:${HEADER_SCHEME_WORDS})[ \\t]+[^\\s,;"'#}]+)`;
-const SCHEME_WORD_ALONE = `(?:${HEADER_SCHEME_WORDS})(?:[\\s"'.,;:)\\]}]|$)`;
-const headerRule = (names: string, value: string): RegExp =>
-  new RegExp(`(^|[^?&\\w])(["']?)(${names})\\2(\\s*[:=]\\s*)(${QUOTED_SECRET_VALUE}|${value})`, 'gi');
-// The proxy header keeps its scheme word readable like `Authorization` does (the auth-scheme rules own a value
-// that has one); only a value with no scheme word, which no other rule reads, is masked here.
-const API_KEY_HEADERS: readonly RegExp[] = [
-  headerRule(API_KEY_HEADER_NAMES, `${SCHEME_BEARING_VALUE}|(?!${SCHEME_WORD_ALONE})[^\\s,;"'#}]+`),
-  headerRule('proxy-authorization', `(?!${HEADER_SCHEME_WORDS}(?![A-Za-z0-9_-]))[^\\s,;"'#}]+`),
-];
+const API_KEY_HEADERS = apiKeyHeaderRules({ quoted: QUOTED_SECRET_VALUE });
 const API_KEY_QUERY = /([?&](?:key|api_key|api-key)=)[^&#\s,;"']+/gi;
 
 // The length guard and the per-digit `d < 0 || d > 9` guard from the origin
@@ -416,23 +402,6 @@ const PROVIDER_API_KEY_QUERY = /([?&]key=)([^&\s"']+)/gi;
 // different `//` starts never overlap and the scan stays linear.
 const URL_CREDENTIALS_RE = /\/\/([^/\s?#]+)@/g;
 const SIGNED_QUERY_RE = /([?&](?:signature|sig|x-amz-signature|x-goog-signature|access_token|refresh_token)=)([^&#\s,;"']+)/gi;
-// A secret word must END a name segment (split at . _ - or the name's end): api_key, apiKey,
-// authtoken, X-Amz-Signature and custom.Token-value are masked, while author, keyword, design,
-// signup and page stay readable. Names that merely end in a secret word (zipcode, error_code,
-// monkey) are masked too; over-masking a URL value is the cheaper failure. Empty values stay.
-// Match through a trailing fragment; field separators (&/;), quotes, parentheses or whitespace end it.
-// Both name runs are bounded so a long separator-free run costs linear time, not quadratic.
-// `code` is deliberately not a word: postal, promo and error codes (zipcode, promo_code) end in it and are
-// not credentials. Only the names that carry a credential (`code`, an OAuth authorization code; the PKCE
-// verifier; one-time login, activation and verification codes: see URL_CODE_NAMES) are masked, each as a whole name.
-const URL_SECRET_WORDS = 'token|key|secret|signature|sig|password|passwd|pwd|auth|authorization|credential';
-// The names are a set, not "anything ending in code": zipcode, promo_code and error_code are public values.
-const URL_CODE_NAMES = 'code_verifier|code|otp|totp|(?:activation|authorization|auth|verification|verify|confirmation|confirm|login|signin|session|device|'
-  + 'security|access|reset|recovery|invite|invitation|magic|pairing|oauth|sms|mfa|otp|two[_.-]?factor|one[_.-]?time)[_.-]?code';
-const URL_SECRET_PARAM_RE = new RegExp(
-  `[?&#;]((?:${URL_CODE_NAMES})(?==)|[\\w.-]{0,128}?(?:${URL_SECRET_WORDS})s?(?=[._=-])[\\w.-]{0,128})=[^&;\\s"'<>()]+`,
-  'gi',
-);
 // A parameter the labeled rule already names (password, client_secret, ...) keeps that category.
 const LABELED_URL_PARAM_NAME_RE = new RegExp(`(?:^|[.-])(?:${SECRET_LABELS})$`, 'i');
 
@@ -792,30 +761,14 @@ function collectLabeledSecrets({ text, add }: SpanPass, earlier: readonly Span[]
     }
     const extent = extentOf(start);
     const reading = colonReading({ text, match, start, value: extent });
-    const value = reading === 'prose' ? extent : reading;
-    if (reading === 'prose' || covered(start, value) || isMaskedValue(text.slice(start, value.end))) {
+    const value = { ...extent, end: reading.end };
+    if (reading.prose || covered(start, value) || isMaskedValue(text.slice(start, value.end))) {
       regex.lastIndex = start;
       continue;
     }
     addLabelValue({ text, add, start, value });
     regex.lastIndex = value.end;
   }
-}
-
-/** What a colon after a label introduces: `prose` (a sentence, form transcript or placeholder: not a credential), or
- * the value to mask, which a plain-word passphrase widens from its first token to the line end. `=` never reads as prose. */
-function colonReading({ text, match, start, value }: { text: string; match: RegExpExecArray; start: number; value: LabelValue }): 'prose' | LabelValue {
-  const head = match[0].slice(0, -1);
-  const colon = head.indexOf(':');
-  if (value.quoted || colon === -1 || head.includes('=')) return value;
-  const rest = /^[^\r\n]*/.exec(text.slice(start, start + 200))?.[0] ?? '';
-  const labelStart = match.index + (match[1] ?? '').length;
-  // Bounded to 200 characters so a long line with many labels costs O(1) per label, not a scan back to its start.
-  const window = text.slice(Math.max(0, labelStart - 200), labelStart);
-  const before = window.slice(window.lastIndexOf('\n') + 1);
-  if (isProseAfterColon({ rest, gap: head.slice(colon + 1) }, { before, label: match[2] ?? '', token: value.end - start })) return 'prose';
-  const phrase = passphraseLength({ rest, before });
-  return phrase > value.end - start && !head.slice(colon + 1).includes('\n') ? { ...value, end: start + phrase } : value;
 }
 
 /** Preserve quoted diagnostic/JSON values, including the closing quote on truncated echoes. */

@@ -48,3 +48,22 @@ export function authSchemeValueRanges({ text }: { readonly text: string }): Valu
 export const BARE_SCHEME_TOKEN_PATTERNS: readonly SecretRedactionPattern[] = [
   { name: 'bearer_token', regex: /(?=[A-Za-z0-9._~+/=:-])(?<=\b(?:Basic|Token)\s{1,16})(?=[A-Za-z0-9._~+/=:-]*\d)(?!v?\d{1,4}\.\d)[A-Za-z0-9._~+/=:-]{16,}/g },
 ];
+
+// Header names whose whole value is the credential. A scheme word before it belongs to the value (`x-auth-token: Token <v>`);
+// a scheme word alone describes the header and stays readable.
+export const API_KEY_HEADER_NAMES = 'x-api-key|api-key|x-goog-api-key|x-auth-token';
+const HEADER_SCHEME_WORDS = 'Bearer|Token|ApiKey|Digest|Basic';
+const SCHEME_BEARING_VALUE = `(?:Digest[ \\t]+${DIGEST_VALUE}|(?:${HEADER_SCHEME_WORDS})[ \\t]+[^\\s,;"'#}]+)`;
+const SCHEME_WORD_ALONE = `(?:${HEADER_SCHEME_WORDS})(?:[\\s"'.,;:)\\]}]|$)`;
+
+/** The header rules: groups are (prefix)(quote)(name)(separator)(value), so a collector reads the value as group 5.
+ * @param required.quoted - Regex source of a quoted value, which is always masked inside its quotes. */
+export function apiKeyHeaderRules({ quoted }: { readonly quoted: string }): readonly RegExp[] {
+  const rule = (names: string, value: string): RegExp =>
+    new RegExp(`(^|[^?&\\w])(["']?)(${names})\\2(\\s*[:=]\\s*)(${quoted}|${value})`, 'gi');
+  return [
+    rule(API_KEY_HEADER_NAMES, `${SCHEME_BEARING_VALUE}|(?!${SCHEME_WORD_ALONE})[^\\s,;"'#}]+`),
+    // The proxy header keeps its scheme word readable like `Authorization` (the auth-scheme rules own such a value).
+    rule('proxy-authorization', `(?!${HEADER_SCHEME_WORDS}(?![A-Za-z0-9_-]))[^\\s,;"'#}]+`),
+  ];
+}
