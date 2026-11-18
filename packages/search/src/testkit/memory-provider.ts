@@ -183,7 +183,12 @@ function restrictedRefusal({ opts }: MemoryProviderState, entry: Entry): string 
   return !opts.acceptsRestricted && entry.document?.visibility.kind === 'restricted' ? 'this provider accepts public documents only' : undefined;
 }
 
-function outcomeOf(state: MemoryProviderState, index: Index, entry: Entry, pending: Entry[]): SearchWriteOutcome {
+function outcomeOf({ state, index, entry, pending }: {
+  state: MemoryProviderState;
+  index: Index;
+  entry: Entry;
+  pending: Entry[];
+}): SearchWriteOutcome {
   const base = { key: entry.key, revision: entry.revision };
   const refusal = isRevision(entry.revision) ? restrictedRefusal(state, entry) : 'revision must be a non-negative safe integer';
   if (refusal !== undefined) return { ...base, status: 'rejected', message: refusal };
@@ -197,14 +202,18 @@ function outcomeOf(state: MemoryProviderState, index: Index, entry: Entry, pendi
   return { ...base, status: 'pending' };
 }
 
-function writeEntries(state: MemoryProviderState, ctx: SearchProviderContext, entries: readonly Entry[]): ProviderResult<SearchWriteResult> {
+function writeEntries({ state, ctx, entries }: {
+  state: MemoryProviderState;
+  ctx: SearchProviderContext;
+  entries: readonly Entry[];
+}): ProviderResult<SearchWriteResult> {
   const { maxBatch, available } = state.opts;
   if (!available({ ctx })) return unavailable();
   if (entries.length > maxBatch) return providerRejected({ code: 'invalid_request', message: `at most ${maxBatch} items per write` });
   const index = state.indexes.get(ctx.indexName);
   if (index === undefined) return missing(ctx.indexName);
   const pending: Entry[] = [];
-  const outcomes = entries.map(entry => outcomeOf(state, index, entry, pending));
+  const outcomes = entries.map(entry => outcomeOf({ state, index, entry, pending }));
   if (pending.length === 0) return providerOk({ value: { outcomes } });
   state.taskCounter += 1;
   const taskId = `task_${state.taskCounter}`;
@@ -232,7 +241,11 @@ async function guarded<T>({ opts, indexes }: MemoryProviderState, ctx: SearchPro
   return index === undefined ? missing(ctx.indexName) : run(index);
 }
 
-async function awaitProviderTask(state: MemoryProviderState, ctx: SearchProviderContext, taskId: string): Promise<ProviderResult<SearchTaskState>> {
+async function awaitProviderTask({ state, ctx, taskId }: {
+  state: MemoryProviderState;
+  ctx: SearchProviderContext;
+  taskId: string;
+}): Promise<ProviderResult<SearchTaskState>> {
   if (!state.opts.available({ ctx })) return unavailable();
   if (state.queued.has(taskId)) settleThrough(state, taskId);
   if (state.settled.has(taskId)) return providerOk({ value: 'succeeded' });
@@ -256,10 +269,18 @@ function createBaseProvider(state: MemoryProviderState): SearchProvider {
       return providerOk({ value: undefined });
     },
     async upsert(ctx, { documents }) {
-      return writeEntries(state, ctx, documents.map(document => ({ key: document.key, revision: document.revision, document })));
+      return writeEntries({
+        state,
+        ctx,
+        entries: documents.map(document => ({ key: document.key, revision: document.revision, document })),
+      });
     },
     async remove(ctx, { tombstones }) {
-      return writeEntries(state, ctx, tombstones.map((tombstone: SearchTombstone) => ({ key: tombstone.key, revision: tombstone.revision })));
+      return writeEntries({
+        state,
+        ctx,
+        entries: tombstones.map((tombstone: SearchTombstone) => ({ key: tombstone.key, revision: tombstone.revision })),
+      });
     },
     async query(ctx, { query }) {
       return guarded(state, ctx, index => runQuery(index, query, typoTolerance, ctx));
@@ -288,6 +309,6 @@ export function createInMemorySearchProvider(_required: Record<string, never> = 
   if (!state.opts.asyncIndexing) return provider;
   return {
     ...provider,
-    awaitTask: (ctx, { taskId }) => awaitProviderTask(state, ctx, taskId),
+    awaitTask: (ctx, { taskId }) => awaitProviderTask({ state, ctx, taskId }),
   };
 }
