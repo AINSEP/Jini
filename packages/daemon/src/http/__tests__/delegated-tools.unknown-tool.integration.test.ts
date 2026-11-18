@@ -154,6 +154,7 @@ describe('delegated tool route: gate order around the tool decision', () => {
     expect(result).toEqual({ ok: false, error: {
       code: 'TOOL_OPERATION_DENIED',
       message: 'tool "writer" is not registered as read-only — this gateway executes only tools whose registration declares readOnly; call it through execute_delegated_tool instead',
+      details: { toolId: 'writer', inputNames: [] },
     } });
     expect(harness.principalCalls).toEqual([]);
   });

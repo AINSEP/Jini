@@ -7,6 +7,9 @@ const PRINCIPAL: Principal = { id: 'obtain-from-principal' };
 /** What the handler's own `requireString` says for an input without `themeId`. */
 const MISSING_TEXT = "'themeId' (non-empty string) is required";
 
+/** The trusted names every error answer for `theme_open` now carries (the executor's id is minted per call). */
+const DETAILS = { toolId: 'theme_open', inputNames: ['themeId'], executionId: expect.any(String) };
+
 const schemaOf = (themeId: Record<string, unknown>) => ({
   type: 'object', additionalProperties: false, required: ['themeId'], properties: { themeId },
 });
@@ -43,7 +46,7 @@ const GATEWAYS = [{ name: 'unconstrained gateway', requireReadOnly: false }, { n
 describe('delegated tool route: a validation answer today (characterization)', () => {
   it.each(GATEWAYS)('$name: an absent required themeId without obtainFrom answers 400 BAD_REQUEST with the handler text and nothing else', async ({ requireReadOnly }) => {
     const harness = buildHarness({ themeId: { type: 'string' } });
-    expect(await call(harness, { input: {}, requireReadOnly })).toEqual({ ok: false, error: { code: 'BAD_REQUEST', message: MISSING_TEXT } });
+    expect(await call(harness, { input: {}, requireReadOnly })).toEqual({ ok: false, error: { code: 'BAD_REQUEST', message: MISSING_TEXT, details: DETAILS } });
   });
 });
 
@@ -53,7 +56,7 @@ describe('delegated tool route: a missing argument that declares obtainFrom', ()
   it.each(GATEWAYS)('$name: the handler text is followed by exactly one sentence naming the lister', async ({ requireReadOnly }) => {
     const harness = buildHarness({ themeId: GUIDED });
     expect(await call(harness, { input: {}, requireReadOnly })).toEqual({
-      ok: false, error: { code: 'BAD_REQUEST', message: `${MISSING_TEXT} List valid values for \`themeId\` with theme_list.` },
+      ok: false, error: { code: 'BAD_REQUEST', message: `${MISSING_TEXT} List valid values for \`themeId\` with theme_list.`, details: DETAILS },
     });
   });
 
@@ -64,11 +67,11 @@ describe('delegated tool route: a missing argument that declares obtainFrom', ()
 
   it.each(GATEWAYS)('$name: an obtainFrom naming a tool the route does not hold adds no clause', async ({ requireReadOnly }) => {
     const harness = buildHarness({ themeId: GUIDED, withLister: false });
-    expect(await call(harness, { input: {}, requireReadOnly })).toEqual({ ok: false, error: { code: 'BAD_REQUEST', message: MISSING_TEXT } });
+    expect(await call(harness, { input: {}, requireReadOnly })).toEqual({ ok: false, error: { code: 'BAD_REQUEST', message: MISSING_TEXT, details: DETAILS } });
   });
 
   it.each(GATEWAYS)('$name: a failure about another field adds no clause even while themeId is absent', async ({ requireReadOnly }) => {
     const harness = buildHarness({ themeId: GUIDED, failWith: 'name must be shorter than 10 characters' });
-    expect(await call(harness, { input: {}, requireReadOnly })).toEqual({ ok: false, error: { code: 'BAD_REQUEST', message: 'name must be shorter than 10 characters' } });
+    expect(await call(harness, { input: {}, requireReadOnly })).toEqual({ ok: false, error: { code: 'BAD_REQUEST', message: 'name must be shorter than 10 characters', details: DETAILS } });
   });
 });

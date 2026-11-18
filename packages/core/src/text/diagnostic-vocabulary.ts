@@ -46,8 +46,12 @@ function schemaChildren({ node }: { node: Record<string, unknown> }): { names: s
   };
 }
 
-/** Property names of a schema, depth-bounded and count-bounded; names outside the identifier shape are skipped. */
-function schemaPropertyNames({ schema }: { schema: unknown }): string[] {
+/**
+ * Property names of a schema, depth-bounded and count-bounded; names outside the identifier shape are skipped.
+ * Exported so a server that names a tool's input in an error envelope (`details.inputNames`) reads the schema the
+ * same way the client's vocabulary does.
+ */
+export function schemaPropertyNames({ schema }: { schema: unknown }): string[] {
   const names = new Set<string>();
   const walk = (node: unknown, depth: number): void => {
     if (!isRecord(node) || depth > MAX_SCHEMA_DEPTH || names.size >= MAX_SCHEMA_NAMES) return;

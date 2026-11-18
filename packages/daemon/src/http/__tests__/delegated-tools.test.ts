@@ -559,6 +559,7 @@ describe('delegatedToolExecuteRoute read-only constraint (requireReadOnly)', () 
         code: 'TOOL_OPERATION_DENIED',
         message:
           'tool "writer" is not registered as read-only — this gateway executes only tools whose registration declares readOnly; call it through execute_delegated_tool instead',
+        details: { toolId: 'writer', inputNames: [] },
       },
     });
     // The heart of the task: a readOnlyHint:true gateway that let a write through would launder a

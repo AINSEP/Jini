@@ -30,7 +30,7 @@ import type { DelegatedResultCorrelation } from '../delegated-result-correlation
 import { randomUUID } from 'node:crypto';
 import type { Express } from 'express';
 import { createApiError } from '@jini-ai/protocol';
-import { batchOutcomeFor, ToolInputError, type Principal, type ToolRegistry } from '@jini-ai/core';
+import { batchOutcomeFor, ToolInputError, type Principal, type ToolDescriptor, type ToolRegistry } from '@jini-ai/core';
 import { createDelegatedToolBridge, type RunLifecycle, type ToolExecutionResult, type ToolExecutor } from '../index.js';
 import { defineJsonRoute, mountJsonRoute, reportRouteInternalError } from '@jini-ai/http-kit';
 import {
@@ -42,8 +42,9 @@ import {
   type RouteInputContext,
 } from '@jini-ai/core/contracts/server';
 import * as readOnlyTools from '../core/read-only-tools.js';
-import { resolveToolTarget, unknownToolDetails, unknownToolMessage } from '../core/tool-target.js';
+import { resolveToolTarget, unknownToolDetails, unknownToolMessage, type ToolTarget } from '../core/tool-target.js';
 import { withValidationGuidance } from './validation-guidance.js';
+import { withDiagnosticDetails } from './delegated-tool-error-details.js';
 import type { ToolFamilyPort } from '../core/tool-family.js';
 
 export interface DelegatedToolExecuteRequest {
@@ -179,23 +180,25 @@ function checkReadOnlyConstraint(
  * `toolRegistry` has nothing to decide with: the unconstrained gateway leaves the decision to the
  * executor (as before), and the read-only gateway refuses as unverifiable in the check after this one.
  */
-function checkToolTarget(
-  deps: DelegatedToolsHttpDeps,
-  input: DelegatedToolExecuteRequest,
-): ReturnType<typeof createApiError> | null {
-  if (deps.toolRegistry === undefined) return null;
-  const target = resolveToolTarget({ toolId: input.toolId, input: input.input, registry: deps.toolRegistry }, deps.toolFamilies === undefined ? {} : { families: deps.toolFamilies });
-  if (target.kind === 'tool') return null;
+function checkToolTarget(target: ToolTarget | undefined): ReturnType<typeof createApiError> | null {
+  if (target === undefined || target.kind === 'tool') return null;
   const details = unknownToolDetails({ target });
   return createApiError({ code: 'UNKNOWN_TOOL', message: unknownToolMessage({ target }) }, details === undefined ? {} : { details });
+}
+
+/** What the request names, resolved once per request; `undefined` for a route mounted without a registry. */
+function resolveRequestTarget(deps: DelegatedToolsHttpDeps, input: DelegatedToolExecuteRequest): ToolTarget | undefined {
+  if (deps.toolRegistry === undefined) return undefined;
+  return resolveToolTarget({ toolId: input.toolId, input: input.input, registry: deps.toolRegistry }, deps.toolFamilies === undefined ? {} : { families: deps.toolFamilies });
 }
 
 /** The gates that read descriptors only, in their one order: the target decision, then the read-only constraint. */
 function checkToolGates(
   deps: DelegatedToolsHttpDeps,
   input: DelegatedToolExecuteRequest,
+  target: ToolTarget | undefined,
 ): ReturnType<typeof createApiError> | null {
-  return checkToolTarget(deps, input) ?? checkReadOnlyConstraint(deps, input);
+  return checkToolTarget(target) ?? checkReadOnlyConstraint(deps, input);
 }
 
 /** Plain words for a server fault behind a tool call: the model reads them, so they say what to do next. */
@@ -345,6 +348,68 @@ async function toolExecutionResultWithRecovery(deps: DelegatedToolsHttpDeps, req
 }
 
 /**
+ * Everything after the gates: the principal, the executor, the bridge and the answer. Every error answer for a call that
+ * resolved to a registered tool carries that tool's {@link withDiagnosticDetails | diagnostic details}.
+ */
+async function runResolvedTool(
+  deps: DelegatedToolsHttpDeps,
+  { input, descriptor, signal }: { readonly input: DelegatedToolExecuteRequest; readonly descriptor: ToolDescriptor | undefined; readonly signal?: AbortSignal },
+): Promise<Result<DelegatedToolExecuteResponse>> {
+  const refuse = (error: ReturnType<typeof createApiError>): Result<DelegatedToolExecuteResponse> => withDiagnosticDetails({ outcome: err({ error }), descriptor });
+  let principal: Principal;
+  try {
+    principal = await deps.resolvePrincipal({ request: input });
+  } catch (error) {
+    return refuse(reportInternalError({ deps, report: { source: 'resolve-principal', error, runId: input.runId, toolId: input.toolId } }));
+  }
+
+  // Attenuates the resolved principal itself for a `requireReadOnly` call, so the constraint
+  // survives past this route: a consumer's own `ToolExecutor` composition may dispatch a tool id
+  // one or more hops past the one checked above (a nested/recovery dispatch using this same
+  // principal), and only the principal — not this request's `requireReadOnly` flag, which dies
+  // at this function's return — reaches that far. See `constrainPrincipalToReadOnlyTools`'s own
+  // doc. A no-op for every existing unconstrained caller.
+  if (input.requireReadOnly === true) {
+    principal = readOnlyTools.constrainPrincipalToReadOnlyTools({ principal });
+  }
+
+  // Composes the SAME enforcement decorator this package exports for a host's own use, here,
+  // around whatever `ToolExecutor` the host supplied — a second, independent check of the OUTER
+  // `toolId` `checkReadOnlyConstraint` already ran (never a WEAKER outcome than that check, only
+  // ever redundant with it; see `withReadOnlyToolConstraint`'s own doc for why this alone cannot
+  // close a nested dispatch a host's own inner decorator issues). Skipped entirely for an
+  // unconstrained call so the pre-existing gateway's executor reference is untouched.
+  const toolExecutor =
+    input.requireReadOnly === true
+      ? readOnlyTools.withReadOnlyToolConstraint({ inner: deps.toolExecutor, registry: deps.toolRegistry, messages: readOnlyTools.defaultDaemonMessages.readOnly, idGenerator: { newId: randomUUID } })
+      : deps.toolExecutor;
+
+  const bridge = createDelegatedToolBridge({ lifecycle: deps.lifecycle, toolExecutor }, deps);
+  try {
+    // `signal` carries the caller's HTTP connection dropping — see `mountJsonRoute`
+    // (`adapter.ts`). The bridge already combines it with the run's own cancellation
+    // (`DelegatedToolInvocation.signal`'s doc); this is the wire that was missing, not new
+    // behaviour in the bridge or `ToolExecutor`.
+    const result = await bridge.execute({
+      runId: input.runId,
+      toolUseId: input.toolUseId,
+      toolId: input.toolId,
+      principal,
+      input: input.input,
+      ...(signal !== undefined ? { signal } : {}),
+    });
+    const settled = withValidationGuidance({ result, toolId: input.toolId, input: input.input, registry: deps.toolRegistry });
+    return toolExecutionResultWithRecovery(deps, { principal, runId: input.runId, toolId: input.toolId, result: settled })
+      .then((outcome) => withDiagnosticDetails({ outcome, descriptor }, { executionId: result.executionId }));
+  } catch (error) {
+    if (error instanceof ToolInputError) {
+      return refuse(createApiError({ code: 'BAD_REQUEST', message: error.message }));
+    }
+    return refuse(reportInternalError({ deps, report: { source: 'delegated-tool-execute', error, runId: input.runId, toolId: input.toolId } }));
+  }
+}
+
+/**
  * `POST /api/delegated-tool-calls` — executes one delegated tool call against an already-started
  * run. Maps `ToolExecutionResult.status` to the HTTP response via `toolExecutionResultToApiResult`
  * above — mirroring `db-ops.ts`'s precedent for the identical status union rather than treating
@@ -371,58 +436,11 @@ export const delegatedToolExecuteRoute = defineJsonRoute<
     // downstream and must leave no trace of an execution that was never going to happen. It sits
     // after the run-existence check only so that a bad `runId` still answers 404 the way it always
     // did, regardless of the constraint.
-    const refusal = checkToolGates(deps, input);
-    if (refusal !== null) return err({ error: refusal });
-
-    let principal: Principal;
-    try {
-      principal = await deps.resolvePrincipal({ request: input });
-    } catch (error) {
-      return err({ error: reportInternalError({ deps, report: { source: 'resolve-principal', error, runId: input.runId, toolId: input.toolId } }) });
-    }
-
-    // Attenuates the resolved principal itself for a `requireReadOnly` call, so the constraint
-    // survives past this route: a consumer's own `ToolExecutor` composition may dispatch a tool id
-    // one or more hops past the one checked above (a nested/recovery dispatch using this same
-    // principal), and only the principal — not this request's `requireReadOnly` flag, which dies
-    // at this function's return — reaches that far. See `constrainPrincipalToReadOnlyTools`'s own
-    // doc. A no-op for every existing unconstrained caller.
-    if (input.requireReadOnly === true) {
-      principal = readOnlyTools.constrainPrincipalToReadOnlyTools({ principal });
-    }
-
-    // Composes the SAME enforcement decorator this package exports for a host's own use, here,
-    // around whatever `ToolExecutor` the host supplied — a second, independent check of the OUTER
-    // `toolId` `checkReadOnlyConstraint` already ran (never a WEAKER outcome than that check, only
-    // ever redundant with it; see `withReadOnlyToolConstraint`'s own doc for why this alone cannot
-    // close a nested dispatch a host's own inner decorator issues). Skipped entirely for an
-    // unconstrained call so the pre-existing gateway's executor reference is untouched.
-    const toolExecutor =
-      input.requireReadOnly === true
-        ? readOnlyTools.withReadOnlyToolConstraint({ inner: deps.toolExecutor, registry: deps.toolRegistry, messages: readOnlyTools.defaultDaemonMessages.readOnly, idGenerator: { newId: randomUUID } })
-        : deps.toolExecutor;
-
-    const bridge = createDelegatedToolBridge({ lifecycle: deps.lifecycle, toolExecutor }, deps);
-    try {
-      // `signal` carries the caller's HTTP connection dropping — see `mountJsonRoute`
-      // (`adapter.ts`). The bridge already combines it with the run's own cancellation
-      // (`DelegatedToolInvocation.signal`'s doc); this is the wire that was missing, not new
-      // behaviour in the bridge or `ToolExecutor`.
-      const result = await bridge.execute({
-        runId: input.runId,
-        toolUseId: input.toolUseId,
-        toolId: input.toolId,
-        principal,
-        input: input.input,
-        ...(signal !== undefined ? { signal } : {}),
-      });
-      return toolExecutionResultWithRecovery(deps, { principal, runId: input.runId, toolId: input.toolId, result: withValidationGuidance({ result, toolId: input.toolId, input: input.input, registry: deps.toolRegistry }) });
-    } catch (error) {
-      if (error instanceof ToolInputError) {
-        return err({ error: createApiError({ code: 'BAD_REQUEST', message: error.message }) });
-      }
-      return err({ error: reportInternalError({ deps, report: { source: 'delegated-tool-execute', error, runId: input.runId, toolId: input.toolId } }) });
-    }
+    const target = resolveRequestTarget(deps, input);
+    const descriptor = target?.kind === 'tool' ? target.descriptor : undefined;
+    const refusal = checkToolGates(deps, input, target);
+    if (refusal !== null) return withDiagnosticDetails({ outcome: err({ error: refusal }), descriptor });
+    return runResolvedTool(deps, { input, descriptor, ...(signal !== undefined ? { signal } : {}) });
   }
 }, { requireSameOrigin: true });
 
