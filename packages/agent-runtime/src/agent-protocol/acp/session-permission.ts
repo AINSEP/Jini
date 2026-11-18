@@ -63,7 +63,9 @@ interface PermissionReply {
 function logPermissionDecision(run: AcpRun, toolCall: UnknownRecord | null, selected?: AcpPermissionOption): void {
   try {
     const tool = permissionToolKind(toolCall);
-    sendAgent(run, { type: 'status', label: 'acp_permission', detail: `tool=${tool} decision=${selected?.kind ?? 'cancelled'}` });
+    sendAgent(run, {
+      payload: { type: 'status', label: 'acp_permission', detail: `tool=${tool} decision=${selected?.kind ?? 'cancelled'}` },
+    });
   } catch {
     // Host telemetry must not turn a handled request into a run failure.
   }
@@ -78,7 +80,7 @@ function respondToPermission(reply: PermissionReply, decision: AcpPermissionDeci
   const selected = choice?.outcome === 'selected'
     ? optionRecords.find((option) => option.optionId === choice.optionId)
     : undefined;
-  resetStageTimer(run, 'session/request_permission');
+  resetStageTimer(run, { label: 'session/request_permission' });
   try {
     sendRpcResult(run.stdin, requestId, {
       outcome: selected ? { outcome: 'selected', optionId: selected.optionId } : { outcome: 'cancelled' },
