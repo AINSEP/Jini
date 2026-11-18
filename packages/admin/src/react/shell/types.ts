@@ -5,6 +5,9 @@ import type { AdminPanel } from '../../core/manifest/types.js';
 import type { AdminNavGroup } from '../../core/manifest/rules.js';
 import type { AdminRoute } from '../../core/routing/types.js';
 import type { AdminShellContext, AdminShellNavigationPort, AdminShellSession, AdminShellSessionPort } from '../../core/ports/shell.js';
+import type { useShellDrawer, useShellRoute } from './AdminShell.hooks.js';
+import type { useAdminShellSession } from './use-admin-shell-session.js';
+import type { useAdminTheme } from './use-admin-theme.js';
 export type { AdminShellContext, AdminShellNavigationPort, AdminShellSession, AdminShellSessionPort } from '../../core/ports/shell.js';
 
 export interface AdminShellRenderArgs {
@@ -66,7 +69,17 @@ export interface AdminShellLabels {
   readonly soon: string;
 }
 
-export interface AdminShellProps extends AdminShellContext {
+/**
+ * Everything an admin shell takes except where its session comes from; see {@link AdminShellProps}
+ * and {@link AdminShellHostProps} for the two session sources.
+ */
+export interface AdminShellBaseProps extends AdminShellContext {
+  /** The theme hook, defaulted to the real `useAdminTheme`. Pass a fake in tests; see J3 for a host that paints itself. */
+  readonly useThemeHook?: typeof useAdminTheme;
+  /** The route-snapshot hook, defaulted to the shell's own `useShellRoute` (reads `navigation`). */
+  readonly useRouteHook?: typeof useShellRoute;
+  /** The mobile drawer state hook, defaulted to the shell's own `useShellDrawer`. */
+  readonly useDrawerHook?: typeof useShellDrawer;
   readonly theme?: AdminTheme;
   /** Controlled when supplied; otherwise the injected store restores the user's choice. */
   readonly colorScheme?: ColorSchemePreference;
@@ -77,7 +90,6 @@ export interface AdminShellProps extends AdminShellContext {
   readonly defaultPanelId: string;
   readonly railStorageKey: string;
   readonly title: ReactNode;
-  readonly session: AdminShellSessionPort;
   readonly navigation: AdminShellNavigationPort;
   readonly panels: readonly AdminShellPanel[];
   readonly slots: AdminShellSlots;
@@ -90,3 +102,28 @@ export interface AdminShellProps extends AdminShellContext {
   readonly mainRef?: Ref<HTMLElement>;
   readonly className?: string;
 }
+
+/** The shell reads the session through a port (today's source). Pass `session`, never `useHostSession`. */
+export interface AdminShellProps extends AdminShellBaseProps {
+  readonly session: AdminShellSessionPort;
+  /** The session hook, defaulted to the real `useAdminShellSession`. */
+  readonly useSessionHook?: typeof useAdminShellSession;
+  readonly useHostSession?: undefined;
+}
+
+/**
+ * The host owns the session machine (boot token, epoch guard, permission refresh) and reads it itself
+ * above the shell, so the shell must not read a second copy through a port. There is no real hook to
+ * default to without a port, hence no default: pass this hook and no `session`. Fixed for the life of
+ * the component, like any hook.
+ */
+export interface AdminShellHostProps extends AdminShellBaseProps {
+  readonly session?: undefined;
+  readonly useSessionHook?: undefined;
+  readonly useHostSession: () => AdminShellSessionController;
+}
+
+/** Exactly one session source, enforced by the type. */
+export type AdminShellSessionSource =
+  | Pick<AdminShellProps, 'session' | 'useSessionHook' | 'useHostSession'>
+  | Pick<AdminShellHostProps, 'session' | 'useSessionHook' | 'useHostSession'>;
