@@ -34,6 +34,7 @@
 
 import { authSchemeValueRanges, BARE_SCHEME_TOKEN_PATTERNS } from './redact-auth-schemes.js';
 import { labelAliasValueRanges } from './redact-label-aliases.js';
+import { isProseAfterColon } from './redact-prose-values.js';
 import { VENDOR_SHAPE_PATTERNS } from './redact-vendor-shapes.js';
 
 /** Credential-shape vocabulary for secret-only redaction; no I/O or host dependencies. */
@@ -766,13 +767,23 @@ function collectLabeledSecrets({ text, add }: SpanPass, earlier: readonly Span[]
       continue;
     }
     const value = extentOf(start);
-    if (covered(start, value) || isMaskedValue(text.slice(start, value.end))) {
+    if (isColonProse({ text, match, start, quoted: value.quoted }) || covered(start, value) || isMaskedValue(text.slice(start, value.end))) {
       regex.lastIndex = start;
       continue;
     }
     addLabelValue({ text, add, start, value });
     regex.lastIndex = value.end;
   }
+}
+
+/** After a colon (never `=`), an unquoted value that reads as prose or a placeholder is not a credential:
+ * "Password: (skipped)", "password: must be at least 8 characters". The scan resumes at the value. */
+function isColonProse({ text, match, start, quoted }: { text: string; match: RegExpExecArray; start: number; quoted: boolean }): boolean {
+  const head = match[0].slice(0, -1);
+  const colon = head.indexOf(':');
+  if (quoted || colon === -1 || head.includes('=')) return false;
+  const rest = /^[^\r\n]*/.exec(text.slice(start, start + 200))?.[0] ?? '';
+  return isProseAfterColon({ rest, gap: head.slice(colon + 1) });
 }
 
 /** Preserve quoted diagnostic/JSON values, including the closing quote on truncated echoes. */

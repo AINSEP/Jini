@@ -21,7 +21,9 @@ describe('user text on the shared engine', () => {
   it.each(['Authorization: Bearer token', 'Bearer token.', 'see [REDACTED:custom] here'])('keeps %j byte for byte', text => {
     expect(redactUserText({ text })).toEqual({ text, secretRedacted: false, count: 0 });
   });
-  it('never feeds its own (skipped) placeholder to the engine', () => {
+  // Chat once kept this placeholder away from the engine because the engine read it as a credential; the
+  // engine now keeps a parenthesised placeholder after a colon readable (core redact.prose-values.test.ts).
+  it('keeps its own (skipped) placeholder readable', () => {
     const form = { id: 'f', title: 'F', questions: [{ id: 'password', label: 'Password', type: 'text' as const }] };
     expect(formatFormAnswers({ form, answers: {} }).split('\n')[1]).toBe('- Password: (skipped)');
   });

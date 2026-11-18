@@ -31,10 +31,8 @@ export function formatFormAnswers({ form, answers }: { form: QuestionForm; answe
 
 const SKIPPED = '(skipped)';
 
-/** One answer line. Chat's "(skipped)" placeholder never reaches the redactor: after a label such
- * as "API key:" the shared engine reads the next word as a credential value. */
+/** One answer line, redacted as a whole: core's engine keeps a "(skipped)" placeholder readable. */
 function answerLine({ question, shown }: { question: FormQuestion; shown: string }, _optional = {}): string {
-  if (shown === SKIPPED) return `- ${redactUserText({ text: question.label }).text}: ${SKIPPED}`;
   return redactUserText({ text: `- ${question.label}: ${shown}` }).text;
 }
 

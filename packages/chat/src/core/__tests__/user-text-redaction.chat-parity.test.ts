@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { redactUserText } from '../user-text-redaction.js';
+import { guardUserText, redactUserText } from '../user-text-redaction.js';
 
 // The one engine (core) must give chat's user text every answer chat's own rules gave before E2 moved it
 // there. Each describe names the class of text in neutral words; the engine rule lives in core.
@@ -76,5 +76,18 @@ describe('label aliases with short values', () => {
     });
   it.each(['pwd command prints the cwd', 'cd /home/user && pwd', 'passwd: hunter2', 'token_count=12'])('keeps %j', text => {
     expect(redactUserText({ text })).toEqual(kept(text));
+  });
+});
+
+describe('prose and form placeholders after a credential word and a colon', () => {
+  it.each([
+    'password: must be at least 8 characters', 'The secret: it is a surprise', 'I forgot my password: help me', 'Secret: yes', 'Token: n/a',
+    '- Password: (skipped)', '[form answers — f]\n- Password: (skipped)\n- API key: (skipped)\n- Notes: Preserve this prose.\n',
+  ])('keeps %j', text => {
+    expect(redactUserText({ text })).toEqual(kept(text));
+    expect(guardUserText({ text })).toBe(text);
+  });
+  it('still removes a short credential-shaped answer on its own line', () => {
+    expect(redactUserText({ text: '- API key: abc\n- Notes: x' })).toEqual({ text: '- API key: [token removed]\n- Notes: x', secretRedacted: true, count: 1 });
   });
 });
