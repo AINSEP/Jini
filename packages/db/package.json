@@ -138,6 +138,11 @@
       "import": "./dist/settings/index.js",
       "default": "./dist/settings/index.js"
     },
+    "./events": {
+      "types": "./dist/events/index.d.ts",
+      "import": "./dist/events/index.js",
+      "default": "./dist/events/index.js"
+    },
     "./gated-mutations": {
       "types": "./dist/gated-mutations/index.d.ts",
       "import": "./dist/gated-mutations/index.js",
@@ -212,6 +217,9 @@
       ],
       "settings": [
         "./dist/settings/index.d.ts"
+      ],
+      "events": [
+        "./dist/events/index.d.ts"
       ],
       "gated-mutations": [
         "./dist/gated-mutations/index.d.ts"

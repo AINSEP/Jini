@@ -45,8 +45,13 @@ per-token lock, and the plan binding is checked by the core service, not the sto
 `@jini-ai/core/contracts/server/verified-origin`, plus `registerConfiguredOrigin`, the insert-or-correct writer for an
 operator-declared origin (origin columns only, under a per-workspace lock). It takes the kernel and one host-owned table name.
 
+`@jini-ai/db/events` holds the Kysely adapters for the event ports declared in `@jini-ai/core/contracts/events`:
+`SqlChangeSetRepo` (change sets, with the optional outbox event written in the same transaction), `SqlOutboxAdapter`
+(claim as a lease under one install-wide lock) and `outboxEventValues`, the one definition of the stored outbox row.
+They take the kernel and the host-owned table names; the outbox adapter also requires `claimLeaseMs`.
+
 `kysely` is an optional peer (`^0.29.6`), imported as a value or type only under `src/kernel/`,
-`src/migrate/`, `src/settings/`, `src/gated-mutations/`, `src/verified-origin/` and `src/secrets-vault/`. `better-sqlite3`, `pg` and `@electric-sql/pglite` are also optional peers.
+`src/migrate/`, `src/settings/`, `src/gated-mutations/`, `src/events/`, `src/verified-origin/` and `src/secrets-vault/`. `better-sqlite3`, `pg` and `@electric-sql/pglite` are also optional peers.
 Production code never imports a driver at runtime. PGlite type imports are confined to
 `src/pglite/` and `src/kernel/pglite/`; SQLite and Postgres use structural types.
 
