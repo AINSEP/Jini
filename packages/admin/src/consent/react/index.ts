@@ -5,3 +5,4 @@ export type { ConsentFieldsProps } from './ConsentFields.js';
 export { ConsentPreviewFrame } from './ConsentPreviewFrame.js';
 export type { ConsentPreviewFrameProps } from './ConsentPreviewFrame.js';
 export type { ConsentPreviewWidth } from './settings-panel.hooks.js';
+export { CONSENT_PREVIEW_DESKTOP_WIDTH, consentPreviewScale } from './preview-scale.js';
