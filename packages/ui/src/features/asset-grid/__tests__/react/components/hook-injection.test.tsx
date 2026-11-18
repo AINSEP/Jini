@@ -4,8 +4,8 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider, type TranslationDict, type useT } from '../../../../i18n/index.js';
 import type { useInView } from '../../../../../react/hooks/useInView.js';
-import { AssetCard } from '../../../react/components/AssetCard.js';
-import { AssetGrid } from '../../../react/components/AssetGrid.js';
+import { AssetCard, defaultAssetCardHooks } from '../../../react/components/AssetCard.js';
+import { AssetGrid, defaultAssetGridHooks } from '../../../react/components/AssetGrid.js';
 import { AssetGridBody } from '../../../react/components/AssetGridBody.js';
 import { AssetGridToolbar } from '../../../react/components/AssetGridToolbar.js';
 import { DeleteConfirmDialog } from '../../../react/components/DeleteConfirmDialog.js';
@@ -118,9 +118,12 @@ describe('AssetCard hooks', () => {
     render(
       <AssetCard
         {...cardProps}
-        useTHook={useQuotingT}
-        useInViewHook={useAlwaysInView}
-        useAssetCardHook={() => ({ handlePreviewClick, handleCheckboxClick: vi.fn() })}
+        hooks={{
+          ...defaultAssetCardHooks,
+          useT: useQuotingT,
+          useInView: useAlwaysInView,
+          useAssetCard: () => ({ handlePreviewClick, handleCheckboxClick: vi.fn() }),
+        }}
       />,
     );
     expect(screen.getByTestId('thumb')).toBeInTheDocument();
@@ -163,7 +166,7 @@ describe('AssetGrid hooks', () => {
 
   it('renders the injected translator output in the empty state', async () => {
     renderGrid((dependencies) => (
-      <AssetGrid selectors={selectors} dependencies={dependencies} renderThumbnail={() => null} searchDebounceMs={0} useTHook={useQuotingT} />
+      <AssetGrid selectors={selectors} dependencies={dependencies} renderThumbnail={() => null} searchDebounceMs={0} hooks={{ ...defaultAssetGridHooks, useT: useQuotingT }} />
     ));
     expect(await screen.findByText('«No assets yet.»')).toBeInTheDocument();
   });
