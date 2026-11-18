@@ -1,4 +1,5 @@
 import { ExternalMcpValidationError } from "./validation-error.js";
+import { assertExternalMcpPlainField, assertExternalMcpPlainInput, commitExternalMcpSave, type CredentialPorts } from "./store.save.js";
 import { externalMcpAdmissionRevision, readExternalMcpToolGrants, validateExternalMcpToolNames, parseExternalMcpJsonArray } from "./access.js";
 import type { ExternalMcpApprovedAccess } from "@jini-ai/core/contracts/hosted-mcp";
 import { ToolInputError } from "@jini-ai/core";
@@ -71,7 +72,6 @@ import { openExternalMcpVaultPayload, sealExternalMcpVaultPayload } from "./vaul
 export type HostedMcpStoreDeps = ExternalMcpStoreDeps & HostedMcpStorePorts;
 type SealDeps = Pick<ExternalMcpStoreDeps, "sealer" | "keyring"> & HostedMcpStorePorts;
 type OpenDeps = { sealer: Pick<SecretSealerPort, "open"> } & HostedMcpStorePorts;
-type CredentialPorts = Pick<HostedMcpStorePorts, "assertFreeField" | "credential">;
 
 const MAX_SERVERS_PER_WORKSPACE = 32;
 const MAX_ENV_VARS = 64;
@@ -433,6 +433,7 @@ async function toView(record: ExternalMcpServerRecord, ports: HostedMcpStorePort
       tokenEnvName: record.oauthTokenEnvName,
       hasStoredToken: externalMcpRecordHasStoredToken(record),
     },
+    version: record.version,
   };
 }
 
@@ -1564,23 +1565,6 @@ async function resolveSavedCredentialColumns(
   return { ...sealed, oauthTokenEnvName: resolveStaticAccessTokenEnvName(transport, input, existing, sealed.sealedOAuth !== null) };
 }
 
-function assertExternalMcpPlainField(required: { value: string; field: string }, ports: CredentialPorts): void {
-  try { ports.assertFreeField(required); }
-  catch (err) {
-    if (err instanceof ports.credential.InputError) throw new ExternalMcpValidationError(err.message, err.field);
-    throw err;
-  }
-}
-
-function assertExternalMcpPlainInput({ input, ports }: { input: SaveExternalMcpServerInput; ports: CredentialPorts }, _options = {}): void {
-  for (const field of ["serverId", "label", "command", "args", "url", "transport", "authMode", "accessTokenEnvName"] as const) {
-    assertExternalMcpPlainField({ value: input[field] ?? "", field }, ports);
-  }
-  for (const [field, value] of Object.entries(input.oauth ?? {})) {
-    if (field !== 'clientSecret' && typeof value === 'string') assertExternalMcpPlainField({ value, field: `oauth.${field}` }, ports);
-  }
-}
-
 /** @agent-note `deps.repo` is the host repository whose transaction commits the staged envelopes with the row pointers; seal order, id timing and the carried-envelope rule are unchanged. */
 export async function saveExternalMcpServer(
   deps: HostedMcpStoreDeps,
@@ -1600,23 +1584,26 @@ export async function saveExternalMcpServer(
   // doc.
   const writeAllowedToolNames = parseWriteAllowedToolNames(input.writeAllowedToolNames ?? "");
   assertWriteAllowlistSubset(writeAllowedToolNames, allowedToolNames);
+  const parsed: ParsedSaveTarget = { serverId, transport, command, url, args, allowedToolNames, writeAllowedToolNames };
+  const key = { workspaceId: input.workspaceId, serverId };
+  const record = await commitExternalMcpSave({ repo: deps.repo, key, expectedVersion: input.expectedVersion, build: existing => buildSavedRecord(deps, input, parsed, existing) });
+  return toView(record, deps, deps.sealer);
+}
 
-  const existing = await deps.repo.findByServerId({ workspaceId: input.workspaceId, serverId });
+/** The target fields {@link saveExternalMcpServer} parses and validates before it reads the stored row. */
+type ParsedSaveTarget = { serverId: string; transport: ExternalMcpTransport; command: string | null; url: string | null; args: string[]; allowedToolNames: string[]; writeAllowedToolNames: string[] };
+
+/** Builds the row a save will write from the stored row it read (`null` for a create); re-run on the
+ *  fresh row when a runtime write moved a credential between that read and the write (M4). */
+async function buildSavedRecord(deps: HostedMcpStoreDeps, input: SaveExternalMcpServerInput, parsed: ParsedSaveTarget, existing: ExternalMcpServerRecord | null): Promise<ExternalMcpServerRecord> {
+  const { serverId, transport, command, url, args, allowedToolNames, writeAllowedToolNames } = parsed;
   await assertUnderExternalMcpServerCap(deps, input.workspaceId, existing);
   const authMode = resolveSavedAuthMode(input, existing);
   const oauthFields = resolveOAuthFields(authMode, transport, input, existing, deps.credential);
   const runtime = carryOAuthRuntimeState(authMode, oauthFields, existing);
   const aadIdentity: ExternalMcpIdentity = { workspaceId: input.workspaceId, serverId };
   const { sealedEnv, envNames, aadVersion } = await resolveExternalMcpSealedEnv(deps, aadIdentity, input.env, existing);
-  const { sealedOAuth, oauthAadVersion, oauthTokenEnvName } = await resolveSavedCredentialColumns(deps, aadIdentity, {
-    authMode,
-    transport,
-    input,
-    oauthFields,
-    keepToken: runtime.keepToken,
-    existing,
-  });
-
+  const { sealedOAuth, oauthAadVersion, oauthTokenEnvName } = await resolveSavedCredentialColumns(deps, aadIdentity, { authMode, transport, input, oauthFields, keepToken: runtime.keepToken, existing });
   const now = nowIso({ clock: deps.clock });
   const writeGrantAttribution = resolveWriteGrantAttribution(input, writeAllowedToolNames, existing, now);
   const record: ExternalMcpServerRecord = {
@@ -1650,9 +1637,9 @@ export async function saveExternalMcpServer(
     oauthAadVersion,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
+    version: existing?.version ?? 1,
   };
-  await deps.repo.upsert(record);
-  return toView(record, deps, deps.sealer);
+  return record;
 }
 
 /**

@@ -1,6 +1,6 @@
 import type { AgentPluginMcpPort } from "./ports.js";
 import type { AgentPluginMcpRecord, AgentPluginMcpProjections, AgentPluginMcpProjectionPorts } from "./ports.js";
-
+import { updateAgentPluginMcpRow } from "./row-update.js";
 import type { AgentPluginDefaultTools, McpServerConfig } from "../lifecycle/manifest.js";
 import type { createAgentPluginLifecycle } from "../lifecycle/index.js";
 
@@ -39,7 +39,7 @@ import type { createAgentPluginLifecycle } from "../lifecycle/index.js";
  *        .alreadyProvisioned}.
  *      - anything else (`null`, or a DIFFERENT plugin's id) — an operator's own hand-configured
  *        connection (with its earned OAuth tokens, allowlist, and write grants), or another plugin's
- *        row. This is ADOPTION: `deps.repo.upsert({ ...existing, provisionedByPluginId: input.pluginId })`
+ *        row. This is ADOPTION: `updateAgentPluginMcpRow` over `{ ...existing, provisionedByPluginId: input.pluginId }`
  *        is called directly against the repo port — the raw record, spread, with only that one field
  *        changed — never `saveExternalMcpServer`, which has no way to leave every other field
  *        untouched while changing just this one (even its "tri-state" fields resolve a default the
@@ -478,7 +478,7 @@ export function isEmptyJsonList({ raw }: { raw: string | null }, _optional = {})
  *  out of {@link provisionAgentPluginMcpServers} purely to keep that function's complexity under the
  *  shop ceiling: the loop gets exactly one branch point per planned server instead of a nested
  *  try/catch inline.
- *  @complexity O(1) plus at most one `repo.upsert` for the adoption case. */
+ *  @complexity O(1) plus at most one conditional write for the adoption case. */
 async function adoptOrRecognizeExistingAgentPluginMcpServer(
   deps: AgentPluginMcpProjectionPorts & Pick<AgentPluginMcpPort, "repo">,
   existing: AgentPluginMcpRecord,
@@ -514,11 +514,11 @@ async function adoptOrRecognizeExistingAgentPluginMcpServer(
   }
   // Direct repo write, never `saveExternalMcpServer` — that function has no way to leave every
   // other field untouched while changing only this one (even its "tri-state" fields resolve a
-  // default the caller must supply). Spreading `existing` and changing one property is the only
+  // default the caller must supply). Spreading the row just read and changing one property is the only
   // way to guarantee byte-identical preservation of the operator's url/transport/auth/allowlist/
-  // write-grants/oauth state.
-  await deps.repo.upsert({ ...existing, provisionedByPluginId: pluginId });
-  return { kind: "adopted" };
+  // write-grants/oauth state; the write is conditional on that read's version (a missed write re-reads once).
+  const written = await updateAgentPluginMcpRow({ repo: deps.repo, key: existing, build: current => (current.provisionedByPluginId === existing.provisionedByPluginId ? { ...current, provisionedByPluginId: pluginId } : null) });
+  return written ? { kind: "adopted" } : { kind: "failed", reason: `connection id '${planned.connectionId}' changed owner or was removed while plugin '${pluginId}' was adopting it — nothing was changed` };
 }
 
 /**
@@ -529,12 +529,12 @@ async function adoptOrRecognizeExistingAgentPluginMcpServer(
  * Rule 1 is enforced per server, right here: `deps.repo.findByServerId` runs BEFORE any write. A row
  * already at the derived id is NEVER passed through `saveExternalMcpServer` — it is either
  * recognized as this same plugin's earlier work (`alreadyProvisioned`), adopted byte-identical
- * except for `provisionedByPluginId` via a direct `repo.upsert` (`adopted`), or, when it belongs to a
+ * except for `provisionedByPluginId` via a direct conditional repo write (`adopted`), or, when it belongs to a
  * DIFFERENT plugin at a non-matching endpoint/transport/auth mode, refused as a genuine collision
  * (`failed`). See {@link adoptOrRecognizeExistingAgentPluginMcpServer}.
  *
  * Per-server failures (a store validation error, an unconfigured secret store, a refused collision,
- * or an adoption's upsert failing) are caught and reported rather than thrown, matching
+ * or an adoption's write failing) are caught and reported rather than thrown, matching
  * `readEnabledExternalMcpConfigs`'s own fail-open posture: one unwritable row must not stop every
  * other server in the same plugin, or the plugin's own activation, from succeeding.
  *
