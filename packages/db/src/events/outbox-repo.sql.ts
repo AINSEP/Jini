@@ -52,7 +52,7 @@ const CLAIMABLE_STATUSES = ["pending", "processing"];
 
 /**
  * Statuses an attempt's outcome may still overwrite (F9C, 2026-10-20). `delivered` and `failed` are
- * settled: a purge fails a job whose attempt may still be in flight (the form-delivery repo's
+ * settled: a purge fails a job whose attempt may still be in flight (`form-delivery-repo.ts`
  * `scrubPurged`), and that attempt's outcome must not revive it, or the retry would send the
  * blanked answers. `pending` stays writable because a timeout records `pending` while its handler
  * keeps running, and Jini's `recordOverrun` then lets the late outcome replace that record.
@@ -99,7 +99,7 @@ export class SqlOutboxAdapter implements OutboxPort {
   /** A repeated `event.id` is a no-op, never a primary-key error: ids are deterministic per event
    *  (`${aggregate}-${name}-${version}`, or `${aggregate}-entry.published-at-${publishAt}` for a
    *  scheduled go-live), so the same id is the same event, and the post go-live sweep
-   *  relies on this to announce each go-live exactly once. */
+   *  (`features/post/go-live.ts`) relies on this to announce each go-live exactly once. */
   async enqueue(event: DomainEvent): Promise<void> {
     await this.kernel.run((db) =>
       this.table(db).insertInto(this.tables.outboxEvents).values(outboxEventValues(event)).onConflict((oc) => oc.column("id").doNothing()).execute()
@@ -145,7 +145,7 @@ export class SqlOutboxAdapter implements OutboxPort {
 
   /**
    * Marks a claimed row failed and persists whichever `nextStatus` the caller decided (the retry-cap
-   * decision lives with the worker, not the adapter). A
+   * decision lives with the worker — `contracts/core/events/outbox-worker.ts`'s header doc). A
    * single UPDATE, same shape as `markDelivered`: the caller already had every value it needed.
    * A row already settled (see {@link UNSETTLED_STATUSES}) is left as it is.
    */
