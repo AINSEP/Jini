@@ -64,11 +64,13 @@
   "types": "./dist/contribution.d.ts",
   "symbols": {
    "SEARCH_PROVIDER_MANIFEST_SCHEMA_VERSION": "variable:d7bc4ae4b4",
-   "SearchProviderContributionDefinition": "type:bf20b8b829",
-   "SearchProviderDescriptor": "interface:0a450344fc",
-   "contributeProviders": "function:a73cb62064",
-   "defineSearchProviderContribution": "function:5efb3774c2",
-   "parseSearchProviderManifest": "function:4277f684ef",
+   "SearchContributionBase": "interface:4206549f54",
+   "SearchContributionLoaded": "type:7a2f0c73e9",
+   "SearchContributionSpec": "interface:bf1a7a21cf",
+   "SearchManifestParseResult": "type:74efdeba83",
+   "SearchProviderDescriptor": "interface:55f2de3864",
+   "defineSearchProviderContribution": "function:157f3e13dc",
+   "parseSearchProviderManifest": "function:8ca43c17f5",
    "validateContributedSearchProvider": "function:314cf52224"
   }
  },
