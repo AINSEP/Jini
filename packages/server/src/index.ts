@@ -88,6 +88,8 @@ export type {
   KernelSqliteAccess,
 } from './kernel-base.js';
 export { createJiniKernelBase } from './kernel-base.js';
+export { mountRoutes } from './mount-routes.js';
+export { nodeSessionTimer } from './route-host.js';
 
 export type { CloseHttpServerOptions, GracefulShutdownHandle, GracefulShutdownOptions } from './host-bootstrap.js';
 export {

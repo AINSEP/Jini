@@ -17,31 +17,31 @@ import { testOriginConfig } from '../fixtures/local-origin.js';
 import { fakeDaemonRouteHost } from '../fakes/route-host.js';
 import type { DaemonRouteHost } from '../../route-host.js';
 import { describeRoutes } from '../../route-table.js';
-import { registerActiveContextRoutes } from '../../active-context.js';
-import { registerAgentRoutes } from '../../agents.js';
-import { registerAttachmentLookupRoutes } from '../../attachment-lookup-routes.js';
-import { registerAttachmentRoutes } from '../../attachments.js';
-import { registerComponentCatalogRoutes } from '../../component-catalog.js';
-import { registerConnectorsRoutes } from '../../connectors.js';
-import { registerDaemonStatusRoutes } from '../../daemon-status.js';
-import { registerDaemonDbRoutes } from '../../db-ops.js';
-import { registerDelegatedToolRoutes } from '../../delegated-tools.js';
-import { registerFrontendRequestRoute } from '../../frontend-request-route.js';
-import { registerFrontendSessionRoutes } from '../../frontend-sessions.js';
-import { registerHealthRoutes } from '../../health.js';
-import { registerHostToolsRoutes } from '../../host-tools.js';
-import { registerMediaRoutes } from '../../media.js';
-import { registerMemoryRoutes } from '../../memory.js';
-import { registerMessageRelayRoutes } from '../../message-relay.js';
-import { registerModelProxyRoutes } from '../../model-proxy.js';
-import { registerRemoteRunEventRoutes } from '../../remote-run-events.js';
-import { registerResearchRoutes } from '../../research.js';
-import { registerRoutineRoutes } from '../../routines.js';
-import { registerRunRoutes } from '../../runs.js';
-import { registerTerminalRoutes } from '../../terminals.js';
+import { activeContextRoutes } from '../../active-context.js';
+import { agentRoutes } from '../../agents.js';
+import { attachmentLookupRoutes } from '../../attachment-lookup-routes.js';
+import { attachmentCleanupRoutes, attachmentUploadRoutes } from '../../attachment-routes.js';
+import { componentCatalogRoutes } from '../../component-catalog.js';
+import { connectorsRoutes } from '../../connectors.js';
+import { daemonStatusRoutes } from '../../daemon-status.js';
+import { daemonDbRoutes } from '../../db-ops.js';
+import { delegatedToolRoutes } from '../../delegated-tools.js';
+import { frontendRequestRoutes } from '../../frontend-request-route.js';
+import { frontendSessionRoutes } from '../../frontend-sessions.js';
+import { healthRoutes } from '../../health.js';
+import { hostToolsRoutes } from '../../host-tools.js';
+import { mediaRoutes } from '../../media.js';
+import { memoryRoutes } from '../../memory.js';
+import { messageRelayRoutes } from '../../message-relay.js';
+import { modelProxyRoutes } from '../../model-proxy.js';
+import { remoteRunEventRoutes } from '../../remote-run-events.js';
+import { researchRoutes } from '../../research.js';
+import { routineRoutes } from '../../routines.js';
+import { runRoutes } from '../../runs.js';
+import { terminalRoutes } from '../../terminals.js';
 import { toolCatalogRoutes } from '../../tool-catalog.js';
-import { registerToolExecutionRoutes } from '../../tool-execution-routes.js';
-import { registerXaiRoutes } from '../../xai.js';
+import { toolExecutionRoutes, type AuthorizeToolRun } from '../../tool-execution-routes.js';
+import { xaiRoutes } from '../../xai.js';
 
 /** The text every stand-in dependency throws. A response that contains it has leaked an internal error. */
 export const INTERNAL_FAILURE_MARKER = 'characterization-internal-failure-do-not-leak';
@@ -50,6 +50,9 @@ export const INTERNAL_FAILURE_MARKER = 'characterization-internal-failure-do-not
 export const HARNESS_BEARER_TOKEN = 'characterization-bearer-token';
 
 /** Where the scoped (host-authenticated) frontend-session variant is mounted, beside the default one. */
+/** The expiry timer a frontend-session owner would get: nothing here waits for a TTL, so it never fires. */
+const NEVER_FIRING_TIMER = (): { cancel(): void } => ({ cancel: () => undefined });
+
 export const SCOPED_FRONTEND_PREFIX = '/api/scoped-frontend-sessions';
 
 /** One registration as the framework recorded it: the verb (or `USE` for a path gate), the path and the layers in run order. */
@@ -95,7 +98,7 @@ export function throwingDeps(known: Readonly<Record<string, unknown>> = {}): nev
   }) as never;
 }
 
-type Mount = (required: { app: Express; adapter: RouteHostContext; deps: (known?: Readonly<Record<string, unknown>>) => never; mountList: (routes: readonly ServerRoute[]) => void }) => void;
+type Mount = (required: { app: Express; adapter: RouteHostContext; deps: (known?: Readonly<Record<string, unknown>>) => never; mountList: (routes: readonly ServerRoute[], optional?: { rawBody?: boolean }) => void }) => void;
 
 /** Token env for the two bearer gates; never the real process env. */
 const gateEnv = { JINI_TOOL_EXEC_TOKEN: HARNESS_BEARER_TOKEN, JINI_REMOTE_TOOL_BRIDGE_TOKEN: HARNESS_BEARER_TOKEN };
@@ -106,42 +109,52 @@ const gateEnv = { JINI_TOOL_EXEC_TOKEN: HARNESS_BEARER_TOKEN, JINI_REMOTE_TOOL_B
  * the blanket `express.json()` the preset mounts (default limit, 100 KB).
  */
 const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-parser')[] = [
-  ['health', ({ app, adapter, deps }) => registerHealthRoutes({ app, deps: deps(), adapter })],
-  ['tool-execution-routes', ({ app, deps }) => {
+  ['health', ({ adapter, deps, mountList }) => mountList(healthRoutes({ deps: deps(), host: routeHost(adapter) }))],
+  ['tool-execution-routes', ({ adapter, deps, mountList }) => {
     // The host's run check is optional; a test that wants one supplies it as this family's `authorizeRun`.
-    const { authorizeRun } = deps({ authorizeRun: undefined }) as { authorizeRun: RequestHandler | undefined };
-    registerToolExecutionRoutes({ app, executor: deps(), listToolsFor: (deps() as { listToolsFor: never }).listToolsFor }, { env: gateEnv, ...(authorizeRun ? { authorizeRun } : {}) });
+    const { authorizeRun } = deps({ authorizeRun: undefined }) as { authorizeRun: AuthorizeToolRun | undefined };
+    mountList(toolExecutionRoutes({ executor: deps(), listToolsFor: (deps() as { listToolsFor: never }).listToolsFor, env: gateEnv, host: routeHost(adapter) }, { ...(authorizeRun ? { authorizeRun } : {}) }), { rawBody: true });
   }],
-  ['attachment-lookup-routes', ({ app, deps }) => registerAttachmentLookupRoutes({ app, store: deps() })],
+  ['attachment-lookup-routes', ({ adapter, deps, mountList }) => mountList(attachmentLookupRoutes({ store: deps(), host: routeHost(adapter) }))],
   'json-parser',
-  ['runs', ({ app, adapter, deps }) => registerRunRoutes({ app, deps: deps(), adapter })],
-  ['agents', ({ app, adapter, deps }) => registerAgentRoutes({ app, deps: deps(), adapter })],
-  ['host-tools', ({ app, adapter, deps }) => registerHostToolsRoutes({ app, adapter }, deps())],
-  ['model-proxy', ({ app, adapter, deps }) => registerModelProxyRoutes({ app, deps: deps(), adapter })],
-  ['active-context', ({ app, adapter, deps }) => registerActiveContextRoutes({ app, deps: deps(), adapter })],
-  ['terminals', ({ app, adapter, deps }) => registerTerminalRoutes({ app, deps: deps(), adapter })],
-  ['db-ops', ({ app, adapter, deps }) => registerDaemonDbRoutes({ app, deps: deps(), adapter })],
+  ['runs', ({ adapter, deps, mountList }) => mountList(runRoutes({ deps: deps(), host: routeHost(adapter) }))],
+  ['agents', ({ adapter, deps, mountList }) => mountList(agentRoutes({ deps: deps(), host: routeHost(adapter) }))],
+  ['host-tools', ({ adapter, deps, mountList }) => mountList(hostToolsRoutes({ deps: deps(), host: routeHost(adapter) }))],
+  ['model-proxy', ({ adapter, deps, mountList }) => mountList(modelProxyRoutes({ deps: deps(), host: routeHost(adapter) }))],
+  ['active-context', ({ adapter, deps, mountList }) => mountList(activeContextRoutes({ deps: deps(), host: routeHost(adapter) }))],
+  ['terminals', ({ adapter, deps, mountList }) => mountList(terminalRoutes({ deps: deps(), host: routeHost(adapter) }))],
+  ['db-ops', ({ adapter, deps, mountList }) => mountList(daemonDbRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['tool-catalog', ({ adapter, deps, mountList }) => mountList(toolCatalogRoutes({ deps: deps(), host: routeHost(adapter) }))],
-  ['delegated-tools', ({ app, adapter, deps }) => registerDelegatedToolRoutes({ app, deps: deps(), adapter })],
-  ['connectors', ({ app, adapter, deps }) => registerConnectorsRoutes({ app, deps: deps(), adapter })],
-  ['research', ({ app, adapter, deps }) => registerResearchRoutes({ app, deps: deps(), adapter })],
-  ['xai', ({ app, adapter, deps }) => registerXaiRoutes({ app, deps: deps(), adapter })],
-  ['remote-run-events', ({ app, adapter, deps }) => registerRemoteRunEventRoutes({ app, deps: deps({ env: gateEnv, tokenConfig: undefined, timingSafeEqual: undefined }), adapter })],
-  ['memory', ({ app, adapter, deps }) => registerMemoryRoutes({ app, deps: deps(), adapter })],
-  ['routines', ({ app, adapter, deps }) => registerRoutineRoutes({ app, deps: deps(), adapter })],
-  ['media', ({ app, adapter, deps }) => registerMediaRoutes({ app, deps: deps(), adapter })],
-  ['frontend-sessions', ({ app, adapter, deps }) => registerFrontendSessionRoutes({ app, deps: deps({ routePrefix: undefined, resolveOwner: undefined }), adapter })],
-  ['frontend-sessions (scoped)', ({ app, adapter, deps }) => registerFrontendSessionRoutes({ app, deps: deps({ routePrefix: SCOPED_FRONTEND_PREFIX }), adapter })],
-  ['daemon-status', ({ app, adapter, deps }) => registerDaemonStatusRoutes({ app, deps: deps({ requestShutdown: () => undefined }), adapter })],
-  ['component-catalog', ({ app, adapter, deps }) => registerComponentCatalogRoutes({ app, deps: deps(), adapter })],
-  ['attachments', ({ app, adapter, deps }) => registerAttachmentRoutes({ app, deps: deps({ acquireActivity: undefined }), adapter })],
-  ['message-relay', ({ app, deps }) => registerMessageRelayRoutes({ app, agentExecutor: deps(), runScopedCallers: undefined })],
-  ['frontend-request-route', ({ app, deps }) => registerFrontendRequestRoute({ app, path: '/api/frontend-requests', control: deps(), executor: deps(), resolveOwner: (deps() as { resolveOwner: never }).resolveOwner, capabilityIds: ['characterization.capability'] })],
+  ['delegated-tools', ({ adapter, deps, mountList }) => mountList(delegatedToolRoutes({ deps: deps(), host: routeHost(adapter) }))],
+  ['connectors', ({ adapter, deps, mountList }) => mountList(connectorsRoutes({ deps: deps(), host: routeHost(adapter) }))],
+  ['research', ({ adapter, deps, mountList }) => mountList(researchRoutes({ deps: deps(), host: routeHost(adapter) }))],
+  ['xai', ({ adapter, deps, mountList }) => mountList(xaiRoutes({ deps: deps(), host: routeHost(adapter) }))],
+  ['remote-run-events', ({ adapter, deps, mountList }) => mountList(remoteRunEventRoutes({ deps: deps({ env: gateEnv, tokenConfig: undefined }), host: routeHost(adapter) }))],
+  ['memory', ({ adapter, deps, mountList }) => mountList(memoryRoutes({ deps: deps(), host: routeHost(adapter) }))],
+  ['routines', ({ adapter, deps, mountList }) => mountList(routineRoutes({ deps: deps(), host: routeHost(adapter) }))],
+  ['media', ({ adapter, deps, mountList }) => mountList(mediaRoutes({ deps: deps(), host: routeHost(adapter) }))],
+  ['frontend-sessions', ({ adapter, deps, mountList }) => mountList(frontendSessionRoutes({ deps: deps({ routePrefix: undefined, resolveOwner: undefined, setTimer: NEVER_FIRING_TIMER }), host: routeHost(adapter) }))],
+  ['frontend-sessions (scoped)', ({ adapter, deps, mountList }) => mountList(frontendSessionRoutes({ deps: deps({ routePrefix: SCOPED_FRONTEND_PREFIX, setTimer: NEVER_FIRING_TIMER }), host: routeHost(adapter) }))],
+  ['daemon-status', ({ adapter, deps, mountList }) => mountList(daemonStatusRoutes({ deps: deps({ requestShutdown: () => undefined }), host: routeHost(adapter) }))],
+  ['component-catalog', ({ adapter, deps, mountList }) => mountList(componentCatalogRoutes({ deps: deps(), host: routeHost(adapter) }))],
+  ['attachments', ({ adapter, deps, mountList }) => {
+    const attachmentDeps = deps({ acquireActivity: undefined });
+    mountList(attachmentUploadRoutes({ deps: attachmentDeps, host: routeHost(adapter) }), { rawBody: true });
+    mountList(attachmentCleanupRoutes({ deps: attachmentDeps, host: routeHost(adapter) }));
+  }],
+  ['message-relay', ({ deps, mountList }) => mountList(messageRelayRoutes({ agentExecutor: deps(), runScopedCallers: undefined }))],
+  ['frontend-request-route', ({ adapter, deps, mountList }) => mountList(frontendRequestRoutes({ path: '/api/frontend-requests', control: deps(), executor: deps(), resolveOwner: (deps() as { resolveOwner: never }).resolveOwner, capabilityIds: ['characterization.capability'], host: routeHost(adapter) }))],
 ];
+
+/** Keepalive timers on Node's clock, as the preset binds them (unref'd), so a row that fakes `setInterval` sees the route's ping. */
+const nodeIntervalScheduler: DaemonRouteHost['scheduler'] = {
+  every: ({ callback, intervalMs }) => { const timer = setInterval(callback, intervalMs); timer.unref(); return timer; },
+  cancel: ({ handle }) => { clearInterval(handle as NodeJS.Timeout); },
+};
 
 /** The host a route list is given: the harness's own origin policy and sink, the real reporter, and the body limit a host derives from the blanket parser (100 KB). */
 function routeHost(adapter: RouteHostContext): DaemonRouteHost {
-  return { ...fakeDaemonRouteHost(), context: adapter, reportInternalError: reportRouteInternalError, jsonBodyMaxBytes: maxReserializedJsonBytes({ parserLimitBytes: 102_400 }) };
+  return { ...fakeDaemonRouteHost(), scheduler: nodeIntervalScheduler, context: adapter, reportInternalError: reportRouteInternalError, jsonBodyMaxBytes: maxReserializedJsonBytes({ parserLimitBytes: 102_400 }) };
 }
 
 /**
@@ -149,10 +162,10 @@ function routeHost(adapter: RouteHostContext): DaemonRouteHost {
  * bridge, with the parser above it (`parsedBody`) and Express's own answers kept. Each route is recorded
  * as its method, path and gate names, so the route-table pin reads the same for a list as for `app.get`.
  */
-function mountRouteList({ app, family, routes, described }: { app: Express; family: string; routes: readonly ServerRoute[]; described: DescribedRoute[] }): void {
+function mountRouteList({ app, family, routes, described }: { app: Express; family: string; routes: readonly ServerRoute[]; described: DescribedRoute[] }, { rawBody = false }: { rawBody?: boolean } = {}): void {
   const dispatcher = createNodeDispatcher({}, { expressCompatible: true });
   for (const route of routes) dispatcher.server.route(route);
-  app.use((req, res, next) => { void dispatcher.handle({ incoming: req, out: res }, { next, parsedBody: (req as { body?: unknown }).body, locals: res.locals }); });
+  app.use((req, res, next) => { void dispatcher.handle({ incoming: req, out: res }, { next, locals: res.locals, ...(rawBody ? {} : { parsedBody: (req as { body?: unknown }).body }) }); });
   for (const route of describeRoutes({ routes })) described.push({ family, method: route.method, path: route.path, layers: route.gates });
 }
 
@@ -181,7 +194,7 @@ function mountEverything({ app, adapter, familyDeps }: { app: Express; adapter: 
       continue;
     }
     const [family, mount] = entry;
-    mount({ app: recordingApp({ app, family, routes }), adapter, mountList: (list) => mountRouteList({ app, family, routes: list, described: routes }), deps: (known = {}) => throwingDeps({ onInternalError: adapter.onInternalError, ...known, ...familyDeps[family] }) });
+    mount({ app: recordingApp({ app, family, routes }), adapter, mountList: (list, optional) => mountRouteList({ app, family, routes: list, described: routes }, optional), deps: (known = {}) => throwingDeps({ onInternalError: adapter.onInternalError, ...known, ...familyDeps[family] }) });
   }
   return routes;
 }

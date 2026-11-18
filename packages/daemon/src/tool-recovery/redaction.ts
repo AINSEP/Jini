@@ -134,7 +134,7 @@ export function describeDelegatedInternalError({ context, ...deps }: RedactedToo
 }
 
 /**
- * The two error-disclosure options the agent daemon spreads into `registerDelegatedToolRoutes`, as
+ * The two error-disclosure options the agent daemon spreads into `delegatedToolRoutes`, as
  * one value so the daemon and its tests wire the identical pair: a failure this layer already
  * ID-tagged answers `422 TOOL_EXECUTION_FAILED`, and every other internal error answers `500` with
  * {@link describeDelegatedInternalError}'s text.

@@ -12,8 +12,9 @@ import { CROSS_ORIGIN_MESSAGE, FOREIGN_ORIGIN, probe, type ProbeAnswer } from '.
  * and that the gate runs before input is read; whether empty input is refused (`400`) or reaches
  * the handler (`500 INTERNAL_ERROR`, or a `200` for the few routes that need no dependency);
  * which bearer gate sits in front (`401`); and, for every `500`, the internal-error contract
- * below. `leaks-dependency-message` marks the three routes that today put a dependency's own
- * error text in a 400 answer; they are written down as they are, not as they should be.
+ * below. `leaks-dependency-message` marks a row whose answer carries a dependency's own error
+ * text. Three memory routes did until DM-MEM (owner decision 2026-11-17): they now answer with a fixed
+ * sentence and a request ID, and the text goes to the host's error sink; no row carries it.
  *
  * The rows run in mount order against one host, as a client would meet them.
  */
@@ -91,9 +92,9 @@ const RESPONSE_MATRIX: readonly (readonly [route: string, sameOrigin: string, fo
   // memory
   ['GET /api/memory', '500 INTERNAL_ERROR', '500 INTERNAL_ERROR'],
   ['GET /api/memory/tree', '500 INTERNAL_ERROR', '500 INTERNAL_ERROR'],
-  ['PATCH /api/memory/tree/:id', '400 BAD_REQUEST leaks-dependency-message', '403 FORBIDDEN'],
+  ['PATCH /api/memory/tree/:id', '500 INTERNAL_ERROR', '403 FORBIDDEN'],
   ['PUT /api/memory/index', '400 BAD_REQUEST', '403 FORBIDDEN'],
-  ['PATCH /api/memory/config', '400 BAD_REQUEST leaks-dependency-message', '403 FORBIDDEN'],
+  ['PATCH /api/memory/config', '500 INTERNAL_ERROR', '403 FORBIDDEN'],
   ['GET /api/memory/extractions', '500 INTERNAL_ERROR', '500 INTERNAL_ERROR'],
   ['DELETE /api/memory/extractions', '500 INTERNAL_ERROR', '403 FORBIDDEN'],
   ['DELETE /api/memory/extractions/:id', '500 INTERNAL_ERROR', '403 FORBIDDEN'],
@@ -103,7 +104,7 @@ const RESPONSE_MATRIX: readonly (readonly [route: string, sameOrigin: string, fo
   ['POST /api/memory', '400 BAD_REQUEST', '403 FORBIDDEN'],
   ['GET /api/memory/:id', '500 INTERNAL_ERROR', '500 INTERNAL_ERROR'],
   ['PUT /api/memory/:id', '400 BAD_REQUEST', '403 FORBIDDEN'],
-  ['DELETE /api/memory/:id', '400 BAD_REQUEST leaks-dependency-message', '403 FORBIDDEN'],
+  ['DELETE /api/memory/:id', '500 INTERNAL_ERROR', '403 FORBIDDEN'],
   // routines
   ['GET /api/routines', '500 INTERNAL_ERROR', '500 INTERNAL_ERROR'],
   ['POST /api/routines', '400 BAD_REQUEST', '403 FORBIDDEN'],
@@ -179,14 +180,10 @@ describe('JSON response matrix', () => {
     expect(RESPONSE_MATRIX).toHaveLength(88);
   });
 
-  it('has a same-origin gate on exactly the routes the matrix says, and three routes that leak a dependency message', () => {
+  it('has a same-origin gate on exactly the routes the matrix says, and no route that leaks a dependency message', () => {
     const gated = RESPONSE_MATRIX.filter(([, , foreignOrigin]) => foreignOrigin === '403 FORBIDDEN');
     expect(gated).toHaveLength(55);
-    expect(RESPONSE_MATRIX.filter(([, sameOrigin]) => sameOrigin.endsWith('leaks-dependency-message')).map(([route]) => route)).toEqual([
-      'PATCH /api/memory/tree/:id',
-      'PATCH /api/memory/config',
-      'DELETE /api/memory/:id',
-    ]);
+    expect(RESPONSE_MATRIX.filter(([, sameOrigin]) => sameOrigin.endsWith('leaks-dependency-message')).map(([route]) => route)).toEqual([]);
   });
 });
 

@@ -3,13 +3,15 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import { createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
+import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { describeRoutes } from '../route-table.js';
 import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
 import { ClientFacingError, ok, err } from '@jini-ai/core/contracts/server';
 import { createCompatApiError } from '@jini-ai/http-kit';
 import { sendApiError } from '@jini-ai/http-kit';
 import { timingSafeTokenMatch } from '@jini-ai/http-kit';
 import { bearerTokenFromHeader } from '@jini-ai/core/contracts/server';
-import { registerConnectorsRoutes, connectorsStoragePutRoute, type StorageProvider } from '../connectors.js';
+import { connectorsRoutes, connectorsStoragePutRoute, type StorageProvider } from '../connectors.js';
 import { WorkspaceRootDeniedError } from '../workspace-root.js';
 
 describe('required and optional argument objects', () => {
@@ -56,9 +58,8 @@ describe('required and optional argument objects', () => {
     const result = await connectorsStoragePutRoute.handle({ input: { key: 'file', dataBase64: 'YQ==', contentType: 'text/plain' }, deps: { storage } });
     expect(result).toEqual({ ok: true, value: { object: { key: 'file', size: 1, updatedAt: 0 } } });
     expect(put).toHaveBeenCalledWith({ key: 'file', data: Buffer.from('a') }, { contentType: 'text/plain' });
-    const app = { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn(), patch: vi.fn() };
-    registerConnectorsRoutes({ app: app as never, deps: { storage }, adapter: createTestRouteHost() });
-    expect(app.put.mock.calls.map(([path]) => path)).toContain('/api/connectors/storage/:key');
+    const routes = describeRoutes({ routes: connectorsRoutes({ deps: { storage }, host: fakeDaemonRouteHost() }) });
+    expect(routes).toContainEqual({ method: 'PUT', path: '/api/connectors/storage/:key', gates: ['same-origin'] });
   });
 });
 

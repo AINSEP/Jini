@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createRecordingOriginPolicy, createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
+import { createRecordingOriginPolicy } from '@jini-ai/core/contracts/server/testing';
 import { createToolRegistry, type Principal, type ToolPolicy, type ToolRegistry } from '@jini-ai/core';
 import {
   createTerminalSessionManager,
@@ -14,79 +14,23 @@ import type { PtyProcess, PtySpawn } from '@jini-ai/core/contracts/runtime';
 import { createTerminalService } from '@jini-ai/platform';
 import {
   actionResultToApiResult,
-  createDeferredEndGate,
-  registerTerminalEventStream,
-  registerTerminalRoutes,
   terminalCreateRoute,
   terminalDeleteRoute,
   terminalKillRoute,
   terminalListRoute,
   terminalResizeRoute,
+  terminalRoutes,
   terminalStdinRoute,
   type TerminalsHttpDeps,
 } from '../terminals.js';
 import type { WorkspaceRootResolver } from '../workspace-root.js';
-
-interface MockApp {
-  get: (path: string, handler: any) => void;
-  post: (path: string, handler: any) => void;
-  put: (path: string, handler: any) => void;
-  delete: (path: string, handler: any) => void;
-  patch: (path: string, handler: any) => void;
-  handlers: Record<string, (req: any, res: any) => Promise<void> | void>;
-}
-
-function makeApp(): MockApp {
-  const handlers: MockApp['handlers'] = {};
-  const make = (method: string) => (path: string, handler: any) => {
-    handlers[`${method.toUpperCase()} ${path}`] = handler;
-  };
-  return { get: make('get'), post: make('post'), put: make('put'), delete: make('delete'), patch: make('patch'), handlers };
-}
-
-function makeRes() {
-  return { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() };
-}
-
-/** Minimal fake of the raw Express req/res surface `registerTerminalEventStream` uses directly (no Adapter in between) — mirrors `runs.test.ts`'s `makeSseReq`/`makeSseRes`. */
-function makeSseReq(overrides: { id?: string; headers?: Record<string, string>; query?: Record<string, unknown> } = {}) {
-  const headers: Record<string, string> = { host: '127.0.0.1:7456', ...overrides.headers };
-  return {
-    params: { id: overrides.id ?? 'term-1' },
-    query: overrides.query ?? {},
-    headers,
-    get: (name: string) => headers[name.toLowerCase()],
-  };
-}
-
-function makeSseRes() {
-  const closeListeners: Array<() => void> = [];
-  const drainListeners: Array<() => void> = [];
-  const res = {
-    write: vi.fn((_chunk: string) => true),
-    status: vi.fn().mockReturnThis(),
-    statusCode: 0,
-    setHeader: vi.fn(),
-    flushHeaders: vi.fn(),
-    end: vi.fn(() => {
-      res.writableEnded = true;
-    }),
-    json: vi.fn().mockReturnThis(),
-    headersSent: false,
-    writableEnded: false,
-    on: vi.fn((event: string, listener: () => void) => {
-      if (event === 'close') closeListeners.push(listener);
-      if (event === 'drain') drainListeners.push(listener);
-    }),
-    emitClose: () => closeListeners.forEach((listener) => listener()),
-    emitDrain: () => drainListeners.forEach((listener) => listener()),
-  };
-  return res;
-}
+import { describeRoutes } from '../route-table.js';
+import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
+import { readFrames } from './fakes/sse-reader.js';
 
 const testOriginPolicy = createRecordingOriginPolicy();
 
-const adapter = createTestRouteHost({}, { originPolicy: testOriginPolicy });
 const alice: Principal = { id: 'alice' };
 const bob: Principal = { id: 'bob' };
 
@@ -530,231 +474,159 @@ describe('terminalKillRoute / terminalDeleteRoute', () => {
   });
 });
 
-describe('registerTerminalRoutes', () => {
-  it('mounts every documented route', () => {
-    const app = makeApp();
+/** The terminal routes on an in-memory server, behind the recording origin policy. */
+function serve(deps: TerminalsHttpDeps) {
+  const host = fakeDaemonRouteHost({}, { originPolicy: testOriginPolicy });
+  return serveRoutes({ routes: terminalRoutes({ deps, host }) });
+}
+
+describe('terminalRoutes', () => {
+  it('lists every documented route, with the same-origin gate named on each one that has it', () => {
     const { deps } = makeDeps();
-    registerTerminalRoutes({ app: app as any, deps, adapter });
-    expect(Object.keys(app.handlers).sort()).toEqual(
-      [
-        'GET /api/terminals',
-        'POST /api/terminals',
-        'POST /api/terminals/:id/stdin',
-        'POST /api/terminals/:id/resize',
-        'POST /api/terminals/:id/kill',
-        'DELETE /api/terminals/:id',
-        'GET /api/terminals/:id/stream',
-      ].sort(),
-    );
+    expect(describeRoutes({ routes: terminalRoutes({ deps, host: fakeDaemonRouteHost() }) })).toEqual([
+      { method: 'GET', path: '/api/terminals', gates: [] },
+      { method: 'POST', path: '/api/terminals', gates: ['same-origin'] },
+      { method: 'POST', path: '/api/terminals/:id/stdin', gates: ['same-origin'] },
+      { method: 'POST', path: '/api/terminals/:id/resize', gates: ['same-origin'] },
+      { method: 'POST', path: '/api/terminals/:id/kill', gates: ['same-origin'] },
+      { method: 'DELETE', path: '/api/terminals/:id', gates: ['same-origin'] },
+      { method: 'GET', path: '/api/terminals/:id/stream', gates: ['same-origin'] },
+    ]);
   });
 
-  it('mounted create route: a same-origin request reaches parse, the executor, and returns 201', async () => {
-    const app = makeApp();
+  it('create: a same-origin request reaches parse, the executor, and returns 201', async () => {
     const { deps } = makeDeps();
-    registerTerminalRoutes({ app: app as any, deps, adapter });
-    const res = makeRes();
-    await app.handlers['POST /api/terminals']!({ body: { resourceRef: 'proj-1' }, query: {}, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(201);
+    const response = await serve(deps)(jsonRequest({ path: '/api/terminals', method: 'POST' }, { body: { resourceRef: 'proj-1' } }));
+    expect(response.status).toBe(201);
   });
 
   it('blocks a cross-origin create request before the tool executor ever runs', async () => {
     testOriginPolicy.set({ allow: false });
-    const app = makeApp();
     const { deps, manager } = makeDeps();
-    registerTerminalRoutes({ app: app as any, deps, adapter });
-    const res = makeRes();
-    await app.handlers['POST /api/terminals']!({ body: { resourceRef: 'proj-1' }, query: {}, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(403);
+    const response = await serve(deps)(jsonRequest({ path: '/api/terminals', method: 'POST' }, { body: { resourceRef: 'proj-1' } }));
+    expect(response.status).toBe(403);
     expect(manager.list({ principal: alice })).toEqual([]);
   });
 
   it('the list route does not require same-origin (matches runListRoute precedent)', async () => {
     testOriginPolicy.set({ allow: false });
-    const app = makeApp();
     const { deps } = makeDeps();
-    registerTerminalRoutes({ app: app as any, deps, adapter });
-    const res = makeRes();
-    await app.handlers['GET /api/terminals']!({ body: {}, query: {}, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(200);
+    expect((await serve(deps)(jsonRequest({ path: '/api/terminals' }))).status).toBe(200);
+  });
+
+  it('a failing tool execution answers the fixed sentence with a request ID and gives the host the real error', async () => {
+    const onInternalError = vi.fn();
+    const toolExecutor = { execute: async () => ({ status: 'failed', error: new Error('spawn failed at /opt/secret/pty') }) } as unknown as ToolExecutor;
+    const { deps } = makeDeps({ toolExecutor, onInternalError });
+    const response = await serve(deps)(jsonRequest({ path: '/api/terminals', method: 'POST' }, { body: { resourceRef: 'proj-1' } }));
+    const text = await response.text();
+    expect(response.status).toBe(500);
+    expect(text).toContain('The terminal could not be opened.');
+    expect(text).not.toContain('/opt/secret/pty');
+    expect(onInternalError).toHaveBeenCalledWith(expect.objectContaining({ source: 'terminal-create', error: expect.objectContaining({ message: 'spawn failed at /opt/secret/pty' }) }));
   });
 });
 
-describe('createDeferredEndGate', () => {
-  function makeFakeChannel(): { end: ReturnType<typeof vi.fn> } {
-    return { end: vi.fn() };
-  }
+describe('GET /api/terminals/:id/stream', () => {
+  const open = (deps: TerminalsHttpDeps, { id = 'term-1', headers = {}, query = '', signal }: { id?: string; headers?: Record<string, string>; query?: string; signal?: AbortSignal } = {}) =>
+    serve(deps)(new Request(`http://local/api/terminals/${id}/stream${query}`, { headers, ...(signal ? { signal } : {}) }));
+  const createSession = async (deps: TerminalsHttpDeps): Promise<string> => {
+    const created = await terminalCreateRoute.handle({ input: { resourceRef: 'proj-1' }, deps });
+    if (!created.ok) throw new Error('create failed');
+    return created.value.id;
+  };
 
-  it('defers end() until markOpened() when end() is called first (the already-exited-at-attach-time replay path)', () => {
-    const channel = makeFakeChannel();
-    const gate = createDeferredEndGate({ channel });
-
-    gate.end();
-    expect(channel.end).not.toHaveBeenCalled();
-
-    gate.markOpened();
-    expect(channel.end).toHaveBeenCalledTimes(1);
-  });
-
-  it('ends immediately when end() is called after markOpened() (a live session that exits post-open)', () => {
-    const channel = makeFakeChannel();
-    const gate = createDeferredEndGate({ channel });
-
-    gate.markOpened();
-    expect(channel.end).not.toHaveBeenCalled();
-
-    gate.end();
-    expect(channel.end).toHaveBeenCalledTimes(1);
-  });
-
-  it('never calls channel.end() when end() is never called at all', () => {
-    const channel = makeFakeChannel();
-    const gate = createDeferredEndGate({ channel });
-
-    gate.markOpened();
-    expect(channel.end).not.toHaveBeenCalled();
-  });
-
-  it('does not double-fire channel.end() when markOpened() runs with no pending end(), even if end() arrives later', () => {
-    const channel = makeFakeChannel();
-    const gate = createDeferredEndGate({ channel });
-
-    gate.markOpened();
-    gate.end();
-    expect(channel.end).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('registerTerminalEventStream', () => {
-  function mount(deps: TerminalsHttpDeps) {
-    const app = makeApp();
-    registerTerminalEventStream({ app: app as any, deps, adapter });
-    return app.handlers['GET /api/terminals/:id/stream']!;
-  }
-
-  it('rejects a cross-origin request before touching the manager or opening the stream', () => {
+  it('rejects a cross-origin request before touching the manager or opening the stream', async () => {
     testOriginPolicy.set({ allow: false });
     const { deps, manager } = makeDeps();
     const attachSpy = vi.spyOn(manager, 'attach');
-    const handler = mount(deps);
-    const res = makeSseRes();
-    handler(makeSseReq({ id: 'term-1', headers: { origin: 'http://evil.example' } }), res);
-    expect(res.status).toHaveBeenCalledWith(403);
-    expect(res.json).toHaveBeenCalledWith({ error: expect.objectContaining({ code: 'FORBIDDEN' }) });
-    expect(attachSpy).not.toHaveBeenCalled();
-    expect(res.setHeader).not.toHaveBeenCalled();
-  });
-
-  it('responds 400 without touching the manager when id is missing', () => {
-    const { deps, manager } = makeDeps();
-    const attachSpy = vi.spyOn(manager, 'attach');
-    const handler = mount(deps);
-    const res = makeSseRes();
-    handler(makeSseReq({ id: '' }), res);
-    expect(res.status).toHaveBeenCalledWith(400);
+    const response = await open(deps, { headers: { origin: 'http://evil.example' } });
+    expect([response.status, (await response.json() as { error: { code: string } }).error.code]).toEqual([403, 'FORBIDDEN']);
     expect(attachSpy).not.toHaveBeenCalled();
   });
 
-  it('sends 404 NOT_FOUND without ever calling res.end() first when the terminal is unknown', () => {
+  it('answers a JSON 404 NOT_FOUND, not a stream, when the terminal is unknown', async () => {
     const { deps } = makeDeps();
-    const handler = mount(deps);
-    const res = makeSseRes();
-    handler(makeSseReq({ id: 'missing' }), res);
-    expect(res.status).toHaveBeenCalledWith(404);
-    expect(res.json).toHaveBeenCalledWith({ error: { code: 'NOT_FOUND', message: 'terminal "missing" was not found' } });
-    expect(res.end).not.toHaveBeenCalled();
+    const response = await open(deps, { id: 'missing' });
+    expect([response.status, response.headers.get('content-type'), await response.json()]).toEqual([404, 'application/json; charset=utf-8', { error: { code: 'NOT_FOUND', message: 'terminal "missing" was not found' } }]);
   });
 
   it("404s for another principal's terminal", async () => {
     const { deps } = makeDeps();
-    const created = await terminalCreateRoute.handle({ input: { resourceRef: 'proj-1' }, deps });
-    const id = created.ok ? created.value.id : (() => { throw new Error('create failed'); })();
-    const handler = mount({ ...deps, principal: bob });
-    const res = makeSseRes();
-    handler(makeSseReq({ id }), res);
-    expect(res.status).toHaveBeenCalledWith(404);
+    const id = await createSession(deps);
+    expect((await open({ ...deps, principal: bob }, { id })).status).toBe(404);
   });
 
-  it('writes SSE headers and keeps the connection open on a running terminal, then delivers live output', async () => {
+  it('keeps the connection open on a running terminal and delivers live output', async () => {
     const { deps, pty } = makeDeps();
-    const created = await terminalCreateRoute.handle({ input: { resourceRef: 'proj-1' }, deps });
-    const id = created.ok ? created.value.id : (() => { throw new Error('create failed'); })();
-    const handler = mount(deps);
-    const res = makeSseRes();
-    handler(makeSseReq({ id }), res);
-
-    expect(res.statusCode).toBe(200);
-    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/event-stream; charset=utf-8');
-    expect(res.flushHeaders).toHaveBeenCalledTimes(1);
-    expect(res.end).not.toHaveBeenCalled();
-    expect(res.on).toHaveBeenCalledWith('close', expect.any(Function));
-
+    const id = await createSession(deps);
+    const response = await open(deps, { id });
+    expect([response.status, response.headers.get('content-type')]).toEqual([200, 'text/event-stream; charset=utf-8']);
+    const frames = readFrames({ response });
     pty.emitData('hello');
-    await vi.waitFor(() => expect(res.write).toHaveBeenCalledWith(expect.stringContaining('event: data')));
+    expect((await frames.next())[0]).toContain('event: data');
+    await frames.cancel();
   });
 
-  it('ends the stream immediately once an already-open (live) terminal exits mid-stream', async () => {
+  it('ends the stream right after the exit frame once a live terminal exits mid-stream', async () => {
     const { deps, pty } = makeDeps();
-    const created = await terminalCreateRoute.handle({ input: { resourceRef: 'proj-1' }, deps });
-    const id = created.ok ? created.value.id : (() => { throw new Error('create failed'); })();
-    const handler = mount(deps);
-    const res = makeSseRes();
-    handler(makeSseReq({ id }), res);
-    expect(res.end).not.toHaveBeenCalled();
-
+    const id = await createSession(deps);
+    const frames = readFrames({ response: await open(deps, { id }) });
+    expect(await frames.stillSilent()).toBe(true);
     pty.exitCb?.({ exitCode: 0 });
-    expect(res.write).toHaveBeenCalledWith(expect.stringContaining('event: exit'));
-    expect(res.end).toHaveBeenCalledTimes(1);
+    const all = await frames.rest();
+    expect(all.at(-1)).toContain('event: exit');
   });
 
-  it('ends the stream and stops delivering output once the client disconnects', async () => {
+  it('detaches once and stops delivering output when the client leaves', async () => {
     const { deps, manager, pty } = makeDeps();
-    const created = await terminalCreateRoute.handle({ input: { resourceRef: 'proj-1' }, deps });
-    const id = created.ok ? created.value.id : (() => { throw new Error('create failed'); })();
+    const id = await createSession(deps);
     const detachSpy = vi.spyOn(manager, 'detach');
-    const handler = mount(deps);
-    const res = makeSseRes();
-    handler(makeSseReq({ id }), res);
-    res.emitClose();
+    const controller = new AbortController();
+    const response = await open(deps, { id, signal: controller.signal });
+    const frames = readFrames({ response });
+    controller.abort();
+    await frames.cancel();
+    await vi.waitFor(() => expect(detachSpy).toHaveBeenCalledTimes(1));
     expect(detachSpy).toHaveBeenCalledWith({ id, sink: expect.anything() });
-    res.write.mockClear();
     pty.emitData('should-not-be-delivered');
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(res.write).not.toHaveBeenCalled();
+    expect(detachSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('prefers the Last-Event-ID header over the afterCursor query parameter', async () => {
+  it.each([
+    ['prefers the Last-Event-ID header over the afterCursor query parameter', { 'last-event-id': '5' }, '?afterCursor=1', 5],
+    ['falls back to the afterCursor query parameter', {}, '?afterCursor=3', 3],
+    ['uses lastEventId 0 when neither header nor query parameter is present', {}, '', 0],
+  ])('%s', async (_label, headers, query, expected) => {
     const { deps, manager } = makeDeps();
-    const created = await terminalCreateRoute.handle({ input: { resourceRef: 'proj-1' }, deps });
-    const id = created.ok ? created.value.id : (() => { throw new Error('create failed'); })();
+    const id = await createSession(deps);
     const attachSpy = vi.spyOn(manager, 'attach');
-    const handler = mount(deps);
-    const res = makeSseRes();
-    handler(makeSseReq({ id, headers: { 'last-event-id': '5' }, query: { afterCursor: '1' } }), res);
-    expect(attachSpy).toHaveBeenCalledWith({ principal: alice, id, lastEventId: 5, sink: expect.anything() });
+    const response = await open(deps, { id, headers, query });
+    await readFrames({ response }).cancel();
+    expect(attachSpy).toHaveBeenCalledWith({ principal: alice, id, lastEventId: expected, sink: expect.anything() });
   });
 
-  it('uses lastEventId 0 when neither header nor query parameter is present', async () => {
-    const { deps, manager } = makeDeps();
-    const created = await terminalCreateRoute.handle({ input: { resourceRef: 'proj-1' }, deps });
-    const id = created.ok ? created.value.id : (() => { throw new Error('create failed'); })();
-    const attachSpy = vi.spyOn(manager, 'attach');
-    const handler = mount(deps);
-    const res = makeSseRes();
-    handler(makeSseReq({ id }), res);
-    expect(attachSpy).toHaveBeenCalledWith({ principal: alice, id, lastEventId: 0, sink: expect.anything() });
-  });
-
-  it('replays buffered scrollback and ends immediately for an already-exited terminal', async () => {
-    const { deps, manager, pty } = makeDeps();
-    const created = await terminalCreateRoute.handle({ input: { resourceRef: 'proj-1' }, deps });
-    const id = created.ok ? created.value.id : (() => { throw new Error('create failed'); })();
+  it('replays the buffered scrollback, then the exit, then ends, for an already-exited terminal (the deferred-end gate it replaces existed for exactly this)', async () => {
+    const { deps, pty } = makeDeps();
+    const id = await createSession(deps);
+    pty.emitData('line one');
+    pty.emitData('line two');
     pty.exitCb?.({ exitCode: 0 });
-    const handler = mount(deps);
-    const res = makeSseRes();
-    handler(makeSseReq({ id }), res);
-    expect(res.write).toHaveBeenCalledWith(expect.stringContaining('event: exit'));
-    expect(res.end).toHaveBeenCalledTimes(1);
-    void manager;
+    const frames = await readFrames({ response: await open(deps, { id }) }).rest();
+    expect(frames.map((frame) => frame.split('\n')[1])).toEqual(['event: data', 'event: exit']);
+    expect(frames.join('')).toContain('line two');
+  });
+
+  it('delivers a replay longer than the live-frame cap whole', async () => {
+    const { deps, manager } = makeDeps();
+    vi.spyOn(manager, 'attach').mockImplementation(({ sink: target }) => {
+      for (let eventId = 1; eventId <= 1500; eventId += 1) target.send('output', { data: `line ${eventId}` }, eventId);
+      target.send('exit', { code: 0, signal: null }, 1501);
+      target.end();
+      return 'ended';
+    });
+    const frames = await readFrames({ response: await open(deps) }).rest();
+    expect(frames).toHaveLength(1501);
   });
 });
 

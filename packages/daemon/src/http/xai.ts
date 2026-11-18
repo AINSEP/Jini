@@ -69,12 +69,12 @@
  * mutable state that must be the *same instance* across `oauth/start` → `oauth/complete`/
  * `oauth/cancel`/`oauth/disconnect` calls for the dance to work at all — a fresh `PendingAuthCache`
  * minted independently on every request would mean `start` and `complete` never see each other's
- * state. `registerXaiRoutes` resolves every optional default exactly once (`resolveXaiHttpDeps`)
+ * state. `xaiRoutes` resolves every optional default exactly once (`resolveXaiHttpDeps`)
  * and hands that single resolved object to every mounted route, so a zero-config
- * `registerXaiRoutes({ app, deps: {}, adapter })` call still shares one cache/listener-slot across the whole
+ * `xaiRoutes({ deps: {}, host })` call still shares one cache/listener-slot across the whole
  * mounted lifetime. Each route's own `handle` also calls `resolveXaiHttpDeps` at its top (a
  * defensive, idempotent pass-through when deps are already concrete) purely so individual routes
- * stay directly unit-testable without going through `registerXaiRoutes` first, matching every other
+ * stay directly unit-testable without going through `xaiRoutes` first, matching every other
  * route pack in this package's own test convention — a test exercising a multi-call flow (e.g.
  * start then complete) must pass the same concrete `pending`/`listenerRef` across both calls, the
  * same way a real mounted server does.
@@ -118,7 +118,6 @@
  *    without special-casing one provider's capitalization inside otherwise-generic code.
  */
 import { redactSecrets } from '@jini-ai/core';
-import type { Express } from 'express';
 import {
   beginOAuthPkce,
   clearStoredOAuthToken,
@@ -141,9 +140,9 @@ import {
   type StoredOAuthToken,
 } from '@jini-ai/agent-runtime';
 import { createApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
-import { type RouteHostContext, validationError, err, ok, type Result, type RouteInputContext } from '@jini-ai/core/contracts/server';
 import { reportRouteInternalError } from '@jini-ai/http-kit';
+import { defineJsonRoute, validationError, err, ok, type JsonRouteSpec, type ReportRouteInternalError, type Result, type RouteInputContext } from '@jini-ai/core/contracts/server';
+import type { DaemonRouteHost } from './route-host.js'; import { gatedJsonRoute, withHostReporter, type DaemonRoute } from './route-table.js';
 import { trimCharsEnd } from '@jini-ai/core/text';
 
 /** Plain words per failing operation; the caller also gets the request ID. */
@@ -185,7 +184,7 @@ export interface XaiHttpDeps {
   readonly callbackPort?: number;
   /** Loopback callback path `providerConfig.clientId` is registered against. Defaults to `XAI_OAUTH_REDIRECT_PATH` (`/callback`). */
   readonly callbackPath?: string;
-  /** In-memory pending-authorization cache backing the begin/complete dance. Defaults to a fresh 30-minute `PendingAuthCache`, shared across every request `registerXaiRoutes` mounts — see module doc on why this must be resolved once, not per-call. */
+  /** In-memory pending-authorization cache backing the begin/complete dance. Defaults to a fresh 30-minute `PendingAuthCache`, shared across every request `xaiRoutes` mounts — see module doc on why this must be resolved once, not per-call. */
   readonly pending?: PendingAuthCache;
   /** Mutable slot holding the in-flight loopback listener, if any (only one OAuth dance can be in flight at a time — the port is a singleton). Shared the same way `pending` is. Defaults to `{ current: null }`. */
   readonly listenerRef?: { current: OAuthCallbackListener | null };
@@ -200,6 +199,7 @@ export interface XaiHttpDeps {
   readonly searchTimeoutMs?: number;
   /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). It receives the original error: upstream bodies can carry secrets, so the host redacts under its own policy. Without it the default line prints the class only. */
   readonly onInternalError?: ((context: XaiInternalErrorContext) => void) | undefined;
+  /** Makes the request ID and writes the log line for an internal failure. {@link xaiRoutes} sets it to the host's reporter; a caller that runs a route's `handle` itself may omit it and gets `@jini-ai/http-kit`'s. */ readonly reportInternalError?: ReportRouteInternalError | undefined;
 }
 
 interface ResolvedXaiHttpDeps {
@@ -217,17 +217,18 @@ interface ResolvedXaiHttpDeps {
   fetchImpl: typeof fetch;
   searchTimeoutMs: number;
   onInternalError?: ((context: XaiInternalErrorContext) => void) | undefined;
+  reportInternalError?: ReportRouteInternalError | undefined;
 }
 
 /** The one incident owner for every xAI route failure (local wrapper: it picks the message). */
 function reportXaiInternalError(
-  { resolved, source, error }: { readonly resolved: Pick<ResolvedXaiHttpDeps, 'onInternalError'>; readonly source: XaiInternalErrorContext['source']; readonly error: unknown },
+  { resolved, source, error }: { readonly resolved: Pick<ResolvedXaiHttpDeps, 'onInternalError' | 'reportInternalError'>; readonly source: XaiInternalErrorContext['source']; readonly error: unknown },
   _optional: Record<string, never> = {},
 ): ReturnType<typeof createApiError> {
-  return reportRouteInternalError<Omit<XaiInternalErrorContext, 'correlationId'>>({ report: { source, error }, logSource: `xai/${source}`, message: XAI_FAILURE_MESSAGES[source] }, { onInternalError: resolved.onInternalError });
+  return (resolved.reportInternalError ?? reportRouteInternalError)<Omit<XaiInternalErrorContext, 'correlationId'>>({ report: { source, error }, logSource: `xai/${source}`, message: XAI_FAILURE_MESSAGES[source] }, { onInternalError: resolved.onInternalError });
 }
 
-/** Resolves every optional `XaiHttpDeps` field to a concrete value. Idempotent — calling this again on an already-resolved object (e.g. `registerXaiRoutes`'s own single resolution, passed through to each route's `handle`) is a harmless pass-through. See module doc on why stateful fields (`pending`/`listenerRef`) must be resolved once per registration, not once per request. */
+/** Resolves every optional `XaiHttpDeps` field to a concrete value. Idempotent — calling this again on an already-resolved object (e.g. `xaiRoutes`'s own single resolution, passed through to each route's `handle`) is a harmless pass-through. See module doc on why stateful fields (`pending`/`listenerRef`) must be resolved once per registration, not once per request. */
 function resolveXaiHttpDeps(deps: XaiHttpDeps): ResolvedXaiHttpDeps {
   return { ...resolveOAuthFlowDeps(deps), ...resolveStorageAndSearchDeps(deps) };
 }
@@ -246,7 +247,7 @@ function resolveOAuthFlowDeps(deps: XaiHttpDeps): Pick<ResolvedXaiHttpDeps, 'pro
 }
 
 /** Token storage, search transport and error-sink defaults. */
-function resolveStorageAndSearchDeps(deps: XaiHttpDeps): Pick<ResolvedXaiHttpDeps, 'dataDir' | 'tokenFileName' | 'searchBaseUrl' | 'searchDefaultModel' | 'fetchImpl' | 'searchTimeoutMs' | 'onInternalError'> {
+function resolveStorageAndSearchDeps(deps: XaiHttpDeps): Pick<ResolvedXaiHttpDeps, 'dataDir' | 'tokenFileName' | 'searchBaseUrl' | 'searchDefaultModel' | 'fetchImpl' | 'searchTimeoutMs' | 'onInternalError' | 'reportInternalError'> {
   return {
     dataDir: deps.dataDir ?? process.cwd(),
     tokenFileName: deps.tokenFileName ?? DEFAULT_TOKEN_FILE_NAME,
@@ -255,6 +256,7 @@ function resolveStorageAndSearchDeps(deps: XaiHttpDeps): Pick<ResolvedXaiHttpDep
     fetchImpl: deps.fetchImpl ?? fetch,
     searchTimeoutMs: deps.searchTimeoutMs ?? DEFAULT_SEARCH_TIMEOUT_MS,
     onInternalError: deps.onInternalError,
+    reportInternalError: deps.reportInternalError,
   };
 }
 
@@ -790,13 +792,9 @@ export const xaiSearchRoute = defineJsonRoute<XaiSearchRequest, XaiSearchRespons
   }
 }, { requireSameOrigin: true });
 
-/** Mounts every xAI route on `app`. A pack's `http(app, services)` calls this directly. */
-export function registerXaiRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: XaiHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
-  const resolved = resolveXaiHttpDeps(deps);
-  mountJsonRoute({ app, spec: xaiOauthStartRoute, deps: resolved, adapter });
-  mountJsonRoute({ app, spec: xaiOauthCompleteRoute, deps: resolved, adapter });
-  mountJsonRoute({ app, spec: xaiOauthCancelRoute, deps: resolved, adapter });
-  mountJsonRoute({ app, spec: xaiAuthStatusRoute, deps: resolved, adapter });
-  mountJsonRoute({ app, spec: xaiOauthDisconnectRoute, deps: resolved, adapter });
-  mountJsonRoute({ app, spec: xaiSearchRoute, deps: resolved, adapter });
+/** Every xAI route as data, each behind the same-origin gate its spec declares. Defaults are resolved once per call, so the routes share one pending-auth cache and listener slot. Internal failures are reported through the host's reporter. */
+export function xaiRoutes({ deps, host }: { readonly deps: XaiHttpDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
+  const routeDeps = withHostReporter({ deps: resolveXaiHttpDeps(deps), host });
+  const json = <I, O>(spec: JsonRouteSpec<I, O, XaiHttpDeps>): DaemonRoute => gatedJsonRoute({ spec, deps: routeDeps, host });
+  return [json(xaiOauthStartRoute), json(xaiOauthCompleteRoute), json(xaiOauthCancelRoute), json(xaiAuthStatusRoute), json(xaiOauthDisconnectRoute), json(xaiSearchRoute)];
 }

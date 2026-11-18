@@ -6,8 +6,8 @@
  *
  * The load-bearing property is that a family's **tools and its routes are the same pack**. Before
  * this module, `create-local-node-daemon.ts` registered the terminal tool and the three `daemon.db.*`
- * tools into a private registry in one place, and mounted `registerTerminalRoutes`/
- * `registerDaemonDbRoutes` in another — so gating only the route registrations would have left
+ * tools into a private registry in one place, and mounted `terminalRoutes`/
+ * `daemonDbRoutes` in another — so gating only the route registrations would have left
  * `jini.terminal.create` registered and still reachable through the always-mounted
  * `POST /api/delegated-tool-calls`. Here, a feature that is not selected contributes neither, and
  * there is no second step to gate. `terminal: false` means the pty tool is *absent from the
@@ -38,7 +38,7 @@ import {
   searchToolCatalog,
 } from '@jini-ai/registry/tool-catalog/sqlite';
 import { inspectSqliteDatabase, verifySqliteIntegrity } from '@jini-ai/db/sqlite'; import type { SqliteDb } from '@jini-ai/core/contracts/storage';
-import { toolCatalogRoutes, createDaemonDbToolRegistrations, denyAllWorkspaceRoots, registerActiveContextRoutes, registerAgentRoutes, registerConnectorsRoutes, registerDaemonDbRoutes, registerDaemonStatusRoutes, registerDelegatedToolRoutes, registerFrontendSessionRoutes, registerHealthRoutes, registerHostToolsRoutes, registerMediaRoutes, registerMemoryRoutes, registerModelProxyRoutes, registerRemoteRunEventRoutes, registerResearchRoutes, registerRoutineRoutes, registerRunRoutes, registerTerminalRoutes, registerXaiRoutes, type AgentSummary, type DaemonDbOperations, type DaemonDbVacuumResult, type DelegatedToolExecuteRequest, type FrontendSessionsHttpDeps, type MediaHttpDeps, type MemoryHttpDeps, type RemoteToolBridgeTokenConfig, type RoutineHttpDeps, type RunStartHandler, type WorkspaceRootResolver } from '@jini-ai/daemon/http';
+import { xaiRoutes, connectorsRoutes, routineRoutes, mediaRoutes, hostToolsRoutes, healthRoutes, daemonDbRoutes, researchRoutes, delegatedToolRoutes, activeContextRoutes, daemonStatusRoutes, agentRoutes, toolCatalogRoutes, createDaemonDbToolRegistrations, denyAllWorkspaceRoots, frontendSessionRoutes, memoryRoutes, modelProxyRoutes, remoteRunEventRoutes, runRoutes, terminalRoutes, type AgentSummary, type DaemonDbOperations, type DaemonDbVacuumResult, type DelegatedToolExecuteRequest, type FrontendSessionsHttpDeps, type MediaHttpDeps, type MemoryHttpDeps, type RemoteToolBridgeTokenConfig, type RoutineHttpDeps, type RunStartHandler, type WorkspaceRootResolver } from '@jini-ai/daemon/http';
 import type { Express } from 'express';
 
 import { defineJiniFeature, type FeatureBuildContext, type JiniFeature } from './feature.js';
@@ -238,7 +238,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
         http: ({ app, services }) => {
           const sqlite = services.context.kernel.sqlite;
           const isShuttingDown = options.health?.isShuttingDown ?? (() => false);
-          registerHealthRoutes({ app: app as Express, deps: {
+          mountRoutes({ app, routes: healthRoutes({ deps: {
               getVersion: options.health?.getVersion ?? (() => packageVersion),
               // Borrows the kernel's connection — see kernel-base.ts on why this is not
               // `daemonDb`'s to own. A readiness check must never itself throw and crash the
@@ -254,7 +254,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
                 }
                 return { ok: dbOk && notShuttingDown, checks: { db: dbOk, notShuttingDown } };
               },
-            }, adapter: services.context.adapter });
+            }, host: services.context.routeHost }) });
         },
       }),
     }),
@@ -282,13 +282,13 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
           services: () => ({ context }),
         }, {
           http: ({ app, services }) => {
-            registerRunRoutes({ app: app as Express, deps: {
+            mountRoutes({ app, routes: runRoutes({ deps: {
                 lifecycle: services.context.kernel.lifecycle,
                 ...(onStarted === undefined ? {} : { onStarted }),
                 // A mid-run message reaches whichever live run the kernel's own executor is driving;
                 // a run some other driver owns reads as not-running, never as delivered.
                 deliverUserMessage: (input) => services.context.kernel.agentExecutor.sendUserMessage(input),
-              }, adapter: services.context.adapter });
+              }, host: services.context.routeHost }) });
           },
         }),
       };
@@ -331,7 +331,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
           services: () => ({ context }),
         }, {
           http: ({ app, services }) => {
-            registerAgentRoutes({ app: app as Express, deps: { listAgents: () => scanAgents(false), rescanAgents: () => scanAgents(true) }, adapter: services.context.adapter });
+            mountRoutes({ app, routes: agentRoutes({ deps: { listAgents: () => scanAgents(false), rescanAgents: () => scanAgents(true) }, host: services.context.routeHost }) });
           },
         }),
       };
@@ -349,9 +349,9 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
         services: () => ({ context }),
       }, {
         http: ({ app, services }) => {
-          registerHostToolsRoutes({ app: app as Express, adapter: services.context.adapter }, {
+          mountRoutes({ app, routes: hostToolsRoutes({ deps: {
             resolveRoot: options.hostTools?.resolveWorkspaceRoot ?? denyAllWorkspaceRoots,
-          });
+          }, host: services.context.routeHost }) });
         },
       }),
     }),
@@ -366,7 +366,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
         deps: [],
         services: () => ({ context }),
       }, {
-        http: ({ app, services }) => registerModelProxyRoutes({ app: app as Express, deps: {}, adapter: services.context.adapter }),
+        http: ({ app, services }) => mountRoutes({ app, routes: modelProxyRoutes({ deps: {}, host: services.context.routeHost }) }),
       }),
     }),
   });
@@ -381,9 +381,9 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
         services: () => ({ context }),
       }, {
         http: ({ app, services }) =>
-          registerActiveContextRoutes({ app: app as Express, deps: // Mandatory but with an honest, harmless answer this package can always give:
+          mountRoutes({ app, routes: activeContextRoutes({ deps: // Mandatory but with an honest, harmless answer this package can always give:
             // "unknown". It has no Project/Workspace noun of its own to resolve a name from.
-            { resolveResource: (): undefined => undefined }, adapter: services.context.adapter }),
+            { resolveResource: (): undefined => undefined }, host: services.context.routeHost }) }),
       }),
     }),
   });
@@ -406,12 +406,12 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
             createTerminalToolRegistrations({ manager: services.manager }).create,
           ],
           http: ({ app, services }) =>
-            registerTerminalRoutes({ app: app as Express, deps: {
+            mountRoutes({ app, routes: terminalRoutes({ deps: {
                 manager: services.manager,
                 toolExecutor: services.context.kernel.toolExecutor,
                 principal: options.terminal?.principal ?? LOCAL_DAEMON_PRINCIPAL,
                 resolveRoot: options.terminal?.resolveWorkspaceRoot ?? denyAllWorkspaceRoots,
-              }, adapter: services.context.adapter }),
+              }, host: services.context.routeHost }) }),
           dispose: ({ services }, _optional = {}) => services.manager.shutdownActive(),
         }),
       };
@@ -435,10 +435,10 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
         }, {
           tools: (): readonly ToolRegistration[] => [registrations.inspect, registrations.verify, registrations.vacuum],
           http: ({ app, services }) =>
-            registerDaemonDbRoutes({ app: app as Express, deps: {
+            mountRoutes({ app, routes: daemonDbRoutes({ deps: {
                 toolExecutor: services.context.kernel.toolExecutor,
                 principal: options.daemonDb?.principal ?? LOCAL_DAEMON_PRINCIPAL,
-              }, adapter: services.context.adapter }),
+              }, host: services.context.routeHost }) }),
         }),
       };
     },
@@ -491,7 +491,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
         services: () => ({ context }),
       }, {
         http: ({ app, services }) =>
-          registerDelegatedToolRoutes({ app: app as Express, deps: {
+          mountRoutes({ app, routes: delegatedToolRoutes({ deps: {
               lifecycle: services.context.kernel.lifecycle,
               toolExecutor: services.context.kernel.toolExecutor,
               // The same registry `toolExecutor` was built over, so a `requireReadOnly` call (the
@@ -501,7 +501,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
               // read-only gateway refuse everything, so a kernel host gets it wired by default.
               toolRegistry: services.context.kernel.registry,
               resolvePrincipal: ({ request }) => resolveDelegatedToolPrincipal({ request, resolvePrincipal: resolveDelegatedPrincipal }),
-            }, adapter: services.context.adapter }),
+            }, host: services.context.routeHost }) }),
       }),
     }),
   });
@@ -515,7 +515,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
         deps: [],
         services: () => ({ context }),
       }, {
-        http: ({ app, services }) => registerConnectorsRoutes({ app: app as Express, deps: {}, adapter: services.context.adapter }),
+        http: ({ app, services }) => mountRoutes({ app, routes: connectorsRoutes({ deps: {}, host: services.context.routeHost }) }),
       }),
     }),
   });
@@ -529,7 +529,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
         deps: [],
         services: () => ({ context }),
       }, {
-        http: ({ app, services }) => registerResearchRoutes({ app: app as Express, deps: {}, adapter: services.context.adapter }),
+        http: ({ app, services }) => mountRoutes({ app, routes: researchRoutes({ deps: {}, host: services.context.routeHost }) }),
       }),
     }),
   });
@@ -550,7 +550,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
           services: () => ({ context, listenerRef }),
         }, {
           http: ({ app, services }) =>
-            registerXaiRoutes({ app: app as Express, deps: { dataDir: sqlite.dataDir, listenerRef: services.listenerRef }, adapter: services.context.adapter }),
+            mountRoutes({ app, routes: xaiRoutes({ deps: { dataDir: sqlite.dataDir, listenerRef: services.listenerRef }, host: services.context.routeHost }) }),
           dispose: async ({ services }) => {
             const listener = services.listenerRef.current;
             services.listenerRef.current = null;
@@ -575,14 +575,14 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
         services: () => ({ context }),
       }, {
         http: ({ app, services }) =>
-          registerRemoteRunEventRoutes({ app: app as Express, deps: {
+          mountRoutes({ app, routes: remoteRunEventRoutes({ deps: {
               lifecycle: services.context.kernel.lifecycle,
               recorder: createRemoteToolEventRecorder({ lifecycle: services.context.kernel.lifecycle }),
               ...(options.remoteRunEvents?.tokenConfig === undefined
                 ? {}
                 : { tokenConfig: options.remoteRunEvents.tokenConfig }),
               env: services.context.env,
-            }, adapter: services.context.adapter }),
+            }, host: services.context.routeHost }) }),
       }),
     }),
   });
@@ -598,7 +598,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
           deps: [],
           services: () => ({ context }),
         }, {
-          http: ({ app, services }) => registerMemoryRoutes({ app: app as Express, deps, adapter: services.context.adapter }),
+          http: ({ app, services }) => mountRoutes({ app, routes: memoryRoutes({ deps, host: services.context.routeHost }) }),
         }),
       };
     },
@@ -615,7 +615,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
           deps: [],
           services: () => ({ context }),
         }, {
-          http: ({ app, services }) => registerRoutineRoutes({ app: app as Express, deps, adapter: services.context.adapter }),
+          http: ({ app, services }) => mountRoutes({ app, routes: routineRoutes({ deps, host: services.context.routeHost }) }),
         }),
       };
     },
@@ -632,7 +632,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
           deps: [],
           services: () => ({ context }),
         }, {
-          http: ({ app, services }) => registerMediaRoutes({ app: app as Express, deps, adapter: services.context.adapter }),
+          http: ({ app, services }) => mountRoutes({ app, routes: mediaRoutes({ deps, host: services.context.routeHost }) }),
         }),
       };
     },
@@ -649,7 +649,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
           deps: [],
           services: () => ({ context }),
         }, {
-          http: ({ app, services }) => registerFrontendSessionRoutes({ app: app as Express, deps, adapter: services.context.adapter }),
+          http: ({ app, services }) => mountRoutes({ app, routes: frontendSessionRoutes({ deps, host: services.context.routeHost }) }),
         }),
       };
     },
@@ -675,7 +675,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
           deps: [],
           services: () => ({ context }),
         }, {
-          http: ({ app, services }) => registerDaemonStatusRoutes({ app: app as Express, deps, adapter: services.context.adapter }),
+          http: ({ app, services }) => mountRoutes({ app, routes: daemonStatusRoutes({ deps, host: services.context.routeHost }) }),
         }),
       };
     },

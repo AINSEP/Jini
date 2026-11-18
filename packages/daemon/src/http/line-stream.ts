@@ -12,7 +12,7 @@ export interface LineStream {
   write(required: { readonly line: unknown }, optional?: Record<string, never>): void;
   /** Ends the answer after the lines already written. Idempotent. */
   end(): void;
-  /** Aborts when the caller goes away (its request is aborted or it stops reading). Not aborted by {@link LineStream.end}. */
+  /** Aborts when the caller goes away (its signal aborts or it stops reading). Not aborted by {@link LineStream.end}. */
   readonly signal: AbortSignal;
 }
 
@@ -20,12 +20,12 @@ const LINE_STREAM_HEADERS = { 'content-type': 'application/x-ndjson', 'cache-con
 const KEEPALIVE_LINE = { type: 'keepalive' } as const;
 
 /**
- * @param required.request - The request being answered; its `signal` is how a departed caller is noticed.
+ * @param required.signal - Aborts when the caller goes away (a request's `signal`, or one the host derives from its connection).
  * @param optional.keepAliveMs - Write `{"type":"keepalive"}` this often while open. Left out: nothing is written between lines and no timer is scheduled.
  * @complexity O(1) per line. Lines are queued without a cap until the caller reads them, as they were before; callers write a handful of lines per request.
  */
 export function createLineStream(
-  { scheduler, request }: { readonly scheduler: SseSchedulerPort; readonly request: Request },
+  { scheduler, signal }: { readonly scheduler: SseSchedulerPort; readonly signal: AbortSignal },
   { keepAliveMs }: { readonly keepAliveMs?: number } = {},
 ): LineStream {
   const encoder = new TextEncoder();
@@ -38,11 +38,11 @@ export function createLineStream(
     if (!open) return;
     open = false;
     if (keepAlive !== undefined) scheduler.cancel({ handle: keepAlive });
-    request.signal.removeEventListener('abort', onRequestAbort);
+    signal.removeEventListener('abort', onCallerGone);
     if (callerLeft) gone.abort();
     controller?.close();
   };
-  const onRequestAbort = (): void => { close({ callerLeft: true }); };
+  const onCallerGone = (): void => { close({ callerLeft: true }); };
   const write = ({ line }: { readonly line: unknown }): void => {
     if (open) controller?.enqueue(encoder.encode(`${JSON.stringify(line)}\n`));
   };
@@ -52,8 +52,8 @@ export function createLineStream(
     // A cancelled body is already closed; closing it again would throw.
     cancel: () => { controller = undefined; close({ callerLeft: true }); },
   });
-  if (request.signal.aborted) onRequestAbort();
-  else request.signal.addEventListener('abort', onRequestAbort, { once: true });
+  if (signal.aborted) onCallerGone();
+  else signal.addEventListener('abort', onCallerGone, { once: true });
   if (open && keepAliveMs !== undefined) keepAlive = scheduler.every({ callback: () => write({ line: KEEPALIVE_LINE }), intervalMs: keepAliveMs });
 
   return { response: new Response(body, { status: 200, headers: LINE_STREAM_HEADERS }), write, end: () => close({ callerLeft: false }), signal: gone.signal };

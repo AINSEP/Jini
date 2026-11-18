@@ -88,7 +88,7 @@ await daemon.stop();
 
 BuiltInFeatureOptions groups host seams for health, runs, agents, hostTools, terminal, daemonDb, delegatedToolCalls, remoteRunEvents, xai, daemonStatus, memory, routines, media and frontendSessions. Required options for a selected feature are checked while composing it. The full current group shapes are in [builtin-features.ts](../../src/builtin-features.ts); no default host memory/routine/media engine is invented.
 
-`createFrontendControl` is **not** exported from `@jini-ai/server`: it is owned by `@jini-ai/daemon/http`, and a host imports it from there (see `@jini-ai/daemon`'s API spec for its signature, resolver, defaults and the `FrontendControl` it returns). Wire its `httpExtension`, `toolRegistrations` and `bindOnStarted` to the host's routes, registry and start driver.
+`createFrontendControl` is **not** exported from `@jini-ai/server`: it is owned by `@jini-ai/daemon/http`, and a host imports it from there (see `@jini-ai/daemon`'s API spec for its signature, resolver, defaults and the `FrontendControl` it returns). Wire its `routes({ host })` (a route list for `mountRoutes`), `toolRegistrations` and `bindOnStarted` to the host's routes, registry and start driver; `setTimer` is required (the preset exports `nodeSessionTimer`).
 
 ## Backend selection and local storage
 

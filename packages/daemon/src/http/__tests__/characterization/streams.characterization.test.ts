@@ -399,6 +399,37 @@ describe('frontend session stream (GET /api/frontend-sessions/stream)', () => {
     expect(attached).toHaveLength(0);
   });
 
+  // A12: what each `capability` query shape does. The rows marked D-FS1 are the ones the plan's section 12.4 changed on purpose
+  // (the host app's `qs` parser used to decide; the daemon now reads the URL itself and refuses every bracketed spelling);
+  // every other row stayed as it was written before the change.
+  const ERROR_EVENT = 'data: {"type":"error","message":"each \\"capability\\" query parameter must be a non-empty string"}';
+  const filler = Array.from({ length: 1000 }, (_unused, index) => `f${index}=1`).join('&');
+  for (const [name, query, capabilities] of [
+    ['one key', '?capability=page.read', ['page.read']],
+    ['repeated plain keys, in order', '?capability=page.read&capability=page.click', ['page.read', 'page.click']],
+    ['no key at all', '', []],
+    ['D-FS1: a key after 1000 other parameters is counted', `?${filler}&capability=page.read`, ['page.read']],
+  ] as const) it(`capability query, ${name}: attached with ${JSON.stringify(capabilities)}`, async () => {
+    const stream = await openStream({ harness, route }, { query });
+    expect(await stream.next()).toEqual(['data: {"type":"attached","sessionId":"session-1","bindToken":"bind-1"}']);
+    expect(attached[0]?.descriptor.capabilities).toEqual(capabilities);
+    stream.abort();
+    await vi.waitFor(() => { expect(detach).toHaveBeenCalledTimes(1); });
+  });
+  for (const [name, query] of [
+    ['D-FS1: an empty-bracket key is refused', '?capability[]=page.read'],
+    ['D-FS1: an indexed key is refused', '?capability[0]=page.read'],
+    ['D-FS1: a high index is refused', '?capability[25]=page.read'],
+    ['a nested key', '?capability[k]=page.read'],
+    ['a plain key next to a nested one', '?capability=page.read&capability[k]=page.click'],
+    ['an empty value', '?capability='],
+    ['a blank value among good ones', '?capability=page.read&capability=%20'],
+  ] as const) it(`capability query, ${name}: one error event, nothing attached`, async () => {
+    const stream = await openStream({ harness, route }, { query });
+    expect(await stream.rest()).toEqual([ERROR_EVENT]);
+    expect(attached).toHaveLength(0);
+  });
+
   it('pings every 15 seconds while idle, and stops when the client leaves', async () => {
     fakeIntervals();
     const stream = await openStream({ harness, route });
@@ -428,8 +459,10 @@ describe('model proxy streams (POST /api/proxy/<provider>/stream)', () => {
   const validBody = JSON.stringify({ apiKey: 'characterization-key', model: 'llama3', baseUrl: 'http://127.0.0.1:11434', messages: [{ role: 'user', content: 'hi' }] });
   let harness: RouteHarness;
   let transportCalls = 0;
+  const proxyIncidents: Array<{ correlationId: string; provider: string; error: unknown }> = [];
   beforeAll(async () => {
     harness = await startRouteHarness({}, { familyDeps: { 'model-proxy': {
+      onInternalError: (incident: { correlationId: string; provider: string; error: unknown }) => { proxyIncidents.push(incident); },
       dnsLookup: undefined,
       fetchImpl: async () => { transportCalls += 1; throw new Error(INTERNAL_FAILURE_MARKER); },
     } } });
@@ -443,20 +476,22 @@ describe('model proxy streams (POST /api/proxy/<provider>/stream)', () => {
     expect(transportCalls).toBe(0);
   });
 
-  it('a transport failure after the stream is open is reported inside it, as an error event and an end event; today the error event carries the transport\'s own message', async () => {
-    const before = harness.internalErrors.length;
+  // DM-R3-3 (owner decision 2026-11-17): the upstream's own text never reaches the client; it goes to the host's error sink.
+  it('a transport failure after the stream is open is reported inside it as fixed words plus a request ID, and the real text goes to the host sink', async () => {
+    proxyIncidents.length = 0;
     const stream = await openStream({ harness, route }, { body: validBody });
     expect(stream.response.status).toBe(200);
     expectHeaders(stream.response, EVENT_STREAM_HEADERS);
-    // Recorded as it is: the provider turn turns a failed upstream call into an error event with
-    // that failure's message, so the text reaches the client. The route itself threw nothing, so
-    // nothing is reported to the host's sink.
-    expect(await stream.rest()).toEqual([
-      frame({ opaqueCursor: '0', kind: 'error', data: { type: 'error', message: INTERNAL_FAILURE_MARKER } } as never),
+    const frames = await stream.rest();
+    expect(proxyIncidents).toHaveLength(1);
+    const [incident] = proxyIncidents;
+    expect(frames).toEqual([
+      frame({ opaqueCursor: '0', kind: 'error', data: { type: 'error', message: 'The assistant response stopped. Review any completed actions before starting another turn. Copy the request ID and report this problem.', code: incident!.correlationId } } as never),
       frame({ opaqueCursor: '1', kind: 'end', data: { type: 'end', reason: 'error' } } as never),
     ]);
-    expect(transportCalls).toBe(1);
-    expect(harness.internalErrors).toHaveLength(before);
+    expect(JSON.stringify(frames)).not.toContain(INTERNAL_FAILURE_MARKER);
+    expect(incident).toMatchObject({ provider: 'ollama', error: expect.objectContaining({ message: INTERNAL_FAILURE_MARKER }) });
+    expect(transportCalls).toBeGreaterThanOrEqual(1);
   });
 
   it('sends nothing but its events: no timer is scheduled for a proxy stream', async () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
+import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
 import { createToolRegistry, type Principal } from '@jini-ai/core';
 import {
   createInMemoryEventLog,
@@ -8,7 +9,7 @@ import {
   type ToolExecutionResult,
   type ToolExecutor,
 } from '../../index.js';
-import { delegatedToolExecuteRoute, registerDelegatedToolRoutes, type DelegatedToolsHttpDeps } from '../delegated-tools.js';
+import { delegatedToolExecuteRoute, delegatedToolRoutes, type DelegatedToolsHttpDeps } from '../delegated-tools.js';
 
 const PRINCIPAL: Principal = { id: 'test-principal' };
 const ERROR_ID = 'ERR-E498-0000-1111-2222';
@@ -64,22 +65,11 @@ describe('delegated tool route: a failure the host marks model-safe', () => {
   });
 
   it('answers the marked failure with HTTP 422 on the mounted route', async () => {
-    const handlers: Record<string, (req: unknown, res: unknown) => Promise<void> | void> = {};
-    const register = (method: string) => (path: string, handler: (req: unknown, res: unknown) => Promise<void>) => {
-      handlers[`${method} ${path}`] = handler;
-    };
-    const app = { get: register('GET'), post: register('POST'), put: register('PUT'), delete: register('DELETE'), patch: register('PATCH') };
     const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
     const { run } = await lifecycle.start({ contextRef: 'ctx-http' });
-    registerDelegatedToolRoutes({ app: app as never, deps: { lifecycle, toolExecutor: makeExecutor(SAFE_MESSAGE, ERROR_ID), resolvePrincipal: () => PRINCIPAL, isModelSafeToolFailure: hostRedacted }, adapter: createTestRouteHost() }
-    );
-    const res = { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() };
-    await handlers['POST /api/delegated-tool-calls']!(
-      { body: { runId: run.id, toolUseId: 'tu-1', toolId: 'fails' }, query: {}, params: {} },
-      res,
-    );
-    expect(res.status).toHaveBeenCalledWith(422);
-    expect(res.json).toHaveBeenCalledWith({ error: { code: 'TOOL_EXECUTION_FAILED', message: SAFE_MESSAGE } });
+    const fetch = serveRoutes({ routes: delegatedToolRoutes({ deps: { lifecycle, toolExecutor: makeExecutor(SAFE_MESSAGE, ERROR_ID), resolvePrincipal: () => PRINCIPAL, isModelSafeToolFailure: hostRedacted }, host: fakeDaemonRouteHost() }) });
+    const response = await fetch(jsonRequest({ path: '/api/delegated-tool-calls', method: 'POST' }, { body: { runId: run.id, toolUseId: 'tu-1', toolId: 'fails' } }));
+    expect([response.status, await response.json()]).toEqual([422, { error: { code: 'TOOL_EXECUTION_FAILED', message: SAFE_MESSAGE } }]);
   });
 
   it('failed WITHOUT the marker: still the SEC-005-redacted INTERNAL_ERROR even with the predicate wired', async () => {

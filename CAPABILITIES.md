@@ -131,7 +131,7 @@ runtime · [README](packages/daemon/README.md)
 | `@jini-ai/daemon/store/agent-sessions/sqlite` | Borrowed-kernel session store plus separate rich legacy SQLite sessions. | `createSqliteAgentSessionStore`, `getAgentSession`, `LEGACY_AGENT_SESSIONS_DDL` | node | Tovu: website; Jini: server, sqlite |
 | `@jini-ai/daemon/store/agent-sessions/pglite` | Persist agent session IDs through a borrowed PGlite kernel. | `createPgliteAgentSessionStore` | node | Tovu: website |
 | `@jini-ai/daemon/store/agent-sessions/postgres` | Persist agent session IDs through a borrowed Postgres kernel. | `createPostgresAgentSessionStore` | node | Tovu: website |
-| `@jini-ai/daemon/http` | Daemon route packs, attachments, frontend control and workspace-root policy. | `registerRunRoutes`, `registerAgentRoutes`, `JINI_ROUTE_MANIFEST` | node | Tovu: desktop, website; Jini: server |
+| `@jini-ai/daemon/http` | Daemon route packs, attachments, frontend control and workspace-root policy. | `runRoutes`, `agentRoutes`, `JINI_ROUTE_MANIFEST` | node | Tovu: desktop, website; Jini: server |
 | `@jini-ai/daemon/read-only-tools` | Fail closed on writes, including nested recovery dispatches. | `defaultDaemonMessages`, `constrainPrincipalToReadOnlyTools`, `principalIsReadOnlyConstrained` | node | Tovu: website |
 | `@jini-ai/daemon/scheduler` | Inject scheduling without coupling session/run services to native timers. | `SchedulerPort` | universal | none yet |
 | `@jini-ai/daemon/tool-audit` | Record tool attempts and tool-catalog audit events through injected sinks. | `describeInput`, `withToolAttemptAudit`, `searchToolsAuditDetail` | universal | none yet |

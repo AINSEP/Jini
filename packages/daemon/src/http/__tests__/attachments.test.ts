@@ -6,7 +6,7 @@
  * - `createDiskAttachmentStore` against a real temp filesystem, including the security properties
  *   that are the whole point of the store (opaque capability ids, forged renderer metadata being
  *   discarded, one-time claim, symlink retargeting, quota race safety);
- * - `registerAttachmentRoutes` over a real `express()` app on `app.listen(0)` driven by real
+ * - `attachmentUploadRoutes`/`attachmentCleanupRoutes` over a real `express()` app on `app.listen(0)` driven by real
  *   `fetch`, which is what proves the status-code mapping and the concurrency limiter as a caller
  *   actually experiences them.
  *
@@ -14,6 +14,7 @@
  * "playground upload boundaries" cases in its `playground-request.test.ts` (2 cases) when that
  * host-local implementation was generalized into this package.
  */
+import { mountAttachmentRoutes, mountRoutes, testRouteHost } from './fakes/mount-attachments.js';
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
@@ -52,7 +53,6 @@ import {
   loadPersistedAttachments,
   parsePersistedAttachment,
   prepareAttachmentStorage,
-  registerAttachmentRoutes,
   removeUnadoptedUploads,
   reserveAttachmentRecords,
   sanitizeAttachmentName,
@@ -171,7 +171,7 @@ async function harness(
   // "body already drained" case below a genuine reproduction rather than a contrived one.
   app.use(express.json());
   const { adapter: adapter, portRef: adapterPortRef } = createLocalTestOrigin({}, { port: 0 });
-  registerAttachmentRoutes({ app, deps, adapter });
+  mountAttachmentRoutes({ app, deps, adapter });
   const server: Server = app.listen(0);
   await new Promise((ready) => server.once('listening', ready));
   const { port } = server.address() as { port: number };
@@ -1734,7 +1734,7 @@ describe('attachment routes — same-origin guard', () => {
     const { store } = await diskStore();
     const app = express();
     const { adapter: adapter, portRef: adapterPortRef } = createLocalTestOrigin({}, { port: 0 });
-    registerAttachmentRoutes({ app, deps: { store }, adapter });
+    mountAttachmentRoutes({ app, deps: { store }, adapter });
     const server: Server = app.listen(0);
     await new Promise((ready) => server.once('listening', ready));
     const { port } = server.address() as { port: number };
@@ -1760,7 +1760,7 @@ describe('attachment routes — same-origin guard', () => {
 
 describe('attachment routes — origin guard throwing before either handler starts', () => {
   // `passesOriginGuard` runs ahead of `handleAttachmentUpload`/`handleAttachmentCleanup` inside
-  // `registerAttachmentRoutes`'s `app.post`/`app.delete` callbacks — see that function's own doc
+  // `attachmentUploadRoutes`/`attachmentCleanupRoutes`'s `app.post`/`app.delete` callbacks — see that function's own doc
   // for why (raw-stream upload, 204-no-body cleanup) it bypasses `mountJsonRoute`'s adapter, which
   // would otherwise have caught this for free. `guardSameOrigin`/`isLocalSameOrigin` are
   // Result/boolean-returning by contract, but `isLocalSameOrigin` unconditionally calls
@@ -2265,7 +2265,7 @@ describe('removeUnadoptedUploads', () => {
 // ---------------------------------------------------------------------------
 
 /**
- * Mounts `handleAttachmentUpload` itself (no origin guard, no `registerAttachmentRoutes` wrapper)
+ * Mounts `handleAttachmentUpload` itself (no origin guard, no `attachmentUploadRoutes`/`attachmentCleanupRoutes` wrapper)
  * so a test owns the `state` object and can stage `activeUploads` at a boundary and read it back
  * afterwards — the route-level cases above can only observe the limiter from outside.
  */
@@ -2275,7 +2275,9 @@ async function directUploadHarness(
 ): Promise<string> {
   const app = express();
   if (jsonParser) app.use(express.json());
-  app.post(ATTACHMENTS_ROUTE_PATH, (req, res) => handleAttachmentUpload({ req, res, deps, state }));
+  const { adapter } = createLocalTestOrigin({}, { port: 0 });
+  const host = testRouteHost({ context: adapter });
+  mountRoutes({ app, routes: [{ method: 'POST', path: ATTACHMENTS_ROUTE_PATH, handler: ({ request, locals }) => handleAttachmentUpload({ request, locals: locals ?? {}, deps, host, state }) }] }, { rawBody: true });
   const server: Server = app.listen(0);
   await new Promise((ready) => server.once('listening', ready));
   const { port } = server.address() as { port: number };

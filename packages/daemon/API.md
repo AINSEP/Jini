@@ -11,19 +11,19 @@ origin guards and `AdapterContext` remain in `@jini-ai/http-kit`. Install the op
 `@jini-ai/http-kit` and `express` when using the HTTP entry. The root daemon runtime and
 read-only policy entry do not load HTTP or Express.
 
-- **Daemon lifecycle routes** — `registerDaemonStatusRoutes` (`daemonStatusRoute`,
-  `daemonShutdownRoute`) and `registerHealthRoutes` (`/health`, `/ready`, `/version` and their
+- **Daemon lifecycle routes** — `daemonStatusRoutes` (`daemonStatusRoute`,
+  `daemonShutdownRoute`) and `healthRoutes` (`/health`, `/ready`, `/version` and their
   `/api`-prefixed twins — deliberately open, unauthenticated probes).
 - **Kernel route packs, ready to mount** — one `register*Routes` function per concern: runs
-  (`registerRunRoutes`), agents (`registerAgentRoutes`), memory (`registerMemoryRoutes`),
-  routines (`registerRoutineRoutes`), terminals (`registerTerminalRoutes`), db-ops
-  (`registerDaemonDbRoutes` + tool registrations), tool catalog (`toolCatalogRoutes`),
-  delegated tools (`registerDelegatedToolRoutes`), remote run events
-  (`registerRemoteRunEventRoutes`), frontend sessions (`registerFrontendSessionRoutes`), active
-  context (`registerActiveContextRoutes`), host tools (`registerHostToolsRoutes`), model proxy
-  (`registerModelProxyRoutes`), connectors — auth/db/storage/realtime provider seams (no payments slot: money moves only through `@jini-ai/commerce`)
-  (`registerConnectorsRoutes`), research (`registerResearchRoutes`), media
-  (`registerMediaRoutes`), and xai (`registerXaiRoutes`). Each exports its own `*HttpDeps` type so
+  (`runRoutes`), agents (`agentRoutes`), memory (`memoryRoutes`),
+  routines (`routineRoutes`), terminals (`terminalRoutes`), db-ops
+  (`daemonDbRoutes` + tool registrations), tool catalog (`toolCatalogRoutes`),
+  delegated tools (`delegatedToolRoutes`), remote run events
+  (`remoteRunEventRoutes`), frontend sessions (`frontendSessionRoutes`), active
+  context (`activeContextRoutes`), host tools (`hostToolsRoutes`), model proxy
+  (`modelProxyRoutes`), connectors — auth/db/storage/realtime provider seams (no payments slot: money moves only through `@jini-ai/commerce`)
+  (`connectorsRoutes`), research (`researchRoutes`), media
+  (`mediaRoutes`), and xai (`xaiRoutes`). Each exports its own `*HttpDeps` type so
   you inject exactly the backing services it needs.
 - **Workspace root resolution** — `resolveWorkspaceRoot`/`denyAllWorkspaceRoots`/
   `WorkspaceRootDeniedError`.
@@ -32,7 +32,7 @@ Every route pack injects its backing services through its `*HttpDeps` object; th
 can replace the service without changing HTTP mounting. The route inventory is derived from
 these live specs, so proxy allowlists track path changes without hand-copied strings.
 Most registrars use `registerRoutes({ app, deps, adapter })`; host tools use
-`registerHostToolsRoutes({ app, adapter }, openInDeps)`.
+`hostToolsRoutes({ app, adapter }, openInDeps)`.
 
 Import the execution gate from `@jini-ai/daemon/read-only-tools`:
 

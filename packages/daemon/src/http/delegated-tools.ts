@@ -28,16 +28,18 @@ import type { DelegatedResultCorrelation } from '../delegated-result-correlation
  * `runCancelRoute`).
  */
 import { randomUUID } from 'node:crypto';
-import type { Express } from 'express';
 import { createApiError } from '@jini-ai/protocol';
 import { batchOutcomeFor, ToolInputError, type Principal, type ToolRegistry } from '@jini-ai/core';
 import { createDelegatedToolBridge, type RunLifecycle, type ToolExecutionResult, type ToolExecutor } from '../index.js';
-import { defineJsonRoute, mountJsonRoute, reportRouteInternalError } from '@jini-ai/http-kit';
+import { reportRouteInternalError } from '@jini-ai/http-kit';
+import type { DaemonRouteHost } from './route-host.js';
+import { gatedJsonRoute, withHostReporter, type DaemonRoute } from './route-table.js';
 import {
+  defineJsonRoute,
   err,
   ok,
   validationError,
-  type RouteHostContext,
+  type ReportRouteInternalError,
   type Result,
   type RouteInputContext,
 } from '@jini-ai/core/contracts/server';
@@ -111,6 +113,8 @@ export interface DelegatedToolsHttpDeps {
   readonly resolvePrincipal: (requiredArgs: { readonly request: DelegatedToolExecuteRequest }) => Principal | Promise<Principal>;
   /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
   readonly onInternalError?: (context: DelegatedToolsInternalErrorContext) => void;
+  /** Makes the request ID and writes the log line for an internal failure. {@link delegatedToolRoutes} sets it to the host's reporter; a caller that runs the route's `handle` itself may omit it and gets `@jini-ai/http-kit`'s. */
+  readonly reportInternalError?: ReportRouteInternalError;
   /**
    * The same `ToolRegistry` `deps.toolExecutor` was built over, supplied so a
    * {@link DelegatedToolExecuteRequest.requireReadOnly} call can be checked against the descriptor
@@ -224,7 +228,7 @@ type InternalErrorReport = Omit<DelegatedToolsInternalErrorContext, 'correlation
 /** Logs the real failure through the incident owner and returns plain words with the request ID (SEC-005: never the raw exception). */
 function reportInternalError({ deps, report }: { readonly deps: DelegatedToolsHttpDeps; readonly report: InternalErrorReport }, _optional: Record<string, never> = {}): ReturnType<typeof createApiError> {
   // Exceptions can echo credentials: the default line prints class and code only; the host sink gets the original.
-  const apiError = reportRouteInternalError<InternalErrorReport>({ report, logSource: report.source, message: DELEGATED_TOOL_FAULT_MESSAGE }, { onInternalError: deps.onInternalError });
+  const apiError = (deps.reportInternalError ?? reportRouteInternalError)<InternalErrorReport>({ report, logSource: report.source, message: DELEGATED_TOOL_FAULT_MESSAGE }, { onInternalError: deps.onInternalError });
   const requestId = String(apiError.requestId);
   // Every caller either omits `status` or sets it, so spreading keeps "absent" absent.
   const described = describeSafely(deps, { ...report, correlationId: requestId });
@@ -404,8 +408,8 @@ export const delegatedToolExecuteRoute = defineJsonRoute<
 
     const bridge = createDelegatedToolBridge({ lifecycle: deps.lifecycle, toolExecutor }, deps);
     try {
-      // `signal` carries the caller's HTTP connection dropping — see `mountJsonRoute`
-      // (`adapter.ts`). The bridge already combines it with the run's own cancellation
+      // `signal` carries the caller's HTTP connection dropping — see core's
+      // `jsonRoute`. The bridge already combines it with the run's own cancellation
       // (`DelegatedToolInvocation.signal`'s doc); this is the wire that was missing, not new
       // behaviour in the bridge or `ToolExecutor`.
       const result = await bridge.execute({
@@ -426,7 +430,7 @@ export const delegatedToolExecuteRoute = defineJsonRoute<
   }
 }, { requireSameOrigin: true });
 
-/** Mounts `POST /api/delegated-tool-calls` on `app`. A pack's `http(app, services)` calls this directly. */
-export function registerDelegatedToolRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: DelegatedToolsHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
-  mountJsonRoute({ app, spec: delegatedToolExecuteRoute, deps, adapter });
+/** `POST /api/delegated-tool-calls` as data, behind the same-origin gate its spec declares. Internal failures are reported through the host's reporter. */
+export function delegatedToolRoutes({ deps, host }: { readonly deps: DelegatedToolsHttpDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
+  return [gatedJsonRoute({ spec: delegatedToolExecuteRoute, deps: withHostReporter({ deps, host }), host })];
 }

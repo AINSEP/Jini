@@ -30,14 +30,12 @@
  */
 import { randomUUID } from 'node:crypto';
 import type { ToolApprovalDecision } from '@jini-ai/core';
-import type { Express, Request, Response } from 'express';
 import type { FrontendSessionHandle, FrontendSessionRegistry, FrontendSessionOwner } from '../frontend-session-registry.js';
 import { FrontendSessionCapacityError } from '../frontend-session-registry.js';
-import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
-import { type RouteHostContext, guardSameOrigin, validationError, statusForError, err, ok, type Result, type RouteInputContext } from '@jini-ai/core/contracts/server';
-import { createSseResponse } from '@jini-ai/http-kit';
-import { reportRouteInternalError } from '@jini-ai/http-kit';
-import { sendApiError } from '@jini-ai/http-kit';
+import { defineJsonRoute, jsonResponse, createSseStream, sameOriginRefusal, validationError, err, ok, type Result, type RouteInputContext, type ServerMiddleware, type SseEvent } from '@jini-ai/core/contracts/server';
+import type { FrontendHookInput } from './frontend-hook-input.js';
+import type { DaemonRouteHost } from './route-host.js';
+import { gated, gatedJsonRoute, type DaemonRoute } from './route-table.js';
 
 export const FRONTEND_SESSION_STREAM_ROUTE_PATH = '/api/frontend-sessions/stream';
 export const FRONTEND_SESSION_RESPONSE_ROUTE_PATH = '/api/frontend-sessions/:sessionId/responses';
@@ -106,106 +104,46 @@ export interface FrontendSessionResponseBody {
   readonly settled: boolean;
 }
 
+/** Schedules `callback` once after `delayMs`. The host owns timers (a Node host binds `setTimeout` and `unref`s it), so this module holds none. */
+export type FrontendSessionTimer = (required: { readonly callback: () => void; readonly delayMs: number }, optional?: Record<string, never>) => { cancel(): void };
+
 export interface FrontendSessionsHttpDeps {
   readonly registry: FrontendSessionRegistry;
   /** An isolated public instance supplies its own endpoints and authenticated guest/tab owner. */
   readonly routePrefix?: string;
   /** Must authenticate same-origin metadata as well as credentials on every request. */
-  readonly resolveOwner?: (args: { req: Request; res: Response }) => Promise<FrontendSessionOwner | null>;
+  readonly resolveOwner?: (required: FrontendHookInput) => Promise<FrontendSessionOwner | null>;
   readonly allowedCapabilities?: readonly string[];
   readonly sessionTtlMs?: number;
   /** Trusted quota identities supplied by the host, not query parameters. */
-  readonly resolveCapacityKeys?: (args: { req: Request; owner?: FrontendSessionOwner }) => readonly string[];
+  readonly resolveCapacityKeys?: (required: FrontendHookInput & { readonly owner?: FrontendSessionOwner }) => readonly string[];
   /**
    * Mints session ids. Defaults to `randomUUID`. A surface never supplies its own: an id the
    * caller chose could collide with, or deliberately impersonate, a session already attached.
    */
   readonly newSessionId?: () => string;
-  /** Host-owned sink for failures that must not escape an async Express handler. Defaults to `console.error`. */
-  readonly onInternalError?: (context: { readonly source: string; readonly error: unknown }) => void;
+  /** Ends an owned session whose client never disconnects (see {@link FrontendSessionTimer}). */
+  readonly setTimer: FrontendSessionTimer;
 }
 
 /** Plain words for a stream that could not open before its headers; the caller also gets the request ID. */
 const FRONTEND_STREAM_FAILED_MESSAGE = 'The page connection could not be opened. Reload the page; if it keeps failing, copy the request ID and report this problem.';
 
+/** What the stream says when a `capability` value is empty or a bracketed spelling is used. */
+const BAD_CAPABILITY_MESSAGE = 'each "capability" query parameter must be a non-empty string';
+
 /**
  * Reads the repeatable `?capability=` query parameter.
  *
- * Express gives a single value as a string and repeats as an array; anything else (a nested object
- * from a bracketed query string) is rejected rather than coerced.
+ * A bracketed spelling (`capability[x]=y`, `capability[]=y`) is refused rather than read as a plain
+ * key: a host parser used to turn it into an object or a list and this reader would otherwise
+ * silently drop or coerce it. The old parser also read `capability[]=a` as a list of one; that
+ * spelling is now refused too (D-FS1): no client sends it, and the change only ever refuses.
  */
-export function parseCapabilityQuery({ raw }: { readonly raw: unknown }, _optional: Record<string, never> = {}): readonly string[] | null {
-  const listed = Array.isArray(raw) ? raw : [raw];
-  const values = raw === undefined ? [] : listed;
-  const capabilities: string[] = [];
-  for (const value of values) {
-    if (typeof value !== 'string' || value.trim().length === 0) return null;
-    capabilities.push(value);
-  }
-  return capabilities;
-}
-
-/**
- * Handles one surface's stream from open to close.
- *
- * Invalid capability queries use a final SSE error event. Capacity admission happens before
- * opening the stream so resource refusals retain a real HTTP status and create no connection.
- */
-export function handleFrontendSessionStream({ req, res, deps, owner }: { readonly req: Request; readonly res: Response; readonly deps: FrontendSessionsHttpDeps; readonly owner?: FrontendSessionOwner }, _optional: Record<string, never> = {}
-): void {
-  const requested = parseCapabilityQuery({ raw: req.query['capability'] });
-  const capabilities = requested?.filter(id => !deps.allowedCapabilities || deps.allowedCapabilities.includes(id)) ?? null;
-
-  // Assigned below, after the connection exists — `attach` needs something to deliver through, and
-  // `onClose` has to be armed before then so a connection that dies during setup still detaches.
-  let handle: FrontendSessionHandle | undefined;
-  let expiry: ReturnType<typeof setTimeout> | undefined;
-  // Reserve capacity before committing SSE headers, so a full scope gets a real 429.
-  // Delivery cannot occur until the attached token has been sent to the client.
-  let connection: ReturnType<typeof createSseResponse>;
-  if (capabilities !== null) {
-    handle = attachFrontendSession({ req, deps, capabilities, owner,
-      deliver: invocation => connection.send({ data: { type: 'invocation', ...invocation } satisfies FrontendSessionInvocationEvent }),
-      cancel: ({ invocationId }) => connection.send({ data: { type: 'cancelled', invocationId } }) });
-  }
-  try {
-    connection = createSseResponse({ req, res }, {
-      // Close and expiry release the same quota reservation, without a separate counter lifecycle.
-      onClose: () => { clearTimeout(expiry); handle?.detach({}); },
-    });
-  } catch (error) { handle?.detach({}); throw error; }
-
-  if (capabilities === null) {
-    connection.send({
-      data: {
-        type: 'error',
-        message: 'each "capability" query parameter must be a non-empty string',
-      } satisfies FrontendSessionErrorEvent
-    });
-    connection.close();
-    return;
-  }
-
-  expiry = expireScopedSession({ owner, handle: handle!, close: () => connection.close(), ttl: deps.sessionTtlMs });
-  connection.send({
-    data: {
-      type: 'attached',
-      sessionId: handle!.sessionId,
-      bindToken: handle!.bindToken,
-    } satisfies FrontendSessionAttachedEvent
-  });
-}
-
-/** Reserve the registry's capacity before SSE commits headers. Host keys are never client input. */
-function attachFrontendSession({ req, deps, capabilities, owner, deliver, cancel }: {
-  req: Request; deps: FrontendSessionsHttpDeps; capabilities: readonly string[]; owner: FrontendSessionOwner | undefined;
-  deliver: Parameters<FrontendSessionRegistry['attach']>[0]['deliver'];
-  cancel: NonNullable<Parameters<FrontendSessionRegistry['attach']>[0]['cancel']>;
-}): FrontendSessionHandle {
-  const sessionId = (deps.newSessionId ?? randomUUID)();
-  const capacityKeys = deps.resolveCapacityKeys?.({ req, ...(owner ? { owner } : {}) });
-  return deps.registry.attach({ descriptor: { sessionId, capabilities, ...(owner ? { owner } : {}), ...(capacityKeys ? { capacityKeys } : {}) },
-    deliver, cancel });
+export function parseCapabilityQuery({ searchParams }: { readonly searchParams: URLSearchParams }, _optional: Record<string, never> = {}): readonly string[] | null {
+  for (const key of searchParams.keys()) if (key.startsWith('capability[')) return null;
+  const capabilities = searchParams.getAll('capability');
+  return capabilities.every(value => value.trim().length > 0) ? capabilities : null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -277,63 +215,141 @@ export const frontendSessionResponseRoute = defineJsonRoute<
   }
 }, { requireSameOrigin: true });
 
-/**
- * Mounts both frontend-session routes on `app`.
- *
- * The stream route bypasses `mountJsonRoute` (raw `app.get`, for the SSE response shape), so it
- * does not get `requireSameOrigin` for free the way `frontendSessionResponseRoute` does — the
- * guard is applied here directly, before the SSE channel is opened, so a cross-origin request
- * never gets a stream (and, notably, never mints a session id or `bindToken` either).
- */
-export function registerFrontendSessionRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: FrontendSessionsHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}
-): void {
-  const prefix = deps.routePrefix ?? '/api/frontend-sessions';
-  app.get(`${prefix}/stream`, async (req: Request, res: Response) => {
-    // Scoped hosts authenticate origin together with guest/tab ownership in resolveOwner.
-    const origin = deps.resolveOwner ? ok({ value: undefined }) : guardSameOrigin({ req, origin: adapter });
-    if (!origin.ok) {
-      sendApiError({ res, status: statusForError({ error: origin.error }), error: origin.error });
-      return;
-    }
-    try {
-      const owner = deps.resolveOwner ? await deps.resolveOwner({ req, res }) : undefined;
-      if (owner === null) { res.sendStatus(403); return; }
-      handleFrontendSessionStream({ req, res, deps, ...(owner ? { owner } : {}) });
-    } catch (error) {
-      endStreamOnError({ error, res, deps });
-    }
-  });
-  const responsePath = `${prefix}/:sessionId/responses`;
-  if (deps.resolveOwner) app.post(responsePath, async (req, res, next) => {
-    try {
-      const owner = await deps.resolveOwner!({ req, res });
-      const bindToken = req.get('x-frontend-bind-token') ?? '';
-      if (!owner || !deps.registry.ownsSession({ sessionId: String(req.params['sessionId']), owner, bindToken })) {
-        res.sendStatus(403); return;
-      }
-      next();
-    } catch { res.sendStatus(403); }
-  });
-  mountJsonRoute({ app, spec: { ...frontendSessionResponseRoute, path: responsePath, requireSameOrigin: !deps.resolveOwner }, deps, adapter });
+/** Plain-text refusal with the status's own words, the shape `res.sendStatus` gave (no `ETag`: DM-ETAG). */
+function plainStatus({ status, text }: { readonly status: number; readonly text: string }): Response {
+  return new Response(text, { status, headers: { 'content-type': 'text/plain; charset=utf-8' } });
 }
 
-/** Capacity is ordinary admission refusal, not a loggable internal failure. */
-function endStreamOnError({ error, res, deps }: { error: unknown; res: Response; deps: FrontendSessionsHttpDeps }): void {
-  if (error instanceof FrontendSessionCapacityError && !res.headersSent) { res.sendStatus(429); return; }
-  // A diagnostic sink must never turn a contained failure into an unhandled rejection of its own:
-  // `reportRouteInternalError` contains a throwing sink and still logs the incident.
-  const apiError = reportRouteInternalError({ report: { source: 'stream', error }, logSource: 'frontend-sessions:stream', message: FRONTEND_STREAM_FAILED_MESSAGE }, { onInternalError: deps.onInternalError });
-  if (res.headersSent) {
-    if (!res.writableEnded) res.end();
-  } else {
-    res.status(500).json({ error: apiError });
+/** The data-only frame the stream has always written; `kind` only names the event for the route's own tests. */
+interface FrontendWireEvent extends SseEvent {
+  readonly payload: FrontendSessionStreamEvent;
+}
+
+const wire = ({ payload }: { readonly payload: FrontendSessionStreamEvent }): FrontendWireEvent => ({ opaqueCursor: '', kind: payload.type, payload });
+const formatFrame = ({ event }: { readonly event: FrontendWireEvent }): string => `data: ${JSON.stringify(event.payload)}\n\n`;
+
+/** Reserve the registry's capacity before the stream exists. Host keys are never client input. */
+function attachFrontendSession({ input, deps, capabilities, owner, deliver, cancel }: {
+  readonly input: FrontendHookInput; readonly deps: FrontendSessionsHttpDeps; readonly capabilities: readonly string[]; readonly owner: FrontendSessionOwner | undefined;
+  readonly deliver: Parameters<FrontendSessionRegistry['attach']>[0]['deliver'];
+  readonly cancel: NonNullable<Parameters<FrontendSessionRegistry['attach']>[0]['cancel']>;
+}): FrontendSessionHandle {
+  const sessionId = (deps.newSessionId ?? randomUUID)();
+  const capacityKeys = deps.resolveCapacityKeys?.({ ...input, ...(owner ? { owner } : {}) });
+  return deps.registry.attach({ descriptor: { sessionId, capabilities, ...(owner ? { owner } : {}), ...(capacityKeys ? { capacityKeys } : {}) },
+    deliver, cancel });
+}
+
+/** An owned session ends with its TTL even when the client never disconnects; an unowned one has no expiry. */
+function startExpiry({ owner, handle, close, deps }: { readonly owner: FrontendSessionOwner | undefined; readonly handle: FrontendSessionHandle; readonly close: () => void; readonly deps: FrontendSessionsHttpDeps }): { cancel(): void } | undefined {
+  if (!owner) return undefined;
+  return deps.setTimer({ callback: () => { handle.detach({}); close(); }, delayMs: deps.sessionTtlMs ?? 30 * 60_000 });
+}
+
+/** The 500 a stream gets when something threw before its headers were committed; the real error goes to the host's sink. */
+function streamFailure({ error, host }: { readonly error: unknown; readonly host: DaemonRouteHost }): Response {
+  const apiError = host.reportInternalError({ report: { source: 'stream', error }, logSource: 'frontend-sessions:stream', message: FRONTEND_STREAM_FAILED_MESSAGE });
+  return jsonResponse({ status: 500, body: { error: apiError } });
+}
+
+/**
+ * Opens one surface's stream. Invalid capability queries use a final error event. Capacity admission
+ * happens before the stream exists, so a resource refusal keeps a real HTTP status and creates no connection.
+ */
+function openFrontendSessionStream({ request, input, deps, host, owner }: {
+  readonly request: Request; readonly input: FrontendHookInput; readonly deps: FrontendSessionsHttpDeps; readonly host: DaemonRouteHost; readonly owner: FrontendSessionOwner | undefined;
+}): Response {
+  const requested = parseCapabilityQuery({ searchParams: new URL(request.url).searchParams });
+  const capabilities = requested?.filter(id => !deps.allowedCapabilities || deps.allowedCapabilities.includes(id)) ?? null;
+  // Assigned below, after the stream exists: `attach` needs something to deliver through, and
+  // `onClose` has to be armed before then so a connection that dies during setup still detaches.
+  let handle: FrontendSessionHandle | undefined;
+  let expiry: { cancel(): void } | undefined;
+  let stream: ReturnType<typeof createSseStream<FrontendWireEvent>>;
+  if (capabilities !== null) {
+    try {
+      handle = attachFrontendSession({ input, deps, capabilities, owner,
+        deliver: invocation => stream.send({ event: wire({ payload: { type: 'invocation', ...invocation } satisfies FrontendSessionInvocationEvent }) }),
+        cancel: ({ invocationId }) => stream.send({ event: wire({ payload: { type: 'cancelled', invocationId } }) }) });
+    } catch (error) {
+      // Capacity is ordinary admission refusal, not a loggable internal failure.
+      return error instanceof FrontendSessionCapacityError ? plainStatus({ status: 429, text: 'Too Many Requests' }) : streamFailure({ error, host });
+    }
+  }
+  // Close and expiry release the same quota reservation, without a separate counter lifecycle.
+  stream = createSseStream<FrontendWireEvent>({ scheduler: host.scheduler }, { signal: request.signal, formatEvent: formatFrame, onClose: () => { expiry?.cancel(); handle?.detach({}); } });
+  if (capabilities === null) {
+    stream.send({ event: wire({ payload: { type: 'error', message: BAD_CAPABILITY_MESSAGE } satisfies FrontendSessionErrorEvent }) });
+    stream.end();
+    return stream.response;
+  }
+  expiry = startExpiry({ owner, handle: handle!, close: () => stream.end(), deps });
+  stream.send({ event: wire({ payload: { type: 'attached', sessionId: handle!.sessionId, bindToken: handle!.bindToken } satisfies FrontendSessionAttachedEvent }) });
+  return stream.response;
+}
+
+/** The owner hook's answer for the stream: an owner, `undefined` (no hook), or the refusal/500 to send instead. */
+async function resolveStreamOwner({ input, deps, host }: { readonly input: FrontendHookInput; readonly deps: FrontendSessionsHttpDeps; readonly host: DaemonRouteHost }): Promise<{ readonly owner?: FrontendSessionOwner } | { readonly refusal: Response }> {
+  if (!deps.resolveOwner) return {};
+  try {
+    const owner = await deps.resolveOwner(input);
+    return owner === null ? { refusal: plainStatus({ status: 403, text: 'Forbidden' }) } : { owner };
+  } catch (error) {
+    return { refusal: streamFailure({ error, host }) };
   }
 }
 
-/** Expiry tears down addressing and the stream together, including clients which never disconnect. */
-function expireScopedSession({ owner, handle, close, ttl = 30 * 60_000 }: { owner?: FrontendSessionOwner | undefined; handle: FrontendSessionHandle; close: () => void; ttl?: number | undefined }): ReturnType<typeof setTimeout> | undefined {
-  if (!owner) return undefined;
-  const timer = setTimeout(() => { handle.detach({}); close(); }, ttl);
-  timer.unref();
-  return timer;
+/**
+ * `GET <prefix>/stream`. The stream route is hand-built (an SSE response is not a JSON route), so it
+ * does not get `requireSameOrigin` for free: the guard runs here, before the stream opens, so a
+ * cross-origin request never gets a stream (and never mints a session id or `bindToken` either).
+ * A host with an owner hook authenticates origin together with guest/tab ownership in that hook.
+ */
+function frontendStreamRoute({ deps, host, prefix }: { readonly deps: FrontendSessionsHttpDeps; readonly host: DaemonRouteHost; readonly prefix: string }): DaemonRoute {
+  return gated({
+    route: {
+      method: 'GET', path: `${prefix}/stream`,
+      handler: async ({ request, locals }) => {
+        const refused = deps.resolveOwner ? undefined : sameOriginRefusal({ request, origin: host.context });
+        if (refused) return refused;
+        const input: FrontendHookInput = { request, locals: locals ?? {} };
+        const resolved = await resolveStreamOwner({ input, deps, host });
+        if ('refusal' in resolved) return resolved.refusal;
+        return openFrontendSessionStream({ request, input, deps, host, owner: resolved.owner });
+      },
+    },
+    gates: [{ name: deps.resolveOwner ? 'frontend-session-owner' : 'same-origin' }],
+  });
+}
+
+/** The gate in front of the responses route when the host authenticates owners: the owner must hold the session and its bind token. */
+function sessionOwnerGate({ deps, host, resolveOwner }: { readonly deps: FrontendSessionsHttpDeps; readonly host: DaemonRouteHost; readonly resolveOwner: NonNullable<FrontendSessionsHttpDeps['resolveOwner']> }): ServerMiddleware {
+  return async ({ request, params, locals, next }) => {
+    try {
+      const owner = await resolveOwner({ request, locals });
+      const bindToken = request.headers.get('x-frontend-bind-token') ?? '';
+      if (!owner || !deps.registry.ownsSession({ sessionId: String(params['sessionId']), owner, bindToken })) return plainStatus({ status: 403, text: 'Forbidden' });
+    } catch (error) {
+      // Same 403 bytes as a refused owner; the error itself goes to the host's sink instead of being swallowed.
+      host.reportInternalError({ report: { source: 'frontend-session-owner', error }, logSource: 'frontend-sessions:owner', message: 'Forbidden' });
+      return plainStatus({ status: 403, text: 'Forbidden' });
+    }
+    return next();
+  };
+}
+
+/** `POST <prefix>/:sessionId/responses`, behind the owner gate when the host has an owner hook, else behind the same-origin check. */
+function frontendResponseRoute({ deps, host, prefix }: { readonly deps: FrontendSessionsHttpDeps; readonly host: DaemonRouteHost; readonly prefix: string }): DaemonRoute {
+  const route = gatedJsonRoute({ spec: { ...frontendSessionResponseRoute, path: `${prefix}/:sessionId/responses`, requireSameOrigin: !deps.resolveOwner }, deps, host });
+  if (!deps.resolveOwner) return route;
+  return gated({ route, gates: [{ name: 'frontend-session-owner', middleware: sessionOwnerGate({ deps, host, resolveOwner: deps.resolveOwner }) }] });
+}
+
+/**
+ * Both frontend-session routes as data: the SSE stream that carries invocations down to a surface, and
+ * the POST that carries its answers back. A host mounts the list on its own server.
+ */
+export function frontendSessionRoutes({ deps, host }: { readonly deps: FrontendSessionsHttpDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
+  const prefix = deps.routePrefix ?? '/api/frontend-sessions';
+  return [frontendStreamRoute({ deps, host, prefix }), frontendResponseRoute({ deps, host, prefix })];
 }

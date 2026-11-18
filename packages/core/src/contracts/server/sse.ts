@@ -138,10 +138,14 @@ async function pullFrame({ state, controller, encoder, close }: {
   controller.close();
 }
 
-/** Reads a reconnect cursor from the standard `Last-Event-ID` header, falling back to an `afterCursor` query parameter (the header wins: browsers set it on `EventSource` reconnect). */
+/**
+ * Reads a reconnect cursor from the standard `Last-Event-ID` header, falling back to an `afterCursor` query parameter (the header wins: browsers set it on `EventSource` reconnect).
+ * A repeated `afterCursor` names no cursor: Express handed a route an array for it and the route refused it, so which of the values the client meant is not guessed here either.
+ */
 export function lastEventCursor({ request }: { readonly request: Request }, _optional: Record<string, never> = {}): string | null {
   const header = request.headers.get('last-event-id');
   if (header && header.length > 0) return header;
-  const query = new URL(request.url).searchParams.get('afterCursor');
-  return query !== null && query.length > 0 ? query : null;
+  const values = new URL(request.url).searchParams.getAll('afterCursor');
+  const [only] = values;
+  return values.length === 1 && only !== undefined && only.length > 0 ? only : null;
 }

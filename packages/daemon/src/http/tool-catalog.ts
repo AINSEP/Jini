@@ -20,10 +20,10 @@
  */
 import type { AgentToolSideEffect } from '@jini-ai/core';
 import { createApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, err, jsonRoute, ok, type JsonRouteSpec } from '@jini-ai/core/contracts/server';
+import { defineJsonRoute, err, ok } from '@jini-ai/core/contracts/server';
 import { parseCatalogDescribeInput, parseCatalogSearchInput } from './catalog-route-input.js';
 import type { DaemonRouteHost } from './route-host.js';
-import { gated, type DaemonRoute } from './route-table.js';
+import { gatedJsonRoute, type DaemonRoute } from './route-table.js';
 
 export interface ToolCatalogSearchHit {
   readonly readOnly?: boolean;
@@ -111,9 +111,5 @@ export const toolCatalogDescribeRoute = defineJsonRoute<{ id: string }, ToolCata
  * mounts the list; the routes never see the host's app.
  */
 export function toolCatalogRoutes({ deps, host }: { readonly deps: ToolCatalogHttpDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
-  const json = <I, O>(spec: JsonRouteSpec<I, O, ToolCatalogHttpDeps>): DaemonRoute => gated({
-    route: jsonRoute({ spec: { ...spec, maxBodyBytes: host.jsonBodyMaxBytes }, deps, reportInternalError: host.reportInternalError }, { host: host.context }),
-    gates: spec.requireSameOrigin ? [{ name: 'same-origin' }] : [],
-  });
-  return [json(toolCatalogSearchRoute), json(toolCatalogDescribeRoute)];
+  return [gatedJsonRoute({ spec: toolCatalogSearchRoute, deps, host }), gatedJsonRoute({ spec: toolCatalogDescribeRoute, deps, host })];
 }

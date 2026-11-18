@@ -283,7 +283,7 @@ describe('the families the standalone daemon never wired', () => {
       profile: 'agent-core-v1',
       capabilities: { 'ui:session': true },
       features: { frontendSessions: true },
-      featureOptions: { frontendSessions: { registry: {} as never } },
+      featureOptions: { frontendSessions: { registry: {} as never, setTimer: () => ({ cancel: () => undefined }) } },
     });
     expect(kernel.activation.active.map((r) => r.id)).toContain('frontendSessions');
   });

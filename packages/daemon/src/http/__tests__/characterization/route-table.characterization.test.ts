@@ -14,161 +14,158 @@ import { describeRouteTable, startRouteHarness, type RouteHarness } from './harn
  */
 const ROUTE_TABLE: Readonly<Record<string, readonly string[]>> = {
   'health': [
-    'GET /health [anonymous/2]',
-    'GET /api/health [anonymous/2]',
-    'GET /ready [anonymous/2]',
-    'GET /api/ready [anonymous/2]',
-    'GET /version [anonymous/2]',
-    'GET /api/version [anonymous/2]',
+    'GET /health []',
+    'GET /api/health []',
+    'GET /ready []',
+    'GET /api/ready []',
+    'GET /version []',
+    'GET /api/version []',
   ],
   'tool-execution-routes': [
-    'POST /internal/tool-executions [anonymous/3, jsonParser/3, anonymous/2, bodyParserFailure/4]',
-    'GET /internal/tool-catalog [anonymous/3, anonymous/2]',
+    'POST /internal/tool-executions [tool-exec-caller]',
+    'GET /internal/tool-catalog [tool-exec-caller]',
   ],
   'attachment-lookup-routes': [
-    'POST /internal/attachment-lookup [jsonParser/3, anonymous/2]',
+    'POST /internal/attachment-lookup []',
   ],
   'runs': [
-    'POST /api/runs [anonymous/2]',
-    'GET /api/runs [anonymous/2]',
-    'GET /api/runs/:runId [anonymous/2]',
-    'POST /api/runs/:runId/cancel [anonymous/2]',
-    'POST /api/runs/:runId/messages [anonymous/2]',
-    'GET /api/runs/:runId/events [anonymous/2]',
+    'POST /api/runs [same-origin]',
+    'GET /api/runs []',
+    'GET /api/runs/:runId []',
+    'POST /api/runs/:runId/cancel [same-origin]',
+    'POST /api/runs/:runId/messages [same-origin]',
+    'GET /api/runs/:runId/events []',
   ],
   'agents': [
-    'GET /api/agents [anonymous/2]',
-    'POST /api/agents/rescan [anonymous/2]',
+    'GET /api/agents []',
+    'POST /api/agents/rescan [same-origin]',
   ],
   'host-tools': [
-    'GET /api/editors [anonymous/2]',
-    'POST /api/resources/:resourceRef/open-in [anonymous/2]',
+    'GET /api/editors []',
+    'POST /api/resources/:resourceRef/open-in [same-origin]',
   ],
   'model-proxy': [
-    'POST /api/proxy/anthropic/stream [anonymous/2]',
-    'POST /api/proxy/openai/stream [anonymous/2]',
-    'POST /api/proxy/azure/stream [anonymous/2]',
-    'POST /api/proxy/google/stream [anonymous/2]',
-    'POST /api/proxy/ollama/stream [anonymous/2]',
-    'POST /api/proxy/:provider/stream [anonymous/2]',
+    'POST /api/proxy/anthropic/stream [same-origin]',
+    'POST /api/proxy/openai/stream [same-origin]',
+    'POST /api/proxy/azure/stream [same-origin]',
+    'POST /api/proxy/google/stream [same-origin]',
+    'POST /api/proxy/ollama/stream [same-origin]',
+    'POST /api/proxy/:provider/stream [same-origin]',
   ],
   'active-context': [
-    'POST /api/active [anonymous/2]',
-    'GET /api/active [anonymous/2]',
+    'POST /api/active [same-origin]',
+    'GET /api/active [same-origin]',
   ],
   'terminals': [
-    'GET /api/terminals [anonymous/2]',
-    'POST /api/terminals [anonymous/2]',
-    'POST /api/terminals/:id/stdin [anonymous/2]',
-    'POST /api/terminals/:id/resize [anonymous/2]',
-    'POST /api/terminals/:id/kill [anonymous/2]',
-    'DELETE /api/terminals/:id [anonymous/2]',
-    'GET /api/terminals/:id/stream [anonymous/2]',
+    'GET /api/terminals []',
+    'POST /api/terminals [same-origin]',
+    'POST /api/terminals/:id/stdin [same-origin]',
+    'POST /api/terminals/:id/resize [same-origin]',
+    'POST /api/terminals/:id/kill [same-origin]',
+    'DELETE /api/terminals/:id [same-origin]',
+    'GET /api/terminals/:id/stream [same-origin]',
   ],
   'db-ops': [
-    'GET /api/daemon/db [anonymous/2]',
-    'POST /api/daemon/db/verify [anonymous/2]',
-    'POST /api/daemon/db/vacuum [anonymous/2]',
+    'GET /api/daemon/db [same-origin]',
+    'POST /api/daemon/db/verify [same-origin]',
+    'POST /api/daemon/db/vacuum [same-origin]',
   ],
   'tool-catalog': [
     'GET /api/tools/search [same-origin]',
     'GET /api/tools/:id [same-origin]',
   ],
   'delegated-tools': [
-    'POST /api/delegated-tool-calls [anonymous/2]',
+    'POST /api/delegated-tool-calls [same-origin]',
   ],
   'connectors': [
-    'POST /api/connectors/auth/signup [anonymous/2]',
-    'POST /api/connectors/auth/signin [anonymous/2]',
-    'POST /api/connectors/auth/signout [anonymous/2]',
-    'POST /api/connectors/auth/session [anonymous/2]',
-    'PUT /api/connectors/storage/:key [anonymous/2]',
-    'GET /api/connectors/storage/:key [anonymous/2]',
-    'DELETE /api/connectors/storage/:key [anonymous/2]',
-    'GET /api/connectors/storage [anonymous/2]',
-    'POST /api/connectors/db/:collection [anonymous/2]',
-    'GET /api/connectors/db/:collection/:id [anonymous/2]',
-    'PATCH /api/connectors/db/:collection/:id [anonymous/2]',
-    'DELETE /api/connectors/db/:collection/:id [anonymous/2]',
-    'GET /api/connectors/db/:collection [anonymous/2]',
-    'POST /api/connectors/realtime/:channel/publish [anonymous/2]',
+    'POST /api/connectors/auth/signup [same-origin]',
+    'POST /api/connectors/auth/signin [same-origin]',
+    'POST /api/connectors/auth/signout [same-origin]',
+    'POST /api/connectors/auth/session [same-origin]',
+    'PUT /api/connectors/storage/:key [same-origin]',
+    'GET /api/connectors/storage/:key []',
+    'DELETE /api/connectors/storage/:key [same-origin]',
+    'GET /api/connectors/storage []',
+    'POST /api/connectors/db/:collection [same-origin]',
+    'GET /api/connectors/db/:collection/:id []',
+    'PATCH /api/connectors/db/:collection/:id [same-origin]',
+    'DELETE /api/connectors/db/:collection/:id [same-origin]',
+    'GET /api/connectors/db/:collection []',
+    'POST /api/connectors/realtime/:channel/publish [same-origin]',
   ],
   'research': [
-    'POST /api/research/search [anonymous/2]',
+    'POST /api/research/search [same-origin]',
   ],
   'xai': [
-    'POST /api/xai/oauth/start [anonymous/2]',
-    'POST /api/xai/oauth/complete [anonymous/2]',
-    'POST /api/xai/oauth/cancel [anonymous/2]',
-    'GET /api/xai/auth/status [anonymous/2]',
-    'POST /api/xai/oauth/disconnect [anonymous/2]',
-    'POST /api/xai/search [anonymous/2]',
+    'POST /api/xai/oauth/start [same-origin]',
+    'POST /api/xai/oauth/complete [same-origin]',
+    'POST /api/xai/oauth/cancel [same-origin]',
+    'GET /api/xai/auth/status [same-origin]',
+    'POST /api/xai/oauth/disconnect [same-origin]',
+    'POST /api/xai/search [same-origin]',
   ],
   'remote-run-events': [
-    'USE /api/runs/:runId/tool-use [anonymous/3]',
-    'USE /api/runs/:runId/tool-result [anonymous/3]',
-    'POST /api/runs/:runId/tool-use [anonymous/2]',
-    'POST /api/runs/:runId/tool-result [anonymous/2]',
+    'POST /api/runs/:runId/tool-use [remote-bridge-token]',
+    'POST /api/runs/:runId/tool-result [remote-bridge-token]',
   ],
   'memory': [
-    'GET /api/memory [anonymous/2]',
-    'GET /api/memory/tree [anonymous/2]',
-    'PATCH /api/memory/tree/:id [anonymous/2]',
-    'PUT /api/memory/index [anonymous/2]',
-    'PATCH /api/memory/config [anonymous/2]',
-    'GET /api/memory/events [anonymous/2]',
-    'GET /api/memory/extractions [anonymous/2]',
-    'DELETE /api/memory/extractions [anonymous/2]',
-    'DELETE /api/memory/extractions/:id [anonymous/2]',
-    'GET /api/memory/verifications [anonymous/2]',
-    'DELETE /api/memory/verifications [anonymous/2]',
-    'DELETE /api/memory/verifications/:id [anonymous/2]',
-    'POST /api/memory [anonymous/2]',
-    'GET /api/memory/:id [anonymous/2]',
-    'PUT /api/memory/:id [anonymous/2]',
-    'DELETE /api/memory/:id [anonymous/2]',
+    'GET /api/memory []',
+    'GET /api/memory/tree []',
+    'PATCH /api/memory/tree/:id [same-origin]',
+    'PUT /api/memory/index [same-origin]',
+    'PATCH /api/memory/config [same-origin]',
+    'GET /api/memory/events [same-origin]',
+    'GET /api/memory/extractions []',
+    'DELETE /api/memory/extractions [same-origin]',
+    'DELETE /api/memory/extractions/:id [same-origin]',
+    'GET /api/memory/verifications []',
+    'DELETE /api/memory/verifications [same-origin]',
+    'DELETE /api/memory/verifications/:id [same-origin]',
+    'POST /api/memory [same-origin]',
+    'GET /api/memory/:id []',
+    'PUT /api/memory/:id [same-origin]',
+    'DELETE /api/memory/:id [same-origin]',
   ],
   'routines': [
-    'GET /api/routines [anonymous/2]',
-    'POST /api/routines [anonymous/2]',
-    'GET /api/routines/:id [anonymous/2]',
-    'PATCH /api/routines/:id [anonymous/2]',
-    'DELETE /api/routines/:id [anonymous/2]',
-    'POST /api/routines/:id/run [anonymous/2]',
-    'GET /api/routines/:id/runs [anonymous/2]',
+    'GET /api/routines []',
+    'POST /api/routines [same-origin]',
+    'GET /api/routines/:id []',
+    'PATCH /api/routines/:id [same-origin]',
+    'DELETE /api/routines/:id [same-origin]',
+    'POST /api/routines/:id/run [same-origin]',
+    'GET /api/routines/:id/runs []',
   ],
   'media': [
-    'POST /api/media/generate [anonymous/2]',
-    'GET /api/media/tasks/:id [anonymous/2]',
-    'DELETE /api/media/tasks/:id [anonymous/2]',
-    'GET /api/media/tasks [anonymous/2]',
+    'POST /api/media/generate [same-origin]',
+    'GET /api/media/tasks/:id []',
+    'DELETE /api/media/tasks/:id [same-origin]',
+    'GET /api/media/tasks []',
   ],
   'frontend-sessions': [
-    'GET /api/frontend-sessions/stream [anonymous/2]',
-    'POST /api/frontend-sessions/:sessionId/responses [anonymous/2]',
+    'GET /api/frontend-sessions/stream [same-origin]',
+    'POST /api/frontend-sessions/:sessionId/responses [same-origin]',
   ],
   'frontend-sessions (scoped)': [
-    'GET /api/scoped-frontend-sessions/stream [anonymous/2]',
-    'POST /api/scoped-frontend-sessions/:sessionId/responses [anonymous/3]',
-    'POST /api/scoped-frontend-sessions/:sessionId/responses [anonymous/2]',
+    'GET /api/scoped-frontend-sessions/stream [frontend-session-owner]',
+    'POST /api/scoped-frontend-sessions/:sessionId/responses [frontend-session-owner]',
   ],
   'daemon-status': [
-    'GET /api/daemon/status [anonymous/2]',
-    'POST /api/daemon/shutdown [anonymous/2]',
+    'GET /api/daemon/status []',
+    'POST /api/daemon/shutdown [same-origin]',
   ],
   'component-catalog': [
-    'GET /api/components/search [anonymous/2]',
-    'GET /api/components/:id [anonymous/2]',
+    'GET /api/components/search [same-origin]',
+    'GET /api/components/:id [same-origin]',
   ],
   'attachments': [
-    'POST /api/attachments [anonymous/2]',
-    'DELETE /api/attachments [anonymous/2]',
+    'POST /api/attachments [same-origin]',
+    'DELETE /api/attachments [same-origin]',
   ],
   'message-relay': [
-    'POST /api/runs/:runId/messages/claim [anonymous/3]',
+    'POST /api/runs/:runId/messages/claim []',
   ],
   'frontend-request-route': [
-    'POST /api/frontend-requests [anonymous/2]',
+    'POST /api/frontend-requests [frontend-session-owner]',
   ],
 };
 
@@ -184,25 +181,20 @@ describe('daemon route table', () => {
     expect(describeRouteTable({ routes: harness.routes })).toEqual(ROUTE_TABLE);
   });
 
-  it('is 100 routes and 3 path gates (the scoped frontend-session mount adds its own stream and response route)', async () => {
+  it('is 100 routes and no Express path gate (the scoped frontend-session mount adds its own stream and response route; its owner gate and the two remote-run-event gates now sit in front of their routes as named gates)', async () => {
     harness = await startRouteHarness();
     const scoped = harness.routes.filter((route) => route.family === 'frontend-sessions (scoped)');
     const rest = harness.routes.filter((route) => route.family !== 'frontend-sessions (scoped)');
     const isGate = (route: { method: string; layers: readonly string[] }) => route.method === 'USE' || route.layers.at(-1)?.endsWith('/3') === true;
-    // message-relay's claim handler takes `next` to hand its errors on; it answers, so it is a route, not a gate.
-    const gates = [...rest, ...scoped].filter((route) => isGate(route) && route.family !== 'message-relay');
+    const gates = [...rest, ...scoped].filter((route) => isGate(route));
     expect(rest.filter((route) => route.method !== 'USE')).toHaveLength(100);
-    expect(gates.map((route) => `${route.method} ${route.path}`)).toEqual([
-      'USE /api/runs/:runId/tool-use',
-      'USE /api/runs/:runId/tool-result',
-      'POST /api/scoped-frontend-sessions/:sessionId/responses',
-    ]);
+    expect(gates.map((route) => `${route.method} ${route.path}`)).toEqual([]);
     expect(scoped.filter((route) => !isGate(route))).toHaveLength(2);
   });
 
   it('answers one registration per method and path: no route is mounted twice', async () => {
     harness = await startRouteHarness();
-    const answering = harness.routes.filter((route) => route.method !== 'USE' && route.layers.at(-1)?.endsWith('/3') !== true || route.family === 'message-relay');
+    const answering = harness.routes.filter((route) => route.method !== 'USE' && route.layers.at(-1)?.endsWith('/3') !== true);
     const keys = answering.map((route) => `${route.method} ${route.path}`);
     expect(new Set(keys).size).toBe(keys.length);
   });

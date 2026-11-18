@@ -47,25 +47,22 @@
  *   route-level scoping choice. A host needing those toggles today has to
  *   layer its own config storage alongside `NoteStore.writeConfig`.
  */
-import type { Express, Request, Response } from 'express';
 import { createApiError } from '@jini-ai/protocol';
 import {
-  createSseChannel,
+  createSseStream,
   defineJsonRoute,
-  mountJsonRoute,
-  sendApiError,
-} from '@jini-ai/http-kit';
-import {
   err,
-  guardSameOrigin,
   ok,
-  statusForError,
+  sameOriginRefusal,
   validationError,
-  type RouteHostContext,
+  type ReportRouteInternalError,
   type Result,
   type RouteInputContext,
   type SseEvent,
 } from '@jini-ai/core/contracts/server';
+import type { DaemonRouteHost } from './route-host.js';
+import { gated, gatedJsonRoute, withHostReporter, type DaemonRoute } from './route-table.js';
+import { SSE_CHARSET_HEADERS } from './sse-wire.js';
 
 // ---------------------------------------------------------------------------
 // Local structural mirrors of @jini-ai/memory's NoteStore/ExtractionLog/VerifyLog
@@ -144,6 +141,21 @@ export interface MemoryHttpDeps {
   readonly verifications: MemoryVerifyLog;
   /** Forwarded verbatim to every `MemoryNoteStore`/log call — the same `dataDir` a host passes to its own `createNoteStore`-backed instance. */
   readonly dataDir: string;
+  /** Host-owned sink for the real exception behind a store failure's generic answer. Without one the failure is still logged (class only) by the reporter's default line. */
+  readonly onInternalError?: (context: MemoryInternalErrorContext) => void;
+}
+
+/** What every memory route's `handle` is given: the host's deps plus the reporter {@link memoryRoutes} takes from the host (it makes the request ID and writes the log line for a store failure). */
+export interface MemoryRouteDeps extends MemoryHttpDeps {
+  readonly reportInternalError: ReportRouteInternalError;
+}
+
+/** Diagnostic detail for a store failure the public answer deliberately does not disclose: stores throw filesystem paths, driver text and the like. */
+export interface MemoryInternalErrorContext {
+  /** Which route's store call failed, e.g. `memory/entry-create`. */
+  readonly source: string;
+  readonly correlationId: string;
+  readonly error: unknown;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -168,9 +180,17 @@ function readRequiredString(body: Record<string, unknown>, key: string): Result<
   return err({ error: validationError({ message: `${key} is required` }, { issues: [{ path: key, message: 'required non-empty string' }] }) });
 }
 
-/** The `BAD_REQUEST` every mutating route answers when its store call throws, carrying the store's own message. */
-function storeFailure(error: unknown): Result<never> {
-  return err({ error: createApiError({ code: 'BAD_REQUEST', message: errorMessage(error) }) });
+/**
+ * What every mutating route answers when its store call throws: one fixed sentence and a request ID,
+ * never the store's own text (it can carry a filesystem path or a driver message). The real error
+ * goes to the host's sink under the same ID.
+ */
+function storeFailure({ deps, source, error }: { readonly deps: MemoryRouteDeps; readonly source: string; readonly error: unknown }, _optional: Record<string, never> = {}): Result<never> {
+  const failure = deps.reportInternalError<Omit<MemoryInternalErrorContext, 'correlationId'>>(
+    { report: { source, error }, logSource: source, message: 'The memory store could not complete the request. Copy the request ID and report this problem.' },
+    { onInternalError: deps.onInternalError },
+  );
+  return err({ error: failure });
 }
 
 function parseIdParam(input: RouteInputContext): Result<string> {
@@ -189,7 +209,7 @@ export interface MemoryOverviewResponse {
   readonly entries: readonly MemoryNoteEntrySummary[];
 }
 
-export const memoryOverviewRoute = defineJsonRoute<void, MemoryOverviewResponse, MemoryHttpDeps>({
+export const memoryOverviewRoute = defineJsonRoute<void, MemoryOverviewResponse, MemoryRouteDeps>({
   method: 'get',
   path: '/api/memory',
   parse: () => ok({ value: undefined }),
@@ -213,7 +233,7 @@ export interface MemoryTreeResponse {
   readonly tree: readonly MemoryTreeNode[];
 }
 
-export const memoryTreeRoute = defineJsonRoute<void, MemoryTreeResponse, MemoryHttpDeps>({
+export const memoryTreeRoute = defineJsonRoute<void, MemoryTreeResponse, MemoryRouteDeps>({
   method: 'get',
   path: '/api/memory/tree',
   parse: () => ok({ value: undefined }),
@@ -256,7 +276,7 @@ function parseUpdateTreeNode(input: RouteInputContext): Result<MemoryUpdateTreeN
 export const memoryUpdateTreeNodeRoute = defineJsonRoute<
   MemoryUpdateTreeNodeInput,
   MemoryUpdateTreeNodeResponse,
-  MemoryHttpDeps
+  MemoryRouteDeps
 >({
   method: 'patch',
   path: '/api/memory/tree/:id',
@@ -267,8 +287,9 @@ export const memoryUpdateTreeNodeRoute = defineJsonRoute<
       const tree = await deps.notes.buildTree({ dataDir: deps.dataDir });
       return ok({ value: { entry, tree } });
     } catch (error) {
-      const message = errorMessage(error);
-      return err({ error: createApiError({ code: message === 'note not found' ? 'NOT_FOUND' : 'BAD_REQUEST', message }) });
+      // The store's one expected refusal keeps its own answer; anything else is a store failure.
+      if (errorMessage(error) === 'note not found') return err({ error: createApiError({ code: 'NOT_FOUND', message: 'note not found' }) });
+      return storeFailure({ deps, source: 'memory/tree-node-update', error });
     }
   },
 }, { requireSameOrigin: true });
@@ -306,7 +327,7 @@ function parseIndexBody(input: RouteInputContext): Result<string> {
   return ok({ value: index });
 }
 
-export const memoryWriteIndexRoute = defineJsonRoute<string, MemoryIndexResponse, MemoryHttpDeps>({
+export const memoryWriteIndexRoute = defineJsonRoute<string, MemoryIndexResponse, MemoryRouteDeps>({
   method: 'put',
   path: '/api/memory/index',
   parse: parseIndexBody,
@@ -315,7 +336,7 @@ export const memoryWriteIndexRoute = defineJsonRoute<string, MemoryIndexResponse
       await deps.notes.writeIndex({ dataDir: deps.dataDir, body: index });
       return ok({ value: { index } });
     } catch (error) {
-      return storeFailure(error);
+      return storeFailure({ deps, source: 'memory/index-write', error });
     }
   },
 }, { requireSameOrigin: true });
@@ -335,7 +356,7 @@ function parseConfigPatch(input: RouteInputContext): Result<Partial<MemoryNoteSt
   return ok({ value: { enabled: input.body.enabled } });
 }
 
-export const memoryWriteConfigRoute = defineJsonRoute<Partial<MemoryNoteStoreOptions>, MemoryConfigResponse, MemoryHttpDeps>({
+export const memoryWriteConfigRoute = defineJsonRoute<Partial<MemoryNoteStoreOptions>, MemoryConfigResponse, MemoryRouteDeps>({
   method: 'patch',
   path: '/api/memory/config',
   parse: parseConfigPatch,
@@ -344,7 +365,7 @@ export const memoryWriteConfigRoute = defineJsonRoute<Partial<MemoryNoteStoreOpt
       const next = await deps.notes.writeConfig({ dataDir: deps.dataDir, patch });
       return ok({ value: { enabled: next.enabled } });
     } catch (error) {
-      return storeFailure(error);
+      return storeFailure({ deps, source: 'memory/config-write', error });
     }
   },
 }, { requireSameOrigin: true });
@@ -357,7 +378,7 @@ export interface MemoryExtractionsResponse {
   readonly extractions: readonly unknown[];
 }
 
-export const memoryListExtractionsRoute = defineJsonRoute<void, MemoryExtractionsResponse, MemoryHttpDeps>({
+export const memoryListExtractionsRoute = defineJsonRoute<void, MemoryExtractionsResponse, MemoryRouteDeps>({
   method: 'get',
   path: '/api/memory/extractions',
   parse: () => ok({ value: undefined }),
@@ -368,14 +389,14 @@ export interface MemoryRemovedResponse {
   readonly removed: number;
 }
 
-export const memoryClearExtractionsRoute = defineJsonRoute<void, MemoryRemovedResponse, MemoryHttpDeps>({
+export const memoryClearExtractionsRoute = defineJsonRoute<void, MemoryRemovedResponse, MemoryRouteDeps>({
   method: 'delete',
   path: '/api/memory/extractions',
   parse: () => ok({ value: undefined }),
   handle: async ({ input: _input, deps }) => ok({ value: { removed: deps.extractions.clear() } }),
 }, { requireSameOrigin: true });
 
-export const memoryRemoveExtractionRoute = defineJsonRoute<string, MemoryRemovedResponse, MemoryHttpDeps>({
+export const memoryRemoveExtractionRoute = defineJsonRoute<string, MemoryRemovedResponse, MemoryRouteDeps>({
   method: 'delete',
   path: '/api/memory/extractions/:id',
   parse: parseIdParam,
@@ -390,21 +411,21 @@ export interface MemoryVerificationsResponse {
   readonly verifications: readonly unknown[];
 }
 
-export const memoryListVerificationsRoute = defineJsonRoute<void, MemoryVerificationsResponse, MemoryHttpDeps>({
+export const memoryListVerificationsRoute = defineJsonRoute<void, MemoryVerificationsResponse, MemoryRouteDeps>({
   method: 'get',
   path: '/api/memory/verifications',
   parse: () => ok({ value: undefined }),
   handle: async ({ input: _input, deps }) => ok({ value: { verifications: deps.verifications.list() } }),
 });
 
-export const memoryClearVerificationsRoute = defineJsonRoute<void, MemoryRemovedResponse, MemoryHttpDeps>({
+export const memoryClearVerificationsRoute = defineJsonRoute<void, MemoryRemovedResponse, MemoryRouteDeps>({
   method: 'delete',
   path: '/api/memory/verifications',
   parse: () => ok({ value: undefined }),
   handle: async ({ input: _input, deps }) => ok({ value: { removed: deps.verifications.clear() } }),
 }, { requireSameOrigin: true });
 
-export const memoryRemoveVerificationRoute = defineJsonRoute<string, MemoryRemovedResponse, MemoryHttpDeps>({
+export const memoryRemoveVerificationRoute = defineJsonRoute<string, MemoryRemovedResponse, MemoryRouteDeps>({
   method: 'delete',
   path: '/api/memory/verifications/:id',
   parse: parseIdParam,
@@ -447,7 +468,7 @@ function parseEntryInput(input: RouteInputContext): Result<MemoryEntryInput> {
   });
 }
 
-export const memoryCreateEntryRoute = defineJsonRoute<MemoryEntryInput, MemoryEntryResponse, MemoryHttpDeps>({
+export const memoryCreateEntryRoute = defineJsonRoute<MemoryEntryInput, MemoryEntryResponse, MemoryRouteDeps>({
   method: 'post',
   path: '/api/memory',
   parse: parseEntryInput,
@@ -456,12 +477,12 @@ export const memoryCreateEntryRoute = defineJsonRoute<MemoryEntryInput, MemoryEn
       const entry = await deps.notes.upsertEntry({ dataDir: deps.dataDir, input });
       return ok({ value: { entry } });
     } catch (error) {
-      return storeFailure(error);
+      return storeFailure({ deps, source: 'memory/entry-create', error });
     }
   },
 }, { requireSameOrigin: true, successStatus: 201 });
 
-export const memoryReadEntryRoute = defineJsonRoute<string, MemoryEntryResponse, MemoryHttpDeps>({
+export const memoryReadEntryRoute = defineJsonRoute<string, MemoryEntryResponse, MemoryRouteDeps>({
   method: 'get',
   path: '/api/memory/:id',
   parse: parseIdParam,
@@ -484,7 +505,7 @@ function parseUpdateEntry(input: RouteInputContext): Result<MemoryUpdateEntryInp
   return ok({ value: { id: parsedId.value, input: parsedInput.value } });
 }
 
-export const memoryUpdateEntryRoute = defineJsonRoute<MemoryUpdateEntryInput, MemoryEntryResponse, MemoryHttpDeps>({
+export const memoryUpdateEntryRoute = defineJsonRoute<MemoryUpdateEntryInput, MemoryEntryResponse, MemoryRouteDeps>({
   method: 'put',
   path: '/api/memory/:id',
   parse: parseUpdateEntry,
@@ -493,7 +514,7 @@ export const memoryUpdateEntryRoute = defineJsonRoute<MemoryUpdateEntryInput, Me
       const entry = await deps.notes.upsertEntry({ dataDir: deps.dataDir, input: { ...input, id } });
       return ok({ value: { entry } });
     } catch (error) {
-      return storeFailure(error);
+      return storeFailure({ deps, source: 'memory/entry-update', error });
     }
   },
 }, { requireSameOrigin: true });
@@ -502,7 +523,7 @@ export interface MemoryDeleteEntryResponse {
   readonly ok: true;
 }
 
-export const memoryDeleteEntryRoute = defineJsonRoute<string, MemoryDeleteEntryResponse, MemoryHttpDeps>({
+export const memoryDeleteEntryRoute = defineJsonRoute<string, MemoryDeleteEntryResponse, MemoryRouteDeps>({
   method: 'delete',
   path: '/api/memory/:id',
   parse: parseIdParam,
@@ -511,7 +532,7 @@ export const memoryDeleteEntryRoute = defineJsonRoute<string, MemoryDeleteEntryR
       await deps.notes.deleteEntry({ dataDir: deps.dataDir, id });
       return ok({ value: { ok: true } });
     } catch (error) {
-      return storeFailure(error);
+      return storeFailure({ deps, source: 'memory/entry-delete', error });
     }
   },
 }, { requireSameOrigin: true });
@@ -531,73 +552,81 @@ interface MemoryStreamEvent extends SseEvent {
  * `deps.notes.events`), `extraction` (relayed from `deps.extractions.events`,
  * whose underlying event name is `'attempt'` — see `@jini-ai/memory`'s
  * `extraction-log.ts`), and `verify` (relayed from `deps.verifications.events`).
- * Uses `sse.ts`'s generic channel rather than OD's bespoke `createSseResponse`;
- * no Last-Event-ID replay (unlike `runs.ts`) since none of the three
+ * No Last-Event-ID replay (unlike `runs.ts`) since none of the three
  * underlying emitters buffer history for reconnect — this mirrors the OD
  * origin's own behavior (a live tail only, no replay).
  *
- * Bypasses `mountJsonRoute` (raw `app.get`, for the SSE response shape), so it does not get
- * `requireSameOrigin` for free the way the JSON routes below do — the guard is applied here
- * directly, before the SSE channel is opened, so a cross-origin request never gets a stream.
+ * Not a JSON route, so it does not get `requireSameOrigin` for free the way the JSON routes below
+ * do — the guard is applied here directly, before anything is subscribed, so a cross-origin request
+ * never gets a stream and never leaves a listener behind.
  */
-export function registerMemoryEventStream({ app, deps, adapter }: { readonly app: Express; readonly deps: MemoryHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
-  app.get('/api/memory/events', (req: Request, res: Response) => {
-    const origin = guardSameOrigin({ req, origin: adapter });
-    if (!origin.ok) {
-      sendApiError({ res, status: statusForError({ error: origin.error }), error: origin.error });
-      return;
-    }
-    let seq = 0;
-    const channel = createSseChannel<MemoryStreamEvent>({ res });
-    const emit = (kind: string, data: unknown): void => {
-      const cursor = seq;
-      seq += 1;
-      channel.enqueue({ event: { opaqueCursor: String(cursor), kind, data } });
-    };
-
-    const onChange = (event: unknown): void => emit('change', event);
-    const onExtraction = (event: unknown): void => emit('extraction', event);
-    const onVerify = (event: unknown): void => emit('verify', event);
-
-    deps.notes.events.on('change', onChange);
-    deps.extractions.events.on('attempt', onExtraction);
-    deps.verifications.events.on('verify', onVerify);
-
-    channel.onClose({
-      callback: () => {
-        deps.notes.events.off('change', onChange);
-        deps.extractions.events.off('attempt', onExtraction);
-        deps.verifications.events.off('verify', onVerify);
-      }
-    });
-
-    channel.open();
-    emit('connected', { at: Date.now() });
+function memoryEventStreamRoute({ deps, host }: { readonly deps: MemoryHttpDeps; readonly host: DaemonRouteHost }): DaemonRoute {
+  return gated({
+    route: {
+      method: 'GET', path: '/api/memory/events',
+      handler: ({ request }) => sameOriginRefusal({ request, origin: host.context }) ?? openMemoryStream({ deps, host, signal: request.signal }),
+    },
+    gates: [{ name: 'same-origin' }],
   });
 }
 
+/** Subscribes the three emitters and returns what removes those listeners again. */
+function subscribeMemoryEmitters({ deps, emit }: { readonly deps: MemoryHttpDeps; readonly emit: (kind: string, data: unknown) => void }): () => void {
+  const onChange = (event: unknown): void => emit('change', event);
+  const onExtraction = (event: unknown): void => emit('extraction', event);
+  const onVerify = (event: unknown): void => emit('verify', event);
+  deps.notes.events.on('change', onChange);
+  deps.extractions.events.on('attempt', onExtraction);
+  deps.verifications.events.on('verify', onVerify);
+  return () => {
+    deps.notes.events.off('change', onChange);
+    deps.extractions.events.off('attempt', onExtraction);
+    deps.verifications.events.off('verify', onVerify);
+  };
+}
+
+/** The stream itself: no heartbeat (this feed never sent one), every listener removed in the one `onClose`, whichever way the stream ends. */
+function openMemoryStream({ deps, host, signal }: { readonly deps: MemoryHttpDeps; readonly host: DaemonRouteHost; readonly signal: AbortSignal }): Response {
+  let release: () => void = () => undefined;
+  const stream = createSseStream<MemoryStreamEvent>({ scheduler: host.scheduler }, { signal, keepAliveMs: false, headers: SSE_CHARSET_HEADERS, onClose: () => release() });
+  let seq = 0;
+  const emit = (kind: string, data: unknown): void => {
+    const cursor = seq;
+    seq += 1;
+    stream.send({ event: { opaqueCursor: String(cursor), kind, data } });
+  };
+  release = subscribeMemoryEmitters({ deps, emit });
+  // The client may have left before the listeners existed: `onClose` ran with nothing to remove.
+  if (stream.closed) release();
+  emit('connected', { at: Date.now() });
+  return stream.response;
+}
+
 /**
- * Mounts every ported memory route. Static sub-resources (`/tree`,
- * `/index`, `/config`, `/events`, `/extractions`, `/verifications`) are
- * mounted BEFORE the `/api/memory/:id` catch-all routes, preserving OD's own
- * ordering discipline ("so an `index`/`config`/`extract` slug can't shadow
- * the real handlers") — Express matches routes in registration order.
+ * Every memory route as data. Static sub-resources (`/tree`, `/index`, `/config`, `/events`,
+ * `/extractions`, `/verifications`) and `/api/memory/:id` can be listed in any order: the route table
+ * matches a literal segment before a `:name` segment, so an `index`/`config`/`extract` slug can never
+ * shadow the real handlers (this replaces OD's "mount static routes first" rule).
  */
-export function registerMemoryRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: MemoryHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
-  mountJsonRoute({ app, spec: memoryOverviewRoute, deps, adapter });
-  mountJsonRoute({ app, spec: memoryTreeRoute, deps, adapter });
-  mountJsonRoute({ app, spec: memoryUpdateTreeNodeRoute, deps, adapter });
-  mountJsonRoute({ app, spec: memoryWriteIndexRoute, deps, adapter });
-  mountJsonRoute({ app, spec: memoryWriteConfigRoute, deps, adapter });
-  registerMemoryEventStream({ app, deps, adapter });
-  mountJsonRoute({ app, spec: memoryListExtractionsRoute, deps, adapter });
-  mountJsonRoute({ app, spec: memoryClearExtractionsRoute, deps, adapter });
-  mountJsonRoute({ app, spec: memoryRemoveExtractionRoute, deps, adapter });
-  mountJsonRoute({ app, spec: memoryListVerificationsRoute, deps, adapter });
-  mountJsonRoute({ app, spec: memoryClearVerificationsRoute, deps, adapter });
-  mountJsonRoute({ app, spec: memoryRemoveVerificationRoute, deps, adapter });
-  mountJsonRoute({ app, spec: memoryCreateEntryRoute, deps, adapter });
-  mountJsonRoute({ app, spec: memoryReadEntryRoute, deps, adapter });
-  mountJsonRoute({ app, spec: memoryUpdateEntryRoute, deps, adapter });
-  mountJsonRoute({ app, spec: memoryDeleteEntryRoute, deps, adapter });
+export function memoryRoutes({ deps, host }: { readonly deps: MemoryHttpDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
+  const routeDeps = withHostReporter({ deps, host });
+  const json = <I, O>(spec: Parameters<typeof gatedJsonRoute<I, O, MemoryRouteDeps>>[0]['spec']): DaemonRoute => gatedJsonRoute({ spec, deps: routeDeps, host });
+  return [
+    json(memoryOverviewRoute),
+    json(memoryTreeRoute),
+    json(memoryUpdateTreeNodeRoute),
+    json(memoryWriteIndexRoute),
+    json(memoryWriteConfigRoute),
+    memoryEventStreamRoute({ deps, host }),
+    json(memoryListExtractionsRoute),
+    json(memoryClearExtractionsRoute),
+    json(memoryRemoveExtractionRoute),
+    json(memoryListVerificationsRoute),
+    json(memoryClearVerificationsRoute),
+    json(memoryRemoveVerificationRoute),
+    json(memoryCreateEntryRoute),
+    json(memoryReadEntryRoute),
+    json(memoryUpdateEntryRoute),
+    json(memoryDeleteEntryRoute),
+  ];
 }

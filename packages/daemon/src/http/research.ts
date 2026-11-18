@@ -95,15 +95,17 @@
  * generic-message substitution.
  */
 import { redactSecrets } from '@jini-ai/core';
-import type { Express } from 'express';
 import { createTavilyResearchProvider } from './research-tavily.adapter.js';
 import { createApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, mountJsonRoute, reportRouteInternalError } from '@jini-ai/http-kit';
+import { reportRouteInternalError } from '@jini-ai/http-kit';
+import type { DaemonRouteHost } from './route-host.js';
+import { gatedJsonRoute, withHostReporter, type DaemonRoute } from './route-table.js';
 import {
+  defineJsonRoute,
   err,
   ok,
   validationError,
-  type RouteHostContext,
+  type ReportRouteInternalError,
   type Result,
   type RouteInputContext,
 } from '@jini-ai/core/contracts/server';
@@ -154,6 +156,8 @@ export interface ResearchHttpDeps {
   readonly resolveCredentials?: ({ providerId }: { providerId: string }) => Promise<ResearchProviderCredentials>;
   /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
   readonly onInternalError?: (context: ResearchInternalErrorContext) => void;
+  /** Makes the request ID and writes the log line for an internal failure. {@link researchRoutes} sets it to the host's reporter; a caller that runs the route's `handle` itself may omit it and gets `@jini-ai/http-kit`'s. */
+  readonly reportInternalError?: ReportRouteInternalError;
 }
 
 /**
@@ -234,7 +238,7 @@ function credentialResolver(provider: ResearchProvider, deps: ResearchHttpDeps):
 
 /** Reports `error` to the host sink under a fresh correlation id and returns the generic SEC-005 public error. */
 function reportInternalError({ deps, error }: { readonly deps: ResearchHttpDeps; readonly error: unknown }, _optional: Record<string, never> = {}): ReturnType<typeof createApiError> {
-  return reportRouteInternalError<Omit<ResearchInternalErrorContext, 'correlationId'>>({ report: { error }, logSource: 'research/search', message: 'The web research request could not be completed. Try again; if it keeps failing, copy the request ID and report this problem.' }, { onInternalError: deps.onInternalError });
+  return (deps.reportInternalError ?? reportRouteInternalError)<Omit<ResearchInternalErrorContext, 'correlationId'>>({ report: { error }, logSource: 'research/search', message: 'The web research request could not be completed. Try again; if it keeps failing, copy the request ID and report this problem.' }, { onInternalError: deps.onInternalError });
 }
 
 /** A copy of a provider failure with `apiKey` redacted from its message, name and stack, safe for the error sink. */
@@ -294,7 +298,8 @@ export function createResearchSearchRoute({ provider }: { provider?: ResearchPro
 
 export const researchSearchRoute = createResearchSearchRoute({});
 
-/** Mounts `POST /api/research/search` on `app`. A pack's `http(app, services)` calls this directly. */
-export function registerResearchRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: ResearchHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
-  mountJsonRoute({ app, spec: deps.provider ? createResearchSearchRoute({ provider: deps.provider }) : researchSearchRoute, deps, adapter });
+/** `POST /api/research/search` as data, behind the same-origin gate its spec declares. Internal failures are reported through the host's reporter. */
+export function researchRoutes({ deps, host }: { readonly deps: ResearchHttpDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
+  const spec = deps.provider ? createResearchSearchRoute({ provider: deps.provider }) : researchSearchRoute;
+  return [gatedJsonRoute({ spec, deps: withHostReporter({ deps, host }), host })];
 }

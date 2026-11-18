@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DetectedAgent } from '@jini-ai/agent-runtime';
 import { definePack } from '@jini-ai/core';
 import { AgentExecutorToken } from '@jini-ai/daemon';
-import type { DaemonStatusResponse, RunStartContext, RunStartHandler } from '@jini-ai/daemon/http';
+import { componentCatalogRoutes, type DaemonStatusResponse, type RunStartContext, type RunStartHandler } from '@jini-ai/daemon/http';
 import { readLiveDaemonRegistryRecord, resolveDaemonRegistryPath } from '@jini-ai/sidecar';
 import * as SidecarModule from '@jini-ai/sidecar';
 import * as SqliteModule from '@jini-ai/daemon/store/event-log/sqlite';
@@ -22,6 +22,7 @@ import {
   type LocalNodeDaemon,
 } from '../create-local-node-daemon.js';
 import * as HostBootstrapModule from '../host-bootstrap.js';
+import { mountRoutes } from '../mount-routes.js';
 
 /**
  * Real-socket integration suite for `createLocalNodeDaemon` — mirrors the established pattern in
@@ -755,6 +756,24 @@ describe('createLocalNodeDaemon', () => {
     const res = await fetch(`${daemon.url}/api/extension-probe`);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
+  });
+
+  it("hands an http extension the daemon's route host, so a route list it mounts answers by the daemon's origin policy", async () => {
+    const dataDir = makeTempDataDir();
+    const catalog = { search: () => [], describe: () => null };
+    const daemon = await createLocalNodeDaemon({ open: openSqlite,
+      dataDir,
+      packs: [makePingPack()],
+      httpExtensions: [
+        (app, { routeHost }) => { mountRoutes({ app, routes: componentCatalogRoutes({ deps: { catalog }, host: routeHost }) }); },
+      ],
+    });
+    daemonsToStop.push(daemon);
+
+    const sameOrigin = await fetch(`${daemon.url}/api/components/search?q=table`, { headers: { origin: daemon.url } });
+    expect([sameOrigin.status, await sameOrigin.json()]).toEqual([200, { hits: [] }]);
+    const foreign = await fetch(`${daemon.url}/api/components/search?q=table`, { headers: { origin: 'http://evil.example.com' } });
+    expect(foreign.status).toBe(403);
   });
 
   it('serves POST /api/proxy/anthropic/stream zero-config (BYOK — no server-side credentials needed to reach the route)', async () => {

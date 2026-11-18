@@ -4,27 +4,26 @@
  * to attach its chosen driver after the lifecycle has durably recorded start.
  */
 import { randomUUID } from 'node:crypto';
-import type { Express, Request, Response } from 'express';
-import { createApiError, type RunProtocolEvent, type RunStatus } from '@jini-ai/protocol';
+import { createApiError, createApiErrorResponse, type ApiError, type RunProtocolEvent, type RunStatus } from '@jini-ai/protocol';
 import type { RunLifecycle, StartRunInput, Unsubscribe, UserMessageDelivery } from '../index.js';
+import { reportRouteInternalError } from '@jini-ai/http-kit';
 import {
-  createSseChannel,
+  createSseStream,
   defineJsonRoute,
-  mountJsonRoute,
-  reportRouteInternalError,
-  requestedAfterCursor,
-  sendApiError,
-  sendRawApiError,
-} from '@jini-ai/http-kit';
-import {
   err,
+  jsonResponse,
+  lastEventCursor,
   ok,
+  statusForError,
   validationError,
-  type RouteHostContext,
+  type ReportRouteInternalError,
   type Result,
   type RouteInputContext,
 } from '@jini-ai/core/contracts/server';
-import type { ServerResponse } from 'node:http';
+import type { DaemonRouteHost } from './route-host.js';
+import { gated, gatedJsonRoute, withHostReporter, type DaemonRoute } from './route-table.js';
+import { createCommitLatch } from './sse-commit.js';
+import { SSE_CHARSET_HEADERS } from './sse-wire.js';
 
 /**
  * Diagnostic detail for an internal-error response the public API deliberately does not
@@ -70,6 +69,8 @@ export interface RunHttpDeps {
   readonly deliverUserMessage?: (input: RunMessageRequest) => UserMessageDelivery | Promise<UserMessageDelivery>;
   /** Explicit opt-in: legacy text-only hosts must never acknowledge a turn while discarding its files. */
   readonly deliverUserMessageWithAttachments?: (input: RunMessageRequest) => UserMessageDelivery | Promise<UserMessageDelivery>;
+  /** Makes the request ID and writes the log line for an internal failure. {@link runRoutes} sets it to the host's reporter; a caller that runs a route's `handle` itself may omit it and gets `@jini-ai/http-kit`'s. */
+  readonly reportInternalError?: ReportRouteInternalError;
 }
 
 /**
@@ -88,7 +89,7 @@ function reportInternalError(
     ? 'The agent could not be started. Check the run status before starting another task. Copy the request ID and report this problem.'
     : 'The connection to run updates could not be opened. Check the run status before starting another task. Copy the request ID and report this problem.';
   // No host sink: `reportRouteInternalError`'s default line keeps the failure observable, never silent.
-  return reportRouteInternalError<Omit<RunInternalErrorContext, 'correlationId'>>({ report: { source, runId, error }, logSource: source, message }, { onInternalError: deps.onInternalError });
+  return (deps.reportInternalError ?? reportRouteInternalError)<Omit<RunInternalErrorContext, 'correlationId'>>({ report: { source, runId, error }, logSource: source, message }, { onInternalError: deps.onInternalError });
 }
 
 export interface RunStartResponse {
@@ -268,114 +269,97 @@ export const runMessageRoute = defineJsonRoute<RunMessageRequest, RunMessageResp
   }
 }, { requireSameOrigin: true, successStatus: 202 });
 
-function sendStreamFailure(res: ServerResponse, kind: Exclude<Awaited<ReturnType<RunLifecycle['stream']>>, { kind: 'ok' }>): void {
-  if (kind.kind === 'unknown-run') {
-    sendRawApiError({ res, status: 404, error: createApiError({ code: 'NOT_FOUND', message: 'run was not found' }) });
-    return;
-  }
-  if (kind.kind === 'invalid-cursor') {
-    sendRawApiError({ res, status: 400, error: createApiError({ code: 'BAD_REQUEST', message: `invalid replay cursor "${kind.requestedCursor}"` }) });
-    return;
-  }
-  sendRawApiError({
-    res, status: 409, error: createApiError({ code: 'CONFLICT', message: `replay gap after cursor "${kind.requestedCursor}"` }, {
-      details: { oldestAvailableCursor: kind.oldestAvailableCursor },
-    })
-  }
-  );
+/** The JSON answer for a stream that could not be opened. It is sent only while nothing has been committed to the client yet. */
+function streamFailureResponse(failure: Exclude<Awaited<ReturnType<RunLifecycle['stream']>>, { kind: 'ok' }>): Response {
+  return errorResponse({ error: streamFailureError(failure) });
 }
 
+function streamFailureError(failure: Exclude<Awaited<ReturnType<RunLifecycle['stream']>>, { kind: 'ok' }>): ApiError {
+  if (failure.kind === 'unknown-run') return createApiError({ code: 'NOT_FOUND', message: 'run was not found' });
+  if (failure.kind === 'invalid-cursor') return createApiError({ code: 'BAD_REQUEST', message: `invalid replay cursor "${failure.requestedCursor}"` });
+  return createApiError({ code: 'CONFLICT', message: `replay gap after cursor "${failure.requestedCursor}"` }, { details: { oldestAvailableCursor: failure.oldestAvailableCursor } });
+}
+
+const errorResponse = ({ error }: { readonly error: ApiError }): Response => jsonResponse({ status: statusForError({ error }), body: createApiErrorResponse({ error }) });
+
 /**
- * The core of `GET /api/runs/:runId/events` — canonical events as SSE, with Last-Event-ID
- * reconnect support. Takes `runId`/`afterCursor` already resolved by the caller. `res` is typed
- * against the raw `node:http` `ServerResponse` rather than Express's own `Response` type — Express's
- * `Response` extends it directly, so this is a no-op widening, the same pattern `AG-UI run stream`'s
- * handler already established.
+ * Opens `GET /api/runs/:runId/events`: canonical events as SSE, with `Last-Event-ID` reconnect support.
+ *
+ * Validate, commit, produce and hand off are separate events. The run's event source reports an unknown
+ * run or a bad cursor itself, and delivers the whole replay before it says "subscribed", so the answer
+ * cannot be chosen up front: the first of "an event arrives" (the stream) and "the source refused" (a
+ * JSON error) becomes the answer ({@link createCommitLatch}). Replay frames are history already held in
+ * memory, so they are queued without counting against the live-frame cap; a replay longer than the cap
+ * is delivered whole instead of dropping the client. The stream has no heartbeat: this route never sent one.
  */
-export async function handleRunEventStreamRequest({ res, runId, afterCursor, deps }: { readonly res: ServerResponse; readonly runId: string; readonly afterCursor: string | null; readonly deps: RunHttpDeps }, _optional: Record<string, never> = {}
-): Promise<void> {
-  if (runId.length === 0) {
-    sendRawApiError({ res, status: 400, error: createApiError({ code: 'BAD_REQUEST', message: 'runId must be a non-empty path parameter' }) });
-    return;
-  }
-
-  // `createSseChannel` (`sse.ts`) owns the bounded queue, backpressure, and client-disconnect
-  // handling that used to be inlined here — see that module's doc for the generalization.
-  const channel = createSseChannel<RunProtocolEvent>({ res }, { isEndEvent: ({ event }) => event.kind === 'end' });
-
-  let unsubscribeFn: Unsubscribe | null = null;
-  channel.onClose({
-    callback: () => {
-      const stop = unsubscribeFn;
-      unsubscribeFn = null;
-      stop?.();
-    }
+function openRunEventStream(
+  { request, runId, deps, host }: { readonly request: Request; readonly runId: string; readonly deps: RunHttpDeps; readonly host: DaemonRouteHost },
+  _optional: Record<string, never> = {},
+): Promise<Response> {
+  const latch = createCommitLatch();
+  let unsubscribe: Unsubscribe | null = null;
+  const stream = createSseStream<RunProtocolEvent>({ scheduler: host.scheduler }, {
+    signal: request.signal, keepAliveMs: false, headers: SSE_CHARSET_HEADERS,
+    isEndEvent: ({ event }) => event.kind === 'end',
+    onClose: () => { const stop = unsubscribe; unsubscribe = null; stop?.(); },
   });
-
-  try {
-    const subscribed = await deps.lifecycle.stream({ runId, onEvent: (event) => {
-      // RunLifecycle validates the run/cursor before replay callbacks. Open before enqueueing
-      // history so a healthy response drains replay instead of overflowing the unopened queue.
-      channel.open();
-      channel.enqueue({ event });
-    } }, { afterCursor });
-    if (subscribed.kind !== 'ok') {
-      // Nothing was ever subscribed, so `abandon()` has nothing to unsubscribe — it only marks
-      // the channel closed. `res` itself is untouched, leaving `sendStreamFailure` free to send
-      // a normal JSON error response instead of an SSE stream.
-      channel.abandon();
-      sendStreamFailure(res, subscribed);
-      return;
-    }
-    if (channel.isClosed()) {
-      // The client already disconnected (or the bounded queue already gave up) while
-      // `stream()` was resolving — unsubscribe immediately instead of leaking it.
-      subscribed.unsubscribe();
-      return;
-    }
-    unsubscribeFn = subscribed.unsubscribe;
-    channel.open();
-  } catch (error) {
-    if (!res.headersSent) {
-      // `channel.open()` never ran (or never got past `flushHeaders`) — abandon without
-      // touching `res`, so the JSON error response below is the only thing written.
-      // Using `channel.end()` here instead would end the response before this write, turning
-      // it into a write-after-end failure.
-      channel.abandon();
-      sendRawApiError({ res, status: 500, error: reportInternalError({ deps, source: 'run-stream', error, runId }) });
-      return;
-    }
-    // Headers were already sent (the stream had started, or `open()` partially ran before
-    // throwing) — end the stream itself rather than attempting a second, incompatible response.
-    channel.end();
-  }
+  let live = false;
+  // An async closure so a source that throws before returning a promise is reported like one that rejects.
+  void (async () => deps.lifecycle.stream({ runId, onEvent: (event) => {
+    latch.commit({ response: stream.response });
+    stream.send({ event }, { backlog: !live });
+  } }, { afterCursor: lastEventCursor({ request }) }))()
+    .then((subscribed) => {
+      live = true;
+      if (subscribed.kind !== 'ok') {
+        stream.end();
+        latch.commit({ response: streamFailureResponse(subscribed) });
+        return;
+      }
+      // The client may have left (or the live-frame cap been hit) while `stream()` was resolving: unsubscribe now instead of leaking it.
+      if (stream.closed) subscribed.unsubscribe();
+      else unsubscribe = subscribed.unsubscribe;
+      latch.commit({ response: stream.response });
+    })
+    .catch((error: unknown) => {
+      stream.end();
+      // Reported either way. After the stream was committed only the stream can end; before that the client gets the generic answer.
+      latch.commit({ response: errorResponse({ error: reportInternalError({ deps, source: 'run-stream', error, runId }) }) });
+    });
+  return latch.response;
 }
 
 /**
- * Path {@link registerRunEventStream} mounts. Exported as a constant so a caller that needs to know
+ * Path the run event stream is mounted at. Exported as a constant so a caller that needs to know
  * this route exists — a reverse proxy's forward list, `route-manifest.ts` — references it rather than
  * restating the literal and later drifting from it.
  */
 export const RUN_EVENTS_ROUTE_PATH = '/api/runs/:runId/events';
 
-/** Express mounting glue for {@link handleRunEventStreamRequest} — resolves `runId`/`afterCursor` from an Express `Request` and hands the request straight through. */
-export function registerRunEventStream({ app, deps }: { readonly app: Express; readonly deps: RunHttpDeps }, _optional: Record<string, never> = {}): void {
-  app.get(RUN_EVENTS_ROUTE_PATH, async (req: Request, res: Response) => {
-    const runId = req.params.runId;
-    if (typeof runId !== 'string' || runId.length === 0) {
-      sendApiError({ res, status: 400, error: createApiError({ code: 'BAD_REQUEST', message: 'runId must be a non-empty path parameter' }) });
-      return;
-    }
-    await handleRunEventStreamRequest({ res, runId, afterCursor: requestedAfterCursor(req), deps });
+/** `GET /api/runs/:runId/events`. Deliberately no same-origin gate: this stream never had one, and an event source from another origin must still be answered. */
+function runEventStreamRoute({ deps, host }: { readonly deps: RunHttpDeps; readonly host: DaemonRouteHost }): DaemonRoute {
+  return gated({
+    route: {
+      method: 'GET', path: RUN_EVENTS_ROUTE_PATH,
+      // The route table never matches an empty `:runId` segment, so `params.runId` is always a non-empty string here.
+      handler: ({ request, params }) => openRunEventStream({ request, runId: params.runId ?? '', deps, host }),
+    },
+    gates: [],
   });
 }
 
-/** Mounts create/status/cancel/message JSON endpoints and the SSE event stream as one run transport. */
-export function registerRunRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: RunHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
-  mountJsonRoute({ app, spec: runStartRoute, deps, adapter });
-  mountJsonRoute({ app, spec: runListRoute, deps, adapter });
-  mountJsonRoute({ app, spec: runStatusRoute, deps, adapter });
-  mountJsonRoute({ app, spec: runCancelRoute, deps, adapter });
-  mountJsonRoute({ app, spec: runMessageRoute, deps, adapter });
-  registerRunEventStream({ app, deps });
+/**
+ * The create/list/status/cancel/message JSON endpoints and the SSE event stream as one run transport, as data.
+ * Internal failures go through the host's reporter.
+ */
+export function runRoutes({ deps, host }: { readonly deps: RunHttpDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
+  const routeDeps = withHostReporter({ deps, host });
+  return [
+    gatedJsonRoute({ spec: runStartRoute, deps: routeDeps, host }),
+    gatedJsonRoute({ spec: runListRoute, deps: routeDeps, host }),
+    gatedJsonRoute({ spec: runStatusRoute, deps: routeDeps, host }),
+    gatedJsonRoute({ spec: runCancelRoute, deps: routeDeps, host }),
+    gatedJsonRoute({ spec: runMessageRoute, deps: routeDeps, host }),
+    runEventStreamRoute({ deps: routeDeps, host }),
+  ];
 }

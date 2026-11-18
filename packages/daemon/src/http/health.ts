@@ -52,10 +52,10 @@
  * only ever supplies a plain version string), and inventing that plumbing is a host-level decision
  * out of this file's scope, not something to paper over with an unused type change here.
  */
-import type { Express } from 'express';
 import { createApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
-import { type RouteHostContext, err, ok } from '@jini-ai/core/contracts/server';
+import { defineJsonRoute, err, ok } from '@jini-ai/core/contracts/server';
+import type { DaemonRouteHost } from './route-host.js';
+import { gatedJsonRoute, type DaemonRoute } from './route-table.js';
 
 export interface HealthReadinessResult {
   readonly ok: boolean;
@@ -120,12 +120,9 @@ export const apiReadyRoute = readinessRoute('/api/ready');
 export const versionInfoRoute = versionRoute('/version');
 export const apiVersionInfoRoute = versionRoute('/api/version');
 
-/** Mounts all six health/readiness/version routes on `app`. Call this before installing `express.json()`/the bearer-auth/origin-guard middleware — see module doc. */
-export function registerHealthRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: HealthHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
-  mountJsonRoute({ app, spec: healthRoute, deps, adapter });
-  mountJsonRoute({ app, spec: apiHealthRoute, deps, adapter });
-  mountJsonRoute({ app, spec: readyRoute, deps, adapter });
-  mountJsonRoute({ app, spec: apiReadyRoute, deps, adapter });
-  mountJsonRoute({ app, spec: versionInfoRoute, deps, adapter });
-  mountJsonRoute({ app, spec: apiVersionInfoRoute, deps, adapter });
+/**
+ * All six health/readiness/version routes as data, none behind a gate. Mount the list before the body parser, the bearer-auth and the origin guard — see module doc.
+ */
+export function healthRoutes({ deps, host }: { readonly deps: HealthHttpDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
+  return [healthRoute, apiHealthRoute, readyRoute, apiReadyRoute, versionInfoRoute, apiVersionInfoRoute].map((spec) => gatedJsonRoute({ spec, deps, host }));
 }

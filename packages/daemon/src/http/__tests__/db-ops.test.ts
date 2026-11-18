@@ -1,8 +1,8 @@
-import type { Server } from 'node:http';
-import express from 'express';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createLocalTestOrigin } from './fixtures/local-origin.js';
-import { createRecordingOriginPolicy, createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
+import { describe, expect, it, vi } from 'vitest';
+import { denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
+import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
+import { describeRoutes } from '../route-table.js';
 import { createToolRegistry, type Principal, type ToolPolicy, type ToolRegistry } from '@jini-ai/core';
 import { createToolExecutor, type ToolExecutor } from '../../index.js';
 import {
@@ -14,35 +14,11 @@ import {
   DB_VACUUM_TOOL_ID,
   DB_VERIFY_TOOL_ID,
   denyAllDaemonDbPolicy,
-  registerDaemonDbRoutes,
+  daemonDbRoutes,
   type DaemonDbHttpDeps,
   type DaemonDbOperations,
 } from '../db-ops.js';
 
-interface MockApp {
-  get: (path: string, handler: any) => void;
-  post: (path: string, handler: any) => void;
-  put: (path: string, handler: any) => void;
-  delete: (path: string, handler: any) => void;
-  patch: (path: string, handler: any) => void;
-  handlers: Record<string, (req: any, res: any) => Promise<void> | void>;
-}
-
-function makeApp(): MockApp {
-  const handlers: MockApp['handlers'] = {};
-  const make = (method: string) => (path: string, handler: any) => {
-    handlers[`${method.toUpperCase()} ${path}`] = handler;
-  };
-  return { get: make('get'), post: make('post'), put: make('put'), delete: make('delete'), patch: make('patch'), handlers };
-}
-
-function makeRes() {
-  return { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() };
-}
-
-const testOriginPolicy = createRecordingOriginPolicy();
-
-const adapter = createTestRouteHost({}, { originPolicy: testOriginPolicy });
 const principal: Principal = { id: 'local-daemon-operator' };
 
 const inspectReport = {
@@ -147,10 +123,6 @@ function fakeExecutorResolving(result: Awaited<ReturnType<ToolExecutor['execute'
     getAuditRecord: vi.fn(() => null),
   };
 }
-
-beforeEach(() => {
-  testOriginPolicy.set({ allow: true });
-});
 
 describe('createDaemonDbToolRegistrations', () => {
   it('honors optional policy and descriptor settings together, retaining deny by default', () => {
@@ -405,121 +377,62 @@ describe('daemonDbVacuumRoute.handle', () => {
   });
 });
 
-describe('registerDaemonDbRoutes', () => {
-  it('mounts from argument objects and forwards a parsed quick-check to the operation', async () => {
-    const app = makeApp();
+describe('daemonDbRoutes', () => {
+  const serve = ({ deps, denyOrigins = false }: { deps: DaemonDbHttpDeps; denyOrigins?: boolean }) =>
+    serveRoutes({ routes: daemonDbRoutes({ deps, host: fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {}) }) });
+  const call = (path: string, method = 'GET') => jsonRequest({ path, method });
+
+  it('lists exactly the three documented routes, each behind the same-origin gate', () => {
+    const { deps } = makeDeps();
+    expect(describeRoutes({ routes: daemonDbRoutes({ deps, host: fakeDaemonRouteHost() }) })).toEqual([
+      { method: 'GET', path: '/api/daemon/db', gates: ['same-origin'] },
+      { method: 'POST', path: '/api/daemon/db/verify', gates: ['same-origin'] },
+      { method: 'POST', path: '/api/daemon/db/vacuum', gates: ['same-origin'] },
+    ]);
+  });
+
+  it('GET /api/daemon/db, POST /api/daemon/db/verify?quick=true and POST /api/daemon/db/vacuum round-trip JSON through a real ToolExecutor', async () => {
     const { deps, operations } = makeDeps();
-    registerDaemonDbRoutes({ app: app as any, deps, adapter }, {});
-    const res = makeRes();
-    await app.handlers['POST /api/daemon/db/verify']!({ body: {}, query: { quick: 'true' }, params: {} }, res);
+    const fetch = serve({ deps });
+    const inspectRes = await fetch(call('/api/daemon/db'));
+    expect([inspectRes.status, inspectRes.headers.get('content-type'), await inspectRes.json()]).toEqual([200, expect.stringContaining('application/json'), inspectReport]);
+
+    const verifyRes = await fetch(call('/api/daemon/db/verify?quick=true', 'POST'));
+    expect([verifyRes.status, await verifyRes.json()]).toEqual([200, verifyReportClean]);
     expect(operations.verify).toHaveBeenCalledWith({ quick: true });
-    expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith(verifyReportClean);
-  });
-  it('mounts exactly the three documented routes', () => {
-    const app = makeApp();
-    const { deps } = makeDeps();
-    registerDaemonDbRoutes({ app: app as any, deps, adapter });
-    expect(Object.keys(app.handlers).sort()).toEqual(
-      ['GET /api/daemon/db', 'POST /api/daemon/db/vacuum', 'POST /api/daemon/db/verify'].sort(),
-    );
-  });
 
-  it('requires same-origin on all three mounted routes: allows a same-origin request', async () => {
-    const app = makeApp();
-    const { deps } = makeDeps();
-    registerDaemonDbRoutes({ app: app as any, deps, adapter });
-    const res = makeRes();
-    await app.handlers['GET /api/daemon/db']!({ body: {}, query: {}, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(200);
-  });
-
-  it('mounts the vacuum route end to end: a same-origin request reaches parse, the executor, and returns 200', async () => {
-    const app = makeApp();
-    const { deps, operations } = makeDeps();
-    registerDaemonDbRoutes({ app: app as any, deps, adapter });
-    const res = makeRes();
-    await app.handlers['POST /api/daemon/db/vacuum']!({ body: {}, query: {}, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(200);
+    const vacuumRes = await fetch(call('/api/daemon/db/vacuum', 'POST'));
+    expect([vacuumRes.status, await vacuumRes.json()]).toEqual([200, vacuumResult]);
     expect(operations.vacuum).toHaveBeenCalledTimes(1);
   });
 
-  it('requires same-origin on all three mounted routes: blocks a cross-origin request before the tool executor ever runs', async () => {
-    testOriginPolicy.set({ allow: false });
-    const app = makeApp();
+  it('requires same-origin on all three routes: blocks a cross-origin request before the tool executor ever runs', async () => {
     const { deps, operations } = makeDeps();
-    registerDaemonDbRoutes({ app: app as any, deps, adapter });
-
-    for (const key of ['GET /api/daemon/db', 'POST /api/daemon/db/verify', 'POST /api/daemon/db/vacuum'] as const) {
-      const res = makeRes();
-      await app.handlers[key]!({ body: {}, query: {}, params: {} }, res);
-      expect(res.status).toHaveBeenCalledWith(403);
+    const fetch = serve({ deps, denyOrigins: true });
+    for (const [path, method] of [['/api/daemon/db', 'GET'], ['/api/daemon/db/verify', 'POST'], ['/api/daemon/db/vacuum', 'POST']] as const) {
+      expect((await fetch(call(path, method))).status).toBe(403);
     }
-    expect(operations.inspect).not.toHaveBeenCalled();
-    expect(operations.verify).not.toHaveBeenCalled();
-    expect(operations.vacuum).not.toHaveBeenCalled();
+    expect([operations.inspect, operations.verify, operations.vacuum].map((operation) => vi.mocked(operation).mock.calls.length)).toEqual([0, 0, 0]);
   });
 
-  it('end to end through the mounted vacuum route: a malformed request never reaches the executor, a same-origin allowed request does', async () => {
-    const app = makeApp();
+  it('a malformed request (a repeated quick value) never reaches the executor', async () => {
     const { deps, operations } = makeDeps();
-    registerDaemonDbRoutes({ app: app as any, deps, adapter });
-    const res = makeRes();
-    await app.handlers['POST /api/daemon/db/verify']!({ body: {}, query: { quick: ['a', 'b'] }, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(400);
+    expect((await serve({ deps })(call('/api/daemon/db/verify?quick=a&quick=b', 'POST'))).status).toBe(400);
     expect(operations.verify).not.toHaveBeenCalled();
   });
-});
 
-describe('registerDaemonDbRoutes — real Express server on a real socket, not fake req/res', () => {
-  let server: Server | undefined;
-
-  afterEach(() => {
-    server?.close();
-    server = undefined;
-  });
-
-  it('real GET /api/daemon/db, POST /api/daemon/db/verify?quick=true, and POST /api/daemon/db/vacuum all round-trip real HTTP responses through a real ToolExecutor', async () => {
-    const app = express();
-    app.use(express.json());
-    const { deps, operations } = makeDeps();
-    const { adapter: realAdapter, portRef: realAdapterPortRef } = createLocalTestOrigin({}, { port: 0 });
-    registerDaemonDbRoutes({ app, deps, adapter: realAdapter });
-    server = app.listen(0);
-    const port = (server.address() as { port: number }).port;
-    realAdapterPortRef.current = port;
-    const base = `http://127.0.0.1:${port}`;
-
-    const inspectRes = await fetch(`${base}/api/daemon/db`);
-    expect(inspectRes.status).toBe(200);
-    expect(inspectRes.headers.get('content-type')).toContain('application/json');
-    expect(await inspectRes.json()).toEqual(inspectReport);
-
-    const verifyRes = await fetch(`${base}/api/daemon/db/verify?quick=true`, { method: 'POST' });
-    expect(verifyRes.status).toBe(200);
-    expect(operations.verify).toHaveBeenCalledWith({ quick: true });
-    expect(await verifyRes.json()).toEqual(verifyReportClean);
-
-    const vacuumRes = await fetch(`${base}/api/daemon/db/vacuum`, { method: 'POST' });
-    expect(vacuumRes.status).toBe(200);
-    expect(await vacuumRes.json()).toEqual(vacuumResult);
-    expect(operations.vacuum).toHaveBeenCalledTimes(1);
-  });
-
-  it('the real production deny-by-default policy blocks a genuine HTTP request with a real 403, never reaching the operation', async () => {
-    const app = express();
-    app.use(express.json());
+  it('the production deny-by-default policy blocks a request with 403 TOOL_OPERATION_DENIED, never reaching the operation', async () => {
     const { deps, operations } = makeDenyByDefaultDeps();
-    const { adapter: realAdapter, portRef: realAdapterPortRef } = createLocalTestOrigin({}, { port: 0 });
-    registerDaemonDbRoutes({ app, deps, adapter: realAdapter });
-    server = app.listen(0);
-    const port = (server.address() as { port: number }).port;
-    realAdapterPortRef.current = port;
-
-    const res = await fetch(`http://127.0.0.1:${port}/api/daemon/db`);
-    expect(res.status).toBe(403);
-    const body = (await res.json()) as { error: { code: string } };
-    expect(body.error.code).toBe('TOOL_OPERATION_DENIED');
+    const res = await serve({ deps })(call('/api/daemon/db'));
+    expect([res.status, ((await res.json()) as { error: { code: string } }).error.code]).toEqual([403, 'TOOL_OPERATION_DENIED']);
     expect(operations.inspect).not.toHaveBeenCalled();
+  });
+
+  it("reports a failed operation through the host's reporter with a request ID", async () => {
+    const { deps, operations } = makeDeps();
+    vi.mocked(operations.inspect).mockRejectedValueOnce(new Error('disk gone'));
+    const host = fakeDaemonRouteHost();
+    const res = await serveRoutes({ routes: daemonDbRoutes({ deps, host }) })(call('/api/daemon/db'));
+    expect([res.status, host.reports.map((report) => report.logSource)]).toEqual([500, ['db-inspect']]);
   });
 });

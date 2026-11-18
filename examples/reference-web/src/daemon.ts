@@ -10,11 +10,11 @@ import Database from 'better-sqlite3';
 import { createAgentExecutor } from '@jini-ai/daemon';
 import { createNativeAgentRuntime } from '@jini-ai/agent-runtime';
 import type { ToolRegistration } from '@jini-ai/core';
-import { createDiskAttachmentStore, createFrontendControl, registerAttachmentRoutes, registerMediaRoutes, registerMemoryRoutes } from '@jini-ai/daemon/http';
+import { attachmentCleanupRoutes, attachmentUploadRoutes, createDiskAttachmentStore, createFrontendControl, mediaRoutes, memoryRoutes } from '@jini-ai/daemon/http';
 import { createBuiltinVendorAdapterRegistry, createMediaDispatchEngine, createSqliteMediaTaskStore } from '@jini-ai/integrations/media-providers';
 import { createNodeMediaHttpClient } from '@jini-ai/integrations/media-providers/node';
 import { createExtractionLog, createNoteStore, createVerifyLog } from '@jini-ai/memory';
-import { createLocalNodeDaemon, installGracefulShutdown } from '@jini-ai/server';
+import { createLocalNodeDaemon, installGracefulShutdown, mountRoutes, nodeSessionTimer } from '@jini-ai/server';
 import { CHAT_CAPABILITIES } from '@jini-ai/chat/core';
 import { PAGE_CAPABILITIES } from '@jini-ai/agentic';
 import type { RunAgentPayload } from '@jini-ai/protocol';
@@ -376,6 +376,7 @@ async function main(): Promise<void> {
    * demo on loopback; a real product supplies a policy that consults its own roles.
    */
   const frontendControl = createFrontendControl({
+    setTimer: nodeSessionTimer,
     capabilities: [...PAGE_CAPABILITIES, ...CHAT_CAPABILITIES, ...WEBMCP_LAB_CAPABILITIES],
     resolveBindToken: ({ request }) => {
       try {
@@ -406,7 +407,7 @@ async function main(): Promise<void> {
         PROJECTS.has(resourceRef) ? resolve(repoRoot, 'examples/sample-projects', resourceRef) : undefined,
       toolRegistrations: [...frontendControl.toolRegistrations, showMcpUiWidgetTool],
       httpExtensions: [
-        (app, context) => frontendControl.httpExtension({ app, context }),
+        (app, context) => mountRoutes({ app, routes: frontendControl.routes({ host: context.routeHost }) }),
         (app) => {
           // Served from THIS daemon's own origin — a genuinely different port than the Vite dev
           // server hosting `McpUiLab.tsx` — because the MCP Apps spec requires the View to be a
@@ -457,10 +458,14 @@ async function main(): Promise<void> {
         // `POST`/`DELETE /api/attachments`, replacing ~70 lines of hand-rolled upload plumbing this
         // file used to carry. The same-origin guard is on by default and works here because
         // `JINI_ALLOWED_ORIGINS` above already names the Vite dev origin the browser sends.
-        (app, { adapter }) => registerAttachmentRoutes({ app, deps: { store: attachmentStore }, adapter }),
-        (app, { adapter }) => registerMemoryRoutes({ app, deps: memoryRoutesDeps, adapter }),
-        (app, { adapter }) =>
-          registerMediaRoutes({ app, deps: {
+        // The upload reads the raw request bytes, so its list is mounted without the parsed body (`rawBody`); the cleanup reads JSON.
+        (app, { routeHost }) => {
+          mountRoutes({ app, routes: attachmentUploadRoutes({ deps: { store: attachmentStore }, host: routeHost }) }, { rawBody: true });
+          mountRoutes({ app, routes: attachmentCleanupRoutes({ deps: { store: attachmentStore }, host: routeHost }) });
+        },
+        (app, { routeHost }) => mountRoutes({ app, routes: memoryRoutes({ deps: memoryRoutesDeps, host: routeHost }) }),
+        (app, { routeHost }) =>
+          mountRoutes({ app, routes: mediaRoutes({ deps: {
               engine: createMediaDispatchEngine({
                 registry: createBuiltinVendorAdapterRegistry(),
                 httpClient: createNodeMediaHttpClient({}),
@@ -473,7 +478,7 @@ async function main(): Promise<void> {
                 listByOwner: ({ ownerRef }, options) => mediaTaskStore.listByOwner(ownerRef, options),
                 delete: ({ id }) => mediaTaskStore.delete(id),
               },
-            }, adapter }),
+            }, host: routeHost }) }),
       ],
       onShutdown: async () => {
         clearInterval(attachmentPruneTimer);

@@ -1,5 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { HARNESS_BEARER_TOKEN, startRouteHarness, type RouteHarness } from './harness.js';
+import { jsonResponse } from '@jini-ai/core/contracts/server';
+import type { AuthorizeToolRun } from '../../tool-execution-routes.js';
 import { probe } from './probes.js';
 import { openStream } from './stream-reader.js';
 
@@ -192,11 +194,11 @@ describe('tool execution with a host run check (authorizeRun)', () => {
     harness = await startRouteHarness({}, { familyDeps: { 'tool-execution-routes': {
       execute: executor.execute,
       listToolsFor,
-      authorizeRun: (req: { method: string; body: { principal?: unknown }; query: unknown }, res: { status(code: number): { json(body: unknown): void } }, next: () => void) => {
-        seen.push(req.method === 'POST' ? structuredClone(req.body) : req.query);
-        if (verdict === 'refuse') { res.status(403).json({ error: { code: 'FORBIDDEN', message: 'host says no' } }); return; }
-        if (verdict === 'narrow') req.body.principal = { id: 'as-recorded' };
-        next();
+      authorizeRun: async (request: Parameters<AuthorizeToolRun>[0]) => {
+        seen.push(request.kind === 'execute' ? structuredClone(request.body) : request.query);
+        if (verdict === 'refuse') return { allowed: false, response: jsonResponse({ status: 403, body: { error: { code: 'FORBIDDEN', message: 'host says no' } } }) };
+        if (verdict === 'narrow') return { allowed: true, principal: { id: 'as-recorded' } };
+        return { allowed: true };
       },
     } } });
   });

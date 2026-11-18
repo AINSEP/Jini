@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net';
 import express, { type Express } from 'express';
 import { afterEach, describe, expect, it } from 'vitest';
 import { jsonResponse, readJsonBody, type ServerRoute } from '@jini-ai/core/contracts/server';
+import { getRouteRegistrationInventory, installRouteRegistrationGuard } from '@jini-ai/http-kit';
 import { mountRoutes } from '../mount-routes.js';
 
 const servers: Server[] = [];
@@ -118,6 +119,14 @@ describe('mountRoutes', () => {
     expect([options.status, options.headers.get('allow'), await options.text()]).toEqual([200, 'GET,HEAD', 'GET,HEAD']);
     const bad = await fetch(`${origin}/api/things/%E0%A4%A`);
     expect([bad.status, bad.headers.get('content-type')]).toEqual([400, 'text/html; charset=utf-8']);
+  });
+
+  it('records each listed route in the app\'s route inventory, so what the preset mounted can still be read back', () => {
+    const app = express();
+    installRouteRegistrationGuard({ app });
+    app.get('/api/own', (_req, res) => { res.end(); });
+    mountRoutes({ app, routes: [{ method: 'GET', path: '/api/things', handler: says('list') }, { method: 'POST', path: '/api/things/:id', handler: says('list') }] });
+    expect(getRouteRegistrationInventory({ app }).filter((entry) => entry.path.startsWith('/')).map((entry) => `${entry.method} ${entry.path}`)).toEqual(['GET /api/own', 'GET /api/things', 'POST /api/things/:id']);
   });
 
   it('refuses an app it cannot add a handler to, saying what it needs', () => {

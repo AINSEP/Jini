@@ -65,9 +65,4 @@ describe('@jini-ai/http-kit barrel', () => {
     expect(typeof HttpBarrel.sendRawApiError).toBe('function');
     expect(CoreServer.DEFAULT_MAX_QUEUED_SSE_EVENTS).toBe(1000);
   });
-
-  it('re-exports the raw SSE primitive used by run-stream mounting (a distinct mechanism from createSseChannel)', () => {
-    expect(typeof HttpBarrel.createSseResponse).toBe('function');
-  });
-
 });

@@ -1,15 +1,10 @@
-import type { Express, Request, Response } from 'express';
-import type { RouteHostContext } from '@jini-ai/core/contracts/server';
 import { expect, it, vi } from 'vitest';
-import { registerAttachmentRoutes, type AttachmentStore } from '../attachments.js';
+import { attachmentCleanupRoutes, attachmentUploadRoutes } from '../attachment-routes.js';
+import type { AttachmentStore } from '../attachments.js';
+import { fakeDaemonRouteHost } from './fakes/route-host.js';
 
-it.each(['upload', 'cleanup'] as const)('%s holds activity through cleanup after the response closes', async kind => {
-  type Handler = (req: Request, res: Response) => Promise<void>;
-  let upload!: Handler; let cleanup!: Handler;
-  const app = {
-    post: (_path: string, handler: Handler) => { upload = handler; },
-    delete: (_path: string, handler: Handler) => { cleanup = handler; },
-  } as unknown as Express;
+/** The host's busy lease must outlive the handler's own tidy-up, not just the answer: it is released only when the whole call is done. */
+it.each(['upload', 'cleanup'] as const)('%s holds activity until its cleanup finishes', async kind => {
   let finish!: () => void; let entered!: () => void;
   const pending = new Promise<void>(resolve => { finish = resolve; });
   const cleaning = new Promise<void>(resolve => { entered = resolve; });
@@ -19,14 +14,14 @@ it.each(['upload', 'cleanup'] as const)('%s holds activity through cleanup after
     pruneExpired: async () => { throw new Error('upload aborted'); },
     deleteUnclaimed: async () => { entered(); await pending; },
   } as unknown as AttachmentStore;
-  registerAttachmentRoutes({ app, adapter: {} as RouteHostContext, deps: {
-    store, requireSameOrigin: false, acquireActivity, onInternalError: () => {},
-  } });
-  const req = { query: { batch: 'batch', name: 'file' }, body: { batchId: 'batch', paths: [] } } as unknown as Request;
-  const res = { headersSent: false, status() { return res; }, json() {}, end() {} } as unknown as Response;
-  const work = (kind === 'upload' ? upload : cleanup)(req, res);
+  const deps = { store, requireSameOrigin: false, acquireActivity, onInternalError: () => {} };
+  const host = fakeDaemonRouteHost();
+  const [route] = (kind === 'upload' ? attachmentUploadRoutes : attachmentCleanupRoutes)({ deps, host });
+  const request = kind === 'upload'
+    ? new Request('http://local/api/attachments?batch=batch&name=file', { method: 'POST', body: 'x' })
+    : new Request('http://local/api/attachments', { method: 'DELETE', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ batchId: 'batch', paths: [] }) });
+  const work = route!.handler({ request, params: {} });
   await cleaning;
-  res.end();
   expect(acquireActivity).toHaveBeenCalledTimes(1);
   expect(release).not.toHaveBeenCalled();
   finish(); await work;

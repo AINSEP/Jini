@@ -6,7 +6,9 @@
  * a request the list does not own falls through to whatever is mounted below.
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { Express } from 'express';
 import type { ServerRoute } from '@jini-ai/core/contracts/server';
+import { recordRouteRegistrations } from '@jini-ai/http-kit';
 import { createNodeDispatcher } from '@jini-ai/http-kit/node-bridge';
 
 type NodeLayer = (req: IncomingMessage & { body?: unknown }, res: ServerResponse & { locals?: Record<string, unknown> }, next: (error?: unknown) => void) => void;
@@ -32,6 +34,7 @@ export function mountRoutes(
   { rawBody = false }: { readonly rawBody?: boolean } = {},
 ): void {
   const target = layerTarget(app);
+  recordRouteRegistrations({ app: app as Express, registrations: routes.map(({ method, path }) => ({ method, path })) });
   // Express answered these routes before they were lists; callers kept their spellings, so the answers stay.
   const dispatcher = createNodeDispatcher({}, { expressCompatible: true });
   for (const route of routes) dispatcher.server.route(route);

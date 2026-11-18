@@ -79,9 +79,8 @@ Core origin configuration names the host environment keys explicitly. Api bearer
 | `createSseChannel<E extends SseEvent>` | `({res: ServerResponse}, {maxQueuedEvents?, isEndEvent?: ({event}) => boolean, formatEvent?: ({event}) => string, onWriteError?: ({error}) => void} = {}) => SseChannel<E>` |
 | `requestedAfterCursor` | **One object:** `(req: {get(name: string): string \| undefined; query: Record<string,unknown>}) => string \| null` |
 | `sendRawApiError` | `({res: ServerResponse, status, error: ApiError}, {}) => void` |
-| `createSseResponse` | `({req: IncomingMessage, res: ServerResponse}, {keepAliveMs?, onClose?: () => void, maxQueuedMessages?} = {}) => SseConnection` |
 
-`SseEvent = {opaqueCursor: string, kind: string}`. `SseChannel` methods: `enqueue({event}, {})`, `onClose({callback}, {})`, `open()`, `end()`, `abandon()`, all void; `isClosed() => boolean`. `SseConnection.send({data}, {}) => void`, `close() => void`, readonly `closed: boolean`. `DEFAULT_MAX_QUEUED_SSE_EVENTS = 1000` is public at root; the raw-message default is also 1000 but its constant is not root-exported.
+`SseEvent = {opaqueCursor: string, kind: string}`. `SseChannel` methods: `enqueue({event}, {})`, `onClose({callback}, {})`, `open()`, `end()`, `abandon()`, all void; `isClosed() => boolean`. `DEFAULT_MAX_QUEUED_SSE_EVENTS = 1000` is public at root.
 
 ## `/rate-limit`
 
@@ -160,7 +159,6 @@ These names are also reachable through the current export map. Parameter declara
 | `ApiBearerAuthMiddlewareDeps`, `ApiOriginGuardMiddlewareDeps`, `StrictBearerTokenDeps` | type; [api-security-middleware.ts](../../src/api-security-middleware.ts) |
 | `ConfiguredOriginRequired`, `OriginBootPlan`, `OriginBootRequired` | type; [configured-origin.ts](../../src/verified-origin/configured-origin.ts) |
 | `CreateSseChannelOptions` | type; [sse.ts](../../src/sse.ts) |
-| `CreateSseResponseOptions` | type; [raw-sse.ts](../../src/raw-sse.ts) |
 | `EgressTargetContext`, `OriginRegistryPort`, `RedirectTargetContext`, `VerifiedOriginRequestContext` | type; [ports.ts](../../src/verified-origin/ports.ts) |
 | `InstallRouteRegistrationGuardOptions` | type; [route-registration-guard.ts](../../src/route-registration-guard.ts) |
 | `NormalizedTarget`, `OriginRegistryDeps` | type; [origin.ts](../../src/verified-origin/origin.ts) |

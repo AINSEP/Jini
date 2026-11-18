@@ -63,7 +63,6 @@
  * reflect the real, just-started run regardless of that wiring, since those come directly from
  * `scheduler.runNow`'s own return value.
  */
-import type { Express } from 'express';
 import {
   validateSchedule,
   validateTarget,
@@ -79,8 +78,9 @@ import {
 } from '../index.js';
 import { ToolInputError } from '@jini-ai/core';
 import { createApiError, type ApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
-import { type RouteHostContext, validationError, err, ok, type Result, type RouteInputContext } from '@jini-ai/core/contracts/server';
+import { defineJsonRoute, validationError, err, ok, type Result, type RouteInputContext } from '@jini-ai/core/contracts/server';
+import type { DaemonRouteHost } from './route-host.js';
+import { gatedJsonRoute, type DaemonRoute } from './route-table.js';
 
 /** The 404 message for an unknown routine id. */
 const ROUTINE_NOT_FOUND_MESSAGE = 'routine not found';
@@ -397,13 +397,15 @@ export const routineRunsListRoute = defineJsonRoute<RoutineRunsQuery, RoutineRun
   }
 });
 
-/** Mounts every routine route on `app`. A pack's `http(app, services)` calls this directly. */
-export function registerRoutineRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: RoutineHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
-  mountJsonRoute({ app, spec: routineListRoute, deps, adapter });
-  mountJsonRoute({ app, spec: routineCreateRoute, deps, adapter });
-  mountJsonRoute({ app, spec: routineGetRoute, deps, adapter });
-  mountJsonRoute({ app, spec: routineUpdateRoute, deps, adapter });
-  mountJsonRoute({ app, spec: routineDeleteRoute, deps, adapter });
-  mountJsonRoute({ app, spec: routineRunNowRoute, deps, adapter });
-  mountJsonRoute({ app, spec: routineRunsListRoute, deps, adapter });
+/** Every routine route as data; the four writes sit behind the same-origin gate their specs declare. */
+export function routineRoutes({ deps, host }: { readonly deps: RoutineHttpDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
+  return [
+    gatedJsonRoute({ spec: routineListRoute, deps, host }),
+    gatedJsonRoute({ spec: routineCreateRoute, deps, host }),
+    gatedJsonRoute({ spec: routineGetRoute, deps, host }),
+    gatedJsonRoute({ spec: routineUpdateRoute, deps, host }),
+    gatedJsonRoute({ spec: routineDeleteRoute, deps, host }),
+    gatedJsonRoute({ spec: routineRunNowRoute, deps, host }),
+    gatedJsonRoute({ spec: routineRunsListRoute, deps, host }),
+  ];
 }

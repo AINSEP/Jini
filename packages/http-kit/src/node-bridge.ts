@@ -149,12 +149,25 @@ function requestBody({ incoming, headers, parsedBody }: { incoming: IncomingMess
   return rebuilt;
 }
 
-function toWebRequest({ incoming, url, signal, parsedBody }: { incoming: IncomingMessage; url: URL; signal: AbortSignal; parsedBody: unknown }): Request {
+/**
+ * The headers of a Node request as web `Headers`: the one view of a header every route handler is given.
+ * A host that reads headers outside the bridge (its own route calling code that takes a web request)
+ * builds them with this, so a header reads the same either way. Node has already joined a repeated
+ * header (`cookie` with `; `, most others with `, `); one it keeps as a list (`set-cookie`) becomes one entry per value.
+ * @param required.incoming - The request as Node read it; its headers are copied at the moment of the call.
+ * @complexity O(headers) time and space; no I/O.
+ */
+export function nodeRequestHeaders({ incoming }: { readonly incoming: Pick<IncomingMessage, 'headers'> }, _optional: Record<string, never> = {}): Headers {
   const headers = new Headers();
   for (const [name, value] of Object.entries(incoming.headers)) {
     // Node gives a repeated header as an array; each value becomes its own entry.
     for (const item of [value].flat()) if (item !== undefined) headers.append(name, item);
   }
+  return headers;
+}
+
+function toWebRequest({ incoming, url, signal, parsedBody }: { incoming: IncomingMessage; url: URL; signal: AbortSignal; parsedBody: unknown }): Request {
+  const headers = nodeRequestHeaders({ incoming });
   const method = incoming.method ?? 'GET';
   if (method === 'GET' || method === 'HEAD') return new Request(url, { method, headers, signal });
   const body = requestBody({ incoming, headers, parsedBody });

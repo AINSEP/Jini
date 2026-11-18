@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createFrontendGuestScope } from '../../frontend-guest-scope.js';
+import type { FrontendHookInput } from '../../frontend-hook-input.js';
 
 /**
  * The guest cookie a visitor's browser is given, recorded from today's code as the bytes of the
@@ -11,17 +12,28 @@ import { createFrontendGuestScope } from '../../frontend-guest-scope.js';
  * that says which guest a request is.
  */
 
+/** The host's side of the contract: the request's headers as web headers, and Express's answer to "is this HTTPS" in `locals`. */
+function hookInput({ req }: { req: express.Request }): FrontendHookInput {
+  return { request: { method: req.method, headers: new Headers(Object.entries(req.headers).flatMap(([name, value]) => (typeof value === 'string' ? [[name, value] as [string, string]] : []))) }, locals: { secure: req.secure } };
+}
+
 const LIFETIME_MS = 30 * 60_000;
 let server: Server;
 let origin: string;
 
 beforeAll(async () => {
-  const scope = createFrontendGuestScope({ workspaceId: 'workspace-1', cookieName: 'visitor', cookiePath: '/site/one', allowsRequest: async () => true }, { now: () => 1_700_000_000_000, lifetimeMs: LIFETIME_MS });
+  const scope = createFrontendGuestScope({ workspaceId: 'workspace-1', cookieName: 'visitor', cookiePath: '/site/one', allowsRequest: async () => true, isSecureRequest: ({ locals }) => locals['secure'] === true }, { now: () => 1_700_000_000_000, lifetimeMs: LIFETIME_MS });
   const app = express();
   // "Is this HTTPS" is the host's answer; behind a proxy Express takes it from the forwarded protocol.
   app.set('trust proxy', true);
-  app.post('/issue', async (req, res) => { res.json(await scope.issue({ req, res })); });
-  app.get('/guest', async (req, res) => { res.json({ guest: await scope.resolveGuest({ req }) ?? null }); });
+  app.post('/issue', async (req, res) => {
+    const issued = await scope.issue(hookInput({ req }));
+    if (!issued) { res.sendStatus(403); return; }
+    res.setHeader('Set-Cookie', issued.setCookie);
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ tabCredential: issued.tabCredential });
+  });
+  app.get('/guest', async (req, res) => { res.json({ guest: await scope.resolveGuest(hookInput({ req })) ?? null }); });
   server = createServer(app);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;

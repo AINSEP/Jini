@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { NextFunction, Request, Response } from 'express';
 import { fakeTimingSafeEqual } from '@jini-ai/core/contracts/server/testing';
-import { createMessageRelayClaimHandler } from '../message-relay.js';
-import { requireRemoteToolBridgeToken } from '../remote-run-events.js';
-import { requireToolExecutionCaller } from '../tool-execution-routes.js';
+import { messageRelayRoutes } from '../message-relay.js';
+import { serveRoutes } from './fakes/serve-routes.js';
+import { toolExecutionCallerRefusal } from '../tool-execution-caller.js';
 
 /**
  * Characterization of the three bearer gates the daemon's route groups mount, pinned through the public
@@ -27,9 +27,18 @@ function run(gate: (req: Request, res: Response, next: NextFunction) => void, re
   return { sent, next };
 }
 
-describe('requireToolExecutionCaller', () => {
+/** The decision as the Express-shaped fakes below call it: only the header and the peer address are read. */
+function gateFor(_required: Record<string, never>, { env, timingSafeEqual = fakeTimingSafeEqual() }: { env: Record<string, string | undefined>; timingSafeEqual?: Parameters<typeof toolExecutionCallerRefusal>[0]['timingSafeEqual'] }) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const refusal = toolExecutionCallerRefusal({ authorization: req.get('authorization'), peerAddress: req.socket?.remoteAddress, env, timingSafeEqual });
+    if (refusal === null) next();
+    else res.status(refusal.status).json({ error: refusal.error });
+  };
+}
+
+describe('toolExecutionCallerRefusal', () => {
   const env = { JINI_TOOL_EXEC_TOKEN: TOKEN };
-  const gate = requireToolExecutionCaller({}, { env });
+  const gate = gateFor({}, { env });
 
   it('admits a loopback caller presenting the exact token', () => {
     const { next, sent } = run(gate, request({ authorization: `Bearer ${TOKEN}` }));
@@ -66,51 +75,29 @@ describe('requireToolExecutionCaller', () => {
     }
   });
   it('fails closed when no token is configured', () => {
-    const unconfigured = run(requireToolExecutionCaller({}, { env: {} }), request({ authorization: `Bearer ${TOKEN}` }));
+    const unconfigured = run(gateFor({}, { env: {} }), request({ authorization: `Bearer ${TOKEN}` }));
     expect([unconfigured.next.mock.calls.length, unconfigured.sent.body?.error.code]).toEqual([0, 'NOT_CONFIGURED']);
   });
 });
 
-describe('requireRemoteToolBridgeToken', () => {
-  const gate = requireRemoteToolBridgeToken({}, { env: { JINI_REMOTE_TOOL_BRIDGE_TOKEN: TOKEN } });
-
-  it('admits the exact token', () => {
-    expect(run(gate, request({ authorization: `Bearer ${TOKEN}` })).next).toHaveBeenCalledOnce();
-  });
-  it('refuses a same-length wrong token, another length, a missing header and a wrong scheme', () => {
-    for (const authorization of [`Bearer ${SAME_LENGTH_WRONG}`, `Bearer ${TOKEN}x`, undefined, `Basic ${TOKEN}`]) {
-      const { next, sent } = run(gate, request(authorization === undefined ? {} : { authorization }));
-      expect([next.mock.calls.length, sent.status, sent.body?.error.code]).toEqual([0, 401, 'REMOTE_TOOL_BRIDGE_TOKEN_REQUIRED']);
-    }
-  });
-  it('has no loopback exemption: a loopback peer with the wrong token is still refused', () => {
-    expect(run(gate, request({ authorization: `Bearer ${SAME_LENGTH_WRONG}`, remoteAddress: '127.0.0.1' })).sent.status).toBe(401);
-  });
-  it('fails closed with its own code when no token is configured', () => {
-    const { next, sent } = run(requireRemoteToolBridgeToken({}, { env: {} }), request({ authorization: `Bearer ${TOKEN}` }));
-    expect([next.mock.calls.length, sent.body?.error.code]).toEqual([0, 'REMOTE_TOOL_BRIDGE_NOT_CONFIGURED']);
-  });
-});
-
-describe('createMessageRelayClaimHandler bearer parsing', () => {
+describe('messageRelayRoutes bearer parsing', () => {
   const claim = vi.fn(() => []);
-  const handler = createMessageRelayClaimHandler({
+  const fetch = serveRoutes({ routes: messageRelayRoutes({
     agentExecutor: { claimUserMessages: claim },
     runScopedCallers: { resolveCaller: ({ token }) => (token === TOKEN ? { runId: 'run-1', principalId: 'p-1' } : undefined) },
-  });
-  function call(authorization: string | undefined) {
-    const sent: { status?: number } = {};
-    const res = { status(code: number) { sent.status = code; return { json: () => undefined }; }, json: () => undefined } as unknown as Response;
-    const req = { ...request(authorization === undefined ? {} : { authorization }), params: { runId: 'run-1' }, body: { via: 'check_messages' } } as unknown as Request;
-    handler(req, res, vi.fn());
-    return sent.status;
+  }) });
+  async function call(authorization: string | undefined) {
+    const headers: Record<string, string> = { 'content-type': 'application/json' };
+    if (authorization !== undefined) headers.authorization = authorization;
+    const answer = await fetch(new Request('http://local/api/runs/run-1/messages/claim', { method: 'POST', headers, body: '{"via":"check_messages"}' }));
+    return answer.status;
   }
-  it('resolves the caller only from a well-formed Bearer header with the exact token', () => {
+  it('resolves the caller only from a well-formed Bearer header with the exact token', async () => {
     claim.mockClear();
-    expect(call(`Bearer ${TOKEN}`)).toBeUndefined();
+    expect(await call(`Bearer ${TOKEN}`)).toBe(200);
     expect(claim).toHaveBeenCalledOnce();
     for (const authorization of [undefined, TOKEN, `Basic ${TOKEN}`, `Bearer ${TOKEN} extra`, `Bearer ${SAME_LENGTH_WRONG}`]) {
-      expect(call(authorization)).toBe(401);
+      expect(await call(authorization)).toBe(401);
     }
     expect(claim).toHaveBeenCalledOnce();
   });
@@ -120,10 +107,9 @@ describe('createMessageRelayClaimHandler bearer parsing', () => {
  * The constant-time comparison is injected, so a gate that stops calling it (for example by comparing with
  * `===`) is caught: behaviour tests cannot see timing, but they can see that the port was asked.
  */
-describe('both token gates compare through the injected constant-time port', () => {
+describe('the tool-execution gate compares through the injected constant-time port', () => {
   const gates = [
-    { name: 'requireToolExecutionCaller', build: (timingSafeEqual: ReturnType<typeof fakeTimingSafeEqual>) => requireToolExecutionCaller({}, { env: { JINI_TOOL_EXEC_TOKEN: TOKEN }, timingSafeEqual }) },
-    { name: 'requireRemoteToolBridgeToken', build: (timingSafeEqual: ReturnType<typeof fakeTimingSafeEqual>) => requireRemoteToolBridgeToken({}, { env: { JINI_REMOTE_TOOL_BRIDGE_TOKEN: TOKEN }, timingSafeEqual }) },
+    { name: 'toolExecutionCallerRefusal', build: (timingSafeEqual: ReturnType<typeof fakeTimingSafeEqual>) => gateFor({}, { env: { JINI_TOOL_EXEC_TOKEN: TOKEN }, timingSafeEqual }) },
   ];
   it.each(gates)('$name: a same-length wrong token is refused and the port is asked exactly once with two equal-length arrays', ({ build }) => {
     const compare = fakeTimingSafeEqual();

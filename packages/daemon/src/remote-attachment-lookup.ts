@@ -1,7 +1,7 @@
 /**
  * @module remote-attachment-lookup
  *
- * Client for `registerAttachmentLookupRoutes`: the two read methods of a daemon-owned
+ * Client for `attachmentLookupRoutes`: the two read methods of a daemon-owned
  * `AttachmentStore`, called from another local process over `node:http`. A store rejection comes
  * back as the same `AttachmentRejectedError` class (same `reason` and message), so a caller's
  * `instanceof` check behaves exactly as it would against the in-process store.
