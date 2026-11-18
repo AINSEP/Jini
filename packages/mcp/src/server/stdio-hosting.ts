@@ -83,11 +83,16 @@ interface HostingState {
   disposed: Promise<{ error: unknown } | undefined> | undefined;
 }
 
-function listen(state: HostingState, emitter: EventEmitter, event: string, fn: (...args: any[]) => void): void {
+function listen({ state, emitter, event, fn }: {
+  state: HostingState;
+  emitter: EventEmitter;
+  event: string;
+  fn: (...args: any[]) => void;
+}): void {
   emitter.on(event, fn);
   state.removers.push(() => emitter.off(event, fn));
 }
-function fail(state: HostingState, error: unknown): void {
+function fail({ state, error }: { state: HostingState; error: unknown }): void {
   state.failure ??= { error };
   state.closeTransport?.();
 }
@@ -119,7 +124,7 @@ function guardTransport(state: HostingState, transport: McpTransportLike): void 
   const send = sdk.send.bind(sdk);
   sdk.send = (message, sendOptions) => {
     let bounded: StdioMessage;
-    try { bounded = boundedMessage({ message, maxFrameBytes }); } catch (error) { fail(state, error); throw error; }
+    try { bounded = boundedMessage({ message, maxFrameBytes }); } catch (error) { fail({ state, error }); throw error; }
     return send(bounded, sendOptions);
   };
 }
@@ -151,18 +156,23 @@ async function awaitResponseWritten({ output, stop }: HostingState, result: Prom
 }
 
 /** Install EOF handling once connected; a failure recorded during connect closes at once. */
-function watchEof(state: HostingState, close: () => void): void {
+function watchEof({ state, close }: { state: HostingState; close: () => void }): void {
   const { input, stdin } = state;
   state.closeTransport = close;
   if (state.failure) return close();
   if (state.options.eof !== 'drain' || !input) {
-    listen(state, stdin, 'end', close);
-    listen(state, stdin, 'close', close);
+    listen({ state, emitter: stdin, event: 'end', fn: close });
+    listen({ state, emitter: stdin, event: 'close', fn: close });
     return;
   }
   // The guard ends only after the SDK consumed every buffered frame.
-  listen(state, input.guard, 'end', () => void drainInput(state));
-  listen(state, stdin, 'close', () => { if (!stdin.readableEnded) close(); });
+  listen({ state, emitter: input.guard, event: 'end', fn: () => void drainInput(state) });
+  listen({
+    state,
+    emitter: stdin,
+    event: 'close',
+    fn: () => { if (!stdin.readableEnded) close(); },
+  });
   // Embedding transports may not consume the guarded readable; still observe its end.
   input.guard.resume();
   if (input.guard.readableEnded) void drainInput(state);
@@ -193,7 +203,7 @@ export function createStdioHosting({ stdin, stdout, options }: { stdin: Readable
     stdin, options, input, output, inFlight: new Set(), removers: [], stop: new AbortController(),
     tail: Promise.resolve(), failure: undefined, closeTransport: undefined, stopped: false, disposed: undefined,
   };
-  for (const stream of [stdin, stdout, input?.guard, output]) if (stream) listen(state, stream, 'error', (error: unknown) => fail(state, error));
+  for (const stream of [stdin, stdout, input?.guard, output]) if (stream) listen({ state, emitter: stream, event: 'error', fn: (error: unknown) => fail({ state, error }) });
 
   return {
     /** The guarded pair handed to `createTransport` in place of the configured streams. */
@@ -201,7 +211,7 @@ export function createStdioHosting({ stdin, stdout, options }: { stdin: Readable
     guardTransport: ({ transport }: { transport: McpTransportLike }): void => guardTransport(state, transport),
     track: <T>(required: { task: () => Promise<T>; signal: AbortSignal | undefined }): Promise<T> => trackTask(state, required),
     responseWritten: ({ result }: { result: Promise<unknown> }): Promise<void> => awaitResponseWritten(state, result),
-    watch: ({ close }: { close: () => void }): void => watchEof(state, close),
+    watch: ({ close }: { close: () => void }): void => watchEof({ state, close }),
     /** Idempotent detach; queued handlers that have not started are skipped.
      * @returns The first recorded failure, which the run rejects with. */
     dispose(): Promise<{ error: unknown } | undefined> {
