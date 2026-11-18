@@ -125,12 +125,13 @@ describe('describeToolTool', () => {
     getDaemonJson.mockResolvedValueOnce({ id: 'page.fill', description: 'Fill a field' });
     const result = await describeToolTool.handler({ args: { id: 'page.fill' }, ctx: ctx });
     expect(getDaemonJson).toHaveBeenCalledWith({ baseUrl: 'http://d.example', route: '/api/tools/page.fill' }, { fetchImpl: ctx.fetchImpl });
-    expect(result).toEqual({ id: 'page.fill', description: 'Fill a field' });
+    // A descriptor with no input schema is information only: it says so instead of promising a call.
+    expect(result).toEqual({ id: 'page.fill', description: 'Fill a field', callAs: 'none' });
   });
 
   it('keeps schema-less descriptions informational and publishes only concrete fields the daemon described', async () => {
     const published: unknown[] = [];
-    const publishing: McpToolContext = { ...ctx, publishTool: async ({ descriptor }) => { published.push(descriptor); } };
+    const publishing: McpToolContext = { ...ctx, publishTool: async ({ descriptor }) => { published.push(descriptor); return { wireName: descriptor.id }; } };
     getDaemonJson.mockResolvedValueOnce({ id: 'page.fill', description: 7, readOnly: 'yes' });
     await describeToolTool.handler({ args: { id: 'page.fill' }, ctx: publishing });
     getDaemonJson.mockResolvedValueOnce({ id: 'page.list', inputSchema: null });

@@ -81,7 +81,8 @@ describe('proxy argument recovery', () => {
     const descriptor = { id: 'page/read', description: 'Read a page', inputSchema: { type: 'object' } };
     fetchImpl.mockImplementation(async () => Response.json(descriptor));
     const result = await call({ tool: describeToolTool, args: { [alias]: descriptor.id } });
-    expect(result).toEqual({ content: [{ type: 'text', text: JSON.stringify(descriptor) }] });
+    const call_ = 'execute_delegated_tool({"toolId":"page/read","input":{}})';
+    expect(result).toEqual({ content: [{ type: 'text', text: JSON.stringify({ ...descriptor, callAs: 'gateway', call: call_ }) }] });
     expect(fetchImpl.mock.calls[0]?.[0]).toBe('http://daemon.example/api/tools/page%2Fread');
     expect(describeToolTool.inputSchema.properties).toHaveProperty(alias);
     expect(describeToolTool.description).toContain(alias);

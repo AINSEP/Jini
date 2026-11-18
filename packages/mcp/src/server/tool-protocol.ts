@@ -55,14 +55,24 @@ import { argumentShapeMessage, isRecord, normalizeToolArguments, resolveMcpToolN
 import { safeDiagnostic, type DaemonRequestOptions } from './daemon-client.js';
 import { scopeNestedSchemaRefs } from './schema-ref-scope.js';
 
+/** Why a described tool was not published as its own tool: a full list, a full schema budget, or no such descriptor. */
+export type ToolPublicationSkipReason = 'tool-limit' | 'schema-byte-limit' | 'not-found';
+
+/** The outcome of publishing one described tool. */
+export type ToolPublication = { readonly wireName: string } | { readonly skipped: ToolPublicationSkipReason };
+
 /** What every tool handler receives alongside its parsed arguments. */
 export interface McpToolContext {
   /** Resolve MCP-local names through the hosting server; undefined leaves daemon dispatch intact. */
   readonly callLocalTool?: (required: {
     name: string; input: Record<string, unknown>; requireReadOnly: boolean;
   }, optional?: Record<string, never>) => Promise<CallToolResult | undefined>;
-  /** Publishes a successfully described, host-owned descriptor in this server run only. */
-  readonly publishTool?: (required: { descriptor: ToolDescriptor }, optional?: Record<string, never>) => Promise<void>;
+  /**
+   * Publishes a successfully described, host-owned descriptor in this server run only, and says what happened:
+   * the wire name it is now called by (an already published tool answers with its existing name), or why it was
+   * not published, so the caller can tell the model to use the gateway instead of promising a tool that is not there.
+   */
+  readonly publishTool?: (required: { descriptor: ToolDescriptor }, optional?: Record<string, never>) => Promise<ToolPublication>;
   /** Host registration metadata, supplied outside model-controlled arguments. */
   readonly diagnosticToolIds?: readonly string[];
   /** The resolved daemon HTTP base URL (no trailing slash), fixed for the lifetime of one server run. */

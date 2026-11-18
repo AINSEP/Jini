@@ -8,7 +8,7 @@
  * with nominal private fields; default adapters translate those contracts to the real SDK.
  */
 import type { Readable, Writable } from 'node:stream';
-import { createToolExposure, type ToolDescriptor } from '@jini-ai/core';
+import { createToolExposure, type ToolDescriptor, type ToolExposurePromotion } from '@jini-ai/core';
 import type { McpTransportLike } from './ports.js';
 export type { McpTransportLike } from './ports.js';
 import { adaptSdkTransport, resolveSdkTransport } from './sdk-transport.js';
@@ -30,7 +30,7 @@ import type {
 } from '@modelcontextprotocol/sdk/types.js';
 import { createMcpIdleExitController } from '../client/client.js';
 import { buildResourceIndex, handleResourceRead, resourcesToList, type McpResourceDef } from './resource-protocol.js';
-import { buildToolIndex, handleToolCall, toolsToList, type McpToolContext, type McpToolDef } from './tool-protocol.js';
+import { buildToolIndex, handleToolCall, toolsToList, type McpToolContext, type McpToolDef, type ToolPublication } from './tool-protocol.js';
 import { createTypedDelegatedToolTool, type CreateExecuteDelegatedToolToolOptions } from './tools/delegated-tool.js';
 import { resolveMcpToolName } from './tool-arguments.js';
 import { createToolResultPages } from './tool-result-pages.js';
@@ -236,6 +236,20 @@ function createHostedTransport({ createTransport, options, hosting }: {
 }
 
 /**
+ * What a promotion did for one tool: the wire name it is published under (also when it was already
+ * published before this call), or the reason it was skipped. The model is told this, so a full list is
+ * never silent.
+ * @returns The name from the exposure's own snapshot, never one derived from the id.
+ * @complexity O(n) for n published tools; no effects.
+ */
+function publicationOutcome({ toolId, delta }: { toolId: string; delta: ToolExposurePromotion }): ToolPublication {
+  const skipped = delta.skipped.find(entry => entry.toolId === toolId);
+  if (skipped !== undefined) return { skipped: skipped.reason };
+  const published = delta.snapshot.tools.find(tool => tool.descriptor.id === toolId);
+  return published === undefined ? { skipped: 'not-found' } : { wireName: published.wireName };
+}
+
+/**
  * Own only the MCP projection/dispatch index. F0 owns immutable exposure, and the daemon catalog
  * supplies each descriptor; the temporary source below is not another definition catalog.
  * @returns An install-before-notify publisher, or undefined for a static server.
@@ -270,10 +284,12 @@ function createToolPublisher({ index, server, options }: {
       if (!index.has(tool.wireName)) index.set(tool.wireName, createTypedDelegatedToolTool({ runId: options.runId, tool }, options));
     }
     if (delta.added.length > 0) notificationPending = true;
-    if (!notificationPending) return;
-    // Clear before awaiting: a concurrent promotion must retain its own unsent notification.
-    notificationPending = false;
-    try { await notify({}); } catch (error) { notificationPending = true; throw error; }
+    if (notificationPending) {
+      // Clear before awaiting: a concurrent promotion must retain its own unsent notification.
+      notificationPending = false;
+      try { await notify({}); } catch (error) { notificationPending = true; throw error; }
+    }
+    return publicationOutcome({ toolId: descriptor.id, delta });
   };
 }
 

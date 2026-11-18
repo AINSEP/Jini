@@ -38,7 +38,7 @@ import { batchOutcomeFor, isReadOnlyTool, type ExposedToolDescriptor } from '@ji
 import { parseMcpToolInputSchema } from '../adapters/protocol.js';
 import { randomUUID } from 'node:crypto';
 import { postDaemonJson } from '../daemon-client.js';
-import { daemonCallOptions, requireString, type McpToolDef } from '../tool-protocol.js';
+import { daemonCallOptions, requireString, type McpToolContext, type McpToolDef } from '../tool-protocol.js';
 import { resolveMcpToolName } from '../tool-arguments.js';
 
 /** Response shape `POST /api/delegated-tool-calls` (`packages/daemon/src/http/delegated-tools.ts`) returns. */
@@ -336,6 +336,17 @@ export function createTypedDelegatedToolTool(
     inputSchema: descriptor.inputSchema as typeof inputSchema,
     argumentNormalization: { schemaInput: true },
     annotations: { ...gateway.annotations, title: descriptor.id },
-    handler: ({ args, ctx }) => gateway.handler({ args: { toolId: descriptor.id, input: args }, ctx }),
+    // A published tool IS a daemon registry tool (it was described by the daemon's catalog). When the transport had to
+    // rename it (wireName differs from its id: a collision with a local tool, or an id that is not a safe name) the
+    // gateway must not resolve its registry id to an MCP-local tool that happens to share it: the call reaches the
+    // daemon with the registry id. When the names agree, the local entry the gateway finds is this tool itself.
+    handler: ({ args, ctx }) => gateway.handler({ args: { toolId: descriptor.id, input: args }, ctx: wireName === descriptor.id ? ctx : withoutLocalTools(ctx) }),
   };
+}
+
+/** The context a daemon-bound call runs under: same everything, but no MCP-local tool resolution. */
+function withoutLocalTools(ctx: McpToolContext): McpToolContext {
+  const daemonContext: { -readonly [Key in keyof McpToolContext]: McpToolContext[Key] } = { ...ctx };
+  delete daemonContext.callLocalTool;
+  return daemonContext;
 }

@@ -155,7 +155,7 @@ describe('createMcpToolServer', () => {
     try {
       const before = await server.listTools();
       expect(await server.callTool({ params: { name: 'describe_tool', arguments: { id: family.id } } }))
-        .toEqual({ content: [{ type: 'text', text: JSON.stringify(family) }] });
+        .toEqual({ content: [{ type: 'text', text: JSON.stringify({ ...family, callAs: 'none' }) }] });
       expect(await server.listTools()).toEqual(before);
       expect(notified).not.toHaveBeenCalled();
       await server.callTool({ params: { name: 'describe_tool', arguments: { id: card.id } } });
