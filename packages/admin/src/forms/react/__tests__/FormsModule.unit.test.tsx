@@ -1,3 +1,4 @@
+import { reactModuleUi } from '../../../core/react/module-ui.js';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -45,7 +46,7 @@ describe('Forms module list API failure regression', () => {
     const memory = createMemoryFormsApi({});
     let rejectRead!: (error: Error) => void;
     const listFormDefinitions = vi.fn(() => new Promise<never>((_resolve, reject) => { rejectRead = reject; }));
-    const module = forms({});
+    const module = forms({ ui: reactModuleUi });
     // The Provider scopes the bound definition by identity, not the factory's React wrapper.
     const admin = createAdmin({ modules: [module.react.module], ports: {
       formsApi: { ...memory, listFormDefinitions }, formsCatalog: fakeFormsCatalog(), formsTrash: memory.trash,

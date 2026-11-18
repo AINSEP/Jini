@@ -1,5 +1,5 @@
 import type { TabViewProps } from '@jini-ai/core/contracts/admin-module';
-import { useController } from '../../../core/react/use-controller.js';
+import { useSourceControlController } from './SourceControlPorts.hooks.js';
 import { createSourceControlController } from '../../controllers/source-control.controller.js';
 import type { SourceControlCredential, SourceControlDraft, SourceControlField, SourceControlProviderInfo, SourceControlState } from '../../models.js';
 import { blankSourceControlDraft, sourceControlProviders, defaultSourceControlCredential, sourceControlReady, safeSourceControlUrl } from '../../rules.js';
@@ -28,7 +28,7 @@ function rowView({ info, context }: { info: SourceControlProviderInfo; context: 
 
 export function useProvidersTab({ permissions = [] }: TabViewProps, _optional = {}) {
   const ports = useSourceControlPorts({}), key = permissions.join('\0'), canRead = permissions.includes('source-control.read'), canWrite = canRead && permissions.includes('source-control.credentials.write');
-  const { controller, snapshot } = useController({ create: () => createSourceControlController({ api: ports.sourceControlApi, permissions }), dependencies: [ports.sourceControlApi, key] }, { start: ({ controller }) => { void controller.load({}); } });
+  const { controller, snapshot } = useSourceControlController({ create: () => createSourceControlController({ api: ports.sourceControlApi, permissions }), dependencies: [ports.sourceControlApi, key] }, { start: ({ controller }) => { void controller.load({}); } });
   const state = snapshot ?? UNMOUNTED, credentials = state.credentials, infos = sourceControlProviders({ providers: state.providers, credentials });
   const first = infos.find(p => p.listed && !defaultSourceControlCredential({ credentials, providerId: p.id }))?.id;
   const rows = infos.map(info => rowView({ info, context: { credentials, drafts: state.drafts, first, canWrite } }, { controller }));

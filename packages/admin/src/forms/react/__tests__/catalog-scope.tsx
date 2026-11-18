@@ -1,3 +1,5 @@
+import { FormsControllerContext } from '../hooks/FormsPorts.hooks.js';
+import { useController } from '../../../core/react/use-controller.js';
 import { useMemo, type ReactNode } from "react";
 import type { FormsCatalogPort } from "../../../core/ports/forms-catalog.js";
 import { createMemoryFormsApi } from "../../adapters/memory.js";
@@ -17,5 +19,5 @@ export function fakeFormsPorts({ catalog = fakeFormsCatalog() }: { catalog?: For
 
 export function FormsCatalogScope({ children, catalog }: { children: ReactNode; catalog?: FormsCatalogPort }) {
   const ports = useMemo(() => fakeFormsPorts(catalog ? { catalog } : {}), [catalog]);
-  return <FormsPortsContext.Provider value={ports}>{children}</FormsPortsContext.Provider>;
+  return <FormsControllerContext.Provider value={useController}><FormsPortsContext.Provider value={ports}>{children}</FormsPortsContext.Provider></FormsControllerContext.Provider>;
 }

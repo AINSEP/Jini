@@ -6,7 +6,7 @@ import {
   useFetchQueryScope,
 } from '../../../react/kit.js';
 import { AdminConfigError } from '@jini-ai/core/admin-runtime';
-import { useController } from '../../../core/react/use-controller.js';
+import { useCommentsController } from './CommentsPorts.hooks.js';
 import type { AdminComment, AdminCommentsPort, AdminCommentsQueuePage, CommentModerationAction, CommentStatus } from '../../../core/ports/comments.js';
 import type { CommentQueueState } from '../../models.js';
 import { createCommentQueueController } from '../../controllers/comment-queue.controller.js';
@@ -110,7 +110,7 @@ export function useCommentQueue(
   const queueRoot = useMemo(() => [...KEYS.queueRoot, apiScope, scope.workspaceId, scope.principalId], [apiScope, scope.workspaceId, scope.principalId]);
   const invalidateQueue = useCallback(() => invalidate({ key: queueRoot }), [invalidate, queueRoot]);
   const loadPageRef = useRef<QueuePageLoader | null>(null);
-  const { controller: attachedController, snapshot: attachedSnapshot } = useController({
+  const { controller: attachedController, snapshot: attachedSnapshot } = useCommentsController({
     create: () => ({ ...createCommentQueueController({ api, permissions }, { t, onInvalidate: invalidateQueue, loadPage: required => loadPageRef.current!(required) }), queueRoot }),
     dependencies: [api, invalidateQueue],
   });

@@ -2,7 +2,7 @@ import { describeSeoError } from '../../models.js';
 import { useEffect, useRef } from 'react';
 import { useSeoEntryQuery, SEO_KEYS } from './SeoQuery.hooks.js';
 import { useFetchQuery } from '../../../react/kit.js';
-import { useController } from '../../../core/react/use-controller.js';
+import { useSeoController } from './SeoPorts.hooks.js';
 import { createSeoEntryController } from '../../controllers/seo-entry.controller.js';
 import { initialSeoEntryState } from '../../models.js';
 import { inheritedXFor, ogImageInherited } from '../../rules.js';
@@ -16,7 +16,7 @@ export function useSeoEntryPanel({ api, entryId }: { api: AdminSeoPort; entryId:
   translator.current = t;
   const formatter = useRef(describeError);
   formatter.current = describeError;
-  const { controller, snapshot } = useController({ create: () => createSeoEntryController({ api: cached.api, entryId }, { t: (key, vars) => translator.current?.(key, vars) ?? key, describeError: required => formatter.current ? formatter.current(required) : describeSeoError(required) }), dependencies: [cached.api, entryId] }, { start: ({ controller }) => { void controller.load({}); } });
+  const { controller, snapshot } = useSeoController({ create: () => createSeoEntryController({ api: cached.api, entryId }, { t: (key, vars) => translator.current?.(key, vars) ?? key, describeError: required => formatter.current ? formatter.current(required) : describeSeoError(required) }), dependencies: [cached.api, entryId] }, { start: ({ controller }) => { void controller.load({}); } });
   useEffect(() => {
     // Revalidation updates server truth without discarding touched override fields.
     if (controller && cached.query.data) controller.set({ patch: cached.query.data });

@@ -3,19 +3,21 @@
 // dialog or shrink a large media preview. Host CSS now supplies presentation and the closed-dialog
 // safeguards on jini- classes, so no style string ships from this module.
 export { useGallerySelection, type GallerySelectionImage } from './hooks/GallerySelection.hooks.js';
-import type { ReactNode } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 import { createElement } from 'react';
-import { bindReact } from '../../core/react/bind-react.js';
+import type { AdminInstance, AdminModuleUi } from '@jini-ai/core/contracts/admin-module';
 import type { OverlayPort } from '../../react/overlays.js';
 import { mediaModule } from '../media.module.js';
 import type { MediaApiPort } from '../ports.js';
 import type { MediaPickerPort } from '../../contracts/media-picker.js';
-import { MediaPortsContext } from './hooks/MediaPorts.hooks.js';
+import { MediaPortsContext, MediaControllerContext } from './hooks/MediaPorts.hooks.js';
 export type { MediaPageProps } from './hooks/MediaPage.hooks.js';
 export { useMediaPorts } from './hooks/MediaPorts.hooks.js';
+/** The host injects the renderer helpers; this module states the contract and imports no implementation. */
+type ModuleUi<Page, Tab> = AdminModuleUi<Page, Tab, ComponentType<{ admin: AdminInstance; children: ReactNode }>>;
 /** One module factory per mounted admin scope. Tabs and even the picker are loaded on demand. */
-export function media(
-  { overlays }: { overlays: OverlayPort },
+export function media<Page, Tab>(
+  { ui, overlays }: { ui: ModuleUi<Page, Tab>; overlays: OverlayPort },
   { headerActions }: { headerActions?: ReactNode } = {},
 ) {
   const module = {
@@ -69,7 +71,7 @@ export function media(
       },
     },
   };
-  const react = bindReact(
+  const react = ui.bindReact(
     {
       module,
       views: {
@@ -90,5 +92,8 @@ export function media(
     },
     { context: MediaPortsContext },
   );
-  return Object.assign(module, { react });
+  function Provider({ admin, children }: { admin: AdminInstance; children: ReactNode }, _optional: Record<string, never> = {}) {
+    return createElement(MediaControllerContext.Provider, { value: ui.useController }, createElement(react.Provider, { admin, children }));
+  }
+  return Object.assign(module, { react: { ...react, Provider } });
 }

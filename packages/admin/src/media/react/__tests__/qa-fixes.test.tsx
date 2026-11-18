@@ -1,3 +1,4 @@
+import { reactModuleUi } from '../../../core/react/module-ui.js';
 import { afterEach, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '../../../__tests__/fetch-query-support.js';
 import { createMemoryMediaApi } from '../../adapters/memory.js';
@@ -19,7 +20,7 @@ async function fixture() {
   return { api, image, trash };
 }
 function page(api: MediaApiPort) {
-  const feature = media({ overlays: createOverlayController({}) }, { headerActions: <button>Publish media</button> });
+  const feature = media({ ui: reactModuleUi, overlays: createOverlayController({}) }, { headerActions: <button>Publish media</button> });
   const admin = createAdmin({ modules: [feature], ports: { embedPolicy: realEmbedPolicy, mediaApi: api } }, { permissions: ['media.read', 'media.update', 'media.trash', 'media.restore', 'media.delete.force'] });
   const { Page, tabs } = feature.react.pages.library;
   return render(<feature.react.Provider admin={admin}><Suspense fallback="Loading"><Page tabs={tabs} description={admin.describe().pages[0]!} /></Suspense></feature.react.Provider>);

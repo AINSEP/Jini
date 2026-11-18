@@ -1,3 +1,5 @@
+import { SourceControlControllerContext } from '../hooks/SourceControlPorts.hooks.js';
+import { useController } from '../../../core/react/use-controller.js';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
@@ -25,7 +27,7 @@ function mount({ permissions = WRITE, api = createMemorySourceControlApi({ provi
 } = {}) {
   let first: ReturnType<typeof useProvidersTab> | undefined;
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <SourceControlPortsContext.Provider value={{ sourceControlApi: api, ...(navigation ? { sourceControlNavigation: navigation } : {}) }}>{children}</SourceControlPortsContext.Provider>
+    <SourceControlControllerContext.Provider value={useController}><SourceControlPortsContext.Provider value={{ sourceControlApi: api, ...(navigation ? { sourceControlNavigation: navigation } : {}) }}>{children}</SourceControlPortsContext.Provider></SourceControlControllerContext.Provider>
   );
   const view = renderHook(() => { const vm = useProvidersTab({ params: {}, permissions }); first ??= vm; return vm; }, { wrapper });
   return { ...view, api, first: () => first! };

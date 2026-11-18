@@ -2,6 +2,7 @@
  * Production consumes the core port with two-object calls. These test-only facades translate
  * the old fixture call shape; they contain no alternate screen or controller implementation.
  */
+import { reactModuleUi } from '../../../core/react/module-ui.js';
 import { createElement, useMemo, type ReactNode } from 'react';
 import { createAdmin } from '../../../core/module/create-admin.js';
 import { createHttpTransport } from '../../../core/transport/http.js';
@@ -52,7 +53,7 @@ function createTestTransport(): CommentsTransportPort {
 export function CommentsTestProvider({ children, http = false }: { children: ReactNode; http?: boolean }) {
   const scope = useMemo(() => {
     const transport = createTestTransport();
-    const module = comments({}, { t: englishComments });
+    const module = comments({ ui: reactModuleUi }, { t: englishComments });
     const api = http ? createHttpCommentsApi({ transport, basePath: '/workspaces/workspace-local/comments' }) : memoryCommentsApi({});
     const session = createHttpCommentsSession({ transport, path: '/auth/me' });
     const admin = createAdmin({ modules: [module], ports: { commentsApi: api, commentsSession: session, commentsEvents: testEvents } }, { permissions: TEST_GRANTS });

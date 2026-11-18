@@ -19,7 +19,7 @@ export interface WidgetRegionEditorController {
   locale: string;
 }
 import { useEffect, useRef } from 'react';
-import { useController } from '../../../core/react/use-controller.js';
+import { useWidgetsController } from './WidgetsPorts.hooks.js';
 import { createWidgetRegionEditorController } from '../../controllers/region-editor.controller.js';
 import type { AdminWidgetsPort } from '../../ports.js';
 import { widgetsEnglish } from '../../messages.en.js';
@@ -28,7 +28,7 @@ export function staleVersionMessage({ t = widgetsEnglish }: { t?: Translate | un
 export function useWidgetRegionEditor({ regionKey, api }: { regionKey: string; api: AdminWidgetsPort }, { t = widgetsEnglish, locale = 'en' }: { t?: Translate | undefined; locale?: string | undefined } = {}): WidgetRegionEditorController {
   const cachedApi = useWidgetRegionQuery({ api, regionKey });
   const keyRef = useRef(regionKey), latestT = useRef(t); latestT.current = t;
-  const { controller, snapshot } = useController({ create: () => createWidgetRegionEditorController({ api: cachedApi, regionKey: keyRef.current }, { t: key => latestT.current(key) }), dependencies: [cachedApi] }, { start: ({ controller }) => { void controller.load(); } });
+  const { controller, snapshot } = useWidgetsController({ create: () => createWidgetRegionEditorController({ api: cachedApi, regionKey: keyRef.current }, { t: key => latestT.current(key) }), dependencies: [cachedApi] }, { start: ({ controller }) => { void controller.load(); } });
   useEffect(() => { if (keyRef.current !== regionKey) { keyRef.current = regionKey; controller?.setRegionKey({ regionKey }); } }, [controller, regionKey]);
   return { ...(snapshot ?? { area: null, placements: [], message: null, error: null, loading: true, saving: false }), removeAt: placementId => controller?.removeAt({ placementId }), moveAt: (index, direction) => controller?.moveAt({ index, direction }), toggleEnabled: placementId => controller?.toggleEnabled({ placementId }), addPlacement: widgetInstanceId => controller?.addPlacement({ widgetInstanceId }), save: async () => { await controller?.save(); }, t, locale };
 }

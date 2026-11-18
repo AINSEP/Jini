@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { createElement, createContext, useContext, useEffect, useState } from 'react';
 import type { ComponentType } from 'react';
 import type { ModulePageProps, TabViewProps } from '@jini-ai/core/contracts/admin-module';
-import { useController } from '../../../core/react/use-controller.js';
+import { useMediaController } from './MediaPorts.hooks.js';
 import { createLibraryController } from '../../controllers/library.controller.js';
 import { useMediaPorts } from './MediaPorts.hooks.js';
 import type { LibraryState } from '../../controllers/library.controller.js';
@@ -31,7 +31,7 @@ export function useMediaPage(props: MediaPageProps, _optional: Record<string, ne
   const providers = useMediaProvidersQuery({ port: mediaProviders }, { enabled: props.description.visible && props.description.grants.includes('media.providers') });
   const invalidate = useInvalidate();
   const tabId = props.requestedTab ?? localTab;
-  const library = useController({ create: () => createLibraryController({ api: cached.api }, { query: { filter: requestedFilter({ tabId }) } }), dependencies: [cached.api] },
+  const library = useMediaController({ create: () => createLibraryController({ api: cached.api }, { query: { filter: requestedFilter({ tabId }) } }), dependencies: [cached.api] },
     { start: ({ controller }) => { if (props.description.visible) void controller.load(); } });
   useEffect(() => props.description.visible ? mediaEvents?.subscribe({ onRefresh: () => { invalidate({ key: MEDIA_QUERY_KEYS.root }); } }) : undefined,
     [props.description.visible, mediaEvents, library.controller, invalidate]);

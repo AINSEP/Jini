@@ -1,3 +1,4 @@
+import { reactModuleUi } from '../../../core/react/module-ui.js';
 import { Suspense, type ReactNode } from 'react';
 import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } from '../../../__tests__/fetch-query-support.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -20,7 +21,7 @@ afterEach(cleanup);
 const LAZY = { timeout: 15000 };
 
 function mountSeo({ api, events, onTabChange, tab, requestedTab }: { api: AdminSeoPort; events?: SeoEventsPort; onTabChange?: (required: { tab: string }) => void; tab?: 'defaults' | 'sitemap' | 'entries'; requestedTab?: string }) {
-  const feature = seo({ siteUrl: () => 'https://site.test' });
+  const feature = seo({ ui: reactModuleUi, siteUrl: () => 'https://site.test' });
   // Ports are scoped by the shared `seoModule` identity (the factory returns a copy).
   const admin = createAdmin({ modules: [seoModule], ports: { seoApi: api, ...(events ? { seoEvents: events } : {}) } }, { permissions: ['admin.seo.manage'] });
   const { Page, tabs } = feature.react.pages.settings;

@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { useShareImageWarning } from './use-share-image-warning.hooks.js';
 import { agentHandle } from '@jini-ai/core/agent-handles';
-import { useController } from '../../../core/react/use-controller.js';
+import { useSeoController } from './SeoPorts.hooks.js';
 import { createMediaRefController } from '../../controllers/media-ref.controller.js';
 import { describeMediaRef, isStoredMediaRef, resolveMediaRefPreviewUrl } from '../../rules.js';
 import { useFetchQuery } from '../../../react/kit.js';
@@ -16,7 +16,7 @@ export function useMediaRefField(
 ): MediaRefFieldController {
   const change = useRef(onChange);
   change.current = onChange;
-  const { controller, snapshot } = useController({ create: () => createMediaRefController({ onChange: value => change.current(value) }), dependencies: [] });
+  const { controller, snapshot } = useSeoController({ create: () => createMediaRefController({ onChange: value => change.current(value) }), dependencies: [] });
   const previewUrl = api.mediaPreviewUrl ? api.mediaPreviewUrl({ value }) : resolveMediaRefPreviewUrl({ value, mediaOriginalUrl: id => api.mediaOriginalUrl({ id }) });
   const { naturalWidth, naturalHeight, ...diagnostics } = useShareImageWarning({ value, previewUrl, api }, { t });
   // One cached library read shared by every image field on the screen; only a library reference

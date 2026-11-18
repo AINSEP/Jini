@@ -1,3 +1,5 @@
+import { FormsControllerContext } from '../hooks/FormsPorts.hooks.js';
+import { useController } from '../../../core/react/use-controller.js';
 import { createFormCollectionRegistry, describeFormCollectionProviders } from '@jini-ai/cms/forms';
 import { useMemo, type ReactNode } from 'react';
 import { FetchQueryProvider } from '@jini-ai/ui/fetch-query';
@@ -24,7 +26,7 @@ export function FormsTestProvider({ children, options = {} }: { children: ReactN
     };
     return { formsApi: { ...createHttpFormsApi({ transport, basePath: '/workspaces/workspace-local/forms' }), listFormProviders: async () => describeFormCollectionProviders({ providers: createFormCollectionRegistry({}) }) }, formsCatalog: fakeFormsCatalog(), formsTrash: createHttpFormsTrash({ transport, basePath: '/workspaces/workspace-local/trash/items' }), formsNavigation: createAdminShellNavigation({ location: window.location, window, document }) };
   }, []);
-  return <FetchQueryProvider><FormsPortsContext.Provider value={ports}><FormsOptionsContext.Provider value={options}>{children}</FormsOptionsContext.Provider></FormsPortsContext.Provider></FetchQueryProvider>;
+  return <FetchQueryProvider><FormsControllerContext.Provider value={useController}><FormsPortsContext.Provider value={ports}><FormsOptionsContext.Provider value={options}>{children}</FormsOptionsContext.Provider></FormsPortsContext.Provider></FormsControllerContext.Provider></FetchQueryProvider>;
 }
 /** Injected German fixture: these tests assert formatting/copy, not host dictionary wiring. */
 export function germanT(key: string): string {

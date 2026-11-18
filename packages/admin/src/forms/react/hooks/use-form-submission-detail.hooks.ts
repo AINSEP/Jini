@@ -2,7 +2,7 @@ import type { AdminFormsPort } from "../../../core/ports/forms.js";
 import { submissionView } from "../../models.js";
 import type { FormsTrashPort } from "../../ports.js";
 import { useFormsPorts, useFormsOptions } from "./FormsPorts.hooks.js";
-import { useController } from "../../../core/react/use-controller.js";
+import { useFormsController } from "./FormsPorts.hooks.js";
 import { createFormSubmissionDetailController, initialFormSubmissionDetailState, type FormSubmissionDetailState } from "../../controllers/form-submission-detail.controller.js";
 import type { AdminFormSubmission } from "../../models.js";
 import { describeApiError as describeCoreApiError } from '@jini-ai/core/admin-runtime';
@@ -78,7 +78,7 @@ export function useFormSubmissionDetail(
 ): FormSubmissionDetailController {
   const { port, trash } = props;
   const t = props.t ?? ((key: string) => key);
-  const { controller: stateController, snapshot: stateSnapshot } = useController({ create: () => createFormSubmissionDetailController({}), dependencies: [] });
+  const { controller: stateController, snapshot: stateSnapshot } = useFormsController({ create: () => createFormSubmissionDetailController({}), dependencies: [] });
   const state = stateSnapshot ?? initialFormSubmissionDetailState({});
   const confirmOpen = state.confirmOpen;
   const setConfirmOpen = (value: FormSubmissionDetailStateValue<"confirmOpen">) => stateController?.update({ key: "confirmOpen", value });

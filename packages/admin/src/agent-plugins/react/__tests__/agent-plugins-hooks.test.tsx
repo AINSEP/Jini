@@ -1,3 +1,6 @@
+import { AgentPluginsControllerContext } from '../hooks/AgentPluginsPorts.hooks.js';
+import { useController } from '../../../core/react/use-controller.js';
+import { reactModuleUi } from '../../../core/react/module-ui.js';
 import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -22,7 +25,7 @@ const off: AgentPluginSummary = { pluginId: 'ui-ux-design', version: '1.0.0', de
 const on: AgentPluginSummary = { ...off, pluginId: 'second', version: null, description: null, skills: [], mcpServerIds: [], keywords: [], enabled: true };
 const listing = (files: AgentPluginFiles['files'], truncated = false): AgentPluginFiles => ({ pluginId: off.pluginId, files, truncated, limits: { maxFiles: 200, maxEntries: 2000, maxFileBytes: 5242880, maxTotalBytes: 52428800 } });
 const portsWrapper = (api: AgentPluginsApiPort) => ({ children }: { children: ReactNode }) =>
-  <AgentPluginsPortsContext.Provider value={{ agentPluginsApi: api }}>{children}</AgentPluginsPortsContext.Provider>;
+  <AgentPluginsControllerContext.Provider value={useController}><AgentPluginsPortsContext.Provider value={{ agentPluginsApi: api }}>{children}</AgentPluginsPortsContext.Provider></AgentPluginsControllerContext.Provider>;
 
 describe('useAgentPluginInspector', () => {
   const mount = (api: AgentPluginsApiPort, permissions = [READ]) =>
@@ -180,7 +183,7 @@ describe('useAgentPluginsPage', () => {
   function mount({ grants = [READ, WRITE], requestedTab, onTabChange, api = createMemoryAgentPluginsApi({ plugins: [off, on] }) }: {
     grants?: string[]; requestedTab?: string; onTabChange?: ModulePageProps['onTabChange']; api?: AgentPluginsApiPort;
   } = {}) {
-    const feature = agentPlugins({});
+    const feature = agentPlugins({ ui: reactModuleUi });
     const admin = createAdmin({ modules: [feature], ports: { agentPluginsApi: api } }, { permissions: grants });
     const { tabs } = feature.react.pages.agentPlugins;
     let first: ReturnType<typeof useAgentPluginsPage> | undefined;

@@ -1,6 +1,6 @@
 import { useMediaLibraryQuery } from './MediaQuery.hooks.js';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useController } from '../../../core/react/use-controller.js';
+import { useMediaController } from './MediaPorts.hooks.js';
 import { createEditMediaController } from '../../controllers/edit-media.controller.js';
 import type { MediaApiPort } from '../../ports.js';
 import type { MediaAsset, MediaMetadataPatch, UploadInput } from '../../models.js';
@@ -106,7 +106,7 @@ function useCopyRows({ item }: { item: MediaAsset }) {
 export function useEditMediaPanel(props: EditMediaPanelProps, { usePorts = useMediaPorts }: { usePorts?: typeof useMediaPorts } = {}) {
   const { embedPolicy } = usePorts();
   const cached = useMediaLibraryQuery({ api: props.api }, { enabled: false });
-  const { controller, snapshot } = useController({
+  const { controller, snapshot } = useMediaController({
     create: () => createEditMediaController({ api: cached.api, item: props.item }),
     dependencies: [cached.api, props.item.id],
   });
