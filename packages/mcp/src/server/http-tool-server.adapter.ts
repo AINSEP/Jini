@@ -64,7 +64,11 @@ interface HttpServerState {
 }
 
 /** Gate admission before acquiring bytes or SDK state. O(1) plus a bounded body and tool work. */
-async function handleRequest(state: HttpServerState, request: IncomingMessage, response: ServerResponse): Promise<void> {
+async function handleRequest({ state, request, response }: {
+  state: HttpServerState;
+  request: IncomingMessage;
+  response: ServerResponse;
+}): Promise<void> {
   response.setHeader('Cache-Control', 'no-store');
   if (request.headers.origin !== undefined || !authorized({ request, token: state.token })) {
     response.writeHead(403, { Connection: 'close' }).end(); return;
@@ -73,7 +77,7 @@ async function handleRequest(state: HttpServerState, request: IncomingMessage, r
   const allowed = state.options.sessionMode ? ['POST', 'GET', 'DELETE'] : ['POST'];
   if (!allowed.includes(request.method ?? '')) { response.writeHead(405, { Allow: allowed.join(', ') }).end(); return; }
   if (state.stopped || state.pending.size >= MAX_REQUESTS) { response.writeHead(503).end(); return; }
-  await dispatchRequest(state, request, response);
+  await dispatchRequest({ state, request, response });
 }
 
 /** Read a POST body under a deadline; a refusal has already been written to the response. */
@@ -106,7 +110,11 @@ function connectSessionTransport(state: HttpServerState, sessionTransport: Strea
 /** Dispose the SDK connection after response delivery, including failed/abandoned requests.
  * The SDK owns initialize, notifications, validation, list and call; no handwritten dispatch.
  */
-async function dispatchRequest(state: HttpServerState, request: IncomingMessage, response: ServerResponse): Promise<void> {
+async function dispatchRequest({ state, request, response }: {
+  state: HttpServerState;
+  request: IncomingMessage;
+  response: ServerResponse;
+}): Promise<void> {
   let body: unknown;
   if (request.method === 'POST') {
     const read = await readPostBody(request, response);
@@ -130,7 +138,11 @@ async function dispatchRequest(state: HttpServerState, request: IncomingMessage,
 }
 
 /** Repair only the listener, retaining the exact URL/token and never replaying tool work. O(1). */
-function repairListener(state: HttpServerState, server: HttpServer, port: number): void {
+function repairListener({ state, server, port }: {
+  state: HttpServerState;
+  server: HttpServer;
+  port: number;
+}): void {
   if (state.stopped || server.listening || state.retry) return;
   state.options.warn?.('MCP HTTP listener unavailable; retrying automatically');
   state.retry = setTimeout(() => {
@@ -157,7 +169,7 @@ async function closeListener(state: HttpServerState, server: HttpServer): Promis
 function createListener(state: HttpServerState): HttpServer {
   const { options, pending } = state;
   const server = (options.createHttpServer ?? createServer)((request, response) => {
-    const work = handleRequest(state, request, response).catch(() => {
+    const work = handleRequest({ state, request, response }).catch(() => {
       options.warn?.('MCP HTTP request failed');
       if (!response.headersSent) response.writeHead(500).end();
       else response.destroy();
@@ -191,8 +203,8 @@ export async function startMcpHttpToolServer(required: McpToolServerRequiredArgs
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('MCP HTTP listener has no TCP address');
   const port = address.port;
-  server.on('error', () => repairListener(state, server, port));
-  server.on('close', () => repairListener(state, server, port));
+  server.on('error', () => repairListener({ state, server, port }));
+  server.on('close', () => repairListener({ state, server, port }));
   return {
     url: `http://127.0.0.1:${port}/mcp`, token: state.token,
     close(_required, _optional = {}) {
