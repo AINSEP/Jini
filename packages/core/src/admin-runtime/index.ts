@@ -7,6 +7,7 @@ export { AdminConfigError } from './admin-config-error.js';
 export { AdminApiError, describeApiError } from './admin-api-error.js';
 export { createControllerStore } from './controller-store.js';
 export type { ControllerStore, WritableControllerStore } from './controller-store.js';
+// Permissions — affordance only, never an authorization boundary.
 export { hasPermission, isPanelAccessible, withoutInaccessiblePanels } from './panel-access.js';
 export type { AdminNavGroupShape, AdminPanelAccessDeclaration, AdminPanelAccessEntry } from './panel-access.js';
 export { querySuffix } from './query-suffix.js';
