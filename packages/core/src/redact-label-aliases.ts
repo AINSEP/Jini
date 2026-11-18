@@ -5,7 +5,9 @@
  * `signing_secret`, `webhook_secret`) and prefixed env-style names (`DB_PASSWORD`, `app_secret`), whose
  * value is masked at any length. The value shapes are the ones the diagnostics rules used: an assignment,
  * a quoted JSON/inspect value, and a colon form that needs a quoted value or a single token of 12+
- * characters so a prose colon ("pwd: the current directory") stays readable. No I/O, no host state.
+ * characters so a prose colon ("pwd: the current directory") stays readable. A quoted multiword key that
+ * ends in a credential name (`"user password"`) and a prefixed name whose value is a single token on the next
+ * line are masked too. No I/O, no host state.
  */
 import type { ValueRange } from './redact-auth-schemes.js';
 
@@ -28,6 +30,36 @@ const COLON_RE = new RegExp(
     + `(?:(?<quote>\\\\?["'])(?<quoted>(?:(?!\\k<quote>)[^\\\\\\r\\n])+)\\k<quote>|(?<bare>[^\\s"',;}]{12,}))`,
   'gi',
 );
+
+// `"user password": "value"`: a quoted key of several words whose last words name a credential. A key with no
+// separator is a plain name the rules above already read; this one adds the names they cannot (a space or dot).
+const QUOTED_KEY_RE = new RegExp(
+  `(?<open>\\\\?["'])(?<name>[A-Za-z0-9][A-Za-z0-9 _.-]{0,60}?)\\k<open>[ \\t]*:[ \\t]*`
+    + `(?<quote>\\\\?["'])(?<quoted>(?:(?!\\k<quote>)[^\\\\\\r\\n])+)\\k<quote>`,
+  'g',
+);
+const CREDENTIAL_KEY_END = /(?:^|[ _.-])(?:password|passwd|pwd|secret|token|api[ _-]?key|private[ _-]?key|access[ _-]?key|secret[ _-]?key|client[ _-]?secret|(?:access|refresh|auth|id)[ _-]?token|(?:signing|webhook)[ _-]?secret)$/i;
+// A prefixed name (`DB_PASSWORD=`, `my-token:`) with nothing after the sign, then ONE token on the next line: the
+// value of an env file or a wrapped form line. A line that is itself an assignment (`NEXT=1`), a heading
+// (`Notes:`), a list item or several words is not a value; the line after it is not read.
+const NEXT_LINE_RE = new RegExp(
+  `${NAME}[ \\t]*[:=][ \\t]*\\r?\\n[ \\t]*(?<value>${QUOTED}|(?![\\w.-]+[=:])[^\\s"'&,;})-][^\\s"'&,;})]*)[ \\t]*(?=\\r?\\n|$)`,
+  'gi',
+);
+
+/** Ranges of the quoted value after a multiword quoted credential key. */
+function quotedKeyRanges({ text }: { readonly text: string }): ValueRange[] {
+  return [...text.matchAll(QUOTED_KEY_RE)]
+    .filter(match => CREDENTIAL_KEY_END.test(match.groups?.name ?? '') && !isEngineLabelName(match.groups?.name))
+    .map(match => colonValueRange({ match }));
+}
+
+/** Ranges of a next-line value after a prefixed name; the engine's own exact names are left to its rules. */
+function nextLineRanges({ text }: { readonly text: string }): ValueRange[] {
+  return [...text.matchAll(NEXT_LINE_RE)]
+    .filter(match => !isEngineLabelName(match.groups?.name) && (match.groups?.name ?? '').length > 0 && /[_-]/.test(match.groups?.name ?? ''))
+    .map(match => assignedValueRange({ match }));
+}
 
 /** The value range of an assignment: inside a closed quote pair, after an unclosed opening quote. */
 function assignedValueRange({ match }: { readonly match: RegExpMatchArray }): ValueRange {
@@ -65,6 +97,6 @@ function colonRanges({ text }: { readonly text: string }): ValueRange[] {
 export function labelAliasValueRanges(
   { text, isMasked }: { readonly text: string; readonly isMasked: (value: string) => boolean },
 ): ValueRange[] {
-  return [...assignmentRanges({ text }), ...colonRanges({ text })]
+  return [...assignmentRanges({ text }), ...colonRanges({ text }), ...quotedKeyRanges({ text }), ...nextLineRanges({ text })]
     .filter(({ start, end }) => end > start && !isMasked(text.slice(start, end)));
 }
