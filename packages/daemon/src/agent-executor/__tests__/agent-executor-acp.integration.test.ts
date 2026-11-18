@@ -5,7 +5,7 @@ import { createRunLifecycle, type RunLifecycle } from '../../run-lifecycle.js';
 import { createAgentExecutor } from '../../index.js';
 import type { AgentLaunchResolution, RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import type { RunAgentPayload, RunProtocolEvent } from '@jini-ai/protocol';
-import { nodeRuntime } from './runtime-fixture.js';
+import { nodeRuntime, agentRuntimeFixture } from './runtime-fixture.js';
 
 /**
  * A real Node subprocess speaking the smallest useful ACP conversation. It
@@ -145,7 +145,7 @@ describe('AgentExecutor — ACP subprocess integration', () => {
       });
       return { outcome: 'selected' as const, optionId: 'allow' };
     });
-    const executor = createAgentExecutor({ lifecycle, hostEnv: process.env, runtime: nodeRuntime() }, { getAgentDef: ({ id: agentId }) => (agentId === 'acp-fixture' ? fixtureDef() : null), resolveAgentLaunch: fixtureLaunch, applyAgentLaunchEnv: ({ env }) => env, acpPermissionHandler: onPermissionRequest });
+    const executor = createAgentExecutor({ lifecycle, hostEnv: process.env, runtime: nodeRuntime(), agentRuntime: agentRuntimeFixture({ getAgentDef: ({ id: agentId }) => (agentId === 'acp-fixture' ? fixtureDef() : null), resolveAgentLaunch: fixtureLaunch, applyAgentLaunchEnv: ({ env }) => env }, { env: process.env }) }, { acpPermissionHandler: onPermissionRequest });
     const { run } = await lifecycle.start({ contextRef: 'acp-fixture' });
 
     await executor.run({ runId: run.id, agentId: 'acp-fixture', prompt: 'say hello', cwd: process.cwd() });
@@ -176,7 +176,7 @@ describe('AgentExecutor — ACP subprocess integration', () => {
  */
 describe("AgentExecutor — ACP subprocess integration: 'acp-merge' MCP bridge delivery", () => {
   function createExecutorFor(def: RuntimeAgentDef, lifecycle: RunLifecycle) {
-    return createAgentExecutor({ lifecycle, hostEnv: process.env, runtime: nodeRuntime() }, { getAgentDef: ({ id: agentId }) => (agentId === 'acp-fixture' ? def : null), resolveAgentLaunch: fixtureLaunch, applyAgentLaunchEnv: ({ env }) => env, acpPermissionHandler: async () => ({ outcome: 'selected' as const, optionId: 'allow' }), mcpJsonInjection: {
+    return createAgentExecutor({ lifecycle, hostEnv: process.env, runtime: nodeRuntime(), agentRuntime: agentRuntimeFixture({ getAgentDef: ({ id: agentId }) => (agentId === 'acp-fixture' ? def : null), resolveAgentLaunch: fixtureLaunch, applyAgentLaunchEnv: ({ env }) => env }, { env: process.env }) }, { acpPermissionHandler: async () => ({ outcome: 'selected' as const, optionId: 'allow' }), mcpJsonInjection: {
         command: '/usr/bin/jini-mcp',
         args: ['--quiet'],
         daemonUrl: 'http://127.0.0.1:4242',
@@ -244,7 +244,7 @@ describe("AgentExecutor — ACP subprocess integration: 'acp-merge' MCP bridge d
     const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
     const def = fixtureDef({ externalMcpInjection: 'acp-merge' });
     const spawnArgs: string[][] = [];
-    const executor = createAgentExecutor({ lifecycle, hostEnv: process.env, runtime: nodeRuntime({ onSpawn: ({ args }) => { spawnArgs.push([...args]); } }) }, { getAgentDef: ({ id: agentId }) => (agentId === 'acp-fixture' ? def : null), resolveAgentLaunch: fixtureLaunch, applyAgentLaunchEnv: ({ env }) => env, acpPermissionHandler: async () => ({ outcome: 'selected' as const, optionId: 'allow' }), mcpJsonInjection: {
+    const executor = createAgentExecutor({ lifecycle, hostEnv: process.env, runtime: nodeRuntime({ onSpawn: ({ args }) => { spawnArgs.push([...args]); } }), agentRuntime: agentRuntimeFixture({ getAgentDef: ({ id: agentId }) => (agentId === 'acp-fixture' ? def : null), resolveAgentLaunch: fixtureLaunch, applyAgentLaunchEnv: ({ env }) => env }, { env: process.env }) }, { acpPermissionHandler: async () => ({ outcome: 'selected' as const, optionId: 'allow' }), mcpJsonInjection: {
         command: '/usr/bin/jini-mcp',
         daemonUrl: 'http://127.0.0.1:4242',
         credential: () => 'run-scoped-secret',

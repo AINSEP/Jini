@@ -16,7 +16,7 @@ import Database from 'better-sqlite3';
 // health-boot runs this file with plain `node`, whose type stripping never maps .js to .ts.
 import { acpFixtureDef } from './acp-fixture.ts';
 import { createAgentExecutor } from '@jini-ai/daemon';
-import { createNativeAgentRuntime } from '@jini-ai/agent-runtime';
+import { createAgentRuntimeBindings, createNativeAgentRuntime } from '@jini-ai/agent-runtime';
 import { type AgentLaunchResolution } from '@jini-ai/core/contracts/agents';
 import { fetchWithTimeout } from '@jini-ai/platform';
 import { FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
@@ -24,6 +24,7 @@ import { createLocalNodeDaemon } from '@jini-ai/server';
 import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/platform/runtime-ports/fs';
 import { nodeCommandShell, nodeProcessControl, nodeSpawnPort } from '@jini-ai/platform/runtime-ports/process';
 import type { AgentExecutorRuntimePorts } from '@jini-ai/daemon/ports/runtime';
+import type { AgentRuntimePort } from '@jini-ai/daemon/ports/agent-runtime';
 
 /** The Node implementations of the OS-facing ports the agent executor needs, bound from the env this host owns. */
 function executorRuntimeFor({ hostEnv }: { hostEnv: NodeJS.ProcessEnv }, _optional: Record<string, never> = {}): AgentExecutorRuntimePorts {
@@ -77,20 +78,23 @@ async function main(): Promise<void> {
         }
 
         if (request.agentId === 'acp-fixture') {
-          const executor = createAgentExecutor({ lifecycle, hostEnv: runtime.hostEnv, runtime: executorRuntimeFor({ hostEnv: runtime.hostEnv }) }, {
-            ...runtimeExecutorOptions,
-            getAgentDef: ({ id }) => (id === 'acp-fixture' ? acpFixtureDef() : null),
-            resolveAgentLaunch: () =>
-              ({
-                selectedPath: process.execPath,
-                pathResolvedPath: process.execPath,
-                configuredOverridePath: null,
-                launchPath: process.execPath,
-                launchKind: 'selected',
-                childPathPrepend: [],
-                diagnostic: null,
-              }) as AgentLaunchResolution,
-            applyAgentLaunchEnv: ({ env }) => env,
+          const bound = createAgentRuntimeBindings({ runtime }) satisfies AgentRuntimePort;
+          const agentRuntime: AgentRuntimePort = { ...bound,
+            defs: { ...bound.defs, get: ({ id }) => (id === 'acp-fixture' ? acpFixtureDef() : null) },
+            launch: { ...bound.launch,
+              resolve: () =>
+                ({
+                  selectedPath: process.execPath,
+                  pathResolvedPath: process.execPath,
+                  configuredOverridePath: null,
+                  launchPath: process.execPath,
+                  launchKind: 'selected',
+                  childPathPrepend: [],
+                  diagnostic: null,
+                }) as AgentLaunchResolution,
+              applyEnv: ({ env }) => env },
+          };
+          const executor = createAgentExecutor({ lifecycle, hostEnv: runtime.hostEnv, runtime: executorRuntimeFor({ hostEnv: runtime.hostEnv }), agentRuntime }, {
             acpPermissionHandler: () => ({ outcome: 'selected', optionId: 'allow' }),
           });
           await executor.run({

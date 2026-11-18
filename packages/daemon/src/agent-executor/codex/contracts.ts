@@ -34,8 +34,3 @@ export interface CodexMcpHomeOptions {
    * @default Native mkdir (0700) and directory symlinks; errors fail staging before spawn. */
   readonly linkSessionStore?: (required: { runHome: string; sourceHome: string }, optional?: { inheritUserConfig?: boolean }) => Promise<void>;
 }
-
-export interface CodexExecutorOptions {
-  /** Host policy; native executor composition resolves its env default when absent. */
-  readonly codexDisablePlugins?: boolean;
-}

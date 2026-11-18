@@ -501,21 +501,21 @@
     "function": "<file>",
     "line": 820,
     "rule": "max-lines",
-    "value": 923
+    "value": 922
   },
   {
     "file": "packages/daemon/src/agent-executor/launch.ts",
     "function": "<file>",
-    "line": 848,
+    "line": 850,
     "rule": "max-lines",
-    "value": 1026
+    "value": 954
   },
   {
     "file": "packages/daemon/src/agent-executor/launch.ts",
     "function": "createAgentExecutor",
-    "line": 1009,
+    "line": 914,
     "rule": "max-lines-per-function",
-    "value": 429
+    "value": 416
   },
   {
     "file": "packages/daemon/src/agent-executor/launch.ts",

@@ -10,7 +10,7 @@ import { createRunLifecycle } from '../../run-lifecycle.js';
 import { createInMemoryEventLog } from '../../event-log.js';
 import { fixtureLaunchModel, fixtureModelDiscovery } from './model-discovery-fixture.js';
 import { parse } from 'smol-toml';
-import { runtimeFixture } from './runtime-fixture.js';
+import { runtimeFixture, agentRuntimeFixture } from './runtime-fixture.js';
 
 /** Runs the real executor and vendor argv/config writers with only process launch replaced.
  * Packaged CLI consumption remains a cloud gate; this fixture makes no version claim. */
@@ -35,19 +35,13 @@ async function launch(vendor: 'claude' | 'codex' | 'opencode', failHttp = false,
     queueMicrotask(() => failure === 'async-spawn' ? child.emit('error', new Error('spawn failed')) : child.emit('spawn'));
     return child as unknown as ChildProcess;
   });
-  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ ...(failure === 'invocation' ? { platform: 'win32' as const } : {}), spawn: spawn as unknown as typeof nodeSpawn, listProcessSnapshots: async () => [], stopProcesses: async () => ({ alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }) }) }, { getAgentDef: () => definition, 
-    resolveAgentLaunch: () => ({ selectedPath: '/fixture', pathResolvedPath: '/fixture', configuredOverridePath: null,
-      launchPath: failure === 'invocation' ? 'C:\\fixture\\agent.cmd' : '/fixture', launchKind: 'selected', childPathPrepend: [], diagnostic: null }),
-    applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {}, resolveModelForLaunch: fixtureLaunchModel,
-     probeMcpBridge: probe,
-    
-    mcpJsonInjection: { command: 'node', args: ['serve.js'], daemonUrl: 'http://daemon.invalid', credential: mint, prepareHttp,
+  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ ...(failure === 'invocation' ? { platform: 'win32' as const } : {}), spawn: spawn as unknown as typeof nodeSpawn, listProcessSnapshots: async () => [], stopProcesses: async () => ({ alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }) }), agentRuntime: agentRuntimeFixture({ getAgentDef: () => definition, resolveAgentLaunch: () => ({ selectedPath: '/fixture', pathResolvedPath: '/fixture', configuredOverridePath: null,
+      launchPath: failure === 'invocation' ? 'C:\\fixture\\agent.cmd' : '/fixture', launchKind: 'selected', childPathPrepend: [], diagnostic: null }), applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {}, resolveModelForLaunch: fixtureLaunchModel }) }, { probeMcpBridge: probe, mcpJsonInjection: { command: 'node', args: ['serve.js'], daemonUrl: 'http://daemon.invalid', credential: mint, prepareHttp,
       ...(locked ? { toolApprovalOwner: 'host' as const } : {}),
       readFile: async () => '', writeFile: async ({ content }) => { config = content; },
       mkdtemp: async () => '/fixture-codex-home', removeDir: async () => {}, linkSessionStore: async () => {},
       removeFile: async () => {},
-    },
-  });
+    } });
   const { run } = await lifecycle.start({ contextRef: 'http-launch' });
   const runError: unknown = await executor.run({ runId: run.id, agentId: vendor, cwd: '/fixture', prompt: 'Hello' }, {
     permissionMode: 'bypass',

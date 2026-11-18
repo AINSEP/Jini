@@ -20,30 +20,7 @@ import {
 import {
   join,
 } from 'node:path';
-import {
-  agentCapabilities,
-  planRun,
-  resolveNativeToolPolicy,
-  validateFilesystemLaunch,
-  validateReadOnlyExtraDirs,
-  bindRuntimeAgentDef,
-  defaultRuntimeState,
-  getRuntimeModelDiscoveryDeps,
-  userToolchainBinDirs,
-  type AgentRuntimeState,
-  applyAgentLaunchEnv,
-  ensureAgentCapabilities,
-  resolveModelForLaunch,
-  getAgentDef,
-  resolveAgentLaunch,
-  attachAcpSession,
-  attachPiRpcSession,
-  checkPromptArgvBudget,
-  checkWindowsCmdShimCommandLineBudget,
-  checkWindowsDirectExeCommandLineBudget,
-  prepareAgentLogFile,
-  preparePromptFileForAgent,
-} from '@jini-ai/agent-runtime';
+import type { AgentRuntimePort } from '../ports/agent-runtime.js';
 import {
   RuntimeSelectionError,
   type AgentLaunchResolution,
@@ -51,7 +28,7 @@ import {
   type PreparedAgentLogFile, type PreparedPromptFile,
   type PromptAugmenter,
   type RuntimeAgentDef,
-  type RuntimeBuildOptions, type RuntimeContext,
+  type RuntimeBuildOptions, type RuntimeCapabilityMap, type RuntimeContext,
 } from '@jini-ai/core/contracts/agents';
 import type { CommandInvocation } from '@jini-ai/core/contracts/runtime';
 import {
@@ -98,11 +75,10 @@ import {
   writeMcpJsonIfNeeded,
   prepareClaudeConfigDirIfNeeded,
 } from './mcp-bridge.js';
-import { CODEX_HOME_ENV, codexHttpMcpStaging, prepareCodexHomeIfNeeded, resolveCodexDisablePlugins, withStagedCodexHome } from './codex/home-staging.js';
+import { CODEX_HOME_ENV, codexHttpMcpStaging, prepareCodexHomeIfNeeded, withStagedCodexHome } from './codex/home-staging.js';
 import { CLAUDE_CONFIG_DIR_ENV, withStagedClaudeConfigDir } from './claude/config-dir.js';
 import { claudeFilesystemAdapter } from './claude/filesystem.js';
 import { AMR_OPENCODE_BIN_ENV } from './amr/executable-env.js';
-import { resolvePiGracefulShutdownMs } from './pi/options.js';
 import {
   acquireRuntimeLockIfConfigured,
   armHandoffWatcher,
@@ -203,14 +179,13 @@ function toStringEnvRecord(env: NodeJS.ProcessEnv): Record<string, string> {
 
 /** Snapshot only host configuration used by spawn and config staging; credentials stay per-run.
  * Returns an independent allowlisted record. @complexity O(1), fixed key list. */
-export function selectAgentExecutorHostEnv({ env }: { env: NodeJS.ProcessEnv }, { runtimeState }: { runtimeState?: AgentRuntimeState } = {}): NodeJS.ProcessEnv {
+export function selectAgentExecutorHostEnv({ env, hostEnvNames }: { env: NodeJS.ProcessEnv; hostEnvNames: readonly string[] }, _optional: Record<string, never> = {}): NodeJS.ProcessEnv {
   const selected = buildAgentEnv({ hostEnv: env });
   for (const key of [CODEX_HOME_ENV, CLAUDE_CONFIG_DIR_ENV, AMR_OPENCODE_BIN_ENV, 'AGENT_RUNTIME_HOME', 'AGENT_RUNTIME_RESOURCE_ROOT', 'VP_HOME', 'NPM_CONFIG_PREFIX', 'npm_config_prefix', 'APPDATA', 'LOCALAPPDATA', 'MISE_DATA_DIR', 'FNM_DIR'] as const) {
     if (typeof env[key] === 'string') selected[key] = env[key];
   }
-  // Host-configured resolution names are explicit configuration, never a scan of the env bag.
-  const state = runtimeState ?? defaultRuntimeState;
-  for (const key of Object.values(state.executable.envNames)) {
+  // Host-configured resolution names are explicit configuration (the runtime's `launch.hostEnvNames()`), never a scan of the env bag.
+  for (const key of hostEnvNames) {
     if (typeof env[key] === 'string') selected[key] = env[key];
   }
   return selected;
@@ -232,59 +207,15 @@ function waitForSpawnOrError(child: ChildProcess): Promise<void> {
   });
 }
 
-interface ResolvedAgentRuntimeDeps {
-  readonly getAgentDef: typeof getAgentDef;
-  readonly resolveAgentLaunch: typeof resolveAgentLaunch;
-  readonly ensureAgentCapabilities: typeof ensureAgentCapabilities;
-  readonly applyAgentLaunchEnv: typeof applyAgentLaunchEnv;
-  readonly attachAcpSession: typeof attachAcpSession;
-  readonly attachPiRpcSession: typeof attachPiRpcSession;
-  readonly preparePromptFileForAgent: typeof preparePromptFileForAgent;
-  readonly prepareAgentLogFile: typeof prepareAgentLogFile;
-}
-
-/**
- * Resolves `CreateAgentExecutorOptions`' agent-runtime collaborator seams (registry lookup, launch
- * resolution, ACP/pi-rpc session attachment, prompt/log file staging) to their real
- * `@jini-ai/agent-runtime` defaults. Split out of `createAgentExecutor` together with
- * {@link resolveProcessDeps}/{@link resolveMiscExecutorDeps}: a flat 14-line `options.x ?? default`
- * sequence was that function's entire cyclomatic-complexity excess (one branch point per default) —
- * grouping the same defaults by concern keeps each resulting function's own complexity low without
- * hiding which options belong together. Pure.
- */
-function resolveAgentRuntimeDeps(
-  options: CreateAgentExecutorOptions & { readonly hostEnv: NodeJS.ProcessEnv; readonly piGracefulShutdownMs: number },
-): ResolvedAgentRuntimeDeps {
-  const runtimeOptions = options.runtimeState ? { state: options.runtimeState } : {};
-  // `createAgentExecutor` always resolves both before calling here (host env falls back to the
-  // process env, the pi shutdown grace to its env override or 5000 ms), so neither is optional.
-  const envOptions = { env: options.hostEnv };
-  const lookupDef = options.getAgentDef ?? getAgentDef;
-  return {
-    getAgentDef: (input) => {
-      const def = lookupDef(input);
-      // Without owned state, only an enabled plugin policy needs binding; otherwise keep the published definition.
-      if (!def || (!options.runtimeState && !options.codexDisablePlugins)) return def;
-      return bindRuntimeAgentDef({ def, state: options.runtimeState ?? defaultRuntimeState }, options.codexDisablePlugins ? { codex: { disablePlugins: true } } : {});
-    },
-    resolveAgentLaunch: options.resolveAgentLaunch ?? ((input, optional = {}) => resolveAgentLaunch(input, { ...optional, ...runtimeOptions, ...envOptions })),
-    ensureAgentCapabilities: options.ensureAgentCapabilities ?? ((input) => ensureAgentCapabilities(input, runtimeOptions)),
-    applyAgentLaunchEnv: options.applyAgentLaunchEnv ?? ((input, optional = {}) => applyAgentLaunchEnv(input, { appendPathDirs: userToolchainBinDirs({}, { ...runtimeOptions, ...envOptions }), ...optional })),
-    attachAcpSession: options.attachAcpSession ?? attachAcpSession,
-    attachPiRpcSession: (required, optional = {}) => (options.attachPiRpcSession ?? attachPiRpcSession)(required, {
-      ...optional, gracefulShutdownMs: options.piGracefulShutdownMs,
-    }),
-    preparePromptFileForAgent: options.preparePromptFileForAgent ?? preparePromptFileForAgent,
-    prepareAgentLogFile: options.prepareAgentLogFile ?? prepareAgentLogFile,
-  };
-}
-
 interface ResolvedMiscExecutorDeps {
   readonly onCleanupFailure: (context: AgentCleanupFailureContext) => void;
   readonly bufferedStdoutMaxBytes: number;
 }
 
-/** Resolves the two remaining defaultable options — see {@link resolveAgentRuntimeDeps}'s doc. Pure. */
+/**
+ * Resolves the two remaining defaultable options. Split out of `createAgentExecutor`: a flat `options.x ?? default` sequence was
+ * that function's cyclomatic-complexity excess (one branch point per default). Pure.
+ */
 function resolveMiscExecutorDeps(options: CreateAgentExecutorOptions): ResolvedMiscExecutorDeps {
   return {
     onCleanupFailure: options.onCleanupFailure ?? defaultCleanupFailureSink,
@@ -316,7 +247,7 @@ interface ResolvedDefAndFormat {
 }
 
 /** Phase 1: registry lookup + `assessAgentExecutorCompatibility` guard. */
-export async function resolveDefAndStreamFormat({ input, deps }: { readonly input: Pick<AgentExecutorRunInput, 'runId' | 'agentId'>; readonly deps: { readonly getAgentDef: typeof getAgentDef; readonly failBeforeSpawn: FailBeforeSpawn } }
+export async function resolveDefAndStreamFormat({ input, deps }: { readonly input: Pick<AgentExecutorRunInput, 'runId' | 'agentId'>; readonly deps: { readonly getAgentDef: AgentRuntimePort['defs']['get']; readonly failBeforeSpawn: FailBeforeSpawn } }
 ): Promise<ResolvedDefAndFormat> {
   const def = deps.getAgentDef({ id: input.agentId });
   if (!def) {
@@ -336,10 +267,10 @@ export async function resolveImageDeliveryAndArgvBudget({ input, deps }: { reado
     readonly prompt: string;
     readonly imagePaths: readonly string[] | undefined;
     readonly extraAllowedDirs: readonly string[] | undefined;
-  }; readonly deps: { readonly failBeforeSpawn: FailBeforeSpawn } }
+  }; readonly deps: { readonly promptArgvBudget: AgentRuntimePort['launch']['promptArgvBudget']; readonly failBeforeSpawn: FailBeforeSpawn } }
 ): Promise<ImagePromptDelivery> {
   const imageDelivery = applyImagePromptDelivery({ imageDelivery: input.def.imageDelivery, prompt: input.prompt, imagePaths: input.imagePaths, extraAllowedDirs: input.extraAllowedDirs });
-  const argvBudgetError = checkPromptArgvBudget({ def: input.def, composed: imageDelivery.prompt });
+  const argvBudgetError = deps.promptArgvBudget({ def: input.def, composed: imageDelivery.prompt });
   if (argvBudgetError) {
     return deps.failBeforeSpawn({ runId: input.runId, code: 'AGENT_PROMPT_TOO_LARGE', message: argvBudgetError.message });
   }
@@ -360,7 +291,7 @@ export function resolveRunEnv({ input, hostEnv }: { readonly input: Pick<AgentEx
 type ConfirmedAgentLaunchResolution = AgentLaunchResolution & { readonly launchPath: string };
 
 /** Phase 3b: launch-path resolution + binary-not-resolved guard. */
-export async function resolveLaunch({ input, deps }: { readonly input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly resolvedEnv: Record<string, string> }; readonly deps: { readonly resolveAgentLaunch: typeof resolveAgentLaunch; readonly failBeforeSpawn: FailBeforeSpawn } }
+export async function resolveLaunch({ input, deps }: { readonly input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly resolvedEnv: Record<string, string> }; readonly deps: { readonly resolveAgentLaunch: AgentRuntimePort['launch']['resolve']; readonly failBeforeSpawn: FailBeforeSpawn } }
 ): Promise<ConfirmedAgentLaunchResolution> {
   const launch = deps.resolveAgentLaunch({ def: input.def }, { configuredEnv: input.resolvedEnv });
   if (!launch.launchPath) {
@@ -374,7 +305,7 @@ export async function resolveLaunch({ input, deps }: { readonly input: { readonl
 }
 
 /** Phase 4a: stage a `promptViaFile` def's prompt to a temp file (a no-op for every other def). */
-export async function stagePromptFile({ input, deps }: { readonly input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly prompt: string }; readonly deps: { readonly preparePromptFileForAgent: typeof preparePromptFileForAgent; readonly failBeforeSpawn: FailBeforeSpawn } }
+export async function stagePromptFile({ input, deps }: { readonly input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly prompt: string }; readonly deps: { readonly preparePromptFileForAgent: AgentRuntimePort['launch']['preparePromptFile']; readonly failBeforeSpawn: FailBeforeSpawn } }
 ): Promise<PreparedPromptFile | null> {
   try {
     return await deps.preparePromptFileForAgent({ def: input.def, prompt: input.prompt, label: input.runId });
@@ -386,7 +317,7 @@ export async function stagePromptFile({ input, deps }: { readonly input: { reado
 }
 
 /** Phase 4b: stage a `needsAgentLogFile` def's diagnostic-log path (a no-op for every other def). */
-export async function stageLogFile({ input, deps }: { readonly input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly preparedPromptFile: PreparedPromptFile | null }; readonly deps: { readonly prepareAgentLogFile: typeof prepareAgentLogFile; readonly failBeforeSpawn: FailBeforeSpawn } }
+export async function stageLogFile({ input, deps }: { readonly input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly preparedPromptFile: PreparedPromptFile | null }; readonly deps: { readonly prepareAgentLogFile: AgentRuntimePort['launch']['prepareLogFile']; readonly failBeforeSpawn: FailBeforeSpawn } }
 ): Promise<PreparedAgentLogFile | null> {
   try {
     return await deps.prepareAgentLogFile({ def: input.def, label: input.runId });
@@ -572,10 +503,10 @@ function hasSystemPromptOverlay(args: { overlay: string | null | undefined }, _o
   return typeof args.overlay === 'string' && args.overlay.length > 0;
 }
 
-function appendFlagOverlay({ defId, systemPromptDelivery, overlay, prompt }: {
-  defId: string; systemPromptDelivery: Extract<NonNullable<RuntimeAgentDef['systemPromptDelivery']>, { strategy: 'append-flag' }>;
+function appendFlagOverlay({ systemPromptDelivery, overlay, prompt }: {
+  systemPromptDelivery: Extract<NonNullable<RuntimeAgentDef['systemPromptDelivery']>, { strategy: 'append-flag' }>;
   overlay: string; prompt: string;
-}, { state }: { state?: AgentRuntimeState | undefined } = {}): SystemPromptOverlayDelivery {
+}, { capabilities }: { capabilities: RuntimeCapabilityMap | undefined }): SystemPromptOverlayDelivery {
   const capabilityKey = systemPromptDelivery.capabilityKey;
   // `!== false`, not a truthiness check: mirrors `claude.ts`'s own pre-existing
   // `agentCapabilities.get('claude') || {}` gate exactly (moved here, not changed) — an
@@ -583,7 +514,7 @@ function appendFlagOverlay({ defId, systemPromptDelivery, overlay, prompt }: {
   // `--help` probe ran and did not find the flag) withholds it. `capabilityKey === undefined`
   // (e.g. `pi`'s existing `--append-system-prompt`, trusted unconditionally) always passes, same
   // as an absent key.
-  const capabilityOk = capabilityKey === undefined || (state?.capabilities ?? agentCapabilities).get(defId)?.[capabilityKey] !== false;
+  const capabilityOk = capabilityKey === undefined || capabilities?.[capabilityKey] !== false;
   return { promptPrefix: '', prompt, extraArgs: capabilityOk ? [systemPromptDelivery.flag, overlay] : [], envOverrides: {} };
 }
 
@@ -617,9 +548,9 @@ function isContinuingOverlaySession({ resumesSessionViaCli, resumesSessionViaAcp
  * every turn unconditionally, exactly `claude`'s pre-existing (now-centralized) behavior before
  * this function existed.
  *
- * @param input.defId - Looks up this def's probed capabilities for an `'append-flag'` strategy's
- * `capabilityKey`. Otherwise unused — the dispatch itself is keyed off `systemPromptDelivery`, per
- * this function's own doc above, never off the id.
+ * @param capabilities - This def's probed capabilities (`agentRuntime.defs.capabilities`), read by the caller when the
+ * run launches, for an `'append-flag'` strategy's `capabilityKey`. `undefined` means not probed. The dispatch itself is keyed
+ * off `systemPromptDelivery`, per this function's own doc above, never off the id.
  * @param input.systemPromptDelivery - The def's declared strategy, or `undefined` for the fallback.
  * @param input.resumesSessionViaCli - The def's own flag (see `RuntimeAgentDef`'s doc).
  * @param input.resumesSessionViaAcpLoad - The def's own flag (see `RuntimeAgentDef`'s doc).
@@ -637,22 +568,21 @@ function isContinuingOverlaySession({ resumesSessionViaCli, resumesSessionViaAcp
  * @overallScore 100/100
  */
 export function resolveSystemPromptOverlayDelivery(input: {
-  readonly defId: string;
   readonly systemPromptDelivery: RuntimeAgentDef['systemPromptDelivery'];
   readonly resumesSessionViaCli: boolean | undefined;
   readonly resumesSessionViaAcpLoad: boolean | undefined;
   readonly overlay: string | null | undefined;
   readonly prompt: string;
   readonly resumeSessionId: string | null | undefined;
-}, { state }: { state?: AgentRuntimeState } = {}): SystemPromptOverlayDelivery {
-  const { defId, systemPromptDelivery, resumesSessionViaCli, resumesSessionViaAcpLoad, prompt, resumeSessionId } = input;
+}, { capabilities }: { capabilities: RuntimeCapabilityMap | undefined }): SystemPromptOverlayDelivery {
+  const { systemPromptDelivery, resumesSessionViaCli, resumesSessionViaAcpLoad, prompt, resumeSessionId } = input;
   if (!hasSystemPromptOverlay(input, {})) {
     return { promptPrefix: '', prompt, extraArgs: [], envOverrides: {} };
   }
   const overlay = input.overlay;
 
   if (systemPromptDelivery?.strategy === 'append-flag') {
-    return appendFlagOverlay({ defId, systemPromptDelivery, overlay, prompt }, { state });
+    return appendFlagOverlay({ systemPromptDelivery, overlay, prompt }, { capabilities });
   }
 
   if (systemPromptDelivery?.strategy === 'env-var') {
@@ -813,11 +743,11 @@ function defaultMkdtempInTmpdir(prefix: string): Promise<string> {
 }
 
 /** Phase 11: post-`buildArgs` guard for argv-bound defs whose resolved binary is a Windows shim/.exe — a no-op off-Windows and for non-argv-bound defs. */
-export async function guardWindowsCommandLineBudget({ input, deps }: { readonly input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly launchPath: string; readonly args: readonly string[] }; readonly deps: { readonly releaseStagedResources: () => Promise<void>; readonly failBeforeSpawn: FailBeforeSpawn } }
+export async function guardWindowsCommandLineBudget({ input, deps }: { readonly input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly launchPath: string; readonly args: readonly string[] }; readonly deps: { readonly windowsCmdShimBudget: AgentRuntimePort['launch']['windowsCmdShimBudget']; readonly windowsDirectExeBudget: AgentRuntimePort['launch']['windowsDirectExeBudget']; readonly releaseStagedResources: () => Promise<void>; readonly failBeforeSpawn: FailBeforeSpawn } }
 ): Promise<void> {
   const windowsBudgetError =
-    checkWindowsCmdShimCommandLineBudget({ def: input.def, resolvedBin: input.launchPath, args: input.args }) ??
-    checkWindowsDirectExeCommandLineBudget({ def: input.def, resolvedBin: input.launchPath, args: input.args });
+    deps.windowsCmdShimBudget({ def: input.def, resolvedBin: input.launchPath, args: input.args }) ??
+    deps.windowsDirectExeBudget({ def: input.def, resolvedBin: input.launchPath, args: input.args });
   if (windowsBudgetError) {
     await deps.releaseStagedResources();
     // `failBeforeSpawn` always rejects (`Promise<never>`); awaiting it propagates that rejection.
@@ -981,26 +911,12 @@ function httpMcpPreparationMessage(injection: CreateAgentExecutorOptions['mcpJso
  * @complexity `run()`'s own setup is O(1); steady-state cost is the chosen stream parser's.
  * @overallScore 100/100
  */
-export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOptions, "lifecycle" | "runtime" | "hostEnv">, optionalArgs: Pick<CreateAgentExecutorOptions, "runtimeState" | "codexDisablePlugins" | "piGracefulShutdownMs" | "getAgentDef" | "resolveAgentLaunch" | "resolveModelForLaunch" | "ensureAgentCapabilities" | "assertClaudeFilesystemSupport" | "applyAgentLaunchEnv" | "probeMcpBridge" | "attachAcpSession" | "acpPermissionHandler" | "attachPiRpcSession" | "preparePromptFileForAgent" | "prepareAgentLogFile" | "onCleanupFailure" | "journal" | "delegatedResultCorrelation" | "stdoutJournalBlobs" | "continuation" | "classifyFailure" | "mcpJsonInjection" | "claudeConfigDirIsolation" | "claudeConfigDirIsolationEnabled" | "bufferedStdoutMaxBytes" | "promptAugmenter"> = {}): AgentExecutor {
-  // The host passes its env; nothing here reads the ambient process env.
-  const env = requiredArgs.hostEnv;
-  const options: CreateAgentExecutorOptions & { readonly piGracefulShutdownMs: number } = { ...requiredArgs, ...optionalArgs,
-    codexDisablePlugins: resolveCodexDisablePlugins(optionalArgs.codexDisablePlugins, env),
-    piGracefulShutdownMs: resolvePiGracefulShutdownMs(optionalArgs.piGracefulShutdownMs, env),
-  };
+export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOptions, "lifecycle" | "runtime" | "hostEnv" | "agentRuntime">, optionalArgs: Pick<CreateAgentExecutorOptions, "probeMcpBridge" | "acpPermissionHandler" | "onCleanupFailure" | "journal" | "delegatedResultCorrelation" | "stdoutJournalBlobs" | "continuation" | "classifyFailure" | "mcpJsonInjection" | "claudeConfigDirIsolation" | "claudeConfigDirIsolationEnabled" | "bufferedStdoutMaxBytes" | "promptAugmenter"> = {}): AgentExecutor {
+  const options: CreateAgentExecutorOptions = { ...requiredArgs, ...optionalArgs };
   const lifecycle = options.lifecycle;
-  const hostEnv = selectAgentExecutorHostEnv({ env: options.hostEnv }, options.runtimeState ? { runtimeState: options.runtimeState } : {});
-  const {
-    getAgentDef: getAgentDefFn,
-    resolveAgentLaunch: resolveAgentLaunchFn,
-    ensureAgentCapabilities: ensureAgentCapabilitiesFn,
-    applyAgentLaunchEnv: applyAgentLaunchEnvFn,
-    attachAcpSession: attachAcpSessionFn,
-    attachPiRpcSession: attachPiRpcSessionFn,
-    preparePromptFileForAgent: preparePromptFileForAgentFn,
-    prepareAgentLogFile: prepareAgentLogFileFn,
-  } = resolveAgentRuntimeDeps({ ...options, hostEnv });
-  const { runtime } = options;
+  const { agentRuntime, runtime } = options;
+  // The host passes its env and the runtime names the host-configured variables it reads; nothing here reads the ambient process env.
+  const hostEnv = selectAgentExecutorHostEnv({ env: options.hostEnv, hostEnvNames: agentRuntime.launch.hostEnvNames() });
   const createCommandInvocationFn = createCommandPlanner({ commandShell: runtime.commandShell });
   const {
     listProcessSnapshots: listProcessSnapshotsFn,
@@ -1013,7 +929,6 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
   const claudeConfigDirIsolationEnabled = options.claudeConfigDirIsolationEnabled ?? false;
 
   const filesystemTemps = new Map<string, string[]>();
-  const verifyFilesystem = options.assertClaudeFilesystemSupport ?? claudeFilesystemAdapter.createProbe({});
 
   /** Remove this run's private temp directories on startup failure, exit, crash or cancellation.
    * O(d) removals for d staged directories; each failure is reported without skipping the others.
@@ -1081,19 +996,19 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
       return failBeforeSpawn({ runId: input.runId, code: 'AGENT_PERMISSION_MODE_INVALID', message: 'AgentExecutor: permissionMode must be restricted or bypass' });
     }
     // Lookup runs before the first await so a subsequent registry replacement cannot change this run's definition.
-    const resolved = await resolveDefAndStreamFormat({ input, deps: { getAgentDef: getAgentDefFn, failBeforeSpawn } });
+    const resolved = await resolveDefAndStreamFormat({ input, deps: { getAgentDef: (required) => agentRuntime.defs.get(required), failBeforeSpawn } });
     return { input, ...resolved };
   }
 
   async function enforceNativeToolPolicy({ input, def }: { input: MutableRunInput; def: RuntimeAgentDef }, _options = {}) {
-    Object.assign(input, resolveNativeToolPolicy({ def, policy: input }));
+    Object.assign(input, agentRuntime.launch.resolveNativeToolPolicy({ def, policy: input }));
     // Never silently ignore a host's locked native-tool policy on another CLI.
     // Parity cannot override an explicit lock or a restricted run.
     input.cliParity = input.cliParity === true && input.permissionMode === 'bypass' && input.nativeToolAccess !== false;
     // Hosts show ASK as an owner card before calling the executor. This backstop must
     // run before HTTP preparation or environment inheritance can mint/expose a run token.
     if (input.nativeToolAccess === undefined && input.nativeCapabilities === undefined) return;
-    const plan = planRun({ def, policy: input });
+    const plan = agentRuntime.launch.planRun({ def, policy: input });
     if (plan.verdict !== 'RUN') {
       const keys = plan.verdict === 'ASK' ? plan.keys.join(', ') : plan.reason;
       await failBeforeSpawn({ runId: input.runId, code: 'NATIVE_TOOL_POLICY_UNSUPPORTED',
@@ -1107,11 +1022,11 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
   async function enforceFilesystemPaths({ input, imageDelivery }: { input: MutableRunInput; imageDelivery: ImagePromptDelivery }, _options = {}) {
     if (input.filesystemRoot === undefined) return;
     try {
-      input.filesystemRoot = validateFilesystemLaunch({ filesystemRoot: input.filesystemRoot, cwd: input.cwd,
+      input.filesystemRoot = agentRuntime.filesystem.validateLaunch({ filesystemRoot: input.filesystemRoot, cwd: input.cwd,
         ...(imageDelivery.extraAllowedDirs ? { extraAllowedDirs: imageDelivery.extraAllowedDirs } : {}),
         ...(input.imagePaths ? { imagePaths: input.imagePaths } : {}),
-      }, {});
-      if (input.readOnlyExtraDirs) input.readOnlyExtraDirs = validateReadOnlyExtraDirs({ filesystemRoot: input.filesystemRoot, dirs: input.readOnlyExtraDirs }, {});
+      });
+      if (input.readOnlyExtraDirs) input.readOnlyExtraDirs = agentRuntime.filesystem.validateReadOnlyExtraDirs({ filesystemRoot: input.filesystemRoot, dirs: input.readOnlyExtraDirs });
       input.cwd = input.filesystemRoot;
     } catch {
       await failBeforeSpawn({ runId: input.runId, code: 'FILESYSTEM_POLICY_INVALID', message: 'Folder-limited launch refused: invalid filesystem root, working directory or attachment path.' });
@@ -1127,16 +1042,16 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
   }, _options = {}) {
     if (input.filesystemRoot === undefined) return;
     try {
-      const supported = await verifyFilesystem({ agentId: def.id, launchPath: launch.launchPath, env: spawnEnv }, {});
+      const supported = await agentRuntime.filesystem.assertSupport({ agentId: def.id, launchPath: launch.launchPath, env: spawnEnv });
       const runtimeDir = join(input.filesystemRoot, '.agent-runtime');
       await fsPromises.mkdir(runtimeDir, { recursive: true, mode: 0o700 });
       // Refuse a runtime-folder symlink escaping the site before creating anything beneath it.
-      validateFilesystemLaunch({ filesystemRoot: input.filesystemRoot, cwd: input.cwd, extraAllowedDirs: [runtimeDir] }, {});
+      agentRuntime.filesystem.validateLaunch({ filesystemRoot: input.filesystemRoot, cwd: input.cwd, extraAllowedDirs: [runtimeDir] });
       input.filesystemTempDir = await fsPromises.realpath(await fsPromises.mkdtemp(join(runtimeDir, 'tmp-')));
       const runtimeTemps = [input.filesystemTempDir];
       filesystemTemps.set(input.runId, runtimeTemps);
       // Recheck after creation too: swapping the runtime symlink must never grant outside temp access.
-      validateFilesystemLaunch({ filesystemRoot: input.filesystemRoot, cwd: input.cwd, extraAllowedDirs: [input.filesystemTempDir] }, {});
+      agentRuntime.filesystem.validateLaunch({ filesystemRoot: input.filesystemRoot, cwd: input.cwd, extraAllowedDirs: [input.filesystemTempDir] });
       input.filesystemSharedTempRoots = [spawnEnv.TMPDIR, spawnEnv.TMP, spawnEnv.TEMP].filter((path): path is string => Boolean(path));
       spawnEnv.TMPDIR = input.filesystemTempDir;
       spawnEnv.TMP = input.filesystemTempDir;
@@ -1153,7 +1068,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
       }
       if (supported === undefined) console.warn('[agent-executor] filesystem capability unknown; applying read block and sandbox settings');
       // A host-supplied probe may report support for another id; preserve the existing policy in that case.
-      (filesystemAdapter ?? claudeFilesystemAdapter).supported({ input, launchPath: launch.launchPath, spawnEnv });
+      (filesystemAdapter ?? claudeFilesystemAdapter).supported({ input, launchPath: launch.launchPath, spawnEnv }, { filesystem: agentRuntime.filesystem });
     } catch {
       await failBeforeSpawn({ runId: input.runId, code: 'FILESYSTEM_POLICY_UNSUPPORTED', message: 'Folder-limited launch refused: invalid host settings or private runtime directory.' });
     }
@@ -1182,14 +1097,13 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     const hostOverlay = computeSystemPromptOverlay(promptAugmenter, def.id);
     const systemPromptOverlay = input.filesystemNotice ? `${hostOverlay ?? ''}\n${input.filesystemNotice}\n` : hostOverlay;
     const overlayDelivery = resolveSystemPromptOverlayDelivery({
-      defId: def.id,
       systemPromptDelivery: def.systemPromptDelivery,
       resumesSessionViaCli: def.resumesSessionViaCli,
       resumesSessionViaAcpLoad: def.resumesSessionViaAcpLoad,
       overlay: systemPromptOverlay,
       prompt: imageDelivery.prompt,
       resumeSessionId: preStagingRuntimeContext?.resumeSessionId,
-    }, options.runtimeState ? { state: options.runtimeState } : {});
+    }, { capabilities: agentRuntime.defs.capabilities({ defId: def.id }) });
 
     return { systemPromptOverlay, overlayDelivery };
   }
@@ -1205,10 +1119,10 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // Eager loading was cheap only for the isolated bridge. Let the user's CLI decide in parity.
     if (input.cliParity) delete defaults.ENABLE_TOOL_SEARCH;
     const resolvedEnv = { ...defaults, ...resolveRunEnv({ input: input, hostEnv }) };
-    const launch = await resolveLaunch({ input: { runId: input.runId, def, resolvedEnv }, deps: { resolveAgentLaunch: resolveAgentLaunchFn, failBeforeSpawn } }
+    const launch = await resolveLaunch({ input: { runId: input.runId, def, resolvedEnv }, deps: { resolveAgentLaunch: (required, optional) => agentRuntime.launch.resolve(required, optional), failBeforeSpawn } }
     );
 
-    const spawnEnv = applyAgentLaunchEnvFn({ env: { ...resolvedEnv }, launch });
+    const spawnEnv = agentRuntime.launch.applyEnv({ env: { ...resolvedEnv }, launch });
     return { launch, spawnEnv };
   }
 
@@ -1219,8 +1133,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     let modelCatalog: ModelCatalogSnapshot | undefined;
     if (!input.cliParity || input.reasoning) {
       try {
-        const selectModel = options.resolveModelForLaunch ?? ((input: Parameters<typeof resolveModelForLaunch>[0]) => resolveModelForLaunch(input, options.runtimeState ? { deps: getRuntimeModelDiscoveryDeps({ state: options.runtimeState }) } : {}));
-        const selection = await selectModel({ def, context: launchModelContext({ input, launch, spawnEnv }, {}), effort: input.reasoning });
+        const selection = await agentRuntime.models.resolveForLaunch({ def, context: launchModelContext({ input, launch, spawnEnv }, {}), ...(input.reasoning === undefined ? {} : { effort: input.reasoning }) });
         input.model = selection.model;
         modelCatalog = selection.catalog;
       } catch (error) {
@@ -1252,6 +1165,8 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
           streamFormat: formatForStdin.streamFormat,
           child,
           lifecycle,
+          streams: agentRuntime.streams,
+          identityKind: (required) => agentRuntime.models.identityKind(required),
           listProcessSnapshots: listProcessSnapshotsFn,
           collectProcessTreePids: collectProcessTreePidsFn,
           stopProcesses: stopProcessesFn,
@@ -1313,7 +1228,8 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
         mcpBridge,
       }, deps: {
         lifecycle,
-        attachAcpSession: attachAcpSessionFn,
+        attachAcpSession: (required, optional) => agentRuntime.sessions.attachAcp(required, optional),
+        identityKind: (required) => agentRuntime.models.identityKind(required),
         ...(mcpBridge && supportsMessageRelay({ def }) ? { registerMessageRelay: (relay: RunMessageRelay) => liveRunRelays.set(input.runId, relay) } : {}),
         onPermissionRequest: options.acpPermissionHandler,
         listProcessSnapshots: listProcessSnapshotsFn,
@@ -1349,7 +1265,8 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
         uploadRoot: input.uploadRoot,
       }, deps: {
         lifecycle,
-        attachPiRpcSession: attachPiRpcSessionFn,
+        attachPiRpcSession: (required, optional) => agentRuntime.sessions.attachPiRpc(required, optional),
+        identityKind: (required) => agentRuntime.models.identityKind(required),
         listProcessSnapshots: listProcessSnapshotsFn,
         collectProcessTreePids: collectProcessTreePidsFn,
         stopProcesses: stopProcessesFn,
@@ -1436,7 +1353,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // defs' own native protocol already delivers the image and must never also get this
     // treatment (the double-delivery hazard this mechanism exists to avoid).
     await enforceNativeToolPolicy({ input, def }, {});
-    const imageDelivery = await resolveImageDeliveryAndArgvBudget({ input: { runId: input.runId, def, prompt: input.prompt, imagePaths: input.imagePaths, extraAllowedDirs: input.extraAllowedDirs }, deps: { failBeforeSpawn } }
+    const imageDelivery = await resolveImageDeliveryAndArgvBudget({ input: { runId: input.runId, def, prompt: input.prompt, imagePaths: input.imagePaths, extraAllowedDirs: input.extraAllowedDirs }, deps: { promptArgvBudget: (required, optional) => agentRuntime.launch.promptArgvBudget(required, optional), failBeforeSpawn } }
     );
     await enforceFilesystemPaths({ input, imageDelivery }, {});
 
@@ -1448,7 +1365,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // host that happened to call `detectAgents` in THIS process ever had the gate filled, so e.g.
     // `claude` never got `--include-partial-messages` (no streamed text). Probes once per binary;
     // never rejects (a failed probe keeps the safe no-optional-flags baseline).
-    await ensureAgentCapabilitiesFn({ def, launchPath: launch.launchPath, env: spawnEnv });
+    await agentRuntime.defs.ensureCapabilities({ def, launchPath: launch.launchPath, env: spawnEnv });
 
     // Stage a promptViaFile def's (grok-build) prompt to a temp file before buildArgs runs — its
     // buildArgs throws without runtimeContext.promptFilePath. A no-op (returns null) for every
@@ -1457,14 +1374,14 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // `overlayDelivery.prompt`, not `imageDelivery.prompt`: for a `promptViaFile` def this file IS
     // the prompt transport — its `buildArgs` declares `_prompt` and passes only the path — so the
     // overlay has to be in the bytes written here or the CLI never sees it at all.
-    const preparedPromptFile = await stagePromptFile({ input: { runId: input.runId, def, prompt: overlayDelivery.prompt }, deps: { preparePromptFileForAgent: preparePromptFileForAgentFn, failBeforeSpawn } }
+    const preparedPromptFile = await stagePromptFile({ input: { runId: input.runId, def, prompt: overlayDelivery.prompt }, deps: { preparePromptFileForAgent: (required) => agentRuntime.launch.preparePromptFile(required), failBeforeSpawn } }
     );
     // Stage a needsAgentLogFile def's (antigravity) diagnostic-log path, on the same terms and at
     // the same point as the prompt file above: before buildArgs, since buildArgs is what turns the
     // path into a `--log-file <path>` argument. A no-op (returns null) for every def without
     // `needsAgentLogFile: true` (prepareAgentLogFile's own guard). Sequenced after the prompt file
     // rather than concurrently so the failure path above has exactly one thing to clean up.
-    const preparedLogFile = await stageLogFile({ input: { runId: input.runId, def, preparedPromptFile }, deps: { prepareAgentLogFile: prepareAgentLogFileFn, failBeforeSpawn } }
+    const preparedLogFile = await stageLogFile({ input: { runId: input.runId, def, preparedPromptFile }, deps: { prepareAgentLogFile: (required) => agentRuntime.launch.prepareLogFile(required), failBeforeSpawn } }
     );
 
     // Cleaned up after the child exits (wireChildLifecycle/wireAcpLifecycle/wirePiRpcLifecycle's
@@ -1631,7 +1548,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // Windows .cmd/.bat shim or a direct .exe: a prompt under the raw byte
     // budget can still expand past CreateProcess's command-line cap once
     // quote-escaped. Both are no-ops off-Windows / for non-argv-bound defs.
-    await guardWindowsCommandLineBudget({ input: { runId: input.runId, def, launchPath: launch.launchPath, args }, deps: { releaseStagedResources, failBeforeSpawn } }
+    await guardWindowsCommandLineBudget({ input: { runId: input.runId, def, launchPath: launch.launchPath, args }, deps: { windowsCmdShimBudget: (required) => agentRuntime.launch.windowsCmdShimBudget(required), windowsDirectExeBudget: (required) => agentRuntime.launch.windowsDirectExeBudget(required), releaseStagedResources, failBeforeSpawn } }
     );
 
     const invocation = await prepareRunCommand({ command: launch.launchPath, args, env: childEnv, runId: input.runId }, {

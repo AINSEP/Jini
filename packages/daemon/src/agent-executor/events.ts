@@ -21,13 +21,7 @@ import type {
    JournalEntry,
    RunAgentPayload,
 } from '@jini-ai/protocol';
-import {
-  createClaudeStreamHandler,
-  createJsonEventStreamHandler,
-  createQoderStreamHandler,
-  attachAcpSession,
-  attachPiRpcSession,
-} from '@jini-ai/agent-runtime';
+import type { AgentRuntimePort } from '../ports/agent-runtime.js';
 import type { AcpMcpServerInput, AcpPermissionHandler, AcpSessionController, PiRpcSession } from '../ports/agent-runtime-sessions.js';
 import { type RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import {
@@ -104,18 +98,15 @@ function statusWithChildIdentity(
  * @complexity O(1) dispatch; the returned handler's own per-chunk cost is the parser's.
  * @overallScore 100/100
  */
-function createStreamHandlerForDef(
-  def: RuntimeAgentDef,
-  streamFormat: JsonStreamFormat,
-  onEvent: (event: Record<string, unknown>) => void,
-): StreamHandler {
+function createStreamHandlerForDef({ def, streamFormat, streams }: { def: RuntimeAgentDef; streamFormat: JsonStreamFormat; streams: AgentRuntimePort['streams'] },
+  { onEvent }: { onEvent: (event: Record<string, unknown>) => void }): StreamHandler {
   switch (streamFormat) {
     case 'claude-stream-json':
-      return createClaudeStreamHandler({ onEvent: onEvent }, { costBasis: def.usageCostBasis ?? 'run' });
+      return streams.claude({ onEvent: onEvent }, { costBasis: def.usageCostBasis ?? 'run' });
     case 'qoder-stream-json':
-      return createQoderStreamHandler({ onEvent: onEvent });
+      return streams.qoder({ onEvent: onEvent });
     case 'json-event-stream':
-      return createJsonEventStreamHandler({ kind: def.eventParser ?? '', onEvent: createCliToolCallReceiver({ kind: def.eventParser ?? '', onEvent }) });
+      return streams.jsonEvents({ kind: def.eventParser ?? '', onEvent: createCliToolCallReceiver({ kind: def.eventParser ?? '', onEvent }) });
     default: {
       // Unreachable: every stream format has a case above, and a new one fails typecheck here.
       const unknownFormat: never = streamFormat;
@@ -326,6 +317,8 @@ function attachMessageRelay({ register, emit, child }: {
 }
 
 interface WireChildLifecycleContext extends TerminateChildTreeDeps {
+  readonly streams: AgentRuntimePort['streams'];
+  readonly identityKind: AgentRuntimePort['models']['identityKind'];
   readonly registerMessageRelay?: (relay: RunMessageRelay) => void;
   readonly delegatedResultCorrelation?: DelegatedResultCorrelation;
   readonly stdoutJournalBlobs?: StdoutJournalBlobPort;
@@ -464,7 +457,7 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
   const { runId, def, streamFormat, child, lifecycle, journal, continuation, classifyFailure } = ctx;
   const stdoutDiagnostics = createStdoutDiagnostics({ ctx, enqueueEmit });
   const output = observeRunOutput({ lifecycle, runId, agentName: def.name }, { plainStdout: streamFormat === 'plain' });
-  const modelReceipt = createModelReceiptTracker(ctx.startingModel, ctx.modelCatalog?.models);
+  const modelReceipt = createModelReceiptTracker({ identityKind: ctx.identityKind, startingModel: ctx.startingModel }, { models: ctx.modelCatalog?.models });
   let stdinClosed = false;
   let cancelRequested = false;
   let emitQueue: Promise<void> = Promise.resolve();
@@ -683,7 +676,7 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
   const streamHandler: StreamHandler | null =
     streamFormat === 'plain'
       ? null
-      : createStreamHandlerForDef(def, streamFormat, (rawEvent) => {
+      : createStreamHandlerForDef({ def, streamFormat, streams: ctx.streams }, { onEvent: (rawEvent) => {
           if (bridgeUnavailable) return;
           const translation = translateAgentRuntimeEvent({ rawEvent: rawEvent });
           if (translation.kind === 'agent') {
@@ -711,7 +704,7 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
           if (translation.kind === 'turn-end') {
             handleTurnEnd(translation.stopReason);
           }
-        });
+        } });
 
   /** Verify against an already-saved call in this run; unverified metadata preserves all output. */
   function projectEcho({ payload, rawEvent }: { payload: RunAgentPayload; rawEvent: Record<string, unknown> }, _options = {}): RunAgentPayload {
@@ -972,7 +965,8 @@ interface WireAcpLifecycleContext extends TerminateChildTreeDeps {
    */
   readonly mcpServers: readonly AcpMcpServerInput[] | undefined;
   readonly onPermissionRequest: AcpPermissionHandler | undefined;
-  readonly attachAcpSession: typeof attachAcpSession;
+  readonly attachAcpSession: AgentRuntimePort['sessions']['attachAcp'];
+  readonly identityKind: AgentRuntimePort['models']['identityKind'];
   readonly onCleanupFailure: (context: AgentCleanupFailureContext) => void;
   /** Same seam as `WireChildLifecycleContext.cleanupStagedFiles` — no current ACP def declares `promptViaFile` or `needsAgentLogFile`, so this is always the no-op default in practice today, threaded through for consistency rather than special-cased away. */
   readonly cleanupStagedFiles: () => Promise<void>;
@@ -983,7 +977,7 @@ interface WireAcpLifecycleContext extends TerminateChildTreeDeps {
 }
 
 /** Preserve ACP's distinction between absent fields and explicitly supplied empty values. */
-function acpSessionOptions({ ctx }: { ctx: WireAcpLifecycleContext }, _options = {}): Parameters<typeof attachAcpSession>[1] {
+function acpSessionOptions({ ctx }: { ctx: WireAcpLifecycleContext }, _options = {}): Parameters<AgentRuntimePort['sessions']['attachAcp']>[1] {
   return {
     cwd: ctx.cwd,
     ...(ctx.cliParity ? { cliParity: true, stageTimeoutMs: 0 } : {}),
@@ -1009,7 +1003,7 @@ function acpSessionOptions({ ctx }: { ctx: WireAcpLifecycleContext }, _options =
  * success.
  */
 function wireAcpLifecycle(ctx: WireAcpLifecycleContext): AcpSessionController {
-  const modelReceipt = createModelReceiptTracker(ctx.model, ctx.modelCatalog?.models);
+  const modelReceipt = createModelReceiptTracker({ identityKind: ctx.identityKind, startingModel: ctx.model }, { models: ctx.modelCatalog?.models });
   const { runId, agentId, child, lifecycle, journal, classifyFailure } = ctx;
   const output = observeRunOutput({ lifecycle, runId, agentName: agentId });
   let cancelRequested = false;
@@ -1109,7 +1103,8 @@ interface WirePiRpcLifecycleContext extends TerminateChildTreeDeps {
   readonly modelCatalog?: ModelCatalogSnapshot;
   readonly imagePaths: readonly string[];
   readonly uploadRoot: string | undefined;
-  readonly attachPiRpcSession: typeof attachPiRpcSession;
+  readonly attachPiRpcSession: AgentRuntimePort['sessions']['attachPiRpc'];
+  readonly identityKind: AgentRuntimePort['models']['identityKind'];
   readonly onCleanupFailure: (context: AgentCleanupFailureContext) => void;
   /** Same seam as `WireChildLifecycleContext.cleanupStagedFiles` — no current pi-rpc def declares `promptViaFile` or `needsAgentLogFile`, so this is always the no-op default in practice today, threaded through for consistency rather than special-cased away. */
   readonly cleanupStagedFiles: () => Promise<void>;
@@ -1139,7 +1134,7 @@ interface WirePiRpcLifecycleContext extends TerminateChildTreeDeps {
  * multi-turn tool continuation, resumable session ids, etc.).
  */
 function wirePiRpcLifecycle(ctx: WirePiRpcLifecycleContext): PiRpcSession {
-  const modelReceipt = createModelReceiptTracker(ctx.model, ctx.modelCatalog?.models);
+  const modelReceipt = createModelReceiptTracker({ identityKind: ctx.identityKind, startingModel: ctx.model }, { models: ctx.modelCatalog?.models });
   const { runId, agentId, child, lifecycle, journal, classifyFailure } = ctx;
   const output = observeRunOutput({ lifecycle, runId, agentName: agentId });
   let cancelRequested = false;
@@ -1268,7 +1263,8 @@ interface RunAcpDispatchInput {
 interface RunAcpDispatchDeps extends TerminateChildTreeDeps {
   readonly registerMessageRelay?: (relay: RunMessageRelay) => void;
   readonly lifecycle: RunLifecycle;
-  readonly attachAcpSession: typeof attachAcpSession;
+  readonly attachAcpSession: AgentRuntimePort['sessions']['attachAcp'];
+  readonly identityKind: AgentRuntimePort['models']['identityKind'];
   readonly onPermissionRequest: AcpPermissionHandler | undefined;
   readonly onCleanupFailure: (context: AgentCleanupFailureContext) => void;
   readonly cleanupStagedFiles: () => Promise<void>;
@@ -1300,6 +1296,7 @@ export async function runAcpDispatch({ input, deps }: { readonly input: RunAcpDi
       mcpServers: input.mcpBridge?.kind === 'acp-merge' ? input.mcpBridge.mcpServers : undefined,
       onPermissionRequest: deps.onPermissionRequest,
       attachAcpSession: deps.attachAcpSession,
+      identityKind: deps.identityKind,
       listProcessSnapshots: deps.listProcessSnapshots,
       collectProcessTreePids: deps.collectProcessTreePids,
       stopProcesses: deps.stopProcesses,
@@ -1341,7 +1338,8 @@ interface RunPiRpcDispatchInput {
 
 interface RunPiRpcDispatchDeps extends TerminateChildTreeDeps {
   readonly lifecycle: RunLifecycle;
-  readonly attachPiRpcSession: typeof attachPiRpcSession;
+  readonly attachPiRpcSession: AgentRuntimePort['sessions']['attachPiRpc'];
+  readonly identityKind: AgentRuntimePort['models']['identityKind'];
   readonly onCleanupFailure: (context: AgentCleanupFailureContext) => void;
   readonly cleanupStagedFiles: () => Promise<void>;
   readonly journal: RunByteJournal | undefined;
@@ -1365,6 +1363,7 @@ export async function runPiRpcDispatch({ input, deps }: { readonly input: RunPiR
       imagePaths: input.imagePaths,
       uploadRoot: input.uploadRoot,
       attachPiRpcSession: deps.attachPiRpcSession,
+      identityKind: deps.identityKind,
       listProcessSnapshots: deps.listProcessSnapshots,
       collectProcessTreePids: deps.collectProcessTreePids,
       stopProcesses: deps.stopProcesses,

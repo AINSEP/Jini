@@ -24,10 +24,6 @@ import { omitKeys } from '../../core/omit-keys.js';
 
 export const CODEX_HOME_ENV = 'CODEX_HOME';
 
-export function resolveCodexDisablePlugins(value: boolean | undefined, env: NodeJS.ProcessEnv): boolean {
-  return value ?? (env.CODEX_DISABLE_PLUGINS === '1');
-}
-
 /**
  * Where `'codex-toml'` reads the operator's REAL Codex config from, to seed a run's scratch copy —
  * never where it writes. Resolved against the daemon HOST process's own environment (`hostEnv`,

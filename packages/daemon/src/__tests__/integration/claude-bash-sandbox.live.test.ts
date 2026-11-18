@@ -1,3 +1,4 @@
+import { createAgentRuntimeBindings, createNativeAgentRuntime } from '@jini-ai/agent-runtime';
 import { spawn, type ChildProcess, type SpawnOptions } from 'node:child_process';
 import { accessSync, constants, statSync } from 'node:fs';
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
@@ -119,7 +120,7 @@ it.skipIf(Boolean(reason))('runs one real Claude Bash command inside the daemon 
     child.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString('utf8'); });
     return child;
   }) satisfies SpawnFunction;
-  const executor = daemon.createAgentExecutor({ lifecycle, hostEnv: process.env, runtime: {
+  const executor = daemon.createAgentExecutor({ lifecycle, hostEnv: process.env, agentRuntime: createAgentRuntimeBindings({ runtime: createNativeAgentRuntime({ env: process.env }) }), runtime: {
     spawn: createSpawnPort({ spawn: spawnLive }), processes: nodeProcessControl, fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell({ env: process.env }),
   } });
   const timeout = setTimeout(() => {

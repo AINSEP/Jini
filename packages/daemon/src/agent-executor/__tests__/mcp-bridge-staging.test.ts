@@ -1,3 +1,4 @@
+import { agentRuntimeFixture } from './runtime-fixture.js';
 import { EventEmitter } from 'node:events';
 import type { ChildProcess } from 'node:child_process';
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -143,7 +144,7 @@ it('runAcpDispatch omits permissionMode from the ACP attach when its caller supp
   await runAcpDispatch({
     input: { runId: run.id, agentId: 'acp-agent', child: child as unknown as ChildProcess, prompt: 'go', cwd: '/work',
       permissionMode: undefined, model: undefined, imagePaths: [], envFormat: undefined, mcpBridge: null },
-    deps: { lifecycle, attachAcpSession: attach, onPermissionRequest: undefined, onCleanupFailure: () => {},
+    deps: { lifecycle, attachAcpSession: attach, identityKind: agentRuntimeFixture().models.identityKind, onPermissionRequest: undefined, onCleanupFailure: () => {},
       cleanupStagedFiles: async () => {}, journal: undefined, classifyFailure: undefined, releaseStagedResources: async () => {},
       failBeforeSpawn: refuse, listProcessSnapshots: async () => [], collectProcessTreePids: () => [],
       stopProcesses: async () => ({ alreadyStopped: true, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }) },
