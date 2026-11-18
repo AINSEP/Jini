@@ -75,5 +75,5 @@ export type ClaudeStreamEvent =
 
 export function createClaudeStreamHandler({ onEvent }: { onEvent: EventSink }, options: ClaudeStreamHandlerOptions = {}
 ) {
-  return createStreamHandlerImpl(onEvent, options);
+  return createStreamHandlerImpl({ onEvent, options });
 }
