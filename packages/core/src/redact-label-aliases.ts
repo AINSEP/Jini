@@ -28,18 +28,22 @@ const ownedByEngine = ({ name, before, escaped }: { name: string | undefined; be
 const QUOTED = String.raw`"(?:\\.|[^"\\\r\n])*"?|'(?:\\.|[^'\\\r\n])*'?`;
 // `label=value`: the value is one unquoted run or a quoted string; an unclosed quote runs to the line end.
 const ASSIGNMENT_RE = new RegExp(`${NAME}[ \\t]*=[ \\t]*(?<value>${QUOTED}|[^\\s"'&,;})]+)`, 'gi');
+// A quoted value may hold backslash escapes (`"a\\"b"`, `"C:\\\\keys"`); an escape is read as one unit so an escaped quote
+// does not end the value early and a backslash does not stop it (the closing quote still must not be escaped). A quoted
+// value may also sit on the line after the key, as pretty-printed or wrapped JSON puts it.
+const NEXT_LINE_QUOTE = String.raw`(?:\r?\n[ \t]*)?`;
 // `"label": "value"` and `{ label: 'value' }` (also inside an escaped JSON string), or a bare single token.
 const COLON_RE = new RegExp(
   `(?<open>\\\\?["']?)${NAME}\\k<open>[ \\t]*:[ \\t]*`
-    + `(?:(?<quote>\\\\?["'])(?<quoted>(?:(?!\\k<quote>)[^\\\\\\r\\n])+)\\k<quote>|(?<bare>[^\\s"',;}]{12,}))`,
+    + `(?:${NEXT_LINE_QUOTE}(?<quote>\\\\?["'])(?<quoted>(?:(?!\\k<quote>)(?:\\\\[^\\r\\n]|[^\\\\\\r\\n]))+)\\k<quote>|(?<bare>[^\\s"',;}]{12,}))`,
   'gi',
 );
 
 // `"user password": "value"`: a quoted key of several words whose last words name a credential. A key with no
 // separator is a plain name the rules above already read; this one adds the names they cannot (a space or dot).
 const QUOTED_KEY_RE = new RegExp(
-  `(?<open>\\\\?["'])(?<name>[A-Za-z0-9][A-Za-z0-9 _.-]{0,60}?)\\k<open>[ \\t]*:[ \\t]*`
-    + `(?<quote>\\\\?["'])(?<quoted>(?:(?!\\k<quote>)[^\\\\\\r\\n])+)\\k<quote>`,
+  `(?<open>\\\\?["'])(?<name>[A-Za-z0-9][A-Za-z0-9 _.-]{0,160}?)\\k<open>[ \\t]*:[ \\t]*`
+    + `${NEXT_LINE_QUOTE}(?<quote>\\\\?["'])(?<quoted>(?:(?!\\k<quote>)(?:\\\\[^\\r\\n]|[^\\\\\\r\\n]))+)\\k<quote>`,
   'g',
 );
 const CREDENTIAL_KEY_END = /(?:^|[ _.-])(?:password|passwd|pwd|secret|token|api[ _-]?key|private[ _-]?key|access[ _-]?key|secret[ _-]?key|client[ _-]?secret|(?:access|refresh|auth|id)[ _-]?token|(?:signing|webhook)[ _-]?secret)$/i;
@@ -65,7 +69,7 @@ function quotedKeyRanges({ text }: { readonly text: string }): ValueRange[] {
 /** Ranges of a next-line value after a prefixed name; the engine's own exact names are left to its rules. */
 function nextLineRanges({ text }: { readonly text: string }): ValueRange[] {
   return NEXT_LINE_RES.flatMap(rule => [...text.matchAll(rule)])
-    .filter(match => !isEngineLabelName(match.groups?.name) && (match.groups?.name ?? '').length > 0 && /[_-]/.test(match.groups?.name ?? ''))
+    .filter(match => !ownedByEngine({ name: match.groups?.name, before: text[(match.index ?? 0) - 1], escaped: false }))
     .map(match => assignedValueRange({ match }));
 }
 
