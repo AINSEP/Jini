@@ -13,7 +13,7 @@ function manifest(directory: string, fs: PackagingFilesystemPort): Manifest {
 function safePackageName(name: string): void {
   if (!/^(?:@[a-zA-Z0-9._-]+\/)?[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(name) || name === '..') throw new Error(`Invalid package name: ${name}`);
 }
-export function isExcluded({ name, excluded }: { name: string; excluded: ReadonlySet<string> }): boolean {
+export function isExcluded({ name, excluded }: { name: string; excluded: ReadonlySet<string> }, _optional: Record<string, never> = {}): boolean {
   return excluded.has(name) || excluded.has(name.replace(/\\/g, '/').split('/')[0]!);
 }
 export function declaredDependencies({ packageDir, fs }: { packageDir: string; fs: PackagingFilesystemPort }): string[] {
@@ -164,7 +164,7 @@ export function stageTransitiveDependencies(required: {
   return count;
 }
 /** Enumerate real package roots, treating scoped directories as containers. */
-export function stagedPackageDirs({ modulesDir, fs }: { modulesDir: string; fs: PackagingFilesystemPort }): string[] {
+export function stagedPackageDirs({ modulesDir, fs }: { modulesDir: string; fs: PackagingFilesystemPort }, _optional: Record<string, never> = {}): string[] {
   if (!fs.exists({ path: modulesDir })) return [];
   return fs.entries({ path: modulesDir }).filter(entry => !entry.startsWith('.')).flatMap(entry => {
     const full = path.join(modulesDir, entry);
@@ -219,19 +219,19 @@ export function assertClosureComplete(required: { outDir: string; excluded: Read
 /** Share the existing workspace build/pack/rewritten-tarball implementation via a host binding. */
 export function stagePackedWorkspace(required: {
   repoRoot: string; packagesDir: string; rootNames: readonly string[]; destDir: string; packer: WorkspacePackagePackerPort;
-}): ReturnType<WorkspacePackagePackerPort['pack']> {
+}, _optional: Record<string, never> = {}): ReturnType<WorkspacePackagePackerPort['pack']> {
   const { packer, ...input } = required;
   return packer.pack(input);
 }
 /** Run npm's dependency listing through an explicit process port, then parse with parseNpmLsPaths. */
-export function productionDependencyOutput(required: { command: string; args: readonly string[]; cwd: string; shell: boolean; runner: ProcessRunnerPort }): string {
+export function productionDependencyOutput(required: { command: string; args: readonly string[]; cwd: string; shell: boolean; runner: ProcessRunnerPort }, _optional: Record<string, never> = {}): string {
   const { runner, ...request } = required;
   const result = runner.run(request);
   if (result.exitCode !== 0) throw new Error(`dependency listing failed with exit ${result.exitCode}`);
   return result.stdout;
 }
 /** Source freshness scan ignores non-bundle inputs, hidden entries and dependency trees. */
-export function newestMtime({ absolutePath, fs }: { absolutePath: string; fs: PackagingFilesystemPort }): number {
+export function newestMtime({ absolutePath, fs }: { absolutePath: string; fs: PackagingFilesystemPort }, _optional: Record<string, never> = {}): number {
   if (!fs.exists({ path: absolutePath })) return 0;
   const info = fs.stat({ path: absolutePath });
   if (info.kind !== 'directory') return info.kind === 'file' && isBundleInput({ relPath: absolutePath }) ? info.mtimeMs : 0;
@@ -242,13 +242,13 @@ export function newestMtime({ absolutePath, fs }: { absolutePath: string; fs: Pa
   }
   return newest;
 }
-export function diskBytes({ absolutePath, fs }: { absolutePath: string; fs: PackagingFilesystemPort }): number {
+export function diskBytes({ absolutePath, fs }: { absolutePath: string; fs: PackagingFilesystemPort }, _optional: Record<string, never> = {}): number {
   const info = fs.stat({ path: absolutePath });
   return info.kind === 'directory' ? fs.entries({ path: absolutePath }).reduce((sum, name) => sum + diskBytes({ absolutePath: path.join(absolutePath, name), fs }), 0) : info.diskBytes;
 }
 export interface StripTally { declaration: number; sourceMap: number; coverage: number; bytes: number }
 /** Only staged roots are accepted; the caller must keep them separate from its source dependency tree. */
-export function stripNonRuntimeFiles(required: { outDir: string; keepScopes: ReadonlySet<string>; fs: PackagingFilesystemPort }): StripTally {
+export function stripNonRuntimeFiles(required: { outDir: string; keepScopes: ReadonlySet<string>; fs: PackagingFilesystemPort }, _optional: Record<string, never> = {}): StripTally {
   const { outDir, keepScopes, fs } = required;
   const modulesDir = path.join(outDir, 'node_modules');
   const tally: StripTally = { declaration: 0, sourceMap: 0, coverage: 0, bytes: 0 };
@@ -292,7 +292,7 @@ function packagePruneRemovals(required: { directory: string; modulesDir: string;
   return [...foreign, ...buildInputs];
 }
 /** Verify every target before removing foreign prebuilds or source build inputs. */
-export function pruneNativePrebuilds(required: { outDir: string; targets: readonly Target[]; fs: PackagingFilesystemPort }): PruneTally {
+export function pruneNativePrebuilds(required: { outDir: string; targets: readonly Target[]; fs: PackagingFilesystemPort }, _optional: Record<string, never> = {}): PruneTally {
   const { outDir, targets, fs } = required;
   if (!targets.length) throw new Error('at least one native target is required');
   const modulesDir = path.join(outDir, 'node_modules');
@@ -302,7 +302,7 @@ export function pruneNativePrebuilds(required: { outDir: string; targets: readon
   return tally;
 }
 /** Runtime copy inventory is required, so no product shells or payload paths live in this package. */
-export function stagePayloadFiles(required: { repoRoot: string; outDir: string; relativePaths: readonly string[]; fs: PackagingFilesystemPort }): void {
+export function stagePayloadFiles(required: { repoRoot: string; outDir: string; relativePaths: readonly string[]; fs: PackagingFilesystemPort }, _optional: Record<string, never> = {}): void {
   const entries = required.relativePaths.map(relative => {
     if (!relative || path.isAbsolute(relative) || relative.replace(/\\/g, '/').split('/').some(x => x === '..' || x === '.')) throw new Error(`Unsafe payload path: ${relative}`);
     const from = path.join(required.repoRoot, relative);
@@ -313,14 +313,14 @@ export function stagePayloadFiles(required: { repoRoot: string; outDir: string; 
 }
 
 /** Detect Mach-O/ELF/PE magic from bytes; short files are valid inputs. */
-export function hasNativeBinaryMagic({ bytes }: { bytes: Uint8Array }): boolean {
+export function hasNativeBinaryMagic({ bytes }: { bytes: Uint8Array }, _optional: Record<string, never> = {}): boolean {
   const hex = Buffer.from(bytes.subarray(0, 4)).toString('hex');
   return ['feedface', 'feedfacf', 'cafebabe', 'cefaedfe', 'cffaedfe', '7f454c46', '4d5a'].some(prefix => hex.startsWith(prefix));
 }
 /** Stage npm with an explicit drop policy, refusing unsigned native binaries before any copy. */
 export function stageBundledNpm(required: {
   npmSource: string; outDir: string; marker: string; droppedDirectoryNames: ReadonlySet<string>; droppedFileSuffixes: readonly string[]; fs: PackagingFilesystemPort;
-}): { fileCount: number; bytes: number } {
+}, _optional: Record<string, never> = {}): { fileCount: number; bytes: number } {
   const { npmSource, outDir, marker, droppedDirectoryNames, droppedFileSuffixes, fs } = required;
   if (!marker || path.isAbsolute(marker) || marker.replace(/\\/g, '/').split('/').some(x => x === '.' || x === '..')) throw new Error('Invalid npm marker');
   if (!fs.exists({ path: path.join(npmSource, marker) })) throw new Error(`stageBundledNpm: no ${marker} under ${npmSource}`);

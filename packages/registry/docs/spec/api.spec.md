@@ -10,7 +10,7 @@ spec_mode: reverse_spec
 
 Public exports are `.`, `./tool-catalog`, `./tool-catalog/sqlite`, `./tool-catalog-builder`, and `./tool-catalog-builder/sqlite`. Root provides content-registry implementations and trust/version helpers; catalog is a separate tool-discovery port. Root uses Node crypto and protocol wire schemas; the catalog port is type-only and universal. SQLite integrations require consumer-owned connections and driver support.
 
-Public functions and constructors use required objects and optional configuration objects where declared. A one-object signature has no declared second argument. Base Clock, JSON and HTTP contracts come from `@jini-ai/core/primitives`; native SQL and source descriptor ports retain their own callback shapes.
+Public functions and constructors use required objects and optional configuration objects where declared. Plain helper functions also accept an empty optional object defaulting to `{}` when no configuration is shown. Base Clock, JSON and HTTP contracts come from `@jini-ai/core/primitives`; native SQL and source descriptor ports retain their own callback shapes.
 
 ## Root: backends
 

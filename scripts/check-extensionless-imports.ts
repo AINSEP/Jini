@@ -179,7 +179,7 @@ export async function checkExtensionlessImports(
     const packageDir = join(packagesDir, pkgName);
     const excludes = readTsconfigExcludes(packageDir);
 
-    for (const absFile of listSourceFiles(packageDir)) {
+    for (const absFile of listSourceFiles({ dir: packageDir })) {
       const relInPackage = relative(packageDir, absFile).split('\\').join('/');
       if (isExcluded(relInPackage, excludes)) continue;
 

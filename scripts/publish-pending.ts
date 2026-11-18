@@ -155,10 +155,10 @@ function publicationStates({ registry, order }: { registry: ReadonlyMap<string, 
 export async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const planOnly = argv.includes('--plan');
-  const registry = discoverJiniPackages(repoRoot);
+  const registry = discoverJiniPackages({ workspaceRoot: repoRoot });
   // Check the full public release set, including already-published and optional peer declarations.
   assertCompatiblePeerRanges({ packages: [...registry.values()].map(entry => entry.pkg) });
-  const publicNames = publishOrder(registry, computeClosure(registry, [...registry.keys()])).filter(
+  const publicNames = publishOrder(registry, computeClosure({ registry, rootNames: [...registry.keys()] })).filter(
     (name) => registry.get(name)!.pkg.private !== true,
   );
   const only = parseOnly(argv, new Set(publicNames));

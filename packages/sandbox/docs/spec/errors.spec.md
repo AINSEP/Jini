@@ -22,7 +22,7 @@ spec_mode: reverse_spec
 
 Wrapper messages identify the failed operation: project-root creation, watch startup, mount/read/list, command/install/start/kill, preview, watch stop or sandbox termination. Caught backend errors become `cause`. Teardown attempts all process kills, ignores their failures, and prioritizes sandbox termination over watcher-stop failure.
 
-`createE2bSandboxProvider().boot()` wraps native and injected SDK-create failures in `SandboxOperationError`, categorizing the original error and retaining it as `cause`. Known boundary exceptions: `getHost()` executes before preview's fetch catch, and conversion/callback exceptions are not universally wrapped. A consumer cannot safely assume every failure is `SandboxOperationError`; handle unknown failures too. Missing optional SDK peer can fail the `./e2b` import before any factory call.
+`createE2bSandboxProvider({}).boot({})` wraps native and injected SDK-create failures in `SandboxOperationError`, categorizing the original error and retaining it as `cause`. Known boundary exceptions: `getHost()` executes before preview's fetch catch, and conversion/callback exceptions are not universally wrapped. A consumer cannot safely assume every failure is `SandboxOperationError`; handle unknown failures too. Missing optional SDK peer can fail the `./e2b` import before any factory call.
 
 ## Node worker
 

@@ -37,8 +37,8 @@ describe("allocatePort forced-port error formatting", () => {
     net.listenOnPort.mockResolvedValueOnce(server);
     const reserved = new Set<number>();
     await expect(allocatePort({}, { port: "65535", host: "::1", reserved })).resolves.toEqual({ port: 65535, source: "forced" });
-    expect(net.listenOnPort).toHaveBeenCalledWith(65535, "::1");
-    expect(net.closeServer).toHaveBeenCalledWith(server);
+    expect(net.listenOnPort).toHaveBeenCalledWith({ port: 65535, host: "::1" });
+    expect(net.closeServer).toHaveBeenCalledWith({ server });
     expect([...reserved]).toEqual([65535]);
   });
 
@@ -50,13 +50,13 @@ describe("allocatePort forced-port error formatting", () => {
   it.each([null, undefined, ""])("treats %j as 'no forced port' (dynamic)", async (port) => {
     net.listenOnPort.mockResolvedValueOnce({ address: () => ({ port: 5555 }) } as unknown as Server);
     await expect(allocatePort({}, { port: port as never })).resolves.toEqual({ port: 5555, source: "dynamic" });
-    expect(net.listenOnPort).toHaveBeenCalledWith(0, "127.0.0.1");
+    expect(net.listenOnPort).toHaveBeenCalledWith({ port: 0, host: "127.0.0.1" });
   });
 
   it.each([null, "/tmp/pipe"])("dynamic probe refuses a non-TCP address (%j) and still closes the server", async (address) => {
     const server = { address: () => address } as unknown as Server;
     net.listenOnPort.mockResolvedValueOnce(server);
     await expect(allocatePort({}, {})).rejects.toThrow("failed to probe an ephemeral port");
-    expect(net.closeServer).toHaveBeenCalledWith(server);
+    expect(net.closeServer).toHaveBeenCalledWith({ server });
   });
 });

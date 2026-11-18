@@ -38,7 +38,7 @@ import type {
 } from "./types.js";
 
 /** Native hash adapter is stateless; all app-specific derivation context remains required. */
-export function createNodeAnalyticsHash(_required: Record<string, never>): AnalyticsHashPort {
+export function createNodeAnalyticsHash(_required: Record<string, never>, _optional: Record<string, never> = {}): AnalyticsHashPort {
   return {
     deriveDailySalt,
     sha256({ parts }) {

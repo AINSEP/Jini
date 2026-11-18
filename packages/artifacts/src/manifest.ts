@@ -339,7 +339,7 @@ export function sanitizeManifest(
  * or stale sidecar should degrade to "no manifest", not crash the reader.
  */
 export function parsePersistedManifest(
-  { raw, fallbackEntry, taxonomy }: { raw: string; fallbackEntry: string; taxonomy: ArtifactManifestTaxonomy },
+  { raw, fallbackEntry, taxonomy }: { raw: string; fallbackEntry: string; taxonomy: ArtifactManifestTaxonomy }, _optional: Record<string, never> = {},
 ): ArtifactManifest | null {
   try {
     const parsed: unknown = JSON.parse(raw);

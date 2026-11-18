@@ -74,7 +74,7 @@ export function createApiError(
   return { code, message, ...optionalArgs };
 }
 
-export function createApiErrorResponse({ error }: { error: ApiError }): ApiErrorResponse {
+export function createApiErrorResponse({ error }: { error: ApiError }, _optional: Record<string, never> = {}): ApiErrorResponse {
   return { error };
 }
 

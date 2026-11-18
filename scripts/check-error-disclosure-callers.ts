@@ -45,7 +45,7 @@ const CALLS = [
 /** The R14 findings for a set of files given as repo-relative path + text. Pure, so a test passes its own files. */
 export function findDisclosureCallerViolations(required: { files: ReadonlyArray<{ file: string; text: string }> }, optional: DisclosureCallerOptions = {}): Violation[] {
   const allowed = { approveCauseCallers: optional.approveCauseCallers ?? APPROVE_CAUSE_CALLERS, trackerSkipCallers: optional.trackerSkipCallers ?? TRACKER_SKIP_CALLERS };
-  const production = required.files.filter(({ file }) => !TEST_FILE.test(file) && !DEFINING_FILES.has(file)).map(({ file, text }) => ({ file, text: stripComments(text) }));
+  const production = required.files.filter(({ file }) => !TEST_FILE.test(file) && !DEFINING_FILES.has(file)).map(({ file, text }) => ({ file, text: stripComments({ source: text }) }));
   const violations: Violation[] = [];
   for (const call of CALLS) {
     const callers = new Set(production.filter(({ text }) => call.pattern.test(text)).map(({ file }) => file));
@@ -63,7 +63,7 @@ export function findDisclosureCallerViolations(required: { files: ReadonlyArray<
 /** Runs R14 over every package's `src` tree. */
 export function checkErrorDisclosureCallers(_required: Record<never, never> = {}, optional: DisclosureCallerOptions & { packagesDir?: string } = {}): Violation[] {
   const packagesDir = optional.packagesDir ?? join(REPO_ROOT, 'packages');
-  const files = listSourceFiles(packagesDir, { includeJavaScript: true })
+  const files = listSourceFiles({ dir: packagesDir }, { includeJavaScript: true })
     .map(path => ({ file: relative(REPO_ROOT, path).split('\\').join('/'), text: readFileSync(path, 'utf8') }));
   return findDisclosureCallerViolations({ files }, optional);
 }

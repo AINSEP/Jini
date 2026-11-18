@@ -106,7 +106,7 @@ function streamingOptsFor(options: RunCommandOptions | undefined) {
  * pair — a wrong create-or-delete guess would be more misleading than the conservative
  * "something at this path changed."
  */
-export function mapE2bFileChangeKind({ type }: { type: E2bFilesystemEventType }): FileChangeKind | null {
+export function mapE2bFileChangeKind({ type }: { type: E2bFilesystemEventType }, _optional: Record<string, never> = {}): FileChangeKind | null {
   switch (type) {
     case 'create':
       return 'created';

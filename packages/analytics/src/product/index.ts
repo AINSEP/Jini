@@ -57,12 +57,12 @@ const NOOP: ProductAnalyticsPort = Object.freeze({ capture: () => {}, identify: 
 
 /** The default: does nothing, allocates nothing. One shared frozen object.
  * @returns The shared noop port. @complexity O(1). */
-export function createNoopProductAnalytics(_required: Record<string, never>): ProductAnalyticsPort {
+export function createNoopProductAnalytics(_required: Record<string, never>, _optional: Record<string, never> = {}): ProductAnalyticsPort {
   return NOOP;
 }
 
 /** True for the shared noop, so a host can skip wrapping a feature at all. */
-export function isNoopProductAnalytics(port: ProductAnalyticsPort): boolean {
+export function isNoopProductAnalytics({ port }: { port: ProductAnalyticsPort }, _optional: Record<string, never> = {}): boolean {
   return port === NOOP;
 }
 
@@ -125,7 +125,7 @@ function generationContent({ input, output }: { input?: string; output?: string 
  * @complexity O(p + t) per event for properties and opt-in text; O(d) in-flight consent decisions.
  */
 export function withProductAnalyticsGuards({ inner, consent }: { inner: ProductAnalyticsPort; consent: ProductAnalyticsConsent }, { consentRevision }: ProductAnalyticsGuardOptions = {}): ProductAnalyticsPort {
-  if (isNoopProductAnalytics(inner)) return inner;
+  if (isNoopProductAnalytics({ port: inner })) return inner;
   // Keep generations only while decisions are in flight; past users do not accumulate here.
   const pending = new Map<string, { generation: number; count: number }>();
   let reportedMissingRevision = false;

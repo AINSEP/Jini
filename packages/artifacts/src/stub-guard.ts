@@ -63,7 +63,7 @@ export const DEFAULT_ARTIFACT_STUB_GUARD_CONFIG: ArtifactStubGuardConfig = {
 };
 
 /** Slugifies a free-form identifier into a filename-safe basename (lowercase, `[a-z0-9_-]`, max 60 chars). */
-export function slugifyArtifactIdentifier({ value }: { value: string }): string {
+export function slugifyArtifactIdentifier({ value }: { value: string }, _optional: Record<string, never> = {}): string {
   const dashed = value.toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
   // Edge dashes are trimmed by scanning; /^-+|-+$/ backtracks quadratically on long dash runs.
   let start = 0;
@@ -85,7 +85,7 @@ export const EMPTY_SLUG_FALLBACK_NAME = 'artifact';
  * form of the other avoids that while still bridging e.g. "Landing Page" and
  * "landing-page".
  */
-export function artifactIdentifiersMatch({ a, b }: { a: string; b: string }): boolean {
+export function artifactIdentifiersMatch({ a, b }: { a: string; b: string }, _optional: Record<string, never> = {}): boolean {
   if (a === b) return true;
   const slugA = slugifyArtifactIdentifier({ value: a });
   if (slugA.length === 0) return false;
@@ -142,9 +142,13 @@ function buildWarning(identifier: string, newSize: number, prior: PriorArtifactS
   };
 }
 
+function exceedsPriorSize(prior: PriorArtifactSibling, largest: PriorArtifactSibling | null): boolean {
+  return largest === null || prior.size > largest.size;
+}
+
 /** Pure decision function: given the prior siblings on disk, decides whether the new body is a stub regression. Split from the disk scan so unit tests stay fast and can pre-fetch siblings. */
 export function classifyArtifactStubGuard(
-  { priors, identifier, newSize, config }: { priors: readonly PriorArtifactSibling[]; identifier: string; newSize: number; config: ArtifactStubGuardConfig },
+  { priors, identifier, newSize, config }: { priors: readonly PriorArtifactSibling[]; identifier: string; newSize: number; config: ArtifactStubGuardConfig }, _optional: Record<string, never> = {},
 ): EvaluateArtifactStubGuardResult {
   if (config.mode === 'off') return { outcome: 'pass' };
   if (identifier.length === 0) return { outcome: 'pass' };
@@ -152,7 +156,7 @@ export function classifyArtifactStubGuard(
 
   let largestSoFar: PriorArtifactSibling | null = null;
   for (const prior of priors) {
-    if (largestSoFar === null || prior.size > largestSoFar.size) largestSoFar = prior;
+    if (exceedsPriorSize(prior, largestSoFar)) largestSoFar = prior;
   }
   // Non-null assertion, not a runtime guard: `priors.length === 0` already
   // returned above, so this loop always runs at least once, and its first

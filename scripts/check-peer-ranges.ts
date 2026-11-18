@@ -9,7 +9,7 @@ export function checkPeerRanges(
   { repoRoot }: { repoRoot: string },
   _options: Record<string, never> = {},
 ): void {
-  const registry = discoverJiniPackages(repoRoot);
+  const registry = discoverJiniPackages({ workspaceRoot: repoRoot });
   assertCompatiblePeerRanges({ packages: [...registry.values()].map(entry => entry.pkg) });
 }
 

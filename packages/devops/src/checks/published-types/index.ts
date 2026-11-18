@@ -49,7 +49,7 @@ function validatePins({ pins, scope }: {
 }
 
 /** Select registry-resolved dependencies from the required scope; explicit local specs are exempt. */
-export function registryDependencies({ manifest, scope }: { manifest: DependencyManifest; scope: string }): Record<string, string> {
+export function registryDependencies({ manifest, scope }: { manifest: DependencyManifest; scope: string }, _optional: Record<string, never> = {}): Record<string, string> {
   validateScope(scope);
   const dependencies: Record<string, string> = {};
   for (const [name, spec] of Object.entries({ ...manifest.dependencies, ...manifest.optionalDependencies, ...manifest.peerDependencies, ...manifest.devDependencies })) {
@@ -61,7 +61,7 @@ export function registryDependencies({ manifest, scope }: { manifest: Dependency
 }
 
 /** Split compiler output into whole diagnostics; wrapped details stay attached to their first line. */
-export function parseDiagnosticBlocks({ output }: { output: string }): string[] {
+export function parseDiagnosticBlocks({ output }: { output: string }, _optional: Record<string, never> = {}): string[] {
   const blocks: string[] = [];
   let current: string[] = [];
   for (const line of output.replace(/\r\n/g, '\n').split('\n')) {
@@ -240,7 +240,7 @@ export interface TypecheckLog extends ProcessResult { projectKey: string }
 export interface TypecheckDiagnosis { ok: boolean; failures: readonly (TypecheckLog & { hits: readonly string[] })[] }
 
 /** Diagnose captured CI results for the supplied scope without reading files or running commands. */
-export function diagnosePublishedTypes({ scope, logs }: { scope: string; logs: readonly TypecheckLog[] }): TypecheckDiagnosis {
+export function diagnosePublishedTypes({ scope, logs }: { scope: string; logs: readonly TypecheckLog[] }, _optional: Record<string, never> = {}): TypecheckDiagnosis {
   validateScope(scope);
   const escapedScope = escapeRegex(scope);
   // tsc wraps a module specifier in its own single quotes around the source's double quotes ('"@scope/pkg"'), so match one or two quote characters on each side.

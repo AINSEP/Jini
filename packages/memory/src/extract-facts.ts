@@ -299,7 +299,7 @@ export interface NoteDraft {
  *   are short labels, not full bodies); `description` is the full
  *   `statement` plus, when present, a `sourceQuote` line.
  */
-export function factToNoteDraft({ fact, type }: { fact: ExtractedFact; type: string }): NoteDraft {
+export function factToNoteDraft({ fact, type }: { fact: ExtractedFact; type: string }, _optional: Record<string, never> = {}): NoteDraft {
   const name =
     fact.statement.length > NOTE_DRAFT_NAME_MAX_LENGTH ? `${fact.statement.slice(0, NOTE_DRAFT_NAME_MAX_LENGTH - 1).trim()}…` : fact.statement;
   const description = fact.sourceQuote ? `${fact.statement}\n\nSource: "${fact.sourceQuote}"` : fact.statement;

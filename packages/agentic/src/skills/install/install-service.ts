@@ -76,7 +76,7 @@ function layoutFor<Source extends object>({ env, workspaceId }: {
 }) {
   const layout = env.deps.layout.resolve({ workspaceId });
   if (!path.isAbsolute(layout.workspaceRoot) || !path.isAbsolute(layout.stagingRoot)) throw new SkillInputError({ message: "Skill roots must be absolute." });
-  if (!layout.stateFileName || hasSeparatorOrNul(layout.stateFileName) || [".", ".."].includes(layout.stateFileName) || ["SKILL.md", "README.md", "LICENSE", "references", "scripts", "assets"].includes(layout.stateFileName)) throw new SkillInputError({ message: "Invalid skill state file name." });
+  if (!layout.stateFileName || hasSeparatorOrNul({ value: layout.stateFileName }) || [".", ".."].includes(layout.stateFileName) || ["SKILL.md", "README.md", "LICENSE", "references", "scripts", "assets"].includes(layout.stateFileName)) throw new SkillInputError({ message: "Invalid skill state file name." });
   return layout;
 }
 
@@ -162,7 +162,7 @@ async function writeSkillEnabledState<Source extends object>(env: InstallerEnv<S
   const layout = layoutFor({ env, workspaceId: input.workspaceId });
   const state = await readSkillState<Source>({ directory, stateFileName: layout.stateFileName, filesystem: deps.filesystem, validateSource: deps.validateSource });
   const id = deps.ids.next({});
-  if (!id || hasSeparatorOrNul(id)) throw new SkillInputError({ message: "Invalid skill temporary id." });
+  if (!id || hasSeparatorOrNul({ value: id })) throw new SkillInputError({ message: "Invalid skill temporary id." });
   const temporary = path.join(directory, `.skill-state-${id}.tmp`);
   try {
     // A rejected write can leave partial bytes; cleanup must cover writing as well as rename.
@@ -214,6 +214,6 @@ export function createSkillInstaller<Source extends object = GitHubSkillSource>(
 }
 
 function containedDirectory(root: string, directory: string): string {
-  if (!directory || directory === "." || directory === ".." || hasSeparatorOrNul(directory)) throw new SkillInputError({ message: "Skill directory must be one safe segment." });
+  if (!directory || directory === "." || directory === ".." || hasSeparatorOrNul({ value: directory })) throw new SkillInputError({ message: "Skill directory must be one safe segment." });
   return path.join(root, directory);
 }

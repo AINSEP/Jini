@@ -113,18 +113,18 @@ describe('parseUIResource', () => {
   const valid = { type: 'resource', resource: { uri: 'ui://x/1', mimeType: MCP_UI_MIME_TYPE, text: '<p>ok</p>' } };
 
   it('narrows a well-formed resource', () => {
-    expect(parseUIResource(valid)).toEqual(valid);
+    expect(parseUIResource({ value: valid })).toEqual(valid);
   });
 
   it('accepts every MIME type in the published union, not only the one this package emits', () => {
     for (const mimeType of UI_RESOURCE_MIME_TYPES) {
-      expect(parseUIResource({ ...valid, resource: { ...valid.resource, mimeType } })).not.toBeUndefined();
+      expect(parseUIResource({ value: { ...valid, resource: { ...valid.resource, mimeType } } })).not.toBeUndefined();
     }
   });
 
   it('keeps a record-shaped _meta and drops a non-record one', () => {
-    expect(parseUIResource({ ...valid, resource: { ...valid.resource, _meta: { a: 1 } } })?.resource._meta).toEqual({ a: 1 });
-    expect(parseUIResource({ ...valid, resource: { ...valid.resource, _meta: 'nope' } })?.resource).not.toHaveProperty('_meta');
+    expect(parseUIResource({ value: { ...valid, resource: { ...valid.resource, _meta: { a: 1 } } } })?.resource._meta).toEqual({ a: 1 });
+    expect(parseUIResource({ value: { ...valid, resource: { ...valid.resource, _meta: 'nope' } } })?.resource).not.toHaveProperty('_meta');
   });
 
   it.each([
@@ -139,20 +139,20 @@ describe('parseUIResource', () => {
     ['an unrecognized mimeType', { type: 'resource', resource: { ...valid.resource, mimeType: 'application/json' } }],
     ['a non-string text', { type: 'resource', resource: { ...valid.resource, text: { body: 'x' } } }],
   ])('rejects %s', (_label, value) => {
-    expect(parseUIResource(value)).toBeUndefined();
+    expect(parseUIResource({ value })).toBeUndefined();
   });
 });
 
 describe('readPreferredFrameSize', () => {
   function withMeta(meta: Record<string, unknown> | undefined) {
-    return parseUIResource({
+    return parseUIResource({ value: {
       type: 'resource',
       resource: { uri: 'ui://x/1', mimeType: MCP_UI_MIME_TYPE, text: '', ...(meta === undefined ? {} : { _meta: meta }) },
-    })!;
+    } })!;
   }
 
   it('reads a well-formed pair', () => {
-    expect(readPreferredFrameSize(withMeta({ [MCP_UI_PREFERRED_FRAME_SIZE_META_KEY]: ['420px', '440px'] }))).toEqual([
+    expect(readPreferredFrameSize({ resource: withMeta({ [MCP_UI_PREFERRED_FRAME_SIZE_META_KEY]: ['420px', '440px'] }) })).toEqual([
       '420px',
       '440px',
     ]);
@@ -166,27 +166,27 @@ describe('readPreferredFrameSize', () => {
     ['a non-string width', { [MCP_UI_PREFERRED_FRAME_SIZE_META_KEY]: [420, '440px'] }],
     ['a non-string height', { [MCP_UI_PREFERRED_FRAME_SIZE_META_KEY]: ['420px', 440] }],
   ])('returns undefined for %s, so the host sizes the frame itself', (_label, meta) => {
-    expect(readPreferredFrameSize(withMeta(meta as Record<string, unknown> | undefined))).toBeUndefined();
+    expect(readPreferredFrameSize({ resource: withMeta(meta as Record<string, unknown> | undefined) })).toBeUndefined();
   });
 });
 
 describe('readActionPlan', () => {
   function withMeta(meta: Record<string, unknown> | undefined) {
-    return parseUIResource({
+    return parseUIResource({ value: {
       type: 'resource',
       resource: { uri: 'ui://x/1', mimeType: MCP_UI_MIME_TYPE, text: '', ...(meta === undefined ? {} : { _meta: meta }) },
-    })!;
+    } })!;
   }
 
   it('reads a well-formed plan, including an omitted description and an omitted variant', () => {
     expect(
       readActionPlan(
-        withMeta({
+        { resource: withMeta({
           [MCP_UI_ACTION_PLAN_META_KEY]: {
             title: 'Publish the site?',
             actions: [{ id: 'confirm', label: 'Publish', variant: 'danger' }, { id: 'cancel', label: 'Cancel' }],
           },
-        }),
+        }) },
       ),
     ).toEqual({
       title: 'Publish the site?',
@@ -196,7 +196,7 @@ describe('readActionPlan', () => {
 
   it('carries a description through when present', () => {
     expect(
-      readActionPlan(withMeta({ [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'T', description: 'D', actions: [] } })),
+      readActionPlan({ resource: withMeta({ [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'T', description: 'D', actions: [] } }) }),
     ).toEqual({ title: 'T', description: 'D', actions: [] });
   });
 
@@ -217,21 +217,21 @@ describe('readActionPlan', () => {
     // One malformed action invalidates the WHOLE plan — never a mirror silently missing a button.
     ['one good action alongside one malformed one', { [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'T', actions: [{ id: 'a', label: 'A' }, { id: 'b' }] } }],
   ])('returns undefined for %s, so the host builds no mirror rather than a partial one', (_label, meta) => {
-    expect(readActionPlan(withMeta(meta as Record<string, unknown> | undefined))).toBeUndefined();
+    expect(readActionPlan({ resource: withMeta(meta as Record<string, unknown> | undefined) })).toBeUndefined();
   });
 });
 
 describe('readExpiresAt', () => {
   function withMeta(meta: Record<string, unknown> | undefined) {
-    return parseUIResource({
+    return parseUIResource({ value: {
       type: 'resource',
       resource: { uri: 'ui://x/1', mimeType: MCP_UI_MIME_TYPE, text: '', ...(meta === undefined ? {} : { _meta: meta }) },
-    })!;
+    } })!;
   }
 
   it('reads the deadline a producer wrote', () => {
     const resource = createUIResource({ uri: 'ui://x/1', htmlString: '', expiresAtMs: 1_700_000_300_000 });
-    expect(readExpiresAt(resource)).toBe(1_700_000_300_000);
+    expect(readExpiresAt({ resource })).toBe(1_700_000_300_000);
   });
 
   it.each([
@@ -241,7 +241,7 @@ describe('readExpiresAt', () => {
     ['a NaN deadline', { [MCP_UI_EXPIRES_AT_META_KEY]: Number.NaN }],
     ['an infinite deadline', { [MCP_UI_EXPIRES_AT_META_KEY]: Number.POSITIVE_INFINITY }],
   ])('returns undefined for %s, so the host shows no countdown rather than a wrong one', (_label, meta) => {
-    expect(readExpiresAt(withMeta(meta as Record<string, unknown> | undefined))).toBeUndefined();
+    expect(readExpiresAt({ resource: withMeta(meta as Record<string, unknown> | undefined) })).toBeUndefined();
   });
 });
 

@@ -44,7 +44,7 @@ export class ArtifactPublicationBlockedError extends Error {
   }
 }
 
-export function isPublicationGuardedKind({ kind, config }: { kind: unknown; config: PublicationGuardConfig }): boolean {
+export function isPublicationGuardedKind({ kind, config }: { kind: unknown; config: PublicationGuardConfig }, _optional: Record<string, never> = {}): boolean {
   return typeof kind === 'string' && config.guardedKinds.has(kind);
 }
 
@@ -57,17 +57,17 @@ function stringifyArtifactContent(value: unknown): string {
 }
 
 /** Returns every configured placeholder marker found in `value`'s stringified content, in declaration order. */
-export function findBlockedPlaceholders({ value, config }: { value: unknown; config: PublicationGuardConfig }): string[] {
+export function findBlockedPlaceholders({ value, config }: { value: unknown; config: PublicationGuardConfig }, _optional: Record<string, never> = {}): string[] {
   const text = stringifyArtifactContent(value);
   if (!text) return [];
   return config.blockedPlaceholders.filter((placeholder) => text.includes(placeholder));
 }
 
-export function shouldBlockPublication({ value, config }: { value: unknown; config: PublicationGuardConfig }): boolean {
+export function shouldBlockPublication({ value, config }: { value: unknown; config: PublicationGuardConfig }, _optional: Record<string, never> = {}): boolean {
   return findBlockedPlaceholders({ value, config }).length > 0;
 }
 
-export function buildArtifactPublicationBlockedMessage({ placeholders }: { placeholders: readonly string[] }): string {
+export function buildArtifactPublicationBlockedMessage({ placeholders }: { placeholders: readonly string[] }, _optional: Record<string, never> = {}): string {
   const list = placeholders.length > 0 ? placeholders.join(', ') : 'unknown placeholders';
   return `Artifact still contains unresolved placeholders: ${list}. Resolve them before publishing.`;
 }
@@ -80,7 +80,7 @@ export function buildArtifactPublicationBlockedMessage({ placeholders }: { place
  * where the same substrings could be legitimate.
  */
 export function assertArtifactPublicationAllowed(
-  { kind, value, config }: { kind: unknown; value: unknown; config: PublicationGuardConfig },
+  { kind, value, config }: { kind: unknown; value: unknown; config: PublicationGuardConfig }, _optional: Record<string, never> = {},
 ): void {
   if (!isPublicationGuardedKind({ kind, config })) return;
   const placeholders = findBlockedPlaceholders({ value, config });

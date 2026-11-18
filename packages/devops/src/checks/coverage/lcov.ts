@@ -17,7 +17,7 @@ export type SourceClassifier = (args: { file: string }) => boolean;
  *  area was measured at all.
  *  @complexity O(1). */
 // evaluateArea is the disk inventory owner, now evaluateDiskArea in ./disk.ts.
-export function pct({ hit, found }: { hit: number; found: number }): number { return found === 0 ? 100 : 100 * hit / found; }
+export function pct({ hit, found }: { hit: number; found: number }, _optional: Record<string, never> = {}): number { return found === 0 ? 100 : 100 * hit / found; }
 
 /** Strip a path's trailing separators in one backward pass, including all-separator paths.
  * @complexity O(path length) time, O(path length) for the returned slice. */
@@ -28,7 +28,7 @@ export function withoutTrailingSlashes({ path }: { path: string }, _options: Rec
 }
 
 /** Normalize paths with a directory boundary check, including Windows paths on non-Windows hosts. */
-export function toRepoRelative({ sourceFile, repoRoot }: { sourceFile: string; repoRoot: string }): string {
+export function toRepoRelative({ sourceFile, repoRoot }: { sourceFile: string; repoRoot: string }, _optional: Record<string, never> = {}): string {
   const file = sourceFile.trim().replace(/\\/g, '/');
   const root = withoutTrailingSlashes({ path: repoRoot.replace(/\\/g, '/') });
   if (file === root) return '';
@@ -39,13 +39,13 @@ export function toRepoRelative({ sourceFile, repoRoot }: { sourceFile: string; r
 /** Match caller-supplied integration suffixes and directory segments. */
 export function isIntegrationTestFile({ file, suffixes, directories }: {
   file: string; suffixes: readonly string[]; directories: readonly string[];
-}): boolean {
+}, _optional: Record<string, never> = {}): boolean {
   const normalized = file.replace(/\\/g, '/');
   return suffixes.some((suffix) => normalized.endsWith(suffix)) || directories.some((dir) => `/${normalized}`.includes(`/${withoutTrailingSlashes({ path: dir.replace(/^\/+/, '') })}/`));
 }
 
 /** Match source roots on directory boundaries and apply host-defined exclusions. */
-export function isMeasurableSourceFile({ file, rules }: { file: string; rules: SourceClassificationRules }): boolean {
+export function isMeasurableSourceFile({ file, rules }: { file: string; rules: SourceClassificationRules }, _optional: Record<string, never> = {}): boolean {
   const normalized = file.replace(/\\/g, '/');
   if (!rules.prefixes.some((prefix) => normalized.startsWith(`${withoutTrailingSlashes({ path: prefix })}/`))) return false;
   if (!rules.sourceExtensions.some((extension) => normalized.endsWith(extension))) return false;
@@ -92,7 +92,7 @@ function readFunctionEntries(record: string): ReadonlyMap<string, number> | unde
 }
 
 /** Parse LCOV summaries without filtering source or accessing a filesystem. */
-export function parseLcov({ text, repoRoot }: { text: string; repoRoot: string }): FileCoverage[] {
+export function parseLcov({ text, repoRoot }: { text: string; repoRoot: string }, _optional: Record<string, never> = {}): FileCoverage[] {
   const out: FileCoverage[] = [];
   for (const record of text.replace(/\r\n/g, '\n').split(/^end_of_record$/m)) {
     const source = record.match(/^SF:(.+)$/m)?.[1];
@@ -104,14 +104,14 @@ export function parseLcov({ text, repoRoot }: { text: string; repoRoot: string }
 }
 
 /** Read the exact supplied artifact; missing/unreadable artifacts propagate the reader's error. */
-export function loadLcov({ lcovPath, repoRoot, reader }: { lcovPath: string; repoRoot: string; reader: SourceReaderPort }): FileCoverage[] {
+export function loadLcov({ lcovPath, repoRoot, reader }: { lcovPath: string; repoRoot: string; reader: SourceReaderPort }, _optional: Record<string, never> = {}): FileCoverage[] {
   return parseLcov({ text: reader.readText({ path: lcovPath }), repoRoot });
 }
 
 /** Load and classify coverage without repository-specific route knowledge. */
 export function loadRouteCoverage({ lcovPath, repoRoot, reader, isMeasurable }: {
   lcovPath: string; repoRoot: string; reader: SourceReaderPort; isMeasurable: SourceClassifier;
-}): FileCoverage[] { return loadLcov({ lcovPath, repoRoot, reader }).filter((record) => isMeasurable({ file: record.file })); }
+}, _optional: Record<string, never> = {}): FileCoverage[] { return loadLcov({ lcovPath, repoRoot, reader }).filter((record) => isMeasurable({ file: record.file })); }
 
 /** Union matching instrumentation; summaries alone cannot identify overlapping hits.
  * @throws When reports lack entries or use incompatible instrumentation.
@@ -139,7 +139,7 @@ function unionRecords(a: FileCoverage, b: FileCoverage): FileCoverage {
  * @complexity O(e) time and space in supplied entries. */
 export function mergeCoverage({ reports, isMeasurable }: {
   reports: readonly (readonly FileCoverage[])[]; isMeasurable: SourceClassifier;
-}): ReadonlyMap<string, FileCoverage> {
+}, _optional: Record<string, never> = {}): ReadonlyMap<string, FileCoverage> {
   const byFile = new Map<string, FileCoverage>();
   for (const report of reports) for (const record of report) {
     if (!isMeasurable({ file: record.file })) continue;

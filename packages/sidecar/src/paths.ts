@@ -42,7 +42,7 @@ export function resolveNamespace<TStamp extends SidecarStampShape>({ contract }:
  * Validate and resolve a project root to an absolute path.
  * @returns The resolved absolute project root.
  */
-export function resolveProjectRoot({ projectRoot }: { projectRoot: string }): string {
+export function resolveProjectRoot({ projectRoot }: { projectRoot: string }, _optional: Record<string, never> = {}): string {
   if (typeof projectRoot !== "string" || projectRoot.trim().length === 0) {
     throw new Error("projectRoot must be a non-empty string");
   }
@@ -59,7 +59,7 @@ export function resolveProjectTmpRoot<TStamp extends SidecarStampShape>({
 }: {
   contract: SidecarContractDescriptor<TStamp>;
   projectRoot: string;
-}): string {
+}, _optional: Record<string, never> = {}): string {
   return join(resolveProjectRoot({ projectRoot }), contract.defaults.projectTmpDirName);
 }
 
@@ -71,7 +71,7 @@ export function resolveSourceRuntimeRoot<TStamp extends SidecarStampShape>({
   contract,
   projectRoot,
   source,
-}: ProjectRuntimePathRequest<TStamp>): string {
+}: ProjectRuntimePathRequest<TStamp>, _optional: Record<string, never> = {}): string {
   return join(resolveProjectTmpRoot({ contract, projectRoot }), contract.normalizeSource({ source }));
 }
 
@@ -95,7 +95,7 @@ export function resolveNamespaceRoot<TStamp extends SidecarStampShape>({
   base,
   contract,
   namespace,
-}: RuntimePathRequest<TStamp>): string {
+}: RuntimePathRequest<TStamp>, _optional: Record<string, never> = {}): string {
   return join(resolve(base), contract.normalizeNamespace({ namespace }));
 }
 
@@ -131,7 +131,7 @@ export function resolveRuntimeNamespaceRoot<TStamp extends SidecarStampShape>({
   contract: SidecarContractDescriptor<TStamp>;
   runtime: Pick<SidecarRuntimeContext<TStamp>, "base" | "mode" | "namespace">;
   runtimeMode: TStamp["mode"] | string;
-}): string {
+}, _optional: Record<string, never> = {}): string {
   if (runtime.mode === runtimeMode) {
     // packaged: `base` already points INTO the namespace tree
     // (`<namespaceRoot>/runtime`), so the namespace root is its parent.
@@ -150,7 +150,7 @@ export function resolveRuntimeRoot<TStamp extends SidecarStampShape>({
   contract,
   namespace,
   runId,
-}: RuntimeRootRequest<TStamp>): string {
+}: RuntimeRootRequest<TStamp>, _optional: Record<string, never> = {}): string {
   return join(resolveNamespaceRoot({ base, contract, namespace }), "runs", runId);
 }
 
@@ -158,7 +158,7 @@ export function resolveRuntimeRoot<TStamp extends SidecarStampShape>({
  * Resolve the namespace pointer file (`<namespaceRoot>/current.json`).
  * @returns The resolved pointer path.
  */
-export function resolvePointerPath<TStamp extends SidecarStampShape>({ base, contract, namespace }: RuntimePathRequest<TStamp>): string {
+export function resolvePointerPath<TStamp extends SidecarStampShape>({ base, contract, namespace }: RuntimePathRequest<TStamp>, _optional: Record<string, never> = {}): string {
   return join(resolveNamespaceRoot({ base, contract, namespace }), "current.json");
 }
 
@@ -166,7 +166,7 @@ export function resolvePointerPath<TStamp extends SidecarStampShape>({ base, con
  * Resolve a run's manifest file (`<runtimeRoot>/manifest.json`).
  * @returns The resolved manifest path.
  */
-export function resolveManifestPath({ runtimeRoot }: { runtimeRoot: string }): string {
+export function resolveManifestPath({ runtimeRoot }: { runtimeRoot: string }, _optional: Record<string, never> = {}): string {
   return join(runtimeRoot, "manifest.json");
 }
 
@@ -182,7 +182,7 @@ export function resolveLogsDir<TStamp extends SidecarStampShape>({
   app: TStamp["app"] | string;
   contract: SidecarContractDescriptor<TStamp>;
   runtimeRoot: string;
-}): string {
+}, _optional: Record<string, never> = {}): string {
   return join(runtimeRoot, "logs", contract.normalizeApp({ app }));
 }
 
@@ -210,7 +210,7 @@ export function resolveAppRuntimeDir<TStamp extends SidecarStampShape>({
   app,
   contract,
   namespaceRoot,
-}: AppRuntimePathRequest<TStamp>): string {
+}: AppRuntimePathRequest<TStamp>, _optional: Record<string, never> = {}): string {
   return join(namespaceRoot, contract.normalizeApp({ app }));
 }
 
@@ -223,7 +223,7 @@ export function resolveAppRuntimePath<TStamp extends SidecarStampShape>({
   contract,
   fileName,
   namespaceRoot,
-}: AppRuntimePathRequest<TStamp> & { fileName: string }): string {
+}: AppRuntimePathRequest<TStamp> & { fileName: string }, _optional: Record<string, never> = {}): string {
   if (fileName.length === 0 || fileName.includes("\0") || /[\\/]/.test(fileName)) {
     throw new Error(`app runtime fileName must be a simple path segment: ${fileName}`);
   }

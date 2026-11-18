@@ -57,7 +57,7 @@ export function resolveDaemonRegistryPath({ dataDir }: { dataDir: string }, { fi
  * at `registryPath`. Safe under concurrent writers — the last writer to complete its rename wins,
  * and every reader only ever observes a fully-written file, never a partial one.
  */
-export async function writeDaemonRegistryRecord({ registryPath, record }: { registryPath: string; record: LocalDaemonRegistryRecord }): Promise<void> {
+export async function writeDaemonRegistryRecord({ registryPath, record }: { registryPath: string; record: LocalDaemonRegistryRecord }, _optional: Record<string, never> = {}): Promise<void> {
   await writeJsonFile({ filePath: registryPath, payload: record });
 }
 
@@ -132,7 +132,7 @@ export async function removeDaemonRegistryRecordIfCurrent(
  * discovery purposes). `false` for a non-positive/non-integer `pid`, a `pid` that does not exist
  * (`ESRCH`), or any other unexpected failure (treated conservatively as not confirmed alive).
  */
-export function isProcessAlive({ pid }: { pid: number }): boolean {
+export function isProcessAlive({ pid }: { pid: number }, _optional: Record<string, never> = {}): boolean {
   if (!Number.isInteger(pid) || pid <= 0) return false;
   try {
     process.kill(pid, 0);
@@ -170,7 +170,7 @@ function isValidRegistryRecord(value: unknown): value is LocalDaemonRegistryReco
  * falls through to its own `defaultUrl`/error, per `resolveDaemonUrl`'s own contract).
  * @returns The live record, or `null` when nothing live was found.
  */
-export async function readLiveDaemonRegistryRecord({ registryPath }: { registryPath: string }): Promise<LocalDaemonRegistryRecord | null> {
+export async function readLiveDaemonRegistryRecord({ registryPath }: { registryPath: string }, _optional: Record<string, never> = {}): Promise<LocalDaemonRegistryRecord | null> {
   const record = await readJsonFile<unknown>({ filePath: registryPath });
   if (!isValidRegistryRecord(record)) return null;
   if (!isProcessAlive({ pid: record.pid })) return null;

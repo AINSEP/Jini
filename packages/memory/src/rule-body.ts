@@ -38,6 +38,10 @@ const RULE_LABEL_FIELDS: ReadonlyMap<string, keyof ParsedRuleBody> = new Map<str
   ['rationale', 'rationale'],
 ]);
 
+function ruleLineValue(match: { value: string } | null): string {
+  return match?.value.trim() ?? '';
+}
+
 /**
  * Parse a rule note body's `Assertion:`/`Check:`/`Verified by:`/`Rationale:`
  * labeled lines into `{ assertion, check, rationale }`. Each label is taken
@@ -50,12 +54,12 @@ const RULE_LABEL_FIELDS: ReadonlyMap<string, keyof ParsedRuleBody> = new Map<str
  *   `Check:` line is present, and `assertion` defaults to the body's first
  *   line when no `Assertion:` line is present.
  */
-export function parseRuleBody({ body }: { body: string }): ParsedRuleBody {
+export function parseRuleBody({ body }: { body: string }, _optional: Record<string, never> = {}): ParsedRuleBody {
   const fields: ParsedRuleBody = { assertion: '', check: '', rationale: '' };
 
   for (const rawLine of body.split(/\r?\n/)) {
     const match = splitLabeledLine({ line: rawLine.trim(), label: RULE_LABEL });
-    const value = match?.value.trim() ?? '';
+    const value = ruleLineValue(match);
     if (match === null || value.length === 0) continue;
     const label = match.label.toLowerCase();
     const field = RULE_LABEL_FIELDS.get(label);

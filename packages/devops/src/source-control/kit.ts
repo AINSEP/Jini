@@ -22,6 +22,6 @@ export function createSourceControlProviderKit(required: {
 }
 
 /** Adapt a host-selected native/guarded fetch without choosing a global transport. */
-export function createSourceControlFetchAdapter(required: { fetch: typeof fetch }): SourceControlFetchPort {
+export function createSourceControlFetchAdapter(required: { fetch: typeof fetch }, _optional: Record<string, never> = {}): SourceControlFetchPort {
   return ({ url }, optional = {}) => required.fetch(url, optional.init);
 }

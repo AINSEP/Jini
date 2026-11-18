@@ -10,7 +10,7 @@ function entryKind(info: Stats): 'file' | 'directory' | 'other' {
 }
 
 /** Explicit Node filesystem adapter. No effects occur until a port method is called. */
-export function createNodePackagingFilesystem(_required: Record<string, never>): PackagingFilesystemPort {
+export function createNodePackagingFilesystem(_required: Record<string, never>, _optional: Record<string, never> = {}): PackagingFilesystemPort {
   return {
     exists: ({ path }) => existsSync(path), read: ({ path }) => readFileSync(path),
     // Allocation and I/O depend only on the prefix bound, even for very large payload files.
@@ -36,7 +36,7 @@ export function createNodePackagingFilesystem(_required: Record<string, never>):
   };
 }
 /** Node's upward node_modules walk resolves pnpm links to real package roots. */
-export function createNodePackageResolver({ fs }: { fs: PackagingFilesystemPort }): PackageResolverPort {
+export function createNodePackageResolver({ fs }: { fs: PackagingFilesystemPort }, _optional: Record<string, never> = {}): PackageResolverPort {
   return { resolve({ fromDirectory, packageName }) {
     if (!/^(?:@[a-zA-Z0-9._-]+\/)?[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(packageName)) throw new Error('Invalid package name');
     let directory = path.resolve(fromDirectory);

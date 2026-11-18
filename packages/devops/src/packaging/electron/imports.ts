@@ -33,7 +33,7 @@ function undeclaredPackage(required: { specifier: string; declared: ReadonlySet<
  *
  * @complexity O(files + imports) reachable from `entry`; each file is read once.
  */
-export function undeclaredDistImports(required: DistImportInput): string[] {
+export function undeclaredDistImports(required: DistImportInput, _optional: Record<string, never> = {}): string[] {
   const { distDir, entry, declared, fs, imports, aliases } = required;
   const queue = [path.resolve(entry)];
   const seen = new Set(queue);
@@ -67,7 +67,7 @@ export function undeclaredDistImports(required: DistImportInput): string[] {
   }
   return problems;
 }
-export function assertDistImportsDeclared(required: DistImportInput): void {
+export function assertDistImportsDeclared(required: DistImportInput, _optional: Record<string, never> = {}): void {
   const problems = undeclaredDistImports(required);
   if (problems.length) throw new Error(`built entry imports ${problems.length} undeclared packages or missing files:\n  ${problems.join('\n  ')}`);
 }

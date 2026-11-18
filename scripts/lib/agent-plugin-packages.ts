@@ -25,12 +25,12 @@ const reservedNames = new Set(['plugins', 'node_modules', 'src', 'dist', 'core',
 const unpublishedSegments = new Set(['__tests__', 'node_modules', '.git', '.DS_Store', 'coverage', 'dist', '.cache']);
 
 /** Import name of a row: `@jini-ai/agent-plugins/<name>`. */
-export function agentPluginSubpath(row: AgentPluginPackageRow): string {
+export function agentPluginSubpath(row: AgentPluginPackageRow, _optional: Record<string, never> = {}): string {
   return `${AGENT_PLUGINS_PACKAGE}/${row.name}`;
 }
 
 /** The two exports a row needs: the bare subpath names the manifest; the wildcard reaches only its own folder. */
-export function agentPluginExports(row: AgentPluginPackageRow): Record<string, string> {
+export function agentPluginExports(row: AgentPluginPackageRow, _optional: Record<string, never> = {}): Record<string, string> {
   return { [`./${row.name}`]: `./${row.name}/plugin.json`, [`./${row.name}/*`]: `./${row.name}/*` };
 }
 

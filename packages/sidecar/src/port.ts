@@ -49,11 +49,11 @@ async function allocateForcedPort(port: number, label: string, host: string, res
   }
   let server: Server | null = null;
   try {
-    server = await listenOnPort(port, host);
+    server = await listenOnPort({ port, host });
   } catch (error) {
     throw new Error(`forced ${label} port ${port} is not available (${errorCode(error) ?? errorMessage(error)})`);
   } finally {
-    if (server) await closeServer(server);
+    if (server) await closeServer({ server });
   }
   reserved.add(port);
   return { port, source: "forced" };
@@ -64,9 +64,9 @@ async function allocateForcedPort(port: number, label: string, host: string, res
  * hands back whatever port it currently considers free.
  */
 async function probeEphemeralPort({ host }: { host: string }): Promise<number> {
-  const server = await listenOnPort(0, host);
+  const server = await listenOnPort({ port: 0, host });
   const address = server.address();
-  await closeServer(server);
+  await closeServer({ server });
   if (address == null || typeof address === "string") {
     throw new Error("failed to probe an ephemeral port");
   }
