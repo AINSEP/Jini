@@ -181,7 +181,7 @@ function mergeFileOpStatus(a: FileOpStatusLike, b: FileOpStatusLike): FileOpStat
 
 /** Drops duplicate `tool_use` events sharing an id, keeping the run's final
  *  attempt for each — a retried tool call otherwise double-counts. */
-export function dedupeToolUsesById({ events }: { events: AgentEventLike[] | undefined }, _optional: Record<string, never> = {}): AgentEventLike[] {
+export function dedupeToolUsesById({ events }: { events: AgentEventLike[] | undefined }, _optional?: Record<string, never>): AgentEventLike[] {
   if (!events || events.length === 0) return [];
   const seen = new Set<string>();
   let deduped: AgentEventLike[] | null = null;
@@ -346,7 +346,7 @@ function chatActivitySteps(
  *  ops, no status detail, and not currently active renders nothing). */
 export function chatActivityToProgressCard(
   { message, id, active }: { message: ChatActivityLike | null } & ChatActivityToProgressCardOptions,
-  _optional: Record<string, never> = {},
+  _optional?: Record<string, never>,
 ): ProgressCardData | null {
   const events = message?.events ?? [];
   const todos = latestTodosFromAgentEvents({ events });
