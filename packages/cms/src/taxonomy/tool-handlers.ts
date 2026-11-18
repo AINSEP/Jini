@@ -14,6 +14,7 @@
  */
 import { AGENT_TOOL_PRINCIPAL_KIND, optionalString, requireInputRecord, requireString, ToolInputError, type HumanConfirmer, type ToolExecutionContext, type ToolHandler } from "@jini-ai/core";
 import { adaptLegacyAuthorize, requireToolPermission } from "../core/tools/index.js";
+import { hostReadRef, resolveHostReadText } from "../core/tools/host-read-vocabulary.js";
 import { listTaxonomiesWithTerms } from "./list.js";
 import { confirmMergeTerm, executeMergeTerm, planMergeTerm } from "./merge-term.js";
 import { toTaxonomyOutbox } from "./repo.memory.js";
@@ -63,11 +64,11 @@ function mergeHooksFor(
 }
 
 /** Uses the live, workspace-bound repository, including its parent-taxonomy Trash filter. */
-export const taxonomyGetTermHandler = ({ deps }: TaxonomyHandlerArgs): ToolHandler => async (ctx) => {
+export const taxonomyGetTermHandler = ({ deps, hostReads }: TaxonomyHandlerArgs): ToolHandler => async (ctx) => {
   const termId = requireString({ input: requireInputRecord({ input: ctx.input }), key: "termId" });
   await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: deps.authorize }), workspaceId: deps.workspaceId, principalId: ctx.principal.id, permission: "admin.taxonomy.manage" }, { entityType: "term", entityId: termId });
   const term = await deps.termRepo.findByIdFull({ id: termId });
-  if (!term) throw new ToolInputError({ message: `term '${termId}' was not found — call content_read.taxonomy to list valid terms` });
+  if (!term) throw new ToolInputError({ message: `term '${termId}' was not found — call ${resolveHostReadText({ text: hostReadRef({ entity: "taxonomy" }) }, { hostReads })} to list valid terms` });
   return { term };
 };
 

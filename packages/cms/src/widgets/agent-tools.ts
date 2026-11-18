@@ -47,6 +47,7 @@ import type { AgentToolDefinition as SharedAgentToolDefinition } from "@jini-ai/
  * the published `widgetType` enum cannot drift from what the domain actually accepts.
  */
 
+import { hostReadRef } from "../core/tools/host-read-vocabulary.js";
 import { WIDGET_TYPE_REGISTRATIONS } from "./registry.js";
 
 const MUTATES_DURABLE_STATE = "mutates-durable-state";
@@ -64,14 +65,15 @@ const WIDGET_TYPE_KEYS = Object.values(WIDGET_TYPE_REGISTRATIONS).map((registrat
 
 const WIDGET_INSTANCE_ID_SCHEMA = {
   type: "string",
-  description: "The widget instance's entry id, as returned by widgets_create_instance or content_read.widget_instance.",
+  description: `The widget instance's entry id, as returned by widgets_create_instance or ${hostReadRef({ entity: "widget_instance" })}.`,
 } as const;
 
 const HOST_ENTRY_ID_SCHEMA = {
   type: "string",
   description:
     "The id of the host whose rich-text body holds the embed: a post or page (as returned by content_post_create or " +
-    "content_read.content_post) or a custom content entry. Use that host's own 'version' as baseVersion. An " +
+    `${hostReadRef({ entity: "content_post" })}) or a custom content entry.` +
+    " Use that host's own 'version' as baseVersion. An " +
     "HTML-format page is not a valid host — embed widgets there with a data-embed-config marker via " +
     "pages_write_region instead.",
 } as const;
@@ -84,7 +86,7 @@ const BASE_VERSION_SCHEMA = {
 const REGION_KEY_SCHEMA = {
   type: "string",
   minLength: 1,
-  description: "A theme-declared widget region key (e.g. 'header', 'footer', 'sidebar'). Call content_read.widget_region to see which are currently bound.",
+  description: `A theme-declared widget region key (e.g. 'header', 'footer', 'sidebar'). Call ${hostReadRef({ entity: "widget_region" })} to see which are currently bound.`,
 } as const;
 
 /** One placement in a region's ordered list, as published to the model. */
@@ -95,7 +97,7 @@ const PLACEMENT_SCHEMA = {
   properties: {
     placementId: {
       type: "string",
-      description: "Stable id for this placement slot. Omit when adding a NEW placement — one is minted automatically. Supply an EXISTING placementId (from content_read.widget_region) to keep editing the same slot rather than creating a new one.",
+      description: `Stable id for this placement slot. Omit when adding a NEW placement — one is minted automatically. Supply an EXISTING placementId (from ${hostReadRef({ entity: "widget_region" })}) to keep editing the same slot rather than creating a new one.`,
     },
     widgetEntryId: WIDGET_INSTANCE_ID_SCHEMA,
     content: { type: "object", description: "Optional per-placement Media config overlay: slug items or raw HTML; omitted display settings inherit saved config." },
@@ -109,7 +111,7 @@ const PLACEMENT_SCHEMA = {
  * why `purge` is the one exclusion).
  *
  * Ordered read-first, matching the other domain catalogs' convention: a model needs a
- * `widgetInstanceId` before it can update, trash, place, or embed one, and `content_read.widget_instance`
+ * `widgetInstanceId` before it can update, trash, place, or embed one, and the host's widget-instance read
  * (or `widgets_create_instance`'s own result) is how it learns one.
  */
 export const widgetsAgentToolCatalog: AgentToolDefinition[] = [
@@ -244,7 +246,9 @@ export const widgetsAgentToolCatalog: AgentToolDefinition[] = [
     description:
       "Replaces a bound region's WHOLE placement list in one atomic, version-guarded write (never a partial patch). " +
       "Every widgetEntryId referenced must be an existing, active widget instance in this workspace — a nonexistent, " +
-      "trashed, or purged target is rejected before anything is written. Call content_read.widget_region first to see the " +
+      "trashed, or purged target is rejected before anything is written. Call " +
+      hostReadRef({ entity: "widget_region" }) +
+      " first to see the " +
       "current baseVersion and existing placements to preserve.",
     sideEffects: MUTATES_DURABLE_STATE,
     authorization: { permission: PLACE_WIDGET_PERMISSION },

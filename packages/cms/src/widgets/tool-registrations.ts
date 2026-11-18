@@ -18,6 +18,7 @@
  * generic `requireToolPermission` precisely so both paths reach the identical gate function.
  */
 import { buildDomainRegistrations, indexCatalogById, ToolInputError, withSchemaOnRejection, type AgentToolSideEffect, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
+import { hostReadRef, resolveHostReadRefs, resolveHostReadText, type HostReadVocabulary } from "../core/tools/host-read-vocabulary.js";
 import { widgetsAgentToolCatalog } from "./agent-tools.js";
 import { WidgetEmbedReorderCountMismatchError } from "./embed-service.js";
 import { WidgetAreaConflictError, WidgetAreaNotFoundError, WidgetConfigValidationError, WidgetEmbedGuardrailError, WidgetEmbedHostNotFoundError, WidgetEmbedHostUnsupportedError, WidgetEmbedPlacementNotFoundError, WidgetForbiddenError, WidgetInstanceNotFoundError, WidgetTypeUnregisteredError, WidgetVersionConflictError } from "./errors.js";
@@ -27,7 +28,6 @@ import type { WidgetsHandlerArgs, WidgetsPackageToolDeps, WidgetsSchemaGuard } f
 
 const MUTATES_DURABLE_STATE = "mutates-durable-state";
 
-const CATALOG_BY_ID = indexCatalogById({ catalog: widgetsAgentToolCatalog });
 
 /**
  * This wiring layer's OWN risk classification, authored from what each handler below actually
@@ -106,7 +106,7 @@ function isWidgetsShapeRejection({ error }: { error: unknown }, _optional = {}):
  *
  * @complexity O(1).
  */
-function toModelFacingWidgetsError({ err }: { err: unknown }, _optional = {}): unknown {
+function toModelFacingWidgetsError({ err }: { err: unknown }, optional: { hostReads?: HostReadVocabulary | undefined } = {}): unknown {
   if (err instanceof ToolInputError) return err;
   if (err instanceof WidgetForbiddenError) {
     return new ToolInputError({ message: `WIDGETS_FORBIDDEN: ${err.message}` });
@@ -126,25 +126,25 @@ function toModelFacingWidgetsError({ err }: { err: unknown }, _optional = {}): u
   if (err instanceof WidgetEmbedPlacementNotFoundError) {
     return new ToolInputError({ message: `WIDGETS_EMBED_PLACEMENT_NOT_FOUND: ${err.message}` });
   }
-  const conflict = toModelFacingWidgetsConflictError({ err });
+  const conflict = toModelFacingWidgetsConflictError({ err }, optional);
   if (conflict) return conflict;
   return err;
 }
 
 /** The two optimistic-concurrency refusals of {@link toModelFacingWidgetsError}, split out to keep
  * its branch count within the complexity limit. `undefined` when `err` is neither. */
-function toModelFacingWidgetsConflictError({ err }: { err: unknown }, _optional = {}): ToolInputError | undefined {
+function toModelFacingWidgetsConflictError({ err }: { err: unknown }, { hostReads }: { hostReads?: HostReadVocabulary | undefined } = {}): ToolInputError | undefined {
   if (err instanceof WidgetVersionConflictError) {
     return new ToolInputError({ message: `WIDGETS_VERSION_CONFLICT: ${err.message}. Nothing was written. Re-read the host or instance to get its current version (${err.currentVersion}) and resend with that as baseVersion.` });
   }
   if (err instanceof WidgetAreaConflictError) {
-    return new ToolInputError({ message: `WIDGETS_AREA_CONFLICT: ${err.message}. Nothing was written. Call content_read.widget_region to get the current baseVersion (${err.currentVersion}) and resend.` });
+    return new ToolInputError({ message: `WIDGETS_AREA_CONFLICT: ${err.message}. Nothing was written. Call ${resolveHostReadText({ text: hostReadRef({ entity: "widget_region" }) }, { hostReads })} to get the current baseVersion (${err.currentVersion}) and resend.` });
   }
   return undefined;
 }
 
-const withWidgetsSchema: WidgetsSchemaGuard = ({ toolId, fn }) =>
-  withSchemaOnRejection({ toolId, catalog: CATALOG_BY_ID, isShapeRejection: ({ error }) => isWidgetsShapeRejection({ error }), fn });
+const withWidgetsSchema = ({ catalog }: { catalog: Parameters<typeof withSchemaOnRejection>[0]["catalog"] }): WidgetsSchemaGuard => ({ toolId, fn }) =>
+  withSchemaOnRejection({ toolId, catalog, isShapeRejection: ({ error }) => isWidgetsShapeRejection({ error }), fn });
 
 /**
  * Builds Widgets' tool registrations over the host's deps: the id -> handler table, wrapped once so
@@ -161,11 +161,16 @@ const withWidgetsSchema: WidgetsSchemaGuard = ({ toolId, fn }) =>
  * (`withToolMetadata` in `@jini-ai/core`) over the result.
  *
  * @param required.deps - The host's route deps slice, composers and hook-refusal wrapper.
+ * @param optional.hostReads - How the host names its read tools in model-facing text (neutral wording when absent).
  * @returns One registration per catalog entry, in catalog order.
  * @complexity O(t) in the twelve tools.
  */
-export function buildWidgetsToolRegistrations({ deps }: { deps: WidgetsPackageToolDeps }, _optional = {}): ToolRegistration[] {
-  const args: WidgetsHandlerArgs = { deps, withSchema: withWidgetsSchema };
+export function buildWidgetsToolRegistrations(
+  { deps }: { deps: WidgetsPackageToolDeps },
+  { hostReads }: { hostReads?: HostReadVocabulary | undefined } = {},
+): ToolRegistration[] {
+  const catalog = indexCatalogById({ catalog: resolveHostReadRefs({ value: widgetsAgentToolCatalog }, { hostReads }) });
+  const args: WidgetsHandlerArgs = { deps, withSchema: withWidgetsSchema({ catalog }) };
   const handlers: Record<string, ToolHandler> = {
     widgets_list_instances: widgetsListInstancesHandler(args),
     widgets_get_instance: widgetsGetInstanceHandler(args),
@@ -188,7 +193,7 @@ export function buildWidgetsToolRegistrations({ deps }: { deps: WidgetsPackageTo
         try {
           return await handler(ctx);
         } catch (err) {
-          throw toModelFacingWidgetsError({ err });
+          throw toModelFacingWidgetsError({ err }, { hostReads });
         }
       },
     ])
@@ -198,7 +203,7 @@ export function buildWidgetsToolRegistrations({ deps }: { deps: WidgetsPackageTo
   return buildDomainRegistrations({
     domain: "widgets",
     catalogModule: "widgets/agent-tools.ts",
-    catalog: CATALOG_BY_ID,
+    catalog,
     handlers: modelFacingHandlers,
     derivedRisk: widgetsDerivedRisk,
   });

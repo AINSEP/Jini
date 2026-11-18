@@ -18,13 +18,13 @@ import { buildDomainRegistrations, indexCatalogById, isRecord, optionalBoolean, 
 import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
 import { forbiddenRule, withModelFacingErrors, type ModelFacingErrorRule } from "@jini-ai/core/model-facing-tool-errors";
 import { ForbiddenError } from "../core/commands/command.js";
+import { resolveHostReadRefs, type HostReadVocabulary } from "../core/tools/host-read-vocabulary.js";
 import { adaptLegacyAuthorize, requireToolPermission } from "../core/tools/args.js";
 import { getRedirectsAgentToolCatalog, MANAGE_REDIRECTS_PERMISSION } from "./agent-tools.js";
 import type { RedirectHitSink, RedirectRepoPort } from "./ports.js";
 import { createRedirect, importRedirects, listRedirects, MAX_IMPORT_BATCH_SIZE, tombstoneRedirect, updateRedirect, type RedirectsWriteDeps } from "./redirects.js";
 import { REDIRECT_MATCH_TYPES, REDIRECT_SOURCES, REDIRECT_STATUSES, RedirectConflictError, RedirectLoopError, RedirectNotFoundError, RedirectTargetNotAllowedError, RedirectValidationError, type CreateRedirectInput, type RedirectMatchType, type RedirectRecord, type RedirectStatus, type RedirectStatusCode } from "./types.js";
 
-const CATALOG_BY_ID = indexCatalogById({ catalog: getRedirectsAgentToolCatalog() });
 
 /**
  * The exact slice of a host's route-deps bag the Redirects tool handlers read. Declared
@@ -255,13 +255,14 @@ const redirectsImportHandler = ({ deps }: RedirectsHandlerArgs): ToolHandler => 
  * authored risk map, with no host metadata or default surface store bound.
  *
  * @param required.deps - The ports the handlers read.
+ * @param optional.hostReads - How the host names its read tools in model-facing text (neutral wording when absent).
  * @returns One registration per catalog entry, in catalog order.
  * @throws {Error} When a catalog entry is neither wired nor declared unwired (the kit's tripwire).
  * @complexity O(t) in the seven catalog entries.
  */
 export function buildRedirectsToolRegistrations(
   { deps }: { deps: RedirectsPackageToolDeps },
-  _optional = {},
+  { hostReads }: { hostReads?: HostReadVocabulary | undefined } = {},
 ): ToolRegistration[] {
   const args: RedirectsHandlerArgs = { deps };
   const handlers: Record<string, ToolHandler> = {
@@ -277,7 +278,7 @@ export function buildRedirectsToolRegistrations(
   return buildDomainRegistrations({
     domain: "redirects",
     catalogModule: "redirects/agent-tools.ts",
-    catalog: CATALOG_BY_ID,
+    catalog: indexCatalogById({ catalog: resolveHostReadRefs({ value: getRedirectsAgentToolCatalog() }, { hostReads }) }),
     handlers: withModelFacingErrors({ handlers, rules: REDIRECTS_MODEL_FACING_RULES }),
     derivedRisk: redirectsDerivedRisk,
   });

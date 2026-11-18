@@ -6,6 +6,7 @@
  */
 import { buildDomainRegistrations, indexCatalogById, ToolPermissionDeniedError, type AgentToolDefinition, type AgentToolSideEffect, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import { forbiddenRule, withModelFacingErrors } from "@jini-ai/core/model-facing-tool-errors";
+import type { HostReadVocabulary } from "../core/tools/host-read-vocabulary.js";
 import {
   MERGE_TOOL_ID,
   taxonomyAssignTermsHandler,
@@ -65,9 +66,9 @@ export const taxonomyDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new
  */
 export function buildTaxonomyToolRegistrations(
   { deps, surfaces, catalog }: { deps: TaxonomyPackageToolDeps; surfaces: TaxonomyToolSurfaces; catalog: readonly AgentToolDefinition[] },
-  _optional = {},
+  { hostReads }: { hostReads?: HostReadVocabulary | undefined } = {},
 ): ToolRegistration[] {
-  const args: TaxonomyHandlerArgs = { deps, surfaces };
+  const args: TaxonomyHandlerArgs = { deps, surfaces, hostReads };
   const rules = [forbiddenRule({ domainPrefix: "TAXONOMY", error: ToolPermissionDeniedError })];
   const handlers: Record<string, ToolHandler> = {
     ...withModelFacingErrors({ handlers: { taxonomy_get_term: taxonomyGetTermHandler(args) }, rules }),

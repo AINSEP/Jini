@@ -1,4 +1,5 @@
 import type { AgentToolDefinition as SharedAgentToolDefinition } from "@jini-ai/core";
+import { hostReadRef } from "../core/tools/host-read-vocabulary.js";
 import { MAX_IMPORT_BATCH_SIZE, MAX_PRIORITY, MAX_TARGET_LENGTH, MIN_PRIORITY, MIN_TARGET_LENGTH, VALID_STATUS_CODES } from "./redirects.js";
 import { REDIRECT_MATCH_TYPES, REDIRECT_SOURCES, REDIRECT_STATUSES } from "./types.js";
 
@@ -57,7 +58,7 @@ type AgentToolDefinition = SharedAgentToolDefinition & { sideEffects: AgentToolS
 const REDIRECT_ID_PROPERTY = {
   type: "string",
   minLength: 1,
-  description: "A redirect rule's id, as returned by redirects_create or content_read.redirect.",
+  description: `A redirect rule's id, as returned by redirects_create or ${hostReadRef({ entity: "redirect" })}.`,
 } as const;
 
 const REDIRECT_ID_SCHEMA = {

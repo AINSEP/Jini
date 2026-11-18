@@ -7,6 +7,7 @@
 import type { AuthorizeFn, OutboxPort, TransactionalRepoPort } from "@jini-ai/core/contracts/events";
 import type { GatedMutationHooks, GatewayPlan, PrincipalKind } from "@jini-ai/core/gated-mutations";
 import type { Clock } from "@jini-ai/core/primitives";
+import type { HostReadVocabulary } from "../core/tools/host-read-vocabulary.js";
 import type { HumanConfirmer, SurfaceExchangeStore, ToolExecutionContext, ToolHandler } from "@jini-ai/core";
 import type { TaxonomyListPort, TermListPort } from "./list.js";
 import type { MergeTermPlanDetails, planMergeTerm } from "./merge-term.js";
@@ -88,4 +89,6 @@ export interface TaxonomyPackageToolDeps {
 export interface TaxonomyHandlerArgs {
   deps: TaxonomyPackageToolDeps;
   surfaces: TaxonomyToolSurfaces;
+  /** How model-facing text names the host's read tools; neutral wording when absent. */
+  hostReads?: HostReadVocabulary | undefined;
 }
