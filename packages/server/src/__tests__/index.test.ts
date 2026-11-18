@@ -43,6 +43,8 @@ describe('@jini-ai/server barrel', () => {
       'defineJiniFeature',
       'installGracefulShutdown',
       'isCapabilityId',
+      'mountRoutes',
+      'nodeSessionTimer',
       'normalizeDaemonBindHost',
       'projectDetectedAgent',
       'resolveBoundPort',
