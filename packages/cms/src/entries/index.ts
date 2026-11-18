@@ -78,6 +78,14 @@ export { createEntry, updateEntry, publishEntry, unpublishEntry, importEntry } f
  */
 export { InMemoryEntryRepo, toEntryOutbox } from "./repo.memory.js";
 
+/**
+ * The in-memory repository that also models the Trash (a trashed row is hidden from every read and shown by the `findAny*`
+ * seam) and implements the display / exclude-types read ports. The host's `onWriteSettled` is required: a host that caches
+ * data derived from this repository's writes has to be told when one settles.
+ */
+export { TrashAwareInMemoryEntryRepo } from "./repo.trash-aware.memory.js";
+export type { TrashAwareMemoryEntryRepoRequired } from "./repo.trash-aware.memory.js";
+
 /** The agent-tool surface for this domain (see `agent-tools.ts` for what is deliberately omitted). */
 export {
   entriesAgentToolCatalog,
