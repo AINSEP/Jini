@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from '../../../__tests__/fetch-query-s
 import { memo, useRef, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { AGENT_ELEMENT_ATTRIBUTE } from '@jini-ai/core/agent-handles';
-import { ConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog.js';
+import { ConfirmDialog, defaultConfirmDialogHooks } from '../../components/ConfirmDialog/ConfirmDialog.js';
 import { ConfirmDialogDefaultsProvider, useConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog.hooks.js';
 import type { UseConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog.hooks.js';
 
@@ -523,4 +523,19 @@ it('preserves the injected document focus port through the native lifecycle adap
     expect(opener).toHaveFocus();
     view.unmount();
   } finally { opener.remove(); }
+});
+
+describe('ConfirmDialog injected hooks', () => {
+  it('labels the cancel action with the label of the injected cancel-label hook', () => {
+    const useCancelLabel = vi.fn(() => 'Keep it');
+    renderDialog({ hooks: { ...defaultConfirmDialogHooks, useConfirmDialogCancelLabel: useCancelLabel } });
+    expect(useCancelLabel).toHaveBeenCalledWith({}, { explicit: undefined });
+    expect(screen.getByRole('button', { name: 'Keep it' })).toBeInTheDocument();
+  });
+
+  it('hands the dismiss request to the controller of the injected confirm hook', () => {
+    const useController = vi.fn(defaultConfirmDialogHooks.useConfirmController);
+    renderDialog({ hooks: { ...defaultConfirmDialogHooks, useConfirmController: useController } });
+    expect(useController).toHaveBeenCalledWith(expect.objectContaining({ open: true, title: 'Delete post?', confirmLabel: 'Delete' }), expect.anything());
+  });
 });
