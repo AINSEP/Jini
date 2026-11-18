@@ -13,7 +13,7 @@ import { composeJiniKernel } from '../compose-jini-kernel.js';
 
 const built: Array<{ options: CreateTerminalServiceOptions; service: TerminalService }> = [];
 
-// A recording spy over the real engine: what the preset hands `createTerminalService`, and the service it gets back.
+// A recording spy over the real engine: records the options the preset hands `createTerminalService`, so knob forwarding is asserted, not assumed, and the service it gets back.
 vi.mock('@jini-ai/platform', async importOriginal => {
   const actual = await importOriginal<typeof import('@jini-ai/platform')>();
   return {

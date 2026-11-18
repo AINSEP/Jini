@@ -6,8 +6,9 @@ import { createTerminalService } from '@jini-ai/platform';
 import { loadRealSpawnPty } from '../node-pty.js';
 
 // `loadRealSpawnPty` touches the real filesystem (`ensureSpawnHelperExecutable`) and dynamically
-// imports the real `node-pty` addon: mocked out here so the suite never spawns a real OS process or
-// mutates real files on disk.
+// imports the real `node-pty` addon — mocked out here so the daemon test suite never spawns a
+// real OS process or mutates real files on disk, matching this codebase's "no real subprocess or
+// filesystem by default in tests" convention (see `agent-executor`'s injectable `spawn`).
 const spawnHelperCandidatePathsMock = vi.fn<typeof SpawnHelperCandidatePathsFn>(() => ['/fake/candidate/spawn-helper']);
 const ensureSpawnHelperExecutableMock = vi.fn<typeof EnsureSpawnHelperExecutableFn>();
 vi.mock('@jini-ai/platform', async (importOriginal) => {
