@@ -44,3 +44,31 @@ export function toolFamilySentence(
 ): string {
   return `"${familyId}" is a group of tools, not one tool. Call one of: ${members.join(', ')}.`;
 }
+
+/** The two gateway tools a caller falls back to when a tool is not published as its own tool. */
+const GATEWAY_TOOL = 'execute_delegated_tool';
+const READONLY_GATEWAY_TOOL = 'execute_readonly_delegated_tool';
+
+/**
+ * How to call one tool, written the way the model must type it.
+ *
+ * A published tool is called by its wire name (the name the transport assigned, which is not always its
+ * registry id: ids with dots, hyphens or over the length limit are published as `tool_<readable>_<hash>`).
+ * Any other tool is called through the gateway, which takes the registry id. The two forms never mix: the
+ * wire name appears only in the first, the registry id only inside the gateway call.
+ *
+ * @param required.toolId - The registry id; used only in the gateway form.
+ * @param optional.wireName - The name the publisher assigned; present means "call it directly".
+ * @param optional.readOnly - A read-only tool goes through the read-only gateway.
+ * @param optional.input - Arguments to show; omitted, the direct form has none and the gateway form shows `{}`.
+ * @returns `name`, `name({...})`, or `execute_delegated_tool({"toolId":"id","input":{...}})`.
+ * @complexity O(s) for s bytes of serialized input; no effects.
+ */
+export function toolCallText(
+  { toolId }: { readonly toolId: string },
+  { wireName, readOnly = false, input }: { readonly wireName?: string; readonly readOnly?: boolean; readonly input?: unknown } = {},
+): string {
+  if (wireName !== undefined) return input === undefined ? wireName : `${wireName}(${JSON.stringify(input)})`;
+  const gateway = readOnly ? READONLY_GATEWAY_TOOL : GATEWAY_TOOL;
+  return `${gateway}(${JSON.stringify({ toolId, input: input ?? {} })})`;
+}
