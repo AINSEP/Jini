@@ -11,6 +11,9 @@ import { AttachmentPreviewModal, defaultAttachmentPreviewModalHooks } from '../A
 import { AttachmentTray } from '../AttachmentTray.js';
 import { McpUiHost } from '../../surfaces.js';
 import { A2uiSurfaceCard } from '../A2uiSurfaceCard.js';
+import { MessageList } from '../MessageList.js';
+import { MessageRow } from '../MessageRow.js';
+import { ConversationTitle } from '../ConversationTitleEditor.js';
 import { ThinkingBlock } from '../MessageRow.js';
 import { AgentPluginUsage } from '../../features/chat-pane/components/AgentPluginUsage.js';
 
@@ -155,5 +158,34 @@ describe('A2uiSurfaceCard', () => {
   it('shows the waiting notice when the injected card hook has no root yet', () => {
     card({});
     expect(screen.getByRole('status')).toHaveTextContent('«Waiting for the agent to send a root component…»');
+  });
+});
+
+describe('MessageRow and ConversationTitle', () => {
+  it('MessageRow asks the injected surface-answer hook for the contexts of its message events', () => {
+    const useContexts = vi.fn(() => new Map());
+    render(<MessageRow message={{ id: 'm1', role: 'user', content: 'hello from the user' } as never} useSurfaceAnswerContextsHook={useContexts as never} />);
+    expect(useContexts).toHaveBeenCalledWith({ events: undefined });
+    expect(screen.getByText('hello from the user')).toBeInTheDocument();
+  });
+
+  it('ConversationTitle labels its rename affordance with the injected translator', () => {
+    render(<ConversationTitle title="Plan" displayTitle="Plan" onRename={vi.fn()} useTHook={useQuotingT} />);
+    expect(document.body.innerHTML).toContain('«');
+  });
+});
+
+describe('MessageList', () => {
+  it('uses the injected usage and auto-scroll hooks, and renders the jump button when the injected scroll hook says it is away', () => {
+    const jumpToLatest = vi.fn();
+    const useUsage = vi.fn(() => new Map());
+    const useScroll = vi.fn(() => ({ containerRef: { current: null }, onScroll: vi.fn(), awayFromLatest: true, jumpToLatest }));
+    const messages = [{ id: 'm1', role: 'user', content: 'first question' }] as never;
+    render(<MessageList messages={messages} hooks={{ useConversationUsage: useUsage as never, useMessageListAutoScroll: useScroll as never }} />);
+    expect(useUsage).toHaveBeenCalledTimes(1);
+    expect(useScroll).toHaveBeenCalledWith(expect.objectContaining({ scrollIntent: false }), {});
+    expect(screen.getByText('first question')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Jump to latest' }));
+    expect(jumpToLatest).toHaveBeenCalledTimes(1);
   });
 });
