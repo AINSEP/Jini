@@ -48,3 +48,19 @@ describe('vendor key shapes chat once masked at any length', () => {
     expect(redactUserText({ text })).toEqual(kept(text));
   });
 });
+
+describe('custom auth headers and auth schemes other than Bearer', () => {
+  it.each([
+    ['x-auth-token: abc', 'x-auth-token: [token removed]'],
+    ['curl -H "X-Auth-Token: abc123" https://x.test', 'curl -H "X-Auth-Token: [token removed]" https://x.test'],
+    ['Authorization: Token abc123def456', 'Authorization: Token [token removed]'],
+    ['Authorization: ApiKey abc123', 'Authorization: ApiKey [token removed]'],
+    ['Authorization: Digest username="bob", response="abc"', 'Authorization: Digest [token removed]'],
+    ['Basic dXNlcjpwYXNzd29yZDEy', 'Basic [token removed]'],
+  ])('removes the value in %j', (text, expected) => {
+    expect(redactUserText({ text })).toEqual({ text: expected, secretRedacted: true, count: 1 });
+  });
+  it.each(['Authorization: Bearer', 'Authorization: Basic', 'Basic authentication is not supported', 'Token expired at noon'])('keeps %j', text => {
+    expect(redactUserText({ text })).toEqual(kept(text));
+  });
+});

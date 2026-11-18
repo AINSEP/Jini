@@ -55,7 +55,8 @@ describe('answers the engine already gives its other callers', () => {
   ["GET /v1/messages?key=AIzaSyA1234567890abcdefghijklmnopqrstuv 400", "GET /v1/messages?key=[REDACTED:google_api_key] 400"],
   ["at Object.<anonymous> (/app/node_modules/x/index.js:10:5)", "at Object.<anonymous> (/app/node_modules/x/index.js:10:5)"],
   ["build failed: exit code 1 (see logs at /tmp/build.log)", "build failed: exit code 1 (see logs at /tmp/build.log)"],
-  ["Authorization: Bearer", "Authorization: [REDACTED:labeled_secret]"],
+  // Changed on purpose by redact.auth-schemes.test.ts: a scheme word with no value describes a header (docs, prose).
+  ["Authorization: Bearer", "Authorization: Bearer"],
   ["curl -u admin:pw https://x.test", "curl -u admin:pw https://x.test"],
   ])('%j', (input, expected) => {
     const first = run(input);

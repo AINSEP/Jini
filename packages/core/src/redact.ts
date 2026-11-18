@@ -32,6 +32,7 @@
  * - Luhn algorithm (credit cards): https://en.wikipedia.org/wiki/Luhn_algorithm
  */
 
+import { authSchemeValueRanges, BARE_SCHEME_TOKEN_PATTERNS } from './redact-auth-schemes.js';
 import { VENDOR_SHAPE_PATTERNS } from './redact-vendor-shapes.js';
 
 /** Credential-shape vocabulary for secret-only redaction; no I/O or host dependencies. */
@@ -288,7 +289,7 @@ const CARD_CANDIDATE = /\b(?:\d[ -]?){12,18}\d\b/g;
 // Inspect/JSON credentials can contain spaces and escaped quotes; consume the entire value.
 const QUOTED_SECRET_VALUE = String.raw`"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'`;
 const API_KEY_HEADER =
-  new RegExp(`(^|[^?&\\w])(["']?)(x-api-key|api-key|x-goog-api-key)\\2(\\s*[:=]\\s*)(${QUOTED_SECRET_VALUE}|[^\\s,;"'#}]+)`, 'gi');
+  new RegExp(`(^|[^?&\\w])(["']?)(x-api-key|api-key|x-goog-api-key|x-auth-token)\\2(\\s*[:=]\\s*)(${QUOTED_SECRET_VALUE}|[^\\s,;"'#}]+)`, 'gi');
 const API_KEY_QUERY = /([?&](?:key|api_key|api-key)=)[^&#\s,;"']+/gi;
 
 // The length guard and the per-digit `d < 0 || d > 9` guard from the origin
@@ -356,9 +357,12 @@ export const NON_SECRET_TOKEN_RE = new RegExp(`^(?:${CORRELATION_ID}|delegated-t
 // Bare URL key/token parameters already have owners; leave their empty values and categories
 // to those collectors instead of treating the following `&page=...` as a label's value.
 const RUNTIME_SECRET_LABELS = `${SERIALIZED_SECRET_LABELS}|(?<![?&])(?:key)`;
+// A value that is an auth scheme word is not the credential: the scheme rules own the value after it
+// (Bearer, Token, ApiKey, Digest, Basic), and a scheme word alone (`Authorization: Bearer`) describes a header.
+const AUTH_SCHEME_WORD = '(?:Bearer|Token|ApiKey|Digest|Basic)';
 const MASK_AWARE_LABELED_SECRET_RE = new RegExp(
   `(?<![\\w-])(["']?)(${RUNTIME_SECRET_LABELS})\\1\\s*[:=]\\s*`
-    + `(?!Bearer\\s+\\S)(?!${GENERATED_MARKER}[;&])((?!&)\\S)`,
+    + `(?!["']?${AUTH_SCHEME_WORD}(?:[ \\t]+\\S|[\\s"'\x60.,;:)\\]}]|$))(?!${GENERATED_MARKER}[;&])((?!&)\\S)`,
   'gi',
 );
 // A label can name another label; resume at it instead of consuming `token:` and leaking its value.
@@ -658,6 +662,7 @@ function credentialPatterns(extraPatterns: readonly SecretRedactionPattern[]): S
   return [
     ...NON_PII_PATTERNS,
     ...VENDOR_SHAPE_PATTERNS,
+    ...BARE_SCHEME_TOKEN_PATTERNS,
     ...SECRET_SHAPE_PATTERNS.map((shape) => ({ name: CATEGORY.credential, regex: shape.pattern })),
     ...extraPatterns,
   ];
@@ -696,6 +701,9 @@ function collectKeyedCredentials(pass: SpanPass): void {
     return { start, end: start + (match[1] ?? '').length, category: CATEGORY.bearerToken };
   });
   collectMatches(pass, BASIC_AUTH_RE, trailingValue(CATEGORY.labeledSecret, 1));
+  for (const { start, end } of authSchemeValueRanges({ text: pass.text })) {
+    if (!isMaskedValue(pass.text.slice(start, end))) pass.add(start, end, CATEGORY.apiKeyHeader);
+  }
   collectMatches(pass, COOKIE_HEADER_RE, trailingValue(CATEGORY.labeledSecret, 1));
   collectUrlSecretParams(pass);
 }
@@ -938,7 +946,7 @@ function exactSyntaxRanges({ text }: { text: string }, _options = {}): Span[] {
   const pass = { text, add };
   collectMatches(pass, new RegExp(`${GENERATED_MARKER}|\\[redacted\\]`, 'gi'), (m, at) => ({ start: at, end: at + m[0].length, category: 'syntax' }));
   collectMatches(pass, MASK_AWARE_LABELED_SECRET_RE, (m, at) => ({ start: at, end: at + m[0].length - 1, category: 'syntax' }));
-  collectMatches(pass, /\bBearer\s+|\bhttps?:\/\/|(?:x-api-key|api-key|x-goog-api-key)\s*[:=]\s*/gi,
+  collectMatches(pass, /\bBearer\s+|\bhttps?:\/\/|(?:x-api-key|api-key|x-goog-api-key|x-auth-token)\s*[:=]\s*/gi,
     (m, at) => ({ start: at, end: at + m[0].length, category: 'syntax' }));
   collectMatches(pass, URL_SECRET_PARAM_RE, (m, at) => ({ start: at, end: at + m[0].indexOf('=') + 1, category: 'syntax' }));
   return mergeSpans(ranges);
