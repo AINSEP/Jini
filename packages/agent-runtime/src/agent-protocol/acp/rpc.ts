@@ -17,7 +17,7 @@ import type { RuntimeBuildOptions } from '@jini-ai/core/contracts/agents';
  * @param method - The RPC method name.
  * @param params - The method parameter payload (any JSON-serialisable value).
  */
-export function sendRpc(writable: RpcWritable, id: JsonRpcId, method: string, params: unknown): void {
+export function sendRpc({ writable, id, method, params }: { writable: RpcWritable; id: JsonRpcId; method: string; params: unknown }, _optional: Record<string, never> = {}): void {
   writable.write(
     `${JSON.stringify({ jsonrpc: '2.0', id, method, params })}\n`,
   );
@@ -30,7 +30,7 @@ export function sendRpc(writable: RpcWritable, id: JsonRpcId, method: string, pa
  * @param id - The id from the incoming request being answered.
  * @param result - The result payload to include in the response.
  */
-export function sendRpcResult(writable: RpcWritable, id: JsonRpcId, result: unknown): void {
+export function sendRpcResult({ writable, id, result }: { writable: RpcWritable; id: JsonRpcId; result: unknown }, _optional: Record<string, never> = {}): void {
   writable.write(`${JSON.stringify({ jsonrpc: '2.0', id, result })}\n`);
 }
 /**
@@ -48,9 +48,9 @@ export function isJsonRpcId(value: unknown): value is JsonRpcId {
  * @param raw - A parsed JSON-RPC response object (unknown shape).
  * @returns A non-empty error message string, or `''` when not an error response.
  */
-export function rpcErrorMessage(raw: unknown): string {
-  const obj = asObject(raw);
-  const error = asObject(obj?.error);
+export function rpcErrorMessage({ raw }: { raw: unknown }, _optional: Record<string, never> = {}): string {
+  const obj = asObject({ value: raw });
+  const error = asObject({ value: obj?.error });
   if (!obj || !error) {
     return '';
   }
@@ -68,9 +68,9 @@ export function rpcErrorMessage(raw: unknown): string {
  * @param raw - A parsed JSON-RPC response object (unknown shape).
  * @returns The `error.data` value, or `undefined` when absent.
  */
-export function rpcErrorData(raw: unknown): unknown {
-  const obj = asObject(raw);
-  const error = asObject(obj?.error);
+export function rpcErrorData({ raw }: { raw: unknown }, _optional: Record<string, never> = {}): unknown {
+  const obj = asObject({ value: raw });
+  const error = asObject({ value: obj?.error });
   return error && 'data' in error ? error.data : undefined;
 }
 /**
@@ -80,8 +80,8 @@ export function rpcErrorData(raw: unknown): unknown {
  *
  * @param data - The value of `error.data` extracted via `rpcErrorData`.
  */
-export function rpcErrorRetryable(data: unknown): boolean | undefined {
-  const details = asObject(data);
+export function rpcErrorRetryable({ data }: { data: unknown }, _optional: Record<string, never> = {}): boolean | undefined {
+  const details = asObject({ value: data });
   return typeof details?.retryable === 'boolean' ? details.retryable : undefined;
 }
 /**
@@ -95,8 +95,8 @@ export function rpcErrorRetryable(data: unknown): boolean | undefined {
  * @param fallbackMessage - Used when the payload's `message` field is blank.
  * @returns A structured error payload, or `null` when not applicable.
  */
-export function promotedOpenCodeSessionErrorPayload(data: unknown, fallbackMessage: string) {
-  const details = asObject(data);
+export function promotedOpenCodeSessionErrorPayload({ data, fallbackMessage }: { data: unknown; fallbackMessage: string }, _optional: Record<string, never> = {}) {
+  const details = asObject({ value: data });
   if (
     details?.kind !== 'opencode_session_error' ||
     details.source !== 'opencode' ||
@@ -138,8 +138,8 @@ export interface FormattedUsage {
  * @param usage - The raw `result.usage` value from a `session/prompt` response.
  * @returns A `FormattedUsage` object with at least one field, or `null`.
  */
-export function formatUsage(usage: unknown): FormattedUsage | null {
-  const src = asObject(usage);
+export function formatUsage({ usage }: { usage: unknown }, _optional: Record<string, never> = {}): FormattedUsage | null {
+  const src = asObject({ value: usage });
   if (!src) return null;
   const out: FormattedUsage = {};
   if (typeof src.inputTokens === 'number') out.input_tokens = src.inputTokens;
@@ -162,13 +162,13 @@ export function formatUsage(usage: unknown): FormattedUsage | null {
  * @returns An offered `optionId`, or `null` when no safe choice exists.
  * @complexity O(n) time and O(1) space for n offered options.
  */
-export function choosePermissionOutcome(options: unknown, policy: Pick<RuntimeBuildOptions, 'permissionMode' | 'cliParity'> = {}): string | null {
+export function choosePermissionOutcome({ options }: { options: unknown }, policy: Pick<RuntimeBuildOptions, 'permissionMode' | 'cliParity'> = {}): string | null {
   const list = Array.isArray(options) ? options : [];
   const bypassKinds = policy.cliParity ? ['allow_once', 'allow_always', 'reject_once', 'reject_always'] : ['allow_once', 'reject_once', 'reject_always'];
   const kinds = policy.permissionMode === 'bypass' ? bypassKinds : ['reject_once', 'reject_always'];
   for (const kind of kinds) {
     const option = list.find((value) => {
-      const record = asObject(value);
+      const record = asObject({ value });
       return record?.kind === kind && typeof record.optionId === 'string' && record.optionId.length > 0;
     });
     if (option) return option.optionId;

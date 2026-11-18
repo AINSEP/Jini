@@ -57,62 +57,62 @@ describe('replyExtensionUi', () => {
 
   it('does nothing when raw.id is null/undefined', () => {
     const w = fakeWritable();
-    replyExtensionUi(w, { id: null });
-    replyExtensionUi(w, {});
+    replyExtensionUi({ writable: w, raw: { id: null } });
+    replyExtensionUi({ writable: w, raw: {} });
     expect((w as any).writes).toEqual([]);
   });
 
   it('silently consumes fire-and-forget methods', () => {
     const w = fakeWritable();
-    replyExtensionUi(w, { id: 1, method: 'setStatus' });
+    replyExtensionUi({ writable: w, raw: { id: 1, method: 'setStatus' } });
     expect((w as any).writes).toEqual([]);
   });
 
   it('auto-resolves confirm to { confirmed: true }', () => {
     const w = fakeWritable();
-    replyExtensionUi(w, { id: 1, method: 'confirm' });
+    replyExtensionUi({ writable: w, raw: { id: 1, method: 'confirm' } });
     const written = JSON.parse((w as any).writes[0]);
     expect(written).toEqual({ type: 'extension_ui_response', id: 1, confirmed: true });
   });
 
   it('picks the first string option for a select-style request', () => {
     const w = fakeWritable();
-    replyExtensionUi(w, { id: 2, method: 'select', params: { options: ['a', 'b'] } });
+    replyExtensionUi({ writable: w, raw: { id: 2, method: 'select', params: { options: ['a', 'b'] } } });
     const written = JSON.parse((w as any).writes[0]);
     expect(written).toEqual({ type: 'extension_ui_response', id: 2, value: 'a' });
   });
 
   it('picks the first object option, preferring label over value', () => {
     const w = fakeWritable();
-    replyExtensionUi(w, { id: 3, method: 'select', options: [{ label: 'Label A', value: 'a' }] });
+    replyExtensionUi({ writable: w, raw: { id: 3, method: 'select', options: [{ label: 'Label A', value: 'a' }] } });
     const written = JSON.parse((w as any).writes[0]);
     expect(written).toEqual({ type: 'extension_ui_response', id: 3, value: 'Label A' });
   });
 
   it('falls back to value when an object option has no label', () => {
     const w = fakeWritable();
-    replyExtensionUi(w, { id: 4, method: 'select', options: [{ value: 'v' }] });
+    replyExtensionUi({ writable: w, raw: { id: 4, method: 'select', options: [{ value: 'v' }] } });
     const written = JSON.parse((w as any).writes[0]);
     expect(written).toEqual({ type: 'extension_ui_response', id: 4, value: 'v' });
   });
 
   it('falls back to "" when an object option has neither label nor value', () => {
     const w = fakeWritable();
-    replyExtensionUi(w, { id: 5, method: 'select', options: [{}] });
+    replyExtensionUi({ writable: w, raw: { id: 5, method: 'select', options: [{}] } });
     const written = JSON.parse((w as any).writes[0]);
     expect(written).toEqual({ type: 'extension_ui_response', id: 5, value: '' });
   });
 
   it('responds with cancelled: true when no options are present', () => {
     const w = fakeWritable();
-    replyExtensionUi(w, { id: 6, method: 'input' });
+    replyExtensionUi({ writable: w, raw: { id: 6, method: 'input' } });
     const written = JSON.parse((w as any).writes[0]);
     expect(written).toEqual({ type: 'extension_ui_response', id: 6, cancelled: true });
   });
 
   it('responds with cancelled: true when options is present but empty', () => {
     const w = fakeWritable();
-    replyExtensionUi(w, { id: 7, method: 'input', options: [] });
+    replyExtensionUi({ writable: w, raw: { id: 7, method: 'input', options: [] } });
     const written = JSON.parse((w as any).writes[0]);
     expect(written).toEqual({ type: 'extension_ui_response', id: 7, cancelled: true });
   });
@@ -130,12 +130,12 @@ describe('readPiSessionFiles / snapshotPiSessionFiles / resolveSessionPathChange
   });
 
   it('returns [] when cwd is undefined or empty', () => {
-    expect(readPiSessionFiles(undefined)).toEqual([]);
-    expect(readPiSessionFiles('')).toEqual([]);
+    expect(readPiSessionFiles({ cwd: undefined })).toEqual([]);
+    expect(readPiSessionFiles({ cwd: '' })).toEqual([]);
   });
 
   it('returns [] when the sessions directory does not exist', () => {
-    expect(readPiSessionFiles(dir)).toEqual([]);
+    expect(readPiSessionFiles({ cwd: dir })).toEqual([]);
   });
 
   it('lists only .jsonl files, ignoring other extensions and subdirectories', () => {
@@ -144,7 +144,7 @@ describe('readPiSessionFiles / snapshotPiSessionFiles / resolveSessionPathChange
     fs.writeFileSync(path.join(sessionsDir, 'a.jsonl'), '{}');
     fs.writeFileSync(path.join(sessionsDir, 'b.txt'), 'nope');
     fs.mkdirSync(path.join(sessionsDir, 'subdir'));
-    const files = readPiSessionFiles(dir);
+    const files = readPiSessionFiles({ cwd: dir });
     expect(files.map((f) => path.basename(f.path))).toEqual(['a.jsonl']);
   });
 
@@ -152,10 +152,10 @@ describe('readPiSessionFiles / snapshotPiSessionFiles / resolveSessionPathChange
     const sessionsDir = path.join(dir, '.pi', 'sessions');
     fs.mkdirSync(sessionsDir, { recursive: true });
     fs.writeFileSync(path.join(sessionsDir, 'a.jsonl'), '{}');
-    const before = snapshotPiSessionFiles(dir);
+    const before = snapshotPiSessionFiles({ cwd: dir });
     // Ensure a detectable mtime/size change.
     fs.writeFileSync(path.join(sessionsDir, 'a.jsonl'), '{"more":"data"}');
-    const changed = resolveSessionPathChangedSince(dir, before);
+    const changed = resolveSessionPathChangedSince({ cwd: dir, before });
     expect(changed).toBe(path.join(sessionsDir, 'a.jsonl'));
   });
 
@@ -163,8 +163,8 @@ describe('readPiSessionFiles / snapshotPiSessionFiles / resolveSessionPathChange
     const sessionsDir = path.join(dir, '.pi', 'sessions');
     fs.mkdirSync(sessionsDir, { recursive: true });
     fs.writeFileSync(path.join(sessionsDir, 'a.jsonl'), '{}');
-    const before = snapshotPiSessionFiles(dir);
-    expect(resolveSessionPathChangedSince(dir, before)).toBeNull();
+    const before = snapshotPiSessionFiles({ cwd: dir });
+    expect(resolveSessionPathChangedSince({ cwd: dir, before })).toBeNull();
   });
 
   it('returns null when more than one file changed', () => {
@@ -172,18 +172,18 @@ describe('readPiSessionFiles / snapshotPiSessionFiles / resolveSessionPathChange
     fs.mkdirSync(sessionsDir, { recursive: true });
     fs.writeFileSync(path.join(sessionsDir, 'a.jsonl'), '{}');
     fs.writeFileSync(path.join(sessionsDir, 'b.jsonl'), '{}');
-    const before = snapshotPiSessionFiles(dir);
+    const before = snapshotPiSessionFiles({ cwd: dir });
     fs.writeFileSync(path.join(sessionsDir, 'a.jsonl'), '{"x":1}');
     fs.writeFileSync(path.join(sessionsDir, 'b.jsonl'), '{"y":1}');
-    expect(resolveSessionPathChangedSince(dir, before)).toBeNull();
+    expect(resolveSessionPathChangedSince({ cwd: dir, before })).toBeNull();
   });
 
   it('detects a brand-new file not present in the before-snapshot', () => {
     const sessionsDir = path.join(dir, '.pi', 'sessions');
     fs.mkdirSync(sessionsDir, { recursive: true });
-    const before = snapshotPiSessionFiles(dir);
+    const before = snapshotPiSessionFiles({ cwd: dir });
     fs.writeFileSync(path.join(sessionsDir, 'new.jsonl'), '{}');
-    expect(resolveSessionPathChangedSince(dir, before)).toBe(path.join(sessionsDir, 'new.jsonl'));
+    expect(resolveSessionPathChangedSince({ cwd: dir, before })).toBe(path.join(sessionsDir, 'new.jsonl'));
   });
 
   it('skips an unreadable entry rather than throwing', () => {
@@ -193,7 +193,7 @@ describe('readPiSessionFiles / snapshotPiSessionFiles / resolveSessionPathChange
     const statSpy = vi.spyOn(fs, 'statSync').mockImplementation(() => {
       throw new Error('boom');
     });
-    expect(readPiSessionFiles(dir)).toEqual([]);
+    expect(readPiSessionFiles({ cwd: dir })).toEqual([]);
     statSpy.mockRestore();
   });
 });

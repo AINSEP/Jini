@@ -261,7 +261,7 @@ export function handleRpcError({
   obj: UnknownRecord;
   error: UnknownRecord | null;
   rpcErr: string;
-}): void {
+}, _optional: Record<string, never> = {}): void {
   if (isRecoverableModelSelectionError({ state, effects, obj, error })) {
     effects.recoverFromModelSelectionError();
     return;
@@ -286,7 +286,7 @@ function isRecoverableModelSelectionError({
   error: UnknownRecord | null;
 }): boolean {
   const awaitingSetModel = obj.id === state.setModelRequestId && state.promptRequestId === null;
-  return awaitingSetModel && modelSelectionErrorIsRecoverable(error?.code) && (!effects.model || effects.model === 'default');
+  return awaitingSetModel && modelSelectionErrorIsRecoverable({ code: error?.code }) && (!effects.model || effects.model === 'default');
 }
 
 /** Fails the run for a real RPC error, promoting a known OpenCode session error
@@ -300,13 +300,13 @@ function failWithRpcError({
   obj: UnknownRecord;
   rpcErr: string;
 }): void {
-  const details = rpcErrorData(obj);
-  const promotedPayload = promotedOpenCodeSessionErrorPayload(details, rpcErr);
+  const details = rpcErrorData({ raw: obj });
+  const promotedPayload = promotedOpenCodeSessionErrorPayload({ data: details, fallbackMessage: rpcErr });
   if (promotedPayload) {
     effects.failWithPayload(promotedPayload);
     return;
   }
-  const retryable = rpcErrorRetryable(details);
+  const retryable = rpcErrorRetryable({ data: details });
   effects.fail(rpcErr, {
     details,
     ...(retryable === undefined ? {} : { retryable }),
@@ -320,8 +320,8 @@ export function tryPromoteAmrRetryStatus({
 }: {
   effects: AcpSessionEffects;
   update: UnknownRecord;
-}): boolean {
-  const promotedPayload = promotedAmrRetryStatusPayload(update, effects.accountFailureClassifier);
+}, _optional: Record<string, never> = {}): boolean {
+  const promotedPayload = promotedAmrRetryStatusPayload({ update }, { classifier: effects.accountFailureClassifier });
   if (!promotedPayload) return false;
   effects.failWithPayload(promotedPayload);
   return true;
@@ -336,9 +336,9 @@ export function handleThoughtChunkUpdate({
   state: AcpSessionState;
   effects: AcpSessionEffects;
   update: UnknownRecord;
-}): void {
+}, _optional: Record<string, never> = {}): void {
   effects.emitAcpRawShapeDiagnostic(update);
-  const text = extractAcpUpdateText(update);
+  const text = extractAcpUpdateText({ update });
   if (!text) return;
   if (!state.emittedThinkingStart) {
     state.emittedThinkingStart = true;
@@ -348,7 +348,7 @@ export function handleThoughtChunkUpdate({
 }
 
 /** Strips tool-call XML from a raw message delta via the session's tool-call text suppressor, noting the suppression reason. */
-export function stripToolCallText({ effects, delta }: { effects: AcpSessionEffects; delta: string }): string {
+export function stripToolCallText({ effects, delta }: { effects: AcpSessionEffects; delta: string }, _optional: Record<string, never> = {}): string {
   const wasSuppressingToolCall = effects.toolCallTextSuppressor.isSuppressing();
   const toolCallStrippedDelta = effects.toolCallTextSuppressor.strip(delta);
   effects.noteToolCallTextSuppression(
@@ -374,7 +374,7 @@ export function shouldPreserveIncrementalProse(args: {
   toolCallStrippedDelta: string;
   dsmlArtifactSuppressorArmedAfterText: boolean;
   dsmlArtifactSuppressorSawIncrementalProse: boolean;
-}): boolean {
+}, _optional: Record<string, never> = {}): boolean {
   const {
     isCumulativeSnapshot,
     wasSuppressingArtifact,
@@ -403,7 +403,7 @@ export function isPlainIncrementalDelta(args: {
   wasSuppressingArtifact: boolean;
   hadPendingArtifactCandidate: boolean;
   hasOpenArtifactCandidate: boolean;
-}): boolean {
+}, _optional: Record<string, never> = {}): boolean {
   const {
     strippedDelta,
     toolCallStrippedDelta,
@@ -433,7 +433,7 @@ export function applyDsmlArtifactSuppression({
   toolCallStrippedDelta: string;
   delta: string;
   isCumulativeSnapshot: boolean;
-}): void {
+}, _optional: Record<string, never> = {}): void {
   const wasSuppressingArtifact = suppressor.isSuppressing();
   const hadPendingArtifactCandidate = suppressor.hasPendingCandidate();
   const strippedDelta = suppressor.strip(toolCallStrippedDelta);
@@ -467,13 +467,9 @@ export function applyDsmlArtifactSuppression({
   ) {
     state.dsmlArtifactSuppressorSawIncrementalProse = true;
   }
-  if (consumedArtifactText && !hasOpenArtifactCandidate) {
-    state.dsmlArtifactSuppressor = null;
-    state.dsmlArtifactSuppressorToolCallId = null;
-    state.dsmlArtifactSuppressorArmedAfterText = false;
-    state.dsmlArtifactSuppressorSawIncrementalProse = false;
-  }
+  clearConsumedArtifactSuppression({ state, consumedArtifactText, hasOpenArtifactCandidate });
 }
+function clearConsumedArtifactSuppression({ state, consumedArtifactText, hasOpenArtifactCandidate }: { state: AcpSessionState; consumedArtifactText: boolean; hasOpenArtifactCandidate: boolean }, _optional: Record<string, never> = {}): void { if (consumedArtifactText && !hasOpenArtifactCandidate) { state.dsmlArtifactSuppressor = null; state.dsmlArtifactSuppressorToolCallId = null; state.dsmlArtifactSuppressorArmedAfterText = false; state.dsmlArtifactSuppressorSawIncrementalProse = false; } }
 
 /** Translates an `agent_message_chunk` update into `text_delta` events, applying tool-call and DSML-artifact text suppression. */
 export function handleMessageChunkUpdate({
@@ -484,9 +480,9 @@ export function handleMessageChunkUpdate({
   state: AcpSessionState;
   effects: AcpSessionEffects;
   update: UnknownRecord;
-}): void {
+}, _optional: Record<string, never> = {}): void {
   effects.emitAcpRawShapeDiagnostic(update);
-  const text = extractAcpUpdateText(update);
+  const text = extractAcpUpdateText({ update });
   if (!text) return;
   const isCumulativeSnapshot = state.emittedTextBuffer.length > 0 &&
     text.length > state.emittedTextBuffer.length && text.startsWith(state.emittedTextBuffer);
@@ -541,29 +537,31 @@ export function mirrorArtifactWriteToolEvent({
   effects: AcpSessionEffects;
   update: UnknownRecord;
   toolCallId: string | null;
-}): void {
+}, _optional: Record<string, never> = {}): void {
   if (!toolCallId) return;
-  const isWriteCall = isAcpArtifactWriteLabel(update) || state.acpArtifactWriteToolCallIds.has(toolCallId);
+  const isWriteCall = isAcpArtifactWriteLabel({ update }) || state.acpArtifactWriteToolCallIds.has(toolCallId);
   if (!isWriteCall) return;
   let st = state.acpArtifactRunEventState.get(toolCallId);
   if (!st) {
     st = { path: null, emitted: false };
     state.acpArtifactRunEventState.set(toolCallId, st);
   }
-  if (!st.path) st.path = acpArtifactWritePath(update);
-  const failed = isAcpTerminalFailureStatus(update);
-  const shouldEmit = !st.emitted && (failed || isAcpCompletedStatus(update));
+  if (!st.path) st.path = acpArtifactWritePath({ update });
+  const failed = isAcpTerminalFailureStatus({ update });
+  const shouldEmit = !st.emitted && (failed || isAcpCompletedStatus({ update }));
   if (!shouldEmit) return;
   st.emitted = true;
   effects.send({ event: 'agent', payload: {
     type: 'tool_use',
     id: toolCallId,
     name: 'Write',
-    input: { file_path: st.path ?? toolCallId },
+    input: { file_path: artifactWriteFilePath({ path: st.path, toolCallId }) },
   } });
   effects.send({ event: 'agent', payload: { type: 'tool_result', toolUseId: toolCallId, isError: failed } });
   state.emittedConcreteToolEvent = true;
 }
+
+function artifactWriteFilePath({ path, toolCallId }: { path: string | null; toolCallId: string }, _optional: Record<string, never> = {}): string { return path ?? toolCallId; }
 
 /** Arms the DSML artifact suppressor when a tool_call/tool_call_update completes an artifact write, or disarms it once its owning write call terminally fails. */
 export function updateDsmlSuppressorForToolCall({
@@ -574,8 +572,8 @@ export function updateDsmlSuppressorForToolCall({
   state: AcpSessionState;
   update: UnknownRecord;
   toolCallId: string | null;
-}): void {
-  if (isAcpArtifactWriteUpdate(update, state.acpArtifactWriteToolCallIds)) {
+}, _optional: Record<string, never> = {}): void {
+  if (isAcpArtifactWriteUpdate({ update, writeToolCallIds: state.acpArtifactWriteToolCallIds })) {
     state.dsmlArtifactSuppressor = createDsmlArtifactTextSuppressor();
     state.dsmlArtifactSuppressorLastSuppressedChars = 0;
     state.dsmlArtifactSuppressorToolCallId = toolCallId;
@@ -584,7 +582,7 @@ export function updateDsmlSuppressorForToolCall({
     if (toolCallId) state.acpArtifactWriteToolCallIds.delete(toolCallId);
     return;
   }
-  if (!toolCallId || !isAcpTerminalFailureStatus(update)) return;
+  if (!toolCallId || !isAcpTerminalFailureStatus({ update })) return;
   const ownsPendingWriteSuppression = toolCallId === state.dsmlArtifactSuppressorToolCallId;
   const ownsPendingWriteCall = state.acpArtifactWriteToolCallIds.has(toolCallId);
   state.acpArtifactWriteToolCallIds.delete(toolCallId);
@@ -604,13 +602,13 @@ export function handleToolCallUpdate({
   state: AcpSessionState;
   effects: AcpSessionEffects;
   update: UnknownRecord;
-}): void {
+}, _optional: Record<string, never> = {}): void {
   // The turn did real work (a tool call / file edit), which is valid output even
   // when the model emits no closing assistant text. Track it so the prompt-complete
   // handler does not misreport such a turn as "no output / model unavailable".
   state.emittedToolCall = true;
-  const toolCallId = acpToolCallId(update);
-  if (toolCallId && isAcpArtifactWriteLabel(update)) {
+  const toolCallId = acpToolCallId({ update });
+  if (toolCallId && isAcpArtifactWriteLabel({ update })) {
     state.acpArtifactWriteToolCallIds.add(toolCallId);
   }
   mirrorArtifactWriteToolEvent({ state, effects, update, toolCallId });
@@ -626,7 +624,7 @@ export function handleSessionUpdate({
   state: AcpSessionState;
   effects: AcpSessionEffects;
   update: UnknownRecord;
-}): void {
+}, _optional: Record<string, never> = {}): void {
   applyModelChangeUpdate({ state, effects, update });
   if (effects.modelUnavailableErrorCode && tryPromoteAmrRetryStatus({ effects, update })) return;
   if (update.sessionUpdate !== 'agent_message_chunk' && update.sessionUpdate !== 'agent_thought_chunk') {
@@ -651,7 +649,7 @@ function applyModelChangeUpdate({
   update: UnknownRecord;
 }): void {
   // Model/config updates are authoritative protocol metadata, not assistant self-report.
-  const changedModel = currentModelFromSessionResult(update) ?? currentModelUpdateId(update);
+  const changedModel = currentModelFromSessionResult({ result: update }) ?? currentModelUpdateId(update);
   if (changedModel && changedModel !== state.activeModel) {
     state.activeModel = changedModel;
     effects.send({ event: 'agent', payload: { type: 'status', label: 'model', model: changedModel } });
@@ -689,7 +687,7 @@ function routeSessionUpdateKind({
 }
 
 /** Handles the `initialize` ack: sends `session/load` (resume) or `session/new` (fresh). */
-export function handleInitializeAck({ state, effects }: { state: AcpSessionState; effects: AcpSessionEffects }): void {
+export function handleInitializeAck({ state, effects }: { state: AcpSessionState; effects: AcpSessionEffects }, _optional: Record<string, never> = {}): void {
   state.expectedId = state.nextId;
   if (effects.resumeSessionId) {
     // Resume the prior upstream session instead of creating a fresh one.
@@ -723,7 +721,7 @@ export function triggerSetModelIfNeeded({
 }: {
   state: AcpSessionState;
   effects: AcpSessionEffects;
-}): boolean {
+}, _optional: Record<string, never> = {}): boolean {
   if (!state.sessionId || !effects.model || effects.model === 'default') return false;
   // Hosts now pin the concrete starting model on every run. When session/new already reports that
   // model, a set_model round-trip is redundant, and a CLI without set_model support would turn it
@@ -765,15 +763,15 @@ export function handleSessionNewAck({
   effects: AcpSessionEffects;
   result: UnknownRecord;
   rawLine: string;
-}): void {
+}, _optional: Record<string, never> = {}): void {
   recordSessionIdentity({ state, result }, { resumeSessionId: effects.resumeSessionId });
   // session/new acknowledged with a session id = handshake done.
   // Invoke the optional callback here instead of relocating its complexity score to a one-line wrapper.
   if (state.sessionId) effects.onSessionInit?.();
   // findModelConfigOption returns null or a parsed config with a required string id.
-  const modelConfig = findModelConfigOption(result.configOptions);
-  state.modelConfigId = modelConfig ? modelConfig.configId : null;
-  state.activeModel = currentModelFromSessionResult(result);
+  const modelConfig = findModelConfigOption({ configOptions: result.configOptions });
+  state.modelConfigId = modelConfigIdOrNull({ modelConfig });
+  state.activeModel = currentModelFromSessionResult({ result });
   if (state.sessionId && state.activeModel && (!effects.model || effects.model === state.activeModel)) {
     effects.send({ event: 'agent', payload: { type: 'status', label: 'model', model: state.activeModel } });
   }
@@ -785,6 +783,8 @@ export function handleSessionNewAck({
   effects.sendPrompt();
 }
 
+function modelConfigIdOrNull({ modelConfig }: { modelConfig: ReturnType<typeof findModelConfigOption> }, _optional: Record<string, never> = {}): string | null { return modelConfig ? modelConfig.configId : null; }
+
 /** Handles the `session/prompt` ack: fails a turn that reported model activity but produced no visible output, otherwise flushes and finishes cleanly. */
 export function handlePromptResult({
   state,
@@ -794,8 +794,8 @@ export function handlePromptResult({
   state: AcpSessionState;
   effects: AcpSessionEffects;
   result: UnknownRecord;
-}): void {
-  const usage = formatUsage(result.usage);
+}, _optional: Record<string, never> = {}): void {
+  const usage = formatUsage({ usage: result.usage });
   if (!state.emittedVisibleTextChunk && !state.emittedConcreteToolEvent && effects.modelUnavailableErrorCode) {
     const outputTokens = usage?.output_tokens;
     const hadCompletionTokens = typeof outputTokens === 'number' && outputTokens > 0;
@@ -832,7 +832,7 @@ export function isModelSetAckExpected({
   state: AcpSessionState;
   effects: AcpSessionEffects;
   obj: UnknownRecord;
-}): boolean {
+}, _optional: Record<string, never> = {}): boolean {
   return Boolean(state.sessionId && effects.model && effects.model !== 'default' && obj.id === state.expectedId);
 }
 
@@ -845,12 +845,12 @@ export function handleModelSetAck({
   state: AcpSessionState;
   effects: AcpSessionEffects;
   result: UnknownRecord;
-}): void {
+}, _optional: Record<string, never> = {}): void {
   // `isModelSetAckExpected` already confirmed `effects.model` is a truthy
   // string before this runs; the assertion is only to carry that narrowing
   // across the function boundary for the type checker (it doesn't survive
   // the call), not a behavior change.
-  state.activeModel = currentModelFromSessionResult(result) ?? (effects.model as string);
+  state.activeModel = currentModelFromSessionResult({ result }) ?? (effects.model as string);
   effects.send({ event: 'agent', payload: { type: 'status', label: 'model', model: state.activeModel } });
   effects.sendPrompt();
 }
@@ -868,7 +868,7 @@ export function routeResultById({
   obj: UnknownRecord;
   result: UnknownRecord | null;
   rawLine: string;
-}): void {
+}, _optional: Record<string, never> = {}): void {
   if (obj.id !== state.expectedId || !result) return;
   if (state.expectedId === 1) {
     handleInitializeAck({ state, effects });
@@ -938,14 +938,13 @@ function resolveAcpSessionOptionDefaults(options: AttachAcpSessionOptions): Reso
 export function attachAcpSession(requiredArgs: Pick<AttachAcpSessionOptions, "child" | "prompt" | "send">, optionalArgs: Omit<AttachAcpSessionOptions, "child" | "prompt" | "send"> = {}): AcpSessionController {
   const options: AttachAcpSessionOptions = { ...optionalArgs, ...requiredArgs };
   const run = createAcpRun({ options, resolved: resolveAcpSessionOptionDefaults(options) });
-  const effects = buildAcpEffects(run);
+  const effects = buildAcpEffects({ run });
   const parser = createJsonLineStream({
-    onError: error => failRun({ run, message: error.message }),
     onMessage: ({ message: raw, rawLine }) => handleAcpMessage({ run, effects, raw, rawLine }),
-  });
+  }, { onError: error => failRun({ run, message: error.message }) });
   wireAcpProcessListeners({ run, parser });
-  sendInitialize(run);
-  return buildAcpController(run);
+  sendInitialize({ run });
+  return buildAcpController({ run });
 }
 
 function handleAcpMessage({ run, effects, raw, rawLine }: {
@@ -955,8 +954,8 @@ function handleAcpMessage({ run, effects, raw, rawLine }: {
   rawLine: string;
 }): void {
   if (run.aborted || run.finished) return;
-  resetStageTimer(run, { label: 'response' });
-  const obj = asObject(raw);
+  resetStageTimer({ run, label: 'response' });
+  const obj = asObject({ value: raw });
   if (!obj) return;
   // First well-formed ACP JSON-RPC message = CLI ready. Caller dedupes, so
   // re-notifying on later messages is harmless.
@@ -971,20 +970,20 @@ function routeAcpMessage({ run, effects, obj, rawLine }: {
   rawLine: string;
 }): void {
   const { state } = run;
-  const params = asObject(obj.params);
-  const rpcErr = rpcErrorMessage(obj);
+  const params = asObject({ value: obj.params });
+  const rpcErr = rpcErrorMessage({ raw: obj });
   if (rpcErr) {
-    handleRpcError({ state, effects, obj, error: asObject(obj.error), rpcErr });
+    handleRpcError({ state, effects, obj, error: asObject({ value: obj.error }), rpcErr });
     return;
   }
   if (obj.method === 'session/request_permission') {
-    replyPermission(run, obj);
+    replyPermission({ run, raw: obj });
     return;
   }
-  const update = asObject(params?.update);
+  const update = asObject({ value: params?.update });
   if (obj.method === 'session/update' && update) {
     handleSessionUpdate({ state, effects, update });
     return;
   }
-  routeResultById({ state, effects, obj, result: asObject(obj.result), rawLine });
+  routeResultById({ state, effects, obj, result: asObject({ value: obj.result }), rawLine });
 }

@@ -24,22 +24,22 @@ import {
  * @param update - A parsed ACP `session/update` params object.
  * @returns A flat diagnostic object suitable for inclusion in an agent event payload.
  */
-export function acpRawEventShape(update: UnknownRecord) {
+export function acpRawEventShape({ update }: { update: UnknownRecord }, _optional: Record<string, never> = {}) {
   const { content, rawInput, locations } = update;
   return {
     sessionUpdate: typeof update.sessionUpdate === 'string' ? update.sessionUpdate : null,
-    keys: objectKeys(update),
-    contentKind: acpValueKind(content),
-    contentKeys: objectKeys(content),
-    hasText: Boolean(extractAcpUpdateText(update)),
+    keys: objectKeys({ value: update }),
+    contentKind: acpValueKind({ value: content }),
+    contentKeys: objectKeys({ value: content }),
+    hasText: Boolean(extractAcpUpdateText({ update })),
     hasTopLevelText: typeof update.text === 'string' && update.text.length > 0,
     hasTopLevelDelta: typeof update.delta === 'string' && update.delta.length > 0,
     hasTopLevelMessage: update.message !== undefined,
-    hasToolCallId: acpToolCallId(update) !== null,
+    hasToolCallId: acpToolCallId({ update }) !== null,
     hasRawInput: rawInput !== undefined,
-    rawInputKind: acpValueKind(rawInput),
-    rawInputKeys: objectKeys(rawInput),
-    locationsKind: acpValueKind(locations),
+    rawInputKind: acpValueKind({ value: rawInput }),
+    rawInputKeys: objectKeys({ value: rawInput }),
+    locationsKind: acpValueKind({ value: locations }),
     locationsCount: Array.isArray(locations) ? locations.length : undefined,
     status: typeof update.status === 'string' ? update.status : undefined,
     titlePresent: typeof update.title === 'string' && update.title.length > 0,
@@ -52,7 +52,7 @@ export function acpRawEventShape(update: UnknownRecord) {
  *
  * @param update - A parsed ACP `session/update` params object.
  */
-export function acpUpdateStatus(update: UnknownRecord): string {
+export function acpUpdateStatus({ update }: { update: UnknownRecord }, _optional: Record<string, never> = {}): string {
   return typeof update.status === 'string'
     ? update.status.trim().toLowerCase().replace(/[\s_-]+/g, '')
     : '';
@@ -62,8 +62,8 @@ export function acpUpdateStatus(update: UnknownRecord): string {
  * terminal state (`completed`, `complete`, `succeeded`, or `success`).
  * Used to decide when to emit deferred artifact-write tool events.
  */
-export function isAcpCompletedStatus(update: UnknownRecord): boolean {
-  const status = acpUpdateStatus(update);
+export function isAcpCompletedStatus({ update }: { update: UnknownRecord }, _optional: Record<string, never> = {}): boolean {
+  const status = acpUpdateStatus({ update });
   return status === 'completed' || status === 'complete' || status === 'succeeded' || status === 'success';
 }
 const ACP_TERMINAL_FAILURE_STATUSES: ReadonlySet<string> = new Set(['failed', 'failure', 'error', 'cancelled', 'canceled']);
@@ -72,8 +72,8 @@ const ACP_TERMINAL_FAILURE_STATUSES: ReadonlySet<string> = new Set(['failed', 'f
  * failure state (`failed`, `failure`, `error`, `cancelled`, or `canceled`).
  * Used to clean up pending write-suppression state and emit failed tool events.
  */
-export function isAcpTerminalFailureStatus(update: UnknownRecord): boolean {
-  const status = acpUpdateStatus(update);
+export function isAcpTerminalFailureStatus({ update }: { update: UnknownRecord }, _optional: Record<string, never> = {}): boolean {
+  const status = acpUpdateStatus({ update });
   return ACP_TERMINAL_FAILURE_STATUSES.has(status);
 }
 /**
@@ -81,8 +81,8 @@ export function isAcpTerminalFailureStatus(update: UnknownRecord): boolean {
  * agent wants to restart the request; the session promoter maps this to a
  * structured error payload via `promotedAmrRetryStatusPayload`.
  */
-export function isAcpRetryStatus(update: UnknownRecord): boolean {
-  return acpUpdateStatus(update) === 'retry';
+export function isAcpRetryStatus({ update }: { update: UnknownRecord }, _optional: Record<string, never> = {}): boolean {
+  return acpUpdateStatus({ update }) === 'retry';
 }
 /**
  * Recursively collects all text-bearing leaf values from an ACP update
@@ -94,14 +94,14 @@ export function isAcpRetryStatus(update: UnknownRecord): boolean {
  * @param depth - Current recursion depth (max 4); callers omit this.
  * @returns A flat array of trimmed non-empty string representations.
  */
-export function acpUpdateDiagnosticText(value: unknown, depth = 0): string[] {
+export function acpUpdateDiagnosticText({ value }: { value: unknown }, { depth = 0 }: { depth?: number | undefined } = {}): string[] {
   if (depth > 4) return [];
   if (typeof value === 'string') return value.trim() ? [value] : [];
   if (typeof value === 'number' || typeof value === 'boolean') return [String(value)];
   if (Array.isArray(value)) {
-    return value.flatMap((item) => acpUpdateDiagnosticText(item, depth + 1));
+    return value.flatMap((item) => acpUpdateDiagnosticText({ value: item }, { depth: depth + 1 }));
   }
-  const obj = asObject(value);
+  const obj = asObject({ value });
   return obj ? objectDiagnosticText({ obj, depth }) : [];
 }
 /** Keys `acpUpdateDiagnosticText` descends into on an object, in order. */
@@ -124,7 +124,7 @@ function objectDiagnosticText({ obj, depth }: { obj: UnknownRecord; depth: numbe
   const parts: string[] = [];
   for (const key of DIAGNOSTIC_TEXT_KEYS) {
     if (key in obj) {
-      parts.push(...acpUpdateDiagnosticText(obj[key], depth + 1));
+      parts.push(...acpUpdateDiagnosticText({ value: obj[key] }, { depth: depth + 1 }));
     }
   }
   return parts;
@@ -141,11 +141,10 @@ function objectDiagnosticText({ obj, depth }: { obj: UnknownRecord; depth: numbe
  * @returns A structured error payload with `message` and `error`, or `null`.
  */
 export function promotedAmrRetryStatusPayload(
-  update: UnknownRecord,
-  classifier: AccountFailureClassifier = noopAccountFailureClassifier,
+  { update }: { update: UnknownRecord }, { classifier = noopAccountFailureClassifier }: { classifier?: AccountFailureClassifier | undefined } = {},
 ) {
-  if (!isAcpRetryStatus(update)) return null;
-  const diagnosticText = acpUpdateDiagnosticText(update).join('\n');
+  if (!isAcpRetryStatus({ update })) return null;
+  const diagnosticText = acpUpdateDiagnosticText({ value: update }).join('\n');
   const failure = classifier.classify({ text: diagnosticText });
   if (!failure) return null;
   return promotedFailurePayload({ failure, promotedBy: 'agent_runtime_acp_retry_status' });
@@ -162,8 +161,7 @@ export function promotedAmrRetryStatusPayload(
  * @returns A structured error payload, or `null` when not applicable.
  */
 export function promotedAmrStderrPayload(
-  chunk: string,
-  classifier: AccountFailureClassifier = noopAccountFailureClassifier,
+  { chunk }: { chunk: string }, { classifier = noopAccountFailureClassifier }: { classifier?: AccountFailureClassifier | undefined } = {},
 ) {
   if (!/opencode_event_stream_failure|session\.status/i.test(chunk)) return null;
   if (!/\bretry\b/i.test(chunk)) return null;
@@ -181,7 +179,7 @@ function promotedFailurePayload({ failure, promotedBy }: { failure: AccountFailu
       message: failure.message,
       retryable: false,
       details: {
-        ...accountFailureDetails(failure),
+        ...accountFailureDetails({ failure }),
         promoted_by: promotedBy,
       },
     },
@@ -194,7 +192,7 @@ function promotedFailurePayload({ failure, promotedBy }: { failure: AccountFailu
  *
  * @param update - A parsed ACP `session/update` params object.
  */
-export function acpToolCallId(update: UnknownRecord): string | null {
+export function acpToolCallId({ update }: { update: UnknownRecord }, _optional: Record<string, never> = {}): string | null {
   return typeof update.toolCallId === 'string' && update.toolCallId.trim()
     ? update.toolCallId.trim()
     : null;
@@ -207,7 +205,7 @@ export function acpToolCallId(update: UnknownRecord): string | null {
  *
  * @param update - A parsed ACP `session/update` params object.
  */
-export function isAcpArtifactWriteLabel(update: UnknownRecord): boolean {
+export function isAcpArtifactWriteLabel({ update }: { update: UnknownRecord }, _optional: Record<string, never> = {}): boolean {
   const label = [
     typeof update.title === 'string' ? update.title : '',
     typeof update.name === 'string' ? update.name : '',
@@ -223,10 +221,10 @@ export function isAcpArtifactWriteLabel(update: UnknownRecord): boolean {
  * @param update - A parsed ACP `session/update` params object.
  * @param writeToolCallIds - The set of tool call ids identified as artifact writes so far.
  */
-export function isAcpArtifactWriteUpdate(update: UnknownRecord, writeToolCallIds: Set<string>): boolean {
-  if (!isAcpCompletedStatus(update)) return false;
-  const toolCallId = acpToolCallId(update);
-  return isAcpArtifactWriteLabel(update) || (toolCallId ? writeToolCallIds.has(toolCallId) : false);
+export function isAcpArtifactWriteUpdate({ update, writeToolCallIds }: { update: UnknownRecord; writeToolCallIds: Set<string> }, _optional: Record<string, never> = {}): boolean {
+  if (!isAcpCompletedStatus({ update })) return false;
+  const toolCallId = acpToolCallId({ update });
+  return isAcpArtifactWriteLabel({ update }) || (toolCallId ? writeToolCallIds.has(toolCallId) : false);
 }
 // Best-effort file path for an ACP artifact-write tool call. ACP can carry a
 // `locations: [{ path }]` array and/or `content: [{ type:'diff', path }]`
@@ -246,7 +244,7 @@ export function isAcpArtifactWriteUpdate(update: UnknownRecord, writeToolCallIds
  * @param update - A parsed ACP `session/update` params object.
  * @returns An absolute or relative file path string, or `null` when absent.
  */
-export function acpArtifactWritePath(update: UnknownRecord): string | null {
+export function acpArtifactWritePath({ update }: { update: UnknownRecord }, _optional: Record<string, never> = {}): string | null {
   return entryArrayPath(update) ?? rawInputPath(update) ?? titlePath(update);
 }
 /** Returns the trimmed string when `value` is a non-blank string, else `null`. */
@@ -259,7 +257,7 @@ function entryArrayPath(update: UnknownRecord): string | null {
   for (const field of [update.locations, update.content]) {
     if (!Array.isArray(field)) continue;
     for (const entry of field) {
-      const path = trimmedNonEmpty(asObject(entry)?.path);
+      const path = trimmedNonEmpty(asObject({ value: entry })?.path);
       if (path) return path;
     }
   }
@@ -268,7 +266,7 @@ function entryArrayPath(update: UnknownRecord): string | null {
 /** Source 2 of `acpArtifactWritePath`. */
 function rawInputPath(update: UnknownRecord): string | null {
   // 2. Tool input echoed by some agents as `rawInput.{path,file_path,filename}`.
-  const rawInput = asObject(update.rawInput);
+  const rawInput = asObject({ value: update.rawInput });
   for (const key of ['path', 'file_path', 'filename']) {
     const value = trimmedNonEmpty(rawInput?.[key]);
     if (value) return value;

@@ -38,10 +38,10 @@ describe('integrated runtime contracts', () => {
       ? { code: 'QUOTA_EXCEEDED', message: 'quota exceeded', action: 'recharge' as const }
       : null);
     const classifier = { classify };
-    expect(promotedAmrRetryStatusPayload({ status: 'retry', message: 'quota exceeded' }, classifier)).toMatchObject({
+    expect(promotedAmrRetryStatusPayload({ update: { status: 'retry', message: 'quota exceeded' } }, { classifier })).toMatchObject({
       error: { code: 'QUOTA_EXCEEDED', details: { promoted_by: 'agent_runtime_acp_retry_status' } },
     });
-    expect(promotedAmrStderrPayload('opencode_event_stream_failure retry quota exceeded', classifier)).toMatchObject({
+    expect(promotedAmrStderrPayload({ chunk: 'opencode_event_stream_failure retry quota exceeded' }, { classifier })).toMatchObject({
       error: { code: 'QUOTA_EXCEEDED', details: { promoted_by: 'agent_runtime_acp_stderr_retry_status' } },
     });
     expect(classify.mock.calls).toEqual([

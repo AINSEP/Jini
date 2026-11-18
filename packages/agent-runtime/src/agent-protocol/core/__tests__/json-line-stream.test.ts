@@ -51,72 +51,72 @@ function accumulatorState(overrides: Partial<JsonLineAccumulatorState> = {}): Js
 
 describe('classifyJsonCandidate', () => {
   it('classifies a complete object as complete', () => {
-    expect(classifyJsonCandidate('{"a":1}')).toBe('complete');
+    expect(classifyJsonCandidate({ value: '{"a":1}' })).toBe('complete');
   });
 
   it('classifies a complete array as complete', () => {
-    expect(classifyJsonCandidate('[1,2,3]')).toBe('complete');
+    expect(classifyJsonCandidate({ value: '[1,2,3]' })).toBe('complete');
   });
 
   it('classifies an empty object and empty array as complete', () => {
-    expect(classifyJsonCandidate('{}')).toBe('complete');
-    expect(classifyJsonCandidate('[]')).toBe('complete');
+    expect(classifyJsonCandidate({ value: '{}' })).toBe('complete');
+    expect(classifyJsonCandidate({ value: '[]' })).toBe('complete');
   });
 
   it('classifies an empty array immediately followed by more input as invalid', () => {
-    expect(classifyJsonCandidate('[][]')).toBe('invalid');
+    expect(classifyJsonCandidate({ value: '[][]' })).toBe('invalid');
   });
 
   it('classifies scalars as complete', () => {
-    expect(classifyJsonCandidate('true')).toBe('complete');
-    expect(classifyJsonCandidate('false')).toBe('complete');
-    expect(classifyJsonCandidate('null')).toBe('complete');
-    expect(classifyJsonCandidate('42')).toBe('complete');
-    expect(classifyJsonCandidate('-42')).toBe('complete');
-    expect(classifyJsonCandidate('0')).toBe('complete');
-    expect(classifyJsonCandidate('3.14')).toBe('complete');
-    expect(classifyJsonCandidate('1e10')).toBe('complete');
-    expect(classifyJsonCandidate('1.5e+10')).toBe('complete');
-    expect(classifyJsonCandidate('1e-10')).toBe('complete');
-    expect(classifyJsonCandidate('"hello"')).toBe('complete');
+    expect(classifyJsonCandidate({ value: 'true' })).toBe('complete');
+    expect(classifyJsonCandidate({ value: 'false' })).toBe('complete');
+    expect(classifyJsonCandidate({ value: 'null' })).toBe('complete');
+    expect(classifyJsonCandidate({ value: '42' })).toBe('complete');
+    expect(classifyJsonCandidate({ value: '-42' })).toBe('complete');
+    expect(classifyJsonCandidate({ value: '0' })).toBe('complete');
+    expect(classifyJsonCandidate({ value: '3.14' })).toBe('complete');
+    expect(classifyJsonCandidate({ value: '1e10' })).toBe('complete');
+    expect(classifyJsonCandidate({ value: '1.5e+10' })).toBe('complete');
+    expect(classifyJsonCandidate({ value: '1e-10' })).toBe('complete');
+    expect(classifyJsonCandidate({ value: '"hello"' })).toBe('complete');
   });
 
   it('classifies an unclosed object as incomplete', () => {
-    expect(classifyJsonCandidate('{"a":1')).toBe('incomplete');
-    expect(classifyJsonCandidate('{"a"')).toBe('incomplete');
-    expect(classifyJsonCandidate('{"a":')).toBe('incomplete');
-    expect(classifyJsonCandidate('{')).toBe('incomplete');
+    expect(classifyJsonCandidate({ value: '{"a":1' })).toBe('incomplete');
+    expect(classifyJsonCandidate({ value: '{"a"' })).toBe('incomplete');
+    expect(classifyJsonCandidate({ value: '{"a":' })).toBe('incomplete');
+    expect(classifyJsonCandidate({ value: '{' })).toBe('incomplete');
   });
 
   it('classifies an unclosed array as incomplete', () => {
-    expect(classifyJsonCandidate('[1,2')).toBe('incomplete');
-    expect(classifyJsonCandidate('[')).toBe('incomplete');
+    expect(classifyJsonCandidate({ value: '[1,2' })).toBe('incomplete');
+    expect(classifyJsonCandidate({ value: '[' })).toBe('incomplete');
   });
 
   it('classifies an unclosed string as incomplete', () => {
-    expect(classifyJsonCandidate('"hello')).toBe('incomplete');
+    expect(classifyJsonCandidate({ value: '"hello' })).toBe('incomplete');
   });
 
   it('classifies an unclosed object key string as incomplete', () => {
-    expect(classifyJsonCandidate('{"a')).toBe('incomplete');
+    expect(classifyJsonCandidate({ value: '{"a' })).toBe('incomplete');
   });
 
   it('classifies an unclosed object value string as incomplete', () => {
-    expect(classifyJsonCandidate('{"a":"b')).toBe('incomplete');
+    expect(classifyJsonCandidate({ value: '{"a":"b' })).toBe('incomplete');
   });
 
   it('classifies an unclosed array value string as incomplete', () => {
-    expect(classifyJsonCandidate('["a')).toBe('incomplete');
+    expect(classifyJsonCandidate({ value: '["a' })).toBe('incomplete');
   });
 
   it('classifies a lone minus sign with nothing after it as invalid', () => {
-    expect(classifyJsonCandidate('-')).toBe('invalid');
+    expect(classifyJsonCandidate({ value: '-' })).toBe('invalid');
   });
 
   it('classifies a partial literal as incomplete', () => {
-    expect(classifyJsonCandidate('tru')).toBe('incomplete');
-    expect(classifyJsonCandidate('fals')).toBe('incomplete');
-    expect(classifyJsonCandidate('nul')).toBe('incomplete');
+    expect(classifyJsonCandidate({ value: 'tru' })).toBe('incomplete');
+    expect(classifyJsonCandidate({ value: 'fals' })).toBe('incomplete');
+    expect(classifyJsonCandidate({ value: 'nul' })).toBe('incomplete');
   });
 
   it('classifies a number cut off mid-fraction/exponent (no trailing digit) as invalid', () => {
@@ -125,75 +125,75 @@ describe('classifyJsonCandidate', () => {
     // JSON by appending more digits at the *next* line boundary (the parser
     // re-tries char-by-char within the same candidate), so it is invalid
     // rather than incomplete.
-    expect(classifyJsonCandidate('1.')).toBe('invalid');
-    expect(classifyJsonCandidate('1e')).toBe('invalid');
-    expect(classifyJsonCandidate('1e+')).toBe('invalid');
+    expect(classifyJsonCandidate({ value: '1.' })).toBe('invalid');
+    expect(classifyJsonCandidate({ value: '1e' })).toBe('invalid');
+    expect(classifyJsonCandidate({ value: '1e+' })).toBe('invalid');
   });
 
   it('classifies a number with more digits pending as incomplete', () => {
-    expect(classifyJsonCandidate('123')).toBe('complete');
-    expect(classifyJsonCandidate('[123')).toBe('incomplete');
+    expect(classifyJsonCandidate({ value: '123' })).toBe('complete');
+    expect(classifyJsonCandidate({ value: '[123' })).toBe('incomplete');
   });
 
   it('classifies malformed literals as invalid', () => {
-    expect(classifyJsonCandidate('trux')).toBe('invalid');
-    expect(classifyJsonCandidate('falsx')).toBe('invalid');
-    expect(classifyJsonCandidate('nulx')).toBe('invalid');
+    expect(classifyJsonCandidate({ value: 'trux' })).toBe('invalid');
+    expect(classifyJsonCandidate({ value: 'falsx' })).toBe('invalid');
+    expect(classifyJsonCandidate({ value: 'nulx' })).toBe('invalid');
   });
 
   it('classifies a bad number as invalid', () => {
-    expect(classifyJsonCandidate('-x')).toBe('invalid');
-    expect(classifyJsonCandidate('1.x')).toBe('invalid');
-    expect(classifyJsonCandidate('1ex')).toBe('invalid');
+    expect(classifyJsonCandidate({ value: '-x' })).toBe('invalid');
+    expect(classifyJsonCandidate({ value: '1.x' })).toBe('invalid');
+    expect(classifyJsonCandidate({ value: '1ex' })).toBe('invalid');
   });
 
   it('classifies a stray closing brace/bracket as invalid', () => {
-    expect(classifyJsonCandidate('}')).toBe('invalid');
-    expect(classifyJsonCandidate(']')).toBe('invalid');
-    expect(classifyJsonCandidate('{]')).toBe('invalid');
-    expect(classifyJsonCandidate('[}')).toBe('invalid');
+    expect(classifyJsonCandidate({ value: '}' })).toBe('invalid');
+    expect(classifyJsonCandidate({ value: ']' })).toBe('invalid');
+    expect(classifyJsonCandidate({ value: '{]' })).toBe('invalid');
+    expect(classifyJsonCandidate({ value: '[}' })).toBe('invalid');
   });
 
   it('classifies an object missing a colon as invalid', () => {
-    expect(classifyJsonCandidate('{"a" 1}')).toBe('invalid');
+    expect(classifyJsonCandidate({ value: '{"a" 1}' })).toBe('invalid');
   });
 
   it('classifies an object with a bad key as invalid', () => {
-    expect(classifyJsonCandidate('{1:2}')).toBe('invalid');
+    expect(classifyJsonCandidate({ value: '{1:2}' })).toBe('invalid');
   });
 
   it('classifies an object with a bad separator as invalid', () => {
-    expect(classifyJsonCandidate('{"a":1 "b":2}')).toBe('invalid');
+    expect(classifyJsonCandidate({ value: '{"a":1 "b":2}' })).toBe('invalid');
   });
 
   it('classifies an array with a bad separator as invalid', () => {
-    expect(classifyJsonCandidate('[1 2]')).toBe('invalid');
+    expect(classifyJsonCandidate({ value: '[1 2]' })).toBe('invalid');
   });
 
   it('classifies extra content after a complete root value as invalid', () => {
-    expect(classifyJsonCandidate('{}{}')).toBe('invalid');
+    expect(classifyJsonCandidate({ value: '{}{}' })).toBe('invalid');
   });
 
   it('classifies a bad value token as invalid', () => {
-    expect(classifyJsonCandidate('{"a":x}')).toBe('invalid');
-    expect(classifyJsonCandidate('[x]')).toBe('invalid');
+    expect(classifyJsonCandidate({ value: '{"a":x}' })).toBe('invalid');
+    expect(classifyJsonCandidate({ value: '[x]' })).toBe('invalid');
   });
 
   it('classifies whitespace-only input as incomplete', () => {
-    expect(classifyJsonCandidate('   ')).toBe('incomplete');
-    expect(classifyJsonCandidate('')).toBe('incomplete');
+    expect(classifyJsonCandidate({ value: '   ' })).toBe('incomplete');
+    expect(classifyJsonCandidate({ value: '' })).toBe('incomplete');
   });
 
   it('handles nested structures with whitespace', () => {
-    expect(classifyJsonCandidate('{ "a" : [ 1 , 2 , { "b" : true } ] }')).toBe('complete');
+    expect(classifyJsonCandidate({ value: '{ "a" : [ 1 , 2 , { "b" : true } ] }' })).toBe('complete');
   });
 
   it('handles escaped characters within strings', () => {
-    expect(classifyJsonCandidate(String.raw`{"a":"he said \"hi\""}`)).toBe('complete');
+    expect(classifyJsonCandidate({ value: String.raw`{"a":"he said \"hi\""}` })).toBe('complete');
     // A trailing backslash inside an unterminated string: the escape
     // consumes the next character (here, none is left), so the string
     // never finds its closing quote — incomplete, not invalid.
-    expect(classifyJsonCandidate('"a' + String.fromCharCode(92))).toBe('incomplete');
+    expect(classifyJsonCandidate({ value: '"a' + String.fromCharCode(92) })).toBe('incomplete');
   });
 });
 
@@ -291,7 +291,7 @@ describe('createJsonLineStream', () => {
   it('abandons a multiline candidate that exceeds 256 lines and retries the current line fresh', () => {
     const messages: unknown[] = [];
     const errors: RangeError[] = [];
-    const stream = createJsonLineStream({ onError: error => errors.push(error), onMessage: ({ message: msg }) => messages.push(msg) });
+    const stream = createJsonLineStream({ onMessage: ({ message: msg }) => messages.push(msg) }, { onError: error => errors.push(error) });
     // Open an object that never legally closes within the line budget.
     stream.feed({ chunk: '{\n' });
     for (let i = 0; i < 260; i += 1) {
@@ -306,7 +306,7 @@ describe('createJsonLineStream', () => {
   it('abandons a multiline candidate that exceeds the byte budget and retries the current line fresh', () => {
     const messages: unknown[] = [];
     const errors: RangeError[] = [];
-    const stream = createJsonLineStream({ onError: error => errors.push(error), onMessage: ({ message: msg }) => messages.push(msg) });
+    const stream = createJsonLineStream({ onMessage: ({ message: msg }) => messages.push(msg) }, { onError: error => errors.push(error) });
     stream.feed({ chunk: '{\n' });
     // A single huge line pushes the candidate over 128_000 chars immediately.
     const hugeLine = `"pad": "${'x'.repeat(129_000)}"\n`;
@@ -361,136 +361,136 @@ describe('createJsonLineStream', () => {
 
 describe('parseString', () => {
   it('returns the index of the closing quote', () => {
-    expect(parseString('"ab"', 0)).toBe(3);
+    expect(parseString({ value: '"ab"', start: 0 })).toBe(3);
   });
 
   it('skips an escaped character, including an escaped quote', () => {
-    expect(parseString(String.raw`"a\"b"`, 0)).toBe(5);
+    expect(parseString({ value: String.raw`"a\"b"`, start: 0 })).toBe(5);
   });
 
   it('returns null for a string with no closing quote', () => {
-    expect(parseString('"abc', 0)).toBeNull();
+    expect(parseString({ value: '"abc', start: 0 })).toBeNull();
   });
 
   it('returns null when a trailing backslash consumes the last character', () => {
-    expect(parseString('"a' + String.fromCharCode(92), 0)).toBeNull();
+    expect(parseString({ value: '"a' + String.fromCharCode(92), start: 0 })).toBeNull();
   });
 });
 
 describe('parseLiteral', () => {
   it('returns the index of the last matched character on a full match', () => {
-    expect(parseLiteral('true', 0, 'true')).toBe(3);
+    expect(parseLiteral({ value: 'true', start: 0, literal: 'true' })).toBe(3);
   });
 
   it('returns false when a character mismatches the literal', () => {
-    expect(parseLiteral('trux', 0, 'true')).toBe(false);
+    expect(parseLiteral({ value: 'trux', start: 0, literal: 'true' })).toBe(false);
   });
 
   it('returns null when the input ends before the literal completes', () => {
-    expect(parseLiteral('tru', 0, 'true')).toBeNull();
+    expect(parseLiteral({ value: 'tru', start: 0, literal: 'true' })).toBeNull();
   });
 
   it('matches a literal starting mid-string', () => {
-    expect(parseLiteral('xxfalse', 2, 'false')).toBe(6);
+    expect(parseLiteral({ value: 'xxfalse', start: 2, literal: 'false' })).toBe(6);
   });
 });
 
 describe('parseIntegerDigits', () => {
   it('consumes a lone leading zero without reading further digits', () => {
-    expect(parseIntegerDigits('01', 0)).toBe(1);
+    expect(parseIntegerDigits({ value: '01', start: 0 })).toBe(1);
   });
 
   it('consumes a multi-digit run starting with 1-9', () => {
-    expect(parseIntegerDigits('123abc', 0)).toBe(3);
+    expect(parseIntegerDigits({ value: '123abc', start: 0 })).toBe(3);
   });
 
   it('returns false when there is no digit at start', () => {
-    expect(parseIntegerDigits('abc', 0)).toBe(false);
+    expect(parseIntegerDigits({ value: 'abc', start: 0 })).toBe(false);
   });
 });
 
 describe('parseFractionDigits', () => {
   it('returns start unchanged when there is no dot', () => {
-    expect(parseFractionDigits('123', 3)).toBe(3);
+    expect(parseFractionDigits({ value: '123', start: 3 })).toBe(3);
   });
 
   it('consumes digits after the dot', () => {
-    expect(parseFractionDigits('.45x', 0)).toBe(3);
+    expect(parseFractionDigits({ value: '.45x', start: 0 })).toBe(3);
   });
 
   it('returns false when the dot has no following digit', () => {
-    expect(parseFractionDigits('.x', 0)).toBe(false);
+    expect(parseFractionDigits({ value: '.x', start: 0 })).toBe(false);
   });
 });
 
 describe('parseExponentDigits', () => {
   it('returns start unchanged when there is no e/E', () => {
-    expect(parseExponentDigits('123', 3)).toBe(3);
+    expect(parseExponentDigits({ value: '123', start: 3 })).toBe(3);
   });
 
   it('consumes digits after a bare e', () => {
-    expect(parseExponentDigits('e10x', 0)).toBe(3);
+    expect(parseExponentDigits({ value: 'e10x', start: 0 })).toBe(3);
   });
 
   it('consumes digits after e+ and e-', () => {
-    expect(parseExponentDigits('e+10x', 0)).toBe(4);
-    expect(parseExponentDigits('e-10x', 0)).toBe(4);
+    expect(parseExponentDigits({ value: 'e+10x', start: 0 })).toBe(4);
+    expect(parseExponentDigits({ value: 'e-10x', start: 0 })).toBe(4);
   });
 
   it('accepts an uppercase E', () => {
-    expect(parseExponentDigits('E5x', 0)).toBe(2);
+    expect(parseExponentDigits({ value: 'E5x', start: 0 })).toBe(2);
   });
 
   it('returns false when e has no following digit', () => {
-    expect(parseExponentDigits('ex', 0)).toBe(false);
+    expect(parseExponentDigits({ value: 'ex', start: 0 })).toBe(false);
   });
 
   it('returns false when e+ has no following digit', () => {
-    expect(parseExponentDigits('e+x', 0)).toBe(false);
+    expect(parseExponentDigits({ value: 'e+x', start: 0 })).toBe(false);
   });
 });
 
 describe('parseNumber', () => {
   it('parses a plain integer', () => {
-    expect(parseNumber('123', 0)).toBe(2);
+    expect(parseNumber({ value: '123', start: 0 })).toBe(2);
   });
 
   it('parses a negative integer', () => {
-    expect(parseNumber('-123', 0)).toBe(3);
+    expect(parseNumber({ value: '-123', start: 0 })).toBe(3);
   });
 
   it('parses a decimal', () => {
-    expect(parseNumber('3.14', 0)).toBe(3);
+    expect(parseNumber({ value: '3.14', start: 0 })).toBe(3);
   });
 
   it('parses a number with an exponent', () => {
-    expect(parseNumber('1.5e+10', 0)).toBe(6);
+    expect(parseNumber({ value: '1.5e+10', start: 0 })).toBe(6);
   });
 
   it('returns false for a lone minus sign', () => {
-    expect(parseNumber('-', 0)).toBe(false);
+    expect(parseNumber({ value: '-', start: 0 })).toBe(false);
   });
 
   it('returns false for an invalid fraction part', () => {
-    expect(parseNumber('1.', 0)).toBe(false);
+    expect(parseNumber({ value: '1.', start: 0 })).toBe(false);
   });
 
   it('returns false for an invalid exponent part', () => {
-    expect(parseNumber('1e', 0)).toBe(false);
+    expect(parseNumber({ value: '1e', start: 0 })).toBe(false);
   });
 });
 
 describe('afterValue', () => {
   it('marks the scan root complete when the frame stack is empty', () => {
     const state = scanState();
-    afterValue(state);
+    afterValue({ state });
     expect(state.rootComplete).toBe(true);
   });
 
   it('advances the top-of-stack frame to commaOrEnd instead of touching rootComplete', () => {
     const frame = objectFrame('value');
     const state = scanState({ stack: [frame] });
-    afterValue(state);
+    afterValue({ state });
     expect(frame.expect).toBe('commaOrEnd');
     expect(state.rootComplete).toBe(false);
   });
@@ -499,13 +499,13 @@ describe('afterValue', () => {
 describe('parseStringValue', () => {
   it('returns null and leaves the scan incomplete for an unterminated string', () => {
     const state = scanState({ value: '"abc' });
-    expect(parseStringValue(state, 0)).toBeNull();
+    expect(parseStringValue({ state, index: 0 })).toBeNull();
     expect(state.rootComplete).toBe(false);
   });
 
   it('returns the end index and marks the root complete for a closed string', () => {
     const state = scanState({ value: '"abc"' });
-    expect(parseStringValue(state, 0)).toBe(4);
+    expect(parseStringValue({ state, index: 0 })).toBe(4);
     expect(state.rootComplete).toBe(true);
   });
 });
@@ -513,13 +513,13 @@ describe('parseStringValue', () => {
 describe('parseNumberValue', () => {
   it('returns false for an invalid number without mutating scan state', () => {
     const state = scanState({ value: '-' });
-    expect(parseNumberValue(state, 0)).toBe(false);
+    expect(parseNumberValue({ state, index: 0 })).toBe(false);
     expect(state.rootComplete).toBe(false);
   });
 
   it('returns the end index and marks the root complete for a valid number', () => {
     const state = scanState({ value: '42' });
-    expect(parseNumberValue(state, 0)).toBe(1);
+    expect(parseNumberValue({ state, index: 0 })).toBe(1);
     expect(state.rootComplete).toBe(true);
   });
 });
@@ -527,18 +527,18 @@ describe('parseNumberValue', () => {
 describe('parseLiteralValue', () => {
   it('returns null for a truncated literal without mutating scan state', () => {
     const state = scanState({ value: 'tru' });
-    expect(parseLiteralValue(state, 0, 'true')).toBeNull();
+    expect(parseLiteralValue({ state, index: 0, literal: 'true' })).toBeNull();
     expect(state.rootComplete).toBe(false);
   });
 
   it('returns false for a mismatched literal', () => {
     const state = scanState({ value: 'trux' });
-    expect(parseLiteralValue(state, 0, 'true')).toBe(false);
+    expect(parseLiteralValue({ state, index: 0, literal: 'true' })).toBe(false);
   });
 
   it('returns the end index and marks the root complete for a full match', () => {
     const state = scanState({ value: 'null' });
-    expect(parseLiteralValue(state, 0, 'null')).toBe(3);
+    expect(parseLiteralValue({ state, index: 0, literal: 'null' })).toBe(3);
     expect(state.rootComplete).toBe(true);
   });
 });
@@ -546,56 +546,56 @@ describe('parseLiteralValue', () => {
 describe('parseValue', () => {
   it('dispatches to string parsing for a `"`', () => {
     const state = scanState({ value: '"a"' });
-    expect(parseValue(state, 0)).toBe(2);
+    expect(parseValue({ state, index: 0 })).toBe(2);
   });
 
   it('opens an object frame for `{` without consuming further input', () => {
     const state = scanState({ value: '{' });
-    expect(parseValue(state, 0)).toBe(0);
+    expect(parseValue({ state, index: 0 })).toBe(0);
     expect(state.stack).toEqual([{ kind: 'object', expect: 'keyOrEnd' }]);
   });
 
   it('opens an array frame for `[` without consuming further input', () => {
     const state = scanState({ value: '[' });
-    expect(parseValue(state, 0)).toBe(0);
+    expect(parseValue({ state, index: 0 })).toBe(0);
     expect(state.stack).toEqual([{ kind: 'array', expect: 'valueOrEnd' }]);
   });
 
   it('dispatches to literal parsing for t/f/n', () => {
-    expect(parseValue(scanState({ value: 'true' }), 0)).toBe(3);
-    expect(parseValue(scanState({ value: 'false' }), 0)).toBe(4);
-    expect(parseValue(scanState({ value: 'null' }), 0)).toBe(3);
+    expect(parseValue({ state: scanState({ value: 'true' }), index: 0 })).toBe(3);
+    expect(parseValue({ state: scanState({ value: 'false' }), index: 0 })).toBe(4);
+    expect(parseValue({ state: scanState({ value: 'null' }), index: 0 })).toBe(3);
   });
 
   it('dispatches to number parsing for a digit or a leading minus', () => {
-    expect(parseValue(scanState({ value: '42' }), 0)).toBe(1);
-    expect(parseValue(scanState({ value: '-42' }), 0)).toBe(2);
+    expect(parseValue({ state: scanState({ value: '42' }), index: 0 })).toBe(1);
+    expect(parseValue({ state: scanState({ value: '-42' }), index: 0 })).toBe(2);
   });
 
   it('returns false for an unrecognized character', () => {
-    expect(parseValue(scanState({ value: 'x' }), 0)).toBe(false);
+    expect(parseValue({ state: scanState({ value: 'x' }), index: 0 })).toBe(false);
   });
 });
 
 describe('stepRootFrame', () => {
   it('returns invalid once the root value has already completed', () => {
     const state = scanState({ value: '{}{}', rootComplete: true });
-    expect(stepRootFrame(state, 2)).toBe('invalid');
+    expect(stepRootFrame({ state, index: 2 })).toBe('invalid');
   });
 
   it('returns incomplete for a truncated root value', () => {
     const state = scanState({ value: '"abc' });
-    expect(stepRootFrame(state, 0)).toBe('incomplete');
+    expect(stepRootFrame({ state, index: 0 })).toBe('incomplete');
   });
 
   it('returns invalid for a malformed root value', () => {
     const state = scanState({ value: 'x' });
-    expect(stepRootFrame(state, 0)).toBe('invalid');
+    expect(stepRootFrame({ state, index: 0 })).toBe('invalid');
   });
 
   it('returns the next index for a valid root value', () => {
     const state = scanState({ value: '42' });
-    expect(stepRootFrame(state, 0)).toEqual({ nextIndex: 1 });
+    expect(stepRootFrame({ state, index: 0 })).toEqual({ nextIndex: 1 });
   });
 });
 
@@ -603,26 +603,26 @@ describe('stepObjectKeyOrEnd', () => {
   it('closes the frame on `}`', () => {
     const frame = objectFrame('keyOrEnd');
     const state = scanState({ value: '{}', stack: [frame] });
-    expect(stepObjectKeyOrEnd(state, frame, 1, '}')).toEqual({ nextIndex: 1 });
+    expect(stepObjectKeyOrEnd({ state, current: frame, index: 1, char: '}' })).toEqual({ nextIndex: 1 });
     expect(state.stack).toEqual([]);
   });
 
   it('returns invalid when the next char is not a quote', () => {
     const frame = objectFrame('keyOrEnd');
     const state = scanState({ value: '{1', stack: [frame] });
-    expect(stepObjectKeyOrEnd(state, frame, 1, '1')).toBe('invalid');
+    expect(stepObjectKeyOrEnd({ state, current: frame, index: 1, char: '1' })).toBe('invalid');
   });
 
   it('returns incomplete for an unterminated key string', () => {
     const frame = objectFrame('keyOrEnd');
     const state = scanState({ value: '{"a', stack: [frame] });
-    expect(stepObjectKeyOrEnd(state, frame, 1, '"')).toBe('incomplete');
+    expect(stepObjectKeyOrEnd({ state, current: frame, index: 1, char: '"' })).toBe('incomplete');
   });
 
   it('advances expect to colon and returns the key string end index', () => {
     const frame = objectFrame('keyOrEnd');
     const state = scanState({ value: '{"a"', stack: [frame] });
-    expect(stepObjectKeyOrEnd(state, frame, 1, '"')).toEqual({ nextIndex: 3 });
+    expect(stepObjectKeyOrEnd({ state, current: frame, index: 1, char: '"' })).toEqual({ nextIndex: 3 });
     expect(frame.expect).toBe('colon');
   });
 });
@@ -630,12 +630,12 @@ describe('stepObjectKeyOrEnd', () => {
 describe('stepObjectColon', () => {
   it('returns invalid when the char is not a colon', () => {
     const frame = objectFrame('colon');
-    expect(stepObjectColon(frame, 4, 'x')).toBe('invalid');
+    expect(stepObjectColon({ current: frame, index: 4, char: 'x' })).toBe('invalid');
   });
 
   it('advances expect to value on a colon', () => {
     const frame = objectFrame('colon');
-    expect(stepObjectColon(frame, 4, ':')).toEqual({ nextIndex: 4 });
+    expect(stepObjectColon({ current: frame, index: 4, char: ':' })).toEqual({ nextIndex: 4 });
     expect(frame.expect).toBe('value');
   });
 });
@@ -644,20 +644,20 @@ describe('stepObjectCommaOrEnd', () => {
   it('closes the frame on `}`', () => {
     const frame = objectFrame('commaOrEnd');
     const state = scanState({ stack: [frame] });
-    expect(stepObjectCommaOrEnd(state, frame, 5, '}')).toEqual({ nextIndex: 5 });
+    expect(stepObjectCommaOrEnd({ state, current: frame, index: 5, char: '}' })).toEqual({ nextIndex: 5 });
     expect(state.stack).toEqual([]);
   });
 
   it('returns invalid when the char is neither `,` nor `}`', () => {
     const frame = objectFrame('commaOrEnd');
     const state = scanState({ stack: [frame] });
-    expect(stepObjectCommaOrEnd(state, frame, 5, 'x')).toBe('invalid');
+    expect(stepObjectCommaOrEnd({ state, current: frame, index: 5, char: 'x' })).toBe('invalid');
   });
 
   it('advances expect to keyOrEnd on a comma', () => {
     const frame = objectFrame('commaOrEnd');
     const state = scanState({ stack: [frame] });
-    expect(stepObjectCommaOrEnd(state, frame, 5, ',')).toEqual({ nextIndex: 5 });
+    expect(stepObjectCommaOrEnd({ state, current: frame, index: 5, char: ',' })).toEqual({ nextIndex: 5 });
     expect(frame.expect).toBe('keyOrEnd');
   });
 });
@@ -666,37 +666,37 @@ describe('stepObjectFrame', () => {
   it('delegates to the keyOrEnd handler', () => {
     const frame = objectFrame('keyOrEnd');
     const state = scanState({ value: '{}', stack: [frame] });
-    expect(stepObjectFrame(state, frame, 1, '}')).toEqual({ nextIndex: 1 });
+    expect(stepObjectFrame({ state, current: frame, index: 1, char: '}' })).toEqual({ nextIndex: 1 });
   });
 
   it('delegates to the colon handler', () => {
     const frame = objectFrame('colon');
     const state = scanState({ stack: [frame] });
-    expect(stepObjectFrame(state, frame, 4, ':')).toEqual({ nextIndex: 4 });
+    expect(stepObjectFrame({ state, current: frame, index: 4, char: ':' })).toEqual({ nextIndex: 4 });
   });
 
   it('parses a value directly in the value state', () => {
     const frame = objectFrame('value');
     const state = scanState({ value: '{"a":1}', stack: [frame] });
-    expect(stepObjectFrame(state, frame, 5, '1')).toEqual({ nextIndex: 5 });
+    expect(stepObjectFrame({ state, current: frame, index: 5, char: '1' })).toEqual({ nextIndex: 5 });
   });
 
   it('returns invalid for a malformed value in the value state', () => {
     const frame = objectFrame('value');
     const state = scanState({ value: '{"a":x}', stack: [frame] });
-    expect(stepObjectFrame(state, frame, 5, 'x')).toBe('invalid');
+    expect(stepObjectFrame({ state, current: frame, index: 5, char: 'x' })).toBe('invalid');
   });
 
   it('returns incomplete for a truncated value in the value state', () => {
     const frame = objectFrame('value');
     const state = scanState({ value: '{"a":"b', stack: [frame] });
-    expect(stepObjectFrame(state, frame, 5, '"')).toBe('incomplete');
+    expect(stepObjectFrame({ state, current: frame, index: 5, char: '"' })).toBe('incomplete');
   });
 
   it('delegates to the commaOrEnd handler', () => {
     const frame = objectFrame('commaOrEnd');
     const state = scanState({ stack: [frame] });
-    expect(stepObjectFrame(state, frame, 5, ',')).toEqual({ nextIndex: 5 });
+    expect(stepObjectFrame({ state, current: frame, index: 5, char: ',' })).toEqual({ nextIndex: 5 });
   });
 });
 
@@ -704,23 +704,23 @@ describe('stepArrayValueOrEnd', () => {
   it('closes the frame on `]`', () => {
     const frame = arrayFrame('valueOrEnd');
     const state = scanState({ stack: [frame] });
-    expect(stepArrayValueOrEnd(state, 1, ']')).toEqual({ nextIndex: 1 });
+    expect(stepArrayValueOrEnd({ state, index: 1, char: ']' })).toEqual({ nextIndex: 1 });
     expect(state.stack).toEqual([]);
   });
 
   it('returns invalid for a malformed value', () => {
     const state = scanState({ value: '[x]' });
-    expect(stepArrayValueOrEnd(state, 1, 'x')).toBe('invalid');
+    expect(stepArrayValueOrEnd({ state, index: 1, char: 'x' })).toBe('invalid');
   });
 
   it('returns incomplete for a truncated value', () => {
     const state = scanState({ value: '["a' });
-    expect(stepArrayValueOrEnd(state, 1, '"')).toBe('incomplete');
+    expect(stepArrayValueOrEnd({ state, index: 1, char: '"' })).toBe('incomplete');
   });
 
   it('returns the next index for a valid value', () => {
     const state = scanState({ value: '[1]' });
-    expect(stepArrayValueOrEnd(state, 1, '1')).toEqual({ nextIndex: 1 });
+    expect(stepArrayValueOrEnd({ state, index: 1, char: '1' })).toEqual({ nextIndex: 1 });
   });
 });
 
@@ -728,20 +728,20 @@ describe('stepArrayCommaOrEnd', () => {
   it('closes the frame on `]`', () => {
     const frame = arrayFrame('commaOrEnd');
     const state = scanState({ stack: [frame] });
-    expect(stepArrayCommaOrEnd(state, frame, 2, ']')).toEqual({ nextIndex: 2 });
+    expect(stepArrayCommaOrEnd({ state, current: frame, index: 2, char: ']' })).toEqual({ nextIndex: 2 });
     expect(state.stack).toEqual([]);
   });
 
   it('returns invalid when the char is neither `,` nor `]`', () => {
     const frame = arrayFrame('commaOrEnd');
     const state = scanState({ stack: [frame] });
-    expect(stepArrayCommaOrEnd(state, frame, 2, 'x')).toBe('invalid');
+    expect(stepArrayCommaOrEnd({ state, current: frame, index: 2, char: 'x' })).toBe('invalid');
   });
 
   it('advances expect to valueOrEnd on a comma', () => {
     const frame = arrayFrame('commaOrEnd');
     const state = scanState({ stack: [frame] });
-    expect(stepArrayCommaOrEnd(state, frame, 2, ',')).toEqual({ nextIndex: 2 });
+    expect(stepArrayCommaOrEnd({ state, current: frame, index: 2, char: ',' })).toEqual({ nextIndex: 2 });
     expect(frame.expect).toBe('valueOrEnd');
   });
 });
@@ -750,33 +750,33 @@ describe('stepArrayFrame', () => {
   it('delegates to the valueOrEnd handler', () => {
     const frame = arrayFrame('valueOrEnd');
     const state = scanState({ value: '[1]', stack: [frame] });
-    expect(stepArrayFrame(state, frame, 1, '1')).toEqual({ nextIndex: 1 });
+    expect(stepArrayFrame({ state, current: frame, index: 1, char: '1' })).toEqual({ nextIndex: 1 });
   });
 
   it('delegates to the commaOrEnd handler', () => {
     const frame = arrayFrame('commaOrEnd');
     const state = scanState({ stack: [frame] });
-    expect(stepArrayFrame(state, frame, 2, ',')).toEqual({ nextIndex: 2 });
+    expect(stepArrayFrame({ state, current: frame, index: 2, char: ',' })).toEqual({ nextIndex: 2 });
   });
 });
 
 describe('selectStep', () => {
   it('dispatches to the root frame when the stack is empty', () => {
     const state = scanState({ value: '42' });
-    expect(selectStep(state, 0, '4')).toEqual({ nextIndex: 1 });
+    expect(selectStep({ state, index: 0, char: '4' })).toEqual({ nextIndex: 1 });
   });
 
   it('dispatches to the object frame handler when an object frame is on top', () => {
     const frame = objectFrame('commaOrEnd');
     const state = scanState({ stack: [frame] });
-    expect(selectStep(state, 5, ',')).toEqual({ nextIndex: 5 });
+    expect(selectStep({ state, index: 5, char: ',' })).toEqual({ nextIndex: 5 });
     expect(frame.expect).toBe('keyOrEnd');
   });
 
   it('dispatches to the array frame handler when an array frame is on top', () => {
     const frame = arrayFrame('commaOrEnd');
     const state = scanState({ stack: [frame] });
-    expect(selectStep(state, 5, ',')).toEqual({ nextIndex: 5 });
+    expect(selectStep({ state, index: 5, char: ',' })).toEqual({ nextIndex: 5 });
     expect(frame.expect).toBe('valueOrEnd');
   });
 });
@@ -784,13 +784,13 @@ describe('selectStep', () => {
 describe('emitJsonLine', () => {
   it('parses valid JSON, calls onMessage, and returns true', () => {
     const onMessage = vi.fn();
-    expect(emitJsonLine('{"a":1}', onMessage)).toBe(true);
+    expect(emitJsonLine({ candidate: '{"a":1}', onMessage })).toBe(true);
     expect(onMessage).toHaveBeenCalledWith({ message: { a: 1 }, rawLine: '{"a":1}' });
   });
 
   it('returns false and does not call onMessage for invalid JSON', () => {
     const onMessage = vi.fn();
-    expect(emitJsonLine('not json', onMessage)).toBe(false);
+    expect(emitJsonLine({ candidate: 'not json', onMessage })).toBe(false);
     expect(onMessage).not.toHaveBeenCalled();
   });
 });
@@ -799,7 +799,7 @@ describe('continuePendingJsonLine', () => {
   it('resolves and resets pending state when the combined candidate parses', () => {
     const onMessage = vi.fn();
     const state = accumulatorState({ pendingJson: '{"a":1,', pendingJsonLineCount: 1 });
-    continuePendingJsonLine(state, '"b":2}', onMessage);
+    continuePendingJsonLine({ state, trimmed: '"b":2}', onMessage });
     expect(onMessage).toHaveBeenCalledWith({ message: { a: 1, b: 2 }, rawLine: '{"a":1,\n"b":2}' });
     expect(state.pendingJson).toBe('');
     expect(state.pendingJsonLineCount).toBe(0);
@@ -808,7 +808,7 @@ describe('continuePendingJsonLine', () => {
   it('keeps accumulating when the combined candidate is still incomplete and within budget', () => {
     const onMessage = vi.fn();
     const state = accumulatorState({ pendingJson: '{', pendingJsonLineCount: 1 });
-    continuePendingJsonLine(state, '"a":1,', onMessage);
+    continuePendingJsonLine({ state, trimmed: '"a":1,', onMessage });
     expect(onMessage).not.toHaveBeenCalled();
     expect(state.pendingJson).toBe('{\n"a":1,');
     expect(state.pendingJsonLineCount).toBe(2);
@@ -822,7 +822,7 @@ describe('continuePendingJsonLine', () => {
     // count to 257, so the line-count guard (not the classification) is
     // what forces the abandon-and-retry path.
     const state = accumulatorState({ pendingJson: '{"a":1,"b":2', pendingJsonLineCount: 256 });
-    continuePendingJsonLine(state, ',"c":3', onMessage);
+    continuePendingJsonLine({ state, trimmed: ',"c":3', onMessage });
     expect(onMessage).not.toHaveBeenCalled();
     expect(state.pendingJson).toBe('');
     expect(state.pendingJsonLineCount).toBe(0);
@@ -836,7 +836,7 @@ describe('continuePendingJsonLine', () => {
     // structurally 'incomplete', so the byte-length guard is what forces
     // the abandon-and-retry path here, not the classification.
     const hugeLine = 'x'.repeat(129_000);
-    continuePendingJsonLine(state, hugeLine, onMessage);
+    continuePendingJsonLine({ state, trimmed: hugeLine, onMessage });
     expect(onMessage).not.toHaveBeenCalled();
     expect(state.pendingJson).toBe('');
     expect(state.pendingJsonLineCount).toBe(0);
@@ -845,7 +845,7 @@ describe('continuePendingJsonLine', () => {
   it('abandons and retries the fresh line when the candidate resolves to invalid JSON', () => {
     const onMessage = vi.fn();
     const state = accumulatorState({ pendingJson: '{', pendingJsonLineCount: 1 });
-    continuePendingJsonLine(state, 'bad line here', onMessage);
+    continuePendingJsonLine({ state, trimmed: 'bad line here', onMessage });
     expect(onMessage).not.toHaveBeenCalled();
     expect(state.pendingJson).toBe('');
     expect(state.pendingJsonLineCount).toBe(0);
@@ -855,32 +855,32 @@ describe('continuePendingJsonLine', () => {
 describe('tryStartPendingJsonLine', () => {
   it('starts a pending candidate for an incomplete line beginning with `{`', () => {
     const state = accumulatorState();
-    tryStartPendingJsonLine(state, '{"a":1');
+    tryStartPendingJsonLine({ state, trimmed: '{"a":1' });
     expect(state.pendingJson).toBe('{"a":1');
     expect(state.pendingJsonLineCount).toBe(1);
   });
 
   it('starts a pending candidate for an incomplete line beginning with `[`', () => {
     const state = accumulatorState();
-    tryStartPendingJsonLine(state, '[1,2');
+    tryStartPendingJsonLine({ state, trimmed: '[1,2' });
     expect(state.pendingJson).toBe('[1,2');
   });
 
   it('does not start a pending candidate for a line that does not begin with `{` or `[`', () => {
     const state = accumulatorState();
-    tryStartPendingJsonLine(state, 'hello world');
+    tryStartPendingJsonLine({ state, trimmed: 'hello world' });
     expect(state.pendingJson).toBe('');
   });
 
   it('does not start a pending candidate when the line is already a complete value', () => {
     const state = accumulatorState();
-    tryStartPendingJsonLine(state, '{}');
+    tryStartPendingJsonLine({ state, trimmed: '{}' });
     expect(state.pendingJson).toBe('');
   });
 
   it('does not start a pending candidate when the line is invalid rather than incomplete', () => {
     const state = accumulatorState();
-    tryStartPendingJsonLine(state, '{]');
+    tryStartPendingJsonLine({ state, trimmed: '{]' });
     expect(state.pendingJson).toBe('');
   });
 });
@@ -889,28 +889,28 @@ describe('handleJsonLine', () => {
   it('ignores a blank line', () => {
     const onMessage = vi.fn();
     const state = accumulatorState();
-    handleJsonLine(state, '   ', onMessage);
+    handleJsonLine({ state, line: '   ', onMessage });
     expect(onMessage).not.toHaveBeenCalled();
   });
 
   it('delegates to continuePendingJsonLine when a candidate is already pending', () => {
     const onMessage = vi.fn();
     const state = accumulatorState({ pendingJson: '{"a":1', pendingJsonLineCount: 1 });
-    handleJsonLine(state, '}', onMessage);
+    handleJsonLine({ state, line: '}', onMessage });
     expect(onMessage).toHaveBeenCalledWith({ message: { a: 1 }, rawLine: '{"a":1\n}' });
   });
 
   it('emits a line that parses standalone', () => {
     const onMessage = vi.fn();
     const state = accumulatorState();
-    handleJsonLine(state, '{"a":1}', onMessage);
+    handleJsonLine({ state, line: '{"a":1}', onMessage });
     expect(onMessage).toHaveBeenCalledWith({ message: { a: 1 }, rawLine: '{"a":1}' });
   });
 
   it('falls through to tryStartPendingJsonLine when the line does not parse standalone', () => {
     const onMessage = vi.fn();
     const state = accumulatorState();
-    handleJsonLine(state, '{"a":1', onMessage);
+    handleJsonLine({ state, line: '{"a":1', onMessage });
     expect(onMessage).not.toHaveBeenCalled();
     expect(state.pendingJson).toBe('{"a":1');
   });
@@ -920,7 +920,7 @@ describe('multiline aggregate budgets apply before successful JSON parsing', () 
   it('does not emit a valid aggregate exceeding 128000 characters', () => {
     const messages: unknown[] = [];
     const errors: RangeError[] = [];
-    const stream = createJsonLineStream({ onError: error => errors.push(error), onMessage: ({ message }) => messages.push(message) });
+    const stream = createJsonLineStream({ onMessage: ({ message }) => messages.push(message) }, { onError: error => errors.push(error) });
     stream.feed({ chunk: '{\n"pad":"' + 'x'.repeat(128000) + '"}\n' });
     stream.feed({ chunk: '{"fresh":true}\n' });
     expect(errors.map(error => error.message)).toEqual(['Agent output multiline JSON exceeded 128000 characters or 256 lines.']);
@@ -929,7 +929,7 @@ describe('multiline aggregate budgets apply before successful JSON parsing', () 
   it('does not emit a valid aggregate whose closing line exceeds 256 lines', () => {
     const messages: unknown[] = [];
     const errors: RangeError[] = [];
-    const stream = createJsonLineStream({ onError: error => errors.push(error), onMessage: ({ message }) => messages.push(message) });
+    const stream = createJsonLineStream({ onMessage: ({ message }) => messages.push(message) }, { onError: error => errors.push(error) });
     stream.feed({ chunk: '[\n' + '0,\n'.repeat(255) + '0]\n' });
     stream.feed({ chunk: '{"fresh":true}\n' });
     expect(errors.map(error => error.message)).toEqual(['Agent output multiline JSON exceeded 128000 characters or 256 lines.']);
@@ -940,7 +940,7 @@ describe('multiline aggregate budgets apply before successful JSON parsing', () 
 describe('physical JSON-RPC line bounds', () => {
   it('reports an attachment-sized frame in plain words without delivering any of it', () => {
     const onMessage = vi.fn(); const onError = vi.fn();
-    const stream = createJsonLineStream({ onMessage, onError });
+    const stream = createJsonLineStream({ onMessage }, { onError });
     stream.feed({ chunk: JSON.stringify({ content: [{ type: 'image', data: 'x'.repeat(8 * 1024 * 1024) }] }) + '\n' });
     expect(onMessage).not.toHaveBeenCalled();
     expect(onError).toHaveBeenCalledOnce();
@@ -949,7 +949,7 @@ describe('physical JSON-RPC line bounds', () => {
   it('retries a complete frame after an abandoned multiline candidate reaches its budget', () => {
     const messages: unknown[] = [];
     const errors: RangeError[] = [];
-    const stream = createJsonLineStream({ onError: error => errors.push(error), onMessage: ({ message }) => messages.push(message) });
+    const stream = createJsonLineStream({ onMessage: ({ message }) => messages.push(message) }, { onError: error => errors.push(error) });
     const frame = { text: 'x'.repeat(128000) };
     stream.feed({ chunk: '{\n' + JSON.stringify(frame) + '\n' });
     expect(messages).toEqual([frame]);
@@ -977,7 +977,7 @@ describe('physical JSON-RPC line bounds', () => {
   });
   it('reports a split oversized line once, discards its suffix, and resumes with the next frame', () => {
     const messages: unknown[] = []; const errors: RangeError[] = [];
-    const stream = createJsonLineStream({ onMessage: ({ message }) => messages.push(message), onError: error => errors.push(error) });
+    const stream = createJsonLineStream({ onMessage: ({ message }) => messages.push(message) }, { onError: error => errors.push(error) });
     stream.feed({ chunk: 'x'.repeat(limit) });
     stream.feed({ chunk: 'y' });
     stream.feed({ chunk: '{"forged":true}\n{"fresh":true}\n' });
@@ -987,7 +987,7 @@ describe('physical JSON-RPC line bounds', () => {
   });
   it('clears a partial multiline candidate when its next physical line overflows', () => {
     const messages: unknown[] = []; const errors: RangeError[] = [];
-    const stream = createJsonLineStream({ onMessage: ({ message }) => messages.push(message), onError: error => errors.push(error) });
+    const stream = createJsonLineStream({ onMessage: ({ message }) => messages.push(message) }, { onError: error => errors.push(error) });
     stream.feed({ chunk: '{\n' + 'x'.repeat(limit + 1) + '\n{"fresh":true}\n' });
     expect(errors).toHaveLength(1);
     expect(messages).toEqual([{ fresh: true }]);

@@ -12,12 +12,12 @@ describe('noopAccountFailureClassifier', () => {
 describe('accountFailureDetails', () => {
   it('includes actionUrl when present', () => {
     expect(
-      accountFailureDetails({ code: 'X', message: 'm', action: 'recharge', actionUrl: 'https://example.com' }),
+      accountFailureDetails({ failure: { code: 'X', message: 'm', action: 'recharge', actionUrl: 'https://example.com' } }),
     ).toEqual({ kind: 'account_failure', action: 'recharge', actionUrl: 'https://example.com' });
   });
 
   it('omits actionUrl when absent', () => {
-    expect(accountFailureDetails({ code: 'X', message: 'm', action: 'relogin' })).toEqual({
+    expect(accountFailureDetails({ failure: { code: 'X', message: 'm', action: 'relogin' } })).toEqual({
       kind: 'account_failure',
       action: 'relogin',
     });

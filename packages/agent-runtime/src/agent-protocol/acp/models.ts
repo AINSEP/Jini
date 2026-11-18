@@ -47,7 +47,7 @@ export interface DetectAcpModelsOptions {
  * @param value - A raw field value from an ACP config option object.
  * @returns A normalised token string, or `''` when `value` is not a string.
  */
-export function normalizeConfigOptionToken(value: unknown): string {
+export function normalizeConfigOptionToken({ value }: { value: unknown }, _optional: Record<string, never> = {}): string {
   return typeof value === 'string'
     ? value.trim().toLowerCase().replace(/[\s_-]+/g, '')
     : '';
@@ -60,13 +60,13 @@ export function normalizeConfigOptionToken(value: unknown): string {
  * @param option - A single item from the `configOptions` array.
  * @param configId - The trimmed `id` field of that item.
  */
-export function isModelConfigOption(option: UnknownRecord, configId: string): boolean {
-  const category = normalizeConfigOptionToken(option.category);
+export function isModelConfigOption({ option, configId }: { option: UnknownRecord; configId: string }, _optional: Record<string, never> = {}): boolean {
+  const category = normalizeConfigOptionToken({ value: option.category });
   if (category === 'model') return true;
-  const id = normalizeConfigOptionToken(configId);
+  const id = normalizeConfigOptionToken({ value: configId });
   if (id === 'model') return true;
   if (category) return false;
-  const name = normalizeConfigOptionToken(option.name);
+  const name = normalizeConfigOptionToken({ value: option.name });
   return MODEL_CONFIG_OPTION_IDS.has(id) || name === 'model';
 }
 /**
@@ -77,7 +77,7 @@ export function isModelConfigOption(option: UnknownRecord, configId: string): bo
  * @param configOptions - The raw `result.configOptions` value from a session response.
  * @returns A parsed `AcpModelConfigOption` or `null` when absent.
  */
-export function findModelConfigOption(configOptions: unknown): AcpModelConfigOption | null {
+export function findModelConfigOption({ configOptions }: { configOptions: unknown }, _optional: Record<string, never> = {}): AcpModelConfigOption | null {
   const options = Array.isArray(configOptions) ? configOptions : [];
   for (const rawOption of options) {
     const parsed = parseModelConfigOption(rawOption);
@@ -92,13 +92,13 @@ function trimmedOrEmpty(value: unknown): string {
 /** Parses one `configOptions` entry, returning it only when it is a
  * select-type (or untyped) model-selection option with a non-blank id. */
 function parseModelConfigOption(rawOption: unknown): AcpModelConfigOption | null {
-  const option = asObject(rawOption);
+  const option = asObject({ value: rawOption });
   if (!option) return null;
   const configId = trimmedOrEmpty(option.id);
   if (!configId) return null;
   const type = trimmedOrEmpty(option.type);
   if (type && type !== 'select') return null;
-  if (!isModelConfigOption(option, configId)) return null;
+  if (!isModelConfigOption({ option, configId })) return null;
   return {
     configId,
     currentValue: trimmedOrEmpty(option.currentValue) || null,
@@ -141,7 +141,7 @@ function configOptionEntry(value: UnknownRecord): ModelEntry {
 }
 /** Reads a legacy `models.availableModels` entry. */
 function legacyModelEntry(model: unknown): ModelEntry {
-  const obj = asObject(model);
+  const obj = asObject({ value: model });
   return { id: trimmedOrEmpty(obj?.modelId), name: trimmedOrEmpty(obj?.name) };
 }
 /**
@@ -155,14 +155,13 @@ function legacyModelEntry(model: unknown): ModelEntry {
  * @returns `{ currentModelId, models }` or `null` when no config option is found.
  */
 export function normalizeModelConfigOptions(
-  configOptions: unknown,
-  defaultModelOption: ModelOption,
+  { configOptions, defaultModelOption }: { configOptions: unknown; defaultModelOption: ModelOption }, _optional: Record<string, never> = {},
 ): { currentModelId: string | null; models: ModelOption[] } | null {
-  const modelConfig = findModelConfigOption(configOptions);
+  const modelConfig = findModelConfigOption({ configOptions });
   if (!modelConfig) return null;
   const entries: ModelEntry[] = [];
   for (const rawValue of modelConfig.values) {
-    const value = asObject(rawValue);
+    const value = asObject({ value: rawValue });
     if (value) entries.push(configOptionEntry(value));
   }
   const models = buildModelOptions({
@@ -185,7 +184,7 @@ export function normalizeModelConfigOptions(
  */
 export function normalizeModels({ models, defaultModelOption }: { models: unknown; defaultModelOption: ModelOption }, { configOptions }: { configOptions?: unknown } = {}
 ): ModelOption[] {
-  const configModels = normalizeModelConfigOptions(configOptions, defaultModelOption);
+  const configModels = normalizeModelConfigOptions({ configOptions, defaultModelOption });
   if (configModels && configModels.models.length > 1) {
     return configModels.models;
   }
@@ -200,7 +199,7 @@ function legacyModelOptions({
   models: unknown;
   defaultModelOption: ModelOption;
 }): ModelOption[] {
-  const modelsObj = asObject(models);
+  const modelsObj = asObject({ value: models });
   const available: unknown[] = Array.isArray(modelsObj?.availableModels) ? modelsObj.availableModels : [];
   const currentId =
     typeof modelsObj?.currentModelId === 'string' ? modelsObj.currentModelId : null;
@@ -213,7 +212,7 @@ function legacyModelOptions({
  *
  * @param code - The `error.code` value from a JSON-RPC error response.
  */
-export function modelSelectionErrorIsRecoverable(code: unknown): boolean {
+export function modelSelectionErrorIsRecoverable({ code }: { code: unknown }, _optional: Record<string, never> = {}): boolean {
   return code === -32603 || code === -32602 || code === -32601 || code === -32002;
 }
 /**
@@ -223,10 +222,10 @@ export function modelSelectionErrorIsRecoverable(code: unknown): boolean {
  *
  * @param result - The parsed `result` object from a session handshake response.
  */
-export function currentModelFromSessionResult(result: UnknownRecord): string | null {
-  const configCurrent = findModelConfigOption(result.configOptions)?.currentValue;
+export function currentModelFromSessionResult({ result }: { result: UnknownRecord }, _optional: Record<string, never> = {}): string | null {
+  const configCurrent = findModelConfigOption({ configOptions: result.configOptions })?.currentValue;
   if (configCurrent) return configCurrent;
-  const models = asObject(result.models);
+  const models = asObject({ value: result.models });
   return typeof models?.currentModelId === 'string' && models.currentModelId.trim()
     ? models.currentModelId.trim()
     : null;
@@ -287,7 +286,7 @@ function resolveProbeConfig(options: DetectAcpModelsOptions): ProbeConfig {
   return {
     bin: options.bin, args: options.args, cwd, env, timeoutMs, clientName, clientVersion,
     defaultModelOption, spawnProcess, signal: options.signal, onSessionResult: options.onSessionResult,
-    effectiveTimeoutMs: resolveAcpTimeoutMs(env, timeoutMs),
+    effectiveTimeoutMs: resolveAcpTimeoutMs({ env, fallbackMs: timeoutMs }),
   };
 }
 
@@ -310,9 +309,9 @@ function failProbe({ run, message }: { run: ProbeRun; message: string }): void {
 
 function writeProbeRpc(run: ProbeRun, rpc: { id: JsonRpcId; method: string; params: unknown }): void {
   try {
-    sendRpc(run.child.stdin, rpc.id, rpc.method, rpc.params);
+    sendRpc({ writable: run.child.stdin, id: rpc.id, method: rpc.method, params: rpc.params });
   } catch (err) {
-    failProbe({ run, message: `stdin write failed: ${errorMessage(err)}` });
+    failProbe({ run, message: `stdin write failed: ${errorMessage({ err })}` });
   }
 }
 
@@ -325,7 +324,7 @@ function handleProbeRpcError({ run, obj, rpcErr }: {
   // If this is for the current expected-id (initialize/session/new),
   // it's a real probe failure — reject immediately.
   // Otherwise it's cleanup noise — suppress it.
-  if (asObject(obj?.error)?.code === -32603 && obj?.id !== run.expectedId) return;
+  if (asObject({ value: obj?.error })?.code === -32603 && obj?.id !== run.expectedId) return;
   failProbe({ run, message: rpcErr });
 }
 
@@ -342,13 +341,13 @@ function handleProbeResult(run: ProbeRun, result: UnknownRecord): void {
 }
 
 function handleProbeMessage({ run, raw }: { run: ProbeRun; raw: unknown }): void {
-  const obj = asObject(raw);
-  const rpcErr = rpcErrorMessage(raw);
+  const obj = asObject({ value: raw });
+  const rpcErr = rpcErrorMessage({ raw });
   if (rpcErr) {
     handleProbeRpcError({ run, obj, rpcErr });
     return;
   }
-  const result = asObject(obj?.result);
+  const result = asObject({ value: obj?.result });
   if (obj?.id !== run.expectedId || !result) return;
   handleProbeResult(run, result);
 }
@@ -384,9 +383,8 @@ function handleProbeClose({ run, parser, exit }: {
 function wireProbeListeners(run: ProbeRun): void {
   const { child } = run;
   const parser = createJsonLineStream({
-    onError: error => failProbe({ run, message: error.message }),
     onMessage: ({ message: raw }) => handleProbeMessage({ run, raw }),
-  });
+  }, { onError: error => failProbe({ run, message: error.message }) });
   child.stdout.on('data', (chunk) => handleProbeStdout({ run, parser, chunk }));
   child.stdout.on('close', () => parser.flush());
   child.stdin.on('error', (err) => failProbe({ run, message: `stdin error: ${err.message}` }));
@@ -482,7 +480,7 @@ export async function detectAcpModelMetadata(requiredArgs: Pick<DetectAcpModelsO
 ): Promise<{ models: ModelOption[]; currentModelId: string | null }> {
   let currentModelId: string | null = null;
   const models = await detectAcpModels(requiredArgs, { ...optionalArgs, onSessionResult: (result) => {
-    currentModelId = currentModelFromSessionResult(result);
+    currentModelId = currentModelFromSessionResult({ result });
     optionalArgs.onSessionResult?.(result);
   } });
   return { models: models.filter((model) => model.id !== 'default').map((model) => {

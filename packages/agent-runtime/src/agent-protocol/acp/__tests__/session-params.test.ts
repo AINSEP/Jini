@@ -85,11 +85,11 @@ describe('buildAcpSessionNewParams', () => {
 
 describe('buildPromptBlocks', () => {
   it('always includes a leading text block', () => {
-    expect(buildPromptBlocks('hello', [])).toEqual([{ type: 'text', text: 'hello' }]);
+    expect(buildPromptBlocks({ prompt: 'hello', imagePaths: [] })).toEqual([{ type: 'text', text: 'hello' }]);
   });
 
   it('appends a resource_link block per non-empty image path', () => {
-    expect(buildPromptBlocks('hello', ['/a.png', '/b.png'])).toEqual([
+    expect(buildPromptBlocks({ prompt: 'hello', imagePaths: ['/a.png', '/b.png'] })).toEqual([
       { type: 'text', text: 'hello' },
       { type: 'resource_link', uri: '/a.png' },
       { type: 'resource_link', uri: '/b.png' },
@@ -97,7 +97,7 @@ describe('buildPromptBlocks', () => {
   });
 
   it('skips empty or whitespace-only image paths', () => {
-    expect(buildPromptBlocks('hello', ['', '   ', '/a.png'])).toEqual([
+    expect(buildPromptBlocks({ prompt: 'hello', imagePaths: ['', '   ', '/a.png'] })).toEqual([
       { type: 'text', text: 'hello' },
       { type: 'resource_link', uri: '/a.png' },
     ]);
@@ -105,6 +105,6 @@ describe('buildPromptBlocks', () => {
 
   it('skips non-string image path entries', () => {
     // @ts-expect-error - exercising the runtime typeof guard directly
-    expect(buildPromptBlocks('hello', [42])).toEqual([{ type: 'text', text: 'hello' }]);
+    expect(buildPromptBlocks({ prompt: 'hello', imagePaths: [42] })).toEqual([{ type: 'text', text: 'hello' }]);
   });
 });

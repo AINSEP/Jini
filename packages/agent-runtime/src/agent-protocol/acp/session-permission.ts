@@ -25,7 +25,7 @@ const ACP_TOOL_KINDS: readonly string[] = ['read', 'edit', 'delete', 'move', 'se
 function offeredPermissionOptions(params: UnknownRecord | null): AcpPermissionOption[] {
   if (!Array.isArray(params?.options)) return [];
   return params.options.filter((option): option is AcpPermissionOption => {
-    const record = asObject(option);
+    const record = asObject({ value: option });
     return typeof record?.optionId === 'string' && record.optionId !== '' &&
       typeof record.kind === 'string' && ACP_PERMISSION_OPTION_KINDS.includes(record.kind);
   });
@@ -46,7 +46,7 @@ function defaultPermissionDecision(
     cliParity,
   }: { permissionMode?: AttachAcpSessionOptions['permissionMode']; cliParity?: boolean | undefined } = {},
 ): AcpPermissionDecision {
-  const optionId = choosePermissionOutcome(optionRecords, { ...(permissionMode ? { permissionMode } : {}), ...(cliParity ? { cliParity: true } : {}) });
+  const optionId = choosePermissionOutcome({ options: optionRecords }, { ...(permissionMode ? { permissionMode } : {}), ...(cliParity ? { cliParity: true } : {}) });
   return optionId ? { outcome: 'selected', optionId } : { outcome: 'cancelled' };
 }
 
@@ -63,7 +63,7 @@ interface PermissionReply {
 function logPermissionDecision({ run, toolCall }: { run: AcpRun; toolCall: UnknownRecord | null }, { selected }: { selected?: AcpPermissionOption } = {}): void {
   try {
     const tool = permissionToolKind(toolCall);
-    sendAgent(run, {
+    sendAgent({ run,
       payload: { type: 'status', label: 'acp_permission', detail: `tool=${tool} decision=${selected?.kind ?? 'cancelled'}` },
     });
   } catch {
@@ -76,15 +76,15 @@ function respondToPermission(reply: PermissionReply, decision: AcpPermissionDeci
   run.pendingPermissionRequests.delete(requestId);
   if (run.aborted || run.finished) return;
   // Anything but an offered option (including an invalid handler result) cancels.
-  const choice = asObject(decision);
+  const choice = asObject({ value: decision });
   const selected = choice?.outcome === 'selected'
     ? optionRecords.find((option) => option.optionId === choice.optionId)
     : undefined;
-  resetStageTimer(run, { label: 'session/request_permission' });
+  resetStageTimer({ run, label: 'session/request_permission' });
   try {
-    sendRpcResult(run.stdin, requestId, {
+    sendRpcResult({ writable: run.stdin, id: requestId, result: {
       outcome: selected ? { outcome: 'selected', optionId: selected.optionId } : { outcome: 'cancelled' },
-    });
+    } });
   } catch {
     // A broken pipe cannot carry a response; ordinary transport lifecycle
     // handling still owns process failure, not the permission decision.
@@ -114,9 +114,9 @@ function askPermissionHandler(reply: PermissionReply, params: UnknownRecord): vo
   }
 }
 
-export function replyPermission(run: AcpRun, raw: UnknownRecord): void {
-  const params = asObject(raw.params);
-  const toolCall = asObject(params?.toolCall);
+export function replyPermission({ run, raw }: { run: AcpRun; raw: UnknownRecord }, _optional: Record<string, never> = {}): void {
+  const params = asObject({ value: raw.params });
+  const toolCall = asObject({ value: params?.toolCall });
   if (!isJsonRpcId(raw.id)) {
     // No response can be correlated without a valid id; drop it rather
     // than failing the run.
@@ -133,6 +133,6 @@ export function replyPermission(run: AcpRun, raw: UnknownRecord): void {
   run.pendingPermissionRequests.set(raw.id, () => logPermissionDecision({ run, toolCall }));
   // Human decision time is outside the agent's inactivity budget. All timer
   // resets stay paused until the last pending permission response is sent.
-  clearStageTimer(run);
+  clearStageTimer({ run });
   askPermissionHandler(reply, params);
 }
