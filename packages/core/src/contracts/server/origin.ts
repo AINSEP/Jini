@@ -20,9 +20,13 @@ export interface OriginContext {
  * The standard local-daemon policy: loopback/bind host, the resolved port, and the host's allow-list env var.
  * `port` is read on every call, because the listener binds after the routes are built.
  *
- * The host passes the same `env` it gives the origin-guard middleware, so both halves of one decision read
- * one environment. Without that, the middleware admits an origin the host configured and the per-route guard
- * then rejects it, or a bind host the host never set decides what counts as same-origin.
+ * `env` is the host-supplied environment; the host also names the bind-host, allowed-origin and web-port vars.
+ *
+ * Present because a host can inject its own environment, and that injection already reaches
+ * the origin-guard *middleware* — which is handed an explicit `env`. Without the same seam here,
+ * the two halves of one decision read two different environments: the middleware admits an origin
+ * the host configured and the per-route guard then rejects it, or a bind host the host never set
+ * decides what counts as same-origin.
  */
 export function createLocalSameOriginPolicy(
   required: { readonly port: () => number; readonly env: Readonly<Record<string, string | undefined>>; readonly config: OriginValidationEnvConfig },

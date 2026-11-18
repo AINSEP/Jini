@@ -15,6 +15,8 @@ describe('guardSameOrigin', () => {
     const verdict = guardSameOrigin({ req: { headers: { host: '127.0.0.1:7000', origin: 'http://evil.example' } }, origin: localOrigin() });
     expect(verdict.ok ? undefined : verdict.error).toEqual({ code: 'FORBIDDEN', message: 'cross-origin request rejected' });
   });
+  // The guard reads the policy's own env (the one a host injected), not the real process env: the
+  // middleware is handed the same env, so both halves of one decision must agree.
   it("reads the policy's own env: an injected allow-list admits an origin the empty env refuses", () => {
     const req = { headers: { host: 'proxy.internal:7000', origin: 'https://ok.example' } };
     expect(guardSameOrigin({ req, origin: localOrigin() }).ok).toBe(false);

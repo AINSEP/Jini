@@ -13,6 +13,8 @@ export interface FormatByteSizeOptions {
 }
 
 /**
+ * 1024-based to agree with upload limits. Whole B/KB, one decimal MB/GB distinguishes
+ * similarly sized clips; locale controls the decimal separator, never a hardcoded dot.
  * @param required.bytes - Size in bytes; fractions round to the nearest whole B/KB.
  * @param optional.locale - Locale for the decimal separator.
  * @param optional.megabyteLabel - Unit label for the megabyte band.

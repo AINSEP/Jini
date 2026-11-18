@@ -48,6 +48,7 @@ export interface RuntimeReasoningOption extends RuntimeModelOption {}
  * not ported.
  */
 
+/** Category of outcome a provider model/connection probe can report. */
 export type ConnectionTestKind =
   | 'success'
   | 'auth_failed'
