@@ -35,7 +35,7 @@
 import { authSchemeValueRanges, BARE_SCHEME_TOKEN_PATTERNS, DIGEST_VALUE } from './redact-auth-schemes.js';
 import { labelAliasValueRanges } from './redact-label-aliases.js';
 import { isProseAfterColon } from './redact-prose-values.js';
-import { forEachOccurrence, forwardFinder, unescapedQuoteFinder } from './redact-text-scan.js';
+import { forEachOccurrence, forwardFinder, unescapedQuoteFinder, userinfoLength } from './redact-text-scan.js';
 import { VENDOR_SHAPE_PATTERNS } from './redact-vendor-shapes.js';
 
 /** Credential-shape vocabulary for secret-only redaction; no I/O or host dependencies. */
@@ -699,7 +699,7 @@ function collectUrlCredentials(pass: SpanPass): void {
     const userinfo = match[1] ?? '';
     if (isMaskedValue(userinfo)) return undefined;
     const start = index + '//'.length;
-    return { start, end: start + userinfo.length, category: CATEGORY.urlCredentials };
+    return { start, end: start + userinfoLength({ authority: userinfo }), category: CATEGORY.urlCredentials };
   });
   collectMatches(pass, SIGNED_QUERY_RE, trailingValue(CATEGORY.signedQuery, 2));
 }

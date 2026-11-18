@@ -85,3 +85,21 @@ function borderTable(needle: string): Int32Array {
   }
   return border;
 }
+
+// Characters that end a URL in running text. They may appear in a password, but a password's `@` is only
+// followed by more password: once one of them sits between two `@`, the later `@` belongs to other text.
+const URL_END_PUNCTUATION = /[,;()<>"'`]/;
+
+/** Length of the userinfo in an authority's text up to its last `@` (`authority` ends before that `@`): the
+ * part before the first `@`, plus each later `@` segment that holds no URL-ending punctuation. A password may
+ * hold unencoded `@` signs (`u:p@ss@host`), but `host,bob@example.com` is a host followed by an address.
+ * @complexity O(n) in the authority's length; each segment is read once. */
+export function userinfoLength({ authority }: { readonly authority: string }): number {
+  const text = `${authority}@`;
+  let end = text.indexOf('@');
+  for (let next = text.indexOf('@', end + 1); next !== -1; next = text.indexOf('@', next + 1)) {
+    if (URL_END_PUNCTUATION.test(text.slice(end + 1, next))) break;
+    end = next;
+  }
+  return end;
+}
