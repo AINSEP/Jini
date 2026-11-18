@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { NextFunction, Request, Response } from 'express';
 import { fakeTimingSafeEqual } from '@jini-ai/core/contracts/server/testing';
-import { createMessageRelayClaimHandler } from '../message-relay.js';
+import { messageRelayRoutes } from '../message-relay.js';
+import { serveRoutes } from './fakes/serve-routes.js';
 import { requireToolExecutionCaller } from '../tool-execution-routes.js';
 
 /**
@@ -70,25 +71,24 @@ describe('requireToolExecutionCaller', () => {
   });
 });
 
-describe('createMessageRelayClaimHandler bearer parsing', () => {
+describe('messageRelayRoutes bearer parsing', () => {
   const claim = vi.fn(() => []);
-  const handler = createMessageRelayClaimHandler({
+  const fetch = serveRoutes({ routes: messageRelayRoutes({
     agentExecutor: { claimUserMessages: claim },
     runScopedCallers: { resolveCaller: ({ token }) => (token === TOKEN ? { runId: 'run-1', principalId: 'p-1' } : undefined) },
-  });
-  function call(authorization: string | undefined) {
-    const sent: { status?: number } = {};
-    const res = { status(code: number) { sent.status = code; return { json: () => undefined }; }, json: () => undefined } as unknown as Response;
-    const req = { ...request(authorization === undefined ? {} : { authorization }), params: { runId: 'run-1' }, body: { via: 'check_messages' } } as unknown as Request;
-    handler(req, res, vi.fn());
-    return sent.status;
+  }) });
+  async function call(authorization: string | undefined) {
+    const headers: Record<string, string> = { 'content-type': 'application/json' };
+    if (authorization !== undefined) headers.authorization = authorization;
+    const answer = await fetch(new Request('http://local/api/runs/run-1/messages/claim', { method: 'POST', headers, body: '{"via":"check_messages"}' }));
+    return answer.status;
   }
-  it('resolves the caller only from a well-formed Bearer header with the exact token', () => {
+  it('resolves the caller only from a well-formed Bearer header with the exact token', async () => {
     claim.mockClear();
-    expect(call(`Bearer ${TOKEN}`)).toBeUndefined();
+    expect(await call(`Bearer ${TOKEN}`)).toBe(200);
     expect(claim).toHaveBeenCalledOnce();
     for (const authorization of [undefined, TOKEN, `Basic ${TOKEN}`, `Bearer ${TOKEN} extra`, `Bearer ${SAME_LENGTH_WRONG}`]) {
-      expect(call(authorization)).toBe(401);
+      expect(await call(authorization)).toBe(401);
     }
     expect(claim).toHaveBeenCalledOnce();
   });

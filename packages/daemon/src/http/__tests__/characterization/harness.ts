@@ -32,7 +32,7 @@ import { healthRoutes } from '../../health.js';
 import { hostToolsRoutes } from '../../host-tools.js';
 import { mediaRoutes } from '../../media.js';
 import { memoryRoutes } from '../../memory.js';
-import { registerMessageRelayRoutes } from '../../message-relay.js';
+import { messageRelayRoutes } from '../../message-relay.js';
 import { modelProxyRoutes } from '../../model-proxy.js';
 import { remoteRunEventRoutes } from '../../remote-run-events.js';
 import { researchRoutes } from '../../research.js';
@@ -138,7 +138,7 @@ const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-par
   ['daemon-status', ({ adapter, deps, mountList }) => mountList(daemonStatusRoutes({ deps: deps({ requestShutdown: () => undefined }), host: routeHost(adapter) }))],
   ['component-catalog', ({ adapter, deps, mountList }) => mountList(componentCatalogRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['attachments', ({ app, adapter, deps }) => registerAttachmentRoutes({ app, deps: deps({ acquireActivity: undefined }), adapter })],
-  ['message-relay', ({ app, deps }) => registerMessageRelayRoutes({ app, agentExecutor: deps(), runScopedCallers: undefined })],
+  ['message-relay', ({ deps, mountList }) => mountList(messageRelayRoutes({ agentExecutor: deps(), runScopedCallers: undefined }))],
   ['frontend-request-route', ({ adapter, deps, mountList }) => mountList(frontendRequestRoutes({ path: '/api/frontend-requests', control: deps(), executor: deps(), resolveOwner: (deps() as { resolveOwner: never }).resolveOwner, capabilityIds: ['characterization.capability'], host: routeHost(adapter) }))],
 ];
 

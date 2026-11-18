@@ -162,7 +162,7 @@ const ROUTE_TABLE: Readonly<Record<string, readonly string[]>> = {
     'DELETE /api/attachments [anonymous/2]',
   ],
   'message-relay': [
-    'POST /api/runs/:runId/messages/claim [anonymous/3]',
+    'POST /api/runs/:runId/messages/claim []',
   ],
   'frontend-request-route': [
     'POST /api/frontend-requests [frontend-session-owner]',
@@ -186,8 +186,7 @@ describe('daemon route table', () => {
     const scoped = harness.routes.filter((route) => route.family === 'frontend-sessions (scoped)');
     const rest = harness.routes.filter((route) => route.family !== 'frontend-sessions (scoped)');
     const isGate = (route: { method: string; layers: readonly string[] }) => route.method === 'USE' || route.layers.at(-1)?.endsWith('/3') === true;
-    // message-relay's claim handler takes `next` to hand its errors on; it answers, so it is a route, not a gate.
-    const gates = [...rest, ...scoped].filter((route) => isGate(route) && route.family !== 'message-relay');
+    const gates = [...rest, ...scoped].filter((route) => isGate(route));
     expect(rest.filter((route) => route.method !== 'USE')).toHaveLength(100);
     expect(gates.map((route) => `${route.method} ${route.path}`)).toEqual([]);
     expect(scoped.filter((route) => !isGate(route))).toHaveLength(2);
@@ -195,7 +194,7 @@ describe('daemon route table', () => {
 
   it('answers one registration per method and path: no route is mounted twice', async () => {
     harness = await startRouteHarness();
-    const answering = harness.routes.filter((route) => route.method !== 'USE' && route.layers.at(-1)?.endsWith('/3') !== true || route.family === 'message-relay');
+    const answering = harness.routes.filter((route) => route.method !== 'USE' && route.layers.at(-1)?.endsWith('/3') !== true);
     const keys = answering.map((route) => `${route.method} ${route.path}`);
     expect(new Set(keys).size).toBe(keys.length);
   });
