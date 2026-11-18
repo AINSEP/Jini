@@ -67,7 +67,7 @@ async function chooseInSystemBrowser({ client, onStatus, stopped }) {
   const { expiresAt } = await client.call({ action: 'start-system-picker', payload: {} });
   onStatus(pollText({ status: 'waiting' }));
   while (!stopped() && Date.now() < Date.parse(expiresAt) + POLL_MS) {
-    await wait(POLL_MS);
+    await wait({ ms: POLL_MS });
     const outcome = await client.call({ action: 'finish-system-picker', payload: {} });
     if (outcome.status === 'selected') return outcome.spreadsheet;
     if (outcome.status !== 'waiting') { onStatus(pollText(outcome)); return null; }
@@ -81,7 +81,7 @@ async function chooseInSystemBrowser({ client, onStatus, stopped }) {
  * @param {{ client: { call: Function }, bootstrap: { mode: string, picker?: object }, onStatus: (text: string) => void, stopped?: () => boolean }} required
  * @returns {Promise<{ spreadsheetId: string, title: string, url: string } | null>} null = nothing chosen, nothing saved.
  */
-export function chooseSpreadsheet(required) {
+export function chooseSpreadsheet(required, _optional = {}) {
   const { client, bootstrap, onStatus, stopped = () => false } = required;
   return bootstrap.mode === 'hosted' ? chooseHosted({ client, bootstrap }) : chooseInSystemBrowser({ client, onStatus, stopped });
 }
