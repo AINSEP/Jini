@@ -2971,54 +2971,6 @@
         "packages/ui/src/features/schedule-picker/react/components/WeekdayGrid.tsx"
       ]
     },
-    "WidgetInstanceEditor::useWidgetInstanceEditorView": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/widgets/react/pages/WidgetInstanceEditor.tsx"
-      ]
-    },
-    "WidgetInstanceEditor::useWidgetsOptions": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/widgets/react/pages/WidgetInstanceEditor.tsx"
-      ]
-    },
-    "WidgetRegionEditor::useWidgetRegionEditorView": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/widgets/react/pages/WidgetRegionEditor.tsx"
-      ]
-    },
-    "WidgetRegionEditor::useWidgetsOptions": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/widgets/react/pages/WidgetRegionEditor.tsx"
-      ]
-    },
-    "WidgetRegions::useWidgetRegionsView": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/widgets/react/pages/WidgetRegions.tsx"
-      ]
-    },
-    "WidgetRegions::useWidgetsOptions": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/widgets/react/pages/WidgetRegions.tsx"
-      ]
-    },
-    "WidgetsLibrary::useWidgetsLibraryView": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/widgets/react/pages/WidgetsLibrary.tsx"
-      ]
-    },
-    "WidgetsLibrary::useWidgetsOptions": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/widgets/react/pages/WidgetsLibrary.tsx"
-      ]
-    },
     "WorkingDirPicker::useWorkingDirFocusHandoff": {
       "count": 1,
       "files": [

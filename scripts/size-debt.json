@@ -7,34 +7,6 @@
     "value": 114
   },
   {
-    "file": "packages/admin/src/widgets/react/pages/WidgetInstanceEditor.tsx",
-    "function": "WidgetInstanceEditor",
-    "line": 32,
-    "rule": "max-lines-per-function",
-    "value": 99
-  },
-  {
-    "file": "packages/admin/src/widgets/react/pages/WidgetRegionEditor.tsx",
-    "function": "WidgetRegionEditor",
-    "line": 29,
-    "rule": "max-lines-per-function",
-    "value": 111
-  },
-  {
-    "file": "packages/admin/src/widgets/react/pages/WidgetRegions.tsx",
-    "function": "WidgetRegions",
-    "line": 25,
-    "rule": "max-lines-per-function",
-    "value": 100
-  },
-  {
-    "file": "packages/admin/src/widgets/react/pages/WidgetsLibrary.tsx",
-    "function": "WidgetsLibrary",
-    "line": 34,
-    "rule": "max-lines-per-function",
-    "value": 130
-  },
-  {
     "file": "packages/agent-plugins/src/lifecycle/activation.ts",
     "function": "buildModule",
     "line": 175,
