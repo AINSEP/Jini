@@ -81,6 +81,7 @@
       "./widgets/resolvers": "universal",
       "./widgets/sql": "node",
       "./listing": "universal",
+      "./listing/request-state": "universal",
       "./media/plugins/document-text/unpdf": "node",
       "./media/plugins/document-text/mammoth": "node",
       "./forms/portable-validation": "universal",
@@ -509,6 +510,11 @@
       "types": "./dist/listing/index.d.ts",
       "import": "./dist/listing/index.js",
       "default": "./dist/listing/index.js"
+    },
+    "./listing/request-state": {
+      "types": "./dist/listing/request-state.d.ts",
+      "import": "./dist/listing/request-state.js",
+      "default": "./dist/listing/request-state.js"
     },
     "./media/plugins/document-text/unpdf": {
       "types": "./dist/media/plugins/document-text/unpdf.d.ts",
