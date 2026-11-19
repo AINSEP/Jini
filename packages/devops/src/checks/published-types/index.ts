@@ -134,6 +134,7 @@ function evaluateCompile(project: CompileProject, registry: ProcessResult, basel
   if (project.mode === 'published' || registry.exitCode === null || diagnostics.length === 0) return { ...base, status: 'typecheck-error' };
   // A broken baseline is not valid evidence for suppressing registry failures.
   if (baseline.exitCode === null || (baseline.exitCode !== 0 && baselineDiagnostics.length === 0)) return { ...base, status: 'typecheck-error' };
+  // Only diagnostics absent from the local run count as registry drift. Diagnostics already present locally represent pre-existing project failures.
   const known = new Set(baselineDiagnostics);
   const drift = diagnostics.filter((block) => !known.has(block));
   return { ...base, status: drift.length ? 'drift' : 'pass', diagnostics: drift };
@@ -156,6 +157,7 @@ function assertUnlinkedScope({ source, fs }: { source: string; fs: FilesystemPor
   }
 }
 
+/** Reads the exact installed version of each package from a scratch install, for reporting. */
 function installedVersions({ scratch, deps, fs }: { scratch: string; deps: Record<string, string>; fs: FilesystemPort }): Record<string, string> {
   const versions: Record<string, string> = {};
   for (const name of Object.keys(deps)) {
@@ -185,6 +187,7 @@ async function checkCompile({ project, manifest, deps, scope, fs, runner, instal
   if (failed) return emptyResult(project.key, 'prerequisite-error', combined(failed));
   const scratch = fs.createTempDirectory({ parent: project.scratchParent, prefix: 'published-types-' });
   try {
+    // Keep the project's scoped npm overrides so the scratch install resolves the same graph as the project's own install. The scoped `$` references resolve against the dependencies declared in the scratch manifest.
     const overrides = Object.fromEntries(Object.entries(manifest.overrides ?? {}).filter(([name]) => name.startsWith(`${scope}/`)));
     fs.writeText({ path: path.join(scratch, 'package.json'), text: JSON.stringify({ name: 'published-types-scratch', private: true, dependencies: deps, overrides }, null, 2) });
     const installed = await installer.install({ directory: scratch });
@@ -192,7 +195,9 @@ async function checkCompile({ project, manifest, deps, scope, fs, runner, instal
     const source = path.join(scratch, 'node_modules', scope);
     assertUnlinkedScope({ source, fs });
     const versions = installedVersions({ scratch, deps, fs });
+    // Run the baseline before creating the shadow so ordinary module resolution sees the project's real install. The second compile then measures the registry install against that baseline.
     const baseline = project.mode === 'drift' ? await runner.run(project.compiler) : { exitCode: 0, stdout: '', stderr: '' };
+    // Shadow the whole installed scope so imports of hoisted transitive packages cannot fall through to a linked checkout and produce a mixed registry/local typecheck.
     // Copy the entire installed scope, including hoisted transitive packages.
     const cleanup = createShadow(project, source, scope, fs);
     let registry: ProcessResult;
@@ -200,6 +205,7 @@ async function checkCompile({ project, manifest, deps, scope, fs, runner, instal
     finally { cleanup(); }
     return evaluateCompile(project, registry, baseline, versions);
   } finally {
+    // Clean up the scratch install on success or failure so the check leaves nothing behind, unless the caller explicitly requests it for debugging.
     if (!keepScratch) fs.removeDirectory({ path: scratch });
   }
 }
@@ -247,6 +253,7 @@ export function diagnosePublishedTypes({ scope, logs }: { scope: string; logs: r
   const missingExport = new RegExp(`Module ["']{1,2}${escapedScope}/[^"']+["']{1,2} has no exported member ["']([^"']+)["']`, 'g');
   const missingModule = new RegExp(`Cannot find module ["']{1,2}(${escapedScope}/[^"']+)["']{1,2} or its corresponding type declarations`, 'g');
   const failures = logs.filter((log) => log.exitCode !== 0).map((log) => {
+    // Scan the raw combined stdout and stderr from each failed `tsc` run. Return a description for every signature hit, including duplicates. Work is linear in the captured output.
     const text = combined(log);
     const hits = [
       ...[...text.matchAll(missingExport)].map((match) => `missing export '${match[1]}'`),

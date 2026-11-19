@@ -196,6 +196,7 @@ function translateEnvelopePayload(payload: RunAgentPayload): AgentEvent | null {
     // `examples/reference-web/src/daemon-transport.ts`.
     case "a2ui":
       return { kind: "ext", name: "a2ui", data: payload.message };
+    // The wire has `thinking_start` alone. Drop it to preserve the existing reduction across transports.
     case "thinking_start":
       return null;
     // Streamed tool input (with `--include-partial-messages`): the finished `tool_use` carries the

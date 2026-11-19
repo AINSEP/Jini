@@ -165,6 +165,7 @@ async function commitExportedFiles(required: { args: CommitOrchestrationArgs; to
  * Always runs a FRESH export immediately before committing and never reuses an earlier export directory:
  * correctness over one extra pass. The target is validated here even when the caller already validated it
  * before opening a confirmation dialog (defense in depth for a caller that skips that check).
+ * This function reads as one guard per phase (credential, export, commit) rather than one long chain.
  * @complexity One export pass (O(routes + assets) requests against the host's own app) plus one provider call.
  */
 export async function commitSiteToSourceControl(required: CommitOrchestrationArgs, optional: CommitOptions = {}): Promise<SourceControlCommitOutcome> {

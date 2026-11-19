@@ -6,6 +6,7 @@ export interface LoginPort {
 }
 
 
+/** One screen loads users, roles and policies together, so splitting the port would leave full-screen fakes with the same dependencies. */
 export interface UsersPort {
   listUsers(required: Record<string, never>): Promise<{ users: AdminIdentityUser[] }>;
 
@@ -52,6 +53,7 @@ export interface RolesPort {
 }
 
 
+/** Pure error formatting stays outside the Members port. */
 export interface MembersPort {
   listMembers(required: Record<string, never>): Promise<{ members: AdminMember[] }>;
   getMember(required: { id: string }): Promise<{ member: AdminMember }>;
