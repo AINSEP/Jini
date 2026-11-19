@@ -55,7 +55,7 @@ export async function runIfMain({ moduleUrl, main }, { argv = process.argv, real
  * and mapping it to exit code 1 (the scripts' historical contract).
  * @returns {Promise<number>} the body's exit code, or 1 on error.
  */
-export async function runCli({ label, body, report }) {
+export async function runCli({ label, body, report }, _optional = {}) {
   let code = 1;
   try {
     code = await body();

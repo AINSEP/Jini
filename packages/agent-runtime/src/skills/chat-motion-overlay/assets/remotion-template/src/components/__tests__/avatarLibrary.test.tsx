@@ -36,16 +36,16 @@ const participant = (overrides: Partial<Participant> = {}): Participant => ({
 describe("avatarSrcFor", () => {
   it("serves a participant's uploaded avatar ahead of any preset", async () => {
     const {avatarSrcFor} = await import("../avatarLibrary");
-    expect(avatarSrcFor(participant({uploadAsset: "uploads/alice.png"}))).toBe("/static/uploads/alice.png");
+    expect(avatarSrcFor({ participant: participant({uploadAsset: "uploads/alice.png"}) })).toBe("/static/uploads/alice.png");
   });
 
   it("serves the preset file for a known avatar key when nothing was uploaded", async () => {
     const {avatarSrcFor} = await import("../avatarLibrary");
-    expect(avatarSrcFor(participant({uploadAsset: null}))).toBe("/static/male-koala-lilac.png");
+    expect(avatarSrcFor({ participant: participant({uploadAsset: null}) })).toBe("/static/male-koala-lilac.png");
   });
 
   it("falls back to the default preset for an avatar key the library does not ship", async () => {
     const {avatarSrcFor} = await import("../avatarLibrary");
-    expect(avatarSrcFor(participant({avatarKey: "dragon-red"}))).toBe("/static/female-bunny-pink.png");
+    expect(avatarSrcFor({ participant: participant({avatarKey: "dragon-red"}) })).toBe("/static/female-bunny-pink.png");
   });
 });

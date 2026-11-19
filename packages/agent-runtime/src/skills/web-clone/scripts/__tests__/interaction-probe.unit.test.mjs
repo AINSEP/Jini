@@ -72,7 +72,7 @@ function siteEnv(state) {
 
 describe("parseArgs", () => {
   it("applies defaults and numeric flags, falling back when a value is missing", () => {
-    expect(parseArgs(["--url", "https://x.test", "--max-clicks", "3", "--width"])).toEqual({
+    expect(parseArgs({ argv: ["--url", "https://x.test", "--max-clicks", "3", "--width"] })).toEqual({
       url: "https://x.test",
       outDir: "RECON/interactions",
       label: "site",
@@ -81,7 +81,7 @@ describe("parseArgs", () => {
       waitMs: 800,
       width: 1440,
     });
-    expect(parseArgs(["-h", "--out", "o", "--label", "orig", "--max-hovers", "2", "--wait", "0"])).toMatchObject({
+    expect(parseArgs({ argv: ["-h", "--out", "o", "--label", "orig", "--max-hovers", "2", "--wait", "0"] })).toMatchObject({
       help: true,
       outDir: "o",
       label: "orig",
@@ -91,28 +91,28 @@ describe("parseArgs", () => {
   });
 
   it("rejects unknown arguments", () => {
-    expect(() => parseArgs(["--nope"])).toThrow("Unexpected argument: --nope");
+    expect(() => parseArgs({ argv: ["--nope"] })).toThrow("Unexpected argument: --nope");
   });
 });
 
 describe("pure helpers", () => {
   it("shortHash is a stable 10-char sha1 prefix", () => {
-    expect(shortHash("abc")).toBe("a9993e3647");
+    expect(shortHash({ value: "abc" })).toBe("a9993e3647");
   });
 
   it("safeFileName strips unsafe characters and falls back to 'step'", () => {
-    expect(safeFileName("click-Buy now!/x")).toBe("click-Buy-now-x");
-    expect(safeFileName("///")).toBe("step");
-    expect(safeFileName("a".repeat(120))).toHaveLength(90);
+    expect(safeFileName({ label: "click-Buy now!/x" })).toBe("click-Buy-now-x");
+    expect(safeFileName({ label: "///" })).toBe("step");
+    expect(safeFileName({ label: "a".repeat(120) })).toHaveLength(90);
   });
 
   it("hasChanged detects url, html, scroll, and overlay-count changes", () => {
     const base = { url: "u", htmlHash: "1", scrollY: 0, counts: { dialogs: 0 } };
-    expect(hasChanged(base, { ...base })).toBe(false);
-    expect(hasChanged(base, { ...base, url: "v" })).toBe(true);
-    expect(hasChanged(base, { ...base, htmlHash: "2" })).toBe(true);
-    expect(hasChanged(base, { ...base, scrollY: 10 })).toBe(true);
-    expect(hasChanged(base, { ...base, counts: { dialogs: 1 } })).toBe(true);
+    expect(hasChanged({ before: base, after: { ...base } })).toBe(false);
+    expect(hasChanged({ before: base, after: { ...base, url: "v" } })).toBe(true);
+    expect(hasChanged({ before: base, after: { ...base, htmlHash: "2" } })).toBe(true);
+    expect(hasChanged({ before: base, after: { ...base, scrollY: 10 } })).toBe(true);
+    expect(hasChanged({ before: base, after: { ...base, counts: { dialogs: 1 } } })).toBe(true);
   });
 
   it("planActions scrolls twice, hovers, clicks only safe targets, and drags canvases", () => {
@@ -124,7 +124,7 @@ describe("pure helpers", () => {
       ],
       canvases: [{ selector: "canvas", rect: { x: 0, y: 0, width: 10, height: 10 } }],
     };
-    const actions = planActions(discovered, { maxHovers: 2, maxClicks: 5 });
+    const actions = planActions({ discovered, args: { maxHovers: 2, maxClicks: 5 } });
     expect(actions.map((a) => `${a.type}:${a.target}`)).toEqual([
       "scroll:middle",
       "scroll:bottom",
@@ -138,12 +138,12 @@ describe("pure helpers", () => {
 
   it("summarizeFindings counts changes and flags canvas evidence only when present", () => {
     const results = [{ changed: true }, { changed: false }];
-    expect(summarizeFindings({ interactive: [1, 2], canvases: [] }, results)).toEqual([
+    expect(summarizeFindings({ discovered: { interactive: [1, 2], canvases: [] }, results })).toEqual([
       "2 visible interactive candidates discovered",
       "0 visible canvas targets discovered",
       "1/2 actions changed DOM, URL, scroll, or visible overlay counts",
     ]);
-    expect(summarizeFindings({ interactive: [], canvases: [1] }, [])).toContain(
+    expect(summarizeFindings({ discovered: { interactive: [], canvases: [1] }, results: [] })).toContain(
       "Canvas drag evidence exists; inspect screenshots before simplifying WebGL/Canvas behavior.",
     );
   });
@@ -160,20 +160,20 @@ describe("pure helpers", () => {
         { type: "scroll", changed: false, after: { url: "u" }, screenshot: "" },
       ],
     };
-    const md = markdown(result);
+    const md = markdown({ result });
     expect(md).toContain("# orig interaction probe");
     expect(md).toContain("- Console errors: 1");
     expect(md).toContain("| 1 | click | a\\|b | yes | https://x.test/?q=a\\|b | s.png |");
     expect(md).toContain("| 2 | scroll |  | no | u |  |");
     expect(md).toContain("## Findings\n- f1");
-    expect(markdown({ ...result, findings: [] })).not.toContain("## Findings");
+    expect(markdown({ result: { ...result, findings: [] } })).not.toContain("## Findings");
   });
 });
 
 describe("in-page collectors", () => {
   it("snapshot reports url, focus, scroll, text, and visible overlay counts", async () => {
     const page = createFakePage({ env: siteEnv({ dialogOpen: true, scrollY: 12.4 }) });
-    const state = await snapshot(page);
+    const state = await snapshot({ page });
     expect(state).toMatchObject({
       url: "https://example.test/",
       title: "Example",
@@ -189,21 +189,21 @@ describe("in-page collectors", () => {
     const document = fakeDocument({ html: { outerHTML: "<html></html>" } });
     document.body = null;
     document.activeElement = null;
-    const state = await snapshot(createFakePage({ env: browserEnv({ document }) }));
+    const state = await snapshot({ page: createFakePage({ env: browserEnv({ document }) }) });
     expect(state).toMatchObject({ title: "", activeElement: "", bodyTextChars: 0, bodyTextStart: "" });
   });
 
   it("hashSnapshot replaces the placeholder with a deterministic html hash", async () => {
-    const open = await hashSnapshot(createFakePage({ env: siteEnv({ dialogOpen: true }) }), { a: 1 });
-    const again = await hashSnapshot(createFakePage({ env: siteEnv({ dialogOpen: true }) }), { a: 1 });
-    const closed = await hashSnapshot(createFakePage({ env: siteEnv({}) }), { a: 1 });
+    const open = await hashSnapshot({ page: createFakePage({ env: siteEnv({ dialogOpen: true }) }), state: { a: 1 } });
+    const again = await hashSnapshot({ page: createFakePage({ env: siteEnv({ dialogOpen: true }) }), state: { a: 1 } });
+    const closed = await hashSnapshot({ page: createFakePage({ env: siteEnv({}) }), state: { a: 1 } });
     expect(open.a).toBe(1);
     expect(open.htmlHash).toBe(again.htmlHash);
     expect(open.htmlHash).not.toBe(closed.htmlHash);
   });
 
   it("candidates lists visible interactive nodes with stable selectors and safe-click flags", async () => {
-    const found = await candidates(createFakePage({ env: siteEnv({}) }));
+    const found = await candidates({ page: createFakePage({ env: siteEnv({}) }) });
     const bySelector = Object.fromEntries(found.interactive.map((item) => [item.selector, item]));
     expect(found.interactive.map((item) => item.text)).toEqual(["Buy now", "Pricing", "Other", "About", "Menu", "More", ""]);
     expect(bySelector["#cta"]).toMatchObject({ tag: "button", safeClick: true, rect: { width: 100, height: 20 } });
@@ -221,7 +221,7 @@ describe("in-page collectors", () => {
     let node = el({ tag: "button", text: "deep" });
     for (let i = 0; i < 8; i += 1) node = el({ tag: "div", children: [node] });
     const env = browserEnv({ document: fakeDocument({ body: [node] }) });
-    const found = await candidates(createFakePage({ env }));
+    const found = await candidates({ page: createFakePage({ env }) });
     expect(found.interactive[0].selector.split(" > ")).toHaveLength(6);
   });
 });
@@ -232,7 +232,7 @@ describe("page actions", () => {
     const consoleErrors = [];
     const page = createFakePage({ loadStateError: new Error("timeout") });
     const browser = createFakeBrowser(() => page);
-    await freshPage(browser, { url: "https://x.test", width: 800, waitMs: 5 }, network, consoleErrors);
+    await freshPage({ browser, args: { url: "https://x.test", width: 800, waitMs: 5 }, network, consoleErrors });
     await page.emit("console", { type: () => "error", text: () => "bad" });
     await page.emit("console", { type: () => "log", text: () => "fine" });
     await page.emit("response", fakeResponse({ url: "https://x.test/api", resourceType: "xhr", method: "POST", status: 201 }));
@@ -245,7 +245,7 @@ describe("page actions", () => {
 
   it("freshPage skips the settle wait when --wait is 0", async () => {
     const page = createFakePage();
-    await freshPage(createFakeBrowser(() => page), { url: "https://x.test", width: 800, waitMs: 0 }, [], []);
+    await freshPage({ browser: createFakeBrowser(() => page), args: { url: "https://x.test", width: 800, waitMs: 0 }, network: [], consoleErrors: [] });
     expect(page.calls.some(([name]) => name === "waitForTimeout")).toBe(false);
   });
 
@@ -256,8 +256,8 @@ describe("page actions", () => {
     const run = async (index, action) => {
       const state = {};
       const page = createFakePage({ env: siteEnv(state), hooks: { click: () => { state.dialogOpen = true; } } });
-      const before = await hashSnapshot(page, await snapshot(page));
-      return { page, result: await captureAction(page, outDir, index, action, before) };
+      const before = await hashSnapshot({ page, state: await snapshot({ page }) });
+      return { page, result: await captureAction({ page, outDir, index, action, before }) };
     };
 
     const { result: scrolled } = await run(0, { type: "scroll", target: "middle", ratio: 0.5 });

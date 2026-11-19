@@ -160,7 +160,7 @@ const Bubble = ({
       }}
     >
       <div style={{display: "flex", gap: 12, alignItems: "flex-start", flexDirection: side.flexDirection, maxWidth: "86%"}}>
-        <AvatarImage src={avatarSrcFor(participant)} />
+        <AvatarImage src={avatarSrcFor({ participant })} />
         <div style={{maxWidth: "calc(100% - 76px)", display: "flex", flexDirection: "column", alignItems: side.align, gap: 6}}>
           {isNameShown({nicknameMode, seenBySpeaker}) ? <div style={{fontSize: 18, color: "#7C8490", fontWeight: 700}}>{message.speaker}</div> : null}
           <div

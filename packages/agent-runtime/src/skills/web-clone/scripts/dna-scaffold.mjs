@@ -19,20 +19,20 @@ import { errorClassLabel } from "./lib/diagnostic-labels.mjs";
 const ARG_SPEC = {
   defaults: { recon: "", out: "", name: "", help: false },
   flags: {
-    "--help": flag("help"),
-    "-h": flag("help"),
-    "--recon": { key: "recon", read: text() },
-    "--out": { key: "out", read: text() },
-    "--name": { key: "name", read: text() },
+    "--help": flag({ key: "help" }),
+    "-h": flag({ key: "help" }),
+    "--recon": { key: "recon", read: text({}) },
+    "--out": { key: "out", read: text({}) },
+    "--name": { key: "name", read: text({}) },
   },
   onOther: () => {},
 };
 
-export function parseArgs(argv) {
+export function parseArgs({ argv }, _optional = {}) {
   return parseCliArgs({ argv, ...ARG_SPEC });
 }
 
-export function usage(log) {
+export function usage({ log }, _optional = {}) {
   log(`dna-scaffold.mjs — 生成 design-dna.json 骨架并 best-effort 预填
 
   node scripts/dna-scaffold.mjs --out <design-dna.json> [--recon <label-recon.json>] [--name <站名>]
@@ -42,7 +42,7 @@ schema 与字段含义见 references/design-dna.md。`);
 }
 
 // 完整 DNA 骨架（与 references/design-dna.md 对齐）
-export function skeleton(name) {
+export function skeleton({ name }, _optional = {}) {
   const ts = () => ({ size: "", weight: "", line_height: "", tracking: "" });
   return {
     meta: { name: name || "", description: "", source_references: "", created_at: "" },
@@ -103,7 +103,7 @@ const COLOR_RE = /(#[0-9a-fA-F]{3,8}\b|\brgba?\([^)]*\)|\bhsla?\([^)]*\))/;
 
 // recon-site.mjs 把信号按视口嵌在 captures[].signals 下；取最宽视口的 signals 摊平，
 // 兼容已是扁平结构的 recon 输入。摊平失败则原样返回(enrich 对缺字段已容错)。
-export function flattenRecon(recon) {
+export function flattenRecon({ recon }, _optional = {}) {
   if (recon && Array.isArray(recon.captures) && recon.captures.length) {
     const widest = recon.captures
       .filter((c) => c && c.signals)
@@ -187,9 +187,11 @@ function applyEffects(dna, fw, canvasCount) {
   }
 }
 
+const frameworksFor = (recon) => recon.frameworks || {};
+
 // 从 recon JSON best-effort 抽信号，并预填 skeleton 的明确字段
-export function enrich(dna, recon) {
-  const fw = recon.frameworks || {};
+export function enrich({ dna, recon }, _optional = {}) {
+  const fw = frameworksFor(recon);
   const css_color_vars = cssColorVars(recon);
   const signals = {
     fonts: fontSignals(recon),
@@ -222,10 +224,10 @@ export function enrich(dna, recon) {
 // A recon that cannot be read, parsed or enriched from degrades to the
 // skeleton (enrich mutates `dna` in place, so whatever it filled stays).
 function scaffold(args, io) {
-  const dna = skeleton(args.name);
+  const dna = skeleton({ name: args.name });
   if (!args.recon) return dna;
   try {
-    enrich(dna, flattenRecon(JSON.parse(io.fs.readFileSync(path.resolve(io.cwd(), args.recon), "utf8"))));
+    enrich({ dna, recon: flattenRecon({ recon: JSON.parse(io.fs.readFileSync(path.resolve(io.cwd(), args.recon), "utf8")) }) });
   } catch (e) {
     io.warn(`⚠️ 读 recon 失败(${errorClassLabel({ error: e })})，只输出空骨架。`);
   }
@@ -233,9 +235,9 @@ function scaffold(args, io) {
 }
 
 function run(argv, io) {
-  const args = parseArgs(argv);
+  const args = parseArgs({ argv });
   if (args.help || !args.out) {
-    usage(io.log);
+    usage({ log: io.log });
     return args.help ? 0 : 1;
   }
   const dna = scaffold(args, io);

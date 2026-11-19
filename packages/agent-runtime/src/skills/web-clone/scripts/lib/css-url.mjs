@@ -54,7 +54,7 @@ function cssUrlAt(text, start, runEnd) {
  * reference it rejects is not a match at all, exactly as if the regex's reference group carried
  * that extra condition.
  */
-export function replaceCssUrls(text, replacer, { accept = () => true } = {}) {
+export function replaceCssUrls({ text, replacer }, { accept = () => true } = {}) {
   const runEnd = createRunEnd(text);
   const opener = /url\(/gi;
   let out = "";

@@ -50,13 +50,13 @@ export async function runIfMain({ moduleUrl, main }, deps = {}) {
 }
 
 /** Flag reader: the next argv value, or `fallback` when it is missing/empty. */
-export const text = (fallback = "") => (raw) => raw || fallback;
+export const text = ({}, { fallback = "" } = {}) => (raw) => raw || fallback;
 
 /** Flag reader: comma-separated list, trimmed, empties dropped. */
 export const list = () => (raw) => (raw || "").split(",").map((s) => s.trim()).filter(Boolean);
 
 /** Boolean switch: sets `key` to `true` without consuming a value. */
-export const flag = (key) => ({ key, read: null });
+export const flag = ({ key }, _optional = {}) => ({ key, read: null });
 
 /** Unknown-argument policy shared by the strict scripts. */
 export function rejectUnknown(arg) {
@@ -65,14 +65,14 @@ export function rejectUnknown(arg) {
 
 /**
  * Table-driven argv parser over `argv`. `flags` maps an exact argument to either a
- * switch (`flag(key)`) or `{ key, read(raw, out) }`, where `raw` is the next
+ * switch (`flag({ key })`) or `{ key, read(raw, out) }`, where `raw` is the next
  * argv entry (consumed even when it is missing or looks like a flag — the
  * historical `argv[++i]` behaviour). Anything else goes to
  * `onOther(arg, out)`.
  *
  * @complexity O(n) in argv length
  */
-export function parseCliArgs({ argv, defaults, flags, onOther }) {
+export function parseCliArgs({ argv, defaults, flags, onOther }, _optional = {}) {
   const out = { ...defaults };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];

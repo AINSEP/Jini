@@ -9,7 +9,7 @@ import { trimDashes } from "./lib/trim-dashes.mjs";
 import { errorClassLabel } from "./lib/diagnostic-labels.mjs";
 import { CliUsageError } from "./lib/main-guard.mjs";
 
-export function usage(log) {
+export function usage({ log }, _optional = {}) {
   log(`Usage:
   node scripts/init-clone.mjs <slug> [--url <url>] [--mode <mode>] [--level <L1-L6>] [--root <dir>] [--in-place]
 
@@ -28,13 +28,13 @@ With --in-place, creates NOTES.md and RECON/screenshots/ in <root> itself.
 const ARG_SPEC = {
   defaults: { slug: null, url: "", mode: "", level: "", root: ".", inPlace: false },
   flags: {
-    "--help": flag("help"),
-    "-h": flag("help"),
-    "--url": { key: "url", read: text() },
-    "--mode": { key: "mode", read: text() },
-    "--level": { key: "level", read: text() },
-    "--root": { key: "root", read: text(".") },
-    "--in-place": flag("inPlace"),
+    "--help": flag({ key: "help" }),
+    "-h": flag({ key: "help" }),
+    "--url": { key: "url", read: text({}) },
+    "--mode": { key: "mode", read: text({}) },
+    "--level": { key: "level", read: text({}) },
+    "--root": { key: "root", read: text({}, { fallback: "." }) },
+    "--in-place": flag({ key: "inPlace" }),
   },
   onOther: (arg, out) => {
     if (out.slug) rejectUnknown(arg);
@@ -42,19 +42,19 @@ const ARG_SPEC = {
   },
 };
 
-export function parseArgs(argv) {
+export function parseArgs({ argv }, _optional = {}) {
   return parseCliArgs({ argv, ...ARG_SPEC });
 }
 
-export function cleanSlug(input) {
-  return trimDashes(input
+export function cleanSlug({ input }, _optional = {}) {
+  return trimDashes({ text: input
     .trim()
     .toLowerCase()
     .replace(/https?:\/\//g, "")
-    .replace(/[^a-z0-9]+/g, "-"));
+    .replace(/[^a-z0-9]+/g, "-") });
 }
 
-export function notesTemplate({ name, url, mode, level }) {
+export function notesTemplate({ name, url, mode, level }, _optional = {}) {
   return `# ${name} · 克隆笔记
 
 ## 源信息
@@ -117,13 +117,13 @@ python3 -m http.server 8123
 }
 
 function init(argv, io) {
-  const args = parseArgs(argv);
+  const args = parseArgs({ argv });
   if (args.help || !args.slug) {
-    usage(io.log);
+    usage({ log: io.log });
     return args.help ? 0 : 1;
   }
 
-  const slug = cleanSlug(args.slug);
+  const slug = cleanSlug({ input: args.slug });
   if (!slug) throw new CliUsageError("Slug is empty after normalization.");
   const name = slug.endsWith("-clone") ? slug : `${slug}-clone`;
   const root = path.resolve(io.cwd(), args.root);

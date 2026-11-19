@@ -37,7 +37,7 @@ import { replaceCssUrls } from "./lib/css-url.mjs";
 import { CliUsageError } from "./lib/main-guard.mjs";
 import { assetId, errorClassLabel, hostLabel } from "./lib/diagnostic-labels.mjs";
 
-export function usage(log) {
+export function usage({ log }, _optional = {}) {
   log(`asset-harvest.mjs — 抓取页面真实用到的图片/字体/媒体(含第三方 CDN)并生成本地映射
 
   node scripts/asset-harvest.mjs --url <URL> --out assets [--recon RECON/original-recon.json]
@@ -61,23 +61,23 @@ const ARG_SPEC = {
     allExternal: true,
   },
   flags: {
-    "--help": flag("help"),
-    "-h": flag("help"),
-    "--url": { key: "url", read: text() },
-    "--recon": { key: "recon", read: text() },
-    "--out": { key: "outDir", read: text("assets") },
-    "--manifest": { key: "manifest", read: text() },
+    "--help": flag({ key: "help" }),
+    "-h": flag({ key: "help" }),
+    "--url": { key: "url", read: text({}) },
+    "--recon": { key: "recon", read: text({}) },
+    "--out": { key: "outDir", read: text({}, { fallback: "assets" }) },
+    "--manifest": { key: "manifest", read: text({}) },
     "--types": { key: "types", read: list() },
     "--max-bytes": { key: "maxBytes", read: (raw, out) => Number(raw || out.maxBytes) },
     "--scroll-step": { key: "scrollStep", read: (raw) => Number(raw || "700") },
     "--settle": { key: "settle", read: (raw) => Number(raw || "2500") },
-    "--recon-only": flag("reconOnly"),
-    "--all-external": flag("allExternal"),
+    "--recon-only": flag({ key: "reconOnly" }),
+    "--all-external": flag({ key: "allExternal" }),
   },
   onOther: rejectUnknown,
 };
 
-export function parseArgs(argv) {
+export function parseArgs({ argv }, _optional = {}) {
   return parseCliArgs({ argv, ...ARG_SPEC });
 }
 
@@ -94,7 +94,7 @@ const KIND_TESTS = [
   ["stylesheet", (url, rt, ct) => ct.includes("text/css") || rt === "stylesheet"],
 ];
 
-export function classify(url, resourceType, contentType) {
+export function classify({ url, resourceType, contentType }, _optional = {}) {
   const ct = (contentType || "").toLowerCase();
   const hit = KIND_TESTS.find(([, test]) => test(url, resourceType, ct));
   return hit ? hit[0] : null;
@@ -110,7 +110,7 @@ function safeName(url) {
 
 const KIND_DIRS = { image: "images", font: "fonts", media: "media" };
 
-export function localPathFor(kind, url) {
+export function localPathFor({ kind, url }, _optional = {}) {
   const host = new URL(url).hostname.replace(/[^a-z0-9.-]+/gi, "-");
   return path.join(KIND_DIRS[kind] || "css", host, safeName(url));
 }
@@ -149,7 +149,7 @@ function absoluteHttpUrl(raw, base) {
 
 // recon JSON 里能静态看出来的 URL(img src/srcset、@font-face src、stylesheet)——
 // 补充给 network 捕获兜底(比如首屏截图后才出现的资源)。
-export function urlsFromRecon(recon) {
+export function urlsFromRecon({ recon }, _optional = {}) {
   const urls = new Map(); // url -> hinted kind
   for (const capture of arr(recon.captures)) {
     for (const [raw, kind, base] of captureRefs(capture)) {
@@ -174,11 +174,11 @@ function localFontRef(ref, cssUrl, urlToLocal) {
 
 // 把 webfont CSS / @font-face 源 CSS 里的 url(...) 改写为本地字体路径，
 // 汇总成一份可直接 <link> 的 fonts.css。
-export function rewriteFontCss(cssText, cssUrl, urlToLocal) {
-  return replaceCssUrls(cssText, (match, quote, ref) => {
+export function rewriteFontCss({ cssText, cssUrl, urlToLocal }, _optional = {}) {
+  return replaceCssUrls({ text: cssText, replacer: (match, quote, ref) => {
     const local = localFontRef(ref, cssUrl, urlToLocal);
     return local ? `url(${quote}${local}${quote})` : match;
-  });
+  } });
 }
 
 // Download transports share one shape: (url, referer) -> { ok, status, body() }.
@@ -202,7 +202,7 @@ function fetchTransport(fetchImpl) {
 class AssetRefusedError extends Error {}
 
 async function downloadOne(entry, get, { outDir, maxBytes, referer, fs: files }) {
-  const rel = localPathFor(entry.kind, entry.url);
+  const rel = localPathFor({ kind: entry.kind, url: entry.url });
   const resp = await get(entry.url, referer);
   if (!resp.ok) throw new AssetRefusedError(`HTTP ${resp.status}`);
   const buffer = await resp.body();
@@ -216,7 +216,7 @@ async function downloadOne(entry, get, { outDir, maxBytes, referer, fs: files })
 /** Sequentially downloads every entry; a failure is recorded, never thrown. Each result gets the
  * generated `id` that printed failure lines use. The recorded `error` is this script's own refusal
  * text or the error class: a transport error's text can quote a URL with private values. */
-export async function downloadAll(entries, get, options) {
+export async function downloadAll({ entries, get, ...options }, _optional = {}) {
   const results = [];
   for (const [index, entry] of entries.entries()) {
     const withId = { id: assetId({ index }), ...entry };
@@ -241,7 +241,7 @@ function createCandidates(types) {
 
 function recordResponse(resp, candidates) {
   try {
-    candidates.add(resp.url(), classify(resp.url(), resp.request().resourceType(), resp.headers()["content-type"]), "network");
+    candidates.add(resp.url(), classify({ url: resp.url(), resourceType: resp.request().resourceType(), contentType: resp.headers()["content-type"] }), "network");
   } catch {
     // a response whose metadata can no longer be read (page torn down) is skipped
   }
@@ -275,12 +275,12 @@ function webfontCssBlock(css, { outDir, urlToLocal, files }) {
   } catch {
     return [];
   }
-  return [`/* self-hosted from ${css.url} */\n${rewriteFontCss(cssText, css.url, urlToLocal)}`];
+  return [`/* self-hosted from ${css.url} */\n${rewriteFontCss({ cssText, cssUrl: css.url, urlToLocal })}`];
 }
 
 // 自托管 @font-face: 抓 webfont CSS(typekit/google fonts) + recon 里的 @font-face
 // 规则，把 url() 改写成本地字体路径，汇成一份 fonts.css。Returns whether it was written.
-export function writeFontsCss(results, recon, { pageUrl, outDir, fs: files }) {
+export function writeFontsCss({ results, recon, pageUrl, outDir, fs: files }, _optional = {}) {
   const okResults = results.filter((r) => r.status === "ok");
   const urlToLocal = new Map(okResults.map((r) => [r.url, r.localPath]));
   const blocks = okResults
@@ -288,7 +288,7 @@ export function writeFontsCss(results, recon, { pageUrl, outDir, fs: files }) {
     .flatMap((css) => webfontCssBlock(css, { outDir, urlToLocal, files }));
   for (const capture of arr(recon?.captures)) {
     for (const face of arr(capture.signals?.fontFaces)) {
-      if (face.cssText) blocks.push(rewriteFontCss(face.cssText, face.sheetHref || pageUrl, urlToLocal));
+      if (face.cssText) blocks.push(rewriteFontCss({ cssText: face.cssText, cssUrl: face.sheetHref || pageUrl, urlToLocal }));
     }
   }
   if (!blocks.length) return false;
@@ -337,14 +337,14 @@ async function collectCandidates({ args, recon, pageUrl, io, session }) {
     await captureNetworkAssets(await ctx.newPage(), { pageUrl, args, io, candidates });
     get = playwrightTransport(ctx);
   }
-  for (const [url, kind] of recon ? urlsFromRecon(recon) : []) candidates.add(url, kind, "recon");
+  for (const [url, kind] of recon ? urlsFromRecon({ recon }) : []) candidates.add(url, kind, "recon");
   return { entries: candidates.list(), get };
 }
 
 async function harvest(argv, io, session) {
-  const args = parseArgs(argv);
+  const args = parseArgs({ argv });
   if (args.help || (!args.url && !args.recon)) {
-    usage(io.log);
+    usage({ log: io.log });
     return args.help ? 0 : 1;
   }
   const recon = loadRecon(args, io);
@@ -357,8 +357,8 @@ async function harvest(argv, io, session) {
   const imageCount = entries.filter((e) => e.kind === "image").length;
   io.log(`▸ 候选资产 ${entries.length} 个(图片 ${imageCount} / 字体 ${fontCount})，开始下载…`);
 
-  const results = await downloadAll(entries, get, { outDir, maxBytes: args.maxBytes, referer: pageUrl, fs: io.fs });
-  const hasFontsCss = writeFontsCss(results, recon, { pageUrl, outDir, fs: io.fs });
+  const results = await downloadAll({ entries, get, outDir, maxBytes: args.maxBytes, referer: pageUrl, fs: io.fs });
+  const hasFontsCss = writeFontsCss({ results, recon, pageUrl, outDir, fs: io.fs });
   const manifestFile = path.resolve(io.cwd(), args.manifest || path.join(args.outDir, "asset-manifest.json"));
   const okCount = writeManifest(manifestFile, { pageUrl, args, results, hasFontsCss, fs: io.fs });
   reportSummary({ io, args, outDir, results, okCount, hasFontsCss, manifestFile });

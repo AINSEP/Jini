@@ -55,7 +55,7 @@ describe("runIfMain", () => {
 describe("parseCliArgs", () => {
   const spec = {
     defaults: { name: "d", tags: [], on: false },
-    flags: { "--name": { key: "name", read: text("fallback") }, "--tags": { key: "tags", read: list() }, "--on": flag("on") },
+    flags: { "--name": { key: "name", read: text({}, { fallback: "fallback" }) }, "--tags": { key: "tags", read: list() }, "--on": flag({ key: "on" }) },
     onOther: (arg, out) => {
       out.rest = [...(out.rest || []), arg];
     },
@@ -78,7 +78,7 @@ describe("parseCliArgs", () => {
     const out = parseCliArgs({ argv: ["toString"], ...spec });
     expect(out.rest).toEqual(["toString"]);
     expect(spec.defaults).toEqual({ name: "d", tags: [], on: false });
-    expect(text()(undefined)).toBe("");
+    expect(text({})(undefined)).toBe("");
   });
 
   it("rejectUnknown throws the scripts' shared message", () => {

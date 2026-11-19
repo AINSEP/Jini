@@ -12,9 +12,9 @@ describe("parseCliArgs", () => {
     defaults: { url: "", wait: 5, steps: 7, quiet: false },
     options: {
       ...HELP_OPTIONS,
-      "--url": { key: "url", parse: text("none") },
-      "--wait": { key: "wait", parse: num("5") },
-      "--steps": { key: "steps", parse: int("7") },
+      "--url": { key: "url", parse: text({ fallback: "none" }) },
+      "--wait": { key: "wait", parse: num({ fallback: "5" }) },
+      "--steps": { key: "steps", parse: int({ fallback: "7" }) },
       "--quiet": { key: "quiet", flag: true },
     },
   };

@@ -11,7 +11,7 @@ const PRESET_FILES: Record<AvatarKey, string> = {
   "male-koala-lilac": "male-koala-lilac.png",
 };
 
-export const avatarSrcFor = (participant: ChatSpec["participants"][number]) => {
+export const avatarSrcFor = ({ participant }: { participant: ChatSpec["participants"][number] }, _optional: Record<string, never> = {}) => {
   if (participant.uploadAsset) return staticFile(participant.uploadAsset);
   const key = (participant.avatarKey in PRESET_FILES ? participant.avatarKey : "female-bunny-pink") as AvatarKey;
   return staticFile(PRESET_FILES[key]);
