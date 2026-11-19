@@ -79,7 +79,7 @@ export function renderFieldControl(field: SurfaceField, text?: Partial<SecretInp
     case 'multi-enum':
       return renderChoiceGroup({ ...base(field, options), selection: 'multiple', options: field.options, ...present(field, ['value']) });
   }
-  return unhandledCase(field);
+  return unhandledCase({ _value: field });
 }
 
 /** What the surface's inline script needs to read a field's value back and coerce it — the runtime half of {@link SurfaceField}, with the presentation stripped out. */

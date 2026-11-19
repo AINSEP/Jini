@@ -44,8 +44,8 @@ export function getDocumentBody(): HTMLElement | null {
  * @returns A cleanup function that removes the listener(s) that were added.
  */
 export function subscribeOutsideClickOrEscape(
-  container: { current: HTMLElement | null } | undefined,
-  onClose: () => void,
+  { container, onClose }: { container: { current: HTMLElement | null } | undefined; onClose: () => void },
+  _optional: Record<string, never> = {},
 ): () => void {
   if (typeof document === 'undefined') return () => {};
   function onPointer(e: PointerEvent) {
@@ -69,8 +69,8 @@ export function subscribeOutsideClickOrEscape(
  * removal function. A no-op subscription outside the browser (SSR).
  */
 export function subscribeWindowEvent(
-  eventName: string,
-  onEvent: (event: Event) => void,
+  { eventName, onEvent }: { eventName: string; onEvent: (event: Event) => void },
+  _optional: Record<string, never> = {},
 ): () => void {
   if (typeof window === 'undefined') return () => {};
   window.addEventListener(eventName, onEvent);
@@ -83,7 +83,7 @@ export function subscribeWindowEvent(
  * tab itself is hidden, since `visibilitychange` also fires on the way out.
  * A no-op subscription outside the browser (SSR).
  */
-export function subscribeVisibleFocusOrVisibilityChange(onVisible: () => void): () => void {
+export function subscribeVisibleFocusOrVisibilityChange({ onVisible }: { onVisible: () => void }, _optional: Record<string, never> = {}): () => void {
   if (typeof window === 'undefined') return () => {};
   const handler = () => {
     if (document.visibilityState === 'hidden') return;
@@ -99,7 +99,7 @@ export function subscribeVisibleFocusOrVisibilityChange(onVisible: () => void): 
 
 /** Runs `callback` every `ms` via `window.setInterval`; the returned
  *  function clears it. A no-op outside the browser (SSR). */
-export function scheduleInterval(callback: () => void, ms: number): () => void {
+export function scheduleInterval({ callback, ms }: { callback: () => void; ms: number }, _optional: Record<string, never> = {}): () => void {
   if (typeof window === 'undefined') return () => {};
   const id = window.setInterval(callback, ms);
   return () => window.clearInterval(id);
@@ -107,7 +107,7 @@ export function scheduleInterval(callback: () => void, ms: number): () => void {
 
 /** Runs `callback` once after `ms` via `window.setTimeout`; the returned
  *  function cancels it. A no-op outside the browser (SSR). */
-export function scheduleTimeout(callback: () => void, ms: number): () => void {
+export function scheduleTimeout({ callback, ms }: { callback: () => void; ms: number }, _optional: Record<string, never> = {}): () => void {
   if (typeof window === 'undefined') return () => {};
   const id = window.setTimeout(callback, ms);
   return () => window.clearTimeout(id);
@@ -115,7 +115,7 @@ export function scheduleTimeout(callback: () => void, ms: number): () => void {
 
 /** Opens `url` in a new tab (`noopener,noreferrer`); a no-op outside the
  *  browser (SSR). */
-export function openExternalUrl(url: string): void {
+export function openExternalUrl({ url }: { url: string }, _optional: Record<string, never> = {}): void {
   if (typeof window === 'undefined') return;
   window.open(url, '_blank', 'noopener,noreferrer');
 }

@@ -3,36 +3,36 @@ import { buildSandboxedPreviewPage, openSandboxedPreviewInNewTab } from '../new-
 
 describe('buildSandboxedPreviewPage', () => {
   it('embeds the sandboxed document as the inner iframe srcdoc', () => {
-    const page = buildSandboxedPreviewPage('<p>hi</p>', 'My Title');
+    const page = buildSandboxedPreviewPage({ html: '<p>hi</p>', title: 'My Title' });
     expect(page).toContain('<title>My Title</title>');
     expect(page).toContain('sandbox="allow-scripts"');
     expect(page).toContain('data-jini-sandbox-shim');
   });
 
   it('falls back to "Preview" for an empty title', () => {
-    const page = buildSandboxedPreviewPage('<p>hi</p>', '');
+    const page = buildSandboxedPreviewPage({ html: '<p>hi</p>', title: '' });
     expect(page).toContain('<title>Preview</title>');
   });
 
   it('escapes a title containing HTML-special characters', () => {
-    const page = buildSandboxedPreviewPage('<p>hi</p>', 'A & B "quote"');
+    const page = buildSandboxedPreviewPage({ html: '<p>hi</p>', title: 'A & B "quote"' });
     expect(page).toContain('<title>A &amp; B &quot;quote&quot;</title>');
   });
 
   it('adds allow-modals to the sandbox attribute when requested', () => {
-    const page = buildSandboxedPreviewPage('<p>hi</p>', 'T', { allowModals: true });
+    const page = buildSandboxedPreviewPage({ html: '<p>hi</p>', title: 'T' }, { allowModals: true });
     expect(page).toContain('sandbox="allow-scripts allow-modals"');
   });
 
   it('renders the outer page theme variables for the requested color scheme', () => {
-    const dark = buildSandboxedPreviewPage('<p>hi</p>', 'T', { colorScheme: 'dark' });
-    const light = buildSandboxedPreviewPage('<p>hi</p>', 'T', { colorScheme: 'light' });
+    const dark = buildSandboxedPreviewPage({ html: '<p>hi</p>', title: 'T' }, { colorScheme: 'dark' });
+    const light = buildSandboxedPreviewPage({ html: '<p>hi</p>', title: 'T' }, { colorScheme: 'light' });
     expect(dark).toContain(':root{color-scheme:dark;');
     expect(light).toContain(':root{color-scheme:light;');
   });
 
   it('passes SandboxedDocumentOptions through to the inner document', () => {
-    const page = buildSandboxedPreviewPage('<p>hi</p>', 'T', { baseHref: 'https://cdn.test/' });
+    const page = buildSandboxedPreviewPage({ html: '<p>hi</p>', title: 'T' }, { baseHref: 'https://cdn.test/' });
     expect(page).toContain('&lt;base href=&quot;https://cdn.test/&quot;&gt;');
   });
 });
@@ -51,7 +51,7 @@ describe('openSandboxedPreviewInNewTab', () => {
     const fakeWindowHandle = {} as Window;
     const openSpy = vi.spyOn(window, 'open').mockReturnValue(fakeWindowHandle);
 
-    const result = openSandboxedPreviewInNewTab('<p>hi</p>', 'T');
+    const result = openSandboxedPreviewInNewTab({ html: '<p>hi</p>', title: 'T' });
 
     expect(result).toBe(true);
     expect(createObjectURL).toHaveBeenCalledTimes(1);
@@ -68,7 +68,7 @@ describe('openSandboxedPreviewInNewTab', () => {
     vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL });
     const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
 
-    const result = openSandboxedPreviewInNewTab('<p>hi</p>', 'T');
+    const result = openSandboxedPreviewInNewTab({ html: '<p>hi</p>', title: 'T' });
 
     expect(result).toBe(false);
     openSpy.mockRestore();
@@ -78,7 +78,7 @@ describe('openSandboxedPreviewInNewTab', () => {
     vi.stubGlobal('URL', { ...URL, createObjectURL: undefined });
     const openSpy = vi.spyOn(window, 'open');
 
-    const result = openSandboxedPreviewInNewTab('<p>hi</p>', 'T');
+    const result = openSandboxedPreviewInNewTab({ html: '<p>hi</p>', title: 'T' });
 
     expect(result).toBe(false);
     expect(openSpy).not.toHaveBeenCalled();
@@ -87,7 +87,7 @@ describe('openSandboxedPreviewInNewTab', () => {
 
   it('returns false when there is no window (SSR guard)', () => {
     vi.stubGlobal('window', undefined);
-    const result = openSandboxedPreviewInNewTab('<p>hi</p>', 'T');
+    const result = openSandboxedPreviewInNewTab({ html: '<p>hi</p>', title: 'T' });
     expect(result).toBe(false);
   });
 });

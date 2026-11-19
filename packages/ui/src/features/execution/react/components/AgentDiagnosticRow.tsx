@@ -64,7 +64,7 @@ function resolveAction(
     case 'launchOAuth':
       return null;
   }
-  return unhandledCase(intent);
+  return unhandledCase({ _value: intent });
 }
 
 /**

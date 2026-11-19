@@ -51,11 +51,11 @@ describe('NotificationsTab characterization before L141 refactoring', () => {
     expect(screen.queryByRole('group', { name: 'Success sound' })).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Completion sound' }));
     expect(onChange.mock.calls).toEqual([[{ soundEnabled: true }]]);
-    expect(vi.mocked(notifications.playSound).mock.calls).toEqual([['pluck']]);
+    expect(vi.mocked(notifications.playSound).mock.calls).toEqual([[{ id: 'pluck' }]]);
     rerender(<NotificationsTab preferences={{ ...DEFAULT_NOTIFICATIONS_PREFERENCES, soundEnabled: true }} onChange={onChange} />);
     await userEvent.click(screen.getByRole('button', { name: 'Completion sound' }));
     expect(onChange.mock.calls).toEqual([[{ soundEnabled: true }], [{ soundEnabled: false }]]);
-    expect(vi.mocked(notifications.playSound).mock.calls).toEqual([['pluck']]);
+    expect(vi.mocked(notifications.playSound).mock.calls).toEqual([[{ id: 'pluck' }]]);
   });
 
   it.each([undefined, 'notify'])('preserves sound choice order, selection, previews and handles with base %s', async (agentHandle) => {
@@ -76,7 +76,7 @@ describe('NotificationsTab characterization before L141 refactoring', () => {
         expect(button.getAttribute('data-agent-element')).toBe(agentHandle ? `notify-${group.action}-${group.ids[index]}` : null);
         await userEvent.click(button);
         expect(onChange).toHaveBeenLastCalledWith({ [group.key]: group.ids[index] });
-        expect(notifications.playSound).toHaveBeenLastCalledWith(group.ids[index]);
+        expect(notifications.playSound).toHaveBeenLastCalledWith({ id: group.ids[index] });
       }
     }
   });

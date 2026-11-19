@@ -67,7 +67,7 @@ export function formatAddressDisplayParts(
   if (!cleanTitle) return { url };
   const fallback = labelFromUrl(url, homeLabel);
   if (cleanTitle === fallback || cleanTitle === url) return { url };
-  return { url: trimTrailingChars(url, '/'), title: cleanTitle };
+  return { url: trimTrailingChars({ value: url, chars: '/' }), title: cleanTitle };
 }
 
 export function formatAddressDisplay(
@@ -107,7 +107,7 @@ export function isHistoryUrl(url: string): boolean {
 }
 
 export function sameUrl(left: string, right: string): boolean {
-  return trimTrailingChars(left, '/') === trimTrailingChars(right, '/');
+  return trimTrailingChars({ value: left, chars: '/' }) === trimTrailingChars({ value: right, chars: '/' });
 }
 
 function cleanIconUrl(url?: string): string | undefined {

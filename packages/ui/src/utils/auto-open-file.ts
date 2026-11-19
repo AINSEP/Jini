@@ -75,8 +75,7 @@ function resolveUniqueMatch({ matches, moduleFileNames }: {
 }
 
 export function decideAutoOpenAfterWrite(
-  filePath: string,
-  nextFiles: ReadonlyArray<CandidateFile>,
+  { filePath, nextFiles }: { filePath: string; nextFiles: ReadonlyArray<CandidateFile> },
   options: AutoOpenOptions = {},
 ): AutoOpenDecision {
   const moduleFileNames = options.moduleFileNames ?? NO_MODULES;
@@ -183,7 +182,7 @@ function previewRankScore(file: CandidateFile): number | null {
 // break to the most recently written file (newest mtime). Returns null when
 // the turn produced nothing previewable.
 export function selectAutoOpenProducedArtifact(
-  producedFiles: ReadonlyArray<CandidateFile>,
+  { producedFiles }: { producedFiles: ReadonlyArray<CandidateFile> },
   options: SelectAutoOpenOptions = {},
 ): string | null {
   if (options.preferSiteEntry) {

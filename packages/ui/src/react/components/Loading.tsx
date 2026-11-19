@@ -25,7 +25,7 @@ interface SkeletonProps {
 export function Skeleton({ width, height = 14, radius = 6, className }: SkeletonProps) {
   return (
     <span
-      className={withClassName('skeleton-block', className)}
+      className={withClassName({ base: 'skeleton-block', extra: className })}
       style={{ width, height, borderRadius: radius }}
       aria-hidden
     />

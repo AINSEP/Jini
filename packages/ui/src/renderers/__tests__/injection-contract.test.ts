@@ -19,7 +19,7 @@ describe('builder injection byte contracts', () => {
         + (storageShim === false ? '' : DOCUMENT_STORAGE) + BASE
         + '<title>Report: Q3</title><script>"</head>"</script>'
         + (focusGuard ? DOCUMENT_FOCUS : '') + '</head><body><p>hi</p></body></html>';
-      expect(buildSandboxedDocument(input, options)).toEqual({ html: expected, isFullDocument: true });
+      expect(buildSandboxedDocument({ html: input }, options)).toEqual({ html: expected, isFullDocument: true });
     }
   });
 
@@ -28,7 +28,7 @@ describe('builder injection byte contracts', () => {
       + (previewFocusGuard ? SRCDOC_FOCUS : '') + SRCDOC_STORAGE + BASE + CSP
       + '<title>Report- Q3</title><script>"</head>"</script></head><body><p>hi</p>'
       + ACTIVATION + '</body></html>';
-    expect(buildSrcDoc(input, { baseHref, previewFocusGuard })).toBe(expected);
+    expect(buildSrcDoc({ html: input }, { baseHref, previewFocusGuard })).toBe(expected);
   });
 
   it('pins the default fragment shells and their different CSP and transport behavior', () => {
@@ -40,33 +40,33 @@ describe('builder injection byte contracts', () => {
   </head>
   <body><p>hi</p>${tail}</body>
 </html>`;
-    expect(buildSandboxedDocument('<p>hi</p>')).toEqual({ html: shell(DOCUMENT_STORAGE), isFullDocument: false });
-    expect(buildSrcDoc('<p>hi</p>')).toBe(shell(SRCDOC_STORAGE + CSP, ACTIVATION));
-    expect(buildSrcDoc('<p>hi</p>', { csp: true })).toBe(shell(SRCDOC_STORAGE + CSP, ACTIVATION));
+    expect(buildSandboxedDocument({ html: '<p>hi</p>' })).toEqual({ html: shell(DOCUMENT_STORAGE), isFullDocument: false });
+    expect(buildSrcDoc({ html: '<p>hi</p>' })).toBe(shell(SRCDOC_STORAGE + CSP, ACTIVATION));
+    expect(buildSrcDoc({ html: '<p>hi</p>' }, { csp: true })).toBe(shell(SRCDOC_STORAGE + CSP, ACTIVATION));
   });
 
   it.each([false, '', "default-src 'none'; connect-src https://example.com?a=1&b=2"])('preserves custom/disabled CSP %j', (csp) => {
     const meta = csp ? '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; connect-src https://example.com?a=1&amp;b=2">' : '';
-    expect(buildSrcDoc('<html><head></head><body></body></html>', { csp })).toBe(
+    expect(buildSrcDoc({ html: '<html><head></head><body></body></html>' }, { csp })).toBe(
       '<html><head>' + SRCDOC_STORAGE + meta + '</head><body>' + ACTIVATION + '</body></html>',
     );
   });
 
   it('splices srcdoc safety tags into the implicit head where the generic builder prepends', () => {
     const html = '<html><body>hi</body></html>';
-    expect(buildSandboxedDocument(html)).toEqual({ html: DOCUMENT_STORAGE + html, isFullDocument: true });
-    expect(buildSrcDoc(html, { csp: false, previewFocusGuard: true })).toBe(
+    expect(buildSandboxedDocument({ html })).toEqual({ html: DOCUMENT_STORAGE + html, isFullDocument: true });
+    expect(buildSrcDoc({ html }, { csp: false, previewFocusGuard: true })).toBe(
       '<html>' + SRCDOC_FOCUS + SRCDOC_STORAGE + '<body>hi' + ACTIVATION + '</body></html>',
     );
   });
 
   it('synthesizes a base-only head generically while srcdoc splices into the implicit head', () => {
     const html = '<html><body>hi</body></html>';
-    expect(buildSandboxedDocument(html, { baseHref, focusGuard: true })).toEqual({
+    expect(buildSandboxedDocument({ html }, { baseHref, focusGuard: true })).toEqual({
       html: '<html><head>' + DOCUMENT_STORAGE + BASE + DOCUMENT_FOCUS + '</head><body>hi</body></html>',
       isFullDocument: true,
     });
-    expect(buildSrcDoc(html, { baseHref, csp: false, previewFocusGuard: true })).toBe(
+    expect(buildSrcDoc({ html }, { baseHref, csp: false, previewFocusGuard: true })).toBe(
       '<html>' + SRCDOC_FOCUS + SRCDOC_STORAGE + BASE + '<body>hi' + ACTIVATION + '</body></html>',
     );
   });
@@ -74,7 +74,7 @@ describe('builder injection byte contracts', () => {
   it('passes complete safety injections through bridges in order and adds activation afterward', () => {
     const safe = '<html><head>' + SRCDOC_FOCUS + SRCDOC_STORAGE + BASE + CSP + '</head><body></body></html>';
     const seen: Array<{ doc: string; ctx: Record<string, unknown> }> = [];
-    const out = buildSrcDoc('<html><head></head><body></body></html>', {
+    const out = buildSrcDoc({ html: '<html><head></head><body></body></html>' }, {
       baseHref, previewFocusGuard: true, bridgeContext: { baseHref: 'bridge override', token: 'context' },
       bridges: [
         { id: 'first', inject(doc, ctx) { seen.push({ doc, ctx }); return doc + '<!-- first -->'; } },
@@ -89,7 +89,7 @@ describe('builder injection byte contracts', () => {
 
   it('returns the exact lazy transport shell without running document or bridge injections', () => {
     let bridgeCalls = 0;
-    expect(buildSrcDoc(input, {
+    expect(buildSrcDoc({ html: input }, {
       lazyTransport: true, baseHref, previewFocusGuard: true, csp: 'custom',
       bridges: [{ id: 'must-not-run', inject(doc) { bridgeCalls++; return doc; } }],
     })).toBe(LAZY_SHELL);

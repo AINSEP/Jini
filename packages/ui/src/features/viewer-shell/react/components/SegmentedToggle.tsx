@@ -31,7 +31,7 @@ export function SegmentedToggle<TValue extends string>({
   className,
 }: SegmentedToggleProps<TValue>) {
   return (
-    <div className={withClassName('viewer-segmented-toggle', className)} role="group" aria-label={ariaLabel}>
+    <div className={withClassName({ base: 'viewer-segmented-toggle', extra: className })} role="group" aria-label={ariaLabel}>
       {options.map((option) => {
         const selected = option.value === value;
         const label = option.title ?? option.label;

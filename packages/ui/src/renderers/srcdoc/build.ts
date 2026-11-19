@@ -77,8 +77,8 @@ function buildSafetyHead(options: BuildSrcDocOptions): string {
   const csp = resolveContentSecurityPolicy(options);
   return (options.previewFocusGuard ? buildFocusScript({ format: 'srcdoc' }) : '')
     + buildStorageScript({ format: 'srcdoc' })
-    + (options.baseHref ? `<base href="${escapeHtmlAttribute(options.baseHref)}">` : '')
-    + (csp ? `<meta http-equiv="Content-Security-Policy" content="${escapeHtmlAttribute(csp)}">` : '');
+    + (options.baseHref ? `<base href="${escapeHtmlAttribute({ value: options.baseHref })}">` : '')
+    + (csp ? `<meta http-equiv="Content-Security-Policy" content="${escapeHtmlAttribute({ value: csp })}">` : '');
 }
 
 /**
@@ -87,7 +87,7 @@ function buildSafetyHead(options: BuildSrcDocOptions): string {
  * tools reject in filenames: `: # % & * { } \ < > ? / + | "`), and strips
  * doubled `~$` lock-file prefixes some office tools leave behind.
  */
-export function sanitizePreviewTitle(text: string): string {
+export function sanitizePreviewTitle({ text }: { text: string }, _optional: Record<string, never> = {}): string {
   let result = text.trim();
   let prev: string;
   do {
@@ -120,9 +120,9 @@ function findElementChild({ parent, tagName }: {
  * @param html Original document source; never mutated or re-serialized.
  * @returns Source with the first head title's decoded, filename-safe text.
  * @complexity O(n) time and space in source length for parsing and splicing.
- * @example sanitizeTitleInDoc('<title>Q3: Report</title>') // '<title>Q3- Report</title>'
+ * @example sanitizeTitleInDoc({ html: '<title>Q3: Report</title>' }) // '<title>Q3- Report</title>'
  */
-export function sanitizeTitleInDoc(html: string): string {
+export function sanitizeTitleInDoc({ html }: { html: string }, _optional: Record<string, never> = {}): string {
   const document = parse(html, { sourceCodeLocationInfo: true });
   const root = findElementChild({ parent: document, tagName: 'html' });
   const head = findElementChild({ parent: root, tagName: 'head' });
@@ -131,7 +131,7 @@ export function sanitizeTitleInDoc(html: string): string {
   if (!title || !location?.startTag || !location.endTag) return html;
 
   const decoded = title.childNodes.filter(defaultTreeAdapter.isTextNode).map((node) => node.value).join('');
-  const safe = sanitizePreviewTitle(decoded);
+  const safe = sanitizePreviewTitle({ text: decoded });
   return html.slice(0, location.startTag.endOffset) + safe + html.slice(location.endTag.startOffset);
 }
 
@@ -149,7 +149,7 @@ function openingTagEnd({ node }: { node: DefaultTreeAdapterMap['element'] | unde
  * Source offsets exclude comments, raw text and quoted attributes without rewriting the document.
  * @complexity O(n) time and space for parsing n source characters.
  */
-export function injectAfterHeadOpen(doc: string, payload: string): string {
+export function injectAfterHeadOpen({ doc, payload }: { doc: string; payload: string }, _optional: Record<string, never> = {}): string {
   const document = parse(doc, { sourceCodeLocationInfo: true });
   const root = findElementChild({ parent: document, tagName: 'html' });
   const head = findElementChild({ parent: root, tagName: 'head' });
@@ -167,18 +167,18 @@ export function injectAfterHeadOpen(doc: string, payload: string): string {
  * `DOMParser` only for head-less fragments where no textual insertion point
  * exists.
  */
-export function injectBeforeHeadEnd(doc: string, payload: string): string {
+export function injectBeforeHeadEnd({ doc, payload }: { doc: string; payload: string }, _optional: Record<string, never> = {}): string {
   const lower = doc.toLowerCase();
   const bodyStart = lower.indexOf('<body');
   const limit = bodyStart >= 0 ? bodyStart : lower.length;
   const idx = lower.lastIndexOf('</head>', limit - 1);
   if (idx >= 0) return doc.slice(0, idx) + payload + doc.slice(idx);
-  if (/<head[^>]*>/i.test(doc)) return injectAfterHeadOpen(doc, payload);
+  if (/<head[^>]*>/i.test(doc)) return injectAfterHeadOpen({ doc, payload });
   return injectViaDomParser({ doc, payload, section: 'head' }) ?? payload + doc;
 }
 
 /** Splice `payload` right before the real `</body>` (the last one before `</html>`). See {@link injectBeforeHeadEnd}. */
-export function injectBeforeBodyEnd(doc: string, payload: string): string {
+export function injectBeforeBodyEnd({ doc, payload }: { doc: string; payload: string }, _optional: Record<string, never> = {}): string {
   const lower = doc.toLowerCase();
   const htmlEnd = lower.lastIndexOf('</html>');
   const limit = htmlEnd >= 0 ? htmlEnd : lower.length;
@@ -219,7 +219,7 @@ function injectSrcdocTransportActivationBridge(doc: string): string {
     document.close();
   });
 })();</script>`;
-  return injectBeforeBodyEnd(doc, script);
+  return injectBeforeBodyEnd({ doc, payload: script });
 }
 
 /**
@@ -302,16 +302,16 @@ export function canActivateSrcDocTransport(state: SrcDocActivationInputs): boole
  * safety mechanics (title sanitization, sandbox shim, focus guard); runs any
  * `options.bridges` afterward via {@link applySrcDocBridges}.
  */
-export function buildSrcDoc(html: string, options: BuildSrcDocOptions = {}): string {
+export function buildSrcDoc({ html }: { html: string }, options: BuildSrcDocOptions = {}): string {
   if (options.lazyTransport) return buildLazySrcDocTransport();
 
-  const wrapped = wrapFragmentAsDocument(html);
+  const wrapped = wrapFragmentAsDocument({ html });
 
-  const withSafety = injectAfterHeadOpen(sanitizeTitleInDoc(wrapped), buildSafetyHead(options));
+  const withSafety = injectAfterHeadOpen({ doc: sanitizeTitleInDoc({ html: wrapped }), payload: buildSafetyHead(options) });
 
   const ctx: SrcDocBridgeContext = { baseHref: options.baseHref, ...options.bridgeContext };
   const withBridges = options.bridges?.length
-    ? applySrcDocBridges(withSafety, options.bridges, ctx)
+    ? applySrcDocBridges({ doc: withSafety, bridges: options.bridges }, ctx)
     : withSafety;
 
   return injectSrcdocTransportActivationBridge(withBridges);

@@ -247,7 +247,7 @@ function SoundPicker({
             aria-pressed={selectedSoundId === sound.id}
             onClick={() => {
               onChange({ [preferenceKey]: sound.id });
-              previewSound(sound.id);
+              previewSound({ id: sound.id });
             }}
             {...agentHandleProps({}, { base: handles?.[index], role: 'button', label: t(sound.labelKey) })}
           >

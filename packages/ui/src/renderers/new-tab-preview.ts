@@ -21,12 +21,11 @@ export interface NewTabPreviewOptions extends SandboxedDocumentOptions {
  * once it's opened outside the host app's own preview chrome.
  */
 export function buildSandboxedPreviewPage(
-  html: string,
-  title: string,
+  { html, title }: { html: string; title: string },
   options: NewTabPreviewOptions = {},
 ): string {
-  const { html: innerDoc } = buildSandboxedDocument(html, options);
-  const safeTitle = escapeHtmlAttribute(title || 'Preview');
+  const { html: innerDoc } = buildSandboxedDocument({ html }, options);
+  const safeTitle = escapeHtmlAttribute({ value: title || 'Preview' });
   const sandbox = options.allowModals ? 'allow-scripts allow-modals' : 'allow-scripts';
   return `<!doctype html>
 <html lang="en">
@@ -37,7 +36,7 @@ export function buildSandboxedPreviewPage(
   <style>${renderAdminThemeVariables({ theme: options.adminTheme ?? defaultAdminTheme }, { ...(options.colorScheme ? { colorScheme: options.colorScheme } : {}) })}html,body,iframe{margin:0;width:100%;height:100%;border:0}body{overflow:hidden;background:var(--jini-bg)}</style>
 </head>
 <body>
-  <iframe title="${safeTitle}" sandbox="${sandbox}" srcdoc="${escapeHtmlAttribute(innerDoc)}"></iframe>
+  <iframe title="${safeTitle}" sandbox="${sandbox}" srcdoc="${escapeHtmlAttribute({ value: innerDoc })}"></iframe>
 </body>
 </html>`;
 }
@@ -52,8 +51,7 @@ const REVOKE_AFTER_MS = 60_000;
  * window reference.
  */
 export function openSandboxedPreviewInNewTab(
-  html: string,
-  title: string,
+  { html, title }: { html: string; title: string },
   options: NewTabPreviewOptions = {},
 ): boolean {
   if (
@@ -64,7 +62,7 @@ export function openSandboxedPreviewInNewTab(
   ) {
     return false;
   }
-  const page = buildSandboxedPreviewPage(html, title, options);
+  const page = buildSandboxedPreviewPage({ html, title }, options);
   const blob = new Blob([page], { type: 'text/html;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const opened = window.open(url, '_blank', 'noopener,noreferrer');

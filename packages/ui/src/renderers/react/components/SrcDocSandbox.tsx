@@ -27,7 +27,7 @@ export interface SrcDocSandboxProps {
 export function SrcDocSandbox({ html, options, title, className, onMessage, useTHook = useT }: SrcDocSandboxProps & { useTHook?: typeof useT }) {
   const t = useTHook();
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const srcDoc = useMemo(() => buildSrcDoc(html, options), [html, options]);
+  const srcDoc = useMemo(() => buildSrcDoc({ html }, options), [html, options]);
 
   useEffect(() => {
     if (!onMessage) return undefined;

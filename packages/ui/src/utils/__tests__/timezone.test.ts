@@ -109,15 +109,15 @@ describe('listSupportedTimezones', () => {
 
 describe('tzCityLabel', () => {
   it('returns UTC unchanged', () => {
-    expect(tzCityLabel('UTC')).toBe('UTC');
+    expect(tzCityLabel({ timezone: 'UTC' })).toBe('UTC');
   });
 
   it('takes the last path segment and replaces underscores with spaces', () => {
-    expect(tzCityLabel('America/Los_Angeles')).toBe('Los Angeles');
-    expect(tzCityLabel('Asia/Tokyo')).toBe('Tokyo');
+    expect(tzCityLabel({ timezone: 'America/Los_Angeles' })).toBe('Los Angeles');
+    expect(tzCityLabel({ timezone: 'Asia/Tokyo' })).toBe('Tokyo');
   });
 
   it('returns the whole string when there is no slash', () => {
-    expect(tzCityLabel('Zulu')).toBe('Zulu');
+    expect(tzCityLabel({ timezone: 'Zulu' })).toBe('Zulu');
   });
 });

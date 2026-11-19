@@ -97,7 +97,7 @@ function collectTopLevelBlockLines({ events }: { events: MarkdownEvents }): numb
  * top-level container so the result lines up 1:1 with the preview article's
  * direct element children.
  */
-export function extractMarkdownBlockLines(markdown: string): number[] {
+export function extractMarkdownBlockLines({ markdown }: { markdown: string }, _optional: Record<string, never> = {}): number[] {
   if (!markdown) return [];
   const events = parseMarkdownEvents({ markdown });
   return events ? collectTopLevelBlockLines({ events }) : [];
@@ -185,9 +185,8 @@ function readMarkerOffsets({ mirror, blockCount }: { mirror: HTMLDivElement; blo
  * lines wrap. Returns `null` when measurement is not possible.
  */
 export function measureEditorBlockOffsets(
-  textarea: HTMLTextAreaElement,
-  blockLines: number[],
-  text: string,
+  { textarea, blockLines, text }: { textarea: HTMLTextAreaElement; blockLines: number[]; text: string },
+  _optional: Record<string, never> = {},
 ): number[] | null {
   // The `typeof document === 'undefined'` half of this guard is real,
   // intentional SSR-safety API contract (documented in this function's own
@@ -220,9 +219,8 @@ export function measureEditorBlockOffsets(
  * conventional root class).
  */
 export function measurePreviewBlockOffsets(
-  pane: HTMLElement,
-  blockCount: number,
-  previewSelector = '.markdown-rendered',
+  { pane, blockCount }: { pane: HTMLElement; blockCount: number },
+  { previewSelector = '.markdown-rendered' }: { previewSelector?: string | undefined } = {},
 ): number[] | null {
   if (blockCount === 0) return null;
   const article = pane.querySelector<HTMLElement>(previewSelector);
@@ -243,7 +241,7 @@ export function measurePreviewBlockOffsets(
  * anchor at the top, the per-block offsets, and the total `scrollHeight` at the
  * bottom, clamped non-decreasing so interpolation stays stable.
  */
-export function buildScrollAnchors(blockOffsets: number[], scrollHeight: number): number[] {
+export function buildScrollAnchors({ blockOffsets, scrollHeight }: { blockOffsets: number[]; scrollHeight: number }, _optional: Record<string, never> = {}): number[] {
   const anchors = [0, ...blockOffsets, Math.max(0, scrollHeight)];
   let previous = 0;
   for (let i = 0; i < anchors.length; i += 1) {
@@ -280,7 +278,7 @@ function findBracketLow({ value, source, count }: { value: number; source: numbe
  * anchor arrays (same length, both monotonic). Linear interpolation within the
  * bracketing segment.
  */
-export function mapScrollPosition(value: number, source: number[], target: number[]): number {
+export function mapScrollPosition({ value, source, target }: { value: number; source: number[]; target: number[] }, _optional: Record<string, never> = {}): number {
   const count = Math.min(source.length, target.length);
   if (count === 0) return value;
   const last = count - 1;

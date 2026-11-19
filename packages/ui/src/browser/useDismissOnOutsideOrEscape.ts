@@ -46,7 +46,7 @@ export interface DismissSubscriptionPort {
 }
 
 const browserSubscription: DismissSubscriptionPort = {
-  subscribe: ({ containerRef, onDismiss }) => subscribeOutsideClickOrEscape(containerRef, onDismiss),
+  subscribe: ({ containerRef, onDismiss }) => subscribeOutsideClickOrEscape({ container: containerRef, onClose: onDismiss }),
 };
 
 /**

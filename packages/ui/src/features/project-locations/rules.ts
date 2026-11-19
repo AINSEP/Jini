@@ -93,5 +93,5 @@ export function isDuplicatePath(
 function normalizePathForCompare(value: string): string {
   const trimmed = value.trim();
   if (trimmed.length <= 1) return trimmed;
-  return trimTrailingChars(trimmed, '\\/') || trimmed;
+  return trimTrailingChars({ value: trimmed, chars: '\\/' }) || trimmed;
 }

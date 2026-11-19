@@ -45,12 +45,12 @@ describe('SSR safety (no window/document)', () => {
   it('every subscription/action is a no-op when window/document are undefined', () => {
     expect(getViewportSize()).toEqual({ width: 0, height: 0 });
     expect(getDocumentBody()).toBeNull();
-    expect(() => openExternalUrl('https://example.com')).not.toThrow();
-    expect(() => subscribeWindowEvent('resize', () => {})()).not.toThrow();
-    expect(() => scheduleInterval(() => {}, 10)()).not.toThrow();
-    expect(() => scheduleTimeout(() => {}, 10)()).not.toThrow();
-    expect(() => subscribeOutsideClickOrEscape({ current: null }, () => {})()).not.toThrow();
-    expect(() => subscribeVisibleFocusOrVisibilityChange(() => {})()).not.toThrow();
+    expect(() => openExternalUrl({ url: 'https://example.com' })).not.toThrow();
+    expect(() => subscribeWindowEvent({ eventName: 'resize', onEvent: () => {} })()).not.toThrow();
+    expect(() => scheduleInterval({ callback: () => {}, ms: 10 })()).not.toThrow();
+    expect(() => scheduleTimeout({ callback: () => {}, ms: 10 })()).not.toThrow();
+    expect(() => subscribeOutsideClickOrEscape({ container: { current: null }, onClose: () => {} })()).not.toThrow();
+    expect(() => subscribeVisibleFocusOrVisibilityChange({ onVisible: () => {} })()).not.toThrow();
   });
 });
 
@@ -73,7 +73,7 @@ describe('with window/document stubbed', () => {
   it('openExternalUrl opens the url in a new noopener/noreferrer tab', () => {
     const open = vi.fn();
     vi.stubGlobal('window', { open });
-    openExternalUrl('https://example.com');
+    openExternalUrl({ url: 'https://example.com' });
     expect(open).toHaveBeenCalledWith('https://example.com', '_blank', 'noopener,noreferrer');
   });
 
@@ -81,7 +81,7 @@ describe('with window/document stubbed', () => {
     const target = createListenerTarget();
     vi.stubGlobal('window', target);
     const onEvent = vi.fn();
-    const unsubscribe = subscribeWindowEvent('resize', onEvent);
+    const unsubscribe = subscribeWindowEvent({ eventName: 'resize', onEvent });
     expect(target.has('resize')).toBe(true);
     target.fire('resize', { type: 'resize' });
     expect(onEvent).toHaveBeenCalledTimes(1);
@@ -96,12 +96,12 @@ describe('with window/document stubbed', () => {
     const clearTimeout = vi.fn();
     vi.stubGlobal('window', { setInterval, clearInterval, setTimeout, clearTimeout });
 
-    const stopInterval = scheduleInterval(() => {}, 100);
+    const stopInterval = scheduleInterval({ callback: () => {}, ms: 100 });
     expect(setInterval).toHaveBeenCalledWith(expect.any(Function), 100);
     stopInterval();
     expect(clearInterval).toHaveBeenCalledWith(7);
 
-    const stopTimeout = scheduleTimeout(() => {}, 50);
+    const stopTimeout = scheduleTimeout({ callback: () => {}, ms: 50 });
     expect(setTimeout).toHaveBeenCalledWith(expect.any(Function), 50);
     stopTimeout();
     expect(clearTimeout).toHaveBeenCalledWith(9);
@@ -113,7 +113,7 @@ describe('with window/document stubbed', () => {
       vi.stubGlobal('document', doc);
       const container = { current: { contains: vi.fn(() => false) } as unknown as HTMLElement };
       const onClose = vi.fn();
-      subscribeOutsideClickOrEscape(container, onClose);
+      subscribeOutsideClickOrEscape({ container, onClose });
 
       doc.fire('pointerdown', { target: 'outside-node' });
       expect(container.current.contains).toHaveBeenCalledWith('outside-node');
@@ -125,7 +125,7 @@ describe('with window/document stubbed', () => {
       vi.stubGlobal('document', doc);
       const container = { current: { contains: vi.fn(() => true) } as unknown as HTMLElement };
       const onClose = vi.fn();
-      subscribeOutsideClickOrEscape(container, onClose);
+      subscribeOutsideClickOrEscape({ container, onClose });
 
       doc.fire('pointerdown', { target: 'inside-node' });
       expect(onClose).not.toHaveBeenCalled();
@@ -135,7 +135,7 @@ describe('with window/document stubbed', () => {
       const doc = createListenerTarget();
       vi.stubGlobal('document', doc);
       const onClose = vi.fn();
-      subscribeOutsideClickOrEscape({ current: null }, onClose);
+      subscribeOutsideClickOrEscape({ container: { current: null }, onClose });
 
       doc.fire('keydown', { key: 'Escape' });
       expect(onClose).toHaveBeenCalledTimes(1);
@@ -148,7 +148,7 @@ describe('with window/document stubbed', () => {
       const doc = createListenerTarget();
       vi.stubGlobal('document', doc);
       const onClose = vi.fn();
-      subscribeOutsideClickOrEscape(undefined, onClose);
+      subscribeOutsideClickOrEscape({ container: undefined, onClose });
 
       expect(doc.has('pointerdown')).toBe(false);
       doc.fire('keydown', { key: 'Escape' });
@@ -158,7 +158,7 @@ describe('with window/document stubbed', () => {
     it('cleanup removes both listeners', () => {
       const doc = createListenerTarget();
       vi.stubGlobal('document', doc);
-      const unsubscribe = subscribeOutsideClickOrEscape({ current: null }, () => {});
+      const unsubscribe = subscribeOutsideClickOrEscape({ container: { current: null }, onClose: () => {} });
       unsubscribe();
       expect(doc.removeEventListener).toHaveBeenCalledWith('pointerdown', expect.any(Function));
       expect(doc.removeEventListener).toHaveBeenCalledWith('keydown', expect.any(Function));
@@ -167,7 +167,7 @@ describe('with window/document stubbed', () => {
     it('cleanup without a container only removes the keydown listener', () => {
       const doc = createListenerTarget();
       vi.stubGlobal('document', doc);
-      const unsubscribe = subscribeOutsideClickOrEscape(undefined, () => {});
+      const unsubscribe = subscribeOutsideClickOrEscape({ container: undefined, onClose: () => {} });
       unsubscribe();
       expect(doc.removeEventListener).not.toHaveBeenCalledWith('pointerdown', expect.any(Function));
       expect(doc.removeEventListener).toHaveBeenCalledWith('keydown', expect.any(Function));
@@ -181,7 +181,7 @@ describe('with window/document stubbed', () => {
       vi.stubGlobal('window', win);
       vi.stubGlobal('document', { ...doc, visibilityState: 'visible' });
       const onVisible = vi.fn();
-      subscribeVisibleFocusOrVisibilityChange(onVisible);
+      subscribeVisibleFocusOrVisibilityChange({ onVisible });
 
       win.fire('focus');
       expect(onVisible).toHaveBeenCalledTimes(1);
@@ -193,7 +193,7 @@ describe('with window/document stubbed', () => {
       const docState = { visibilityState: 'hidden', ...createListenerTarget() };
       vi.stubGlobal('document', docState);
       const onVisible = vi.fn();
-      subscribeVisibleFocusOrVisibilityChange(onVisible);
+      subscribeVisibleFocusOrVisibilityChange({ onVisible });
 
       docState.fire('visibilitychange');
       expect(onVisible).not.toHaveBeenCalled();
@@ -208,7 +208,7 @@ describe('with window/document stubbed', () => {
       const doc = createListenerTarget();
       vi.stubGlobal('window', win);
       vi.stubGlobal('document', { ...doc, visibilityState: 'visible' });
-      const cleanup = subscribeVisibleFocusOrVisibilityChange(vi.fn());
+      const cleanup = subscribeVisibleFocusOrVisibilityChange({ onVisible: vi.fn() });
 
       expect(win.has('focus')).toBe(true);
       expect(doc.has('visibilitychange')).toBe(true);

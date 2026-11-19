@@ -5,7 +5,7 @@
  */
 
 /** Escape a string for safe use inside a double-quoted HTML attribute value. */
-export function escapeHtmlAttribute(value: string): string {
+export function escapeHtmlAttribute({ value }: { value: string }, _optional: Record<string, never> = {}): string {
   return value
     .replace(/&/g, '&amp;')
     .replace(/"/g, '&quot;')
@@ -14,7 +14,7 @@ export function escapeHtmlAttribute(value: string): string {
 }
 
 /** Insert `payload` immediately after the opening `<head ...>` tag, or prepend if there is no `<head>`. */
-export function injectAfterHeadOpen(doc: string, payload: string): string {
+export function injectAfterHeadOpen({ doc, payload }: { doc: string; payload: string }, _optional: Record<string, never> = {}): string {
   if (/<head[^>]*>/i.test(doc)) return doc.replace(/<head[^>]*>/i, (m) => `${m}${payload}`);
   return payload + doc;
 }
@@ -26,7 +26,7 @@ export function injectAfterHeadOpen(doc: string, payload: string): string {
  * back to appending right after `<head ...>` when there's an open tag but no
  * closing one, then to prepending when there's no `<head>` at all.
  */
-export function injectBeforeHeadEnd(doc: string, payload: string): string {
+export function injectBeforeHeadEnd({ doc, payload }: { doc: string; payload: string }, _optional: Record<string, never> = {}): string {
   const lower = doc.toLowerCase();
   const bodyStart = lower.indexOf('<body');
   const limit = bodyStart >= 0 ? bodyStart : lower.length;
@@ -42,7 +42,7 @@ export function injectBeforeHeadEnd(doc: string, payload: string): string {
  * `injectBeforeHeadEnd` finds the last `</head>` before `<body>`. Falls back
  * to appending at the end of the document when there's no `<body>` at all.
  */
-export function injectBeforeBodyEnd(doc: string, payload: string): string {
+export function injectBeforeBodyEnd({ doc, payload }: { doc: string; payload: string }, _optional: Record<string, never> = {}): string {
   const lower = doc.toLowerCase();
   const htmlEnd = lower.lastIndexOf('</html>');
   const limit = htmlEnd >= 0 ? htmlEnd : lower.length;

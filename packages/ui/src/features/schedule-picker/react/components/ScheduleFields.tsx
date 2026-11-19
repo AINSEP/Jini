@@ -46,7 +46,7 @@ export function ScheduleFields({ state, timezones, onMinuteChange, onTimeChange,
         <select value={state.timezone} onChange={(e) => onTimezoneChange(e.target.value)}>
           {timezones.map((tz) => (
             <option key={tz} value={tz}>
-              {tzCityLabel(tz)}
+              {tzCityLabel({ timezone: tz })}
             </option>
           ))}
         </select>

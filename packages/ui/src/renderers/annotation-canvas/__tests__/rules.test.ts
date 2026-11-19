@@ -16,19 +16,19 @@ import type { DockPlacement, Rect } from '../types.js';
 
 describe('clamp / clamp01', () => {
   it('clamps within range', () => {
-    expect(clamp(5, 0, 10)).toBe(5);
-    expect(clamp(-5, 0, 10)).toBe(0);
-    expect(clamp(15, 0, 10)).toBe(10);
+    expect(clamp({ value: 5, min: 0, max: 10 })).toBe(5);
+    expect(clamp({ value: -5, min: 0, max: 10 })).toBe(0);
+    expect(clamp({ value: 15, min: 0, max: 10 })).toBe(10);
   });
 
   it('returns min when max < min', () => {
-    expect(clamp(5, 10, 0)).toBe(10);
+    expect(clamp({ value: 5, min: 10, max: 0 })).toBe(10);
   });
 
   it('clamp01 bounds to [0,1]', () => {
-    expect(clamp01(-0.5)).toBe(0);
-    expect(clamp01(1.5)).toBe(1);
-    expect(clamp01(0.4)).toBe(0.4);
+    expect(clamp01({ value: -0.5 })).toBe(0);
+    expect(clamp01({ value: 1.5 })).toBe(1);
+    expect(clamp01({ value: 0.4 })).toBe(0.4);
   });
 });
 
@@ -129,27 +129,27 @@ describe('computeDockPlacement', () => {
 
 describe('mergeBounds', () => {
   it('returns undefined for no rects', () => {
-    expect(mergeBounds([null, undefined])).toBeUndefined();
+    expect(mergeBounds({ rects: [null, undefined] })).toBeUndefined();
   });
   it('returns the single rect unchanged', () => {
     const r: Rect = { x: 1, y: 2, width: 3, height: 4 };
-    expect(mergeBounds([r, null])).toEqual(r);
+    expect(mergeBounds({ rects: [r, null] })).toEqual(r);
   });
   it('merges multiple rects into an enclosing bound', () => {
     const a: Rect = { x: 0, y: 0, width: 10, height: 10 };
     const b: Rect = { x: 20, y: 20, width: 10, height: 10 };
-    expect(mergeBounds([a, b])).toEqual({ x: 0, y: 0, width: 30, height: 30 });
+    expect(mergeBounds({ rects: [a, b] })).toEqual({ x: 0, y: 0, width: 30, height: 30 });
   });
 });
 
 describe('mergeRects', () => {
   it('returns null for an empty list', () => {
-    expect(mergeRects([])).toBeNull();
+    expect(mergeRects({ rects: [] })).toBeNull();
   });
   it('merges several rects', () => {
     const a: Rect = { x: 0, y: 0, width: 5, height: 5 };
     const b: Rect = { x: 10, y: 10, width: 5, height: 5 };
-    expect(mergeRects([a, b])).toEqual({ x: 0, y: 0, width: 15, height: 15 });
+    expect(mergeRects({ rects: [a, b] })).toEqual({ x: 0, y: 0, width: 15, height: 15 });
   });
 });
 

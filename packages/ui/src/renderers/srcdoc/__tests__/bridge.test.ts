@@ -7,7 +7,7 @@ describe('applySrcDocBridges', () => {
       { id: 'a', inject: (doc) => `${doc}<a/>` },
       { id: 'b', inject: (doc) => `${doc}<b/>` },
     ];
-    expect(applySrcDocBridges('<root/>', bridges)).toBe('<root/><a/><b/>');
+    expect(applySrcDocBridges({ doc: '<root/>', bridges })).toBe('<root/><a/><b/>');
   });
 
   it('passes the shared context through to every bridge', () => {
@@ -21,7 +21,7 @@ describe('applySrcDocBridges', () => {
         },
       },
     ];
-    applySrcDocBridges('<root/>', bridges, { baseHref: 'https://example.com/' });
+    applySrcDocBridges({ doc: '<root/>', bridges }, { baseHref: 'https://example.com/' });
     expect(seen).toEqual(['https://example.com/']);
   });
 
@@ -35,10 +35,10 @@ describe('applySrcDocBridges', () => {
       },
       { id: 'ok', inject: (doc) => `${doc}<ok/>` },
     ];
-    expect(applySrcDocBridges('<root/>', bridges)).toBe('<root/><ok/>');
+    expect(applySrcDocBridges({ doc: '<root/>', bridges })).toBe('<root/><ok/>');
   });
 
   it('returns the input unchanged with no bridges', () => {
-    expect(applySrcDocBridges('<root/>', [])).toBe('<root/>');
+    expect(applySrcDocBridges({ doc: '<root/>', bridges: [] })).toBe('<root/>');
   });
 });

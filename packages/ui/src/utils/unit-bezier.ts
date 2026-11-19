@@ -4,7 +4,7 @@
  */
 
 /** Returns the easing function for the given control points; inputs are clamped to [0, 1]. */
-export function unitBezier(x1: number, y1: number, x2: number, y2: number): (x: number) => number {
+export function unitBezier({ x1, y1, x2, y2 }: { x1: number; y1: number; x2: number; y2: number }, _optional: Record<string, never> = {}): (x: number) => number {
   const cx = 3 * x1;
   const bx = 3 * (x2 - x1) - cx;
   const ax = 1 - cx - bx;

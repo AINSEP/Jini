@@ -108,7 +108,7 @@ describe('createBrowserFullscreenPort', () => {
 describe('createBrowserNewTabPreviewPort', () => {
   it("delegates to the sandboxed new-tab preview owner", () => {
     createBrowserNewTabPreviewPort().openInNewTab('<p>hi</p>', 'My Title');
-    expect(openSandboxedPreviewInNewTab).toHaveBeenCalledWith('<p>hi</p>', 'My Title');
+    expect(openSandboxedPreviewInNewTab).toHaveBeenCalledWith({ html: '<p>hi</p>', title: 'My Title' });
   });
 });
 

@@ -51,7 +51,7 @@ function useEditorBlockOffsets({ editorRef, blockLines, sourceText }: {
     if (cached && cached.width === width && cached.offsets.length === blockLines.length) {
       return cached.offsets;
     }
-    const offsets = measureEditorBlockOffsets(editor, blockLines, sourceText);
+    const offsets = measureEditorBlockOffsets({ textarea: editor, blockLines, text: sourceText });
     if (!offsets) return null;
     editorBlockOffsetsRef.current = { width, offsets };
     return offsets;
@@ -116,7 +116,7 @@ function useApplyScrollSync({
       const target = targetPane === 'editor' ? editorRef.current : previewRef.current;
       if (mode !== 'split' || !source || !target) return;
       const editorOffsets = getEditorBlockOffsets();
-      const previewOffsets = editorOffsets ? measurePreviewBlockOffsets(previewRef.current!, blockLineCount, previewSelector) : null;
+      const previewOffsets = editorOffsets ? measurePreviewBlockOffsets({ pane: previewRef.current!, blockCount: blockLineCount }, { previewSelector }) : null;
       const targetTop = computeSplitPaneScrollTarget({
         sourcePane,
         source,
@@ -228,7 +228,7 @@ function useScrollSyncLifecycle({ mode, resyncKey, activePaneRef, guard, schedul
 export function useMarkdownScrollSync(options: UseMarkdownScrollSyncOptions): UseMarkdownScrollSyncResult {
   const { mode, sourceText, editorRef, previewRef, previewSelector, resyncKey } = options;
   const activePaneRef = useRef<MarkdownScrollPane>('editor');
-  const blockLines = useMemo(() => extractMarkdownBlockLines(sourceText), [sourceText]);
+  const blockLines = useMemo(() => extractMarkdownBlockLines({ markdown: sourceText }), [sourceText]);
   const getEditorBlockOffsets = useEditorBlockOffsets({ editorRef, blockLines, sourceText });
   const guard = useProgrammaticScrollGuard(activePaneRef);
   const applyScrollSync = useApplyScrollSync({

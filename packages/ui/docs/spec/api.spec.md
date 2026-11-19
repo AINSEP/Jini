@@ -331,17 +331,17 @@ registry.resolve({ file: ArtifactFile }, { hints? } = {}): ArtifactRenderMatch |
 registry.register({ renderer }): RendererRegistry
 resolveArtifactManifest({ file }: { file: ArtifactFile }): ArtifactManifest | null
 createDefaultRendererRegistry(): RendererRegistry
-buildSrcDoc(html: string, options: BuildSrcDocOptions = {}): string
+buildSrcDoc({ html }: { html: string }, options: BuildSrcDocOptions = {}): string
 buildLazySrcDocTransport(): string
 canActivateSrcDocTransport(state: SrcDocActivationInputs): boolean
-sanitizePreviewTitle(text: string): string
-sanitizeTitleInDoc(html: string): string
-highlightCode(code: string, lang: string): Promise<string>
+sanitizePreviewTitle({ text }: { text: string }, _optional: Record<string, never> = {}): string
+sanitizeTitleInDoc({ html }: { html: string }, _optional: Record<string, never> = {}): string
+highlightCode({ code, lang }: { code: string; lang: string }, _optional: Record<string, never> = {}): Promise<string>
 ArtifactView(props: ArtifactViewProps): ReactNode
 SrcDocSandbox(props: SrcDocSandboxProps): JSX.Element
 ```
 
-Default registry contains Html/Markdown/Svg/ReactComponent renderers. Renderer port `{id,supportsStreaming,renderPartial?,canRender({file},{hints?}):boolean}` supplies detection; custom output is an `ArtifactViewSlots.renderers` callback. Public utility families include safe markdown rendering, URL-load/focus/shim decisions, ordered `SrcDocBridge` injection, head/body insertion (including `StringOnly` variants), document/base/storage/focus helpers, `buildSandboxedDocument`, sandbox bridge hooks, sandboxed new-tab preview, annotation canvas and preview-modal shell. Older document helpers remain positional, returning strings or their declared document result; browser launch helpers return their declared popup result. No backend port is required for registry matching; consumers supply file manifests, content and any custom bridge/slots.
+Default registry contains Html/Markdown/Svg/ReactComponent renderers. Renderer port `{id,supportsStreaming,renderPartial?,canRender({file},{hints?}):boolean}` supplies detection; custom output is an `ArtifactViewSlots.renderers` callback. Public utility families include safe markdown rendering, URL-load/focus/shim decisions, ordered `SrcDocBridge` injection, head/body insertion (including `StringOnly` variants), document/base/storage/focus helpers, `buildSandboxedDocument`, sandbox bridge hooks, sandboxed new-tab preview, annotation canvas and preview-modal shell. Document helpers take a required input object and an optional options object defaulting to `{}`, returning strings or their declared document result; browser launch helpers return their declared popup result. No backend port is required for registry matching; consumers supply file manifests, content and any custom bridge/slots.
 
 The renderer subpath has its own `I18nProvider({dictionary?,children})`, `useI18n(): {t}`, `useT(): translator`; it is distinct from the root locale provider.
 
@@ -525,7 +525,7 @@ These names are also reachable through the current export map. Parameter declara
 | `applySketchContextMenuSimplification(root: HTMLElement, viewportRoot: HTMLElement, allowList: readonly string[], recognizedActions: readonly string[],)` | [dom.ts](../../src/features/sketch-editor/dom.ts) |
 | `applySketchDomTextOverrides(root: ParentNode, overrides: SketchDomTextOverrides \| undefined)` | [dom.ts](../../src/features/sketch-editor/dom.ts) |
 | `applySketchEditorTooltips(root: HTMLElement, labels: SketchTooltipLabels, targets: readonly SketchTooltipTarget[],)` | [dom.ts](../../src/features/sketch-editor/dom.ts) |
-| `applySrcDocBridges(doc: string, bridges: readonly SrcDocBridge[], ctx: SrcDocBridgeContext = {},)` | [bridge.ts](../../src/renderers/srcdoc/bridge.ts) |
+| `applySrcDocBridges({ doc, bridges }: { doc: string; bridges: readonly SrcDocBridge[] }, ctx: SrcDocBridgeContext = {})` | [bridge.ts](../../src/renderers/srcdoc/bridge.ts) |
 | `basename(dir: string)` | [WorkingDirPicker.tsx](../../src/react/components/WorkingDirPicker.tsx) |
 | `basenameForRename(path: string, currentDir: string)` | [rules.ts](../../src/features/asset-tree-browser/rules.ts) |
 | `beginSilentUpdatesWrite(next: boolean)` | [rules.ts](../../src/features/about/rules.ts) |
@@ -541,11 +541,11 @@ These names are also reachable through the current export map. Parameter declara
 | `buildFaviconUrl(host: string, size: number)` | [BrandLogo.tsx](../../src/react/components/BrandLogo.tsx) |
 | `buildFocusGuardScript()` | [sandboxed-document.ts](../../src/renderers/sandboxed-document.ts) |
 | `buildInitialData(scene: SketchScene, fileName: string, defaultStrokeColor: string,)` | [rules.ts](../../src/features/sketch-editor/rules.ts) |
-| `buildLocalizedUrl(locale: string, options: LocalizedUrlOptions)` | [localized-url.ts](../../src/utils/localized-url.ts) |
+| `buildLocalizedUrl({ locale, ...options }: { locale: string } & LocalizedUrlOptions, _optional: Record<string, never> = {})` | [localized-url.ts](../../src/utils/localized-url.ts) |
 | `buildMcpStdioServerConfig(info: McpInstallInfo)` | [rules.ts](../../src/features/integrations/rules.ts) |
-| `buildSandboxedPreviewPage(html: string, title: string, options: NewTabPreviewOptions = {},)` | [new-tab-preview.ts](../../src/renderers/new-tab-preview.ts) |
+| `buildSandboxedPreviewPage({ html, title }: { html: string; title: string }, options: NewTabPreviewOptions = {})` | [new-tab-preview.ts](../../src/renderers/new-tab-preview.ts) |
 | `buildScheduleValue(state: ScheduleEditorState)` | [rules.ts](../../src/features/schedule-picker/rules.ts) |
-| `buildScrollAnchors(blockOffsets: number[], scrollHeight: number)` | [markdown-scroll-sync.ts](../../src/utils/markdown-scroll-sync.ts) |
+| `buildScrollAnchors({ blockOffsets, scrollHeight }: { blockOffsets: number[]; scrollHeight: number }, _optional: Record<string, never> = {})` | [markdown-scroll-sync.ts](../../src/utils/markdown-scroll-sync.ts) |
 | `buildSharedMcpJson(serverName: string, info: McpInstallInfo)` | [rules.ts](../../src/features/integrations/rules.ts) |
 | `buildSketchTooltipLabels(t: SketchTranslate)` | [rules.ts](../../src/features/sketch-editor/rules.ts) |
 | `buildStorageShimScript()` | [sandboxed-document.ts](../../src/renderers/sandboxed-document.ts) |
@@ -553,7 +553,7 @@ These names are also reachable through the current export map. Parameter declara
 | `buildVersionIndex(versions: readonly TVersion[],)` | [rules.ts](../../src/features/version-manager/rules.ts) |
 | `buildVsCodeSnippet(serverName: string, info: McpInstallInfo)` | [rules.ts](../../src/features/integrations/rules.ts) |
 | `buildZedSnippet(serverName: string, info: McpInstallInfo)` | [rules.ts](../../src/features/integrations/rules.ts) |
-| `buildZip(entries: ZipEntry[])` | [zip.ts](../../src/utils/zip.ts) |
+| `buildZip({ entries }: { entries: ZipEntry[] }, _optional: Record<string, never> = {})` | [zip.ts](../../src/utils/zip.ts) |
 | `canCopyLocalPath(file: TFile, selectors: AssetTreeSelectors<TFile>)` | [rules.ts](../../src/features/asset-tree-browser/rules.ts) |
 | `canGoBack(state: BrowserNavigationState)` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
 | `canGoForward(state: BrowserNavigationState)` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
@@ -562,7 +562,7 @@ These names are also reachable through the current export map. Parameter declara
 | `captureFolderPathDrop({ event, port, composer }: CaptureFolderPathDropInput)` | [rules.ts](../../src/features/folder-path-drop/rules.ts) |
 | `cardIdsInBand(rects: readonly CardRect[], band: Band)` | [rules.ts](../../src/features/asset-grid/rules.ts) |
 | `chatActivityToProgressCard(message: ChatActivityLike \| null, options: ChatActivityToProgressCardOptions,)` | [reference-adapters.ts](../../src/features/progress-card/reference-adapters.ts) |
-| `clamp01(value: number)` | [rules.ts](../../src/renderers/annotation-canvas/rules.ts) |
+| `clamp01({ value }: { value: number }, _optional: Record<string, never> = {})` | [rules.ts](../../src/renderers/annotation-canvas/rules.ts) |
 | `clampAnchoredPosition(anchorRect: TabLauncherAnchorRect, viewportWidth: number, menuWidth: number = MENU_WIDTH, margin: number = VIEWPORT_MARGIN, offset: number = ANCHOR_OFFSET,)` | [rules.ts](../../src/features/tab-launcher-menu/rules.ts) |
 | `clampMinute(value: number)` | [rules.ts](../../src/features/schedule-picker/rules.ts) |
 | `clampProgressPercent(value: number)` | [rules.ts](../../src/features/progress-card/rules.ts) |
@@ -576,13 +576,13 @@ These names are also reachable through the current export map. Parameter declara
 | `cliEnvFieldsForAgent(fields: readonly AgentCliEnvFieldSpec[], agentId: string,)` | [rules.ts](../../src/features/execution/rules.ts) |
 | `cloneJson(value: unknown, fallback: T)` | [rules.ts](../../src/features/sketch-editor/rules.ts) |
 | `commandPaletteShortcut(platform: McpInstallPlatform)` | [rules.ts](../../src/features/integrations/rules.ts) |
-| `compositeMarksOntoCanvas(ctx: CanvasRenderingContext2D, input: { target: CaptureTarget \| null; selectionBoxes: readonly NormalizedRect[]; strokes: readonly Stroke[]; textMarks: readonly TextMark[]; }, outputWidth: number, outputHeight: number, scaleX: number, scaleY: number,)` | [drawing.ts](../../src/renderers/annotation-canvas/drawing.ts) |
+| `compositeMarksOntoCanvas({ ctx, target, selectionBoxes, strokes, textMarks, outputWidth, outputHeight, scaleX, scaleY }: { ctx: CanvasRenderingContext2D; target: CaptureTarget \| null; selectionBoxes: readonly NormalizedRect[]; strokes: readonly Stroke[]; textMarks: readonly TextMark[]; outputWidth: number; outputHeight: number; scaleX: number; scaleY: number }, _optional: Record<string, never> = {})` | [drawing.ts](../../src/renderers/annotation-canvas/drawing.ts) |
 | `computeCustomSelectMenuPosition(rect: { top: number; bottom: number; left: number; width: number }, viewport: { width: number; height: number },)` | [CustomSelect.tsx](../../src/react/components/CustomSelect.tsx) |
 | `computeDockPlacement(input: DockPlacementInput)` | [rules.ts](../../src/renderers/annotation-canvas/rules.ts) |
 | `computeMenuPosition(anchor: MenuAnchorRect, viewportHeight: number, options: MenuPositionOptions = {},)` | [rules.ts](../../src/features/asset-tree-browser/rules.ts) |
-| `computeScalerStyle(stageSize: { w: number; h: number }, designWidth: number, scale: number,)` | [rules.ts](../../src/renderers/preview-modal-shell/rules.ts) |
+| `computeScalerStyle({ stageSize, designWidth, scale }: { stageSize: { w: number; h: number }; designWidth: number; scale: number }, _optional: Record<string, never> = {})` | [rules.ts](../../src/renderers/preview-modal-shell/rules.ts) |
 | `computeSplitPaneScrollTarget(params: { sourcePane: MarkdownScrollPane; source: { scrollTop: number; scrollHeight: number; clientHeight: number }; target: { scrollHeight: number; clientHeight: number }; blockLineCount: number; editorOffsets: number[] \| null; previewOffsets: number[] \| null; })` | [rules.ts](../../src/features/viewer-shell/rules.ts) |
-| `computeStageScale(stageWidth: number, designWidth: number)` | [rules.ts](../../src/renderers/preview-modal-shell/rules.ts) |
+| `computeStageScale({ stageWidth, designWidth }: { stageWidth: number; designWidth: number }, _optional: Record<string, never> = {})` | [rules.ts](../../src/renderers/preview-modal-shell/rules.ts) |
 | `connectorAppLabel(connectorId: string)` | [constants.ts](../../src/features/memory/constants.ts) |
 | `connectorAttemptDetail(attempt: ConnectorMemoryAttempt)` | [formatters.ts](../../src/features/memory/formatters.ts) |
 | `connectorAttemptName(attempt: ConnectorMemoryAttempt)` | [formatters.ts](../../src/features/memory/formatters.ts) |
@@ -625,7 +625,7 @@ These names are also reachable through the current export map. Parameter declara
 | `createFakeSourceConfigDependencies(options: FakeSourceConfigPortOptions<TSource>,)` | [dependencies.ts](../../src/features/source-config-list/dependencies.ts) |
 | `createFakeSourceConfigPort(options: FakeSourceConfigPortOptions<TSource>,)` | [dependencies.ts](../../src/features/source-config-list/dependencies.ts) |
 | `createFakeVersionManagerPort(seed?: ReadonlyMap<string, TVersion[]>,)` | [dependencies.ts](../../src/features/version-manager/dependencies.ts) |
-| `createFileSystemReadError(action: string, error: unknown)` | [file-system-errors.ts](../../src/utils/file-system-errors.ts) |
+| `createFileSystemReadError({ action, error }: { action: string; error: unknown }, _optional: Record<string, never> = {})` | [file-system-errors.ts](../../src/utils/file-system-errors.ts) |
 | `createJsonRpcError({ id, code, message }: { id: number \| string; code: number; message: string }, { data }: { data?: unknown } = {})` | [mcp-ui-apps.ts](../../../agentic/src/core/mcp-ui-apps.ts) |
 | `createJsonRpcNotification({ method }: { method: string }, { params }: { params?: Record<string, unknown> \| undefined } = {})` | [mcp-ui-apps.ts](../../../agentic/src/core/mcp-ui-apps.ts) |
 | `createJsonRpcRequest({ id, method }: { id: number \| string; method: string }, { params }: { params?: Record<string, unknown> \| undefined } = {})` | [mcp-ui-apps.ts](../../../agentic/src/core/mcp-ui-apps.ts) |
@@ -639,7 +639,7 @@ These names are also reachable through the current export map. Parameter declara
 | `dayHeading(key: string, referenceDate: Date = new Date())` | [rules.ts](../../src/features/asset-grid/rules.ts) |
 | `dayHeadingResult(key: string, referenceDate: Date = new Date())` | [rules.ts](../../src/features/asset-grid/rules.ts) |
 | `dayKeyFromTimestamp(timestampMs: number)` | [rules.ts](../../src/features/asset-grid/rules.ts) |
-| `decideAutoOpenAfterWrite(filePath: string, nextFiles: ReadonlyArray<CandidateFile>, options: AutoOpenOptions = {},)` | [auto-open-file.ts](../../src/utils/auto-open-file.ts) |
+| `decideAutoOpenAfterWrite({ filePath, nextFiles }: { filePath: string; nextFiles: ReadonlyArray<CandidateFile> }, options: AutoOpenOptions = {})` | [auto-open-file.ts](../../src/utils/auto-open-file.ts) |
 | `decomposeSchedule(schedule: ScheduleValue, weekdays: WeekdayOption[] = DEFAULT_WEEKDAYS,)` | [rules.ts](../../src/features/schedule-picker/rules.ts) |
 | `dedupeToolUsesById(events: AgentEventLike[] \| undefined)` | [reference-adapters.ts](../../src/features/progress-card/reference-adapters.ts) |
 | `defaultCategoryLabel(category: string)` | [rules.ts](../../src/features/connectors/rules.ts) |
@@ -650,7 +650,7 @@ These names are also reachable through the current export map. Parameter declara
 | `defaultProgressCardTitle(status: ProgressStatus)` | [rules.ts](../../src/features/progress-card/rules.ts) |
 | `defaultScheduleEditorState(timezone: string)` | [rules.ts](../../src/features/schedule-picker/rules.ts) |
 | `deriveAboutUpdateControl(model: UpdaterModel, appVersionInfo: AppVersionInfo \| null,)` | [rules.ts](../../src/features/about/rules.ts) |
-| `deriveContentStatus(view: PreviewModalContentViewLike \| undefined)` | [rules.ts](../../src/renderers/preview-modal-shell/rules.ts) |
+| `deriveContentStatus({ view }: { view: PreviewModalContentViewLike \| undefined }, _optional: Record<string, never> = {})` | [rules.ts](../../src/renderers/preview-modal-shell/rules.ts) |
 | `deriveFileOpsFromAgentEvents(events: AgentEventLike[] \| undefined)` | [reference-adapters.ts](../../src/features/progress-card/reference-adapters.ts) |
 | `deriveMarkKind(input: { hasTarget: boolean; hasVisualMark: boolean; })` | [rules.ts](../../src/renderers/annotation-canvas/rules.ts) |
 | `deriveTreeChildren(files: readonly TFile[], folders: readonly AssetTreeFolderItem[], currentDir: string,)` | [rules.ts](../../src/features/asset-tree-browser/rules.ts) |
@@ -658,32 +658,32 @@ These names are also reachable through the current export map. Parameter declara
 | `describeExtractionFailure(record: MemoryExtractionRecord)` | [formatters.ts](../../src/features/memory/formatters.ts) |
 | `describeRecord(record: MemoryExtractionRecord, t: Translate,)` | [formatters.ts](../../src/features/memory/formatters.ts) |
 | `describeScheduleSummary(schedule: ScheduleValue, weekdays: WeekdayOption[] = DEFAULT_WEEKDAYS)` | [rules.ts](../../src/features/schedule-picker/rules.ts) |
-| `designMdDefaultModuleText(module: DesignMdModule, preamble = '')` | [design-md.ts](../../src/utils/design-md.ts) |
-| `designMdHeadingMatches(title: string, module: DesignMdModule)` | [design-md.ts](../../src/utils/design-md.ts) |
-| `designMdHeadings(body: string, startOffset: number)` | [design-md.ts](../../src/utils/design-md.ts) |
-| `designMdModuleSlice(body: string, module: DesignMdModule)` | [design-md.ts](../../src/utils/design-md.ts) |
+| `designMdDefaultModuleText({ module }: { module: DesignMdModule }, { preamble = '' }: { preamble?: string \| undefined } = {})` | [design-md.ts](../../src/utils/design-md.ts) |
+| `designMdHeadingMatches({ title, module }: { title: string; module: DesignMdModule }, _optional: Record<string, never> = {})` | [design-md.ts](../../src/utils/design-md.ts) |
+| `designMdHeadings({ body, startOffset }: { body: string; startOffset: number }, _optional: Record<string, never> = {})` | [design-md.ts](../../src/utils/design-md.ts) |
+| `designMdModuleSlice({ body, module }: { body: string; module: DesignMdModule }, _optional: Record<string, never> = {})` | [design-md.ts](../../src/utils/design-md.ts) |
 | `designSystemGenerationJobToProgressCard(job: DesignSystemGenerationJobLike)` | [reference-adapters.ts](../../src/features/progress-card/reference-adapters.ts) |
 | `detectInitialLocale(options: DetectInitialLocaleOptions)` | [locale.ts](../../src/features/i18n/locale.ts) |
 | `detectLocalTimezone()` | [timezone.ts](../../src/utils/timezone.ts) |
 | `diffAddedLines(baseText: string, proposedText: string)` | [rules.ts](../../src/features/revision-review/rules.ts) |
 | `dockPlacementEquals(a: DockPlacement, b: DockPlacement)` | [rules.ts](../../src/renderers/annotation-canvas/rules.ts) |
-| `drawCaptureTarget(ctx: CanvasRenderingContext2D, scaleX: number, scaleY: number, target: CaptureTarget \| null,)` | [drawing.ts](../../src/renderers/annotation-canvas/drawing.ts) |
-| `drawNormalizedBox(ctx: CanvasRenderingContext2D, box: NormalizedRect, width: number, height: number)` | [drawing.ts](../../src/renderers/annotation-canvas/drawing.ts) |
-| `drawTextMarks(ctx: CanvasRenderingContext2D, marks: readonly TextMark[], width: number, height: number)` | [drawing.ts](../../src/renderers/annotation-canvas/drawing.ts) |
+| `drawCaptureTarget({ ctx, scaleX, scaleY, target }: { ctx: CanvasRenderingContext2D; scaleX: number; scaleY: number; target: CaptureTarget \| null }, _optional: Record<string, never> = {})` | [drawing.ts](../../src/renderers/annotation-canvas/drawing.ts) |
+| `drawNormalizedBox({ ctx, box, width, height }: { ctx: CanvasRenderingContext2D; box: NormalizedRect; width: number; height: number }, _optional: Record<string, never> = {})` | [drawing.ts](../../src/renderers/annotation-canvas/drawing.ts) |
+| `drawTextMarks({ ctx, marks, width, height }: { ctx: CanvasRenderingContext2D; marks: readonly TextMark[]; width: number; height: number }, _optional: Record<string, never> = {})` | [drawing.ts](../../src/renderers/annotation-canvas/drawing.ts) |
 | `dropEdgeForClientY(clientY: number, targetRect: { top: number; height: number })` | [rules.ts](../../src/features/viewer-shell/rules.ts) |
 | `effectivePreviewScale(preset: ViewportPreset, previewScale: number, canvasSize: PreviewCanvasSize \| undefined, canvasPadding: number,)` | [rules.ts](../../src/features/version-manager/rules.ts) |
 | `emptySketchScene(name?: string)` | [rules.ts](../../src/features/sketch-editor/rules.ts) |
 | `emptySourceDraft(fieldSpecs: readonly SourceFieldSpec[])` | [rules.ts](../../src/features/source-config-list/rules.ts) |
 | `enabledPatch(enabled: boolean)` | [rules.ts](../../src/features/memory/rules.ts) |
 | `enhanceSketchExcalidrawPortals(closeLabel: string, onClose: () => void, domTextOverrides: SketchDomTextOverrides \| undefined, insertLabelPattern: RegExp,)` | [dom.ts](../../src/features/sketch-editor/dom.ts) |
-| `escapeHtmlAttribute(value: string)` | [html-utils.ts](../../src/renderers/html-utils.ts) |
-| `eventHitsModalWindowDragStrip(event: MouseEvent \| PointerEvent, backdropSelector: string,)` | [useModalWindowDragGuard.ts](../../src/browser/useModalWindowDragGuard.ts) |
+| `escapeHtmlAttribute({ value }: { value: string }, _optional: Record<string, never> = {})` | [html-utils.ts](../../src/renderers/html-utils.ts) |
+| `eventHitsModalWindowDragStrip({ event, backdropSelector }: { event: MouseEvent \| PointerEvent; backdropSelector: string }, _optional: Record<string, never> = {})` | [useModalWindowDragGuard.ts](../../src/browser/useModalWindowDragGuard.ts) |
 | `exportViaHttp({ exportPath, filenamePrefix }: { exportPath: string; filenamePrefix: string }, { fetch }: { fetch?: typeof globalThis.fetch } = {},)` | [ExportDiagnosticsButton.tsx](../../src/react/components/ExportDiagnosticsButton.tsx) |
 | `exportedImageFileName(fileName: string, sourceExtension?: string)` | [rules.ts](../../src/features/sketch-editor/rules.ts) |
 | `exportedImageResultFileName(result: SketchExportImageResult, fallback: string)` | [rules.ts](../../src/features/sketch-editor/rules.ts) |
 | `extensionForMimeType({ mimeType })` | [file-transfer.ts](../../src/utils/file-transfer.ts) |
 | `externalLocations(locations: readonly ProjectLocation[])` | [rules.ts](../../src/features/project-locations/rules.ts) |
-| `extractMarkdownBlockLines(markdown: string)` | [markdown-scroll-sync.ts](../../src/utils/markdown-scroll-sync.ts) |
+| `extractMarkdownBlockLines({ markdown }: { markdown: string }, _optional: Record<string, never> = {})` | [markdown-scroll-sync.ts](../../src/utils/markdown-scroll-sync.ts) |
 | `extractionCardMeta(record: MemoryExtractionRecord, now: number, t: Translate)` | [formatters.ts](../../src/features/memory/formatters.ts) |
 | `extractionCardTitle(record: MemoryExtractionRecord, t: Translate)` | [formatters.ts](../../src/features/memory/formatters.ts) |
 | `fallbackFilename(prefix: string)` | [ExportDiagnosticsButton.tsx](../../src/react/components/ExportDiagnosticsButton.tsx) |
@@ -700,7 +700,7 @@ These names are also reachable through the current export map. Parameter declara
 | `fileDropzoneStagingKey(file: File)` | [rules.ts](../../src/features/file-dropzone/rules.ts) |
 | `fileExtensionLabel(path: string)` | [rules.ts](../../src/features/asset-tree-browser/rules.ts) |
 | `fileNameFromHeader(header: string \| null)` | [ExportDiagnosticsButton.tsx](../../src/react/components/ExportDiagnosticsButton.tsx) |
-| `filesFromClipboardData(clipboardData: DataTransfer \| null)` | [file-transfer.ts](../../src/utils/file-transfer.ts) |
+| `filesFromClipboardData({ clipboardData }: { clipboardData: DataTransfer \| null }, _optional: Record<string, never> = {})` | [file-transfer.ts](../../src/utils/file-transfer.ts) |
 | `filesFromDataTransfer(dataTransfer: DataTransfer)` | [file-transfer.ts](../../src/utils/file-transfer.ts) |
 | `filesFromFileSystemEntry(entry: FileSystemEntry)` | [file-transfer.ts](../../src/utils/file-transfer.ts) |
 | `filterAgentModelOptions(options: readonly AgentModelOption[], query: string, selectedValue: string,)` | [rules.ts](../../src/features/execution/rules.ts) |
@@ -713,7 +713,7 @@ These names are also reachable through the current export map. Parameter declara
 | `filterTabs(tabs: readonly TabLauncherResultItem[], query: string, kindFilter: string, maxResults: number = MAX_TAB_RESULTS,)` | [rules.ts](../../src/features/tab-launcher-menu/rules.ts) |
 | `filterVersionsBySearch(versions: readonly TVersion[], search: string, describe: (version: TVersion) => string,)` | [rules.ts](../../src/features/version-manager/rules.ts) |
 | `filterVisibleActionGroups(groups: HeaderMenuAction[][])` | [HeaderActionsMenu.tsx](../../src/react/components/HeaderActionsMenu.tsx) |
-| `findActiveView(views: readonly V[], activeId: string,)` | [rules.ts](../../src/renderers/preview-modal-shell/rules.ts) |
+| `findActiveView({ views, activeId }: { views: readonly V[]; activeId: string }, _optional: Record<string, never> = {})` | [rules.ts](../../src/renderers/preview-modal-shell/rules.ts) |
 | `findSelectedItem(items: readonly TItem[], selectedId: string \| null,)` | [rules.ts](../../src/features/list-detail-panel/rules.ts) |
 | `findSketchMermaidInsertButton(content: HTMLElement, insertLabelPattern: RegExp)` | [dom.ts](../../src/features/sketch-editor/dom.ts) |
 | `findStaleAuthorizations(pendingBeforeReload: ConnectorAuthorizationPendingState, statuses: ConnectorStatusMap, nowMs: number,)` | [rules.ts](../../src/features/connectors/rules.ts) |
@@ -765,18 +765,18 @@ These names are also reachable through the current export map. Parameter declara
 | `historyStorageKey(namespace: string, scopeKey: string)` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
 | `homeConfigPath(platform: McpInstallPlatform, posix: string, windows: string)` | [rules.ts](../../src/features/integrations/rules.ts) |
 | `hostnameFromUrl(url: string)` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
-| `htmlNeedsFocusGuard(source: string)` | [url-load-decision.ts](../../src/renderers/url-load-decision.ts) |
-| `htmlNeedsSandboxShim(source: string)` | [url-load-decision.ts](../../src/renderers/url-load-decision.ts) |
+| `htmlNeedsFocusGuard({ source }: { source: string }, _optional: Record<string, never> = {})` | [url-load-decision.ts](../../src/renderers/url-load-decision.ts) |
+| `htmlNeedsSandboxShim({ source }: { source: string }, _optional: Record<string, never> = {})` | [url-load-decision.ts](../../src/renderers/url-load-decision.ts) |
 | `humanBytes(n: number)` | [rules.ts](../../src/features/asset-tree-browser/rules.ts) |
 | `humanFileSize(bytes: number)` | [rules.ts](../../src/features/viewer-shell/rules.ts) |
 | `humanizeSkillCategory(slug: string)` | [rules.ts](../../src/features/skills/rules.ts) |
 | `initialNavigationState(initialUrl?: string, initialTitle?: string, homeEntry: BrowserNavigationEntry = DEFAULT_HOME_NAVIGATION_ENTRY,)` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
-| `injectAfterHeadOpen(doc: string, payload: string)` | [build.ts](../../src/renderers/srcdoc/build.ts) |
+| `injectAfterHeadOpen({ doc, payload }: { doc: string; payload: string }, _optional: Record<string, never> = {})` | [build.ts](../../src/renderers/srcdoc/build.ts) |
 | `injectAfterHeadOpenStringOnly(doc: string, payload: string)` | [html-utils.ts](../../src/renderers/html-utils.ts) |
-| `injectBaseHref(doc: string, baseHref: string)` | [sandboxed-document.ts](../../src/renderers/sandboxed-document.ts) |
-| `injectBeforeBodyEnd(doc: string, payload: string)` | [build.ts](../../src/renderers/srcdoc/build.ts) |
+| `injectBaseHref({ doc, baseHref }: { doc: string; baseHref: string }, _optional: Record<string, never> = {})` | [sandboxed-document.ts](../../src/renderers/sandboxed-document.ts) |
+| `injectBeforeBodyEnd({ doc, payload }: { doc: string; payload: string }, _optional: Record<string, never> = {})` | [build.ts](../../src/renderers/srcdoc/build.ts) |
 | `injectBeforeBodyEndStringOnly(doc: string, payload: string)` | [html-utils.ts](../../src/renderers/html-utils.ts) |
-| `injectBeforeHeadEnd(doc: string, payload: string)` | [build.ts](../../src/renderers/srcdoc/build.ts) |
+| `injectBeforeHeadEnd({ doc, payload }: { doc: string; payload: string }, _optional: Record<string, never> = {})` | [build.ts](../../src/renderers/srcdoc/build.ts) |
 | `injectBeforeHeadEndStringOnly(doc: string, payload: string)` | [html-utils.ts](../../src/renderers/html-utils.ts) |
 | `insertMentionToken(value: string, match: MentionTriggerMatch \| null, token: string,)` | [rules.ts](../../src/features/mention-autocomplete/rules.ts) |
 | `installBootTimingObserver(options: BootTimingOptions = {})` | [boot-timing.ts](../../src/features/observability/boot-timing.ts) |
@@ -791,7 +791,7 @@ These names are also reachable through the current export map. Parameter declara
 | `isBaseUrlInvalid(config: ByokConfig)` | [rules.ts](../../src/features/execution/rules.ts) |
 | `isBuiltInSkill(skill: SkillSummary)` | [rules.ts](../../src/features/skills/rules.ts) |
 | `isCategoryVisible(activeFilter: MentionCategoryFilter, categoryId: string)` | [rules.ts](../../src/features/mention-autocomplete/rules.ts) |
-| `isClosedLoop(points: readonly Point[], closeThreshold = 28)` | [polygon-selection.ts](../../src/utils/polygon-selection.ts) |
+| `isClosedLoop({ points }: { points: readonly Point[] }, { closeThreshold = 28 }: { closeThreshold?: number \| undefined } = {})` | [polygon-selection.ts](../../src/utils/polygon-selection.ts) |
 | `isCustomSelectEventInside(target: Node, button: HTMLElement \| null, menu: HTMLElement \| null,)` | [CustomSelect.tsx](../../src/react/components/CustomSelect.tsx) |
 | `isCustomSelectGroup(item: CustomSelectItem)` | [CustomSelect.tsx](../../src/react/components/CustomSelect.tsx) |
 | `isDeletableSkill(skill: SkillSummary)` | [rules.ts](../../src/features/skills/rules.ts) |
@@ -801,11 +801,11 @@ These names are also reachable through the current export map. Parameter declara
 | `isEntryPresent(entry: MediaProviderCredentials \| null \| undefined)` | [rules.ts](../../src/features/media-providers/rules.ts) |
 | `isExcalidrawUnableToEmbedToast(message: string, additionalPhrases: readonly string[] = [])` | [rules.ts](../../src/features/sketch-editor/rules.ts) |
 | `isFileSystemReadError(error: unknown)` | [file-system-errors.ts](../../src/utils/file-system-errors.ts) |
-| `isFullHtmlDocument(html: string)` | [sandboxed-document.ts](../../src/renderers/sandboxed-document.ts) |
+| `isFullHtmlDocument({ html }: { html: string }, _optional: Record<string, never> = {})` | [sandboxed-document.ts](../../src/renderers/sandboxed-document.ts) |
 | `isHeaderMenuDismissKey(key: string)` | [HeaderActionsMenu.tsx](../../src/react/components/HeaderActionsMenu.tsx) |
 | `isHistoryEntry(value: unknown)` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
 | `isHistoryUrl(url: string)` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
-| `isImeComposing(event: ReactKeyboardEvent<HTMLInputElement \| HTMLTextAreaElement>, composing: boolean,)` | [ime-composing.ts](../../src/utils/ime-composing.ts) |
+| `isImeComposing({ _event, composing }: { _event: ReactKeyboardEvent<HTMLInputElement \| HTMLTextAreaElement>; composing: boolean }, _optional: Record<string, never> = {})` | [ime-composing.ts](../../src/utils/ime-composing.ts) |
 | `isJsonRpcMessage(required: { value: unknown }, _optional: Record<string, never> = {})` | [mcp-ui-apps.ts](../../../agentic/src/core/mcp-ui-apps.ts) |
 | `isJsonRpcRequest(required: { message: JsonRpcMessage }, _optional: Record<string, never> = {})` | [mcp-ui-apps.ts](../../../agentic/src/core/mcp-ui-apps.ts) |
 | `isKnownZoomLevel(zoom: number, levels: readonly number[])` | [rules.ts](../../src/features/html-viewer/rules.ts) |
@@ -825,7 +825,7 @@ These names are also reachable through the current export map. Parameter declara
 | `isTrustedConnectorCallbackOrigin(origin: string, currentOrigin: string)` | [rules.ts](../../src/features/connectors/rules.ts) |
 | `isTypingTarget(el: Element \| null)` | [rules.ts](../../src/features/asset-grid/rules.ts) |
 | `isValidApiBaseUrl(raw: string)` | [rules.ts](../../src/features/execution/rules.ts) |
-| `isVisualStabilityMode(storageKey: string = DEFAULT_VISUAL_STABILITY_STORAGE_KEY,)` | [visual-stability.ts](../../src/utils/visual-stability.ts) |
+| `isVisualStabilityMode(_required: Record<string, never>, { storageKey = DEFAULT_VISUAL_STABILITY_STORAGE_KEY }: { storageKey?: string \| undefined } = {})` | [visual-stability.ts](../../src/utils/visual-stability.ts) |
 | `issueForField(validation: SourceDraftValidation, fieldKey: string,)` | [rules.ts](../../src/features/source-config-list/rules.ts) |
 | `labelFromUrl(url: string, homeLabel: string = DEFAULT_HOME_NAVIGATION_ENTRY.title)` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
 | `languageMenuItemClassName(active: boolean)` | [LanguageMenu.tsx](../../src/react/components/LanguageMenu.tsx) |
@@ -834,32 +834,32 @@ These names are also reachable through the current export map. Parameter declara
 | `lassoSelectionHitsRect(input: LassoHitTestInput)` | [polygon-selection.ts](../../src/utils/polygon-selection.ts) |
 | `latestStatusDetailFromAgentEvents(events: AgentEventLike[])` | [reference-adapters.ts](../../src/features/progress-card/reference-adapters.ts) |
 | `latestTodosFromAgentEvents(events: AgentEventLike[] \| undefined)` | [reference-adapters.ts](../../src/features/progress-card/reference-adapters.ts) |
-| `lineIntersectsLine(a1: Point, a2: Point, b1: Point, b2: Point)` | [polygon-selection.ts](../../src/utils/polygon-selection.ts) |
+| `lineIntersectsLine({ a1, a2, b1, b2 }: { a1: Point; a2: Point; b1: Point; b2: Point }, _optional: Record<string, never> = {})` | [polygon-selection.ts](../../src/utils/polygon-selection.ts) |
 | `listSupportedTimezones()` | [timezone.ts](../../src/utils/timezone.ts) |
 | `localDayKey(date: Date)` | [rules.ts](../../src/features/asset-grid/rules.ts) |
 | `localizedSkillDescription(skill: SkillSummary, locale: string)` | [rules.ts](../../src/features/skills/rules.ts) |
 | `localizedSkillName(skill: SkillSummary, locale: string)` | [rules.ts](../../src/features/skills/rules.ts) |
 | `locationLabel(locationPath: string)` | [rules.ts](../../src/features/project-locations/rules.ts) |
 | `luminance({ hex }: { hex: string })` | [color-math.ts](../../src/utils/color-math.ts) |
-| `mapScrollPosition(value: number, source: number[], target: number[])` | [markdown-scroll-sync.ts](../../src/utils/markdown-scroll-sync.ts) |
+| `mapScrollPosition({ value, source, target }: { value: number; source: number[]; target: number[] }, _optional: Record<string, never> = {})` | [markdown-scroll-sync.ts](../../src/utils/markdown-scroll-sync.ts) |
 | `maskFieldValue(kind: SourceFieldSpec['kind'], value: string)` | [rules.ts](../../src/features/source-config-list/rules.ts) |
 | `maskedKeyLabel(entry: MediaProviderCredentials \| null \| undefined)` | [rules.ts](../../src/features/media-providers/rules.ts) |
-| `measureEditorBlockOffsets(textarea: HTMLTextAreaElement, blockLines: number[], text: string,)` | [markdown-scroll-sync.ts](../../src/utils/markdown-scroll-sync.ts) |
-| `measurePreviewBlockOffsets(pane: HTMLElement, blockCount: number, previewSelector = '.markdown-rendered',)` | [markdown-scroll-sync.ts](../../src/utils/markdown-scroll-sync.ts) |
+| `measureEditorBlockOffsets({ textarea, blockLines, text }: { textarea: HTMLTextAreaElement; blockLines: number[]; text: string }, _optional: Record<string, never> = {})` | [markdown-scroll-sync.ts](../../src/utils/markdown-scroll-sync.ts) |
+| `measurePreviewBlockOffsets({ pane, blockCount }: { pane: HTMLElement; blockCount: number }, { previewSelector = '.markdown-rendered' }: { previewSelector?: string \| undefined } = {})` | [markdown-scroll-sync.ts](../../src/utils/markdown-scroll-sync.ts) |
 | `memoryCountLabel(count: number)` | [formatters.ts](../../src/features/memory/formatters.ts) |
 | `memoryEntryIdForConnectorSuggestion(suggestion: MemorySuggestion)` | [rules.ts](../../src/features/memory/rules.ts) |
 | `memoryFlashLabels(t: Translate)` | [formatters.ts](../../src/features/memory/formatters.ts) |
 | `memorySourceTabs(t: Translate)` | [formatters.ts](../../src/features/memory/formatters.ts) |
 | `memoryTypeLabels(t: Translate)` | [formatters.ts](../../src/features/memory/formatters.ts) |
 | `mentionSelectionKey(categoryId: string, itemId: string)` | [rules.ts](../../src/features/mention-autocomplete/rules.ts) |
-| `mergeBounds(rects: ReadonlyArray<Rect \| null \| undefined>)` | [rules.ts](../../src/renderers/annotation-canvas/rules.ts) |
+| `mergeBounds({ rects }: { rects: ReadonlyArray<Rect \| null \| undefined> }, _optional: Record<string, never> = {})` | [rules.ts](../../src/renderers/annotation-canvas/rules.ts) |
 | `mergeConnectorActionResult(current: Connector, next: Connector)` | [rules.ts](../../src/features/connectors/rules.ts) |
 | `mergeConnectorToolPreview(current: Connector, next: Connector, append: boolean)` | [rules.ts](../../src/features/connectors/rules.ts) |
 | `mergeConnectors(current: Connector[], incoming: Connector[])` | [rules.ts](../../src/features/connectors/rules.ts) |
 | `mergeDaemonProviders(localProviders: MediaProviderMap \| null \| undefined, daemonProviders: MediaProviderMap \| null \| undefined, options?: { preserveLocalProviderIds?: ReadonlySet<string>; dropProviderIds?: ReadonlySet<string> },)` | [rules.ts](../../src/features/media-providers/rules.ts) |
 | `mergeHistoryEntry(history: BrowserHistoryEntry[], url: string, meta: MergeHistoryEntryMeta = {}, options: MergeHistoryEntryOptions = {}, now: number = Date.now(),)` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
 | `mergeIngestedAssets(prev: TAsset[], fetched: readonly TAsset[],)` | [rules.ts](../../src/features/asset-grid/rules.ts) |
-| `mergeRects(rects: ReadonlyArray<Rect>)` | [rules.ts](../../src/renderers/annotation-canvas/rules.ts) |
+| `mergeRects({ rects }: { rects: ReadonlyArray<Rect> }, _optional: Record<string, never> = {})` | [rules.ts](../../src/renderers/annotation-canvas/rules.ts) |
 | `methodLabelForClient(clientId: McpClientId)` | [rules.ts](../../src/features/integrations/rules.ts) |
 | `missingRequiredFields(config: ByokConfig, preset: ProviderPreset \| null,)` | [rules.ts](../../src/features/execution/rules.ts) |
 | `mixHex({ hex, other, weight }: { hex: string; other: string; weight: number })` | [color-math.ts](../../src/utils/color-math.ts) |
@@ -881,20 +881,20 @@ These names are also reachable through the current export map. Parameter declara
 | `nextStateForShareAll(state: PrivacyConsentState, now: number, newInstallationId: () => string = generateInstallationId,)` | [rules.ts](../../src/features/privacy/rules.ts) |
 | `nextStateForTelemetryPatch(state: PrivacyConsentState, patch: Partial<TelemetryPreferences>, now: number, newInstallationId: () => string = generateInstallationId,)` | [rules.ts](../../src/features/privacy/rules.ts) |
 | `normalizeBrowserAddress(rawAddress: string, options: NormalizeBrowserAddressOptions = {})` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
-| `normalizeDesignMdModuleDraft(module: DesignMdModule, draft: string)` | [design-md.ts](../../src/utils/design-md.ts) |
+| `normalizeDesignMdModuleDraft({ module, draft }: { module: DesignMdModule; draft: string }, _optional: Record<string, never> = {})` | [design-md.ts](../../src/utils/design-md.ts) |
 | `normalizeHex({ value }: { value: string \| undefined })` | [color-math.ts](../../src/utils/color-math.ts) |
 | `normalizePastedFile(file: File)` | [file-transfer.ts](../../src/utils/file-transfer.ts) |
 | `normalizeTooltipLabel(value: string \| null \| undefined)` | [rules.ts](../../src/features/sketch-editor/rules.ts) |
 | `normalizedRectFromPoints(a: Point, b: Point)` | [rules.ts](../../src/renderers/annotation-canvas/rules.ts) |
 | `notificationPermission()` | [notifications.ts](../../src/utils/notifications.ts) |
 | `onboardingEmptyMessageKey(searchable: boolean)` | [OnboardingDropdown.tsx](../../src/react/components/OnboardingDropdown.tsx) |
-| `openExternalUrl(url: string)` | [dom-subscriptions.ts](../../src/utils/dom-subscriptions.ts) |
-| `openSandboxedPreviewInNewTab(html: string, title: string, options: NewTabPreviewOptions = {},)` | [new-tab-preview.ts](../../src/renderers/new-tab-preview.ts) |
+| `openExternalUrl({ url }: { url: string }, _optional: Record<string, never> = {})` | [dom-subscriptions.ts](../../src/utils/dom-subscriptions.ts) |
+| `openSandboxedPreviewInNewTab({ html, title }: { html: string; title: string }, options: NewTabPreviewOptions = {})` | [new-tab-preview.ts](../../src/renderers/new-tab-preview.ts) |
 | `orderContextMenuActions(actionNames: readonly string[], allowList: readonly string[])` | [rules.ts](../../src/features/sketch-editor/rules.ts) |
 | `paletteItemClassName(state: { selected: boolean; hovered: boolean; })` | [PaletteTweaks.tsx](../../src/react/components/PaletteTweaks.tsx) |
 | `parseConnectorAuthorizationPendingState(raw: string)` | [rules.ts](../../src/features/connectors/rules.ts) |
 | `parseDeckStateMessage(data: unknown)` | [rules.ts](../../src/features/html-viewer/rules.ts) |
-| `parseForceInline(search: string \| URLSearchParams \| null \| undefined)` | [url-load-decision.ts](../../src/renderers/url-load-decision.ts) |
+| `parseForceInline({ search }: { search: string \| URLSearchParams \| null \| undefined }, _optional: Record<string, never> = {})` | [url-load-decision.ts](../../src/renderers/url-load-decision.ts) |
 | `parseHistoryPayload(raw: string, limit: number = HISTORY_LIMIT)` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
 | `parseLiveUpdateAssetId(data: unknown, idField = 'id')` | [rules.ts](../../src/features/asset-grid/rules.ts) |
 | `parseMaxTokens(raw: string)` | [rules.ts](../../src/features/execution/rules.ts) |
@@ -905,15 +905,15 @@ These names are also reachable through the current export map. Parameter declara
 | `parseTriggers(raw: string)` | [rules.ts](../../src/features/skills/rules.ts) |
 | `pathIntersectsRect(points: readonly Point[], rect: Rect)` | [polygon-selection.ts](../../src/utils/polygon-selection.ts) |
 | `pendingActionKey(id: string, kind: SourceActionKind)` | [rules.ts](../../src/features/source-config-list/rules.ts) |
-| `playSound(id: SoundId)` | [notifications.ts](../../src/utils/notifications.ts) |
+| `playSound({ id }: { id: SoundId }, _optional: Record<string, never> = {})` | [notifications.ts](../../src/utils/notifications.ts) |
 | `pointInPolygon(point: Point, polygon: readonly Point[])` | [polygon-selection.ts](../../src/utils/polygon-selection.ts) |
 | `positionTooltip(target: HTMLElement, tooltip: HTMLElement, placement: TooltipPlacement,)` | [TooltipLayer.tsx](../../src/react/components/TooltipLayer.tsx) |
 | `presentKinds(items: readonly TabLauncherResultItem[])` | [rules.ts](../../src/features/tab-launcher-menu/rules.ts) |
 | `presetRequiresApiKey(preset: ProviderPreset \| null)` | [rules.ts](../../src/features/execution/rules.ts) |
 | `presetsForProtocol(presets: readonly ProviderPreset[], protocol: ByokConfig['protocol'],)` | [rules.ts](../../src/features/execution/rules.ts) |
-| `previewFailure(id: SoundId)` | [notifications.ts](../../src/utils/notifications.ts) |
+| `previewFailure({ id }: { id: SoundId }, _optional: Record<string, never> = {})` | [notifications.ts](../../src/utils/notifications.ts) |
 | `previewScaleShellStyle(preset: ViewportPreset, previewScale: number,)` | [rules.ts](../../src/features/version-manager/rules.ts) |
-| `previewSuccess(id: SoundId)` | [notifications.ts](../../src/utils/notifications.ts) |
+| `previewSuccess({ id }: { id: SoundId }, _optional: Record<string, never> = {})` | [notifications.ts](../../src/utils/notifications.ts) |
 | `previewViewportStyle(preset: ViewportPreset, effectiveScale: number, previewScale: number,)` | [rules.ts](../../src/features/version-manager/rules.ts) |
 | `progressBarAriaValueNow(progress: number \| 'indeterminate')` | [rules.ts](../../src/features/progress-card/rules.ts) |
 | `progressBarWidthPercent(progress: number \| 'indeterminate')` | [rules.ts](../../src/features/progress-card/rules.ts) |
@@ -941,14 +941,14 @@ These names are also reachable through the current export map. Parameter declara
 | `recordNavigation(state: BrowserNavigationState, url: string, title?: string, options: RecordNavigationOptions = {},)` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
 | `rectContains(outer: Rect, inner: Rect)` | [polygon-selection.ts](../../src/utils/polygon-selection.ts) |
 | `rectsOverlap(a: Rect, b: Rect)` | [rules.ts](../../src/renderers/annotation-canvas/rules.ts) |
-| `redrawStrokesAndBoxes(ctx: CanvasRenderingContext2D, input: { strokes: readonly Stroke[]; drawingStroke: Stroke \| null; selectionBoxes: readonly NormalizedRect[]; boxDraft: NormalizedRect \| null; }, width: number, height: number, dpr: number,)` | [drawing.ts](../../src/renderers/annotation-canvas/drawing.ts) |
+| `redrawStrokesAndBoxes({ ctx, strokes, drawingStroke, selectionBoxes, boxDraft, width, height, dpr }: { ctx: CanvasRenderingContext2D; strokes: readonly Stroke[]; drawingStroke: Stroke \| null; selectionBoxes: readonly NormalizedRect[]; boxDraft: NormalizedRect \| null; width: number; height: number; dpr: number }, _optional: Record<string, never> = {})` | [drawing.ts](../../src/renderers/annotation-canvas/drawing.ts) |
 | `relativeCommentTimeTranslation(timestampMs: number, nowMs: number = Date.now(),)` | [rules.ts](../../src/features/viewer-shell/rules.ts) |
 | `relativeTimeResult(ts: number, nowMs: number = Date.now())` | [rules.ts](../../src/features/asset-tree-browser/rules.ts) |
 | `removeSketchMermaidShortcutHints(content: HTMLElement, insertLabelPattern: RegExp)` | [dom.ts](../../src/features/sketch-editor/dom.ts) |
 | `removeSourceById(list: readonly TSource[], id: string,)` | [rules.ts](../../src/features/source-config-list/rules.ts) |
 | `renderMarkdownToSafeHtml(markdown: string)` | [markdown.ts](../../src/renderers/renderers/markdown.ts) |
 | `reorderCommentIds(ids: string[], draggingId: string, targetId: string, edge: CommentSideDropEdge,)` | [rules.ts](../../src/features/viewer-shell/rules.ts) |
-| `replaceDesignMdModule(body: string, module: DesignMdModule, draft: string)` | [design-md.ts](../../src/utils/design-md.ts) |
+| `replaceDesignMdModule({ body, module, draft }: { body: string; module: DesignMdModule; draft: string }, _optional: Record<string, never> = {})` | [design-md.ts](../../src/utils/design-md.ts) |
 | `requestNotificationPermission()` | [notifications.ts](../../src/utils/notifications.ts) |
 | `resolveActiveLocaleLabel(locales: LocaleOption[], locale: string)` | [LanguageMenu.tsx](../../src/react/components/LanguageMenu.tsx) |
 | `resolveCheckboxClickAction(modifiers: { shiftKey: boolean })` | [rules.ts](../../src/features/asset-grid/rules.ts) |
@@ -958,7 +958,7 @@ These names are also reachable through the current export map. Parameter declara
 | `resolveFacetLabel(value: string, labelsByValue: ReadonlyMap<string, string>)` | [rules.ts](../../src/features/asset-grid/rules.ts) |
 | `resolveGlobalKeydownTarget({ target }: { target: 'window' \| 'document' }, { globals = globalThis }: { globals?: { window?: EventTarget; document?: EventTarget } } = {},)` | [useGlobalKeydown.ts](../../src/browser/useGlobalKeydown.ts) |
 | `resolveInitialCustomSelectActiveValue(flatOptions: CustomSelectFlatOption[], enabledOptions: CustomSelectFlatOption[], value: string,)` | [CustomSelect.tsx](../../src/react/components/CustomSelect.tsx) |
-| `resolveInitialViewId(views: readonly V[], initialViewId: string \| undefined,)` | [rules.ts](../../src/renderers/preview-modal-shell/rules.ts) |
+| `resolveInitialViewId({ views, initialViewId }: { views: readonly V[]; initialViewId: string \| undefined }, _optional: Record<string, never> = {})` | [rules.ts](../../src/renderers/preview-modal-shell/rules.ts) |
 | `resolveKindConfig(kind: string, kindConfig: AssetTreeKindConfigMap)` | [rules.ts](../../src/features/asset-tree-browser/rules.ts) |
 | `resolveListDetailSelection(items: readonly TItem[], currentId: string \| null,)` | [rules.ts](../../src/features/list-detail-panel/rules.ts) |
 | `resolveLogoSrc(opts: { stage: LogoStage; brandId?: string \| undefined; resolveBrandLogoUrl?: ((brandId: string) => string) \| undefined; logoSrc?: string \| null \| undefined; host?: string \| undefined; faviconSize: number; resolveFaviconUrl: (host: string, size: number) => string; })` | [BrandLogo.tsx](../../src/react/components/BrandLogo.tsx) |
@@ -987,8 +987,8 @@ These names are also reachable through the current export map. Parameter declara
 | `sceneContentSignature(elements: readonly unknown[], appState: Record<string, unknown>, files: Record<string, unknown>,)` | [rules.ts](../../src/features/sketch-editor/rules.ts) |
 | `sceneFromExcalidraw(elements: readonly unknown[], appState: Record<string, unknown>, files: Record<string, unknown>,)` | [rules.ts](../../src/features/sketch-editor/rules.ts) |
 | `scheduleEditorStateFromValue(value: ScheduleValue, base: ScheduleEditorState,)` | [rules.ts](../../src/features/schedule-picker/rules.ts) |
-| `scheduleInterval(callback: () => void, ms: number)` | [dom-subscriptions.ts](../../src/utils/dom-subscriptions.ts) |
-| `scheduleTimeout(callback: () => void, ms: number)` | [dom-subscriptions.ts](../../src/utils/dom-subscriptions.ts) |
+| `scheduleInterval({ callback, ms }: { callback: () => void; ms: number }, _optional: Record<string, never> = {})` | [dom-subscriptions.ts](../../src/utils/dom-subscriptions.ts) |
+| `scheduleTimeout({ callback, ms }: { callback: () => void; ms: number }, _optional: Record<string, never> = {})` | [dom-subscriptions.ts](../../src/utils/dom-subscriptions.ts) |
 | `scopeConnectorsToProvider(connectors: Connector[], providerTabs: readonly ProviderTab[], selectedProviderId: string,)` | [rules.ts](../../src/features/connectors/rules.ts) |
 | `scoreItemMatch(item: CommandPaletteItem, query: string)` | [rules.ts](../../src/features/command-palette/rules.ts) |
 | `scrollRange(element: { scrollHeight: number; clientHeight: number })` | [rules.ts](../../src/features/viewer-shell/rules.ts) |
@@ -996,7 +996,7 @@ These names are also reachable through the current export map. Parameter declara
 | `scrollTabsWithWheel({ tabBar, event }: { tabBar: Pick<HTMLDivElement, 'clientWidth' \| 'scrollLeft' \| 'scrollWidth'>; event: Pick<globalThis.WheelEvent, 'ctrlKey' \| 'deltaMode' \| 'deltaX' \| 'deltaY' \| 'preventDefault'>; },)` | [scroll-tabs-with-wheel.ts](../../src/utils/scroll-tabs-with-wheel.ts) |
 | `scrollTopForRatio(element: { scrollHeight: number; clientHeight: number }, ratio: number,)` | [rules.ts](../../src/features/viewer-shell/rules.ts) |
 | `selectAllIds(items: readonly TAsset[])` | [rules.ts](../../src/features/asset-grid/rules.ts) |
-| `selectAutoOpenProducedArtifact(producedFiles: ReadonlyArray<CandidateFile>, options: SelectAutoOpenOptions = {},)` | [auto-open-file.ts](../../src/utils/auto-open-file.ts) |
+| `selectAutoOpenProducedArtifact({ producedFiles }: { producedFiles: ReadonlyArray<CandidateFile> }, options: SelectAutoOpenOptions = {})` | [auto-open-file.ts](../../src/utils/auto-open-file.ts) |
 | `selectLruEvictions(entries: readonly IframeKeepAlivePoolEntry<TKey>[], activeKeys: ReadonlySet<TKey>, maxMounted: number,)` | [rules.ts](../../src/features/iframe-pool/rules.ts) |
 | `selectMatchingEvictions(entries: readonly IframeKeepAlivePoolEntry<TKey>[], activeKeys: ReadonlySet<TKey>, predicate: (entry: IframeKeepAlivePoolEntry<TKey>) => boolean, includeActive: boolean,)` | [rules.ts](../../src/features/iframe-pool/rules.ts) |
 | `selectedAgentModel(config: LocalCliConfig, agent: DetectedAgent)` | [rules.ts](../../src/features/execution/rules.ts) |
@@ -1004,7 +1004,7 @@ These names are also reachable through the current export map. Parameter declara
 | `serializeHistoryPayload(history: BrowserHistoryEntry[], limit: number = HISTORY_LIMIT)` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
 | `setTooltipAttribute(target: HTMLElement, name: string, value: string)` | [dom.ts](../../src/features/sketch-editor/dom.ts) |
 | `settingsShortcut(platform: McpInstallPlatform)` | [rules.ts](../../src/features/integrations/rules.ts) |
-| `shouldIgnoreClipboardFilePaste(target: EventTarget \| null)` | [file-transfer.ts](../../src/utils/file-transfer.ts) |
+| `shouldIgnoreClipboardFilePaste({ target }: { target: EventTarget \| null }, _optional: Record<string, never> = {})` | [file-transfer.ts](../../src/utils/file-transfer.ts) |
 | `shouldShowCustomModelInput(modelValue: string, knownModelIds: readonly string[], explicitCustomMode: boolean,)` | [rules.ts](../../src/features/execution/rules.ts) |
 | `shouldShowVersionSearch(versionCount: number, threshold: number)` | [rules.ts](../../src/features/version-manager/rules.ts) |
 | `shouldSyncLocalProvidersToDaemon(localProviders: MediaProviderMap \| null \| undefined, daemonProviders: MediaProviderMap \| null \| undefined,)` | [rules.ts](../../src/features/media-providers/rules.ts) |
@@ -1039,12 +1039,12 @@ These names are also reachable through the current export map. Parameter declara
 | `splitReasoningModelId(modelId: string, levelIds: readonly string[],)` | [rules.ts](../../src/features/execution/rules.ts) |
 | `statusLabel(status: ConnectorStatus)` | [rules.ts](../../src/features/connectors/rules.ts) |
 | `statusToneFor(status: string, toneMap: ResourceStatusToneMap \| undefined)` | [rules.ts](../../src/features/resource-dashboard/rules.ts) |
-| `subscribeOutsideClickOrEscape(container: { current: HTMLElement \| null } \| undefined, onClose: () => void,)` | [dom-subscriptions.ts](../../src/utils/dom-subscriptions.ts) |
-| `subscribeVisibleFocusOrVisibilityChange(onVisible: () => void)` | [dom-subscriptions.ts](../../src/utils/dom-subscriptions.ts) |
-| `subscribeWindowEvent(eventName: string, onEvent: (event: Event) => void,)` | [dom-subscriptions.ts](../../src/utils/dom-subscriptions.ts) |
+| `subscribeOutsideClickOrEscape({ container, onClose }: { container: { current: HTMLElement \| null } \| undefined; onClose: () => void }, _optional: Record<string, never> = {})` | [dom-subscriptions.ts](../../src/utils/dom-subscriptions.ts) |
+| `subscribeVisibleFocusOrVisibilityChange({ onVisible }: { onVisible: () => void }, _optional: Record<string, never> = {})` | [dom-subscriptions.ts](../../src/utils/dom-subscriptions.ts) |
+| `subscribeWindowEvent({ eventName, onEvent }: { eventName: string; onEvent: (event: Event) => void }, _optional: Record<string, never> = {})` | [dom-subscriptions.ts](../../src/utils/dom-subscriptions.ts) |
 | `summaryToDraft(skill: SkillSummary, body: string)` | [rules.ts](../../src/features/skills/rules.ts) |
 | `testStatusLabel(result: TestStatus, labels: { testSentLabel: string; testFailedLabel: string })` | [rules.ts](../../src/features/notifications/rules.ts) |
-| `textFontSizePx(frameHeight: number)` | [drawing.ts](../../src/renderers/annotation-canvas/drawing.ts) |
+| `textFontSizePx({ frameHeight }: { frameHeight: number }, _optional: Record<string, never> = {})` | [drawing.ts](../../src/renderers/annotation-canvas/drawing.ts) |
 | `toHexByte({ value }: { value: number })` | [color-math.ts](../../src/utils/color-math.ts) |
 | `toStoredLocations(locations: readonly ProjectLocation[])` | [rules.ts](../../src/features/project-locations/rules.ts) |
 | `toastAriaLive(role: ToastRole)` | [Toast.tsx](../../src/react/components/Toast.tsx) |
@@ -1061,7 +1061,7 @@ These names are also reachable through the current export map. Parameter declara
 | `translateDomTextValue(value: string, overrides: SketchDomTextOverrides)` | [rules.ts](../../src/features/sketch-editor/rules.ts) |
 | `translatedScheduleSummaryLabel(t: I18nContextValue['t'], schedule: ScheduleValue, weekdays?: WeekdayOption[],)` | [ScheduleSummary.tsx](../../src/features/schedule-picker/react/components/ScheduleSummary.tsx) |
 | `triggerBrowserDownload(blob: Blob, filename: string)` | [useAssetTreeBatchActions.ts](../../src/features/asset-tree-browser/react/hooks/useAssetTreeBatchActions.ts) |
-| `tzCityLabel(timezone: string)` | [timezone.ts](../../src/utils/timezone.ts) |
+| `tzCityLabel({ timezone }: { timezone: string }, _optional: Record<string, never> = {})` | [timezone.ts](../../src/utils/timezone.ts) |
 | `updateConnectorAuthorizationPendingFromConnectResponse(pending: ConnectorAuthorizationPendingState, response: ConnectorActionResult, nowMs: number,)` | [rules.ts](../../src/features/connectors/rules.ts) |
 | `updateConnectorAuthorizationPendingFromStatuses(pending: ConnectorAuthorizationPendingState, statuses: ConnectorStatusMap, nowMs: number,)` | [rules.ts](../../src/features/connectors/rules.ts) |
 | `updateCurrentNavigationTitle(state: BrowserNavigationState, title?: string)` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
@@ -1186,7 +1186,7 @@ These names are also reachable through the current export map. Parameter declara
 | `visibleSelectedCommentIds(comments: TComment[], selectedIds: ReadonlySet<string>,)` | [rules.ts](../../src/features/viewer-shell/rules.ts) |
 | `withPendingAction(pendingKeys: ReadonlySet<string>, id: string, kind: SourceActionKind,)` | [rules.ts](../../src/features/source-config-list/rules.ts) |
 | `withoutPendingAction(pendingKeys: ReadonlySet<string>, id: string, kind: SourceActionKind,)` | [rules.ts](../../src/features/source-config-list/rules.ts) |
-| `wrapFragmentAsDocument(html: string)` | [sandboxed-document.ts](../../src/renderers/sandboxed-document.ts) |
+| `wrapFragmentAsDocument({ html }: { html: string }, _optional: Record<string, never> = {})` | [sandboxed-document.ts](../../src/renderers/sandboxed-document.ts) |
 | `zoomToScale(zoom: number)` | [rules.ts](../../src/features/html-viewer/rules.ts) |
 
 | Additional exported names | Kind and source |

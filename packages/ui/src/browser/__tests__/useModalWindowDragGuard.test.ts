@@ -27,7 +27,7 @@ describe('eventHitsModalWindowDragStrip', () => {
     const backdrop = makeBackdrop();
     const event = new MouseEvent('mousedown', { clientY: 10 });
     Object.defineProperty(event, 'target', { value: backdrop });
-    expect(eventHitsModalWindowDragStrip(event, BACKDROP_SELECTOR)).toBe(true);
+    expect(eventHitsModalWindowDragStrip({ event, backdropSelector: BACKDROP_SELECTOR })).toBe(true);
     backdrop.remove();
   });
 
@@ -37,7 +37,7 @@ describe('eventHitsModalWindowDragStrip', () => {
       clientY: MODAL_WINDOW_DRAG_STRIP_HEIGHT + 1,
     });
     Object.defineProperty(event, 'target', { value: backdrop });
-    expect(eventHitsModalWindowDragStrip(event, BACKDROP_SELECTOR)).toBe(false);
+    expect(eventHitsModalWindowDragStrip({ event, backdropSelector: BACKDROP_SELECTOR })).toBe(false);
     backdrop.remove();
   });
 
@@ -46,7 +46,7 @@ describe('eventHitsModalWindowDragStrip', () => {
     other.className = 'not-a-backdrop';
     const event = new MouseEvent('mousedown', { clientY: 5 });
     Object.defineProperty(event, 'target', { value: other });
-    expect(eventHitsModalWindowDragStrip(event, BACKDROP_SELECTOR)).toBe(false);
+    expect(eventHitsModalWindowDragStrip({ event, backdropSelector: BACKDROP_SELECTOR })).toBe(false);
   });
 });
 
