@@ -18,3 +18,4 @@ export type {
   TrashRegistry,
 } from "./registry-types.js";
 export { trashEntityLockKey } from "./lock-keys.js";
+export * from "./trash-item-tool.js";
