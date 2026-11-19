@@ -190,3 +190,6 @@ export type { ImageCodecPort, ImageCodecLimits, ImageMetadata, ImageEncodeInput,
 // Document extraction policy/port only; optional SDK adapters have isolated plugin subpaths.
 export { DOCUMENT_EXTRACTION_LIMITS, DocumentTextExtractionError, type DocumentTextExtractorPort, type DocumentTextExtraction } from './document-text.js';
 export type { DocumentTextPage } from './document-read.js';
+
+export { InMemoryVersionedMediaRepo, type VersionedMediaRepoPort } from "./versioned-repo.js";
+export { guardMediaRenditionRepo } from "./guard-rendition-repo.js";

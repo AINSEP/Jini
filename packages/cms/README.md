@@ -24,7 +24,8 @@ Configuration writes only through the injected guarded settings writer; no deliv
 | subpath | runtime | contents |
 |---|---|---|
 | `.` / `./core` | universal | Content contracts and types, ports, pure domain services, kernel registries. No Express, no `node:*`, no DOM. |
-| `./media` | node | Media services, transform ports and preview policies. |
+| `./media` | node | Media services, transform ports and preview policies; versioned media repository and source-conditional rendition guard. |
+| `./media/cover-image` | universal | Read-only cover selection and iterative body projection with injected media metadata. |
 | `./media/node` | node | Filesystem blob stores, sharp image transforms and ffmpeg adapters. |
 | `./settings` | universal | One-release compatibility re-export of `@jini-ai/core/settings`. |
 | `./settings/express` | node | One-release compatibility re-export of `@jini-ai/core/settings/express`. |
