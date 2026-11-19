@@ -35,7 +35,9 @@ import {
 import { createToolRegistry, type Principal, type RunRef } from '@jini-ai/core';
 import type { JournalEntry } from '@jini-ai/protocol';
 import { createInMemoryEventLog } from '../../event-log.js';
-import { createRunLifecycle, DEFAULT_SLOW_RUN_THRESHOLD_MS, type RunLifecycle } from '../../run-lifecycle.js';
+import { createRunLifecycle } from '../../run-lifecycle.js';
+import type { RunLifecycle } from '../../run-lifecycle.js';
+import { DEFAULT_SLOW_RUN_THRESHOLD_MS } from '../../run-lifecycle-registry.js';
 import { createRunByteJournal, type RunByteJournal } from '../../continuation/journal.js';
 import type { ToolExecutionResult, ToolExecutor } from '../../tool-executor.js';
 import {

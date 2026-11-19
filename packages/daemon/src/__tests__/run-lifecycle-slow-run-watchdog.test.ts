@@ -31,7 +31,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RunProtocolEvent } from '@jini-ai/protocol';
 import { createInMemoryEventLog } from '../event-log.js';
 import type { EventLog } from '../event-log.js';
-import { createRunLifecycle, DEFAULT_SLOW_RUN_THRESHOLD_MS } from '../run-lifecycle.js';
+import { createRunLifecycle } from '../run-lifecycle.js';
+import { DEFAULT_SLOW_RUN_THRESHOLD_MS } from '../run-lifecycle-registry.js';
 
 function makeLifecycle(overrides?: Partial<Omit<Parameters<typeof createRunLifecycle>[0], 'eventLog'>>) {
   const eventLog = createInMemoryEventLog({});

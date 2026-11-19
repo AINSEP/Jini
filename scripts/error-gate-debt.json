@@ -1340,12 +1340,17 @@
     "value": 1
   },
   {
-    "file": "packages/daemon/src/run-lifecycle.ts",
+    "file": "packages/daemon/src/run-lifecycle-events.ts",
     "rule": "catch-reads-error",
-    "value": 2
+    "value": 1
   },
   {
-    "file": "packages/daemon/src/run-lifecycle.ts",
+    "file": "packages/daemon/src/run-lifecycle-registry.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/run-lifecycle-timers.ts",
     "rule": "no-generic-failure-text",
     "value": 6
   },

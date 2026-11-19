@@ -82,6 +82,17 @@ export * from './event-log.js';
 export * from './close-status.js';
 export * from './idle-monitor.js';
 export * from './run-lifecycle.js';
+export {
+  DEFAULT_TERMINAL_RETENTION_MS,
+  DEFAULT_MAX_TERMINAL_RUNS,
+  DEFAULT_SLOW_RUN_THRESHOLD_MS,
+  resolveIdempotentReplayRunId,
+  registerIdempotencyKeyIfPresent,
+  clearIdempotencyIndexEntryIfMatching,
+} from './run-lifecycle-registry.js';
+export { buildStartPayload } from './run-lifecycle-registration.js';
+export { deliverReplayedEvents, deliverUndeliveredEvents, finishStreamSubscription } from './run-lifecycle-events.js';
+export { computeRetentionDelayMs, armWatchdogIfConfigured, armSlowRunWatchdogIfConfigured } from './run-lifecycle-timers.js';
 export * from './ai-trace-lifecycle.js';
 export * from './tool-executor.js';
 export * from './delegated-tool-bridge.js';

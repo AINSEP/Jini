@@ -448,13 +448,6 @@
     "value": 844
   },
   {
-    "file": "packages/daemon/src/run-lifecycle.ts",
-    "function": "<file>",
-    "line": 909,
-    "rule": "max-lines",
-    "value": 689
-  },
-  {
     "file": "packages/daemon/src/store/event-log/sqlite.ts",
     "function": "bindSqliteEventLog",
     "line": 94,
