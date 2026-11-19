@@ -35,6 +35,14 @@ beforeEach(() => {
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 
+describe('integration-tests workspace', () => {
+  it('registers the private workspace without a public entry', () => {
+    manifest('integration-tests', { private: true, sideEffects: false });
+    put('packages/integration-tests/src/.gitkeep', '');
+    expect(gate()).toEqual([]);
+  });
+});
+
 describe('L5-injected-edge', () => {
   beforeEach(() => manifest('daemon', { dependencies: { '@jini-ai/core': '*', '@jini-ai/protocol': '*' } }));
 

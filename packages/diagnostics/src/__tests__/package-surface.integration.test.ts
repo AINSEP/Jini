@@ -1,6 +1,6 @@
 import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import * as root from "../index.js";
 import * as secrets from "../redaction/secrets-only.js";
 import * as observability from "../observability/index.js";
@@ -8,6 +8,10 @@ import * as observabilityNode from "../observability/node.js";
 import * as evidence from "../web-evidence/index.js";
 import * as browser from "../web-evidence/playwright-browser.js";
 import * as dns from "../domain-dns/index.js";
+
+vi.mock("parse5", () => {
+  throw new Error("The existing diagnostics entries must not load the page-body parser leaf.");
+});
 
 const packageRoot = new URL("../../", import.meta.url);
 const manifest = JSON.parse(readFileSync(new URL("package.json", packageRoot), "utf8"));
@@ -17,6 +21,7 @@ const entries = {
   "./observability": ["observability/index", "universal"],
   "./observability/node": ["observability/node", "node"],
   "./web-evidence": ["web-evidence/index", "universal"],
+  "./web-evidence/page-body": ["web-evidence/page-body", "node"],
   "./web-evidence/playwright": ["web-evidence/playwright-browser", "node"],
   "./domain-dns": ["domain-dns/index", "node"],
   "./local-text": ["local-text", "node"],
@@ -24,6 +29,13 @@ const entries = {
 } as const;
 
 describe("published diagnostics surface", () => {
+  it("keeps the parser leaf outside the existing evidence entry", () => {
+    expect(evidence).not.toHaveProperty("readPageBodyOptions");
+    expect(evidence).not.toHaveProperty("shapePageBody");
+    expect(evidence).not.toHaveProperty("DEFAULT_MAX_BODY_BYTES");
+    expect(evidence).not.toHaveProperty("MAX_MAX_BODY_BYTES");
+  });
+
   it.each(Object.entries(entries))("maps %s to its source and runtime", (subpath, [target, runtime]) => {
     expect(manifest.exports[subpath]).toEqual({
       types: `./dist/${target}.d.ts`,

@@ -54,6 +54,7 @@ const safe = redactText({ text: 'Authorization: Bearer example123456' });
 | `redaction/secrets-only` | universal | `redactSecretShapes({ text, policy })`; also exports `SECRET_PATTERNS`, `PEM_PATTERN_NAME` and policy/rule types. Preserves paths and ordinary error prose. |
 | `observability` | universal | Explicit configuration, no-op/tracing factories and request hooks; exports structural SDK, logger, metrics and request-ID ports; clocks use core `Clock`. |
 | `web-evidence` | universal | Bounded observation collector, same-origin helpers, the own-site path guard (`resolveSameOriginPath` with an injected pathname policy), the bounded body reader, the cookie-shape projection, browser/origin/policy ports and browser-serialized DOM structure capture. DOM capture itself runs in a page. |
+| `web-evidence/page-body` | node | Opt-in HTML/text/find projection via `readPageBodyOptions(input, options = {})` and `shapePageBody(body, options)`. Exports `DEFAULT_MAX_BODY_BYTES` (20,000), `MAX_MAX_BODY_BYTES` (1,000,000), `PageBodyOptions` and `ShapedPageBody`. Requires the host to install `parse5@7.3.0`; the universal evidence entry does not load this leaf. |
 | `web-evidence/playwright` | node | Optional adapter opened with `openPlaywrightSiteEvidenceBrowser({}, options)`. Core evidence imports never load Playwright. |
 | `domain-dns` | node | Hostname validators, record types, `DomainDnsInputError` and `createDomainDnsChecks(deps)`, over injected authorization, resolver, TLS and expected-host ports. |
 | `local-text` | node | `redactLocalText({ text }, { homeDir, platformPath })`: the shared redactor plus the literal home directory masked as `~`; a filesystem-root home masks nothing. |
@@ -162,3 +163,5 @@ An explicit debugging override wins; otherwise development denies, a packaged de
 production allows, and missing evidence denies. This decides eligibility only and never grants consent.
 Hosts interpret environment/packaging facts and pass the resulting boolean as the observability
 provider factory's `exportEnabled` option. Labels, DSNs and release strings are not launch evidence.
+
+`readPageBodyOptions` validates `find`, `textOnly` and `maxBytes` in that order and retains omitted option keys as `undefined`. `shapePageBody` retains raw byte clipping, while visible text and find snippets clip at UTF-8 boundaries. Find offsets are UTF-16 positions, counts cover the full shaped source, and at most 20 snippets share the byte budget. HTML traversal omits script, style, noscript and template subtrees and remains iterative for deeply nested input.
