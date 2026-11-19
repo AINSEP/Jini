@@ -40,6 +40,7 @@
       "./navigation/href": "universal",
       "./navigation/node": "node",
       "./media/slug": "universal",
+      "./media/cover-image": "universal",
       "./forms": "universal",
       "./forms/email-sender": "universal",
       "./forms/html": "node",
@@ -292,6 +293,11 @@
       "types": "./dist/media/slug.d.ts",
       "import": "./dist/media/slug.js",
       "default": "./dist/media/slug.js"
+    },
+    "./media/cover-image": {
+      "types": "./dist/media/cover-image.d.ts",
+      "import": "./dist/media/cover-image.js",
+      "default": "./dist/media/cover-image.js"
     },
     "./forms": {
       "types": "./dist/forms/index.d.ts",
