@@ -12,7 +12,7 @@ function tempFile(): string { const root = nodeFs.mkdtempSync(path.join(os.tmpdi
 afterEach(() => { for (const root of roots.splice(0)) nodeFs.rmSync(root, { recursive: true, force: true }); });
 const notices = { prefix: "fixture", lockTimeout: () => "fixture lock timeout" };
 function store(filePath: string, overrides: Partial<DurableJsonPorts> = {}, options: { pollMs?: number; staleMs?: number } = {}): DurableJsonFile {
-  return createDurableJsonFile({ filePath, ...createNodeDurableJsonPorts({}), ...overrides, notices }, options);
+  return createDurableJsonFile({ filePath, ...createNodeDurableJsonPorts({ env: {} }), ...overrides, notices }, options);
 }
 
 // --- construction ----------------------------------------------------------

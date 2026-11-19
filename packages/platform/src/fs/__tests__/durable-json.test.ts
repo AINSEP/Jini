@@ -12,7 +12,8 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { createDurableJsonFile, createNodeDurableJsonPorts, salvageJsonPrefix as salvage } from "../durable-json.js";
-function store(filePath: string) { return createDurableJsonFile({ filePath, ...createNodeDurableJsonPorts({}), notices: { prefix: "fixture desktop", lockTimeout: ({ lockPath, waitMs }: { lockPath: string; waitMs: number }) => `fixture desktop: ${lockPath} is still held by another Fixture process after ${waitMs}ms, so this change was not saved. Nothing was written over. Try again, or quit the other Fixture window.` } }); }
+import * as bootIdentity from "../boot-identity.js";
+function store(filePath: string) { return createDurableJsonFile({ filePath, ...createNodeDurableJsonPorts({ env: {} }), notices: { prefix: "fixture desktop", lockTimeout: ({ lockPath, waitMs }: { lockPath: string; waitMs: number }) => `fixture desktop: ${lockPath} is still held by another Fixture process after ${waitMs}ms, so this change was not saved. Nothing was written over. Try again, or quit the other Fixture window.` } }); }
 function readJsonFile(filePath: string) { return store(filePath).read({}); }
 function tempPathFor(filePath: string, pid = process.pid) { return store(filePath).tempPath({}, { pid }); }
 function writeStoreValue(filePath: string, value: unknown) { return store(filePath).write({ value }); }
@@ -155,7 +156,7 @@ test("durable JSON flushes bytes before replacement and directory metadata after
 // REGRESSION: fails if unsupported directory fsync turns a completed JSON replacement into failure.
 test("durable JSON accepts directory EPERM after publishing the new JSON", () => {
     const filePath = tempFile(); fs.writeFileSync(filePath, '{"old":true}');
-    const ports = createNodeDurableJsonPorts({});
+    const ports = createNodeDurableJsonPorts({ env: {} });
     let fileSyncs = 0;
     const filesystem = { ...ports.filesystem, fsyncSync: (descriptor: number) => {
         if (fs.fstatSync(descriptor).isDirectory()) throw Object.assign(new Error("EPERM: operation not permitted, fsync"), { code: "EPERM" });
@@ -167,5 +168,20 @@ test("durable JSON accepts directory EPERM after publishing the new JSON", () =>
         assert.equal(fileSyncs, 1);
         assert.deepEqual(JSON.parse(fs.readFileSync(filePath, "utf8")), { replacement: true });
         assert.deepEqual(fs.readdirSync(path.dirname(filePath)), ["store.json"]);
+    } finally { fs.rmSync(path.dirname(filePath), { recursive: true, force: true }); }
+});
+
+test("native durable JSON records the host boot while holding the transaction lock", () => {
+    const filePath = tempFile(), env = Object.freeze({ SystemRoot: "E:\\Host" });
+    const probe = vi.spyOn(bootIdentity, "readBootIdentity").mockReturnValue({ id: "host-boot", startedAtMs: 1 });
+    const file = createDurableJsonFile({ filePath, ...createNodeDurableJsonPorts({ env }), notices: { prefix: "fixture", lockTimeout: () => "locked" } });
+    try {
+        file.withLock({ critical: () => {
+            assert.match(fs.readFileSync(`${filePath}.lock`, "utf8"), new RegExp(`^${process.pid}:[^:]+:host-boot$`));
+            file.write({ value: { saved: true } });
+        } });
+        assert.deepEqual(probe.mock.calls, [[{ env }]]);
+        assert.deepEqual(file.read({}), { state: "ok", value: { saved: true } });
+        assert.equal(fs.existsSync(`${filePath}.lock`), false);
     } finally { fs.rmSync(path.dirname(filePath), { recursive: true, force: true }); }
 });

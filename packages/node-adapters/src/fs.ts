@@ -7,11 +7,11 @@
  * when either side changes. The process binding lives in `@jini-ai/node-adapters/process` (separate
  * entry: subpath isolation keeps the `fs` and `os` domains apart).
  */
-import type { AtomicFileWriterPort, FileLockPort } from "@jini-ai/core/contracts/runtime";
-import { backupOriginalOnce, writeFileAtomicAsync, writeJsonFileAtomicAsync, withFileLock } from "@jini-ai/platform/fs";
+import type { AtomicFileWriterPort } from "@jini-ai/core/contracts/runtime";
+import { backupOriginalOnce, writeFileAtomicAsync, writeJsonFileAtomicAsync } from "@jini-ai/platform/fs";
 
-/** The Node implementation of the lock port. */
-export const nodeFileLock = { withFileLock } satisfies FileLockPort;
+/** The host-bound Node implementation of the lock port. */
+export { createNodeFileLock } from "@jini-ai/platform/fs";
 
 /** The Node implementation of the atomic-writer port. */
 export const nodeAtomicWriter = { writeText: writeFileAtomicAsync, writeJson: writeJsonFileAtomicAsync, backupOriginalOnce } satisfies AtomicFileWriterPort;

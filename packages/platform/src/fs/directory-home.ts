@@ -5,13 +5,13 @@ import path from "node:path";
  * @complexity O(n) in the chosen path length.
  */
 export function resolveDirectoryHome(
-  { homeDir, defaultFolder, envName, env, setting }: {
+  { homeDir, defaultFolder, envName, directoryHomeOverride, setting }: {
     homeDir: string; defaultFolder: string; envName: string;
-    env: Record<string, string | undefined>; setting?: string | undefined;
+    directoryHomeOverride: string | undefined; setting?: string | undefined;
   }, { cwd = homeDir, platform = process.platform }: { cwd?: string; platform?: NodeJS.Platform } = {},
 ): string {
   const paths = platform === "win32" ? path.win32 : path;
-  const selected = env[envName] ?? setting ?? paths.join(homeDir, defaultFolder);
+  const selected = directoryHomeOverride ?? setting ?? paths.join(homeDir, defaultFolder);
   if (!selected.trim()) throw new Error(`${envName} must name a directory`);
   return resolveSelected({ selected, homeDir, cwd, paths });
 }

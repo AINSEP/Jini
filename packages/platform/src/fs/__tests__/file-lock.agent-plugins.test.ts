@@ -10,7 +10,7 @@ import { test } from "vitest";
 
 import { rm } from "node:fs/promises";
 const forceRemove = (target: string) => rm(target, { recursive: true, force: true });
-import { DEFAULT_LOCK_STALE_AFTER_MS, type FileLockOptions, withFileLock, withFileLockSync, isContendedLockError } from "../file-lock.js";
+import { createNodeLockProcess, DEFAULT_LOCK_STALE_AFTER_MS, type FileLockOptions, withFileLock, withFileLockSync, isContendedLockError } from "../file-lock.js";
 import {
   FileLockLostError,
   FileLockTimeoutError,
@@ -171,8 +171,8 @@ test.each(["sync", "async"] as const)("U6: %s times out on an aged live holder a
       monotonicMs: () => elapsed, sleep: () => { elapsed++; },
       onStaleLockRemoved: ({ holder }) => { removed.push(holder); },
     };
-    if (adapter === "sync") assert.throws(() => withFileLockSync(required, options), FileLockTimeoutError);
-    else await assert.rejects(withFileLock(required, options), FileLockTimeoutError);
+    if (adapter === "sync") assert.throws(() => withFileLockSync({ ...required, process: createNodeLockProcess({ env: {} }) }, options), FileLockTimeoutError);
+    else await assert.rejects(withFileLock({ ...required, process: createNodeLockProcess({ env: {} }) }, options), FileLockTimeoutError);
     assert.equal(ran, false, "a contender must not enter a live holder's critical section");
     assert.equal(removed.length, 0, "a live holder must not trigger stale removal");
     assert.equal(elapsed, 10);
@@ -361,5 +361,5 @@ test("U14: a lock that is re-taken the instant each stale break removes it still
 // Fixture adapter retains the source suite's liveness-injection spelling only inside these tests.
 function runLocked<T>(lockPath: string, run: Parameters<typeof withFileLock<T>>[0]["run"], options: FileLockOptions & { isProcessAlive?: (required: { pid: number }) => boolean } = {}): Promise<T> {
   const { isProcessAlive, ...settings } = options;
-  return withFileLock({ lockPath, run }, { ...settings, ...(isProcessAlive ? { process: { pid: process.pid, isAlive: isProcessAlive } } : {}) });
+  return withFileLock({ lockPath, run, process: isProcessAlive ? { pid: process.pid, isAlive: isProcessAlive } : createNodeLockProcess({ env: {} }) }, settings);
 }

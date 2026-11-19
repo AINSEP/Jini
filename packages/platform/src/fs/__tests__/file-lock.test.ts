@@ -3,8 +3,9 @@ import * as asyncFs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
-import { isLockStale, withFileLockSync, withFileLock } from "../file-lock.js";
+import { createNodeLockProcess, createNodeFileLock, isLockStale, withFileLockSync, withFileLock } from "../file-lock.js";
 import { FileLockTimeoutError } from "@jini-ai/core/contracts/runtime";
+import * as bootIdentity from "../boot-identity.js";
 const roots: string[] = [];
 function target(): string { const root = fs.mkdtempSync(path.join(os.tmpdir(), "inode-lock-")); roots.push(root); return path.join(root, "file.lock"); }
 afterEach(() => { vi.restoreAllMocks(); for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true }); });
@@ -21,7 +22,7 @@ for (const adapter of ["sync", "async"] as const) test(`${adapter} lock wait can
       if (++polls === 3) fs.rmSync(lockPath);
     } };
   const required = { lockPath, run: () => "bundle ready" };
-  const result = adapter === "sync" ? withFileLockSync(required, options) : await withFileLock(required, options);
+  const result = adapter === "sync" ? withFileLockSync({ ...required, process: createNodeLockProcess({ env: {} }) }, options) : await withFileLock({ ...required, process: createNodeLockProcess({ env: {} }) }, options);
   expect(result).toBe("bundle ready");
   expect(elapsed).toBe(225_000);
   expect(fs.existsSync(lockPath)).toBe(false);
@@ -30,12 +31,10 @@ for (const adapter of ["sync", "async"] as const) test(`${adapter} lock wait can
 test("an unlimited waiter still reclaims a dead local builder and finite waiters still time out", async () => {
   const lockPath = target();
   fs.writeFileSync(lockPath, "4242:dead-builder");
-  await expect(withFileLock({ lockPath, run: () => "recovered" }, { timeoutMs: Infinity, staleMs: Infinity,
-    process: { pid: process.pid, isAlive: () => false } })).resolves.toBe("recovered");
+  await expect(withFileLock({ process: { pid: process.pid, isAlive: () => false }, lockPath, run: () => "recovered" }, { timeoutMs: Infinity, staleMs: Infinity })).resolves.toBe("recovered");
   fs.writeFileSync(lockPath, `${process.pid}:live-builder`);
   let elapsed = 0;
-  await expect(withFileLock({ lockPath, run: () => "must not run" }, { timeoutMs: 125_000, staleMs: Infinity,
-    monotonicMs: () => elapsed, sleep: () => { elapsed += 75_000; } })).rejects.toBeInstanceOf(FileLockTimeoutError);
+  await expect(withFileLock({ process: createNodeLockProcess({ env: {} }), lockPath, run: () => "must not run" }, { timeoutMs: 125_000, staleMs: Infinity, monotonicMs: () => elapsed, sleep: () => { elapsed += 75_000; } })).rejects.toBeInstanceOf(FileLockTimeoutError);
   expect(fs.readFileSync(lockPath, "utf8")).toBe(`${process.pid}:live-builder`);
 });
 // REGRESSION: proven liveness vetoes age; identity still gates dead and unknown owners.
@@ -58,8 +57,8 @@ for (const adapter of ["sync", "async"] as const) test(`${adapter} leaves an age
   const old = new Date(Date.now() - 60_000); fs.utimesSync(lockPath, old, old);
   const before = fs.statSync(lockPath), run = vi.fn(), isAlive = vi.fn(() => true);
   const options = { timeoutMs: 0, staleMs: 100, process: { pid: process.pid, isAlive } };
-  if (adapter === "sync") expect(() => withFileLockSync({ lockPath, run }, options)).toThrow(FileLockTimeoutError);
-  else await expect(withFileLock({ lockPath, run }, options)).rejects.toThrow(FileLockTimeoutError);
+  if (adapter === "sync") expect(() => withFileLockSync({ process: options.process, lockPath, run }, options)).toThrow(FileLockTimeoutError);
+  else await expect(withFileLock({ process: options.process, lockPath, run }, options)).rejects.toThrow(FileLockTimeoutError);
   expect(isAlive).toHaveBeenCalledWith({ pid: process.pid });
   expect(run).not.toHaveBeenCalled();
   expect(fs.readFileSync(lockPath, "utf8")).toBe(raw);
@@ -78,23 +77,23 @@ test("sync contender leaves a freshly replaced stale lock untouched", () => {
     try { fs.rmSync(lockPath); fs.writeFileSync(lockPath, `${process.pid}:replacement`); return realStat(lockPath); }
     finally { fs.closeSync(held); }
   });
-  expect(() => withFileLockSync({ lockPath, run: () => { throw new Error("must not run"); } }, { timeoutMs: 0, staleMs: 100, process: { pid: process.pid, isAlive: () => false } })).toThrow(FileLockTimeoutError);
+  expect(() => withFileLockSync({ process: { pid: process.pid, isAlive: () => false }, lockPath, run: () => { throw new Error("must not run"); } }, { timeoutMs: 0, staleMs: 100 })).toThrow(FileLockTimeoutError);
   expect(fs.readFileSync(lockPath, "utf8")).toBe(`${process.pid}:replacement`);
 });
 // PARITY: sync and async entries parse legacy pid:token holders consistently.
 test("both entries reclaim a dead legacy owner and leave no owned lock", async () => {
   const lockPath = target(); const options = { process: { pid: process.pid, isAlive: () => false }, timeoutMs: 100, staleMs: 30000 };
   fs.writeFileSync(lockPath, "4242:dead");
-  expect(withFileLockSync({ lockPath, run: () => "sync" }, options)).toBe("sync");
+  expect(withFileLockSync({ process: options.process, lockPath, run: () => "sync" }, options)).toBe("sync");
   fs.writeFileSync(lockPath, "4242:dead");
-  expect(await withFileLock({ lockPath, run: () => "async" }, options)).toBe("async");
+  expect(await withFileLock({ process: options.process, lockPath, run: () => "async" }, options)).toBe("async");
   expect(fs.existsSync(lockPath)).toBe(false);
 });
 // REGRESSION: fails if a partial ownership-write failure leaves the created lock behind.
 test("sync partial holder-write failure removes its owned lock", () => {
   const lockPath = target();
   vi.spyOn(fs, "writeSync").mockImplementationOnce(() => { throw new Error("write failed"); });
-  expect(() => withFileLockSync({ lockPath, run: () => undefined })).toThrow("write failed");
+  expect(() => withFileLockSync({ process: createNodeLockProcess({ env: {} }), lockPath, run: () => undefined })).toThrow("write failed");
   expect(fs.existsSync(lockPath)).toBe(false);
 });
 
@@ -111,7 +110,7 @@ test("async contender leaves a replacement made during its final descriptor insp
     }
     return handle;
   } };
-  await expect(withFileLock({ lockPath, run: () => { throw new Error("must not run"); } }, { filesystem, timeoutMs: 0, staleMs: 100, process: { pid: process.pid, isAlive: () => false } })).rejects.toThrow(FileLockTimeoutError);
+  await expect(withFileLock({ process: { pid: process.pid, isAlive: () => false }, lockPath, run: () => { throw new Error("must not run"); } }, { filesystem, timeoutMs: 0, staleMs: 100 })).rejects.toThrow(FileLockTimeoutError);
   expect(fs.readFileSync(lockPath, "utf8")).toBe(`${process.pid}:replacement`);
 });
 
@@ -126,15 +125,15 @@ test("monotonicMs times the wait while clock.nowMs alone ages the holder", async
     monotonicMs: () => (reads.n++ === 0 ? 500 : 15_500),
   });
   const lockPath = target(); fs.writeFileSync(lockPath, `${process.pid}:live`);
-  await expect(withFileLock({ lockPath, run: () => { throw new Error("must not run"); } }, options({ n: 0 })))
+  await expect(withFileLock({ process: createNodeLockProcess({ env: {} }), lockPath, run: () => { throw new Error("must not run"); } }, options({ n: 0 })))
     .rejects.toMatchObject({ name: "FileLockTimeoutError", waitedMs: 15_000 });
-  expect(() => withFileLockSync({ lockPath, run: () => { throw new Error("must not run"); } }, { ...options({ n: 0 }), sleep: () => {} }))
+  expect(() => withFileLockSync({ process: createNodeLockProcess({ env: {} }), lockPath, run: () => { throw new Error("must not run"); } }, { ...options({ n: 0 }), sleep: () => {} }))
     .toThrow(expect.objectContaining({ name: "FileLockTimeoutError", waitedMs: 15_000 }));
   expect(fs.readFileSync(lockPath, "utf8")).toBe(`${process.pid}:live`);
   // An unidentified holder, aged past staleMs by the wall clock alone, is reclaimed even though
   // no monotonic time passes. Proven live holders are now exempt from age eviction.
   fs.writeFileSync(lockPath, "unidentified-holder");
-  const reclaimed = await withFileLock({ lockPath, run: () => "ran" }, { ...options({ n: 0 }), clock: { nowMs: () => wallMs + 60_000 }, monotonicMs: () => 0 });
+  const reclaimed = await withFileLock({ process: createNodeLockProcess({ env: {} }), lockPath, run: () => "ran" }, { ...options({ n: 0 }), clock: { nowMs: () => wallMs + 60_000 }, monotonicMs: () => 0 });
   expect(reclaimed).toBe("ran");
 });
 
@@ -156,10 +155,24 @@ test("async contender leaves a lock its holder refreshed between the two stale i
     }
     return asyncFs.open(file, flags, mode);
   } };
-  await expect(withFileLock({ lockPath, run: () => { throw new Error("must not run"); } }, { filesystem, timeoutMs: 0, staleMs: 10_000, hostname: () => "local-host" })).rejects.toThrow(FileLockTimeoutError);
+  await expect(withFileLock({ process: createNodeLockProcess({ env: {} }), lockPath, run: () => { throw new Error("must not run"); } }, { filesystem, timeoutMs: 0, staleMs: 10_000, hostname: () => "local-host" })).rejects.toThrow(FileLockTimeoutError);
   expect(fs.existsSync(lockPath)).toBe(true);
   expect(fs.readFileSync(lockPath, "utf8")).toBe(holderBytes);
   expect(fs.statSync(lockPath).ino).toBe(inodeBefore);
   // Only the observed and current inspections ran; no final pre-unlink inspection was reached.
   expect(reads).toBe(2);
+});
+
+test("native locks bind boot probes to their host and preserve an explicit process override", async () => {
+  const env = Object.freeze({ SystemRoot: "D:\\Host" });
+  const probe = vi.spyOn(bootIdentity, "readBootIdentity").mockReturnValue({ id: "native-boot", startedAtMs: 1 });
+  const port = createNodeFileLock({ env });
+  const lockPath = target();
+  const read = () => JSON.parse(fs.readFileSync(lockPath, "utf8"));
+  await expect(port.withFileLock({ lockPath, run: read })).resolves.toMatchObject({ pid: process.pid, bootId: "native-boot" });
+  expect(probe).toHaveBeenCalledWith({ env });
+  const override = { pid: 42, isAlive: () => true, bootIdentity: () => ({ id: "override-boot", startedAtMs: 2 }) };
+  await expect(port.withFileLock({ lockPath, run: read }, { process: override })).resolves.toMatchObject({ pid: 42, bootId: "override-boot" });
+  expect(probe).toHaveBeenCalledTimes(1);
+  expect(fs.existsSync(lockPath)).toBe(false);
 });

@@ -29,7 +29,7 @@ function harness({ platform = "win32", pipe = true }: { platform?: NodeJS.Platfo
   const remove = vi.fn<SupervisorRegistry["removeIfCurrent"]>(async () => { order.push("registry"); });
   const registry: SupervisorRegistry = { readLive: async () => null, write: async () => {}, removeIfCurrent: remove };
   const env = { HOST_ENV: "1" };
-  const required = { command: process.execPath, args: ["daemon.js"], cwd: "/host", env, registry };
+  const required = { hostEnv: {}, command: process.execPath, args: ["daemon.js"], cwd: "/host", env, registry };
   const options = { platform, spawn, listProcessSnapshots: snapshots, waitForProcessExit: wait,
     execFileSync: force, signalProcess: signal, stopProcesses: stop };
   const adapter = createNodeDaemonProcessAdapter(required, options);
@@ -79,7 +79,7 @@ test("win32 force-kills the whole tree only after the graceful exit wait expires
   expect(h.force).not.toHaveBeenCalled();
   release(false);
   await pending;
-  expect(h.force).toHaveBeenCalledWith("taskkill", ["/pid", "42", "/T", "/F"], { stdio: "ignore" });
+  expect(h.force).toHaveBeenCalledWith("C:\\Windows\\System32\\taskkill.exe", ["/pid", "42", "/T", "/F"], { stdio: "ignore", env: {} });
   expect(h.signal).not.toHaveBeenCalled();
   expect(h.order).toEqual(["tree-kill", "descendants", "registry"]);
 });
@@ -99,7 +99,7 @@ test("win32 escalates a synchronous stdin-close failure to the whole tree", asyn
   child.closeStdin = () => { throw new Error("pipe closed"); };
   await h.adapter.terminateProcess({ child });
   expect(h.wait).not.toHaveBeenCalled();
-  expect(h.force).toHaveBeenCalledWith("taskkill", ["/pid", "42", "/T", "/F"], { stdio: "ignore" });
+  expect(h.force).toHaveBeenCalledWith("C:\\Windows\\System32\\taskkill.exe", ["/pid", "42", "/T", "/F"], { stdio: "ignore", env: {} });
   expect(h.native.kill).not.toHaveBeenCalled();
 });
 
@@ -108,7 +108,7 @@ test("win32 falls back to immediate tree stop for a process port without stdin",
   const child = h.adapter.spawnDaemonProcess();
   expect(child.closeStdin).toBeUndefined();
   const pending = h.adapter.terminateProcess({ child });
-  expect(h.force).toHaveBeenCalledWith("taskkill", ["/pid", "42", "/T", "/F"], { stdio: "ignore" });
+  expect(h.force).toHaveBeenCalledWith("C:\\Windows\\System32\\taskkill.exe", ["/pid", "42", "/T", "/F"], { stdio: "ignore", env: {} });
   expect(h.wait).not.toHaveBeenCalled();
   await pending;
   expect(h.order).toEqual(["tree-kill", "descendants", "registry"]);
@@ -177,4 +177,15 @@ test("the Node scheduler runs a task after its delay and a cancelled task never 
   cancel();
   await new Promise<void>((resolve) => { scheduler.schedule({ delayMs: 1, run: () => { ran.push("kept"); resolve(); } }); });
   expect(ran).toEqual(["kept"]);
+});
+
+test('Windows escalation uses the parent system root while the child map stays stripped', async () => {
+  for (const SystemRoot of ['D:\\ParentOne', 'E:\\ParentTwo']) {
+    const h = harness({ pipe: false });
+    const hostEnv = { SystemRoot, ComSpec: `${SystemRoot}\\System32\\cmd.exe` };
+    const adapter = createNodeDaemonProcessAdapter({ ...h.required, hostEnv, env: {} }, h.options);
+    await adapter.terminateProcess({ child: adapter.spawnDaemonProcess() });
+    expect(h.force).toHaveBeenCalledWith(`${SystemRoot}\\System32\\taskkill.exe`, ['/pid', '42', '/T', '/F'], { stdio: 'ignore', env: hostEnv });
+    expect(h.spawn.mock.calls[0]![0].options.env).toEqual({ JINI_STOP_ON_STDIN_EOF: '1' });
+  }
 });

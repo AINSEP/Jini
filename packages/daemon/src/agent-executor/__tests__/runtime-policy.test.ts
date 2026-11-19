@@ -33,18 +33,12 @@ async function startFixture(
   const calls: { args: readonly string[]; env: NodeJS.ProcessEnv | undefined }[] = [];
   const def: RuntimeAgentDef = { ...getAgentDef({ id: agentId })!, ...fixtureModelDiscovery,
     ...(['claude', 'codex'].includes(agentId) ? { mcpIsolation: { perRun: 'fixture@2026-11-05' } } : {}) };
-  const executor = createAgentExecutor({ lifecycle }, {
-    ...policies, hostEnv, ...(ownRuntimeState ? { runtimeState: createAgentRuntimeState({}) } : {}),
-    getAgentDef: () => def,
-    resolveAgentLaunch: () => ({ selectedPath: '/fake/cli', pathResolvedPath: '/fake/cli',
-      configuredOverridePath: null, launchPath: '/fake/cli', launchKind: 'selected', childPathPrepend: [], diagnostic: null }),
-    applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {},
-    spawn: ((_command: string, args: readonly string[], options: { env?: NodeJS.ProcessEnv }) => {
+  const executor = createAgentExecutor({ hostEnv, lifecycle }, { ...policies, ...(ownRuntimeState ? { runtimeState: createAgentRuntimeState({}) } : {}), getAgentDef: () => def, resolveAgentLaunch: () => ({ selectedPath: '/fake/cli', pathResolvedPath: '/fake/cli',
+      configuredOverridePath: null, launchPath: '/fake/cli', launchKind: 'selected', childPathPrepend: [], diagnostic: null }), applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {}, spawn: ((_command: string, args: readonly string[], options: { env?: NodeJS.ProcessEnv }) => {
       calls.push({ args, env: options.env });
       queueMicrotask(() => child.emit('spawn'));
       return child as unknown as ChildProcess;
-    }) as typeof nodeSpawn,
-  });
+    }) as typeof nodeSpawn });
   const { run } = await lifecycle.start({ contextRef: 'host-policy' });
   await executor.run({ runId: run.id, agentId, prompt: 'question', cwd: '/missing-fixture-workspace' }, runPolicy);
   return { child, calls, lifecycle, runId: run.id };
@@ -198,7 +192,7 @@ it('fails closed when buffered structured audit output is truncated', async () =
 
 it('passes explicit plugin policy through the executor instead of consulting ambient env in buildArgs', async () => {
   const hostEnv = { PATH: '/fake/bin', CODEX_DISABLE_PLUGINS: '1' };
-  const baseline = await startFixture({ agentId: 'codex', hostEnv });
+  const baseline = await startFixture({ agentId: 'codex', hostEnv }, { codexDisablePlugins: true });
   const treatment = await startFixture({ agentId: 'codex', hostEnv }, { codexDisablePlugins: false });
   try {
     const args = baseline.calls[0]!.args;
@@ -228,7 +222,7 @@ it('binds the plugin policy against the process default runtime state when the h
 it('carries host shutdown timing into the native pi session and keeps two executors independent', async () => {
   vi.useFakeTimers();
   const hostEnv = { PATH: '/fake/bin', PI_GRACEFUL_SHUTDOWN_MS: '100' };
-  const baseline = await startFixture({ agentId: 'pi', hostEnv });
+  const baseline = await startFixture({ agentId: 'pi', hostEnv }, { piGracefulShutdownMs: 100 });
   const treatment = await startFixture({ agentId: 'pi', hostEnv }, { piGracefulShutdownMs: 700 });
   try {
     baseline.child.stdout.emit('data', '{"type":"agent_end"}\n');
@@ -253,4 +247,14 @@ it('Claude parity removes only the eager MCP-loading default while keeping the b
     expect(granted.calls[0]!.env?.CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS).toBe('0');
     expect(locked.calls[0]!.env?.ENABLE_TOOL_SEARCH).toBe('false');
   } finally { granted.child.emit('close', 0, null); locked.child.emit('close', 0, null); }
+});
+
+it('keeps explicit zero Pi shutdown grace despite a configured host value', async () => {
+  vi.useFakeTimers();
+  const run = await startFixture({ agentId: 'pi', hostEnv: { PI_GRACEFUL_SHUTDOWN_MS: '999' } }, { piGracefulShutdownMs: 0 });
+  try {
+    run.child.stdout.emit('data', '{"type":"agent_end"}\n');
+    vi.advanceTimersByTime(0);
+    expect(run.child.signals).toEqual(['SIGTERM']);
+  } finally { run.child.emit('close', 0, null); }
 });

@@ -18,14 +18,13 @@ afterEach(() => {
 
 it('uses a non-login shell and preserves the process PATH even when a custom env is supplied', async () => {
   Object.defineProperty(process, 'platform', { value: 'linux' });
-  vi.stubEnv('SHELL', '/custom/shell');
-  vi.stubEnv('PATH', '/host/shims:/usr/bin');
+  const hostEnv = { SHELL: '/custom/shell', PATH: "/host/a'b:/usr/bin" };
   const env = { PATH: '/custom/env' };
-  await expect(execCommandViaLoginShell('inspect', ['plain'], { env })).resolves.toEqual({
+  await expect(execCommandViaLoginShell({ command: 'inspect', args: ['plain'], hostEnv }, { env })).resolves.toEqual({
     code: undefined, error: null, ok: true, stderr: '', stdout: 'ready',
   });
   expect(execFile).toHaveBeenCalledTimes(1);
   expect(execFile).toHaveBeenCalledWith('/custom/shell', [
-    '-c', "export PATH='/host/shims:/usr/bin'; 'inspect' 'plain'",
+    '-c', "export PATH='/host/a'\\''b:/usr/bin'; 'inspect' 'plain'",
   ], { timeout: 120_000, maxBuffer: 1024 * 1024, env }, expect.any(Function));
 });

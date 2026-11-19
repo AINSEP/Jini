@@ -33,8 +33,8 @@ async function makeTempDir(prefix: string): Promise<string> {
 }
 
 describe('@jini-ai/platform — toolchain — option defaults', () => {
-  it('defaults home to os.homedir() and env to process.env when both are omitted', () => {
-    const dirs = wellKnownUserToolchainBins();
+  it('defaults home to os.homedir() with an explicit empty environment', () => {
+    const dirs = wellKnownUserToolchainBins({ env: {} });
     expect(dirs).toContain(join(homedir(), '.local', 'bin'));
   });
 });

@@ -194,53 +194,34 @@ describe('researchSearchRoute.handle', () => {
     expect(onInternalError).toHaveBeenCalledTimes(1);
   });
 
-  // The zero-config default path: no `resolveCredentials` and no `onInternalError` injected, which is
-  // how a host that only sets TAVILY_API_KEY actually wires this route.
-  describe('zero-config defaults', () => {
-    const ENV_VAR = 'TAVILY_API_KEY';
-
-    function withEnv(value: string | undefined, run: () => Promise<void>): Promise<void> {
-      const original = process.env[ENV_VAR];
-      if (value === undefined) delete process.env[ENV_VAR];
-      else process.env[ENV_VAR] = value;
-      return run().finally(() => {
-        if (original === undefined) delete process.env[ENV_VAR];
-        else process.env[ENV_VAR] = original;
-      });
-    }
-
-    it('reads TAVILY_API_KEY from the environment when no resolveCredentials is injected', async () => {
-      await withEnv('  tvly-from-env  ', async () => {
-        const fetchMock = vi.fn().mockResolvedValue(
-          okFetchResponse({ answer: 'ok', results: [{ title: 'T', url: 'https://example.com/x', content: 'c' }] }),
-        );
-        vi.stubGlobal('fetch', fetchMock);
-        const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: {} });
-        expect(result.ok).toBe(true);
-        // Whitespace is trimmed off the env value before it becomes a Bearer credential.
-        const [, init] = fetchMock.mock.calls[0]!;
-        expect(init.headers.authorization).toBe('Bearer tvly-from-env');
-      });
+  // Hosts resolve credentials explicitly; absent or blank credentials remain unconfigured.
+  describe('host-supplied credentials', () => {
+    it('uses the credential supplied by the host resolver', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(
+        okFetchResponse({ answer: 'ok', results: [{ title: 'T', url: 'https://example.com/x', content: 'c' }] }),
+      );
+      vi.stubGlobal('fetch', fetchMock);
+      const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: { resolveCredentials: async () => ({ apiKey: 'tvly-from-env' }) } });
+      expect(result.ok).toBe(true);
+      // The host supplies the resolved API key used for the Bearer credential.
+      const [, init] = fetchMock.mock.calls[0]!;
+      expect(init.headers.authorization).toBe('Bearer tvly-from-env');
     });
 
-    it('reports NOT_CONFIGURED when TAVILY_API_KEY is unset', async () => {
-      await withEnv(undefined, async () => {
-        const fetchMock = vi.fn();
-        vi.stubGlobal('fetch', fetchMock);
-        const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: {} });
-        expect(result).toEqual({ ok: false, error: { code: 'NOT_CONFIGURED', message: 'tavily provider not configured' } });
-        expect(fetchMock).not.toHaveBeenCalled();
-      });
+    it('reports NOT_CONFIGURED when the host resolver supplies no API key', async () => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+      const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: { resolveCredentials: async () => ({}) } });
+      expect(result).toEqual({ ok: false, error: { code: 'NOT_CONFIGURED', message: 'tavily provider not configured' } });
+      expect(fetchMock).not.toHaveBeenCalled();
     });
 
-    it('treats a whitespace-only TAVILY_API_KEY as unset rather than sending a blank Bearer token', async () => {
-      await withEnv('   ', async () => {
-        const fetchMock = vi.fn();
-        vi.stubGlobal('fetch', fetchMock);
-        const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: {} });
-        expect(result).toMatchObject({ ok: false, error: { code: 'NOT_CONFIGURED' } });
-        expect(fetchMock).not.toHaveBeenCalled();
-      });
+    it('reports NOT_CONFIGURED when the host resolver supplies an empty API key', async () => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+      const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: { resolveCredentials: async () => ({ apiKey: '' }) } });
+      expect(result).toMatchObject({ ok: false, error: { code: 'NOT_CONFIGURED' } });
+      expect(fetchMock).not.toHaveBeenCalled();
     });
 
     it('falls back to console.error when no onInternalError sink is supplied', async () => {

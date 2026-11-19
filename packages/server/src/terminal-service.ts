@@ -25,7 +25,7 @@ function inertPtyLoader(): never {
 const TERMINAL_TUNING_KEYS = ['maxEvents', 'maxBufferBytes', 'exitTailBytes', 'flushIntervalMs', 'flushThresholdBytes', 'ttlMs', 'shutdownGraceMs'] as const;
 
 /** Builds the terminal service from the preset's `terminal` options: the host's loader (or the inert one) plus only the tuning that was given. */
-export function buildTerminalService({ options }: { options: TerminalFeatureOptions }, _optional: Record<string, never> = {}): TerminalService {
+export function buildTerminalService({ options, env }: { options: TerminalFeatureOptions; env: NodeJS.ProcessEnv }, _optional: Record<string, never> = {}): TerminalService {
   const tuning = Object.fromEntries(TERMINAL_TUNING_KEYS.filter((key) => options[key] !== undefined).map((key) => [key, options[key]]));
-  return createTerminalService({ loadSpawnPty: options.loadSpawnPty ?? inertPtyLoader, ...tuning });
+  return createTerminalService({ env, loadSpawnPty: options.loadSpawnPty ?? inertPtyLoader, ...tuning });
 }

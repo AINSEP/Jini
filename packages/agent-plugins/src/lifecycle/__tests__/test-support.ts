@@ -19,7 +19,7 @@ import { createSetEnabledModule } from "../set-enabled.js";
 import { createTrustedPluginFilesModule } from "../trusted-plugin-files.js";
 import { createUninstallModule } from "../uninstall.js";
 export const ports: AgentPluginLifecyclePorts = {
-  ...createNodeAgentPluginEffects({}),
+  ...createNodeAgentPluginEffects({ env: {} }),
   layout: {
     get root() { return resolveAgentPluginLayout().root; },
     forWorkspace: input => resolveAgentPluginLayout().forWorkspace(input),

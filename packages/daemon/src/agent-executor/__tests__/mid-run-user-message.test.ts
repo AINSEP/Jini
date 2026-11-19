@@ -71,7 +71,7 @@ function createHarness(def: RuntimeAgentDef, options: HarnessOptions = {}) {
   const child = createFakeChild();
   const spawn = (() => { queueMicrotask(() => child.emit('spawn')); return child as unknown as ChildProcess; }) as unknown as typeof nodeSpawn;
   const onCleanupFailure = vi.fn();
-  const executor = createAgentExecutor({ lifecycle: executorLifecycle(lifecycle, options) }, {
+  const executor = createAgentExecutor({ hostEnv: {}, lifecycle: executorLifecycle(lifecycle, options) }, {
     ...(options.bridge ? { mcpJsonInjection: { command: 'node', args: ['serve.js'], daemonUrl: 'http://127.0.0.1:4317' } } : {}),
     ...(options.journal ? { journal: options.journal } : {}),
     resolveModelForLaunch: fixtureLaunchModel,

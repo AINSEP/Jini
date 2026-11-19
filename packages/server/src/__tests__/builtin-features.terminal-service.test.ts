@@ -11,7 +11,7 @@ import { composeJiniKernel } from '../compose-jini-kernel.js';
  * reaches the service (an explicit `undefined` never overrides an engine default).
  */
 
-const built: Array<{ options: CreateTerminalServiceOptions; service: TerminalService }> = [];
+const built: Array<{ options: CreateTerminalServiceOptions & { env: NodeJS.ProcessEnv }; service: TerminalService }> = [];
 
 // A recording spy over the real engine: records the options the preset hands `createTerminalService`, so knob forwarding is asserted, not assumed, and the service it gets back.
 vi.mock('@jini-ai/platform', async importOriginal => {
@@ -35,8 +35,7 @@ afterEach(async () => {
 async function composeWith(terminal: Record<string, unknown> | undefined): Promise<void> {
   const app = express();
   installRouteRegistrationGuard({ app });
-  kernels.push(await composeJiniKernel({
-    app, adapter: createTestRouteHost(), resolvedPortRef: { current: 0 },
+  kernels.push(await composeJiniKernel({ env: {}, app, adapter: createTestRouteHost(), resolvedPortRef: { current: 0 },
     security: { mode: 'host' }, storage: { kind: 'memory' }, profile: 'agent-core-v1',
     capabilities: { 'host:exec': true }, features: { terminal: true },
     ...(terminal === undefined ? {} : { featureOptions: { terminal } }),
@@ -70,4 +69,15 @@ describe('the preset builds the terminal service', () => {
     await composeWith({ loadSpawnPty, maxEvents: 9, ttlMs: undefined });
     expect(Object.keys(built[0]!.options).sort()).toEqual(['loadSpawnPty', 'maxEvents']);
   });
+});
+
+it('passes the feature context map into the native terminal constructor', async () => {
+  const app = express(); installRouteRegistrationGuard({ app });
+  const env = { SHELL: '/host/shell', PATH: '/host/path' };
+  kernels.push(await composeJiniKernel({
+    app, env, adapter: createTestRouteHost(), resolvedPortRef: { current: 0 },
+    security: { mode: 'host' }, storage: { kind: 'memory' }, profile: 'agent-core-v1',
+    capabilities: { 'host:exec': true }, features: { terminal: true },
+  }));
+  expect(built[0]!.options.env).toEqual(env);
 });

@@ -435,7 +435,7 @@ function createHarness(options: HarnessOptions = {}): Harness {
 
   const onCleanupFailure = vi.fn();
 
-  const executor = createAgentExecutor({ lifecycle }, { ...(options.delegatedResultCorrelation ? { delegatedResultCorrelation: options.delegatedResultCorrelation } : {}), ...(options.stdoutJournalBlobs ? { stdoutJournalBlobs: options.stdoutJournalBlobs } : {}), ...(options.probeMcpBridge ? { probeMcpBridge: options.probeMcpBridge } : {}), resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def && def.id === id ? def : null), resolveAgentLaunch: () =>
+  const executor = createAgentExecutor({ hostEnv: {}, lifecycle }, { ...(options.delegatedResultCorrelation ? { delegatedResultCorrelation: options.delegatedResultCorrelation } : {}), ...(options.stdoutJournalBlobs ? { stdoutJournalBlobs: options.stdoutJournalBlobs } : {}), ...(options.probeMcpBridge ? { probeMcpBridge: options.probeMcpBridge } : {}), resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def && def.id === id ? def : null), resolveAgentLaunch: () =>
       ({
         selectedPath: launchPath,
         pathResolvedPath: launchPath,
@@ -1124,7 +1124,7 @@ describe('AgentExecutor — cancellation', () => {
       return child as unknown as ChildProcess;
     }) as unknown as typeof nodeSpawn;
     const def = createFakeDef();
-    const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: () => def, resolveAgentLaunch: () =>
+    const executor = createAgentExecutor({ hostEnv: {}, lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: () => def, resolveAgentLaunch: () =>
         ({
           selectedPath: '/fake/bin',
           pathResolvedPath: '/fake/bin',
@@ -1211,7 +1211,7 @@ describe('isSupportedStreamFormat', () => {
 describe('createAgentExecutor — real default collaborators', () => {
   it('constructs cleanly with only { lifecycle } — every collaborator falls back to its real @jini-ai/agent-runtime / @jini-ai/platform / node:child_process default', () => {
     const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
-    const executor = createAgentExecutor({ lifecycle });
+    const executor = createAgentExecutor({ hostEnv: {}, lifecycle });
     expect(typeof executor.run).toBe('function');
   });
 
@@ -1233,7 +1233,7 @@ describe('createAgentExecutor — real default collaborators', () => {
         throw new Error('sensitive-path/should-be-redacted rpc init rejected');
       }) as unknown as typeof attachPiRpcSession;
 
-      const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+      const executor = createAgentExecutor({ hostEnv: {}, lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
           ({
             selectedPath: '/fake/pi-bin',
             pathResolvedPath: '/fake/pi-bin',
@@ -1278,7 +1278,7 @@ describe('createAgentExecutor — real default collaborators', () => {
         return child as unknown as ChildProcess;
       }) as unknown as typeof nodeSpawn;
 
-      const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+      const executor = createAgentExecutor({ hostEnv: {}, lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
           ({
             selectedPath: '/fake/claude-bin',
             pathResolvedPath: '/fake/claude-bin',
@@ -1331,7 +1331,7 @@ describe('createAgentExecutor — real default collaborators', () => {
         return child as unknown as ChildProcess;
       }) as unknown as typeof nodeSpawn;
 
-      const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+      const executor = createAgentExecutor({ hostEnv: {}, lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
           ({
             selectedPath: '/fake/claude-bin',
             pathResolvedPath: '/fake/claude-bin',
@@ -1375,7 +1375,7 @@ describe('createAgentExecutor — real default collaborators', () => {
       return child as unknown as ChildProcess;
     }) as unknown as typeof nodeSpawn;
 
-    const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+    const executor = createAgentExecutor({ hostEnv: {}, lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
         ({
           selectedPath: '/fake/bin',
           pathResolvedPath: '/fake/bin',
@@ -1707,7 +1707,7 @@ function createAcpHarness(options: AcpHarnessOptions = {}): AcpHarness {
     return controller;
   }) as unknown as typeof attachAcpSession;
 
-  const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+  const executor = createAgentExecutor({ hostEnv: {}, lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
       ({
         selectedPath: '/fake/acp-bin',
         pathResolvedPath: '/fake/acp-bin',
@@ -2129,7 +2129,7 @@ function createPiRpcHarness(options: PiRpcHarnessOptions = {}): PiRpcHarness {
     return session;
   }) as unknown as typeof attachPiRpcSession;
 
-  const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+  const executor = createAgentExecutor({ hostEnv: {}, lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
       ({
         selectedPath: '/fake/pi-bin',
         pathResolvedPath: '/fake/pi-bin',
@@ -6672,7 +6672,7 @@ async function probeOverlayDelivery(
     return child as unknown as ChildProcess;
   }) as unknown as typeof nodeSpawn;
 
-  const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+  const executor = createAgentExecutor({ hostEnv: {}, lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
       ({
         selectedPath: '/fake/bin',
         pathResolvedPath: '/fake/bin',

@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
 import { createNodeDurableJsonPorts } from "../durable-json.js";
 import { createNodeDirectoryWorkspace } from "../directory-workspace.js";
-import { withFileLock, withFileLockSync } from "../file-lock.js";
+import { createNodeLockProcess, withFileLock, withFileLockSync } from "../file-lock.js";
 import { FileLockTimeoutError } from "@jini-ai/core/contracts/runtime";
 
 const roots: string[] = [];
@@ -39,7 +39,7 @@ for (const adapter of ["sync", "async"] as const) {
       expect(JSON.parse(fs.readFileSync(lockPath, "utf8"))).toMatchObject({ pid: 4243 });
       return "restarted";
     } };
-    const result = adapter === "sync" ? withFileLockSync(required, options) : await withFileLock(required, options);
+    const result = adapter === "sync" ? withFileLockSync({ ...required, process: options.process }, options) : await withFileLock({ ...required, process: options.process }, options);
     expect(result).toBe("restarted");
     expect(isAlive).toHaveBeenCalledWith({ pid: 4242 });
     expect(fs.existsSync(lockPath)).toBe(false);
@@ -58,8 +58,8 @@ for (const adapter of ["sync", "async"] as const) {
     const required = { lockPath, run };
     for (const staleMs of [100, Infinity]) {
       const options = { staleMs, timeoutMs: 0, hostname: () => "local", process: { pid: 4243, isAlive } };
-      if (adapter === "sync") expect(() => withFileLockSync(required, options)).toThrow(FileLockTimeoutError);
-      else await expect(withFileLock(required, options)).rejects.toThrow(FileLockTimeoutError);
+      if (adapter === "sync") expect(() => withFileLockSync({ ...required, process: options.process }, options)).toThrow(FileLockTimeoutError);
+      else await expect(withFileLock({ ...required, process: options.process }, options)).rejects.toThrow(FileLockTimeoutError);
       expect(fs.readFileSync(lockPath, "utf8")).toBe(raw);
     }
     expect(isAlive).toHaveBeenCalledWith({ pid: 4242 });
@@ -78,8 +78,8 @@ for (const adapter of ["sync", "async"] as const) {
     fs.utimesSync(lockPath, new Date(0), new Date(0));
     const run = vi.fn(), isAlive = vi.fn(() => false);
     const options = { staleMs: Infinity, timeoutMs: 0, hostname: () => "local", process: { pid: 4243, isAlive } };
-    if (adapter === "sync") expect(() => withFileLockSync({ lockPath, run }, options)).toThrow(FileLockTimeoutError);
-    else await expect(withFileLock({ lockPath, run }, options)).rejects.toThrow(FileLockTimeoutError);
+    if (adapter === "sync") expect(() => withFileLockSync({ process: options.process, lockPath, run }, options)).toThrow(FileLockTimeoutError);
+    else await expect(withFileLock({ process: options.process, lockPath, run }, options)).rejects.toThrow(FileLockTimeoutError);
     expect(isAlive).not.toHaveBeenCalled();
     expect(run).not.toHaveBeenCalled();
     expect(fs.readFileSync(lockPath, "utf8")).toBe(raw);
@@ -94,8 +94,8 @@ for (const adapter of ["sync", "async"] as const) {
     const probe = vi.spyOn(process, "kill").mockImplementation(() => { throw denied; });
     const run = vi.fn();
     const options = { staleMs: Infinity, timeoutMs: 0 };
-    if (adapter === "sync") expect(() => withFileLockSync({ lockPath, run }, options)).toThrow(FileLockTimeoutError);
-    else await expect(withFileLock({ lockPath, run }, options)).rejects.toThrow(FileLockTimeoutError);
+    if (adapter === "sync") expect(() => withFileLockSync({ process: createNodeLockProcess({ env: {} }), lockPath, run }, options)).toThrow(FileLockTimeoutError);
+    else await expect(withFileLock({ process: createNodeLockProcess({ env: {} }), lockPath, run }, options)).rejects.toThrow(FileLockTimeoutError);
     expect(probe).toHaveBeenCalledWith(process.pid, 0);
     expect(run).not.toHaveBeenCalled();
     expect(fs.readFileSync(lockPath, "utf8")).toBe(raw);
@@ -108,8 +108,8 @@ for (const adapter of ["sync", "async"] as const) {
     const failure = new Error("liveness unavailable"), run = vi.fn();
     const options = { staleMs: Infinity, timeoutMs: 0, hostname: () => "local",
       process: { pid: 4243, isAlive: () => { throw failure; } } };
-    if (adapter === "sync") expect(() => withFileLockSync({ lockPath, run }, options)).toThrow(failure);
-    else await expect(withFileLock({ lockPath, run }, options)).rejects.toBe(failure);
+    if (adapter === "sync") expect(() => withFileLockSync({ process: options.process, lockPath, run }, options)).toThrow(failure);
+    else await expect(withFileLock({ process: options.process, lockPath, run }, options)).rejects.toBe(failure);
     expect(run).not.toHaveBeenCalled();
     expect(fs.readFileSync(lockPath, "utf8")).toBe(raw);
   });
@@ -122,15 +122,14 @@ test("a site restart claims its running lease after an incomplete local dead hol
   fs.writeFileSync(lockPath, JSON.stringify({ pid: 4242, hostname: os.hostname() }));
   let elapsed = Date.now();
   const ports = {
-    ...createNodeDurableJsonPorts({}),
+    ...createNodeDurableJsonPorts({ env: {} }),
     clock: { nowMs: () => elapsed },
     sleep: { sleep: ({ durationMs }: { durationMs: number }) => { elapsed += durationMs; } },
     process: { pid: 4243, isAlive: ({ pid }: { pid: number }) => pid === 4243 },
   };
-  const workspace = createNodeDirectoryWorkspace({
-    homeDir: root, defaultFolder: "Sites", envName: "SITES_HOME", settingsFile: path.join(root, "settings.json"),
+  const workspace = createNodeDirectoryWorkspace({ env: {}, directoryHomeOverride: undefined, homeDir: root, defaultFolder: "Sites", envName: "SITES_HOME", settingsFile: path.join(root, "settings.json"),
     registryName: "sites.json", runningName: "running.json",
-  }, { env: {}, ports });
+  }, { ports });
   const claimed = workspace.claim({ path: site, app: "Web", port: 3000 });
   expect(claimed).toMatchObject({ acquired: true, record: { pid: 4243, port: 3000 } });
   expect(workspace.running({ path: site }).peek({})?.token).toBe(claimed.record.token);

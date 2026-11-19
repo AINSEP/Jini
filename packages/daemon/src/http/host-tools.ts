@@ -99,8 +99,8 @@ export interface HostToolProbeEnv {
   readonly platform: Platform;
 }
 
-export function defaultProbeEnv(_required: Record<string, never>, _optional: Record<string, never> = {}): HostToolProbeEnv {
-  return { access: ({ path, mode }) => fsAccess(path, mode), env: process.env, platform: currentPlatform({}) };
+export function defaultProbeEnv({ env }: { env: Readonly<Record<string, string | undefined>> }, _optional: Record<string, never> = {}): HostToolProbeEnv {
+  return { access: ({ path, mode }) => fsAccess(path, mode), env, platform: currentPlatform({}) };
 }
 
 /** The login-shell bin directories a GUI-launched daemon's `PATH` tends to lack, per platform. */
@@ -221,7 +221,7 @@ async function resolveViaMacBundle({ entry, probeEnv }: { readonly entry: Catalo
 }
 
 /** Resolves how to launch `entry`: its CLI shim first, then (darwin only) its app bundle, else unavailable. */
-export async function resolveEntry({ entry }: { readonly entry: CatalogueEntry }, { probeEnv = defaultProbeEnv({}) }: { readonly probeEnv?: HostToolProbeEnv | undefined } = {}): Promise<ResolvedEntry> {
+export async function resolveEntry({ entry, probeEnv }: { readonly entry: CatalogueEntry; readonly probeEnv: HostToolProbeEnv }, _optional: Record<string, never> = {}): Promise<ResolvedEntry> {
   return (await resolveViaCommand({ entry, probeEnv })) ?? (await resolveViaMacBundle({ entry, probeEnv })) ?? { available: false };
 }
 
@@ -233,11 +233,11 @@ export interface HostToolLaunchPlan {
 }
 
 /** Resolves the concrete `{command, args}` a caller would spawn to open `workingDir` in `editorId`, or `available: false` if that tool isn't installed/known. */
-export async function resolveHostToolLaunchPlan({ editorId, workingDir }: { readonly editorId: string; readonly workingDir: string }, { probeEnv = defaultProbeEnv({}) }: { readonly probeEnv?: HostToolProbeEnv | undefined } = {}
+export async function resolveHostToolLaunchPlan({ editorId, workingDir, probeEnv }: { readonly editorId: string; readonly workingDir: string; readonly probeEnv: HostToolProbeEnv }, _optional: Record<string, never> = {}
 ): Promise<HostToolLaunchPlan> {
   const entry = CATALOGUE.find((c) => c.id === editorId);
   if (!entry) return { available: false };
-  const probe = await resolveEntry({ entry }, { probeEnv });
+  const probe = await resolveEntry({ entry, probeEnv });
   if (!probe.available) return { available: false };
   return {
     available: true,
@@ -264,12 +264,12 @@ export type LaunchHostToolResult = { readonly ok: true } | { readonly ok: false;
  * `CommandLineToArgvW`-safe verbatim args and everything else directly — no shell, no
  * metacharacter interpretation.
  */
-export function launchHostTool({ command, args }: { readonly command: string; readonly args: string[] }, { spawnImpl = nodeSpawn }: { readonly spawnImpl?: typeof nodeSpawn | undefined } = {}
+export function launchHostTool({ command, args, env }: { readonly command: string; readonly args: string[]; readonly env: NodeJS.ProcessEnv }, { spawnImpl = nodeSpawn }: { readonly spawnImpl?: typeof nodeSpawn | undefined } = {}
 ): Promise<LaunchHostToolResult> {
   return new Promise((resolve) => {
-    const invocation = createCommandInvocation({ command, args });
+    const invocation = createCommandInvocation({ command, args, env, fallbackComSpec: env.ComSpec });
     const child = spawnImpl(invocation.command, invocation.args, {
-      detached: true,
+      detached: true, env,
       stdio: 'ignore',
       windowsHide: process.platform === 'win32',
       windowsVerbatimArguments: invocation.windowsVerbatimArguments,
@@ -304,11 +304,11 @@ export interface HostEditorsResponse {
 }
 
 /** Probes every catalogue entry applicable to the current platform and reports which are actually installed. */
-export async function listAvailableEditors(_required: Record<string, never>, { probeEnv = defaultProbeEnv({}) }: { readonly probeEnv?: HostToolProbeEnv | undefined } = {}): Promise<HostEditorsResponse> {
+export async function listAvailableEditors({ probeEnv }: { readonly probeEnv: HostToolProbeEnv }, _optional: Record<string, never> = {}): Promise<HostEditorsResponse> {
   const filtered = CATALOGUE.filter((entry) => applicableForPlatform({ entry, platform: probeEnv.platform }));
   const editors: HostEditor[] = await Promise.all(
     filtered.map(async (entry) => {
-      const probe = await resolveEntry({ entry }, { probeEnv });
+      const probe = await resolveEntry({ entry, probeEnv });
       return {
         id: entry.id,
         label: entry.label,
@@ -323,7 +323,7 @@ export async function listAvailableEditors(_required: Record<string, never>, { p
 }
 
 /** `GET /api/editors` — lists the host-tool catalogue applicable to this platform with live availability. */
-export const hostEditorsRoute = defineJsonRoute<void, HostEditorsResponse, Record<string, never>>({ method: 'get', path: '/api/editors', parse: () => ok({ value: undefined }), handle: async () => ok({ value: await listAvailableEditors({}) }) });
+export const hostEditorsRoute = defineJsonRoute<void, HostEditorsResponse, Pick<HostToolsOpenInDeps, "probeEnv">>({ method: 'get', path: '/api/editors', parse: () => ok({ value: undefined }), handle: async ({ deps }) => ok({ value: await listAvailableEditors({ probeEnv: deps.probeEnv }) }) });
 
 export interface OpenResourceInEditorRequest {
   readonly resourceRef: string;
@@ -341,7 +341,7 @@ export interface OpenResourceInEditorResponse {
 export interface HostToolsOpenInDeps {
   /** Resolves a resource reference to a filesystem working directory. Defaults to {@link denyAllWorkspaceRoots} — a host that never wires a real resolver gets a 404 on every call, never a guessed path (see `workspace-root.ts`). */
   readonly resolveRoot?: WorkspaceRootResolver;
-  readonly probeEnv?: HostToolProbeEnv;
+  readonly probeEnv: HostToolProbeEnv;
   readonly spawnImpl?: typeof nodeSpawn;
 }
 
@@ -375,9 +375,9 @@ async function launchEditorAt(
   { entry, workingDir }: { readonly entry: CatalogueEntry; readonly workingDir: string },
   { probeEnv, spawnImpl }: { readonly probeEnv: HostToolProbeEnv; readonly spawnImpl: typeof nodeSpawn },
 ): Promise<Result<OpenResourceInEditorResponse>> {
-  const probe = await resolveEntry({ entry }, { probeEnv });
+  const probe = await resolveEntry({ entry, probeEnv });
   if (!probe.available) return err({ error: createApiError({ code: 'CONFLICT', message: `${entry.label} is not installed` }) });
-  const launch = await launchHostTool({ command: probe.launch.command, args: probe.launch.argsForDir({ workingDir }) }, { spawnImpl });
+  const launch = await launchHostTool({ command: probe.launch.command, args: probe.launch.argsForDir({ workingDir }), env: probeEnv.env }, { spawnImpl });
   if (!launch.ok) {
     return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: `failed to launch ${entry.label}: ${launch.error}` }) });
   }
@@ -412,7 +412,7 @@ export const openResourceInEditorRoute = defineJsonRoute<
   HostToolsOpenInDeps
 >({
   method: 'post', path: '/api/resources/:resourceRef/open-in', parse: parseOpenResourceInEditor, handle: async ({ input, deps }) => {
-    const probeEnv = deps.probeEnv ?? defaultProbeEnv({});
+    const probeEnv = deps.probeEnv;
     const editor = selectEditor({ editorId: input.editorId, platform: probeEnv.platform });
     if (!editor.ok) return editor;
     const root = await resolveResourceRoot({ resourceRef: input.resourceRef, detail: input.detail }, { resolver: deps.resolveRoot ?? denyAllWorkspaceRoots });
@@ -423,5 +423,5 @@ export const openResourceInEditorRoute = defineJsonRoute<
 
 /** `GET /api/editors` and `POST /api/resources/:resourceRef/open-in` as data; the open-in route sits behind the same-origin gate its spec declares. `deps` are the open-in route's. */
 export function hostToolsRoutes({ deps, host }: { readonly deps: HostToolsOpenInDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
-  return [gatedJsonRoute({ spec: hostEditorsRoute, deps: {}, host }), gatedJsonRoute({ spec: openResourceInEditorRoute, deps, host })];
+  return [gatedJsonRoute({ spec: hostEditorsRoute, deps: { probeEnv: deps.probeEnv }, host }), gatedJsonRoute({ spec: openResourceInEditorRoute, deps, host })];
 }

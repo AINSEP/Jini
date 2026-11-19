@@ -30,7 +30,7 @@ describe('probeMcpBridge', () => {
     vi.useFakeTimers();
     const fake = fakeBridge();
     let time = 100;
-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => time });
+    const pending = probeMcpBridge({ hostEnv: {}, entry }, { spawn: fake.spawn, baseEnv: {}, now: () => time });
     expect(fake.writes).toEqual([
       '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"jini-bridge-probe","version":"0"}}}\n',
     ]);
@@ -44,7 +44,7 @@ describe('probeMcpBridge', () => {
 
   it('returns the exact missing-package diagnostic and exit code', async () => {
     const fake = fakeBridge();
-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
+    const pending = probeMcpBridge({ hostEnv: {}, entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
     fake.child.stderr.write(`${missingSdk}\n`);
     fake.child.emit('exit', 1, null);
     expect(await pending).toEqual({ ok: false, exitCode: 1, signal: null, stderrTail: missingSdk, elapsedMs: 0 });
@@ -54,7 +54,7 @@ describe('probeMcpBridge', () => {
   it('times out and kills a bridge that never replies', async () => {
     vi.useFakeTimers();
     const fake = fakeBridge();
-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, timeoutMs: 5 });
+    const pending = probeMcpBridge({ hostEnv: {}, entry }, { spawn: fake.spawn, baseEnv: {}, timeoutMs: 5 });
     await vi.advanceTimersByTimeAsync(5);
     expect(await pending).toEqual({ ok: false, exitCode: null, signal: null, stderrTail: '', elapsedMs: 5 });
     expect(fake.child.kill.mock.calls).toEqual([['SIGKILL']]);
@@ -63,7 +63,7 @@ describe('probeMcpBridge', () => {
 
   it('merges the base and entry env while stripping credentials from both and using a diagnostic run id', async () => {
     const fake = fakeBridge();
-    const pending = probeMcpBridge({ entry: { ...entry, env: {
+    const pending = probeMcpBridge({ hostEnv: {}, entry: { ...entry, env: {
       ELECTRON_RUN_AS_NODE: '1', PATH: '/bridge/bin', JINI_RUN_ID: 'real-run', JINI_DAEMON_TOKEN: 'entry-fixture',
     } } }, { spawn: fake.spawn, baseEnv: { PATH: '/bin', HOME: '/home', JINI_DAEMON_TOKEN: 'base-fixture' } });
     fake.child.stdout.write('{"id":1,"result":{}}\n');
@@ -75,7 +75,7 @@ describe('probeMcpBridge', () => {
 
   it('keeps exactly the last 2000 stderr bytes across chunks', async () => {
     const fake = fakeBridge();
-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
+    const pending = probeMcpBridge({ hostEnv: {}, entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
     fake.child.stderr.write('discard'.repeat(500));
     fake.child.stderr.write('z'.repeat(1999) + '!');
     fake.child.emit('exit', 1, null);
@@ -84,7 +84,7 @@ describe('probeMcpBridge', () => {
 
   it('uses only the baseline launch environment by default', async () => {
     const fake = fakeBridge();
-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn });
+    const pending = probeMcpBridge({ hostEnv: process.env, entry }, { spawn: fake.spawn });
     fake.child.stdout.write('{"id":1,"result":{}}\n');
     await pending;
     const options = fake.calls[0]?.[2] as { env: Record<string, string> };
@@ -97,7 +97,7 @@ describe('probeMcpBridge', () => {
 
   it('redacts credential assignments and bearer values even when split across chunks', async () => {
     const fake = fakeBridge();
-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {} });
+    const pending = probeMcpBridge({ hostEnv: {}, entry }, { spawn: fake.spawn, baseEnv: {} });
     fake.child.stderr.write('JINI_DAEMON_TOKEN=fixture-');
     fake.child.stderr.write('token\nBearer fixture-bearer\n');
     fake.child.emit('exit', 1, null);
@@ -106,7 +106,7 @@ describe('probeMcpBridge', () => {
 
   it('reports an asynchronous ENOENT spawn error', async () => {
     const fake = fakeBridge();
-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
+    const pending = probeMcpBridge({ hostEnv: {}, entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
     fake.child.emit('error', new Error('spawn /node ENOENT'));
     expect(await pending).toEqual({ ok: false, exitCode: null, signal: null, stderrTail: 'spawn /node ENOENT', elapsedMs: 0 });
     expect(fake.child.kill.mock.calls).toEqual([['SIGKILL']]);
@@ -114,7 +114,7 @@ describe('probeMcpBridge', () => {
 
   it('reports close with its signal even without an exit event', async () => {
     const fake = fakeBridge();
-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
+    const pending = probeMcpBridge({ hostEnv: {}, entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
     fake.child.emit('close', null, 'SIGTERM');
     expect(await pending).toEqual({ ok: false, exitCode: null, signal: 'SIGTERM', stderrTail: '', elapsedMs: 0 });
   });
@@ -122,7 +122,7 @@ describe('probeMcpBridge', () => {
   it('reports a synchronous spawn throw and clears its timer', async () => {
     vi.useFakeTimers();
     const spawn = (() => { throw new Error('spawn EACCES'); }) as typeof nodeSpawn;
-    expect(await probeMcpBridge({ entry }, { spawn, baseEnv: {}, now: () => 0 })).toEqual({
+    expect(await probeMcpBridge({ hostEnv: {}, entry }, { spawn, baseEnv: {}, now: () => 0 })).toEqual({
       ok: false, exitCode: null, signal: null, stderrTail: 'spawn EACCES', elapsedMs: 0,
     });
     expect(vi.getTimerCount()).toBe(0);
@@ -130,7 +130,7 @@ describe('probeMcpBridge', () => {
 
   it('reports stdin failure rather than leaving an unhandled stream error', async () => {
     const fake = fakeBridge();
-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
+    const pending = probeMcpBridge({ hostEnv: {}, entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
     fake.child.stdin.emit('error', new Error('write EPIPE'));
     expect((await pending).stderrTail).toBe('write EPIPE');
     expect(fake.child.kill.mock.calls).toEqual([['SIGKILL']]);
@@ -154,7 +154,7 @@ describe('probeMcpBridge (characterization)', () => {
   it('still returns the original diagnostic when killing the bridge throws', async () => {
     const fake = fakeBridge();
     fake.child.kill.mockImplementation(() => { throw new Error('kill ESRCH'); });
-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
+    const pending = probeMcpBridge({ hostEnv: {}, entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
     fake.child.emit('exit', 3, null);
     expect(await pending).toEqual({ ok: false, exitCode: 3, signal: null, stderrTail: '', elapsedMs: 0 });
     expect(fake.child.kill.mock.calls).toEqual([['SIGKILL']]);
@@ -164,7 +164,7 @@ describe('probeMcpBridge (characterization)', () => {
     const child = Object.assign(new EventEmitter(), { stdin: null, stdout: null, stderr: null, kill: vi.fn(() => true) });
     // Malformed-input fixture: a ChildProcess whose stdio pipes are all absent.
     const spawn = (() => child as unknown as ChildProcess) as typeof nodeSpawn;
-    const pending = probeMcpBridge({ entry }, { spawn, baseEnv: {}, now: () => 0 });
+    const pending = probeMcpBridge({ hostEnv: {}, entry }, { spawn, baseEnv: {}, now: () => 0 });
     child.emit('exit', 0, null);
     expect(await pending).toEqual({ ok: false, exitCode: 0, signal: null, stderrTail: '', elapsedMs: 0 });
     expect(child.kill.mock.calls).toEqual([['SIGKILL']]);
@@ -173,7 +173,7 @@ describe('probeMcpBridge (characterization)', () => {
   it('keeps waiting past non-object and result-less id 1 replies', async () => {
     vi.useFakeTimers();
     const fake = fakeBridge();
-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, timeoutMs: 5, now: () => 0 });
+    const pending = probeMcpBridge({ hostEnv: {}, entry }, { spawn: fake.spawn, baseEnv: {}, timeoutMs: 5, now: () => 0 });
     fake.child.stdout.write('1\n[{"id":1,"result":{}}]\n{"id":"1","result":{}}\n{"id":1}\nnull\n');
     await vi.advanceTimersByTimeAsync(5);
     expect((await pending).ok).toBe(false);
@@ -181,21 +181,21 @@ describe('probeMcpBridge (characterization)', () => {
 
   it('accepts an id 1 reply whose result is null', async () => {
     const fake = fakeBridge();
-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
+    const pending = probeMcpBridge({ hostEnv: {}, entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
     fake.child.stdout.write('{"id":1,"result":null}\n');
     expect((await pending).ok).toBe(true);
   });
 
   it('reports a stdout stream error through the line reader', async () => {
     const fake = fakeBridge();
-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
+    const pending = probeMcpBridge({ hostEnv: {}, entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
     fake.child.stdout.emit('error', new Error('read EIO'));
     expect(await pending).toEqual({ ok: false, exitCode: null, signal: null, stderrTail: 'read EIO', elapsedMs: 0 });
   });
 
   it('closes its line reader so the bridge stdout is left without probe listeners', async () => {
     const fake = fakeBridge();
-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
+    const pending = probeMcpBridge({ hostEnv: {}, entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
     expect(fake.child.stdout.listenerCount('data')).toBeGreaterThan(0);
     fake.child.emit('exit', 1, null);
     await pending;
@@ -204,7 +204,7 @@ describe('probeMcpBridge (characterization)', () => {
 
   it('keeps the first outcome when the bridge exits after replying', async () => {
     const fake = fakeBridge();
-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
+    const pending = probeMcpBridge({ hostEnv: {}, entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
     fake.child.stdout.write('{"id":1,"result":{}}\n');
     fake.child.emit('exit', 9, null);
     expect((await pending).ok).toBe(true);
@@ -212,9 +212,21 @@ describe('probeMcpBridge (characterization)', () => {
 
   it('appends an error message after existing stderr and redacts a daemon token assignment in any case', async () => {
     const fake = fakeBridge();
-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
+    const pending = probeMcpBridge({ hostEnv: {}, entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
     fake.child.stderr.write(['jini_daemon_token', '=abc'].join(''));
     fake.child.emit('error', new Error('boom'));
     expect((await pending).stderrTail).toBe('[REDACTED:daemon_token]\nboom');
   });
+});
+
+it('filters the selected host map and lets an explicit base map win', async () => {
+  const hostEnv = { PATH: '/selected/bin', HOME: '/selected/home', SECRET_SENTINEL: 'private', JINI_DAEMON_TOKEN: 'private' };
+  const first = fakeBridge();
+  const pending = probeMcpBridge({ entry, hostEnv }, { spawn: first.spawn });
+  first.child.stdout.write('{"id":1,"result":{}}\n'); await pending;
+  expect(first.calls[0]?.[2]).toEqual({ stdio: 'pipe', env: { PATH: '/selected/bin', HOME: '/selected/home', JINI_RUN_ID: 'bridge-probe' } });
+  const second = fakeBridge();
+  const override = probeMcpBridge({ entry, hostEnv }, { spawn: second.spawn, baseEnv: { PATH: '/base/bin' } });
+  second.child.stdout.write('{"id":1,"result":{}}\n'); await override;
+  expect(second.calls[0]?.[2]).toEqual({ stdio: 'pipe', env: { PATH: '/base/bin', JINI_RUN_ID: 'bridge-probe' } });
 });

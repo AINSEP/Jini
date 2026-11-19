@@ -534,8 +534,8 @@ async function main(): Promise<void> {
               decoded.workingDirectory,
               decoded.project,
             );
-            const executor = createAgentExecutor({ lifecycle }, {
-              ...runtimeExecutorOptions,
+            const { hostEnv, ...executorOptions } = runtimeExecutorOptions; const executor = createAgentExecutor({ lifecycle, hostEnv }, {
+              ...executorOptions,
               // Gives the spawned CLI `execute_delegated_tool`, the agent-native route into the
               // same `ToolExecutor` gate `frontendControl` registers its capabilities behind.
               ...(mcpBridge !== undefined ? { mcpJsonInjection: mcpBridge } : {}),

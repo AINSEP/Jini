@@ -110,7 +110,7 @@ export {
   isSandboxImportedProjectRootAllowed,
   isSandboxModeEnabled,
   resolveSandboxRuntimeConfig,
-  resolveSandboxRuntimeConfigFromEnv,
+  resolveConfiguredSandboxRuntime,
   sandboxAgentProfilesConfigPath,
   sandboxImportAllowedRoots,
   sandboxImportedProjectRootUnavailableReason,
@@ -176,3 +176,5 @@ export { isPrivateAddress } from "./net/address.js";
 
 export { defaultPlatformMessages } from "./messages.js";
 export type { PlatformMessages } from "./messages.js";
+
+export { windowsSystemTool } from "./windows-system-tools.js";

@@ -77,16 +77,7 @@ export function createRig(input: {
     acquire: async () => { events.push('acquire'); return { release: () => { events.push('release'); } }; },
   };
   const def = { ...input.def, runtimeLock: lock, needsAgentLogFile: true } satisfies RuntimeAgentDef;
-  const executor = createAgentExecutor({ lifecycle }, {
-    hostEnv: input.hostEnv ?? { PATH: '/bin' }, resolveModelForLaunch: fixtureLaunchModel,
-    getAgentDef: ({ id }) => (id === def.id ? def : null),
-    resolveAgentLaunch: launchAt(input.launchPath ?? '/fake/bin'), applyAgentLaunchEnv: ({ env }) => env,
-    prepareAgentLogFile: (async () => ({ path: '/fake/agent.log', cleanup: async () => { events.push('cleanup'); } })) as never,
-    spawn: input.spawn,
-    listProcessSnapshots: input.listProcessSnapshots ?? (async () => []),
-    stopProcesses: input.stopProcesses ?? (async () => stopResult),
-    onCleanupFailure,
-  });
+  const executor = createAgentExecutor({ hostEnv: input.hostEnv ?? { PATH: '/bin' }, lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (id === def.id ? def : null), resolveAgentLaunch: launchAt(input.launchPath ?? '/fake/bin'), applyAgentLaunchEnv: ({ env }) => env, prepareAgentLogFile: (async () => ({ path: '/fake/agent.log', cleanup: async () => { events.push('cleanup'); } })) as never, spawn: input.spawn, listProcessSnapshots: input.listProcessSnapshots ?? (async () => []), stopProcesses: input.stopProcesses ?? (async () => stopResult), onCleanupFailure });
   const start = async (): Promise<string> => (await lifecycle.start({ contextRef: 'r8a' })).run.id;
   return { events, lifecycle, executor, onCleanupFailure, start };
 }

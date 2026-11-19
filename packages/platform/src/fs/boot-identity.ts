@@ -3,7 +3,7 @@ import type { BootIdentity } from "@jini-ai/core/contracts/runtime";
 import { execFileSync } from "node:child_process";
 import { windowsPowerShell } from "../windows-system-tools.js";
 
-let cached: BootIdentity | null | undefined;
+const cached = new WeakMap<NodeJS.ProcessEnv, BootIdentity | null>();
 const NATIVE_TIMEOUT_MS = 3000;
 function linuxBootIdentity(): BootIdentity | null {
   const id = fs.readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim();
@@ -14,25 +14,26 @@ function linuxBootIdentity(): BootIdentity | null {
 function timestampIdentity(startedAtMs: number): BootIdentity | null {
   return Number.isFinite(startedAtMs) ? { id: String(startedAtMs), startedAtMs } : null;
 }
-function darwinBootIdentity(): BootIdentity | null {
-  const text = execFileSync("/usr/sbin/sysctl", ["-n", "kern.boottime"], { encoding: "utf8", timeout: NATIVE_TIMEOUT_MS });
+function darwinBootIdentity(env: NodeJS.ProcessEnv): BootIdentity | null {
+  const text = execFileSync("/usr/sbin/sysctl", ["-n", "kern.boottime"], { encoding: "utf8", timeout: NATIVE_TIMEOUT_MS, env });
   return timestampIdentity(Number(/sec\s*=\s*(\d+)/.exec(text)?.[1]) * 1000);
 }
-function windowsBootIdentity(): BootIdentity | null {
-  const text = execFileSync(windowsPowerShell(), ["-NoProfile", "-NonInteractive", "-Command", "(Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime().ToString('o')"], { encoding: "utf8", timeout: NATIVE_TIMEOUT_MS, windowsHide: true });
+function windowsBootIdentity(env: NodeJS.ProcessEnv): BootIdentity | null {
+  const text = execFileSync(windowsPowerShell({ env }), ["-NoProfile", "-NonInteractive", "-Command", "(Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime().ToString('o')"], { encoding: "utf8", timeout: NATIVE_TIMEOUT_MS, windowsHide: true, env });
   return timestampIdentity(Date.parse(text.trim()));
 }
-const PLATFORM_READERS: Partial<Record<NodeJS.Platform, () => BootIdentity | null>> = { linux: linuxBootIdentity, darwin: darwinBootIdentity, win32: windowsBootIdentity };
+const PLATFORM_READERS: Partial<Record<NodeJS.Platform, (env: NodeJS.ProcessEnv) => BootIdentity | null>> = { linux: linuxBootIdentity, darwin: darwinBootIdentity, win32: windowsBootIdentity };
 /** Kernel boot identity distinguishes a recycled PID across reboots. Unknown identity fails safe
  * to the existing liveness probe; no age timeout is used to evict a potentially live owner.
- * Native calls are bounded and cached once per process. @complexity O(1) bounded OS reads.
+ * Native calls are bounded and cached per immutable host environment snapshot. @complexity O(1) bounded OS reads.
  */
-export function readBootIdentity(_required: Record<string, never>, _options = {}): BootIdentity | undefined {
-  if (cached !== undefined) return cached ?? undefined;
-  cached = null;
-  try { cached = PLATFORM_READERS[process.platform]?.() ?? null; }
+export function readBootIdentity({ env }: { env: NodeJS.ProcessEnv }, _options = {}): BootIdentity | undefined {
+  if (cached.has(env)) return cached.get(env) ?? undefined;
+  let identity: BootIdentity | null = null;
+  try { identity = PLATFORM_READERS[process.platform]?.(env) ?? null; }
   catch { /* Permission/OS failure is unknown identity, never proof of death. */ }
-  return cached ?? undefined;
+  cached.set(env, identity);
+  return identity ?? undefined;
 }
 
 /** Darwin/Windows identities are wall-clock boot times the OS re-derives when it steps the clock, so

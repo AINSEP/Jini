@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { resolveDirectoryHome } from "../directory-home.js";
 
-const posix = { homeDir: "/users/owner", defaultFolder: "Sites", envName: "SITES_HOME", env: {} };
-const win = { homeDir: "C:\\Users\\owner", defaultFolder: "Sites", envName: "SITES_HOME", env: {} };
+const posix = { homeDir: "/users/owner", defaultFolder: "Sites", envName: "SITES_HOME", directoryHomeOverride: undefined };
+const win = { homeDir: "C:\\Users\\owner", defaultFolder: "Sites", envName: "SITES_HOME", directoryHomeOverride: undefined };
 
 describe("resolveDirectoryHome precedence", () => {
   it("uses the default folder under the home when neither env nor setting is present", () => {
@@ -15,10 +15,10 @@ describe("resolveDirectoryHome precedence", () => {
     expect(resolveDirectoryHome({ ...posix, setting: "saved" }, { cwd: "/checkout", platform: "linux" })).toBe("/checkout/saved");
   });
   it("prefers the environment over the setting", () => {
-    expect(resolveDirectoryHome({ ...posix, env: { SITES_HOME: "/from-env" }, setting: "/saved" }, { platform: "linux" })).toBe("/from-env");
+    expect(resolveDirectoryHome({ ...posix, directoryHomeOverride: "/from-env", setting: "/saved" }, { platform: "linux" })).toBe("/from-env");
   });
   it("reads only the named environment variable", () => {
-    expect(resolveDirectoryHome({ ...posix, env: { OTHER_HOME: "/other" }, setting: "/saved" }, { platform: "linux" })).toBe("/saved");
+    expect(resolveDirectoryHome({ ...posix, directoryHomeOverride: ({ OTHER_HOME: "/other" } as NodeJS.ProcessEnv).SITES_HOME, setting: "/saved" }, { platform: "linux" })).toBe("/saved");
   });
   it("normalizes dot segments in an absolute choice", () => {
     expect(resolveDirectoryHome({ ...posix, setting: "/a/./b/../c" }, { platform: "linux" })).toBe("/a/c");
@@ -30,10 +30,10 @@ describe("resolveDirectoryHome precedence", () => {
 
 describe("resolveDirectoryHome refusals", () => {
   it("refuses an empty environment value even when a setting exists", () => {
-    expect(() => resolveDirectoryHome({ ...posix, env: { SITES_HOME: "" }, setting: "/saved" }, { platform: "linux" })).toThrow(new Error("SITES_HOME must name a directory"));
+    expect(() => resolveDirectoryHome({ ...posix, directoryHomeOverride: "", setting: "/saved" }, { platform: "linux" })).toThrow(new Error("SITES_HOME must name a directory"));
   });
   it("refuses a whitespace-only environment value", () => {
-    expect(() => resolveDirectoryHome({ ...posix, env: { SITES_HOME: " \t\n" } }, { platform: "linux" })).toThrow(new Error("SITES_HOME must name a directory"));
+    expect(() => resolveDirectoryHome({ ...posix, directoryHomeOverride: " \t\n" }, { platform: "linux" })).toThrow(new Error("SITES_HOME must name a directory"));
   });
   it("refuses an empty setting and names the environment variable", () => {
     expect(() => resolveDirectoryHome({ ...posix, setting: "  " }, { platform: "linux" })).toThrow(new Error("SITES_HOME must name a directory"));

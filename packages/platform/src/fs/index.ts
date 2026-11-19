@@ -6,7 +6,7 @@ export * from "./strict-containment.js";
 export * from "./guarded-reader.js";
 export * from "./durable-json.js";
 
-export { withFileLock, withFileLockSync, isLockStale } from "./file-lock.js";
+export { createNodeFileLock, withFileLock, withFileLockSync, isLockStale } from "./file-lock.js";
 export * from "./directory-home.js";
 export * from "./directory-registry.js";
 export * from "./directory-running-lock.js";

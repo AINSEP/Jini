@@ -35,21 +35,13 @@ async function launch(vendor: 'claude' | 'codex' | 'opencode', failHttp = false,
     queueMicrotask(() => failure === 'async-spawn' ? child.emit('error', new Error('spawn failed')) : child.emit('spawn'));
     return child as unknown as ChildProcess;
   });
-  const executor = createAgentExecutor({ lifecycle }, { getAgentDef: () => definition, hostEnv: {},
-    resolveAgentLaunch: () => ({ selectedPath: '/fixture', pathResolvedPath: '/fixture', configuredOverridePath: null,
-      launchPath: '/fixture', launchKind: 'selected', childPathPrepend: [], diagnostic: null }),
-    applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {}, resolveModelForLaunch: fixtureLaunchModel,
-    spawn: spawn as unknown as typeof nodeSpawn, probeMcpBridge: probe,
-    createCommandInvocation: input => { if (failure === 'invocation') throw new Error('invocation failed'); return createCommandInvocation(input); },
-    listProcessSnapshots: async () => [], collectProcessTreePids: () => [],
-    stopProcesses: async () => ({ alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }),
-    mcpJsonInjection: { command: 'node', args: ['serve.js'], daemonUrl: 'http://daemon.invalid', credential: mint, prepareHttp,
+  const executor = createAgentExecutor({ hostEnv: {}, lifecycle }, { getAgentDef: () => definition, resolveAgentLaunch: () => ({ selectedPath: '/fixture', pathResolvedPath: '/fixture', configuredOverridePath: null,
+      launchPath: '/fixture', launchKind: 'selected', childPathPrepend: [], diagnostic: null }), applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {}, resolveModelForLaunch: fixtureLaunchModel, spawn: spawn as unknown as typeof nodeSpawn, probeMcpBridge: probe, createCommandInvocation: input => { if (failure === 'invocation') throw new Error('invocation failed'); return createCommandInvocation({ ...input, env: input.env ?? {}, fallbackComSpec: undefined }); }, listProcessSnapshots: async () => [], collectProcessTreePids: () => [], stopProcesses: async () => ({ alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }), mcpJsonInjection: { command: 'node', args: ['serve.js'], daemonUrl: 'http://daemon.invalid', credential: mint, prepareHttp,
       ...(locked ? { toolApprovalOwner: 'host' as const } : {}),
       readFile: async () => '', writeFile: async ({ content }) => { config = content; },
       mkdtemp: async () => '/fixture-codex-home', removeDir: async () => {}, linkSessionStore: async () => {},
       removeFile: async () => {},
-    },
-  });
+    } });
   const { run } = await lifecycle.start({ contextRef: 'http-launch' });
   const runError: unknown = await executor.run({ runId: run.id, agentId: vendor, cwd: '/fixture', prompt: 'Hello' }, {
     permissionMode: 'bypass', ...(locked ? { nativeToolAccess: false, resumeSessionId: locked.resume ? 'session-fixture' : null,

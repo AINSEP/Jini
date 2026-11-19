@@ -32,8 +32,7 @@ it('P9: closing the kernel terminates PTYs owned by the terminal feature', async
   installRouteRegistrationGuard({ app });
   let kernel: Awaited<ReturnType<typeof composeJiniKernel>> | undefined;
   try {
-    kernel = await composeJiniKernel({
-      app, adapter: createTestRouteHost(), resolvedPortRef: { current: 0 },
+    kernel = await composeJiniKernel({ env: {}, app, adapter: createTestRouteHost(), resolvedPortRef: { current: 0 },
       security: { mode: 'host' }, storage: { kind: 'memory' }, profile: 'agent-core-v1',
       capabilities: { 'host:exec': true }, features: { terminal: true },
       featureOptions: { terminal: { shutdownGraceMs: 0, loadSpawnPty: async () => () => { child.running = true; return pty; } } },

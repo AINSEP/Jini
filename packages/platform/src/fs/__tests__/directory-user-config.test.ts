@@ -16,9 +16,8 @@ function world({ policy = {}, env = {}, quarantined = true, removable = true, pl
     quarantine: () => { if (quarantined) files.delete(file); return quarantined; },
     withLock: ({ critical }) => critical(),
   });
-  const config = createDirectoryUserConfig({ homeDir: HOME, defaultFolder: "Product", envName: "P_HOME", policy: { appName: "Ex", rootsEnvName: "P_ROOTS", ...policy },
-    fileAt, canonicalPath: ({ path }) => path, exists: (file) => present.has(file) || dirs.has(file), isDirectory: (file) => dirs.has(file), ...(removable ? { removeFile } : {}) },
-  { env, cwd: "/cwd", report, ...(platform === "host" ? {} : { platform }), readText: (file) => file === P(`${HOME}/.dropbox/info.json`) ? dropbox : undefined });
+  const config = createDirectoryUserConfig({ env, directoryHomeOverride: env.P_HOME, homeDir: HOME, defaultFolder: "Product", envName: "P_HOME", policy: { appName: "Ex", rootsEnvName: "P_ROOTS", ...policy },
+    fileAt, canonicalPath: ({ path }) => path, exists: (file) => present.has(file) || dirs.has(file), isDirectory: (file) => dirs.has(file), ...(removable ? { removeFile } : {}) }, { cwd: "/cwd", report, ...(platform === "host" ? {} : { platform }), readText: (file) => file === P(`${HOME}/.dropbox/info.json`) ? dropbox : undefined });
   const json = (file: string, value: unknown) => files.set(file, { state: "ok", value });
   return { config, files, present, dirs, report, removeFile, json };
 }

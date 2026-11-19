@@ -26,7 +26,7 @@ let root: string;
 let host: NeutralHost;
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'neutral-host-'));
-  host = createNeutralHost({ root });
+  host = createNeutralHost({ root, env: {} });
 });
 afterEach(() => rm(root, { recursive: true, force: true }));
 

@@ -21,6 +21,8 @@ import type { PluginSdkBinding } from '../../ports.js';
 import { InMemoryPluginActivationRepo } from '../../repo.memory.js';
 import { manifestHost, pluginSdkBinding as baseBinding } from '../support/fixture-bindings.js';
 
+import { createNodeFileLock } from '@jini-ai/platform/fs';
+
 const HOOK = 'record.preCommit';
 const sdkBinding: PluginSdkBinding = {
   ...baseBinding, hookIds: [HOOK], beforeSaveHook: HOOK, hookSemantics: { [HOOK]: 'shared' },
@@ -71,7 +73,7 @@ function secondHost(setup: (sdk: Record<string, unknown>) => void) {
     withInstallIdentity: ({ run }) => run(),
   };
   const required = {
-    workspaceId: 'acme-ws', clock: { nowMs: () => Date.parse('2026-11-09T00:00:00Z') } as never, activationRepo: repo, sources,
+    fileLock: createNodeFileLock({ env: {} }), workspaceId: 'acme-ws', clock: { nowMs: () => Date.parse('2026-11-09T00:00:00Z') } as never, activationRepo: repo, sources,
     pluginSourcePolicy: policy, tier2CallRunner: tier2CallRunner as never, pluginSdkBinding: sdkBinding, hostBinding,
     createModuleImporter: createModuleImporter as never, text,
     quarantineTelemetry: ({ pluginId }: { pluginId: string }) => ({ event: { kind: 'acme.quarantine', pluginId }, options: { channel: 'ops' } }),
@@ -117,9 +119,12 @@ describe('createPluginRuntimeCore (second host via @jini-ai/plugins/host/node)',
     const installDir = await mkdtemp(path.join(os.tmpdir(), 'acme-plugins-'));
     dirs.push(installDir, `${installDir}-runtime`);
     const host = secondHost(() => {});
-    const runtime = createPluginRuntimeCore(host.required, { installDir });
+    const native = host.required.fileLock;
+    const withFileLock = vi.fn(native.withFileLock);
+    const runtime = createPluginRuntimeCore({ ...host.required, fileLock: { withFileLock } }, { installDir });
     expect(runtime.pluginInstaller).toBeDefined();
     await runtime.pluginSource!.create({ id: 'acme-draft', name: 'Acme Draft', description: 'second host' }, {});
+    expect(withFileLock).toHaveBeenCalledWith(expect.objectContaining({ lockPath: `${installDir}-source-lock` }), expect.objectContaining({ timeoutMs: 100, staleMs: Infinity }));
     const { content } = await runtime.pluginSource!.read({ id: 'acme-draft', path: 'server/index.mjs' }, {});
     expect(content).toBe(text.scaffoldEntry);
 

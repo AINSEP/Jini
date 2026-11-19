@@ -1,3 +1,5 @@
+import { ensureAntigravityMcpPermission } from '../antigravity/permissions.js';
+import { createNodeFileLock } from '@jini-ai/platform/fs';
 import { expect, it } from 'vitest';
 import type { RunAgentPayload } from '@jini-ai/protocol';
 import { createMessageRelay } from '../message-relay.js';
@@ -6,10 +8,7 @@ import { resolveMcpBridgeForRun } from '../mcp-bridge.js';
 
 it('spawn_gate_uses_fresh_nonces_only_for_mcp_relay_engines', async () => {
   const options = { command: 'node', daemonUrl: 'http://daemon', env: { JINI_MESSAGE_RELAY: '1', JINI_MESSAGE_RELAY_NONCE: 'forged' } };
-  const resolve = async (agentId: string, runId: string) => resolveMcpBridgeForRun({
-    input: { runId, cwd: '/work', def: getAgentDef({ id: agentId })! },
-    deps: { mcpJsonInjection: options, cleanupStagedFiles: async () => {}, failBeforeSpawn: async ({ message }) => { throw new Error(message); } },
-  });
+  const resolve = async (agentId: string, runId: string) => resolveMcpBridgeForRun({ input: { runId, cwd: '/work', def: getAgentDef({ id: agentId })! }, deps: { ensureAntigravityMcpPermission: input => ensureAntigravityMcpPermission({ ...input, fileLock: createNodeFileLock({ env: {} }) }), mcpJsonInjection: options, cleanupStagedFiles: async () => {}, failBeforeSpawn: async ({ message }) => { throw new Error(message); } } });
   const native = await resolve('claude', 'native');
   expect(native?.kind).toBe('claude-mcp-json');
   if (native?.kind !== 'claude-mcp-json') throw new Error('native bridge missing');

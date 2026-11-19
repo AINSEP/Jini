@@ -9,7 +9,7 @@ import { createNodeDirectoryWorkspace } from "../directory-workspace.js";
 it("merges aliases, retains creator/lastOpened, and imports MRU only once", () => {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "jini-directory-registry-")));
   try {
-    const workspace = createNodeDirectoryWorkspace({ homeDir: root, defaultFolder: "Sites", envName: "SITES_HOME", settingsFile: path.join(root, "setting.json"), registryName: "sites.json", runningName: "running.json" }, { env: {} });
+    const workspace = createNodeDirectoryWorkspace({ env: {}, directoryHomeOverride: undefined, homeDir: root, defaultFolder: "Sites", envName: "SITES_HOME", settingsFile: path.join(root, "setting.json"), registryName: "sites.json", runningName: "running.json" }, {});
     const real = path.join(root, "outside"), alias = path.join(root, "alias");
     fs.mkdirSync(real); fs.symlinkSync(real, alias);
     const registry = workspace.registry({});
@@ -38,13 +38,13 @@ it("concurrent processes cannot lose each other's registrations", async () => {
   try {
     const moduleUrl = new URL("../directory-workspace.ts", import.meta.url).href;
     const run = (index: number) => new Promise<void>((resolve, reject) => {
-      const source = `import { createNodeDirectoryWorkspace } from ${JSON.stringify(moduleUrl)}; const workspace = createNodeDirectoryWorkspace(${JSON.stringify(config)}, {env:{}}); for (let n=0;n<20;n++) workspace.registry({}).merge({entries:[{id:${JSON.stringify(String(index))}+":"+n,name:"Site",path:${JSON.stringify(root)}+"/"+${index}+"-"+n,createdBy:"worker",lastOpened:null}]});`;
+      const source = `import { createNodeDirectoryWorkspace } from ${JSON.stringify(moduleUrl)}; const workspace = createNodeDirectoryWorkspace({ ...${JSON.stringify(config)}, env: {}, directoryHomeOverride: undefined }, {}); for (let n=0;n<20;n++) workspace.registry({}).merge({entries:[{id:${JSON.stringify(String(index))}+":"+n,name:"Site",path:${JSON.stringify(root)}+"/"+${index}+"-"+n,createdBy:"worker",lastOpened:null}]});`;
       const child = spawn(process.execPath, ["--import", "tsx", "--input-type=module", "-e", source], { stdio: ["ignore", "ignore", "pipe"] });
       let errors = ""; child.stderr.on("data", (chunk) => errors += chunk);
       child.once("error", reject); child.once("exit", (code) => code === 0 ? resolve() : reject(new Error(errors || `worker exited ${code}`)));
     });
     await Promise.all([run(1), run(2), run(3)]);
-    const rows = createNodeDirectoryWorkspace(config, { env: {} }).registry({}).list({});
+    const rows = createNodeDirectoryWorkspace({ ...config, env: {}, directoryHomeOverride: undefined }, {}).registry({}).list({});
     expect(rows).toHaveLength(60);
     expect(new Set(rows.map((row) => row.id)).size).toBe(60);
     expect(fs.readdirSync(path.join(root, "Sites"))).toEqual(["sites.json"]);
@@ -56,7 +56,7 @@ it("canonicalizes a missing home below symlinked ancestors without creating it",
   try {
     const real = path.join(root, "real"), alias = path.join(root, "alias");
     fs.mkdirSync(real); fs.symlinkSync(real, alias);
-    const workspace = createNodeDirectoryWorkspace({ homeDir: root, defaultFolder: "Sites", envName: "SITES_HOME", settingsFile: path.join(root, "setting.json"), registryName: "sites.json", runningName: "running.json" }, { env: { SITES_HOME: path.join(alias, "not-created", "Sites") } });
+    const workspace = createNodeDirectoryWorkspace({ env: { SITES_HOME: path.join(alias, "not-created", "Sites") }, directoryHomeOverride: path.join(alias, "not-created", "Sites"), homeDir: root, defaultFolder: "Sites", envName: "SITES_HOME", settingsFile: path.join(root, "setting.json"), registryName: "sites.json", runningName: "running.json" }, {});
     expect(workspace.home({})).toBe(path.join(real, "not-created", "Sites"));
     expect(fs.existsSync(workspace.home({}))).toBe(false);
     expect(() => workspace.setHome({ path: root })).toThrow("SITES_HOME overrides this setting.");
@@ -71,10 +71,10 @@ it("deskfx S4: load repair drops temporary/test pollution once and preserves mis
     const fixtureTemp = path.join(root, "temp"); fs.mkdirSync(fixtureTemp);
     const homeDir = path.join(root, "home"); fs.mkdirSync(homeDir);
     const keep = path.join(root, "sites", "existing"); fs.mkdirSync(keep, { recursive: true });
-    const workspace = createNodeDirectoryWorkspace({ homeDir, defaultFolder: "Sites", envName: "HOME_SITES",
+    const workspace = createNodeDirectoryWorkspace({ env: {}, directoryHomeOverride: undefined, homeDir, defaultFolder: "Sites", envName: "HOME_SITES",
       settingsFile: path.join(homeDir, "config.json"), registryName: "sites.json", runningName: "running.json",
       registryRecovery: { fixtureIdPattern: /^(?:minted-id|new-site-id)-\d+$/, temporaryRoots: [fixtureTemp] },
-    }, { env: {}, ports: { ...createNodeDurableJsonPorts({}), report: { error: ({ message }) => notices.push(message) } } });
+    }, { ports: { ...createNodeDurableJsonPorts({ env: {} }), report: { error: ({ message }) => notices.push(message) } } });
     const record = (id: string, dir: string) => ({ id, name: id, path: dir, createdBy: "Web", lastOpened: null });
     const kept = [record("user-missing", path.join(root, "offline", "real-site")), record("new-site-id-7777", keep), record("temp-neighbor", fixtureTemp + "-neighbor/site")];
     workspace.registry({}).merge({ entries: [...kept, record("minted-id-9999", path.join(fixtureTemp, "new-client")), record("new-site-id-1234", path.join(root, "sites", "new-client")), record("other-temp-id", path.join(fixtureTemp, "another"))] });
@@ -89,7 +89,7 @@ it("deskfx S4: recovery is optional and cannot turn unreadable state into an emp
   // The registry canonicalizes missing descendants too (/var -> /private/var on macOS).
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "registry-fail-closed-")));
   try {
-    const workspace = createNodeDirectoryWorkspace({ homeDir: root, defaultFolder: "Sites", envName: "HOME_SITES", settingsFile: path.join(root, "setting.json"), registryName: "sites.json", runningName: "running.json" }, { env: {} });
+    const workspace = createNodeDirectoryWorkspace({ env: {}, directoryHomeOverride: undefined, homeDir: root, defaultFolder: "Sites", envName: "HOME_SITES", settingsFile: path.join(root, "setting.json"), registryName: "sites.json", runningName: "running.json" }, {});
     const row = { id: "new-site-id-1234", name: "Fixture", path: path.join(root, "absent"), createdBy: "test", lastOpened: null };
     workspace.registry({}).merge({ entries: [row] }); expect(workspace.registry({}).list({})).toEqual([row]);
     const file = path.join(workspace.home({}), "sites.json"); fs.writeFileSync(file, "broken");
@@ -106,10 +106,10 @@ it("deskfx2 SHOULD-1: recovery retains existing temp sites and all home/sites-ho
     const temporary = path.join(root, "temporary"); fs.mkdirSync(temporary);
     const live = path.join(temporary, "live"); fs.mkdirSync(live);
     const alias = path.join(root, "alias-home"); fs.symlinkSync(homeDir, alias);
-    const workspace = createNodeDirectoryWorkspace({ homeDir, defaultFolder: "Sites", envName: "HOME_SITES",
+    const workspace = createNodeDirectoryWorkspace({ env: { HOME_SITES: sitesHome }, directoryHomeOverride: sitesHome, homeDir, defaultFolder: "Sites", envName: "HOME_SITES",
       settingsFile: path.join(homeDir, "settings.json"), registryName: "sites.json", runningName: "running.json",
       registryRecovery: { fixtureIdPattern: /^new-site-id-/, temporaryRoots: [root] },
-    }, { env: { HOME_SITES: sitesHome } });
+    }, {});
     const row = (id: string, dir: string) => ({ id, name: id, path: dir, createdBy: "test", lastOpened: null });
     const kept = [row("live-temp", live), row("new-site-id-home", path.join(homeDir, "missing")),
       row("new-site-id-sites", path.join(sitesHome, "missing")), row("new-site-id-alias", path.join(alias, "missing-other"))];
@@ -124,15 +124,15 @@ it("deskfx2 SHOULD-1: a stat error other than ENOENT never qualifies for pruning
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "jini-recovery-stat-")));
   try {
     const candidate = path.join(root, "locked"), homeDir = path.join(root, "home"); fs.mkdirSync(homeDir);
-    const ports = createNodeDurableJsonPorts({});
+    const ports = createNodeDurableJsonPorts({ env: {} });
     const statSync = ((file: fs.PathLike, options?: fs.StatSyncOptions) => {
       if (file === candidate) throw Object.assign(new Error("permission denied"), { code: "EACCES" });
       return ports.filesystem.statSync(file, options);
     }) as typeof fs.statSync;
-    const workspace = createNodeDirectoryWorkspace({ homeDir, defaultFolder: "Sites", envName: "SITES_HOME",
+    const workspace = createNodeDirectoryWorkspace({ env: {}, directoryHomeOverride: undefined, homeDir, defaultFolder: "Sites", envName: "SITES_HOME",
       settingsFile: path.join(homeDir, "settings.json"), registryName: "sites.json", runningName: "running.json",
       registryRecovery: { fixtureIdPattern: /^fixture$/, temporaryRoots: [root] },
-    }, { env: {}, ports: { ...ports, filesystem: { ...ports.filesystem, statSync } } });
+    }, { ports: { ...ports, filesystem: { ...ports.filesystem, statSync } } });
     workspace.registry({}).merge({ entries: [{ id: "fixture", name: "Locked", path: candidate, createdBy: "test", lastOpened: null }] });
     const catalog = path.join(workspace.home({}), "sites.json"), before = fs.readFileSync(catalog, "utf8");
     expect(() => workspace.registry({}).list({})).toThrow("permission denied");

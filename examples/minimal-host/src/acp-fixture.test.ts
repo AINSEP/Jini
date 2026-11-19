@@ -11,7 +11,7 @@ describe('minimal host static ACP definition', () => {
     const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
     const launch: AgentLaunchResolution = { selectedPath: process.execPath, pathResolvedPath: process.execPath, configuredOverridePath: null, launchPath: process.execPath, launchKind: 'selected', childPathPrepend: [], diagnostic: null };
     let permissions = 0;
-    const executor = createAgentExecutor({ lifecycle }, {
+    const executor = createAgentExecutor({ hostEnv: {}, lifecycle }, {
       getAgentDef: () => def, resolveAgentLaunch: () => launch, applyAgentLaunchEnv: ({ env }) => env,
       ensureAgentCapabilities: async () => {},
       acpPermissionHandler: async () => { permissions++; return { outcome: 'selected', optionId: 'allow' }; },

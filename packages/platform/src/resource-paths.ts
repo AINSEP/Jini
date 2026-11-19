@@ -50,11 +50,10 @@ function cleanOptionalPath(value: string | undefined): string | null {
  * first, then the CLI's own package location.
  */
 export function resolveDaemonCliPath(
-  config: ResourcePathsConfig,
-  env: NodeJS.ProcessEnv = process.env,
+  { config, cliPath, fallbackCliPath }: { config: ResourcePathsConfig; cliPath: string | undefined; fallbackCliPath: string | undefined },
 ): string {
   const configured =
-    cleanOptionalPath(env[config.cliPathEnvVar]) ?? cleanOptionalPath(env[config.cliPathFallbackEnvVar]);
+    cleanOptionalPath(cliPath) ?? cleanOptionalPath(fallbackCliPath);
   if (configured) return configured;
 
   const packageJsonPath = require.resolve(`${config.cliPackageName}/package.json`);
@@ -102,7 +101,6 @@ export function resolveProcessResourcesPath(
 }
 
 export interface ResolveDaemonResourceRootOptions {
-  configured?: string;
   safeBases?: Array<string | null | undefined>;
 }
 
@@ -112,8 +110,8 @@ export interface ResolveDaemonResourceRootOptions {
  * when an override is configured but escapes every safe base.
  */
 export function resolveDaemonResourceRoot(
-  config: ResourcePathsConfig,
-  { configured = process.env[config.resourceRootEnvVar], safeBases }: ResolveDaemonResourceRootOptions = {},
+  { config, configured }: { config: ResourcePathsConfig; configured: string | undefined },
+  { safeBases }: ResolveDaemonResourceRootOptions = {},
 ): string | null {
   if (!configured || configured.length === 0) return null;
 
@@ -135,7 +133,7 @@ export function resolveDaemonResourceDir(resourceRoot: string | null, segment: s
 }
 
 export interface ResolveDaemonPluginPreviewsDirOptions {
-  env?: NodeJS.ProcessEnv;
+  pluginPreviewsDir: string | undefined;
   resourceRoot: string | null | undefined;
   projectRoot: string;
 }
@@ -146,10 +144,8 @@ export interface ResolveDaemonPluginPreviewsDirOptions {
  * `data/plugin-previews` location under the resource root or project root.
  */
 export function resolveDaemonPluginPreviewsDir(
-  config: ResourcePathsConfig,
-  { env = process.env, resourceRoot, projectRoot }: ResolveDaemonPluginPreviewsDirOptions,
+  { pluginPreviewsDir: override, resourceRoot, projectRoot }: ResolveDaemonPluginPreviewsDirOptions & { config: ResourcePathsConfig },
 ): string {
-  const override = env[config.pluginPreviewsDirEnvVar];
   if (override) {
     return path.isAbsolute(override) ? override : path.resolve(projectRoot, override);
   }
@@ -171,9 +167,7 @@ export interface ResolveDataDirOptions {
  * diagnostic-rich error otherwise.
  */
 export function resolveDataDir(
-  config: ResourcePathsConfig,
-  raw: string | undefined,
-  projectRoot: string,
+  { config, raw, projectRoot, fallbackUser }: { config: ResourcePathsConfig; raw: string | undefined; projectRoot: string; fallbackUser: string | undefined },
   options: ResolveDataDirOptions = {},
 ): string {
   const value = raw?.trim();
@@ -194,7 +188,7 @@ export function resolveDataDir(
       try {
         return os.userInfo().username;
       } catch {
-        return process.env.USER ?? process.env.LOGNAME ?? 'unknown';
+        return fallbackUser ?? 'unknown';
       }
     })();
     const parentDir = path.dirname(resolved);

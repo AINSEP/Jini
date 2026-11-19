@@ -1,3 +1,5 @@
+import { ensureAntigravityMcpPermission } from '../antigravity/permissions.js';
+import { createNodeFileLock } from '@jini-ai/platform/fs';
 import { constants, promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -24,14 +26,10 @@ async function fixture(raw?: string) {
 
 /** Exercise the existing launch seam so the old resolver reaches the regression assertions. */
 function prepare() {
-  return resolveMcpBridgeForRun({
-    input: { nativeCapabilities: { userMcp: true }, runId: 'run', cwd: '/isolated', def: { id: 'antigravity', externalMcpInjection: 'env-passthrough' } as RuntimeAgentDef },
-    deps: {
-      mcpJsonInjection: { command: 'jini-mcp', daemonUrl: 'http://localhost:4317' },
+  return resolveMcpBridgeForRun({ input: { nativeCapabilities: { userMcp: true }, runId: 'run', cwd: '/isolated', def: { id: 'antigravity', externalMcpInjection: 'env-passthrough' } as RuntimeAgentDef }, deps: { ensureAntigravityMcpPermission: input => ensureAntigravityMcpPermission({ ...input, fileLock: createNodeFileLock({ env: {} }) }), mcpJsonInjection: { command: 'jini-mcp', daemonUrl: 'http://localhost:4317' },
       cleanupStagedFiles: async () => {},
       failBeforeSpawn: async ({ message }) => { throw new Error(message); },
-    },
-  });
+    } });
 }
 
 it('adds only Jini permission, preserves every other setting and keeps a one-time original backup', async () => {

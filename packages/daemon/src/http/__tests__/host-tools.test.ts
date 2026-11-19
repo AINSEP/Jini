@@ -8,6 +8,7 @@ import {
   CATALOGUE,
   applicableForPlatform,
   currentPlatform,
+  defaultProbeEnv,
   hostEditorsRoute,
   launchHostTool,
   listAvailableEditors,
@@ -163,7 +164,7 @@ describe('resolveEntry', () => {
   it('resolves via the CLI shim when present on PATH', async () => {
     const entry: CatalogueEntry = { id: 'cursor', label: 'Cursor', icon: 'x', command: 'cursor' };
     const env = probeEnv({ platform: 'linux', env: { PATH: '/a' }, exists: ['/a/cursor'] });
-    const result = expectAvailable(await resolveEntry({ entry }, { probeEnv: env }));
+    const result = expectAvailable(await resolveEntry({ probeEnv: env, entry }));
     expect(result.resolvedPath).toBe('/a/cursor');
     expect(result.launch.argsForDir({ workingDir: '/work' })).toEqual(['/work']);
   });
@@ -171,26 +172,26 @@ describe('resolveEntry', () => {
   it('uses a custom commandArgs function when the entry provides one', async () => {
     const entry: CatalogueEntry = { id: 'finder', label: 'Finder', icon: 'x', command: '/usr/bin/open', commandArgs: ({ workingDir: dir }) => ['-R', dir] };
     const env = probeEnv({ platform: 'darwin', exists: ['/usr/bin/open'] });
-    const result = expectAvailable(await resolveEntry({ entry }, { probeEnv: env }));
+    const result = expectAvailable(await resolveEntry({ probeEnv: env, entry }));
     expect(result.launch.argsForDir({ workingDir: '/work' })).toEqual(['-R', '/work']);
   });
 
   it('is unavailable when the command is missing and there is no mac bundle fallback', async () => {
     const entry: CatalogueEntry = { id: 'cursor', label: 'Cursor', icon: 'x', command: 'cursor' };
     const env = probeEnv({ platform: 'linux', env: {}, exists: [] });
-    expect(await resolveEntry({ entry }, { probeEnv: env })).toEqual({ available: false });
+    expect(await resolveEntry({ probeEnv: env, entry })).toEqual({ available: false });
   });
 
   it('is unavailable when the mac bundle fallback exists but the platform is not darwin', async () => {
     const entry: CatalogueEntry = { id: 'cursor', label: 'Cursor', icon: 'x', command: 'cursor', macOpenBundle: 'Cursor' };
     const env = probeEnv({ platform: 'linux', exists: [] });
-    expect(await resolveEntry({ entry }, { probeEnv: env })).toEqual({ available: false });
+    expect(await resolveEntry({ probeEnv: env, entry })).toEqual({ available: false });
   });
 
   it('falls back to the mac bundle when the CLI shim is missing on darwin', async () => {
     const entry: CatalogueEntry = { id: 'cursor', label: 'Cursor', icon: 'x', command: 'cursor', macOpenBundle: 'Cursor' };
     const env = probeEnv({ platform: 'darwin', exists: ['/usr/bin/open', '/Applications/Cursor.app'] });
-    const result = expectAvailable(await resolveEntry({ entry }, { probeEnv: env }));
+    const result = expectAvailable(await resolveEntry({ probeEnv: env, entry }));
     expect(result.resolvedPath).toBe('/Applications/Cursor.app');
     expect(result.launch.command).toBe('/usr/bin/open');
     expect(result.launch.argsForDir({ workingDir: '/work' })).toEqual(['-a', 'Cursor', '/work']);
@@ -199,14 +200,14 @@ describe('resolveEntry', () => {
   it('falls back to probing PATH for "open" when /usr/bin/open itself is inaccessible', async () => {
     const entry: CatalogueEntry = { id: 'cursor', label: 'Cursor', icon: 'x', command: 'cursor', macOpenBundle: 'Cursor' };
     const env = probeEnv({ platform: 'darwin', env: { PATH: '/opt/bin' }, exists: ['/opt/bin/open', '/Applications/Cursor.app'] });
-    const result = expectAvailable(await resolveEntry({ entry }, { probeEnv: env }));
+    const result = expectAvailable(await resolveEntry({ probeEnv: env, entry }));
     expect(result.launch.command).toBe('/opt/bin/open');
   });
 
   it('falls back to the hardcoded /usr/bin/open path when neither direct access nor a PATH probe finds "open"', async () => {
     const entry: CatalogueEntry = { id: 'cursor', label: 'Cursor', icon: 'x', command: 'cursor', macOpenBundle: 'Cursor' };
     const env = probeEnv({ platform: 'darwin', env: { PATH: '/opt/bin' }, exists: ['/Applications/Cursor.app'] });
-    const result = expectAvailable(await resolveEntry({ entry }, { probeEnv: env }));
+    const result = expectAvailable(await resolveEntry({ probeEnv: env, entry }));
     expect(result.launch.command).toBe('/usr/bin/open');
   });
 
@@ -219,36 +220,36 @@ describe('resolveEntry', () => {
       macOpenArgs: ({ bundleName, workingDir: dir }) => ['--custom', bundleName, dir],
     };
     const env = probeEnv({ platform: 'darwin', exists: ['/usr/bin/open', '/Applications/Cursor.app'] });
-    const result = expectAvailable(await resolveEntry({ entry }, { probeEnv: env }));
+    const result = expectAvailable(await resolveEntry({ probeEnv: env, entry }));
     expect(result.launch.argsForDir({ workingDir: '/work' })).toEqual(['--custom', 'Cursor', '/work']);
   });
 
   it('is unavailable when the mac bundle fallback is not found either', async () => {
     const entry: CatalogueEntry = { id: 'cursor', label: 'Cursor', icon: 'x', command: 'cursor', macOpenBundle: 'Cursor' };
     const env = probeEnv({ platform: 'darwin', exists: [] });
-    expect(await resolveEntry({ entry }, { probeEnv: env })).toEqual({ available: false });
+    expect(await resolveEntry({ probeEnv: env, entry })).toEqual({ available: false });
   });
 
   it('is unavailable for an entry with neither a command nor a mac bundle', async () => {
     const entry: CatalogueEntry = { id: 'mystery', label: 'Mystery', icon: 'x' };
-    expect(await resolveEntry({ entry }, { probeEnv: probeEnv() })).toEqual({ available: false });
+    expect(await resolveEntry({ probeEnv: probeEnv(), entry })).toEqual({ available: false });
   });
 });
 
 describe('resolveHostToolLaunchPlan', () => {
   it('is unavailable for an unknown editor id', async () => {
-    expect(await resolveHostToolLaunchPlan({ editorId: 'nonexistent', workingDir: '/work' }, { probeEnv: probeEnv() })).toEqual({ available: false });
+    expect(await resolveHostToolLaunchPlan({ probeEnv: probeEnv(), editorId: 'nonexistent', workingDir: '/work' })).toEqual({ available: false });
   });
 
   it('resolves a concrete command/args plan for a known, installed editor', async () => {
     const env = probeEnv({ platform: 'linux', env: { PATH: '/a' }, exists: ['/a/code'] });
-    const plan = await resolveHostToolLaunchPlan({ editorId: 'vscode', workingDir: '/work' }, { probeEnv: env });
+    const plan = await resolveHostToolLaunchPlan({ probeEnv: env, editorId: 'vscode', workingDir: '/work' });
     expect(plan).toEqual({ available: true, resolvedPath: '/a/code', command: '/a/code', args: ['/work'] });
   });
 
   it('is unavailable (no resolvedPath leaking through) for a known but uninstalled editor', async () => {
     const env = probeEnv({ platform: 'linux', env: {}, exists: [] });
-    expect(await resolveHostToolLaunchPlan({ editorId: 'vscode', workingDir: '/work' }, { probeEnv: env })).toEqual({ available: false });
+    expect(await resolveHostToolLaunchPlan({ probeEnv: env, editorId: 'vscode', workingDir: '/work' })).toEqual({ available: false });
   });
 });
 
@@ -261,7 +262,7 @@ describe('CATALOGUE', () => {
   it("the real 'finder' entry's own commandArgs reveals rather than opens its target directory", async () => {
     const finder = CATALOGUE.find((e) => e.id === 'finder')!;
     const env = probeEnv({ platform: 'darwin', exists: ['/usr/bin/open'] });
-    const result = expectAvailable(await resolveEntry({ entry: finder }, { probeEnv: env }));
+    const result = expectAvailable(await resolveEntry({ probeEnv: env, entry: finder }));
     expect(result.launch.argsForDir({ workingDir: '/work' })).toEqual(['-R', '/work']);
   });
 });
@@ -269,7 +270,7 @@ describe('CATALOGUE', () => {
 describe('listAvailableEditors', () => {
   it('filters to entries applicable for the platform and reports availability', async () => {
     const env = probeEnv({ platform: 'win32', env: { PATH: 'C:\\a' }, exists: ['C:\\a/explorer'] });
-    const result = await listAvailableEditors({}, { probeEnv: env });
+    const result = await listAvailableEditors({ probeEnv: env });
     expect(result.platform).toBe('win32');
     // darwin-only entries (finder/terminal/warp/xcode) must not appear on win32.
     expect(result.editors.some((e) => e.id === 'finder')).toBe(false);
@@ -296,14 +297,14 @@ describe('launchHostTool', () => {
 
   it('resolves ok:true once the OS confirms the process actually started', async () => {
     const spawnImpl = fakeSpawn('spawn');
-    const result = await launchHostTool({ command: '/bin/echo', args: ['hi'] }, { spawnImpl: spawnImpl as any });
+    const result = await launchHostTool({ env: {}, command: '/bin/echo', args: ['hi'] }, { spawnImpl: spawnImpl as any });
     expect(result).toEqual({ ok: true });
     expect(spawnImpl).toHaveBeenCalledTimes(1);
   });
 
   it('resolves ok:false with the error message when the OS refuses the launch', async () => {
     const spawnImpl = fakeSpawn('error', 'EACCES');
-    const result = await launchHostTool({ command: '/bin/nope', args: [] }, { spawnImpl: spawnImpl as any });
+    const result = await launchHostTool({ env: {}, command: '/bin/nope', args: [] }, { spawnImpl: spawnImpl as any });
     expect(result).toEqual({ ok: false, error: 'EACCES' });
   });
 
@@ -317,7 +318,7 @@ describe('launchHostTool', () => {
       });
       return child;
     });
-    const result = await launchHostTool({ command: '/bin/echo', args: [] }, { spawnImpl: spawnImpl as any });
+    const result = await launchHostTool({ env: {}, command: '/bin/echo', args: [] }, { spawnImpl: spawnImpl as any });
     expect(result).toEqual({ ok: true });
   });
 
@@ -331,7 +332,7 @@ describe('launchHostTool', () => {
       });
       return child;
     });
-    const result = await launchHostTool({ command: '/bin/echo', args: [] }, { spawnImpl: spawnImpl as any });
+    const result = await launchHostTool({ env: {}, command: '/bin/echo', args: [] }, { spawnImpl: spawnImpl as any });
     expect(result).toEqual({ ok: false, error: 'refused' });
   });
 
@@ -342,7 +343,7 @@ describe('launchHostTool', () => {
       queueMicrotask(() => child.emit('error', 'plain string failure'));
       return child;
     });
-    const result = await launchHostTool({ command: '/bin/echo', args: [] }, { spawnImpl: spawnImpl as any });
+    const result = await launchHostTool({ env: {}, command: '/bin/echo', args: [] }, { spawnImpl: spawnImpl as any });
     expect(result).toEqual({ ok: false, error: 'plain string failure' });
   });
 });
@@ -353,7 +354,7 @@ describe('hostEditorsRoute', () => {
   });
 
   it('handle() returns the real listAvailableEditors() result shape', async () => {
-    const result = await hostEditorsRoute.handle({ input: undefined, deps: {} });
+    const result = await hostEditorsRoute.handle({ input: undefined, deps: { probeEnv: defaultProbeEnv({ env: process.env }) } });
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(Array.isArray(result.value.editors)).toBe(true);
@@ -364,7 +365,7 @@ describe('hostEditorsRoute', () => {
 
 describe('hostToolsRoutes', () => {
   it('lists exactly GET /api/editors and POST /api/resources/:resourceRef/open-in; only the open-in route is behind the same-origin gate', async () => {
-    const routes = hostToolsRoutes({ deps: {}, host: fakeDaemonRouteHost() });
+    const routes = hostToolsRoutes({ deps: { probeEnv: defaultProbeEnv({ env: process.env }) }, host: fakeDaemonRouteHost() });
     expect(describeRoutes({ routes })).toEqual([
       { method: 'GET', path: '/api/editors', gates: [] },
       { method: 'POST', path: '/api/resources/:resourceRef/open-in', gates: ['same-origin'] },
@@ -468,8 +469,7 @@ describe('openResourceInEditorRoute.handle', () => {
   });
 
   it('malformed/unknown editor: rejects an editorId not in the catalogue', async () => {
-    const result = await openResourceInEditorRoute.handle({ input: { resourceRef: 'proj-1', editorId: 'not-a-real-editor' }, deps: { resolveRoot: () => '/root' } }
-    );
+    const result = await openResourceInEditorRoute.handle({ input: { resourceRef: 'proj-1', editorId: 'not-a-real-editor' }, deps: { probeEnv: defaultProbeEnv({ env: process.env }), resolveRoot: () => '/root' } });
     expect(result).toEqual({
       ok: false,
       error: { code: 'BAD_REQUEST', message: 'unknown editor: not-a-real-editor' },
@@ -513,7 +513,7 @@ describe('openResourceInEditorRoute.handle', () => {
       throw new Error('lookup backend unavailable');
     };
     await expect(
-      openResourceInEditorRoute.handle({ input: { resourceRef: 'proj-1', editorId: 'vscode' }, deps: { resolveRoot } }),
+      openResourceInEditorRoute.handle({ input: { resourceRef: 'proj-1', editorId: 'vscode' }, deps: { probeEnv: defaultProbeEnv({ env: process.env }), resolveRoot } }),
     ).rejects.toThrow('lookup backend unavailable');
   });
 
@@ -545,11 +545,11 @@ describe('openResourceInEditorRoute.handle', () => {
     });
   });
 
-  it('uses the real defaultProbeEnv() and the real node:child_process spawn when neither is injected', async () => {
+  it('uses an explicit native probe and the real node:child_process spawn', async () => {
     // Only asserts this doesn't throw synchronously constructing its plan — the real launch
     // outcome depends on the actual host machine, which is why every other test above injects
     // both. WorkspaceRootDeniedError still fires first since no resolveRoot is supplied.
-    const result = await openResourceInEditorRoute.handle({ input: { resourceRef: 'proj-1', editorId: 'vscode' }, deps: {} }
+    const result = await openResourceInEditorRoute.handle({ input: { resourceRef: 'proj-1', editorId: 'vscode' }, deps: { probeEnv: defaultProbeEnv({ env: process.env }) } }
     );
     expect(result).toEqual({
       ok: false,
@@ -591,7 +591,7 @@ describe('hostToolsRoutes — POST /api/resources/:resourceRef/open-in, mounted 
 
   it('requires same-origin: blocks a cross-origin request before resolveRoot ever runs', async () => {
     const resolveRoot = vi.fn(() => '/root');
-    expect((await openIn({ resolveRoot }, { denyOrigins: true })).status).toBe(403);
+    expect((await openIn({ resolveRoot, probeEnv: probeEnv() }, { denyOrigins: true })).status).toBe(403);
     expect(resolveRoot).not.toHaveBeenCalled();
   });
 
@@ -625,7 +625,7 @@ describe('resolveEntry / openResourceInEditorRoute.handle — characterization',
   it('prefers the CLI shim over the mac bundle on darwin when both exist', async () => {
     const entry: CatalogueEntry = { id: 'x', label: 'X', icon: 'x', command: 'xed', macOpenBundle: 'X' };
     const env = probeEnv({ platform: 'darwin', env: { PATH: '/p' }, exists: ['/p/xed', '/Applications/X.app', '/usr/bin/open'] });
-    const resolved = expectAvailable(await resolveEntry({ entry }, { probeEnv: env }));
+    const resolved = expectAvailable(await resolveEntry({ probeEnv: env, entry }));
     expect(resolved.resolvedPath).toBe('/p/xed');
     expect(resolved.launch.command).toBe('/p/xed');
     expect(resolved.launch.argsForDir({ workingDir: '/w' })).toEqual(['/w']);
@@ -634,7 +634,7 @@ describe('resolveEntry / openResourceInEditorRoute.handle — characterization',
   it('passes the workingDir to a custom commandArgs and returns its result verbatim', async () => {
     const commandArgs = vi.fn(({ workingDir }: { workingDir: string }) => ['--new-window', workingDir]);
     const entry: CatalogueEntry = { id: 'x', label: 'X', icon: 'x', command: '/abs/xed', commandArgs };
-    const resolved = expectAvailable(await resolveEntry({ entry }, { probeEnv: probeEnv({ exists: ['/abs/xed'] }) }));
+    const resolved = expectAvailable(await resolveEntry({ probeEnv: probeEnv({ exists: ['/abs/xed'] }), entry }));
     expect(resolved.launch.argsForDir({ workingDir: '/w' })).toEqual(['--new-window', '/w']);
     expect(commandArgs).toHaveBeenCalledWith({ workingDir: '/w' });
   });
@@ -644,7 +644,7 @@ describe('resolveEntry / openResourceInEditorRoute.handle — characterization',
       throw new Error(`ENOENT: ${path}`);
     });
     const entry: CatalogueEntry = { id: 'x', label: 'X', icon: 'x', macOpenBundle: 'X' };
-    expect(await resolveEntry({ entry }, { probeEnv: probeEnv({ platform: 'darwin', access }) })).toEqual({ available: false });
+    expect(await resolveEntry({ probeEnv: probeEnv({ platform: 'darwin', access }), entry })).toEqual({ available: false });
     expect(access.mock.calls.map(([arg]) => arg.path)).not.toContain('/usr/bin/open');
   });
 
@@ -699,4 +699,20 @@ describe('resolveEntry / openResourceInEditorRoute.handle — characterization',
     const env = probeEnv({ env: { PATH: '.:/usr/bin' }, exists: ['./code', '/usr/bin/code'] });
     expect(await probeCommandOnPath({ command: 'code', probeEnv: env })).toBe('./code');
   });
+});
+
+it('forwards the same probe map through editor GET and POST and into the launched child', async () => {
+  const env = { PATH: '/host/editors', HOME: '/host/home', ComSpec: 'D:\\Host\\cmd.exe' };
+  const selected = probeEnv({ env, exists: ['/host/editors/code'] });
+  const child = Object.assign(new EventEmitter(), { unref: vi.fn() });
+  const spawnImpl = vi.fn<NonNullable<NonNullable<Parameters<typeof launchHostTool>[1]>['spawnImpl']>>(() => {
+    queueMicrotask(() => child.emit('spawn'));
+    return child as unknown as ReturnType<NonNullable<NonNullable<Parameters<typeof launchHostTool>[1]>['spawnImpl']>>;
+  });
+  const fetch = serveRoutes({ routes: hostToolsRoutes({ deps: { probeEnv: selected, resolveRoot: () => '/workspace', spawnImpl }, host: fakeDaemonRouteHost({}) }) });
+  const list = await fetch(jsonRequest({ path: '/api/editors' }));
+  expect(await list.json()).toMatchObject({ platform: 'linux', editors: expect.arrayContaining([{ id: 'vscode', label: 'VS Code', icon: 'file-code', available: true, resolvedPath: '/host/editors/code' }]) });
+  const opened = await fetch(jsonRequest({ path: '/api/resources/site/open-in', method: 'POST' }, { body: { editorId: 'vscode' } }));
+  expect(opened.status).toBe(200);
+  expect(spawnImpl).toHaveBeenCalledWith('/host/editors/code', ['/workspace'], expect.objectContaining({ env }));
 });

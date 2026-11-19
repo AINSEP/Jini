@@ -54,7 +54,7 @@ describe('executor filesystem policy (owner 2026-10-23)', () => {
         }
         throw new Error('stop after policy capture');
       });
-      const executor = createAgentExecutor({ lifecycle }, {
+      const executor = createAgentExecutor({ hostEnv: {}, lifecycle }, {
         // The daemon's own CLAUDE_CODE_TMPDIR must neither reach the child nor widen its policy (SEC-001).
         hostEnv: { ...childEnv, CLAUDE_CODE_TMPDIR: '/ambient/claude-temp' },
         getAgentDef: () => def, resolveModelForLaunch: fixtureLaunchModel,
@@ -207,15 +207,8 @@ function scratchHarness({ failSecondSpawn = false }: { failSecondSpawn?: boolean
     children[0]!.emit('close', null, 'SIGTERM');
     return { alreadyStopped: false, forcedPids: [], matchedPids: [4242], remainingPids: [], stoppedPids: [4242] };
   });
-  const executor = createAgentExecutor({ lifecycle }, {
-    hostEnv: { PATH: '/bin', HOME: base, CLAUDE_CODE_TMPDIR: '/tmp/operator-session' },
-    getAgentDef: () => ({ ...claudeAgentDef, mcpIsolation: { perRun: 'fixture@2026-11-05' } }), resolveModelForLaunch: fixtureLaunchModel,
-    resolveAgentLaunch: () => ({ selectedPath: executable, pathResolvedPath: executable, configuredOverridePath: null,
-      launchPath: executable, launchKind: 'selected', childPathPrepend: [], diagnostic: null }) as AgentLaunchResolution,
-    applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {},
-    assertClaudeFilesystemSupport: async () => true,
-    listProcessSnapshots: async () => [], collectProcessTreePids: () => [4242], stopProcesses,
-    spawn: ((_command: string, args: readonly string[], options: { env: NodeJS.ProcessEnv }) => {
+  const executor = createAgentExecutor({ hostEnv: { PATH: '/bin', HOME: base, CLAUDE_CODE_TMPDIR: '/tmp/operator-session' }, lifecycle }, { getAgentDef: () => ({ ...claudeAgentDef, mcpIsolation: { perRun: 'fixture@2026-11-05' } }), resolveModelForLaunch: fixtureLaunchModel, resolveAgentLaunch: () => ({ selectedPath: executable, pathResolvedPath: executable, configuredOverridePath: null,
+      launchPath: executable, launchKind: 'selected', childPathPrepend: [], diagnostic: null }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {}, assertClaudeFilesystemSupport: async () => true, listProcessSnapshots: async () => [], collectProcessTreePids: () => [4242], stopProcesses, spawn: ((_command: string, args: readonly string[], options: { env: NodeJS.ProcessEnv }) => {
       const child = Object.assign(new EventEmitter(), { pid: 4242 + children.length, killed: false,
         stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(), kill: vi.fn(() => true) }) as unknown as ChildProcess;
       children.push(child); environments.push(options.env);
@@ -225,8 +218,7 @@ function scratchHarness({ failSecondSpawn = false }: { failSecondSpawn?: boolean
         else child.emit('spawn');
       });
       return child;
-    }) as unknown as typeof spawn,
-  });
+    }) as unknown as typeof spawn });
   return { children, environments, policies, lifecycle, stopProcesses,
     reply: async ({ index }: { index: number }, _options = {}) => {
       (children[index]!.stdout as PassThrough).write(`${JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'done' }] } })}\n`);

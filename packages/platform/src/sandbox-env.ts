@@ -66,10 +66,8 @@ const FALSY_VALUES = new Set(['0', 'false', 'no', 'off', '']);
  * falsy spelling.
  */
 export function isSandboxModeEnabled(
-  config: SandboxEnvConfig,
-  env: Record<string, string | undefined> = process.env,
+  { config, mode: raw }: { config: SandboxEnvConfig; mode: string | undefined },
 ): boolean {
-  const raw = env[config.modeEnvVar];
   if (typeof raw !== 'string') return false;
   const value = raw.trim().toLowerCase();
   if (TRUTHY_VALUES.has(value)) return true;
@@ -82,9 +80,8 @@ export function isSandboxModeEnabled(
 
 function configuredSandboxImportRoots(
   config: SandboxEnvConfig,
-  env: Record<string, string | undefined>,
+  raw: string | undefined,
 ): string[] {
-  const raw = env[config.importAllowedRootsEnvVar];
   if (typeof raw !== 'string' || !raw.trim()) return [];
   const roots = raw
     .split(path.delimiter)
@@ -149,10 +146,9 @@ function isPathInsideDir(root: string, candidate: string): boolean {
  * is allowed to live under while sandboxing is on.
  */
 export function sandboxImportAllowedRoots(
-  config: SandboxEnvConfig,
-  env: Record<string, string | undefined> = process.env,
+  { config, importAllowedRoots }: { config: SandboxEnvConfig; importAllowedRoots: string | undefined },
 ): string[] {
-  return configuredSandboxImportRoots(config, env).map(canonicalizePathForContainment);
+  return configuredSandboxImportRoots(config, importAllowedRoots).map(canonicalizePathForContainment);
 }
 
 /**
@@ -160,13 +156,11 @@ export function sandboxImportAllowedRoots(
  * sandboxing is enabled. Always `true` when sandboxing is off.
  */
 export function isSandboxImportedProjectRootAllowed(
-  config: SandboxEnvConfig,
-  projectRoot: string,
-  env: Record<string, string | undefined> = process.env,
+  { config, projectRoot, mode, importAllowedRoots }: { config: SandboxEnvConfig; projectRoot: string; mode: string | undefined; importAllowedRoots: string | undefined },
 ): boolean {
-  if (!isSandboxModeEnabled(config, env)) return true;
+  if (!isSandboxModeEnabled({ config, mode })) return true;
   const candidate = canonicalizeContainmentCandidate(projectRoot);
-  return sandboxImportAllowedRoots(config, env).some((root) => isPathInsideDir(root, candidate));
+  return sandboxImportAllowedRoots({ config, importAllowedRoots }).some((root) => isPathInsideDir(root, candidate));
 }
 
 /**
@@ -174,12 +168,10 @@ export function isSandboxImportedProjectRootAllowed(
  * `null` when it's allowed (including when sandboxing is off).
  */
 export function sandboxImportedProjectRootUnavailableReason(
-  config: SandboxEnvConfig,
-  projectRoot: string,
-  env: Record<string, string | undefined> = process.env,
+  { config, projectRoot, mode, importAllowedRoots }: { config: SandboxEnvConfig; projectRoot: string; mode: string | undefined; importAllowedRoots: string | undefined },
 ): string | null {
-  if (!isSandboxModeEnabled(config, env)) return null;
-  return isSandboxImportedProjectRootAllowed(config, projectRoot, env)
+  if (!isSandboxModeEnabled({ config, mode })) return null;
+  return isSandboxImportedProjectRootAllowed({ config, projectRoot, mode, importAllowedRoots })
     ? null
     : `Imported-folder projects are not available in ${config.modeEnvVar} unless their root is ` +
         `under ${config.importAllowedRootsEnvVar}.`;
@@ -215,13 +207,11 @@ export function resolveSandboxRuntimeConfig(enabled: boolean, dataDir: string): 
  * when sandboxing is off. Throws when sandboxing is on but the data-dir env
  * var is unset.
  */
-export function resolveSandboxRuntimeConfigFromEnv(
-  config: SandboxEnvConfig,
-  env: Record<string, string | undefined>,
-  projectRoot: string,
+export function resolveConfiguredSandboxRuntime(
+  { config, mode, dataDir, projectRoot }: { config: SandboxEnvConfig; mode: string | undefined; dataDir: string | undefined; projectRoot: string },
 ): SandboxRuntimeConfig | null {
-  if (!isSandboxModeEnabled(config, env)) return null;
-  const rawDataDir = env[config.dataDirEnvVar]?.trim();
+  if (!isSandboxModeEnabled({ config, mode })) return null;
+  const rawDataDir = dataDir?.trim();
   if (!rawDataDir) {
     throw new Error(`${config.dataDirEnvVar} is required when ${config.modeEnvVar} is enabled`);
   }

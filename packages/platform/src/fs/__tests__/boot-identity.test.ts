@@ -7,11 +7,12 @@ vi.mock("node:fs", async importOriginal => {
 });
 vi.mock("node:child_process", async importOriginal => ({ ...await importOriginal<typeof import("node:child_process")>(), execFileSync: native.execFileSync }));
 
+const fixtureEnv = Object.freeze({});
 const realPlatform = process.platform;
 function onPlatform(platform: NodeJS.Platform): void { Object.defineProperty(process, "platform", { value: platform, configurable: true }); }
 async function freshRead(): Promise<ReturnType<typeof import("../boot-identity.js")["readBootIdentity"]>> {
   const { readBootIdentity } = await import("../boot-identity.js");
-  return readBootIdentity({});
+  return readBootIdentity({ env: fixtureEnv });
 }
 function linuxFiles({ bootId, stat }: { bootId: string; stat: string }): void {
   native.readFileSync.mockImplementation(file => {
@@ -43,7 +44,7 @@ test("Linux read failure (e.g. EACCES) is unknown identity, not an error", async
 test("macOS identity parses kern.boottime sec through a bounded sysctl call", async () => {
   onPlatform("darwin"); native.execFileSync.mockReturnValue("{ sec = 1700000123, usec = 456 } Tue Nov 14 22:15:23 2023\n");
   expect(await freshRead()).toEqual({ id: "1700000123000", startedAtMs: 1_700_000_123_000 });
-  expect(native.execFileSync).toHaveBeenCalledWith("/usr/sbin/sysctl", ["-n", "kern.boottime"], { encoding: "utf8", timeout: 3000 });
+  expect(native.execFileSync).toHaveBeenCalledWith("/usr/sbin/sysctl", ["-n", "kern.boottime"], { encoding: "utf8", timeout: 3000, env: fixtureEnv });
   expect(native.readFileSync).not.toHaveBeenCalled();
 });
 test("macOS identity is unknown when sysctl output has no sec field", async () => {
@@ -55,7 +56,7 @@ test("Windows identity parses the UTC LastBootUpTime through a hidden, bounded P
   expect(await freshRead()).toEqual({ id: String(Date.parse("2023-11-14T22:15:23Z")), startedAtMs: Date.parse("2023-11-14T22:15:23Z") });
   expect(native.execFileSync).toHaveBeenCalledWith(expect.stringMatching(/\\System32\\WindowsPowerShell\\v1\.0\\powershell\.exe$/i),
     ["-NoProfile", "-NonInteractive", "-Command", "(Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime().ToString('o')"],
-    { encoding: "utf8", timeout: 3000, windowsHide: true });
+    { encoding: "utf8", timeout: 3000, windowsHide: true, env: fixtureEnv });
 });
 test("Windows identity is unknown when PowerShell output is not a date", async () => {
   onPlatform("win32"); native.execFileSync.mockReturnValue("Get-CimInstance : Access denied\r\n");
@@ -74,16 +75,36 @@ test("other platforms report unknown identity without any OS call", async () => 
 test("a known identity is read once per process and then served from cache", async () => {
   onPlatform("darwin"); native.execFileSync.mockReturnValue("{ sec = 5, usec = 0 }");
   const { readBootIdentity } = await import("../boot-identity.js");
-  expect(readBootIdentity({})).toEqual({ id: "5000", startedAtMs: 5000 });
+  expect(readBootIdentity({ env: fixtureEnv })).toEqual({ id: "5000", startedAtMs: 5000 });
   native.execFileSync.mockReturnValue("{ sec = 9, usec = 0 }");
-  expect(readBootIdentity({})).toEqual({ id: "5000", startedAtMs: 5000 });
+  expect(readBootIdentity({ env: fixtureEnv })).toEqual({ id: "5000", startedAtMs: 5000 });
   expect(native.execFileSync).toHaveBeenCalledTimes(1);
 });
 test("an unknown identity is also cached so failing OS calls are not retried", async () => {
   onPlatform("win32"); native.execFileSync.mockImplementation(() => { throw new Error("denied"); });
   const { readBootIdentity } = await import("../boot-identity.js");
-  expect(readBootIdentity({})).toBeUndefined();
+  expect(readBootIdentity({ env: fixtureEnv })).toBeUndefined();
   native.execFileSync.mockReturnValue("2023-11-14T22:15:23Z");
-  expect(readBootIdentity({})).toBeUndefined();
+  expect(readBootIdentity({ env: fixtureEnv })).toBeUndefined();
   expect(native.execFileSync).toHaveBeenCalledTimes(1);
+});
+
+test("a failed host probe is cached only for that snapshot and cannot poison a second Windows host", async () => {
+  onPlatform("win32");
+  const { readBootIdentity } = await import("../boot-identity.js");
+  const failed = Object.freeze({ SYSTEMROOT: "D:\\First" });
+  const healthy = Object.freeze({ systemroot: "E:\\Second" });
+  native.execFileSync.mockImplementationOnce(() => { throw new Error("denied"); });
+  expect(readBootIdentity({ env: failed })).toBeUndefined();
+  native.execFileSync.mockReturnValue("2023-11-14T22:15:23Z");
+  expect(readBootIdentity({ env: failed })).toBeUndefined();
+  expect(readBootIdentity({ env: healthy })).toEqual({ id: "1700000123000", startedAtMs: 1700000123000 });
+  expect(native.execFileSync.mock.calls.map(([file]) => file)).toEqual([
+    "D:\\First\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+    "E:\\Second\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+  ]);
+  expect(native.execFileSync.mock.calls.map(([, , options]) => options)).toEqual([
+    { encoding: "utf8", timeout: 3000, windowsHide: true, env: failed },
+    { encoding: "utf8", timeout: 3000, windowsHide: true, env: healthy },
+  ]);
 });

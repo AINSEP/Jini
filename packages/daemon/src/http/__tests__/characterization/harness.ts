@@ -29,7 +29,7 @@ import { delegatedToolRoutes } from '../../delegated-tools.js';
 import { frontendRequestRoutes } from '../../frontend-request-route.js';
 import { frontendSessionRoutes } from '../../frontend-sessions.js';
 import { healthRoutes } from '../../health.js';
-import { hostToolsRoutes } from '../../host-tools.js';
+import { defaultProbeEnv, hostToolsRoutes } from '../../host-tools.js';
 import { mediaRoutes } from '../../media.js';
 import { memoryRoutes } from '../../memory.js';
 import { messageRelayRoutes } from '../../message-relay.js';
@@ -119,7 +119,7 @@ const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-par
   'json-parser',
   ['runs', ({ adapter, deps, mountList }) => mountList(runRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['agents', ({ adapter, deps, mountList }) => mountList(agentRoutes({ deps: deps(), host: routeHost(adapter) }))],
-  ['host-tools', ({ adapter, deps, mountList }) => mountList(hostToolsRoutes({ deps: deps(), host: routeHost(adapter) }))],
+  ['host-tools', ({ adapter, deps, mountList }) => mountList(hostToolsRoutes({ deps: deps({ probeEnv: defaultProbeEnv({ env: process.env }) }), host: routeHost(adapter) }))],
   ['model-proxy', ({ adapter, deps, mountList }) => mountList(modelProxyRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['active-context', ({ adapter, deps, mountList }) => mountList(activeContextRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['terminals', ({ adapter, deps, mountList }) => mountList(terminalRoutes({ deps: deps(), host: routeHost(adapter) }))],

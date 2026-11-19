@@ -1,3 +1,4 @@
+import { createNodeFileLock } from '@jini-ai/platform/fs';
 import { promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -20,7 +21,7 @@ async function settingsFile(raw?: string): Promise<string> {
   if (raw !== undefined) await fs.writeFile(settingsPath, raw);
   return settingsPath;
 }
-const grant = (settingsPath: string, serverName = 'jini') => ensureAntigravityMcpPermission({ settingsPath, serverName });
+const grant = (settingsPath: string, serverName = 'jini') => ensureAntigravityMcpPermission({ fileLock: createNodeFileLock({ env: {} }), settingsPath, serverName });
 const read = (path: string) => fs.readFile(path, 'utf8');
 const exists = (path: string) => fs.access(path).then(() => true, () => false);
 

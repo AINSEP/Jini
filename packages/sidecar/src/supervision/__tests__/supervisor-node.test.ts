@@ -22,7 +22,7 @@ test("native child events and signals are translated into object ports", () => {
   const child = Object.assign(emitter, { pid: 42 as number | undefined, kill: vi.fn().mockReturnValue(true) });
   mocks.spawn.mockReturnValue(child);
   mocks.invocation.mockReturnValue({ command: "node", args: [] });
-  const port = createNodeDaemonProcessAdapter({ command: "node", args: [], cwd: "/host", env: {},
+  const port = createNodeDaemonProcessAdapter({ hostEnv: {}, command: "node", args: [], cwd: "/host", env: {},
     registry: createSupervisorRegistry({ registryPath: "/host/daemon.json" }),
   }).spawnDaemonProcess();
   const exited = vi.fn(); const errored = vi.fn();
@@ -56,11 +56,11 @@ test("process launch uses platform quoting, detached groups and parent output re
   mocks.invocation.mockReturnValue({ command: "quoted-command", args: ["quoted"], windowsVerbatimArguments: true });
   const stdout = { write: vi.fn() } as unknown as import("node:stream").Writable;
   const registry = createSupervisorRegistry({ registryPath: "/host/daemon.json" });
-  const adapter = createNodeDaemonProcessAdapter({ command: "host-command", args: ["host-arg"], cwd: "/host", env: { HOST_ENV: "1" }, registry }, { stdout });
+  const adapter = createNodeDaemonProcessAdapter({ hostEnv: {}, command: "host-command", args: ["host-arg"], cwd: "/host", env: { HOST_ENV: "1" }, registry }, { stdout });
   const processPort = adapter.spawnDaemonProcess();
   expect(processPort).not.toBe(child);
   expect(processPort.pid).toBeUndefined();
-  expect(mocks.invocation).toHaveBeenCalledWith({ command: "host-command", args: ["host-arg"], env: { HOST_ENV: "1" } });
+  expect(mocks.invocation).toHaveBeenCalledWith({ fallbackComSpec: undefined, command: "host-command", args: ["host-arg"], env: { HOST_ENV: "1" } });
   expect(mocks.spawn).toHaveBeenCalledWith("quoted-command", ["quoted"], {
     cwd: "/host", env: { HOST_ENV: "1" }, detached: true, windowsHide: true,
     stdio: ["ignore", "pipe", "pipe"], windowsVerbatimArguments: true,
@@ -74,7 +74,7 @@ test("POSIX termination signals the group and reuses platform descendant escalat
   const registry = createSupervisorRegistry({ registryPath: "/host/daemon.json" });
   mocks.snapshots.mockResolvedValue([{ pid: 43, ppid: 42, command: "worker" }]);
   mocks.collect.mockReturnValue([43, 42]); mocks.stop.mockResolvedValue({ remainingPids: [] }); mocks.remove.mockResolvedValue(undefined);
-  await createNodeDaemonProcessAdapter({ command: "node", args: [], cwd: "/host", env: {}, registry }, { platform: "linux" }).terminateProcess({ child });
+  await createNodeDaemonProcessAdapter({ hostEnv: {}, command: "node", args: [], cwd: "/host", env: {}, registry }, { platform: "linux" }).terminateProcess({ child });
   expect(kill).toHaveBeenCalledWith(-42, "SIGTERM");
   expect(mocks.collect).toHaveBeenCalledWith([{ pid: 43, ppid: 42, command: "worker" }], [42]);
   expect(mocks.stop).toHaveBeenCalledWith([43, 42]); expect(mocks.remove).toHaveBeenCalledWith({ registryPath: "/host/daemon.json", pid: 42 });
@@ -85,9 +85,9 @@ test("Windows termination uses platform tree stopping without a POSIX group sign
   const child: SpawnedDaemonProcess = { pid: 42, on: vi.fn(), kill: vi.fn() };
   const registry = createSupervisorRegistry({ registryPath: "/host/daemon.json" });
   mocks.snapshots.mockResolvedValue([]); mocks.collect.mockReturnValue([42]); mocks.stop.mockResolvedValue({ remainingPids: [] }); mocks.remove.mockResolvedValue(undefined);
-  await createNodeDaemonProcessAdapter({ command: "node", args: [], cwd: "/host", env: {}, registry }, { platform: "win32" }).terminateProcess({ child });
+  await createNodeDaemonProcessAdapter({ hostEnv: {}, command: "node", args: [], cwd: "/host", env: {}, registry }, { platform: "win32" }).terminateProcess({ child });
   expect(kill).not.toHaveBeenCalled(); expect(mocks.stop).toHaveBeenCalledWith([42]);
-  expect(mocks.exec).toHaveBeenCalledWith("taskkill", ["/pid", "42", "/T", "/F"], { stdio: "ignore" });
+  expect(mocks.exec).toHaveBeenCalledWith("C:\\Windows\\System32\\taskkill.exe", ["/pid", "42", "/T", "/F"], { stdio: "ignore", env: {} });
 });
 
 test("failed group signalling falls back to the direct child; survivors retain their registry", async () => {
@@ -95,7 +95,7 @@ test("failed group signalling falls back to the direct child; survivors retain t
   const child: SpawnedDaemonProcess = { pid: 42, on: vi.fn(), kill: vi.fn().mockReturnValue(true) };
   const registry = createSupervisorRegistry({ registryPath: "/host/daemon.json" });
   mocks.snapshots.mockResolvedValue([]); mocks.collect.mockReturnValue([42]); mocks.stop.mockResolvedValue({ remainingPids: [42] });
-  await expect(createNodeDaemonProcessAdapter({ command: "node", args: [], cwd: "/host", env: {}, registry }, { platform: "linux" }).terminateProcess({ child })).rejects.toThrow("daemon processes still running: 42");
+  await expect(createNodeDaemonProcessAdapter({ hostEnv: {}, command: "node", args: [], cwd: "/host", env: {}, registry }, { platform: "linux" }).terminateProcess({ child })).rejects.toThrow("daemon processes still running: 42");
   expect(child.kill).toHaveBeenCalledWith({}, { signal: "SIGTERM" }); expect(mocks.remove).not.toHaveBeenCalled();
 });
 
@@ -106,7 +106,7 @@ test("tree signalling happens synchronously before snapshot and registry cleanup
   mocks.collect.mockReturnValue([42]); mocks.stop.mockResolvedValue({ remainingPids: [] }); mocks.remove.mockResolvedValue(undefined);
   const child: SpawnedDaemonProcess = { pid: 42, on: vi.fn(), kill: vi.fn() };
   const registry = createSupervisorRegistry({ registryPath: "/host/daemon.json" });
-  const pending = createNodeDaemonProcessAdapter({ command: "node", args: [], cwd: "/host", env: {}, registry }, { platform: "linux" }).terminateProcess({ child });
+  const pending = createNodeDaemonProcessAdapter({ hostEnv: {}, command: "node", args: [], cwd: "/host", env: {}, registry }, { platform: "linux" }).terminateProcess({ child });
   expect(kill).toHaveBeenCalledWith(-42, "SIGTERM"); expect(mocks.remove).not.toHaveBeenCalled();
   complete([]); await pending;
   expect(mocks.remove).toHaveBeenCalledWith({ registryPath: "/host/daemon.json", pid: 42 });

@@ -33,7 +33,7 @@ function archiveInput(layout: ReturnType<typeof createAgentPluginLayout>, plugin
 }
 
 test('the node process port records the kernel boot its locks are taken in', () => {
-  expect(createNodeAgentPluginEffects({}).process.bootIdentity?.()).toEqual(readBootIdentity({}));
+  expect(createNodeAgentPluginEffects({ env: {} }).process.bootIdentity?.()).toEqual(readBootIdentity({ env: {} }));
 });
 
 test('an enable reclaims a plugin state lock a killed process left under another hostname spelling', async () => {
@@ -42,7 +42,7 @@ test('an enable reclaims a plugin state lock a killed process left under another
     const layout = createAgentPluginLayout({ root: path.join(temp, 'plugins') });
     // The lock wait runs on the monotonic clock; advancing it on every sleep makes the 15 s budget instant.
     let monotonic = 0;
-    const node = createNodeAgentPluginEffects({});
+    const node = createNodeAgentPluginEffects({ env: {} });
     const context = { ...ports, layout,
       clock: { ...node.clock, monotonicMs: () => monotonic, sleep: async ({ ms }: { ms: number }) => { monotonic += ms; } },
       process: { ...node.process, hostname: () => 'LAs-MacBook-Pro.local',
@@ -53,7 +53,7 @@ test('an enable reclaims a plugin state lock a killed process left under another
     const lockPath = path.join(workspaceRoot, 'staging', '.plugin-state-composio.lock');
     await fs.mkdir(path.dirname(lockPath), { recursive: true });
     await fs.writeFile(lockPath, JSON.stringify({ pid: DEAD_PID, hostname: 'LAs-MacBook-Pro.lan', token: 'killed-boot',
-      acquiredAt: new Date().toISOString(), bootId: readBootIdentity({})!.id }));
+      acquiredAt: new Date().toISOString(), bootId: readBootIdentity({ env: {} })!.id }));
 
     await expect(api.setAgentPluginEnabled({ workspaceId, pluginId: 'composio', enabled: true, actor: 'operator:alice' }))
       .resolves.toEqual({ pluginId: 'composio', enabled: true });

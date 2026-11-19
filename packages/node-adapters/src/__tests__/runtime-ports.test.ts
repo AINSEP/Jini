@@ -2,8 +2,8 @@ import { mkdtemp, readFile, rm, writeFile, access } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createProcessControlPort, nodeProcessControl, type ProcessFunctions } from '../process.js';
-import { nodeAtomicWriter, nodeFileLock } from '../fs.js';
+import { createProcessControlPort, createNodeProcessControl, type ProcessFunctions } from '../process.js';
+import { nodeAtomicWriter, createNodeFileLock } from '../fs.js';
 
 const stopped = { alreadyStopped: false, forcedPids: [], matchedPids: [3], remainingPids: [], stoppedPids: [3] };
 
@@ -54,22 +54,22 @@ describe('node runtime ports over the real platform functions', () => {
   const scratch = async (): Promise<string> => { const root = await mkdtemp(join(tmpdir(), 'runtime-ports-')); roots.push(root); return root; };
 
   it('stopProcesses with only unusable pids reports alreadyStopped without touching anything', async () => {
-    await expect(nodeProcessControl.stopProcesses({ pids: [null, undefined] })).resolves.toMatchObject({ alreadyStopped: true });
+    await expect(createNodeProcessControl({ env: {} }).stopProcesses({ pids: [null, undefined] })).resolves.toMatchObject({ alreadyStopped: true });
   });
 
   it('waitForProcessExit resolves true for a pid that is not alive', async () => {
-    await expect(nodeProcessControl.waitForProcessExit({ pid: null }, { timeoutMs: 10 })).resolves.toBe(true);
+    await expect(createNodeProcessControl({ env: {} }).waitForProcessExit({ pid: null }, { timeoutMs: 10 })).resolves.toBe(true);
   });
 
   it('lists this very process', async () => {
-    const snapshots = await nodeProcessControl.listProcessSnapshots();
+    const snapshots = await createNodeProcessControl({ env: process.env }).listProcessSnapshots();
     expect(snapshots.some((snapshot) => snapshot.pid === process.pid)).toBe(true);
   });
 
   it('fileLock runs the callback under the lock path and releases it', async () => {
     const root = await scratch();
     const lockPath = join(root, 'x.lock');
-    const seen = await nodeFileLock.withFileLock({ lockPath, run: async () => access(lockPath).then(() => 'held', () => 'absent') });
+    const seen = await createNodeFileLock({ env: {} }).withFileLock({ lockPath, run: async () => access(lockPath).then(() => 'held', () => 'absent') });
     expect(seen).toBe('held');
     await expect(access(lockPath)).rejects.toThrow();
   });

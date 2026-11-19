@@ -11,7 +11,7 @@ import {
   isSandboxImportedProjectRootAllowed,
   isSandboxModeEnabled,
   resolveSandboxRuntimeConfig,
-  resolveSandboxRuntimeConfigFromEnv,
+  resolveConfiguredSandboxRuntime,
   sandboxAgentProfilesConfigPath,
   sandboxImportAllowedRoots,
   sandboxImportedProjectRootUnavailableReason,
@@ -44,20 +44,20 @@ async function makeTempDir(prefix: string): Promise<string> {
 
 describe('@jini-ai/platform — sandbox-env — isSandboxModeEnabled', () => {
   it('is false when unset', () => {
-    expect(isSandboxModeEnabled(CONFIG, {})).toBe(false);
+    expect(isSandboxModeEnabled({ config: CONFIG, mode: undefined })).toBe(false);
   });
 
   it('recognizes truthy and falsy spellings', () => {
     for (const truthy of ['1', 'true', 'yes', 'on', 'TRUE']) {
-      expect(isSandboxModeEnabled(CONFIG, { [CONFIG.modeEnvVar]: truthy })).toBe(true);
+      expect(isSandboxModeEnabled({ config: CONFIG, mode: truthy })).toBe(true);
     }
     for (const falsy of ['0', 'false', 'no', 'off', '']) {
-      expect(isSandboxModeEnabled(CONFIG, { [CONFIG.modeEnvVar]: falsy })).toBe(false);
+      expect(isSandboxModeEnabled({ config: CONFIG, mode: falsy })).toBe(false);
     }
   });
 
   it('throws on an unrecognized value', () => {
-    expect(() => isSandboxModeEnabled(CONFIG, { [CONFIG.modeEnvVar]: 'maybe' })).toThrow(
+    expect(() => isSandboxModeEnabled({ config: CONFIG, mode: 'maybe' })).toThrow(
       /FAKE_SANDBOX_MODE must be one of/,
     );
   });
@@ -65,22 +65,20 @@ describe('@jini-ai/platform — sandbox-env — isSandboxModeEnabled', () => {
 
 describe('@jini-ai/platform — sandbox-env — import allowed roots', () => {
   it('is empty when unset or blank', () => {
-    expect(sandboxImportAllowedRoots(CONFIG, {})).toEqual([]);
-    expect(sandboxImportAllowedRoots(CONFIG, { [CONFIG.importAllowedRootsEnvVar]: '   ' })).toEqual([]);
+    expect(sandboxImportAllowedRoots({ config: CONFIG, importAllowedRoots: undefined })).toEqual([]);
+    expect(sandboxImportAllowedRoots({ config: CONFIG, importAllowedRoots: '   ' })).toEqual([]);
   });
 
   it('rejects a relative root entry', () => {
     expect(() =>
-      sandboxImportAllowedRoots(CONFIG, { [CONFIG.importAllowedRootsEnvVar]: 'relative/dir' }),
+      sandboxImportAllowedRoots({ config: CONFIG, importAllowedRoots: 'relative/dir' }),
     ).toThrow(/must be absolute paths. Got: relative\/dir/);
   });
 
   it('canonicalizes existing and non-existing root paths', async () => {
     const realDir = await makeTempDir('jini-sandbox-roots-');
     const missing = join(realDir, 'does-not-exist');
-    const roots = sandboxImportAllowedRoots(CONFIG, {
-      [CONFIG.importAllowedRootsEnvVar]: [realDir, missing].join(path.delimiter),
-    });
+    const roots = sandboxImportAllowedRoots({ config: CONFIG, importAllowedRoots: [realDir, missing].join(path.delimiter) });
     expect(roots).toHaveLength(2);
     expect(roots[1]).toBe(path.normalize(missing));
   });
@@ -88,8 +86,8 @@ describe('@jini-ai/platform — sandbox-env — import allowed roots', () => {
 
 describe('@jini-ai/platform — sandbox-env — imported project root allowed', () => {
   it('allows anything when sandboxing is off', () => {
-    expect(isSandboxImportedProjectRootAllowed(CONFIG, '/anywhere', {})).toBe(true);
-    expect(sandboxImportedProjectRootUnavailableReason(CONFIG, '/anywhere', {})).toBeNull();
+    expect(isSandboxImportedProjectRootAllowed({ config: CONFIG, projectRoot: '/anywhere', mode: undefined, importAllowedRoots: undefined })).toBe(true);
+    expect(sandboxImportedProjectRootUnavailableReason({ config: CONFIG, projectRoot: '/anywhere', mode: undefined, importAllowedRoots: undefined })).toBeNull();
   });
 
   it('allows a root nested under an allowed root, and the allowed root itself', async () => {
@@ -99,9 +97,9 @@ describe('@jini-ai/platform — sandbox-env — imported project root allowed', 
       [CONFIG.modeEnvVar]: '1',
       [CONFIG.importAllowedRootsEnvVar]: allowedRoot,
     };
-    expect(isSandboxImportedProjectRootAllowed(CONFIG, allowedRoot, env)).toBe(true);
-    expect(isSandboxImportedProjectRootAllowed(CONFIG, nested, env)).toBe(true);
-    expect(sandboxImportedProjectRootUnavailableReason(CONFIG, nested, env)).toBeNull();
+    expect(isSandboxImportedProjectRootAllowed({ config: CONFIG, projectRoot: allowedRoot, mode: env.FAKE_SANDBOX_MODE, importAllowedRoots: env.FAKE_SANDBOX_IMPORT_ALLOWED_ROOTS })).toBe(true);
+    expect(isSandboxImportedProjectRootAllowed({ config: CONFIG, projectRoot: nested, mode: env.FAKE_SANDBOX_MODE, importAllowedRoots: env.FAKE_SANDBOX_IMPORT_ALLOWED_ROOTS })).toBe(true);
+    expect(sandboxImportedProjectRootUnavailableReason({ config: CONFIG, projectRoot: nested, mode: env.FAKE_SANDBOX_MODE, importAllowedRoots: env.FAKE_SANDBOX_IMPORT_ALLOWED_ROOTS })).toBeNull();
   });
 
   it('denies a root outside every allowed root, with a reason string', async () => {
@@ -111,8 +109,8 @@ describe('@jini-ai/platform — sandbox-env — imported project root allowed', 
       [CONFIG.modeEnvVar]: '1',
       [CONFIG.importAllowedRootsEnvVar]: allowedRoot,
     };
-    expect(isSandboxImportedProjectRootAllowed(CONFIG, outsideRoot, env)).toBe(false);
-    expect(sandboxImportedProjectRootUnavailableReason(CONFIG, outsideRoot, env)).toMatch(
+    expect(isSandboxImportedProjectRootAllowed({ config: CONFIG, projectRoot: outsideRoot, mode: env.FAKE_SANDBOX_MODE, importAllowedRoots: env.FAKE_SANDBOX_IMPORT_ALLOWED_ROOTS })).toBe(false);
+    expect(sandboxImportedProjectRootUnavailableReason({ config: CONFIG, projectRoot: outsideRoot, mode: env.FAKE_SANDBOX_MODE, importAllowedRoots: env.FAKE_SANDBOX_IMPORT_ALLOWED_ROOTS })).toMatch(
       /Imported-folder projects are not available/,
     );
   });
@@ -130,8 +128,8 @@ describe('@jini-ai/platform — sandbox-env — imported project root allowed', 
         [CONFIG.modeEnvVar]: '1',
         [CONFIG.importAllowedRootsEnvVar]: '/unresolvable-root',
       };
-      expect(isSandboxImportedProjectRootAllowed(CONFIG, '/unresolvable-root/nested', env)).toBe(true);
-      expect(isSandboxImportedProjectRootAllowed(CONFIG, '/elsewhere/nested', env)).toBe(false);
+      expect(isSandboxImportedProjectRootAllowed({ config: CONFIG, projectRoot: '/unresolvable-root/nested', mode: env.FAKE_SANDBOX_MODE, importAllowedRoots: env.FAKE_SANDBOX_IMPORT_ALLOWED_ROOTS })).toBe(true);
+      expect(isSandboxImportedProjectRootAllowed({ config: CONFIG, projectRoot: '/elsewhere/nested', mode: env.FAKE_SANDBOX_MODE, importAllowedRoots: env.FAKE_SANDBOX_IMPORT_ALLOWED_ROOTS })).toBe(false);
     } finally {
       nativeSpy.mockRestore();
     }
@@ -150,7 +148,7 @@ describe('@jini-ai/platform — sandbox-env — imported project root allowed', 
         [CONFIG.modeEnvVar]: '1',
         [CONFIG.importAllowedRootsEnvVar]: '/unresolvable-root',
       };
-      expect(isSandboxImportedProjectRootAllowed(CONFIG, 'relative/nested/root', env)).toBe(false);
+      expect(isSandboxImportedProjectRootAllowed({ config: CONFIG, projectRoot: 'relative/nested/root', mode: env.FAKE_SANDBOX_MODE, importAllowedRoots: env.FAKE_SANDBOX_IMPORT_ALLOWED_ROOTS })).toBe(false);
     } finally {
       nativeSpy.mockRestore();
     }
@@ -167,21 +165,17 @@ describe('@jini-ai/platform — sandbox-env — runtime config derivation', () =
   });
 
   it('resolves null from env when sandboxing is off', () => {
-    expect(resolveSandboxRuntimeConfigFromEnv(CONFIG, {}, '/project')).toBeNull();
+    expect(resolveConfiguredSandboxRuntime({ config: CONFIG, mode: undefined, dataDir: undefined, projectRoot: '/project' })).toBeNull();
   });
 
   it('throws from env when sandboxing is on but the data dir is unset', () => {
     expect(() =>
-      resolveSandboxRuntimeConfigFromEnv(CONFIG, { [CONFIG.modeEnvVar]: '1' }, '/project'),
+      resolveConfiguredSandboxRuntime({ config: CONFIG, mode: '1', dataDir: undefined, projectRoot: '/project' }),
     ).toThrow(/FAKE_DATA_DIR is required/);
   });
 
   it('resolves a runtime config from env, expanding a home-relative data dir', () => {
-    const runtime = resolveSandboxRuntimeConfigFromEnv(
-      CONFIG,
-      { [CONFIG.modeEnvVar]: '1', [CONFIG.dataDirEnvVar]: 'relative-data' },
-      '/project',
-    );
+    const runtime = resolveConfiguredSandboxRuntime({ config: CONFIG, mode: '1', dataDir: 'relative-data', projectRoot: '/project' });
     expect(runtime?.enabled).toBe(true);
     expect(runtime?.dataDir).toBe(path.resolve('/project', 'relative-data'));
   });
@@ -257,16 +251,16 @@ describe('@jini-ai/platform — sandbox-env — F1 allowed-roots containment', (
   it('padded entries are trimmed and empty segments dropped', async () => {
     const { a, b } = await roots();
     const env = envFor(`  ${a}  ${path.delimiter}${path.delimiter} ${b}\t`);
-    expect(sandboxImportAllowedRoots(CONFIG, env)).toEqual([a, b]);
+    expect(sandboxImportAllowedRoots({ config: CONFIG, importAllowedRoots: env.FAKE_SANDBOX_IMPORT_ALLOWED_ROOTS })).toEqual([a, b]);
   });
 
   it.each(['', '   ', path.delimiter])('a blank roots value %j means no allowed roots', (value) => {
-    expect(sandboxImportAllowedRoots(CONFIG, envFor(value))).toEqual([]);
+    expect(sandboxImportAllowedRoots({ config: CONFIG, importAllowedRoots: envFor(value).FAKE_SANDBOX_IMPORT_ALLOWED_ROOTS })).toEqual([]);
   });
 
   it('a relative entry anywhere in the list is refused with the env var name and the entry', async () => {
     const { a } = await roots();
-    expect(() => sandboxImportAllowedRoots(CONFIG, envFor(`${a}${path.delimiter}rel/dir`))).toThrow(
+    expect(() => sandboxImportAllowedRoots({ config: CONFIG, importAllowedRoots: envFor(`${a}${path.delimiter}rel/dir`).FAKE_SANDBOX_IMPORT_ALLOWED_ROOTS })).toThrow(
       new Error('FAKE_SANDBOX_IMPORT_ALLOWED_ROOTS entries must be absolute paths. Got: rel/dir'),
     );
   });
@@ -275,12 +269,12 @@ describe('@jini-ai/platform — sandbox-env — F1 allowed-roots containment', (
     const { a, b, c } = await roots();
     const env = envFor([a, b, c].join(path.delimiter));
     for (const root of [a, b, c]) {
-      expect(isSandboxImportedProjectRootAllowed(CONFIG, join(root, 'proj'), env)).toBe(true);
-      expect(sandboxImportedProjectRootUnavailableReason(CONFIG, join(root, 'proj', 'deep'), env)).toBeNull();
+      expect(isSandboxImportedProjectRootAllowed({ config: CONFIG, projectRoot: join(root, 'proj'), mode: env.FAKE_SANDBOX_MODE, importAllowedRoots: env.FAKE_SANDBOX_IMPORT_ALLOWED_ROOTS })).toBe(true);
+      expect(sandboxImportedProjectRootUnavailableReason({ config: CONFIG, projectRoot: join(root, 'proj', 'deep'), mode: env.FAKE_SANDBOX_MODE, importAllowedRoots: env.FAKE_SANDBOX_IMPORT_ALLOWED_ROOTS })).toBeNull();
     }
     const outside = fs.realpathSync.native(await makeTempDir('jini-outside-'));
-    expect(isSandboxImportedProjectRootAllowed(CONFIG, outside, env)).toBe(false);
-    expect(sandboxImportedProjectRootUnavailableReason(CONFIG, outside, env)).toBe(
+    expect(isSandboxImportedProjectRootAllowed({ config: CONFIG, projectRoot: outside, mode: env.FAKE_SANDBOX_MODE, importAllowedRoots: env.FAKE_SANDBOX_IMPORT_ALLOWED_ROOTS })).toBe(false);
+    expect(sandboxImportedProjectRootUnavailableReason({ config: CONFIG, projectRoot: outside, mode: env.FAKE_SANDBOX_MODE, importAllowedRoots: env.FAKE_SANDBOX_IMPORT_ALLOWED_ROOTS })).toBe(
       'Imported-folder projects are not available in FAKE_SANDBOX_MODE unless their root is under FAKE_SANDBOX_IMPORT_ALLOWED_ROOTS.',
     );
   });
@@ -288,13 +282,20 @@ describe('@jini-ai/platform — sandbox-env — F1 allowed-roots containment', (
   it('the root itself counts as inside; a sibling sharing its name prefix and a parent-escape do not', async () => {
     const { a } = await roots();
     const env = envFor(a);
-    expect(isSandboxImportedProjectRootAllowed(CONFIG, a, env)).toBe(true);
-    expect(isSandboxImportedProjectRootAllowed(CONFIG, `${a}-sibling`, env)).toBe(false);
-    expect(isSandboxImportedProjectRootAllowed(CONFIG, join(a, '..', 'escape'), env)).toBe(false);
+    expect(isSandboxImportedProjectRootAllowed({ config: CONFIG, projectRoot: a, mode: env.FAKE_SANDBOX_MODE, importAllowedRoots: env.FAKE_SANDBOX_IMPORT_ALLOWED_ROOTS })).toBe(true);
+    expect(isSandboxImportedProjectRootAllowed({ config: CONFIG, projectRoot: `${a}-sibling`, mode: env.FAKE_SANDBOX_MODE, importAllowedRoots: env.FAKE_SANDBOX_IMPORT_ALLOWED_ROOTS })).toBe(false);
+    expect(isSandboxImportedProjectRootAllowed({ config: CONFIG, projectRoot: join(a, '..', 'escape'), mode: env.FAKE_SANDBOX_MODE, importAllowedRoots: env.FAKE_SANDBOX_IMPORT_ALLOWED_ROOTS })).toBe(false);
   });
 
   it('sandboxing on with no roots configured refuses every imported root', async () => {
     const { a } = await roots();
-    expect(isSandboxImportedProjectRootAllowed(CONFIG, a, { FAKE_SANDBOX_MODE: 'true' })).toBe(false);
+    expect(isSandboxImportedProjectRootAllowed({ config: CONFIG, projectRoot: a, mode: 'true', importAllowedRoots: undefined })).toBe(false);
   });
+});
+
+it('uses raw mode and import roots and refuses an out-of-base project', () => {
+  const required = { config: CONFIG, mode: 'true', importAllowedRoots: '/workspace', projectRoot: '/outside' };
+  expect(isSandboxModeEnabled({ config: CONFIG, mode: 'false' })).toBe(false);
+  expect(isSandboxImportedProjectRootAllowed(required)).toBe(false);
+  expect(isSandboxImportedProjectRootAllowed({ ...required, projectRoot: '/workspace/site' })).toBe(true);
 });

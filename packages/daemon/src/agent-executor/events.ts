@@ -57,6 +57,7 @@ import type {
    RunLifecycle,
 } from '../run-lifecycle.js';
 import type {
+  CreateAgentExecutorOptions,
    StreamHandler,
    JsonStreamFormat,
    ChildDrivenStreamFormat,
@@ -370,7 +371,7 @@ interface WireChildLifecycleContext extends TerminateChildTreeDeps {
    */
   readonly expectsJiniBridge: boolean;
   readonly bridgeProbeEntry: Parameters<typeof probeMcpBridge>[0]['entry'] | undefined;
-  readonly probeMcpBridge: typeof probeMcpBridge;
+  readonly probeMcpBridge: NonNullable<CreateAgentExecutorOptions["probeMcpBridge"]>;
 }
 
 /** Keeps exact-byte auditing separate from retained diagnostics on the run's existing FIFO.

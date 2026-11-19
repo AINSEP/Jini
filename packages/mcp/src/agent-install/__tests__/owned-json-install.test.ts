@@ -5,6 +5,9 @@ import { tmpdir } from 'node:os';
 import { installOwnedJsonAgent } from '../owned-json-install.js';
 import { planAgentInstall, verifyJsonAgentInstall } from '../install.js';
 
+import { createNodeFileLock } from '@jini-ai/platform/fs';
+import type { FileLockPort } from '@jini-ai/core/contracts/runtime';
+
 const homes: string[] = [];
 
 test('install and verification use the same host-owned Windows AppData', async () => {
@@ -12,7 +15,7 @@ test('install and verification use the same host-owned Windows AppData', async (
   const appData = join(home, 'custom-roaming');
   const ctx = { home, appData, platform: 'win32' as const, serverName: 'jini' };
   const spec = { command: 'node', args: ['/bridge.js'], env: {} };
-  await installOwnedJsonAgent({ agentId: 'trae', allowed: true, spec, ctx });
+  await installOwnedJsonAgent({ fileLock: createNodeFileLock({ env: {} }), agentId: 'trae', allowed: true, spec, ctx });
   const configPath = join(appData, 'Trae', 'User', 'mcp.json');
   expect(JSON.parse(await readFile(configPath, 'utf8'))).toEqual({ mcpServers: { jini: spec } });
   await verifyJsonAgentInstall({ agentId: 'trae', spec, ctx, readFile: ({ path }) => readFile(path, 'utf8') });
@@ -20,7 +23,7 @@ test('install and verification use the same host-owned Windows AppData', async (
 afterEach(async () => { await Promise.all(homes.splice(0).map(home => rm(home, { recursive: true, force: true }))); });
 async function fixture() {
   const home = await mkdtemp(join(tmpdir(), 'mcp-owned-')); homes.push(home);
-  const required = { agentId: 'antigravity', allowed: true, ctx: { home, appData: undefined, platform: 'linux' as const, serverName: 'jini' },
+  const required = { fileLock: createNodeFileLock({ env: {} }), agentId: 'antigravity', allowed: true, ctx: { home, appData: undefined, platform: 'linux' as const, serverName: 'jini' },
     spec: { command: 'node', args: ['/bridge.js'], env: {} } };
   const plan = planAgentInstall({ ...required, slug: 'antigravity' });
   if (plan.kind !== 'json') throw new Error('Expected JSON');
@@ -95,4 +98,25 @@ test('malformed config errors do not disclose its contents', async () => {
   await expect(installOwnedJsonAgent(required)).rejects.toThrow(/not valid JSON/);
   try { await installOwnedJsonAgent(required); } catch (error) { expect(String(error)).not.toContain('PRIVATE_SENTINEL'); }
   expect(await readFile(file, 'utf8')).toBe('PRIVATE_SENTINEL');
+});
+
+test('the host lock encloses the owned JSON write and blocks it until acquisition', async () => {
+  const { required, file } = await fixture();
+  let acquired!: () => void;
+  const gate = new Promise<void>(resolve => { acquired = resolve; });
+  let entered = false;
+  const native = createNodeFileLock({ env: {} });
+  const fileLock: FileLockPort = { withFileLock: async (input, options) => {
+    expect(input.lockPath).toBe(`${file}.jini-lock`);
+    await gate;
+    return native.withFileLock({ ...input, run: async lock => { entered = true; return input.run(lock); } }, options);
+  } };
+  const pending = installOwnedJsonAgent({ ...required, fileLock });
+  await new Promise(resolve => setImmediate(resolve));
+  expect(entered).toBe(false);
+  await expect(readFile(file, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+  acquired();
+  await pending;
+  expect(entered).toBe(true);
+  expect(JSON.parse(await readFile(file, 'utf8')).mcpServers.jini.command).toBe('node');
 });

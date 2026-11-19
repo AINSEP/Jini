@@ -38,7 +38,7 @@ import {
   searchToolCatalog,
 } from '@jini-ai/registry/tool-catalog/sqlite';
 import { inspectSqliteDatabase, verifySqliteIntegrity } from '@jini-ai/db/sqlite'; import type { SqliteDb } from '@jini-ai/core/contracts/storage';
-import { xaiRoutes, connectorsRoutes, routineRoutes, mediaRoutes, hostToolsRoutes, healthRoutes, daemonDbRoutes, researchRoutes, delegatedToolRoutes, activeContextRoutes, daemonStatusRoutes, agentRoutes, toolCatalogRoutes, createDaemonDbToolRegistrations, denyAllWorkspaceRoots, frontendSessionRoutes, memoryRoutes, modelProxyRoutes, remoteRunEventRoutes, runRoutes, terminalRoutes, type AgentSummary, type DaemonDbOperations, type DaemonDbVacuumResult, type DelegatedToolExecuteRequest, type FrontendSessionsHttpDeps, type MediaHttpDeps, type MemoryHttpDeps, type RemoteToolBridgeTokenConfig, type RoutineHttpDeps, type RunStartHandler, type WorkspaceRootResolver } from '@jini-ai/daemon/http';
+import { defaultProbeEnv, xaiRoutes, connectorsRoutes, routineRoutes, mediaRoutes, hostToolsRoutes, healthRoutes, daemonDbRoutes, researchRoutes, delegatedToolRoutes, activeContextRoutes, daemonStatusRoutes, agentRoutes, toolCatalogRoutes, createDaemonDbToolRegistrations, denyAllWorkspaceRoots, frontendSessionRoutes, memoryRoutes, modelProxyRoutes, remoteRunEventRoutes, runRoutes, terminalRoutes, type AgentSummary, type DaemonDbOperations, type DaemonDbVacuumResult, type DelegatedToolExecuteRequest, type FrontendSessionsHttpDeps, type MediaHttpDeps, type MemoryHttpDeps, type RemoteToolBridgeTokenConfig, type RoutineHttpDeps, type RunStartHandler, type WorkspaceRootResolver } from '@jini-ai/daemon/http';
 import type { Express } from 'express';
 
 import { defineJiniFeature, type FeatureBuildContext, type JiniFeature } from './feature.js';
@@ -350,6 +350,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
       }, {
         http: ({ app, services }) => {
           mountRoutes({ app, routes: hostToolsRoutes({ deps: {
+            probeEnv: defaultProbeEnv({ env: services.context.env }),
             resolveRoot: options.hostTools?.resolveWorkspaceRoot ?? denyAllWorkspaceRoots,
           }, host: services.context.routeHost }) });
         },
@@ -392,7 +393,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
     id: 'terminal',
     provides: ['host:exec'],
     compose: (context) => {
-      const manager: TerminalSessionManager = createTerminalSessionManager({ terminalService: buildTerminalService({ options: options.terminal ?? {} }) });
+      const manager: TerminalSessionManager = createTerminalSessionManager({ terminalService: buildTerminalService({ options: options.terminal ?? {}, env: context.env }) });
       return {
         pack: definePack({
           name: 'jini.terminal',

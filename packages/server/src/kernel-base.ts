@@ -79,9 +79,10 @@ export interface JiniKernelBase {
 }
 
 export interface CreateJiniKernelBaseOptions {
+  readonly env: NodeJS.ProcessEnv;
   readonly storage: JiniKernelStorage;
   /** Extra `createAgentExecutor` options (e.g. `mcpJsonInjection`). `lifecycle`/`journal`/`classifyFailure` are kernel-owned. */
-  readonly agentExecutor?: Omit<NonNullable<Parameters<typeof createAgentExecutor>[1]>, 'journal' | 'classifyFailure'>;
+  readonly agentExecutor?: Omit<NonNullable<Parameters<typeof createAgentExecutor>[1]>, 'journal' | 'classifyFailure'> & { readonly hostEnv?: NodeJS.ProcessEnv };
   /** Optional AI-run tracing: every run's normalized agent events are also recorded to `sink`. Absent = no tracing, no cost. */
   readonly aiTrace?: AiTracingOptions & { readonly sink: AiTraceSink };
 }
@@ -119,7 +120,7 @@ function createKernelAgentRuntime(
   { options }: { options: CreateJiniKernelBaseOptions },
   _optional: Record<string, never> = {},
 ): NativeAgentRuntime {
-  return createNativeAgentRuntime({ env: options.agentExecutor?.hostEnv ?? process.env }, {
+  return createNativeAgentRuntime({ env: options.env }, {
     ...(options.agentExecutor?.runtimeState ? { state: options.agentExecutor.runtimeState } : {}),
     ...(options.agentExecutor?.codexDisablePlugins !== undefined ? { codex: { disablePlugins: options.agentExecutor.codexDisablePlugins } } : {}),
     ...(options.agentExecutor?.piGracefulShutdownMs !== undefined ? { pi: { gracefulShutdownMs: options.agentExecutor.piGracefulShutdownMs } } : {}),
@@ -213,10 +214,9 @@ export async function createJiniKernelBase(options: CreateJiniKernelBaseOptions)
   const { eventLog, journalEventLog, lifecycle, disposeTracing, journal, sqlite } = await openKernelStorage({ options });
 
   const agentRuntime = createKernelAgentRuntime({ options });
-  const agentExecutor = createAgentExecutor({ lifecycle }, {
+  const agentExecutor = createAgentExecutor({ lifecycle, hostEnv: agentRuntime.hostEnv }, {
     ...options.agentExecutor,
     runtimeState: agentRuntime.state,
-    hostEnv: agentRuntime.hostEnv,
     ...executorDefinitionPolicies({ agentRuntime }),
     journal,
     classifyFailure: classifyRunFailureForRetry,

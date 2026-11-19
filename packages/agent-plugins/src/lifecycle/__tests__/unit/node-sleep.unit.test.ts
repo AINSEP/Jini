@@ -13,7 +13,7 @@ const { createNodeAgentPluginEffects } = await import('../../node.js');
 
 test('sleep forwards exactly the requested delay and resolves only when the timer settles', async () => {
   let settled = false;
-  const sleeping = createNodeAgentPluginEffects({}).clock.sleep({ ms: 20 }).then((value) => { settled = true; return value; });
+  const sleeping = createNodeAgentPluginEffects({ env: {} }).clock.sleep({ ms: 20 }).then((value) => { settled = true; return value; });
   expect(setTimeoutFake).toHaveBeenCalledTimes(1);
   expect(setTimeoutFake).toHaveBeenCalledWith(20);
   await Promise.resolve();

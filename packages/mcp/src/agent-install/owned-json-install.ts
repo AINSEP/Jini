@@ -1,6 +1,7 @@
+import type { FileLockPort } from '@jini-ai/core/contracts/runtime';
 import { promises as fs } from 'node:fs';
 import { isDeepStrictEqual } from 'node:util';
-import { backupOriginalOnce, withFileLock, writeFileAtomicAsync } from '@jini-ai/platform/fs';
+import { backupOriginalOnce, writeFileAtomicAsync } from '@jini-ai/platform/fs';
 import { applyJsonInstall, isAgentSlug, planAgentInstall, type McpLaunchSpec, type PlanContext } from './install.js';
 
 /** Missing is the only condition permitting creation; reject symlinks even for an unchanged entry. */
@@ -26,7 +27,7 @@ function assertCredentialFree({ spec }: { spec: McpLaunchSpec }): void {
  * @complexity O(config bytes) time and space; one locked read and, when changed, backup plus atomic write.
  */
 export async function installOwnedJsonAgent(
-  required: { agentId: string; spec: McpLaunchSpec; ctx: PlanContext; allowed: boolean },
+  required: { agentId: string; spec: McpLaunchSpec; ctx: PlanContext; allowed: boolean; fileLock: FileLockPort },
   _optional: Record<string, never> = {},
 ): Promise<void> {
   if (required.allowed !== true) throw new Error('Allow this agent to change its settings outside the host before installing its connector.');
@@ -35,7 +36,7 @@ export async function installOwnedJsonAgent(
   if (!isAgentSlug(slug)) throw new Error('Unknown MCP agent installation');
   const plan = planAgentInstall({ slug: slug.value, spec: required.spec, ctx: required.ctx });
   if (plan.kind !== 'json') throw new Error('MCP installation does not use a JSON registry');
-  await withFileLock({ lockPath: `${plan.configPath}.jini-lock`, run: async () => {
+  await required.fileLock.withFileLock({ lockPath: `${plan.configPath}.jini-lock`, run: async () => {
     const existingText = await readConfig({ path: plan.configPath });
     const content = applyJsonInstall({ existingText, plan });
     if (existingText !== null && isDeepStrictEqual(JSON.parse(existingText), JSON.parse(content))) return;

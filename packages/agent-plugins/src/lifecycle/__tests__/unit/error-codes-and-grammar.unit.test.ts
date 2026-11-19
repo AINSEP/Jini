@@ -55,8 +55,8 @@ describe('installed revision folder grammar', () => {
 describe('createNodeAgentPluginEffects', () => {
   test('uses an injected filesystem, else node:fs/promises', () => {
     const fake = { ...nativeFilesystem } as FilesystemPort;
-    expect(createNodeAgentPluginEffects({}, { filesystem: fake }).filesystem).toBe(fake);
-    expect(createNodeAgentPluginEffects({}).filesystem).toBe(nativeFilesystem);
+    expect(createNodeAgentPluginEffects({ env: {} }, { filesystem: fake }).filesystem).toBe(fake);
+    expect(createNodeAgentPluginEffects({ env: {} }).filesystem).toBe(nativeFilesystem);
   });
 
   // `clock.sleep` is pinned with a controlled timer in node-sleep.unit.test.ts (FU-B).
@@ -67,12 +67,12 @@ describe('createNodeAgentPluginEffects', () => {
     ['a thrown string', 'odd', true], ['a thrown null', null, true], ['an object without code', {}, true],
   ])('isAlive when kill throws %s -> %s', (_name, thrown, alive) => {
     vi.spyOn(process, 'kill').mockImplementation(() => { throw thrown; });
-    expect(createNodeAgentPluginEffects({}).process.isAlive({ pid: 12345 })).toBe(alive);
+    expect(createNodeAgentPluginEffects({ env: {} }).process.isAlive({ pid: 12345 })).toBe(alive);
   });
 
   test.each([[0], [-1], [1.5], [Number.NaN]])('isAlive(%s) is false without signalling', (pid) => {
     const kill = vi.spyOn(process, 'kill');
-    expect(createNodeAgentPluginEffects({}).process.isAlive({ pid })).toBe(false);
+    expect(createNodeAgentPluginEffects({ env: {} }).process.isAlive({ pid })).toBe(false);
     expect(kill).not.toHaveBeenCalled();
   });
 });

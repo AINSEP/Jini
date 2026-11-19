@@ -35,6 +35,8 @@ export type ProcessStampContract<
 };
 
 export type SpawnProcessRequest = CommandInvocationRequest & {
+  env: NodeJS.ProcessEnv;
+  fallbackComSpec: string | undefined;
   cwd?: string;
   detached?: boolean;
   logFd?: number | null;
@@ -51,6 +53,7 @@ export type ProcessUsage = {
 };
 
 export type ProcessUsagePorts = {
+  env: NodeJS.ProcessEnv;
   platform?: NodeJS.Platform;
   run?: typeof execFileBuffered;
 };
@@ -315,7 +318,7 @@ function parsePsOutput(stdout: string): ProcessSnapshot[] {
 /** @internal Enumerate process snapshots on POSIX via `ps`. */
 async function listPosixProcessSnapshots(input: ProcessUsagePorts, options: ProcessUsageOptions & { commandLines?: boolean }): Promise<ProcessSnapshot[]> {
   // Fixed process-enumeration utility intentionally uses the trusted host PATH; command and argv are code-owned.
-  const stdout = await processProbeOutput({ command: "ps", run: input.run ?? execFileBuffered,
+  const stdout = await processProbeOutput({ command: "ps", env: input.env, run: input.run ?? execFileBuffered,
     args: ["-axo", options.commandLines === false ? "pid=,ppid=,comm=" : "pid=,ppid=,command="],
   }, options);
   return parsePsOutput(stdout ?? "");
@@ -328,7 +331,7 @@ async function listWindowsProcessSnapshots(input: ProcessUsagePorts, options: Pr
     "$ErrorActionPreference = 'Stop'",
     `Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, ${field} | ConvertTo-Json -Compress`,
   ].join("; ");
-  const stdout = await processProbeOutput({ command: windowsPowerShell(), run: input.run ?? execFileBuffered,
+  const stdout = await processProbeOutput({ command: windowsPowerShell({ env: input.env }), env: input.env, run: input.run ?? execFileBuffered,
     args: ["-NoProfile", "-NonInteractive", "-Command", command],
   }, options);
   const payload = stdout?.trim();
@@ -357,7 +360,7 @@ async function listWindowsProcessSnapshots(input: ProcessUsagePorts, options: Pr
  * @example await listProcessSnapshots({}, { commandLines: false })
  */
 export async function listProcessSnapshots(
-  input: ProcessUsagePorts = {},
+  input: ProcessUsagePorts,
   options: ProcessUsageOptions & { commandLines?: boolean } = {},
 ): Promise<ProcessSnapshot[]> {
   try {
@@ -421,9 +424,9 @@ function parseCimUsage(stdout: string): ProcessUsage[] {
 }
 
 /** @internal Fixed executable and argv, invoked directly without a command shell. */
-function processUsageCommand(windows: boolean): { command: string; args: string[] } {
+function processUsageCommand(windows: boolean, env: NodeJS.ProcessEnv): { command: string; args: string[] } {
   return windows
-    ? { command: windowsPowerShell(), args: ["-NoProfile", "-NonInteractive", "-Command",
+    ? { command: windowsPowerShell({ env }), args: ["-NoProfile", "-NonInteractive", "-Command",
       "$ErrorActionPreference = 'Stop'; Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, WorkingSetSize, UserModeTime, KernelModeTime, Name | ConvertTo-Json -Compress"] }
     : { command: "ps", args: ["-axo", "pid=,ppid=,rss=,time=,comm="] };
 }
@@ -436,15 +439,15 @@ function processUsageCommand(windows: boolean): { command: string; args: string[
  * @param options - Execution timeout (default 5000ms); output is capped at 8MiB.
  */
 export async function listProcessUsage(
-  input: ProcessUsagePorts = {},
+  input: ProcessUsagePorts,
   options: ProcessUsageOptions = {},
 ): Promise<ProcessUsage[]> {
   const windows = (input.platform ?? process.platform) === "win32";
-  const { command, args } = processUsageCommand(windows);
+  const { command, args } = processUsageCommand(windows, input.env);
   try {
     const result = await (input.run ?? execFileBuffered)(command, args, {
       encoding: "utf8", timeout: options.timeoutMs ?? 5000, maxBuffer: 8 * 1024 * 1024,
-      windowsHide: true,
+      windowsHide: true, env: input.env,
     });
     if (!result.ok) return [];
     return windows ? parseCimUsage(result.stdout) : parsePsUsage(result.stdout);
@@ -467,12 +470,12 @@ export function parseProcessFootprint({ text }: { text: string }, _options = {})
 
 /** @internal One bounded read-only OS probe; partial output on failure is discarded. */
 async function processProbeOutput(
-  input: { command: string; args: string[]; run: typeof execFileBuffered },
+  input: { command: string; args: string[]; env: NodeJS.ProcessEnv; run: typeof execFileBuffered },
   options: ProcessUsageOptions,
 ): Promise<string | null> {
   try {
     const result = await input.run(input.command, input.args, {
-      encoding: "utf8", timeout: options.timeoutMs ?? 5000, maxBuffer: 8 * 1024 * 1024, windowsHide: true,
+      encoding: "utf8", timeout: options.timeoutMs ?? 5000, maxBuffer: 8 * 1024 * 1024, windowsHide: true, env: input.env,
     });
     return result.ok ? result.stdout : null;
   } catch { return null; }
@@ -525,13 +528,13 @@ export async function sampleProcessPrivateMemory(
   const readings: ProcessPrivateMemory["readings"] = [];
   if (platform === "darwin") {
     for (const pid of pids) {
-      const stdout = await processProbeOutput({ command: "footprint", args: ["-p", String(pid)], run }, options);
+      const stdout = await processProbeOutput({ command: "footprint", args: ["-p", String(pid)], env: input.env, run }, options);
       readings.push({ pid, bytes: parseProcessFootprint({ text: stdout ?? "" }) });
     }
     return { metric: "physical-footprint", readings };
   }
   if (platform !== "win32") return { metric: "unavailable", readings: pids.map((pid) => ({ pid, bytes: null })) };
-  const stdout = await processProbeOutput({ command: windowsPowerShell(), run, args: ["-NoProfile", "-NonInteractive", "-Command",
+  const stdout = await processProbeOutput({ command: windowsPowerShell({ env: input.env }), env: input.env, run, args: ["-NoProfile", "-NonInteractive", "-Command",
     "$ErrorActionPreference = 'Stop'; Get-CimInstance Win32_PerfFormattedData_PerfProc_Process | Select-Object IDProcess, WorkingSetPrivate | ConvertTo-Json -Compress"],
   }, options);
   const byPid = parsePrivateWorkingSets({ stdout });

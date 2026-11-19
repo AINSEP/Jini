@@ -61,7 +61,7 @@ test('malformed or oversized startup credentials fail closed', async () => {
 
 test('oversized startup credentials are refused before a child is spawned', () => {
   const spawnChild = vi.fn();
-  expect(() => createNodeDaemonProcessAdapter({ command: 'node', args: [], cwd: '.', env: {},
+  expect(() => createNodeDaemonProcessAdapter({ hostEnv: {}, command: 'node', args: [], cwd: '.', env: {},
     registry: { readLive: async () => null, write: async () => {}, removeIfCurrent: async () => {} },
   }, { startupSecrets: { HOST_SECRET: 'x'.repeat(65536) }, spawn: spawnChild }).spawnDaemonProcess()).toThrow('Startup credentials exceed limit');
   expect(spawnChild).not.toHaveBeenCalled();
@@ -69,7 +69,7 @@ test('oversized startup credentials are refused before a child is spawned', () =
 
 test('Windows startup IPC keeps stdin open for the existing graceful EOF shutdown', () => {
   const child = Object.assign(new Peer(), { stdin: new PassThrough(), stdout: null, stderr: null, kill: () => true });
-  const ports = createNodeDaemonProcessAdapter({ command: 'node', args: [], cwd: '.', env: { HOST_SECRET: 'private' },
+  const ports = createNodeDaemonProcessAdapter({ hostEnv: {}, command: 'node', args: [], cwd: '.', env: { HOST_SECRET: 'private' },
     registry: { readLive: async () => null, write: async () => {}, removeIfCurrent: async () => {} },
   }, { platform: 'win32', startupSecrets: { HOST_SECRET: 'private' }, spawn(input) {
     expect(input.options.stdio).toEqual(['pipe', 'pipe', 'pipe', 'ipc']);
@@ -118,7 +118,7 @@ test('a spawned child authenticates from IPC while its environment and grandchil
     process.send({ jiniIpc: 1, channel: 'startup-secrets', kind: 'request', id: 'startup', payload: 'read' });
   `;
   try {
-    const ports = createNodeDaemonProcessAdapter({ command: process.execPath, args: ['-e', script], cwd: process.cwd(),
+    const ports = createNodeDaemonProcessAdapter({ hostEnv: {}, command: process.execPath, args: ['-e', script], cwd: process.cwd(),
       env: { ...process.env, HOST_SECRET: token, host_secret: token, AUTH_URL: `http://127.0.0.1:${address.port}` },
       registry: { readLive: async () => null, write: async () => {}, removeIfCurrent: async () => {} },
     }, { startupSecrets: { HOST_SECRET: token }, stdout, spawn(input) {

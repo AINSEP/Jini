@@ -2,7 +2,7 @@
  * @module process
  *
  * Node binding of core's `ProcessControlPort` over `@jini-ai/platform`'s process functions. Hosts import
- * {@link nodeProcessControl} instead of hand-copying the adapter: two of the port members take their
+ * {@link createNodeProcessControl} instead of hand-copying the adapter: two of the port members take their
  * arguments in a different shape from the function they wrap (`{ pids }` vs a positional array,
  * `{ pid }` vs a positional pid), so a binding that merely typechecks can silently reshape an
  * argument. The builder takes the wrapped functions as arguments so a test can hand it recording
@@ -37,4 +37,6 @@ export function createProcessControlPort(required: { readonly functions: Process
 }
 
 /** The Node implementation, ready for a host to hand to daemon. */
-export const nodeProcessControl: ProcessControlPort = createProcessControlPort({ functions: { listProcessSnapshots, stopProcesses, waitForProcessExit } });
+export function createNodeProcessControl({ env }: { env: NodeJS.ProcessEnv }, _optional: Record<string, never> = {}): ProcessControlPort {
+  return createProcessControlPort({ functions: { listProcessSnapshots: (_required, optional) => listProcessSnapshots({ env }, optional), stopProcesses, waitForProcessExit } });
+}

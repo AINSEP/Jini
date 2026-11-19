@@ -8,7 +8,6 @@ export interface UserDirectoryOptions {
   /** Resolved host profile directory; owns config/catalog/DB/lease paths without an app-name suffix. */
   appDataDir?: string;
   platform?: NodeJS.Platform;
-  env?: NodeJS.ProcessEnv;
   readText?: (file: string) => string | undefined;
   windowsDocuments?: () => string | undefined;
   windowsOneDriveRoots?: () => readonly string[];
@@ -20,10 +19,10 @@ export interface UserDirectoryOptions {
  * @complexity O(1) bounded configuration reads.
  */
 export function resolveUserDataDirectories(
-  { homeDir, appName }: { homeDir: string; appName: string },
+  { homeDir, appName, env }: { homeDir: string; appName: string; env: NodeJS.ProcessEnv },
   options: UserDirectoryOptions = {},
 ): { appData: string; documents: string } {
-  const { platform, env, appDataDir, readText, windowsDocuments } = withNativeDefaults(options);
+  const { platform, appDataDir, readText, windowsDocuments } = withNativeDefaults(env, options);
   const paths = platform === "win32" ? path.win32 : path.posix;
   assertProfileDirectory({ appDataDir, paths });
   const context = { homeDir, appName, env, appDataDir, paths };
@@ -32,7 +31,8 @@ export function resolveUserDataDirectories(
   return xdgDirectories(context, { readText });
 }
 function withNativeDefaults(
-  { platform = process.platform, env = process.env, appDataDir, readText = (file) => readOptionalText({ file }), windowsDocuments = readWindowsDocuments }: UserDirectoryOptions,
+  env: NodeJS.ProcessEnv,
+  { platform = process.platform, appDataDir, readText = (file) => readOptionalText({ file }), windowsDocuments = () => readWindowsDocuments({ env }) }: UserDirectoryOptions,
 ) {
   return { platform, env, appDataDir, readText, windowsDocuments };
 }
@@ -59,15 +59,15 @@ export function readOptionalText({ file }: { file: string }, _options = {}): str
   try { return fs.readFileSync(file, "utf8"); }
   catch (error) { return fallbackIfMissing(error, undefined); }
 }
-function readWindowsDocuments(): string | undefined {
-  const output = execFileSync(windowsSystemTool({ relativePath: ["reg.exe"] }), ["query", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders", "/v", "Personal"], { encoding: "utf8", timeout: 3000, windowsHide: true });
+function readWindowsDocuments({ env }: { env: NodeJS.ProcessEnv }): string | undefined {
+  const output = execFileSync(windowsSystemTool({ relativePath: ["reg.exe"], env }), ["query", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders", "/v", "Personal"], { encoding: "utf8", timeout: 3000, windowsHide: true, env });
   return /Personal\s+REG_(?:EXPAND_)?SZ\s+(.+)/.exec(output)?.[1]?.trim();
 }
 
 /** OneDrive publishes account mount paths in HKCU; absent accounts are a normal empty result. */
-export function readWindowsOneDriveRoots(_required: Record<string, never>, _options = {}): readonly string[] {
+export function readWindowsOneDriveRoots({ env }: { env: NodeJS.ProcessEnv }, _options = {}): readonly string[] {
   try {
-      const output = execFileSync(windowsSystemTool({ relativePath: ["reg.exe"] }), ["query", "HKCU\\Software\\Microsoft\\OneDrive\\Accounts", "/s", "/v", "UserFolder"], { encoding: "utf8", timeout: 3000, windowsHide: true });
+      const output = execFileSync(windowsSystemTool({ relativePath: ["reg.exe"], env }), ["query", "HKCU\\Software\\Microsoft\\OneDrive\\Accounts", "/s", "/v", "UserFolder"], { encoding: "utf8", timeout: 3000, windowsHide: true, env });
     return [...output.matchAll(/UserFolder\s+REG_(?:EXPAND_)?SZ\s+([^\r\n]+)/g)].map((match) => match[1]!.trim());
   } catch (error) {
     if ((error as { status?: number }).status === 1) return [];

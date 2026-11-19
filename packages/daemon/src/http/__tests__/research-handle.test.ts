@@ -42,16 +42,16 @@ describe('research handle: provider selection', () => {
     expect(result).toMatchObject({ ok: true, value: { provider: 'from-deps', summary: 'from-deps answer' } });
   });
 
-  it('a non-tavily provider without resolveCredentials gets no credentials even when TAVILY_API_KEY is set', async () => {
+  it('a non-tavily provider without resolveCredentials gets no credentials', async () => {
     const search = vi.fn<ResearchProvider['search']>();
-    const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: { provider: provider('other', search), env: { TAVILY_API_KEY: KEY } } });
+    const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: { provider: provider('other', search) } });
     expect(result).toEqual({ ok: false, error: { code: 'NOT_CONFIGURED', message: 'other provider not configured' } });
     expect(search).not.toHaveBeenCalled();
   });
 
-  it('a deps.provider whose id is "tavily" reads TAVILY_API_KEY from deps.env by default', async () => {
+  it('a deps.provider whose id is "tavily" receives the host-resolved credentials', async () => {
     const search = vi.fn<ResearchProvider['search']>(async () => ({ answer: 'a', sources: [SOURCE] }));
-    await researchSearchRoute.handle({ input: { query: 'q' }, deps: { provider: provider('tavily', search), env: { TAVILY_API_KEY: ` ${KEY} ` } } });
+    await researchSearchRoute.handle({ input: { query: 'q' }, deps: { provider: provider('tavily', search), resolveCredentials: async () => ({ apiKey: KEY }) } });
     expect(search).toHaveBeenCalledWith({ apiKey: KEY, credentials: { apiKey: KEY }, request: { query: 'q' } }, {});
   });
 

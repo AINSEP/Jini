@@ -164,23 +164,23 @@ describe('@jini-ai/platform — terminal — ensureSpawnHelperExecutable', () =>
 
 describe('@jini-ai/platform — terminal — resolveShell', () => {
   it('honors an explicit request', () => {
-    expect(resolveShell('  /bin/zsh  ')).toBe('/bin/zsh');
+    expect(resolveShell({ requested: '  /bin/zsh  ', env: {} })).toBe('/bin/zsh');
   });
 
   it('falls back to SHELL on posix', () => {
-    expect(resolveShell(null, { platform: 'linux', env: { SHELL: '/bin/fish' } })).toBe('/bin/fish');
+    expect(resolveShell({ requested: null, env: { SHELL: '/bin/fish' } }, { platform: 'linux' })).toBe('/bin/fish');
   });
 
   it('falls back to /bin/bash on posix with no SHELL', () => {
-    expect(resolveShell(undefined, { platform: 'linux', env: {} })).toBe('/bin/bash');
+    expect(resolveShell({ env: {} }, { platform: 'linux' })).toBe('/bin/bash');
   });
 
   it('falls back to ComSpec on win32', () => {
-    expect(resolveShell(null, { platform: 'win32', env: { ComSpec: 'C:\\cmd.exe' } })).toBe('C:\\cmd.exe');
+    expect(resolveShell({ requested: null, env: { ComSpec: 'C:\\cmd.exe' } }, { platform: 'win32' })).toBe('C:\\cmd.exe');
   });
 
   it('falls back to powershell.exe on win32 with no ComSpec', () => {
-    expect(resolveShell(null, { platform: 'win32', env: {} })).toBe('powershell.exe');
+    expect(resolveShell({ requested: null, env: {} }, { platform: 'win32' })).toBe('powershell.exe');
   });
 });
 
@@ -192,8 +192,7 @@ function makeService(overrides: Partial<CreateTerminalServiceOptions> = {}) {
     return pty;
   };
   const loadSpawnPty = vi.fn(async () => spawnPty);
-  const service = createTerminalService({
-    loadSpawnPty,
+  const service = createTerminalService({ env: {}, loadSpawnPty,
     maxEvents: 5,
     maxBufferBytes: 100,
     exitTailBytes: 20,
@@ -547,4 +546,16 @@ describe('@jini-ai/platform — terminal — shutdownActive', () => {
     await expect(service.shutdownActive({ graceMs: 0 })).resolves.toBeUndefined();
     expect(service.list()[0]?.status).toBe('exited');
   });
+});
+
+it('selects the shell from the supplied PTY environment and spawns with that environment', async () => {
+  const env = { SHELL: '/host/shell', ComSpec: 'D:\\Host\\cmd.exe', PATH: '/host/path', PTY_ONLY: 'selected' };
+  const pty = new FakePty();
+  const spawn = vi.fn<PtySpawn>(() => pty);
+  const service = createTerminalService({ env, loadSpawnPty: async () => spawn });
+  try {
+    const session = await service.create({ cwd: '/workspace' });
+    expect(session.shell).toBe(process.platform === 'win32' ? env.ComSpec : env.SHELL);
+    expect(spawn).toHaveBeenCalledWith(session.shell, [], { name: 'xterm-color', cols: 80, rows: 24, cwd: '/workspace', env });
+  } finally { service.shutdownActive(); }
 });

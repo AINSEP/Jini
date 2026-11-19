@@ -25,7 +25,7 @@ function harness(_required: Record<string, never>, { platform = "win32" }: { pla
   });
   const remove = vi.fn<SupervisorRegistry["removeIfCurrent"]>(async () => { order.push("remove"); });
   const registry: SupervisorRegistry = { readLive: async () => null, write: async () => {}, removeIfCurrent: remove };
-  const required = { command: process.execPath, args: ["daemon.js"], cwd: "/host", env: {}, registry };
+  const required = { hostEnv: {}, command: process.execPath, args: ["daemon.js"], cwd: "/host", env: {}, registry };
   const options: NodeDaemonProcessOptions = { platform, spawn: () => native, listProcessSnapshots: snapshots,
     waitForProcessExit: wait, execFileSync: force, signalProcess: signal, stopProcesses: stop };
   const adapter = createNodeDaemonProcessAdapter(required, options);
@@ -128,7 +128,7 @@ test.each(["missing stdin", "close failure", "wait failure", "timeout"])("Window
   if (failure === "timeout") h.wait.mockResolvedValue(false);
   await h.adapter.terminateProcess({ child });
   expect(h.force).toHaveBeenCalledTimes(1);
-  expect(h.force).toHaveBeenCalledWith("taskkill", ["/pid", "42", "/T", "/F"], { stdio: "ignore" });
+  expect(h.force).toHaveBeenCalledWith("C:\\Windows\\System32\\taskkill.exe", ["/pid", "42", "/T", "/F"], { stdio: "ignore", env: {} });
   expect(child.kill).not.toHaveBeenCalled();
   expect(h.stop).toHaveBeenCalledTimes(1);
   expect(h.stop).toHaveBeenCalledWith([43, 42]);

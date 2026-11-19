@@ -12,8 +12,8 @@ export function createPersistentStateModule(ports: AgentPluginLifecyclePorts, _o
   const effects = {
     filesystem: ports.filesystem,
     contain: ({ root, entryPath }: { root: string; entryPath: string }) => assertContainedOnDisk(root, entryPath),
-    withLock: <T>({ lockPath, run }: { lockPath: string; run(): Promise<T> }) => withFileLock({ lockPath, run }, {
-      filesystem: ports.filesystem, clock: ports.clock, process: ports.process,
+    withLock: <T>({ lockPath, run }: { lockPath: string; run(): Promise<T> }) => withFileLock({ lockPath, run, process: ports.process }, {
+      filesystem: ports.filesystem, clock: ports.clock,
       hostname: () => ports.process.hostname({}), token: () => ports.ids.newId(),
       monotonicMs: () => ports.clock.monotonicMs(), sleep: ({ durationMs }) => ports.clock.sleep({ ms: durationMs }),
       staleMs: Infinity, createParent: true,

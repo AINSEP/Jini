@@ -20,18 +20,10 @@ async function captureSpawnEnv(
     captured = argsOrOptions && 'env' in argsOrOptions ? argsOrOptions.env : options?.env;
     throw new Error('Fixture stops after capturing spawn');
   };
-  const executor = createAgentExecutor({ lifecycle }, {
-    hostEnv: {},
-    getAgentDef,
-    resolveModelForLaunch: fixtureLaunchModel,
-    ensureAgentCapabilities: async () => {},
-    resolveAgentLaunch: () => ({
+  const executor = createAgentExecutor({ hostEnv: {}, lifecycle }, { getAgentDef, resolveModelForLaunch: fixtureLaunchModel, ensureAgentCapabilities: async () => {}, resolveAgentLaunch: () => ({
       selectedPath: '/fake/agent', pathResolvedPath: '/fake/agent', configuredOverridePath: null,
       launchPath: '/fake/agent', launchKind: 'selected', childPathPrepend: [], diagnostic: null,
-    }),
-    applyAgentLaunchEnv: ({ env: launchEnv }) => launchEnv,
-    spawn,
-  });
+    }), applyAgentLaunchEnv: ({ env: launchEnv }) => launchEnv, spawn });
   const { run } = await lifecycle.start({ contextRef: 'background-ceiling' });
   await expect(executor.run(
     { runId: run.id, agentId, prompt: 'hello', cwd: '/work' },

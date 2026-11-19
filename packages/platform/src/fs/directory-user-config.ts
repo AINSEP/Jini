@@ -44,20 +44,20 @@ function markerBackup(source: string, namedBackup: unknown): string | undefined 
  * @complexity O(n) canonicalizations for n roots; DB lookup probes three fixed locations.
  */
 export function createDirectoryUserConfig(
-  { homeDir, defaultFolder, envName, policy, fileAt, canonicalPath, exists, isDirectory, removeFile }: {
-    homeDir: string; defaultFolder: string; envName: string; policy: DirectoryUserConfigPolicy;
+  { homeDir, defaultFolder, envName, env, directoryHomeOverride, policy, fileAt, canonicalPath, exists, isDirectory, removeFile }: {
+    homeDir: string; defaultFolder: string; envName: string; env: NodeJS.ProcessEnv; directoryHomeOverride: string | undefined; policy: DirectoryUserConfigPolicy;
     fileAt: (file: string) => DurableJsonFile; canonicalPath: (required: { path: string }) => string;
     exists: (file: string) => boolean; isDirectory: (file: string) => boolean;
     removeFile?: (required: { filePath: string }) => void;
-  }, { env = process.env, cwd = process.cwd(), report = console.warn, ...directoryOptions }: UserDirectoryOptions & { cwd?: string; report?: (message: string) => void } = {},
+  }, { cwd = process.cwd(), report = console.warn, ...directoryOptions }: UserDirectoryOptions & { cwd?: string; report?: (message: string) => void } = {},
 ) {
-  const directories = resolveUserDataDirectories({ homeDir, appName: policy.appName }, { ...directoryOptions, env });
+  const directories = resolveUserDataDirectories({ homeDir, appName: policy.appName, env }, directoryOptions);
   const paths = directoryOptions.platform === "win32" ? path.win32 : path;
   const defaultHome = paths.join(directories.documents, defaultFolder, policy.defaultSubfolder ?? "");
   const localHome = paths.join(homeDir, defaultFolder, policy.defaultSubfolder ?? "");
   const legacyHomePaths = policy.defaultSubfolder ? [paths.join(directories.documents, defaultFolder), paths.join(homeDir, defaultFolder)] : [];
   const filePath = paths.join(directories.appData, "config.json"), file = fileAt(filePath);
-  const expand = (value: string) => canonicalPath({ path: resolveDirectoryHome({ homeDir, defaultFolder, envName, env: {}, setting: value }, { cwd, ...(directoryOptions.platform ? { platform: directoryOptions.platform } : {}) }) });
+  const expand = (value: string) => canonicalPath({ path: resolveDirectoryHome({ homeDir, defaultFolder, envName, directoryHomeOverride: undefined, setting: value }, { cwd, ...(directoryOptions.platform ? { platform: directoryOptions.platform } : {}) }) });
   const distinct = (values: readonly string[]) => [...new Set(values.map(expand))];
   const legacyHomes = distinct(legacyHomePaths);
   function stored(locked = false): Partial<DirectoryUserConfig> {
@@ -77,14 +77,14 @@ export function createDirectoryUserConfig(
     }
     return {};
   }
-  const syncProvider = (sitesHome: string) => detectDirectorySync({ dir: sitesHome, homeDir, documents: directories.documents }, { ...directoryOptions, env, canonicalPath });
+  const syncProvider = (sitesHome: string) => detectDirectorySync({ dir: sitesHome, homeDir, documents: directories.documents, env }, { ...directoryOptions, canonicalPath });
   function read(_required: Record<string, never>, _options = {}): DirectoryUserConfig {
     const saved = stored();
     // Old default pointers follow the owner-selected nesting rule; arbitrary custom homes and
     // explicit environment overrides keep their contracts. Reading never moves user folders.
     const savedHome = saved.sitesHome === undefined ? defaultHome : expand(saved.sitesHome);
     const nestedHome = legacyHomes.includes(savedHome) ? paths.join(savedHome, policy.defaultSubfolder!) : savedHome;
-    const sitesHome = expand(env[envName] ?? nestedHome);
+    const sitesHome = expand(directoryHomeOverride ?? nestedHome);
     const sync = syncProvider(sitesHome);
     return { sitesHome, siteRoots: distinct(configuredRoots(saved)), databases: saved.databases ?? (syncsDatabases(sync) ? "appData" : "inSite") };
   }
@@ -102,7 +102,7 @@ export function createDirectoryUserConfig(
     }
   }
   function assertNotOverridden(checked: Partial<DirectoryUserConfig>): void {
-    if (checked.sitesHome !== undefined && env[envName] !== undefined) throw new DirectoryUserConfigRefusal({ message: `${envName} overrides this setting. Unset it before changing the directory home.` });
+    if (checked.sitesHome !== undefined && directoryHomeOverride !== undefined) throw new DirectoryUserConfigRefusal({ message: `${envName} overrides this setting. Unset it before changing the directory home.` });
     if (checked.siteRoots !== undefined && env[policy.rootsEnvName] !== undefined) throw new DirectoryUserConfigRefusal({ message: `${policy.rootsEnvName} overrides this setting. Unset it before changing site roots.` });
   }
   function merged(previous: Partial<DirectoryUserConfig>, checked: Partial<DirectoryUserConfig>, incremental: boolean): Partial<DirectoryUserConfig> {

@@ -12,7 +12,7 @@
  * recovery for owners whose liveness is unknown.
  */
 import { fromEarlierBoot, fromThisBoot, readBootIdentity } from "./boot-identity.js";
-import { FileLockLostError, FileLockTimeoutError, type BootIdentity, type FileLockHolder, type FileLockPortOptions, type HeldFileLock, type HeldFileLockSync } from "@jini-ai/core/contracts/runtime";
+import { FileLockLostError, FileLockTimeoutError, type FileLockPort, type BootIdentity, type FileLockHolder, type FileLockPortOptions, type HeldFileLock, type HeldFileLockSync } from "@jini-ai/core/contracts/runtime";
 import fs from "node:fs";
 import * as asyncFs from "node:fs/promises";
 import { randomUUID } from "node:crypto";
@@ -80,12 +80,13 @@ function intervals(options: FileLockOptions) {
   if (!intervalsValid({ timeoutMs, staleMs, pollMs })) throw new RangeError((options.messages ?? defaultPlatformMessages).fileLockIntervalsInvalid());
   return { timeoutMs, staleMs, pollMs };
 }
-function defaultProcessPort(): NonNullable<FileLockOptions["process"]> {
-  return { pid: process.pid, bootIdentity: () => readBootIdentity({}), isAlive: ({ pid }: { pid: number }) => { try { process.kill(pid, 0); return true; } catch (error) { return errorCodeOf(error) !== "ESRCH"; } } };
+export function createNodeLockProcess({ env }: { env: NodeJS.ProcessEnv }, _optional: Record<string, never> = {}): NonNullable<FileLockOptions["process"]> {
+  // Signal zero sends nothing. Only ESRCH proves death; permission failure must count as alive
+  // because a false "dead" authorizes breaking a lock still owned by another process.
+  return { pid: process.pid, bootIdentity: () => readBootIdentity({ env }), isAlive: ({ pid }: { pid: number }) => { try { process.kill(pid, 0); return true; } catch (error) { return errorCodeOf(error) !== "ESRCH"; } } };
 }
-function settings(options: FileLockOptions) {
+function settings(processPort: NonNullable<FileLockOptions["process"]>, options: FileLockOptions) {
   const checked = intervals(options);
-  const processPort = options.process ?? defaultProcessPort();
   const clock = options.clock ?? createSystemClock();
   const monotonicMs = options.monotonicMs ?? (() => clock.nowMs());
   return { ...checked, processPort, clock, monotonicMs, boot: processPort.bootIdentity?.(), hostname: (options.hostname ?? nodeHostname)(), token: (options.token ?? randomUUID)() };
@@ -234,10 +235,10 @@ const waitCell = new Int32Array(new SharedArrayBuffer(4));
 /** Synchronous read-modify-write guard. Durable stores pass their former 5s/30s/10ms values.
  * Release never evicts a later owner, even when the old owner reaches finally after a steal. */
 export function withFileLockSync<T>(
-  { lockPath, run }: { lockPath: string; run: (lock: HeldFileLockSync) => T },
+  { lockPath, run, process: processPort }: { process: NonNullable<FileLockOptions["process"]>; lockPath: string; run: (lock: HeldFileLockSync) => T },
   options: Omit<FileLockOptions, "sleep"> & { sleep?: (required: { durationMs: number }) => void; filesystem?: FileLockSyncFilesystem } = {},
 ): T {
-  const filesystem = options.filesystem ?? fs, s = settings(options), start = s.monotonicMs(), raw = ownership(s, options);
+  const filesystem = options.filesystem ?? fs, s = settings(processPort, options), start = s.monotonicMs(), raw = ownership(s, options);
   if (options.createParent) filesystem.mkdirSync(path.dirname(lockPath), { recursive: true, mode: 0o700 });
   const ctx = { lockPath, raw, filesystem, s, options };
   const identity = acquireSync(ctx, start, options.sleep ?? (({ durationMs }) => { Atomics.wait(waitCell, 0, 0, durationMs); }));
@@ -295,12 +296,18 @@ async function runHeldAsync<T>({ lockPath, raw, filesystem, options }: LockConte
 }
 /** Async adapter of the same stale and ownership policy; polling yields to other writers. */
 export async function withFileLock<T>(
-  { lockPath, run }: { lockPath: string; run: (lock: HeldFileLock) => Promise<T> | T },
+  { lockPath, run, process: processPort }: { process: NonNullable<FileLockOptions["process"]>; lockPath: string; run: (lock: HeldFileLock) => Promise<T> | T },
   options: FileLockOptions & { filesystem?: FileLockAsyncFilesystem } = {},
 ): Promise<T> {
-  const filesystem = options.filesystem ?? asyncFs, s = settings(options), start = s.monotonicMs(), raw = ownership(s, options);
+  const filesystem = options.filesystem ?? asyncFs, s = settings(processPort, options), start = s.monotonicMs(), raw = ownership(s, options);
   if (options.createParent) await filesystem.mkdir(path.dirname(lockPath), { recursive: true, mode: 0o700 });
   const ctx = { lockPath, raw, filesystem, s, options };
   const identity = await acquireAsync(ctx, start, options.sleep ?? (({ durationMs }) => new Promise<void>(resolve => setTimeout(resolve, durationMs))));
   return runHeldAsync(ctx, identity, run);
+}
+
+/** Bind native lock ownership to one host snapshot; an explicit call process takes precedence. */
+export function createNodeFileLock({ env }: { env: NodeJS.ProcessEnv }, _optional: Record<string, never> = {}): FileLockPort {
+  const process = createNodeLockProcess({ env });
+  return { withFileLock: (required, optional = {}) => withFileLock({ ...required, process: optional.process ?? process }, optional) };
 }

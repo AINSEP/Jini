@@ -5,7 +5,6 @@
  * Recovery policy stays with each store: salvage, restart, or leave untouched is not decided here.
  * Native effects are Electron-free so desktop, CLI, and bridge processes can share the mechanism.
  */
-import { readBootIdentity } from "./boot-identity.js";
 import { type BootIdentity } from "@jini-ai/core/contracts/runtime";
 import nodeFs from "node:fs";
 import path from "node:path";
@@ -13,7 +12,7 @@ import { randomBytes } from "node:crypto";
 import { describeErrorForLog } from "@jini-ai/core";
 import type { Clock } from "@jini-ai/core/primitives";
 import { createNodeAtomicFilesystem, writeJsonFileAtomic } from "./atomic-write.js";
-import { withFileLockSync } from "./file-lock.js";
+import { createNodeLockProcess, withFileLockSync } from "./file-lock.js";
 // Missing is not unreadable: a damaged file holds unknown records, not a valid empty list. Retain
 // text for salvage when reading succeeded but parsing failed; I/O failure supplies no recoverable text.
 export type JsonFileRead = { state: "ok"; value: unknown } | { state: "missing" } | { state: "unreadable"; text?: string };
@@ -29,18 +28,14 @@ export interface DurableJsonPorts {
 }
 export interface DurableJsonNotices { prefix: string; lockTimeout(required: { lockPath: string; waitMs: number }): string; }
 /** Native synchronous adapters. Liveness probes treat permission errors as alive. */
-export function createNodeDurableJsonPorts(_required: Record<string, never>): DurableJsonPorts {
+export function createNodeDurableJsonPorts({ env }: { env: NodeJS.ProcessEnv }): DurableJsonPorts {
   const cell = new Int32Array(new SharedArrayBuffer(4));
   return {
     filesystem: nodeFs,
     clock: { nowMs: () => Date.now() },
     // Synchronous store/IPC writers cannot await lock polling without changing all callers' ABI.
     sleep: { sleep: ({ durationMs }) => { Atomics.wait(cell, 0, 0, durationMs); } },
-    process: { pid: process.pid, bootIdentity: () => readBootIdentity({}), isAlive: ({ pid }) => {
-      // Signal zero sends nothing. Only ESRCH proves death; permission failure must count as alive
-      // because a false "dead" authorizes breaking a lock still owned by another process.
-      try { process.kill(pid, 0); return true; } catch (error) { return (error as NodeJS.ErrnoException).code !== "ESRCH"; }
-    } },
+    process: createNodeLockProcess({ env }),
     random: { token: (_required) => randomBytes(4).toString("hex") },
     report: { error: ({ message }) => console.error(message) },
   };
@@ -133,9 +128,9 @@ function writeJson(filePath: string, value: unknown): void {
     quarantine: ({ notice }) => quarantineUnreadableFile({ filePath, notice, fs, clock, report, notices }),
     withLock: ({ critical }, optional = {}) => {
       if (optional.waitMs !== undefined && (!Number.isSafeInteger(optional.waitMs) || optional.waitMs < 0)) throw new TypeError("waitMs must be a nonnegative safe integer");
-      return withFileLockSync({ lockPath: `${filePath}.lock`, run: critical }, {
+      return withFileLockSync({ lockPath: `${filePath}.lock`, run: critical, process }, {
         timeoutMs: optional.waitMs ?? LOCK_WAIT_MS, staleMs: LOCK_STALE_MS, pollMs: LOCK_POLL_MS,
-        filesystem: fs, clock, sleep: ({ durationMs }) => sleep.sleep({ durationMs }), process,
+        filesystem: fs, clock, sleep: ({ durationMs }) => sleep.sleep({ durationMs }),
         token: () => random.token({}), format: "token", createParent: true,
         timeoutMessage: notices.lockTimeout, suppressReleaseErrors: true,
       });

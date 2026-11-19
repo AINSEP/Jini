@@ -1,3 +1,4 @@
+import type { FileLockPort } from '@jini-ai/core/contracts/runtime';
 /**
  * @file The plugin-owned runtime core: discovery, conflict gates, enable/load/attach, boot re-attach,
  * provider admission, install/source/reload wiring and package-file location for ONE host runtime.
@@ -305,6 +306,7 @@ export interface PluginRuntimeText {
  * importing. `createModuleImporter` is two-stage; see its own note.
  */
 export interface PluginRuntimeCoreRequired<TEvent = unknown, TOptions = unknown> {
+  readonly fileLock: FileLockPort;
   readonly workspaceId: string;
   readonly clock: ClockPort;
   readonly activationRepo: PluginActivationRepoPort;
@@ -822,7 +824,7 @@ export function createPluginRuntimeCore<TEvent, TOptions>(
   function composeSourceService(_required: Record<string, never>, _options = {}): PluginSourcePort | undefined {
     if (installDir === undefined || pluginInstaller === undefined) return undefined;
     return createPluginSourceService({
-      ...runtimeBinding, installDir, installer: pluginInstaller, policy: pluginSourcePolicy,
+      ...runtimeBinding, fileLock: required.fileLock, installDir, installer: pluginInstaller, policy: pluginSourcePolicy,
       pruneVersions: ({ id }) => pruneSitePluginVersions({ id, installDir, repo: activationRepo }),
       builtInIds: sources.map(source => source.manifest.id),
       scaffoldEntry: required.text.scaffoldEntry,

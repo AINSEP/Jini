@@ -1,3 +1,4 @@
+import { windowsSystemTool } from '@jini-ai/platform';
 import { execFileSync, spawn } from "node:child_process";
 import type { Readable, Writable } from "node:stream";
 import type { ChildProcess, SpawnOptions } from "node:child_process";
@@ -36,6 +37,7 @@ export interface NodeDaemonProcessRequired {
   args: readonly string[];
   cwd: string;
   env: NodeJS.ProcessEnv;
+  hostEnv: NodeJS.ProcessEnv;
   registry: SupervisorRegistry;
 }
 export interface NodeDaemonProcessOptions {
@@ -47,11 +49,11 @@ export interface NodeDaemonProcessOptions {
   /** Native spawn effect port; the adapter still constructs argv, environment and process options. */
   spawn?: (input: { command: string; args: string[]; options: SpawnOptions }, optional?: Record<string, never>) => ChildProcess;
   /** Native effect ports retain their platform ABI so tests can supply DI fakes. */
-  listProcessSnapshots?: typeof listProcessSnapshots;
+  listProcessSnapshots?: () => ReturnType<typeof listProcessSnapshots>;
   waitForProcessExit?: typeof waitForProcessExit;
   stopProcesses?: typeof stopProcesses;
   signalProcess?: typeof process.kill;
-  execFileSync?: (file: string, args: readonly string[], options: { stdio: "ignore" }) => unknown;
+  execFileSync?: (file: string, args: readonly string[], options: { stdio: "ignore"; env: NodeJS.ProcessEnv }) => unknown;
 }
 
 function relayProcessOutput(
@@ -64,7 +66,7 @@ function relayProcessOutput(
 }
 
 async function stopWindowsProcess(
-  { child, pid }: { child: SpawnedDaemonProcess; pid: number },
+  { child, pid, hostEnv }: { child: SpawnedDaemonProcess; pid: number; hostEnv: NodeJS.ProcessEnv },
   options: NodeDaemonProcessOptions = {},
 ): Promise<void> {
   // Windows has no group signal, so taskkill supplies the tree-stop escalation.
@@ -80,7 +82,7 @@ async function stopWindowsProcess(
   }
   if (!exited) {
     try {
-      (options.execFileSync ?? execFileSync)("taskkill", ["/pid", String(pid), "/T", "/F"], { stdio: "ignore" });
+      (options.execFileSync ?? execFileSync)(windowsSystemTool({ relativePath: ["taskkill.exe"], env: hostEnv }), ["/pid", String(pid), "/T", "/F"], { stdio: "ignore", env: hostEnv });
     } catch { child.kill({}, { signal: "SIGTERM" }); }
   }
 }
@@ -101,7 +103,7 @@ function daemonLaunchEnvironment(required: NodeDaemonProcessRequired, options: N
 function daemonLaunchPlan(required: NodeDaemonProcessRequired, options: NodeDaemonProcessOptions = {}) {
   const win32 = (options.platform ?? process.platform) === 'win32';
   const env = daemonLaunchEnvironment(required, options);
-  const invocation = createCommandInvocation({ command: required.command, args: [...required.args], env });
+  const invocation = createCommandInvocation({ command: required.command, args: [...required.args], env, fallbackComSpec: required.hostEnv.ComSpec });
   const ipc = options.ipc || options.startupSecrets !== undefined;
   const spawnOptions: SpawnOptions = {
     cwd: required.cwd, env: { ...env, ...(win32 ? { JINI_STOP_ON_STDIN_EOF: '1' } : {}) }, detached: true, windowsHide: true,
@@ -154,10 +156,10 @@ export function createNodeDaemonProcessAdapter(required: NodeDaemonProcessRequir
     async terminateProcess({ child }) {
       if (child.pid === undefined) return;
       const pid = child.pid;
-      const snapshotRequest = (options.listProcessSnapshots ?? listProcessSnapshots)();
+      const snapshotRequest = (options.listProcessSnapshots ?? (() => listProcessSnapshots({ env: required.hostEnv })))();
       // Request stop before the first await: even a parent exiting immediately starts tree teardown.
       if ((options.platform ?? process.platform) === "win32") {
-        await stopWindowsProcess({ child, pid }, options);
+        await stopWindowsProcess({ child, pid, hostEnv: required.hostEnv }, options);
       } else {
         try { (options.signalProcess ?? process.kill)(-pid, "SIGTERM"); }
         catch { child.kill({}, { signal: "SIGTERM" }); }

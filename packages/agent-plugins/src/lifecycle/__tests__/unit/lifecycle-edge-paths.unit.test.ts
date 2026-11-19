@@ -42,7 +42,7 @@ describe('createAgentPluginLayout', () => {
 });
 
 describe('createNodeAgentPluginEffects process.isAlive', () => {
-  const { process: host } = createNodeAgentPluginEffects({});
+  const { process: host } = createNodeAgentPluginEffects({ env: {} });
   test('a non-positive or non-integer pid is never alive', () => {
     for (const pid of [0, -1, 1.5, Number.NaN]) expect(host.isAlive({ pid })).toBe(false);
   });

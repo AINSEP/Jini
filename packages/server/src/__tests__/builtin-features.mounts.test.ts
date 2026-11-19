@@ -24,7 +24,7 @@ async function routesFor(features: Record<string, true>, storage: 'memory' | 'sq
   const resolvedPortRef = { current: 0 };
   let dataDir: string | undefined;
   if (storage === 'sqlite') { dataDir = mkdtempSync(join(tmpdir(), 'jini-mounts-')); cleanups.push(() => rmSync(dataDir!, { recursive: true, force: true })); }
-  const kernel: JiniKernel = await composeJiniKernel({ app, adapter, resolvedPortRef, security: { mode: 'host' }, profile: 'agent-core-v1',
+  const kernel: JiniKernel = await composeJiniKernel({ env: {}, app, adapter, resolvedPortRef, security: { mode: 'host' }, profile: 'agent-core-v1',
     storage: storage === 'memory' ? { kind: 'memory' } : { kind: 'sqlite', open: (file: string) => new Database(file) as never, dataDir: dataDir! },
     capabilities: { 'net:egress': true }, features } as never);
   cleanups.push(() => kernel.close());

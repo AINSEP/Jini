@@ -40,7 +40,7 @@ function options({ hostname = "LAs-MacBook-Pro.local", alive = false, boot = BOO
 for (const adapter of ["sync", "async"] as const) {
   const lock = async (lockPath: string, opts: ReturnType<typeof options>) => {
     const required = { lockPath, run: () => "acquired" };
-    return adapter === "sync" ? withFileLockSync(required, opts) : await withFileLock(required, opts);
+    return adapter === "sync" ? withFileLockSync({ ...required, process: opts.process }, opts) : await withFileLock({ ...required, process: opts.process }, opts);
   };
 
   test.each(["LAs-MacBook-Pro.local", "LAs-MacBook-Pro", "las-macbook-pro.LAN"])(

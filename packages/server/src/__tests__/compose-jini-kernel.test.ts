@@ -33,7 +33,7 @@ async function compose(config: Omit<Parameters<typeof composeJiniKernel>[0], 'ap
   const app = config.app ?? express();
   installRouteRegistrationGuard({ app });
   const adapter: RouteHostContext = createTestRouteHost();
-  const kernel = await composeJiniKernel({ resolvedPortRef: { current: 4000 }, ...config, app, adapter });
+  const kernel = await composeJiniKernel({ env: {}, resolvedPortRef: { current: 4000 }, ...config, app, adapter });
   kernels.push(kernel);
   return { app, kernel };
 }
@@ -139,8 +139,7 @@ describe('shared kernel resources', () => {
     const dataDir = makeTempDataDir();
     const app = express();
     installRouteRegistrationGuard({ app });
-    const kernel = await composeJiniKernel({
-        security: { mode: 'host' },
+    const kernel = await composeJiniKernel({ env: {}, security: { mode: 'host' },
         app,
       adapter: createTestRouteHost(), resolvedPortRef: { current: 4000 },
       storage: { kind: 'sqlite', open: openSqlite, dataDir },
@@ -280,8 +279,7 @@ describe('mounting order', () => {
     const order: string[] = [];
     const app = express();
     installRouteRegistrationGuard({ app });
-    await composeJiniKernel({
-        security: { mode: 'host' },
+    await composeJiniKernel({ env: {}, security: { mode: 'host' },
         app,
       adapter: createTestRouteHost(), resolvedPortRef: { current: 4000 },
       storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
@@ -590,8 +588,7 @@ describe('teardown', () => {
     const app = express();
     installRouteRegistrationGuard({ app });
     await expect(
-      composeJiniKernel({
-        security: { mode: 'host' },
+      composeJiniKernel({ env: {}, security: { mode: 'host' },
         app,
         adapter: createTestRouteHost(), resolvedPortRef: { current: 4000 },
         storage: { kind: 'memory' },
@@ -629,8 +626,7 @@ describe('teardown', () => {
     const app = express();
     installRouteRegistrationGuard({ app });
     await expect(
-      composeJiniKernel({
-        security: { mode: 'host' },
+      composeJiniKernel({ env: {}, security: { mode: 'host' },
         app,
         adapter: createTestRouteHost(), resolvedPortRef: { current: 4000 },
         storage: { kind: 'sqlite', open: openSqlite, dataDir },
@@ -713,7 +709,7 @@ it('rejects omitted security before any storage resource is read', async () => {
     get storage(): { kind: 'memory' } { throw new Error('storage was opened'); },
   };
   // @ts-expect-error Security is deliberately omitted to exercise untyped callers at runtime.
-  await expect(composeJiniKernel(config)).rejects.toThrow('an explicit supported security mode is required');
+  await expect(composeJiniKernel({ env: {}, ...config })).rejects.toThrow('an explicit supported security mode is required');
 });
 
 // REGRESSION: fails if the supported-mode validation at composition entry is removed.
@@ -726,7 +722,7 @@ it('rejects unknown security modes before any storage resource is read', async (
     get storage(): { kind: 'memory' } { throw new Error('storage was opened'); },
   };
   // @ts-expect-error An unknown wire value is deliberately supplied to exercise runtime validation.
-  await expect(composeJiniKernel(config)).rejects.toThrow('an explicit supported security mode is required');
+  await expect(composeJiniKernel({ env: {}, ...config })).rejects.toThrow('an explicit supported security mode is required');
 });
 
 

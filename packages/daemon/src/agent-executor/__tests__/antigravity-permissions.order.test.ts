@@ -2,6 +2,8 @@ import { promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createNodeFileLock } from '@jini-ai/platform/fs';
+import type { FileLockPort } from '@jini-ai/core/contracts/runtime';
 import { ensureAntigravityMcpPermission } from '../antigravity/permissions.js';
 
 /**
@@ -38,7 +40,7 @@ describe('ensureAntigravityMcpPermission effect order', () => {
       return realCopy(...args);
     });
 
-    await ensureAntigravityMcpPermission({ settingsPath, serverName: 'jini' });
+    await ensureAntigravityMcpPermission({ fileLock: createNodeFileLock({ env: {} }), settingsPath, serverName: 'jini' });
 
     expect(atBackup).toEqual([{ lockHeld: true, settings: original }]);
     expect(await fs.readFile(`${settingsPath}.jini-backup`, 'utf8')).toBe(original);
@@ -52,7 +54,7 @@ describe('ensureAntigravityMcpPermission effect order', () => {
     const settingsPath = join(target, '..', 'link.json');
     await fs.symlink(target, settingsPath);
 
-    await expect(ensureAntigravityMcpPermission({ settingsPath, serverName: 'jini' })).rejects.toThrow(/^atomic write refused a symbolic-link/);
+    await expect(ensureAntigravityMcpPermission({ fileLock: createNodeFileLock({ env: {} }), settingsPath, serverName: 'jini' })).rejects.toThrow(/^atomic write refused a symbolic-link/);
 
     expect(await fs.readFile(`${settingsPath}.jini-backup`, 'utf8')).toBe(original);
     expect(await fs.readFile(target, 'utf8')).toBe(original);
@@ -64,9 +66,32 @@ describe('ensureAntigravityMcpPermission effect order', () => {
     const failure = Object.assign(new Error('copy refused'), { code: 'EACCES' });
     vi.spyOn(fs, 'copyFile').mockRejectedValueOnce(failure);
 
-    await expect(ensureAntigravityMcpPermission({ settingsPath, serverName: 'jini' })).rejects.toBe(failure);
+    await expect(ensureAntigravityMcpPermission({ fileLock: createNodeFileLock({ env: {} }), settingsPath, serverName: 'jini' })).rejects.toBe(failure);
 
     expect(await fs.readFile(settingsPath, 'utf8')).toBe('{}');
     expect(await exists(`${settingsPath}.jini-lock`)).toBe(false);
   });
+});
+
+it('does not read, back up or write settings until the supplied lock is acquired', async () => {
+  const original = '{"theme":"kept"}';
+  const settingsPath = await settingsFile(original);
+  let acquire!: () => void;
+  const gate = new Promise<void>(resolve => { acquire = resolve; });
+  const native = createNodeFileLock({ env: {} });
+  let entered = false;
+  const fileLock: FileLockPort = { withFileLock: async (input, optional) => {
+    expect(input.lockPath).toBe(`${settingsPath}.jini-lock`);
+    await gate;
+    return native.withFileLock({ ...input, run: async lock => { entered = true; return input.run(lock); } }, optional);
+  } };
+  const pending = ensureAntigravityMcpPermission({ settingsPath, serverName: 'jini', fileLock });
+  await new Promise(resolve => setImmediate(resolve));
+  expect(entered).toBe(false);
+  expect(await fs.readFile(settingsPath, 'utf8')).toBe(original);
+  expect(await exists(`${settingsPath}.jini-backup`)).toBe(false);
+  acquire(); await pending;
+  expect(entered).toBe(true);
+  expect(await fs.readFile(`${settingsPath}.jini-backup`, 'utf8')).toBe(original);
+  expect(JSON.parse(await fs.readFile(settingsPath, 'utf8')).permissions.allow).toEqual(['mcp(jini/*)']);
 });

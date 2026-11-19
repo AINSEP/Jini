@@ -55,12 +55,7 @@ it('threads the host snapshot and bound capabilities through a real executor run
   };
   const hostEnv = { PATH: '/host/bin', HOME: '/host/home', UNRELATED_TOKEN: 'fixture-secret' };
   const calls: unknown[] = [];
-  const executor = createAgentExecutor({ lifecycle }, {
-    hostEnv, runtimeState: state, getAgentDef: () => def,
-    resolveAgentLaunch: () => ({ selectedPath: '/fake/host-agent', pathResolvedPath: '/fake/host-agent', configuredOverridePath: null, launchPath: '/fake/host-agent', launchKind: 'selected', childPathPrepend: [], diagnostic: null }),
-    applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {},
-    spawn: ((_command: string, args: readonly string[], options?: { env?: NodeJS.ProcessEnv }) => { calls.push({ args, env: options?.env }); throw new Error('stop after capturing spawn'); }) as unknown as typeof nodeSpawn,
-  });
+  const executor = createAgentExecutor({ hostEnv, lifecycle }, { runtimeState: state, getAgentDef: () => def, resolveAgentLaunch: () => ({ selectedPath: '/fake/host-agent', pathResolvedPath: '/fake/host-agent', configuredOverridePath: null, launchPath: '/fake/host-agent', launchKind: 'selected', childPathPrepend: [], diagnostic: null }), applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {}, spawn: ((_command: string, args: readonly string[], options?: { env?: NodeJS.ProcessEnv }) => { calls.push({ args, env: options?.env }); throw new Error('stop after capturing spawn'); }) as unknown as typeof nodeSpawn });
   hostEnv.HOME = '/changed';
   const { run } = await lifecycle.start({ contextRef: 'host-port-test' });
   await executor.run({ runId: run.id, agentId: def.id, prompt: 'question', cwd: '/work' }).catch(() => undefined);

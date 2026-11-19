@@ -23,7 +23,7 @@ for (const id of ['third-party', 'claude']) for (const basis of ['session', 'run
       stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(), exitCode: null, signalCode: null,
     });
     const spawn = (() => { queueMicrotask(() => child.emit('spawn')); return child as unknown as ChildProcess; }) as typeof nodeSpawn;
-    const executor = createAgentExecutor({ lifecycle }, {
+    const executor = createAgentExecutor({ hostEnv: {}, lifecycle }, {
       getAgentDef: () => def,
       resolveAgentLaunch: () => ({ selectedPath: '/fixture', pathResolvedPath: '/fixture', configuredOverridePath: null, launchPath: '/fixture', launchKind: 'selected', childPathPrepend: [], diagnostic: null }),
       ensureAgentCapabilities: async () => {}, applyAgentLaunchEnv: ({ env }) => env, spawn,

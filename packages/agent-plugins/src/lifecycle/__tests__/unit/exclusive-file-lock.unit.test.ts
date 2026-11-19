@@ -10,7 +10,7 @@ import path from "node:path";
 import { test } from "../legacy-test.js";
 
 import { forceRemove } from "../fixtures/force-remove.js";
-import { DEFAULT_LOCK_STALE_AFTER_MS } from "@jini-ai/platform/fs/file-lock";
+import { createNodeLockProcess, DEFAULT_LOCK_STALE_AFTER_MS } from "@jini-ai/platform/fs/file-lock";
 import {
   FileLockLostError,
   FileLockTimeoutError,
@@ -53,7 +53,7 @@ test("U1: while run() is active the lock file holds this process's identity, and
   const root = await freshRoot();
   try {
     const lockPath = lockPathIn(root);
-    const value = await withFileLock({ lockPath: lockPath, run: async () => {
+    const value = await withFileLock({ process: createNodeLockProcess({ env: {} }), lockPath: lockPath, run: async () => {
       const holder = await readHolder(lockPath);
       assert.equal(holder.pid, process.pid);
       assert.equal(holder.hostname, os.hostname());
@@ -73,7 +73,7 @@ test("U2: when run() rejects, the same error propagates and the lock is still re
   try {
     const lockPath = lockPathIn(root);
     await assert.rejects(
-      withFileLock({ lockPath: lockPath, run: async () => {
+      withFileLock({ process: createNodeLockProcess({ env: {} }), lockPath: lockPath, run: async () => {
         throw new Error("boom");
       } }, { timeoutMs: 15_000, staleMs: 10_000 }),
       { message: "boom" },
@@ -93,7 +93,7 @@ test("U3: a fresh lock with our hostname and an injected dead liveness check is 
 
     const removed: (FileLockHolder | undefined)[] = [];
     const start = Date.now();
-    await withFileLock({ lockPath: lockPath, run: async () => undefined }, { timeoutMs: 15_000, staleMs: 10_000, process: { pid: process.pid, isAlive: () => false }, onStaleLockRemoved: ({ holder }) => removed.push(holder) });
+    await withFileLock({ process: { pid: process.pid, isAlive: () => false }, lockPath: lockPath, run: async () => undefined }, { timeoutMs: 15_000, staleMs: 10_000, onStaleLockRemoved: ({ holder }) => removed.push(holder) });
     assert.ok(Date.now() - start < DEFAULT_LOCK_STALE_AFTER_MS, "must not wait out the age threshold when liveness already says stale");
     assert.equal(removed.length, 1);
     assert.equal(removed[0]?.token, "planted");
@@ -109,7 +109,7 @@ test("U4: a real dead pid with the DEFAULT liveness check is acquired quickly, w
     await plantLock(lockPath, { pid: deadPid(), hostname: os.hostname(), token: "planted", acquiredAt: new Date().toISOString() });
 
     const start = Date.now();
-    await withFileLock({ lockPath: lockPath, run: async () => undefined }, { timeoutMs: 15_000, staleMs: 10_000 });
+    await withFileLock({ process: createNodeLockProcess({ env: {} }), lockPath: lockPath, run: async () => undefined }, { timeoutMs: 15_000, staleMs: 10_000 });
     assert.ok(Date.now() - start < DEFAULT_LOCK_STALE_AFTER_MS);
   } finally {
     await forceRemove(root);
@@ -125,7 +125,7 @@ test("U5: a live holder (our own pid, fresh) times out; run() is never called an
 
     let ran = false;
     await assert.rejects(
-      withFileLock({ lockPath: lockPath, run: async () => {
+      withFileLock({ process: createNodeLockProcess({ env: {} }), lockPath: lockPath, run: async () => {
           ran = true;
         } }, { timeoutMs: 250, staleMs: 10_000 }),
       (error: unknown) => {
@@ -152,7 +152,7 @@ test("U6: a live holder whose mtime is 60s old is never evicted, and its lock by
     const removed: (FileLockHolder | undefined)[] = [];
     let ran = false;
     await assert.rejects(
-      withFileLock({ lockPath, run: async () => { ran = true; } }, { timeoutMs: 50, staleMs: 10_000, onStaleLockRemoved: ({ holder }) => removed.push(holder) }),
+      withFileLock({ process: createNodeLockProcess({ env: {} }), lockPath, run: async () => { ran = true; } }, { timeoutMs: 50, staleMs: 10_000, onStaleLockRemoved: ({ holder }) => removed.push(holder) }),
       FileLockTimeoutError,
     );
     assert.equal(ran, false);
@@ -171,10 +171,10 @@ test("U7: a foreign hostname with a dead-liveness override still times out on a 
 
     let calls = 0;
     await assert.rejects(
-      withFileLock({ lockPath: lockPath, run: async () => undefined }, { timeoutMs: 250, staleMs: 10_000, hostname: () => "this-host", process: { pid: process.pid, isAlive: () => {
+      withFileLock({ process: { pid: process.pid, isAlive: () => {
           calls += 1;
           return false;
-        } } }),
+        } }, lockPath: lockPath, run: async () => undefined }, { timeoutMs: 250, staleMs: 10_000, hostname: () => "this-host" }),
       FileLockTimeoutError,
     );
     assert.equal(calls, 0, "a pid recorded on a different host must never reach our own liveness probe");
@@ -188,11 +188,11 @@ test("U8: a 0-byte lock with a fresh mtime times out; a 0-byte lock with an old 
   try {
     const lockPath = lockPathIn(root);
     await writeFile(lockPath, "", "utf8");
-    await assert.rejects(withFileLock({ lockPath: lockPath, run: async () => undefined }, { timeoutMs: 250, staleMs: 10_000 }), FileLockTimeoutError);
+    await assert.rejects(withFileLock({ process: createNodeLockProcess({ env: {} }), lockPath: lockPath, run: async () => undefined }, { timeoutMs: 250, staleMs: 10_000 }), FileLockTimeoutError);
 
     const old = new Date(Date.now() - 60_000);
     await utimes(lockPath, old, old);
-    await withFileLock({ lockPath: lockPath, run: async () => undefined }, { timeoutMs: 15_000, staleMs: 10_000 });
+    await withFileLock({ process: createNodeLockProcess({ env: {} }), lockPath: lockPath, run: async () => undefined }, { timeoutMs: 15_000, staleMs: 10_000 });
   } finally {
     await forceRemove(root);
   }
@@ -208,7 +208,7 @@ test("U9: pid 0, -1, 1.5, a string, and 2**60 never reach the liveness probe, an
 
       let calls = 0;
       await assert.rejects(
-        withFileLock({ lockPath: lockPath, run: async () => undefined }, { timeoutMs: 100, staleMs: 10_000, process: { pid: process.pid, isAlive: () => (calls += 1) === -1 } }),
+        withFileLock({ process: { pid: process.pid, isAlive: () => (calls += 1) === -1 }, lockPath: lockPath, run: async () => undefined }, { timeoutMs: 100, staleMs: 10_000 }),
         FileLockTimeoutError,
         `pid ${JSON.stringify(pid)} must be treated as unparseable, not as a live/dead pid`,
       );
@@ -225,7 +225,7 @@ test("U10: run() overwriting the lock with a foreign holder makes assertHeld() r
   try {
     const lockPath = lockPathIn(root);
     let assertHeldError: unknown;
-    await withFileLock({ lockPath: lockPath, run: async (lock) => {
+    await withFileLock({ process: createNodeLockProcess({ env: {} }), lockPath: lockPath, run: async (lock) => {
       const foreign = { pid: 555, hostname: os.hostname(), token: "not-ours", acquiredAt: new Date().toISOString() };
       await writeFile(lockPath, JSON.stringify(foreign), "utf8");
       try {
@@ -246,7 +246,7 @@ test("U11: a missing parent directory rejects with code ENOENT quickly, not as a
   try {
     const lockPath = path.join(root, "missing-subdir", "activations.json.lock");
     const start = Date.now();
-    await assert.rejects(withFileLock({ lockPath: lockPath, run: async () => undefined }, { timeoutMs: 500, staleMs: 10_000 }), (error: unknown) => {
+    await assert.rejects(withFileLock({ process: createNodeLockProcess({ env: {} }), lockPath: lockPath, run: async () => undefined }, { timeoutMs: 500, staleMs: 10_000 }), (error: unknown) => {
       assert.equal((error as NodeJS.ErrnoException).code, "ENOENT");
       return true;
     });
@@ -279,14 +279,14 @@ test("U13: a second withFileLock call stays outside while the first holds the lo
     let entered!: () => void;
     const firstEntered = new Promise<void>((resolve) => { entered = resolve; });
     let polls = 0;
-    const first = withFileLock({ lockPath: lockPath, run: async () => {
+    const first = withFileLock({ process: createNodeLockProcess({ env: {} }), lockPath: lockPath, run: async () => {
       events.push("first-in");
       entered();
       await held;
       events.push("first-out");
     } }, { timeoutMs: 15_000, staleMs: 10_000 });
     await firstEntered;
-    const second = withFileLock({ lockPath: lockPath, run: async () => {
+    const second = withFileLock({ process: createNodeLockProcess({ env: {} }), lockPath: lockPath, run: async () => {
       events.push("second-in");
       release();
     } }, { timeoutMs: 15_000, staleMs: 10_000, pollMs: 1, sleep: async ({ durationMs }) => {
@@ -323,9 +323,9 @@ test("U14: a lock that is re-taken the instant each stale break removes it still
 
     let ran = false;
     await assert.rejects(
-      withFileLock({ lockPath: lockPath, run: async () => {
+      withFileLock({ process: { pid: process.pid, isAlive: () => false }, lockPath: lockPath, run: async () => {
           ran = true;
-        } }, { timeoutMs: 300, staleMs: 10_000, process: { pid: process.pid, isAlive: () => false }, onStaleLockRemoved: retakeLock }),
+        } }, { timeoutMs: 300, staleMs: 10_000, onStaleLockRemoved: retakeLock }),
       FileLockTimeoutError,
     );
     assert.equal(ran, false, "the lock was never actually free, so run() must not have been entered");

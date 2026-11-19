@@ -9,28 +9,28 @@ import type { DurableJsonFile, JsonFileRead } from "../durable-json.js";
 
 function fixture() {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "user-data-config-")));
-  const make = (env: NodeJS.ProcessEnv = {}) => createNodeDirectoryWorkspace({ homeDir: root, defaultFolder: "Project", envName: "PROJECT_HOME",
+  const make = (env: NodeJS.ProcessEnv = {}) => createNodeDirectoryWorkspace({ env, directoryHomeOverride: env.PROJECT_HOME, homeDir: root, defaultFolder: "Project", envName: "PROJECT_HOME",
     settingsFile: path.join(root, "unused.json"), registryName: "catalog.json", runningName: ".running.json",
     userConfig: { appName: "Example", rootsEnvName: "PROJECT_ROOTS", sourceRoots: [path.join(root, "repo", "sites")] },
-  }, { platform: "linux", env, cwd: root });
+  }, { platform: "linux", cwd: root });
   return { root, make, cleanup: () => fs.rmSync(root, { recursive: true, force: true }) };
 }
 
 describe("OS user directories without Electron", () => {
   it("uses Application Support on Mac and OS Documents", () => {
-    expect(resolveUserDataDirectories({ homeDir: "/users/a", appName: "Example" }, { platform: "darwin", env: {} }))
+    expect(resolveUserDataDirectories({ env: {}, homeDir: "/users/a", appName: "Example" }, { platform: "darwin" }))
       .toEqual({ appData: "/users/a/Library/Application Support/Example", documents: "/users/a/Documents" });
   });
   it("uses roaming app-data and redirected Windows Documents through an injected registry port", () => {
-    expect(resolveUserDataDirectories({ homeDir: "C:\\Users\\a", appName: "Example" }, { platform: "win32", env: { APPDATA: "D:\\Roaming", OneDrive: "E:\\Cloud" }, windowsDocuments: () => "%OneDrive%\\Documents" }))
+    expect(resolveUserDataDirectories({ env: { APPDATA: "D:\\Roaming", OneDrive: "E:\\Cloud" }, homeDir: "C:\\Users\\a", appName: "Example" }, { platform: "win32", windowsDocuments: () => "%OneDrive%\\Documents" }))
       .toEqual({ appData: "D:\\Roaming\\Example", documents: "E:\\Cloud\\Documents" });
-    expect(resolveUserDataDirectories({ homeDir: "C:\\Users\\a", appName: "Example" }, { platform: "win32", env: {}, windowsDocuments: () => undefined }).documents).toBe("C:\\Users\\a\\Documents");
+    expect(resolveUserDataDirectories({ env: {}, homeDir: "C:\\Users\\a", appName: "Example" }, { platform: "win32", windowsDocuments: () => undefined }).documents).toBe("C:\\Users\\a\\Documents");
   });
   it("uses XDG data and localized user-dirs rather than executing shell text", () => {
     const reads: string[] = [];
-    const result = resolveUserDataDirectories({ homeDir: "/users/a", appName: "Example" }, { platform: "linux", env: { XDG_DATA_HOME: "/data", XDG_CONFIG_HOME: "/config" }, readText: (file) => { reads.push(file); return 'XDG_DOCUMENTS_DIR="$HOME/Dokumente"'; } });
+    const result = resolveUserDataDirectories({ env: { XDG_DATA_HOME: "/data", XDG_CONFIG_HOME: "/config" }, homeDir: "/users/a", appName: "Example" }, { platform: "linux", readText: (file) => { reads.push(file); return 'XDG_DOCUMENTS_DIR="$HOME/Dokumente"'; } });
     expect(result).toEqual({ appData: "/data/Example", documents: "/users/a/Dokumente" }); expect(reads).toEqual(["/config/user-dirs.dirs"]);
-    expect(resolveUserDataDirectories({ homeDir: "/users/a", appName: "Example" }, { platform: "linux", env: {}, readText: () => undefined }).appData).toBe("/users/a/.local/share/Example");
+    expect(resolveUserDataDirectories({ env: {}, homeDir: "/users/a", appName: "Example" }, { platform: "linux", readText: () => undefined }).appData).toBe("/users/a/.local/share/Example");
   });
 });
 
@@ -111,13 +111,13 @@ it('imports the previous home catalog into app-data and observes old live leases
     const legacyHome = path.join(f.root, 'Project Sites'), dir = path.join(legacyHome, 'alpha'); fs.mkdirSync(dir, { recursive: true });
     const settingsFile = path.join(f.root, 'old-settings.json');
     const policy = { homeDir: f.root, defaultFolder: 'Project Sites', envName: 'PROJECT_HOME', settingsFile, registryName: 'catalog.json', runningName: '.running.json' };
-    const previous = createNodeDirectoryWorkspace(policy, { env: {}, cwd: f.root });
+    const previous = createNodeDirectoryWorkspace({ ...policy, env: {}, directoryHomeOverride: undefined }, { cwd: f.root });
     previous.registry({}).merge({ entries: [{ id: 'alpha', name: 'Alpha', path: dir, createdBy: 'Web', lastOpened: null }] });
     const oldLease = previous.claim({ path: dir, app: 'Old Web', port: 3456 });
     const before = fs.readFileSync(path.join(dir, '.running.json'), 'utf8');
-    const current = createNodeDirectoryWorkspace({ ...policy, defaultFolder: 'Project', userConfig: {
+    const current = createNodeDirectoryWorkspace({ env: {}, directoryHomeOverride: undefined, ...policy, defaultFolder: 'Project', userConfig: {
       appName: 'Example', rootsEnvName: 'PROJECT_ROOTS', legacySettingsFile: settingsFile, legacyDefaultFolder: 'Project Sites',
-    } }, { env: {}, cwd: f.root, platform: 'linux' });
+    } }, { cwd: f.root, platform: 'linux' });
     expect(current.registry({}).list({})[0]?.path).toBe(dir);
     expect(current.claim({ path: dir, app: 'New Desktop' })).toMatchObject({ acquired: false, record: { token: oldLease.record.token } });
     expect(fs.readFileSync(path.join(dir, '.running.json'), 'utf8')).toBe(before);
@@ -134,11 +134,10 @@ it("defaults OneDrive-redirected Windows Documents to appData, retaining explici
   let stored: JsonFileRead = { state: "missing" };
   const file: DurableJsonFile = { read: () => stored, tempPath: () => "unused", quarantine: () => false,
     write: ({ value }) => { stored = { state: "ok", value }; }, withLock: ({ critical }) => critical() };
-  const config = createDirectoryUserConfig({ homeDir: "/fixture", defaultFolder: "Project", envName: "PROJECT_HOME",
+  const config = createDirectoryUserConfig({ env: { OneDrive: "/fixture/OneDrive", APPDATA: "/fixture/roaming" }, directoryHomeOverride: undefined, homeDir: "/fixture", defaultFolder: "Project", envName: "PROJECT_HOME",
     policy: { appName: "Example", rootsEnvName: "PROJECT_ROOTS" }, fileAt: () => file,
     canonicalPath: ({ path: value }) => path.win32.normalize(value), exists: () => false, isDirectory: () => true,
-  }, { platform: "win32", env: { OneDrive: "/fixture/OneDrive", APPDATA: "/fixture/roaming" },
-    windowsDocuments: () => "/fixture/OneDrive/Documents", readText: () => undefined, cwd: "/fixture" });
+  }, { platform: "win32", windowsDocuments: () => "/fixture/OneDrive/Documents", readText: () => undefined, cwd: "/fixture" });
   expect(config.read({}).databases).toBe("appData");
   expect(config.syncWarning({})?.message).toBe("OneDrive syncs the sites folder. New databases use OS app-data for safety. Site folders are not self-contained: include their app-data databases when transferring them.");
   config.update({ patch: { databases: "inSite" } });
@@ -178,11 +177,10 @@ for (const sample of [
     write: () => { throw new Error("default reads cannot write"); },
     withLock: ({ critical }) => critical(), quarantine: () => false, tempPath: () => "unused",
   };
-  const make = (env: NodeJS.ProcessEnv = sample.env) => createDirectoryUserConfig({ homeDir: sample.homeDir, defaultFolder: "Product", envName: "PRODUCT_HOME",
+  const make = (env: NodeJS.ProcessEnv = sample.env) => createDirectoryUserConfig({ env, directoryHomeOverride: env.PRODUCT_HOME, homeDir: sample.homeDir, defaultFolder: "Product", envName: "PRODUCT_HOME",
     policy: { appName: "Example", rootsEnvName: "PRODUCT_ROOTS", defaultSubfolder: "sites" }, fileAt: () => file,
     canonicalPath: ({ path }) => path, exists: () => false, isDirectory: () => false,
-  }, { platform: sample.platform, env, windowsDocuments: () => sample.documents, windowsOneDriveRoots: () => [],
-    readText: (file) => file.endsWith("user-dirs.dirs") ? 'XDG_DOCUMENTS_DIR="$HOME/Dokumente"' : undefined });
+  }, { platform: sample.platform, windowsDocuments: () => sample.documents, windowsOneDriveRoots: () => [], readText: (file) => file.endsWith("user-dirs.dirs") ? 'XDG_DOCUMENTS_DIR="$HOME/Dokumente"' : undefined });
   const old = paths.join(sample.documents, "Product"), nested = paths.join(old, "sites");
   expect(make().read({}).sitesHome).toBe(nested);
   expect(make().roots({})).toEqual([nested]);
@@ -200,10 +198,10 @@ for (const sample of [
 it("nested sync warnings suggest the nested local fallback and creation requires mounted Documents", () => {
   const f = fixture();
   try {
-    const workspace = createNodeDirectoryWorkspace({ homeDir: f.root, defaultFolder: "Product", envName: "PRODUCT_HOME",
+    const workspace = createNodeDirectoryWorkspace({ env: {}, directoryHomeOverride: undefined, homeDir: f.root, defaultFolder: "Product", envName: "PRODUCT_HOME",
       settingsFile: "unused", registryName: "catalog.json", runningName: ".running.json",
       userConfig: { appName: "Example", rootsEnvName: "PRODUCT_ROOTS", defaultSubfolder: "sites" },
-    }, { platform: "linux", env: {}, readText: (file) => file.endsWith("user-dirs.dirs") ? 'XDG_DOCUMENTS_DIR="$HOME/Dropbox/Documents"' : undefined });
+    }, { platform: "linux", readText: (file) => file.endsWith("user-dirs.dirs") ? 'XDG_DOCUMENTS_DIR="$HOME/Dropbox/Documents"' : undefined });
     fs.mkdirSync(path.join(f.root, "Dropbox", ".dropbox.cache"), { recursive: true });
     expect(workspace.config({}).warning?.localHome).toBe(path.join(f.root, "Product", "sites"));
     expect(workspace.homeAvailable({})).toBe(false);
@@ -217,10 +215,10 @@ it("nested sync warnings suggest the nested local fallback and creation requires
 it("discovery includes only the existing parent of the selected nested home", () => {
   const f = fixture();
   try {
-    const make = (env: NodeJS.ProcessEnv = {}) => createNodeDirectoryWorkspace({ homeDir: f.root, defaultFolder: "Product", envName: "PRODUCT_HOME",
+    const make = (env: NodeJS.ProcessEnv = {}) => createNodeDirectoryWorkspace({ env, directoryHomeOverride: env.PRODUCT_HOME, homeDir: f.root, defaultFolder: "Product", envName: "PRODUCT_HOME",
       settingsFile: "unused", registryName: "catalog.json", runningName: ".running.json",
       userConfig: { appName: "Example", rootsEnvName: "PRODUCT_ROOTS", defaultSubfolder: "sites" },
-    }, { platform: "linux", env });
+    }, { platform: "linux" });
     const old = path.join(f.root, "Documents", "Product"), local = path.join(f.root, "Product");
     const workspace = make();
     expect(workspace.roots({})).toEqual([path.join(old, "sites")]);
@@ -236,10 +234,10 @@ it("discovery includes only the existing parent of the selected nested home", ()
 for (const savedHome of ["~/Documents/Product", "~/custom"]) it(`relocation nests only saved home ${savedHome}, never the environment override`, () => {
   const f = fixture();
   try {
-    const make = (env: NodeJS.ProcessEnv = {}) => createNodeDirectoryWorkspace({ homeDir: f.root, defaultFolder: "Product", envName: "PRODUCT_HOME",
+    const make = (env: NodeJS.ProcessEnv = {}) => createNodeDirectoryWorkspace({ env, directoryHomeOverride: env.PRODUCT_HOME, homeDir: f.root, defaultFolder: "Product", envName: "PRODUCT_HOME",
       settingsFile: "unused", registryName: "catalog.json", runningName: ".running.json",
       userConfig: { appName: "Example", rootsEnvName: "PRODUCT_ROOTS", defaultSubfolder: "sites" },
-    }, { platform: "linux", env });
+    }, { platform: "linux" });
     const workspace = make(), file = workspace.config({}).configPath;
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.mkdirSync(path.join(f.root, "Product"));

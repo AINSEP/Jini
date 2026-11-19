@@ -10,7 +10,7 @@ import type { AgentPluginClockPort, AgentPluginIdsPort, AgentPluginProcessPort, 
 const RANDOM_RESOLUTION = 2 ** 48 - 1;
 
 /** Opt-in native effects. Layout, fetch, guard, namespace and provisioning remain host-owned. */
-export function createNodeAgentPluginEffects(_required: Record<string, never>, optional: { readonly filesystem?: FilesystemPort } = {}): {
+export function createNodeAgentPluginEffects({ env }: { env: NodeJS.ProcessEnv }, optional: { readonly filesystem?: FilesystemPort } = {}): {
   filesystem: FilesystemPort;
   clock: AgentPluginClockPort;
   ids: AgentPluginIdsPort;
@@ -28,7 +28,7 @@ export function createNodeAgentPluginEffects(_required: Record<string, never>, o
       pid: process.pid,
       platform: process.platform,
       hostname: () => os.hostname(),
-      bootIdentity: () => readBootIdentity({}),
+      bootIdentity: () => readBootIdentity({ env }),
       isAlive: ({ pid }) => {
         if (!Number.isSafeInteger(pid) || pid <= 0) return false;
         try { process.kill(pid, 0); return true; }

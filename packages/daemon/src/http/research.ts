@@ -151,8 +151,7 @@ export interface ResearchProvider {
 export interface ResearchHttpDeps {
   readonly provider?: ResearchProvider;
   readonly fetch?: typeof globalThis.fetch;
-  readonly env?: Readonly<Record<string, string | undefined>>;
-  /** Resolves per-provider credentials. Defaults to `TAVILY_API_KEY` for the built-in Tavily transport. */
+  /** Resolves per-provider credentials. Defaults to empty credentials. */
   readonly resolveCredentials?: ({ providerId }: { providerId: string }) => Promise<ResearchProviderCredentials>;
   /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
   readonly onInternalError?: (context: ResearchInternalErrorContext) => void;
@@ -160,20 +159,6 @@ export interface ResearchHttpDeps {
   readonly reportInternalError?: ReportRouteInternalError;
 }
 
-/**
- * Default `ResearchHttpDeps.resolveCredentials`: reads `TAVILY_API_KEY` from the environment.
- *
- * Takes no `providerId` even though the `resolveCredentials` dep type supplies one (a function of
- * fewer parameters is assignable, so this still satisfies the interface). It used to accept one and
- * return `{}` for anything other than `'tavily'`, but that arm was unreachable twice over: the only
- * call site below passes the literal `'tavily'`, and `validateRequestedProvider` already rejects any
- * other provider name at parse time. A host that supports a second provider injects its own
- * `resolveCredentials` rather than reaching this function with a different id.
- */
-async function defaultResolveCredentials({ env }: { env: Readonly<Record<string, string | undefined>> }): Promise<ResearchProviderCredentials> {
-  const apiKey = env.TAVILY_API_KEY?.trim();
-  return apiKey ? { apiKey } : {};
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -231,9 +216,18 @@ function selectProvider(bound: ResearchProvider | undefined, deps: ResearchHttpD
   return bound ?? deps.provider ?? createTavilyResearchProvider({}, deps.fetch ? { fetch: deps.fetch } : {});
 }
 
-/** The host's resolver, else `TAVILY_API_KEY` for a `'tavily'` provider and no credentials for any other. */
-function credentialResolver(provider: ResearchProvider, deps: ResearchHttpDeps): NonNullable<ResearchHttpDeps['resolveCredentials']> {
-  return deps.resolveCredentials ?? (() => provider.id === 'tavily' ? defaultResolveCredentials({ env: deps.env ?? process.env }) : Promise.resolve({}));
+/**
+ * The host resolver owns credentials; an unwired route has no credentials.
+ *
+ * The empty fallback takes no `providerId` even though the dep type supplies one (a function of
+ * fewer parameters is assignable, so this still satisfies the interface). It used to accept one and
+ * return `{}` for anything other than `'tavily'`, but that arm was unreachable twice over: the default
+ * route passes the literal `'tavily'`, and `validateRequestedProvider` already rejects any
+ * other provider name at parse time. A host that supports a second provider injects its own
+ * `resolveCredentials` rather than reaching this function with a different id.
+ */
+function credentialResolver(_provider: ResearchProvider, deps: ResearchHttpDeps): NonNullable<ResearchHttpDeps['resolveCredentials']> {
+  return deps.resolveCredentials ?? (() => Promise.resolve({}));
 }
 
 /** Reports `error` to the host sink under a fresh correlation id and returns the generic SEC-005 public error. */

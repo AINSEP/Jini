@@ -557,7 +557,7 @@ export interface CreateAgentExecutorOptions extends ClaudeExecutorOptions, Codex
   /** Required with correlation + byte journal: exact stdout blobs and durable reference records. */
   readonly stdoutJournalBlobs?: StdoutJournalBlobPort;
   /** Host environment snapshot; baseline spawn keys and source config paths are allowlisted. */
-  readonly hostEnv?: NodeJS.ProcessEnv;
+  readonly hostEnv: NodeJS.ProcessEnv;
   readonly runtimeState?: AgentRuntimeState;
   readonly lifecycle: RunLifecycle;
   /** Resolves/pins the concrete starting model against the actual launch scope. */
@@ -573,11 +573,11 @@ export interface CreateAgentExecutorOptions extends ClaudeExecutorOptions, Codex
   /** @default the real `@jini-ai/agent-runtime` PATH-env composer */
   readonly applyAgentLaunchEnv?: typeof applyAgentLaunchEnv;
   /** @default the real `@jini-ai/platform` cross-platform invocation builder */
-  readonly createCommandInvocation?: typeof createCommandInvocation;
+  readonly createCommandInvocation?: (required: Omit<Parameters<typeof createCommandInvocation>[0], "fallbackComSpec">) => ReturnType<typeof createCommandInvocation>;
   /** @default `node:child_process`'s `spawn` */
   readonly spawn?: typeof nodeSpawn;
   /** Diagnostic bridge probe; independent of the agent spawn seam. @default the real MCP initialize probe. */
-  readonly probeMcpBridge?: typeof probeMcpBridge;
+  readonly probeMcpBridge?: (required: Omit<Parameters<typeof probeMcpBridge>[0], "hostEnv">, optional?: Parameters<typeof probeMcpBridge>[1]) => ReturnType<typeof probeMcpBridge>;
   /** @default the real `@jini-ai/agent-runtime` ACP session transport */
   readonly attachAcpSession?: typeof attachAcpSession;
   /**
@@ -606,7 +606,7 @@ export interface CreateAgentExecutorOptions extends ClaudeExecutorOptions, Codex
    */
   readonly prepareAgentLogFile?: typeof prepareAgentLogFile;
   /** @default the real `@jini-ai/platform` process-snapshot enumerator */
-  readonly listProcessSnapshots?: typeof listProcessSnapshots;
+  readonly listProcessSnapshots?: () => ReturnType<typeof listProcessSnapshots>;
   /** @default the real `@jini-ai/platform` descendant-PID collector */
   readonly collectProcessTreePids?: CollectProcessTreePidsPort;
   /** @default the real `@jini-ai/platform` SIGTERM→SIGKILL escalator */

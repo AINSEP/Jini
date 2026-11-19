@@ -12,6 +12,9 @@ import { manifestHost, tierPolicy, createInvocationCoreDeps } from '../support/f
 import { InMemoryPluginActivationRepo } from '../support/repo.memory.js';
 import { loadPlugin } from '../support/loader.js';
 
+import { createNodeFileLock } from '@jini-ai/platform/fs';
+import type { FileLockPort } from '@jini-ai/core/contracts/runtime';
+
 const roots: string[] = [];
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
 const id = 'site-rules';
@@ -27,7 +30,7 @@ async function fixture(options: { hosted?: boolean; optIn?: boolean; reload?: ()
     preview: async (input, options = {}) => { calls.push('preview'); return previewSitePluginInstall({ ...input, deps: { ...deps, ...options } }); },
     install: async (input, options = {}) => { calls.push('install'); return installSitePlugin({ ...input, deps: { ...deps, ...options } }); },
   };
-  const sourceDeps = { ...manifestHost, installDir, builtInIds: ['bundled'], installer,
+  const sourceDeps = { fileLock: createNodeFileLock({ env: {} }), ...manifestHost, installDir, builtInIds: ['bundled'], installer,
     policy: createPluginSourcePolicy({ hosted: options.hosted ?? false, localInstallOptIn: options.optIn ?? false }), scaffoldEntry: entry,
     reload: async () => { calls.push('reload'); return options.reload ? options.reload() : false; } };
   const retainedSourceDeps = { ...sourceDeps, pruneVersions: ({ id }: { id: string }) => pruneSitePluginVersions({ id, installDir, repo }) };
@@ -519,4 +522,27 @@ test('isSealedHere refuses built-in ids (any case) and malformed versions withou
     assert.equal(await f.service.isSealedHere({ id, version }), false, version);
   }
   await assert.rejects(f.service.isSealedHere({ id: 'Bad_Id', version: '0.1.0' }), { code: 'PLUGIN_SOURCE_PATH_INVALID' });
+});
+
+test('source drafts wait for the host lock before creating draft files', async () => {
+  const f = await fixture();
+  let acquire!: () => void;
+  const gate = new Promise<void>(resolve => { acquire = resolve; });
+  let entered = false;
+  const native = createNodeFileLock({ env: {} });
+  const fileLock: FileLockPort = { withFileLock: async (input, optional) => {
+    assert.equal(input.lockPath, f.installDir + '-source-lock');
+    assert.equal(optional?.timeoutMs, 100);
+    assert.equal(optional?.staleMs, Infinity);
+    await gate;
+    return native.withFileLock({ ...input, run: async lock => { entered = true; return input.run(lock); } }, optional);
+  } };
+  const service = createPluginSourceService({ ...f.sourceDeps, fileLock });
+  const pending = service.create({ id, name: 'Rules', description: 'Rules' });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(entered, false);
+  await assert.rejects(readFile(path.join(f.draft, 'README.md')), { code: 'ENOENT' });
+  acquire(); await pending;
+  assert.equal(entered, true);
+  assert.match((await service.read({ id, path: 'README.md' })).content, /Rules/);
 });

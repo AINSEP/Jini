@@ -46,7 +46,7 @@ async function boot(
   installRouteRegistrationGuard({ app });
   const resolvedPortRef = { current: 0 };
   const adapter: RouteHostContext = { originPolicy: createLocalSameOriginPolicy({ port: () => resolvedPortRef.current, env: config.env ?? {}, config: { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' } }) };
-  const kernel = await composeJiniKernel({ ...config, app, adapter, resolvedPortRef });
+  const kernel = await composeJiniKernel({ env: {}, ...config, app, adapter, resolvedPortRef });
   const server = await new Promise<Server>((resolve, reject) => {
     const s = app.listen(0, '127.0.0.1');
     s.once('listening', () => resolve(s));
@@ -292,8 +292,7 @@ describe('the families the standalone daemon never wired', () => {
     const app = express();
     installRouteRegistrationGuard({ app });
     await expect(
-      composeJiniKernel({
-        security: { mode: 'host' },
+      composeJiniKernel({ env: {}, security: { mode: 'host' },
         app,
         adapter: createTestRouteHost(), resolvedPortRef: { current: 0 },
         storage: { kind: 'memory' },
@@ -308,8 +307,7 @@ describe('the families the standalone daemon never wired', () => {
     const app = express();
     installRouteRegistrationGuard({ app });
     await expect(
-      composeJiniKernel({
-        security: { mode: 'host' },
+      composeJiniKernel({ env: {}, security: { mode: 'host' },
         app,
         adapter: createTestRouteHost(), resolvedPortRef: { current: 0 },
         storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
@@ -584,7 +582,7 @@ describe('kernel base failure cleanup', () => {
     // already open — the one path where a leak would otherwise be invisible.
     writeFileSync(join(dataDir, 'events.db'), 'not a sqlite file at all');
 
-    await expect(createJiniKernelBase({ storage: { kind: 'sqlite', open: openSqlite, dataDir } })).rejects.toThrow('file is not a database');
+    await expect(createJiniKernelBase({ env: {}, storage: { kind: 'sqlite', open: openSqlite, dataDir } })).rejects.toThrow('file is not a database');
   });
 });
 

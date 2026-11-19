@@ -60,9 +60,9 @@ function countLifecycle(required: { readonly lifecycle: Lifecycle; readonly coun
 /**
  * @param required.root - An absolute, empty directory the host owns for plugin packages and state.
  */
-export function createNeutralHost(required: { readonly root: string }, _optional: Record<string, never> = {}): NeutralHost {
+export function createNeutralHost(required: { readonly root: string; readonly env: NodeJS.ProcessEnv }, _optional: Record<string, never> = {}): NeutralHost {
   const counters = createCostCounters();
-  const effects = createNodeAgentPluginEffects({});
+  const effects = createNodeAgentPluginEffects({ env: required.env });
   const provisioning: { call: string; pluginId?: string }[] = [];
   const layout = createAgentPluginLayout({ root: required.root });
   const lifecycle = createAgentPluginLifecycle({

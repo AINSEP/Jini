@@ -13,16 +13,16 @@ it('routes an injected provider through its own validation, credential resolver 
   const result = await route.handle({ input: { query: 'question' }, deps: { resolveCredentials: async ({ providerId }) => { expect(providerId).toBe('host-research'); return { apiKey: 'fixture-key' }; } } });
   expect(result).toMatchObject({ ok: true, value: { provider: 'host-research', summary: 'host answer', depth: 'shallow' } });
   expect(calls).toEqual([{ query: 'question' }]);
-  expect(await route.handle({ input: { query: 'question' }, deps: { env: { TAVILY_API_KEY: 'fixture-key' } } })).toEqual({ ok: false, error: { code: 'NOT_CONFIGURED', message: 'host-research provider not configured' } });
+  expect(await route.handle({ input: { query: 'question' }, deps: {} })).toEqual({ ok: false, error: { code: 'NOT_CONFIGURED', message: 'host-research provider not configured' } });
 });
 
-it('the default Tavily adapter uses injected fetch/env and preserves normalization and redaction', async () => {
+it('the default Tavily adapter uses injected fetch/credentials and preserves normalization and redaction', async () => {
   const calls: { url: string; body: unknown }[] = [];
   const fetchPort: typeof fetch = async (url, init) => {
     calls.push({ url: String(url), body: JSON.parse(String(init?.body)) });
     return new Response(JSON.stringify({ answer: 'answer', results: [{ title: ' Title ', url: 'https://example.test', content: ' Snippet ' }] }));
   };
-  const result = await researchSearchRoute.handle({ input: { query: 'question', maxSources: 2.7 }, deps: { env: { TAVILY_API_KEY: 'fixture-key' }, fetch: fetchPort } });
+  const result = await researchSearchRoute.handle({ input: { query: 'question', maxSources: 2.7 }, deps: { resolveCredentials: async () => ({ apiKey: 'fixture-key' }), fetch: fetchPort } });
   expect(result).toMatchObject({ ok: true, value: { summary: 'answer', provider: 'tavily', sources: [{ title: 'Title', snippet: 'Snippet' }] } });
   expect(calls).toEqual([{ url: 'https://api.tavily.com/search', body: { query: 'question', search_depth: 'basic', max_results: 2, include_answer: true, include_raw_content: false } }]);
   const provider = createTavilyResearchProvider({}, { fetch: async () => new Response('fixture-key', { status: 429 }) });
@@ -44,4 +44,15 @@ it('redacts the resolved key from injected provider failures before calling the 
   expect((errors[0] as Error).message).toBe('upstream rejected [REDACTED:exact_secret]');
   expect((errors[0] as Error).name).toBe('TypeError');
   expect((errors[0] as Error).stack).toBe('TypeError: upstream rejected [REDACTED:exact_secret]\n    at hostSearch (provider.ts:42:7)');
+});
+
+it('uses only resolver-owned credentials and reports missing credentials without a provider call', async () => {
+  let searches = 0;
+  const provider: ResearchProvider = { id: 'host-research', search: async ({ apiKey }) => { searches++; expect(apiKey).toBe('resolved-key'); return { answer: 'answer', sources: [] }; } };
+  const route = createResearchSearchRoute({ provider });
+  const missing = await route.handle({ input: { query: 'q' }, deps: {} });
+  expect(missing).toEqual({ ok: false, error: { code: 'NOT_CONFIGURED', message: 'host-research provider not configured' } });
+  expect(searches).toBe(0);
+  await route.handle({ input: { query: 'q' }, deps: { resolveCredentials: async () => ({ apiKey: 'resolved-key' }) } });
+  expect(searches).toBe(1);
 });

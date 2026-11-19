@@ -22,10 +22,10 @@ export type WellKnownUserToolchainOptions = {
   // defaults to false on Windows because those paths are POSIX-only.
   includeSystemBins?: boolean;
   // Read $NPM_CONFIG_PREFIX / $npm_config_prefix from this map and append
-  // `<prefix>/bin` if defined. Defaults to process.env so user-customised
+  // `<prefix>/bin` if defined. Supplied by the host so user-customised
   // npm prefixes are picked up automatically. Pass an empty object to
   // suppress lookup (useful in tests).
-  env?: NodeJS.ProcessEnv;
+  env: NodeJS.ProcessEnv;
 };
 
 /** @internal Resolve a possibly `~`-prefixed or absolute path against `home`, or `null` when it is neither. */
@@ -70,11 +70,11 @@ function isWindows(): boolean {
  * @returns The ordered list of candidate bin directories, most-specific first.
  */
 export function wellKnownUserToolchainBins(
-  options: WellKnownUserToolchainOptions = {},
+  options: WellKnownUserToolchainOptions,
 ): string[] {
   const home = options.home ?? homedir();
   const includeSystemBins = options.includeSystemBins ?? !isWindows();
-  const env = options.env ?? process.env;
+  const env = options.env;
   const dirs: string[] = [];
   // Vite+ global installs expose CLI shims from VP_HOME/bin (default
   // ~/.vite-plus/bin). An explicit VP_HOME is the most specific signal for

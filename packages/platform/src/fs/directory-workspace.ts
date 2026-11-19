@@ -20,18 +20,18 @@ const APP_DATA_CATALOG_MIGRATION = "app-data-catalog-v1";
  * @complexity O(n) registry records, O(1) settings/lease operations.
  */
 export function createNodeDirectoryWorkspace(
-  { homeDir, defaultFolder, envName, settingsFile, registryName, runningName, userConfig, registryRecovery }: {
-    homeDir: string; defaultFolder: string; envName: string; settingsFile: string; registryName: string; runningName: string; userConfig?: DirectoryUserConfigPolicy;
+  { homeDir, defaultFolder, envName, env, directoryHomeOverride, settingsFile, registryName, runningName, userConfig, registryRecovery }: {
+    homeDir: string; defaultFolder: string; envName: string; env: NodeJS.ProcessEnv; directoryHomeOverride: string | undefined; settingsFile: string; registryName: string; runningName: string; userConfig?: DirectoryUserConfigPolicy;
     /** Opt-in host recovery of known test pollution; missing user directories alone never qualify. */
     registryRecovery?: { fixtureIdPattern: RegExp; temporaryRoots?: readonly string[] };
-  }, { env = process.env, cwd = process.cwd(), ports = createNodeDurableJsonPorts({}), canonicalPath = canonicalNodeDirectory, ...directoryOptions }: UserDirectoryOptions & { env?: NodeJS.ProcessEnv; cwd?: string; ports?: DurableJsonPorts; canonicalPath?: (required: { path: string }) => string } = {},
+  }, { cwd = process.cwd(), ports = createNodeDurableJsonPorts({ env }), canonicalPath = canonicalNodeDirectory, ...directoryOptions }: UserDirectoryOptions & { cwd?: string; ports?: DurableJsonPorts; canonicalPath?: (required: { path: string }) => string } = {},
 ) {
   const fileAt = (filePath: string) => createDurableJsonFile({ ...ports, filePath, notices: {
     prefix: "Directory workspace", lockTimeout: ({ lockPath }) => `Timed out waiting for file lock: ${lockPath}`,
   } }, { staleMs: Infinity });
-  const config = userConfig ? createDirectoryUserConfig({ homeDir, defaultFolder, envName, policy: userConfig,
+  const config = userConfig ? createDirectoryUserConfig({ homeDir, defaultFolder, envName, env, directoryHomeOverride, policy: userConfig,
     fileAt, canonicalPath, removeFile: ({ filePath }) => ports.filesystem.rmSync(filePath, { force: true }), isDirectory: (file) => ports.filesystem.statSync(file).isDirectory(), exists: (file) => { try { ports.filesystem.statSync(file); return true; } catch (error) { return fallbackIfMissing(error, false); } },
-  }, { env, cwd, report: (message) => ports.report.error({ message }), ...directoryOptions }) : undefined;
+  }, { cwd, report: (message) => ports.report.error({ message }), ...directoryOptions }) : undefined;
   const settings = fileAt(config?.filePath ?? settingsFile);
   function readSetting(): string | undefined {
     const read = settings.read({});
@@ -39,7 +39,7 @@ export function createNodeDirectoryWorkspace(
     if (read.state !== "ok" || typeof (read.value as { home?: unknown } | null)?.home !== "string") throw new Error("The directory home setting is unreadable.");
     return (read.value as { home: string }).home;
   }
-  const legacyHome = () => canonicalPath({ path: resolveDirectoryHome({ homeDir, defaultFolder, envName, env, setting: env[envName] === undefined ? readSetting() : undefined }, { cwd }) });
+  const legacyHome = () => canonicalPath({ path: resolveDirectoryHome({ homeDir, defaultFolder, envName, directoryHomeOverride, setting: directoryHomeOverride === undefined ? readSetting() : undefined }, { cwd }) });
   const home = () => config?.read({}).sitesHome ?? legacyHome();
   const fixturePattern = registryRecovery ? new RegExp(registryRecovery.fixtureIdPattern.source, registryRecovery.fixtureIdPattern.flags.replace(/[gy]/g, "")) : undefined;
   const atHome = () => createDirectoryRegistry({ file: fileAt(path.join(config?.appData ?? home(), registryName)), canonicalPath }, registryRecovery ? {
@@ -75,7 +75,7 @@ export function createNodeDirectoryWorkspace(
     const oldHome = legacy.state === "ok" ? (legacy.value as { home?: unknown })?.home : path.join(homeDir, userConfig.legacyDefaultFolder ?? defaultFolder);
     if (typeof oldHome !== "string") throw new Error("Legacy directory setting has an invalid home.");
     // Legacy settings use the same home shorthand contract; current overrides must not redirect the import.
-    const expandedHome = resolveDirectoryHome({ homeDir, defaultFolder, envName, env: {}, setting: oldHome }, { cwd, ...directoryOptions });
+    const expandedHome = resolveDirectoryHome({ homeDir, defaultFolder, envName, directoryHomeOverride: undefined, setting: oldHome }, { cwd, ...directoryOptions });
     return [...new Set([expandedHome, ...config.legacyHomes({}), home()])].map((root) => createDirectoryRegistry({ file: fileAt(path.join(root, registryName)), canonicalPath }));
   };
   const importOldCatalog = () => {
@@ -149,7 +149,7 @@ export function createNodeDirectoryWorkspace(
           const saved = validateDirectoryUserConfig({ value });
           // Persist only the saved pointer's nesting transition. Environment overrides belong
           // to this process and must never become another host's permanent configuration.
-          const savedHome = saved.sitesHome === undefined ? undefined : resolveDirectoryHome({ homeDir, defaultFolder, envName, env: {}, setting: saved.sitesHome }, { cwd, ...(directoryOptions.platform ? { platform: directoryOptions.platform } : {}) });
+          const savedHome = saved.sitesHome === undefined ? undefined : resolveDirectoryHome({ homeDir, defaultFolder, envName, directoryHomeOverride: undefined, setting: saved.sitesHome }, { cwd, ...(directoryOptions.platform ? { platform: directoryOptions.platform } : {}) });
           const paths = directoryOptions.platform === "win32" ? path.win32 : path;
           return { ...saved, ...(saved.sitesHome && savedHome && config.legacyHomes({}, { includeMissing: true }).includes(canonicalPath({ path: savedHome })) ? { sitesHome: paths.join(saved.sitesHome, userConfig!.defaultSubfolder!) } : {}),
             ...(saved.siteRoots ? { siteRoots: [...new Set(saved.siteRoots.map(repoint))] } : {}) };
@@ -176,9 +176,9 @@ export function createNodeDirectoryWorkspace(
     },
     home: (_required: Record<string, never>, _options = {}) => home(),
     setHome({ path: dir }: { path: string }, _options = {}) {
-      if (env[envName] !== undefined) throw new Error(`${envName} overrides this setting. Unset it before changing the directory home.`);
+      if (directoryHomeOverride !== undefined) throw new Error(`${envName} overrides this setting. Unset it before changing the directory home.`);
       if (config) { config.update({ patch: { sitesHome: dir } }); return home(); }
-      const selected = canonicalPath({ path: resolveDirectoryHome({ homeDir, defaultFolder, envName, env: {}, setting: dir }, { cwd }) });
+      const selected = canonicalPath({ path: resolveDirectoryHome({ homeDir, defaultFolder, envName, directoryHomeOverride: undefined, setting: dir }, { cwd }) });
       settings.withLock({ critical: () => {
         const previous = createDirectoryRegistry({ file: fileAt(path.join(home(), registryName)), canonicalPath });
         const target = createDirectoryRegistry({ file: fileAt(path.join(selected, registryName)), canonicalPath });
@@ -214,7 +214,7 @@ export function createNodeDirectoryWorkspace(
   function thisConfig() {
     if (!config) throw new Error("User config policy is not configured.");
     return { ...config.read({}), defaultRoots: config.defaultRoots({}), extraRoots: config.extraRoots({}), configPath: config.filePath, appData: config.appData, warning: config.syncWarning({}),
-      overrides: { sitesHome: env[envName] !== undefined, siteRoots: env[userConfig!.rootsEnvName] !== undefined } };
+      overrides: { sitesHome: directoryHomeOverride !== undefined, siteRoots: env[userConfig!.rootsEnvName] !== undefined } };
   }
 }
 

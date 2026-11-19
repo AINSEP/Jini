@@ -1,8 +1,9 @@
+import type { FileLockPort } from '@jini-ai/core/contracts/runtime';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { McpBridgeDelivery } from '../contracts.js';
 import { promises as fs } from 'node:fs';
-import { backupOriginalOnce, withFileLock, writeFileAtomicAsync } from '@jini-ai/platform/fs';
+import { backupOriginalOnce, writeFileAtomicAsync } from '@jini-ai/platform/fs';
 import { isRecord } from '../values.js';
 
 /** Read the current settings text; a missing file is undefined, every other failure rejects. */
@@ -41,12 +42,12 @@ function grantedAllowList(allow: readonly unknown[], rule: string): unknown[] | 
  * @complexity O(settings bytes), including the allow-list scan; bounded by the settings file.
  */
 export async function ensureAntigravityMcpPermission(
-  { settingsPath, serverName }: { settingsPath: string; serverName: string },
+  { settingsPath, serverName, fileLock }: { settingsPath: string; serverName: string; fileLock: FileLockPort },
   _options: Record<string, never> = {},
 ): Promise<void> {
   if (!/^[\w.-]+$/.test(serverName)) throw new Error('Invalid MCP server name');
   const rule = `mcp(${serverName}/*)`;
-  await withFileLock({ lockPath: `${settingsPath}.jini-lock`, run: async () => {
+  await fileLock.withFileLock({ lockPath: `${settingsPath}.jini-lock`, run: async () => {
     const raw = await readSettingsText(settingsPath);
     const { settings, permissions, allow } = parseSettings(raw);
     const nextAllow = grantedAllowList(allow, rule);
@@ -61,7 +62,7 @@ export async function ensureAntigravityMcpPermission(
 /** Prepare this CLI's persistent MCP permission before an env-passthrough launch. */
 export async function prepareAntigravityBridge(
   { delivery, serverName }: { delivery: McpBridgeDelivery | null; serverName: string },
-  { ensurePermission }: { ensurePermission: typeof ensureAntigravityMcpPermission },
+  { ensurePermission }: { ensurePermission: (required: { settingsPath: string; serverName: string }) => Promise<void> },
 ): Promise<void> {
   if (delivery?.kind !== 'env-passthrough') return;
   await ensurePermission({ settingsPath: join(homedir(), '.gemini', 'antigravity-cli', 'settings.json'), serverName });

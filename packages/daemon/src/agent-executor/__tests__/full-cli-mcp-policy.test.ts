@@ -1,3 +1,5 @@
+import { ensureAntigravityMcpPermission } from '../antigravity/permissions.js';
+import { createNodeFileLock } from '@jini-ai/platform/fs';
 import { expect, it, vi } from 'vitest';
 import { getAgentDef } from '@jini-ai/agent-runtime';
 import { buildMcpJsonServerEntry, resolveMcpBridgeForRun, writeMcpJsonIfNeeded } from '../mcp-bridge.js';
@@ -61,8 +63,7 @@ it.each(cliReleasePins)('stages startup IDs and the run credential using $agent 
     readFile: async () => { throw new Error('ENOENT'); }, writeFile: async ({ path, content }: { path: string; content: string }) => { written.set(path, content); },
     mkdtemp: async () => '/tmp/fake-m2-home', removeDir: async () => {}, linkSessionStore: async () => {},
   };
-  const delivery = await resolveMcpBridgeForRun({ input: { runId: 'run', cwd: '/site', def },
-    deps: { mcpJsonInjection: options, cleanupStagedFiles: async () => {}, failBeforeSpawn: refuse } });
+  const delivery = await resolveMcpBridgeForRun({ input: { runId: 'run', cwd: '/site', def }, deps: { ensureAntigravityMcpPermission: input => ensureAntigravityMcpPermission({ ...input, fileLock: createNodeFileLock({ env: {} }) }), mcpJsonInjection: options, cleanupStagedFiles: async () => {}, failBeforeSpawn: refuse } });
   expect(delivery?.kind).toBe(agent === 'claude' ? 'claude-mcp-json' : 'codex-toml');
   if (agent === 'claude') {
     await writeMcpJsonIfNeeded({ input: { runId: 'run', cwd: '/site', def, mcpBridge: delivery },
@@ -85,10 +86,8 @@ it.each(cliReleasePins)('stages startup IDs and the run credential using $agent 
 
 it('cleans up and fails before spawn if the startup ID resolver rejects', async () => {
   const cleanup = vi.fn(async () => {});
-  await expect(resolveMcpBridgeForRun({ input: { runId: 'run', cwd: '/site', def: getAgentDef({ id: 'claude' })! },
-    deps: { cleanupStagedFiles: cleanup, failBeforeSpawn: refuse, mcpJsonInjection: { command: 'bridge', daemonUrl: 'http://site',
+  await expect(resolveMcpBridgeForRun({ input: { runId: 'run', cwd: '/site', def: getAgentDef({ id: 'claude' })! }, deps: { ensureAntigravityMcpPermission: input => ensureAntigravityMcpPermission({ ...input, fileLock: createNodeFileLock({ env: {} }) }), cleanupStagedFiles: cleanup, failBeforeSpawn: refuse, mcpJsonInjection: { command: 'bridge', daemonUrl: 'http://site',
       startupToolIds: () => { throw new Error('visibility unavailable'); },
-    } },
-  })).rejects.toMatchObject({ code: 'AGENT_SPAWN_FAILED' });
+    } } })).rejects.toMatchObject({ code: 'AGENT_SPAWN_FAILED' });
   expect(cleanup).toHaveBeenCalledTimes(1);
 });

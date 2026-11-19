@@ -1,7 +1,7 @@
 import type { McpBridgeProbeResult } from './mcp-bridge-probe.js';
 import { randomBytes } from 'node:crypto';
 import { supportsMessageRelay } from './message-relay.js';
-import { ensureAntigravityMcpPermission, prepareAntigravityBridge } from './antigravity/permissions.js';
+import { prepareAntigravityBridge } from './antigravity/permissions.js';
 import { OPENCODE_CONFIG_ENV } from './opencode/constants.js';
 import { MIMO_CONFIG_ENV } from './mimo/constants.js';
 import { buildClaudeMcpDelivery, writeMcpJsonForRun } from './claude/mcp-delivery.js';
@@ -189,7 +189,7 @@ export async function resolveMcpBridgeForRun({ input, deps }: { readonly input: 
     readonly mcpJsonInjection: McpJsonInjectionOptions | undefined;
     readonly cleanupStagedFiles: () => Promise<void>;
     readonly failBeforeSpawn: FailBeforeSpawn;
-    readonly ensureAntigravityMcpPermission?: typeof ensureAntigravityMcpPermission;
+    readonly ensureAntigravityMcpPermission: Parameters<typeof prepareAntigravityBridge>[1]['ensurePermission'];
   } }
 ): Promise<McpBridgeDelivery | null> {
   if (needsInheritedMcpConsent(input, deps.mcpJsonInjection)) {
@@ -210,7 +210,7 @@ export async function resolveMcpBridgeForRun({ input, deps }: { readonly input: 
     });
     const prepareBridge = MCP_BRIDGE_PREPARERS.get(input.def.id);
     if (prepareBridge) await prepareBridge({ delivery, serverName: JINI_MCP_SERVER_KEY }, {
-      ensurePermission: deps.ensureAntigravityMcpPermission ?? ensureAntigravityMcpPermission,
+      ensurePermission: deps.ensureAntigravityMcpPermission,
     });
     return delivery;
   } catch (err) {

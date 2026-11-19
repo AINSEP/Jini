@@ -25,7 +25,7 @@ async function routeHostAFeatureReceives(config: { jsonBodyParserLimitBytes?: nu
     },
   });
   const adapter = createTestRouteHost();
-  kernels.push(await composeJiniKernel({ app: express(), adapter, resolvedPortRef: { current: 4000 }, storage: { kind: 'memory' }, security: { mode: 'host' },
+  kernels.push(await composeJiniKernel({ env: {}, app: express(), adapter, resolvedPortRef: { current: 4000 }, storage: { kind: 'memory' }, security: { mode: 'host' },
     extraFeatures: [probe], features: { 'probe.route-host': true }, ...config }));
   return { adapter, received };
 }

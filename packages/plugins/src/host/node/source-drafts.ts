@@ -5,8 +5,8 @@ import { lstat, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile, unlink
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import * as semver from 'semver';
-import { withFileLock, type FileLockOptions } from '@jini-ai/platform/fs/file-lock';
-import { FileLockTimeoutError } from '@jini-ai/core/contracts/runtime';
+import { type FileLockOptions } from '@jini-ai/platform/fs/file-lock';
+import { FileLockTimeoutError, type FileLockPort } from '@jini-ai/core/contracts/runtime';
 import { validateManifest, validatePluginIdFormat } from '../manifest.js';
 import { PLUGIN_MANIFEST_FILENAME as MANIFEST, LEGACY_PLUGIN_MANIFEST_FILENAME, PLUGIN_MANIFEST_FILENAMES, canonicalizePluginManifest } from '../plugin-format.js';
 import type { ManifestHostPorts } from '../ports.js';
@@ -43,6 +43,7 @@ export interface PluginSourcePort {
   recordApproval(required: Id & { capabilities: readonly string[] }, optional?: Options): Promise<void>;
 }
 export interface PluginSourceDeps extends ManifestHostPorts {
+  readonly fileLock: FileLockPort;
   readonly installDir: string;
   readonly builtInIds: readonly string[];
   readonly installer: PluginInstallerPort;
@@ -170,7 +171,7 @@ export function createPluginSourceService(required: PluginSourceDeps, optional: 
     if (options.createRoot) await mkdir(root, { recursive: true });
     if (!options.createRoot && !await exists(root)) fail('PLUGIN_SOURCE_DRAFT_MISSING', 'Create or open a plugin draft first.');
     try {
-      return await withFileLock({ lockPath: root + '-source-lock', run: action }, { ...optional.lockPorts, timeoutMs: 100, staleMs: Infinity });
+      return await required.fileLock.withFileLock({ lockPath: root + '-source-lock', run: action }, { ...optional.lockPorts, timeoutMs: 100, staleMs: Infinity });
     } catch (error) {
       if (error instanceof FileLockTimeoutError) fail('PLUGIN_SOURCE_BUSY', 'Another source operation is in progress. Retry after it finishes.');
       throw error;

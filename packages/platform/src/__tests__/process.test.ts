@@ -237,7 +237,7 @@ describe('@jini-ai/platform — process — matchesProcessStamp / matchesStamped
 
 describe('@jini-ai/platform — process — spawnBackgroundProcess', () => {
   it('spawns a detached background process and resolves its pid once it starts', async () => {
-    const { pid } = await spawnBackgroundProcess({ args: ['-e', 'process.exit(0)'], command: process.execPath });
+    const { pid } = await spawnBackgroundProcess({ env: {}, fallbackComSpec: undefined, args: ['-e', 'process.exit(0)'], command: process.execPath });
     expect(typeof pid).toBe('number');
     await expect(waitForProcessExit(pid, 2000)).resolves.toBe(true);
   });
@@ -248,8 +248,7 @@ describe('@jini-ai/platform — process — spawnBackgroundProcess', () => {
     const fd = openSync(logPath, 'w');
     let pid: number;
     try {
-      ({ pid } = await spawnBackgroundProcess({
-        args: ['-e', "process.stdout.write('background-log-line')"],
+      ({ pid } = await spawnBackgroundProcess({ env: {}, fallbackComSpec: undefined, args: ['-e', "process.stdout.write('background-log-line')"],
         command: process.execPath,
         logFd: fd,
       }));
@@ -266,8 +265,7 @@ describe('@jini-ai/platform — process — spawnBackgroundProcess', () => {
     const fd = openSync(logPath, 'w');
     let pid: number;
     try {
-      ({ pid } = await spawnBackgroundProcess({
-        args: ['-e', 'process.stdout.write(process.cwd())'],
+      ({ pid } = await spawnBackgroundProcess({ env: {}, fallbackComSpec: undefined, args: ['-e', 'process.stdout.write(process.cwd())'],
         command: process.execPath,
         cwd: dir,
         logFd: fd,
@@ -282,13 +280,13 @@ describe('@jini-ai/platform — process — spawnBackgroundProcess', () => {
 
   it('rejects when the command cannot be spawned', async () => {
     await expect(
-      spawnBackgroundProcess({ args: [], command: 'this-command-does-not-exist-anywhere-xyz' }),
+      spawnBackgroundProcess({ env: {}, fallbackComSpec: undefined, args: [], command: 'this-command-does-not-exist-anywhere-xyz' }),
     ).rejects.toThrow('spawn this-command-does-not-exist-anywhere-xyz ENOENT');
   });
 
   it('throws a descriptive error when the child reports no pid after spawning', async () => {
     mockState.spawnImpl = () => makeFakeChild({});
-    await expect(spawnBackgroundProcess({ args: [], command: 'whatever' })).rejects.toThrow(
+    await expect(spawnBackgroundProcess({ env: {}, fallbackComSpec: undefined, args: [], command: 'whatever' })).rejects.toThrow(
       /failed to spawn background process: whatever/,
     );
   });
@@ -296,14 +294,14 @@ describe('@jini-ai/platform — process — spawnBackgroundProcess', () => {
 
 describe('@jini-ai/platform — process — spawnLoggedProcess', () => {
   it('spawns a non-detached process by default and returns the live handle', async () => {
-    const child = await spawnLoggedProcess({ args: ['-e', 'process.exit(0)'], command: process.execPath });
+    const child = await spawnLoggedProcess({ env: {}, fallbackComSpec: undefined, args: ['-e', 'process.exit(0)'], command: process.execPath });
     expect(typeof child.pid).toBe('number');
     await new Promise((resolve) => child.once('exit', resolve));
   });
 
   it('throws a descriptive error when the child reports no pid after spawning', async () => {
     mockState.spawnImpl = () => makeFakeChild({});
-    await expect(spawnLoggedProcess({ args: [], command: 'whatever' })).rejects.toThrow(
+    await expect(spawnLoggedProcess({ env: {}, fallbackComSpec: undefined, args: [], command: 'whatever' })).rejects.toThrow(
       /failed to spawn process: whatever/,
     );
   });
@@ -406,7 +404,7 @@ describe('@jini-ai/platform — process — waitForProcessExit', () => {
 describe('@jini-ai/platform — process — listProcessSnapshots (POSIX)', () => {
   it('enumerates real running processes via ps, including the current test process', async () => {
     if (process.platform === 'win32') return;
-    const snapshots = await listProcessSnapshots();
+    const snapshots = await listProcessSnapshots({ env: process.env });
     expect(snapshots.length).toBeGreaterThan(0);
     expect(snapshots.some((snapshot) => snapshot.pid === process.pid)).toBe(true);
   });
@@ -418,7 +416,7 @@ describe('@jini-ai/platform — process — listProcessSnapshots (POSIX)', () =>
       );
       callback(null, stdout, '');
     };
-    await expect(listProcessSnapshots()).resolves.toEqual([
+    await expect(listProcessSnapshots({ env: {} })).resolves.toEqual([
       { command: '/bin/real-thing', pid: 123, ppid: 1 },
       { command: 'another-process --flag', pid: 456, ppid: 123 },
     ]);
@@ -426,7 +424,7 @@ describe('@jini-ai/platform — process — listProcessSnapshots (POSIX)', () =>
 
   it('returns an empty list when the ps call fails', async () => {
     mockState.execFileImpl = (_command, _args, _options, callback) => callback(new Error('ps not found'), '', '');
-    await expect(listProcessSnapshots()).resolves.toEqual([]);
+    await expect(listProcessSnapshots({ env: {} })).resolves.toEqual([]);
   });
 });
 
@@ -436,7 +434,7 @@ describe('@jini-ai/platform — process — listProcessSnapshots (Windows)', () 
       { ProcessId: 101, ParentProcessId: 1, Name: 'node.exe', CommandLine: 'must-never-be-returned' },
       { ProcessId: 102, ParentProcessId: 101, Name: null },
     ]) }));
-    await expect(listProcessSnapshots({ platform: 'win32', run }, { commandLines: false, timeoutMs: 250 })).resolves.toEqual([
+    await expect(listProcessSnapshots({ env: {}, platform: 'win32', run }, { commandLines: false, timeoutMs: 250 })).resolves.toEqual([
       { pid: 101, ppid: 1, command: 'node.exe' }, { pid: 102, ppid: 101, command: '' },
     ]);
     expect(run).toHaveBeenCalledWith(expect.stringMatching(POWERSHELL_PATH), expect.arrayContaining([
@@ -448,7 +446,7 @@ describe('@jini-ai/platform — process — listProcessSnapshots (Windows)', () 
     mockState.execFileImpl = (_command, _args, _options, callback) => {
       callback(null, JSON.stringify({ CommandLine: 'C:\\node.exe app.js', ParentProcessId: 1, ProcessId: 100 }), '');
     };
-    await expect(withPlatformAsync('win32', () => listProcessSnapshots())).resolves.toEqual([
+    await expect(withPlatformAsync('win32', () => listProcessSnapshots({ env: {} }))).resolves.toEqual([
       { command: 'C:\\node.exe app.js', pid: 100, ppid: 1 },
     ]);
   });
@@ -463,19 +461,19 @@ describe('@jini-ai/platform — process — listProcessSnapshots (Windows)', () 
       ];
       callback(null, JSON.stringify(records), '');
     };
-    await expect(withPlatformAsync('win32', () => listProcessSnapshots())).resolves.toEqual([
+    await expect(withPlatformAsync('win32', () => listProcessSnapshots({ env: {} }))).resolves.toEqual([
       { command: 'C:\\a.exe', pid: 200, ppid: 1 },
     ]);
   });
 
   it('returns an empty list for blank stdout', async () => {
     mockState.execFileImpl = (_command, _args, _options, callback) => callback(null, '   \n', '');
-    await expect(withPlatformAsync('win32', () => listProcessSnapshots())).resolves.toEqual([]);
+    await expect(withPlatformAsync('win32', () => listProcessSnapshots({ env: {} }))).resolves.toEqual([]);
   });
 
   it('returns an empty list when the powershell call fails', async () => {
     mockState.execFileImpl = (_command, _args, _options, callback) => callback(new Error('powershell missing'), '', '');
-    await expect(withPlatformAsync('win32', () => listProcessSnapshots())).resolves.toEqual([]);
+    await expect(withPlatformAsync('win32', () => listProcessSnapshots({ env: {} }))).resolves.toEqual([]);
   });
 });
 
@@ -484,14 +482,14 @@ describe('@jini-ai/platform — process — listProcessUsage', () => {
     mockState.execFileImpl = (command, args, options, callback) => {
       expect(command).toBe('ps');
       expect(args).toEqual(['-axo', 'pid=,ppid=,rss=,time=,comm=']);
-      expect(options).toEqual({ encoding: 'utf8', timeout: 5000, maxBuffer: 8 * 1024 * 1024, windowsHide: true });
+      expect(options).toEqual({ encoding: 'utf8', timeout: 5000, maxBuffer: 8 * 1024 * 1024, windowsHide: true, env: {} });
       callback(null, [
         '  123 1 2048 02:03.45 /usr/local/bin/node',
         '  124 123 512 01:02:03 /Applications/Browser.app/Contents/MacOS/Browser Helper',
         '  125 123 0 2-03:04:05 /bin/worker',
       ].join('\n'), '');
     };
-    await expect(listProcessUsage({ platform: 'darwin' })).resolves.toEqual([
+    await expect(listProcessUsage({ env: {}, platform: 'darwin' })).resolves.toEqual([
       { pid: 123, ppid: 1, rssBytes: 2097152, cpuSeconds: 123.45, name: 'node' },
       { pid: 124, ppid: 123, rssBytes: 524288, cpuSeconds: 3723, name: 'Browser Helper' },
       { pid: 125, ppid: 123, rssBytes: 0, cpuSeconds: 183845, name: 'worker' },
@@ -504,7 +502,7 @@ describe('@jini-ai/platform — process — listProcessUsage', () => {
       'bad row', '  43 1 12 invalid /bin/worker', '  44 1 -1 00:00:01 /bin/worker',
       '  99999999999999999999 1 12 00:00:01 /bin/worker', '',
     ].join('\r\n'), '');
-    await expect(listProcessUsage({ platform: 'linux' })).resolves.toEqual([
+    await expect(listProcessUsage({ env: {}, platform: 'linux' })).resolves.toEqual([
       { pid: 42, ppid: 0, rssBytes: 1024, cpuSeconds: 1, name: 'worker' },
     ]);
   });
@@ -523,7 +521,7 @@ describe('@jini-ai/platform — process — listProcessUsage', () => {
         "$ErrorActionPreference = 'Stop'; Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, WorkingSetSize, UserModeTime, KernelModeTime, Name | ConvertTo-Json -Compress"]);
       callback(null, JSON.stringify(cimRecord), '');
     };
-    await expect(listProcessUsage({ platform: 'win32' })).resolves.toEqual([
+    await expect(listProcessUsage({ env: {}, platform: 'win32' })).resolves.toEqual([
       { pid: 100, ppid: 1, rssBytes: 1048576, cpuSeconds: 3.5, name: 'node.exe' },
     ]);
   });
@@ -533,7 +531,7 @@ describe('@jini-ai/platform — process — listProcessUsage', () => {
       cimRecord,
       { ...cimRecord, ProcessId: '101', WorkingSetSize: 0, UserModeTime: 0, KernelModeTime: 0, Name: null },
     ]), '');
-    await expect(listProcessUsage({ platform: 'win32' })).resolves.toEqual([
+    await expect(listProcessUsage({ env: {}, platform: 'win32' })).resolves.toEqual([
       { pid: 100, ppid: 1, rssBytes: 1048576, cpuSeconds: 3.5, name: 'node.exe' },
       { pid: 101, ppid: 1, rssBytes: 0, cpuSeconds: 0, name: '' },
     ]);
@@ -545,38 +543,38 @@ describe('@jini-ai/platform — process — listProcessUsage', () => {
       { ...cimRecord, WorkingSetSize: null }, { ...cimRecord, WorkingSetSize: -1 },
       { ...cimRecord, UserModeTime: '' }, { ...cimRecord, KernelModeTime: 'Infinity' }, cimRecord,
     ]), '');
-    await expect(listProcessUsage({ platform: 'win32' })).resolves.toEqual([
+    await expect(listProcessUsage({ env: {}, platform: 'win32' })).resolves.toEqual([
       { pid: 100, ppid: 1, rssBytes: 1048576, cpuSeconds: 3.5, name: 'node.exe' },
     ]);
   });
 
   it.each(['', '   \n', 'null', '[]', '{broken'])('returns [] for absent or malformed CIM output %j', async (stdout) => {
     mockState.execFileImpl = (_command, _args, _options, callback) => callback(null, stdout, '');
-    await expect(listProcessUsage({ platform: 'win32' })).resolves.toEqual([]);
+    await expect(listProcessUsage({ env: {}, platform: 'win32' })).resolves.toEqual([]);
   });
 
   it.each(['darwin', 'win32'] as const)('returns [] on %s execution failure, even with partial output', async (platform) => {
     mockState.execFileImpl = (_command, _args, _options, callback) => {
       callback(new Error('timeout or output limit'), '42 1 1024 00:01 /bin/worker', '');
     };
-    await expect(listProcessUsage({ platform })).resolves.toEqual([]);
+    await expect(listProcessUsage({ env: {}, platform })).resolves.toEqual([]);
   });
 
   it('accepts an injected execution port and timeout override', async () => {
     const run = vi.fn(async () => ({
       code: undefined, error: null, ok: true, stderr: '', stdout: '42 1 1 00:01 /bin/worker',
     }));
-    await expect(listProcessUsage({ platform: 'linux', run }, { timeoutMs: 250 })).resolves.toEqual([
+    await expect(listProcessUsage({ env: {}, platform: 'linux', run }, { timeoutMs: 250 })).resolves.toEqual([
       { pid: 42, ppid: 1, rssBytes: 1024, cpuSeconds: 1, name: 'worker' },
     ]);
     expect(run).toHaveBeenCalledWith('ps', ['-axo', 'pid=,ppid=,rss=,time=,comm='], {
-      encoding: 'utf8', timeout: 250, maxBuffer: 8 * 1024 * 1024, windowsHide: true,
+      encoding: 'utf8', timeout: 250, maxBuffer: 8 * 1024 * 1024, windowsHide: true, env: {},
     });
   });
 
   it('returns [] when the injected execution port rejects', async () => {
     const run = vi.fn(async () => { throw new Error('unavailable'); });
-    await expect(listProcessUsage({ run })).resolves.toEqual([]);
+    await expect(listProcessUsage({ env: {}, run })).resolves.toEqual([]);
   });
 
   it('defaults to the host platform when no ports are supplied', async () => {
@@ -585,7 +583,7 @@ describe('@jini-ai/platform — process — listProcessUsage', () => {
       else expect(command).toBe('ps');
       callback(null, '', '');
     };
-    await expect(listProcessUsage()).resolves.toEqual([]);
+    await expect(listProcessUsage({ env: {} })).resolves.toEqual([]);
   });
 });
 
@@ -606,13 +604,13 @@ describe('@jini-ai/platform — process — sampleProcessPrivateMemory', () => {
       { IDProcess: 101, Name: 'node#1', WorkingSetPrivate: '2048', WorkingSet: 999999, PrivateBytes: 888888 },
       { IDProcess: 0, Name: '_Total', WorkingSetPrivate: 777777 },
     ]) }));
-    await expect(sampleProcessPrivateMemory({ pids: [101, 102, 101, 103], platform: 'win32', run }, { timeoutMs: 250 })).resolves.toEqual({
+    await expect(sampleProcessPrivateMemory({ env: {}, pids: [101, 102, 101, 103], platform: 'win32', run }, { timeoutMs: 250 })).resolves.toEqual({
       metric: 'private-working-set', readings: [{ pid: 101, bytes: 2048 }, { pid: 102, bytes: 4096 }, { pid: 103, bytes: null }],
     });
     expect(run).toHaveBeenCalledTimes(1);
     expect(run).toHaveBeenCalledWith(expect.stringMatching(POWERSHELL_PATH), ['-NoProfile', '-NonInteractive', '-Command',
       "$ErrorActionPreference = 'Stop'; Get-CimInstance Win32_PerfFormattedData_PerfProc_Process | Select-Object IDProcess, WorkingSetPrivate | ConvertTo-Json -Compress"], {
-      encoding: 'utf8', timeout: 250, maxBuffer: 8 * 1024 * 1024, windowsHide: true,
+      encoding: 'utf8', timeout: 250, maxBuffer: 8 * 1024 * 1024, windowsHide: true, env: {},
     });
   });
 
@@ -620,7 +618,7 @@ describe('@jini-ai/platform — process — sampleProcessPrivateMemory', () => {
     const run = vi.fn(async (_command: string, args: readonly string[]) => ({
       code: undefined, error: null, ok: true, stderr: '', stdout: args[1] === '101' ? 'Footprint: 1.5 MB' : 'no reading',
     }));
-    await expect(sampleProcessPrivateMemory({ pids: [101, 102, 101], platform: 'darwin', run })).resolves.toEqual({
+    await expect(sampleProcessPrivateMemory({ env: {}, pids: [101, 102, 101], platform: 'darwin', run })).resolves.toEqual({
       metric: 'physical-footprint', readings: [{ pid: 101, bytes: 1572864 }, { pid: 102, bytes: null }],
     });
     expect(run).toHaveBeenCalledTimes(2);
@@ -629,7 +627,7 @@ describe('@jini-ai/platform — process — sampleProcessPrivateMemory', () => {
 
   it.each(['null', '{broken', '{}', '[{"IDProcess":101,"WorkingSetPrivate":null}]', '[{"IDProcess":101,"WorkingSetPrivate":-1}]'])('missing Windows counters stay unavailable: %s', async (stdout) => {
     const run = vi.fn(async () => ({ code: undefined, error: null, ok: true, stderr: '', stdout }));
-    await expect(sampleProcessPrivateMemory({ pids: [101], platform: 'win32', run })).resolves.toEqual({
+    await expect(sampleProcessPrivateMemory({ env: {}, pids: [101], platform: 'win32', run })).resolves.toEqual({
       metric: 'private-working-set', readings: [{ pid: 101, bytes: null }],
     });
   });
@@ -637,14 +635,14 @@ describe('@jini-ai/platform — process — sampleProcessPrivateMemory', () => {
   it.each(['darwin', 'win32'] as const)('failed or rejected %s probes never use partial output', async (platform) => {
     const run = vi.fn(async () => ({ code: 1, error: new Error('timeout'), ok: false, stderr: '', stdout: 'Footprint: 1 MB' }));
     const expected = { metric: platform === 'darwin' ? 'physical-footprint' : 'private-working-set', readings: [{ pid: 101, bytes: null }] };
-    await expect(sampleProcessPrivateMemory({ pids: [101], platform, run })).resolves.toEqual(expected);
+    await expect(sampleProcessPrivateMemory({ env: {}, pids: [101], platform, run })).resolves.toEqual(expected);
     run.mockImplementation(async () => { throw new Error('unavailable'); });
-    await expect(sampleProcessPrivateMemory({ pids: [101], platform, run })).resolves.toEqual(expected);
+    await expect(sampleProcessPrivateMemory({ env: {}, pids: [101], platform, run })).resolves.toEqual(expected);
   });
 
   it('unsupported hosts report unavailable without executing commands', async () => {
     const run = vi.fn();
-    await expect(sampleProcessPrivateMemory({ pids: [101], platform: 'linux', run })).resolves.toEqual({
+    await expect(sampleProcessPrivateMemory({ env: {}, pids: [101], platform: 'linux', run })).resolves.toEqual({
       metric: 'unavailable', readings: [{ pid: 101, bytes: null }],
     });
     expect(run).not.toHaveBeenCalled();
@@ -652,8 +650,8 @@ describe('@jini-ai/platform — process — sampleProcessPrivateMemory', () => {
 
   it('rejects invalid PIDs and oversized samples before executing probes', async () => {
     const run = vi.fn();
-    await expect(sampleProcessPrivateMemory({ pids: [0], run })).rejects.toThrow(/PID/);
-    await expect(sampleProcessPrivateMemory({ pids: [1, 2], run }, { maxPids: 1 })).rejects.toThrow(/limit/);
+    await expect(sampleProcessPrivateMemory({ env: {}, pids: [0], run })).rejects.toThrow(/PID/);
+    await expect(sampleProcessPrivateMemory({ env: {}, pids: [1, 2], run }, { maxPids: 1 })).rejects.toThrow(/limit/);
     expect(run).not.toHaveBeenCalled();
   });
 });
@@ -792,4 +790,20 @@ describe('@jini-ai/platform — process — stopProcesses', () => {
     // long to reach the SIGKILL escalation branch.
     10_000,
   );
+});
+
+it('uses each native Windows root and host map for snapshots, usage and private memory', async () => {
+  for (const SystemRoot of ['D:\\First', 'E:\\Second']) {
+    const env = { SystemRoot, PATH: 'host-path' };
+    const run = vi.fn(async () => ({ ok: true, code: undefined, error: null, stdout: '[]', stderr: '' }));
+    await listProcessSnapshots({ env, platform: 'win32', run });
+    await listProcessUsage({ env, platform: 'win32', run });
+    await sampleProcessPrivateMemory({ env, pids: [7], platform: 'win32', run });
+    expect(run).toHaveBeenCalledTimes(3);
+    for (const call of run.mock.calls as unknown as Array<[string, string[], { env: NodeJS.ProcessEnv; timeout: number; maxBuffer: number }]>) {
+      expect(call[0]).toBe(`${SystemRoot}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`);
+      expect(call[2]).toMatchObject({ env, timeout: 5000, maxBuffer: 8 * 1024 * 1024 });
+      expect(call[2].env).toBe(env);
+    }
+  }
 });

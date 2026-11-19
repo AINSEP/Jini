@@ -35,13 +35,8 @@ describe('executor read-only extra directories', () => {
       const argsSeen: string[][] = [];
       const spawnChild = vi.fn((_command: string, args: readonly string[]) => { argsSeen.push([...args]); throw new Error('stop after policy capture'); });
       const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
-      const executor = createAgentExecutor({ lifecycle }, {
-        hostEnv: { PATH: '/bin', HOME: base }, getAgentDef: () => def, resolveModelForLaunch: fixtureLaunchModel,
-        resolveAgentLaunch: () => ({ selectedPath: executable, pathResolvedPath: executable, configuredOverridePath: null,
-          launchPath: executable, launchKind: 'selected', childPathPrepend: [], diagnostic: null }) as AgentLaunchResolution,
-        applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {},
-        assertClaudeFilesystemSupport: vi.fn(async () => scenario !== 'codex'), spawn: spawnChild as unknown as typeof spawn,
-      });
+      const executor = createAgentExecutor({ hostEnv: { PATH: '/bin', HOME: base }, lifecycle }, { getAgentDef: () => def, resolveModelForLaunch: fixtureLaunchModel, resolveAgentLaunch: () => ({ selectedPath: executable, pathResolvedPath: executable, configuredOverridePath: null,
+          launchPath: executable, launchKind: 'selected', childPathPrepend: [], diagnostic: null }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {}, assertClaudeFilesystemSupport: vi.fn(async () => scenario !== 'codex'), spawn: spawnChild as unknown as typeof spawn });
       const { run } = await lifecycle.start({ contextRef: 'read-only-test' });
       const result = executor.run({ runId: run.id, agentId: def.id, cwd: site, prompt: 'hello' }, {
         filesystemRoot: site, nativeToolAccess: true, nativeCapabilities: { userMcp: scenario === 'codex' }, permissionMode: 'bypass', cliParity: true,

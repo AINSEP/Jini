@@ -1,3 +1,4 @@
+import { createNodeLockProcess } from "@jini-ai/platform/fs/file-lock";
 import { test, expect } from 'vitest';
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
@@ -163,7 +164,7 @@ test.each(['migration', 'plugin'])('a held %s lock prevents migration completion
       // Simulate the lock port's refusal, keeping the real migration and filesystem operations.
       withLock: <T>({ lockPath, run }: { lockPath: string; run(): Promise<T> }): Promise<T> => {
         if (held === 'migration' || lockPath.includes('.plugin-state-')) return Promise.reject(new Error('lock held'));
-        return withFileLock({ lockPath, run }, { staleMs: Infinity, createParent: true });
+        return withFileLock({ process: createNodeLockProcess({ env: {} }), lockPath, run }, { staleMs: Infinity, createParent: true });
       },
     };
     if (held === 'migration') await expect(migratePluginLayout(request)).rejects.toThrow('lock held');

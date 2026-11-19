@@ -14,7 +14,7 @@ it('gives each kernel a separate state, shares it with its executor, and clears 
   const def = getAgentDef({ id: 'codex' })!;
   const makeBase = () => {
     const captured: string[][] = [];
-    return { captured, boot: createJiniKernelBase({ storage: { kind: 'memory' }, agentExecutor: {
+    return { captured, boot: createJiniKernelBase({ env: {}, storage: { kind: 'memory' }, agentExecutor: {
       hostEnv: { PATH: '/fake/bin' }, codexDisablePlugins: true,
       getAgentDef: () => ({ ...def, buildArgs: (_required, { options } = {}) =>
         options?.capabilities?.hostFlag ? ['--host-flag'] : [] }),

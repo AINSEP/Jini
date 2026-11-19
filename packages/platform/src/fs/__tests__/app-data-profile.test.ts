@@ -8,16 +8,14 @@ import { resolveUserDataDirectories } from "../user-data-directories.js";
 
 describe("host-selected app-data profile", () => {
   it.each(["", " ", "relative/profile"])("rejects an unresolved profile path %j before reading OS configuration", (appDataDir) => {
-    expect(() => resolveUserDataDirectories({ homeDir: "/users/owner", appName: "Example" }, {
-      platform: "linux", env: {}, appDataDir, readText: () => { throw new Error("must validate before I/O"); },
-    })).toThrow("appDataDir must be an absolute profile directory.");
+    expect(() => resolveUserDataDirectories({ env: {}, homeDir: "/users/owner", appName: "Example" }, { platform: "linux", appDataDir, readText: () => { throw new Error("must validate before I/O"); } })).toThrow("appDataDir must be an absolute profile directory.");
   });
   it.each(["darwin", "linux", "win32"] as const)("uses the supplied directory on %s without appending the app name", (platform) => {
     const appDataDir = platform === "win32" ? "D:\\scratch\\profile" : "/scratch/profile";
     const required = { homeDir: platform === "win32" ? "C:\\Users\\owner" : "/users/owner", appName: "Example" };
     const options = { platform, env: {}, windowsDocuments: () => undefined, readText: () => undefined };
-    const baseline = resolveUserDataDirectories(required, options);
-    const selected = resolveUserDataDirectories(required, { ...options, appDataDir });
+    const baseline = resolveUserDataDirectories({ ...required, env: options.env }, options);
+    const selected = resolveUserDataDirectories({ ...required, env: options.env ?? {} }, { ...options, appDataDir });
     expect(selected.appData).toBe(appDataDir);
     expect(selected.appData).not.toBe(baseline.appData);
     expect(selected.documents).toBe(baseline.documents);
@@ -33,7 +31,7 @@ describe("host-selected app-data profile", () => {
       fs.writeFileSync(path.join(real, "config.json"), '{"sitesHome":"/owner-only","databases":"appData"}');
       fs.writeFileSync(legacySettingsFile, JSON.stringify({ home: real }));
       fs.writeFileSync(path.join(real, "catalog.json"), "owner catalog must never be read");
-      const ports = createNodeDurableJsonPorts({}), accessed: string[] = [];
+      const ports = createNodeDurableJsonPorts({ env: {} }), accessed: string[] = [];
       // Observe the existing filesystem port instead of mocking modules or using the real owner HOME.
       const filesystem = new Proxy(ports.filesystem, { get(target, key) {
         const method = Reflect.get(target, key);
@@ -42,10 +40,10 @@ describe("host-selected app-data profile", () => {
           return Reflect.apply(method, target, args);
         };
       } });
-      const make = () => createNodeDirectoryWorkspace({ homeDir: root, defaultFolder: "Project", envName: "PROJECT_HOME",
+      const make = () => createNodeDirectoryWorkspace({ env: {}, directoryHomeOverride: undefined, homeDir: root, defaultFolder: "Project", envName: "PROJECT_HOME",
         settingsFile: legacySettingsFile, registryName: "catalog.json", runningName: ".running.json",
         userConfig: { appName: "Example", rootsEnvName: "PROJECT_ROOTS", legacySettingsFile },
-      }, { platform: "darwin", env: {}, appDataDir, ports: { ...ports, filesystem } });
+      }, { platform: "darwin", appDataDir, ports: { ...ports, filesystem } });
       const workspace = make();
       expect(workspace.config({}).configPath).toBe(path.join(appDataDir, "config.json"));
       expect(workspace.registry({}).list({})).toEqual([]);

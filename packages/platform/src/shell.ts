@@ -65,16 +65,16 @@ function buildShellCommandLine(command: string, args: readonly string[]): string
 }
 
 /** @internal Wrap a shell command line so a non-login shell still sees the current `PATH`. */
-function buildLoginShellCommand(innerCommand: string): string {
+function buildLoginShellCommand(innerCommand: string, hostPath: string | undefined): string {
   // Use a non-login shell and re-export PATH so test fakes and wrapped
   // command shims remain visible; login shells often reset PATH from
   // profile scripts.
-  return `export PATH=${quotePosixShellArg(process.env.PATH)}; ${innerCommand}`;
+  return `export PATH=${quotePosixShellArg(hostPath)}; ${innerCommand}`;
 }
 
 /**
  * Run an arbitrary command through the user's selected shell (via
- * `$SHELL -c`), explicitly preserving the current `process.env.PATH`, then
+ * `$SHELL -c`), explicitly preserving the selected host `PATH`, then
  * buffer its output. The historical name is retained for compatibility;
  * this non-login invocation does not load shell-profile-only PATH entries.
  * Falls back to a direct `execFile` on Windows.
@@ -82,21 +82,20 @@ function buildLoginShellCommand(innerCommand: string): string {
  * @param command - The executable to run.
  * @param args - Arguments to pass to the executable.
  * @param opts - `child_process.execFile` options; `env` defaults to
- *   `process.env` so the re-exported `PATH` above has a base to restore from.
+ *   the host environment so the re-exported `PATH` above has a base to restore from.
  * @returns The buffered result.
  */
 export function execCommandViaLoginShell(
-  command: string,
-  args: readonly string[],
+  { command, args, hostEnv }: { command: string; args: readonly string[]; hostEnv: NodeJS.ProcessEnv },
   opts: ExecFileOptions = {},
 ): Promise<BufferedCommandResult> {
-  if (process.platform === "win32") return execFileBuffered(command, args, opts);
+  if (process.platform === "win32") return execFileBuffered(command, args, { env: hostEnv, ...opts });
   // `/bin/sh` is POSIX-guaranteed to exist; unlike a specific shell (zsh,
   // bash), it is never absent on a POSIX host, so it is the only safe
   // default for a product-neutral engine that can't assume its host's shell.
-  const shell = process.env.SHELL?.trim() || "/bin/sh";
-  return execFileBuffered(shell, ["-c", buildLoginShellCommand(buildShellCommandLine(command, args))], {
-    env: process.env,
+  const shell = hostEnv.SHELL?.trim() || "/bin/sh";
+  return execFileBuffered(shell, ["-c", buildLoginShellCommand(buildShellCommandLine(command, args), hostEnv.PATH)], {
+    env: hostEnv,
     ...opts,
   });
 }

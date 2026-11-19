@@ -18,7 +18,7 @@ const errno = (code: string) => Object.assign(new Error(`${code}: simulated`), {
 type Filesystem = DurableJsonPorts["filesystem"];
 /** Wraps every filesystem method; `rewrite` may replace arguments or throw before the real call. */
 function observedFilesystem(rewrite: (method: string, args: unknown[]) => unknown[]): Filesystem {
-  const filesystem = createNodeDurableJsonPorts({}).filesystem;
+  const filesystem = createNodeDurableJsonPorts({ env: {} }).filesystem;
   return new Proxy(filesystem, { get(target, key) {
     const method = Reflect.get(target, key);
     return typeof method !== "function" ? method : (...args: unknown[]) => Reflect.apply(method, target, rewrite(String(key), args));
@@ -26,7 +26,7 @@ function observedFilesystem(rewrite: (method: string, args: unknown[]) => unknow
 }
 /** statSync of `blocked` fails with `code`; every other call reaches the real filesystem. */
 function statFailingAt(blocked: string, code: string): DurableJsonPorts {
-  return { ...createNodeDurableJsonPorts({}), filesystem: observedFilesystem((method, args) => {
+  return { ...createNodeDurableJsonPorts({ env: {} }), filesystem: observedFilesystem((method, args) => {
     if (method === "statSync" && args[0] === blocked) throw errno(code);
     return args;
   }) };
@@ -34,15 +34,15 @@ function statFailingAt(blocked: string, code: string): DurableJsonPorts {
 const readJson = (file: string): unknown => JSON.parse(fs.readFileSync(file, "utf8"));
 const record = (id: string, dir: string) => ({ id, name: id, path: dir, createdBy: "test", lastOpened: null });
 
-function plainWorkspace(root: string, options: Parameters<typeof createNodeDirectoryWorkspace>[1] = {}) {
-  return createNodeDirectoryWorkspace({ homeDir: root, defaultFolder: "Sites", envName: "SITES_HOME",
-    settingsFile: path.join(root, "setting.json"), registryName: "sites.json", runningName: "running.json" }, { env: {}, ...options });
+function plainWorkspace(root: string, options: Parameters<typeof createNodeDirectoryWorkspace>[1] & { env?: NodeJS.ProcessEnv } = {}) {
+  return createNodeDirectoryWorkspace({ env: options.env ?? {}, directoryHomeOverride: options.env?.SITES_HOME, homeDir: root, defaultFolder: "Sites", envName: "SITES_HOME",
+    settingsFile: path.join(root, "setting.json"), registryName: "sites.json", runningName: "running.json" }, { ...options });
 }
-function nestedWorkspace(root: string, options: Parameters<typeof createNodeDirectoryWorkspace>[1] = {}) {
-  return createNodeDirectoryWorkspace({ homeDir: root, defaultFolder: "Product", envName: "PRODUCT_HOME",
+function nestedWorkspace(root: string, options: Parameters<typeof createNodeDirectoryWorkspace>[1] & { env?: NodeJS.ProcessEnv } = {}) {
+  return createNodeDirectoryWorkspace({ env: options.env ?? {}, directoryHomeOverride: options.env?.PRODUCT_HOME, homeDir: root, defaultFolder: "Product", envName: "PRODUCT_HOME",
     settingsFile: "unused", registryName: "catalog.json", runningName: ".running.json",
     userConfig: { appName: "Example", rootsEnvName: "PRODUCT_ROOTS", defaultSubfolder: "sites" },
-  }, { env: {}, ...options });
+  }, { ...options });
 }
 
 describe("updateConfig error contract", () => {
@@ -66,7 +66,7 @@ describe("updateConfig error contract", () => {
 
   it("propagates I/O errors unchanged instead of labeling them as user refusals", () => {
     const root = tempRoot(), failure = errno("EIO");
-    const ports = { ...createNodeDurableJsonPorts({}), filesystem: observedFilesystem((method, args) => {
+    const ports = { ...createNodeDurableJsonPorts({ env: {} }), filesystem: observedFilesystem((method, args) => {
       if (method === "renameSync") throw failure;
       return args;
     }) };
@@ -130,7 +130,7 @@ describe("a workspace without a user config policy", () => {
     const root = tempRoot(), lockPath = path.join(root, "setting.json.lock");
     let now = 0;
     // A live owner is never stale (staleMs is Infinity), so only the bounded wait can end this.
-    const ports: DurableJsonPorts = { ...createNodeDurableJsonPorts({}), clock: { nowMs: () => now },
+    const ports: DurableJsonPorts = { ...createNodeDurableJsonPorts({ env: {} }), clock: { nowMs: () => now },
       sleep: { sleep: ({ durationMs }) => { now += durationMs; } }, process: { pid: process.pid, isAlive: () => true } };
     fs.writeFileSync(lockPath, "424242:held-by-another-process");
     expect(() => plainWorkspace(root, { ports }).setHome({ path: path.join(root, "next") })).toThrow(`Timed out waiting for file lock: ${lockPath}`);
@@ -141,7 +141,7 @@ describe("a workspace without a user config policy", () => {
 
   it("claims and observes leases with a process port that has no boot identity", () => {
     const root = tempRoot(), site = path.join(root, "site"); fs.mkdirSync(site);
-    const ports: DurableJsonPorts = { ...createNodeDurableJsonPorts({}), process: { pid: 4242, isAlive: ({ pid }) => pid === 4242 } };
+    const ports: DurableJsonPorts = { ...createNodeDurableJsonPorts({ env: {} }), process: { pid: 4242, isAlive: ({ pid }) => pid === 4242 } };
     const workspace = plainWorkspace(root, { ports });
     const claim = workspace.claim({ path: site, app: "Web", port: 3000 });
     expect(claim).toMatchObject({ acquired: true, record: { pid: 4242, app: "Web", port: 3000, scheme: "http" } });
@@ -172,11 +172,11 @@ describe("opt-in registry recovery", () => {
     const liveScratch = path.join(scratch, "live"), independent = path.join(root, "independent");
     fs.mkdirSync(homeDir); fs.mkdirSync(liveScratch, { recursive: true }); fs.mkdirSync(independent);
     const notices: string[] = [];
-    const ports = { ...createNodeDurableJsonPorts({}), report: { error: ({ message }: { message: string }) => { notices.push(message); } } };
-    const open = () => createNodeDirectoryWorkspace({ homeDir, defaultFolder: "Sites", envName: "SITES_HOME",
+    const ports = { ...createNodeDurableJsonPorts({ env: {} }), report: { error: ({ message }: { message: string }) => { notices.push(message); } } };
+    const open = () => createNodeDirectoryWorkspace({ env: {}, directoryHomeOverride: undefined, homeDir, defaultFolder: "Sites", envName: "SITES_HOME",
       settingsFile: path.join(homeDir, "setting.json"), registryName: "sites.json", runningName: "running.json",
       registryRecovery: { fixtureIdPattern: /^fixture-\d+$/g, temporaryRoots: [scratch] },
-    }, { env: {}, ports });
+    }, { ports });
     const kept = [record("live-scratch", liveScratch), record("independent", independent),
       record("unavailable-user-site", path.join(root, "offline")), record("home-site", path.join(homeDir, "offline"))];
     open().registry({}).merge({ entries: [...kept, record("missing-scratch", path.join(scratch, "gone")),
@@ -194,11 +194,11 @@ describe("opt-in registry recovery", () => {
   it("defaults the temporary roots to the OS temp directory and keeps live and protected entries", () => {
     const root = tempRoot(), homeDir = path.join(root, "home"), live = path.join(root, "live"), notices: string[] = [];
     fs.mkdirSync(homeDir); fs.mkdirSync(live);
-    const ports = { ...createNodeDurableJsonPorts({}), report: { error: ({ message }: { message: string }) => { notices.push(message); } } };
-    const workspace = createNodeDirectoryWorkspace({ homeDir, defaultFolder: "Sites", envName: "SITES_HOME",
+    const ports = { ...createNodeDurableJsonPorts({ env: {} }), report: { error: ({ message }: { message: string }) => { notices.push(message); } } };
+    const workspace = createNodeDirectoryWorkspace({ env: {}, directoryHomeOverride: undefined, homeDir, defaultFolder: "Sites", envName: "SITES_HOME",
       settingsFile: path.join(homeDir, "setting.json"), registryName: "sites.json", runningName: "running.json",
       registryRecovery: { fixtureIdPattern: /^fixture-\d+$/g },
-    }, { env: {}, ports });
+    }, { ports });
     const kept = [record("live-temp", live), record("home-missing", path.join(homeDir, "offline"))];
     workspace.registry({}).merge({ entries: [...kept, record("stale-temp", path.join(root, "gone"))] });
     expect(workspace.registry({}).list({})).toEqual(kept);
@@ -208,10 +208,10 @@ describe("opt-in registry recovery", () => {
 
 describe("legacy home settings import", () => {
   function legacyWorkspace(root: string, legacySettingsFile: string) {
-    return createNodeDirectoryWorkspace({ homeDir: root, defaultFolder: "Project", envName: "PROJECT_HOME",
+    return createNodeDirectoryWorkspace({ env: {}, directoryHomeOverride: undefined, homeDir: root, defaultFolder: "Project", envName: "PROJECT_HOME",
       settingsFile: legacySettingsFile, registryName: "catalog.json", runningName: ".running.json",
       userConfig: { appName: "Example", rootsEnvName: "PROJECT_ROOTS", legacySettingsFile },
-    }, { env: {}, platform: "linux", readText: () => undefined });
+    }, { platform: "linux", readText: () => undefined });
   }
   it("P24: expands a legacy tilde home and imports its catalog on the first mutation", () => {
     const root = tempRoot(), legacySettingsFile = path.join(root, "old-settings.json"), site = path.join(root, "alpha");
@@ -234,8 +234,8 @@ describe("legacy home settings import", () => {
     const root = tempRoot(), legacySettingsFile = path.join(root, "old-settings.json"), site = path.join(root, "Project", "alpha");
     fs.mkdirSync(site, { recursive: true });
     plainWorkspace(root, {}).registry({});
-    createNodeDirectoryWorkspace({ homeDir: root, defaultFolder: "Project", envName: "PROJECT_HOME", settingsFile: legacySettingsFile,
-      registryName: "catalog.json", runningName: ".running.json" }, { env: {} }).registry({}).merge({ entries: [record("alpha", site)] });
+    createNodeDirectoryWorkspace({ env: {}, directoryHomeOverride: undefined, homeDir: root, defaultFolder: "Project", envName: "PROJECT_HOME", settingsFile: legacySettingsFile,
+      registryName: "catalog.json", runningName: ".running.json" }, {}).registry({}).merge({ entries: [record("alpha", site)] });
     expect(fs.existsSync(legacySettingsFile)).toBe(false);
     expect(legacyWorkspace(root, legacySettingsFile).registry({}).list({})).toEqual([record("alpha", site)]);
   });
@@ -320,7 +320,7 @@ describe("relocate", () => {
     fs.writeFileSync(pointer, JSON.stringify({ site: "old" }));
     // Catalog paths sort before the pointer, so the catalog is written first and must be rolled back.
     let failures = 0;
-    const ports: DurableJsonPorts = { ...createNodeDurableJsonPorts({}), filesystem: observedFilesystem((method, args) => {
+    const ports: DurableJsonPorts = { ...createNodeDurableJsonPorts({ env: {} }), filesystem: observedFilesystem((method, args) => {
       if (method === "renameSync" && args[1] === pointer && failures++ === 0) throw errno("EIO");
       return args;
     }) };
@@ -358,12 +358,11 @@ describe("relocate", () => {
     const root = tempRoot();
     const toHost = (value: unknown) => typeof value === "string" && /^[A-Za-z]:\\/.test(value)
       ? path.join(root, value[0]!, ...value.slice(3).split(/[\\/]+/)) : value;
-    const ports: DurableJsonPorts = { ...createNodeDurableJsonPorts({}), filesystem: observedFilesystem((_method, args) => args.map(toHost)) };
-    const workspace = createNodeDirectoryWorkspace({ homeDir: "C:\\Users\\a", defaultFolder: "Product", envName: "PRODUCT_HOME",
+    const ports: DurableJsonPorts = { ...createNodeDurableJsonPorts({ env: {} }), filesystem: observedFilesystem((_method, args) => args.map(toHost)) };
+    const workspace = createNodeDirectoryWorkspace({ env: { APPDATA: "C:\\Roaming" }, directoryHomeOverride: undefined, homeDir: "C:\\Users\\a", defaultFolder: "Product", envName: "PRODUCT_HOME",
       settingsFile: "unused", registryName: "catalog.json", runningName: ".running.json",
       userConfig: { appName: "Example", rootsEnvName: "PRODUCT_ROOTS", defaultSubfolder: "sites" },
-    }, { platform: "win32", env: { APPDATA: "C:\\Roaming" }, ports, canonicalPath: ({ path: value }) => path.win32.normalize(value),
-      windowsDocuments: () => "C:\\Users\\a\\Documents", windowsOneDriveRoots: () => [], readText: () => undefined });
+    }, { platform: "win32", ports, canonicalPath: ({ path: value }) => path.win32.normalize(value), windowsDocuments: () => "C:\\Users\\a\\Documents", windowsOneDriveRoots: () => [], readText: () => undefined });
     const configFile = String(toHost(workspace.config({}).configPath));
     fs.mkdirSync(path.dirname(configFile), { recursive: true });
     fs.writeFileSync(configFile, JSON.stringify({ sitesHome: "C:\\Users\\a\\Documents\\Product" }));
@@ -376,8 +375,8 @@ describe("relocate", () => {
 describe("leases with a user config policy", () => {
   it("reads the legacy site-local lease first and otherwise the app-data lease", () => {
     const root = tempRoot(), site = path.join(root, "site"); fs.mkdirSync(site);
-    const legacy = createNodeDirectoryWorkspace({ homeDir: root, defaultFolder: "Product", envName: "PRODUCT_HOME",
-      settingsFile: path.join(root, "old.json"), registryName: "catalog.json", runningName: ".running.json" }, { env: {} });
+    const legacy = createNodeDirectoryWorkspace({ env: {}, directoryHomeOverride: undefined, homeDir: root, defaultFolder: "Product", envName: "PRODUCT_HOME",
+      settingsFile: path.join(root, "old.json"), registryName: "catalog.json", runningName: ".running.json" }, {});
     const workspace = nestedWorkspace(root);
     const current = workspace.claim({ path: site, app: "Desktop" });
     expect(workspace.running({ path: site }).read({})?.token).toBe(current.record.token);
@@ -386,4 +385,13 @@ describe("leases with a user config policy", () => {
     expect(workspace.running({ path: site }).read({})?.token).toBe(old.record.token);
     expect(workspace.claim({ path: site, app: "Desktop" })).toMatchObject({ acquired: false, record: { token: old.record.token } });
   });
+});
+
+it("uses the explicit home value over persisted settings and rejects an explicit blank", () => {
+  const root = tempRoot(), settingsFile = path.join(root, "setting.json");
+  fs.writeFileSync(settingsFile, JSON.stringify({ home: path.join(root, "saved") }));
+  const required = { homeDir: root, defaultFolder: "Sites", envName: "SITES_HOME", env: { SITES_HOME: path.join(root, "ignored") }, settingsFile, registryName: "sites.json", runningName: "running.json" };
+  expect(createNodeDirectoryWorkspace({ ...required, directoryHomeOverride: path.join(root, "chosen") }).home({})).toBe(path.join(root, "chosen"));
+  expect(createNodeDirectoryWorkspace({ ...required, directoryHomeOverride: undefined }).home({})).toBe(path.join(root, "saved"));
+  expect(() => createNodeDirectoryWorkspace({ ...required, directoryHomeOverride: " " }).home({})).toThrow("SITES_HOME must name a directory");
 });

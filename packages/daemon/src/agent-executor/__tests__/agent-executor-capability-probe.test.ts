@@ -32,7 +32,7 @@ describe('AgentExecutor — probes the def\'s --help capabilities before buildAr
       promptViaStdin: true,
     };
     const spawnedArgs: string[][] = [];
-    const executor = createAgentExecutor({ lifecycle }, { getAgentDef: ({ id }) => (id === def.id ? def : null), resolveAgentLaunch: () =>
+    const executor = createAgentExecutor({ hostEnv: {}, lifecycle }, { getAgentDef: ({ id }) => (id === def.id ? def : null), resolveAgentLaunch: () =>
         ({
           selectedPath: '/fake/probe-bin',
           pathResolvedPath: '/fake/probe-bin',

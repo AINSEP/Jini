@@ -1,3 +1,4 @@
+import { createNodeFileLock } from '@jini-ai/platform/fs'; import { ensureAntigravityMcpPermission } from './antigravity/permissions.js';
 import { prepareHttpMcpForRun, type PreparedHttpMcp } from './http-mcp.js';
 import { withOpenCodeHttpMcp } from './opencode/mcp-config.js';
 import { prepareClaudeSubagentStartSettings } from './claude/subagent-start.js';
@@ -102,11 +103,10 @@ import {
 } from './mcp-bridge.js';
 import { mergeEnvContentMcpConfig, mergeEnvContentInstructions } from './opencode/mcp-config.js';
 import { defaultRemoveMcpJsonFile } from './mcp-json-file.js';
-import { CODEX_HOME_ENV, codexHttpMcpStaging, prepareCodexHomeIfNeeded, resolveCodexDisablePlugins, withStagedCodexHome } from './codex/home-staging.js';
+import { CODEX_HOME_ENV, codexHttpMcpStaging, prepareCodexHomeIfNeeded, withStagedCodexHome } from './codex/home-staging.js';
 import { CLAUDE_CONFIG_DIR_ENV, prepareClaudeConfigDirIfNeeded, withStagedClaudeConfigDir } from './claude/config-dir.js';
 import { claudeFilesystemAdapter } from './claude/filesystem.js';
 import { AMR_OPENCODE_BIN_ENV } from './amr/executable-env.js';
-import { resolvePiGracefulShutdownMs } from './pi/options.js';
 import {
   acquireRuntimeLockIfConfigured,
   armHandoffWatcher,
@@ -284,9 +284,9 @@ function resolveAgentRuntimeDeps(
 }
 
 interface ResolvedProcessDeps {
-  readonly createCommandInvocation: typeof createCommandInvocation;
+  readonly createCommandInvocation: NonNullable<CreateAgentExecutorOptions["createCommandInvocation"]>;
   readonly spawn: typeof nodeSpawn;
-  readonly listProcessSnapshots: typeof listProcessSnapshots;
+  readonly listProcessSnapshots: NonNullable<CreateAgentExecutorOptions["listProcessSnapshots"]>;
   readonly collectProcessTreePids: CollectProcessTreePidsPort;
   readonly stopProcesses: StopProcessesPort;
 }
@@ -294,9 +294,9 @@ interface ResolvedProcessDeps {
 /** Resolves the OS-process-facing collaborator seams — see {@link resolveAgentRuntimeDeps}'s doc. Pure. */
 function resolveProcessDeps(options: CreateAgentExecutorOptions): ResolvedProcessDeps {
   return {
-    createCommandInvocation: options.createCommandInvocation ?? createCommandInvocation,
+    createCommandInvocation: options.createCommandInvocation ?? ((input) => createCommandInvocation({ ...input, fallbackComSpec: options.hostEnv.ComSpec })),
     spawn: options.spawn ?? nodeSpawn,
-    listProcessSnapshots: options.listProcessSnapshots ?? listProcessSnapshots,
+    listProcessSnapshots: options.listProcessSnapshots ?? (() => listProcessSnapshots({ env: options.hostEnv })),
     collectProcessTreePids: options.collectProcessTreePids ?? (({ processes, rootPids }) => collectProcessTreePids(processes, rootPids)),
     stopProcesses: options.stopProcesses ?? (({ pids }) => stopProcesses(pids)),
   };
@@ -891,7 +891,7 @@ export function spawnAgentChildProcess({ input, deps }: { readonly input: {
 /** Command preparation is part of pre-spawn staging, so failures must release all owned resources. */
 async function prepareRunCommand({ command, args, env, runId }: { command: string; args: string[]; env: NodeJS.ProcessEnv; runId: string }, {
   createInvocation, release, failBeforeSpawn,
-}: { createInvocation: typeof createCommandInvocation; release: () => Promise<void>; failBeforeSpawn: FailBeforeSpawn }): Promise<ReturnType<typeof createCommandInvocation>> {
+}: { createInvocation: NonNullable<CreateAgentExecutorOptions["createCommandInvocation"]>; release: () => Promise<void>; failBeforeSpawn: FailBeforeSpawn }): Promise<ReturnType<typeof createCommandInvocation>> {
   try { return createInvocation({ command, args, env }); }
   catch {
     await release();
@@ -1004,15 +1004,15 @@ function httpMcpPreparationMessage(injection: CreateAgentExecutorOptions['mcpJso
  * @complexity `run()`'s own setup is O(1); steady-state cost is the chosen stream parser's.
  * @overallScore 100/100
  */
-export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOptions, "lifecycle">, optionalArgs: Pick<CreateAgentExecutorOptions, "runtimeState" | "codexDisablePlugins" | "piGracefulShutdownMs" | "hostEnv" | "getAgentDef" | "resolveAgentLaunch" | "resolveModelForLaunch" | "ensureAgentCapabilities" | "assertClaudeFilesystemSupport" | "applyAgentLaunchEnv" | "createCommandInvocation" | "spawn" | "probeMcpBridge" | "attachAcpSession" | "acpPermissionHandler" | "attachPiRpcSession" | "preparePromptFileForAgent" | "prepareAgentLogFile" | "listProcessSnapshots" | "collectProcessTreePids" | "stopProcesses" | "onCleanupFailure" | "journal" | "delegatedResultCorrelation" | "stdoutJournalBlobs" | "continuation" | "classifyFailure" | "mcpJsonInjection" | "claudeConfigDirIsolation" | "claudeConfigDirIsolationEnabled" | "bufferedStdoutMaxBytes" | "promptAugmenter"> = {}): AgentExecutor {
+export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOptions, "lifecycle" | "hostEnv">, optionalArgs: Pick<CreateAgentExecutorOptions, "runtimeState" | "codexDisablePlugins" | "piGracefulShutdownMs" | "getAgentDef" | "resolveAgentLaunch" | "resolveModelForLaunch" | "ensureAgentCapabilities" | "assertClaudeFilesystemSupport" | "applyAgentLaunchEnv" | "createCommandInvocation" | "spawn" | "probeMcpBridge" | "attachAcpSession" | "acpPermissionHandler" | "attachPiRpcSession" | "preparePromptFileForAgent" | "prepareAgentLogFile" | "listProcessSnapshots" | "collectProcessTreePids" | "stopProcesses" | "onCleanupFailure" | "journal" | "delegatedResultCorrelation" | "stdoutJournalBlobs" | "continuation" | "classifyFailure" | "mcpJsonInjection" | "claudeConfigDirIsolation" | "claudeConfigDirIsolationEnabled" | "bufferedStdoutMaxBytes" | "promptAugmenter"> = {}): AgentExecutor {
   // This native composition boundary resolves ambient defaults once, before allowlisting child env.
-  const env = optionalArgs.hostEnv ?? process.env;
+  const env = requiredArgs.hostEnv;
   const options: CreateAgentExecutorOptions & { readonly piGracefulShutdownMs: number } = { ...requiredArgs, ...optionalArgs,
-    codexDisablePlugins: resolveCodexDisablePlugins(optionalArgs.codexDisablePlugins, env),
-    piGracefulShutdownMs: resolvePiGracefulShutdownMs(optionalArgs.piGracefulShutdownMs, env),
+    codexDisablePlugins: optionalArgs.codexDisablePlugins ?? false,
+    piGracefulShutdownMs: optionalArgs.piGracefulShutdownMs ?? 5000,
   };
-  const lifecycle = options.lifecycle;
-  const hostEnv = selectAgentExecutorHostEnv({ env: options.hostEnv ?? process.env }, options.runtimeState ? { runtimeState: options.runtimeState } : {});
+  const lifecycle = options.lifecycle, fileLock = createNodeFileLock({ env }); const ensurePermission = (input: { settingsPath: string; serverName: string }) => ensureAntigravityMcpPermission({ ...input, fileLock });
+  const hostEnv = selectAgentExecutorHostEnv({ env: options.hostEnv }, options.runtimeState ? { runtimeState: options.runtimeState } : {});
   const {
     getAgentDef: getAgentDefFn,
     resolveAgentLaunch: resolveAgentLaunchFn,
@@ -1286,7 +1286,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
           bufferedStdoutMaxBytes,
           expectsJiniBridge: writtenMcpJsonPath !== undefined || httpMcp === true,
           bridgeProbeEntry: bridgeProbeEntryForRun({ mcpBridge }, {}),
-          probeMcpBridge: options.probeMcpBridge ?? probeMcpBridge,
+          probeMcpBridge: options.probeMcpBridge ?? ((input, optional = {}) => probeMcpBridge({ ...input, hostEnv: env }, optional)),
         })
       : null;
 
@@ -1563,7 +1563,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // the five mechanisms ends up carrying it. `null` for an unconfigured host or a def declaring
     // no strategy — see `buildMcpBridgeDelivery`'s doc.
     preparedHttpMcp = await prepareRunHttpMcp({ input, def, cleanupStagedFiles });
-    const mcpBridge = preparedHttpMcp ? null : await resolveMcpBridgeForRun({ input: { runId: input.runId, cwd: input.cwd, def, ...nativeCapabilityInput({ input }, {}) }, deps: { mcpJsonInjection, cleanupStagedFiles, failBeforeSpawn } }
+    const mcpBridge = preparedHttpMcp ? null : await resolveMcpBridgeForRun({ input: { runId: input.runId, cwd: input.cwd, def, ...nativeCapabilityInput({ input }, {}) }, deps: { mcpJsonInjection, cleanupStagedFiles, failBeforeSpawn, ensureAntigravityMcpPermission: ensurePermission } }
     );
 
     const baseRuntimeContext = computeRuntimeContext({ preparedPromptFile, preparedLogFile, mcpBridge }, sessionRuntimeContext(input, {}));

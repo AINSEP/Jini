@@ -816,10 +816,9 @@ function buildModule(ports: ActivationPorts) {
       await mkdir(workspaceRoot, { recursive: true, mode: 0o700 });
       const lockPath = path.join(workspaceRoot, ACTIVATIONS_LOCK_FILENAME);
       try {
-        return await withFileLock({ lockPath, run: write }, {
+        return await withFileLock({ lockPath, run: write, process: ports.process }, {
           timeoutMs: 15_000, staleMs: 10_000, pollMs: 10,
           filesystem: ports.filesystem, clock: ports.clock, monotonicMs: () => ports.clock.monotonicMs(),
-          process: ports.process,
           token: () => ports.ids.newId(), hostname: () => ports.process.hostname({}),
           sleep: ({ durationMs }) => ports.clock.sleep({ ms: durationMs }),
           onStaleLockRemoved: ({ holder }) => warnStaleActivationsLockRemoved(lockPath, holder),

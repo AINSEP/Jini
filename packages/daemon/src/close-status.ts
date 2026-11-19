@@ -44,16 +44,14 @@ export function classifyRunCloseStatus(requiredArgs: Pick<CloseStatusInput, "can
 }
 
 export interface ResolveTimeoutMsInput {
-  /** Env var name checked first (highest precedence), e.g. `'JINI_RUN_INACTIVITY_TIMEOUT_MS'`. */
-  readonly envVar?: string;
+  /** Raw host-selected timeout, checked before per-agent and kernel defaults. */
+  readonly configuredTimeoutMs?: string;
   /** Per-agent/per-runtime default, used when no env override is set. */
   readonly agentDefaultMs?: number;
   /** Kernel default, used when neither an env override nor an agent default is set. */
   readonly defaultMs: number;
   /** Upper clamp applied after resolution, regardless of source. */
   readonly maxMs: number;
-  /** Injectable env source (defaults to `process.env`) — kept explicit so this stays a pure, testable function rather than reading a process-global implicitly. */
-  readonly env?: Readonly<Record<string, string | undefined>>;
 }
 
 /** A set environment value parsed as a positive, finite millisecond count, else undefined. */
@@ -76,11 +74,9 @@ function positiveTimeout(raw: string | undefined): number | undefined {
  * @complexity O(1).
  * @overallScore 100/100
  */
-export function resolveTimeoutMs(requiredArgs: Pick<ResolveTimeoutMsInput, "defaultMs" | "maxMs">, optionalArgs: Pick<ResolveTimeoutMsInput, "envVar" | "agentDefaultMs" | "env"> = {}): number {
+export function resolveTimeoutMs(requiredArgs: Pick<ResolveTimeoutMsInput, "defaultMs" | "maxMs">, optionalArgs: Pick<ResolveTimeoutMsInput, "configuredTimeoutMs" | "agentDefaultMs"> = {}): number {
   const input: ResolveTimeoutMsInput = { ...requiredArgs, ...optionalArgs };
-  const env = input.env ?? (typeof process !== 'undefined' ? process.env : {});
-  const rawFromEnv = input.envVar ? env[input.envVar] : undefined;
-  const candidate = positiveTimeout(rawFromEnv) ?? input.agentDefaultMs ?? input.defaultMs;
+  const candidate = positiveTimeout(input.configuredTimeoutMs) ?? input.agentDefaultMs ?? input.defaultMs;
   return Math.min(candidate, input.maxMs);
 }
 

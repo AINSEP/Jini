@@ -130,13 +130,12 @@ export function ensureSpawnHelperExecutable(candidatePaths: string[] = spawnHelp
  * win32), and finally a per-platform default.
  */
 export function resolveShell(
-  requested?: string | null,
-  options: { platform?: NodeJS.Platform; env?: NodeJS.ProcessEnv } = {},
+  { requested, env }: { requested?: string | null; env: NodeJS.ProcessEnv },
+  options: { platform?: NodeJS.Platform } = {},
 ): string {
   const explicit = typeof requested === 'string' && requested.trim() ? requested.trim() : null;
   if (explicit) return explicit;
   const platform = options.platform ?? process.platform;
-  const env = options.env ?? process.env;
   if (platform === 'win32') {
     return env.ComSpec || 'powershell.exe';
   }
@@ -195,7 +194,7 @@ function toPublicSession(session: InternalSession): TerminalSession {
  * Builds an in-memory terminal session manager. See the module docblock for
  * the design rationale; see {@link CreateTerminalServiceOptions} for tuning.
  */
-export function createTerminalService(options: CreateTerminalServiceOptions): TerminalService {
+export function createTerminalService(options: CreateTerminalServiceOptions & { env: NodeJS.ProcessEnv }): TerminalService {
   const {
     loadSpawnPty,
     maxEvents = 2_000,
@@ -302,13 +301,13 @@ export function createTerminalService(options: CreateTerminalServiceOptions): Te
     const id = randomUUID();
     const cols = clampDimension(createOptions.cols, DEFAULT_COLS);
     const rows = clampDimension(createOptions.rows, DEFAULT_ROWS);
-    const shell = resolveShell(createOptions.shell);
+    const shell = resolveShell({ requested: createOptions.shell, env: options.env });
     const pty = spawnPty(shell, [], {
       name: 'xterm-color',
       cols,
       rows,
       cwd: createOptions.cwd,
-      env: { ...process.env } as Record<string, string>,
+      env: { ...options.env } as Record<string, string>,
     });
     const session = newInternalSession({ id, createOptions, shell, cols, rows, pty, now });
     sessions.set(id, session);

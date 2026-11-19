@@ -90,12 +90,12 @@ function detectWithPorts({ dir, homeDir, documents }: { dir: string; homeDir: st
  * @complexity O(a + p) small account/mount lists and ancestor probes, no recursive site scan.
  */
 export function detectDirectorySync(
-  required: { dir: string; homeDir: string; documents: string },
-  { env = process.env, platform = process.platform, readText = (file) => readOptionalText({ file }),
+  required: { dir: string; homeDir: string; documents: string; env: NodeJS.ProcessEnv },
+  { platform = process.platform, readText = (file) => readOptionalText({ file }),
     canonicalPath = canonicalOrResolved, listDirectories = listDirectoriesOrEmpty,
-    exists = fs.existsSync, oneDriveRoots = [], windowsOneDriveRoots = () => readWindowsOneDriveRoots({}),
+    exists = fs.existsSync, oneDriveRoots = [], windowsOneDriveRoots = () => readWindowsOneDriveRoots({ env: required.env }),
   }: UserDirectoryOptions & { canonicalPath?: (required: { path: string }) => string;
     listDirectories?: (root: string) => string[]; exists?: (file: string) => boolean; oneDriveRoots?: readonly string[] } = {},
 ): DirectorySyncProvider | null {
-  return detectWithPorts(required, { env, platform, readText, canonicalPath, listDirectories, exists, oneDriveRoots, windowsOneDriveRoots });
+  return detectWithPorts(required, { env: required.env, platform, readText, canonicalPath, listDirectories, exists, oneDriveRoots, windowsOneDriveRoots });
 }

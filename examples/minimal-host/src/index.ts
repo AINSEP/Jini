@@ -69,8 +69,8 @@ async function main(): Promise<void> {
         }
 
         if (request.agentId === 'acp-fixture') {
-          const executor = createAgentExecutor({ lifecycle }, {
-            ...runtimeExecutorOptions,
+          const { hostEnv, ...executorOptions } = runtimeExecutorOptions; const executor = createAgentExecutor({ lifecycle, hostEnv }, {
+            ...executorOptions,
             getAgentDef: ({ id }) => (id === 'acp-fixture' ? acpFixtureDef() : null),
             resolveAgentLaunch: () =>
               ({
