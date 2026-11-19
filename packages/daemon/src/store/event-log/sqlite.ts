@@ -54,7 +54,7 @@ export function createSqliteEventLog(
   input: { db: SqliteDb; clock: Clock },
   options: SqliteEventLogOptions = {},
 ): SqliteEventLogWithReceipts {
-  resolveMaxEntriesPerRun(options.maxEntriesPerRun);
+  resolveMaxEntriesPerRun({ value: options.maxEntriesPerRun });
   if (!input || typeof input !== 'object' || !input.db) {
     throw new Error('createSqliteEventLog: pass a borrowed SqliteDb');
   }
@@ -73,7 +73,7 @@ export function openSqliteEventLog(
   input: { file: string; open: SqliteSyncOpener; clock: Clock },
   options: SqliteEventLogOptions = {},
 ): SqliteEventLogWithReceipts {
-  resolveMaxEntriesPerRun(options.maxEntriesPerRun);
+  resolveMaxEntriesPerRun({ value: options.maxEntriesPerRun });
   let db: SqliteDb | undefined;
   try {
     // The handle is captured before anything that can throw, so the catch below closes what was opened.
@@ -91,7 +91,7 @@ export function openSqliteEventLog(
 
 /** Binds event-log policies to a borrowed synchronous connection and its atomic transactions. */
 function bindSqliteEventLog(db: SqliteDb, clock: Clock, options: SqliteEventLogOptions): SqliteEventLogWithReceipts {
-  const maxEntriesPerRun = resolveMaxEntriesPerRun(options.maxEntriesPerRun);
+  const maxEntriesPerRun = resolveMaxEntriesPerRun({ value: options.maxEntriesPerRun });
   if (options.schemaSetup !== 'host') db.exec(SQLITE_EVENT_LOG_SCHEMA);
 
   const getRunStmt = db.prepare<[string], RunRow>(
@@ -171,7 +171,7 @@ function bindSqliteEventLog(db: SqliteDb, clock: Clock, options: SqliteEventLogO
     // Validated up front, independent of whether `runId` is known: a malformed cursor is a
     // caller/transport bug regardless of run state, so it throws rather than being folded into
     // (or masked by) an `'unknown-run'`/`'replay-gap'` result.
-    assertValidReplayCursor(afterCursor);
+    assertValidReplayCursor({ afterCursor });
     const run = getRunStmt.get(runId);
     if (!run) return { kind: 'unknown-run' };
     const oldest = selectOldestStmt.get(runId);

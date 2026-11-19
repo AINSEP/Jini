@@ -471,7 +471,7 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
   const { runId, def, streamFormat, child, lifecycle, journal, continuation, classifyFailure } = ctx;
   const stdoutDiagnostics = createStdoutDiagnostics({ ctx, enqueueEmit });
   const output = observeRunOutput({ lifecycle, runId, agentName: def.name }, { plainStdout: streamFormat === 'plain' });
-  const modelReceipt = createModelReceiptTracker(ctx.startingModel, ctx.modelCatalog?.models);
+  const modelReceipt = createModelReceiptTracker({}, { startingModel: ctx.startingModel, models: ctx.modelCatalog?.models });
   let stdinClosed = false;
   let cancelRequested = false;
   let emitQueue: Promise<void> = Promise.resolve();
@@ -667,7 +667,7 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
         isError = projection.isError === true;
         media = projection.media ?? [];
       } catch (error) {
-        content = errorMessage(error);
+        content = errorMessage({ err: error });
         eventContent = content;
         isError = true;
       } finally {
@@ -759,7 +759,7 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
           // A diagnostic failure must not suppress the original bridge error or the terminal event.
         }
       }
-      const message = bridgeUnavailableMessage(bridgeStatus, probe);
+      const message = bridgeUnavailableMessage({ status: bridgeStatus }, { probe });
       const details = probe ? {
         exitCode: probe.exitCode, signal: probe.signal, stderrTail: probe.stderrTail, elapsedMs: probe.elapsedMs,
       } : undefined;
@@ -1016,7 +1016,7 @@ function acpSessionOptions({ ctx }: { ctx: WireAcpLifecycleContext }, _options =
  * success.
  */
 function wireAcpLifecycle(ctx: WireAcpLifecycleContext): AcpSessionController {
-  const modelReceipt = createModelReceiptTracker(ctx.model, ctx.modelCatalog?.models);
+  const modelReceipt = createModelReceiptTracker({}, { startingModel: ctx.model, models: ctx.modelCatalog?.models });
   const { runId, agentId, child, lifecycle, journal, classifyFailure } = ctx;
   const output = observeRunOutput({ lifecycle, runId, agentName: agentId });
   let cancelRequested = false;
@@ -1099,7 +1099,7 @@ function wireAcpLifecycle(ctx: WireAcpLifecycleContext): AcpSessionController {
         return;
       }
       if (event === 'error') {
-        enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'error', data: translateAcpError(payload) } }));
+        enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'error', data: translateAcpError({ payload }) } }));
       }
     } }, acpSessionOptions({ ctx }, {}));
   return controller;
@@ -1146,7 +1146,7 @@ interface WirePiRpcLifecycleContext extends TerminateChildTreeDeps {
  * multi-turn tool continuation, resumable session ids, etc.).
  */
 function wirePiRpcLifecycle(ctx: WirePiRpcLifecycleContext): PiRpcSession {
-  const modelReceipt = createModelReceiptTracker(ctx.model, ctx.modelCatalog?.models);
+  const modelReceipt = createModelReceiptTracker({}, { startingModel: ctx.model, models: ctx.modelCatalog?.models });
   const { runId, agentId, child, lifecycle, journal, classifyFailure } = ctx;
   const output = observeRunOutput({ lifecycle, runId, agentName: agentId });
   let cancelRequested = false;
@@ -1243,7 +1243,7 @@ function wirePiRpcLifecycle(ctx: WirePiRpcLifecycleContext): PiRpcSession {
  * @complexity O(1) plus the underlying stream write's own cost.
  * @overallScore 100/100
  */
-export function writePromptToStdin(def: RuntimeAgentDef, child: ChildProcess, prompt: string, handle: StdinCloseHandle): void {
+export function writePromptToStdin({ def, child, prompt, handle }: { def: RuntimeAgentDef; child: ChildProcess; prompt: string; handle: StdinCloseHandle }, _optional: Record<string, never> = {}): void {
   const stdin = child.stdin;
   if (!stdin) return;
   if (def.promptInputFormat === 'stream-json') {
@@ -1329,7 +1329,7 @@ export async function runAcpDispatch({ input, deps }: { readonly input: RunAcpDi
     await deps.releaseStagedResources();
     // `failBeforeSpawn` always rejects (`Promise<never>`); awaiting it propagates that rejection.
     await deps.failBeforeSpawn(
-      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not attach ACP session for agent "${input.agentId}": ${errorMessage(err)}` },
+      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not attach ACP session for agent "${input.agentId}": ${errorMessage({ err })}` },
     );
   }
 }
@@ -1392,7 +1392,7 @@ export async function runPiRpcDispatch({ input, deps }: { readonly input: RunPiR
     );
     await deps.releaseStagedResources();
     await deps.failBeforeSpawn(
-      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not attach pi-rpc session for agent "${input.agentId}": ${errorMessage(err)}` },
+      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not attach pi-rpc session for agent "${input.agentId}": ${errorMessage({ err })}` },
     );
   }
 }

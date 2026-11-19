@@ -27,7 +27,7 @@ export interface SqliteEventLogOptions {
 }
 
 /** @internal Validates and resolves `options.maxEntriesPerRun`, applying the documented default. */
-export function resolveMaxEntriesPerRun(value: number | undefined): number {
+export function resolveMaxEntriesPerRun({ value }: { value: number | undefined }, _optional: Record<string, never> = {}): number {
   if (value === undefined) return DEFAULT_MAX_ENTRIES_PER_RUN;
   if (!Number.isSafeInteger(value) || value < 0) {
     throw new Error(
@@ -38,7 +38,7 @@ export function resolveMaxEntriesPerRun(value: number | undefined): number {
 }
 
 /** @internal Validates a `replay(runId, afterCursor)` cursor. `null` ("from the beginning") is always valid. */
-export function assertValidReplayCursor(afterCursor: string | null): void {
+export function assertValidReplayCursor({ afterCursor }: { afterCursor: string | null }, _optional: Record<string, never> = {}): void {
   if (afterCursor === null) return;
   const n = Number(afterCursor);
   if (!Number.isSafeInteger(n) || n < 0) {

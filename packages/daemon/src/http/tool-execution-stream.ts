@@ -9,7 +9,7 @@ import type { ToolExecutionWireError, ToolExecutionWireRequest } from '../remote
 import type { LineStream } from './line-stream.js';
 
 /** An error as the caller sees it: name, message and an optional string `code`. Never the stack. */
-export function wireError(error: unknown): ToolExecutionWireError {
+export function wireError({ error }: { error: unknown }, _optional: Record<string, never> = {}): ToolExecutionWireError {
   if (!(error instanceof Error)) return { name: 'Error', message: String(error) };
   const code = (error as { code?: unknown }).code;
   return { name: error.name, message: error.message, ...(typeof code === 'string' ? { code } : {}) };
@@ -38,7 +38,7 @@ export async function writeToolExecution(
     const result = runWithContext ? await runWithContext({ context: call.context, fn: run }) : await run();
     stream.write({ line: { type: 'result', result } });
   } catch (error) {
-    stream.write({ line: { type: 'throw', error: wireError(error) } });
+    stream.write({ line: { type: 'throw', error: wireError({ error }) } });
   } finally {
     settled = true;
     stream.end();

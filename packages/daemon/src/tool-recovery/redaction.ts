@@ -201,21 +201,21 @@ interface FailureContext {
  *
  * @complexity O(1) plus {@link redactSecretShapes}'s own O(text length) pass.
  */
-export function redactFailedResult(result: ToolExecutionResult, context: FailureContext, deps: RedactedToolFailuresDeps): ToolExecutionResult {
+export function redactFailedResult({ result, toolId, runId, principalId, deps }: { result: ToolExecutionResult; deps: RedactedToolFailuresDeps } & FailureContext, _optional: Record<string, never> = {}): ToolExecutionResult {
   if (result.errorKind === "validation") {
     if (result.error === undefined) return result;
     return { ...result, error: deps.redactSecretShapes({ text: result.error }).text };
   }
 
   const { mintErrorId, onFailure } = deps;
-  const { text, redactions } = deps.redactSecretShapes({ text: result.error ?? `tool "${context.toolId}" failed` });
+  const { text, redactions } = deps.redactSecretShapes({ text: result.error ?? `tool "${toolId}" failed` });
   const errorId = mintErrorId();
 
   safeOnFailure(onFailure, {
     errorId,
-    toolId: context.toolId,
-    runId: context.runId,
-    principalId: context.principalId,
+    toolId,
+    runId,
+    principalId,
     executionId: result.executionId,
     redactions,
     message: text,
@@ -245,7 +245,7 @@ export function withRedactedToolFailures({ inner, ...deps }: RedactedToolFailure
     ): Promise<ToolExecutionResult> => {
       const result = await inner.execute({ principal, run, toolId, input }, options);
       if (result.status !== "failed") return result;
-      return redactFailedResult(result, { toolId, runId: run.id, principalId: principal.id }, deps);
+      return redactFailedResult({ result, toolId, runId: run.id, principalId: principal.id, deps });
     },
   });
 }

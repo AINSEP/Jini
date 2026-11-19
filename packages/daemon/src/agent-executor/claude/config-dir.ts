@@ -170,7 +170,7 @@ export async function prepareClaudeConfigDirIfNeeded({ input, deps }: { readonly
   } catch (err) {
     await deps.releaseStagedResources();
     return deps.failBeforeSpawn(
-      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not stage a CLAUDE_CONFIG_DIR for agent "${input.def.id}": ${errorMessage(err)}` },
+      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not stage a CLAUDE_CONFIG_DIR for agent "${input.def.id}": ${errorMessage({ err })}` },
     );
   }
 }

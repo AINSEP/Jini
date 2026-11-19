@@ -403,7 +403,7 @@ export async function stagePromptFile({ input, deps }: { readonly input: { reado
     return await deps.preparePromptFileForAgent({ def: input.def, prompt: input.prompt, label: input.runId });
   } catch (err) {
     return deps.failBeforeSpawn(
-      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not stage a prompt file for agent "${input.def.id}": ${errorMessage(err)}` },
+      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not stage a prompt file for agent "${input.def.id}": ${errorMessage({ err })}` },
     );
   }
 }
@@ -416,7 +416,7 @@ export async function stageLogFile({ input, deps }: { readonly input: { readonly
   } catch (err) {
     await (input.preparedPromptFile ? input.preparedPromptFile.cleanup() : Promise.resolve());
     return deps.failBeforeSpawn(
-      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not stage a log file for agent "${input.def.id}": ${errorMessage(err)}` },
+      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not stage a log file for agent "${input.def.id}": ${errorMessage({ err })}` },
     );
   }
 }
@@ -778,7 +778,7 @@ export async function buildRunArgs({ input, deps }: { readonly input: {
   } catch (err) {
     await deps.releaseStagedResources();
     return deps.failBeforeSpawn(
-      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not build launch arguments for agent "${input.def.id}": ${errorMessage(err)}` },
+      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not build launch arguments for agent "${input.def.id}": ${errorMessage({ err })}` },
     );
   }
 }
@@ -825,7 +825,7 @@ export async function prepareSystemPromptOverlayFileIfNeeded({ input, deps }: { 
   } catch (err) {
     await deps.releaseStagedResources();
     return deps.failBeforeSpawn(
-      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not stage a system-prompt overlay file for agent "${input.def.id}": ${errorMessage(err)}` },
+      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not stage a system-prompt overlay file for agent "${input.def.id}": ${errorMessage({ err })}` },
     );
   }
 }
@@ -913,7 +913,7 @@ export async function confirmChildSpawned({ input, deps }: { readonly input: { r
   } catch (err) {
     await deps.releaseStagedResources();
     await deps.failBeforeSpawn(
-      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: failed to spawn agent "${input.def.id}": ${errorMessage(err)}` },
+      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: failed to spawn agent "${input.def.id}": ${errorMessage({ err })}` },
     );
   }
 }
@@ -1008,8 +1008,8 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
   // This native composition boundary resolves ambient defaults once, before allowlisting child env.
   const env = optionalArgs.hostEnv ?? process.env;
   const options: CreateAgentExecutorOptions & { readonly piGracefulShutdownMs: number } = { ...requiredArgs, ...optionalArgs,
-    codexDisablePlugins: resolveCodexDisablePlugins(optionalArgs.codexDisablePlugins, env),
-    piGracefulShutdownMs: resolvePiGracefulShutdownMs(optionalArgs.piGracefulShutdownMs, env),
+    codexDisablePlugins: resolveCodexDisablePlugins({ value: optionalArgs.codexDisablePlugins, env }),
+    piGracefulShutdownMs: resolvePiGracefulShutdownMs({ value: optionalArgs.piGracefulShutdownMs, env }),
   };
   const lifecycle = options.lifecycle;
   const hostEnv = selectAgentExecutorHostEnv({ env: options.hostEnv ?? process.env }, options.runtimeState ? { runtimeState: options.runtimeState } : {});
@@ -1401,7 +1401,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // channel for them is the def's declared transport, not the strategy.
     const stdinPrompt = def.promptViaStdin === true ? overlayDelivery.prompt : imageDelivery.prompt;
     if (input.imageContents !== undefined) stdinHandle!.imageContents = input.imageContents;
-    writePromptToStdin(def, child, stdinPrompt, stdinHandle!);
+    writePromptToStdin({ def, child, prompt: stdinPrompt, handle: stdinHandle! });
   }
 
   /** Hand the prompt to the spawned child over its stream format's own channel. */
@@ -1574,7 +1574,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // demonstrably consumed it — see `RuntimeLock`'s own doc for the concrete race. Undefined for
     // 23 of 24 defs, in which case nothing below waits on anything.
     const selectedModel = input.model;
-    const runtimeLockHold = await acquireRuntimeLockIfConfigured(def, selectedModel);
+    const runtimeLockHold = await acquireRuntimeLockIfConfigured({ def, model: selectedModel });
     // Aborts once the spawned process is gone — or immediately, on a path where no process ever
     // ran — so a def's own handoff watcher can never outlive the run it was polling for.
     const processExitedController = new AbortController();
@@ -1668,7 +1668,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     if (spawnResult.kind === 'error') {
       await releaseStagedResources();
       await failBeforeSpawn(
-        { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: spawn threw synchronously for agent "${def.id}": ${errorMessage(spawnResult.error)}` },
+        { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: spawn threw synchronously for agent "${def.id}": ${errorMessage({ err: spawnResult.error })}` },
       );
       return;
     }

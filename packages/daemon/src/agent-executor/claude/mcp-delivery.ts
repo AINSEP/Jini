@@ -61,10 +61,8 @@ function mcpJsonPathForRun(cwd: string, runId: string): string {
  * @overallScore 100/100
  */
 export async function writeMcpJsonForRun(
-  cwd: string,
-  delivery: McpBridgeDelivery,
-  options: McpJsonInjectionOptions,
-  inheritUserConfig = true,
+  { cwd, delivery, options }: { cwd: string; delivery: McpBridgeDelivery; options: McpJsonInjectionOptions },
+  { inheritUserConfig = true }: { inheritUserConfig?: boolean | undefined } = {},
 ): Promise<string> {
   if (delivery.kind !== 'claude-mcp-json') throw new TypeError('Unexpected MCP delivery');
   const readFileFn = options.readFile ?? defaultReadMcpJsonFile;

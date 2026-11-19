@@ -31,8 +31,8 @@ function createStderrTail(): { append: (chunk: Buffer | string) => void; text: (
 function watchInitializeReply(lines: Interface, onReply: () => void): void {
   lines.on('line', (line) => {
     try {
-      const reply: unknown = JSON.parse(line);
-      if (isRecord(reply) && reply.id === 1 && Object.hasOwn(reply, 'result')) onReply();
+      const reply: { value: unknown } = { value: JSON.parse(line) };
+      if (isRecord(reply) && reply.value.id === 1 && Object.hasOwn(reply.value, 'result')) onReply();
     } catch {
       // Startup chatter is not an initialize response; keep waiting for the matching reply.
     }
@@ -85,7 +85,7 @@ export async function probeMcpBridge(
     const reader = lines;
     outcome = await new Promise<McpBridgeProbeResult>((resolve) => {
       const fail = (error: unknown): void => {
-        stderr.append(`\n${errorMessage(error)}`);
+        stderr.append(`\n${errorMessage({ err: error })}`);
         resolve(result(false));
       };
       timer = setTimeout(() => resolve(result(false)), timeoutMs);
@@ -101,7 +101,7 @@ export async function probeMcpBridge(
       } })}\n`);
     });
   } catch (error) {
-    stderr.append(`\n${errorMessage(error)}`);
+    stderr.append(`\n${errorMessage({ err: error })}`);
     outcome = result(false);
   } finally {
     reapProbe({ timer, lines, child });

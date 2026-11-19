@@ -73,7 +73,7 @@ function auditOptions(audit: NonNullable<AssistantToolExecutorDeps['toolAttemptA
 export function createAssistantToolExecutor(deps: AssistantToolExecutorDeps, _optional = {}): ToolExecutor {
   const guarded = withReadOnlyToolConstraint({ inner: createToolExecutor({ registry: deps.registry }, {
     ...(deps.prepareGuidance ? { prepareGuidance: deps.prepareGuidance } : {}),
-    redactNestedFailure: ({ result, ...context }) => redactFailedResult(result, context, deps.toolFailures).error,
+    redactNestedFailure: ({ result, ...context }) => redactFailedResult({ result, ...context, deps: deps.toolFailures }).error,
   }),
     registry: deps.registry, idGenerator: { newId: deps.newExecutionId }, messages: deps.readOnlyMessages }, {});
   const redacted = withRedactedToolFailures({ inner: guarded, ...deps.toolFailures }, {});

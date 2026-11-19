@@ -36,15 +36,16 @@ export const MCP_BRIDGE_UNAVAILABLE = 'MCP_BRIDGE_UNAVAILABLE';
  * @complexity O(n) in the number of reported servers.
  */
 export function unavailableJiniBridgeStatus({ rawEvent }: { readonly rawEvent: unknown }): string | undefined {
-  if (!isRecord(rawEvent) || rawEvent.type !== 'status' || rawEvent.label !== 'initializing') return undefined;
-  if (!Array.isArray(rawEvent.mcpServers)) return undefined;
-  const bridge = rawEvent.mcpServers.find((server) => isRecord(server) && server.name === JINI_MCP_SERVER_KEY);
-  const status = isRecord(bridge) ? String(bridge.status) : 'missing';
+  const record = { value: rawEvent };
+  if (!isRecord(record) || record.value.type !== 'status' || record.value.label !== 'initializing') return undefined;
+  if (!Array.isArray(record.value.mcpServers)) return undefined;
+  const bridge = { value: record.value.mcpServers.find((server) => { const item = { value: server }; return isRecord(item) && item.value.name === JINI_MCP_SERVER_KEY; }) };
+  const status = isRecord(bridge) ? String(bridge.value.status) : 'missing';
   return status === 'connected' ? undefined : status;
 }
 
 /** The user-readable reason a run stopped because its bridge did not connect. */
-export function bridgeUnavailableMessage(status: string, probe?: McpBridgeProbeResult): string {
+export function bridgeUnavailableMessage({ status }: { status: string }, { probe }: { probe?: McpBridgeProbeResult | undefined } = {}): string {
   const message = `The assistant's tools did not load (MCP bridge "${JINI_MCP_SERVER_KEY}" status: ${status}). The run was stopped instead of continuing without them.`;
   if (!probe || probe.ok) return message;
   const lines = probe.stderrTail.trim().split(/\r?\n/);
@@ -219,7 +220,7 @@ export async function resolveMcpBridgeForRun({ input, deps }: { readonly input: 
     // failure is fatal for the same reason: the agent would start without its tools.
     await deps.cleanupStagedFiles();
     return deps.failBeforeSpawn(
-      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not resolve the MCP bridge credential or permissions for agent "${input.def.id}": ${errorMessage(err)}` },
+      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not resolve the MCP bridge credential or permissions for agent "${input.def.id}": ${errorMessage({ err })}` },
     );
   }
 }
@@ -235,11 +236,11 @@ export async function writeMcpJsonIfNeeded({ input, deps }: { readonly input: { 
   const writer = delivery ? MCP_DELIVERY_WRITERS.get(delivery.kind) : undefined;
   if (!delivery || !writer || deps.mcpJsonInjection === undefined) return undefined;
   try {
-    return await writer(input.cwd, delivery, deps.mcpJsonInjection, input.nativeToolAccess !== false && input.nativeCapabilities?.userMcp !== false);
+    return await writer({ cwd: input.cwd, delivery, options: deps.mcpJsonInjection }, { inheritUserConfig: input.nativeToolAccess !== false && input.nativeCapabilities?.userMcp !== false });
   } catch (err) {
     await deps.releaseStagedResources();
     return deps.failBeforeSpawn(
-      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not write .mcp.json for agent "${input.def.id}": ${errorMessage(err)}` },
+      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not write .mcp.json for agent "${input.def.id}": ${errorMessage({ err })}` },
     );
   }
 }
