@@ -97,6 +97,11 @@ The package also exposes `./http/guarded`, `./mail`, `./mail/smtp`,
 `./fs/guarded-reader`, `./fs/durable-json`, and `./secrets`. New APIs take a required
 object followed by an optional object. Application identity and policy values belong to the caller.
 
+`@jini-ai/platform/secrets/root-key` (Node) exports the pure provisioning table
+`planSiteKeyEnsure`, the payload-preserving `decideLocalSiteKeyEnsure`, and the
+`verdictOfCheck`, `verdictOf`, and `matchesFingerprint` helpers. Callers supply the runtime
+mode and resolved material checks; source selection, reads and writes belong to the host.
+
 `@jini-ai/platform/system` (universal) exports `createSystemClock()` (wall `Clock`) and `createRandomUuidGenerator()` (cryptographic `IdGenerator`); Jini packages take these ports as required arguments and hosts pass these adapters.
 
 Email event senders use the universal `@jini-ai/platform/mail/senders` entry (also exported by `/mail`).
