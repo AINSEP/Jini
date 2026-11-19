@@ -18,26 +18,34 @@ const decodeEscape = (_escape: string, hex: string): string => String.fromCharCo
 const URL_NAME = new RegExp(URL_SECRET_PARAM_RE.source, 'iy');
 
 /** True when `name`, already decoded, is a credential parameter name. */
-function isCredentialName(name: string): boolean {
+function isCredentialName({ name }: { readonly name: string }, _optional = {}): boolean {
   const probe = `?${name}=x`;
   URL_NAME.lastIndex = 0;
   return URL_NAME.exec(probe)?.[0].length === probe.length;
 }
 
-/** Value ranges of parameters and JSON keys whose decoded name is a credential name.
+/** Value ranges of parameters whose percent-decoded name is a credential name. */
+function escapedParamRanges({ text }: { readonly text: string }, _optional = {}): ValueRange[] {
+  return [...text.matchAll(ESCAPED_PARAM_RE)]
+    .filter(match => isCredentialName({ name: (match[1] ?? '').replace(PERCENT_ESCAPE, decodeEscape) }))
+    .map(match => ({ start: match.index + match[0].length - (match[2] ?? '').length, end: match.index + match[0].length }));
+}
+
+/** Value ranges of quoted JSON keys whose `\u`-decoded name is a credential name: inside the quotes, or a bare token. */
+function escapedKeyRanges({ text }: { readonly text: string }, _optional = {}): ValueRange[] {
+  return [...text.matchAll(ESCAPED_KEY_RE)]
+    .filter(match => isCredentialName({ name: (match[2] ?? '').replace(UNICODE_ESCAPE, decodeEscape) }))
+    .map(match => {
+      const end = match.index + match[0].length - (match[3]?.length ?? 0);
+      return { start: end - (match[4] ?? match[5] ?? '').length, end };
+    });
+}
+
+/** Value ranges of parameters and JSON keys whose decoded name is a credential name. `isMasked` tells an already
+ * generated marker, which is not a new credential.
  * @param required.text - The text to scan; never mutated. @complexity O(n): bounded work per start. */
-export function encodedNameValueRanges({ text }: { readonly text: string }): ValueRange[] {
-  const ranges: ValueRange[] = [];
-  for (const match of text.matchAll(ESCAPED_PARAM_RE)) {
-    if (!isCredentialName((match[1] ?? '').replace(PERCENT_ESCAPE, decodeEscape))) continue;
-    const end = (match.index ?? 0) + match[0].length;
-    ranges.push({ start: end - (match[2] ?? '').length, end });
-  }
-  for (const match of text.matchAll(ESCAPED_KEY_RE)) {
-    if (!isCredentialName((match[2] ?? '').replace(UNICODE_ESCAPE, decodeEscape))) continue;
-    const value = match[4] ?? match[5] ?? '';
-    const end = (match.index ?? 0) + match[0].length - (match[3]?.length ?? 0);
-    ranges.push({ start: end - value.length, end });
-  }
-  return ranges;
+export function encodedNameValueRanges(
+  { text, isMasked }: { readonly text: string; readonly isMasked: (value: string) => boolean }, _optional = {},
+): ValueRange[] {
+  return [...escapedParamRanges({ text }), ...escapedKeyRanges({ text })].filter(({ start, end }) => !isMasked(text.slice(start, end)));
 }

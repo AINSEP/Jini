@@ -24,3 +24,11 @@ export const URL_SECRET_PARAM_RE = new RegExp(
   `[?&#;]((?:${URL_CODE_NAMES})(?==)|[\\w.-]{0,128}?(?:${URL_SECRET_WORDS})s?(?=[._=-])[\\w.-]{0,128})=[^&;\\s"'<>()]+`,
   'gi',
 );
+
+// A password may hold a literal `#`; a signature is URL-safe text that never does, so after a signature `#` starts the fragment.
+const SIGNATURE_NAME_RE = /(?:^|[._-])(?:sig|signature)$/i;
+
+/** The value of a parameter `URL_SECRET_PARAM_RE` matched: the text after `=`, ending at `#` for a signature name. */
+export function urlParamValue({ name, value }: { readonly name: string; readonly value: string }, _optional = {}): string {
+  return SIGNATURE_NAME_RE.test(name) ? value.split('#')[0] ?? '' : value;
+}

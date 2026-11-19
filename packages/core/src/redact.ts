@@ -38,7 +38,7 @@ import { labelAliasValueRanges } from './redact-label-aliases.js';
 import { colonReading } from './redact-prose-values.js';
 import { quotedHintRanges } from './redact-quoted-hints.js';
 import { forEachOccurrence, forwardFinder, unescapedQuoteFinder, userinfoLength } from './redact-text-scan.js';
-import { URL_SECRET_PARAM_RE } from './redact-url-params.js';
+import { URL_SECRET_PARAM_RE, urlParamValue } from './redact-url-params.js';
 import { VENDOR_SHAPE_PATTERNS } from './redact-vendor-shapes.js';
 
 /** Credential-shape vocabulary for secret-only redaction; no I/O or host dependencies. */
@@ -412,7 +412,6 @@ const URL_CREDENTIALS_RE = /\/\/([^/\s?#]+)@/g;
 const SIGNED_QUERY_RE = /([?&](?:signature|sig|x-amz-signature|x-goog-signature|access_token|refresh_token)=)([^&#\s,;"']+)/gi;
 // A parameter the labeled rule already names (password, client_secret, ...) keeps that category.
 const LABELED_URL_PARAM_NAME_RE = new RegExp(`(?:^|[.-])(?:${SECRET_LABELS})$`, 'i');
-const SIGNATURE_PARAM_NAME_RE = /(?:^|[._-])(?:sig|signature)$/i;
 
 // Only an entire generated marker is already masked. A secret glued onto marker-like text still
 // needs masking; a substring check would preserve credential suffixes in echoed header/query values.
@@ -557,9 +556,7 @@ function collectSpans({ text }: { text: string }, options: SecretRedactionOption
   collectKeyedCredentials({ text, add });
   collectLabeledSecrets({ text, add }, spans);
   for (const { start, end } of labelAliasValueRanges({ text, isMasked: isMaskedValue })) add(start, end, CATEGORY.labeledSecret);
-  for (const { start, end } of encodedNameValueRanges({ text })) {
-    if (!isMaskedValue(text.slice(start, end))) add(start, end, CATEGORY.labeledSecret);
-  }
+  for (const { start, end } of encodedNameValueRanges({ text, isMasked: isMaskedValue })) add(start, end, CATEGORY.labeledSecret);
   if (options.policy === 'aggressive') collectOpaqueTokens({ text, add }, new Set(options.diagnosticToolIds));
   if (options.redactPii !== false) collectPii({ text, add }, spans);
   return spans;
@@ -582,7 +579,9 @@ function mergeSpans(spans: readonly Span[], { keepAdjacent = false } = {}): Span
     const span = spans[rank]!;
     const length = span.end - span.start;
     const last = merged.at(-1);
-    if (!last || startsSeparateSpan({ start: span.start, end: last.end, keepAdjacent })) {
+    // Literal-only replacements keep adjacent occurrences as distinct markers and counts: offsets are integers, so
+    // `start > end - 1` is `start >= end`.
+    if (!last || span.start > last.end - Number(keepAdjacent)) {
       merged.push({ start: span.start, end: span.end, category: span.category, suffix: span.suffix, rank, categoryLength: length });
       continue;
     }
@@ -593,11 +592,6 @@ function mergeSpans(spans: readonly Span[], { keepAdjacent = false } = {}): Span
     }
   }
   return merged;
-}
-
-/** Literal-only replacements preserve adjacent occurrences as distinct markers and counts. */
-function startsSeparateSpan({ start, end, keepAdjacent }: { start: number; end: number; keepAdjacent: boolean }, _options = {}): boolean {
-  return keepAdjacent ? start >= end : start > end;
 }
 
 /** Stable byte-wise radix order of span starts; ranks retain the original rule precedence.
@@ -737,9 +731,7 @@ function collectApiKeyHeaders(pass: SpanPass): void {
 function collectUrlSecretParams(pass: SpanPass): void {
   collectMatches(pass, URL_SECRET_PARAM_RE, (match, index) => {
     const separator = match[0].indexOf('=') + 1;
-    // A password may hold a literal `#`; a signature is URL-safe text that never does, so there `#` starts the fragment.
-    const fragment = SIGNATURE_PARAM_NAME_RE.test(match[1] ?? '') ? match[0].indexOf('#', separator) : -1;
-    const value = match[0].slice(separator, fragment === -1 ? undefined : fragment);
+    const value = urlParamValue({ name: match[1] ?? '', value: match[0].slice(separator) });
     if (isMaskedValue(value)) return undefined;
     const category = LABELED_URL_PARAM_NAME_RE.test(match[1] ?? '') ? CATEGORY.labeledSecret : CATEGORY.urlSecretParam;
     return { start: index + separator, end: index + separator + value.length, category };
@@ -903,7 +895,8 @@ function collectExactSecrets({ text, add, secrets }: SpanPass & { secrets: Reado
     let runEnd = -1;
     forEachOccurrence(text, needle, (at) => {
       if (insideSyntax(at, at + needle.length)) return;
-      if (beginsSecretRun({ at, runEnd, literalOnly: options.literalOnly === true })) {
+      // Heuristic union joins adjacent hits; exact-only keeps one marker for each adjacent occurrence.
+      if (at > runEnd - Number(options.literalOnly === true)) {
         add(runStart, runEnd, CATEGORY.exactSecret);
         runStart = at;
       }
@@ -937,11 +930,6 @@ function syntaxContainment({ ranges }: { ranges: readonly Span[] }, _options = {
     const range = ranges[cursor];
     return range !== undefined && range.start <= start && range.end >= end;
   };
-}
-
-/** Heuristic union joins adjacent hits; exact-only retains one marker for each adjacent occurrence. */
-function beginsSecretRun({ at, runEnd, literalOnly }: { at: number; runEnd: number; literalOnly: boolean }, _options = {}): boolean {
-  return literalOnly ? at >= runEnd : at > runEnd;
 }
 
 /** Quoted empty credential hints must not borrow the next field's key as their value. */

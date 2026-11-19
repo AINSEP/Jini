@@ -84,7 +84,7 @@ const isQualifiedKey = ({ before, label, value }: { before: string; label: strin
   && KEY_QUALIFIER_BEFORE.test(before);
 // A bare `key:` also names a file or lookup path in errors and logs (`key: /src/main.ts`). A path of readable words is kept;
 // a segment that is not a readable word (`/Zq8wPx3m...`) keeps the value masked.
-const isKeyPath = ({ label, value }: { label: string; value: string }): boolean =>
+const isKeyPath = ({ label, value }: { label: string; value: string }, _optional = {}): boolean =>
   label.toLowerCase() === 'key' && /^(?:\.{0,2}\/|~\/)/.test(value)
   && value.split(/[/.]/).filter(Boolean).every(isReadableIdentifier);
 
@@ -126,7 +126,7 @@ const BLOCK_INDICATOR = /^[|>][-+1-9]{0,2}[ \t]*(?=\r?\n)/;
 
 /** End of a block scalar's body when the value at `start` is a block indicator, else -1. `before` is the label's line up
  * to the label. @complexity O(body): the body is read once and the scan resumes after it. */
-function blockScalarEnd({ text, start, before }: { readonly text: string; readonly start: number; readonly before: string }): number {
+function blockScalarEnd({ text, start, before }: { readonly text: string; readonly start: number; readonly before: string }, _optional = {}): number {
   const indicator = BLOCK_INDICATOR.exec(text.slice(start, start + 8));
   if (!indicator) return -1;
   const indent = /^[ \t]*/.exec(before)?.[0].length ?? 0;
@@ -158,8 +158,7 @@ export function colonReading(
   const window = text.slice(Math.max(0, labelStart - 200), labelStart);
   const before = window.slice(window.lastIndexOf('\n') + 1);
   if (isProseAfterColon({ rest, gap }, { before, label: match[2] ?? '', token: value.end - start })) return { prose: true, end: value.end };
-  const block = blockScalarEnd({ text, start, before });
-  if (block !== -1) return { prose: false, end: block };
   const phrase = passphraseLength({ rest, before });
-  return { prose: false, end: phrase > value.end - start && !gap.includes('\n') ? start + phrase : value.end };
+  const end = phrase > value.end - start && !gap.includes('\n') ? start + phrase : value.end;
+  return { prose: false, end: Math.max(end, blockScalarEnd({ text, start, before })) };
 }
