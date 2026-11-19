@@ -18,8 +18,12 @@ describe('user text on the shared engine', () => {
     expect(result).toEqual({ text: expected, secretRedacted: true, count: 1 });
     expect(redactUserText({ text: result.text })).toEqual({ text: result.text, secretRedacted: false, count: 0 });
   });
-  it.each(['Authorization: Bearer token', 'Bearer token.', 'see [REDACTED:custom] here'])('keeps %j byte for byte', text => {
+  it.each(['Bearer token.', 'see [REDACTED:custom] here'])('keeps %j byte for byte', text => {
     expect(redactUserText({ text })).toEqual({ text, secretRedacted: false, count: 0 });
+  });
+  // The chat redactor before the move masked whatever followed the scheme word inside an Authorization header.
+  it('masks a description word used as the value of an Authorization header', () => {
+    expect(redactUserText({ text: 'Authorization: Bearer token' })).toEqual({ text: 'Authorization: Bearer [token removed]', secretRedacted: true, count: 1 });
   });
   // Chat once kept this placeholder away from the engine because the engine read it as a credential; the
   // engine now keeps a parenthesised placeholder after a colon readable (core redact.prose-values.test.ts).

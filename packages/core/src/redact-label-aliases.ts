@@ -10,7 +10,7 @@
  * line are masked too. No I/O, no host state.
  */
 import type { ValueRange } from './redact-auth-schemes.js';
-import { isNextLineValue } from './redact-prose-values.js';
+import { isNextLineValue, LINE_STARTS_ASSIGNMENT } from './redact-prose-values.js';
 
 const LABELS = 'password|passwd|pwd|client_secret|secret_access_key|signing_secret|webhook_secret|api_key|apikey|'
   + 'access_token|refresh_token|id_token|auth_token|private_key|secret|token';
@@ -55,7 +55,7 @@ const CREDENTIAL_KEY_END = /(?:^|[ _.-])(?:password|passwd|pwd|secret|token|api[
 // value, as the engine's own rules read `password=` (the `=` form never reads as prose). After a colon blank lines may
 // come first too, and the line is read as the engine's labels read it (`isNextLineValue`: one token, or a
 // credential-shaped first token followed by more text), so a paragraph of plain words after `passwd:` stays readable.
-const NEXT_LINE_VALUE = String.raw`(?<value>${QUOTED}|(?![\w.-]+[=:])[^\s"'&,;})-][^\s"'&,;})]*)`;
+const NEXT_LINE_VALUE = String.raw`(?<value>${QUOTED}|(?!${LINE_STARTS_ASSIGNMENT})[^\s"'&,;})-][^\s"'&,;})]*)`;
 const NEXT_LINE_ASSIGNMENT_RE = new RegExp(`${NAME}[ \\t]*=[ \\t]*(?:\\r?\\n[ \\t]*)+${NEXT_LINE_VALUE}`, 'gi');
 // The name may be a quoted JSON key (`{"passwd":` then the value on a later line).
 const NEXT_LINE_COLON_RE = new RegExp(`(?<open>["']?)${NAME}\\k<open>[ \\t]*:[ \\t]*(?:\\r?\\n[ \\t]*)+${NEXT_LINE_VALUE}`, 'gi');

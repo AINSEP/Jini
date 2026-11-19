@@ -52,11 +52,15 @@ const isFieldStart = (before: string): boolean => !/[A-Za-z0-9]/.test(before.rep
 // ("- Notes: x"), another label ("Notes:"), or several plain words is the next thing in a form, not a value. A first
 // token shaped like a credential (a quoted string, letters with digits, or 12+ characters) is the value even with more
 // text after it ("<key> --verbose"), and blank lines may come first: this is how the rules chat used before read it.
+// A line that is its own `name=value` or `name:` field. `=` signs that end the token are base64 padding
+// (`<value>=`, `<value>==`), not an assignment: that line holds one value. Shared with the alias rules' next-line reader.
+export const LINE_STARTS_ASSIGNMENT = String.raw`[\w.-]+(?::|=(?!=*(?:\s|$)))`;
+const LINE_STARTS_ASSIGNMENT_RE = new RegExp(`^${LINE_STARTS_ASSIGNMENT}`);
 const CREDENTIAL_SHAPED_TOKEN = /^(?:["'][^\s"']+["']|(?=[^\s]*\d)(?=[^\s]*[A-Za-z])[^\s]+|[^\s]{12,})(?=\s|$)/;
 /** True when `line` (the text of the first non-blank line after a label, to its end) starts with the label's value.
  * @complexity O(line): every pattern is anchored. */
 export function isNextLineValue({ line }: { readonly line: string }): boolean {
-  if (/^[-*•]/.test(line) || /^[\w.-]+[=:]/.test(line)) return false;
+  if (/^[-*•]/.test(line) || LINE_STARTS_ASSIGNMENT_RE.test(line)) return false;
   return /^[^\s]+[ \t]*$/.test(line) || CREDENTIAL_SHAPED_TOKEN.test(line);
 }
 // Several plain words after a field-start label ("password: correct horse battery staple") are a passphrase.

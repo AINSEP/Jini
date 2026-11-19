@@ -368,8 +368,11 @@ const RUNTIME_SECRET_LABELS = `${SERIALIZED_SECRET_LABELS}|(?<![?&])(?:key)`;
 // Bearer, Token, ApiKey or Digest (a quoted value stays masked whole by this rule, and Basic by its own rule),
 // and a scheme word alone (`Authorization: Bearer`) describes a header.
 const AUTH_SCHEME_WORD = '(?:Bearer|Token|ApiKey|Digest|Basic)';
+// The whitespace after the separator is read once (`(?=(\s*))\3` cannot give characters back): when the lookahead below
+// rejects a bare scheme word, backtracking into that run re-ran the header lookbehind over the padding at every
+// position, quadratic on a long run of spaces before the word.
 const MASK_AWARE_LABELED_SECRET_RE = new RegExp(
-  `(?<![\\w-])(["']?)(${RUNTIME_SECRET_LABELS})\\1\\s*[:=]\\s*`
+  `(?<![\\w-])(["']?)(${RUNTIME_SECRET_LABELS})\\1\\s*[:=](?=(\\s*))\\3`
     + `(?!${AUTH_HEADER_LABEL_BEFORE}(?:Bearer\\s+\\S|(?:Token|ApiKey|Digest)[ \\t]+\\S|${AUTH_SCHEME_WORD}(?:[\\s"'\x60.,;:)\\]}]|$)))(?!${GENERATED_MARKER}[;&])((?!&)\\S)`,
   'gi',
 );
@@ -386,8 +389,9 @@ const CHAINED_LABEL_RE = new RegExp(`(?:${RUNTIME_SECRET_LABELS})\\b["']?\\s*[:=
 // a name that only ends in it (TokenBearer) is prose and must not take the next word as a credential.
 const SHORT_BEARER_RE = new RegExp(`\\bBearer\\s+["']?(?!${GENERATED_MARKER}(?=$|[\\s"',;<>}]))(?!(?:tokens?|authentication|authorization|auth|scheme|credentials?)[.!?:)]?(?![^\\s"',;<>}]))(?=([^\\s"',;<>}]+))`, 'gi');
 const BASIC_AUTH_RE = /\bauthorization["']?\s*[:=]\s*["']?(Basic\s+[^\s"',;}]+)/gi;
-// Cookie pairs belong to one header value, including pairs after a semicolon and a space.
-const COOKIE_HEADER_RE = /\bcookie\s*:\s*([^\r\n]+)/gi;
+// Cookie pairs belong to one header value, including pairs after a semicolon and a space, and pairs on a folded
+// continuation line (a line break followed by indentation), which still belongs to the header.
+const COOKIE_HEADER_RE = /\bcookie\s*:\s*([^\r\n]+(?:\r?\n[ \t]+[^\r\n]+)*)/gi;
 const PROVIDER_API_KEY_QUERY = /([?&]key=)([^&\s"']+)/gi;
 // URL userinfo and signed query values have explicit credential context; unlike opaque runs,
 // they are safe to recognize in the conservative policy. Keep scheme/host and query names

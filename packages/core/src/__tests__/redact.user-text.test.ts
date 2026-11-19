@@ -8,7 +8,8 @@ describe('Bearer prose is not a credential', () => {
   it.each([
     'Bearer token authentication is supported.', 'Use Bearer tokens, not cookies.', 'Bearer authentication',
     'Bearer authorization headers', 'the Bearer auth flow', 'Bearer scheme)', 'Bearer credential rotation',
-    'Bearer credentials!', 'Bearer token.', 'Authorization: Bearer token',
+    // Inside an Authorization header the word after Bearer is masked: see redact.header-continuation.test.ts.
+    'Bearer credentials!', 'Bearer token.',
   ])('keeps %j byte for byte', input => {
     expect(run(input)).toEqual({ redacted: input, counts: {} });
   });

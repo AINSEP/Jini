@@ -29,16 +29,18 @@ const HEADER = String.raw`(?<![A-Za-z0-9_-])(?:proxy-)?authorization["']?\s*[:=]
 const DIGEST_PARAM = String.raw`[A-Za-z][\w-]*[ \t]*=[ \t]*(?:"(?:\\.|[^"\\\r\n])*"?|[^\s,"')]*)`;
 /** Regex source of a Digest parameter list; a bare non-parameter value after `Digest` is read as one token. */
 export const DIGEST_VALUE = String.raw`(?:${DIGEST_PARAM}(?:[ \t]*,[ \t]*${DIGEST_PARAM})*|[^\s,)]+(?:,[ \t]*[^\s,)]+)*)`;
+// Inside the header, the token after `Bearer` is the credential whatever it says (`Bearer credentials`); outside a header
+// the Bearer rule keeps such description words as prose. `<API_KEY>`-style placeholders cannot start the value.
 const SCHEME_VALUE_RE = new RegExp(
-  `${HEADER}(?:(?:Token|ApiKey)\\s+(?<single>[^\\s"'),;]+)|Digest\\s+(?<list>${DIGEST_VALUE}))`,
+  `${HEADER}(?:(?:Token|ApiKey)\\s+(?<single>[^\\s"'),;]+)|Bearer\\s+(?<bearer>[^\\s"',;<>}]+)|Digest\\s+(?<list>${DIGEST_VALUE}))`,
   'gi',
 );
 
-/** Value ranges after `Token`, `ApiKey` and `Digest` in an Authorization header. O(n) in the text. */
+/** Value ranges after `Token`, `ApiKey`, `Bearer` and `Digest` in an Authorization header. O(n) in the text. */
 export function authSchemeValueRanges({ text }: { readonly text: string }): ValueRange[] {
   const ranges: ValueRange[] = [];
   for (const match of text.matchAll(SCHEME_VALUE_RE)) {
-    const value = match.groups?.single ?? match.groups?.list ?? '';
+    const value = match.groups?.single ?? match.groups?.bearer ?? match.groups?.list ?? '';
     const end = (match.index ?? 0) + match[0].length;
     ranges.push({ start: end - value.length, end });
   }
@@ -59,7 +61,8 @@ export const BARE_SCHEME_TOKEN_PATTERNS: readonly SecretRedactionPattern[] = [
 // a scheme word alone describes the header and stays readable.
 export const API_KEY_HEADER_NAMES = 'x-api-key|api-key|x-goog-api-key|x-auth-token';
 const HEADER_SCHEME_WORDS = 'Bearer|Token|ApiKey|Digest|Basic';
-const SCHEME_BEARING_VALUE = `(?:Digest[ \\t]+${DIGEST_VALUE}|(?:${HEADER_SCHEME_WORDS})[ \\t]+[^\\s,;"'#}]+)`;
+// The value may follow the scheme word on the next line, as a folded header puts it (`Basic` CRLF, indentation, value).
+const SCHEME_BEARING_VALUE = `(?:Digest\\s+${DIGEST_VALUE}|(?:${HEADER_SCHEME_WORDS})\\s+[^\\s,;"'#}]+)`;
 const SCHEME_WORD_ALONE = `(?:${HEADER_SCHEME_WORDS})(?:[\\s"'.,;:)\\]}]|$)`;
 
 /** The header rules: groups are (prefix)(quote)(name)(separator)(value), so a collector reads the value as group 5.
