@@ -19,11 +19,11 @@ function world() {
   const orders = { findById: vi.fn(async () => state.order), listItems: vi.fn(async () => state.items), markPaid: unused, placeOrder: unused };
   const prices = { findById: vi.fn(async () => state.price), listByProduct: unused, save: unused };
   const deps: LoadPayableOrderDeps = { orders, prices };
-  return { state, orders, prices, deps, run: () => loadPayableOrder({ deps, input }) };
+  return { state, orders, prices, deps, run: () => loadPayableOrder({ deps, ...input }) };
 }
 it("loads one payable snapshot without repricing it or mutating records", async () => {
   const w = world(), before = structuredClone(w.state);
-  expect(await loadPayableOrder({ deps: w.deps, input }, {})).toEqual({ order: before.order, item: before.items[0], price: before.price });
+  expect(await loadPayableOrder({ deps: w.deps, ...input }, {})).toEqual({ order: before.order, item: before.items[0], price: before.price });
   expect(w.state).toEqual(before);
   expect(w.orders.findById).toHaveBeenCalledWith({ workspaceId: "ws", id: "order" });
   expect(w.orders.listItems).toHaveBeenCalledWith({ workspaceId: "ws", orderId: "order" });
@@ -45,7 +45,7 @@ it.each([{ workspaceId: "other" }, { provider: "other" }])("refuses foreign orde
 });
 it("refuses a workspace that differs from the requested payment scope", async () => {
   const w = world();
-  await expect(loadPayableOrder({ deps: w.deps, input: { ...input, scope: { ...scope, workspaceId: "other" } } })).rejects.toBeInstanceOf(CommerceCheckoutValidationError);
+  await expect(loadPayableOrder({ deps: w.deps, ...input, scope: { ...scope, workspaceId: "other" } })).rejects.toBeInstanceOf(CommerceCheckoutValidationError);
   expect(w.orders.listItems).not.toHaveBeenCalled();
 });
 it.each([0, 2])("refuses %s items before any price lookup", async count => {

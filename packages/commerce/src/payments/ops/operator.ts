@@ -80,7 +80,7 @@ async function resolveInTx({ tx, deps, required }: { tx: LedgerTx; deps: OpsDeps
 
 /** Resolve an `unknown` payment intent or refund, audited. Refusals are typed errors. */
 export async function resolveUnknown(
-  { deps, required }: { deps: OpsDeps; required: ResolveUnknownRequired },
+  { deps, ...required }: { deps: OpsDeps } & ResolveUnknownRequired,
   _optional: Record<string, never> = {}
 ): Promise<ResolveUnknownResult> {
   const problem = checkResolve({ required });

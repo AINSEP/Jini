@@ -11,7 +11,7 @@ export const paymentsProviderContract: {
   readonly context: { readonly paymentError: typeof paymentError; readonly moneyProblem: typeof moneyProblem };
 } = {
   contract: "payments",
-  validate: ({ provider }, _optional = {}) => paymentProviderModuleProblem(provider),
+  validate: ({ provider }, _optional = {}) => paymentProviderModuleProblem({ value: provider }),
   context: { paymentError, moneyProblem },
 };
 

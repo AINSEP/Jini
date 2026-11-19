@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createSettlementWorker } from '../settlement-worker.js';
-function createCommerceWorker(required: Parameters<typeof createSettlementWorker>[0] & { directory: string }, optional: { acquire?: () => () => void; schedule?: Parameters<typeof createSettlementWorker>[1]['schedule']; withOwnership?: Parameters<typeof createSettlementWorker>[1]['withOwnership'] } = {}) {
-  return createSettlementWorker(required, { withOwnership: optional.withOwnership ?? (async run => { const release = optional.acquire!(); try { await run(); return { acquired: true }; } finally { release(); } }), schedule: optional.schedule ?? (() => () => {}) });
+function createCommerceWorker(required: Omit<Parameters<typeof createSettlementWorker>[0], "withOwnership" | "schedule"> & { directory: string }, optional: { acquire?: () => () => void; schedule?: Parameters<typeof createSettlementWorker>[0]['schedule']; withOwnership?: Parameters<typeof createSettlementWorker>[0]['withOwnership'] } = {}) {
+  return createSettlementWorker({ ...required, withOwnership: optional.withOwnership ?? (async run => { const release = optional.acquire!(); try { await run(); return { acquired: true }; } finally { release(); } }), schedule: optional.schedule ?? (() => () => {}) });
 }
 
 function fixture({ owner = true, active = true, pending = false } = {}) {

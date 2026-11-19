@@ -133,7 +133,7 @@ async function prepareOp({ deps, spec, ctx }: { deps: ToolsDeps; spec: OpSpec; c
   if (!scope) return { kind: "refused", result: NO_SCOPE };
   await requirePaymentsPermission({ deps, ctx, scope, permission: deps.permissions.manage }, { paymentId: request.paymentId });
   const payment = await deps.payments.getPayment({ scope, paymentId: request.paymentId });
-  if (!payment) return { kind: "refused", result: paymentNotFound(request.paymentId) };
+  if (!payment) return { kind: "refused", result: paymentNotFound({ paymentId: request.paymentId }) };
   if (request.amount && request.amount.currency !== payment.amount.currency) {
     const message = `the ${spec.op} is in ${request.amount.currency} but payment '${payment.id}' is in ${payment.amount.currency}; nothing was changed`;
     return { kind: "refused", result: { ok: false, reason: "currency-mismatch", message } };

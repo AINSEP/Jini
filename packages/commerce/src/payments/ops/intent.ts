@@ -104,7 +104,7 @@ async function riskGate(
   }
 ): Promise<{ readonly ok: true; readonly risk: RiskDecision; readonly captureMode: CaptureMode } | Failure> {
   const input = { scope: required.scope, amount: required.amount, paymentId, ...(optional.partyId === undefined ? {} : { partyId: optional.partyId }) };
-  const risk = deps.risk ? await assessPreChargeRisk({ deps: deps.risk, input }) : ALLOW;
+  const risk = deps.risk ? await assessPreChargeRisk({ deps: deps.risk, ...input }) : ALLOW;
   const codes = risk.reasons.join(", ");
   if (risk.verdict === "deny") return fail({ code: "RISK_DENIED", message: `the pre-charge risk gate denied this payment (${codes})` });
   if (risk.verdict === "allow") return { ok: true, risk, captureMode: optional.captureMode ?? "auto" };
@@ -181,7 +181,7 @@ async function settleIntent(
 }
 
 export async function createIntent(
-  { deps, required }: { deps: OpsDeps; required: IntentRequired },
+  { deps, ...required }: { deps: OpsDeps } & IntentRequired,
   optional: IntentOptional = {}
 ): Promise<IntentResult> {
   const checked = checkIntent({ deps, required, optional });

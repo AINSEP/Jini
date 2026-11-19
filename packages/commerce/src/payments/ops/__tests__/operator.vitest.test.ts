@@ -45,9 +45,9 @@ for (const ledgerKind of ["memory", "sqlite"] as const) {
       const w = await world({ ledgerKind });
       const id = await lostCharge(w);
       const before = await w.read(id);
-      const result = await resolveUnknown({ deps: { ...w.deps, providers: createKernelProviderRegistry({ items: [] }) }, required: {
+      const result = await resolveUnknown({ deps: { ...w.deps, providers: createKernelProviderRegistry({ items: [] }) },
         scope: LIPAY, paymentId: id, outcome: "failed", ...who,
-      } });
+      });
       expect(result).toMatchObject({ ok: true, payment: { status: "failed" } });
       const after = await w.read(id);
       expect(after.evidence).toHaveLength(before.evidence.length + 1);

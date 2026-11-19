@@ -40,7 +40,7 @@ const input = { workspaceId: "ws-1", memberId: "member-1", priceId: "price-1", p
 
 test("checkout: snapshots the price as Money into a pending order whose total passes the payments kernel's moneyProblem", async () => {
   const { deps, placed } = harness();
-  const result = await checkout({ deps, input: { ...input, quantity: 3, providerCustomerRef: "cus_9" } });
+  const result = await checkout({ deps, ...input, quantity: 3, providerCustomerRef: "cus_9" });
   assert.deepEqual(result.order, {
     id: "id-1", workspaceId: "ws-1", memberId: "member-1", status: "pending", totalAmount: { minorUnits: 4800, currency: "USD" },
     provider: "regional-pay", providerCustomerRef: "cus_9", placedAt: NOW, createdAt: NOW, updatedAt: NOW, version: 1,
@@ -57,7 +57,7 @@ test("checkout: snapshots the price as Money into a pending order whose total pa
 
 test("checkout: quantity defaults to 1", async () => {
   const { deps } = harness();
-  const result = await checkout({ deps, input });
+  const result = await checkout({ deps, ...input });
   assert.deepEqual(result.order.totalAmount, { minorUnits: 1600, currency: "USD" });
   assert.equal(result.items[0]!.quantity, 1);
 });
@@ -65,7 +65,7 @@ test("checkout: quantity defaults to 1", async () => {
 test("checkout: refuses a quantity that is not an integer in 1..MAX_CHECKOUT_QUANTITY, writing nothing", async () => {
   for (const quantity of [0, MAX_CHECKOUT_QUANTITY + 1, 1.5]) {
     const { deps, placed } = harness();
-    await assert.rejects(checkout({ deps, input: { ...input, quantity } }), (error: unknown) => {
+    await assert.rejects(checkout({ deps, ...input, quantity }), (error: unknown) => {
       assert.ok(error instanceof CommerceCheckoutValidationError);
       assert.deepEqual(error.fieldErrors, [{ field: "quantity", reason: `must be an integer between 1 and ${MAX_CHECKOUT_QUANTITY}` }]);
       return true;
@@ -73,13 +73,13 @@ test("checkout: refuses a quantity that is not an integer in 1..MAX_CHECKOUT_QUA
     assert.deepEqual(placed, []);
   }
   const { deps } = harness();
-  assert.equal((await checkout({ deps, input: { ...input, quantity: MAX_CHECKOUT_QUANTITY } })).items[0]!.quantity, MAX_CHECKOUT_QUANTITY);
+  assert.equal((await checkout({ deps, ...input, quantity: MAX_CHECKOUT_QUANTITY })).items[0]!.quantity, MAX_CHECKOUT_QUANTITY);
 });
 
 test("checkout: a missing or archived price is not found", async () => {
   for (const priceRow of [null, price({ status: "archived" })]) {
     const { deps, placed } = harness({ priceRow });
-    await assert.rejects(checkout({ deps, input }), new CommercePriceNotFoundError("price 'price-1' was not found"));
+    await assert.rejects(checkout({ deps, ...input }), new CommercePriceNotFoundError("price 'price-1' was not found"));
     assert.deepEqual(placed, []);
   }
 });
@@ -87,14 +87,14 @@ test("checkout: a missing or archived price is not found", async () => {
 test("checkout: a missing or archived product is not found", async () => {
   for (const productRow of [null, product({ status: "archived" })]) {
     const { deps, placed } = harness({ productRow });
-    await assert.rejects(checkout({ deps, input }), new CommerceProductNotFoundError("product 'prod-1' was not found"));
+    await assert.rejects(checkout({ deps, ...input }), new CommerceProductNotFoundError("product 'prod-1' was not found"));
     assert.deepEqual(placed, []);
   }
 });
 
 test("checkout: a line total past the safe-integer range is refused, never rounded", async () => {
   const { deps, placed } = harness({ priceRow: price({ unitAmount: { minorUnits: Number.MAX_SAFE_INTEGER, currency: "USD" } }) });
-  await assert.rejects(checkout({ deps, input: { ...input, quantity: 2 } }), (error: unknown) => {
+  await assert.rejects(checkout({ deps, ...input, quantity: 2 }), (error: unknown) => {
     assert.ok(error instanceof CommerceCheckoutValidationError);
     assert.equal(error.message, "line total exceeds the safe integer range");
     assert.deepEqual(error.fieldErrors, [{ field: "quantity", reason: "line total exceeds the safe integer range" }]);

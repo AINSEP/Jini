@@ -22,7 +22,7 @@ function manualTimer() {
 
 function gate(port: PreChargeRiskPort, failPolicy: RiskFailPolicy = "closed") {
   const timer = manualTimer();
-  return { timer, run: () => assessPreChargeRisk({ deps: { port, deadlineMs: 250, failPolicy, setTimer: timer.setTimer }, input }) };
+  return { timer, run: () => assessPreChargeRisk({ deps: { port, deadlineMs: 250, failPolicy, setTimer: timer.setTimer }, ...input }) };
 }
 
 describe("assessPreChargeRisk", () => {

@@ -351,8 +351,8 @@ export const OPEN_INBOX_STATES: readonly InboxState[] = ["received", "parked"];
  * none for an operator requeue, which replays the kept facts). Both adapters build the revive from it.
  */
 export function revivedPayload(
-  { payload }: { payload?: { factsJson: string; bodySha256: string } },
-  _optional: Record<string, never> = {}
+  _required: Record<string, never> = {},
+  { payload }: { payload?: { factsJson: string; bodySha256: string } } = {}
 ): { facts_json?: string; body_sha256?: string; purged_at?: null } {
   return payload === undefined ? {} : { facts_json: payload.factsJson, body_sha256: payload.bodySha256, purged_at: null };
 }

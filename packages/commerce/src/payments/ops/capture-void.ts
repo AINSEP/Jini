@@ -193,10 +193,10 @@ async function runOp({ deps, spec, required }: { deps: OpsDeps; spec: OpSpec; re
   return settleOp({ deps, opened, outcome });
 }
 
-export function capture({ deps, required }: { deps: OpsDeps; required: CaptureRequired }, _optional: Record<string, never> = {}): Promise<IntentResult> {
+export function capture({ deps, ...required }: { deps: OpsDeps } & CaptureRequired, _optional: Record<string, never> = {}): Promise<IntentResult> {
   return runOp({ deps, spec: captureSpec(required.amount), required });
 }
 
-export function voidPayment({ deps, required }: { deps: OpsDeps; required: VoidRequired }, _optional: Record<string, never> = {}): Promise<IntentResult> {
+export function voidPayment({ deps, ...required }: { deps: OpsDeps } & VoidRequired, _optional: Record<string, never> = {}): Promise<IntentResult> {
   return runOp({ deps, spec: VOID_SPEC, required });
 }

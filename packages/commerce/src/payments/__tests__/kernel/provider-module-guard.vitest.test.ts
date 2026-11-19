@@ -7,7 +7,7 @@ const provider = (capabilities: Record<string, unknown>, methods: Record<string,
   ({ id: "p", displayName: "P", credentialKeys: [], createIntent: fn, verifyWebhook: fn, capabilities: { ...caps, ...capabilities }, ...methods });
 
 describe("capability values and promised methods are checked at load", () => {
-  test("a minimal valid provider passes", () => expect(paymentProviderModuleProblem(provider({}))).toBeUndefined());
+  test("a minimal valid provider passes", () => expect(paymentProviderModuleProblem({ value: provider({}) })).toBeUndefined());
   test.each([
     [{ refunds: "some" }, 'capabilities.refunds must be "none" | "full" | "partial"'],
     [{ capture: "later" }, 'capabilities.capture must be "auto" | "manual"'],
@@ -17,24 +17,24 @@ describe("capability values and promised methods are checked at load", () => {
     [{ echoesCorrelation: undefined }, "capabilities.echoesCorrelation must be a boolean"],
     [{ confirmation: "none" }, "capabilities.confirmation must be an array of strings"],
     [{ currencies: 5 }, 'capabilities.currencies must be "any" or an array of strings'],
-  ])("%o is refused", (bad, message) => expect(paymentProviderModuleProblem(provider(bad))).toBe(message));
-  test("an array of currency codes is accepted", () => expect(paymentProviderModuleProblem(provider({ currencies: ["USD"] }))).toBeUndefined());
+  ])("%o is refused", (bad, message) => expect(paymentProviderModuleProblem({ value: provider(bad) })).toBe(message));
+  test("an array of currency codes is accepted", () => expect(paymentProviderModuleProblem({ value: provider({ currencies: ["USD"] }) })).toBeUndefined());
   test.each([
     [{ refunds: "partial" }, "refund"],
     [{ capture: "manual" }, "capture"],
     [{ void: true }, "void"],
     [{ retrieve: "payment" }, "retrieve"],
   ])("%o without its method is refused", (promise, method) => {
-    expect(paymentProviderModuleProblem(provider(promise))).toMatch(new RegExp(`but ${method}\\(\\) is missing$`));
-    expect(paymentProviderModuleProblem(provider(promise, { [method]: fn }))).toBeUndefined();
+    expect(paymentProviderModuleProblem({ value: provider(promise) })).toMatch(new RegExp(`but ${method}\\(\\) is missing$`));
+    expect(paymentProviderModuleProblem({ value: provider(promise, { [method]: fn }) })).toBeUndefined();
   });
 
   test.each([
     [{ refunds: "full" }, "refund"],
     [{ retrieve: "payment+refunds" }, "retrieve"],
   ])("alternative capability %o still requires its promised %s method", (capabilities, method) => {
-    expect(paymentProviderModuleProblem(provider(capabilities))).toContain(`but ${method}() is missing`);
-    expect(paymentProviderModuleProblem(provider(capabilities, { [method]: fn }))).toBeUndefined();
+    expect(paymentProviderModuleProblem({ value: provider(capabilities) })).toContain(`but ${method}() is missing`);
+    expect(paymentProviderModuleProblem({ value: provider(capabilities, { [method]: fn }) })).toBeUndefined();
   });
 
   test.each([
@@ -43,21 +43,21 @@ describe("capability values and promised methods are checked at load", () => {
     [{ currencies: ["USD", null] }, 'capabilities.currencies must be "any" or an array of strings'],
     [{ currencies: null }, 'capabilities.currencies must be "any" or an array of strings'],
   ])("refuses malformed capability array %o", (capabilities, reason) => {
-    expect(paymentProviderModuleProblem(provider(capabilities))).toBe(reason);
+    expect(paymentProviderModuleProblem({ value: provider(capabilities) })).toBe(reason);
   });
 
   test("an invalid earlier capability is reported before a missing promised method", () => {
-    expect(paymentProviderModuleProblem(provider({ refunds: "full", capture: "invalid" })))
+    expect(paymentProviderModuleProblem({ value: provider({ refunds: "full", capture: "invalid" }) }))
       .toBe('capabilities.capture must be "auto" | "manual"');
   });
 });
 
 for (const value of [0, -1, NaN, Infinity, 1.2, "1000", null]) {
   test(`refuses unsafe intent replay window ${String(value)}`, () => {
-    expect(paymentProviderModuleProblem(provider({}, { intentReplayWindowMs: value })))
+    expect(paymentProviderModuleProblem({ value: provider({}, { intentReplayWindowMs: value }) }))
       .toBe("intentReplayWindowMs must be a positive safe integer when present");
   });
 }
 test("accepts a provider's finite opt-in replay retention window", () => {
-  expect(paymentProviderModuleProblem(provider({}, { intentReplayWindowMs: 60_000 }))).toBeUndefined();
+  expect(paymentProviderModuleProblem({ value: provider({}, { intentReplayWindowMs: 60_000 }) })).toBeUndefined();
 });
