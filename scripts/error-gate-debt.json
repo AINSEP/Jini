@@ -1860,19 +1860,34 @@
     "value": 1
   },
   {
+    "file": "packages/mcp/src/federation/hosted/store-credentials.ts",
+    "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/mcp/src/federation/hosted/store-input.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/federation/hosted/store-view.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
     "file": "packages/mcp/src/federation/hosted/store.memory.ts",
     "rule": "catch-reads-error",
     "value": 1
   },
   {
-    "file": "packages/mcp/src/federation/hosted/store.ts",
+    "file": "packages/mcp/src/federation/hosted/vault.ts",
     "rule": "catch-reads-error",
-    "value": 7
+    "value": 3
   },
   {
-    "file": "packages/mcp/src/federation/hosted/store.ts",
+    "file": "packages/mcp/src/federation/hosted/vault.ts",
     "rule": "failure-text-from-catalog",
-    "value": 2
+    "value": 1
   },
   {
     "file": "packages/mcp/src/federation/reload.ts",
