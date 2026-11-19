@@ -532,13 +532,6 @@
     "value": 140
   },
   {
-    "file": "packages/mcp/src/federation/hosted/store.ts",
-    "function": "<file>",
-    "line": 878,
-    "rule": "max-lines",
-    "value": 974
-  },
-  {
     "file": "packages/platform/src/download.ts",
     "function": "<file>",
     "line": 613,

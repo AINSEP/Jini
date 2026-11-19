@@ -10,7 +10,7 @@ import { McpAuthFailedError, McpProtocolError } from "../mcp-protocol.js";
 import type { FederatedMcpConnectionConfig, McpHttpLaunchSpec, McpSessionPort } from "../ports.js";
 import { describeRemoteToolSurface } from "../trust.js";
 import { resolveExternalMcpAuthMode, resolveExternalMcpOAuthStatus } from "./auth.js";
-import { toResolvedFederatedConnections } from "./store.js";
+import { toResolvedFederatedConnections } from "./store-config.js";
 
 /** Injectable session factory — the seam a test scripts instead of opening a real socket, so the
  *  protocol code under test is the real thing, not a second hand-rolled fake of it. */

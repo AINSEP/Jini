@@ -1,6 +1,8 @@
+import type { ExternalMcpServerRecord, ExternalMcpStoreDeps, ExternalMcpSealedOAuthPayload, SealedExternalMcpOAuth } from "@jini-ai/core/contracts/hosted-mcp";
+import { ExternalMcpSecretStoreUnconfiguredError } from "./unconfigured-error.js";
 import { randomUUID } from "node:crypto";
 import type { KeyringPort, SealedSecret, SecretSealerPort, VaultMeta, VaultRecord, VaultRepoPort } from "@jini-ai/core/contracts/vault";
-import type { HostedMcpVaultPorts } from "./store-ports.js";
+import type { HostedMcpVaultPorts, HostedMcpStorePorts } from "./store-ports.js";
 
 /** Expected owner of an envelope: the workspace and the server row it belongs to. */
 /** @agent-note Supplied by the caller from the row being read or written, never inferred from an envelope. */
@@ -120,4 +122,131 @@ export async function deleteExternalMcpVaultEnvelope(
   if (!id) return;
   const record = await repo.find({ workspaceId, id });
   if (record) await repo.delete({ workspaceId, id, expectedRevision: record.revision });
+}
+
+/** One stored row. `sealedEnv` is null when the server needs no credentials, which is normal. */
+/** Compatibility DTO version for normalized vault envelopes; historical formats live in recovery. */
+export const EXTERNAL_MCP_VAULT_VERSION = 1;
+export type ExternalMcpIdentity = { workspaceId: string; serverId: string };
+
+export type SealDeps = Pick<ExternalMcpStoreDeps, "sealer" | "keyring"> & HostedMcpStorePorts;
+export type OpenDeps = { sealer: Pick<SecretSealerPort, "open"> } & HostedMcpStorePorts;
+
+/** Opens `record`'s sealed env block, or returns `{}` when there is none to open. Split out of
+ *  {@link resolveExternalMcpConfig} purely to keep that function's complexity under the shop
+ *  ceiling — a decrypt failure is reported through the same ok/reason shape the caller already
+ *  threads through, not thrown, since one unreadable server must not abort the whole read. */
+export async function openExternalMcpEnv(
+  record: Pick<ExternalMcpServerRecord, "sealedEnv" | "workspaceId" | "serverId" | "aadVersion">,
+  deps: OpenDeps,
+): Promise<{ readonly ok: true; readonly env: Record<string, string> } | { readonly ok: false; readonly reason: string }> {
+  if (record.sealedEnv === null) return { ok: true, env: {} };
+  try {
+    const env = await openExternalMcpVaultPayload({ sealer: deps.sealer, sealed: record.sealedEnv, identity: record, kind: "mcp-env", ports: deps }) as Record<string, string>;
+    return { ok: true, env };
+  } catch {
+    // These reasons reach admissions and chat tools. Parser/sealer errors can contain secret plaintext.
+    return { ok: false, reason: `stored credentials could not be decrypted — check the site credential store and re-enter them in ${deps.settingsLink}` };
+  }
+}
+
+/**
+ * What the OAuth sealed blob holds.
+ *
+ * ONE blob rather than a column per secret, for exactly the reason the env block is one blob: every
+ * read path wants the whole thing at once, and per-secret sealing would buy nothing and cost N
+ * keyring round trips. The consequence is a READ-MODIFY-WRITE rule that every writer must honour —
+ * unseal, change one member, reseal — because a writer that seals `{ tokens }` alone silently
+ * deletes the operator's client secret.
+ *
+ * Structurally compatible with the OAuth client's `OAuthTokenSet`, but declared here rather than
+ * imported: this is the STORED shape, and it must be able to stay still while the flow module's
+ * in-memory type moves.
+ */
+/**
+ * Schema version of the *plaintext* inside the sealed OAuth blob.
+ *
+ * Distinct from `oauth_aad_version`, which versions how the blob is BOUND to its row and says
+ * nothing about what is inside it. Without this, a field could be added but never renamed, changed,
+ * or removed — there would be nothing to branch on at open time, and the only way out would be a
+ * migration over live credentials. Stamped at seal; a blob without it predates versioning and is
+ * upgraded on read.
+ */
+export const EXTERNAL_MCP_OAUTH_PAYLOAD_VERSION = 1;
+
+/**
+ * The branching read for a sealed OAuth payload. A missing version is v0 (pre-versioning) and is
+ * upgraded in place; a newer version is refused rather than misread, because silently
+ * reinterpreting an unknown shape here means handing back a wrong or partial live credential.
+ *
+ * `schemaVersion` is stripped from the result: it is a wire concern, and a caller that saw it could
+ * persist it back into a payload it does not own.
+ *
+ * The vault's open already refuses a non-object payload, so `parsed` is always an object here.
+ *
+ * @throws When the payload was written by a newer build than this one understands.
+ * @complexity O(1).
+ */
+export function hydrateExternalMcpOAuthPayload(parsed: Record<string, unknown>): ExternalMcpSealedOAuthPayload {
+  const { schemaVersion, ...rest } = parsed;
+  const stored = typeof schemaVersion === "number" ? schemaVersion : 0;
+  if (stored > EXTERNAL_MCP_OAUTH_PAYLOAD_VERSION) {
+    throw new Error(
+      `external MCP OAuth payload was written at schema version ${stored}, newer than this build understands (${EXTERNAL_MCP_OAUTH_PAYLOAD_VERSION}) — upgrade rather than risk misreading a live credential`,
+    );
+  }
+  // v0 -> v1 added only the discriminator, so the upgrade is a stamp; a later version adds its own
+  // branch here rather than a backfill over live credentials.
+  return rest as ExternalMcpSealedOAuthPayload;
+}
+
+/**
+ * Opens a row's sealed OAuth blob.
+ *
+ * @returns `{}` when the row holds none, which is the normal state before a connection is authorized.
+ * @throws {ExternalMcpSecretStoreUnconfiguredError} When the blob exists but cannot be opened — a
+ * rotated site key or a corrupt row. Distinct from "no blob" on purpose: the caller must not treat a
+ * decryption failure as "not connected yet" and start a fresh authorization over a token that is
+ * still live at the provider.
+ * @complexity O(1) — one unseal.
+ */
+/** @agent-note `deps` is the per-call sealer plus the host-bound ports; exactly one `sealer.open` per call. */
+export async function openExternalMcpOAuthPayload(
+  deps: OpenDeps,
+  record: Pick<ExternalMcpServerRecord, "sealedOAuth" | "workspaceId" | "serverId" | "oauthAadVersion">,
+): Promise<ExternalMcpSealedOAuthPayload> {
+  if (record.sealedOAuth === null) return {};
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = await openExternalMcpVaultPayload({ sealer: deps.sealer, sealed: record.sealedOAuth, identity: record, kind: "mcp-auth", ports: deps });
+  } catch {
+    throw new ExternalMcpSecretStoreUnconfiguredError(
+      "Stored OAuth credentials could not be decrypted.",
+    );
+  }
+  // Deliberately OUTSIDE the catch above: a version mismatch is not a decryption failure, and must
+  // not be swallowed by a caller that treats that error as "not connected yet".
+  return hydrateExternalMcpOAuthPayload(parsed);
+}
+
+/** @agent-note `deps` is the per-call sealer/keyring plus the host-bound ports; exactly one seal, the envelope is staged for the host repository's transaction. */
+export async function sealExternalMcpOAuthPayload(
+  deps: SealDeps,
+  identity: ExternalMcpIdentity,
+  payload: ExternalMcpSealedOAuthPayload,
+): Promise<SealedExternalMcpOAuth> {
+  const hasSecret =
+    (payload.clientSecret !== undefined && payload.clientSecret !== "") || payload.tokens !== undefined || Boolean(payload.staticAccessToken);
+  if (!hasSecret) return { sealedOAuth: null, oauthAadVersion: EXTERNAL_MCP_VAULT_VERSION };
+  try {
+    const sealedOAuth = await sealExternalMcpVaultPayload({ deps, identity, kind: "mcp-auth",
+      // The discriminator remains authenticated inside the payload, never plain metadata.
+      payload: JSON.parse(JSON.stringify({ ...payload, schemaVersion: EXTERNAL_MCP_OAUTH_PAYLOAD_VERSION })),
+    });
+    return { sealedOAuth, oauthAadVersion: EXTERNAL_MCP_VAULT_VERSION };
+  } catch {
+    throw new ExternalMcpSecretStoreUnconfiguredError(
+      deps.credential.messages.storage,
+    );
+  }
 }
