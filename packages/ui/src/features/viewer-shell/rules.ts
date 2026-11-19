@@ -12,7 +12,7 @@ import type { CommentSideDropEdge, MarkdownScrollPane, ViewerCommentBase } from 
 
 /** Human-readable file size (`"512 B"` / `"3.4 KB"` / `"1.2 MB"`). Ported
  *  verbatim (no OD coupling in the original — a pure number formatter). */
-export function humanFileSize(bytes: number): string {
+export function humanFileSize({ bytes }: { bytes: number }, _optional: Record<string, never> = {}): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
@@ -24,7 +24,7 @@ export function humanFileSize(bytes: number): string {
 
 /** Which edge of the drop target a pointer is over, based on the event's
  *  vertical position relative to the target element's own bounding rect. */
-export function dropEdgeForClientY(clientY: number, targetRect: { top: number; height: number }): CommentSideDropEdge {
+export function dropEdgeForClientY({ clientY, targetRect }: { clientY: number; targetRect: { top: number; height: number } }, _optional: Record<string, never> = {}): CommentSideDropEdge {
   return clientY < targetRect.top + targetRect.height / 2 ? 'before' : 'after';
 }
 
@@ -32,10 +32,8 @@ export function dropEdgeForClientY(clientY: number, targetRect: { top: number; h
  *  before/after `targetId`. Returns the original order unchanged if either
  *  id is missing. */
 export function reorderCommentIds(
-  ids: string[],
-  draggingId: string,
-  targetId: string,
-  edge: CommentSideDropEdge,
+  { ids, draggingId, targetId, edge }: { ids: string[]; draggingId: string; targetId: string; edge: CommentSideDropEdge },
+  _optional: Record<string, never> = {},
 ): string[] {
   const next = [...ids];
   const from = next.indexOf(draggingId);
@@ -52,9 +50,8 @@ export function reorderCommentIds(
  *  longer visible, keeps visible ids not yet in the saved order). Returns the
  *  same array reference when nothing actually changed. */
 export function appendSavedCommentOrder(
-  currentOrderIds: string[],
-  visibleIds: string[],
-  savedId: string,
+  { currentOrderIds, visibleIds, savedId }: { currentOrderIds: string[]; visibleIds: string[]; savedId: string },
+  _optional: Record<string, never> = {},
 ): string[] {
   if (!savedId) return currentOrderIds;
   if (currentOrderIds.includes(savedId) || visibleIds.includes(savedId)) {
@@ -76,8 +73,8 @@ export function appendSavedCommentOrder(
  *  supply its own plural/locale-aware phrasing; `key` is always one of a
  *  small fixed set of English template strings. */
 export function relativeCommentTimeTranslation(
-  timestampMs: number,
-  nowMs: number = Date.now(),
+  { timestampMs }: { timestampMs: number },
+  { nowMs = Date.now() }: { nowMs?: number | undefined } = {},
 ): { key: string; vars?: Record<string, number> } {
   const diff = nowMs - timestampMs;
   if (diff < 60_000) return { key: 'Just now' };
@@ -94,8 +91,8 @@ export function relativeCommentTimeTranslation(
 
 /** Selection-count bookkeeping shared by the comment side-panel. */
 export function visibleSelectedCommentIds<TComment extends ViewerCommentBase>(
-  comments: TComment[],
-  selectedIds: ReadonlySet<string>,
+  { comments, selectedIds }: { comments: TComment[]; selectedIds: ReadonlySet<string> },
+  _optional: Record<string, never> = {},
 ): Set<string> {
   return new Set(comments.filter((comment) => selectedIds.has(comment.id)).map((comment) => comment.id));
 }
@@ -109,7 +106,7 @@ export function visibleSelectedCommentIds<TComment extends ViewerCommentBase>(
  *  whose decimal digits round-trip differently once parsed into a JS
  *  `number`. When true, callers should display the original text verbatim
  *  instead of a "prettified" re-stringify. */
-export function hasPrecisionSensitiveJsonNumberText(text: string): boolean {
+export function hasPrecisionSensitiveJsonNumberText({ text }: { text: string }, _optional: Record<string, never> = {}): boolean {
   const numberTokenPattern = /-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/y;
   for (let i = 0; i < text.length; ) {
     if (text[i] === '"') {
@@ -207,10 +204,10 @@ export function hasUnsafeJsonNumber(value: unknown): boolean {
  * check (e.g. `file.name.endsWith('.json')`), not baked in here, since what
  * counts as "this is a JSON file" is host-specific.
  */
-export function formatJsonTextForDisplay(text: string, isJsonLike: boolean): string {
+export function formatJsonTextForDisplay({ text, isJsonLike }: { text: string; isJsonLike: boolean }, _optional: Record<string, never> = {}): string {
   if (!isJsonLike) return text;
   try {
-    if (hasPrecisionSensitiveJsonNumberText(text)) return text;
+    if (hasPrecisionSensitiveJsonNumberText({ text })) return text;
     const parsed = JSON.parse(text) as unknown;
     if (hasUnsafeJsonNumber(parsed)) return text;
     return JSON.stringify(parsed, null, 2);
@@ -238,8 +235,8 @@ export function scrollRatio(element: { scrollHeight: number; clientHeight: numbe
 /** Inverse of {@link scrollRatio}: the scrollTop that puts `element` at
  *  `ratio` (0..1, clamped) of its scrollable range. */
 export function scrollTopForRatio(
-  element: { scrollHeight: number; clientHeight: number },
-  ratio: number,
+  { element, ratio }: { element: { scrollHeight: number; clientHeight: number }; ratio: number },
+  _optional: Record<string, never> = {},
 ): number {
   const clamped = Math.max(0, Math.min(1, Number.isFinite(ratio) ? ratio : 0));
   return scrollRange(element) * clamped;
@@ -271,7 +268,7 @@ export function computeSplitPaneScrollTarget(params: {
     const mapped = mapScrollPosition({ value: source.scrollTop, source: sourceAnchors, target: targetAnchors });
     return Math.max(0, Math.min(scrollRange(target), mapped));
   }
-  return scrollTopForRatio(target, scrollRatio(source));
+  return scrollTopForRatio({ element: target, ratio: scrollRatio(source) });
 }
 
 export { measureEditorBlockOffsets, measurePreviewBlockOffsets };

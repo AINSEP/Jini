@@ -144,7 +144,7 @@ export function NotificationsTab({
             </button>
             {testStatus ? (
               <p className="jini-hint" role="status">
-                {testStatusLabel(testStatus, { testSentLabel, testFailedLabel })}
+                {testStatusLabel({ result: testStatus, labels: { testSentLabel, testFailedLabel } })}
               </p>
             ) : null}
           </>

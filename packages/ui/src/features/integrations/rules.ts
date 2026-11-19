@@ -3,15 +3,15 @@ import type { McpClientId, McpClientSnippet, McpInstallInfo, McpInstallPlatform,
 
 /** Path hint per OS — a Windows user shouldn't see a `~/...` path their
  *  shell won't expand, and vice versa. */
-export function homeConfigPath(platform: McpInstallPlatform, posix: string, windows: string): string {
+export function homeConfigPath({ platform, posix, windows }: { platform: McpInstallPlatform; posix: string; windows: string }, _optional: Record<string, never> = {}): string {
   return platform === 'win32' ? windows : posix;
 }
 
-export function commandPaletteShortcut(platform: McpInstallPlatform): string {
+export function commandPaletteShortcut({ platform }: { platform: McpInstallPlatform }, _optional: Record<string, never> = {}): string {
   return platform === 'darwin' ? '⌘⇧P' : 'Ctrl+Shift+P';
 }
 
-export function settingsShortcut(platform: McpInstallPlatform): string {
+export function settingsShortcut({ platform }: { platform: McpInstallPlatform }, _optional: Record<string, never> = {}): string {
   return platform === 'darwin' ? '⌘,' : 'Ctrl+,';
 }
 
@@ -22,7 +22,7 @@ export function settingsShortcut(platform: McpInstallPlatform): string {
  * `InvalidCharacterError`. UTF-8-encode the string into bytes first, then
  * map each byte back to a Latin-1 char before base64'ing.
  */
-export function utf8Btoa(s: string): string {
+export function utf8Btoa({ s }: { s: string }, _optional: Record<string, never> = {}): string {
   const bytes = new TextEncoder().encode(s);
   let bin = '';
   for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]!);
@@ -39,7 +39,7 @@ export function buildMcpStdioServerConfig(info: McpInstallInfo): McpStdioServerC
 }
 
 /** A `[mcp_servers.<serverName>.env]` TOML block, or `''` when there's no env. */
-export function buildCodexEnvToml(serverName: string, info: McpInstallInfo): string {
+export function buildCodexEnvToml({ serverName, info }: { serverName: string; info: McpInstallInfo }, _optional: Record<string, never> = {}): string {
   const entries = Object.entries(info.env ?? {});
   if (entries.length === 0) return '';
   const lines = entries.map(([key, value]) => `${key} = ${JSON.stringify(value)}`).join('\n');
@@ -48,7 +48,7 @@ export function buildCodexEnvToml(serverName: string, info: McpInstallInfo): str
 
 /** The `{"mcpServers": {"<serverName>": {...}}}` shape shared by Cursor,
  *  Antigravity, and Windsurf. */
-export function buildSharedMcpJson(serverName: string, info: McpInstallInfo): string {
+export function buildSharedMcpJson({ serverName, info }: { serverName: string; info: McpInstallInfo }, _optional: Record<string, never> = {}): string {
   const inner = buildMcpStdioServerConfig(info);
   const innerJson = JSON.stringify(inner, null, 2)
     .split('\n')
@@ -57,29 +57,29 @@ export function buildSharedMcpJson(serverName: string, info: McpInstallInfo): st
   return `{\n  "mcpServers": {\n    "${serverName}": ${innerJson}\n  }\n}`;
 }
 
-export function buildClaudeCliSnippet(serverName: string, info: McpInstallInfo): string {
+export function buildClaudeCliSnippet({ serverName, info }: { serverName: string; info: McpInstallInfo }, _optional: Record<string, never> = {}): string {
   const inner = JSON.stringify(buildMcpStdioServerConfig(info));
   return `claude mcp add-json --scope user ${serverName} '${inner}'`;
 }
 
-export function buildCodexTomlSnippet(serverName: string, info: McpInstallInfo): string {
-  return `[mcp_servers.${serverName}]\ncommand = ${JSON.stringify(info.command)}\nargs = ${JSON.stringify(info.args)}${buildCodexEnvToml(serverName, info)}`;
+export function buildCodexTomlSnippet({ serverName, info }: { serverName: string; info: McpInstallInfo }, _optional: Record<string, never> = {}): string {
+  return `[mcp_servers.${serverName}]\ncommand = ${JSON.stringify(info.command)}\nargs = ${JSON.stringify(info.args)}${buildCodexEnvToml({ serverName, info })}`;
 }
 
-export function buildVsCodeSnippet(serverName: string, info: McpInstallInfo): string {
+export function buildVsCodeSnippet({ serverName, info }: { serverName: string; info: McpInstallInfo }, _optional: Record<string, never> = {}): string {
   const envPart = info.env && Object.keys(info.env).length > 0 ? `,\n      "env": ${JSON.stringify(info.env)}` : '';
   return `{\n  "servers": {\n    "${serverName}": {\n      "type": "stdio",\n      "command": ${JSON.stringify(info.command)},\n      "args": ${JSON.stringify(info.args)}${envPart}\n    }\n  }\n}`;
 }
 
-export function buildZedSnippet(serverName: string, info: McpInstallInfo): string {
+export function buildZedSnippet({ serverName, info }: { serverName: string; info: McpInstallInfo }, _optional: Record<string, never> = {}): string {
   const envPart = info.env && Object.keys(info.env).length > 0 ? `,\n      "env": ${JSON.stringify(info.env)}` : '';
   return `{\n  "context_servers": {\n    "${serverName}": {\n      "source": "custom",\n      "command": ${JSON.stringify(info.command)},\n      "args": ${JSON.stringify(info.args)}${envPart}\n    }\n  }\n}`;
 }
 
 /** A `cursor://anysphere.cursor-deeplink/mcp/install?...` one-click install link. */
-export function buildCursorDeeplink(serverName: string, info: McpInstallInfo): string {
+export function buildCursorDeeplink({ serverName, info }: { serverName: string; info: McpInstallInfo }, _optional: Record<string, never> = {}): string {
   const inner = buildMcpStdioServerConfig(info);
-  const encoded = utf8Btoa(JSON.stringify(inner));
+  const encoded = utf8Btoa({ s: JSON.stringify(inner) });
   return `cursor://anysphere.cursor-deeplink/mcp/install?name=${serverName}&config=${encoded}`;
 }
 
@@ -105,7 +105,7 @@ export function isMcpInstallPrerequisiteMissing(info: McpInstallInfo): boolean {
  * rather than needing `McpInstallInfo` — callers that want the original's
  * "blank until install info has loaded" presentation gate this themselves.
  */
-export function methodLabelForClient(clientId: McpClientId): string {
+export function methodLabelForClient({ clientId }: { clientId: McpClientId }, _optional: Record<string, never> = {}): string {
   switch (clientId) {
     case 'claude':
       return 'CLI command';
@@ -132,12 +132,12 @@ export function methodLabelForClient(clientId: McpClientId): string {
  * resolved vars, not a final string — the component wraps it with `t()` so a
  * host can localize it, same convention as every other tab's copy.
  */
-export function snippetForClient(clientId: McpClientId, serverName: string, info: McpInstallInfo): McpClientSnippet {
-  const method = methodLabelForClient(clientId);
+export function snippetForClient({ clientId, serverName, info }: { clientId: McpClientId; serverName: string; info: McpInstallInfo }, _optional: Record<string, never> = {}): McpClientSnippet {
+  const method = methodLabelForClient({ clientId });
   switch (clientId) {
     case 'claude':
       return {
-        snippet: buildClaudeCliSnippet(serverName, info),
+        snippet: buildClaudeCliSnippet({ serverName, info }),
         language: 'bash',
         method,
         instructionTemplate: 'Run this command in your terminal.',
@@ -145,32 +145,32 @@ export function snippetForClient(clientId: McpClientId, serverName: string, info
       };
     case 'codex':
       return {
-        snippet: buildCodexTomlSnippet(serverName, info),
+        snippet: buildCodexTomlSnippet({ serverName, info }),
         language: 'toml',
         method,
         instructionTemplate: 'Paste this into {path}.',
-        instructionVars: { path: homeConfigPath(info.platform, '~/.codex/config.toml', '%USERPROFILE%\\.codex\\config.toml') },
+        instructionVars: { path: homeConfigPath({ platform: info.platform, posix: '~/.codex/config.toml', windows: '%USERPROFILE%\\.codex\\config.toml' }) },
       };
     case 'cursor':
       return {
-        snippet: buildSharedMcpJson(serverName, info),
+        snippet: buildSharedMcpJson({ serverName, info }),
         language: 'json',
         method,
         instructionTemplate: 'Paste this into {path}, or use one-click install below.',
-        instructionVars: { path: homeConfigPath(info.platform, '~/.cursor/mcp.json', '%USERPROFILE%\\.cursor\\mcp.json') },
-        deeplink: buildCursorDeeplink(serverName, info),
+        instructionVars: { path: homeConfigPath({ platform: info.platform, posix: '~/.cursor/mcp.json', windows: '%USERPROFILE%\\.cursor\\mcp.json' }) },
+        deeplink: buildCursorDeeplink({ serverName, info }),
       };
     case 'vscode':
       return {
-        snippet: buildVsCodeSnippet(serverName, info),
+        snippet: buildVsCodeSnippet({ serverName, info }),
         language: 'json',
         method,
         instructionTemplate: 'Open the command palette ({shortcut}), run "MCP: Add Server", and paste this.',
-        instructionVars: { shortcut: commandPaletteShortcut(info.platform) },
+        instructionVars: { shortcut: commandPaletteShortcut({ platform: info.platform }) },
       };
     case 'antigravity':
       return {
-        snippet: buildSharedMcpJson(serverName, info),
+        snippet: buildSharedMcpJson({ serverName, info }),
         language: 'json',
         method,
         instructionTemplate: 'Add this to your MCP server configuration.',
@@ -178,24 +178,24 @@ export function snippetForClient(clientId: McpClientId, serverName: string, info
       };
     case 'zed':
       return {
-        snippet: buildZedSnippet(serverName, info),
+        snippet: buildZedSnippet({ serverName, info }),
         language: 'json',
         method,
         instructionTemplate: 'Open settings ({shortcut}) and paste this into your context servers.',
-        instructionVars: { shortcut: settingsShortcut(info.platform) },
+        instructionVars: { shortcut: settingsShortcut({ platform: info.platform }) },
       };
     case 'windsurf':
       return {
-        snippet: buildSharedMcpJson(serverName, info),
+        snippet: buildSharedMcpJson({ serverName, info }),
         language: 'json',
         method,
         instructionTemplate: 'Paste this into {path}.',
         instructionVars: {
-          path: homeConfigPath(
-            info.platform,
-            '~/.codeium/windsurf/mcp_config.json',
-            '%USERPROFILE%\\.codeium\\windsurf\\mcp_config.json',
-          ),
+          path: homeConfigPath({
+            platform: info.platform,
+            posix: '~/.codeium/windsurf/mcp_config.json',
+            windows: '%USERPROFILE%\\.codeium\\windsurf\\mcp_config.json',
+          }),
         },
       };
   }

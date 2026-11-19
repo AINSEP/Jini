@@ -21,7 +21,7 @@ export interface RevisionDiffCardProps<TMeta = unknown> {
  */
 export function RevisionDiffCard<TMeta = unknown>({ revision, saving = false, onAccept, onReject, useTHook = useT }: RevisionDiffCardProps<TMeta> & { useTHook?: typeof useT }) {
   const t = useTHook();
-  const diff = diffAddedLines(revision.baseBody, revision.proposedBody);
+  const diff = diffAddedLines({ baseText: revision.baseBody, proposedText: revision.proposedBody });
   return (
     <section className="jini-revision-diff-card">
       <div className="jini-revision-diff-card__head">
@@ -29,7 +29,7 @@ export function RevisionDiffCard<TMeta = unknown>({ revision, saving = false, on
           <strong>{t('Pending revision')}</strong>
           <small>
             {revision.sectionTitle ? `${revision.sectionTitle} · ` : ''}
-            {formatRevisionTimestamp(revision.createdAt)}
+            {formatRevisionTimestamp({ value: revision.createdAt })}
           </small>
         </span>
         <div>
@@ -50,7 +50,7 @@ export function RevisionDiffCard<TMeta = unknown>({ revision, saving = false, on
         <div className="jini-revision-diff-card__diff">
           <span>{t('File draft preview')}</span>
           {revision.fileChanges.map((change) => (
-            <pre key={change.path}>{`${change.path}\n\n${diffAddedLines(change.baseContent, change.proposedContent) || change.proposedContent}`}</pre>
+            <pre key={change.path}>{`${change.path}\n\n${diffAddedLines({ baseText: change.baseContent, proposedText: change.proposedContent }) || change.proposedContent}`}</pre>
           ))}
         </div>
       ) : null}

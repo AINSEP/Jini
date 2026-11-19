@@ -6,7 +6,7 @@ import { MAX_RESULTS } from './constants.js';
  * with a lower-tier substring match against the optional `keywords` field.
  * `query` must already be trimmed and lower-cased by the caller.
  */
-export function scoreItemMatch(item: CommandPaletteItem, query: string): number {
+export function scoreItemMatch({ item, query }: { item: CommandPaletteItem; query: string }, _optional: Record<string, never> = {}): number {
   const name = item.name.toLowerCase();
   if (name === query) return 1000;
   if (name.startsWith(query)) return 500;
@@ -22,14 +22,12 @@ export function scoreItemMatch(item: CommandPaletteItem, query: string): number 
  * `mtime` descending — every entry scored 0 in this branch.
  */
 export function rankItems(
-  items: readonly CommandPaletteItem[],
-  query: string,
-  recentIds: readonly string[],
+  { items, query, recentIds }: { items: readonly CommandPaletteItem[]; query: string; recentIds: readonly string[] }, _optional: Record<string, never> = {},
 ): CommandPaletteResult[] {
   const q = query.trim().toLowerCase();
   if (q) {
     return items
-      .map((item) => ({ item, score: scoreItemMatch(item, q) }))
+      .map((item) => ({ item, score: scoreItemMatch({ item, query: q }) }))
       .filter((result) => result.score > 0)
       .sort((a, b) => b.score - a.score)
       .slice(0, MAX_RESULTS);
@@ -53,14 +51,14 @@ export function rankItems(
 }
 
 /** Cursor advance with wrap-around, extracted so boundary behavior is unit-testable without simulated keyboard events. */
-export function nextCursor(current: number, total: number, direction: 1 | -1): number {
+export function nextCursor({ current, total, direction }: { current: number; total: number; direction: 1 | -1 }, _optional: Record<string, never> = {}): number {
   if (total <= 0) return 0;
   if (direction === 1) return (current + 1) % total;
   return (current - 1 + total) % total;
 }
 
 /** Parses a recents payload defensively — malformed/foreign localStorage content degrades to an empty list rather than throwing. */
-export function parseRecentIds(raw: string): string[] {
+export function parseRecentIds({ raw }: { raw: string }, _optional: Record<string, never> = {}): string[] {
   try {
     const parsed: unknown = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
@@ -70,6 +68,6 @@ export function parseRecentIds(raw: string): string[] {
 }
 
 /** Pushes `id` to the front of `previous`, de-duplicating and capping at `limit`. */
-export function pushRecentId(previous: readonly string[], id: string, limit: number): string[] {
+export function pushRecentId({ previous, id, limit }: { previous: readonly string[]; id: string; limit: number }, _optional: Record<string, never> = {}): string[] {
   return [id, ...previous.filter((existing) => existing !== id)].slice(0, limit);
 }

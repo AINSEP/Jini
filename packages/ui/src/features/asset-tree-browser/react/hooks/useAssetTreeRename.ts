@@ -39,7 +39,7 @@ export function useAssetTreeRename<TFile extends AssetTreeFileItem>(
   const startRename = useCallback(
     (path: string) => {
       setRenameError(null);
-      setRenaming({ path, draft: basenameForRename(path, currentDir), saving: false });
+      setRenaming({ path, draft: basenameForRename({ path, currentDir }), saving: false });
     },
     [currentDir],
   );
@@ -55,7 +55,7 @@ export function useAssetTreeRename<TFile extends AssetTreeFileItem>(
 
   const commitRename = useCallback(async () => {
     if (!renaming) return;
-    const decision = resolveRenameCommit(renaming.path, currentDir, renaming.draft);
+    const decision = resolveRenameCommit({ path: renaming.path, currentDir, draft: renaming.draft });
     if (!decision) {
       setRenaming(null);
       return;

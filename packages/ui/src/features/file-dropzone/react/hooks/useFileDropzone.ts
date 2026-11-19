@@ -117,7 +117,7 @@ function createSelectedFilesProcessor({ stageFiles, onProcessingStart }: {
       finishProcessingLater(activeFinish);
       return;
     }
-    if (!fileDropzoneShouldShowProcessing(nextFiles, FILE_DROPZONE_PROCESSING_FILE_COUNT_THRESHOLD, FILE_DROPZONE_PROCESSING_BYTES_THRESHOLD) || !onProcessingStart) {
+    if (!fileDropzoneShouldShowProcessing({ files: nextFiles, fileCountThreshold: FILE_DROPZONE_PROCESSING_FILE_COUNT_THRESHOLD, totalBytesThreshold: FILE_DROPZONE_PROCESSING_BYTES_THRESHOLD }) || !onProcessingStart) {
       stageFiles(nextFiles);
       finishProcessingLater(activeFinish);
       return;

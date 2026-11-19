@@ -78,7 +78,7 @@ export function CommentSidePanel<TComment extends ViewerCommentBase>({
   const t = useTHook();
   const [newCommentDraft, setNewCommentDraft] = useState('');
   const reorder = useCommentReorderHook(comments.map((comment) => comment.id), onReorder);
-  const visibleSelectedIds = visibleSelectedCommentIds(comments, selectedIds);
+  const visibleSelectedIds = visibleSelectedCommentIds({ comments, selectedIds });
   const commentsLabel = t('Comments');
   const panelId = useId();
   const formatTs = useCommentTimestampFormatterHook(props.formatTimestamp);
@@ -233,7 +233,7 @@ function useCommentTimestampFormatter(formatTimestamp: ((timestampMs: number) =>
   return (
     formatTimestamp ??
     ((ts: number) => {
-      const translation = relativeCommentTimeTranslation(ts);
+      const translation = relativeCommentTimeTranslation({ timestampMs: ts });
       return t(translation.key, translation.vars);
     })
   );

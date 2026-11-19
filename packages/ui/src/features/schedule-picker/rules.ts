@@ -10,7 +10,7 @@ import type { ScheduleEditorState, ScheduleKind, ScheduleSummaryParts, ScheduleV
 
 /** Clamp a candidate "minute of the hour" to a valid integer 0-59. Non-finite
  *  input (e.g. `NaN` from an emptied number input) clamps to 0. */
-export function clampMinute(value: number): number {
+export function clampMinute({ value }: { value: number }, _optional: Record<string, never> = {}): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(59, Math.round(value)));
 }
@@ -18,7 +18,7 @@ export function clampMinute(value: number): number {
 /** Format a `'HH:MM'` 24h time string as 12h with an AM/PM suffix
  *  (`'09:00'` -> `'9:00 AM'`). Returns the input unchanged if it doesn't
  *  match the expected shape. */
-export function formatTime12h(time: string): string {
+export function formatTime12h({ time }: { time: string }, _optional: Record<string, never> = {}): string {
   const m = /^(\d{2}):(\d{2})$/.exec(time);
   if (!m) return time;
   const h = Number(m[1]);
@@ -43,8 +43,8 @@ function weekdayLongName(weekday: Weekday, weekdays: WeekdayOption[]): string {
  * so a change to time/weekday formatting only needs to happen here.
  */
 export function decomposeSchedule(
-  schedule: ScheduleValue,
-  weekdays: WeekdayOption[] = DEFAULT_WEEKDAYS,
+  { schedule }: { schedule: ScheduleValue },
+  { weekdays = DEFAULT_WEEKDAYS }: { weekdays?: WeekdayOption[] | undefined } = {},
 ): ScheduleSummaryParts {
   if (schedule.kind === 'hourly') {
     return { kind: 'hourly', minute: String(schedule.minute).padStart(2, '0') };
@@ -53,7 +53,7 @@ export function decomposeSchedule(
   if (schedule.kind === 'daily') freq = 'Daily';
   else if (schedule.kind === 'weekdays') freq = 'Weekdays';
   else freq = weekdayLongName(schedule.weekday, weekdays);
-  return { kind: 'timed', freq, time: formatTime12h(schedule.time), tz: schedule.timezone };
+  return { kind: 'timed', freq, time: formatTime12h({ time: schedule.time }), tz: schedule.timezone };
 }
 
 /** Plain-English one-line summary, e.g. `'Hourly at :05'` or
@@ -61,15 +61,15 @@ export function decomposeSchedule(
  *  `aria-label`/title when a host hasn't wired translated copy. Callers
  *  wanting translated output should decompose+translate the parts
  *  themselves instead (see `useRecurringSchedulePicker`). */
-export function describeScheduleSummary(schedule: ScheduleValue, weekdays: WeekdayOption[] = DEFAULT_WEEKDAYS): string {
-  const parts = decomposeSchedule(schedule, weekdays);
+export function describeScheduleSummary({ schedule }: { schedule: ScheduleValue }, { weekdays = DEFAULT_WEEKDAYS }: { weekdays?: WeekdayOption[] | undefined } = {}): string {
+  const parts = decomposeSchedule({ schedule }, { weekdays });
   if (parts.kind === 'hourly') return `Hourly at :${parts.minute}`;
   return `${parts.freq} at ${parts.time} · ${parts.tz}`;
 }
 
 /** A fresh editor state defaulting to a daily 09:00 schedule in the given
  *  timezone (typically the caller's `detectLocalTimezone()`). */
-export function defaultScheduleEditorState(timezone: string): ScheduleEditorState {
+export function defaultScheduleEditorState({ timezone }: { timezone: string }, _optional: Record<string, never> = {}): ScheduleEditorState {
   return {
     kind: 'daily',
     minute: 0,
@@ -86,8 +86,8 @@ export function defaultScheduleEditorState(timezone: string): ScheduleEditorStat
  * (mirrors the vendored `formFromRoutine`'s partial-application behavior).
  */
 export function scheduleEditorStateFromValue(
-  value: ScheduleValue,
-  base: ScheduleEditorState,
+  { value, base }: { value: ScheduleValue; base: ScheduleEditorState },
+  _optional: Record<string, never> = {},
 ): ScheduleEditorState {
   if (value.kind === 'hourly') {
     return { ...base, kind: 'hourly', minute: value.minute };
@@ -109,12 +109,12 @@ export function buildScheduleValue(state: ScheduleEditorState): ScheduleValue {
 }
 
 /** Is `kind` one that shows the weekday grid? Only `'weekly'` does. */
-export function showsWeekdayGrid(kind: ScheduleKind): boolean {
+export function showsWeekdayGrid({ kind }: { kind: ScheduleKind }, _optional: Record<string, never> = {}): boolean {
   return kind === 'weekly';
 }
 
 /** Is `kind` one that shows the time+timezone fields (as opposed to the
  *  hourly minute field)? Every kind except `'hourly'`. */
-export function showsTimeFields(kind: ScheduleKind): boolean {
+export function showsTimeFields({ kind }: { kind: ScheduleKind }, _optional: Record<string, never> = {}): boolean {
   return kind !== 'hourly';
 }

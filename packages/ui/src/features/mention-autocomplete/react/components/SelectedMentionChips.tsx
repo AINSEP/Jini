@@ -25,7 +25,7 @@ export function SelectedMentionChips<T extends MentionItem<ReactNode>>({
     <div className="jini-mention-selected" aria-label={t('Selected context')}>
       {items.map((item) => (
         <button
-          key={mentionSelectionKey(item.category, item.id)}
+          key={mentionSelectionKey({ categoryId: item.category, itemId: item.id })}
           type="button"
           className={`jini-mention-selected__chip is-${item.category}`}
           onClick={() => onRemove(item)}

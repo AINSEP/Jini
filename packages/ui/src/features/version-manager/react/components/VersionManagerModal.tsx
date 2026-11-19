@@ -49,10 +49,10 @@ function VersionManagerSidebar<TVersion extends VersionRecord>({
       selectedVersionId={selectedVersion ? selectedVersion.id : null}
       onSelect={controller.selectVersion}
       onPrefetch={controller.prefetchVersion}
-      formatDate={(version) => formatVersionDateTime(version.createdAt, locale)}
-      sourceLabel={(version) => t(versionSourceLabel(version.source))}
-      sourceClassName={(version) => versionSourceClassName(version.source)}
-      restoredFrom={(version) => restoredFromVersion(version, versionById)}
+      formatDate={(version) => formatVersionDateTime({ value: version.createdAt, locale })}
+      sourceLabel={(version) => t(versionSourceLabel({ source: version.source }))}
+      sourceClassName={(version) => versionSourceClassName({ source: version.source })}
+      restoredFrom={(version) => restoredFromVersion({ version, versionById })}
     />
   );
 }
@@ -237,8 +237,8 @@ function selectedVersionFields<TVersion extends VersionRecord>(
 ) {
   return {
     selectedPrompt: selectedVersion?.prompt?.trim() ?? '',
-    selectedDate: selectedVersion ? formatVersionDateTime(selectedVersion.createdAt, locale) : fileName,
-    selectedRestoredFrom: selectedVersion ? restoredFromVersion(selectedVersion, versionById) : null,
+    selectedDate: selectedVersion ? formatVersionDateTime({ value: selectedVersion.createdAt, locale }) : fileName,
+    selectedRestoredFrom: selectedVersion ? restoredFromVersion({ version: selectedVersion, versionById }) : null,
   };
 }
 
@@ -261,8 +261,8 @@ function VersionMetadata<TVersion extends VersionRecord>({
           <span className="jini-version-current-badge">{t('Current')}</span>
         ) : null}
         {selectedVersion ? (
-          <span className={`jini-version-source-badge ${versionSourceClassName(selectedVersion.source)}`}>
-            {t(versionSourceLabel(selectedVersion.source))}
+          <span className={`jini-version-source-badge ${versionSourceClassName({ source: selectedVersion.source })}`}>
+            {t(versionSourceLabel({ source: selectedVersion.source }))}
           </span>
         ) : null}
         <span className="jini-version-selected-date">{selectedDate}</span>

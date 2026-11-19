@@ -31,8 +31,8 @@ import type { Locale } from './types.js';
  * @overallScore 100
  */
 export function resolveSystemLocale(
-  languages: readonly string[],
-  supportedLocales: readonly Locale[],
+  { languages, supportedLocales }: { languages: readonly string[]; supportedLocales: readonly Locale[] },
+  _optional: Record<string, never> = {},
 ): Locale | null {
   for (const raw of languages) {
     const normalized = raw.trim();
@@ -84,7 +84,7 @@ function browserPreferredLanguages(): readonly string[] {
  * default — see `I18nProviderProps.detectSystemLocale`.
  */
 export function defaultDetectSystemLocale(supportedLocales: readonly Locale[]): Locale | null {
-  return resolveSystemLocale(browserPreferredLanguages(), supportedLocales);
+  return resolveSystemLocale({ languages: browserPreferredLanguages(), supportedLocales });
 }
 
 /** Host-supplied locale persistence (e.g. localStorage-backed). */

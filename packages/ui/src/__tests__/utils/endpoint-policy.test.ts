@@ -107,13 +107,13 @@ describe('every endpoint-taking tab enforces the same policy', () => {
   });
 
   it('media-providers tab: a typed metadata-service base URL is invalid', () => {
-    expect(isProviderBaseUrlInvalid({ baseUrl: METADATA })).toBe(true);
-    expect(isProviderBaseUrlInvalid({ baseUrl: 'https://api.example.com' })).toBe(false);
+    expect(isProviderBaseUrlInvalid({ entry: { baseUrl: METADATA } })).toBe(true);
+    expect(isProviderBaseUrlInvalid({ entry: { baseUrl: 'https://api.example.com' } })).toBe(false);
     // Blank is not an error state — the catalog default takes over.
-    expect(isProviderBaseUrlInvalid({ baseUrl: '' })).toBe(false);
-    expect(isProviderBaseUrlInvalid({ baseUrl: '   ' })).toBe(false);
-    expect(isProviderBaseUrlInvalid({})).toBe(false);
-    expect(isProviderBaseUrlInvalid(null)).toBe(false);
+    expect(isProviderBaseUrlInvalid({ entry: { baseUrl: '' } })).toBe(false);
+    expect(isProviderBaseUrlInvalid({ entry: { baseUrl: '   ' } })).toBe(false);
+    expect(isProviderBaseUrlInvalid({ entry: {} })).toBe(false);
+    expect(isProviderBaseUrlInvalid({ entry: null })).toBe(false);
   });
 
   it('source-config-list: a url-kind field rejects the metadata service', () => {

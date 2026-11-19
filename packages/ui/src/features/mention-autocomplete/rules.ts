@@ -18,9 +18,8 @@ function escapeRegExp(value: string): string {
  * cursor isn't inside a live trigger.
  */
 export function readMentionTrigger(
-  value: string,
-  cursor: number,
-  triggerChar: string = DEFAULT_TRIGGER_CHAR,
+  { value, cursor }: { value: string; cursor: number },
+  { triggerChar = DEFAULT_TRIGGER_CHAR }: { triggerChar?: string | undefined } = {},
 ): MentionTriggerMatch | null {
   const beforeCursor = value.slice(0, cursor);
   const escaped = escapeRegExp(triggerChar);
@@ -41,7 +40,7 @@ export function readMentionTrigger(
 }
 
 /** Prefix `label` with `triggerChar` unless it's already there. */
-export function buildMentionToken(label: string, triggerChar: string = DEFAULT_TRIGGER_CHAR): string {
+export function buildMentionToken({ label }: { label: string }, { triggerChar = DEFAULT_TRIGGER_CHAR }: { triggerChar?: string | undefined } = {}): string {
   return label.startsWith(triggerChar) ? label : `${triggerChar}${label}`;
 }
 
@@ -54,9 +53,7 @@ export function buildMentionToken(label: string, triggerChar: string = DEFAULT_T
  * plus the cursor position to restore focus to.
  */
 export function insertMentionToken(
-  value: string,
-  match: MentionTriggerMatch | null,
-  token: string,
+  { value, match, token }: { value: string; match: MentionTriggerMatch | null; token: string }, _optional: Record<string, never> = {},
 ): MentionInsertResult {
   const tokenWithSpace = `${token} `;
   if (!match) {
@@ -74,10 +71,8 @@ export function insertMentionToken(
  *  defaults to `label` alone; pass a richer selector to also match on id/meta/
  *  other host fields (mirrors the vendored picker's per-kind search index). */
 export function filterMentionItems<T extends MentionItem>(
-  items: T[],
-  query: string,
-  getSearchText: (item: T) => string = (item) => item.label,
-  maxResults: number = DEFAULT_MAX_RESULTS_PER_CATEGORY,
+  { items, query }: { items: T[]; query: string },
+  { getSearchText = (item) => item.label, maxResults = DEFAULT_MAX_RESULTS_PER_CATEGORY }: { getSearchText?: ((item: T) => string) | undefined; maxResults?: number | undefined } = {},
 ): T[] {
   const q = query.trim().toLowerCase();
   const matched = q ? items.filter((item) => getSearchText(item).toLowerCase().includes(q)) : items;
@@ -98,14 +93,12 @@ export interface MentionResultGroup<T extends MentionItem> {
  * not one shared cap across every kind combined).
  */
 export function groupItemsByCategory<T extends MentionItem>(
-  items: T[],
-  categories: MentionCategory[],
-  activeFilter: MentionCategoryFilter = ALL_CATEGORY_FILTER,
-  maxItemsPerCategory: number = DEFAULT_MAX_RESULTS_PER_CATEGORY,
+  { items, categories }: { items: T[]; categories: MentionCategory[] },
+  { activeFilter = ALL_CATEGORY_FILTER, maxItemsPerCategory = DEFAULT_MAX_RESULTS_PER_CATEGORY }: { activeFilter?: MentionCategoryFilter | undefined; maxItemsPerCategory?: number | undefined } = {},
 ): MentionResultGroup<T>[] {
   const groups: MentionResultGroup<T>[] = [];
   for (const category of categories) {
-    if (!isCategoryVisible(activeFilter, category.id)) continue;
+    if (!isCategoryVisible({ activeFilter, categoryId: category.id })) continue;
     const categoryItems = items.filter((item) => item.category === category.id).slice(0, maxItemsPerCategory);
     if (categoryItems.length > 0) groups.push({ category, items: categoryItems });
   }
@@ -114,7 +107,7 @@ export function groupItemsByCategory<T extends MentionItem>(
 
 /** Is `categoryId` shown under the current tab filter? True when the filter
  *  is `'all'` or matches the category exactly. */
-export function isCategoryVisible(activeFilter: MentionCategoryFilter, categoryId: string): boolean {
+export function isCategoryVisible({ activeFilter, categoryId }: { activeFilter: MentionCategoryFilter; categoryId: string }, _optional: Record<string, never> = {}): boolean {
   return activeFilter === ALL_CATEGORY_FILTER || activeFilter === categoryId;
 }
 
@@ -124,7 +117,7 @@ export function isCategoryVisible(activeFilter: MentionCategoryFilter, categoryI
  * raw id, e.g. a "general" skill and a "general" plugin), so selection
  * tracking keys on the pair rather than the bare id.
  */
-export function mentionSelectionKey(categoryId: string, itemId: string): string {
+export function mentionSelectionKey({ categoryId, itemId }: { categoryId: string; itemId: string }, _optional: Record<string, never> = {}): string {
   return `${categoryId}:${itemId}`;
 }
 
@@ -133,6 +126,6 @@ export function mentionSelectionKey(categoryId: string, itemId: string): string 
  *  (it filters those out itself), so this is equivalent to `groups.length >
  *  0` for groups produced that way; expressed as a named predicate so the
  *  call site reads as intent rather than an array-length check. */
-export function hasAnyResults<T extends MentionItem>(groups: MentionResultGroup<T>[]): boolean {
+export function hasAnyResults<T extends MentionItem>({ groups }: { groups: MentionResultGroup<T>[] }, _optional: Record<string, never> = {}): boolean {
   return groups.length > 0;
 }

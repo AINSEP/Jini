@@ -55,7 +55,7 @@ export function useCommentReorder(
       return;
     }
     const edge = cachedDropEdge(dragState, targetId) ?? pointerDropEdge(event);
-    const nextIds = reorderCommentIds(orderedIds, draggingId, targetId, edge);
+    const nextIds = reorderCommentIds({ ids: orderedIds, draggingId, targetId, edge });
     if (nextIds.join('\0') !== orderedIds.join('\0')) {
       onReorder?.(nextIds);
     }
@@ -76,7 +76,7 @@ export function useCommentReorder(
 }
 
 function pointerDropEdge(event: ReactDragEvent<HTMLElement>): CommentSideDropEdge {
-  return dropEdgeForClientY(event.clientY, event.currentTarget.getBoundingClientRect());
+  return dropEdgeForClientY({ clientY: event.clientY, targetRect: event.currentTarget.getBoundingClientRect() });
 }
 
 /** Dragging id carried by the DOM payload: the comment mime type, then the

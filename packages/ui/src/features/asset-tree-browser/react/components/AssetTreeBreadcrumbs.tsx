@@ -12,7 +12,7 @@ export interface AssetTreeBreadcrumbsProps {
 /** Directory breadcrumb trail: the root label plus one clickable segment per path component, the last always non-interactive (the current directory). */
 export function AssetTreeBreadcrumbs({ currentDir, rootLabel, onNavigate, useTHook = useT }: AssetTreeBreadcrumbsProps) {
   const t = useTHook();
-  const segments = buildBreadcrumbSegments(currentDir);
+  const segments = buildBreadcrumbSegments({ currentDir });
   const atRoot = currentDir === '';
 
   return (

@@ -23,7 +23,7 @@ export function useAssetTreeRowMenu(dom: AssetTreeDomBridgePort): UseAssetTreeRo
 
   const openMenuFor = useCallback(
     (path: string, anchor: MenuAnchorRect) => {
-      const { top, left } = computeMenuPosition(anchor, dom.getViewportHeight());
+      const { top, left } = computeMenuPosition({ anchor, viewportHeight: dom.getViewportHeight() });
       setMenuPos({ path, top, left });
     },
     [dom],

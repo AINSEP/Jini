@@ -75,7 +75,7 @@ function targetFromHoveredItem({ strip, event, sourceId }: {
   if (!itemElement || !strip.contains(itemElement)) return null;
   const tabId = itemElement.getAttribute(TAB_STRIP_ITEM_ID_ATTRIBUTE);
   if (!tabId || tabId === sourceId) return null;
-  const edge = dropEdgeFromPointerX(event.clientX, itemElement.getBoundingClientRect());
+  const edge = dropEdgeFromPointerX({ pointerX: event.clientX, rect: itemElement.getBoundingClientRect() });
   return { tabId, edge };
 }
 
@@ -88,7 +88,7 @@ function locateDropTarget({ strip, tabs, event, sourceId }: {
 }): TabStripDragTarget | null {
   const pinnedIds = pinnedTabIdSet(tabs);
   const hovered = targetFromHoveredItem({ strip, event, sourceId });
-  if (hovered) return coercePinnedDropTarget(hovered, pinnedIds);
+  if (hovered) return coercePinnedDropTarget({ target: hovered, pinnedTabIds: pinnedIds });
 
   const elements = Array.from(
     strip.querySelectorAll<HTMLElement>(`[${TAB_STRIP_ITEM_ID_ATTRIBUTE}]`),
@@ -99,8 +99,8 @@ function locateDropTarget({ strip, tabs, event, sourceId }: {
     id: element.getAttribute(TAB_STRIP_ITEM_ID_ATTRIBUTE)!,
     rect: element.getBoundingClientRect(),
   }));
-  const fallback = findNearestDropTarget(event.clientX, elements, sourceId);
-  return fallback ? coercePinnedDropTarget(fallback, pinnedIds) : null;
+  const fallback = findNearestDropTarget({ pointerX: event.clientX, elements, sourceId });
+  return fallback ? coercePinnedDropTarget({ target: fallback, pinnedTabIds: pinnedIds }) : null;
 }
 
 interface ItemDragDeps {
@@ -128,7 +128,7 @@ function useItemDragProps({
   return useCallback(
     (tabId: string): TabStripItemDragProps => {
       const tab = tabs.find((candidate) => candidate.id === tabId);
-      const draggable = tab ? isTabDraggable(tab, tabs) : false;
+      const draggable = tab ? isTabDraggable({ tab, tabs }) : false;
       return {
         draggable,
         onDragStart: (event) => {

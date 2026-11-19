@@ -31,7 +31,7 @@ export function useZoomControl(
 
   return {
     zoom,
-    scale: zoomToScale(zoom),
+    scale: zoomToScale({ zoom }),
     isMenuOpen,
     levels,
     toggleMenu: useCallback(() => setMenuOpen((value) => !value), []),

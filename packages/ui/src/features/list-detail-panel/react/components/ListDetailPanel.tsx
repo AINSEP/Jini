@@ -87,7 +87,7 @@ export function ListDetailPanel<TItem extends ListDetailItem>({
   className, sidebarClassName, listClassName, detailClassName, itemClassName,
   'data-testid': testId = 'list-detail-panel',
 }: ListDetailPanelProps<TItem>) {
-  const selectedItem = findSelectedItem(items, selectedId);
+  const selectedItem = findSelectedItem({ items, selectedId });
 
   return (
     <div className={join('jini-list-detail-panel', className)} data-testid={testId}>

@@ -150,7 +150,7 @@ function useBoardSelection({ itemIds, viewMode, itemsKey }: {
 
   // Drop selected ids that no longer exist (DesignsTab's own "prune selection" effect).
   useEffect(() => {
-    setSelected((current) => pruneSelectedIds(current, new Set(itemIds)));
+    setSelected((current) => pruneSelectedIds({ selected: current, validIds: new Set(itemIds) }));
   }, [itemsKey]);
 
   // Leaving grid view exits select mode entirely (DesignsTab hides select-mode UI in kanban view).
@@ -166,7 +166,7 @@ function useBoardSelection({ itemIds, viewMode, itemsKey }: {
     setSelectMode(false);
     setSelected(new Set());
   }, []);
-  const toggleSelected = useCallback((id: string) => setSelected((current) => toggleSelectedId(current, id)), []);
+  const toggleSelected = useCallback((id: string) => setSelected((current) => toggleSelectedId({ selected: current, id })), []);
 
   return { selectMode, selected, enterSelectMode, exitSelectMode, toggleSelected };
 }
@@ -312,11 +312,11 @@ export function useResourceBoard<TItem extends ResourceBoardItem>(params: UseRes
   const bulk = useBoardBulkDelete(deps, selection.selected, selection.exitSelectMode);
   const isItemBusy = useCallback((id: string) => isActionPending({ pendingKeys, id, kind: ITEM_ACTION_KIND }), [pendingKeys]);
 
-  const visibleItems = useMemo(() => sortBoardItems(filterBoardItemsByQuery(items, query), sort), [items, query, sort]);
+  const visibleItems = useMemo(() => sortBoardItems({ items: filterBoardItemsByQuery({ items, query }), sortOptionValue: sort }), [items, query, sort]);
 
   const kanbanColumns = useMemo(
     () =>
-      groupItemsByStatus(visibleItems, statusOrder, {
+      groupItemsByStatus({ items: visibleItems, statusOrder }, {
         ...(params.defaultStatus !== undefined ? { defaultStatus: params.defaultStatus } : {}),
         ...(params.normalizeStatus !== undefined ? { normalizeStatus: params.normalizeStatus } : {}),
       }),

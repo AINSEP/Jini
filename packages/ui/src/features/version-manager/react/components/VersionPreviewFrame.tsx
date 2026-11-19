@@ -54,8 +54,8 @@ export function VersionPreviewFrame({
 }: VersionPreviewFrameProps) {
   const t = hooks.useT();
   const [frameRef, canvasSize] = hooks.usePreviewCanvasSize<HTMLDivElement>();
-  const preset = findViewportPreset(viewportPresets, viewport);
-  const scale = effectivePreviewScale(preset, 1, canvasSize, DEFAULT_PREVIEW_CANVAS_PADDING);
+  const preset = findViewportPreset({ presets: viewportPresets, id: viewport });
+  const scale = effectivePreviewScale({ preset, previewScale: 1, canvasSize, canvasPadding: DEFAULT_PREVIEW_CANVAS_PADDING });
 
   const { showEmpty, showLoading } = previewStatus({ previewDocument, frameReady, loading, loadingContent });
 
@@ -70,9 +70,9 @@ export function VersionPreviewFrame({
       ) : (
         <>
           {previewDocument ? (
-            <div className="jini-preview-viewport" style={previewViewportStyle(preset, scale, 1)}>
+            <div className="jini-preview-viewport" style={previewViewportStyle({ preset, effectiveScale: scale, previewScale: 1 })}>
               <div className="jini-preview-frame-clip">
-                <div style={previewScaleShellStyle(preset, 1)}>
+                <div style={previewScaleShellStyle({ preset, previewScale: 1 })}>
                   <iframe
                     title={title}
                     sandbox="allow-scripts allow-downloads"

@@ -61,7 +61,7 @@ function folderPathForItem(item: DataTransferItem, file: File, port: FolderPathD
  * @returns every recovered folder path; `[]` when nothing dropped was a folder with a recoverable path.
  * @complexity Time: O(n) in the number of dragged items; space: O(n).
  */
-export function folderPathsFromDataTransfer(dataTransfer: DataTransfer, port: FolderPathDropPort): string[] {
+export function folderPathsFromDataTransfer({ dataTransfer, port }: { dataTransfer: DataTransfer; port: FolderPathDropPort }, _optional: Record<string, never> = {}): string[] {
   const items = Array.from(dataTransfer.items ?? []);
   const files = Array.from(dataTransfer.files ?? []);
   const paths: string[] = [];
@@ -93,7 +93,7 @@ export function formatDroppedFolderPaths(paths: readonly string[]): string {
  */
 export function captureFolderPathDrop({ event, port, composer }: CaptureFolderPathDropInput): string[] {
   if (port === null || port === undefined) return [];
-  const paths = folderPathsFromDataTransfer(event.dataTransfer, port);
+  const paths = folderPathsFromDataTransfer({ dataTransfer: event.dataTransfer, port });
   if (paths.length === 0) return [];
   event.preventDefault();
   event.stopPropagation();

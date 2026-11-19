@@ -91,7 +91,7 @@ export function MediaProvidersTab({
   const resolved = resolveMediaProvidersTabLabels({ t }, { labels });
 
   const canonicalPinnedIds = pinnedProviderIds?.map((id) => canonicalMediaProviderId({ id }));
-  const orderedCatalog = sortProvidersByConfigured(catalog.map((entry) => ({ ...entry, id: canonicalMediaProviderId({ id: entry.id }) })), providers, canonicalPinnedIds);
+  const orderedCatalog = sortProvidersByConfigured({ catalog: catalog.map((entry) => ({ ...entry, id: canonicalMediaProviderId({ id: entry.id }) })), providers }, { pinnedIds: canonicalPinnedIds });
   const providerHandles = agentHandle
     ? buildAgentListHandles({ prefix: agentHandle, ids: orderedCatalog.map((option) => option.id) })
     : undefined;
@@ -103,7 +103,7 @@ export function MediaProvidersTab({
   const hasPendingChanges = pendingProviderIds.size > 0;
   // Save writes every provider at once, so ONE unacceptable endpoint blocks the
   // whole button rather than being silently persisted alongside the good ones.
-  const blockedByInvalidBaseUrl = invalidBaseUrlProviderIds(providers).length > 0;
+  const blockedByInvalidBaseUrl = invalidBaseUrlProviderIds({ providers }).length > 0;
 
   return (
     <section className="jini-settings-section jini-settings-media-providers">

@@ -175,7 +175,7 @@ function AssetTreeFoldersSection<TFile extends AssetTreeFileItem>({
             key={fullPath}
             name={dirName}
             path={fullPath}
-            fileCount={countFilesUnderDir(files, fullPath)}
+            fileCount={countFilesUnderDir({ files, dirPath: fullPath })}
             onNavigate={onNavigate}
           />
         );
@@ -197,7 +197,7 @@ function AssetTreeKindSection<TFile extends AssetTreeFileItem>({
 } & { useTHook?: typeof useT }) {
   const t = useTHook();
   const { navigation, preview, selection, rename, rowMenu, openPath } = controller;
-  const config = resolveKindConfig(section.kind, kindConfig);
+  const config = resolveKindConfig({ kind: section.kind, kindConfig });
   return (
     <div className="asset-tree-section">
       <div className="asset-tree-section-label">
@@ -208,7 +208,7 @@ function AssetTreeKindSection<TFile extends AssetTreeFileItem>({
         <AssetTreeFileRow
           key={f.path}
           path={f.path}
-          displayName={basenameForRename(f.path, navigation.currentDir)}
+          displayName={basenameForRename({ path: f.path, currentDir: navigation.currentDir })}
           active={preview.previewPath === f.path}
           selected={selection.selected.has(f.path)}
           kindLabel={t(config.label)}
@@ -253,7 +253,7 @@ export function AssetTreeBrowserPreview<TFile extends AssetTreeFileItem>({
   useTHook = useT,
 }: AssetTreeBrowserPreviewProps<TFile> & { useTHook?: typeof useT }) {
   const t = useTHook();
-  const previewKindConfig = resolveKindConfig(selectors.getKind(file), kindConfig);
+  const previewKindConfig = resolveKindConfig({ kind: selectors.getKind(file), kindConfig });
   return (
     <FilePreviewPane
       file={file}
@@ -292,11 +292,11 @@ export function AssetTreeBrowserRowMenu<TFile extends AssetTreeFileItem>({
   return (
     <AssetTreeRowMenu
       path={path}
-      displayName={basenameForRename(path, navigation.currentDir)}
+      displayName={basenameForRename({ path, currentDir: navigation.currentDir })}
       top={menuPos.top}
       left={menuPos.left}
       containerRef={rowMenu.containerRef}
-      canCopyLocalPath={!!menuFile && canCopyLocalPath(menuFile, selectors)}
+      canCopyLocalPath={!!menuFile && canCopyLocalPath({ file: menuFile, selectors })}
       copied={copyLocalPath.copiedPath === path}
       download={getFileUrl && menuFile ? { href: getFileUrl(menuFile), onClick: rowMenu.closeMenu } : undefined}
       onOpen={() => {

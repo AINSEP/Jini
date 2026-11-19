@@ -22,7 +22,7 @@ export function useIframeKeepAliveProvider({ maxMounted }: { maxMounted: number 
 
   const enforceLimit = () => {
     const entries = Array.from(entriesRef.current.values());
-    const evictions = selectLruEvictions(entries, activeKeysRef.current, maxMounted);
+    const evictions = selectLruEvictions({ entries, activeKeys: activeKeysRef.current, maxMounted });
     for (const key of evictions) removeEntry(key);
   };
 
@@ -62,11 +62,11 @@ export function useIframeKeepAliveProvider({ maxMounted }: { maxMounted: number 
     evictMatching(predicate, options) {
       const entries = Array.from(entriesRef.current.values());
       const keys = selectMatchingEvictions(
-        entries,
-        activeKeysRef.current,
+        { entries,
+        activeKeys: activeKeysRef.current,
         predicate,
-        options?.includeActive ?? false,
-      );
+        includeActive: options?.includeActive ?? false,
+       });
       let removedActive = false;
       for (const key of keys) removedActive = removeEntry(key) || removedActive;
       if (removedActive) bumpPoolRevision((value) => value + 1);

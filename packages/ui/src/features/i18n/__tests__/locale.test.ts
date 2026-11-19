@@ -27,40 +27,40 @@ describe('resolveSystemLocale', () => {
   const supported = ['en', 'fr', 'zh-CN', 'zh-TW', 'pt-BR'];
 
   it('returns an exact case-insensitive match', () => {
-    expect(resolveSystemLocale(['FR'], supported)).toBe('fr');
-    expect(resolveSystemLocale(['pt-br'], supported)).toBe('pt-BR');
+    expect(resolveSystemLocale({ languages: ['FR'], supportedLocales: supported })).toBe('fr');
+    expect(resolveSystemLocale({ languages: ['pt-br'], supportedLocales: supported })).toBe('pt-BR');
   });
 
   it('resolves a bare base-language tag to the matching supported locale', () => {
-    expect(resolveSystemLocale(['en-GB'], supported)).toBe('en');
+    expect(resolveSystemLocale({ languages: ['en-GB'], supportedLocales: supported })).toBe('en');
   });
 
   it('resolves Chinese script/region signals to simplified vs traditional', () => {
-    expect(resolveSystemLocale(['zh-Hant'], supported)).toBe('zh-TW');
-    expect(resolveSystemLocale(['zh-TW'], supported)).toBe('zh-TW');
-    expect(resolveSystemLocale(['zh-HK'], supported)).toBe('zh-TW');
-    expect(resolveSystemLocale(['zh'], supported)).toBe('zh-CN');
-    expect(resolveSystemLocale(['zh-SG'], supported)).toBe('zh-CN');
+    expect(resolveSystemLocale({ languages: ['zh-Hant'], supportedLocales: supported })).toBe('zh-TW');
+    expect(resolveSystemLocale({ languages: ['zh-TW'], supportedLocales: supported })).toBe('zh-TW');
+    expect(resolveSystemLocale({ languages: ['zh-HK'], supportedLocales: supported })).toBe('zh-TW');
+    expect(resolveSystemLocale({ languages: ['zh'], supportedLocales: supported })).toBe('zh-CN');
+    expect(resolveSystemLocale({ languages: ['zh-SG'], supportedLocales: supported })).toBe('zh-CN');
   });
 
   it('does not resolve the Chinese special-case to an unsupported candidate', () => {
-    expect(resolveSystemLocale(['zh-Hant'], ['en', 'zh-CN'])).toBe('zh-CN');
+    expect(resolveSystemLocale({ languages: ['zh-Hant'], supportedLocales: ['en', 'zh-CN'] })).toBe('zh-CN');
   });
 
   it('falls through a list of preferred languages in order', () => {
-    expect(resolveSystemLocale(['xx', 'de', 'fr'], supported)).toBe('fr');
+    expect(resolveSystemLocale({ languages: ['xx', 'de', 'fr'], supportedLocales: supported })).toBe('fr');
   });
 
   it('skips blank entries without throwing', () => {
-    expect(resolveSystemLocale(['', '  ', 'fr'], supported)).toBe('fr');
+    expect(resolveSystemLocale({ languages: ['', '  ', 'fr'], supportedLocales: supported })).toBe('fr');
   });
 
   it('returns null when nothing matches', () => {
-    expect(resolveSystemLocale(['xx', 'yy'], supported)).toBeNull();
+    expect(resolveSystemLocale({ languages: ['xx', 'yy'], supportedLocales: supported })).toBeNull();
   });
 
   it('returns null for an empty language list', () => {
-    expect(resolveSystemLocale([], supported)).toBeNull();
+    expect(resolveSystemLocale({ languages: [], supportedLocales: supported })).toBeNull();
   });
 });
 

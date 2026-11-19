@@ -55,9 +55,7 @@ export interface TreeChildren<TFile> {
  * this asymmetry looks surprising but is exactly what the source does.
  */
 export function deriveTreeChildren<TFile extends AssetTreeFileItem>(
-  files: readonly TFile[],
-  folders: readonly AssetTreeFolderItem[],
-  currentDir: string,
+  { files, folders, currentDir }: { files: readonly TFile[]; folders: readonly AssetTreeFolderItem[]; currentDir: string }, _optional: Record<string, never> = {},
 ): TreeChildren<TFile> {
   const isRoot = currentDir === '';
   const prefix = isRoot ? '' : `${currentDir}/`;
@@ -122,8 +120,7 @@ function collectFolderChildren(input: {
 
 /** Total files (at every depth, not just the immediate level) under `dirPath` — what a folder row's "N files" subtitle counts. */
 export function countFilesUnderDir<TFile extends AssetTreeFileItem>(
-  files: readonly TFile[],
-  dirPath: string,
+  { files, dirPath }: { files: readonly TFile[]; dirPath: string }, _optional: Record<string, never> = {},
 ): number {
   const prefix = `${dirPath}/`;
   let count = 0;
@@ -143,10 +140,7 @@ export function countFilesUnderDir<TFile extends AssetTreeFileItem>(
  * most-recently-modified first.
  */
 export function groupFilesByKind<TFile>(
-  files: readonly TFile[],
-  sectionOrder: readonly string[],
-  getKind: (file: TFile) => string,
-  getModifiedAt: (file: TFile) => number,
+  { files, sectionOrder, getKind, getModifiedAt }: { files: readonly TFile[]; sectionOrder: readonly string[]; getKind: (file: TFile) => string; getModifiedAt: (file: TFile) => number }, _optional: Record<string, never> = {},
 ): AssetTreeSection<TFile>[] {
   const grouped = new Map<string, TFile[]>();
   const firstSeenOrder: string[] = [];
@@ -181,9 +175,7 @@ export function groupFilesByKind<TFile>(
  * exists) — callers should treat `null` as "don't navigate".
  */
 export function nextExistingAncestorDir<TFile extends AssetTreeFileItem>(
-  files: readonly TFile[],
-  folders: readonly AssetTreeFolderItem[],
-  currentDir: string,
+  { files, folders, currentDir }: { files: readonly TFile[]; folders: readonly AssetTreeFolderItem[]; currentDir: string }, _optional: Record<string, never> = {},
 ): string | null {
   if (currentDir === '') return null;
   const dirExists = (dir: string) =>
@@ -200,7 +192,7 @@ export function nextExistingAncestorDir<TFile extends AssetTreeFileItem>(
 
 // --- selection ---------------------------------------------------------
 
-export function toggleInSet(prev: ReadonlySet<string>, path: string): Set<string> {
+export function toggleInSet({ prev, path }: { prev: ReadonlySet<string>; path: string }, _optional: Record<string, never> = {}): Set<string> {
   const next = new Set(prev);
   if (next.has(path)) next.delete(path);
   else next.add(path);
@@ -214,7 +206,7 @@ export function toggleInSet(prev: ReadonlySet<string>, path: string): Set<string
  * render — same reasoning as `features/asset-grid/rules.ts`'s
  * `pruneMissingSelection`.
  */
-export function pruneMissingPaths(prev: Set<string>, livePaths: Iterable<string>): Set<string> {
+export function pruneMissingPaths({ prev, livePaths }: { prev: Set<string>; livePaths: Iterable<string> }, _optional: Record<string, never> = {}): Set<string> {
   if (prev.size === 0) return prev;
   const live = new Set(livePaths);
   const next = new Set(prev);
@@ -231,7 +223,7 @@ export function pruneMissingPaths(prev: Set<string>, livePaths: Iterable<string>
 // --- rename ---------------------------------------------------------
 
 /** The editable basename for `path` when renaming inside `currentDir` (strips the directory prefix). */
-export function basenameForRename(path: string, currentDir: string): string {
+export function basenameForRename({ path, currentDir }: { path: string; currentDir: string }, _optional: Record<string, never> = {}): string {
   return currentDir === '' ? path : path.slice(currentDir.length + 1);
 }
 
@@ -245,7 +237,7 @@ export interface RenameCommitDecision {
  * origin's `commitRename` short-circuits on: an empty (whitespace-only)
  * draft, or a draft that resolves back to the exact same path.
  */
-export function resolveRenameCommit(path: string, currentDir: string, draft: string): RenameCommitDecision | null {
+export function resolveRenameCommit({ path, currentDir, draft }: { path: string; currentDir: string; draft: string }, _optional: Record<string, never> = {}): RenameCommitDecision | null {
   const nextBasename = draft.trim();
   if (!nextBasename) return null;
   const nextPath = currentDir === '' ? nextBasename : `${currentDir}/${nextBasename}`;
@@ -272,8 +264,7 @@ export interface MenuPositionOptions {
  * otherwise clamps to the viewport with `safePadding` clearance.
  */
 export function computeMenuPosition(
-  anchor: MenuAnchorRect,
-  viewportHeight: number,
+  { anchor, viewportHeight }: { anchor: MenuAnchorRect; viewportHeight: number },
   options: MenuPositionOptions = {},
 ): { top: number; left: number } {
   const estimatedHeight = options.estimatedHeight ?? ROW_MENU_ESTIMATED_HEIGHT_PX;
@@ -293,7 +284,7 @@ export function computeMenuPosition(
 }
 
 /** Whether the row menu's "copy local path" action should be enabled for `file`. */
-export function canCopyLocalPath<TFile>(file: TFile, selectors: AssetTreeSelectors<TFile>): boolean {
+export function canCopyLocalPath<TFile>({ file, selectors }: { file: TFile; selectors: AssetTreeSelectors<TFile> }, _optional: Record<string, never> = {}): boolean {
   return !!selectors.getLocalPath?.(file);
 }
 
@@ -301,9 +292,8 @@ export function canCopyLocalPath<TFile>(file: TFile, selectors: AssetTreeSelecto
 
 /** Whether `nowMs` lands within `windowMs` of a prior activation timestamp — the double-Enter-to-open gesture on a keyboard-focused row name. */
 export function isDoubleActivation(
-  lastTimestampMs: number | undefined,
-  nowMs: number,
-  windowMs: number = DOUBLE_ACTIVATION_WINDOW_MS,
+  { lastTimestampMs, nowMs }: { lastTimestampMs: number | undefined; nowMs: number },
+  { windowMs = DOUBLE_ACTIVATION_WINDOW_MS }: { windowMs?: number | undefined } = {},
 ): boolean {
   return lastTimestampMs !== undefined && nowMs - lastTimestampMs < windowMs;
 }
@@ -311,18 +301,18 @@ export function isDoubleActivation(
 // --- display formatting ---------------------------------------------------
 
 /** Display config for `kind`, falling back to the raw kind key as the label and a generic glyph when the host's `AssetTreeKindConfigMap` has no entry for it. */
-export function resolveKindConfig(kind: string, kindConfig: AssetTreeKindConfigMap): AssetTreeKindConfig {
+export function resolveKindConfig({ kind, kindConfig }: { kind: string; kindConfig: AssetTreeKindConfigMap }, _optional: Record<string, never> = {}): AssetTreeKindConfig {
   return kindConfig[kind] ?? { label: kind, glyph: DEFAULT_KIND_GLYPH };
 }
 
-export function humanBytes(n: number): string {
+export function humanBytes({ n }: { n: number }, _optional: Record<string, never> = {}): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
 /** See {@link AssetTreeRelativeTime} for why this returns a template + params instead of a finished string. */
-export function relativeTimeResult(ts: number, nowMs: number = Date.now()): AssetTreeRelativeTime {
+export function relativeTimeResult({ ts }: { ts: number }, { nowMs = Date.now() }: { nowMs?: number | undefined } = {}): AssetTreeRelativeTime {
   const diff = nowMs - ts;
   const min = 60_000;
   const hr = 60 * min;
@@ -338,14 +328,14 @@ export function relativeTimeResult(ts: number, nowMs: number = Date.now()): Asse
 }
 
 /** Uppercase extension for a path's display, e.g. `"a/b.TXT"` -> `"TXT"`; `""` for an extensionless or dotfile-only path. */
-export function fileExtensionLabel(path: string): string {
+export function fileExtensionLabel({ path }: { path: string }, _optional: Record<string, never> = {}): string {
   const dot = path.lastIndexOf('.');
   if (dot < 0 || dot === path.length - 1) return '';
   return path.slice(dot + 1).toUpperCase();
 }
 
 /** Breadcrumb segments for every path component below the tree root (the root itself is rendered separately by `Breadcrumbs` since its label is host-configurable). */
-export function buildBreadcrumbSegments(currentDir: string): AssetTreeBreadcrumbSegment[] {
+export function buildBreadcrumbSegments({ currentDir }: { currentDir: string }, _optional: Record<string, never> = {}): AssetTreeBreadcrumbSegment[] {
   const parts = currentDir.split('/').filter(Boolean);
   return parts.map((segment, idx) => ({
     path: parts.slice(0, idx + 1).join('/'),

@@ -4,7 +4,7 @@ import type { TabStripItemProps } from './TabStripItem.js';
 
 /** Coordinate drag capture, keyboard activation, and close for one tab. */
 export function useTabStripItem({ tab, active, dragging, dragOverEdge, dragProps, onActivate, onClose }: Pick<TabStripItemProps, 'tab' | 'active' | 'dragging' | 'dragOverEdge' | 'dragProps' | 'onActivate' | 'onClose'>, _options = {}) {
-  const showClose = isTabClosable(tab, Boolean(onClose));
+  const showClose = isTabClosable({ tab, hasCloseHandler: Boolean(onClose) });
   const handleClick = (event: MouseEvent<HTMLDivElement>) => {
     dragProps.onClickCapture(event);
     if (event.defaultPrevented) return;

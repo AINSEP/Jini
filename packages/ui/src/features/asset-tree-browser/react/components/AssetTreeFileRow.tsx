@@ -166,7 +166,7 @@ export function AssetTreeFileRow({
 }: AssetTreeFileRowProps) {
   const t = useTHook();
   const { handleNameKeyDown, handleMenuTrigger } = useAssetTreeFileRowHook({ path, onOpen, onSelectPreview, onOpenMenu });
-  const relativeTime = relativeTimeResult(modifiedAt);
+  const relativeTime = relativeTimeResult({ ts: modifiedAt });
   const timeLabel = relativeTime.translatable ? t(relativeTime.label, relativeTime.params) : relativeTime.label;
 
   return (
@@ -189,7 +189,7 @@ export function AssetTreeFileRow({
         onRenameDraftChange={onRenameDraftChange} onCommitRename={onCommitRename} onCancelRename={onCancelRename}
       />
       <span className="asset-tree-row-size" onClick={() => onSelectPreview(path)} onDoubleClick={() => onOpen(path)}>
-        {humanBytes(size)}
+        {humanBytes({ n: size })}
       </span>
       <span className="asset-tree-row-time" onClick={() => onSelectPreview(path)} onDoubleClick={() => onOpen(path)}>
         {timeLabel}

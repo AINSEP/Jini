@@ -112,7 +112,7 @@ export function TabbedDialog<T extends TabbedDialogTab>({
     defaultFullscreen,
   });
 
-  const activeTab = findActiveTab(tabs, shell.activeTabId);
+  const activeTab = findActiveTab({ tabs, activeTabId: shell.activeTabId });
   const resolvedLabels = resolveTabbedDialogLabels({ t }, { labels });
 
   const body = (

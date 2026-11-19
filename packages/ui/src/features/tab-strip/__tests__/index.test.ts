@@ -15,18 +15,18 @@ describe('tab-strip barrel (index.ts)', () => {
   });
 
   it('re-exports the pure rule functions', () => {
-    expect(tabStrip.dropEdgeFromPointerX(10, { left: 0, width: 100 })).toBe('before');
-    expect(tabStrip.reorderTabIds(['a', 'b'], 'a', 'b', 'after')).toEqual(['b', 'a']);
-    expect(tabStrip.arraysEqual(['a'], ['a'])).toBe(true);
+    expect(tabStrip.dropEdgeFromPointerX({ pointerX: 10, rect: { left: 0, width: 100 } })).toBe('before');
+    expect(tabStrip.reorderTabIds({ tabIds: ['a', 'b'], sourceId: 'a', targetId: 'b', edge: 'after' })).toEqual(['b', 'a']);
+    expect(tabStrip.arraysEqual({ a: ['a'], b: ['a'] })).toBe(true);
     expect(tabStrip.dragTargetKey({ tabId: 'a', edge: 'before' })).toBe('a:before');
-    expect(tabStrip.coercePinnedDropTarget({ tabId: 'a', edge: 'before' }, new Set())).toEqual({
+    expect(tabStrip.coercePinnedDropTarget({ target: { tabId: 'a', edge: 'before' }, pinnedTabIds: new Set() })).toEqual({
       tabId: 'a',
       edge: 'before',
     });
-    expect(tabStrip.findNearestDropTarget(10, [], 'a')).toBeNull();
+    expect(tabStrip.findNearestDropTarget({ pointerX: 10, elements: [], sourceId: 'a' })).toBeNull();
     expect(tabStrip.pinnedTabIdSet([])).toEqual(new Set());
-    expect(tabStrip.isTabDraggable({ id: 'a', content: null }, [{ id: 'a', content: null }])).toBe(false);
-    expect(tabStrip.isTabClosable({ id: 'a', content: null }, false)).toBe(false);
+    expect(tabStrip.isTabDraggable({ tab: { id: 'a', content: null }, tabs: [{ id: 'a', content: null }] })).toBe(false);
+    expect(tabStrip.isTabClosable({ tab: { id: 'a', content: null }, hasCloseHandler: false })).toBe(false);
   });
 
   it('re-exports the ports and dependency factory', () => {

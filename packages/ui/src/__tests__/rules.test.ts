@@ -8,32 +8,32 @@ const tabs = [
 
 describe('resolveInitialActiveTabId', () => {
   it('returns the requested id when present', () => {
-    expect(resolveInitialActiveTabId(tabs, 'notifications')).toBe('notifications');
+    expect(resolveInitialActiveTabId({ tabs }, { initialTabId: 'notifications' })).toBe('notifications');
   });
 
   it('falls back to the first tab when the requested id is missing', () => {
-    expect(resolveInitialActiveTabId(tabs, 'does-not-exist')).toBe('appearance');
+    expect(resolveInitialActiveTabId({ tabs }, { initialTabId: 'does-not-exist' })).toBe('appearance');
   });
 
   it('falls back to the first tab when no id is requested', () => {
-    expect(resolveInitialActiveTabId(tabs)).toBe('appearance');
+    expect(resolveInitialActiveTabId({ tabs })).toBe('appearance');
   });
 
   it('returns null for an empty tab list', () => {
-    expect(resolveInitialActiveTabId([], 'anything')).toBeNull();
+    expect(resolveInitialActiveTabId({ tabs: [] }, { initialTabId: 'anything' })).toBeNull();
   });
 });
 
 describe('findActiveTab', () => {
   it('finds the tab matching activeTabId', () => {
-    expect(findActiveTab(tabs, 'notifications')?.label).toBe('Notifications');
+    expect(findActiveTab({ tabs, activeTabId: 'notifications' })?.label).toBe('Notifications');
   });
 
   it('returns undefined when activeTabId is null', () => {
-    expect(findActiveTab(tabs, null)).toBeUndefined();
+    expect(findActiveTab({ tabs, activeTabId: null })).toBeUndefined();
   });
 
   it('returns undefined when activeTabId matches no tab', () => {
-    expect(findActiveTab(tabs, 'missing')).toBeUndefined();
+    expect(findActiveTab({ tabs, activeTabId: 'missing' })).toBeUndefined();
   });
 });

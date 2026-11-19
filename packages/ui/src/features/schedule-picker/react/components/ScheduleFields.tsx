@@ -19,7 +19,7 @@ export interface ScheduleFieldsProps {
 export function ScheduleFields({ state, timezones, onMinuteChange, onTimeChange, onTimezoneChange, useTHook = useT }: ScheduleFieldsProps) {
   const t = useTHook();
 
-  if (!showsTimeFields(state.kind)) {
+  if (!showsTimeFields({ kind: state.kind })) {
     return (
       <label className="jini-schedule-picker__field">
         <span>{t('Minute of every hour')}</span>

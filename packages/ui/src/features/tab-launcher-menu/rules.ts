@@ -12,11 +12,8 @@ import { ALL_KIND_FILTER, ANCHOR_OFFSET, MAX_TAB_RESULTS, MENU_WIDTH, VIEWPORT_M
  * edges of a `viewportWidth`-wide viewport.
  */
 export function clampAnchoredPosition(
-  anchorRect: TabLauncherAnchorRect,
-  viewportWidth: number,
-  menuWidth: number = MENU_WIDTH,
-  margin: number = VIEWPORT_MARGIN,
-  offset: number = ANCHOR_OFFSET,
+  { anchorRect, viewportWidth }: { anchorRect: TabLauncherAnchorRect; viewportWidth: number },
+  { menuWidth = MENU_WIDTH, margin = VIEWPORT_MARGIN, offset = ANCHOR_OFFSET }: { menuWidth?: number | undefined; margin?: number | undefined; offset?: number | undefined } = {},
 ): TabLauncherPosition {
   const left = Math.max(margin, Math.min(anchorRect.right - menuWidth, viewportWidth - menuWidth - margin));
   return { top: anchorRect.bottom + offset, left };
@@ -36,9 +33,8 @@ export function presentKinds(items: readonly TabLauncherResultItem[]): string[] 
 }
 
 export function filterFiles(
-  files: readonly TabLauncherResultItem[],
-  query: string,
-  kindFilter: string,
+  { files, query, kindFilter }: { files: readonly TabLauncherResultItem[]; query: string; kindFilter: string },
+  _optional: Record<string, never> = {},
 ): TabLauncherResultItem[] {
   const q = query.trim().toLowerCase();
   return files.filter((file) => {
@@ -50,10 +46,8 @@ export function filterFiles(
 
 /** Tab results are excluded entirely once a kind filter (file-only) is active. */
 export function filterTabs(
-  tabs: readonly TabLauncherResultItem[],
-  query: string,
-  kindFilter: string,
-  maxResults: number = MAX_TAB_RESULTS,
+  { tabs, query, kindFilter }: { tabs: readonly TabLauncherResultItem[]; query: string; kindFilter: string },
+  { maxResults = MAX_TAB_RESULTS }: { maxResults?: number | undefined } = {},
 ): TabLauncherResultItem[] {
   if (kindFilter !== ALL_KIND_FILTER) return [];
   const q = query.trim().toLowerCase();
@@ -65,20 +59,20 @@ function tabSearchText(tab: TabLauncherResultItem): string {
 }
 
 /** Clamps a selection index into `[0, count)`, collapsing to 0 once the result set is empty. */
-export function clampSelection(current: number, count: number): number {
+export function clampSelection({ current, count }: { current: number; count: number }, _optional: Record<string, never> = {}): number {
   if (count === 0) return 0;
   return Math.min(current, count - 1);
 }
 
 /** Selection advance with wrap-around. */
-export function nextSelected(current: number, count: number, direction: 1 | -1): number {
+export function nextSelected({ current, count, direction }: { current: number; count: number; direction: 1 | -1 }, _optional: Record<string, never> = {}): number {
   if (count <= 0) return 0;
   if (direction === 1) return (current + 1) % count;
   return (current - 1 + count) % count;
 }
 
 /** Maps a flat selection index across the file+tab result lists into which list it falls in. */
-export function resolveSelection(selected: number, filesCount: number): TabLauncherSelection {
+export function resolveSelection({ selected, filesCount }: { selected: number; filesCount: number }, _optional: Record<string, never> = {}): TabLauncherSelection {
   if (selected < filesCount) return { zone: 'file', index: selected };
   return { zone: 'tab', index: selected - filesCount };
 }

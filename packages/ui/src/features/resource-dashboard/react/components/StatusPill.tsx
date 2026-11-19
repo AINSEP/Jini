@@ -18,7 +18,7 @@ export interface StatusPillProps {
  * shared-vs-separate verdict this component is the "shared" half of.
  */
 export function StatusPill({ status, label, toneMap }: StatusPillProps) {
-  const tone = statusToneFor(status, toneMap);
+  const tone = statusToneFor({ status, toneMap });
   return (
     <span className={`resource-status-pill is-${status} tone-${tone}`} data-testid="resource-status-pill">
       {label}

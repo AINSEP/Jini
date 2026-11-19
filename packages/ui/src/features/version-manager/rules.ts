@@ -5,7 +5,7 @@ import type { PreviewCanvasSize, VersionRecord, VersionSource } from './types.js
  *  host's locale. Falls back to the runtime default locale formatting if
  *  the given locale tag is invalid — matches the source's own try/catch
  *  fallback rather than throwing on a bad locale string. */
-export function formatVersionDateTime(value: number | undefined, locale: string): string {
+export function formatVersionDateTime({ value, locale }: { value: number | undefined; locale: string }, _optional: Record<string, never> = {}): string {
   const date = new Date(typeof value === 'number' && Number.isFinite(value) ? value : Date.now());
   try {
     return date.toLocaleString(locale, {
@@ -22,14 +22,14 @@ export function formatVersionDateTime(value: number | undefined, locale: string)
 /** Plain-English label for a version's `source` — the caller wraps this in
  *  `t()` at the call site (the English string is the translation key
  *  convention this package uses; see `packages/ui/README.md`). */
-export function versionSourceLabel(source: VersionSource): string {
+export function versionSourceLabel({ source }: { source: VersionSource }, _optional: Record<string, never> = {}): string {
   if (source === 'manual') return 'Manual';
   if (source === 'restore') return 'Restored';
   return 'AI generated';
 }
 
 /** CSS class suffix for a version's source badge. */
-export function versionSourceClassName(source: VersionSource): string {
+export function versionSourceClassName({ source }: { source: VersionSource }, _optional: Record<string, never> = {}): string {
   if (source === 'manual') return 'manual';
   if (source === 'restore') return 'restore';
   return 'ai';
@@ -55,8 +55,8 @@ export function buildVersionIndex<TVersion extends VersionRecord>(
 /** The version a given version was restored from, if any and if still
  *  present in the current list. */
 export function restoredFromVersion<TVersion extends VersionRecord>(
-  version: TVersion | null | undefined,
-  versionById: ReadonlyMap<string, TVersion>,
+  { version, versionById }: { version: TVersion | null | undefined; versionById: ReadonlyMap<string, TVersion> },
+  _optional: Record<string, never> = {},
 ): TVersion | null {
   if (!version?.restoreFromVersionId) return null;
   return versionById.get(version.restoreFromVersionId) ?? null;
@@ -67,9 +67,8 @@ export function restoredFromVersion<TVersion extends VersionRecord>(
  *  first (newest) version, else `null` for an empty list. Matches the
  *  source's own selection-fallback chain exactly. */
 export function resolveSelectedVersion<TVersion extends VersionRecord>(
-  versions: readonly TVersion[],
-  versionById: ReadonlyMap<string, TVersion>,
-  selectedId: string | null,
+  { versions, versionById, selectedId }: { versions: readonly TVersion[]; versionById: ReadonlyMap<string, TVersion>; selectedId: string | null },
+  _optional: Record<string, never> = {},
 ): TVersion | null {
   if (selectedId) {
     const explicit = versionById.get(selectedId);
@@ -80,7 +79,7 @@ export function resolveSelectedVersion<TVersion extends VersionRecord>(
 
 /** Should the search box be shown at all — only once the list is long
  *  enough to need filtering. */
-export function shouldShowVersionSearch(versionCount: number, threshold: number): boolean {
+export function shouldShowVersionSearch({ versionCount, threshold }: { versionCount: number; threshold: number }, _optional: Record<string, never> = {}): boolean {
   return versionCount > threshold;
 }
 
@@ -93,9 +92,8 @@ export function shouldShowVersionSearch(versionCount: number, threshold: number)
  * `restoredFromVersion`), then this function only does the filtering.
  */
 export function filterVersionsBySearch<TVersion extends VersionRecord>(
-  versions: readonly TVersion[],
-  search: string,
-  describe: (version: TVersion) => string,
+  { versions, search, describe }: { versions: readonly TVersion[]; search: string; describe: (version: TVersion) => string },
+  _optional: Record<string, never> = {},
 ): TVersion[] {
   const normalized = search.trim().toLowerCase();
   if (!normalized) return [...versions];
@@ -124,9 +122,8 @@ export function isRestoreDisabled<TVersion extends VersionRecord>(
  *  currently-selected version (guards against acting on stale content
  *  during a version switch's in-flight fetch). */
 export function contentMatchesSelection(
-  selectedId: string | null,
-  selectedContentVersionId: string | null,
-  selectedContent: string | null,
+  { selectedId, selectedContentVersionId, selectedContent }: { selectedId: string | null; selectedContentVersionId: string | null; selectedContent: string | null },
+  _optional: Record<string, never> = {},
 ): boolean {
   return Boolean(selectedId && selectedContentVersionId === selectedId && selectedContent);
 }
@@ -134,7 +131,7 @@ export function contentMatchesSelection(
 /** Finds a viewport preset by id, falling back to the first preset in the
  *  list (matches `ViewportSwitcher`/`ViewportToggleGroup`'s own fallback
  *  behavior in `features/viewer-shell/`). */
-export function findViewportPreset(presets: readonly ViewportPreset[], id: string): ViewportPreset {
+export function findViewportPreset({ presets, id }: { presets: readonly ViewportPreset[]; id: string }, _optional: Record<string, never> = {}): ViewportPreset {
   return presets.find((preset) => preset.id === id) ?? presets[0]!;
 }
 
@@ -147,10 +144,8 @@ export function findViewportPreset(presets: readonly ViewportPreset[], id: strin
  * preset that opts out of fixed framing.
  */
 export function effectivePreviewScale(
-  preset: ViewportPreset,
-  previewScale: number,
-  canvasSize: PreviewCanvasSize | undefined,
-  canvasPadding: number,
+  { preset, previewScale, canvasSize, canvasPadding }: { preset: ViewportPreset; previewScale: number; canvasSize: PreviewCanvasSize | undefined; canvasPadding: number },
+  _optional: Record<string, never> = {},
 ): number {
   if (!preset.width || !preset.height) return previewScale;
   if (!canvasSize || !canvasSize.width || !canvasSize.height) return previewScale;
@@ -164,9 +159,8 @@ export function effectivePreviewScale(
  *  and scale. Returns an empty object for a "no fixed frame" preset (the
  *  frame just fills its container at 100%, no custom properties needed). */
 export function previewViewportStyle(
-  preset: ViewportPreset,
-  effectiveScale: number,
-  previewScale: number,
+  { preset, effectiveScale, previewScale }: { preset: ViewportPreset; effectiveScale: number; previewScale: number },
+  _optional: Record<string, never> = {},
 ): Record<string, string | number> {
   if (!preset.width) return {};
   return {
@@ -183,8 +177,8 @@ export function previewViewportStyle(
  *  properties `previewViewportStyle` sets and scales by the *fitted*
  *  `--preview-scale` variable, matching the source's two-mode behavior. */
 export function previewScaleShellStyle(
-  preset: ViewportPreset,
-  previewScale: number,
+  { preset, previewScale }: { preset: ViewportPreset; previewScale: number },
+  _optional: Record<string, never> = {},
 ): Record<string, string> {
   if (!preset.width) {
     return {

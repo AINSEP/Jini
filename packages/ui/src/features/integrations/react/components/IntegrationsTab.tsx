@@ -139,7 +139,7 @@ function resolveClientSnippet({
   // generated `claude mcp add-json …` and told the operator to run it, for a
   // client the host had deliberately excluded.
   const client = clients.find((c) => c.id === clientId) ?? clients[0];
-  const resolved = info && client ? snippetForClient(client.id, serverName, info) : null;
+  const resolved = info && client ? snippetForClient({ clientId: client.id, serverName, info }) : null;
   return { client, resolved };
 }
 
@@ -161,7 +161,7 @@ function methodLabelProps({
   // stay blank rather than flashing in before the rest of the install info.
   const methodLabel = resolved ? t(resolved.method) : undefined;
   const methodLabels = info
-    ? (Object.fromEntries(clients.map((c) => [c.id, t(methodLabelForClient(c.id))])) as Partial<Record<McpClientId, string>>)
+    ? (Object.fromEntries(clients.map((c) => [c.id, t(methodLabelForClient({ clientId: c.id }))])) as Partial<Record<McpClientId, string>>)
     : undefined;
   return { methodLabel, methodLabels };
 }

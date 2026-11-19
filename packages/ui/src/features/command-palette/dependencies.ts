@@ -22,7 +22,7 @@ export function createLocalStorageRecents(
     if (typeof window === 'undefined') return [];
     try {
       const raw = window.localStorage.getItem(storageKey(namespace, scopeKey));
-      return raw ? parseRecentIds(raw) : [];
+      return raw ? parseRecentIds({ raw }) : [];
     } catch {
       return [];
     }
@@ -33,7 +33,7 @@ export function createLocalStorageRecents(
     push(scopeKey, id) {
       if (typeof window === 'undefined') return;
       try {
-        const next = pushRecentId(read(scopeKey), id, limit);
+        const next = pushRecentId({ previous: read(scopeKey), id, limit });
         window.localStorage.setItem(storageKey(namespace, scopeKey), JSON.stringify(next));
       } catch {
         // Quota exceeded or private mode — recents are best-effort, drop silently.

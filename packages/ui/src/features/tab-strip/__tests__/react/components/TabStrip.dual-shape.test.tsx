@@ -102,10 +102,7 @@ function ReorderableTabStrip({
   const handleReorder = (sourceId: string, targetId: string, edge: TabStripDropEdge) => {
     setTabs((current) => {
       const nextIds = reorderTabIds(
-        current.map((t) => t.id),
-        sourceId,
-        targetId,
-        edge,
+        { tabIds: current.map((t) => t.id), sourceId, targetId, edge },
       );
       return nextIds.map((id) => current.find((t) => t.id === id)!);
     });

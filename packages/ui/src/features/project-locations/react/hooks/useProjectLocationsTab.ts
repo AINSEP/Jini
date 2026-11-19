@@ -162,7 +162,7 @@ function useLocationsPersist({
       // fall back it to the host's own root rather than leaving a dangling
       // id, same correction the origin makes inline in its own `setCfg`.
       const configured = defaultLocationIdRef.current ?? DEFAULT_LOCATION_ID;
-      const effective = resolveDefaultLocationId(configured, saved);
+      const effective = resolveDefaultLocationId({ configuredId: configured, locations: saved });
       if (effective !== configured) onDefaultLocationIdChangeRef.current?.(effective);
       return saved;
     };
@@ -209,7 +209,7 @@ function useDraftActions({ persist, portRef, locationsRef, draftsRef, alive, set
       // just the editable drafts — a deliberate widening of the origin's
       // drafts-only check, using the same trailing-separator-insensitive
       // comparison `isDuplicatePath` already applies everywhere else.
-      if (isDuplicatePath(selected, locationsRef.current)) {
+      if (isDuplicatePath({ candidatePath: selected, locations: locationsRef.current })) {
         setResult({ status: 'duplicate' });
         return;
       }
@@ -292,7 +292,7 @@ export function useProjectLocationsTab({
     locations,
     drafts,
     builtIn: locations.find((location) => location.builtIn),
-    effectiveDefaultLocationId: resolveDefaultLocationId(defaultLocationId ?? null, locations),
+    effectiveDefaultLocationId: resolveDefaultLocationId({ configuredId: defaultLocationId ?? null, locations }),
     loading,
     saving,
     result,

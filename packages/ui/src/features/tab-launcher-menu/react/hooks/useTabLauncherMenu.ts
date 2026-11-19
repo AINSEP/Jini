@@ -59,7 +59,7 @@ function useAnchoredPosition(anchor: UseTabLauncherMenuOptions['anchor']) {
     if (!anchor) return undefined;
     const update = () => {
       const rect = anchor.getBoundingClientRect();
-      setPosition(clampAnchoredPosition(rect, window.innerWidth));
+      setPosition(clampAnchoredPosition({ anchorRect: rect, viewportWidth: window.innerWidth }));
     };
     update();
     window.addEventListener('scroll', update, true);
@@ -119,12 +119,12 @@ interface LauncherResultsParams {
 /** Filtered file/tab results, plus keeping the selection inside their combined range. */
 function useLauncherResults({ files, tabs, query, kindFilter, setSelected }: LauncherResultsParams) {
   const kinds = useMemo(() => presentKinds(files), [files]);
-  const fileResults = useMemo(() => filterFiles(files, query, kindFilter), [files, query, kindFilter]);
-  const tabResults = useMemo(() => filterTabs(tabs, query, kindFilter), [tabs, query, kindFilter]);
+  const fileResults = useMemo(() => filterFiles({ files, query, kindFilter }), [files, query, kindFilter]);
+  const tabResults = useMemo(() => filterTabs({ tabs, query, kindFilter }), [tabs, query, kindFilter]);
   const selectableCount = fileResults.length + tabResults.length;
 
   useEffect(() => {
-    setSelected((current) => clampSelection(current, selectableCount));
+    setSelected((current) => clampSelection({ current, count: selectableCount }));
   }, [selectableCount, setSelected]);
 
   return { kinds, fileResults, tabResults, selectableCount };
@@ -161,7 +161,7 @@ function activateSelection<TActionCtx>({
     if (firstAction) runAction(firstAction);
     return;
   }
-  const resolved = resolveSelection(selected, fileResults.length);
+  const resolved = resolveSelection({ selected, filesCount: fileResults.length });
   if (resolved.zone === 'file') {
     const file = fileResults[resolved.index];
     if (file) selectFile(file);
@@ -204,7 +204,7 @@ export function useTabLauncherMenu<TActionCtx = void>(
     const step = arrowStep(event.key);
     if (step !== 0) {
       event.preventDefault();
-      setSelected((current) => nextSelected(current, selectableCount, step));
+      setSelected((current) => nextSelected({ current, count: selectableCount, direction: step }));
       return;
     }
     if (event.key !== 'Enter') return;

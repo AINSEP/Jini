@@ -7,7 +7,7 @@
  * both a revision's overall body and each of its per-file changes — the
  * origin duplicated this exact algorithm once for each.
  */
-export function diffAddedLines(baseText: string, proposedText: string): string {
+export function diffAddedLines({ baseText, proposedText }: { baseText: string; proposedText: string }, _optional: Record<string, never> = {}): string {
   const baseLines = baseText.split(/\r?\n/);
   const proposedLines = proposedText.split(/\r?\n/);
   let index = 0;
@@ -18,7 +18,7 @@ export function diffAddedLines(baseText: string, proposedText: string): string {
 }
 
 /** Formats an ISO-ish timestamp as a short local date+time string, or returns the input unchanged if it doesn't parse. */
-export function formatRevisionTimestamp(value: string): string {
+export function formatRevisionTimestamp({ value }: { value: string }, _optional: Record<string, never> = {}): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });

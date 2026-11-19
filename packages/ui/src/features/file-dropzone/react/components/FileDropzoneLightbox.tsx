@@ -87,7 +87,7 @@ function renderFallback({ t, file, kind }: { t: Translate; file: File; kind: Fil
       </span>
       <p className="jini-file-dropzone__lightbox-fallback-name">{file.name}</p>
       <p className="jini-file-dropzone__lightbox-fallback-meta">
-        {fileDropzoneExtensionLabel(file)} · {fileDropzoneSizeLabel(file.size) || '—'}
+        {fileDropzoneExtensionLabel(file)} · {fileDropzoneSizeLabel({ bytes: file.size }) || '—'}
       </p>
       <p className="jini-file-dropzone__lightbox-fallback-hint">{t('No inline preview for this file type.')}</p>
     </div>
@@ -109,7 +109,7 @@ export function FileDropzoneLightbox({ file, previews, onClose, useTHook = useT 
       onClose={onClose}
       className="jini-file-dropzone__lightbox"
       labels={{ close: t('Close preview') }}
-      actions={<span className="jini-file-dropzone__lightbox-meta">{fileDropzoneSizeLabel(file.size)}</span>}
+      actions={<span className="jini-file-dropzone__lightbox-meta">{fileDropzoneSizeLabel({ bytes: file.size })}</span>}
     >
       <div className="jini-file-dropzone__lightbox-stage" data-kind={kind}>
         {renderStage({ t, file, kind, previews })}
