@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { activeRunStub, messageWriteKey, persistableMessages, createConditionalHistoryRead } from "../entry.js";
 import type { ChatMessage } from "../../messages.js";
+import { persistableMessages as persistableMessagesFromCore } from "../../index.js";
 
 const user = (id: string, extra: Partial<ChatMessage> = {}): ChatMessage => ({ id, role: "user", content: id, ...extra });
 const assistant = (id: string, extra: Partial<ChatMessage> = {}): ChatMessage => ({ id, role: "assistant", content: id, ...extra });
@@ -16,6 +17,33 @@ describe("persistableMessages", () => {
       assistant("a4", { runId: "r4", runStatus: "failed" }),
     ];
     expect(persistableMessages({ messages }).map(message => message.id)).toEqual(["u1", "a1", "a4"]);
+  });
+});
+
+describe.each([
+  ["transports/http", persistableMessages],
+  ["core", persistableMessagesFromCore],
+] as const)("persistableMessages through %s", (_entry, filter) => {
+  const messages: readonly ChatMessage[] = Object.freeze([
+    Object.freeze(user("pending", { inputPending: true })),
+    Object.freeze(user("accepted")),
+    Object.freeze(assistant("running", { runStatus: "running" })),
+    Object.freeze(assistant("queued", { runStatus: "queued" })),
+    Object.freeze(assistant("succeeded", { runStatus: "succeeded" })),
+    Object.freeze(assistant("failed", { content: "", runStatus: "failed" })),
+    Object.freeze(assistant("canceled", { content: "", runStatus: "canceled" })),
+  ]);
+
+  it("defaults to accepted users and terminal assistants, including empty failures and cancellations", () => {
+    const expected = ["accepted", "succeeded", "failed", "canceled"];
+    expect(filter({ messages }).map(message => message.id)).toEqual(expected);
+    expect(filter({ messages }, { includePendingUser: false }).map(message => message.id)).toEqual(expected);
+  });
+
+  it("opts into pending user turns while still excluding live assistants", () => {
+    const saved = filter({ messages }, { includePendingUser: true });
+    expect(saved.map(message => message.id)).toEqual(["pending", "accepted", "succeeded", "failed", "canceled"]);
+    expect(saved[0]).toBe(messages[0]);
   });
 });
 

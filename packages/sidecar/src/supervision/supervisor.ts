@@ -409,3 +409,7 @@ function awaitForCaller({ work, signal }: { work: Promise<void>; signal: AbortSi
     work.then(resolve, reject).finally(() => signal.removeEventListener("abort", abort));
   });
 }
+
+export { createKeyedSerializer, type KeyedSerializer } from "./keyed-serializer.js";
+export { createChildTransitions, type ChildTransition, type ChildTransitions } from "./child-transitions.js";
+export { createChildEntries, type ChildExit, type ObservedServer, type ChildEntry, type ChildEntriesRequired, type ChildEntries } from "./child-entries.js";

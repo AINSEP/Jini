@@ -280,14 +280,16 @@ function createWorkspaceRunningAccess({ canonicalPath, runningName, config, sett
  * The default canonicalizer of {@link createNodeDirectoryWorkspace}. `realpath` is the native
  * resolver by default; it is injectable so a missing filesystem root (an unmounted Windows drive)
  * can be exercised on any host. A missing root resolves to its absolute form.
+ * `fallbackOnAnyError` opts into best-effort ancestor resolution for erase containment; other
+ * callers still propagate failures other than ENOENT.
  * @complexity O(d) realpath probes for d path segments.
  */
-export function canonicalNodeDirectory({ path: dir }: { path: string }, { realpath = fs.realpathSync }: { realpath?: (dir: string) => string } = {}): string {
+export function canonicalNodeDirectory({ path: dir }: { path: string }, { realpath = fs.realpathSync, fallbackOnAnyError = false }: { realpath?: (dir: string) => string; fallbackOnAnyError?: boolean } = {}): string {
   try { return realpath(dir); } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    if (!fallbackOnAnyError && (error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     // Resolve the nearest existing ancestor too: a not-yet-created home may sit below a
     // symlink (notably /var on macOS) and must compare equal before and after creation.
     const absolute = path.resolve(dir), parent = path.dirname(absolute);
-    return parent === absolute ? absolute : path.join(canonicalNodeDirectory({ path: parent }, { realpath }), path.basename(absolute));
+    return parent === absolute ? absolute : path.join(canonicalNodeDirectory({ path: parent }, { realpath, fallbackOnAnyError }), path.basename(absolute));
   }
 }

@@ -356,3 +356,15 @@ export async function receiveNodeStartupSecrets({ peer }: { peer: NodeIpcPeer },
   try { return startupSecretRecord(await channel.request({ payload: 'read' }, {})); }
   finally { channel.dispose({}); }
 }
+
+export { createChildRegistry } from "./child-registry.js";
+export type { ChildRegistry, ChildRegistryRequired, ChildRegistryStorage, ChildRegistryRead, ChildRegistrySnapshot, ChildRegistryReport } from "./child-registry.js";
+export type { ChildRegistryProcesses } from "./child-orphans.js";
+export { createChildProcessInspection } from "./child-process-inspection.js";
+export type { ChildProcessInspection, ChildProcessInspectionRequired } from "./child-process-inspection.js";
+export { waitForChildReady } from "./child-readiness.js";
+export type { ReadinessChild, ChildReadinessFailure, ChildReadinessOutputSink, ChildReadinessRequired } from "./child-readiness.js";
+export { stopSpawnedChild } from "./child-stop.js";
+export type { StoppableChild, ChildStopFailure, ChildStopRequired, ChildStopOptions } from "./child-stop.js";
+export { createChildExitSignal } from "./child-exit-signal.js";
+export type { ChildExitSignal, ChildExitOutcome, ExitSignalChild } from "./child-exit-signal.js";

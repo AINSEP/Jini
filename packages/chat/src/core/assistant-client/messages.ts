@@ -13,7 +13,8 @@ export interface AssistantConversation {
 
 
 /**
- * The subset of a live transcript that is worth writing: accepted user turns, and assistant turns whose run
+ * The subset of a live transcript that is worth writing: accepted user turns (or pending ones when
+ * the host opts in), and assistant turns whose run
  * has reached a terminal status.
  *
  * An assistant message that is still `queued` or `running` is rewritten on every delta, so
@@ -30,9 +31,9 @@ export interface AssistantConversation {
  * side instead — see `assistant-transport.ts`'s `historyForTranscript`/`isAnsweredAssistantTurn`.
  * Deleting them here would trade a history bug for a forensics hole.
  */
-export function persistableMessages({ messages }: { messages: ChatMessage[] }, _options: Record<string, never> = {}): ChatMessage[] {
+export function persistableMessages({ messages }: { messages: readonly ChatMessage[] }, { includePendingUser = false }: { includePendingUser?: boolean } = {}): ChatMessage[] {
   return messages.filter(
-    (message) => message.role === "user" ? !message.inputPending : isTerminalRunStatus({ status: message.runStatus }),
+    (message) => message.role === "user" ? includePendingUser || !message.inputPending : isTerminalRunStatus({ status: message.runStatus }),
   );
 }
 

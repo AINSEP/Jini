@@ -16,6 +16,7 @@
       ".": "browser",
       "./core": "universal",
       "./browser": "browser",
+      "./visible-interval": "universal",
       "./sketch-editor": "browser",
       "./html-editor": "browser",
       "./mcp-ui": "browser",
@@ -97,6 +98,11 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
+    "./visible-interval": {
+      "types": "./dist/utils/visible-interval.d.ts",
+      "import": "./dist/utils/visible-interval.js",
+      "default": "./dist/utils/visible-interval.js"
+    },
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
