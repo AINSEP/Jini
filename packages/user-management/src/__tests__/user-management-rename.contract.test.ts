@@ -20,6 +20,7 @@ test('publishes user management from its canonical folder and preserves runtime 
   expect(manifest.jini).toMatchObject({ domain: 'capability', kind: 'user-management' });
   expect(manifest.jini.entries).toEqual({
     '.': 'universal',
+    './session-bootstrap': 'universal',
     './server': 'node',
     './react': 'browser',
     './react/testing': 'browser',
