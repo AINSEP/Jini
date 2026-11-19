@@ -27,7 +27,7 @@
   overscroll-behavior: contain;
   color: var(--jini-lightbox-ink);
   background: var(--jini-lightbox-bg);
-  font-family: var(--jini-font-sans, inherit);
+  font-family: inherit;
 }
 .jini-lightbox::backdrop { background: transparent; }
 
