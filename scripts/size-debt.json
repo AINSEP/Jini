@@ -497,13 +497,6 @@
     "value": 87
   },
   {
-    "file": "packages/integrations/src/api-connections/hosted-mcp/shared-sign-in.ts",
-    "function": "createSharedExternalMcpOAuth",
-    "line": 78,
-    "rule": "max-lines-per-function",
-    "value": 257
-  },
-  {
     "file": "packages/integrations/src/api-connections/hosted-mcp/sign-in.ts",
     "function": "createHostedMcpSignInService",
     "line": 796,
@@ -516,20 +509,6 @@
     "line": 913,
     "rule": "max-lines",
     "value": 597
-  },
-  {
-    "file": "packages/integrations/src/media-providers/dispatch/sqlite-async-operation-store.ts",
-    "function": "createSqliteAsyncOperationStore",
-    "line": 131,
-    "rule": "max-lines-per-function",
-    "value": 145
-  },
-  {
-    "file": "packages/integrations/src/media-providers/sqlite-task-store.ts",
-    "function": "createSqliteMediaTaskStore",
-    "line": 130,
-    "rule": "max-lines-per-function",
-    "value": 140
   },
   {
     "file": "packages/mcp/src/federation/hosted/store.ts",
