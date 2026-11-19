@@ -33,3 +33,6 @@ export { TabBar } from './react/components/TabBar.js';
 export type { TabBarProps, TabBarTab } from './react/components/TabBar.js';
 export { useTabBarKeyboard, resolveTabBarKeyTarget, resolveTabBarTabIndex, tabHandleProps } from './react/components/TabBar.hooks.js';
 export type { TabBarKeyboardHandlers } from './react/components/TabBar.hooks.js';
+
+export { tabOverflow, revealActiveTab, rovingTabIndex, nextTabListIndex, navigateTabList } from './scrollable.js';
+export { useScrollableTabStrip } from './react/hooks/useScrollableTabStrip.js';
