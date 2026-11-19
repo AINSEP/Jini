@@ -323,3 +323,4 @@ export * from './features/source-config-list/rules.js';
 export * from './features/source-config-list/types.js';
 
 export { createFindQueryScheduler, FIND_QUERY_SETTLE_MS, type FindQueryClock } from "./features/find/find-query-scheduler.js";
+export * from "./features/live-views/live-views.js";
