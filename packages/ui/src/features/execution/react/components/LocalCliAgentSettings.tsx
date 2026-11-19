@@ -69,7 +69,25 @@ function LocalCliAgentModelControls({ agent, card, onModelChange, agentHandle, u
   const modelHandleProps = agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'model' }) } : {};
   return (
     <div className="jini-agent-settings-row">
-      {hasModels ? (
+      {hasModels ? renderAgentModelChoice({ agent, card, source, sourceLabel, sourceHint, modelHandleProps, selectValue, modelChoices, additionalOptions, t }) : null}
+      {customActive ? renderAgentCustomModel({ agent, agentHandle, customModelInputValue, onModelChange, t }) : null}
+
+      {/* Effort follows the model controls; Test belongs to the card header
+          so it stays separate from both field interactions. */}
+      {hasReasoning ? renderAgentReasoning({ agent, agentHandle, card, reasoningValue, reasoningDisabled, reasoningOptions, t }) : null}
+    </div>
+  );
+}
+
+function renderAgentModelChoice({
+  agent, card, source, sourceLabel, sourceHint, modelHandleProps, selectValue, modelChoices, additionalOptions, t,
+}: Pick<LocalCliAgentSettingsProps, 'agent' | 'card'> &
+  Pick<UseLocalCliAgentCardResult, 'source' | 'sourceLabel' | 'sourceHint'> &
+  Pick<UseLocalCliAgentCardResult['reasoning'], 'selectValue' | 'modelChoices'> & {
+    modelHandleProps: { agentHandle?: string }; additionalOptions: { value: string; label: string }[] | undefined;
+    t: ReturnType<typeof useT>;
+  }) {
+  return (
         <div className="jini-agent-settings-field jini-agent-settings-model">
           <div className="jini-agent-settings-label">
             <span className="jini-field-label">{t('Model')}</span>
@@ -91,9 +109,13 @@ function LocalCliAgentModelControls({ agent, card, onModelChange, agentHandle, u
           />
           {sourceHint ? <p className="jini-field-hint">{sourceHint}</p> : null}
         </div>
-      ) : null}
+  );
+}
 
-      {customActive ? (
+function renderAgentCustomModel({ agent, agentHandle, customModelInputValue, onModelChange, t }:
+  Pick<LocalCliAgentSettingsProps, 'agent' | 'agentHandle' | 'onModelChange'> &
+  Pick<UseLocalCliAgentCardResult['reasoning'], 'customModelInputValue'> & { t: ReturnType<typeof useT> }) {
+  return (
         <label className="jini-agent-settings-field">
           <span className="jini-field-label">{t('Custom model id')}</span>
           <input
@@ -107,11 +129,13 @@ function LocalCliAgentModelControls({ agent, card, onModelChange, agentHandle, u
             {...agentHandleProps({}, { base: agentHandle, action: 'custom-model', role: 'field', label: t('Custom model id') })}
           />
         </label>
-      ) : null}
+  );
+}
 
-      {/* Effort follows the model controls; Test belongs to the card header
-          so it stays separate from both field interactions. */}
-      {hasReasoning ? (
+function renderAgentReasoning({ agent, agentHandle, card, reasoningValue, reasoningDisabled, reasoningOptions, t }:
+  Pick<LocalCliAgentSettingsProps, 'agent' | 'agentHandle' | 'card'> &
+  Pick<UseLocalCliAgentCardResult['reasoning'], 'reasoningValue' | 'reasoningDisabled' | 'reasoningOptions'> & { t: ReturnType<typeof useT> }) {
+  return (
         <label className="jini-agent-settings-field">
           <span className="jini-field-label">{t('Reasoning effort')}</span>
           <select
@@ -129,8 +153,6 @@ function LocalCliAgentModelControls({ agent, card, onModelChange, agentHandle, u
             ))}
           </select>
         </label>
-      ) : null}
-    </div>
   );
 }
 

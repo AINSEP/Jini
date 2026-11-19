@@ -1093,37 +1093,19 @@ export async function prepareAttachmentStorage(requiredArgs: Omit<{ readonly can
   return adopted;
 }
 
-/**
- * The disk-backed `AttachmentStore` this package ships. Every default matches what a chat composer
- * needs out of the box; a host that wants different quotas passes them rather than reimplementing
- * the port.
- *
- * @complexity `register`/`claim` are O(n) in the number of tracked records (a small bounded number
- * — `maxStoredAttachments`), which is what keeps the quota decision synchronous; see `register`.
- */
-export async function createDiskAttachmentStore(requiredArgs: Omit<CreateDiskAttachmentStoreOptions, 'maxAttachments' | 'maxBatchBytes' | 'maxStoredAttachments' | 'maxStoredBytes' | 'retentionMs' | 'retainAcrossRestarts'>, optionalArgs: Pick<CreateDiskAttachmentStoreOptions, 'maxAttachments' | 'maxBatchBytes' | 'maxStoredAttachments' | 'maxStoredBytes' | 'retentionMs' | 'retainAcrossRestarts'> = {}): Promise<AttachmentStore> {
-  const {
-    uploadDirectory,
-    maxAttachments = 10,
-    maxBatchBytes = 50 * 1024 * 1024,
-    maxStoredAttachments = 100,
-    maxStoredBytes = 200 * 1024 * 1024,
-    retentionMs = 60 * 60 * 1_000,
-    retainAcrossRestarts = false,
-  }: CreateDiskAttachmentStoreOptions = { ...requiredArgs, ...optionalArgs };
-  await mkdir(uploadDirectory, { recursive: true, mode: 0o700 });
-  await chmod(uploadDirectory, 0o700);
-  const canonicalUploadDirectory = await realpath(uploadDirectory);
-  // Either empties the directory (the default — a file left by an interrupted previous process has
-  // no record to authenticate it against) or adopts the previous process's authenticated survivors.
-  // See `prepareAttachmentStorage`.
-  const records = await prepareAttachmentStorage({ canonicalUploadDirectory, retainAcrossRestarts, retentionMs });
-  const stagedPathsByRecord = new WeakMap<AttachmentRecord, Set<string>>();
-  /** Only issued refs match; no caller-supplied path is opened. O(n) time for n stored records,
-   * bounded by maxStoredAttachments, with no filesystem I/O. */
-  const findRecord = ({ ref }: { readonly ref: string }, _optional: Record<string, never> = {}): AttachmentRecord | undefined =>
-    records.get(ref) ?? [...records.values()].find((candidate) =>
-      candidate.filePath === ref || stagedPathsByRecord.get(candidate)?.has(ref));
+const removeEmptyBatch = async (batchDirectory: string): Promise<void> => {
+  try {
+    await rmdir(batchDirectory);
+  } catch {
+    // Non-empty (another unclaimed upload still occupies it) or already gone. Both are fine:
+    // this is opportunistic tidying, never the thing that makes a delete correct.
+  }
+};
+
+const totalBytes = (candidates: readonly AttachmentRecord[]): number =>
+  candidates.reduce((total, record) => total + record.size, 0);
+
+function createAttachmentPersistence(records: Map<string, AttachmentRecord>, canonicalUploadDirectory: string, retainAcrossRestarts: boolean) {
   const sidecarDirectory = resolve(canonicalUploadDirectory, SIDECAR_DIRECTORY_NAME);
   const sidecarPathFor = (record: AttachmentRecord): string =>
     resolve(sidecarDirectory, attachmentSidecarFileName({ id: record.id }));
@@ -1149,6 +1131,10 @@ export async function createDiskAttachmentStore(requiredArgs: Omit<CreateDiskAtt
     if (retainAcrossRestarts) await rm(sidecarPathFor(record), { force: true });
   };
 
+  return { persistRecord, forgetRecord };
+}
+
+function createBatchDirectoryResolver(canonicalUploadDirectory: string) {
   const resolveBatchDirectory = (batchId: string): string => {
     if (!BATCH_ID_PATTERN.test(batchId)) {
       throw new AttachmentRejectedError({ reason: 'invalid-batch', message: 'Invalid attachment batch' });
@@ -1162,15 +1148,10 @@ export async function createDiskAttachmentStore(requiredArgs: Omit<CreateDiskAtt
     return resolve(canonicalUploadDirectory, batchId);
   };
 
-  const removeEmptyBatch = async (batchDirectory: string): Promise<void> => {
-    try {
-      await rmdir(batchDirectory);
-    } catch {
-      // Non-empty (another unclaimed upload still occupies it) or already gone. Both are fine:
-      // this is opportunistic tidying, never the thing that makes a delete correct.
-    }
-  };
+  return resolveBatchDirectory;
+}
 
+function createAttachmentRecordDeleter(records: Map<string, AttachmentRecord>, forgetRecord: ReturnType<typeof createAttachmentPersistence>["forgetRecord"]) {
   const deleteRecord = async (record: AttachmentRecord): Promise<void> => {
     records.delete(record.id);
     await forgetRecord(record);
@@ -1178,9 +1159,51 @@ export async function createDiskAttachmentStore(requiredArgs: Omit<CreateDiskAtt
     await removeEmptyBatch(record.batchDirectory);
   };
 
-  const totalBytes = (candidates: readonly AttachmentRecord[]): number =>
-    candidates.reduce((total, record) => total + record.size, 0);
+  return deleteRecord;
+}
 
+function registerAttachmentRecord({ records, maxAttachments, maxBatchBytes, maxStoredAttachments, maxStoredBytes }: { records: Map<string, AttachmentRecord>; maxAttachments: number; maxBatchBytes: number; maxStoredAttachments: number; maxStoredBytes: number }, { input, info, filePath, batchDirectory }: { input: Parameters<AttachmentStore["register"]>[0]["input"]; info: { size: number; dev: number; ino: number; mtimeMs: number; ctimeMs: number }; filePath: string; batchDirectory: string }) {
+  // Quotas are decided here, immediately before `records.set`, with no `await` in between —
+  // so two concurrent registrations cannot both observe the last free slot (or the last free
+  // bytes) and both commit. Moving any of this above the `await`s would reintroduce that
+  // race; adding an `await` below would too.
+  const batchRecords = [...records.values()]
+    .filter((record) => record.batchId === input.batchId);
+  if (batchRecords.length >= maxAttachments) {
+    throw new AttachmentRejectedError({ reason: 'batch-count-exceeded', message: `You can attach at most ${maxAttachments} files to one message` }
+    );
+  }
+  if (totalBytes(batchRecords) + info.size > maxBatchBytes) {
+    throw new AttachmentRejectedError({ reason: 'batch-too-large', message: `Attachments for one message must total ${formatByteLimit(maxBatchBytes)} or less` }
+    );
+  }
+  if (
+    records.size >= maxStoredAttachments
+    || totalBytes([...records.values()]) + info.size > maxStoredBytes
+  ) {
+    throw new AttachmentRejectedError({ reason: 'storage-full', message: 'Attachment storage is full' });
+  }
+  const id = `attachment:${randomUUID()}`;
+  const record: TimestampedAttachmentRecord = {
+    id,
+    filePath,
+    name: input.name,
+    kind: input.kind,
+    size: info.size,
+    batchId: input.batchId,
+    batchDirectory,
+    dev: info.dev,
+    ino: info.ino,
+    mtimeMs: info.mtimeMs,
+    ctimeMs: info.ctimeMs,
+    createdAt: Date.now(),
+    ...(input.ownerId === undefined ? {} : { ownerId: input.ownerId }),
+  };
+  records.set(id, record);
+  return { id, record };
+}
+
+function createAttachmentCreateBatchDirectoryMethod({ resolveBatchDirectory }: { resolveBatchDirectory: ReturnType<typeof createBatchDirectoryResolver> }): AttachmentStore["createBatchDirectory"] {
   return {
     async createBatchDirectory({ batchId }: { readonly batchId: string }, _optional: Record<string, never> = {}) {
       const directory = resolveBatchDirectory(batchId);
@@ -1188,8 +1211,12 @@ export async function createDiskAttachmentStore(requiredArgs: Omit<CreateDiskAtt
       await chmod(directory, 0o700);
       return directory;
     },
+  }.createBatchDirectory;
+}
 
-    async register({ input }) {
+function createAttachmentRegisterMethod({ resolveBatchDirectory, records, maxAttachments, maxBatchBytes, maxStoredAttachments, maxStoredBytes, persistRecord }: { resolveBatchDirectory: ReturnType<typeof createBatchDirectoryResolver>; records: Map<string, AttachmentRecord>; maxAttachments: number; maxBatchBytes: number; maxStoredAttachments: number; maxStoredBytes: number; persistRecord: ReturnType<typeof createAttachmentPersistence>["persistRecord"] }): AttachmentStore["register"] {
+  return {
+    async register({ input }: Parameters<AttachmentStore["register"]>[0]) {
       const batchDirectory = resolveBatchDirectory(input.batchId);
       // `resolve` is NOT redundant with the route's own `resolve`, and this line is the precondition
       // the containment argument below depends on. Do not remove it or take a pre-resolved path from
@@ -1228,43 +1255,7 @@ export async function createDiskAttachmentStore(requiredArgs: Omit<CreateDiskAtt
           );
         }
 
-        // Quotas are decided here, immediately before `records.set`, with no `await` in between —
-        // so two concurrent registrations cannot both observe the last free slot (or the last free
-        // bytes) and both commit. Moving any of this above the `await`s would reintroduce that
-        // race; adding an `await` below would too.
-        const batchRecords = [...records.values()]
-          .filter((record) => record.batchId === input.batchId);
-        if (batchRecords.length >= maxAttachments) {
-          throw new AttachmentRejectedError({ reason: 'batch-count-exceeded', message: `You can attach at most ${maxAttachments} files to one message` }
-          );
-        }
-        if (totalBytes(batchRecords) + info.size > maxBatchBytes) {
-          throw new AttachmentRejectedError({ reason: 'batch-too-large', message: `Attachments for one message must total ${formatByteLimit(maxBatchBytes)} or less` }
-          );
-        }
-        if (
-          records.size >= maxStoredAttachments
-          || totalBytes([...records.values()]) + info.size > maxStoredBytes
-        ) {
-          throw new AttachmentRejectedError({ reason: 'storage-full', message: 'Attachment storage is full' });
-        }
-        const id = `attachment:${randomUUID()}`;
-        const record: TimestampedAttachmentRecord = {
-          id,
-          filePath,
-          name: input.name,
-          kind: input.kind,
-          size: info.size,
-          batchId: input.batchId,
-          batchDirectory,
-          dev: info.dev,
-          ino: info.ino,
-          mtimeMs: info.mtimeMs,
-          ctimeMs: info.ctimeMs,
-          createdAt: Date.now(),
-          ...(input.ownerId === undefined ? {} : { ownerId: input.ownerId }),
-        };
-        records.set(id, record);
+        const { id, record } = registerAttachmentRecord({ records, maxAttachments, maxBatchBytes, maxStoredAttachments, maxStoredBytes }, { input, info, filePath, batchDirectory });
         // The first `await` after the synchronous quota window closes, so it cannot reopen the race
         // the comment above guards. Rolls `records` back itself on failure — see `persistRecord`.
         await persistRecord(record);
@@ -1279,7 +1270,11 @@ export async function createDiskAttachmentStore(requiredArgs: Omit<CreateDiskAtt
         throw error;
       }
     },
+  }.register;
+}
 
+function createAttachmentClaimMethod({ records, maxAttachments, stagedPathsByRecord }: { records: Map<string, AttachmentRecord>; maxAttachments: number; stagedPathsByRecord: WeakMap<AttachmentRecord, Set<string>> }): AttachmentStore["claim"] {
+  return {
     async claim({ attachments, runId }: { readonly attachments: readonly StoredAttachment[]; readonly runId: string }, _optional: Record<string, never> = {}) {
       if (attachments.length === 0) return { attachments: [] };
       // Phase 1 (`reserveAttachmentRecords`) reserves synchronously; Phase 2
@@ -1305,7 +1300,11 @@ export async function createDiskAttachmentStore(requiredArgs: Omit<CreateDiskAtt
         throw error;
       }
     },
+  }.claim;
+}
 
+function createAttachmentResolveForRunMethod({ findRecord }: { findRecord: ({ ref }: { readonly ref: string }) => AttachmentRecord | undefined }): AttachmentStore["resolveForRun"] {
+  return {
     async resolveForRun({ ref, runId }: { readonly ref: string; readonly runId: string }, _optional: Record<string, never> = {}) {
       // Synchronous check-then-reserve, same reasoning as `reserveAttachmentRecords`: nothing may
       // `await` between reading `claimedRunId` and writing it, or a concurrent call could observe
@@ -1327,7 +1326,11 @@ export async function createDiskAttachmentStore(requiredArgs: Omit<CreateDiskAtt
       }
       return { path: record.filePath, name: record.name, kind: record.kind, size: record.size };
     },
+  }.resolveForRun;
+}
 
+function createAttachmentListPendingForOwnerMethod({ records }: { records: Map<string, AttachmentRecord> }): AttachmentStore["listPendingForOwner"] {
+  return {
     async listPendingForOwner({ ownerId }: { readonly ownerId: string }, { runId }: { readonly runId?: string } = {}) {
       return [...records.values()]
         // `record.ownerId !== undefined` first, short-circuiting before the comparison: this is
@@ -1338,7 +1341,11 @@ export async function createDiskAttachmentStore(requiredArgs: Omit<CreateDiskAtt
         .sort((a, b) => a.createdAt - b.createdAt)
         .map((record) => ({ ref: record.id, name: record.name, kind: record.kind, size: record.size, createdAt: record.createdAt }));
     },
+  }.listPendingForOwner;
+}
 
+function createAttachmentDeleteUnclaimedMethod({ resolveBatchDirectory, records, deleteRecord }: { resolveBatchDirectory: ReturnType<typeof createBatchDirectoryResolver>; records: Map<string, AttachmentRecord>; deleteRecord: ReturnType<typeof createAttachmentRecordDeleter> }): AttachmentStore["deleteUnclaimed"] {
+  return {
     async deleteUnclaimed({ batchId, paths }: { readonly batchId: string; readonly paths: readonly string[] }, _optional: Record<string, never> = {}) {
       const batchDirectory = resolveBatchDirectory(batchId);
       for (const attachmentId of new Set(paths)) {
@@ -1349,13 +1356,21 @@ export async function createDiskAttachmentStore(requiredArgs: Omit<CreateDiskAtt
       }
       await removeEmptyBatch(batchDirectory);
     },
+  }.deleteUnclaimed;
+}
 
+function createAttachmentCleanupRunMethod({ records, deleteRecord }: { records: Map<string, AttachmentRecord>; deleteRecord: ReturnType<typeof createAttachmentRecordDeleter> }): AttachmentStore["cleanupRun"] {
+  return {
     async cleanupRun({ runId }: { readonly runId: string }, _optional: Record<string, never> = {}) {
       for (const record of [...records.values()]) {
         if (record.claimedRunId === runId) await deleteRecord(record);
       }
     },
+  }.cleanupRun;
+}
 
+function createAttachmentPruneExpiredMethod({ records, deleteRecord, retentionMs }: { records: Map<string, AttachmentRecord>; deleteRecord: ReturnType<typeof createAttachmentRecordDeleter>; retentionMs: number }): AttachmentStore["pruneExpired"] {
+  return {
     async pruneExpired(_required: Record<string, never>, { now = Date.now() }: { readonly now?: number | undefined } = {}) {
       for (const record of [...records.values()]) {
         if (record.claimedRunId === undefined && now - record.createdAt >= retentionMs) {
@@ -1363,10 +1378,61 @@ export async function createDiskAttachmentStore(requiredArgs: Omit<CreateDiskAtt
         }
       }
     },
+  }.pruneExpired;
+}
 
+function createAttachmentDisposeMethod({ records, deleteRecord }: { records: Map<string, AttachmentRecord>; deleteRecord: ReturnType<typeof createAttachmentRecordDeleter> }): AttachmentStore["dispose"] {
+  return {
     async dispose() {
       for (const record of [...records.values()]) await deleteRecord(record);
     },
+  }.dispose;
+}
+
+/**
+ * The disk-backed `AttachmentStore` this package ships. Every default matches what a chat composer
+ * needs out of the box; a host that wants different quotas passes them rather than reimplementing
+ * the port.
+ *
+ * @complexity `register`/`claim` are O(n) in the number of tracked records (a small bounded number
+ * — `maxStoredAttachments`), which is what keeps the quota decision synchronous; see `register`.
+ */
+export async function createDiskAttachmentStore(requiredArgs: Omit<CreateDiskAttachmentStoreOptions, 'maxAttachments' | 'maxBatchBytes' | 'maxStoredAttachments' | 'maxStoredBytes' | 'retentionMs' | 'retainAcrossRestarts'>, optionalArgs: Pick<CreateDiskAttachmentStoreOptions, 'maxAttachments' | 'maxBatchBytes' | 'maxStoredAttachments' | 'maxStoredBytes' | 'retentionMs' | 'retainAcrossRestarts'> = {}): Promise<AttachmentStore> {
+  const {
+    uploadDirectory,
+    maxAttachments = 10,
+    maxBatchBytes = 50 * 1024 * 1024,
+    maxStoredAttachments = 100,
+    maxStoredBytes = 200 * 1024 * 1024,
+    retentionMs = 60 * 60 * 1_000,
+    retainAcrossRestarts = false,
+  }: CreateDiskAttachmentStoreOptions = { ...requiredArgs, ...optionalArgs };
+  await mkdir(uploadDirectory, { recursive: true, mode: 0o700 });
+  await chmod(uploadDirectory, 0o700);
+  const canonicalUploadDirectory = await realpath(uploadDirectory);
+  // Either empties the directory (the default — a file left by an interrupted previous process has
+  // no record to authenticate it against) or adopts the previous process's authenticated survivors.
+  // See `prepareAttachmentStorage`.
+  const records = await prepareAttachmentStorage({ canonicalUploadDirectory, retainAcrossRestarts, retentionMs });
+  const stagedPathsByRecord = new WeakMap<AttachmentRecord, Set<string>>();
+  /** Only issued refs match; no caller-supplied path is opened. O(n) time for n stored records,
+   * bounded by maxStoredAttachments, with no filesystem I/O. */
+  const findRecord = ({ ref }: { readonly ref: string }, _optional: Record<string, never> = {}): AttachmentRecord | undefined =>
+    records.get(ref) ?? [...records.values()].find((candidate) =>
+      candidate.filePath === ref || stagedPathsByRecord.get(candidate)?.has(ref));
+  const { persistRecord, forgetRecord } = createAttachmentPersistence(records, canonicalUploadDirectory, retainAcrossRestarts);
+  const resolveBatchDirectory = createBatchDirectoryResolver(canonicalUploadDirectory);
+  const deleteRecord = createAttachmentRecordDeleter(records, forgetRecord);
+  return {
+    createBatchDirectory: createAttachmentCreateBatchDirectoryMethod({ resolveBatchDirectory }),
+    register: createAttachmentRegisterMethod({ resolveBatchDirectory, records, maxAttachments, maxBatchBytes, maxStoredAttachments, maxStoredBytes, persistRecord }),
+    claim: createAttachmentClaimMethod({ records, maxAttachments, stagedPathsByRecord }),
+    resolveForRun: createAttachmentResolveForRunMethod({ findRecord }),
+    listPendingForOwner: createAttachmentListPendingForOwnerMethod({ records }),
+    deleteUnclaimed: createAttachmentDeleteUnclaimedMethod({ resolveBatchDirectory, records, deleteRecord }),
+    cleanupRun: createAttachmentCleanupRunMethod({ records, deleteRecord }),
+    pruneExpired: createAttachmentPruneExpiredMethod({ records, deleteRecord, retentionMs }),
+    dispose: createAttachmentDisposeMethod({ records, deleteRecord }),
   };
 }
 

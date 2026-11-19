@@ -152,6 +152,37 @@ function errorMessage(error: unknown): string {
 export function useMcpUiHost(options: McpUiHostOptions): McpUiHostResult {
   const { html, sandboxProxyUrl, sessionKey, initializedTimeoutMs = DEFAULT_INITIALIZED_TIMEOUT_MS } = options;
 
+  const session = useMcpUiHostSession(options, { html, sessionKey, initializedTimeoutMs });
+  const { state, size, teardownAcknowledged, optionsRef, handleRef, emit } = session;
+  const { handleSizeChanged, handleError } = useMcpUiRendererStatus(session);
+  const handleCallTool = useMcpUiCallTool(optionsRef, emit);
+  const handleOpenLink = useMcpUiOpenLink(optionsRef, emit);
+  const requestTeardown = useMcpUiTeardown(session);
+
+  const rendererProps = useMemo<AppRendererProps>(
+    () => ({
+      toolName: optionsRef.current.toolName ?? DEFAULT_TOOL_NAME,
+      sandbox: { url: sandboxProxyUrl },
+      html,
+      ...(optionsRef.current.hostInfo === undefined ? {} : { hostInfo: optionsRef.current.hostInfo }),
+      ...(optionsRef.current.hostContext === undefined ? {} : { hostContext: optionsRef.current.hostContext }),
+      onCallTool: handleCallTool,
+      onOpenLink: handleOpenLink,
+      onSizeChanged: handleSizeChanged,
+      onError: handleError,
+      // optionsRef.current.toolName/hostInfo/hostContext
+      // are read once per `html`/`sandboxProxyUrl` change intentionally, same ref-read pattern as the rest of this hook.
+    }),
+    [html, sandboxProxyUrl, handleCallTool, handleOpenLink, handleSizeChanged, handleError],
+  );
+
+  return { state, size, requestTeardown, teardownAcknowledged, rendererProps, rendererRef: handleRef };
+}
+
+function useMcpUiHostSession(
+  options: McpUiHostOptions,
+  { html, sessionKey, initializedTimeoutMs }: { html: string; sessionKey: string | number | undefined; initializedTimeoutMs: number },
+) {
   const [state, setState] = useState<McpUiHostState>('awaiting-ready');
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const [teardownAcknowledged] = useState<boolean | null>(null);
@@ -180,6 +211,14 @@ export function useMcpUiHost(options: McpUiHostOptions): McpUiHostResult {
 
   const effectiveSessionKey = sessionKey ?? html;
 
+  useMcpUiReadyWatchdog({ settledRef, setStateBoth, setSize, emit }, { effectiveSessionKey, initializedTimeoutMs });
+  return { state, size, teardownAcknowledged, stateRef, settledRef, handleRef, optionsRef, setStateBoth, setSize, emit };
+}
+
+function useMcpUiReadyWatchdog(
+  { settledRef, setStateBoth, setSize, emit }: Pick<ReturnType<typeof useMcpUiHostSession>, 'settledRef' | 'setStateBoth' | 'setSize' | 'emit'>,
+  { effectiveSessionKey, initializedTimeoutMs }: { effectiveSessionKey: string | number; initializedTimeoutMs: number },
+) {
   // The ready-watchdog. See `McpUiHostState`'s own doc for why "first size report" stands in for
   // "handshake complete" here, and this hook's module doc for why `@mcp-ui/client` itself gives us
   // no better signal to watch instead.
@@ -198,6 +237,11 @@ export function useMcpUiHost(options: McpUiHostOptions): McpUiHostResult {
     // stands in for both `sessionKey` and `html` (mirrors the pre-swap effect's own `[sessionKey, ...]`).
   }, [effectiveSessionKey, initializedTimeoutMs, emit, setStateBoth]);
 
+}
+
+function useMcpUiRendererStatus(
+  { settledRef, setStateBoth, setSize, optionsRef, emit }: Pick<ReturnType<typeof useMcpUiHostSession>, 'settledRef' | 'setStateBoth' | 'setSize' | 'optionsRef' | 'emit'>,
+) {
   const handleSizeChanged = useCallback<NonNullable<AppRendererProps['onSizeChanged']>>(
     (params) => {
       if (!settledRef.current) {
@@ -223,6 +267,13 @@ export function useMcpUiHost(options: McpUiHostOptions): McpUiHostResult {
     [emit, setStateBoth],
   );
 
+  return { handleSizeChanged, handleError };
+}
+
+function useMcpUiCallTool(
+  optionsRef: ReturnType<typeof useMcpUiHostSession>['optionsRef'],
+  emit: ReturnType<typeof useMcpUiHostSession>['emit'],
+) {
   const handleCallTool = useCallback<NonNullable<AppRendererProps['onCallTool']>>(
     async (params) => {
       const handler = optionsRef.current.onToolCall;
@@ -251,6 +302,13 @@ export function useMcpUiHost(options: McpUiHostOptions): McpUiHostResult {
     [emit],
   );
 
+  return handleCallTool;
+}
+
+function useMcpUiOpenLink(
+  optionsRef: ReturnType<typeof useMcpUiHostSession>['optionsRef'],
+  emit: ReturnType<typeof useMcpUiHostSession>['emit'],
+) {
   const handleOpenLink = useCallback<NonNullable<AppRendererProps['onOpenLink']>>(
     async ({ url }) => {
       const handler = optionsRef.current.onOpenLink;
@@ -265,6 +323,12 @@ export function useMcpUiHost(options: McpUiHostOptions): McpUiHostResult {
     [emit],
   );
 
+  return handleOpenLink;
+}
+
+function useMcpUiTeardown(
+  { stateRef, handleRef, emit, setStateBoth }: Pick<ReturnType<typeof useMcpUiHostSession>, 'stateRef' | 'handleRef' | 'emit' | 'setStateBoth'>,
+) {
   const requestTeardown = useCallback(() => {
     if (stateRef.current !== 'ready') return;
     handleRef.current?.teardownResource();
@@ -275,22 +339,6 @@ export function useMcpUiHost(options: McpUiHostOptions): McpUiHostResult {
     setStateBoth('torn-down');
   }, [emit, setStateBoth]);
 
-  const rendererProps = useMemo<AppRendererProps>(
-    () => ({
-      toolName: optionsRef.current.toolName ?? DEFAULT_TOOL_NAME,
-      sandbox: { url: sandboxProxyUrl },
-      html,
-      ...(optionsRef.current.hostInfo === undefined ? {} : { hostInfo: optionsRef.current.hostInfo }),
-      ...(optionsRef.current.hostContext === undefined ? {} : { hostContext: optionsRef.current.hostContext }),
-      onCallTool: handleCallTool,
-      onOpenLink: handleOpenLink,
-      onSizeChanged: handleSizeChanged,
-      onError: handleError,
-      // optionsRef.current.toolName/hostInfo/hostContext
-      // are read once per `html`/`sandboxProxyUrl` change intentionally, same ref-read pattern as the rest of this hook.
-    }),
-    [html, sandboxProxyUrl, handleCallTool, handleOpenLink, handleSizeChanged, handleError],
-  );
-
-  return { state, size, requestTeardown, teardownAcknowledged, rendererProps, rendererRef: handleRef };
+  return requestTeardown;
 }
+

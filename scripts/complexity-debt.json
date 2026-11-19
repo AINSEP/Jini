@@ -49,13 +49,6 @@
     "value": 11
   },
   {
-    "file": "packages/cli/src/flags.ts",
-    "function": "positionalArgs",
-    "line": 100,
-    "rule": "sonarjs/cognitive-complexity",
-    "value": 11
-  },
-  {
     "file": "packages/cms/src/navigation/repo.memory.ts",
     "function": "InMemoryMenuRepo.save",
     "line": 131,
@@ -84,23 +77,9 @@
     "value": 11
   },
   {
-    "file": "packages/core/src/tool-input-normalization.ts",
-    "function": "normalizeEntry",
-    "line": 162,
-    "rule": "sonarjs/cognitive-complexity",
-    "value": 11
-  },
-  {
     "file": "packages/daemon/src/frontend-session-registry.ts",
     "function": "assertSessionCapacity",
     "line": 217,
-    "rule": "sonarjs/cognitive-complexity",
-    "value": 11
-  },
-  {
-    "file": "packages/desktop-host/src/electron/updates/instance-presence.ts",
-    "function": "createFileInstancePresence.readLive",
-    "line": 69,
     "rule": "sonarjs/cognitive-complexity",
     "value": 11
   },
@@ -110,12 +89,5 @@
     "line": 28,
     "rule": "sonarjs/cognitive-complexity",
     "value": 16
-  },
-  {
-    "file": "packages/ui-kit/src/react/testing/driver.ts",
-    "function": "runKitConformance",
-    "line": 87,
-    "rule": "sonarjs/cognitive-complexity",
-    "value": 11
   }
 ]

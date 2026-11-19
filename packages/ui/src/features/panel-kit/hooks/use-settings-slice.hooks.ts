@@ -174,42 +174,7 @@ export interface SettingsSlice<T> {
   refresh: () => Promise<void>;
 }
 
-/**
- * @complexity O(1) per edit — one debounce timer reset plus one link appended
- * to the save chain.
- *
- * @complexityExemption (2026-08-06, complexity pass, third pass; bar raised to ≤9/≤9 same day,
- * exemption reconfirmed against the new bar) **Score: this hook's own lexical scope is 1
- * cyclomatic / ~0 cognitive under ESLint — every closure inside it is independently ≤9/≤9 too
- * (`onChange`'s debounce callback is 2/1, the unmount-flush cleanup is 3/2, `refresh` is 5/4 as of
- * this pass — see below). What is exempted here is a DIFFERENT, unmeasurable-by-me number: the
- * dispatch brief's owner-tool score of 17/23, which rolls every nested closure's branches into the
- * hook's total. Bar: ≤9/≤9 on whichever view is scored — ESLint's view already clears it; the
- * owner-tool aggregate does not, and I have no local tool that reproduces that aggregate to
- * re-measure against the new bar.**
- *
- * Same shape as `use-assistant-chats.hooks.ts`'s `useAssistantChats` exemption — see that one for
- * the full reasoning. `commitQueuedSave` (first pass) and `canAcceptRefresh` (this pass, pulled out
- * of `refresh`'s two duplicated guard checks — see its own doc) are the two pieces of this hook's
- * logic that genuinely fit a top-level pure-function shape (0–4 plain params, no ref reads);
- * `refresh` itself dropped from 9/5 to 5/4 as a result, its own per-function score real progress,
- * not exempted. What remains (`runSave`/`onChange`/the unmount cleanup/the rest of `refresh`) each
- * reads or writes 3–6 of this hook's own refs (`io`, `persisted`, `latest`, `timer`,
- * `saveTicket`, `hasUnsavedEdits`, `commits`, `mounted`) plus the shared `writes` lane, and several of
- * them call each other
- * (`onChange` schedules a link that calls `runSave`; the unmount cleanup calls `runSave` directly),
- * so none of them can become a top-level function without threading that whole ref set through as a
- * parameter object. This file's own header states the reason that is dangerous here specifically:
- * "a value read at schedule time is a claim about the store that may already be false by the time
- * the code using it runs," and every ref above exists because an earlier version of exactly this
- * logic got that ordering wrong (four distinct data-loss bugs, per the header). A previous pass
- * already tried this kind of extraction on this file and the total was unchanged, 25 → 25 — the
- * honest reading of that result is that the remaining closures do not have a top-level-shaped cut
- * available at the risk level a time-boxed pass allows, not that the attempt was done wrong.
- * Declined for the remainder; flagged to the coordinator. See this session's report for the full
- * reasoning.
- */
-export function useSettingsSlice<T>(options: SettingsSliceOptions<T>, _optional: Record<string, never> = {}): SettingsSlice<T> {
+function useSettingsSliceState<T>(options: SettingsSliceOptions<T>) {
   const { defaultValue } = options;
   const initialDefaultValue = useRef(defaultValue);
   const [value, setValue] = useState<T | null>(null);
@@ -299,6 +264,11 @@ export function useSettingsSlice<T>(options: SettingsSliceOptions<T>, _optional:
     };
   }, []);
 
+  return { initialDefaultValue, value, setValue, loadError, setLoadError, saveState, setSaveState, refreshSettlement, io, persisted, latest, timer, writes, saveTicket, hasUnsavedEdits, commits, mounted };
+}
+
+function useSettingsSliceLoad<T>(state: ReturnType<typeof useSettingsSliceState<T>>) {
+  const { io, persisted, hasUnsavedEdits, latest, setValue, setLoadError, initialDefaultValue } = state;
   // `defaultValue` is a module-level constant at every call site; re-running
   // this on a new identity would re-issue the load and clobber live edits.
   useEffect(() => {
@@ -332,6 +302,10 @@ export function useSettingsSlice<T>(options: SettingsSliceOptions<T>, _optional:
     };
   }, []);
 
+}
+
+function useSettingsSliceSave<T>(state: ReturnType<typeof useSettingsSliceState<T>>) {
+  const { latest, io, persisted, commits, hasUnsavedEdits, timer, writes } = state;
   /**
    * The only place a save is ever issued.
    *
@@ -391,6 +365,11 @@ export function useSettingsSlice<T>(options: SettingsSliceOptions<T>, _optional:
     [runSave, writes],
   );
 
+  return runSave;
+}
+
+function useSettingsSliceChange<T>(state: ReturnType<typeof useSettingsSliceState<T>>, runSave: () => Promise<readonly string[]>) {
+  const { setValue, latest, hasUnsavedEdits, timer, saveTicket, setSaveState, writes } = state;
   const onChange = useCallback((next: T) => {
     setValue(next);
     latest.current = next;
@@ -412,6 +391,11 @@ export function useSettingsSlice<T>(options: SettingsSliceOptions<T>, _optional:
     }, SAVE_DEBOUNCE_MS);
   }, [runSave, writes]);
 
+  return onChange;
+}
+
+function useSettingsSliceRefresh<T>(state: ReturnType<typeof useSettingsSliceState<T>>) {
+  const { timer, hasUnsavedEdits, commits, refreshSettlement, io, mounted, latest, persisted, setValue } = state;
   /**
    * Re-reads the persisted value on an external notification.
    *
@@ -473,6 +457,11 @@ export function useSettingsSlice<T>(options: SettingsSliceOptions<T>, _optional:
     setValue(reconciled);
   }, []);
 
+  return refresh;
+}
+
+function useSettingsSliceSubscription<T>(state: ReturnType<typeof useSettingsSliceState<T>>, refresh: () => Promise<void>, options: SettingsSliceOptions<T>) {
+  const { io } = state;
   /**
    * Subscribes to out-of-band changes — an assistant run that wrote a setting, or an SSE frame from
    * a write in another tab. `namespaces` narrows which notifications matter; see the option's doc
@@ -487,6 +476,51 @@ export function useSettingsSlice<T>(options: SettingsSliceOptions<T>, _optional:
     } }, {});
   }, [refresh, refreshPort]);
 
+}
+
+/**
+ * @complexity O(1) per edit — one debounce timer reset plus one link appended
+ * to the save chain.
+ *
+ * @complexityExemption (2026-08-06, complexity pass, third pass; bar raised to ≤9/≤9 same day,
+ * exemption reconfirmed against the new bar) **Score: this hook's own lexical scope is 1
+ * cyclomatic / ~0 cognitive under ESLint — every closure inside it is independently ≤9/≤9 too
+ * (`onChange`'s debounce callback is 2/1, the unmount-flush cleanup is 3/2, `refresh` is 5/4 as of
+ * this pass — see below). What is exempted here is a DIFFERENT, unmeasurable-by-me number: the
+ * dispatch brief's owner-tool score of 17/23, which rolls every nested closure's branches into the
+ * hook's total. Bar: ≤9/≤9 on whichever view is scored — ESLint's view already clears it; the
+ * owner-tool aggregate does not, and I have no local tool that reproduces that aggregate to
+ * re-measure against the new bar.**
+ *
+ * Same shape as `use-assistant-chats.hooks.ts`'s `useAssistantChats` exemption — see that one for
+ * the full reasoning. `commitQueuedSave` (first pass) and `canAcceptRefresh` (this pass, pulled out
+ * of `refresh`'s two duplicated guard checks — see its own doc) are the two pieces of this hook's
+ * logic that genuinely fit a top-level pure-function shape (0–4 plain params, no ref reads);
+ * `refresh` itself dropped from 9/5 to 5/4 as a result, its own per-function score real progress,
+ * not exempted. What remains (`runSave`/`onChange`/the unmount cleanup/the rest of `refresh`) each
+ * reads or writes 3–6 of this hook's own refs (`io`, `persisted`, `latest`, `timer`,
+ * `saveTicket`, `hasUnsavedEdits`, `commits`, `mounted`) plus the shared `writes` lane, and several of
+ * them call each other
+ * (`onChange` schedules a link that calls `runSave`; the unmount cleanup calls `runSave` directly),
+ * so none of them can become a top-level function without threading that whole ref set through as a
+ * parameter object. This file's own header states the reason that is dangerous here specifically:
+ * "a value read at schedule time is a claim about the store that may already be false by the time
+ * the code using it runs," and every ref above exists because an earlier version of exactly this
+ * logic got that ordering wrong (four distinct data-loss bugs, per the header). A previous pass
+ * already tried this kind of extraction on this file and the total was unchanged, 25 → 25 — the
+ * honest reading of that result is that the remaining closures do not have a top-level-shaped cut
+ * available at the risk level a time-boxed pass allows, not that the attempt was done wrong.
+ * Declined for the remainder; flagged to the coordinator. See this session's report for the full
+ * reasoning.
+ */
+export function useSettingsSlice<T>(options: SettingsSliceOptions<T>, _optional: Record<string, never> = {}): SettingsSlice<T> {
+  const state = useSettingsSliceState(options);
+  const { value, loadError, saveState } = state;
+  useSettingsSliceLoad(state);
+  const runSave = useSettingsSliceSave(state);
+  const onChange = useSettingsSliceChange(state, runSave);
+  const refresh = useSettingsSliceRefresh(state);
+  useSettingsSliceSubscription(state, refresh, options);
   return { value, loadError, saveState, onChange, refresh };
 }
 

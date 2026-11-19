@@ -235,24 +235,7 @@ function truncateOutput(output: unknown, maxOutputBytes: number | undefined): { 
   return { output: decoded.endsWith('�') ? decoded.slice(0, -1) : decoded, truncated: true };
 }
 
-/**
- * Creates the `ToolExecutor` reference implementation: an in-process,
- * in-memory gate over a `ToolRegistry`. No persistence — a real host that
- * needs audit records to survive a restart layers a durable store behind
- * `getAuditRecord`/an append hook later; out of this task's scope (see
- * `archived provenance ledger`).
- *
- * @param options.registry - The `ToolRegistry` to resolve and authorize
- * tools against, via `@jini-ai/core/composition`'s `authorizeToolInvocation`
- * — the one and only caller of that internal export.
- * @param options.delegate - Transport-supplied authorize/confirm UI seam;
- * omit for a headless caller whose tools never need interactive gating.
- * @param options.maxAuditRecords - Finished audit records kept, see {@link DEFAULT_MAX_AUDIT_RECORDS}.
- * @complexity Known-id `execute` adds schema-guided normalization to the handler's cost; unknown ids scan O(n) descriptors for hints. `resumeConfirmation`/`cancel`/`getAuditRecord` are O(1) map lookups.
- * @overallScore 100/100
- */
-export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions, "registry">, optionalArgs: Pick<CreateToolExecutorOptions, "delegate" | "now" | "prepareGuidance" | "redactNestedFailure" | "maxAuditRecords"> = {}): ToolExecutor {
-  const options: CreateToolExecutorOptions = { ...requiredArgs, ...optionalArgs };
+function createExecutionState(options: CreateToolExecutorOptions) {
   const { registry, delegate = {} } = options;
   const now = options.now ?? Date.now;
   const maxAuditRecords = options.maxAuditRecords ?? DEFAULT_MAX_AUDIT_RECORDS;
@@ -274,6 +257,87 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
    */
   const cancelledConfirmations = new Set<string>();
 
+  return { registry, delegate, now, maxAuditRecords, audits, finishedAudits, pendingConfirmations, approvalWaits, activeControllers, cancelledConfirmations };
+}
+
+/** The `'allow'` arm of an authorization outcome — the only one that carries a handler. */
+type AllowedInvocation = Extract<ToolInvocationAuthorization, { decision: 'allow' }>;
+
+/** Everything `runHandler` needs about one authorized (and, if required, confirmed) call. */
+interface AdmittedCall {
+  readonly executionId: string;
+  readonly controller: AbortController;
+  readonly principal: Principal;
+  readonly run: RunRef;
+  readonly toolId: string;
+  readonly input: unknown;
+  readonly descriptor: ToolDescriptor;
+  readonly handler: ToolHandler;
+  readonly normalizationNotes: readonly string[];
+  readonly invocationRegistry: ToolRegistry;
+}
+
+type ExecutorExecute = (required: Parameters<ToolExecutor['execute']>[0], optional?: NonNullable<Parameters<ToolExecutor['execute']>[1]> & { invocationRegistry?: ToolRegistry }) => Promise<ToolExecutionResult>;
+
+/**
+ * Arms the descriptor's execution timeout, if it declares one. The returned `timedOut()` reports
+ * whether the timer (rather than an external cancel) was what aborted the controller, which is
+ * what distinguishes a `timed-out` result from a `cancelled` one.
+ */
+function startTimeout(
+  controller: AbortController,
+  timeoutMs: number | undefined,
+) {
+  let handle: ReturnType<typeof setTimeout> | undefined;
+  let timedOut = false;
+  let waiting = false;
+  let approvalWindowUsed = false;
+  let remaining = timeoutMs;
+  let started = Date.now();
+  const stop = () => {
+    if (handle === undefined) return;
+    clearTimeout(handle);
+    handle = undefined;
+  };
+  const arm = (duration: number | undefined) => {
+    stop();
+    started = Date.now();
+    if (duration === undefined) return;
+    handle = setTimeout(() => { timedOut = true; controller.abort(); }, duration);
+    handle.unref?.();
+  };
+  arm(remaining);
+  return {
+    stop,
+    timedOut: () => timedOut,
+    /** Human waiting is bounded independently and cannot replenish the execution budget.
+     * Duplicate progress frames cannot extend either deadline. */
+    approval: ({ pending }: { pending: boolean }) => {
+      if (pending === waiting || controller.signal.aborted) return;
+      if (pending && approvalWindowUsed) return;
+      if (pending) approvalWindowUsed = true;
+      if (pending && remaining !== undefined) remaining = Math.max(0, remaining - (Date.now() - started));
+      waiting = pending;
+      arm(pending ? APPROVAL_WAIT_TIMEOUT_MS : remaining);
+    },
+  };
+}
+
+/** Throws the typed unknown-tool input error, naming up to eight similarity-ranked registrations.
+ * This never dispatches an alternate tool. */
+function assertKnownTool({ registry: invocationRegistry, toolId }: { registry: ToolRegistry; toolId: string }): void {
+  if (invocationRegistry.has({ toolId })) return;
+  const candidates = toolCandidates({ toolId, tools: invocationRegistry.list({}) });
+  const hint = candidates.length > 0 ? `; did you mean ${candidates.join(', ')}?` : '';
+  throw new ToolInputError({ message: `ToolExecutor: unknown tool "${toolId}"${hint}` });
+}
+
+/** `{ emitSurface }` when the transport supplied one, else `{}` — see `runHandler` for why it is never defaulted. */
+function surfaceOption(emitSurface: SurfaceEmitter | undefined): { emitSurface?: SurfaceEmitter } {
+  return emitSurface !== undefined ? { emitSurface } : {};
+}
+
+function createExecutionApprovalStateChange({ approvalWaits }: { approvalWaits: Map<string, Map<string, string>> }) {
   /** Records only actual human waits; terminal decisions and aborts release the run's write block.
    * @complexity O(1) time/space per pending execution; empty run entries are removed. */
   function approvalStateChange(
@@ -290,7 +354,38 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     waits?.delete(executionId);
     if (waits?.size === 0) approvalWaits.delete(run.id);
   }
+  return approvalStateChange;
+}
 
+function createExecutionRetireAudit({ finishedAudits, maxAuditRecords, audits }: { finishedAudits: Set<string>; maxAuditRecords: number; audits: Map<string, ToolExecutionAuditRecord & { events: ToolExecutionAuditEvent[] }> }) {
+  /** Marks `executionId` finished and evicts the oldest finished records past `maxAuditRecords`. */
+  function retireAudit(executionId: string): void {
+    finishedAudits.add(executionId);
+    while (finishedAudits.size > maxAuditRecords) {
+      const oldest = finishedAudits.values().next().value as string;
+      finishedAudits.delete(oldest);
+      audits.delete(oldest);
+    }
+  }
+  return retireAudit;
+}
+
+function createExecutionAppendEvent({ audits, now, retireAudit }: { audits: Map<string, ToolExecutionAuditRecord & { events: ToolExecutionAuditEvent[] }>; now: () => number; retireAudit: ReturnType<typeof createExecutionRetireAudit> }) {
+  function appendEvent(executionId: string, phase: ToolExecutionPhase, detail?: string): void {
+    // Every call site passes an `executionId` this same `execute()` call
+    // already registered in `audits` (right before its first `appendEvent`
+    // call, below) — a non-null assertion documents that rather than a
+    // defensive `if (!record) return` guard with no reachable path to hit it.
+    const record = audits.get(executionId)!;
+    record.events.push(detail === undefined ? { phase, at: now() } : { phase, at: now(), detail });
+    // A terminal transition is each execution's last append (`execute()` returns right after it),
+    // so evicting finished records can never pull one out from under a later `appendEvent`.
+    if (TERMINAL_AUDIT_PHASES.has(phase)) retireAudit(executionId);
+  }
+  return appendEvent;
+}
+
+function createExecutionApprovalRefusal({ approvalWaits, appendEvent }: { approvalWaits: Map<string, Map<string, string>>; appendEvent: ReturnType<typeof createExecutionAppendEvent> }) {
   /** Refuses writes using the registered read-only contract, never a model's claim.
    * The validation result reaches every delegated transport as an actionable error, without
    * resolving or approving the original call. @complexity O(1) time/space. */
@@ -307,29 +402,10 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     appendEvent(executionId, 'failed', error);
     return { executionId, status: 'failed', errorKind: 'validation', error };
   }
+  return approvalRefusal;
+}
 
-  function appendEvent(executionId: string, phase: ToolExecutionPhase, detail?: string): void {
-    // Every call site passes an `executionId` this same `execute()` call
-    // already registered in `audits` (right before its first `appendEvent`
-    // call, below) — a non-null assertion documents that rather than a
-    // defensive `if (!record) return` guard with no reachable path to hit it.
-    const record = audits.get(executionId)!;
-    record.events.push(detail === undefined ? { phase, at: now() } : { phase, at: now(), detail });
-    // A terminal transition is each execution's last append (`execute()` returns right after it),
-    // so evicting finished records can never pull one out from under a later `appendEvent`.
-    if (TERMINAL_AUDIT_PHASES.has(phase)) retireAudit(executionId);
-  }
-
-  /** Marks `executionId` finished and evicts the oldest finished records past `maxAuditRecords`. */
-  function retireAudit(executionId: string): void {
-    finishedAudits.add(executionId);
-    while (finishedAudits.size > maxAuditRecords) {
-      const oldest = finishedAudits.values().next().value as string;
-      finishedAudits.delete(oldest);
-      audits.delete(oldest);
-    }
-  }
-
+function createExecutionRequestConfirmation({ delegate, pendingConfirmations }: { delegate: ExecutionDelegate; pendingConfirmations: Map<string, (decision: ConfirmationDecision) => void> }) {
   function requestConfirmation(request: ToolConfirmationRequest): Promise<ConfirmationDecision> {
     if (delegate.onConfirm) {
       const result = delegate.onConfirm(request);
@@ -341,7 +417,10 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
       pendingConfirmations.set(request.executionId, resolve);
     });
   }
+  return requestConfirmation;
+}
 
+function createExecutionOpenAudit({ audits, appendEvent }: { audits: Map<string, ToolExecutionAuditRecord & { events: ToolExecutionAuditEvent[] }>; appendEvent: ReturnType<typeof createExecutionAppendEvent> }) {
   /** Opens the audit record for a fresh execution and records the `requested` transition. */
   function openAudit(principal: Principal, run: RunRef, toolId: string): string {
     const executionId = randomUUID();
@@ -355,7 +434,10 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     appendEvent(executionId, 'requested');
     return executionId;
   }
+  return openAudit;
+}
 
+function createExecutionAuthorize({ delegate }: { delegate: ExecutionDelegate }) {
   function authorize({ principal, run, toolId, input, registry }: { principal: Principal; run: RunRef; toolId: string; input: unknown; registry: ToolRegistry }) {
     // `.bind(delegate)` rather than passing the bare method reference: `ExecutionDelegate` is
     // declared with method syntax, so a host may legitimately implement it as a class instance
@@ -368,63 +450,28 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     return authorizeToolInvocation({ registry: registry, toolId: toolId, principal: principal, run: run, input: input }, onAuthorize === undefined ? {} : { delegate: { onAuthorize } }
     );
   }
+  return authorize;
+}
 
-  /**
-   * Arms the descriptor's execution timeout, if it declares one. The returned `timedOut()` reports
-   * whether the timer (rather than an external cancel) was what aborted the controller, which is
-   * what distinguishes a `timed-out` result from a `cancelled` one.
-   */
-  function startTimeout(
-    controller: AbortController,
-    timeoutMs: number | undefined,
-  ) {
-    let handle: ReturnType<typeof setTimeout> | undefined;
-    let timedOut = false;
-    let waiting = false;
-    let approvalWindowUsed = false;
-    let remaining = timeoutMs;
-    let started = Date.now();
-    const stop = () => {
-      if (handle === undefined) return;
-      clearTimeout(handle);
-      handle = undefined;
-    };
-    const arm = (duration: number | undefined) => {
-      stop();
-      started = Date.now();
-      if (duration === undefined) return;
-      handle = setTimeout(() => { timedOut = true; controller.abort(); }, duration);
-      handle.unref?.();
-    };
-    arm(remaining);
-    return {
-      stop,
-      timedOut: () => timedOut,
-      /** Human waiting is bounded independently and cannot replenish the execution budget.
-       * Duplicate progress frames cannot extend either deadline. */
-      approval: ({ pending }: { pending: boolean }) => {
-        if (pending === waiting || controller.signal.aborted) return;
-        if (pending && approvalWindowUsed) return;
-        if (pending) approvalWindowUsed = true;
-        if (pending && remaining !== undefined) remaining = Math.max(0, remaining - (Date.now() - started));
-        waiting = pending;
-        arm(pending ? APPROVAL_WAIT_TIMEOUT_MS : remaining);
-      },
-    };
-  }
-
+function createExecutionTerminal({ appendEvent }: { appendEvent: ReturnType<typeof createExecutionAppendEvent> }) {
   /** Records a terminal transition that carries no detail and returns its bare result. */
   function terminal({ executionId, status }: { executionId: string; status: 'cancelled' | 'denied' | 'confirmation-denied' | 'timed-out' }): ToolExecutionResult {
     appendEvent(executionId, status);
     return { executionId, status };
   }
+  return terminal;
+}
 
+function createExecutionOperationalFailure({ appendEvent }: { appendEvent: ReturnType<typeof createExecutionAppendEvent> }) {
   /** Records an operational (non-decision) failure under a fixed message that never carries the exception text. */
   function operationalFailure({ executionId, error }: { executionId: string; error: 'authorization failed' | 'confirmation failed' }): ToolExecutionResult {
     appendEvent(executionId, 'failed', error);
     return { executionId, status: 'failed', error };
   }
+  return operationalFailure;
+}
 
+function createExecutionFailureResult({ terminal, appendEvent }: { terminal: ReturnType<typeof createExecutionTerminal>; appendEvent: ReturnType<typeof createExecutionAppendEvent> }) {
   /**
    * Classifies a handler rejection into its terminal result, recording the matching transition.
    * Prepared `guidance` is appended to a `failed` result's error (never to its audit detail) — a
@@ -442,16 +489,39 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     const error = guidance ? `${message}\n\n${guidance}` : message;
     return { executionId, status: 'failed', error, errorKind, ...(normalizationNotes.length ? { normalizationNotes } : {}) };
   }
+  return failureResult;
+}
 
-  /** Throws the typed unknown-tool input error, naming up to eight similarity-ranked registrations.
-   * This never dispatches an alternate tool. */
-  function assertKnownTool({ registry: invocationRegistry, toolId }: { registry: ToolRegistry; toolId: string }): void {
-    if (invocationRegistry.has({ toolId })) return;
-    const candidates = toolCandidates({ toolId, tools: invocationRegistry.list({}) });
-    const hint = candidates.length > 0 ? `; did you mean ${candidates.join(', ')}?` : '';
-    throw new ToolInputError({ message: `ToolExecutor: unknown tool "${toolId}"${hint}` });
+function createExecutionResumeConfirmation({ pendingConfirmations }: { pendingConfirmations: Map<string, (decision: ConfirmationDecision) => void> }) {
+  function resumeConfirmation({ executionId, decision }: { readonly executionId: string; readonly decision: ConfirmationDecision }): void {
+    const resolve = pendingConfirmations.get(executionId);
+    if (!resolve) {
+      throw new Error(`ToolExecutor: no pending confirmation for execution "${executionId}"`);
+    }
+    pendingConfirmations.delete(executionId);
+    resolve(decision);
   }
+  return resumeConfirmation;
+}
 
+function createExecutionCancel({ activeControllers, pendingConfirmations, cancelledConfirmations }: { activeControllers: Map<string, AbortController>; pendingConfirmations: Map<string, (decision: ConfirmationDecision) => void>; cancelledConfirmations: Set<string> }) {
+  function cancel({ executionId }: { readonly executionId: string }): void {
+    const controller = activeControllers.get(executionId);
+    if (controller) {
+      controller.abort();
+    }
+    // The controller also exists while confirmation is pending; aborting must still unblock it.
+    const resolve = pendingConfirmations.get(executionId);
+    if (resolve) {
+      pendingConfirmations.delete(executionId);
+      cancelledConfirmations.add(executionId);
+      resolve('deny');
+    }
+  }
+  return cancel;
+}
+
+function createExecutionWatchTransportAbort({ cancel }: { cancel: ReturnType<typeof createExecutionCancel> }) {
   /**
    * Routes a transport `signal` firing into `cancel(executionId)` and returns the function that
    * detaches it again. A no-op pair when the transport supplied no signal.
@@ -462,13 +532,19 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     signal.addEventListener('abort', onTransportAbort, { once: true });
     return () => signal.removeEventListener('abort', onTransportAbort);
   }
+  return watchTransportAbort;
+}
 
+function createExecutionAuthorizationFailure({ failureResult, operationalFailure }: { failureResult: ReturnType<typeof createExecutionFailureResult>; operationalFailure: ReturnType<typeof createExecutionOperationalFailure> }) {
   /** Terminal result for an authorization gate that threw, keeping a typed normalization error's message. */
   function authorizationFailure({ executionId, error }: { executionId: string; error: unknown }): ToolExecutionResult {
     if (error instanceof ToolInputNormalizationError) return failureResult({ executionId, err: error, timedOut: false, aborted: false });
     return operationalFailure({ executionId, error: 'authorization failed' });
   }
+  return authorizationFailure;
+}
 
+function createExecutionAdmitAuthorized({ terminal, appendEvent, approvalRefusal }: { terminal: ReturnType<typeof createExecutionTerminal>; appendEvent: ReturnType<typeof createExecutionAppendEvent>; approvalRefusal: ReturnType<typeof createExecutionApprovalRefusal> }) {
   /**
    * Acts on the authorization outcome synchronously: `{ refusal }` if the call ends here
    * (cancelled meanwhile, or denied), otherwise records `authorized` and returns `{ allowed }`.
@@ -489,7 +565,10 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     if (refusal) return { refusal };
     return { allowed: resolved };
   }
+  return admitAuthorized;
+}
 
+function createExecutionConfirmGate({ approvalStateChange, requestConfirmation, operationalFailure, appendEvent, cancelledConfirmations, terminal }: { approvalStateChange: ReturnType<typeof createExecutionApprovalStateChange>; requestConfirmation: ReturnType<typeof createExecutionRequestConfirmation>; operationalFailure: ReturnType<typeof createExecutionOperationalFailure>; appendEvent: ReturnType<typeof createExecutionAppendEvent>; cancelledConfirmations: Set<string>; terminal: ReturnType<typeof createExecutionTerminal> }) {
   /**
    * Runs the confirmation gate: `undefined` once confirmed (recorded), otherwise the terminal result.
    *
@@ -525,7 +604,10 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     if (cancelledConfirmations.delete(executionId)) return terminal({ executionId, status: 'cancelled' });
     return terminal({ executionId, status: 'confirmation-denied' });
   }
+  return confirmGate;
+}
 
+function createExecutionPrepareGuidanceSafely({ options }: { options: CreateToolExecutorOptions }) {
   /** Advisory guidance for an authorized call. A failure is fail-open: it yields no guidance. */
   async function prepareGuidanceSafely(
     { principal, run, tool, signal }: { principal: Principal; run: RunRef; tool: ToolDescriptor; signal: AbortSignal },
@@ -539,17 +621,18 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
       return '';
     }
   }
+  return prepareGuidanceSafely;
+}
 
+function createExecutionWantsGuidance({ options }: { options: CreateToolExecutorOptions }) {
   /** Whether `prepareGuidance` applies to this tool — checked synchronously so the no-guidance path adds no tick. */
   function wantsGuidance(descriptor: ToolDescriptor): boolean {
     return Boolean(options.prepareGuidance && descriptor.metadata?.guidanceCapabilities?.length);
   }
+  return wantsGuidance;
+}
 
-  /** `{ emitSurface }` when the transport supplied one, else `{}` — see `runHandler` for why it is never defaulted. */
-  function surfaceOption(emitSurface: SurfaceEmitter | undefined): { emitSurface?: SurfaceEmitter } {
-    return emitSurface !== undefined ? { emitSurface } : {};
-  }
-
+function createExecutionNestedFailureMessage({ options }: { options: CreateToolExecutorOptions }) {
   /** The message a nested call's caller sees for a result that did not complete. */
   function nestedFailureMessage(
     { result, toolId, run, principal }: { result: ToolExecutionResult; toolId: string; run: RunRef; principal: Principal },
@@ -564,7 +647,10 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
         ?? `${toolId} failed on the server. The cause is withheld because it can contain internal paths; it is in the audit log under execution ${result.executionId}.`
       : result.error ?? `${toolId}: ${result.status}`;
   }
+  return nestedFailureMessage;
+}
 
+function createExecutionNestedInvoker({ getExecute, nestedFailureMessage }: { getExecute: () => ExecutorExecute; nestedFailureMessage: ReturnType<typeof createExecutionNestedFailureMessage> }) {
   /** The handler's `invokeTool` port: a nested call through this same executor and its gates. */
   function nestedInvoker(
     { principal, run, toolId, invocationRegistry, signal }: { principal: Principal; run: RunRef; toolId: string; invocationRegistry: ToolRegistry; signal: AbortSignal },
@@ -572,13 +658,16 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
   ): NonNullable<ToolExecutionOptions['invokeTool']> {
     return async ({ toolId: nestedToolId, input: nestedInput }, { registry: nestedRegistry = invocationRegistry } = {}) => {
       const selectedRegistry = nestedToolId === toolId || invocationRegistry.has({ toolId: nestedToolId }) ? invocationRegistry : nestedRegistry;
-      const result = await execute({ principal, run, toolId: nestedToolId, input: nestedInput }, { signal, ...surfaceOption(emitSurface), invocationRegistry: selectedRegistry });
+      const result = await getExecute()({ principal, run, toolId: nestedToolId, input: nestedInput }, { signal, ...surfaceOption(emitSurface), invocationRegistry: selectedRegistry });
       if (result.status === 'completed') return result.output;
       const message = nestedFailureMessage({ result, toolId: nestedToolId, run, principal });
       throw result.errorKind === 'validation' ? new ToolInputError({ message }) : new Error(message);
     };
   }
+  return nestedInvoker;
+}
 
+function createExecutionSettleOutput({ failureResult, appendEvent }: { failureResult: ReturnType<typeof createExecutionFailureResult>; appendEvent: ReturnType<typeof createExecutionAppendEvent> }) {
   /**
    * Turns a resolved handler output into the terminal result: `completed` with the (guidance-
    * annotated, normalization-noted, truncated) output, or the terminal state the call already
@@ -602,24 +691,10 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     appendEvent(executionId, 'completed');
     return { executionId, status: 'completed', output, truncated, ...(normalizationNotes.length ? { normalizationNotes } : {}) };
   }
+  return settleOutput;
+}
 
-  /** The `'allow'` arm of an authorization outcome — the only one that carries a handler. */
-  type AllowedInvocation = Extract<ToolInvocationAuthorization, { decision: 'allow' }>;
-
-  /** Everything `runHandler` needs about one authorized (and, if required, confirmed) call. */
-  interface AdmittedCall {
-    readonly executionId: string;
-    readonly controller: AbortController;
-    readonly principal: Principal;
-    readonly run: RunRef;
-    readonly toolId: string;
-    readonly input: unknown;
-    readonly descriptor: ToolDescriptor;
-    readonly handler: ToolHandler;
-    readonly normalizationNotes: readonly string[];
-    readonly invocationRegistry: ToolRegistry;
-  }
-
+function createExecutionRunHandler({ wantsGuidance, prepareGuidanceSafely, terminal, approvalRefusal, approvalStateChange, appendEvent, nestedInvoker, settleOutput, failureResult }: { wantsGuidance: ReturnType<typeof createExecutionWantsGuidance>; prepareGuidanceSafely: ReturnType<typeof createExecutionPrepareGuidanceSafely>; terminal: ReturnType<typeof createExecutionTerminal>; approvalRefusal: ReturnType<typeof createExecutionApprovalRefusal>; approvalStateChange: ReturnType<typeof createExecutionApprovalStateChange>; appendEvent: ReturnType<typeof createExecutionAppendEvent>; nestedInvoker: ReturnType<typeof createExecutionNestedInvoker>; settleOutput: ReturnType<typeof createExecutionSettleOutput>; failureResult: ReturnType<typeof createExecutionFailureResult> }) {
   /**
    * Prepares guidance, arms the timeout and runs the handler. Runs synchronously up to the handler
    * call when no guidance applies, so the handler has started by the time `execute()`'s caller
@@ -678,7 +753,10 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
       return failureResult({ executionId, err, timedOut: timeout.timedOut(), aborted: controller.signal.aborted }, { normalizationNotes, guidance });
     }
   }
+  return runHandler;
+}
 
+function createExecutionExecute({ registry, openAudit, terminal, activeControllers, watchTransportAbort, authorize, authorizationFailure, admitAuthorized, confirmGate, runHandler }: { registry: ToolRegistry; openAudit: ReturnType<typeof createExecutionOpenAudit>; terminal: ReturnType<typeof createExecutionTerminal>; activeControllers: Map<string, AbortController>; watchTransportAbort: ReturnType<typeof createExecutionWatchTransportAbort>; authorize: ReturnType<typeof createExecutionAuthorize>; authorizationFailure: ReturnType<typeof createExecutionAuthorizationFailure>; admitAuthorized: ReturnType<typeof createExecutionAdmitAuthorized>; confirmGate: ReturnType<typeof createExecutionConfirmGate>; runHandler: ReturnType<typeof createExecutionRunHandler> }): ExecutorExecute {
   async function execute({ principal, run, toolId, input }: { readonly principal: Principal; readonly run: RunRef; readonly toolId: string; readonly input: unknown }, { signal, emitSurface, invocationRegistry = registry, requireConfirmation }: { readonly signal?: AbortSignal; readonly emitSurface?: SurfaceEmitter; readonly invocationRegistry?: ToolRegistry; readonly requireConfirmation?: true } = {}
   ): Promise<ToolExecutionResult> {
     // Existence is checked separately from — and before — authorization so the audit record can
@@ -753,34 +831,59 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     cleanupCancellation();
     return result;
   }
+  return execute;
+}
 
-  function resumeConfirmation({ executionId, decision }: { readonly executionId: string; readonly decision: ConfirmationDecision }): void {
-    const resolve = pendingConfirmations.get(executionId);
-    if (!resolve) {
-      throw new Error(`ToolExecutor: no pending confirmation for execution "${executionId}"`);
-    }
-    pendingConfirmations.delete(executionId);
-    resolve(decision);
-  }
-
-  function cancel({ executionId }: { readonly executionId: string }): void {
-    const controller = activeControllers.get(executionId);
-    if (controller) {
-      controller.abort();
-    }
-    // The controller also exists while confirmation is pending; aborting must still unblock it.
-    const resolve = pendingConfirmations.get(executionId);
-    if (resolve) {
-      pendingConfirmations.delete(executionId);
-      cancelledConfirmations.add(executionId);
-      resolve('deny');
-    }
-  }
-
+function createExecutionGetAuditRecord({ audits }: { audits: Map<string, ToolExecutionAuditRecord & { events: ToolExecutionAuditEvent[] }> }) {
   function getAuditRecord({ executionId }: { readonly executionId: string }): ToolExecutionAuditRecord | null {
     return audits.get(executionId) ?? null;
   }
+  return getAuditRecord;
+}
 
+/**
+ * Creates the `ToolExecutor` reference implementation: an in-process,
+ * in-memory gate over a `ToolRegistry`. No persistence — a real host that
+ * needs audit records to survive a restart layers a durable store behind
+ * `getAuditRecord`/an append hook later; out of this task's scope (see
+ * `archived provenance ledger`).
+ *
+ * @param options.registry - The `ToolRegistry` to resolve and authorize
+ * tools against, via `@jini-ai/core/composition`'s `authorizeToolInvocation`
+ * — the one and only caller of that internal export.
+ * @param options.delegate - Transport-supplied authorize/confirm UI seam;
+ * omit for a headless caller whose tools never need interactive gating.
+ * @param options.maxAuditRecords - Finished audit records kept, see {@link DEFAULT_MAX_AUDIT_RECORDS}.
+ * @complexity Known-id `execute` adds schema-guided normalization to the handler's cost; unknown ids scan O(n) descriptors for hints. `resumeConfirmation`/`cancel`/`getAuditRecord` are O(1) map lookups.
+ * @overallScore 100/100
+ */
+export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions, "registry">, optionalArgs: Pick<CreateToolExecutorOptions, "delegate" | "now" | "prepareGuidance" | "redactNestedFailure" | "maxAuditRecords"> = {}): ToolExecutor {
+  const options: CreateToolExecutorOptions = { ...requiredArgs, ...optionalArgs };
+  const { registry, delegate, now, maxAuditRecords, audits, finishedAudits, pendingConfirmations, approvalWaits, activeControllers, cancelledConfirmations } = createExecutionState(options);
+  const approvalStateChange = createExecutionApprovalStateChange({ approvalWaits });
+  const retireAudit = createExecutionRetireAudit({ finishedAudits, maxAuditRecords, audits });
+  const appendEvent = createExecutionAppendEvent({ audits, now, retireAudit });
+  const approvalRefusal = createExecutionApprovalRefusal({ approvalWaits, appendEvent });
+  const requestConfirmation = createExecutionRequestConfirmation({ delegate, pendingConfirmations });
+  const openAudit = createExecutionOpenAudit({ audits, appendEvent });
+  const authorize = createExecutionAuthorize({ delegate });
+  const terminal = createExecutionTerminal({ appendEvent });
+  const operationalFailure = createExecutionOperationalFailure({ appendEvent });
+  const failureResult = createExecutionFailureResult({ terminal, appendEvent });
+  const resumeConfirmation = createExecutionResumeConfirmation({ pendingConfirmations });
+  const cancel = createExecutionCancel({ activeControllers, pendingConfirmations, cancelledConfirmations });
+  const watchTransportAbort = createExecutionWatchTransportAbort({ cancel });
+  const authorizationFailure = createExecutionAuthorizationFailure({ failureResult, operationalFailure });
+  const admitAuthorized = createExecutionAdmitAuthorized({ terminal, appendEvent, approvalRefusal });
+  const confirmGate = createExecutionConfirmGate({ approvalStateChange, requestConfirmation, operationalFailure, appendEvent, cancelledConfirmations, terminal });
+  const prepareGuidanceSafely = createExecutionPrepareGuidanceSafely({ options });
+  const wantsGuidance = createExecutionWantsGuidance({ options });
+  const nestedFailureMessage = createExecutionNestedFailureMessage({ options });
+  const nestedInvoker = createExecutionNestedInvoker({ getExecute: () => execute, nestedFailureMessage });
+  const settleOutput = createExecutionSettleOutput({ failureResult, appendEvent });
+  const runHandler = createExecutionRunHandler({ wantsGuidance, prepareGuidanceSafely, terminal, approvalRefusal, approvalStateChange, appendEvent, nestedInvoker, settleOutput, failureResult });
+  const execute = createExecutionExecute({ registry, openAudit, terminal, activeControllers, watchTransportAbort, authorize, authorizationFailure, admitAuthorized, confirmGate, runHandler });
+  const getAuditRecord = createExecutionGetAuditRecord({ audits });
   return { execute, resumeConfirmation, cancel, getAuditRecord };
 }
 

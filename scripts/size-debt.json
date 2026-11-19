@@ -448,20 +448,6 @@
     "value": 844
   },
   {
-    "file": "packages/daemon/src/http/attachments.ts",
-    "function": "createDiskAttachmentStore",
-    "line": 1099,
-    "rule": "max-lines-per-function",
-    "value": 189
-  },
-  {
-    "file": "packages/daemon/src/run-lifecycle.ts",
-    "function": "createRunLifecycle",
-    "line": 572,
-    "rule": "max-lines-per-function",
-    "value": 393
-  },
-  {
     "file": "packages/daemon/src/run-lifecycle.ts",
     "function": "<file>",
     "line": 909,
@@ -495,13 +481,6 @@
     "line": 197,
     "rule": "max-lines-per-function",
     "value": 85
-  },
-  {
-    "file": "packages/daemon/src/tool-executor.ts",
-    "function": "createToolExecutor",
-    "line": 254,
-    "rule": "max-lines-per-function",
-    "value": 344
   },
   {
     "file": "packages/diagnostics/src/web-evidence/page-structure-script.ts",
@@ -721,20 +700,6 @@
     "value": 208
   },
   {
-    "file": "packages/ui/src/features/admin-widgets/components/Select/Select.tsx",
-    "function": "SelectPanel",
-    "line": 91,
-    "rule": "max-lines-per-function",
-    "value": 92
-  },
-  {
-    "file": "packages/ui/src/features/admin-widgets/components/Select/Select.tsx",
-    "function": "Select",
-    "line": 207,
-    "rule": "max-lines-per-function",
-    "value": 83
-  },
-  {
     "file": "packages/ui/src/features/charts/browser.ts",
     "function": "mountChart",
     "line": 33,
@@ -747,20 +712,6 @@
     "line": 400,
     "rule": "max-lines-per-function",
     "value": 97
-  },
-  {
-    "file": "packages/ui/src/features/execution/react/components/LocalCliAgentSettings.tsx",
-    "function": "LocalCliAgentModelControls",
-    "line": 51,
-    "rule": "max-lines-per-function",
-    "value": 82
-  },
-  {
-    "file": "packages/ui/src/features/execution/react/hooks/use-execution-credential.hooks.ts",
-    "function": "useExecutionCredential",
-    "line": 199,
-    "rule": "max-lines-per-function",
-    "value": 130
   },
   {
     "file": "packages/ui/src/features/html-editor/react/hooks/useInteractiveHtmlEditor.ts",
@@ -798,20 +749,6 @@
     "value": 81
   },
   {
-    "file": "packages/ui/src/features/panel-kit/hooks/use-settings-slice.hooks.ts",
-    "function": "useSettingsSlice",
-    "line": 212,
-    "rule": "max-lines-per-function",
-    "value": 126
-  },
-  {
-    "file": "packages/ui/src/features/panel-kit/hooks/use-standing-draft-autosave.hooks.ts",
-    "function": "useStandingDraftAutosave",
-    "line": 173,
-    "rule": "max-lines-per-function",
-    "value": 173
-  },
-  {
     "file": "packages/ui/src/features/skills/react/components/SkillRow.tsx",
     "function": "SkillRow",
     "line": 74,
@@ -845,13 +782,6 @@
     "line": 535,
     "rule": "max-lines",
     "value": 672
-  },
-  {
-    "file": "packages/ui/src/react/mcp-ui/useMcpUiHost.ts",
-    "function": "useMcpUiHost",
-    "line": 164,
-    "rule": "max-lines-per-function",
-    "value": 116
   },
   {
     "file": "packages/ui/src/renderers/annotation-canvas/react/hooks/useAnnotationCanvas.ts",
@@ -915,13 +845,6 @@
     "line": 199,
     "rule": "max-lines-per-function",
     "value": 107
-  },
-  {
-    "file": "packages/user-management/src/react/users/hooks/use-users.hooks.ts",
-    "function": "useUsers",
-    "line": 300,
-    "rule": "max-lines-per-function",
-    "value": 296
   },
   {
     "file": "packages/user-management/src/react/users/Users.tsx",

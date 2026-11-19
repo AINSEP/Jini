@@ -300,8 +300,40 @@ function selectCaller({ users, roles, ownPrincipalId }: {
 export function useUsers({ port, translate, queryScope }: UsersDependencies, {
   openOwnPasswordReset = false, onOwnPasswordResetClosed, passwordResetNotice,
 }: UsersOptions = {}): UsersController {
-  const describeError = (error: unknown, fallback: string) => describeApiError({ error, fallback, translate });
+  const state = useUsersState({ port, translate, queryScope });
+  const openResetPassword = createUsersOpenResetAction(state);
+  useUsersPasswordLink(state, { openOwnPasswordReset, onOwnPasswordResetClosed, openResetPassword });
+  const resetPasswordMutation = useUsersResetMutation(port);
+  const onCreate = createUsersCreateAction(state);
+  const panelActions = createUsersPanelActions(state);
+  const grantActions = createUsersGrantActions(state);
+  const confirmResetPassword = createUsersConfirmResetAction(state, { resetPasswordMutation, passwordResetNotice });
+  const onToggleStatus = createUsersToggleAction(state);
+  const disableActions = createUsersDisableActions(state, onToggleStatus);
+  const deletion = useUsersDeletion(state);
+  return createUsersController(state, {
+    onCreate, ...panelActions, ...grantActions, openResetPassword, confirmResetPassword,
+    onToggleStatus, ...disableActions, ...deletion,
+  });
+}
 
+function createUsersErrorDescriber(translate: Translate) {
+  return (error: unknown, fallback: string) => describeApiError({ error, fallback, translate });
+}
+
+function useUsersState(deps: UsersDependencies) {
+  const describeError = createUsersErrorDescriber(deps.translate);
+  const roster = useUsersRoster(deps, describeError);
+  const creation = useUsersCreationState(deps);
+  const grant = useUsersGrantState(deps);
+  const status = useUsersStatusState(deps);
+  const caller = useUsersCallerState(roster.portRef);
+  const capabilities = createUsersCapabilities({ ...roster, ...caller });
+  const rename = useUsersRename({ ...deps, ...capabilities });
+  return { ...deps, describeError, ...roster, ...creation, ...grant, ...status, ...caller, ...capabilities, ...rename };
+}
+
+function useUsersRoster({ port, translate, queryScope }: UsersDependencies, describeError: ReturnType<typeof createUsersErrorDescriber>) {
   // `portRef` (password-banner plan, 2026-09-24 Slice 3 deep-link half): captured once at mount and
   // never written again, same discipline and same reasoning as `use-assistant-chats.hooks.ts`'s own
   // `portRef` — the one-shot `me()` effect below must not spin if a caller builds a fresh port object
@@ -321,6 +353,10 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
   const { users, roles, policies, canGrant } = selectUsersList({ data: list.data });
   const error = list.error ? describeError(list.error, translate("failed to load users")) : null;
 
+  return { portRef, users, roles, policies, canGrant, error };
+}
+
+function useUsersCreationState({ port, queryScope }: Pick<UsersDependencies, 'port' | 'queryScope'>) {
   const [formOpen, setFormOpen] = useState(false);
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -333,6 +369,10 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
     invalidates: [[queryScope, ...KEYS.list]],
   });
 
+  return { formOpen, setFormOpen, username, setUsername, email, setEmail, password, setPassword, createUser, createUserMutation };
+}
+
+function useUsersGrantState({ port, queryScope }: Pick<UsersDependencies, 'port' | 'queryScope'>) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   // Bumped once per `toggleExpanded` call, regardless of which panel — `runGrantMutation` (a
   // top-level function, outside this closure's re-render cycle) reads this to tell whether the
@@ -360,6 +400,10 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
   }, {
     invalidates: [[queryScope, ...KEYS.list]],
   });
+  return { expandedId, setExpandedId, toggleGenerationRef, pendingRoleId, setPendingRoleId, pendingPolicyId, setPendingPolicyId, grantSaving, setGrantSaving, grantError, setGrantError, assignRoleMutation, attachPolicyMutation, editEmail, setEditEmail, updateEmailMutation };
+}
+
+function useUsersStatusState({ port, queryScope }: Pick<UsersDependencies, 'port' | 'queryScope'>) {
   const [toggleSavingId, setToggleSavingId] = useState<string | null>(null);
   const [toggleError, setToggleError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -382,6 +426,10 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
   const [newPassword, setNewPassword] = useState("");
   const resetPassword = useAsyncAction();
 
+  return { toggleSavingId, setToggleSavingId, toggleError, setToggleError, notice, setNotice, toggleStatusMutation, confirmingDisable, setConfirmingDisable, resetPasswordFor, setResetPasswordFor, newPassword, setNewPassword, resetPassword };
+}
+
+function useUsersCallerState(portRef: ReturnType<typeof useUsersRoster>['portRef']) {
   /** The signed-in caller's own principal id (password-banner plan, 2026-09-24 Slice 3), from
    *  `port.me()`. `null` until that call settles, or forever if it fails — both are treated as
    *  "unknown", which the deep-link effect below and `confirmResetPassword`'s notice branch both
@@ -418,6 +466,10 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
     };
   }, []);
 
+  return { ownPrincipalId, effectivePermissions, canManageUserTrash };
+}
+
+function createUsersCapabilities({ users, roles, ownPrincipalId, effectivePermissions, canManageUserTrash }: ReturnType<typeof useUsersRoster> & ReturnType<typeof useUsersCallerState>) {
   const { roleMap, ownProfile, callerIsOwner } = selectCaller({ users, roles, ownPrincipalId });
   function rowCapabilities(user: AdminIdentityUser): UserAccountCapabilities {
     return userAccountCapabilities({ user, callerPrincipalId: ownPrincipalId, callerIsOwner, canManageUserTrash, roles: roleMap });
@@ -430,6 +482,10 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
     const targetIsOwner = user.isOwner ?? (user.roleIds.some(id => !roleMap.has(id)) || isOwnerAccount({ user, roles: roleMap }));
     return !targetIsOwner || callerIsOwner;
   }
+  return { ownProfile, rowCapabilities, canRenameUser };
+}
+
+function useUsersRename({ port, queryScope, translate, canRenameUser, ownProfile }: UsersDependencies & ReturnType<typeof createUsersCapabilities>) {
   const changeUsername = useChangeUsername({ port, queryScope, translate, canRename: canRenameUser });
   const canRenameOwnProfile = ownProfile !== null && canRenameUser(ownProfile);
   /** Profile and row actions enter the same guarded dialog; the view only renders affordances. */
@@ -440,6 +496,11 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
     return canRenameUser(user) ? (target: AdminIdentityUser) => changeUsername.open({ user: target }) : undefined;
   }
 
+  return { changeUsername, canRenameOwnProfile, openOwnRename, renameUserHandler };
+}
+
+function useUsersPasswordLink({ users, ownPrincipalId, ownProfile, resetPasswordFor }: ReturnType<typeof useUsersState>,
+  { openOwnPasswordReset, onOwnPasswordResetClosed, openResetPassword }: UsersOptions & { openResetPassword: UsersController['openResetPassword'] }) {
   /** Guards the one-shot deep-link auto-open effect below so it fires at most once per mount, even
    *  as `users`/`ownPrincipalId` keep changing identity across the renders it's waiting on (list
    *  reloads, `me()` settling). Separate from {@link openedViaDeepLinkRef}, which tracks a DIFFERENT
@@ -467,12 +528,20 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
     onOwnPasswordResetClosed?.();
   }, [resetPasswordFor, onOwnPasswordResetClosed]);
 
+}
+
+function useUsersResetMutation(port: UsersPort) {
   // No `invalidates` — matches the pre-migration `confirmResetPassword`, which never called
   // `reload()` either (a password reset changes nothing the users table shows).
   const resetPasswordMutation = useFetchMutation({
     run: ({ input }: { input: { principalId: string; password: string } }) => port.resetUserPassword(input),
   });
 
+  return resetPasswordMutation;
+}
+
+function createUsersCreateAction(state: ReturnType<typeof useUsersState>) {
+  const { createUser, createUserMutation, username, password, email, setUsername, setEmail, setPassword, setFormOpen, describeError, translate } = state;
   async function onCreate(e: FormEvent) {
     e.preventDefault();
     await createUser.run({ action: async () => {
@@ -484,6 +553,11 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
     }, describeError: (e) => describeError(e, translate("failed to create user")) });
   }
 
+  return onCreate;
+}
+
+function createUsersPanelActions(state: ReturnType<typeof useUsersState>) {
+  const { setGrantError, setGrantSaving, setPendingRoleId, setPendingPolicyId, setEditEmail, toggleGenerationRef, setExpandedId, updateEmailMutation, editEmail, describeError, translate } = state;
   function toggleExpanded(user: AdminIdentityUser) {
     setGrantError(null);
     // A still-in-flight grant for the panel being LEFT can no longer clear this itself
@@ -497,6 +571,27 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
     setExpandedId((current) => (current === user.principalId ? null : user.principalId));
   }
 
+  // `onSaveEmail` was left out of the `runGrantMutation` fold above on purpose: it tracks its OWN
+  // `emailSaving` flag rather than the shared `grantSaving` `onAssignRole`/`onAttachPolicy` use, so
+  // routing it through the same helper would mean passing a no-op in place of `setGrantSaving` —
+  // extraction for the sake of a shared call site, not a shared shape. Left hand-rolled; `emailSaving`
+  // now derives from `updateEmailMutation.status` since (unlike `grantSaving`) it was already this
+  // one mutation's own dedicated flag.
+  async function onSaveEmail({ principalId }: { principalId: string }) {
+    setGrantError(null);
+    try {
+      await updateEmailMutation.mutate({ input: { principalId, email: editEmail } });
+    } catch (e) {
+      setGrantError(describeError(e, translate("failed to update email")));
+    }
+  }
+  const emailSaving = updateEmailMutation.status === "pending";
+
+  return { toggleExpanded, onSaveEmail, emailSaving };
+}
+
+function createUsersGrantActions(state: ReturnType<typeof useUsersState>) {
+  const { pendingRoleId, pendingPolicyId, toggleGenerationRef, assignRoleMutation, attachPolicyMutation, setPendingRoleId, setPendingPolicyId, setGrantSaving, setGrantError, describeError, translate } = state;
   async function onAssignRole({ principalId }: { principalId: string }) {
     if (!pendingRoleId) return;
     await runGrantMutation({
@@ -521,22 +616,11 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
     });
   }
 
-  // `onSaveEmail` was left out of the `runGrantMutation` fold above on purpose: it tracks its OWN
-  // `emailSaving` flag rather than the shared `grantSaving` `onAssignRole`/`onAttachPolicy` use, so
-  // routing it through the same helper would mean passing a no-op in place of `setGrantSaving` —
-  // extraction for the sake of a shared call site, not a shared shape. Left hand-rolled; `emailSaving`
-  // now derives from `updateEmailMutation.status` since (unlike `grantSaving`) it was already this
-  // one mutation's own dedicated flag.
-  async function onSaveEmail({ principalId }: { principalId: string }) {
-    setGrantError(null);
-    try {
-      await updateEmailMutation.mutate({ input: { principalId, email: editEmail } });
-    } catch (e) {
-      setGrantError(describeError(e, translate("failed to update email")));
-    }
-  }
-  const emailSaving = updateEmailMutation.status === "pending";
+  return { onAssignRole, onAttachPolicy };
+}
 
+function createUsersOpenResetAction(state: ReturnType<typeof useUsersState>) {
+  const { rowCapabilities, toggleSavingId, resetPassword, setNewPassword, setResetPasswordFor } = state;
   /** Opens the reset-password dialog for `user` — the `RowMenu` item's `onSelect`. Guards against
    *  opening a second one while a toggle or a previous reset is still in flight, same discipline
    *  packages/admin/src/redirects/react/hooks/RedirectsPage.hooks.ts uses for its own `RowMenu` items (no per-item `disabled` on `RowMenu` itself). */
@@ -548,6 +632,12 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
     setResetPasswordFor(user);
   }
 
+  return openResetPassword;
+}
+
+function createUsersConfirmResetAction(state: ReturnType<typeof useUsersState>,
+  { resetPasswordMutation, passwordResetNotice }: Pick<UsersOptions, 'passwordResetNotice'> & { resetPasswordMutation: ReturnType<typeof useUsersResetMutation> }) {
+  const { resetPasswordFor, newPassword, rowCapabilities, resetPassword, ownPrincipalId, translate, setNotice, setResetPasswordFor, setNewPassword, describeError } = state;
   async function confirmResetPassword() {
     if (!resetPasswordFor || !newPassword || !rowCapabilities(resetPasswordFor).canResetPassword) return;
     // Dialog stays open on failure (unlike the Disable/Delete-style dialogs elsewhere in this app,
@@ -574,6 +664,11 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
     }, describeError: (e) => describeError(e, translate("failed to reset password")) });
   }
 
+  return confirmResetPassword;
+}
+
+function createUsersToggleAction(state: ReturnType<typeof useUsersState>) {
+  const { rowCapabilities, setToggleSavingId, setToggleError, toggleStatusMutation, describeError, translate } = state;
   /** `setToggleSavingId`'s `finally` reset (2026-09-05 fix, same bug class as
    *  `use-roles.hooks.ts`'s `onSaveRole`/`runRowDelete`) is a functional update keyed on THIS call's
    *  own `principalId`: Enable fires with no confirmation gate, so two calls — on different users —
@@ -594,6 +689,11 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
     }
   }
 
+  return onToggleStatus;
+}
+
+function createUsersDisableActions(state: ReturnType<typeof useUsersState>, onToggleStatus: UsersController['onToggleStatus']) {
+  const { rowCapabilities, setToggleError, setConfirmingDisable, confirmingDisable } = state;
   /** Opens the Disable confirm dialog for `user` — the `RowMenu` "Disable" item's `onSelect` when
    *  the user is currently active. Was an inline closure inside the old `rowMenuItems`; named here
    *  now that the item builder itself moved to `rules.ts` and needs a callback to hand it. */
@@ -619,6 +719,11 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
     setConfirmingDisable((current) => (current?.principalId === user.principalId ? null : current));
   }
 
+  return { requestDisable, confirmDisable };
+}
+
+function useUsersDeletion(state: ReturnType<typeof useUsersState>) {
+  const { port, queryScope, rowCapabilities, setToggleError, describeError, translate } = state;
   // Delete-user plan v2 (2026-09-24), Slice 4 — mirrors Disable's request/confirm pair above with
   // its OWN state (see `confirmingDelete`'s own doc comment for why not shared). `deleteUserMutation`
   // invalidates `KEYS.list` like every other write on this screen; the route already filters a newly
@@ -653,76 +758,60 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
     setConfirmingDelete((current) => (current?.principalId === user.principalId ? null : current));
   }
 
-  return {
-    users,
-    roles,
-    policies,
-    canGrant,
-    error,
+  return { deleteUserMutation, confirmingDelete, setConfirmingDelete, requestDelete, confirmDelete };
+}
 
-    formOpen,
-    setFormOpen,
-    username,
-    setUsername,
-    email,
-    setEmail,
-    password,
-    setPassword,
+function createUsersController(
+  state: ReturnType<typeof useUsersState>,
+  actions: ReturnType<typeof createUsersPanelActions> & ReturnType<typeof createUsersGrantActions> &
+    ReturnType<typeof createUsersDisableActions> & ReturnType<typeof useUsersDeletion> & {
+      onCreate: UsersController['onCreate']; openResetPassword: UsersController['openResetPassword'];
+      confirmResetPassword: UsersController['confirmResetPassword']; onToggleStatus: UsersController['onToggleStatus'];
+    },
+): UsersController {
+  const {
+    users, roles, policies, canGrant, error, formOpen, setFormOpen, username, setUsername, email, setEmail,
+    password, setPassword, createUser, expandedId, pendingRoleId, setPendingRoleId, pendingPolicyId,
+    setPendingPolicyId, grantSaving, grantError, editEmail, setEditEmail, toggleSavingId, toggleError,
+    notice, confirmingDisable, setConfirmingDisable, resetPasswordFor, setResetPasswordFor, newPassword,
+    setNewPassword, resetPassword, canManageUserTrash, rowCapabilities, ownProfile, canRenameUser,
+    canRenameOwnProfile, openOwnRename, renameUserHandler, changeUsername, translate,
+  } = state;
+  const {
+    onCreate, toggleExpanded, onAssignRole, onAttachPolicy, emailSaving, onSaveEmail, requestDisable,
+    confirmDisable, onToggleStatus, openResetPassword, confirmResetPassword, confirmingDelete,
+    setConfirmingDelete, requestDelete, deleteUserMutation, confirmDelete,
+  } = actions;
+  return {
+    users, roles, policies, canGrant, error,
+
+    formOpen, setFormOpen, username, setUsername,
+    email, setEmail, password, setPassword,
     saving: createUser.saving,
     formError: createUser.error,
     onCreate,
 
-    expandedId,
-    toggleExpanded,
-    pendingRoleId,
-    setPendingRoleId,
-    pendingPolicyId,
-    setPendingPolicyId,
-    grantSaving,
-    grantError,
-    onAssignRole,
-    onAttachPolicy,
+    expandedId, toggleExpanded, pendingRoleId, setPendingRoleId,
+    pendingPolicyId, setPendingPolicyId, grantSaving, grantError,
+    onAssignRole, onAttachPolicy,
 
-    editEmail,
-    setEditEmail,
-    emailSaving,
-    onSaveEmail,
+    editEmail, setEditEmail, emailSaving, onSaveEmail,
 
-    toggleSavingId,
-    toggleError,
-    notice,
+    toggleSavingId, toggleError, notice,
 
-    confirmingDisable,
-    setConfirmingDisable,
-    requestDisable,
-    confirmDisable,
-    onToggleStatus,
+    confirmingDisable, setConfirmingDisable, requestDisable, confirmDisable, onToggleStatus,
 
-    resetPasswordFor,
-    setResetPasswordFor,
-    newPassword,
-    setNewPassword,
+    resetPasswordFor, setResetPasswordFor, newPassword, setNewPassword,
     passwordSaving: resetPassword.saving,
     passwordError: resetPassword.error,
     setPasswordError: resetPassword.setError,
-    openResetPassword,
-    confirmResetPassword,
+    openResetPassword, confirmResetPassword,
 
-    canManageUserTrash,
-    rowCapabilities,
-    ownProfile,
-    canRenameUser,
-    canRenameOwnProfile,
-    openOwnRename,
-    renameUserHandler,
-    changeUsername,
-    confirmingDelete,
-    setConfirmingDelete,
-    requestDelete,
-    deleteSaving: deleteUserMutation.status === "pending",
-    confirmDelete,
+    canManageUserTrash, rowCapabilities, ownProfile, canRenameUser,
+    canRenameOwnProfile, openOwnRename, renameUserHandler, changeUsername,
+    confirmingDelete, setConfirmingDelete, requestDelete,
+    deleteSaving: deleteUserMutation.status === "pending", confirmDelete,
 
-    t: translate,
-    translate,
+    t: translate, translate,
   };
 }
