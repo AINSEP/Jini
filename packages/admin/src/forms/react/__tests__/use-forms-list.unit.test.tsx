@@ -1,4 +1,4 @@
-import { act, renderHook, waitFor } from "../../../__tests__/fetch-query-support.js";
+import { act, renderHook, waitFor } from "./harness.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { FetchQueryProvider } from "@jini-ai/ui/fetch-query";

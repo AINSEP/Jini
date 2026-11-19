@@ -1,4 +1,4 @@
-import { act, render, renderHook, screen, waitFor } from "../../../__tests__/fetch-query-support.js";
+import { act, render, renderHook, screen, waitFor } from "./harness.js";
 import userEvent from "@testing-library/user-event";
 import { assert, afterEach, describe, expect, it, vi } from "vitest";
 import { FetchQueryProvider } from "@jini-ai/ui/fetch-query";
