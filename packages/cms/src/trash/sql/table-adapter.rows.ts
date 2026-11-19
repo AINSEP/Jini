@@ -39,7 +39,7 @@ export async function readMarkerRow({ ctx, workspaceId, entityId }: { ctx: Table
         if (entry.versionColumn) columns.push(eb.ref(qualified({ table: entry.table, column: entry.versionColumn })).as("version"));
         return columns;
       })
-      .where((eb) => entryWhere(eb, { entry, workspaceId, entityId }))
+      .where((eb) => entryWhere({ eb, entry, workspaceId, entityId }))
       .limit(1)
       .executeTakeFirst() }
   );
@@ -77,7 +77,7 @@ export async function writeMarker({ ctx, workspaceId, entityId, markerValue, at,
       .where((eb) => {
         const markerRef = qualified({ table: entry.table, column: entry.marker.column });
         const guards = [
-          entryWhere(eb, { entry, workspaceId, entityId }),
+          entryWhere({ eb, entry, workspaceId, entityId }),
           before.marker === null || before.marker === undefined ? eb(markerRef, "is", null) : eb(markerRef, "=", before.marker),
         ];
         if (versionColumn && before.version !== null && before.version !== undefined) {

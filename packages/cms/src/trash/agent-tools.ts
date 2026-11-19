@@ -78,7 +78,7 @@ function restoreInputSchema(kinds: readonly TrashEntityType[]) {
  *
  * @complexity O(k) in `kinds.length` to build the two schemas.
  */
-export function buildTrashAgentToolCatalog(kinds: readonly TrashEntityType[]): readonly AgentToolDefinition[] {
+export function buildTrashAgentToolCatalog({ kinds }: { kinds: readonly TrashEntityType[] }, _optional: Record<string, never> = {}): readonly AgentToolDefinition[] {
   return [
     {
       name: "trash_list_items",

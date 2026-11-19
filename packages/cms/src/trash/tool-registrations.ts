@@ -224,7 +224,7 @@ export function buildTrashToolRegistrations({ deps }: { deps: TrashPackageToolDe
   // catalog would freeze the published entityType enum at whatever the host's registry held when
   // this file first loaded, before a later-registered kind (its "resolved at call time" rule)
   // could ever reach it.
-  const catalog = indexCatalogById({ catalog: buildTrashAgentToolCatalog(deps.trashPolicy.catalogKinds()) });
+  const catalog = indexCatalogById({ catalog: buildTrashAgentToolCatalog({ kinds: deps.trashPolicy.catalogKinds() }) });
 
   return buildDomainRegistrations({
     domain: "trash",

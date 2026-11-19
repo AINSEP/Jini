@@ -51,9 +51,9 @@ All names in this section are exported from both the root and `/core`. No inject
 
 `AdminPanel<T>` requires `{ id: string, render: T }`, with optional `nav`, `routes`, `requires`, `permissions`, `agentReachable`. `AdminNavEntry` has required `label` and optional `icon`, `group`, `order`, `soon`, `soonPreviewable`. `AdminRoutePattern` requires `pattern`, `view` and optionally `agentPageId`. `AdminRoute` always contains `{ panelId: string | null, view: string | null, params: Readonly<Record<string,string>>, query: URLSearchParams }`. Nav groups contain optional `label` and `items`; each item adds `id` and route-path `href` to the nav entry.
 
-### Entity registry: current positional exceptions
+### Entity registry: current signatures
 
-These helpers have not adopted the two-object convention. Use the signatures below, not object wrappers around their first arguments.
+These helpers mix positional and two-object conventions. Use the signatures below.
 
 ```ts
 createAdminEntityRegistry<P extends Record<string, AdminEntityPort<AdminEntityDescriptor>>>(
@@ -67,10 +67,10 @@ listErasedEntityPorts(
   options: AdminEntityErasureOptions = {},
 ): readonly AdminErasedEntityPort[];
 getErasedEntityPort(
-  registry: Readonly<Record<string, AdminEntityPort<AdminEntityDescriptor>>>,
-  name: string, options: AdminEntityErasureOptions = {},
+  { registry, name }: { registry: Readonly<Record<string, AdminEntityPort<AdminEntityDescriptor>>>; name: string },
+  options: AdminEntityErasureOptions = {},
 ): AdminErasedEntityPort | null;
-describeAdminEntityFieldMismatch(field: AdminEntityField, value: unknown): string | null;
+describeAdminEntityFieldMismatch({ field, value }: { field: AdminEntityField; value: unknown }, _optional: Record<string, never> = {}): string | null;
 ```
 
 `AdminEntityErasureOptions` contains only optional `onViolation(violation: AdminEntityRowViolation): void`, a positional callback. A violation has `entity`, `operation: 'list'|'get'|'create'|'update'`, `rowId`, `field`, `problem: 'missing-required'|'wrong-type'|'undeclared-field'`, `detail`. It is diagnostic data, not a thrown error class.
@@ -96,7 +96,7 @@ const panels = resolvePanels({ panels: [{ id: 'records', render: 'record-view' }
 const route = matchRoute({ panels, routePath: '/records' });
 ```
 
-The same example can import from `/core`. For entities, supply backend-scoped ports to `createAdminEntityRegistry(ports)`; adapt `getErasedEntityPort(registry: Readonly<Record<string, AdminEntityPort<AdminEntityDescriptor>>>, name: string, options: AdminEntityErasureOptions = {})` and `listErasedEntityPorts(registry: Readonly<Record<string, AdminEntityPort<AdminEntityDescriptor>>>, options: AdminEntityErasureOptions = {})` to the screen registry below.
+The same example can import from `/core`. For entities, supply backend-scoped ports to `createAdminEntityRegistry(ports)`; adapt `getErasedEntityPort({ registry, name }: { registry: Readonly<Record<string, AdminEntityPort<AdminEntityDescriptor>>>; name: string }, options: AdminEntityErasureOptions = {})` and `listErasedEntityPorts(registry: Readonly<Record<string, AdminEntityPort<AdminEntityDescriptor>>>, options: AdminEntityErasureOptions = {})` to the screen registry below.
 
 ## Browser functions
 
@@ -215,7 +215,7 @@ import { EntityIndex, createEntityRoutes, createEntityPanel } from '@jini-ai/adm
 // entityRegistry and navigation are previously supplied host dependencies.
 const registry = {
   listEntities: (_required: Record<string, never>) => listErasedEntityPorts(entityRegistry),
-  getEntity: ({ name }: { name: string }) => getErasedEntityPort(entityRegistry, name),
+  getEntity: ({ name }: { name: string }) => getErasedEntityPort({ registry: entityRegistry, name }),
 };
 const translate = ({ key }: { key: string }) => key;
 const dependencies = { adminBase: '/console', panelId: 'data', registry, translate,

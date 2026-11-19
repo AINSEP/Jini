@@ -26,63 +26,63 @@ const nest = (levels: number): unknown => {
 
 describe('json walk bounds', () => {
   it('accepts nesting exactly at the depth limit', () => {
-    expect(describeAdminEntityFieldMismatch(json, nest(32))).toBeNull();
+    expect(describeAdminEntityFieldMismatch({ field: json, value: nest(32) })).toBeNull();
   });
   it('rejects nesting one level past the depth limit', () => {
-    expect(describeAdminEntityFieldMismatch(json, nest(33))).toBe(
+    expect(describeAdminEntityFieldMismatch({ field: json, value: nest(33) })).toBe(
       'is not a JSON value: it nests deeper than 32 levels',
     );
   });
   it('accepts exactly the node budget', () => {
-    expect(describeAdminEntityFieldMismatch(json, new Array(9_999).fill(0))).toBeNull();
+    expect(describeAdminEntityFieldMismatch({ field: json, value: new Array(9_999).fill(0) })).toBeNull();
   });
   it('rejects one node past the budget', () => {
-    expect(describeAdminEntityFieldMismatch(json, new Array(10_000).fill(0))).toBe(
+    expect(describeAdminEntityFieldMismatch({ field: json, value: new Array(10_000).fill(0) })).toBe(
       'is not a JSON value: it holds more than 10000 values',
     );
   });
   it('rejects undefined', () => {
-    expect(describeAdminEntityFieldMismatch(json, undefined)).toBe(
+    expect(describeAdminEntityFieldMismatch({ field: json, value: undefined })).toBe(
       'is not a JSON value: it is a undefined',
     );
   });
   it('rejects a symbol inside an object', () => {
-    expect(describeAdminEntityFieldMismatch(json, { a: Symbol('s') })).toBe(
+    expect(describeAdminEntityFieldMismatch({ field: json, value: { a: Symbol('s') } })).toBe(
       'is not a JSON value: it is a symbol',
     );
   });
   it('accepts a null-prototype object', () => {
     const bare = Object.assign(Object.create(null) as Record<string, unknown>, { a: 1 });
-    expect(describeAdminEntityFieldMismatch(json, bare)).toBeNull();
+    expect(describeAdminEntityFieldMismatch({ field: json, value: bare })).toBeNull();
   });
   it('rejects a Map', () => {
-    expect(describeAdminEntityFieldMismatch(json, new Map())).toBe(
+    expect(describeAdminEntityFieldMismatch({ field: json, value: new Map() })).toBe(
       'is not a JSON value: it is a non-plain object',
     );
   });
   it('reports the first bad array item', () => {
-    expect(describeAdminEntityFieldMismatch(json, [1, Number.NaN, () => 1])).toBe(
+    expect(describeAdminEntityFieldMismatch({ field: json, value: [1, Number.NaN, () => 1] })).toBe(
       'is not a JSON value: it is a non-finite number',
     );
   });
   it('accepts a boolean', () => {
-    expect(describeAdminEntityFieldMismatch(json, false)).toBeNull();
+    expect(describeAdminEntityFieldMismatch({ field: json, value: false })).toBeNull();
   });
 });
 
 describe('field kinds', () => {
   it('rejects a non-string datetime naming the type', () => {
-    expect(describeAdminEntityFieldMismatch({ name: 'at', kind: 'datetime' }, 5)).toBe(
+    expect(describeAdminEntityFieldMismatch({ field: { name: 'at', kind: 'datetime' }, value: 5 })).toBe(
       'expected an ISO-8601 string, got number',
     );
   });
   it('rejects a non-number real naming the type', () => {
-    expect(describeAdminEntityFieldMismatch({ name: 'r', kind: 'real' }, '1')).toBe(
+    expect(describeAdminEntityFieldMismatch({ field: { name: 'r', kind: 'real' }, value: '1' })).toBe(
       'expected a number, got string',
     );
   });
   it('rejects a non-boolean naming the type', () => {
-    expect(describeAdminEntityFieldMismatch({ name: 'b', kind: 'boolean' }, 1)).toBe(
+    expect(describeAdminEntityFieldMismatch({ field: { name: 'b', kind: 'boolean' }, value: 1 })).toBe(
       'expected a boolean, got number',
     );
   });
@@ -230,6 +230,6 @@ describe('registry lookup', () => {
   it('returns null for an own key holding undefined', () => {
     const registry: Record<string, AdminEntityPort<AdminEntityDescriptor>> = {};
     Object.defineProperty(registry, 'ghost', { value: undefined, enumerable: true });
-    expect(getErasedEntityPort(registry, 'ghost')).toBeNull();
+    expect(getErasedEntityPort({ registry, name: 'ghost' })).toBeNull();
   });
 });
