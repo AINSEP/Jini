@@ -78,6 +78,289 @@ function giveUpReason({ decision, lastReason }: { decision: Extract<RespawnDecis
   return `gave up after ${decision.attempts} attempts in ${Math.round(decision.windowMs / 1000)}s: ${lastReason}`;
 }
 
+interface SupervisorContext {
+  deps: DaemonSupervisorRequired;
+  options: DaemonSupervisorOptions;
+  cooldown: number;
+  formatGiveUp: NonNullable<DaemonSupervisorOptions["formatGiveUp"]>;
+  parkedExitCodes: Set<number>;
+  parked: boolean;
+  current: ChildState | undefined;
+  cancelRetry: (() => void) | undefined;
+  // Terminal shutdown is a one-way latch, unlike a tripped retry cap. A restart racing
+  // host teardown must not resurrect a child that the host is actively trying to kill.
+  terminating: boolean;
+  spawnAttempts: number;
+  lastOnDemandAttemptAt: number | undefined;
+  readyChild: ChildState | undefined;
+  readyWork: Promise<void> | undefined;
+  discoveryWork: Promise<void> | undefined;
+  cancelReadiness: ((error?: Error) => void) | undefined;
+  supervisor: DaemonSupervisor | undefined;
+}
+
+function isCurrentLive(context: SupervisorContext, { candidate }: { candidate: ChildState | undefined }): boolean {
+  return candidate !== undefined && context.current === candidate && !context.terminating && !candidate.exited && !candidate.stopping && !candidate.parking;
+}
+
+function isReady(context: SupervisorContext): boolean {
+  return context.readyChild !== undefined && isCurrentLive(context, { candidate: context.readyChild });
+}
+
+/** An exited child can still own unfinished termination work. O(1), no process effects. */
+function hasUnreapedChild(context: SupervisorContext): boolean {
+  return context.current !== undefined && (!context.current.exited || context.current.stopping);
+}
+
+/** Discovery outlives individual request deadlines; never re-enter the demand cooldown.
+ * O(1) state and at most one discovery read per 250ms, excluding the injected read itself. */
+function waitForReady(context: SupervisorContext): Promise<void> {
+  const { deps } = context;
+  return new Promise<void>((resolve, reject) => {
+    let settled = false;
+    let cancelPoll: (() => void) | undefined;
+    context.cancelReadiness = (error = new Error("shutting down")) => finish(error);
+    function finish(error?: Error): void {
+      if (settled) return;
+      settled = true; cancelPoll?.(); context.cancelReadiness = undefined;
+      if (error) reject(error); else resolve();
+    }
+    async function poll(): Promise<void> {
+      if (settled) return;
+      const candidate = context.current;
+      try {
+        if (candidate?.child.pid !== undefined && isCurrentLive(context, { candidate })) {
+          const discovered = await deps.readiness!.isReady({ pid: candidate.child.pid });
+          // The read may have crossed an exit/replacement or terminal shutdown.
+          if (discovered && !settled && isCurrentLive(context, { candidate })) {
+            context.readyChild = candidate; deps.failureReporter.clear(); finish(); return;
+          }
+        }
+      } catch { /* Missing or partly-published discovery is not readiness; keep waiting. */ }
+      if (!settled) cancelPoll = deps.scheduler.schedule({ delayMs: 250, run: () => { void poll(); } });
+    }
+    void poll();
+  });
+}
+
+/** One monitor spans demand and replacement; background shutdown rejection is observed.
+ * @complexity O(1) state; one PID probe immediately, then at most once per 250ms until ready.
+ */
+function discoverReadiness(context: SupervisorContext): Promise<void> {
+  if (!context.discoveryWork) {
+    const discovery = waitForReady(context).finally(() => { if (context.discoveryWork === discovery) context.discoveryWork = undefined; });
+    context.discoveryWork = discovery;
+    void discovery.catch(() => { /* Parking or shutdown also ends caller-free discovery. */ });
+  }
+  return context.discoveryWork;
+}
+
+/** Return immediate readiness outcomes before starting or joining discovery. O(1) time/space. */
+function readinessPreflight(
+  context: SupervisorContext, { signal }: { signal: AbortSignal | undefined }
+): Promise<void> | undefined {
+  const { deps } = context;
+  if (signal?.aborted) return Promise.reject(signal.reason);
+  if (context.terminating) return Promise.reject(new Error("shutting down"));
+  if (isReady(context)) return Promise.resolve();
+  if (!deps.readiness) return Promise.reject(new Error("readiness port is not configured"));
+  return undefined;
+}
+
+function ensureReady(context: SupervisorContext, _required: Record<string, never>, { signal }: { signal?: AbortSignal } = {}): Promise<void> {
+  const { deps } = context;
+  const preflight = readinessPreflight(context, { signal });
+  if (preflight !== undefined) return preflight;
+  // A shared discovery may already exist; this demand still has to request replacement after
+  // the retiring child exits. Reuse that discovery rather than canceling its current waiters.
+  if (context.current?.parking) context.supervisor!.ensureStarted();
+  if (!context.readyWork) {
+    const start = context.supervisor!.ensureStarted();
+    if (!start.ok) return Promise.reject(new Error(start.reason));
+    // A slow healthy child must keep being discovered after an HTTP caller gives up.
+    // Share the monitor across subsequent demands; shutdown or parking cancels polling.
+    // A parked waiter's cleanup must not clear a fresh wake's discovery or request work.
+    const ready = readinessDeadline({ work: discoverReadiness(context), scheduler: deps.scheduler }).finally(() => { if (context.readyWork === ready) context.readyWork = undefined; });
+    context.readyWork = ready;
+  }
+  return signal ? awaitForCaller({ work: context.readyWork, signal }) : context.readyWork;
+}
+
+function reportFailure(context: SupervisorContext, reason: string, decision?: RespawnDecision): void {
+  const { deps } = context;
+  deps.failureReporter.record({ reason });
+  deps.logger.emit({ type: "failure", at: deps.now(), reason, ...(decision === undefined ? {} : { decision }) });
+}
+
+function cancelPendingRetry(context: SupervisorContext): void {
+  const cancelRetry = context.cancelRetry;
+  cancelRetry?.(); context.cancelRetry = undefined;
+}
+
+function terminate(context: SupervisorContext, state: ChildState): void {
+  const { deps } = context;
+  state.stopping = true;
+  function stopped(): void {
+    state.stopping = false;
+    if (context.current === state && state.exited && state.replaceAfterExit && !context.terminating) attemptSpawn(context);
+  }
+  function failed(error: unknown): void {
+    state.stopping = false;
+    state.replaceAfterExit = false;
+    // A failed replacement must not suppress recovery from a later crash.
+    state.deliberate = false;
+    if (context.current === state) reportFailure(context, `failed to stop daemon: ${String(error)}`);
+  }
+  try {
+    const result = deps.terminateProcess({ child: state.child });
+    if (result !== undefined) { void result.then(stopped, failed); return; }
+    stopped();
+  } catch (error) {
+    failed(error);
+  }
+}
+
+function handleUnexpectedExit(context: SupervisorContext, code: number | null, signal: NodeJS.Signals | null): void {
+  const { deps, parkedExitCodes, formatGiveUp } = context;
+  // Recognize the host's normal park code before classification can charge a crash or bind failure.
+  if (code !== null && parkedExitCodes.has(code)) {
+    context.parked = true; cancelPendingRetry(context); context.cancelReadiness?.(new Error("daemon parked"));
+    context.readyChild = undefined; context.readyWork = undefined; context.discoveryWork = undefined;
+    return;
+  }
+  const classification = deps.classifyExit({ code, signal });
+  reportFailure(context, classification.reason);
+  const decision = deps.policy.recordFailure({ isPortConflict: classification.isPortConflict });
+  if (decision.action === "give-up") {
+    reportFailure(context, formatGiveUp({ decision, lastReason: classification.reason }), decision);
+    return;
+  }
+  context.cancelRetry = deps.scheduler.schedule({ delayMs: decision.delayMs, run: () => { context.cancelRetry = undefined; attemptSpawn(context); } });
+}
+
+function attemptSpawn(context: SupervisorContext): void {
+  const { deps, options } = context;
+  if (context.terminating || context.parked || hasUnreapedChild(context)) return;
+  // A new attempt must not inherit a stale readiness failure from an earlier child.
+  deps.failureReporter.clear();
+  let child: SpawnedDaemonProcess;
+  try { child = deps.spawnDaemonProcess(); }
+  catch (error) { reportFailure(context, `failed to start daemon: ${error instanceof Error ? error.message : String(error)}`); return; }
+  const state: ChildState = { child, exited: false, deliberate: false, replaceAfterExit: false, stopping: false, parking: false };
+  // Assign synchronously: run-to-completion makes request-driven recovery single-flight
+  // without a lock or an await between checking the current child and publishing it.
+  context.current = state;
+  // A respawn ends every run in flight. Timestamped lifecycle events let operators
+  // correlate apparently stalled work with a replacement, including deliberate exits
+  // when routine lifecycle logging is enabled.
+  context.spawnAttempts++;
+  if (!options.quietRoutineLifecycle || context.spawnAttempts > 1) {
+    deps.logger.emit({ type: "spawn", at: deps.now(), pid: child.pid, attempt: context.spawnAttempts });
+  }
+  subscribeToChild(context, state);
+  // Cold construction and an idle park do no discovery. A replacement must still publish
+  // readiness when no caller is waiting; reuse the current monitor if startup is ongoing.
+  if (context.spawnAttempts > 1 && deps.readiness) void discoverReadiness(context);
+}
+
+// Wait for a still-live child to exit before replacement: spawning alongside it would
+// collide on its listening port and manufacture the bind failure we are recovering from.
+function forceFreshSpawn(context: SupervisorContext): void {
+  context.parked = false;
+  if (context.current?.stopping) { context.current.replaceAfterExit = true; return; }
+  if (context.current !== undefined && !context.current.exited) {
+    if (context.current.replaceAfterExit) return;
+    context.current.deliberate = true;
+    context.current.replaceAfterExit = true;
+    terminate(context, context.current);
+    return;
+  }
+  attemptSpawn(context);
+}
+
+function subscribeToChild(context: SupervisorContext, state: ChildState): void {
+  const { deps, options } = context;
+  const { child } = state;
+  // Missing scripts/permissions are not transient crashes: repeating the broken spawn
+  // on backoff only burns the retry cap. Manual or cooldown-limited recovery can try
+  // again after the underlying launch problem is repaired.
+  child.on({ event: "error", listener: ({ error }) => {
+    if (context.current !== state || state.exited) return;
+    // Spawn failure has no pid and never emits exit. A live child's error may instead be a failed kill.
+    if (child.pid === undefined) state.exited = true;
+    reportFailure(context, `failed to start daemon: ${error.message}`);
+  } });
+  child.on({ event: "exit", listener: ({ code, signal }) => {
+    if (context.current !== state || state.exited) return;
+    state.exited = true;
+    if (!options.quietRoutineLifecycle || !state.deliberate) {
+      deps.logger.emit({ type: "exit", at: deps.now(), pid: child.pid, code, signal, deliberate: state.deliberate });
+    }
+    if (context.terminating) return;
+    if (state.replaceAfterExit) {
+      if (!state.stopping) attemptSpawn(context);
+      return;
+    }
+    if (!state.deliberate) handleUnexpectedExit(context, code, signal);
+  } });
+}
+
+function ensureStarted(context: SupervisorContext): DaemonSupervisorActionResult {
+  const { deps, cooldown } = context;
+  if (context.terminating) return { ok: false, reason: "shutting down" };
+  if (context.current?.parking && !context.current.exited) {
+    context.current.replaceAfterExit = true;
+    return { ok: true };
+  }
+  // A scheduled retry keeps its own backoff; request traffic must not accelerate it.
+  if (hasUnreapedChild(context) || context.cancelRetry !== undefined) return { ok: true };
+  // Parking is healthy idleness: wake immediately, retaining all earlier crash history.
+  if (context.parked) {
+    context.lastOnDemandAttemptAt = deps.now(); forceFreshSpawn(context);
+    return { ok: true };
+  }
+  // Single-flight alone cannot stop a storm against a durably broken launch. The 30s
+  // default floor matches the standard backoff ceiling, bounding traffic-driven retries
+  // to the same worst-case rate as timer-driven recovery after a cap or spawn failure.
+  const now = deps.now();
+  if (context.lastOnDemandAttemptAt !== undefined && now - context.lastOnDemandAttemptAt < cooldown) return { ok: false, reason: "cooling down before trying again" };
+  context.lastOnDemandAttemptAt = now;
+  deps.policy.reset(); forceFreshSpawn(context);
+  return { ok: true };
+}
+
+function createSupervisorActions(context: SupervisorContext): DaemonSupervisor {
+  const { deps } = context;
+  return {
+    isReady: () => isReady(context),
+    ensureReady: (_required, optional = {}) => ensureReady(context, _required, optional),
+    markParking({ pid }, _optional = {}) {
+      if (!context.current || context.current.child.pid !== pid || context.current.exited || context.terminating) return;
+      context.current.parking = true;
+      context.readyChild = undefined;
+    },
+    getState() {
+      if (context.terminating) return "shutting-down";
+      if (context.parked) return "parked";
+      return context.current !== undefined && !context.current.exited ? "running" : "stopped";
+    },
+    start() { if (context.cancelRetry === undefined) attemptSpawn(context); },
+    restart() {
+      if (context.terminating) return { ok: false, reason: "shutting down" };
+      cancelPendingRetry(context); deps.policy.reset(); forceFreshSpawn(context);
+      return { ok: true };
+    },
+    ensureStarted() { return ensureStarted(context); },
+    shutdown() {
+      if (context.terminating) return;
+      context.terminating = true; cancelPendingRetry(context); context.cancelReadiness?.();
+      if (context.current === undefined) return;
+      context.current.deliberate = true; context.current.replaceAfterExit = false;
+      if (!context.current.exited && !context.current.stopping) terminate(context, context.current);
+    },
+  };
+}
+
 /**
  * Wire a caller-owned process lifecycle to retry decisions without global handlers or host defaults.
  * @param deps Required process, policy, clock, scheduler, readiness and observability ports.
@@ -91,257 +374,22 @@ export function createDaemonSupervisor(deps: DaemonSupervisorRequired, options: 
   if (!Number.isFinite(cooldown) || cooldown < 0) throw new RangeError("onDemandCooldownMs must be finite and non-negative");
   const formatGiveUp = options.formatGiveUp ?? giveUpReason;
   const parkedExitCodes = new Set(options.parkedExitCodes);
-  let parked = false;
-  let current: ChildState | undefined;
-  let cancelRetry: (() => void) | undefined;
-  // Terminal shutdown is a one-way latch, unlike a tripped retry cap. A restart racing
-  // host teardown must not resurrect a child that the host is actively trying to kill.
-  let terminating = false;
-  let spawnAttempts = 0;
-  let lastOnDemandAttemptAt: number | undefined;
-  let readyChild: ChildState | undefined;
-  let readyWork: Promise<void> | undefined;
-  let discoveryWork: Promise<void> | undefined;
-  let cancelReadiness: ((error?: Error) => void) | undefined;
-
-  function isCurrentLive({ candidate }: { candidate: ChildState | undefined }): boolean {
-    return candidate !== undefined && current === candidate && !terminating && !candidate.exited && !candidate.stopping && !candidate.parking;
-  }
-
-  function isReady(): boolean {
-    return readyChild !== undefined && isCurrentLive({ candidate: readyChild });
-  }
-
-  /** An exited child can still own unfinished termination work. O(1), no process effects. */
-  function hasUnreapedChild(): boolean {
-    return current !== undefined && (!current.exited || current.stopping);
-  }
-
-  /** Discovery outlives individual request deadlines; never re-enter the demand cooldown.
-   * O(1) state and at most one discovery read per 250ms, excluding the injected read itself. */
-  function waitForReady(): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      let settled = false;
-      let cancelPoll: (() => void) | undefined;
-      cancelReadiness = (error = new Error("shutting down")) => finish(error);
-      function finish(error?: Error): void {
-        if (settled) return;
-        settled = true; cancelPoll?.(); cancelReadiness = undefined;
-        if (error) reject(error); else resolve();
-      }
-      async function poll(): Promise<void> {
-        if (settled) return;
-        const candidate = current;
-        try {
-          if (candidate?.child.pid !== undefined && isCurrentLive({ candidate })) {
-            const discovered = await deps.readiness!.isReady({ pid: candidate.child.pid });
-            // The read may have crossed an exit/replacement or terminal shutdown.
-            if (discovered && !settled && isCurrentLive({ candidate })) {
-              readyChild = candidate; deps.failureReporter.clear(); finish(); return;
-            }
-          }
-        } catch { /* Missing or partly-published discovery is not readiness; keep waiting. */ }
-        if (!settled) cancelPoll = deps.scheduler.schedule({ delayMs: 250, run: () => { void poll(); } });
-      }
-      void poll();
-    });
-  }
-
-  /** One monitor spans demand and replacement; background shutdown rejection is observed.
-   * @complexity O(1) state; one PID probe immediately, then at most once per 250ms until ready.
-   */
-  function discoverReadiness(): Promise<void> {
-    if (!discoveryWork) {
-      const discovery = waitForReady().finally(() => { if (discoveryWork === discovery) discoveryWork = undefined; });
-      discoveryWork = discovery;
-      void discovery.catch(() => { /* Parking or shutdown also ends caller-free discovery. */ });
-    }
-    return discoveryWork;
-  }
-
-  /** Return immediate readiness outcomes before starting or joining discovery. O(1) time/space. */
-  function readinessPreflight(
-    { signal }: { signal: AbortSignal | undefined }, _optional: Record<string, never> = {}
-  ): Promise<void> | undefined {
-    if (signal?.aborted) return Promise.reject(signal.reason);
-    if (terminating) return Promise.reject(new Error("shutting down"));
-    if (isReady()) return Promise.resolve();
-    if (!deps.readiness) return Promise.reject(new Error("readiness port is not configured"));
-    return undefined;
-  }
-
-  function ensureReady(_required: Record<string, never>, { signal }: { signal?: AbortSignal } = {}): Promise<void> {
-    const preflight = readinessPreflight({ signal });
-    if (preflight !== undefined) return preflight;
-    // A shared discovery may already exist; this demand still has to request replacement after
-    // the retiring child exits. Reuse that discovery rather than canceling its current waiters.
-    if (current?.parking) supervisor.ensureStarted();
-    if (!readyWork) {
-      const start = supervisor.ensureStarted();
-      if (!start.ok) return Promise.reject(new Error(start.reason));
-      // A slow healthy child must keep being discovered after an HTTP caller gives up.
-      // Share the monitor across subsequent demands; shutdown or parking cancels polling.
-      // A parked waiter's cleanup must not clear a fresh wake's discovery or request work.
-      const ready = readinessDeadline({ work: discoverReadiness(), scheduler: deps.scheduler }).finally(() => { if (readyWork === ready) readyWork = undefined; });
-      readyWork = ready;
-    }
-    return signal ? awaitForCaller({ work: readyWork, signal }) : readyWork;
-  }
-
-  function reportFailure(reason: string, decision?: RespawnDecision): void {
-    deps.failureReporter.record({ reason });
-    deps.logger.emit({ type: "failure", at: deps.now(), reason, ...(decision === undefined ? {} : { decision }) });
-  }
-
-  function cancelPendingRetry(): void { cancelRetry?.(); cancelRetry = undefined; }
-
-  function terminate(state: ChildState): void {
-    state.stopping = true;
-    function stopped(): void {
-      state.stopping = false;
-      if (current === state && state.exited && state.replaceAfterExit && !terminating) attemptSpawn();
-    }
-    function failed(error: unknown): void {
-      state.stopping = false;
-      state.replaceAfterExit = false;
-      // A failed replacement must not suppress recovery from a later crash.
-      state.deliberate = false;
-      if (current === state) reportFailure(`failed to stop daemon: ${String(error)}`);
-    }
-    try {
-      const result = deps.terminateProcess({ child: state.child });
-      if (result !== undefined) { void result.then(stopped, failed); return; }
-      stopped();
-    } catch (error) {
-      failed(error);
-    }
-  }
-
-  function handleUnexpectedExit(code: number | null, signal: NodeJS.Signals | null): void {
-    // Recognize the host's normal park code before classification can charge a crash or bind failure.
-    if (code !== null && parkedExitCodes.has(code)) {
-      parked = true; cancelPendingRetry(); cancelReadiness?.(new Error("daemon parked"));
-      readyChild = undefined; readyWork = undefined; discoveryWork = undefined;
-      return;
-    }
-    const classification = deps.classifyExit({ code, signal });
-    reportFailure(classification.reason);
-    const decision = deps.policy.recordFailure({ isPortConflict: classification.isPortConflict });
-    if (decision.action === "give-up") {
-      reportFailure(formatGiveUp({ decision, lastReason: classification.reason }), decision);
-      return;
-    }
-    cancelRetry = deps.scheduler.schedule({ delayMs: decision.delayMs, run: () => { cancelRetry = undefined; attemptSpawn(); } });
-  }
-
-  function attemptSpawn(): void {
-    if (terminating || parked || hasUnreapedChild()) return;
-    // A new attempt must not inherit a stale readiness failure from an earlier child.
-    deps.failureReporter.clear();
-    let child: SpawnedDaemonProcess;
-    try { child = deps.spawnDaemonProcess(); }
-    catch (error) { reportFailure(`failed to start daemon: ${error instanceof Error ? error.message : String(error)}`); return; }
-    const state: ChildState = { child, exited: false, deliberate: false, replaceAfterExit: false, stopping: false, parking: false };
-    // Assign synchronously: run-to-completion makes request-driven recovery single-flight
-    // without a lock or an await between checking the current child and publishing it.
-    current = state;
-    // A respawn ends every run in flight. Timestamped lifecycle events let operators
-    // correlate apparently stalled work with a replacement, including deliberate exits
-    // when routine lifecycle logging is enabled.
-    spawnAttempts++;
-    if (!options.quietRoutineLifecycle || spawnAttempts > 1) {
-      deps.logger.emit({ type: "spawn", at: deps.now(), pid: child.pid, attempt: spawnAttempts });
-    }
-    // Missing scripts/permissions are not transient crashes: repeating the broken spawn
-    // on backoff only burns the retry cap. Manual or cooldown-limited recovery can try
-    // again after the underlying launch problem is repaired.
-    child.on({ event: "error", listener: ({ error }) => {
-      if (current !== state || state.exited) return;
-      // Spawn failure has no pid and never emits exit. A live child's error may instead be a failed kill.
-      if (child.pid === undefined) state.exited = true;
-      reportFailure(`failed to start daemon: ${error.message}`);
-    } });
-    child.on({ event: "exit", listener: ({ code, signal }) => {
-      if (current !== state || state.exited) return;
-      state.exited = true;
-      if (!options.quietRoutineLifecycle || !state.deliberate) {
-        deps.logger.emit({ type: "exit", at: deps.now(), pid: child.pid, code, signal, deliberate: state.deliberate });
-      }
-      if (terminating) return;
-      if (state.replaceAfterExit) {
-        if (!state.stopping) attemptSpawn();
-        return;
-      }
-      if (!state.deliberate) handleUnexpectedExit(code, signal);
-    } });
-    // Cold construction and an idle park do no discovery. A replacement must still publish
-    // readiness when no caller is waiting; reuse the current monitor if startup is ongoing.
-    if (spawnAttempts > 1 && deps.readiness) void discoverReadiness();
-  }
-
-  // Wait for a still-live child to exit before replacement: spawning alongside it would
-  // collide on its listening port and manufacture the bind failure we are recovering from.
-  function forceFreshSpawn(): void {
-    parked = false;
-    if (current?.stopping) { current.replaceAfterExit = true; return; }
-    if (current !== undefined && !current.exited) {
-      if (current.replaceAfterExit) return;
-      current.deliberate = true;
-      current.replaceAfterExit = true;
-      terminate(current);
-      return;
-    }
-    attemptSpawn();
-  }
-
-  const supervisor: DaemonSupervisor = {
-    isReady, ensureReady,
-    markParking({ pid }, _optional = {}) {
-      if (!current || current.child.pid !== pid || current.exited || terminating) return;
-      current.parking = true;
-      readyChild = undefined;
-    },
-    getState() {
-      if (terminating) return "shutting-down";
-      if (parked) return "parked";
-      return current !== undefined && !current.exited ? "running" : "stopped";
-    },
-    start() { if (cancelRetry === undefined) attemptSpawn(); },
-    restart() {
-      if (terminating) return { ok: false, reason: "shutting down" };
-      cancelPendingRetry(); deps.policy.reset(); forceFreshSpawn();
-      return { ok: true };
-    },
-    ensureStarted() {
-      if (terminating) return { ok: false, reason: "shutting down" };
-      if (current?.parking && !current.exited) {
-        current.replaceAfterExit = true;
-        return { ok: true };
-      }
-      // A scheduled retry keeps its own backoff; request traffic must not accelerate it.
-      if (hasUnreapedChild() || cancelRetry !== undefined) return { ok: true };
-      // Parking is healthy idleness: wake immediately, retaining all earlier crash history.
-      if (parked) {
-        lastOnDemandAttemptAt = deps.now(); forceFreshSpawn();
-        return { ok: true };
-      }
-      // Single-flight alone cannot stop a storm against a durably broken launch. The 30s
-      // default floor matches the standard backoff ceiling, bounding traffic-driven retries
-      // to the same worst-case rate as timer-driven recovery after a cap or spawn failure.
-      const now = deps.now();
-      if (lastOnDemandAttemptAt !== undefined && now - lastOnDemandAttemptAt < cooldown) return { ok: false, reason: "cooling down before trying again" };
-      lastOnDemandAttemptAt = now;
-      deps.policy.reset(); forceFreshSpawn();
-      return { ok: true };
-    },
-    shutdown() {
-      if (terminating) return;
-      terminating = true; cancelPendingRetry(); cancelReadiness?.();
-      if (current === undefined) return;
-      current.deliberate = true; current.replaceAfterExit = false;
-      if (!current.exited && !current.stopping) terminate(current);
-    },
+  const context: SupervisorContext = {
+    deps, options, cooldown, formatGiveUp, parkedExitCodes,
+    parked: false,
+    current: undefined,
+    cancelRetry: undefined,
+    terminating: false,
+    spawnAttempts: 0,
+    lastOnDemandAttemptAt: undefined,
+    readyChild: undefined,
+    readyWork: undefined,
+    discoveryWork: undefined,
+    cancelReadiness: undefined,
+    supervisor: undefined,
   };
+  const supervisor = createSupervisorActions(context);
+  context.supervisor = supervisor;
   return supervisor;
 }
 

@@ -29,7 +29,7 @@ import type {
   Unsubscribe,
 } from '../core/ports.js';
 import { categorizeE2bError } from './categorize-e2b-error.js';
-import type { E2bFilesystemEventType, E2bSandboxHandle } from './e2b-sandbox-handle.js';
+import type { E2bFilesystemEvent, E2bFilesystemEventType, E2bSandboxHandle } from './e2b-sandbox-handle.js';
 import { shellQuote } from './shell-quote.js';
 import { toArrayBuffer } from './to-array-buffer.js';
 
@@ -167,62 +167,55 @@ function rollbackMount(
   }
 }
 
-export async function wrapE2bSandbox(
-  { handle, config }: { handle: E2bSandboxHandle; config: E2bSessionConfig },
-  { fetchImpl = fetch }: { fetchImpl?: typeof fetch } = {},
-): Promise<SandboxSession> {
-  const { projectRoot, previewPort, previewCheckTimeoutMs } = config;
+interface E2bFileState {
+  handle: E2bSandboxHandle;
+  projectRoot: string;
+  fileChangeListeners: Set<(event: FileChangeEvent) => void>;
+  mountedFiles: Map<string, MountedFile>;
+  mountingPaths: Map<string, number>;
+}
 
-  try {
-    await handle.commands.run({ command: `mkdir -p ${shellQuote({ value: projectRoot })}` });
-  } catch (error) {
-    throw wrapE2bError(error, 'Failed to create the sandbox project root');
-  }
+interface E2bSessionState extends E2bFileState {
+  previewPort: number;
+  previewCheckTimeoutMs: number;
+  fetchImpl: typeof fetch;
+  watchHandle: Awaited<ReturnType<E2bSandboxHandle['files']['watchDir']>>;
+  trackedProcesses: Set<ProcessHandle>;
+}
 
-  const fileChangeListeners = new Set<(event: FileChangeEvent) => void>();
-  // The watcher carries no writer identity and can deliver echoes after write() resolves.
-  // Keep content fingerprints, not file bodies, to suppress those delayed host echoes while
-  // still reporting subsequent sandbox edits. Same-content rewrites are indistinguishable.
-  const mountedFiles = new Map<string, MountedFile>();
-  const mountingPaths = new Map<string, number>();
-  const fingerprint = (content: string | Uint8Array) => createHash('sha256').update(content).digest('hex');
-  let watchHandle: Awaited<ReturnType<E2bSandboxHandle['files']['watchDir']>>;
-  try {
-    watchHandle = await handle.files.watchDir({ path: projectRoot, onEvent: (event) => {
-        const kind = mapE2bFileChangeKind({ type: event.type });
-        if (kind === null) return;
-        const path = posix.normalize(event.name);
-        const deliver = () => {
-          const changeEvent: FileChangeEvent = { path: event.name, kind };
-          for (const listener of fileChangeListeners) listener(changeEvent);
-        };
-        if (mountingPaths.has(path) && (event.type === 'create' || event.type === 'write')) return;
-        if (mountedFiles.has(path) && (event.type === 'create' || event.type === 'write')) {
-          void handle.files.read({ path: posix.join(projectRoot, path), format: 'bytes' }).then(bytes => {
-            if (mountingPaths.has(path)) return;
-            if (mountedFiles.get(path)?.fingerprint === fingerprint(bytes)) return;
-            mountedFiles.delete(path);
-            deliver();
-          }, () => {
-            if (mountingPaths.has(path)) return;
-            mountedFiles.delete(path);
-            deliver();
-          });
-          return;
-        }
+function fingerprint(content: string | Uint8Array): string {
+  return createHash('sha256').update(content).digest('hex');
+}
+
+function createFileWatchListener({ handle, projectRoot, fileChangeListeners, mountedFiles, mountingPaths }: E2bFileState) {
+  return (event: E2bFilesystemEvent) => {
+    const kind = mapE2bFileChangeKind({ type: event.type });
+    if (kind === null) return;
+    const path = posix.normalize(event.name);
+    const deliver = () => {
+      const changeEvent: FileChangeEvent = { path: event.name, kind };
+      for (const listener of fileChangeListeners) listener(changeEvent);
+    };
+    if (mountingPaths.has(path) && (event.type === 'create' || event.type === 'write')) return;
+    if (mountedFiles.has(path) && (event.type === 'create' || event.type === 'write')) {
+      void handle.files.read({ path: posix.join(projectRoot, path), format: 'bytes' }).then(bytes => {
+        if (mountingPaths.has(path)) return;
+        if (mountedFiles.get(path)?.fingerprint === fingerprint(bytes)) return;
         mountedFiles.delete(path);
         deliver();
-      } }, { recursive: true });
-  } catch (error) {
-    throw wrapE2bError(error, 'Failed to start watching the sandbox project root');
-  }
+      }, () => {
+        if (mountingPaths.has(path)) return;
+        mountedFiles.delete(path);
+        deliver();
+      });
+      return;
+    }
+    mountedFiles.delete(path);
+    deliver();
+  };
+}
 
-  /** Every process this session has started via `startProcess`, so `teardown` can kill them
-   *  all — see `SandboxSession.teardown`'s doc for why an orphaned dev server on `local` is a
-   *  real liability, not just untidy. A process removes itself once its own `kill()` succeeds,
-   *  so `teardown` doesn't redundantly re-kill it; failed kills stay tracked for a retry. */
-  const trackedProcesses = new Set<ProcessHandle>();
-
+function createFileMounter({ handle, projectRoot, mountedFiles, mountingPaths }: E2bSessionState): Pick<SandboxSession, 'mountFiles'> {
   return {
     async mountFiles({ files }) {
       if (files.length === 0) return;
@@ -257,7 +250,11 @@ export async function wrapE2bSandbox(
         }
       }
     },
+  };
+}
 
+function createFileReaders({ handle, projectRoot }: E2bSessionState): Pick<SandboxSession, 'readFile' | 'listFiles'> {
+  return {
     async readFile({ path }) {
       const resolved = resolveProjectPath({ projectRoot, path });
       try {
@@ -280,7 +277,11 @@ export async function wrapE2bSandbox(
         .map((entry) => relativeToRoot(entry.path, projectRoot))
         .filter((relativePath) => !isExcludedPath(relativePath));
     },
+  };
+}
 
+function createCommandRunners({ handle, projectRoot }: E2bSessionState): Pick<SandboxSession, 'runCommand' | 'installDependencies'> {
+  return {
     async runCommand({ command }, options = {}) {
       try {
         const result = await handle.commands.run({ command: buildCommand(command, options.args ?? []) }, {
@@ -309,7 +310,11 @@ export async function wrapE2bSandbox(
         throw wrapE2bError(error, 'npm install failed');
       }
     },
+  };
+}
 
+function createProcessStarter({ handle, projectRoot, trackedProcesses }: E2bSessionState): Pick<SandboxSession, 'startProcess'> {
+  return {
     async startProcess({ command }, { args = [] } = {}): Promise<ProcessHandle> {
       const outputListeners = new Set<(chunk: ProcessOutputChunk) => void>();
       let e2bHandle;
@@ -344,7 +349,11 @@ export async function wrapE2bSandbox(
       trackedProcesses.add(processHandle);
       return processHandle;
     },
+  };
+}
 
+function createPreviewReader({ handle, previewPort, previewCheckTimeoutMs, fetchImpl }: E2bSessionState): Pick<SandboxSession, 'getPreview'> {
+  return {
     async getPreview(): Promise<PreviewTarget> {
       const url = `https://${handle.getHost({ port: previewPort })}`;
       const controller = new AbortController();
@@ -359,12 +368,20 @@ export async function wrapE2bSandbox(
       }
       return { url };
     },
+  };
+}
 
+function createFileChangeSubscription({ fileChangeListeners }: E2bSessionState): Pick<SandboxSession, 'onFileChange'> {
+  return {
     onFileChange({ listener }): Unsubscribe {
       fileChangeListeners.add(listener);
       return () => fileChangeListeners.delete(listener);
     },
+  };
+}
 
+function createSessionTeardown({ handle, watchHandle, trackedProcesses, mountedFiles }: E2bSessionState): Pick<SandboxSession, 'teardown'> {
+  return {
     async teardown() {
       // Best-effort: every tracked process gets a kill attempt regardless of whether another
       // one fails. A process that refuses to die is a different problem than this adapter can
@@ -394,5 +411,51 @@ export async function wrapE2bSandbox(
         throw wrapE2bError(watchStopError, 'Failed to stop watching the sandbox project root');
       }
     },
+  };
+}
+
+export async function wrapE2bSandbox(
+  { handle, config }: { handle: E2bSandboxHandle; config: E2bSessionConfig },
+  { fetchImpl = fetch }: { fetchImpl?: typeof fetch } = {},
+): Promise<SandboxSession> {
+  const { projectRoot, previewPort, previewCheckTimeoutMs } = config;
+
+  try {
+    await handle.commands.run({ command: `mkdir -p ${shellQuote({ value: projectRoot })}` });
+  } catch (error) {
+    throw wrapE2bError(error, 'Failed to create the sandbox project root');
+  }
+
+  const fileChangeListeners = new Set<(event: FileChangeEvent) => void>();
+  // The watcher carries no writer identity and can deliver echoes after write() resolves.
+  // Keep content fingerprints, not file bodies, to suppress those delayed host echoes while
+  // still reporting subsequent sandbox edits. Same-content rewrites are indistinguishable.
+  const mountedFiles = new Map<string, MountedFile>();
+  const mountingPaths = new Map<string, number>();
+  let watchHandle: Awaited<ReturnType<E2bSandboxHandle['files']['watchDir']>>;
+  try {
+    watchHandle = await handle.files.watchDir({ path: projectRoot,
+      onEvent: createFileWatchListener({ handle, projectRoot, fileChangeListeners, mountedFiles, mountingPaths }),
+    }, { recursive: true });
+  } catch (error) {
+    throw wrapE2bError(error, 'Failed to start watching the sandbox project root');
+  }
+
+  /** Every process this session has started via `startProcess`, so `teardown` can kill them
+   *  all — see `SandboxSession.teardown`'s doc for why an orphaned dev server on `local` is a
+   *  real liability, not just untidy. A process removes itself once its own `kill()` succeeds,
+   *  so `teardown` doesn't redundantly re-kill it; failed kills stay tracked for a retry. */
+  const trackedProcesses = new Set<ProcessHandle>();
+
+  const state: E2bSessionState = { handle, projectRoot, previewPort, previewCheckTimeoutMs, fetchImpl,
+    fileChangeListeners, mountedFiles, mountingPaths, watchHandle, trackedProcesses };
+  return {
+    ...createFileMounter(state),
+    ...createFileReaders(state),
+    ...createCommandRunners(state),
+    ...createProcessStarter(state),
+    ...createPreviewReader(state),
+    ...createFileChangeSubscription(state),
+    ...createSessionTeardown(state),
   };
 }
