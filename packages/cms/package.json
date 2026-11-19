@@ -16,6 +16,9 @@
       "./themes/template-applicability": "universal",
       "./themes/preview/roster": "node",
       "./themes/preview/watcher": "node",
+      "./trash/adapters/directory": "node",
+      "./themes/files/read-content": "node",
+      "./themes/files/moves": "node",
       "./themes/files/trash": "node",
       "./themes/files/original-source": "node",
       "./themes/files/originals": "node",
@@ -185,6 +188,21 @@
       "types": "./dist/themes/preview/watcher.node.d.ts",
       "import": "./dist/themes/preview/watcher.node.js",
       "default": "./dist/themes/preview/watcher.node.js"
+    },
+    "./trash/adapters/directory": {
+      "types": "./dist/trash/adapters/directory.node.d.ts",
+      "import": "./dist/trash/adapters/directory.node.js",
+      "default": "./dist/trash/adapters/directory.node.js"
+    },
+    "./themes/files/read-content": {
+      "types": "./dist/themes/files/read-content.node.d.ts",
+      "import": "./dist/themes/files/read-content.node.js",
+      "default": "./dist/themes/files/read-content.node.js"
+    },
+    "./themes/files/moves": {
+      "types": "./dist/themes/files/moves.node.d.ts",
+      "import": "./dist/themes/files/moves.node.js",
+      "default": "./dist/themes/files/moves.node.js"
     },
     "./themes/files/trash": {
       "types": "./dist/themes/files/trash.node.d.ts",

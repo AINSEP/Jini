@@ -21,7 +21,7 @@ export interface ThemeTrashPorts {
  * it (2026-10-08, owner: the agent could not delete a theme at all).
  *
  * A theme is a folder, so it reuses the generic directory adapter `plugin` already uses
- * (`features/trash/adapters/directory.ts`): one atomic rename out of the site's `themes/` into a
+ * (`../../trash/adapters/directory.node.js`): one atomic rename out of the site's `themes/` into a
  * sibling `themes-trash/`, one rename back on restore, and bytes removed only by the Trash's own
  * human-confirmed purge. Nothing here deletes anything.
  *
