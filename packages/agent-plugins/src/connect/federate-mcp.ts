@@ -1,3 +1,4 @@
+import { describeErrorForLog } from '@jini-ai/core';
 import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
 import type { AgentPluginMcpPort } from "./ports.js";
 import type { AgentPluginMcpRecord, AgentPluginMcpProjections, AgentPluginMcpProjectionPorts } from "./ports.js";
@@ -591,8 +592,9 @@ async function provisionPlannedServer(
     await deps.saveServer(buildProvisioningSaveInput(planned, input));
     return { kind: "provisioned" };
   } catch (err) {
-    const logger = report;
-    logger.warn({ message: 'MCP provisioning write failed' }, { error: err });
-    return { kind: "failed", reason: 'MCP provisioning write failed' };
+    report.warn({ message: `MCP provisioning write for server '${planned.serverKey}' of plugin '${input.pluginId}' failed.` }, { error: err });
+    // The caught error goes to `report` only; the answer text names the step and the error class,
+    // never the native message (it can carry credentials from the store).
+    return { kind: "failed", reason: `the MCP server row could not be saved (${describeErrorForLog({ err })})` };
   }
 }

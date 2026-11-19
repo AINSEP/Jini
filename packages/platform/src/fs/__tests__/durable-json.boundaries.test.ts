@@ -1,7 +1,7 @@
 import nodeFs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import {
   createDurableJsonFile, createNodeDurableJsonPorts, salvageJsonPrefix, updateDurableJsonFiles,
   type DurableJsonFile, type DurableJsonPorts,
@@ -57,7 +57,7 @@ test("quarantine that cannot move the file (e.g. EXDEV) leaves it untouched, rep
   expect(file.quarantine({ notice: { label: "Profile", consequence: "x" } })).toBe(false);
   expect(nodeFs.readFileSync(filePath, "utf8")).toBe("{torn");
   expect(messages).toEqual([`fixture: Profile ${filePath} is unreadable and could not be moved aside. Left untouched; nothing was written over it.`]);
-  expect(diagnostic).toHaveBeenCalledExactlyOnceWith({ message: messages[0] }, { error });
+  expect(diagnostic).toHaveBeenCalledOnce(); expect(diagnostic).toHaveBeenCalledWith({ message: messages[0] }, { error });
   expect(messages.join("\n")).not.toMatch(/boom|SECRETSECRET/);
 });
 

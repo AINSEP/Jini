@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from 'vitest';
-import { createDomPageDriver } from '../core/dom/dom-page-driver.js';
+import { createDomPageDriver } from '../dom-page-driver.js';
 import { createConsoleLogger } from '@jini-ai/core/primitives';
 
 afterEach(() => { document.body.replaceChildren(); vi.restoreAllMocks(); });
@@ -15,7 +15,7 @@ it('reports a duplicate handle with fixed copy and preserves the ambiguity refus
   const driver = createDomPageDriver({ root, pages: {} }, { report });
   await expect(driver.click({ handle: sentinel })).rejects.toThrow('published on 2 elements');
   expect(output).toHaveBeenCalledTimes(1);
-  expect(output.mock.calls).toEqual([['dom Duplicate data-agent-element handle on this page.']]);
+  expect(output.mock.calls).toEqual([['dom A data-agent-element handle is published on 2 elements on this page (duplicate handle).']]);
   expect(JSON.stringify(output.mock.calls)).not.toContain(sentinel);
 });
 

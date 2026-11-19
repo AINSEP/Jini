@@ -6,7 +6,7 @@
  * Discovery is metadata-only and fresh on each call so disable/uninstall cannot leave stale grants. */
 import type { Clock } from "@jini-ai/core/primitives";
 import { describeErrorForLog, redactSecrets, ToolInputError, type AccessApprovalResource } from '@jini-ai/core';
-import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
+import type { Logger } from '@jini-ai/core/primitives';
 import { createPluginLookup, readPluginIdentity, assertPluginIdentityAvailable, type PluginIdentityCandidate, type PluginLookupPort, type PluginProvider } from '@jini-ai/core/plugin-directory';
 import type { InstalledAgentPlugin } from '../../lifecycle/types.js';
 import type { SetAgentPluginEnabledInput, SetAgentPluginEnabledResult } from '../../lifecycle/set-enabled.js';
@@ -265,9 +265,10 @@ async function provisionPluginMcp<UninstallInput, Layout extends AgentPluginLayo
     }, { skipServerKeys: result.failed.map(failure => failure.serverKey), ...(approvedEnable ? { approvedEnable } : {}) });
   } catch (error) {
     const detail = describeErrorForLog({ err: error });
-    const logger = deps.report ?? createConsoleLogger({ prefix: '[agent-plugins]' });
-    logger.warn({ message: 'MCP provisioning could not run.' }, { error });
     if (execution.approvedEnable) throw new ToolInputError({ message: redactSecrets({ input: deps.messages.approvedLoadFailed({ detail }) }) });
+    // An injected reporter receives the caught value itself; the default channel logs its class only.
+    if (deps.report) deps.report.warn({ message: `Plugin '${pluginId}': MCP provisioning could not run.` }, { error });
+    else warn(redactSecrets({ input: `Plugin '${pluginId}': MCP provisioning could not run — ${detail}` }));
   }
 
 }

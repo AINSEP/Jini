@@ -14,11 +14,11 @@ it('reports the original failed pass through the typed bag, retries and retains 
   try {
     await worker.tick(); await worker.tick();
     expect(calls).toBe(2);
-    expect(consoleError).toHaveBeenCalledExactlyOnceWith(WEBHOOK_DELIVERY_FAILED_LINE, 'Error');
+    expect(consoleError).toHaveBeenCalledOnce(); expect(consoleError).toHaveBeenCalledWith(WEBHOOK_DELIVERY_FAILED_LINE, 'Error');
     expect(JSON.stringify(consoleError.mock.calls)).not.toMatch(/PRIVATE_WEBHOOK_(STACK_)?SENTINEL/);
     const legacyWorker = startWebhookDeliveryWorker({ processDue: async () => { throw failure; } }, { log: legacy });
     await legacyWorker.tick(); await legacyWorker.stop();
-    expect(legacy).toHaveBeenCalledExactlyOnceWith(`${WEBHOOK_DELIVERY_FAILED_LINE}: Error`);
+    expect(legacy).toHaveBeenCalledOnce(); expect(legacy).toHaveBeenCalledWith(`${WEBHOOK_DELIVERY_FAILED_LINE}: Error`);
   } finally { await worker.stop(); consoleError.mockRestore(); }
 });
 
@@ -33,7 +33,7 @@ it('reports a late stop once, cancels scheduling and suppresses future passes', 
   const stopping = worker.stop();
   grace(); await stopping;
   await worker.tick();
-  expect(warn).toHaveBeenCalledExactlyOnceWith({ message: WEBHOOK_DELIVERY_STOP_LATE_LINE });
+  expect(warn).toHaveBeenCalledOnce(); expect(warn).toHaveBeenCalledWith({ message: WEBHOOK_DELIVERY_STOP_LATE_LINE });
   expect(cancel).toHaveBeenCalledTimes(1);
   expect(processDue).toHaveBeenCalledTimes(1);
 });

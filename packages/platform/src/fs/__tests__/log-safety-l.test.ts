@@ -43,7 +43,7 @@ it.each([false, true])('forwards the workspace report with custom ports=%s witho
     fs.mkdirSync(appDataDir); fs.writeFileSync(filePath, '{"PRIVATE_USER_CONFIG_SENTINEL"');
     const workspace = createNodeDirectoryWorkspace({ homeDir: root, defaultFolder: 'Sites', envName: 'TEST_HOME', settingsFile: path.join(root, 'settings.json'), registryName: 'registry.json', runningName: 'running.json', userConfig: { appName: 'Test', rootsEnvName: 'TEST_ROOTS' } }, { env: {}, platform: 'linux', appDataDir, report: { error }, ...(customPorts ? { ports: createNodeDurableJsonPorts({}, { report: { error: () => { throw new Error('workspace report override was dropped'); } } }) } : {}) });
     expect(workspace.home({})).toContain('Sites');
-    expect(error).toHaveBeenCalledExactlyOnceWith({ message: `User config is unreadable: ${filePath}. Using defaults; the original was left untouched.` });
+    expect(error).toHaveBeenCalledOnce(); expect(error).toHaveBeenCalledWith({ message: `User config is unreadable: ${filePath}. Using defaults; the original was left untouched.` });
     expect(fs.readFileSync(filePath, 'utf8')).toBe('{"PRIVATE_USER_CONFIG_SENTINEL"');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
@@ -72,7 +72,7 @@ it('preserves accepted mail and warns once when activity observation fails', asy
     expect(await wrapped.send({ ...SEND, idempotencyKey: 'second' })).toBe(ACCEPTED);
     expect(observe).toHaveBeenCalledTimes(2);
     expect(host.sends).toHaveLength(2);
-    expect(warn).toHaveBeenCalledExactlyOnceWith('[mail] activity observation failed');
+    expect(warn).toHaveBeenCalledOnce(); expect(warn).toHaveBeenCalledWith('[mail] activity observation failed');
     expect(JSON.stringify(warn.mock.calls)).not.toMatch(/PRIVATE_ACTIVITY_(STACK_)?SENTINEL/);
   } finally { warn.mockRestore(); }
 });
@@ -90,7 +90,7 @@ it('retains mail status after credential-list failure and reports the original o
     const status = await control.status();
     expect(status.lastError).toMatchObject({ providerId: null, source: 'check', message: 'The provider configuration check could not complete.' });
     expect(host.deps.listCredentialFacts).toHaveBeenCalledTimes(1);
-    expect(error).toHaveBeenCalledExactlyOnceWith('[mail] the saved mail credentials could not be listed', 'Error');
+    expect(error).toHaveBeenCalledOnce(); expect(error).toHaveBeenCalledWith('[mail] the saved mail credentials could not be listed', 'Error');
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0]!.error).toBe(failure);
     expect(JSON.stringify([status, error.mock.calls])).not.toMatch(/PRIVATE_CREDENTIAL_LIST_(STACK_)?SENTINEL/);
@@ -108,7 +108,7 @@ it('requires a host preview that receives usable mail before a local receipt suc
   const mailer = provider.create({ credential: { token: '' }, kit: { httpClient: fixture().deps.httpClient } });
   const message = { ...SEND.message, text: 'Sign in: https://example.test/sign-in?token=USABLE_PREVIEW_TOKEN' };
   expect(await mailer.send({ ...SEND, message })).toEqual({ ok: true, providerMessageId: 'console-1', acceptedAt: '1970-01-01T00:00:00.000Z' });
-  expect(preview).toHaveBeenCalledExactlyOnceWith({ message });
+  expect(preview).toHaveBeenCalledOnce(); expect(preview).toHaveBeenCalledWith({ message });
   expect(preview.mock.calls[0]![0].message).toBe(message);
   const failure = new Error('preview unavailable');
   const refusing = createConsoleMailProvider({ clock, preview: async () => { throw failure; } }).create({ credential: { token: '' }, kit: { httpClient: fixture().deps.httpClient } });

@@ -70,9 +70,9 @@ describe('sheet C reporting and safe outcomes', () => {
     const diagnostics: unknown[] = [];
     const report = createConsoleLogger({ prefix: '' }, { diagnostics: record => diagnostics.push(record.error) });
     const notify = vi.fn(async () => {});
-    const deps = { repo: { findByServerId: () => Promise.reject(failure) }, saveServer: vi.fn(), projections: {}, classifyError: () => 'other', notifyRosterChanged: notify } as unknown as Parameters<typeof provisionAgentPluginMcpServers>[0];
-    const result = await provisionAgentPluginMcpServers(deps, { workspaceId: 'ws', principalId: 'admin', pluginId: 'plugin', servers: { remote: { type: 'streamable-http', url: 'https://example.test/mcp' } }, classifyTrust: () => 'auto-admit', messages: { sseTransportUnsupported: () => 'Unsupported', headersUnsupported: () => 'Unsupported' } }, injected ? { report } : {});
-    expect(result).toEqual({ provisioned: [], alreadyProvisioned: [], adopted: [], skipped: [], failed: [{ serverKey: 'remote', reason: 'MCP provisioning write failed' }] });
+    const deps = { repo: { findByServerId: () => Promise.reject(failure) }, saveServer: vi.fn(), projections: {}, classifyError: () => 'other', notifyRosterChanged: notify } as unknown as Parameters<typeof provisionAgentPluginMcpServers>[0]['deps'];
+    const result = await provisionAgentPluginMcpServers({ deps, workspaceId: 'ws', principalId: 'admin', pluginId: 'plugin', servers: { remote: { type: 'streamable-http', url: 'https://example.test/mcp' } }, classifyTrust: () => 'auto-admit', messages: { sseTransportUnsupported: () => 'Unsupported', headersUnsupported: () => 'Unsupported' } }, injected ? { report } : {});
+    expect(result).toEqual({ provisioned: [], alreadyProvisioned: [], adopted: [], skipped: [], failed: [{ serverKey: 'remote', reason: `the MCP server row could not be saved (${failure instanceof Error ? 'Error' : 'string'})` }] });
     expect(result.failed[0]).not.toHaveProperty('error');
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn.mock.calls.flat().join(' ')).not.toContain(secret);

@@ -37,7 +37,7 @@ export function createNodeDirectoryWorkspace(
   const home = () => config?.read({}).sitesHome ?? legacyHome();
   const fixturePattern = registryRecovery ? new RegExp(registryRecovery.fixtureIdPattern.source, registryRecovery.fixtureIdPattern.flags.replace(/[gy]/g, "")) : undefined;
   const context = { homeDir, defaultFolder, envName, settingsFile, registryName, runningName, userConfig, registryRecovery,
-    env, cwd, ports, canonicalPath, directoryOptions, fileAt, config, settings, home, fixturePattern };
+    env, cwd, ports: report ? { ...ports, report } : ports, canonicalPath, directoryOptions, fileAt, config, settings, home, fixturePattern };
   const atHome = createWorkspaceCatalogReader(context);
   const oldCatalogs = createLegacyWorkspaceCatalogReader(context);
   // One lease adapter for both the app-data and the site-local (legacy) lease locations.
@@ -91,7 +91,7 @@ function createWorkspaceCatalogReader({ fileAt, config, home, registryName, cano
       try { ports.filesystem.statSync(entry.path); return false; }
       catch (error) { return fallbackIfMissing({ error, fallback: true }); }
     },
-    reportDiscarded: ({ entries }) => (report ?? ports.report).error({ message: `Directory workspace: removed ${entries.length} test/temporary catalog entries: ${entries.map((entry) => entry.id).join(", ")}` }),
+    reportDiscarded: ({ entries }) => ports.report.error({ message: `Directory workspace: removed ${entries.length} test/temporary catalog entries: ${entries.map((entry) => entry.id).join(", ")}` }),
   } : {});
   return atHome;
 }

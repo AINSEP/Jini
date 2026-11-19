@@ -51,7 +51,7 @@ test('env token import logs the error class only', async () => {
   expectClean(lines);
 });
 
-test('a failed provisioning write keeps its answer text and carries the original error', async () => {
+test('a failed provisioning write keeps its answer text; the original error goes to the reporter', async () => {
   const secret = secretError();
   const result = await provisionAgentPluginMcpServers(
     { deps: { repo: { findByServerId: async () => { throw secret; } }, saveServer: async () => {}, projections: {}, classifyError: () => 'other' } as never,
@@ -60,8 +60,8 @@ test('a failed provisioning write keeps its answer text and carries the original
       messages: { sseTransportUnsupported: () => 'sse', headersUnsupported: () => 'headers' } } as never,
   );
   expect(result.failed).toHaveLength(1);
-  expect(result.failed[0]?.error).toBe(secret);
-  expect(result.failed[0]?.reason).toBe(secret.message);
+  expect(result.failed[0]).not.toHaveProperty('error');
+  expect(result.failed[0]?.reason).toBe('the MCP server row could not be saved (Error)');
 });
 
 function hostWith({ warnings, provision }: { warnings: string[]; provision: () => Promise<unknown> }) {
@@ -87,12 +87,12 @@ function hostWith({ warnings, provision }: { warnings: string[]; provision: () =
 test('plugin host provisioning warnings log the error class only', async () => {
   const warnings: string[] = [];
   const failedOnce = hostWith({ warnings, provision: async () => ({ provisioned: [], alreadyProvisioned: [], adopted: [], skipped: [],
-    failed: [{ serverKey: 'alpha', reason: 'boom api_key=SECRETSECRETSECRETSECRET', error: secretError() }, { serverKey: 'beta', reason: "connection id 'beta' is owned by plugin 'q'" }] }) });
+    failed: [{ serverKey: 'alpha', reason: 'the MCP server row could not be saved (Error)' }, { serverKey: 'beta', reason: "connection id 'beta' is owned by plugin 'q'" }] }) });
   await failedOnce.provisionMcp({ pluginId: 'p', principalId: 'u' });
   const throwing = hostWith({ warnings, provision: async () => { throw secretError(); } });
   await throwing.provisionMcp({ pluginId: 'p', principalId: 'u' });
   expect(warnings).toEqual([
-    "Plugin 'p': MCP provisioning for server 'alpha' failed — Error",
+    "Plugin 'p': MCP provisioning for server 'alpha' failed — the MCP server row could not be saved (Error)",
     "Plugin 'p': MCP provisioning for server 'beta' failed — connection id 'beta' is owned by plugin 'q'",
     "Plugin 'p': MCP provisioning could not run — Error",
   ]);

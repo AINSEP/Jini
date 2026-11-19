@@ -74,7 +74,7 @@ it('keeps the final unmount save queued and reports its rejection once', async (
   const error = vi.spyOn(console, 'error').mockImplementation(() => {});
   const save = vi.fn(() => Promise.reject(new Error(secret)));
   const { result, unmount } = renderHook(() => useSettingsSlice({ defaultValue: 'default', load: async () => 'loaded', save,
-    refreshPort: { publish: () => {}, subscribe: () => () => {} }, report: createConsoleLogger({ prefix: '' }) }, {}));
+    refreshPort: { publish: () => {}, subscribe: () => () => {} } }, {}));
   await waitFor(() => expect(result.current.value).toBe('loaded'));
   act(() => result.current.onChange('edited'));
   expect(save).not.toHaveBeenCalled(); unmount();
@@ -85,7 +85,7 @@ it('keeps the final unmount save queued and reports its rejection once', async (
 
 it('reports sketch export failures once and retains the error toast', async () => {
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-  const { result } = renderHook(() => useSketchSaveWorkflow({ dirty: false, saving: false, fileName: 'scene.excalidraw', currentScene: () => emptySketchScene('scene.excalidraw'), onSave: () => {}, onExportImage: () => true,
+  const { result } = renderHook(() => useSketchSaveWorkflow({ dirty: false, saving: false, fileName: 'scene.excalidraw', currentScene: () => emptySketchScene({}, { name: 'scene.excalidraw' }), onSave: () => {}, onExportImage: () => true,
     engine: createFakeSketchEditorEngine({ exportToBlob: () => Promise.reject(new Error(secret)) }), t: key => key, report: createConsoleLogger({ prefix: '' }) }));
   await act(async () => result.current.handleExportImage());
   expect(result.current).toMatchObject({ exporting: false, toast: { message: 'Could not export image', tone: 'error' } });

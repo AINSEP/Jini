@@ -197,19 +197,19 @@ async function writeTokensFile(
  * (or the persisted entry is malformed). */
 export async function getToken(
   { dataDir, serverId, clock, files }: { dataDir: string; serverId: string; clock: Clock; files: McpConfigFilesPort },
-  _optional: Record<string, never> = {},
+  { report }: { report?: Pick<Logger, 'error'> } = {},
 ): Promise<StoredMcpToken | null> {
-  const file = await readTokensFile({ dataDir, clock, files });
+  const file = await readTokensFile({ dataDir, clock, files }, report ? { report } : {});
   return Object.hasOwn(file.servers, serverId) ? file.servers[serverId]! : null;
 }
 
 /** Atomically merge a new token for `serverId` into the tokens file. */
 export async function setToken(
   { dataDir, serverId, token, clock, files }: { dataDir: string; serverId: string; token: StoredMcpToken; clock: Clock; files: McpConfigFilesPort },
-  _optional: Record<string, never> = {},
+  { report }: { report?: Pick<Logger, 'error'> } = {},
 ): Promise<void> {
   await withLock(dataDir, async () => {
-    const file = await readTokensFile({ dataDir, clock, files });
+    const file = await readTokensFile({ dataDir, clock, files }, report ? { report } : {});
     file.servers[serverId] = token;
     await writeTokensFile(dataDir, file, files);
   });
@@ -218,10 +218,10 @@ export async function setToken(
 /** Atomically delete the stored token for `serverId`. No-op when absent. */
 export async function clearToken(
   { dataDir, serverId, clock, files }: { dataDir: string; serverId: string; clock: Clock; files: McpConfigFilesPort },
-  _optional: Record<string, never> = {},
+  { report }: { report?: Pick<Logger, 'error'> } = {},
 ): Promise<void> {
   await withLock(dataDir, async () => {
-    const file = await readTokensFile({ dataDir, clock, files });
+    const file = await readTokensFile({ dataDir, clock, files }, report ? { report } : {});
     if (!(serverId in file.servers)) return;
     delete file.servers[serverId];
     await writeTokensFile(dataDir, file, files);
@@ -232,9 +232,9 @@ export async function clearToken(
  * not one per server. */
 export async function readAllTokens(
   { dataDir, clock, files }: { dataDir: string; clock: Clock; files: McpConfigFilesPort },
-  _optional: Record<string, never> = {},
+  { report }: { report?: Pick<Logger, 'error'> } = {},
 ): Promise<Record<string, StoredMcpToken>> {
-  const file = await readTokensFile({ dataDir, clock, files });
+  const file = await readTokensFile({ dataDir, clock, files }, report ? { report } : {});
   return file.servers;
 }
 

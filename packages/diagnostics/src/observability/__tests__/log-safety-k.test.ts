@@ -8,7 +8,7 @@ it('keeps the tracker warning once and uses the default safe warning sink', () =
   try {
     const warn = createTrackerWarning({});
     warn(); warn();
-    expect(consoleWarn).toHaveBeenCalledExactlyOnceWith('[tracker] a telemetry provider failed; application work continues');
+    expect(consoleWarn).toHaveBeenCalledOnce(); expect(consoleWarn).toHaveBeenCalledWith('[tracker] a telemetry provider failed; application work continues');
   } finally { consoleWarn.mockRestore(); }
 });
 

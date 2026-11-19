@@ -30,7 +30,7 @@ it.each(['unknown', 'rejected'] as const)('keeps %s DNS lookup failures unknown 
   resolver.queryNs = async () => status === 'unknown'
     ? providerUnknown({ code: 'network', message: 'PRIVATE_PROVIDER_SENTINEL' })
     : providerRejected({ code: 'forbidden', message: 'PRIVATE_PROVIDER_SENTINEL' });
-  const result = await checkDelegation({ zone: 'example.test' }, { resolver });
+  const result = await checkDelegation({ zone: 'example.test', resolver });
   expect(result).toEqual({ zone: 'example.test', nameservers: [], missing: [], unexpected: [], state: 'unknown', reason: 'The delegation of example.test could not be read: DNS lookup failed.' });
   expect(JSON.stringify(result)).not.toContain('PRIVATE_PROVIDER_SENTINEL');
 });
@@ -55,5 +55,5 @@ it('reports a history failure without repeating or rejecting an accepted deploym
   expect(await runDeploy({ deps, input: { platform: 'host', target: 'site' } })).toEqual(accepted);
   expect(deploy).toHaveBeenCalledTimes(1);
   expect(deps.publishHistoryStore!.recordSuccess).toHaveBeenCalledTimes(1);
-  expect(warn).toHaveBeenCalledExactlyOnceWith({ message: '[deploy-ops] destination history write failed after accepted deploy' }, { error: failure });
+  expect(warn).toHaveBeenCalledOnce(); expect(warn).toHaveBeenCalledWith({ message: '[deploy-ops] destination history write failed after accepted deploy' }, { error: failure });
 });

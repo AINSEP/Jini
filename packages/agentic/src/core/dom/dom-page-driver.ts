@@ -545,7 +545,7 @@ function createDomElementResolver(root: DomPageDriverRequired['root'], options: 
 }
 
 function createDomReadOperations(
-  { root, pages, pageOf }: DomPageDriverRequired & { pageOf: (element: Element) => string | undefined },
+  { root, pages, pageOf, report }: DomPageDriverRequired & { pageOf: (element: Element) => string | undefined; report: Pick<Logger, 'warn'> | undefined },
   { findAll, find, controlOf, publicationFilter }: ReturnType<typeof createDomElementResolver>,
 ): Pick<PageDriver, 'findElements' | 'listPages' | 'describeField' | 'describeState'> {
   return {
@@ -581,7 +581,7 @@ function createDomReadOperations(
       // absence but an ambiguity — so that case still refuses, same as `find`.
       const matches = findAll(handle);
       if (matches.length === 0) return null;
-      if (matches.length > 1) throw ambiguousHandleError({ handle, count: matches.length }, options.report ? { report: options.report } : {});
+      if (matches.length > 1) throw ambiguousHandleError({ handle, count: matches.length }, report ? { report } : {});
       const element = matches[0]!;
       const control = controlOf(element);
       const field = fieldDescriptorOf(control);
@@ -785,7 +785,7 @@ export function createDomPageDriver({ root, pages }: DomPageDriverRequired, opti
   const { findAll, find, controlOf, publicationFilter } = createDomElementResolver(root, options);
 
   return {
-    ...createDomReadOperations({ root, pages, pageOf }, { findAll, find, controlOf, publicationFilter }),
+    ...createDomReadOperations({ root, pages, pageOf, report: options.report }, { findAll, find, controlOf, publicationFilter }),
 
     ...createDomVisualOperations(find, highlights),
 

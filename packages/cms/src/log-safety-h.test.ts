@@ -17,10 +17,10 @@ import { InMemoryBlobStore } from "./media/blob-store.memory.js";
 import { uploadMedia } from "./media/media-service.js";
 import { DocumentTextExtractionError } from "./media/document-text.js";
 import { resolveHtmlPageEmbeds } from "./widgets/html/resolve-html-page-embeds.js";
-import type { ResolveHtmlPageEmbedsDeps } from "./widgets/resolver-service.js";
+import type { ResolveHtmlPageEmbedsDeps } from "./widgets/resolver-contracts.js";
 import { InMemoryEntryRepo } from "./entries/index.js";
 import { findMediaByIdOrSlug, getLatestTransformDefinition } from "./media/index.js";
-import { resolvePageWidgets } from "./widgets/resolver-service.js";
+import { resolvePageWidgets } from "./widgets/page-widget-resolution.js";
 import { listWidgetInstances } from "./widgets/read-service.js";
 
 const SECRET = "h-provider-private-recipient@example.test-token";
@@ -126,8 +126,7 @@ test.each(["throws", "refuses", "string"])("H: notification %s logs safely and c
   };
   await registerFormNotifySubscriber({ bus, sender: { email: "sender@example.test" }, logger: createConsoleLogger({ prefix: "forms" }),
     formDefinitionRepo: definitions, formSubmissionRepo: submissions,
-    mailer: { send, sendBatch: async () => [], capabilities: () => ({ driver: "fixture", supportsIdempotencyKey: true,
-      supportsWebhookFeedback: false, maxBatchSize: 1, supportsAttachments: false }) } });
+    mailer: { send } });
   await bus.subscribe({ eventName: "form.submission.received", handler: async () => { siblings++; } });
   await bus.publish({ id: "event", name: "form.submission.received", workspaceId: "ws", occurredAt: "2026-01-01",
     payload: { workspaceId: "ws", formDefinitionId: "def", submissionId: "sub" } });

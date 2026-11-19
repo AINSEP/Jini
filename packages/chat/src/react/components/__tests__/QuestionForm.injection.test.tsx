@@ -30,7 +30,7 @@ it('uses injected answers for readiness and the imperative submitted payload', (
 
 it('uses the injected guard notice and one translator for footer lock and direction cards', () => {
   const cards: Form = { id: 'cards', title: 'Direction', questions: [{ id: 'direction', label: 'Direction', type: 'direction-cards',
-    cards: [{ id: 'calm', label: 'Calm', palette: [], displayFont: 'serif', bodyFont: 'sans-serif', references: [] }],
+    cards: [{ id: 'calm', label: 'Calm', mood: 'Quiet', palette: [], displayFont: 'serif', bodyFont: 'sans-serif', references: [] }],
   }] };
   const useUserTextGuardHook: typeof useUserTextGuard = (required) => ({ ...useUserTextGuard(required), secretRedacted: true });
   const useTHook = () => (key: string) => `injected:${key}`;
