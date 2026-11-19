@@ -203,8 +203,8 @@ export function injectExtraHeadIntoStaticPage(
  * inside an HTML comment; returns `html` unchanged when there is none. The global regex walks
  * the selected closing-tag candidates through its `lastIndex`.
  *
- * A plain `html.replace(/<\/body>/i, ...)` was a live bug: kUInetic's pre-JS cloak comment in the
- * tovu-theme head said `</body>` literally, so the visitor-chat mount and script were spliced into
+ * A plain `html.replace(/<\/body>/i, ...)` was a live bug: a theme's pre-JS cloak comment in the
+ * document head said `</body>` literally, so the visitor-chat mount and script were spliced into
  * that comment and the site chat FAB never loaded. Same lesson as {@link removeThemeOwnTitleElement}.
  *
  * @complexity O(n·k) over `html`'s length and the number of `tag` occurrences — k is 1 or 2 for any

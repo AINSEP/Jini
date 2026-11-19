@@ -24,18 +24,25 @@
       "./content-types": "universal",
       "./taxonomy": "universal",
       "./presentation": "universal",
+      "./presentation/document-shell": "universal",
       "./media/import": "universal",
       "./core/tools": "universal",
       "./trash": "universal",
       "./settings/express": "node",
       "./media/node": "node",
       "./forms/html-render": "universal",
+      "./forms/validation-messages": "universal",
+      "./forms/result-html": "universal",
+      "./forms/form-controls": "universal",
       "./forms/submission-attempts": "universal",
       "./widgets/page-embed-types": "universal",
+      "./widgets/media-attributes": "universal",
       "./widgets/html/html-embeds": "node",
       "./widgets/html/gallery-render": "universal",
       "./widgets/date-label": "universal",
       "./html/style-values": "universal",
+      "./html/text-layout": "universal",
+      "./html/document-marks": "universal",
       "./navigation/types": "universal",
       "./navigation/dropdown": "universal",
       "./navigation/href": "universal",
@@ -209,6 +216,11 @@
       "import": "./dist/taxonomy/index.js",
       "default": "./dist/taxonomy/index.js"
     },
+    "./presentation/document-shell": {
+      "types": "./dist/presentation/document-shell.d.ts",
+      "import": "./dist/presentation/document-shell.js",
+      "default": "./dist/presentation/document-shell.js"
+    },
     "./presentation": {
       "types": "./dist/presentation/index.d.ts",
       "import": "./dist/presentation/index.js",
@@ -239,6 +251,21 @@
       "import": "./dist/media/node.js",
       "default": "./dist/media/node.js"
     },
+    "./forms/form-controls": {
+      "types": "./dist/forms/form-controls.d.ts",
+      "import": "./dist/forms/form-controls.js",
+      "default": "./dist/forms/form-controls.js"
+    },
+    "./forms/result-html": {
+      "types": "./dist/forms/result-html.d.ts",
+      "import": "./dist/forms/result-html.js",
+      "default": "./dist/forms/result-html.js"
+    },
+    "./forms/validation-messages": {
+      "types": "./dist/forms/validation-messages.d.ts",
+      "import": "./dist/forms/validation-messages.js",
+      "default": "./dist/forms/validation-messages.js"
+    },
     "./forms/html-render": {
       "types": "./dist/forms/html-render.d.ts",
       "import": "./dist/forms/html-render.js",
@@ -248,6 +275,11 @@
       "types": "./dist/forms/submission-attempts.d.ts",
       "import": "./dist/forms/submission-attempts.js",
       "default": "./dist/forms/submission-attempts.js"
+    },
+    "./widgets/media-attributes": {
+      "types": "./dist/widgets/media-attributes.d.ts",
+      "import": "./dist/widgets/media-attributes.js",
+      "default": "./dist/widgets/media-attributes.js"
     },
     "./widgets/page-embed-types": {
       "types": "./dist/widgets/page-embed-types.d.ts",
@@ -268,6 +300,16 @@
       "types": "./dist/widgets/date-label.d.ts",
       "import": "./dist/widgets/date-label.js",
       "default": "./dist/widgets/date-label.js"
+    },
+    "./html/document-marks": {
+      "types": "./dist/html/document-marks.d.ts",
+      "import": "./dist/html/document-marks.js",
+      "default": "./dist/html/document-marks.js"
+    },
+    "./html/text-layout": {
+      "types": "./dist/html/text-layout.d.ts",
+      "import": "./dist/html/text-layout.js",
+      "default": "./dist/html/text-layout.js"
     },
     "./html/style-values": {
       "types": "./dist/html/style-values.d.ts",

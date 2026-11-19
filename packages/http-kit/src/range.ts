@@ -1,6 +1,6 @@
 /**
  * @file HTTP `Range` request parsing (RFC 7233 §2.1/§3.1) — a pure, dependency-free
- * parser so byte-serving routes (`apps/website/src/server/inbound/admin-http/routes/media/original.ts`) can support
+ * parser so host byte-serving routes can support
  * `Range: bytes=...` without touching a request/response object, and so every edge
  * case is directly unit-testable without booting an HTTP server.
  *
