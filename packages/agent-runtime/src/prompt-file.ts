@@ -13,7 +13,7 @@ import path from 'node:path';
 import type { PreparedPromptFile, RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 
-export async function preparePromptFileForAgent({ def, prompt, label }: { def: RuntimeAgentDef | null | undefined; prompt: string; label: string }
+export async function preparePromptFileForAgent({ def, prompt, label }: { def: RuntimeAgentDef | null | undefined; prompt: string; label: string }, _optional: Record<string, never> = {}
 ): Promise<PreparedPromptFile | null> {
   if (!def?.promptViaFile) return null;
 

@@ -14,7 +14,7 @@ export function createModelReceiptTracker(startingModel?: string, models: readon
   return (payload) => {
     if (payload.type !== 'status' || !payload.model || typeof payload.model !== 'string') return null;
     const observed = normalize(payload.model);
-    if (modelIdentityKind(observed) !== 'concrete') return null;
+    if (modelIdentityKind({ id: observed }) !== 'concrete') return null;
     if (observed === current) return null;
     const prior = current;
     current = observed;

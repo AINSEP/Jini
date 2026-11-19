@@ -74,7 +74,7 @@ describe('delegated tool-result correlation hints', () => {
   it('preserves CLI identity and all original content until daemon validation', () => {
     const content = [delegatedResultMarker({ toolUseId: 'B' }), image, { type: 'text', text: 'caption' }];
     const events = run([{ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'C', content, is_error: true }] } }]);
-    expect(events).toEqual([{ type: 'tool_result', toolUseId: 'C', content: stringifyToolResult(content), isError: true, delegatedToolUseId: 'B', delegatedResultContent: [image, { type: 'text', text: 'caption' }] }]);
+    expect(events).toEqual([{ type: 'tool_result', toolUseId: 'C', content: stringifyToolResult({ content }), isError: true, delegatedToolUseId: 'B', delegatedResultContent: [image, { type: 'text', text: 'caption' }] }]);
     expect(events[0]!.content).toContain('ORIGINAL_PIXELS');
   });
   it('recognizes metadata across arbitrary chunk boundaries', () => {
@@ -89,7 +89,7 @@ describe('delegated tool-result correlation hints', () => {
   });
   it.each([{ content: [image] }, { content: [{ type: 'text', text: '{"jiniDelegatedResult":{"version":2,"toolUseId":"B"}}' }, image] }])('keeps legacy content without inventing correlation: %j', ({ content }) => {
     const events = run([{ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'C', content }] } }]);
-    expect(events).toEqual([{ type: 'tool_result', toolUseId: 'C', content: stringifyToolResult(content), isError: false }]);
+    expect(events).toEqual([{ type: 'tool_result', toolUseId: 'C', content: stringifyToolResult({ content }), isError: false }]);
   });
 });
 
@@ -1327,45 +1327,45 @@ describe('createClaudeStreamHandler', () => {
 
 describe('toolInputPath', () => {
   it('prefers file_path over path', () => {
-    expect(toolInputPath({ file_path: 'a.txt', path: 'b.txt' })).toBe('a.txt');
+    expect(toolInputPath({ input: { file_path: 'a.txt', path: 'b.txt' } })).toBe('a.txt');
   });
 
   it('falls back to path when file_path is absent', () => {
-    expect(toolInputPath({ path: 'b.txt' })).toBe('b.txt');
+    expect(toolInputPath({ input: { path: 'b.txt' } })).toBe('b.txt');
   });
 
   it('returns an empty string when neither field is a string', () => {
-    expect(toolInputPath({})).toBe('');
-    expect(toolInputPath({ file_path: 42 })).toBe('');
+    expect(toolInputPath({ input: {} })).toBe('');
+    expect(toolInputPath({ input: { file_path: 42 } })).toBe('');
   });
 });
 
 describe('normalizeTaskStatus', () => {
   it('passes through the four canonical statuses unchanged', () => {
-    expect(normalizeTaskStatus('completed')).toBe('completed');
-    expect(normalizeTaskStatus('in_progress')).toBe('in_progress');
-    expect(normalizeTaskStatus('stopped')).toBe('stopped');
-    expect(normalizeTaskStatus('pending')).toBe('pending');
+    expect(normalizeTaskStatus({ value: 'completed' })).toBe('completed');
+    expect(normalizeTaskStatus({ value: 'in_progress' })).toBe('in_progress');
+    expect(normalizeTaskStatus({ value: 'stopped' })).toBe('stopped');
+    expect(normalizeTaskStatus({ value: 'pending' })).toBe('pending');
   });
 
   it('maps known wire-format aliases to their canonical status', () => {
-    expect(normalizeTaskStatus('complete')).toBe('completed');
-    expect(normalizeTaskStatus('done')).toBe('completed');
-    expect(normalizeTaskStatus('doing')).toBe('in_progress');
-    expect(normalizeTaskStatus('active')).toBe('in_progress');
-    expect(normalizeTaskStatus('failed')).toBe('stopped');
-    expect(normalizeTaskStatus('canceled')).toBe('stopped');
-    expect(normalizeTaskStatus('cancelled')).toBe('stopped');
+    expect(normalizeTaskStatus({ value: 'complete' })).toBe('completed');
+    expect(normalizeTaskStatus({ value: 'done' })).toBe('completed');
+    expect(normalizeTaskStatus({ value: 'doing' })).toBe('in_progress');
+    expect(normalizeTaskStatus({ value: 'active' })).toBe('in_progress');
+    expect(normalizeTaskStatus({ value: 'failed' })).toBe('stopped');
+    expect(normalizeTaskStatus({ value: 'canceled' })).toBe('stopped');
+    expect(normalizeTaskStatus({ value: 'cancelled' })).toBe('stopped');
   });
 
   it('defaults to pending for an unrecognized string', () => {
-    expect(normalizeTaskStatus('bogus')).toBe('pending');
+    expect(normalizeTaskStatus({ value: 'bogus' })).toBe('pending');
   });
 
   it('defaults to pending for a non-string value', () => {
-    expect(normalizeTaskStatus(undefined)).toBe('pending');
-    expect(normalizeTaskStatus(42)).toBe('pending');
-    expect(normalizeTaskStatus(null)).toBe('pending');
+    expect(normalizeTaskStatus({ value: undefined })).toBe('pending');
+    expect(normalizeTaskStatus({ value: 42 })).toBe('pending');
+    expect(normalizeTaskStatus({ value: null })).toBe('pending');
   });
 });
 
@@ -1598,35 +1598,35 @@ describe('isFileWriteToolUse', () => {
 
 describe('fileWriteContent', () => {
   it('returns the content field when present', () => {
-    expect(fileWriteContent({ content: 'hello' })).toBe('hello');
+    expect(fileWriteContent({ input: { content: 'hello' } })).toBe('hello');
   });
 
   it('falls back to new_string when content is absent', () => {
-    expect(fileWriteContent({ new_string: 'hello' })).toBe('hello');
+    expect(fileWriteContent({ input: { new_string: 'hello' } })).toBe('hello');
   });
 
   it('returns null when neither field is a string', () => {
-    expect(fileWriteContent({})).toBeNull();
+    expect(fileWriteContent({ input: {} })).toBeNull();
   });
 });
 
 describe('isHtmlWriteToolInput', () => {
   it('returns true for a recognized html file_path extension', () => {
-    expect(isHtmlWriteToolInput({ file_path: 'index.html' })).toBe(true);
-    expect(isHtmlWriteToolInput({ file_path: 'page.xhtml' })).toBe(true);
+    expect(isHtmlWriteToolInput({ input: { file_path: 'index.html' } })).toBe(true);
+    expect(isHtmlWriteToolInput({ input: { file_path: 'page.xhtml' } })).toBe(true);
   });
 
   it('falls back to filePath when file_path is absent', () => {
-    expect(isHtmlWriteToolInput({ filePath: 'index.htm' })).toBe(true);
+    expect(isHtmlWriteToolInput({ input: { filePath: 'index.htm' } })).toBe(true);
   });
 
   it('returns true when the content looks like an HTML document', () => {
-    expect(isHtmlWriteToolInput({ path: 'noext', content: '<!doctype html><html></html>' })).toBe(true);
-    expect(isHtmlWriteToolInput({ path: 'noext', content: '<html><body/></html>' })).toBe(true);
+    expect(isHtmlWriteToolInput({ input: { path: 'noext', content: '<!doctype html><html></html>' } })).toBe(true);
+    expect(isHtmlWriteToolInput({ input: { path: 'noext', content: '<html><body/></html>' } })).toBe(true);
   });
 
   it('returns false when neither the path nor the content indicates HTML', () => {
-    expect(isHtmlWriteToolInput({ path: 'noext', content: 'plain text' })).toBe(false);
+    expect(isHtmlWriteToolInput({ input: { path: 'noext', content: 'plain text' } })).toBe(false);
   });
 });
 
@@ -1682,95 +1682,95 @@ describe('isRedundantWrittenArtifact', () => {
 
 describe('assistantText', () => {
   it('joins text blocks with a newline', () => {
-    expect(assistantText([{ type: 'text', text: 'line one' }, { type: 'text', text: 'line two' }])).toBe(
+    expect(assistantText({ content: [{ type: 'text', text: 'line one' }, { type: 'text', text: 'line two' }] })).toBe(
       'line one\nline two',
     );
   });
 
   it('skips non-record and non-text blocks', () => {
-    expect(assistantText([null, 42, { type: 'thinking', thinking: 'nope' }, { type: 'text', text: 'kept' }])).toBe(
+    expect(assistantText({ content: [null, 42, { type: 'thinking', thinking: 'nope' }, { type: 'text', text: 'kept' }] })).toBe(
       'kept',
     );
   });
 
   it('trims surrounding whitespace from the joined result', () => {
-    expect(assistantText([{ type: 'text', text: '  padded  ' }])).toBe('padded');
+    expect(assistantText({ content: [{ type: 'text', text: '  padded  ' }] })).toBe('padded');
   });
 
   it('returns an empty string for content with no text blocks', () => {
-    expect(assistantText([])).toBe('');
+    expect(assistantText({ content: [] })).toBe('');
   });
 });
 
 describe('isUnstreamedTextBlock', () => {
   it('returns true for a non-empty text block that has not already streamed', () => {
-    expect(isUnstreamedTextBlock({ type: 'text', text: 'hi' }, false)).toBe(true);
+    expect(isUnstreamedTextBlock({ type: 'text', text: 'hi' }, { alreadyStreamed: false })).toBe(true);
   });
 
   it('returns false when alreadyStreamed is true', () => {
-    expect(isUnstreamedTextBlock({ type: 'text', text: 'hi' }, true)).toBe(false);
+    expect(isUnstreamedTextBlock({ type: 'text', text: 'hi' }, { alreadyStreamed: true })).toBe(false);
   });
 
   it('returns false for a non-text block type', () => {
-    expect(isUnstreamedTextBlock({ type: 'thinking', text: 'hi' }, false)).toBe(false);
+    expect(isUnstreamedTextBlock({ type: 'thinking', text: 'hi' }, { alreadyStreamed: false })).toBe(false);
   });
 
   it('returns false when text is missing or not a string', () => {
-    expect(isUnstreamedTextBlock({ type: 'text' }, false)).toBe(false);
-    expect(isUnstreamedTextBlock({ type: 'text', text: 42 }, false)).toBe(false);
+    expect(isUnstreamedTextBlock({ type: 'text' }, { alreadyStreamed: false })).toBe(false);
+    expect(isUnstreamedTextBlock({ type: 'text', text: 42 }, { alreadyStreamed: false })).toBe(false);
   });
 
   it('returns false for an empty text string', () => {
-    expect(isUnstreamedTextBlock({ type: 'text', text: '' }, false)).toBe(false);
+    expect(isUnstreamedTextBlock({ type: 'text', text: '' }, { alreadyStreamed: false })).toBe(false);
   });
 });
 
 describe('isUnstreamedThinkingBlock', () => {
   it('returns true for a non-empty thinking block that has not already streamed', () => {
-    expect(isUnstreamedThinkingBlock({ type: 'thinking', thinking: 'hmm' }, false)).toBe(true);
+    expect(isUnstreamedThinkingBlock({ type: 'thinking', thinking: 'hmm' }, { alreadyStreamed: false })).toBe(true);
   });
 
   it('returns false when alreadyStreamed is true', () => {
-    expect(isUnstreamedThinkingBlock({ type: 'thinking', thinking: 'hmm' }, true)).toBe(false);
+    expect(isUnstreamedThinkingBlock({ type: 'thinking', thinking: 'hmm' }, { alreadyStreamed: true })).toBe(false);
   });
 
   it('returns false for a non-thinking block type', () => {
-    expect(isUnstreamedThinkingBlock({ type: 'text', thinking: 'hmm' }, false)).toBe(false);
+    expect(isUnstreamedThinkingBlock({ type: 'text', thinking: 'hmm' }, { alreadyStreamed: false })).toBe(false);
   });
 
   it('returns false when thinking is missing, not a string, or empty', () => {
-    expect(isUnstreamedThinkingBlock({ type: 'thinking' }, false)).toBe(false);
-    expect(isUnstreamedThinkingBlock({ type: 'thinking', thinking: 42 }, false)).toBe(false);
-    expect(isUnstreamedThinkingBlock({ type: 'thinking', thinking: '' }, false)).toBe(false);
+    expect(isUnstreamedThinkingBlock({ type: 'thinking' }, { alreadyStreamed: false })).toBe(false);
+    expect(isUnstreamedThinkingBlock({ type: 'thinking', thinking: 42 }, { alreadyStreamed: false })).toBe(false);
+    expect(isUnstreamedThinkingBlock({ type: 'thinking', thinking: '' }, { alreadyStreamed: false })).toBe(false);
   });
 });
 
 describe('handleSystemMessage', () => {
   it('emits an initializing status for subtype init, defaulting model/sessionId to null', () => {
     const onEvent = vi.fn();
-    handleSystemMessage({ type: 'system', subtype: 'init' }, onEvent);
+    handleSystemMessage({ obj: { type: 'system', subtype: 'init' }, onEvent });
     expect(onEvent).toHaveBeenCalledWith({ type: 'status', label: 'initializing', model: null, sessionId: null });
   });
 
   it('passes through model and session_id for subtype init', () => {
     const onEvent = vi.fn();
-    handleSystemMessage({ type: 'system', subtype: 'init', model: 'claude-x', session_id: 's1' }, onEvent);
+    handleSystemMessage({ obj: { type: 'system', subtype: 'init', model: 'claude-x', session_id: 's1' }, onEvent });
     expect(onEvent).toHaveBeenCalledWith({ type: 'status', label: 'initializing', model: 'claude-x', sessionId: 's1' });
   });
 
   it('emits a status event for subtype status, defaulting the label to working', () => {
     const onEvent = vi.fn();
-    handleSystemMessage({ type: 'system', subtype: 'status' }, onEvent);
+    handleSystemMessage({ obj: { type: 'system', subtype: 'status' }, onEvent });
     expect(onEvent).toHaveBeenCalledWith({ type: 'status', label: 'working' });
 
     onEvent.mockClear();
-    handleSystemMessage({ type: 'system', subtype: 'status', status: 'thinking' }, onEvent);
+    handleSystemMessage({ obj: { type: 'system', subtype: 'status', status: 'thinking' }, onEvent });
     expect(onEvent).toHaveBeenCalledWith({ type: 'status', label: 'thinking' });
   });
 
   it('does nothing for an unrecognized subtype', () => {
     const onEvent = vi.fn();
-    handleSystemMessage({ type: 'system', subtype: 'other' }, onEvent);
+    handleSystemMessage({ obj: { type: 'system', subtype: 'other' }, onEvent });
     expect(onEvent).not.toHaveBeenCalled();
   });
 
@@ -1780,7 +1780,7 @@ describe('handleSystemMessage', () => {
   it('reports each MCP server status from a real init frame whose jini bridge failed', () => {
     const line = readFileSync(new URL('./fixtures/claude-init-jini-bridge-failed.jsonl', import.meta.url), 'utf8');
     const onEvent = vi.fn();
-    handleSystemMessage(JSON.parse(line) as Record<string, unknown>, onEvent);
+    handleSystemMessage({ obj: JSON.parse(line) as Record<string, unknown>, onEvent });
     expect(onEvent).toHaveBeenCalledTimes(1);
     expect(onEvent).toHaveBeenCalledWith({
       type: 'status',
@@ -1794,8 +1794,8 @@ describe('handleSystemMessage', () => {
   it('reports an empty server list as empty, and skips entries without a string name and status', () => {
     const onEvent = vi.fn();
     handleSystemMessage(
-      { type: 'system', subtype: 'init', mcp_servers: [{ name: 'jini' }, 'jini', { name: 'x', status: 'connected' }] },
-      onEvent,
+      { obj: { type: 'system', subtype: 'init', mcp_servers: [{ name: 'jini' }, 'jini', { name: 'x', status: 'connected' }] },
+      onEvent },
     );
     expect(onEvent).toHaveBeenCalledWith({
       type: 'status',
@@ -1806,47 +1806,47 @@ describe('handleSystemMessage', () => {
     });
 
     onEvent.mockClear();
-    handleSystemMessage({ type: 'system', subtype: 'init', mcp_servers: [] }, onEvent);
+    handleSystemMessage({ obj: { type: 'system', subtype: 'init', mcp_servers: [] }, onEvent });
     expect(onEvent).toHaveBeenCalledWith({ type: 'status', label: 'initializing', model: null, sessionId: null, mcpServers: [] });
   });
 });
 
 describe('stringifyToolResult', () => {
   it('returns a string content as-is', () => {
-    expect(stringifyToolResult('hello')).toBe('hello');
+    expect(stringifyToolResult({ content: 'hello' })).toBe('hello');
   });
 
   it('joins an array of blocks, extracting text from text blocks and JSON-stringifying the rest', () => {
-    expect(stringifyToolResult([{ type: 'text', text: 'line one' }, { type: 'image', data: 'xyz' }])).toBe(
+    expect(stringifyToolResult({ content: [{ type: 'text', text: 'line one' }, { type: 'image', data: 'xyz' }] })).toBe(
       `line one\n${JSON.stringify({ type: 'image', data: 'xyz' })}`,
     );
   });
 
   it('JSON-stringifies a non-string, non-array content value', () => {
-    expect(stringifyToolResult({ code: 1 })).toBe(JSON.stringify({ code: 1 }));
+    expect(stringifyToolResult({ content: { code: 1 } })).toBe(JSON.stringify({ code: 1 }));
   });
 });
 
 describe('handleUserMessage', () => {
   it('does nothing when message is not a record or content is not an array', () => {
     const onEvent = vi.fn();
-    handleUserMessage({}, onEvent);
-    handleUserMessage({ message: 'not-a-record' }, onEvent);
-    handleUserMessage({ message: { content: 'not-an-array' } }, onEvent);
+    handleUserMessage({ obj: {}, onEvent });
+    handleUserMessage({ obj: { message: 'not-a-record' }, onEvent });
+    handleUserMessage({ obj: { message: { content: 'not-an-array' } }, onEvent });
     expect(onEvent).not.toHaveBeenCalled();
   });
 
   it('skips non-record and non-tool_result content blocks', () => {
     const onEvent = vi.fn();
-    handleUserMessage({ message: { content: [null, { type: 'text', text: 'ignored' }] } }, onEvent);
+    handleUserMessage({ obj: { message: { content: [null, { type: 'text', text: 'ignored' }] } }, onEvent });
     expect(onEvent).not.toHaveBeenCalled();
   });
 
   it('emits a tool_result event, defaulting isError to false when is_error is absent', () => {
     const onEvent = vi.fn();
     handleUserMessage(
-      { message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: 'ok' }] } },
-      onEvent,
+      { obj: { message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: 'ok' }] } },
+      onEvent },
     );
     expect(onEvent).toHaveBeenCalledWith({ type: 'tool_result', toolUseId: 't1', content: 'ok', isError: false });
   });

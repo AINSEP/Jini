@@ -168,7 +168,7 @@ export interface RoleMarkerGuard {
  *     }
  *   }
  */
-export function createRoleMarkerGuard({ messageId }: { messageId: string }): RoleMarkerGuard {
+export function createRoleMarkerGuard({ messageId }: { messageId: string }, _optional: Record<string, never> = {}): RoleMarkerGuard {
   // Rolling tail of the bytes we have ALREADY EMITTED, capped at
   // TAIL_BUFFER_SIZE. Used as the prefix when matching against new
   // text so we catch markers that straddle a chunk boundary.

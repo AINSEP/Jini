@@ -32,7 +32,7 @@ type Diagnostic = ModelCatalogSnapshot['diagnostics'][number];
 type ScopedConfiguration = { selection?: string; fingerprintMaterial: string };
 
 /** Hash all launch-affecting state, including env credentials; none of the raw material escapes. */
-export function modelLaunchFingerprint(context: ModelDiscoveryContext, configMaterial = ''): string {
+export function modelLaunchFingerprint({ context }: { context: ModelDiscoveryContext }, { configMaterial = '' }: { configMaterial?: string | undefined } = {}): string {
   return createHash('sha256').update(JSON.stringify({ ...context, env: Object.entries(context.env).sort(([a], [b]) => a.localeCompare(b)), configMaterial })).digest('hex');
 }
 const probePools = new WeakMap<ModelDiscoveryDeps, { active: number; queue: (() => void)[] }>();
@@ -124,7 +124,7 @@ function rowEvidence(row: DiscoveredModel | undefined): string | undefined {
   return row?.resolvedId || (row?.identityKind === 'concrete' ? row.id : undefined);
 }
 function isConcreteId(id: string | undefined): id is string {
-  return Boolean(id) && modelIdentityKind(id as string) === 'concrete';
+  return Boolean(id) && modelIdentityKind({ id: id as string }) === 'concrete';
 }
 function catalogSelection({ context, catalog, configSelection }: { context: ModelDiscoveryContext; catalog: ModelCatalogSnapshot; configSelection: string | undefined }): string | undefined {
   return context.model || context.resumedModelId || catalog.defaultSelectionId || configSelection;
@@ -157,15 +157,15 @@ type Scope = { context: ModelDiscoveryContext; deps: ModelDiscoveryDeps; signal:
 
 async function scoped(env: DiscoveryEnv, { context, deps, signal }: { context: ModelDiscoveryContext; deps: ModelDiscoveryDeps; signal?: AbortSignal | undefined }) {
   const { agentId } = env;
-  const config = await withModelProbeTimeout((active) => readModelConfiguration(agentId, context, deps, active), 1000, signal);
-  const key = `${agentId}:${modelLaunchFingerprint(context, config.fingerprintMaterial)}`;
+  const config = await withModelProbeTimeout({ work: (active) => readModelConfiguration({ agentId, context, deps, signal: active }), timeoutMs: 1000 }, { parent: signal });
+  const key = `${agentId}:${modelLaunchFingerprint({ context }, { configMaterial: config.fingerprintMaterial })}`;
   return { config, key, fingerprint: key.slice(agentId.length + 1) };
 }
 
 async function readDiskCatalog(env: DiscoveryEnv, { context, deps, signal, fingerprint, config, now }: Scope): Promise<ModelCatalogSnapshot | undefined> {
   try {
-    const disk = await withModelProbeTimeout(active => env.probes.cliCache({ agentId: env.agentId, context, deps, signal: active }), 1000, signal);
-    const models = normalizeDiscoveredModels(disk.models);
+    const disk = await withModelProbeTimeout({ work: active => env.probes.cliCache({ agentId: env.agentId, context, deps, signal: active }), timeoutMs: 1000 }, { parent: signal });
+    const models = normalizeDiscoveredModels({ models: disk.models });
     if (!models.length) return undefined;
     return { models, source: 'cli-cache', coverage: disk.coverage,
       freshness: 'stale', fetchedAt: new Date(now).toISOString(), expiresAt: new Date(now).toISOString(),
@@ -189,14 +189,14 @@ function failureSnapshot(env: DiscoveryEnv, { cached, deps, fingerprint }: Scope
   const retryAt = cached.retryAt as number;
   // Outer inventory caches must retry failed refreshes on the negative lifetime too.
   if (cached.good) return { ...cached.good, freshness: 'stale', expiresAt: new Date(retryAt).toISOString(), diagnostics: [diagnostic(error)] };
-  return offlineSnapshot(fingerprint, deps.clock.now(), env.configuration.fallbackModels(), diagnostic(error));
+  return offlineSnapshot({ fingerprint, now: deps.clock.now(), fallback: env.configuration.fallbackModels() }, { issue: diagnostic(error) });
 }
 
 async function probeAndStore(env: DiscoveryEnv, scope: Scope): Promise<ModelCatalogSnapshot> {
   const { agentId, configuration, probes } = env;
   const { context, deps, signal, cached } = scope;
-  const result: ModelProbeResult = await boundedProbe(deps, () => withModelProbeTimeout((active) => probes.catalog({ agentId, context, configuration, deps, signal: active }), probes.timeoutMs({ agentId }), signal), signal);
-  const models = normalizeDiscoveredModels(result.models);
+  const result: ModelProbeResult = await boundedProbe(deps, () => withModelProbeTimeout({ work: (active) => probes.catalog({ agentId, context, configuration, deps, signal: active }), timeoutMs: probes.timeoutMs({ agentId }) }, { parent: signal }), signal);
+  const models = normalizeDiscoveredModels({ models: result.models });
   if (models.length === 0) throw new ModelProbeError('malformed-response');
   const selection = pickSelection({ agentId, context, configSelection: scope.config.selection, result });
   const snapshot = liveSnapshot({ models, result, fingerprint: scope.fingerprint, selection, fetched: deps.clock.now() });
@@ -227,7 +227,7 @@ async function discover({ env, context, deps, signal, force, staleWhileRevalidat
   let state: Awaited<ReturnType<typeof scoped>>;
   try { state = await scoped(env, { context, deps, signal }); }
   catch (error) {
-    return offlineSnapshot(modelLaunchFingerprint(context), deps.clock.now(), env.configuration.fallbackModels(), diagnostic(error));
+    return offlineSnapshot({ fingerprint: modelLaunchFingerprint({ context }), now: deps.clock.now(), fallback: env.configuration.fallbackModels() }, { issue: diagnostic(error) });
   }
   const now = deps.clock.now();
   const scope: Scope = { context, deps, signal, ...state, cached: deps.cache.get(state.key) || {}, now };
@@ -277,8 +277,8 @@ export function createAgentModelDiscovery(
   };
   return port;
 }
-export function offlineSnapshot(fingerprint: string, now: number, fallback: readonly RuntimeModelOption[], issue?: ModelCatalogSnapshot['diagnostics'][number]): ModelCatalogSnapshot {
-  return { models: normalizeDiscoveredModels(fallback), source: 'offline-fallback', freshness: 'offline-fallback', fetchedAt: new Date(now).toISOString(), expiresAt: new Date(now + MODEL_NEGATIVE_TTL_MS).toISOString(), coverage: 'configured', launchFingerprint: fingerprint, diagnostics: issue ? [issue] : [] };
+export function offlineSnapshot({ fingerprint, now, fallback }: { fingerprint: string; now: number; fallback: readonly RuntimeModelOption[] }, { issue }: { issue?: ModelCatalogSnapshot['diagnostics'][number] | undefined } = {}): ModelCatalogSnapshot {
+  return { models: normalizeDiscoveredModels({ models: fallback }), source: 'offline-fallback', freshness: 'offline-fallback', fetchedAt: new Date(now).toISOString(), expiresAt: new Date(now + MODEL_NEGATIVE_TTL_MS).toISOString(), coverage: 'configured', launchFingerprint: fingerprint, diagnostics: issue ? [issue] : [] };
 }
 /** Hosts may supply either discovery port independently; static definitions need no probes. */
 export type ModelDiscoveryDefinition = Partial<AgentModelDiscoveryPort> & {
@@ -295,7 +295,7 @@ function configuredDefault(def: ModelDiscoveryDefinition, context: ModelDiscover
   return (def.defaultModelEnvVar && context.env[def.defaultModelEnvVar]?.trim()) || undefined;
 }
 async function staticDiscover({ def, context, deps }: { def: ModelDiscoveryDefinition; context: ModelDiscoveryContext; deps: ModelDiscoveryDeps }): Promise<ModelCatalogSnapshot> {
-  const catalog = offlineSnapshot(modelLaunchFingerprint(context), deps.clock.now(), def.fallbackModels || []);
+  const catalog = offlineSnapshot({ fingerprint: modelLaunchFingerprint({ context }), now: deps.clock.now(), fallback: def.fallbackModels || [] });
   // Static hosts used their first concrete fallback before discovery existed. Preserve
   // that contract while letting a declared env default or explicit selection take precedence.
   const selection = context.model || context.resumedModelId || configuredDefault(def, context) || catalog.models.find(row => row.identityKind === 'concrete')?.id;

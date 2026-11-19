@@ -116,7 +116,7 @@ const AGENT_UPSTREAM_FAILURE_RE = new RegExp(
 // process failure. Auth is checked before rate/upstream so a `401` is never
 // misread as a `5xx`. Pure text match — no agent-specific assumptions — so it
 // applies uniformly to any CLI agent.
-export function classifyAgentServiceFailure({ text }: { text: string }): AgentServiceFailureCode | null {
+export function classifyAgentServiceFailure({ text }: { text: string }, _optional: Record<string, never> = {}): AgentServiceFailureCode | null {
   const value = String(text || '');
   if (!value.trim()) return null;
   if (AGENT_AUTH_FAILURE_RE.test(value)) return 'AGENT_AUTH_REQUIRED';

@@ -106,7 +106,7 @@ export function createAgentRuntimeBindings({ runtime }: { runtime: NativeAgentRu
     models: {
       resolveForLaunch: (required: { def: RuntimeAgentDef; context: ModelDiscoveryContext; effort?: string }, optional: { signal?: AbortSignal } = {}) =>
         resolveModelForLaunch(required, { ...optional, deps: getRuntimeModelDiscoveryDeps({ state }) }),
-      identityKind: ({ id }: { id: string }) => modelIdentityKind(id),
+      identityKind: ({ id }: { id: string }) => modelIdentityKind({ id }),
     },
     ...bindSessionsAndStreams({ runtime }),
     failures: {

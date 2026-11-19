@@ -31,14 +31,14 @@ const CLI_ARGS: Record<string, readonly string[]> = {
   // UNVERIFIED adapters: commands documented by upstream/the survey; schemas need installed checks.
   amp: ['plugins', 'show-agent-options', '--json'], crush: ['models'], deepseek: ['models'], qoder: ['--list-models'],
 };
-export function modelProbeTimeoutMs(agentId: string): number {
+export function modelProbeTimeoutMs({ agentId }: { agentId: string }, _optional: Record<string, never> = {}): number {
   if (ACP_ARGS[agentId] || ['claude', 'codebuddy', 'pi', 'droid'].includes(agentId)) return 15_000;
   return 10_000;
 }
 /** Shared CLI-subcommand adapter. Output parsers are pure def-owned functions, not vendor tools. */
-export async function probeCliSubcommand(context: ModelDiscoveryContext, config: AgentDiscoveryConfiguration, deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<ModelProbeResult> {
+export async function probeCliSubcommand({ context, config, deps, signal }: { context: ModelDiscoveryContext; config: AgentDiscoveryConfiguration; deps: ModelDiscoveryDeps; signal: AbortSignal }, _optional: Record<string, never> = {}): Promise<ModelProbeResult> {
   const timeoutMs = config.timeoutMs ?? 8_000;
-  const { stdout } = await withModelProbeTimeout(active => deps.process.run({ context, args: config.args || [], signal: active, timeoutMs }), timeoutMs, signal);
+  const { stdout } = await withModelProbeTimeout({ work: active => deps.process.run({ context, args: config.args || [], signal: active, timeoutMs }), timeoutMs }, { parent: signal });
   const models = config.parse?.({ stdout });
   if (!models) throw new ModelProbeError('malformed-response');
   // The bracketed class is `\s` minus line terminators, so neither end of the line can slide into
@@ -47,7 +47,7 @@ export async function probeCliSubcommand(context: ModelDiscoveryContext, config:
   return { models, source: 'cli', coverage: 'account', ...(defaultSelectionId ? { defaultSelectionId } : {}) };
 }
 /** ACP can create CLI session state/start services. It never sends a user prompt. */
-export async function probeAcpMetadata(context: ModelDiscoveryContext, args: readonly string[], deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<ModelProbeResult> {
+export async function probeAcpMetadata({ context, args, deps, signal }: { context: ModelDiscoveryContext; args: readonly string[]; deps: ModelDiscoveryDeps; signal: AbortSignal }, _optional: Record<string, never> = {}): Promise<ModelProbeResult> {
   return deps.acp.probe({ context, args, signal });
 }
 /** Spread a native default selection only when the source reported one. */
@@ -67,20 +67,20 @@ function claudeInitializeRows(line: string): ClaudeModelRow[] | null {
 /** One selection row, plus its concrete resolved row when the selection is an alias. */
 /** A selection that resolves to another id is an alias; an unresolved one is classified by shape. */
 function selectionIdentityKind(id: string, resolvedId: string | undefined) {
-  return resolvedId ? 'alias' as const : modelIdentityKind(id);
+  return resolvedId ? 'alias' as const : modelIdentityKind({ id });
 }
 function claudeSelectionModels(id: string, resolvedId: string | undefined, displayName: unknown): DiscoveredModel[] {
   const label = typeof displayName === 'string' && displayName.trim() ? displayName.trim() : resolvedId || id;
   const identityKind = id === resolvedId ? 'concrete' : selectionIdentityKind(id, resolvedId);
   const selection: DiscoveredModel = { id, label, identityKind, ...(resolvedId ? { resolvedId } : {}) };
   if (!resolvedId || id === resolvedId) return [selection];
-  return [selection, { id: resolvedId, label, identityKind: modelIdentityKind(resolvedId) }];
+  return [selection, { id: resolvedId, label, identityKind: modelIdentityKind({ id: resolvedId }) }];
 }
 /** The picker rows one initialize row contributes; the `default` row also names the default selection. */
 function claudeRowModels(id: string, resolvedId: string | undefined, displayName: unknown): { models: DiscoveredModel[]; defaultId?: string } {
   if (id !== 'default') return { models: claudeSelectionModels(id, resolvedId, displayName) };
   // This displayName describes the CLI's default policy, not the model it resolves to.
-  if (!resolvedId || modelIdentityKind(resolvedId) !== 'concrete') return { models: [] };
+  if (!resolvedId || modelIdentityKind({ id: resolvedId }) !== 'concrete') return { models: [] };
   return { models: [{ id: resolvedId, label: resolvedId, identityKind: 'concrete' }], defaultId: resolvedId };
 }
 function claudeInitializeResult(rows: readonly ClaudeModelRow[]): ModelProbeResult {
@@ -100,25 +100,26 @@ function claudeInitializeResult(rows: readonly ClaudeModelRow[]): ModelProbeResu
  * Default-policy display names become the exact resolved ID; malformed responses return null.
  * @complexity O(s + n) time and space in stdout length s and listed models n.
  */
-export function parseClaudeInitializeMetadata(stdout: string): ModelProbeResult | null {
+export function parseClaudeInitializeMetadata({ stdout }: { stdout: string }, _optional: Record<string, never> = {}): ModelProbeResult | null {
   for (const line of stdout.split('\n')) {
     const rows = claudeInitializeRows(line);
     if (rows) return claudeInitializeResult(rows);
   }
   return null;
 }
+function inlineClaudeSettings(context: ModelDiscoveryContext): string | null | undefined { return context.settings?.trim().startsWith('{') ? context.settings : null; }
 /** Shared initialize category; CodeBuddy compatibility remains UNVERIFIED locally. */
-export async function probeClaudeInitialize(context: ModelDiscoveryContext, deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<ModelProbeResult> {
+export async function probeClaudeInitialize({ context, deps, signal }: { context: ModelDiscoveryContext; deps: ModelDiscoveryDeps; signal: AbortSignal }, _optional: Record<string, never> = {}): Promise<ModelProbeResult> {
   const args = [...CLAUDE_CODE_INITIALIZE_ARGS];
   if (context.settingSources) args.push('--setting-sources', context.settingSources.join(','));
   // The last settings argument must still disable hooks; the probe never executes hooks.
   // Inline JSON is used as is; anything else names a settings file to read.
-  const inlineSettings = context.settings?.trim().startsWith('{') ? context.settings : null;
+  const inlineSettings = inlineClaudeSettings(context);
   const raw = inlineSettings ?? (context.settings ? await deps.fs.read(context.settings, { signal }) : null);
-  const settings = raw ? parseSettingsJson(raw) : undefined;
+  const settings = raw ? parseSettingsJson({ raw }) : undefined;
   if (settings) args.push('--settings', JSON.stringify({ ...settings, disableAllHooks: true }));
   const result = await deps.process.run({ context, args, stdin: CLAUDE_CODE_INITIALIZE_REQUEST, signal, timeoutMs: 15_000 });
-  const metadata = parseClaudeInitializeMetadata(result.stdout);
+  const metadata = parseClaudeInitializeMetadata({ stdout: result.stdout });
   if (!metadata?.models.length) throw new ModelProbeError('malformed-response');
   return metadata;
 }
@@ -128,7 +129,7 @@ function aiderProviderPrefix(agentId: string, selection: string | undefined): st
   return agentId === 'aider' && selection?.includes('/') ? selection.slice(0, selection.indexOf('/') + 1) : '';
 }
 export async function probeProviderApi(agentId: string, context: ModelDiscoveryContext, deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<ModelProbeResult> {
-  const config = await readModelConfiguration(agentId, context, deps, signal);
+  const config = await readModelConfiguration({ agentId, context, deps, signal });
   const effectiveContext = config.selection ? { ...context, model: config.selection } : context;
   const input = await deps.credential.connection({ agentId, context: effectiveContext, signal });
   if (!input) throw new ModelProbeError('auth-missing');
@@ -148,25 +149,25 @@ const CLI_CACHES: ReadonlyMap<string, CliCache> = new Map<string, CliCache>([
   ['codebuddy', { path: (_env, home) => join(home, '.codebuddy/settings.json'), models: optionCacheModels }],
 ]);
 /** Caches are partial observed catalogs, always stale, never silently promoted to live. */
-export async function probeCliCache(agentId: string, context: ModelDiscoveryContext, deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<ModelProbeResult> {
+export async function probeCliCache({ agentId, context, deps, signal }: { agentId: string; context: ModelDiscoveryContext; deps: ModelDiscoveryDeps; signal: AbortSignal }, _optional: Record<string, never> = {}): Promise<ModelProbeResult> {
   const cache = CLI_CACHES.get(agentId);
   if (!cache) throw new ModelProbeError('unsupported-version');
   const raw = await deps.fs.read(cache.path(context.env, context.env.HOME || homedir()), { signal });
-  const data = raw ? parseSettingsJson(raw) : null;
+  const data = raw ? parseSettingsJson({ raw }) : null;
   if (!data) throw new ModelProbeError('offline');
   return { models: cache.models(data), source: 'cli-cache', coverage: 'observed' };
 }
 function opencodeCacheModels(data: Record<string, unknown>): DiscoveredModel[] {
   return Object.entries(data).flatMap(([provider, value]) => {
     const entries = value && typeof value === 'object' ? (value as { models?: Record<string, { name?: string }> }).models : undefined;
-    return Object.entries(entries || {}).map(([id, row]) => ({ id: `${provider}/${id}`, label: row.name || `${provider}/${id}`, provider, identityKind: modelIdentityKind(id) }));
+    return Object.entries(entries || {}).map(([id, row]) => ({ id: `${provider}/${id}`, label: row.name || `${provider}/${id}`, provider, identityKind: modelIdentityKind({ id }) }));
   });
 }
 function configurationCacheModels(entries: unknown): DiscoveredModel[] {
   if (!Array.isArray(entries)) return [];
   return entries.flatMap((row) => {
     const id = firstString(row?.slug, row?.value, row?.id);
-    return id ? [{ id, label: row.display_name || row.displayName || id, identityKind: modelIdentityKind(id) }] : [];
+    return id ? [{ id, label: row.display_name || row.displayName || id, identityKind: modelIdentityKind({ id }) }] : [];
   });
 }
 /** The first argument that is a string, or `undefined` when none is. */
@@ -181,30 +182,30 @@ function parseGenericCliModels(stdout: string): DiscoveredModel[] {
     const entries = Array.isArray(parsed) ? parsed : object.models;
     if (Array.isArray(entries)) return entries.flatMap((row) => {
       const id = firstString(row, row?.id, row?.model);
-      return id ? [{ id, label: typeof row?.name === 'string' ? row.name : id, identityKind: modelIdentityKind(id) }] : [];
+      return id ? [{ id, label: typeof row?.name === 'string' ? row.name : id, identityKind: modelIdentityKind({ id }) }] : [];
     });
   }
   return stdout.split('\n').flatMap((line) => {
     const match = line.trim().match(/^(?:[-*•]\s*)?(\w[\w./:[\]-]*)(?:\s+-\s+(\S.*))?$/);
     if (!match || /^(models|available|provider|model)$/i.test(match[1]!)) return [];
-    return [{ id: match[1]!, label: match[2] || match[1]!, identityKind: modelIdentityKind(match[1]!) }];
+    return [{ id: match[1]!, label: match[2] || match[1]!, identityKind: modelIdentityKind({ id: match[1]! }) }];
   });
 }
 type AgentProbe = (agentId: string, context: ModelDiscoveryContext, deps: ModelDiscoveryDeps, signal: AbortSignal) => Promise<ModelProbeResult>;
 const probeRpc: AgentProbe = (agentId, context, deps, signal) => deps.rpc.probe({ agentId, context, signal });
 async function probeClaudeCatalog(agentId: string, context: ModelDiscoveryContext, deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<ModelProbeResult> {
   try {
-    return await probeClaudeInitialize(context, deps, signal);
+    return await probeClaudeInitialize({ context, deps, signal });
   } catch {
     try { return await probeProviderApi(agentId, context, deps, signal); }
-    catch { return probeCliCache(agentId, context, deps, signal); }
+    catch { return probeCliCache({ agentId, context, deps, signal }); }
   }
 }
 async function probeCodeBuddyCatalog(agentId: string, context: ModelDiscoveryContext, deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<ModelProbeResult> {
   // UNVERIFIED: survey identifies initialize compatibility as a candidate, not a guarantee.
   // Try the same prompt-free metadata category; failed compatibility stays explicitly offline.
-  try { return await probeClaudeInitialize(context, deps, signal); }
-  catch { return probeCliCache(agentId, context, deps, signal); }
+  try { return await probeClaudeInitialize({ context, deps, signal }); }
+  catch { return probeCliCache({ agentId, context, deps, signal }); }
 }
 /** Agents with a dedicated discovery category, checked before any declared listing command. */
 const AGENT_PROBES: ReadonlyMap<string, AgentProbe> = new Map<string, AgentProbe>([
@@ -219,17 +220,17 @@ async function probeDeclaredListing(agentId: string, context: ModelDiscoveryCont
   // Only disk-cache adapters reserve two seconds for recovery. Antigravity has no disk
   // fallback, so its declared listing timeout can use the full outer discovery budget.
   const diskCache = DISK_CACHE_LISTINGS.has(agentId);
-  const budget = modelProbeTimeoutMs(agentId) - (diskCache ? 2_000 : 0);
+  const budget = modelProbeTimeoutMs({ agentId }) - (diskCache ? 2_000 : 0);
   const timeoutMs = Math.min(configuration.timeoutMs ?? 8_000, budget);
-  try { return await probeCliSubcommand(context, { ...configuration, timeoutMs }, deps, signal); }
+  try { return await probeCliSubcommand({ context, config: { ...configuration, timeoutMs }, deps, signal }); }
   catch (error) {
     if (!diskCache) throw error;
-    try { return await probeCliCache(agentId, context, deps, signal); } catch { throw error; }
+    try { return await probeCliCache({ agentId, context, deps, signal }); } catch { throw error; }
   }
 }
 async function probeAmrAcp(context: ModelDiscoveryContext, deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<ModelProbeResult> {
-  const metadata = await probeAcpMetadata(context, ACP_ARGS.amr!, deps, signal);
-  const first = metadata.models.find((row) => row.id !== 'default' && modelIdentityKind(row.id) === 'concrete');
+  const metadata = await probeAcpMetadata({ context, args: ACP_ARGS.amr!, deps, signal });
+  const first = metadata.models.find((row) => row.id !== 'default' && modelIdentityKind({ id: row.id }) === 'concrete');
   if (!first) throw new ModelProbeError('malformed-response');
   return { ...metadata, defaultSelectionId: context.env.VELA_DEFAULT_MODEL || metadata.defaultSelectionId || first.id };
 }
@@ -247,17 +248,17 @@ async function probeAmrCatalog(context: ModelDiscoveryContext, configuration: Ag
   catch (error) { if (signal.aborted) throw error; }
   return probeAmrList(context, configuration, deps, signal);
 }
-export async function probeAgentCatalog(agentId: string, context: ModelDiscoveryContext, configuration: AgentDiscoveryConfiguration, deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<ModelProbeResult> {
+export async function probeAgentCatalog({ agentId, context, configuration, deps, signal }: { agentId: string; context: ModelDiscoveryContext; configuration: AgentDiscoveryConfiguration; deps: ModelDiscoveryDeps; signal: AbortSignal }, _optional: Record<string, never> = {}): Promise<ModelProbeResult> {
   const acpArgs = ACP_ARGS[agentId];
   // UNVERIFIED installed ACP agents: existing declared commands; metadata preserves native defaults.
-  if (acpArgs && agentId !== 'amr') return probeAcpMetadata(context, acpArgs, deps, signal);
+  if (acpArgs && agentId !== 'amr') return probeAcpMetadata({ context, args: acpArgs, deps, signal });
   const probe = AGENT_PROBES.get(agentId);
   if (probe) return probe(agentId, context, deps, signal);
   if (configuration.args) return probeDeclaredListing(agentId, context, configuration, deps, signal);
   if (agentId === 'amr') return probeAmrCatalog(context, configuration, deps, signal);
   const args = CLI_ARGS[agentId];
   if (!args) throw new ModelProbeError('unsupported-version');
-  return probeCliSubcommand(context, { ...configuration, args, parse: ({ stdout }) => parseGenericCliModels(stdout) }, deps, signal);
+  return probeCliSubcommand({ context, config: { ...configuration, args, parse: ({ stdout }) => parseGenericCliModels(stdout) }, deps, signal });
 }
 
 function runProcess(input: Parameters<ModelDiscoveryDeps['process']['run']>[0]): ReturnType<ModelDiscoveryDeps['process']['run']> {
@@ -268,7 +269,7 @@ function runProcess(input: Parameters<ModelDiscoveryDeps['process']['run']>[0]):
   return scheduleProbeProcess({ work: () => new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
     let completed = false;
     let captured = '';
-    const { platform, fallbackComSpec } = ambientCommandShell();
+    const { platform, fallbackComSpec } = ambientCommandShell({});
     const invocation = planCommandInvocation({ command: input.context.executable, platform, env: input.context.env }, { args: [...input.args], fallbackComSpec });
     const tree = input.terminateProcessTree && process.platform !== 'win32';
     let treeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -388,13 +389,13 @@ export const defaultModelDiscoveryDeps: ModelDiscoveryDeps = {
   acp: createAcpDiscoveryAdapter({ probe: nativeAcpModelProbe }),
   rpc: { async probe({ agentId, context, signal }) {
     // UNVERIFIED locally: use official prompt-free SDK interfaces, not invented CLI flags.
-    if (agentId === 'droid') return probeDroidSdk(context, defaultModelDiscoveryDeps, signal);
+    if (agentId === 'droid') return probeDroidSdk({ context, deps: defaultModelDiscoveryDeps, signal });
     if (agentId !== 'pi') throw new ModelProbeError('unsupported-version');
     const { stdout } = await defaultModelDiscoveryDeps.process.run({ context, args: ['--mode', 'rpc'], stdin: '{"type":"get_available_models","id":"catalog"}\n{"type":"get_state","id":"state"}\n', signal, timeoutMs: 15_000,
       complete: (output) => {
-        try { const metadata = parsePiRpcMetadata(output); return Boolean(metadata.defaultSelectionId); } catch { return false; }
+        try { const metadata = parsePiRpcMetadata({ stdout: output }); return Boolean(metadata.defaultSelectionId); } catch { return false; }
       } });
-    return parsePiRpcMetadata(stdout);
+    return parsePiRpcMetadata({ stdout });
   } },
   clock: { now: Date.now }, cache: defaultRuntimeState.modelCatalog,
 };
@@ -409,7 +410,7 @@ function piCatalogModels(response: PiRpcResponse): DiscoveredModel[] {
   if (response.command !== 'get_available_models' || !Array.isArray(response.data?.models)) return [];
   return response.data.models.flatMap((raw) => {
     const row = raw as { provider?: string; id?: string; name?: string };
-    return row.provider && row.id ? [{ id: `${row.provider}/${row.id}`, label: row.name || row.id, provider: row.provider, identityKind: modelIdentityKind(row.id) }] : [];
+    return row.provider && row.id ? [{ id: `${row.provider}/${row.id}`, label: row.name || row.id, provider: row.provider, identityKind: modelIdentityKind({ id: row.id }) }] : [];
   });
 }
 function piCurrentSelection(response: PiRpcResponse): string | undefined {
@@ -417,7 +418,7 @@ function piCurrentSelection(response: PiRpcResponse): string | undefined {
   return model?.provider && model.id ? `${model.provider}/${model.id}` : undefined;
 }
 /** Pi's native RPC supplies catalog AND current provider/id without making an inference call. */
-export function parsePiRpcMetadata(stdout: string): ModelProbeResult {
+export function parsePiRpcMetadata({ stdout }: { stdout: string }, _optional: Record<string, never> = {}): ModelProbeResult {
   const models: DiscoveredModel[] = []; let defaultSelectionId: string | undefined;
   for (const response of stdout.split('\n').map(piRpcResponse)) {
     if (!response) continue;
@@ -447,7 +448,7 @@ export function getRuntimeModelDiscoveryDeps({ state }: { state: AgentRuntimeSta
 export function createAcpDiscoveryAdapter({ probe }: { probe: AcpModelProbe }, { commandShell }: { commandShell?: AmbientCommandShell } = {}): ModelDiscoveryDeps['acp'] {
   return { async probe({ context, args, signal }) {
     // Read per probe, never hoisted at adapter creation: the adapter is built at module load.
-    const shell = commandShell ?? ambientCommandShell();
+    const shell = commandShell ?? ambientCommandShell({});
     const invocation = planCommandInvocation({ command: context.executable, platform: shell.platform, env: context.env }, { args: [...args], fallbackComSpec: shell.fallbackComSpec });
     const required = { bin: invocation.command, args: invocation.args };
     const optional = { cwd: context.cwd, env: context.env, timeoutMs: 15_000, signal };

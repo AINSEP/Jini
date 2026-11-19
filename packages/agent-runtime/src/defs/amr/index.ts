@@ -27,7 +27,7 @@ export type VelaModelJsonSource = 'preset' | 'remote';
 //      the link-facing slug (`deepseek-v3.2` / `glm-5.1`), so this adapter
 //      normalizes those public ids at the spawn boundary until Vela exposes
 //      canonical ACP ids directly.
-export function normalizeVelaModelId({ rawId }: { rawId: string }): string | null {
+export function normalizeVelaModelId({ rawId }: { rawId: string }, _optional: Record<string, never> = {}): string | null {
   const withoutPrefix = stripPrefix({ value: stripPrefix({ value: rawId.trim(), prefix: 'vela/' }), prefix: 'public_model_' });
   if (!withoutPrefix) return null;
   const alias = VELA_MODEL_ID_ALIASES.find(([pattern]) => pattern.test(withoutPrefix));
@@ -99,7 +99,7 @@ function isVelaChatModelId(modelId: string): boolean {
   return true;
 }
 
-export function parseVelaModels({ stdout }: { stdout: string }): RuntimeModelOption[] {
+export function parseVelaModels({ stdout }: { stdout: string }, _optional: Record<string, never> = {}): RuntimeModelOption[] {
   const ids: Array<string | null> = [];
   for (const line of String(stdout || '').split('\n')) {
     const trimmed = line.trim();
@@ -112,7 +112,7 @@ export function parseVelaModels({ stdout }: { stdout: string }): RuntimeModelOpt
   return collectChatModels(ids);
 }
 
-export function parseVelaModelJson({ stdout, expectedSource }: { stdout: string; expectedSource: VelaModelJsonSource }
+export function parseVelaModelJson({ stdout, expectedSource }: { stdout: string; expectedSource: VelaModelJsonSource }, _optional: Record<string, never> = {}
 ): RuntimeModelOption[] {
   const data = parseVelaModelJsonData({ stdout, expectedSource });
   return collectChatModels(data.map((item) => {
@@ -190,7 +190,7 @@ function isRetriableVelaModelsError(error: unknown): boolean {
   ].some((pattern) => message.includes(pattern));
 }
 
-export async function fetchVelaPresetModels({ resolvedBin, env }: { resolvedBin: string; env: NodeJS.ProcessEnv }
+export async function fetchVelaPresetModels({ resolvedBin, env }: { resolvedBin: string; env: NodeJS.ProcessEnv }, _optional: Record<string, never> = {}
 ): Promise<RuntimeModelOption[]> {
   const { stdout } = await execAgentFile({ command: resolvedBin, args: ['model', 'preset', '--format', 'json'] }, { options: {
     env,
@@ -240,7 +240,7 @@ export interface VelaBillingSummary {
  * contract rather than a separate HTTP call. Returns total available balance
  * and the real membership tier.
  */
-export async function fetchVelaBillingSummary({ resolvedBin, env }: { resolvedBin: string; env: NodeJS.ProcessEnv }
+export async function fetchVelaBillingSummary({ resolvedBin, env }: { resolvedBin: string; env: NodeJS.ProcessEnv }, _optional: Record<string, never> = {}
 ): Promise<VelaBillingSummary> {
   const { stdout } = await execAgentFile({ command: resolvedBin, args: ['billing', 'summary', '--format', 'json'] }, { options: { env, timeout: AMR_MODELS_TIMEOUT_MS, maxBuffer: 1024 * 1024 } });
   const data = JSON.parse(String(stdout)) as {

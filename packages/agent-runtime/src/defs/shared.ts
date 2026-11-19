@@ -67,7 +67,7 @@ function trustedMcpBypass({ options, userMcpLocked }: { options: ClaudeMcpOption
  * @complexity O(1).
  * @overallScore 100/100
  */
-export function buildClaudeMcpConfigArgs(runtimeContext: RuntimeContext, options: ClaudeMcpOptions = {}): string[] {
+export function buildClaudeMcpConfigArgs({ runtimeContext }: { runtimeContext: RuntimeContext }, options: ClaudeMcpOptions = {}): string[] {
   const mcpJsonPath = runtimeContext.mcpJsonPath;
   const userMcpLocked = claudeUserMcpLocked({ options }, {});
   if (typeof mcpJsonPath !== 'string' || mcpJsonPath.length === 0) return userMcpLocked ? ['--strict-mcp-config'] : [];

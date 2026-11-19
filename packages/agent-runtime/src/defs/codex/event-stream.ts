@@ -17,11 +17,11 @@ function parseJsonObjectsFromContent(value: string): JsonObject[] {
   // The caller requires CONNECTOR_TOOL_NOT_FOUND before parsing. Empty input also reaches the
   // existing [] fallback naturally, so no separate empty-string branch is needed.
   const trimmed = value.trim();
-  const direct = safeParseJson(trimmed);
+  const direct = safeParseJson({ value: trimmed });
   if (isRecord(direct)) return [direct];
   const objects: JsonObject[] = [];
   for (const line of trimmed.split(/\r?\n/u)) {
-    const parsedLine = safeParseJson(line.trim());
+    const parsedLine = safeParseJson({ value: line.trim() });
     if (isRecord(parsedLine)) objects.push(parsedLine);
   }
   return objects;
@@ -45,8 +45,8 @@ function connectorToolSelectionErrorMessage(content: string): string | null {
     .find((parsedError) => parsedError?.code === 'CONNECTOR_TOOL_NOT_FOUND');
   if (!error) return null;
   const details = isRecord(error.details) ? error.details : {};
-  const connectorId = nonEmptyString(details.connectorId);
-  const toolName = nonEmptyString(details.toolName) ?? 'the requested connector tool';
+  const connectorId = nonEmptyString({ value: details.connectorId });
+  const toolName = nonEmptyString({ value: details.toolName }) ?? 'the requested connector tool';
   const target = connectorId
     ? `Connector tool ${toolName} is not allowed for connector ${connectorId}.`
     : `Connector tool ${toolName} is not allowed.`;
@@ -65,7 +65,7 @@ function isRecoverableCodexReconnect(message: string): boolean {
 
 function codexTodoListInput(item: JsonObject): JsonObject | null {
   if (item.type !== 'todo_list' || !Array.isArray(item.items)) return null;
-  return todoWriteInputFromItems(item.items);
+  return todoWriteInputFromItems({ items: item.items });
 }
 
 function emitCodexTodoList(item: JsonObject, onEvent: StreamEventHandler): boolean {
@@ -107,7 +107,7 @@ function emitCodexErrorOnce(message: string, onEvent: StreamEventHandler, state:
 }
 
 function codexMcpToolName(item: JsonObject): string {
-  const tool = nonEmptyString(item.tool);
+  const tool = nonEmptyString({ value: item.tool });
   // Preserve the bridge's catalog names; external MCP must never masquerade as Bash/Edit.
   // A Jini call is named `mcp__jini__X` exactly as Claude Code names it: the daemon bridge also
   // reports a direct call as its own `X` row, and @jini-ai/chat folds the pair into one row only
@@ -213,7 +213,7 @@ function emitCodexFileChange(item: CodexItem, onEvent: StreamEventHandler): void
 function completeCodexCommand(item: CodexItem, onEvent: StreamEventHandler, state: ParserState): boolean {
   resetCodexAgentMessageBoundary(state);
   emitCodexBashToolUse(item, onEvent, state);
-  const content = stringifyContent(item.aggregated_output ?? '');
+  const content = stringifyContent({ value: item.aggregated_output ?? '' });
   onEvent({
     type: 'tool_result',
     toolUseId: item.id,
@@ -233,17 +233,17 @@ function completeCodexCommand(item: CodexItem, onEvent: StreamEventHandler, stat
  * @complexity O(n) time/space for n diagnostic characters, including the shared sanitizer pass.
  */
 function codexMcpFailureContent({ item }: { item: CodexItem }, _options = {}): string {
-  const error = trimmedNonBlank(extractErrorMessage({ value: item.error, fallback: '' }));
+  const error = trimmedNonBlank({ value: extractErrorMessage({ value: item.error, fallback: '' }) });
   const result = isRecord(item.result) ? item.result : {};
   const blocks = Array.isArray(result.content) ? result.content : [];
   // Keep text verbatim until sanitizing so JSON error envelopes retain codes and recovery hints.
   const text = blocks.filter(isRecord)
     .filter(block => block.type === 'text')
-    .map(block => trimmedNonBlank(block.text))
+    .map(block => trimmedNonBlank({ value: block.text }))
     .filter(Boolean)
     .join('\n');
   const structuredText = extractErrorMessage({ value: result.structured_content, fallback: '' });
-  const diagnostic = error || text || trimmedNonBlank(structuredText) || 'MCP tool call failed';
+  const diagnostic = error || text || trimmedNonBlank({ value: structuredText }) || 'MCP tool call failed';
   return sanitizeUntrustedText({ text: diagnostic });
 }
 
@@ -264,13 +264,13 @@ function completeCodexMcpToolCall(item: CodexItem, onEvent: StreamEventHandler, 
   const isError = item.status !== 'completed';
   const content = isError
     ? codexMcpFailureContent({ item })
-    : stringifyContent(item.result);
+    : stringifyContent({ value: item.result });
   onEvent({ type: 'tool_result', toolUseId: item.id, content, isError });
   return true;
 }
 
 function emitCodexAgentMessage(item: JsonObject, onEvent: StreamEventHandler, state: ParserState): boolean {
-  const text = item.type === 'agent_message' ? nonEmptyString(item.text) : null;
+  const text = item.type === 'agent_message' ? nonEmptyString({ value: item.text }) : null;
   if (!text) return false;
   const needsBoundary =
     state.codex.previousEventWasAgentMessage &&
@@ -338,7 +338,7 @@ function handleCodexThreadStarted(obj: JsonObject, onEvent: StreamEventHandler):
   // turn's first-call cache hit (codex's stream usage is cumulative only).
   // Codex emits this both for a fresh `exec` and for `exec resume` (echoing
   // the resumed id), so it is a stable capture point either way.
-  onEvent({ type: 'status', label: 'initializing', sessionId: nonEmptyString(obj.thread_id) });
+  onEvent({ type: 'status', label: 'initializing', sessionId: nonEmptyString({ value: obj.thread_id }) });
   return true;
 }
 
@@ -357,7 +357,7 @@ const CODEX_USAGE_FIELDS: UsageFields = [
 
 function handleCodexTurnCompleted(obj: JsonObject, onEvent: StreamEventHandler): boolean {
   if (!isRecord(obj.usage)) return false;
-  onEvent({ type: 'usage', usage: pickUsage(obj.usage, CODEX_USAGE_FIELDS) });
+  onEvent({ type: 'usage', usage: pickUsage({ source: obj.usage, fields: CODEX_USAGE_FIELDS }) });
   return true;
 }
 

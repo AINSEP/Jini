@@ -376,7 +376,7 @@ describe('amrAgentDef.discoverModels', () => {
   });
 
   it('parses the CLI listing as a remote-sourced vela model JSON document', async () => {
-    const catalog = await amrAgentDef.discoverModels({ context: discoveryContext }, { deps: cliOutputDiscoveryDeps(JSON.stringify({ source: 'remote', data: [{ id: 'glm-5.1' }] })) });
+    const catalog = await amrAgentDef.discoverModels({ context: discoveryContext }, { deps: cliOutputDiscoveryDeps({ stdout: JSON.stringify({ source: 'remote', data: [{ id: 'glm-5.1' }] }) }) });
     expect(catalog.freshness).toBe('fresh');
     expect(catalog.models.map((model) => model.id)).toEqual(['glm-5.1']);
   });

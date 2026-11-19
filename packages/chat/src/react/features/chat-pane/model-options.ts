@@ -9,7 +9,7 @@ import { antigravityBarVendorWords } from './antigravity/model-options.js';
 const passthrough: I18nAdapter['t'] = key => key;
 
 export function isConcretePickerModel(id: string): boolean {
-  return modelIdentityKind(id) === 'concrete';
+  return modelIdentityKind({ id }) === 'concrete';
 }
 /** Aliases are selectable only as their evidence-backed concrete ID. Never render a Default row.
  * Keeps the first position per concrete ID, upgrading raw-ID labels from later human labels.

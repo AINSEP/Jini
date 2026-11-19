@@ -2,7 +2,7 @@ import path from 'node:path';
 import { statSync } from 'node:fs';
 import type { ExecutableResolutionHelpers, ResolvedExecutableOptions } from '../../executable-helpers.js';
 
-export function resolveAmrCompanion(options: ResolvedExecutableOptions, services: ExecutableResolutionHelpers): string | null {
+export function resolveAmrCompanion({ options, services }: { options: ResolvedExecutableOptions; services: ExecutableResolutionHelpers }, _optional: Record<string, never> = {}): string | null {
   const { env } = options;
   // In packaged builds prefer the bundled companion under
   // `<resourceRoot>/bin/libexec/opencode/opencode` so a stale global
@@ -45,7 +45,7 @@ export function packagedAmrExecutable(
   const resourceRoot = services.resourceRootOf(options);
   if (!resourceRoot) return null;
   if (
-    !resolveAmrCompanion({ ...options, env: { ...options.env, ...configuredEnv } }, services) &&
+    !resolveAmrCompanion({ options: { ...options, env: { ...options.env, ...configuredEnv } }, services }) &&
     !packagedVelaOpenCodeCompanionTree(resourceRoot, options, services)
   ) {
     return null;

@@ -548,7 +548,7 @@ describe('codexAgentDef.discoverModels', () => {
   });
 
   it('parses `codex debug models` output through the def\'s catalog parser', async () => {
-    const catalog = await codexAgentDef.discoverModels({ context: discoveryContext }, { deps: cliOutputDiscoveryDeps(JSON.stringify({ models: [{ slug: 'gpt-x', display_name: 'GPT X' }] })) });
+    const catalog = await codexAgentDef.discoverModels({ context: discoveryContext }, { deps: cliOutputDiscoveryDeps({ stdout: JSON.stringify({ models: [{ slug: 'gpt-x', display_name: 'GPT X' }] }) }) });
     expect(catalog.freshness).toBe('fresh');
     expect(catalog.models).toEqual([expect.objectContaining({ id: 'gpt-x', label: 'GPT X' })]);
   });

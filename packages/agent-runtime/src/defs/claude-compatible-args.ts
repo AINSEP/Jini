@@ -14,12 +14,12 @@ import type {
 } from '@jini-ai/core/contracts/agents';
 
 /** Host-scoped capabilities when supplied, else the published `--help` probe cache for `agentId`. */
-export function resolveCapabilities({ agentId, options }: { agentId: string; options: RuntimeBuildOptions }): RuntimeCapabilityMap {
+export function resolveCapabilities({ agentId, options }: { agentId: string; options: RuntimeBuildOptions }, _optional: Record<string, never> = {}): RuntimeCapabilityMap {
   return (options.capabilities ?? agentCapabilities.get(agentId)) || {};
 }
 
 /** `--add-dir <dir...>` for every non-empty string dir, unless the probe recorded `addDir: false`. */
-export function addDirArgs({ extraAllowedDirs, caps }: { extraAllowedDirs: readonly string[] | null | undefined; caps: RuntimeCapabilityMap }): string[] {
+export function addDirArgs({ extraAllowedDirs, caps }: { extraAllowedDirs: readonly string[] | null | undefined; caps: RuntimeCapabilityMap }, _optional: Record<string, never> = {}): string[] {
   const dirs = (extraAllowedDirs || []).filter((d) => typeof d === 'string' && d.length > 0);
   return dirs.length > 0 && caps.addDir !== false ? ['--add-dir', ...dirs] : [];
 }
@@ -29,7 +29,7 @@ export function addDirArgs({ extraAllowedDirs, caps }: { extraAllowedDirs: reado
 // re-deriving everything from the rendered transcript each turn.
 // `--resume <id>` continues a stored session; `--session-id <uuid>`
 // starts a new one with an id the daemon controls and persists.
-export function sessionArgs(runtimeContext: RuntimeContext): string[] {
+export function sessionArgs({ runtimeContext }: { runtimeContext: RuntimeContext }, _optional: Record<string, never> = {}): string[] {
   if (typeof runtimeContext.resumeSessionId === 'string' && runtimeContext.resumeSessionId) {
     return ['--resume', runtimeContext.resumeSessionId];
   }
@@ -41,11 +41,11 @@ export function sessionArgs(runtimeContext: RuntimeContext): string[] {
 
 // See `RuntimeBuildOptions.permissionMode`'s doc: bypass is the default (unchanged
 // behavior) unless a caller explicitly opts into a restricted run.
-export function permissionModeArgs(options: RuntimeBuildOptions): string[] {
+export function permissionModeArgs({ options }: { options: RuntimeBuildOptions }, _optional: Record<string, never> = {}): string[] {
   return options.permissionMode !== 'restricted' ? ['--permission-mode', 'bypassPermissions'] : [];
 }
 
 /** `<flag> <value>` unless the value is empty or the CLI-owned `default` sentinel. */
-export function nonDefaultFlag({ flag, value }: { flag: string; value: string | null | undefined }): string[] {
+export function nonDefaultFlag({ flag, value }: { flag: string; value: string | null | undefined }, _optional: Record<string, never> = {}): string[] {
   return value && value !== 'default' ? [flag, value] : [];
 }

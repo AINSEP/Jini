@@ -17,7 +17,7 @@ export interface ToolLoopVerdict<R extends string> {
  * silently retrying forever. `exitReason` is only consulted for a turn that has not ended.
  */
 export function toolLoopVerdict<R extends string>(
-  { ended, hasExecutor, exitReason }: { ended: boolean; hasExecutor: boolean; exitReason: () => R | null },
+  { ended, hasExecutor, exitReason }: { ended: boolean; hasExecutor: boolean; exitReason: () => R | null }, _optional: Record<string, never> = {},
 ): ToolLoopVerdict<R> {
   if (ended) return { stop: true, emit: null };
   const emit = exitReason() || (hasExecutor ? null : 'stop');

@@ -76,7 +76,7 @@ describe('execAgentFile command planning (simulated platform, no global stubs)',
 
 describe('ambientCommandShell', () => {
   it('reads the ambient ComSpec from the injected env and the injected platform', () => {
-    expect(ambientCommandShell({ platform: 'win32', ambientEnv: { ComSpec: 'C:\\fake\\cmd.exe' } }))
+    expect(ambientCommandShell({}, { platform: 'win32', ambientEnv: { ComSpec: 'C:\\fake\\cmd.exe' } }))
       .toEqual({ platform: 'win32', fallbackComSpec: 'C:\\fake\\cmd.exe' });
   });
 
@@ -84,9 +84,9 @@ describe('ambientCommandShell', () => {
     const previous = process.env.ComSpec;
     try {
       process.env.ComSpec = 'first';
-      expect(ambientCommandShell({}).fallbackComSpec).toBe('first');
+      expect(ambientCommandShell({}, {}).fallbackComSpec).toBe('first');
       process.env.ComSpec = 'second';
-      const shell = ambientCommandShell();
+      const shell = ambientCommandShell({});
       expect(shell.fallbackComSpec).toBe('second');
       expect(shell.platform).toBe(process.platform);
     } finally {

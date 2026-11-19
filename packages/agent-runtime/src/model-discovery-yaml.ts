@@ -87,7 +87,7 @@ function yamlExtendRunLeft(raw: string, start: number, run: YamlRun): void {
 }
 
 /** First `model:` capture of `/^model\s*:\s*["']?([^\n"'#]+)["']?\s*(?:#.*)?$/m` in `raw`. */
-export function yamlModelCapture(raw: string): string | undefined {
+export function yamlModelCapture({ raw }: { raw: string }, _optional: Record<string, never> = {}): string | undefined {
   for (let lineStart = 0; lineStart <= raw.length; lineStart += 1) {
     const atLineStart = lineStart === 0 || isYamlTerminator(raw[lineStart - 1]);
     const colon = atLineStart && raw.startsWith('model', lineStart) ? yamlSpaceEnd(raw, lineStart + 5) : -1;

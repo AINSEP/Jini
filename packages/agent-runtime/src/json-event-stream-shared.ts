@@ -43,25 +43,25 @@ export function isRecord(value: unknown): value is JsonObject {
   return value != null && typeof value === 'object' && !Array.isArray(value);
 }
 
-export function nonEmptyString(value: unknown): string | null {
+export function nonEmptyString({ value }: { value: unknown }, _optional: Record<string, never> = {}): string | null {
   return typeof value === 'string' && value ? value : null;
 }
 
-export function trimmedNonBlank(value: unknown): string | null {
+export function trimmedNonBlank({ value }: { value: unknown }, _optional: Record<string, never> = {}): string | null {
   const trimmed = typeof value === 'string' ? value.trim() : '';
   return trimmed || null;
 }
 
-export function optionalString(value: unknown): string | undefined {
+export function optionalString({ value }: { value: unknown }, _optional: Record<string, never> = {}): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
-export function optionalNumber(value: unknown): number | undefined {
+export function optionalNumber({ value }: { value: unknown }, _optional: Record<string, never> = {}): number | undefined {
   return typeof value === 'number' ? value : undefined;
 }
 
 /** Copies the numeric vendor counters named in `fields` into a `Usage`, skipping absent ones. */
-export function pickUsage(source: JsonObject, fields: UsageFields): Usage {
+export function pickUsage({ source, fields }: { source: JsonObject; fields: UsageFields }, _optional: Record<string, never> = {}): Usage {
   const usage: Usage = {};
   for (const [from, to] of fields) {
     const value = source[from];
@@ -76,12 +76,12 @@ export function dispatchFrame({ handlers, obj, onEvent, state }: {
   obj: JsonObject;
   onEvent: StreamEventHandler;
   state: ParserState;
-}): boolean {
+}, _optional: Record<string, never> = {}): boolean {
   const handler = handlers.get(obj.type);
   return handler ? handler(obj, onEvent, state) : false;
 }
 
-export function safeParseJson(value: unknown): unknown {
+export function safeParseJson({ value }: { value: unknown }, _optional: Record<string, never> = {}): unknown {
   if (value == null) return null;
   if (typeof value === 'object') return value;
   if (typeof value !== 'string') return null;
@@ -92,7 +92,7 @@ export function safeParseJson(value: unknown): unknown {
   }
 }
 
-export function stringifyContent(value: unknown): string {
+export function stringifyContent({ value }: { value: unknown }, _optional: Record<string, never> = {}): string {
   if (typeof value === 'string') return value;
   if (value == null) return '';
   try {
@@ -110,32 +110,32 @@ function isNonNullObject(value: unknown): value is object {
 }
 
 /** Unwrap string/record error envelopes, retaining string or numeric codes alongside messages. */
-export function extractErrorMessage({ value, fallback }: { value: unknown; fallback: string }): string {
+export function extractErrorMessage({ value, fallback }: { value: unknown; fallback: string }, _optional: Record<string, never> = {}): string {
   if (typeof value === 'string') {
-    const parsed = safeParseJson(value);
+    const parsed = safeParseJson({ value });
     return isNonNullObject(parsed) ? extractErrorMessage({ value: parsed, fallback: value }) : value;
   }
   if (!isRecord(value)) return fallback;
   const message = extractRecordErrorMessage({ value, fallback: '' });
-  const code = typeof value.code === 'number' ? String(value.code) : trimmedNonBlank(value.code);
+  const code = typeof value.code === 'number' ? String(value.code) : trimmedNonBlank({ value: value.code });
   return (code ? [code, message].filter(Boolean).join(': ') : message) || fallback;
 }
 
 /** Field precedence for an error object: detail, message (itself maybe JSON), error, data, name. */
 function extractRecordErrorMessage({ value, fallback }: { value: JsonObject; fallback: string }): string {
-  const detail = nonEmptyString(value.detail);
+  const detail = nonEmptyString({ value: value.detail });
   if (detail) return detail;
-  const message = nonEmptyString(value.message);
+  const message = nonEmptyString({ value: value.message });
   if (message) return extractErrorMessage({ value: message, fallback: message });
-  const error = nonEmptyString(value.error);
+  const error = nonEmptyString({ value: value.error });
   if (error) return error;
   if (isNonNullObject(value.error)) return extractErrorMessage({ value: value.error, fallback });
   const dataMessage = isNonNullObject(value.data) ? extractErrorMessage({ value: value.data, fallback: '' }) : '';
-  return dataMessage || nonEmptyString(value.name) || fallback;
+  return dataMessage || nonEmptyString({ value: value.name }) || fallback;
 }
 
-export function initializingStatus(obj: JsonObject): StreamEvent {
-  return { type: 'status', label: 'initializing', model: optionalString(obj.model) };
+export function initializingStatus({ obj }: { obj: JsonObject }, _optional: Record<string, never> = {}): StreamEvent {
+  return { type: 'status', label: 'initializing', model: optionalString({ value: obj.model }) };
 }
 
 /** Ordered status buckets: the first rule whose exact alias or prefix matches wins; else `pending`. */
@@ -177,17 +177,17 @@ function todoFromItem(raw: unknown): JsonObject | null {
 // so a runtime `!Array.isArray` guard here was dead code for every real
 // caller. Narrowed the parameter type to remove the branch instead of
 // padding a test around unreachable data.
-export function todoWriteInputFromItems(items: unknown[]): JsonObject | null {
+export function todoWriteInputFromItems({ items }: { items: unknown[] }, _optional: Record<string, never> = {}): JsonObject | null {
   const todos = items
     .map(todoFromItem)
     .filter((todo): todo is JsonObject => todo !== null);
   return todos.length > 0 ? { todos } : null;
 }
 
-export function todoWriteInputFromParsedValue(value: unknown): JsonObject | null {
-  if (Array.isArray(value)) return todoWriteInputFromItems(value);
+export function todoWriteInputFromParsedValue({ value }: { value: unknown }, _optional: Record<string, never> = {}): JsonObject | null {
+  if (Array.isArray(value)) return todoWriteInputFromItems({ items: value });
   if (!isRecord(value)) return null;
-  if (Array.isArray(value.todos)) return todoWriteInputFromItems(value.todos);
-  if (Array.isArray(value.todo)) return todoWriteInputFromItems(value.todo);
+  if (Array.isArray(value.todos)) return todoWriteInputFromItems({ items: value.todos });
+  if (Array.isArray(value.todo)) return todoWriteInputFromItems({ items: value.todo });
   return null;
 }

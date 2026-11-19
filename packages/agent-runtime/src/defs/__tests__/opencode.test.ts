@@ -153,7 +153,7 @@ describe('opencodeAgentDef.discoverModels', () => {
   });
 
   it('parses `opencode models` output through the def\'s own listModels parser', async () => {
-    const catalog = await opencodeAgentDef.discoverModels({ context: discoveryContext }, { deps: cliOutputDiscoveryDeps('provider/a\nprovider/a\nprovider/b\n') });
+    const catalog = await opencodeAgentDef.discoverModels({ context: discoveryContext }, { deps: cliOutputDiscoveryDeps({ stdout: 'provider/a\nprovider/a\nprovider/b\n' }) });
     expect(catalog.freshness).toBe('fresh');
     expect(catalog.models.map((model) => model.id)).toEqual(['provider/a', 'provider/b']);
   });

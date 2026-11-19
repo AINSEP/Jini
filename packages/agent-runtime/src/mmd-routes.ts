@@ -37,7 +37,7 @@ function expandRoutesFileOverride(raw: string, env: RuntimeEnv): string | null {
   return raw;
 }
 
-export function resolveMmdRoutesFile({ env }: { env: RuntimeEnv }): string | null {
+export function resolveMmdRoutesFile({ env }: { env: RuntimeEnv }, _optional: Record<string, never> = {}): string | null {
   const override = stringEnv(env, MMD_MODEL_ROUTES_FILE_ENV);
   if (override) return expandRoutesFileOverride(override, env);
 
@@ -50,7 +50,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-export function parseMmdRouteModelIds({ raw }: { raw: unknown }): string[] {
+export function parseMmdRouteModelIds({ raw }: { raw: unknown }, _optional: Record<string, never> = {}): string[] {
   if (!isRecord(raw) || !isRecord(raw.routes)) return [];
 
   const seen = new Set<string>();
@@ -64,10 +64,11 @@ export function parseMmdRouteModelIds({ raw }: { raw: unknown }): string[] {
   return ids;
 }
 
-export function resolveMmdRouteLaunchEnv({ raw, modelId }: { raw: unknown; modelId: string | null | undefined }
+function hasMmdRoutes(raw: unknown): raw is { routes: Record<string, unknown> } { return isRecord(raw) && isRecord(raw.routes); }
+export function resolveMmdRouteLaunchEnv({ raw, modelId }: { raw: unknown; modelId: string | null | undefined }, _optional: Record<string, never> = {}
 ): MmdRouteLaunchEnv | null {
   const id = sanitizeCustomModel({ id: modelId });
-  if (!id || !isRecord(raw) || !isRecord(raw.routes)) return null;
+  if (!id || !hasMmdRoutes(raw)) return null;
 
   const route = raw.routes[id];
   if (!isRecord(route) || !isRecord(route.primary)) return null;
@@ -100,7 +101,7 @@ function addModel(
   out.push({ id, label });
 }
 
-export function mergeMmdRouteModels({ routeIds, fallbackModels }: { routeIds: readonly string[]; fallbackModels: readonly RuntimeModelOption[] }
+export function mergeMmdRouteModels({ routeIds, fallbackModels }: { routeIds: readonly string[]; fallbackModels: readonly RuntimeModelOption[] }, _optional: Record<string, never> = {}
 ): RuntimeModelOption[] {
   const out: RuntimeModelOption[] = [];
   const seen = new Set<string>();
@@ -135,7 +136,7 @@ async function readMmdRoutesJson({ env }: { env: RuntimeEnv }, _optional: Record
   }
 }
 
-export async function loadMmdRouteModels({ env, fallbackModels }: { env: RuntimeEnv; fallbackModels: readonly RuntimeModelOption[] }
+export async function loadMmdRouteModels({ env, fallbackModels }: { env: RuntimeEnv; fallbackModels: readonly RuntimeModelOption[] }, _optional: Record<string, never> = {}
 ): Promise<RuntimeModelOption[] | null> {
   const routes = await readMmdRoutesJson({ env });
   if (!routes) return null;
@@ -145,7 +146,7 @@ export async function loadMmdRouteModels({ env, fallbackModels }: { env: Runtime
   return mergeMmdRouteModels({ routeIds: routeIds, fallbackModels: fallbackModels });
 }
 
-export async function loadMmdRouteLaunchEnv({ env, modelId }: { env: RuntimeEnv; modelId: string | null | undefined }
+export async function loadMmdRouteLaunchEnv({ env, modelId }: { env: RuntimeEnv; modelId: string | null | undefined }, _optional: Record<string, never> = {}
 ): Promise<MmdRouteLaunchEnv | null> {
   const routes = await readMmdRoutesJson({ env });
   if (!routes) return null;

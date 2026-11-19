@@ -32,7 +32,7 @@ const PARSERS_BY_KIND: ReadonlyMap<string, (obj: unknown, onEvent: StreamEventHa
   ['codex', handleCodexEvent],
 ]);
 
-export function createJsonEventStreamHandler({ kind, onEvent }: { kind: string; onEvent: StreamEventHandler }) {
+export function createJsonEventStreamHandler({ kind, onEvent }: { kind: string; onEvent: StreamEventHandler }, _optional: Record<string, never> = {}) {
   const lines = createBoundedLineStream({
     onLine: line => { const trimmed = line.trim(); if (trimmed) handleLine(trimmed); },
     onOverflow: error => onEvent({ type: 'error', message: error.message, raw: '' }),
@@ -67,7 +67,7 @@ export function createJsonEventStreamHandler({ kind, onEvent }: { kind: string; 
 
   function flush(): void {
     lines.flush();
-    flushPendingArtifactText(state, onEvent);
+    flushPendingArtifactText({ state, onEvent });
   }
 
   return { feed, flush };

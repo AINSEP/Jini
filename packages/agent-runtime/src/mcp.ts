@@ -40,7 +40,7 @@ export type AcpMcpServerEntry = {
   env: Record<string, string> | Array<{ name: string; value: string }>;
 };
 
-export function buildAcpMcpServersForAgent({ def, spec }: { def: Pick<RuntimeAgentDef, 'mcpDiscovery' | 'acpMcpEnvFormat'>; spec: AcpMcpServerSpec }
+export function buildAcpMcpServersForAgent({ def, spec }: { def: Pick<RuntimeAgentDef, 'mcpDiscovery' | 'acpMcpEnvFormat'>; spec: AcpMcpServerSpec }, _optional: Record<string, never> = {}
 ): AcpMcpServerEntry[] {
   const { name, command, args = [], extraEnv = {}, enabled = true } = spec;
   if (!enabled || def?.mcpDiscovery !== 'mature-acp') return [];

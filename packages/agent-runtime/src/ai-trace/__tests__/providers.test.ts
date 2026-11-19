@@ -29,7 +29,7 @@ type Finished = AiTraceEvent & { kind: 'run_finished' };
 
 function traceOf(feed: (observe: (event: Record<string, unknown>) => void) => void | Promise<void>, provider: string) {
   const sink = createRecordingAiTraceSink();
-  const recorder = createAiTraceRecorder({ sink, runId: provider, agentId: provider }, { provider, now: steppingClock() });
+  const recorder = createAiTraceRecorder({ sink, runId: provider, agentId: provider }, { provider, now: steppingClock({}) });
   recorder.start({ input: 'prompt' });
   const done = feed((event) => recorder.observe(event));
   const finish = () => {

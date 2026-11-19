@@ -6,13 +6,13 @@ type Reply = { status: number; body: string };
 type Handler = (count: number, body: Record<string, unknown>) => Reply;
 const handlers = new Map<string, Handler>();
 /** Pure replacement for the copied tests' loopback HTTP fixture. */
-export async function startStubProviderServer({ handler }: { handler: Handler }): Promise<string> {
+export async function startStubProviderServer({ handler }: { handler: Handler }, _optional: Record<string, never> = {}): Promise<string> {
   const baseUrl = `http://127.0.0.1/fixture-${handlers.size}`;
   handlers.set(baseUrl, handler);
   return baseUrl;
 }
 /** Compatibility shape only inside tests: forwards options into the public two-object API. */
-export async function runFixtureTurn(input: Omit<ProviderToolTurnInput, 'adapters'> & ProviderToolTurnOptions) {
+export async function runFixtureTurn(input: Omit<ProviderToolTurnInput, 'adapters'> & ProviderToolTurnOptions, _optional: Record<string, never> = {}) {
   const { baseUrl, maxTokens, maxToolTurns, signal, ...required } = input;
   let count = 0;
   const fetchImpl: PinnedFetch = async ({ init }) => {

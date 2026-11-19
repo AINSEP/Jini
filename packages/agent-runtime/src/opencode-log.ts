@@ -25,7 +25,7 @@ export interface OpenCodeServiceFailure {
 // `$HOME/.local/share/opencode`, with session logs under `log/`. Mirror that
 // so we read the same files the spawned CLI wrote. Null when neither var is
 // set (we have no basis to guess a path).
-export function resolveOpenCodeLogDir({ env }: { env: Record<string, string | undefined> }): string | null {
+export function resolveOpenCodeLogDir({ env }: { env: Record<string, string | undefined> }, _optional: Record<string, never> = {}): string | null {
   const xdg = typeof env.XDG_DATA_HOME === 'string' ? env.XDG_DATA_HOME.trim() : '';
   const home = typeof env.HOME === 'string' ? env.HOME.trim() : '';
   const base = xdg || (home ? path.join(home, '.local', 'share') : '');
@@ -157,13 +157,14 @@ function findLatestLlmErrorLine({ lines }: { lines: readonly string[] }): string
   return null;
 }
 
-export function extractOpenCodeServiceFailure({ logTail }: { logTail: string }): OpenCodeServiceFailure | null {
+function statusCodeFromMatch(match: RegExpExecArray | null): number | null { return match ? Number(match[1]) : null; }
+export function extractOpenCodeServiceFailure({ logTail }: { logTail: string }, _optional: Record<string, never> = {}): OpenCodeServiceFailure | null {
   if (!logTail || !logTail.trim()) return null;
   const line = findLatestLlmErrorLine({ lines: logTail.split(/\r?\n/) });
   if (!line) return null;
 
   const statusMatch = /"statusCode":\s*(\d{3})/.exec(line);
-  const statusCode = statusMatch ? Number(statusMatch[1]) : null;
+  const statusCode = statusCodeFromMatch(statusMatch);
   const message = pickServiceErrorMessage(line);
 
   const statusDerived = statusCode != null ? codeFromStatus(statusCode) : null;

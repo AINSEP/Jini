@@ -38,7 +38,7 @@ import type { PreparedAgentLogFile, RuntimeAgentDef } from '@jini-ai/core/contra
  * @complexity One `mkdtemp` syscall; `null` return path does no I/O at all.
  * @overallScore 100/100
  */
-export async function prepareAgentLogFile({ def, label }: { def: RuntimeAgentDef | null | undefined; label: string }
+export async function prepareAgentLogFile({ def, label }: { def: RuntimeAgentDef | null | undefined; label: string }, _optional: Record<string, never> = {}
 ): Promise<PreparedAgentLogFile | null> {
   if (!def?.needsAgentLogFile) return null;
 

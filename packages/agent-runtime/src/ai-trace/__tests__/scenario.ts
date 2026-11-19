@@ -15,7 +15,7 @@ export const SCENARIO_EVENTS: ReadonlyArray<Record<string, unknown>> = [
 ];
 
 /** Deterministic clock: each call advances 10 ms. */
-export function steppingClock(start = 1_000_000): () => number {
+export function steppingClock(_required: Record<string, never>, { start = 1_000_000 }: { start?: number | undefined } = {}): () => number {
   let t = start;
   return () => (t += 10);
 }

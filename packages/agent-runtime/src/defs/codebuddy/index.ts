@@ -99,8 +99,8 @@ export const codebuddyAgentDef = {
         ...addDirArgs({ extraAllowedDirs, caps }),
         // Session continuity: Codebuddy supports `--resume <id>` and
         // `--session-id <uuid>` identically to Claude Code.
-        ...sessionArgs(runtimeContext),
-        ...permissionModeArgs(options),
+        ...sessionArgs({ runtimeContext }),
+        ...permissionModeArgs({ options }),
         // Same explicit staged-config delivery as the claude def, through the same shared helper —
         // see `buildClaudeMcpConfigArgs`'s doc. Without this, declaring
         // `externalMcpInjection: 'claude-mcp-json'` (below) only got the file *written*; Codebuddy
@@ -108,7 +108,7 @@ export const codebuddyAgentDef = {
         // fix was built to avoid. Both flags are documented on Codebuddy's own CLI reference
         // (`--mcp-config <fileOrString>`, `--strict-mcp-config`), so the strict-isolation guarantee
         // is not silently degraded here relative to claude.
-        ...buildClaudeMcpConfigArgs(runtimeContext, options),
+        ...buildClaudeMcpConfigArgs({ runtimeContext }, options),
       ];
     },
     promptViaStdin: true,

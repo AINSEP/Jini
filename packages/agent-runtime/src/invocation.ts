@@ -27,7 +27,7 @@ export interface AmbientCommandShell { readonly platform: RuntimePlatform; reado
  * Read the process's own platform and `ComSpec` (every call, never hoisted). When a host-built `env` carries no
  * `ComSpec`, Windows falls back to the process's own; dropping this would silently turn the cmd-shim into a bare `cmd.exe`.
  */
-export function ambientCommandShell({ platform = process.platform, ambientEnv = process.env }: { platform?: RuntimePlatform; ambientEnv?: Readonly<Record<string, string | undefined>> } = {}): AmbientCommandShell {
+export function ambientCommandShell(_required: Record<string, never>, { platform = process.platform, ambientEnv = process.env }: { platform?: RuntimePlatform; ambientEnv?: Readonly<Record<string, string | undefined>> } = {}): AmbientCommandShell {
   return { platform, fallbackComSpec: ambientEnv.ComSpec };
 }
 
@@ -44,7 +44,7 @@ export function ambientCommandShell({ platform = process.platform, ambientEnv = 
 // running dev server. A probe writing a stray lockfile under the OS temp
 // dir is harmless. Actual agent runs spawn elsewhere with an explicit
 // project cwd and are unaffected.
-export function execAgentFile({ command, args }: { command: string; args: string[] }, { options = {}, execute = (input) => execFileP(input.command, input.args, input.options), commandShell = ambientCommandShell() }: { options?: RuntimeExecOptions; execute?: ProbeExecPort; commandShell?: AmbientCommandShell } = {}
+export function execAgentFile({ command, args }: { command: string; args: string[] }, { options = {}, execute = (input) => execFileP(input.command, input.args, input.options), commandShell = ambientCommandShell({}) }: { options?: RuntimeExecOptions; execute?: ProbeExecPort; commandShell?: AmbientCommandShell } = {}
 ) {
   const invocation = planCommandInvocation(
     // The planner reads only `env.ComSpec`; with no env passed the old default (the process env) and the

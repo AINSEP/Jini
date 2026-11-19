@@ -691,7 +691,7 @@ describe('probeAgentModels — the model half of detection, for hosts with their
 
   it('returns fallbackModels when the binary cannot be found', async () => {
     const result = await probeAgentModels({ def: cursorDef() }, { configuredEnv: { CURSOR_AGENT_BIN: path.join(dir, 'missing') , PATH: dir } });
-    expect(result.models).toEqual(normalizeDiscoveredModels(cursorDef().fallbackModels));
+    expect(result.models).toEqual(normalizeDiscoveredModels({ models: cursorDef().fallbackModels }));
     expect(result.source).toBe('fallback');
     expect(result.catalog?.freshness).toBe('offline-fallback');
     expect(result.defaultModelResolution?.status).toBe('unresolved');
@@ -701,7 +701,7 @@ describe('probeAgentModels — the model half of detection, for hosts with their
     const bin = path.join(dir, 'cursor-agent');
     makeExecutable(bin);
     const result = await probeAgentModels({ def: cursorDef() }, { configuredEnv: { CURSOR_AGENT_BIN: bin } });
-    expect(result.models).toEqual(normalizeDiscoveredModels(cursorDef().fallbackModels));
+    expect(result.models).toEqual(normalizeDiscoveredModels({ models: cursorDef().fallbackModels }));
     expect(result.source).toBe('fallback');
     expect(result.catalog?.freshness).toBe('offline-fallback');
     expect(result.defaultModelResolution?.status).toBe('unresolved');
