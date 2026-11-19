@@ -15,6 +15,7 @@
     "entries": {
       ".": "browser",
       "./core": "universal",
+      "./browser": "browser",
       "./sketch-editor": "browser",
       "./html-editor": "browser",
       "./mcp-ui": "browser",
@@ -104,6 +105,11 @@
       "types": "./dist/core.d.ts",
       "import": "./dist/core.js",
       "default": "./dist/core.js"
+    },
+    "./browser": {
+      "types": "./dist/browser/index.d.ts",
+      "import": "./dist/browser/index.js",
+      "default": "./dist/browser/index.js"
     },
     "./sketch-editor": {
       "types": "./dist/features/sketch-editor/index.d.ts",

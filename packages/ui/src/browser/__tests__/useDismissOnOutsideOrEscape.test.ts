@@ -28,6 +28,45 @@ describe('useDismissOnOutsideOrEscape', () => {
     document.body.replaceChildren();
   });
 
+  it('capture dismisses before a child stops bubbling Escape; default bubbling does not', () => {
+    const child = document.createElement('button');
+    document.body.append(child);
+    const order: string[] = [];
+    child.addEventListener('keydown', (event) => {
+      order.push('child');
+      event.stopPropagation();
+    });
+    const { rerender, unmount } = renderHook(
+      ({ escapeCapture }) => useDismissOnOutsideOrEscape({ onDismiss: () => order.push('dismiss') }, { escapeCapture }),
+      { initialProps: { escapeCapture: undefined as boolean | undefined } },
+    );
+    child.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(order).toEqual(['child']);
+    order.length = 0;
+    rerender({ escapeCapture: true });
+    child.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(order).toEqual(['dismiss', 'child']);
+    unmount();
+    order.length = 0;
+    child.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(order).toEqual(['child']);
+  });
+
+  it('ignores composing Escape by default and in capture mode', () => {
+    const onDismiss = vi.fn();
+    const { rerender } = renderHook(
+      ({ escapeCapture }) => useDismissOnOutsideOrEscape({ onDismiss }, { escapeCapture }),
+      { initialProps: { escapeCapture: undefined as boolean | undefined } },
+    );
+    for (const escapeCapture of [undefined, true]) {
+      rerender({ escapeCapture });
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', isComposing: true, bubbles: true }));
+      expect(onDismiss).not.toHaveBeenCalled();
+    }
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
   it('calls onDismiss on a pointerdown outside the container', () => {
     const container = document.createElement('div');
     const outside = document.createElement('button');

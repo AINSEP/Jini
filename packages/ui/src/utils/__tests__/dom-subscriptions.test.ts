@@ -108,6 +108,32 @@ describe('with window/document stubbed', () => {
   });
 
   describe('subscribeOutsideClickOrEscape', () => {
+    it('ignores composing Escape with either listener phase', () => {
+      const doc = createListenerTarget();
+      vi.stubGlobal('document', doc);
+      for (const options of [{}, { escapeCapture: true }]) {
+        const onClose = vi.fn();
+        const unsubscribe = subscribeOutsideClickOrEscape(undefined, onClose, options);
+        doc.fire('keydown', { key: 'Escape', isComposing: true });
+        expect(onClose).not.toHaveBeenCalled();
+        doc.fire('keydown', { key: 'Escape', isComposing: false });
+        expect(onClose).toHaveBeenCalledTimes(1);
+        unsubscribe();
+      }
+    });
+
+    it('registers and removes the same capture-phase Escape listener', () => {
+      const doc = createListenerTarget();
+      vi.stubGlobal('document', doc);
+      const onClose = vi.fn();
+      const unsubscribe = subscribeOutsideClickOrEscape(undefined, onClose, { escapeCapture: true });
+      expect(doc.addEventListener).toHaveBeenCalledWith('keydown', expect.any(Function), true);
+      doc.fire('keydown', { key: 'Escape' });
+      expect(onClose).toHaveBeenCalledTimes(1);
+      unsubscribe();
+      expect(doc.removeEventListener).toHaveBeenCalledWith('keydown', doc.addEventListener.mock.calls[0]![1], true);
+    });
+
     it('calls onClose for a pointerdown target outside the container', () => {
       const doc = createListenerTarget();
       vi.stubGlobal('document', doc);

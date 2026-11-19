@@ -8,3 +8,4 @@
 export * from './useDismissOnOutsideOrEscape.js';
 export * from './useGlobalKeydown.js';
 export * from './useFileDropTarget.js';
+export { menuFocusIndex, useMenuKeyboard, type DocumentFocus } from './useMenuKeyboard.js';
