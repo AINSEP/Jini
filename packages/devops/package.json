@@ -30,7 +30,8 @@
       "./deploy/node": "node",
       "./static-export/failure-summary": "universal",
       "./dns": "node",
-      "./dns/node": "node"
+      "./dns/node": "node",
+      "./backup/upload": "node"
     },
     "isolation": {
       "shared": [
@@ -138,6 +139,11 @@
       "types": "./dist/dns/node/index.d.ts",
       "import": "./dist/dns/node/index.js",
       "default": "./dist/dns/node/index.js"
+    },
+    "./backup/upload": {
+      "types": "./dist/backup/upload.node.d.ts",
+      "import": "./dist/backup/upload.node.js",
+      "default": "./dist/backup/upload.node.js"
     }
   },
   "files": [

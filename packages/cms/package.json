@@ -73,7 +73,10 @@
       "./media/plugins/document-text/unpdf": "node",
       "./media/plugins/document-text/mammoth": "node",
       "./forms/portable-validation": "universal",
-      "./core/commands": "universal"
+      "./core/commands": "universal",
+      "./themes/layout": "universal",
+      "./themes/files/reviewed-write": "node",
+      "./themes/files/atomic-write": "node"
     },
     "isolation": {
       "domains": {
@@ -127,6 +130,9 @@
         ],
         "listing": [
           "src/listing"
+        ],
+        "themes": [
+          "src/themes"
         ]
       },
       "forbidden": {
@@ -159,6 +165,21 @@
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",
   "exports": {
+    "./themes/files/atomic-write": {
+      "types": "./dist/themes/files/atomic-write.node.d.ts",
+      "import": "./dist/themes/files/atomic-write.node.js",
+      "default": "./dist/themes/files/atomic-write.node.js"
+    },
+    "./themes/files/reviewed-write": {
+      "types": "./dist/themes/files/reviewed-write.node.d.ts",
+      "import": "./dist/themes/files/reviewed-write.node.js",
+      "default": "./dist/themes/files/reviewed-write.node.js"
+    },
+    "./themes/layout": {
+      "types": "./dist/themes/layout.d.ts",
+      "import": "./dist/themes/layout.js",
+      "default": "./dist/themes/layout.js"
+    },
     ".": {
       "types": "./dist/core/index.d.ts",
       "import": "./dist/core/index.js",
