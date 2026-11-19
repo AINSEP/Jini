@@ -174,3 +174,27 @@ describe("replay", () => {
     expect(seen).toEqual([{ workspaceId: "w-2", submissionId: "s-9" }]);
   });
 });
+
+describe("definitively gone source", () => {
+  test("default option still throws when the snapshot is null, so the source event retries", async () => {
+    const { deps } = setup([binding("a")], null);
+    await expect(planFormDeliveries({ deps, workspaceId: "w-1", submissionId: "s-1", formId: "f-1" })).rejects.toThrow(/was not found; the source event will retry/);
+  });
+
+  test("onSourceGone 'empty-plan' records an empty plan, stores it once, and reports one line naming only the submission id", async () => {
+    const { deps } = setup([binding("a")], null);
+    const lines: string[] = [];
+    const plan = await planFormDeliveries(
+      { deps, workspaceId: "w-1", submissionId: "s-1", formId: "f-1" },
+      { onSourceGone: "empty-plan", report: ({ message }) => { lines.push(message); } },
+    );
+    expect(plan).toEqual({ workspaceId: "w-1", submissionId: "s-1", formId: "f-1", jobs: [] });
+    expect(lines).toEqual(["submission s-1 or its form no longer exists; recorded an empty delivery plan"]);
+  });
+
+  test("'empty-plan' never swallows a snapshot failure: it still throws so the event retries", async () => {
+    const { deps } = setup([binding("a")]);
+    deps.snapshot = async () => { throw new Error("database is locked"); };
+    await expect(planFormDeliveries({ deps, workspaceId: "w-1", submissionId: "s-1", formId: "f-1" }, { onSourceGone: "empty-plan" })).rejects.toThrow("database is locked");
+  });
+});
