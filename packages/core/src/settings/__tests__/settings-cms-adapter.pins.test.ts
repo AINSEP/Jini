@@ -1,8 +1,13 @@
 import { expect, test, vi } from "vitest";
-import { InMemorySettingsPrincipalLookup } from "../../__tests__/principal.fixture.js";
-import { InMemorySettingsRepo, ForbiddenError, type AuthorizeFn, type SettingDefinitionRecord } from "../../index.js";
-import { createCmsSettingsService } from "../index.js";
-import { permissions } from "./settings-fixture.js";
+import { InMemorySettingsPrincipalLookup } from "./principal.fixture.js";
+import { InMemorySettingsRepo, ForbiddenError, createCmsSettingsService,
+  type AuthorizeFn, type SettingDefinitionRecord, type SettingsPermissions } from "../index.js";
+
+const permissions: SettingsPermissions = {
+  read: "prefs.read", readRaw: "prefs.raw", readDefinitions: "prefs.list", readOtherUser: "prefs.other.read",
+  manageDefinitions: "prefs.manage", writeGlobal: "prefs.global", writeWorkspace: "prefs.workspace",
+  writeUserSelf: "prefs.self", writeUserOther: "prefs.other", reset: { global: "reset.all", workspace: "reset.workspace", user: "reset.self" },
+};
 
 // Pins every branch of the CMS adapter that the shared contract suite (settings-cms.test.ts) does not reach.
 const NOW = "2026-09-01T00:00:00.000Z";

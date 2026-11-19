@@ -156,3 +156,10 @@ export { AGENT_WRITE_CONFIRMATION_SETTINGS, AGENT_WRITE_DENIED_SETTINGS, findAge
 export type { SettingsWriteConfirmation, SettingsValueWriteToolId } from "./agent-value-write-tools.js";
 
 export type { SettingsPrincipalLookupPort } from "./principal-lookup.js";
+
+export type {
+  Authorize, SettingsPermissions, SettingsService, SettingsChangeFeed,
+  EffectiveSettingRow, RawSetting, DefinitionResult, TargetWorkspaceResolution, UserLayerReadTarget,
+} from "./route-policy.js";
+export { resolveTargetWorkspaceId, resolveUserLayerReadTarget, settingsWritePermission } from "./route-policy.js";
+export { createCmsSettingsService, createCmsSettingsChangeFeed } from "./cms-adapter.js";

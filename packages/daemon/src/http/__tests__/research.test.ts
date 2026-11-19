@@ -1,3 +1,4 @@
+import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
 import { fakeDaemonRouteHost } from './fakes/route-host.js';
@@ -11,6 +12,7 @@ function okFetchResponse(body: unknown) {
 
 function makeDeps(overrides: Partial<ResearchHttpDeps> = {}): ResearchHttpDeps {
   return {
+    reportInternalError: reportRouteInternalError,
     resolveCredentials: async () => ({ apiKey: 'tvly-test-key' }),
     ...overrides,
   };
@@ -215,7 +217,7 @@ describe('researchSearchRoute.handle', () => {
           okFetchResponse({ answer: 'ok', results: [{ title: 'T', url: 'https://example.com/x', content: 'c' }] }),
         );
         vi.stubGlobal('fetch', fetchMock);
-        const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: {} });
+        const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: { reportInternalError: reportRouteInternalError } });
         expect(result.ok).toBe(true);
         // Whitespace is trimmed off the env value before it becomes a Bearer credential.
         const [, init] = fetchMock.mock.calls[0]!;
@@ -227,7 +229,7 @@ describe('researchSearchRoute.handle', () => {
       await withEnv(undefined, async () => {
         const fetchMock = vi.fn();
         vi.stubGlobal('fetch', fetchMock);
-        const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: {} });
+        const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: { reportInternalError: reportRouteInternalError } });
         expect(result).toEqual({ ok: false, error: { code: 'NOT_CONFIGURED', message: 'tavily provider not configured' } });
         expect(fetchMock).not.toHaveBeenCalled();
       });
@@ -237,7 +239,7 @@ describe('researchSearchRoute.handle', () => {
       await withEnv('   ', async () => {
         const fetchMock = vi.fn();
         vi.stubGlobal('fetch', fetchMock);
-        const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: {} });
+        const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: { reportInternalError: reportRouteInternalError } });
         expect(result).toMatchObject({ ok: false, error: { code: 'NOT_CONFIGURED' } });
         expect(fetchMock).not.toHaveBeenCalled();
       });
@@ -246,7 +248,7 @@ describe('researchSearchRoute.handle', () => {
     it('falls back to console.error when no onInternalError sink is supplied', async () => {
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
       vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNRESET')));
-      const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: { resolveCredentials: async () => ({ apiKey: 'k' }) } });
+      const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: { reportInternalError: reportRouteInternalError, resolveCredentials: async () => ({ apiKey: 'k' }) } });
       expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
       expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
       expect(consoleErrorSpy.mock.calls[0]![0]).toContain('internal error (research/search, correlationId=');

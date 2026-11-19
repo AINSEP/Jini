@@ -3,11 +3,11 @@ import {
   AliasDepthExceededError, DefinitionInvalidError, DefinitionNotFoundError, DefinitionTombstonedError,
   ForbiddenError, PrincipalNotFoundError, RenameRetypeConflictError, ScopeNotAllowedError,
   SecretNotSupportedError, ValueValidationFailedError, type SettingScope,
-} from "../index.js";
-import type { JsonValue } from "../../primitives/index.js";
+  resolveTargetWorkspaceId, resolveUserLayerReadTarget, settingsWritePermission,
+} from "@jini-ai/core/settings";
+import type { JsonValue } from "@jini-ai/core/primitives";
 import type { SettingsHttpRequired, SettingsHttpOptions } from "./contracts.js";
-import { resolveTargetWorkspaceId, resolveUserLayerReadTarget, settingsWritePermission,
-  type SettingsErrorMapping } from "./shared.js";
+import type { SettingsErrorMapping } from "./shared.js";
 import { openSettingsChangeStream } from "./stream.js";
 import { failRequest, readValueMutation, resolvePrincipal, SETTING_SCOPES, unauthenticated, VALUE_MUTATION_REQUIRED,
   type ValueMutationOperation } from "./http-request.js";

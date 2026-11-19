@@ -1,3 +1,4 @@
+import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRecordingOriginPolicy } from '@jini-ai/core/contracts/server/testing';
 import { createInMemoryEventLog, createRunLifecycle, type RunLifecycle } from '../../index.js';
@@ -23,7 +24,7 @@ function makeLifecycle(): RunLifecycle {
 }
 
 function makeDeps(overrides: Partial<RunHttpDeps> = {}): RunHttpDeps {
-  return { lifecycle: makeLifecycle(), ...overrides };
+  return { reportInternalError: reportRouteInternalError, lifecycle: makeLifecycle(), ...overrides };
 }
 
 beforeEach(() => {
@@ -753,4 +754,15 @@ describe('run routes: one incident owner (log safety)', () => {
       for (const leaked of ['boom', 'SECRETSECRET', 'runs.test']) expect(printed).not.toContain(leaked);
     } finally { consoleError.mockRestore(); }
   });
+});
+
+it('retains the injected reporter and envelope when run startup fails', async () => {
+  const host = fakeDaemonRouteHost();
+  const failure = new Error('private startup');
+  const deps = makeDeps({ reportInternalError: host.reportInternalError, onStarted: () => { throw failure; } });
+  const result = await runStartRoute.handle({ input: { contextRef: 'ctx-reporter' }, deps });
+  expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', requestId: 'req-1' } });
+  const runs = await deps.lifecycle.list({}, { contextRef: 'ctx-reporter' });
+  expect(host.reports[0]).toMatchObject({ report: { source: 'run-start', runId: runs[0]?.id, error: failure } });
+  expect(JSON.stringify(result)).not.toContain(failure.message);
 });

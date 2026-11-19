@@ -6,7 +6,6 @@
 import { randomUUID } from 'node:crypto';
 import { createApiError, createApiErrorResponse, type ApiError, type RunProtocolEvent, type RunStatus } from '@jini-ai/protocol';
 import type { RunLifecycle, StartRunInput, Unsubscribe, UserMessageDelivery } from '../index.js';
-import { reportRouteInternalError } from '@jini-ai/http-kit';
 import {
   createSseStream,
   defineJsonRoute,
@@ -69,8 +68,8 @@ export interface RunHttpDeps {
   readonly deliverUserMessage?: (input: RunMessageRequest) => UserMessageDelivery | Promise<UserMessageDelivery>;
   /** Explicit opt-in: legacy text-only hosts must never acknowledge a turn while discarding its files. */
   readonly deliverUserMessageWithAttachments?: (input: RunMessageRequest) => UserMessageDelivery | Promise<UserMessageDelivery>;
-  /** Makes the request ID and writes the log line for an internal failure. {@link runRoutes} sets it to the host's reporter; a caller that runs a route's `handle` itself may omit it and gets `@jini-ai/http-kit`'s. */
-  readonly reportInternalError?: ReportRouteInternalError;
+  /** Required for direct handlers; {@link runRoutes} binds the host's reporter. */
+  readonly reportInternalError: ReportRouteInternalError;
 }
 
 /**
@@ -89,7 +88,7 @@ function reportInternalError(
     ? 'The agent could not be started. Check the run status before starting another task. Copy the request ID and report this problem.'
     : 'The connection to run updates could not be opened. Check the run status before starting another task. Copy the request ID and report this problem.';
   // No host sink: `reportRouteInternalError`'s default line keeps the failure observable, never silent.
-  return (deps.reportInternalError ?? reportRouteInternalError)<Omit<RunInternalErrorContext, 'correlationId'>>({ report: { source, runId, error }, logSource: source, message }, { onInternalError: deps.onInternalError });
+  return deps.reportInternalError<Omit<RunInternalErrorContext, 'correlationId'>>({ report: { source, runId, error }, logSource: source, message }, { onInternalError: deps.onInternalError });
 }
 
 export interface RunStartResponse {
@@ -352,7 +351,7 @@ function runEventStreamRoute({ deps, host }: { readonly deps: RunHttpDeps; reado
  * The create/list/status/cancel/message JSON endpoints and the SSE event stream as one run transport, as data.
  * Internal failures go through the host's reporter.
  */
-export function runRoutes({ deps, host }: { readonly deps: RunHttpDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
+export function runRoutes({ deps, host }: { readonly deps: Omit<RunHttpDeps, 'reportInternalError'>; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
   const routeDeps = withHostReporter({ deps, host });
   return [
     gatedJsonRoute({ spec: runStartRoute, deps: routeDeps, host }),

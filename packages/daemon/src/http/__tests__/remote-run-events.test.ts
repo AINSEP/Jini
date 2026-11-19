@@ -1,3 +1,4 @@
+import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { describe, expect, it, vi } from 'vitest';
 import type { ServerMiddleware } from '@jini-ai/core/contracts/server';
 import { createInMemoryEventLog, createRemoteToolEventRecorder, createRunLifecycle, type RunLifecycle } from '../../index.js';
@@ -31,6 +32,7 @@ function makeLifecycle(): RunLifecycle {
 function makeDeps(overrides: Partial<RemoteRunEventHttpDeps> = {}): RemoteRunEventHttpDeps {
   const lifecycle = overrides.lifecycle ?? makeLifecycle();
   return {
+    reportInternalError: reportRouteInternalError,
     lifecycle,
     recorder: createRemoteToolEventRecorder({ lifecycle }),
     tokenConfig: { tokenEnvVar: TOKEN_ENV_VAR },
@@ -397,7 +399,7 @@ describe('remote-run-events — remaining contract surface', () => {
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-nonerror' });
     const onInternalError = vi.fn();
     const result = await remoteToolUseRoute.handle({
-      input: { runId: run.id, toolUseId: 'tu-1', toolId: 'echo' }, deps: {
+      input: { runId: run.id, toolUseId: 'tu-1', toolId: 'echo' }, deps: { 
         ...deps,
         onInternalError,
         recorder: {
@@ -421,7 +423,7 @@ describe('remote-run-events — remaining contract surface', () => {
     const onInternalError = vi.fn();
 
     const result = await remoteToolUseRoute.handle({
-      input: { runId: run.id, toolUseId: 'tu-1', toolId: 'echo' }, deps: {
+      input: { runId: run.id, toolUseId: 'tu-1', toolId: 'echo' }, deps: { 
         ...deps,
         onInternalError,
         recorder: {
@@ -452,7 +454,7 @@ describe('remote-run-events — remaining contract surface', () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
       const result = await remoteToolResultRoute.handle({
-        input: { runId: run.id, toolUseId: 'tu-1', content: 'x' }, deps: {
+        input: { runId: run.id, toolUseId: 'tu-1', content: 'x' }, deps: { 
           ...deps,
           recorder: { recordToolUse: deps.recorder.recordToolUse.bind(deps.recorder), recordToolResult: () => Promise.reject(failure) },
         },
@@ -475,7 +477,7 @@ describe('remote-run-events — remaining contract surface', () => {
       get: (args: { runId: string }) => (++lookups === 1 ? deps.lifecycle.get(args) : Promise.reject(new Error('store closed'))),
     });
     const result = await remoteToolUseRoute.handle({
-      input: { runId: run.id, toolUseId: 'tu-1', toolId: 'echo' }, deps: {
+      input: { runId: run.id, toolUseId: 'tu-1', toolId: 'echo' }, deps: { 
         ...deps, lifecycle, onInternalError,
         recorder: { recordToolUse: () => Promise.reject(new Error('write failed')), recordToolResult: deps.recorder.recordToolResult.bind(deps.recorder) },
       },
@@ -490,7 +492,7 @@ describe('remote-run-events — remaining contract surface', () => {
     const onInternalError = vi.fn();
 
     const result = await remoteToolResultRoute.handle({
-      input: { runId: run.id, toolUseId: 'tu-1', content: 'x' }, deps: {
+      input: { runId: run.id, toolUseId: 'tu-1', content: 'x' }, deps: { 
         ...deps,
         onInternalError,
         recorder: {
@@ -513,7 +515,7 @@ describe('remote-run-events — remaining contract surface', () => {
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-still-conflict' });
     await deps.lifecycle.finish({ runId: run.id, status: 'failed', code: 1, signal: null, resumable: false });
 
-    const result = await remoteToolUseRoute.handle({ input: { runId: run.id, toolUseId: 'tu-1', toolId: 'echo' }, deps: { ...deps, onInternalError } });
+    const result = await remoteToolUseRoute.handle({ input: { runId: run.id, toolUseId: 'tu-1', toolId: 'echo' }, deps: {  ...deps, onInternalError } });
 
     expect(result).toMatchObject({ ok: false, error: { code: 'CONFLICT', details: { runId: run.id } } });
     // A legitimate business conflict is not an internal fault and must not page anyone.
@@ -600,4 +602,13 @@ describe('remote-run-events — F1 exact-refusal pins', () => {
     await remoteToolUseRoute.handle({ input: { runId: run.id, toolUseId: 'tu', toolId: 'echo', input: { a: [1, 2] } }, deps });
     expect(recordToolUse).toHaveBeenCalledWith({ runId: run.id, record: { toolUseId: 'tu', toolId: 'echo', input: { a: [1, 2] } } });
   });
+});
+
+
+it.each(['GET', 'PUT'] as const)('lets %s on the remote-event path fall through without reading a body', async method => {
+  const { fetch, deps, run } = await servedRoutes();
+  const recordToolUse = vi.spyOn(deps.recorder, 'recordToolUse');
+  const response = await fetch(new Request(`http://local/api/runs/${run.id}/tool-use`, { method }));
+  expect(response.status).toBe(404);
+  expect(recordToolUse).not.toHaveBeenCalled();
 });

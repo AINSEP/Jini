@@ -1,3 +1,4 @@
+import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { describe, expect, it, vi } from 'vitest';
 import { createToolRegistry, type Principal } from '@jini-ai/core';
 import {
@@ -31,7 +32,7 @@ async function callRoute(
   toolId = 'nope',
 ) {
   const onInternalError = vi.fn();
-  const deps: DelegatedToolsHttpDeps = {
+  const deps: DelegatedToolsHttpDeps = { reportInternalError: reportRouteInternalError,
     lifecycle: createRunLifecycle({ eventLog: createInMemoryEventLog({}) }),
     toolExecutor,
     resolvePrincipal: () => PRINCIPAL,
@@ -56,7 +57,7 @@ describe('delegated tool route: describeInternalError (host-supplied model-safe 
     const secret = 'sk-live-0123456789abcdefghijklmnopqrstuv';
     const failure = Object.assign(new Error(`UPSTREAM_FAILED ${secret} Bearer abcdefghijklmnopqrst password=hunter2`), { code: 'ECONNREFUSED' });
     const executor = { ...throwingExecutor(), execute: async () => { throw failure; } };
-    const deps: DelegatedToolsHttpDeps = {
+    const deps: DelegatedToolsHttpDeps = { reportInternalError: reportRouteInternalError,
       lifecycle: createRunLifecycle({ eventLog: createInMemoryEventLog({}) }),
       toolExecutor: executor,
       resolvePrincipal: () => PRINCIPAL,

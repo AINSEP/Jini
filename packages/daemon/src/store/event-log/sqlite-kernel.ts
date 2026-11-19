@@ -1,5 +1,7 @@
 /** Async SQLite execution over the host kernel; event-log policy lives in sqlite-policy. */
-import { loadOptionalPeer } from '@jini-ai/core/optional-peer';
+// Previously kept the synchronous factory free of an eager peer import; Kysely is declared,
+// so this adapter now imports sql statically.
+import { sql } from 'kysely';
 import type { Clock } from '@jini-ai/core/primitives';
 import type { StorageKernel } from '@jini-ai/core/contracts/storage';
 import type { Kysely } from 'kysely';
@@ -73,8 +75,6 @@ export async function createKernelSqliteEventLog<DB extends SqliteEventLogDataba
 /** Ensure using the shared DDL, or validate all required columns without issuing DDL/writes. */
 async function setupSchema({ db }: { db: EventDatabase }, options: SqliteEventLogOptions = {}): Promise<void> {
   if (options.schemaSetup !== 'host') {
-    // Keep the existing synchronous factory free of a new eager peer import.
-    const { sql } = await loadOptionalPeer({ feature: 'SQL storage adapters', dependency: 'kysely', load: () => import('kysely') });
     // Kysely executes one statement at a time; the owner DDL contains no embedded semicolons.
     for (const statement of SQLITE_EVENT_LOG_SCHEMA.split(';').filter(part => part.trim())) {
       await sql.raw(statement).execute(db);

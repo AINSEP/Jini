@@ -27,7 +27,6 @@ Configuration writes only through the injected guarded settings writer; no deliv
 | `./media` | node | Media services, transform ports and preview policies. |
 | `./media/node` | node | Filesystem blob stores, sharp image transforms and ffmpeg adapters. |
 | `./settings` | universal | One-release compatibility re-export of `@jini-ai/core/settings`. |
-| `./settings/express` | node | One-release compatibility re-export of `@jini-ai/core/settings/express`. |
 | `./widgets` / `./widgets/markers` / `./widgets/resolvers` | universal | Widget contracts, markers and resolution services; no HTML parser. |
 | `./widgets/html` | node | HTML scanning/substitution, fragment validation, plugin-export template resolution, page-body sanitizing and media Raw HTML resolution (diagnostics through an injected `report`). |
 | `./html/style-values` | universal | CSS-value allowlists for author strings a renderer writes into a `style` attribute (`safeTextAlign`, `safeAspectRatio`). |
@@ -44,16 +43,16 @@ Domain HTTP adapters live under their domain subpaths. Hosts can compose them
 using `@jini-ai/http-kit` and `@jini-ai/server`.
 Identity tool registration composition belongs to `@jini-ai/user-management/server`.
 
-Generic settings now belong to `@jini-ai/core/settings`; the former CMS settings subpaths
-remain thin compatibility re-exports for one release.
+Generic settings now belong to `@jini-ai/core/settings`; `@jini-ai/cms/settings`
+remains a neutral compatibility entry. The former `./settings/express` entry has been removed.
 
-`@jini-ai/core/settings/express` exports `registerSettingsRoutes`, the settings HTTP
-contracts and the CMS service/change-feed factories. Hosts provide route paths,
+`@jini-ai/http-kit/settings` exports `registerSettingsRoutes` and the settings HTTP
+contracts. `@jini-ai/core/settings` exports the service/change-feed factories. Hosts provide route paths,
 permissions, workspace, readiness, principal resolution, authorization, scheduler,
 service and feed ports. Registration returns a disposer that closes active feeds.
 CMS adapters pass named request objects to settings dispatch and change-feed services;
 queryable index-name helpers return promises that callers must await.
-Install the optional peer `express` when using `./settings/express`.
+Install `express` in the host when using `@jini-ai/http-kit/settings`.
 The HTTP toolkit is a host composition choice and is not a CMS dependency.
 Readiness or principal-resolution failures return `401 UNAUTHENTICATED`.
 Stream diagnostics are best-effort: a throwing reporter cannot prevent retries,

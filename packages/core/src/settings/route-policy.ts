@@ -1,7 +1,39 @@
-import type { Response } from "express";
-import type { SettingScope } from "../index.js";
-import type { Authorize, SettingsPermissions } from "./contracts.js";
+import type { SettingScope, SettingDefinitionRecord } from "./types.js";
+import type { SetValueRequired, ClearValueRequired, ResetNamespaceRequired } from "./write-service.js";
+import type { ChangeFeedViewer, ChangeFeedBatch } from "./change-feed.js";
 
+export type Authorize = (required: {
+  principalId: string; workspaceId: string; permission: string; entityType: string;
+}) => Promise<{ allowed: boolean; reason: string }>;
+export interface SettingsPermissions {
+  read: string;
+  readRaw: string;
+  readDefinitions: string;
+  readOtherUser: string;
+  manageDefinitions: string;
+  writeGlobal: string;
+  writeWorkspace: string;
+  writeUserSelf: string;
+  writeUserOther: string;
+  reset: Record<SettingScope, string>;
+}
+export type EffectiveSettingRow = { key: string; value: unknown; sourceLayer: string; defVersion: number };
+export type RawSetting = { key: string; global: unknown; workspace: unknown; user: unknown; default: unknown };
+export type DefinitionResult = { applied: Array<{ key: string; op: string; status: string }> } | { unknownOp: string };
+export interface SettingsService {
+  listDefinitions(required: { workspaceId: string }): Promise<SettingDefinitionRecord[]>;
+  effective(required: { namespace: string; workspaceId: string; principalId: string | undefined }): Promise<EffectiveSettingRow[]>;
+  raw(required: { namespace: string; key: string; workspaceId: string; principalId: string | undefined }): Promise<RawSetting | null>;
+  set(required: SetValueRequired["input"]): Promise<{ value: unknown; revisionSeq: number }>;
+  clear(required: ClearValueRequired["input"]): Promise<{ revisionSeq: number }>;
+  reset(required: ResetNamespaceRequired["input"]): Promise<{ clearedCount: number; revisionSeqs: number[] }>;
+  definitions(required: { items: readonly unknown[]; callerPrincipalId: string; authWorkspaceId: string }): Promise<DefinitionResult>;
+}
+export interface SettingsChangeFeed {
+  head(required: Record<string, never>): Promise<number>;
+  /** Cursor advances across invisible rows. The emitted id MUST use batch.cursor, never head. */
+  collect(required: { sinceSeq: number; limit: number; viewer: ChangeFeedViewer }): Promise<ChangeFeedBatch & { examinedCount: number }>;
+}
 export type TargetWorkspaceResolution = { ok: true; workspaceId: string | undefined } | { ok: false; error: string };
 /** Pin writes to the authorized workspace, rejecting a conflicting body target.
  * Global scope has no target workspace. Pure; O(1) time/space for string ids.
@@ -35,23 +67,6 @@ export async function resolveUserLayerReadTarget(required: {
   const result = await deps.authorize({ principalId: input.callerPrincipalId, permission: deps.permission,
     workspaceId: deps.workspaceId, entityType: "setting-value" });
   return result.allowed ? { allowed: true, principalId: input.requestedPrincipalId } : { allowed: false, reason: result.reason };
-}
-export interface SettingsErrorMapping {
-  readonly matches: (error: unknown) => boolean; readonly status: number; readonly code: string;
-}
-/** Write the first matching status/code, or a fixed 500 that does not disclose unknown errors.
- * @complexity O(mapping count) time, O(1) space; response write effect.
- * @example respondToSettingsError({ response, error, mappings });
- */
-export function respondToSettingsError(required: {
-  response: Pick<Response, "status" | "json">; error: unknown; mappings: readonly SettingsErrorMapping[];
-}): void {
-  const { response, error, mappings } = required;
-  const message = error instanceof Error ? error.message : String(error);
-  for (const mapping of mappings) {
-    if (mapping.matches(error)) { response.status(mapping.status).json({ error: message, code: mapping.code }); return; }
-  }
-  response.status(500).json({ error: "internal error", code: "INTERNAL_ERROR" });
 }
 /** Select caller policy for the CMS scope and self/other-user split; pure, O(1).
  * @example settingsWritePermission({ permissions, scope: "user", callerPrincipalId, targetPrincipalId });

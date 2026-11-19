@@ -1,3 +1,4 @@
+import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { describe, expect, it, vi } from 'vitest';
 import { denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
 import { fakeDaemonRouteHost } from './fakes/route-host.js';
@@ -90,7 +91,7 @@ function makeDeps(overrides: Partial<DaemonDbHttpDeps> & { operations?: DaemonDb
     ? { executor: overrides.toolExecutor }
     : makeExecutor(operations, useProductionDefaultPolicy, overrides.policy);
   return {
-    deps: { toolExecutor: executor, principal, ...overrides },
+    deps: { reportInternalError: reportRouteInternalError, toolExecutor: executor, principal, ...overrides },
     operations,
   };
 }
@@ -111,7 +112,7 @@ function makeDenyByDefaultDeps(operations: DaemonDbOperations = makeOperations()
   registry.register(regs.verify);
   registry.register(regs.vacuum);
   const executor = createToolExecutor({ registry });
-  return { deps: { toolExecutor: executor, principal }, operations };
+  return { deps: { reportInternalError: reportRouteInternalError, toolExecutor: executor, principal }, operations };
 }
 
 /** A minimal fake `ToolExecutor` that resolves `execute()` synchronously with a fixed result — used to test `toolResultToApiResult`'s mapping for statuses (`timed-out`/`cancelled`) a real executor only reaches via a genuine race. */
@@ -277,7 +278,7 @@ describe('daemonDbInspectRoute', () => {
     registry.register(regs.verify);
     registry.register(regs.vacuum);
     const executor = createToolExecutor({ registry }, { delegate: { onConfirm: () => 'deny' } });
-    const deps: DaemonDbHttpDeps = { toolExecutor: executor, principal };
+    const deps: DaemonDbHttpDeps = { reportInternalError: reportRouteInternalError, toolExecutor: executor, principal };
     const result = await daemonDbInspectRoute.handle({ input: undefined, deps });
     expect(result).toEqual({
       ok: false,
@@ -300,7 +301,7 @@ describe('daemonDbInspectRoute', () => {
     // generic `INTERNAL_ERROR` with a correlation id, the same as `failed`/`cancelled`? See
     // `toolResultToApiResult`'s switch.
     const executor = fakeExecutorResolving({ executionId: 'timed-out-1', status: 'timed-out' });
-    const deps: DaemonDbHttpDeps = { toolExecutor: executor, principal };
+    const deps: DaemonDbHttpDeps = { reportInternalError: reportRouteInternalError, toolExecutor: executor, principal };
     const result = await daemonDbInspectRoute.handle({ input: undefined, deps });
     expect(result).toEqual({
       ok: false,
@@ -310,7 +311,7 @@ describe('daemonDbInspectRoute', () => {
 
   it('reports a cancellation as a redacted INTERNAL_ERROR', async () => {
     const executor = fakeExecutorResolving({ executionId: 'cancelled-1', status: 'cancelled' });
-    const deps: DaemonDbHttpDeps = { toolExecutor: executor, principal };
+    const deps: DaemonDbHttpDeps = { reportInternalError: reportRouteInternalError, toolExecutor: executor, principal };
     const result = await daemonDbInspectRoute.handle({ input: undefined, deps });
     expect(result).toEqual({
       ok: false,
@@ -435,4 +436,16 @@ describe('daemonDbRoutes', () => {
     const res = await serveRoutes({ routes: daemonDbRoutes({ deps, host }) })(call('/api/daemon/db'));
     expect([res.status, host.reports.map((report) => report.logSource)]).toEqual([500, ['db-inspect']]);
   });
+});
+
+it.each(['verify', 'vacuum'] as const)('retains %s operation and injected reporter ID on failure', async operation => {
+  const host = fakeDaemonRouteHost();
+  const failure = new Error('database secret');
+  const operations = makeOperations({ [operation]: async () => { throw failure; } });
+  const { deps } = makeDeps({ operations, reportInternalError: host.reportInternalError });
+  const result = operation === 'verify'
+    ? await daemonDbVerifyRoute.handle({ input: { quick: false }, deps })
+    : await daemonDbVacuumRoute.handle({ input: undefined, deps });
+  expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', requestId: 'req-1' } });
+  expect(host.reports[0]).toMatchObject({ report: { source: `db-${operation}`, error: failure.message }, requestId: 'req-1' });
 });

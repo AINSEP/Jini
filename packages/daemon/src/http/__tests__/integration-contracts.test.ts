@@ -1,3 +1,4 @@
+import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
@@ -50,7 +51,7 @@ describe('merged package contracts', () => {
     let resolveDone!: () => void;
     const done = new Promise<void>((resolve) => { resolveDone = resolve; });
     const task = { id: 'task', ownerRef: 'owner', status: 'queued' as const, progress: [], file: null, error: null, startedAt: 1, endedAt: null, createdAt: 1, updatedAt: 1 };
-    const deps: MediaHttpDeps = { engine: { generate }, taskStore: { create: async () => task, get: async () => task, delete: async () => {}, listByOwner: async () => [], update: async ({ patch }) => { if (patch.status === 'done') resolveDone(); return task; } } };
+    const deps: MediaHttpDeps = { reportInternalError: reportRouteInternalError, engine: { generate }, taskStore: { create: async () => task, get: async () => task, delete: async () => {}, listByOwner: async () => [], update: async ({ patch }) => { if (patch.status === 'done') resolveDone(); return task; } } };
     await mediaGenerateRoute.handle({ input: { ownerRef: 'owner', request: { surface: 'image', model: 'model', prompt: 'hello', aspect: 'square' } }, deps });
     await done;
     expect(generate).toHaveBeenCalledWith({ surface: 'image', model: 'model' }, { prompt: 'hello', aspect: 'square' });

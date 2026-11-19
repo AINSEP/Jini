@@ -140,7 +140,6 @@ import {
   type StoredOAuthToken,
 } from '@jini-ai/agent-runtime';
 import { createApiError } from '@jini-ai/protocol';
-import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { defineJsonRoute, validationError, err, ok, type JsonRouteSpec, type ReportRouteInternalError, type Result, type RouteInputContext } from '@jini-ai/core/contracts/server';
 import type { DaemonRouteHost } from './route-host.js'; import { gatedJsonRoute, withHostReporter, type DaemonRoute } from './route-table.js';
 import { trimCharsEnd } from '@jini-ai/core/text';
@@ -199,7 +198,7 @@ export interface XaiHttpDeps {
   readonly searchTimeoutMs?: number;
   /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). It receives the original error: upstream bodies can carry secrets, so the host redacts under its own policy. Without it the default line prints the class only. */
   readonly onInternalError?: ((context: XaiInternalErrorContext) => void) | undefined;
-  /** Makes the request ID and writes the log line for an internal failure. {@link xaiRoutes} sets it to the host's reporter; a caller that runs a route's `handle` itself may omit it and gets `@jini-ai/http-kit`'s. */ readonly reportInternalError?: ReportRouteInternalError | undefined;
+  /** Required for direct handlers; {@link xaiRoutes} binds the host's reporter. */ readonly reportInternalError: ReportRouteInternalError;
 }
 
 interface ResolvedXaiHttpDeps {
@@ -217,7 +216,7 @@ interface ResolvedXaiHttpDeps {
   fetchImpl: typeof fetch;
   searchTimeoutMs: number;
   onInternalError?: ((context: XaiInternalErrorContext) => void) | undefined;
-  reportInternalError?: ReportRouteInternalError | undefined;
+  reportInternalError: ReportRouteInternalError;
 }
 
 /** The one incident owner for every xAI route failure (local wrapper: it picks the message). */
@@ -225,7 +224,7 @@ function reportXaiInternalError(
   { resolved, source, error }: { readonly resolved: Pick<ResolvedXaiHttpDeps, 'onInternalError' | 'reportInternalError'>; readonly source: XaiInternalErrorContext['source']; readonly error: unknown },
   _optional: Record<string, never> = {},
 ): ReturnType<typeof createApiError> {
-  return (resolved.reportInternalError ?? reportRouteInternalError)<Omit<XaiInternalErrorContext, 'correlationId'>>({ report: { source, error }, logSource: `xai/${source}`, message: XAI_FAILURE_MESSAGES[source] }, { onInternalError: resolved.onInternalError });
+  return resolved.reportInternalError<Omit<XaiInternalErrorContext, 'correlationId'>>({ report: { source, error }, logSource: `xai/${source}`, message: XAI_FAILURE_MESSAGES[source] }, { onInternalError: resolved.onInternalError });
 }
 
 /** Resolves every optional `XaiHttpDeps` field to a concrete value. Idempotent — calling this again on an already-resolved object (e.g. `xaiRoutes`'s own single resolution, passed through to each route's `handle`) is a harmless pass-through. See module doc on why stateful fields (`pending`/`listenerRef`) must be resolved once per registration, not once per request. */
@@ -793,8 +792,8 @@ export const xaiSearchRoute = defineJsonRoute<XaiSearchRequest, XaiSearchRespons
 }, { requireSameOrigin: true });
 
 /** Every xAI route as data, each behind the same-origin gate its spec declares. Defaults are resolved once per call, so the routes share one pending-auth cache and listener slot. Internal failures are reported through the host's reporter. */
-export function xaiRoutes({ deps, host }: { readonly deps: XaiHttpDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
-  const routeDeps = withHostReporter({ deps: resolveXaiHttpDeps(deps), host });
+export function xaiRoutes({ deps, host }: { readonly deps: Omit<XaiHttpDeps, 'reportInternalError'>; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
+  const routeDeps = resolveXaiHttpDeps(withHostReporter({ deps, host }));
   const json = <I, O>(spec: JsonRouteSpec<I, O, XaiHttpDeps>): DaemonRoute => gatedJsonRoute({ spec, deps: routeDeps, host });
   return [json(xaiOauthStartRoute), json(xaiOauthCompleteRoute), json(xaiOauthCancelRoute), json(xaiAuthStatusRoute), json(xaiOauthDisconnectRoute), json(xaiSearchRoute)];
 }

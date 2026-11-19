@@ -11,12 +11,10 @@
  * contract and drag its schema into every consumer's dependency closure. Hosts compose their own
  * against the ports exported below.
  *
- * **No gated-mutation composition.** The `mergeTerm` ceremony's plan/confirm/execute ordering,
- * token TTL, and actor-class rule belong to a mutation-gateway kernel that is not part of this
- * package. What ports here is the domain's own half — the structural self-merge guard and the
- * overlap-loss disclosure ({@link planMergeTerm}) — which takes the gateway's three steps as
- * injected closures. A host binds them to whichever gateway it runs. This is why `merge-term.ts`
- * has no imports at all: the ceremony is a parameter, not a dependency.
+ * **No host mutation-gateway composition.** The merge hook builder uses core's universal hook
+ * contract and injected hashing, actor identity and permissions. Hosts bind the gateway's
+ * plan/confirm/execute steps, token TTL and authorization policy; `merge-term.ts` receives those
+ * steps as closures and owns the self-merge guard and overlap-loss disclosure.
  */
 
 export {
@@ -144,3 +142,19 @@ export {
 
 export { buildTaxonomyToolRegistrations, taxonomyDerivedRisk } from "./tool-registrations.js";
 export type { TaxonomyMergeGateway, TaxonomyMergePrepared, TaxonomyPackageToolDeps, TaxonomyToolSurfaces } from "./tool-handlers.types.js";
+
+export {
+  createLiveCollectionTermPolicy, createContentTargetPorts, contentEditPermission, authorizeContentEdit,
+  type CollectionOwnerLookupPort,
+} from "./collection-term-policy.js";
+export { buildMergeTermHooks, type BuildMergeTermHooksInput, type MergeableEntryTermRepoPort } from "./gated-hooks.js";
+export {
+  createTermPurgeFollowUp, createTaxonomyPurgeFollowUp, type PurgeFollowUpHooks,
+  type PurgeTrashLookupPort, type TaxonomyRevisionWritePort, type TaxonomyEventOutboxPort,
+  type TermPurgeAuditReadPort, type TaxonomyMemberIdsReadPort,
+} from "./taxonomy-trash-follow-ups.js";
+export {
+  trashTerm, trashTaxonomy, type RemoveTermFn, type RemoveTaxonomyFn, type TermTrashReadPort,
+  type TaxonomyTrashReadPort, type TrashTermOutcome, type TrashTaxonomyOutcome,
+} from "./trash-term.js";
+export { renderHtmlTaxonomy, type HtmlTaxonomyTerm } from "./render-entry.js";

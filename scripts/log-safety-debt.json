@@ -360,11 +360,6 @@
     "value": 1
   },
   {
-    "file": "packages/core/src/settings/express/stream.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
     "file": "packages/daemon/src/agent-executor/event-translation.ts",
     "rule": "stored-error-text",
     "value": 1

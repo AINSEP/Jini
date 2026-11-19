@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import { ForbiddenError, PrincipalNotFoundError, ValueValidationFailedError } from "../../index.js";
+import { ForbiddenError, PrincipalNotFoundError, ValueValidationFailedError } from "@jini-ai/core/settings";
 import { registerSettingsRoutes } from "../index.js";
 import { fixture } from "./settings-fixture.js";
 

@@ -1,3 +1,4 @@
+import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -55,7 +56,7 @@ describe('required and optional argument objects', () => {
   it('passes storage inputs and content-type options to the injected port', async () => {
     const put = vi.fn(async () => ({ key: 'file', size: 1, updatedAt: 0 }));
     const storage: StorageProvider = { put, get: async () => null, delete: async () => { }, list: async () => [] };
-    const result = await connectorsStoragePutRoute.handle({ input: { key: 'file', dataBase64: 'YQ==', contentType: 'text/plain' }, deps: { storage } });
+    const result = await connectorsStoragePutRoute.handle({ input: { key: 'file', dataBase64: 'YQ==', contentType: 'text/plain' }, deps: { reportInternalError: reportRouteInternalError, storage } });
     expect(result).toEqual({ ok: true, value: { object: { key: 'file', size: 1, updatedAt: 0 } } });
     expect(put).toHaveBeenCalledWith({ key: 'file', data: Buffer.from('a') }, { contentType: 'text/plain' });
     const routes = describeRoutes({ routes: connectorsRoutes({ deps: { storage }, host: fakeDaemonRouteHost() }) });

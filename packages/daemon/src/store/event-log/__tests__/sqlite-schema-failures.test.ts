@@ -15,6 +15,7 @@ it('skips all DDL for an injected pre-migrated borrowed DB in host mode; default
   db.exec(SQLITE_EVENT_LOG_SCHEMA);
   const exec = vi.spyOn(db, 'exec');
   const pragma = vi.spyOn(db, 'pragma');
+  const prepare = vi.spyOn(db, 'prepare');
   try {
     const log = createSqliteEventLog({ db, clock: testClock }, { schemaSetup: 'host' });
     expect(exec).not.toHaveBeenCalled();
@@ -23,6 +24,7 @@ it('skips all DDL for an injected pre-migrated borrowed DB in host mode; default
     expect(exec).not.toHaveBeenCalled();
     expect(await kernelLog.listRunIds({})).toEqual(['r']);
     expect(pragma).not.toHaveBeenCalled();
+    expect(prepare.mock.calls.some(([sql]) => /^\s*(CREATE|ALTER|DROP)/i.test(sql))).toBe(false);
     createSqliteEventLog({ db, clock: testClock }); createSqliteEventLog({ db, clock: testClock });
     expect(exec).toHaveBeenCalledTimes(2);
     expect(db.prepare('SELECT next_cursor FROM jini_event_log_runs').get()).toEqual({ next_cursor: 2 });

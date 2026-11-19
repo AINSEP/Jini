@@ -147,8 +147,10 @@ targeting a disposable `jini_daemon_test_*` database; `pnpm run test:postgres` f
 ## Optional HTTP surface
 
 `@jini-ai/daemon/http` exports daemon route packs, attachment storage, frontend control,
-workspace-root resolution and the live route manifest. Install `@jini-ai/http-kit` and
-`express` only when using this entry. `@jini-ai/daemon/read-only-tools` owns the fail-closed
+workspace-root resolution and the live route manifest. Hosts supply the route reporter.
+The Express credential middleware (`createDaemonAuthMiddleware`, `createRunOwnershipMiddleware`,
+and `createOwnedRunListHandler`) lives in `@jini-ai/http-kit/middleware`. Install
+`@jini-ai/http-kit` and `express` in the route-mounting host. `@jini-ai/daemon/read-only-tools` owns the fail-closed
 execution gate; compose it around the bare executor, beneath recovery decorators, since an
 outer wrapper cannot intercept references those decorators already hold.
 See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/daemon/API.md) for route, credential, audit, surface and session contracts.

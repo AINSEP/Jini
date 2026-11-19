@@ -5,8 +5,8 @@ import { createCapturingResponse } from "./settings-fixture.js";
 import {
   resolveTargetWorkspaceId,
   resolveUserLayerReadTarget,
-  respondToSettingsError,
-} from "../index.js";
+} from "@jini-ai/core/settings";
+import { respondToSettingsError } from "../index.js";
 
 const deps = { workspaceId: "workspace-local" };
 

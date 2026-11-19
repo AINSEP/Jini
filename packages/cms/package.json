@@ -27,7 +27,6 @@
       "./media/import": "universal",
       "./core/tools": "universal",
       "./trash": "universal",
-      "./settings/express": "node",
       "./media/node": "node",
       "./forms/html-render": "universal",
       "./forms/submission-attempts": "universal",
@@ -228,11 +227,6 @@
       "types": "./dist/trash/index.d.ts",
       "import": "./dist/trash/index.js",
       "default": "./dist/trash/index.js"
-    },
-    "./settings/express": {
-      "types": "./dist/settings/express/index.d.ts",
-      "import": "./dist/settings/express/index.js",
-      "default": "./dist/settings/express/index.js"
     },
     "./media/node": {
       "types": "./dist/media/node.d.ts",

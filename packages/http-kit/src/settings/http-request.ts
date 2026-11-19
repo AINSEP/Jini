@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import type { SettingScope } from "../index.js";
+import type { SettingScope } from "@jini-ai/core/settings";
 import type { SettingsHttpOptions, SettingsHttpRequired } from "./contracts.js";
 import { respondToSettingsError, type SettingsErrorMapping } from "./shared.js";
 

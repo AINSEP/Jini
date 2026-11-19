@@ -81,8 +81,6 @@ const EXACT_PUBLIC_IMPORTS = new Set([
   '@jini-ai/daemon/run-credentials',
   // Public CMS soft-delete capability; only this exact entry is public.
   '@jini-ai/cms/trash',
-  // Public domain HTTP entry; private nested paths remain forbidden by exact matching.
-  '@jini-ai/cms/settings/express',
   // R2 exception: the shared untrusted-text sanitizer is a public kernel entry,
   // independent of the CLI shell that previously owned it.
   '@jini-ai/core/text',

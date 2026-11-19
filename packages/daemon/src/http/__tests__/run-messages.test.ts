@@ -1,3 +1,4 @@
+import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRecordingOriginPolicy } from '@jini-ai/core/contracts/server/testing';
 import { createInMemoryEventLog, createRunLifecycle, type UserMessageDelivery } from '../../index.js';
@@ -11,7 +12,7 @@ const testOriginPolicy = createRecordingOriginPolicy();
 const serve = (deps: RunHttpDeps) => serveRoutes({ routes: runRoutes({ deps, host: fakeDaemonRouteHost({}, { originPolicy: testOriginPolicy }) }) });
 
 function makeDeps(deliver?: (input: { runId: string; text: string }) => UserMessageDelivery): RunHttpDeps {
-  return { lifecycle: createRunLifecycle({ eventLog: createInMemoryEventLog({}) }), ...(deliver ? { deliverUserMessage: deliver, deliverUserMessageWithAttachments: deliver } : {}) };
+  return { reportInternalError: reportRouteInternalError, lifecycle: createRunLifecycle({ eventLog: createInMemoryEventLog({}) }), ...(deliver ? { deliverUserMessage: deliver, deliverUserMessageWithAttachments: deliver } : {}) };
 }
 
 beforeEach(() => {

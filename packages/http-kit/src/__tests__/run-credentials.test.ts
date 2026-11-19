@@ -117,3 +117,16 @@ it('F1: a missing/non-string contextRef passes an options object with NO context
   await createOwnedRunListHandler({ listRuns, filterOwnedRuns: () => ({ allowed: true as const, runs: [] }), principalHeaderName: 'x-p' })({ query: { contextRef: 5 }, get: () => 'alice' } as never, response() as never, vi.fn());
   expect(Object.keys((listRuns.mock.calls[0] as unknown[])[1] as object)).toEqual([]);
 });
+
+
+it('never rewrites a principal header on a denial, even if the policy carries one', () => {
+  const req = { method: 'GET', path: '/', headers: { 'x-principal': 'original' }, get: () => undefined };
+  const res = response();
+  const next = vi.fn();
+  createDaemonAuthMiddleware({ authorizationHeaderName: 'authorization', authorize: () => ({
+    allowed: false, status: 403, body: { code: 'DENIED' }, principalHeader: { name: 'x-principal', value: 'denied' },
+  }) })(req as never, res as never, next);
+  expect(req.headers).toEqual({ 'x-principal': 'original' });
+  expect(res.status).toHaveBeenCalledWith(403);
+  expect(next).not.toHaveBeenCalled();
+});

@@ -1,3 +1,4 @@
+import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { describe, expect, it, vi } from 'vitest';
 import { denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
 import { fakeDaemonRouteHost } from './fakes/route-host.js';
@@ -80,7 +81,7 @@ function makeRealtimeProvider(overrides: Partial<RealtimeProvider> = {}): Realti
 }
 
 function makeDeps(overrides: Partial<ConnectorsHttpDeps> = {}): ConnectorsHttpDeps {
-  return { ...overrides };
+  return { reportInternalError: reportRouteInternalError, ...overrides };
 }
 
 describe('auth routes', () => {
@@ -706,4 +707,14 @@ describe('connectorsRoutes — one round-trip per route', () => {
     expect(response.status).toBe(403);
     expect(deps.auth.signUp).not.toHaveBeenCalled();
   });
+});
+
+it('uses the injected reporter and its request ID on provider failure', async () => {
+  const host = fakeDaemonRouteHost();
+  const failure = new Error('provider secret');
+  const deps = makeDeps({ reportInternalError: host.reportInternalError, auth: makeAuthProvider({ signIn: async () => { throw failure; } }) });
+  const result = await connectorsAuthSignInRoute.handle({ input: { email: 'a@example.com', password: 'secret' }, deps });
+  expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', requestId: 'req-1' } });
+  expect(host.reports).toEqual([expect.objectContaining({ report: { source: 'auth', operation: 'signIn', error: failure }, requestId: 'req-1' })]);
+  expect(JSON.stringify(result)).not.toContain('provider secret');
 });

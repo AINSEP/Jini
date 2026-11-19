@@ -1,6 +1,7 @@
-import { describeErrorForLog } from '../../model-facing-tool-errors.js';
+import { createConsoleLogger } from "@jini-ai/core/primitives";
 import type { Request, Response } from "express";
-import type { Authorize, SettingsChangeFeed, SettingsHttpOptions, Scheduler } from "./contracts.js";
+import type { Authorize, SettingsChangeFeed } from "@jini-ai/core/settings";
+import type { SettingsHttpOptions, Scheduler } from "./contracts.js";
 
 interface StreamRequired {
   request: Request; response: Response; workspaceId: string; principalId: string;
@@ -138,7 +139,7 @@ function createErrorReporter(optional: SettingsHttpOptions): (operation: string,
     // Reporting is best-effort: a host hook must never turn recovery into an unhandled rejection.
     try {
       if (optional.onError) optional.onError({ operation, error });
-      else console.error(`[settings] change feed ${operation} failed`, describeErrorForLog({ err: error }));
+      else createConsoleLogger({ prefix: "[settings]" }).error({ message: `change feed ${operation} failed` }, { error });
     } catch { /* Diagnostic failures cannot interrupt stream cleanup or retries. */ }
   };
 }

@@ -36,7 +36,6 @@
       "./text": "universal",
       "./agent-handles": "universal",
       "./settings": "universal",
-      "./settings/express": "node",
       "./plugin-directory": "universal",
       "./filesystem": "universal",
       "./optional-peer": "universal",
@@ -80,7 +79,6 @@
         "./primitives": "core",
         "./fetch": "fetch",
         "./settings": "settings",
-        "./settings/express": "settings",
         "./provider-registry": "providers",
         "./object-store": "providers"
       },
@@ -118,9 +116,6 @@
           "@jini-ai/core/settings",
           "./settings",
           "../settings"
-        ],
-        "./settings/express": [
-          "@jini-ai/cms"
         ]
       }
     }
@@ -244,11 +239,6 @@
       "types": "./dist/settings/index.d.ts",
       "import": "./dist/settings/index.js",
       "default": "./dist/settings/index.js"
-    },
-    "./settings/express": {
-      "types": "./dist/settings/express/index.d.ts",
-      "import": "./dist/settings/express/index.js",
-      "default": "./dist/settings/express/index.js"
     },
     "./plugin-directory": {
       "types": "./plugin-directory.d.ts",

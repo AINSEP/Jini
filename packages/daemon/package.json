@@ -208,15 +208,13 @@
     "smol-toml": "1.9.1",
     "@jini-ai/agent-runtime": "workspace:^",
     "@jini-ai/db": "workspace:^",
-    "@jini-ai/http-kit": "workspace:^",
     "@jini-ai/platform": "workspace:^",
     "kysely": "^0.29.6"
   },
   "peerDependencies": {
     "better-sqlite3": "^13.0.0",
     "@electric-sql/pglite": "0.5.8",
-    "pg": "^8.23.0",
-    "express": "^4.21.0 || ^5.0.0"
+    "pg": "^8.23.0"
   },
   "peerDependenciesMeta": {
     "better-sqlite3": {

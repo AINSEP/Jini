@@ -20,7 +20,8 @@ it('keeps exports and entry runtime metadata synchronized', () => {
   expect(Object.hasOwn(manifest.jini.entries, './server')).toBe(false);
   expect(manifest.jini.entries['./media']).toBe('node');
   expect(manifest.jini.entries['./media/node']).toBe('node');
-  expect(manifest.jini.entries['./settings/express']).toBe('node');
+  expect(Object.hasOwn(manifest.jini.entries, './settings/express')).toBe(false);
+  expect(Object.hasOwn(manifest.exports, './settings/express')).toBe(false);
   expect(Object.hasOwn(manifest.exports, './http/settings')).toBe(false);
   expect(Object.hasOwn(manifest.jini.entries, './http/settings')).toBe(false);
   // deaf9cc: the document-text extractors' libraries are required, never optional peers (packages/README.md;

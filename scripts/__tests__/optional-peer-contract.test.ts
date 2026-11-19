@@ -113,9 +113,9 @@ it('feature load messages match the owning manifest classifications', async () =
   const sites = [
     'capability-providers/src/adapters/ws/index.ts', 'cms/src/media/image-transformer.sharp.ts',
     'cms/src/media/document-ingress.ts', 'cms/src/media/sanitize-svg.ts',
-    'server/src/adapters/node-pty.ts', 'daemon/src/store/event-log/sqlite-kernel.ts',
+    'server/src/adapters/node-pty.ts',
     'integrations/src/media-providers/sqlite-driver.adapter.ts', 'platform/src/asset-cache.adapter.ts',
-    'ui/src/renderers/shiki.ts', 'user-management/src/server/hasher.ts', 'mcp/src/federation/adapter.http.ts',
+    'ui/src/renderers/shiki.ts', 'user-management/src/server/hasher.ts',
   ];
   for (const file of sites) {
     const manifest = JSON.parse(readFileSync(new URL(`../../packages/${file.split('/')[0]}/package.json`, import.meta.url), 'utf8'));

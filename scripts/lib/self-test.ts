@@ -209,8 +209,8 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       }
     }
     writePublicEntryFixtures();
-    // REGRESSION: fails if the exact cms/settings/express R2 exemption is removed.
-    write(root, 'packages/http-kit/src/ok-r2-cms-settings.ts', `export * from '@jini-ai/cms/settings/express';\n`);
+    // REGRESSION: the retired cms/settings/express entry is forbidden.
+    write(root, 'packages/http-kit/src/bad-r2-cms-settings.ts', `export * from '@jini-ai/cms/settings/express';\n`);
     // PARITY: the public entry never permits private implementation paths or adjacent entries.
     write(root, 'packages/http-kit/src/bad-r2-cms-settings-private.ts', `export * from '@jini-ai/cms/settings/express/private';\n`);
     write(root, 'packages/http-kit/src/bad-r2-cms-http-other.ts', `export * from '@jini-ai/cms/http/other';\n`);

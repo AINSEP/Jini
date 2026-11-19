@@ -1,8 +1,13 @@
 import { expect, test, vi } from "vitest";
-import { InMemorySettingsPrincipalLookup } from "../../__tests__/principal.fixture.js";
-import { InMemorySettingsRepo, ForbiddenError, type SettingDefinitionRecord, type SettingRevisionRecord } from "../../index.js";
-import { createCmsSettingsService, createCmsSettingsChangeFeed } from "../index.js";
-import { permissions } from "./settings-fixture.js";
+import { InMemorySettingsPrincipalLookup } from "./principal.fixture.js";
+import { InMemorySettingsRepo, ForbiddenError, createCmsSettingsService, createCmsSettingsChangeFeed,
+  type SettingDefinitionRecord, type SettingRevisionRecord, type SettingsPermissions } from "../index.js";
+
+const permissions: SettingsPermissions = {
+  read: "prefs.read", readRaw: "prefs.raw", readDefinitions: "prefs.list", readOtherUser: "prefs.other.read",
+  manageDefinitions: "prefs.manage", writeGlobal: "prefs.global", writeWorkspace: "prefs.workspace",
+  writeUserSelf: "prefs.self", writeUserOther: "prefs.other", reset: { global: "reset.all", workspace: "reset.workspace", user: "reset.self" },
+};
 
 const NOW = "2026-09-01T00:00:00.000Z";
 function definition(overrides: Partial<SettingDefinitionRecord> = {}): SettingDefinitionRecord {
