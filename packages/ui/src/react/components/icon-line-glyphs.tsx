@@ -14,6 +14,7 @@ export const LINE_GLYPH_RENDERERS: Record<LineGlyphName, (common: SVGProps<SVGSV
           <path d="m15.4 8.6-2.1 4.7-4.7 2.1 2.1-4.7z" />
         </svg>
     ),
+    // Timeline — a ledger: three entries down the page, each with its marker.
     'timeline': (common) => (
         <svg {...common}>
           <circle cx="6" cy="6.5" r="1.25" />
@@ -24,6 +25,7 @@ export const LINE_GLYPH_RENDERERS: Record<LineGlyphName, (common: SVGProps<SVGSV
           <path d="M10 17.5h9" />
         </svg>
     ),
+    // Migrate forward — an arrow carried up to a stop: apply what is pending, up to the edge.
     'migrate-forward': (common) => (
         <svg {...common}>
           <path d="M4 12h11" />
@@ -36,12 +38,14 @@ export const LINE_GLYPH_RENDERERS: Record<LineGlyphName, (common: SVGProps<SVGSV
           <path d={ICON_PATH_DATA['folder-outline-compact']} />
         </svg>
     ),
+    // New site — the same folder with a plus in it: a directory that does not exist yet.
     'folder-plus': (common) => (
         <svg {...common}>
           <path d={ICON_PATH_DATA['folder-outline-compact']} />
           <path d="M12 10.5v5M9.5 13h5" />
         </svg>
     ),
+    // Export Site — an arrow leaving a tray: a copy of this site going out as a `.tovu.zip`.
     'tray-export': (common) => (
         <svg {...common}>
           <path d="M4.5 14.5v4h15v-4" />
@@ -80,6 +84,7 @@ export const LINE_GLYPH_RENDERERS: Record<LineGlyphName, (common: SVGProps<SVGSV
           <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.2" />
         </svg>
     ),
+    // Images — a framed picture: a sun and a horizon.
     'picture-frame': (common) => (
         <svg {...common}>
           <rect x="3.5" y="5" width="17" height="14" rx="2" />
@@ -87,6 +92,7 @@ export const LINE_GLYPH_RENDERERS: Record<LineGlyphName, (common: SVGProps<SVGSV
           <path d="M20.5 15.5 16 11l-6.5 6.5M3.5 17l3.5-3.5 2.5 2.5" />
         </svg>
     ),
+    // Videos — the same frame with a play mark inside it.
     'video-frame': (common) => (
         <svg {...common}>
           <rect x="3.5" y="5" width="17" height="14" rx="2" />
@@ -98,6 +104,7 @@ export const LINE_GLYPH_RENDERERS: Record<LineGlyphName, (common: SVGProps<SVGSV
           <path d="M7 16h9.5a3.5 3.5 0 0 0 .4-6.98A4.75 4.75 0 0 0 7.7 7.2 3.5 3.5 0 0 0 7 16Z" />
         </svg>
     ),
+    // Trash — a lidded bin, the same glyph family as the icons above.
     'bin-lidded': (common) => (
         <svg {...common}>
           <path d="M4.5 7h15M9.5 7V4.75h5V7M6.5 7l.9 12.25h9.2L17.5 7M10.25 10.5v5.5M13.75 10.5v5.5" />

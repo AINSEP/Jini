@@ -88,6 +88,7 @@ function catalogProvider({ catalog, id }: { catalog: readonly MediaProviderOptio
   if (!provider) throw new Error(`Unknown media provider "${id}": it is not in this host's provider catalog`);
   return provider;
 }
+/** Never return key material to the view: only markers, endpoint and model leave this port. */
 function providerView({ provider, values }: { provider: MediaProviderOption; values: MediaProviderConfigurationMap }): MediaProvider {
   const saved = values[provider.id] ?? {};
   return { id: provider.id, label: provider.label,

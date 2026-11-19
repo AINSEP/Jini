@@ -142,6 +142,7 @@ export function createFakeUsersPort(_required: Record<string, never>, options: F
       if (options.deleteUserError) throw options.deleteUserError;
       requireUser(principalId);
 
+      // Mirrors the real DELETE route's effect on `listUsers()`: a trashed user no longer lists. Removing it from this fake's backing array reproduces that without modeling the Trash itself.
       const index = users.findIndex((u) => u.principalId === principalId);
       users.splice(index, 1);
     },
