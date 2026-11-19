@@ -3,7 +3,7 @@ import {
   AliasDepthExceededError, DefinitionInvalidError, DefinitionNotFoundError, DefinitionTombstonedError, ForbiddenError,
   RenameRetypeConflictError, ScopeNotAllowedError, SecretNotSupportedError, ValueValidationFailedError,
   type SettingDefinitionRecord,
-} from "../../index.js";
+} from "@jini-ai/core/settings";
 import { registerSettingsRoutes, type SettingsHttpOptions } from "../index.js";
 import { fixture } from "./settings-fixture.js";
 

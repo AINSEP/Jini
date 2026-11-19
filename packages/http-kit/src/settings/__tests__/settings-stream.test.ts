@@ -8,7 +8,8 @@ import { EventEmitter } from "node:events";
 import type { Request } from "express";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { openSettingsChangeStream } from "../stream.js";
-import type { SettingsChangeFeed, SettingsHttpOptions } from "../contracts.js";
+import type { SettingsHttpOptions } from "../contracts.js";
+import type { SettingsChangeFeed } from "@jini-ai/core/settings";
 import { createCapturingResponse, settle } from "./settings-fixture.js";
 
 const POLL = 10, KEEPALIVE = 20, REAUTH = 30;
@@ -177,13 +178,17 @@ describe("polling", () => {
     h.scheduled.get(POLL)!(); await settle();
     expect(spy).toHaveBeenCalledWith("[settings] change feed poll failed", "Error");
 
+    spy.mockClear();
     const t = harness();
-    await t.open({ ...timings, onError: () => { throw new Error("reporter broke"); } });
+    const onError = vi.fn(() => { throw new Error("reporter broke"); });
+    await t.open({ ...timings, onError });
     t.feed.collect.mockRejectedValueOnce(new Error("boom"));
     t.scheduled.get(POLL)!(); await settle();
     t.feed.collect.mockResolvedValueOnce({ cursor: 3, namespaces: ["after"], examinedCount: 1 });
     t.scheduled.get(POLL)!(); await settle();
     expect(t.capture.frames).toContain("id: 3\n");
+    expect(onError).toHaveBeenCalledWith({ operation: "poll", error: new Error("boom") });
+    expect(spy).not.toHaveBeenCalled();
   });
 });
 

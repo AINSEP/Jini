@@ -1,3 +1,4 @@
+import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRecordingOriginPolicy } from '@jini-ai/core/contracts/server/testing';
 import { createToolRegistry, type Principal, type ToolPolicy, type ToolRegistry } from '@jini-ai/core';
@@ -85,7 +86,7 @@ function makeDeps(overrides: Partial<TerminalsHttpDeps> & { policy?: ToolPolicy 
     : makeExecutor(manager, useProductionDefaultPolicy ? undefined : overrides.policy ?? { authorize: () => 'allow' });
   const resolveRoot: WorkspaceRootResolver = overrides.resolveRoot ?? (() => '/resolved/work');
   return {
-    deps: { manager, toolExecutor: executor, principal: alice, resolveRoot, ...overrides },
+    deps: { reportInternalError: reportRouteInternalError, manager, toolExecutor: executor, principal: alice, resolveRoot, ...overrides },
     manager,
     pty,
   };
@@ -168,7 +169,7 @@ describe('terminalCreateRoute.handle', () => {
       },
     });
     const executor = createToolExecutor({ registry });
-    const deps: TerminalsHttpDeps = { manager, toolExecutor: executor, principal: alice, resolveRoot: () => '/work' };
+    const deps: TerminalsHttpDeps = { reportInternalError: reportRouteInternalError, manager, toolExecutor: executor, principal: alice, resolveRoot: () => '/work' };
     const result = await terminalCreateRoute.handle({ input: { resourceRef: 'proj-1', cols: 100, rows: 40, shell: '/bin/zsh' }, deps });
     expect(result.ok).toBe(true);
     expect(seenInputs[0]).toMatchObject({ cols: 100, rows: 40, shell: '/bin/zsh' });
@@ -186,7 +187,7 @@ describe('terminalCreateRoute.handle', () => {
     const { executor } = makeExecutor(manager, { authorize: () => 'allow' });
     // No `resolveRoot` at all — proves the real production default (`denyAllWorkspaceRoots`)
     // applies, not a test fixture's own convenience default.
-    const deps: TerminalsHttpDeps = { manager, toolExecutor: executor, principal: alice };
+    const deps: TerminalsHttpDeps = { reportInternalError: reportRouteInternalError, manager, toolExecutor: executor, principal: alice };
     const result = await terminalCreateRoute.handle({ input: { resourceRef: 'unknown' }, deps });
     expect(result).toEqual({
       ok: false,
@@ -205,7 +206,7 @@ describe('terminalCreateRoute.handle', () => {
   it('auth-denial: the real deny-by-default terminal.create policy blocks creation, and no session is spawned', async () => {
     const { manager } = makeManager();
     const { executor } = makeExecutor(manager); // no policy override — real denyAllTerminalCreatePolicy applies
-    const deps: TerminalsHttpDeps = { manager, toolExecutor: executor, principal: alice, resolveRoot: () => '/work' };
+    const deps: TerminalsHttpDeps = { reportInternalError: reportRouteInternalError, manager, toolExecutor: executor, principal: alice, resolveRoot: () => '/work' };
     const result = await terminalCreateRoute.handle({ input: { resourceRef: 'proj-1' }, deps });
     expect(result).toEqual({
       ok: false,
@@ -225,7 +226,7 @@ describe('terminalCreateRoute.handle', () => {
     });
     const executor = createToolExecutor({ registry });
     const onInternalError = vi.fn();
-    const deps: TerminalsHttpDeps = {
+    const deps: TerminalsHttpDeps = { reportInternalError: reportRouteInternalError,
       manager: makeManager().manager,
       toolExecutor: executor,
       principal: alice,
@@ -254,7 +255,7 @@ describe('terminalCreateRoute.handle', () => {
       },
     });
     const executor = createToolExecutor({ registry });
-    const deps: TerminalsHttpDeps = { manager: makeManager().manager, toolExecutor: executor, principal: alice, resolveRoot: () => '/work' };
+    const deps: TerminalsHttpDeps = { reportInternalError: reportRouteInternalError, manager: makeManager().manager, toolExecutor: executor, principal: alice, resolveRoot: () => '/work' };
     const result = await terminalCreateRoute.handle({ input: { resourceRef: 'proj-1' }, deps });
     if (result.ok) throw new Error('expected failure');
     expect(consoleError.mock.calls).toEqual([[`[@jini-ai/http-kit] internal error (terminal-create, correlationId=${result.error.requestId})`, 'string']]);
@@ -268,7 +269,7 @@ describe('terminalCreateRoute.handle', () => {
     const regs = createTerminalToolRegistrations({ manager }, { policy: { authorize: () => 'allow' }, requiresConfirmation: true });
     registry.register(regs.create);
     const executor = createToolExecutor({ registry }, { delegate: { onConfirm: () => 'deny' } });
-    const deps: TerminalsHttpDeps = { manager, toolExecutor: executor, principal: alice, resolveRoot: () => '/work' };
+    const deps: TerminalsHttpDeps = { reportInternalError: reportRouteInternalError, manager, toolExecutor: executor, principal: alice, resolveRoot: () => '/work' };
     const result = await terminalCreateRoute.handle({ input: { resourceRef: 'proj-1' }, deps });
     expect(result).toEqual({
       ok: false,
@@ -283,7 +284,7 @@ describe('terminalCreateRoute.handle', () => {
       cancel: vi.fn(),
       getAuditRecord: vi.fn(() => null),
     };
-    const deps: TerminalsHttpDeps = { manager: makeManager().manager, toolExecutor: executor, principal: alice, resolveRoot: () => '/work' };
+    const deps: TerminalsHttpDeps = { reportInternalError: reportRouteInternalError, manager: makeManager().manager, toolExecutor: executor, principal: alice, resolveRoot: () => '/work' };
     const result = await terminalCreateRoute.handle({ input: { resourceRef: 'proj-1' }, deps });
     expect(result).toEqual({
       ok: false,
@@ -298,7 +299,7 @@ describe('terminalCreateRoute.handle', () => {
       cancel: vi.fn(),
       getAuditRecord: vi.fn(() => null),
     };
-    const deps: TerminalsHttpDeps = { manager: makeManager().manager, toolExecutor: executor, principal: alice, resolveRoot: () => '/work' };
+    const deps: TerminalsHttpDeps = { reportInternalError: reportRouteInternalError, manager: makeManager().manager, toolExecutor: executor, principal: alice, resolveRoot: () => '/work' };
     const result = await terminalCreateRoute.handle({ input: { resourceRef: 'proj-1' }, deps });
     expect(result).toEqual({
       ok: false,
@@ -403,7 +404,7 @@ describe('terminalStdinRoute', () => {
     const { deps } = makeDeps();
     const created = await terminalCreateRoute.handle({ input: { resourceRef: 'proj-1' }, deps });
     const id = created.ok ? created.value.id : (() => { throw new Error('create failed'); })();
-    const foreignDeps: TerminalsHttpDeps = { ...deps, principal: bob };
+    const foreignDeps: TerminalsHttpDeps = {  ...deps, principal: bob };
     const result = await terminalStdinRoute.handle({ input: { id, data: 'x' }, deps: foreignDeps });
     expect(result).toEqual({ ok: false, error: { code: 'NOT_FOUND', message: `terminal "${id}" was not found` } });
   });
@@ -769,4 +770,15 @@ describe('terminalResizeRoute.parse — characterization', () => {
       error: { code: 'BAD_REQUEST', message: 'cols and rows (numbers) are required' },
     });
   });
+});
+
+it('uses the injected reporter for terminal creation failures', async () => {
+  const host = fakeDaemonRouteHost();
+  const failure = new Error('private terminal');
+  const toolExecutor: ToolExecutor = { execute: vi.fn(async () => ({ executionId: 'failed-1', status: 'failed' as const, error: failure.message })), resumeConfirmation: vi.fn(), cancel: vi.fn(), getAuditRecord: vi.fn(() => null) };
+  const { deps } = makeDeps({ toolExecutor, reportInternalError: host.reportInternalError });
+  const result = await terminalCreateRoute.handle({ input: { resourceRef: 'project-1' }, deps });
+  expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', requestId: 'req-1' } });
+  expect(host.reports[0]).toMatchObject({ report: { source: 'terminal-create', error: failure.message } });
+  expect(JSON.stringify(result)).not.toContain(failure.message);
 });

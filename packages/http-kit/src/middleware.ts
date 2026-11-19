@@ -33,3 +33,8 @@ export function rejectOversizedJsonBody(
     next();
   };
 }
+
+export {
+  createDaemonAuthMiddleware, createRunOwnershipMiddleware, createOwnedRunListHandler,
+  type RunAccessDecision, type DaemonAuthRequired, type RunOwnershipRequired, type OwnedRunListRequired,
+} from './run-credentials.js';

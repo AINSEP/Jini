@@ -15,6 +15,7 @@
       ".": "node",
       "./rate-limit": "node",
       "./middleware": "node",
+      "./settings": "node",
       "./observability": "node",
       "./html-response": "node",
       "./node-bridge": "node"
@@ -35,6 +36,11 @@
       "types": "./dist/rate-limit.d.ts",
       "import": "./dist/rate-limit.js",
       "default": "./dist/rate-limit.js"
+    },
+    "./settings": {
+      "types": "./dist/settings/index.d.ts",
+      "import": "./dist/settings/index.js",
+      "default": "./dist/settings/index.js"
     },
     "./middleware": {
       "types": "./dist/middleware.d.ts",

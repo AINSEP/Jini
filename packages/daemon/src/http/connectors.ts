@@ -46,7 +46,6 @@
  */
 import { createApiError } from '@jini-ai/protocol';
 import { ClientFacingError, defineJsonRoute, validationError, err, ok, type JsonRouteSpec, type ReportRouteInternalError, type Result, type RouteInputContext } from '@jini-ai/core/contracts/server';
-import { reportRouteInternalError } from '@jini-ai/http-kit';
 import type { DaemonRouteHost } from './route-host.js';
 import { gatedJsonRoute, withHostReporter, type DaemonRoute } from './route-table.js';
 
@@ -131,8 +130,8 @@ export interface ConnectorsHttpDeps {
   readonly realtime?: RealtimeProvider;
   /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
   readonly onInternalError?: (context: ConnectorsInternalErrorContext) => void;
-  /** Makes the request ID and writes the log line for an internal failure. {@link connectorsRoutes} sets it to the host's reporter; a caller that runs a route's `handle` itself may omit it and gets `@jini-ai/http-kit`'s. */
-  readonly reportInternalError?: ReportRouteInternalError;
+  /** Required for direct handlers; {@link connectorsRoutes} binds the host's reporter. */
+  readonly reportInternalError: ReportRouteInternalError;
 }
 
 /** Plain words per provider; the caller also gets the request ID. */
@@ -162,7 +161,7 @@ async function guardedCall<T>(
     return ok({ value: await fn() });
   } catch (error) {
     if (error instanceof ClientFacingError) return err({ error: error.apiError });
-    return err({ error: (deps.reportInternalError ?? reportRouteInternalError)<Omit<ConnectorsInternalErrorContext, 'correlationId'>>({ report: { source, operation, error }, logSource: `connectors/${source}.${operation}`, message: CONNECTOR_FAILURE_MESSAGES[source] }, { onInternalError: deps.onInternalError }) });
+    return err({ error: deps.reportInternalError<Omit<ConnectorsInternalErrorContext, 'correlationId'>>({ report: { source, operation, error }, logSource: `connectors/${source}.${operation}`, message: CONNECTOR_FAILURE_MESSAGES[source] }, { onInternalError: deps.onInternalError }) });
   }
 }
 
@@ -508,7 +507,7 @@ export const connectorsRealtimePublishRoute = defineJsonRoute<RealtimePublishReq
 }, { requireSameOrigin: true });
 
 /** Every connectors route as data (auth x4, storage x4, db x5, realtime x1), each behind the same-origin gate its spec declares. Internal failures are reported through the host's reporter. */
-export function connectorsRoutes({ deps, host }: { readonly deps: ConnectorsHttpDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
+export function connectorsRoutes({ deps, host }: { readonly deps: Omit<ConnectorsHttpDeps, 'reportInternalError'>; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
   const routeDeps = withHostReporter({ deps, host });
   const json = <I, O>(spec: JsonRouteSpec<I, O, ConnectorsHttpDeps>): DaemonRoute => gatedJsonRoute({ spec, deps: routeDeps, host });
   return [

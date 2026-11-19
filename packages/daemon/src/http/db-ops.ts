@@ -41,7 +41,6 @@ import type { Principal, RunRef, ToolPolicy, ToolRegistration } from '@jini-ai/c
 import type { ToolExecutionResult, ToolExecutor } from '../index.js';
 import { createApiError } from '@jini-ai/protocol';
 import { defineJsonRoute, validationError, err, ok, type ReportRouteInternalError, type Result, type RouteInputContext } from '@jini-ai/core/contracts/server';
-import { reportRouteInternalError } from '@jini-ai/http-kit';
 import type { DaemonRouteHost } from './route-host.js';
 import { gatedJsonRoute, withHostReporter, type DaemonRoute } from './route-table.js';
 
@@ -213,8 +212,8 @@ export interface DaemonDbHttpDeps {
   readonly principal: Principal;
   /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
   readonly onInternalError?: (context: DaemonDbInternalErrorContext) => void;
-  /** Makes the request ID and writes the log line for an internal failure. {@link daemonDbRoutes} sets it to the host's reporter; a caller that runs a route's `handle` itself may omit it and gets `@jini-ai/http-kit`'s. */
-  readonly reportInternalError?: ReportRouteInternalError;
+  /** Required for direct handlers; {@link daemonDbRoutes} binds the host's reporter. */
+  readonly reportInternalError: ReportRouteInternalError;
 }
 
 /** Every DB-ops call gets its own opaque, single-use `RunRef` — these are one-off operations requests, not steps of a longer-lived agent run, so there is no real run to attach the audit trail to. */
@@ -237,7 +236,7 @@ function toolResultToApiResult<T>(
     case 'timed-out':
     case 'cancelled':
     case 'failed': {
-      return err({ error: (deps.reportInternalError ?? reportRouteInternalError)<Omit<DaemonDbInternalErrorContext, 'correlationId'>>({ report: { source, error: result.status === 'failed' ? result.error : result.status }, logSource: source, message: DB_FAILURE_MESSAGES[source] }, { onInternalError: deps.onInternalError }) });
+      return err({ error: deps.reportInternalError<Omit<DaemonDbInternalErrorContext, 'correlationId'>>({ report: { source, error: result.status === 'failed' ? result.error : result.status }, logSource: source, message: DB_FAILURE_MESSAGES[source] }, { onInternalError: deps.onInternalError }) });
     }
     default: {
       // Unreachable: every tool result status has a case above, and a new one fails typecheck here.
@@ -291,7 +290,7 @@ export const daemonDbVacuumRoute = defineJsonRoute<void, DaemonDbVacuumResult, D
 }, { requireSameOrigin: true });
 
 /** All three DB-ops routes as data, each behind the same-origin gate its spec declares. Internal failures are reported through the host's reporter. */
-export function daemonDbRoutes({ deps, host }: { readonly deps: DaemonDbHttpDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
+export function daemonDbRoutes({ deps, host }: { readonly deps: Omit<DaemonDbHttpDeps, 'reportInternalError'>; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
   const routeDeps: DaemonDbHttpDeps = withHostReporter({ deps, host });
   return [gatedJsonRoute({ spec: daemonDbInspectRoute, deps: routeDeps, host }), gatedJsonRoute({ spec: daemonDbVerifyRoute, deps: routeDeps, host }), gatedJsonRoute({ spec: daemonDbVacuumRoute, deps: routeDeps, host })];
 }

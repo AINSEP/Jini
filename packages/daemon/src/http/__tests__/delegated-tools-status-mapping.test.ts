@@ -1,3 +1,4 @@
+import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { describe, expect, it, vi } from 'vitest';
 import { createToolRegistry, type Principal } from '@jini-ai/core';
 import {
@@ -23,7 +24,7 @@ function settlingExecutor(result: ToolExecutionResult): ToolExecutor {
 
 async function callRoute(result: ToolExecutionResult, overrides: Partial<DelegatedToolsHttpDeps> = {}) {
   const onInternalError = vi.fn<(context: DelegatedToolsInternalErrorContext) => void>();
-  const deps: DelegatedToolsHttpDeps = {
+  const deps: DelegatedToolsHttpDeps = { reportInternalError: reportRouteInternalError,
     lifecycle: createRunLifecycle({ eventLog: createInMemoryEventLog({}) }),
     toolExecutor: settlingExecutor(result),
     resolvePrincipal: () => PRINCIPAL,

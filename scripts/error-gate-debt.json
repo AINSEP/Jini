@@ -1135,17 +1135,17 @@
     "value": 1
   },
   {
-    "file": "packages/core/src/settings/express/http-request.ts",
+    "file": "packages/http-kit/src/settings/http-request.ts",
     "rule": "catch-reads-error",
     "value": 2
   },
   {
-    "file": "packages/core/src/settings/express/shared.ts",
+    "file": "packages/http-kit/src/settings/shared.ts",
     "rule": "no-generic-failure-text",
     "value": 1
   },
   {
-    "file": "packages/core/src/settings/express/stream.ts",
+    "file": "packages/http-kit/src/settings/stream.ts",
     "rule": "catch-reads-error",
     "value": 1
   },

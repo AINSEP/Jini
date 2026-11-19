@@ -432,7 +432,7 @@ MemoryNoteStore methods take objects: `dir/readConfig/readIndex/listEntries/buil
 `AttachmentStore` async methods: `createBatchDirectory({batchId}) => string`, `register({input:{batchId,path,name,kind,size,ownerId?}}) => StoredAttachment`, `claim({attachments,runId}) => AttachmentClaim`, `resolveForRun({ref,runId}) => StoredAttachment | undefined`, `listPendingForOwner({ownerId}) => PendingAttachmentSummary[]`, `deleteUnclaimed({batchId,paths}) => void`, `cleanupRun({runId}) => void`, `pruneExpired({}, {now?}) => void`, and current parameterless `dispose() => void`. `StoredAttachment = {path,name,kind,size?,order?}`; upload path is an opaque capability, claimed path is absolute and server-private. `AttachmentClaim = {attachments,batchDirectory?}`. POST `/api/attachments?batch=...&name=...` accepts raw bytes and returns 201 `{attachment}`; DELETE same path accepts `{batchId,paths:string[]}` and returns 204. `ATTACHMENTS_ROUTE_PATH` is public.
 
 
-## ./http: run credential middleware
+## @jini-ai/http-kit/middleware: run credential middleware
 
 
 `createDaemonAuthMiddleware({authorizationHeaderName,authorize}, {validateDelegatedRunId = false} = {}) => RequestHandler`. Policy `authorize({request:{method,path,headers,body?}}, {validateDelegatedRunId}) => RunAccessDecision` is synchronous. **One-object** factories `createRunOwnershipMiddleware({principalHeaderName,isEventStream:({path})=>boolean,authorize:({runId,principalId,eventStream})=>Promise<RunAccessDecision>})` and `createOwnedRunListHandler<Run>({principalHeaderName,listRuns:({}, {contextRef?})=>Promise<readonly Run[]>,filterOwnedRuns:({runs,principalId})=>decision})` return RequestHandlers.
@@ -440,7 +440,7 @@ MemoryNoteStore methods take objects: `dir/readConfig/readIndex/listEntries/buil
 `RunAccessDecision = {allowed:true,principalHeader?:{name,value}} | {allowed:false,status:400|401|403|404|503,body:unknown}`. List filtering's allowed branch instead carries `runs:Run[]`. Required interface names are `DaemonAuthRequired`, `RunOwnershipRequired`, `OwnedRunListRequired`.
 
 ```ts
-import { createDaemonAuthMiddleware, createRunOwnershipMiddleware } from '@jini-ai/daemon/http';
+import { createDaemonAuthMiddleware, createRunOwnershipMiddleware, createOwnedRunListHandler } from '@jini-ai/http-kit/middleware';
 app.use(createDaemonAuthMiddleware({ authorizationHeaderName, authorize: daemonPolicy }));
 app.use('/api/runs/:runId', createRunOwnershipMiddleware({ principalHeaderName, isEventStream, authorize: ownershipPolicy }));
 ```

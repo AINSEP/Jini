@@ -1,7 +1,8 @@
 import { EventEmitter } from "node:events";
 import type { Request, Response } from "express";
 import { vi } from "vitest";
-import type { SettingsHttpRequired, SettingsPermissions } from "../index.js";
+import type { SettingsHttpRequired } from "../index.js";
+import type { SettingsPermissions } from "@jini-ai/core/settings";
 
 export const permissions: SettingsPermissions = {
   read: "prefs.read", readRaw: "prefs.raw", readDefinitions: "prefs.list", readOtherUser: "prefs.other.read",

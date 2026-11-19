@@ -1,3 +1,4 @@
+import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { withReadOnlyToolConstraint, defaultDaemonMessages } from '../../read-only-tools.js';
 import { createNodeCredentialCrypto } from '../../run-credentials.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -44,6 +45,7 @@ function makeToolExecutor(): ToolExecutor {
 
 function makeDeps(overrides: Partial<DelegatedToolsHttpDeps> = {}): DelegatedToolsHttpDeps {
   return {
+    reportInternalError: reportRouteInternalError,
     lifecycle: makeLifecycle(),
     toolExecutor: makeToolExecutor(),
     resolvePrincipal: () => TEST_PRINCIPAL,
@@ -712,4 +714,15 @@ describe('delegated tool route: one incident owner (log safety)', () => {
     expect(onInternalError).toHaveBeenCalledWith({ source: 'delegated-tool-execute', error: failure, runId: run.id, toolId: 'nope', correlationId: result.error.requestId, logSource: 'delegated-tool-execute' });
     expect(onInternalError.mock.calls[0]?.[0].error).toBe(failure);
   });
+});
+
+it('keeps incident context and the injected reporter ID out of raw client failure text', async () => {
+  const host = fakeDaemonRouteHost();
+  const failure = new Error('private principal database');
+  const deps = makeDeps({ reportInternalError: host.reportInternalError, resolvePrincipal: () => { throw failure; } });
+  const { run } = await deps.lifecycle.start({ contextRef: 'ctx-reporter' });
+  const result = await delegatedToolExecuteRoute.handle({ input: { runId: run.id, toolUseId: 'use-1', toolId: 'broken' }, deps });
+  expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', requestId: 'req-1' } });
+  expect(host.reports[0]).toMatchObject({ report: { source: 'resolve-principal', runId: run.id, toolId: 'broken', error: failure } });
+  expect(JSON.stringify(result)).not.toContain(failure.message);
 });

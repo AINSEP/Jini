@@ -184,3 +184,18 @@ it('rejects non-SQLite kernels and propagates readiness failures without queryin
     expect(close).not.toHaveBeenCalled();
   } finally { db.close(); }
 });
+
+
+it('host schema mode only validates columns and never executes local DDL', async () => {
+  const db = new Database(':memory:');
+  db.exec(SQLITE_EVENT_LOG_SCHEMA);
+  const prepare = vi.spyOn(db, 'prepare');
+  try {
+    const log = await createKernelSqliteEventLog({ kernel: sqliteKernel<SqliteEventLogDatabase>(db), clock: testClock }, { schemaSetup: 'host' });
+    expect(prepare.mock.calls.map(([sql]) => sql)).toEqual([
+      'select "run_id", "next_cursor" from "jini_event_log_runs" limit ?',
+      'select "run_id", "cursor", "event", "data", "recorded_at", "dedupe_key" from "jini_event_log_entries" limit ?',
+    ]);
+    expect(await log.listRunIds({})).toEqual([]);
+  } finally { db.close(); }
+});

@@ -353,7 +353,6 @@ export {
   xaiOauthStartRoute,
   xaiSearchRoute,
 } from './xai.js';
-export * from './run-credentials.js';
 export type { RunWithToolContext } from './tool-execution-stream.js';
 export type {
   AuthorizeToolRun,

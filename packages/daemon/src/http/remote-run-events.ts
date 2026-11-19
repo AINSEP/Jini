@@ -24,7 +24,6 @@
  */
 import { createApiError, createApiErrorResponse, isTerminalRunState } from '@jini-ai/protocol';
 import type { RemoteToolEventRecorder, RunLifecycle } from '../index.js';
-import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { timingSafeTokenMatch } from '@jini-ai/core';
 import { bearerTokenFromHeader, defineJsonRoute, err, jsonResponse, ok, statusForError, validationError, type ReportRouteInternalError, type Result, type RouteInputContext, type ServerMiddleware } from '@jini-ai/core/contracts/server';
 import type { DaemonRouteHost } from './route-host.js';
@@ -52,8 +51,8 @@ export interface RemoteRunEventHttpDeps {
   readonly env: Readonly<Record<string, string | undefined>>;
   /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
   readonly onInternalError?: (context: RemoteRunEventInternalErrorContext) => void;
-  /** Makes the request ID and writes the log line for an internal failure. {@link remoteRunEventRoutes} sets it to the host's reporter; a caller that runs a route's `handle` itself may omit it and gets `@jini-ai/http-kit`'s. */
-  readonly reportInternalError?: ReportRouteInternalError;
+  /** Required for direct handlers; {@link remoteRunEventRoutes} binds the host's reporter. */
+  readonly reportInternalError: ReportRouteInternalError;
 }
 
 const DEFAULT_TOKEN_ENV_VAR = 'JINI_REMOTE_TOOL_BRIDGE_TOKEN';
@@ -224,7 +223,7 @@ async function toRemoteEventError(
   const message = source === 'tool-use'
     ? 'The tool call could not be recorded for this run. Check the run status; copy the request ID and report this problem.'
     : 'The tool result could not be recorded for this run. Check the run status; copy the request ID and report this problem.';
-  return (deps.reportInternalError ?? reportRouteInternalError)<Omit<RemoteRunEventInternalErrorContext, 'correlationId'>>({ report: { source, runId, error }, logSource: `remote-run-events/${source}`, message }, { onInternalError: deps.onInternalError });
+  return deps.reportInternalError<Omit<RemoteRunEventInternalErrorContext, 'correlationId'>>({ report: { source, runId, error }, logSource: `remote-run-events/${source}`, message }, { onInternalError: deps.onInternalError });
 }
 
 export const remoteToolUseRoute = defineJsonRoute<RemoteToolUseRequest, RemoteRunEventResponse, RemoteRunEventHttpDeps>({
@@ -266,7 +265,7 @@ export const remoteToolResultRoute = defineJsonRoute<RemoteToolResultRequest, Re
  * @param required.deps - The run store, the event recorder, the env the token is read from.
  * @param required.host - The host the list is mounted on (its constant-time compare and internal-error reporter are used).
  */
-export function remoteRunEventRoutes({ deps, host }: { readonly deps: RemoteRunEventHttpDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
+export function remoteRunEventRoutes({ deps, host }: { readonly deps: Omit<RemoteRunEventHttpDeps, 'reportInternalError'>; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
   const routeDeps = withHostReporter({ deps, host });
   const gate = remoteToolBridgeTokenGate({ env: deps.env, timingSafeEqual: host.timingSafeEqual }, { tokenConfig: deps.tokenConfig });
   const gates = [{ name: 'remote-bridge-token', middleware: gate }] as const;

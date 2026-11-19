@@ -246,8 +246,8 @@ function writeMetadataFixtures(root: string): void {
 }
 
 function writeCmsAndAgenticEntryFixtures(root: string): void {
-  // REGRESSION: fails if the exact cms/settings/express R2 exemption is removed.
-  write(root, 'packages/http-kit/src/ok-r2-cms-settings.ts', `export * from '@jini-ai/cms/settings/express';\n`);
+  // REGRESSION: the retired cms/settings/express entry is forbidden.
+  write(root, 'packages/http-kit/src/bad-r2-cms-settings.ts', `export * from '@jini-ai/cms/settings/express';\n`);
   // PARITY: the public entry never permits private implementation paths or adjacent entries.
   write(root, 'packages/http-kit/src/bad-r2-cms-settings-private.ts', `export * from '@jini-ai/cms/settings/express/private';\n`);
   write(root, 'packages/http-kit/src/bad-r2-cms-http-other.ts', `export * from '@jini-ai/cms/http/other';\n`);
@@ -782,7 +782,7 @@ function publicEntryExpectations({ engineViolations, daemonPublicEntries, dbPubl
       [!has(engineViolations, 'R2-deep-path', `ok-r2-daemon-${index}.ts`), 'R2 must allow each public daemon concept entry'],
       [has(engineViolations, 'R2-deep-path', `bad-r2-daemon-${index}.ts`), 'R2 must reject private paths beneath public daemon entries'],
     ]),
-    [!has(engineViolations, 'R2-deep-path', 'ok-r2-cms-settings.ts'), 'R2 must allow the exact CMS settings HTTP entry'],
+    [has(engineViolations, 'R2-deep-path', 'bad-r2-cms-settings.ts'), 'R2 must forbid the retired CMS settings HTTP entry'],
     [has(engineViolations, 'R2-deep-path', 'bad-r2-cms-settings-private.ts'), 'R2 must reject private CMS settings paths'],
     [has(engineViolations, 'R2-deep-path', 'bad-r2-cms-http-other.ts'), 'R2 must reject unlisted CMS HTTP entries'],
     [!has(engineViolations, 'R2-deep-path', 'ok-r2-manifest.ts'), 'R2 must accept public entries from the manifest'],

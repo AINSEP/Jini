@@ -1,3 +1,4 @@
+import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { describe, expect, it } from 'vitest';
 import { createToolRegistry, requireString, ToolInputError, type Principal, type ToolRegistry } from '@jini-ai/core';
 import { createInMemoryEventLog, createRunLifecycle, createToolExecutor, type RunLifecycle } from '../../index.js';
@@ -26,7 +27,7 @@ function buildHarness({ themeId, withLister = true, failWith }: { themeId: Recor
     },
   });
   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
-  const deps: DelegatedToolsHttpDeps = { lifecycle, toolExecutor: createToolExecutor({ registry }), resolvePrincipal: () => PRINCIPAL, toolRegistry: registry };
+  const deps: DelegatedToolsHttpDeps = { reportInternalError: reportRouteInternalError, lifecycle, toolExecutor: createToolExecutor({ registry }), resolvePrincipal: () => PRINCIPAL, toolRegistry: registry };
   return { deps, lifecycle };
 }
 

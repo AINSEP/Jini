@@ -15,9 +15,8 @@ set of tokens, and fails to typecheck if any pack's declared dependency is left 
 npm install @jini-ai/core
 ```
 
-The root has no runtime dependencies and never loads settings or Express. The
-`@jini-ai/core/settings/express` adapter uses Express types and the host's injected app; it never
-loads the Express runtime, so this package declares no Express peer.
+The root has no runtime dependencies and never loads settings or Express.
+The settings Express adapter lives in `@jini-ai/http-kit/settings`; core declares no Express peer.
 
 ## What you get
 
@@ -283,13 +282,13 @@ boot-time definition registration, dictionaries and agent tools. Hosts inject se
 active-principal lookup, authorization, clocks and IDs; no CMS or database adapter is required.
 The keys, scopes, permissions and tool IDs are unchanged by the relocation.
 
-`@jini-ai/core/settings/express` exports `registerSettingsRoutes`, HTTP policy contracts and
+`@jini-ai/core/settings` also exports the neutral route policy contracts and
 `createCmsSettingsService` / `createCmsSettingsChangeFeed` (factory names retained for compatibility).
+`@jini-ai/http-kit/settings` exports `registerSettingsRoutes`, Express contracts and error mapping.
 Hosts provide route paths, readiness, principal resolution, scheduler, service and feed ports.
-Registration returns a disposer that closes active feeds. The universal settings entry never
-loads this adapter; neither entry is re-exported by the kernel root.
+Registration returns a disposer that closes active feeds.
 
-The former `@jini-ai/cms/settings` and `@jini-ai/cms/settings/express` entries re-export these
-owners for one release. New consumers should import the core subpaths directly.
+`@jini-ai/cms/settings` remains a compatibility entry for the neutral core settings owner.
+The former core and CMS `./settings/express` entries have been removed.
 
 `@jini-ai/core/text` also exports `redactOAuthUrls({ text, pattern, replacement })`: replaces every match of a provider-owned pattern and leaves all other bytes intact (a non-global pattern replaces only its first match). The caller owns the pattern and the replacement.

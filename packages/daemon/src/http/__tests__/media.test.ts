@@ -1,3 +1,4 @@
+import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { describe, expect, it, vi } from 'vitest';
 import { denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
 import { fakeDaemonRouteHost } from './fakes/route-host.js';
@@ -102,6 +103,7 @@ function makeEngine(generate: MediaDispatchEngine['generate']): MediaDispatchEng
 
 function makeDeps(overrides: Partial<MediaHttpDeps> = {}): MediaHttpDeps {
   return {
+    reportInternalError: reportRouteInternalError,
     engine: makeEngine(async () => fakeResult()),
     taskStore: createInMemoryMediaTaskStore(),
     ...overrides,
@@ -740,4 +742,15 @@ describe('mediaRoutes', () => {
     const response = await serveRoutes({ routes: mediaRoutes({ deps: makeDeps({ taskStore }), host }) })(jsonRequest({ path: '/api/media/tasks/t1' }));
     expect([response.status, host.reports.map((report) => report.logSource)]).toEqual([500, ['media-task-store']]);
   });
+});
+
+it('keeps task and owner context in the injected store-failure reporter', async () => {
+  const host = fakeDaemonRouteHost();
+  const failure = new Error('private media store');
+  const deps = makeDeps({ reportInternalError: host.reportInternalError, taskStore: {
+    ...createInMemoryMediaTaskStore(), create: async () => { throw failure; },
+  } });
+  const result = await mediaGenerateRoute.handle({ input: { ownerRef: 'owner-1', request: { surface: 'image', model: 'm' } }, deps });
+  expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', requestId: 'req-1' } });
+  expect(host.reports[0]).toMatchObject({ report: { source: 'media-task-store', taskId: null, ownerRef: 'owner-1', error: failure } });
 });

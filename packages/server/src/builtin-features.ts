@@ -109,7 +109,7 @@ export interface BuiltInFeatureOptions {
   /** Required to activate `memory` — this package has no note store of its own to default to. */
   readonly memory?: MemoryHttpDeps;
   readonly routines?: RoutineHttpDeps;
-  readonly media?: MediaHttpDeps;
+  readonly media?: Omit<MediaHttpDeps, 'reportInternalError'>;
   readonly frontendSessions?: FrontendSessionsHttpDeps;
 }
 

@@ -36,7 +36,6 @@ import type { TerminalSseSink } from '@jini-ai/core/contracts/runtime';
 import { TERMINAL_CREATE_TOOL_ID } from '../index.js';
 import type { ToolExecutionResult, ToolExecutor } from '../index.js';
 import { createApiError, createApiErrorResponse, type ApiError } from '@jini-ai/protocol';
-import { reportRouteInternalError } from '@jini-ai/http-kit';
 import {
   createSseStream,
   defineJsonRoute,
@@ -75,8 +74,8 @@ export interface TerminalsHttpDeps {
   readonly resolveRoot?: WorkspaceRootResolver;
   /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
   readonly onInternalError?: (context: TerminalsInternalErrorContext) => void;
-  /** Makes the request ID and writes the log line for an internal failure. {@link terminalRoutes} sets it to the host's reporter; a caller that runs a route's `handle` itself may omit it and gets `@jini-ai/http-kit`'s. */
-  readonly reportInternalError?: ReportRouteInternalError;
+  /** Required for direct handlers; {@link terminalRoutes} binds the host's reporter. */
+  readonly reportInternalError: ReportRouteInternalError;
 }
 
 /** Every one-off `terminal.create` tool call gets its own opaque `RunRef` — matching `db-ops.ts`'s `freshRun()`: these are single requests, not steps of a longer-lived agent run. */
@@ -97,7 +96,7 @@ function toolResultToApiResult(deps: TerminalsHttpDeps, result: ToolExecutionRes
     case 'failed': {
       const message = 'The terminal could not be opened. Try again; if it keeps failing, copy the request ID and report this problem.';
       // No host sink: `reportRouteInternalError`'s default line keeps the failure observable, never silent.
-      return err({ error: (deps.reportInternalError ?? reportRouteInternalError)<Omit<TerminalsInternalErrorContext, 'correlationId'>>({ report: { source: 'terminal-create', error: result.status === 'failed' ? result.error : result.status }, logSource: 'terminal-create', message }, { onInternalError: deps.onInternalError }) });
+      return err({ error: deps.reportInternalError<Omit<TerminalsInternalErrorContext, 'correlationId'>>({ report: { source: 'terminal-create', error: result.status === 'failed' ? result.error : result.status }, logSource: 'terminal-create', message }, { onInternalError: deps.onInternalError }) });
     }
     default: {
       // Unreachable: every tool result status has a case above, and a new one fails typecheck here.
@@ -304,7 +303,7 @@ function terminalStreamRoute({ deps, host }: { readonly deps: TerminalsHttpDeps;
 }
 
 /** Every terminal route (`list`/`create`/`stdin`/`resize`/`kill`/`delete`/`stream`) as data. A pack's `http` mounts the list. Internal failures go through the host's reporter. */
-export function terminalRoutes({ deps, host }: { readonly deps: TerminalsHttpDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
+export function terminalRoutes({ deps, host }: { readonly deps: Omit<TerminalsHttpDeps, 'reportInternalError'>; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
   const routeDeps = withHostReporter({ deps, host });
   return [
     gatedJsonRoute({ spec: terminalListRoute, deps: routeDeps, host }),

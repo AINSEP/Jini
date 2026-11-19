@@ -42,7 +42,6 @@
 import { randomUUID } from 'node:crypto';
 import { createApiError } from '@jini-ai/protocol';
 import { defineJsonRoute, validationError, err, ok, type ReportRouteInternalError, type Result, type RouteInputContext } from '@jini-ai/core/contracts/server';
-import { reportRouteInternalError } from '@jini-ai/http-kit';
 import type { DaemonRouteHost } from './route-host.js';
 import { gatedJsonRoute, withHostReporter, type DaemonRoute } from './route-table.js';
 
@@ -163,8 +162,8 @@ export interface MediaHttpDeps {
   readonly taskStore: MediaTaskStore;
   /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
   readonly onInternalError?: (context: MediaInternalErrorContext) => void;
-  /** Makes the request ID and writes the log line for an internal failure. {@link mediaRoutes} sets it to the host's reporter; a caller that runs a route's `handle` itself may omit it and gets `@jini-ai/http-kit`'s. */
-  readonly reportInternalError?: ReportRouteInternalError;
+  /** Required for direct handlers; {@link mediaRoutes} binds the host's reporter. */
+  readonly reportInternalError: ReportRouteInternalError;
 }
 
 /** Plain words per failing operation; the caller also gets the request ID. */
@@ -177,7 +176,7 @@ function reportInternalError(
   { deps, source, error, taskId, ownerRef }: { readonly deps: MediaHttpDeps; readonly source: MediaInternalErrorContext['source']; readonly error: unknown; readonly taskId: string | null; readonly ownerRef: string | null },
   _optional: Record<string, never> = {},
 ): ReturnType<typeof createApiError> {
-  return (deps.reportInternalError ?? reportRouteInternalError)<Omit<MediaInternalErrorContext, 'correlationId'>>({ report: { source, taskId, ownerRef, error }, logSource: source, message: MEDIA_FAILURE_MESSAGES[source] }, { onInternalError: deps.onInternalError });
+  return deps.reportInternalError<Omit<MediaInternalErrorContext, 'correlationId'>>({ report: { source, taskId, ownerRef, error }, logSource: source, message: MEDIA_FAILURE_MESSAGES[source] }, { onInternalError: deps.onInternalError });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -476,7 +475,7 @@ export const mediaTaskListRoute = defineJsonRoute<MediaTaskListQuery, MediaTaskL
 });
 
 /** Every media route as data; generate and delete sit behind the same-origin gate their specs declare. Internal failures are reported through the host's reporter. */
-export function mediaRoutes({ deps, host }: { readonly deps: MediaHttpDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
+export function mediaRoutes({ deps, host }: { readonly deps: Omit<MediaHttpDeps, 'reportInternalError'>; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
   const routeDeps = withHostReporter({ deps, host });
   return [
     gatedJsonRoute({ spec: mediaGenerateRoute, deps: routeDeps, host }),

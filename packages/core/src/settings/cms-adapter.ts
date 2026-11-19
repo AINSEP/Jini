@@ -1,11 +1,11 @@
-import {
-  getEffective, resolveDefinition, set, clear, resetNamespace, registerDefinitions,
-  NON_REGISTER_DEFINITION_OPS, parseNonRegisterDefinitionOp, collectChangedNamespaces,
-  type SettingsWriteServiceDeps, type SettingsRepoPort, type SettingOwnerKind,
-  type SettingValueSchema, type DefinitionInput, type DefinitionOpRequestItem,
-} from "../index.js";
-import type { JsonValue } from "../../primitives/index.js";
-import type { SettingsService, SettingsPermissions, SettingsChangeFeed, DefinitionResult } from "./contracts.js";
+import { getEffective, resolveDefinition, type DefinitionInput } from "./settings.js";
+import { set, clear, resetNamespace, registerDefinitions, type SettingsWriteServiceDeps } from "./write-service.js";
+import { NON_REGISTER_DEFINITION_OPS, parseNonRegisterDefinitionOp, type DefinitionOpRequestItem } from "./definitions-dispatch.js";
+import { collectChangedNamespaces } from "./change-feed.js";
+import type { SettingsRepoPort } from "./ports.js";
+import type { SettingOwnerKind, SettingValueSchema } from "./types.js";
+import type { JsonValue } from "../primitives/index.js";
+import type { SettingsService, SettingsPermissions, SettingsChangeFeed, DefinitionResult } from "./route-policy.js";
 
 /** Translate the CMS permission vocabulary to host policy before any write reaches the chokepoint. */
 function withHostPermissions(

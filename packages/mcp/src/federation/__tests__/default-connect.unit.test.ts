@@ -85,3 +85,17 @@ it('keeps fresh bearer suppliers bound to their connection, even at one URL', as
   await expect(a.listTools()).rejects.toThrow('shared grant removed');
   expect(requests).toHaveLength(2);
 });
+
+
+it('keeps the hosted exchange uncapped when the connector sends through it', async () => {
+  const text = 'x'.repeat(4 * 1024 * 1024 + 1);
+  const fetch = vi.fn<typeof globalThis.fetch>(async () => new Response(text));
+  const session = { listTools: async () => [], callTool: async () => ({ content: [] }), close: async () => {} };
+  const connect = createDefaultConnect({ resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages,
+    bearerToken: () => undefined }, { fetch, connectHttp: async ({ exchange, spec }) => {
+      expect(await exchange.send({ url: spec.url, method: 'POST', headers: {} })).toMatchObject({ text });
+      return session;
+    } });
+  await expect(connect({ connection: { config, launch: { url: 'https://example.test/mcp', headers: {} } } })).resolves.toBe(session);
+  expect(fetch).toHaveBeenCalledTimes(1);
+});

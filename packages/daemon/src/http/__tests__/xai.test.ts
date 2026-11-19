@@ -1,3 +1,4 @@
+import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -72,6 +73,7 @@ afterEach(async () => {
  */
 function makeDeps(overrides: Record<string, unknown> = {}): TestDeps {
   return {
+    reportInternalError: reportRouteInternalError,
     dataDir,
     pending: new PendingAuthCache({}, { ttlMs: 30 * 60 * 1000 }),
     listenerRef: { current: null },
@@ -536,7 +538,7 @@ describe('xaiAuthStatusRoute', () => {
     // no fs mocking and no network involved — same technique as the injected-sink case below.
     await mkdir(path.join(dataDir, 'xai-oauth-token.json'));
 
-    const result = await xaiAuthStatusRoute.handle({ input: undefined, deps: { dataDir } });
+    const result = await xaiAuthStatusRoute.handle({ input: undefined, deps: { reportInternalError: reportRouteInternalError, dataDir } });
 
     expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
     expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
@@ -573,7 +575,7 @@ describe('xaiAuthStatusRoute', () => {
 
     const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(dataDir);
     try {
-      const result = await xaiAuthStatusRoute.handle({ input: undefined, deps: {} });
+      const result = await xaiAuthStatusRoute.handle({ input: undefined, deps: { reportInternalError: reportRouteInternalError } });
       expect(result).toMatchObject({ ok: true, value: { connected: true, scope: 'openid api:access' } });
       expect(cwdSpy).toHaveBeenCalled();
     } finally {
@@ -1166,4 +1168,13 @@ describe('xaiRoutes', () => {
   it('answers 400 for a malformed search body', async () => {
     expect((await send(listen({ dataDir }), 'POST', '/api/xai/search', { query: '   ' })).status).toBe(400);
   });
+});
+
+it('retains the injected reporter through xAI dependency resolution', async () => {
+  await mkdir(path.join(dataDir, 'xai-oauth-token.json'));
+  const host = fakeDaemonRouteHost();
+  const result = await xaiOauthDisconnectRoute.handle({ input: undefined, deps: makeDeps({ reportInternalError: host.reportInternalError }) });
+  expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', requestId: 'req-1' } });
+  expect(host.reports[0]).toMatchObject({ report: { source: 'oauth-disconnect', error: expect.any(Error) } });
+  expect(JSON.stringify(result)).not.toContain(dataDir);
 });
