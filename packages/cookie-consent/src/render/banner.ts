@@ -46,7 +46,7 @@ const EMPTY: RenderedBanner = Object.freeze({ head: '', body: '', htmlAttrs: '',
 
 // MOVED-FROM: @jini-ai/cms consent/html/render.ts consentPolicyHref. Follow-up (P4): delete the cms copy.
 /** Refuse executable/data/protocol-relative links; local pages are the common case. @complexity O(url length). */
-export function safeHref(url: string | undefined): string | null {
+export function safeHref({ url }: { url: string | undefined }, _optional: Record<string, never> = {}): string | null {
   if (!url) return null;
   if (/^\/(?!\/)/.test(url) && !/[\\\x00-\x20]/.test(url)) return url;
   try { const parsed = new URL(url); return parsed.protocol === 'https:' && !parsed.username && !parsed.password ? parsed.href : null; }
@@ -54,7 +54,7 @@ export function safeHref(url: string | undefined): string | null {
 }
 
 /** Owner copy over the defaults; a non-string field falls back instead of rendering "undefined". */
-export function resolveCopy(input: BannerCopyInput = {}): BannerCopy {
+export function resolveCopy(input: BannerCopyInput = {}, _optional: Record<string, never> = {}): BannerCopy {
   const pick = <T extends object>(base: T, over: object | undefined): T =>
     Object.fromEntries(Object.entries(base).map(([k, v]) => [k, typeof (over as Record<string, unknown> | undefined)?.[k] === 'string' ? (over as Record<string, string>)[k] : v])) as T;
   const { categoryLabels, ...rest } = DEFAULT_COPY;
@@ -93,8 +93,8 @@ function previewAttrs(preview: RenderBannerOptions['preview']): string {
 }
 
 function links(copy: BannerCopy): string {
-  const privacy = safeHref(copy.privacyPolicyUrl);
-  const second = safeHref(copy.secondaryLinkUrl);
+  const privacy = safeHref({ url: copy.privacyPolicyUrl });
+  const second = safeHref({ url: copy.secondaryLinkUrl });
   const items = [privacy ? `<a href="${esc(privacy)}">${esc(copy.privacyLabel)}</a>` : '',
     second && copy.secondaryLinkLabel ? `<a href="${esc(second)}">${esc(copy.secondaryLinkLabel)}</a>` : ''].filter(Boolean);
   return items.length ? `<p class="jini-consent-links">${items.join(' · ')}</p>` : '';
