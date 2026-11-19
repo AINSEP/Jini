@@ -1,12 +1,6 @@
 {
   "version": 1,
   "entries": {
-    "AccessTokensTab::useAccessTokensTab": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/security/react/tabs/AccessTokensTab.tsx"
-      ]
-    },
     "AgentRuntimePicker::useAgentHandle": {
       "count": 1,
       "files": [
@@ -23,24 +17,6 @@
       "count": 1,
       "files": [
         "packages/chat/src/react/features/chat-pane/components/AgentRuntimePicker.tsx"
-      ]
-    },
-    "BrowserViewportControls::useDismissOnOutsideOrEscape": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/browser-chrome/react/components/BrowserViewportControls.tsx"
-      ]
-    },
-    "BrowserViewportControls::useT": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/browser-chrome/react/components/BrowserViewportControls.tsx"
-      ]
-    },
-    "Canvas::useCanvas": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/playground/react/components/Canvas.tsx"
       ]
     },
     "ChatPane::useAgentHandle": {
@@ -145,52 +121,10 @@
         "packages/chat/src/react/components/Composer.tsx"
       ]
     },
-    "CredentialEditor::useCredentialEditor": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/security/react/components/CredentialEditor.tsx"
-      ]
-    },
-    "CustomSelect::useAgentHandle": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/react/components/CustomSelect.tsx"
-      ]
-    },
-    "CustomSelect::useCustomSelectOriginTheme": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/react/components/CustomSelect.tsx"
-      ]
-    },
-    "CustomSelect::useOverlayContainer": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/react/components/CustomSelect.tsx"
-      ]
-    },
-    "CustomSelectMenuOptions::useCustomSelectOptionRenderer": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/react/components/CustomSelect.tsx"
-      ]
-    },
-    "CustomSelectOptionButton::useAgentHandle": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/react/components/CustomSelect.tsx"
-      ]
-    },
     "DirectionCardView::useT": {
       "count": 1,
       "files": [
         "packages/chat/src/react/components/QuestionForm.tsx"
-      ]
-    },
-    "EntityField::useAgentHandle": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/react/entities/EntityField.tsx"
       ]
     },
     "MidRunInput::useAttachmentGallery": {
@@ -209,12 +143,6 @@
       "count": 1,
       "files": [
         "packages/chat/src/react/features/chat-pane/components/AgentRuntimePicker.tsx"
-      ]
-    },
-    "PlaygroundPage::usePlaygroundPage": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/playground/react/pages/PlaygroundPage.tsx"
       ]
     },
     "QuestionForm::useQuestionAnswers": {
@@ -247,12 +175,6 @@
         "packages/chat/src/react/components/QuestionForm.tsx"
       ]
     },
-    "RootKeyTab::useRootKeyTab": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/security/react/tabs/RootKeyTab.tsx"
-      ]
-    },
     "RuntimeDropUp::useAgentHandle": {
       "count": 1,
       "files": [
@@ -275,60 +197,6 @@
       "count": 1,
       "files": [
         "packages/chat/src/react/features/chat-pane/components/AgentRuntimePicker.tsx"
-      ]
-    },
-    "SecretInput::useUiKit": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/react/kit.tsx"
-      ]
-    },
-    "SecurityPage::useSecurityPage": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/security/react/pages/SecurityPage.tsx"
-      ]
-    },
-    "SidebarMobileHeader::useSidebar": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/react/components/Sidebar.tsx"
-      ]
-    },
-    "SidebarNav::useNavSections": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/react/components/Sidebar.tsx"
-      ]
-    },
-    "SidebarNav::useSidebar": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/react/components/Sidebar.tsx"
-      ]
-    },
-    "SidebarRailToggle::useSidebar": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/react/components/Sidebar.tsx"
-      ]
-    },
-    "SidebarRoot::useSidebarRail": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/react/components/Sidebar.tsx"
-      ]
-    },
-    "Slot::useAdminKit": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/react/kit.tsx"
-      ]
-    },
-    "TabStrip::useAgentHandle": {
-      "count": 1,
-      "files": [
-        "packages/ui/src/features/tab-strip/react/components/TabStrip.tsx"
       ]
     }
   }

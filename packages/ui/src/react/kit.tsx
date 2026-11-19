@@ -64,8 +64,8 @@ export function useUiKit(_required: Record<string, never> = {}, _optional: Recor
 }
 
 /** The kit's masked input, with `ref` forwarded to the underlying `<input>`. */
-export const SecretInput = forwardRef<HTMLInputElement, KitSecretInputProps>(function UiKitSecretInput(props, ref) {
-  const Impl = useUiKit().components.SecretInput;
+export const SecretInput = forwardRef<HTMLInputElement, KitSecretInputProps & { useUiKitHook?: typeof useUiKit }>(function UiKitSecretInput({ useUiKitHook = useUiKit, ...props }, ref) {
+  const Impl = useUiKitHook().components.SecretInput;
   return <Impl {...props} ref={ref} />;
 });
 

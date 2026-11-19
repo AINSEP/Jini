@@ -648,7 +648,7 @@
     "function": "CustomSelect",
     "line": 494,
     "rule": "max-lines-per-function",
-    "value": 101
+    "value": 100
   },
   {
     "file": "packages/ui/src/react/components/Icon.tsx",

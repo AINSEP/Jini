@@ -32,6 +32,9 @@ export interface CustomSelectGroup {
 export type CustomSelectItem = CustomSelectOption | CustomSelectGroup;
 
 export interface CustomSelectProps extends AgentControlProps {
+  useAgentHandleHook?: typeof useAgentHandle;
+  useOverlayContainerHook?: typeof useOverlayContainer;
+  useCustomSelectOriginThemeHook?: typeof useCustomSelectOriginTheme;
   value: string;
   options: CustomSelectItem[];
   onChange: (value: string) => void;
@@ -463,7 +466,8 @@ function mountCustomSelectMenu({ menu, portal, position, trigger }: {
 }
 
 /** The listbox rows: groups render a labelled block of option buttons, flat options render directly. */
-function CustomSelectMenuOptions({ options, value, activeValue, optionIdByValue, onChoose, onActive, base }: {
+function CustomSelectMenuOptions({ options, value, activeValue, optionIdByValue, onChoose, onActive, base, useCustomSelectOptionRendererHook = useCustomSelectOptionRenderer }: {
+  useCustomSelectOptionRendererHook?: typeof useCustomSelectOptionRenderer;
   base: string | undefined;
   options: CustomSelectProps['options'];
   value: string;
@@ -472,7 +476,7 @@ function CustomSelectMenuOptions({ options, value, activeValue, optionIdByValue,
   onChoose: (value: string) => void;
   onActive: (value: string) => void;
 }) {
-  const renderOption = useCustomSelectOptionRenderer({ base, value, activeValue, optionIdByValue, onChoose, onActive, OptionButton: CustomSelectOptionButton });
+  const renderOption = useCustomSelectOptionRendererHook({ base, value, activeValue, optionIdByValue, onChoose, onActive, OptionButton: CustomSelectOptionButton });
   return (
     <>
       {options.map((item) => (isCustomSelectGroup(item) ? (
@@ -492,9 +496,7 @@ function CustomSelectMenuOptions({ options, value, activeValue, optionIdByValue,
  * trigger button and the listbox menu.
  */
 export function CustomSelect({
-  value,
-  options,
-  onChange,
+  value, options, onChange,
   ariaLabel,
   labelledBy,
   className,
@@ -508,7 +510,8 @@ export function CustomSelect({
   onFocus,
   menuHeader,
   onOpenChange,
-  useCustomSelect: useCustomSelectHook = useCustomSelect,
+  useCustomSelect: useCustomSelectHook = useCustomSelect, useAgentHandleHook = useAgentHandle,
+  useOverlayContainerHook = useOverlayContainer, useCustomSelectOriginThemeHook = useCustomSelectOriginTheme,
   ...agentProps
 }: CustomSelectProps) {
   const {
@@ -528,10 +531,10 @@ export function CustomSelect({
     onMenuKeyDown,
   } = useCustomSelectHook({ value, options, onChange, portal, placeholder, onOpenChange });
 
-  const base = useAgentHandle(agentProps);
-  const overlayContainer = useOverlayContainer({});
+  const base = useAgentHandleHook(agentProps);
+  const overlayContainer = useOverlayContainerHook({});
   const originPage = agentProps['data-agent-page'] ?? resolveSelectOriginPage({ trigger: buttonRef.current });
-  const originTheme = useCustomSelectOriginTheme({ buttonRef, open, portal });
+  const originTheme = useCustomSelectOriginThemeHook({ buttonRef, open, portal });
 
   const menu = (
     <div
@@ -606,7 +609,9 @@ export function CustomSelectOptionButton({
   onChoose,
   onActive,
   agentHandle,
+  useAgentHandleHook = useAgentHandle,
 }: {
+  useAgentHandleHook?: typeof useAgentHandle;
   agentHandle?: string | false | undefined;
   option: CustomSelectOption;
   selected: boolean;
@@ -615,7 +620,7 @@ export function CustomSelectOptionButton({
   onChoose: (value: string) => void;
   onActive: (value: string) => void;
 }) {
-  const base = useAgentHandle({ agentHandle });
+  const base = useAgentHandleHook({ agentHandle });
   return (
     <button
       {...agentHandleProps({}, { base, role: 'button', label: option.label })}
