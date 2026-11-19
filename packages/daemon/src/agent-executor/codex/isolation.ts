@@ -61,8 +61,7 @@ export function assertStagedHomeIsolated({ homeConfig, path }: { readonly homeCo
   } catch {
     throw refusal;
   }
-  const servers = { value: config.mcp_servers };
-  const ids = isRecord(servers) ? Object.keys(servers.value) : [];
+  const ids = isRecord(config.mcp_servers) ? Object.keys(config.mcp_servers) : [];
   if (ids.some(id => id !== JINI_MCP_SERVER_KEY)) throw refusal;
   assertTrustsNoProject(config, path);
 }

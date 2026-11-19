@@ -31,8 +31,8 @@ function createStderrTail(): { append: (chunk: Buffer | string) => void; text: (
 function watchInitializeReply(lines: Interface, onReply: () => void): void {
   lines.on('line', (line) => {
     try {
-      const reply: { value: unknown } = { value: JSON.parse(line) };
-      if (isRecord(reply) && reply.value.id === 1 && Object.hasOwn(reply.value, 'result')) onReply();
+      const reply: unknown = JSON.parse(line);
+      if (isRecord(reply) && reply.id === 1 && Object.hasOwn(reply, 'result')) onReply();
     } catch {
       // Startup chatter is not an initialize response; keep waiting for the matching reply.
     }

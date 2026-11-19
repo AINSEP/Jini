@@ -350,13 +350,12 @@ function parseOpenResourceInEditor(input: RouteInputContext): Result<OpenResourc
   if (typeof resourceRef !== 'string' || resourceRef.length === 0) {
     return err({ error: validationError({ message: 'resourceRef must be a non-empty path parameter' }) });
   }
-  const body = { value: input.body };
-  if (!isRecord(body)) return err({ error: validationError({ message: 'body must be a JSON object' }) });
-  const editorId = body.value.editorId;
+  if (!isRecord(input.body)) return err({ error: validationError({ message: 'body must be a JSON object' }) });
+  const editorId = input.body.editorId;
   if (typeof editorId !== 'string' || editorId.length === 0) {
     return err({ error: validationError({ message: 'editorId is required' }, { issues: [{ path: 'editorId', message: 'required non-empty string' }] }) });
   }
-  const detail = readOptionalNonEmptyString({ body: body.value, field: 'detail' });
+  const detail = readOptionalNonEmptyString({ body: input.body, field: 'detail' });
   if (!detail.ok) return detail;
   return ok({ value: { resourceRef, editorId, ...withoutUndefined({ detail: detail.value }) } });
 }

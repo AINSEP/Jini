@@ -4,9 +4,9 @@ import { asOptionalString, asString, errorMessage, isRecord } from '../values.js
 
 describe('agent-executor values', () => {
   it('isRecord accepts plain objects only', () => {
-    expect(isRecord({ value: {} })).toBe(true);
-    expect(isRecord({ value: { a: 1 } })).toBe(true);
-    for (const value of [null, undefined, [], [1], 'x', 1, true]) expect(isRecord({ value })).toBe(false);
+    expect(isRecord({})).toBe(true);
+    expect(isRecord({ a: 1 })).toBe(true);
+    for (const value of [null, undefined, [], [1], 'x', 1, true]) expect(isRecord(value)).toBe(false);
   });
 
   it('asString keeps strings (including empty) and substitutes the fallback otherwise', () => {

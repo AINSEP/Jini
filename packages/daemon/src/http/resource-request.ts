@@ -12,8 +12,7 @@ import { err, ok, validationError, type Result } from '@jini-ai/core/contracts/s
 import { resolveWorkspaceRoot, WorkspaceRootDeniedError, type WorkspaceRootResolver } from './workspace-root.js';
 
 /** A plain JSON object body (not `null`, not an array). */
-export function isRecord(required: { value: unknown }, _optional: Record<string, never> = {}): required is { value: Record<string, unknown> } {
-  const { value } = required;
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 

@@ -7,8 +7,8 @@ type BackgroundTask = Extract<RunAgentPayload, { type: 'background_task' }> & { 
 /** Parse only records; malformed stdout remains the stream parser's responsibility. */
 function frameRecord(line: string): Record<string, unknown> | undefined {
   try {
-    const record: { value: unknown } = { value: JSON.parse(line) };
-    return isRecord(record) ? record.value : undefined;
+    const value: unknown = JSON.parse(line);
+    return isRecord(value) ? value : undefined;
   } catch {
     return undefined;
   }
@@ -48,8 +48,7 @@ export function createLiveSessionState({ emit }: { emit: (payload: RunAgentPaylo
   }
 
   function taskDetails(frame: Record<string, unknown>, previous: BackgroundTask | undefined) {
-    const record = { value: frame.patch };
-    const patch = isRecord(record) ? record.value : frame;
+    const patch = isRecord(frame.patch) ? frame.patch : frame;
     const description = typeof patch.description === 'string' ? patch.description : previous?.description;
     const detail = typeof frame.summary === 'string' ? frame.summary : previous?.detail;
     const local = isLocalTask({ frame, previous });
@@ -62,8 +61,7 @@ export function createLiveSessionState({ emit }: { emit: (payload: RunAgentPaylo
 
   function nextTaskStatus(frame: Record<string, unknown>, previous: BackgroundTask | undefined): BackgroundTask['status'] {
     if (frame.subtype === 'task_started') return 'running';
-    const record = { value: frame.patch };
-    const patch = isRecord(record) ? record.value : frame;
+    const patch = isRecord(frame.patch) ? frame.patch : frame;
     if (patch.status === undefined) return previous?.status ?? 'unknown';
     return taskStatus(patch.status);
   }
@@ -93,10 +91,9 @@ export function createLiveSessionState({ emit }: { emit: (payload: RunAgentPaylo
     backgroundTasks = frame.tasks.length;
     const listed = new Set<string>();
     for (const task of frame.tasks) {
-      const record = { value: task };
-      if (!isRecord(record)) continue;
-      if (typeof record.value.task_id === 'string') listed.add(record.value.task_id);
-      updateTask({ ...record.value, subtype: 'task_started' });
+      if (!isRecord(task)) continue;
+      if (typeof task.task_id === 'string') listed.add(task.task_id);
+      updateTask({ ...task, subtype: 'task_started' });
     }
     // Level and edge notifications have unspecified ordering. Disappearance proves neither
     // completion nor cancellation; a later task_notification supplies the actual outcome.

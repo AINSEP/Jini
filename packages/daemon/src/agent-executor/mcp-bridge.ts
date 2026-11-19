@@ -36,11 +36,10 @@ export const MCP_BRIDGE_UNAVAILABLE = 'MCP_BRIDGE_UNAVAILABLE';
  * @complexity O(n) in the number of reported servers.
  */
 export function unavailableJiniBridgeStatus({ rawEvent }: { readonly rawEvent: unknown }): string | undefined {
-  const record = { value: rawEvent };
-  if (!isRecord(record) || record.value.type !== 'status' || record.value.label !== 'initializing') return undefined;
-  if (!Array.isArray(record.value.mcpServers)) return undefined;
-  const bridge = { value: record.value.mcpServers.find((server) => { const item = { value: server }; return isRecord(item) && item.value.name === JINI_MCP_SERVER_KEY; }) };
-  const status = isRecord(bridge) ? String(bridge.value.status) : 'missing';
+  if (!isRecord(rawEvent) || rawEvent.type !== 'status' || rawEvent.label !== 'initializing') return undefined;
+  if (!Array.isArray(rawEvent.mcpServers)) return undefined;
+  const bridge = rawEvent.mcpServers.find((server) => isRecord(server) && server.name === JINI_MCP_SERVER_KEY);
+  const status = isRecord(bridge) ? String(bridge.status) : 'missing';
   return status === 'connected' ? undefined : status;
 }
 
