@@ -81,6 +81,7 @@ describe('frontendSessionRoutes', () => {
     const pending = registry.invoke({ runId: 'run-1', capabilityId: 'page.click', input: { element: 'save-button' } });
     expect(frameData((await frames.next())[0])).toEqual({ type: 'invocation', invocationId: 'inv-1', capabilityId: 'page.click', input: { element: 'save-button' } });
 
+    // Answer over the real POST route, closing the loop the browser half will close.
     const answer = await fetch(new Request('http://local/api/frontend-sessions/session-1/responses', {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ invocationId: 'inv-1', ok: true, output: { clicked: 'save-button' } }),
     }));

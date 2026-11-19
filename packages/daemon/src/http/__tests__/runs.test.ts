@@ -621,6 +621,7 @@ describe('GET /api/runs/:runId/events — the client leaves, the source fails', 
     await frames.next();
     await frames.cancel();
     expect(unsubscribe).toHaveBeenCalledTimes(1);
+    // A leaked subscriber would still be called on later emits. A callback failure during finish could strand the terminal waiter.
     await expect(statusEvent(deps, run.id, 'after cancel')).resolves.toBeDefined();
     await expect(finishRun(deps, run.id)).resolves.toMatchObject({ state: 'succeeded' });
     await expect(waitForTerminal).resolves.toMatchObject({ state: 'succeeded' });
@@ -647,6 +648,7 @@ describe('GET /api/runs/:runId/events — the client leaves, the source fails', 
     const controller = new AbortController();
     const frames = readFrames({ response: await openEvents({ fetch: serve(deps).fetch, runId: run.id }, { signal: controller.signal }) });
     await frames.next();
+    // Unsubscribe keeps a later lifecycle.emit() from reaching this callback. Calling it directly models an event already in flight when the client disconnected.
     const onEvent = streamSpy.mock.calls[0]![0].onEvent;
     controller.abort();
     expect(() => onEvent({

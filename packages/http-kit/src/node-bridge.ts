@@ -326,6 +326,7 @@ interface Dispatch {
 /** Calls the matched route and writes its answer; a handler failure goes to `next(error)` or a plain 500. */
 async function serveRoute({ incoming, out, method, options, onUnhandledError }: Dispatch, { url, match }: { url: URL; match: Extract<RouteMatch, { kind: 'route' }> }): Promise<void> {
   // A client that hangs up aborts `request.signal`, which is how a handler or stream notices.
+  // Observe response close: request close can fire when a POST body finishes while its response is still streaming. A normally finished response does not abort the signal.
   const abort = new AbortController();
   const onClose = () => { if (!out.writableFinished) abort.abort(); };
   out.on('close', onClose);

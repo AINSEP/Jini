@@ -134,6 +134,7 @@ export interface EntryRefsRepoPort {
   /**
    * Replace every row for a given source entry with the freshly-extracted set (idempotent re-extraction
    * on every write, never an incremental patch).
+   * Widgets uses only replaceForSource from this repository and delegates extraction to the host.
    */
   replaceForSource(required: { workspaceId: UUID; sourceEntryId: UUID; refs: readonly EntryRefRow[] }): Promise<void>;
   /** Every reference originating FROM a given source entry (re-extraction on update). */

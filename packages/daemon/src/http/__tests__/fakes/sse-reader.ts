@@ -54,6 +54,7 @@ export function readFrames({ response }: { readonly response: Response }, { sepa
       while (frames.length < count) {
         const frame = take();
         if (frame !== undefined) { frames.push(frame); continue; }
+        // EOF must fail the assertion, not spin microtasks forever and starve the test timeout.
         if (ended) throw new Error(`the stream ended after ${frames.length} of ${count} frames`);
         await pull();
       }
