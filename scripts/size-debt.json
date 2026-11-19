@@ -691,5 +691,12 @@
     "line": 344,
     "rule": "max-lines-per-function",
     "value": 186
+  },
+  {
+    "file": "packages/cookie-consent/src/client/runtime.ts",
+    "function": "createCookieConsent",
+    "line": 26,
+    "rule": "max-lines-per-function",
+    "value": 133
   }
 ]
