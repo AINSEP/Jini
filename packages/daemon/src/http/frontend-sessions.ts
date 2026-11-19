@@ -284,6 +284,7 @@ function openFrontendSessionStream({ request, input, deps, host, owner }: {
     return stream.response;
   }
   expiry = startExpiry({ owner, handle: handle!, close: () => stream.end(), deps });
+  // Send the attached frame first. The client needs its bind token before it can bind a run and receive invocations.
   stream.send({ event: wire({ payload: { type: 'attached', sessionId: handle!.sessionId, bindToken: handle!.bindToken } satisfies FrontendSessionAttachedEvent }) });
   return stream.response;
 }

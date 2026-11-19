@@ -623,6 +623,7 @@ function genericProxyStreamRoute({ host, onInternalError, registry }: {
           if (!entry || !isRecognizedProvider(providerParam)) return failure({ status: 400, error: createApiError({ code: 'BAD_REQUEST', message: `unknown provider: ${providerParam}` }) });
           return await answerProxyStream({ request, host, provider: providerParam, onInternalError, entry });
         } catch (error) {
+          // This catch covers failures before answerProxyStream takes over. No SSE response has been returned, so a JSON error can still be sent.
           return internalErrorResponse({ requestId: reportCatchAllError({ host, providerParam, error }, { onInternalError }) });
         }
       },

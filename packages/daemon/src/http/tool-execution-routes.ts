@@ -142,6 +142,7 @@ function executionRoute(
 ): (required: { readonly request: Request }) => Promise<Response> {
   return async ({ request }) => {
     const read = await readJsonBody({ request }, { maxBytes: maxBodyBytes });
+    // Refuse a too-large, malformed, or interrupted body before the executor can run.
     if (!read.ok) return unreadableBody({ error: read.error });
     let body = read.value;
     const verdict = authorizeRun ? await authorizeRun({ kind: 'execute', body }, { signal: request.signal }) : undefined;

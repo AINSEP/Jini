@@ -110,6 +110,7 @@ describe('createNodeDispatcher on plain node:http', () => {
       pull(controller) { pulled += 1; if (pulled > 256) controller.close(); else controller.enqueue(chunk); },
       cancel() { cancelled(); },
     }), { headers: { 'content-type': 'text/event-stream' } }) });
+    // Use a real socket because fake emitters cannot establish Node's client-disconnect lifecycle.
     const base = await listen(createServer((incoming, out) => { void dispatcher.handle({ incoming, out }); }));
     const req = httpRequest(`${base}/flood`);
     req.on('error', () => undefined);

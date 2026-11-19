@@ -38,6 +38,7 @@ export function createLineStream(
     if (!open) return;
     open = false;
     if (keepAlive !== undefined) scheduler.cancel({ handle: keepAlive });
+    // Remove the request abort listener on close so finished calls do not retain it.
     signal.removeEventListener('abort', onCallerGone);
     if (callerLeft) gone.abort();
     controller?.close();

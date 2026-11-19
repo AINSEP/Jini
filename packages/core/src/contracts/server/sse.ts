@@ -46,7 +46,7 @@ export interface SseStreamOptions<E extends SseEvent> {
   signal?: AbortSignal;
   /** Queued-frame ceiling before the connection is dropped. Defaults to {@link DEFAULT_MAX_QUEUED_SSE_EVENTS}. */
   maxQueuedEvents?: number;
-  /** Milliseconds between keepalive comment frames. Defaults to 15000; `false` schedules no timer and writes nothing while idle. */
+  /** Milliseconds between keepalive comment frames. Defaults to 15000; `false` schedules no timer and writes nothing while idle. Keepalive comment frames prevent intermediaries from closing an idle connection. */
   keepAliveMs?: number | false;
   /** Overrides the wire format. Defaults to `id/event/data`. */
   formatEvent?: (required: { event: E }) => string;
@@ -96,6 +96,7 @@ export function createSseStream<E extends SseEvent>(
     if (counted) state.counted += 1;
     state.wake?.();
   };
+  // Keepalive pings use the same bounded queue as live events so an idle, stalled connection cannot accumulate pings outside the cap.
   if (options.keepAliveMs !== false) timer = scheduler.every({ callback: () => push({ text: ': ping\n\n', counted: true }), intervalMs: options.keepAliveMs ?? 15_000 });
   options.signal?.addEventListener('abort', close, { once: true });
   // A client that disconnected while the handler was still setting up never fires 'abort' again.
