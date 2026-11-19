@@ -34,9 +34,9 @@ export interface CoverImage {
   height: number | null;
 }
 
-interface Candidate { mediaRef?: string; src?: string; alt?: string; bodyOccurrence?: number }
+interface Candidate { mediaRef?: string | undefined; src?: string | undefined; alt?: string | undefined; bodyOccurrence?: number }
 type HtmlNode = DefaultTreeAdapterMap["childNode"];
-const INERT_ELEMENTS = new Set(["script", "style", "template", "noscript"]);
+const INERT_ELEMENTS: ReadonlySet<string> = new Set(["script", "style", "template", "noscript"]);
 
 /** Stored JSON is untrusted; narrow objects before reading node/attribute fields. */
 function object(value: unknown): value is Record<string, unknown> {
