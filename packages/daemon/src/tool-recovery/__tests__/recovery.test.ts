@@ -2,7 +2,7 @@
  * Uses real exchange delivery and DI fakes; imports no UI, chat or federation implementation. */
 import { expect, test } from 'vitest';
 import type { SurfaceEmitter, ToolDescriptor } from '@jini-ai/core';
-import type { ToolExecutor, ToolExecutionResult } from '../../tool-executor.js';
+import type { ToolExecutor, ToolExecutionResult } from "../../tool-executor-types.js";
 import { createSurfaceExchangeStore } from '../../surface-exchanges.js';
 import { createTimeoutScheduler } from '../../scheduler.js';
 import { issueToolFailureDiagnostic, issueCredentialSetup, withToolFailureRecovery, withRedactedToolFailures } from '../index.js';

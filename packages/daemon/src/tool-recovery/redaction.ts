@@ -30,7 +30,7 @@
 
 
 import type { Principal, RunRef } from "@jini-ai/core";
-import type { ToolExecutionResult, ToolExecutor } from "../tool-executor.js";
+import type { ToolExecutionResult, ToolExecutor } from "../tool-executor-types.js";
 import { decorateToolExecutor } from "./decorate-executor.js";
 
 

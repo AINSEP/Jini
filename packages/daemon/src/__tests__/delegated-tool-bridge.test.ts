@@ -4,7 +4,8 @@ import type { RunAgentPayload, RunProtocolEvent } from '@jini-ai/protocol';
 import { createDelegatedToolBridge, serializeDelegatedToolOutput } from '../delegated-tool-bridge.js';
 import { createInMemoryEventLog } from '../event-log.js';
 import { createRunLifecycle } from '../run-lifecycle.js';
-import { createToolExecutor, type ToolExecutionResult, type ToolExecutor } from '../tool-executor.js';
+import { createToolExecutor } from '../tool-executor.js';
+import { type ToolExecutionResult, type ToolExecutor } from '../tool-executor-types.js';
 import { UNKNOWN_MUTATION_ERROR } from '@jini-ai/chat/server/durable-runs';
 
 async function collectEvents(lifecycle: ReturnType<typeof createRunLifecycle>, runId: string): Promise<RunProtocolEvent[]> {

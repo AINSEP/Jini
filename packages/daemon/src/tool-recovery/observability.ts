@@ -12,7 +12,7 @@
 import { redactSecrets, ToolInputError, type Principal, type RunRef } from "@jini-ai/core";
 // The two `ObservabilityPort` methods this decorator calls; the port itself satisfies it.
 import type { ObservabilityPort } from "@jini-ai/core/contracts/observability";
-import type { ToolExecutionResult, ToolExecutionStatus, ToolExecutor } from "../tool-executor.js";
+import type { ToolExecutionResult, ToolExecutionStatus, ToolExecutor } from "../tool-executor-types.js";
 import { decorateToolExecutor } from "./decorate-executor.js";
 
 export const TOOL_CALL_OPERATION = "tool.call";

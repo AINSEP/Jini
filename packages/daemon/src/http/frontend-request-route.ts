@@ -4,7 +4,7 @@ import { jsonResponse, readJsonBody } from '@jini-ai/core/contracts/server';
 import type { FrontendControl } from './frontend-control.js';
 import type { FrontendHookInput } from './frontend-hook-input.js';
 import type { FrontendSessionOwner } from '../frontend-session-registry.js';
-import type { ToolExecutor } from '../tool-executor.js';
+import type { ToolExecutor } from "../tool-executor-types.js";
 import type { DaemonRouteHost } from './route-host.js';
 import { gated, type DaemonRoute } from './route-table.js';
 import { writeToolExecution } from './tool-execution-stream.js';

@@ -7,7 +7,8 @@ import type {
   TerminalSseSink,
 } from '@jini-ai/core/contracts/runtime';
 import { createTerminalService } from '@jini-ai/platform';
-import { createToolExecutor, type ToolExecutor } from '../tool-executor.js';
+import { createToolExecutor } from '../tool-executor.js';
+import { type ToolExecutor } from '../tool-executor-types.js';
 import {
   createTerminalSessionManager,
   createTerminalToolRegistrations,

@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { test, vi, onTestFinished } from "vitest";
 
 import { createToolRegistry, type Principal, type RunRef, type SurfaceEmitter } from "@jini-ai/core";
-import { createToolExecutor, type ToolExecutionResult, type ToolExecutor } from "../tool-executor.js";
+import { createToolExecutor } from '../tool-executor.js';
+import { type ToolExecutionResult, type ToolExecutor } from '../tool-executor-types.js';
 
 import { createInMemoryToolAttemptAuditSink } from "./audit-fixture.js";
 import type { ToolAttemptAuditSink } from "../tool-audit.js";

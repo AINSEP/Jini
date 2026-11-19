@@ -1,7 +1,8 @@
 import { createToolRegistry, type Principal, type RunRef, type ToolRegistry } from '@jini-ai/core';
 import { describe, expect, it } from 'vitest';
 
-import { createToolExecutor, DEFAULT_MAX_AUDIT_RECORDS } from '../tool-executor.js';
+import { createToolExecutor } from '../tool-executor.js';
+import { DEFAULT_MAX_AUDIT_RECORDS } from '../tool-executor-audit.js';
 
 const principal: Principal = { id: 'user-1' };
 const run: RunRef = { id: 'run-1' };

@@ -1,6 +1,6 @@
 import { test, expect } from 'vitest';
 import type { SurfaceEmission } from '@jini-ai/core';
-import type { ToolExecutionResult, ToolExecutor } from '../tool-executor.js';
+import type { ToolExecutionResult, ToolExecutor } from "../tool-executor-types.js";
 import { withToolAttemptAudit, appendToolCatalogAttempt } from '../tool-audit.js';
 import { createSurfaceExchangeStore, askOnce } from '../surface-exchanges.js';
 import { createLiveRunTracker, agentAcceptsHostMintedSessionId, agentCarriesOwnMemory, waitForStoppingRuns } from '../session-coordination.js';

@@ -2,7 +2,7 @@ import { expect, test, vi } from 'vitest';
 import type { SurfaceEmitter, SurfaceEmission } from '@jini-ai/core';
 import { createSurfaceExchangeStore, askOnce } from '../surface-exchanges.js';
 import { withSurfaceExchangeLifetime } from '../tool-recovery/surface-lifetime.js';
-import type { ToolExecutor } from '../tool-executor.js';
+import type { ToolExecutor } from "../tool-executor-types.js";
 
 function fixture() {
   let now = 0;

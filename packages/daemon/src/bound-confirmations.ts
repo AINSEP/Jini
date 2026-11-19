@@ -9,7 +9,7 @@
  */
 import type { SurfaceEmission, SurfaceExchangeStore } from '@jini-ai/core';
 import { canonicalArgumentDigest, type DigestCryptoPort } from '@jini-ai/core/records';
-import type { ExecutionDelegate, ToolConfirmationRequest, ToolExecutor } from './tool-executor.js';
+import type { ExecutionDelegate, ToolConfirmationRequest, ToolExecutor } from "./tool-executor-types.js";
 
 /** The server-held execution a prompt answers for. No field of it is ever read from the answering client. */
 export interface BoundConfirmationBinding<TOwner> {

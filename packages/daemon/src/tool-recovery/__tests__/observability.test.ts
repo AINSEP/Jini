@@ -3,7 +3,7 @@ import { expect, test } from "vitest";
 import { ToolInputError } from "@jini-ai/core";
 import type { ObservabilityPort } from "@jini-ai/core/contracts/observability";
 import { withToolCallObservability, ToolExecutionFailure, UNREGISTERED_TOOL_LABEL, UNIDENTIFIED_USER_LABEL } from "../index.js";
-import type { ToolExecutionResult, ToolExecutor } from "../../tool-executor.js";
+import type { ToolExecutionResult, ToolExecutor } from "../../tool-executor-types.js";
 
 type Recorded = { name: string; start: Record<string, unknown>; end?: Record<string, unknown>; durationMs?: number; errors: unknown[] };
 

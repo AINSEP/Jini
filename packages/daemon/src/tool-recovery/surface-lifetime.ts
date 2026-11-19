@@ -1,6 +1,6 @@
 import type { SurfaceEmitter } from '@jini-ai/core';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import type { ToolExecutor } from '../tool-executor.js';
+import type { ToolExecutor } from "../tool-executor-types.js";
 
 /** Bind every card type to the executing call, and make restoration re-enter this same stack.
  * No submitted answer is captured here: input is the original model-supplied invocation only.

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { withToolCallAnalytics } from '../analytics.js';
-import type { ToolExecutionResult, ToolExecutor } from '../../tool-executor.js';
+import type { ToolExecutionResult, ToolExecutor } from "../../tool-executor-types.js";
 
 const call = { principal: { id: 'operator' } as never, run: { id: 'run' }, toolId: 'pages_list', input: { private: 'not telemetry' } };
 function executor(result: ToolExecutionResult): ToolExecutor {

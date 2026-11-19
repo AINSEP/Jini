@@ -2,7 +2,7 @@
  * real record goes to the host sink, and delegated internal errors get the same disclosure shape. */
 import { expect, test } from "vitest";
 import { mintToolErrorId } from "@jini-ai/core/errors/error-id";
-import type { ToolExecutionResult, ToolExecutor } from "../../tool-executor.js";
+import type { ToolExecutionResult, ToolExecutor } from "../../tool-executor-types.js";
 import {
   TOOL_ERROR_ID_PATTERN,
   delegatedToolErrorDisclosure,

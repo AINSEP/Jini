@@ -11,7 +11,7 @@
  * emitted after the call settles; it never changes a result or a throw.
  */
 import type { Principal, RunRef } from "@jini-ai/core";
-import type { ToolExecutionResult, ToolExecutor } from "../tool-executor.js";
+import type { ToolExecutionResult, ToolExecutor } from "../tool-executor-types.js";
 import { decorateToolExecutor } from "./decorate-executor.js";
 import { pseudonymousUserId, toolCallLabel, type IsRegisteredTool } from "./observability.js";
 

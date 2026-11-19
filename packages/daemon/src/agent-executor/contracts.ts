@@ -51,7 +51,7 @@ import type {
 } from '../run/core/index.js';
 import type {
    ToolExecutor,
-} from '../tool-executor.js';
+} from "../tool-executor-types.js";
 import type {
    RunLifecycle,
 } from '../run-lifecycle.js';

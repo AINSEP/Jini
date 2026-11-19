@@ -1,4 +1,4 @@
-import type { ToolExecutor } from "../tool-executor.js";
+import type { ToolExecutor } from "../tool-executor-types.js";
 
 /** A ToolExecutor that replaces only `execute`; confirmation, cancel and audit reads pass straight through to `inner`. */
 export function decorateToolExecutor({ inner, execute }: { inner: ToolExecutor; execute: ToolExecutor['execute'] }, _optional: Record<string, never> = {}): ToolExecutor {

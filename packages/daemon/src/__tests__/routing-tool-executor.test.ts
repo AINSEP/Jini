@@ -1,6 +1,7 @@
 import { createToolRegistry, type Principal } from '@jini-ai/core';
 import { describe, expect, it, vi } from 'vitest';
-import { createToolExecutor, type ToolExecutor } from '../tool-executor.js';
+import { createToolExecutor } from '../tool-executor.js';
+import { type ToolExecutor } from '../tool-executor-types.js';
 import { createRoutingToolExecutor } from '../routing-tool-executor.js';
 
 const principal: Principal = { id: 'user-1' };
