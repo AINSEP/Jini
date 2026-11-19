@@ -66,14 +66,14 @@ const imageRouterImageAdapter: VendorAdapter<ImageRouterMeta> = {
     };
 
     return {
-      url: buildOpenAIImageUrl(baseUrl, false),
+      url: buildOpenAIImageUrl({ baseUrl, isAzure: false }),
       init: jsonPostInit({ ctx, body }, { apiKey }),
       meta: { wireModel, size },
     };
   },
 
   async parseResponse({ resp, ctx, request }: { resp: Response; ctx: RenderContext; request: VendorRequest<ImageRouterMeta> }): Promise<RenderResult> {
-    const data = await parseOpenAICompatibleJson(resp, 'imagerouter image');
+    const data = await parseOpenAICompatibleJson({ resp, providerTag: 'imagerouter image' });
     const bytes = await bytesFromOpenAICompatibleData({ data, providerTag: 'imagerouter image' }, ctx);
     return {
       bytes,
@@ -111,14 +111,14 @@ const imageRouterVideoAdapter: VendorAdapter<ImageRouterVideoMeta> = {
     };
 
     return {
-      url: buildOpenAIVideoUrl(baseUrl),
+      url: buildOpenAIVideoUrl({ baseUrl }),
       init: jsonPostInit({ ctx, body }, { apiKey }),
       meta: { wireModel, size, seconds },
     };
   },
 
   async parseResponse({ resp, ctx, request }: { resp: Response; ctx: RenderContext; request: VendorRequest<ImageRouterVideoMeta> }): Promise<RenderResult> {
-    const data = await parseOpenAICompatibleJson(resp, 'imagerouter video');
+    const data = await parseOpenAICompatibleJson({ resp, providerTag: 'imagerouter video' });
     const bytes = await bytesFromOpenAICompatibleData({ data, providerTag: 'imagerouter video' }, ctx);
     const { wireModel, size, seconds } = request.meta;
     return {

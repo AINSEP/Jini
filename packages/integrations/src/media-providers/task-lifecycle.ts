@@ -68,7 +68,7 @@ function labelFields(surface: string | undefined, model: string | undefined): Pi
 }
 
 /** Builds the stored row for `create()`; the caller checks for a duplicate id first. */
-export function buildNewTask(input: MediaTaskCreateInput, now: number): MediaTask {
+export function buildNewTask({ input, now }: { input: MediaTaskCreateInput; now: number }, _optional: Record<string, never> = {}): MediaTask {
   const status = input.status ?? 'queued';
   assertValidStatus(status);
   return {
@@ -103,7 +103,7 @@ function patchedPayload(existing: MediaTask, patch: MediaTaskPatch): Pick<MediaT
 }
 
 /** Validates `patch` against `existing` (status enum, then transition graph) and returns the next stored row. */
-export function applyTaskPatch(existing: MediaTask, patch: MediaTaskPatch, now: number): MediaTask {
+export function applyTaskPatch({ existing, patch, now }: { existing: MediaTask; patch: MediaTaskPatch; now: number }, _optional: Record<string, never> = {}): MediaTask {
   const status = patch.status ?? existing.status;
   assertValidStatus(status);
   // CR-013: enum membership alone doesn't prove the transition is legal
@@ -127,7 +127,7 @@ export function applyTaskPatch(existing: MediaTask, patch: MediaTaskPatch, now: 
   };
 }
 
-export function assertValidTerminalTtl(terminalTtlMs: number): void {
+export function assertValidTerminalTtl({ terminalTtlMs }: { terminalTtlMs: number }, _optional: Record<string, never> = {}): void {
   if (!Number.isFinite(terminalTtlMs) || terminalTtlMs < 0) {
     throw new RangeError(`Invalid terminalTtlMs: ${terminalTtlMs} must be a non-negative finite number`);
   }
@@ -145,7 +145,7 @@ export type ReconcileAction =
  * whose `endedAt` (or, failing that, `updatedAt`) is older than `cutoff` is
  * deleted. A task interrupted in this pass is never also deleted in it.
  */
-export function reconcileAction(task: MediaTask, now: number, cutoff: number): ReconcileAction {
+export function reconcileAction({ task, now, cutoff }: { task: MediaTask; now: number; cutoff: number }, _optional: Record<string, never> = {}): ReconcileAction {
   if (task.status === 'queued' || task.status === 'running') {
     return {
       kind: 'interrupt',

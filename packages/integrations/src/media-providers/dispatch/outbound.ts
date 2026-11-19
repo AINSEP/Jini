@@ -26,8 +26,8 @@ export const defaultMediaOutboundMessages = {
  * @complexity O(h + b) for h headers and b bounded decoded response bytes.
  */
 export async function fetchMediaOutbound(
-  { url, timeoutMs }: { url: string; timeoutMs: number },
-  { init = {}, httpClient, outboundMessages }: MediaOutboundOptions & { httpClient: HttpClientPort; init?: RequestInit },
+  { url, timeoutMs, httpClient }: { url: string; timeoutMs: number; httpClient: HttpClientPort },
+  { init = {}, outboundMessages }: Omit<MediaOutboundOptions, 'httpClient'> & { init?: RequestInit } = {},
 ): Promise<Response> {
   const messages = { ...defaultMediaOutboundMessages, ...outboundMessages };
   // Every wire refusal happens before any I/O starts.

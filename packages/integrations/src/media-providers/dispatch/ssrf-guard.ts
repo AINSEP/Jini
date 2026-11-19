@@ -157,9 +157,8 @@ export async function assertAndFetchExternalAsset({ url }: { url: string }, { in
     if (!check.ok) throw new Error(`blocked download url (${check.error})`);
   }
   // Downloading an already-generated asset, not waiting on generation — UPLOAD-class (2min).
-  return fetchMediaOutbound({ url, timeoutMs: FETCH_TIMEOUT_MS.UPLOAD }, {
+  return fetchMediaOutbound({ url, timeoutMs: FETCH_TIMEOUT_MS.UPLOAD, httpClient: requireMediaHttpClient(outbound) }, {
     ...outbound,
-    httpClient: requireMediaHttpClient(outbound),
     init: { ...init, redirect: 'error' },
   });
 }

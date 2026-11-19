@@ -68,14 +68,14 @@ const grokImageAdapter: VendorAdapter<GrokImageMeta> = {
     };
 
     return {
-      url: buildOpenAIImageUrl(baseUrl, false),
+      url: buildOpenAIImageUrl({ baseUrl, isAzure: false }),
       init: jsonPostInit({ ctx, body }, { apiKey }),
       meta: { wireModel: ctx.wireModel, aspectRatio },
     };
   },
 
   async parseResponse({ resp, ctx, request }: { resp: Response; ctx: RenderContext; request: VendorRequest<GrokImageMeta> }): Promise<RenderResult> {
-    const data = await parseOpenAICompatibleJson(resp, 'grok image');
+    const data = await parseOpenAICompatibleJson({ resp, providerTag: 'grok image' });
     const bytes = await bytesFromOpenAICompatibleData({ data, providerTag: 'grok image' }, ctx);
     return {
       bytes,

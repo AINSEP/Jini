@@ -53,7 +53,7 @@ export function buildRenderContext({ request, resolvedAudioKind, length, duratio
     imageRef: request.imageRef ?? null,
     imageRefs: resolveImageRefs(request),
     requestInit: request.requestInit || {},
-    speechFormat: resolveSpeechFormat(request.speechFormat),
+    speechFormat: resolveSpeechFormat({ requested: request.speechFormat }),
     onProgress: request.onProgress,
   };
 }

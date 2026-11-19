@@ -108,7 +108,7 @@ function routeKeyFor(surface: MediaSurface, audioKind: AudioKind | undefined): s
  * directly-testable pure function" pattern `context.ts`'s
  * `buildRenderContext` already established for the same reason.
  */
-export function lookupRoute(routes: Readonly<Record<string, Readonly<Record<string, Renderer>>>>, providerId: string, routeKey: string): Renderer | undefined {
+export function lookupRoute({ routes, providerId, routeKey }: { routes: Readonly<Record<string, Readonly<Record<string, Renderer>>>>; providerId: string; routeKey: string }, _optional: Record<string, never> = {}): Renderer | undefined {
   return routes[providerId]?.[routeKey];
 }
 
@@ -122,7 +122,7 @@ function resolveRenderer({ registry, providerId, routeKey }: { registry: VendorA
   if (adapter) {
     return ({ ctx, credentials }) => dispatchVendorRequest({ adapter, ctx, credentials });
   }
-  return lookupRoute(ROUTES, providerId, routeKey);
+  return lookupRoute({ routes: ROUTES, providerId, routeKey });
 }
 
 /** Creates an engine over the host's registry; registration remains live between requests.

@@ -38,7 +38,7 @@ export const AIHUBMIX_APP_CODE = 'DMCY9912';
 export const AIHUBMIX_DEFAULT_BASE_URL = 'https://aihubmix.com/v1';
 
 /** Outbound header set for an AIHubMix Bearer-authenticated request: `Authorization` plus the `APP-Code` attribution header. */
-export function aihubmixHeaders(apiKey: string): Record<string, string> {
+export function aihubmixHeaders({ apiKey }: { apiKey: string }, _optional: Record<string, never> = {}): Record<string, string> {
   return {
     authorization: `Bearer ${apiKey}`,
     'APP-Code': AIHUBMIX_APP_CODE,
@@ -58,7 +58,7 @@ export type AIHubMixProtocol = 'openai' | 'anthropic' | 'gemini';
  * fidelity the recommended client pattern is to call each family on its
  * native wire/endpoint rather than the unified OpenAI endpoint.
  */
-export function classifyAIHubMixModel(model: string): AIHubMixProtocol {
+export function classifyAIHubMixModel({ model }: { model: string }, _optional: Record<string, never> = {}): AIHubMixProtocol {
   const m = (model || '').trim().toLowerCase();
   // Gemini: gemini*/imagen*, excluding -nothink/-search suffixes and any
   // embedding model (those stay on the OpenAI-compatible path).
@@ -70,7 +70,7 @@ export function classifyAIHubMixModel(model: string): AIHubMixProtocol {
 }
 
 /** Origin of the configured AIHubMix base URL, falling back to the canonical AIHubMix host on an unparseable input. */
-export function aihubmixOriginFromBase(baseUrl: string): string {
+export function aihubmixOriginFromBase({ baseUrl }: { baseUrl: string }, _optional: Record<string, never> = {}): string {
   try {
     return new URL(baseUrl || AIHUBMIX_DEFAULT_BASE_URL).origin;
   } catch {
@@ -79,8 +79,8 @@ export function aihubmixOriginFromBase(baseUrl: string): string {
 }
 
 /** Gemini-native `generateContent` endpoint for an AIHubMix image model. */
-export function aihubmixGeminiImageUrl(baseUrl: string, wireModel: string): string {
-  return `${aihubmixOriginFromBase(baseUrl)}/gemini/v1beta/models/${encodeURIComponent(wireModel)}:generateContent`;
+export function aihubmixGeminiImageUrl({ baseUrl, wireModel }: { baseUrl: string; wireModel: string }, _optional: Record<string, never> = {}): string {
+  return `${aihubmixOriginFromBase({ baseUrl })}/gemini/v1beta/models/${encodeURIComponent(wireModel)}:generateContent`;
 }
 
 export interface AIHubMixGeminiImageRequest {
@@ -101,8 +101,8 @@ export interface AIHubMixGeminiImageRequest {
  * (proxy dispatcher, abort signal); throws on a non-OK status or a
  * response without inline image data.
  */
-export async function aihubmixGeminiImageBytes(req: AIHubMixGeminiImageRequest, doFetch: (url: string, init: RequestInit) => Promise<Response>): Promise<Buffer> {
-  const url = aihubmixGeminiImageUrl(req.baseUrl, req.wireModel);
+export async function aihubmixGeminiImageBytes({ req, doFetch }: { req: AIHubMixGeminiImageRequest; doFetch: (url: string, init: RequestInit) => Promise<Response> }, _optional: Record<string, never> = {}): Promise<Buffer> {
+  const url = aihubmixGeminiImageUrl({ baseUrl: req.baseUrl, wireModel: req.wireModel });
   const resp = await doFetch(url, {
     method: 'POST',
     redirect: 'error',
@@ -144,6 +144,6 @@ const AIHUBMIX_WIRE_MODELS: Readonly<Record<string, string>> = {
   'aihubmix-tts-1': 'tts-1',
 };
 
-export function aihubmixWireModel(catalogId: string): string {
+export function aihubmixWireModel({ catalogId }: { catalogId: string }, _optional: Record<string, never> = {}): string {
   return AIHUBMIX_WIRE_MODELS[catalogId] ?? catalogId.replace(/^aihubmix-/, '');
 }

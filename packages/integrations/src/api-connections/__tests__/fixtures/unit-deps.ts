@@ -60,7 +60,7 @@ export function tokens(label: string, over: Partial<OAuthTokenSet> = {}): OAuthT
 
 export function attempt(over: Partial<ApiConnectionAttempt> = {}): ApiConnectionAttempt {
   return { state: 'state-1', attemptId: 'attempt-1', key: KEY, ownerKey: '["ws-1","actor-1","acme-office","account"]',
-    browserBindingHash: hashBrowserBinding(BROWSER_BINDING),
+    browserBindingHash: hashBrowserBinding({ value: BROWSER_BINDING }),
     workspaceId: 'ws-1', actorId: 'actor-1', pluginId: 'acme-office', connectionId: 'account', intent: 'connect',
     requestedScopes: ['acme.files'], redirectUri: 'http://127.0.0.1:47011/callback', generation: 0, codeVerifier: 'verifier-1',
     createdAt: '2026-10-20T10:00:00.000Z', expiresAt: '2026-10-20T10:10:00.000Z', ...over };

@@ -12,7 +12,7 @@ import {
 
 describe('aihubmixHeaders / aihubmixAppCodeHeader', () => {
   it('builds the Bearer + APP-Code header set', () => {
-    expect(aihubmixHeaders('sk-test')).toEqual({ authorization: 'Bearer sk-test', 'APP-Code': AIHUBMIX_APP_CODE });
+    expect(aihubmixHeaders({ apiKey: 'sk-test' })).toEqual({ authorization: 'Bearer sk-test', 'APP-Code': AIHUBMIX_APP_CODE });
   });
 
   it('returns just the APP-Code header on its own', () => {
@@ -22,51 +22,51 @@ describe('aihubmixHeaders / aihubmixAppCodeHeader', () => {
 
 describe('classifyAIHubMixModel', () => {
   it('classifies gemini-/imagen-prefixed models as gemini', () => {
-    expect(classifyAIHubMixModel('gemini-3-pro-image-preview')).toBe('gemini');
-    expect(classifyAIHubMixModel('imagen-4')).toBe('gemini');
+    expect(classifyAIHubMixModel({ model: 'gemini-3-pro-image-preview' })).toBe('gemini');
+    expect(classifyAIHubMixModel({ model: 'imagen-4' })).toBe('gemini');
   });
 
   it('normalizes case and surrounding whitespace before classifying', () => {
-    expect(classifyAIHubMixModel(' GEMINI-Pro ')).toBe('gemini');
+    expect(classifyAIHubMixModel({ model: ' GEMINI-Pro ' })).toBe('gemini');
   });
 
   it('excludes -nothink and -search suffixed gemini models from the gemini classification', () => {
-    expect(classifyAIHubMixModel('gemini-3-pro-nothink')).toBe('openai');
-    expect(classifyAIHubMixModel('gemini-3-pro-search')).toBe('openai');
+    expect(classifyAIHubMixModel({ model: 'gemini-3-pro-nothink' })).toBe('openai');
+    expect(classifyAIHubMixModel({ model: 'gemini-3-pro-search' })).toBe('openai');
   });
 
   it('excludes embedding models from the gemini classification', () => {
-    expect(classifyAIHubMixModel('gemini-embedding-001')).toBe('openai');
+    expect(classifyAIHubMixModel({ model: 'gemini-embedding-001' })).toBe('openai');
   });
 
   it('classifies claude-prefixed models as anthropic', () => {
-    expect(classifyAIHubMixModel('claude-3-opus')).toBe('anthropic');
+    expect(classifyAIHubMixModel({ model: 'claude-3-opus' })).toBe('anthropic');
   });
 
   it('falls back to openai for everything else, including an empty model id', () => {
-    expect(classifyAIHubMixModel('gpt-image-1')).toBe('openai');
-    expect(classifyAIHubMixModel('')).toBe('openai');
+    expect(classifyAIHubMixModel({ model: 'gpt-image-1' })).toBe('openai');
+    expect(classifyAIHubMixModel({ model: '' })).toBe('openai');
   });
 });
 
 describe('aihubmixOriginFromBase', () => {
   it('returns the origin of a valid base URL', () => {
-    expect(aihubmixOriginFromBase('https://aihubmix.com/v1')).toBe('https://aihubmix.com');
-    expect(aihubmixOriginFromBase('https://custom.gateway.example.com/v1/openai')).toBe('https://custom.gateway.example.com');
+    expect(aihubmixOriginFromBase({ baseUrl: 'https://aihubmix.com/v1' })).toBe('https://aihubmix.com');
+    expect(aihubmixOriginFromBase({ baseUrl: 'https://custom.gateway.example.com/v1/openai' })).toBe('https://custom.gateway.example.com');
   });
 
   it('defaults to the canonical AIHubMix origin when baseUrl is empty', () => {
-    expect(aihubmixOriginFromBase('')).toBe('https://aihubmix.com');
+    expect(aihubmixOriginFromBase({ baseUrl: '' })).toBe('https://aihubmix.com');
   });
 
   it('falls back to the canonical AIHubMix origin on an unparseable URL', () => {
-    expect(aihubmixOriginFromBase('not a url')).toBe('https://aihubmix.com');
+    expect(aihubmixOriginFromBase({ baseUrl: 'not a url' })).toBe('https://aihubmix.com');
   });
 });
 
 describe('aihubmixGeminiImageUrl', () => {
   it('builds the Gemini-native generateContent endpoint with the model URI-encoded', () => {
-    expect(aihubmixGeminiImageUrl('https://aihubmix.com/v1', 'gemini-3-pro-image-preview')).toBe(
+    expect(aihubmixGeminiImageUrl({ baseUrl: 'https://aihubmix.com/v1', wireModel: 'gemini-3-pro-image-preview' })).toBe(
       'https://aihubmix.com/gemini/v1beta/models/gemini-3-pro-image-preview:generateContent',
     );
   });
@@ -74,17 +74,17 @@ describe('aihubmixGeminiImageUrl', () => {
 
 describe('aihubmixWireModel', () => {
   it('maps known aihubmix- catalog ids to their real upstream names', () => {
-    expect(aihubmixWireModel('aihubmix-gpt-image-1')).toBe('gpt-image-1');
-    expect(aihubmixWireModel('aihubmix-dall-e-3')).toBe('dall-e-3');
-    expect(aihubmixWireModel('aihubmix-tts-1')).toBe('tts-1');
+    expect(aihubmixWireModel({ catalogId: 'aihubmix-gpt-image-1' })).toBe('gpt-image-1');
+    expect(aihubmixWireModel({ catalogId: 'aihubmix-dall-e-3' })).toBe('dall-e-3');
+    expect(aihubmixWireModel({ catalogId: 'aihubmix-tts-1' })).toBe('tts-1');
   });
 
   it('strips an unmapped aihubmix- prefix as a fallback', () => {
-    expect(aihubmixWireModel('aihubmix-gemini-3-pro-image-preview')).toBe('gemini-3-pro-image-preview');
+    expect(aihubmixWireModel({ catalogId: 'aihubmix-gemini-3-pro-image-preview' })).toBe('gemini-3-pro-image-preview');
   });
 
   it('passes an id with no aihubmix- prefix through unchanged', () => {
-    expect(aihubmixWireModel('some-arbitrary-id')).toBe('some-arbitrary-id');
+    expect(aihubmixWireModel({ catalogId: 'some-arbitrary-id' })).toBe('some-arbitrary-id');
   });
 });
 
@@ -106,14 +106,14 @@ describe('aihubmixGeminiImageBytes', () => {
         { status: 200 },
       );
     };
-    const bytes = await aihubmixGeminiImageBytes(baseReq, doFetch);
+    const bytes = await aihubmixGeminiImageBytes({ req: baseReq, doFetch });
     expect(bytes.toString('utf8')).toBe('img-bytes');
   });
 
   it('decodes the snake_case inline_data field when that is what the response uses', async () => {
     const doFetch = async () =>
       new Response(JSON.stringify({ candidates: [{ content: { parts: [{ inline_data: { data: Buffer.from('x').toString('base64') } }] } }] }), { status: 200 });
-    const bytes = await aihubmixGeminiImageBytes(baseReq, doFetch);
+    const bytes = await aihubmixGeminiImageBytes({ req: baseReq, doFetch });
     expect(bytes.toString('utf8')).toBe('x');
   });
 
@@ -125,28 +125,28 @@ describe('aihubmixGeminiImageBytes', () => {
         }),
         { status: 200 },
       );
-    const bytes = await aihubmixGeminiImageBytes(baseReq, doFetch);
+    const bytes = await aihubmixGeminiImageBytes({ req: baseReq, doFetch });
     expect(bytes.toString('utf8')).toBe('later');
   });
 
   it('throws a truncated, tagged error on a non-OK response', async () => {
     const doFetch = async () => new Response('bad request', { status: 400 });
-    await expect(aihubmixGeminiImageBytes(baseReq, doFetch)).rejects.toThrow(/^aihubmix image \(gemini\) 400: bad request$/);
+    await expect(aihubmixGeminiImageBytes({ req: baseReq, doFetch })).rejects.toThrow(/^aihubmix image \(gemini\) 400: bad request$/);
   });
 
   it('falls back to an empty error body when reading the non-OK response text itself fails', async () => {
     const doFetch = async () =>
       ({ ok: false, status: 500, text: () => Promise.reject(new Error('stream closed')) }) as unknown as Response;
-    await expect(aihubmixGeminiImageBytes(baseReq, doFetch)).rejects.toThrow(/^aihubmix image \(gemini\) 500: $/);
+    await expect(aihubmixGeminiImageBytes({ req: baseReq, doFetch })).rejects.toThrow(/^aihubmix image \(gemini\) 500: $/);
   });
 
   it('throws when the response has no inline image data anywhere', async () => {
     const doFetch = async () => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: 'no image' }] } }] }), { status: 200 });
-    await expect(aihubmixGeminiImageBytes(baseReq, doFetch)).rejects.toThrow(/had no inline image data/);
+    await expect(aihubmixGeminiImageBytes({ req: baseReq, doFetch })).rejects.toThrow(/had no inline image data/);
   });
 
   it('throws when candidates is entirely absent', async () => {
     const doFetch = async () => new Response(JSON.stringify({}), { status: 200 });
-    await expect(aihubmixGeminiImageBytes(baseReq, doFetch)).rejects.toThrow(/had no inline image data/);
+    await expect(aihubmixGeminiImageBytes({ req: baseReq, doFetch })).rejects.toThrow(/had no inline image data/);
   });
 });
