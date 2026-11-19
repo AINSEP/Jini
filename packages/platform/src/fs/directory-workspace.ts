@@ -33,15 +33,45 @@ export function createNodeDirectoryWorkspace(
     fileAt, canonicalPath, removeFile: ({ filePath }) => ports.filesystem.rmSync(filePath, { force: true }), isDirectory: (file) => ports.filesystem.statSync(file).isDirectory(), exists: (file) => { try { ports.filesystem.statSync(file); return true; } catch (error) { return fallbackIfMissing({ error, fallback: false }); } },
   }, { env, cwd, report: (message) => ports.report.error({ message }), ...directoryOptions }) : undefined;
   const settings = fileAt(config?.filePath ?? settingsFile);
-  function readSetting(): string | undefined {
-    const read = settings.read({});
-    if (read.state === "missing") return undefined;
-    if (read.state !== "ok" || typeof (read.value as { home?: unknown } | null)?.home !== "string") throw new Error("The directory home setting is unreadable.");
-    return (read.value as { home: string }).home;
-  }
-  const legacyHome = () => canonicalPath({ path: resolveDirectoryHome({ homeDir, defaultFolder, envName, env, setting: env[envName] === undefined ? readSetting() : undefined }, { cwd }) });
+  const legacyHome = () => canonicalPath({ path: resolveDirectoryHome({ homeDir, defaultFolder, envName, env, setting: env[envName] === undefined ? readSetting(settings) : undefined }, { cwd }) });
   const home = () => config?.read({}).sitesHome ?? legacyHome();
   const fixturePattern = registryRecovery ? new RegExp(registryRecovery.fixtureIdPattern.source, registryRecovery.fixtureIdPattern.flags.replace(/[gy]/g, "")) : undefined;
+  const context = { homeDir, defaultFolder, envName, settingsFile, registryName, runningName, userConfig, registryRecovery,
+    env, cwd, ports, canonicalPath, directoryOptions, fileAt, config, settings, home, fixturePattern };
+  const atHome = createWorkspaceCatalogReader(context);
+  const oldCatalogs = createLegacyWorkspaceCatalogReader(context);
+  // One lease adapter for both the app-data and the site-local (legacy) lease locations.
+  const runningLockAt = (filePath: string) => createDirectoryRunningLock({ file: fileAt(filePath), isAlive: ports.process.isAlive,
+    remove: () => ports.filesystem.rmSync(filePath, { force: true }) }, { ...(ports.process.bootIdentity ? { bootIdentity: ports.process.bootIdentity } : {}) });
+  const registry = createWorkspaceRegistry(context, { atHome, oldCatalogs });
+  return {
+    homeDir,
+    ...createWorkspaceConfigAccess(context),
+    ...createWorkspaceRelocation(context, oldCatalogs),
+    ...createWorkspaceHomeAccess(context),
+    registry: (_required: Record<string, never>, _options = {}) => registry,
+    ...createWorkspaceRunningAccess(context, runningLockAt),
+  };
+}
+
+type WorkspaceContext = Omit<Parameters<typeof createNodeDirectoryWorkspace>[0], "userConfig" | "registryRecovery"> & {
+  userConfig: Parameters<typeof createNodeDirectoryWorkspace>[0]["userConfig"];
+  registryRecovery: Parameters<typeof createNodeDirectoryWorkspace>[0]["registryRecovery"];
+  env: NodeJS.ProcessEnv; cwd: string; ports: DurableJsonPorts;
+  canonicalPath: (required: { path: string }) => string; directoryOptions: UserDirectoryOptions;
+  fileAt: (filePath: string) => ReturnType<typeof createDurableJsonFile>;
+  config: ReturnType<typeof createDirectoryUserConfig> | undefined;
+  settings: ReturnType<typeof createDurableJsonFile>; home: () => string; fixturePattern: RegExp | undefined;
+};
+
+function readSetting(settings: ReturnType<typeof createDurableJsonFile>): string | undefined {
+  const read = settings.read({});
+  if (read.state === "missing") return undefined;
+  if (read.state !== "ok" || typeof (read.value as { home?: unknown } | null)?.home !== "string") throw new Error("The directory home setting is unreadable.");
+  return (read.value as { home: string }).home;
+}
+
+function createWorkspaceCatalogReader({ fileAt, config, home, registryName, canonicalPath, registryRecovery, homeDir, fixturePattern, ports }: WorkspaceContext) {
   const atHome = () => createDirectoryRegistry({ file: fileAt(path.join(config?.appData ?? home(), registryName)), canonicalPath }, registryRecovery ? {
     discard: ({ entry }) => {
       const absolute = canonicalPath({ path: entry.path });
@@ -63,6 +93,10 @@ export function createNodeDirectoryWorkspace(
     },
     reportDiscarded: ({ entries }) => ports.report.error({ message: `Directory workspace: removed ${entries.length} test/temporary catalog entries: ${entries.map((entry) => entry.id).join(", ")}` }),
   } : {});
+  return atHome;
+}
+
+function createLegacyWorkspaceCatalogReader({ directoryOptions, config, userConfig, fileAt, homeDir, defaultFolder, envName, cwd, home, registryName, canonicalPath }: WorkspaceContext) {
   // Read old catalogs without modifying sites. Import only under the settings lane on a mutation;
   // dry-run and startup discovery can inspect the old state without creating app-data files.
   const oldCatalogs = () => {
@@ -78,15 +112,16 @@ export function createNodeDirectoryWorkspace(
     const expandedHome = resolveDirectoryHome({ homeDir, defaultFolder, envName, env: {}, setting: oldHome }, { cwd, ...directoryOptions });
     return [...new Set([expandedHome, ...config.legacyHomes({}), home()])].map((root) => createDirectoryRegistry({ file: fileAt(path.join(root, registryName)), canonicalPath }));
   };
+  return oldCatalogs;
+}
+
+function createWorkspaceRegistry({ settings, config, canonicalPath }: WorkspaceContext, { atHome, oldCatalogs }: { atHome: ReturnType<typeof createWorkspaceCatalogReader>; oldCatalogs: ReturnType<typeof createLegacyWorkspaceCatalogReader> }) {
   const importOldCatalog = () => {
     const current = atHome();
     if (!config || current.hasMigration({ migration: APP_DATA_CATALOG_MIGRATION })) return;
     const previous = oldCatalogs();
     current.merge({ entries: previous.flatMap((catalog) => catalog.list({})), migrations: previous.flatMap((catalog) => catalog.migrations({})), migration: APP_DATA_CATALOG_MIGRATION });
   };
-  // One lease adapter for both the app-data and the site-local (legacy) lease locations.
-  const runningLockAt = (filePath: string) => createDirectoryRunningLock({ file: fileAt(filePath), isAlive: ports.process.isAlive,
-    remove: () => ports.filesystem.rmSync(filePath, { force: true }) }, { ...(ports.process.bootIdentity ? { bootIdentity: ports.process.bootIdentity } : {}) });
   const mutate = <T>(operation: () => T): T => settings.withLock({ critical: () => { importOldCatalog(); return operation(); } });
   // Serialize pointer changes with catalog mutations. A caller that obtained a registry before
   // settings changed must still write into the current home, never strand a late registration.
@@ -104,8 +139,11 @@ export function createNodeDirectoryWorkspace(
     remove: (required, options = {}) => mutate(() => atHome().remove(required, options)),
     relocate: (required, options = {}) => mutate(() => atHome().relocate(required, options)),
   };
+  return registry;
+}
+
+function createWorkspaceConfigAccess({ config, home, ports, env, envName, userConfig }: WorkspaceContext) {
   return {
-    homeDir,
     config: (_required: Record<string, never>, _options = {}) => thisConfig(),
     updateConfig: (required: { patch: Partial<DirectoryUserConfig> }, options = {}) => {
       if (!config) throw new Error("User config policy is not configured.");
@@ -132,6 +170,16 @@ export function createNodeDirectoryWorkspace(
       catch (error) { return fallbackIfMissing({ error, fallback: false }); }
     },
     legacyHomes: (_required: Record<string, never>, _options = {}) => config?.legacyHomes({}) ?? [],
+  };
+  function thisConfig() {
+    if (!config) throw new Error("User config policy is not configured.");
+    return { ...config.read({}), defaultRoots: config.defaultRoots({}), extraRoots: config.extraRoots({}), configPath: config.filePath, appData: config.appData, warning: config.syncWarning({}),
+      overrides: { sitesHome: env[envName] !== undefined, siteRoots: env[userConfig!.rootsEnvName] !== undefined } };
+  }
+}
+
+function createWorkspaceRelocation({ config, canonicalPath, home, fileAt, ports, homeDir, defaultFolder, envName, cwd, directoryOptions, userConfig, registryName }: WorkspaceContext, oldCatalogs: ReturnType<typeof createLegacyWorkspaceCatalogReader>) {
+  return {
     /** Commit a verified move's catalog and every injected path reference as one locked unit.
      * Uses the registry owner to preserve identity/collision rules; settings retain env precedence.
      * @complexity O(total catalog/reference bytes), with rollback snapshots in memory.
@@ -174,6 +222,11 @@ export function createNodeDirectoryWorkspace(
         } }, ...references,
       ] });
     },
+  };
+}
+
+function createWorkspaceHomeAccess({ env, envName, config, home, canonicalPath, homeDir, defaultFolder, cwd, settings, fileAt, registryName }: WorkspaceContext) {
+  return {
     home: (_required: Record<string, never>, _options = {}) => home(),
     setHome({ path: dir }: { path: string }, _options = {}) {
       if (env[envName] !== undefined) throw new Error(`${envName} overrides this setting. Unset it before changing the directory home.`);
@@ -187,7 +240,11 @@ export function createNodeDirectoryWorkspace(
       } });
       return home();
     },
-    registry: (_required: Record<string, never>, _options = {}) => registry,
+  };
+}
+
+function createWorkspaceRunningAccess({ canonicalPath, runningName, config, settings, ports }: WorkspaceContext, runningLockAt: (filePath: string) => ReturnType<typeof createDirectoryRunningLock>) {
+  return {
     running: ({ path: dir }: { path: string }, _options = {}) => {
       const legacyPath = path.join(canonicalPath({ path: dir }), runningName);
       const current = runningLockAt(config?.runningPath({ dir }) ?? legacyPath);
@@ -211,11 +268,6 @@ export function createNodeDirectoryWorkspace(
       return lock.claim({ record: { pid: ports.process.pid, port, app, scheme, started: new Date(ports.clock.nowMs()).toISOString(), token: randomUUID() } });
     },
   };
-  function thisConfig() {
-    if (!config) throw new Error("User config policy is not configured.");
-    return { ...config.read({}), defaultRoots: config.defaultRoots({}), extraRoots: config.extraRoots({}), configPath: config.filePath, appData: config.appData, warning: config.syncWarning({}),
-      overrides: { sitesHome: env[envName] !== undefined, siteRoots: env[userConfig!.rootsEnvName] !== undefined } };
-  }
 }
 
 /** Canonicalize existing ancestors without creating the selected directory.

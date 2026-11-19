@@ -98,13 +98,6 @@
     "value": 11
   },
   {
-    "file": "packages/platform/src/secrets/credential-sets/vault-archive.ts",
-    "function": "captureVaultArchive",
-    "line": 28,
-    "rule": "sonarjs/cognitive-complexity",
-    "value": 16
-  },
-  {
     "file": "packages/ui-kit/src/react/testing/driver.ts",
     "function": "runKitConformance",
     "line": 87,

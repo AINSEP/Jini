@@ -525,32 +525,11 @@
     "value": 981
   },
   {
-    "file": "packages/platform/src/fs/directory-user-config.ts",
-    "function": "createDirectoryUserConfig",
-    "line": 46,
-    "rule": "max-lines-per-function",
-    "value": 146
-  },
-  {
-    "file": "packages/platform/src/fs/directory-workspace.ts",
-    "function": "createNodeDirectoryWorkspace",
-    "line": 22,
-    "rule": "max-lines-per-function",
-    "value": 172
-  },
-  {
     "file": "packages/platform/src/fs/guarded-reader.ts",
     "function": "createGuardedFileReader",
     "line": 49,
     "rule": "max-lines-per-function",
     "value": 329
-  },
-  {
-    "file": "packages/platform/src/terminal.ts",
-    "function": "createTerminalService",
-    "line": 198,
-    "rule": "max-lines-per-function",
-    "value": 219
   },
   {
     "file": "packages/plugins/src/host/capability-tools.ts",

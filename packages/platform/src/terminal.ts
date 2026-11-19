@@ -208,6 +208,31 @@ export function createTerminalService(options: CreateTerminalServiceOptions): Te
   } = options;
 
   const sessions = new Map<string, InternalSession>();
+  const loadPty = createPtyLoader(loadSpawnPty);
+  const { emit, flushData } = createTerminalEventBuffer(maxBufferBytes, maxEvents);
+  const finish = createTerminalFinisher({ sessions, flushData, emit }, { ttlMs, exitTailBytes });
+  const create = createTerminalSessionCreator({ sessions, loadPty, flushData, finish }, { flushThresholdBytes, flushIntervalMs });
+  const { get, list, attach, detach } = createTerminalSessionReaders(sessions);
+  const { write, resize, kill } = createTerminalSessionControls(sessions, finish);
+  const shutdownActive = createTerminalShutdown(sessions, finish, shutdownGraceMs);
+
+  return {
+    create,
+    get,
+    list,
+    write,
+    resize,
+    kill,
+    attach,
+    detach,
+    shutdownActive,
+    isTerminal(status: string) {
+      return TERMINAL_STATUSES.has(status);
+    },
+  };
+}
+
+function createPtyLoader(loadSpawnPty: CreateTerminalServiceOptions['loadSpawnPty']) {
   let cachedSpawnPty: Promise<PtySpawn> | null = null;
 
   const loadPty = (): Promise<PtySpawn> => {
@@ -220,12 +245,10 @@ export function createTerminalService(options: CreateTerminalServiceOptions): Te
     return cachedSpawnPty;
   };
 
-  const scheduleCleanup = (session: InternalSession) => {
-    setTimeout(() => {
-      if (TERMINAL_STATUSES.has(session.status)) sessions.delete(session.id);
-    }, ttlMs).unref?.();
-  };
+  return loadPty;
+}
 
+function createTerminalEventBuffer(maxBufferBytes: number, maxEvents: number) {
   const recordByteLength = (data: TerminalEventData): number => ('data' in data ? Buffer.byteLength(data.data, 'utf8') : 0);
 
   const trimBuffer = (session: InternalSession) => {
@@ -270,6 +293,16 @@ export function createTerminalService(options: CreateTerminalServiceOptions): Te
     emit(session, 'data', { data: chunk });
   };
 
+  return { emit, flushData };
+}
+
+function createTerminalFinisher({ sessions, flushData, emit }: { sessions: Map<string, InternalSession>; flushData: (session: InternalSession) => void; emit: ReturnType<typeof createTerminalEventBuffer>['emit'] }, { ttlMs, exitTailBytes }: { ttlMs: number; exitTailBytes: number }) {
+  const scheduleCleanup = (session: InternalSession) => {
+    setTimeout(() => {
+      if (TERMINAL_STATUSES.has(session.status)) sessions.delete(session.id);
+    }, ttlMs).unref?.();
+  };
+
   const finish = (session: InternalSession, code: number | null, signal: string | null) => {
     if (TERMINAL_STATUSES.has(session.status)) return;
     flushData(session);
@@ -296,6 +329,10 @@ export function createTerminalService(options: CreateTerminalServiceOptions): Te
     scheduleCleanup(session);
   };
 
+  return finish;
+}
+
+function createTerminalSessionCreator({ sessions, loadPty, flushData, finish }: { sessions: Map<string, InternalSession>; loadPty: () => Promise<PtySpawn>; flushData: (session: InternalSession) => void; finish: ReturnType<typeof createTerminalFinisher> }, { flushThresholdBytes, flushIntervalMs }: { flushThresholdBytes: number; flushIntervalMs: number }) {
   const create = async (createOptions: CreateTerminalOptions): Promise<TerminalSession> => {
     const spawnPty = await loadPty();
     const now = Date.now();
@@ -333,6 +370,10 @@ export function createTerminalService(options: CreateTerminalServiceOptions): Te
     return toPublicSession(session);
   };
 
+  return create;
+}
+
+function createTerminalSessionReaders(sessions: Map<string, InternalSession>) {
   const get = (id: string): TerminalSession | null => {
     const session = sessions.get(id);
     return session ? toPublicSession(session) : null;
@@ -372,6 +413,10 @@ export function createTerminalService(options: CreateTerminalServiceOptions): Te
     sessions.get(id)?.clients.delete(sink);
   };
 
+  return { get, list, attach, detach };
+}
+
+function createTerminalSessionControls(sessions: Map<string, InternalSession>, finish: ReturnType<typeof createTerminalFinisher>) {
   const write = (id: string, input: string): boolean => {
     const session = sessions.get(id);
     if (!session || TERMINAL_STATUSES.has(session.status)) return false;
@@ -412,6 +457,10 @@ export function createTerminalService(options: CreateTerminalServiceOptions): Te
     }
   };
 
+  return { write, resize, kill };
+}
+
+function createTerminalShutdown(sessions: Map<string, InternalSession>, finish: ReturnType<typeof createTerminalFinisher>, shutdownGraceMs: number) {
   const shutdownActive = async ({ graceMs = shutdownGraceMs }: { graceMs?: number } = {}): Promise<void> => {
     const active = Array.from(sessions.values()).filter((session) => !TERMINAL_STATUSES.has(session.status));
     for (const session of active) {
@@ -430,20 +479,7 @@ export function createTerminalService(options: CreateTerminalServiceOptions): Te
     }
   };
 
-  return {
-    create,
-    get,
-    list,
-    write,
-    resize,
-    kill,
-    attach,
-    detach,
-    shutdownActive,
-    isTerminal(status: string) {
-      return TERMINAL_STATUSES.has(status);
-    },
-  };
+  return shutdownActive;
 }
 
 // Map the numeric signal node-pty reports on exit back to a name. Only

@@ -47,16 +47,24 @@ export async function captureVaultArchive(
     for (const row of await (repo ?? vault).list(query)) {
       if (++count > 2000) throw new VaultError({ code: "invalid-record" });
       try {
-        if (!isInVaultQueryScope({ record: row, query })) throw new VaultError({ code: "context" });
+        assertArchiveQueryScope({ record: row, query });
         const found = await vault.get(row);
-        if (!found) throw new VaultError({ code: "conflict" });
-        const s = found.summary;
-        entries.push({ id: s.id, kind: s.kind, ownerKey: s.ownerKey, binding: s.binding, provider: s.provider,
-          label: s.label, isDefault: s.isDefault, meta: s.meta, payload: found.payload });
+        appendVaultArchiveEntry(entries, found);
       } catch { omitted++; }
     }
   }
   return { entries, notices: omitted ? [`${omitted} saved credential(s) could not be opened and were left out.`] : [] };
+}
+
+function assertArchiveQueryScope(scope: Parameters<typeof isInVaultQueryScope>[0]): void {
+  if (!isInVaultQueryScope(scope)) throw new VaultError({ code: "context" });
+}
+
+function appendVaultArchiveEntry(entries: VaultArchiveEntry[], found: Awaited<ReturnType<SecretsVaultService["get"]>>): void {
+  if (!found) throw new VaultError({ code: "conflict" });
+  const s = found.summary;
+  entries.push({ id: s.id, kind: s.kind, ownerKey: s.ownerKey, binding: s.binding, provider: s.provider,
+    label: s.label, isDefault: s.isDefault, meta: s.meta, payload: found.payload });
 }
 
 /** Validate and re-seal every entry before the host atomically commits any of them. Keeping the
