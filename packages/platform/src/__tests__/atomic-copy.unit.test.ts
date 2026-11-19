@@ -31,7 +31,7 @@ describe('atomic copy replacement', () => {
       expect(await readFile(destination, 'utf8')).toBe('old bytes');
       await actual.rename(from, to);
     });
-    await expect(atomicCopyFile(source, destination, { overwrite: true })).resolves.toEqual({ bytesCopied: 9, replaced: true });
+    await expect(atomicCopyFile({ sourcePath: source, destinationPath: destination }, { overwrite: true })).resolves.toEqual({ bytesCopied: 9, replaced: true });
     expect(await readFile(destination, 'utf8')).toBe('new bytes');
     expect((await readdir(directory)).sort()).toEqual(['destination', 'source']);
   });
@@ -43,7 +43,7 @@ describe('atomic copy replacement', () => {
     await writeFile(destination, 'old bytes');
     const failure = Object.assign(new Error('rename denied'), { code: 'EACCES' });
     vi.mocked(rename).mockRejectedValueOnce(failure);
-    await expect(atomicCopyFile(source, destination, { overwrite: true })).rejects.toBe(failure);
+    await expect(atomicCopyFile({ sourcePath: source, destinationPath: destination }, { overwrite: true })).rejects.toBe(failure);
     expect(await readFile(destination, 'utf8')).toBe('old bytes');
     expect((await readdir(directory)).sort()).toEqual(['destination', 'source']);
   });
@@ -53,7 +53,7 @@ describe('atomic copy replacement', () => {
     const destination = join(directory, 'destination');
     await writeFile(source, 'new bytes');
     await writeFile(destination, 'old bytes');
-    await expect(atomicCopyFile(source, destination)).rejects.toMatchObject({ code: 'EEXIST' });
+    await expect(atomicCopyFile({ sourcePath: source, destinationPath: destination })).rejects.toMatchObject({ code: 'EEXIST' });
     expect(await readFile(destination, 'utf8')).toBe('old bytes');
     expect(rename).not.toHaveBeenCalled();
   });

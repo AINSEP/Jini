@@ -21,7 +21,7 @@ export type HttpWaitOptions = {
  */
 async function requestHttpOk({ url, timeoutMs }: { url: string; timeoutMs: number }, { probe }: Pick<HttpWaitOptions, "probe"> = {}): Promise<boolean> {
   if (probe) return probe({ url, timeoutMs });
-  const response = await fetchWithTimeout(url, { cache: "no-store" }, { timeoutMs });
+  const response = await fetchWithTimeout({ url, timeoutMs }, { init: { cache: "no-store" } });
   if (!response.ok) throw new Error(`HTTP ${response.status} from ${url}`);
   return true;
 }
@@ -40,7 +40,7 @@ function errorMessage(error: unknown): string {
  * @returns `true` once an OK response is received.
  * @throws When the timeout elapses without an OK response (message includes the last error).
  */
-export async function waitForHttpOk(url: string, { timeoutMs = 20000, probe }: HttpWaitOptions = {}): Promise<true> {
+export async function waitForHttpOk({ url }: { url: string }, { timeoutMs = 20000, probe }: HttpWaitOptions = {}): Promise<true> {
   const startedAt = Date.now();
   let lastError: Error | null = null;
   while (Date.now() - startedAt < timeoutMs) {

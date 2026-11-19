@@ -190,14 +190,12 @@ export function A2uiLab() {
     async function start() {
       try {
         const response = await fetchWithTimeout(
-          '/api/runs',
-          {
+          { url: '/api/runs', timeoutMs: FETCH_TIMEOUT_MS.QUICK }, { init: {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ contextRef: encodeA2uiRunContext(), agentId: A2UI_DEMO_AGENT_ID }),
             signal: controller.signal,
-          },
-          { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+          } },
         );
         if (!response.ok) throw await readApiError(response);
         const body = (await response.json()) as RunResponseWire;
@@ -271,13 +269,11 @@ export function A2uiLab() {
     appendLog(`[action -> agent] ${JSON.stringify(built.message)}`);
     try {
       const response = await fetchWithTimeout(
-        '/a2ui-action',
-        {
+        { url: '/a2ui-action', timeoutMs: FETCH_TIMEOUT_MS.QUICK }, { init: {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ runId, message: built.message }),
-        },
-        { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+        } },
       );
       if (!response.ok) {
         const error = await readApiError(response);

@@ -124,7 +124,7 @@ async function main(): Promise<void> {
 
 async function verifyDaemonStatus({ url }: { url: string }): Promise<void> {
   const response = await assertOk(
-    await fetchWithTimeout(`${url}/api/daemon/status`, {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK }),
+    await fetchWithTimeout({ url: `${url}/api/daemon/status`, timeoutMs: FETCH_TIMEOUT_MS.QUICK }, { init: {} }),
     'GET /api/daemon/status',
   );
   const body = (await response.json()) as DaemonStatusBody;
@@ -136,13 +136,11 @@ async function verifyDaemonStatus({ url }: { url: string }): Promise<void> {
 async function verifyCompletedRun({ url }: { url: string }): Promise<string> {
   const create = await assertOk(
     await fetchWithTimeout(
-      `${url}/api/runs`,
-      {
+      { url: `${url}/api/runs`, timeoutMs: FETCH_TIMEOUT_MS.QUICK }, { init: {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ contextRef: 'minimal-host-complete', idempotencyKey: 'complete-once' }),
-      },
-      { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+      } },
     ),
     'POST /api/runs',
   );
@@ -153,7 +151,7 @@ async function verifyCompletedRun({ url }: { url: string }): Promise<string> {
   }
 
   const firstStream = await assertOk(
-    await fetchWithTimeout(`${url}/api/runs/${encodeURIComponent(completedRunId)}/events`, {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK }),
+    await fetchWithTimeout({ url: `${url}/api/runs/${encodeURIComponent(completedRunId)}/events`, timeoutMs: FETCH_TIMEOUT_MS.QUICK }, { init: {} }),
     'GET /api/runs/:id/events',
   );
   const firstStreamBody = await firstStream.text();
@@ -164,9 +162,7 @@ async function verifyCompletedRun({ url }: { url: string }): Promise<string> {
 
   const reconnected = await assertOk(
     await fetchWithTimeout(
-      `${url}/api/runs/${encodeURIComponent(completedRunId)}/events`,
-      { headers: { 'last-event-id': firstCursors[0] ?? '' } },
-      { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+      { url: `${url}/api/runs/${encodeURIComponent(completedRunId)}/events`, timeoutMs: FETCH_TIMEOUT_MS.QUICK }, { init: { headers: { 'last-event-id': firstCursors[0] ?? '' } } },
     ),
     'GET /api/runs/:id/events reconnect',
   );
@@ -181,13 +177,11 @@ async function verifyCompletedRun({ url }: { url: string }): Promise<string> {
 async function verifyAcpRun({ url }: { url: string }): Promise<void> {
   const acp = await assertOk(
     await fetchWithTimeout(
-      `${url}/api/runs`,
-      {
+      { url: `${url}/api/runs`, timeoutMs: FETCH_TIMEOUT_MS.QUICK }, { init: {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ contextRef: 'minimal-host-acp', agentId: 'acp-fixture' }),
-      },
-      { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+      } },
     ),
     'POST /api/runs ACP fixture',
   );
@@ -197,7 +191,7 @@ async function verifyAcpRun({ url }: { url: string }): Promise<void> {
     throw new Error(`minimal-host: ACP fixture did not create a run: ${JSON.stringify(acpBody)}`);
   }
   const acpStream = await assertOk(
-    await fetchWithTimeout(`${url}/api/runs/${encodeURIComponent(acpRunId)}/events`, {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK }),
+    await fetchWithTimeout({ url: `${url}/api/runs/${encodeURIComponent(acpRunId)}/events`, timeoutMs: FETCH_TIMEOUT_MS.QUICK }, { init: {} }),
     'GET /api/runs/:id/events ACP fixture',
   );
   const acpStreamBody = await acpStream.text();
@@ -209,13 +203,11 @@ async function verifyAcpRun({ url }: { url: string }): Promise<void> {
 async function verifyCancelledRun({ url, cancellationCompletions }: { url: string; cancellationCompletions: Map<string, Promise<unknown>> }): Promise<void> {
   const waiting = await assertOk(
     await fetchWithTimeout(
-      `${url}/api/runs`,
-      {
+      { url: `${url}/api/runs`, timeoutMs: FETCH_TIMEOUT_MS.QUICK }, { init: {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ contextRef: 'minimal-host-cancel', agentId: 'wait-for-cancel' }),
-      },
-      { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+      } },
     ),
     'POST /api/runs waiting',
   );
@@ -226,13 +218,11 @@ async function verifyCancelledRun({ url, cancellationCompletions }: { url: strin
   }
   await assertOk(
     await fetchWithTimeout(
-      `${url}/api/runs/${encodeURIComponent(waitingRunId)}/cancel`,
-      {
+      { url: `${url}/api/runs/${encodeURIComponent(waitingRunId)}/cancel`, timeoutMs: FETCH_TIMEOUT_MS.QUICK }, { init: {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ reason: 'minimal-host cancellation check' }),
-      },
-      { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+      } },
     ),
     'POST /api/runs/:id/cancel',
   );
@@ -243,7 +233,7 @@ async function verifyCancelledRun({ url, cancellationCompletions }: { url: strin
 
 async function verifyRestoredRun({ url, completedRunId }: { url: string; completedRunId: string }): Promise<void> {
   const restored = await assertOk(
-    await fetchWithTimeout(`${url}/api/runs/${encodeURIComponent(completedRunId)}`, {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK }),
+    await fetchWithTimeout({ url: `${url}/api/runs/${encodeURIComponent(completedRunId)}`, timeoutMs: FETCH_TIMEOUT_MS.QUICK }, { init: {} }),
     'GET /api/runs/:id after restart',
   );
   const restoredBody = (await restored.json()) as RunResponse;
@@ -251,7 +241,7 @@ async function verifyRestoredRun({ url, completedRunId }: { url: string; complet
     throw new Error(`minimal-host: durable state was not restored: ${JSON.stringify(restoredBody)}`);
   }
   const replayed = await assertOk(
-    await fetchWithTimeout(`${url}/api/runs/${encodeURIComponent(completedRunId)}/events`, {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK }),
+    await fetchWithTimeout({ url: `${url}/api/runs/${encodeURIComponent(completedRunId)}/events`, timeoutMs: FETCH_TIMEOUT_MS.QUICK }, { init: {} }),
     'GET /api/runs/:id/events after restart',
   );
   if (!(await replayed.text()).includes('event: end')) {

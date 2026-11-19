@@ -136,7 +136,7 @@ describe("fetchTextWithTimeout and injected legacy fetch", () => {
     const response = new Response("ok", { status: 201, headers: { "x-id": "a" } });
     const fetch = vi.fn<typeof globalThis.fetch>(async () => response);
     const url = new URL("https://example.test");
-    await expect(fetchWithTimeout(url, { method: "POST", body: "input" }, { timeoutMs: 5000, fetch })).resolves.toBe(response);
+    await expect(fetchWithTimeout({ url, timeoutMs: 5000, fetch }, { init: { method: "POST", body: "input" } })).resolves.toBe(response);
     expect(response.bodyUsed).toBe(false);
     expect(fetch).toHaveBeenCalledWith(url, expect.objectContaining({ method: "POST", body: "input", signal: expect.any(AbortSignal) }));
     await expect(response.text()).resolves.toBe("ok");

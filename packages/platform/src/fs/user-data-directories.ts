@@ -57,7 +57,7 @@ function xdgDirectories({ homeDir, appName, env, appDataDir, paths }: DirectoryC
 /** Native reads are isolated so cross-platform fixtures never execute registry commands. */
 export function readOptionalText({ file }: { file: string }, _options = {}): string | undefined {
   try { return fs.readFileSync(file, "utf8"); }
-  catch (error) { return fallbackIfMissing(error, undefined); }
+  catch (error) { return fallbackIfMissing({ error, fallback: undefined }); }
 }
 function readWindowsDocuments(): string | undefined {
   const output = execFileSync(windowsSystemTool({ relativePath: ["reg.exe"] }), ["query", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders", "/v", "Personal"], { encoding: "utf8", timeout: 3000, windowsHide: true });

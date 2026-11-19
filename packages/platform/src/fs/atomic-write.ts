@@ -56,7 +56,7 @@ export function createNodeAtomicFilesystem(_required: Record<string, never>, { f
 }
 const DIRECTORY_SYNC_UNSUPPORTED = ["EPERM", "EISDIR", "EINVAL", "EACCES", "ENOTSUP"];
 function hasErrorCode(error: unknown, codes: readonly string[]): boolean {
-  const code = errorCodeOf(error);
+  const code = errorCodeOf({ error });
   return code !== undefined && codes.includes(code);
 }
 function isMissing(error: unknown): boolean {

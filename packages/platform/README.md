@@ -61,9 +61,9 @@ need a `PtySpawn` implementation supplied by the caller — this package defines
 ```ts
 import { waitForHttpOk, pathContains, spawnBackgroundProcess, LocalBlobStorage } from '@jini-ai/platform';
 
-await waitForHttpOk('http://127.0.0.1:4317/api/daemon/status', { timeoutMs: 15000 });
+await waitForHttpOk({ url: 'http://127.0.0.1:4317/api/daemon/status' }, { timeoutMs: 15000 });
 
-if (!pathContains('/workspace/project', requestedPath)) {
+if (!pathContains({ root: '/workspace/project', target: requestedPath })) {
   throw new Error('path escapes project root');
 }
 
@@ -174,8 +174,8 @@ malformed/truncated input. Streamed bytes are counted before decoding, independe
 failed guarded consumption cancels and releases the reader without masking the original error.
 Incoming chunk allocation is controlled by the upstream stream. The text-fetch helper maps timeout
 errors during both headers and body consumption to `FetchTimeoutError`, returns `{ response, text }`,
-and leaves the response metadata available with its body consumed. The existing positional
-`fetchWithTimeout(url, init, { timeoutMs, fetch? })` now accepts transport injection and still returns
+and leaves the response metadata available with its body consumed. The
+`fetchWithTimeout({ url, timeoutMs, fetch? }, { init })` now accepts transport injection and still returns
 the original unconsumed response. Neither function retries.
 
 For retained-byte metadata and optional truncation, use the single-object overload:

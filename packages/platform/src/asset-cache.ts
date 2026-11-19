@@ -57,7 +57,8 @@ const CACHEABLE_MEDIA_MIME: ReadonlySet<string> = new Set(Object.values(EXT_TO_M
 /** True when `raw` is an absolute http(s) URL pointing at a media file we are
  *  willing to route through the cache. Pure + side-effect free so the URL
  *  rewriter and tests can share the exact predicate. */
-export function isCacheableExternalUrl(raw: unknown): raw is string {
+export function isCacheableExternalUrl(required: { raw: unknown }, _optional: Record<string, never> = {}): required is { raw: string } {
+  const { raw } = required;
   if (typeof raw !== 'string') return false;
   const value = raw.trim();
   if (!/^https?:\/\//i.test(value)) return false;
@@ -73,7 +74,7 @@ export function isCacheableExternalUrl(raw: unknown): raw is string {
 /** Map a cacheable external URL to its same-origin proxy URL. `routePath`
  *  defaults to `/api/asset-cache` but is caller-configurable since the route
  *  is mounted by the host application, not this package. */
-export function assetCacheRewriteUrl(raw: string, routePath = '/api/asset-cache'): string {
+export function assetCacheRewriteUrl({ raw }: { raw: string }, { routePath = '/api/asset-cache' }: { routePath?: string | undefined } = {}): string {
   return `${routePath}?url=${encodeURIComponent(raw.trim())}`;
 }
 
@@ -341,11 +342,11 @@ async function fetchAndStore({ s, rawUrl, key }: {
 
 async function get({ s, rawUrl }: { s: AssetCacheState; rawUrl: string }): Promise<AssetCacheResult> {
   const { inflight } = s;
-  if (!isCacheableExternalUrl(rawUrl)) {
+  if (!isCacheableExternalUrl({ raw: rawUrl })) {
     throw new AssetCacheError(400, 'url is not a cacheable external media url');
   }
   const url = rawUrl.trim();
-  const key = assetCacheKey(url);
+  const key = assetCacheKey({ rawUrl: url });
   const cached = await readFromDisk({ s, key });
   if (cached) return cached;
   const existing = inflight.get(key);
@@ -379,6 +380,6 @@ export function createAssetCache(opts: AssetCacheOptions, options: { dispatcher?
 }
 
 /** Exposed for tests that need to assert the on-disk key layout. */
-export function assetCacheKey(rawUrl: string): string {
+export function assetCacheKey({ rawUrl }: { rawUrl: string }, _optional: Record<string, never> = {}): string {
   return createHash('sha256').update(rawUrl.trim()).digest('hex');
 }

@@ -320,7 +320,7 @@ function targetFromOptions(options: Pick<ManagedDownloadOptions, "basePath" | "b
   // see archived provenance ledger's 2026-07-22 entry and this file's own test for a
   // concrete example (bucket "..evil").
   for (const path of [finalPath, manifestPath, partialPath, lockPath]) {
-    if (!pathContains(basePath, path)) {
+    if (!pathContains({ root: basePath, target: path })) {
       throw new ManagedDownloadError(MANAGED_DOWNLOAD_ERROR_CODES.INVALID_TARGET, "resolved managed download path escaped basePath");
     }
   }
@@ -1044,7 +1044,7 @@ export async function downloadCopyAndClear(options: DownloadCopyAndClearOptions)
         throw new ManagedDownloadError(MANAGED_DOWNLOAD_ERROR_CODES.OUTPUT_CONFLICT, `output already exists with different bytes: ${outputPath}`);
       }
     } else {
-      await atomicCopyFile(downloaded.path, outputPath);
+      await atomicCopyFile({ sourcePath: downloaded.path, destinationPath: outputPath });
       const copiedDigest = await hashFile(outputPath, target.checksum.algorithm);
       if (copiedDigest !== target.checksum.value) {
         throw new ManagedDownloadError(MANAGED_DOWNLOAD_ERROR_CODES.CHECKSUM_MISMATCH, "copied output checksum did not match requested payload");
@@ -1102,10 +1102,10 @@ export async function removeManagedDownload(options: RemoveManagedDownloadOption
   }
   await ensureManagedBase(target.basePath);
   await Promise.all([
-    removePathBestEffort(target.finalPath),
-    removePathBestEffort(target.partialPath, { recursive: false }),
-    removePathBestEffort(target.manifestPath, { recursive: false }),
-    removePathBestEffort(target.lockPath, { recursive: false }),
+    removePathBestEffort({ path: target.finalPath }),
+    removePathBestEffort({ path: target.partialPath }, { recursive: false }),
+    removePathBestEffort({ path: target.manifestPath }, { recursive: false }),
+    removePathBestEffort({ path: target.lockPath }, { recursive: false }),
   ]);
   const bucketPath = join(target.basePath, target.bucket);
   const entries = await readdir(bucketPath).catch(() => null);
@@ -1121,7 +1121,7 @@ async function removeEntriesOlderThan(root: string, olderThan: number): Promise<
     const path = join(root, entry.name);
     const info = await stat(path).catch(() => null);
     if (info == null || info.mtimeMs > olderThan) continue;
-    const result = await removePathBestEffort(path);
+    const result = await removePathBestEffort({ path });
     // A successful removal never carries an error, so the two checks are exclusive.
     if (result.removed) removed += 1;
     if (result.error != null) warnings.push(result.error);

@@ -15,7 +15,7 @@ interface SyncPorts {
 const MOUNT_PROVIDERS: readonly (readonly [prefix: string, provider: DirectorySyncProvider])[] = [["OneDrive-", "OneDrive"], ["GoogleDrive-", "Google Drive"], ["Dropbox", "Dropbox"]];
 
 function canonicalOrResolved({ path: value }: { path: string }): string { try { return fs.realpathSync(value); } catch { return path.resolve(value); } }
-function listDirectoriesOrEmpty(root: string): string[] { try { return fs.readdirSync(root); } catch (error) { return fallbackIfMissing(error, []); } }
+function listDirectoriesOrEmpty(root: string): string[] { try { return fs.readdirSync(root); } catch (error) { return fallbackIfMissing({ error, fallback: [] }); } }
 
 function macRoots({ homeDir, documents }: { homeDir: string; documents: string }, { paths, exists, listDirectories }: { paths: PathApi; exists: SyncPorts["exists"]; listDirectories: SyncPorts["listDirectories"] }): SyncRoot[] {
   const cloud = paths.join(homeDir, "Library", "Mobile Documents", "com~apple~CloudDocs");
