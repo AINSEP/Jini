@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 import { AdminApiError } from '@jini-ai/core/admin-runtime';
-import { act, renderHook, waitFor } from "../../../__tests__/fetch-query-support.js";
+import { act, renderHook, waitFor } from "./harness.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FetchQueryProvider } from "@jini-ai/ui/fetch-query";
-import { useInvalidate } from "../../../react/kit.js";
+import { useInvalidate } from "@jini-ai/ui/fetch-query";
 
 import type { AdminFormDefinition as CoreForm, AdminFormsPort } from "../../../core/ports/forms.js";
 import { createMemoryFormsApi } from "../../adapters/memory.js";

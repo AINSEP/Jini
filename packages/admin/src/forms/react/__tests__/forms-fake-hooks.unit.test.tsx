@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "../../../__tests__/fetch-query-support.js";
+import { fireEvent, render, screen } from "./harness.js";
 import { describe, expect, it, vi } from "vitest";
 import type { ReactElement, MutableRefObject } from "react";
 

@@ -1,5 +1,5 @@
 import type { AdminFormDefinition, AdminFormField, AdminFormNotify, AdminFormSubmission } from '../../models.js';
-import type { AdminFormsPort } from '../../../core/ports/forms.js';
+import type { AdminFormsPort } from '../../ports.js';
 import type { FormsTrashPort, FormsEventsPort } from '../../ports.js';
 import { createMemoryFormsApi } from '../../adapters/memory.js';
 import { formView, submissionView } from '../../models.js';

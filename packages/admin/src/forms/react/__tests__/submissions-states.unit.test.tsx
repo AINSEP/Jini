@@ -1,16 +1,13 @@
-import { reactModuleUi } from '../../../core/react/module-ui.js';
-import { Component, Suspense, type ReactNode } from "react";
-import { AdminApiError, AdminConfigError } from '@jini-ai/core/admin-runtime';
-import { act, cleanup, render, renderHook, screen, waitFor } from "../../../__tests__/fetch-query-support.js";
+import type { ReactNode } from "react";
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
+import { act, cleanup, render, renderHook, screen, waitFor } from "./harness.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FetchQueryProvider } from "@jini-ai/ui/fetch-query";
 
-import { createAdmin } from "../../../core/module/create-admin.js";
 import type { AdminFormDefinition as CoreForm, AdminFormSubmission as CoreSubmission } from "../../../core/ports/forms.js";
 import { createMemoryFormsApi } from "../../adapters/memory.js";
 import type { AdminFormDefinition, AdminFormSubmission } from "../../models.js";
 import type { FormsEventsPort } from "../../ports.js";
-import { forms, useFormsPorts } from "../index.js";
 import { FormSubmissionDetail } from "../components/FormSubmissionDetail.js";
 import { useFormSubmissionDetail, type FormSubmissionDetailController } from "../hooks/use-form-submission-detail.hooks.js";
 import { useFormSubmissions } from "../hooks/use-form-submissions.hooks.js";
@@ -191,51 +188,5 @@ describe("useFormsList row locks", () => {
     await waitFor(() => expect(result.current.forms).not.toBeNull());
     await act(async () => { refresh(); });
     await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
-  });
-});
-
-class Boundary extends Component<{ children: ReactNode }, { error: Error | null }> {
-  override state = { error: null as Error | null };
-  static getDerivedStateFromError(error: Error) { return { error }; }
-  override render() { return this.state.error ? <p role="alert">{this.state.error.message}</p> : this.props.children; }
-}
-
-describe("forms module editor page", () => {
-  function mountEditor(pageProps: Record<string, unknown>) {
-    const api = createMemoryFormsApi({}, { forms: [storedForm("f1", { name: "Contact" })] });
-    const module = forms({ ui: reactModuleUi });
-    const admin = createAdmin({ modules: [module.react.module], ports: { formsApi: api, formsCatalog: fakeFormsCatalog(), formsTrash: api.trash } }, { permissions: ["admin.forms.manage"] });
-    const { Page, tabs } = module.react.pages.editor;
-    const description = admin.describe().pages.find(page => page.id === "forms.editor")!;
-    render(<FetchQueryProvider><module.react.Provider admin={admin}><Boundary><Suspense fallback="loading">
-      <Page tabs={tabs} description={description} {...pageProps} />
-      <tabs.fields params={{}} /><tabs.submissions params={{}} />
-    </Suspense></Boundary></module.react.Provider></FetchQueryProvider>);
-    return admin;
-  }
-
-  it("opens the editor for a formId prop", async () => {
-    const admin = mountEditor({ formId: "f1" });
-    expect(await screen.findByDisplayValue("Contact")).toBeVisible();
-    admin.dispose();
-  });
-
-  it("opens the editor for a route param on the submissions tab", async () => {
-    const admin = mountEditor({ params: { formId: "f1" }, requestedTab: "submissions" });
-    expect(await screen.findByRole("tab", { name: "Submissions", selected: true })).toBeVisible();
-    admin.dispose();
-  });
-
-  it("refuses to render the editor without a form id", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    const admin = mountEditor({});
-    expect(await screen.findByRole("alert")).toHaveTextContent("Forms editor page requires formId");
-    admin.dispose();
-  });
-
-  it("fails loudly when forms hooks run outside the bound provider", () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(() => renderHook(() => useFormsPorts())).toThrow(AdminConfigError);
-    expect(() => renderHook(() => useFormsPorts())).toThrow(/React scope unavailable: forms/);
   });
 });

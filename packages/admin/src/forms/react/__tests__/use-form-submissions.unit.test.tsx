@@ -1,8 +1,8 @@
-import { act, renderHook, waitFor } from "../../../__tests__/fetch-query-support.js";
+import { act, renderHook, waitFor } from "./harness.js";
 import { assert, afterEach, describe, expect, it, vi } from "vitest";
 
 import { FetchQueryProvider } from "@jini-ai/ui/fetch-query";
-import { useInvalidate } from "../../../react/kit.js";
+import { useInvalidate } from "@jini-ai/ui/fetch-query";
 import { useFormSubmissions } from "./legacy-ports.js";
 import { createFakeFormSubmissionsPort } from "./legacy-ports.js";
 import type { FormSubmissionsPort } from "./legacy-ports.js";

@@ -1,6 +1,6 @@
 import { createElement } from "react";
 import type { FormEvent } from "react";
-import { act, fireEvent, render, renderHook, screen } from "../../../__tests__/fetch-query-support.js";
+import { act, fireEvent, render, renderHook, screen } from "./harness.js";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AdminFormField } from "../../models.js";

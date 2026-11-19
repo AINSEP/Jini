@@ -1,4 +1,4 @@
-import { render, screen, within } from "../../../__tests__/fetch-query-support.js";
+import { render, screen, within } from "./harness.js";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
