@@ -280,13 +280,6 @@
     "value": 726
   },
   {
-    "file": "packages/core/src/redact.ts",
-    "function": "<file>",
-    "line": 874,
-    "rule": "max-lines",
-    "value": 601
-  },
-  {
     "file": "packages/core/src/settings/write-service.ts",
     "function": "<file>",
     "line": 730,
@@ -327,13 +320,6 @@
     "line": 1450,
     "rule": "max-lines-per-function",
     "value": 115
-  },
-  {
-    "file": "packages/daemon/src/http/attachments.ts",
-    "function": "<file>",
-    "line": 1091,
-    "rule": "max-lines",
-    "value": 844
   },
   {
     "file": "packages/daemon/src/run-lifecycle.ts",
@@ -502,13 +488,6 @@
     "line": 494,
     "rule": "max-lines-per-function",
     "value": 100
-  },
-  {
-    "file": "packages/ui/src/react/components/Icon.tsx",
-    "function": "<file>",
-    "line": 535,
-    "rule": "max-lines",
-    "value": 672
   },
   {
     "file": "packages/ui/src/renderers/annotation-canvas/react/hooks/useAnnotationCanvas.ts",

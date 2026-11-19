@@ -1,4 +1,6 @@
-import { formatErrorForLog, redactSecrets, type SecretRedactionOptions } from './redact.js';
+import { formatErrorForLog } from './format-error-for-log.js';
+import { redactSecrets } from './redact.js';
+import { type SecretRedactionOptions } from './redaction-patterns.js';
 
 /** Sanitized explanation and copyable evidence. Missing boundary metadata is omitted from the copyable evidence. */
 export interface UserFacingError {

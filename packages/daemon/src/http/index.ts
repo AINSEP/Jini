@@ -324,31 +324,17 @@ export {
   mediaTaskListRoute,
   mediaRoutes,
 } from './media.js';
-export type {
-  AttachmentClaim,
-  AttachmentRejectionReason,
-  AttachmentsHttpDeps,
-  AttachmentsInternalErrorContext,
-  AttachmentStore,
-  AttachmentUploadResponse,
-  CreateDiskAttachmentStoreOptions,
-  ObservedAttachmentIdentity,
-  PendingAttachmentSummary,
-  RecordedAttachmentIdentity,
-  StoredAttachment,
-} from './attachments.js';
-export {
-  ATTACHMENTS_ROUTE_PATH,
-  AttachmentRejectedError,
-  createDiskAttachmentStore,
-  detectAttachmentKind,
-  handleAttachmentCleanup,
-  handleAttachmentUpload,
-  isUnchangedAttachment,
-  sanitizeAttachmentName,
-  stageAttachmentClaim,
-  writeBoundedAttachmentBody,
-} from './attachments.js';
+export type { AttachmentClaim, AttachmentRejectionReason, StoredAttachment } from './attachment-types.js';
+export type { AttachmentsHttpDeps, AttachmentsInternalErrorContext, AttachmentUploadResponse } from './attachments.js';
+export type { AttachmentStore, CreateDiskAttachmentStoreOptions } from './attachment-store-types.js';
+export type { ObservedAttachmentIdentity, PendingAttachmentSummary, RecordedAttachmentIdentity } from './attachment-records.js';
+export { ATTACHMENTS_ROUTE_PATH, handleAttachmentCleanup, handleAttachmentUpload, sanitizeAttachmentName } from './attachments.js';
+export { AttachmentRejectedError } from './attachment-types.js';
+export { createDiskAttachmentStore } from './disk-attachment-store.js';
+export { detectAttachmentKind } from './attachment-signatures.js';
+export { isUnchangedAttachment } from './attachment-records.js';
+export { stageAttachmentClaim } from './attachment-staging.js';
+export { writeBoundedAttachmentBody } from './attachment-body.js';
 export { attachmentCleanupRoutes, attachmentUploadRoutes } from './attachment-routes.js';
 export type {
   XaiAuthStatusResponse,

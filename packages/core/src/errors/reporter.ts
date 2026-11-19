@@ -14,7 +14,8 @@ import { createErrorDescriber, describeErrorForLog, describeErrorParts, type Err
 import type { IdGenerator } from '../primitives/ids.js';
 import type { Logger } from '../primitives/logger.js';
 import { toIsoDateTime, type Clock } from '../primitives/time.js';
-import { redactSecrets, type SecretRedactionOptions } from '../redact.js';
+import { redactSecrets } from '../redact.js';
+import { type SecretRedactionOptions } from '../redaction-patterns.js';
 import type { UserFacingError } from '../user-facing-error.js';
 import type { ApprovedCause } from './approved-cause.js';
 import type { ErrorCatalog, ErrorMatch } from './catalog.js';
