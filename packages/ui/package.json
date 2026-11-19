@@ -63,7 +63,8 @@
         "src/theme/default.ts",
         "src/theme/stylesheet.ts",
         "src/theme/validation.ts",
-        "src/theme/types.ts"
+        "src/theme/types.ts",
+        "src/browser"
       ]
     },
     "optionalPeers": {

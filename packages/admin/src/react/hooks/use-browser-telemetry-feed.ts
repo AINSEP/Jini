@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { toRouteTemplate } from '../../browser/route-template.js';
+import { toRouteTemplate } from '../../core/routing/route-template.js';
 import type { BrowserTelemetry } from '../../browser/telemetry.js';
 
 /**

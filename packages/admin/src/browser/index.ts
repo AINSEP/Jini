@@ -17,5 +17,5 @@ export { createAdminShellNavigation } from './shell-navigation.js';
 
 export { createBrowserTelemetry, installBrowserErrorListeners, type BrowserTelemetry, type BrowserTelemetryDeps, type BrowserTelemetryPayload } from './telemetry.js';
 
-export { toRouteTemplate } from './route-template.js';
+export { toRouteTemplate } from '../core/routing/route-template.js';
 export { createReactRootErrorHandlers } from './react-root-errors.js';
