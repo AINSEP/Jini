@@ -24,7 +24,7 @@ export const DEFAULT_DAEMON_BIND_HOST = '127.0.0.1';
  * @complexity O(1).
  * @overallScore 100/100
  */
-export function normalizeDaemonBindHost(input: unknown): string {
+export function normalizeDaemonBindHost({ input }: { input: unknown }, _optional: Record<string, never> = {}): string {
   const host = String(input ?? '').trim();
   return host || DEFAULT_DAEMON_BIND_HOST;
 }

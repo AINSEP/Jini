@@ -74,12 +74,12 @@ await daemon.stop();
 | `isCapabilityId(required: { value: string })` | type guard for CapabilityId |
 | `resolveFeatureActivation(input: FeatureActivationInput)` | FeatureActivationPlan; required features/profile, optional capabilities/featureOverrides; pure |
 | `createBuiltInFeatures(options: BuiltInFeatureOptions = {})` | readonly JiniFeature[]; no resources acquired until feature composition |
-| `buildDaemonDbOperations(db: SqliteDb, file: string)` | DaemonDbOperations inspect/verify/vacuum; borrowed handle and real file |
+| `buildDaemonDbOperations({db, file}: {db: SqliteDb; file: string}, _optional: Record<string, never> = {})` | DaemonDbOperations inspect/verify/vacuum; borrowed handle and real file |
 | `projectDetectedAgent(agent: DetectedAgent)` | AgentSummary; maps models/reasoning/auth/diagnostic fields |
 | `classifyRunFailureForRetry({code, signal, sideEffects?})` | boolean; daemon's process-exit retry classifier |
-| `resolveBoundPort(address: {port:number} \| string \| null)` | positive number or null |
-| `resolveReportHost(bindHost: string)` | loopback for wildcard binds; brackets IPv6 literals |
-| `normalizeDaemonBindHost(input: unknown)` | trimmed String(input ?? '') or loopback fallback |
+| `resolveBoundPort({address}: {address: {port:number} \| string \| null}, _optional: Record<string, never> = {})` | positive number or null |
+| `resolveReportHost({bindHost}: {bindHost: string}, _optional: Record<string, never> = {})` | loopback for wildcard binds; brackets IPv6 literals |
+| `normalizeDaemonBindHost({input}: {input: unknown}, _optional: Record<string, never> = {})` | trimmed String(input ?? '') or loopback fallback |
 | `closeHttpServer(server: http.Server, options: CloseHttpServerOptions = {})` | Promise<void>; idleCloseMs 1000, closeTimeoutMs 5000 |
 | `installGracefulShutdown(stop: () => Promise<void>, options: GracefulShutdownOptions = {})` | `{uninstall():void}`; SIGTERM/SIGINT, timeoutMs 10000, onExit defaults process.exit |
 | `CAPABILITY_IDS`, `CORE_CAPABILITIES`, `JINI_PROFILES` | Frozen capability/profile vocabulary |

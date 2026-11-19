@@ -21,7 +21,7 @@ export function readNoFollowFlags({ constants }: { constants: OpenFlagConstants 
 }
 
 /** Reads up to `maxBytes` from the start of the file. */
-export async function readAtMost(handle: FileHandle, maxBytes: number): Promise<Buffer> {
+export async function readAtMost({ handle, maxBytes }: { handle: FileHandle; maxBytes: number }, _optional: Record<string, never> = {}): Promise<Buffer> {
   const buffer = Buffer.alloc(maxBytes);
   let offset = 0;
   while (offset < maxBytes) {

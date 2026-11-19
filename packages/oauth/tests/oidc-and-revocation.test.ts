@@ -352,6 +352,6 @@ test('an empty token is refused as an invalid request before anything is sent', 
 
 test('OIDC claim extraction fails closed when the upstream library ever yields no validated claims', () => {
     const claims = { iss: 'https://issuer.example', sub: 'user-1', aud: 'client', iat: 1, exp: 2 };
-    assert.equal(requireValidatedClaims(claims), claims);
-    assert.throws(() => requireValidatedClaims(undefined), { message: 'ID token claims unavailable' });
+    assert.equal(requireValidatedClaims({ claims }), claims);
+    assert.throws(() => requireValidatedClaims({ claims: undefined }), { message: 'ID token claims unavailable' });
 });

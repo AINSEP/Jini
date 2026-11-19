@@ -5,7 +5,7 @@ export interface BoundedJsonMessages {
     readonly overflowMessage: string;
     readonly overflowOperatorAction: string;
 }
-export async function readBoundedOAuthText(response: Response, messages: Pick<BoundedJsonMessages, "overflowMessage" | "overflowOperatorAction">, maxBytes: number = MAX_OAUTH_RESPONSE_BYTES): Promise<string> {
+export async function readBoundedOAuthText({ response, messages }: { response: Response; messages: Pick<BoundedJsonMessages, "overflowMessage" | "overflowOperatorAction"> }, { maxBytes = MAX_OAUTH_RESPONSE_BYTES }: { maxBytes?: number | undefined } = {}): Promise<string> {
     const body = response.body;
     if (!body)
         return "";
@@ -34,9 +34,9 @@ export async function readBoundedOAuthText(response: Response, messages: Pick<Bo
     }
     return Buffer.concat(chunks).toString("utf8");
 }
-export function readStringArray(value: unknown): readonly string[] {
+export function readStringArray({ value }: { value: unknown }, _optional: Record<string, never> = {}): readonly string[] {
     return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item !== "") : [];
 }
-export function readOptionalString(value: unknown): string | null {
+export function readOptionalString({ value }: { value: unknown }, _optional: Record<string, never> = {}): string | null {
     return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
 }

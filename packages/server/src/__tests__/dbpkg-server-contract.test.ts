@@ -16,10 +16,10 @@ afterEach(() => { closeDatabase(); vi.useRealTimers(); });
 
 describe('retained host and capability policy', () => {
   it('stringifies nonstring bind hosts and falls back only for nullish or blank input', () => {
-    expect(normalizeDaemonBindHost(127)).toBe('127');
-    expect(normalizeDaemonBindHost(false)).toBe('false');
-    expect(normalizeDaemonBindHost(null)).toBe('127.0.0.1');
-    expect(normalizeDaemonBindHost('   ')).toBe('127.0.0.1');
+    expect(normalizeDaemonBindHost({ input: 127 })).toBe('127');
+    expect(normalizeDaemonBindHost({ input: false })).toBe('false');
+    expect(normalizeDaemonBindHost({ input: null })).toBe('127.0.0.1');
+    expect(normalizeDaemonBindHost({ input: '   ' })).toBe('127.0.0.1');
   });
 
   it('resolves at the hard deadline even before the close callback, and ignores its late error', async () => {

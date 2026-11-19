@@ -27,8 +27,8 @@ export interface ValidateOidcIdTokenInput extends OidcTrustConfiguration {
 export async function validateOidcIdToken(requiredArgs: OAuthRequiredArgs<OAuthHttpPorts & ValidateOidcIdTokenInput>,
     optionalArgs: OAuthOptionalArgs<OAuthHttpPorts & ValidateOidcIdTokenInput> = {}): Promise<OidcIdTokenClaims> {
     const { guard, fetchFn, clock, issuer, jwksUri, clientId, tokens, expectedNonce } = requiredArgs;
-    const issuerUrl = assertSafeProviderEndpoint(issuer, 'trusted OIDC issuer', guard);
-    const jwksUrl = assertSafeProviderEndpoint(jwksUri, 'JWKS endpoint', guard);
+    const issuerUrl = assertSafeProviderEndpoint({ raw: issuer, label: 'trusted OIDC issuer', guard });
+    const jwksUrl = assertSafeProviderEndpoint({ raw: jwksUri, label: 'JWKS endpoint', guard });
     const nowMs = clock.nowMs();
     const tolerance = optionalArgs.clockToleranceSeconds ?? 0;
     assertOidcConfiguration({ clientId, nowMs, tolerance, expectedNonce, issuerUrl, jwksUrl }, optionalArgs);
@@ -59,7 +59,7 @@ export async function validateOidcIdToken(requiredArgs: OAuthRequiredArgs<OAuthH
         await validateApplicationLevelSignature(as, response, {
             [allowInsecureRequests]: jwksUrl.protocol === 'http:', [customFetch]: guardedFetch,
         });
-        return requireValidatedClaims(getValidatedIdTokenClaims(processed));
+        return requireValidatedClaims({ claims: getValidatedIdTokenClaims(processed) });
     } catch {
         if (guardedFetch.failure) throw guardedFetch.failure.error;
         // Upstream causes retain JWTs/claims/responses. Expose only secret-free facade text.
@@ -73,7 +73,7 @@ export async function validateOidcIdToken(requiredArgs: OAuthRequiredArgs<OAuthH
  * always present today; fail closed (the caller maps the throw to a secret-free facade error) if that
  * upstream contract ever changes. Module-internal: not re-exported from the package entry.
  */
-export function requireValidatedClaims<T>(claims: T | undefined): T {
+export function requireValidatedClaims<T>({ claims }: { claims: T | undefined }, _optional: Record<string, never> = {}): T {
     if (!claims) throw new Error('ID token claims unavailable');
     return claims;
 }

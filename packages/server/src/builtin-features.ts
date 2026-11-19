@@ -139,7 +139,7 @@ function requireSqlite(context: FeatureBuildContext, featureId: string) {
  * size before/after (not the `-wal`/`-shm` sum), since a fresh `VACUUM` checkpoints and shrinks the
  * primary file itself, which is what "reclaimed" means here.
  */
-export function buildDaemonDbOperations(db: SqliteDb, file: string): DaemonDbOperations {
+export function buildDaemonDbOperations({ db, file }: { db: SqliteDb; file: string }, _optional: Record<string, never> = {}): DaemonDbOperations {
   return {
     inspect: () => inspectSqliteDatabase({ db, file }),
     verify: ({ quick }) => verifySqliteIntegrity({ db, quick }),
@@ -425,7 +425,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
       const sqlite = requireSqlite(context, 'daemonDb');
       // Borrowed, never owned: `kernel.close()` closes this connection. See kernel-base.ts.
       const registrations = createDaemonDbToolRegistrations({
-        operations: buildDaemonDbOperations(sqlite.connection, sqlite.eventsDbPath),
+        operations: buildDaemonDbOperations({ db: sqlite.connection, file: sqlite.eventsDbPath }),
       });
       return {
         pack: definePack({
