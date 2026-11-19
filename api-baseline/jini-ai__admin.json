@@ -4,6 +4,7 @@
   "symbols": {
    "AdminAnalyticsHit": "interface:d3b6059ec5",
    "AdminAnalyticsPort": "interface:cd4bd25062",
+   "AdminApiError": "class:a7ab399c2c",
    "AdminAssignMenuLocationResult": "interface:214cc29f68",
    "AdminAuthPort": "interface:bed271e138",
    "AdminAuthUser": "interface:ecec13f990",
@@ -158,6 +159,7 @@
    "createHttpTransport": "function:da187c4619",
    "currentRoutePath": "function:a377f06935",
    "describeAdminEntityFieldMismatch": "function:6e7c6245de",
+   "describeApiError": "function:7b68d3e7c6",
    "eraseEntityPort": "function:98f1b15d19",
    "getErasedEntityPort": "function:34aa5e732b",
    "hasPermission": "function:21c5e3ddfa",
@@ -373,6 +375,7 @@
   "symbols": {
    "AdminAnalyticsHit": "interface:d3b6059ec5",
    "AdminAnalyticsPort": "interface:cd4bd25062",
+   "AdminApiError": "class:a7ab399c2c",
    "AdminAssignMenuLocationResult": "interface:214cc29f68",
    "AdminAuthPort": "interface:bed271e138",
    "AdminAuthUser": "interface:ecec13f990",
@@ -527,6 +530,7 @@
    "createHttpTransport": "function:da187c4619",
    "currentRoutePath": "function:a377f06935",
    "describeAdminEntityFieldMismatch": "function:6e7c6245de",
+   "describeApiError": "function:7b68d3e7c6",
    "eraseEntityPort": "function:98f1b15d19",
    "getErasedEntityPort": "function:34aa5e732b",
    "hasPermission": "function:21c5e3ddfa",
