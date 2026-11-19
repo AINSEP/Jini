@@ -2,7 +2,7 @@
  * model-safe failure (refused, still connecting, failed to connect) instead of an opaque 500. */
 import { expect, test } from "vitest";
 import type { SurfaceEmitter } from "@jini-ai/core";
-import type { ToolExecutionResult, ToolExecutor } from "../../tool-executor.js";
+import type { ToolExecutionResult, ToolExecutor } from "../../tool-executor-types.js";
 import { withFederatedRefusalDiagnosis, type FederatedRefusalDiagnosisDeps, type FederationBootStatus } from "../index.js";
 
 const call = { principal: { id: "operator" }, run: { id: "run-1" }, toolId: "mcp__github__create_issue", input: { title: "x" } };

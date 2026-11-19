@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { applyTargetScope, withBatchInput, createBatchApprovalHandler, createToolRegistry, ToolInputError, type ToolAuthorizationContext, type ToolExecutionContext } from '@jini-ai/core';
-import { createToolExecutor, type ToolConfirmationRequest } from '../tool-executor.js';
+import { createToolExecutor } from '../tool-executor.js';
+import { type ToolConfirmationRequest } from '../tool-executor-types.js';
 
 const inputSchema = { type: 'object', additionalProperties: false, required: ['expectedVersion'], properties: { expectedVersion: { type: 'integer' }, enabled: { type: 'boolean' } } };
 

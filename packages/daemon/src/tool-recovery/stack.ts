@@ -41,7 +41,8 @@
  * Architectural role: `src/assistant` composition-layer adapter. Takes its collaborators as
  * arguments and constructs no policy, sink, or registry of its own.
  */
-import { createToolExecutor, type ToolExecutor, type PrepareToolGuidance } from "../tool-executor.js";
+import { createToolExecutor } from '../tool-executor.js';
+import { type ToolExecutor, type PrepareToolGuidance } from '../tool-executor-types.js';
 import type { ToolRegistry } from "@jini-ai/core";
 import type { ToolAttemptAuditSink } from "../core/tool-audit.js";
 import type { SurfaceExchangeStore } from "../surface-exchanges.js";

@@ -24,7 +24,7 @@
 import { createApiError, createApiErrorResponse } from '@jini-ai/protocol';
 import type { Principal, ToolDescriptor } from '@jini-ai/core';
 import { jsonResponse, readJsonBody, readQuery, statusForError, type ServerMiddleware } from '@jini-ai/core/contracts/server';
-import type { ToolExecutor } from '../tool-executor.js';
+import type { ToolExecutor } from "../tool-executor-types.js";
 import { TOOL_EXECUTIONS_ROUTE_PATH, type ToolExecutionWireRequest } from '../remote-tool-executor.js';
 import type { DaemonRouteHost } from './route-host.js';
 import { createLineStream } from './line-stream.js';

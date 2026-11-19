@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
 import { attachmentCleanupRoutes, attachmentUploadRoutes } from '../attachment-routes.js';
-import type { AttachmentStore } from '../attachments.js';
+import type { AttachmentStore } from "../attachment-types.js";
 import { fakeDaemonRouteHost } from './fakes/route-host.js';
 
 /** The host's busy lease must outlive the handler's own tidy-up, not just the answer: it is released only when the whole call is done. */

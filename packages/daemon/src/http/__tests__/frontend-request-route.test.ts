@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createInMemoryServer } from '@jini-ai/core/contracts/server/testing';
-import type { ToolExecutor } from '../../tool-executor.js';
+import type { ToolExecutor } from "../../tool-executor-types.js";
 import { describeRoutes } from '../route-table.js';
 import { frontendRequestRoutes } from '../frontend-request-route.js';
 import { fakeDaemonRouteHost } from './fakes/route-host.js';

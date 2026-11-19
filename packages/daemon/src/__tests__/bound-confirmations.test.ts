@@ -4,7 +4,7 @@ import { test, vi } from 'vitest';
 import type { DigestCryptoPort } from '@jini-ai/core/records';
 import { createSurfaceExchangeStore } from '../surface-exchanges.js';
 import { createBoundConfirmationGate, createBoundConfirmations, type BoundConfirmationGatePorts, type BoundConfirmationRequest, type BoundConfirmationsDeps } from '../bound-confirmations.js';
-import type { ToolConfirmationRequest } from '../tool-executor.js';
+import type { ToolConfirmationRequest } from "../tool-executor-types.js";
 
 type Owner = { id: string };
 type SameOwner<TOwner> = BoundConfirmationsDeps<TOwner>['sameOwner'];

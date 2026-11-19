@@ -1,5 +1,5 @@
 import { isReadOnlyTool, toolDiscoveryMetadata, type Principal, type ToolRegistry } from '@jini-ai/core';
-import type { ToolExecutor } from '../tool-executor.js';
+import type { ToolExecutor } from "../tool-executor-types.js";
 import type { IdGenerator } from '@jini-ai/core/primitives';
 import { toolCandidates } from './tool-candidates.js';
 import type { ToolCatalogEntry, ToolCatalogQuery } from '../http/tool-catalog.js';

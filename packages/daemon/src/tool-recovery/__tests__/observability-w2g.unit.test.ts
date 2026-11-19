@@ -1,6 +1,6 @@
 import { expect, test, vi } from 'vitest';
 import { pseudonymousUserId, toolCallLabel, withToolCallObservability, ToolExecutionFailure } from '../observability.js';
-import type { ToolExecutor } from '../../tool-executor.js';
+import type { ToolExecutor } from "../../tool-executor-types.js";
 import type { Principal } from '@jini-ai/core';
 
 test.each(['', 'a'.repeat(129), 'person@example.org'])('replaces unsafe principal id %s', id => {

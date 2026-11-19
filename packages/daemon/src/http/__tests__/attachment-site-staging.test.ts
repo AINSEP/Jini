@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readFile, readdir, realpath, rm, stat, writeFile } from
 import { join, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
-import { stageAttachmentClaim } from '../attachments.js';
+import { stageAttachmentClaim } from "../attachment-staging.js";
 
 describe('site-contained attachment staging (owner 2026-10-23)', () => {
   it('copies only the claimed canary, preserves store bytes, and removes the staged batch on cleanup', async () => {

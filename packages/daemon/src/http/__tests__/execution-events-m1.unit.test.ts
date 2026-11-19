@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
 import { toolExecutionRoutes } from '../tool-execution-routes.js';
-import type { ToolExecutor } from '../../tool-executor.js';
+import type { ToolExecutor } from "../../tool-executor-types.js";
 import { fakeDaemonRouteHost } from './fakes/route-host.js';
 import { serveRoutes } from './fakes/serve-routes.js';
 

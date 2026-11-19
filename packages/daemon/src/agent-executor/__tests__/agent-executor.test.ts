@@ -37,7 +37,7 @@ import type { JournalEntry } from '@jini-ai/protocol';
 import { createInMemoryEventLog } from '../../event-log.js';
 import { createRunLifecycle, DEFAULT_SLOW_RUN_THRESHOLD_MS, type RunLifecycle } from '../../run-lifecycle.js';
 import { createRunByteJournal, type RunByteJournal } from '../../continuation/journal.js';
-import type { ToolExecutionResult, ToolExecutor } from '../../tool-executor.js';
+import type { ToolExecutionResult, ToolExecutor } from "../../tool-executor-types.js";
 import {
   AgentExecutorError,
   DEFAULT_BUFFERED_STDOUT_MAX_BYTES,

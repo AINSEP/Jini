@@ -1,6 +1,6 @@
 
 import type { Principal, SurfaceEmitter, ToolDescriptor, ToolRegistry } from "@jini-ai/core";
-import type { ToolExecutionResult, ToolExecutor } from "../tool-executor.js";
+import type { ToolExecutionResult, ToolExecutor } from "../tool-executor-types.js";
 
 
 import { isIssuedToolFailureDiagnostic, type ToolFailureDiagnostic } from "./diagnostics.js";

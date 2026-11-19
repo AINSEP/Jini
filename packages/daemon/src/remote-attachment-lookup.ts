@@ -10,7 +10,7 @@
  * the attachments route pack.
  */
 import * as http from 'node:http';
-import { AttachmentRejectedError, type AttachmentRejectionReason } from './http/attachments.js';
+import { AttachmentRejectedError, type AttachmentRejectionReason } from "./http/attachment-rejections.js";
 import { ATTACHMENT_LOOKUP_ROUTE_PATH, type AttachmentLookup, type AttachmentLookupRequest } from './http/attachment-lookup-routes.js';
 
 export interface RemoteAttachmentLookupRequired {

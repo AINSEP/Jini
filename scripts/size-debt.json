@@ -441,13 +441,6 @@
     "value": 131
   },
   {
-    "file": "packages/daemon/src/http/attachments.ts",
-    "function": "<file>",
-    "line": 1091,
-    "rule": "max-lines",
-    "value": 844
-  },
-  {
     "file": "packages/daemon/src/run-lifecycle.ts",
     "function": "<file>",
     "line": 909,

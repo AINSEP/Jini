@@ -39,32 +39,50 @@ import { createLocalTestOrigin } from './fixtures/local-origin.js';
 import type { ChatAttachment } from '@jini-ai/chat';
 import {
   ATTACHMENTS_ROUTE_PATH,
-  AttachmentRejectedError,
-  attachmentSidecarFileName,
-  createDiskAttachmentStore,
-  detectAttachmentKind,
   handleAttachmentUpload,
+  type AttachmentsHttpDeps,
+} from '../attachment-handlers.js';
+import {
+  AttachmentRejectedError,
+  sanitizeAttachmentName,
+} from '../attachment-rejections.js';
+import {
+  attachmentSidecarFileName,
+  parsePersistedAttachment,
+} from '../attachment-sidecars.js';
+import {
+  createDiskAttachmentStore,
+} from '../attachments.js';
+import {
+  detectAttachmentKind,
   hasAvifSignature,
   hasGifSignature,
   hasJpegSignature,
   hasPngSignature,
   hasWebpSignature,
+} from '../attachment-signatures.js';
+import {
   isUnchangedAttachment,
+  reserveAttachmentRecords,
+  verifyClaimedAttachments,
+} from '../attachment-integrity.js';
+import {
   loadPersistedAttachments,
-  parsePersistedAttachment,
   prepareAttachmentStorage,
   removeUnadoptedUploads,
-  reserveAttachmentRecords,
-  sanitizeAttachmentName,
+} from '../attachment-retention.js';
+import {
   stageAttachmentClaim,
-  verifyClaimedAttachments,
+} from '../attachment-staging.js';
+import {
   writeBoundedAttachmentBody,
+} from '../attachment-body.js';
+import {
   type AttachmentRecord,
-  type AttachmentsHttpDeps,
   type AttachmentStore,
   type CreateDiskAttachmentStoreOptions,
   type StoredAttachment,
-} from '../attachments.js';
+} from '../attachment-types.js';
 
 // ---------------------------------------------------------------------------
 // The mirrored wire type must stay assignable to `@jini-ai/chat/core`'s `ChatAttachment`

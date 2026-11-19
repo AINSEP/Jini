@@ -36,7 +36,7 @@ import * as http from 'node:http';
 import * as https from 'node:https';
 import { TLSSocket } from 'node:tls';
 import { ToolInputError, type Principal, type RunRef, type SurfaceEmission, type SurfaceEmitter } from '@jini-ai/core';
-import type { ToolExecutionResult, ToolExecutionStatus, ToolExecutor } from './tool-executor.js';
+import type { ToolExecutionResult, ToolExecutionStatus, ToolExecutor } from "./tool-executor-types.js";
 
 export type ToolRpcErrorCode = 'TOOL_NOT_DISPATCHED' | 'TOOL_OUTCOME_UNKNOWN';
 

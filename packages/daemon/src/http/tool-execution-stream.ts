@@ -4,7 +4,7 @@
  * response straight away, so the headers leave before the work finishes; this function is the work.
  */
 import type { SurfaceEmitter } from '@jini-ai/core';
-import type { ToolExecutionResult, ToolExecutor } from '../tool-executor.js';
+import type { ToolExecutionResult, ToolExecutor } from "../tool-executor-types.js";
 import type { ToolExecutionWireError, ToolExecutionWireRequest } from '../remote-tool-executor.js';
 import type { LineStream } from './line-stream.js';
 

@@ -12,7 +12,7 @@ import type { RunLifecycle } from './run-lifecycle.js';
 import { projectToolResultEvent } from './tool-result-media.js';
 import type { DelegatedResultCorrelation } from './delegated-result-correlation.js';
 import { splitToolResultSurfaces } from './tool-result-surfaces.js';
-import type { ToolExecutionResult, ToolExecutor } from './tool-executor.js';
+import type { ToolExecutionResult, ToolExecutor } from "./tool-executor-types.js";
 
 /**
  * Run-protocol `type` for a human-only surface withheld from a tool result.

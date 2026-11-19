@@ -7,7 +7,7 @@
  */
 import { describe, expect, test } from "vitest";
 import type { ObservabilityPort } from "@jini-ai/core/contracts/observability";
-import type { ToolExecutionResult, ToolExecutor } from "../../tool-executor.js";
+import type { ToolExecutionResult, ToolExecutor } from "../../tool-executor-types.js";
 import { withToolCallAnalytics } from "../analytics.js";
 import { withToolCallObservability } from "../observability.js";
 import { withFederatedRefusalDiagnosis } from "../federated-refusal.js";

@@ -2,7 +2,7 @@ import type { Principal, RunRef, SurfaceEmitter } from '@jini-ai/core';
 import type {
   ConfirmationDecision, ToolExecutionAuditRecord, ToolExecutionPhase,
   ToolExecutionResult, ToolExecutionStatus, ToolExecutor,
-} from '../tool-executor.js';
+} from "../tool-executor-types.js";
 
 /** The daemon vocabulary, plus attempts that never acquired an execution ID. */
 /** Execution telemetry never proves a mutation occurred; domain revisions own write provenance. */

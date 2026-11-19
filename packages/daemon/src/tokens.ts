@@ -14,7 +14,7 @@
 import { token } from '@jini-ai/core';
 import type { EventLog } from './event-log.js';
 import type { RunLifecycle } from './run-lifecycle.js';
-import type { ToolExecutor } from './tool-executor.js';
+import type { ToolExecutor } from "./tool-executor-types.js";
 import type { AgentExecutor } from './agent-executor.js';
 
 export const RunLifecycleToken = token<RunLifecycle>({ id: 'jini.runLifecycle' });

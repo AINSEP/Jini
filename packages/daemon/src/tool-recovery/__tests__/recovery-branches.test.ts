@@ -3,7 +3,7 @@
  *  credential-setup prefill checks. Real surface-exchange store, typed fakes for every other port. */
 import { describe, expect, it, vi } from 'vitest';
 import type { Principal, SurfaceEmitter, ToolDescriptor } from '@jini-ai/core';
-import type { ToolExecutor, ToolExecutionResult } from '../../tool-executor.js';
+import type { ToolExecutor, ToolExecutionResult } from "../../tool-executor-types.js";
 import { createSurfaceExchangeStore, SURFACE_DISMISSED_PARAM, type SurfaceExchangeStore } from '../../surface-exchanges.js';
 import { createTimeoutScheduler } from '../../scheduler.js';
 import { constrainPrincipalToReadOnlyTools } from '../../core/read-only-tools.js';

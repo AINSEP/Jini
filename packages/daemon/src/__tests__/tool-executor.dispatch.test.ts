@@ -17,7 +17,8 @@ import {
 } from '@jini-ai/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createToolExecutor, type ExecutionDelegate, type ToolExecutor } from '../tool-executor.js';
+import { createToolExecutor } from '../tool-executor.js';
+import { type ExecutionDelegate, type ToolExecutor } from '../tool-executor-types.js';
 
 const principal: Principal = { id: 'user-1' };
 const run: RunRef = { id: 'run-1' };
