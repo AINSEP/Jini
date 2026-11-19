@@ -79,21 +79,7 @@ export function createSearchService(required: SearchServiceRequired, optional: S
   };
 
   /** Fail closed: only this site's and workspace's hits that the access port confirms right now. */
-  const revalidate = async (input: { siteId: string; workspaceId: string; page: SearchPage; audiences: readonly string[] }): Promise<SearchPage | null> => {
-    const { siteId, workspaceId, page } = input;
-    // Index isolation defence: a shared vendor index or a provider bug must never leak another site.
-    const own = page.hits.filter(hit => hit.key.siteId === siteId && hit.key.workspaceId === workspaceId);
-    let visible: ReadonlySet<string> = new Set();
-    if (own.length > 0) {
-      try {
-        visible = await access.visibleKeys({ siteId, keys: own.map(hit => hit.key), audiences: input.audiences });
-      } catch {
-        return null;
-      }
-    }
-    const hits = own.filter(hit => visible.has(encodeSearchKey({ key: hit.key })));
-    return page.nextCursor === undefined ? { hits } : { hits, nextCursor: page.nextCursor };
-  };
+  const revalidate = createSearchRevalidator(access);
 
   const targetStatus = async (target: SearchTarget | null): Promise<SearchTargetStatus | null> => {
     if (target === null) return null;
@@ -134,5 +120,23 @@ export function createSearchService(required: SearchServiceRequired, optional: S
       const { active, building } = await targets.get({ siteId });
       return { siteId, active: await targetStatus(active), building: await targetStatus(building) };
     },
+  };
+}
+
+function createSearchRevalidator(access: SearchAccessPort) {
+  return async (input: { siteId: string; workspaceId: string; page: SearchPage; audiences: readonly string[] }): Promise<SearchPage | null> => {
+    const { siteId, workspaceId, page } = input;
+    // Index isolation defence: a shared vendor index or a provider bug must never leak another site.
+    const own = page.hits.filter(hit => hit.key.siteId === siteId && hit.key.workspaceId === workspaceId);
+    let visible: ReadonlySet<string> = new Set();
+    if (own.length > 0) {
+      try {
+        visible = await access.visibleKeys({ siteId, keys: own.map(hit => hit.key), audiences: input.audiences });
+      } catch {
+        return null;
+      }
+    }
+    const hits = own.filter(hit => visible.has(encodeSearchKey({ key: hit.key })));
+    return page.nextCursor === undefined ? { hits } : { hits, nextCursor: page.nextCursor };
   };
 }

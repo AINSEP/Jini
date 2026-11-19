@@ -4,7 +4,7 @@
 import { RenderServiceError, withRenderTimeout } from '../render-service.js';
 import { isCaptureUrlAllowed, readUrlCaptureRequest, URL_CAPTURE_MAX_BYTES, URL_CAPTURE_TIMEOUT_MS, type UrlCaptureRequest, type UrlCaptureResult } from '../url-capture.js';
 import { withRenderWindow } from './render-window.js';
-import type { ElectronBrowserWindowFactory, ElectronSessionLike, ElectronWebContentsLike } from './electron-surfaces.js';
+import type { ElectronBrowserWindowFactory, ElectronBrowserWindowLike, ElectronSessionLike, ElectronWebContentsLike } from './electron-surfaces.js';
 
 const CAPTURE_CLEANUP_TIMEOUT_MS = 1_000;
 
@@ -117,38 +117,8 @@ export async function captureElectronUrl(
         initialReset = resetCaptureSession({ session: window.webContents.session });
         await initialReset;
         if (window.isDestroyed()) return;
-        // Electron can crash the main process if device emulation targets an unloaded webContents.
-        // Bootstrap before the strict request policy; emulation still precedes site navigation.
-        await window.loadURL({ url: 'about:blank' });
-        if (window.isDestroyed()) return;
-        window.webContents.session.webRequest.onBeforeRequest({ listener: ({ details, callback }) => {
-          const cancel = details.method !== 'GET' || !isCaptureUrlAllowed({ url: details.url, allowedOrigins });
-          if (cancel) blockedRequests++;
-          callback({ cancel });
-        } });
-        const debug = window.webContents.debugger;
-        if (!debug) throw new RenderServiceError({ code: 'not-implemented', message: 'native device emulation unavailable' });
-        debug.attach('1.3');
-        await debug.sendCommand('Emulation.setDeviceMetricsOverride', {
-          width: request.viewport.width, height: request.viewport.height,
-          deviceScaleFactor: request.viewport.deviceScaleFactor ?? 1, mobile: request.viewport.isMobile ?? false,
-        });
-      }, run: async win => {
-      const page = win.webContents;
-      if (!page.debugger || !page.executeJavaScript || !page.getURL || !page.getTitle) {
-        throw new RenderServiceError({ code: 'not-implemented', message: 'host does not support URL capture' });
-      }
-      // Device emulation is configured before navigation, so responsive JS sees this viewport.
-      await settle({ page, request });
-      const finalUrl = page.getURL();
-      if (!isCaptureUrlAllowed({ url: finalUrl, allowedOrigins })) throw new RenderServiceError({ code: 'navigation-blocked', message: 'capture redirected off site' });
-      const rawHeight = await page.executeJavaScript('Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0)');
-      const pageHeight = readPageHeight({ request, rawHeight });
-      const capturedHeight = Math.min(pageHeight, request.fullPage ? request.maxPageHeightPx : request.viewport.height);
-      const png = await capturePixels({ page, request, capturedHeight });
-      if (png.byteLength > URL_CAPTURE_MAX_BYTES) throw new RenderServiceError({ code: 'load-failed', message: 'capture exceeds PNG byte limit' });
-      return { png, finalUrl, title: page.getTitle().slice(0, 300), status: null, pageHeight, capturedHeight, blockedRequests };
-    } });
+        return prepareCapturePage(window, request, { allowedOrigins, recordBlockedRequest: () => { blockedRequests++; } });
+      }, run: win => captureUrlPage(win.webContents, request, { allowedOrigins, readBlockedRequests: () => blockedRequests }) });
   } catch (error) {
     if (error instanceof RenderServiceError) throw error;
     throw new RenderServiceError({ code: 'load-failed', message: 'native page capture failed' });
@@ -158,6 +128,43 @@ export async function captureElectronUrl(
     await withRenderTimeout({ promise: releaseCaptureSlot({ capturePool, slot, session: captureSession, initialReset }) },
       { timeoutMs: CAPTURE_CLEANUP_TIMEOUT_MS }).catch(() => {});
   }
+}
+
+async function captureUrlPage(page: ElectronWebContentsLike, request: UrlCaptureRequest,
+  { allowedOrigins, readBlockedRequests }: { allowedOrigins: readonly string[]; readBlockedRequests: () => number }): Promise<UrlCaptureResult> {
+  if (!page.debugger || !page.executeJavaScript || !page.getURL || !page.getTitle) {
+    throw new RenderServiceError({ code: 'not-implemented', message: 'host does not support URL capture' });
+  }
+  // Device emulation is configured before navigation, so responsive JS sees this viewport.
+  await settle({ page, request });
+  const finalUrl = page.getURL();
+  if (!isCaptureUrlAllowed({ url: finalUrl, allowedOrigins })) throw new RenderServiceError({ code: 'navigation-blocked', message: 'capture redirected off site' });
+  const rawHeight = await page.executeJavaScript('Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0)');
+  const pageHeight = readPageHeight({ request, rawHeight });
+  const capturedHeight = Math.min(pageHeight, request.fullPage ? request.maxPageHeightPx : request.viewport.height);
+  const png = await capturePixels({ page, request, capturedHeight });
+  if (png.byteLength > URL_CAPTURE_MAX_BYTES) throw new RenderServiceError({ code: 'load-failed', message: 'capture exceeds PNG byte limit' });
+  return { png, finalUrl, title: page.getTitle().slice(0, 300), status: null, pageHeight, capturedHeight, blockedRequests: readBlockedRequests() };
+}
+
+async function prepareCapturePage(window: ElectronBrowserWindowLike, request: UrlCaptureRequest,
+  { allowedOrigins, recordBlockedRequest }: { allowedOrigins: readonly string[]; recordBlockedRequest: () => void }): Promise<void> {
+  // Electron can crash the main process if device emulation targets an unloaded webContents.
+  // Bootstrap before the strict request policy; emulation still precedes site navigation.
+  await window.loadURL({ url: 'about:blank' });
+  if (window.isDestroyed()) return;
+  window.webContents.session.webRequest.onBeforeRequest({ listener: ({ details, callback }) => {
+    const cancel = details.method !== 'GET' || !isCaptureUrlAllowed({ url: details.url, allowedOrigins });
+    if (cancel) recordBlockedRequest();
+    callback({ cancel });
+  } });
+  const debug = window.webContents.debugger;
+  if (!debug) throw new RenderServiceError({ code: 'not-implemented', message: 'native device emulation unavailable' });
+  debug.attach('1.3');
+  await debug.sendCommand('Emulation.setDeviceMetricsOverride', {
+    width: request.viewport.width, height: request.viewport.height,
+    deviceScaleFactor: request.viewport.deviceScaleFactor ?? 1, mobile: request.viewport.isMobile ?? false,
+  });
 }
 
 /** Return a lease only once its session is reset; the next capture resets again before use.

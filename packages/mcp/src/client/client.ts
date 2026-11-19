@@ -91,15 +91,23 @@ export function createMcpIdleExitController({
 
   schedule();
 
+  return idleControllerOperations({ schedule, clear, isDisposed: () => disposed,
+    dispose: () => { disposed = true; }, changeInFlight: delta => (inFlight += delta) });
+}
+
+function idleControllerOperations(state: {
+  schedule: () => void; clear: () => void; isDisposed: () => boolean;
+  dispose: () => void; changeInFlight: (delta: number) => number;
+}) {
   return {
     noteActivity(_required: Record<string, never>) {
-      schedule();
+      state.schedule();
     },
     async trackRequest<T>({ fn }: { fn: (required: Record<string, never>) => T | Promise<T> }): Promise<T> {
-      if (disposed) {
+      if (state.isDisposed()) {
         return fn({});
       }
-      inFlight += 1;
+      state.changeInFlight(1);
       // Deliberately does NOT call `schedule()` here (SEC-RB-011): a request
       // starting while the timer is already running doesn't need to reset
       // the deadline — the timer, if it fires mid-flight, already re-checks
@@ -110,15 +118,15 @@ export function createMcpIdleExitController({
       try {
         return await fn({});
       } finally {
-        inFlight -= 1;
+        const inFlight = state.changeInFlight(-1);
         if (inFlight === 0) {
-          schedule();
+          state.schedule();
         }
       }
     },
     dispose(_required: Record<string, never>) {
-      disposed = true;
-      clear();
+      state.dispose();
+      state.clear();
     },
   };
 }

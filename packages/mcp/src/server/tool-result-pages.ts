@@ -48,7 +48,17 @@ export function createToolResultPages(_required: Record<string, never>, {
     return id;
   }
 
-  const tool: McpToolDef = {
+  const tool = createReadToolResult(saved);
+
+  return {
+    tool,
+    project({ result }) { return projectToolResult(result, save); },
+    clear() { saved.clear(); storedChars = 0; },
+  };
+}
+
+function createReadToolResult(saved: Map<string, string>): McpToolDef {
+  return {
     name: 'read_tool_result',
     description: 'Read a page of a saved oversized tool result in this run. Use resultId from the tool response, offset (default 0), and limit (default 4000, max 8000). Returns one text block: JSON cursor metadata on its first line, then exact result text. Follow nextOffset until null. Unknown/evicted IDs fail; repeat the original tool with a narrower query. Never read CLI spill files with Bash.',
     inputSchema: READ_TOOL_RESULT_INPUT_SCHEMA,
@@ -66,24 +76,22 @@ export function createToolResultPages(_required: Record<string, never>, {
     },
   };
 
-  return {
-    tool,
-    project({ result }) {
-      const texts = result.content.flatMap(block => block.type === 'text' ? [block.text] : []);
-      const totalChars = texts.reduce((sum, text) => sum + text.length, 0);
-      if (totalChars <= INLINE_CHARS) return result;
-      // Keep small metadata blocks inline; page medium blocks too when their combined size spills.
-      const retained = texts.filter(text => text.length > SMALL_BLOCK_CHARS);
-      const retainedChars = retained.reduce((sum, text) => sum + text.length, 0);
-      // Admit one response atomically so its later blocks cannot evict its earlier block IDs.
-      if (retained.length > MAX_RESULTS || retainedChars > MAX_STORED_CHARS || totalChars - retainedChars > 4000) return { isError: true, content: [{ type: 'text',
-        text: 'Tool result exceeds the saved-result limit. Repeat the original tool call with a narrower query. Never use Bash to read CLI spill files.' }] };
-      return { ...result, content: result.content.map(block => {
-        if (block.type !== 'text' || block.text.length <= SMALL_BLOCK_CHARS) return block;
-        const resultId = save(block.text);
-        return { ...block, text: `Saved tool result (${block.text.length} characters). Read it with read_tool_result(${JSON.stringify({ resultId, offset: 0 })}); follow nextOffset until null. Never use Bash or shell commands to read saved tool results.` };
-      }) };
-    },
-    clear() { saved.clear(); storedChars = 0; },
-  };
+}
+
+function projectToolResult(result: CallToolResult, save: (text: string) => string): CallToolResult {
+  const texts = result.content.flatMap(block => block.type === 'text' ? [block.text] : []);
+  const totalChars = texts.reduce((sum, text) => sum + text.length, 0);
+  if (totalChars <= INLINE_CHARS) return result;
+  // Keep small metadata blocks inline; page medium blocks too when their combined size spills.
+  const retained = texts.filter(text => text.length > SMALL_BLOCK_CHARS);
+  const retainedChars = retained.reduce((sum, text) => sum + text.length, 0);
+  // Admit one response atomically so its later blocks cannot evict its earlier block IDs.
+  if (retained.length > MAX_RESULTS || retainedChars > MAX_STORED_CHARS || totalChars - retainedChars > 4000) return { isError: true, content: [{ type: 'text',
+    text: 'Tool result exceeds the saved-result limit. Repeat the original tool call with a narrower query. Never use Bash to read CLI spill files.' }] };
+  return { ...result, content: result.content.map(block => {
+    if (block.type !== 'text' || block.text.length <= SMALL_BLOCK_CHARS) return block;
+    const resultId = save(block.text);
+    return { ...block, text: `Saved tool result (${block.text.length} characters). Read it with read_tool_result(${JSON.stringify({ resultId, offset: 0 })}); follow nextOffset until null. Never use Bash or shell commands to read saved tool results.` };
+  }) };
+
 }

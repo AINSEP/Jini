@@ -385,13 +385,6 @@
     "value": 275
   },
   {
-    "file": "packages/http-kit/src/sse.ts",
-    "function": "createSseChannel",
-    "line": 136,
-    "rule": "max-lines-per-function",
-    "value": 87
-  },
-  {
     "file": "packages/integrations/src/api-connections/hosted-mcp/sign-in.ts",
     "function": "createHostedMcpSignInService",
     "line": 796,
@@ -420,27 +413,6 @@
     "value": 981
   },
   {
-    "file": "packages/platform/src/fs/guarded-reader.ts",
-    "function": "createGuardedFileReader",
-    "line": 49,
-    "rule": "max-lines-per-function",
-    "value": 329
-  },
-  {
-    "file": "packages/plugins/src/host/capability-tools.ts",
-    "function": "createPluginCapabilityTools",
-    "line": 388,
-    "rule": "max-lines-per-function",
-    "value": 186
-  },
-  {
-    "file": "packages/plugins/src/host/declarative-content-types.ts",
-    "function": "createDeclarativeContentTypes",
-    "line": 336,
-    "rule": "max-lines-per-function",
-    "value": 131
-  },
-  {
     "file": "packages/plugins/src/host/node/runtime-core.ts",
     "function": "createPluginRuntimeCore",
     "line": 387,
@@ -453,13 +425,6 @@
     "line": 804,
     "rule": "max-lines",
     "value": 560
-  },
-  {
-    "file": "packages/search/src/indexer.ts",
-    "function": "createSearchIndexer",
-    "line": 93,
-    "rule": "max-lines-per-function",
-    "value": 239
   },
   {
     "file": "packages/server/src/builtin-features.ts",
@@ -530,13 +495,6 @@
     "line": 207,
     "rule": "max-lines-per-function",
     "value": 83
-  },
-  {
-    "file": "packages/ui/src/features/charts/browser.ts",
-    "function": "mountChart",
-    "line": 33,
-    "rule": "max-lines-per-function",
-    "value": 96
   },
   {
     "file": "packages/ui/src/features/connectors/components/ConnectorDetailDrawer.tsx",
@@ -684,13 +642,6 @@
     "line": 826,
     "rule": "max-lines-per-function",
     "value": 126
-  },
-  {
-    "file": "packages/user-management/src/server/agent-tool-registrations.ts",
-    "function": "buildIdentityRegistrations",
-    "line": 344,
-    "rule": "max-lines-per-function",
-    "value": 186
   },
   {
     "file": "packages/cookie-consent/src/client/runtime.ts",

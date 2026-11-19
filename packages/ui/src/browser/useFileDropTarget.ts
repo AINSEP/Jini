@@ -34,23 +34,7 @@ export function useFileDropTarget(onUploadFiles: (files: File[]) => void): UseFi
 
   const clearDropReadError = useCallback(() => setDropReadError(null), []);
 
-  // This target's own `onDrop`/`onDragLeave` are not guaranteed to run when a drag ends: a host that
-  // handles a drop itself in the capture phase and stops propagation (a host's folder-drop-to-path) or a
-  // drag that ends elsewhere leaves the drag-over state stuck on. Window-capture listeners run before
-  // any element handler, so no `stopPropagation` can skip them. Registered only while dragging.
-  useEffect(() => {
-    if (!draggingFiles) return undefined;
-    const reset = () => {
-      dragDepthRef.current = 0;
-      setDraggingFiles(false);
-    };
-    window.addEventListener('drop', reset, true);
-    window.addEventListener('dragend', reset, true);
-    return () => {
-      window.removeEventListener('drop', reset, true);
-      window.removeEventListener('dragend', reset, true);
-    };
-  }, [draggingFiles]);
+  useDropReset({ draggingFiles, dragDepthRef, setDraggingFiles });
 
   const onDragEnter = useCallback((event: DragEvent<Element>) => {
     event.preventDefault();
@@ -91,4 +75,24 @@ export function useFileDropTarget(onUploadFiles: (files: File[]) => void): UseFi
   }, []);
 
   return { draggingFiles, dropReadError, clearDropReadError, onDragEnter, onDragOver, onDragLeave, onDrop };
+}
+
+function useDropReset({ draggingFiles, dragDepthRef, setDraggingFiles }: { draggingFiles: boolean; dragDepthRef: { current: number }; setDraggingFiles: (value: boolean) => void }): void {
+  // This target's own `onDrop`/`onDragLeave` are not guaranteed to run when a drag ends: a host that
+  // handles a drop itself in the capture phase and stops propagation (a host's folder-drop-to-path) or a
+  // drag that ends elsewhere leaves the drag-over state stuck on. Window-capture listeners run before
+  // any element handler, so no `stopPropagation` can skip them. Registered only while dragging.
+  useEffect(() => {
+    if (!draggingFiles) return undefined;
+    const reset = () => {
+      dragDepthRef.current = 0;
+      setDraggingFiles(false);
+    };
+    window.addEventListener('drop', reset, true);
+    window.addEventListener('dragend', reset, true);
+    return () => {
+      window.removeEventListener('drop', reset, true);
+      window.removeEventListener('dragend', reset, true);
+    };
+  }, [draggingFiles]);
 }

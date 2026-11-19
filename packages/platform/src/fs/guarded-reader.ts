@@ -66,368 +66,436 @@ export function createGuardedFileReader({ rootPath, denyRules, limits, filesyste
     // Listing exclusions reduce noise; they never grant or deny a known file read. Security comes
     // from denyRules, applied to both the caller spelling and the effective target.
     const EXCLUDED_LISTING_DIR_NAMES = excludedListingDirs;
-    function isDeniedFsFileName(fileName: string): boolean {
-        const folded = foldFsNameForDenylist(fileName);
-        return denyRules.filenamePatterns.some((pattern) => new RegExp(pattern).test(fileName) || new RegExp(pattern).test(folded));
+    const context = { denyRules, fs, descriptorRead, descriptorFlags, existsSync, lstatSync, readdirSync, realpathSync, statSync, MAX_FS_FILE_BYTES, BINARY_SNIFF_BYTES, MAX_LISTED_FILES, MAX_WALK_DEPTH, MAX_WALK_ENTRIES, EXCLUDED_LISTING_DIR_NAMES };
+    return {
+        resolve: ({ relativePath }) => resolveFsFilePath({ rootPath, relativePath }, context),
+        read: ({ relativePath }) => readFsFile({ rootPath, relativePath }, context),
+        readBytes: ({ relativePath, maxBytes }) => openFsFileForRead({ rootPath, relativePath, maxBytes }, context),
+        list: (_required, optional = {}) => listFsFiles({ rootPath, ...optional }, context),
+        isDeniedFileName: ({ fileName }) => isDeniedFsFileName(fileName, context),
+        isDeniedPathSegment: ({ segmentName }) => isDeniedFsPathSegment(segmentName, context),
+    };
+}
+
+function isDeniedFsFileName(fileName: string, context: GuardedReaderContext): boolean {
+    const { denyRules } = context;
+    const folded = foldFsNameForDenylist(fileName);
+    return denyRules.filenamePatterns.some((pattern) => new RegExp(pattern).test(fileName) || new RegExp(pattern).test(folded));
+}
+
+function isDeniedFsPathSegment(segmentName: string, context: GuardedReaderContext): boolean {
+    const { denyRules } = context;
+    return denyRules.segments.has(segmentName.toLowerCase()) || denyRules.segments.has(foldFsNameForDenylist(segmentName));
+}
+
+// Default case-insensitive APFS can open LONG S/KELVIN SIGN aliases of denied names that plain
+// toLowerCase or non-Unicode /i misses. Windows also ignores trailing dots/spaces and opens
+// name::$DATA as name. Compare raw AND folded names: folding may add denials, never remove them,
+// and must not change the path actually opened.
+function foldFsNameForDenylist(name: string): string {
+    const streamAt = name.indexOf(":");
+    const withoutStream = streamAt === -1 ? name : name.slice(0, streamAt);
+    const withoutTrailing = trimCharsEnd({ text: withoutStream, chars: ". " });
+    return withoutTrailing.toLowerCase().toUpperCase().toLowerCase();
+}
+
+// Split both separator spellings even on a host whose native separator is '/', so deny checks
+// remain cross-platform. The guard and reader must resolve the same spelling consistently.
+function normalizeFsRelativePath(relativePath: string): string {
+    const segments: string[] = [];
+    for (const segment of relativePath.split(/[\\/]/)) {
+        // Empty and "." segments are no-ops; ".." climbs one level; anything else descends.
+        if (segment === "..")
+            segments.pop();
+        if (!NON_DESCENDING_SEGMENTS.has(segment))
+            segments.push(segment);
     }
-    function isDeniedFsPathSegment(segmentName: string): boolean {
-        return denyRules.segments.has(segmentName.toLowerCase()) || denyRules.segments.has(foldFsNameForDenylist(segmentName));
+    return segments.join("/");
+}
+
+// A string prefix admits siblings whose names extend the root and ignores traversal. Resolve
+// first, then compare path.relative components; symlink containment needs its own check below.
+function isWithin(base: string, target: string): boolean {
+    if (base === target)
+        return true;
+    const rel = relative(base, target);
+    return rel !== "" && !rel.startsWith(`..${sep}`) && rel !== ".." && !isAbsolute(rel);
+}
+
+// Probe the deepest existing ancestor: a nonexistent descendant can still sit beneath a
+// symlink that escapes the root, even when its lexical path passed containment.
+// Bound ancestor steps to four times the listing depth, plus the endpoint check, so deeply
+// nested missing paths cannot cause unbounded synchronous probes. Unknown containment refuses.
+function assertNoSymlinkEscape({ base, path, relativePathForError }: { base: string; path: string; relativePathForError: string }, context: GuardedReaderContext): void {
+    const { MAX_WALK_DEPTH, existsSync, realpathSync } = context;
+    let probe = path;
+    for (let i = 0; i < MAX_WALK_DEPTH * 4 && !existsSync(probe); i += 1) {
+        const parent = dirname(probe);
+        if (parent === probe)
+            break;
+        probe = parent;
     }
-    // Default case-insensitive APFS can open LONG S/KELVIN SIGN aliases of denied names that plain
-    // toLowerCase or non-Unicode /i misses. Windows also ignores trailing dots/spaces and opens
-    // name::$DATA as name. Compare raw AND folded names: folding may add denials, never remove them,
-    // and must not change the path actually opened.
-    function foldFsNameForDenylist(name: string): string {
-        const streamAt = name.indexOf(":");
-        const withoutStream = streamAt === -1 ? name : name.slice(0, streamAt);
-        const withoutTrailing = trimCharsEnd({ text: withoutStream, chars: ". " });
-        return withoutTrailing.toLowerCase().toUpperCase().toLowerCase();
+    if (!existsSync(probe))
+        throw new FsFilePathError({ message: `path '${relativePathForError}' containment could not be established within the ancestor traversal limit` });
+    const realProbe = realpathSync(probe);
+    if (!isWithin(base, realProbe)) {
+        throw new FsFilePathError({ message: `path '${relativePathForError}' resolves outside the allowed root through a symbolic link` });
     }
-    // Split both separator spellings even on a host whose native separator is '/', so deny checks
-    // remain cross-platform. The guard and reader must resolve the same spelling consistently.
-    function normalizeFsRelativePath(relativePath: string): string {
-        const segments: string[] = [];
-        for (const segment of relativePath.split(/[\\/]/)) {
-            // Empty and "." segments are no-ops; ".." climbs one level; anything else descends.
-            if (segment === "..")
-                segments.pop();
-            if (!NON_DESCENDING_SEGMENTS.has(segment))
-                segments.push(segment);
+}
+
+function resolveFsFilePath(required: {
+    rootPath: string;
+    relativePath: string;
+}, context: GuardedReaderContext): string {
+    const { existsSync, realpathSync } = context;
+    const { rootPath, relativePath } = required;
+    assertWellFormedRelativePath(relativePath);
+    assertRequestedPathNotDenied(relativePath, context);
+    // Canonicalize a symlinked root too, or the ancestor's realpath would compare to a different
+    // representation and refuse legitimate reads through a linked package/root.
+    const base = existsSync(rootPath) ? realpathSync(rootPath) : resolve(rootPath);
+    const target = resolve(base, relativePath);
+    if (!isWithin(base, target)) {
+        throw new FsFilePathError({ message: `path '${relativePath}' resolves outside the allowed root` });
+    }
+    assertNoSymlinkEscape({ base, path: target, relativePathForError: relativePath }, context);
+    assertEffectiveTargetNotDenied({ base, target, relativePath }, context);
+    return target;
+}
+
+// Isolate initial shape refusals so resolve reads as the ordered sequence of containment and
+// deny checks, rather than burying that boundary in one long guard block.
+function assertWellFormedRelativePath(relativePath: string): void {
+    if (relativePath.length === 0) {
+        throw new FsFilePathError({ message: "path is required" });
+    }
+    if (relativePath.includes("\0")) {
+        throw new FsFilePathError({ message: "path must not contain a NUL byte" });
+    }
+    if (isAbsolute(relativePath)) {
+        throw new FsFilePathError({ message: `path '${relativePath}' must be relative to the root, not absolute` });
+    }
+}
+
+// Refuse denied spellings before filesystem access, regardless of whether they exist. The
+// effective-target check is separate because a harmless alias can resolve to a denied file.
+function assertRequestedPathNotDenied(relativePath: string, context: GuardedReaderContext): void {
+    const normalized = normalizeFsRelativePath(relativePath);
+    const segments = normalized.length === 0 ? [] : normalized.split("/");
+    for (const segment of segments) {
+        if (isDeniedFsPathSegment(segment, context)) {
+            throw new FsFilePathError({ message: `path '${relativePath}' contains a denied path segment ('${segment}') and cannot be accessed` });
         }
-        return segments.join("/");
     }
-    // A string prefix admits siblings whose names extend the root and ignores traversal. Resolve
-    // first, then compare path.relative components; symlink containment needs its own check below.
-    function isWithin(base: string, target: string): boolean {
-        if (base === target)
-            return true;
-        const rel = relative(base, target);
-        return rel !== "" && !rel.startsWith(`..${sep}`) && rel !== ".." && !isAbsolute(rel);
+    const leafName = segments.at(-1) ?? "";
+    if (leafName.length > 0 && isDeniedFsFileName(leafName, context)) {
+        throw new FsFilePathError({ message: `path '${relativePath}' matches a denied filename pattern and cannot be accessed` });
     }
-    // Probe the deepest existing ancestor: a nonexistent descendant can still sit beneath a
-    // symlink that escapes the root, even when its lexical path passed containment.
-    // Bound ancestor steps to four times the listing depth, plus the endpoint check, so deeply
-    // nested missing paths cannot cause unbounded synchronous probes. Unknown containment refuses.
-    function assertNoSymlinkEscape(base: string, path: string, relativePathForError: string): void {
-        let probe = path;
-        for (let i = 0; i < MAX_WALK_DEPTH * 4 && !existsSync(probe); i += 1) {
-            const parent = dirname(probe);
-            if (parent === probe)
-                break;
-            probe = parent;
-        }
-        if (!existsSync(probe))
-            throw new FsFilePathError({ message: `path '${relativePathForError}' containment could not be established within the ancestor traversal limit` });
-        const realProbe = realpathSync(probe);
-        if (!isWithin(base, realProbe)) {
-            throw new FsFilePathError({ message: `path '${relativePathForError}' resolves outside the allowed root through a symbolic link` });
+}
+
+// public.txt -> .env stays inside the root and passes lexical checks; Node follows it on read.
+// Deny the real target as well. existsSync excludes broken/circular links before realpath, and
+// the subsequent stat translates their failure into this reader's own refusal class.
+function assertEffectiveTargetNotDenied({ base, target, relativePath }: { base: string; target: string; relativePath: string }, context: GuardedReaderContext): void {
+    const { existsSync, realpathSync } = context;
+    if (!existsSync(target))
+        return;
+    const effectiveSegments = relative(base, realpathSync(target)).split(sep);
+    for (const segment of effectiveSegments) {
+        if (isDeniedFsPathSegment(segment, context)) {
+            throw new FsFilePathError({ message: `path '${relativePath}' resolves to a denied path segment ('${segment}') and cannot be accessed` });
         }
     }
-    function resolveFsFilePath(required: {
-        rootPath: string;
-        relativePath: string;
-    }): string {
-        const { rootPath, relativePath } = required;
-        assertWellFormedRelativePath(relativePath);
-        assertRequestedPathNotDenied(relativePath);
-        // Canonicalize a symlinked root too, or the ancestor's realpath would compare to a different
-        // representation and refuse legitimate reads through a linked package/root.
-        const base = existsSync(rootPath) ? realpathSync(rootPath) : resolve(rootPath);
-        const target = resolve(base, relativePath);
-        if (!isWithin(base, target)) {
-            throw new FsFilePathError({ message: `path '${relativePath}' resolves outside the allowed root` });
-        }
-        assertNoSymlinkEscape(base, target, relativePath);
-        assertEffectiveTargetNotDenied(base, target, relativePath);
-        return target;
+    // A target equal to base yields [""] after split, so check leaf length, not array length.
+    // split always yields at least one element, so the leaf is always defined.
+    const effectiveLeaf = effectiveSegments[effectiveSegments.length - 1]!;
+    if (effectiveLeaf.length > 0 && isDeniedFsFileName(effectiveLeaf, context)) {
+        throw new FsFilePathError({ message: `path '${relativePath}' resolves to a denied filename pattern and cannot be accessed` });
     }
-    // Isolate initial shape refusals so resolve reads as the ordered sequence of containment and
-    // deny checks, rather than burying that boundary in one long guard block.
-    function assertWellFormedRelativePath(relativePath: string): void {
-        if (relativePath.length === 0) {
-            throw new FsFilePathError({ message: "path is required" });
-        }
-        if (relativePath.includes("\0")) {
-            throw new FsFilePathError({ message: "path must not contain a NUL byte" });
-        }
-        if (isAbsolute(relativePath)) {
-            throw new FsFilePathError({ message: `path '${relativePath}' must be relative to the root, not absolute` });
-        }
+}
+
+function visitFsDirEntry({ dir, name, depth, base, found, state }: { dir: string; name: string; depth: number; base: string; found: string[]; state: FsWalkState }, context: GuardedReaderContext): void {
+    const { lstatSync } = context;
+    const full = resolve(dir, name);
+    // lstat examines the link itself: stat would follow circular links and throw ELOOP before
+    // the skip. Never enumerate/report links or descend denied directories, so listings do not
+    // advertise secrets or anything outside the root. Ordinary excluded directories are noise.
+    const stat = lstatSync(full, { throwIfNoEntry: false });
+    if (!stat)
+        return;
+    if (stat.isSymbolicLink())
+        return;
+    if (stat.isDirectory()) {
+        visitFsDirectory({ full, name, depth, base, found, state }, context);
+        return;
     }
-    // Refuse denied spellings before filesystem access, regardless of whether they exist. The
-    // effective-target check is separate because a harmless alias can resolve to a denied file.
-    function assertRequestedPathNotDenied(relativePath: string): void {
-        const normalized = normalizeFsRelativePath(relativePath);
-        const segments = normalized.length === 0 ? [] : normalized.split("/");
-        for (const segment of segments) {
-            if (isDeniedFsPathSegment(segment)) {
-                throw new FsFilePathError({ message: `path '${relativePath}' contains a denied path segment ('${segment}') and cannot be accessed` });
-            }
-        }
-        const leafName = segments.at(-1) ?? "";
-        if (leafName.length > 0 && isDeniedFsFileName(leafName)) {
-            throw new FsFilePathError({ message: `path '${relativePath}' matches a denied filename pattern and cannot be accessed` });
-        }
+    if (!stat.isFile())
+        return;
+    if (isDeniedFsFileName(name, context))
+        return;
+    found.push(relative(base, full).split(sep).join("/"));
+}
+
+function visitFsDirectory({ full, name, depth, base, found, state }: {
+    full: string; name: string; depth: number; base: string; found: string[]; state: FsWalkState;
+}, context: GuardedReaderContext): void {
+    const { EXCLUDED_LISTING_DIR_NAMES } = context;
+    if (isDeniedFsPathSegment(name, context) || EXCLUDED_LISTING_DIR_NAMES.has(name))
+        return;
+    if (state.paged && depth === state.maxDepth) {
+        found.push(relative(base, full).split(sep).join("/") + "/");
+        return;
     }
-    // public.txt -> .env stays inside the root and passes lexical checks; Node follows it on read.
-    // Deny the real target as well. existsSync excludes broken/circular links before realpath, and
-    // the subsequent stat translates their failure into this reader's own refusal class.
-    function assertEffectiveTargetNotDenied(base: string, target: string, relativePath: string): void {
-        if (!existsSync(target))
-            return;
-        const effectiveSegments = relative(base, realpathSync(target)).split(sep);
-        for (const segment of effectiveSegments) {
-            if (isDeniedFsPathSegment(segment)) {
-                throw new FsFilePathError({ message: `path '${relativePath}' resolves to a denied path segment ('${segment}') and cannot be accessed` });
-            }
-        }
-        // A target equal to base yields [""] after split, so check leaf length, not array length.
-        // split always yields at least one element, so the leaf is always defined.
-        const effectiveLeaf = effectiveSegments[effectiveSegments.length - 1]!;
-        if (effectiveLeaf.length > 0 && isDeniedFsFileName(effectiveLeaf)) {
-            throw new FsFilePathError({ message: `path '${relativePath}' resolves to a denied filename pattern and cannot be accessed` });
-        }
+    walkFsDir({ dir: full, depth: depth + 1, base, found, state }, context);
+}
+
+// Results, entries, and depth are independent limits; keep the decision shared by entry and
+// loop checks so adding one limit cannot leave an unbounded arm.
+function walkBoundReached(found: string[], state: FsWalkState, depth: number): boolean {
+    return depth > state.maxDepth || found.length >= state.maxFiles || state.remaining <= 0;
+}
+
+function walkFsDir({ dir, depth, base, found, state }: { dir: string; depth: number; base: string; found: string[]; state: FsWalkState }, context: GuardedReaderContext): void {
+    const { readdirSync } = context;
+    if (walkBoundReached(found, state, depth)) {
+        state.truncated = true;
+        return;
     }
-    function visitFsDirEntry(dir: string, name: string, depth: number, base: string, found: string[], state: FsWalkState): void {
-        const full = resolve(dir, name);
-        // lstat examines the link itself: stat would follow circular links and throw ELOOP before
-        // the skip. Never enumerate/report links or descend denied directories, so listings do not
-        // advertise secrets or anything outside the root. Ordinary excluded directories are noise.
-        const stat = lstatSync(full, { throwIfNoEntry: false });
-        if (!stat)
-            return;
-        if (stat.isSymbolicLink())
-            return;
-        if (stat.isDirectory()) {
-            if (isDeniedFsPathSegment(name) || EXCLUDED_LISTING_DIR_NAMES.has(name))
-                return;
-            if (state.paged && depth === state.maxDepth) {
-                found.push(relative(base, full).split(sep).join("/") + "/");
-                return;
-            }
-            walkFsDir(full, depth + 1, base, found, state);
-            return;
-        }
-        if (!stat.isFile())
-            return;
-        if (isDeniedFsFileName(name))
-            return;
-        found.push(relative(base, full).split(sep).join("/"));
-    }
-    interface FsWalkState {
-        remaining: number;
-        truncated: boolean;
-        maxDepth: number;
-        maxFiles: number;
-        paged: boolean;
-    }
-    // Results, entries, and depth are independent limits; keep the decision shared by entry and
-    // loop checks so adding one limit cannot leave an unbounded arm.
-    function walkBoundReached(found: string[], state: FsWalkState, depth: number): boolean {
-        return depth > state.maxDepth || found.length >= state.maxFiles || state.remaining <= 0;
-    }
-    function walkFsDir(dir: string, depth: number, base: string, found: string[], state: FsWalkState): void {
+    const names = readdirSync(dir);
+    if (state.paged) names.sort();
+    for (const name of names) {
+        // Recheck per entry: this loop spends traversal budget and adds results. Remaining
+        // entries mean a bound must set truncated rather than present a short list as complete.
         if (walkBoundReached(found, state, depth)) {
             state.truncated = true;
             return;
         }
-        const names = readdirSync(dir);
-        if (state.paged) names.sort();
-        for (const name of names) {
-            // Recheck per entry: this loop spends traversal budget and adds results. Remaining
-            // entries mean a bound must set truncated rather than present a short list as complete.
-            if (walkBoundReached(found, state, depth)) {
-                state.truncated = true;
-                return;
-            }
-            state.remaining -= 1;
-            visitFsDirEntry(dir, name, depth, base, found, state);
-        }
+        state.remaining -= 1;
+        visitFsDirEntry({ dir, name, depth, base, found, state }, context);
     }
-    /** Walk with existing containment/deny rules, then bound the serialized page independently.
-     * @complexity At most maxWalkEntries probes; sorting uses O(n log n) time and O(n) paths.
-     * Directory reads remain synchronous; traversal exhaustion is reported as an unknown remainder.
-     */
-    function listFsFiles(required: {
-        rootPath: string;
-    } & GuardedListingOptions): GuardedListingResult {
-        const paged = [required.depth, required.limit, required.cursor, required.maxOutputBytes].some(value => value !== undefined);
-        const page = listingPageOptions(required, { maxDepth: MAX_WALK_DEPTH, maxFiles: MAX_LISTED_FILES });
-        const { rootPath } = required;
-        const relativePath = required.relativePath ?? "";
-        const pathLabel = relativePath || ".";
-        const startDir = relativePath.length === 0 ? resolve(rootPath) : resolveFsFilePath({ rootPath, relativePath });
-        // Freshly provisioned roots/subdirectories may not exist yet; an empty listing is valid.
-        if (!existsSync(startDir))
-            return { files: [], truncated: false };
-        const startStat = statOrFsPathError(startDir, pathLabel);
-        if (!startStat)
-            return { files: [], truncated: false };
-        if (!startStat.isDirectory()) {
-            throw new FsFilePathError({ message: `path '${pathLabel}' is not a directory` });
-        }
-        const base = realpathSync(startDir);
-        const found: string[] = [];
-        const state: FsWalkState = { remaining: MAX_WALK_ENTRIES, truncated: false,
-            maxDepth: paged ? page.depth - 1 : MAX_WALK_DEPTH,
-            maxFiles: paged ? MAX_WALK_ENTRIES : MAX_LISTED_FILES, paged };
-        walkFsDir(base, 0, base, found, state);
-        // Paths are relative to the requested walk base, so a subdirectory listing can be consumed
-        // without stripping that subdirectory's prefix a second time.
-        const listing = { files: found.sort(), truncated: state.truncated };
-        return paged ? paginateListing(listing, page) : listing;
-    }
-    // Circular-link ELOOP and other filesystem exceptions must become the reader's refusal class,
-    // not escape raw while an ordinary missing path is represented by undefined.
-    function statOrFsPathError(target: string, relativePath: string): Stats | undefined {
-        try {
-            return statSync(target, { throwIfNoEntry: false });
-        }
-        catch (err) {
-            throw new FsFilePathError({ message: `path '${relativePath}' could not be read: ${errorText(err)}` });
-        }
-    }
-    // Both read paths refuse missing and non-regular targets with identical wording.
-    function statRegularFile(target: string, relativePath: string): Stats {
-        const stat = statOrFsPathError(target, relativePath);
-        if (!stat)
-            throw new FsFilePathError({ message: `file '${relativePath}' does not exist` });
-        if (!stat.isFile())
-            throw new FsFilePathError({ message: `path '${relativePath}' is not a regular file` });
-        return stat;
-    }
-    // A bounded leading-NUL heuristic keeps binary databases/images/archives out of inline UTF-8
-    // model input without making type sniffing proportional to the full file size.
-    function looksBinary(buffer: Buffer): boolean {
-        const sniffLength = Math.min(buffer.length, BINARY_SNIFF_BYTES);
-        for (let i = 0; i < sniffLength; i += 1) {
-            if (buffer[i] === 0)
-                return true;
-        }
-        return false;
-    }
-    interface ReadFsFileResult {
-        readonly content: string;
-        readonly bytes: number;
-    }
-    function readFsFile(required: {
-        rootPath: string;
-        relativePath: string;
-    }): ReadFsFileResult {
-        const target = resolveFsFilePath(required);
-        const stat = statRegularFile(target, required.relativePath);
-        if (stat.size > MAX_FS_FILE_BYTES) {
-            throw new FsFilePathError({ message: `file '${required.relativePath}' exceeds the ${MAX_FS_FILE_BYTES}-byte readable limit` });
-        }
-        const buffer = readBoundedSync(target, required.relativePath);
-        if (looksBinary(buffer)) {
-            throw new FsFilePathError({ message: `file '${required.relativePath}' looks like a binary file and cannot be read as text` });
-        }
-        return { content: buffer.toString("utf8"), bytes: buffer.byteLength };
-    }
-    // Read one byte past the cap so a file that grew after stat is refused rather than clipped.
-    function readBoundedSync(target: string, relativePath: string): Buffer {
-        const { fd, maxBytes } = descriptorFlags === undefined
-            ? { fd: fs.openSync(target, "r"), maxBytes: MAX_FS_FILE_BYTES }
-            : openValidatedDescriptor({ target, relativePath, maxBytes: MAX_FS_FILE_BYTES });
-        try {
-            const bounded = Buffer.alloc(maxBytes + 1);
-            let count = 0;
-            while (count < bounded.length) {
-                const read = fs.readSync(fd, bounded, count, bounded.length - count, null);
-                if (read === 0)
-                    break;
-                count += read;
-            }
-            if (count > maxBytes)
-                throw new FsFilePathError({ message: `file '${relativePath}' exceeds the ${maxBytes}-byte readable limit` });
-            return bounded.subarray(0, count);
-        }
-        finally {
-            fs.closeSync(fd);
-        }
-    }
-    /** Owns the descriptor until validated; every refusal closes it before propagating. */
-    function openValidatedDescriptor({ target, relativePath, maxBytes }: {
-        target: string; relativePath: string; maxBytes: number;
-    }): { fd: number; maxBytes: number } {
-        const fd = openNoFollow({ target, relativePath });
-        try {
-            const stat = fs.fstatSync!(fd);
-            assertDescriptorStat({ stat, relativePath, maxBytes }, descriptorRead);
-            return { fd, maxBytes: descriptorRead?.rejectGrowth ? Math.min(maxBytes, stat.size) : maxBytes };
-        } catch (error) {
-            try { fs.closeSync(fd); } catch { /* Preserve the validation error. */ }
-            throw error;
-        }
-    }
-    // A stat-only size check can be bypassed by a growing file: bound the stream independently and
-    // reject rather than return a clipped image/video. Destroy the stream on success or failure.
-    async function openFsFileForRead(required: {
-        rootPath: string;
-        relativePath: string;
-        maxBytes: number;
-    }): Promise<Uint8Array> {
-        const { relativePath, maxBytes } = required;
-        if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) {
-            throw new FsFilePathError({ message: "maxBytes must be a positive safe integer" });
-        }
-        const target = resolveFsFilePath(required);
-        const stat = statRegularFile(target, relativePath);
-        if (stat.size > maxBytes) {
-            throw new FsFilePathError({ message: `file '${relativePath}' is ${stat.size} bytes and exceeds the ${maxBytes}-byte import limit` });
-        }
-        return readBoundedStream(target, { relativePath, maxBytes });
-    }
-    async function readBoundedStream(target: string, { relativePath, maxBytes }: { relativePath: string; maxBytes: number }): Promise<Uint8Array> {
-        const opened = createBoundedStream({ target, relativePath, maxBytes });
-        const { stream } = opened;
-        try {
-            // Own refusals pass through; any other stream failure becomes this reader's refusal class.
-            return await collectBoundedChunks(stream, { relativePath, maxBytes: opened.maxBytes }).catch((error: unknown) => Promise.reject(error instanceof FsFilePathError
-                ? error
-                : new FsFilePathError({ message: `path '${relativePath}' could not be read: ${errorText(error)}` })));
-        }
-        finally {
-            stream.destroy();
-        }
-    }
-    /** O_NOFOLLOW refusals (ELOOP) and other open failures carry absolute host paths; surface only
-     * the caller's relative path, like every other refusal from this reader. */
-    function openNoFollow({ target, relativePath }: { target: string; relativePath: string }): number {
-        try {
-            return fs.openSync(target, descriptorFlags!);
-        }
-        catch {
-            throw new FsFilePathError({ message: `path '${relativePath}' is a symbolic link or could not be opened` });
-        }
-    }
-    /** Transfer ownership to the stream only after construction; it alone closes on end/error. */
-    function createBoundedStream({ target, relativePath, maxBytes }: {
-        target: string; relativePath: string; maxBytes: number;
-    }): { stream: nodeFs.ReadStream; maxBytes: number } {
-        const highWaterMark = Math.min(64 * 1024, maxBytes + 1);
-        if (descriptorFlags === undefined) return { stream: fs.createReadStream(target, { highWaterMark }), maxBytes };
-        const opened = openValidatedDescriptor({ target, relativePath, maxBytes });
-        try {
-            return {
-                stream: fs.createReadStream(target, { fd: opened.fd, autoClose: true, highWaterMark: Math.min(highWaterMark, opened.maxBytes + 1) }),
-                maxBytes: opened.maxBytes,
-            };
-        } catch (error) {
-            try { fs.closeSync(opened.fd); } catch { /* Preserve the construction error. */ }
-            throw error;
-        }
-    }
-    return {
-        resolve: ({ relativePath }) => resolveFsFilePath({ rootPath, relativePath }),
-        read: ({ relativePath }) => readFsFile({ rootPath, relativePath }),
-        readBytes: ({ relativePath, maxBytes }) => openFsFileForRead({ rootPath, relativePath, maxBytes }),
-        list: (_required, optional = {}) => listFsFiles({ rootPath, ...optional }),
-        isDeniedFileName: ({ fileName }) => isDeniedFsFileName(fileName),
-        isDeniedPathSegment: ({ segmentName }) => isDeniedFsPathSegment(segmentName),
-    };
 }
+
+/** Walk with existing containment/deny rules, then bound the serialized page independently.
+ * @complexity At most maxWalkEntries probes; sorting uses O(n log n) time and O(n) paths.
+ * Directory reads remain synchronous; traversal exhaustion is reported as an unknown remainder.
+ */
+function listFsFiles(required: {
+    rootPath: string;
+} & GuardedListingOptions, context: GuardedReaderContext): GuardedListingResult {
+    const { MAX_WALK_DEPTH, MAX_LISTED_FILES, existsSync, realpathSync, MAX_WALK_ENTRIES } = context;
+    const paged = [required.depth, required.limit, required.cursor, required.maxOutputBytes].some(value => value !== undefined);
+    const page = listingPageOptions(required, { maxDepth: MAX_WALK_DEPTH, maxFiles: MAX_LISTED_FILES });
+    const { rootPath } = required;
+    const relativePath = required.relativePath ?? "";
+    const pathLabel = relativePath || ".";
+    const startDir = relativePath.length === 0 ? resolve(rootPath) : resolveFsFilePath({ rootPath, relativePath }, context);
+    // Freshly provisioned roots/subdirectories may not exist yet; an empty listing is valid.
+    if (!existsSync(startDir))
+        return { files: [], truncated: false };
+    const startStat = statOrFsPathError(startDir, pathLabel, context);
+    if (!startStat)
+        return { files: [], truncated: false };
+    if (!startStat.isDirectory()) {
+        throw new FsFilePathError({ message: `path '${pathLabel}' is not a directory` });
+    }
+    const base = realpathSync(startDir);
+    const found: string[] = [];
+    const state: FsWalkState = { remaining: MAX_WALK_ENTRIES, truncated: false,
+        maxDepth: paged ? page.depth - 1 : MAX_WALK_DEPTH,
+        maxFiles: paged ? MAX_WALK_ENTRIES : MAX_LISTED_FILES, paged };
+    walkFsDir({ dir: base, depth: 0, base, found, state }, context);
+    // Paths are relative to the requested walk base, so a subdirectory listing can be consumed
+    // without stripping that subdirectory's prefix a second time.
+    const listing = { files: found.sort(), truncated: state.truncated };
+    return paged ? paginateListing(listing, page) : listing;
+}
+
+// Circular-link ELOOP and other filesystem exceptions must become the reader's refusal class,
+// not escape raw while an ordinary missing path is represented by undefined.
+function statOrFsPathError(target: string, relativePath: string, context: GuardedReaderContext): Stats | undefined {
+    const { statSync } = context;
+    try {
+        return statSync(target, { throwIfNoEntry: false });
+    }
+    catch (err) {
+        throw new FsFilePathError({ message: `path '${relativePath}' could not be read: ${errorText(err)}` });
+    }
+}
+
+// Both read paths refuse missing and non-regular targets with identical wording.
+function statRegularFile(target: string, relativePath: string, context: GuardedReaderContext): Stats {
+    const stat = statOrFsPathError(target, relativePath, context);
+    if (!stat)
+        throw new FsFilePathError({ message: `file '${relativePath}' does not exist` });
+    if (!stat.isFile())
+        throw new FsFilePathError({ message: `path '${relativePath}' is not a regular file` });
+    return stat;
+}
+
+// A bounded leading-NUL heuristic keeps binary databases/images/archives out of inline UTF-8
+// model input without making type sniffing proportional to the full file size.
+function looksBinary(buffer: Buffer, context: GuardedReaderContext): boolean {
+    const { BINARY_SNIFF_BYTES } = context;
+    const sniffLength = Math.min(buffer.length, BINARY_SNIFF_BYTES);
+    for (let i = 0; i < sniffLength; i += 1) {
+        if (buffer[i] === 0)
+            return true;
+    }
+    return false;
+}
+
+function readFsFile(required: {
+    rootPath: string;
+    relativePath: string;
+}, context: GuardedReaderContext): ReadFsFileResult {
+    const { MAX_FS_FILE_BYTES } = context;
+    const target = resolveFsFilePath(required, context);
+    const stat = statRegularFile(target, required.relativePath, context);
+    if (stat.size > MAX_FS_FILE_BYTES) {
+        throw new FsFilePathError({ message: `file '${required.relativePath}' exceeds the ${MAX_FS_FILE_BYTES}-byte readable limit` });
+    }
+    const buffer = readBoundedSync(target, required.relativePath, context);
+    if (looksBinary(buffer, context)) {
+        throw new FsFilePathError({ message: `file '${required.relativePath}' looks like a binary file and cannot be read as text` });
+    }
+    return { content: buffer.toString("utf8"), bytes: buffer.byteLength };
+}
+
+// Read one byte past the cap so a file that grew after stat is refused rather than clipped.
+function readBoundedSync(target: string, relativePath: string, context: GuardedReaderContext): Buffer {
+    const { descriptorFlags, fs, MAX_FS_FILE_BYTES } = context;
+    const { fd, maxBytes } = descriptorFlags === undefined
+        ? { fd: fs.openSync(target, "r"), maxBytes: MAX_FS_FILE_BYTES }
+        : openValidatedDescriptor({ target, relativePath, maxBytes: MAX_FS_FILE_BYTES }, context);
+    try {
+        const bounded = Buffer.alloc(maxBytes + 1);
+        let count = 0;
+        while (count < bounded.length) {
+            const read = fs.readSync(fd, bounded, count, bounded.length - count, null);
+            if (read === 0)
+                break;
+            count += read;
+        }
+        if (count > maxBytes)
+            throw new FsFilePathError({ message: `file '${relativePath}' exceeds the ${maxBytes}-byte readable limit` });
+        return bounded.subarray(0, count);
+    }
+    finally {
+        fs.closeSync(fd);
+    }
+}
+
+/** Owns the descriptor until validated; every refusal closes it before propagating. */
+function openValidatedDescriptor({ target, relativePath, maxBytes }: {
+    target: string; relativePath: string; maxBytes: number;
+}, context: GuardedReaderContext): { fd: number; maxBytes: number } {
+    const { fs, descriptorRead } = context;
+    const fd = openNoFollow({ target, relativePath }, context);
+    try {
+        const stat = fs.fstatSync!(fd);
+        assertDescriptorStat({ stat, relativePath, maxBytes }, descriptorRead);
+        return { fd, maxBytes: descriptorRead?.rejectGrowth ? Math.min(maxBytes, stat.size) : maxBytes };
+    } catch (error) {
+        try { fs.closeSync(fd); } catch { /* Preserve the validation error. */ }
+        throw error;
+    }
+}
+
+// A stat-only size check can be bypassed by a growing file: bound the stream independently and
+// reject rather than return a clipped image/video. Destroy the stream on success or failure.
+async function openFsFileForRead(required: {
+    rootPath: string;
+    relativePath: string;
+    maxBytes: number;
+}, context: GuardedReaderContext): Promise<Uint8Array> {
+    const { relativePath, maxBytes } = required;
+    if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) {
+        throw new FsFilePathError({ message: "maxBytes must be a positive safe integer" });
+    }
+    const target = resolveFsFilePath(required, context);
+    const stat = statRegularFile(target, relativePath, context);
+    if (stat.size > maxBytes) {
+        throw new FsFilePathError({ message: `file '${relativePath}' is ${stat.size} bytes and exceeds the ${maxBytes}-byte import limit` });
+    }
+    return readBoundedStream(target, { relativePath, maxBytes }, context);
+}
+
+async function readBoundedStream(target: string, { relativePath, maxBytes }: { relativePath: string; maxBytes: number }, context: GuardedReaderContext): Promise<Uint8Array> {
+    const opened = createBoundedStream({ target, relativePath, maxBytes }, context);
+    const { stream } = opened;
+    try {
+        // Own refusals pass through; any other stream failure becomes this reader's refusal class.
+        return await collectBoundedChunks(stream, { relativePath, maxBytes: opened.maxBytes }).catch((error: unknown) => Promise.reject(error instanceof FsFilePathError
+            ? error
+            : new FsFilePathError({ message: `path '${relativePath}' could not be read: ${errorText(error)}` })));
+    }
+    finally {
+        stream.destroy();
+    }
+}
+
+/** O_NOFOLLOW refusals (ELOOP) and other open failures carry absolute host paths; surface only
+ * the caller's relative path, like every other refusal from this reader. */
+function openNoFollow({ target, relativePath }: { target: string; relativePath: string }, context: GuardedReaderContext): number {
+    const { fs, descriptorFlags } = context;
+    try {
+        return fs.openSync(target, descriptorFlags!);
+    }
+    catch {
+        throw new FsFilePathError({ message: `path '${relativePath}' is a symbolic link or could not be opened` });
+    }
+}
+
+/** Transfer ownership to the stream only after construction; it alone closes on end/error. */
+function createBoundedStream({ target, relativePath, maxBytes }: {
+    target: string; relativePath: string; maxBytes: number;
+}, context: GuardedReaderContext): { stream: nodeFs.ReadStream; maxBytes: number } {
+    const { descriptorFlags, fs } = context;
+    const highWaterMark = Math.min(64 * 1024, maxBytes + 1);
+    if (descriptorFlags === undefined) return { stream: fs.createReadStream(target, { highWaterMark }), maxBytes };
+    const opened = openValidatedDescriptor({ target, relativePath, maxBytes }, context);
+    try {
+        return {
+            stream: fs.createReadStream(target, { fd: opened.fd, autoClose: true, highWaterMark: Math.min(highWaterMark, opened.maxBytes + 1) }),
+            maxBytes: opened.maxBytes,
+        };
+    } catch (error) {
+        try { fs.closeSync(opened.fd); } catch { /* Preserve the construction error. */ }
+        throw error;
+    }
+}
+
+interface FsWalkState {
+    remaining: number;
+    truncated: boolean;
+    maxDepth: number;
+    maxFiles: number;
+    paged: boolean;
+}
+
+interface ReadFsFileResult {
+    readonly content: string;
+    readonly bytes: number;
+}
+
+interface GuardedReaderContext {
+    denyRules: DenyRules;
+    fs: GuardedReaderFilesystem;
+    descriptorRead: DescriptorReadPolicy | undefined;
+    descriptorFlags: number | undefined;
+    existsSync: GuardedReaderFilesystem["existsSync"];
+    lstatSync: GuardedReaderFilesystem["lstatSync"];
+    readdirSync: GuardedReaderFilesystem["readdirSync"];
+    realpathSync: GuardedReaderFilesystem["realpathSync"];
+    statSync: GuardedReaderFilesystem["statSync"];
+    MAX_FS_FILE_BYTES: number;
+    BINARY_SNIFF_BYTES: number;
+    MAX_LISTED_FILES: number;
+    MAX_WALK_DEPTH: number;
+    MAX_WALK_ENTRIES: number;
+    EXCLUDED_LISTING_DIR_NAMES: ReadonlySet<string>;
+}
+
 /** Validate page controls even for raw callers bypassing a tool schema; no filesystem effects. */
 function listingPageOptions(input: GuardedListingOptions, { maxDepth, maxFiles }: { maxDepth: number; maxFiles: number }) {
     const depth = input.depth ?? 1, limit = input.limit ?? Math.min(100, maxFiles), maxOutputBytes = input.maxOutputBytes ?? 8000;

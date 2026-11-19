@@ -107,6 +107,13 @@ export function getDatabaseAgentToolCatalog(
   } as const;
 
   return [
+    ...createDatabaseReadCatalog(messages),
+    ...createDatabaseWorkflowCatalog(messages, CREATE_RESTORE_POINT_SCHEMA),
+  ];
+}
+
+function createDatabaseReadCatalog(messages: DbMessages): AgentToolDefinition[] {
+  return [
     {
       // WIRED (tool-registrations.ts) against `adapter.sqlite.ts`'s `DatabaseIntrospectionPort.getHealth()`
       // — connectivity + `__drizzle_migrations` readability + drift status, exactly what that
@@ -151,6 +158,11 @@ export function getDatabaseAgentToolCatalog(
       authorization: { permission: DATABASE_READ_PERMISSION },
       inputSchema: TIMELINE_QUERY_SCHEMA,
     },
+  ];
+}
+
+function createDatabaseWorkflowCatalog(messages: DbMessages, CREATE_RESTORE_POINT_SCHEMA: NonNullable<AgentToolDefinition['inputSchema']>): AgentToolDefinition[] {
+  return [
     {
       name: "database_list_restore_points",
       description: messages.databaseRestorePoints,

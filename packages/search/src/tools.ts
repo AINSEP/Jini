@@ -163,41 +163,11 @@ export function buildSearchToolRegistrations(required: SearchToolDeps, optional:
   const activeProviderId = async () => (await service.status({ siteId })).active?.providerId ?? null;
 
   /** Shared approval lifecycle for the two writes; `run` re-checks permission after the human wait. */
-  const approvalTool = (spec: {
-    action: SearchApprovalDescription['action'];
-    prepare(ctx: ToolExecutionContext): Promise<Prepared>;
-    rememberKey(providerId: string): string | undefined;
-    summary(prepared: { providerId: string; fromProviderId: string | null }): string;
-    effect(providerId: string, ctx: ToolExecutionContext): Promise<void>;
-  }): ToolHandler => createApprovalHandler<Prepared, SearchApprovalDescription | undefined>({
-    prepare: ({ ctx }) => spec.prepare(ctx),
-    describe: ({ prepared }) => {
-      if ('refusal' in prepared) return { ask: false, description: undefined };
-      const key = spec.rememberKey(prepared.providerId);
-      const description: SearchApprovalDescription = { action: spec.action, siteId, ...prepared, summary: spec.summary(prepared) };
-      return { ask: true, description, ...(key === undefined ? {} : { rememberKey: key }) };
-    },
-    askHuman: ({ ctx, description }, options) => required.askHuman({ ctx, description: description as SearchApprovalDescription }, options),
-    notConfirmed: ({ reason }) => ({ started: false, reason }),
-    run: async ({ ctx, prepared }) => {
-      if ('refusal' in prepared) return prepared.refusal;
-      await allow(ctx, SEARCH_MANAGE_PERMISSION);
-      await spec.effect(prepared.providerId, ctx);
-      const targets = await indexer.startRebuild({ siteId, workspaceId, providerId: prepared.providerId });
-      return { started: true, providerId: prepared.providerId, generation: targets.building?.generation ?? null };
-    },
-  }, optional.remembered ? { remembered: optional.remembered } : {});
+  const approvalTool = createSearchApprovalTool(required, optional, { siteId, workspaceId, indexer, allow });
 
   const reindex = approvalTool({
     action: 'reindex',
-    prepare: async ctx => {
-      requireNoInput({ input: ctx.input });
-      await allow(ctx, SEARCH_MANAGE_PERMISSION);
-      const providerId = await activeProviderId();
-      if (providerId === null) return { refusal: { started: false, code: 'not_configured', message: 'search has no active provider yet; use search_set_provider' } };
-      if (!registry.has({ id: providerId })) return { refusal: { started: false, code: 'provider_not_registered', message: `the active search provider '${providerId}' is not loaded` } };
-      return { providerId, fromProviderId: providerId };
-    },
+    prepare: createSearchReindexPreparation({ registry, allow, activeProviderId }),
     // A reindex of the same provider is a repeatable cost decision, so a grant may be remembered per provider.
     rememberKey: providerId => `search_reindex:${providerId}`,
     summary: ({ providerId }) => `Rebuild the search index in '${providerId}' (writes every public document to it).`,
@@ -239,4 +209,42 @@ export function buildSearchToolRegistrations(required: SearchToolDeps, optional:
       search_set_provider: setProvider,
     },
   });
+}
+
+function createSearchReindexPreparation({ registry, allow, activeProviderId }: { registry: SearchToolDeps['registry']; allow: (ctx: ToolExecutionContext, permission: string) => Promise<void>; activeProviderId: () => Promise<string | null> }): (ctx: ToolExecutionContext) => Promise<Prepared> {
+  return async ctx => {
+      requireNoInput({ input: ctx.input });
+      await allow(ctx, SEARCH_MANAGE_PERMISSION);
+      const providerId = await activeProviderId();
+      if (providerId === null) return { refusal: { started: false, code: 'not_configured', message: 'search has no active provider yet; use search_set_provider' } };
+      if (!registry.has({ id: providerId })) return { refusal: { started: false, code: 'provider_not_registered', message: `the active search provider '${providerId}' is not loaded` } };
+      return { providerId, fromProviderId: providerId };
+    };
+}
+
+function createSearchApprovalTool(required: SearchToolDeps, optional: { readonly remembered?: RememberedApprovalPort }, { siteId, workspaceId, indexer, allow }: { siteId: string; workspaceId: string; indexer: SearchToolDeps['indexer']; allow: (ctx: ToolExecutionContext, permission: string) => Promise<void> }) {
+  return (spec: {
+    action: SearchApprovalDescription['action'];
+    prepare(ctx: ToolExecutionContext): Promise<Prepared>;
+    rememberKey(providerId: string): string | undefined;
+    summary(prepared: { providerId: string; fromProviderId: string | null }): string;
+    effect(providerId: string, ctx: ToolExecutionContext): Promise<void>;
+  }): ToolHandler => createApprovalHandler<Prepared, SearchApprovalDescription | undefined>({
+    prepare: ({ ctx }) => spec.prepare(ctx),
+    describe: ({ prepared }) => {
+      if ('refusal' in prepared) return { ask: false, description: undefined };
+      const key = spec.rememberKey(prepared.providerId);
+      const description: SearchApprovalDescription = { action: spec.action, siteId, ...prepared, summary: spec.summary(prepared) };
+      return { ask: true, description, ...(key === undefined ? {} : { rememberKey: key }) };
+    },
+    askHuman: ({ ctx, description }, options) => required.askHuman({ ctx, description: description as SearchApprovalDescription }, options),
+    notConfirmed: ({ reason }) => ({ started: false, reason }),
+    run: async ({ ctx, prepared }) => {
+      if ('refusal' in prepared) return prepared.refusal;
+      await allow(ctx, SEARCH_MANAGE_PERMISSION);
+      await spec.effect(prepared.providerId, ctx);
+      const targets = await indexer.startRebuild({ siteId, workspaceId, providerId: prepared.providerId });
+      return { started: true, providerId: prepared.providerId, generation: targets.building?.generation ?? null };
+    },
+  }, optional.remembered ? { remembered: optional.remembered } : {});
 }

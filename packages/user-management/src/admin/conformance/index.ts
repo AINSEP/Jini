@@ -19,15 +19,7 @@ export async function runRolesApiConformance({ api }: {
         error: unknown;
     }[] = [];
 
-    async function check(name: string, run: () => Promise<void>) {
-        try {
-            await run();
-            passed.push(name);
-        }
-        catch (error) {
-            failed.push({ name, error });
-        }
-    }
+    const check = createRoleConformanceCheck(passed, failed);
     let roleId: string | undefined, policyId: string | undefined, otherPolicyId: string | undefined, rowId: string | undefined;
     try {
         await check('create custom role', async () => { const { role } = await api.createRole({ name: `${prefix}-role` }); roleId = role.id; assert(!role.isBuiltin, 'created role must be custom'); });
@@ -59,6 +51,12 @@ export async function runRolesApiConformance({ api }: {
         await check('policy deletion cascades own permissions', async () => { await api.writePolicyPermission({ policyId: policyId!, permission }); await api.deletePolicy({ policyId: policyId! }); assert(!(await api.listPolicies({})).policies.some(p => p.id === policyId), 'policy deletion absent'); policyId = undefined; });
     }
     finally {
+        await cleanupRoleConformance(api, check, { roleId, policyId, otherPolicyId });
+    }
+    return { passed, failed };
+}
+
+async function cleanupRoleConformance(api: RolesApiPort, check: ReturnType<typeof createRoleConformanceCheck>, { roleId, policyId, otherPolicyId }: { roleId: string | undefined; policyId: string | undefined; otherPolicyId: string | undefined }): Promise<void> {
         if (roleId) {
             await check('cleanup role', async () => { await api.deleteRole({ roleId: roleId! }); assert(!(await api.listRoles({})).roles.some(r => r.id === roleId), 'role deletion absent'); });
         }
@@ -72,7 +70,19 @@ export async function runRolesApiConformance({ api }: {
         }
 
     }
-    return { passed, failed };
+
+
+function createRoleConformanceCheck(passed: string[], failed: { name: string; error: unknown }[]) {
+  async function check(name: string, run: () => Promise<void>) {
+        try {
+            await run();
+            passed.push(name);
+        }
+        catch (error) {
+            failed.push({ name, error });
+        }
+    }
+  return check;
 }
 
 import type { UsersApiPort,MembersApiPort,AuthApiPort } from '../ports.js';

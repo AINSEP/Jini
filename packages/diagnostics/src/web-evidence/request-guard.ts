@@ -267,21 +267,7 @@ export function createRequestRouter(
   const fetchHop = createHopFetcher({ httpClient, ownSiteFetch, signal, report }, options);
   let navigationRedirect: string | undefined;
 
-  async function abort(route: RouteLike, reason: AbortReason, isNavigation: boolean): Promise<void> {
-    report.blocked += 1;
-    onBlocked?.({ url: route.request().url(), resourceType: route.request().resourceType(), reason });
-    if (reason === "refused" && isNavigation) report.navigationRefused = true;
-    // The context may already be closing; a route that is gone has nothing left to abort.
-    await route.abort(reason === "failed" ? "failed" : "blockedbyclient").catch(() => {});
-  }
-
-  async function fulfill(route: RouteLike, { url, resource }: { url: string; resource: FetchedResource }): Promise<void> {
-    report.fulfilled += 1;
-    onResponse?.({ url, resourceType: route.request().resourceType(), resource });
-    await route.fulfill({ status: resource.status, headers: filterHeaders(resource.headers, preserveOwnSiteCookies
-      ? OWN_SITE_RESPONSE_HEADERS
-      : DROPPED_RESPONSE_HEADERS), body: resource.body }).catch(() => {});
-  }
+  const { abort, fulfill } = createRouteResponders(report, { preserveOwnSiteCookies, onResponse, onBlocked });
 
   /** One hop of one request: decide, fetch, then fulfil, hand a page redirect back, or route the next hop. */
   async function routeHop(
@@ -323,6 +309,30 @@ export function createRequestRouter(
       return target;
     },
   };
+}
+
+function createRouteResponders(report: RequestRouterReport, { preserveOwnSiteCookies, onResponse, onBlocked }: {
+  preserveOwnSiteCookies: boolean;
+  onResponse: RequestRouterOptions['onResponse'];
+  onBlocked: RequestRouterOptions['onBlocked'];
+}) {
+  async function abort(route: RouteLike, reason: AbortReason, isNavigation: boolean): Promise<void> {
+    report.blocked += 1;
+    onBlocked?.({ url: route.request().url(), resourceType: route.request().resourceType(), reason });
+    if (reason === "refused" && isNavigation) report.navigationRefused = true;
+    // The context may already be closing; a route that is gone has nothing left to abort.
+    await route.abort(reason === "failed" ? "failed" : "blockedbyclient").catch(() => {});
+  }
+
+  async function fulfill(route: RouteLike, { url, resource }: { url: string; resource: FetchedResource }): Promise<void> {
+    report.fulfilled += 1;
+    onResponse?.({ url, resourceType: route.request().resourceType(), resource });
+    await route.fulfill({ status: resource.status, headers: filterHeaders(resource.headers, preserveOwnSiteCookies
+      ? OWN_SITE_RESPONSE_HEADERS
+      : DROPPED_RESPONSE_HEADERS), body: resource.body }).catch(() => {});
+  }
+
+  return { abort, fulfill };
 }
 
 /** Reads chunks until the stream ends or the next one would pass `maxBytes` (then `truncated`). */

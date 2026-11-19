@@ -169,7 +169,7 @@ export function createExecutionHttpAdapter(
   }
 
   function createExecutionPort(_required: Record<string, never> = {}, options: CreateExecutionPortOptions = {}): ExecutionPort {
-    const { useStoredCredential = false, useAdminStoredCredential = false } = options;
+
     return {
       async detectLocalAgents() {
         return cachedDetection ?? cacheDetection(requestAgentDetection());
@@ -179,7 +179,17 @@ export function createExecutionHttpAdapter(
         // the new baseline for subsequent mounts.
         return cacheDetection(requestAgentDetection({ force: true }));
       },
-      async testConnection(config: ByokConfig) {
+      ...createExecutionProbes(transport, options),
+    };
+  }
+
+  return { createPort: createExecutionPort, resetDetectionCache: resetLocalAgentDetectionCache };
+}
+
+function createExecutionProbes(transport: ExecutionProbeTransport, options: CreateExecutionPortOptions): Pick<ExecutionPort, 'testConnection' | 'testAgent' | 'listModels'> {
+  const { useStoredCredential = false, useAdminStoredCredential = false } = options;
+  return {
+    async testConnection(config: ByokConfig) {
         return transport.testExecutionConnection({
           protocol: config.protocol,
           baseUrl: config.baseUrl,
@@ -213,9 +223,6 @@ export function createExecutionHttpAdapter(
           throw new Error(result.message?.trim() ? result.message : "Model discovery failed");
         }
         return result.models;
-      },
-    };
-  }
-
-  return { createPort: createExecutionPort, resetDetectionCache: resetLocalAgentDetectionCache };
+      }
+  };
 }

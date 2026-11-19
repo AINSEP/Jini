@@ -48,17 +48,7 @@ export function createFakeSkillsPort(options: FakeSkillsPortOptions = {}): Skill
   const delay = fakeLatencyDelay({}, { latencyMs: options.latencyMs });
 
   return {
-    listSkills() {
-      return delay({ value: [...skills.values()].map(toSummary) });
-    },
-    fetchSkillDetail(id: string) {
-      const detail = skills.get(id);
-      if (!detail) return Promise.reject(new Error(`Unknown skill: ${id}`));
-      return delay({ value: { ...detail } });
-    },
-    fetchSkillFiles(id: string) {
-      return delay({ value: [...(files.get(id) ?? [])] });
-    },
+    ...fakeSkillReads({ skills, files, delay }),
     createSkill(payload: SkillWritePayload) {
       const id = takeFakeSkillId();
       const detail: SkillDetail = {
@@ -96,5 +86,21 @@ export function createFakeSkillsPort(options: FakeSkillsPortOptions = {}): Skill
       skills.delete(id);
       return delay({ value: undefined });
     },
+  };
+}
+
+function fakeSkillReads({ skills, files, delay }: { skills: Map<string, SkillDetail>; files: Map<string, readonly SkillFileEntry[]>; delay: ReturnType<typeof fakeLatencyDelay> }): Pick<SkillsPort, 'listSkills' | 'fetchSkillDetail' | 'fetchSkillFiles'> {
+  return {
+    listSkills() {
+      return delay({ value: [...skills.values()].map(toSummary) });
+    },
+    fetchSkillDetail(id: string) {
+      const detail = skills.get(id);
+      if (!detail) return Promise.reject(new Error(`Unknown skill: ${id}`));
+      return delay({ value: { ...detail } });
+    },
+    fetchSkillFiles(id: string) {
+      return delay({ value: [...(files.get(id) ?? [])] });
+    }
   };
 }

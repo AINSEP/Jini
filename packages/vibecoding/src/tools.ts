@@ -157,7 +157,16 @@ interface VibecodingToolDefinition {
  */
 function buildVibecodingToolDefinitions(session: VibecodingSession): readonly VibecodingToolDefinition[] {
   return [
-    {
+    buildListPartsDefinition(session),
+    buildReadPartDefinition(session),
+    buildProposeEditsDefinition(session),
+    buildUndoDefinition(session),
+    buildRedoDefinition(session),
+  ];
+}
+
+function buildListPartsDefinition(session: VibecodingSession): VibecodingToolDefinition {
+  return {
       descriptor: {
         id: VIBECODING_TOOL_IDS.LIST_PARTS,
         description: 'List every editable part of the artifact currently being authored.',
@@ -169,8 +178,11 @@ function buildVibecodingToolDefinitions(session: VibecodingSession): readonly Vi
         await session.refresh();
         return session.getSnapshot().parts;
       },
-    },
-    {
+    };
+}
+
+function buildReadPartDefinition(session: VibecodingSession): VibecodingToolDefinition {
+  return {
       descriptor: {
         id: VIBECODING_TOOL_IDS.READ_PART,
         description: "Read one part's current content by id.",
@@ -183,8 +195,11 @@ function buildVibecodingToolDefinitions(session: VibecodingSession): readonly Vi
         const id = requireString(record, 'id', VIBECODING_TOOL_IDS.READ_PART);
         return { id, content: await session.readPart({ id }) };
       },
-    },
-    {
+    };
+}
+
+function buildProposeEditsDefinition(session: VibecodingSession): VibecodingToolDefinition {
+  return {
       descriptor: {
         id: VIBECODING_TOOL_IDS.PROPOSE_EDITS,
         description:
@@ -201,8 +216,11 @@ function buildVibecodingToolDefinitions(session: VibecodingSession): readonly Vi
         const label = record.label === undefined ? undefined : requireString(record, 'label', VIBECODING_TOOL_IDS.PROPOSE_EDITS);
         return session.applyEdits({ edits }, label === undefined ? {} : { label });
       },
-    },
-    {
+    };
+}
+
+function buildUndoDefinition(session: VibecodingSession): VibecodingToolDefinition {
+  return {
       descriptor: {
         id: VIBECODING_TOOL_IDS.UNDO,
         description: 'Revert the most recent proposed-edits turn.',
@@ -211,8 +229,11 @@ function buildVibecodingToolDefinitions(session: VibecodingSession): readonly Vi
         timeoutMs: 10_000,
       },
       handler: async () => ({ entry: await session.undo() }),
-    },
-    {
+    };
+}
+
+function buildRedoDefinition(session: VibecodingSession): VibecodingToolDefinition {
+  return {
       descriptor: {
         id: VIBECODING_TOOL_IDS.REDO,
         description: 'Re-apply the most recently undone turn.',
@@ -221,8 +242,7 @@ function buildVibecodingToolDefinitions(session: VibecodingSession): readonly Vi
         timeoutMs: 10_000,
       },
       handler: async () => ({ entry: await session.redo() }),
-    },
-  ];
+    };
 }
 
 /** Grants every call — see this module's doc for why tool-level authorization has nothing to add

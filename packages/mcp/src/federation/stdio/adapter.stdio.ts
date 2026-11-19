@@ -2,7 +2,7 @@ import type { FederationMessages } from "../messages.js";
 import { redactSecrets as redactExactSecrets } from "@jini-ai/core";
 import { scrubFederatedResponseValue } from "../result-secrets.js";
 import type { McpToolCallRequiredArgs, McpToolCallOptions } from "../ports.js";
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 
@@ -397,7 +397,6 @@ export function spawnMcpStdioChannel(resolved: ResolvedStdioLaunch & { messages:
 
   const messageListeners: Array<(required: { message: string }) => void> = [];
   const closeListeners: Array<(required: { reason: string }) => void> = [];
-  let buffer = "";
   let closed = false;
   // Set the instant the child exits, before the close reason is final (see the `exit` handler), so
   // `send` never writes into a dead pipe — an EPIPE on `stdin` has no listener and would crash the
@@ -412,6 +411,31 @@ export function spawnMcpStdioChannel(resolved: ResolvedStdioLaunch & { messages:
     for (const listener of closeListeners) listener({ reason: reason });
   };
 
+  attachStdioStdout(child, messageListeners, emitClose);
+
+  attachStdioDiagnostics(child, { secretValues, stderrTail, emitClose, onExit: () => { exited = true; } });
+
+  return {
+    send({ message }: { message: string }): void {
+      if (closed || exited) throw new Error("mcp-federation: cannot write to a closed stdio channel");
+      child.stdin.write(`${message}\n`);
+    },
+    onMessage({ listener }) {
+      messageListeners.push(listener);
+    },
+    onClose({ listener }) {
+      closeListeners.push(listener);
+    },
+    close(_required: Record<string, never>): void {
+      emitClose(resolved.messages.closedByHost);
+      child.stdin.end();
+      child.kill();
+    },
+  };
+}
+
+function attachStdioStdout(child: ChildProcessWithoutNullStreams, messageListeners: Array<(required: { message: string }) => void>, emitClose: (reason: string) => void): void {
+  let buffer = "";
   child.stdout.setEncoding("utf8");
   child.stdout.on("data", (chunk: string) => {
     buffer += chunk;
@@ -432,6 +456,13 @@ export function spawnMcpStdioChannel(resolved: ResolvedStdioLaunch & { messages:
     }
   });
 
+}
+
+function attachStdioDiagnostics(child: ChildProcessWithoutNullStreams, context: {
+  secretValues: string[]; stderrTail: ReturnType<typeof createStderrTail>;
+  emitClose: (reason: string) => void; onExit: () => void;
+}): void {
+  const { secretValues, stderrTail, emitClose, onExit } = context;
   // stderr is a diagnostic channel for MCP servers, never a protocol one. Consumed so the pipe
   // cannot fill and deadlock the child, and never parsed — but its tail is kept, because when a
   // server dies at startup that is the ONLY place it says why (2026-09-29: `npx -y namecom-mcp`
@@ -443,7 +474,7 @@ export function spawnMcpStdioChannel(resolved: ResolvedStdioLaunch & { messages:
 
   child.on("error", (error: Error) => emitClose(`child process error: ${error.message}`));
   child.on("exit", (code, signal) => {
-    exited = true;
+    onExit();
     // `exit` can fire before the child's last stderr bytes are read; `end` means they have been.
     // Bounded, because a grandchild still holding the pipe (npx → node) could postpone `end` forever.
     const finish = (): void => emitClose(describeChildExit({ code: code, signal: signal, stderrTail: stderrTail.text(), secretValues: secretValues }));
@@ -458,23 +489,6 @@ export function spawnMcpStdioChannel(resolved: ResolvedStdioLaunch & { messages:
     });
   });
 
-  return {
-    send({ message }: { message: string }): void {
-      if (closed || exited) throw new Error("mcp-federation: cannot write to a closed stdio channel");
-      child.stdin.write(`${message}\n`);
-    },
-    onMessage({ listener }) {
-      messageListeners.push(listener);
-    },
-    onClose({ listener }) {
-      closeListeners.push(listener);
-    },
-    close(_required: Record<string, never>): void {
-      emitClose(resolved.messages.closedByHost);
-      child.stdin.end();
-      child.kill();
-    },
-  };
 }
 
 /**

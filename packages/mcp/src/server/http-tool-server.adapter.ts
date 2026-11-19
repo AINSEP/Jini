@@ -233,72 +233,86 @@ export interface McpHttpToolServerRuntime {
 export function createMcpHttpToolServerRuntime(required: McpToolServerRequiredArgs,
   { start = startMcpHttpToolServer, ...options }: McpHttpToolServerOptions & { start?: typeof startMcpHttpToolServer } = {},
 ): McpHttpToolServerRuntime {
-  let host: McpHttpToolServerHandle | undefined;
-  let starting: Promise<McpHttpToolServerHandle | undefined> | undefined;
-  let retry: ReturnType<typeof setTimeout> | undefined;
-  let stopped = false;
-  let closing: Promise<void> | undefined;
-  const listeners = new Set<(capability: Pick<McpHttpToolServerHandle, 'url' | 'token'>) => void>();
-  const subscriptions = new Set<() => void>();
-
-  /** Single-flight bind; errors expose no capability or native error text. O(1) beyond bind. */
-  function ensureListener(): Promise<McpHttpToolServerHandle | undefined> {
-    if (stopped) return Promise.resolve(undefined);
-    if (host) return Promise.resolve(host);
-    if (starting) return starting;
-    starting = start(required, options).then(async handle => {
-      if (stopped) { await handle.close({}); return undefined; }
-      host = handle;
-      for (const listener of listeners) listener({ url: handle.url, token: handle.token });
-      return handle;
-    }).catch(() => {
-      if (!stopped) {
-        options.warn?.('MCP HTTP listener unavailable; retrying automatically');
-        retry ??= setTimeout(() => { retry = undefined; void ensureListener(); }, 1000);
-        retry.unref();
-      }
-      return undefined;
-    }).finally(() => { starting = undefined; });
-    return starting;
-  }
-
+  const state: HttpRuntimeState = {
+    required, options, start, host: undefined, starting: undefined, retry: undefined,
+    stopped: false, closing: undefined, listeners: new Set(), subscriptions: new Set(),
+  };
   return {
-    subscribe({ listener }, _optional = {}) {
-      if (stopped) return () => {};
-      let cancelled = false;
-      let deliveryRetry: ReturnType<typeof setTimeout> | undefined;
-      const unsubscribe = () => {
-        cancelled = true;
-        clearTimeout(deliveryRetry);
-        listeners.delete(deliver);
-        subscriptions.delete(unsubscribe);
-      };
-      /** Retry only capability delivery. A subscriber's error never changes the bound host. O(1). */
-      function deliver(capability: Pick<McpHttpToolServerHandle, 'url' | 'token'>): void {
-        void Promise.resolve().then(() => { if (!cancelled) return listener(capability); }).catch(() => {
-          if (cancelled) return;
-          options.warn?.('MCP HTTP capability delivery unavailable; retrying automatically');
-          deliveryRetry = setTimeout(() => deliver(capability), 1000);
-          deliveryRetry.unref();
-        });
-      }
-      listeners.add(deliver);
-      subscriptions.add(unsubscribe);
-      if (host) deliver({ url: host.url, token: host.token });
-      void ensureListener();
-      return unsubscribe;
-    },
+    subscribe({ listener }, _optional = {}) { return subscribeHttpCapability(state, listener); },
     async capability(_required, _optional = {}) {
-      const handle = await ensureListener();
+      const handle = await ensureListener(state);
       return handle ? { url: handle.url, token: handle.token } : undefined;
     },
-    close(_required, _optional = {}) {
-      stopped = true;
-      for (const unsubscribe of subscriptions) unsubscribe();
-      listeners.clear();
-      clearTimeout(retry);
-      closing ??= (async () => { await starting; await host?.close({}); host = undefined; })();
-      return closing;
-    },
+    close(_required, _optional = {}) { return closeHttpRuntime(state); },
   };
+}
+
+interface HttpRuntimeState {
+  required: McpToolServerRequiredArgs;
+  options: McpHttpToolServerOptions;
+  start: typeof startMcpHttpToolServer;
+  host: McpHttpToolServerHandle | undefined;
+  starting: Promise<McpHttpToolServerHandle | undefined> | undefined;
+  retry: ReturnType<typeof setTimeout> | undefined;
+  stopped: boolean;
+  closing: Promise<void> | undefined;
+  listeners: Set<(capability: Pick<McpHttpToolServerHandle, 'url' | 'token'>) => void>;
+  subscriptions: Set<() => void>;
+}
+
+/** Single-flight bind; errors expose no capability or native error text. O(1) beyond bind. */
+function ensureListener(state: HttpRuntimeState): Promise<McpHttpToolServerHandle | undefined> {
+  const { start, required, options } = state;
+  if (state.stopped) return Promise.resolve(undefined);
+  if (state.host) return Promise.resolve(state.host);
+  if (state.starting) return state.starting;
+  state.starting = start(required, options).then(async handle => {
+    if (state.stopped) { await handle.close({}); return undefined; }
+    state.host = handle;
+    for (const listener of state.listeners) listener({ url: handle.url, token: handle.token });
+    return handle;
+  }).catch(() => {
+    if (!state.stopped) {
+      state.options.warn?.('MCP HTTP listener unavailable; retrying automatically');
+      state.retry ??= setTimeout(() => { state.retry = undefined; void ensureListener(state); }, 1000);
+      state.retry.unref();
+    }
+    return undefined;
+  }).finally(() => { state.starting = undefined; });
+  return state.starting;
+}
+
+function subscribeHttpCapability(state: HttpRuntimeState, listener: Parameters<McpHttpToolServerRuntime['subscribe']>[0]['listener']): () => void {
+  if (state.stopped) return () => {};
+  let cancelled = false;
+  let deliveryRetry: ReturnType<typeof setTimeout> | undefined;
+  const unsubscribe = () => {
+    cancelled = true;
+    clearTimeout(deliveryRetry);
+    state.listeners.delete(deliver);
+    state.subscriptions.delete(unsubscribe);
+  };
+  /** Retry only capability delivery. A subscriber's error never changes the bound host. O(1). */
+  function deliver(capability: Pick<McpHttpToolServerHandle, 'url' | 'token'>): void {
+    void Promise.resolve().then(() => { if (!cancelled) return listener(capability); }).catch(() => {
+      if (cancelled) return;
+      state.options.warn?.('MCP HTTP capability delivery unavailable; retrying automatically');
+      deliveryRetry = setTimeout(() => deliver(capability), 1000);
+      deliveryRetry.unref();
+    });
+  }
+  state.listeners.add(deliver);
+  state.subscriptions.add(unsubscribe);
+  if (state.host) deliver({ url: state.host.url, token: state.host.token });
+  void ensureListener(state);
+  return unsubscribe;
+}
+
+function closeHttpRuntime(state: HttpRuntimeState): Promise<void> {
+  state.stopped = true;
+  for (const unsubscribe of state.subscriptions) unsubscribe();
+  state.listeners.clear();
+  clearTimeout(state.retry);
+  state.closing ??= (async () => { await state.starting; await state.host?.close({}); state.host = undefined; })();
+  return state.closing;
 }

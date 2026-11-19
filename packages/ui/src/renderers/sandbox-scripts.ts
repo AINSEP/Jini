@@ -31,6 +31,10 @@ export function buildStorageScript(
   _optional: Record<string, never> = {},
 ): string {
   const modern = format === 'srcdoc';
+  return storagePersistenceScript() + storageNavigationScript(modern);
+}
+
+function storagePersistenceScript(): string {
   return `<script data-jini-sandbox-shim>(function(){
   function makeStore(){
     var data = {};
@@ -54,7 +58,11 @@ export function buildStorageScript(
   }
   tryShim('localStorage');
   tryShim('sessionStorage');
-  document.addEventListener('click', ${modern ? '(e) => {' : 'function(e){'}
+`;
+}
+
+function storageNavigationScript(modern: boolean): string {
+  return `  document.addEventListener('click', ${modern ? '(e) => {' : 'function(e){'}
     if (!e.target || !(e.target instanceof Element)) return;
     var link = e.target.closest('a[href]');
     if (!link) return;

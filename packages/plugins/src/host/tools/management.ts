@@ -462,21 +462,34 @@ async function applySiteRuntimeDecision<Description>(routeDeps: PluginManagement
           },
           input: { workspaceId: routeDeps.workspaceId, pluginId, enabled },
         }),
-      rollback: async () => {
-        if (priorActivation) {
-          await routeDeps.pluginActivationRepo.save(priorActivation);
-        } else {
-          await routeDeps.pluginActivationRepo.deleteActivation({ workspaceId: routeDeps.workspaceId, pluginId });
-        }
-        if (priorActivation?.enabled) {
-          await routeDeps.onPluginEnabled(pluginId);
-        } else {
-          routeDeps.onPluginDisabled(pluginId);
-        }
-      },
+      rollback: () => restoreRuntimeActivation(routeDeps, { priorActivation, pluginId }),
     },
   });
 
+  return siteRuntimeDecisionResult(routeDeps, { request, pluginId, enabled, principalId, priorActivation, discovery, result });
+}
+
+
+async function restoreRuntimeActivation<Description>(routeDeps: PluginManagementToolsRequired<Description>, { priorActivation, pluginId }: {
+  priorActivation: PluginActivationRecord | null; pluginId: string;
+}): Promise<void> {
+  if (priorActivation) {
+    await routeDeps.pluginActivationRepo.save(priorActivation);
+  } else {
+    await routeDeps.pluginActivationRepo.deleteActivation({ workspaceId: routeDeps.workspaceId, pluginId });
+  }
+  if (priorActivation?.enabled) {
+    await routeDeps.onPluginEnabled(pluginId);
+  } else {
+    routeDeps.onPluginDisabled(pluginId);
+  }
+}
+
+async function siteRuntimeDecisionResult<Description>(routeDeps: PluginManagementToolsRequired<Description>, context: {
+  request: SetEnabledRequest; pluginId: string; enabled: boolean; principalId: string; priorActivation: PluginActivationRecord | null;
+  discovery: readonly PluginDiscoveryRecord[]; result: { activation: PluginActivationRecord };
+}): Promise<unknown> {
+  const { request, pluginId, enabled, principalId, priorActivation, discovery, result } = context;
   if (!result.activation.enabled) await routeDeps.lowerToolAccess({ pluginId });
   const record = discovery.find((r) => r.id === pluginId);
   if (!record) throw new ToolInputError({ message: `plugin '${pluginId}' was not found in the current discovery snapshot` });
@@ -490,7 +503,6 @@ async function applySiteRuntimeDecision<Description>(routeDeps: PluginManagement
     note: routeDeps.messages.restartNote(request),
   };
 }
-
 
 /** The enable-permission check every write path in this file runs, through the kit's evaluator.
  * @complexity O(1) plus one authorization evaluation. */
@@ -670,82 +682,11 @@ const PLUGINS_MODEL_FACING_ERRORS: readonly ModelFacingErrorRule[] = [
 
 export function buildPluginManagementRegistrations<Description>(routeDeps: PluginManagementToolsRequired<Description>, _optional = {}): ToolRegistration[] {
   const handlers: Record<string, ToolHandler> = {
-    [routeDeps.toolIds.list]: async (ctx) => {
-      requireNoInput({ input: ctx.input });
-      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: routeDeps.permissions.read });
+    [routeDeps.toolIds.list]: pluginManagementListHandler(routeDeps),
 
-      const discovery = await routeDeps.discoverPlugins();
-      const conflicts = (await routeDeps.listPluginConflicts?.()) ?? new Map<string, readonly PluginConflict[]>();
-      const plugins = await Promise.all(
-        discovery.map(async (record) => {
-          const activation = await routeDeps.pluginActivationRepo.getActivation({ workspaceId: routeDeps.workspaceId, pluginId: record.id });
-          if (!activation?.enabled) {
-            const visible = routeDeps.agentPlugins.searchCandidate({ candidate: { pluginId: record.id, displayName: record.name, enabled: false, keywords: [], skills: [], mcpServerIds: [] } });
-            return { id: record.id, enabled: false, status: record.status, description: visible.description };
-          }
-          return toAdminPluginResponse({ discovery: record, activation }, { conflicts: conflicts.get(record.id) ?? [] });
-        }),
-      );
-      const agentPlugins = await listAgentPluginsForResponse(routeDeps);
-      return { plugins, agentPlugins };
-    },
+    [routeDeps.toolIds.setEnabled]: pluginManagementSetEnabledHandler(routeDeps),
 
-    /**
-     * Parse and authorize before preflight or disclosure, then confirm and write; the gateway's
-     * later authorization is still needed because a human can leave the dialog open while access
-     * changes, and the first check prevents an unauthorized principal from opening it at all.
-     */
-    [routeDeps.toolIds.setEnabled]: routeDeps.approvals.handler({
-      prepare: ({ ctx }) => prepareSetEnabled(routeDeps, { ctx }),
-      describe: ({ ctx, prepared: { request, identity, added, refusal, previousEnabled } }) => routeDeps.descriptions.enable({
-        subject: { family: request.family, pluginId: request.pluginId, version: identity?.version, label: identity?.label, adds: added,
-          previousEnabled, revision: identity?.key, resources: identity?.accessResources },
-        ...(request.enabled && refusal === undefined ? { scope: { personId: ctx.principal.id, siteId: routeDeps.workspaceId } } : {}),
-      }),
-      run: ({ ctx, prepared }) => runSetEnabled(routeDeps, { ctx, prepared }),
-    }, { flag: "changed", ask: ({ prepared }) => prepared.request.enabled && prepared.refusal === undefined && prepared.confirm,
-      // Turning a plugin back on is a new escalation. A remembered version approval must not
-      // silently turn it on after the owner switched it off.
-      declined: async ({ reason, prepared }) => {
-        if (reason === 'declined' && prepared?.request.family === AGENT_PLUGIN_FAMILY && prepared.identity?.accessKey) {
-          await routeDeps.agentPlugins.recordDeclinedAccess?.({ accessKey: prepared.identity.accessKey });
-        }
-        return { changed: false, family: prepared?.request.family,
-          pluginId: prepared?.request.pluginId, restartRequired: false, ...routeDeps.approvals.notConfirmed({ confirmed: false, reason }) };
-      },
-    }),
-
-    /**
-     * One uninstall tool avoids ambiguous family-specific choices while preserving each lifecycle.
-     * Runtime removal authorizes and previews before asking so built-in, enabled or unknown targets
-     * are refused before an impossible approval; after confirmation it rediscovers the shown version.
-     * Removal has no useful inverse for deleted bytes, so it uses shared Trash instead of a command
-     * rollback; confirmation is still required because revertibility and consent are independent.
-     * Agent removal delegates its entire permission, preview, confirmation and write order, using
-     * the same held-open exchange and tool id rather than constructing a second approval channel.
-     */
-    [routeDeps.toolIds.uninstall]: async (ctx, optional = {}) => {
-      ctx = { ...ctx, input: structuredClone(ctx.input), principal: { ...ctx.principal }, run: { ...ctx.run } };
-      const input = requireInputRecord({ input: ctx.input });
-      const family = readFamily(input, routeDeps.messages.familyRequired);
-      const pluginId = requireString({ input: input, key: "pluginId" });
-
-      if (family === AGENT_PLUGIN_FAMILY) return routeDeps.agentPlugins.uninstall({ ctx, pluginId, executionOptions: optional }, {});
-
-      await requireEnablePermission(routeDeps, { principalId: ctx.principal.id, entityType: routeDeps.entityTypes.plugin, entityId: pluginId });
-
-      const preview = await previewUninstallPlugin(await uninstallRequestFor(routeDeps, pluginId, ctx.principal.id)); // throws PluginNotFoundError/NotUninstallableError/EnabledError BEFORE any dialog
-
-      return routeDeps.approvals.handler({
-        prepare: async () => preview,
-        describe: ({ prepared }) => routeDeps.descriptions.uninstall({ preview: prepared }),
-        run: async ({ ctx: approvedCtx, prepared }) => {
-          await requireEnablePermission(routeDeps, { principalId: approvedCtx.principal.id, entityType: routeDeps.entityTypes.plugin, entityId: pluginId });
-          if (approvedCtx.signal.aborted) return { uninstalled: false, ...routeDeps.approvals.notConfirmed({ confirmed: false, reason: "abandoned" }) };
-          return uninstallConfirmedPlugin(routeDeps, prepared, approvedCtx.principal.id);
-        },
-      }, { flag: "uninstalled", declined: ({ reason }) => ({ pluginId, uninstalled: false, ...routeDeps.approvals.notConfirmed({ confirmed: false, reason }) }) })(ctx, optional);
-    },
+    [routeDeps.toolIds.uninstall]: pluginManagementUninstallHandler(routeDeps),
   };
 
   // No `unwiredToolIds`: Every supplied catalog entry must have a handler so missing wiring fails closed.
@@ -754,4 +695,87 @@ export function buildPluginManagementRegistrations<Description>(routeDeps: Plugi
     handlers: withModelFacingErrors({ handlers, rules: [...routeDeps.extraModelFacingErrors, ...PLUGINS_MODEL_FACING_ERRORS] }),
     derivedRisk: pluginManagementDerivedRiskFor({ toolIds: routeDeps.toolIds }),
   });
+}
+
+function pluginManagementListHandler<Description>(routeDeps: PluginManagementToolsRequired<Description>): ToolHandler {
+  return async (ctx) => {
+    requireNoInput({ input: ctx.input });
+    await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: routeDeps.permissions.read });
+
+    const discovery = await routeDeps.discoverPlugins();
+    const conflicts = (await routeDeps.listPluginConflicts?.()) ?? new Map<string, readonly PluginConflict[]>();
+    const plugins = await Promise.all(
+      discovery.map(async (record) => {
+        const activation = await routeDeps.pluginActivationRepo.getActivation({ workspaceId: routeDeps.workspaceId, pluginId: record.id });
+        if (!activation?.enabled) {
+          const visible = routeDeps.agentPlugins.searchCandidate({ candidate: { pluginId: record.id, displayName: record.name, enabled: false, keywords: [], skills: [], mcpServerIds: [] } });
+          return { id: record.id, enabled: false, status: record.status, description: visible.description };
+        }
+        return toAdminPluginResponse({ discovery: record, activation }, { conflicts: conflicts.get(record.id) ?? [] });
+      }),
+    );
+    const agentPlugins = await listAgentPluginsForResponse(routeDeps);
+    return { plugins, agentPlugins };
+  };
+}
+
+function pluginManagementSetEnabledHandler<Description>(routeDeps: PluginManagementToolsRequired<Description>): ToolHandler {
+  /**
+   * Parse and authorize before preflight or disclosure, then confirm and write; the gateway's
+   * later authorization is still needed because a human can leave the dialog open while access
+   * changes, and the first check prevents an unauthorized principal from opening it at all.
+   */
+  return routeDeps.approvals.handler({
+    prepare: ({ ctx }) => prepareSetEnabled(routeDeps, { ctx }),
+    describe: ({ ctx, prepared: { request, identity, added, refusal, previousEnabled } }) => routeDeps.descriptions.enable({
+      subject: { family: request.family, pluginId: request.pluginId, version: identity?.version, label: identity?.label, adds: added,
+        previousEnabled, revision: identity?.key, resources: identity?.accessResources },
+      ...(request.enabled && refusal === undefined ? { scope: { personId: ctx.principal.id, siteId: routeDeps.workspaceId } } : {}),
+    }),
+    run: ({ ctx, prepared }) => runSetEnabled(routeDeps, { ctx, prepared }),
+  }, { flag: "changed", ask: ({ prepared }) => prepared.request.enabled && prepared.refusal === undefined && prepared.confirm,
+    // Turning a plugin back on is a new escalation. A remembered version approval must not
+    // silently turn it on after the owner switched it off.
+    declined: async ({ reason, prepared }) => {
+      if (reason === 'declined' && prepared?.request.family === AGENT_PLUGIN_FAMILY && prepared.identity?.accessKey) {
+        await routeDeps.agentPlugins.recordDeclinedAccess?.({ accessKey: prepared.identity.accessKey });
+      }
+      return { changed: false, family: prepared?.request.family,
+        pluginId: prepared?.request.pluginId, restartRequired: false, ...routeDeps.approvals.notConfirmed({ confirmed: false, reason }) };
+    },
+  });
+}
+
+function pluginManagementUninstallHandler<Description>(routeDeps: PluginManagementToolsRequired<Description>): ToolHandler {
+  /**
+   * One uninstall tool avoids ambiguous family-specific choices while preserving each lifecycle.
+   * Runtime removal authorizes and previews before asking so built-in, enabled or unknown targets
+   * are refused before an impossible approval; after confirmation it rediscovers the shown version.
+   * Removal has no useful inverse for deleted bytes, so it uses shared Trash instead of a command
+   * rollback; confirmation is still required because revertibility and consent are independent.
+   * Agent removal delegates its entire permission, preview, confirmation and write order, using
+   * the same held-open exchange and tool id rather than constructing a second approval channel.
+   */
+  return async (ctx, optional = {}) => {
+    ctx = { ...ctx, input: structuredClone(ctx.input), principal: { ...ctx.principal }, run: { ...ctx.run } };
+    const input = requireInputRecord({ input: ctx.input });
+    const family = readFamily(input, routeDeps.messages.familyRequired);
+    const pluginId = requireString({ input: input, key: "pluginId" });
+
+    if (family === AGENT_PLUGIN_FAMILY) return routeDeps.agentPlugins.uninstall({ ctx, pluginId, executionOptions: optional }, {});
+
+    await requireEnablePermission(routeDeps, { principalId: ctx.principal.id, entityType: routeDeps.entityTypes.plugin, entityId: pluginId });
+
+    const preview = await previewUninstallPlugin(await uninstallRequestFor(routeDeps, pluginId, ctx.principal.id)); // throws PluginNotFoundError/NotUninstallableError/EnabledError BEFORE any dialog
+
+    return routeDeps.approvals.handler({
+      prepare: async () => preview,
+      describe: ({ prepared }) => routeDeps.descriptions.uninstall({ preview: prepared }),
+      run: async ({ ctx: approvedCtx, prepared }) => {
+        await requireEnablePermission(routeDeps, { principalId: approvedCtx.principal.id, entityType: routeDeps.entityTypes.plugin, entityId: pluginId });
+        if (approvedCtx.signal.aborted) return { uninstalled: false, ...routeDeps.approvals.notConfirmed({ confirmed: false, reason: "abandoned" }) };
+        return uninstallConfirmedPlugin(routeDeps, prepared, approvedCtx.principal.id);
+      },
+    }, { flag: "uninstalled", declined: ({ reason }) => ({ pluginId, uninstalled: false, ...routeDeps.approvals.notConfirmed({ confirmed: false, reason }) }) })(ctx, optional);
+  };
 }
