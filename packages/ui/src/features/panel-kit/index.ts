@@ -18,8 +18,9 @@ export { hasPermission } from './helpers/permissions.js';
 export { retryWhileUnreachable, UNREACHABLE_RETRY_DELAYS_MS } from './helpers/retry-unreachable.js';
 export type { DirtyGuardHostPort } from './hooks/use-dirty-guard.hooks.js';
 
-export { useSettingsSlice, mergeSaveStates, commitQueuedSave, canAcceptRefresh, SAVE_DEBOUNCE_MS } from './hooks/use-settings-slice.hooks.js';
-export type { SaveState, SettingsSlice, SettingsSliceOptions, SettingsSliceRefreshPort, SettingsRefreshScope } from './hooks/use-settings-slice.hooks.js';
+export { useSettingsSlice } from './hooks/use-settings-slice.hooks.js';
+export { mergeSaveStates, commitQueuedSave, canAcceptRefresh, SAVE_DEBOUNCE_MS } from './hooks/settings-slice.helpers.js';
+export type { SaveState, SettingsSlice, SettingsSliceOptions, SettingsSliceRefreshPort, SettingsRefreshScope } from './hooks/settings-slice.helpers.js';
 export { useStandingDraftAutosave } from './hooks/use-standing-draft-autosave.hooks.js';
 export type { StandingDraftAutosavePort, StandingDraftAutosaveInput, StandingDraftAutosaveSnapshot, StandingDraftAutosaveController, StandingDraftStaleBasis, StandingDraftAutosaveOptions } from './hooks/use-standing-draft-autosave.hooks.js';
 export { createStandingDraftLocalBackup, LOCAL_BACKUP_PRINCIPAL_ID } from './helpers/standing-draft-local-backup.js';

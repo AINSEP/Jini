@@ -1,16 +1,7 @@
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  SAVE_DEBOUNCE_MS,
-  canAcceptRefresh,
-  commitQueuedSave,
-  mergeSaveStates,
-  useSettingsSlice,
-  type SaveState,
-  type SettingsRefreshScope,
-  type SettingsSliceOptions,
-  type SettingsSliceRefreshPort,
-} from '../use-settings-slice.hooks.js';
+import { useSettingsSlice } from '../use-settings-slice.hooks.js';
+import { SAVE_DEBOUNCE_MS, canAcceptRefresh, commitQueuedSave, mergeSaveStates, type SaveState, type SettingsRefreshScope, type SettingsSliceOptions, type SettingsSliceRefreshPort } from '../settings-slice.helpers.js';
 
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
