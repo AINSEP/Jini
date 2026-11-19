@@ -27,7 +27,7 @@ import type { Clock } from "@jini-ai/core/primitives";
 
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { defaultMcpSecretFilesystem, type McpConfigFilesystemPort } from './config.js';
+import { writeSecretText, type McpConfigFilesPort } from './config.js';
 
 /**
  * Stored OAuth token for a single MCP server. Mirrors the relevant subset
@@ -70,9 +70,6 @@ export interface McpTokensFile {
   /** keyed by McpServerConfig.id */
   servers: Record<string, StoredMcpToken>;
 }
-
-/** Injectable store boundaries; the default uses the Node filesystem. The clock is a required argument. */
-export interface McpTokenStoreOptions { filesystem?: McpConfigFilesystemPort; }
 
 const EMPTY: McpTokensFile = { servers: {} };
 
@@ -147,11 +144,10 @@ function sanitizeToken(raw: unknown, clock: Clock): StoredMcpToken | null {
  * @throws On unexpected read errors or a failed backup; the damaged file is left untouched.
  * @complexity O(n) time and space in the token file length, including a backup write on corruption.
  */
-export async function readTokensFile({ dataDir, clock }: { dataDir: string; clock: Clock }, options: McpTokenStoreOptions = {}): Promise<McpTokensFile> {
-  const filesystem = options.filesystem ?? defaultMcpSecretFilesystem;
+export async function readTokensFile({ dataDir, clock, files }: { dataDir: string; clock: Clock; files: McpConfigFilesPort }, _optional: Record<string, never> = {}): Promise<McpTokensFile> {
   let raw: string | undefined;
   try {
-    raw = await filesystem.readText({ filePath: tokensFile(dataDir) });
+    raw = await files.readText({ filePath: tokensFile(dataDir) });
     return sanitizeTokensFile({ raw: JSON.parse(raw), clock });
   } catch (err: unknown) {
     const e = err as { code?: string; name?: string; message?: string };
@@ -159,7 +155,8 @@ export async function readTokensFile({ dataDir, clock }: { dataDir: string; cloc
     if (e.name === 'SyntaxError' && raw !== undefined) {
       // Different corrupt contents must not overwrite each other's recovery copy.
       const digest = createHash('sha256').update(raw).digest('hex');
-      await filesystem.writeSecretText({
+      await writeSecretText({
+        files,
         filePath: `${tokensFile(dataDir)}.corrupt-${digest}`,
         contents: raw,
       });
@@ -186,59 +183,59 @@ async function withLock<T>(dataDir: string, fn: () => Promise<T>): Promise<T> {
 async function writeTokensFile(
   dataDir: string,
   next: McpTokensFile,
-  options: McpTokenStoreOptions,
+  files: McpConfigFilesPort,
 ): Promise<McpTokensFile> {
   const file = tokensFile(dataDir);
   // Bearer tokens can hand someone posting-as-you against the upstream MCP,
   // so the file is created with owner-only (0600) permissions from the
   // first byte and the write fails closed if that can't be guaranteed on a
   // POSIX platform — see `writeFileAtomicAsync`.
-  await (options.filesystem ?? defaultMcpSecretFilesystem).writeSecretText({ filePath: file, contents: JSON.stringify(next, null, 2) });
+  await writeSecretText({ files, filePath: file, contents: JSON.stringify(next, null, 2) });
   return next;
 }
 
 /** Get the current token for a given server, or null when none is stored
  * (or the persisted entry is malformed). */
 export async function getToken(
-  { dataDir, serverId, clock }: { dataDir: string; serverId: string; clock: Clock },
-  options: McpTokenStoreOptions = {},
+  { dataDir, serverId, clock, files }: { dataDir: string; serverId: string; clock: Clock; files: McpConfigFilesPort },
+  _optional: Record<string, never> = {},
 ): Promise<StoredMcpToken | null> {
-  const file = await readTokensFile({ dataDir, clock }, options);
+  const file = await readTokensFile({ dataDir, clock, files });
   return Object.hasOwn(file.servers, serverId) ? file.servers[serverId]! : null;
 }
 
 /** Atomically merge a new token for `serverId` into the tokens file. */
 export async function setToken(
-  { dataDir, serverId, token, clock }: { dataDir: string; serverId: string; token: StoredMcpToken; clock: Clock },
-  options: McpTokenStoreOptions = {},
+  { dataDir, serverId, token, clock, files }: { dataDir: string; serverId: string; token: StoredMcpToken; clock: Clock; files: McpConfigFilesPort },
+  _optional: Record<string, never> = {},
 ): Promise<void> {
   await withLock(dataDir, async () => {
-    const file = await readTokensFile({ dataDir, clock }, options);
+    const file = await readTokensFile({ dataDir, clock, files });
     file.servers[serverId] = token;
-    await writeTokensFile(dataDir, file, options);
+    await writeTokensFile(dataDir, file, files);
   });
 }
 
 /** Atomically delete the stored token for `serverId`. No-op when absent. */
 export async function clearToken(
-  { dataDir, serverId, clock }: { dataDir: string; serverId: string; clock: Clock },
-  options: McpTokenStoreOptions = {},
+  { dataDir, serverId, clock, files }: { dataDir: string; serverId: string; clock: Clock; files: McpConfigFilesPort },
+  _optional: Record<string, never> = {},
 ): Promise<void> {
   await withLock(dataDir, async () => {
-    const file = await readTokensFile({ dataDir, clock }, options);
+    const file = await readTokensFile({ dataDir, clock, files });
     if (!(serverId in file.servers)) return;
     delete file.servers[serverId];
-    await writeTokensFile(dataDir, file, options);
+    await writeTokensFile(dataDir, file, files);
   });
 }
 
 /** Bulk read used by the spawn pipeline so we make one disk hit per spawn,
  * not one per server. */
 export async function readAllTokens(
-  { dataDir, clock }: { dataDir: string; clock: Clock },
-  options: McpTokenStoreOptions = {},
+  { dataDir, clock, files }: { dataDir: string; clock: Clock; files: McpConfigFilesPort },
+  _optional: Record<string, never> = {},
 ): Promise<Record<string, StoredMcpToken>> {
-  const file = await readTokensFile({ dataDir, clock }, options);
+  const file = await readTokensFile({ dataDir, clock, files });
   return file.servers;
 }
 

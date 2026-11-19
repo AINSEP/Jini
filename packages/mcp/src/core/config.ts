@@ -21,11 +21,10 @@ import { describeErrorForLog } from '@jini-ai/core';
 // Cursor's MCP config — those are the de-facto interchange formats — so
 // users can copy-paste between tools without translation.
 
-import { readFile } from 'node:fs/promises';
 import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { pathContains } from '@jini-ai/core/primitives';
-import { writeFileAtomicAsync } from '@jini-ai/platform/fs';
+import type { AtomicFileWriterPort } from '@jini-ai/core/contracts/runtime';
 import { inferMcpAuthModeForUrl, isPlainObject } from './config-shared.js';
 export { inferMcpAuthModeForUrl } from './config-shared.js';
 export { buildClaudeMcpJson } from './claude/config.js';
@@ -58,12 +57,12 @@ export interface McpConfig {
   servers: McpServerConfig[];
 }
 
-/** Text I/O boundary; secret writes must be atomic and owner-only from creation. */
-export interface McpConfigFilesystemPort {
+export interface McpConfigFilesPort {
   readText(args: { filePath: string }): Promise<string>;
-  writeSecretText(args: { filePath: string; contents: string }): Promise<void>;
+  readonly writer: Pick<AtomicFileWriterPort, 'writeText'>;
 }
 
+/** Text I/O boundary; secret writes must be atomic and owner-only from creation. */
 /** Shared atomic secret persistence (CR-006 / SEC-RB-002).
  * The previous pattern in each of those stores wrote the temp file with
  * default permissions and either never restricted it (config, OAuth client
@@ -89,10 +88,15 @@ export interface McpConfigFilesystemPort {
  *      flush can fail after replacement; it is reported rather than silently ignored.
  *
  */
-export const defaultMcpSecretFilesystem: McpConfigFilesystemPort = {
-  readText: ({ filePath }) => readFile(filePath, 'utf8'),
-  writeSecretText: ({ filePath, contents }) => writeFileAtomicAsync({ filePath, content: contents }, { mode: 0o600, verifyOwnerOnly: true, createParent: true }),
-};
+export const MCP_SECRET_WRITE_OPTIONS = { mode: 0o600, verifyOwnerOnly: true, createParent: true } as const;
+
+/** Adapt secret text to the atomic writer with MCP's owner-only policy; writer errors propagate. */
+export function writeSecretText(
+  { files, filePath, contents }: { files: McpConfigFilesPort; filePath: string; contents: string },
+  _optional: Record<string, never> = {},
+): Promise<void> {
+  return files.writer.writeText({ filePath, content: contents }, MCP_SECRET_WRITE_OPTIONS);
+}
 
 const VALID_TRANSPORTS: ReadonlySet<McpTransport> = new Set([
   'stdio',
@@ -230,9 +234,9 @@ export function sanitizeMcpConfig({ raw }: { raw: unknown }): McpConfig {
  * @param dataDir The resolved runtime data directory.
  * @returns The sanitized `McpConfig`, never rejects on missing-file or corrupt-JSON.
  */
-export async function readMcpConfig({ dataDir }: { dataDir: string }, { filesystem = defaultMcpSecretFilesystem }: { filesystem?: McpConfigFilesystemPort } = {}): Promise<McpConfig> {
+export async function readMcpConfig({ dataDir, files }: { dataDir: string; files: McpConfigFilesPort }, _optional: Record<string, never> = {}): Promise<McpConfig> {
   try {
-    const raw = await filesystem.readText({ filePath: configFile(dataDir) });
+    const raw = await files.readText({ filePath: configFile(dataDir) });
     const parsed: unknown = JSON.parse(raw);
     return sanitizeMcpConfig({ raw: parsed });
   } catch (err: unknown) {
@@ -255,18 +259,18 @@ const writeLocks = new Map<string, Promise<unknown>>();
  * being written. This file may carry environment variables and
  * `Authorization` header values (API keys, bearer tokens — see
  * `McpServerConfig.env`/`.headers`), so it is written with owner-only
- * (0600) permissions from the very first byte via `writeFileAtomicAsync`
+ * (0600) permissions from the very first byte via the injected atomic writer
  * rather than a post-rename chmod (CR-006 / SEC-RB-002).
  * @param dataDir The resolved runtime data directory.
  * @param body The raw config body to sanitize and persist.
  * @returns The sanitized `McpConfig` that was written to disk.
  */
 export async function writeMcpConfig(
-  { dataDir, body }: { dataDir: string; body: unknown },
-  { filesystem = defaultMcpSecretFilesystem }: { filesystem?: McpConfigFilesystemPort } = {},
+  { dataDir, body, files }: { dataDir: string; body: unknown; files: McpConfigFilesPort },
+  _optional: Record<string, never> = {},
 ): Promise<McpConfig> {
   const prev = writeLocks.get(dataDir) ?? Promise.resolve();
-  const task = prev.catch(() => {}).then(() => doWrite(dataDir, body, filesystem));
+  const task = prev.catch(() => {}).then(() => doWrite(dataDir, body, files));
   writeLocks.set(dataDir, task);
   try {
     return await task;
@@ -275,9 +279,9 @@ export async function writeMcpConfig(
   }
 }
 
-async function doWrite(dataDir: string, body: unknown, filesystem: McpConfigFilesystemPort): Promise<McpConfig> {
+async function doWrite(dataDir: string, body: unknown, files: McpConfigFilesPort): Promise<McpConfig> {
   const next = sanitizeMcpConfig({ raw: body });
-  await filesystem.writeSecretText({ filePath: configFile(dataDir), contents: JSON.stringify(next, null, 2) });
+  await writeSecretText({ files, filePath: configFile(dataDir), contents: JSON.stringify(next, null, 2) });
   return next;
 }
 
