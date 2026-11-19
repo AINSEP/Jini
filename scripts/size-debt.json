@@ -532,13 +532,6 @@
     "value": 201
   },
   {
-    "file": "packages/integrations/src/api-connections/hosted-mcp/sign-in.ts",
-    "function": "<file>",
-    "line": 913,
-    "rule": "max-lines",
-    "value": 597
-  },
-  {
     "file": "packages/integrations/src/media-providers/dispatch/sqlite-async-operation-store.ts",
     "function": "createSqliteAsyncOperationStore",
     "line": 131,
@@ -621,13 +614,6 @@
     "line": 387,
     "rule": "max-lines-per-function",
     "value": 393
-  },
-  {
-    "file": "packages/plugins/src/host/node/runtime-core.ts",
-    "function": "<file>",
-    "line": 804,
-    "rule": "max-lines",
-    "value": 560
   },
   {
     "file": "packages/plugins/src/host/node/source-drafts.ts",
