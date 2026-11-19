@@ -53,3 +53,5 @@ export * from './question-answer.js';
 
 export { checkpointIntervalMs, checkpointProgress } from './checkpoint-interval.js';
 export type { ChatAgentFailurePort, ChatAgentPolicyPort } from './agents-port.js';
+
+export { persistableMessages } from "./assistant-client/messages.js";
