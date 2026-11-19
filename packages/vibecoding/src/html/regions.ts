@@ -175,6 +175,77 @@ function findOne(
   return { ok: true, region: matches[0] as ParsedRegion };
 }
 
+async function listRegionParts({ store, parser }: HtmlRegionTargetDeps): Promise<readonly PartRef[]> {
+  const regions = parser.findRegions({ html: await store.read() });
+  const counts = handleCounts(regions);
+  const refs: PartRef[] = [];
+  for (const region of regions) {
+    // A malformed or duplicated handle is not publishable: publishing it would advertise an id
+    // that `readPart`/`replacePart` must then refuse, or worse, resolve ambiguously.
+    if (!isValidRegionHandle({ handle: region.handle }) || counts.get(region.handle) !== 1) continue;
+    refs.push({
+      id: region.handle,
+      ...(region.role === undefined ? {} : { kind: region.role }),
+      ...(region.label === undefined ? {} : { label: region.label }),
+    });
+  }
+  return refs;
+}
+
+async function validateRegionCandidate(
+  { store, parser }: HtmlRegionTargetDeps, candidate: Parameters<NonNullable<EditTarget['validate']>>[0], maxPartLength: number,
+): Promise<ValidationResult> {
+  if (candidate.content.length > maxPartLength) {
+    return {
+      ok: false,
+      reason: `that content is ${candidate.content.length} characters, over the ${maxPartLength}-character limit for one region — send a shorter version`,
+    };
+  }
+
+  const html = await store.read();
+  const before = parser.findRegions({ html });
+  const found = findOne(before, candidate.id);
+  if (!found.ok) return { ok: false, reason: found.reason };
+
+  // Judge the WHOLE prospective document, never the fragment alone: a fragment that is
+  // well-formed by itself can still break the document it lands in.
+  const prospective = replaceRegionInner({ html, region: found.region, fragment: candidate.content });
+
+  const structural = parser.checkWellFormed?.({ html: prospective });
+  if (structural && !structural.ok) return { ok: false, reason: structural.reason };
+
+  const afterHandles = handlesOf(parser.findRegions({ html: prospective }));
+  const beforeHandles = handlesOf(before);
+
+  // The allowlist check. Compared as multisets so an invented, deleted OR duplicated handle is
+  // all caught by one comparison — see this module's doc for why this is the security property.
+  const beforeKey = describeHandles(beforeHandles);
+  const afterKey = describeHandles(afterHandles);
+  if (beforeKey !== afterKey) {
+    const invented = afterHandles.filter((handle) => !beforeHandles.includes(handle));
+    const removed = beforeHandles.filter((handle) => !afterHandles.includes(handle));
+    const detail = handleChangeDetail({ invented, removed });
+    return {
+      ok: false,
+      reason: `${detail}. Edit only the content inside the region you were asked to change, and do not add, remove or duplicate ${AGENT_ELEMENT_ATTRIBUTE} attributes.`,
+    };
+  }
+
+  return { ok: true };
+}
+
+async function snapshotRegions({ store, parser }: HtmlRegionTargetDeps): Promise<Snapshot> {
+  const html = await store.read();
+  const regions = parser.findRegions({ html });
+  const parts: Record<PartId, string> = {};
+  const counts = handleCounts(regions);
+  for (const region of regions) {
+    if (!isValidRegionHandle({ handle: region.handle }) || counts.get(region.handle) !== 1) continue;
+    parts[region.handle] = html.slice(region.innerStart, region.innerEnd);
+  }
+  return { id: `html-${regions.length}-${html.length}`, parts };
+}
+
 /**
  * Build an `EditTarget` over the tagged regions of one HTML document.
  *
@@ -196,22 +267,7 @@ export function createHtmlRegionTarget(
   }
 
   return {
-    async listParts(): Promise<readonly PartRef[]> {
-      const regions = parser.findRegions({ html: await store.read() });
-      const counts = handleCounts(regions);
-      const refs: PartRef[] = [];
-      for (const region of regions) {
-        // A malformed or duplicated handle is not publishable: publishing it would advertise an id
-        // that `readPart`/`replacePart` must then refuse, or worse, resolve ambiguously.
-        if (!isValidRegionHandle({ handle: region.handle }) || counts.get(region.handle) !== 1) continue;
-        refs.push({
-          id: region.handle,
-          ...(region.role === undefined ? {} : { kind: region.role }),
-          ...(region.label === undefined ? {} : { label: region.label }),
-        });
-      }
-      return refs;
-    },
+    listParts: () => listRegionParts(deps),
 
     async readPart({ id }: { readonly id: PartId }): Promise<string> {
       const html = await store.read();
@@ -233,17 +289,7 @@ export function createHtmlRegionTarget(
       await store.write({ html: spliced(html, found.region, content) });
     },
 
-    async snapshot(): Promise<Snapshot> {
-      const html = await store.read();
-      const regions = parser.findRegions({ html });
-      const parts: Record<PartId, string> = {};
-      const counts = handleCounts(regions);
-      for (const region of regions) {
-        if (!isValidRegionHandle({ handle: region.handle }) || counts.get(region.handle) !== 1) continue;
-        parts[region.handle] = html.slice(region.innerStart, region.innerEnd);
-      }
-      return { id: `html-${regions.length}-${html.length}`, parts };
-    },
+    snapshot: () => snapshotRegions(deps),
 
     /**
      * Restores each region's content in one pass.
@@ -261,44 +307,6 @@ export function createHtmlRegionTarget(
       }
     },
 
-    async validate(candidate): Promise<ValidationResult> {
-      if (candidate.content.length > maxPartLength) {
-        return {
-          ok: false,
-          reason: `that content is ${candidate.content.length} characters, over the ${maxPartLength}-character limit for one region — send a shorter version`,
-        };
-      }
-
-      const html = await store.read();
-      const before = parser.findRegions({ html });
-      const found = findOne(before, candidate.id);
-      if (!found.ok) return { ok: false, reason: found.reason };
-
-      // Judge the WHOLE prospective document, never the fragment alone: a fragment that is
-      // well-formed by itself can still break the document it lands in.
-      const prospective = spliced(html, found.region, candidate.content);
-
-      const structural = parser.checkWellFormed?.({ html: prospective });
-      if (structural && !structural.ok) return { ok: false, reason: structural.reason };
-
-      const afterHandles = handlesOf(parser.findRegions({ html: prospective }));
-      const beforeHandles = handlesOf(before);
-
-      // The allowlist check. Compared as multisets so an invented, deleted OR duplicated handle is
-      // all caught by one comparison — see this module's doc for why this is the security property.
-      const beforeKey = describeHandles(beforeHandles);
-      const afterKey = describeHandles(afterHandles);
-      if (beforeKey !== afterKey) {
-        const invented = afterHandles.filter((handle) => !beforeHandles.includes(handle));
-        const removed = beforeHandles.filter((handle) => !afterHandles.includes(handle));
-        const detail = handleChangeDetail({ invented, removed });
-        return {
-          ok: false,
-          reason: `${detail}. Edit only the content inside the region you were asked to change, and do not add, remove or duplicate ${AGENT_ELEMENT_ATTRIBUTE} attributes.`,
-        };
-      }
-
-      return { ok: true };
-    },
+    validate: (candidate) => validateRegionCandidate(deps, candidate, maxPartLength),
   };
 }

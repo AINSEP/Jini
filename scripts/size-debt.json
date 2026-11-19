@@ -754,33 +754,5 @@
     "line": 344,
     "rule": "max-lines-per-function",
     "value": 186
-  },
-  {
-    "file": "packages/vibecoding/src/core/session.ts",
-    "function": "createVibecodingSession",
-    "line": 111,
-    "rule": "max-lines-per-function",
-    "value": 126
-  },
-  {
-    "file": "packages/vibecoding/src/html/regions.ts",
-    "function": "createHtmlRegionTarget",
-    "line": 186,
-    "rule": "max-lines-per-function",
-    "value": 86
-  },
-  {
-    "file": "packages/vibecoding/src/node/project.ts",
-    "function": "assembleProject",
-    "line": 139,
-    "rule": "max-lines-per-function",
-    "value": 181
-  },
-  {
-    "file": "packages/vibecoding/src/node/store.ts",
-    "function": "createProjectStore",
-    "line": 178,
-    "rule": "max-lines-per-function",
-    "value": 246
   }
 ]
