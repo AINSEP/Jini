@@ -88,14 +88,12 @@ import {
 import {
   errorMessage,
 } from './values.js';
-import {
-  defaultCleanupFailureSink,
-  DEFAULT_BUFFERED_STDOUT_MAX_BYTES,
-  wireChildLifecycle,
-  writePromptToStdin,
-  runAcpDispatch,
-  runPiRpcDispatch,
-} from './events.js';
+import { defaultCleanupFailureSink } from './event-cleanup.js';
+import { DEFAULT_BUFFERED_STDOUT_MAX_BYTES } from './child-stdout.js';
+import { wireChildLifecycle } from './child-lifecycle.js';
+import { writePromptToStdin } from './child-input.js';
+import { runAcpDispatch } from './acp-events.js';
+import { runPiRpcDispatch } from './pi-rpc-events.js';
 import {
   resolveMcpBridgeForRun,
   writeMcpJsonIfNeeded,

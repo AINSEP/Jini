@@ -385,20 +385,6 @@
     "value": 751
   },
   {
-    "file": "packages/daemon/src/agent-executor/events.ts",
-    "function": "wireChildLifecycle",
-    "line": 471,
-    "rule": "max-lines-per-function",
-    "value": 335
-  },
-  {
-    "file": "packages/daemon/src/agent-executor/events.ts",
-    "function": "<file>",
-    "line": 812,
-    "rule": "max-lines",
-    "value": 930
-  },
-  {
     "file": "packages/daemon/src/agent-executor/launch.ts",
     "function": "<file>",
     "line": 826,

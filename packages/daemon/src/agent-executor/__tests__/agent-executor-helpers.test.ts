@@ -216,7 +216,7 @@ describe('computeRuntimeContext', () => {
     });
   });
 
-  // Session-resume plumbing (RunEndPayload.sessionRef round trip — see events.ts's doc): a run
+  // Session-resume plumbing (RunEndPayload.sessionRef round trip — see child-lifecycle.ts's doc): a run
   // carrying ONLY a resume/new session id, with nothing else staged, must still produce a context
   // — the early-return guard above must not treat "no files, no mcp bridge" as "nothing to do".
   it('includes resumeSessionId even when nothing else was staged', () => {
