@@ -60,7 +60,7 @@ export interface SitemapModalProps {
  *  blocks.
  *
  * @complexity O(1). */
-function SitemapModalHeaderActions({ locale, modal, useSitemapPresentationHook = useSitemapPresentation, useSitemapViewToggleHook = useSitemapViewToggle, useSeoCopyHook = useSeoCopy }: {
+export function SitemapModalHeaderActions({ locale, modal, useSitemapPresentationHook = useSitemapPresentation, useSitemapViewToggleHook = useSitemapViewToggle, useSeoCopyHook = useSeoCopy }: {
   locale: string; modal: SitemapModalController;
   useSitemapPresentationHook?: typeof useSitemapPresentation; useSitemapViewToggleHook?: typeof useSitemapViewToggle; useSeoCopyHook?: typeof useSeoCopy;
 }) {
@@ -105,7 +105,7 @@ function SitemapModalHeaderActions({ locale, modal, useSitemapPresentationHook =
  *
  * @complexity O(1) to render — `entries`/`filteredEntries` are already computed by
  *   `useSitemapModal` (memoized there), this only maps them to JSX. */
-function SitemapModalTable({ locale, modal, useSeoCopyHook = useSeoCopy, useSeoOptionsHook = useSeoOptions, useSitemapTableHook = useSitemapTable }: {
+export function SitemapModalTable({ locale, modal, useSeoCopyHook = useSeoCopy, useSeoOptionsHook = useSeoOptions, useSitemapTableHook = useSitemapTable }: {
   locale: string; modal: SitemapModalController;
   useSeoCopyHook?: typeof useSeoCopy; useSeoOptionsHook?: typeof useSeoOptions; useSitemapTableHook?: typeof useSitemapTable;
 }) {
@@ -167,7 +167,7 @@ function SitemapModalTable({ locale, modal, useSeoCopyHook = useSeoCopy, useSeoO
  *  as its own flat sequence of guards rather than a nested ternary inline in {@link SitemapModal}.
  *
  * @complexity O(1) — delegates the actual list rendering to {@link SitemapModalTable}. */
-function SitemapModalBody({
+export function SitemapModalBody({
   locale,
   sitemapEnabled,
   modal,
