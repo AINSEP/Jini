@@ -1,3 +1,5 @@
+import { describeApiError } from '@jini-ai/core/admin-runtime';
+import { PeopleApiError } from '../ports.js';
 import type { AuthApiPort } from '../ports.js';
 import type { AdminAccount, AuthState } from '../models.js';
 import { createControllerStore } from './controller-store.js';
@@ -17,7 +19,7 @@ export function createAuthController({ api, onLogin }: { api: AuthApiPort; onLog
       try {
         const { user } = await api.login({ username: s.username, password: s.password }, store.call);
         if (store.active({})) { set({ password: '' }); onLogin({ user }); loggedIn = true; }
-      } catch (error) { set({ error: error instanceof Error ? error.message : 'login failed' }); }
+      } catch (error) { set({ error: error instanceof PeopleApiError ? error.message || 'login failed' : describeApiError({ e: error, fallback: 'login failed' }) }); }
       finally { set({ busy: false }); }
       return loggedIn;
     },

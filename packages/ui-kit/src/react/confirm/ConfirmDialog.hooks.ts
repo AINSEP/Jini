@@ -1,3 +1,4 @@
+import { createConsoleLogger } from '@jini-ai/core';
 import { createElement, useEffect, useId, useInsertionEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { KitAttrs, AgentSpec, AgentAttrsPort } from '../../attrs.js';
 import { createConfirmController, planConfirm } from '../../confirm.js';
@@ -100,7 +101,8 @@ export function useConfirmFacade(required: ConfirmDialogProps, _optional: Record
       if (!reasons.length) return;
       if (!context.kit.violations.some(v => v.component === 'ConfirmDialog' && v.reasons.join() === reasons.join())) {
         context.kit.violations.push({ component: 'ConfirmDialog', reasons });
-        console.error(`@jini-ai/ui-kit ConfirmDialog conformance violation: ${reasons.join('; ')}`);
+        const logger = context.report ?? createConsoleLogger({ prefix: '@jini-ai/ui-kit' });
+        logger.error({ message: 'ConfirmDialog conformance violation.' }, { meta: { reasons } });
       }
       if (context.guard === 'fallback') { context.kit.failed.add('ConfirmDialog'); refresh(value => value + 1); }
     }, 0);

@@ -3,13 +3,13 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { HELP_OPTIONS, parseCliArgs, text } from "./lib/cli-args.mjs";
-import { runCli, runIfMain } from "./lib/main-guard.mjs";
+import { createCliStreams, runCli, runIfMain } from "./lib/main-guard.mjs";
 import { errorClassLabel } from "./lib/diagnostic-labels.mjs";
 
 // fs / fetch / output are ports with real defaults wired here at the CLI edge.
-const DEFAULT_DEPS = { fs, fetch: globalThis.fetch, log: console.log, error: console.error };
+const DEFAULT_DEPS = { fs, fetch: globalThis.fetch, ...createCliStreams({}) };
 
-export function usage(log = console.log) {
+export function usage(log = createCliStreams({}).log) {
   log(`Usage:
   node scripts/sourcemap-hunt.mjs --recon original-recon.json --out RECON/sourcemaps [--all-external]
 
@@ -131,4 +131,4 @@ export async function main({ argv }, deps = {}) {
   }, report: io.error });
 }
 
-await runIfMain({ moduleUrl: import.meta.url, main });
+await runIfMain({ moduleUrl: import.meta.url, main }, { stdout: process.stdout, stderr: process.stderr });

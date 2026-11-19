@@ -1,3 +1,4 @@
+import type { Logger } from '@jini-ai/core/primitives';
 import type { useAgentHandle } from '@jini-ai/ui';
 import type { useT } from '../../hooks/context.js';
 import type { useComposerHandlePublisher } from './components/ChatPane.js';
@@ -221,6 +222,7 @@ export type MidRunMessageDelivery = 'delivered' | 'unsupported' | 'not-running' 
 export type DeliverMidRunMessage = (input: { runId: string; text: string; attachments?: readonly ChatAttachment[] }) => Promise<MidRunMessageDelivery>;
 
 export interface ChatPaneProps extends UserTextRedactionOptions {
+  report?: Pick<Logger, 'error'> | undefined;
   useAgentHandleHook?: typeof useAgentHandle;
   useTHook?: typeof useT;
   useChatPaneSurfaceHook?: typeof useChatPaneSurface;

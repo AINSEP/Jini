@@ -217,7 +217,7 @@ function ChatPaneControls({ p, pane, surface, runtimeView, base, unavailable, fi
             typedAnswerNotice={pane.typedAnswerNotice}
             t={t}
           />
-          <ChatPaneComposerArea agentHandle={base ? `${base}-composer` : false} fileDrop={fileDrop}
+          <ChatPaneComposerArea report={p.report} agentHandle={base ? `${base}-composer` : false} fileDrop={fileDrop}
             uploadAttachments={surface.uploadAttachments} pane={pane} disabled={p.disabled} unavailable={unavailable}
             placeholder={composerPlaceholder} slots={slots} attachmentAccept={p.attachmentAccept}
             workingDirectoryAccess={p.workingDirectoryAccess} workingDirectoryControlPlacement={surface.workingDirectoryControlPlacement} t={t} />

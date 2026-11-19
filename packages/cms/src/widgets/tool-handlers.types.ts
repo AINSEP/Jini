@@ -1,3 +1,4 @@
+import type { Logger } from "@jini-ai/core/primitives";
 /**
  * @file The types every Widgets tool handler factory shares, kept in a leaf of their own: the
  * handler modules (`tool-handlers.instances.ts`, `tool-handlers.areas.ts`) and the registration
@@ -21,6 +22,7 @@ import type { WidgetTrashDeps } from "./write-service.js";
  * structurally so this module carries no back-edge into a host's composition root.
  */
 export interface WidgetsPackageToolDeps {
+  report?: Pick<Logger, "warn">;
   authorize: WidgetsAuthorizeFn;
   workspaceId: string;
   idGen: { newId(): string };

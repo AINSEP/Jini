@@ -4,6 +4,7 @@
 
 import fs from "node:fs";
 import { pathToFileURL } from "node:url";
+import { format } from "node:util";
 import { errorClassLabel } from "./diagnostic-labels.mjs";
 
 /**
@@ -12,6 +13,18 @@ import { errorClassLabel } from "./diagnostic-labels.mjs";
  * a file or a credential.
  */
 export class CliUsageError extends Error {}
+
+/**
+ * Bind CLI output to streams: help/progress use stdout, warnings/errors use stderr.
+ * Writers preserve console-style formatting and append one newline. O(output length).
+ */
+export function createCliStreams({ stdout = process.stdout, stderr = process.stderr }, _options = {}) {
+  return {
+    log: (...values) => stdout.write(`${format(...values)}\n`),
+    warn: (...values) => stderr.write(`${format(...values)}\n`),
+    error: (...values) => stderr.write(`${format(...values)}\n`),
+  };
+}
 
 /**
  * True when `moduleUrl` is the file Node was asked to run (`argv1`).
@@ -41,12 +54,15 @@ export function exitOnFailure({ code }, { proc = process } = {}) {
 }
 
 /**
- * Run `main({ argv: argv.slice(2) })` when `moduleUrl` is the entry module.
+ * Run `main({ argv: argv.slice(2) }, io)` when `moduleUrl` is the entry module.
+ * Unexpected failures use fixed copy/class labels and exit 1 without exposing a stack.
  * @returns {Promise<boolean>} whether main ran.
  */
-export async function runIfMain({ moduleUrl, main }, { argv = process.argv, realpath, onExit = exitOnFailure } = {}) {
+export async function runIfMain({ moduleUrl, main }, { argv = process.argv, realpath, onExit = exitOnFailure, stdout = process.stdout, stderr = process.stderr } = {}) {
   if (!isMainModule({ moduleUrl, argv1: argv[1] }, realpath ? { realpath } : {})) return false;
-  onExit({ code: await main({ argv: argv.slice(2) }) });
+  const io = createCliStreams({ stdout, stderr });
+  const code = await runCli({ label: "web-clone", body: () => main({ argv: argv.slice(2) }, io), report: io.error });
+  onExit({ code });
   return true;
 }
 

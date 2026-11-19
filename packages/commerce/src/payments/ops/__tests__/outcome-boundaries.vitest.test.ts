@@ -20,9 +20,9 @@ describe("untrusted provider outcomes", () => {
     });
   });
 
-  test.each(["rejected", "unknown"] as const)("preserves a readable %s and its provider diagnostics", async (kind) => {
+  test.each(["rejected", "unknown"] as const)("preserves readable %s codes and retry policy with safe public copy", async (kind) => {
     const outcome = { kind, error: paymentError({ code: "TRANSPORT_ERROR", message: "gateway unavailable" }, { retryable: true, providerStatus: 503 }) };
-    expect(await dispatch({ call: async () => outcome })).toEqual(outcome);
+    expect(await dispatch({ call: async () => outcome })).toEqual({ ...outcome, error: { ...outcome.error, message: "Payment provider operation failed." } });
   });
 
   test.each([

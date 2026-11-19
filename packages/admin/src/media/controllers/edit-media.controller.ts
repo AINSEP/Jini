@@ -1,4 +1,4 @@
-import { createControllerStore } from '@jini-ai/core/admin-runtime';
+import { createControllerStore, describeApiError } from '@jini-ai/core/admin-runtime';
 import type { MediaApiPort } from '../ports.js';
 import type { MediaAsset, MediaMetadataPatch, UploadInput } from '../models.js';
 import { diffMediaMetadata, canReplaceMedia } from '../rules.js';
@@ -31,7 +31,7 @@ export function createEditMediaController(
       return true;
     } catch (error) {
       store.set({
-        patch: { error: error instanceof Error ? error.message : 'Failed to save media metadata' },
+        patch: { error: describeApiError({ e: error, fallback: 'Failed to save media metadata' }) },
       });
     } finally {
       store.set({ patch: { saving: false } });

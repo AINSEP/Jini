@@ -1,98 +1,15 @@
 [
   {
-    "file": "packages/admin/src/core/transport/errors.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/admin/src/core/transport/http.ts",
-    "rule": "stored-error-text",
-    "value": 3
-  },
-  {
-    "file": "packages/admin/src/media/controllers/edit-media.controller.ts",
-    "rule": "stored-error-text",
-    "value": 1
-  },
-  {
-    "file": "packages/admin/src/media/controllers/library.controller.ts",
-    "rule": "stored-error-text",
-    "value": 3
-  },
-  {
-    "file": "packages/admin/src/seo/controllers/sitemap.controller.ts",
-    "rule": "stored-error-text",
-    "value": 1
-  },
-  {
     "file": "packages/admin/src/seo/react/hooks/use-seo.hooks.ts",
     "rule": "stored-error-text",
-    "value": 1
-  },
-  {
-    "file": "packages/admin/src/seo/react/hooks/use-sitemap-modal.hooks.ts",
-    "rule": "stored-error-text",
-    "value": 1
-  },
-  {
-    "file": "packages/admin/src/widgets/react/hooks/use-widget-regions.hooks.ts",
-    "rule": "stored-error-text",
-    "value": 1
-  },
-  {
-    "file": "packages/admin/src/widgets/react/hooks/use-widgets-library.hooks.ts",
-    "rule": "stored-error-text",
-    "value": 1
-  },
-  {
-    "file": "packages/agent-plugins/src/admin-surfaces/connections/connections.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/agent-plugins/src/connect/credential-cards.ts",
-    "rule": "console",
-    "value": 2
-  },
-  {
-    "file": "packages/agent-plugins/src/connect/federate-mcp.ts",
-    "rule": "stored-error-text",
-    "value": 2
-  },
-  {
-    "file": "packages/agent-plugins/src/connect/plugin-credential-card.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/agent-plugins/src/lifecycle/credential-card-metadata.ts",
-    "rule": "console",
-    "value": 1
+    "value": 1,
+    "reason": "STOP: SeoQuery.hooks.ts erases typed API identity before this overlay; preserving typed public copy requires an unlisted prerequisite change."
   },
   {
     "file": "packages/agent-plugins/src/lifecycle/credential-card-metadata.ts",
     "rule": "stored-error-text",
-    "value": 1
-  },
-  {
-    "file": "packages/agent-plugins/src/lifecycle/host-tools/identity.ts",
-    "rule": "console",
-    "value": 2
-  },
-  {
-    "file": "packages/agent-plugins/src/lifecycle/host-tools/search-tool.ts",
-    "rule": "console",
-    "value": 2
-  },
-  {
-    "file": "packages/agent-plugins/src/lifecycle/host-tools/skill-tool.ts",
-    "rule": "console",
-    "value": 2
-  },
-  {
-    "file": "packages/agent-plugins/src/lifecycle/host-tools/skill-tool.ts",
-    "rule": "raw-error",
-    "value": 1
+    "value": 1,
+    "reason": "KEEP: existing declaration-validation refusals and compatibility-warning callback rejection copy are preserved; malformed JSON is handled separately with fixed copy and a safe warning sink."
   },
   {
     "file": "packages/agent-runtime/src/agent-protocol/pi-rpc/session.ts",
@@ -116,93 +33,33 @@
   },
   {
     "file": "packages/agent-runtime/src/skills/web-clone/scripts/asset-harvest.mjs",
-    "rule": "console",
-    "value": 3
-  },
-  {
-    "file": "packages/agent-runtime/src/skills/web-clone/scripts/asset-harvest.mjs",
     "rule": "error-text",
-    "value": 1
-  },
-  {
-    "file": "packages/agent-runtime/src/skills/web-clone/scripts/audit-clone.mjs",
-    "rule": "console",
-    "value": 2
+    "value": 1,
+    "reason": "KEEP: closed authored CliUsageError usage class (LOG-2)."
   },
   {
     "file": "packages/agent-runtime/src/skills/web-clone/scripts/audit-clone.mjs",
     "rule": "error-text",
-    "value": 1
-  },
-  {
-    "file": "packages/agent-runtime/src/skills/web-clone/scripts/compare-recon.mjs",
-    "rule": "console",
-    "value": 2
+    "value": 1,
+    "reason": "KEEP: closed authored CliUsageError usage class (LOG-2)."
   },
   {
     "file": "packages/agent-runtime/src/skills/web-clone/scripts/compare-recon.mjs",
     "rule": "error-text",
-    "value": 1
-  },
-  {
-    "file": "packages/agent-runtime/src/skills/web-clone/scripts/dna-scaffold.mjs",
-    "rule": "console",
-    "value": 3
-  },
-  {
-    "file": "packages/agent-runtime/src/skills/web-clone/scripts/init-clone.mjs",
-    "rule": "console",
-    "value": 2
+    "value": 1,
+    "reason": "KEEP: closed authored CliUsageError usage class (LOG-2)."
   },
   {
     "file": "packages/agent-runtime/src/skills/web-clone/scripts/init-clone.mjs",
     "rule": "error-text",
-    "value": 1
-  },
-  {
-    "file": "packages/agent-runtime/src/skills/web-clone/scripts/interaction-probe.mjs",
-    "rule": "console",
-    "value": 3
+    "value": 1,
+    "reason": "KEEP: closed authored CliUsageError usage class (LOG-2)."
   },
   {
     "file": "packages/agent-runtime/src/skills/web-clone/scripts/lib/main-guard.mjs",
     "rule": "error-text",
-    "value": 1
-  },
-  {
-    "file": "packages/agent-runtime/src/skills/web-clone/scripts/mirror-site.mjs",
-    "rule": "console",
-    "value": 3
-  },
-  {
-    "file": "packages/agent-runtime/src/skills/web-clone/scripts/network-capture.mjs",
-    "rule": "console",
-    "value": 3
-  },
-  {
-    "file": "packages/agent-runtime/src/skills/web-clone/scripts/od-preview-rewrite.mjs",
-    "rule": "console",
-    "value": 3
-  },
-  {
-    "file": "packages/agent-runtime/src/skills/web-clone/scripts/recon-site.mjs",
-    "rule": "console",
-    "value": 3
-  },
-  {
-    "file": "packages/agent-runtime/src/skills/web-clone/scripts/route-crawl.mjs",
-    "rule": "console",
-    "value": 3
-  },
-  {
-    "file": "packages/agent-runtime/src/skills/web-clone/scripts/sourcemap-hunt.mjs",
-    "rule": "console",
-    "value": 3
-  },
-  {
-    "file": "packages/agent-runtime/src/skills/web-clone/scripts/visual-diff.mjs",
-    "rule": "console",
-    "value": 3
+    "value": 1,
+    "reason": "KEEP: closed authored CliUsageError usage class (LOG-2)."
   },
   {
     "file": "packages/agent-runtime/src/terminal-launch.ts",
@@ -210,158 +67,20 @@
     "value": 4
   },
   {
-    "file": "packages/agentic/src/core/dom/dom-page-driver.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/analytics/src/product/index.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/chat/src/core/assistant-client/ag-ui-transport.ts",
-    "rule": "stored-error-text",
-    "value": 1
-  },
-  {
-    "file": "packages/chat/src/core/assistant-client/durable-run-subscription.ts",
-    "rule": "console-logger",
-    "value": 2
-  },
-  {
-    "file": "packages/chat/src/core/assistant-client/durable-run-subscription.ts",
-    "rule": "raw-error",
-    "value": 1
-  },
-  {
-    "file": "packages/chat/src/embed-widget/vanilla/state.ts",
-    "rule": "stored-error-text",
-    "value": 1
-  },
-  {
-    "file": "packages/chat/src/react/components/Composer.hooks.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/chat/src/react/components/ConversationList.hooks.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/chat/src/react/components/ConversationTitleEditor.hooks.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/chat/src/react/components/ExtEventErrorBoundary.tsx",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/chat/src/react/components/ToolCard.tsx",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/chat/src/react/features/chat-pane/hooks/useChatPaneFileDrop.hooks.ts",
-    "rule": "console",
-    "value": 2
-  },
-  {
-    "file": "packages/chat/src/react/hooks/useConversation.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/chat/src/react/hooks/useRunStream.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/chat/src/server/durable-runs/recover.ts",
-    "rule": "console-logger",
-    "value": 2
-  },
-  {
-    "file": "packages/cms/src/comments/express/submit-handler.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/cms/src/content-types/cleanup.ts",
-    "rule": "stored-error-text",
-    "value": 1
-  },
-  {
-    "file": "packages/cms/src/forms/express/handler.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/cms/src/forms/express/handler.ts",
-    "rule": "stored-error-text",
-    "value": 6
-  },
-  {
     "file": "packages/cms/src/forms/notify-subscriber.ts",
     "rule": "error-text",
-    "value": 1
+    "value": 1,
+    "reason": "KEEP: provider refusal text enters only the error bag through the existing guarded typed Logger helper."
   },
   {
     "file": "packages/cms/src/forms/notify-subscriber.ts",
     "rule": "raw-error",
-    "value": 2
-  },
-  {
-    "file": "packages/cms/src/media/tool-registrations.ts",
-    "rule": "stored-error-text",
-    "value": 1
-  },
-  {
-    "file": "packages/cms/src/widgets/html/resolve-html-page-embeds.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/cms/src/widgets/read-service.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/cms/src/widgets/resolver-service.ts",
-    "rule": "console",
-    "value": 15
-  },
-  {
-    "file": "packages/commerce/src/payments/ingest/worker.ts",
-    "rule": "stored-error-text",
-    "value": 1
-  },
-  {
-    "file": "packages/commerce/src/payments/ops/common.ts",
-    "rule": "stored-error-text",
-    "value": 1
-  },
-  {
-    "file": "packages/core/src/approval.ts",
-    "rule": "stored-error-text",
-    "value": 2
+    "value": 2,
+    "reason": "KEEP: existing guarded typed Logger helper forwards original caught values in the Logger error bag."
   },
   {
     "file": "packages/core/src/optimistic-concurrency.ts",
     "rule": "stored-error-text",
-    "value": 1
-  },
-  {
-    "file": "packages/core/src/primitives/logger.ts",
-    "rule": "error-text",
-    "value": 1
-  },
-  {
-    "file": "packages/core/src/settings/express/stream.ts",
-    "rule": "console",
     "value": 1
   },
   {
@@ -421,43 +140,9 @@
   },
   {
     "file": "packages/db/src/data-modules/data-module.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/db/src/data-modules/data-module.ts",
     "rule": "stored-error-text",
-    "value": 2
-  },
-  {
-    "file": "packages/db/src/kernel/postgres/driver.ts",
-    "rule": "console",
-    "value": 2
-  },
-  {
-    "file": "packages/db/src/recovery/recovery-orchestrator.ts",
-    "rule": "stored-error-text",
-    "value": 1
-  },
-  {
-    "file": "packages/devops/src/checks/hardwiring-node.ts",
-    "rule": "console-logger",
-    "value": 2
-  },
-  {
-    "file": "packages/devops/src/checks/hardwiring-node.ts",
-    "rule": "raw-error",
-    "value": 1
-  },
-  {
-    "file": "packages/devops/src/deploy/ops-runner.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/devops/src/dns/delegation.ts",
-    "rule": "stored-error-text",
-    "value": 2
+    "value": 1,
+    "reason": "KEEP: guarded DeclError validation copy is deliberately public; driver exceptions use fixed copy."
   },
   {
     "file": "packages/diagnostics/src/observability/telemetry-test.ts",
@@ -465,89 +150,14 @@
     "value": 1
   },
   {
-    "file": "packages/diagnostics/src/observability/tracker.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/diagnostics/src/web-evidence/collect-page-evidence.ts",
-    "rule": "error-helper",
-    "value": 1
-  },
-  {
-    "file": "packages/diagnostics/src/web-evidence/playwright-runtime.ts",
-    "rule": "stored-error-text",
-    "value": 4
-  },
-  {
     "file": "packages/infra/src/events/outbox/worker.ts",
     "rule": "error-text",
-    "value": 1
-  },
-  {
-    "file": "packages/integrations/src/webhooks/worker.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/integrations/src/webhooks/worker.ts",
-    "rule": "raw-error",
-    "value": 1
-  },
-  {
-    "file": "packages/mcp/src/core/config.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/mcp/src/core/tokens.ts",
-    "rule": "console",
     "value": 1
   },
   {
     "file": "packages/mcp/src/federation/bootstrap.ts",
     "rule": "raw-error",
     "value": 1
-  },
-  {
-    "file": "packages/mcp/src/federation/stdio/default-connect.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/platform/src/fs/directory-user-config.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/platform/src/fs/durable-json.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/platform/src/fs/workspace-directory.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/platform/src/mail/builtin-providers.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/platform/src/mail/delivery-wrapper.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/platform/src/mail/resolve-mailer.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/platform/src/mail/resolve-mailer.ts",
-    "rule": "stored-error-text",
-    "value": 2
   },
   {
     "file": "packages/plugins/src/host/capability-tools.ts",
@@ -610,53 +220,9 @@
     "value": 1
   },
   {
-    "file": "packages/ui-kit/src/react/confirm/ConfirmDialog.hooks.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/ui-kit/src/react/context.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/ui/src/features/asset-grid/react/hooks/useAssetGridLiveUpdates.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/ui/src/features/connectors/hooks/useConnectorCatalog.ts",
-    "rule": "console",
-    "value": 2
-  },
-  {
-    "file": "packages/ui/src/features/html-editor/editor-serialization.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/ui/src/features/html-editor/editor-serialization.ts",
-    "rule": "raw-error",
-    "value": 1
-  },
-  {
-    "file": "packages/ui/src/features/panel-kit/hooks/use-settings-slice.hooks.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/ui/src/features/sketch-editor/react/hooks/useSketchSaveWorkflow.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/ui/src/react/components/RemixIcon.stylesheet.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
     "file": "packages/user-management/src/admin/controllers/auth.controller.ts",
     "rule": "stored-error-text",
-    "value": 1
+    "value": 1,
+    "reason": "KEEP: guarded PeopleApiError copy is the typed login API contract; unknown failures use login failed."
   }
 ]

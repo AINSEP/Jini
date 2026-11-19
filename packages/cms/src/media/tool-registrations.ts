@@ -258,7 +258,7 @@ export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePu
               input: { workspaceId: routeDeps.workspaceId, id, offset: input.offset as number | undefined } }, { signal: ctx.signal });
           } catch (error) {
             if (!(error instanceof DocumentTextExtractionError)) throw error;
-            return { untrusted: true, error: { code: error.code, message: error.message,
+            return { untrusted: true, error: { code: error.code, message: { DOCUMENT_TEXT_UNAVAILABLE: "Document text extraction is unavailable.", DOCUMENT_TEXT_FAILED: "Document text extraction failed." }[error.code],
               ...(error.install ? { install: error.install } : {}) } };
           }
         },

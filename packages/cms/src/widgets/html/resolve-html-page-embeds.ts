@@ -1,3 +1,4 @@
+import { createConsoleLogger } from "@jini-ai/core/primitives";
 import type { UUID } from "@jini-ai/core/primitives";
 import { HTML_EMBED_RESOLVERS, THEME_OWNED_MARKER_TYPES, type ResolveHtmlPageEmbedsDeps } from "../resolver-service.js";
 import type { WidgetRenderIR, WidgetResolveContext } from "../types.js";
@@ -54,7 +55,8 @@ export async function resolveHtmlPageEmbeds(
   _optional: Record<string, never> = {},
 ): Promise<ResolveHtmlPageEmbedsResult> {
   const { deps, input } = required;
-  const context: WidgetResolveContext = { workspaceId: input.workspaceId, preview: false };
+  const report = deps.report ?? createConsoleLogger({ prefix: "widgets" });
+  const context: WidgetResolveContext = { workspaceId: input.workspaceId, preview: false, report };
   const refs = scanHtmlEmbeds({ html: input.html });
 
   const refsByType = new Map<string, PageHtmlEmbedRef[]>();
@@ -72,10 +74,8 @@ export async function resolveHtmlPageEmbeds(
       // by design, to `static-render.ts`'s later pass (see `THEME_OWNED_MARKER_TYPES`'s own doc). Only
       // a type genuinely unowned anywhere is worth the loud warning.
       if (!THEME_OWNED_MARKER_TYPES.has(type)) {
-        console.warn("[widgets] resolveHtmlPageEmbeds: unknown embed type, every occurrence degrades to the placeholder", {
-          type,
-          workspaceId: input.workspaceId,
-          occurrences: typeRefs.length,
+        report.warn({ message: "[widgets] resolveHtmlPageEmbeds: unknown embed type, every occurrence degrades to the placeholder" }, {
+          meta: { occurrences: typeRefs.length },
         });
       }
       continue;

@@ -1,4 +1,5 @@
 import { createPublicationFilter, publicElement, publishedText } from './publication-filter.js';
+import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
 import type { PagePublication } from '../page-publication.js';
 import {
   AGENT_ELEMENT_ATTRIBUTE,
@@ -436,6 +437,7 @@ export interface DomPageDriverRequired {
 }
 
 export interface DomPageDriverOptions {
+  readonly report?: Pick<Logger, 'warn'>;
   /**
    * The id of the page currently shown, reported on every element.
    *
@@ -511,7 +513,7 @@ export function createDomPageDriver({ root, pages }: DomPageDriverRequired, opti
     const message = `"${handle}" is published on ${count} elements on this page, so which one it addresses is `
       + 'ambiguous — this is a page-authoring bug (duplicate data-agent-element), not something a '
       + 'caller can resolve; publish a unique handle per element';
-    console.warn(message);
+    try { (options.report ?? createConsoleLogger({ prefix: '[agentic/dom]' })).warn({ message: 'Duplicate data-agent-element handle on this page.' }); } catch { /* Diagnostics must not replace the refusal. */ }
     return new Error(message);
   };
 

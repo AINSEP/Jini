@@ -1,5 +1,4 @@
-import { describeErrorForLog } from '@jini-ai/core';
-import type { Clock } from "@jini-ai/core/primitives";
+import { createConsoleLogger, type Clock, type Logger } from "@jini-ai/core/primitives";
 /**
  * @module @jini-ai/mcp/core/tokens
  * Persistent, 0600-guarded OAuth-token store for remote MCP servers, keyed by
@@ -72,7 +71,7 @@ export interface McpTokensFile {
 }
 
 /** Injectable store boundaries; the default uses the Node filesystem. The clock is a required argument. */
-export interface McpTokenStoreOptions { filesystem?: McpConfigFilesystemPort; }
+export interface McpTokenStoreOptions { filesystem?: McpConfigFilesystemPort; report?: Pick<Logger, 'error'>; }
 
 const EMPTY: McpTokensFile = { servers: {} };
 
@@ -163,7 +162,8 @@ export async function readTokensFile({ dataDir, clock }: { dataDir: string; cloc
         filePath: `${tokensFile(dataDir)}.corrupt-${digest}`,
         contents: raw,
       });
-      console.error('[mcp-tokens] Corrupted JSON, returning empty:', describeErrorForLog({ err }));
+      const logger = options.report ?? createConsoleLogger({ prefix: '' });
+      logger.error({ message: '[mcp-tokens] Corrupted JSON, returning empty:' }, { error: err });
       return { ...EMPTY, servers: { ...EMPTY.servers } };
     }
     throw err;

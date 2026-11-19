@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { flag, list, parseCliArgs, rejectUnknown, runIfMain, text } from "../lib/script-cli.mjs";
 import { makeTempDir } from "./fakes-wc1.mjs";
 import { CliUsageError } from "../lib/main-guard.mjs";
+import { main as initClone } from "../init-clone.mjs";
 
 describe("runIfMain", () => {
   const savedExitCode = process.exitCode;
@@ -22,6 +23,31 @@ describe("runIfMain", () => {
     expect(ran).toBe(true);
     expect(calls).toEqual([{ argv: ["--a", "b"] }]);
     expect(codes).toEqual([2]);
+  });
+
+  it.each([
+    { name: "help", args: ["--help"], code: 0, output: "Usage:", error: "" },
+    { name: "bad argv", args: ["one", "two"], code: 1, output: "", error: "init-clone failed: Unexpected argument: two\n" },
+    { name: "failed dependency", args: ["sample"], code: 1, output: "", error: "init-clone failed: Error\n" },
+  ])("routes $name through stdout/stderr and records exactly one exit", async ({ name, args, code, output, error }) => {
+    const stdout = [];
+    const stderr = [];
+    const exits = [];
+    const failure = new Error("PRIVATE_MESSAGE_SENTINEL");
+    failure.stack = "PRIVATE_STACK_SENTINEL";
+    const main = (input, io) => initClone(input, {
+      ...io, cwd: () => "/work", fs: { existsSync: () => false, mkdirSync: () => { throw failure; } },
+    });
+    expect(await runIfMain({ moduleUrl: "file:///scripts/init-clone.mjs", main }, {
+      argv: ["node", "/scripts/init-clone.mjs", ...args], realpath: (p) => p,
+      stdout: { write: (line) => stdout.push(line) }, stderr: { write: (line) => stderr.push(line) },
+      setExitCode: (value) => exits.push(value),
+    })).toBe(true);
+    expect(exits).toEqual([code]);
+    if (output) expect(stdout.join("")).toContain(output);
+    else expect(stdout).toEqual([]);
+    expect(stderr.join("")).toBe(error);
+    if (name === "failed dependency") expect([...stdout, ...stderr].join("")).not.toMatch(/PRIVATE_(MESSAGE|STACK)_SENTINEL/);
   });
 
   it("does nothing when imported by another module or with no script argument", async () => {

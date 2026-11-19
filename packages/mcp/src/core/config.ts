@@ -1,4 +1,3 @@
-import { describeErrorForLog } from '@jini-ai/core';
 /**
  * @module @jini-ai/mcp/core/config
  * Config schema + on-disk store for the external MCP servers the daemon connects
@@ -24,7 +23,7 @@ import { describeErrorForLog } from '@jini-ai/core';
 import { readFile } from 'node:fs/promises';
 import { realpathSync } from 'node:fs';
 import path from 'node:path';
-import { pathContains } from '@jini-ai/core/primitives';
+import { createConsoleLogger, pathContains, type Logger } from '@jini-ai/core/primitives';
 import { writeFileAtomicAsync } from '@jini-ai/platform/fs';
 import { inferMcpAuthModeForUrl, isPlainObject } from './config-shared.js';
 export { inferMcpAuthModeForUrl } from './config-shared.js';
@@ -230,7 +229,7 @@ export function sanitizeMcpConfig({ raw }: { raw: unknown }): McpConfig {
  * @param dataDir The resolved runtime data directory.
  * @returns The sanitized `McpConfig`, never rejects on missing-file or corrupt-JSON.
  */
-export async function readMcpConfig({ dataDir }: { dataDir: string }, { filesystem = defaultMcpSecretFilesystem }: { filesystem?: McpConfigFilesystemPort } = {}): Promise<McpConfig> {
+export async function readMcpConfig({ dataDir }: { dataDir: string }, { filesystem = defaultMcpSecretFilesystem, report = createConsoleLogger({ prefix: '' }) }: { filesystem?: McpConfigFilesystemPort; report?: Pick<Logger, 'error'> } = {}): Promise<McpConfig> {
   try {
     const raw = await filesystem.readText({ filePath: configFile(dataDir) });
     const parsed: unknown = JSON.parse(raw);
@@ -239,7 +238,8 @@ export async function readMcpConfig({ dataDir }: { dataDir: string }, { filesyst
     const e = err as { code?: string; name?: string; message?: string };
     if (e.code === 'ENOENT') return { servers: [] };
     if (e.name === 'SyntaxError') {
-      console.error('[mcp-config] Corrupted JSON, returning empty:', describeErrorForLog({ err }));
+      const logger = report;
+      logger.error({ message: '[mcp-config] Corrupted JSON, returning empty:' }, { error: err });
       return { servers: [] };
     }
     throw err;

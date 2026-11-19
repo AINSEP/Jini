@@ -2,15 +2,15 @@
 import fs from "node:fs";
 import path from "node:path";
 import { HELP_OPTIONS, parseCliArgs } from "./lib/cli-args.mjs";
-import { runCli, runIfMain } from "./lib/main-guard.mjs";
+import { createCliStreams, runCli, runIfMain } from "./lib/main-guard.mjs";
 import { replaceCssUrls } from "./lib/css-url.mjs";
 
 // fs / cwd / output are ports with real defaults wired here at the CLI edge.
 // The rewrite functions take a `project` = { root, fs } so they can be
 // exercised against a temp directory (or any fs-shaped fake).
-const DEFAULT_DEPS = { fs, cwd: () => process.cwd(), log: console.log, error: console.error };
+const DEFAULT_DEPS = { fs, cwd: () => process.cwd(), ...createCliStreams({}) };
 
-export function usage(log = console.log) {
+export function usage(log = createCliStreams({}).log) {
   log(`Usage:
   node scripts/od-preview-rewrite.mjs [--project <clone-dir>]
 
@@ -238,4 +238,4 @@ export async function main({ argv }, deps = {}) {
   }, report: io.error });
 }
 
-await runIfMain({ moduleUrl: import.meta.url, main });
+await runIfMain({ moduleUrl: import.meta.url, main }, { stdout: process.stdout, stderr: process.stderr });

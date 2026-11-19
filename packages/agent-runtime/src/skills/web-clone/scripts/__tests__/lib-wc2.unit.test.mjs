@@ -3,9 +3,11 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { HELP_OPTIONS, int, num, parseCliArgs, text } from "../lib/cli-args.mjs";
-import { CliUsageError, exitOnFailure, isMainModule, runCli, runIfMain } from "../lib/main-guard.mjs";
+import { CliUsageError, createCliStreams, exitOnFailure, isMainModule, runCli, runIfMain } from "../lib/main-guard.mjs";
 import { launchChromium, loadPlaywright } from "../lib/playwright-loader.mjs";
 import { tempDir } from "./fakes-wc2.mjs";
+import { main as routeCrawl } from "../route-crawl.mjs";
+import { main as mirrorSite } from "../mirror-site.mjs";
 
 describe("parseCliArgs", () => {
   const spec = {
@@ -42,6 +44,42 @@ describe("parseCliArgs", () => {
 });
 
 describe("main guard", () => {
+  it("writes progress to stdout and warnings/errors to stderr with console-style spacing", () => {
+    const stdout = [];
+    const stderr = [];
+    const io = createCliStreams({ stdout: { write: (line) => stdout.push(line) }, stderr: { write: (line) => stderr.push(line) } });
+    io.log("progress", 2);
+    io.warn("warning", "Error");
+    io.error("failed", "TypeError");
+    expect(stdout).toEqual(["progress 2\n"]);
+    expect(stderr).toEqual(["warning Error\n", "failed TypeError\n"]);
+  });
+
+  it.each([
+    { name: "help", args: ["--help"], code: 0, output: "route-crawl.mjs", error: "" },
+    { name: "bad argv", args: ["--bad"], code: 1, output: "", error: "route-crawl failed: Unexpected argument: --bad\n" },
+    { name: "failed dependency", args: ["--url", "https://example.com", "--out", "/work"], code: 1, output: "", error: "web-clone failed: Error\n" },
+  ])("routes $name through stdout/stderr and calls onExit exactly once", async ({ name, args, code, output, error }) => {
+    const stdout = [];
+    const stderr = [];
+    const exits = [];
+    const failure = new Error("PRIVATE_MESSAGE_SENTINEL");
+    failure.stack = "PRIVATE_STACK_SENTINEL";
+    const main = (input, io) => name === "failed dependency"
+      ? mirrorSite(input, { ...io, fs: { mkdirSync: () => { throw failure; } }, loadPlaywright: () => { throw failure; } })
+      : routeCrawl(input, io);
+    expect(await runIfMain({ moduleUrl: "file:///scripts/tool.mjs", main }, {
+      argv: ["node", "/scripts/tool.mjs", ...args], realpath: (p) => p,
+      stdout: { write: (line) => stdout.push(line) }, stderr: { write: (line) => stderr.push(line) },
+      onExit: ({ code: value }) => exits.push(value),
+    })).toBe(true);
+    expect(exits).toEqual([code]);
+    if (output) expect(stdout.join("")).toContain(output);
+    else expect(stdout).toEqual([]);
+    expect(stderr.join("")).toBe(error);
+    if (name === "failed dependency") expect([...stdout, ...stderr].join("")).not.toMatch(/PRIVATE_(MESSAGE|STACK)_SENTINEL/);
+  });
+
   it("isMainModule matches the entry path, resolving symlinks", () => {
     const dir = tempDir();
     const real = path.join(dir, "real.mjs");

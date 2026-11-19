@@ -46,7 +46,7 @@ export const widgetsListInstancesHandler = ({ deps }: WidgetsHandlerArgs): ToolH
   const candidate = { value: ctx.input };
   const input = isRecord(candidate) ? candidate.value : {};
   const { instances } = await listWidgetInstances({
-    deps: { entryRepo: deps.entryRepo, authorize: deps.authorize },
+    deps: { entryRepo: deps.entryRepo, authorize: deps.authorize, ...(deps.report ? { report: deps.report } : {}) },
     input: {
       workspaceId: deps.workspaceId,
       actor: { principalId: ctx.principal.id },
@@ -60,7 +60,7 @@ export const widgetsListInstancesHandler = ({ deps }: WidgetsHandlerArgs): ToolH
 export const widgetsGetInstanceHandler = ({ deps }: WidgetsHandlerArgs): ToolHandler => async (ctx) => {
   const widgetInstanceId = requireString({ input: requireInputRecord({ input: ctx.input }), key: "widgetInstanceId" });
   const { instance } = await getWidgetInstance({
-    deps: { entryRepo: deps.entryRepo, authorize: deps.authorize },
+    deps: { entryRepo: deps.entryRepo, authorize: deps.authorize, ...(deps.report ? { report: deps.report } : {}) },
     input: { workspaceId: deps.workspaceId, actor: { principalId: ctx.principal.id }, widgetInstanceId },
   });
   const refs = await deps.entryRefsRepo.findByTarget({ workspaceId: deps.workspaceId, targetKind: "entry", targetId: instance.id });

@@ -665,7 +665,7 @@ describe('useInteractiveHtmlEditor — the splice holds for real RTE edits (Slic
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
-  it('still falls back, naming the cause, when a block outside any text component is added', () => {
+  it('still falls back, with fixed diagnostic copy, when a block outside any text component is added', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const onChange = vi.fn();
     const { wrapper, pA } = buildSpliceComponentTree();
@@ -679,7 +679,7 @@ describe('useInteractiveHtmlEditor — the splice holds for real RTE edits (Slic
 
     expect(warnSpy).toHaveBeenCalledTimes(1);
     expect(warnSpy).toHaveBeenCalledWith(
-      '[useInteractiveHtmlEditor] falling back to full re-serialization: a block was added, moved, copied or deleted since mount (first: component:add <p>)',
+      '[useInteractiveHtmlEditor] falling back to full re-serialization: source splice could not be preserved.',
     );
   });
 
@@ -695,7 +695,7 @@ describe('useInteractiveHtmlEditor — the splice holds for real RTE edits (Slic
     lastFake!.fire('update');
 
     expect(warnSpy).toHaveBeenCalledWith(
-      '[useInteractiveHtmlEditor] falling back to full re-serialization: a block was added, moved, copied or deleted since mount (first: component:remove <p>)',
+      '[useInteractiveHtmlEditor] falling back to full re-serialization: source splice could not be preserved.',
     );
   });
 
@@ -709,7 +709,7 @@ describe('useInteractiveHtmlEditor — the splice holds for real RTE edits (Slic
     lastFake!.fire('update');
 
     expect(warnSpy).toHaveBeenCalledWith(
-      '[useInteractiveHtmlEditor] falling back to full re-serialization: a block was added, moved, copied or deleted since mount (first: component:remove <unknown>)',
+      '[useInteractiveHtmlEditor] falling back to full re-serialization: source splice could not be preserved.',
     );
   });
 });

@@ -1,5 +1,5 @@
 // Mechanical extraction provenance is recorded in this package's source-map.md.
-import { nowIso } from '@jini-ai/core/primitives';
+import { createConsoleLogger, nowIso } from '@jini-ai/core/primitives';
 import { ToolInputError } from '@jini-ai/core';
 import type { DeployOpsRuntime, WaitClock, DeployCredentialDiagnostic } from './ops-tool-contracts.js';
 import type { DeployOpsContext, DeployOpsDeployResult, DeployOpsInput, DeployOpsResponse, DeployOpsSendRequest, DeployOpsLogs, DeployOpsStatus, DeployOpsTargets, DeployOpsWaitResult, LoadedDeployOps } from './ops-contracts.js';
@@ -217,10 +217,11 @@ async function recordAcceptedDeploy({ deps, platform, normalized }: { deps: Depl
         kind: "deploy", target: platform.descriptor.id, projectName: normalized.target, url: normalized.url ?? "",
         reachable: false, status: "started", publishedAt: nowIso({ clock: deps.clock }), triggeredBy: "agent_tool",
       } });
-    } catch {
+    } catch (error) {
       // Dispatch already succeeded; never turn a ledger failure into a duplicate deploy retry.
       // No raw error: database parameters can contain credentials or provider response data.
-      console.warn("[deploy-ops] destination history write failed after accepted deploy");
+      const logger = deps.report ?? createConsoleLogger({ prefix: '' });
+      logger.warn({ message: "[deploy-ops] destination history write failed after accepted deploy" }, { error });
     }
   }
 }

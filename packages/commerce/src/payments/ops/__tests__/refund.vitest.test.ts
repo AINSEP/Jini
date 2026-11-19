@@ -152,7 +152,7 @@ describe("refund: provider answers", () => {
     const id = await scriptedPaid(w);
     w.scripted.queue("refund", rejected());
     const result = await w.service.refund({ scope: SCRIPTED, paymentId: id, amount: USD(3_000), idempotencyKey: "rk", grant: await refundGrant(w, id, 3_000, "rk", SCRIPTED) });
-    expect(result).toEqual({ ok: false, error: { code: "DECLINED", message: "provider said no", retryable: false } });
+    expect(result).toEqual({ ok: false, error: { code: "DECLINED", message: "Payment provider operation failed.", retryable: false } });
     expect((await w.read(id)).refunds.map((r) => r.status)).toEqual(["failed"]);
     expect((await w.read(id)).payment?.refundHeldMinor).toBe(0);
   });

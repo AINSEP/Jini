@@ -4,14 +4,14 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { loadPlaywright, launchChromium } from "./lib/playwright-loader.mjs";
 import { HELP_OPTIONS, num, parseCliArgs, text } from "./lib/cli-args.mjs";
-import { runCli, runIfMain } from "./lib/main-guard.mjs";
+import { createCliStreams, runCli, runIfMain } from "./lib/main-guard.mjs";
 import { trimDashes } from "./lib/trim-dashes.mjs";
 import { errorClassLabel } from "./lib/diagnostic-labels.mjs";
 
 // Hard dependencies are ports with real defaults wired here at the CLI edge.
-const DEFAULT_DEPS = { fs, loadPlaywright, launchChromium, log: console.log, error: console.error, now: () => new Date() };
+const DEFAULT_DEPS = { fs, loadPlaywright, launchChromium, ...createCliStreams({}), now: () => new Date() };
 
-export function usage(log = console.log) {
+export function usage(log = createCliStreams({}).log) {
   log(`Usage:
   node scripts/network-capture.mjs --url <url> --out RECON/network [--label original] [--wait 5000] [--max-bytes 1000000]
 
@@ -154,4 +154,4 @@ export async function main({ argv }, deps = {}) {
   }, report: io.error });
 }
 
-await runIfMain({ moduleUrl: import.meta.url, main });
+await runIfMain({ moduleUrl: import.meta.url, main }, { stdout: process.stdout, stderr: process.stderr });

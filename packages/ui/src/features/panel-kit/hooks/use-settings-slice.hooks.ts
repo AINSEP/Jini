@@ -1,3 +1,4 @@
+import { createConsoleLogger, type Logger } from '@jini-ai/core';
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export type SettingsRefreshScope = readonly string[] | null;
@@ -48,6 +49,7 @@ export interface SettingsSliceRefreshPort {
 }
 
 export interface SettingsSliceOptions<T> {
+  report?: Pick<Logger, 'error'> | undefined;
   /** Reads the persisted value. A rejection surfaces as `loadError` and the
    *  slice falls back to `defaultValue` — an unreadable setting shows defaults
    *  with a visible warning rather than blocking the whole dialog. */
@@ -384,8 +386,8 @@ export function useSettingsSlice<T>(options: SettingsSliceOptions<T>, _optional:
       // lane as the debounce path, so it diffs against the base that is
       // current when it RUNS, not the one that was current when it was queued.
       // No view remains to show the failure; settings and native errors may contain secrets.
-      const reportFinalFailure = () => { console.error('[settings] Final save failed after unmount.'); };
-      const finalSave = async () => { try { await runSave(); } catch { reportFinalFailure(); } };
+      const reportFinalFailure = (error: unknown) => { const logger = io.current.report ?? createConsoleLogger({ prefix: '[settings]' }); logger.error({ message: 'Final save failed after unmount.' }, { error }); };
+      const finalSave = async () => { try { await runSave(); } catch (error) { reportFinalFailure(error); } };
       void writes.run({ task: finalSave });
     },
     [runSave, writes],

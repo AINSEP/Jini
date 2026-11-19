@@ -40,8 +40,8 @@ it('an unparseable off-origin URL is reported without echoing it', async () => {
     message: "[redacted] redirected off the inspected origin to '(unparseable URL)' — not inspected; this tool only observes https://example.test" }]);
 });
 
-it('a non-Error thrown by the port is skipped with its string form and the browser still closes', async () => {
+it('a non-Error thrown by the port is skipped with its class label and the browser still closes', async () => {
   const { result, closed } = collect(async () => { throw 'adapter exploded'; });
-  expect((await result).skipped).toEqual([{ path: '/page', reason: 'navigation-failed', message: '[redacted] adapter exploded' }]);
+  expect((await result).skipped).toEqual([{ path: '/page', reason: 'navigation-failed', message: '[redacted] Page observation failed: string' }]);
   expect(closed).toEqual(['closed']);
 });

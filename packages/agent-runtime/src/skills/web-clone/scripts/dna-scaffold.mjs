@@ -14,6 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { flag, parseCliArgs, runIfMain, text } from "./lib/script-cli.mjs";
 import { errorClassLabel } from "./lib/diagnostic-labels.mjs";
+import { createCliStreams } from "./lib/main-guard.mjs";
 
 // Unknown arguments are ignored (historical behaviour of this script).
 const ARG_SPEC = {
@@ -32,7 +33,7 @@ export function parseArgs(argv) {
   return parseCliArgs({ argv, ...ARG_SPEC });
 }
 
-export function usage(log) {
+export function usage(log = createCliStreams({}).log) {
   log(`dna-scaffold.mjs — 生成 design-dna.json 骨架并 best-effort 预填
 
   node scripts/dna-scaffold.mjs --out <design-dna.json> [--recon <label-recon.json>] [--name <站名>]
@@ -251,7 +252,7 @@ function run(argv, io) {
   return 0;
 }
 
-const DEFAULT_DEPS = { fs, log: console.log, warn: console.warn, error: console.error, cwd: process.cwd };
+const DEFAULT_DEPS = { fs, ...createCliStreams({}), cwd: process.cwd };
 
 /** CLI entry: writes the DNA skeleton; returns 0 ok/help, 1 on usage error or failure. */
 export function main({ argv }, deps = {}) {
@@ -265,4 +266,4 @@ export function main({ argv }, deps = {}) {
   return code;
 }
 
-await runIfMain({ moduleUrl: import.meta.url, main });
+await runIfMain({ moduleUrl: import.meta.url, main }, { stdout: process.stdout, stderr: process.stderr });

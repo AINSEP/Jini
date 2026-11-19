@@ -138,8 +138,9 @@ function useAssetCardRenderer<TAsset extends AssetGridItem>({
 
 /** Wires the grid's data read and its live-update subscription over the same asset list. */
 function useWiredAssetGridReads<TAsset extends AssetGridItem>({
-  dependencies, active, kind, source, debouncedSearch, filtersActive, selectors, liveUpdateCoalesceMs, useWiredAssetGridDataHook,
+  dependencies, active, kind, source, debouncedSearch, filtersActive, selectors, liveUpdateCoalesceMs, useWiredAssetGridDataHook, report, useWiredAssetGridLiveUpdatesHook,
 }: {
+  report: AssetGridProps<TAsset>['report']; useWiredAssetGridLiveUpdatesHook: typeof useWiredAssetGridLiveUpdates;
   dependencies: AssetGridProps<TAsset>['dependencies']; active: boolean; kind: string; source: string; debouncedSearch: string;
   filtersActive: boolean; selectors: AssetGridProps<TAsset>['selectors'];
   liveUpdateCoalesceMs: AssetGridProps<TAsset>['liveUpdateCoalesceMs']; useWiredAssetGridDataHook: typeof useWiredAssetGridData;
@@ -159,8 +160,8 @@ function useWiredAssetGridReads<TAsset extends AssetGridItem>({
     mapKindToQuery: selectors.mapKindToQuery,
   });
 
-  useWiredAssetGridLiveUpdates({
-    dependencies,
+  useWiredAssetGridLiveUpdatesHook({
+    dependencies, report,
     active,
     filtersActive,
     setAssets,
@@ -171,7 +172,8 @@ function useWiredAssetGridReads<TAsset extends AssetGridItem>({
 }
 
 /** Coordinate grid reads, selection, preview, deletion, and per-card rendering. */
-export function useAssetGridView<TAsset extends AssetGridItem>({ active, selectors, dependencies, configuredKindFacets, configuredSourceFacets, renderThumbnail, renderThumbnailPlaceholder, renderCardExtra, onDeleteAsset, onDeleteSelected, onPreview, isPreviewOpen, searchDebounceMs, liveUpdateCoalesceMs, initialViewMode, useWiredAssetGridDataHook, useAssetGridSelectionHook }: {
+export function useAssetGridView<TAsset extends AssetGridItem>({ active, report, useWiredAssetGridLiveUpdatesHook = useWiredAssetGridLiveUpdates, selectors, dependencies, configuredKindFacets, configuredSourceFacets, renderThumbnail, renderThumbnailPlaceholder, renderCardExtra, onDeleteAsset, onDeleteSelected, onPreview, isPreviewOpen, searchDebounceMs, liveUpdateCoalesceMs, initialViewMode, useWiredAssetGridDataHook, useAssetGridSelectionHook }: {
+  report?: AssetGridProps<TAsset>['report']; useWiredAssetGridLiveUpdatesHook?: typeof useWiredAssetGridLiveUpdates;
   active: boolean; selectors: AssetGridProps<TAsset>['selectors']; dependencies: AssetGridProps<TAsset>['dependencies'];
   configuredKindFacets: AssetGridProps<TAsset>['kindFacets']; configuredSourceFacets: AssetGridProps<TAsset>['sourceFacets'];
   renderThumbnail: AssetGridProps<TAsset>['renderThumbnail']; renderThumbnailPlaceholder: AssetGridProps<TAsset>['renderThumbnailPlaceholder'];
@@ -184,7 +186,7 @@ export function useAssetGridView<TAsset extends AssetGridItem>({ active, selecto
     useAssetGridFilters({ kindFacets: configuredKindFacets, sourceFacets: configuredSourceFacets, searchDebounceMs });
   const [viewMode, setViewMode] = useState<AssetGridViewMode>(initialViewMode);
   const { assets, setAssets, loading, reload } = useWiredAssetGridReads({
-    dependencies, active, kind, source, debouncedSearch, filtersActive, selectors, liveUpdateCoalesceMs, useWiredAssetGridDataHook,
+    dependencies, active, kind, source, debouncedSearch, filtersActive, selectors, liveUpdateCoalesceMs, useWiredAssetGridDataHook, report, useWiredAssetGridLiveUpdatesHook,
   });
 
   const { selectedIds, setSelectedIds, toggleOne, rangeTo, selectAll, clearSelection } = useAssetGridSelectionHook(assets);

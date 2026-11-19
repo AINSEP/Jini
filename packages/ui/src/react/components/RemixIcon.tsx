@@ -1,3 +1,4 @@
+import type { Logger } from '@jini-ai/core';
 import { useEffect } from 'react';
 import type { CSSProperties } from 'react';
 import { ensureRemixIconStylesheet } from './RemixIcon.stylesheet.js';
@@ -5,6 +6,7 @@ import { withClassName } from '../../utils/class-names.js';
 export { installRemixIconStylesheet, REMIXICON_STYLESHEET_MARKER } from './RemixIcon.stylesheet.js';
 
 interface RemixIconProps {
+  report?: Pick<Logger, 'warn'> | undefined;
   name: string;
   size?: number;
   className?: string;
@@ -17,9 +19,9 @@ interface RemixIconProps {
  * {@link ensureRemixIconStylesheet} for why that default does not survive most bundlers, and
  * {@link installRemixIconStylesheet} for what a bundled host should call instead.
  */
-export function RemixIcon({ name, size = 14, className, style }: RemixIconProps) {
+export function RemixIcon({ name, size = 14, className, style, report }: RemixIconProps) {
   useEffect(() => {
-    ensureRemixIconStylesheet({});
+    ensureRemixIconStylesheet({}, { report });
   }, []);
 
   return (

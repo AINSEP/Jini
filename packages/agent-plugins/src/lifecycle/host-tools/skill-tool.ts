@@ -1,4 +1,4 @@
-import { buildDomainRegistrations, describeErrorForLog, indexCatalogById, optionalString, requireInputRecord, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration, type AgentToolDefinition } from "@jini-ai/core";
+import { buildDomainRegistrations, createConsoleLogger, indexCatalogById, optionalString, requireInputRecord, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration, type AgentToolDefinition } from "@jini-ai/core";
 import { readInstalledAgentPluginIdentity, UNTESTED_PLUGIN_GUIDANCE, type PluginMaturity } from "./identity.js";
 import { buildPluginMemoryRegistrations } from "./memory-tools.js";
 import type { AgentPluginHostToolPorts, ApplyHostToolApprovalPolicy, HostGuidancePort, PluginToolGuidance } from "./ports.js";
@@ -249,7 +249,7 @@ function buildToolSource(plugin: AgentPluginToolIdentity, skills: readonly Agent
  * plugin. Per-plugin failures are isolated: a pluginId installed under more than one digest (a
  * genuine, actionable ambiguity — see this file's header for why the digest itself is not folded
  * into the id) — or any other per-plugin resolution failure, e.g. an unreadable SKILL.md — is
- * logged via `console.warn` and excluded from the returned array, but never aborts the whole load.
+ * logged through the host reporter and excluded from the returned array, but never aborts the whole load.
  * One bad plugin install must not take every other installed plugin's tool down with it.
  *
  * @complexity O(d * s) in installed-digest count times average skills-per-digest, dominated by
@@ -303,7 +303,8 @@ export async function loadInstalledAgentPluginToolSources(ctx: {
       // itself is still a genuine, actionable refusal, just scoped to this one plugin now.
       sourceByPluginId.delete(plugin.pluginId);
       poisonedPluginIds.add(plugin.pluginId);
-      console.warn(`[agent-plugins] '${plugin.pluginId}': ${describeErrorForLog({ err: error })} — skipped`);
+      const logger = ctx.ports.report ?? createConsoleLogger({ prefix: '[agent-plugins]' });
+      logger.warn({ message: 'Plugin tool source skipped.' }, { error });
     }
   }
   return [...sourceByPluginId.values()];
@@ -513,9 +514,8 @@ export function createAgentPluginToolGate(ctx: { readonly workspaceId: string; r
       if (activation.verdict === "undetermined") {
         // The error surface fail-CLOSED is supposed to lack: an operator whose activations file is
         // damaged gets a denial they can see the cause of, next to the daemon's own `denied` record.
-        console.warn(
-          `[agent-plugins] '${plugin.pluginId}': tool call denied — activation could not be established (${activation.reason})`,
-        );
+        const logger = ctx.ports.report ?? createConsoleLogger({ prefix: '[agent-plugins]' });
+        logger.warn({ message: 'Tool call denied: activation could not be established.' });
         return false;
       }
       if (activation.verdict !== "active") return false;

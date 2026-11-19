@@ -117,7 +117,7 @@ export interface InteractiveHtmlEditorHandle {
 
 export const InteractiveHtmlEditor = forwardRef<InteractiveHtmlEditorHandle, InteractiveHtmlEditorProps & { useInteractiveHtmlEditorHook?: typeof useInteractiveHtmlEditor }>(
   function InteractiveHtmlEditor(
-    { html, onChange, className, isProtectedElement, canvasStyling, describeEmbedPlaceholder, onRequestEditHtml, translate, onSerializationError, useInteractiveHtmlEditorHook = useInteractiveHtmlEditor },
+    { html, onChange, className, isProtectedElement, canvasStyling, describeEmbedPlaceholder, onRequestEditHtml, translate, onSerializationError, report, useInteractiveHtmlEditorHook = useInteractiveHtmlEditor },
     ref,
   ) {
     const { containerRef, flush, sourceError } = useInteractiveHtmlEditorHook(
@@ -126,7 +126,7 @@ export const InteractiveHtmlEditor = forwardRef<InteractiveHtmlEditorHandle, Int
       isProtectedElement,
       canvasStyling,
       describeEmbedPlaceholder,
-      { onRequestEditHtml, translate, onSerializationError },
+      { onRequestEditHtml, translate, onSerializationError, report },
     );
     useImperativeHandle(ref, () => ({ flush }), [flush]);
     const wrapperClassName = className ? `interactive-html-editor ${className}` : 'interactive-html-editor';

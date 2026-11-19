@@ -1,3 +1,4 @@
+import { createConsoleLogger, type Logger } from '@jini-ai/core';
 import type { AgentPluginMcpPort } from "./ports.js";
 import type { AgentPluginMcpRecord, AgentPluginMcpProjections, AgentPluginMcpProjectionPorts } from "./ports.js";
 import { updateAgentPluginMcpRow } from "./row-update.js";
@@ -402,8 +403,8 @@ export interface ProvisionAgentPluginMcpServersResult {
    *  see {@link failed}. */
   readonly adopted: readonly string[];
   readonly skipped: readonly SkippedAgentPluginMcpServer[];
-  /** `reason` is the caller-facing text; `error` is the caught value (absent for a refused adoption), for host logs only. */
-  readonly failed: readonly (SkippedAgentPluginMcpServer & { readonly error?: unknown })[];
+  /** Safe caller-facing failure reasons; caught exceptions travel only through the report port. */
+  readonly failed: readonly SkippedAgentPluginMcpServer[];
 }
 
 /** Builds the ONE-TIME creation input for a planned server that rule 1's existence check already
@@ -544,19 +545,20 @@ async function adoptOrRecognizeExistingAgentPluginMcpServer(
 export async function provisionAgentPluginMcpServers(
   deps: AgentPluginMcpProjectionPorts & Pick<AgentPluginMcpPort, "repo" | "saveServer"> & Partial<Pick<AgentPluginMcpPort, "notifyRosterChanged">>,
   input: ProvisionAgentPluginMcpServersInput,
+  { report = createConsoleLogger({ prefix: '[agent-plugins]' }) }: { report?: Pick<Logger, 'warn'> } = {},
 ): Promise<ProvisionAgentPluginMcpServersResult> {
   const plan = planAgentPluginMcpFederation(input, { classifyTrust: input.classifyTrust, messages: input.messages });
   const provisioned: string[] = [];
   const alreadyProvisioned: string[] = [];
   const adopted: string[] = [];
-  const failed: (SkippedAgentPluginMcpServer & { readonly error?: unknown })[] = [];
+  const failed: SkippedAgentPluginMcpServer[] = [];
   // Resolved once per call: every stale-row check uses the host's own projections (required: a
   // portable body never falls back to one host's projections; a host's legacy shim adds its pair).
   const bound = { repo: deps.repo, saveServer: (save: Parameters<AgentPluginMcpPort['saveServer']>[0]) => deps.saveServer(save), projections: deps.projections, classifyError: deps.classifyError };
 
   for (const planned of plan.toUpsert) {
-    const outcome = await provisionPlannedServer({ deps: bound, input, planned });
-    if (outcome.kind === "failed") failed.push({ serverKey: planned.serverKey, reason: outcome.reason, ...(outcome.error === undefined ? {} : { error: outcome.error }) });
+    const outcome = await provisionPlannedServer({ deps: bound, input, planned, report });
+    if (outcome.kind === "failed") failed.push({ serverKey: planned.serverKey, reason: outcome.reason });
     else if (outcome.kind === "provisioned") provisioned.push(planned.connectionId);
     else if (outcome.kind === "adopted") adopted.push(planned.connectionId);
     else alreadyProvisioned.push(planned.connectionId);
@@ -574,10 +576,11 @@ async function provisionPlannedServer(
     readonly deps: AgentPluginMcpProjectionPorts & Pick<AgentPluginMcpPort, "repo" | "saveServer">;
     readonly input: ProvisionAgentPluginMcpServersInput;
     readonly planned: PlannedAgentPluginMcpUpsert;
+    readonly report: Pick<Logger, 'warn'>;
   },
   _options = {},
-): Promise<{ readonly kind: "provisioned" | "alreadyProvisioned" | "adopted" } | { readonly kind: "failed"; readonly reason: string; readonly error?: unknown }> {
-  const { deps, input, planned } = required;
+): Promise<{ readonly kind: "provisioned" | "alreadyProvisioned" | "adopted" } | { readonly kind: "failed"; readonly reason: string }> {
+  const { deps, input, planned, report } = required;
   try {
     const existing = await deps.repo.findByServerId({ workspaceId: input.workspaceId, serverId: planned.connectionId });
     if (existing) {
@@ -590,6 +593,8 @@ async function provisionPlannedServer(
     await deps.saveServer(buildProvisioningSaveInput(planned, input));
     return { kind: "provisioned" };
   } catch (err) {
-    return { kind: "failed", reason: err instanceof Error ? err.message : String(err), error: err };
+    const logger = report;
+    logger.warn({ message: 'MCP provisioning write failed' }, { error: err });
+    return { kind: "failed", reason: 'MCP provisioning write failed' };
   }
 }

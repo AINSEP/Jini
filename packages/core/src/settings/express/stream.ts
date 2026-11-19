@@ -1,4 +1,4 @@
-import { describeErrorForLog } from '../../model-facing-tool-errors.js';
+import { createConsoleLogger } from '../../primitives/logger.js';
 import type { Request, Response } from "express";
 import type { Authorize, SettingsChangeFeed, SettingsHttpOptions, Scheduler } from "./contracts.js";
 
@@ -134,11 +134,12 @@ function readStreamTimings(optional: SettingsHttpOptions): {
 }
 
 function createErrorReporter(optional: SettingsHttpOptions): (operation: string, error: unknown) => void {
+  const logger = createConsoleLogger({ prefix: '[settings]' });
   return (operation, error) => {
     // Reporting is best-effort: a host hook must never turn recovery into an unhandled rejection.
     try {
       if (optional.onError) optional.onError({ operation, error });
-      else console.error(`[settings] change feed ${operation} failed`, describeErrorForLog({ err: error }));
+      else logger.error({ message: `change feed ${operation} failed` }, { error });
     } catch { /* Diagnostic failures cannot interrupt stream cleanup or retries. */ }
   };
 }

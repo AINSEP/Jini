@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
+import { createConsoleLogger } from '../packages/core/src/primitives/logger.js';
 import { runHardwiring } from '../packages/devops/src/checks/hardwiring-node.js';
 import { createHardwiringInspector, diffHardwiringDebt, HARDWIRING_RULES } from '../packages/devops/src/checks/hardwiring.js';
 import type { HardwiringViolation } from '../packages/devops/src/checks/hardwiring.js';
@@ -10,6 +11,7 @@ import { sourcePackages, packageSourceFiles } from './lib/package-sources.js';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const debtPath = join(root, 'scripts/hardwiring-debt.json');
+const logger = createConsoleLogger({ prefix: '' });
 
 function pluginIdentity(file: string): string | undefined {
   return file.replaceAll('\\', '/').match(/(?:^|\/)packages\/(agent-plugins|plugins)(?:\/|$)/)?.[1];
@@ -42,19 +44,19 @@ export function checkHardwiring(required: { repoRoot: string } = { repoRoot: roo
   const current = collectHardwiring(required);
   const baseline = JSON.parse(readFileSync(join(required.repoRoot, 'scripts/hardwiring-debt.json'), 'utf8')) as { violations: HardwiringViolation[] };
   const diff = diffHardwiringDebt({ baseline: baseline.violations, current });
-  for (const rule of HARDWIRING_RULES) console.log(`[hardwiring] ${rule}: ${current.filter((v) => v.rule === rule).length} total; ${diff.added.filter((v) => v.rule === rule).length} new`);
-  if (diff.removed.length) console.log(`[hardwiring] ${diff.removed.length} stale debt occurrences; remove them from scripts/hardwiring-debt.json.`);
+  for (const rule of HARDWIRING_RULES) logger.info({ message: `[hardwiring] ${rule}: ${current.filter((v) => v.rule === rule).length} total; ${diff.added.filter((v) => v.rule === rule).length} new` });
+  if (diff.removed.length) logger.info({ message: `[hardwiring] ${diff.removed.length} stale debt occurrences; remove them from scripts/hardwiring-debt.json.` });
   return diff.added;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   // This script runs in the workspace's CommonJS context; keep async CLI settlement off top-level await.
-  void runHardwiring({ collect: () => collectHardwiring({ repoRoot: root }), debtPath,
+  void runHardwiring({ collect: () => collectHardwiring({ repoRoot: root }), debtPath, report: logger,
       baselineComment: '2026-10-09 hardwiring adoption. Identifying-value occurrence hashes. Shrink after cleanup; never regenerate in CI.' },
     { writeBaseline: process.argv.includes('--write-baseline') }).then(added => {
     if (added.length) process.exitCode = 1;
   }).catch(error => {
-    console.error(`[hardwiring] ${error instanceof Error ? error.message : 'Hardwiring audit failed.'}`);
+    logger.error({ message: '[hardwiring] Hardwiring audit failed.' }, { error });
     process.exitCode = 1;
   });
 }

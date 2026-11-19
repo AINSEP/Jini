@@ -1,5 +1,6 @@
 import { setImmediate } from 'node:timers/promises';
 import { expect, test, vi } from 'vitest';
+import { createConsoleLogger } from '@jini-ai/core/primitives';
 import { followDurableRun, type DurableSubscriptionPorts } from '../assistant-client/durable-run-subscription.js';
 import type { ChatMessage } from '../messages.js';
 
@@ -15,11 +16,12 @@ test('a drop during a checkpoint read latches recovery, ignores the retired stre
   const ports: DurableSubscriptionPorts = { read, stream: input => { streams.push(input); return close; },
     schedule: input => { timers.push(input); return () => {}; } };
   const handlers = { onEvent: vi.fn(), onDone: vi.fn(), onError: vi.fn(), onCheckpoint: vi.fn() };
-  const info = vi.fn();
-  const stop = followDurableRun({ runId: 'run', handlers, ports, notices, bindings: new Map() }, { logger: { info } });
+  const output = vi.spyOn(console, 'info').mockImplementation(() => {});
+  const info = vi.fn(createConsoleLogger({ prefix: '' }).info);
+  const stop = followDurableRun({ runId: 'run', handlers, ports, notices, bindings: new Map() }, { report: { info } });
   try {
     timers[0]!.work();
-    streams[0]!.dropped();
+    streams[0]!.dropped('copper elk private valley');
     streams[0]!.dropped('duplicate');
     streams[0]!.frame('agent', '{"payload":{"type":"text_delta","delta":"stale"}}', '99');
     expect(timers).toHaveLength(1);
@@ -28,7 +30,8 @@ test('a drop during a checkpoint read latches recovery, ignores the retired stre
     expect(handlers.onEvent).not.toHaveBeenCalled();
     expect(handlers.onCheckpoint).toHaveBeenCalledWith(expect.objectContaining({ content: 'saved' }));
     expect(info).toHaveBeenCalledTimes(1);
-    expect(info.mock.calls[0]![0]).toContain('"reason":"stream-error"');
+    expect(info.mock.calls[0]).toEqual([{ message: '[durable-subscription] Stream disconnected; retrying.' }, { meta: { runId: 'run', cursor: '', retryDelayMs: 1000 } }]);
+    expect(JSON.stringify(output.mock.calls)).not.toContain('copper elk private valley');
     expect(timers.map(timer => timer.delayMs)).toEqual([1000, 1000]);
     expect(streams).toHaveLength(2);
     timers[1]!.work();
@@ -36,7 +39,7 @@ test('a drop during a checkpoint read latches recovery, ignores the retired stre
     resolve(null);
     await setImmediate();
     expect(timers).toHaveLength(3);
-  } finally { stop(); }
+  } finally { stop(); output.mockRestore(); }
   const count = read.mock.calls.length;
   timers.at(-1)!.work();
   await setImmediate();

@@ -1,4 +1,4 @@
-import { createControllerStore } from '@jini-ai/core/admin-runtime';
+import { createControllerStore, describeApiError } from '@jini-ai/core/admin-runtime';
 import { queryMedia, countMediaTabs, canRestoreMedia, isRetryableMediaError } from '../rules.js';
 import type { MediaApiPort } from '../ports.js';
 import type { MediaAsset, MediaQuery, UploadInput } from '../models.js';
@@ -56,7 +56,7 @@ function acceptRead({ ctx, all }: { ctx: LibraryCtx; all: readonly MediaAsset[] 
 function failRead({ ctx, error }: { ctx: LibraryCtx; error: unknown }) {
   ctx.readFailed = true;
   ctx.store.set({
-    patch: { loading: false, error: error instanceof Error ? error.message : 'Failed to load media' },
+    patch: { loading: false, error: describeApiError({ e: error, fallback: 'Failed to load media' }) },
   });
   // Retry reads only, never destructive writes. Keep trying at a capped delay so
   // recovery needs no manual repair, while an offline service isn't hammered.
@@ -94,7 +94,7 @@ function settleLibrary({ ctx, all, error }: { ctx: LibraryCtx; all?: readonly Me
     ctx.library = all;
     ctx.store.set({ patch: { ...libraryView({ ctx, media: all }), hasUntyped: all.some(item => item.contentType === null), error: null } });
   }
-  if (error) ctx.store.set({ patch: { error: error.message } });
+  if (error) ctx.store.set({ patch: { error: describeApiError({ e: error, fallback: 'Failed to load media' }) } });
 }
 /** True when a write for this id (or an exclusive write) must be refused. */
 function writeBlocked({ ctx, id }: { ctx: LibraryCtx; id: string | undefined }) {
@@ -120,7 +120,7 @@ async function runWrite({ ctx, run, id }: { ctx: LibraryCtx; run: () => Promise<
     }
   } catch (error) {
     // The store ignores patches once disposed, so a write failing after dispose publishes nothing.
-    store.set({ patch: { loading: false, error: error instanceof Error ? error.message : 'Media write failed' } });
+    store.set({ patch: { loading: false, error: describeApiError({ e: error, fallback: 'Media write failed' }) } });
   } finally {
     if (id === undefined) ctx.exclusiveWrite = false;
     const pendingIds = store.getSnapshot().pendingIds.filter(value => value !== id);

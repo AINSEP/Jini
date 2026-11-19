@@ -1,3 +1,4 @@
+import { createConsoleLogger } from '@jini-ai/core';
 import type { PluginCredentialCard, PluginCredentialField } from "@jini-ai/core/contracts/credentials";
 
 
@@ -64,5 +65,5 @@ function cardMatches({ card, saveKind, target }: { card: PluginCredentialCard; s
  */
 export async function loadPluginCredentialCardsSafely({ loadCards, workspaceId }: { loadCards?: LoadPluginCredentialCards | undefined; workspaceId: string }, options: { warn?: (message: string) => void } = {}): Promise<readonly PluginCredentialCard[]> {
   try { return await loadCards?.(workspaceId) ?? []; }
-  catch { (options.warn ?? console.warn)("[plugin-credential-cards] Optional card lookup failed; using the default credential form."); return []; }
+  catch { (options.warn ?? (message => createConsoleLogger({ prefix: '' }).warn({ message })))("[plugin-credential-cards] Optional card lookup failed; using the default credential form."); return []; }
 }

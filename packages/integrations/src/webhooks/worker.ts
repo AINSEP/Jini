@@ -9,6 +9,7 @@
  */
 
 import { describeErrorForLog } from "@jini-ai/core";
+import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
 
 /** Idle wait between ticks. Short enough that a delivery leaves within seconds, long enough that
  * an idle site costs one indexed `SELECT` per interval. */
@@ -71,6 +72,7 @@ export interface WebhookDeliveryWorkerOptional {
   stopGraceMs?: number;
   scheduler?: WebhookDeliveryScheduler;
   log?: (line: string) => void;
+  report?: Pick<Logger, 'error' | 'warn'>;
 }
 
 /** The abort reason a running pass sees; recorded as the interrupted attempt's error. */
@@ -110,7 +112,8 @@ export function startWebhookDeliveryWorker(
   required: WebhookDeliveryWorkerRequired,
   optional: WebhookDeliveryWorkerOptional = {},
 ): WebhookDeliveryWorker {
-  const { intervalMs = WEBHOOK_DELIVERY_INTERVAL_MS, stopGraceMs = WEBHOOK_DELIVERY_STOP_GRACE_MS, scheduler = nodeWebhookDeliveryScheduler, log = (line: string) => console.error(line) } = optional;
+  const { intervalMs = WEBHOOK_DELIVERY_INTERVAL_MS, stopGraceMs = WEBHOOK_DELIVERY_STOP_GRACE_MS, scheduler = nodeWebhookDeliveryScheduler, log, report = createConsoleLogger({ prefix: '' }) } = optional;
+  const logger = report;
   assertPositiveFinite(intervalMs, "intervalMs");
   assertPositiveFinite(stopGraceMs, "stopGraceMs");
   const controller = new AbortController();
@@ -120,7 +123,10 @@ export function startWebhookDeliveryWorker(
     if (controller.signal.aborted) return Promise.resolve();
     running ??= required.processDue({ signal: controller.signal }).then(
       () => undefined,
-      (error: unknown) => log(describeWebhookTickError({ error })),
+      (error: unknown) => {
+        if (log) log(describeWebhookTickError({ error }));
+        else logger.error({ message: WEBHOOK_DELIVERY_FAILED_LINE }, { error });
+      },
     ).finally(() => { running = undefined; });
     return running;
   };
@@ -135,7 +141,10 @@ export function startWebhookDeliveryWorker(
     const late = new Promise<"late">((resolve) => { grace = scheduler.after({ ms: stopGraceMs, run: () => resolve("late") }); });
     const outcome = await Promise.race([running, late]);
     grace.cancel();
-    if (outcome === "late") log(WEBHOOK_DELIVERY_STOP_LATE_LINE);
+    if (outcome === "late") {
+      if (log) log(WEBHOOK_DELIVERY_STOP_LATE_LINE);
+      else logger.warn({ message: WEBHOOK_DELIVERY_STOP_LATE_LINE });
+    }
   };
 
   return { tick, stop };

@@ -26,7 +26,7 @@ describe('useConnectorCatalog', () => {
     rerender({ refreshKey: 1 });
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.connectors).toEqual([original]);
-    expect(diagnostic.mock.calls).toEqual([['[connectors] Catalog load failed.']]);
+    expect(diagnostic.mock.calls).toEqual([['[connectors] Catalog load failed.', 'Error']]);
 
     rerender({ refreshKey: 2 });
     await waitFor(() => expect(result.current.connectors).toEqual([updated]));
@@ -47,7 +47,7 @@ describe('useConnectorCatalog', () => {
     expect(result.current.enriching).toBe(false);
     expect(result.current.enriched).toBe(false);
     expect(result.current.connectors).toEqual([original]);
-    expect(diagnostic.mock.calls).toEqual([['[connectors] Catalog enrichment failed.']]);
+    expect(diagnostic.mock.calls).toEqual([['[connectors] Catalog enrichment failed.', 'Error']]);
 
     rerender({ refreshKey: 1 });
     await waitFor(() => expect(result.current.enriched).toBe(true));

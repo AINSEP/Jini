@@ -5,7 +5,7 @@
  * required `grantSignedInDefaults` port (pinned by `portable-plugin-host.no-cycle` test).
  * Discovery is metadata-only and fresh on each call so disable/uninstall cannot leave stale grants. */
 import type { Clock } from "@jini-ai/core/primitives";
-import { describeErrorForLog, redactSecrets, ToolInputError, type AccessApprovalResource } from '@jini-ai/core';
+import { createConsoleLogger, type Logger, describeErrorForLog, redactSecrets, ToolInputError, type AccessApprovalResource } from '@jini-ai/core';
 import { createPluginLookup, readPluginIdentity, assertPluginIdentityAvailable, type PluginIdentityCandidate, type PluginLookupPort, type PluginProvider } from '@jini-ai/core/plugin-directory';
 import type { InstalledAgentPlugin } from '../../lifecycle/types.js';
 import type { SetAgentPluginEnabledInput, SetAgentPluginEnabledResult } from '../../lifecycle/set-enabled.js';
@@ -81,11 +81,12 @@ export interface PluginHostMessages extends AgentPluginEnableAccessMessages {
    * been provisioned or granted when this is thrown. */
   approvedSnapshotMissing(): string;
   /** @agent-note Product copy when an approved enable's provisioning/grant threw; `detail` is the
-   * raw error message (unredacted) — the result is passed through `redactSecrets`. */
+   * safe error class/code summary — the result is passed through `redactSecrets`. */
   approvedLoadFailed(required: { detail: string }): string;
 }
 
 export interface PluginHostDeps<UninstallInput, Layout extends AgentPluginLayoutInput = AgentPluginLayoutInput> {
+  readonly report?: Pick<Logger, 'warn'>;
   readonly workspaceId: string;
   readonly agentPluginLayout: Layout;
   readonly clock: Clock;
@@ -156,8 +157,8 @@ export interface PortablePluginHost<UninstallInput> extends PluginLookupPort {
  * report a partial failure to its caller. O(s) in failed declared servers, no extra I/O.
  */
 function reportProvisioningFailures({ pluginId, failed, approved, warn, messages }: { pluginId: string; failed: readonly ProvisioningFailure[]; approved: boolean; warn: (message: string) => void; messages: PluginHostMessages }): void {
-  // A caught write failure logs its class only; a refused adoption (no `error`) logs its own fixed-word reason.
-  for (const failure of failed) warn(redactSecrets({ input: `Plugin '${pluginId}': MCP provisioning for server '${failure.serverKey}' failed — ${failure.error === undefined ? failure.reason : describeErrorForLog({ err: failure.error })}` }));
+  // Provisioning already reported caught exceptions; this callback sees only safe failure reasons.
+  for (const failure of failed) warn(redactSecrets({ input: `Plugin '${pluginId}': MCP provisioning for server '${failure.serverKey}' failed — ${failure.reason}` }));
   if (approved && failed.length) throw new ToolInputError({ message: redactSecrets({ input: messages.provisioningFailed({ pluginId, failed }) }) });
 }
 
@@ -251,7 +252,7 @@ async function provisionPluginMcp<UninstallInput, Layout extends AgentPluginLayo
   try {
     const approvedEnable = execution.approvedEnable ? { principalId, accessKey: requireApprovedAccessKey(execution.approvedEnableKey, deps.messages) } : undefined;
     const servers = await resolveServers(pluginId);
-    const result = await (optional.provisionMcpServers ?? provisionAgentPluginMcpServers)(mcp, { workspaceId: deps.workspaceId, pluginId, servers, principalId, classifyTrust: deps.classifyTrust, messages: deps.messages });
+    const result = await (optional.provisionMcpServers ?? provisionAgentPluginMcpServers)(mcp, { workspaceId: deps.workspaceId, pluginId, servers, principalId, classifyTrust: deps.classifyTrust, messages: deps.messages }, { ...(deps.report ? { report: deps.report } : {}) });
     reportProvisioningFailures({ pluginId, failed: result.failed, approved: execution.approvedEnable === true, warn, messages: deps.messages });
     // Same as the admin toggle: an account signed in while the plugin was off gets the plugin's
     // declared tools now (bug 2026-11-04, the host's sign-in grant owner).
@@ -262,9 +263,10 @@ async function provisionPluginMcp<UninstallInput, Layout extends AgentPluginLayo
       servers,
     }, { skipServerKeys: result.failed.map(failure => failure.serverKey), ...(approvedEnable ? { approvedEnable } : {}) });
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
+    const detail = describeErrorForLog({ err: error });
+    const logger = deps.report ?? createConsoleLogger({ prefix: '[agent-plugins]' });
+    logger.warn({ message: 'MCP provisioning could not run.' }, { error });
     if (execution.approvedEnable) throw new ToolInputError({ message: redactSecrets({ input: deps.messages.approvedLoadFailed({ detail }) }) });
-    warn(redactSecrets({ input: `Plugin '${pluginId}': MCP provisioning could not run — ${describeErrorForLog({ err: error })}` }));
   }
 
 }

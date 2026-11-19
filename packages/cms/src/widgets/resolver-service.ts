@@ -1,4 +1,5 @@
 import type { PluginExportsPort } from "./html/plugin-export.js";
+import { createConsoleLogger, type Logger } from "@jini-ai/core/primitives";
 import { isNonArrayRecord } from "@jini-ai/core";
 import { resolveGalleryEmbeds } from "./gallery-resolver.js";
 import { isPlausibleMediaRefId } from "./markers/media-reference.js";
@@ -50,6 +51,7 @@ import type {
 } from "./types.js";
 
 export interface ResolvePageWidgetsDeps {
+  report?: Pick<Logger, "warn">;
   bindingRepo: WidgetRegionBindingRepoPort;
   entryRepo: EntryRepoPort & EntryListPort;
 }
@@ -60,7 +62,7 @@ export interface ResolvePageWidgetsDeps {
  * placements, which an `"html"`-format Page has no concept of). `ResolvePageWidgetsDeps` remains a
  * structural supertype of this, so `resolvePageWidgets` passes its own full deps through unchanged.
  */
-type WidgetInstanceResolutionDeps = Pick<ResolvePageWidgetsDeps, "entryRepo">;
+type WidgetInstanceResolutionDeps = Pick<ResolvePageWidgetsDeps, "entryRepo" | "report">;
 
 export interface ResolvePageWidgetsInput {
   readonly workspaceId: UUID;
@@ -274,7 +276,7 @@ function collectReferencedWidgetIds(
 
 export async function resolvePageWidgets(required: ResolvePageWidgetsRequired, _optional: Record<string, never> = {}): Promise<ResolvePageWidgetsResult> {
   const { deps, input } = required;
-  const context: WidgetResolveContext = { workspaceId: input.workspaceId, preview: false };
+  const context: WidgetResolveContext = { workspaceId: input.workspaceId, preview: false, report: deps.report ?? createConsoleLogger({ prefix: "widgets" }) };
 
   const regionPlacements = await resolveRegionPlacements(deps, input.workspaceId, input.resolvedRegions);
 
@@ -445,10 +447,7 @@ async function resolveWidgetSlugsToIds(
     Array.from(distinctSlugs).map(async (slug) => {
       const entry = await deps.entryRepo.findBySlug({ workspaceId: context.workspaceId, type: WIDGET_CONTENT_TYPE, slug });
       if (!entry) {
-        console.warn('[widgets] resolveHtmlPageEmbeds: unresolved "widget" reference — no widget with that slug', {
-          workspaceId: context.workspaceId,
-          slug,
-        });
+        (context.report ?? createConsoleLogger({ prefix: "widgets" })).warn({ message: '[widgets] resolveHtmlPageEmbeds: unresolved "widget" reference — no widget with that slug' });
         return;
       }
       idBySlug.set(slug, entry.id);
@@ -494,9 +493,7 @@ function collectWidgetIdsToLoad(
     if (ref.id !== null) {
       ids.add(ref.id);
     } else if (ref.slug === null) {
-      console.warn('[widgets] resolveHtmlPageEmbeds: unresolved "widget" reference — missing or invalid "id"/"slug" in data-embed-config', {
-        workspaceId: context.workspaceId,
-      });
+      (context.report ?? createConsoleLogger({ prefix: "widgets" })).warn({ message: '[widgets] resolveHtmlPageEmbeds: unresolved "widget" reference — missing or invalid "id"/"slug" in data-embed-config' });
     } else {
       // Slug-addressed references are added from the shared batched lookup below.
     }
@@ -643,10 +640,7 @@ function parseMediaEmbedRef(
   const assetId = ref.id ?? ref.slug;
   const transformName = ref.variant ?? host.media.publicTransformName;
   if (assetId === null || !isPlausibleMediaRefId({ value: assetId }) || !isPlausibleMediaRefId({ value: transformName })) {
-    console.warn(
-      '[widgets] resolveHtmlPageEmbeds: unresolved "media" reference — missing or invalid "id"/"slug"/"variant" in data-embed-config',
-      { workspaceId: context.workspaceId }
-    );
+    (context.report ?? createConsoleLogger({ prefix: "widgets" })).warn({ message: '[widgets] resolveHtmlPageEmbeds: unresolved "media" reference — missing or invalid "id"/"slug"/"variant" in data-embed-config' });
     return undefined;
   }
   return { assetId, transformName };
@@ -668,11 +662,7 @@ async function buildMediaImageIr(
     input: { workspaceId: context.workspaceId, name: transformName },
   });
   if (!definition) {
-    console.warn('[widgets] resolveHtmlPageEmbeds: unresolved "media" reference — transform not registered', {
-      workspaceId: context.workspaceId,
-      assetId,
-      transformName,
-    });
+    (context.report ?? createConsoleLogger({ prefix: "widgets" })).warn({ message: '[widgets] resolveHtmlPageEmbeds: unresolved "media" reference — transform not registered' });
     return undefined;
   }
   return {
@@ -769,10 +759,7 @@ async function resolveOneMediaEmbed(
 
   const record = await findMediaEmbedRecord({ ref, refAssetId, mediaRepo, context, host });
   if (!record || record.status !== "active") {
-    console.warn('[widgets] resolveHtmlPageEmbeds: unresolved "media" reference — no such asset', {
-      workspaceId: context.workspaceId,
-      assetId: refAssetId,
-    });
+    (context.report ?? createConsoleLogger({ prefix: "widgets" })).warn({ message: '[widgets] resolveHtmlPageEmbeds: unresolved "media" reference — no such asset' });
     return undefined;
   }
   const canonicalAssetId = record.id;
@@ -799,10 +786,7 @@ async function resolveMediaTypeEmbeds(
   const { mediaRepo, transformRepo, mediaContentTypeStore } = deps;
   if (!mediaRepo || !transformRepo) {
     if (refs.length > 0) {
-      console.warn(
-        '[widgets] resolveHtmlPageEmbeds: "media" embeds present but no mediaRepo/transformRepo dependency was supplied — every occurrence degrades to the placeholder',
-        { workspaceId: context.workspaceId, occurrences: refs.length }
-      );
+      (context.report ?? createConsoleLogger({ prefix: "widgets" })).warn({ message: '[widgets] resolveHtmlPageEmbeds: "media" embeds present but no mediaRepo/transformRepo dependency was supplied — every occurrence degrades to the placeholder' });
     }
     return resolved;
   }
@@ -1069,10 +1053,7 @@ async function resolvePostTypeEmbeds(
   const { postRepo } = deps;
   if (!postRepo) {
     if (refs.length > 0) {
-      console.warn(
-        '[widgets] resolveHtmlPageEmbeds: "post" embeds present but no postRepo dependency was supplied — every occurrence degrades to the placeholder',
-        { workspaceId: context.workspaceId, occurrences: refs.length }
-      );
+      (context.report ?? createConsoleLogger({ prefix: "widgets" })).warn({ message: '[widgets] resolveHtmlPageEmbeds: "post" embeds present but no postRepo dependency was supplied — every occurrence degrades to the placeholder' });
     }
     return resolved;
   }
@@ -1081,17 +1062,12 @@ async function resolvePostTypeEmbeds(
     refs.map(async (ref) => {
       const key = ref.id ?? ref.slug;
       if (key === null) {
-        console.warn('[widgets] resolveHtmlPageEmbeds: unresolved "post" reference — missing or invalid "id"/"slug" in data-embed-config', {
-          workspaceId: context.workspaceId,
-        });
+        (context.report ?? createConsoleLogger({ prefix: "widgets" })).warn({ message: '[widgets] resolveHtmlPageEmbeds: unresolved "post" reference — missing or invalid "id"/"slug" in data-embed-config' });
         return;
       }
       const post = await findPublishedPostByRef(postRepo, ref, context, deps.host);
       if (!post) {
-        console.warn('[widgets] resolveHtmlPageEmbeds: unresolved "post" reference — no such published post', {
-          workspaceId: context.workspaceId,
-          postId: key,
-        });
+        (context.report ?? createConsoleLogger({ prefix: "widgets" })).warn({ message: '[widgets] resolveHtmlPageEmbeds: unresolved "post" reference — no such published post' });
         return;
       }
       const renderContext = await resolvePostContentRenderContext(deps, post.bodyJson, context);
@@ -1145,9 +1121,7 @@ async function resolveOneContentEmbed({ ref, deps, context, resolved }: {
   const { postRepo, pendingContentOverride } = deps;
   const key = ref.id ?? ref.slug;
   if (key === null) {
-    console.warn('[widgets] resolveHtmlPageEmbeds: unresolved "content" reference — missing or invalid "id"/"slug" in data-embed-config', {
-      workspaceId: context.workspaceId,
-    });
+    (context.report ?? createConsoleLogger({ prefix: "widgets" })).warn({ message: '[widgets] resolveHtmlPageEmbeds: unresolved "content" reference — missing or invalid "id"/"slug" in data-embed-config' });
     return;
   }
 
@@ -1170,17 +1144,11 @@ async function resolveOneContentEmbed({ ref, deps, context, resolved }: {
 
   const entity = await findPublishedPostByRef(postRepo, ref, context, deps.host);
   if (!entity) {
-    console.warn('[widgets] resolveHtmlPageEmbeds: unresolved "content" reference — no such published entity', {
-      workspaceId: context.workspaceId,
-      entityId: key,
-    });
+    (context.report ?? createConsoleLogger({ prefix: "widgets" })).warn({ message: '[widgets] resolveHtmlPageEmbeds: unresolved "content" reference — no such published entity' });
     return;
   }
   if (entity.bodyFormat === "html") {
-    console.warn(
-      '[widgets] resolveHtmlPageEmbeds: unresolved "content" reference — html-format entity reached the registry resolver instead of the recursive pre-splice pass (depth/budget guard, or a direct reference outside a template render)',
-      { workspaceId: context.workspaceId, entityId: key }
-    );
+    (context.report ?? createConsoleLogger({ prefix: "widgets" })).warn({ message: '[widgets] resolveHtmlPageEmbeds: unresolved "content" reference — html-format entity reached the registry resolver instead of the recursive pre-splice pass (depth/budget guard, or a direct reference outside a template render)' });
     return;
   }
   resolved.set(key, await postContentIr({ source: entity, ref, deps, context }));
@@ -1263,10 +1231,7 @@ async function resolveContentTypeEmbeds(
   const { postRepo, pendingContentOverride } = deps;
   if (!postRepo && !pendingContentOverride) {
     if (refs.length > 0) {
-      console.warn(
-        '[widgets] resolveHtmlPageEmbeds: "content" embeds present but no postRepo dependency was supplied — every occurrence degrades to the placeholder',
-        { workspaceId: context.workspaceId, occurrences: refs.length }
-      );
+      (context.report ?? createConsoleLogger({ prefix: "widgets" })).warn({ message: '[widgets] resolveHtmlPageEmbeds: "content" embeds present but no postRepo dependency was supplied — every occurrence degrades to the placeholder' });
     }
     return resolved;
   }
@@ -1307,14 +1272,14 @@ export const HTML_EMBED_RESOLVERS: Readonly<Record<string, HtmlEmbedResolver>> =
     const content = await resolveGalleryEmbeds({
       refs: inline.map(ref => ({ ...ref, config: (ref.config?.content ?? ref.config) as Readonly<Record<string, unknown>> })),
       resolveMedia: ({ refs }) => resolveMediaTypeEmbeds(refs, deps, context),
-    }, { reportIssue: ({ key, messages }) => console.warn('[widgets] unresolved media content', { key, messages }) });
+    }, { reportIssue: () => (context.report ?? createConsoleLogger({ prefix: "widgets" })).warn({ message: '[widgets] unresolved media content' }) });
     return new Map([...media, ...content]);
   },
   gallery: (refs, deps, context) => resolveGalleryEmbeds({
     refs,
     resolveMedia: ({ refs: mediaRefs }) => resolveMediaTypeEmbeds(mediaRefs, deps, context),
   }, {
-    reportIssue: ({ key, messages }) => console.warn('[widgets] unresolved gallery embed', { workspaceId: context.workspaceId, key, messages }),
+    reportIssue: () => (context.report ?? createConsoleLogger({ prefix: "widgets" })).warn({ message: '[widgets] unresolved gallery embed' }),
   }),
   post: resolvePostTypeEmbeds,
   content: resolveContentTypeEmbeds,

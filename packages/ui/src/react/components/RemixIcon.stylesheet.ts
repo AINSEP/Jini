@@ -1,3 +1,4 @@
+import { createConsoleLogger, type Logger } from '@jini-ai/core';
 import { startRemixIconStylesheetRecovery } from './remixicon-font-recovery.js';
 
 /** Start once per installed sheet, waiting for linked CSS before inspecting its font source. */
@@ -48,10 +49,11 @@ let warned = false;
  * @complexity O(1) time, O(1) space.
  * @overallScore 100
  */
-function warnOnce(message: string): void {
+function warnOnce({ message }: { message: string }, { report }: { report?: Pick<Logger, 'warn'> | undefined } = {}): void {
   if (warned) return;
   warned = true;
-  console.warn(`[@jini-ai/ui] RemixIcon: ${message}`);
+  const logger = report ?? createConsoleLogger({ prefix: '[@jini-ai/ui] RemixIcon:' });
+  logger.warn({ message });
 }
 
 const OPT_IN_HINT =
@@ -168,7 +170,7 @@ function resolveDefaultStylesheetHref(): string | null {
  * @complexity O(n + r) including recovery, for n stylesheet rules and r bounded retries.
  * @overallScore 100
  */
-export function ensureRemixIconStylesheet(_input: object, _optional: object = {}): void {
+export function ensureRemixIconStylesheet(_input: object, { report }: { report?: Pick<Logger, 'warn'> | undefined } = {}): void {
   if (injected || typeof document === 'undefined') return;
   const existing = document.querySelector(`[${REMIXICON_STYLESHEET_MARKER}]`);
   if (existing) {
@@ -181,7 +183,7 @@ export function ensureRemixIconStylesheet(_input: object, _optional: object = {}
     // Claiming the marker with a stylesheet that cannot work would block a later override, so
     // stay out of the way entirely and let the host know why its icons are blank.
     injected = true;
-    warnOnce(`this bundle defeated the default stylesheet's own URL resolution. ${OPT_IN_HINT}`);
+    warnOnce({ message: `this bundle defeated the default stylesheet's own URL resolution. ${OPT_IN_HINT}` }, { report });
     return;
   }
   const link = document.createElement('link');
@@ -199,7 +201,7 @@ export function ensureRemixIconStylesheet(_input: object, _optional: object = {}
     // under strict MIME checking, which is specified to fire `error` — but that has not been
     // exercised here, so treat the warning as a bonus in that shape, not a guarantee.
     link.remove();
-    warnOnce(`the default stylesheet failed to load from ${href}. ${OPT_IN_HINT}`);
+    warnOnce({ message: `the default stylesheet failed to load. ${OPT_IN_HINT}` }, { report });
   });
   recoverFont({ stylesheet: link });
   document.head.appendChild(link);

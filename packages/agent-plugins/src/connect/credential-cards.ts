@@ -1,3 +1,4 @@
+import { createConsoleLogger } from '@jini-ai/core';
 import { parsePluginCredentialCards } from '../lifecycle/credential-card-metadata.js';
 import type { PluginContributionDefinition } from '../lifecycle/contribution-loader.js';
 import type { PluginCredentialCard } from "@jini-ai/core/contracts/credentials";
@@ -21,12 +22,12 @@ export function mergePluginCredentialCards({ mailCards, manifestCards }: { mailC
   for (const card of cards) counts.set(card.providerId, (counts.get(card.providerId) ?? 0) + 1);
   const accepted = manifestCards.filter(card => {
     if (counts.get(card.providerId) === 1) return true;
-    (options.onRefusal ?? console.warn)(`duplicate plugin credential card target '${card.providerId}' was refused`);
+    (options.onRefusal ?? (message => createConsoleLogger({ prefix: '' }).warn({ message })))(`duplicate plugin credential card target '${card.providerId}' was refused`);
     return false;
   });
   return [...mailCards, ...accepted].filter(card => {
     if (!isApiCard({ value: card }) || !conflictingLabels.has(card.label)) return true;
-    (options.onRefusal ?? console.warn)(`duplicate API credential label '${card.label}' from '${card.pluginId ?? card.providerId}' was refused`);
+    (options.onRefusal ?? (message => createConsoleLogger({ prefix: '' }).warn({ message })))(`duplicate API credential label '${card.label}' from '${card.pluginId ?? card.providerId}' was refused`);
     return false;
   });
 }

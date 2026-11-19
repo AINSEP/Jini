@@ -81,7 +81,11 @@ export function fixture(optional: { setting?: MailProviderSetting | null; saved?
   const provider = fixtureProvider({ keys, sends, result: () => answers.single, batch: () => answers.batch });
   if (optional.keyless) Object.assign(provider, { credentialKeys: [] });
   const clock = { nowMs: () => Date.parse("2026-10-22T10:00:00.000Z") };
-  const consoleProvider = createConsoleMailProvider({ clock }, { log: line => logs.push(line) });
+  const consoleProvider = createConsoleMailProvider({ clock, preview: ({ message }) => {
+    // Prefer readable text, falling back to HTML so local sign-in and confirmation links stay usable.
+    const body = message.text ?? message.html;
+    logs.push(`[mail:console] to=${message.to.email} subject=${JSON.stringify(message.subject)}${body === undefined ? '' : `\n${body}`}`);
+  } });
   const registry = createMailProviderRegistry({}, { builtins: [provider, consoleProvider] });
   const catalog: MailProviderCatalog = {
     registry, pluginIds: [], refusals: [],

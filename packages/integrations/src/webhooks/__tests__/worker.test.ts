@@ -102,7 +102,7 @@ test("a failed tick is logged scrubbed and the loop continues; the default log i
   const errors = vi.spyOn(console, "error").mockImplementation(() => {});
   try {
     await startWebhookDeliveryWorker({ processDue: async () => { throw new Error("db closed"); } }, { scheduler: fakeScheduler().scheduler }).tick();
-    assert.deepEqual(errors.mock.calls, [[`${WEBHOOK_DELIVERY_FAILED_LINE}: Error`]]);
+    assert.deepEqual(errors.mock.calls, [[WEBHOOK_DELIVERY_FAILED_LINE, "Error"]]);
   } finally { errors.mockRestore(); }
 });
 

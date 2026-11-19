@@ -212,7 +212,7 @@ async function applyInTx(env: Env, tx: LedgerTx, row: InboxRecord, found: Locate
 function verdictForThrow(error: unknown, paymentId: string | null, evidence: PaymentEvidence): Verdict {
   if (error instanceof LedgerConstraintError) {
     const reason = error.kind === "unique" ? "ref-conflict" : `constraint-${error.kind}`;
-    return { kind: "dead", error: error.message, paymentId, quarantine: { reason, evidenceJson: JSON.stringify(evidence) } };
+    return { kind: "dead", error: `Ledger constraint failed (${error.kind}).`, paymentId, quarantine: { reason, evidenceJson: JSON.stringify(evidence) } };
   }
   return { kind: "retry", error: `apply threw ${(error as Error)?.name ?? "a non-error"}`, paymentId };
 }

@@ -21,6 +21,7 @@
 import { redactSecrets, redactSecretsWithCounts } from "@jini-ai/core";
 import type { ProductAiGeneration, ProductAnalyticsPort, ProductEventProperties } from "@jini-ai/core/contracts/observability";
 import type { JsonObject } from "@jini-ai/core/primitives";
+import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
 
 import { validateEventProps } from "../privacy.js";
 export { createAiGenerationSink } from "./ai-generations.js";
@@ -52,6 +53,7 @@ export type ProductAnalyticsConsent = (input: { userId: string }) => boolean | P
 export type ProductAnalyticsConsentRevision = (input: { userId: string }) => string | number;
 
 export interface ProductAnalyticsGuardOptions {
+  report?: Pick<Logger, 'warn'>;
   /** Required for async consent: the guard cannot observe settings changes on its own, so without
    * it every promised answer is dropped (fail closed) and the wrapper warns once on the console.
    * Synchronous consent needs none. A failed
@@ -99,20 +101,20 @@ function generationContent({ input, output }: { input?: string; output?: string 
  * @returns A guarded port; the noop stays the noop (zero cost when no vendor is configured).
  * @complexity O(p + t) per event for properties and opt-in text; O(d) in-flight consent decisions.
  */
-export function withProductAnalyticsGuards({ inner, consent }: { inner: ProductAnalyticsPort; consent: ProductAnalyticsConsent }, { consentRevision }: ProductAnalyticsGuardOptions = {}): ProductAnalyticsPort {
+export function withProductAnalyticsGuards({ inner, consent }: { inner: ProductAnalyticsPort; consent: ProductAnalyticsConsent }, { consentRevision, report }: ProductAnalyticsGuardOptions = {}): ProductAnalyticsPort {
   if (isNoopProductAnalytics(inner)) return inner;
   // Keep generations only while decisions are in flight; past users do not accumulate here.
   const pending = new Map<string, { generation: number; count: number }>();
   let reportedMissingRevision = false;
   /** Once per wrapper: an async consent with no revision is a host misconfiguration (every promised
-   * approval is dropped), so say so instead of losing all events silently. The wrapper has no
-   * diagnostic hook, hence the console. Guarded locally: a throw escaping into `whenAllowed`'s catch
+   * approval is dropped), so say so instead of losing all events silently. The host diagnostic
+   * hook has a safe default. Guarded locally: a throw escaping into `whenAllowed`'s catch
    * would skip attaching handlers to the consent promise and leave a rejection unhandled. */
   const reportMissingRevision = (): void => {
     if (reportedMissingRevision) return;
     reportedMissingRevision = true;
     try {
-      console.warn("[analytics/product] async consent without consentRevision: every promised approval is dropped (fail closed). Pass { consentRevision } to withProductAnalyticsGuards.");
+      (report ?? createConsoleLogger({ prefix: '[analytics/product]' })).warn({ message: "async consent without consentRevision: every promised approval is dropped (fail closed). Pass { consentRevision } to withProductAnalyticsGuards." });
     } catch { /* Diagnostics never fail the feature. */ }
   };
   /** Runs `send` only after a current explicit approval; synchronous answers stay synchronous. */

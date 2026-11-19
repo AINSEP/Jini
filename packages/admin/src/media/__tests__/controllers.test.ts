@@ -114,10 +114,10 @@ describe('memory API and controllers', () => {
     failRead = true;
     await controller.load();
     expect(controller.getSnapshot().items?.[0]?.id).toBe(item.id);
-    expect(controller.getSnapshot().error).toBe('offline');
+    expect(controller.getSnapshot().error).toBe('Failed to load media');
     failRead = false;
     expect(await controller.trash({ id: item.id })).toBe(false);
-    expect(controller.getSnapshot().error).toBe('denied');
+    expect(controller.getSnapshot().error).toBe('Media write failed');
     failWrite = false;
     expect(await controller.trash({ id: item.id })).toBe(true);
     expect(controller.getSnapshot().error).toBeNull();

@@ -349,7 +349,7 @@ export function createApprovalProposalStore<TDescription>(
       const answer = await resolveApproval({ signal: prepared.signal, askHuman: async () => approved === true ? { confirmed: true } : { confirmed: false, reason: 'declined' } });
       if (!answer.confirmed) return { status: 'declined' };
       try { return await prepared.execute(); }
-      catch (error) { publish({ ...snapshot, error: error instanceof Error ? error.message : String(error) }); throw error; }
+      catch (error) { publish({ ...snapshot, error: 'The approved action failed.' }); throw error; }
     },
   };
   const request = (required: { description: TDescription; signal: AbortSignal }, optional: { timeoutMs?: number } = {}) =>

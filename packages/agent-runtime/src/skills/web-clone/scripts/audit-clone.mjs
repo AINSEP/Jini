@@ -6,9 +6,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { flag, list, parseCliArgs, rejectUnknown, runIfMain, text as textValue } from "./lib/script-cli.mjs";
 import { errorClassLabel } from "./lib/diagnostic-labels.mjs";
-import { CliUsageError } from "./lib/main-guard.mjs";
+import { createCliStreams, CliUsageError } from "./lib/main-guard.mjs";
 
-export function usage(log) {
+export function usage(log = createCliStreams({}).log) {
   log(`Usage:
   node scripts/audit-clone.mjs --project <clone-dir> [--brand "KOKUYO,Original Brand"] [--out CLONE_AUDIT.md]
     [--recon RECON/original-recon.json] [--strict]
@@ -279,7 +279,7 @@ function audit(argv, io) {
   return args.strict ? 2 : 0;
 }
 
-const DEFAULT_DEPS = { fs, log: console.log, error: console.error, cwd: process.cwd };
+const DEFAULT_DEPS = { fs, ...createCliStreams({}), cwd: process.cwd };
 
 /**
  * CLI entry: writes the audit markdown and returns the exit code — 0 ok/help,
@@ -296,4 +296,4 @@ export function main({ argv }, deps = {}) {
   return code;
 }
 
-await runIfMain({ moduleUrl: import.meta.url, main });
+await runIfMain({ moduleUrl: import.meta.url, main }, { stdout: process.stdout, stderr: process.stderr });

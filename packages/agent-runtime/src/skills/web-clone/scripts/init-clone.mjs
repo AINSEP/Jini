@@ -7,9 +7,9 @@ import path from "node:path";
 import { flag, parseCliArgs, rejectUnknown, runIfMain, text } from "./lib/script-cli.mjs";
 import { trimDashes } from "./lib/trim-dashes.mjs";
 import { errorClassLabel } from "./lib/diagnostic-labels.mjs";
-import { CliUsageError } from "./lib/main-guard.mjs";
+import { createCliStreams, CliUsageError } from "./lib/main-guard.mjs";
 
-export function usage(log) {
+export function usage(log = createCliStreams({}).log) {
   log(`Usage:
   node scripts/init-clone.mjs <slug> [--url <url>] [--mode <mode>] [--level <L1-L6>] [--root <dir>] [--in-place]
 
@@ -140,7 +140,7 @@ function init(argv, io) {
   return 0;
 }
 
-const DEFAULT_DEPS = { fs, log: console.log, error: console.error, cwd: process.cwd };
+const DEFAULT_DEPS = { fs, ...createCliStreams({}), cwd: process.cwd };
 
 /** CLI entry: scaffolds the clone folder; returns 0 ok/help, 1 on usage error or failure. */
 export function main({ argv }, deps = {}) {
@@ -154,4 +154,4 @@ export function main({ argv }, deps = {}) {
   return code;
 }
 
-await runIfMain({ moduleUrl: import.meta.url, main });
+await runIfMain({ moduleUrl: import.meta.url, main }, { stdout: process.stdout, stderr: process.stderr });

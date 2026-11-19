@@ -1,3 +1,4 @@
+import type { Logger } from '@jini-ai/core/primitives';
 /**
  * @module Composer
  *
@@ -28,6 +29,7 @@ import { ComposerDiscoveryMenu, ComposerSlashMenu } from './ComposerDiscovery.js
 import { runComposerHostEffect, useComposerView } from './Composer.hooks.js';
 
 export interface ComposerProps {
+  report?: Pick<Logger, 'error'> | undefined;
   useAgentHandleHook?: typeof useAgentHandle;
   useTHook?: typeof useT;
   useComposerViewHook?: typeof useComposerView;
@@ -106,7 +108,7 @@ export interface ComposerProps {
  */
 export function Composer({
   useAgentHandleHook = useAgentHandle, useTHook = useT, useComposerViewHook = useComposerView,
-  agentHandle, composer, onSend,
+  agentHandle, composer, onSend, report,
   disabled = false,
   sendDisabled = false,
   sendDisabledReason, sendDisabledReasonId, placeholder, slots, attachmentPicker,
@@ -115,7 +117,7 @@ export function Composer({
 }: ComposerProps) {
   const base = useAgentHandleHook({ agentHandle });
   const t = useTHook();
-  const view = useComposerViewHook({ composer, slots, attachmentPicker, workingDirectory, onChangeWorkingDirectory, disabled, sendDisabled, onInterrupt, onSend });
+  const view = useComposerViewHook({ composer, slots, attachmentPicker, workingDirectory, onChangeWorkingDirectory, disabled, sendDisabled, onInterrupt, onSend }, { report });
 
   return (
     <div className="jini-composer">
@@ -126,7 +128,7 @@ export function Composer({
         <ComposerFooterLeading base={base} attachmentPicker={attachmentPicker} disabled={disabled} view={view} t={t}
           workingDirectory={workingDirectory} onChangeWorkingDirectory={onChangeWorkingDirectory} onPickWorkingDirectory={onPickWorkingDirectory} />
         <ComposerFooterTrailing base={base} view={view} t={t} composer={composer} running={running} disabled={disabled}
-          sendDisabled={sendDisabled} onSend={onSend} onCancel={onCancel} sendDisabledReason={sendDisabledReason} sendDisabledReasonId={sendDisabledReasonId} />
+          sendDisabled={sendDisabled} onSend={onSend} onCancel={onCancel} report={report} sendDisabledReason={sendDisabledReason} sendDisabledReasonId={sendDisabledReasonId} />
       </div>
     </div>
   );
@@ -199,10 +201,10 @@ function ComposerFooterLeading({ base, attachmentPicker, disabled, view, t, work
   </>;
 }
 
-function ComposerFooterTrailing({ base, view, t, composer, running, disabled, sendDisabled, onSend, onCancel, sendDisabledReason, sendDisabledReasonId }: {
+function ComposerFooterTrailing({ base, view, t, composer, running, disabled, sendDisabled, onSend, onCancel, sendDisabledReason, sendDisabledReasonId, report }: {
   base: string | undefined; view: ReturnType<typeof useComposerView>; t: Translate; composer: UseComposerResult;
   running: boolean; disabled: boolean; sendDisabled: boolean; onSend: () => void; onCancel: ComposerProps['onCancel'];
-  sendDisabledReason: ComposerProps['sendDisabledReason']; sendDisabledReasonId: ComposerProps['sendDisabledReasonId'];
+  sendDisabledReason: ComposerProps['sendDisabledReason']; sendDisabledReasonId: ComposerProps['sendDisabledReasonId']; report: ComposerProps['report'];
 }) {
   const { footerAccessories, plusMenuItems } = view;
   return <>
@@ -210,7 +212,7 @@ function ComposerFooterTrailing({ base, view, t, composer, running, disabled, se
             line together instead of leaving send alone on it (see the styles' footer rules). */}
         <div className="jini-composer-footer-trailing">
           <AccessorySlot className="jini-composer-footer-accessories">{footerAccessories}</AccessorySlot>
-          <ComposerPlusMenu base={base} items={plusMenuItems} t={t} />
+          <ComposerPlusMenu base={base} items={plusMenuItems} t={t} report={report} />
           <ComposerSendGroup
             base={base}
             running={running}
@@ -336,7 +338,7 @@ function ComposerWorkdirControl({ base, workingDirectory, onChangeWorkingDirecto
   );
 }
 
-function ComposerPlusMenu({ base, items, t }: { base: string | undefined; items: readonly ComposerPlusItem[] | undefined; t: Translate }) {
+function ComposerPlusMenu({ base, items, t, report }: { base: string | undefined; items: readonly ComposerPlusItem[] | undefined; t: Translate; report: ComposerProps['report'] }) {
   if (!items || items.length === 0) return null;
   return (
     <div className="jini-composer-plus-menu">
@@ -346,7 +348,7 @@ function ComposerPlusMenu({ base, items, t }: { base: string | undefined; items:
           type="button"
           {...agentHandleProps({}, { base, action: `extra-${agentHandleSegment({ value: item.id })}`, role: 'button', label: t(item.label) })}
           className="jini-composer-plus-item"
-          onClick={() => runComposerHostEffect({ effectName: 'plusMenuItems.onSelect', effect: () => item.onSelect() })}
+          onClick={() => runComposerHostEffect({ effectName: 'plusMenuItems.onSelect', effect: () => item.onSelect() }, { report })}
           title={t(item.label)}
         >
           {item.icon ?? null}

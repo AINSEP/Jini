@@ -1,3 +1,4 @@
+import { createConsoleLogger } from '@jini-ai/core';
 import { afterEach, expect, test, vi } from 'vitest';
 import { createAdminSurfaceConnections } from '../connections/connections.js';
 
@@ -16,11 +17,14 @@ test('a failed desktop sign-in warns with the error class only and keeps the gen
     callbackInbox: { deposit: () => {}, take: () => null },
     notAvailable: () => new Error('not available'),
   };
-  const port = createAdminSurfaceConnections({ host: host as never, pluginId: 'p', workspaceId: 'ws', principalId: 'admin' });
+  const diagnostics: unknown[] = [];
+  const report = createConsoleLogger({ prefix: '[admin-surfaces]' }, { diagnostics: record => diagnostics.push(record.error) });
+  const port = createAdminSurfaceConnections({ report, host: host as never, pluginId: 'p', workspaceId: 'ws', principalId: 'admin' });
   await port.begin({ connectionId: 'c', action: 'connect' });
   await vi.waitFor(() => expect(warn).toHaveBeenCalledTimes(1));
   const printed = warn.mock.calls.flat().map(String).join('\n');
-  expect(printed).toBe("[admin-surfaces] desktop sign-in for 'p' did not complete: Error");
+  expect(printed).toBe("[admin-surfaces] Desktop sign-in did not complete.\nError");
   for (const banned of ['boom', 'SECRETSECRET', 'connections-log-safety']) expect(printed).not.toContain(banned);
+  expect(diagnostics).toEqual([secret]);
   expect(attempts.get('ref:c')).toEqual({ code: 'sign-in-failed', nextAction: 'reconnect' });
 });

@@ -100,10 +100,11 @@ export async function dispatch<T>({ call }: { call: () => Promise<Outcome<T>> },
   let outcome: Outcome<T> | null | undefined;
   try {
     outcome = await call();
-  } catch (error) {
-    return unknownOutcome({ message: `provider threw: ${error instanceof Error ? error.message : String(error)}` });
+  } catch {
+    return unknownOutcome({ message: "Payment provider operation failed." });
   }
-  return readable({ outcome }) ? outcome : unknownOutcome({ message: "provider returned no readable Outcome" });
+  if (!readable({ outcome })) return unknownOutcome({ message: "provider returned no readable Outcome" });
+  return outcome.kind === "ok" ? outcome : { ...outcome, error: { ...outcome.error, message: "Payment provider operation failed." } };
 }
 
 /** `ok` with a non-null payload, or a `rejected`/`unknown` carrying a complete PaymentError. An unreadable rejection is NOT trusted as "no money moved". */
@@ -135,7 +136,7 @@ export async function markAttempt(
   { tx, deps, attemptId, outcome }: { tx: LedgerTx; deps: OpsDeps; attemptId: string; outcome: Outcome<unknown> },
   _optional: Record<string, never> = {}
 ): Promise<void> {
-  const error = outcome.kind === "ok" ? {} : { errorCode: outcome.error.code, errorMessage: outcome.error.message };
+  const error = outcome.kind === "ok" ? {} : { errorCode: outcome.error.code, errorMessage: "Payment provider operation failed." };
   await tx.updateAttempt({ id: attemptId, patch: { outcome: outcome.kind, ...error, updatedAt: deps.now() } });
 }
 

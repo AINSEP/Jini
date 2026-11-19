@@ -1,3 +1,4 @@
+import type { Logger } from '@jini-ai/core/primitives';
 import React, { type ReactNode } from 'react';
 import { splitOnQuestionForms } from '../../core/index.js';
 import type { ChatMessage } from '../../core/index.js';
@@ -36,11 +37,12 @@ export function useAssistantMessageRenderers({ message, rows, runStreaming, runS
   extGroups: ExtEventGroup[]; footerUsage: ReturnType<typeof usageLayout>['footer']; terminalNotice: string | null; pending: boolean; runSending: boolean;
   sendingLabel: string | undefined; visibleContent: string; flatTools: { rows: readonly ToolTimelineRow[]; key: string }[]; flatExtGroups: ExtEventGroup[];
   UsageSummary: typeof UsageSummaryComponent; ThinkingBlock: typeof ThinkingBlockComponent; AssistantMessageFooter: typeof AssistantMessageFooterComponent;
-}, _options = {}) {
+}, { report }: { report?: Pick<Logger, 'error'> | undefined } = {}) {
   const retriedRows = retriedToolRowIds({ rows });
   const renderToolCard = (row: ToolTimelineRow) => (
     <ToolCard
       key={row.id}
+      report={report}
       retried={retriedRows.has(row.id)}
       use={row.use}
       result={row.result}
@@ -81,7 +83,7 @@ export function useAssistantMessageRenderers({ message, rows, runStreaming, runS
       // `key` includes the event count so a group that failed on an earlier, shorter event list
       // gets a fresh boundary instance (not the still-tripped one) once a new event actually
       // arrives for it, instead of staying tombstoned for the message's whole lifetime.
-      <ExtEventErrorBoundary key={`${group.slot}:${group.events.length}`} name={group.name}>
+      <ExtEventErrorBoundary key={`${group.slot}:${group.events.length}`} name={group.name} report={report}>
         {transcriptRow ? node : <div>{node}</div>}
       </ExtEventErrorBoundary>
     );

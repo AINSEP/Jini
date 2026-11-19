@@ -4,6 +4,7 @@ import type { DurableJsonFile } from "./durable-json.js";
 import { resolveDirectoryHome } from "./directory-home.js";
 import { resolveUserDataDirectories, type UserDirectoryOptions } from "./user-data-directories.js";
 import { detectDirectorySync, type DirectorySyncProvider } from "./directory-sync.js";
+import { createConsoleLogger } from '@jini-ai/core/primitives';
 
 /** An expected settings refusal whose message is safe to show to the caller.
  * Filesystem and persistence failures retain their original errors for private diagnostics.
@@ -49,7 +50,7 @@ export function createDirectoryUserConfig(
     fileAt: (file: string) => DurableJsonFile; canonicalPath: (required: { path: string }) => string;
     exists: (file: string) => boolean; isDirectory: (file: string) => boolean;
     removeFile?: (required: { filePath: string }) => void;
-  }, { env = process.env, cwd = process.cwd(), report = console.warn, ...directoryOptions }: UserDirectoryOptions & { cwd?: string; report?: (message: string) => void } = {},
+  }, { env = process.env, cwd = process.cwd(), report = (message: string) => createConsoleLogger({ prefix: '' }).warn({ message }), ...directoryOptions }: UserDirectoryOptions & { cwd?: string; report?: (message: string) => void } = {},
 ) {
   const directories = resolveUserDataDirectories({ homeDir, appName: policy.appName }, { ...directoryOptions, env });
   const paths = directoryOptions.platform === "win32" ? path.win32 : path;

@@ -155,6 +155,7 @@ function buildChatPaneArguments({ p, runtimeView, apiModeConfigured }: {
 }, _optional = {}) {
   return definedProps({ source: {
     transport: p.transport,
+    report: p.report,
     agents: runtimeView.agents,
     initialMessages: p.initialMessages,
     refreshSignal: p.refreshSignal,
@@ -219,7 +220,7 @@ export function ChatPane({ useAgentHandleHook = useAgentHandle, useTHook = useT,
   // the provider directly over HTTP and never touches the CLI inventory.
   const unavailable = pane.selectedAgent === undefined && !apiModeConfigured;
   const fileDrop = useChatPaneFileDropHook({ enabled: isChatPaneFileDropEnabled({ canUpload: surface.uploadAttachments !== undefined,
-    disabled: p.disabled, unavailable, uploading: pane.isUploadingAttachments }), onFiles: pane.addAttachments });
+    disabled: p.disabled, unavailable, uploading: pane.isUploadingAttachments }), onFiles: pane.addAttachments, report: p.report });
   const slots = buildChatPaneSlots({ surfaceSlots: surface.composerSlots, embed: surface.embed, renderRuntimePicker: () => (
     <AgentRuntimePicker agentHandle={base ? `${base}-runtime` : false} agents={runtimeView.agents} value={pane.selection}
       onChange={pane.setSelection} {...definedProps({ source: { onRescan: runtimeView.rescanAgents } })}

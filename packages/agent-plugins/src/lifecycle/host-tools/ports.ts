@@ -5,7 +5,7 @@
  * `createAgentPluginLifecycle` returns, with object arguments, so a host built on that owner passes it
  * as is. Activation writes stay with the host's one shared queue; these tools only read.
  */
-import type { ToolMetadataById, ToolRegistration } from '@jini-ai/core';
+import type { Logger, ToolMetadataById, ToolRegistration } from '@jini-ai/core';
 import type { createAgentPluginLifecycle } from '../index.js';
 import type { AgentPluginWorkspaceLayout } from '../layout.js';
 import type { PluginMemory } from '../../../core/persistent-state.js';
@@ -64,6 +64,7 @@ export interface HostToolMessages {
 
 /** Every host-tools entry point takes this one bag. */
 export interface AgentPluginHostToolPorts {
+  readonly report?: Pick<Logger, 'warn'>;
   readonly lifecycle: HostToolsLifecyclePort;
   readonly activations: HostToolsActivationsPort;
   readonly layout: HostToolsLayoutPort;

@@ -3,14 +3,14 @@ import fs from "node:fs";
 import path from "node:path";
 import { loadPlaywright, launchChromium } from "./lib/playwright-loader.mjs";
 import { HELP_OPTIONS, num, parseCliArgs, text } from "./lib/cli-args.mjs";
-import { runCli, runIfMain } from "./lib/main-guard.mjs";
+import { createCliStreams, runCli, runIfMain } from "./lib/main-guard.mjs";
 import { errorClassLabel } from "./lib/diagnostic-labels.mjs";
 
 // Hard dependencies are ports with real defaults wired here at the CLI edge;
 // tests pass fakes (no real browser, captured output, fixed clock).
-const DEFAULT_DEPS = { fs, loadPlaywright, launchChromium, log: console.log, error: console.error, now: () => new Date() };
+const DEFAULT_DEPS = { fs, loadPlaywright, launchChromium, ...createCliStreams({}), now: () => new Date() };
 
-export function usage(log = console.log) {
+export function usage(log = createCliStreams({}).log) {
   log(`Usage:
   node scripts/recon-site.mjs --url <url> --out <RECON dir> [--label original|clone] [--widths 1440,768,390] [--wait 1200]
 
@@ -474,4 +474,4 @@ export async function main({ argv }, deps = {}) {
   }, report: io.error });
 }
 
-await runIfMain({ moduleUrl: import.meta.url, main });
+await runIfMain({ moduleUrl: import.meta.url, main }, { stdout: process.stdout, stderr: process.stderr });

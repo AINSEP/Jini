@@ -1,4 +1,4 @@
-import { describeErrorForLog } from '@jini-ai/core';
+import { createConsoleLogger, type Logger } from "@jini-ai/core/primitives";
 import { createHash } from "node:crypto";
 
 import type { Request, RequestHandler } from "express";
@@ -95,11 +95,13 @@ function formOutcome(result: CommentSubmitResult): "comment-pending" | "comment-
  * @complexity O(body length) normalization and hashing plus the ingress port's work.
  */
 export function createCommentSubmitHandler(deps: CommentSubmitRequired, optional: {
+  report?: Pick<Logger, "error">;
   formRedirect?: (required: { request: Request }) => string | undefined;
   /** Best-effort notification after ingress accepts; failure cannot undo the committed comment. */
   onAccepted?: (required: { request: Request; submission: CommentSubmission; comment: { id: string; status: string } }) => void | Promise<void>;
 } = {}): RequestHandler {
   assertSubmitDeps(deps);
+  const logger = optional.report ?? createConsoleLogger({ prefix: "site/comments-submit" });
   return async (req, res) => {
     try {
       const body = req.body as Record<string, unknown>;
@@ -130,7 +132,7 @@ export function createCommentSubmitHandler(deps: CommentSubmitRequired, optional
       // Public, unauthenticated route (this file's own header) — any visitor's malformed or
       // hostile submission must still get a fast, honest response, never a hang; an unguarded
       // failure here is reachable by anyone, not just an authenticated admin.
-      console.error("[site/comments-submit] unexpected error", describeErrorForLog({ err }));
+      logger.error({ message: "Unexpected comment submission failure." }, { error: err });
       res.status(500).json({ error: "internal error", code: "INTERNAL_ERROR" });
     }
   };

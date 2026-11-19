@@ -1,5 +1,6 @@
 import path from "node:path";
 import type { DirectoryRecord } from "./directory-registry.js";
+import { createConsoleLogger } from '@jini-ai/core/primitives';
 
 /** Shared selection policy for CLI/dev hosts. A registry ID disambiguates adopted paths;
  * a basename selects the home first. No initialized home site preserves the supplied fallback.
@@ -14,7 +15,7 @@ export function selectWorkspaceDirectory(
     home: string; entries: readonly DirectoryRecord[]; fallback: string; selected?: string | undefined; roots?: readonly string[];
     listDirectories: (required: { root: string }) => readonly string[];
     isInitialized: (required: { path: string }) => boolean;
-  }, { isAvailable, report = ({ message }) => console.warn(message) }: {
+  }, { isAvailable, report = createConsoleLogger({ prefix: '' }).warn }: {
     isAvailable?: (required: { path: string }) => boolean; report?: (required: { message: string }) => void;
   } = {},
 ): string {

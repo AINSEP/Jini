@@ -133,6 +133,7 @@ function resolveComposerWorkingDirectory(
 }
 
 interface ChatPaneComposerAreaProps {
+  report?: ChatPaneProps['report'];
   agentHandle: string | false;
   fileDrop: UseChatPaneFileDropResult;
   uploadAttachments: ChatPaneProps['uploadAttachments'];
@@ -173,7 +174,7 @@ function resolveSendBlockerNotice(
  * `pendingPrompts` prop and this component's own call site below. */
 export function ChatPaneComposerArea({
   agentHandle, fileDrop, uploadAttachments, pane, disabled, unavailable, placeholder, slots,
-  attachmentAccept, workingDirectoryAccess, workingDirectoryControlPlacement, t,
+  attachmentAccept, workingDirectoryAccess, workingDirectoryControlPlacement, t, report,
 }: ChatPaneComposerAreaProps): ReactNode {
   const sendDisabledReasonId = useId();
   const { sendDisabledReason, showsNotice } = resolveSendBlockerNotice({ pane, unavailable, t });
@@ -192,6 +193,7 @@ export function ChatPaneComposerArea({
       <ChatPaneComposerBlocker pane={pane} t={t} sendDisabledReasonId={sendDisabledReasonId}
         sendDisabledReason={sendDisabledReason} showsNotice={showsNotice} />
       <Composer
+        report={report}
         agentHandle={agentHandle}
         composer={pane.composer}
         onSend={() => void pane.send()}

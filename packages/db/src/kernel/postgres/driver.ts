@@ -1,4 +1,4 @@
-import { describeErrorForLog } from '@jini-ai/core/model-facing-tool-errors';
+import { createConsoleLogger, type Logger } from "@jini-ai/core/primitives";
 import { Kysely, PostgresDialect } from "kysely";
 
 import { PG_PARSERS } from "../../core/index.js";
@@ -22,8 +22,9 @@ import { type PgModule, pgTypesFor } from "../../core/pg-types.js";
  */
 export function openPostgresKernel<DB>(
   required: { pg: PgModule; connectionString: string },
-  optional: { max?: number } = {}
+  optional: { max?: number; report?: Pick<Logger, "warn"> } = {}
 ): KyselyKernel<DB> {
+  const logger = optional.report ?? createConsoleLogger({ prefix: "[postgres]" });
   const pool = new required.pg.Pool({
     connectionString: required.connectionString,
     max: optional.max ?? 10,
@@ -32,7 +33,7 @@ export function openPostgresKernel<DB>(
   // An idle connection dropped by the server (restart, failover, pg_terminate_backend, a pooler's
   // idle cut) is evicted by the pool and reopened on next use; without a listener it would crash the
   // process.
-  pool.on("error", (err) => console.warn('[postgres] idle pool connection dropped:', describeErrorForLog({ err })));
+  pool.on("error", (err) => logger.warn({ message: "Idle pool connection dropped." }, { error: err }));
   // Pool error listeners cover idle clients only. Session-owned workers hold a client for
   // longer, so absorb its error event while the next query rejects and stops that owner.
   const connected = new WeakSet<object>();
@@ -41,7 +42,7 @@ export function openPostgresKernel<DB>(
     const client = await connect();
     if (!connected.has(client)) {
       connected.add(client);
-      client.on?.("error", () => console.warn('[postgres] active pool connection dropped; its operation will stop.'));
+      client.on?.("error", (error) => logger.warn({ message: "Active pool connection dropped; its operation will stop." }, { error }));
     }
     return client;
   };

@@ -1,9 +1,9 @@
 import { formRetryFields } from "../stale-form.js";
 import { repopulateFormRetryHtml } from "../html/retry-draft.js";
 import { randomUUID } from "node:crypto";
-import { describeErrorForLog } from '@jini-ai/core';
+import { createConsoleLogger, type Logger } from "@jini-ai/core/primitives";
 import type { Request, Response } from "express";
-import { FormDefinitionNotFoundError, FormRateLimitExceededError, FormSubmissionValidationError, FormSubmissionTooFastError, FormAttachmentSpaceError, FormSchemaChangedError } from "../errors.js";
+import { FormDefinitionNotFoundError, FormRateLimitExceededError, FormSubmissionValidationError, FormSubmissionTooFastError, FormAttachmentSpaceError, FormSchemaChangedError, FORM_SUBMISSION_TOO_FAST_MESSAGE, FORM_SCHEMA_CHANGED_MESSAGE } from "../errors.js";
 import { renderHtmlForm, escapeFormHtml } from "../html-render.js";
 import { FORM_ATTEMPT_FIELD } from "../submission-attempts.js";
 import type { FieldDescriptor, FormSubmissionRedirectResult } from "../types.js";
@@ -206,21 +206,21 @@ function outcomeForSuccess(slug: string, result: { status: "accepted" }): FormSu
  *  500/`"error"` pair rather than throwing out of this mapper. */
 function outcomeForError(slug: string, err: unknown): FormSubmitOutcome {
   if (err instanceof FormSubmissionTooFastError) {
-    return { redirectResult: { kind: "too-fast", slug }, json: { status: 422, body: { error: err.message, code: err.code } } };
+    return { redirectResult: { kind: "too-fast", slug }, json: { status: 422, body: { error: FORM_SUBMISSION_TOO_FAST_MESSAGE, code: err.code } } };
   }
   if (err instanceof FormDefinitionNotFoundError) {
-    return { redirectResult: { kind: "error", slug }, json: { status: 404, body: { error: err.message, code: "FORMS_DEFINITION_NOT_FOUND" } } };
+    return { redirectResult: { kind: "error", slug }, json: { status: 404, body: { error: "Form was not found.", code: "FORMS_DEFINITION_NOT_FOUND" } } };
   }
   if (err instanceof FormSubmissionValidationError) {
     return {
       redirectResult: { kind: "validation", slug, fieldErrors: err.fieldErrors },
-      json: { status: 400, body: { error: err.message, code: "FORMS_SUBMISSION_VALIDATION_ERROR", details: { fieldErrors: err.fieldErrors } } },
+      json: { status: 400, body: { error: "Please check the form fields and try again.", code: "FORMS_SUBMISSION_VALIDATION_ERROR", details: { fieldErrors: err.fieldErrors } } },
     };
   }
   if (err instanceof FormRateLimitExceededError) {
     return {
       redirectResult: { kind: "rate-limited", slug, retryAfterSeconds: err.retryAfterSeconds },
-      json: { status: 429, body: { error: err.message, code: "FORMS_RATE_LIMIT_EXCEEDED", details: { retryAfterSeconds: err.retryAfterSeconds } } },
+      json: { status: 429, body: { error: "Too many submissions. Please try again later.", code: "FORMS_RATE_LIMIT_EXCEEDED", details: { retryAfterSeconds: err.retryAfterSeconds } } },
     };
   }
   return { redirectResult: { kind: "error", slug }, json: { status: 500, body: { error: "internal error", code: "INTERNAL_ERROR" } } };
@@ -244,11 +244,14 @@ function sendFormSubmitOutcome(req: Request, res: Response, outcome: FormSubmitO
  * would silently arrive as missing, failing REQUIRED-field validation on every real, non-JS
  * submission regardless of the redirect fix. A `fetch`/JSON caller (every pre-existing test in this
  * file) is unaffected — Express dispatches to whichever parser matches the request's actual
- * `Content-Type`, so mounting both here is additive, never a double-parse of the same request. */
+ * `Content-Type`, so mounting both here is additive, never a double-parse of the same request.
+ * `attachmentSpaceMessage` is trusted host-authored copy; caught errors never supply public copy. */
 export function createFormSubmitHandler(
   deps: CreateFormSubmitHandlerRequired,
-  _optional: Record<string, never> = {},
+  optional: { report?: Pick<Logger, "error">; attachmentSpaceMessage?: string } = {},
 ): (req: Request, res: Response) => Promise<void> {
+  const logger = optional.report ?? createConsoleLogger({ prefix: "site/forms-submit" });
+  const attachmentSpaceMessage = optional.attachmentSpaceMessage ?? "There is no room for another attachment. Your answers are kept below. Your form has not been sent.";
   return async (req, res) => {
     const slug = String(req.params.slug ?? "");
     const body = boundBody(req.body);
@@ -260,12 +263,12 @@ export function createFormSubmitHandler(
       });
       sendFormSubmitOutcome(req, res, outcomeForSuccess(slug, result), deps);
     } catch (err) {
-      if (await sendDirectRetry({ req, res, deps, slug, error: err })) return;
+      if (await sendDirectRetry({ req, res, deps, slug, error: err }, { attachmentSpaceMessage })) return;
       if (isFlashableFailure({ error: err }) && wantsHtmlResponse(req)) {
         try {
           await setFormFlashCookieForValidationFailure(req, res, deps, slug, body);
         } catch (flashErr) {
-          console.error(`[site/forms-submit] failed to set validation flash cookie (slug=${slug})`, describeErrorForLog({ err: flashErr }));
+          logger.error({ message: "Failed to set form validation flash cookie." }, { error: flashErr });
         }
       }
       sendFormSubmitOutcome(req, res, outcomeForError(slug, err), deps);
@@ -281,33 +284,33 @@ function isFlashableFailure({ error }: { error: unknown }, _optional: Record<str
 
 /** A direct uncached page keeps every validated non-file answer, bypassing cookie limits.
  * @complexity O(fields + answer bytes), no extra reads. @overallScore 98: files require reselection. */
-async function sendAttachmentRetry({ req, res, deps, slug, error }: { req: Request; res: Response; deps: CreateFormSubmitHandlerRequired; slug: string; error: FormAttachmentSpaceError }, _optional = {}): Promise<void> {
+async function sendAttachmentRetry({ req, res, deps, slug, error }: { req: Request; res: Response; deps: CreateFormSubmitHandlerRequired; slug: string; error: FormAttachmentSpaceError }, { message }: { message: string }): Promise<void> {
   res.set("Cache-Control", "no-store");
-  if (!wantsHtmlResponse(req)) { res.status(507).json({ code: error.code, error: error.message, answers: error.answers }); return; }
+  if (!wantsHtmlResponse(req)) { res.status(507).json({ code: error.code, error: message, answers: error.answers }); return; }
   const fields = error.fields.map(field => ({ ...field, default: field.type === "file" ? undefined : error.answers[field.id] })) as FieldDescriptor[];
   const form = retryAttemptToken(renderHtmlForm({ slug, fields, action: `/forms/${encodeURIComponent(slug)}/submit`, hooks: { field: "data-field", form: "data-form", success: "data-success", error: "data-error" } }));
-  res.status(507).type("html").send(`<!doctype html><meta charset="utf-8"><title>Attachment needs more room</title><p role="alert">${escapeFormHtml({ value: error.message })}</p><p>Select your files again before retrying.</p>${form}`);
+  res.status(507).type("html").send(`<!doctype html><meta charset="utf-8"><title>Attachment needs more room</title><p role="alert">${escapeFormHtml({ value: message })}</p><p>Select your files again before retrying.</p>${form}`);
 }
 
 /** A stale attempt renders directly, avoiding answer-bearing cookies, redirects or persistence.
  * @complexity O(current HTML + bounded draft bytes) time/space; no extra reads or writes. */
 function sendSchemaRetry({ req, res, slug, error }: { req: Request; res: Response; slug: string; error: FormSchemaChangedError }): void {
   res.set("Cache-Control", "no-store");
-  if (!wantsHtmlResponse(req)) { res.status(409).json({ code: error.code, error: error.message, answers: error.draft.answers, truncated: error.draft.truncated }); return; }
+  if (!wantsHtmlResponse(req)) { res.status(409).json({ code: error.code, error: FORM_SCHEMA_CHANGED_MESSAGE, answers: error.draft.answers, truncated: error.draft.truncated }); return; }
   const retry = formRetryFields({ fields: error.fields, answers: error.draft.answers }, error.draft);
   const html = error.html === undefined ? {} : { html: repopulateFormRetryHtml({ html: error.html, fields: retry.fields }) };
   const form = retryAttemptToken(renderHtmlForm({ slug, fields: retry.fields, action: `/forms/${encodeURIComponent(slug)}/submit`, hooks: { field: "data-field", form: "data-form", success: "data-success", error: "data-error" } }, { ...html, schemaHash: error.schemaHash }));
   const retained = Object.entries(retry.retained).map(([name, value]) => `<dt>${escapeFormHtml({ value: name })}</dt><dd><pre>${escapeFormHtml({ value: typeof value === "string" ? value : JSON.stringify(value) })}</pre></dd>`).join("");
   const retainedMarkup = retained ? `<h2>Previous answers to copy</h2><dl>${retained}</dl>` : "";
   const limitNotice = error.draft.truncated ? '<p>Some answers exceeded the safe review limit and were shortened or omitted.</p>' : '';
-  res.status(409).type("html").send(`<!doctype html><meta charset="utf-8"><title>Review updated form</title><main><h1>Review updated form</h1><p role="alert">${escapeFormHtml({ value: error.message })}</p><p>Give consent again and select your files again before sending.</p>${form}${retainedMarkup}${limitNotice}</main>`);
+  res.status(409).type("html").send(`<!doctype html><meta charset="utf-8"><title>Review updated form</title><main><h1>Review updated form</h1><p role="alert">${escapeFormHtml({ value: FORM_SCHEMA_CHANGED_MESSAGE })}</p><p>Give consent again and select your files again before sending.</p>${form}${retainedMarkup}${limitNotice}</main>`);
 }
 
 /** Retries that retain answers directly never redirect or write flash cookies.
  * @complexity O(1) dispatch, with bounded rendering owned by each retry response. */
-async function sendDirectRetry({ req, res, deps, slug, error }: { req: Request; res: Response; deps: CreateFormSubmitHandlerRequired; slug: string; error: unknown }): Promise<boolean> {
+async function sendDirectRetry({ req, res, deps, slug, error }: { req: Request; res: Response; deps: CreateFormSubmitHandlerRequired; slug: string; error: unknown }, { attachmentSpaceMessage }: { attachmentSpaceMessage: string }): Promise<boolean> {
   if (error instanceof FormSchemaChangedError) { sendSchemaRetry({ req, res, slug, error }); return true; }
-  if (error instanceof FormAttachmentSpaceError) { await sendAttachmentRetry({ req, res, deps, slug, error }); return true; }
+  if (error instanceof FormAttachmentSpaceError) { await sendAttachmentRetry({ req, res, deps, slug, error }, { message: attachmentSpaceMessage }); return true; }
   return false;
 }
 

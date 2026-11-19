@@ -1,4 +1,5 @@
 import { describeErrorForLog } from '../model-facing-tool-errors.js';
+import { createConsoleLogger } from '../primitives/logger.js';
 
 /**
  * @file The error contract every admin route group throws, host-supplied or Jini-shipped.
@@ -71,7 +72,7 @@ export class AdminApiError extends Error {
  */
 export function describeApiError(
   { e, fallback }: { readonly e: unknown; readonly fallback: string },
-  { warn = defaultWarn }: { readonly warn?: (line: string) => void } = {},
+  { warn = line => createConsoleLogger({ prefix: '' }).warn({ message: line }) }: { readonly warn?: (line: string) => void } = {},
 ): string {
   if (e instanceof AdminApiError) return e.message || fallback;
   // Anything else is not approved copy: a port's own exception can quote private values, so the
@@ -80,6 +81,3 @@ export function describeApiError(
   return fallback;
 }
 
-function defaultWarn(line: string): void {
-  console.warn(line);
-}

@@ -1,3 +1,4 @@
+import { describeApiError } from '@jini-ai/core/admin-runtime';
 import { useInvalidate } from '../../../react/kit.js';
 import { WIDGET_QUERY_KEYS, useWidgetsListQuery } from './WidgetsQuery.hooks.js';
 import type { AdminWidget, AdminWidgetType, WidgetsTranslate as Translate } from '../../models.js';
@@ -34,8 +35,8 @@ import type { AdminWidgetsPort, WidgetsEventsPort } from '../../ports.js';
 import { widgetsEnglish } from '../../messages.en.js';
 import { WIDGETS_LIBRARY_RESOURCE } from '../../rules.js';
 import { useWidgetsPorts, useWidgetsOptions } from './WidgetsPorts.hooks.js';
-export function useWidgetsLibrary({ api }: { api: AdminWidgetsPort }, { t = widgetsEnglish, locale = 'en', events }: { t?: Translate | undefined; locale?: string | undefined; events?: WidgetsEventsPort | undefined } = {}): WidgetsLibraryController {
-  const cached = useWidgetsListQuery({ api });
+export function useWidgetsLibrary({ api }: { api: AdminWidgetsPort }, { t = widgetsEnglish, locale = 'en', events, useQuery = useWidgetsListQuery }: { useQuery?: typeof useWidgetsListQuery; t?: Translate | undefined; locale?: string | undefined; events?: WidgetsEventsPort | undefined } = {}): WidgetsLibraryController {
+  const cached = useQuery({ api });
   const invalidate = useInvalidate();
   const latestT = useRef(t); latestT.current = t;
   const { controller, snapshot } = useController({ create: () => createWidgetsLibraryController({ api: cached.api }, { t: key => latestT.current(key) }), dependencies: [cached.api] }, { start: ({ controller }) => { void controller.load(); } });
@@ -50,7 +51,7 @@ const EMPTY_LIBRARY_STATE: WidgetsLibraryState = { widgets: null, error: null, s
 type LibraryListResult = Awaited<ReturnType<AdminWidgetsPort['listWidgets']>>;
 function mergeLibraryState({ snapshot, data, queryError }: { snapshot: WidgetsLibraryState | null; data: LibraryListResult | undefined; queryError: Error | null | undefined }, _optional: Record<string, never> = {}) {
   const state = snapshot ?? EMPTY_LIBRARY_STATE;
-  return { ...state, ...cachedListFields({ state, data }), error: state.error ?? queryError?.message ?? null, trashing: state.pendingTrash !== null && state.trashingId === state.pendingTrash.id };
+  return { ...state, ...cachedListFields({ state, data }), error: state.error ?? (queryError ? describeApiError({ e: queryError, fallback: 'failed to load widgets' }) : null), trashing: state.pendingTrash !== null && state.trashingId === state.pendingTrash.id };
 }
 function cachedListFields({ state, data }: { state: WidgetsLibraryState; data: LibraryListResult | undefined }, _optional: Record<string, never> = {}) {
   return { widgets: data?.widgets ?? state.widgets, skippedCount: data?.skippedCount ?? state.skippedCount, skippedIds: data?.skippedIds ?? state.skippedIds };

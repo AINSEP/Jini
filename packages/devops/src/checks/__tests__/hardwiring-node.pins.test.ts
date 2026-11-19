@@ -202,7 +202,7 @@ describe('runHardwiring', () => {
     writeFileSync(debtPath, JSON.stringify({ violations: [stale] }));
     const logs: string[] = []; const errors: string[] = [];
     const fresh = violation('HW8-provider-url', 'new.ts');
-    const added = await runHardwiring({ debtPath, baselineComment: 'unused', collect: async () => [fresh], logger: { log: (line) => { logs.push(line); }, error: (line) => { errors.push(line); } } });
+    const added = await runHardwiring({ debtPath, baselineComment: 'unused', collect: async () => [fresh], report: { info: ({ message }) => { logs.push(message); }, error: ({ message }) => { errors.push(message); } } });
     expect(added).toEqual([fresh]);
     expect(logs).toContain(`[hardwiring] 1 stale debt occurrences; remove them from ${debtPath}.`);
     expect(logs).toContain('[hardwiring] HW8-provider-url: 1 total; 1 new');
@@ -218,7 +218,7 @@ describe('runHardwiring', () => {
     writeFileSync(debtPath, JSON.stringify({ violations: [known] }));
     const logs: string[] = []; const errors: string[] = [];
     const fresh = violation('HW12-env-import-time', 'new.ts');
-    const added = await runHardwiring({ debtPath, baselineComment: 'unused', collect: () => [known, fresh], logger: { log: (line) => { logs.push(line); }, error: (line) => { errors.push(line); } } },
+    const added = await runHardwiring({ debtPath, baselineComment: 'unused', collect: () => [known, fresh], report: { info: ({ message }) => { logs.push(message); }, error: ({ message }) => { errors.push(message); } } },
       { rules: ['HW9-env-access', 'HW12-env-import-time'] });
     expect(added).toEqual([fresh]);
     expect(logs).toEqual(['[hardwiring] HW9-env-access: 1 total; 0 new', '[hardwiring] HW12-env-import-time: 1 total; 1 new']);
@@ -229,13 +229,13 @@ describe('runHardwiring', () => {
     const { root } = tree();
     const debtPath = join(root, 'debt.json');
     writeFileSync(debtPath, JSON.stringify({ violations: [] }));
-    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const log = vi.spyOn(console, 'info').mockImplementation(() => {});
     expect(await runHardwiring({ debtPath, baselineComment: 'unused', collect: () => [] })).toEqual([]);
     expect(log).toHaveBeenCalledTimes(9);
   });
 
   it('a missing debt file is an error, not an empty baseline', async () => {
     const { root } = tree();
-    await expect(runHardwiring({ debtPath: join(root, 'missing.json'), baselineComment: 'x', collect: () => [], logger: { log: () => {}, error: () => {} } })).rejects.toThrow(/ENOENT/);
+    await expect(runHardwiring({ debtPath: join(root, 'missing.json'), baselineComment: 'x', collect: () => [], report: { info: () => {}, error: () => {} } })).rejects.toThrow(/ENOENT/);
   });
 });

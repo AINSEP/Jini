@@ -12,7 +12,7 @@ import { createSenderDomainVerification, type SenderDomainVerificationDeps } fro
  */
 
 const provider = (domainStatus?: MailProviderModule["domainStatus"]): MailProviderModule => ({
-  ...createConsoleMailProvider({ clock: { nowMs: () => 0 } }, { log: () => {} }),
+  ...createConsoleMailProvider({ clock: { nowMs: () => 0 }, preview: () => {} }),
   id: "mailer", ...(domainStatus ? { domainStatus } : {}),
 });
 const answering = provider(async (_ctx, { domain }) => providerOk({ value: { domain, state: "pending" as const } }));
