@@ -2520,17 +2520,27 @@
     "value": 3
   },
   {
-    "file": "packages/ui/src/features/panel-kit/hooks/use-settings-slice.hooks.ts",
+    "file": "packages/ui/src/features/panel-kit/hooks/use-settings-slice-refresh.hooks.ts",
     "rule": "catch-reads-error",
-    "value": 2
+    "value": 1
   },
   {
-    "file": "packages/ui/src/features/panel-kit/hooks/use-standing-draft-autosave.hooks.ts",
+    "file": "packages/ui/src/features/panel-kit/hooks/use-settings-slice-save.hooks.ts",
     "rule": "catch-reads-error",
-    "value": 2
+    "value": 1
   },
   {
-    "file": "packages/ui/src/features/panel-kit/hooks/use-standing-draft-autosave.hooks.ts",
+    "file": "packages/ui/src/features/panel-kit/hooks/use-standing-draft-recovery.hooks.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/panel-kit/hooks/use-standing-draft-state.hooks.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/panel-kit/hooks/use-standing-draft-state.hooks.ts",
     "rule": "no-generic-failure-text",
     "value": 1
   },
@@ -2690,7 +2700,7 @@
     "value": 2
   },
   {
-    "file": "packages/user-management/src/react/users/hooks/use-users.hooks.ts",
+    "file": "packages/user-management/src/react/users/hooks/use-users-roster.hooks.ts",
     "rule": "catch-reads-error",
     "value": 1
   },
