@@ -12,7 +12,7 @@ export type ShapedPageBody = { bodyBytes: number; truncated: boolean } & (
 );
 
 /** Validates all shared options at the tool boundary; no implicit coercion or silent defaults. */
-export function readPageBodyOptions(input: Record<string, unknown>, _optional: Record<string, never> = {}): PageBodyOptions {
+export function readPageBodyOptions({ input }: { input: Record<string, unknown> }, _optional: Record<string, never> = {}): PageBodyOptions {
   const { find, textOnly, maxBytes } = input;
   if (find !== undefined && (typeof find !== "string" || find.length < 1 || find.length > 200)) throw new ToolInputError({ message: "find must be a string of 1..200 characters." });
   if (textOnly !== undefined && typeof textOnly !== "boolean") throw new ToolInputError({ message: "textOnly must be a boolean." });
@@ -26,10 +26,10 @@ function assertMaxBodyBytes({ maxBytes }: { maxBytes: unknown }, _options: Recor
   if (typeof maxBytes !== "number" || !Number.isInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_MAX_BODY_BYTES) throw new ToolInputError({ message: "maxBytes must be an integer of 1..1000000." });
 }
 
-const OMITTED_ELEMENTS = new Set(["script", "style", "noscript", "template"]);
-const BLOCK_ELEMENTS = new Set(["html", "head", "body", "p", "div", "section", "article", "main", "header", "footer", "nav", "br", "li", "ul", "ol", "table", "tr", "td", "th", "h1", "h2", "h3", "h4", "h5", "h6", "hr", "pre", "blockquote"]);
+const OMITTED_ELEMENTS: ReadonlySet<string> = new Set(["script", "style", "noscript", "template"]);
+const BLOCK_ELEMENTS: ReadonlySet<string> = new Set(["html", "head", "body", "p", "div", "section", "article", "main", "header", "footer", "nav", "br", "li", "ul", "ol", "table", "tr", "td", "th", "h1", "h2", "h3", "h4", "h5", "h6", "hr", "pre", "blockquote"]);
 /** Iterative traversal avoids stack overflow on deeply nested untrusted HTML. Parser decodes entities. */
-function visibleText(body: string): string {
+function visibleText({ body }: { body: string }, _optional: Record<string, never> = {}): string {
   const pending: Array<DefaultTreeAdapterMap["node"] | string> = [parse(body)];
   const text: string[] = [];
   while (pending.length) {
@@ -63,7 +63,7 @@ function scheduleVisibleChildren({ node, pending, text }: {
 }
 
 /** Cuts at a UTF-8 boundary so shaping does not expand a clipped byte into a replacement character. */
-function capText(body: string, maxBytes: number): string {
+function capText({ body, maxBytes }: { body: string; maxBytes: number }, _optional: Record<string, never> = {}): string {
   const bytes = Buffer.from(body);
   if (bytes.length <= maxBytes) return body;
   let end = maxBytes;
@@ -72,7 +72,7 @@ function capText(body: string, maxBytes: number): string {
 }
 
 /** O(body length + matches); counts the full available source, retains at most 20 bounded snippets. */
-function findMatches(body: string, find: string, maxBytes: number): ShapedPageBody {
+function findMatches({ body, find, maxBytes }: { body: string; find: string; maxBytes: number }, _optional: Record<string, never> = {}): ShapedPageBody {
   const pattern = new RegExp(RegExp.escape(find), "giu");
   const matches: Array<{ offset: number; snippet: string }> = [];
   let matchCount = 0;
@@ -83,7 +83,7 @@ function findMatches(body: string, find: string, maxBytes: number): ShapedPageBo
     if (matches.length === 20 || bytesLeft === 0) { truncated = true; continue; }
     const offset = match.index;
     const context = body.slice(Math.max(0, offset - 160), offset + match[0].length + 160);
-    const snippet = capText(context, bytesLeft);
+    const snippet = capText({ body: context, maxBytes: bytesLeft });
     if (snippet !== context) truncated = true;
     bytesLeft -= Buffer.byteLength(snippet);
     matches.push({ offset, snippet });
@@ -97,13 +97,13 @@ function findMatches(body: string, find: string, maxBytes: number): ShapedPageBo
  * snippet budget is exhausted. Producers OR their raw-read truncation into this flag.
  * @returns Body or matches (never both), source byte count and an explicit truncation flag.
  */
-export function shapePageBody(body: string, options: PageBodyOptions): ShapedPageBody {
+export function shapePageBody({ body }: { body: string }, options: PageBodyOptions = {}): ShapedPageBody {
   const maxBytes = options.maxBytes ?? DEFAULT_MAX_BODY_BYTES;
-  const source = options.textOnly ? visibleText(body) : body;
-  if (options.find !== undefined) return findMatches(source, options.find, maxBytes);
+  const source = options.textOnly ? visibleText({ body }) : body;
+  if (options.find !== undefined) return findMatches({ body: source, find: options.find, maxBytes });
   // Preserve the existing raw-page decode behavior at a split multibyte character.
   const bytes = Buffer.from(source);
   if (bytes.length <= maxBytes) return { body: source, bodyBytes: bytes.length, truncated: false };
-  const capped = options.textOnly ? capText(source, maxBytes) : bytes.subarray(0, maxBytes).toString("utf8");
+  const capped = options.textOnly ? capText({ body: source, maxBytes }) : bytes.subarray(0, maxBytes).toString("utf8");
   return { body: capped, bodyBytes: options.textOnly ? Buffer.byteLength(capped) : maxBytes, truncated: true };
 }

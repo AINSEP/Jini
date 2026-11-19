@@ -4,6 +4,11 @@
   "private": true,
   "type": "module",
   "sideEffects": false,
+  "jini": {
+    "domain": "tooling",
+    "kind": "integration-tests",
+    "runtime": "node"
+  },
   "scripts": {
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc -p tsconfig.json --noEmit"
