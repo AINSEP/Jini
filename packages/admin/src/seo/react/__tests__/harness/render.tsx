@@ -56,6 +56,6 @@ const options: SeoReactOptions = { siteUrl: () => '', t: key => key, slots: { Me
 export function Harness({ children }: { children: ReactNode }) {
   return <SeoPortsContext.Provider value={{ seoApi }}><SeoOptionsContext.Provider value={options}>{children}</SeoOptionsContext.Provider></SeoPortsContext.Provider>;
 }
-export function render(ui: Parameters<typeof renderOriginal>[0], options?: Parameters<typeof renderOriginal>[1]) {
+export function render(ui: Parameters<typeof renderOriginal>[0], options?: Parameters<typeof renderOriginal>[1]): ReturnType<typeof renderOriginal> {
   return renderScoped(createElement(Harness, { children: ui }), options);
 }
