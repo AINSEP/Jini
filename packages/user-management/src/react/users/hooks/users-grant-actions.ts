@@ -54,7 +54,7 @@ async function runGrantMutation({ toggleGenerationRef, mutate, onSuccess, setGra
   }
 }
 
-export function createUsersCreateAction(state: ReturnType<typeof useUsersState>) {
+export function createUsersCreateAction({ state }: { state: ReturnType<typeof useUsersState> }, _optional: Record<string, never> = {}) {
   const { createUser, createUserMutation, username, password, email, setUsername, setEmail, setPassword, setFormOpen, describeError, translate } = state;
   async function onCreate(e: FormEvent) {
     e.preventDefault();
@@ -70,7 +70,7 @@ export function createUsersCreateAction(state: ReturnType<typeof useUsersState>)
   return onCreate;
 }
 
-export function createUsersPanelActions(state: ReturnType<typeof useUsersState>) {
+export function createUsersPanelActions({ state }: { state: ReturnType<typeof useUsersState> }, _optional: Record<string, never> = {}) {
   const { setGrantError, setGrantSaving, setPendingRoleId, setPendingPolicyId, setEditEmail, toggleGenerationRef, setExpandedId, updateEmailMutation, editEmail, describeError, translate } = state;
   function toggleExpanded(user: AdminIdentityUser) {
     setGrantError(null);
@@ -104,7 +104,7 @@ export function createUsersPanelActions(state: ReturnType<typeof useUsersState>)
   return { toggleExpanded, onSaveEmail, emailSaving };
 }
 
-export function createUsersGrantActions(state: ReturnType<typeof useUsersState>) {
+export function createUsersGrantActions({ state }: { state: ReturnType<typeof useUsersState> }, _optional: Record<string, never> = {}) {
   const { pendingRoleId, pendingPolicyId, toggleGenerationRef, assignRoleMutation, attachPolicyMutation, setPendingRoleId, setPendingPolicyId, setGrantSaving, setGrantError, describeError, translate } = state;
   async function onAssignRole({ principalId }: { principalId: string }) {
     if (!pendingRoleId) return;

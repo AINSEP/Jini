@@ -5,12 +5,12 @@ import { useUsersRoster as useUsersRosterDefault, useUsersCallerState as useUser
 import { createUsersCapabilities } from "./use-users-roster.hooks.js";
 import { useUsersCreationState as useUsersCreationStateDefault, useUsersGrantState as useUsersGrantStateDefault, useUsersStatusState as useUsersStatusStateDefault } from "./use-users-form-state.hooks.js";
 
-export function createUsersErrorDescriber(translate: Translate) {
+export function createUsersErrorDescriber({ translate }: { translate: Translate }, _optional: Record<string, never> = {}) {
   return (error: unknown, fallback: string) => describeApiError({ error, fallback, translate });
 }
 
 export function useUsersState(deps: UsersDependencies, { useUsersRoster = useUsersRosterDefault, useUsersCreationState = useUsersCreationStateDefault, useUsersGrantState = useUsersGrantStateDefault, useUsersStatusState = useUsersStatusStateDefault, useUsersCallerState = useUsersCallerStateDefault, useUsersRename = useUsersRenameDefault }: { useUsersRoster?: typeof useUsersRosterDefault; useUsersCreationState?: typeof useUsersCreationStateDefault; useUsersGrantState?: typeof useUsersGrantStateDefault; useUsersStatusState?: typeof useUsersStatusStateDefault; useUsersCallerState?: typeof useUsersCallerStateDefault; useUsersRename?: typeof useUsersRenameDefault } = {}) {
-  const describeError = createUsersErrorDescriber(deps.translate);
+  const describeError = createUsersErrorDescriber({ translate: deps.translate });
   const roster = useUsersRoster({ ...deps, describeError });
   const creation = useUsersCreationState(deps);
   const grant = useUsersGrantState(deps);

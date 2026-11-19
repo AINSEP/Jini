@@ -5,7 +5,7 @@ import type { UsersController } from "./use-users.hooks.js";
 import type { useUsersState } from "./use-users-state.hooks.js";
 import { useFetchMutation as useFetchMutationDefault } from "../../kit.js";
 
-export function createUsersToggleAction(state: ReturnType<typeof useUsersState>) {
+export function createUsersToggleAction({ state }: { state: ReturnType<typeof useUsersState> }, _optional: Record<string, never> = {}) {
   const { rowCapabilities, setToggleSavingId, setToggleError, toggleStatusMutation, describeError, translate } = state;
   /** `setToggleSavingId`'s `finally` reset (2026-09-05 fix, same bug class as
    *  `use-roles.hooks.ts`'s `onSaveRole`/`runRowDelete`) is a functional update keyed on THIS call's
@@ -30,7 +30,7 @@ export function createUsersToggleAction(state: ReturnType<typeof useUsersState>)
   return onToggleStatus;
 }
 
-export function createUsersDisableActions(state: ReturnType<typeof useUsersState>, { onToggleStatus }: { onToggleStatus: UsersController['onToggleStatus'] }) {
+export function createUsersDisableActions({ state, onToggleStatus }: { state: ReturnType<typeof useUsersState>; onToggleStatus: UsersController['onToggleStatus'] }, _optional: Record<string, never> = {}) {
   const { rowCapabilities, setToggleError, setConfirmingDisable, confirmingDisable } = state;
   /** Opens the Disable confirm dialog for `user` — the `RowMenu` "Disable" item's `onSelect` when
    *  the user is currently active. Was an inline closure inside the old `rowMenuItems`; named here
@@ -60,7 +60,7 @@ export function createUsersDisableActions(state: ReturnType<typeof useUsersState
   return { requestDisable, confirmDisable };
 }
 
-export function useUsersDeletion(state: ReturnType<typeof useUsersState>, { useFetchMutation = useFetchMutationDefault }: { useFetchMutation?: typeof useFetchMutationDefault } = {}) {
+export function useUsersDeletion({ state }: { state: ReturnType<typeof useUsersState> }, { useFetchMutation = useFetchMutationDefault }: { useFetchMutation?: typeof useFetchMutationDefault } = {}) {
   const { port, queryScope, rowCapabilities, setToggleError, describeError, translate } = state;
   // Delete-user plan v2 (2026-09-24), Slice 4 — mirrors Disable's request/confirm pair above with
   // its OWN state (see `confirmingDelete`'s own doc comment for why not shared). `deleteUserMutation`

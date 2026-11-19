@@ -37,7 +37,7 @@ export function useUsersPasswordLink({ users, ownPrincipalId, ownProfile, resetP
 
 }
 
-export function useUsersResetMutation(port: UsersPort, { useFetchMutation = useFetchMutationDefault }: { useFetchMutation?: typeof useFetchMutationDefault } = {}) {
+export function useUsersResetMutation({ port }: { port: UsersPort }, { useFetchMutation = useFetchMutationDefault }: { useFetchMutation?: typeof useFetchMutationDefault } = {}) {
   // No `invalidates` — matches the pre-migration `confirmResetPassword`, which never called
   // `reload()` either (a password reset changes nothing the users table shows).
   const resetPasswordMutation = useFetchMutation({
@@ -47,7 +47,7 @@ export function useUsersResetMutation(port: UsersPort, { useFetchMutation = useF
   return resetPasswordMutation;
 }
 
-export function createUsersOpenResetAction(state: ReturnType<typeof useUsersState>) {
+export function createUsersOpenResetAction({ state }: { state: ReturnType<typeof useUsersState> }, _optional: Record<string, never> = {}) {
   const { rowCapabilities, toggleSavingId, resetPassword, setNewPassword, setResetPasswordFor } = state;
   /** Opens the reset-password dialog for `user` — the `RowMenu` item's `onSelect`. Guards against
    *  opening a second one while a toggle or a previous reset is still in flight, same discipline
@@ -63,8 +63,8 @@ export function createUsersOpenResetAction(state: ReturnType<typeof useUsersStat
   return openResetPassword;
 }
 
-export function createUsersConfirmResetAction(state: ReturnType<typeof useUsersState>,
-  { resetPasswordMutation, passwordResetNotice }: Pick<UsersOptions, 'passwordResetNotice'> & { resetPasswordMutation: ReturnType<typeof useUsersResetMutation> }) {
+export function createUsersConfirmResetAction({ state, resetPasswordMutation }: { state: ReturnType<typeof useUsersState>; resetPasswordMutation: ReturnType<typeof useUsersResetMutation> },
+  { passwordResetNotice }: Pick<UsersOptions, 'passwordResetNotice'> = {}) {
   const { resetPasswordFor, newPassword, rowCapabilities, resetPassword, ownPrincipalId, translate, setNotice, setResetPasswordFor, setNewPassword, describeError } = state;
   async function confirmResetPassword() {
     if (!resetPasswordFor || !newPassword || !rowCapabilities(resetPasswordFor).canResetPassword) return;

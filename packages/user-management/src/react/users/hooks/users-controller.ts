@@ -4,12 +4,12 @@ import type { createUsersPanelActions, createUsersGrantActions } from "./users-g
 import type { createUsersDisableActions, useUsersDeletion } from "./use-users-status.hooks.js";
 
 export function createUsersController(
-  state: ReturnType<typeof useUsersState>,
-  actions: ReturnType<typeof createUsersPanelActions> & ReturnType<typeof createUsersGrantActions> &
+  { state, actions }: { state: ReturnType<typeof useUsersState>; actions: ReturnType<typeof createUsersPanelActions> & ReturnType<typeof createUsersGrantActions> &
     ReturnType<typeof createUsersDisableActions> & ReturnType<typeof useUsersDeletion> & {
       onCreate: UsersController['onCreate']; openResetPassword: UsersController['openResetPassword'];
       confirmResetPassword: UsersController['confirmResetPassword']; onToggleStatus: UsersController['onToggleStatus'];
-    },
+    } },
+  _optional: Record<string, never> = {},
 ): UsersController {
   const {
     users, roles, policies, canGrant, error, formOpen, setFormOpen, username, setUsername, email, setEmail,

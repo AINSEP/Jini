@@ -209,18 +209,18 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
   useUsersState = useUsersStateDefault, useUsersPasswordLink = useUsersPasswordLinkDefault, useUsersResetMutation = useUsersResetMutationDefault, useUsersDeletion = useUsersDeletionDefault,
 }: UsersOptions & { useUsersState?: typeof useUsersStateDefault; useUsersPasswordLink?: typeof useUsersPasswordLinkDefault; useUsersResetMutation?: typeof useUsersResetMutationDefault; useUsersDeletion?: typeof useUsersDeletionDefault } = {}): UsersController {
   const state = useUsersState({ port, translate, queryScope });
-  const openResetPassword = createUsersOpenResetAction(state);
+  const openResetPassword = createUsersOpenResetAction({ state });
   useUsersPasswordLink(state, { openOwnPasswordReset, onOwnPasswordResetClosed, openResetPassword });
-  const resetPasswordMutation = useUsersResetMutation(port);
-  const onCreate = createUsersCreateAction(state);
-  const panelActions = createUsersPanelActions(state);
-  const grantActions = createUsersGrantActions(state);
-  const confirmResetPassword = createUsersConfirmResetAction(state, { resetPasswordMutation, passwordResetNotice });
-  const onToggleStatus = createUsersToggleAction(state);
-  const disableActions = createUsersDisableActions(state, { onToggleStatus });
-  const deletion = useUsersDeletion(state);
-  return createUsersController(state, {
+  const resetPasswordMutation = useUsersResetMutation({ port });
+  const onCreate = createUsersCreateAction({ state });
+  const panelActions = createUsersPanelActions({ state });
+  const grantActions = createUsersGrantActions({ state });
+  const confirmResetPassword = createUsersConfirmResetAction({ state, resetPasswordMutation }, { passwordResetNotice });
+  const onToggleStatus = createUsersToggleAction({ state });
+  const disableActions = createUsersDisableActions({ state, onToggleStatus });
+  const deletion = useUsersDeletion({ state });
+  return createUsersController({ state, actions: {
     onCreate, ...panelActions, ...grantActions, openResetPassword, confirmResetPassword,
     onToggleStatus, ...disableActions, ...deletion,
-  });
+  } });
 }
