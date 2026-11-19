@@ -12,7 +12,7 @@ import type {
 
 const MASK_TAIL = 4;
 
-const isEntryPresent = (entry: MediaProviderCredentials | null | undefined): boolean =>
+const isEntryPresent = ({ entry }: { entry: MediaProviderCredentials | null | undefined }, _optional: Record<string, never> = {}): boolean =>
   !!entry && !!(entry.apiKey?.trim() || entry.baseUrl?.trim() || entry.model?.trim() || entry.apiKeyConfigured || entry.apiKeyTail);
 
 // Typed values an operator can re-send; markers do not count, they only say a key exists server-side.
@@ -20,30 +20,31 @@ const hasRecoverableFields = (entry: MediaProviderCredentials | null | undefined
   !!(entry?.apiKey?.trim() || entry?.baseUrl?.trim() || entry?.model?.trim());
 
 // Configured but holding nothing usable: an endpoint or model typed beside a stored key makes it more than markers.
-const isMarkerOnlyEntry = (entry: MediaProviderCredentials | null | undefined): boolean =>
-  isEntryPresent(entry) && !hasRecoverableFields(entry);
+const isMarkerOnlyEntry = ({ entry }: { entry: MediaProviderCredentials | null | undefined }, _optional: Record<string, never> = {}): boolean =>
+  isEntryPresent({ entry }) && !hasRecoverableFields(entry);
 
-function maskedKeyLabel(entry: MediaProviderCredentials | null | undefined): string | null {
+function maskedKeyLabel({ entry }: { entry: MediaProviderCredentials | null | undefined }, _optional: Record<string, never> = {}): string | null {
   const tail = entry?.apiKeyTail?.trim() || entry?.apiKey?.trim();
   if (tail) return `••••${tail.slice(-MASK_TAIL)}`;
   return entry?.apiKeyConfigured ? '••••' : null;
 }
 
-function isProviderBaseUrlInvalid(entry: MediaProviderCredentials | null | undefined): boolean {
+function isProviderBaseUrlInvalid({ entry }: { entry: MediaProviderCredentials | null | undefined }, _optional: Record<string, never> = {}): boolean {
   const typed = entry?.baseUrl?.trim();
   if (!typed) return false;
   try { return !['http:', 'https:'].includes(new URL(typed).protocol); } catch { return true; }
 }
 
-const invalidBaseUrlProviderIds = (providers: MediaProviderMap | null | undefined): readonly string[] =>
-  Object.keys(providers ?? {}).filter((id) => isProviderBaseUrlInvalid(providers?.[id]));
+const invalidBaseUrlProviderIds = ({ providers }: { providers: MediaProviderMap | null | undefined }, _optional: Record<string, never> = {}): readonly string[] =>
+  Object.keys(providers ?? {}).filter((id) => isProviderBaseUrlInvalid({ entry: providers?.[id] }));
 
 function sortProvidersByConfigured<T extends { id: string; label: string }>(
-  catalog: readonly T[], providers: MediaProviderMap | null | undefined, pinnedIds: readonly string[] = [],
+  { catalog, providers }: { catalog: readonly T[]; providers: MediaProviderMap | null | undefined },
+  { pinnedIds = [] }: { pinnedIds?: readonly string[] | undefined } = {},
 ): readonly T[] {
   const pinned = pinnedIds.flatMap((id) => catalog.filter((item) => item.id === id));
   const rest = catalog.filter((item) => !pinnedIds.includes(item.id)).sort((a, b) => {
-    const configured = Number(isEntryPresent(providers?.[b.id])) - Number(isEntryPresent(providers?.[a.id]));
+    const configured = Number(isEntryPresent({ entry: providers?.[b.id] })) - Number(isEntryPresent({ entry: providers?.[a.id] }));
     return configured || a.label.localeCompare(b.label);
   });
   return [...pinned, ...rest];
@@ -98,7 +99,7 @@ function useFakeMediaProvidersTab({ port }: UseMediaProvidersTabOptions, _option
   const saveChanges = useCallback(() => { void persist(live.current.providers); }, [persist, live]);
   return {
     providers: s.providers, load: s.load, save: s.save, pendingProviderIds: s.pending,
-    hasAnyConfigured: Object.values(s.providers).some(isEntryPresent),
+    hasAnyConfigured: Object.values(s.providers).some((entry) => isEntryPresent({ entry })),
     updateProvider, clearProvider, saveChanges, reload,
   };
 }

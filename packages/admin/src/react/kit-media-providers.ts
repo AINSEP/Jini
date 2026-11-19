@@ -156,12 +156,12 @@ export interface UseMediaProvidersTabResult {
 export interface AdminMediaProvidersKit {
   useMediaProvidersTab(options: UseMediaProvidersTabOptions): UseMediaProvidersTabResult;
   readonly rules: {
-    sortProvidersByConfigured<T extends { id: string; label: string }>(catalog: readonly T[], providers: MediaProviderMap | null | undefined, pinnedIds?: readonly string[]): readonly T[];
-    isEntryPresent(entry: MediaProviderCredentials | null | undefined): boolean;
-    isMarkerOnlyEntry(entry: MediaProviderCredentials | null | undefined): boolean;
-    maskedKeyLabel(entry: MediaProviderCredentials | null | undefined): string | null;
-    isProviderBaseUrlInvalid(entry: MediaProviderCredentials | null | undefined): boolean;
-    invalidBaseUrlProviderIds(providers: MediaProviderMap | null | undefined): readonly string[];
+    sortProvidersByConfigured<T extends { id: string; label: string }>(required: { catalog: readonly T[]; providers: MediaProviderMap | null | undefined }, optional?: { pinnedIds?: readonly string[] | undefined }): readonly T[];
+    isEntryPresent(required: { entry: MediaProviderCredentials | null | undefined }, optional?: Record<string, never>): boolean;
+    isMarkerOnlyEntry(required: { entry: MediaProviderCredentials | null | undefined }, optional?: Record<string, never>): boolean;
+    maskedKeyLabel(required: { entry: MediaProviderCredentials | null | undefined }, optional?: Record<string, never>): string | null;
+    isProviderBaseUrlInvalid(required: { entry: MediaProviderCredentials | null | undefined }, optional?: Record<string, never>): boolean;
+    invalidBaseUrlProviderIds(required: { providers: MediaProviderMap | null | undefined }, optional?: Record<string, never>): readonly string[];
   };
 }
 

@@ -71,8 +71,8 @@ async function saveSequentially(
   return items;
 }
 function rowStatus({ entry, pending, rules }: { entry: ProviderEntry; pending: boolean; rules: ProviderRules }, _optional: Record<string, never> = {}) {
-  const saved = rules.isMarkerOnlyEntry(entry);
-  const mask = saved ? rules.maskedKeyLabel(entry) : null;
+  const saved = rules.isMarkerOnlyEntry({ entry });
+  const mask = saved ? rules.maskedKeyLabel({ entry }) : null;
   const unsavedLabel = pending ? 'Unsaved' : null;
   return {
     mask,
@@ -85,7 +85,7 @@ function defaultBaseUrlHint({ entry, item }: { entry: ProviderEntry; item: Media
   return !entry.baseUrl?.trim() && item.defaultBaseUrl ? `Uses ${item.defaultBaseUrl} by default.` : null;
 }
 function baseUrlHint({ entry, item, rules }: { entry: ProviderEntry; item: MediaProviderOption; rules: ProviderRules }, _optional: Record<string, never> = {}) {
-  const invalid = rules.isProviderBaseUrlInvalid(entry);
+  const invalid = rules.isProviderBaseUrlInvalid({ entry });
   return {
     invalid, hint: invalid ? 'Enter an absolute http:// or https:// URL that is not a private or internal address.' : defaultBaseUrlHint({ entry, item }),
     hintClassName: invalid ? 'jini-field-hint jini-hint-error' : 'jini-field-hint',
@@ -129,7 +129,7 @@ function providerRow(
     ...credentialFields({ item, entry, editor, visible }, { mask }),
     toggle,
     ...settingsFields({ item, entry, editor }),
-    clearLabel: `${item.label} Clear`, clearDisabled: !rules.isEntryPresent(entry) || disabled,
+    clearLabel: `${item.label} Clear`, clearDisabled: !rules.isEntryPresent({ entry }) || disabled,
     clear: () => editor.clearProvider(item.id),
     ...baseUrlHint({ entry, item, rules }),
   };
@@ -140,7 +140,7 @@ function editorView({ editor, port, rules }: { editor: ProvidersEditor; port: Me
     reloadLabel: loading ? 'Reloading…' : 'Reload',
     unreachable: editor.load.status === 'unreachable', empty: !editor.hasAnyConfigured,
     save: editor.saveChanges, saveLabel: saving ? 'Saving…' : 'Save changes',
-    saveDisabled: !port || saving || !editor.pendingProviderIds.size || !!rules.invalidBaseUrlProviderIds(editor.providers).length,
+    saveDisabled: !port || saving || !editor.pendingProviderIds.size || !!rules.invalidBaseUrlProviderIds({ providers: editor.providers }).length,
     saved: editor.save.status === 'saved', saveError: editor.save.status === 'save-error', disabled: !port,
     // Fail closed: a host that can persist neither the whole set nor per-provider settings
     // must not accept endpoint/model edits that would only surface as a failed save.
@@ -208,7 +208,7 @@ export function useProvidersTab(_required: Record<string, never> = {}, { useRule
   const editor = useMediaProvidersTab({ port: editorPort, catalogPolicy });
   const catalog = mediaProviders?.catalog ?? discoveredCatalog;
   const pinnedIds = mediaProviders?.pinnedProviderIds ?? [];
-  const ordered = rules.sortProvidersByConfigured(catalog, editor.providers, pinnedIds);
+  const ordered = rules.sortProvidersByConfigured({ catalog, providers: editor.providers }, { pinnedIds });
   const toggleKey = (id: string) => setVisibleKeys(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id);
     return next; });
   const rows = ordered.map((item, index) => providerRow(

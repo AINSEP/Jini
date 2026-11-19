@@ -27,10 +27,10 @@ function sentinelRules(state: { invalidIds: readonly string[]; present: boolean;
   const sorts: { catalog: readonly { id: string }[]; providers: MediaProviderMap | null | undefined; pinnedIds: readonly string[] | undefined }[] = [];
   const masked: (MediaProviderCredentials | null | undefined)[] = [];
   const rules: AdminMediaProvidersKit['rules'] = {
-    sortProvidersByConfigured: (catalog, providers, pinnedIds) => { sorts.push({ catalog, providers, pinnedIds }); return [...catalog].reverse(); },
+    sortProvidersByConfigured: ({ catalog, providers }, { pinnedIds } = {}) => { sorts.push({ catalog, providers, pinnedIds }); return [...catalog].reverse(); },
     isEntryPresent: () => state.present,
     isMarkerOnlyEntry: () => true,
-    maskedKeyLabel: (entry) => { masked.push(entry); return 'SENTINEL-MASK'; },
+    maskedKeyLabel: ({ entry }) => { masked.push(entry); return 'SENTINEL-MASK'; },
     isProviderBaseUrlInvalid: () => state.badUrl,
     invalidBaseUrlProviderIds: () => state.invalidIds,
   };

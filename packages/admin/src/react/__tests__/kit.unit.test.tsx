@@ -38,7 +38,7 @@ describe('admin kit contract', () => {
     );
     expect(renderHook(() => useDirtyGuard({ current: 1, original: 2 }), { wrapper }).result.current.isDirty).toBe(true);
     expect(renderHook(() => useFetchQuery({ key: ['a'], fetch: async () => 'x' }), { wrapper }).result.current.data).toBe('rows');
-    expect(renderHook(() => useMediaProviderRules(), { wrapper }).result.current.maskedKeyLabel(undefined)).toBeNull();
+    expect(renderHook(() => useMediaProviderRules(), { wrapper }).result.current.maskedKeyLabel({ entry: undefined })).toBeNull();
     expect(renderHook(() => useAdminThemeKit(), { wrapper }).result.current.resolveColorScheme({ preference: 'dark' })).toBe('dark');
   });
 });
