@@ -62,9 +62,7 @@ describe('required args and optional args', () => {
   });
 
   it('keeps caller-selected path overrides separate from required layout', () => {
-    const roots = resolveDesktopHostPathRoots({ namespace: 'preview', namespaceBaseRoot: '/caller' }, {
-      dataDirOverrideEnvVar: 'SAMPLE_DATA', env: { SAMPLE_DATA: '/other' },
-    });
+    const roots = resolveDesktopHostPathRoots({ dataDirOverride: { value: '/other', sourceName: 'SAMPLE_DATA' }, namespace: 'preview', namespaceBaseRoot: '/caller' });
     expect(roots.namespaceRoot).toBe('/caller/preview');
     expect(roots.dataRoot).toBe('/other/namespaces/preview/data');
   });

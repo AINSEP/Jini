@@ -2,7 +2,7 @@ import { trimCharsEnd } from '@jini-ai/core/primitives';
 /**
  * Generalized from OD `apps/packaged/src/paths.ts`. On inspection this file
  * was **far more OD-coupled than the task brief expected**: it hardcodes
- * the `OD_DATA_DIR` env var name, "Open Design"-branded error strings, and
+ * a product-owned data-dir env var name, branded error strings, and
  * a dozen OD-specific roots (`desktopIdentityPath`, `headlessIdentityPath`,
  * `webIdentityPath`, `installerObservationRoot`, `updateRoot`, and the
  * `installationRoot` used for cross-namespace installationId persistence —
@@ -11,8 +11,8 @@ import { trimCharsEnd } from '@jini-ai/core/primitives';
  * per-namespace subdirectories, and a data-dir override env var that must
  * resolve to an absolute path and must agree with the active namespace if
  * it already looks namespace-scoped. This port keeps that pattern and
- * drops every OD-specific field and string; the env var name is now
- * caller-supplied instead of hardcoded.
+ * drops every OD-specific field and string; the override value and its
+ * display label are caller-supplied instead of reading an environment map.
  */
 import { homedir } from 'node:os';
 import { isAbsolute, join, win32 } from 'node:path';
@@ -37,8 +37,7 @@ export class DesktopHostPathError extends Error {
 export interface ResolvePathRootsOptions {
   namespace: string;
   namespaceBaseRoot: string;
-  dataDirOverrideEnvVar?: string;
-  env?: NodeJS.ProcessEnv;
+  dataDirOverride: { value: string | undefined; sourceName: string } | undefined;
 }
 
 const HOME_BARE_TOKENS = new Set(['~', '$HOME', '${HOME}']);
@@ -67,31 +66,30 @@ function scopedNamespaceOf(raw: string): string | null {
   return parts[last - 1]!;
 }
 
-function resolveDataRoot(namespaceRoot: string, namespace: string, dataDirOverrideEnvVar: string | undefined, env: NodeJS.ProcessEnv): string {
-  const override = dataDirOverrideEnvVar == null ? undefined : env[dataDirOverrideEnvVar]?.trim();
+function resolveDataRoot(namespaceRoot: string, namespace: string, dataDirOverride: ResolvePathRootsOptions['dataDirOverride']): string {
+  const override = dataDirOverride?.value?.trim();
   if (override == null || override.length === 0) return join(namespaceRoot, 'data');
   const expanded = expandHomePrefix(override);
   const isAbs = process.platform === 'win32' ? win32.isAbsolute(expanded) : isAbsolute(expanded);
   if (!isAbs) {
-    throw new DesktopHostPathError({ message: `${dataDirOverrideEnvVar} must be an absolute path; got: ${override}` });
+    throw new DesktopHostPathError({ message: `${dataDirOverride?.sourceName} must be an absolute path; got: ${override}` });
   }
   const scopedNamespace = scopedNamespaceOf(expanded);
   if (scopedNamespace != null && scopedNamespace !== namespace) {
-    throw new DesktopHostPathError({ message: `${dataDirOverrideEnvVar} targets namespace "${scopedNamespace}" but the active namespace is "${namespace}"` });
+    throw new DesktopHostPathError({ message: `${dataDirOverride?.sourceName} targets namespace "${scopedNamespace}" but the active namespace is "${namespace}"` });
   }
   return scopedNamespace != null ? expanded : join(expanded, 'namespaces', namespace, 'data');
 }
 
-export function resolveDesktopHostPathRoots(requiredArgs: Pick<ResolvePathRootsOptions, 'namespace' | 'namespaceBaseRoot'>, optionalArgs: Omit<ResolvePathRootsOptions, 'namespace' | 'namespaceBaseRoot'> = {}): DesktopHostPathRoots {
+export function resolveDesktopHostPathRoots(requiredArgs: ResolvePathRootsOptions, optionalArgs = {}): DesktopHostPathRoots {
   if (!/^[A-Za-z0-9_-][A-Za-z0-9._-]*$/.test(requiredArgs.namespace)) {
     throw new DesktopHostPathError({ message: 'namespace must be a single safe path segment' });
   }
   const options = { ...optionalArgs, ...requiredArgs };
-  const env = options.env ?? process.env;
   const namespaceRoot = join(options.namespaceBaseRoot, options.namespace);
   return {
     namespaceRoot,
-    dataRoot: resolveDataRoot(namespaceRoot, options.namespace, options.dataDirOverrideEnvVar, env),
+    dataRoot: resolveDataRoot(namespaceRoot, options.namespace, options.dataDirOverride),
     cacheRoot: join(namespaceRoot, 'cache'),
     logsRoot: join(namespaceRoot, 'logs'),
     runtimeRoot: join(namespaceRoot, 'runtime'),
