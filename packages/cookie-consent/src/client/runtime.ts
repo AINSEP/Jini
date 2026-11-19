@@ -9,7 +9,7 @@ import { ADAPTER_KIND, CONFIG_ID, CONSENT_COOKIE, OPEN_EVENT, OPTIONAL, READY_EV
 import { choicesFor, DAY_MS, effective, parseStored, RECEIPT_ID, regionFrom } from '../contracts/policy.js';
 import { allows } from '../contracts/scripts.js';
 import { ADAPTER_SLOT, createPluginRegistry } from '../contracts/plugins.js';
-import { activateInert, installOpeners, purge, readCookie, waiting, writeCookie } from './dom.js';
+import { activateInert, installOpeners, purgeStorage, readCookie, waiting, writeCookie } from './dom.js';
 
 export interface ClientPorts {
   doc: Document; fetch: typeof fetch; now: () => number; gpc: () => boolean; reload: () => void;
@@ -71,7 +71,7 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
     const revoker = await run.result;
     if (!revoker) return false;
     const clean = await Promise.resolve().then(() => revoker.revoke?.()).catch(() => false);
-    if (!anonymous && slot.generation === generation) purge({ doc }, { storage: slot.adapter?.storage ?? slot.entry.storage });
+    if (!anonymous && slot.generation === generation) purgeStorage({ doc, storage: slot.adapter?.storage ?? slot.entry.storage });
     return !clean;
   }
   function reconcile(next: ConsentState): void {
@@ -131,7 +131,7 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
     const slot: Slot = { entry, generation: 0, adapter: typeof (entry as ConsentAdapter).grant === 'function' ? entry as ConsentAdapter : undefined };
     slots.set(entry.id, slot);
     if (anonymous || state.allowed[entry.category]) start(slot);
-    else purge({ doc }, { storage: entry.storage });                     // leftovers of an expired or withdrawn choice
+    else purgeStorage({ doc, storage: entry.storage });                     // leftovers of an expired or withdrawn choice
     quiet(() => slot.adapter?.onState?.({ state, purge: purgeStorage }));                    // lazy adapters get state once loaded
   }
   function syncSlots(items: readonly Contribution[]): void {
@@ -249,10 +249,4 @@ function validContext(value: unknown): value is { enabled: true; policy: string;
   return context?.enabled === true && typeof context.policy === 'string' && ['auto', 'opt-in', 'opt-out'].includes(String(context.regionMode));
 }
 
-/** Delete only the caller's storage prefixes; blocked localStorage is tolerated.
- * @example purgeStorage({ doc: document, storage: { cookies: ['vendor_'], local: ['vendor_'] } })
- * @complexity O(cookies + local keys), O(keys) temporary space; no new identity or network. */
-export function purgeStorage({ doc, storage }: { doc: Document; storage: StoragePrefixes }, _optional = {}): void {
-  purge({ doc }, { storage });
-}
 export { bindBanner, installOpeners } from './dom.js';

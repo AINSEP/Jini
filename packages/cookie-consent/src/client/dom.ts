@@ -26,8 +26,11 @@ function expireEverywhere(doc: Document, name: string): void {
   for (let i = 0; i < parts.length - 1; i++) doc.cookie = `${expired}; Domain=.${parts.slice(i).join('.')}`;
 }
 
-/** Expire prefixed cookies and local-storage keys; storage access can throw in sandboxes. @complexity O(cookies + keys). */
-export function purge({ doc }: { doc: Document }, { storage }: { storage?: StoragePrefixes | undefined } = {}): void {
+/** Expire prefixed cookies and local-storage keys; storage access can throw in sandboxes. Delete only the caller's storage
+ * prefixes; blocked localStorage is tolerated. This is also the `purge` handed to adapters (`PurgeStorage`).
+ * @example purgeStorage({ doc: document, storage: { cookies: ['vendor_'], local: ['vendor_'] } })
+ * @complexity O(cookies + local keys), O(keys) temporary space; no new identity or network. */
+export function purgeStorage({ doc, storage }: { doc: Document; storage?: StoragePrefixes | undefined }, _optional = {}): void {
   if (!storage) return;
   for (const part of doc.cookie.split(/;\s*/)) {
     const name = part.split('=')[0]!;

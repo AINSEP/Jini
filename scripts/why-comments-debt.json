@@ -788,6 +788,10 @@
     {
       "id": "d10bcb00da57",
       "reason": "packages/http-kit/src/raw-sse.ts:114-116 (\"a request's `'close'` can fire when a post body finishes arriving whil...\"): Code gone: http-kit's raw SSE primitive (createSseResponse/SseConnection) was deleted in b6605838 after its last user, the frontend-session stream, moved to core's createSseStream (8c00e560). Backpressure ('drain') and response-'close' handling of a streamed answer are owned by packages/http-kit/src/node-bridge.ts (pipe + out.on('close')), which carries its own comments; the bounded queue is core's createSseStream (packages/core/src/primitives/sse.ts)."
+    },
+    {
+      "id": "01b9a4edc7fa",
+      "reason": "cookie-consent-cloud: createCookieConsent's @example was rewritten for browserPorts' new one-object args shape (browserPorts({ win: window })); the example is still next to the function, only the call shape changed."
     }
   ]
 }

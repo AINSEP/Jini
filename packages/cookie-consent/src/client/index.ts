@@ -2,7 +2,8 @@
 import type { JiniConsentApi } from '../contract.js';
 import { createCookieConsent as createCore, boot as bootCore, bootWithContext as bootCoreWithContext, readPage, type BootOptions } from './runtime.js';
 import { installFeatures } from './features.js';
-export { browserPorts, purgeStorage, installOpeners, bindBanner } from './runtime.js';
+export { browserPorts, installOpeners, bindBanner } from './runtime.js';
+export { purgeStorage } from './dom.js';
 export type { ClientPorts, ClientOptions, BootOptions } from './runtime.js';
 
 export const createCookieConsent: typeof createCore = (required, options = {}) => {

@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { ADAPTER_KIND, type ConsentAdapter } from '../contract.js';
 import { bindBanner, browserPorts, createCookieConsent, type ClientPorts } from '../client/index.js';
-import { activateInert, purge, readCookie, writeCookie } from '../client/dom.js';
+import { activateInert, purgeStorage, readCookie, writeCookie } from '../client/dom.js';
 
 const flush = async () => { for (let i = 0; i < 5; i++) await new Promise(r => setTimeout(r, 0)); };
 /** A cookie jar fake: records every write so Domain/Secure attributes can be asserted. */
@@ -38,7 +38,7 @@ describe('cookie helpers', () => {
 
   test('purge expires prefixed cookies on the host and every parent domain', () => {
     const { doc, writes } = fakeDoc({ defaultView: { location: { hostname: 'a.shop.example' }, localStorage: {} } });
-    purge({ doc }, { storage: { cookies: ['_v_'] } });
+    purgeStorage({ doc, storage: { cookies: ['_v_'] } });
     expect(writes).toEqual([
       '_v_a=; Path=/; Max-Age=0', '_v_a=; Path=/; Max-Age=0; Domain=.a.shop.example', '_v_a=; Path=/; Max-Age=0; Domain=.shop.example',
       '_v_b=; Path=/; Max-Age=0', '_v_b=; Path=/; Max-Age=0; Domain=.a.shop.example', '_v_b=; Path=/; Max-Age=0; Domain=.shop.example',
@@ -47,14 +47,14 @@ describe('cookie helpers', () => {
 
   test('purge without a window expires on the host only and survives missing storage', () => {
     const { doc, writes } = fakeDoc();
-    expect(() => purge({ doc }, { storage: { cookies: ['_v_a'], local: ['x'] } })).not.toThrow();
+    expect(() => purgeStorage({ doc, storage: { cookies: ['_v_a'], local: ['x'] } })).not.toThrow();
     expect(writes).toEqual(['_v_a=; Path=/; Max-Age=0']);
-    expect(() => purge({ doc })).not.toThrow();
+    expect(() => purgeStorage({ doc })).not.toThrow();
   });
 
   test('purge removes prefixed local-storage keys only', () => {
     localStorage.setItem('vend:1', 'x'); localStorage.setItem('mine', 'y');
-    purge({ doc: document }, { storage: { local: ['vend:'] } });
+    purgeStorage({ doc: document, storage: { local: ['vend:'] } });
     expect(Object.keys(localStorage)).toEqual(['mine']);
     localStorage.clear();
   });
