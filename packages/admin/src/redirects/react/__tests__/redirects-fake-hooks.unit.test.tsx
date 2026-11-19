@@ -1,4 +1,4 @@
-import { render, screen } from "../../../__tests__/fetch-query-support.js";
+import { render, screen } from "./legacy-harness.js";
 import { describe, expect, it, vi } from "vitest";
 
 import { createMemoryRedirectsApi } from "../../adapters/memory.js";
