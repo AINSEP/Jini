@@ -11,8 +11,7 @@ export interface MailSelectionPorts<Input extends MailSelectionInput, Written ex
  toggle(input: Input): Promise<Written>;
  isRevisionConflict(error: unknown): boolean;
 }
-/** Keep ownership snapshots across failed cleanup, with bounded revision retries. @complexity O(1) setup. */
-export function createMailSelection<Input extends MailSelectionInput, Written extends { enabled: boolean }>(required: MailSelectionPorts<Input,Written>, _optional: Record<string,never> = {}) {
+function createPluginSelectionCleanup<Input extends MailSelectionInput, Written extends { enabled: boolean }>(required: MailSelectionPorts<Input, Written>) {
   /** Clear only this plugin's selected lanes through the settings owner; failures propagate.
    * Re-read live ownership too: a conflict retry cannot clear a newly enabled plugin's same id.
    * @complexity O(a + p) active adapters and provider ids, two lane checks and at most one settings write. */
@@ -41,6 +40,12 @@ export function createMailSelection<Input extends MailSelectionInput, Written ex
       catch (error) { if (!(required.isRevisionConflict(error)) || attempt === 2) throw error; }
     }
   };
+  return clearPluginSelection;
+}
+
+/** Keep ownership snapshots across failed cleanup, with bounded revision retries. @complexity O(1) setup. */
+export function createMailSelection<Input extends MailSelectionInput, Written extends { enabled: boolean }>(required: MailSelectionPorts<Input,Written>, _optional: Record<string,never> = {}) {
+  const clearPluginSelection = createPluginSelectionCleanup(required);
   // Only failed cleanup retains ownership: executable contributions disappear after OFF.
   const pendingPluginSelections = new Map<string, ReadonlySet<string>>();
   /** Retain active ownership across an interrupted cleanup; after a restart, read only the

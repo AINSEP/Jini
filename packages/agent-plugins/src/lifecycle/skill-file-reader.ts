@@ -54,63 +54,33 @@ export interface SkillFileReader {
   read(input: Record<string, never>, options?: { readonly file?: string }): Promise<SkillFileResult>;
 }
 
-/**
- * Progressive disclosure for plugin AND standalone skills, with a skill-folder trust boundary.
- * Uses the lifecycle containment owner, native bounded reads and injected async filesystem effects.
- * The default file is SKILL.md; supporting files are discovered recursively, never inlined.
- * @complexity O(entries + readable bytes), bounded by 4096 entries, depth 32 and 256 KiB per file.
- */
-export function createSkillFileReader(
-  { skillRoot, filesystem }: { readonly skillRoot: string; readonly filesystem: FilesystemPort },
-  _options: Record<string, never> = {},
-): SkillFileReader {
-  const { assertContainedOnDisk } = createPackagePathsModule({ filesystem });
-
-  /** Reject traversal even when normalization would leave it inside the folder.
-   * @returns The refusal message, or `undefined` for an admissible name. */
-  function validateFile(file: string): string | undefined {
-    const absolute = path.posix.isAbsolute(file) || /^[a-zA-Z]:/.test(file);
-    if (!file || /[\0\\]/.test(file) || absolute || file.split("/").some(segment => segment === "..")) {
-      return "File request refused: use a path relative to this skill folder, without traversal or absolute paths.";
-    }
-    if (!TEXT_EXTENSIONS.has(path.extname(file).toLowerCase())) {
-      return "File request refused: only supported text extensions are readable.";
-    }
-    return undefined;
+/** Reject traversal even when normalization would leave it inside the folder.
+ * @returns The refusal message, or `undefined` for an admissible name. */
+function validateFile(file: string): string | undefined {
+  const absolute = path.posix.isAbsolute(file) || /^[a-zA-Z]:/.test(file);
+  if (!file || /[\0\\]/.test(file) || absolute || file.split("/").some(segment => segment === "..")) {
+    return "File request refused: use a path relative to this skill folder, without traversal or absolute paths.";
   }
-
-  /** The canonical contained target of `file`, or `undefined` when it is missing or escapes the folder. */
-  async function resolveTarget(file: string): Promise<string | undefined> {
-    try {
-      const absolute = await filesystem.realpath(await assertContainedOnDisk(skillRoot, file));
-      // Recheck the canonical target through the same owner before opening it.
-      const relative = path.relative(await filesystem.realpath(skillRoot), absolute);
-      await assertContainedOnDisk(skillRoot, relative);
-      return validateFile(relative.split(path.sep).join("/")) === undefined ? absolute : undefined;
-    } catch {
-      return undefined;
-    }
+  if (!TEXT_EXTENSIONS.has(path.extname(file).toLowerCase())) {
+    return "File request refused: only supported text extensions are readable.";
   }
+  return undefined;
+}
 
-  /** Validate, resolve, then read one file; every refusal is a value, never a thrown native error. */
-  async function readText(file: string): Promise<ReadOutcome> {
-    const invalid = validateFile(file);
-    if (invalid !== undefined) return { refusal: invalid };
-    const absolute = await resolveTarget(file);
-    if (absolute === undefined) return { refusal: "File request refused: file is missing, unreadable, or resolves outside this skill folder." };
-    return readContained(absolute);
-  }
+/** Open the resolved target with no-follow and read at most cap + 1, including growing files. */
+async function readContained(filesystem: FilesystemPort, absolute: string): Promise<ReadOutcome> {
+  const handle = await filesystem.open(absolute, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK).catch(() => undefined);
+  if (!handle) return { refusal: UNREADABLE };
+  // Never reflect native errors or caller paths: either can contain an absolute host path.
+  return readOpened(handle).catch(() => ({ refusal: UNREADABLE })).finally(() => handle.close().catch(() => {}));
+}
 
-  /** Open the resolved target with no-follow and read at most cap + 1, including growing files. */
-  async function readContained(absolute: string): Promise<ReadOutcome> {
-    const handle = await filesystem.open(absolute, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK).catch(() => undefined);
-    if (!handle) return { refusal: UNREADABLE };
-    // Never reflect native errors or caller paths: either can contain an absolute host path.
-    return readOpened(handle).catch(() => ({ refusal: UNREADABLE })).finally(() => handle.close().catch(() => {}));
-  }
-
+function createSkillFileInventory(
+  readDirectory: (relative: string) => Promise<Dirent[] | undefined>,
+  readText: (file: string) => Promise<ReadOutcome>,
+) {
   /** Skip directory symlinks (including cycles); contained file symlinks use the same read guard. */
-  async function listFiles(): Promise<{ files: string[]; note?: string }> {
+  return async function listFiles(): Promise<{ files: string[]; note?: string }> {
     const files: string[] = [];
     let remaining = MAX_WALK_ENTRIES;
     let incomplete = false;
@@ -137,6 +107,43 @@ export function createSkillFileReader(
     await walk("", 0);
     return { files: files.sort(), ...(incomplete ? { note: "Supporting-file inventory is incomplete: traversal limit reached or a directory is unreadable." } : {}) };
   }
+}
+
+/**
+ * Progressive disclosure for plugin AND standalone skills, with a skill-folder trust boundary.
+ * Uses the lifecycle containment owner, native bounded reads and injected async filesystem effects.
+ * The default file is SKILL.md; supporting files are discovered recursively, never inlined.
+ * @complexity O(entries + readable bytes), bounded by 4096 entries, depth 32 and 256 KiB per file.
+ */
+export function createSkillFileReader(
+  { skillRoot, filesystem }: { readonly skillRoot: string; readonly filesystem: FilesystemPort },
+  _options: Record<string, never> = {},
+): SkillFileReader {
+  const { assertContainedOnDisk } = createPackagePathsModule({ filesystem });
+
+  /** The canonical contained target of `file`, or `undefined` when it is missing or escapes the folder. */
+  async function resolveTarget(file: string): Promise<string | undefined> {
+    try {
+      const absolute = await filesystem.realpath(await assertContainedOnDisk(skillRoot, file));
+      // Recheck the canonical target through the same owner before opening it.
+      const relative = path.relative(await filesystem.realpath(skillRoot), absolute);
+      await assertContainedOnDisk(skillRoot, relative);
+      return validateFile(relative.split(path.sep).join("/")) === undefined ? absolute : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** Validate, resolve, then read one file; every refusal is a value, never a thrown native error. */
+  async function readText(file: string): Promise<ReadOutcome> {
+    const invalid = validateFile(file);
+    if (invalid !== undefined) return { refusal: invalid };
+    const absolute = await resolveTarget(file);
+    if (absolute === undefined) return { refusal: "File request refused: file is missing, unreadable, or resolves outside this skill folder." };
+    return readContained(filesystem, absolute);
+  }
+
+  const listFiles = createSkillFileInventory(readDirectory, readText);
 
   /** One directory's entries in code-unit name order, or `undefined` when it cannot be read. */
   async function readDirectory(relative: string): Promise<Dirent[] | undefined> {

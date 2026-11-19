@@ -4,6 +4,27 @@ import type { AgentPluginSummary, AgentPluginsState, AgentPluginActivationInput,
 import { agentPluginSummary, AGENT_PLUGINS_READ, AGENT_PLUGINS_WRITE } from '../rules.js';
 import { agentPluginsMessagesEn as m } from '../messages.en.js';
 
+function createPluginActivationWriter(api: AgentPluginsApiPort, store: ReturnType<typeof createControllerStore<AgentPluginsState>>, { rowFor, canWrite, onAccepted }: { rowFor: (id: string) => AgentPluginSummary | undefined; canWrite: () => boolean; onAccepted: () => void }) {
+  return async function setEnabled(input: AgentPluginActivationInput, _optional = {}) {
+    const row = rowFor(input.pluginId), state = store.getSnapshot();
+    if (!canWrite() || !row || row.enabled === input.enabled || state.busyIds.includes(input.pluginId)) return false;
+    store.set({ patch: { busyIds: [...state.busyIds, input.pluginId], actionError: null } });
+    try {
+      const updated = await api.setEnabled(input, { signal: store.signal });
+      if (store.signal.aborted) return false;
+      if (updated.pluginId !== input.pluginId) throw new Error('Invalid activation response');
+      onAccepted();
+      // No optimistic flip: independent rows always splice into the newest snapshot.
+      // rowFor found this row above and plugins is never reset to null, so the list exists here.
+      const current = store.getSnapshot();
+      store.set({ patch: { plugins: Object.freeze(current.plugins!.map(p => p.pluginId === updated.pluginId ? agentPluginSummary({ row: updated }) : p)) } });
+      return true;
+    } catch { store.set({ patch: { actionError: m.actionError } }); }
+    finally { store.set({ patch: { busyIds: store.getSnapshot().busyIds.filter(id => id !== input.pluginId) } }); }
+    return false;
+  }
+}
+
 export function createAgentPluginsController({ api, permissions = [] }: { api: AgentPluginsApiPort; permissions?: readonly string[] }, _optional = {}) {
   const grants = new Set(permissions);
   const store = createControllerStore<AgentPluginsState>({ initial: { plugins: null, loading: false, error: null, actionError: null, busyIds: [], expandedIds: [], pendingDisable: null, inspectedId: null } });
@@ -30,24 +51,7 @@ export function createAgentPluginsController({ api, permissions = [] }: { api: A
     } catch { if (ticket === generation) store.set({ patch: { error: m.loadError } }); }
     finally { if (ticket === generation) store.set({ patch: { loading: false } }); }
   }
-  async function setEnabled(input: AgentPluginActivationInput, _optional = {}) {
-    const row = rowFor(input.pluginId), state = store.getSnapshot();
-    if (!canWrite() || !row || row.enabled === input.enabled || state.busyIds.includes(input.pluginId)) return false;
-    store.set({ patch: { busyIds: [...state.busyIds, input.pluginId], actionError: null } });
-    try {
-      const updated = await api.setEnabled(input, { signal: store.signal });
-      if (store.signal.aborted) return false;
-      if (updated.pluginId !== input.pluginId) throw new Error('Invalid activation response');
-      revision++;
-      // No optimistic flip: independent rows always splice into the newest snapshot.
-      // rowFor found this row above and plugins is never reset to null, so the list exists here.
-      const current = store.getSnapshot();
-      store.set({ patch: { plugins: Object.freeze(current.plugins!.map(p => p.pluginId === updated.pluginId ? agentPluginSummary({ row: updated }) : p)) } });
-      return true;
-    } catch { store.set({ patch: { actionError: m.actionError } }); }
-    finally { store.set({ patch: { busyIds: store.getSnapshot().busyIds.filter(id => id !== input.pluginId) } }); }
-    return false;
-  }
+  const setEnabled = createPluginActivationWriter(api, store, { rowFor, canWrite, onAccepted: () => { revision++; } });
   return {
     getSnapshot: store.getSnapshot, subscribe: store.subscribe, load, setEnabled,
     requestDisable(input: AgentPluginDisableRequest, _optional = {}) {

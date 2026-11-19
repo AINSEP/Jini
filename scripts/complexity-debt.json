@@ -1,26 +1,5 @@
 [
   {
-    "file": "packages/agent-plugins/core/persistent-state.js",
-    "function": "createPluginMemory.list.walk",
-    "line": 74,
-    "rule": "sonarjs/cognitive-complexity",
-    "value": 16
-  },
-  {
-    "file": "packages/agent-plugins/core/persistent-state.js",
-    "function": "migratePluginLayout.run",
-    "line": 135,
-    "rule": "complexity",
-    "value": 25
-  },
-  {
-    "file": "packages/agent-plugins/core/persistent-state.js",
-    "function": "migratePluginLayout.run",
-    "line": 135,
-    "rule": "sonarjs/cognitive-complexity",
-    "value": 42
-  },
-  {
     "file": "packages/chat/src/core/question-form/scan.ts",
     "function": "balancedObjectEnd",
     "line": 339,

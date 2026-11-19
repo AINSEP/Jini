@@ -193,6 +193,30 @@ async function rejectReplayedCommand(
   }
 }
 
+function appliedChangeSetEvent(
+  { deps, command, mutation }: { deps: ExecuteCommandDeps; command: CommandEnvelope; mutation: Pick<CommandMutation<unknown>, 'entityType' | 'entityId'> },
+  { now, changeSetId }: { now: string; changeSetId: UUID },
+): DomainEvent<{ changeSetId: UUID; entityType: string; entityId: UUID }> {
+  // the event rides into insert's optional object (see this function's doc comment) so a. See docs/decisions/DR-006-mutation-audit-atomicity.md.
+  // durable adapter co-persists it atomically with the record it belongs to. Built unconditionally
+  // (cheap, pure data) but only passed through when an outbox is actually wired.
+  return {
+    id: deps.idGen.newId(),
+    name: "change-set.applied",
+    occurredAt: now,
+    aggregateId: changeSetId,
+    workspaceId: command.workspaceId,
+    actorId: command.actor.id,
+    changeSetId,
+    payload: {
+      changeSetId,
+      entityType: mutation.entityType,
+      entityId: mutation.entityId,
+    },
+  };
+
+}
+
 /**
  * Builds the auto-applied single-item change set (record, item, and `change-set.applied` event)
  * for a mutation that has already executed. Ids are drawn in a fixed order: change set, event, item.
@@ -218,23 +242,7 @@ function buildAppliedChangeSet<TResult>(
   const now = kernelNowIso({ clock: deps.clock });
   const changeSetId = deps.idGen.newId();
 
-  // the event rides into insert's optional object (see this function's doc comment) so a. See docs/decisions/DR-006-mutation-audit-atomicity.md.
-  // durable adapter co-persists it atomically with the record it belongs to. Built unconditionally
-  // (cheap, pure data) but only passed through when an outbox is actually wired.
-  const event: DomainEvent<{ changeSetId: UUID; entityType: string; entityId: UUID }> = {
-    id: deps.idGen.newId(),
-    name: "change-set.applied",
-    occurredAt: now,
-    aggregateId: changeSetId,
-    workspaceId: command.workspaceId,
-    actorId: command.actor.id,
-    changeSetId,
-    payload: {
-      changeSetId,
-      entityType: mutation.entityType,
-      entityId: mutation.entityId,
-    },
-  };
+  const event = appliedChangeSetEvent({ deps, command, mutation }, { now, changeSetId });
 
   const itemId = deps.idGen.newId();
   return {

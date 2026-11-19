@@ -144,17 +144,8 @@ function entryStatusHandler(
   };
 }
 
-export function buildEntriesRegistrations(routeDeps: EntriesToolDeps): ToolRegistration[] {
-  const handlers: Record<string, ToolHandler> = {
-    collections_entry_list: async (ctx) => {
-      const input = ctx.input !== undefined ? requireInputRecord({ input: ctx.input }) : {};
-      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "admin.collections.read" }, { entityType: "entry" });
-
-      const { items } = await listEntries({ repo: routeDeps.entryRepo, workspaceId: routeDeps.workspaceId }, { type: optionalString({ input, key: "type" }) });
-      return { items: items.map(toEntryToolView) };
-    },
-
-    collections_entry_create: async (ctx) => {
+function createEntryCreationHandler(routeDeps: EntriesToolDeps): ToolHandler {
+  return async (ctx) => {
       const input = requireInputRecord({ input: ctx.input });
       return withSchemaOnRejection({ toolId: "collections_entry_create", catalog: CATALOG_BY_ID, isShapeRejection: isEntriesShapeRejection, fn: () =>
         fromEntryResult(() =>
@@ -172,7 +163,20 @@ export function buildEntriesRegistrations(routeDeps: EntriesToolDeps): ToolRegis
             },
           }),
         ) });
+    };
+}
+
+export function buildEntriesRegistrations(routeDeps: EntriesToolDeps): ToolRegistration[] {
+  const handlers: Record<string, ToolHandler> = {
+    collections_entry_list: async (ctx) => {
+      const input = ctx.input !== undefined ? requireInputRecord({ input: ctx.input }) : {};
+      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "admin.collections.read" }, { entityType: "entry" });
+
+      const { items } = await listEntries({ repo: routeDeps.entryRepo, workspaceId: routeDeps.workspaceId }, { type: optionalString({ input, key: "type" }) });
+      return { items: items.map(toEntryToolView) };
     },
+
+    collections_entry_create: createEntryCreationHandler(routeDeps),
 
     collections_entry_update: async (ctx) => {
       const input = requireInputRecord({ input: ctx.input });

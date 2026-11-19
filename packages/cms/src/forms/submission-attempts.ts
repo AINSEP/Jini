@@ -101,6 +101,37 @@ export function submissionAttemptKey(
   return hash(JSON.stringify([input.workspaceId, input.slug, input.sourceIp, attemptToken, body]));
 }
 
+function createAttemptIssuance(issued: Map<string, IssuedAttempt>): Pick<SubmissionAttempts, 'issue' | 'ageMs'> {
+  const pruneIssued = ({ nowMs }: { nowMs: number }, _optional: Record<string, never> = {}): void => {
+    for (const [token, entry] of issued) {
+      if (nowMs - entry.issuedAtMs < FORM_ATTEMPT_MAX_AGE_MS) break;
+      issued.delete(token);
+    }
+  };
+
+  return {
+    issue({ workspaceId, slug, attemptToken, issuedAtMs }, _optional = {}) {
+      if (!Number.isFinite(issuedAtMs)) return;
+      pruneIssued({ nowMs: issuedAtMs });
+      if (issued.has(attemptToken)) return;
+      while (issued.size >= MAX_REMEMBERED_ATTEMPTS) issued.delete(issued.keys().next().value!);
+      issued.set(attemptToken, { workspaceId, slug, issuedAtMs });
+    },
+    ageMs({ workspaceId, slug, attemptToken, nowMs }, _optional = {}) {
+      if (typeof attemptToken !== "string") return undefined;
+      const entry = issued.get(attemptToken);
+      if (!entry || entry.workspaceId !== workspaceId || entry.slug !== slug) return undefined;
+      const age = nowMs - entry.issuedAtMs;
+      if (age >= FORM_ATTEMPT_MAX_AGE_MS) {
+        issued.delete(attemptToken);
+        return undefined;
+      }
+      // Clock rollback, cross-worker/restart loss, stale pages and eviction lose evidence, never data.
+      return age >= 0 ? age : undefined;
+    },
+  };
+}
+
 /**
  * Builds one in-memory attempt store. Entries sit in claim/acceptance order (an accepted entry is
  * re-inserted at the end), so expired ones are always at the front.
@@ -114,13 +145,6 @@ export function createSubmissionAttempts(
   // Rendering never claims a submission. Keeping issuance separate preserves the accepted window
   // and failure-release behavior. Tokenless callers bypass claims in submitForm.
   const issued = new Map<string, IssuedAttempt>();
-
-  const pruneIssued = ({ nowMs }: { nowMs: number }, _optional: Record<string, never> = {}): void => {
-    for (const [token, entry] of issued) {
-      if (nowMs - entry.issuedAtMs < FORM_ATTEMPT_MAX_AGE_MS) break;
-      issued.delete(token);
-    }
-  };
 
   const prune = (nowMs: number): void => {
     for (const [key, attempt] of attempts) {
@@ -157,25 +181,7 @@ export function createSubmissionAttempts(
   };
 
   return {
-    issue({ workspaceId, slug, attemptToken, issuedAtMs }, _optional = {}) {
-      if (!Number.isFinite(issuedAtMs)) return;
-      pruneIssued({ nowMs: issuedAtMs });
-      if (issued.has(attemptToken)) return;
-      while (issued.size >= MAX_REMEMBERED_ATTEMPTS) issued.delete(issued.keys().next().value!);
-      issued.set(attemptToken, { workspaceId, slug, issuedAtMs });
-    },
-    ageMs({ workspaceId, slug, attemptToken, nowMs }, _optional = {}) {
-      if (typeof attemptToken !== "string") return undefined;
-      const entry = issued.get(attemptToken);
-      if (!entry || entry.workspaceId !== workspaceId || entry.slug !== slug) return undefined;
-      const age = nowMs - entry.issuedAtMs;
-      if (age >= FORM_ATTEMPT_MAX_AGE_MS) {
-        issued.delete(attemptToken);
-        return undefined;
-      }
-      // Clock rollback, cross-worker/restart loss, stale pages and eviction lose evidence, never data.
-      return age >= 0 ? age : undefined;
-    },
+    ...createAttemptIssuance(issued),
     key: (required, optional = {}) => submissionAttemptKey({ ...required, hash }, optional),
     async once({ key, nowMs, submit }, _optional = {}) {
       for (;;) {

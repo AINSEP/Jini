@@ -59,6 +59,28 @@ function checkedValue(value: AdminSurfaceStateValue): AdminSurfaceStateValue {
 }
 
 
+function createPluginSettingWriter(
+  { vault, scope, format }: Pick<AdminSurfacePluginStatePersistence, 'vault' | 'scope' | 'format'>,
+  { rowId, isConflict }: { rowId: (input: AgentPluginStateScope, key: unknown) => string; isConflict: (error: unknown) => boolean },
+) {
+  /** The existing row's revision comes from the summary listing, which opens no envelope: a row sealed
+   *  under a key this machine no longer has (a lost or re-minted store key) can still be overwritten,
+   *  so the user re-enters the setting instead of being stuck behind an error. */
+  return async function write(input: AgentPluginStateScope, key: string, value: AdminSurfaceStateValue): Promise<void> {
+    const id = rowId(input, key);
+    const stored = checkedValue(value);
+    const rows = await vault.list({ ...scope });
+    const existing = rows.find((row) => row.id === id);
+    if (!existing && rows.filter((row) => row.id.startsWith(rowPrefix(input.pluginId))).length >= PLUGIN_STATE_MAX_KEYS) throw new Error(`A plugin may keep at most ${PLUGIN_STATE_MAX_KEYS} settings here. Remove one and retry.`);
+    await vault.put({ ...scope, id, expectedRevision: existing?.revision ?? null, provider: null, label: `Plugin settings ${id}`,
+      meta: { credentialFormat: format }, payload: { value: stored } as unknown as VaultMeta })
+      .catch((error: unknown) => {
+        if (isConflict(error)) throw new Error("This setting changed while it was being saved. Reload the plugin's settings and retry.", { cause: error });
+        throw error;
+      });
+  }
+}
+
 /**
  * Creates the workspace's plugin-state store over the api-connection vault.
  * @param required.vault - The workspace's api-connection vault (`createApiConnectionVault`).
@@ -96,22 +118,7 @@ export function createAgentPluginStateStore(
     return { keys };
   }
 
-  /** The existing row's revision comes from the summary listing, which opens no envelope: a row sealed
-   *  under a key this machine no longer has (a lost or re-minted store key) can still be overwritten,
-   *  so the user re-enters the setting instead of being stuck behind an error. */
-  async function write(input: AgentPluginStateScope, key: string, value: AdminSurfaceStateValue): Promise<void> {
-    const id = rowId(input, key);
-    const stored = checkedValue(value);
-    const rows = await vault.list({ ...scope });
-    const existing = rows.find((row) => row.id === id);
-    if (!existing && rows.filter((row) => row.id.startsWith(rowPrefix(input.pluginId))).length >= PLUGIN_STATE_MAX_KEYS) throw new Error(`A plugin may keep at most ${PLUGIN_STATE_MAX_KEYS} settings here. Remove one and retry.`);
-    await vault.put({ ...scope, id, expectedRevision: existing?.revision ?? null, provider: null, label: `Plugin settings ${id}`,
-      meta: { credentialFormat: format }, payload: { value: stored } as unknown as VaultMeta })
-      .catch((error: unknown) => {
-        if (isConflict(error)) throw new Error("This setting changed while it was being saved. Reload the plugin's settings and retry.", { cause: error });
-        throw error;
-      });
-  }
+  const write = createPluginSettingWriter({ vault, scope, format }, { rowId, isConflict });
 
   function readerFor(input: AgentPluginStateScope): AgentPluginStateReader {
     return {

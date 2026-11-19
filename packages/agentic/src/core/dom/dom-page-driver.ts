@@ -452,39 +452,22 @@ export interface DomPageDriverOptions {
 }
 
 /**
- * Builds a driver over `root`.
+ * More than one element answers to the same handle — a page-authoring bug (duplicate
+ * `data-agent-element`), not something a caller passing that handle can resolve on its own.
  *
- * @param options - The subtree, the navigable pages, and the current page id.
- * @returns A driver ready to hand to `executePageCapability`.
+ * `findElements` still lists every one of them, so the collision is discoverable; resolving a
+ * single handle to act on refuses instead of silently taking the first DOM match and leaving the
+ * others permanently unreachable with no signal that they were ever unreachable at all.
  */
-export function createDomPageDriver({ root, pages }: DomPageDriverRequired, options: DomPageDriverOptions = {}): PageDriver {
-  /**
-   * The page a specific element belongs to — its own nearest `[data-agent-page]` ancestor, not a
-   * single document-wide guess.
-   *
-   * A host that keeps more than one `[data-agent-page]` section mounted at once (tabs, wizard
-   * steps toggled with CSS rather than unmounted — the kind of SPA this driver's own options doc
-   * anticipates) previously had every element attributed to whichever section happened to be
-   * first in the DOM, regardless of which one it actually lived in. `closest` answers per element
-   * instead of once for the whole call.
-   *
-   * Still overridden by a pinned `currentPage`, unchanged: that value is the host's own claim
-   * about what is showing, taking precedence over whatever the DOM happens to say.
-   */
-  const pageOf = (element: Element): string | undefined =>
-    options.currentPage ?? element.closest(`[${AGENT_PAGE_ATTRIBUTE}]`)?.getAttribute(AGENT_PAGE_ATTRIBUTE) ?? undefined;
-  /**
-   * Active markers keyed by handle, so re-highlighting the same element restarts rather than
-   * stacks — and carrying the styling to put back, which must be captured once, on the first
-   * highlight. Re-reading the element on a restart would snapshot the marker itself, and the
-   * element would keep it forever: a capability classified `read` precisely because it is
-   * transient would permanently change how someone's page looks.
-   */
-  const highlights = new Map<string, {
-    timer: ReturnType<typeof setTimeout>;
-    restore: { outline: string; outlineOffset: string; borderRadius: string };
-  }>();
+const ambiguousHandleError = (handle: string, count: number): Error => {
+  const message = `"${handle}" is published on ${count} elements on this page, so which one it addresses is `
+    + 'ambiguous — this is a page-authoring bug (duplicate data-agent-element), not something a '
+    + 'caller can resolve; publish a unique handle per element';
+  console.warn(message);
+  return new Error(message);
+};
 
+function createDomElementResolver(root: DomPageDriverRequired['root'], options: DomPageDriverOptions) {
   /**
    * Every element published under `handle`. A page that (accidentally, or via a templating bug)
    * publishes the same handle twice makes `find`'s single-match resolution ambiguous — surfaced
@@ -497,22 +480,6 @@ export function createDomPageDriver({ root, pages }: DomPageDriverRequired, opti
     const matches = Array.from(root.querySelectorAll(resolveHandleSelector({ handle })));
     if (options.publication && matches.length !== 1) return [];
     return matches.filter(element => publicElement({ element }) && (!publicationFilter || publicationFilter.allows({ element, action: 'read' })));
-  };
-
-  /**
-   * More than one element answers to the same handle — a page-authoring bug (duplicate
-   * `data-agent-element`), not something a caller passing that handle can resolve on its own.
-   *
-   * `findElements` still lists every one of them, so the collision is discoverable; resolving a
-   * single handle to act on refuses instead of silently taking the first DOM match and leaving the
-   * others permanently unreachable with no signal that they were ever unreachable at all.
-   */
-  const ambiguousHandleError = (handle: string, count: number): Error => {
-    const message = `"${handle}" is published on ${count} elements on this page, so which one it addresses is `
-      + 'ambiguous — this is a page-authoring bug (duplicate data-agent-element), not something a '
-      + 'caller can resolve; publish a unique handle per element';
-    console.warn(message);
-    return new Error(message);
   };
 
   /** Resolve one handle and recheck its live action target before returning.
@@ -567,6 +534,13 @@ export function createDomPageDriver({ root, pages }: DomPageDriverRequired, opti
   const publicationFilter = options.publication ? createPublicationFilter({ root, publication: options.publication,
     fieldOf: element => fieldDescriptorOf(controlOf(element)) ?? dropdownFieldDescriptorOf({ dropdown: element instanceof HTMLSelectElement ? element : undefined }) }) : undefined;
 
+  return { findAll, find, controlOf, publicationFilter };
+}
+
+function createDomReadOperations(
+  { root, pages, pageOf }: DomPageDriverRequired & { pageOf: (element: Element) => string | undefined },
+  { findAll, find, controlOf, publicationFilter }: ReturnType<typeof createDomElementResolver>,
+): Pick<PageDriver, 'findElements' | 'listPages' | 'describeField' | 'describeState'> {
   return {
     async findElements(_required: Record<string, never>, filter: FindElementsFilter = {}) {
       const found = Array.from(root.querySelectorAll(`[${AGENT_ELEMENT_ATTRIBUTE}]`))
@@ -618,7 +592,14 @@ export function createDomPageDriver({ root, pages }: DomPageDriverRequired, opti
       const state = rawElementStateOf({ element, control, checkable, readable, value, dropdown });
       return publicationState({ state, element, filtered: Boolean(publicationFilter) });
     },
+  };
+}
 
+function createDomVisualOperations(
+  find: ReturnType<typeof createDomElementResolver>['find'],
+  highlights: Map<string, { timer: ReturnType<typeof setTimeout>; restore: { outline: string; outlineOffset: string; borderRadius: string } }>,
+): Pick<PageDriver, 'settle' | 'highlight' | 'scrollTo'> {
+  return {
     /**
      * Two animation frames — long enough for a framework to have re-rendered and the browser to
      * have painted — or {@link SETTLE_TIMEOUT_MS}, whichever lands first. Without the timeout this
@@ -677,7 +658,38 @@ export function createDomPageDriver({ root, pages }: DomPageDriverRequired, opti
       // Revealing a clicked control is best-effort in DOMs without layout (including jsdom).
       if (typeof element.scrollIntoView === 'function') element.scrollIntoView({ behavior: 'smooth', block: 'center' });
     },
+  };
+}
 
+function fillControl(control: Element, { handle, text }: { handle: string; text: string }): void {
+  if (isEditableRegion(control)) {
+    // A contenteditable region has no `value`; its content *is* its children, and a real
+    // editor owns that subtree. See `fillEditableRegion` for why this drives it through
+    // selection + `execCommand` rather than replacing `textContent` directly.
+    fillEditableRegion(control, text);
+    return;
+  }
+  if (!(control instanceof HTMLInputElement) && !(control instanceof HTMLTextAreaElement)) {
+    throw new Error(`"${handle}" is not a fillable field`);
+  }
+  // Assign through the prototype setter, then dispatch: React tracks the previous value on
+  // the node and ignores an input event whose value it believes it already has, so a plain
+  // `control.value = text` updates the DOM but leaves React state stale.
+  const prototype = control instanceof HTMLInputElement
+    ? HTMLInputElement.prototype
+    : HTMLTextAreaElement.prototype;
+  const setter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
+  if (setter) setter.call(control, text);
+  else control.value = text;
+  control.dispatchEvent(new Event('input', { bubbles: true }));
+  control.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+function createDomWriteOperations(
+  { find, controlOf }: Pick<ReturnType<typeof createDomElementResolver>, 'find' | 'controlOf'>,
+  options: DomPageDriverOptions,
+): Pick<PageDriver, 'click' | 'fill' | 'selectOption'> {
+  return {
     async click({ handle }: { handle: string }, _optional: Record<string, never> = {}) {
       const control = controlOf(find(handle, 'click'));
       if (!(control instanceof HTMLElement)) throw new Error(`"${handle}" is not clickable`);
@@ -693,27 +705,7 @@ export function createDomPageDriver({ root, pages }: DomPageDriverRequired, opti
 
     async fill({ handle, text }: { handle: string; text: string }, _optional: Record<string, never> = {}) {
       const control = controlOf(find(handle, 'fill'));
-      if (isEditableRegion(control)) {
-        // A contenteditable region has no `value`; its content *is* its children, and a real
-        // editor owns that subtree. See `fillEditableRegion` for why this drives it through
-        // selection + `execCommand` rather than replacing `textContent` directly.
-        fillEditableRegion(control, text);
-        return;
-      }
-      if (!(control instanceof HTMLInputElement) && !(control instanceof HTMLTextAreaElement)) {
-        throw new Error(`"${handle}" is not a fillable field`);
-      }
-      // Assign through the prototype setter, then dispatch: React tracks the previous value on
-      // the node and ignores an input event whose value it believes it already has, so a plain
-      // `control.value = text` updates the DOM but leaves React state stale.
-      const prototype = control instanceof HTMLInputElement
-        ? HTMLInputElement.prototype
-        : HTMLTextAreaElement.prototype;
-      const setter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
-      if (setter) setter.call(control, text);
-      else control.value = text;
-      control.dispatchEvent(new Event('input', { bubbles: true }));
-      control.dispatchEvent(new Event('change', { bubbles: true }));
+      fillControl(control, { handle, text });
     },
 
     async selectOption({ handle, option }: { handle: string; option: string }, { selected = true }: { selected?: boolean | undefined } = {}) {
@@ -746,6 +738,51 @@ export function createDomPageDriver({ root, pages }: DomPageDriverRequired, opti
       control.dispatchEvent(new Event('input', { bubbles: true }));
       control.dispatchEvent(new Event('change', { bubbles: true }));
     },
+  };
+}
+
+/**
+ * Builds a driver over `root`.
+ *
+ * @param options - The subtree, the navigable pages, and the current page id.
+ * @returns A driver ready to hand to `executePageCapability`.
+ */
+export function createDomPageDriver({ root, pages }: DomPageDriverRequired, options: DomPageDriverOptions = {}): PageDriver {
+  /**
+   * The page a specific element belongs to — its own nearest `[data-agent-page]` ancestor, not a
+   * single document-wide guess.
+   *
+   * A host that keeps more than one `[data-agent-page]` section mounted at once (tabs, wizard
+   * steps toggled with CSS rather than unmounted — the kind of SPA this driver's own options doc
+   * anticipates) previously had every element attributed to whichever section happened to be
+   * first in the DOM, regardless of which one it actually lived in. `closest` answers per element
+   * instead of once for the whole call.
+   *
+   * Still overridden by a pinned `currentPage`, unchanged: that value is the host's own claim
+   * about what is showing, taking precedence over whatever the DOM happens to say.
+   */
+  const pageOf = (element: Element): string | undefined =>
+    options.currentPage ?? element.closest(`[${AGENT_PAGE_ATTRIBUTE}]`)?.getAttribute(AGENT_PAGE_ATTRIBUTE) ?? undefined;
+  /**
+   * Active markers keyed by handle, so re-highlighting the same element restarts rather than
+   * stacks — and carrying the styling to put back, which must be captured once, on the first
+   * highlight. Re-reading the element on a restart would snapshot the marker itself, and the
+   * element would keep it forever: a capability classified `read` precisely because it is
+   * transient would permanently change how someone's page looks.
+   */
+  const highlights = new Map<string, {
+    timer: ReturnType<typeof setTimeout>;
+    restore: { outline: string; outlineOffset: string; borderRadius: string };
+  }>();
+
+  const { findAll, find, controlOf, publicationFilter } = createDomElementResolver(root, options);
+
+  return {
+    ...createDomReadOperations({ root, pages, pageOf }, { findAll, find, controlOf, publicationFilter }),
+
+    ...createDomVisualOperations(find, highlights),
+
+    ...createDomWriteOperations({ find, controlOf }, options),
 
     async navigate({ page, ...input }: { page: string } & PageNavigationInput, _optional: Record<string, never> = {}) {
       // `hasOwnProperty`, not `pages[page]`: a plain object literal inherits everything

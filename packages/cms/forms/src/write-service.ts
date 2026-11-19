@@ -188,6 +188,32 @@ export interface UpdateFormDefinitionRequired {
   };
 }
 
+function formCommandDeps(deps: FormWriteServiceDeps, optional: FormWriteOptional) {
+  return {
+    clock: deps.clock,
+    idGen: deps.idGen,
+    changeSets: deps.changeSets,
+    outbox: optional.outbox,
+    authorize: deps.authorize,
+  };
+}
+
+function updatedFormFields(existing: FormDefinitionRecord, patch: UpdateFormDefinitionRequired['input']['patch']): FieldDescriptor[] {
+  let fields = existing.fields;
+  if (patch.fields !== undefined) {
+    assertValidFields(patch.fields);
+    const existingIds = new Set(existing.fields.map((f) => f.id));
+    const newIds = new Set(patch.fields.map((f) => f.id));
+    const missing = [...existingIds].filter((id) => !newIds.has(id));
+    if (missing.length > 0) {
+      throw new FormFieldValidationError({ message: `patch omits existing field id(s): ${missing.join(", ")} (behavior.spec.md §1.2)`, fieldErrors: missing.map((id) => ({ field: id, reason: "existing field ids cannot be removed" })) });
+    }
+    fields = patch.fields;
+  }
+
+  return fields;
+}
+
 export async function updateFormDefinition(
   required: UpdateFormDefinitionRequired,
   optional: FormWriteOptional = {}
@@ -195,13 +221,7 @@ export async function updateFormDefinition(
   const { deps, input } = required;
 
   const { result } = await deps.executeCommand({
-    deps: {
-      clock: deps.clock,
-      idGen: deps.idGen,
-      changeSets: deps.changeSets,
-      outbox: optional.outbox,
-      authorize: deps.authorize,
-    },
+    deps: formCommandDeps(deps, optional),
     command: {
       workspaceId: input.workspaceId,
       actor: input.actor,
@@ -225,17 +245,7 @@ export async function updateFormDefinition(
           validateNameAndSlug(name, existing.slug, deps.reservedSlugs);
         }
 
-        let fields = existing.fields;
-        if (input.patch.fields !== undefined) {
-          assertValidFields(input.patch.fields);
-          const existingIds = new Set(existing.fields.map((f) => f.id));
-          const newIds = new Set(input.patch.fields.map((f) => f.id));
-          const missing = [...existingIds].filter((id) => !newIds.has(id));
-          if (missing.length > 0) {
-            throw new FormFieldValidationError({ message: `patch omits existing field id(s): ${missing.join(", ")} (behavior.spec.md §1.2)`, fieldErrors: missing.map((id) => ({ field: id, reason: "existing field ids cannot be removed" })) });
-          }
-          fields = input.patch.fields;
-        }
+        const fields = updatedFormFields(existing, input.patch);
 
         const notify = input.patch.notify !== undefined ? validateNotify(input.patch.notify) : existing.notify;
 

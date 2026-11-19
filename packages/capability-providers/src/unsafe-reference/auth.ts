@@ -25,6 +25,26 @@ interface StoredUser extends AuthUser {
   readonly password: string;
 }
 
+function createMemorySignUp(usersByEmail: Map<string, StoredUser>, now: () => number, allocateId: () => number): Pick<AuthProvider, 'signUp'> {
+  return {
+    async signUp(credentials: AuthCredentials): Promise<AuthUser> {
+      if (usersByEmail.has(credentials.email)) {
+        throw new Error(`email already registered: ${credentials.email}`);
+      }
+      const id = allocateId();
+      const user: StoredUser = {
+        id: `user-${id}`,
+        email: credentials.email,
+        password: credentials.password,
+        createdAt: now(),
+      };
+      usersByEmail.set(credentials.email, user);
+      return { id: user.id, email: user.email, createdAt: user.createdAt };
+    },
+
+  };
+}
+
 /** Creates the in-memory reference `AuthProvider`. No persistence — state is lost on process exit. */
 export function createInMemoryAuthProvider(_required: Record<string, never>, options: InMemoryAuthProviderOptions = {}): AuthProvider {
   const sessionTtlMs = options.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS;
@@ -35,21 +55,7 @@ export function createInMemoryAuthProvider(_required: Record<string, never>, opt
   let nextToken = 1;
 
   return {
-    async signUp(credentials: AuthCredentials): Promise<AuthUser> {
-      if (usersByEmail.has(credentials.email)) {
-        throw new Error(`email already registered: ${credentials.email}`);
-      }
-      const id = nextId;
-      nextId += 1;
-      const user: StoredUser = {
-        id: `user-${id}`,
-        email: credentials.email,
-        password: credentials.password,
-        createdAt: now(),
-      };
-      usersByEmail.set(credentials.email, user);
-      return { id: user.id, email: user.email, createdAt: user.createdAt };
-    },
+    ...createMemorySignUp(usersByEmail, now, () => { const id = nextId; nextId += 1; return id; }),
 
     async signIn(credentials: AuthCredentials): Promise<AuthSession> {
       const user = usersByEmail.get(credentials.email);

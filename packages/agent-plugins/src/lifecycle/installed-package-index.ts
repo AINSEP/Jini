@@ -13,25 +13,20 @@ function indexedMetadata({ manifest }: { readonly manifest: InstalledAgentPlugin
 }
 type InstalledAgentPluginMetadata = Pick<InstalledAgentPlugin, 'requires' | 'hostRange' | 'exports' | 'renamedFrom'>;
 
-/** Indexes manifests and files with the same injected effects used by installation and resolution.
- * @complexity O(f) reads/walk work for f package files; no mutation or executable imports. */
-export function createInstalledPackageIndex(required: { readonly ports: AgentPluginLifecyclePorts }, _optional: Record<string, never> = {}) {
-  const { ports } = required;
-  const readFile = ports.filesystem.readFile.bind(ports.filesystem);
-  const readdir = ports.filesystem.readdir.bind(ports.filesystem);
-  const parseAgentPluginManifest = (value: unknown) => parseAgentPluginManifestValue({ value }, { identityNamespace: resolveAgentPluginLifecycleNamespace({ value, extensionNamespace: ports.extensionNamespace }) });
-  /** Cosmetic fields are trimmed and capped rather than invalidating the package. The cap stops
-   * a hostile package flooding an admin row. Malformed values fall back because these fields are
-   * cosmetic: callers title-case the id and show the spec description when these keys are absent.
-   * Inner newlines remain paragraph breaks in summaries.
-   * @complexity O(n) in the supplied text length; output is capped at maxLength. */
-  function readDisplayText(required: { readonly manifest: AgentPluginManifest; readonly key: 'displayName' | 'summary'; readonly maxLength: number }, _optional = {}): { displayName?: string; summary?: string } {
-    const text = required.manifest[required.key];
-    return text ? { [required.key]: text.slice(0, required.maxLength) } : {};
-  }
+/** Cosmetic fields are trimmed and capped rather than invalidating the package. The cap stops
+ * a hostile package flooding an admin row. Malformed values fall back because these fields are
+ * cosmetic: callers title-case the id and show the spec description when these keys are absent.
+ * Inner newlines remain paragraph breaks in summaries.
+ * @complexity O(n) in the supplied text length; output is capped at maxLength. */
+function readDisplayText(required: { readonly manifest: AgentPluginManifest; readonly key: 'displayName' | 'summary'; readonly maxLength: number }, _optional = {}): { displayName?: string; summary?: string } {
+  const text = required.manifest[required.key];
+  return text ? { [required.key]: text.slice(0, required.maxLength) } : {};
+}
 
+function createInstalledManifestReader(ports: AgentPluginLifecyclePorts, readFile: AgentPluginLifecyclePorts['filesystem']['readFile']) {
+  const parseAgentPluginManifest = (value: unknown) => parseAgentPluginManifestValue({ value }, { identityNamespace: resolveAgentPluginLifecycleNamespace({ value, extensionNamespace: ports.extensionNamespace }) });
   /** Reads and validates `packageRoot`'s `plugin.json`, refusing a missing, unparseable or invalid one. */
-  async function readInstalledManifest({ packageRoot }: { readonly packageRoot: string }) {
+  return async function readInstalledManifest({ packageRoot }: { readonly packageRoot: string }) {
     let manifestRaw: string;
     try {
       manifestRaw = await readFile(path.join(packageRoot, "plugin.json"), "utf8");
@@ -55,34 +50,43 @@ export function createInstalledPackageIndex(required: { readonly ports: AgentPlu
     }
     return parsed;
   }
+}
 
-  /** Every regular file under `packageRoot` (sorted) and every `skills/<name>/SKILL.md` (sorted by name). */
-  async function walkPackageTree({ packageRoot }: { readonly packageRoot: string }): Promise<{ files: string[]; skills: InstalledAgentPluginSkill[] }> {
-    const files: string[] = [];
-    const skills: InstalledAgentPluginSkill[] = [];
+/** Every regular file under `packageRoot` (sorted) and every `skills/<name>/SKILL.md` (sorted by name). */
+async function walkPackageTree(readdir: AgentPluginLifecyclePorts['filesystem']['readdir'], { packageRoot }: { readonly packageRoot: string }): Promise<{ files: string[]; skills: InstalledAgentPluginSkill[] }> {
+  const files: string[] = [];
+  const skills: InstalledAgentPluginSkill[] = [];
 
-    async function walk(absolute: string, prefix: string): Promise<void> {
-      for (const entry of await readdir(absolute, { withFileTypes: true })) {
-        const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
-        if (entry.isDirectory()) {
-          await walk(path.join(absolute, entry.name), relative);
-          continue;
-        }
-        if (entry.isFile()) files.push(relative);
-        // Anything that is neither a directory nor a regular file (a symlink somehow already present,
-        // a device node) is skipped rather than indexed — extraction itself never creates one, so
-        // encountering one here would mean the filesystem changed out from under an already-published,
-        // supposedly-frozen package, which this function has no business acting on either way.
+  async function walk(absolute: string, prefix: string): Promise<void> {
+    for (const entry of await readdir(absolute, { withFileTypes: true })) {
+      const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        await walk(path.join(absolute, entry.name), relative);
+        continue;
       }
+      if (entry.isFile()) files.push(relative);
+      // Anything that is neither a directory nor a regular file (a symlink somehow already present,
+      // a device node) is skipped rather than indexed — extraction itself never creates one, so
+      // encountering one here would mean the filesystem changed out from under an already-published,
+      // supposedly-frozen package, which this function has no business acting on either way.
     }
-
-    await walk(packageRoot, "");
-    for (const relative of files) {
-      const match = relative.match(/^skills\/([^/]+)\/SKILL\.md$/);
-      if (match) skills.push({ name: match[1] as string, skillPath: relative });
-    }
-    return { files: files.sort(), skills: skills.sort((a, b) => a.name.localeCompare(b.name)) };
   }
+
+  await walk(packageRoot, "");
+  for (const relative of files) {
+    const match = relative.match(/^skills\/([^/]+)\/SKILL\.md$/);
+    if (match) skills.push({ name: match[1] as string, skillPath: relative });
+  }
+  return { files: files.sort(), skills: skills.sort((a, b) => a.name.localeCompare(b.name)) };
+}
+
+/** Indexes manifests and files with the same injected effects used by installation and resolution.
+ * @complexity O(f) reads/walk work for f package files; no mutation or executable imports. */
+export function createInstalledPackageIndex(required: { readonly ports: AgentPluginLifecyclePorts }, _optional: Record<string, never> = {}) {
+  const { ports } = required;
+  const readFile = ports.filesystem.readFile.bind(ports.filesystem);
+  const readdir = ports.filesystem.readdir.bind(ports.filesystem);
+  const readInstalledManifest = createInstalledManifestReader(ports, readFile);
 
   /**
  * Reads the (already-extracted-and-trusted, or already-published) `plugin.json` at `packageRoot`
@@ -109,7 +113,7 @@ export function createInstalledPackageIndex(required: { readonly ports: AgentPlu
   }, _optional: Record<string, never> = {}): Promise<InstalledAgentPlugin> {
     const parsed = await readInstalledManifest({ packageRoot });
     for (const message of parsed.warnings) ports.onEvent?.({ event: 'agent-plugin-identity-warning', message, pluginId: parsed.manifest.name });
-    const { files, skills } = await walkPackageTree({ packageRoot });
+    const { files, skills } = await walkPackageTree(readdir, { packageRoot });
 
     return {
       pluginId: parsed.manifest.name,

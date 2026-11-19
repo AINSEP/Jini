@@ -35,13 +35,6 @@
     "value": 258
   },
   {
-    "file": "packages/agentic/src/core/dom/dom-page-driver.ts",
-    "function": "createDomPageDriver",
-    "line": 457,
-    "rule": "max-lines-per-function",
-    "value": 171
-  },
-  {
     "file": "packages/chat/src/core/assistant-client/durable-run-subscription.ts",
     "function": "followDurableRun",
     "line": 21,
@@ -299,13 +292,6 @@
     "line": 658,
     "rule": "max-lines",
     "value": 726
-  },
-  {
-    "file": "packages/cookie-consent/src/client/runtime.ts",
-    "function": "createCookieConsent",
-    "line": 26,
-    "rule": "max-lines-per-function",
-    "value": 133
   },
   {
     "file": "packages/core/src/redact.ts",

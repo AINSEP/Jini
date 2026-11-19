@@ -423,6 +423,13 @@ export function createAdmin<
     registry,
     context: { values, omitted, grants },
   });
+  return createAdminInstance({ modules, values, description }, disposables);
+}
+
+function createAdminInstance(
+  { modules, values, description }: { modules: readonly AdminModule[]; values: Record<string, unknown>; description: AdminDescription },
+  disposables: Disposable[],
+): AdminInstance {
   let disposed = false;
   return {
     describe: () => description,

@@ -9,34 +9,10 @@ export interface WidgetInstanceEditorState {
   fieldErrors: Array<{ field: string; reason: string }>; loading: boolean; saving: boolean;
   widgetType: AdminWidgetType | null | undefined;
 }
-/** Editor identity includes both route params. Reads and saves cannot overwrite a different editor. */
-export function createWidgetInstanceEditorController(
-  { api, params: initialParams, defaultConfig }: { api: AdminWidgetsPort; params: WidgetEditorParams; defaultConfig: (type: AdminWidgetType) => Record<string, unknown> },
-  { t = widgetsEnglish, navigate, slugRedirectPath, getEntityKey }: { t?: WidgetsTranslate | undefined; navigate?: ((path: string, options?: { replace?: boolean }) => void) | undefined; slugRedirectPath?: WidgetSlugRedirectPath | undefined; getEntityKey?: (() => string) | undefined } = {},
+function createExistingWidgetLoader(
+  { api, store, t }: { api: AdminWidgetsPort; store: ReturnType<typeof createControllerStore<WidgetInstanceEditorState>>; t: WidgetsTranslate },
+  { isLiveLoad, navigate, slugRedirectPath }: { isLiveLoad: (input: { ticket: number }) => boolean; navigate: ((path: string, options?: { replace?: boolean }) => void) | undefined; slugRedirectPath: WidgetSlugRedirectPath | undefined },
 ) {
-  let params = initialParams;
-  const key = () => widgetEntityKey({ params });
-  const currentKey = () => getEntityKey?.() ?? activeKey;
-  let activeKey = key(), generation = 0;
-  const isNew = params.widgetId === null;
-  const store = createControllerStore<WidgetInstanceEditorState>({ initial: {
-    isNew, widget: null, whereUsed: { count: 0, references: [] }, title: '',
-    config: isNew ? defaultConfig(params.widgetType ?? 'text') : {}, message: null, error: null, fieldErrors: [],
-    loading: !isNew, saving: false, widgetType: resolveEditorWidgetType({ isNew, queryWidgetType: params.widgetType, widget: null }),
-  } });
-  const isLiveLoad = ({ ticket }: { ticket: number }) => ticket === generation && !store.signal.aborted;
-  const isLiveSave = ({ savingFor }: { savingFor: string }) => currentKey() === savingFor && !store.signal.aborted;
-  async function load(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
-    generation += 1;
-    const ticket = generation;
-    const isNew = params.widgetId === null;
-    store.set({ patch: { isNew, saving: false } });
-    if (isNew) {
-      store.set({ patch: { widget: null, title: '', config: defaultConfig(params.widgetType ?? 'text'), whereUsed: { count: 0, references: [] }, loading: false, widgetType: params.widgetType } });
-      return;
-    }
-    await loadExisting({ ticket, requestedId: params.widgetId! });
-  }
   async function loadExisting({ ticket, requestedId }: { ticket: number; requestedId: string }, _optional: Record<string, never> = {}) {
     store.set({ patch: { loading: true, error: null } });
     try {
@@ -54,6 +30,59 @@ export function createWidgetInstanceEditorController(
     const redirect = widgetSlugRedirectPath({ requestedId, widget: result.widget }, { slugRedirectPath });
     if (redirect) navigate?.(redirect, { replace: true });
   }
+  return loadExisting;
+}
+
+function createWidgetPersistence(
+  { api, store }: { api: AdminWidgetsPort; store: ReturnType<typeof createControllerStore<WidgetInstanceEditorState>> },
+  { isLiveSave, navigate, t }: { isLiveSave: (input: { savingFor: string }) => boolean; navigate: ((path: string, options?: { replace?: boolean }) => void) | undefined; t: WidgetsTranslate },
+) {
+  async function createAndOpen({ widgetType, title, config }: { widgetType: AdminWidgetType; title: string; config: Record<string, unknown> }, _optional: Record<string, never> = {}) {
+    const { widget: created } = await api.createWidget({ widgetType, title, config }, { signal: store.signal });
+    // Creation intentionally navigates even if route identity changed while it was in flight.
+    navigate?.(`/widgets/${created.slug}`);
+  }
+  async function updateExisting({ widget, title, config, savingFor }: { widget: AdminWidget; title: string; config: Record<string, unknown>; savingFor: string }, _optional: Record<string, never> = {}) {
+    const { widget: saved } = await api.updateWidget({ id: widget.id, baseVersion: widget.version, title, config }, { signal: store.signal });
+    if (!isLiveSave({ savingFor })) return;
+    store.set({ patch: { widget: saved, title: saved.title, config: saved.config, widgetType: saved.widgetType, message: t('Saved · version {version}').replace('{version}', String(saved.version)) } });
+  }
+  return { createAndOpen, updateExisting };
+}
+
+function createWidgetEditorStore(isNew: boolean, params: WidgetEditorParams, defaultConfig: (type: AdminWidgetType) => Record<string, unknown>) {
+  return createControllerStore<WidgetInstanceEditorState>({ initial: {
+    isNew, widget: null, whereUsed: { count: 0, references: [] }, title: '',
+    config: isNew ? defaultConfig(params.widgetType ?? 'text') : {}, message: null, error: null, fieldErrors: [],
+    loading: !isNew, saving: false, widgetType: resolveEditorWidgetType({ isNew, queryWidgetType: params.widgetType, widget: null }),
+  } });
+}
+
+/** Editor identity includes both route params. Reads and saves cannot overwrite a different editor. */
+export function createWidgetInstanceEditorController(
+  { api, params: initialParams, defaultConfig }: { api: AdminWidgetsPort; params: WidgetEditorParams; defaultConfig: (type: AdminWidgetType) => Record<string, unknown> },
+  { t = widgetsEnglish, navigate, slugRedirectPath, getEntityKey }: { t?: WidgetsTranslate | undefined; navigate?: ((path: string, options?: { replace?: boolean }) => void) | undefined; slugRedirectPath?: WidgetSlugRedirectPath | undefined; getEntityKey?: (() => string) | undefined } = {},
+) {
+  let params = initialParams;
+  const key = () => widgetEntityKey({ params });
+  const currentKey = () => getEntityKey?.() ?? activeKey;
+  let activeKey = key(), generation = 0;
+  const isNew = params.widgetId === null;
+  const store = createWidgetEditorStore(isNew, params, defaultConfig);
+  const isLiveLoad = ({ ticket }: { ticket: number }) => ticket === generation && !store.signal.aborted;
+  const isLiveSave = ({ savingFor }: { savingFor: string }) => currentKey() === savingFor && !store.signal.aborted;
+  async function load(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
+    generation += 1;
+    const ticket = generation;
+    const isNew = params.widgetId === null;
+    store.set({ patch: { isNew, saving: false } });
+    if (isNew) {
+      store.set({ patch: { widget: null, title: '', config: defaultConfig(params.widgetType ?? 'text'), whereUsed: { count: 0, references: [] }, loading: false, widgetType: params.widgetType } });
+      return;
+    }
+    await loadExisting({ ticket, requestedId: params.widgetId! });
+  }
+  const loadExisting = createExistingWidgetLoader({ api, store, t }, { isLiveLoad, navigate, slugRedirectPath });
   async function save(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
     const { widgetType, isNew, widget, title, config } = store.getSnapshot();
     if (!widgetType) return;
@@ -68,16 +97,7 @@ export function createWidgetInstanceEditorController(
       if (isLiveSave({ savingFor })) store.set({ patch: { saving: false } });
     }
   }
-  async function createAndOpen({ widgetType, title, config }: { widgetType: AdminWidgetType; title: string; config: Record<string, unknown> }, _optional: Record<string, never> = {}) {
-    const { widget: created } = await api.createWidget({ widgetType, title, config }, { signal: store.signal });
-    // Creation intentionally navigates even if route identity changed while it was in flight.
-    navigate?.(`/widgets/${created.slug}`);
-  }
-  async function updateExisting({ widget, title, config, savingFor }: { widget: AdminWidget; title: string; config: Record<string, unknown>; savingFor: string }, _optional: Record<string, never> = {}) {
-    const { widget: saved } = await api.updateWidget({ id: widget.id, baseVersion: widget.version, title, config }, { signal: store.signal });
-    if (!isLiveSave({ savingFor })) return;
-    store.set({ patch: { widget: saved, title: saved.title, config: saved.config, widgetType: saved.widgetType, message: t('Saved · version {version}').replace('{version}', String(saved.version)) } });
-  }
+  const { createAndOpen, updateExisting } = createWidgetPersistence({ api, store }, { isLiveSave, navigate, t });
   return {
     getSnapshot: store.getSnapshot, subscribe: store.subscribe, load, save,
     setParams({ params: next }: { params: WidgetEditorParams }, _optional: Record<string, never> = {}) {

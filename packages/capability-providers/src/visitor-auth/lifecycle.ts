@@ -185,6 +185,32 @@ function configuredAuthorizationUrl(required: {
   return authorizationUrl.toString();
 }
 
+function createAuthorizationTransaction(
+  required: Parameters<typeof planVisitorAuthAuthorization>[0],
+  { oidcNonce, redirectUri, tokenEndpoint, ttlMs }: { oidcNonce: string | undefined; redirectUri: string; tokenEndpoint: URL; ttlMs: number },
+): VisitorAuthTransaction {
+  return Object.freeze({
+    tenantId: required.registration.tenantId,
+    providerId: required.provider.id,
+    flowBinding: required.flowBinding,
+    protocol: required.provider.protocol,
+    state: required.security.state,
+    ...(oidcNonce ? { nonce: oidcNonce } : {}),
+    codeVerifier: required.security.codeVerifier,
+    redirectUri,
+    clientId: required.registration.clientId,
+    ...(required.registration.clientSecretRef
+      ? { clientSecretRef: required.registration.clientSecretRef }
+      : {}),
+    tokenEndpoint: tokenEndpoint.toString(),
+    ...(required.server.issuer ? { expectedIssuer: required.server.issuer } : {}),
+    requiresAuthorizationResponseIssuer:
+      required.server.requiresAuthorizationResponseIssuer ?? false,
+    createdAtMs: required.nowMs,
+    expiresAtMs: required.nowMs + ttlMs,
+  });
+}
+
 /**
  * Produces a side-effect-free authorization plan. The host persists the
  * returned transaction before redirecting and must later consume it through
@@ -230,26 +256,7 @@ export function planVisitorAuthAuthorization(
 
   return {
     authorizationUrl,
-    transaction: Object.freeze({
-      tenantId: required.registration.tenantId,
-      providerId: required.provider.id,
-      flowBinding: required.flowBinding,
-      protocol: required.provider.protocol,
-      state: required.security.state,
-      ...(oidcNonce ? { nonce: oidcNonce } : {}),
-      codeVerifier: required.security.codeVerifier,
-      redirectUri,
-      clientId: required.registration.clientId,
-      ...(required.registration.clientSecretRef
-        ? { clientSecretRef: required.registration.clientSecretRef }
-        : {}),
-      tokenEndpoint: tokenEndpoint.toString(),
-      ...(required.server.issuer ? { expectedIssuer: required.server.issuer } : {}),
-      requiresAuthorizationResponseIssuer:
-        required.server.requiresAuthorizationResponseIssuer ?? false,
-      createdAtMs: required.nowMs,
-      expiresAtMs: required.nowMs + ttlMs,
-    }),
+    transaction: createAuthorizationTransaction(required, { oidcNonce, redirectUri, tokenEndpoint, ttlMs }),
   };
 }
 

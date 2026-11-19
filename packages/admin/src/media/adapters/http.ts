@@ -11,6 +11,21 @@ export interface MediaTransportPort {
   ): Promise<T>;
   url(required: { path: string }, optional?: Record<string, never>): string;
 }
+function createMediaAssetRequester(transport: MediaTransportPort) {
+  return async function asset(
+    method: 'POST' | 'PATCH',
+    target: string,
+    { body, options }: { body: unknown; options: MediaRequestOptions },
+  ) {
+    options.signal?.throwIfAborted();
+    const response = await transport.request<{ media: MediaAsset }>(
+      { path: target, method, ...(body === undefined ? {} : { body }) },
+      options,
+    );
+    return response.media;
+  }
+}
+
 export function createHttpMediaApi(
   { transport, basePath }: { transport: MediaTransportPort; basePath: string },
   {
@@ -21,19 +36,7 @@ export function createHttpMediaApi(
 ): MediaApiPort {
   const base = basePath.replace(/\/$/, '');
   const path = (id: string) => `${base}/${encodeURIComponent(id)}`;
-  async function asset(
-    method: 'POST' | 'PATCH',
-    target: string,
-    body: unknown,
-    options: MediaRequestOptions,
-  ) {
-    options.signal?.throwIfAborted();
-    const response = await transport.request<{ media: MediaAsset }>(
-      { path: target, method, ...(body === undefined ? {} : { body }) },
-      options,
-    );
-    return response.media;
-  }
+  const asset = createMediaAssetRequester(transport);
   return {
     replaceSupported: !!replacePath,
     restoreSupported: !!restorePath,
@@ -46,19 +49,19 @@ export function createHttpMediaApi(
       return queryMedia({ media: response.media, query });
     },
     upload(input, { signal, ...metadata } = {}) {
-      return asset('POST', base, { ...input, ...metadata }, signal ? { signal } : {});
+      return asset('POST', base, { body: { ...input, ...metadata }, options: signal ? { signal } : {} });
     },
     update({ id, patch }, options = {}) {
-      return asset('PATCH', path(id), patch, options);
+      return asset('PATCH', path(id), { body: patch, options });
     },
     ...(replacePath ? { replace({ id, upload }, options = {}) {
-      return asset('POST', replacePath({ id }), upload, options);
+      return asset('POST', replacePath({ id }), { body: upload, options });
     } } satisfies Pick<MediaApiPort, 'replace'> : {}),
     trash({ id }, options = {}) {
-      return asset('POST', `${path(id)}/trash`, undefined, options);
+      return asset('POST', `${path(id)}/trash`, { body: undefined, options });
     },
     ...(restorePath ? { restore({ id }, options = {}) {
-      return asset('POST', restorePath({ id }), undefined, options);
+      return asset('POST', restorePath({ id }), { body: undefined, options });
     } } satisfies Pick<MediaApiPort, 'restore'> : {}),
     delete({ id }, options = {}) {
       options.signal?.throwIfAborted();

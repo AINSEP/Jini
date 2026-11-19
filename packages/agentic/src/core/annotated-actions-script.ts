@@ -1,19 +1,4 @@
-/**
- * Framework-free script asset for data-toolname/data-tooldescription actions.
- * Native tool* forms remain the browser's responsibility. No polyfill, transport,
- * field-value reader, arbitrary selector input or cross-origin exposure is added.
- * The host owns consent copy and its browser preference key. This string asset
- * can be inlined into static exports without importing a DOM runtime on Node.
- */
-export function createAnnotatedActionsScript(
-  { preferenceKey, confirmationMessage = 'Allow this browser-agent action?', confirmationMessages = {} }: {
-    preferenceKey?: string;
-    confirmationMessage?: string;
-    confirmationMessages?: Readonly<Record<string, string>>;
-  },
-  _optional: Record<string, never> = {},
-): string {
-  const config = JSON.stringify({ preferenceKey, confirmationMessage, confirmationMessages }).replace(/</g, '\\u003c');
+function annotatedActionLifecycleScript(): string {
   return String.raw`(function install(config) {
     'use strict';
     var doc = document;
@@ -61,7 +46,11 @@ export function createAnnotatedActionsScript(
       return value && typeof value.registerTool === 'function';
     });
     if (!context || typeof context.registerTool !== 'function') return;
-    function visible(element) {
+`;
+}
+
+function annotatedActionDescriptorScript(): string {
+  return String.raw`    function visible(element) {
       if (!element.isConnected || element.closest('[hidden], [inert], [aria-hidden="true"], dialog:not([open])')) return false;
       for (var current = element; current; current = current.parentElement) {
         var style = window.getComputedStyle(current);
@@ -88,7 +77,11 @@ export function createAnnotatedActionsScript(
       if (element.tagName !== 'BUTTON' || element.type !== 'button') return null;
       return { name: name, description: description, href: null };
     }
-    function refresh() {
+`;
+}
+
+function annotatedActionDiscoveryScript(): string {
+  return String.raw`    function refresh() {
       registrations.forEach(function (controller) { controller.abort(); });
       registrations = [];
       if (stopped) return;
@@ -114,7 +107,11 @@ export function createAnnotatedActionsScript(
             throw new Error('Browser-agent action is unavailable');
           }
         }
-        var tool = {
+`;
+}
+
+function annotatedActionExecutionScript(): string {
+  return String.raw`        var tool = {
           name: action.name,
           description: action.description,
           inputSchema: { type: 'object', properties: {}, additionalProperties: false },
@@ -150,5 +147,24 @@ export function createAnnotatedActionsScript(
     observer = new MutationObserver(refresh);
     observer.observe(doc.documentElement, { subtree: true, childList: true, attributes: true,
       attributeFilter: ['data-tool-action', 'data-toolname', 'data-tooldescription', 'toolname', 'href', 'download', 'type', 'disabled', 'aria-disabled', 'hidden', 'inert', 'aria-hidden', 'style', 'class', 'open'] });
-  })(` + config + ');';
+  })(`;
+}
+
+/**
+ * Framework-free script asset for data-toolname/data-tooldescription actions.
+ * Native tool* forms remain the browser's responsibility. No polyfill, transport,
+ * field-value reader, arbitrary selector input or cross-origin exposure is added.
+ * The host owns consent copy and its browser preference key. This string asset
+ * can be inlined into static exports without importing a DOM runtime on Node.
+ */
+export function createAnnotatedActionsScript(
+  { preferenceKey, confirmationMessage = 'Allow this browser-agent action?', confirmationMessages = {} }: {
+    preferenceKey?: string;
+    confirmationMessage?: string;
+    confirmationMessages?: Readonly<Record<string, string>>;
+  },
+  _optional: Record<string, never> = {},
+): string {
+  const config = JSON.stringify({ preferenceKey, confirmationMessage, confirmationMessages }).replace(/</g, '\\u003c');
+  return annotatedActionLifecycleScript() + annotatedActionDescriptorScript() + annotatedActionDiscoveryScript() + annotatedActionExecutionScript() + config + ');';
 }
