@@ -1045,7 +1045,7 @@ These names are also reachable through the current export map. Parameter declara
 | `splitReasoningModelId({ modelId, levelIds }: { modelId: string; levelIds: readonly string[] }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/execution/rules.ts) |
 | `statusLabel({ status }: { status: ConnectorStatus }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/connectors/rules.ts) |
 | `statusToneFor({ status, toneMap }: { status: string; toneMap: ResourceStatusToneMap \| undefined }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/resource-dashboard/rules.ts) |
-| `subscribeOutsideClickOrEscape({ container, onClose }: { container: { current: HTMLElement \| null } \| undefined; onClose: () => void }, _optional: Record<string, never> = {})` | [dom-subscriptions.ts](../../src/utils/dom-subscriptions.ts) |
+| `subscribeOutsideClickOrEscape({ container, onClose }: { container: { current: HTMLElement \| null } \| undefined; onClose: () => void }, options: { escapeCapture?: boolean } = {})` | [dom-subscriptions.ts](../../src/utils/dom-subscriptions.ts) |
 | `subscribeVisibleFocusOrVisibilityChange({ onVisible }: { onVisible: () => void }, _optional: Record<string, never> = {})` | [dom-subscriptions.ts](../../src/utils/dom-subscriptions.ts) |
 | `subscribeWindowEvent({ eventName, onEvent }: { eventName: string; onEvent: (event: Event) => void }, _optional: Record<string, never> = {})` | [dom-subscriptions.ts](../../src/utils/dom-subscriptions.ts) |
 | `summaryToDraft({ skill, body }: { skill: SkillSummary; body: string }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/skills/rules.ts) |

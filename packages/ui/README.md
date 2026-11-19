@@ -1,5 +1,7 @@
 # `@jini-ai/ui` — generic, product-neutral UI primitives
 
+`@jini-ai/ui/browser` exports browser interaction hooks, including IME-safe outside/Escape dismissal with opt-in capture and menu keyboard navigation with injectable document focus.
+
 `@jini-ai/ui/mcp-ui/secret-card` exports the framework-free `defineSecretCardTool` lifecycle.
 Provide a spec with `prepare`, `form`, `save`, `outcome` and `result`, then register
 `tool.handler({ surfaceExchanges, askThenReport })`; both dependencies come from

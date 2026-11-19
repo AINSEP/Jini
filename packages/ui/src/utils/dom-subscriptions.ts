@@ -28,7 +28,7 @@ export function getDocumentBody(): HTMLElement | null {
 
 /**
  * Fires `onClose` on a `pointerdown` outside `container.current`, or on
- * Escape anywhere. A no-op subscription outside the browser (SSR).
+ * non-composing Escape anywhere. A no-op subscription outside the browser (SSR).
  *
  * Uses `pointerdown` (not `mousedown`/`click`) to match every real popover/
  * dropdown call site that dismisses on outside interaction (verified against
@@ -41,11 +41,12 @@ export function getDocumentBody(): HTMLElement | null {
  *   to skip the outside-click listener and react to Escape only — e.g. a
  *   modal whose backdrop click is already handled by the caller.
  * @param onClose - Called once per qualifying outside-click or Escape key.
+ * @param options.escapeCapture - Listen before bubbling handlers when true; defaults to bubble.
  * @returns A cleanup function that removes the listener(s) that were added.
  */
 export function subscribeOutsideClickOrEscape(
   { container, onClose }: { container: { current: HTMLElement | null } | undefined; onClose: () => void },
-  _optional: Record<string, never> = {},
+  options: { escapeCapture?: boolean } = {},
 ): () => void {
   if (typeof document === 'undefined') return () => {};
   function onPointer(e: PointerEvent) {
@@ -54,13 +55,15 @@ export function subscribeOutsideClickOrEscape(
     onClose();
   }
   function onKey(e: KeyboardEvent) {
-    if (e.key === 'Escape') onClose();
+    if (e.key === 'Escape' && !e.isComposing) onClose();
   }
   if (container) document.addEventListener('pointerdown', onPointer);
-  document.addEventListener('keydown', onKey);
+  if (options.escapeCapture) document.addEventListener('keydown', onKey, true);
+  else document.addEventListener('keydown', onKey);
   return () => {
     if (container) document.removeEventListener('pointerdown', onPointer);
-    document.removeEventListener('keydown', onKey);
+    if (options.escapeCapture) document.removeEventListener('keydown', onKey, true);
+    else document.removeEventListener('keydown', onKey);
   };
 }
 
