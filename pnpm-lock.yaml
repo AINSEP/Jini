@@ -952,6 +952,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^2.1.9
         version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(jsdom@26.1.0)(lightningcss@1.33.0)(sass@1.51.0))
+      parse5:
+        specifier: 7.3.0
+        version: 7.3.0
 
   packages/http-kit:
     dependencies:
