@@ -609,6 +609,7 @@ it.each(['GET', 'PUT'] as const)('lets %s on the remote-event path fall through 
   const { fetch, deps, run } = await servedRoutes();
   const recordToolUse = vi.spyOn(deps.recorder, 'recordToolUse');
   const response = await fetch(new Request(`http://local/api/runs/${run.id}/tool-use`, { method }));
-  expect(response.status).toBe(404);
+  // The server contract answers 405 when only the method differs (core/contracts/server conformance).
+  expect(response.status).toBe(405);
   expect(recordToolUse).not.toHaveBeenCalled();
 });
