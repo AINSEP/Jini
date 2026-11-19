@@ -60,6 +60,51 @@ const unknown = () => ({ kind: "unknown" as const, error: paymentError({ code: "
 const liveRefusal = () => ({ kind: "rejected" as const, error: paymentError({ code: "INVALID_REQUEST", message: "LiPay fake is test-only" }) });
 const rejected = (message: string) => ({ kind: "rejected" as const, error: paymentError({ code: "DECLINED", message }) });
 
+function createLipayEvidence(charges: Map<string, FakeCharge>, refunds: Map<string, FakeRefund>) {
+  const chargeEvidence = (charge: FakeCharge, withEcho: boolean): PaymentEvidence => ({
+    providerRef: charge.id, status: charge.status, amount: charge.amount,
+    ...(withEcho ? { correlationId: charge.correlationId } : {}),
+    refunds: [...refunds.values()].filter((r) => r.chargeId === charge.id).map((r) => refundEvidence(r, withEcho)),
+    disputes: [],
+  });
+
+  const factFor = (body: { type: string; id: string; eventId: string; echo: boolean }): WebhookFact => {
+    const refund = refunds.get(body.id);
+    const charge = charges.get(refund?.chargeId ?? body.id) as FakeCharge;
+    const evidence = chargeEvidence(charge, body.echo);
+    const only = body.type === "refund.updated" && refund ? { ...evidence, refunds: [refundEvidence(refund, body.echo)] } : evidence;
+    return { providerEventId: body.eventId, providerRef: charge.id, evidence: only };
+  };
+
+  return { chargeEvidence, factFor };
+}
+
+function createLipayWriteOperations(
+  { charges, refunds, scripts }: { charges: Map<string, FakeCharge>; refunds: Map<string, FakeRefund>; scripts: Record<'createIntent' | 'refund', FakeBehaviour[]> },
+  { chargeEvidence, echo }: { chargeEvidence: (charge: FakeCharge, withEcho: boolean) => PaymentEvidence; echo: boolean },
+  allocateId: () => number,
+): Pick<PaymentProvider, 'createIntent' | 'refund'> {
+  return {
+    createIntent: async ({ req, ctx }, _optional = {}) => {
+      if (ctx.account.mode === "live") return liveRefusal();
+      const behaviour = nextBehaviour(scripts.createIntent);
+      if (behaviour === "reject") return rejected("card_declined");
+      const charge: FakeCharge = { id: `ch_${allocateId()}`, amount: req.amount, status: "succeeded", correlationId: req.correlationId };
+      charges.set(charge.id, charge);
+      if (behaviour === "timeout") return unknown();
+      return { kind: "ok", value: { evidence: chargeEvidence(charge, echo), next: { kind: "none" } } };
+    },
+    refund: async ({ req, ctx }, _optional = {}) => {
+      if (ctx.account.mode === "live") return liveRefusal();
+      const behaviour = nextBehaviour(scripts.refund);
+      if (behaviour === "reject") return rejected("refund refused");
+      const refund: FakeRefund = { id: `re_${allocateId()}`, chargeId: req.providerRef, amount: req.amount, status: "pending", correlationId: req.correlationId };
+      refunds.set(refund.id, refund);
+      return behaviour === "timeout" ? unknown() : { kind: "ok", value: refundEvidence(refund, echo) };
+    },
+  };
+}
+
 /**
  * Builds the fake server and its provider. `now` is the test's clock (epoch ms).
  * Every operation refuses live mode before touching state or consuming scripted outcomes.
@@ -75,20 +120,7 @@ export function createLipayFake(
   const scripts: Record<"createIntent" | "refund", FakeBehaviour[]> = { createIntent: [], refund: [] };
   let seq = 0;
 
-  const chargeEvidence = (charge: FakeCharge, withEcho: boolean): PaymentEvidence => ({
-    providerRef: charge.id, status: charge.status, amount: charge.amount,
-    ...(withEcho ? { correlationId: charge.correlationId } : {}),
-    refunds: [...refunds.values()].filter((r) => r.chargeId === charge.id).map((r) => refundEvidence(r, withEcho)),
-    disputes: [],
-  });
-
-  const factFor = (body: { type: string; id: string; eventId: string; echo: boolean }): WebhookFact => {
-    const refund = refunds.get(body.id);
-    const charge = charges.get(refund?.chargeId ?? body.id) as FakeCharge;
-    const evidence = chargeEvidence(charge, body.echo);
-    const only = body.type === "refund.updated" && refund ? { ...evidence, refunds: [refundEvidence(refund, body.echo)] } : evidence;
-    return { providerEventId: body.eventId, providerRef: charge.id, evidence: only };
-  };
+  const { chargeEvidence, factFor } = createLipayEvidence(charges, refunds);
 
   const server: LipayFakeServer = {
     script: ({ op, behaviours }) => { scripts[op].push(...behaviours); },
@@ -108,23 +140,7 @@ export function createLipayFake(
       refunds: "partial", capture: "auto", void: false, disputes: false, retrieve: "payment+refunds",
       echoesCorrelation: echo, confirmation: ["none"], currencies: "any",
     },
-    createIntent: async ({ req, ctx }, _optional = {}) => {
-      if (ctx.account.mode === "live") return liveRefusal();
-      const behaviour = nextBehaviour(scripts.createIntent);
-      if (behaviour === "reject") return rejected("card_declined");
-      const charge: FakeCharge = { id: `ch_${++seq}`, amount: req.amount, status: "succeeded", correlationId: req.correlationId };
-      charges.set(charge.id, charge);
-      if (behaviour === "timeout") return unknown();
-      return { kind: "ok", value: { evidence: chargeEvidence(charge, echo), next: { kind: "none" } } };
-    },
-    refund: async ({ req, ctx }, _optional = {}) => {
-      if (ctx.account.mode === "live") return liveRefusal();
-      const behaviour = nextBehaviour(scripts.refund);
-      if (behaviour === "reject") return rejected("refund refused");
-      const refund: FakeRefund = { id: `re_${++seq}`, chargeId: req.providerRef, amount: req.amount, status: "pending", correlationId: req.correlationId };
-      refunds.set(refund.id, refund);
-      return behaviour === "timeout" ? unknown() : { kind: "ok", value: refundEvidence(refund, echo) };
-    },
+    ...createLipayWriteOperations({ charges, refunds, scripts }, { chargeEvidence, echo }, () => ++seq),
     retrieve: async ({ providerRef, ctx }, _optional = {}): Promise<Outcome<PaymentEvidence>> => {
       if (ctx.account.mode === "live") return liveRefusal();
       const charge = charges.get(providerRef);

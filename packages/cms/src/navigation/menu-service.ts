@@ -579,6 +579,69 @@ export interface AssignLocationRequired {
 
 export interface AssignLocationOptional {}
 
+function locationAssignedEvent({ deps, input }: AssignLocationRequired) {
+  return {
+    deps,
+    name: "navigation.location.assigned",
+    workspaceId: input.workspaceId,
+    aggregateId: input.menuId,
+    payload: { locationKey: input.locationKey, menuId: input.menuId },
+  };
+}
+
+function createLocationAssignmentTransaction(
+  { deps, input }: AssignLocationRequired,
+  { menu, updatedMenu, now }: { menu: NavMenuEntry; updatedMenu: NavMenuEntry; now: string },
+) {
+  return async () => {
+    const existingBinding = await deps.bindingRepo.findByLocation({
+      workspaceId: input.workspaceId,
+      locationKey: input.locationKey,
+    });
+
+    let displacedMenu: NavMenuEntry | null = null;
+    if (existingBinding && existingBinding.menuId !== input.menuId) {
+      const displaced = await deps.repo.findById({
+        workspaceId: input.workspaceId,
+        id: existingBinding.menuId,
+      });
+      if (displaced) {
+        const updatedDisplaced: NavMenuEntry = {
+          ...displaced,
+          locations: displaced.locations.filter((key) => key !== input.locationKey),
+          updatedAt: now,
+          version: displaced.version + 1,
+        };
+        await deps.repo.save(updatedDisplaced, { expectedVersion: displaced.version });
+        displacedMenu = updatedDisplaced;
+      }
+    }
+
+    await deps.repo.save(updatedMenu, { expectedVersion: menu.version });
+
+    const binding = await deps.bindingRepo.upsert({
+      workspaceId: input.workspaceId,
+      locationKey: input.locationKey,
+      menuId: input.menuId,
+      boundAt: now,
+    });
+
+    if (displacedMenu) {
+      await enqueueEvent({
+        deps,
+        name: "navigation.location.unassigned",
+        workspaceId: input.workspaceId,
+        aggregateId: displacedMenu.id,
+        payload: { locationKey: input.locationKey, menuId: displacedMenu.id },
+      });
+    }
+
+    await enqueueEvent(locationAssignedEvent({ deps, input }));
+
+    return { menu: updatedMenu, binding, displacedMenu };
+  };
+}
+
 /**
  * Assigns a menu to a theme location. This writes two
  * representations that must stay in lockstep:
@@ -622,59 +685,7 @@ export async function assignLocation(
     version: menu.version + 1,
   };
 
-  return deps.repo.transaction({ fn: async () => {
-    const existingBinding = await deps.bindingRepo.findByLocation({
-      workspaceId: input.workspaceId,
-      locationKey: input.locationKey,
-    });
-
-    let displacedMenu: NavMenuEntry | null = null;
-    if (existingBinding && existingBinding.menuId !== input.menuId) {
-      const displaced = await deps.repo.findById({
-        workspaceId: input.workspaceId,
-        id: existingBinding.menuId,
-      });
-      if (displaced) {
-        const updatedDisplaced: NavMenuEntry = {
-          ...displaced,
-          locations: displaced.locations.filter((key) => key !== input.locationKey),
-          updatedAt: now,
-          version: displaced.version + 1,
-        };
-        await deps.repo.save(updatedDisplaced, { expectedVersion: displaced.version });
-        displacedMenu = updatedDisplaced;
-      }
-    }
-
-    await deps.repo.save(updatedMenu, { expectedVersion: menu.version });
-
-    const binding = await deps.bindingRepo.upsert({
-      workspaceId: input.workspaceId,
-      locationKey: input.locationKey,
-      menuId: input.menuId,
-      boundAt: now,
-    });
-
-    if (displacedMenu) {
-      await enqueueEvent({
-        deps,
-        name: "navigation.location.unassigned",
-        workspaceId: input.workspaceId,
-        aggregateId: displacedMenu.id,
-        payload: { locationKey: input.locationKey, menuId: displacedMenu.id },
-      });
-    }
-
-    await enqueueEvent({
-      deps,
-      name: "navigation.location.assigned",
-      workspaceId: input.workspaceId,
-      aggregateId: input.menuId,
-      payload: { locationKey: input.locationKey, menuId: input.menuId },
-    });
-
-    return { menu: updatedMenu, binding, displacedMenu };
-  } });
+  return deps.repo.transaction({ fn: createLocationAssignmentTransaction({ deps, input }, { menu, updatedMenu, now }) });
 }
 
 // ---------------------------------------------------------------------------

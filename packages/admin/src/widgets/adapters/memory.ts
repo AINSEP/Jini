@@ -6,25 +6,15 @@ export interface MemoryWidgetsSeed {
   areas?: Record<string, { area: AdminWidgetArea; placements: AdminWidgetPlacement[] }> | undefined;
   whereUsed?: Record<string, AdminWidgetWhereUsed> | undefined; skippedCount?: number | undefined; skippedIds?: string[] | undefined;
 }
-/** JSON-shaped port snapshots are detached; mutable fixture arrays are explicit on the returned adapter. */
-export function createMemoryWidgetsApi({ widgets = [], regions = [], areas = {}, whereUsed = {}, skippedCount, skippedIds }: MemoryWidgetsSeed = {}, { workspaceId = 'fake-ws', now = () => new Date(0).toISOString() }: { workspaceId?: string | undefined; now?: (() => string) | undefined } = {}): AdminWidgetsPort & { readonly widgets: AdminWidget[]; readonly regions: AdminWidgetRegionBinding[] } {
-  const copy = <T>(value: T): T => structuredClone(value);
-  const rows = copy(widgets), bindings = copy(regions), regionRows = new Map(Object.entries(copy(areas)));
-  const usage = copy(whereUsed);
-  let widgetSequence = rows.length, areaSequence = Math.max(bindings.length, regionRows.size);
-  function fail(code: string, message: string): never { throw new AdminApiError({ message, status: code === 'NOT_FOUND' ? 404 : 409 }, { code }); }
-  function instance(id: string) {
-    const index = rows.findIndex(w => w.slug === id);
-    const resolved = index < 0 ? rows.findIndex(w => w.id === id) : index;
-    if (resolved < 0) return fail('NOT_FOUND', `fake widget not found: ${id}`);
-    return { index: resolved, widget: rows[resolved]! };
-  }
-  function region(regionKey: string) {
-    const result = regionRows.get(regionKey);
-    return result ?? fail('NOT_FOUND', `fake widget region not found: ${regionKey}`);
-  }
+function copy<T>(value: T): T { return structuredClone(value); }
+
+function createMemoryWidgetOperations(
+  rows: AdminWidget[],
+  { workspaceId, now, usage, skippedCount, skippedIds }: { workspaceId: string; now: () => string; usage: Record<string, AdminWidgetWhereUsed>; skippedCount: number | undefined; skippedIds: string[] | undefined },
+  { instance, fail }: { instance: (id: string) => { index: number; widget: AdminWidget }; fail: (code: string, message: string) => never },
+): Pick<AdminWidgetsPort, 'listWidgets' | 'getWidget' | 'createWidget' | 'updateWidget' | 'trashWidget'> {
+  let widgetSequence = rows.length;
   return {
-    widgets: rows, regions: bindings,
     async listWidgets({ widgetType, includeInactive }, options = {}) {
       options.signal?.throwIfAborted();
       return { widgets: copy(rows.filter(w => (!widgetType || w.widgetType === widgetType) && (includeInactive || w.status === 'active'))), ...(skippedCount === undefined ? {} : { skippedCount }), ...(skippedIds === undefined ? {} : { skippedIds: copy(skippedIds) }) };
@@ -57,6 +47,28 @@ export function createMemoryWidgetsApi({ widgets = [], regions = [], areas = {},
       rows[index] = { ...widget, status: 'trash', version: widget.version + 1, updatedAt: now() };
       return { ok: true, version: rows[index]!.version };
     },
+  };
+}
+
+/** JSON-shaped port snapshots are detached; mutable fixture arrays are explicit on the returned adapter. */
+export function createMemoryWidgetsApi({ widgets = [], regions = [], areas = {}, whereUsed = {}, skippedCount, skippedIds }: MemoryWidgetsSeed = {}, { workspaceId = 'fake-ws', now = () => new Date(0).toISOString() }: { workspaceId?: string | undefined; now?: (() => string) | undefined } = {}): AdminWidgetsPort & { readonly widgets: AdminWidget[]; readonly regions: AdminWidgetRegionBinding[] } {
+  const rows = copy(widgets), bindings = copy(regions), regionRows = new Map(Object.entries(copy(areas)));
+  const usage = copy(whereUsed);
+  let areaSequence = Math.max(bindings.length, regionRows.size);
+  function fail(code: string, message: string): never { throw new AdminApiError({ message, status: code === 'NOT_FOUND' ? 404 : 409 }, { code }); }
+  function instance(id: string) {
+    const index = rows.findIndex(w => w.slug === id);
+    const resolved = index < 0 ? rows.findIndex(w => w.id === id) : index;
+    if (resolved < 0) return fail('NOT_FOUND', `fake widget not found: ${id}`);
+    return { index: resolved, widget: rows[resolved]! };
+  }
+  function region(regionKey: string) {
+    const result = regionRows.get(regionKey);
+    return result ?? fail('NOT_FOUND', `fake widget region not found: ${regionKey}`);
+  }
+  return {
+    widgets: rows, regions: bindings,
+    ...createMemoryWidgetOperations(rows, { workspaceId, now, usage, skippedCount, skippedIds }, { instance, fail }),
     async listWidgetRegions(_required, options = {}) { options.signal?.throwIfAborted(); return { regions: copy(bindings) }; },
     async bindWidgetRegion({ regionKey }, options = {}) {
       options.signal?.throwIfAborted();

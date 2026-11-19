@@ -21,17 +21,7 @@ export interface MailProviderCatalog {
   setupFor(required: { id: string }): MailProviderSetup;
 }
 
-/** @agent-note The host supplies mail engine effects and exact product text; no platform runtime is imported. */
-export function createMailCatalog(requiredHost: {
- mailEngine: { createRegistry: (required: Record<string,never>, optional: { builtins: readonly MailProviderModule[] }) => MailProviderRegistry;
- builtins: { console: (required: { clock: Clock }, optional?: { log?: (line:string)=>void }) => MailProviderModule;
- smtp: (required: { clock: Clock; createTransport: (config: Parameters<MailCatalogDeps["createSmtpTransport"]>[0]) => { sendMail(required: { mail: SmtpPayload }): Promise<{ messageId: string }> } }) => MailProviderModule } };
- mailHostText: { smtpCredentialLabel: string; smtpSetup: MailProviderSetup; credentialCategory: PluginCredentialCard["category"] };
- defaultSetup: (required: { credentialKeys: readonly string[] }) => MailProviderSetup;
- contributeMailProviders: (required: { registry: MailProviderRegistry; adapters: MailAdapterRegistry }) => { accepted: readonly string[]; refusals: readonly string[] };
-}, _optional: Record<string,never> = {}) {
-
-function builtins(deps: MailCatalogDeps): MailProviderModule[] {
+function builtins(requiredHost: Parameters<typeof createMailCatalog>[0], deps: MailCatalogDeps): MailProviderModule[] {
   const clock = { nowMs: () => Date.now() };
   // The host transport and Jini's SMTP adapter share the object-args shape `sendMail({ mail })`.
   const smtp = requiredHost.mailEngine.builtins.smtp({ clock, createTransport: deps.createSmtpTransport });
@@ -47,12 +37,22 @@ async function loadAdapters(deps: Pick<MailCatalogDeps, "loadMailAdapters">): Pr
   }
 }
 
+/** @agent-note The host supplies mail engine effects and exact product text; no platform runtime is imported. */
+export function createMailCatalog(requiredHost: {
+ mailEngine: { createRegistry: (required: Record<string,never>, optional: { builtins: readonly MailProviderModule[] }) => MailProviderRegistry;
+ builtins: { console: (required: { clock: Clock }, optional?: { log?: (line:string)=>void }) => MailProviderModule;
+ smtp: (required: { clock: Clock; createTransport: (config: Parameters<MailCatalogDeps["createSmtpTransport"]>[0]) => { sendMail(required: { mail: SmtpPayload }): Promise<{ messageId: string }> } }) => MailProviderModule } };
+ mailHostText: { smtpCredentialLabel: string; smtpSetup: MailProviderSetup; credentialCategory: PluginCredentialCard["category"] };
+ defaultSetup: (required: { credentialKeys: readonly string[] }) => MailProviderSetup;
+ contributeMailProviders: (required: { registry: MailProviderRegistry; adapters: MailAdapterRegistry }) => { accepted: readonly string[]; refusals: readonly string[] };
+}, _optional: Record<string,never> = {}) {
+
 /**
  * Builds the catalog fresh (plugins can be installed after boot). Never throws for a plugin fault.
  * @complexity O(a) plugin adapters.
  */
 async function loadMailProviderCatalog(deps: MailCatalogDeps, _optional: Record<string, never> = {}): Promise<MailProviderCatalog> {
-  const registry = requiredHost.mailEngine.createRegistry({}, { builtins: builtins(deps) });
+  const registry = requiredHost.mailEngine.createRegistry({}, { builtins: builtins(requiredHost, deps) });
   const adapters = await loadAdapters(deps);
   const { accepted, refusals } = requiredHost.contributeMailProviders({ registry, adapters });
   const labels = new Map<string, string>([["smtp", requiredHost.mailHostText.smtpCredentialLabel]]);

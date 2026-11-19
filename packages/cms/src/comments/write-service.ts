@@ -185,6 +185,36 @@ async function syncRemovalIndex(
   }
 }
 
+function createCommentPurger(deps: CommentWriteServiceDeps): Pick<CommentWriteService, 'purge'> {
+  return {
+    async purge(required) {
+      const at = clockNowIso({ clock: deps.clock });
+      const before = await deps.repo.findById({ workspaceId: required.workspaceId, id: required.id });
+      const result = await deps.runInTransaction(async () => {
+        const purged = await deps.repo.purge({ ...required, at });
+        // The row is gone for good, so its index row would otherwise outlive it and offer the Trash
+        // screen a "Restore" that can never succeed. Same both-or-neither transaction as the
+        // moderation path above.
+        if (purged.ok) await deps.forgetRemoved({ workspaceId: required.workspaceId, id: required.id });
+        return purged;
+      });
+      if (!result.ok) return result;
+
+      if (before) {
+        await emitEvent(deps, {
+          workspaceId: required.workspaceId,
+          name: "comments.purged",
+          commentId: required.id,
+          entryId: before.entryId,
+          status: before.status,
+        });
+      }
+
+      return { ok: true };
+    },
+  };
+}
+
 export function createCommentWriteService(deps: CommentWriteServiceDeps, _optional: Record<string, never> = {}): CommentWriteService {
   return {
     async applyModeration(required) {
@@ -224,30 +254,6 @@ export function createCommentWriteService(deps: CommentWriteServiceDeps, _option
       return { ok: true };
     },
 
-    async purge(required) {
-      const at = clockNowIso({ clock: deps.clock });
-      const before = await deps.repo.findById({ workspaceId: required.workspaceId, id: required.id });
-      const result = await deps.runInTransaction(async () => {
-        const purged = await deps.repo.purge({ ...required, at });
-        // The row is gone for good, so its index row would otherwise outlive it and offer the Trash
-        // screen a "Restore" that can never succeed. Same both-or-neither transaction as the
-        // moderation path above.
-        if (purged.ok) await deps.forgetRemoved({ workspaceId: required.workspaceId, id: required.id });
-        return purged;
-      });
-      if (!result.ok) return result;
-
-      if (before) {
-        await emitEvent(deps, {
-          workspaceId: required.workspaceId,
-          name: "comments.purged",
-          commentId: required.id,
-          entryId: before.entryId,
-          status: before.status,
-        });
-      }
-
-      return { ok: true };
-    },
+    ...createCommentPurger(deps),
   };
 }

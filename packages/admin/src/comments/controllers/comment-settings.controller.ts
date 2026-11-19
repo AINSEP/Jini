@@ -4,6 +4,38 @@ import type { CommentSettingsState } from '../models.js';
 import { buildSettingsPatch, validateSettingsPatch, visibleCommentSettingsError } from '../rules.js';
 import { englishComments, type CommentsTranslator } from '../messages.en.js';
 
+function createCommentSettingsSaver(
+  { api, store }: { api: AdminCommentsPort; store: ReturnType<typeof createControllerStore<CommentSettingsState>> },
+  { current, errors, publishError }: { current: () => { canConfigure: boolean; t: CommentsTranslator }; errors: { validationError: string | null; saveError: Error | null }; publishError: () => void },
+  onInvalidate: (() => void) | undefined,
+) {
+  const currentTranslator = () => current().t;
+  return async function save({ form }: { form: FormData }, _optional: Record<string, never> = {}) {
+    const settings = store.getSnapshot().settings;
+    if (!current().canConfigure || !settings || store.signal.aborted) return;
+    store.set({ patch: { notice: null } });
+    const patch = buildSettingsPatch({ form, current: settings });
+    // Validate before sending, matching the backend's spam score bound.
+    errors.validationError = validateSettingsPatch({ patch }, { t: current().t });
+    if (errors.validationError) { publishError(); return; }
+    errors.saveError = null;
+    store.set({ patch: { saving: true } });
+    publishError();
+    try {
+      const updated = await api.putCommentsSettings({}, patch);
+      if (store.signal.aborted) return;
+      onInvalidate?.();
+      // Read-your-writes must settle immediately; cache invalidation is deliberately not awaited.
+      store.set({ patch: { settings: updated, notice: currentTranslator()('Saved.') } });
+    } catch (e) {
+      errors.saveError = e instanceof Error ? e : new Error(currentTranslator()('failed to save Comments settings'));
+    } finally {
+      store.set({ patch: { saving: false } });
+      publishError();
+    }
+  }
+}
+
 /** Own the uncontrolled form's diff baseline, validation and server-confirmed save.
  * The query cache owns reads; the FIRST successful read seeds the baseline once.
  * @returns An instance store with seed/save operations; action grants default denied.
@@ -14,13 +46,11 @@ export function createCommentSettingsController(
 ) {
   const store = createControllerStore<CommentSettingsState>({ initial: { settings: null, error: null, saving: false, notice: null } });
   let canConfigure = hasPermission({ permissions, permission: 'comments.configure' });
+  const errors = { listError: null as Error | null, saveError: null as Error | null, validationError: null as string | null };
   let seeded = false;
-  let listError: Error | null = null;
-  let saveError: Error | null = null;
-  let validationError: string | null = null;
   function publishError() {
-    store.set({ patch: { error: visibleCommentSettingsError({ validationError, saveError,
-      saveFallback: t('failed to save Comments settings'), listError,
+    store.set({ patch: { error: visibleCommentSettingsError({ validationError: errors.validationError, saveError: errors.saveError,
+      saveFallback: t('failed to save Comments settings'), listError: errors.listError,
       listFallback: t('failed to load Comments settings'), hasSettings: store.getSnapshot().settings !== null }) } });
   }
   /** Update grants/copy while preserving the one-shot uncontrolled-form baseline. */
@@ -44,32 +74,9 @@ export function createCommentSettingsController(
       seeded = true;
       store.set({ patch: { settings } });
     }
-    listError = error;
+    errors.listError = error;
     publishError();
   }
-  async function save({ form }: { form: FormData }, _optional: Record<string, never> = {}) {
-    const settings = store.getSnapshot().settings;
-    if (!canConfigure || !settings || store.signal.aborted) return;
-    store.set({ patch: { notice: null } });
-    const patch = buildSettingsPatch({ form, current: settings });
-    // Validate before sending, matching the backend's spam score bound.
-    validationError = validateSettingsPatch({ patch }, { t });
-    if (validationError) { publishError(); return; }
-    saveError = null;
-    store.set({ patch: { saving: true } });
-    publishError();
-    try {
-      const updated = await api.putCommentsSettings({}, patch);
-      if (store.signal.aborted) return;
-      onInvalidate?.();
-      // Read-your-writes must settle immediately; cache invalidation is deliberately not awaited.
-      store.set({ patch: { settings: updated, notice: t('Saved.') } });
-    } catch (e) {
-      saveError = e instanceof Error ? e : new Error(t('failed to save Comments settings'));
-    } finally {
-      store.set({ patch: { saving: false } });
-      publishError();
-    }
-  }
+  const save = createCommentSettingsSaver({ api, store }, { current: () => ({ canConfigure, t }), errors, publishError }, onInvalidate);
   return { getSnapshot: store.getSnapshot, subscribe: store.subscribe, dispose: store.dispose, configure, settleRead, save };
 }

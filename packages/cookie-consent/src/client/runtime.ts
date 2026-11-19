@@ -22,6 +22,156 @@ const within = (p: Promise<unknown>, ms: number) => Promise.race([p, new Promise
 const quiet = (fn: () => void) => { try { fn(); } catch { /* a broken plugin or listener never blocks consent */ } };
 const durableEvidence = (evidence?: Evidence) => evidence?.mode === 'durable' ? evidence : null;
 
+function createConsentAdapterLifecycle(
+  { doc, ports, anonymous }: { doc: Document; ports: ClientPorts; anonymous: boolean },
+  current: () => ConsentState,
+) {
+  /** Off-mode adapters load for identity cleanup even at none; only permitted levels grant.
+   * Abort is checked after the import and handed to grant(), so a withdrawal during either wait wins. */
+  function start(slot: Slot): void {
+    slot.generation++;
+    const ctl = new AbortController();
+    const load = Promise.resolve(slot.adapter ?? ports.importModule((slot.entry as LazyAdapter).src).then(m => (slot.adapter = m.default)));
+    const result = load.then(adapter => {
+      quiet(() => adapter.onState?.({ state: current(), purge: purgeStorage }));
+      if (ctl.signal.aborted || anonymous && current().analyticsLevel === 'none') return null;                              // withdrawn first: nothing ran
+      return Promise.resolve().then(() => adapter.grant({ config: slot.entry.config ?? adapter.config, state: current(), signal: ctl.signal, purge: purgeStorage }))
+        .then((r = {}) => r, () => ({}));                            // a grant that threw may have run code
+    }, () => null);                                                     // import failed: nothing ran
+    slot.run = { ctl, result };
+  }
+  /** Detached from set(): a hung import can never delay a withdrawal. Resolves true when a reload is needed.
+   * A newer grant owns its storage even if this revoke finishes after another withdrawal. */
+  async function stop(slot: Slot): Promise<boolean> {
+    const run = slot.run!;
+    const generation = slot.generation;
+    slot.run = undefined;
+    run.ctl.abort();
+    const revoker = await run.result;
+    if (!revoker) return false;
+    const clean = await Promise.resolve().then(() => revoker.revoke?.()).catch(() => false);
+    if (!anonymous && slot.generation === generation) purge(doc, slot.adapter?.storage ?? slot.entry.storage);
+    return !clean;
+  }
+  return { start, stop };
+}
+
+function createConsentReconciler(
+  { slots, ran, anonymous, doc, ports }: { slots: Map<string, Slot>; ran: Set<Optional>; anonymous: boolean; doc: Document; ports: ClientPorts },
+  { start, stop }: ReturnType<typeof createConsentAdapterLifecycle>,
+) {
+  return function reconcile(next: ConsentState): void {
+    const stops: Promise<boolean>[] = [];
+    for (const slot of slots.values()) {
+      const allowed = anonymous ? next.analyticsLevel === 'anonymous' : next.allowed[slot.entry.category];
+      if (allowed && !slot.run) start(slot);
+      if (!allowed && slot.run) stops.push(stop(slot));
+      quiet(() => slot.adapter?.onState?.({ state: next, purge: purgeStorage }));
+    }
+    // Raw tags cannot promise anonymous behavior; only declared adapters can.
+    if (!anonymous) activateInert(doc, { allowed: next.allowed, ran });
+    const rawRevoked = OPTIONAL.some(c => ran.has(c) && !next.allowed[c]);
+    void Promise.all(stops).then(dirty => { if (rawRevoked || dirty.includes(true)) ports.reload(); });
+  }
+}
+
+function createConsentPublisher(
+  { doc, listeners }: { doc: Document; listeners: Set<(s: ConsentState) => void> },
+  { compute, reconcile }: { compute: () => ConsentState; reconcile: (next: ConsentState) => void },
+) {
+  return function apply(): ConsentState {
+    const next = compute();
+    const html = doc.documentElement;
+    html.dataset.consent = next.status;
+    html.dataset.consentRegion = next.region;
+    html.toggleAttribute('data-consent-gpc', next.gpc);
+    reconcile(next);                                                    // stops start before any listener runs
+    listeners.forEach(fn => quiet(() => fn(next)));
+    doc.dispatchEvent(new CustomEvent(STATE_EVENT, { detail: next }));
+    return next;
+  }
+}
+
+function createConsentReceiptWriter(
+  { durable, ports }: { durable: ReturnType<typeof durableEvidence>; ports: ClientPorts },
+  { current, accept, adopt, persist, apply }: { current: () => StoredChoice | null; accept: (choice: StoredChoice) => void; adopt: () => boolean; persist: () => void; apply: () => ConsentState },
+) {
+  return async function confirm(choice: StoredChoice, previousId?: string): Promise<void> {
+    if (!durable) return;
+    const body = JSON.stringify({ policy: choice.p, choices: choice.c, action: choice.a, gpc: ports.gpc(), previousId });
+    const res = await ports.fetch(durable.endpoint, { method: 'POST', credentials: 'same-origin', keepalive: true,
+      headers: { 'content-type': 'application/json' }, body }).catch(() => null);
+    const out = res?.ok ? ((await res.json().catch(() => null)) as { id?: unknown } | null) : null;
+    // Superseded in this tab, or another tab wrote a newer choice (adopt it): the late receipt is ignored.
+    if (current() !== choice || adopt()) return;
+    if (typeof out?.id !== 'string' || !RECEIPT_ID.test(out.id)) return; // failed: q stays, retried at the next boot
+    // Keep the choice intact, replacing its pending marker with the confirmed receipt.
+    const stored = { ...choice, r: out.id };
+    accept(stored);
+    delete stored.q;
+    persist();
+    apply();                                                            // the receipt is what lets durable grants run
+  }
+}
+
+function createConsentSlotSync(
+  { slots, anonymous, doc, ports }: { slots: Map<string, Slot>; anonymous: boolean; doc: Document; ports: ClientPorts },
+  { start, stop, current }: ReturnType<typeof createConsentAdapterLifecycle> & { current: () => ConsentState },
+) {
+  function addSlot(entry: AdapterContribution): void {
+    if (anonymous && (!entry.supportsAnonymous || entry.category !== 'analytics')) return;
+    const slot: Slot = { entry, generation: 0, adapter: typeof (entry as ConsentAdapter).grant === 'function' ? entry as ConsentAdapter : undefined };
+    slots.set(entry.id, slot);
+    if (anonymous || current().allowed[entry.category]) start(slot);
+    else purge(doc, entry.storage);                     // leftovers of an expired or withdrawn choice
+    quiet(() => slot.adapter?.onState?.({ state: current(), purge: purgeStorage }));                    // lazy adapters get state once loaded
+  }
+  function syncSlots(items: readonly Contribution[]): void {
+    const ids = new Set(items.map(i => i.id));
+    for (const [id, slot] of slots) {
+      if (ids.has(id)) continue;
+      slots.delete(id);
+      if (slot.run) void stop(slot).then(dirty => { if (dirty) ports.reload(); });
+    }
+    for (const item of items as readonly AdapterContribution[]) if (!slots.has(item.id)) addSlot(item);
+  }
+  return syncSlots;
+}
+
+function createConsentSetter(
+  { config, ports, anonymous, durable }: { config: ClientConfig; ports: ClientPorts; anonymous: boolean; durable: ReturnType<typeof durableEvidence> },
+  { current, accept, currentState, persist, apply, confirm }: { current: () => StoredChoice | null; accept: (choice: StoredChoice) => void; currentState: () => ConsentState; persist: () => void; apply: () => ConsentState; confirm: (choice: StoredChoice, previousId?: string) => Promise<void> },
+) {
+  return async function set({ action }: { action: ConsentAction }, { choices: picked = {} }: { choices?: Partial<Flags> } = {}): Promise<ConsentState> {
+    if (anonymous) return apply();
+    const previousId = current()?.r;
+    const stored: StoredChoice = { v: 1, p: config.policy, c: choicesFor({ action, picked }), t: ports.now(), a: action, ...(durable ? { q: 1 as const } : {}) };
+    accept(stored);
+    persist();
+    const now = apply();                                                // denial is live here, before any network
+    const sent = confirm(current()!, previousId);
+    if (durable && waiting(now)) await within(sent, durable.waitMs ?? 1500);
+    return currentState();
+  }
+}
+
+function createConsentChoiceAdopter(
+  { fromCookie, cookiePersisted, current, accept }: { fromCookie: () => StoredChoice | null; cookiePersisted: () => boolean; current: () => StoredChoice | null; accept: (choice: StoredChoice | null) => void },
+  apply: () => ConsentState,
+) {
+  /** Another tab chose: adopt its cookie exactly as a page load would. Page-visible events only, no polling.
+   * Returns true when the cookie held a different choice. */
+  return function adopt(): boolean {
+    const latest = fromCookie();
+    // A refused cookie write leaves only this tab's choice; absence cannot supersede it.
+    if (!latest && !cookiePersisted()) return false;
+    if ((['t', 'a', 'r'] as const).every(key => latest?.[key] === current()?.[key])) return false;
+    accept(latest);
+    apply();
+    return true;
+  }
+}
+
 /** @example createCookieConsent({ config, ports: browserPorts(window) }, { evidence: { mode: 'local' } }) */
 export function createCookieConsent({ config, ports }: { config: ClientConfig; ports: ClientPorts }, options: ClientOptions = {}): JiniConsentApi {
   const { doc } = ports;
@@ -47,113 +197,16 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
     cookiePersisted = readCookie(doc, CONSENT_COOKIE) === value;
   }
 
-  /** Off-mode adapters load for identity cleanup even at none; only permitted levels grant.
-   * Abort is checked after the import and handed to grant(), so a withdrawal during either wait wins. */
-  function start(slot: Slot): void {
-    slot.generation++;
-    const ctl = new AbortController();
-    const load = Promise.resolve(slot.adapter ?? ports.importModule((slot.entry as LazyAdapter).src).then(m => (slot.adapter = m.default)));
-    const result = load.then(adapter => {
-      quiet(() => adapter.onState?.({ state, purge: purgeStorage }));
-      if (ctl.signal.aborted || anonymous && state.analyticsLevel === 'none') return null;                              // withdrawn first: nothing ran
-      return Promise.resolve().then(() => adapter.grant({ config: slot.entry.config ?? adapter.config, state, signal: ctl.signal, purge: purgeStorage }))
-        .then((r = {}) => r, () => ({}));                            // a grant that threw may have run code
-    }, () => null);                                                     // import failed: nothing ran
-    slot.run = { ctl, result };
-  }
-  /** Detached from set(): a hung import can never delay a withdrawal. Resolves true when a reload is needed.
-   * A newer grant owns its storage even if this revoke finishes after another withdrawal. */
-  async function stop(slot: Slot): Promise<boolean> {
-    const run = slot.run!;
-    const generation = slot.generation;
-    slot.run = undefined;
-    run.ctl.abort();
-    const revoker = await run.result;
-    if (!revoker) return false;
-    const clean = await Promise.resolve().then(() => revoker.revoke?.()).catch(() => false);
-    if (!anonymous && slot.generation === generation) purge(doc, slot.adapter?.storage ?? slot.entry.storage);
-    return !clean;
-  }
-  function reconcile(next: ConsentState): void {
-    const stops: Promise<boolean>[] = [];
-    for (const slot of slots.values()) {
-      const allowed = anonymous ? next.analyticsLevel === 'anonymous' : next.allowed[slot.entry.category];
-      if (allowed && !slot.run) start(slot);
-      if (!allowed && slot.run) stops.push(stop(slot));
-      quiet(() => slot.adapter?.onState?.({ state: next, purge: purgeStorage }));
-    }
-    // Raw tags cannot promise anonymous behavior; only declared adapters can.
-    if (!anonymous) activateInert(doc, { allowed: next.allowed, ran });
-    const rawRevoked = OPTIONAL.some(c => ran.has(c) && !next.allowed[c]);
-    void Promise.all(stops).then(dirty => { if (rawRevoked || dirty.includes(true)) ports.reload(); });
-  }
-  function apply(): ConsentState {
-    const next = (state = compute());
-    const html = doc.documentElement;
-    html.dataset.consent = next.status;
-    html.dataset.consentRegion = next.region;
-    html.toggleAttribute('data-consent-gpc', next.gpc);
-    reconcile(next);                                                    // stops start before any listener runs
-    listeners.forEach(fn => quiet(() => fn(next)));
-    doc.dispatchEvent(new CustomEvent(STATE_EVENT, { detail: next }));
-    return next;
-  }
+  const { start, stop } = createConsentAdapterLifecycle({ doc, ports, anonymous }, () => state);
+  const reconcile = createConsentReconciler({ slots, ran, anonymous, doc, ports }, { start, stop });
+  const apply = createConsentPublisher({ doc, listeners }, { compute: () => (state = compute()), reconcile });
 
-  async function confirm(choice: StoredChoice, previousId?: string): Promise<void> {
-    if (!durable) return;
-    const body = JSON.stringify({ policy: choice.p, choices: choice.c, action: choice.a, gpc: ports.gpc(), previousId });
-    const res = await ports.fetch(durable.endpoint, { method: 'POST', credentials: 'same-origin', keepalive: true,
-      headers: { 'content-type': 'application/json' }, body }).catch(() => null);
-    const out = res?.ok ? ((await res.json().catch(() => null)) as { id?: unknown } | null) : null;
-    // Superseded in this tab, or another tab wrote a newer choice (adopt it): the late receipt is ignored.
-    if (stored !== choice || adopt()) return;
-    if (typeof out?.id !== 'string' || !RECEIPT_ID.test(out.id)) return; // failed: q stays, retried at the next boot
-    // Keep the choice intact, replacing its pending marker with the confirmed receipt.
-    stored = { ...choice, r: out.id };
-    delete stored.q;
-    persist();
-    apply();                                                            // the receipt is what lets durable grants run
-  }
+  const confirm = createConsentReceiptWriter({ durable, ports }, { current: () => stored, accept: choice => { stored = choice; }, adopt: () => adopt(), persist, apply });
 
-  async function set({ action }: { action: ConsentAction }, { choices: picked = {} }: { choices?: Partial<Flags> } = {}): Promise<ConsentState> {
-    if (anonymous) return apply();
-    const previousId = stored?.r;
-    stored = { v: 1, p: config.policy, c: choicesFor({ action, picked }), t: ports.now(), a: action, ...(durable ? { q: 1 as const } : {}) };
-    persist();
-    const now = apply();                                                // denial is live here, before any network
-    const sent = confirm(stored, previousId);
-    if (durable && waiting(now)) await within(sent, durable.waitMs ?? 1500);
-    return state;
-  }
+  const set = createConsentSetter({ config, ports, anonymous, durable }, { current: () => stored, accept: choice => { stored = choice; }, currentState: () => state, persist, apply, confirm });
 
-  function addSlot(entry: AdapterContribution): void {
-    if (anonymous && (!entry.supportsAnonymous || entry.category !== 'analytics')) return;
-    const slot: Slot = { entry, generation: 0, adapter: typeof (entry as ConsentAdapter).grant === 'function' ? entry as ConsentAdapter : undefined };
-    slots.set(entry.id, slot);
-    if (anonymous || state.allowed[entry.category]) start(slot);
-    else purge(doc, entry.storage);                     // leftovers of an expired or withdrawn choice
-    quiet(() => slot.adapter?.onState?.({ state, purge: purgeStorage }));                    // lazy adapters get state once loaded
-  }
-  function syncSlots(items: readonly Contribution[]): void {
-    const ids = new Set(items.map(i => i.id));
-    for (const [id, slot] of slots) {
-      if (ids.has(id)) continue;
-      slots.delete(id);
-      if (slot.run) void stop(slot).then(dirty => { if (dirty) ports.reload(); });
-    }
-    for (const item of items as readonly AdapterContribution[]) if (!slots.has(item.id)) addSlot(item);
-  }
-  /** Another tab chose: adopt its cookie exactly as a page load would. Page-visible events only, no polling.
-   * Returns true when the cookie held a different choice. */
-  function adopt(): boolean {
-    const latest = fromCookie();
-    // A refused cookie write leaves only this tab's choice; absence cannot supersede it.
-    if (!latest && !cookiePersisted) return false;
-    if ((['t', 'a', 'r'] as const).every(key => latest?.[key] === stored?.[key])) return false;
-    stored = latest;
-    apply();
-    return true;
-  }
+  const syncSlots = createConsentSlotSync({ slots, anonymous, doc, ports }, { start, stop, current: () => state });
+  const adopt = createConsentChoiceAdopter({ fromCookie, cookiePersisted: () => cookiePersisted, current: () => stored, accept: choice => { stored = choice; } }, apply);
 
   const api: JiniConsentApi = {
     contract: 1, plugins, set,

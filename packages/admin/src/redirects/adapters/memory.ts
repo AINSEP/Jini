@@ -1,26 +1,7 @@
 import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import type { AdminRedirect, AdminRedirectCreateInput, AdminRedirectHitStats, AdminRedirectImportResult, AdminRedirectsPort } from '../../core/ports/redirects.js';
-/** Presentation backend, not a routing engine: host validators/origin policy remain server owned.
- * Optional validation lets a host model its own open match vocabulary without a second schema.
- * @example createMemoryRedirectsApi({ redirects: [] }, {});
- */
-export function createMemoryRedirectsApi(
-  { redirects = [], hits = {} }: { redirects?: readonly AdminRedirect[]; hits?: Readonly<Record<string, AdminRedirectHitStats>> },
-  { validate, onImport }: {
-    validate?: (input: AdminRedirectCreateInput) => void;
-    onImport?: (rules: readonly AdminRedirectCreateInput[]) => AdminRedirectImportResult | undefined;
-  } = {},
-): AdminRedirectsPort {
-  const rows = new Map(redirects.map(row => [row.id, Object.freeze({ ...row })]));
-  const stats = new Map(Object.entries(hits).map(([id, value]) => [id, Object.freeze({ ...value })]));
-  // Ids removed to the Trash: hidden from the list, still readable by id, restored by `status: 'active'`.
-  const trashed = new Set<string>();
+function createRedirectWriter(rows: Map<string, AdminRedirect>, validate: ((input: AdminRedirectCreateInput) => void) | undefined) {
   let nextId = 1;
-  function get(id: string): AdminRedirect {
-    const row = rows.get(id);
-    if (!row) throw new AdminApiError({ message: `redirect '${id}' was not found`, status: 404 }, { code: 'REDIRECT_NOT_FOUND' });
-    return row;
-  }
   /** The core port documents reference-host rejection of a regex `matchType`. A supplied
    *  validator owns alternate hosts and sees the whole candidate instead. */
   function validateOrRejectRegex(candidate: AdminRedirectCreateInput, matchType: string | undefined) {
@@ -41,6 +22,49 @@ export function createMemoryRedirectsApi(
     rows.set(id, row);
     return row;
   }
+  return { create, validateOrRejectRegex };
+}
+
+function createRedirectImporter(create: (input: AdminRedirectCreateInput, source: 'manual' | 'import') => AdminRedirect, onImport: ((rules: readonly AdminRedirectCreateInput[]) => AdminRedirectImportResult | undefined) | undefined): Pick<AdminRedirectsPort, 'importRedirects'> {
+  return {
+    async importRedirects({ rules }) {
+      const overridden = onImport?.(rules);
+      if (overridden) return overridden;
+      const created: AdminRedirect[] = [], failed: AdminRedirectImportResult['failed'][number][] = [];
+      // One failed item never discards successful siblings; no per-item network I/O.
+      for (const [index, input] of rules.entries()) {
+        try { created.push(create(input, 'import')); }
+        catch (error) {
+          failed.push({ index, code: error instanceof AdminApiError ? error.code ?? 'INTERNAL_ERROR' : 'INTERNAL_ERROR',
+            message: error instanceof AdminApiError ? error.message : 'an internal error occurred' });
+        }
+      }
+      return { created: Object.freeze(created), failed: Object.freeze(failed) };
+    },
+  };
+}
+
+/** Presentation backend, not a routing engine: host validators/origin policy remain server owned.
+ * Optional validation lets a host model its own open match vocabulary without a second schema.
+ * @example createMemoryRedirectsApi({ redirects: [] }, {});
+ */
+export function createMemoryRedirectsApi(
+  { redirects = [], hits = {} }: { redirects?: readonly AdminRedirect[]; hits?: Readonly<Record<string, AdminRedirectHitStats>> },
+  { validate, onImport }: {
+    validate?: (input: AdminRedirectCreateInput) => void;
+    onImport?: (rules: readonly AdminRedirectCreateInput[]) => AdminRedirectImportResult | undefined;
+  } = {},
+): AdminRedirectsPort {
+  const rows = new Map(redirects.map(row => [row.id, Object.freeze({ ...row })]));
+  const stats = new Map(Object.entries(hits).map(([id, value]) => [id, Object.freeze({ ...value })]));
+  // Ids removed to the Trash: hidden from the list, still readable by id, restored by `status: 'active'`.
+  const trashed = new Set<string>();
+  function get(id: string): AdminRedirect {
+    const row = rows.get(id);
+    if (!row) throw new AdminApiError({ message: `redirect '${id}' was not found`, status: 404 }, { code: 'REDIRECT_NOT_FOUND' });
+    return row;
+  }
+  const { create, validateOrRejectRegex } = createRedirectWriter(rows, validate);
   return {
     async listRedirects(_required, filter = {}) {
       const matches = (wanted: string | undefined, actual: string) => wanted === undefined || actual === wanted;
@@ -71,19 +95,6 @@ export function createMemoryRedirectsApi(
       get(id);
       return stats.get(id) ?? Object.freeze({ redirectId: id, hitCount: 0, lastHitAt: null });
     },
-    async importRedirects({ rules }) {
-      const overridden = onImport?.(rules);
-      if (overridden) return overridden;
-      const created: AdminRedirect[] = [], failed: AdminRedirectImportResult['failed'][number][] = [];
-      // One failed item never discards successful siblings; no per-item network I/O.
-      for (const [index, input] of rules.entries()) {
-        try { created.push(create(input, 'import')); }
-        catch (error) {
-          failed.push({ index, code: error instanceof AdminApiError ? error.code ?? 'INTERNAL_ERROR' : 'INTERNAL_ERROR',
-            message: error instanceof AdminApiError ? error.message : 'an internal error occurred' });
-        }
-      }
-      return { created: Object.freeze(created), failed: Object.freeze(failed) };
-    },
+    ...createRedirectImporter(create, onImport),
   };
 }

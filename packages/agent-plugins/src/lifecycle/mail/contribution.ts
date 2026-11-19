@@ -45,6 +45,39 @@ export interface MailAdapterRegistry {
 }
 type Loader = ReturnType<typeof createPluginContributionLoader>;
 type LoadPluginContributions = Loader["loadPluginContributions"];
+/** One note per loaded adapter whose declared key card was ignored. @complexity O(a). */
+function cardNotes(items: readonly LoadedMailAdapter[]): string[] {
+  return items.flatMap(({ descriptor, pluginId }) =>
+    descriptor.credentialCardRefusal ? [`mail adapter '${descriptor.id}' from '${pluginId}' key card was ignored: ${descriptor.credentialCardRefusal}`] : []);
+}
+
+/** Why a v2 module disagrees with its descriptor, or undefined. @complexity O(1). */
+function v2Mismatch(adapter: LoadedMailAdapter): string | undefined {
+  const declared = adapter.module as unknown as Partial<MailProviderModule>;
+  if (declared.id !== adapter.descriptor.id) return `its module id '${String(declared.id)}' does not match the descriptor id '${adapter.descriptor.id}'`;
+  if (adapter.descriptor.feedback !== (declared.feedback !== undefined)) return "its descriptor feedback flag does not match the module's feedback parser";
+  return undefined;
+}
+
+/**
+ * The Jini provider for one loaded adapter. The module keeps the plugin's positional mailer ABI, so
+ * `create` adapts it; a v1 module (create only) is a hosted provider without feedback or domains.
+ * @complexity O(1).
+ */
+function providerFor(requiredHost: Parameters<typeof createMailContributions>[0], adapter: LoadedMailAdapter): MailProviderModule {
+  const { descriptor, module } = adapter;
+  const declared = descriptor.schemaVersion === 2 ? (module as unknown as Partial<MailProviderModule>) : {};
+  return {
+    ...declared,
+    id: descriptor.id,
+    label: descriptor.label,
+    credentialKeys: descriptor.credentialKeys ?? ["token", "baseUrl"],
+    capabilities: declared.capabilities ?? { hosted: true, feedback: false, domainVerification: false },
+    // Plugins receive the host's guarded HTTP client through their positional ABI.
+    create: (context: JiniCreateContext) => requiredHost.abi.fromPositionalMailer({ mailer: module.create({ ...context, kit: { ...context.kit, httpClient: requiredHost.abi.toPluginHttpClient({ httpClient: context.kit.httpClient }) } }) }),
+  };
+}
+
 /** @agent-note The host supplies its filename, setup validator, guarded ABI, and trusted source loader. */
 export function createMailContributions(requiredHost: {
   filename: string; parseSetup: ParseMailSetup; defaultCredentialLabel: (required: { label: string }) => string;
@@ -85,39 +118,6 @@ async function loadMailAdapterRegistryFromSource(plugin: AdapterPackage, _option
   return { list: () => load.items, refusals: [...load.refusals, ...cardNotes(load.items)] };
 }
 
-/** One note per loaded adapter whose declared key card was ignored. @complexity O(a). */
-function cardNotes(items: readonly LoadedMailAdapter[]): string[] {
-  return items.flatMap(({ descriptor, pluginId }) =>
-    descriptor.credentialCardRefusal ? [`mail adapter '${descriptor.id}' from '${pluginId}' key card was ignored: ${descriptor.credentialCardRefusal}`] : []);
-}
-
-/** Why a v2 module disagrees with its descriptor, or undefined. @complexity O(1). */
-function v2Mismatch(adapter: LoadedMailAdapter): string | undefined {
-  const declared = adapter.module as unknown as Partial<MailProviderModule>;
-  if (declared.id !== adapter.descriptor.id) return `its module id '${String(declared.id)}' does not match the descriptor id '${adapter.descriptor.id}'`;
-  if (adapter.descriptor.feedback !== (declared.feedback !== undefined)) return "its descriptor feedback flag does not match the module's feedback parser";
-  return undefined;
-}
-
-/**
- * The Jini provider for one loaded adapter. The module keeps the plugin's positional mailer ABI, so
- * `create` adapts it; a v1 module (create only) is a hosted provider without feedback or domains.
- * @complexity O(1).
- */
-function providerFor(adapter: LoadedMailAdapter): MailProviderModule {
-  const { descriptor, module } = adapter;
-  const declared = descriptor.schemaVersion === 2 ? (module as unknown as Partial<MailProviderModule>) : {};
-  return {
-    ...declared,
-    id: descriptor.id,
-    label: descriptor.label,
-    credentialKeys: descriptor.credentialKeys ?? ["token", "baseUrl"],
-    capabilities: declared.capabilities ?? { hosted: true, feedback: false, domainVerification: false },
-    // Plugins receive the host's guarded HTTP client through their positional ABI.
-    create: (context: JiniCreateContext) => requiredHost.abi.fromPositionalMailer({ mailer: module.create({ ...context, kit: { ...context.kit, httpClient: requiredHost.abi.toPluginHttpClient({ httpClient: context.kit.httpClient }) } }) }),
-  };
-}
-
 /**
  * Offers every loaded plugin adapter to the mail-provider registry. A v2 module whose id or
  * feedback claim disagrees with its descriptor is refused before the registry sees it.
@@ -136,7 +136,7 @@ function contributeMailProviders(
       refusals.push(`mail adapter '${adapter.descriptor.id}' from '${adapter.pluginId}' was not loaded: ${mismatch}`);
       continue;
     }
-    items.push({ contract: "mail", pluginId: adapter.pluginId, definition: { id: adapter.descriptor.id, provider: providerFor(adapter), label: adapter.descriptor.label } });
+    items.push({ contract: "mail", pluginId: adapter.pluginId, definition: { id: adapter.descriptor.id, provider: providerFor(requiredHost, adapter), label: adapter.descriptor.label } });
   }
   return contributeProviders({ registry: required.registry, loaded: { items, refusals } });
 }

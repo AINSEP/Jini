@@ -147,6 +147,26 @@ export interface CreateFormDefinitionRequired {
   } & FormAuthoring;
 }
 
+function newFormDefinition(
+  { input }: Pick<CreateFormDefinitionRequired, 'input'>,
+  { definitionId, notify, now }: { definitionId: UUID; notify: NotifyConfig; now: string },
+): HtmlFormDefinitionRecord {
+  return {
+    id: definitionId,
+    workspaceId: input.workspaceId,
+    name: input.name,
+    slug: input.slug,
+    fields: input.fields,
+    ...(input.provider ? { provider: input.provider } : {}),
+    notify,
+    status: "active",
+    createdAt: now,
+    updatedAt: now,
+    // Start the optimistic-concurrency version at 1 for the trash compare-and-set lifecycle.
+    version: 1,
+  };
+}
+
 /**
  * All definition writes pass through the injected command gateway for authorization, audit
  * capture and optional change-set event enqueue. There is no delete here: permanent removal
@@ -189,20 +209,7 @@ export async function createFormDefinition(
       captureInverse: async () => null,
       execute: async () => {
         const now = kernelNowIso({ clock: deps.clock });
-        const definition: HtmlFormDefinitionRecord = {
-          id: definitionId,
-          workspaceId: input.workspaceId,
-          name: input.name,
-          slug: input.slug,
-          fields: input.fields,
-          ...(input.provider ? { provider: input.provider } : {}),
-          notify,
-          status: "active",
-          createdAt: now,
-          updatedAt: now,
-          // Start the optimistic-concurrency version at 1 for the trash compare-and-set lifecycle.
-          version: 1,
-        };
+        const definition = newFormDefinition({ input }, { definitionId, notify, now });
         await deps.repo.create(definition);
         return { definition };
       },
@@ -227,6 +234,22 @@ export interface UpdateFormDefinitionRequired {
       slug?: string;
     } & FormAuthoring;
   };
+}
+
+function updatedFormFields(existing: FormDefinitionRecord, patch: UpdateFormDefinitionRequired['input']['patch']): FieldDescriptor[] {
+  let fields = existing.fields;
+  if (patch.fields !== undefined) {
+    assertValidFields(patch.fields);
+    const existingIds = new Set(existing.fields.map((f) => f.id));
+    const newIds = new Set(patch.fields.map((f) => f.id));
+    const missing = [...existingIds].filter((id) => !newIds.has(id));
+    if (missing.length > 0) {
+      throw new FormFieldValidationError({ message: `patch omits existing field id(s): ${missing.join(", ")} (behavior.spec.md §1.2)`, fieldErrors: missing.map((id) => ({ field: id, reason: "existing field ids cannot be removed" })) });
+    }
+    fields = patch.fields;
+  }
+
+  return fields;
 }
 
 export async function updateFormDefinition(
@@ -258,17 +281,7 @@ export async function updateFormDefinition(
           validateNameAndSlug(name, existing.slug, deps.reservedSlugs);
         }
 
-        let fields = existing.fields;
-        if (input.patch.fields !== undefined) {
-          assertValidFields(input.patch.fields);
-          const existingIds = new Set(existing.fields.map((f) => f.id));
-          const newIds = new Set(input.patch.fields.map((f) => f.id));
-          const missing = [...existingIds].filter((id) => !newIds.has(id));
-          if (missing.length > 0) {
-            throw new FormFieldValidationError({ message: `patch omits existing field id(s): ${missing.join(", ")} (behavior.spec.md §1.2)`, fieldErrors: missing.map((id) => ({ field: id, reason: "existing field ids cannot be removed" })) });
-          }
-          fields = input.patch.fields;
-        }
+        const fields = updatedFormFields(existing, input.patch);
 
         const notify = input.patch.notify !== undefined ? validateNotify(input.patch.notify) : existing.notify;
         assertProvider({ provider: input.patch.provider, stored: (existing as HtmlFormDefinitionRecord).provider, slug: existing.slug, providers: deps.formCollectionProviders?.() });

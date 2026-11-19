@@ -8,6 +8,52 @@ export function resolveBrowserAnalyticsMode(required: BrowserAnalyticsConsent, _
   return required.analytics === true && required.gpc !== true ? 'full' : 'anonymous';
 }
 
+function browserAnalyticsConsentScript(): string {
+  return `    function adminMode(mode){
+      if(mode!=='full')return 'pending';
+      try{return window.localStorage.getItem('jini:metrics-withdrawal')==='1'?'pending':mode;}catch(e){return mode;}
+    }
+    function requestedMode(state){
+      state=state||{};
+      var mode=resolveMode({hasChoice:state.hasChoice===true,analytics:state.analytics===true,
+        gpc:state.gpc===true||navigator.globalPrivacyControl===true});
+      return surface==='admin'?adminMode(mode):mode;
+    }
+    function apply(state){
+      if(invalidated)return;
+      var mode=requestedMode(state);
+      var wasActive=active;active=mode!=='pending';
+      if(active&&!wasActive)checks.forEach(function(check){check();});
+      if(mode==='pending'&&!controllers)return;
+      if(!controllers)controllers=factories.map(function(factory){try{return factory();}catch(e){return function(){};}});
+      controllers.forEach(function(control){try{control(mode);}catch(e){window.jiniBrowserAnalyticsLive=false;}});
+    }
+`;
+}
+
+function browserAnalyticsConfigurationScript(): string {
+  return `    configurations.forEach(function(config){
+      var running=false, failures=0;
+      async function check(){
+        if(running||invalidated||!active||document.visibilityState==='hidden')return;
+        running=true;
+        try{
+          var response=await fetch(config.url,{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(5000)});
+          if(!response.ok)throw new Error('configuration unavailable');
+          var revisions=await response.json();
+          if(!Array.isArray(revisions)||revisions.indexOf(config.revision)===-1)invalidate();
+          failures=0;
+        }catch(e){failures+=1;if(failures>=2)invalidate();}finally{running=false;}
+      }
+      checks.push(check);
+      // Only an explicit choice activates checks; hidden tabs generate no periodic traffic.
+      var timer=setInterval(function(){if(invalidated)clearInterval(timer);else check();},120000);
+      window.addEventListener('focus',check);
+      document.addEventListener('visibilitychange',check);
+    });
+`;
+}
+
 /** Render only the provider-neutral consent bridge; SDK factories stay idle until a choice.
  * The consent owner publishes effective choices (including failed withdrawals and GPC), so this
  * bridge never interprets cookies or creates another consent record. O(contribution source bytes).
@@ -29,26 +75,7 @@ export function renderBrowserAnalytics(required: {
     var resolveMode=${resolveBrowserAnalyticsMode.toString()};
     var initial=${initial}, surface=${JSON.stringify(required.surface)};
     if(surface==='site')window.jiniBrowserAnalyticsLive=${contributions.every(item => item.supportsLiveConsent === true)};
-    function adminMode(mode){
-      if(mode!=='full')return 'pending';
-      try{return window.localStorage.getItem('jini:metrics-withdrawal')==='1'?'pending':mode;}catch(e){return mode;}
-    }
-    function requestedMode(state){
-      state=state||{};
-      var mode=resolveMode({hasChoice:state.hasChoice===true,analytics:state.analytics===true,
-        gpc:state.gpc===true||navigator.globalPrivacyControl===true});
-      return surface==='admin'?adminMode(mode):mode;
-    }
-    function apply(state){
-      if(invalidated)return;
-      var mode=requestedMode(state);
-      var wasActive=active;active=mode!=='pending';
-      if(active&&!wasActive)checks.forEach(function(check){check();});
-      if(mode==='pending'&&!controllers)return;
-      if(!controllers)controllers=factories.map(function(factory){try{return factory();}catch(e){return function(){};}});
-      controllers.forEach(function(control){try{control(mode);}catch(e){window.jiniBrowserAnalyticsLive=false;}});
-    }
-    var key='jini:analytics-consent:'+surface, channel=null;
+${browserAnalyticsConsentScript()}    var key='jini:analytics-consent:'+surface, channel=null;
     try{if(typeof BroadcastChannel!=='undefined')channel=new BroadcastChannel(key);}catch(e){}
     function receive(state){
       // Cross-document signals may withdraw, never manufacture a grant from stale tab state.
@@ -74,26 +101,7 @@ export function renderBrowserAnalytics(required: {
     // A detached/reconfigured server lease cannot revoke an already downloaded SDK itself.
     // Check its opaque revision, and fail closed if the host can no longer confirm it.
     var configurations=${configurations};
-    configurations.forEach(function(config){
-      var running=false, failures=0;
-      async function check(){
-        if(running||invalidated||!active||document.visibilityState==='hidden')return;
-        running=true;
-        try{
-          var response=await fetch(config.url,{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(5000)});
-          if(!response.ok)throw new Error('configuration unavailable');
-          var revisions=await response.json();
-          if(!Array.isArray(revisions)||revisions.indexOf(config.revision)===-1)invalidate();
-          failures=0;
-        }catch(e){failures+=1;if(failures>=2)invalidate();}finally{running=false;}
-      }
-      checks.push(check);
-      // Only an explicit choice activates checks; hidden tabs generate no periodic traffic.
-      var timer=setInterval(function(){if(invalidated)clearInterval(timer);else check();},120000);
-      window.addEventListener('focus',check);
-      document.addEventListener('visibilitychange',check);
-    });
-    apply(initial||(surface==='site'?window.jiniConsent:null));
+${browserAnalyticsConfigurationScript()}    apply(initial||(surface==='site'?window.jiniConsent:null));
   })();`.replace(/<\/script/gi, '<\\/script');
   return `<script data-jini-browser-analytics>${source}</script>`;
 }

@@ -188,15 +188,8 @@ function contentTypeLifecycleHandler(
   };
 }
 
-export function buildContentTypesRegistrations(routeDeps: ContentTypesToolDeps): ToolRegistration[] {
-  const handlers: Record<string, ToolHandler> = {
-    collections_content_type_list: async (ctx) => {
-      requireNoInput({ input: ctx.input });
-      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "admin.collections.read" }, { entityType: "content-type" });
-      const { items } = await listContentTypes({ repo: routeDeps.contentTypeRepo, workspaceId: routeDeps.workspaceId });
-      return { contentTypes: items.map(toContentTypeView) };
-    },
-    collections_content_type_define: async (ctx) => {
+function createContentTypeDefinitionHandler(routeDeps: ContentTypesToolDeps): ToolHandler {
+  return async (ctx) => {
       const input = requireInputRecord({ input: ctx.input });
       return fromContentTypeResult(() =>
         registerContentType({
@@ -211,7 +204,18 @@ export function buildContentTypesRegistrations(routeDeps: ContentTypesToolDeps):
           },
         }),
       );
+    };
+}
+
+export function buildContentTypesRegistrations(routeDeps: ContentTypesToolDeps): ToolRegistration[] {
+  const handlers: Record<string, ToolHandler> = {
+    collections_content_type_list: async (ctx) => {
+      requireNoInput({ input: ctx.input });
+      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "admin.collections.read" }, { entityType: "content-type" });
+      const { items } = await listContentTypes({ repo: routeDeps.contentTypeRepo, workspaceId: routeDeps.workspaceId });
+      return { contentTypes: items.map(toContentTypeView) };
     },
+    collections_content_type_define: createContentTypeDefinitionHandler(routeDeps),
     collections_content_type_update_fields: async (ctx) => {
       const input = requireInputRecord({ input: ctx.input });
       return fromContentTypeResult(() =>

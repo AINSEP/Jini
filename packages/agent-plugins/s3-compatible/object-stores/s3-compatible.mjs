@@ -151,6 +151,22 @@ function putHeaders(required) {
   return merged;
 }
 
+/** @param {{ config: S3ObjectStoreConfig, send: SendFn, host: string }} required */
+function createSignedObjectRequester({ config, send, host }) {
+  /**
+   * One signed request; a transport failure rejects as `S3ObjectStore.<method>: request failed`.
+   * @param {{ method: string, op: string, key: string, init: RequestInit }} call
+   */
+  return async (call) => {
+    try {
+      return await send(objectUrl({ host, config, key: call.key }), { method: call.method, ...call.init });
+    } catch (err) {
+      throw new Error(`S3ObjectStore.${call.op}: request failed for '${call.key}' — ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
+
+}
+
 /**
  * Builds the store over one signing `send`.
  * @param {{ config: S3ObjectStoreConfig, send: SendFn }} required
@@ -160,17 +176,7 @@ function putHeaders(required) {
 function createS3ObjectStore(required) {
   const { config, send } = required;
   const host = resolveHost(config);
-  /**
-   * One signed request; a transport failure rejects as `S3ObjectStore.<method>: request failed`.
-   * @param {{ method: string, op: string, key: string, init: RequestInit }} call
-   */
-  const request = async (call) => {
-    try {
-      return await send(objectUrl({ host, config, key: call.key }), { method: call.method, ...call.init });
-    } catch (err) {
-      throw new Error(`S3ObjectStore.${call.op}: request failed for '${call.key}' — ${err instanceof Error ? err.message : String(err)}`);
-    }
-  };
+  const request = createSignedObjectRequester({ config, send, host });
 
   return {
     /**

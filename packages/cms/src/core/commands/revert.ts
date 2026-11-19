@@ -108,6 +108,19 @@ export interface RevertChangeSetRequired {
 
 export interface RevertChangeSetOptional {}
 
+function revertedChangeSetEvent(deps: RevertChangeSetDeps, reverted: ChangeSetRecord): DomainEvent<{ changeSetId: UUID }> {
+  return {
+    id: deps.idGen.newId(),
+    name: "change-set.reverted",
+    occurredAt: reverted.revertedAt!,
+    aggregateId: reverted.id,
+    workspaceId: reverted.workspaceId,
+    actorId: reverted.actorId,
+    changeSetId: reverted.id,
+    payload: { changeSetId: reverted.id },
+  } as DomainEvent<{ changeSetId: UUID }>;
+}
+
 export async function revertChangeSet(
   required: RevertChangeSetRequired,
   _optional: RevertChangeSetOptional = {}
@@ -168,16 +181,7 @@ export async function revertChangeSet(
   await changeSets.save(reverted);
 
   if (deps.outbox) {
-    const event = {
-      id: deps.idGen.newId(),
-      name: "change-set.reverted",
-      occurredAt: reverted.revertedAt!,
-      aggregateId: reverted.id,
-      workspaceId: reverted.workspaceId,
-      actorId: reverted.actorId,
-      changeSetId: reverted.id,
-      payload: { changeSetId: reverted.id },
-    } as DomainEvent<{ changeSetId: UUID }>;
+    const event = revertedChangeSetEvent(deps, reverted);
     await deps.outbox.enqueue(event);
   }
 

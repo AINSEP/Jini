@@ -396,6 +396,21 @@ async function claimUploadBlob(
   return written.storageKey;
 }
 
+function saveOriginalRendition(
+  deps: UploadMediaRequired['deps'],
+  { input, media, storageKey, nowIso }: { input: UploadMediaRequired['input']; media: MediaRecord; storageKey: string; nowIso: string },
+) {
+  return deps.renditionRepo.save({
+    id: deps.idGen.newId(),
+    workspaceId: input.workspaceId,
+    assetId: media.id,
+    transformName: "original",
+    version: 1,
+    storageKey,
+    createdAt: nowIso,
+  });
+}
+
 export async function uploadMedia(
   required: UploadMediaRequired,
   optional: UploadMediaOptional = {}
@@ -444,15 +459,7 @@ export async function uploadMedia(
   };
   await deps.mediaRepo.save(media);
 
-  await deps.renditionRepo.save({
-    id: deps.idGen.newId(),
-    workspaceId: input.workspaceId,
-    assetId: media.id,
-    transformName: "original",
-    version: 1,
-    storageKey,
-    createdAt: nowIso,
-  });
+  await saveOriginalRendition(deps, { input, media, storageKey, nowIso });
 
   return { media };
 }

@@ -63,23 +63,10 @@ function parseJournal({ value, pluginId }: { value: unknown; pluginId: string },
   return raw as unknown as AgentPluginUpdateJournal;
 }
 
-/** Durable per-plugin journal, audit history and frozen rollback area, all under the plugin's own
- * state root (never under `package/sha256`, so a rollback copy is never a live digest). Files use
- * the existing platform atomic writer. Settings snapshots are private (0600) and never returned to
- * tools or HTTP callers.
- * @complexity O(s) serialization of the host's settings slice.
- */
-export function createAgentPluginUpdateStore({ ports, workspaceId, pluginId }: {
-  ports: AgentPluginLifecyclePorts; workspaceId: string; pluginId: string;
-}, _optional: Record<string, never> = {}) {
-  const workspace = ports.layout.forWorkspace({ workspaceId });
-  const root = workspace.pluginRootDir({ pluginId });
-  const journalPath = path.join(root, 'update-journal.json');
-  const rollbackDir = path.join(root, 'rollback');
-  const persistent = createPersistentStateModule(ports);
-  async function contain({ entryPath }: { entryPath: string }, _optional = {}): Promise<void> {
-    await persistent.assertOwnedPath({ workspaceRoot: workspace.root, entryPath: path.relative(workspace.root, entryPath) });
-  }
+function createUpdateJournalOperations(
+  { ports, root, journalPath, pluginId }: { ports: AgentPluginLifecyclePorts; root: string; journalPath: string; pluginId: string },
+  contain: (input: { entryPath: string }) => Promise<void>,
+) {
   async function read(_required: Record<string, never>, _optional = {}): Promise<AgentPluginUpdateJournal | undefined> {
     await contain({ entryPath: journalPath });
     let text: string;
@@ -109,6 +96,27 @@ export function createAgentPluginUpdateStore({ ports, workspaceId, pluginId }: {
     await write({ journal, history: true });
     await clear({});
   }
+  return { read, write, clear, finish };
+}
+
+/** Durable per-plugin journal, audit history and frozen rollback area, all under the plugin's own
+ * state root (never under `package/sha256`, so a rollback copy is never a live digest). Files use
+ * the existing platform atomic writer. Settings snapshots are private (0600) and never returned to
+ * tools or HTTP callers.
+ * @complexity O(s) serialization of the host's settings slice.
+ */
+export function createAgentPluginUpdateStore({ ports, workspaceId, pluginId }: {
+  ports: AgentPluginLifecyclePorts; workspaceId: string; pluginId: string;
+}, _optional: Record<string, never> = {}) {
+  const workspace = ports.layout.forWorkspace({ workspaceId });
+  const root = workspace.pluginRootDir({ pluginId });
+  const journalPath = path.join(root, 'update-journal.json');
+  const rollbackDir = path.join(root, 'rollback');
+  const persistent = createPersistentStateModule(ports);
+  async function contain({ entryPath }: { entryPath: string }, _optional = {}): Promise<void> {
+    await persistent.assertOwnedPath({ workspaceRoot: workspace.root, entryPath: path.relative(workspace.root, entryPath) });
+  }
+  const { read, write, clear, finish } = createUpdateJournalOperations({ ports, root, journalPath, pluginId }, contain);
   async function prepare(_required: Record<string, never>, _optional = {}): Promise<void> {
     await contain({ entryPath: rollbackDir });
     await ports.filesystem.mkdir(rollbackDir, { recursive: true, mode: 0o700 });

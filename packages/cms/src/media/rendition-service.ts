@@ -108,6 +108,51 @@ async function isGenerationAllowed(
     }));
 }
 
+function generateMediaRendition(
+  { deps, input }: ResolveMediaRenditionRequired,
+  { lockKey, assetId, sourceBytes, definition }: { lockKey: string; assetId: UUID; sourceBytes: Uint8Array; definition: NonNullable<Awaited<ReturnType<TransformDefinitionRepoPort['findByNameVersion']>>> },
+): Promise<AssetRenditionRecord> {
+  return withRenditionLock({ key: lockKey, criticalSection: async () => {
+    // Double-checked: another caller may have finished generating this exact rendition while we
+    // were queued for the lock (single-flight) — reuse it instead of calling
+    // `imageTransformer.transform` a second time.
+    const racedExisting = await deps.renditionRepo.findOne({
+      workspaceId: input.workspaceId,
+      assetId,
+      transformName: input.transformName,
+      version: input.version,
+    });
+    if (racedExisting) return racedExisting;
+
+    const { bytes: outputBytes } = await deps.imageTransformer.transform({
+      bytes: sourceBytes,
+      params: definition.params,
+    });
+    const outputSha256 = createHash("sha256").update(outputBytes).digest("hex");
+    // Cleanup and uploads address these bytes by their output hash. Keep the ownership row
+    // inside that same lock so cleanup cannot delete a file between its write and row save.
+    return withSha256Lock({ key: outputSha256, criticalSection: async () => {
+      const { storageKey } = await deps.blobStore.put({
+        workspaceId: input.workspaceId,
+        sha256: outputSha256,
+        bytes: outputBytes,
+      });
+
+      const row: AssetRenditionRecord = {
+        id: deps.idGen.newId(),
+        workspaceId: input.workspaceId,
+        assetId,
+        transformName: input.transformName,
+        version: input.version,
+        storageKey,
+        createdAt: kernelNowIso({ clock: deps.clock }),
+      };
+      await deps.renditionRepo.save(row);
+      return row;
+    } });
+  } });
+}
+
 /**
  * DISCLOSED SIMPLIFICATION: the original design says a *purged* asset should 410. This
  * build's `purgeMedia` (`media-service.ts`) hard-deletes the `MediaRecord`
@@ -170,45 +215,7 @@ export async function resolveMediaRendition(
   }
 
   const lockKey = `${media.source.sha256}:${input.transformName}:${input.version}`;
-  const renditionRow = await withRenditionLock({ key: lockKey, criticalSection: async () => {
-    // Double-checked: another caller may have finished generating this exact rendition while we
-    // were queued for the lock (single-flight) — reuse it instead of calling
-    // `imageTransformer.transform` a second time.
-    const racedExisting = await deps.renditionRepo.findOne({
-      workspaceId: input.workspaceId,
-      assetId,
-      transformName: input.transformName,
-      version: input.version,
-    });
-    if (racedExisting) return racedExisting;
-
-    const { bytes: outputBytes } = await deps.imageTransformer.transform({
-      bytes: sourceBytes,
-      params: definition.params,
-    });
-    const outputSha256 = createHash("sha256").update(outputBytes).digest("hex");
-    // Cleanup and uploads address these bytes by their output hash. Keep the ownership row
-    // inside that same lock so cleanup cannot delete a file between its write and row save.
-    return withSha256Lock({ key: outputSha256, criticalSection: async () => {
-      const { storageKey } = await deps.blobStore.put({
-        workspaceId: input.workspaceId,
-        sha256: outputSha256,
-        bytes: outputBytes,
-      });
-
-      const row: AssetRenditionRecord = {
-        id: deps.idGen.newId(),
-        workspaceId: input.workspaceId,
-        assetId,
-        transformName: input.transformName,
-        version: input.version,
-        storageKey,
-        createdAt: kernelNowIso({ clock: deps.clock }),
-      };
-      await deps.renditionRepo.save(row);
-      return row;
-    } });
-  } });
+  const renditionRow = await generateMediaRendition({ deps, input }, { lockKey, assetId, sourceBytes, definition });
 
   const bytes = await deps.blobStore.get({ storageKey: renditionRow.storageKey });
   return { outcome: "ok", bytes, contentType: mimeForTransformFormat({ format: definition.params.format }) };
