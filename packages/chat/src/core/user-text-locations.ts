@@ -68,9 +68,12 @@ function urlSpans(text: string): Span[] {
   for (let colon = text.indexOf('://'); colon !== -1; colon = text.indexOf('://', colon + 1)) {
     if (colon < (spans.at(-1)?.end ?? 0)) continue;
     const start = schemeStart(text, colon);
+    // Without a scheme no URL starts here; reading the tail anyway re-read the rest of a whitespace-free run of `://`
+    // from every delimiter, quadratic in its length.
+    if (start === -1) continue;
     URL_REST.lastIndex = colon;
     const rest = URL_REST.exec(text);
-    if (start !== -1 && rest) spans.push({ start, end: colon + rest[0].length, url: true });
+    if (rest) spans.push({ start, end: colon + rest[0].length, url: true });
   }
   return spans;
 }
