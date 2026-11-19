@@ -2,8 +2,8 @@
  * @file The one holder of "which site dirs are MID-TRANSITION right now" — the fact `openSites`
  * cannot express and the Projects screen needs to stop lying with.
  *
- * `child-entries.ts` answers "is this site's `tovu serve` alive". That is a two-valued answer, and
- * `buildSiteRecord` (`project-ipc.ts`) turned it straight into `running` or `stopped`. Both of a
+ * `child-entries.ts` answers "is this site's child server alive". That is a two-valued answer, and
+ * the host snapshot builder (the host lifecycle handler) turned it straight into `running` or `stopped`. Both of a
  * site's lifecycle transitions take real wall-clock time — a boot is seconds, a graceful stop is a
  * SIGTERM plus however long the child takes to drain — and during either one the two-valued answer
  * is wrong in the direction the operator can see:
@@ -12,7 +12,7 @@
  *   looks like it did nothing, and they press it again;
  * - a site being stopped reads `running` until the child is gone, so a Stop button looks the same.
  *
- * `contracts/project.ts` has declared `starting` and `stopping` in `SiteLifecycleStatus` since the
+ * the host lifecycle contract has declared `starting` and `stopping` in `SiteLifecycleStatus` since the
  * port; nothing had ever been able to produce them. This is what produces them.
  *
  * **Not folded into the supervisor**, though the two are read together. The supervisor's entries are
@@ -22,11 +22,11 @@
  * event. Merging them would put two different ownership models behind one `get`.
  *
  * No `electron` import, so all of it is testable under plain `node --test` — same convention as
- * `child-entries.ts`, `tracked-sites.ts` and `project-delete-guard.ts`.
+ * `child-entries.ts`, the directory registry and the directory delete guard.
  */
 
 /** Which lifecycle transition a site is in the middle of. Both are `SiteLifecycleStatus` members
- *  verbatim (`contracts/project.ts`), so a reader can use the value as the status directly. */
+ *  verbatim (the host lifecycle contract), so a reader can use the value as the status directly. */
 type ChildTransition = "starting" | "stopping";
 
 /** What {@link createChildTransitions} returns. */
@@ -51,7 +51,7 @@ function createChildTransitions(_required: Record<string, never>, _optional: Rec
    *
    * The stored value is a fresh object per call rather than the bare string so {@link during}'s
    * `finally` can check IDENTITY before clearing — the same rule, and for the same reason, as
-   * `child-entries.ts`'s `handleExit`. `project-ipc.ts` serializes start and stop per site dir,
+   * `child-entries.ts`'s `handleExit`. the host lifecycle handler serializes start and stop per site dir,
    * so overlapping transitions on one site should not happen; "should not happen" is not a reason
    * for a later transition's mark to be cleared by an earlier one's unwind if it ever does.
    */

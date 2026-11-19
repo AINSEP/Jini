@@ -1,16 +1,16 @@
 /**
- * @file The one holder of "which site dirs have a LIVE `tovu serve` right now" — `main.ts`'s
+ * @file The one holder of "which site dirs have a LIVE child server right now" — the host's
  * `openSites` map, grown the one property it never had: it observes the child dying.
  *
  * **The defect this exists for (D-06).** `openSites` was a bare `Map`, and the audit's phrasing is
  * exact: it was "a registry of what was STARTED and not yet deliberately stopped", read everywhere
- * as "what is running". `startTovuServer`'s handle was built for boot-or-fail and discarded the
+ * as "what is running". the host's server's handle was built for boot-or-fail and discarded the
  * child's exit once ready, so after a crash:
  *
- * - `buildSiteRecord` (`project-ipc.ts`) kept reporting `status: "running"` and the old port;
- * - `useSitesPolling`'s 4 s re-poll — whose own comment claims it is there to catch a crash —
+ * - the host snapshot builder (the host lifecycle handler) kept reporting `status: "running"` and the old port;
+ * - the host poller's 4 s re-poll — whose own comment claims it is there to catch a crash —
  *   re-read a map that never changed, so the comment was false;
- * - `openSiteServer` (`main.ts`) returned `already.server`, so "Start site" handed back the corpse
+ * - the host open operation (the host) returned `already.server`, so "Start site" handed back the corpse
  *   and spawned nothing. Wedged for the rest of the session.
  *
  * Nothing was wrong with any individual reader. There was simply no component that owned the
@@ -29,7 +29,7 @@
  * module owns exactly the transition that had no owner: the one nobody asked for.
  *
  * No `electron` import, so all of it is testable under plain `node --test` — same convention as
- * `tracked-sites.ts`, `site-process-registry.ts` and `project-delete-guard.ts`.
+ * the other host-independent lifecycle modules.
  */
 
 /** How a site's child exited: the `code` and `signal` of Node's own child `exit` event. */
@@ -38,9 +38,9 @@ interface ChildExit {
   signal: string | null;
 }
 
-/** The slice of a `startTovuServer` handle this module reads. `onExit` is optional: see `set`. */
+/** The slice of a the host's server handle this module reads. `onExit` is optional: see `set`. */
 interface ObservedServer {
-  onExit?: (listener: (exit: ChildExit) => void) => void;
+  onExit?: (required: { listener: (exit: ChildExit) => void }, optional?: Record<string, never>) => void;
 }
 
 /** The least a stored entry carries. The caller's real entry type (the server handle's `port` and
@@ -71,8 +71,8 @@ interface ChildEntries<E extends ChildEntry> {
  *   Receives the entry that was holding it, because the caller needs its `server.pid` to drop the
  *   right crash-safety row — this instance's own registry file can also hold a still-draining earlier
  *   child's row for the same site dir, and closing by site dir alone would take that one too (D-07).
- *   Injected rather than reaching for `site-process-registry.ts` directly so this module needs no
- *   `registryPath`, no filesystem, and no knowledge of what the caller does about it — `main.ts`
+ *   Injected rather than reaching for the host registry directly so this module needs no
+ *   `registryPath`, no filesystem, and no knowledge of what the caller does about it — the host
  *   drops the crash-safety row and logs; a test just records the call.
  * @returns a `Map`-compatible store with {@link lastExitOf} added.
  * @complexity O(1) to construct.
@@ -112,7 +112,7 @@ class ChildEntriesStore<E extends ChildEntry> implements ChildEntries<E> {
    * Record a site's live server and begin watching it. `Map.set`'s contract plus the observation.
    *
    * A handle with no `onExit` is stored and simply not watched, rather than throwing: the sites-home
-   * and own-server paths both build real handles from `startTovuServer`, but tests inject minimal
+   * and own-server paths both build real handles from the host's server, but tests inject minimal
    * `{server: {port}}` stand-ins, and a store that refused those would force every unrelated test
    * to fake a lifecycle it is not exercising.
    *
@@ -123,7 +123,7 @@ class ChildEntriesStore<E extends ChildEntry> implements ChildEntries<E> {
     // A previous crash at this path is no longer the current answer about it.
     this.exits.delete(key);
     if (typeof entry?.server?.onExit === "function") {
-      entry.server.onExit((exit) => this.handleExit({ key, entry, exit }));
+      entry.server.onExit({ listener: (exit) => this.handleExit({ key, entry, exit }) });
     }
     return this;
   }

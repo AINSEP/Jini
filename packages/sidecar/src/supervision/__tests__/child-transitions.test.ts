@@ -1,5 +1,5 @@
 /**
- * @file Coverage for `site-transitions.ts` — the store that makes `starting` and `stopping`
+ * @file Coverage for `child-transitions.ts` — the store that makes `starting` and `stopping`
  * producible at all.
  *
  * Its whole contract is the `finally`: a mark that outlives its transition is worse than no mark,
@@ -56,7 +56,7 @@ test("the mark is cleared when the body REJECTS — a failed start must not leav
   const transitions = createChildTransitions({});
   await assert.rejects(
     transitions.during({ key: "/sites/a", transition: "starting", body: async () => {
-      throw new Error("tovu serve failed: PORT_IN_USE");
+      throw new Error("child server failed: PORT_IN_USE");
     } }),
     /PORT_IN_USE/,
   );

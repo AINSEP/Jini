@@ -1,9 +1,9 @@
 /**
- * @file Coverage for `site-supervisor.ts` — the owner of the `running -> exited` transition that
+ * @file Coverage for `child-entries.ts` — the owner of the `running -> exited` transition that
  * D-06 found had no owner at all.
  *
  * Every behavioural test here runs TWICE, against two stores built by `stores()`: the supervisor,
- * and a plain `Map` — the exact shape `main.js`'s `openSites` was before this module existed, with
+ * and a plain `Map` — the exact shape the host's `openSites` was before this module existed, with
  * nothing else about the test changed. The Map arm is not decoration: it is the paired baseline that
  * proves each assertion is about the supervisor's added behaviour and not about something the old
  * shape already did. If a "fix" here were vacuous, both arms would pass and the test would say so.
@@ -26,7 +26,7 @@ interface StoreArm<S> {
   reported: { siteDir: string; exit: ChildExit }[];
 }
 
-/** A `startTovuServer` handle stand-in with the replayable `onExit` the real one now returns. */
+/** A the host server handle stand-in with the replayable `onExit` the real one now returns. */
 function fakeServer(port = 4321) {
   let exit: ChildExit | null = null;
   const waiting: ((exit: ChildExit) => void)[] = [];
@@ -34,7 +34,7 @@ function fakeServer(port = 4321) {
     port,
     pid: 4242,
     stop: async () => {},
-    onExit(listener: (exit: ChildExit) => void) {
+    onExit({ listener }: { listener: (exit: ChildExit) => void }, _optional = {}) {
       if (exit !== null) {
         listener(exit);
         return;
@@ -133,7 +133,7 @@ test("lastExitOf explains a crash, and is cleared by both a restart and a delete
 });
 
 test("an exit that already happened before the entry was stored is still seen", () => {
-  // `startTovuServer`'s handle replays; the supervisor must not silently swallow that replay.
+  // the host server's handle replays; the supervisor must not silently swallow that replay.
   const [{ store, reported }] = stores();
   const server = fakeServer();
   server.die(1, null);
@@ -173,7 +173,7 @@ test("repeated notifications report the original entry only once", () => {
   const callbacks: ((exit: ChildExit) => void)[] = [];
   const reports: { key: string; exit: ChildExit; entry: TestEntry }[] = [];
   const store = createChildEntries<TestEntry>({ onUnexpectedExit: (report) => { reports.push(report); } });
-  const entry = { server: { port: 1, onExit: (listener: (exit: ChildExit) => void) => { callbacks.push(listener); } } };
+  const entry = { server: { port: 1, onExit: ({ listener }: { listener: (exit: ChildExit) => void }) => { callbacks.push(listener); } } };
   store.set("a", entry);
   const exit = { code: 7, signal: null };
   callbacks[0]!(exit);
@@ -182,4 +182,12 @@ test("repeated notifications report the original entry only once", () => {
   assert.equal(reports[0]!.entry, entry);
   assert.equal(store.get("a"), undefined);
   assert.equal(store.size, 0);
+});
+
+test("the object-shaped handle rejects a bare listener", () => {
+  const server = fakeServer();
+  const listener = () => {};
+  // Calling the native fixture with a function leaves its destructured listener absent.
+  Reflect.apply(server.onExit, server, [listener]);
+  assert.throws(() => server.die(), TypeError);
 });

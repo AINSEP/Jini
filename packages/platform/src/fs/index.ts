@@ -20,3 +20,4 @@ export { backupOriginalOnce } from './backup-once.js';
 
 export * from "./directory-delete-guard.js";
 export * from "./remove-directory-tree.js";
+export * from "./directory-relocation.js";

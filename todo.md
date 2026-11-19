@@ -8,6 +8,10 @@ live in Open Design's own repo rather than Jini's.
 
 ## In flight
 
+- **Keyed serialization duplication.** `packages/sidecar/src/supervision/keyed-serializer.ts`
+  and `packages/cms/src/media/transform-lock.ts:33` both own per-key promise chaining.
+  Retain current behavior in this extraction; assess consolidation as a separate change.
+
 - **`features/html-viewer/` extraction** — dispatched 2026-07-18, fires
   09:20 UTC (2:20 AM PDT), branch `feature/jini-ui-html-viewer`. See details
   below; this entry stays until the branch is verified (not just

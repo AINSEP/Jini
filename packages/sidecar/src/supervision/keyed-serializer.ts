@@ -1,13 +1,13 @@
 /**
- * @file Per-key promise chaining, so two calls for the SAME key never race — Tovu-Runner's
- * `serializeByProject` pattern (`project-provisioner.ts:301-332`), generalized: this file has no
+ * @file Per-key promise chaining, so two calls for the SAME key never race — the host's
+ * existing per-project serialization pattern, generalized: this file has no
  * notion of a "project", just a string key and a function to chain.
  *
- * Multi-site reintroduces exactly the race Runner built that pattern for: with one site and one
+ * Multiple keys reintroduce exactly the race the host built that pattern for: with one site and one
  * button, a double-click could only ever double-spawn the same single child. With N sites, each
  * exposed through its own menu entry (open, or open-recent), the same double-click risk reappears
  * per site — this closes it generically rather than needing a guard duplicated at every call site
- * (`main.ts`'s `openSiteWindow`/`promptAndOpenNewSite`).
+ * (the host's open-window and open-new-directory operations).
  *
  * Calls for DIFFERENT keys are never serialized against each other — opening site A must not wait on
  * site B's own in-flight open.
