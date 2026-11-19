@@ -164,11 +164,9 @@ export { mergeMcpJsonContent } from './mcp-json-file.js';
 export { buildCodexMcpServerToml, buildCodexHomeConfigToml } from './codex/home-config.js';
 export { resolveSourceCodexHomeDir, prepareCodexHomeIfNeeded } from './codex/home-staging.js';
 export { probeMcpBridge, type McpBridgeProbeResult } from './mcp-bridge-probe.js';
-export {
-  DEFAULT_BUFFERED_STDOUT_MAX_BYTES,
-  runAcpDispatch,
-  runPiRpcDispatch,
-} from './events.js';
+export { DEFAULT_BUFFERED_STDOUT_MAX_BYTES } from './child-stdout.js';
+export { runAcpDispatch } from './acp-events.js';
+export { runPiRpcDispatch } from './pi-rpc-events.js';
 export {
   armHandoffWatcher,
 } from './handoff.js';

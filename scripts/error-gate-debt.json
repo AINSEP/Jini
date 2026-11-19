@@ -1180,9 +1180,19 @@
     "value": 1
   },
   {
-    "file": "packages/daemon/src/agent-executor/events.ts",
+    "file": "packages/daemon/src/agent-executor/child-input.ts",
     "rule": "catch-reads-error",
-    "value": 3
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/acp-events.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/pi-rpc-events.ts",
+    "rule": "catch-reads-error",
+    "value": 1
   },
   {
     "file": "packages/daemon/src/agent-executor/http-mcp.ts",
@@ -1355,12 +1365,17 @@
     "value": 1
   },
   {
-    "file": "packages/daemon/src/run-lifecycle.ts",
+    "file": "packages/daemon/src/run-lifecycle-events.ts",
     "rule": "catch-reads-error",
-    "value": 2
+    "value": 1
   },
   {
-    "file": "packages/daemon/src/run-lifecycle.ts",
+    "file": "packages/daemon/src/run-lifecycle-registry.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/run-lifecycle-timers.ts",
     "rule": "no-generic-failure-text",
     "value": 6
   },

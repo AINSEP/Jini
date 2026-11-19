@@ -33,7 +33,7 @@ function listSourceFiles(dir: string): string[] {
 
 // The gate applies to kernel services; session coordination and HTTP adapters have
 // their own published conversation/project contracts and do not key kernel runs.
-const KERNEL_FILES = ['run-lifecycle.ts', 'event-log.ts', 'tool-executor.ts', 'agent-executor.ts', 'tokens.ts'];
+const KERNEL_FILES = ['run-lifecycle.ts', 'run-lifecycle-registry.ts', 'run-lifecycle-registration.ts', 'run-lifecycle-events.ts', 'run-lifecycle-timers.ts', 'run-lifecycle-transitions.ts', 'event-log.ts', 'tool-executor.ts', 'agent-executor.ts', 'tokens.ts'];
 
 describe('identifier-neutrality lint — daemon kernel services', () => {
   it('contains no projectId/conversationId/project_id/conversation_id noun outside this lint file', () => {

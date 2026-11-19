@@ -127,7 +127,7 @@ describe('RunLifecycle.start — F1 failed start append cleanup', () => {
 
 describe('RunLifecycle — F1 re-score kills', () => {
   it('pins the retention/cap/slow-run defaults', async () => {
-    const mod = await import('../run-lifecycle.js');
+    const mod = await import('../run-lifecycle-registry.js');
     expect([mod.DEFAULT_TERMINAL_RETENTION_MS, mod.DEFAULT_MAX_TERMINAL_RUNS, mod.DEFAULT_SLOW_RUN_THRESHOLD_MS]).toEqual([86_400_000, 1000, 45_000]);
   });
   it('a null end-entry payload rehydrates as failed / non-resumable instead of throwing', async () => {

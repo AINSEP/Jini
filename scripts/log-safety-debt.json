@@ -370,7 +370,7 @@
     "value": 1
   },
   {
-    "file": "packages/daemon/src/agent-executor/events.ts",
+    "file": "packages/daemon/src/agent-executor/event-io.ts",
     "rule": "console",
     "value": 1
   },

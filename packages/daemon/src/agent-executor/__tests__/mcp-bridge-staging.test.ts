@@ -7,7 +7,7 @@ import { afterAll, describe, expect, it, vi } from 'vitest';
 import { getAgentDef, type attachAcpSession } from '@jini-ai/agent-runtime';
 import { createInMemoryEventLog } from '../../event-log.js';
 import { createRunLifecycle } from '../../run-lifecycle.js';
-import { runAcpDispatch } from '../events.js';
+import { runAcpDispatch } from '../acp-events.js';
 import {
   unavailableJiniBridgeStatus,
   writeMcpJsonIfNeeded,

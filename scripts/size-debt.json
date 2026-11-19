@@ -287,20 +287,6 @@
     "value": 751
   },
   {
-    "file": "packages/daemon/src/agent-executor/events.ts",
-    "function": "wireChildLifecycle",
-    "line": 471,
-    "rule": "max-lines-per-function",
-    "value": 335
-  },
-  {
-    "file": "packages/daemon/src/agent-executor/events.ts",
-    "function": "<file>",
-    "line": 812,
-    "rule": "max-lines",
-    "value": 930
-  },
-  {
     "file": "packages/daemon/src/agent-executor/launch.ts",
     "function": "<file>",
     "line": 826,
@@ -320,13 +306,6 @@
     "line": 1450,
     "rule": "max-lines-per-function",
     "value": 115
-  },
-  {
-    "file": "packages/daemon/src/run-lifecycle.ts",
-    "function": "<file>",
-    "line": 909,
-    "rule": "max-lines",
-    "value": 689
   },
   {
     "file": "packages/diagnostics/src/web-evidence/page-structure-script.ts",

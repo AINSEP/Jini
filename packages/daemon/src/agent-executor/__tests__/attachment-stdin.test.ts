@@ -1,7 +1,7 @@
 import { expect, it, vi } from 'vitest';
 import type { ChildProcess } from 'node:child_process';
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
-import { writePromptToStdin } from '../events.js';
+import { writePromptToStdin } from '../child-input.js';
 
 it('writes exact image pixels in the initial structured user message', () => {
   const write = vi.fn();
