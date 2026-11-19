@@ -80,7 +80,9 @@
       "./media/plugins/document-text/unpdf": "node",
       "./media/plugins/document-text/mammoth": "node",
       "./forms/portable-validation": "universal",
-      "./core/commands": "universal"
+      "./core/commands": "universal",
+      "./widgets/media-tags": "universal",
+      "./widgets/document-markers": "universal"
     },
     "isolation": {
       "domains": {
@@ -505,6 +507,16 @@
       "types": "./dist/core/commands/index.d.ts",
       "import": "./dist/core/commands/index.js",
       "default": "./dist/core/commands/index.js"
+    },
+    "./widgets/media-tags": {
+      "types": "./dist/widgets/media-tags.d.ts",
+      "import": "./dist/widgets/media-tags.js",
+      "default": "./dist/widgets/media-tags.js"
+    },
+    "./widgets/document-markers": {
+      "types": "./dist/widgets/document-markers.d.ts",
+      "import": "./dist/widgets/document-markers.js",
+      "default": "./dist/widgets/document-markers.js"
     }
   },
   "files": [
