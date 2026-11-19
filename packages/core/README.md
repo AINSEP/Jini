@@ -100,6 +100,7 @@ Tool handlers receive required execution context first and optional `{ emitSurfa
 
 | subpath | what's behind it |
 |---|---|
+| `./env/describe-env-for-diagnostics` | `describeEnvForDiagnostics({ schema, env })`: pure env-name descriptions with explicit value display, presence-only secrets and unknown names, URL credential stripping and secret-shape redaction. For host-owned diagnostics. |
 | `./fetch` | Framework-neutral query contracts and `FetchQueryCache`; inject transport callbacks, `Clock`, scheduler and connectivity/focus ports. No React, DOM or TanStack dependency. |
 | `./net` | Literal host classification (loopback, blocked and deployed API hosts) and the `FETCH_TIMEOUT_MS` classes. Pure, no Node imports. |
 | `./contracts/capabilities` | Agent capability vocabulary (`CapabilityDef`, input-schema types) and the pure `findCapability`/`findCapabilityInputError`/`availableCapabilities` helpers. |
