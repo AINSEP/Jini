@@ -18,10 +18,14 @@ export function formEmailFieldToken({ field }: { field: FieldDescriptor }, _opti
   return RESERVED.has(field.id) ? `field.${field.id}` : field.id;
 }
 
+// The label is what the person filling the form reads, so a field labelled "Password" holds one whatever its id says.
+const isPrivateField = ({ field }: { field: FieldDescriptor }, _optional: Record<string, never> = {}): boolean =>
+  [field.id, field.label].some(name => PRIVATE_FIELD.test(name.replace(/[^a-z0-9]/gi, "").toLowerCase()));
+
 /** Export only declared answer fields, never uploads, hidden/internal values or credential fields. */
 export function emailAnswerFields({ definition }: { definition: FormDefinitionRecord }, _optional: Record<string, never> = {}): FieldDescriptor[] {
   return definition.fields.filter(field => field.type !== "file" && field.type !== "hidden"
-    && FIELD_ID_PATTERN.test(field.id) && !PRIVATE_FIELD.test(field.id.replace(/[^a-z0-9]/gi, "").toLowerCase()));
+    && FIELD_ID_PATTERN.test(field.id) && !isPrivateField({ field }));
 }
 
 /** Derives tokens from the submission definition, preserving requiredness and presentation labels. */
