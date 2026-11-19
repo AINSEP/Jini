@@ -22,8 +22,8 @@ export function createBrowserHistoryStorage(
     loadHistory(scopeKey) {
       if (typeof window === 'undefined') return [];
       try {
-        const raw = window.localStorage.getItem(historyStorageKey(namespace, scopeKey));
-        return raw ? parseHistoryPayload(raw, limit) : [];
+        const raw = window.localStorage.getItem(historyStorageKey({ namespace, scopeKey }));
+        return raw ? parseHistoryPayload({ raw }, { limit }) : [];
       } catch {
         return [];
       }
@@ -31,7 +31,7 @@ export function createBrowserHistoryStorage(
     saveHistory(scopeKey, history) {
       if (typeof window === 'undefined') return;
       try {
-        window.localStorage.setItem(historyStorageKey(namespace, scopeKey), serializeHistoryPayload(history, limit));
+        window.localStorage.setItem(historyStorageKey({ namespace, scopeKey }), serializeHistoryPayload({ history }, { limit }));
       } catch {
         // Ignore storage quota and private-mode failures.
       }

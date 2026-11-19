@@ -47,28 +47,28 @@ describe('buildIsolatedSandboxProxyHtml / buildSandboxProxyDataUrl', () => {
   const hostOrigin = 'https://admin.example.com';
 
   it('bakes the caller-supplied hostOrigin in as a literal, never trusting window.location.origin', () => {
-    const html = buildIsolatedSandboxProxyHtml(hostOrigin);
+    const html = buildIsolatedSandboxProxyHtml({ hostOrigin });
     expect(html).toContain(`var hostOrigin = ${JSON.stringify(hostOrigin)};`);
     expect(html).not.toContain('window.location.origin');
   });
 
   it('keeps the same source+origin guard shape as SANDBOX_PROXY_HTML, just against the baked-in origin', () => {
-    const html = buildIsolatedSandboxProxyHtml(hostOrigin);
+    const html = buildIsolatedSandboxProxyHtml({ hostOrigin });
     expect(html).toContain('return event.source === host && event.origin === hostOrigin;');
     expect(html).toContain('document.open();\n    document.write(html);\n    document.close();');
   });
 
   it('JSON-escapes hostOrigin rather than interpolating it raw, so it cannot break out of the string literal', () => {
-    const html = buildIsolatedSandboxProxyHtml('https://evil.example.com";alert(1);//');
+    const html = buildIsolatedSandboxProxyHtml({ hostOrigin: 'https://evil.example.com";alert(1);//' });
     expect(html).toContain('var hostOrigin = "https://evil.example.com\\";alert(1);//";');
   });
 
   it('wraps the isolated HTML as a data: URL — an opaque, unique origin per the URL Standard, independent of any iframe sandbox attribute', () => {
-    const url = buildSandboxProxyDataUrl(hostOrigin);
+    const url = buildSandboxProxyDataUrl({ hostOrigin });
     expect(url.startsWith('data:text/html;charset=utf-8,')).toBe(true);
 
     const encoded = url.slice('data:text/html;charset=utf-8,'.length);
-    expect(decodeURIComponent(encoded)).toBe(buildIsolatedSandboxProxyHtml(hostOrigin));
+    expect(decodeURIComponent(encoded)).toBe(buildIsolatedSandboxProxyHtml({ hostOrigin }));
   });
 });
 
@@ -147,7 +147,7 @@ describe('proxy link forwarding', () => {
     const install = 'document.close();\n    window.addEventListener("click", forwardLinkClick);';
     expect(SANDBOX_PROXY_HTML).toContain(install);
     expect(SANDBOX_PROXY_HTML).toContain(PROXY_LINK_FORWARDER_JS);
-    const isolated = buildIsolatedSandboxProxyHtml('https://admin.example.com');
+    const isolated = buildIsolatedSandboxProxyHtml({ hostOrigin: 'https://admin.example.com' });
     expect(isolated).toContain(install);
     expect(isolated).toContain(PROXY_LINK_FORWARDER_JS);
   });

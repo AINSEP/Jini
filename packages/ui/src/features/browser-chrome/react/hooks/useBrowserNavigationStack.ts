@@ -35,7 +35,7 @@ export interface BrowserNavigationController {
 
 export function useBrowserNavigationStack(options: UseBrowserNavigationStackOptions = {}): BrowserNavigationController {
   const homeEntry = options.homeEntry ?? DEFAULT_HOME_NAVIGATION_ENTRY;
-  const initial = initialNavigationState(options.initialUrl, options.initialTitle, homeEntry);
+  const initial = initialNavigationState({}, { initialUrl: options.initialUrl, initialTitle: options.initialTitle, homeEntry });
   const [state, setState] = useState<BrowserNavigationState>({
     navigationStack: initial.navigationStack,
     navigationIndex: initial.navigationIndex,
@@ -65,12 +65,12 @@ export function useBrowserNavigationStack(options: UseBrowserNavigationStackOpti
   }, [currentEntry]);
 
   const recordNavigation = useCallback((url: string, title?: string, recordOptions?: RecordNavigationOptions) => {
-    setState((current) => recordNavigationRule(current, url, title, { homeLabel: homeEntry.title, ...(recordOptions ?? {}) }));
+    setState((current) => recordNavigationRule({ state: current, url }, { title, options: { homeLabel: homeEntry.title, ...(recordOptions ?? {}) } }));
     setAddressValue(url === EMPTY_URL ? '' : url);
   }, [homeEntry.title]);
 
   const navigateHistoryDelta = useCallback((delta: -1 | 1): BrowserNavigationEntry | null => {
-    const result = resolveNavigationHistoryDelta(stateRef.current, delta);
+    const result = resolveNavigationHistoryDelta({ state: stateRef.current, delta });
     if (!result) return null;
     setState(result.state);
     setAddressValue(result.entry.url === EMPTY_URL ? '' : result.entry.url);
@@ -81,11 +81,11 @@ export function useBrowserNavigationStack(options: UseBrowserNavigationStackOpti
   const goForward = useCallback((): BrowserNavigationEntry | null => navigateHistoryDelta(1), [navigateHistoryDelta]);
 
   const updateCurrentTitle = useCallback((title?: string) => {
-    setState((current) => updateCurrentNavigationTitle(current, title));
+    setState((current) => updateCurrentNavigationTitle({ state: current }, { title }));
   }, []);
 
   const reset = useCallback((initialUrl?: string, initialTitle?: string) => {
-    const next = initialNavigationState(initialUrl, initialTitle, homeEntry);
+    const next = initialNavigationState({}, { initialUrl, initialTitle, homeEntry });
     setState({ navigationStack: next.navigationStack, navigationIndex: next.navigationIndex });
     setAddressValue(next.addressValue);
     lastNotifiedRef.current = undefined;

@@ -7,7 +7,7 @@ function message(data: unknown): BufferedWindowMessage {
 
 describe('createEarlyMessageBuffer', () => {
   it('replays messages pushed before anyone subscribed, in arrival order', () => {
-    const buffer = createEarlyMessageBuffer();
+    const buffer = createEarlyMessageBuffer({});
     buffer.push(message('first'));
     buffer.push(message('second'));
     expect(buffer.backlogSize).toBe(2);
@@ -19,7 +19,7 @@ describe('createEarlyMessageBuffer', () => {
   });
 
   it('delivers straight to live subscribers without buffering', () => {
-    const buffer = createEarlyMessageBuffer();
+    const buffer = createEarlyMessageBuffer({});
     const seen: unknown[] = [];
     buffer.subscribe((received) => seen.push(received.data));
     buffer.push(message('live'));
@@ -28,14 +28,14 @@ describe('createEarlyMessageBuffer', () => {
   });
 
   it('subscribing with an empty backlog delivers nothing', () => {
-    const buffer = createEarlyMessageBuffer();
+    const buffer = createEarlyMessageBuffer({});
     const handler = vi.fn();
     buffer.subscribe(handler);
     expect(handler).not.toHaveBeenCalled();
   });
 
   it('broadcasts to every live subscriber, not just the most recent', () => {
-    const buffer = createEarlyMessageBuffer();
+    const buffer = createEarlyMessageBuffer({});
     const first = vi.fn();
     const second = vi.fn();
     buffer.subscribe(first);
@@ -46,7 +46,7 @@ describe('createEarlyMessageBuffer', () => {
   });
 
   it('unsubscribe removes only its own handler, and buffering resumes once none are left', () => {
-    const buffer = createEarlyMessageBuffer();
+    const buffer = createEarlyMessageBuffer({});
     const kept = vi.fn();
     const dropped = vi.fn();
     buffer.subscribe(kept);
@@ -62,7 +62,7 @@ describe('createEarlyMessageBuffer', () => {
   });
 
   it('survives a handler that unsubscribes itself mid-broadcast', () => {
-    const buffer = createEarlyMessageBuffer();
+    const buffer = createEarlyMessageBuffer({});
     const other = vi.fn();
     const unsubscribe = buffer.subscribe(() => unsubscribe());
     buffer.subscribe(other);
@@ -71,7 +71,7 @@ describe('createEarlyMessageBuffer', () => {
   });
 
   it('does not replay a message a draining handler pushes back in during its own drain', () => {
-    const buffer = createEarlyMessageBuffer();
+    const buffer = createEarlyMessageBuffer({});
     buffer.push(message('original'));
     const seen: unknown[] = [];
     let pushedBack = false;
@@ -88,7 +88,7 @@ describe('createEarlyMessageBuffer', () => {
   });
 
   it('evicts oldest-first once the backlog cap is hit', () => {
-    const buffer = createEarlyMessageBuffer(3);
+    const buffer = createEarlyMessageBuffer({}, { maxBuffered: 3 });
     for (const index of [1, 2, 3, 4, 5]) buffer.push(message(index));
     expect(buffer.backlogSize).toBe(3);
     const seen: unknown[] = [];
@@ -97,7 +97,7 @@ describe('createEarlyMessageBuffer', () => {
   });
 
   it('defaults its cap to MAX_BUFFERED_MESSAGES', () => {
-    const buffer = createEarlyMessageBuffer();
+    const buffer = createEarlyMessageBuffer({});
     for (let index = 0; index < MAX_BUFFERED_MESSAGES + 5; index += 1) buffer.push(message(index));
     expect(buffer.backlogSize).toBe(MAX_BUFFERED_MESSAGES);
   });

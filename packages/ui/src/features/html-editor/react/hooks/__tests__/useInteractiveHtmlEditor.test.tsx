@@ -156,14 +156,14 @@ describe('useInteractiveHtmlEditor — canvas content wrapper wiring', () => {
     expect(applyCanvasContentWrapper).not.toHaveBeenCalled();
     lastFake!.fire('load');
     expect(applyCanvasContentWrapper).toHaveBeenCalledTimes(1);
-    expect(applyCanvasContentWrapper).toHaveBeenCalledWith(lastFake!.fakeBody, contentWrapper);
+    expect(applyCanvasContentWrapper).toHaveBeenCalledWith({ body: lastFake!.fakeBody, chain: contentWrapper });
   });
 
   it('still fires load->wrap wiring when canvasStyling omits contentWrapper (the pre-existing no-wrapper case)', () => {
     render(<TestHarness />);
     lastFake!.fire('load');
     expect(applyCanvasContentWrapper).toHaveBeenCalledTimes(1);
-    expect(applyCanvasContentWrapper).toHaveBeenCalledWith(lastFake!.fakeBody, undefined);
+    expect(applyCanvasContentWrapper).toHaveBeenCalledWith({ body: lastFake!.fakeBody, chain: undefined });
   });
 
   it('detaches the load handler on unmount, same as the existing update handler', () => {
@@ -195,7 +195,7 @@ describe('useInteractiveHtmlEditor — embed placeholder wiring', () => {
     lastFake!.fire('load');
 
     expect(applyCanvasEmbedPlaceholders).toHaveBeenCalledTimes(1);
-    expect(applyCanvasEmbedPlaceholders).toHaveBeenCalledWith(lastFake!.fakeBody, describeEmbedPlaceholder);
+    expect(applyCanvasEmbedPlaceholders).toHaveBeenCalledWith({ body: lastFake!.fakeBody, describe: describeEmbedPlaceholder });
   });
 
   it('still passes RAW_HTML, unwrapped, as components — embed placeholders never fold into the parsed document either', () => {
@@ -512,7 +512,7 @@ describe('useInteractiveHtmlEditor — canvas hidden until theme stylesheets set
   });
 
   it('applies the content wrapper and embed placeholders before the canvas is ever hidden', () => {
-    vi.mocked(applyCanvasContentWrapper).mockImplementationOnce((body) => {
+    vi.mocked(applyCanvasContentWrapper).mockImplementationOnce(({ body }) => {
       expect((body as HTMLElement).classList.contains(CANVAS_STYLES_PENDING_CLASS)).toBe(false);
     });
     render(<TestHarness canvasStyling={{ stylesheets: ['/theme.css'] }} describeEmbedPlaceholder={vi.fn()} />);
@@ -605,7 +605,7 @@ describe('useInteractiveHtmlEditor — embed markers are selectable atomic block
 
     vi.advanceTimersByTime(0);
     expect(applyCanvasEmbedPlaceholders).toHaveBeenCalledTimes(2);
-    expect(applyCanvasEmbedPlaceholders).toHaveBeenLastCalledWith(lastFake!.fakeBody, describeEmbedPlaceholder);
+    expect(applyCanvasEmbedPlaceholders).toHaveBeenLastCalledWith({ body: lastFake!.fakeBody, describe: describeEmbedPlaceholder });
   });
 
   it('does not re-apply cards for adds and removes before load (GrapesJS parsing the initial document)', () => {
@@ -902,7 +902,7 @@ describe('useInteractiveHtmlEditor — integrity failures and lifecycle edges', 
     render(<EdgeHarness onChange={onChange} />);
     act(() => { lastFake!.fire('load'); });
     const describeCall = vi.mocked(applyCanvasEmbedPlaceholders).mock.calls.at(-1)!;
-    expect(describeCall[1](document.createElement('div'))).toBeUndefined();
+    expect(describeCall[0].describe(document.createElement('div'))).toBeUndefined();
     pA.setInnerHTML('Hello, edited');
     act(() => {
       lastFake!.fire('component:update:content', pA);

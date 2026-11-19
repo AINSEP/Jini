@@ -102,11 +102,11 @@ async function runPending<T>({ setPendingKeys, key, kind, task }: {
   kind: SourceActionKind;
   task: () => Promise<T>;
 }): Promise<T> {
-  setPendingKeys((current) => withPendingAction(current, key, kind));
+  setPendingKeys((current) => withPendingAction({ pendingKeys: current, id: key, kind }));
   try {
     return await task();
   } finally {
-    setPendingKeys((current) => withoutPendingAction(current, key, kind));
+    setPendingKeys((current) => withoutPendingAction({ pendingKeys: current, id: key, kind }));
   }
 }
 
@@ -159,7 +159,7 @@ function useSourceMutations<TSource extends SourceConfigItem>({
         kind: 'remove',
         task: async () => {
         const ok = await port.removeSource(id);
-        if (ok) setSources((current) => removeSourceById(current, id));
+        if (ok) setSources((current) => removeSourceById({ list: current, id }));
       },
       });
     },
@@ -174,7 +174,7 @@ function useSourceMutations<TSource extends SourceConfigItem>({
         kind,
         task: async () => {
         const updated = await call();
-        if (updated) setSources((current) => updateSourceById(current, id, updated));
+        if (updated) setSources((current) => updateSourceById({ list: current, id, patch: updated }));
       },
       }),
     [setSources, setPendingKeys],
@@ -226,7 +226,7 @@ export function useSourceConfigList<TSource extends SourceConfigItem>(
   });
 
   const addSourceToList = useCallback((source: TSource) => {
-    setSources((current) => upsertSourceById(current, source));
+    setSources((current) => upsertSourceById({ list: current, next: source }));
   }, [setSources]);
 
   const capabilities = useMemo<SourceConfigListCapabilities>(
@@ -239,7 +239,7 @@ export function useSourceConfigList<TSource extends SourceConfigItem>(
     [port],
   );
 
-  const isPending = useCallback((id: string, kind: SourceActionKind) => isActionPending(pendingKeys, id, kind), [pendingKeys]);
+  const isPending = useCallback((id: string, kind: SourceActionKind) => isActionPending({ pendingKeys, id, kind }), [pendingKeys]);
 
   return {
     sources,

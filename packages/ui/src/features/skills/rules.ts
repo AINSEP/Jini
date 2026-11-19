@@ -49,12 +49,12 @@ const KNOWN_SOURCES: readonly SourceFilter[] = ['user', 'built-in'];
  * A host that does not localize its catalog omits `displayName` entirely, so
  * the fallback is the normal path rather than an error case.
  */
-export function localizedSkillName(skill: SkillSummary, locale: string): string {
+export function localizedSkillName({ skill, locale }: { skill: SkillSummary; locale: string }, _optional: Record<string, never> = {}): string {
   return skill.displayName?.[locale] ?? skill.name;
 }
 
 /** The skill's description in `locale`, falling back to the untranslated one. */
-export function localizedSkillDescription(skill: SkillSummary, locale: string): string {
+export function localizedSkillDescription({ skill, locale }: { skill: SkillSummary; locale: string }, _optional: Record<string, never> = {}): string {
   return skill.descriptionI18n?.[locale] ?? skill.description;
 }
 
@@ -72,14 +72,14 @@ export function localizedSkillDescription(skill: SkillSummary, locale: string): 
  * normalisation separately. An empty or whitespace-only query matches
  * everything, which is what makes an untouched search box a no-op.
  */
-export function skillMatchesSearch(skill: SkillSummary, query: string, locale: string): boolean {
+export function skillMatchesSearch({ skill, query, locale }: { skill: SkillSummary; query: string; locale: string }, _optional: Record<string, never> = {}): boolean {
   const needle = query.trim().toLowerCase();
   if (!needle) return true;
   const haystack = [
     skill.name,
-    localizedSkillName(skill, locale),
+    localizedSkillName({ skill, locale }),
     skill.description,
-    localizedSkillDescription(skill, locale),
+    localizedSkillDescription({ skill, locale }),
     (skill.triggers ?? []).join(' '),
     skill.category ?? '',
   ]
@@ -100,26 +100,25 @@ export type SkillFilterDimension = 'source' | 'mode' | 'category';
  * header. Omit it and this is the plain "is this row visible" predicate.
  */
 export function skillMatchesFilters(
-  skill: SkillSummary,
-  filters: SkillFilters,
-  locale: string,
-  except?: SkillFilterDimension,
+  { skill, filters, locale }: { skill: SkillSummary; filters: SkillFilters; locale: string }, { except }: { except?: SkillFilterDimension | undefined } = {}
 ): boolean {
   if (except !== 'source' && filters.source !== 'all' && skill.source !== filters.source) return false;
   if (except !== 'mode' && filters.mode !== 'all' && skill.mode !== filters.mode) return false;
-  if (except !== 'category' && filters.category !== 'all' && skill.category !== filters.category) {
+  if (excludesSkillCategory({ skill, filters }, { except })) {
     return false;
   }
-  return skillMatchesSearch(skill, filters.search, locale);
+  return skillMatchesSearch({ skill, query: filters.search, locale });
+}
+
+function excludesSkillCategory({ skill, filters }: { skill: SkillSummary; filters: SkillFilters }, { except }: { except?: SkillFilterDimension | undefined } = {}): boolean {
+  return except !== 'category' && filters.category !== 'all' && skill.category !== filters.category;
 }
 
 /** The rows the list should render. */
 export function filterSkills(
-  skills: readonly SkillSummary[],
-  filters: SkillFilters,
-  locale: string,
+  { skills, filters, locale }: { skills: readonly SkillSummary[]; filters: SkillFilters; locale: string }, _optional: Record<string, never> = {}
 ): SkillSummary[] {
-  return skills.filter((skill) => skillMatchesFilters(skill, filters, locale));
+  return skills.filter((skill) => skillMatchesFilters({ skill, filters, locale }));
 }
 
 /**
@@ -141,12 +140,9 @@ export function filterSkills(
  * renders rather than reflecting list order.
  */
 export function skillFilterOptions(
-  skills: readonly SkillSummary[],
-  filters: SkillFilters,
-  locale: string,
-  dimension: SkillFilterDimension,
+  { skills, filters, locale, dimension }: { skills: readonly SkillSummary[]; filters: SkillFilters; locale: string; dimension: SkillFilterDimension }, _optional: Record<string, never> = {}
 ): { all: number; options: SkillFilterOption[] } {
-  const matching = skills.filter((skill) => skillMatchesFilters(skill, filters, locale, dimension));
+  const matching = skills.filter((skill) => skillMatchesFilters({ skill, filters, locale }, { except: dimension }));
   if (dimension === 'source') return sourceFilterOptions({ matching });
   return valueFilterOptions({ skills, matching, valueOf: dimension === 'mode' ? modeValue : categoryValue });
 }
@@ -218,7 +214,7 @@ function valueFilterOptions({
  * uncategorised skills should see no row rather than a row with nothing but
  * an "all" pill — the origin's own note calls this out.
  */
-export function hasAnyCategory(skills: readonly SkillSummary[]): boolean {
+export function hasAnyCategory({ skills }: { skills: readonly SkillSummary[] }, _optional: Record<string, never> = {}): boolean {
   return skills.some((skill) => typeof skill.category === 'string' && skill.category.length > 0);
 }
 
@@ -230,7 +226,7 @@ export function hasAnyCategory(skills: readonly SkillSummary[]): boolean {
  * triggers. The draft keeps the RAW text (see `SkillDraft.triggers`); this
  * runs at save time, which is why a half-typed entry survives re-renders.
  */
-export function parseTriggers(raw: string): string[] {
+export function parseTriggers({ raw }: { raw: string }, _optional: Record<string, never> = {}): string[] {
   return raw
     .split(/[,\n]/)
     .map((trigger) => trigger.trim())
@@ -245,7 +241,7 @@ export function parseTriggers(raw: string): string[] {
  * `triggers` is optional in the contract and a host can return `null` for it,
  * which `.join` would throw on.
  */
-export function summaryToDraft(skill: SkillSummary, body: string): SkillDraft {
+export function summaryToDraft({ skill, body }: { skill: SkillSummary; body: string }, _optional: Record<string, never> = {}): SkillDraft {
   return {
     name: skill.name,
     description: skill.description,
@@ -285,7 +281,7 @@ export function humanizeSkillCategory(slug: string): string {
  *  `SkillsSection.tsx`. Unlike `locationLabel` (project-locations), a skill
  *  file path is always daemon-reported and forward-slash-only, so this does
  *  not also handle `\`. */
-export function skillFileLeafName(path: string): string {
+export function skillFileLeafName({ path }: { path: string }, _optional: Record<string, never> = {}): string {
   const idx = path.lastIndexOf('/');
   return idx >= 0 ? path.slice(idx + 1) : path;
 }
@@ -298,14 +294,14 @@ export function skillFileLeafName(path: string): string {
  * nested bundle does not push the file label out of the panel. Origin:
  * `depthIndent` inline in `SkillsSection.tsx`.
  */
-export function skillFileTreeIndent(path: string): number {
+export function skillFileTreeIndent({ path }: { path: string }, _optional: Record<string, never> = {}): number {
   const depth = Math.min(4, path.split('/').length - 1);
   return depth * 12;
 }
 
 /** A byte count as `'N B'` / `'N.N KB'` / `'N.N MB'`. Origin: `formatSize`
  *  inline in `SkillsSection.tsx`. */
-export function formatSkillFileSize(bytes: number): string {
+export function formatSkillFileSize({ bytes }: { bytes: number }, _optional: Record<string, never> = {}): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;

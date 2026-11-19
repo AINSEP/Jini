@@ -73,7 +73,7 @@ export interface TodoItemLike {
 
 const TODO_WRITE_TOOL_NAMES = new Set(['TodoWrite', 'todowrite', 'todo_write', 'update_plan']);
 
-export function isTodoWriteToolName(name: string): boolean {
+export function isTodoWriteToolName({ name }: { name: string }, _optional: Record<string, never> = {}): boolean {
   return TODO_WRITE_TOOL_NAMES.has(name);
 }
 
@@ -83,7 +83,7 @@ function normalizeTodoStatus(status: unknown): TodoStatusLike {
   return 'pending';
 }
 
-export function parseTodoWriteInput(input: unknown): TodoItemLike[] {
+export function parseTodoWriteInput({ input }: { input: unknown }, _optional: Record<string, never> = {}): TodoItemLike[] {
   if (!input || typeof input !== 'object') return [];
   const record = input as { todos?: unknown; plan?: unknown };
   const rawItems = [record.todos, record.plan].find(Array.isArray) ?? [];
@@ -104,17 +104,17 @@ export function parseTodoWriteInput(input: unknown): TodoItemLike[] {
     .filter((todo): todo is TodoItemLike => todo !== null);
 }
 
-export function latestTodosFromAgentEvents(events: AgentEventLike[] | undefined): TodoItemLike[] {
+export function latestTodosFromAgentEvents({ events }: { events: AgentEventLike[] | undefined }, _optional: Record<string, never> = {}): TodoItemLike[] {
   if (!events) return [];
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index];
-    if (!event || !isToolUseEvent(event) || !isTodoWriteToolName(event.name)) continue;
-    return parseTodoWriteInput(event.input);
+    if (!event || !isToolUseEvent(event) || !isTodoWriteToolName({ name: event.name })) continue;
+    return parseTodoWriteInput({ input: event.input });
   }
   return [];
 }
 
-export function latestStatusDetailFromAgentEvents(events: AgentEventLike[]): string | null {
+export function latestStatusDetailFromAgentEvents({ events }: { events: AgentEventLike[] }, _optional: Record<string, never> = {}): string | null {
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index];
     if (!event || !isStatusEvent(event)) continue;
@@ -181,7 +181,7 @@ function mergeFileOpStatus(a: FileOpStatusLike, b: FileOpStatusLike): FileOpStat
 
 /** Drops duplicate `tool_use` events sharing an id, keeping the run's final
  *  attempt for each — a retried tool call otherwise double-counts. */
-export function dedupeToolUsesById(events: AgentEventLike[] | undefined): AgentEventLike[] {
+export function dedupeToolUsesById({ events }: { events: AgentEventLike[] | undefined }, _optional?: Record<string, never>): AgentEventLike[] {
   if (!events || events.length === 0) return [];
   const seen = new Set<string>();
   let deduped: AgentEventLike[] | null = null;
@@ -217,9 +217,9 @@ function fileOpFromAgentEvent(
   return { fullPath, kind, status };
 }
 
-export function deriveFileOpsFromAgentEvents(events: AgentEventLike[] | undefined): FileOpEntryLike[] {
+export function deriveFileOpsFromAgentEvents({ events }: { events: AgentEventLike[] | undefined }, _optional: Record<string, never> = {}): FileOpEntryLike[] {
   if (!events || events.length === 0) return [];
-  const dedupedEvents = dedupeToolUsesById(events);
+  const dedupedEvents = dedupeToolUsesById({ events });
   const resultByToolUseId = new Map(
     dedupedEvents.filter(isToolResultEvent).map((event) => [event.toolUseId, event] as const),
   );
@@ -345,16 +345,16 @@ function chatActivitySteps(
  *  `hasActivity` early-return — a message with no run, no todos, no file
  *  ops, no status detail, and not currently active renders nothing). */
 export function chatActivityToProgressCard(
-  message: ChatActivityLike | null,
-  options: ChatActivityToProgressCardOptions,
+  { message, id, active }: { message: ChatActivityLike | null } & ChatActivityToProgressCardOptions,
+  _optional?: Record<string, never>,
 ): ProgressCardData | null {
   const events = message?.events ?? [];
-  const todos = latestTodosFromAgentEvents(events);
-  const fileOps = deriveFileOpsFromAgentEvents(events);
-  const status = chatActivityStatus(message, options.active);
-  const statusDetail = latestStatusDetailFromAgentEvents(events);
+  const todos = latestTodosFromAgentEvents({ events });
+  const fileOps = deriveFileOpsFromAgentEvents({ events });
+  const status = chatActivityStatus(message, active);
+  const statusDetail = latestStatusDetailFromAgentEvents({ events });
   const hasSteps = todos.length > 0 || fileOps.length > 0;
-  const hasActivity = options.active || hasSteps || statusDetail !== null || status === 'failed';
+  const hasActivity = active || hasSteps || statusDetail !== null || status === 'failed';
   if (!hasActivity) return null;
 
   const steps = chatActivitySteps({ todos, status, fileOps });
@@ -366,7 +366,7 @@ export function chatActivityToProgressCard(
   }));
 
   return {
-    id: options.id,
+    id,
     status,
     ...(statusDetail !== null ? { detail: statusDetail } : {}),
     progress: chatActivityProgress(status, todos, fileOps),
@@ -411,7 +411,7 @@ export function designSystemGenerationJobToProgressCard(job: DesignSystemGenerat
     id: job.id,
     status: designSystemGenerationJobStatusToProgressStatus(job.status),
     ...(job.message !== undefined ? { detail: job.message } : {}),
-    progress: clampProgressPercent(job.progress),
+    progress: clampProgressPercent({ value: job.progress }),
     steps: job.steps.map((step) => ({ id: step.id, label: step.title, status: step.status })),
   };
 }

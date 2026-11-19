@@ -23,7 +23,7 @@ import { escapeHtml as sharedEscapeHtml } from "@jini-ai/core/text";
  * @returns The escaped text.
  * @complexity O(n) in the value's length.
  */
-export function escapeHtml(value: string): string {
+export function escapeHtml({ value }: { value: string }, _optional: Record<string, never> = {}): string {
   return sharedEscapeHtml({ text: value });
 }
 
@@ -45,7 +45,7 @@ export function escapeHtml(value: string): string {
  * @returns A JS literal.
  * @complexity O(n) in the serialized length.
  */
-export function escapeJsValue(value: unknown): string {
+export function escapeJsValue({ value }: { value: unknown }, _optional: Record<string, never> = {}): string {
   const json = JSON.stringify(value);
   if (json === undefined) return 'undefined';
   return json
@@ -61,9 +61,6 @@ export function escapeJsValue(value: unknown): string {
  * `string`-typed signature makes a caller that accidentally passes an object a compile error rather
  * than a silently-inlined `[object Object]`-free-but-surprising literal.
  */
-export function escapeJsString(required: { value: string }, optional?: {}): string;
-/** Existing string call retained for published surface builders. */
-export function escapeJsString(value: string): string;
-export function escapeJsString(required: string | { value: string }, _optional = {}): string {
-  return escapeJsValue(typeof required === "string" ? required : required.value);
+export function escapeJsString({ value }: { value: string }, _optional: Record<string, never> = {}): string {
+  return escapeJsValue({ value });
 }

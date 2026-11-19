@@ -51,7 +51,7 @@ export interface SourceConfigListViewProps<TSource extends SourceConfigItem> {
  */
 export function SourceConfigListView<TSource extends SourceConfigItem>(props: SourceConfigListViewProps<TSource>) {
   const { title, subtitle, fieldSpecs, trustOptions, addForm, agentHandle } = props;
-  const resolvedAddFormHandle = addForm.agentHandle ?? (agentHandle ? sourceConfigAddFormHandle(agentHandle) : undefined);
+  const resolvedAddFormHandle = addForm.agentHandle ?? (agentHandle ? sourceConfigAddFormHandle({ listBase: agentHandle }) : undefined);
 
   return (
     <section className="source-config-list">
@@ -110,7 +110,7 @@ function SourceConfigListBody<TSource extends SourceConfigItem>({ useTHook = use
   // Positionally aligned with `sources` below — computed once per render rather than per card, so
   // the O(n) suffix-search dedup in `buildAgentListHandles` runs once for the whole list, not once
   // per item.
-  const itemHandles = agentHandle ? sourceConfigItemHandles(agentHandle, sources.map((source) => source.id)) : undefined;
+  const itemHandles = agentHandle ? sourceConfigItemHandles({ listBase: agentHandle, sourceIds: sources.map((source) => source.id) }) : undefined;
   return (
     <div className="source-config-list-items">
       {sources.map((source, index) => (
@@ -141,11 +141,11 @@ function SourceConfigListItem<TSource extends SourceConfigItem>({
       source={source}
       fieldSpecs={fieldSpecs}
       capabilities={capabilities}
-      removing={isActionPending(pendingKeys, source.id, 'remove')}
-      refreshing={isActionPending(pendingKeys, source.id, 'refresh')}
-      settingTrust={isActionPending(pendingKeys, source.id, 'trust')}
-      testing={isActionPending(pendingKeys, source.id, 'test')}
-      updating={isActionPending(pendingKeys, source.id, 'update')}
+      removing={isActionPending({ pendingKeys, id: source.id, kind: 'remove' })}
+      refreshing={isActionPending({ pendingKeys, id: source.id, kind: 'refresh' })}
+      settingTrust={isActionPending({ pendingKeys, id: source.id, kind: 'trust' })}
+      testing={isActionPending({ pendingKeys, id: source.id, kind: 'test' })}
+      updating={isActionPending({ pendingKeys, id: source.id, kind: 'update' })}
       onRefresh={() => onRefresh(source.id)}
       onRemove={() => onRemove(source.id)}
       onTrustChange={(trust) => onTrustChange(source.id, trust)}

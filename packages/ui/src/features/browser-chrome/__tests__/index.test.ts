@@ -20,28 +20,27 @@ describe('browser-chrome barrel (index.ts)', () => {
   });
 
   it('re-exports the pure rule functions', () => {
-    expect(browserChrome.normalizeBrowserAddress('example.com')).toBe('https://example.com');
-    expect(browserChrome.labelFromUrl('https://example.com')).toBe('example.com');
-    expect(browserChrome.faviconUrl('https://example.com')).toBe('https://example.com/favicon.ico');
-    expect(browserChrome.isHistoryUrl('https://example.com')).toBe(true);
-    expect(browserChrome.sameUrl('https://a.com/', 'https://a.com')).toBe(true);
+    expect(browserChrome.normalizeBrowserAddress({ rawAddress: 'example.com' })).toBe('https://example.com');
+    expect(browserChrome.labelFromUrl({ url: 'https://example.com' })).toBe('example.com');
+    expect(browserChrome.faviconUrl({ url: 'https://example.com' })).toBe('https://example.com/favicon.ico');
+    expect(browserChrome.isHistoryUrl({ url: 'https://example.com' })).toBe(true);
+    expect(browserChrome.sameUrl({ left: 'https://a.com/', right: 'https://a.com' })).toBe(true);
     expect(browserChrome.isHistoryEntry({ url: 'a', title: 'a', lastVisitedAt: 1, visitCount: 1 })).toBe(true);
-    expect(browserChrome.historyStorageKey('ns', 'scope')).toBe('ns:scope');
-    expect(browserChrome.hostnameFromUrl('https://www.example.com')).toBe('example.com');
-    expect(browserChrome.formatAddressDisplay('https://example.com')).toBe('https://example.com');
-    expect(browserChrome.formatAddressDisplayParts('https://example.com')).toEqual({ url: 'https://example.com' });
-    expect(browserChrome.mergeHistoryEntry([], 'https://a.com')).toHaveLength(1);
-    expect(browserChrome.parseHistoryPayload('not json')).toEqual([]);
-    expect(browserChrome.serializeHistoryPayload([])).toBe('[]');
-    const initial = browserChrome.initialNavigationState();
+    expect(browserChrome.historyStorageKey({ namespace: 'ns', scopeKey: 'scope' })).toBe('ns:scope');
+    expect(browserChrome.hostnameFromUrl({ url: 'https://www.example.com' })).toBe('example.com');
+    expect(browserChrome.formatAddressDisplay({ url: 'https://example.com' })).toBe('https://example.com');
+    expect(browserChrome.formatAddressDisplayParts({ url: 'https://example.com' })).toEqual({ url: 'https://example.com' });
+    expect(browserChrome.mergeHistoryEntry({ history: [], url: 'https://a.com' })).toHaveLength(1);
+    expect(browserChrome.parseHistoryPayload({ raw: 'not json' })).toEqual([]);
+    expect(browserChrome.serializeHistoryPayload({ history: [] })).toBe('[]');
+    const initial = browserChrome.initialNavigationState({});
     expect(initial.navigationStack).toHaveLength(1);
     const recorded = browserChrome.recordNavigation(
-      { navigationStack: initial.navigationStack, navigationIndex: initial.navigationIndex },
-      'https://a.com',
+      { state: { navigationStack: initial.navigationStack, navigationIndex: initial.navigationIndex }, url: 'https://a.com' },
     );
     expect(recorded.navigationStack).toHaveLength(2);
-    expect(browserChrome.resolveNavigationHistoryDelta(recorded, -1)).not.toBeNull();
-    expect(browserChrome.updateCurrentNavigationTitle(recorded, 'A')).not.toBe(recorded);
+    expect(browserChrome.resolveNavigationHistoryDelta({ state: recorded, delta: -1 })).not.toBeNull();
+    expect(browserChrome.updateCurrentNavigationTitle({ state: recorded }, { title: 'A' })).not.toBe(recorded);
     expect(browserChrome.canGoBack(recorded)).toBe(true);
     expect(browserChrome.canGoForward(recorded)).toBe(false);
   });

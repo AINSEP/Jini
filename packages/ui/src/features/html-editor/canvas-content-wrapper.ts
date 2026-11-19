@@ -58,7 +58,7 @@ function buildWrapperElement(doc: Document, node: CanvasContentWrapperNode): HTM
  * @complexity O(d + c) — d = chain depth (elements created), c = body's current child-node count
  *   (each moved once, no copying).
  */
-export function applyCanvasContentWrapper(body: HTMLElement, chain: readonly CanvasContentWrapperNode[] | undefined): void {
+export function applyCanvasContentWrapper({ body, chain }: { body: HTMLElement; chain: readonly CanvasContentWrapperNode[] | undefined }, _optional: Record<string, never> = {}): void {
   if (!chain) return;
   // `[]` is the same no-op as `undefined`; reading the innermost node here doubles as that length check.
   const innermostNode = chain[chain.length - 1];

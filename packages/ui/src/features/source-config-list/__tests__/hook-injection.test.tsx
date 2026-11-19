@@ -25,7 +25,7 @@ function addFormProps(): ComponentProps<typeof SourceConfigAddForm> {
   return {
     fieldSpecs: [URL_FIELD],
     values,
-    validation: validateSourceDraft([URL_FIELD], values),
+    validation: validateSourceDraft({ fieldSpecs: [URL_FIELD], values }),
     submitAttempted: false,
     submitting: false,
     onFieldChange: vi.fn(),

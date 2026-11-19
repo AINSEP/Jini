@@ -13,18 +13,18 @@ const options = { id: 'card', active: false };
 describe('reference adapter characterization', () => {
   it.each([undefined, null, false, 0, 'todos', {}, { todos: false, plan: false }])(
     'rejects inputs without a todo or plan array: %j', (input) => {
-      expect(parseTodoWriteInput(input)).toEqual([]);
+      expect(parseTodoWriteInput({ input })).toEqual([]);
     },
   );
 
   it('prefers even an empty todos array over plan and otherwise falls back to plan', () => {
     const plan = [{ step: 'plan', status: 'completed' }];
-    expect(parseTodoWriteInput({ todos: [], plan })).toEqual([]);
-    expect(parseTodoWriteInput({ todos: {}, plan })).toEqual([{ content: 'plan', status: 'completed' }]);
+    expect(parseTodoWriteInput({ input: { todos: [], plan } })).toEqual([]);
+    expect(parseTodoWriteInput({ input: { todos: {}, plan } })).toEqual([{ content: 'plan', status: 'completed' }]);
   });
 
   it('uses the first string field, including empty strings, and rejects malformed items', () => {
-    expect(parseTodoWriteInput({ todos: [
+    expect(parseTodoWriteInput({ input: { todos: [
       null, 0, 'text', {},
       { content: '', step: 'must not fall back' },
       { content: 'content', step: 'step', description: 'description', label: 'label', text: 'text' },
@@ -33,7 +33,7 @@ describe('reference adapter characterization', () => {
       { description: false, label: 'label', text: 'text' },
       { label: false, text: 'text' },
       { content: ' ' },
-    ] })).toEqual([
+    ] } })).toEqual([
       { content: 'content', status: 'pending' },
       { content: 'step', status: 'pending' },
       { content: 'description', status: 'pending' },
@@ -44,12 +44,12 @@ describe('reference adapter characterization', () => {
   });
 
   it('preserves known todo statuses and normalizes all terminal aliases', () => {
-    expect(parseTodoWriteInput({ todos: [
+    expect(parseTodoWriteInput({ input: { todos: [
       { content: 'a', status: 'completed' }, { content: 'b', status: 'in_progress' },
       { content: 'c', status: 'stopped' }, { content: 'd', status: 'cancelled' },
       { content: 'e', status: 'canceled' }, { content: 'f', status: 'failed' },
       { content: 'g', status: 'other' }, { content: 'h' },
-    ] }).map((todo) => todo.status)).toEqual([
+    ] } }).map((todo) => todo.status)).toEqual([
       'completed', 'in_progress', 'stopped', 'stopped', 'stopped', 'stopped', 'pending', 'pending',
     ]);
   });
@@ -60,11 +60,11 @@ describe('reference adapter characterization', () => {
       { kind: 'text' }, { kind: 'tool_result' },
       { kind: 'tool_use', id: 'a', name: 'Read', input: {} },
     ];
-    expect(dedupeToolUsesById(events)).toBe(events);
-    expect(dedupeToolUsesById(undefined)).toEqual([]);
+    expect(dedupeToolUsesById({ events })).toBe(events);
+    expect(dedupeToolUsesById({ events: undefined })).toEqual([]);
     const empty: AgentEventLike[] = [];
-    expect(dedupeToolUsesById(empty)).toEqual([]);
-    expect(dedupeToolUsesById(empty)).not.toBe(empty);
+    expect(dedupeToolUsesById({ events: empty })).toEqual([]);
+    expect(dedupeToolUsesById({ events: empty })).not.toBe(empty);
   });
 
   it('keeps the first attempt rather than the documented final attempt (reported, not fixed)', () => {
@@ -73,9 +73,9 @@ describe('reference adapter characterization', () => {
     const later: AgentEventLike = { kind: 'tool_use', id: 'a', name: 'Write', input: { path: 'last.ts' } };
     const other: AgentEventLike = { kind: 'tool_use', id: 'b', name: 'Read', input: {} };
     const events = [first, result, later, other, later, { kind: 'text' }];
-    expect(dedupeToolUsesById(events)).toEqual([first, result, other, { kind: 'text' }]);
+    expect(dedupeToolUsesById({ events })).toEqual([first, result, other, { kind: 'text' }]);
     expect(events).toEqual([first, result, later, other, later, { kind: 'text' }]);
-    expect(deriveFileOpsFromAgentEvents(events)).toEqual([
+    expect(deriveFileOpsFromAgentEvents({ events })).toEqual([
       { path: 'first.ts', fullPath: 'first.ts', ops: ['read'], status: 'error' },
     ]);
   });
@@ -89,9 +89,9 @@ describe('reference adapter characterization', () => {
         { kind: 'tool_use', id: `invalid-${index}`, name: 'Read', input }
       )),
     ];
-    expect(deriveFileOpsFromAgentEvents(undefined)).toEqual([]);
-    expect(deriveFileOpsFromAgentEvents([])).toEqual([]);
-    expect(deriveFileOpsFromAgentEvents(events)).toEqual([]);
+    expect(deriveFileOpsFromAgentEvents({ events: undefined })).toEqual([]);
+    expect(deriveFileOpsFromAgentEvents({ events: [] })).toEqual([]);
+    expect(deriveFileOpsFromAgentEvents({ events })).toEqual([]);
   });
 
   it.each([
@@ -102,9 +102,9 @@ describe('reference adapter characterization', () => {
     ['path', 'Delete', 'delete'], ['path', 'delete', 'delete'], ['path', 'delete_file', 'delete'],
     ['path', 'remove_file', 'delete'], ['path', 'rm_file', 'delete'], ['path', 'unlink_file', 'delete'],
   ])('resolves %s for %s without changing path text', (field, name, kind) => {
-    expect(deriveFileOpsFromAgentEvents([
+    expect(deriveFileOpsFromAgentEvents({ events: [
       { kind: 'tool_use', id: 'a', name, input: { [field]: ' C:\\src\\a.ts ' } },
-    ])).toEqual([{ path: 'a.ts ', fullPath: ' C:\\src\\a.ts ', ops: [kind], status: 'running' }]);
+    ] })).toEqual([{ path: 'a.ts ', fullPath: ' C:\\src\\a.ts ', ops: [kind], status: 'running' }]);
   });
 
   it('merges unique kinds in first-path order and lets errors outrank running and done', () => {
@@ -121,22 +121,22 @@ describe('reference adapter characterization', () => {
       { kind: 'tool_use', id: 'e', name: 'Delete', input: { path: 'src/a.ts' } },
       { kind: 'tool_result', toolUseId: 'e', isError: true },
     ];
-    expect(deriveFileOpsFromAgentEvents(events)).toEqual([
+    expect(deriveFileOpsFromAgentEvents({ events })).toEqual([
       { path: 'a.ts', fullPath: 'src/a.ts', ops: ['read', 'edit', 'delete'], status: 'error' },
       { path: 'b.ts', fullPath: 'b.ts', ops: ['write'], status: 'done' },
     ]);
-    expect(deriveFileOpsFromAgentEvents(events.slice(0, 5))).toEqual([
+    expect(deriveFileOpsFromAgentEvents({ events: events.slice(0, 5) })).toEqual([
       { path: 'a.ts', fullPath: 'src/a.ts', ops: ['read', 'edit'], status: 'error' },
     ]);
-    expect(deriveFileOpsFromAgentEvents(events.slice(1, 5))).toEqual([
+    expect(deriveFileOpsFromAgentEvents({ events: events.slice(1, 5) })).toEqual([
       { path: 'a.ts', fullPath: 'src/a.ts', ops: ['read', 'edit'], status: 'running' },
     ]);
-    expect(deriveFileOpsFromAgentEvents([
+    expect(deriveFileOpsFromAgentEvents({ events: [
       { kind: 'tool_use', id: 'a', name: 'Read', input: { path: '///' } },
       { kind: 'tool_result', toolUseId: 'a' },
       { kind: 'tool_use', id: 'b', name: 'Edit', input: { path: '///' } },
       { kind: 'tool_result', toolUseId: 'b' },
-    ])).toEqual([{ path: '///', fullPath: '///', ops: ['read', 'edit'], status: 'done' }]);
+    ] })).toEqual([{ path: '///', fullPath: '///', ops: ['read', 'edit'], status: 'done' }]);
   });
 
   it.each([
@@ -156,7 +156,7 @@ describe('reference adapter characterization', () => {
     if (name) events.push({ kind: 'tool_use', id: 'a', name, input: { path: 'a.ts' } });
     if (result !== 'none') events.push({ kind: 'tool_result', toolUseId: 'a', isError: result === 'error' });
     const secondaryStatus = { none: 'running', done: 'succeeded', error: 'failed' } as const;
-    expect(chatActivityToProgressCard({ runStatus, events }, { id: 'card', active })).toEqual({
+    expect(chatActivityToProgressCard({ message: { runStatus, events }, id: 'card', active })).toEqual({
       id: 'card', status: active ? 'running' : runStatus === 'canceled' ? 'failed' : runStatus,
       detail: 'checking state: a.ts', progress,
       steps: [
@@ -174,7 +174,7 @@ describe('reference adapter characterization', () => {
       { kind: 'tool_result', toolUseId: 'a' },
       { kind: 'tool_use', id: 'b', name: 'Read', input: { path: 'b.ts' } },
     ];
-    expect(chatActivityToProgressCard({ events, runStatus: 'running' }, options)?.steps).toEqual([
+    expect(chatActivityToProgressCard({ message: { events, runStatus: 'running' }, ...options })?.steps).toEqual([
       { id: 'read-current-state', label: 'Read current state', status: 'succeeded' },
       { id: 'update-files', label: 'Update files', status: 'running' },
       { id: 'finalize', label: 'Finalize', status: 'pending' },
@@ -183,18 +183,18 @@ describe('reference adapter characterization', () => {
 
   it.each([null, {}, { runStatus: 'queued' }, { runStatus: 'running' }, { runStatus: 'succeeded' }] satisfies (ChatActivityLike | null)[])(
     'omits inactive messages without todos, files, status detail, or failure: %j', (message) => {
-      expect(chatActivityToProgressCard(message, options)).toBeNull();
+      expect(chatActivityToProgressCard({ message, ...options })).toBeNull();
     },
   );
 
   it('keeps an empty status detail as activity and omits absent optional fields', () => {
-    const card = chatActivityToProgressCard({ events: [{ kind: 'status', label: '', detail: '' }] }, options);
+    const card = chatActivityToProgressCard({ message: { events: [{ kind: 'status', label: '', detail: '' }] }, ...options });
     expect(card).toEqual({ id: 'card', status: 'succeeded', detail: '', progress: 100, steps: [
       { id: 'read-current-state', label: 'Read current state', status: 'succeeded' },
       { id: 'update-files', label: 'Update files', status: 'succeeded' },
       { id: 'finalize', label: 'Finalize', status: 'succeeded' },
     ] });
-    expect(chatActivityToProgressCard(null, { id: 'card', active: true })).not.toHaveProperty('detail');
+    expect(chatActivityToProgressCard({ message: null, id: 'card', active: true })).not.toHaveProperty('detail');
   });
 
   it('prefers explicit todos over fallback steps and maps each status without changing labels or ids', () => {
@@ -202,7 +202,7 @@ describe('reference adapter characterization', () => {
       { content: 'same', status: 'completed' }, { content: 'same', status: 'in_progress' },
       { content: 'wait', status: 'pending' }, { content: 'stop', status: 'stopped' },
     ] } }];
-    expect(chatActivityToProgressCard({ events, runStatus: 'queued' }, options)).toEqual({
+    expect(chatActivityToProgressCard({ message: { events, runStatus: 'queued' }, ...options })).toEqual({
       id: 'card', status: 'running', progress: 38, steps: [
         { id: 'same-0', label: 'same', status: 'succeeded' },
         { id: 'same-1', label: 'same', status: 'running' },

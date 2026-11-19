@@ -23,7 +23,7 @@ function baseProps(overrides: Partial<ComponentProps<typeof SourceConfigListView
     addForm: {
       values,
       trust: undefined,
-      validation: validateSourceDraft([URL_FIELD], values),
+      validation: validateSourceDraft({ fieldSpecs: [URL_FIELD], values }),
       submitAttempted: false,
       submitting: false,
       onFieldChange: vi.fn(),

@@ -42,13 +42,13 @@ export interface CheckboxProps {
  * @complexity O(n) in the rendered length.
  */
 export function renderCheckbox(props: CheckboxProps): string {
-  const id = fieldElementId(props.name);
+  const id = fieldElementId({ name: props.name });
   const dataAttribute =
     props.dataAttribute === undefined
       ? ''
-      : ` ${escapeHtml(props.dataAttribute.name)}="${escapeHtml(props.dataAttribute.value)}"`;
+      : ` ${escapeHtml({ value: props.dataAttribute.name })}="${escapeHtml({ value: props.dataAttribute.value })}"`;
   const attributes =
-    ` id="${escapeHtml(id)}" name="${escapeHtml(props.name)}"` +
+    ` id="${escapeHtml({ value: id })}" name="${escapeHtml({ value: props.name })}"` +
     (props.value === true ? ' checked' : '') +
     (props.required === true ? ' required' : '') +
     (props.disabled === true ? ' disabled' : '') +

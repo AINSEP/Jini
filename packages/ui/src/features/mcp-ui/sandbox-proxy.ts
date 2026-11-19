@@ -203,7 +203,7 @@ export const SANDBOX_PROXY_HTML = `<!doctype html>
  * @param hostOrigin - The embedder's own real origin, computed by the embedder itself (e.g. its own
  *   `window.location.origin`) — never a value parsed out of this proxy document's own URL.
  */
-export function buildIsolatedSandboxProxyHtml(hostOrigin: string): string {
+export function buildIsolatedSandboxProxyHtml({ hostOrigin }: { hostOrigin: string }, _optional: Record<string, never> = {}): string {
   const hostOriginLiteral = JSON.stringify(hostOrigin);
   // A `data:` document has no HTTP response of its own to carry a CSP header, so per CSP3's
   // "local scheme" inheritance rule this inline <script> runs under whatever CSP the embedder's
@@ -264,6 +264,6 @@ export function buildIsolatedSandboxProxyHtml(hostOrigin: string): string {
  * @param hostOrigin - Forwarded verbatim to {@link buildIsolatedSandboxProxyHtml} — see that
  *   function's own doc for the contract.
  */
-export function buildSandboxProxyDataUrl(hostOrigin: string): string {
-  return `data:text/html;charset=utf-8,${encodeURIComponent(buildIsolatedSandboxProxyHtml(hostOrigin))}`;
+export function buildSandboxProxyDataUrl({ hostOrigin }: { hostOrigin: string }, _optional: Record<string, never> = {}): string {
+  return `data:text/html;charset=utf-8,${encodeURIComponent(buildIsolatedSandboxProxyHtml({ hostOrigin }))}`;
 }

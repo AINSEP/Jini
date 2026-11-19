@@ -29,7 +29,7 @@ export interface ProgressCardProps {
  */
 export function ProgressCard({ data, maxSteps = 6, maxSecondaryItems = 5, useTHook = useT }: ProgressCardProps & { useTHook?: typeof useT }) {
   const t = useTHook();
-  const title = data.title ?? t(defaultProgressCardTitle(data.status));
+  const title = data.title ?? t(defaultProgressCardTitle({ status: data.status }));
   const detail = data.detail ?? t(defaultProgressCardDetail(data.status));
   const secondaryHeading = t(data.secondaryItemsLabel ?? 'Files touched');
   const visibleSteps = data.steps.slice(0, maxSteps);
@@ -38,7 +38,7 @@ export function ProgressCard({ data, maxSteps = 6, maxSecondaryItems = 5, useTHo
   return (
     <section className={`progress-card is-${data.status}`} data-progress-card-id={data.id}>
       <div className="progress-card-head">
-        <Icon name={progressCardStatusIcon(data.status)} />
+        <Icon name={progressCardStatusIcon({ status: data.status })} />
         <span>
           <strong>{title}</strong>
           <small>{detail}</small>
@@ -58,8 +58,8 @@ export function ProgressCard({ data, maxSteps = 6, maxSecondaryItems = 5, useTHo
 
 /** Presents the existing progress rules as a determinate or indeterminate accessible bar. */
 function ProgressCardBar({ progress, label }: { progress: ProgressCardData['progress']; label: string }) {
-  const widthPercent = progressBarWidthPercent(progress);
-  const ariaValueNow = progressBarAriaValueNow(progress);
+  const widthPercent = progressBarWidthPercent({ progress });
+  const ariaValueNow = progressBarAriaValueNow({ progress });
   return (
     <div
       className={`progress-card-bar${widthPercent === null ? ' is-indeterminate' : ''}`}
@@ -87,7 +87,7 @@ function ProgressCardItemList({
   return (
     <div className={className}>
       {items.map((item) => {
-        const icon = progressCardItemIcon(item.status);
+        const icon = progressCardItemIcon({ status: item.status });
         return (
           <Tag key={item.id} className={`is-${item.status}`}>
             {icon ? <Icon name={icon} /> : null}

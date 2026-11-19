@@ -68,7 +68,7 @@ export interface ChoiceGroupProps {
  * @complexity O(n) in the number of options.
  */
 export function renderChoiceGroup(props: ChoiceGroupProps): string {
-  const stem = fieldElementId(props.name);
+  const stem = fieldElementId({ name: props.name });
   const type = props.selection === 'multiple' ? 'checkbox' : 'radio';
   const checked = new Set(props.selection === 'multiple' ? (props.value ?? []) : (props.value ?? []).slice(0, 1));
 
@@ -76,8 +76,8 @@ export function renderChoiceGroup(props: ChoiceGroupProps): string {
   const hint =
     props.hint === undefined
       ? ''
-      : `\n<span class="mcpui-hint" id="${escapeHtml(stem)}-hint">${escapeHtml(props.hint)}</span>`;
-  const describedBy = props.hint === undefined ? '' : ` aria-describedby="${escapeHtml(stem)}-hint"`;
+      : `\n<span class="mcpui-hint" id="${escapeHtml({ value: stem })}-hint">${escapeHtml({ value: props.hint })}</span>`;
+  const describedBy = props.hint === undefined ? '' : ` aria-describedby="${escapeHtml({ value: stem })}-hint"`;
 
   const options = props.options
     .map((option, index) => {
@@ -86,13 +86,13 @@ export function renderChoiceGroup(props: ChoiceGroupProps): string {
       // association silently — the label would simply stop being a hit target.
       const id = `${stem}-${index}`;
       const attributes =
-        ` id="${escapeHtml(id)}" name="${escapeHtml(props.name)}" value="${escapeHtml(option.value)}"` +
+        ` id="${escapeHtml({ value: id })}" name="${escapeHtml({ value: props.name })}" value="${escapeHtml({ value: option.value })}"` +
         (checked.has(option.value) ? ' checked' : '') +
         (props.disabled === true || option.disabled === true ? ' disabled' : '');
       return (
         `<div class="mcpui-choice">\n` +
         `<input class="mcpui-checkbox" type="${type}"${attributes}>\n` +
-        `<label class="mcpui-choice-label" for="${escapeHtml(id)}">${escapeHtml(option.label ?? option.value)}</label>\n` +
+        `<label class="mcpui-choice-label" for="${escapeHtml({ value: id })}">${escapeHtml({ value: option.label ?? option.value })}</label>\n` +
         `</div>`
       );
     })
@@ -100,7 +100,7 @@ export function renderChoiceGroup(props: ChoiceGroupProps): string {
 
   return (
     `<fieldset class="mcpui-field mcpui-choice-group"${describedBy}>\n` +
-    `<legend class="mcpui-label${props.labelHidden === true ? ` ${VISUALLY_HIDDEN_CLASS}` : ''}">${escapeHtml(props.label)}${required}</legend>${hint}\n` +
+    `<legend class="mcpui-label${props.labelHidden === true ? ` ${VISUALLY_HIDDEN_CLASS}` : ''}">${escapeHtml({ value: props.label })}${required}</legend>${hint}\n` +
     `${options}\n` +
     `</fieldset>`
   );

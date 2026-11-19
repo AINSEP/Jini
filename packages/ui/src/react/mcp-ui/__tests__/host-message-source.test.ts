@@ -36,7 +36,7 @@ describe('host-message-source', () => {
   });
 
   it('forwardWindowMessages installs nothing and buffers nothing when the scope has no window (server render)', () => {
-    const into = createEarlyMessageBuffer();
+    const into = createEarlyMessageBuffer({});
     expect(() => forwardWindowMessages({}, into)).not.toThrow();
     expect(into.backlogSize).toBe(0);
   });
@@ -47,7 +47,7 @@ describe('host-message-source', () => {
       listener = next;
     });
     const target: MessageEventTarget = { addEventListener };
-    const into = createEarlyMessageBuffer();
+    const into = createEarlyMessageBuffer({});
 
     forwardWindowMessages({ window: target }, into);
     expect(addEventListener).toHaveBeenCalledWith('message', expect.any(Function));

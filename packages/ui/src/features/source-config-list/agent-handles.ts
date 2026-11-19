@@ -93,7 +93,7 @@ function sanitizeHandleSegment(segment: string): string {
  * @returns `<base>-<action>`.
  * @complexity O(1).
  */
-export function sourceConfigActionHandle(base: string, action: string): string {
+export function sourceConfigActionHandle({ base, action }: { base: string; action: string }, _optional: Record<string, never> = {}): string {
   return `${base}${HANDLE_SEPARATOR}${action}`;
 }
 
@@ -105,7 +105,7 @@ export function sourceConfigActionHandle(base: string, action: string): string {
  * @returns `<base>-field-<kebab-cased key>`.
  * @complexity O(n) in `fieldKey.length`.
  */
-export function sourceConfigFieldHandle(base: string, fieldKey: string): string {
+export function sourceConfigFieldHandle({ base, fieldKey }: { base: string; fieldKey: string }, _optional: Record<string, never> = {}): string {
   const segment = sanitizeHandleSegment(fieldKey);
   return [base, FIELD_NAMESPACE, segment === '' ? UNNAMEABLE_FIELD_SEGMENT : segment].join(
     HANDLE_SEPARATOR,
@@ -119,8 +119,8 @@ export function sourceConfigFieldHandle(base: string, fieldKey: string): string 
  * @returns `<listBase>-add`.
  * @complexity O(1).
  */
-export function sourceConfigAddFormHandle(listBase: string): string {
-  return sourceConfigActionHandle(listBase, LIST_ADD_FORM_ACTION);
+export function sourceConfigAddFormHandle({ listBase }: { listBase: string }, _optional: Record<string, never> = {}): string {
+  return sourceConfigActionHandle({ base: listBase, action: LIST_ADD_FORM_ACTION });
 }
 
 /**
@@ -140,7 +140,7 @@ export function sourceConfigAddFormHandle(listBase: string): string {
  *   namespace in this module's doc).
  * @complexity See {@link buildAgentListHandles}.
  */
-export function sourceConfigItemHandles(listBase: string, sourceIds: readonly string[]): string[] {
+export function sourceConfigItemHandles({ listBase, sourceIds }: { listBase: string; sourceIds: readonly string[] }, _optional: Record<string, never> = {}): string[] {
   return buildAgentListHandles({ prefix: `${listBase}${HANDLE_SEPARATOR}${LIST_ITEM_NAMESPACE}`, ids: sourceIds });
 }
 
@@ -175,11 +175,10 @@ export interface SourceConfigAgentPropsOptions {
  * @complexity O(1).
  */
 export function sourceConfigAgentProps(
-  base: string | undefined,
-  options: SourceConfigAgentPropsOptions,
+  { base, ...options }: { base: string | undefined } & SourceConfigAgentPropsOptions, _optional: Record<string, never> = {}
 ): AgentHandleProps | Record<string, never> {
   if (base === undefined) return {};
-  const handle = options.action === undefined ? base : sourceConfigActionHandle(base, options.action);
+  const handle = options.action === undefined ? base : sourceConfigActionHandle({ base, action: options.action });
   // `role` and `label` are required by SourceConfigAgentPropsOptions, so both are always forwarded.
   return agentHandle({ handle: handle }, { role: options.role, label: options.label });
 }

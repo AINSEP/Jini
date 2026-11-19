@@ -4,9 +4,9 @@ import { dedupeToolUsesById, type AgentEventLike } from '../reference-adapters.j
 describe('dedupeToolUsesById branch characterization', () => {
   it('returns fresh empty arrays for absent and empty streams', () => {
     const empty: AgentEventLike[] = [];
-    expect(dedupeToolUsesById(undefined)).toEqual([]);
-    expect(dedupeToolUsesById(empty)).toEqual([]);
-    expect(dedupeToolUsesById(empty)).not.toBe(empty);
+    expect(dedupeToolUsesById({ events: undefined })).toEqual([]);
+    expect(dedupeToolUsesById({ events: empty })).toEqual([]);
+    expect(dedupeToolUsesById({ events: empty })).not.toBe(empty);
   });
 
   it('returns the original array when valid tool ids are unique', () => {
@@ -16,7 +16,7 @@ describe('dedupeToolUsesById branch characterization', () => {
       { kind: 'tool_use', id: 'b', name: 'Write', input: {} },
       { kind: 'tool_result', toolUseId: 'a' },
     ];
-    expect(dedupeToolUsesById(events)).toBe(events);
+    expect(dedupeToolUsesById({ events })).toBe(events);
   });
 
   it('preserves malformed tool-use events before and after the first duplicate', () => {
@@ -24,7 +24,7 @@ describe('dedupeToolUsesById branch characterization', () => {
     const missingName: AgentEventLike = { kind: 'tool_use', id: 'a' };
     const first: AgentEventLike = { kind: 'tool_use', id: 'a', name: 'Read', input: {} };
     const events = [missingId, missingName, first, first, missingId, missingName];
-    expect(dedupeToolUsesById(events)).toEqual([
+    expect(dedupeToolUsesById({ events })).toEqual([
       missingId, missingName, first, missingId, missingName,
     ]);
   });
@@ -35,7 +35,7 @@ describe('dedupeToolUsesById branch characterization', () => {
     const other: AgentEventLike = { kind: 'tool_use', id: 'b', name: 'Edit', input: {} };
     const result: AgentEventLike = { kind: 'tool_result', toolUseId: 'a' };
     const events = [first, retry, other, result, retry, other, result];
-    const output = dedupeToolUsesById(events);
+    const output = dedupeToolUsesById({ events });
     expect(output).toEqual([first, other, result, result]);
     expect(output).not.toBe(events);
     expect(output[0]).toBe(first);

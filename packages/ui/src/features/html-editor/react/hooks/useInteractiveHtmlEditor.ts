@@ -120,7 +120,7 @@ function recordDirtyTextEdit(component: Component | undefined, dirty: Map<string
   if (!component || !component.is('text')) return;
   const path = computeComponentPath(component);
   if (!path) return;
-  dirty.set(pathKey(path), { path, tagName: component.tagName.toLowerCase(), component });
+  dirty.set(pathKey({ path }), { path, tagName: component.tagName.toLowerCase(), component });
 }
 
 /**
@@ -308,7 +308,7 @@ export function useInteractiveHtmlEditor(
     const decorate = () => {
       protectTextAncestors({ editor }, {});
       const describe = sourcePlan.instances.length ? protectedCanvasDescriber({ editor }, {}) : describeEmbedPlaceholder;
-      if (describe) applyCanvasEmbedPlaceholders(editor.Canvas.getBody(), describe);
+      if (describe) applyCanvasEmbedPlaceholders({ body: editor.Canvas.getBody(), describe });
     };
     const serialize = () => {
       try {
@@ -407,7 +407,7 @@ export function useInteractiveHtmlEditor(
         catch { reportSourceError(new EditorSourceError()); return; }
       }
       const body = editor.Canvas.getBody();
-      applyCanvasContentWrapper(body, canvasStyling.contentWrapper);
+      applyCanvasContentWrapper({ body, chain: canvasStyling.contentWrapper });
       decorate();
       // Runs LAST, after both decorations above — see `revealCanvasWhenStylesheetsSettle`'s own doc
       // for why that order matters even in the zero-stylesheet case.

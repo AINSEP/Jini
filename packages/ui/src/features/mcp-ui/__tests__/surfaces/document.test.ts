@@ -102,19 +102,19 @@ describe('renderSurfaceHeader', () => {
 
 describe('renderDetailList', () => {
   it('renders label/value pairs, escaping both', () => {
-    const doc = parse(renderDetailList([{ label: 'Title', value: '<script>x</script>' }, { label: 'Slug', value: '/a' }]));
+    const doc = parse(renderDetailList({ details: [{ label: 'Title', value: '<script>x</script>' }, { label: 'Slug', value: '/a' }] }));
     expect([...doc.querySelectorAll('dt')].map((node) => node.textContent)).toEqual(['Title', 'Slug']);
     expect(doc.querySelector('dd pre')?.textContent).toBe('<script>x</script>');
     expect(doc.querySelector('dd script')).toBeNull();
   });
 
   it('renders nothing at all for an empty list, rather than an empty dl', () => {
-    expect(renderDetailList([])).toBe('');
+    expect(renderDetailList({ details: [] })).toBe('');
   });
 
   it('renders a code-format value in a pre block that keeps its line breaks, escaped', () => {
     const sql = 'create table t (\n  id int\n);\n-- <b>not bold</b>';
-    const doc = parse(renderDetailList([{ label: 'query', value: sql, format: 'code' }, { label: 'Tool', value: 'execute_sql' }]));
+    const doc = parse(renderDetailList({ details: [{ label: 'query', value: sql, format: 'code' }, { label: 'Tool', value: 'execute_sql' }] }));
     const pre = doc.querySelector('dd pre.mcpui-code');
     expect(pre?.textContent).toBe(sql);
     expect(doc.querySelector('dd pre b')).toBeNull();
@@ -157,11 +157,11 @@ describe('renderStatusRegion', () => {
 
 describe('fieldElementId', () => {
   it.each(['name', '_private', 'a.b-c', 'x9'])('accepts %s', (name) => {
-    expect(fieldElementId(name)).toBe(`mcpui-field-${name}`);
+    expect(fieldElementId({ name })).toBe(`mcpui-field-${name}`);
   });
 
   it.each(['', 'has space', '9leading', 'a b', 'a"b'])('throws on %s rather than silently rewriting the params key', (name) => {
-    expect(() => fieldElementId(name)).toThrow(/Invalid MCP-UI field name/);
+    expect(() => fieldElementId({ name })).toThrow(/Invalid MCP-UI field name/);
   });
 });
 
@@ -189,11 +189,11 @@ describe('renderFieldLabel and fieldDescribedBy', () => {
 
 describe('renderActions', () => {
   it('renders each variant, defaults to a neutral button, and carries no inline handler', () => {
-    const html = renderActions([
+    const html = renderActions({ actions: [
       { id: 'confirm', label: 'Delete', variant: 'danger' },
       { id: 'save', label: 'Save', variant: 'primary', type: 'submit' },
       { id: 'cancel', label: 'Cancel' },
-    ]);
+    ] });
     const buttons = [...parse(html).querySelectorAll('button')];
     expect(buttons.map((button) => button.className)).toEqual([
       'mcpui-button mcpui-button-danger',
@@ -206,13 +206,13 @@ describe('renderActions', () => {
   });
 
   it('renders an explicit neutral variant the same as an omitted one', () => {
-    expect(renderActions([{ id: 'a', label: 'A', variant: 'neutral' }])).toBe(renderActions([{ id: 'a', label: 'A' }]));
+    expect(renderActions({ actions: [{ id: 'a', label: 'A', variant: 'neutral' }] })).toBe(renderActions({ actions: [{ id: 'a', label: 'A' }] }));
   });
 
   it('marks human-only actions private without changing ordinary action defaults', () => {
     const actions = [{ id: 'save', label: 'Save <draft>', disabled: true }] as const;
-    expect(renderActions(actions, { humanOnly: false })).toBe(renderActions(actions));
-    const button = parse(renderActions(actions, { humanOnly: true })).querySelector('button')!;
+    expect(renderActions({ actions }, { humanOnly: false })).toBe(renderActions({ actions }));
+    const button = parse(renderActions({ actions }, { humanOnly: true })).querySelector('button')!;
     expect(button.hasAttribute('data-agent-private')).toBe(true);
     expect(button.hasAttribute('data-agent-element')).toBe(false);
     expect(button.hasAttribute('data-agent-role')).toBe(false);
@@ -223,10 +223,10 @@ describe('renderActions', () => {
   });
 
   it('tags each button with the @jini-ai/agentic data-agent-* markup so a driver reaching directly into the frame (frameLocator) can find and label it', () => {
-    const html = renderActions([
+    const html = renderActions({ actions: [
       { id: 'confirm', label: 'Publish', variant: 'danger' },
       { id: 'cancel', label: 'Cancel' },
-    ]);
+    ] });
     const buttons = [...parse(html).querySelectorAll('button')];
     expect(buttons.map((button) => button.getAttribute('data-agent-element'))).toEqual([
       'mcpui-action-confirm',

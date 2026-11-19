@@ -17,7 +17,7 @@ function baseProps(overrides: Partial<ComponentProps<typeof SourceConfigAddForm>
   return {
     fieldSpecs: [URL_FIELD],
     values,
-    validation: validateSourceDraft([URL_FIELD], values),
+    validation: validateSourceDraft({ fieldSpecs: [URL_FIELD], values }),
     submitAttempted: false,
     submitting: false,
     onFieldChange: vi.fn(),
@@ -68,7 +68,7 @@ describe('SourceConfigAddForm', () => {
     const values = { url: 'https://a.example' };
     render(
       <SourceConfigAddForm
-        {...baseProps({ values, validation: validateSourceDraft([URL_FIELD], values), onSubmit })}
+        {...baseProps({ values, validation: validateSourceDraft({ fieldSpecs: [URL_FIELD], values }), onSubmit })}
       />,
     );
     await userEvent.click(screen.getByRole('button', { name: 'Add source' }));
@@ -142,7 +142,7 @@ describe('SourceConfigAddForm', () => {
       const values = { url: 'https://mcp.example' };
       render(
         <SourceConfigAddForm
-          {...baseProps({ values, validation: validateSourceDraft([URL_FIELD], values), canTest: true, onTest: vi.fn(), agentHandle: 'mcp-add' })}
+          {...baseProps({ values, validation: validateSourceDraft({ fieldSpecs: [URL_FIELD], values }), canTest: true, onTest: vi.fn(), agentHandle: 'mcp-add' })}
         />,
       );
       expect(screen.getByRole('button', { name: 'Test' })).toHaveAttribute('data-agent-element', 'mcp-add-test');
@@ -160,7 +160,7 @@ describe('SourceConfigAddForm', () => {
       const values = { url: 'https://a.example' };
       render(
         <SourceConfigAddForm
-          {...baseProps({ values, validation: validateSourceDraft([URL_FIELD], values), canTest: true, onTest })}
+          {...baseProps({ values, validation: validateSourceDraft({ fieldSpecs: [URL_FIELD], values }), canTest: true, onTest })}
         />,
       );
       const button = screen.getByRole('button', { name: 'Test' });
@@ -184,7 +184,7 @@ describe('SourceConfigAddForm', () => {
         <SourceConfigAddForm
           {...baseProps({
             values,
-            validation: validateSourceDraft([URL_FIELD], values),
+            validation: validateSourceDraft({ fieldSpecs: [URL_FIELD], values }),
             canTest: true,
             onTest: vi.fn(),
             testing: true,
@@ -196,7 +196,7 @@ describe('SourceConfigAddForm', () => {
         <SourceConfigAddForm
           {...baseProps({
             values,
-            validation: validateSourceDraft([URL_FIELD], values),
+            validation: validateSourceDraft({ fieldSpecs: [URL_FIELD], values }),
             canTest: true,
             onTest: vi.fn(),
             testing: false,
@@ -213,7 +213,7 @@ describe('SourceConfigAddForm', () => {
         <SourceConfigAddForm
           {...baseProps({
             values,
-            validation: validateSourceDraft([URL_FIELD], values),
+            validation: validateSourceDraft({ fieldSpecs: [URL_FIELD], values }),
             canTest: true,
             onTest: vi.fn(),
             submitting: true,

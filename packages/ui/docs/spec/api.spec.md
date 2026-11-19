@@ -202,7 +202,7 @@ import { SketchEditor } from '@jini-ai/ui/sketch-editor';
 
 ## `/html-editor`
 
-`InteractiveHtmlEditor` is `forwardRef<InteractiveHtmlEditorHandle, InteractiveHtmlEditorProps>`. Required `{html: string, onChange(html): void}`; optional className, protected-element predicate, canvasStyling and embed-placeholder descriptor callback. Handle `flush(): Promise<string|undefined>`. Legacy hook `useInteractiveHtmlEditor(html,onChange,isProtectedElement?,canvasStyling = {},describeEmbedPlaceholder?): {containerRef,flush}`. Also exported `hasAttributeOnAnyNodeShape(...)` and `prettifyCss(css): string`, plus canvas wrapper/styling/placeholder types. Supply GrapesJS and host persistence; protection/styling/initial HTML are mount-time inputs.
+`InteractiveHtmlEditor` is `forwardRef<InteractiveHtmlEditorHandle, InteractiveHtmlEditorProps>`. Required `{html: string, onChange(html): void}`; optional className, protected-element predicate, canvasStyling and embed-placeholder descriptor callback. Handle `flush(): Promise<string|undefined>`. Legacy hook `useInteractiveHtmlEditor(html,onChange,isProtectedElement?,canvasStyling = {},describeEmbedPlaceholder?): {containerRef,flush}`. Also exported `hasAttributeOnAnyNodeShape(...)` and `prettifyCss({ css }, _optional = {}): string`, plus canvas wrapper/styling/placeholder types. Supply GrapesJS and host persistence; protection/styling/initial HTML are mount-time inputs.
 
 ```tsx
 import { InteractiveHtmlEditor } from '@jini-ai/ui/html-editor';
@@ -218,7 +218,7 @@ createConfirmationStore(deps: ConfirmationStoreDeps = {}): ConfirmationStore
 // deps: now?, randomToken?, ttlMs?, digestToken?
 // mint({binding: Record<string,string|number>,summary}): {token,expiresAtMs}
 // redeem({token,binding}): RedeemResult; size(): number
-createEarlyMessageBuffer(maxBuffered: number = MAX_BUFFERED_MESSAGES): EarlyMessageBuffer
+createEarlyMessageBuffer(_required: Record<string, never>, { maxBuffered = MAX_BUFFERED_MESSAGES }: { maxBuffered?: number | undefined } = {}): EarlyMessageBuffer
 // push(message): void; subscribe(handler): () => void; readonly backlogSize: number
 createUIResource(spec: { uri: UIResourceUri; htmlString: string; preferredFrameSize?: readonly [string, string]; actionPlan?: McpUiActionPlan; meta?: Readonly<Record<string, unknown>>; }): UIResource
 buildUIToolResult(spec: { modelText: string; ui: UIResource; meta?: Readonly<Record<string, unknown>>; }): UIToolResult
@@ -228,6 +228,12 @@ readActionPlan({ resource }: { resource: UIResource }, _optional: Record<string,
 escapeHtml(value: string): string
 escapeJsValue(value: unknown): string
 escapeJsString(value: string): string
+parseUIResource(value: unknown): UIResource | undefined
+readPreferredFrameSize(resource: UIResource): readonly [string,string] | undefined
+readActionPlan(resource: UIResource): McpUiActionPlan | undefined
+escapeHtml({ value }: { value: string }, _optional: Record<string, never> = {}): string
+escapeJsValue({ value }: { value: unknown }, _optional: Record<string, never> = {}): string
+escapeJsString({ value }: { value: string }, _optional: Record<string, never> = {}): string
 renderConfirmationDocument(spec: ConfirmationSurfaceSpec): string
 buildConfirmationSurface(spec: ConfirmationSurfaceSpec & { uri: UIResourceUri; preferredFrameSize?: readonly [string, string]; }): UIResource
 renderFormDocument(spec: FormSurfaceSpec): string
@@ -239,22 +245,22 @@ renderTextInput(props: TextInputProps): string
 renderCheckbox(props: CheckboxProps): string
 renderSelect(props: SelectProps): string
 renderChoiceGroup(props: ChoiceGroupProps): string
-renderFieldControl(field: SurfaceField): string
-toFieldReadSpecs(fields: readonly SurfaceField[]): readonly FieldReadSpec[]
+renderFieldControl({ field }: { field: SurfaceField }, { text, options = {} }: { text?: Partial<SecretInputText> | undefined; options?: FieldRenderOptions | undefined } = {}): string
+toFieldReadSpecs({ fields }: { fields: readonly SurfaceField[] }, _optional: Record<string, never> = {}): readonly FieldReadSpec[]
 renderSurfaceHeader(spec: { title: string; description?: string }): string
-renderDetailList(details: readonly SurfaceDetail[]): string
+renderDetailList({ details }: { details: readonly SurfaceDetail[] }, options: { layout?: 'outcome' } = {}): string
 renderStatusRegion(): string
-fieldElementId(name: string): string
+fieldElementId({ name }: { name: string }, _optional: Record<string, never> = {}): string
 renderFieldLabel(spec: { name: string; label: string; required?: boolean; hint?: string; }): string
 fieldDescribedBy(spec: { name: string; hint?: string }): string
-renderActions(actions: readonly SurfaceAction[]): string
+renderActions({ actions }: { actions: readonly SurfaceAction[] }, { humanOnly = false }: { humanOnly?: boolean } = {}): string
 renderBridgeScript(spec: BridgeScriptSpec): string
 renderTokenBlock(overrides: Partial<Record<SurfaceTokenName, string>> = {}): string
-buildIsolatedSandboxProxyHtml(hostOrigin: string): string
-buildSandboxProxyDataUrl(hostOrigin: string): string
+buildIsolatedSandboxProxyHtml({ hostOrigin }: { hostOrigin: string }, _optional: Record<string, never> = {}): string
+buildSandboxProxyDataUrl({ hostOrigin }: { hostOrigin: string }, _optional: Record<string, never> = {}): string
 ```
 
-`SANDBOX_PROXY_HTML` is a static HTML page for a host-served proxy. Bridge-script builders and handshake constants are exported alongside the renderers. Spec interfaces carry caller-owned tool names/params/status copy/app metadata; confirmation requires title and confirm action, form requires title/fields/submitLabel/toolName, outcome requires title/state/message. These APIs remain one spec object or positional; they have not adopted two objects. No service port is needed to build strings. A consumer redeems tokens and executes tools separately.
+`SANDBOX_PROXY_HTML` is a static HTML page for a host-served proxy. Bridge-script builders and handshake constants are exported alongside the renderers. Spec interfaces carry caller-owned tool names/params/status copy/app metadata; confirmation requires title and confirm action, form requires title/fields/submitLabel/toolName, outcome requires title/state/message. Converted helpers take required and defaulted optional objects; spec builders retain their spec objects. No service port is needed to build strings. A consumer redeems tokens and executes tools separately.
 
 ```ts
 import { createConfirmationStore, buildConfirmationSurface } from '@jini-ai/ui/mcp-ui/surfaces';
@@ -531,13 +537,13 @@ These names are also reachable through the current export map. Parameter declara
 | `beginSilentUpdatesWrite(next: boolean)` | [rules.ts](../../src/features/about/rules.ts) |
 | `binPathEnvField({ fields, agentId }: { fields: readonly AgentCliEnvFieldSpec[]; agentId: string }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/execution/rules.ts) |
 | `brandMonogram(name: string)` | [BrandLogo.tsx](../../src/react/components/BrandLogo.tsx) |
-| `buildAssetGridQuery(kind: string, source: string, search: string, mapKindToQuery?: (kind: string) => string \| undefined,)` | [rules.ts](../../src/features/asset-grid/rules.ts) |
+| `buildAssetGridQuery({ kind, source, search }: { kind: string; source: string; search: string }, { mapKindToQuery }: { mapKindToQuery?: ((kind: string) => string \| undefined) \| undefined } = {})` | [rules.ts](../../src/features/asset-grid/rules.ts) |
 | `buildBreadcrumbSegments(currentDir: string)` | [rules.ts](../../src/features/asset-tree-browser/rules.ts) |
 | `buildClaudeCliSnippet(serverName: string, info: McpInstallInfo)` | [rules.ts](../../src/features/integrations/rules.ts) |
 | `buildCodexEnvToml(serverName: string, info: McpInstallInfo)` | [rules.ts](../../src/features/integrations/rules.ts) |
 | `buildCodexTomlSnippet(serverName: string, info: McpInstallInfo)` | [rules.ts](../../src/features/integrations/rules.ts) |
 | `buildCursorDeeplink(serverName: string, info: McpInstallInfo)` | [rules.ts](../../src/features/integrations/rules.ts) |
-| `buildFacetLabelMap(facets: readonly { value: string; label: string }[])` | [rules.ts](../../src/features/asset-grid/rules.ts) |
+| `buildFacetLabelMap({ facets }: { facets: readonly { value: string; label: string }[] }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/asset-grid/rules.ts) |
 | `buildFaviconUrl(host: string, size: number)` | [BrandLogo.tsx](../../src/react/components/BrandLogo.tsx) |
 | `buildFocusGuardScript()` | [sandboxed-document.ts](../../src/renderers/sandboxed-document.ts) |
 | `buildInitialData({ scene, fileName, defaultStrokeColor }: { scene: SketchScene; fileName: string; defaultStrokeColor: string }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/sketch-editor/rules.ts) |
@@ -560,12 +566,12 @@ These names are also reachable through the current export map. Parameter declara
 | `canGoNext(state: DeckSlideState \| null)` | [rules.ts](../../src/features/html-viewer/rules.ts) |
 | `canGoPrev(state: DeckSlideState \| null)` | [rules.ts](../../src/features/html-viewer/rules.ts) |
 | `captureFolderPathDrop({ event, port, composer }: CaptureFolderPathDropInput)` | [rules.ts](../../src/features/folder-path-drop/rules.ts) |
-| `cardIdsInBand(rects: readonly CardRect[], band: Band)` | [rules.ts](../../src/features/asset-grid/rules.ts) |
-| `chatActivityToProgressCard(message: ChatActivityLike \| null, options: ChatActivityToProgressCardOptions,)` | [reference-adapters.ts](../../src/features/progress-card/reference-adapters.ts) |
+| `cardIdsInBand({ rects, band }: { rects: readonly CardRect[]; band: Band }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/asset-grid/rules.ts) |
+| `chatActivityToProgressCard({ message, id, active }: { message: ChatActivityLike \| null } & ChatActivityToProgressCardOptions, _optional: Record<string, never> = {})` | [reference-adapters.ts](../../src/features/progress-card/reference-adapters.ts) |
 | `clamp01({ value }: { value: number }, _optional: Record<string, never> = {})` | [rules.ts](../../src/renderers/annotation-canvas/rules.ts) |
 | `clampAnchoredPosition(anchorRect: TabLauncherAnchorRect, viewportWidth: number, menuWidth: number = MENU_WIDTH, margin: number = VIEWPORT_MARGIN, offset: number = ANCHOR_OFFSET,)` | [rules.ts](../../src/features/tab-launcher-menu/rules.ts) |
 | `clampMinute(value: number)` | [rules.ts](../../src/features/schedule-picker/rules.ts) |
-| `clampProgressPercent(value: number)` | [rules.ts](../../src/features/progress-card/rules.ts) |
+| `clampProgressPercent({ value }: { value: number }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/progress-card/rules.ts) |
 | `clampSelection(current: number, count: number)` | [rules.ts](../../src/features/tab-launcher-menu/rules.ts) |
 | `clampSketchContextPopover({ popover, viewportRoot }: { popover: HTMLElement; viewportRoot: HTMLElement }, _optional: Record<string, never> = {})` | [dom.ts](../../src/features/sketch-editor/dom.ts) |
 | `clampSlideIndex(index: number, count: number)` | [rules.ts](../../src/features/html-viewer/rules.ts) |
@@ -636,22 +642,22 @@ These names are also reachable through the current export map. Parameter declara
 | `createPageActionRequest({ id, capabilityId, input }: { id: number \| string; capabilityId: string; input: Record<string, unknown> }, _optional: Record<string, never> = {})` | [mcp-ui-apps.ts](../../../agentic/src/core/mcp-ui-apps.ts) |
 | `credentialsForPreset({ config, preset }: { config: ByokConfig; preset: ProviderPreset \| null }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/execution/rules.ts) |
 | `customPreset({ protocol }: { protocol: ByokConfig['protocol'] }, { title = 'Custom' }: { title?: string \| undefined } = {})` | [rules.ts](../../src/features/execution/rules.ts) |
-| `dayHeading(key: string, referenceDate: Date = new Date())` | [rules.ts](../../src/features/asset-grid/rules.ts) |
-| `dayHeadingResult(key: string, referenceDate: Date = new Date())` | [rules.ts](../../src/features/asset-grid/rules.ts) |
-| `dayKeyFromTimestamp(timestampMs: number)` | [rules.ts](../../src/features/asset-grid/rules.ts) |
+| `dayHeading({ key }: { key: string }, { referenceDate = new Date() }: { referenceDate?: Date \| undefined } = {})` | [rules.ts](../../src/features/asset-grid/rules.ts) |
+| `dayHeadingResult({ key }: { key: string }, { referenceDate = new Date() }: { referenceDate?: Date \| undefined } = {})` | [rules.ts](../../src/features/asset-grid/rules.ts) |
+| `dayKeyFromTimestamp({ timestampMs }: { timestampMs: number }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/asset-grid/rules.ts) |
 | `decideAutoOpenAfterWrite({ filePath, nextFiles }: { filePath: string; nextFiles: ReadonlyArray<CandidateFile> }, options: AutoOpenOptions = {})` | [auto-open-file.ts](../../src/utils/auto-open-file.ts) |
 | `decomposeSchedule(schedule: ScheduleValue, weekdays: WeekdayOption[] = DEFAULT_WEEKDAYS,)` | [rules.ts](../../src/features/schedule-picker/rules.ts) |
-| `dedupeToolUsesById(events: AgentEventLike[] \| undefined)` | [reference-adapters.ts](../../src/features/progress-card/reference-adapters.ts) |
+| `dedupeToolUsesById({ events }: { events: AgentEventLike[] \| undefined }, _optional: Record<string, never> = {})` | [reference-adapters.ts](../../src/features/progress-card/reference-adapters.ts) |
 | `defaultCategoryLabel({ category }: { category: string }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/connectors/rules.ts) |
 | `defaultDetectSystemLocale(supportedLocales: readonly Locale[])` | [locale.ts](../../src/features/i18n/locale.ts) |
 | `defaultExcalidrawLangCode(locale: string, overrides: Record<string, string> = DEFAULT_EXCALIDRAW_LANG_CODES,)` | [rules.ts](../../src/features/sketch-editor/rules.ts) |
-| `defaultMatchesKindFilter(asset: TAsset, filterValue: string, getKind: (asset: TAsset) => string,)` | [rules.ts](../../src/features/asset-grid/rules.ts) |
+| `defaultMatchesKindFilter({ asset, filterValue, getKind }: { asset: TAsset; filterValue: string; getKind: (asset: TAsset) => string }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/asset-grid/rules.ts) |
 | `defaultProgressCardDetail(status: ProgressStatus)` | [rules.ts](../../src/features/progress-card/rules.ts) |
-| `defaultProgressCardTitle(status: ProgressStatus)` | [rules.ts](../../src/features/progress-card/rules.ts) |
+| `defaultProgressCardTitle({ status }: { status: ProgressStatus }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/progress-card/rules.ts) |
 | `defaultScheduleEditorState(timezone: string)` | [rules.ts](../../src/features/schedule-picker/rules.ts) |
 | `deriveAboutUpdateControl(model: UpdaterModel, appVersionInfo: AppVersionInfo \| null,)` | [rules.ts](../../src/features/about/rules.ts) |
 | `deriveContentStatus({ view }: { view: PreviewModalContentViewLike \| undefined }, _optional: Record<string, never> = {})` | [rules.ts](../../src/renderers/preview-modal-shell/rules.ts) |
-| `deriveFileOpsFromAgentEvents(events: AgentEventLike[] \| undefined)` | [reference-adapters.ts](../../src/features/progress-card/reference-adapters.ts) |
+| `deriveFileOpsFromAgentEvents({ events }: { events: AgentEventLike[] \| undefined }, _optional: Record<string, never> = {})` | [reference-adapters.ts](../../src/features/progress-card/reference-adapters.ts) |
 | `deriveMarkKind(input: { hasTarget: boolean; hasVisualMark: boolean; })` | [rules.ts](../../src/renderers/annotation-canvas/rules.ts) |
 | `deriveTreeChildren(files: readonly TFile[], folders: readonly AssetTreeFolderItem[], currentDir: string,)` | [rules.ts](../../src/features/asset-tree-browser/rules.ts) |
 | `describeConnectorReadIssue(result: ConnectorMemorySuggestionResponse)` | [formatters.ts](../../src/features/memory/formatters.ts) |
@@ -673,7 +679,7 @@ These names are also reachable through the current export map. Parameter declara
 | `dropEdgeForClientY(clientY: number, targetRect: { top: number; height: number })` | [rules.ts](../../src/features/viewer-shell/rules.ts) |
 | `effectivePreviewScale(preset: ViewportPreset, previewScale: number, canvasSize: PreviewCanvasSize \| undefined, canvasPadding: number,)` | [rules.ts](../../src/features/version-manager/rules.ts) |
 | `emptySketchScene(_required: Record<string, never> = {}, { name }: { name?: string \| undefined } = {})` | [rules.ts](../../src/features/sketch-editor/rules.ts) |
-| `emptySourceDraft(fieldSpecs: readonly SourceFieldSpec[])` | [rules.ts](../../src/features/source-config-list/rules.ts) |
+| `emptySourceDraft({ fieldSpecs }: { fieldSpecs: readonly SourceFieldSpec[] }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/source-config-list/rules.ts) |
 | `enabledPatch({ enabled }: { enabled: boolean }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/memory/rules.ts) |
 | `enhanceSketchExcalidrawPortals({ closeLabel, onClose, domTextOverrides, insertLabelPattern }: { closeLabel: string; onClose: () => void; domTextOverrides: SketchDomTextOverrides \| undefined; insertLabelPattern: RegExp }, _optional: Record<string, never> = {})` | [dom.ts](../../src/features/sketch-editor/dom.ts) |
 | `escapeHtmlAttribute({ value }: { value: string }, _optional: Record<string, never> = {})` | [html-utils.ts](../../src/renderers/html-utils.ts) |
@@ -689,7 +695,7 @@ These names are also reachable through the current export map. Parameter declara
 | `fallbackFilename(prefix: string)` | [ExportDiagnosticsButton.tsx](../../src/react/components/ExportDiagnosticsButton.tsx) |
 | `fallbackLogoInitials({ name }: { name: string }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/connectors/rules.ts) |
 | `fallbackLogoPaletteIndex({ seed, paletteSize }: { seed: string; paletteSize: number }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/connectors/rules.ts) |
-| `faviconUrl(url: string)` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
+| `faviconUrl({ url }: { url: string }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
 | `fileDropzoneExtension(file: File)` | [rules.ts](../../src/features/file-dropzone/rules.ts) |
 | `fileDropzoneExtensionLabel(file: File)` | [rules.ts](../../src/features/file-dropzone/rules.ts) |
 | `fileDropzoneFontFamilyName(file: File, index: number)` | [rules.ts](../../src/features/file-dropzone/rules.ts) |
@@ -705,11 +711,11 @@ These names are also reachable through the current export map. Parameter declara
 | `filesFromFileSystemEntry(entry: FileSystemEntry)` | [file-transfer.ts](../../src/utils/file-transfer.ts) |
 | `filterAgentModelOptions({ options, query, selectedValue }: { options: readonly AgentModelOption[]; query: string; selectedValue: string }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/execution/rules.ts) |
 | `filterBoardItemsByQuery(items: readonly TItem[], query: string)` | [rules.ts](../../src/features/resource-dashboard/rules.ts) |
-| `filterByKind(items: readonly TAsset[], filterValue: string, matches: (asset: TAsset, filterValue: string) => boolean,)` | [rules.ts](../../src/features/asset-grid/rules.ts) |
+| `filterByKind({ items, filterValue, matches }: { items: readonly TAsset[]; filterValue: string; matches: (asset: TAsset, filterValue: string) => boolean }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/asset-grid/rules.ts) |
 | `filterFiles(files: readonly TabLauncherResultItem[], query: string, kindFilter: string,)` | [rules.ts](../../src/features/tab-launcher-menu/rules.ts) |
 | `filterMentionItems(items: T[], query: string, getSearchText: (item: T) => string = (item) => item.label, maxResults: number = DEFAULT_MAX_RESULTS_PER_CATEGORY,)` | [rules.ts](../../src/features/mention-autocomplete/rules.ts) |
 | `filterOnboardingOptions(options: OnboardingDropdownOption[], query: string, searchable: boolean,)` | [OnboardingDropdown.tsx](../../src/react/components/OnboardingDropdown.tsx) |
-| `filterSkills(skills: readonly SkillSummary[], filters: SkillFilters, locale: string,)` | [rules.ts](../../src/features/skills/rules.ts) |
+| `filterSkills({ skills, filters, locale }: { skills: readonly SkillSummary[]; filters: SkillFilters; locale: string }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/skills/rules.ts) |
 | `filterTabs(tabs: readonly TabLauncherResultItem[], query: string, kindFilter: string, maxResults: number = MAX_TAB_RESULTS,)` | [rules.ts](../../src/features/tab-launcher-menu/rules.ts) |
 | `filterVersionsBySearch(versions: readonly TVersion[], search: string, describe: (version: TVersion) => string,)` | [rules.ts](../../src/features/version-manager/rules.ts) |
 | `filterVisibleActionGroups(groups: HeaderMenuAction[][])` | [HeaderActionsMenu.tsx](../../src/react/components/HeaderActionsMenu.tsx) |
@@ -722,8 +728,8 @@ These names are also reachable through the current export map. Parameter declara
 | `flattenCustomSelectOptions(items: CustomSelectItem[])` | [CustomSelect.tsx](../../src/react/components/CustomSelect.tsx) |
 | `folderPathsFromDataTransfer(dataTransfer: DataTransfer, port: FolderPathDropPort)` | [rules.ts](../../src/features/folder-path-drop/rules.ts) |
 | `formatAbsoluteTime({ at, now }: { at: number; now: number }, _optional: Record<string, never> = {})` | [formatters.ts](../../src/features/memory/formatters.ts) |
-| `formatAddressDisplay(url: string, title?: string, homeLabel: string = DEFAULT_HOME_NAVIGATION_ENTRY.title,)` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
-| `formatAddressDisplayParts(url: string, title?: string, homeLabel: string = DEFAULT_HOME_NAVIGATION_ENTRY.title,)` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
+| `formatAddressDisplay({ url }: { url: string }, { title, homeLabel = DEFAULT_HOME_NAVIGATION_ENTRY.title }: { title?: string \| undefined; homeLabel?: string \| undefined } = {})` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
+| `formatAddressDisplayParts({ url }: { url: string }, { title, homeLabel = DEFAULT_HOME_NAVIGATION_ENTRY.title }: { title?: string \| undefined; homeLabel?: string \| undefined } = {})` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
 | `formatConnectorContextBytes({ bytes }: { bytes: number }, _optional: Record<string, never> = {})` | [formatters.ts](../../src/features/memory/formatters.ts) |
 | `formatDroppedFolderPaths(paths: readonly string[])` | [rules.ts](../../src/features/folder-path-drop/rules.ts) |
 | `formatDuration(record: MemoryExtractionRecord)` | [formatters.ts](../../src/features/memory/formatters.ts) |
@@ -731,7 +737,7 @@ These names are also reachable through the current export map. Parameter declara
 | `formatRelativeTime({ at, now }: { at: number; now: number }, _optional: Record<string, never> = {})` | [formatters.ts](../../src/features/memory/formatters.ts) |
 | `formatRelativeTimeAgo({ at, now }: { at: number; now: number }, _optional: Record<string, never> = {})` | [formatters.ts](../../src/features/memory/formatters.ts) |
 | `formatRevisionTimestamp(value: string)` | [rules.ts](../../src/features/revision-review/rules.ts) |
-| `formatSkillFileSize(bytes: number)` | [rules.ts](../../src/features/skills/rules.ts) |
+| `formatSkillFileSize({ bytes }: { bytes: number }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/skills/rules.ts) |
 | `formatTime12h(time: string)` | [rules.ts](../../src/features/schedule-picker/rules.ts) |
 | `formatToolsBadge({ count }: { count: number }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/connectors/rules.ts) |
 | `formatVersionDateTime(value: number \| undefined, locale: string)` | [rules.ts](../../src/features/version-manager/rules.ts) |
@@ -741,13 +747,13 @@ These names are also reachable through the current export map. Parameter declara
 | `getDisplayableConnectorAccountLabel(connector: Connector)` | [rules.ts](../../src/features/connectors/rules.ts) |
 | `getDocumentBody()` | [dom-subscriptions.ts](../../src/utils/dom-subscriptions.ts) |
 | `getViewportSize()` | [dom-subscriptions.ts](../../src/utils/dom-subscriptions.ts) |
-| `groupByDay(items: readonly TAsset[], getDayKey: (asset: TAsset) => string,)` | [rules.ts](../../src/features/asset-grid/rules.ts) |
+| `groupByDay({ items, getDayKey }: { items: readonly TAsset[]; getDayKey: (asset: TAsset) => string }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/asset-grid/rules.ts) |
 | `groupFilesByKind(files: readonly TFile[], sectionOrder: readonly string[], getKind: (file: TFile) => string, getModifiedAt: (file: TFile) => number,)` | [rules.ts](../../src/features/asset-tree-browser/rules.ts) |
 | `groupItemsByCategory(items: T[], categories: MentionCategory[], activeFilter: MentionCategoryFilter = ALL_CATEGORY_FILTER, maxItemsPerCategory: number = DEFAULT_MAX_RESULTS_PER_CATEGORY,)` | [rules.ts](../../src/features/mention-autocomplete/rules.ts) |
 | `groupItemsByStatus(items: readonly TItem[], statusOrder: readonly string[], options?: { defaultStatus?: string; normalizeStatus?: (status: string) => string; },)` | [rules.ts](../../src/features/resource-dashboard/rules.ts) |
 | `groupPresets({ presets }: { presets: readonly ProviderPreset[] }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/execution/rules.ts) |
 | `handleSketchPortalCommandEnter({ event, insertLabelPattern }: { event: KeyboardEvent; insertLabelPattern: RegExp }, _optional: Record<string, never> = {})` | [dom.ts](../../src/features/sketch-editor/dom.ts) |
-| `hasAnyCategory(skills: readonly SkillSummary[])` | [rules.ts](../../src/features/skills/rules.ts) |
+| `hasAnyCategory({ skills }: { skills: readonly SkillSummary[] }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/skills/rules.ts) |
 | `hasAnyConfiguredProvider(providers: MediaProviderMap \| null \| undefined)` | [rules.ts](../../src/features/media-providers/rules.ts) |
 | `hasAnyResults(groups: MentionResultGroup<T>[])` | [rules.ts](../../src/features/mention-autocomplete/rules.ts) |
 | `hasConnectorStatusChanges({ current, statuses }: { current: Connector[]; statuses: ConnectorStatusMap }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/connectors/rules.ts) |
@@ -762,15 +768,15 @@ These names are also reachable through the current export map. Parameter declara
 | `headerMenuItemIcon(item: HeaderMenuAction)` | [HeaderActionsMenu.tsx](../../src/react/components/HeaderActionsMenu.tsx) |
 | `headerMenuItemRole(active: boolean \| undefined)` | [HeaderActionsMenu.tsx](../../src/react/components/HeaderActionsMenu.tsx) |
 | `hexToRgb({ hex }: { hex: string })` | [color-math.ts](../../src/utils/color-math.ts) |
-| `historyStorageKey(namespace: string, scopeKey: string)` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
+| `historyStorageKey({ namespace, scopeKey }: { namespace: string; scopeKey: string }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
 | `homeConfigPath(platform: McpInstallPlatform, posix: string, windows: string)` | [rules.ts](../../src/features/integrations/rules.ts) |
-| `hostnameFromUrl(url: string)` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
+| `hostnameFromUrl({ url }: { url: string }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
 | `htmlNeedsFocusGuard({ source }: { source: string }, _optional: Record<string, never> = {})` | [url-load-decision.ts](../../src/renderers/url-load-decision.ts) |
 | `htmlNeedsSandboxShim({ source }: { source: string }, _optional: Record<string, never> = {})` | [url-load-decision.ts](../../src/renderers/url-load-decision.ts) |
 | `humanBytes(n: number)` | [rules.ts](../../src/features/asset-tree-browser/rules.ts) |
 | `humanFileSize(bytes: number)` | [rules.ts](../../src/features/viewer-shell/rules.ts) |
 | `humanizeSkillCategory(slug: string)` | [rules.ts](../../src/features/skills/rules.ts) |
-| `initialNavigationState(initialUrl?: string, initialTitle?: string, homeEntry: BrowserNavigationEntry = DEFAULT_HOME_NAVIGATION_ENTRY,)` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
+| `initialNavigationState(_input: Record<string, never>, { initialUrl, initialTitle, homeEntry = DEFAULT_HOME_NAVIGATION_ENTRY }: { initialUrl?: string \| undefined; initialTitle?: string \| undefined; homeEntry?: BrowserNavigationEntry \| undefined } = {})` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
 | `injectAfterHeadOpen({ doc, payload }: { doc: string; payload: string }, _optional: Record<string, never> = {})` | [build.ts](../../src/renderers/srcdoc/build.ts) |
 | `injectAfterHeadOpenStringOnly(doc: string, payload: string)` | [html-utils.ts](../../src/renderers/html-utils.ts) |
 | `injectBaseHref({ doc, baseHref }: { doc: string; baseHref: string }, _optional: Record<string, never> = {})` | [sandboxed-document.ts](../../src/renderers/sandboxed-document.ts) |
@@ -787,7 +793,7 @@ These names are also reachable through the current export map. Parameter declara
 | `installWhiteScreenDetector(options: WhiteScreenDetectorOptions = {})` | [white-screen.ts](../../src/features/observability/white-screen.ts) |
 | `invalidBaseUrlProviderIds(providers: MediaProviderMap \| null \| undefined)` | [rules.ts](../../src/features/media-providers/rules.ts) |
 | `isAboutUpdateActionDisabled(control: AboutUpdateControl, model: UpdaterModel, actionBusy = false,)` | [rules.ts](../../src/features/about/rules.ts) |
-| `isActionPending(pendingKeys: ReadonlySet<string>, id: string, kind: SourceActionKind,)` | [rules.ts](../../src/features/source-config-list/rules.ts) |
+| `isActionPending({ pendingKeys, id, kind }: { pendingKeys: ReadonlySet<string>; id: string; kind: SourceActionKind }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/source-config-list/rules.ts) |
 | `isBaseUrlInvalid(config: ByokConfig)` | [rules.ts](../../src/features/execution/rules.ts) |
 | `isBuiltInSkill(skill: SkillSummary)` | [rules.ts](../../src/features/skills/rules.ts) |
 | `isCategoryVisible(activeFilter: MentionCategoryFilter, categoryId: string)` | [rules.ts](../../src/features/mention-autocomplete/rules.ts) |
@@ -804,7 +810,7 @@ These names are also reachable through the current export map. Parameter declara
 | `isFullHtmlDocument({ html }: { html: string }, _optional: Record<string, never> = {})` | [sandboxed-document.ts](../../src/renderers/sandboxed-document.ts) |
 | `isHeaderMenuDismissKey(key: string)` | [HeaderActionsMenu.tsx](../../src/react/components/HeaderActionsMenu.tsx) |
 | `isHistoryEntry(value: unknown)` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
-| `isHistoryUrl(url: string)` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
+| `isHistoryUrl({ url }: { url: string }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
 | `isImeComposing({ _event, composing }: { _event: ReactKeyboardEvent<HTMLInputElement \| HTMLTextAreaElement>; composing: boolean }, _optional: Record<string, never> = {})` | [ime-composing.ts](../../src/utils/ime-composing.ts) |
 | `isJsonRpcMessage(required: { value: unknown }, _optional: Record<string, never> = {})` | [mcp-ui-apps.ts](../../../agentic/src/core/mcp-ui-apps.ts) |
 | `isJsonRpcRequest(required: { message: JsonRpcMessage }, _optional: Record<string, never> = {})` | [mcp-ui-apps.ts](../../../agentic/src/core/mcp-ui-apps.ts) |
@@ -820,29 +826,29 @@ These names are also reachable through the current export map. Parameter declara
 | `isProviderConfigured({ config, preset }: { config: ByokConfig; preset: ProviderPreset \| null }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/execution/rules.ts) |
 | `isRestoreDisabled(input: RestoreDisabledInput<TVersion>,)` | [rules.ts](../../src/features/version-manager/rules.ts) |
 | `isSharingEnabled(telemetry: TelemetryPreferences)` | [rules.ts](../../src/features/privacy/rules.ts) |
-| `isTodoWriteToolName(name: string)` | [reference-adapters.ts](../../src/features/progress-card/reference-adapters.ts) |
+| `isTodoWriteToolName({ name }: { name: string }, _optional: Record<string, never> = {})` | [reference-adapters.ts](../../src/features/progress-card/reference-adapters.ts) |
 | `isTooltipTarget(el: Element \| null)` | [TooltipLayer.tsx](../../src/react/components/TooltipLayer.tsx) |
 | `isTrustedConnectorCallbackOrigin({ origin, currentOrigin }: { origin: string; currentOrigin: string }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/connectors/rules.ts) |
-| `isTypingTarget(el: Element \| null)` | [rules.ts](../../src/features/asset-grid/rules.ts) |
+| `isTypingTarget({ el }: { el: Element \| null }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/asset-grid/rules.ts) |
 | `isValidApiBaseUrl({ raw }: { raw: string }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/execution/rules.ts) |
 | `isVisualStabilityMode(_required: Record<string, never>, { storageKey = DEFAULT_VISUAL_STABILITY_STORAGE_KEY }: { storageKey?: string \| undefined } = {})` | [visual-stability.ts](../../src/utils/visual-stability.ts) |
-| `issueForField(validation: SourceDraftValidation, fieldKey: string,)` | [rules.ts](../../src/features/source-config-list/rules.ts) |
-| `labelFromUrl(url: string, homeLabel: string = DEFAULT_HOME_NAVIGATION_ENTRY.title)` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
+| `issueForField({ validation, fieldKey }: { validation: SourceDraftValidation; fieldKey: string }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/source-config-list/rules.ts) |
+| `labelFromUrl({ url }: { url: string }, { homeLabel = DEFAULT_HOME_NAVIGATION_ENTRY.title }: { homeLabel?: string \| undefined } = {})` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
 | `languageMenuItemClassName(active: boolean)` | [LanguageMenu.tsx](../../src/react/components/LanguageMenu.tsx) |
 | `languageMenuPillClassName(compact: boolean)` | [LanguageMenu.tsx](../../src/react/components/LanguageMenu.tsx) |
 | `languageMenuPopoverClassName(placement: 'up' \| 'down', compact: boolean, align: 'start' \| 'end',)` | [LanguageMenu.tsx](../../src/react/components/LanguageMenu.tsx) |
 | `lassoSelectionHitsRect(input: LassoHitTestInput)` | [polygon-selection.ts](../../src/utils/polygon-selection.ts) |
-| `latestStatusDetailFromAgentEvents(events: AgentEventLike[])` | [reference-adapters.ts](../../src/features/progress-card/reference-adapters.ts) |
-| `latestTodosFromAgentEvents(events: AgentEventLike[] \| undefined)` | [reference-adapters.ts](../../src/features/progress-card/reference-adapters.ts) |
+| `latestStatusDetailFromAgentEvents({ events }: { events: AgentEventLike[] }, _optional: Record<string, never> = {})` | [reference-adapters.ts](../../src/features/progress-card/reference-adapters.ts) |
+| `latestTodosFromAgentEvents({ events }: { events: AgentEventLike[] \| undefined }, _optional: Record<string, never> = {})` | [reference-adapters.ts](../../src/features/progress-card/reference-adapters.ts) |
 | `lineIntersectsLine({ a1, a2, b1, b2 }: { a1: Point; a2: Point; b1: Point; b2: Point }, _optional: Record<string, never> = {})` | [polygon-selection.ts](../../src/utils/polygon-selection.ts) |
 | `listSupportedTimezones()` | [timezone.ts](../../src/utils/timezone.ts) |
-| `localDayKey(date: Date)` | [rules.ts](../../src/features/asset-grid/rules.ts) |
-| `localizedSkillDescription(skill: SkillSummary, locale: string)` | [rules.ts](../../src/features/skills/rules.ts) |
-| `localizedSkillName(skill: SkillSummary, locale: string)` | [rules.ts](../../src/features/skills/rules.ts) |
+| `localDayKey({ date }: { date: Date }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/asset-grid/rules.ts) |
+| `localizedSkillDescription({ skill, locale }: { skill: SkillSummary; locale: string }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/skills/rules.ts) |
+| `localizedSkillName({ skill, locale }: { skill: SkillSummary; locale: string }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/skills/rules.ts) |
 | `locationLabel(locationPath: string)` | [rules.ts](../../src/features/project-locations/rules.ts) |
 | `luminance({ hex }: { hex: string })` | [color-math.ts](../../src/utils/color-math.ts) |
 | `mapScrollPosition({ value, source, target }: { value: number; source: number[]; target: number[] }, _optional: Record<string, never> = {})` | [markdown-scroll-sync.ts](../../src/utils/markdown-scroll-sync.ts) |
-| `maskFieldValue(kind: SourceFieldSpec['kind'], value: string)` | [rules.ts](../../src/features/source-config-list/rules.ts) |
+| `maskFieldValue({ kind, value }: { kind: SourceFieldSpec['kind']; value: string }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/source-config-list/rules.ts) |
 | `maskedKeyLabel(entry: MediaProviderCredentials \| null \| undefined)` | [rules.ts](../../src/features/media-providers/rules.ts) |
 | `measureEditorBlockOffsets({ textarea, blockLines, text }: { textarea: HTMLTextAreaElement; blockLines: number[]; text: string }, _optional: Record<string, never> = {})` | [markdown-scroll-sync.ts](../../src/utils/markdown-scroll-sync.ts) |
 | `measurePreviewBlockOffsets({ pane, blockCount }: { pane: HTMLElement; blockCount: number }, { previewSelector = '.markdown-rendered' }: { previewSelector?: string \| undefined } = {})` | [markdown-scroll-sync.ts](../../src/utils/markdown-scroll-sync.ts) |
@@ -857,8 +863,8 @@ These names are also reachable through the current export map. Parameter declara
 | `mergeConnectorToolPreview({ current, next, append }: { current: Connector; next: Connector; append: boolean }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/connectors/rules.ts) |
 | `mergeConnectors({ current, incoming }: { current: Connector[]; incoming: Connector[] }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/connectors/rules.ts) |
 | `mergeDaemonProviders(localProviders: MediaProviderMap \| null \| undefined, daemonProviders: MediaProviderMap \| null \| undefined, options?: { preserveLocalProviderIds?: ReadonlySet<string>; dropProviderIds?: ReadonlySet<string> },)` | [rules.ts](../../src/features/media-providers/rules.ts) |
-| `mergeHistoryEntry(history: BrowserHistoryEntry[], url: string, meta: MergeHistoryEntryMeta = {}, options: MergeHistoryEntryOptions = {}, now: number = Date.now(),)` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
-| `mergeIngestedAssets(prev: TAsset[], fetched: readonly TAsset[],)` | [rules.ts](../../src/features/asset-grid/rules.ts) |
+| `mergeHistoryEntry({ history, url }: { history: BrowserHistoryEntry[]; url: string }, { meta = {}, options = {}, now = Date.now() }: { meta?: MergeHistoryEntryMeta \| undefined; options?: MergeHistoryEntryOptions \| undefined; now?: number \| undefined } = {})` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
+| `mergeIngestedAssets({ prev, fetched }: { prev: TAsset[]; fetched: readonly TAsset[] }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/asset-grid/rules.ts) |
 | `mergeRects({ rects }: { rects: ReadonlyArray<Rect> }, _optional: Record<string, never> = {})` | [rules.ts](../../src/renderers/annotation-canvas/rules.ts) |
 | `methodLabelForClient(clientId: McpClientId)` | [rules.ts](../../src/features/integrations/rules.ts) |
 | `missingRequiredFields({ config, preset }: { config: ByokConfig; preset: ProviderPreset \| null }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/execution/rules.ts) |
@@ -880,7 +886,7 @@ These names are also reachable through the current export map. Parameter declara
 | `nextStateForDeleteMyData(state: PrivacyConsentState, now: number, newInstallationId: () => string = generateInstallationId,)` | [rules.ts](../../src/features/privacy/rules.ts) |
 | `nextStateForShareAll(state: PrivacyConsentState, now: number, newInstallationId: () => string = generateInstallationId,)` | [rules.ts](../../src/features/privacy/rules.ts) |
 | `nextStateForTelemetryPatch(state: PrivacyConsentState, patch: Partial<TelemetryPreferences>, now: number, newInstallationId: () => string = generateInstallationId,)` | [rules.ts](../../src/features/privacy/rules.ts) |
-| `normalizeBrowserAddress(rawAddress: string, options: NormalizeBrowserAddressOptions = {})` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
+| `normalizeBrowserAddress({ rawAddress }: { rawAddress: string }, options: NormalizeBrowserAddressOptions = {})` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
 | `normalizeDesignMdModuleDraft({ module, draft }: { module: DesignMdModule; draft: string }, _optional: Record<string, never> = {})` | [design-md.ts](../../src/utils/design-md.ts) |
 | `normalizeHex({ value }: { value: string \| undefined })` | [color-math.ts](../../src/utils/color-math.ts) |
 | `normalizePastedFile(file: File)` | [file-transfer.ts](../../src/utils/file-transfer.ts) |
@@ -895,16 +901,16 @@ These names are also reachable through the current export map. Parameter declara
 | `parseConnectorAuthorizationPendingState({ raw }: { raw: string }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/connectors/rules.ts) |
 | `parseDeckStateMessage(data: unknown)` | [rules.ts](../../src/features/html-viewer/rules.ts) |
 | `parseForceInline({ search }: { search: string \| URLSearchParams \| null \| undefined }, _optional: Record<string, never> = {})` | [url-load-decision.ts](../../src/renderers/url-load-decision.ts) |
-| `parseHistoryPayload(raw: string, limit: number = HISTORY_LIMIT)` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
-| `parseLiveUpdateAssetId(data: unknown, idField = 'id')` | [rules.ts](../../src/features/asset-grid/rules.ts) |
+| `parseHistoryPayload({ raw }: { raw: string }, { limit = HISTORY_LIMIT }: { limit?: number \| undefined } = {})` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
+| `parseLiveUpdateAssetId({ data }: { data: unknown }, { idField = 'id' }: { idField?: string \| undefined } = {})` | [rules.ts](../../src/features/asset-grid/rules.ts) |
 | `parseMaxTokens({ raw }: { raw: string }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/execution/rules.ts) |
 | `parseProviderError({ raw }: { raw: string }, _optional: Record<string, never> = {})` | [formatters.ts](../../src/features/memory/formatters.ts) |
 | `parseRecentIds(raw: string)` | [rules.ts](../../src/features/command-palette/rules.ts) |
 | `parseSseFrame({ frame }: { frame: string })` | [sse.ts](../../src/utils/sse.ts) |
-| `parseTodoWriteInput(input: unknown)` | [reference-adapters.ts](../../src/features/progress-card/reference-adapters.ts) |
-| `parseTriggers(raw: string)` | [rules.ts](../../src/features/skills/rules.ts) |
+| `parseTodoWriteInput({ input }: { input: unknown }, _optional: Record<string, never> = {})` | [reference-adapters.ts](../../src/features/progress-card/reference-adapters.ts) |
+| `parseTriggers({ raw }: { raw: string }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/skills/rules.ts) |
 | `pathIntersectsRect(points: readonly Point[], rect: Rect)` | [polygon-selection.ts](../../src/utils/polygon-selection.ts) |
-| `pendingActionKey(id: string, kind: SourceActionKind)` | [rules.ts](../../src/features/source-config-list/rules.ts) |
+| `pendingActionKey({ id, kind }: { id: string; kind: SourceActionKind }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/source-config-list/rules.ts) |
 | `playSound({ id }: { id: SoundId }, _optional: Record<string, never> = {})` | [notifications.ts](../../src/utils/notifications.ts) |
 | `pointInPolygon(point: Point, polygon: readonly Point[])` | [polygon-selection.ts](../../src/utils/polygon-selection.ts) |
 | `positionTooltip(target: HTMLElement, tooltip: HTMLElement, placement: TooltipPlacement,)` | [TooltipLayer.tsx](../../src/react/components/TooltipLayer.tsx) |
@@ -915,18 +921,18 @@ These names are also reachable through the current export map. Parameter declara
 | `previewScaleShellStyle(preset: ViewportPreset, previewScale: number,)` | [rules.ts](../../src/features/version-manager/rules.ts) |
 | `previewSuccess({ id }: { id: SoundId }, _optional: Record<string, never> = {})` | [notifications.ts](../../src/utils/notifications.ts) |
 | `previewViewportStyle(preset: ViewportPreset, effectiveScale: number, previewScale: number,)` | [rules.ts](../../src/features/version-manager/rules.ts) |
-| `progressBarAriaValueNow(progress: number \| 'indeterminate')` | [rules.ts](../../src/features/progress-card/rules.ts) |
-| `progressBarWidthPercent(progress: number \| 'indeterminate')` | [rules.ts](../../src/features/progress-card/rules.ts) |
-| `progressCardItemIcon(status: ProgressStatus)` | [rules.ts](../../src/features/progress-card/rules.ts) |
-| `progressCardStatusIcon(status: ProgressStatus)` | [rules.ts](../../src/features/progress-card/rules.ts) |
+| `progressBarAriaValueNow({ progress }: { progress: number \| 'indeterminate' }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/progress-card/rules.ts) |
+| `progressBarWidthPercent({ progress }: { progress: number \| 'indeterminate' }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/progress-card/rules.ts) |
+| `progressCardItemIcon({ status }: { status: ProgressStatus }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/progress-card/rules.ts) |
+| `progressCardStatusIcon({ status }: { status: ProgressStatus }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/progress-card/rules.ts) |
 | `progressCardStatusLabel(status: ProgressStatus)` | [rules.ts](../../src/features/progress-card/rules.ts) |
 | `providerDisplayName({ provider }: { provider: MemoryExtractionRecord['provider'] \| undefined }, _optional: Record<string, never> = {})` | [formatters.ts](../../src/features/memory/formatters.ts) |
 | `pruneConnectorAuthorizationPending({ pending, nowMs }: { pending: ConnectorAuthorizationPendingState; nowMs: number }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/connectors/rules.ts) |
 | `pruneMissingPaths(prev: Set<string>, livePaths: Iterable<string>)` | [rules.ts](../../src/features/asset-tree-browser/rules.ts) |
-| `pruneMissingSelection(prev: Set<string>, items: readonly TAsset[],)` | [rules.ts](../../src/features/asset-grid/rules.ts) |
+| `pruneMissingSelection({ prev, items }: { prev: Set<string>; items: readonly TAsset[] }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/asset-grid/rules.ts) |
 | `pruneSelectedIds(selected: ReadonlySet<string>, validIds: ReadonlySet<string>)` | [rules.ts](../../src/features/resource-dashboard/rules.ts) |
 | `pushRecentId(previous: readonly string[], id: string, limit: number)` | [rules.ts](../../src/features/command-palette/rules.ts) |
-| `rangeSelection(prev: ReadonlySet<string>, items: readonly TAsset[], anchorIndex: number, targetIndex: number,)` | [rules.ts](../../src/features/asset-grid/rules.ts) |
+| `rangeSelection({ prev, items, anchorIndex, targetIndex }: { prev: ReadonlySet<string>; items: readonly TAsset[]; anchorIndex: number; targetIndex: number }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/asset-grid/rules.ts) |
 | `rankItems(items: readonly CommandPaletteItem[], query: string, recentIds: readonly string[],)` | [rules.ts](../../src/features/command-palette/rules.ts) |
 | `readDefaultSketchToolColor()` | [dom.ts](../../src/features/sketch-editor/dom.ts) |
 | `readExcalidrawTheme()` | [dom.ts](../../src/features/sketch-editor/dom.ts) |
@@ -938,14 +944,14 @@ These names are also reachable through the current export map. Parameter declara
 | `reasoningModelGroupFor({ groups, modelId, levelIds }: { groups: readonly ReasoningModelGroup[]; modelId: string; levelIds: readonly string[] }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/execution/rules.ts) |
 | `reasoningModelGroups({ models, levels }: { models: readonly AgentModelOption[]; levels: readonly AgentModelOption[] }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/execution/rules.ts) |
 | `reconcileCustomSelectActiveValue(input: CustomSelectActiveReconcileInput,)` | [CustomSelect.tsx](../../src/react/components/CustomSelect.tsx) |
-| `recordNavigation(state: BrowserNavigationState, url: string, title?: string, options: RecordNavigationOptions = {},)` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
+| `recordNavigation({ state, url }: { state: BrowserNavigationState; url: string }, { title, options = {} }: { title?: string \| undefined; options?: RecordNavigationOptions \| undefined } = {})` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
 | `rectContains(outer: Rect, inner: Rect)` | [polygon-selection.ts](../../src/utils/polygon-selection.ts) |
 | `rectsOverlap(a: Rect, b: Rect)` | [rules.ts](../../src/renderers/annotation-canvas/rules.ts) |
 | `redrawStrokesAndBoxes({ ctx, strokes, drawingStroke, selectionBoxes, boxDraft, width, height, dpr }: { ctx: CanvasRenderingContext2D; strokes: readonly Stroke[]; drawingStroke: Stroke \| null; selectionBoxes: readonly NormalizedRect[]; boxDraft: NormalizedRect \| null; width: number; height: number; dpr: number }, _optional: Record<string, never> = {})` | [drawing.ts](../../src/renderers/annotation-canvas/drawing.ts) |
 | `relativeCommentTimeTranslation(timestampMs: number, nowMs: number = Date.now(),)` | [rules.ts](../../src/features/viewer-shell/rules.ts) |
 | `relativeTimeResult(ts: number, nowMs: number = Date.now())` | [rules.ts](../../src/features/asset-tree-browser/rules.ts) |
 | `removeSketchMermaidShortcutHints({ content, insertLabelPattern }: { content: HTMLElement; insertLabelPattern: RegExp }, _optional: Record<string, never> = {})` | [dom.ts](../../src/features/sketch-editor/dom.ts) |
-| `removeSourceById(list: readonly TSource[], id: string,)` | [rules.ts](../../src/features/source-config-list/rules.ts) |
+| `removeSourceById({ list, id }: { list: readonly TSource[]; id: string }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/source-config-list/rules.ts) |
 | `renderMarkdownToSafeHtml(markdown: string)` | [markdown.ts](../../src/renderers/renderers/markdown.ts) |
 | `reorderCommentIds(ids: string[], draggingId: string, targetId: string, edge: CommentSideDropEdge,)` | [rules.ts](../../src/features/viewer-shell/rules.ts) |
 | `replaceDesignMdModule({ body, module, draft }: { body: string; module: DesignMdModule; draft: string }, _optional: Record<string, never> = {})` | [design-md.ts](../../src/utils/design-md.ts) |
@@ -955,14 +961,14 @@ These names are also reachable through the current export map. Parameter declara
 | `resolveDefaultLocationId(configuredId: string \| null \| undefined, locations: readonly ProjectLocation[],)` | [rules.ts](../../src/features/project-locations/rules.ts) |
 | `resolveDefaultSketchToolColor({ theme, prefersDark }: { theme: string \| null; prefersDark: boolean }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/sketch-editor/rules.ts) |
 | `resolveExportLabels(labels?: ExportLabels)` | [ExportDiagnosticsButton.tsx](../../src/react/components/ExportDiagnosticsButton.tsx) |
-| `resolveFacetLabel(value: string, labelsByValue: ReadonlyMap<string, string>)` | [rules.ts](../../src/features/asset-grid/rules.ts) |
+| `resolveFacetLabel({ value, labelsByValue }: { value: string; labelsByValue: ReadonlyMap<string, string> }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/asset-grid/rules.ts) |
 | `resolveGlobalKeydownTarget({ target }: { target: 'window' \| 'document' }, { globals = globalThis }: { globals?: { window?: EventTarget; document?: EventTarget } } = {},)` | [useGlobalKeydown.ts](../../src/browser/useGlobalKeydown.ts) |
 | `resolveInitialCustomSelectActiveValue(flatOptions: CustomSelectFlatOption[], enabledOptions: CustomSelectFlatOption[], value: string,)` | [CustomSelect.tsx](../../src/react/components/CustomSelect.tsx) |
 | `resolveInitialViewId({ views, initialViewId }: { views: readonly V[]; initialViewId: string \| undefined }, _optional: Record<string, never> = {})` | [rules.ts](../../src/renderers/preview-modal-shell/rules.ts) |
 | `resolveKindConfig(kind: string, kindConfig: AssetTreeKindConfigMap)` | [rules.ts](../../src/features/asset-tree-browser/rules.ts) |
 | `resolveListDetailSelection(items: readonly TItem[], currentId: string \| null,)` | [rules.ts](../../src/features/list-detail-panel/rules.ts) |
 | `resolveLogoSrc(opts: { stage: LogoStage; brandId?: string \| undefined; resolveBrandLogoUrl?: ((brandId: string) => string) \| undefined; logoSrc?: string \| null \| undefined; host?: string \| undefined; faviconSize: number; resolveFaviconUrl: (host: string, size: number) => string; })` | [BrandLogo.tsx](../../src/react/components/BrandLogo.tsx) |
-| `resolveNavigationHistoryDelta(state: BrowserNavigationState, delta: -1 \| 1,)` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
+| `resolveNavigationHistoryDelta({ state, delta }: { state: BrowserNavigationState; delta: -1 \| 1 }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
 | `resolveOnboardingMenuMetrics(rect: { top: number; bottom: number }, viewportHeight: number, requestedPlacement: OnboardingDropdownPlacement,)` | [OnboardingDropdown.tsx](../../src/react/components/OnboardingDropdown.tsx) |
 | `resolveOnboardingSelectedValues(value: string \| string[])` | [OnboardingDropdown.tsx](../../src/react/components/OnboardingDropdown.tsx) |
 | `resolveOnboardingTriggerLabel(selectedOptions: OnboardingDropdownOption[], multiple: boolean, placeholder: string,)` | [OnboardingDropdown.tsx](../../src/react/components/OnboardingDropdown.tsx) |
@@ -980,7 +986,7 @@ These names are also reachable through the current export map. Parameter declara
 | `restoredFromVersion(version: TVersion \| null \| undefined, versionById: ReadonlyMap<string, TVersion>,)` | [rules.ts](../../src/features/version-manager/rules.ts) |
 | `rewriteExcalidrawUnableToEmbedToasts({ root, replacement }: { root: HTMLElement; replacement: string }, { additionalPhrases = [] }: { additionalPhrases?: readonly string[] \| undefined } = {})` | [dom.ts](../../src/features/sketch-editor/dom.ts) |
 | `sameStyle(left: TooltipState['style'], right: TooltipState['style'],)` | [TooltipLayer.tsx](../../src/react/components/TooltipLayer.tsx) |
-| `sameUrl(left: string, right: string)` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
+| `sameUrl({ left, right }: { left: string; right: string }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
 | `sanitizeExcalidrawAppState({ value }: { value: Record<string, unknown> \| null }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/sketch-editor/rules.ts) |
 | `saveWidth(storageKey: string, width: number, min: number, max: number)` | [useResizableSplitPane.ts](../../src/react/hooks/useResizableSplitPane.ts) |
 | `saveableDrafts(drafts: readonly ProjectLocationDraft[])` | [rules.ts](../../src/features/project-locations/rules.ts) |
@@ -995,13 +1001,13 @@ These names are also reachable through the current export map. Parameter declara
 | `scrollRatio(element: { scrollHeight: number; clientHeight: number; scrollTop: number })` | [rules.ts](../../src/features/viewer-shell/rules.ts) |
 | `scrollTabsWithWheel({ tabBar, event }: { tabBar: Pick<HTMLDivElement, 'clientWidth' \| 'scrollLeft' \| 'scrollWidth'>; event: Pick<globalThis.WheelEvent, 'ctrlKey' \| 'deltaMode' \| 'deltaX' \| 'deltaY' \| 'preventDefault'>; },)` | [scroll-tabs-with-wheel.ts](../../src/utils/scroll-tabs-with-wheel.ts) |
 | `scrollTopForRatio(element: { scrollHeight: number; clientHeight: number }, ratio: number,)` | [rules.ts](../../src/features/viewer-shell/rules.ts) |
-| `selectAllIds(items: readonly TAsset[])` | [rules.ts](../../src/features/asset-grid/rules.ts) |
+| `selectAllIds({ items }: { items: readonly TAsset[] }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/asset-grid/rules.ts) |
 | `selectAutoOpenProducedArtifact({ producedFiles }: { producedFiles: ReadonlyArray<CandidateFile> }, options: SelectAutoOpenOptions = {})` | [auto-open-file.ts](../../src/utils/auto-open-file.ts) |
 | `selectLruEvictions(entries: readonly IframeKeepAlivePoolEntry<TKey>[], activeKeys: ReadonlySet<TKey>, maxMounted: number,)` | [rules.ts](../../src/features/iframe-pool/rules.ts) |
 | `selectMatchingEvictions(entries: readonly IframeKeepAlivePoolEntry<TKey>[], activeKeys: ReadonlySet<TKey>, predicate: (entry: IframeKeepAlivePoolEntry<TKey>) => boolean, includeActive: boolean,)` | [rules.ts](../../src/features/iframe-pool/rules.ts) |
 | `selectedAgentModel({ config, agent }: { config: LocalCliConfig; agent: DetectedAgent }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/execution/rules.ts) |
 | `selectedAgentReasoning({ config, agent }: { config: LocalCliConfig; agent: DetectedAgent }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/execution/rules.ts) |
-| `serializeHistoryPayload(history: BrowserHistoryEntry[], limit: number = HISTORY_LIMIT)` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
+| `serializeHistoryPayload({ history }: { history: BrowserHistoryEntry[] }, { limit = HISTORY_LIMIT }: { limit?: number \| undefined } = {})` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
 | `setTooltipAttribute({ target, name, value }: { target: HTMLElement; name: string; value: string }, _optional: Record<string, never> = {})` | [dom.ts](../../src/features/sketch-editor/dom.ts) |
 | `settingsShortcut(platform: McpInstallPlatform)` | [rules.ts](../../src/features/integrations/rules.ts) |
 | `shouldIgnoreClipboardFilePaste({ target }: { target: EventTarget \| null }, _optional: Record<string, never> = {})` | [file-transfer.ts](../../src/utils/file-transfer.ts) |
@@ -1015,14 +1021,14 @@ These names are also reachable through the current export map. Parameter declara
 | `showsWeekdayGrid(kind: ScheduleKind)` | [rules.ts](../../src/features/schedule-picker/rules.ts) |
 | `singleFlagPatch({ flag, value }: { flag: MemoryConfigFlagKey; value: boolean }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/memory/rules.ts) |
 | `sketchSceneHasContent({ scene }: { scene: SketchScene \| null \| undefined }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/sketch-editor/rules.ts) |
-| `skillFileLeafName(path: string)` | [rules.ts](../../src/features/skills/rules.ts) |
-| `skillFileTreeIndent(path: string)` | [rules.ts](../../src/features/skills/rules.ts) |
-| `skillFilterOptions(skills: readonly SkillSummary[], filters: SkillFilters, locale: string, dimension: SkillFilterDimension,)` | [rules.ts](../../src/features/skills/rules.ts) |
-| `skillMatchesFilters(skill: SkillSummary, filters: SkillFilters, locale: string, except?: SkillFilterDimension,)` | [rules.ts](../../src/features/skills/rules.ts) |
-| `skillMatchesSearch(skill: SkillSummary, query: string, locale: string)` | [rules.ts](../../src/features/skills/rules.ts) |
+| `skillFileLeafName({ path }: { path: string }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/skills/rules.ts) |
+| `skillFileTreeIndent({ path }: { path: string }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/skills/rules.ts) |
+| `skillFilterOptions({ skills, filters, locale, dimension }: { skills: readonly SkillSummary[]; filters: SkillFilters; locale: string; dimension: SkillFilterDimension }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/skills/rules.ts) |
+| `skillMatchesFilters({ skill, filters, locale }: { skill: SkillSummary; filters: SkillFilters; locale: string }, { except }: { except?: SkillFilterDimension \| undefined } = {})` | [rules.ts](../../src/features/skills/rules.ts) |
+| `skillMatchesSearch({ skill, query, locale }: { skill: SkillSummary; query: string; locale: string }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/skills/rules.ts) |
 | `slideCounterLabel(state: DeckSlideState \| null)` | [rules.ts](../../src/features/html-viewer/rules.ts) |
 | `smoothScrollToTop(container: HTMLElement)` | [smooth-scroll-to-top.ts](../../src/utils/smooth-scroll-to-top.ts) |
-| `snapshotCardRects(container: HTMLElement \| null)` | [rules.ts](../../src/features/asset-grid/rules.ts) |
+| `snapshotCardRects({ container }: { container: HTMLElement \| null }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/asset-grid/rules.ts) |
 | `snippetForClient(clientId: McpClientId, serverName: string, info: McpInstallInfo)` | [rules.ts](../../src/features/integrations/rules.ts) |
 | `sortBoardItems(items: readonly TItem[], sortOptionValue: string \| undefined)` | [rules.ts](../../src/features/resource-dashboard/rules.ts) |
 | `sortConnectorsForDisplay({ connectors }: { connectors: Connector[] }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/connectors/rules.ts) |
@@ -1030,19 +1036,19 @@ These names are also reachable through the current export map. Parameter declara
 | `sortDetectedAgents({ agents }: { agents: readonly T[] }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/execution/rules.ts) |
 | `sortProvidersByConfigured(catalog: readonly T[], providers: MediaProviderMap \| null \| undefined, pinnedIds: readonly string[] = [],)` | [rules.ts](../../src/features/media-providers/rules.ts) |
 | `sortVersionsDescending(versions: readonly TVersion[],)` | [rules.ts](../../src/features/version-manager/rules.ts) |
-| `sourceConfigActionHandle(base: string, action: string)` | [agent-handles.ts](../../src/features/source-config-list/agent-handles.ts) |
-| `sourceConfigAddFormHandle(listBase: string)` | [agent-handles.ts](../../src/features/source-config-list/agent-handles.ts) |
-| `sourceConfigAgentProps(base: string \| undefined, options: SourceConfigAgentPropsOptions,)` | [agent-handles.ts](../../src/features/source-config-list/agent-handles.ts) |
-| `sourceConfigFieldHandle(base: string, fieldKey: string)` | [agent-handles.ts](../../src/features/source-config-list/agent-handles.ts) |
-| `sourceConfigItemHandles(listBase: string, sourceIds: readonly string[])` | [agent-handles.ts](../../src/features/source-config-list/agent-handles.ts) |
-| `sourceDisplayLabel(source: SourceConfigItem, fieldSpecs: readonly SourceFieldSpec[])` | [rules.ts](../../src/features/source-config-list/rules.ts) |
+| `sourceConfigActionHandle({ base, action }: { base: string; action: string }, _optional: Record<string, never> = {})` | [agent-handles.ts](../../src/features/source-config-list/agent-handles.ts) |
+| `sourceConfigAddFormHandle({ listBase }: { listBase: string }, _optional: Record<string, never> = {})` | [agent-handles.ts](../../src/features/source-config-list/agent-handles.ts) |
+| `sourceConfigAgentProps({ base, ...options }: { base: string \| undefined } & SourceConfigAgentPropsOptions, _optional: Record<string, never> = {})` | [agent-handles.ts](../../src/features/source-config-list/agent-handles.ts) |
+| `sourceConfigFieldHandle({ base, fieldKey }: { base: string; fieldKey: string }, _optional: Record<string, never> = {})` | [agent-handles.ts](../../src/features/source-config-list/agent-handles.ts) |
+| `sourceConfigItemHandles({ listBase, sourceIds }: { listBase: string; sourceIds: readonly string[] }, _optional: Record<string, never> = {})` | [agent-handles.ts](../../src/features/source-config-list/agent-handles.ts) |
+| `sourceDisplayLabel({ source, fieldSpecs }: { source: SourceConfigItem; fieldSpecs: readonly SourceFieldSpec[] }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/source-config-list/rules.ts) |
 | `splitReasoningModelId({ modelId, levelIds }: { modelId: string; levelIds: readonly string[] }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/execution/rules.ts) |
 | `statusLabel({ status }: { status: ConnectorStatus }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/connectors/rules.ts) |
 | `statusToneFor(status: string, toneMap: ResourceStatusToneMap \| undefined)` | [rules.ts](../../src/features/resource-dashboard/rules.ts) |
 | `subscribeOutsideClickOrEscape({ container, onClose }: { container: { current: HTMLElement \| null } \| undefined; onClose: () => void }, _optional: Record<string, never> = {})` | [dom-subscriptions.ts](../../src/utils/dom-subscriptions.ts) |
 | `subscribeVisibleFocusOrVisibilityChange({ onVisible }: { onVisible: () => void }, _optional: Record<string, never> = {})` | [dom-subscriptions.ts](../../src/utils/dom-subscriptions.ts) |
 | `subscribeWindowEvent({ eventName, onEvent }: { eventName: string; onEvent: (event: Event) => void }, _optional: Record<string, never> = {})` | [dom-subscriptions.ts](../../src/utils/dom-subscriptions.ts) |
-| `summaryToDraft(skill: SkillSummary, body: string)` | [rules.ts](../../src/features/skills/rules.ts) |
+| `summaryToDraft({ skill, body }: { skill: SkillSummary; body: string }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/skills/rules.ts) |
 | `testStatusLabel(result: TestStatus, labels: { testSentLabel: string; testFailedLabel: string })` | [rules.ts](../../src/features/notifications/rules.ts) |
 | `textFontSizePx({ frameHeight }: { frameHeight: number }, _optional: Record<string, never> = {})` | [drawing.ts](../../src/renderers/annotation-canvas/drawing.ts) |
 | `toHexByte({ value }: { value: number })` | [color-math.ts](../../src/utils/color-math.ts) |
@@ -1055,7 +1061,7 @@ These names are also reachable through the current export map. Parameter declara
 | `toastToneIcon(tone: ToastTone)` | [Toast.tsx](../../src/react/components/Toast.tsx) |
 | `toggleInSet(prev: ReadonlySet<string>, path: string)` | [rules.ts](../../src/features/asset-tree-browser/rules.ts) |
 | `toggleSelectedId(selected: ReadonlySet<string>, id: string)` | [rules.ts](../../src/features/resource-dashboard/rules.ts) |
-| `toggleSelection(prev: ReadonlySet<string>, id: string)` | [rules.ts](../../src/features/asset-grid/rules.ts) |
+| `toggleSelection({ prev, id }: { prev: ReadonlySet<string>; id: string }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/asset-grid/rules.ts) |
 | `toolsBadgeTranslation({ count }: { count: number }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/connectors/rules.ts) |
 | `tooltipPlacement(target: HTMLElement)` | [TooltipLayer.tsx](../../src/react/components/TooltipLayer.tsx) |
 | `translateDomTextValue({ value, overrides }: { value: string; overrides: SketchDomTextOverrides }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/sketch-editor/rules.ts) |
@@ -1064,10 +1070,10 @@ These names are also reachable through the current export map. Parameter declara
 | `tzCityLabel({ timezone }: { timezone: string }, _optional: Record<string, never> = {})` | [timezone.ts](../../src/utils/timezone.ts) |
 | `updateConnectorAuthorizationPendingFromConnectResponse({ pending, response, nowMs }: { pending: ConnectorAuthorizationPendingState; response: ConnectorActionResult; nowMs: number }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/connectors/rules.ts) |
 | `updateConnectorAuthorizationPendingFromStatuses({ pending, statuses, nowMs }: { pending: ConnectorAuthorizationPendingState; statuses: ConnectorStatusMap; nowMs: number }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/connectors/rules.ts) |
-| `updateCurrentNavigationTitle(state: BrowserNavigationState, title?: string)` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
-| `updateSourceById(list: readonly TSource[], id: string, patch: Partial<TSource>,)` | [rules.ts](../../src/features/source-config-list/rules.ts) |
+| `updateCurrentNavigationTitle({ state }: { state: BrowserNavigationState }, { title }: { title?: string \| undefined } = {})` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
+| `updateSourceById({ list, id, patch }: { list: readonly TSource[]; id: string; patch: Partial<TSource> }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/source-config-list/rules.ts) |
 | `upsertMemoryConnector({ current, next }: { current: Connector[]; next: Connector \| null }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/memory/rules.ts) |
-| `upsertSourceById(list: readonly TSource[], next: TSource,)` | [rules.ts](../../src/features/source-config-list/rules.ts) |
+| `upsertSourceById({ list, next }: { list: readonly TSource[]; next: TSource }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/source-config-list/rules.ts) |
 | `useActiveLocaleLabel(locales: LocaleOption[], locale: string)` | [LanguageMenu.tsx](../../src/react/components/LanguageMenu.tsx) |
 | `useAnnotationCanvas(options: UseAnnotationCanvasOptions)` | [useAnnotationCanvas.ts](../../src/renderers/annotation-canvas/react/hooks/useAnnotationCanvas.ts) |
 | `useAssetGridData(params: UseAssetGridDataParams<TAsset>,)` | [useAssetGridData.ts](../../src/features/asset-grid/react/hooks/useAssetGridData.ts) |
@@ -1178,14 +1184,14 @@ These names are also reachable through the current export map. Parameter declara
 | `utf8Btoa(s: string)` | [rules.ts](../../src/features/integrations/rules.ts) |
 | `validateSketchEmbeddableUrl(link: string)` | [rules.ts](../../src/features/sketch-editor/rules.ts) |
 | `validateSkillDraft(draft: SkillDraft)` | [rules.ts](../../src/features/skills/rules.ts) |
-| `validateSourceDraft(fieldSpecs: readonly SourceFieldSpec[], values: SourceFieldValues,)` | [rules.ts](../../src/features/source-config-list/rules.ts) |
+| `validateSourceDraft({ fieldSpecs, values }: { fieldSpecs: readonly SourceFieldSpec[]; values: SourceFieldValues }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/source-config-list/rules.ts) |
 | `versionSourceClassName(source: VersionSource)` | [rules.ts](../../src/features/version-manager/rules.ts) |
 | `versionSourceLabel(source: VersionSource)` | [rules.ts](../../src/features/version-manager/rules.ts) |
 | `viewMessageBacklogSize()` | [host-message-source.ts](../../src/react/mcp-ui/host-message-source.ts) |
 | `visibleExtractionsFor({ extractions, filter }: { extractions: MemoryExtractionRecord[]; filter: 'all' \| MemoryType }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/memory/rules.ts) |
 | `visibleSelectedCommentIds(comments: TComment[], selectedIds: ReadonlySet<string>,)` | [rules.ts](../../src/features/viewer-shell/rules.ts) |
-| `withPendingAction(pendingKeys: ReadonlySet<string>, id: string, kind: SourceActionKind,)` | [rules.ts](../../src/features/source-config-list/rules.ts) |
-| `withoutPendingAction(pendingKeys: ReadonlySet<string>, id: string, kind: SourceActionKind,)` | [rules.ts](../../src/features/source-config-list/rules.ts) |
+| `withPendingAction({ pendingKeys, id, kind }: { pendingKeys: ReadonlySet<string>; id: string; kind: SourceActionKind }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/source-config-list/rules.ts) |
+| `withoutPendingAction({ pendingKeys, id, kind }: { pendingKeys: ReadonlySet<string>; id: string; kind: SourceActionKind }, _optional: Record<string, never> = {})` | [rules.ts](../../src/features/source-config-list/rules.ts) |
 | `wrapFragmentAsDocument({ html }: { html: string }, _optional: Record<string, never> = {})` | [sandboxed-document.ts](../../src/renderers/sandboxed-document.ts) |
 | `zoomToScale(zoom: number)` | [rules.ts](../../src/features/html-viewer/rules.ts) |
 

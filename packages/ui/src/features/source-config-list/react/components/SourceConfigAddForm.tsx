@@ -95,7 +95,7 @@ export function SourceConfigAddForm({ useTHook = useT, ...props }: SourceConfigA
   return (
     <form
       className="source-config-add-form"
-      {...sourceConfigAgentProps(agentHandle, { role: 'form', label: submitLabel })}
+      {...sourceConfigAgentProps({ base: agentHandle, role: 'form', label: submitLabel })}
       onSubmit={(event) => {
         event.preventDefault();
         onSubmit();
@@ -118,7 +118,7 @@ export function SourceConfigAddForm({ useTHook = useT, ...props }: SourceConfigA
 function AddFormFields({ fieldSpecs, values, validation, submitAttempted, submitting, onFieldChange, agentHandle, useTHook = useT }: SourceConfigAddFormProps & { useTHook?: typeof useT }) {
   const t = useTHook();
   return fieldSpecs.map((spec) => {
-    const issue = submitAttempted ? issueForField(validation, spec.key) : undefined;
+    const issue = submitAttempted ? issueForField({ validation, fieldKey: spec.key }) : undefined;
     return (
       <SourceConfigField
         key={spec.key}
@@ -127,7 +127,7 @@ function AddFormFields({ fieldSpecs, values, validation, submitAttempted, submit
         disabled={submitting}
         onChange={(value) => onFieldChange(spec.key, value)}
         {...(issue ? { error: t(issue.message, { label: t(spec.label) }) } : {})}
-        {...(agentHandle ? { agentHandle: sourceConfigFieldHandle(agentHandle, spec.key) } : {})}
+        {...(agentHandle ? { agentHandle: sourceConfigFieldHandle({ base: agentHandle, fieldKey: spec.key }) } : {})}
       />
     );
   });
@@ -149,7 +149,7 @@ function AddFormTrustSelect({ useTHook = useT, ...props }: SourceConfigAddFormPr
         value={trust ?? ''}
         disabled={submitting}
         aria-label={trustLabel}
-        {...sourceConfigAgentProps(agentHandle, { role: 'field', label: trustLabel, action: 'trust' })}
+        {...sourceConfigAgentProps({ base: agentHandle, role: 'field', label: trustLabel, action: 'trust' })}
         onChange={(event) => onTrustChange(event.target.value)}
       >
         <SourceConfigTrustOptions trust={trust} trustOptions={trustOptions} />
@@ -167,7 +167,7 @@ function AddFormTestControl({ canTest = false, onTest, testing = false, submitti
       disabled={submitting || !validation.ok}
       onTest={onTest}
       {...(testResult ? { result: testResult } : {})}
-      {...(agentHandle ? { agentHandle: sourceConfigActionHandle(agentHandle, 'test') } : {})}
+      {...(agentHandle ? { agentHandle: sourceConfigActionHandle({ base: agentHandle, action: 'test' }) } : {})}
     />
   );
 }
@@ -180,7 +180,7 @@ function AddFormActions({ submitting, agentHandle, onCancel, cancelLabel, submit
       type="submit"
       className="source-config-add-form-submit"
       disabled={submitting}
-      {...sourceConfigAgentProps(agentHandle, { role: 'button', label: submitLabel, action: 'submit' })}
+      {...sourceConfigAgentProps({ base: agentHandle, role: 'button', label: submitLabel, action: 'submit' })}
     >
       {submitting ? t('Adding…') : submitLabel}
     </button>
@@ -194,7 +194,7 @@ function AddFormActions({ submitting, agentHandle, onCancel, cancelLabel, submit
         type="button"
         className="source-config-add-form-cancel"
         disabled={submitting}
-        {...sourceConfigAgentProps(agentHandle, { role: 'button', label: resolvedCancelLabel, action: 'cancel' })}
+        {...sourceConfigAgentProps({ base: agentHandle, role: 'button', label: resolvedCancelLabel, action: 'cancel' })}
         onClick={onCancel}
       >
         {resolvedCancelLabel}
