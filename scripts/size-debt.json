@@ -357,27 +357,6 @@
     "value": 115
   },
   {
-    "file": "packages/daemon/src/agent-executor/live-session-state.ts",
-    "function": "createLiveSessionState",
-    "line": 35,
-    "rule": "max-lines-per-function",
-    "value": 100
-  },
-  {
-    "file": "packages/daemon/src/event-log.ts",
-    "function": "createInMemoryEventLog",
-    "line": 130,
-    "rule": "max-lines-per-function",
-    "value": 104
-  },
-  {
-    "file": "packages/daemon/src/frontend-session-registry.ts",
-    "function": "createFrontendSessionRegistry",
-    "line": 241,
-    "rule": "max-lines-per-function",
-    "value": 131
-  },
-  {
     "file": "packages/daemon/src/http/attachments.ts",
     "function": "<file>",
     "line": 1091,
@@ -404,34 +383,6 @@
     "line": 909,
     "rule": "max-lines",
     "value": 689
-  },
-  {
-    "file": "packages/daemon/src/store/event-log/sqlite.ts",
-    "function": "bindSqliteEventLog",
-    "line": 94,
-    "rule": "max-lines-per-function",
-    "value": 105
-  },
-  {
-    "file": "packages/daemon/src/surface-exchanges.ts",
-    "function": "createSurfaceExchangeStore",
-    "line": 127,
-    "rule": "max-lines-per-function",
-    "value": 119
-  },
-  {
-    "file": "packages/daemon/src/surface-exchanges.ts",
-    "function": "createSurfaceExchangeStore.store.open",
-    "line": 137,
-    "rule": "max-lines-per-function",
-    "value": 84
-  },
-  {
-    "file": "packages/daemon/src/terminal-session.ts",
-    "function": "createTerminalSessionManager",
-    "line": 197,
-    "rule": "max-lines-per-function",
-    "value": 85
   },
   {
     "file": "packages/daemon/src/tool-executor.ts",

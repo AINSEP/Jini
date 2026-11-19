@@ -308,6 +308,12 @@ export function resolveAgentExecutable({ def }: { def: RuntimeAgentDef }, option
   return inspectAgentExecutableResolution({ def: def }, options).selectedPath;
 }
 
+function bundledExecutablePaths(def: RuntimeAgentDef, configuredEnv: Record<string, string>, resolved: ResolvedOptions) {
+  const builtInPath = PACKAGED_EXECUTABLES.get(def.id)?.(configuredEnv, resolved, EXECUTABLE_HELPERS) ?? null;
+  const appBundlePath = APP_BUNDLE_EXECUTABLES.get(def.id)?.(resolved, EXECUTABLE_HELPERS) ?? null;
+  return { builtInPath, appBundlePath };
+}
+
 export function inspectAgentExecutableResolution({ def }: { def: RuntimeAgentDef }, options: ExecutableResolutionOptions & { configuredEnv?: Record<string, string> } = {}
 ): {
   configuredOverridePath: string | null;
@@ -325,8 +331,7 @@ export function inspectAgentExecutableResolution({ def }: { def: RuntimeAgentDef
   const configuredEnv = options.configuredEnv ?? {};
   const configuredOverridePath = configuredExecutableOverride(def, configuredEnv, resolved);
   const pathResolvedPath = firstBinOnPath(def, resolved);
-  const builtInPath = PACKAGED_EXECUTABLES.get(def.id)?.(configuredEnv, resolved, EXECUTABLE_HELPERS) ?? null;
-  const appBundlePath = APP_BUNDLE_EXECUTABLES.get(def.id)?.(resolved, EXECUTABLE_HELPERS) ?? null;
+  const { builtInPath, appBundlePath } = bundledExecutablePaths(def, configuredEnv, resolved);
   return {
     configuredOverridePath,
     pathResolvedPath,

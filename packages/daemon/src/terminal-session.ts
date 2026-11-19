@@ -187,18 +187,14 @@ async function runExclusive<T>(locks: Map<string, Promise<unknown>>, id: string,
   }
 }
 
-/**
- * Builds the reference `TerminalSessionManager`: an in-process wrapper
- * around a `@jini-ai/platform` `TerminalService` adding session ownership,
- * the kill/write/resize lock, and (via {@link createTerminalToolRegistrations})
- * `ToolExecutor` gating for creation. See module doc for the full design.
- * Wrapper setup is O(1); session work stays in the host's service.
- */
-export function createTerminalSessionManager({ terminalService }: CreateTerminalSessionManagerRequired, _optional: Record<string, never> = {}
-): TerminalSessionManager {
+function createTerminalSessionData(terminalService: TerminalService) {
   const metadata = new Map<string, SessionMetadata>();
   const locks = new Map<string, Promise<unknown>>();
+  return { terminalService, metadata, locks };
+}
 
+function createTerminalSessionReader(state: ReturnType<typeof createTerminalSessionData>) {
+  const { terminalService, metadata } = state;
   /**
    * Looks up `id`, pruning this module's own metadata if the underlying
    * `@jini-ai/platform` service has already reaped it (past its TTL) — bounds
@@ -224,16 +220,6 @@ export function createTerminalSessionManager({ terminalService }: CreateTerminal
     return { session, meta };
   }
 
-  async function create({ principal, options: createOptions }: { readonly principal: Principal; readonly options: CreateTerminalSessionOptions }): Promise<TerminalSessionInfo> {
-    const session = await terminalService.create({
-      cwd: createOptions.cwd,
-      ...definedOnly({ cols: createOptions.cols, rows: createOptions.rows, shell: createOptions.shell }),
-    });
-    const resourceRef = createOptions.resourceRef ?? null;
-    metadata.set(session.id, { principalId: principal.id, resourceRef, killed: false });
-    return toSessionInfo(session, resourceRef);
-  }
-
   function get({ principal, id }: { readonly principal: Principal; readonly id: string }): TerminalSessionAccessResult {
     const found = checkOwnership(principal, id);
     return found ? { status: 'ok', session: toSessionInfo(found.session, found.meta.resourceRef) } : { status: 'not-found' };
@@ -255,7 +241,12 @@ export function createTerminalSessionManager({ terminalService }: CreateTerminal
     const session = terminalService.get(id);
     return session ? toSessionInfo(session, resourceRef) : null;
   }
+  return { checkOwnership, get, list, currentSnapshot };
+}
 
+function createTerminalSessionActions(state: ReturnType<typeof createTerminalSessionData>, reader: ReturnType<typeof createTerminalSessionReader>) {
+  const { terminalService, metadata, locks } = state;
+  const { checkOwnership, currentSnapshot } = reader;
   /** Shared write/resize path: ownership check, then the per-session lock, then the killed flag. */
   async function unlessKilled(principal: Principal, id: string, act: () => boolean): Promise<TerminalSessionActionResult> {
     const found = checkOwnership(principal, id);
@@ -293,7 +284,10 @@ export function createTerminalSessionManager({ terminalService }: CreateTerminal
       return { status: 'ok' as const, ok, session: currentSnapshot(id, meta?.resourceRef ?? null) };
     });
   }
+  return { write, resize, kill };
+}
 
+function createTerminalSessionTransport(terminalService: TerminalService, checkOwnership: ReturnType<typeof createTerminalSessionReader>["checkOwnership"]) {
   function attach({ principal, id, lastEventId, sink }: { readonly principal: Principal; readonly id: string; readonly lastEventId: number; readonly sink: TerminalSseSink }): TerminalSessionAttachResult {
     const found = checkOwnership(principal, id);
     if (!found) return 'not-found';
@@ -306,6 +300,34 @@ export function createTerminalSessionManager({ terminalService }: CreateTerminal
 
   async function shutdownActive(shutdownOptions?: { graceMs?: number }): Promise<void> {
     await terminalService.shutdownActive(shutdownOptions);
+  }
+  return { attach, detach, shutdownActive };
+}
+
+/**
+ * Builds the reference `TerminalSessionManager`: an in-process wrapper
+ * around a `@jini-ai/platform` `TerminalService` adding session ownership,
+ * the kill/write/resize lock, and (via {@link createTerminalToolRegistrations})
+ * `ToolExecutor` gating for creation. See module doc for the full design.
+ * Wrapper setup is O(1); session work stays in the host's service.
+ */
+export function createTerminalSessionManager({ terminalService }: CreateTerminalSessionManagerRequired, _optional: Record<string, never> = {}
+): TerminalSessionManager {
+  const state = createTerminalSessionData(terminalService);
+  const { metadata } = state;
+  const reader = createTerminalSessionReader(state);
+  const { get, list, checkOwnership } = reader;
+  const { write, resize, kill } = createTerminalSessionActions(state, reader);
+  const { attach, detach, shutdownActive } = createTerminalSessionTransport(terminalService, checkOwnership);
+
+  async function create({ principal, options: createOptions }: { readonly principal: Principal; readonly options: CreateTerminalSessionOptions }): Promise<TerminalSessionInfo> {
+    const session = await terminalService.create({
+      cwd: createOptions.cwd,
+      ...definedOnly({ cols: createOptions.cols, rows: createOptions.rows, shell: createOptions.shell }),
+    });
+    const resourceRef = createOptions.resourceRef ?? null;
+    metadata.set(session.id, { principalId: principal.id, resourceRef, killed: false });
+    return toSessionInfo(session, resourceRef);
   }
 
   return { create, get, list, write, resize, kill, attach, detach, shutdownActive };
