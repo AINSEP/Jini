@@ -67,8 +67,8 @@ describe('RunLifecycle — dropEventsOnEviction', () => {
     const onInternalError = () => { throw sinkError; };
     await finishedRun(createRunLifecycle({ eventLog: throwingSinkLog }, { terminalRetentionMs: 10, dropEventsOnEviction: true, onInternalError }), 'b');
     await vi.advanceTimersByTimeAsync(10);
-    expect(consoleError).toHaveBeenCalledWith('[@jini-ai/daemon] internal error (event-log-drop, runId=a)', 'Error');
-    expect(consoleError).toHaveBeenCalledWith('[@jini-ai/daemon] internal error sink failed (event-log-drop, runId=b)', 'Error');
+    expect(consoleError).toHaveBeenCalledWith('[@jini-ai/daemon] Run lifecycle step failed (event-log-drop, runId=a)', 'Error');
+    expect(consoleError).toHaveBeenCalledWith('[@jini-ai/daemon] Could not report run lifecycle failure (event-log-drop, runId=b)', 'Error');
     for (const call of consoleError.mock.calls) {
       expect(call[1]).toBe('Error');
       expect(String(call[1])).not.toContain('hunter2');

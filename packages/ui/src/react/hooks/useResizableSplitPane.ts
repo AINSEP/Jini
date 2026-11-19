@@ -1,3 +1,4 @@
+import { orFallbackSync } from '@jini-ai/core/errors/idioms';
 // Pointer-drag-resizable split pane: one side has a persisted, clamped width;
 // the split container exposes a `style` with the CSS custom properties/grid
 // columns needed to render both panes plus a handle. RAF-throttled pointer
@@ -81,22 +82,27 @@ function clampWidthForMax(width: number, min: number, max: number, effectiveMax:
 // unreachable. See `packages/ui/src/react/hooks/__tests__/useResizableSplitPane.test.tsx`.
 export function readSavedWidth(storageKey: string, defaultWidth: number, min: number, max: number): number {
   if (typeof window === 'undefined') return defaultWidth;
-  try {
-    const raw = window.localStorage.getItem(storageKey);
-    const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
-    return Number.isFinite(parsed) ? clampPreferredWidth(parsed, min, max) : defaultWidth;
-  } catch {
-    return defaultWidth;
-  }
+  return orFallbackSync({
+    work: () => {
+      const raw = window.localStorage.getItem(storageKey);
+      const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
+      return Number.isFinite(parsed) ? clampPreferredWidth(parsed, min, max) : defaultWidth;
+    },
+    fallback: defaultWidth,
+    step: 'read split pane width preference',
+  });
 }
 
 export function saveWidth(storageKey: string, width: number, min: number, max: number): void {
   if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(storageKey, String(clampPreferredWidth(width, min, max)));
-  } catch {
-    // localStorage can be unavailable in hardened browser contexts.
-  }
+  // localStorage can be unavailable in hardened browser contexts.
+  orFallbackSync({
+    work: () => {
+      window.localStorage.setItem(storageKey, String(clampPreferredWidth(width, min, max)));
+    },
+    fallback: undefined,
+    step: 'save split pane width preference',
+  });
 }
 
 function applyContainerWidth(

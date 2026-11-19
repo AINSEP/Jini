@@ -47,7 +47,7 @@ describe('reportRouteInternalError', () => {
       report: { source: 'tool-catalog', error: new TypeError('boom api_key=SECRETSECRETSECRETSECRET') }, logSource: 'tool-catalog', message: MESSAGE,
     });
     const line = logged.mock.calls.map(args => args.join(' ')).join('\n');
-    expect(line).toBe(`[@jini-ai/http-kit] internal error (tool-catalog, correlationId=${apiError.requestId}) TypeError`);
+    expect(line).toBe(`[@jini-ai/http-kit] Route handler failed (tool-catalog, correlationId=${apiError.requestId}) TypeError`);
     expect(line).not.toContain('boom');
     expect(line).not.toContain('internal-error.test.ts');
     expect(line).not.toContain('SECRETSECRET');
@@ -61,8 +61,8 @@ describe('reportRouteInternalError', () => {
     );
     expect(apiError.message).toBe(MESSAGE);
     const line = logged.mock.calls.map(args => args.join(' ')).join('\n');
-    expect(line).toContain(`internal error (frontend-sessions:stream, correlationId=${apiError.requestId}) Error`);
-    expect(line).toContain(`internal error sink failed (frontend-sessions:stream, correlationId=${apiError.requestId}) Error`);
+    expect(line).toContain(`Route handler failed (frontend-sessions:stream, correlationId=${apiError.requestId}) Error`);
+    expect(line).toContain(`Could not report route failure (frontend-sessions:stream, correlationId=${apiError.requestId}) Error`);
     expect(line).not.toContain('original');
     expect(line).not.toContain('sink down');
     expect(line).not.toContain('SECRETSECRET');

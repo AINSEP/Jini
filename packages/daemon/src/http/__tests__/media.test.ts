@@ -479,7 +479,7 @@ describe('mediaGenerateRoute.handle', () => {
       expect(task?.status).toBe('failed');
     });
     expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
-    expect(consoleErrorSpy.mock.calls[0]?.[0]).toMatch(/^\[@jini-ai\/http-kit\] internal error \(media-generate-dispatch, correlationId=[0-9a-f-]{36}\)$/);
+    expect(consoleErrorSpy.mock.calls[0]?.[0]).toMatch(/^\[@jini-ai\/http-kit\] Route handler failed \(media-generate-dispatch, correlationId=[0-9a-f-]{36}\)$/);
     expect(consoleErrorSpy.mock.calls[0]?.[1]).toBe('Error');
     expect(JSON.stringify(consoleErrorSpy.mock.calls)).not.toContain('boom');
     consoleErrorSpy.mockRestore();

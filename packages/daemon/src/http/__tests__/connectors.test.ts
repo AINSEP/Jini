@@ -383,7 +383,7 @@ describe('connectorsRoutes', () => {
     const result = await connectorsAuthSignInRoute.handle({ input: { email: 'a@example.com', password: 'x' }, deps: makeDeps({ auth }) });
     expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
     expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
-    expect(consoleErrorSpy.mock.calls[0]![0]).toContain('internal error (connectors/auth.signIn, correlationId=');
+    expect(consoleErrorSpy.mock.calls[0]![0]).toContain('Route handler failed (connectors/auth.signIn, correlationId=');
     expect(consoleErrorSpy.mock.calls[0]?.[1]).toBe('Error');
     expect(JSON.stringify(consoleErrorSpy.mock.calls)).not.toContain('db down');
     consoleErrorSpy.mockRestore();

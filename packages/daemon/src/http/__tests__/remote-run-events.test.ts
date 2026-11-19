@@ -461,7 +461,7 @@ describe('remote-run-events — remaining contract surface', () => {
       expect(result.error.code).toBe('INTERNAL_ERROR');
       expect(logged).toHaveBeenCalledOnce();
       expect(logged.mock.calls[0]).toEqual([
-        `[@jini-ai/http-kit] internal error (remote-run-events/tool-result, correlationId=${result.error.requestId})`, 'Error',
+        `[@jini-ai/http-kit] Route handler failed (remote-run-events/tool-result, correlationId=${result.error.requestId})`, 'Error',
       ]);
     } finally { logged.mockRestore(); }
   });

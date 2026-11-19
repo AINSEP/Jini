@@ -540,7 +540,7 @@ describe('xaiAuthStatusRoute', () => {
 
     expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
     expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
-    expect(consoleErrorSpy.mock.calls[0]![0]).toContain('internal error (xai/auth-status, correlationId=');
+    expect(consoleErrorSpy.mock.calls[0]![0]).toContain('Route handler failed (xai/auth-status, correlationId=');
     expect(consoleErrorSpy.mock.calls[0]?.[1]).toBe('Error(EISDIR)');
     consoleErrorSpy.mockRestore();
   });

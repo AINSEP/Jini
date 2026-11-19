@@ -106,3 +106,18 @@ describe('useVibecodingSession', () => {
     unmount();
   });
 });
+
+
+test('publishes a real refresh rejection and recovers on the next refresh', async () => {
+  const failure = new Error('part listing refused');
+  const target = makeTarget({ a: 'A' });
+  target.listParts = vi.fn().mockRejectedValueOnce(failure).mockResolvedValue([{ id: 'a' }]);
+  const session = createVibecodingSession({ target });
+  const { result } = renderHook(() => useVibecodingSession({ session }));
+  await waitFor(() => expect(result.current.status).toBe('error'));
+  expect(result.current.lastError).toBe('part listing refused');
+  await act(async () => { await result.current.refresh(); });
+  expect(result.current.status).toBe('ready');
+  expect(result.current.parts).toEqual([{ id: 'a' }]);
+  expect(result.current.lastError).toBeUndefined();
+});

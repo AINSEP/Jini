@@ -81,11 +81,8 @@ export function joinPointer({ base, tokens }: { base: string; tokens: string[] }
 
 /** The pointer's tokens, or `null` for a malformed pointer — the read and write paths both degrade on that instead of throwing. */
 function tryParsePointerTokens(pointer: string): string[] | null {
-  try {
-    return parsePointerTokens({ pointer });
-  } catch {
-    return null;
-  }
+  if (pointer !== '' && !pointer.startsWith('/')) return null;
+  return parsePointerTokens({ pointer });
 }
 
 /** The array index `token` names, or `undefined` unless it is a canonical RFC 6901 index (`0`, or digits with no leading zero — never `-`, signs, exponents or whitespace). */

@@ -1,3 +1,4 @@
+import { observed } from '../errors/idioms.js';
 import type { Clock } from '../primitives/time.js';
 import type { QueryKey } from './types.js';
 
@@ -64,7 +65,7 @@ export interface CacheEntry {
 // the same narrowing boilerplate at every read and write call site.
 export function toQueryError(value: unknown): Error {
   if (value instanceof Error) return value;
-  return new Error(typeof value === 'string' && value.trim() ? value : 'request failed');
+  return new Error(typeof value === 'string' && value.trim() ? value : 'The data could not be loaded. Try loading it again.');
 }
 
 /** One provider-owned cache. Requests are shared by structural primitive keys.
@@ -154,7 +155,7 @@ export class FetchQueryCache {
     entry.pending = pending;
     entry.pendingRead = { fetch: read, staleTime };
     // Mark handled even when a UI caller deliberately discards the promise.
-    void pending.catch(() => {});
+    observed({ promise: pending });
     // Like TanStack's background refetches, retain the last error until success clears it
     // or another failure replaces it. Extend that rule to retries without cached data:
     // starting a request is not evidence of recovery; isFetching reports its progress.

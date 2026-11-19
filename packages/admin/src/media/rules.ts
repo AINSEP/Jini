@@ -79,13 +79,14 @@ export function safeMediaUrl(
   // Fail closed on javascript:, data:, scheme-relative and backslash URLs. The host owns
   // same-origin authentication and attachment headers for HTML/SVG originals.
   if (url.startsWith('/') && !url.startsWith('//') && !url.includes('\\')) return url;
+  let parsed: URL;
   try {
-    const parsed = new URL(url);
-    if (parsed.protocol === 'https:' || parsed.protocol === 'http:' || parsed.protocol === 'blob:')
-      return url;
+    parsed = new URL(url);
   } catch {
-    /* invalid URL */
+    return undefined; // invalid URL
   }
+  if (parsed.protocol === 'https:' || parsed.protocol === 'http:' || parsed.protocol === 'blob:')
+    return url;
   return undefined;
 }
 

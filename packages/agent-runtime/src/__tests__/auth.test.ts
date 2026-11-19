@@ -662,3 +662,12 @@ describe('isDeepSeekAuthFailureText — explicit negative states vs healthy ment
     expect(classifyAgentAuthFailure({ agentId: 'deepseek', text: 'using DEEPSEEK_API_KEY from the environment' })).toBeNull();
   });
 });
+
+
+it('falls back for null or malformed auth JSON and lets either true flag win', () => {
+  expect(isClaudeAuthFailureText({ text: 'null' })).toBe(false);
+  expect(isClaudeAuthFailureText({ text: '{not authenticated' })).toBe(true);
+  expect(isClaudeAuthFailureText({ text: '{"authenticated":false,"loggedIn":true}' })).toBe(false);
+  expect(isClaudeAuthFailureText({ text: '{"authenticated":true,"loggedIn":false}' })).toBe(false);
+  expect(isClaudeAuthFailureText({ text: '{"authenticated":false}' })).toBe(true);
+});

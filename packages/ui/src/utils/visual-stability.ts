@@ -1,3 +1,4 @@
+import { orFallbackSync } from '@jini-ai/core/errors/idioms';
 /**
  * Reads a boolean "visual stability" mode flag from `localStorage` — a
  * generic pattern for opting a session into deterministic/reduced-motion
@@ -13,9 +14,11 @@ export function isVisualStabilityMode(
   storageKey: string = DEFAULT_VISUAL_STABILITY_STORAGE_KEY,
 ): boolean {
   if (typeof window === 'undefined') return false;
-  try {
-    return window.localStorage.getItem(storageKey) === '1';
-  } catch {
-    return false;
-  }
+  return orFallbackSync({
+    work: () => {
+      return window.localStorage.getItem(storageKey) === '1';
+    },
+    fallback: false,
+    step: 'read visual stability preference',
+  });
 }

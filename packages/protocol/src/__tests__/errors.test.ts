@@ -28,3 +28,15 @@ describe('generic error codes', () => {
     expect(GENERIC_ERROR_CODES).toContain('NOT_FOUND');
   });
 });
+
+
+it('uses the new reason fallback for both malformed bodies and missing record messages', () => {
+  const message = 'The server did not provide a reason for this response. Check the result before trying again.';
+  expect(decodeApiError({ body: null })).toEqual({ message });
+  expect(decodeApiError({ body: { error: { code: 'INTERNAL_ERROR', requestId: 'req-1', retryable: false } } }))
+    .toEqual({ message, code: 'INTERNAL_ERROR', requestId: 'req-1', retryable: false });
+  expect(decodeApiError({ body: { error: { requestId: 'req-2' }, requestId: 'outer' } }, { fallbackMessage: 'Caller words' }))
+    .toEqual({ message: 'Caller words', requestId: 'req-2' });
+  expect(decodeApiError({ body: { error: { message: 'Wire words', requestId: 'req-3' } } }, { fallbackMessage: 'Caller words' }))
+    .toEqual({ message: 'Wire words', requestId: 'req-3' });
+});

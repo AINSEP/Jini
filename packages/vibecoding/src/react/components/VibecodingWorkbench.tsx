@@ -1,3 +1,4 @@
+import { observed } from '@jini-ai/core/errors/idioms';
 /**
  * @module react/components/VibecodingWorkbench
  *
@@ -96,17 +97,15 @@ export function VibecodingWorkbench({ session, documentHtml, className, style, u
     }
     let cancelled = false;
     setContentLoading(true);
-    readPart({ id: selectedId })
+    // `lastError` on the session snapshot already surfaces this — see `useVibecodingSession`'s
+    // own doc for why a rejection here is not rethrown into an unhandled effect error.
+    observed({ promise: readPart({ id: selectedId })
       .then((content) => {
         if (!cancelled) setSelectedContent(content);
       })
-      .catch(() => {
-        // `lastError` on the session snapshot already surfaces this — see `useVibecodingSession`'s
-        // own doc for why a rejection here is not rethrown into an unhandled effect error.
-      })
       .finally(() => {
         if (!cancelled) setContentLoading(false);
-      });
+      }) });
     return () => {
       cancelled = true;
     };

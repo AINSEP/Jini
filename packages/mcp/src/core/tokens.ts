@@ -1,3 +1,4 @@
+import { afterSettled } from '@jini-ai/core/errors/idioms';
 import { describeErrorForLog } from '@jini-ai/core';
 import type { Clock } from "@jini-ai/core/primitives";
 /**
@@ -174,7 +175,7 @@ const writeLocks = new Map<string, Promise<unknown>>();
 
 async function withLock<T>(dataDir: string, fn: () => Promise<T>): Promise<T> {
   const prev = writeLocks.get(dataDir) ?? Promise.resolve();
-  const task = prev.catch(() => {}).then(fn);
+  const task = afterSettled({ promise: prev }).then(fn);
   writeLocks.set(dataDir, task);
   try {
     return await task;

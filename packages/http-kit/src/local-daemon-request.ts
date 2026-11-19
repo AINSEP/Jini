@@ -66,14 +66,15 @@ export function localOriginFromHeader({ value }: { readonly value: unknown }, _o
   const trimmed = value.trim();
   if (!trimmed || trimmed === 'null' || trimmed.includes(',')) return null;
 
+  let parsed: URL;
   try {
-    const parsed = new URL(trimmed);
-    if (!isBareHttpOrigin({ parsed })) return null;
-    if (!isLoopbackHostname({ hostname: parsed.hostname })) return null;
-    return parsed.origin;
+    parsed = new URL(trimmed);
   } catch {
     return null;
   }
+  if (!isBareHttpOrigin({ parsed })) return null;
+  if (!isLoopbackHostname({ hostname: parsed.hostname })) return null;
+  return parsed.origin;
 }
 
 /**

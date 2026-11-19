@@ -7,16 +7,18 @@ export function claudeAuthGuidance({  }: {  }, { hostName = DEFAULT_HOST_NAME }:
 
 // Structured verdict from `claude auth status` JSON: a boolean when either key
 // is a boolean (`true` wins), undefined when the text is not JSON or carries
-// neither key. Property access on a JSON `null` throws inside the `try`, which
-// deliberately lands in the same text-matching fallback as invalid JSON.
+// neither key. An explicit null guard sends JSON `null` to the same
+// text-matching fallback as invalid JSON; either true flag still wins.
 function claudeJsonAuthFailure({ value }: { value: string }): boolean | undefined {
+  let parsed: { authenticated?: unknown; loggedIn?: unknown } | null;
   try {
-    const parsed = JSON.parse(value) as { authenticated?: unknown; loggedIn?: unknown };
-    if (parsed.authenticated === true || parsed.loggedIn === true) return false;
-    if (parsed.authenticated === false || parsed.loggedIn === false) return true;
+    parsed = JSON.parse(value) as typeof parsed;
   } catch {
-    // Fall through to text matching below.
+    return undefined; // Fall through to text matching below.
   }
+  if (parsed === null) return undefined;
+  if (parsed.authenticated === true || parsed.loggedIn === true) return false;
+  if (parsed.authenticated === false || parsed.loggedIn === false) return true;
   return undefined;
 }
 

@@ -206,3 +206,11 @@ describe('seo public barrel', () => {
     expect(options.map(option => option.detail)).toEqual(['g1', 'landing-2']);
   });
 });
+
+
+it('preserves the original image value on URL or filename decoding refusal', () => {
+  for (const value of ['https://[invalid', 'https://cdn.test/%E0%A4%A'])
+    expect(seo.describeMediaRef({ value })).toEqual({ name: value, size: null });
+  expect(seo.describeMediaRef({ value: 'https://cdn.test/my%20image.png' }))
+    .toEqual({ name: 'my image.png', size: null });
+});

@@ -470,3 +470,28 @@ describe("Edit", () => {
     expect(await screen.findByRole("link", { name: "Contact" })).toHaveAttribute("href", "/admin/forms/contact");
   });
 });
+
+
+it("releases a rejected toggle's row lock so the next toggle can finish", async () => {
+  const user = userEvent.setup();
+  let attempts = 0;
+  let current = { ...ACTIVE_FORM, status: "active" as "active" | "disabled" };
+  fetchMock.mockImplementation(routeFetch([
+    { match: "/forms", handler: () => Promise.resolve(jsonResponse({ data: [current] })) },
+    { match: "/forms/f1", method: "PUT", handler: () => {
+      attempts += 1;
+      if (attempts === 1) return Promise.resolve(jsonResponse({ error: "toggle refused" }, 500));
+      current = { ...current, status: "disabled" };
+      return Promise.resolve(jsonResponse({ data: current }));
+    } },
+  ]));
+  renderScreen(<FormsList />);
+  const row = await rowFor("Contact");
+  await user.click(within(row).getByRole("button", { name: 'Actions for form "Contact"' }));
+  await user.click(screen.getByRole("menuitem", { name: "Disable" }));
+  expect(await screen.findByText("toggle refused")).toBeInTheDocument();
+  await user.click(within(row).getByRole("button", { name: 'Actions for form "Contact"' }));
+  await user.click(screen.getByRole("menuitem", { name: "Disable" }));
+  await expectToggleItem(user, row, "Contact", "Enable");
+  expect(attempts).toBe(2);
+});

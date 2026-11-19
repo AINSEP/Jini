@@ -64,3 +64,10 @@ describe('content-encoding and exact limits', () => {
     expect(over.ok ? undefined : over.error.code).toBe('PAYLOAD_TOO_LARGE');
   });
 });
+
+
+it('refuses malformed submitted text without reflecting it in the refusal', async () => {
+  const result = await readJsonBody({ request: jsonRequest('{"secret-marker":') });
+  expect(result).toEqual({ ok: false, error: { code: 'BAD_REQUEST', message: 'The request body is not valid JSON. Send a JSON object or array.' } });
+  expect(JSON.stringify(result)).not.toContain('secret-marker');
+});

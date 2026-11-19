@@ -116,3 +116,33 @@ describe('redirects public barrel', () => {
     expect(items.map(item => item.label)).toEqual(['Enable', 'Delete']);
   });
 });
+
+
+it('keeps a rejected import out of the result channel and permits a retry', async () => {
+  const failure = new Error('import refused');
+  const result = { created: [], failed: [] };
+  const actions = { reset: vi.fn(), run: vi.fn().mockRejectedValueOnce(failure).mockResolvedValueOnce(result) };
+  const controller = redirects.createImportRedirectsController({ actions: () => actions, t: () => key => key });
+  controller.setRaw({ raw: JSON.stringify([input]) });
+  await expect(controller.submit()).resolves.toBeUndefined();
+  expect(controller.getSnapshot()).toEqual({ raw: JSON.stringify([input]), parseError: null, result: null });
+  await controller.submit();
+  expect(controller.getSnapshot().result).toBe(result);
+  expect(actions.reset).toHaveBeenCalledTimes(2);
+});
+
+it('closes confirmation after a rejected delete and observes a rejected toggle', async () => {
+  const failure = new Error('write refused');
+  const actions = { saving: false, create: vi.fn(), toggle: vi.fn().mockRejectedValue(failure),
+    remove: vi.fn().mockRejectedValue(failure), resetOthers: vi.fn() };
+  const controller = redirects.createRedirectsController({ actions: () => actions });
+  const rule = await realRow();
+  controller.onToggleStatus({ rule });
+  controller.onRequestDelete({ rule });
+  controller.confirmDelete();
+  await vi.waitFor(() => expect(controller.getSnapshot().pendingDelete).toBeNull());
+  expect(actions.toggle).toHaveBeenCalledTimes(1);
+  expect(actions.toggle).toHaveBeenCalledWith(rule);
+  expect(actions.remove).toHaveBeenCalledTimes(1);
+  expect(actions.remove).toHaveBeenCalledWith(rule);
+});

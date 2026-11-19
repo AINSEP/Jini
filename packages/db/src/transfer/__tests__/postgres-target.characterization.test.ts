@@ -44,7 +44,7 @@ describe('connection URL compatibility pins', () => {
       await writeFile(executable, `#!${process.execPath}\nprocess.stderr.write(${JSON.stringify(stderr)}); process.exit(1);\n`);
       await chmod(executable, 0o700);
       const target = createPsqlPostgresTarget({ connectionString: 'postgres://user@localhost/db' }, { parentEnv: { PATH: directory } });
-      expect(await target.query('SELECT 1')).toEqual({ ok: false, error: "psql request failed" });
+      expect(await target.query('SELECT 1')).toEqual({ ok: false, error: "PostgreSQL did not complete the transfer command. Check the target connection and permissions before retrying." });
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

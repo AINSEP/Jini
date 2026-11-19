@@ -113,9 +113,11 @@ export function deferObjectStore(required: { readonly load: () => Promise<Object
   let loaded: Promise<ObjectStore> | undefined;
   const current = (): Promise<ObjectStore> => {
     if (!loaded) {
-      const pending = required.load();
+      const pending = required.load().catch(error => {
+        if (loaded === pending) loaded = undefined;
+        throw error;
+      });
       loaded = pending;
-      pending.catch(() => { if (loaded === pending) loaded = undefined; });
     }
     return loaded;
   };

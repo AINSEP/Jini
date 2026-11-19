@@ -281,8 +281,9 @@ describe('RunLifecycle — a durable start that has not committed yet', () => {
     const observed = lifecycle.get({ runId: 'ghost-run' });
     const listed = lifecycle.list({  }, { contextRef: 'ctx-ghost' });
 
-    fail(new Error('start append failed'));
-    await expect(starting).rejects.toThrow('start append failed');
+    const failure = new Error('start append failed');
+    fail(failure);
+    await expect(starting).rejects.toBe(failure);
 
     expect(await observed).toBeUndefined();
     expect(await listed).toEqual([]);
@@ -1053,7 +1054,7 @@ describe('RunLifecycle — inactivity watchdog', () => {
       await vi.advanceTimersByTimeAsync(1_000);
 
       expect(consoleError).toHaveBeenCalledWith(
-        expect.stringContaining(`internal error (inactivity-timeout, runId=${run.id})`),
+        expect.stringContaining(`Run lifecycle step failed (inactivity-timeout, runId=${run.id})`),
         'Error',
       );
       // Containment, not recovery: the run is left exactly as it was.
@@ -1088,7 +1089,7 @@ describe('RunLifecycle — inactivity watchdog', () => {
 
       expect(onInternalError).toHaveBeenCalledTimes(1);
       expect(consoleError).toHaveBeenCalledWith(
-        expect.stringContaining(`internal error sink failed (inactivity-timeout, runId=${run.id})`),
+        expect.stringContaining(`Could not report run lifecycle failure (inactivity-timeout, runId=${run.id})`),
         'Error',
       );
       expect(await lifecycle.get({ runId: run.id })).toMatchObject({ state: 'running' });
@@ -1246,4 +1247,26 @@ describe('RunLifecycle — terminal run retention', () => {
     await vi.advanceTimersByTimeAsync(1_000);
     expect(await second.get({ runId: 'old-run' })).toBeUndefined();
   });
+});
+
+
+it('logs safe subscriber failure metadata and continues the live fan-out', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  try {
+    const { lifecycle } = makeLifecycle();
+    const { run } = await lifecycle.start({ contextRef: 'subscriber-test' });
+    const first = await lifecycle.stream({ runId: run.id, onEvent: event => {
+      if (event.kind === 'agent') throw Object.assign(new TypeError('secret-marker'), { code: 'EPIPE' });
+    } });
+    const sibling = vi.fn();
+    const second = await lifecycle.stream({ runId: run.id, onEvent: sibling });
+    await expect(lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'text_delta', delta: 'hello' } } }))
+      .resolves.toMatchObject({ kind: 'agent' });
+    expect(sibling.mock.calls.map(([event]) => event.kind)).toEqual(['start', 'agent']);
+    expect(warn.mock.calls).toEqual([['[@jini-ai/daemon] Run event subscriber failed', { runId: run.id }, 'TypeError(EPIPE)']]);
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('secret-marker');
+    if (first.kind === 'ok') first.unsubscribe();
+    if (second.kind === 'ok') second.unsubscribe();
+    await lifecycle.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
+  } finally { warn.mockRestore(); }
 });

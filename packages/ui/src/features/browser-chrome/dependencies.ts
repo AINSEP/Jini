@@ -1,3 +1,4 @@
+import { orFallbackSync } from '@jini-ai/core/errors/idioms';
 import { DEFAULT_HISTORY_STORAGE_NAMESPACE, HISTORY_LIMIT } from './constants.js';
 import { historyStorageKey, parseHistoryPayload, serializeHistoryPayload } from './rules.js';
 import type { BrowserBridgeRegistrationPort, BrowserHistoryStoragePort } from './ports.js';
@@ -21,20 +22,25 @@ export function createBrowserHistoryStorage(
   return {
     loadHistory(scopeKey) {
       if (typeof window === 'undefined') return [];
-      try {
-        const raw = window.localStorage.getItem(historyStorageKey(namespace, scopeKey));
-        return raw ? parseHistoryPayload(raw, limit) : [];
-      } catch {
-        return [];
-      }
+      return orFallbackSync({
+        work: () => {
+          const raw = window.localStorage.getItem(historyStorageKey(namespace, scopeKey));
+          return raw ? parseHistoryPayload(raw, limit) : [];
+        },
+        fallback: [],
+        step: 'read browser history preference',
+      });
     },
     saveHistory(scopeKey, history) {
       if (typeof window === 'undefined') return;
-      try {
-        window.localStorage.setItem(historyStorageKey(namespace, scopeKey), serializeHistoryPayload(history, limit));
-      } catch {
-        // Ignore storage quota and private-mode failures.
-      }
+      // Ignore storage quota and private-mode failures.
+      orFallbackSync({
+        work: () => {
+          window.localStorage.setItem(historyStorageKey(namespace, scopeKey), serializeHistoryPayload(history, limit));
+        },
+        fallback: undefined,
+        step: 'save browser history preference',
+      });
     },
   };
 }

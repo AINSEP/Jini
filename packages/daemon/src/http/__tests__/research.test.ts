@@ -249,7 +249,7 @@ describe('researchSearchRoute.handle', () => {
       const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: { resolveCredentials: async () => ({ apiKey: 'k' }) } });
       expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
       expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
-      expect(consoleErrorSpy.mock.calls[0]![0]).toContain('internal error (research/search, correlationId=');
+      expect(consoleErrorSpy.mock.calls[0]![0]).toContain('Route handler failed (research/search, correlationId=');
       expect(consoleErrorSpy.mock.calls[0]?.[1]).toBe('Error');
       consoleErrorSpy.mockRestore();
     });

@@ -89,7 +89,7 @@ export interface DecodedApiError {
 
 function decodeApiErrorRecord(
   { record, error }: { record: Record<string, unknown>; error: Record<string, unknown> },
-  { fallbackMessage = 'request failed' }: { fallbackMessage?: string } = {},
+  { fallbackMessage = 'The server did not provide a reason for this response. Check the result before trying again.' }: { fallbackMessage?: string } = {},
 ): DecodedApiError {
   // Share/import routes use a flat code/message envelope; keep legacy string-error precedence.
   const flatMessage = typeof record.error === 'string' ? record.error : record.message;
@@ -111,7 +111,7 @@ function decodeApiErrorRecord(
  */
 export function decodeApiError(
   { body }: { body: unknown },
-  { fallbackMessage = 'request failed' }: { fallbackMessage?: string } = {},
+  { fallbackMessage = 'The server did not provide a reason for this response. Check the result before trying again.' }: { fallbackMessage?: string } = {},
 ): DecodedApiError {
   if (body === null || typeof body !== 'object' || Array.isArray(body)) return { message: fallbackMessage };
   const record = body as Record<string, unknown>;

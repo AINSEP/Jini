@@ -83,10 +83,11 @@ export function assertCredentialFreeField(
   _optional = {},
 ): void {
   let credential = containsSecret({ text: value }) || hasSecretCliArg(value);
+  let url: URL | undefined;
   try {
-    const url = new URL(value);
-    credential ||= url.username !== '' || url.password !== '' || [...url.searchParams.keys()].some(key => SECRET_NAME.test(key));
-  } catch { /* A label/argument is ordinarily not an absolute URL. */ }
+    url = new URL(value);
+  } catch { url = undefined; /* A label/argument is ordinarily not an absolute URL. */ }
+  if (url) credential ||= url.username !== '' || url.password !== '' || [...url.searchParams.keys()].some(key => SECRET_NAME.test(key));
   if (credential) throw new CredentialInputError('plain', field);
 }
 

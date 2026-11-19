@@ -48,3 +48,28 @@ it('persists sections through object methods without reading ambient storage', (
   unmount();
   expect(events.removeEventListener).toHaveBeenCalledWith('storage', events.addEventListener.mock.calls[0]?.[1]);
 });
+
+
+it('keeps the rail default and live toggles when both storage methods throw', () => {
+  const storage = { getItem: vi.fn(() => { throw new Error('secret-storage'); }),
+    setItem: vi.fn(() => { throw new Error('secret-storage'); }) };
+  const events = { addEventListener: vi.fn(), removeEventListener: vi.fn() };
+  const { result } = renderHook(() => useSidebarRail({ storage, events }, { defaultCollapsed: true }));
+  expect(result.current.collapsed).toBe(true);
+  act(() => result.current.toggle());
+  expect(result.current.collapsed).toBe(false);
+  expect(storage.getItem).toHaveBeenCalledTimes(1);
+  expect(storage.setItem).toHaveBeenCalledTimes(1);
+});
+
+it('keeps sections open by default and toggles in-tab when storage is denied', () => {
+  const storage = { getItem: vi.fn(() => { throw new Error('secret-storage'); }),
+    setItem: vi.fn(() => { throw new Error('secret-storage'); }) };
+  const events = { addEventListener: vi.fn(), removeEventListener: vi.fn() };
+  const { result } = renderHook(() => useNavSections({ storage, events }));
+  expect(result.current.isOpen({ groupLabel: 'Records' })).toBe(true);
+  act(() => result.current.toggle({ groupLabel: 'Records' }));
+  expect(result.current.isOpen({ groupLabel: 'Records' })).toBe(false);
+  expect(storage.getItem).toHaveBeenCalledTimes(1);
+  expect(storage.setItem).toHaveBeenCalledTimes(1);
+});

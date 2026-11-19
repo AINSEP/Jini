@@ -1,3 +1,4 @@
+import { afterSettled, observed } from '@jini-ai/core/errors/idioms';
 import { mkdirSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 
@@ -45,7 +46,7 @@ export function openPgliteKernel<DB>(
   })();
   // Surfaced by every call that awaits `ready`; this only stops an unhandled-rejection crash when
   // nothing has called in yet.
-  ready.catch(() => {});
+  observed({ promise: ready });
   return buildKernel<DB>({
     dialect: "postgres",
     transport: "pglite",
@@ -60,7 +61,7 @@ export function openPgliteKernel<DB>(
       await writeFile(destPath, Buffer.from(await dump.arrayBuffer()));
     },
     async close() {
-      await ready.catch(() => {});
+      await afterSettled({ promise: ready });
       await client.close();
     },
   });

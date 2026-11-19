@@ -52,7 +52,7 @@ function deliverRouteInternalError<C extends RouteInternalErrorContext>(
     // sink's own failure, so neither is lost and the route still answers.
     logRouteInternalError({ context, logSource });
     // eslint-disable-next-line no-console
-    console.error(`[@jini-ai/http-kit] internal error sink failed (${logSource}, correlationId=${context.correlationId})`, describeErrorForLog({ err: sinkError }));
+    console.error(`[@jini-ai/http-kit] Could not report route failure (${logSource}, correlationId=${context.correlationId})`, describeErrorForLog({ err: sinkError }));
   }
 }
 
@@ -62,5 +62,5 @@ function logRouteInternalError({ context, logSource }: { readonly context: Route
   // input or a credential that no default redaction pattern recognises. The host sink gets the
   // original error and decides what its own log may keep.
   // eslint-disable-next-line no-console
-  console.error(`[@jini-ai/http-kit] internal error (${logSource}, correlationId=${context.correlationId})`, describeErrorForLog({ err: context.error }));
+  console.error(`[@jini-ai/http-kit] Route handler failed (${logSource}, correlationId=${context.correlationId})`, describeErrorForLog({ err: context.error }));
 }

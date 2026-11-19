@@ -264,7 +264,7 @@ describe('daemonDbInspectRoute', () => {
     const result = await daemonDbInspectRoute.handle({ input: undefined, deps });
     if (result.ok) throw new Error('expected failure');
     expect(result.error.message).toBe('The database could not be inspected. Try again; if it keeps failing, copy the request ID and report this problem.');
-    expect(consoleError.mock.calls).toEqual([[`[@jini-ai/http-kit] internal error (db-inspect, correlationId=${result.error.requestId})`, 'string']]);
+    expect(consoleError.mock.calls).toEqual([[`[@jini-ai/http-kit] Route handler failed (db-inspect, correlationId=${result.error.requestId})`, 'string']]);
     expect(JSON.stringify(consoleError.mock.calls)).not.toContain('boom');
     consoleError.mockRestore();
   });

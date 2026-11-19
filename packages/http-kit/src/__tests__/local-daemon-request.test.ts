@@ -253,3 +253,11 @@ describe('requireLocalDaemonRequest', () => {
     expect(next).toHaveBeenCalledOnce();
   });
 });
+
+
+it('rejects malformed or remote origins while accepting a bare loopback origin', () => {
+  expect(localOriginFromHeader({ value: 'http://[invalid' })).toBeNull();
+  expect(localOriginFromHeader({ value: 'https://remote.test' })).toBeNull();
+  expect(localOriginFromHeader({ value: 'http://localhost:4173/path' })).toBeNull();
+  expect(localOriginFromHeader({ value: 'http://localhost:4173' })).toBe('http://localhost:4173');
+});

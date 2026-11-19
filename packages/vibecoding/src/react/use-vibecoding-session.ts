@@ -1,3 +1,4 @@
+import { observed } from '@jini-ai/core/errors/idioms';
 /**
  * @module react/use-vibecoding-session
  *
@@ -46,9 +47,8 @@ export function useVibecodingSession({ session }: UseVibecodingSessionArgs): Use
   const snapshot = useSyncExternalStore(subscribe, session.getSnapshot, session.getSnapshot);
 
   useEffect(() => {
-    session.refresh().catch(() => {
-      // Already recorded on the snapshot as `lastError` — see this function's doc.
-    });
+    // Already recorded on the snapshot as `lastError` — see this function's doc.
+    observed({ promise: session.refresh() });
   }, [session]);
 
   const refresh = useCallback(() => session.refresh(), [session]);

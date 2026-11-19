@@ -129,3 +129,11 @@ describe('safeMediaUrl allowed schemes', () => {
     expect(safeMediaUrl({ url })).toBeUndefined();
   });
 });
+
+
+it('refuses malformed media URLs and parsed executable protocols', () => {
+  for (const url of ['https://[invalid', 'javascript:alert(1)', 'data:text/html,secret'])
+    expect(safeMediaUrl({ url })).toBeUndefined();
+  for (const url of ['https://cdn.test/pic.png', 'http://cdn.test/pic.png', 'blob:https://host.test/id'])
+    expect(safeMediaUrl({ url })).toBe(url);
+});

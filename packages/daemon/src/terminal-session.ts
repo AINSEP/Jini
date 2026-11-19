@@ -1,3 +1,4 @@
+import { afterSettled } from '@jini-ai/core/errors/idioms';
 /**
  * @module terminal-session
  *
@@ -178,7 +179,7 @@ function definedOnly<T extends object>(value: T): DefinedOnly<T> {
  */
 async function runExclusive<T>(locks: Map<string, Promise<unknown>>, id: string, fn: () => T): Promise<T> {
   const prior = locks.get(id) ?? Promise.resolve();
-  const task = prior.catch(() => undefined).then(fn);
+  const task = afterSettled({ promise: prior }).then(fn);
   locks.set(id, task);
   try {
     return await task;

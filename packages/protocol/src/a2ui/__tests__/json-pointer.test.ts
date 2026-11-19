@@ -348,3 +348,11 @@ describe('joinPointer — base parsing', () => {
     expect(joinPointer({ base: '', tokens: [] })).toBe('/');
   });
 });
+
+
+it('degrades malformed pointer reads and writes without changing the document', () => {
+  const doc = { user: { name: 'Ada' } };
+  expect(getAtPointer({ doc, pointer: 'user/name' })).toEqual({ found: false, value: undefined });
+  expect(setAtPointer({ doc, pointer: 'user/name', value: 'Grace' })).toBe(doc);
+  expect(getAtPointer({ doc, pointer: '' })).toEqual({ found: true, value: doc });
+});

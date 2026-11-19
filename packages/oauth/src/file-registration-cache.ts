@@ -1,3 +1,4 @@
+import { afterSettled } from '@jini-ai/core/errors/idioms';
 import type { ClientRegistrationCache } from './ports.js';
 import type { RegisteredOAuthClient } from './registration.js';
 /** File I/O seam. Writes must be atomic and owner-only because registrations can contain secrets. */
@@ -41,7 +42,7 @@ export function createFileClientRegistrationCache(options: FileClientRegistratio
             });
         });
         // A failed write must not permanently poison this adapter's queue.
-        queue = attempt.catch(() => undefined);
+        queue = afterSettled({ promise: attempt });
         return attempt;
     };
     return {

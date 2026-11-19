@@ -523,3 +523,10 @@ describe('sanitizeMcpServer transport/auth discriminators (F3)', () => {
     expect(sanitizeMcpServer({ raw: { id: 'a', command: 'node' } })?.transport).toBe('stdio');
   });
 });
+
+
+it('never infers unauthenticated access from malformed or remote URLs', () => {
+  expect(inferMcpAuthModeForUrl({ rawUrl: 'http://[invalid' })).toBe('oauth');
+  expect(inferMcpAuthModeForUrl({ rawUrl: 'http://localhost.remote.test' })).toBe('oauth');
+  expect(inferMcpAuthModeForUrl({ rawUrl: 'http://localhost:4173' })).toBe('none');
+});

@@ -1,3 +1,4 @@
+import { afterSettled } from "@jini-ai/core/errors/idioms";
 import type { AdminFormsPort } from "../../../core/ports/forms.js";
 import { formView } from "../../models.js";
 import type { FormsTrashPort, FormsEventsPort } from "../../ports.js";
@@ -121,9 +122,8 @@ export function useFormsList(
     if (rowSavingId) return;
     setRowSavingId(form.id);
     try {
-      await toggleMutation.mutate({ input: form });
-    } catch {
       // already surfaced through toggleMutation.error -> error below
+      await afterSettled({ promise: toggleMutation.mutate({ input: form }) });
     } finally {
       setRowSavingId((cur) => (cur === form.id ? null : cur));
     }

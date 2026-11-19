@@ -271,7 +271,7 @@ describe('RunLifecycle — slow-run notice', () => {
       const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
       try {
         await vi.advanceTimersByTimeAsync(1_000);
-        expect(consoleError).toHaveBeenCalledWith(`[@jini-ai/daemon] internal error (slow-run-notice, runId=${run.id})`, 'Error');
+        expect(consoleError).toHaveBeenCalledWith(`[@jini-ai/daemon] Run lifecycle step failed (slow-run-notice, runId=${run.id})`, 'Error');
       } finally { consoleError.mockRestore(); }
       expect((await lifecycle.get({ runId: run.id }))?.state).toBe('running');
     });
@@ -285,7 +285,7 @@ describe('RunLifecycle — slow-run notice', () => {
       const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
       try {
         await vi.advanceTimersByTimeAsync(1_000);
-        expect(consoleError).toHaveBeenCalledWith(`[@jini-ai/daemon] internal error sink failed (slow-run-notice, runId=${run.id})`, 'Error');
+        expect(consoleError).toHaveBeenCalledWith(`[@jini-ai/daemon] Could not report run lifecycle failure (slow-run-notice, runId=${run.id})`, 'Error');
       } finally { consoleError.mockRestore(); }
       expect((await lifecycle.get({ runId: run.id }))?.state).toBe('running');
     });

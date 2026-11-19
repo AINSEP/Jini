@@ -125,3 +125,9 @@ describe('partial-json: parsePartialJson', () => {
     expect(parsePartialJson({ buf: ']' })).toBeNull();
   });
 });
+
+
+it('repairs a streaming prefix but refuses text that remains malformed', () => {
+  expect(parsePartialJson({ buf: '{"questions":[{"title":"Par' })).toEqual({ questions: [{ title: 'Par' }] });
+  expect(parsePartialJson({ buf: '{"questions":???' })).toBeNull();
+});

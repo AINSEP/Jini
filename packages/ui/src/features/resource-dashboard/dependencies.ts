@@ -1,3 +1,4 @@
+import { orFallbackSync } from '@jini-ai/core/errors/idioms';
 /**
  * The only file in this feature allowed to touch a concrete adapter.
  *
@@ -90,20 +91,25 @@ export function createLocalStorageViewModeStorage(): ResourceViewModeStoragePort
   return {
     getViewMode(scopeKey: string): ResourceBoardViewMode | null {
       if (typeof window === 'undefined') return null;
-      try {
-        const raw = window.localStorage.getItem(scopeKey);
-        return raw === 'grid' || raw === 'kanban' ? raw : null;
-      } catch {
-        return null;
-      }
+      return orFallbackSync({
+        work: () => {
+          const raw = window.localStorage.getItem(scopeKey);
+          return raw === 'grid' || raw === 'kanban' ? raw : null;
+        },
+        fallback: null,
+        step: 'read resource view mode preference',
+      });
     },
     setViewMode(scopeKey: string, mode: ResourceBoardViewMode): void {
       if (typeof window === 'undefined') return;
-      try {
-        window.localStorage.setItem(scopeKey, mode);
-      } catch {
-        // Ignore storage quota and private-mode failures.
-      }
+      // Ignore storage quota and private-mode failures.
+      orFallbackSync({
+        work: () => {
+          window.localStorage.setItem(scopeKey, mode);
+        },
+        fallback: undefined,
+        step: 'save resource view mode preference',
+      });
     },
   };
 }

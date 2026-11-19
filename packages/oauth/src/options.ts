@@ -10,13 +10,17 @@ export function assertOAuthAppOptions(options: OAuthAppOptions): void {
     if (!Array.isArray(options.redirectUris))
         throw invalidOption('redirectUris');
     for (const uri of options.redirectUris) {
+        if (typeof uri !== 'string')
+            throw invalidOption('redirectUris');
+        let parsed: URL;
         try {
-            if (typeof uri !== 'string' || new URL(uri).hash !== '')
-                throw invalidOption('redirectUris');
+            parsed = new URL(uri);
         }
         catch {
             throw invalidOption('redirectUris');
         }
+        if (parsed.hash !== '')
+            throw invalidOption('redirectUris');
     }
 }
 function invalidOption(key: string): OAuthError {

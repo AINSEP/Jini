@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import {
-  createObjectStoreRegistry, DEFAULT_OBJECT_STORE_PROVIDER_ID, OBJECT_STORE_CONTRACT, objectStoreProviderFault,
+  deferObjectStore, createObjectStoreRegistry, DEFAULT_OBJECT_STORE_PROVIDER_ID, OBJECT_STORE_CONTRACT, objectStoreProviderFault,
   type ObjectStore, type ObjectStoreProvider,
 } from '../object-store.js';
 import { providerOk, ProviderRegistryError } from '../provider-registry.js';
@@ -60,4 +60,22 @@ test('deferObjectStore loads once on first use, forwards every call, and retries
   assert.equal(loads, 2, 'the failed load was retried once, then kept');
   assert.deepEqual(calls, ['put:a:true', 'get:a', 'head:a', 'delete:a']);
   assert.equal(deferred.publicAccess, undefined);
+});
+
+
+test('coalesces a rejected object-store load, preserves the cause and forgets only that attempt', async () => {
+  const failure = new Error('loader refused');
+  let reject!: (error: unknown) => void;
+  const pending = new Promise<ObjectStore>((_resolve, fail) => { reject = fail; });
+  let calls = 0;
+  const deferred = deferObjectStore({ load: () => { calls++; return calls === 1 ? pending : Promise.resolve(store); } });
+  const first = deferred.get({ key: 'a' });
+  const second = deferred.head({ key: 'a' });
+  const rejected = Promise.all([assert.rejects(first, error => error === failure), assert.rejects(second, error => error === failure)]);
+  reject(failure);
+  await rejected;
+  assert.equal(calls, 1);
+  assert.equal(await deferred.get({ key: 'a' }), null);
+  assert.equal(await deferred.head({ key: 'a' }), null);
+  assert.equal(calls, 2);
 });

@@ -1,3 +1,4 @@
+import { observed } from '@jini-ai/core/errors/idioms';
 /**
  * @file Installed-app loopback receiver (RFC 8252 §7.3): a one-shot HTTP listener on 127.0.0.1
  * and an ephemeral port that catches a single authorization redirect from the system browser.
@@ -141,7 +142,7 @@ export async function startLoopbackAuthorizationReceiver(_requiredArgs: OAuthEmp
         settle = outcome => ('value' in outcome ? resolve(outcome.value) : reject(outcome.error));
     });
     // Callers may cancel before awaiting; a rejection nobody awaited must not crash the host.
-    result.catch(() => undefined);
+    observed({ promise: result });
 
     const server = createServer({ maxHeaderSize: MAX_HEADER_BYTES });
     server.maxHeadersCount = MAX_HEADER_COUNT;

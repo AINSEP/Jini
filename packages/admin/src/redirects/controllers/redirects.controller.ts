@@ -1,3 +1,4 @@
+import { afterSettled, observed } from '@jini-ai/core/errors/idioms';
 import { createControllerStore } from '@jini-ai/core/admin-runtime';
 import type { AdminRedirect } from '../../core/ports/redirects.js';
 /** Fetch-query owns request/cache states; this controller owns confirmation and write sequencing. */
@@ -25,7 +26,7 @@ export function createRedirectsController({ actions }: { actions: () => Redirect
       if (actions().saving || store.signal.aborted) return;
       actions().resetOthers('toggle');
       // The mutation owns the visible error; handle this derived promise too.
-      void actions().toggle(rule).catch(() => {});
+      observed({ promise: actions().toggle(rule) });
     },
     onRequestDelete({ rule }: { rule: AdminRedirect }, _options = {}) {
       if (actions().saving || store.signal.aborted) return;
@@ -35,9 +36,9 @@ export function createRedirectsController({ actions }: { actions: () => Redirect
       const rule = store.getSnapshot().pendingDelete;
       if (!rule || store.signal.aborted) return;
       actions().resetOthers('remove');
-      // Catch BEFORE finally: finally creates a new rejection even if mutate handled its own.
+      // Settle BEFORE finally: finally creates a new rejection even if mutate handled its own.
       // Failure is already surfaced by the mutation; always close confirmation once it settles.
-      void actions().remove(rule).catch(() => {}).finally(() => store.set({ patch: { pendingDelete: null } }));
+      void afterSettled({ promise: actions().remove(rule) }).finally(() => store.set({ patch: { pendingDelete: null } }));
     },
   };
 }

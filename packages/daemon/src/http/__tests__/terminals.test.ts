@@ -257,7 +257,7 @@ describe('terminalCreateRoute.handle', () => {
     const deps: TerminalsHttpDeps = { manager: makeManager().manager, toolExecutor: executor, principal: alice, resolveRoot: () => '/work' };
     const result = await terminalCreateRoute.handle({ input: { resourceRef: 'proj-1' }, deps });
     if (result.ok) throw new Error('expected failure');
-    expect(consoleError.mock.calls).toEqual([[`[@jini-ai/http-kit] internal error (terminal-create, correlationId=${result.error.requestId})`, 'string']]);
+    expect(consoleError.mock.calls).toEqual([[`[@jini-ai/http-kit] Route handler failed (terminal-create, correlationId=${result.error.requestId})`, 'string']]);
     expect(JSON.stringify(consoleError.mock.calls)).not.toContain('boom');
     consoleError.mockRestore();
   });

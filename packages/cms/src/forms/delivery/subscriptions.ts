@@ -1,3 +1,4 @@
+import { observed } from '@jini-ai/core/errors/idioms';
 /**
  * @file Wires delivery onto the event bus: the received-submission event only plans (fast, one
  * transaction), and each child job event delivers independently, so one slow or failing
@@ -43,11 +44,11 @@ export function createFormDeliverySubscriptions(
   };
   const start = (): Promise<void> => {
     if (started) return started;
-    started = install();
-    // A failed install is forgotten so a later start retries it. Attaching this handler also marks
-    // the promise handled, so a host that fires `void start()` gets no unhandled rejection, while a
-    // caller that awaits the returned promise still sees the error.
-    started.catch(() => { started = undefined; });
+    // A failed install is forgotten so a later start retries it. Observation marks the cached
+    // promise handled, so a host that fires `void start()` gets no unhandled rejection, while a
+    // caller that awaits the returned promise still sees the same error.
+    started = install().catch(error => { started = undefined; throw error; });
+    observed({ promise: started });
     return started;
   };
   return { start };

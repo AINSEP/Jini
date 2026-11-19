@@ -3,7 +3,7 @@
  * cached (a later start retries), and a failure never escapes as an unhandled rejection when a
  * host fires `start()` without awaiting it.
  */
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import type { DomainEvent, EventBusPort } from "@jini-ai/core/contracts/events";
 import { createFormDeliverySubscriptions, FORM_DELIVERY_EVENT, FORM_SUBMISSION_RECEIVED_EVENT, FormDeliveryError, type FormDeliveryJob,
   type FormDeliveryResult } from "../../index.js";
@@ -148,4 +148,20 @@ describe("handlers", () => {
     await createFormDeliverySubscriptions({ bus, plan: async () => undefined, deliver }).start();
     await expect(bus.emit(FORM_DELIVERY_EVENT, job)).rejects.toThrow(/^delivery-failed$/);
   });
+});
+
+
+test('coalesces a failed subscription install, preserves its error and retries once', async () => {
+  const failure = new Error('subscribe refused');
+  const bus = new FlakyBus([]);
+  const subscribe = vi.spyOn(bus, 'subscribe').mockRejectedValueOnce(failure);
+  const subscriptions = subscriptionsOn(bus);
+  const first = subscriptions.start();
+  expect(subscriptions.start()).toBe(first);
+  await expect(first).rejects.toBe(failure);
+  const retry = subscriptions.start();
+  expect(subscriptions.start()).toBe(retry);
+  await retry;
+  expect(subscribe).toHaveBeenCalledTimes(3);
+  expect(bus.subscribed).toEqual([FORM_SUBMISSION_RECEIVED_EVENT, FORM_DELIVERY_EVENT]);
 });

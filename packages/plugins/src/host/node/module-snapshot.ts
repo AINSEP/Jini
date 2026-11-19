@@ -1,3 +1,4 @@
+import { observed } from '@jini-ai/core/errors/idioms';
 /** Site-plugin graph isolation. A fresh filesystem identity covers relative ESM, dynamic imports
  * and CommonJS requires together; a query on the entry alone covers only that entry.
  * Snapshots live outside discovery and remain available for late dynamic imports until shutdown.
@@ -187,7 +188,7 @@ export function createPluginModuleSnapshotLifecycle(
   const ready = reapRuntimeSnapshots({ runtimeRoot: root, ownerPrefix, fs, proc });
   // Composition may await other boot work before observing ready; preserve its rejection without
   // turning an early filesystem failure into an unhandled process-level rejection meanwhile.
-  void ready.catch(() => undefined);
+  observed({ promise: ready });
   let closed = false;
   let disposal: Promise<void> | undefined;
 

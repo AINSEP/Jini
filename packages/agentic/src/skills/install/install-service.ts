@@ -1,3 +1,4 @@
+import { afterSettled } from '@jini-ai/core/errors/idioms';
 import path from "node:path";
 import { SkillInputError, validateSkillFiles, type SkillUploadFile } from "./validation.js";
 import { readSkillArchive } from "./archive.js";
@@ -87,7 +88,7 @@ async function locked<Source extends object, T>({ env, workspaceId, work }: {
   work: () => Promise<T>;
 }): Promise<T> {
   const key = layoutFor({ env, workspaceId }).workspaceRoot;
-  const result = (env.queues.get(key) ?? Promise.resolve()).catch(() => {}).then(work);
+  const result = afterSettled({ promise: env.queues.get(key) ?? Promise.resolve() }).then(work);
   env.queues.set(key, result);
   try { return await result; }
   finally { if (env.queues.get(key) === result) env.queues.delete(key); }

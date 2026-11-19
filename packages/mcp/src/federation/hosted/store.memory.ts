@@ -1,3 +1,4 @@
+import { afterSettled } from '@jini-ai/core/errors/idioms';
 import { isDeepStrictEqual } from "node:util";
 import type { SealedSecret, VaultRecord, VaultRepoPort } from "@jini-ai/core/contracts/vault";
 import { externalMcpVaultEnvelope, externalMcpVaultRecord, persistExternalMcpVaultEnvelope, deleteExternalMcpVaultEnvelope } from "./vault.js";
@@ -54,7 +55,7 @@ export class InMemoryExternalMcpServerRepo implements ExternalMcpServerRepoPort 
 
   private write<T>(body: () => Promise<T>): Promise<T> {
     const result = this.pending.then(body);
-    this.pending = result.catch(() => {});
+    this.pending = afterSettled({ promise: result });
     return result;
   }
 

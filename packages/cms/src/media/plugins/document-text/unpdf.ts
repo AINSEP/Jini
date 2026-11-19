@@ -1,3 +1,4 @@
+import { observed } from '@jini-ai/core/errors/idioms';
 import { MediaValidationError } from '../../types.js';
 import { DOCUMENT_CONTENT_TYPES, MAX_DOCUMENT_BYTES } from '../../document-ingress.js';
 import { boundDocumentText, DocumentTextExtractionError, type DocumentTextExtraction, type DocumentTextExtractorPort } from '../../document-text.js';
@@ -45,7 +46,7 @@ async function readPages({ pdf, limits }: { pdf: PdfDocument; limits: { maxPages
 async function readCancelablePdf({ pdf, limits, signal }: { pdf: PdfDocument; limits: { maxPages: number; maxCharacters: number }; signal?: AbortSignal }) {
   let destruction: Promise<void> | undefined;
   const destroy = () => destruction ??= pdf.loadingTask.destroy();
-  const abort = () => { void destroy().catch(() => undefined); }; // Observed again by finally.
+  const abort = () => { observed({ promise: destroy() }); }; // Observed again by finally.
   signal?.addEventListener('abort', abort, { once: true });
   try {
     signal?.throwIfAborted();

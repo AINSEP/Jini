@@ -1,3 +1,4 @@
+import { afterSettled } from '@jini-ai/core/errors/idioms';
 import { createControllerStore } from '@jini-ai/core/admin-runtime';
 import type { AdminRedirectCreateInput, AdminRedirectImportResult } from '../../core/ports/redirects.js';
 import type { RedirectsTranslate } from '../models.js';
@@ -24,8 +25,8 @@ export function createImportRedirectsController(
       // Check JSON + array only: the server remains the validator and returns each item's 207 outcome.
       const parsed = parseImportPayload({ raw: store.getSnapshot().raw, translate: t() });
       if (!parsed.ok) { store.set({ patch: { parseError: parsed.error } }); return; }
-      try { store.set({ patch: { result: await actions().run(parsed.rules) } }); }
-      catch { /* already surfaced by the mutation's request-error channel */ }
+      // already surfaced by the mutation's request-error channel
+      await afterSettled({ promise: actions().run(parsed.rules).then(result => store.set({ patch: { result } })) });
     },
   };
 }

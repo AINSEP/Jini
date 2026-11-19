@@ -90,7 +90,7 @@ function environmentWithout(parent: NodeJS.ProcessEnv): Record<string, string> {
 function publicFailure({ message, countedTable }: { message: string; countedTable: string | undefined }): string {
   if (message === FOREIGN_SCHEMA_SIGNAL) return FOREIGN_SCHEMA_SIGNAL;
   if (message.startsWith(`${COUNT_MISMATCH_SIGNAL} `)) return `${COUNT_MISMATCH_SIGNAL} ${countedTable ?? "[redacted]"}`;
-  return "psql request failed";
+  return "PostgreSQL did not complete the transfer command. Check the target connection and permissions before retrying.";
 }
 function failureFrom({ stderr }: { stderr: string }, _options = {}): { ok: false; error: string; copyTable?: string } {
   const lines = stderr.split("\n").map((line) => line.trim()).filter((line) => line !== "");

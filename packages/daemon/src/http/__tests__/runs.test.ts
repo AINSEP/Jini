@@ -748,7 +748,7 @@ describe('run routes: one incident owner (log safety)', () => {
       const deps = makeDeps({ onStarted: () => { throw new Error('boom api_key=SECRETSECRETSECRETSECRET'); } });
       const result = await runStartRoute.handle({ input: { contextRef: 'ctx-1' }, deps });
       if (result.ok) throw new Error('expected failure');
-      expect(consoleError.mock.calls).toEqual([[`[@jini-ai/http-kit] internal error (run-start, correlationId=${result.error.requestId})`, 'Error']]);
+      expect(consoleError.mock.calls).toEqual([[`[@jini-ai/http-kit] Route handler failed (run-start, correlationId=${result.error.requestId})`, 'Error']]);
       const printed = JSON.stringify(consoleError.mock.calls);
       for (const leaked of ['boom', 'SECRETSECRET', 'runs.test']) expect(printed).not.toContain(leaked);
     } finally { consoleError.mockRestore(); }

@@ -269,10 +269,16 @@ function pixelSize(width: number | null | undefined, height: number | null | und
 
 /** The last path segment of an image URL ("https://cdn.example/a/pic.png" → "pic.png"). */
 function urlFileName(value: string): string {
+  let url: URL;
   try {
-    const url = new URL(value, 'https://placeholder.invalid');
-    const last = url.pathname.split('/').filter(Boolean).pop();
-    return last ? decodeURIComponent(last) : url.hostname || value;
+    url = new URL(value, 'https://placeholder.invalid');
+  } catch {
+    return value;
+  }
+  const last = url.pathname.split('/').filter(Boolean).pop();
+  if (!last) return url.hostname || value;
+  try {
+    return decodeURIComponent(last);
   } catch {
     return value;
   }

@@ -99,3 +99,15 @@ describe('assertCredentialFreeField', () => {
     expect(() => assertCredentialFreeField({ value, field: 'args', containsSecret: never })).not.toThrow();
   });
 });
+
+
+it('keeps text and CLI secret refusals when the input cannot be parsed as a URL', () => {
+  for (const [value, containsSecret] of [
+    ['http://[invalid secret-marker', () => true],
+    ['--api-token secret-marker http://[invalid', () => false],
+  ] as const) {
+    expect(ruleOf(() => assertCredentialFreeField({ value, field: 'label', containsSecret })))
+      .toEqual({ rule: 'plain', field: 'label', message: CREDENTIAL_MESSAGES.plain });
+  }
+  expect(() => assertCredentialFreeField({ value: 'ordinary label', field: 'label', containsSecret: () => false })).not.toThrow();
+});

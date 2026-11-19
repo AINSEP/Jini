@@ -16,11 +16,13 @@ export function isPlainObject(v: unknown): v is Record<string, unknown> {
  */
 export function inferMcpAuthModeForUrl({ rawUrl }: { rawUrl: string | undefined }): McpAuthMode {
   if (!rawUrl) return 'oauth';
+  let parsed: URL;
   try {
-    return isLoopbackHostname({ hostname: new URL(rawUrl).hostname }) ? 'none' : 'oauth';
+    parsed = new URL(rawUrl);
   } catch {
     return 'oauth';
   }
+  return isLoopbackHostname({ hostname: parsed.hostname }) ? 'none' : 'oauth';
 }
 
 // Only ever invoked for http/sse servers (the callers gate on transport), so

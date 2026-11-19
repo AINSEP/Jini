@@ -41,9 +41,9 @@ describe('toQueryError', () => {
     const error = new TypeError('bad');
     expect(toQueryError(error)).toBe(error);
     expect(toQueryError('offline')).toEqual(new Error('offline'));
-    expect(toQueryError('   ')).toEqual(new Error('request failed'));
-    expect(toQueryError({ status: 500 })).toEqual(new Error('request failed'));
-    expect(toQueryError(undefined)).toEqual(new Error('request failed'));
+    expect(toQueryError('   ')).toEqual(new Error('The data could not be loaded. Try loading it again.'));
+    expect(toQueryError({ status: 500 })).toEqual(new Error('The data could not be loaded. Try loading it again.'));
+    expect(toQueryError(undefined)).toEqual(new Error('The data could not be loaded. Try loading it again.'));
   });
 });
 
@@ -177,4 +177,16 @@ describe('FetchQueryCache edges', () => {
     expect(entry.state.data).toBe('v2');
     cache.dispose();
   });
+});
+
+
+it('owns an ignored cache rejection while keeping the same error for its awaiter', async () => {
+  const cache = new FetchQueryCache(manualScheduler());
+  const entry = cache.entry({ key: ['rejected'] });
+  const failure = new Error('read refused');
+  const pending = cache.load({ entry, fetch: async () => { throw failure; }, staleTime: 0 });
+  await new Promise<void>(resolve => setTimeout(resolve, 0));
+  expect(entry.state).toEqual({ data: undefined, error: failure, status: 'error', isFetching: false });
+  await expect(pending).rejects.toBe(failure);
+  cache.dispose();
 });

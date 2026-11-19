@@ -1,3 +1,4 @@
+import { orFallbackSync } from '@jini-ai/core/errors/idioms';
 import { DEFAULT_RECENTS_LIMIT, DEFAULT_RECENTS_STORAGE_NAMESPACE } from './constants.js';
 import { parseRecentIds, pushRecentId } from './rules.js';
 import type { CommandPaletteRecentsPort } from './ports.js';
@@ -20,24 +21,29 @@ export function createLocalStorageRecents(
 
   const read = (scopeKey: string): string[] => {
     if (typeof window === 'undefined') return [];
-    try {
-      const raw = window.localStorage.getItem(storageKey(namespace, scopeKey));
-      return raw ? parseRecentIds(raw) : [];
-    } catch {
-      return [];
-    }
+    return orFallbackSync({
+      work: () => {
+        const raw = window.localStorage.getItem(storageKey(namespace, scopeKey));
+        return raw ? parseRecentIds(raw) : [];
+      },
+      fallback: [],
+      step: 'read command palette recents preference',
+    });
   };
 
   return {
     read,
     push(scopeKey, id) {
       if (typeof window === 'undefined') return;
-      try {
-        const next = pushRecentId(read(scopeKey), id, limit);
-        window.localStorage.setItem(storageKey(namespace, scopeKey), JSON.stringify(next));
-      } catch {
-        // Quota exceeded or private mode — recents are best-effort, drop silently.
-      }
+      // Quota exceeded or private mode — recents are best-effort, drop silently.
+      orFallbackSync({
+        work: () => {
+          const next = pushRecentId(read(scopeKey), id, limit);
+          window.localStorage.setItem(storageKey(namespace, scopeKey), JSON.stringify(next));
+        },
+        fallback: undefined,
+        step: 'save command palette recents preference',
+      });
     },
   };
 }

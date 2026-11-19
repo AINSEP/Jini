@@ -1,3 +1,4 @@
+import { orFallbackSync } from '@jini-ai/core/errors/idioms';
 import { useCallback, useEffect, useState } from 'react';
 
 /**
@@ -51,28 +52,33 @@ export type NavSectionState = Readonly<Record<string, boolean>>;
  * cannot discard a user's other sections.
  */
 function readPersisted(storageKey: string, storage: Pick<Storage, 'getItem'>): NavSectionState {
-  try {
-    const raw = storage.getItem(storageKey);
-    if (raw === null) return {};
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {};
-    const clean: Record<string, boolean> = {};
-    for (const [label, value] of Object.entries(parsed as Record<string, unknown>)) {
-      if (typeof value === 'boolean') clean[label] = value;
-    }
-    return clean;
-  } catch {
-    return {};
-  }
+  return orFallbackSync({
+    work: () => {
+      const raw = storage.getItem(storageKey);
+      if (raw === null) return {};
+      const parsed: unknown = JSON.parse(raw);
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {};
+      const clean: Record<string, boolean> = {};
+      for (const [label, value] of Object.entries(parsed as Record<string, unknown>)) {
+        if (typeof value === 'boolean') clean[label] = value;
+      }
+      return clean;
+    },
+    fallback: {},
+    step: 'read navigation sections preference',
+  });
 }
 
 function writePersisted(storageKey: string, state: NavSectionState, storage: Pick<Storage, 'setItem'>): void {
-  try {
-    storage.setItem(storageKey, JSON.stringify(state));
-  } catch {
-    // Best-effort, exactly as in `use-sidebar-rail.ts`: a user who cannot persist still gets a
-    // working accordion for this tab, and failing loudly would break the nav over a preference.
-  }
+  // Best-effort, exactly as in `use-sidebar-rail.ts`: a user who cannot persist still gets a
+  // working accordion for this tab, and failing loudly would break the nav over a preference.
+  orFallbackSync({
+    work: () => {
+      storage.setItem(storageKey, JSON.stringify(state));
+    },
+    fallback: undefined,
+    step: 'save navigation sections preference',
+  });
 }
 
 export interface NavSections {

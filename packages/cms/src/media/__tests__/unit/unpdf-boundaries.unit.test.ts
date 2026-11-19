@@ -83,3 +83,26 @@ it('cancellation destroys a PDF whose text operation is stalled', async () => {
   expect(destroy).toHaveBeenCalledOnce();
   expect(await result).toBeInstanceOf(DocumentTextExtractionError);
 });
+
+
+it('observes failed abort teardown, awaits it in finalization and destroys only once', async () => {
+  const failure = new Error('teardown refused');
+  const controller = new AbortController();
+  let entered!: () => void;
+  const started = new Promise<void>(resolve => { entered = resolve; });
+  let release!: (value: { items: { str: string }[] }) => void;
+  const text = new Promise<{ items: { str: string }[] }>(resolve => { release = resolve; });
+  const destroy = vi.fn(async () => { throw failure; });
+  const extractor = createUnpdfDocumentTextExtractor({}, { loadModule: async () => ({ getDocumentProxy: async () => ({
+    numPages: 1, getPage: async () => ({ getTextContent: () => { entered(); return text; }, cleanup() {} }), loadingTask: { destroy },
+  }) }) });
+  const extracting = extractor.extract({ bytes: new Uint8Array([1]), limits: { maxPages: 1, maxCharacters: 100 } }, { signal: controller.signal });
+  const rejected = expect(extracting).rejects.toMatchObject({ cause: failure });
+  await started;
+  controller.abort();
+  await new Promise<void>(resolve => setTimeout(resolve, 0));
+  expect(destroy).toHaveBeenCalledTimes(1);
+  release({ items: [{ str: 'done' }] });
+  await rejected;
+  expect(destroy).toHaveBeenCalledTimes(1);
+});

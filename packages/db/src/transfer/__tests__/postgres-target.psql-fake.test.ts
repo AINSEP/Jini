@@ -57,11 +57,20 @@ describe("psql adapter", () => {
     ["count mismatch with a valid table", `\n  \npsql:<stdin>:9: ERROR:  ${COUNT_MISMATCH_SIGNAL} posts\n`, { ok: false, error: `${COUNT_MISMATCH_SIGNAL} posts` }],
     ["count mismatch with an unsafe table name", `ERROR: ${COUNT_MISMATCH_SIGNAL} bad-name;drop\n`, { ok: false, error: `${COUNT_MISMATCH_SIGNAL} [redacted]` }],
     ["count mismatch with trailing junk", `ERROR: ${COUNT_MISMATCH_SIGNAL} posts extra\n`, { ok: false, error: `${COUNT_MISMATCH_SIGNAL} [redacted]` }],
-    ["FATAL picked over an earlier plain line", "warning: noise\nFATAL: password authentication failed\n", { ok: false, error: "psql request failed" }],
-    ["COPY context names the table (quotes stripped)", 'ERROR: bad\nCONTEXT:  COPY "site_a"."posts", line 3\n', { ok: false, error: "psql request failed", copyTable: "site_a.posts" }],
-    ["empty stderr", "", { ok: false, error: "psql request failed" }],
+    ["FATAL picked over an earlier plain line", "warning: noise\nFATAL: password authentication failed\n", { ok: false, error: "PostgreSQL did not complete the transfer command. Check the target connection and permissions before retrying." }],
+    ["COPY context names the table (quotes stripped)", 'ERROR: bad\nCONTEXT:  COPY "site_a"."posts", line 3\n', { ok: false, error: "PostgreSQL did not complete the transfer command. Check the target connection and permissions before retrying.", copyTable: "site_a.posts" }],
+    ["empty stderr", "", { ok: false, error: "PostgreSQL did not complete the transfer command. Check the target connection and permissions before retrying." }],
   ])("classifies %s", async (_label, stderr, expected) => {
     const target = createPsqlPostgresTarget({ connectionString: URL_ }, { spawnProcess: fakePsql({ code: 3, stderr }).spawn, parentEnv: {} });
     await expect(target.runScript(["x"])).resolves.toEqual(expected);
   });
+});
+
+
+it('keeps COPY table metadata while hiding arbitrary seeded stderr', async () => {
+  const psql = fakePsql({ code: 3, stderr: 'ERROR: secret-marker\nCONTEXT: COPY "app"."notes", line 3\n' });
+  const target = createPsqlPostgresTarget({ connectionString: URL_ }, { spawnProcess: psql.spawn, parentEnv: {} });
+  const result = await target.runScript(['COPY notes FROM STDIN;']);
+  expect(result).toEqual({ ok: false, error: 'PostgreSQL did not complete the transfer command. Check the target connection and permissions before retrying.', copyTable: 'app.notes' });
+  expect(JSON.stringify(result)).not.toContain('secret-marker');
 });

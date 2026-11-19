@@ -1,3 +1,4 @@
+import { afterSettled } from '@jini-ai/core/errors/idioms';
 import { describeErrorForLog } from '@jini-ai/core';
 /**
  * @module providers/oauth-tokens
@@ -95,7 +96,7 @@ const writeLocks = new Map<string, Promise<unknown>>();
 
 async function withLock<T>(lockKey: string, fn: () => Promise<T>): Promise<T> {
   const prev = writeLocks.get(lockKey) ?? Promise.resolve();
-  const task = prev.catch(() => {}).then(fn);
+  const task = afterSettled({ promise: prev }).then(fn);
   writeLocks.set(lockKey, task);
   try {
     return await task;

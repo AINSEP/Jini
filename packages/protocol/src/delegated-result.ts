@@ -26,16 +26,17 @@ function markerId(value: unknown): string | undefined {
 function parseMarker(block: unknown): DelegatedResultMarker | undefined {
   const text = markerText(block);
   if (text === undefined) return undefined;
+  let value: unknown;
   try {
-    const value: unknown = JSON.parse(text);
-    if (!isRecord(value) || Object.keys(value).length !== 1) return undefined;
-    const marker = value.jiniDelegatedResult;
-    if (!isRecord(marker) || Object.keys(marker).length !== 2 || marker.version !== 1) return undefined;
-    const toolUseId = markerId(marker.toolUseId);
-    return toolUseId === undefined ? undefined : { version: 1, toolUseId };
+    value = JSON.parse(text);
   } catch {
     return undefined;
   }
+  if (!isRecord(value) || Object.keys(value).length !== 1) return undefined;
+  const marker = value.jiniDelegatedResult;
+  if (!isRecord(marker) || Object.keys(marker).length !== 2 || marker.version !== 1) return undefined;
+  const toolUseId = markerId(marker.toolUseId);
+  return toolUseId === undefined ? undefined : { version: 1, toolUseId };
 }
 
 /** Reads one leading marker without altering the original content. Ambiguous markers fall back.

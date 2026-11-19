@@ -75,9 +75,11 @@ export async function readJsonBody({ request }: { readonly request: Request }, {
   if (text === '') return ok({ value: {} });
   const invalid: ServerApiError = { code: 'BAD_REQUEST', message: 'The request body is not valid JSON. Send a JSON object or array.' };
   if (!text.startsWith('{') && !text.startsWith('[')) return err({ error: invalid });
+  let value: unknown;
   try {
-    return ok({ value: JSON.parse(text) as unknown });
+    value = JSON.parse(text);
   } catch {
     return err({ error: invalid });
   }
+  return ok({ value });
 }

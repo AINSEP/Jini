@@ -1,3 +1,4 @@
+import { afterSettled } from '@jini-ai/core/errors/idioms';
 import type { Logger } from "@jini-ai/core/primitives";
 import { attachFederatedMcpTools, type AttachFederatedMcpToolsParams, type AttachFederatedToolsResult } from "./bootstrap.js";
 import type { ResolvedFederatedConnection } from "./config.js";
@@ -173,11 +174,11 @@ export function createFederationReloadCoordinator({ coordDeps, initiallyAdmitted
       // Chained off the CURRENTLY running pass, not reassigned into `inFlight` until it actually
       // starts — a third caller arriving while this follow-up is still only QUEUED (the running pass
       // hasn't settled yet) shares this same queued promise instead of queuing a third pass.
-      // `.catch(() => undefined)` first so a broken run (`resolveConnections`/`attach` throwing,
+      // `afterSettled` first so a broken run (`resolveConnections`/`attach` throwing,
       // possible only via test-injected overrides — the real ones this repo wires are documented
       // "never rejects") cannot wedge every future caller behind a permanently-rejected chain link.
       const runningPass = inFlight;
-      queuedNext = runningPass.catch(() => undefined).then(() => {
+      queuedNext = afterSettled({ promise: runningPass }).then(() => {
         const nextPass = runOnePass().finally(() => {
           inFlight = null;
         });

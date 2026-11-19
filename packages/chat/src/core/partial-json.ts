@@ -143,8 +143,9 @@ export function parsePartialJson({ buf }: { buf: string }, _optional: {} = {}): 
   if (buf.length > MAX_STRUCTURED_INPUT_CHARS) return null;
   const trimmed = buf.trim();
   if (!trimmed) return null;
+  const repaired = repairJsonPrefix({ buf: trimmed });
   try {
-    return JSON.parse(repairJsonPrefix({ buf: trimmed }));
+    return JSON.parse(repaired);
   } catch {
     return null;
   }

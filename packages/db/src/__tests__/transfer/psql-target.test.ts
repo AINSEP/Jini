@@ -80,16 +80,16 @@ it("reports a psql that cannot start without any detail", async () => {
 it("survives psql closing its stdin early and still reports the exit", async () => {
   const psql = fakePsql({ stdinError: true, code: 2, stderr: "psql: error: connection to server failed: timeout expired\n" });
   const target = createPsqlPostgresTarget({ connectionString }, { parentEnv: {}, spawnProcess: psql.spawnProcess });
-  expect(await target.runScript(["SELECT 1;\n"])).toEqual({ ok: false, error: "psql request failed" });
+  expect(await target.runScript(["SELECT 1;\n"])).toEqual({ ok: false, error: "PostgreSQL did not complete the transfer command. Check the target connection and permissions before retrying." });
 });
 
 it.each([
   { label: "the foreign-schema signal", stderr: "psql:<stdin>:4: ERROR:  TRANSFER_TARGET_NOT_OURS\nCONTEXT:  PL/pgSQL function inline_code_block\n", expected: { ok: false, error: "TRANSFER_TARGET_NOT_OURS" } },
   { label: "a count mismatch naming its table", stderr: "psql:<stdin>:9: ERROR:  TRANSFER_COUNT_MISMATCH notes\n", expected: { ok: false, error: "TRANSFER_COUNT_MISMATCH notes" } },
   { label: "a count mismatch whose table is not a plain identifier", stderr: "ERROR:  TRANSFER_COUNT_MISMATCH bad name; drop\n", expected: { ok: false, error: "TRANSFER_COUNT_MISMATCH [redacted]" } },
-  { label: "a failed COPY, by table", stderr: "psql:<stdin>:7: ERROR:  invalid input syntax for type bigint: \"x\"\nCONTEXT:  COPY \"app\".\"notes\", line 3, column id: \"x\"\n", expected: { ok: false, error: "psql request failed", copyTable: "app.notes" } },
-  { label: "an unrecognised first line", stderr: "\n  some warning text\nmore text\n", expected: { ok: false, error: "psql request failed" } },
-  { label: "an empty stderr", stderr: "", expected: { ok: false, error: "psql request failed" } },
+  { label: "a failed COPY, by table", stderr: "psql:<stdin>:7: ERROR:  invalid input syntax for type bigint: \"x\"\nCONTEXT:  COPY \"app\".\"notes\", line 3, column id: \"x\"\n", expected: { ok: false, error: "PostgreSQL did not complete the transfer command. Check the target connection and permissions before retrying.", copyTable: "app.notes" } },
+  { label: "an unrecognised first line", stderr: "\n  some warning text\nmore text\n", expected: { ok: false, error: "PostgreSQL did not complete the transfer command. Check the target connection and permissions before retrying." } },
+  { label: "an empty stderr", stderr: "", expected: { ok: false, error: "PostgreSQL did not complete the transfer command. Check the target connection and permissions before retrying." } },
 ])("reduces $label to a copier-owned error", async ({ stderr, expected }) => {
   const psql = fakePsql({ stderr, code: 3 });
   const target = createPsqlPostgresTarget({ connectionString }, { parentEnv: {}, spawnProcess: psql.spawnProcess });

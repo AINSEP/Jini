@@ -1,3 +1,4 @@
+import { afterSettled } from '@jini-ai/core/errors/idioms';
 import { deleteMapRecord } from "@jini-ai/core/records";
 import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 // The local trash fork was removed; @jini-ai/cms/trash owns the shared adapter/hooks.
@@ -187,7 +188,7 @@ export class InMemoryFormSubmissionRepo implements FormSubmissionRepoPort {
         throw error;
       }
     });
-    this.turn = run.catch(() => undefined);
+    this.turn = afterSettled({ promise: run });
     return run;
   }
 

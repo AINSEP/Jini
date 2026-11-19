@@ -1,3 +1,4 @@
+import { orFallbackSync } from '@jini-ai/core/errors/idioms';
 import { useCallback, useEffect, useState } from 'react';
 
 /**
@@ -36,22 +37,27 @@ export const DEFAULT_SIDEBAR_RAIL_STORAGE_KEY = 'jini-admin-sidebar-rail-collaps
  * never having chosen. A stored value always wins over the default; only its absence defers.
  */
 function readPersisted(storageKey: string, storage: Pick<Storage, 'getItem'>): boolean | undefined {
-  try {
-    const raw = storage.getItem(storageKey);
-    if (raw === null) return undefined;
-    return raw === '1';
-  } catch {
-    return undefined;
-  }
+  return orFallbackSync({
+    work: () => {
+      const raw = storage.getItem(storageKey);
+      if (raw === null) return undefined;
+      return raw === '1';
+    },
+    fallback: undefined,
+    step: 'read sidebar rail preference',
+  });
 }
 
 function writePersisted(storageKey: string, collapsed: boolean, storage: Pick<Storage, 'setItem'>): void {
-  try {
-    storage.setItem(storageKey, collapsed ? '1' : '0');
-  } catch {
-    // Best-effort — a user who cannot persist the preference still gets a working toggle for the
-    // current tab; failing loudly here would break the rail over a non-essential preference write.
-  }
+  // Best-effort — a user who cannot persist the preference still gets a working toggle for the
+  // current tab; failing loudly here would break the rail over a non-essential preference write.
+  orFallbackSync({
+    work: () => {
+      storage.setItem(storageKey, collapsed ? '1' : '0');
+    },
+    fallback: undefined,
+    step: 'save sidebar rail preference',
+  });
 }
 
 export interface SidebarRail {

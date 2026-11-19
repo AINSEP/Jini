@@ -21,3 +21,13 @@ describe('delegated result marker v1', () => {
     expect(JSON.parse(JSON.stringify(current))).toEqual(current);
   });
 });
+
+
+it('rejects malformed JSON and extra keys at either marker level', () => {
+  for (const text of ['{invalid',
+    '{"jiniDelegatedResult":{"version":1,"toolUseId":"B"},"extra":true}',
+    '{"jiniDelegatedResult":{"version":1,"toolUseId":"B","extra":true}}'])
+    expect(readDelegatedResult({ content: [{ type: 'text', text }] })).toBeUndefined();
+  expect(readDelegatedResult({ content: [delegatedResultMarker({ toolUseId: 'B' })] }))
+    .toEqual({ marker: { version: 1, toolUseId: 'B' }, content: [] });
+});

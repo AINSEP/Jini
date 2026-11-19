@@ -1,3 +1,4 @@
+import { afterSettled } from '@jini-ai/core/errors/idioms';
 /**
  * `RunLifecycle` — start/stream/cancel/resume a run keyed on an opaque
  * `contextRef` (extraction-plan §2.1: runs key on an opaque `contextRef`,
@@ -603,8 +604,9 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
     for (const subscriber of record.subscribers) {
       try {
         subscriber(event);
-      } catch {
+      } catch (error) {
         // Isolated by design — see the function doc above.
+        createConsoleLogger({ prefix: '' }).warn({ message: '[@jini-ai/daemon] Run event subscriber failed' }, { meta: { runId: event.runId }, error });
       }
     }
   }
@@ -643,11 +645,8 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
    */
   async function settlePendingStart(record: RunRecord | undefined): Promise<void> {
     if (record?.startPromise === undefined) return;
-    try {
-      await record.startPromise;
-    } catch {
-      // Reported to `start()`'s caller — see above.
-    }
+    // Reported to `start()`'s caller — see above.
+    await afterSettled({ promise: record.startPromise });
   }
 
   /** Settles like `promise`, or rejects with the signal's reason once it aborts; the listener is always released. */
@@ -725,9 +724,11 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
   function reportInternalError(context: RunLifecycleInternalErrorContext): void {
     try {
       if (input.onInternalError) input.onInternalError(context);
-      else createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] internal error (${context.source}, runId=${context.runId})` }, { error: context.error });
+      else createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] Run lifecycle step failed (${context.source}, runId=${context.runId})` }, { error: context.error });
     } catch (sinkError) {
-      createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] internal error sink failed (${context.source}, runId=${context.runId})` }, { error: sinkError });
+      // A diagnostic sink must not turn a contained timer failure into another unhandled
+      // rejection. The slow-run notice shares this containment with handleInactivityTimeout.
+      createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] Could not report run lifecycle failure (${context.source}, runId=${context.runId})` }, { error: sinkError });
     }
   }
 
@@ -794,18 +795,7 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
       await lifecycle.emit({ runId, input: { event: 'agent', data: { type: 'status', label: 'Stopped by inactivity watchdog', detail: 'inactivity-watchdog' } } });
       await lifecycle.finish({ runId, status: 'failed', code: null, signal: null, resumable: false });
     } catch (error) {
-      const context: RunLifecycleInternalErrorContext = { source: 'inactivity-timeout', runId, error };
-      try {
-        if (input.onInternalError) {
-          input.onInternalError(context);
-        } else {
-          createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] internal error (inactivity-timeout, runId=${runId})` }, { error });
-        }
-      } catch (sinkError) {
-        // A diagnostic sink must not turn a contained timer failure into another unhandled
-        // rejection.
-        createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] internal error sink failed (inactivity-timeout, runId=${runId})` }, { error: sinkError });
-      }
+      reportInternalError({ source: 'inactivity-timeout', runId, error });
     }
   }
 
@@ -838,17 +828,7 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
         },
       } });
     } catch (error) {
-      const context: RunLifecycleInternalErrorContext = { source: 'slow-run-notice', runId, error };
-      try {
-        if (input.onInternalError) {
-          input.onInternalError(context);
-        } else {
-          createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] internal error (slow-run-notice, runId=${runId})` }, { error });
-        }
-      } catch (sinkError) {
-        // Same containment reasoning as `handleInactivityTimeout`'s own catch below it.
-        createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] internal error sink failed (slow-run-notice, runId=${runId})` }, { error: sinkError });
-      }
+      reportInternalError({ source: 'slow-run-notice', runId, error });
     }
   }
 
