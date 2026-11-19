@@ -24,7 +24,7 @@ const call = (action, payload = {}) => client.call({ action, payload });
 /** Polls the status after a sign-in started, until the connection changes or the link expires. */
 async function followSignIn(before, expiresAt) {
   while (Date.now() < Date.parse(expiresAt)) {
-    await wait(POLL_MS);
+    await wait({ ms: POLL_MS });
     const view = await call('status');
     // The sign-in finished: the "continue to sign-in" instruction no longer applies.
     if (JSON.stringify(view.connection) !== JSON.stringify(before.connection)) { notice = null; return render(view); }
@@ -37,9 +37,9 @@ async function followSignIn(before, expiresAt) {
  * a retry can help), never a thrown page error. */
 async function run(work) {
   try {
-    await busy(app, work);
+    await busy({ root: app, work });
   } catch (error) {
-    notice = { text: failureText(error), retry: error?.retryable === true ? () => run(work) : undefined };
+    notice = { text: failureText({ error }), retry: error?.retryable === true ? () => run(work) : undefined };
     render(lastView);
   }
 }
@@ -76,13 +76,13 @@ function tickedDestinations() {
 
 /** One unticked checkbox per destination while a switch is staged: moving one is always a choice. */
 function reassignList(destinations) {
-  return h('fieldset', { class: 'list reassign' }, [
-    h('legend', {}, [REASSIGN_HINT]),
-    ...destinations.map((entry) => h('label', { class: 'check' }, [
-      h('input', { type: 'checkbox', name: 'reassign', value: entry.formSlug }),
+  return h({ tag: 'fieldset' }, { props: { class: 'list reassign' }, children: [
+    h({ tag: 'legend' }, { props: {}, children: [REASSIGN_HINT] }),
+    ...destinations.map((entry) => h({ tag: 'label' }, { props: { class: 'check' }, children: [
+      h({ tag: 'input' }, { props: { type: 'checkbox', name: 'reassign', value: entry.formSlug } }),
       `${entry.formSlug}: ${entry.title} / ${entry.tabTitle}`,
-    ])),
-  ]);
+    ] })),
+  ] });
 }
 
 /**
@@ -90,24 +90,24 @@ function reassignList(destinations) {
  * surface's declared `linkOrigins` open. The address stays visible in case the host refuses.
  */
 function accountAccessLink(url) {
-  const open = () => client.openLink({ url }).catch((error) => { notice = { text: failureText(error) }; render(lastView); });
-  return h('p', { class: 'account-link' }, [
+  const open = () => client.openLink({ url }).catch((error) => { notice = { text: failureText({ error }) }; render(lastView); });
+  return h({ tag: 'p' }, { props: { class: 'account-link' }, children: [
     'Or remove access yourself:', ' ',
-    h('button', { type: 'button', class: 'small', onClick: open }, ['Open Google Account page']),
-    ' ', h('span', { class: 'url' }, [url]),
-  ]);
+    h({ tag: 'button' }, { props: { type: 'button', class: 'small', onClick: open }, children: ['Open Google Account page'] }),
+    ' ', h({ tag: 'span' }, { props: { class: 'url' }, children: [url] }),
+  ] });
 }
 
 /** The second step of "Disconnect and revoke": nothing is sent until the person confirms here. */
 function disconnectConfirmation(view) {
   const cancel = () => { confirmingDisconnect = false; render(view); };
-  return h('div', { class: 'confirm', role: 'group', 'aria-label': 'Confirm disconnect' }, [
-    h('p', {}, [DISCONNECT_CONFIRM_TEXT]),
-    h('div', { class: 'actions' }, [
-      h('button', { type: 'button', class: 'danger', onClick: () => onAction('confirm-disconnect', view) }, ['Yes, disconnect and revoke']),
-      h('button', { type: 'button', onClick: cancel }, ['Cancel']),
-    ]),
-  ]);
+  return h({ tag: 'div' }, { props: { class: 'confirm', role: 'group', 'aria-label': 'Confirm disconnect' }, children: [
+    h({ tag: 'p' }, { props: {}, children: [DISCONNECT_CONFIRM_TEXT] }),
+    h({ tag: 'div' }, { props: { class: 'actions' }, children: [
+      h({ tag: 'button' }, { props: { type: 'button', class: 'danger', onClick: () => onAction('confirm-disconnect', view) }, children: ['Yes, disconnect and revoke'] }),
+      h({ tag: 'button' }, { props: { type: 'button', onClick: cancel }, children: ['Cancel'] }),
+    ] }),
+  ] });
 }
 
 function connectionCard(view) {
@@ -119,38 +119,38 @@ function connectionCard(view) {
     if (entry.action === 'disconnect') return 'danger-quiet';
     return index === 0 && summary.tone !== 'ok' ? 'primary' : undefined;
   };
-  return h('section', { class: 'card', 'aria-labelledby': 'account-heading' }, [
-    h('div', { class: 'head' }, [
-      h('span', { class: `dot ${summary.tone}`, 'aria-hidden': 'true' }),
-      h('h2', { id: 'account-heading' }, [summary.heading]),
-      tip('About the Google connection', summary.detail),
-    ]),
+  return h({ tag: 'section' }, { props: { class: 'card', 'aria-labelledby': 'account-heading' }, children: [
+    h({ tag: 'div' }, { props: { class: 'head' }, children: [
+      h({ tag: 'span' }, { props: { class: `dot ${summary.tone}`, 'aria-hidden': 'true' } }),
+      h({ tag: 'h2' }, { props: { id: 'account-heading' }, children: [summary.heading] }),
+      tip({ label: 'About the Google connection', text: summary.detail }),
+    ] }),
     switching && view.destinations.length > 0 ? reassignList(view.destinations) : null,
-    h('div', { class: 'actions' }, summary.buttons.map((entry, index) => h('button', { type: 'button', class: buttonClass(entry, index), onClick: () => onAction(entry.action, view) }, [entry.label]))),
+    h({ tag: 'div' }, { props: { class: 'actions' }, children: summary.buttons.map((entry, index) => h({ tag: 'button' }, { props: { type: 'button', class: buttonClass(entry, index), onClick: () => onAction(entry.action, view) }, children: [entry.label] })) }),
     confirmingDisconnect ? disconnectConfirmation(view) : null,
     view.connection.status === 'revocation-pending' ? accountAccessLink(view.accountAccessUrl) : null,
-  ]);
+  ] });
 }
 
 function productsCard(view) {
   const rows = productRows({ products: view.products, connection: view.connection });
-  return h('section', { class: 'card', 'aria-labelledby': 'products-heading' }, [
-    h('div', { class: 'head' }, [
-      h('h2', { id: 'products-heading' }, ['Products']),
-      tip('About products', 'Turning a product on or off changes only what this site does; it never changes what Google granted.'),
-    ]),
-    h('ul', { class: 'rows' }, rows.map((row) => h('li', { class: 'product' }, [
-      h('div', { class: 'product-name' }, [
-        h('span', { class: 'name-line' }, [h('strong', {}, [row.label]), tip(`About ${row.label}`, row.note)]),
-        h('span', { class: row.grant ? 'state warn' : 'state' }, [row.state]),
-      ]),
-      row.grant ? h('button', { type: 'button', class: 'primary small', onClick: () => onAction('grant', view) }, ['Grant permission']) : null,
+  return h({ tag: 'section' }, { props: { class: 'card', 'aria-labelledby': 'products-heading' }, children: [
+    h({ tag: 'div' }, { props: { class: 'head' }, children: [
+      h({ tag: 'h2' }, { props: { id: 'products-heading' }, children: ['Products'] }),
+      tip({ label: 'About products', text: 'Turning a product on or off changes only what this site does; it never changes what Google granted.' }),
+    ] }),
+    h({ tag: 'ul' }, { props: { class: 'rows' }, children: rows.map((row) => h({ tag: 'li' }, { props: { class: 'product' }, children: [
+      h({ tag: 'div' }, { props: { class: 'product-name' }, children: [
+        h({ tag: 'span' }, { props: { class: 'name-line' }, children: [h({ tag: 'strong' }, { props: {}, children: [row.label] }), tip({ label: `About ${row.label}`, text: row.note })] }),
+        h({ tag: 'span' }, { props: { class: row.grant ? 'state warn' : 'state' }, children: [row.state] }),
+      ] }),
+      row.grant ? h({ tag: 'button' }, { props: { type: 'button', class: 'primary small', onClick: () => onAction('grant', view) }, children: ['Grant permission'] }) : null,
       // A switch drawn from the toggle button: the visible track is decoration; its text is the action.
-      h('button', { type: 'button', class: 'switch', 'aria-pressed': String(row.enabled), onClick: () => run(async () => { notice = null; render(await call('set-product', { productId: row.id, enabled: !row.enabled })); }) }, [
-        h('span', { class: 'sr-only' }, [row.toggleLabel]),
-      ]),
-    ]))),
-  ]);
+      h({ tag: 'button' }, { props: { type: 'button', class: 'switch', 'aria-pressed': String(row.enabled), onClick: () => run(async () => { notice = null; render(await call('set-product', { productId: row.id, enabled: !row.enabled })); }) }, children: [
+        h({ tag: 'span' }, { props: { class: 'sr-only' }, children: [row.toggleLabel] }),
+      ] }),
+    ] })) }),
+  ] });
 }
 
 let lastView = null;
@@ -159,11 +159,11 @@ function render(view) {
   lastView = view;
   // A null view only comes from a failed first `status`, which always sets the notice first (and
   // with no view there are no buttons, so no later action can render null again).
-  if (view === null) return show(app, noticeLine(notice));
-  return show(app,
-    notice ? noticeLine(notice) : null,
+  if (view === null) return show({ root: app }, { nodes: [noticeLine(notice)] });
+  return show({ root: app },
+    { nodes: [notice ? noticeLine(notice) : null,
     connectionCard(view),
-    productsCard(view));
+    productsCard(view)] });
 }
 
 /**
@@ -172,7 +172,7 @@ function render(view) {
  * last line starts the real one.
  * @param {{ window: Window, document: Document }} required
  */
-export function initConnectionPanel(required) {
+export function initConnectionPanel(required, _optional = {}) {
   client = connectToHost({ window: required.window });
   app = required.document.getElementById('app');
   notice = null;
@@ -183,7 +183,7 @@ export function initConnectionPanel(required) {
 
 /** The first `status`; a failure the host calls retryable offers "Try again" (another `status`). */
 function load() {
-  return call('status').then(render, (error) => { notice = { text: failureText(error), retry: error?.retryable === true ? load : undefined }; render(null); });
+  return call('status').then(render, (error) => { notice = { text: failureText({ error }), retry: error?.retryable === true ? load : undefined }; render(null); });
 }
 
 initConnectionPanel({ window, document });

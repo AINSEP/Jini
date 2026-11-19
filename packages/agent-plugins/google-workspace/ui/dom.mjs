@@ -13,7 +13,7 @@ import { createAdminSurfaceClient } from './surface-client.mjs';
  * and applies the admin's design tokens to this frame's root so `panel.css` matches the admin.
  * @param {{ window: Window }} required - the frame's window (a test passes its own jsdom window).
  */
-export function connectToHost(required) {
+export function connectToHost(required, _optional = {}) {
   const { window: frame } = required;
   closeTipsOnOutsideClick(frame.document);
   return createAdminSurfaceClient({
@@ -29,7 +29,7 @@ export function connectToHost(required) {
  * @param {Array<Node | string | null | undefined>} [children]
  * @returns {HTMLElement}
  */
-export function h(tag, props = {}, children = []) {
+export function h({ tag }, { props = {}, children = [] } = {}) {
   const element = document.createElement(tag);
   for (const [name, value] of Object.entries(props)) {
     if (typeof value === 'function') element.addEventListener(name.slice(2).toLowerCase(), value);
@@ -49,11 +49,10 @@ let nextTip = 0;
  * An "i" toggletip: the explanation shows on hover, keyboard focus or tap, instead of a paragraph
  * on screen. The trigger is a focusable span (not a `<button>`), so the panels' button lists stay
  * their actions only; its text stays in the DOM and is the trigger's accessible description.
- * @param {string} label - what the explanation is about ("About Products").
- * @param {string} text
+ * @param {{ label: string, text: string }} required - what the explanation is about ("About Products") and its text.
  * @param {{ bodyClass?: string }} [optional] - an extra class on the explanation (e.g. `intro`).
  */
-export function tip(label, text, optional = {}) {
+export function tip({ label, text }, optional = {}) {
   nextTip += 1;
   const id = `tip-${nextTip}`;
   const toggle = (event) => {
@@ -64,10 +63,10 @@ export function tip(label, text, optional = {}) {
     wrapper.classList.toggle('open', open);
     event.currentTarget.setAttribute('aria-expanded', String(open));
   };
-  return h('span', { class: 'tip' }, [
-    h('span', { class: 'tip-icon', role: 'button', tabindex: '0', 'aria-label': label, 'aria-describedby': id, 'aria-expanded': 'false', onClick: toggle, onKeydown: toggle }, ['i']),
-    h('span', { class: optional.bodyClass ? `tip-body ${optional.bodyClass}` : 'tip-body', role: 'tooltip', id }, [text]),
-  ]);
+  return h({ tag: 'span' }, { props: { class: 'tip' }, children: [
+    h({ tag: 'span' }, { props: { class: 'tip-icon', role: 'button', tabindex: '0', 'aria-label': label, 'aria-describedby': id, 'aria-expanded': 'false', onClick: toggle, onKeydown: toggle }, children: ['i'] }),
+    h({ tag: 'span' }, { props: { class: optional.bodyClass ? `tip-body ${optional.bodyClass}` : 'tip-body', role: 'tooltip', id }, children: [text] }),
+  ] });
 }
 
 /** Taps elsewhere close an open toggletip (once per document). */
@@ -86,11 +85,11 @@ function closeTipsOnOutsideClick(doc) {
  * `retry`, a "Try again" button sits inside the same box (outside the `.notice` text).
  * @param {{ text: string, tone?: string, retry?: () => void }} required
  */
-export function notice(required) {
+export function notice(required, _optional = {}) {
   const { text, tone = 'error', retry } = required;
-  const line = h('p', { class: tone === 'error' ? 'notice' : `notice ${tone}`, role: 'status' }, [text]);
+  const line = h({ tag: 'p' }, { props: { class: tone === 'error' ? 'notice' : `notice ${tone}`, role: 'status' }, children: [text] });
   if (!retry) return line;
-  return h('div', { class: `notice-group ${tone}` }, [line, h('button', { type: 'button', class: 'small', onClick: retry }, ['Try again'])]);
+  return h({ tag: 'div' }, { props: { class: `notice-group ${tone}` }, children: [line, h({ tag: 'button' }, { props: { type: 'button', class: 'small', onClick: retry }, children: ['Try again'] })] });
 }
 
 const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), a[href], [tabindex="0"]';
@@ -110,7 +109,7 @@ function matchesFocusKey({ control, key }, _options = {}) {
  * Replaces a region's content, keeping keyboard focus where the person was: on the same control
  * when it is still there, else on the first control of the new content (never lost to `<body>`).
  */
-export function show(root, ...nodes) {
+export function show({ root }, { nodes = [] } = {}) {
   const key = focusKey(root.ownerDocument.activeElement, root) ?? root.pendingFocus ?? null;
   root.pendingFocus = null;
   root.replaceChildren(...nodes.filter(Boolean));
@@ -121,14 +120,14 @@ export function show(root, ...nodes) {
 }
 
 /** The sentence to show for a failed call: the host's or plugin's fixed message. */
-export function failureText(error) {
+export function failureText({ error }, _optional = {}) {
   // The host's schema check names JSON paths ("$.spreadsheetId has the wrong length"): developer text.
   if (error?.code === 'invalid-payload') return 'Some details are missing or not valid. Check them and try again.';
   return typeof error?.message === 'string' && error.message ? error.message : 'Something went wrong. Try again.';
 }
 
 /** Runs `work` with every button in `root` disabled, so one click sends one request. */
-export async function busy(root, work) {
+export async function busy({ root, work }, _optional = {}) {
   // Disabling the focused button drops focus to <body>; `show` restores it from here.
   root.pendingFocus = focusKey(root.ownerDocument.activeElement, root);
   const buttons = [...root.querySelectorAll('button')];
@@ -137,4 +136,4 @@ export async function busy(root, work) {
 }
 
 /** Resolves after `ms` (the desktop Picker and sign-in polls). */
-export const wait = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+export const wait = ({ ms }, _optional = {}) => new Promise((resolve) => { setTimeout(resolve, ms); });
