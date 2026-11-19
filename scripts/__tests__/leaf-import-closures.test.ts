@@ -17,7 +17,7 @@ function sourceClosure(entry: string) {
     if (active.has(file)) { cycles.push([...active, file].map(path => relative(repoRoot, path))); return; }
     if (files.has(file)) return;
     files.add(file); active.add(file);
-    for (const ref of extractImports(file).filter(ref => !ref.typeOnly && ref.specifier.startsWith('.'))) {
+    for (const ref of extractImports({ absFilePath: file }).filter(ref => !ref.typeOnly && ref.specifier.startsWith('.'))) {
       if (ref.specifier.endsWith('.css')) continue;
       const target = ts.resolveModuleName(ref.specifier, file, {
         moduleResolution: ts.ModuleResolutionKind.Bundler, module: ts.ModuleKind.ESNext,

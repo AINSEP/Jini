@@ -9,7 +9,7 @@ spec_mode: reverse_spec
 
 ## Entry point and calling convention
 
-`@jini-ai/memory` (`.`) is the only package export; it is Node-only. Signatures below reflect current source. A shown second object defaults to `{}`; a signature with one object or no arguments currently has no second parameter. Do not add speculative shared base types.
+`@jini-ai/memory` (`.`) is the only package export; it is Node-only. Signatures below reflect current source. Plain helper functions take a second object defaulting to `{}`; signatures below may omit the empty object. Port methods retain their declared signatures. Do not add speculative shared base types.
 
 ## Notes and text helpers
 

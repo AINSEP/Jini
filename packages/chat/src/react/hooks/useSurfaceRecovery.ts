@@ -39,7 +39,7 @@ export function useSurfaceRecovery({ resource, call, runStreaming, onToolCall }:
   const needsRecovery = surfaceNeedsRecovery({ call, runStreaming });
   const onSurface = (emission: SurfaceEmission) => {
     if (emission.channel !== 'mcp-ui') return;
-    const next = parseUIResource(recoverableSurfaceResource({ resource: emission.payload['resource'], exchange: emission.payload['surfaceExchange'] }));
+    const next = parseUIResource({ value: recoverableSurfaceResource({ resource: emission.payload['resource'], exchange: emission.payload['surfaceExchange'] }) });
     if (next) { setRestored(next); setLive(true); }
   };
   useEffect(() => {

@@ -19,11 +19,11 @@ describe('cssUrlTokens', () => {
     'url(/a.png',
     "url(  'q' )url(\n/n\n)",
   ])('matches the regex on %j', css => {
-    expect(cssUrlTokens(css)).toEqual(viaRegex(css));
+    expect(cssUrlTokens({ css })).toEqual(viaRegex(css));
   });
 
   it('stays linear on an unterminated value', () => {
     const css = 'url('.repeat(20_000) + ' '.repeat(50_000);
-    expect(cssUrlTokens(css)).toEqual([]);
+    expect(cssUrlTokens({ css })).toEqual([]);
   });
 });

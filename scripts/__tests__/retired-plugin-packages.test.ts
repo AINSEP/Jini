@@ -12,7 +12,7 @@ it.each(['ai-trace-langfuse', 'analytics-posthog', 'observability-opentelemetry'
   const name = `@jini-ai/plugin-${id}`;
   expect(() => assertJiniPackagePublicationAllowed({ name })).toThrow('standalone plugin packages are retired');
   // No valid cwd is supplied: rejection must precede even reading a package or spawning pnpm.
-  expect(() => packAndRewrite(name, '/missing-plugin-package', '/missing-output', new Map())).toThrow('standalone plugin packages are retired');
+  expect(() => packAndRewrite({ name, dir: '/missing-plugin-package', destDir: '/missing-output', tarballPathByName: new Map() })).toThrow('standalone plugin packages are retired');
 });
 
 it.each(['@jini-ai/agent-plugins', '@jini-ai/provider-plugins', '@jini-ai/plugin-catalog', '@jini-ai/plugins'])('accepts the owning distribution or library %s', name => {
@@ -24,6 +24,6 @@ it('refuses a wrapper hidden behind an innocent workspace folder before either p
   writeFileSync(join(root, 'pnpm-workspace.yaml'), 'packages:\n  - packages/*\n');
   const directory = join(root, 'packages', 'innocent'); mkdirSync(directory, { recursive: true });
   writeFileSync(join(directory, 'package.json'), JSON.stringify({ name: '@jini-ai/plugin-future-plugin', version: '1.0.0' }));
-  expect(() => discoverJiniPackages(root)).toThrow('standalone plugin packages are retired');
-  expect(() => packAndRewrite('@jini-ai/agent-plugins', directory, '/missing-output', new Map())).toThrow('standalone plugin packages are retired');
+  expect(() => discoverJiniPackages({ workspaceRoot: root })).toThrow('standalone plugin packages are retired');
+  expect(() => packAndRewrite({ name: '@jini-ai/agent-plugins', dir: directory, destDir: '/missing-output', tarballPathByName: new Map() })).toThrow('standalone plugin packages are retired');
 });

@@ -31,10 +31,10 @@ resolution/trust helpers need nothing extra, so most adopters never pay the nati
   `GithubRegistryClient`. `GithubApiRegistryClient` / `GithubApiRegistryClientOptions` is the real
   HTTP implementation of that client interface.
 - `DatabaseRegistryBackend` / `DatabaseRegistryBackendOptions` — SQL-backed, over a database handle
-  you supply. `ensureRegistryTables(db)` creates the schema; `upsertRegistryEntry(db, entry)` writes
+  you supply. `ensureRegistryTables({ db })` creates the schema; `upsertRegistryEntry(db, entry)` writes
   a single entry.
 
-**Version resolution** — `parseRegistrySpecifier('acme/theme@^2.1.0')` → `ParsedRegistrySpecifier`
+**Version resolution** — `parseRegistrySpecifier({ input: 'acme/theme@^2.1.0' })` → `ParsedRegistrySpecifier`
 (`{ name, range? }`), and `resolveRegistryEntryVersion` → `ResolvedRegistryEntryVersion`.
 
 **Signature trust** — `verifyRegistryEntrySignatures` and `verifyRegistrySignature` returning a
@@ -75,13 +75,13 @@ const registry = new StaticRegistryBackend({
   },
 });
 
-const { name, range } = parseRegistrySpecifier('acme/theme@^2.1.0');
+const { name, range } = parseRegistrySpecifier({ input: 'acme/theme@^2.1.0' });
 const resolved = await registry.resolve(name, range); // ResolvedRegistryEntry | null
 
 // Or the SQL-backed variant, over a handle you own.
 import Database from 'better-sqlite3';
 const db = new Database('/var/lib/example/registry.sqlite');
-ensureRegistryTables(db);
+ensureRegistryTables({ db });
 const dbRegistry = new DatabaseRegistryBackend({ id: 'local', trust: 'restricted', db });
 ```
 

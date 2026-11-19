@@ -8,7 +8,7 @@
 import { X509Certificate } from 'node:crypto';
 
 /** @internal Split a PEM string that may contain a leaf certificate followed by one or more intermediate certificates into individual parsed certificates, leaf first. */
-export function parseCertificateBundle(pem: string): X509Certificate[] {
+export function parseCertificateBundle({ pem }: { pem: string }, _optional: Record<string, never> = {}): X509Certificate[] {
   const blocks = pem.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g) ?? [];
   return blocks.map((block) => new X509Certificate(block));
 }
@@ -21,14 +21,14 @@ export function parseCertificateBundle(pem: string): X509Certificate[] {
  * trustedCas.length + 1` hops so a malformed/cyclic bundle cannot loop
  * forever.
  */
-export function chainToTrustedRoot(chain: X509Certificate[], trustedCas: X509Certificate[]): boolean {
+export function chainToTrustedRoot({ chain, trustedCas }: { chain: X509Certificate[]; trustedCas: X509Certificate[] }, _optional: Record<string, never> = {}): boolean {
   let current = chain[0];
   if (!current) return false;
   const remaining = chain.slice(1);
   const maxHops = chain.length + trustedCas.length + 1;
   for (let hop = 0; hop < maxHops; hop += 1) {
-    if (trustedCas.some((ca) => certIssuedAndSignedBy(current!, ca))) return true;
-    const nextIndex = remaining.findIndex((candidate) => certIssuedAndSignedBy(current!, candidate));
+    if (trustedCas.some((ca) => certIssuedAndSignedBy({ cert: current!, issuer: ca }))) return true;
+    const nextIndex = remaining.findIndex((candidate) => certIssuedAndSignedBy({ cert: current!, issuer: candidate }));
     if (nextIndex === -1) return false;
     current = remaining[nextIndex];
     remaining.splice(nextIndex, 1);
@@ -63,7 +63,7 @@ export function chainToTrustedRoot(chain: X509Certificate[], trustedCas: X509Cer
  * arbitrary user input). The `catch` here is genuinely unreachable through
  * this module's real call graph, confirmed empirically, not merely asserted.
  */
-export function certIssuedAndSignedBy(cert: Pick<X509Certificate, 'checkIssued' | 'verify'>, issuer: X509Certificate): boolean {
+export function certIssuedAndSignedBy({ cert, issuer }: { cert: Pick<X509Certificate, 'checkIssued' | 'verify'>; issuer: X509Certificate }, _optional: Record<string, never> = {}): boolean {
   try {
     return cert.checkIssued(issuer) && cert.verify(issuer.publicKey);
   } catch {
@@ -72,7 +72,7 @@ export function certIssuedAndSignedBy(cert: Pick<X509Certificate, 'checkIssued' 
 }
 
 /** @internal Extract `URI:...` entries from an `X509Certificate#subjectAltName` string (e.g. `"URI:https://github.com/acme/example/.github/workflows/build.yml@refs/heads/main"`, comma-separated when multiple SAN entries are present). */
-export function parseSanUris(subjectAltName: string | null | undefined): string[] {
+export function parseSanUris({ subjectAltName }: { subjectAltName: string | null | undefined }, _optional: Record<string, never> = {}): string[] {
   if (!subjectAltName) return [];
   return subjectAltName
     .split(',')

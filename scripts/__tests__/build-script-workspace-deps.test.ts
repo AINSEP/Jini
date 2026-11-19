@@ -41,7 +41,7 @@ function runtimeWorkspaceImports({ entry }: { entry: string }): Set<string> {
   for (let file = queue.shift(); file; file = queue.shift()) {
     if (seen.has(file)) continue;
     seen.add(file);
-    for (const ref of extractImports(file)) {
+    for (const ref of extractImports({ absFilePath: file })) {
       if (ref.typeOnly) continue;
       const name = packageName(ref);
       if (name) found.add(name);
@@ -60,7 +60,7 @@ function siblingReferences({ entry }: { entry: JiniPackageEntry }): { dir: strin
 
 /** @returns one line per undeclared build-order edge, `package: missing name (via file)`. */
 export function checkBuildScriptWorkspaceDeps({ repoRoot }: { repoRoot: string }): string[] {
-  const registry = [...discoverJiniPackages(repoRoot).values()];
+  const registry = [...discoverJiniPackages({ workspaceRoot: repoRoot }).values()];
   const byDir = new Map(registry.map(entry => [resolve(entry.dir), entry]));
   const violations: string[] = [];
   for (const entry of registry) {

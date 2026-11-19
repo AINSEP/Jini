@@ -41,7 +41,7 @@ function codexVerdict({ completed, errors, lastMessage, usage }: CodexStreamStat
 }
 
 /** Construct argv without a shell; prompt content goes only on stdin. Effort is a TOML string. */
-export function buildCodexInvocation({ options, prompt }: { options: AgentJobOptions; prompt: string }): CodexInvocation {
+export function buildCodexInvocation({ options, prompt }: { options: AgentJobOptions; prompt: string }, _optional: Record<string, never> = {}): CodexInvocation {
   validateOptions(options);
   return {
     executable: options.executable, cwd: options.repository,

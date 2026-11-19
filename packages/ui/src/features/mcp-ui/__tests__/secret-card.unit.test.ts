@@ -76,7 +76,7 @@ function fixture(options: SecretCardOptions = {}) {
 }
 
 function resourceAt(emissions: readonly SurfaceEmission[], index: number) {
-  const resource = parseUIResource(emissions[index]?.payload['resource']);
+  const resource = parseUIResource({ value: emissions[index]?.payload['resource'] });
   if (!resource) throw new Error('Expected an engine-produced UI resource');
   return resource.resource;
 }

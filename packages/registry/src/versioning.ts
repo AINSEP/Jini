@@ -32,7 +32,7 @@ export interface ResolvedRegistryEntryVersion {
  * @param input - The raw specifier string.
  * @returns The parsed `{ name, range? }`.
  */
-export function parseRegistrySpecifier({ input }: { input: string }): ParsedRegistrySpecifier {
+export function parseRegistrySpecifier({ input }: { input: string }, _optional: Record<string, never> = {}): ParsedRegistrySpecifier {
   const trimmed = input.trim();
   const slash = trimmed.indexOf('/');
   const at = trimmed.lastIndexOf('@');

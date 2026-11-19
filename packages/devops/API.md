@@ -1,7 +1,7 @@
 # Devops API composition
 
-Every public helper/factory receives one required argument object and, when
-needed, one optional argument object. Port methods use the same convention.
+Plain helper functions receive one required argument object and a second optional
+argument object defaulting to `{}`, including when no settings exist. Port methods retain their declared signatures.
 SDK-facing adapters alone translate to a native library's calling convention.
 All subpaths declare the Node runtime. The root entry is a domain marker.
 

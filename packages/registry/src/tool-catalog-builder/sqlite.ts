@@ -10,7 +10,7 @@ import type { SqliteDb } from '@jini-ai/core/contracts/storage';
 import { ensureToolCatalogTables, getToolCatalogEntry, reseedToolCatalog, searchToolCatalog } from '../tool-catalog/sqlite.js';
 import type { CatalogStoreFactory } from './ports.js';
 
-export function createSqliteCatalogStoreFactory({ db }: { db: SqliteDb }): CatalogStoreFactory {
+export function createSqliteCatalogStoreFactory({ db }: { db: SqliteDb }, _optional: Record<string, never> = {}): CatalogStoreFactory {
   return {
     create({ entries, builtAtIso }) {
       const now = Date.parse(builtAtIso);

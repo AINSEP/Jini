@@ -115,7 +115,7 @@ export interface McpUiSurfaceCardProps extends ExtEventRenderProps {
 function latestResourcesByUri(events: readonly unknown[]): readonly UIResource[] {
   const byUri = new Map<string, UIResource>();
   for (const event of events) {
-    const resource = parseUIResource(event);
+    const resource = parseUIResource({ value: event });
     if (resource === undefined) continue;
     byUri.set(resource.resource.uri, resource);
   }
@@ -205,7 +205,7 @@ function surfaceInteraction(
 ) {
   // An answered card has no deadline left: its countdown goes, and the deadline passing while the
   // answer's work still runs must not relabel it "This question expired".
-  const expiresAtMs = resource === undefined || answered === true ? undefined : readExpiresAt(resource);
+  const expiresAtMs = resource === undefined || answered === true ? undefined : readExpiresAt({ resource });
   // Reports the person's delivered answer to the row, which stops the "Waiting for your answer" line.
   const toolCall = onToolCall === undefined || onAnswered === undefined ? onToolCall : reportDeliveredAnswer({ onToolCall, onAnswered, onAnswerText, input: call?.input });
   return { expiresAtMs, toolCall };
@@ -270,7 +270,7 @@ function recoveredView({ recovery, resources, events, call }: {
  * option labels, so retry answers read as labels rather than raw values from the replaced question.
  * Receipt recovery retains the original document separately in useSurfaceAnswerContexts. */
 function useSurfaceQuestionCall({ events, call }: { events: readonly unknown[]; call: ExtEventCall | undefined }, _options = {}) {
-  const resource = parseUIResource(events.at(-1));
+  const resource = parseUIResource({ value: events.at(-1) });
   const input = useMemo(() => surfaceQuestionInput({ resource, input: call?.input }),
     [resource?.resource.text, resource?.resource._meta, call?.input]);
   const displayCall: ExtEventCall = call === undefined ? { name: '', input } : { ...call, input };
@@ -339,9 +339,9 @@ function SurfaceCardContent({ resources, single, answerRecorded, answer, closed,
   return (
     <div className="mcpui-surface-card">
       {resources.map((resource) => {
-        const preferred = readPreferredFrameSize(resource);
+        const preferred = readPreferredFrameSize({ resource });
         const height = preferred === undefined ? undefined : Number.parseInt(preferred[1], 10);
-        const plan = readActionPlan(resource);
+        const plan = readActionPlan({ resource });
         return (
           <Fragment key={resource.resource.uri}>
             <McpUiHost
@@ -381,7 +381,7 @@ function SurfaceCardContent({ resources, single, answerRecorded, answer, closed,
  * when registering a custom MCP-UI renderer; {@link registerMcpUiSurfaceRenderer} already does.
  */
 export function mcpUiSurfaceSlotKey({ data }: { data: unknown }): string | undefined {
-  return parseUIResource(data)?.resource.uri;
+  return parseUIResource({ value: data })?.resource.uri;
 }
 
 /**

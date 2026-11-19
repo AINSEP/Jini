@@ -32,7 +32,7 @@ function ownValue<T>(record: Readonly<Record<string, T>>, id: string): T | undef
 }
 
 /** Source naming conventions are supplied by the host, including the orphan-ID fallback. */
-export function createPrefixSourceClassifier(required: { separator: string; fallbackSource: string }): SourceClassifier {
+export function createPrefixSourceClassifier(required: { separator: string; fallbackSource: string }, _optional: Record<string, never> = {}): SourceClassifier {
   if (!required.separator || !required.fallbackSource) throw new Error('source separator and fallback must not be empty');
   return { classify({ id }) { return id.split(required.separator)[0] || required.fallbackSource; } };
 }

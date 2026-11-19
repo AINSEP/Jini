@@ -185,7 +185,7 @@ function findUncoveredRules({ activeRules, rows }: {
  *   the host's scorecard extractor.
  * @returns The verify verdict.
  */
-export function enforceVerify(input: EnforceVerifyInput): VerifyResult {
+export function enforceVerify(input: EnforceVerifyInput, _optional: Record<string, never> = {}): VerifyResult {
   const activeRules = input.activeRules;
   const base: VerifyResult = {
     status: 'skipped',

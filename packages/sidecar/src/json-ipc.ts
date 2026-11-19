@@ -111,7 +111,7 @@ function errorMessage(error: unknown): string {
  * hand today — matching this repo's "extract into a directly-testable pure
  * function" convention rather than narrowing the type away.
  */
-export function jsonIpcError({ error }: { error: unknown }): { code?: string; message: string } {
+export function jsonIpcError({ error }: { error: unknown }, _optional: Record<string, never> = {}): { code?: string; message: string } {
   return {
     ...(errorCode(error) == null ? {} : { code: errorCode(error) as string }),
     message: errorMessage(error),
@@ -173,7 +173,7 @@ async function staleUnixSocketExists(socketPath: string): Promise<boolean> {
  * Windows. Testing this function directly (asserting no filesystem call
  * happens) verifies the real behavior on every platform this runs on.
  */
-export async function prepareIpcPath({ socketPath }: { socketPath: string }): Promise<void> {
+export async function prepareIpcPath({ socketPath }: { socketPath: string }, _optional: Record<string, never> = {}): Promise<void> {
   if (isWindowsNamedPipePath({ value: socketPath })) return;
   await mkdir(dirname(socketPath), { recursive: true });
   if (await staleUnixSocketExists(socketPath)) await rm(socketPath, { force: true });
@@ -382,7 +382,7 @@ export async function createJsonIpcServer({
 
   return {
     async close() {
-      await closeServer(server);
+      await closeServer({ server });
       if (!isWindowsNamedPipePath({ value: socketPath })) await rm(socketPath, { force: true });
     },
   };

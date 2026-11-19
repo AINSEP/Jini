@@ -5,17 +5,17 @@
 import path from 'node:path';
 
 /** True when `subdir` is not a non-empty string of at most 128 characters. */
-export function hasInvalidSubdirLength({ subdir }: { subdir: unknown }): boolean {
+export function hasInvalidSubdirLength({ subdir }: { subdir: unknown }, _optional: Record<string, never> = {}): boolean {
   return typeof subdir !== 'string' || subdir.length === 0 || subdir.length > 128;
 }
 
 /** True for the two relative-path segments that never denote a real subdirectory name. */
-export function isReservedRelativeSegment({ subdir }: { subdir: string }): boolean {
+export function isReservedRelativeSegment({ subdir }: { subdir: string }, _optional: Record<string, never> = {}): boolean {
   return subdir === '.' || subdir === '..';
 }
 
 /** True when `subdir` contains a POSIX/Windows path separator or an embedded NUL. */
-export function containsPathSeparatorOrNul({ subdir }: { subdir: string }): boolean {
+export function containsPathSeparatorOrNul({ subdir }: { subdir: string }, _optional: Record<string, never> = {}): boolean {
   return subdir.includes('/') || subdir.includes('\\') || subdir.includes('\0');
 }
 
@@ -34,12 +34,12 @@ export function containsPathSeparatorOrNul({ subdir }: { subdir: string }): bool
  * `path.posix`'s own separator handling — accepting both `/` and `\` — so
  * this subsumes the POSIX check too, not just adds a Windows-only one).
  */
-export function isMultiSegmentOrAbsoluteWin32Path({ subdir }: { subdir: string }): boolean {
+export function isMultiSegmentOrAbsoluteWin32Path({ subdir }: { subdir: string }, _optional: Record<string, never> = {}): boolean {
   return path.win32.basename(subdir) !== subdir || path.win32.isAbsolute(subdir);
 }
 
 /** A `optional.subdir` must be exactly one safe, literal path segment — never a traversal or an absolute/rooted path. */
-export function assertSafeSubdir(subdir: string): void {
+export function assertSafeSubdir({ subdir }: { subdir: string }, _optional: Record<string, never> = {}): void {
   if (hasInvalidSubdirLength({ subdir })) {
     throw new Error('invalid note store subdir: must be a non-empty string of at most 128 characters');
   }

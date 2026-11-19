@@ -25,7 +25,7 @@ function fixture() {
   return { controller, ctx, exchange, emissions, open, answer: (a: SurfaceMessage) => receive(a),
     required: { surfaceExchanges: { open }, ctx, toolId: spec.toolId, card, missingEmitterMessage: 'Atlas needs an interactive channel', skippedResult: () => ({ status: 'skipped' }) } };
 }
-function html(emission: SurfaceEmission) { return parseUIResource(emission.payload.resource)!.resource.text; }
+function html(emission: SurfaceEmission) { return parseUIResource({ value: emission.payload.resource })!.resource.text; }
 
 describe('neutral sign-in card', () => {
   it('keeps URI and host copy while waiting uses openLink and an exchange-bound Skip', () => {

@@ -43,7 +43,7 @@ it('returns a shared inert analytics port whose guard never consults consent', (
   const noop = createNoopProductAnalytics({});
   const consent = vi.fn(() => true);
   expect(createNoopProductAnalytics({})).toBe(noop);
-  expect(isNoopProductAnalytics(noop)).toBe(true);
+  expect(isNoopProductAnalytics({ port: noop })).toBe(true);
   expect(Object.isFrozen(noop)).toBe(true);
   expect(withProductAnalyticsGuards({ inner: noop, consent })).toBe(noop);
   expect(noop.capture({ name: 'fixture', userId: 'u' })).toBeUndefined();

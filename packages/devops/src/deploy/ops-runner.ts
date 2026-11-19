@@ -272,9 +272,9 @@ function waitSettings({ deps, input }: { deps: { clock?: WaitClock | undefined; 
  * @returns Reached flag, elapsed seconds, attempted poll count and last observation; timeout is a result.
  * @throws {ToolInputError} Cancellation or a refusal from the status reader.
  * @complexity Time: O(timeout / 10s) polls. Space: O(one status response).
- * @example await waitForDeployOps({ status }, { until: "healthy", timeoutSeconds: 180, signal });
+ * @example await waitForDeployOps({ deps: { status }, until: "healthy" }, { timeoutSeconds: 180, signal });
  */
-export async function waitForDeployOps(deps: { status(signal: AbortSignal): Promise<DeployOpsStatus>; clock?: WaitClock | undefined; initial?: DeployOpsStatus }, input: { until: "healthy" | "finished"; timeoutSeconds?: number; signal?: AbortSignal | undefined }): Promise<DeployOpsWaitResult> {
+export async function waitForDeployOps({ deps, until }: { deps: { status(signal: AbortSignal): Promise<DeployOpsStatus>; clock?: WaitClock | undefined; initial?: DeployOpsStatus }; until: "healthy" | "finished" }, input: { timeoutSeconds?: number; signal?: AbortSignal | undefined } = {}): Promise<DeployOpsWaitResult> {
   const { clock, started, deadline, initial } = waitSettings({ deps, input }, {});
   let polls = 0;
   let last = initial;
@@ -286,7 +286,7 @@ export async function waitForDeployOps(deps: { status(signal: AbortSignal): Prom
     if (observation === TIMEOUT) return result(false);
     last = observation;
     if (clock.now() > deadline) return result(false);
-    if (reachedCondition({ until: input.until, state: last.state }, {})) return result(true);
+    if (reachedCondition({ until, state: last.state }, {})) return result(true);
     await sleepBeforeDeadline({ clock, deadline }, { signal: input.signal });
   }
   if (input.signal?.aborted) throw aborted();

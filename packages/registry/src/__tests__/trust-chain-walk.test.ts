@@ -17,39 +17,39 @@ const ca = cert('CA', 'CA');
 
 describe('chainToTrustedRoot', () => {
   it('empty chain is never trusted', () => {
-    expect(chainToTrustedRoot([], [ca])).toBe(false);
+    expect(chainToTrustedRoot({ chain: [], trustedCas: [ca] })).toBe(false);
   });
   it('a leaf directly signed by a trusted CA is trusted; with no CAs it is not', () => {
-    expect(chainToTrustedRoot([cert('L', 'CA')], [ca])).toBe(true);
-    expect(chainToTrustedRoot([cert('L', 'CA')], [])).toBe(false);
+    expect(chainToTrustedRoot({ chain: [cert('L', 'CA')], trustedCas: [ca] })).toBe(true);
+    expect(chainToTrustedRoot({ chain: [cert('L', 'CA')], trustedCas: [] })).toBe(false);
   });
   it('walks intermediates in any bundle order, using up to chain.length hops', () => {
     const chain = [cert('L', 'I1'), cert('I3', 'CA'), cert('I1', 'I2'), cert('I2', 'I3')];
-    expect(chainToTrustedRoot(chain, [ca])).toBe(true);
+    expect(chainToTrustedRoot({ chain, trustedCas: [ca] })).toBe(true);
   });
   it('a missing intermediate breaks the chain', () => {
-    expect(chainToTrustedRoot([cert('L', 'I1'), cert('I2', 'CA')], [ca])).toBe(false);
+    expect(chainToTrustedRoot({ chain: [cert('L', 'I1'), cert('I2', 'CA')], trustedCas: [ca] })).toBe(false);
   });
   it('a DN match without a valid signature is refused at the CA and at an intermediate', () => {
-    expect(chainToTrustedRoot([cert('L', 'CA', { signedWith: 'EVIL' })], [ca])).toBe(false);
-    expect(chainToTrustedRoot([cert('L', 'I1', { signedWith: 'EVIL' }), cert('I1', 'CA')], [ca])).toBe(false);
+    expect(chainToTrustedRoot({ chain: [cert('L', 'CA', { signedWith: 'EVIL' })], trustedCas: [ca] })).toBe(false);
+    expect(chainToTrustedRoot({ chain: [cert('L', 'I1', { signedWith: 'EVIL' }), cert('I1', 'CA')], trustedCas: [ca] })).toBe(false);
   });
   it('a cyclic bundle terminates quickly and is refused', () => {
     calls = 0;
-    expect(chainToTrustedRoot([cert('L', 'A'), cert('A', 'B'), cert('B', 'A')], [ca])).toBe(false);
+    expect(chainToTrustedRoot({ chain: [cert('L', 'A'), cert('A', 'B'), cert('B', 'A')], trustedCas: [ca] })).toBe(false);
     expect(calls).toBeLessThanOrEqual(8);
   });
   it('trusts when ANY configured CA signed the top, not only the first', () => {
-    expect(chainToTrustedRoot([cert('L', 'CA2')], [ca, cert('CA2', 'CA2')])).toBe(true);
+    expect(chainToTrustedRoot({ chain: [cert('L', 'CA2')], trustedCas: [ca, cert('CA2', 'CA2')] })).toBe(true);
   });
 });
 
 describe('certIssuedAndSignedBy', () => {
   it('requires both DN linkage and signature, and swallows a throwing verify as false', () => {
-    expect(certIssuedAndSignedBy(cert('L', 'CA'), ca)).toBe(true);
-    expect(certIssuedAndSignedBy(cert('L', 'X', { signedWith: 'CA' }), ca)).toBe(false);
+    expect(certIssuedAndSignedBy({ cert: cert('L', 'CA'), issuer: ca })).toBe(true);
+    expect(certIssuedAndSignedBy({ cert: cert('L', 'X', { signedWith: 'CA' }), issuer: ca })).toBe(false);
     const throwing = { checkIssued: () => true, verify: () => { throw new TypeError('bad key'); } };
-    expect(certIssuedAndSignedBy(throwing, ca)).toBe(false);
+    expect(certIssuedAndSignedBy({ cert: throwing, issuer: ca })).toBe(false);
   });
 });
 
@@ -60,6 +60,6 @@ describe('parseSanUris', () => {
     [' URI:https://x ', ['https://x']],
     ['DNS:URI:evil, email:URI:x', []],
   ])('%j → %j', (input, expected) => {
-    expect(parseSanUris(input)).toEqual(expected);
+    expect(parseSanUris({ subjectAltName: input })).toEqual(expected);
   });
 });
