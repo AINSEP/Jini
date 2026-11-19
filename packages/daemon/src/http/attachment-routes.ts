@@ -9,7 +9,7 @@ import { sameOriginRefusal } from '@jini-ai/core/contracts/server';
 import {
   ATTACHMENTS_ROUTE_PATH, handleAttachmentCleanup, handleAttachmentUpload, reportInternalError, respondToUploadFailure, failureAnswer,
   type AttachmentCall, type AttachmentsInternalErrorContext,
-} from "./attachment-handlers.js";
+} from './attachments.js';
 import type { DaemonRoute } from './route-table.js';
 
 /**

@@ -1390,9 +1390,14 @@
     "value": 3
   },
   {
-    "file": "packages/daemon/src/tool-executor.ts",
+    "file": "packages/daemon/src/tool-executor-approval.ts",
     "rule": "catch-reads-error",
-    "value": 2
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/tool-executor-handler.ts",
+    "rule": "catch-reads-error",
+    "value": 1
   },
   {
     "file": "packages/daemon/src/tool-recovery/analytics.ts",

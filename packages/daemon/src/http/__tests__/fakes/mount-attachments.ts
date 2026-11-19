@@ -7,7 +7,7 @@ import type { RouteHostContext, ServerRoute } from '@jini-ai/core/contracts/serv
 import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { createNodeDispatcher, maxReserializedJsonBytes } from '@jini-ai/http-kit/node-bridge';
 import { attachmentCleanupRoutes, attachmentUploadRoutes } from '../../attachment-routes.js';
-import type { AttachmentsHttpDeps } from "../../attachment-handlers.js";
+import type { AttachmentsHttpDeps } from '../../attachments.js';
 import type { DaemonRouteHost } from '../../route-host.js';
 import { fakeDaemonRouteHost } from './route-host.js';
 
