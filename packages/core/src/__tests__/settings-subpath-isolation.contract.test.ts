@@ -34,6 +34,7 @@ it("isolates neutral settings from the kernel root and retires the Express entry
 
   const manifest = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
   expect(Object.keys(manifest.exports).sort()).toEqual(Object.keys(manifest.jini.entries).sort());
+  expect(manifest.jini.entries["./contracts/server/security-headers"]).toBe("universal");
   expect(manifest.jini.entries["./settings"]).toBe("universal");
   expect(manifest.jini.entries["./settings/express"]).toBeUndefined();
   expect(manifest.exports["./settings/express"]).toBeUndefined();

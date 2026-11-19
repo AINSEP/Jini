@@ -15,6 +15,7 @@ it('keeps exports and entry runtime metadata synchronized', () => {
   expect(Object.keys(manifest.exports).sort()).toEqual(Object.keys(manifest.jini.entries).sort());
   expect(manifest.jini.entries['./core/tools']).toBe('universal');
   expect(manifest.jini.entries['./media/import']).toBe('universal');
+  expect(manifest.jini.entries['./media/cover-image']).toBe('node');
   // REGRESSION: fails if the removed server entry is restored in either manifest map.
   expect(Object.hasOwn(manifest.exports, './server')).toBe(false);
   expect(Object.hasOwn(manifest.jini.entries, './server')).toBe(false);
