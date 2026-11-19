@@ -41,7 +41,7 @@ export function useConnectorCatalog(port: ConnectorsPort, options: ConnectorCata
     void (async () => {
       try {
         const next = await port.fetchConnectors();
-        if (!cancelled) setConnectors((curr) => mergeConnectors(curr, next));
+        if (!cancelled) setConnectors((curr) => mergeConnectors({ current: curr, incoming: next }));
       } catch {
         if (!cancelled) console.error('[connectors] Catalog load failed.');
       } finally {
@@ -68,7 +68,7 @@ export function useConnectorCatalog(port: ConnectorsPort, options: ConnectorCata
       try {
         const next = await port.fetchConnectorEnrichment!({ refresh: true });
         if (cancelled) return;
-        setConnectors((curr) => mergeConnectors(curr, next));
+        setConnectors((curr) => mergeConnectors({ current: curr, incoming: next }));
         setEnriched(true);
       } catch {
         if (!cancelled) console.error('[connectors] Catalog enrichment failed.');

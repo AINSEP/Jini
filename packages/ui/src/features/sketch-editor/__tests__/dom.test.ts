@@ -17,7 +17,7 @@ import {
 import { buildSketchTooltipLabels } from '../rules.js';
 
 const t = (key: string) => key;
-const labels = buildSketchTooltipLabels(t);
+const labels = buildSketchTooltipLabels({ t });
 const INSERT_PATTERN = /^(Insert)(\s|$|→)/i;
 
 afterEach(() => {
@@ -62,7 +62,7 @@ describe('applySketchEditorTooltips', () => {
     root.innerHTML = '<button data-testid="main-menu-trigger"></button>';
     document.body.appendChild(root);
 
-    applySketchEditorTooltips(root, labels, DEFAULT_SKETCH_TOOLTIP_TARGETS);
+    applySketchEditorTooltips({ root, labels, targets: DEFAULT_SKETCH_TOOLTIP_TARGETS });
 
     const button = root.querySelector('[data-testid="main-menu-trigger"]')!;
     expect(button.getAttribute('data-tooltip')).toBe('Main menu');
@@ -76,7 +76,7 @@ describe('applySketchEditorTooltips', () => {
     root.innerHTML = '<label><button data-testid="toolbar-rectangle"></button></label>';
     document.body.appendChild(root);
 
-    applySketchEditorTooltips(root, labels, DEFAULT_SKETCH_TOOLTIP_TARGETS);
+    applySketchEditorTooltips({ root, labels, targets: DEFAULT_SKETCH_TOOLTIP_TARGETS });
 
     const label = root.querySelector('label')!;
     const button = root.querySelector('[data-testid="toolbar-rectangle"]')!;
@@ -88,8 +88,8 @@ describe('applySketchEditorTooltips', () => {
     const root = document.createElement('div');
     root.innerHTML = '<button data-testid="main-menu-trigger"></button>';
     document.body.appendChild(root);
-    applySketchEditorTooltips(root, labels, DEFAULT_SKETCH_TOOLTIP_TARGETS);
-    applySketchEditorTooltips(root, labels, DEFAULT_SKETCH_TOOLTIP_TARGETS);
+    applySketchEditorTooltips({ root, labels, targets: DEFAULT_SKETCH_TOOLTIP_TARGETS });
+    applySketchEditorTooltips({ root, labels, targets: DEFAULT_SKETCH_TOOLTIP_TARGETS });
     const button = root.querySelector('[data-testid="main-menu-trigger"]')!;
     expect(button.getAttribute('data-tooltip')).toBe('Main menu');
     expect(button.classList.toString()).toBe('jini-tooltip');
@@ -106,7 +106,7 @@ describe('applySketchEditorTooltips', () => {
       { selector: '[data-testid="main-menu-trigger"]', label: 'mainMenu' as const, placement: 'bottom' as const },
       { selector: '[data-testid="main-menu-trigger"]', label: 'lock' as const, placement: 'top' as const },
     ];
-    applySketchEditorTooltips(root, labels, targets);
+    applySketchEditorTooltips({ root, labels, targets });
     const button = root.querySelector('[data-testid="main-menu-trigger"]')!;
     expect(button.getAttribute('data-tooltip')).toBe('Main menu');
     expect(button.getAttribute('data-tooltip-placement')).toBe('bottom');
@@ -117,7 +117,7 @@ describe('applySketchEditorTooltips', () => {
     root.innerHTML = '<button data-testid="main-menu-trigger"></button>';
     document.body.appendChild(root);
     const blankLabels = { ...labels, mainMenu: '   ' };
-    applySketchEditorTooltips(root, blankLabels, DEFAULT_SKETCH_TOOLTIP_TARGETS);
+    applySketchEditorTooltips({ root, labels: blankLabels, targets: DEFAULT_SKETCH_TOOLTIP_TARGETS });
     const button = root.querySelector('[data-testid="main-menu-trigger"]')!;
     expect(button.hasAttribute('data-tooltip')).toBe(false);
     expect(button.classList.contains('jini-tooltip')).toBe(false);
@@ -127,7 +127,7 @@ describe('applySketchEditorTooltips', () => {
     const root = document.createElement('div');
     root.innerHTML = '<button data-testid="main-menu-trigger"></button>';
     document.body.appendChild(root);
-    applySketchEditorTooltips(root, labels, [{ selector: '[data-testid="main-menu-trigger"]', label: 'mainMenu' }]);
+    applySketchEditorTooltips({ root, labels, targets: [{ selector: '[data-testid="main-menu-trigger"]', label: 'mainMenu' }] });
     const button = root.querySelector('[data-testid="main-menu-trigger"]')!;
     expect(button.getAttribute('data-tooltip-placement')).toBe('bottom');
   });
@@ -154,7 +154,7 @@ describe('clampSketchContextPopover', () => {
     const viewport = document.createElement('div');
     stubRect(popover, { width: 0, height: 0 });
     stubRect(viewport, { left: 0, top: 0, right: 800, bottom: 600 });
-    clampSketchContextPopover(popover, viewport);
+    clampSketchContextPopover({ popover, viewportRoot: viewport });
     expect(popover.style.left).toBe('');
     expect(popover.style.top).toBe('');
   });
@@ -164,7 +164,7 @@ describe('clampSketchContextPopover', () => {
     const viewport = document.createElement('div');
     stubRect(popover, { width: 200, height: 0 });
     stubRect(viewport, { left: 0, top: 0, right: 800, bottom: 600 });
-    clampSketchContextPopover(popover, viewport);
+    clampSketchContextPopover({ popover, viewportRoot: viewport });
     expect(popover.style.left).toBe('');
     expect(popover.style.top).toBe('');
   });
@@ -177,7 +177,7 @@ describe('clampSketchContextPopover', () => {
     popover.style.left = 'auto';
     stubRect(popover, { width: 100, height: 50, left: 10, top: 10, right: 110, bottom: 60 });
     stubRect(viewport, { left: 0, top: 0, right: 800, bottom: 600 });
-    clampSketchContextPopover(popover, viewport);
+    clampSketchContextPopover({ popover, viewportRoot: viewport });
     expect(popover.style.top).toBe('');
   });
 
@@ -186,7 +186,7 @@ describe('clampSketchContextPopover', () => {
     const viewport = document.createElement('div');
     stubRect(popover, { width: 200, height: 100, left: 700, top: 550, right: 900, bottom: 650 });
     stubRect(viewport, { left: 0, top: 0, right: 800, bottom: 600 });
-    clampSketchContextPopover(popover, viewport);
+    clampSketchContextPopover({ popover, viewportRoot: viewport });
     // maxRight = 800-8=792, overflow = 900-792=108, nextLeft = 700-108=592
     expect(popover.style.left).toBe('592px');
     // maxBottom = 600-8=592, overflow = 650-592=58, nextTop = 550-58=492
@@ -198,7 +198,7 @@ describe('clampSketchContextPopover', () => {
     const viewport = document.createElement('div');
     stubRect(popover, { width: 100, height: 50, left: -20, top: -20, right: 80, bottom: 30 });
     stubRect(viewport, { left: 0, top: 0, right: 800, bottom: 600 });
-    clampSketchContextPopover(popover, viewport);
+    clampSketchContextPopover({ popover, viewportRoot: viewport });
     // minLeft = 0+8=8, nextLeft = -20+(8-(-20)) = 8
     expect(popover.style.left).toBe('8px');
     expect(popover.style.top).toBe('8px');
@@ -211,7 +211,7 @@ describe('clampSketchContextPopover', () => {
     popover.style.top = '10px';
     stubRect(popover, { width: 100, height: 50, left: 10, top: 10, right: 110, bottom: 60 });
     stubRect(viewport, { left: 0, top: 0, right: 800, bottom: 600 });
-    clampSketchContextPopover(popover, viewport);
+    clampSketchContextPopover({ popover, viewportRoot: viewport });
     expect(popover.style.left).toBe('10px');
     expect(popover.style.top).toBe('10px');
   });
@@ -240,7 +240,7 @@ describe('applySketchContextMenuSimplification', () => {
 
   it('removes disallowed actions and separators, keeping allow-listed ones in order', () => {
     const { root, menu, popover } = buildMenu(['delete', 'copyAsSvg', 'copy', 'duplicate']);
-    applySketchContextMenuSimplification(root, root, DEFAULT_CONTEXT_MENU_ACTION_ORDER, DEFAULT_CONTEXT_MENU_RECOGNIZED_ACTIONS);
+    applySketchContextMenuSimplification({ root, viewportRoot: root, allowList: DEFAULT_CONTEXT_MENU_ACTION_ORDER, recognizedActions: DEFAULT_CONTEXT_MENU_RECOGNIZED_ACTIONS });
     const items = Array.from(menu.querySelectorAll('li')).map((li) => li.getAttribute('data-testid'));
     expect(items).toEqual(['copy', 'copyAsSvg']);
     expect(menu.querySelectorAll('hr')).toHaveLength(0);
@@ -251,21 +251,21 @@ describe('applySketchContextMenuSimplification', () => {
   it('ignores a context menu with no recognized Excalidraw action', () => {
     const { menu } = buildMenu(['someUnrelatedAction']);
     const root = menu.closest('div')!;
-    applySketchContextMenuSimplification(root, root, DEFAULT_CONTEXT_MENU_ACTION_ORDER, DEFAULT_CONTEXT_MENU_RECOGNIZED_ACTIONS);
+    applySketchContextMenuSimplification({ root, viewportRoot: root, allowList: DEFAULT_CONTEXT_MENU_ACTION_ORDER, recognizedActions: DEFAULT_CONTEXT_MENU_RECOGNIZED_ACTIONS });
     expect(menu.classList.contains('jini-sketch-context-menu')).toBe(false);
     expect(menu.querySelectorAll('li')).toHaveLength(1);
   });
 
   it('removes the popover entirely when no allow-listed action survives', () => {
     const { root, popover } = buildMenu(['delete', 'duplicate']);
-    applySketchContextMenuSimplification(root, root, DEFAULT_CONTEXT_MENU_ACTION_ORDER, DEFAULT_CONTEXT_MENU_RECOGNIZED_ACTIONS);
+    applySketchContextMenuSimplification({ root, viewportRoot: root, allowList: DEFAULT_CONTEXT_MENU_ACTION_ORDER, recognizedActions: DEFAULT_CONTEXT_MENU_RECOGNIZED_ACTIONS });
     expect(root.contains(popover)).toBe(false);
   });
 
   it('does not reorder DOM nodes when already in the correct order (avoids reorder churn)', () => {
     const { root, menu } = buildMenu(['copy', 'paste']);
     const firstChildBefore = menu.children[0];
-    applySketchContextMenuSimplification(root, root, DEFAULT_CONTEXT_MENU_ACTION_ORDER, DEFAULT_CONTEXT_MENU_RECOGNIZED_ACTIONS);
+    applySketchContextMenuSimplification({ root, viewportRoot: root, allowList: DEFAULT_CONTEXT_MENU_ACTION_ORDER, recognizedActions: DEFAULT_CONTEXT_MENU_RECOGNIZED_ACTIONS });
     expect(menu.children[0]).toBe(firstChildBefore);
   });
 
@@ -279,7 +279,7 @@ describe('applySketchContextMenuSimplification', () => {
     root.appendChild(menu); // menu's parent is `root` itself, no `.popover` wrapper
     document.body.appendChild(root);
 
-    applySketchContextMenuSimplification(root, root, DEFAULT_CONTEXT_MENU_ACTION_ORDER, DEFAULT_CONTEXT_MENU_RECOGNIZED_ACTIONS);
+    applySketchContextMenuSimplification({ root, viewportRoot: root, allowList: DEFAULT_CONTEXT_MENU_ACTION_ORDER, recognizedActions: DEFAULT_CONTEXT_MENU_RECOGNIZED_ACTIONS });
     expect(root.classList.contains('jini-sketch-context-popover')).toBe(true);
   });
 
@@ -292,7 +292,7 @@ describe('applySketchContextMenuSimplification', () => {
     bareLi.textContent = 'no testid';
     menu.appendChild(bareLi);
 
-    applySketchContextMenuSimplification(root, root, DEFAULT_CONTEXT_MENU_ACTION_ORDER, DEFAULT_CONTEXT_MENU_RECOGNIZED_ACTIONS);
+    applySketchContextMenuSimplification({ root, viewportRoot: root, allowList: DEFAULT_CONTEXT_MENU_ACTION_ORDER, recognizedActions: DEFAULT_CONTEXT_MENU_RECOGNIZED_ACTIONS });
     // Only <li>/<hr> children are ever touched; an unrelated element child
     // (not part of Excalidraw's own context-menu markup) is simply skipped.
     expect(menu.contains(stray)).toBe(true);
@@ -305,7 +305,7 @@ describe('applySketchDomTextOverrides', () => {
   it('rewrites matching text nodes and attributes', () => {
     const root = document.createElement('div');
     root.innerHTML = '<button title="Close" aria-label="Close">Close</button>';
-    applySketchDomTextOverrides(root, { Close: 'Fermer' });
+    applySketchDomTextOverrides({ root, overrides: { Close: 'Fermer' } });
     const button = root.querySelector('button')!;
     expect(button.textContent).toBe('Fermer');
     expect(button.getAttribute('title')).toBe('Fermer');
@@ -315,8 +315,8 @@ describe('applySketchDomTextOverrides', () => {
   it('is a no-op when overrides are undefined or empty', () => {
     const root = document.createElement('div');
     root.innerHTML = '<button title="Close">Close</button>';
-    applySketchDomTextOverrides(root, undefined);
-    applySketchDomTextOverrides(root, {});
+    applySketchDomTextOverrides({ root, overrides: undefined });
+    applySketchDomTextOverrides({ root, overrides: {} });
     expect(root.querySelector('button')!.textContent).toBe('Close');
   });
 
@@ -326,7 +326,7 @@ describe('applySketchDomTextOverrides', () => {
     button.title = 'Close';
     button.textContent = 'Close';
     fragment.appendChild(button);
-    applySketchDomTextOverrides(fragment, { Close: 'Fermer' });
+    applySketchDomTextOverrides({ root: fragment, overrides: { Close: 'Fermer' } });
     expect(button.textContent).toBe('Fermer');
     expect(button.getAttribute('title')).toBe('Fermer');
   });
@@ -337,7 +337,7 @@ describe('rewriteExcalidrawUnableToEmbedToasts', () => {
     const root = document.createElement('div');
     root.innerHTML = '<div class="Toast"><div class="Toast__message">Embedding this URL is currently not allowed</div></div>';
     document.body.appendChild(root);
-    rewriteExcalidrawUnableToEmbedToasts(root, 'Cannot embed this link');
+    rewriteExcalidrawUnableToEmbedToasts({ root, replacement: 'Cannot embed this link' });
     const message = root.querySelector('.Toast__message')!;
     expect(message.textContent).toBe('Cannot embed this link');
     expect(message.closest('.Toast')!.getAttribute('data-jini-sketch-embed-toast-rewritten')).toBe('true');
@@ -346,14 +346,14 @@ describe('rewriteExcalidrawUnableToEmbedToasts', () => {
   it('leaves unrelated toast messages untouched', () => {
     const root = document.createElement('div');
     root.innerHTML = '<div class="Toast"><div class="Toast__message">Saved successfully</div></div>';
-    rewriteExcalidrawUnableToEmbedToasts(root, 'Cannot embed this link');
+    rewriteExcalidrawUnableToEmbedToasts({ root, replacement: 'Cannot embed this link' });
     expect(root.querySelector('.Toast__message')!.textContent).toBe('Saved successfully');
   });
 
   it('is a no-op when the replacement text itself is empty/whitespace-only', () => {
     const root = document.createElement('div');
     root.innerHTML = '<div class="Toast"><div class="Toast__message">Embedding this URL is currently not allowed</div></div>';
-    rewriteExcalidrawUnableToEmbedToasts(root, '   ');
+    rewriteExcalidrawUnableToEmbedToasts({ root, replacement: '   ' });
     expect(root.querySelector('.Toast__message')!.textContent).toBe('Embedding this URL is currently not allowed');
   });
 });
@@ -367,10 +367,10 @@ describe('findSketchMermaidInsertButton / removeSketchMermaidShortcutHints', () 
       <button aria-label="Insert diagram">Insert <kbd>Cmd+Enter</kbd></button>
       <div class="ttd-dialog-submit-shortcut">Cmd+Enter</div>
     `;
-    const button = findSketchMermaidInsertButton(content, INSERT_PATTERN);
+    const button = findSketchMermaidInsertButton({ content, insertLabelPattern: INSERT_PATTERN });
     expect(button?.getAttribute('aria-label')).toBe('Insert diagram');
 
-    removeSketchMermaidShortcutHints(content, INSERT_PATTERN);
+    removeSketchMermaidShortcutHints({ content, insertLabelPattern: INSERT_PATTERN });
     expect(content.querySelectorAll('kbd')).toHaveLength(0);
     expect(content.querySelectorAll('.ttd-dialog-submit-shortcut')).toHaveLength(0);
   });
@@ -378,7 +378,7 @@ describe('findSketchMermaidInsertButton / removeSketchMermaidShortcutHints', () 
   it('returns null for a non-Mermaid dialog', () => {
     const content = document.createElement('div');
     content.innerHTML = '<div>Some other dialog</div><button>Insert</button>';
-    expect(findSketchMermaidInsertButton(content, INSERT_PATTERN)).toBeNull();
+    expect(findSketchMermaidInsertButton({ content, insertLabelPattern: INSERT_PATTERN })).toBeNull();
   });
 
   it('falls back to aria-label when textContent normalizes to empty', () => {
@@ -387,7 +387,7 @@ describe('findSketchMermaidInsertButton / removeSketchMermaidShortcutHints', () 
       <div>Mermaid syntax</div>
       <button aria-label="Insert"></button>
     `;
-    const button = findSketchMermaidInsertButton(content, INSERT_PATTERN);
+    const button = findSketchMermaidInsertButton({ content, insertLabelPattern: INSERT_PATTERN });
     expect(button?.getAttribute('aria-label')).toBe('Insert');
   });
 
@@ -398,7 +398,7 @@ describe('findSketchMermaidInsertButton / removeSketchMermaidShortcutHints', () 
       <button></button>
       <button aria-label="Insert diagram">Insert</button>
     `;
-    const button = findSketchMermaidInsertButton(content, INSERT_PATTERN);
+    const button = findSketchMermaidInsertButton({ content, insertLabelPattern: INSERT_PATTERN });
     expect(button?.getAttribute('aria-label')).toBe('Insert diagram');
   });
 
@@ -409,7 +409,7 @@ describe('findSketchMermaidInsertButton / removeSketchMermaidShortcutHints', () 
       <button>Cancel</button>
       <button>Close</button>
     `;
-    expect(findSketchMermaidInsertButton(content, INSERT_PATTERN)).toBeNull();
+    expect(findSketchMermaidInsertButton({ content, insertLabelPattern: INSERT_PATTERN })).toBeNull();
   });
 });
 
@@ -421,7 +421,7 @@ describe('enhanceSketchExcalidrawPortals', () => {
     document.body.appendChild(portal);
 
     const onClose = vi.fn();
-    enhanceSketchExcalidrawPortals('Close', onClose, undefined, INSERT_PATTERN);
+    enhanceSketchExcalidrawPortals({ closeLabel: 'Close', onClose, domTextOverrides: undefined, insertLabelPattern: INSERT_PATTERN });
 
     expect(portal.classList.contains('jini-sketch-modal')).toBe(true);
     expect(portal.classList.contains('jini-sketch-help-modal')).toBe(true);
@@ -439,8 +439,8 @@ describe('enhanceSketchExcalidrawPortals', () => {
     portal.innerHTML = '<div class="Modal__content">Hello</div>';
     document.body.appendChild(portal);
 
-    enhanceSketchExcalidrawPortals('Close', vi.fn(), undefined, INSERT_PATTERN);
-    enhanceSketchExcalidrawPortals('Close', vi.fn(), undefined, INSERT_PATTERN);
+    enhanceSketchExcalidrawPortals({ closeLabel: 'Close', onClose: vi.fn(), domTextOverrides: undefined, insertLabelPattern: INSERT_PATTERN });
+    enhanceSketchExcalidrawPortals({ closeLabel: 'Close', onClose: vi.fn(), domTextOverrides: undefined, insertLabelPattern: INSERT_PATTERN });
     expect(portal.querySelectorAll('.jini-sketch-dialog-close')).toHaveLength(1);
   });
 
@@ -450,7 +450,7 @@ describe('enhanceSketchExcalidrawPortals', () => {
     portal.innerHTML = '<div class="Modal__content"><span>Preview</span></div>';
     document.body.appendChild(portal);
 
-    enhanceSketchExcalidrawPortals('Fermer', vi.fn(), { Preview: 'Aperçu' }, INSERT_PATTERN);
+    enhanceSketchExcalidrawPortals({ closeLabel: 'Fermer', onClose: vi.fn(), domTextOverrides: { Preview: 'Aperçu' }, insertLabelPattern: INSERT_PATTERN });
     expect(portal.querySelector('span')!.textContent).toBe('Aperçu');
   });
 });
@@ -473,7 +473,7 @@ describe('handleSketchPortalCommandEnter', () => {
     button.addEventListener('click', onClick);
 
     const textarea = portal.querySelector('textarea')!;
-    handleSketchPortalCommandEnter(keydown(textarea), INSERT_PATTERN);
+    handleSketchPortalCommandEnter({ event: keydown(textarea), insertLabelPattern: INSERT_PATTERN });
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 
@@ -488,19 +488,19 @@ describe('handleSketchPortalCommandEnter', () => {
     const textarea = portal.querySelector('textarea')!;
     const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
     Object.defineProperty(event, 'target', { value: textarea, enumerable: true });
-    handleSketchPortalCommandEnter(event, INSERT_PATTERN);
+    handleSketchPortalCommandEnter({ event, insertLabelPattern: INSERT_PATTERN });
     expect(onClick).not.toHaveBeenCalled();
   });
 
   it('does nothing outside a modal/without a textarea', () => {
     const div = document.createElement('div');
     document.body.appendChild(div);
-    expect(() => handleSketchPortalCommandEnter(keydown(div), INSERT_PATTERN)).not.toThrow();
+    expect(() => handleSketchPortalCommandEnter({ event: keydown(div), insertLabelPattern: INSERT_PATTERN })).not.toThrow();
   });
 
   it('does nothing when the event target is not an Element (e.g. a detached Text node)', () => {
     const text = document.createTextNode('hi');
-    expect(() => handleSketchPortalCommandEnter(keydown(text as unknown as Element), INSERT_PATTERN)).not.toThrow();
+    expect(() => handleSketchPortalCommandEnter({ event: keydown(text as unknown as Element), insertLabelPattern: INSERT_PATTERN })).not.toThrow();
   });
 
   it('does nothing inside a modal that has no textarea', () => {
@@ -512,7 +512,7 @@ describe('handleSketchPortalCommandEnter', () => {
     const onClick = vi.fn();
     button.addEventListener('click', onClick);
     const content = portal.querySelector('.Modal__content')!;
-    handleSketchPortalCommandEnter(keydown(content), INSERT_PATTERN);
+    handleSketchPortalCommandEnter({ event: keydown(content), insertLabelPattern: INSERT_PATTERN });
     expect(onClick).not.toHaveBeenCalled();
   });
 
@@ -526,7 +526,7 @@ describe('handleSketchPortalCommandEnter', () => {
     const onClick = vi.fn();
     button.addEventListener('click', onClick);
     const textarea = portal.querySelector('textarea')!;
-    handleSketchPortalCommandEnter(keydown(textarea), INSERT_PATTERN);
+    handleSketchPortalCommandEnter({ event: keydown(textarea), insertLabelPattern: INSERT_PATTERN });
     expect(onClick).not.toHaveBeenCalled();
   });
 
@@ -540,7 +540,7 @@ describe('handleSketchPortalCommandEnter', () => {
     const onClick = vi.fn();
     button.addEventListener('click', onClick);
     const textarea = portal.querySelector('textarea')!;
-    handleSketchPortalCommandEnter(keydown(textarea), INSERT_PATTERN);
+    handleSketchPortalCommandEnter({ event: keydown(textarea), insertLabelPattern: INSERT_PATTERN });
     expect(onClick).not.toHaveBeenCalled();
   });
 });
@@ -566,26 +566,26 @@ describe('dom.ts boundary pins', () => {
 
   it('Ctrl+Enter (no Meta) also submits the Mermaid Insert button', () => {
     const { textarea, onClick } = mountMermaidPortal(MERMAID_PORTAL);
-    handleSketchPortalCommandEnter(commandEnter(textarea, { metaKey: false, ctrlKey: true }), INSERT_PATTERN);
+    handleSketchPortalCommandEnter({ event: commandEnter(textarea, { metaKey: false, ctrlKey: true }), insertLabelPattern: INSERT_PATTERN });
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 
   it('a submitted Command+Enter is prevented from reaching the editor', () => {
     const { textarea } = mountMermaidPortal(MERMAID_PORTAL);
     const event = commandEnter(textarea);
-    handleSketchPortalCommandEnter(event, INSERT_PATTERN);
+    handleSketchPortalCommandEnter({ event, insertLabelPattern: INSERT_PATTERN });
     expect(event.defaultPrevented).toBe(true);
   });
 
   it('Cmd+Alt+Enter is ignored', () => {
     const { textarea, onClick } = mountMermaidPortal(MERMAID_PORTAL);
-    handleSketchPortalCommandEnter(commandEnter(textarea, { altKey: true }), INSERT_PATTERN);
+    handleSketchPortalCommandEnter({ event: commandEnter(textarea, { altKey: true }), insertLabelPattern: INSERT_PATTERN });
     expect(onClick).not.toHaveBeenCalled();
   });
 
   it('a non-Enter key with Meta held is ignored', () => {
     const { textarea, onClick } = mountMermaidPortal(MERMAID_PORTAL);
-    handleSketchPortalCommandEnter(commandEnter(textarea, { key: 'a' }), INSERT_PATTERN);
+    handleSketchPortalCommandEnter({ event: commandEnter(textarea, { key: 'a' }), insertLabelPattern: INSERT_PATTERN });
     expect(onClick).not.toHaveBeenCalled();
   });
 
@@ -593,7 +593,7 @@ describe('dom.ts boundary pins', () => {
     const { textarea, onClick } = mountMermaidPortal(
       '<div class="Modal__content">Mermaid<button>Insert</button><div class="jini-sketch-modal"><textarea></textarea></div></div>',
     );
-    handleSketchPortalCommandEnter(commandEnter(textarea), INSERT_PATTERN);
+    handleSketchPortalCommandEnter({ event: commandEnter(textarea), insertLabelPattern: INSERT_PATTERN });
     expect(onClick).not.toHaveBeenCalled();
   });
 
@@ -601,14 +601,14 @@ describe('dom.ts boundary pins', () => {
     const { textarea, onClick } = mountMermaidPortal(
       '<div class="jini-sketch-modal"><div class="Modal__content">Other<textarea></textarea><button>Insert</button></div></div>',
     );
-    handleSketchPortalCommandEnter(commandEnter(textarea), INSERT_PATTERN);
+    handleSketchPortalCommandEnter({ event: commandEnter(textarea), insertLabelPattern: INSERT_PATTERN });
     expect(onClick).not.toHaveBeenCalled();
   });
 
   it('applySketchEditorTooltips skips a "closest-label" trigger that has no <label> ancestor', () => {
     const root = document.createElement('div');
     root.innerHTML = '<input class="probe" />';
-    applySketchEditorTooltips(root, labels, [{ selector: '.probe', label: 'hand', target: 'closest-label' }]);
+    applySketchEditorTooltips({ root, labels, targets: [{ selector: '.probe', label: 'hand', target: 'closest-label' }] });
     expect(root.innerHTML).toBe('<input class="probe">');
   });
 
@@ -617,7 +617,7 @@ describe('dom.ts boundary pins', () => {
     const popover = document.createElement('div');
     vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 100, 100));
     vi.spyOn(popover, 'getBoundingClientRect').mockReturnValue(new DOMRect(90, 20, 30, 30));
-    clampSketchContextPopover(popover, viewport);
+    clampSketchContextPopover({ popover, viewportRoot: viewport });
     expect([popover.style.left, popover.style.top]).toEqual(['62px', '20px']);
   });
 
@@ -628,7 +628,7 @@ describe('dom.ts boundary pins', () => {
     popover.style.top = '20px';
     vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 100, 100));
     vi.spyOn(popover, 'getBoundingClientRect').mockReturnValue(new DOMRect(90, 20, 30, 30));
-    clampSketchContextPopover(popover, viewport);
+    clampSketchContextPopover({ popover, viewportRoot: viewport });
     expect([popover.style.left, popover.style.top]).toEqual(['62px', '20px']);
   });
 
@@ -637,7 +637,7 @@ describe('dom.ts boundary pins', () => {
     root.innerHTML =
       '<div class="popover"><ul class="context-menu"><li data-testid="paste">a</li><li data-testid="copy">b</li><li data-testid="paste">c</li></ul></div>';
     document.body.appendChild(root);
-    applySketchContextMenuSimplification(root, document.body, ['copy', 'paste'], ['copy']);
+    applySketchContextMenuSimplification({ root, viewportRoot: document.body, allowList: ['copy', 'paste'], recognizedActions: ['copy'] });
     expect(root.querySelector('ul')!.textContent).toBe('abc');
   });
 
@@ -646,7 +646,7 @@ describe('dom.ts boundary pins', () => {
     root.innerHTML =
       '<div class="popover"><ul class="context-menu"><li data-testid="paste">p</li><li data-testid="copy">c</li></ul></div>';
     document.body.appendChild(root);
-    applySketchContextMenuSimplification(root, document.body, ['copy', 'paste', 'copy'], ['copy']);
+    applySketchContextMenuSimplification({ root, viewportRoot: document.body, allowList: ['copy', 'paste', 'copy'], recognizedActions: ['copy'] });
     expect(root.querySelector('ul')!.textContent).toBe('pc');
   });
 
@@ -658,10 +658,10 @@ describe('dom.ts boundary pins', () => {
     root.innerHTML =
       '<div class="popover"><ul class="context-menu"><li data-testid="paste">p</li><li data-testid="copy">c</li></ul></div>';
     document.body.appendChild(root);
-    applySketchContextMenuSimplification(root, document.body, ['copy', 'paste', 'copy'], ['copy']);
+    applySketchContextMenuSimplification({ root, viewportRoot: document.body, allowList: ['copy', 'paste', 'copy'], recognizedActions: ['copy'] });
     const menu = root.querySelector('ul')!;
     const append = vi.spyOn(menu, 'appendChild');
-    applySketchContextMenuSimplification(root, document.body, ['copy', 'paste', 'copy'], ['copy']);
+    applySketchContextMenuSimplification({ root, viewportRoot: document.body, allowList: ['copy', 'paste', 'copy'], recognizedActions: ['copy'] });
     expect(append).toHaveBeenCalledTimes(3);
   });
 
@@ -669,7 +669,7 @@ describe('dom.ts boundary pins', () => {
     const root = document.createElement('div');
     root.setAttribute('title', 'Close');
     root.innerHTML = '<span aria-label="">Close</span>';
-    applySketchDomTextOverrides(root, { Close: 'Fermer' });
+    applySketchDomTextOverrides({ root, overrides: { Close: 'Fermer' } });
     expect(root.outerHTML).toBe('<div title="Fermer"><span aria-label="">Fermer</span></div>');
   });
 
@@ -679,7 +679,7 @@ describe('dom.ts boundary pins', () => {
     root.textContent = 'Close';
     const observer = new MutationObserver(() => {});
     observer.observe(root, { attributes: true, characterData: true, subtree: true });
-    applySketchDomTextOverrides(root, { Close: 'Close' });
+    applySketchDomTextOverrides({ root, overrides: { Close: 'Close' } });
     expect(observer.takeRecords()).toHaveLength(0);
     observer.disconnect();
   });
@@ -691,7 +691,7 @@ describe('dom.ts boundary pins', () => {
     document.body.appendChild(root);
     const menu = root.querySelector('ul')!;
     const append = vi.spyOn(menu, 'appendChild');
-    applySketchContextMenuSimplification(root, document.body, ['copy', 'paste'], ['copy']);
+    applySketchContextMenuSimplification({ root, viewportRoot: document.body, allowList: ['copy', 'paste'], recognizedActions: ['copy'] });
     expect(append).not.toHaveBeenCalled();
   });
 
@@ -700,7 +700,7 @@ describe('dom.ts boundary pins', () => {
       '<div class="jini-sketch-modal"><div class="Modal__content">Mermaid<textarea></textarea><button disabled>Insert</button></div></div>',
     );
     const event = commandEnter(textarea);
-    handleSketchPortalCommandEnter(event, INSERT_PATTERN);
+    handleSketchPortalCommandEnter({ event, insertLabelPattern: INSERT_PATTERN });
     expect(event.defaultPrevented).toBe(false);
   });
 });

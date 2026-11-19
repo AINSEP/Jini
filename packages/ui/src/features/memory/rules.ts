@@ -29,7 +29,7 @@ import { omitKeys } from '../../utils/omit-keys.js';
 export type MemoryConfigFlagKey = 'chatExtractionEnabled' | 'profileEnabled' | 'rewriteEnabled' | 'verifyEnabled';
 
 /** Patch body for flipping the master memory switch. */
-export function enabledPatch(enabled: boolean): UpdateMemoryConfigRequest {
+export function enabledPatch({ enabled }: { enabled: boolean }, _optional: Record<string, never> = {}): UpdateMemoryConfigRequest {
   return { enabled };
 }
 
@@ -37,7 +37,7 @@ export function enabledPatch(enabled: boolean): UpdateMemoryConfigRequest {
  * Patch body for flipping a single per-hook flag. The daemon merges any subset,
  * so sending just the one key leaves the others untouched.
  */
-export function singleFlagPatch(flag: MemoryConfigFlagKey, value: boolean): UpdateMemoryConfigRequest {
+export function singleFlagPatch({ flag, value }: { flag: MemoryConfigFlagKey; value: boolean }, _optional: Record<string, never> = {}): UpdateMemoryConfigRequest {
   return { [flag]: value };
 }
 
@@ -50,8 +50,8 @@ export function singleFlagPatch(flag: MemoryConfigFlagKey, value: boolean): Upda
  * just the pure predicate so the rule is testable without React.
  */
 export function visibleExtractionsFor(
-  extractions: MemoryExtractionRecord[],
-  filter: 'all' | MemoryType,
+  { extractions, filter }: { extractions: MemoryExtractionRecord[]; filter: 'all' | MemoryType },
+  _optional: Record<string, never> = {},
 ): MemoryExtractionRecord[] {
   return filter === 'all' ? extractions.filter((record) => record.kind !== 'connector') : [];
 }
@@ -66,9 +66,9 @@ export function memoryEntryIdForConnectorSuggestion(suggestion: MemorySuggestion
  *  only ever has one freshly-connected/updated connector to fold in at a
  *  time. A `null` update (e.g. a failed connect with no connector payload) is
  *  a no-op. */
-export function upsertMemoryConnector(current: Connector[], next: Connector | null): Connector[] {
+export function upsertMemoryConnector({ current, next }: { current: Connector[]; next: Connector | null }, _optional: Record<string, never> = {}): Connector[] {
   if (!next) return current;
-  return mergeConnectors(current, [next]);
+  return mergeConnectors({ current, incoming: [next] });
 }
 
 /** Apply a live status onto a single connector, dropping stale account/error
@@ -76,10 +76,10 @@ export function upsertMemoryConnector(current: Connector[], next: Connector | nu
  *  used where only one connector's status is known (the synthetic catalogue
  *  row derivation in `useMemoryConnectors`). */
 export function applyMemoryConnectorStatus(
-  connector: Connector,
-  status: ConnectorStatusMap[string],
+  { connector, status }: { connector: Connector; status: ConnectorStatusMap[string] },
+  _optional: Record<string, never> = {},
 ): Connector {
-  return applyConnectorStatuses([connector], { [connector.id]: status })[0]!;
+  return applyConnectorStatuses({ current: [connector], statuses: { [connector.id]: status } })[0]!;
 }
 
 /** Mark a connector as awaiting OAuth completion (available unless disabled).

@@ -309,21 +309,21 @@ function LocalCliPane({ config, onConfigChange, tab, cliEnvFields, renderAgentIc
       config={config.localCli}
       scan={tab.scan}
       agentTest={tab.agentTest}
-      onSelect={(agentId) => onConfigChange(nextConfigForAgentSelect(config, agentId))}
+      onSelect={(agentId) => onConfigChange(nextConfigForAgentSelect({ config, agentId }))}
       onModelChange={(agentId, model) =>
-        onConfigChange(nextConfigForAgentModel(config, agentId, model))
+        onConfigChange(nextConfigForAgentModel({ config, agentId, model }))
       }
       onReasoningChange={(agentId, reasoning) =>
-        onConfigChange(nextConfigForAgentReasoning(config, agentId, reasoning))
+        onConfigChange(nextConfigForAgentReasoning({ config, agentId, reasoning }))
       }
       onEnvChange={(agentId, envKey, value) =>
-        onConfigChange(nextConfigForAgentCliEnvChange(config, agentId, envKey, value))
+        onConfigChange(nextConfigForAgentCliEnvChange({ config, agentId, envKey, rawValue: value }))
       }
       cliEnvFields={cliEnvFields}
       onRescan={tab.canRescan ? tab.rescan : undefined}
       onTest={
         tab.canTestAgent
-          ? (agent) => tab.testAgent(agent.id, selectedAgentModel(config.localCli, agent) || undefined)
+          ? (agent) => tab.testAgent(agent.id, selectedAgentModel({ config: config.localCli, agent }) || undefined)
           : undefined
       }
       renderAgentIcon={renderAgentIcon}

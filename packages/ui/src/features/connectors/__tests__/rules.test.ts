@@ -48,13 +48,13 @@ function makeConnector(overrides: Partial<Connector> = {}): Connector {
 describe('mergeConnectors', () => {
   it('returns incoming when current is empty', () => {
     const incoming = [makeConnector()];
-    expect(mergeConnectors([], incoming)).toBe(incoming);
+    expect(mergeConnectors({ current: [], incoming })).toBe(incoming);
   });
 
   it('preserves existing tools when incoming has none, but takes incoming otherwise', () => {
     const current = [makeConnector({ tools: [{ name: 't1', safety: { sideEffect: 'no_side_effect' } }] })];
     const incoming = [makeConnector({ status: 'connected', tools: [] })];
-    const merged = mergeConnectors(current, incoming);
+    const merged = mergeConnectors({ current, incoming });
     expect(merged[0]!.status).toBe('connected');
     expect(merged[0]!.tools).toHaveLength(1);
   });
@@ -62,14 +62,14 @@ describe('mergeConnectors', () => {
   it('adds new connectors not present in current', () => {
     const current = [makeConnector({ id: 'a' })];
     const incoming = [makeConnector({ id: 'a' }), makeConnector({ id: 'b' })];
-    const merged = mergeConnectors(current, incoming);
+    const merged = mergeConnectors({ current, incoming });
     expect(merged.map((c) => c.id)).toEqual(['a', 'b']);
   });
 
   it('carries forward toolCount/toolsNextCursor/toolsHasMore when incoming omits them', () => {
     const current = [makeConnector({ toolCount: 5, toolsNextCursor: 'cursor-1', toolsHasMore: true })];
     const incoming = [makeConnector({})];
-    const merged = mergeConnectors(current, incoming);
+    const merged = mergeConnectors({ current, incoming });
     expect(merged[0]!.toolCount).toBe(5);
     expect(merged[0]!.toolsNextCursor).toBe('cursor-1');
     expect(merged[0]!.toolsHasMore).toBe(true);
@@ -81,35 +81,35 @@ describe('mergeConnectorToolPreview', () => {
 
   it('appends and dedupes tools when append=true', () => {
     const next = makeConnector({ tools: [{ name: 'a', safety: { sideEffect: 'no_side_effect' } }, { name: 'b', safety: { sideEffect: 'no_side_effect' } }] });
-    const merged = mergeConnectorToolPreview(base, next, true);
+    const merged = mergeConnectorToolPreview({ current: base, next, append: true });
     expect(merged.tools.map((t) => t.name)).toEqual(['a', 'b']);
   });
 
   it('replaces tools when append=false', () => {
     const next = makeConnector({ tools: [{ name: 'b', safety: { sideEffect: 'no_side_effect' } }] });
-    const merged = mergeConnectorToolPreview(base, next, false);
+    const merged = mergeConnectorToolPreview({ current: base, next, append: false });
     expect(merged.tools.map((t) => t.name)).toEqual(['b']);
   });
 
   it('drops toolsNextCursor when the next page has none (pagination end)', () => {
     const withCursor = { ...base, toolsNextCursor: 'cursor-1' };
     const next = makeConnector({ tools: [] });
-    const merged = mergeConnectorToolPreview(withCursor, next, true);
+    const merged = mergeConnectorToolPreview({ current: withCursor, next, append: true });
     expect(merged.toolsNextCursor).toBeUndefined();
   });
 
   it('carries forward featuredToolNames when next omits it, and takes next when provided', () => {
     const withFeatured = { ...base, featuredToolNames: ['a'] };
     const nextWithout = makeConnector({ tools: [] });
-    expect(mergeConnectorToolPreview(withFeatured, nextWithout, true).featuredToolNames).toEqual(['a']);
+    expect(mergeConnectorToolPreview({ current: withFeatured, next: nextWithout, append: true }).featuredToolNames).toEqual(['a']);
 
     const nextWith = makeConnector({ tools: [], featuredToolNames: ['b'] });
-    expect(mergeConnectorToolPreview(withFeatured, nextWith, true).featuredToolNames).toEqual(['b']);
+    expect(mergeConnectorToolPreview({ current: withFeatured, next: nextWith, append: true }).featuredToolNames).toEqual(['b']);
   });
 
   it('keeps toolsNextCursor when the next page provides one', () => {
     const next = makeConnector({ tools: [], toolsNextCursor: 'cursor-2' });
-    const merged = mergeConnectorToolPreview(base, next, true);
+    const merged = mergeConnectorToolPreview({ current: base, next, append: true });
     expect(merged.toolsNextCursor).toBe('cursor-2');
   });
 });
@@ -118,7 +118,7 @@ describe('mergeConnectorActionResult', () => {
   it('keeps current tools when next has none', () => {
     const current = makeConnector({ tools: [{ name: 'a', safety: { sideEffect: 'no_side_effect' } }] });
     const next = makeConnector({ status: 'connected', tools: [] });
-    const merged = mergeConnectorActionResult(current, next);
+    const merged = mergeConnectorActionResult({ current, next });
     expect(merged.status).toBe('connected');
     expect(merged.tools).toHaveLength(1);
   });
@@ -126,14 +126,14 @@ describe('mergeConnectorActionResult', () => {
   it('takes next tools when next has some', () => {
     const current = makeConnector({ tools: [{ name: 'a', safety: { sideEffect: 'no_side_effect' } }] });
     const next = makeConnector({ tools: [{ name: 'b', safety: { sideEffect: 'no_side_effect' } }] });
-    const merged = mergeConnectorActionResult(current, next);
+    const merged = mergeConnectorActionResult({ current, next });
     expect(merged.tools.map((t) => t.name)).toEqual(['b']);
   });
 
   it('carries forward toolCount and featuredToolNames when next omits them', () => {
     const current = makeConnector({ toolCount: 5, featuredToolNames: ['a'] });
     const next = makeConnector({});
-    const merged = mergeConnectorActionResult(current, next);
+    const merged = mergeConnectorActionResult({ current, next });
     expect(merged.toolCount).toBe(5);
     expect(merged.featuredToolNames).toEqual(['a']);
   });
@@ -141,7 +141,7 @@ describe('mergeConnectorActionResult', () => {
   it('takes next toolCount/featuredToolNames when provided', () => {
     const current = makeConnector({ toolCount: 5, featuredToolNames: ['a'] });
     const next = makeConnector({ toolCount: 9, featuredToolNames: ['b'] });
-    const merged = mergeConnectorActionResult(current, next);
+    const merged = mergeConnectorActionResult({ current, next });
     expect(merged.toolCount).toBe(9);
     expect(merged.featuredToolNames).toEqual(['b']);
   });
@@ -150,73 +150,73 @@ describe('mergeConnectorActionResult', () => {
 describe('pruneConnectorAuthorizationPending', () => {
   it('drops entries whose expiresAt is in the past', () => {
     const pending = { a: { expiresAt: '2020-01-01T00:00:00Z' }, b: { expiresAt: '2099-01-01T00:00:00Z' } };
-    const pruned = pruneConnectorAuthorizationPending(pending, Date.parse('2025-01-01T00:00:00Z'));
+    const pruned = pruneConnectorAuthorizationPending({ pending, nowMs: Date.parse('2025-01-01T00:00:00Z') });
     expect(Object.keys(pruned)).toEqual(['b']);
   });
 
   it('keeps entries with no expiresAt', () => {
     const pending = { a: {} };
-    expect(Object.keys(pruneConnectorAuthorizationPending(pending, Date.now()))).toEqual(['a']);
+    expect(Object.keys(pruneConnectorAuthorizationPending({ pending, nowMs: Date.now() }))).toEqual(['a']);
   });
 });
 
 describe('parseConnectorAuthorizationPendingState', () => {
   it('parses a valid JSON blob', () => {
     const raw = JSON.stringify({ a: { expiresAt: '2099-01-01T00:00:00Z' } });
-    expect(parseConnectorAuthorizationPendingState(raw)).toEqual({ a: { expiresAt: '2099-01-01T00:00:00Z' } });
+    expect(parseConnectorAuthorizationPendingState({ raw })).toEqual({ a: { expiresAt: '2099-01-01T00:00:00Z' } });
   });
 
   it('returns {} for malformed JSON', () => {
-    expect(parseConnectorAuthorizationPendingState('{not json')).toEqual({});
+    expect(parseConnectorAuthorizationPendingState({ raw: '{not json' })).toEqual({});
   });
 
   it('returns {} for a JSON array', () => {
-    expect(parseConnectorAuthorizationPendingState('[1,2,3]')).toEqual({});
+    expect(parseConnectorAuthorizationPendingState({ raw: '[1,2,3]' })).toEqual({});
   });
 
   it('ignores non-string expiresAt/redirectUrl fields', () => {
     const raw = JSON.stringify({ a: { expiresAt: 123, redirectUrl: null } });
-    expect(parseConnectorAuthorizationPendingState(raw)).toEqual({ a: {} });
+    expect(parseConnectorAuthorizationPendingState({ raw })).toEqual({ a: {} });
   });
 
   it('keeps a valid redirectUrl string', () => {
     const raw = JSON.stringify({ a: { redirectUrl: 'https://example.test/authorize' } });
-    expect(parseConnectorAuthorizationPendingState(raw)).toEqual({
+    expect(parseConnectorAuthorizationPendingState({ raw })).toEqual({
       a: { redirectUrl: 'https://example.test/authorize' },
     });
   });
 
   it('treats a non-object state value as an empty pending entry', () => {
     const raw = JSON.stringify({ a: 'not-an-object', b: 42, c: null });
-    expect(parseConnectorAuthorizationPendingState(raw)).toEqual({ a: {}, b: {}, c: {} });
+    expect(parseConnectorAuthorizationPendingState({ raw })).toEqual({ a: {}, b: {}, c: {} });
   });
 
   it('skips an entry with a blank connector id key', () => {
     const raw = JSON.stringify({ '': { expiresAt: '2099-01-01T00:00:00Z' }, kept: {} });
-    expect(parseConnectorAuthorizationPendingState(raw)).toEqual({ kept: {} });
+    expect(parseConnectorAuthorizationPendingState({ raw })).toEqual({ kept: {} });
   });
 
   it('returns {} for a JSON null', () => {
-    expect(parseConnectorAuthorizationPendingState('null')).toEqual({});
+    expect(parseConnectorAuthorizationPendingState({ raw: 'null' })).toEqual({});
   });
 
   it('returns {} for a JSON primitive', () => {
-    expect(parseConnectorAuthorizationPendingState('42')).toEqual({});
+    expect(parseConnectorAuthorizationPendingState({ raw: '42' })).toEqual({});
   });
 
   it('treats an array state value as an empty pending entry', () => {
     const raw = JSON.stringify({ a: [{ expiresAt: '2099-01-01T00:00:00Z' }] });
-    expect(parseConnectorAuthorizationPendingState(raw)).toEqual({ a: {} });
+    expect(parseConnectorAuthorizationPendingState({ raw })).toEqual({ a: {} });
   });
 
   it('drops whitespace-only expiresAt and redirectUrl strings', () => {
     const raw = JSON.stringify({ a: { expiresAt: '   ', redirectUrl: '\t' } });
-    expect(parseConnectorAuthorizationPendingState(raw)).toEqual({ a: {} });
+    expect(parseConnectorAuthorizationPendingState({ raw })).toEqual({ a: {} });
   });
 
   it('keeps expiresAt and redirectUrl together', () => {
     const raw = JSON.stringify({ a: { expiresAt: '2099-01-01T00:00:00Z', redirectUrl: 'https://example.test/x' } });
-    expect(parseConnectorAuthorizationPendingState(raw)).toEqual({
+    expect(parseConnectorAuthorizationPendingState({ raw })).toEqual({
       a: { expiresAt: '2099-01-01T00:00:00Z', redirectUrl: 'https://example.test/x' },
     });
   });
@@ -230,26 +230,26 @@ describe('updateConnectorAuthorizationPendingFromConnectResponse', () => {
       connector: makeConnector(),
       auth: { kind: 'redirect_required', redirectUrl: 'https://example.com', expiresAt: '2099-01-01T00:00:00Z' },
     };
-    const next = updateConnectorAuthorizationPendingFromConnectResponse({}, response, now);
+    const next = updateConnectorAuthorizationPendingFromConnectResponse({ pending: {}, response, nowMs: now });
     expect(next.slack).toEqual({ expiresAt: '2099-01-01T00:00:00Z', redirectUrl: 'https://example.com' });
   });
 
   it('records a pending entry for pending', () => {
     const response: ConnectorActionResult = { connector: makeConnector(), auth: { kind: 'pending' } };
-    const next = updateConnectorAuthorizationPendingFromConnectResponse({}, response, now);
+    const next = updateConnectorAuthorizationPendingFromConnectResponse({ pending: {}, response, nowMs: now });
     expect(next.slack).toEqual({});
   });
 
   it('clears pending for a connected result', () => {
     const response: ConnectorActionResult = { connector: makeConnector(), auth: { kind: 'connected' } };
-    const next = updateConnectorAuthorizationPendingFromConnectResponse({ slack: {} }, response, now);
+    const next = updateConnectorAuthorizationPendingFromConnectResponse({ pending: { slack: {} }, response, nowMs: now });
     expect(next.slack).toBeUndefined();
   });
 
   it('is a no-op when connector is null', () => {
     const pending = { slack: {} };
     const response: ConnectorActionResult = { connector: null };
-    expect(updateConnectorAuthorizationPendingFromConnectResponse(pending, response, now)).toBe(pending);
+    expect(updateConnectorAuthorizationPendingFromConnectResponse({ pending, response, nowMs: now })).toBe(pending);
   });
 });
 
@@ -257,7 +257,7 @@ describe('updateConnectorAuthorizationPendingFromStatuses', () => {
   it('clears pending entries whose status is now connected', () => {
     const pending = { slack: {}, notion: {} };
     const statuses: ConnectorStatusMap = { slack: { status: 'connected' } };
-    const next = updateConnectorAuthorizationPendingFromStatuses(pending, statuses, Date.now());
+    const next = updateConnectorAuthorizationPendingFromStatuses({ pending, statuses, nowMs: Date.now() });
     expect(next).toEqual({ notion: {} });
   });
 });
@@ -267,28 +267,28 @@ describe('clearConnectorAuthorizationErrorsForConnected / CancelFailuresForConne
 
   it('clears errors for now-connected connectors, returning the same reference if nothing changed', () => {
     const errors = { slack: 'oops' };
-    expect(clearConnectorAuthorizationErrorsForConnected(errors, statuses)).toEqual({});
+    expect(clearConnectorAuthorizationErrorsForConnected({ errors, statuses })).toEqual({});
     const untouched = { notion: 'oops' };
-    expect(clearConnectorAuthorizationErrorsForConnected(untouched, statuses)).toBe(untouched);
+    expect(clearConnectorAuthorizationErrorsForConnected({ errors: untouched, statuses })).toBe(untouched);
   });
 
   it('clears cancel-failed flags for now-connected connectors', () => {
     const failed = { slack: true };
-    expect(clearConnectorAuthorizationCancelFailuresForConnected(failed, statuses)).toEqual({});
+    expect(clearConnectorAuthorizationCancelFailuresForConnected({ failures: failed, statuses })).toEqual({});
   });
 });
 
 describe('clearConnectorAuthorizationPending', () => {
   it('removes the entry and returns a new object', () => {
     const pending = { slack: {}, notion: {} };
-    const next = clearConnectorAuthorizationPending(pending, 'slack');
+    const next = clearConnectorAuthorizationPending({ pending, connectorId: 'slack' });
     expect(next).toEqual({ notion: {} });
     expect(next).not.toBe(pending);
   });
 
   it('returns the same reference when the id is absent', () => {
     const pending = { notion: {} };
-    expect(clearConnectorAuthorizationPending(pending, 'slack')).toBe(pending);
+    expect(clearConnectorAuthorizationPending({ pending, connectorId: 'slack' })).toBe(pending);
   });
 });
 
@@ -297,72 +297,72 @@ describe('findStaleAuthorizations', () => {
 
   it('flags a pending authorization past its expiry with no connected status', () => {
     const pending = { slack: { expiresAt: '2020-01-01T00:00:00Z' } };
-    expect(findStaleAuthorizations(pending, {}, now)).toEqual(['slack']);
+    expect(findStaleAuthorizations({ pendingBeforeReload: pending, statuses: {}, nowMs: now })).toEqual(['slack']);
   });
 
   it('does not flag an authorization that already connected', () => {
     const pending = { slack: { expiresAt: '2020-01-01T00:00:00Z' } };
     const statuses: ConnectorStatusMap = { slack: { status: 'connected' } };
-    expect(findStaleAuthorizations(pending, statuses, now)).toEqual([]);
+    expect(findStaleAuthorizations({ pendingBeforeReload: pending, statuses, nowMs: now })).toEqual([]);
   });
 
   it('does not flag an authorization with no expiresAt (still genuinely pending)', () => {
-    expect(findStaleAuthorizations({ slack: {} }, {}, now)).toEqual([]);
+    expect(findStaleAuthorizations({ pendingBeforeReload: { slack: {} }, statuses: {}, nowMs: now })).toEqual([]);
   });
 
   it('does not flag an authorization not yet expired', () => {
-    expect(findStaleAuthorizations({ slack: { expiresAt: '2099-01-01T00:00:00Z' } }, {}, now)).toEqual([]);
+    expect(findStaleAuthorizations({ pendingBeforeReload: { slack: { expiresAt: '2099-01-01T00:00:00Z' } }, statuses: {}, nowMs: now })).toEqual([]);
   });
 });
 
 describe('connectorAuthSnapshotChanged / hasConnectorStatusChanges', () => {
   it('detects a status change', () => {
-    expect(connectorAuthSnapshotChanged({ status: 'available' }, { status: 'connected' })).toBe(true);
+    expect(connectorAuthSnapshotChanged({ current: { status: 'available' }, next: { status: 'connected' } })).toBe(true);
   });
 
   it('detects no change', () => {
-    expect(connectorAuthSnapshotChanged({ status: 'available' }, { status: 'available' })).toBe(false);
+    expect(connectorAuthSnapshotChanged({ current: { status: 'available' }, next: { status: 'available' } })).toBe(false);
   });
 
   it('reports no change when both sides are null/undefined', () => {
-    expect(connectorAuthSnapshotChanged(null, undefined)).toBe(false);
-    expect(connectorAuthSnapshotChanged(undefined, null)).toBe(false);
+    expect(connectorAuthSnapshotChanged({ current: null, next: undefined })).toBe(false);
+    expect(connectorAuthSnapshotChanged({ current: undefined, next: null })).toBe(false);
   });
 
   it('reports a change when exactly one side is null/undefined', () => {
-    expect(connectorAuthSnapshotChanged(null, { status: 'connected' })).toBe(true);
-    expect(connectorAuthSnapshotChanged({ status: 'connected' }, null)).toBe(true);
+    expect(connectorAuthSnapshotChanged({ current: null, next: { status: 'connected' } })).toBe(true);
+    expect(connectorAuthSnapshotChanged({ current: { status: 'connected' }, next: null })).toBe(true);
   });
 
   it('hasConnectorStatusChanges is true when any connector changed', () => {
     const current = [makeConnector({ status: 'available' })];
     const statuses: ConnectorStatusMap = { slack: { status: 'connected' } };
-    expect(hasConnectorStatusChanges(current, statuses)).toBe(true);
+    expect(hasConnectorStatusChanges({ current, statuses })).toBe(true);
   });
 
   it('hasConnectorStatusChanges is false when nothing changed', () => {
     const current = [makeConnector({ status: 'connected' })];
     const statuses: ConnectorStatusMap = { slack: { status: 'connected' } };
-    expect(hasConnectorStatusChanges(current, statuses)).toBe(false);
+    expect(hasConnectorStatusChanges({ current, statuses })).toBe(false);
   });
 });
 
 describe('applyConnectorStatuses', () => {
   it('applies a status update to the matching connector', () => {
     const current = [makeConnector({ status: 'available' })];
-    const next = applyConnectorStatuses(current, { slack: { status: 'connected', accountLabel: 'me@x.com' } });
+    const next = applyConnectorStatuses({ current, statuses: { slack: { status: 'connected', accountLabel: 'me@x.com' } } });
     expect(next[0]!.status).toBe('connected');
     expect(next[0]!.accountLabel).toBe('me@x.com');
   });
 
   it('returns the same reference when there are no statuses', () => {
     const current = [makeConnector()];
-    expect(applyConnectorStatuses(current, {})).toBe(current);
+    expect(applyConnectorStatuses({ current, statuses: {} })).toBe(current);
   });
 
   it('clears accountLabel/lastError when the new status omits them', () => {
     const current = [makeConnector({ accountLabel: 'stale', lastError: 'stale error' })];
-    const next = applyConnectorStatuses(current, { slack: { status: 'available' } });
+    const next = applyConnectorStatuses({ current, statuses: { slack: { status: 'available' } } });
     expect(next[0]!.accountLabel).toBeUndefined();
     expect(next[0]!.lastError).toBeUndefined();
   });
@@ -399,15 +399,15 @@ describe('scopeConnectorsToProvider', () => {
   const connectors = [makeConnector({ id: 'a', provider: 'Connector Provider' }), makeConnector({ id: 'b', provider: 'Zapier' })];
 
   it('filters to the selected tab', () => {
-    expect(scopeConnectorsToProvider(connectors, tabs, 'zapier').map((c) => c.id)).toEqual(['b']);
+    expect(scopeConnectorsToProvider({ connectors, providerTabs: tabs, selectedProviderId: 'zapier' }).map((c) => c.id)).toEqual(['b']);
   });
 
   it('falls back to the first tab for an unknown selectedProviderId', () => {
-    expect(scopeConnectorsToProvider(connectors, tabs, 'nonexistent').map((c) => c.id)).toEqual(['a']);
+    expect(scopeConnectorsToProvider({ connectors, providerTabs: tabs, selectedProviderId: 'nonexistent' }).map((c) => c.id)).toEqual(['a']);
   });
 
   it('returns all connectors unfiltered when there are no tabs at all', () => {
-    expect(scopeConnectorsToProvider(connectors, [], 'anything')).toBe(connectors);
+    expect(scopeConnectorsToProvider({ connectors, providerTabs: [], selectedProviderId: 'anything' })).toBe(connectors);
   });
 });
 
@@ -419,35 +419,35 @@ describe('search scoring + sorting', () => {
   ];
 
   it('scores an exact name match best', () => {
-    expect(getConnectorSearchScore(connectors[0]!, 'zendesk')).toBe(0);
+    expect(getConnectorSearchScore({ connector: connectors[0]!, query: 'zendesk' })).toBe(0);
   });
 
   it('scores a description-only match worse than a name match', () => {
-    const nameScore = getConnectorSearchScore(connectors[0]!, 'zendesk')!;
-    const descScore = getConnectorSearchScore(connectors[2]!, 'zendesk')!;
+    const nameScore = getConnectorSearchScore({ connector: connectors[0]!, query: 'zendesk' })!;
+    const descScore = getConnectorSearchScore({ connector: connectors[2]!, query: 'zendesk' })!;
     expect(descScore).toBeGreaterThan(nameScore);
   });
 
   it('returns null when nothing matches', () => {
-    expect(getConnectorSearchScore(connectors[0]!, 'nonexistent-xyz')).toBeNull();
+    expect(getConnectorSearchScore({ connector: connectors[0]!, query: 'nonexistent-xyz' })).toBeNull();
   });
 
   it('sortConnectorsForDisplay puts connected connectors first, then alphabetical', () => {
-    const sorted = sortConnectorsForDisplay(connectors);
+    const sorted = sortConnectorsForDisplay({ connectors });
     expect(sorted[0]!.id).toBe('b');
   });
 
   it('sortConnectorsForSearch with empty query behaves like sortConnectorsForDisplay', () => {
-    expect(sortConnectorsForSearch(connectors, '').map((c) => c.id)).toEqual(sortConnectorsForDisplay(connectors).map((c) => c.id));
+    expect(sortConnectorsForSearch({ connectors, query: '' }).map((c) => c.id)).toEqual(sortConnectorsForDisplay({ connectors }).map((c) => c.id));
   });
 
   it('sortConnectorsForSearch filters out non-matches and ranks matches', () => {
-    const results = sortConnectorsForSearch(connectors, 'zendesk');
+    const results = sortConnectorsForSearch({ connectors, query: 'zendesk' });
     expect(results.map((c) => c.id)).toEqual(['a', 'c']);
   });
 
   it('returns 0 for an empty (post-trim) query rather than scanning fields', () => {
-    expect(getConnectorSearchScore(connectors[0]!, '   ')).toBe(0);
+    expect(getConnectorSearchScore({ connector: connectors[0]!, query: '   ' })).toBe(0);
   });
 
   it('matches against tool title/name/description too', () => {
@@ -463,14 +463,14 @@ describe('search scoring + sorting', () => {
         },
       ],
     });
-    expect(getConnectorSearchScore(withTools, 'zendesk')).not.toBeNull();
+    expect(getConnectorSearchScore({ connector: withTools, query: 'zendesk' })).not.toBeNull();
 
     const nameOnly = makeConnector({
       id: 'e',
       name: 'Other2',
       tools: [{ name: 'zendesk_tool', safety: { sideEffect: 'no_side_effect' } }],
     });
-    expect(getConnectorSearchScore(nameOnly, 'zendesk')).not.toBeNull();
+    expect(getConnectorSearchScore({ connector: nameOnly, query: 'zendesk' })).not.toBeNull();
   });
 
   it('sortConnectorsForDisplay breaks a same-name tie by id', () => {
@@ -478,7 +478,7 @@ describe('search scoring + sorting', () => {
       makeConnector({ id: 'z', name: 'Same' }),
       makeConnector({ id: 'a', name: 'Same' }),
     ];
-    expect(sortConnectorsForDisplay(tied).map((c) => c.id)).toEqual(['a', 'z']);
+    expect(sortConnectorsForDisplay({ connectors: tied }).map((c) => c.id)).toEqual(['a', 'z']);
   });
 
   it('sortConnectorsForSearch breaks an equal-score tie by connected status, in either input order', () => {
@@ -486,13 +486,13 @@ describe('search scoring + sorting', () => {
       makeConnector({ id: 'z', name: 'Match', status: 'available' }),
       makeConnector({ id: 'a', name: 'Match', status: 'connected' }),
     ];
-    expect(sortConnectorsForSearch(availableFirst, 'match').map((c) => c.id)).toEqual(['a', 'z']);
+    expect(sortConnectorsForSearch({ connectors: availableFirst, query: 'match' }).map((c) => c.id)).toEqual(['a', 'z']);
 
     const connectedFirst = [
       makeConnector({ id: 'a', name: 'Match', status: 'connected' }),
       makeConnector({ id: 'z', name: 'Match', status: 'available' }),
     ];
-    expect(sortConnectorsForSearch(connectedFirst, 'match').map((c) => c.id)).toEqual(['a', 'z']);
+    expect(sortConnectorsForSearch({ connectors: connectedFirst, query: 'match' }).map((c) => c.id)).toEqual(['a', 'z']);
   });
 
   it('sortConnectorsForSearch breaks an equal-score, equal-status tie by name then id', () => {
@@ -500,7 +500,7 @@ describe('search scoring + sorting', () => {
       makeConnector({ id: 'z', name: 'Match Two', status: 'available' }),
       makeConnector({ id: 'a', name: 'Match One', status: 'available' }),
     ];
-    expect(sortConnectorsForSearch(tied, 'match').map((c) => c.id)).toEqual(['a', 'z']);
+    expect(sortConnectorsForSearch({ connectors: tied, query: 'match' }).map((c) => c.id)).toEqual(['a', 'z']);
   });
 
   it('sortConnectorsForSearch breaks an equal-score, equal-status, equal-name tie by id alone', () => {
@@ -508,40 +508,40 @@ describe('search scoring + sorting', () => {
       makeConnector({ id: 'z', name: 'Match', status: 'available' }),
       makeConnector({ id: 'a', name: 'Match', status: 'available' }),
     ];
-    expect(sortConnectorsForSearch(tied, 'match').map((c) => c.id)).toEqual(['a', 'z']);
+    expect(sortConnectorsForSearch({ connectors: tied, query: 'match' }).map((c) => c.id)).toEqual(['a', 'z']);
   });
 });
 
 describe('isTrustedConnectorCallbackOrigin', () => {
   it('trusts same-origin', () => {
-    expect(isTrustedConnectorCallbackOrigin('https://app.example.com', 'https://app.example.com')).toBe(true);
+    expect(isTrustedConnectorCallbackOrigin({ origin: 'https://app.example.com', currentOrigin: 'https://app.example.com' })).toBe(true);
   });
 
   it('trusts localhost regardless of current origin', () => {
-    expect(isTrustedConnectorCallbackOrigin('http://localhost:5173', 'https://app.example.com')).toBe(true);
+    expect(isTrustedConnectorCallbackOrigin({ origin: 'http://localhost:5173', currentOrigin: 'https://app.example.com' })).toBe(true);
   });
 
   it('trusts the loopback IP', () => {
-    expect(isTrustedConnectorCallbackOrigin('http://127.0.0.1:5173', 'https://app.example.com')).toBe(true);
+    expect(isTrustedConnectorCallbackOrigin({ origin: 'http://127.0.0.1:5173', currentOrigin: 'https://app.example.com' })).toBe(true);
   });
 
   it('rejects an untrusted origin', () => {
-    expect(isTrustedConnectorCallbackOrigin('https://evil.example.com', 'https://app.example.com')).toBe(false);
+    expect(isTrustedConnectorCallbackOrigin({ origin: 'https://evil.example.com', currentOrigin: 'https://app.example.com' })).toBe(false);
   });
 
   it('rejects a non-http(s) protocol even if the hostname looks like localhost', () => {
-    expect(isTrustedConnectorCallbackOrigin('file://localhost', 'https://app.example.com')).toBe(false);
+    expect(isTrustedConnectorCallbackOrigin({ origin: 'file://localhost', currentOrigin: 'https://app.example.com' })).toBe(false);
   });
 
   it('rejects a malformed origin string', () => {
-    expect(isTrustedConnectorCallbackOrigin('not a url', 'https://app.example.com')).toBe(false);
+    expect(isTrustedConnectorCallbackOrigin({ origin: 'not a url', currentOrigin: 'https://app.example.com' })).toBe(false);
   });
 });
 
 describe('connectorPanelAlerts', () => {
   it('surfaces auth-error and cancel-failed alerts, skipping the open detail connector', () => {
     const connectors = [makeConnector({ id: 'a', name: 'A' }), makeConnector({ id: 'b', name: 'B' })];
-    const alerts = connectorPanelAlerts(connectors, 'b', { a: 'boom', b: 'ignored (open in drawer)' }, { a: true }, 'cancel failed');
+    const alerts = connectorPanelAlerts({ connectors, detailConnectorId: 'b', authorizationError: { a: 'boom', b: 'ignored (open in drawer)' }, authorizationCancelFailed: { a: true }, cancelFailedMessage: 'cancel failed' });
     expect(alerts).toEqual([
       { connectorId: 'a', connectorName: 'A', message: 'boom' },
       { connectorId: 'a', connectorName: 'A', message: 'cancel failed' },
@@ -566,7 +566,7 @@ describe('formatToolsBadge / statusLabel', () => {
     [1, '1 tool'],
     [4, '4 tools'],
   ])('formats %i as %s', (count, expected) => {
-    expect(formatToolsBadge(count)).toBe(expected);
+    expect(formatToolsBadge({ count })).toBe(expected);
   });
 
   it.each([
@@ -575,7 +575,7 @@ describe('formatToolsBadge / statusLabel', () => {
     ['error', 'Error'],
     ['disabled', 'Disabled'],
   ] as const)('labels status %s as %s', (status, expected) => {
-    expect(statusLabel(status)).toBe(expected);
+    expect(statusLabel({ status })).toBe(expected);
   });
 });
 
@@ -585,43 +585,43 @@ describe('toolsBadgeTranslation', () => {
     [1, { key: '1 tool' }],
     [4, { key: '{count} tools', vars: { count: 4 } }],
   ])('translates %i tools', (count, expected) => {
-    expect(toolsBadgeTranslation(count)).toEqual(expected);
+    expect(toolsBadgeTranslation({ count })).toEqual(expected);
   });
 });
 
 describe('defaultCategoryLabel', () => {
   it('passes the category straight through (host translates by key)', () => {
-    expect(defaultCategoryLabel('communication')).toBe('communication');
+    expect(defaultCategoryLabel({ category: 'communication' })).toBe('communication');
   });
 });
 
 describe('fallback logo helpers', () => {
   it('builds initials from a single-word name', () => {
-    expect(fallbackLogoInitials('Slack')).toBe('Sl');
+    expect(fallbackLogoInitials({ name: 'Slack' })).toBe('Sl');
   });
 
   it('builds initials from a multi-word name', () => {
-    expect(fallbackLogoInitials('Google Drive')).toBe('GD');
+    expect(fallbackLogoInitials({ name: 'Google Drive' })).toBe('GD');
   });
 
   it('falls back to ? for an empty name', () => {
-    expect(fallbackLogoInitials('   ')).toBe('?');
+    expect(fallbackLogoInitials({ name: '   ' })).toBe('?');
   });
 
   it('handles a single-character name (no second letter to lowercase)', () => {
-    expect(fallbackLogoInitials('X')).toBe('X');
+    expect(fallbackLogoInitials({ name: 'X' })).toBe('X');
   });
 
   it('handles a two-character single-word name', () => {
-    expect(fallbackLogoInitials('Hi')).toBe('Hi');
+    expect(fallbackLogoInitials({ name: 'Hi' })).toBe('Hi');
   });
 
   it('is stable for the same seed', () => {
-    expect(fallbackLogoPaletteIndex('slack', 6)).toBe(fallbackLogoPaletteIndex('slack', 6));
+    expect(fallbackLogoPaletteIndex({ seed: 'slack', paletteSize: 6 })).toBe(fallbackLogoPaletteIndex({ seed: 'slack', paletteSize: 6 }));
   });
 
   it('stays within the palette range', () => {
-    const index = fallbackLogoPaletteIndex('anything-goes-here', 6);
+    const index = fallbackLogoPaletteIndex({ seed: 'anything-goes-here', paletteSize: 6 });
     expect(index).toBeGreaterThanOrEqual(0);
     expect(index).toBeLessThan(6);
   });
@@ -630,12 +630,12 @@ describe('fallback logo helpers', () => {
 describe('rules branch boundaries', () => {
   it('mergeConnectors falls back to current tool metadata when incoming omits it', () => {
     const current = [makeConnector({ toolCount: 4, toolsNextCursor: 'c1', toolsHasMore: true })];
-    const merged = mergeConnectors(current, [makeConnector()]);
+    const merged = mergeConnectors({ current, incoming: [makeConnector()] });
     expect(merged[0]).toMatchObject({ toolCount: 4, toolsNextCursor: 'c1', toolsHasMore: true });
   });
 
   it('mergeConnectors omits tool metadata keys when neither side has them', () => {
-    const merged = mergeConnectors([makeConnector()], [makeConnector()]);
+    const merged = mergeConnectors({ current: [makeConnector()], incoming: [makeConnector()] });
     expect(Object.keys(merged[0]!)).not.toEqual(expect.arrayContaining(['toolCount']));
     expect('toolsNextCursor' in merged[0]!).toBe(false);
     expect('toolsHasMore' in merged[0]!).toBe(false);
@@ -644,34 +644,34 @@ describe('rules branch boundaries', () => {
   it('clearConnectorAuthorizationCancelFailuresForConnected returns the same object when nothing was cleared', () => {
     const failed = { slack: true };
     const statuses: ConnectorStatusMap = { slack: { status: 'available' }, other: { status: 'connected' } };
-    expect(clearConnectorAuthorizationCancelFailuresForConnected(failed, statuses)).toBe(failed);
+    expect(clearConnectorAuthorizationCancelFailuresForConnected({ failures: failed, statuses })).toBe(failed);
   });
 
   it('applyConnectorStatuses leaves a connector without a status entry untouched', () => {
     const untouched = makeConnector({ id: 'github', name: 'GitHub', accountLabel: 'me' });
-    const result = applyConnectorStatuses([untouched], { slack: { status: 'connected' } });
+    const result = applyConnectorStatuses({ current: [untouched], statuses: { slack: { status: 'connected' } } });
     expect(result[0]).toBe(untouched);
   });
 
   it('mergeConnectorToolPreview omits toolCount when neither side has one', () => {
-    const merged = mergeConnectorToolPreview(makeConnector(), makeConnector(), false);
+    const merged = mergeConnectorToolPreview({ current: makeConnector(), next: makeConnector(), append: false });
     expect('toolCount' in merged).toBe(false);
   });
 
   it('mergeConnectors keeps a current connector that incoming does not mention', () => {
     const kept = makeConnector({ id: 'github', name: 'GitHub' });
-    const merged = mergeConnectors([kept, makeConnector()], [makeConnector({ status: 'connected' })]);
+    const merged = mergeConnectors({ current: [kept, makeConnector()], incoming: [makeConnector({ status: 'connected' })] });
     expect(merged[0]).toBe(kept);
   });
 
   it('mergeConnectors takes incoming tools when incoming has some', () => {
     const current = [makeConnector({ tools: [{ name: 'old', safety: { sideEffect: 'no_side_effect' } }] })];
     const incoming = [makeConnector({ tools: [{ name: 'new', safety: { sideEffect: 'no_side_effect' } }] })];
-    expect(mergeConnectors(current, incoming)[0]!.tools.map((t) => t.name)).toEqual(['new']);
+    expect(mergeConnectors({ current, incoming })[0]!.tools.map((t) => t.name)).toEqual(['new']);
   });
 
   it('mergeConnectorToolPreview carries a toolCount forward from current', () => {
-    const merged = mergeConnectorToolPreview(makeConnector({ toolCount: 7 }), makeConnector(), false);
+    const merged = mergeConnectorToolPreview({ current: makeConnector({ toolCount: 7 }), next: makeConnector(), append: false });
     expect(merged.toolCount).toBe(7);
   });
 });

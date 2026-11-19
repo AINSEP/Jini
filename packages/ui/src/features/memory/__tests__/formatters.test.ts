@@ -72,70 +72,70 @@ describe('describeConnectorReadIssue', () => {
 
 describe('providerDisplayName', () => {
   it('maps chat-cli anthropic to Claude Code and other chat-cli to Local CLI', () => {
-    expect(providerDisplayName({ kind: 'anthropic', credentialSource: 'chat-cli' })).toBe('Claude Code');
-    expect(providerDisplayName({ kind: 'openai', credentialSource: 'chat-cli' })).toBe('Local CLI');
+    expect(providerDisplayName({ provider: { kind: 'anthropic', credentialSource: 'chat-cli' } })).toBe('Claude Code');
+    expect(providerDisplayName({ provider: { kind: 'openai', credentialSource: 'chat-cli' } })).toBe('Local CLI');
   });
 
   it('maps each provider kind and falls back to Memory model', () => {
-    expect(providerDisplayName({ kind: 'anthropic' })).toBe('Anthropic');
-    expect(providerDisplayName({ kind: 'azure' })).toBe('Azure OpenAI');
-    expect(providerDisplayName({ kind: 'google' })).toBe('Google Gemini');
-    expect(providerDisplayName({ kind: 'ollama' })).toBe('Ollama');
-    expect(providerDisplayName({ kind: 'openai' })).toBe('OpenAI');
-    expect(providerDisplayName(undefined)).toBe('Memory model');
-    expect(providerDisplayName({ kind: 'mystery' })).toBe('Memory model');
+    expect(providerDisplayName({ provider: { kind: 'anthropic' } })).toBe('Anthropic');
+    expect(providerDisplayName({ provider: { kind: 'azure' } })).toBe('Azure OpenAI');
+    expect(providerDisplayName({ provider: { kind: 'google' } })).toBe('Google Gemini');
+    expect(providerDisplayName({ provider: { kind: 'ollama' } })).toBe('Ollama');
+    expect(providerDisplayName({ provider: { kind: 'openai' } })).toBe('OpenAI');
+    expect(providerDisplayName({ provider: undefined })).toBe('Memory model');
+    expect(providerDisplayName({ provider: { kind: 'mystery' } })).toBe('Memory model');
   });
 });
 
 describe('parseProviderError', () => {
   it('reads message/code/status from a nested error object', () => {
     const raw = 'prefix {"error":{"message":"nope","code":"bad","status":401}}';
-    expect(parseProviderError(raw)).toEqual({ message: 'nope', code: 'bad', status: 401 });
+    expect(parseProviderError({ raw })).toEqual({ message: 'nope', code: 'bad', status: 401 });
   });
 
   it('reads message/code/status from a flat json object', () => {
     const raw = '{"message":"flat","code":"c","status":503}';
-    expect(parseProviderError(raw)).toEqual({ message: 'flat', code: 'c', status: 503 });
+    expect(parseProviderError({ raw })).toEqual({ message: 'flat', code: 'c', status: 503 });
   });
 
   it('falls back to regex status when json is malformed', () => {
-    const out = parseProviderError('failed with 429 {oops not json');
+    const out = parseProviderError({ raw: 'failed with 429 {oops not json' });
     expect(out.status).toBe(429);
     expect(out.message).toBe('failed with 429 {oops not json');
   });
 
   it('leaves status null when there is no http code anywhere', () => {
-    expect(parseProviderError('plain   text')).toEqual({ message: 'plain text', code: '', status: null });
+    expect(parseProviderError({ raw: 'plain   text' })).toEqual({ message: 'plain text', code: '', status: null });
   });
 
   it('leaves status null when neither top-level nor error carries one and no 4xx/5xx appears', () => {
-    expect(parseProviderError('{"error":{"message":"hmm"}}')).toEqual({ message: 'hmm', code: '', status: null });
+    expect(parseProviderError({ raw: '{"error":{"message":"hmm"}}' })).toEqual({ message: 'hmm', code: '', status: null });
   });
 });
 
 describe('parseProviderError boundaries', () => {
   it('prefers the nested error message over a top-level message', () => {
-    expect(parseProviderError('{"message":"top","error":{"message":"nested"}}').message).toBe('nested');
+    expect(parseProviderError({ raw: '{"message":"top","error":{"message":"nested"}}' }).message).toBe('nested');
   });
 
   it('prefers the nested error code over a top-level code', () => {
-    expect(parseProviderError('{"code":"top","error":{"code":"nested"}}').code).toBe('nested');
+    expect(parseProviderError({ raw: '{"code":"top","error":{"code":"nested"}}' }).code).toBe('nested');
   });
 
   it('prefers the top-level status over the nested error status', () => {
-    expect(parseProviderError('{"status":500,"error":{"status":401}}').status).toBe(500);
+    expect(parseProviderError({ raw: '{"status":500,"error":{"status":401}}' }).status).toBe(500);
   });
 
   it('prefers a json status over a 4xx/5xx number in the surrounding text', () => {
-    expect(parseProviderError('HTTP 503 {"status":429}').status).toBe(429);
+    expect(parseProviderError({ raw: 'HTTP 503 {"status":429}' }).status).toBe(429);
   });
 
   it('falls back to a 4xx/5xx number in the text when the json carries no status', () => {
-    expect(parseProviderError('HTTP 502 {"message":"bad gateway"}')).toEqual({ message: 'bad gateway', code: '', status: 502 });
+    expect(parseProviderError({ raw: 'HTTP 502 {"message":"bad gateway"}' })).toEqual({ message: 'bad gateway', code: '', status: 502 });
   });
 
   it('ignores non-string message/code and non-number status values', () => {
-    expect(parseProviderError('{"message":5,"code":7,"status":"401"}')).toEqual({
+    expect(parseProviderError({ raw: '{"message":5,"code":7,"status":"401"}' })).toEqual({
       message: '{"message":5,"code":7,"status":"401"}',
       code: '',
       status: 401,
@@ -143,11 +143,11 @@ describe('parseProviderError boundaries', () => {
   });
 
   it('keeps the whole trimmed raw text as the message when there is no json', () => {
-    expect(parseProviderError('  upstream\n  exploded  ')).toEqual({ message: 'upstream exploded', code: '', status: null });
+    expect(parseProviderError({ raw: '  upstream\n  exploded  ' })).toEqual({ message: 'upstream exploded', code: '', status: null });
   });
 
   it('ignores 3-digit numbers outside the 4xx/5xx range and inside longer numbers', () => {
-    expect(parseProviderError('code 301 id 14041').status).toBeNull();
+    expect(parseProviderError({ raw: 'code 301 id 14041' }).status).toBeNull();
   });
 });
 
@@ -201,13 +201,13 @@ describe('describeExtractionFailure', () => {
 
 describe('formatConnectorContextBytes', () => {
   it('covers the no-data, B, KB (both precisions), and MB thresholds', () => {
-    expect(formatConnectorContextBytes(0)).toBe('No data');
-    expect(formatConnectorContextBytes(-5)).toBe('No data');
-    expect(formatConnectorContextBytes(NaN)).toBe('No data');
-    expect(formatConnectorContextBytes(512)).toBe('512 B');
-    expect(formatConnectorContextBytes(2048)).toBe('2.0 KB');
-    expect(formatConnectorContextBytes(200 * 1024)).toBe('200 KB');
-    expect(formatConnectorContextBytes(3 * 1024 * 1024)).toBe('3.0 MB');
+    expect(formatConnectorContextBytes({ bytes: 0 })).toBe('No data');
+    expect(formatConnectorContextBytes({ bytes: -5 })).toBe('No data');
+    expect(formatConnectorContextBytes({ bytes: NaN })).toBe('No data');
+    expect(formatConnectorContextBytes({ bytes: 512 })).toBe('512 B');
+    expect(formatConnectorContextBytes({ bytes: 2048 })).toBe('2.0 KB');
+    expect(formatConnectorContextBytes({ bytes: 200 * 1024 })).toBe('200 KB');
+    expect(formatConnectorContextBytes({ bytes: 3 * 1024 * 1024 })).toBe('3.0 MB');
   });
 });
 
@@ -233,50 +233,50 @@ describe('connector attempt helpers', () => {
 
 describe('describeRecord', () => {
   it('maps each phase to its tone + label, defaulting unknown phases to skipped', () => {
-    expect(describeRecord(record({ phase: 'running' }), t).tone).toBe('running');
-    expect(describeRecord(record({ phase: 'success' }), t).tone).toBe('success');
-    expect(describeRecord(record({ phase: 'failed' }), t).tone).toBe('failed');
-    const skipped = describeRecord(record({ phase: 'skipped' }), t);
+    expect(describeRecord({ record: record({ phase: 'running' }), t }).tone).toBe('running');
+    expect(describeRecord({ record: record({ phase: 'success' }), t }).tone).toBe('success');
+    expect(describeRecord({ record: record({ phase: 'failed' }), t }).tone).toBe('failed');
+    const skipped = describeRecord({ record: record({ phase: 'skipped' }), t });
     expect(skipped.tone).toBe('skipped');
-    const weird = describeRecord(record({ phase: 'deleted' }), t);
+    const weird = describeRecord({ record: record({ phase: 'deleted' }), t });
     expect(weird.tone).toBe('skipped');
     expect(weird.phaseLabel).toBe('deleted');
   });
 
   it('maps each skip reason, and null for non-skipped or unknown reason', () => {
-    const reason = (r: string) => describeRecord(record({ phase: 'skipped', reason: r as never }), t).reasonLabel;
+    const reason = (r: string) => describeRecord({ record: record({ phase: 'skipped', reason: r as never }), t }).reasonLabel;
     expect(reason('no-provider')).toBe('No memory extraction model is configured.');
     expect(reason('memory-disabled')).toBe('Memory is turned off.');
     expect(reason('chat-disabled')).toBe('Chat conversation learning is off.');
     expect(reason('empty-message')).toBe('The message had nothing to extract.');
     expect(reason('no-match')).toBe('Nothing matched the extraction rules.');
     expect(reason('mystery')).toBeNull();
-    expect(describeRecord(record({ phase: 'success' }), t).reasonLabel).toBeNull();
+    expect(describeRecord({ record: record({ phase: 'success' }), t }).reasonLabel).toBeNull();
   });
 
   it('labels each kind, defaulting a missing kind to llm', () => {
-    expect(describeRecord(record({ kind: 'heuristic' }), t).kindLabel).toBe('Heuristic');
-    expect(describeRecord(record({ kind: 'connector' }), t).kindLabel).toBe('Connected apps');
-    expect(describeRecord(record({ kind: 'llm' }), t).kindLabel).toBe('Model');
-    expect(describeRecord(record({ kind: undefined }), t).kindLabel).toBe('Model');
+    expect(describeRecord({ record: record({ kind: 'heuristic' }), t }).kindLabel).toBe('Heuristic');
+    expect(describeRecord({ record: record({ kind: 'connector' }), t }).kindLabel).toBe('Connected apps');
+    expect(describeRecord({ record: record({ kind: 'llm' }), t }).kindLabel).toBe('Model');
+    expect(describeRecord({ record: record({ kind: undefined }), t }).kindLabel).toBe('Model');
   });
 });
 
 describe('time + duration formatting', () => {
   it('formats relative ages across the s/m/h/d thresholds and clamps negatives', () => {
-    expect(formatRelativeTime(1_000, 1_000)).toBe('0s');
-    expect(formatRelativeTime(0, 30_000)).toBe('30s');
-    expect(formatRelativeTime(0, 120_000)).toBe('2m');
-    expect(formatRelativeTime(0, 7_200_000)).toBe('2h');
-    expect(formatRelativeTime(0, 2 * 86_400_000)).toBe('2d');
-    expect(formatRelativeTime(5_000, 1_000)).toBe('0s');
+    expect(formatRelativeTime({ at: 1_000, now: 1_000 })).toBe('0s');
+    expect(formatRelativeTime({ at: 0, now: 30_000 })).toBe('30s');
+    expect(formatRelativeTime({ at: 0, now: 120_000 })).toBe('2m');
+    expect(formatRelativeTime({ at: 0, now: 7_200_000 })).toBe('2h');
+    expect(formatRelativeTime({ at: 0, now: 2 * 86_400_000 })).toBe('2d');
+    expect(formatRelativeTime({ at: 5_000, now: 1_000 })).toBe('0s');
   });
 
   it('formatAbsoluteTime omits the date same-day and includes it otherwise', () => {
     const base = new Date(2026, 5, 6, 12, 0, 0).getTime();
-    expect(formatAbsoluteTime(base, base)).toMatch(/^\d{2}:\d{2}:\d{2}$/);
+    expect(formatAbsoluteTime({ at: base, now: base })).toMatch(/^\d{2}:\d{2}:\d{2}$/);
     const older = new Date(2026, 5, 4, 9, 0, 0).getTime();
-    expect(formatAbsoluteTime(older, base)).toMatch(/\w+ \d+ \d{2}:\d{2}:\d{2}/);
+    expect(formatAbsoluteTime({ at: older, now: base })).toMatch(/\w+ \d+ \d{2}:\d{2}:\d{2}/);
   });
 
   it('formatDuration handles missing finish, ms, sub-minute, and minute+ ranges', () => {
@@ -287,81 +287,81 @@ describe('time + duration formatting', () => {
   });
 
   it('formatRelativeTimeAgo says "just now" at zero and appends "ago" otherwise', () => {
-    expect(formatRelativeTimeAgo(1_000, 1_000)).toBe('just now');
-    expect(formatRelativeTimeAgo(0, 30_000)).toBe('30s ago');
+    expect(formatRelativeTimeAgo({ at: 1_000, now: 1_000 })).toBe('just now');
+    expect(formatRelativeTimeAgo({ at: 0, now: 30_000 })).toBe('30s ago');
   });
 
   it('memoryCountLabel is singular only for one', () => {
-    expect(memoryCountLabel(1)).toBe('memory');
-    expect(memoryCountLabel(0)).toBe('memories');
-    expect(memoryCountLabel(3)).toBe('memories');
+    expect(memoryCountLabel({ count: 1 })).toBe('memory');
+    expect(memoryCountLabel({ count: 0 })).toBe('memories');
+    expect(memoryCountLabel({ count: 3 })).toBe('memories');
   });
 });
 
 describe('extractionCardTitle', () => {
   it('uses the message preview (or fallback key) for non-connector records', () => {
-    expect(extractionCardTitle(record({ kind: 'llm', userMessagePreview: 'hi' }), t)).toBe('hi');
-    expect(extractionCardTitle(record({ kind: 'llm', userMessagePreview: '' }), t)).toBe('Extraction');
+    expect(extractionCardTitle({ record: record({ kind: 'llm', userMessagePreview: 'hi' }), t })).toBe('hi');
+    expect(extractionCardTitle({ record: record({ kind: 'llm', userMessagePreview: '' }), t })).toBe('Extraction');
   });
 
   it('covers every connector phase, including success with and without writes', () => {
-    expect(extractionCardTitle(record({ kind: 'connector', phase: 'running' }), t)).toBe('Scanning connected apps');
-    expect(extractionCardTitle(record({ kind: 'connector', phase: 'failed' }), t)).toBe('Connected app scan failed');
-    expect(extractionCardTitle(record({ kind: 'connector', phase: 'skipped' }), t)).toBe('Connected app scan skipped');
-    expect(extractionCardTitle(record({ kind: 'connector', phase: 'success', writtenCount: 2 }), t)).toBe('Saved 2 memories');
-    expect(extractionCardTitle(record({ kind: 'connector', phase: 'success', writtenCount: 1 }), t)).toBe('Saved 1 memory');
-    expect(extractionCardTitle(record({ kind: 'connector', phase: 'success', writtenCount: 0 }), t)).toBe('No new memories found');
-    expect(extractionCardTitle(record({ kind: 'connector', phase: 'deleted' }), t)).toBe('Connected app scan');
+    expect(extractionCardTitle({ record: record({ kind: 'connector', phase: 'running' }), t })).toBe('Scanning connected apps');
+    expect(extractionCardTitle({ record: record({ kind: 'connector', phase: 'failed' }), t })).toBe('Connected app scan failed');
+    expect(extractionCardTitle({ record: record({ kind: 'connector', phase: 'skipped' }), t })).toBe('Connected app scan skipped');
+    expect(extractionCardTitle({ record: record({ kind: 'connector', phase: 'success', writtenCount: 2 }), t })).toBe('Saved 2 memories');
+    expect(extractionCardTitle({ record: record({ kind: 'connector', phase: 'success', writtenCount: 1 }), t })).toBe('Saved 1 memory');
+    expect(extractionCardTitle({ record: record({ kind: 'connector', phase: 'success', writtenCount: 0 }), t })).toBe('No new memories found');
+    expect(extractionCardTitle({ record: record({ kind: 'connector', phase: 'deleted' }), t })).toBe('Connected app scan');
   });
 });
 
 describe('extractionCardTitle boundaries', () => {
   it('treats a missing kind as llm and uses the preview', () => {
-    expect(extractionCardTitle(record({ kind: undefined, userMessagePreview: 'hello' }), t)).toBe('hello');
+    expect(extractionCardTitle({ record: record({ kind: undefined, userMessagePreview: 'hello' }), t })).toBe('hello');
   });
 
   it('says no new memories for a connector success without a written count', () => {
-    expect(extractionCardTitle(record({ kind: 'connector', phase: 'success', writtenCount: undefined }), t)).toBe('No new memories found');
+    expect(extractionCardTitle({ record: record({ kind: 'connector', phase: 'success', writtenCount: undefined }), t })).toBe('No new memories found');
   });
 
   it('says no new memories for a connector success with a negative written count', () => {
-    expect(extractionCardTitle(record({ kind: 'connector', phase: 'success', writtenCount: -1 }), t)).toBe('No new memories found');
+    expect(extractionCardTitle({ record: record({ kind: 'connector', phase: 'success', writtenCount: -1 }), t })).toBe('No new memories found');
   });
 
   it('interpolates the exact count and plural label', () => {
-    expect(extractionCardTitle(record({ kind: 'connector', phase: 'success', writtenCount: 7 }), t)).toBe('Saved 7 memories');
+    expect(extractionCardTitle({ record: record({ kind: 'connector', phase: 'success', writtenCount: 7 }), t })).toBe('Saved 7 memories');
   });
 });
 
 describe('extractionCardMeta boundaries', () => {
   it('treats a missing kind as llm and returns the timestamp-led line', () => {
-    const out = extractionCardMeta(record({ kind: undefined, startedAt: 0, phase: 'running' }), 1_000, t);
-    expect(out).toBe(`${formatAbsoluteTime(0, 1_000)} · 1s`);
+    const out = extractionCardMeta({ record: record({ kind: undefined, startedAt: 0, phase: 'running' }), now: 1_000, t });
+    expect(out).toBe(`${formatAbsoluteTime({ at: 0, now: 1_000 })} · 1s`);
   });
 
   it('says checked selected apps for a connector success without a written count', () => {
-    expect(extractionCardMeta(record({ kind: 'connector', startedAt: 0, phase: 'success', writtenCount: undefined }), 30_000, t)).toBe(
+    expect(extractionCardMeta({ record: record({ kind: 'connector', startedAt: 0, phase: 'success', writtenCount: undefined }), now: 30_000, t })).toBe(
       'Checked selected apps · 30s ago',
     );
   });
 
   it('renders the exact connector failure line with the age', () => {
-    expect(extractionCardMeta(record({ kind: 'connector', startedAt: 0, phase: 'failed' }), 0, t)).toBe('Needs attention · just now');
+    expect(extractionCardMeta({ record: record({ kind: 'connector', startedAt: 0, phase: 'failed' }), now: 0, t })).toBe('Needs attention · just now');
   });
 
   it('renders the exact connector skipped, written, and fallback lines', () => {
-    const meta = (over: Partial<MemoryExtractionRecord>) => extractionCardMeta(record({ kind: 'connector', startedAt: 0, ...over }), 120_000, t);
+    const meta = (over: Partial<MemoryExtractionRecord>) => extractionCardMeta({ record: record({ kind: 'connector', startedAt: 0, ...over }), now: 120_000, t });
     expect(meta({ phase: 'skipped' })).toBe('Skipped · 2m ago');
     expect(meta({ phase: 'success', writtenCount: 2 })).toBe('From connected apps · 2m ago');
     expect(meta({ phase: 'deleted' })).toBe('Connected apps · 2m ago');
   });
 
   it('includes a zero written count for an llm success but not for an llm failure', () => {
-    const at = formatAbsoluteTime(0, 5_000);
-    expect(extractionCardMeta(record({ kind: 'llm', startedAt: 0, finishedAt: 500, phase: 'success', writtenCount: 0 }), 5_000, t)).toBe(
+    const at = formatAbsoluteTime({ at: 0, now: 5_000 });
+    expect(extractionCardMeta({ record: record({ kind: 'llm', startedAt: 0, finishedAt: 500, phase: 'success', writtenCount: 0 }), now: 5_000, t })).toBe(
       `${at} · 5s · took 500ms · 0 saved`,
     );
-    expect(extractionCardMeta(record({ kind: 'llm', startedAt: 0, finishedAt: 500, phase: 'failed', writtenCount: 3 }), 5_000, t)).toBe(
+    expect(extractionCardMeta({ record: record({ kind: 'llm', startedAt: 0, finishedAt: 500, phase: 'failed', writtenCount: 3 }), now: 5_000, t })).toBe(
       `${at} · 5s · took 500ms`,
     );
   });
@@ -415,7 +415,7 @@ describe('describeExtractionFailure boundaries', () => {
 
 describe('extractionCardMeta', () => {
   it('covers every connector phase branch', () => {
-    const meta = (over: Partial<MemoryExtractionRecord>) => extractionCardMeta(record({ kind: 'connector', startedAt: 0, ...over }), 1_000, t);
+    const meta = (over: Partial<MemoryExtractionRecord>) => extractionCardMeta({ record: record({ kind: 'connector', startedAt: 0, ...over }), now: 1_000, t });
     expect(meta({ phase: 'running' })).toBe('Checking selected apps');
     expect(meta({ phase: 'failed' })).toContain('Needs attention');
     expect(meta({ phase: 'skipped' })).toContain('Skipped');
@@ -425,24 +425,24 @@ describe('extractionCardMeta', () => {
   });
 
   it('joins timestamp, age, duration, and written count for llm records', () => {
-    const out = extractionCardMeta(record({ kind: 'llm', startedAt: 0, finishedAt: 2_000, phase: 'success', writtenCount: 4 }), 3_000, t);
+    const out = extractionCardMeta({ record: record({ kind: 'llm', startedAt: 0, finishedAt: 2_000, phase: 'success', writtenCount: 4 }), now: 3_000, t });
     expect(out).toContain('took');
     expect(out).toContain('4 saved');
-    const noExtras = extractionCardMeta(record({ kind: 'llm', startedAt: 0, phase: 'running' }), 1_000, t);
+    const noExtras = extractionCardMeta({ record: record({ kind: 'llm', startedAt: 0, phase: 'running' }), now: 1_000, t });
     expect(noExtras).not.toContain('saved');
   });
 });
 
 describe('label + tab builders', () => {
   it('builds the full type-label map', () => {
-    expect(Object.keys(memoryTypeLabels(t))).toEqual(['profile', 'user', 'feedback', 'project', 'reference', 'rule']);
+    expect(Object.keys(memoryTypeLabels({ t }))).toEqual(['profile', 'user', 'feedback', 'project', 'reference', 'rule']);
   });
 
   it('builds the full flash-label map', () => {
-    expect(Object.keys(memoryFlashLabels(t))).toEqual(['created', 'saved', 'deleted', 'indexSaved', 'pathCopied']);
+    expect(Object.keys(memoryFlashLabels({ t }))).toEqual(['created', 'saved', 'deleted', 'indexSaved', 'pathCopied']);
   });
 
   it('builds the three source tabs in order', () => {
-    expect(memorySourceTabs(t).map((tab) => tab.id)).toEqual(['profile', 'manual', 'connected']);
+    expect(memorySourceTabs({ t }).map((tab) => tab.id)).toEqual(['profile', 'manual', 'connected']);
   });
 });

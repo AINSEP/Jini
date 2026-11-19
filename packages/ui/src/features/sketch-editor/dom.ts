@@ -33,13 +33,13 @@ export function readExcalidrawTheme(): 'light' | 'dark' {
 }
 
 export function readDefaultSketchToolColor(): string {
-  if (typeof document === 'undefined') return resolveDefaultSketchToolColor(null, false);
+  if (typeof document === 'undefined') return resolveDefaultSketchToolColor({ theme: null, prefersDark: false });
   const theme = document.documentElement.getAttribute('data-theme');
   const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches === true;
-  return resolveDefaultSketchToolColor(theme, prefersDark);
+  return resolveDefaultSketchToolColor({ theme, prefersDark });
 }
 
-export function setTooltipAttribute(target: HTMLElement, name: string, value: string): void {
+export function setTooltipAttribute({ target, name, value }: { target: HTMLElement; name: string; value: string }, _optional: Record<string, never> = {}): void {
   if (target.getAttribute(name) === value) return;
   target.setAttribute(name, value);
 }
@@ -59,10 +59,10 @@ function decorateTooltipTarget({
   label: string;
   placement: string;
 }): void {
-  setTooltipAttribute(target, 'data-tooltip', label);
-  setTooltipAttribute(target, 'data-tooltip-placement', placement);
+  setTooltipAttribute({ target, name: 'data-tooltip', value: label });
+  setTooltipAttribute({ target, name: 'data-tooltip-placement', value: placement });
   if (!target.classList.contains('jini-tooltip')) target.classList.add('jini-tooltip');
-  setTooltipAttribute(trigger, 'aria-label', label);
+  setTooltipAttribute({ target: trigger, name: 'aria-label', value: label });
 }
 
 /**
@@ -72,14 +72,13 @@ function decorateTooltipTarget({
  * on top of it produces duplicate tooltips.
  */
 export function applySketchEditorTooltips(
-  root: HTMLElement,
-  labels: SketchTooltipLabels,
-  targets: readonly SketchTooltipTarget[],
+  { root, labels, targets }: { root: HTMLElement; labels: SketchTooltipLabels; targets: readonly SketchTooltipTarget[] },
+  _optional: Record<string, never> = {},
 ): void {
   const decorated = new Set<HTMLElement>();
   for (const entry of targets) {
     const triggers = Array.from(root.querySelectorAll<HTMLElement>(entry.selector));
-    const label = normalizeTooltipLabel(labels[entry.label]);
+    const label = normalizeTooltipLabel({ value: labels[entry.label] });
     if (!label) continue;
     for (const trigger of triggers) {
       const target = resolveTooltipTarget(trigger, entry);
@@ -113,7 +112,7 @@ function writePopoverCoordinate({ popover, side, next }: { popover: HTMLElement;
   if (next !== Number.parseFloat(popover.style[side] || 'NaN')) popover.style[side] = `${Math.max(0, Math.round(next))}px`;
 }
 
-export function clampSketchContextPopover(popover: HTMLElement, viewportRoot: HTMLElement): void {
+export function clampSketchContextPopover({ popover, viewportRoot }: { popover: HTMLElement; viewportRoot: HTMLElement }, _optional: Record<string, never> = {}): void {
   const viewportRect = viewportRoot.getBoundingClientRect();
   const rect = popover.getBoundingClientRect();
   if (!rect.width || !rect.height) return;
@@ -181,7 +180,7 @@ function simplifyContextMenu(
   const byAction = pruneContextMenuItems(menu, allowed);
   // `orderContextMenuActions` only returns names present in `byAction`'s
   // keys, so every lookup here is defined.
-  const orderedItems = orderContextMenuActions(Array.from(byAction.keys()), allowList).map((action) => byAction.get(action)!);
+  const orderedItems = orderContextMenuActions({ actionNames: Array.from(byAction.keys()), allowList }).map((action) => byAction.get(action)!);
   if (orderedItems.length === 0) {
     popover.remove();
     return;
@@ -196,7 +195,7 @@ function simplifyContextMenu(
     for (const item of orderedItems) menu.appendChild(item);
   }
 
-  clampSketchContextPopover(popover, viewportRoot);
+  clampSketchContextPopover({ popover, viewportRoot });
 }
 
 /**
@@ -206,10 +205,8 @@ function simplifyContextMenu(
  * Excalidraw's own.
  */
 export function applySketchContextMenuSimplification(
-  root: HTMLElement,
-  viewportRoot: HTMLElement,
-  allowList: readonly string[],
-  recognizedActions: readonly string[],
+  { root, viewportRoot, allowList, recognizedActions }: { root: HTMLElement; viewportRoot: HTMLElement; allowList: readonly string[]; recognizedActions: readonly string[] },
+  _optional: Record<string, never> = {},
 ): void {
   const sets = { allowed: new Set(allowList), recognized: new Set(recognizedActions) };
   for (const menu of Array.from(root.querySelectorAll<HTMLUListElement>('ul.context-menu'))) {
@@ -220,7 +217,7 @@ export function applySketchContextMenuSimplification(
 /** The override for `value`, or `null` when there is none or it would not
  *  change anything (so callers skip a no-op DOM write). */
 function resolveTextOverride(value: string, overrides: SketchDomTextOverrides): string | null {
-  const next = translateDomTextValue(value, overrides);
+  const next = translateDomTextValue({ value, overrides });
   return next !== null && next !== value ? next : null;
 }
 
@@ -257,22 +254,21 @@ function rewriteOverrideAttributes(root: ParentNode, overrides: SketchDomTextOve
  * host-supplied — no translated copy ships as a default (see
  * `archived UI provenance ledger`).
  */
-export function applySketchDomTextOverrides(root: ParentNode, overrides: SketchDomTextOverrides | undefined): void {
+export function applySketchDomTextOverrides({ root, overrides }: { root: ParentNode; overrides: SketchDomTextOverrides | undefined }, _optional: Record<string, never> = {}): void {
   if (!overrides || Object.keys(overrides).length === 0 || typeof document === 'undefined') return;
   rewriteTextNodes(root, overrides);
   rewriteOverrideAttributes(root, overrides);
 }
 
 export function rewriteExcalidrawUnableToEmbedToasts(
-  root: HTMLElement,
-  replacement: string,
-  additionalPhrases: readonly string[] = [],
+  { root, replacement }: { root: HTMLElement; replacement: string },
+  { additionalPhrases = [] }: { additionalPhrases?: readonly string[] | undefined } = {},
 ): void {
-  const normalizedReplacement = normalizeTooltipLabel(replacement);
+  const normalizedReplacement = normalizeTooltipLabel({ value: replacement });
   if (!normalizedReplacement) return;
   for (const messageNode of Array.from(root.querySelectorAll<HTMLElement>('.Toast__message'))) {
-    const current = normalizeTooltipLabel(messageNode.textContent);
-    if (!current || current === normalizedReplacement || !isExcalidrawUnableToEmbedToast(current, additionalPhrases)) {
+    const current = normalizeTooltipLabel({ value: messageNode.textContent });
+    if (!current || current === normalizedReplacement || !isExcalidrawUnableToEmbedToast({ message: current }, { additionalPhrases })) {
       continue;
     }
     messageNode.textContent = normalizedReplacement;
@@ -280,19 +276,19 @@ export function rewriteExcalidrawUnableToEmbedToasts(
   }
 }
 
-export function findSketchMermaidInsertButton(content: HTMLElement, insertLabelPattern: RegExp): HTMLButtonElement | null {
-  const dialogText = normalizeTooltipLabel(content.textContent);
+export function findSketchMermaidInsertButton({ content, insertLabelPattern }: { content: HTMLElement; insertLabelPattern: RegExp }, _optional: Record<string, never> = {}): HTMLButtonElement | null {
+  const dialogText = normalizeTooltipLabel({ value: content.textContent });
   if (!dialogText || !/Mermaid/i.test(dialogText)) return null;
   for (const button of Array.from(content.querySelectorAll<HTMLButtonElement>('button'))) {
-    const label = normalizeTooltipLabel(button.textContent) ?? normalizeTooltipLabel(button.getAttribute('aria-label'));
+    const label = normalizeTooltipLabel({ value: button.textContent }) ?? normalizeTooltipLabel({ value: button.getAttribute('aria-label') });
     if (!label) continue;
     if (insertLabelPattern.test(label)) return button;
   }
   return null;
 }
 
-export function removeSketchMermaidShortcutHints(content: HTMLElement, insertLabelPattern: RegExp): void {
-  const insertButton = findSketchMermaidInsertButton(content, insertLabelPattern);
+export function removeSketchMermaidShortcutHints({ content, insertLabelPattern }: { content: HTMLElement; insertLabelPattern: RegExp }, _optional: Record<string, never> = {}): void {
+  const insertButton = findSketchMermaidInsertButton({ content, insertLabelPattern });
   if (!insertButton) return;
   for (const hint of Array.from(insertButton.querySelectorAll('kbd'))) hint.remove();
   for (const hint of Array.from(content.querySelectorAll('.ttd-dialog-submit-shortcut'))) hint.remove();
@@ -305,17 +301,15 @@ export function removeSketchMermaidShortcutHints(content: HTMLElement, insertLab
  * the whole document rather than a local root).
  */
 export function enhanceSketchExcalidrawPortals(
-  closeLabel: string,
-  onClose: () => void,
-  domTextOverrides: SketchDomTextOverrides | undefined,
-  insertLabelPattern: RegExp,
+  { closeLabel, onClose, domTextOverrides, insertLabelPattern }: { closeLabel: string; onClose: () => void; domTextOverrides: SketchDomTextOverrides | undefined; insertLabelPattern: RegExp },
+  _optional: Record<string, never> = {},
 ): void {
   for (const portal of Array.from(document.querySelectorAll<HTMLElement>('.excalidraw-modal-container'))) {
     portal.classList.add('jini-sketch-modal');
     portal.classList.toggle('jini-sketch-help-modal', Boolean(portal.querySelector('.HelpDialog__header')));
-    applySketchDomTextOverrides(portal, domTextOverrides);
+    applySketchDomTextOverrides({ root: portal, overrides: domTextOverrides });
     for (const content of Array.from(portal.querySelectorAll<HTMLElement>('.Modal__content'))) {
-      removeSketchMermaidShortcutHints(content, insertLabelPattern);
+      removeSketchMermaidShortcutHints({ content, insertLabelPattern });
       let close = content.querySelector<HTMLButtonElement>(':scope > .jini-sketch-dialog-close');
       if (!close) {
         close = document.createElement('button');
@@ -352,12 +346,12 @@ function isButtonEnabled(button: HTMLButtonElement): boolean {
   return !button.disabled && button.getAttribute('aria-disabled') !== 'true';
 }
 
-export function handleSketchPortalCommandEnter(event: KeyboardEvent, insertLabelPattern: RegExp): void {
+export function handleSketchPortalCommandEnter({ event, insertLabelPattern }: { event: KeyboardEvent; insertLabelPattern: RegExp }, _optional: Record<string, never> = {}): void {
   if (!isCommandEnter(event)) return;
   const content = resolvePortalEditorContent(event.target);
   if (!content) return;
 
-  const insertButton = findSketchMermaidInsertButton(content, insertLabelPattern);
+  const insertButton = findSketchMermaidInsertButton({ content, insertLabelPattern });
   if (!insertButton || !isButtonEnabled(insertButton)) return;
 
   event.preventDefault();

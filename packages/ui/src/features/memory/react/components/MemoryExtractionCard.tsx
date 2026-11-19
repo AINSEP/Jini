@@ -31,9 +31,9 @@ export function MemoryExtractionCard({
   useTHook?: typeof useT;
 }) {
   const t = useTHook();
-  const desc = describeRecord(record, t);
-  const title = extractionCardTitle(record, t);
-  const meta = extractionCardMeta(record, nowClock, t);
+  const desc = describeRecord({ record, t });
+  const title = extractionCardTitle({ record, t });
+  const meta = extractionCardMeta({ record, now: nowClock, t });
   // `describeExtractionFailure` already gates on phase/error (returns null when
   // the record didn't fail), so we render off its result directly instead of
   // duplicating that guard here.

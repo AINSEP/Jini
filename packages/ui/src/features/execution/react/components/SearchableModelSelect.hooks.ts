@@ -13,7 +13,7 @@ export function useSearchableModelSelect({ models, value, additionalOptions, min
     ...(additionalOptions ?? []),
   ];
   const shouldShowSearch = allOptions.length >= minSearchableOptions;
-  const filteredModels = filterAgentModelOptions(models, query, value);
+  const filteredModels = filterAgentModelOptions({ options: models, query, selectedValue: value });
   const filteredIds = new Set(filteredModels.map((model) => model.id));
   // `additionalOptions` (the "Custom" sentinel, chiefly) are never
   // search-filtered out — they are not a model to search FOR, they are the

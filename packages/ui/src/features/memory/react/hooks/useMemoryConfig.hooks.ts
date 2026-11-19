@@ -289,7 +289,7 @@ export function useMemoryConfig(port: MemoryConfigPort): MemoryConfigController 
           setConfirmed: (value) => {
             enabledConfirmedRef.current = value;
           },
-          send: (value) => port.patchConfig(enabledPatch(value)),
+          send: (value) => port.patchConfig(enabledPatch({ enabled: value })),
         },
         next,
       }),
@@ -308,7 +308,7 @@ export function useMemoryConfig(port: MemoryConfigPort): MemoryConfigController 
           setConfirmed: (value) => {
             hookConfirmedRef.current[key] = value;
           },
-          send: (value) => port.patchConfig(singleFlagPatch(key, value)),
+          send: (value) => port.patchConfig(singleFlagPatch({ flag: key, value })),
         },
         next,
       }),

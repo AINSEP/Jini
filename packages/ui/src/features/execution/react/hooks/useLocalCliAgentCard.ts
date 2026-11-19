@@ -111,7 +111,7 @@ export function useLocalCliAgentCard({
 
   const hasSettings =
     reasoning.hasModels || reasoning.hasReasoning || Boolean(onTest) || result !== null;
-  const hasEnvironmentSettings = cliEnvFieldsForAgent(cliEnvFields, agent.id).length > 0;
+  const hasEnvironmentSettings = cliEnvFieldsForAgent({ fields: cliEnvFields, agentId: agent.id }).length > 0;
 
   return {
     reasoning,
@@ -188,7 +188,7 @@ function agentTestPresentation(
           detectedExecutablePath: result.detectedExecutablePath,
         })
       : null;
-  const repairField = repair ? binPathEnvField(cliEnvFields, agent.id) : null;
+  const repairField = repair ? binPathEnvField({ fields: cliEnvFields, agentId: agent.id }) : null;
 
   return { testing, result, repair, repairField };
 }

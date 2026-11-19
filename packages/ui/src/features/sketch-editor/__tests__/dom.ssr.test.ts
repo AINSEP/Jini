@@ -28,6 +28,6 @@ describe('readDefaultSketchToolColor (SSR)', () => {
 describe('applySketchDomTextOverrides (SSR)', () => {
   it('is a no-op when document is undefined, even with real overrides', () => {
     expect(typeof document).toBe('undefined');
-    expect(() => applySketchDomTextOverrides({} as ParentNode, { Close: 'Fermer' })).not.toThrow();
+    expect(() => applySketchDomTextOverrides({ root: {} as ParentNode, overrides: { Close: 'Fermer' } })).not.toThrow();
   });
 });

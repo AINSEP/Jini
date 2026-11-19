@@ -43,13 +43,13 @@ import type {
  * than an import of it, and for the DNS-aware layer that complements it at
  * connection time.
  */
-export function isValidApiBaseUrl(raw: string): boolean {
+export function isValidApiBaseUrl({ raw }: { raw: string }, _optional: Record<string, never> = {}): boolean {
   return isAllowedEndpointUrl({ raw });
 }
 
 /** The synthetic "Custom" preset, so the picker always has a manual escape
  *  hatch even when a host supplies zero presets. */
-export function customPreset(protocol: ByokConfig['protocol'], title = 'Custom'): ProviderPreset {
+export function customPreset({ protocol }: { protocol: ByokConfig['protocol'] }, { title = 'Custom' }: { title?: string | undefined } = {}): ProviderPreset {
   return {
     id: CUSTOM_PRESET_ID,
     title,
@@ -62,8 +62,8 @@ export function customPreset(protocol: ByokConfig['protocol'], title = 'Custom')
 
 /** Presets that speak the given protocol, excluding the custom entry. */
 export function presetsForProtocol(
-  presets: readonly ProviderPreset[],
-  protocol: ByokConfig['protocol'],
+  { presets, protocol }: { presets: readonly ProviderPreset[]; protocol: ByokConfig['protocol'] },
+  _optional: Record<string, never> = {},
 ): readonly ProviderPreset[] {
   return presets.filter((preset) => !preset.custom && preset.protocol === protocol);
 }
@@ -71,7 +71,7 @@ export function presetsForProtocol(
 /** Splits a catalog into the two chip rows the origin rendered. Presets with
  *  no `kind` fall into `protocols` so a host that ignores the distinction
  *  still gets one populated row rather than two empty ones. */
-export function groupPresets(presets: readonly ProviderPreset[]): {
+export function groupPresets({ presets }: { presets: readonly ProviderPreset[] }, _optional: Record<string, never> = {}): {
   protocols: readonly ProviderPreset[];
   gateways: readonly ProviderPreset[];
 } {
@@ -90,8 +90,8 @@ export function groupPresets(presets: readonly ProviderPreset[]): {
  *  origin's protocol+baseUrl match so a config written by an older catalog
  *  still resolves. */
 export function resolveSelectedPreset(
-  presets: readonly ProviderPreset[],
-  config: ByokConfig,
+  { presets, config }: { presets: readonly ProviderPreset[]; config: ByokConfig },
+  _optional: Record<string, never> = {},
 ): ProviderPreset | null {
   if (config.providerId === null) return null;
   const byId = presets.find((preset) => !preset.custom && preset.id === config.providerId);
@@ -106,13 +106,13 @@ export function resolveSelectedPreset(
 
 /** Whether a preset needs an API key. Defaults to `true`; only an explicit
  *  `requiresApiKey: false` opts out. */
-export function presetRequiresApiKey(preset: ProviderPreset | null): boolean {
+export function presetRequiresApiKey({ preset }: { preset: ProviderPreset | null }, _optional: Record<string, never> = {}): boolean {
   return preset?.requiresApiKey !== false;
 }
 
 /** Fixed-origin gateways resolve their own endpoint, so the Base URL field is
  *  hidden rather than shown-and-ignored. Origin: `showBaseUrlField`. */
-export function showsBaseUrlField(preset: ProviderPreset | null): boolean {
+export function showsBaseUrlField({ preset }: { preset: ProviderPreset | null }, _optional: Record<string, never> = {}): boolean {
   return preset?.fixedOrigin !== true;
 }
 
@@ -121,12 +121,12 @@ export function showsBaseUrlField(preset: ProviderPreset | null): boolean {
  * so a caller can surface the first offender without re-sorting.
  */
 export function missingRequiredFields(
-  config: ByokConfig,
-  preset: ProviderPreset | null,
+  { config, preset }: { config: ByokConfig; preset: ProviderPreset | null },
+  _optional: Record<string, never> = {},
 ): readonly ByokRequiredField[] {
   const missing: ByokRequiredField[] = [];
-  if (presetRequiresApiKey(preset) && !config.apiKey.trim()) missing.push('apiKey');
-  if (showsBaseUrlField(preset) && !isValidApiBaseUrl(config.baseUrl)) missing.push('baseUrl');
+  if (presetRequiresApiKey({ preset }) && !config.apiKey.trim()) missing.push('apiKey');
+  if (showsBaseUrlField({ preset }) && !isValidApiBaseUrl({ raw: config.baseUrl })) missing.push('baseUrl');
   if (!config.model.trim()) missing.push('model');
   return missing;
 }
@@ -201,9 +201,8 @@ function foreignKeyOwner(
  * @complexity O(n·m) via {@link foreignKeyOwner}; the length check is O(1).
  */
 export function apiKeyFormatWarning(
-  config: ByokConfig,
-  preset: ProviderPreset | null,
-  presets: readonly ProviderPreset[] = [],
+  { config, preset }: { config: ByokConfig; preset: ProviderPreset | null },
+  { presets = [] }: { presets?: readonly ProviderPreset[] | undefined } = {},
 ): ApiKeyWarning | null {
   const key = config.apiKey.trim();
   if (!key) return null;
@@ -232,8 +231,8 @@ export function apiKeyFormatWarning(
  * happens to be active right now.
  */
 export function credentialsForPreset(
-  config: ByokConfig,
-  preset: ProviderPreset | null,
+  { config, preset }: { config: ByokConfig; preset: ProviderPreset | null },
+  _optional: Record<string, never> = {},
 ): ByokProviderCredentials {
   if (!preset || preset.custom || config.providerId === preset.id) {
     return { apiKey: config.apiKey, baseUrl: config.baseUrl, model: config.model, maxTokens: config.maxTokens };
@@ -246,12 +245,12 @@ export function credentialsForPreset(
 /** A provider chip renders a filled status dot when ITS OWN saved credentials
  *  (not necessarily the active selection's) satisfy its required fields —
  *  see `credentialsForPreset`. */
-export function isProviderConfigured(config: ByokConfig, preset: ProviderPreset | null): boolean {
+export function isProviderConfigured({ config, preset }: { config: ByokConfig; preset: ProviderPreset | null }, _optional: Record<string, never> = {}): boolean {
   if (!preset) return false;
-  const credentials = credentialsForPreset(config, preset);
-  const requiresApiKey = presetRequiresApiKey(preset);
+  const credentials = credentialsForPreset({ config, preset });
+  const requiresApiKey = presetRequiresApiKey({ preset });
   const hasApiKey = !requiresApiKey || Boolean(credentials.apiKey.trim());
-  const hasBaseUrl = !showsBaseUrlField(preset) || isValidApiBaseUrl(credentials.baseUrl);
+  const hasBaseUrl = !showsBaseUrlField({ preset }) || isValidApiBaseUrl({ raw: credentials.baseUrl });
   const hasModel = Boolean(credentials.model.trim());
   return hasApiKey && hasBaseUrl && hasModel;
 }
@@ -259,7 +258,7 @@ export function isProviderConfigured(config: ByokConfig, preset: ProviderPreset 
 /** True when the operator typed something into Base URL that isn't a URL —
  *  distinct from "hasn't typed anything yet", which is not an error state. */
 export function isBaseUrlInvalid(config: ByokConfig): boolean {
-  return Boolean(config.baseUrl.trim()) && !isValidApiBaseUrl(config.baseUrl);
+  return Boolean(config.baseUrl.trim()) && !isValidApiBaseUrl({ raw: config.baseUrl });
 }
 
 /**
@@ -275,7 +274,7 @@ export function isBaseUrlInvalid(config: ByokConfig): boolean {
  * `isProviderConfigured`'s doc and `ByokConfig.savedByProviderId`'s header).
  * Each preset now keeps only what was actually saved for IT.
  */
-export function nextConfigForPresetSelect(config: ByokConfig, preset: ProviderPreset): ByokConfig {
+export function nextConfigForPresetSelect({ config, preset }: { config: ByokConfig; preset: ProviderPreset }, _optional: Record<string, never> = {}): ByokConfig {
   const savedByProviderId = { ...config.savedByProviderId };
   if (config.providerId !== null) {
     savedByProviderId[config.providerId] = {
@@ -311,8 +310,8 @@ function presetCredentials(saved: ByokProviderCredentials | undefined, preset: P
  *  longer speaks this protocol) and keeps operator-entered endpoints. Hosts
  *  seed endpoints through presets; protocol selection never chooses a vendor. */
 export function nextConfigForProtocolSelect(
-  config: ByokConfig,
-  protocol: ByokConfig['protocol'],
+  { config, protocol }: { config: ByokConfig; protocol: ByokConfig['protocol'] },
+  _optional: Record<string, never> = {},
 ): ByokConfig {
   if (config.protocol === protocol) return config;
   return {
@@ -326,8 +325,8 @@ export function nextConfigForProtocolSelect(
 /** Mode changes never discard BYOK credentials — flipping to Local CLI and
  *  back must not make the operator retype their key. */
 export function nextConfigForModeChange(
-  config: ExecutionConfig,
-  mode: ExecutionMode,
+  { config, mode }: { config: ExecutionConfig; mode: ExecutionMode },
+  _optional: Record<string, never> = {},
 ): ExecutionConfig {
   return config.mode === mode ? config : { ...config, mode };
 }
@@ -335,7 +334,7 @@ export function nextConfigForModeChange(
 /** Parses the optional max-tokens field. Blank means "use the model default"
  *  (`undefined`); anything non-positive or non-numeric is rejected as
  *  `undefined` rather than silently stored as 0. */
-export function parseMaxTokens(raw: string): number | undefined {
+export function parseMaxTokens({ raw }: { raw: string }, _optional: Record<string, never> = {}): number | undefined {
   const trimmed = raw.trim();
   if (!trimmed) return undefined;
   const parsed = Number(trimmed);
@@ -346,7 +345,8 @@ export function parseMaxTokens(raw: string): number | undefined {
 /** Local-CLI agents, installed first, then alphabetical — the origin grouped
  *  by installed/not-installed and this preserves that read order. */
 export function sortDetectedAgents<T extends { installed: boolean; label: string }>(
-  agents: readonly T[],
+  { agents }: { agents: readonly T[] },
+  _optional: Record<string, never> = {},
 ): readonly T[] {
   return [...agents].sort((a, b) => {
     if (a.installed !== b.installed) return a.installed ? -1 : 1;
@@ -361,8 +361,8 @@ export function sortDetectedAgents<T extends { installed: boolean; label: string
  * not installed (a stale pick after an uninstall), so the current choice is never hidden.
  */
 export function partitionAgentsByInstalled<T extends { id: string; installed: boolean }>(
-  agents: readonly T[],
-  selectedAgentId: string | null | undefined,
+  { agents, selectedAgentId }: { agents: readonly T[]; selectedAgentId: string | null | undefined },
+  _optional: Record<string, never> = {},
 ): { visible: T[]; collapsed: T[] } {
   const visible: T[] = [];
   const collapsed: T[] = [];
@@ -381,7 +381,7 @@ export function partitionAgentsByInstalled<T extends { id: string; installed: bo
  * own label — a version string that legitimately *contains* the name earlier
  * on is left intact rather than mangled.
  */
-export function cleanAgentVersionLabel(label: string, version: string | null | undefined): string {
+export function cleanAgentVersionLabel({ label, version }: { label: string; version: string | null | undefined }, _optional: Record<string, never> = {}): string {
   if (!version) return '';
   const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return version
@@ -408,8 +408,8 @@ export interface AgentMetaLabels {
  * binary path, so the card stays one line without discarding either.
  */
 export function agentMetaLabel(
-  agent: DetectedAgent,
-  labels: AgentMetaLabels,
+  { agent, labels }: { agent: DetectedAgent; labels: AgentMetaLabels },
+  _optional: Record<string, never> = {},
 ): { text: string; title: string } {
   const authUnresolved = agent.authStatus === 'missing' || agent.authStatus === 'unknown';
   const pathTitle = agent.path ?? '';
@@ -417,14 +417,14 @@ export function agentMetaLabel(
   if (!agent.installed) return { text: labels.notInstalled, title };
   if (agent.authStatus === 'missing') return { text: labels.authRequired, title };
   if (agent.authStatus === 'unknown') return { text: labels.authUnknown, title };
-  const version = cleanAgentVersionLabel(agent.label, agent.version);
+  const version = cleanAgentVersionLabel({ label: agent.label, version: agent.version });
   return { text: version || labels.installed, title };
 }
 
 /** The model an agent will actually run: the operator's explicit per-agent
  *  pick when they made one, else the first entry of whatever list the host
  *  reported, else nothing. */
-export function selectedAgentModel(config: LocalCliConfig, agent: DetectedAgent): string {
+export function selectedAgentModel({ config, agent }: { config: LocalCliConfig; agent: DetectedAgent }, _optional: Record<string, never> = {}): string {
   const chosen = config.modelByAgentId?.[agent.id]?.trim();
   if (chosen) return chosen;
   return agent.models?.[0]?.id ?? '';
@@ -434,8 +434,8 @@ export function selectedAgentModel(config: LocalCliConfig, agent: DetectedAgent)
  *  on unselected cards. Falls back to the raw id when the host reported a
  *  model list that doesn't contain the operator's saved pick — a stale saved
  *  choice is still the choice, and hiding it would misreport what will run. */
-export function agentModelSummary(config: LocalCliConfig, agent: DetectedAgent): string {
-  const id = selectedAgentModel(config, agent);
+export function agentModelSummary({ config, agent }: { config: LocalCliConfig; agent: DetectedAgent }, _optional: Record<string, never> = {}): string {
+  const id = selectedAgentModel({ config, agent });
   if (!id) return '';
   return agent.models?.find((model) => model.id === id)?.label ?? id;
 }
@@ -444,7 +444,7 @@ export function agentModelSummary(config: LocalCliConfig, agent: DetectedAgent):
  *  a deselect — the origin had no "no agent" affordance once one was chosen,
  *  and silently clearing it on a stray second click would strand the tab in a
  *  state the operator did not ask for. */
-export function nextConfigForAgentSelect(config: ExecutionConfig, agentId: string): ExecutionConfig {
+export function nextConfigForAgentSelect({ config, agentId }: { config: ExecutionConfig; agentId: string }, _optional: Record<string, never> = {}): ExecutionConfig {
   if (config.localCli.agentId === agentId) return config;
   return { ...config, localCli: { ...config.localCli, agentId } };
 }
@@ -452,9 +452,8 @@ export function nextConfigForAgentSelect(config: ExecutionConfig, agentId: strin
 /** Recording a per-agent model pick. Keyed by agent id so switching agents and
  *  back preserves each one's own choice — see `LocalCliConfig`. */
 export function nextConfigForAgentModel(
-  config: ExecutionConfig,
-  agentId: string,
-  model: string,
+  { config, agentId, model }: { config: ExecutionConfig; agentId: string; model: string },
+  _optional: Record<string, never> = {},
 ): ExecutionConfig {
   return {
     ...config,
@@ -470,7 +469,7 @@ export function nextConfigForAgentModel(
  *  whatever `reasoningOptions` the host reported, else nothing. Mirrors
  *  `selectedAgentModel` exactly — a reasoning choice is a model-catalog
  *  pick from a second, independent list. */
-export function selectedAgentReasoning(config: LocalCliConfig, agent: DetectedAgent): string {
+export function selectedAgentReasoning({ config, agent }: { config: LocalCliConfig; agent: DetectedAgent }, _optional: Record<string, never> = {}): string {
   const chosen = config.reasoningByAgentId?.[agent.id]?.trim();
   if (chosen) return chosen;
   return agent.reasoningOptions?.[0]?.id ?? '';
@@ -479,9 +478,8 @@ export function selectedAgentReasoning(config: LocalCliConfig, agent: DetectedAg
 /** Recording a per-agent reasoning-effort pick. Keyed by agent id for the
  *  same cross-contamination reason as `nextConfigForAgentModel`. */
 export function nextConfigForAgentReasoning(
-  config: ExecutionConfig,
-  agentId: string,
-  reasoning: string,
+  { config, agentId, reasoning }: { config: ExecutionConfig; agentId: string; reasoning: string },
+  _optional: Record<string, never> = {},
 ): ExecutionConfig {
   return {
     ...config,
@@ -502,9 +500,8 @@ export function nextConfigForAgentReasoning(
  * Origin: `shouldShowCustomModelInput`.
  */
 export function shouldShowCustomModelInput(
-  modelValue: string,
-  knownModelIds: readonly string[],
-  explicitCustomMode: boolean,
+  { modelValue, knownModelIds, explicitCustomMode }: { modelValue: string; knownModelIds: readonly string[]; explicitCustomMode: boolean },
+  _optional: Record<string, never> = {},
 ): boolean {
   return explicitCustomMode || !modelValue || !knownModelIds.includes(modelValue);
 }
@@ -513,15 +510,15 @@ export function shouldShowCustomModelInput(
  *  `presetsForProtocol`'s "filter the shared catalog down to what THIS
  *  context needs" shape. */
 export function cliEnvFieldsForAgent(
-  fields: readonly AgentCliEnvFieldSpec[],
-  agentId: string,
+  { fields, agentId }: { fields: readonly AgentCliEnvFieldSpec[]; agentId: string },
+  _optional: Record<string, never> = {},
 ): readonly AgentCliEnvFieldSpec[] {
   return fields.filter((field) => field.agentId === agentId);
 }
 
 /** The operator's current value for one agent's CLI env field, or `''` when
  *  unset — the value an `<input>` should render. */
-export function agentCliEnvValue(config: LocalCliConfig, agentId: string, envKey: string): string {
+export function agentCliEnvValue({ config, agentId, envKey }: { config: LocalCliConfig; agentId: string; envKey: string }, _optional: Record<string, never> = {}): string {
   return config.envByAgentId?.[agentId]?.[envKey] ?? '';
 }
 
@@ -536,10 +533,8 @@ export function agentCliEnvValue(config: LocalCliConfig, agentId: string, envKey
  * which is product-bound (this package tracks no such intent).
  */
 export function nextConfigForAgentCliEnvChange(
-  config: ExecutionConfig,
-  agentId: string,
-  envKey: string,
-  rawValue: string,
+  { config, agentId, envKey, rawValue }: { config: ExecutionConfig; agentId: string; envKey: string; rawValue: string },
+  _optional: Record<string, never> = {},
 ): ExecutionConfig {
   const value = rawValue.trim();
   const nextAgentEnv = { ...config.localCli.envByAgentId?.[agentId] };
@@ -563,8 +558,8 @@ export function nextConfigForAgentCliEnvChange(
  *  — see `AgentCliEnvFieldSpec.kind`. At most one is expected per agent; the
  *  first match wins if a host's catalog carries more than one. */
 export function binPathEnvField(
-  fields: readonly AgentCliEnvFieldSpec[],
-  agentId: string,
+  { fields, agentId }: { fields: readonly AgentCliEnvFieldSpec[]; agentId: string },
+  _optional: Record<string, never> = {},
 ): AgentCliEnvFieldSpec | null {
   return fields.find((field) => field.agentId === agentId && field.kind === 'binPath') ?? null;
 }
@@ -650,9 +645,8 @@ function matchesModelQuery(option: AgentModelOption, query: string): boolean {
  * `useMemo` inside `SearchableModelSelect`.
  */
 export function filterAgentModelOptions(
-  options: readonly AgentModelOption[],
-  query: string,
-  selectedValue: string,
+  { options, query, selectedValue }: { options: readonly AgentModelOption[]; query: string; selectedValue: string },
+  _optional: Record<string, never> = {},
 ): readonly AgentModelOption[] {
   const normalized = query.trim().toLowerCase();
   if (!normalized) return options;
@@ -685,8 +679,8 @@ export function agentDiagnosticTooltip(diagnostic: AgentDiagnostic): string {
  * @complexity O(k) in `levelIds.length`.
  */
 export function splitReasoningModelId(
-  modelId: string,
-  levelIds: readonly string[],
+  { modelId, levelIds }: { modelId: string; levelIds: readonly string[] },
+  _optional: Record<string, never> = {},
 ): { baseId: string; level: string | null } {
   for (const level of levelIds) {
     const suffix = `-${level}`;
@@ -744,13 +738,13 @@ function baseLabelForLevel(label: string, level: AgentModelOption | undefined): 
  * @complexity O(n * k) in the catalog size and the vocabulary size.
  */
 export function reasoningModelGroups(
-  models: readonly AgentModelOption[],
-  levels: readonly AgentModelOption[],
+  { models, levels }: { models: readonly AgentModelOption[]; levels: readonly AgentModelOption[] },
+  _optional: Record<string, never> = {},
 ): ReasoningModelGroup[] {
   const levelIds = levels.map((level) => level.id);
   const byBase = new Map<string, { label: string; ids: Map<string, string>; bare?: string }>();
   for (const model of models) {
-    const { baseId, level } = splitReasoningModelId(model.id, levelIds);
+    const { baseId, level } = splitReasoningModelId({ modelId: model.id, levelIds });
     const existing = byBase.get(baseId);
     const entry = existing ?? { label: baseLabelForLevel(model.label, levels.find((l) => l.id === level)), ids: new Map<string, string>() };
     if (level === null) {
@@ -776,12 +770,11 @@ export function reasoningModelGroups(
 /** The group a full model id belongs to, or `null` when the id is not in this catalog at all — a
  *  saved pick from an older/different catalog must not be silently attached to some other base. */
 export function reasoningModelGroupFor(
-  groups: readonly ReasoningModelGroup[],
-  modelId: string,
-  levelIds: readonly string[],
+  { groups, modelId, levelIds }: { groups: readonly ReasoningModelGroup[]; modelId: string; levelIds: readonly string[] },
+  _optional: Record<string, never> = {},
 ): ReasoningModelGroup | null {
   if (!modelId) return null;
-  const { baseId } = splitReasoningModelId(modelId, levelIds);
+  const { baseId } = splitReasoningModelId({ modelId, levelIds });
   return groups.find((group) => group.baseId === baseId) ?? null;
 }
 
@@ -800,7 +793,7 @@ export function reasoningModelGroupFor(
  *   available level's, else the bare base id (only reachable for a group built from nothing).
  * @complexity O(1).
  */
-export function modelIdForReasoningLevel(group: ReasoningModelGroup, level: string | null): string {
+export function modelIdForReasoningLevel({ group, level }: { group: ReasoningModelGroup; level: string | null }, _optional: Record<string, never> = {}): string {
   if (level) {
     const exact = group.modelIdByLevel[level];
     if (exact) return exact;

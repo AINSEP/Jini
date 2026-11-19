@@ -60,7 +60,7 @@ export function MemorySuggestionPanel({
   useTHook?: typeof useT;
 }) {
   const t = useTHook();
-  const typeLabel = useMemo(() => memoryTypeLabels(t), [t]);
+  const typeLabel = useMemo(() => memoryTypeLabels({ t }), [t]);
   return (
     <div className="memory-suggestion-panel">
       <div className="memory-subsection-head">

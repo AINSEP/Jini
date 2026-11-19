@@ -101,9 +101,9 @@ describe('every endpoint-taking tab enforces the same policy', () => {
   const METADATA = 'http://169.254.169.254/latest/meta-data/';
 
   it('execution tab: isValidApiBaseUrl rejects the metadata service', () => {
-    expect(isValidApiBaseUrl(METADATA)).toBe(false);
-    expect(isValidApiBaseUrl('https://api.anthropic.com')).toBe(true);
-    expect(isValidApiBaseUrl('http://localhost:11434/v1')).toBe(true);
+    expect(isValidApiBaseUrl({ raw: METADATA })).toBe(false);
+    expect(isValidApiBaseUrl({ raw: 'https://api.anthropic.com' })).toBe(true);
+    expect(isValidApiBaseUrl({ raw: 'http://localhost:11434/v1' })).toBe(true);
   });
 
   it('media-providers tab: a typed metadata-service base URL is invalid', () => {

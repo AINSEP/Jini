@@ -20,6 +20,6 @@ export function useLocalCliAgentList(
   { agents, selectedAgentId }: { agents: readonly DetectedAgent[]; selectedAgentId: string | null },
 ): UseLocalCliAgentListResult {
   const [showCollapsed, setShowCollapsed] = useState(false);
-  const { visible, collapsed } = partitionAgentsByInstalled(agents, selectedAgentId);
+  const { visible, collapsed } = partitionAgentsByInstalled({ agents, selectedAgentId });
   return { visible, collapsed, showCollapsed, toggleCollapsed: () => setShowCollapsed((open) => !open) };
 }

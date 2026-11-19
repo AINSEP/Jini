@@ -76,7 +76,7 @@ describe('useSketchScene', () => {
     const onSceneChange = vi.fn();
     const { result } = renderHook(() => useSketchScene({ scene: makeScene(), fileName: 'a.excalidraw', onSceneChange }));
     result.current.handleClear();
-    expect(onSceneChange).toHaveBeenCalledWith(emptySketchScene('a.excalidraw'), { markDirty: true });
+    expect(onSceneChange).toHaveBeenCalledWith(emptySketchScene({}, { name: 'a.excalidraw' }), { markDirty: true });
   });
 
   it('handleClear bumps the editor instance key, forcing a remount', () => {

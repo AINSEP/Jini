@@ -97,7 +97,7 @@ export function createBrowserConnectorAuthPendingStorage(): ConnectorAuthPending
       try {
         const raw = window.sessionStorage.getItem(CONNECTOR_AUTH_PENDING_STORAGE_KEY);
         if (!raw) return {};
-        return parseConnectorAuthorizationPendingState(raw);
+        return parseConnectorAuthorizationPendingState({ raw });
       } catch {
         return {};
       }
@@ -126,7 +126,7 @@ export function createBrowserConnectorAuthBridge(): ConnectorAuthBridgePort {
       function onMessage(event: MessageEvent) {
         const data = event.data as { type?: unknown } | null;
         if (!data || typeof data !== 'object' || data.type !== CONNECTOR_CALLBACK_MESSAGE_TYPE) return;
-        if (!isTrustedConnectorCallbackOrigin(event.origin, window.location.origin)) return;
+        if (!isTrustedConnectorCallbackOrigin({ origin: event.origin, currentOrigin: window.location.origin })) return;
         onTrustedCallback();
       }
       window.addEventListener('message', onMessage);

@@ -26,7 +26,7 @@ function recordingDependencies(): { dependencies: SketchEditorDependencies; seen
 
 function baseProps(overrides: Partial<Parameters<typeof SketchEditor>[0]> = {}) {
   return {
-    scene: emptySketchScene('diagram.excalidraw'),
+    scene: emptySketchScene({}, { name: 'diagram.excalidraw' }),
     fileName: 'diagram.excalidraw',
     onSceneChange: vi.fn(),
     onSave: vi.fn(async () => true),
@@ -108,7 +108,7 @@ describe('SketchEditor', () => {
       />,
     );
     await userEvent.click(screen.getByTestId('sketch-menu-clear'));
-    expect(onSceneChange).toHaveBeenCalledWith(emptySketchScene('a.excalidraw'), { markDirty: true });
+    expect(onSceneChange).toHaveBeenCalledWith(emptySketchScene({}, { name: 'a.excalidraw' }), { markDirty: true });
   });
 
   it('shows the "saving" save-state badge while a save is in flight', async () => {

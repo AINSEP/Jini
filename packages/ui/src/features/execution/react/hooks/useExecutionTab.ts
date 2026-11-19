@@ -95,7 +95,7 @@ function useAgentDetection({ port, autoDetect, alive, detectionTimer }: {
       detect().then(
         (found) => {
           if (!isCurrent()) return;
-          const sorted = sortDetectedAgents(found);
+          const sorted = sortDetectedAgents({ agents: found });
           setAgents(sorted);
           setScan({ status: 'ok', count: sorted.filter((agent) => agent.installed).length });
           if (found.some(agent => agent.discoveryPending)) {

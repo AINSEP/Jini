@@ -32,12 +32,12 @@ export function useConnectorsBrowserView({ unlocked, providerTabs, catalogRefres
   });
 
   const providerScopedConnectors = useMemo(
-    () => scopeConnectorsToProvider(catalog.connectors, providerTabs, selectedProvider),
+    () => scopeConnectorsToProvider({ connectors: catalog.connectors, providerTabs, selectedProviderId: selectedProvider }),
     [catalog.connectors, providerTabs, selectedProvider],
   );
 
   const filteredConnectors = useMemo(
-    () => sortConnectorsForSearch(providerScopedConnectors, filter),
+    () => sortConnectorsForSearch({ connectors: providerScopedConnectors, query: filter }),
     [providerScopedConnectors, filter],
   );
 
@@ -46,11 +46,11 @@ export function useConnectorsBrowserView({ unlocked, providerTabs, catalogRefres
   const alerts = useMemo(
     () =>
       connectorPanelAlerts(
-        catalog.connectors,
-        detail.detailConnectorId,
-        authorization.authError,
-        authorization.cancelFailed,
-        t(AUTHORIZATION_CANCEL_FAILED_MESSAGE),
+        { connectors: catalog.connectors,
+        detailConnectorId: detail.detailConnectorId,
+        authorizationError: authorization.authError,
+        authorizationCancelFailed: authorization.cancelFailed,
+        cancelFailedMessage: t(AUTHORIZATION_CANCEL_FAILED_MESSAGE) },
       ),
     [catalog.connectors, detail.detailConnectorId, authorization.authError, authorization.cancelFailed, t],
   );

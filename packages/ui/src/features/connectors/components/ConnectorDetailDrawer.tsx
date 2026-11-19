@@ -65,7 +65,7 @@ function ConnectorDrawerHead({
 }: ConnectorDrawerHeadProps) {
   const t = useTHook();
   const showToolsBadge = connector.toolCount !== undefined || connector.tools.length > 0 || toolsLoaded;
-  const toolsBadge = toolsBadgeTranslation(getConnectorDisplayToolCount(connector));
+  const toolsBadge = toolsBadgeTranslation({ count: getConnectorDisplayToolCount(connector) });
   const toolsBadgeLabel = t(toolsBadge.key, toolsBadge.vars);
   const statusTone = isAuthorizationPending ? 'pending' : connector.status;
   return (
@@ -83,7 +83,7 @@ function ConnectorDrawerHead({
         <div className="connector-drawer-status">
           <span className={`connector-status-pill status-${statusTone}`}>
             <span className="connector-status-dot" aria-hidden />
-            {isAuthorizationPending ? t('Authorization pending') : t(statusLabel(connector.status))}
+            {isAuthorizationPending ? t('Authorization pending') : t(statusLabel({ status: connector.status }))}
           </span>
           {showToolsBadge ? (
             <span className="connector-drawer-tool-count-chip" title={toolsBadgeLabel}>
@@ -188,7 +188,7 @@ function ConnectorDrawerDetails({ connector, categoryLabel, accountLabel, flags,
       <dl className="connector-drawer-details">
         <div>
           <dt>{t('Status')}</dt>
-          <dd>{t(statusLabel(connector.status))}</dd>
+          <dd>{t(statusLabel({ status: connector.status }))}</dd>
         </div>
         <div>
           <dt>{t('Category')}</dt>

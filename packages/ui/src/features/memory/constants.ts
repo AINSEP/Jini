@@ -75,7 +75,7 @@ export const MEMORY_CONNECTOR_APP_LABELS: Record<(typeof MEMORY_CONNECTOR_APP_ID
  *  an API response. Returns undefined for an id this app doesn't recognize,
  *  unlike `MEMORY_CONNECTOR_APP_LABELS[id]` directly, which requires (and is
  *  typed to guarantee) a known id. */
-export function connectorAppLabel(connectorId: string): string | undefined {
+export function connectorAppLabel({ connectorId }: { connectorId: string }, _optional: Record<string, never> = {}): string | undefined {
   return (MEMORY_CONNECTOR_APP_LABELS as Record<string, string | undefined>)[connectorId];
 }
 

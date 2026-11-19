@@ -63,7 +63,7 @@ describe('LocalCliAgentList — not-installed disclosure', () => {
 
 describe('partitionAgentsByInstalled', () => {
   it('keeps order, splitting installed (plus the selected id) from the rest', () => {
-    expect(partitionAgentsByInstalled(AGENTS, 'trae')).toEqual({
+    expect(partitionAgentsByInstalled({ agents: AGENTS, selectedAgentId: 'trae' })).toEqual({
       visible: [AGENTS[0], AGENTS[1], AGENTS[3]],
       collapsed: [AGENTS[2]],
     });
