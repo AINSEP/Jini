@@ -1,12 +1,12 @@
-import { describeErrorForLog } from '@jini-ai/core/model-facing-tool-errors';
+import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
 import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent, type ClipboardEvent, type CSSProperties, type KeyboardEvent } from 'react';
 import { useComposerHistoryKeys } from '../hooks/useComposerHistoryKeys.hooks.js';
 import type { ComposerDiscoveryGroup, ComposerDiscoveryItem, ComposerDiscoveryOutcome } from '../slots.js';
 import type { ComposerProps } from './Composer.js';
 import { appendComposerDiscovery, composerDiscoveryMenuPosition, composerSlashMenuPosition, filterComposerDiscovery, parseComposerSlashQuery, replaceComposerSlashTrigger, resolveComposerSlashInvocation, resolveComposerSlashKeyAction } from './composer-discovery.js';
 
-function reportComposerHostEffectFailure({ effectName, error }: { effectName: string; error: unknown }, _options = {}) {
-  console.error(`[@jini-ai/chat] Composer ${effectName} host effect failed:`, describeErrorForLog({ err: error }));
+function reportComposerHostEffectFailure({ effectName, error }: { effectName: string; error: unknown }, { report: logger = createConsoleLogger({ prefix: '' }) }: { report?: Pick<Logger, 'error'> | undefined } = {}) {
+  logger.error({ message: `[@jini-ai/chat] Composer ${effectName} host effect failed:` }, { error });
 }
 
 /**
@@ -20,13 +20,13 @@ function reportComposerHostEffectFailure({ effectName, error }: { effectName: st
  */
 export function runComposerHostEffect(
   { effectName, effect }: { effectName: string; effect: () => unknown },
-  { onSettled, onResolved }: { onSettled?: () => void; onResolved?: (result: unknown) => void } = {},
+  { onSettled, onResolved, report }: { onSettled?: () => void; onResolved?: (result: unknown) => void; report?: Pick<Logger, 'error'> | undefined } = {},
 ) {
   let result: unknown;
   try {
     result = effect();
   } catch (error) {
-    reportComposerHostEffectFailure({ effectName, error });
+    reportComposerHostEffectFailure({ effectName, error }, { report });
     onSettled?.();
     return;
   }
@@ -41,7 +41,7 @@ export function runComposerHostEffect(
       if (asynchronous) onResolved?.(resolved);
     })
     .catch((error: unknown) => {
-      reportComposerHostEffectFailure({ effectName, error });
+      reportComposerHostEffectFailure({ effectName, error }, { report });
     })
     .finally(() => {
       if (asynchronous) onSettled?.();
@@ -53,7 +53,7 @@ export function useComposerView({ composer, slots, attachmentPicker, workingDire
   composer: ComposerProps['composer']; slots: ComposerProps['slots']; attachmentPicker: ComposerProps['attachmentPicker'];
   workingDirectory: ComposerProps['workingDirectory']; onChangeWorkingDirectory: ComposerProps['onChangeWorkingDirectory'];
   disabled: boolean; sendDisabled: boolean; onInterrupt: ComposerProps['onInterrupt']; onSend: ComposerProps['onSend'];
-}, _options = {}) {
+}, { report }: { report?: Pick<Logger, 'error'> | undefined } = {}) {
   const attachmentInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const discoveryEffectInFlightRef = useRef(false);
@@ -189,6 +189,7 @@ export function useComposerView({ composer, slots, attachmentPicker, workingDire
       onSettled: () => {
         discoveryEffectInFlightRef.current = false;
       },
+      report,
       onResolved: (outcome) => {
         if (!outcome || typeof outcome !== 'object') return;
         const draft = (outcome as ComposerDiscoveryOutcome).draft;
@@ -288,7 +289,7 @@ export function useComposerView({ composer, slots, attachmentPicker, workingDire
     const files = Array.from(event.target.files ?? []);
     event.target.value = '';
     if (files.length > 0 && attachmentPicker) {
-      runComposerHostEffect({ effectName: 'attachmentPicker.onFiles', effect: () => attachmentPicker.onFiles(files) });
+      runComposerHostEffect({ effectName: 'attachmentPicker.onFiles', effect: () => attachmentPicker.onFiles(files) }, { report });
     }
   }
 
@@ -308,7 +309,7 @@ export function useComposerView({ composer, slots, attachmentPicker, workingDire
     const files = Array.from(event.clipboardData?.files ?? []);
     if (files.length === 0) return;
     event.preventDefault();
-    runComposerHostEffect({ effectName: 'attachmentPicker.onFiles', effect: () => attachmentPicker.onFiles(files) });
+    runComposerHostEffect({ effectName: 'attachmentPicker.onFiles', effect: () => attachmentPicker.onFiles(files) }, { report });
   }
 
   return { attachmentInputRef, textareaRef, discoveryMenuOpen, setDiscoveryMenuOpen, setSlashActiveIndex, setDismissedSlashDraft, discoveryMenuPosition, slashMenuPosition, workdirOpen, setWorkdirOpen, workdirDraft, setWorkdirDraft, workdirPosition, discoveryGroups, leadingAccessories, footerLeadingAccessory, footerAccessories, plusMenuItems, hasDiscoveryItems, slash, slashOpen, slashActiveOption, selectSlashItem, selectPlusItem, toggleWorkdir, confirmWorkdir, handleKeyDown, handleAttachmentChange, handleAttachmentPaste };

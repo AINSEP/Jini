@@ -45,10 +45,10 @@ import type { AttachmentPreviewNavigation } from './AttachmentGallery.hooks.js';
 export type AttachmentPreviewStatus = 'image' | 'text' | 'unsupported';
 
 /** Extensions attempted as an `<img>` even when `attachment.kind` says otherwise — see module doc. */
-const IMAGE_PREVIEW_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'bmp', 'ico', 'svg']);
+const IMAGE_PREVIEW_EXTENSIONS: ReadonlySet<string> = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'bmp', 'ico', 'svg']);
 
 /** Extensions shown in a scrollable monospace pane. Deliberately narrow — see task scope: "txt, md, json, csv, and similar", not every source-code language. */
-const TEXT_PREVIEW_EXTENSIONS = new Set(['txt', 'md', 'markdown', 'json', 'csv', 'tsv', 'log', 'yaml', 'yml', 'xml']);
+const TEXT_PREVIEW_EXTENSIONS: ReadonlySet<string> = new Set(['txt', 'md', 'markdown', 'json', 'csv', 'tsv', 'log', 'yaml', 'yml', 'xml']);
 
 /** Hard cap on rendered text-preview characters, so a large attached log/CSV cannot hang the tab painting one giant `<pre>`. */
 export const MAX_TEXT_PREVIEW_CHARS = 200_000;

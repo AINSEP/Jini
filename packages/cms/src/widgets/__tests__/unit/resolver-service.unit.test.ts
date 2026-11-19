@@ -107,7 +107,7 @@ beforeEach(() => { warn = vi.spyOn(console, "warn").mockImplementation(() => {})
 afterEach(() => { warn.mockRestore(); });
 
 function warnedWith(message: string): boolean {
-  return warn.mock.calls.some(([first]) => first === message);
+  return warn.mock.calls.some(([first]) => first === `widgets ${message}`);
 }
 
 describe("media embed resolution", () => {
@@ -585,10 +585,10 @@ describe("gallery embed resolution", () => {
     expect({ ...(ir.props.media as JsonObject) }).toEqual({ a1: { assetId: "a1", slug: "a1-slug", sha256: "sha-a1", transformName: "public", version: 3, alt: "Alt", width: 640, height: 480, cssClass: null, htmlAttributes: null } });
   });
 
-  it("reports an invalid gallery with the workspace id and leaves it unresolved", async () => {
+  it("reports an invalid gallery with fixed diagnostic copy and leaves it unresolved", async () => {
     const resolved = await HTML_EMBED_RESOLVERS.gallery!([ref({ type: "gallery", id: "g1", config: { layout: "grid", images: [] } })], deps(), CTX);
     expect(resolved.size).toBe(0);
-    expect(warn).toHaveBeenCalledWith("[widgets] unresolved gallery embed", { workspaceId: WS, key: "g1", messages: ["images must contain between 1 and 50 images"] });
+    expect(warn).toHaveBeenCalledWith("widgets [widgets] unresolved gallery embed");
   });
 
   it("exposes the media resolver to gallery widgets", async () => {
@@ -621,7 +621,7 @@ describe("inline media content embeds", () => {
   it("warns about invalid inline content and leaves it unresolved", async () => {
     const resolved = await media([ref({ id: "m1", config: { html: 7 } })], deps());
     expect(resolved.size).toBe(0);
-    expect(warn).toHaveBeenCalledWith("[widgets] unresolved media content", { key: "m1", messages: ["html must be a string of at most 65536 characters"] });
+    expect(warn).toHaveBeenCalledWith("widgets [widgets] unresolved media content");
   });
 
   it("resolves a media marker with a config but no inline content as an ordinary asset", async () => {
@@ -668,15 +668,12 @@ describe("post embed resolution", () => {
 
   it("degrades an unpublished or missing post", async () => {
     expect((await postEmbed([ref({ type: "post", id: "missing" })], deps({ postRepo }))).size).toBe(0);
-    expect(warn).toHaveBeenCalledWith('[widgets] resolveHtmlPageEmbeds: unresolved "post" reference — no such published post', { workspaceId: WS, postId: "missing" });
+    expect(warn).toHaveBeenCalledWith('widgets [widgets] resolveHtmlPageEmbeds: unresolved "post" reference — no such published post');
   });
 
   it("degrades every reference when no post repository is supplied", async () => {
     expect((await postEmbed([ref({ type: "post", id: "post-1" })], deps())).size).toBe(0);
-    expect(warn).toHaveBeenCalledWith(
-      '[widgets] resolveHtmlPageEmbeds: "post" embeds present but no postRepo dependency was supplied — every occurrence degrades to the placeholder',
-      { workspaceId: WS, occurrences: 1 },
-    );
+    expect(warn).toHaveBeenCalledWith('widgets [widgets] resolveHtmlPageEmbeds: "post" embeds present but no postRepo dependency was supplied — every occurrence degrades to the placeholder');
   });
 
   it("stays silent without a post repository when there are no references", async () => {

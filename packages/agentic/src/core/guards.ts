@@ -13,10 +13,10 @@
 import type { FieldDescriptor } from '@jini-ai/core/agent-handles';
 
 /** Input types no automated caller may ever write to. */
-const DENIED_TYPES = new Set(['password', 'hidden', 'file', 'image']);
+const DENIED_TYPES: ReadonlySet<string> = new Set(['password', 'hidden', 'file', 'image']);
 
 /** Autocomplete tokens covering credentials, payment instruments and one-time codes. */
-const DENIED_AUTOCOMPLETE = new Set([
+const DENIED_AUTOCOMPLETE: ReadonlySet<string> = new Set([
   'current-password', 'new-password', 'one-time-code',
   'cc-number', 'cc-exp', 'cc-exp-month', 'cc-exp-year', 'cc-csc', 'cc-name', 'cc-type',
 ]);
@@ -91,7 +91,7 @@ export type FieldReadRefusal =
  * the fill worked and the box is still clear — a false success, which is worse than a refusal
  * because it is never retried.
  */
-const NON_TEXT_TYPES = new Set(['checkbox', 'radio', 'submit', 'reset', 'button']);
+const NON_TEXT_TYPES: ReadonlySet<string> = new Set(['checkbox', 'radio', 'submit', 'reset', 'button']);
 
 export type FieldRefusal = FieldReadRefusal | 'not-text' | 'read-only' | 'disabled';
 

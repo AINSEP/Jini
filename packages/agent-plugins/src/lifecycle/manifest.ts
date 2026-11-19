@@ -141,7 +141,7 @@ export type ParseAgentPluginManifestResult =
   | { readonly ok: true; readonly manifest: AgentPluginManifest; readonly warnings: readonly string[] }
   | { readonly ok: false; readonly errors: readonly string[] };
 
-const KNOWN_MANIFEST_KEYS = new Set(["$schema", "name", "version", "description", "author", "license", "keywords", "extensions"]);
+const KNOWN_MANIFEST_KEYS: ReadonlySet<string> = new Set(["$schema", "name", "version", "description", "author", "license", "keywords", "extensions"]);
 
 /**
  * True for a non-null, non-array plain object — the "is this actually a JSON object" gate both

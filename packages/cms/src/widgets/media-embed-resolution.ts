@@ -1,3 +1,4 @@
+import { createConsoleLogger } from "@jini-ai/core/primitives";
 import { isPlausibleMediaRefId } from "./markers/media-reference.js";
 import type { WidgetHostPorts, MediaContentTypeStorePort } from "./host-ports.js";
 import type { MediaRepoPort, TransformDefinitionRepoPort } from "../media/index.js";
@@ -80,10 +81,7 @@ function parseMediaEmbedRef(
   const assetId = ref.id ?? ref.slug;
   const transformName = ref.variant ?? host.media.publicTransformName;
   if (assetId === null || !isPlausibleMediaRefId({ value: assetId }) || !isPlausibleMediaRefId({ value: transformName })) {
-    console.warn(
-      '[widgets] resolveHtmlPageEmbeds: unresolved "media" reference — missing or invalid "id"/"slug"/"variant" in data-embed-config',
-      { workspaceId: context.workspaceId }
-    );
+    (context.report ?? createConsoleLogger({ prefix: "[widgets]" })).warn({ message: 'resolveHtmlPageEmbeds: unresolved "media" reference — missing or invalid "id"/"slug"/"variant" in data-embed-config' }, { meta: { workspaceId: context.workspaceId } });
     return undefined;
   }
   return { assetId, transformName };
@@ -105,11 +103,7 @@ async function buildMediaImageIr(
     input: { workspaceId: context.workspaceId, name: transformName },
   });
   if (!definition) {
-    console.warn('[widgets] resolveHtmlPageEmbeds: unresolved "media" reference — transform not registered', {
-      workspaceId: context.workspaceId,
-      assetId,
-      transformName,
-    });
+    (context.report ?? createConsoleLogger({ prefix: "[widgets]" })).warn({ message: 'resolveHtmlPageEmbeds: unresolved "media" reference — transform not registered' }, { meta: { workspaceId: context.workspaceId, assetId, transformName } });
     return undefined;
   }
   return {
@@ -206,10 +200,7 @@ async function resolveOneMediaEmbed(
 
   const record = await findMediaEmbedRecord({ ref, refAssetId, mediaRepo, context, host });
   if (!record || record.status !== "active") {
-    console.warn('[widgets] resolveHtmlPageEmbeds: unresolved "media" reference — no such asset', {
-      workspaceId: context.workspaceId,
-      assetId: refAssetId,
-    });
+    (context.report ?? createConsoleLogger({ prefix: "[widgets]" })).warn({ message: 'resolveHtmlPageEmbeds: unresolved "media" reference — no such asset' }, { meta: { workspaceId: context.workspaceId, assetId: refAssetId } });
     return undefined;
   }
   const canonicalAssetId = record.id;
@@ -236,10 +227,7 @@ export async function resolveMediaTypeEmbeds(
   const { mediaRepo, transformRepo, mediaContentTypeStore } = deps;
   if (!mediaRepo || !transformRepo) {
     if (refs.length > 0) {
-      console.warn(
-        '[widgets] resolveHtmlPageEmbeds: "media" embeds present but no mediaRepo/transformRepo dependency was supplied — every occurrence degrades to the placeholder',
-        { workspaceId: context.workspaceId, occurrences: refs.length }
-      );
+      (context.report ?? createConsoleLogger({ prefix: "[widgets]" })).warn({ message: 'resolveHtmlPageEmbeds: "media" embeds present but no mediaRepo/transformRepo dependency was supplied — every occurrence degrades to the placeholder' }, { meta: { workspaceId: context.workspaceId, occurrences: refs.length } });
     }
     return resolved;
   }

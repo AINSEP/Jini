@@ -2,6 +2,9 @@ import { Suspense, StrictMode } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '../../../__tests__/fetch-query-support.js';
 import { createAdmin } from '../../../core/module/index.js';
+import { PlaygroundPage } from '../pages/PlaygroundPage.js';
+import { usePlaygroundPage } from '../hooks/PlaygroundPage.hooks.js';
+import { Canvas } from '../components/Canvas.js';
 import { playground } from '../index.js';
 import { createMemoryPlaygroundTargets } from '../../adapters/memory.js';
 afterEach(cleanup);
@@ -26,4 +29,21 @@ it('read-only canvas survives rerenders and clears on unmount under StrictMode',
   const realSurface = document.createElement('article'); realSurface.textContent = 'Assistant output'; node.appendChild(realSurface);
   expect(screen.getByText('Nothing drawn yet — ask the assistant.')).not.toBeVisible(); expect(node.firstChild).toBe(realSurface);
   view.unmount(); expect(targets.getSnapshot().target).toBeNull(); expect(transitions).toEqual([null]);
+});
+
+
+it('uses an injected playground denial despite granted access', () => {
+  const feature = playground({});
+  const admin = createAdmin({ modules: [feature], ports: { playgroundTargets: createMemoryPlaygroundTargets({}) } }, { permissions: ['playground.read'] });
+  render(<PlaygroundPage tabs={feature.react.pages.playground.tabs} description={admin.describe().pages[0]!}
+    usePlaygroundPageHook={(props) => ({ ...usePlaygroundPage(props), denied: true })} />);
+  expect(screen.getByText('Permission denied')).toBeVisible();
+  expect(screen.queryByRole('heading', { name: 'Canvas' })).toBeNull();
+});
+
+it('uses the canvas override to mount its surface and empty notice without ports', () => {
+  const registerCanvas = vi.fn();
+  render(<Canvas params={{}} useCanvasHook={() => ({ denied: false, styles: '', registerCanvas })} />);
+  expect(screen.getByText('Nothing drawn yet — ask the assistant.')).toBeVisible();
+  expect(registerCanvas).toHaveBeenCalledWith(document.querySelector('[data-jini-part="playground.canvas"]'));
 });

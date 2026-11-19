@@ -3,12 +3,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { loadPlaywright, launchChromium } from "./lib/playwright-loader.mjs";
 import { HELP_OPTIONS, num, parseCliArgs, text } from "./lib/cli-args.mjs";
-import { runCli, runIfMain } from "./lib/main-guard.mjs";
+import { createCliStreams, runCli, runIfMain } from "./lib/main-guard.mjs";
 
 // fs / Playwright / output are ports with real defaults wired here at the CLI edge.
-const DEFAULT_DEPS = { fs, loadPlaywright, launchChromium, log: console.log, error: console.error };
+const DEFAULT_DEPS = { fs, loadPlaywright, launchChromium, ...createCliStreams({}) };
 
-export function usage({}, { log = console.log } = {}) {
+export function usage({}, { log = createCliStreams({}).log } = {}) {
   log(`Usage:
   node scripts/visual-diff.mjs --original <png> --clone <png> --out visual-diff.json [--diff visual-diff.png] [--threshold 0.08]
 
@@ -187,4 +187,4 @@ export async function main({ argv }, deps = {}) {
   }, report: io.error });
 }
 
-await runIfMain({ moduleUrl: import.meta.url, main });
+await runIfMain({ moduleUrl: import.meta.url, main }, { stdout: process.stdout, stderr: process.stderr });

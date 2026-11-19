@@ -1,6 +1,7 @@
 import type { PluginCredentialCard } from "@jini-ai/core/contracts/credentials";
 import type { ExternalMcpConnectStart } from "@jini-ai/core/contracts/hosted-mcp";
 import { adaptLegacyAuthorize } from "@jini-ai/core";
+import { type Logger } from "@jini-ai/core/primitives";
 import { type AgentToolSideEffect, type DerivedRiskByToolId, type AgentToolDefinition, type AccessApprovalDescription, type ToolHandler } from "@jini-ai/core";
 import { requireToolPermission, type LegacyToolAuthorizeFn as AuthorizeFn } from "@jini-ai/core";
 import { ToolInputError, redactSecrets, type ToolExecutionOptions, type ToolExecutionContext } from "@jini-ai/core";
@@ -245,6 +246,7 @@ export interface AgentPluginConnectHost<Surfaces> {
  * and `resolveInstalledPlugin` are your fresh activation owner and installed-declaration read (no
  * filesystem default here). */
 export interface AgentPluginConnectDeps<Surfaces, Connection> {
+  readonly report?: Pick<Logger, 'warn'>;
   readonly ownerPrincipalId?: Promise<string>;
   /** Fresh activation owner; injected so OFF-plugin refusal needs no filesystem in unit tests. */
   readonly isPluginEnabled: (pluginId: string) => Promise<boolean>;
@@ -401,7 +403,7 @@ async function connectWithoutOAuth(
   if (hasReusablePluginCredential({ row, pluginId, url: config.url }, routeDeps.mcp)) {
     const approved = await approveSignedInAccess({ routeDeps, surfaces, ctx, pluginId, servers: { [serverKey]: config } }, optional);
     if (!approved.approved) return approved.result;
-    await provisionAgentPluginMcpServers({ deps: routeDeps.mcp, workspaceId: routeDeps.workspaceId, pluginId, servers: { [serverKey]: config }, principalId: ctx.principal.id, ...routeDeps.host.federation });
+    await provisionAgentPluginMcpServers({ deps: routeDeps.mcp, workspaceId: routeDeps.workspaceId, pluginId, servers: { [serverKey]: config }, principalId: ctx.principal.id, ...routeDeps.host.federation }, { ...(routeDeps.report ? { report: routeDeps.report } : {}) });
     return { status: 'connected' };
   }
   if (!saveToken) throw new ToolInputError({ message: routeDeps.host.messages.noTokenCardAdapter() });
@@ -471,6 +473,7 @@ export async function runAgentPluginConnect<Surfaces, Connection>(
 
   const provisioned = await provisionAgentPluginMcpServers(
     { deps: routeDeps.mcp, workspaceId: routeDeps.workspaceId, pluginId, servers: plugin.servers, principalId: ctx.principal.id, ...routeDeps.host.federation },
+    { ...(routeDeps.report ? { report: routeDeps.report } : {}) },
   );
 
   // A colliding row can survive a refused provisioning attempt; never start sign-in on it.

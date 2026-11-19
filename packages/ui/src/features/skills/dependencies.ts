@@ -24,14 +24,6 @@ const DEFAULT_FAKE_SKILLS: readonly SkillDetail[] = [
   },
 ];
 
-let nextFakeId = 1;
-
-function takeFakeSkillId(): string {
-  const id = `fake-skill-${nextFakeId}`;
-  nextFakeId += 1;
-  return id;
-}
-
 function toSummary(detail: SkillDetail): SkillSummary {
   return omitKeys(detail, ['body']);
 }
@@ -44,6 +36,12 @@ function toSummary(detail: SkillDetail): SkillSummary {
  */
 export function createFakeSkillsPort(options: FakeSkillsPortOptions = {}): SkillsPort {
   const skills = new Map<string, SkillDetail>((options.skills ?? DEFAULT_FAKE_SKILLS).map((skill) => [skill.id, { ...skill }]));
+  let nextFakeId = 1;
+  function takeFakeSkillId(): string {
+    let id: string;
+    do { id = `fake-skill-${nextFakeId++}`; } while (skills.has(id));
+    return id;
+  }
   const files = new Map<string, readonly SkillFileEntry[]>(Object.entries(options.files ?? {}));
   const delay = fakeLatencyDelay({}, { latencyMs: options.latencyMs });
 

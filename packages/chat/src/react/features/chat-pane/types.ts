@@ -1,3 +1,17 @@
+import type { Logger } from '@jini-ai/core/primitives';
+import type { useAgentHandle } from '@jini-ai/ui';
+import type { useT } from '../../hooks/context.js';
+import type { useComposerHandlePublisher } from './components/ChatPane.js';
+import type { useChatPaneTranscriptProps } from './components/ChatPaneLayout.js';
+import type { useChatPaneSurface } from './hooks/useChatPaneSurface.hooks.js';
+import type { useChatPaneComposerPlaceholder } from './hooks/useChatPaneComposerPlaceholder.hooks.js';
+import type { useChatPaneRuntimeInventory } from './hooks/useChatPaneRuntimeInventory.hooks.js';
+import type { useChatPane } from './hooks/useChatPane.hooks.js';
+import type { useChatPaneAgentControl } from './hooks/useChatPaneAgentControl.hooks.js';
+import type { useChatPaneFileDrop } from './hooks/useChatPaneFileDrop.hooks.js';
+import type { useChatPaneControlsHeight } from './hooks/useChatPaneControlsHeight.hooks.js';
+import type { useChatPaneSuggestion } from './hooks/useChatPaneSuggestion.hooks.js';
+import type { useChatPaneNewTabLinks } from './hooks/useChatPaneNewTabLinks.hooks.js';
 import type { SurfaceEmission } from '@jini-ai/core';
 import type { UserTextRedactionOptions } from '../../../core/user-text-redaction.js';
 import type { NativeToolPolicyInput } from '@jini-ai/core/contracts/agents';
@@ -208,6 +222,21 @@ export type MidRunMessageDelivery = 'delivered' | 'unsupported' | 'not-running' 
 export type DeliverMidRunMessage = (input: { runId: string; text: string; attachments?: readonly ChatAttachment[] }) => Promise<MidRunMessageDelivery>;
 
 export interface ChatPaneProps extends UserTextRedactionOptions {
+  report?: Pick<Logger, 'error'> | undefined;
+  useAgentHandleHook?: typeof useAgentHandle;
+  useTHook?: typeof useT;
+  useChatPaneSurfaceHook?: typeof useChatPaneSurface;
+  useChatPaneComposerPlaceholderHook?: typeof useChatPaneComposerPlaceholder;
+  useChatPaneRuntimeInventoryHook?: typeof useChatPaneRuntimeInventory;
+  useChatPaneHook?: typeof useChatPane;
+  useChatPaneAgentControlHook?: typeof useChatPaneAgentControl;
+  useChatPaneFileDropHook?: typeof useChatPaneFileDrop;
+  useChatPaneControlsHeightHook?: typeof useChatPaneControlsHeight;
+  useChatPaneSuggestionHook?: typeof useChatPaneSuggestion;
+  useChatPaneNewTabLinksHook?: typeof useChatPaneNewTabLinks;
+  useComposerHandlePublisherHook?: typeof useComposerHandlePublisher;
+  useChatPaneTranscriptPropsHook?: typeof useChatPaneTranscriptProps;
+
   /** Automation base for the package-owned composer and runtime picker; false opts out. */
   agentHandle?: string | false | undefined;
   transport: ChatTransport;

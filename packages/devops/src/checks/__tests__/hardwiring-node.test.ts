@@ -88,8 +88,8 @@ describe('review lg: shared Node adapters', () => {
       const inspector = createHardwiringInspector({ compiler: ts });
       const current = inspector.inspect({ file: 'owner.ts', mode: 'jini', source: 'let cache = 0;' });
       const lines: string[] = [];
-      const logger = { log: (value: string) => { lines.push(value); }, error: (value: string) => { lines.push(value); } };
-      const required = { debtPath, collect: () => current, baselineComment: 'fixture', logger };
+      const report = { info: ({ message }: { message: string }) => { lines.push(message); }, error: ({ message }: { message: string }) => { lines.push(message); } };
+      const required = { debtPath, collect: () => current, baselineComment: 'fixture', report };
       expect(await runHardwiring(required, { writeBaseline: true })).toEqual([]);
       expect(JSON.parse(readFileSync(debtPath, 'utf8'))).toEqual({ _comment: 'fixture', violations: current });
       expect(await runHardwiring({ ...required, collect: () => [...current, ...current] })).toEqual(current);

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "../../__tests__/fetch-query-support.js";
+import { act, fireEvent, render, screen, within } from "../../__tests__/fetch-query-support.js";
 import { describe, expect, it, vi } from "vitest";
 import { createFakeUsersPort } from "../../testing.js";
 import { Users, type UsersHookDependencies, type UsersProps } from "../Users.js";
@@ -316,4 +316,20 @@ describe("UserRow", () => {
     expect(screen.getByRole("menuitem", { name: "Disable" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Reset password" })).toBeInTheDocument();
   });
+});
+
+
+it('gives an injected live password mismatch precedence over a server error and blocks reset submission', async () => {
+  const confirmResetPassword = vi.fn(async () => {});
+  renderUsers(fakeController({ resetPasswordFor: alice, newPassword: 'new-value', passwordError: 'Old server rejection', confirmResetPassword }), {
+    useFields: () => ({ confirmPassword: 'different-value', setConfirmPassword() {}, mismatch: true,
+      showNewPassword: true, toggleShowNewPassword() {}, showConfirmPassword: false, toggleShowConfirmPassword() {},
+    }),
+  });
+  const dialog = screen.getByRole('heading', { name: 'Reset password?', hidden: true }).closest('dialog')!;
+  expect(within(dialog).getByRole('alert', { hidden: true })).toHaveTextContent('Passwords do not match.');
+  expect(within(dialog).queryByText('Old server rejection')).toBeNull();
+  expect(within(dialog).getByLabelText('New password')).toHaveAttribute('type', 'text');
+  await act(async () => { fireEvent.click(within(dialog).getByRole('button', { name: 'Reset password', hidden: true })); });
+  expect(confirmResetPassword).not.toHaveBeenCalled();
 });

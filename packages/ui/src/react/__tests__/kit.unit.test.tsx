@@ -34,3 +34,16 @@ describe('UiKitProvider / facades', () => {
     expect(ref.current).toBe(screen.getByLabelText('API key'));
   });
 });
+
+
+it('uses the injected input kit and forwards the same ref without leaking the hook', () => {
+  const seen = vi.fn();
+  const kit = { ...fakeUiKit, components: { SecretInput: (props: import('../kit.js').KitSecretInputProps) => {
+    seen(props);
+    return <input ref={props.ref} aria-label={props.label} />;
+  } } };
+  const ref = createRef<HTMLInputElement>();
+  render(<SecretInput label="Injected key" ref={ref} useUiKitHook={() => kit} />);
+  expect(ref.current).toBe(screen.getByLabelText('Injected key'));
+  expect(seen.mock.calls[0]![0]).not.toHaveProperty('useUiKitHook');
+});

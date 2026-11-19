@@ -1,3 +1,4 @@
+import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
 import type { ChatMessage } from "../messages.js";
 import type { RunHandlers } from "../transport.js";
 import { translateRunFrame } from "../run-events/entry.js";
@@ -19,7 +20,7 @@ type CheckpointHandlers = RunHandlers & { onCheckpoint?: (message: ChatMessage) 
  * attempt after recovery; neither a browser 404 nor a closed stream may fail the logical run.
  * An explicit "gone" result ends observation and releases the caller's streaming state. */
 export function followDurableRun(
-  { runId: initialRunId, handlers, signal, binding, ports, notices, bindings }: { runId: string; handlers: CheckpointHandlers; signal?: AbortSignal; binding?: DurableRunBinding; ports: DurableSubscriptionPorts; notices: RunNotices; bindings: Map<string, DurableRunBinding> }, { logger = console }: { logger?: Pick<Console, "info"> } = {},
+  { runId: initialRunId, handlers, signal, binding, ports, notices, bindings }: { runId: string; handlers: CheckpointHandlers; signal?: AbortSignal; binding?: DurableRunBinding; ports: DurableSubscriptionPorts; notices: RunNotices; bindings: Map<string, DurableRunBinding> }, { report = createConsoleLogger({ prefix: '' }) }: { report?: Pick<Logger, "info"> } = {},
 ): () => void {
   let streamEpoch = 0;
   let runId = initialRunId;
@@ -55,19 +56,19 @@ export function followDurableRun(
     stopStream?.();
     stopStream = ports.stream({ runId, cursor,
       frame: (...args) => { if (epoch === streamEpoch) frame(...args); },
-      dropped: reason => { if (epoch === streamEpoch) disconnected(reason); },
+      dropped: () => { if (epoch === streamEpoch) disconnected(); },
     }, {});
   }
 
   /** One timer owns reconnects, including faults during a checkpoint read. No cursor reset. */
-  function disconnected(reason = "stream-error") {
+  function disconnected() {
     if (stopped || dropped) return;
     dropped = true;
     streamEpoch += 1;
     recoveryPending = true;
     reconnectDelayMs = Math.min(30_000, Math.max(1_000, reconnectDelayMs * 2));
     // Metadata only: neither frame contents nor saved user messages belong in transport logs.
-    logger.info("[durable-subscription] " + JSON.stringify({ runId, reason, cursor, retryDelayMs: reconnectDelayMs }));
+    report.info({ message: "[durable-subscription] Stream disconnected; retrying." }, { meta: { runId, cursor, retryDelayMs: reconnectDelayMs } });
     stopStream?.();
     if (!reading) scheduleRead();
   }

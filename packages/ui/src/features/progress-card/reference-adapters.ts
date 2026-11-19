@@ -71,7 +71,7 @@ export interface TodoItemLike {
   status: TodoStatusLike;
 }
 
-const TODO_WRITE_TOOL_NAMES = new Set(['TodoWrite', 'todowrite', 'todo_write', 'update_plan']);
+const TODO_WRITE_TOOL_NAMES: ReadonlySet<string> = new Set(['TodoWrite', 'todowrite', 'todo_write', 'update_plan']);
 
 export function isTodoWriteToolName({ name }: { name: string }, _optional: Record<string, never> = {}): boolean {
   return TODO_WRITE_TOOL_NAMES.has(name);
@@ -147,10 +147,10 @@ export interface FileOpEntryLike {
   status: FileOpStatusLike;
 }
 
-const READ_TOOL_NAMES = new Set(['Read', 'read_file']);
-const WRITE_TOOL_NAMES = new Set(['Write', 'create_file']);
-const EDIT_TOOL_NAMES = new Set(['Edit', 'str_replace_edit', 'MultiEdit', 'multi_edit']);
-const DELETE_TOOL_NAMES = new Set(['Delete', 'delete', 'delete_file', 'remove_file', 'rm_file', 'unlink_file']);
+const READ_TOOL_NAMES: ReadonlySet<string> = new Set(['Read', 'read_file']);
+const WRITE_TOOL_NAMES: ReadonlySet<string> = new Set(['Write', 'create_file']);
+const EDIT_TOOL_NAMES: ReadonlySet<string> = new Set(['Edit', 'str_replace_edit', 'MultiEdit', 'multi_edit']);
+const DELETE_TOOL_NAMES: ReadonlySet<string> = new Set(['Delete', 'delete', 'delete_file', 'remove_file', 'rm_file', 'unlink_file']);
 
 function classifyFileOp(name: string): FileOpKindLike | null {
   if (READ_TOOL_NAMES.has(name)) return 'read';

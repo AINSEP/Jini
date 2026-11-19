@@ -57,8 +57,8 @@ export interface SandboxRuntimeConfig {
   roots: SandboxRuntimeRoots;
 }
 
-const TRUTHY_VALUES = new Set(['1', 'true', 'yes', 'on']);
-const FALSY_VALUES = new Set(['0', 'false', 'no', 'off', '']);
+const TRUTHY_VALUES: ReadonlySet<string> = new Set(['1', 'true', 'yes', 'on']);
+const FALSY_VALUES: ReadonlySet<string> = new Set(['0', 'false', 'no', 'off', '']);
 
 /**
  * Reads {@link SandboxEnvConfig.modeEnvVar} and interprets it as a boolean

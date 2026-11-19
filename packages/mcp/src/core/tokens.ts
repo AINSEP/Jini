@@ -1,5 +1,4 @@
-import { describeErrorForLog } from '@jini-ai/core';
-import type { Clock } from "@jini-ai/core/primitives";
+import { createConsoleLogger, type Clock, type Logger } from "@jini-ai/core/primitives";
 /**
  * @module @jini-ai/mcp/core/tokens
  * Persistent, 0600-guarded OAuth-token store for remote MCP servers, keyed by
@@ -144,7 +143,7 @@ function sanitizeToken(raw: unknown, clock: Clock): StoredMcpToken | null {
  * @throws On unexpected read errors or a failed backup; the damaged file is left untouched.
  * @complexity O(n) time and space in the token file length, including a backup write on corruption.
  */
-export async function readTokensFile({ dataDir, clock, files }: { dataDir: string; clock: Clock; files: McpConfigFilesPort }, _optional: Record<string, never> = {}): Promise<McpTokensFile> {
+export async function readTokensFile({ dataDir, clock, files }: { dataDir: string; clock: Clock; files: McpConfigFilesPort }, { report = createConsoleLogger({ prefix: '[mcp-tokens]' }) }: { report?: Pick<Logger, 'error'> } = {}): Promise<McpTokensFile> {
   let raw: string | undefined;
   try {
     raw = await files.readText({ filePath: tokensFile(dataDir) });
@@ -160,7 +159,7 @@ export async function readTokensFile({ dataDir, clock, files }: { dataDir: strin
         filePath: `${tokensFile(dataDir)}.corrupt-${digest}`,
         contents: raw,
       });
-      console.error('[mcp-tokens] Corrupted JSON, returning empty:', describeErrorForLog({ err }));
+      report.error({ message: `The MCP token file ${tokensFile(dataDir)} is not valid JSON; kept a copy beside it and reading it as an empty store.` }, { error: err });
       return { ...EMPTY, servers: { ...EMPTY.servers } };
     }
     throw err;

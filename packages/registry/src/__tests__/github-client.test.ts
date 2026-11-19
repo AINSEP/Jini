@@ -859,3 +859,19 @@ describe('GithubApiRegistryClient.createPublishPullRequest (pinned request/respo
     }
   });
 });
+
+
+it('uses the enterprise REST base and pinned API version with request budgets intact', async () => {
+  const requests: HttpRequest[] = [];
+  const transport: HttpClientPort = { send: async ({ request }) => {
+    requests.push(request);
+    return { status: 200, headers: {}, bodyText: JSON.stringify({ type: 'file', encoding: 'base64', content: base64('{"entries":[]}') }) };
+  } };
+  const client = new GithubApiRegistryClient({ http: transport }, { apiUrl: 'https://github.enterprise.test/api/v3', token: 'enterprise' });
+  expect(await client.readManifest({ owner: 'acme', repo: 'registry', ref: 'main', path: 'index.json' })).toEqual({ entries: [] });
+  expect(requests).toEqual([{
+    url: 'https://github.enterprise.test/api/v3/repos/acme/registry/contents/index.json?ref=main', method: 'GET',
+    headers: { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2026-03-10', Authorization: 'Bearer enterprise' },
+    idleTimeoutMs: FETCH_TIMEOUT_MS.QUICK, totalDeadlineMs: FETCH_TIMEOUT_MS.QUICK,
+  }]);
+});

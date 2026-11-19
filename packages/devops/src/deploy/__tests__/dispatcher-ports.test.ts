@@ -1,4 +1,4 @@
-import { MockAgent } from 'undici';
+import { Agent, MockAgent } from 'undici';
 import { expect, it, vi } from 'vitest';
 import { createNodeReachabilityPorts } from '../node.js';
 import { platformBindings } from './platform-bindings.js';
@@ -27,4 +27,21 @@ it('keeps default dispatcher pools per host rather than process-wide', async () 
     expect(captured[0]).toBe(captured[1]);
     expect(captured[0]).not.toBe(captured[2]);
   } finally { await a.close(); await b.close(); }
+});
+
+
+it('closes its default dispatcher after use', async () => {
+  let owned: Agent | undefined;
+  const ports = createNodeReachabilityPorts(platformBindings, { fetch: async (_url, init) => {
+    const dispatcher: unknown = Reflect.get(init!, 'dispatcher');
+    if (!(dispatcher instanceof Agent)) throw new Error('expected owned Agent');
+    owned = dispatcher;
+    return new Response();
+  } });
+  await ports.fetch({ url: 'https://example.test' });
+  const close = vi.spyOn(owned!, 'close');
+  try {
+    await ports.close();
+    expect(close).toHaveBeenCalledOnce();
+  } finally { close.mockRestore(); await owned!.close(); }
 });

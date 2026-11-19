@@ -226,7 +226,7 @@ export async function executeRestore(
       ok: false,
       error: {
         code: "RESTORE_OPERATION_IN_FLIGHT",
-        message: acquireResult.error.message ?? `an operation is already in flight for site '${input.siteId}'`,
+        message: `an operation is already in flight for site '${input.siteId}'`,
       },
     };
   }

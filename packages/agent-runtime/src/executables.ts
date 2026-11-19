@@ -57,7 +57,7 @@ import { reasonixBinEnvKey } from './defs/reasonix/executable.js';
 import { traeCliBinEnvKey } from './defs/trae-cli/executable.js';
 import { vibeBinEnvKey } from './defs/vibe/executable.js';
 
-const AGENT_BIN_ENV_KEYS = new Map<string, string>([
+const AGENT_BIN_ENV_KEYS: ReadonlyMap<string, string> = new Map<string, string>([
   ['amr', amrBinEnvKey],
   ['aider', aiderBinEnvKey],
   ['auggie', auggieBinEnvKey],

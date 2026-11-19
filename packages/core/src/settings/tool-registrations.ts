@@ -135,7 +135,7 @@ function isPreferenceShapeRejection(error: unknown): boolean {
  * `sideEffects` declaration — and note that the two excluded bulk/schema writes appear NOWHERE here, which is
  * itself the strongest of the guards: an unclassified id cannot be wired at all.
  */
-export const settingsDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const settingsDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> write-service.set(): one value override and one revision, with optional human confirmation.
   ["settings_set_value", "mutates-durable-state"],
   // -> write-service.clear(): one override marked cleared and one revision; no definition/delete.
@@ -154,7 +154,7 @@ export const settingsDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToo
 ]);
 
 /** Settings catalog entries this pass does not wire, and why — see `agent-tools.ts`'s own per-entry comments for the full reasoning. */
-const UNWIRED_SETTINGS_TOOL_IDS = new Set([
+const UNWIRED_SETTINGS_TOOL_IDS: ReadonlySet<string> = new Set([
   // EXCLUDED BY DESIGN: bulk variant — clears every value in an operator-named namespace at a
   // scope in one call, irreversible.
   "settings_reset",

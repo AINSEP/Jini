@@ -1,3 +1,4 @@
+import type { Logger } from '@jini-ai/core/primitives';
 import { useRef } from 'react';
 import { useI18n } from '../../../i18n/index.js';
 import { Toast } from '../../../../react/components/Toast.js';
@@ -20,6 +21,7 @@ import { SketchMainMenu } from './SketchMainMenu.js';
 import { SketchSaveStateBadge, type SketchSaveStateBadgeProps } from './SketchSaveStateBadge.js';
 
 export interface SketchEditorProps {
+  report?: Pick<Logger, 'warn'> | undefined;
   scene: SketchScene;
   onSceneChange: (scene: SketchScene, options?: SketchSceneChangeOptions) => void;
   onClear?: () => void;
@@ -196,7 +198,7 @@ export function SketchEditor({ useI18nHook = useI18n, useSketchSceneHook = useSk
     onOpenExportedImage: props.onOpenExportedImage,
     engine,
     t,
-    sourceFileExtension: props.sourceFileExtension,
+    sourceFileExtension: props.sourceFileExtension, report: props.report,
   });
 
   useSketchDomEnhancementsHook({

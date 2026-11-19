@@ -15,13 +15,13 @@
 
 import { loadPlaywright, launchChromium } from "./lib/playwright-loader.mjs";
 import { HELP_OPTIONS, int, parseCliArgs, text } from "./lib/cli-args.mjs";
-import { runIfMain } from "./lib/main-guard.mjs";
+import { createCliStreams, runIfMain } from "./lib/main-guard.mjs";
 import { assetId, errorClassLabel, hostLabel } from "./lib/diagnostic-labels.mjs";
 import fs from "node:fs";
 import path from "node:path";
 
 // 硬依赖(fs / Playwright / 输出)作为端口注入，默认值在 CLI 边界接好；测试传假实现。
-const DEFAULT_DEPS = { fs, loadPlaywright, launchChromium, log: console.log, warn: console.warn };
+const DEFAULT_DEPS = { fs, loadPlaywright, launchChromium, ...createCliStreams({}) };
 
 // 未知参数被静默忽略(与原脚本行为一致)，所以 strict: false。
 const ARG_SPEC = {
@@ -40,7 +40,7 @@ export function parseArgs({ argv }, _optional = {}) {
   return parseCliArgs({ argv, ...ARG_SPEC }, { strict: false });
 }
 
-export function usage({}, { log = console.log } = {}) {
+export function usage({}, { log = createCliStreams({}).log } = {}) {
   log(`mirror-site.mjs — 静态构建站全量资产镜像(1:1 忠实复刻)
 
   node scripts/mirror-site.mjs --url <URL> --out <dir> [--scroll-step 700] [--settle 2500] [--max-ms 90000]
@@ -172,4 +172,4 @@ export async function main({ argv }, deps = {}) {
   return 0;
 }
 
-await runIfMain({ moduleUrl: import.meta.url, main });
+await runIfMain({ moduleUrl: import.meta.url, main }, { stdout: process.stdout, stderr: process.stderr });

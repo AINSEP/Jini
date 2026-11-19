@@ -1,3 +1,4 @@
+import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
 import type { Component, CssRule, Editor } from 'grapesjs';
 import { prettifyCss } from './css.js';
 import { indexElementSourceRanges, pathKey, spliceElementInner, type ElementPath } from './source-splice.js';
@@ -18,9 +19,10 @@ export interface DirtyTextEdit {
 }
 
 /** Dev-only, so a fallback is never silent — see `serializeWithSplice` for each trigger this names. */
-function warnFallback(reason: string): void {
+function warnFallback({ reason }: { reason: string }, { report }: { report?: Pick<Logger, 'warn'> | undefined } = {}): void {
   if (process.env.NODE_ENV !== 'production') {
-    console.warn(`[useInteractiveHtmlEditor] falling back to full re-serialization: ${reason}`);
+    const logger = report ?? createConsoleLogger({ prefix: '[useInteractiveHtmlEditor]' });
+    logger.warn({ message: `falling back to full re-serialization: ${reason}` });
   }
 }
 
@@ -92,14 +94,14 @@ function serializeWithSplice(
   original: string,
   dirty: Map<string, DirtyTextEdit>,
   structuralChange: string | undefined,
-  sourcePlan: PreparedEditorSource,
+  sourcePlan: PreparedEditorSource, report: Pick<Logger, 'warn'> | undefined,
 ): string {
   if (structuralChange) {
-    warnFallback(`a block was added, moved, copied or deleted since mount (first: ${structuralChange})`);
+    warnFallback({ reason: `a block was added, moved, copied or deleted since mount (first: ${structuralChange})` }, { report });
     return serializeCleaned(editor);
   }
   if (dirty.size === 0) {
-    warnFallback('no text edit was recorded for this change');
+    warnFallback({ reason: 'no text edit was recorded for this change' }, { report });
     return serializeCleaned(editor);
   }
 
@@ -114,12 +116,12 @@ function serializeWithSplice(
   for (const edit of ordered) {
     const range = originalIndex.get(pathKey({ path: edit.path }));
     if (range && sourcePlan.instances.some(raw => range.start < raw.outerEnd && range.end > raw.outerStart)) {
-      warnFallback('text edit overlaps a protected source region');
+      warnFallback({ reason: 'text edit overlaps a protected source region' }, { report });
       return serializeCleaned(editor);
     }
     const spliced = spliceElementInner({ html: result, path: edit.path, expectedTagName: edit.tagName, newInner: edit.component.getInnerHTML() });
     if (spliced === null) {
-      warnFallback(`element at path "${pathKey({ path: edit.path })}" could not be spliced (removed, or its tag drifted)`);
+      warnFallback({ reason: `element at path "${pathKey({ path: edit.path })}" could not be spliced (removed, or its tag drifted)` }, { report });
       return serializeCleaned(editor);
     }
     result = spliced;
@@ -130,10 +132,10 @@ function serializeWithSplice(
 /** Existing text-splice/full-export owner, also usable without a rendered canvas in contract tests. */
 export function serializeEditorSource(
   { editor, html, edits, sourcePlan }: { editor: Editor; html: string; edits: Map<string, DirtyTextEdit>; sourcePlan: PreparedEditorSource },
-  { structuralChange }: { structuralChange?: string | undefined } = {},
+  { structuralChange, report }: { structuralChange?: string | undefined; report?: Pick<Logger, 'warn'> | undefined } = {},
 ): string {
   assertProtectedSourceMetadata({ editor }, {});
-  const result = serializeWithSplice(editor, html, edits, structuralChange, sourcePlan);
+  const result = serializeWithSplice(editor, html, edits, structuralChange, sourcePlan, report);
   if (result.includes(sourcePlan.markerAttribute)) throw new EditorSourceError();
   return result;
 }

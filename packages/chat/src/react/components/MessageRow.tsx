@@ -1,3 +1,4 @@
+import type { Logger } from '@jini-ai/core/primitives';
 import { FolderChips } from './FolderChips.js';
 import { projectAcceptedInputEvents } from '../../core/accepted-input.js';
 import { MID_RUN_USER_MESSAGE_EXT_EVENT_NAME } from './MidRunUserMessage.js';
@@ -73,6 +74,7 @@ import { applyToolCallDisplay, toolRowsForDisplay, type ToolCallDisplay } from '
 import { useAssistantMessageRenderers } from './MessageRow.hooks.js';
 
 export interface MessageRowProps {
+  report?: Pick<Logger, 'error'> | undefined;
   message: ChatMessage;
   /** Conversation hosts show the first access status only; standalone rows retain it by default. */
   showAccessNotice?: boolean;
@@ -367,7 +369,7 @@ function AssistantMessageRow({
   questionFormSubmittedAnswers,
   onQuestionFormSubmit,
   projectFileNames,
-  onRequestOpenFile, hooks = defaultAssistantMessageRowHooks,
+  onRequestOpenFile, hooks = defaultAssistantMessageRowHooks, report,
 }: ResolvedMessageRowProps & { hooks?: AssistantMessageRowHooks | undefined }) {
   const registry = hooks.useExtEventRendererRegistry();
   const messageUsage = hooks.useMessageUsage({ message, ...(usageSummary === undefined ? {} : { summary: usageSummary }) });
@@ -399,7 +401,7 @@ function AssistantMessageRow({
     questionFormSubmittedAnswers, onQuestionFormSubmit, usage, showUsageLine, showUsageTotal,
     lastFinishedReply, extGroups, footerUsage, terminalNotice, pending, runSending, sendingLabel,
     visibleContent, flatTools, flatExtGroups, UsageSummary, ThinkingBlock, AssistantMessageFooter,
-  });
+  }, { report });
   // The lossless fallback keeps the host's text intact; user receipts still own separate rows,
   // in their original receipt order, outside the assistant's actions and usage footer.
   // Keep the same child-array nesting as the interleaved path so React preserves the footer.

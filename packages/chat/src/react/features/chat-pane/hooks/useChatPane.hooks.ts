@@ -42,14 +42,14 @@ import {
 import { useComposer, type UseComposerResult } from '../../../hooks/useComposer.js';
 import {
   useConversation,
-  type UseConversationResult,
+  type UseConversationResult, type UseConversationOptions,
 } from '../../../hooks/useConversation.js';
 import {
   useChatPaneWorkingDirectory,
   type UseChatPaneWorkingDirectoryResult,
 } from './useChatPaneWorkingDirectory.hooks.js';
 
-export interface UseChatPaneOptions extends UserTextRedactionOptions {
+export interface UseChatPaneOptions extends UserTextRedactionOptions, Pick<UseConversationOptions, 'report'> {
   transport: ChatTransport;
   agents: readonly ChatPaneAgent[];
   initialMessages?: ChatMessage[];
@@ -401,7 +401,7 @@ async function uploadAttachmentBatch(
   }
 }
 
-export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
+export function useChatPane(options: UseChatPaneOptions, { useConversationHook = useConversation }: { useConversationHook?: typeof useConversation } = {}): UseChatPaneResult {
   const guard = useUserTextGuard(options);
   const [activeUploadCount, setActiveUploadCount] = useState(0);
   const [attachmentError, setAttachmentError] = useState<Error | null>(null);
@@ -460,8 +460,8 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     reasoning: resolvedSelection.reasoning,
   } }), [resolvedSelection.agentId, resolvedSelection.model, resolvedSelection.reasoning]);
   const selectedAgent = options.agents.find((agent) => agent.id === selection.agentId);
-  const conversation = useConversation(definedProps({ source: {
-    transport: options.transport,
+  const conversation = useConversationHook(definedProps({ source: {
+    transport: options.transport, report: options.report,
     redactUserText: options.redactUserText,
     onSecretRedacted: guard.notifyRedaction,
     initialMessages: options.initialMessages,

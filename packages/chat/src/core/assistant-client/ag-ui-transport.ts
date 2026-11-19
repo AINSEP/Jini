@@ -1,3 +1,4 @@
+import { describeErrorForLog } from '@jini-ai/core/model-facing-tool-errors';
 /**
  * @module assistant-transport-ag-ui
  * ADR-059: a host-injected official HttpAgent owns HTTP, SSE framing and event validation for a
@@ -158,7 +159,7 @@ function subscribeRun(
       },
       error: (error: unknown) => {
         forgetRun({ turn });
-        const err = error instanceof Error ? error : new Error(String(error));
+        const err = new Error(`Chat request failed. ${describeErrorForLog({ err: error })}`);
         if (!startSettled) {
           startSettled = true;
           reject(err);

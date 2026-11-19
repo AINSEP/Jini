@@ -144,6 +144,6 @@ function deliverDiagnostics({ diagnostics, record }: { diagnostics: LogDiagnosti
   } catch (sinkError) {
     // The host sink failed: the console line above already recorded the call; record the sink's
     // own failure (class only) so it is not lost, and never throw from a log call.
-    console.error(`${record.message} (diagnostics sink failed)`, describeErrorForLog({ err: sinkError }));
+    console.error('Diagnostics sink failed.', describeErrorForLog({ err: sinkError }));
   }
 }

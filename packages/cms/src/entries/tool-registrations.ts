@@ -53,7 +53,7 @@ export interface EntriesToolDeps {
  * calls. See `DerivedRiskByToolId` in the kit for why it is independent of the catalog's own
  * `sideEffects` declaration.
  */
-export const entriesDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const entriesDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> listEntries (list.ts): entryRepo.listByWorkspace only, no write.
   ["collections_entry_list", "none"],
   // -> createEntry (write-service.ts): entryRepo.save + appendRevision in one tx.

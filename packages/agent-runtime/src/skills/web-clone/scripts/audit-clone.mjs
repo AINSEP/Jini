@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { flag, list, parseCliArgs, rejectUnknown, runIfMain, text as textValue } from "./lib/script-cli.mjs";
 import { errorClassLabel } from "./lib/diagnostic-labels.mjs";
-import { CliUsageError } from "./lib/main-guard.mjs";
+import { createCliStreams, CliUsageError } from "./lib/main-guard.mjs";
 
 export function usage({ log }, _optional = {}) {
   log(`Usage:
@@ -42,7 +42,7 @@ export function parseArgs({ argv }, _optional = {}) {
 
 // ---- Fidelity gates (fonts / images / palette vs. the original recon) ------
 
-const GENERIC_FONT_FAMILIES = new Set([
+const GENERIC_FONT_FAMILIES = Object.freeze([
   "serif", "sans-serif", "monospace", "cursive", "fantasy", "system-ui",
   "-apple-system", "blinkmacsystemfont", "segoe ui", "roboto", "helvetica",
   "helvetica neue", "arial", "pingfang sc", "microsoft yahei", "ui-sans-serif",
@@ -58,7 +58,7 @@ function declaredFamilies(signals) {
 function usedCustomFamilies(signals) {
   return (signals.fonts || [])
     .map((family) => String(family).replace(/['"]/g, "").trim())
-    .filter((clean) => clean && !GENERIC_FONT_FAMILIES.has(clean.toLowerCase()));
+    .filter((clean) => clean && !GENERIC_FONT_FAMILIES.includes(clean.toLowerCase()));
 }
 
 export function customFontFamilies({ recon }, _optional = {}) {
@@ -139,19 +139,19 @@ export function fidelityFindings({ recon, project, files }, { fsImpl = fs } = {}
     .map(([label, detail]) => ({ type: "fidelity", label, file: project, line: 0, match: detail }));
 }
 
-const includeExt = new Set([".html", ".css", ".js", ".jsx", ".ts", ".tsx", ".json", ".md", ".txt", ".svg"]);
-const skipDirs = new Set([".git", "node_modules", "dist", "build", ".next", ".nuxt", "coverage", "RECON"]);
-const skipFiles = new Set(["NOTES.md", "TEARDOWN.md", "CLONE_REPORT.md", "CLONE_AUDIT.md", "REPLACE_GUIDE.md"]);
+const includeExt = Object.freeze([".html", ".css", ".js", ".jsx", ".ts", ".tsx", ".json", ".md", ".txt", ".svg"]);
+const skipDirs = Object.freeze([".git", "node_modules", "dist", "build", ".next", ".nuxt", "coverage", "RECON"]);
+const skipFiles = Object.freeze(["NOTES.md", "TEARDOWN.md", "CLONE_REPORT.md", "CLONE_AUDIT.md", "REPLACE_GUIDE.md"]);
 
 // A scannable text file: an included extension, and not one of the notes files.
 function isTextSource(name) {
-  return !skipFiles.has(name) && includeExt.has(path.extname(name).toLowerCase());
+  return !skipFiles.includes(name) && includeExt.includes(path.extname(name).toLowerCase());
 }
 
 /** Text sources to scan: skips build/vendor dirs, screenshots/, notes files and binaries. */
 export function walk({ dir }, { fsImpl = fs, files = [] } = {}) {
   for (const entry of fsImpl.readdirSync(dir, { withFileTypes: true })) {
-    if (skipDirs.has(entry.name)) continue;
+    if (skipDirs.includes(entry.name)) continue;
     const full = path.join(dir, entry.name);
     const isDirectory = entry.isDirectory();
     if (isDirectory && entry.name !== "screenshots") walk({ dir: full }, { fsImpl, files });
@@ -163,7 +163,7 @@ export function walk({ dir }, { fsImpl = fs, files = [] } = {}) {
 // walk() 跳过了字体/图片二进制，保真门槛需要一份含它们的完整清单。
 function walkAll(dir, fsImpl, files = []) {
   for (const entry of fsImpl.readdirSync(dir, { withFileTypes: true })) {
-    if (skipDirs.has(entry.name)) continue;
+    if (skipDirs.includes(entry.name)) continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) walkAll(full, fsImpl, files);
     else files.push(full);
@@ -279,7 +279,7 @@ function audit(argv, io) {
   return args.strict ? 2 : 0;
 }
 
-const DEFAULT_DEPS = { fs, log: console.log, error: console.error, cwd: process.cwd };
+const DEFAULT_DEPS = { fs, ...createCliStreams({}), cwd: process.cwd };
 
 /**
  * CLI entry: writes the audit markdown and returns the exit code — 0 ok/help,
@@ -296,4 +296,4 @@ export function main({ argv }, deps = {}) {
   return code;
 }
 
-await runIfMain({ moduleUrl: import.meta.url, main });
+await runIfMain({ moduleUrl: import.meta.url, main }, { stdout: process.stdout, stderr: process.stderr });

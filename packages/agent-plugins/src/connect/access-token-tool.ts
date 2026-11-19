@@ -1,6 +1,7 @@
 import type { PluginCredentialCard } from "@jini-ai/core/contracts/credentials";
 import type { SurfaceCardSecretForm, SurfaceCardSecretRun as SecretCardRun, SurfaceCardsPort } from "@jini-ai/core/contracts/cards";
 import { adaptLegacyAuthorize, requireToolPermission, type LegacyToolAuthorizeFn as AuthorizeFn } from "@jini-ai/core";
+import { type Logger } from "@jini-ai/core/primitives";
 import { requireInputRecord, ToolInputError, type ToolExecutionOptions, type ToolExecutionContext } from "@jini-ai/core";
 import type { SurfaceAskThenReport, SurfaceExchangeStore } from "@jini-ai/core";
 import { deriveAgentPluginConnectionId, provisionAgentPluginMcpServers, type AgentPluginMcpTrustClassifier, type AgentPluginMcpFederationMessages } from "./federate-mcp.js";
@@ -80,6 +81,7 @@ export interface AgentPluginTokenCredentialsPort {
  * your installed-declaration read (no filesystem default here); `federation` is your trust rule and
  * federation refusal copy, the same pair your connect tool passes. */
 export interface AgentPluginTokenTargetDeps {
+  readonly report?: Pick<Logger, 'warn'>;
   readonly workspaceId: string;
   readonly mcp: AgentPluginMcpProjectionPorts & Pick<AgentPluginMcpPort, "repo" | "saveServer"> & Partial<Pick<AgentPluginMcpPort, "notifyRosterChanged">>;
   readonly resolveInstalledPlugin: (pluginId: string) => Promise<ResolvedAgentPluginForConnect | null>;
@@ -194,6 +196,7 @@ export async function resolveTarget(
   optional.signal?.throwIfAborted();
   await provisionAgentPluginMcpServers(
     { deps: routeDeps.mcp, workspaceId: routeDeps.workspaceId, pluginId, servers: plugin.servers, principalId, ...routeDeps.federation },
+    { ...(routeDeps.report ? { report: routeDeps.report } : {}) },
   );
   return { pluginId, displayName: titleCaseFromPluginId({ pluginId }), connectionId, config };
 }

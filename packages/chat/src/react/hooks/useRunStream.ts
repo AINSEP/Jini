@@ -1,4 +1,4 @@
-import { describeErrorForLog } from '@jini-ai/core/model-facing-tool-errors';
+import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
 /**
  * @module useRunStream
  *
@@ -48,8 +48,8 @@ export interface UseRunStreamResult extends RunStreamState {
   reset: () => void;
 }
 
-function reportRunStreamHostEffectFailure(effectName: string, error: unknown) {
-  console.error(`[@jini-ai/chat] useRunStream ${effectName} host effect failed:`, describeErrorForLog({ err: error }));
+function reportRunStreamHostEffectFailure({ effectName, error }: { effectName: string; error: unknown }, { report: logger = createConsoleLogger({ prefix: '' }) }: { report?: Pick<Logger, 'error'> | undefined } = {}) {
+  logger.error({ message: `[@jini-ai/chat] useRunStream ${effectName} host effect failed:` }, { error });
 }
 
 /**
@@ -59,16 +59,16 @@ function reportRunStreamHostEffectFailure(effectName: string, error: unknown) {
  * the browser it is a silent, undiagnosable console error. Neither call site awaits the result
  * or calls `setState`, so there is nothing here that could touch state after unmount.
  */
-function runStopRunHostEffect(effectName: string, effect: () => Promise<void>) {
+function runStopRunHostEffect({ effectName, effect }: { effectName: string; effect: () => Promise<void> }, { report }: { report?: Pick<Logger, 'error'> | undefined } = {}) {
   let result: Promise<void>;
   try {
     result = effect();
   } catch (error) {
-    reportRunStreamHostEffectFailure(effectName, error);
+    reportRunStreamHostEffectFailure({ effectName, error }, { report });
     return;
   }
   void result.catch((error: unknown) => {
-    reportRunStreamHostEffectFailure(effectName, error);
+    reportRunStreamHostEffectFailure({ effectName, error }, { report });
   });
 }
 
@@ -80,7 +80,7 @@ const INITIAL_STATE: RunStreamState = {
   toolInputDeltas: {},
 };
 
-export function useRunStream({ transport }: { transport: ChatTransport }): UseRunStreamResult {
+export function useRunStream({ transport }: { transport: ChatTransport }, { report }: { report?: Pick<Logger, 'error'> | undefined } = {}): UseRunStreamResult {
   const [state, setState] = useState<RunStreamState>(INITIAL_STATE);
   // Acceptance/checkpoints can precede React's next commit. Cancellation needs the live id,
   // even when the Stop handler still belongs to the render that showed a pending start.
@@ -165,7 +165,7 @@ export function useRunStream({ transport }: { transport: ChatTransport }): UseRu
         if (generationRef.current !== generation) {
           // Consumed rather than assumed: only a CANCEL leaves an orphan here.
           if (canceledGenerations.current.delete(generation)) {
-            runStopRunHostEffect('transport.stopRun (orphaned generation)', () => transport.stopRun(runId));
+            runStopRunHostEffect({ effectName: 'transport.stopRun (orphaned generation)', effect: () => transport.stopRun(runId) }, { report });
           }
           return { runId };
         }
@@ -181,7 +181,7 @@ export function useRunStream({ transport }: { transport: ChatTransport }): UseRu
         return null;
       }
     },
-    [makeHandlers, teardownSubscription, transport],
+    [makeHandlers, teardownSubscription, transport, report],
   );
 
   const reattach = useCallback(
@@ -219,8 +219,8 @@ export function useRunStream({ transport }: { transport: ChatTransport }): UseRu
     generationRef.current += 1;
     teardownSubscription();
     setState((prev) => ({ ...prev, status: 'canceled' }));
-    if (runId) runStopRunHostEffect('transport.stopRun (cancel)', () => transport.stopRun(runId));
-  }, [teardownSubscription, transport]);
+    if (runId) runStopRunHostEffect({ effectName: 'transport.stopRun (cancel)', effect: () => transport.stopRun(runId) }, { report });
+  }, [teardownSubscription, transport, report]);
 
   const reset = useCallback(() => {
     generationRef.current += 1;

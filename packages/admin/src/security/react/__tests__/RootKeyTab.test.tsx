@@ -34,3 +34,11 @@ describe('RootKeyTab', () => {
   });
   it('shows the start-fresh dialog before a preview arrives', () => { show({ confirming: true }); expect(screen.getByText('credentials will be removed.')).toBeTruthy(); });
 });
+
+
+it('uses an injected root-key denial instead of the ambient available view', () => {
+  state.vm = view({ canGenerate: true });
+  render(<RootKeyTab params={{}} useRootKeyTabHook={() => view({ denied: true })} />);
+  expect(screen.getByText('Permission denied')).toBeVisible();
+  expect(screen.queryByRole('button', { name: 'Create root key' })).toBeNull();
+});

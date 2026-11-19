@@ -61,3 +61,17 @@ test("a failed native memory configuration refuses the transform and is retried 
   await codec.transform(image);
   assert.deepEqual(h.calls.slice(2), [["cache", false], ["concurrency", 1], ["open"]]);
 });
+
+
+test("cache configuration failure retries on another adapter using the same native factory", async () => {
+  const h = nativeHarness();
+  let attempts = 0;
+  h.factory.cache = value => {
+    h.calls.push(["cache", value]);
+    if (++attempts === 1) throw new Error("cache unavailable");
+  };
+  await assert.rejects(new SharpImageTransformer({}, { loadSharp: h.loadSharp }).transform(image), ImageTransformUnavailableError);
+  const result = await new SharpImageTransformer({}, { loadSharp: h.loadSharp }).transform(image);
+  assert.equal(result.bytes[0], 9);
+  assert.deepEqual(h.calls, [["cache", false], ["cache", false], ["concurrency", 1], ["open"]]);
+});

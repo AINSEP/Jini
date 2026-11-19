@@ -13,7 +13,7 @@ import { absolute, ASSET_PROTOCOLS, attr, imageSource, LINK_PROTOCOLS } from "./
  */
 type Node = DefaultTreeAdapterMap["node"];
 type Element = DefaultTreeAdapterMap["element"];
-const SKIPPED = new Set(["head", "script", "style", "noscript", "template", "svg", "iframe", "object", "canvas", "select", "input", "textarea"]);
+const SKIPPED: ReadonlySet<string> = new Set(["head", "script", "style", "noscript", "template", "svg", "iframe", "object", "canvas", "select", "input", "textarea"]);
 /** Beyond this nesting, a subtree degrades to its plain text instead of recursing further. */
 const MAX_DEPTH = 300;
 

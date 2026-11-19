@@ -91,7 +91,7 @@ test("an ingress failure answers a generic 500 and logs the cause", async () => 
   const out = await send(deps, { entryId: "entry-1" });
   assert.equal(out.status, 500);
   assert.deepEqual(out.payload, { error: "internal error", code: "INTERNAL_ERROR" });
-  assert.deepEqual(log.mock.calls, [["[site/comments-submit] unexpected error", "Error"]]);
+  assert.deepEqual(log.mock.calls, [["site/comments-submit Unexpected comment submission failure.", "Error"]]);
   for (const leak of ["boom", "SECRETSECRET", "submit-handler.request.test"]) assert.ok(!JSON.stringify(log.mock.calls).includes(leak));
 });
 

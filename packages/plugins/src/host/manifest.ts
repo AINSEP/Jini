@@ -87,9 +87,9 @@ const REQUIRED_KEYS = [
 /** REQ-01's "parsed-and-stored but unused in v1" forward-compat keys — allowed, never validated. */
 const OPTIONAL_KEYS = ["adminSurfaces", "contentTypes", "provenance", "dependencies", "contributes", "keywords", "extensions", "browserProviders"] as const;
 
-const ALLOWED_KEYS = new Set<string>([...REQUIRED_KEYS, ...OPTIONAL_KEYS]);
-const VALID_TIERS = new Set<PluginTier>(["tier-1", "tier-2", "tier-3"]);
-const VALID_FIELD_TYPES = new Set(["string", "integer", "number", "boolean"]);
+const ALLOWED_KEYS: ReadonlySet<string> = new Set<string>([...REQUIRED_KEYS, ...OPTIONAL_KEYS]);
+const VALID_TIERS: ReadonlySet<PluginTier> = new Set<PluginTier>(["tier-1", "tier-2", "tier-3"]);
+const VALID_FIELD_TYPES: ReadonlySet<string> = new Set(["string", "integer", "number", "boolean"]);
 /** The one plugin-contract version this runtime understands in v1 (REQ-01). A manifest declaring
  * any other value is `ENGINE_UNSUPPORTED` — there is no older version to be backward-compatible
  * with yet, so "not exactly 1" and "newer than supported" coincide in practice. */
@@ -382,7 +382,7 @@ function validateFields(raw: Readonly<Record<string, unknown>>, id: string | und
 
 /** The `contributes` lists `validateContributes` accepts, including structured providers. */
 export const CONTRIBUTION_KEYS = ["routes", "tools", "tables", "settings", "widgets", "permissions", "providers"] as const;
-const CONTRIBUTION_KEY_SET = new Set<string>(CONTRIBUTION_KEYS);
+const CONTRIBUTION_KEY_SET: ReadonlySet<string> = new Set<string>(CONTRIBUTION_KEYS);
 /** Tool-id prefixes the runtime generates itself (`capability-tool-registrations.ts`,
  *  `agent-plugins/tool-registrations.ts`) — a plugin declaring one could impersonate another
  *  plugin's generated tool, so they are refused here, before conflict detection ever runs. */

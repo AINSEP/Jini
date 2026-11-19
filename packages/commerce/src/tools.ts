@@ -1,4 +1,4 @@
-import { buildDomainRegistrations, indexCatalogById, type DerivedRiskByToolId, type ToolRegistration, type AgentToolDefinition } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolRegistration, type AgentToolDefinition } from "@jini-ai/core";
 import { adaptLegacyAuthorize, requireToolPermission, type LegacyToolAuthorizeFn as AuthorizeFn } from "@jini-ai/core";
 import { readCommerceStatus } from "./catalog/status.js";
 import type { CommerceCheckoutReadiness, CommercePaymentRuntimePort } from "./catalog/contracts.js";
@@ -19,7 +19,7 @@ export const catalog: AgentToolDefinition[] = [{
   inputSchema: { type: "object", additionalProperties: false, properties: {} },
 }];
 /** Independently derived from the service calls below. */
-export const derivedRisk: DerivedRiskByToolId = new Map([
+export const derivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map([
   // readCommerceStatus -> paymentRuntime.listProviders: reads the runtime provider catalog only.
   // commerce.status reads operational readiness; hosts must not run activation/migrations here.
   ["commerce_get_status", "none"],

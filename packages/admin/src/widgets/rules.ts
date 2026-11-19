@@ -39,14 +39,9 @@ export function movePlacement<T>({ items, index, direction }: { items: T[]; inde
   [next[index], next[target]] = [next[target]!, next[index]!];
   return next;
 }
-// Distinguishes draft keys created in the same millisecond without randomUUID.
-let draftPlacementSequence = 0;
-function fallbackDraftPlacementId(): string {
-  draftPlacementSequence += 1;
-  return `p-${Date.now()}-${draftPlacementSequence}`;
-}
-/** Draft identity survives reorder/remove/toggle until the server accepts the ordered placements. */
-export function buildDraftPlacement({ widgetInstanceId }: { widgetInstanceId: string }, { id = () => globalThis.crypto?.randomUUID?.() ?? fallbackDraftPlacementId() }: { id?: (() => string) | undefined } = {}): AdminWidgetPlacement {
+/** Draft identity survives reorder/remove/toggle until the server accepts the ordered placements.
+ * Entropy distinguishes draft keys created in the same millisecond without randomUUID. */
+export function buildDraftPlacement({ widgetInstanceId }: { widgetInstanceId: string }, { random = Math.random, id = () => globalThis.crypto?.randomUUID?.() ?? `p-${Date.now()}-${Math.floor(random() * Number.MAX_SAFE_INTEGER)}` }: { random?: (() => number) | undefined; id?: (() => string) | undefined } = {}): AdminWidgetPlacement {
   return { placementId: id(), widgetEntryId: widgetInstanceId, enabled: true, widgetTitle: null, widgetType: null, broken: false };
 }
 export interface WidgetSaveErrorOutcome { error: string; fieldErrors: Array<{ field: string; reason: string }> }

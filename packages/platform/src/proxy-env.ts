@@ -23,7 +23,7 @@ export type ResolveSystemProxyEnvOptions = {
 /** @internal Canonical spelling of every proxy env variable this module normalizes. */
 type CanonicalProxyKey = "ALL_PROXY" | "HTTP_PROXY" | "HTTPS_PROXY" | "NODE_USE_ENV_PROXY" | "NO_PROXY";
 
-const CANONICAL_PROXY_ENV_KEYS = new Map<string, CanonicalProxyKey>([
+const CANONICAL_PROXY_ENV_KEYS: ReadonlyMap<string, CanonicalProxyKey> = new Map<string, CanonicalProxyKey>([
   ["all_proxy", "ALL_PROXY"],
   ["http_proxy", "HTTP_PROXY"],
   ["https_proxy", "HTTPS_PROXY"],

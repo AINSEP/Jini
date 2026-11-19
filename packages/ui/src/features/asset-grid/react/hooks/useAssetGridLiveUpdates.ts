@@ -1,3 +1,4 @@
+import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
 import { useEffect, useMemo, useRef } from 'react';
 import { DEFAULT_LIVE_UPDATE_COALESCE_MS } from '../../constants.js';
 import { mergeIngestedAssets } from '../../rules.js';
@@ -6,6 +7,7 @@ import type { AssetGridDependencies, AssetGridLiveUpdatesPort } from '../../port
 import type { AssetGridItem } from '../../types.js';
 
 export interface UseAssetGridLiveUpdatesParams<TAsset extends AssetGridItem> {
+  report?: Pick<Logger, 'error'> | undefined;
   active: boolean;
   liveUpdates: AssetGridLiveUpdatesPort | undefined;
   /** When true, incremental membership can't be predicted client-side (an active kind/source/search filter) — every event falls back to a full reload. */
@@ -51,6 +53,7 @@ interface LiveUpdateSession {
  * resubscribing — resubscribing would drop and recreate the transport on every keystroke/filter
  * change. */
 interface LiveUpdatePorts<TAsset extends AssetGridItem> {
+  reportRef: LiveUpdateRef<UseAssetGridLiveUpdatesParams<TAsset>['report']>;
   setAssets: UseAssetGridLiveUpdatesParams<TAsset>['setAssets'];
   coalesceMs: number;
   filtersActiveRef: LiveUpdateRef<boolean>;
@@ -130,10 +133,11 @@ async function flushLiveUpdates<TAsset extends AssetGridItem>(
     return;
   }
   session.flushing = true;
-  const reportFlushFailure = () => {
+  const reportFlushFailure = (error: unknown) => {
     if (!session.disposed) {
       session.pendingFull = true;
-      console.error('[asset-grid] Live update failed.');
+      const logger = ports.reportRef.current ?? createConsoleLogger({ prefix: '[asset-grid]' });
+      logger.error({ message: 'Live update failed.' }, { error });
     }
   };
   try {
@@ -204,13 +208,14 @@ export function useAssetGridLiveUpdates<TAsset extends AssetGridItem>(
 ): void {
   const { active, liveUpdates, filtersActive, fetchAssetById, setAssets, reload, coalesceMs = DEFAULT_LIVE_UPDATE_COALESCE_MS } =
     params;
+  const reportRef = useLatestRef({ value: params.report });
   const filtersActiveRef = useLatestRef({ value: filtersActive });
   const reloadRef = useLatestRef({ value: reload });
   const fetchAssetByIdRef = useLatestRef({ value: fetchAssetById });
 
   useEffect(() => {
     if (!active || !liveUpdates) return undefined;
-    return startLiveUpdateSession({ liveUpdates, ports: { setAssets, coalesceMs, filtersActiveRef, reloadRef, fetchAssetByIdRef } });
+    return startLiveUpdateSession({ liveUpdates, ports: { setAssets, coalesceMs, filtersActiveRef, reloadRef, fetchAssetByIdRef, reportRef } });
   }, [active, liveUpdates, coalesceMs, setAssets]);
 }
 

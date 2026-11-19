@@ -1,3 +1,4 @@
+import { createConsoleLogger } from "@jini-ai/core/primitives";
 import type { PostRecord } from "./host-ports.js";
 import type { PageHtmlEmbedRef } from "./html/html-embeds.js";
 import type { WidgetRenderIR, WidgetResolveContext } from "./types.js";
@@ -45,9 +46,7 @@ async function resolveOneContentEmbed({ ref, deps, context, resolved }: {
   const { postRepo, pendingContentOverride } = deps;
   const key = ref.id ?? ref.slug;
   if (key === null) {
-    console.warn('[widgets] resolveHtmlPageEmbeds: unresolved "content" reference — missing or invalid "id"/"slug" in data-embed-config', {
-      workspaceId: context.workspaceId,
-    });
+    (context.report ?? createConsoleLogger({ prefix: "[widgets]" })).warn({ message: 'resolveHtmlPageEmbeds: unresolved "content" reference — missing or invalid "id"/"slug" in data-embed-config' }, { meta: { workspaceId: context.workspaceId } });
     return;
   }
 
@@ -70,17 +69,11 @@ async function resolveOneContentEmbed({ ref, deps, context, resolved }: {
 
   const entity = await findPublishedPostByRef(postRepo, ref, context, deps.host);
   if (!entity) {
-    console.warn('[widgets] resolveHtmlPageEmbeds: unresolved "content" reference — no such published entity', {
-      workspaceId: context.workspaceId,
-      entityId: key,
-    });
+    (context.report ?? createConsoleLogger({ prefix: "[widgets]" })).warn({ message: 'resolveHtmlPageEmbeds: unresolved "content" reference — no such published entity' }, { meta: { workspaceId: context.workspaceId, entityId: key } });
     return;
   }
   if (entity.bodyFormat === "html") {
-    console.warn(
-      '[widgets] resolveHtmlPageEmbeds: unresolved "content" reference — html-format entity reached the registry resolver instead of the recursive pre-splice pass (depth/budget guard, or a direct reference outside a template render)',
-      { workspaceId: context.workspaceId, entityId: key }
-    );
+    (context.report ?? createConsoleLogger({ prefix: "[widgets]" })).warn({ message: 'resolveHtmlPageEmbeds: unresolved "content" reference — html-format entity reached the registry resolver instead of the recursive pre-splice pass (depth/budget guard, or a direct reference outside a template render)' }, { meta: { workspaceId: context.workspaceId, entityId: key } });
     return;
   }
   resolved.set(key, await postContentIr({ source: entity, ref, deps, context }));
@@ -163,10 +156,7 @@ export async function resolveContentTypeEmbeds(
   const { postRepo, pendingContentOverride } = deps;
   if (!postRepo && !pendingContentOverride) {
     if (refs.length > 0) {
-      console.warn(
-        '[widgets] resolveHtmlPageEmbeds: "content" embeds present but no postRepo dependency was supplied — every occurrence degrades to the placeholder',
-        { workspaceId: context.workspaceId, occurrences: refs.length }
-      );
+      (context.report ?? createConsoleLogger({ prefix: "[widgets]" })).warn({ message: 'resolveHtmlPageEmbeds: "content" embeds present but no postRepo dependency was supplied — every occurrence degrades to the placeholder' }, { meta: { workspaceId: context.workspaceId, occurrences: refs.length } });
     }
     return resolved;
   }

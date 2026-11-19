@@ -1,3 +1,4 @@
+import type { Logger } from "@jini-ai/core/primitives";
 import type { UUID } from "@jini-ai/core/primitives";
 import type { EntryListPort, EntryRepoPort } from "../entries/index.js";
 import { parseWidgetAreaPayload } from "./entry-payload.js";
@@ -30,6 +31,7 @@ import { toRenderIr, resolveWidgetInstances, inlineContentOverrides, assembleInl
  */
 
 export interface ResolvePageWidgetsDeps {
+  report?: Pick<Logger, "warn">;
   bindingRepo: WidgetRegionBindingRepoPort;
   entryRepo: EntryRepoPort & EntryListPort;
 }
@@ -118,7 +120,7 @@ function collectReferencedWidgetIds(
 
 export async function resolvePageWidgets(required: ResolvePageWidgetsRequired, _optional: Record<string, never> = {}): Promise<ResolvePageWidgetsResult> {
   const { deps, input } = required;
-  const context: WidgetResolveContext = { workspaceId: input.workspaceId, preview: false };
+  const context: WidgetResolveContext = { workspaceId: input.workspaceId, preview: false, ...(deps.report ? { report: deps.report } : {}) };
 
   const regionPlacements = await resolveRegionPlacements(deps, input.workspaceId, input.resolvedRegions);
 

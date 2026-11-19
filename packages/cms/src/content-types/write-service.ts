@@ -158,7 +158,7 @@ function fieldNameError(fields: ReadonlyArray<{ name: string }>): Error | null {
 }
 
 /** Reserved forever for the legacy `posts` table — an operator Collection can never take these keys. */
-const RESERVED_CONTENT_TYPE_KEYS = new Set(["post", "page"]);
+const RESERVED_CONTENT_TYPE_KEYS: ReadonlySet<string> = new Set(["post", "page"]);
 
 /** Per-type cap on `queryable` fields (queryable-index sprawl mitigation). */
 const QUERYABLE_FIELD_CAP = 20;

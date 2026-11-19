@@ -1,4 +1,5 @@
 import type { FederationMessages } from "../messages.js";
+import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
 import { connectMcpHttpSession, createFetchMcpHttpExchange, type McpBearerTokenSupplier, type McpAuthenticationChallengeHook } from "../adapter.http.js";
 import { connectMcpStdioSession, spawnMcpStdioChannel } from "./adapter.stdio.js";
 import type { ResolvedFederatedConnection } from "../config.js";
@@ -16,12 +17,12 @@ export function createDefaultConnect(
     bearerToken: McpBearerTokenSupplier;
   },
   { spawnChannel = ({ resolved }: { resolved: ResolvedStdioLaunch }) => spawnMcpStdioChannel({ ...resolved, messages }), fetch: fetchImpl = globalThis.fetch,
-    connectHttp = connectMcpHttpSession, onAuthenticationChallenge, logger = { warn: ({ message }: { message: string }) => console.warn(message) } }: {
+    connectHttp = connectMcpHttpSession, onAuthenticationChallenge, logger = createConsoleLogger({ prefix: '' }) }: {
     spawnChannel?: ((required: { resolved: ResolvedStdioLaunch }) => McpStdioChannel) | undefined;
     fetch?: typeof fetch | undefined;
     connectHttp?: typeof connectMcpHttpSession | undefined;
     onAuthenticationChallenge?: McpAuthenticationChallengeHook | undefined;
-    logger?: { warn(required: { message: string }): void } | undefined;
+    logger?: Pick<Logger, 'warn'> | undefined;
   } = {},
 ): (request: { connection: ResolvedFederatedConnection }) => Promise<McpSessionPort> {
   let warned = false;

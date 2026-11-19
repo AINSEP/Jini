@@ -3,7 +3,7 @@ import { setImmediate } from 'node:timers/promises';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { createMcpToolServer, type McpToolServerOptions, type McpTransportLike } from '../tool-server.js';
-import { adaptSdkTransport } from '../sdk-transport.js';
+import { adaptSdkTransport } from '../adapters/sdk-transport.js';
 import type { McpToolDef } from '../tool-protocol.js';
 
 function deferred<T>() {

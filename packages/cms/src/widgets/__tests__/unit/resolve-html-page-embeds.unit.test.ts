@@ -72,8 +72,8 @@ describe("resolveHtmlPageEmbeds", () => {
     expect(result.size).toBe(0);
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn).toHaveBeenCalledWith(
-      "[widgets] resolveHtmlPageEmbeds: unknown embed type, every occurrence degrades to the placeholder",
-      { type: "carousel", workspaceId: WS, occurrences: 2 },
+      "widgets [widgets] resolveHtmlPageEmbeds: unknown embed type, every occurrence degrades to the placeholder",
+      { occurrences: 2 },
     );
   });
 

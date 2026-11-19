@@ -6,7 +6,7 @@
  * sends always await their own lane. Invalidation detaches obsolete work without cancelling it.
  */
 import { ToolInputError } from "@jini-ai/core";
-import type { HttpClientPort } from "@jini-ai/core/primitives";
+import { createConsoleLogger, type HttpClientPort, type Logger } from "@jini-ai/core/primitives";
 import type { DomainRequirement } from "@jini-ai/core/provider-registry";
 import type { MailAdapterCredential } from "./adapter-module.js";
 import { readMailDomain, type MailDomainReadCredentialPort } from "./domain-read.js";
@@ -49,6 +49,7 @@ export interface ResolveMailerOptions {
   readSenderEmail?: () => Promise<string | undefined>;
   resolveDomainReadCredential?: MailDomainReadCredentialPort;
   warn?: (message: string) => void;
+  report?: Pick<Logger, 'error'>;
   clock?: { nowMs(): number };
   statusTtlMs?: number;
   domainRequirementsTimeoutMs?: number;
@@ -340,7 +341,9 @@ async function laneCredentials(required: { state: ResolverState; catalog: MailPr
 /** Row-list faults affect presence facts but do not prevent independent key resolution. */
 function statusCredentialFacts<TRecord extends MailCredentialFact>({ state, deps }: { state: ResolverState; deps: ResolveMailerDeps<TRecord> }): Promise<readonly TRecord[]> {
   return deps.listCredentialFacts({}).catch((err: unknown) => {
-    recordError({ state, error: { providerId: null, source: "check", message: `the saved mail credentials could not be listed (${err instanceof Error ? err.message : String(err)})` } });
+    const logger = state.options.report ?? createConsoleLogger({ prefix: '' });
+    logger.error({ message: '[mail] the saved mail credentials could not be listed' }, { error: err });
+    recordError({ state, error: { providerId: null, source: "check", message: 'The saved mail credentials could not be listed.' } });
     return [];
   });
 }
@@ -407,7 +410,7 @@ function invalidate(state: ResolverState): void {
  */
 export function createResolvedMailer<TRecord extends MailCredentialFact = MailCredentialFact>(required: ResolveMailerDeps<TRecord>, optional: ResolveMailerOptions = {}): ResolvedMailer {
   const state: ResolverState = { deps: required, options: optional, nowMs: () => (optional.clock ?? { nowMs: () => Date.now() }).nowMs(),
-    warn: optional.warn ?? (message => console.warn(message)),
+    warn: optional.warn ?? (message => createConsoleLogger({ prefix: '' }).warn({ message })),
     wrap: optional.wrapProviderMailer ?? (({ mailer }) => mailer), resolved: new Map(), inFlight: new Map(), warned: new Set(), generation: 0,
     initialization: undefined, lastTransactional: undefined, lastError: undefined };
   const ready = forLane({ state, lane: "transactional" }).then(() => undefined);

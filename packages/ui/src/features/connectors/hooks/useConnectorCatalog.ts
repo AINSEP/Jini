@@ -1,3 +1,4 @@
+import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
 import { useEffect, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { ConnectorsPort } from '../ports.js';
@@ -5,6 +6,7 @@ import { mergeConnectors } from '../rules.js';
 import type { Connector } from '../types.js';
 
 export interface ConnectorCatalogOptions {
+  report?: Pick<Logger, 'error'> | undefined;
   /** Whether the host's provider is configured (e.g. an API key is saved) — gates lazy enrichment. */
   unlocked: boolean;
   /** Bump to force both the base catalog and the enrichment pass to re-run. */
@@ -42,8 +44,9 @@ export function useConnectorCatalog(port: ConnectorsPort, options: ConnectorCata
       try {
         const next = await port.fetchConnectors();
         if (!cancelled) setConnectors((curr) => mergeConnectors({ current: curr, incoming: next }));
-      } catch {
-        if (!cancelled) console.error('[connectors] Catalog load failed.');
+      } catch (error) {
+        const logger = options.report ?? createConsoleLogger({ prefix: '[connectors]' });
+        if (!cancelled) logger.error({ message: 'Catalog load failed.' }, { error });
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -70,8 +73,9 @@ export function useConnectorCatalog(port: ConnectorsPort, options: ConnectorCata
         if (cancelled) return;
         setConnectors((curr) => mergeConnectors({ current: curr, incoming: next }));
         setEnriched(true);
-      } catch {
-        if (!cancelled) console.error('[connectors] Catalog enrichment failed.');
+      } catch (error) {
+        const logger = options.report ?? createConsoleLogger({ prefix: '[connectors]' });
+        if (!cancelled) logger.error({ message: 'Catalog enrichment failed.' }, { error });
       } finally {
         if (!cancelled) setEnriching(false);
       }

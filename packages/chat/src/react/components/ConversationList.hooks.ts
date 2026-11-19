@@ -1,5 +1,5 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import { describeErrorForLog } from '@jini-ai/core/model-facing-tool-errors';
+import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
 import type { ConversationListProps } from './ConversationList.js';
 import type { useT } from '../hooks/context.js';
 import { stripConversationTitleMarkdown } from '../../core/persistence/title.js';
@@ -38,21 +38,21 @@ export function useConversationListTitles({ conversations, serverResults }: {
  */
 const DOUBLE_CLICK_GRACE_MS = 500;
 
-function reportConversationListHostEffectFailure({ effectName, error }: { effectName: string; error: unknown }, _options = {}) {
-  console.error(`[@jini-ai/chat] ConversationList ${effectName} host effect failed:`, describeErrorForLog({ err: error }));
+function reportConversationListHostEffectFailure({ effectName, error }: { effectName: string; error: unknown }, { report: logger = createConsoleLogger({ prefix: '' }) }: { report?: Pick<Logger, 'error'> | undefined } = {}) {
+  logger.error({ message: `[@jini-ai/chat] ConversationList ${effectName} host effect failed:` }, { error });
 }
 
 /** Invokes a host callback and reports a synchronous throw or async rejection without leaving it unhandled. */
-function runConversationListHostEffect({ effectName, effect }: { effectName: string; effect: () => void | Promise<unknown> }, _options = {}) {
+function runConversationListHostEffect({ effectName, effect }: { effectName: string; effect: () => void | Promise<unknown> }, { report }: { report?: Pick<Logger, 'error'> | undefined } = {}) {
   let result: void | Promise<unknown>;
   try {
     result = effect();
   } catch (error) {
-    reportConversationListHostEffectFailure({ effectName, error });
+    reportConversationListHostEffectFailure({ effectName, error }, { report });
     return;
   }
   void Promise.resolve(result).catch((error: unknown) => {
-    reportConversationListHostEffectFailure({ effectName, error });
+    reportConversationListHostEffectFailure({ effectName, error }, { report });
   });
 }
 
@@ -62,7 +62,7 @@ export function useConversationListView({ savedConversations, activeConversation
   onSelect: ConversationListProps['onSelect']; onCreate: ConversationListProps['onCreate']; onDelete: ConversationListProps['onDelete'];
   onRename: ConversationListProps['onRename']; onSearch: ConversationListProps['onSearch']; confirmDelete: ConversationListProps['confirmDelete'];
   emptyState: ConversationListProps['emptyState']; t: ReturnType<typeof useT>;
-}, _options = {}) {
+}, { report }: { report?: Pick<Logger, 'error'> | undefined } = {}) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [savedServerResults, setServerResults] = useState<ConversationListItem[] | null>(null);
@@ -146,11 +146,11 @@ export function useConversationListView({ savedConversations, activeConversation
       onSearch(deferredQuery).then((results) => {
         if (!cancelled) setServerResults(results);
       }),
-    });
+    }, { report });
     return () => {
       cancelled = true;
     };
-  }, [onSearch, deferredQuery]);
+  }, [onSearch, deferredQuery, report]);
 
   const visible = useMemo(() => {
     if (onSearch) return serverResults ?? conversations;
@@ -171,9 +171,9 @@ export function useConversationListView({ savedConversations, activeConversation
       // No optimistic title update happens here — the row keeps rendering `item.title` from
       // props until the host's own state updates, so a rejection cannot leave the UI showing a
       // title the server didn't accept. Reporting the failure is what closes the remaining gap.
-      if (onRename) runConversationListHostEffect({ effectName: 'onRename', effect: () => onRename(id, next) });
+      if (onRename) runConversationListHostEffect({ effectName: 'onRename', effect: () => onRename(id, next) }, { report });
     },
-    [onRename],
+    [onRename, report],
   );
 
   const startRename = (id: string) => {
@@ -197,9 +197,9 @@ export function useConversationListView({ savedConversations, activeConversation
       // delete didn't happen."
       runConversationListHostEffect({ effectName: 'onDelete', effect: async () => {
         if (await confirmer(item)) await onDelete(item.id);
-      } });
+      } }, { report });
     },
-    [confirmDelete, onDelete, t],
+    [confirmDelete, onDelete, t, report],
   );
 
   const active = conversations.find((c) => c.id === activeConversationId) ?? null;
@@ -219,7 +219,7 @@ export function useConversationListView({ savedConversations, activeConversation
   // switcher closed without one actually being created. Reporting the failure closes
   // the remaining gap between "switcher closed" and "the host actually knows".
   const createConversation = () => {
-    runConversationListHostEffect({ effectName: 'onCreate', effect: () => onCreate() });
+    runConversationListHostEffect({ effectName: 'onCreate', effect: () => onCreate() }, { report });
     setOpen(false);
   };
   return { open, setOpen, query, setQuery, conversations, rawTitles, editingId, setEditingId, rootRef, visible, now, commitRename, startRename, requestDelete, active, emptyLabel, scheduleSelect, createConversation };

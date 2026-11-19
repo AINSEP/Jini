@@ -142,3 +142,12 @@ describe("main", () => {
     expect(out.errors[0]).toBe("od-preview-rewrite failed: Error");
   });
 });
+
+
+it("preserves all host root routes even when a matching asset exists", () => {
+  const root = tempDir();
+  for (const prefix of ["api", "artifacts", "frames"]) {
+    write(root, `${prefix}/image.png`);
+    expect(rootAssetPath({ root, fs }, `/${prefix}/image.png`)).toBeNull();
+  }
+});

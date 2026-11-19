@@ -1,7 +1,7 @@
 import { toRepoRelative } from './lcov.js';
 import type { SourceClassifier } from './lcov.js';
 
-const WRAPPER_HELPER_NAMES = new Set(["__toCommonJS", "__copyProps", "__toESM", "__export"]);
+const WRAPPER_HELPER_NAMES: ReadonlySet<string> = new Set(["__toCommonJS", "__copyProps", "__toESM", "__export"]);
 
 // 30 is comfortably below the real severe block measured 2026-08-21 (357 DA records) and comfortably above a trivial single-purpose file.
 const MIN_DA_RECORDS_FOR_SEVERE_HEURISTIC = 30;

@@ -22,7 +22,7 @@
 import os from 'node:os';
 import path from 'node:path';
 
-const HOME_BARE_TOKENS = new Set(['~', '$HOME', '${HOME}']);
+const HOME_BARE_TOKENS: ReadonlySet<string> = new Set(['~', '$HOME', '${HOME}']);
 const HOME_PREFIX_RE = /^(~|\$\{HOME\}|\$HOME)[/\\](.*)$/;
 
 /**

@@ -94,7 +94,7 @@ export async function planCleanup(
     action: "cleanup",
   });
   if (!planResult.ok) {
-    return { ok: false, error: new CleanupNotEligibleError({ reason: "gateway_rejected" }, { message: String(planResult.error) }) };
+    return { ok: false, error: new CleanupNotEligibleError({ reason: "gateway_rejected" }, { message: "Cleanup gateway rejected the plan." }) };
   }
   return { ok: true, value: planResult.value };
 }

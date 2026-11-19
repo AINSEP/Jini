@@ -1,3 +1,4 @@
+import { createConsoleLogger } from '@jini-ai/core/primitives';
 import type { PluginCredentialField, PluginCredentialCard } from '@jini-ai/core/contracts/credentials';
 export type { PluginCredentialField, PluginCredentialCard } from '@jini-ai/core/contracts/credentials';
 import { readAgentPluginPortableExtension, readAgentPluginCompatibilityWarnings } from '../core/identity-namespace.js';
@@ -107,17 +108,26 @@ function cardText({ value }: { value: RecordValue }, _options = {}): Pick<Plugin
 
 /** Parse portable connection-card declarations without executing plugin modules.
  * Refuse the whole batch on invalid or duplicate targets; absent declarations remain compatible.
- * Legacy namespace reads warn through the host callback (console by default).
+ * Legacy namespace reads warn through the host callback (safe logger by default).
  * @returns Normalized display/form metadata or a declaration-specific refusal reason.
  * @complexity O(c + f), capped at 32 cards × 16 fields; no I/O or input mutation.
  */
 export function parsePluginCredentialCards({ raw }: { raw: string }, options: { identityNamespace?: string; onWarning?: (warning: string) => void } = {}):
   PluginContributionParseResult<PluginCredentialCard> {
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw); }
+  catch (error) {
+    try {
+      if (options.onWarning) options.onWarning('[agent-plugins] Invalid credential cards.');
+      else createConsoleLogger({ prefix: '[agent-plugins]' }).warn({ message: 'Invalid credential cards.' }, { error });
+    } catch { /* Diagnostics cannot replace the malformed-manifest refusal. */ }
+    return { ok: false, reason: 'invalid credential cards' };
+  }
   try {
-    const manifest = recordOf({ value: JSON.parse(raw) });
+    const manifest = recordOf({ value: parsed });
     if (!manifest) throw new Error('plugin manifest must be an object');
     const extension = readAgentPluginPortableExtension({ value: manifest }, options);
-    for (const warning of readAgentPluginCompatibilityWarnings({ value: manifest }, options)) (options.onWarning ?? console.warn)(warning);
+    for (const warning of readAgentPluginCompatibilityWarnings({ value: manifest }, options)) (options.onWarning ?? (message => createConsoleLogger({ prefix: '' }).warn({ message })))(warning);
     const descriptors = parseCardBatch({ value: extension?.credentialCards });
     return { ok: true, descriptors };
   } catch (error) {

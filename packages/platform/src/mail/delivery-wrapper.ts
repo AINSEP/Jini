@@ -4,6 +4,7 @@
  * The purpose gate still wraps the whole mailer at composition; this policy sits inside it.
  */
 import { createMailDeliveryPolicy, type MailResendPolicy, type MailTestMode } from "./policy.js";
+import { createConsoleLogger } from '@jini-ai/core/primitives';
 import type { MailCapturePort, MailerPort, MailSendLedgerPort, MailSuppressionRepoPort } from "./ports.js";
 import type { MailProviderModule } from "./provider.js";
 import { createMailLaneLimiter, type MailLaneLimiter } from "./rate-limit.js";
@@ -62,7 +63,7 @@ function createResultObserver(required: MailPolicyWrapperDeps, optional: MailPol
     try { await required.observe?.(event); } catch {
       if (observationWarned) return;
       observationWarned = true;
-      try { (optional.warn ?? console.warn)("[mail] activity observation failed"); } catch { /* Diagnostics cannot reject a send. */ }
+      try { (optional.warn ?? ((message: string) => createConsoleLogger({ prefix: '' }).warn({ message })))("[mail] activity observation failed"); } catch { /* Diagnostics cannot reject a send. */ }
     }
   };
 }

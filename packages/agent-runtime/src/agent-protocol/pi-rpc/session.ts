@@ -46,9 +46,9 @@ export const MAX_IMAGE_COUNT = 10;
 /** Total byte ceiling for all images forwarded in one prompt turn. */
 export const MAX_TOTAL_IMAGE_BYTES = 20 * 1024 * 1024; // 20 MB
 /** File extensions accepted in pi's `images` RPC field. */
-export const ALLOWED_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp']);
+export const ALLOWED_IMAGE_EXTENSIONS: ReadonlySet<string> = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp']);
 /** Extension UI methods that expect no response — silently consumed without reply. */
-export const FIRE_AND_FORGET_METHODS = new Set([
+export const FIRE_AND_FORGET_METHODS: ReadonlySet<string> = new Set([
   'setStatus',
   'setWidget',
   'notify',

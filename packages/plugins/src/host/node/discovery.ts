@@ -63,7 +63,7 @@ export class PluginDiscoveryVersionError extends Error {
  * @complexity O(n) over installed-plugin count, bounded I/O per candidate (one directory listing
  * + manifest read + per-file size stat).
  */
-const VALID_TIERS = new Set<PluginTier>(["tier-1", "tier-2", "tier-3"]);
+const VALID_TIERS: ReadonlySet<PluginTier> = new Set<PluginTier>(["tier-1", "tier-2", "tier-3"]);
 /** Last-resort display tier when a malformed manifest has no validated tier. Every discovery
  * record needs a renderable tier (REQ-18/AC-26); this fallback does not grant executable admission. */
 const FALLBACK_TIER: PluginTier = "tier-3";

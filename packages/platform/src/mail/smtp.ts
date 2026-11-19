@@ -10,7 +10,7 @@ function toNodemailerAddress(address: EmailAddress): { name?: string; address: s
   return address.name ? { name: address.name, address: address.email } : { address: address.email };
 }
 
-const NON_RETRYABLE_SMTP_CODES = new Set(["EAUTH", "EENVELOPE", "EMESSAGE"]);
+const NON_RETRYABLE_SMTP_CODES: ReadonlySet<string> = new Set(["EAUTH", "EENVELOPE", "EMESSAGE"]);
 
 function classifySmtpError(err: unknown): MailerSendResult {
   // Prefer the server's RFC 5321 reply: 4xx asks for retry, 5xx rejects the message as-is.

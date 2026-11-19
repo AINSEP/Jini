@@ -80,7 +80,7 @@ type Parse5Node = DefaultTreeAdapterTypes.Node;
  * locate. Tagging one with `data-agent-element` is a structural impossibility for a "region" (a
  * span of editable inner content), not a parser-recovery accident, so it gets a distinct message.
  */
-const VOID_ELEMENTS = new Set([
+const VOID_ELEMENTS: ReadonlySet<string> = new Set([
   "area",
   "base",
   "br",

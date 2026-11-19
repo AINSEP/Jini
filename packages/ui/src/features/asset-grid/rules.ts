@@ -254,7 +254,7 @@ export function resolveFacetLabel({ value, labelsByValue }: { value: string; lab
 
 // --- keyboard shortcuts ---------------------------------------------------
 
-const TYPING_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
+const TYPING_TAGS: ReadonlySet<string> = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
 
 /** Whether `el` is a text-entry target that keyboard shortcuts should not hijack. */
 export function isTypingTarget({ el }: { el: Element | null }, _optional: Record<string, never> = {}): boolean {

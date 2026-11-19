@@ -1,10 +1,10 @@
-import { describeErrorForLog } from '@jini-ai/core/model-facing-tool-errors';
+import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
 import { useRef, useState, type KeyboardEvent } from 'react';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '../../core/conversation-title.js';
 import type { ConversationTitleEditorProps } from './ConversationTitleEditor.js';
 
 /** Commit or cancel a draft once, even when keyboard activation also triggers blur. */
-export function useConversationTitleEditor({ title, onCommit, onCancel }: Pick<ConversationTitleEditorProps, 'title' | 'onCommit' | 'onCancel'>, _options = {}) {
+export function useConversationTitleEditor({ title, onCommit, onCancel }: Pick<ConversationTitleEditorProps, 'title' | 'onCommit' | 'onCancel'>, { report }: { report?: Pick<Logger, 'error'> | undefined } = {}) {
   const original = useRef(title ?? '');
   const [draft, setDraft] = useState(original.current);
   const finished = useRef(false);
@@ -21,7 +21,8 @@ export function useConversationTitleEditor({ title, onCommit, onCancel }: Pick<C
     try {
       await onCommit(next);
     } catch (error) {
-      console.error('[@jini-ai/chat] ConversationTitleEditor onCommit host effect failed:', describeErrorForLog({ err: error }));
+      const logger = report ?? createConsoleLogger({ prefix: '' });
+      logger.error({ message: '[@jini-ai/chat] ConversationTitleEditor onCommit host effect failed:' }, { error });
     }
   };
 

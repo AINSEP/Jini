@@ -1,3 +1,4 @@
+import { buildDraftPlacement as buildPlacement } from "../rules.js";
 import { describe, expect, it, vi } from "vitest";
 
 import { ApiError, type AdminWidget } from "../react/__tests__/fixtures/api.js";
@@ -175,4 +176,14 @@ describe("widgetSlugRedirectPath", () => {
   it("returns null for a UUID-shaped string that isn't actually this widget's own id", () => {
     expect(widgetSlugRedirectPath({ requestedId: "00000000-0000-0000-0000-000000000000", widget: WIDGET })).toBeNull();
   });
+});
+
+
+it("uses supplied entropy for decimal fallback placement IDs at a fixed time", () => {
+  const clock = vi.spyOn(Date, "now").mockReturnValue(123);
+  vi.stubGlobal("crypto", {});
+  try {
+    expect(buildPlacement({ widgetInstanceId: "w" }, { random: () => 0.25 }).placementId).toBe(`p-123-${Math.floor(0.25 * Number.MAX_SAFE_INTEGER)}`);
+    expect(buildPlacement({ widgetInstanceId: "w" }, { random: () => 0.75 }).placementId).toBe(`p-123-${Math.floor(0.75 * Number.MAX_SAFE_INTEGER)}`);
+  } finally { clock.mockRestore(); vi.unstubAllGlobals(); }
 });

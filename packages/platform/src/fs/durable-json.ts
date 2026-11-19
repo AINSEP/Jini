@@ -10,8 +10,7 @@ import { type BootIdentity } from "@jini-ai/core/contracts/runtime";
 import nodeFs from "node:fs";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
-import { describeErrorForLog } from "@jini-ai/core";
-import type { Clock } from "@jini-ai/core/primitives";
+import { createConsoleLogger, type Clock, type Logger } from "@jini-ai/core/primitives";
 import { createNodeAtomicFilesystem, writeJsonFileAtomic } from "./atomic-write.js";
 import { withFileLockSync } from "./file-lock.js";
 // Missing is not unreadable: a damaged file holds unknown records, not a valid empty list. Retain
@@ -25,11 +24,11 @@ export interface DurableJsonPorts {
   sleep: { sleep(required: { durationMs: number }): void };
   process: { pid: number; isAlive(required: { pid: number }): boolean; bootIdentity?: () => BootIdentity | undefined };
   random: { token(_required: Record<string, never>): string };
-  report: { error(required: { message: string }): void };
+  report: Pick<Logger, 'error'>;
 }
 export interface DurableJsonNotices { prefix: string; lockTimeout(required: { lockPath: string; waitMs: number }): string; }
 /** Native synchronous adapters. Liveness probes treat permission errors as alive. */
-export function createNodeDurableJsonPorts(_required: Record<string, never>): DurableJsonPorts {
+export function createNodeDurableJsonPorts(_required: Record<string, never>, { report = createConsoleLogger({ prefix: '' }) }: { report?: DurableJsonPorts['report'] | undefined } = {}): DurableJsonPorts {
   const cell = new Int32Array(new SharedArrayBuffer(4));
   return {
     filesystem: nodeFs,
@@ -42,7 +41,7 @@ export function createNodeDurableJsonPorts(_required: Record<string, never>): Du
       try { process.kill(pid, 0); return true; } catch (error) { return (error as NodeJS.ErrnoException).code !== "ESRCH"; }
     } },
     random: { token: (_required) => randomBytes(4).toString("hex") },
-    report: { error: ({ message }) => console.error(message) },
+    report,
   };
 }
 export interface DurableJsonFile {
@@ -79,7 +78,8 @@ try {
   fs.renameSync(filePath, asidePath);
 } catch (error) {
   if ((error as NodeJS.ErrnoException).code === "ENOENT") return true;
-  report.error({ message: `${notices.prefix}: ${notice.label} ${filePath} is unreadable and could not be moved aside (${describeErrorForLog({ err: error })}). Left untouched; nothing was written over it.` });
+  const logger = report;
+  logger.error({ message: `${notices.prefix}: ${notice.label} ${filePath} is unreadable and could not be moved aside. Left untouched; nothing was written over it.` }, { error });
   return false;
 }
 report.error({ message: `${notices.prefix}: ${notice.label} ${filePath} was unreadable (torn or corrupt). Moved it aside to ${asidePath}; ${notice.consequence}` });

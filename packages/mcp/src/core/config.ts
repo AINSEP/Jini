@@ -1,4 +1,3 @@
-import { describeErrorForLog } from '@jini-ai/core';
 /**
  * @module @jini-ai/mcp/core/config
  * Config schema + on-disk store for the external MCP servers the daemon connects
@@ -23,7 +22,7 @@ import { describeErrorForLog } from '@jini-ai/core';
 
 import { realpathSync } from 'node:fs';
 import path from 'node:path';
-import { pathContains } from '@jini-ai/core/primitives';
+import { createConsoleLogger, pathContains, type Logger } from '@jini-ai/core/primitives';
 import type { AtomicFileWriterPort } from '@jini-ai/core/contracts/runtime';
 import { inferMcpAuthModeForUrl, isPlainObject } from './config-shared.js';
 export { inferMcpAuthModeForUrl } from './config-shared.js';
@@ -239,7 +238,7 @@ export function sanitizeMcpConfig({ raw: value }: { raw: unknown }): McpConfig {
  * @param dataDir The resolved runtime data directory.
  * @returns The sanitized `McpConfig`, never rejects on missing-file or corrupt-JSON.
  */
-export async function readMcpConfig({ dataDir, files }: { dataDir: string; files: McpConfigFilesPort }, _optional: Record<string, never> = {}): Promise<McpConfig> {
+export async function readMcpConfig({ dataDir, files }: { dataDir: string; files: McpConfigFilesPort }, { report = createConsoleLogger({ prefix: '[mcp-config]' }) }: { report?: Pick<Logger, 'error'> } = {}): Promise<McpConfig> {
   try {
     const raw = await files.readText({ filePath: configFile(dataDir) });
     const parsed: unknown = JSON.parse(raw);
@@ -248,7 +247,7 @@ export async function readMcpConfig({ dataDir, files }: { dataDir: string; files
     const e = err as { code?: string; name?: string; message?: string };
     if (e.code === 'ENOENT') return { servers: [] };
     if (e.name === 'SyntaxError') {
-      console.error('[mcp-config] Corrupted JSON, returning empty:', describeErrorForLog({ err }));
+      report.error({ message: `The MCP config file ${configFile(dataDir)} is not valid JSON; reading it as an empty server list.` }, { error: err });
       return { servers: [] };
     }
     throw err;

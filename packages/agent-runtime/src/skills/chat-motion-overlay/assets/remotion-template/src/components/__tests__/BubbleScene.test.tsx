@@ -18,7 +18,7 @@ const deps = vi.hoisted(async () => {
   };
 });
 
-const frameState = vi.hoisted(() => ({frame: 0}));
+const frameState = vi.hoisted(() => ({frame: 0, springArgs: [] as Array<{frame: number; fps: number}>}));
 
 vi.mock("react", async () => import((await deps).react));
 vi.mock("react/jsx-runtime", async () => import((await deps).jsxRuntime));
@@ -41,7 +41,10 @@ vi.mock("remotion", () => {
     const clamped = options.extrapolateRight === "clamp" ? Math.min(input, inEnd) : input;
     return outStart + ((clamped - inStart) / (inEnd - inStart)) * (outEnd - outStart);
   };
-  const spring = ({frame, durationInFrames = 1}: SpringArgs): number => Math.min(1, frame / durationInFrames);
+  const spring = ({frame, fps, durationInFrames = 1}: SpringArgs): number => {
+    frameState.springArgs.push({frame, fps});
+    return Math.min(1, frame / durationInFrames);
+  };
   const Img = ({src, style}: ImgProps): ReactElement => <img src={src} style={style} />;
   return {
     interpolate,
@@ -358,4 +361,24 @@ describe("BubbleScene text measurement with a DOM", () => {
     vi.stubGlobal("document", fakeDocument({}, null));
     expect(bubbleStyle(await render(spec({messages: [message({text: "a b"})]})))).toContain("width:108px;");
   });
+});
+
+
+it("uses the injected appearance frame for every bubble and passes injected FPS to spring", async () => {
+  frameState.frame = 0;
+  frameState.springArgs.length = 0;
+  const {renderToStaticMarkup} = (await import((await deps).server)) as {renderToStaticMarkup: (node: ReactNode) => string};
+  const {createElement} = await import("react");
+  const {useVideoConfig} = await import("remotion");
+  const {BubbleScene} = await import("../BubbleScene");
+  const chatSpec = spec({messages: [message({appearAt: 10}), message({id: 'm2', text: 'second', appearAt: 10})]});
+  const before = renderToStaticMarkup(createElement(BubbleScene, {chatSpec, useCurrentFrameHook: () => 9}));
+  expect(before).not.toContain('>hi</div>');
+  expect(before).not.toContain('>second</div>');
+  const html = renderToStaticMarkup(createElement(BubbleScene, {chatSpec,
+    useCurrentFrameHook: () => 10, useVideoConfigHook: () => ({...useVideoConfig(), fps: 48}),
+  }));
+  expect(html).toContain('>hi</div>');
+  expect(html).toContain('>second</div>');
+  expect(frameState.springArgs).toEqual([{frame: 0, fps: 48}, {frame: 0, fps: 48}]);
 });

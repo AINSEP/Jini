@@ -1,3 +1,4 @@
+import type { Logger } from "@jini-ai/core/primitives";
 /**
  * @file Core type definitions for the host `widgets` library (ADR-047, SPEC-043).
  *
@@ -230,6 +231,7 @@ export interface WidgetRenderIR {
 
 /** Context passed to a resolver for one page render (REQ-23). */
 export interface WidgetResolveContext {
+  readonly report?: Pick<Logger, "warn">;
   readonly workspaceId: UUID;
   readonly locale?: string;
   readonly preview: boolean;

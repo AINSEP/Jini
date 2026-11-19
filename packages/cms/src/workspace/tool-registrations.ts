@@ -41,7 +41,7 @@ export interface WorkspaceToolDeps {
  * `sideEffects` declaration — and note that the two excluded tools appear NOWHERE here, which is
  * itself the strongest of the guards: an unclassified id cannot be wired at all.
  */
-export const workspaceDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const workspaceDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> routeDeps.workspaceRepo.findById(): one read, no domain function of its own (mirrors a
   //    host's own admin workspace-get route making the same direct repo call).
   ["workspace_get", "none"],
@@ -52,7 +52,7 @@ export const workspaceDerivedRisk: DerivedRiskByToolId = new Map<string, AgentTo
 ]);
 
 /** Workspace catalog entries this pass does not wire, and why — see `./agent-tools.ts`'s own per-entry comments for the full reasoning. */
-const UNWIRED_WORKSPACE_TOOL_IDS = new Set([
+const UNWIRED_WORKSPACE_TOOL_IDS: ReadonlySet<string> = new Set([
   // EXCLUDED BY DESIGN: inserts a row no other route can ever address (every workspace route
   // resolves strictly against the boot-wired `workspaceId`) — zero utility, non-zero
   // orphaned-row/clutter surface.

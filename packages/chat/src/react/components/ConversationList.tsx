@@ -1,3 +1,4 @@
+import type { Logger } from '@jini-ai/core/primitives';
 /**
  * @module ConversationList
  *
@@ -34,6 +35,7 @@ export interface ConversationListItem {
 }
 
 export interface ConversationListProps {
+  report?: Pick<Logger, 'error'> | undefined;
   conversations: ConversationListItem[];
   activeConversationId: string | null;
   onSelect: (id: string) => void;
@@ -127,10 +129,10 @@ export function ConversationList({
   createDisabled = false,
   emptyState,
   triggerLabel,
-  nativeTitle = true, hooks = defaultConversationListHooks,
+  nativeTitle = true, hooks = defaultConversationListHooks, report,
 }: ConversationListProps & { hooks?: ConversationListHooks | undefined }) {
   const t = hooks.useT();
-  const { open, setOpen, query, setQuery, conversations, rawTitles, editingId, setEditingId, rootRef, visible, now, commitRename, startRename, requestDelete, active, emptyLabel, scheduleSelect, createConversation } = hooks.useConversationListView({ savedConversations, activeConversationId, onSelect, onCreate, onDelete, onRename, onSearch, confirmDelete, emptyState, t });
+  const { open, setOpen, query, setQuery, conversations, rawTitles, editingId, setEditingId, rootRef, visible, now, commitRename, startRename, requestDelete, active, emptyLabel, scheduleSelect, createConversation } = hooks.useConversationListView({ savedConversations, activeConversationId, onSelect, onCreate, onDelete, onRename, onSearch, confirmDelete, emptyState, t }, { report });
 
   return (
     <div className="jini-conv" ref={rootRef}>

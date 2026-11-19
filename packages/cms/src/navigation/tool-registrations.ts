@@ -53,7 +53,7 @@ export interface MenusToolDeps {
  * calls. See `DerivedRiskByToolId` in the kit for why it is independent of the catalog's own
  * `sideEffects` declaration.
  */
-export const menusDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const menusDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> menuRepo.list: reads only.
   ["menus_list_menus", "none"],
   // -> menuRepo.findById: reads only.

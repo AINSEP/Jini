@@ -8,6 +8,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
+import { createConsoleLogger } from '../packages/core/src/primitives/logger.js';
 import { createEnvAccessInspector, ENV_ACCESS_RULES } from '../packages/devops/src/checks/env-access.js';
 import { runHardwiring, sourceFiles } from '../packages/devops/src/checks/hardwiring-node.js';
 import { createHardwiringInspector, diffHardwiringDebt } from '../packages/devops/src/checks/hardwiring.js';
@@ -17,6 +18,7 @@ import type { SourcePackage } from './lib/package-sources.js';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const DEBT_FILE = 'scripts/env-access-debt.json';
+const logger = createConsoleLogger({ prefix: '' });
 /** A bundler replaces `process.env.NODE_ENV` only in code that is built for these runtimes. */
 const BUNDLED_RUNTIMES: ReadonlySet<string> = new Set(['browser', 'dom', 'universal']);
 /** Plugin payload folders that ship as published code beside the agent-plugins `src`. */
@@ -69,19 +71,19 @@ export function checkEnvAccess(required: { repoRoot: string } = { repoRoot: root
   const current = collectEnvAccess(required);
   const baseline = JSON.parse(readFileSync(join(required.repoRoot, DEBT_FILE), 'utf8')) as { violations: HardwiringViolation[] };
   const diff = diffHardwiringDebt({ baseline: baseline.violations, current });
-  for (const rule of ENV_ACCESS_RULES) console.log(`[hardwiring] ${rule}: ${current.filter(v => v.rule === rule).length} total; ${diff.added.filter(v => v.rule === rule).length} new`);
-  if (diff.removed.length) console.log(`[hardwiring] ${diff.removed.length} stale debt occurrences; remove them from ${DEBT_FILE}.`);
+  for (const rule of ENV_ACCESS_RULES) logger.info({ message: `[hardwiring] ${rule}: ${current.filter(v => v.rule === rule).length} total; ${diff.added.filter(v => v.rule === rule).length} new` });
+  if (diff.removed.length) logger.info({ message: `[hardwiring] ${diff.removed.length} stale debt occurrences; remove them from ${DEBT_FILE}.` });
   return diff.added;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   // This script runs in the workspace's CommonJS context; keep async CLI settlement off top-level await.
-  void runHardwiring({ collect: () => collectEnvAccess({ repoRoot: root }), debtPath: join(root, DEBT_FILE),
+  void runHardwiring({ collect: () => collectEnvAccess({ repoRoot: root }), debtPath: join(root, DEBT_FILE), report: logger,
       baselineComment: '2026-11-16 env-access adoption (HW9, HW12). Occurrence hashes of the env name. Shrink as readers move to their host; never regenerate in CI.' },
     { writeBaseline: process.argv.includes('--write-baseline'), rules: ENV_ACCESS_RULES }).then(added => {
     if (added.length) process.exitCode = 1;
   }).catch(error => {
-    console.error(`[hardwiring] ${error instanceof Error ? error.message : 'Environment-access audit failed.'}`);
+    logger.error({ message: '[hardwiring] Environment-access audit failed.' }, { error });
     process.exitCode = 1;
   });
 }

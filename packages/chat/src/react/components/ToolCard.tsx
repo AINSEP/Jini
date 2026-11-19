@@ -1,4 +1,4 @@
-import { describeErrorForLog } from '@jini-ai/core/model-facing-tool-errors';
+import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
 const RUNNING_TITLE_CLASS = ' shimmer-text';
 
 /**
@@ -37,6 +37,7 @@ type ToolUseEvent = Extract<AgentEvent, { kind: 'tool_use' }>;
 type ToolResultEvent = Extract<AgentEvent, { kind: 'tool_result' }>;
 
 export interface ToolCardProps {
+  report?: Pick<Logger, 'error'> | undefined;
   use: ToolUseEvent;
   result?: ToolResultEvent | undefined;
   /** Whether the owning run is still streaming. Forwarded to registered renderers via `status`. */
@@ -60,14 +61,14 @@ const RetriedContext = createContext(false);
 /** A Jini registry tool id: dotted, lowercase, snake_case segments — `page.fill`, `daemon.db.vacuum`, `chat.send_message`. Never matches an agent-vendor tool name (`Bash`, `Write`, `mcp__jini__execute_delegated_tool`), which is the point — this is how a canonical delegated-tool event is told apart from everything else. */
 const JINI_TOOL_ID_PATTERN = /^[a-z][a-z_]*(\.[a-z][a-z_]*)+$/;
 
-export function ToolCard({ use, result, runStreaming, runSucceeded, projectFileNames, onRequestOpenFile, retried = false, useToolRendererRegistryHook = useToolRendererRegistry }: ToolCardProps & { useToolRendererRegistryHook?: typeof useToolRendererRegistry }) {
+export function ToolCard({ use, result, runStreaming, runSucceeded, projectFileNames, onRequestOpenFile, retried = false, report, useToolRendererRegistryHook = useToolRendererRegistry }: ToolCardProps & { useToolRendererRegistryHook?: typeof useToolRendererRegistry }) {
   const registry = useToolRendererRegistryHook();
   // Resolve vendor dialects for rendering only; tool ids and stored events stay intact.
   const presentation = toolPresentation(use);
   use = { ...use, ...presentation };
   const name = use.name;
   const card: CardProps = { input: use.input, result: result, runStreaming: runStreaming ?? false, runSucceeded: runSucceeded ?? false };
-  const content = renderToolCardBody({ use, card, wrapper: presentation.wrapper, fileCtx: { projectFileNames, onRequestOpenFile }, registry });
+  const content = renderToolCardBody({ use, card, wrapper: presentation.wrapper, fileCtx: { projectFileNames, onRequestOpenFile }, registry, report });
   if (content === null) return null;
   // Tagged once here, at the single dispatch point every branch below funnels through, rather than
   // in each of the dozen card variants — one place to keep correct, and every variant (including a
@@ -82,6 +83,7 @@ export function ToolCard({ use, result, runStreaming, runSucceeded, projectFileN
 }
 
 interface ToolCardBodyArgs {
+  report?: Pick<Logger, 'error'> | undefined;
   use: ToolUseEvent;
   card: CardProps;
   fileCtx: FileToolCtx;
@@ -110,14 +112,15 @@ const FAMILY_CARDS: ReadonlyMap<string, FamilyCardRender> = new Map(
 );
 
 /** A host-registered renderer's output, or `undefined` when none is registered, it renders nothing, or it throws (logged) — every one of those falls back to the built-in cards. */
-function renderRegistered({ use, card, registry }: ToolCardBodyArgs): ReactNode {
+function renderRegistered({ use, card, registry, report }: ToolCardBodyArgs): ReactNode {
   const custom = registry.get({ name: use.name });
   if (!custom) return undefined;
   try {
     const node = custom(toRenderProps({ use: use, result: card.result, runStreaming: card.runStreaming }, { runSucceeded: card.runSucceeded }));
     if (node !== undefined && node !== null && node !== false) return node;
   } catch (err) {
-    console.error(`[ToolCard] custom renderer for "${use.name}" threw; falling back`, describeErrorForLog({ err }));
+    const logger = report ?? createConsoleLogger({ prefix: '' });
+    logger.error({ message: `[ToolCard] custom renderer for "${use.name}" threw; falling back` }, { error: err });
   }
   return undefined;
 }

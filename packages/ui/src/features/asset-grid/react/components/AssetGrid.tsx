@@ -1,3 +1,5 @@
+import type { Logger } from '@jini-ai/core/primitives';
+import { useWiredAssetGridLiveUpdates } from '../hooks/useAssetGridLiveUpdates.js';
 import type { ReactNode } from 'react';
 import { useT } from '../../../i18n/index.js';
 import type { AssetGridDependencies } from '../../ports.js';
@@ -12,6 +14,8 @@ import { SelectionBand } from './SelectionBand.js';
 import { DeleteConfirmDialog } from './DeleteConfirmDialog.js';
 
 export interface AssetGridProps<TAsset extends AssetGridItem> {
+  report?: Pick<Logger, 'error'> | undefined;
+  useWiredAssetGridLiveUpdates?: typeof useWiredAssetGridLiveUpdates;
   /** Whether this grid is the visible/active surface — gates fetch-on-mount, live updates, and keyboard shortcuts (a tab-visibility gate). Defaults to `true`. */
   active?: boolean;
   selectors: AssetGridSelectors<TAsset>;
@@ -94,7 +98,7 @@ function renderGridContent<TAsset extends AssetGridItem>(
  * the full retained-behavior manifest against the original `LibrarySection.tsx`.
  */
 export function AssetGrid<TAsset extends AssetGridItem>({
-  active = true,
+  active = true, report, useWiredAssetGridLiveUpdates: useWiredAssetGridLiveUpdatesHook = useWiredAssetGridLiveUpdates,
   selectors,
   dependencies,
   kindFacets: configuredKindFacets,
@@ -119,7 +123,7 @@ export function AssetGrid<TAsset extends AssetGridItem>({
 }: AssetGridProps<TAsset>) {
   const t = hooks.useT();
 
-  const { kind, setKind, source, setSource, search, setSearch, kindFacets, sourceFacets, viewMode, setViewMode, assets, loading, reload, selectedIds, selectAll, clearSelection, containerRef, band, dragging, onMouseDown, requestDeleteSelected, confirmDeleteOpen, setConfirmDeleteOpen, deleteError, getDayKey, renderCard, confirmDelete } = hooks.useAssetGridView({ active, selectors, dependencies, configuredKindFacets, configuredSourceFacets, renderThumbnail, renderThumbnailPlaceholder, renderCardExtra, onDeleteAsset, onDeleteSelected, onPreview, isPreviewOpen, searchDebounceMs, liveUpdateCoalesceMs, initialViewMode, useWiredAssetGridDataHook, useAssetGridSelectionHook });
+  const { kind, setKind, source, setSource, search, setSearch, kindFacets, sourceFacets, viewMode, setViewMode, assets, loading, reload, selectedIds, selectAll, clearSelection, containerRef, band, dragging, onMouseDown, requestDeleteSelected, confirmDeleteOpen, setConfirmDeleteOpen, deleteError, getDayKey, renderCard, confirmDelete } = hooks.useAssetGridView({ active, report, useWiredAssetGridLiveUpdatesHook, selectors, dependencies, configuredKindFacets, configuredSourceFacets, renderThumbnail, renderThumbnailPlaceholder, renderCardExtra, onDeleteAsset, onDeleteSelected, onPreview, isPreviewOpen, searchDebounceMs, liveUpdateCoalesceMs, initialViewMode, useWiredAssetGridDataHook, useAssetGridSelectionHook });
 
   return (
     <div className="asset-grid-root">

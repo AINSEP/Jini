@@ -1,8 +1,8 @@
 /**
  * @file The two built-in mail providers: `smtp` (any mailbox/relay) and `console` (local only).
  *
- * SMTP gets its transport from the host (nodemailer is never loaded by this package); console logs
- * each message with its body (the local preview of sign-in/confirmation links) and reports
+ * SMTP gets its transport from the host (nodemailer is never loaded by this package); console hands
+ * each message to an explicit host preview (including sign-in/confirmation links) and reports
  * `hosted: false`, so it can never make a site look configured.
  */
 import { nowIso, type Clock } from "@jini-ai/core/primitives";
@@ -12,6 +12,7 @@ import type { MailerPort } from "./ports.js";
 import type { MailProviderModule } from "./provider.js";
 import { SmtpMailerAdapter } from "./smtp.js";
 import { type SmtpTransport } from "@jini-ai/core/contracts/mail";
+import type { OutboundEmail } from './types.js';
 
 /**
  * SMTP endpoint packed into a credential `baseUrl` (`https://host:port`); 443/465 = implicit TLS.
@@ -40,22 +41,23 @@ export function createSmtpMailProvider(required: {
   };
 }
 
+/** No email is delivered locally: the preview must expose usable sign-in and confirmation links.
+ * Local mail receipts require the host preview to accept the complete message first.
+ * Preview errors propagate; no receipt claims a message was previewed when the host failed.
+ * @complexity O(1) per message beyond the host callback; batches remain sequential. */
 export function createConsoleMailProvider(
-  required: { clock: Clock },
-  optional: { log?: (line: string) => void } = {},
+  required: { clock: Clock; preview: (required: { message: OutboundEmail }) => void | Promise<void> },
+  _optional: Record<string, never> = {},
 ): MailProviderModule {
-  const log = optional.log ?? ((line: string) => console.log(line));
+  if (typeof required.preview !== 'function') throw new TypeError('A local mail preview callback is required.');
   let counter = 0;
   const mailer: MailerPort = {
     capabilities: () => ({ driver: "console", supportsIdempotencyKey: false, supportsWebhookFeedback: false, maxBatchSize: 1, supportsAttachments: true }),
     async send({ message }) {
-      counter += 1;
-      // The body is the point of a local mailer: a sign-in or confirmation link must be usable from the
-      // log, since nothing is delivered. Text is preferred (readable); an html-only message shows its html.
-      const body = message.text ?? message.html;
-      const bodySuffix = body === undefined ? "" : `\n${body}`;
-      log(`[mail:console] to=${message.to.email} subject=${JSON.stringify(message.subject)}${bodySuffix}`);
-      return { ok: true, providerMessageId: `console-${counter}`, acceptedAt: nowIso({ clock: required.clock }) };
+      const receipt = ++counter;
+      // This is intentional mail delivery to a host preview, separate from safe diagnostics.
+      await required.preview({ message });
+      return { ok: true, providerMessageId: `console-${receipt}`, acceptedAt: nowIso({ clock: required.clock }) };
     },
     async sendBatch({ messages, ...delivery }) {
       const results = [];

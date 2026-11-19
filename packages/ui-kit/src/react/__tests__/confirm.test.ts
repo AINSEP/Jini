@@ -117,7 +117,9 @@ describe('provider composition', () => {
   it('shares the global context across independently evaluated modules and warns on skew', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const a = getSharedKitContext({ version: '0.1.0' }), b = getSharedKitContext({ version: '0.1.1-test' });
-    expect(a).toBe(b); expect(warn).toHaveBeenCalledTimes(1);
+    expect(a).toBe(b); expect(warn).not.toHaveBeenCalled();
+    render(h(KitProvider, { children: null }));
+    expect(warn).toHaveBeenCalledTimes(1);
     vi.resetModules();
     const copy = await import('../context.js');
     expect(copy.KitContext).toBe(a);

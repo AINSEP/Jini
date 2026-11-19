@@ -56,3 +56,18 @@ describe("TotpSettings through the user-management kit", () => {
     } finally { quiet.mockRestore(); }
   });
 });
+
+
+it('uses both injected status and setup views and keeps the fixture key private', () => {
+  const port = portWith(vi.fn().mockResolvedValue({ isOwner: false, available: false, enrolled: false }));
+  const { getByText } = renderWithUmKit(<TotpSettings port={port} translate={translate}
+    useTotpSettingsHook={() => ({ status: { isOwner: true, available: true, enrolled: false }, error: '' })}
+    useTotpSettingsFormHook={() => ({
+      enrolled: false, setup: { pendingToken: 'fixture-token', secret: 'fixture-key', uri: 'fixture-uri' },
+      password: '', setPassword() {}, code: '', setCode() {}, busy: false, error: '', message: '', passwordId: 'fixture-password',
+      clear() {}, enroll: async event => { event.preventDefault(); }, confirm: async event => { event.preventDefault(); }, remove: async () => {},
+    })} />);
+  expect(getByText('fixture-key')).toHaveAttribute('data-agent-private', '');
+  expect(getByText('Confirm authenticator')).toBeInTheDocument();
+  expect(port.status).not.toHaveBeenCalled();
+});

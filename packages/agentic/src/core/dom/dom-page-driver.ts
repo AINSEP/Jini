@@ -1,4 +1,5 @@
 import { createPublicationFilter, publicElement, publishedText } from './publication-filter.js';
+import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
 import type { PagePublication } from '../page-publication.js';
 import {
   AGENT_ELEMENT_ATTRIBUTE,
@@ -436,6 +437,7 @@ export interface DomPageDriverRequired {
 }
 
 export interface DomPageDriverOptions {
+  readonly report?: Pick<Logger, 'warn'>;
   /**
    * The id of the page currently shown, reported on every element.
    *
@@ -459,13 +461,18 @@ export interface DomPageDriverOptions {
  * single handle to act on refuses instead of silently taking the first DOM match and leaving the
  * others permanently unreachable with no signal that they were ever unreachable at all.
  */
-const ambiguousHandleError = (handle: string, count: number): Error => {
+function ambiguousHandleError(
+  { handle, count }: { handle: string; count: number },
+  { report = createConsoleLogger({ prefix: '[agentic/dom]' }) }: { report?: Pick<Logger, 'warn'> } = {},
+): Error {
   const message = `"${handle}" is published on ${count} elements on this page, so which one it addresses is `
     + 'ambiguous — this is a page-authoring bug (duplicate data-agent-element), not something a '
     + 'caller can resolve; publish a unique handle per element';
-  console.warn(message);
+  // The handle is page-authored text, so the log line names the bug without echoing it; the
+  // thrown error still carries the full message for the caller.
+  try { report.warn({ message: `A data-agent-element handle is published on ${count} elements on this page (duplicate handle).` }); } catch { /* Diagnostics must not replace the refusal. */ }
   return new Error(message);
-};
+}
 
 function createDomElementResolver(root: DomPageDriverRequired['root'], options: DomPageDriverOptions) {
   /**
@@ -491,7 +498,7 @@ function createDomElementResolver(root: DomPageDriverRequired['root'], options: 
   const find = (handle: string, action = 'read'): Element => {
     const matches = findAll(handle);
     if (matches.length === 0) throw new Error(`no element published as "${handle}" on this page`);
-    if (matches.length > 1) throw ambiguousHandleError(handle, matches.length);
+    if (matches.length > 1) throw ambiguousHandleError({ handle, count: matches.length }, options.report ? { report: options.report } : {});
     const element = matches[0]!;
     const control = controlOf(element, action);
     if (['click', 'fill', 'selectOption'].includes(action)) assertActiveControl({ element: control, handle, action });
@@ -574,7 +581,7 @@ function createDomReadOperations(
       // absence but an ambiguity — so that case still refuses, same as `find`.
       const matches = findAll(handle);
       if (matches.length === 0) return null;
-      if (matches.length > 1) throw ambiguousHandleError(handle, matches.length);
+      if (matches.length > 1) throw ambiguousHandleError({ handle, count: matches.length }, options.report ? { report: options.report } : {});
       const element = matches[0]!;
       const control = controlOf(element);
       const field = fieldDescriptorOf(control);

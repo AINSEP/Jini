@@ -1,4 +1,4 @@
-import { describeErrorForLog } from '@jini-ai/core/model-facing-tool-errors';
+import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
 import {
   useCallback,
   type DragEvent,
@@ -7,6 +7,8 @@ import {
 import { useFileDropTarget } from '@jini-ai/ui';
 
 export interface UseChatPaneFileDropOptions {
+  report?: Pick<Logger, 'error'> | undefined;
+  useFileDropTargetHook?: typeof useFileDropTarget;
   enabled: boolean;
   onFiles: (files: File[]) => void | Promise<void>;
 }
@@ -31,16 +33,16 @@ function carriesFiles(event: DragEvent<Element>): boolean {
 }
 
 /** Invokes the host's `onFiles` and reports a synchronous throw or async rejection without leaving it unhandled. */
-function runOnFilesHostEffect(onFiles: UseChatPaneFileDropOptions['onFiles'], files: File[]) {
+function runOnFilesHostEffect({ onFiles, files }: { onFiles: UseChatPaneFileDropOptions['onFiles']; files: File[] }, { report: logger = createConsoleLogger({ prefix: '' }) }: { report?: Pick<Logger, 'error'> | undefined } = {}) {
   let result: void | Promise<void>;
   try {
     result = onFiles(files);
   } catch (error) {
-    console.error('[@jini-ai/chat] useChatPaneFileDrop onFiles host effect failed:', describeErrorForLog({ err: error }));
+    logger.error({ message: '[@jini-ai/chat] useChatPaneFileDrop onFiles host effect failed:' }, { error });
     return;
   }
   void Promise.resolve(result).catch((error: unknown) => {
-    console.error('[@jini-ai/chat] useChatPaneFileDrop onFiles host effect failed:', describeErrorForLog({ err: error }));
+    logger.error({ message: '[@jini-ai/chat] useChatPaneFileDrop onFiles host effect failed:' }, { error });
   });
 }
 
@@ -54,10 +56,10 @@ function runOnFilesHostEffect(onFiles: UseChatPaneFileDropOptions['onFiles'], fi
  */
 export function useChatPaneFileDrop({
   enabled,
-  onFiles,
+  onFiles, report, useFileDropTargetHook = useFileDropTarget,
 }: UseChatPaneFileDropOptions): UseChatPaneFileDropResult {
-  const dropTarget = useFileDropTarget((files) => {
-    runOnFilesHostEffect(onFiles, files);
+  const dropTarget = useFileDropTargetHook((files) => {
+    runOnFilesHostEffect({ onFiles, files }, { report });
   });
 
   const onDragEnter = useCallback<DragEventHandler<HTMLDivElement>>((event) => {

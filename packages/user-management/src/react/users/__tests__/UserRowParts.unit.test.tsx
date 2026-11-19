@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { UserGrantCells, UserNameCell, UserStatusCell, userRowMenuItemsFor } from "../UserRowParts.js";
-import type { UserRowActionsController } from "../Users.js";
+import type { UserRowActionsController } from "../UsersTable.js";
 import type { AdminIdentityUser, AdminPolicy, AdminRole } from "../../models.js";
 
 const t = (key: string) => `T:${key}`;

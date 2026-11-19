@@ -1,4 +1,4 @@
-import { describeErrorForLog } from '@jini-ai/core/model-facing-tool-errors';
+import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { EXPORTED_IMAGE_MIME_TYPE, SAVED_VISIBLE_MS } from '../../constants.js';
@@ -14,6 +14,7 @@ function useLatestRef<T>(value: T): MutableRefObject<T> {
 }
 
 export interface UseSketchSaveWorkflowParams {
+  report?: Pick<Logger, 'warn'> | undefined;
   dirty: boolean;
   saving: boolean;
   savedAt?: number | undefined;
@@ -83,11 +84,11 @@ function exportSceneInput({ scene }: { scene: ReturnType<UseSketchSaveWorkflowPa
 }
 
 /** Renders, encodes and hands off the image; resolves with the toast to show (null when the host declined). Never rejects. */
-async function performSketchExport({ scene, engine, exportHandler, fileNameRef, tRef, sourceFileExtension }: {
+async function performSketchExport({ scene, engine, exportHandler, fileNameRef, tRef, sourceFileExtension, report }: {
   scene: ReturnType<UseSketchSaveWorkflowParams['currentScene']>; engine: UseSketchSaveWorkflowParams['engine'];
   exportHandler: NonNullable<UseSketchSaveWorkflowParams['onExportImage']>;
   fileNameRef: { current: string }; tRef: { current: UseSketchSaveWorkflowParams['t'] };
-  sourceFileExtension: UseSketchSaveWorkflowParams['sourceFileExtension'];
+  sourceFileExtension: UseSketchSaveWorkflowParams['sourceFileExtension']; report: UseSketchSaveWorkflowParams['report'];
 }, _options = {}): Promise<SketchToastState | null> {
   const { exportedElements, exportedAppState } = exportSceneInput({ scene });
   try {
@@ -105,7 +106,8 @@ async function performSketchExport({ scene, engine, exportHandler, fileNameRef, 
     const savedFileName = exportedImageResultFileName({ result, fallback: requestedFileName });
     return { message: tRef.current('Image exported'), details: savedFileName, tone: 'success', actionFileName: savedFileName };
   } catch (err) {
-    console.warn('[SketchEditor] export image failed', describeErrorForLog({ err }));
+    const logger = report ?? createConsoleLogger({ prefix: '[SketchEditor]' });
+    logger.warn({ message: 'export image failed' }, { error: err });
     return { message: tRef.current('Could not export image'), tone: 'error' };
   }
 }
@@ -117,7 +119,7 @@ async function performSketchExport({ scene, engine, exportHandler, fileNameRef, 
  * single toast slot.
  */
 export function useSketchSaveWorkflow(params: UseSketchSaveWorkflowParams): SketchSaveWorkflowController {
-  const { dirty, saving, savedAt, fileName, currentScene, onSave, onExportImage, onOpenExportedImage, engine, t, sourceFileExtension } =
+  const { dirty, saving, savedAt, fileName, currentScene, onSave, onExportImage, onOpenExportedImage, engine, t, sourceFileExtension, report } =
     params;
   const { showSaved, hideSaved, flashSaved } = useSavedIndicator({ dirty, saving, savedAt });
   const [exporting, setExporting] = useState(false);
@@ -144,10 +146,10 @@ export function useSketchSaveWorkflow(params: UseSketchSaveWorkflowParams): Sket
     if (!exportHandler || exporting) return;
     const exportedScene = currentScene();
     setExporting(true);
-    const nextToast = await performSketchExport({ scene: exportedScene, engine, exportHandler, fileNameRef, tRef, sourceFileExtension });
+    const nextToast = await performSketchExport({ scene: exportedScene, engine, exportHandler, fileNameRef, tRef, sourceFileExtension, report });
     if (nextToast) setToast(nextToast);
     setExporting(false);
-  }, [currentScene, engine, exporting, fileNameRef, onExportImageRef, sourceFileExtension, tRef]);
+  }, [currentScene, engine, exporting, fileNameRef, onExportImageRef, sourceFileExtension, tRef, report]);
 
   const dismissToast = useCallback(() => setToast(null), []);
 

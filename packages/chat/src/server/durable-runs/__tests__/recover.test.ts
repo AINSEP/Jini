@@ -43,7 +43,7 @@ function harness({ events, probe, content = "", run = {} }: { events: AgentEvent
   };
   const info: unknown[][] = [];
   const logger = { info: (...args: unknown[]) => { info.push(args); } };
-  return { recovery: createDurableRecovery(ports, { logger }), settlements, attached, canceled, launches, info };
+  return { recovery: createDurableRecovery(ports, { report: logger }), settlements, attached, canceled, launches, info };
 }
 
 it.each(['claude', 'codex', 'antigravity', 'aider', 'opencode', 'future-cli'])('never relaunches a typed native-policy failure for %s', async agentId => {
@@ -138,7 +138,7 @@ describe("durable recovery: one metadata-only info line per decision", () => {
     const h = harness({ events: [{ kind: "text", text: "private answer" }, { kind: "status", label: "context_length_exceeded", detail: "private detail" }], probe: "dead" });
 
     expect(await h.recovery.recover({ messageId: "answer", trigger: "boot" }, {})).toBe("finalized");
-    expect(h.info).toEqual([["[durable-recovery] " + JSON.stringify({ runId: "old", trigger: "boot", probe: "dead", decision: "finalized", failureClass: "permanent" })]]);
+    expect(h.info).toEqual([[{ message: "[durable-recovery] Recovery decision." }, { meta: { runId: "old", trigger: "boot", probe: "dead", decision: "finalized", failureClass: "permanent" } }]]);
   });
 
   it("does not log the watcher's routine re-confirmation of its own live run", async () => {
@@ -342,4 +342,14 @@ it("completed_subagent_billing_summary_is_not_executor_failure", async () => {
   const failed = harness({ probe: "dead", events: [{ kind: "raw", line: `${summary}\nHTTP 403: forbidden` }] });
   expect(await failed.recovery.recover({ messageId: "answer", trigger: "attempt-failed" }, {})).toBe("finalized");
   expect(failed.settlements).toHaveLength(1);
+});
+
+it('reports recovery metadata through the typed port without saved answer or diagnostic prose', async () => {
+  const sentinel = 'silver wren private basin';
+  const h = harness({ probe: 'dead', content: sentinel, events: [{ kind: 'raw', line: sentinel }] });
+  expect(await h.recovery.recover({ messageId: 'answer', trigger: 'boot' }, {})).toBe('continued');
+  expect(h.launches).toHaveLength(1);
+  expect(h.info).toHaveLength(1);
+  expect(h.info[0]).toEqual([{ message: '[durable-recovery] Recovery decision.' }, { meta: { runId: 'old', trigger: 'boot', probe: 'dead', decision: 'continued', failureClass: 'retryable' } }]);
+  expect(JSON.stringify(h.info)).not.toContain(sentinel);
 });

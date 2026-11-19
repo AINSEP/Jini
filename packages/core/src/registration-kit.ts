@@ -80,7 +80,7 @@ export const AGENT_TOOL_PRINCIPAL_KIND: "agent" = "agent";
  * {@link humanConfirmedHandler}, which asks the human through the host's own confirmation transport
  * and runs the action only on an explicit yes. Any other handler fails the build.
  */
-export const ACTOR_CLASS_RULES_REQUIRING_CONFIRMATION_TRANSPORT = new Set(["confirmer-must-equal-own-delegatedBy"]);
+export const ACTOR_CLASS_RULES_REQUIRING_CONFIRMATION_TRANSPORT: ReadonlySet<string> = new Set(["confirmer-must-equal-own-delegatedBy"]);
 
 /**
  * The human who confirmed, as {@link humanConfirmedHandler} hands it to `run`: always the run's own

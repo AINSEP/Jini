@@ -9,6 +9,7 @@ import { createNoopTracker } from "./tracker-noop.js";
 import { isNoopObservabilityPort } from "@jini-ai/core/contracts/observability";
 import { combineObservabilityPorts } from "./fanout.js";
 import { reportErrorOnce, runWithErrorReportScope } from "./report-error.js";
+import { createConsoleLogger } from '@jini-ai/core/primitives';
 
 type SpanOutcome = OperationTrackingOutcome | RequestTrackingOutcome | AgentRunTrackingOutcome;
 type SpanOptions = OperationSpanOptions | RequestSpanOptions | AgentSpanOptions;
@@ -16,7 +17,7 @@ type Lifecycle = Partial<TrackerScope> & { end(outcome: SpanOutcome): void };
 
 /** Fixed diagnostic, once per facade; provider errors can contain credentials and are never logged.
  * @complexity O(1) time/space. */
-export function createTrackerWarning(_required: Record<string, never>, { warn = (message) => console.warn(message) }: TrackerOptions = {}): () => void {
+export function createTrackerWarning(_required: Record<string, never>, { warn = (message) => createConsoleLogger({ prefix: '' }).warn({ message }) }: TrackerOptions = {}): () => void {
   let reported = false;
   return () => {
     if (reported) return;

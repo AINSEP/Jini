@@ -48,7 +48,7 @@ const ICON_EXT: Record<string, 'svg' | 'png'> = {
 // `currentColor`, so if anything outside this component ever loads
 // the asset through `<img>` it still renders as a legible dark mark
 // rather than collapsing to the SVG document's default black-on-…-black.
-const MONO_ICONS = new Set([
+const MONO_ICONS: ReadonlySet<string> = new Set([
   'cursor-agent',
   'opencode',
   'hermes',

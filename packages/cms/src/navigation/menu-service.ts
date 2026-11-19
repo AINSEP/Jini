@@ -141,9 +141,9 @@ export const DEFAULT_MAX_TREE_DEPTH = 5;
 /** Default max total item count across the whole tree. */ 
 export const DEFAULT_MAX_ITEM_COUNT = 500;
 
-const VALID_TARGET_KINDS = new Set<string>(["entryRef", "termRef", "url", "route"]);
+const VALID_TARGET_KINDS: ReadonlySet<string> = new Set<string>(["entryRef", "termRef", "url", "route"]);
 /** Named deferred seams — recognized, rejected until their resolver ships. */ 
-const RESERVED_TARGET_KINDS = new Set<string>(["dynamicQuery", "content"]);
+const RESERVED_TARGET_KINDS: ReadonlySet<string> = new Set<string>(["dynamicQuery", "content"]);
 
 export interface TreeValidationLimits {
   maxDepth?: number | undefined;

@@ -24,14 +24,14 @@ export function createNodeDirectoryWorkspace(
     homeDir: string; defaultFolder: string; envName: string; settingsFile: string; registryName: string; runningName: string; userConfig?: DirectoryUserConfigPolicy;
     /** Opt-in host recovery of known test pollution; missing user directories alone never qualify. */
     registryRecovery?: { fixtureIdPattern: RegExp; temporaryRoots?: readonly string[] };
-  }, { env = process.env, cwd = process.cwd(), ports = createNodeDurableJsonPorts({}), canonicalPath = canonicalNodeDirectory, ...directoryOptions }: UserDirectoryOptions & { env?: NodeJS.ProcessEnv; cwd?: string; ports?: DurableJsonPorts; canonicalPath?: (required: { path: string }) => string } = {},
+  }, { env = process.env, cwd = process.cwd(), report, ports = createNodeDurableJsonPorts({}, { report }), canonicalPath = canonicalNodeDirectory, ...directoryOptions }: UserDirectoryOptions & { env?: NodeJS.ProcessEnv; cwd?: string; report?: DurableJsonPorts['report']; ports?: DurableJsonPorts; canonicalPath?: (required: { path: string }) => string } = {},
 ) {
-  const fileAt = (filePath: string) => createDurableJsonFile({ ...ports, filePath, notices: {
+  const fileAt = (filePath: string) => createDurableJsonFile({ ...ports, report: report ?? ports.report, filePath, notices: {
     prefix: "Directory workspace", lockTimeout: ({ lockPath }) => `Timed out waiting for file lock: ${lockPath}`,
   } }, { staleMs: Infinity });
   const config = userConfig ? createDirectoryUserConfig({ homeDir, defaultFolder, envName, policy: userConfig,
     fileAt, canonicalPath, removeFile: ({ filePath }) => ports.filesystem.rmSync(filePath, { force: true }), isDirectory: (file) => ports.filesystem.statSync(file).isDirectory(), exists: (file) => { try { ports.filesystem.statSync(file); return true; } catch (error) { return fallbackIfMissing({ error, fallback: false }); } },
-  }, { env, cwd, report: (message) => ports.report.error({ message }), ...directoryOptions }) : undefined;
+  }, { env, cwd, report: (message) => (report ?? ports.report).error({ message }), ...directoryOptions }) : undefined;
   const settings = fileAt(config?.filePath ?? settingsFile);
   const legacyHome = () => canonicalPath({ path: resolveDirectoryHome({ homeDir, defaultFolder, envName, env, setting: env[envName] === undefined ? readSetting(settings) : undefined }, { cwd }) });
   const home = () => config?.read({}).sitesHome ?? legacyHome();
@@ -91,7 +91,7 @@ function createWorkspaceCatalogReader({ fileAt, config, home, registryName, cano
       try { ports.filesystem.statSync(entry.path); return false; }
       catch (error) { return fallbackIfMissing({ error, fallback: true }); }
     },
-    reportDiscarded: ({ entries }) => ports.report.error({ message: `Directory workspace: removed ${entries.length} test/temporary catalog entries: ${entries.map((entry) => entry.id).join(", ")}` }),
+    reportDiscarded: ({ entries }) => (report ?? ports.report).error({ message: `Directory workspace: removed ${entries.length} test/temporary catalog entries: ${entries.map((entry) => entry.id).join(", ")}` }),
   } : {});
   return atHome;
 }

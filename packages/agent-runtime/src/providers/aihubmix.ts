@@ -236,7 +236,7 @@ export interface AIHubMixCatalogModel {
 // (e.g. "llm", "llm,search", "image_generation,llm"). These are the
 // media-generation capabilities that belong to dedicated image/video/audio
 // pickers — NOT the chat model picker.
-const AIHUBMIX_MEDIA_GENERATION_TYPES = new Set(['image_generation', 'video', 'tts']);
+const AIHUBMIX_MEDIA_GENERATION_TYPES: ReadonlySet<string> = new Set(['image_generation', 'video', 'tts']);
 
 function aihubmixRowTypes(row: unknown): string[] {
   const raw = (row as { types?: unknown })?.types;

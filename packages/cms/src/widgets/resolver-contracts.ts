@@ -14,7 +14,7 @@ import type { ResolvePageWidgetsDeps } from "./page-widget-resolution.js";
  * placements, which an `"html"`-format Page has no concept of). `ResolvePageWidgetsDeps` remains a
  * structural supertype of this, so `resolvePageWidgets` passes its own full deps through unchanged.
  */
-export type WidgetInstanceResolutionDeps = Pick<ResolvePageWidgetsDeps, "entryRepo">;
+export type WidgetInstanceResolutionDeps = Pick<ResolvePageWidgetsDeps, "entryRepo" | "report">;
 
 // ---------------------------------------------------------------------------
 // HTML Page embeds (SPEC-047 Slice 2, registry-restructured 2026-08-07 per

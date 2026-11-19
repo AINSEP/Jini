@@ -8,6 +8,7 @@
  * `.catch(() => ({}))` outcome on a body that is not JSON, while distinguishing it from parsed null.
  */
 
+import { describeErrorForLog } from '@jini-ai/core';
 import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import type { AdminClient, AdminRouteGroupFactory, AdminTransport } from './types.js';
 
@@ -85,7 +86,7 @@ function requestTimeoutError(
 ): AdminApiError {
   const message = `the API did not respond within ${timeoutMs / 1000}s — the browser may be out of free connections for this origin (try closing other admin tabs) or the server is unresponsive`;
   return new AdminApiError({ message, status: 0 }, {
-    code: 'REQUEST_TIMEOUT', body: { cause: cause instanceof Error ? cause.message : String(cause) },
+    code: 'REQUEST_TIMEOUT', body: { cause: describeErrorForLog({ err: cause }) },
   });
 }
 
@@ -100,7 +101,7 @@ function throwTranslatedFetchFailure(
   if (!(cause instanceof TypeError)) throw cause;
   if (isPageUnloading?.()) throw new DOMException('request cancelled: the page is unloading', 'AbortError');
   throw new AdminApiError({ message: unreachableApiMessage(), status: 0 }, {
-    code: 'API_UNREACHABLE', body: { cause: cause.message },
+    code: 'API_UNREACHABLE', body: { cause: describeErrorForLog({ err: cause }) },
   });
 }
 

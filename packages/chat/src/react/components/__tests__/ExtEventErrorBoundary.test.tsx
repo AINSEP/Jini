@@ -44,7 +44,7 @@ describe('ExtEventErrorBoundary', () => {
       </div>,
     );
     expect(screen.getByText('the rest of the transcript')).toBeInTheDocument();
-    expect(screen.getByRole('alert')).toHaveTextContent('"a2ui" failed to render: unbounded recursive component tree');
+    expect(screen.getByRole('alert')).toHaveTextContent('This extension could not be rendered.');
   });
 
   it('names the failing ext event on the fallback so a host can tell which protocol broke', () => {
@@ -86,7 +86,7 @@ describe('ExtEventErrorBoundary', () => {
     expect(info.componentStack).toContain('Boom');
     // The built-in fallback is not opt-out: a host that only wants to log must still not get a
     // silently blank slot where the surface was.
-    expect(screen.getByRole('alert')).toHaveTextContent('reporting hook');
+    expect(screen.getByRole('alert')).toHaveTextContent('This extension could not be rendered.');
   });
 
   it('still renders the fallback when no onError handler is supplied', () => {
@@ -98,6 +98,6 @@ describe('ExtEventErrorBoundary', () => {
         <Boom message="no handler" />
       </ExtEventErrorBoundary>,
     );
-    expect(screen.getByRole('alert')).toHaveTextContent('"a2ui" failed to render: no handler');
+    expect(screen.getByRole('alert')).toHaveTextContent('This extension could not be rendered.');
   });
 });

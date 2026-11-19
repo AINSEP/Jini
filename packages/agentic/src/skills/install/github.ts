@@ -1,6 +1,7 @@
 /** Commit-pinned public GitHub import with one request/body deadline, byte caps and refused redirects. */
 import { MAX_SKILL_BYTES, MAX_SKILL_FILES, MAX_SKILL_FILE_BYTES, decodeSkillBase64, SkillInputError, type SkillUploadFile } from "./validation.js";
 import type { SkillFetchPort } from "./ports.js";
+import { githubRepoBase, createGitHubJsonReader, type GitHubJson } from "./adapters/github-rest.js";
 
 export interface GitHubSkillSource { readonly githubUrl: string; readonly commit: string }
 
@@ -18,7 +19,7 @@ const SHA_PATTERN = /^[a-f0-9]{40}$/;
 const SEGMENT_PATTERN = /^[a-zA-Z0-9_.-]+$/;
 const SKILL_FILE_PATTERN = /^(SKILL\.md|README\.md|LICENSE|(?:references|scripts|assets)\/.*)$/;
 const REGULAR_FILE_MODES = ["100644", "100755"];
-type GitHubJson = (endpoint: string) => Promise<Record<string, unknown>>;
+
 
 /** Restricts every request to api.github.com, disallows redirects, pins one immutable commit.
  * @deprecated Inject fetchSource and use normalized url input instead.
@@ -26,7 +27,7 @@ type GitHubJson = (endpoint: string) => Promise<Record<string, unknown>>;
  */
 export async function fetchGitHubSkill({ githubUrl, fetch: fetchImpl }: { githubUrl: string; fetch: SkillFetchPort }, _optional: Record<string, never> = {}) {
   const { owner, repo, ref, prefix } = parseGitHubSkillUrl({ githubUrl });
-  const base = `https://api.github.com/repos/${owner}/${repo}`;
+  const base = githubRepoBase({ owner, repo });
   // One deadline for the whole fetch, including streaming response bodies.
   const json = createGitHubJsonReader({ fetch: fetchImpl, signal: AbortSignal.timeout(30_000) });
   const commit = (await json(`${base}/commits/${encodeURIComponent(ref)}`)).sha;
@@ -62,35 +63,6 @@ function isGitHubOrigin({ url }: { url: URL }): boolean {
 function isSkillRepoPath({ parts }: { parts: readonly string[] }): boolean {
   const shapeOk = parts.length === 2 || (parts.length >= 4 && parts[2] === "tree");
   return shapeOk && parts.every(p => SEGMENT_PATTERN.test(p) && p !== "." && p !== "..");
-}
-
-/** One JSON endpoint reader sharing the redirect policy, accept header and deadline. */
-function createGitHubJsonReader({ fetch: fetchImpl, signal }: { fetch: SkillFetchPort; signal: AbortSignal }): GitHubJson {
-  return async endpoint => {
-    const response = await fetchImpl({ url: endpoint }, { redirect: "error", signal, headers: { Accept: "application/vnd.github+json" } });
-    if (!response.ok) throw new SkillInputError({ message: `GitHub could not fetch this skill (HTTP ${response.status}). Use a public repository URL.` });
-    if (!response.body) throw new SkillInputError({ message: "GitHub returned an empty response." });
-    const result: unknown = JSON.parse((await readBoundedBody({ body: response.body })).toString("utf8"));
-    if (!result || typeof result !== "object" || Array.isArray(result)) throw new SkillInputError({ message: "GitHub returned an invalid skill response." });
-    return result as Record<string, unknown>;
-  };
-}
-
-/** Streams a response body up to 16 MiB and always releases the reader. */
-async function readBoundedBody({ body }: { body: ReadableStream<Uint8Array> }): Promise<Buffer> {
-  const reader = body.getReader();
-  let bytes = 0;
-  const chunks: Uint8Array[] = [];
-  try {
-    for (;;) {
-      const part = await reader.read();
-      if (part.done) break;
-      bytes += part.value.length;
-      if (bytes > MAX_SKILL_BYTES * 2) throw new SkillInputError({ message: "GitHub skill response exceeds its size limit." });
-      chunks.push(part.value);
-    }
-  } finally { await reader.cancel(); }
-  return Buffer.concat(chunks);
 }
 
 /** Checks each selected row, then fetches its blob, in tree order, under declared and decoded budgets. */

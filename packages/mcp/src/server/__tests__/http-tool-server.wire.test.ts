@@ -168,3 +168,14 @@ it('initial listener failure repairs without a manual reconnect', async () => {
     expect(start).toHaveBeenCalledTimes(2);
   } finally { vi.useRealTimers(); }
 });
+
+
+it('serves resources through the adapted HTTP SDK connection', async () => {
+  const server = await startMcpHttpToolServer({ name: 'resource-host', version: '1', tools: [], resolveBaseUrl: () => '' }, {
+    resources: [{ uri: 'jini://http', name: 'HTTP', read: () => ({ text: 'resource body' }) }],
+  });
+  cleanup.push(() => server.close({}));
+  const client = await connect(server);
+  expect((await client.listResources()).resources).toEqual([{ uri: 'jini://http', name: 'HTTP' }]);
+  expect((await client.readResource({ uri: 'jini://http' })).contents).toEqual([{ uri: 'jini://http', text: 'resource body' }]);
+});

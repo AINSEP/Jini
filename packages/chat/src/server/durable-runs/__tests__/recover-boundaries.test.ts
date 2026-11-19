@@ -61,7 +61,7 @@ function harness({ events = [], probe = "dead", run = {}, now = TIME + 20_000, a
     ...overrides,
   };
   const info: unknown[][] = [];
-  const recovery = createDurableRecovery(ports, { logger: { info: (...args: unknown[]) => { info.push(args); } } });
+  const recovery = createDurableRecovery(ports, { report: { info: (...args: unknown[]) => { info.push(args); } } });
   const recover = (trigger: RecoveryTrigger = "boot", options: { liveRunId?: string; expectedRunId?: string } = {}) =>
     recovery.recover({ messageId: "answer", trigger, ...(options.expectedRunId ? { expectedRunId: options.expectedRunId } : {}) },
       options.liveRunId ? { liveRunId: options.liveRunId } : {});
@@ -77,7 +77,7 @@ describe("durable recovery boundaries: before any decision", () => {
     const recovery = createDurableRecovery({
       store: storeReturning(null), now: () => TIME, mintRunId: () => "next", probe: async () => "dead", attach: () => {},
       launch: async () => {}, cancelAttempt: async () => {}, verifyChildDead: async () => true, supportsNativeResume: () => true, settle: async (value) => { settlements.push(value); return true; },
-    }, { logger: { info: () => {} } });
+    }, { report: { info: () => {} } });
     expect(await recovery.recover({ messageId: "answer", trigger: "boot" }, {})).toBe("gone");
     expect(settlements).toEqual([]);
   });
@@ -119,7 +119,7 @@ describe("durable recovery boundaries: excluded runs", () => {
     expect(probed).toBe(0);
     expect(h.settlements[0]!.status).toBe("canceled");
     expect(h.settlements[0]!.events.at(-1)).toEqual({ kind: "status", label: STOPPED });
-    expect(h.info).toEqual([["[durable-recovery] " + JSON.stringify({ runId: "old", trigger: "boot", decision: "finalized" })]]);
+    expect(h.info).toEqual([[{ message: "[durable-recovery] Recovery decision." }, { meta: { runId: "old", trigger: "boot", probe: undefined, decision: "finalized", failureClass: undefined } }]]);
   });
 
   it("still settles when canceling the old attempt rejects", async () => {
@@ -156,7 +156,7 @@ describe("durable recovery boundaries: liveness", () => {
     expect(h.clocks).toEqual([{ runId: "old", now: TIME + 20_000, active: false }]);
     expect(h.attached).toEqual(["old"]);
     expect(h.launches).toEqual([]);
-    expect(h.info).toEqual([["[durable-recovery] " + JSON.stringify({ runId: "old", trigger: "timeout", probe: "uncertain", decision: "waiting" })]]);
+    expect(h.info).toEqual([[{ message: "[durable-recovery] Recovery decision." }, { meta: { runId: "old", trigger: "timeout", probe: "uncertain", decision: "waiting", failureClass: undefined } }]]);
   });
 
   it("gives a freshly started dead attempt 10 s before continuing it", async () => {
@@ -193,7 +193,7 @@ describe("durable recovery boundaries: generation fencing", () => {
       },
       now: () => TIME + 20_000, mintRunId: () => "next", probe: async () => "uncertain", attach: (run) => { attached.push(run.runId); },
       launch: async () => {}, cancelAttempt: async () => {}, verifyChildDead: async () => true, supportsNativeResume: () => true, settle: async () => true,
-    }, { logger: { info: () => {} } });
+    }, { report: { info: () => {} } });
     expect(await recovery.recover({ messageId: "answer", trigger: "timeout" }, {})).toBe("gone");
     expect(attached).toEqual([]);
   });
@@ -261,7 +261,7 @@ describe("durable recovery boundaries: continuation launch", () => {
     expect(JSON.stringify(notice)).toContain('connection refused');
     expect(JSON.stringify(notice)).not.toContain('private-value');
     expect(checkpoints[0]!.events[0]).toMatchObject({ code: 'run_recovering' });
-    const reloaded = createDurableRecovery({ ...h.ports, probe: async () => 'uncertain' }, { logger: { info() {} } });
+    const reloaded = createDurableRecovery({ ...h.ports, probe: async () => 'uncertain' }, { report: { info() {} } });
     expect(await reloaded.recover({ messageId: 'answer', trigger: 'browser' }, {})).toBe('waiting');
     expect(launches).toBe(1);
     expect(h.settlements).toEqual([]);

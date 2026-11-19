@@ -1,3 +1,4 @@
+import type { Logger } from '@jini-ai/core/primitives';
 import type { ComponentType, ReactNode, Ref, RefObject, HTMLAttributes } from 'react';
 import type { KitAttrs, AgentAttrsPort } from '../attrs.js';
 import type { ConfirmInput, DismissReason } from '../confirm.js';
@@ -74,11 +75,13 @@ export interface ResolvedKit {
   readonly failed: Set<ImplementedComponentName>; readonly guard: GuardMode;
 }
 export interface KitProviderProps {
+  readonly report?: Pick<Logger, 'warn' | 'error'> | undefined;
   readonly kit?: ResolvedKit; readonly children: ReactNode; readonly agent?: AgentAttrsPort;
   readonly overlayContainer?: HTMLElement | null; readonly needs?: readonly KitNeeds[];
   readonly toast?: ToastService; readonly cancelLabel?: string; readonly guard?: GuardMode;
 }
 export interface KitContextValue {
+  readonly report?: Pick<Logger, 'warn' | 'error'> | undefined;
   readonly kit: ResolvedKit; readonly agent: AgentAttrsPort | undefined; readonly overlayContainer: HTMLElement | null;
   readonly toast: ToastService | undefined; readonly cancelLabel: string; readonly guard: GuardMode;
 }

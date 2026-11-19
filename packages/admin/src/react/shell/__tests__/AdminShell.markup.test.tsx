@@ -35,3 +35,27 @@ it('the topbar toggle icon has round line caps (markup parity with the host the 
   const { getByRole } = render(<AdminShell {...shellProps('/')} />);
   expect(getByRole('button', { name: 'Open navigation' }).querySelector('path')).toHaveAttribute('stroke-linecap', 'round');
 });
+
+
+it('keeps safe icon shapes and removes executable markup in the shell nav', () => {
+  const props = shellProps('/');
+  const icon = '<g transform="translate(1,1)"><path d="M1 1" /><circle r="2" /></g>'
+    + '<script>bad()</script><path d="M2 2" onclick="bad()" /><use href="#other" />';
+  const { getByRole } = render(<AdminShell {...props} panels={[
+    { ...props.panels[0]!, nav: { label: 'Icon entry', icon } },
+  ]} />);
+  const svg = getByRole('link', { name: 'Icon entry' }).querySelector('svg')!;
+  expect(svg.querySelector('g > path')).toHaveAttribute('d', 'M1 1');
+  expect(svg.querySelector('circle')).toHaveAttribute('r', '2');
+  expect(svg.querySelector('script, use, [onclick], [href]')).toBeNull();
+});
+
+it.each(['<path d="M1 1"', '<path d="M1 1" /><parsererror />'])(
+  'rejects the whole icon when XML parsing reports an error: %s', (icon) => {
+    const props = shellProps('/');
+    const { getByRole } = render(<AdminShell {...props} panels={[
+      { ...props.panels[0]!, nav: { label: 'Broken icon', icon } },
+    ]} />);
+    expect(getByRole('link', { name: 'Broken icon' }).querySelector('svg')!.children).toHaveLength(0);
+  },
+);

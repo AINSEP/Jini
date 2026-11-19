@@ -1,3 +1,4 @@
+import { createConsoleLogger } from "@jini-ai/core/primitives";
 import { resolveGalleryEmbeds } from "./gallery-resolver.js";
 import { resolveTaxonomyEmbeds } from "./resolvers/taxonomy.js";
 import type { PageEmbedType } from "./page-embed-types.js";
@@ -38,14 +39,14 @@ export const HTML_EMBED_RESOLVERS: Readonly<Record<string, HtmlEmbedResolver>> =
     const content = await resolveGalleryEmbeds({
       refs: inline.map(ref => ({ ...ref, config: (ref.config?.content ?? ref.config) as Readonly<Record<string, unknown>> })),
       resolveMedia: ({ refs }) => resolveMediaTypeEmbeds(refs, deps, context),
-    }, { reportIssue: ({ key, messages }) => console.warn('[widgets] unresolved media content', { key, messages }) });
+    }, { reportIssue: ({ key, messages }) => (context.report ?? createConsoleLogger({ prefix: "[widgets]" })).warn({ message: 'unresolved media content' }, { meta: { key, messages } }) });
     return new Map([...media, ...content]);
   },
   gallery: (refs, deps, context) => resolveGalleryEmbeds({
     refs,
     resolveMedia: ({ refs: mediaRefs }) => resolveMediaTypeEmbeds(mediaRefs, deps, context),
   }, {
-    reportIssue: ({ key, messages }) => console.warn('[widgets] unresolved gallery embed', { workspaceId: context.workspaceId, key, messages }),
+    reportIssue: ({ key, messages }) => (context.report ?? createConsoleLogger({ prefix: "[widgets]" })).warn({ message: 'unresolved gallery embed' }, { meta: { workspaceId: context.workspaceId, key, messages } }),
   }),
   post: resolvePostTypeEmbeds,
   content: resolveContentTypeEmbeds,

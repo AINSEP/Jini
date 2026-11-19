@@ -1,3 +1,4 @@
+import { createConsoleLogger } from '@jini-ai/core/primitives';
 /** Host adapter for the shared identity owner. The legacy lifecycle already indexes packageRoot;
  * rereading its manifest keeps new metadata available before compiled lifecycle code is rebuilt. */
 import { readFile } from 'node:fs/promises';
@@ -17,7 +18,7 @@ export function readPluginMaturity({ manifest }: { manifest: unknown }, options:
   const maturity = readAgentPluginPortableExtension({ value: manifest })?.maturity;
   if (maturity === undefined) return undefined;
   if (maturity === 'untested' || maturity === 'soon') return maturity;
-  (options.warn ?? console.warn)('[agent-plugins] Unknown extensions.jini.maturity ignored; expected "untested" or "soon".');
+  (options.warn ?? (message => createConsoleLogger({ prefix: '' }).warn({ message })))('[agent-plugins] Unknown extensions.jini.maturity ignored; expected "untested" or "soon".');
   return undefined;
 }
 
@@ -33,7 +34,7 @@ export function readProviderPluginLink({ manifest }: { manifest: unknown }, opti
   const link = readAgentPluginPortableExtension({ value: manifest })?.providerPlugin;
   if (link === undefined) return undefined;
   if (typeof link === 'string' && PROVIDER_PLUGIN_ID.test(link)) return link;
-  (options.warn ?? console.warn)('[agent-plugins] Invalid extensions.jini.providerPlugin ignored; expected a plugin id.');
+  (options.warn ?? (message => createConsoleLogger({ prefix: '' }).warn({ message })))('[agent-plugins] Invalid extensions.jini.providerPlugin ignored; expected a plugin id.');
   return undefined;
 }
 

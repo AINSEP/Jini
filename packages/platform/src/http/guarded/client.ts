@@ -137,7 +137,7 @@ function capResponse({ response, maxBytes, bodyAs }: { response: HttpResponse; m
   };
 }
 
-const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
 
 /** Per-client collaborators and the per-call redirect mode, fixed for every hop of one send. */
 interface HopContext { transport: PinnedHttpTransport; policy: EgressPolicy; dns: DnsResolver; redirect: RequestRedirect }
