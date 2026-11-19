@@ -13,6 +13,7 @@ export * from './daemon-url.js';
 export * from './errors.js';
 export * from './http.js';
 export * from './prompt.js';
+export * from './quiet-line.js';
 export * from './stdin-line.js';
 export * from './redact.js';
 export * from './usage.js';
