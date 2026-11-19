@@ -70,7 +70,7 @@ const UNIX_HOST_SYSTEM = 3;
  */
 const EXECUTABLE_MODE_MASK = 0o111;
 
-export function createYauzlAgentPluginArchiveReader({ yauzl }: { readonly yauzl: YauzlPort }): AgentPluginArchiveReaderPort {
+export function createYauzlAgentPluginArchiveReader({ yauzl }: { readonly yauzl: YauzlPort }, _optional: Record<string, never> = {}): AgentPluginArchiveReaderPort {
 return {
   async *entries({ archive }: { readonly archive: Uint8Array }): AsyncIterable<AgentPluginArchiveEntry> {
     /**

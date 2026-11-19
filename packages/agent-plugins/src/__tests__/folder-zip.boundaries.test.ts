@@ -100,6 +100,6 @@ describe('isMcpManifest', () => {
     [{ mcpServers: {} }, true], [{ mcpServers: null }, false], [{ mcpServers: [] }, false], [{ mcpServers: 'x' }, false],
     [{}, false], [null, false], ['x', false], [42, false], [undefined, false],
   ])('%j -> %s', (value, expected) => {
-    expect(isMcpManifest(value)).toBe(expected);
+    expect(isMcpManifest({ value })).toBe(expected);
   });
 });

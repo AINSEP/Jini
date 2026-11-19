@@ -75,7 +75,7 @@ it('declined access is attributed to the host actor, and skip reasons are the ho
   const accessKey = JSON.stringify([{ connectionId: 'c1', grant: { enabled: true, allow: [], write: [] }, expected: { writeGrantsUpdatedByPrincipalId: null }, current: { enabled: false, allow: [], write: [] } }]);
   await capability.recordDeclinedAccess({ accessKey });
   expect(applied).toMatchObject([{ workspaceId: 'acme-ws', serverId: 'c1', principalId: 'acme:declined' }]);
-  const plan = planAgentPluginMcpFederation({ servers: { old: { type: 'sse', url: 'https://old.acme.test' } as never } }, {
+  const plan = planAgentPluginMcpFederation({ servers: { old: { type: 'sse', url: 'https://old.acme.test' } as never },
     classifyTrust: () => 'auto-admit', messages: { sseTransportUnsupported: () => 'acme: sse unsupported', headersUnsupported: () => 'acme: headers unsupported' },
   });
   expect(plan.skipped).toEqual([{ serverKey: 'old', reason: 'acme: sse unsupported' }]);

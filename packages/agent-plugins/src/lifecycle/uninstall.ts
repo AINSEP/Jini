@@ -516,7 +516,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
 
 const instances = new WeakMap<AgentPluginLifecyclePorts, ReturnType<typeof buildModule>>();
 /** Internal composition; one state/queue instance per injected host context. */
-export function createUninstallModule(ports: AgentPluginLifecyclePorts) {
+export function createUninstallModule(ports: AgentPluginLifecyclePorts, _optional: Record<string, never> = {}) {
   let instance = instances.get(ports);
   if (!instance) { instance = buildModule(ports); instances.set(ports, instance); }
   return instance;

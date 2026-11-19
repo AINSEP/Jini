@@ -27,7 +27,7 @@ const TRAILING_URL_SLASHES = /^(.*[^/])?\/+$/s;
  * @returns The target class (constructed with `{ accessKeyId, secretAccessKey, bucket, region, publicUrl, endpoint? }`)
  * and the link-status mapper.
  */
-export function bindS3Compatible(kit) {
+export function bindS3Compatible(kit, _optional = {}) {
   const { checkDeploymentUrl, DeployError, createSigV4Client } = kit;
   /**
    * Original notes (moved from Tovu core `s3-compatible-target.ts`): `DeployTarget` implementation for S3-compatible object storage (AWS S3, Cloudflare R2,

@@ -86,7 +86,7 @@ function vercelFileManifest(files) {
  * @returns The target class (constructed with `{ token, teamId?, teamSlug? }`, as in devops) and the
  * protected-response detector.
  */
-export function bindVercel(kit) {
+export function bindVercel(kit, _optional = {}) {
   const { fetch: fetchWithTimeout, timeouts: FETCH_TIMEOUT_MS, sleep, DeployError, checkDeploymentUrl, normalizeDeploymentUrl, waitForReachableDeploymentUrl, safeProjectLabel, assertNotRedirected, redirectGuardInit } = kit;
   const VERCEL_TARGET_ID = 'vercel';
   const VERCEL_API = 'https://api.vercel.com';

@@ -193,8 +193,7 @@ export async function resolveTarget(
 
   optional.signal?.throwIfAborted();
   await provisionAgentPluginMcpServers(
-    routeDeps.mcp,
-    { workspaceId: routeDeps.workspaceId, pluginId, servers: plugin.servers, principalId, ...routeDeps.federation },
+    { deps: routeDeps.mcp, workspaceId: routeDeps.workspaceId, pluginId, servers: plugin.servers, principalId, ...routeDeps.federation },
   );
   return { pluginId, displayName: titleCaseFromPluginId({ pluginId }), connectionId, config };
 }

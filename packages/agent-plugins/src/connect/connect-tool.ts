@@ -401,7 +401,7 @@ async function connectWithoutOAuth(
   if (hasReusablePluginCredential({ row, pluginId, url: config.url }, routeDeps.mcp)) {
     const approved = await approveSignedInAccess({ routeDeps, surfaces, ctx, pluginId, servers: { [serverKey]: config } }, optional);
     if (!approved.approved) return approved.result;
-    await provisionAgentPluginMcpServers(routeDeps.mcp, { workspaceId: routeDeps.workspaceId, pluginId, servers: { [serverKey]: config }, principalId: ctx.principal.id, ...routeDeps.host.federation });
+    await provisionAgentPluginMcpServers({ deps: routeDeps.mcp, workspaceId: routeDeps.workspaceId, pluginId, servers: { [serverKey]: config }, principalId: ctx.principal.id, ...routeDeps.host.federation });
     return { status: 'connected' };
   }
   if (!saveToken) throw new ToolInputError({ message: routeDeps.host.messages.noTokenCardAdapter() });
@@ -470,8 +470,7 @@ export async function runAgentPluginConnect<Surfaces, Connection>(
   if (!access.approved) return access.result;
 
   const provisioned = await provisionAgentPluginMcpServers(
-    routeDeps.mcp,
-    { workspaceId: routeDeps.workspaceId, pluginId, servers: plugin.servers, principalId: ctx.principal.id, ...routeDeps.host.federation },
+    { deps: routeDeps.mcp, workspaceId: routeDeps.workspaceId, pluginId, servers: plugin.servers, principalId: ctx.principal.id, ...routeDeps.host.federation },
   );
 
   // A colliding row can survive a refused provisioning attempt; never start sign-in on it.

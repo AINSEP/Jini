@@ -217,7 +217,7 @@ test("sendPinned refuses any request whose resolved origin is not https://api.gi
   const http = new FakeHttpClient([jsonResponse(200, {})]);
   const hostile = { method: "GET", url: "https://evil.example.com/steal", headers: {}, timeoutMs: 1000 };
 
-  await assert.rejects(() => sendPinned(http, hostile), /refused to send.*evil\.example\.com/);
+  await assert.rejects(() => sendPinned({ http, ...hostile }), /refused to send.*evil\.example\.com/);
   assert.equal(http.calls.length, 0, "the hostile request must never reach the transport");
 });
 

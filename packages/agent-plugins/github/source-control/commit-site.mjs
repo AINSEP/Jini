@@ -77,7 +77,7 @@ function isGitHubTimeout({ err }, _options = {}) {
  *
  * @param {Kit} kit
  */
-export function createSiteCommitter(kit) {
+export function createSiteCommitter(kit, _optional = {}) {
   /**
    * One request, classified before any status interpretation.
    * @param {string} url @param {RequestInit} init

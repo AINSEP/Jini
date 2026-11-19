@@ -619,7 +619,7 @@ export function readAgentPluginExtension<T>(required: {
   readonly manifest: Pick<AgentPluginManifest, 'extensions'>;
   readonly namespace: string;
   readonly read: (required: { readonly value: Readonly<Record<string, unknown>> }) => T;
-}): T | undefined {
+}, _optional: Record<string, never> = {}): T | undefined {
   if (!required.namespace.trim()) throw new Error('An extension namespace is required');
   const extensions = required.manifest.extensions;
   if (!extensions || !Object.hasOwn(extensions, required.namespace)) return undefined;

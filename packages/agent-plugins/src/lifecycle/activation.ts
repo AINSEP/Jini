@@ -902,7 +902,7 @@ function buildModule(ports: ActivationPorts) {
 
 const instances = new WeakMap<ActivationPorts, ReturnType<typeof buildModule>>();
 /** Internal composition; one state/queue instance per injected host context. */
-export function createActivationModule(ports: ActivationPorts) {
+export function createActivationModule(ports: ActivationPorts, _optional: Record<string, never> = {}) {
   let instance = instances.get(ports);
   if (!instance) { instance = buildModule(ports); instances.set(ports, instance); }
   return instance;

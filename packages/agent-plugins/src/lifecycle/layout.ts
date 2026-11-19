@@ -17,7 +17,7 @@ export interface AgentPluginLayoutPort {
 export type AgentPluginLayout = AgentPluginLayoutPort;
 
 /** Explicit root only; site-root and environment resolution belong to the consumer. */
-export function createAgentPluginLayout(required: { readonly root: string }): AgentPluginLayoutPort {
+export function createAgentPluginLayout(required: { readonly root: string }, _optional: Record<string, never> = {}): AgentPluginLayoutPort {
   if (!path.isAbsolute(required.root)) throw new Error('Agent plugin root must be absolute');
   const root = path.resolve(required.root);
   return {

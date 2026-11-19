@@ -71,10 +71,10 @@ async function readConnectGrant({ deps, serverId, resolveServers, approvedEnable
   const pluginId = row.provisionedByPluginId;
   if (!pluginId) return null;
   if (!approvedEnable && !allowsAutomaticConnectGrant(row)) return null;
-  const defaults = findAgentPluginMcpServerDefaults(await resolveServers({ workspaceId: deps.workspaceId, pluginId }), row);
+  const defaults = findAgentPluginMcpServerDefaults({ servers: await resolveServers({ workspaceId: deps.workspaceId, pluginId }), row });
   // A read-only declaration is classification, not permission to change sign-in grants.
   if (!defaults?.allow) return null;
-  const grant = validatedAgentPluginToolGrant({ current: storedAgentPluginGrants({ row, projections: ports.projections }), declared: defaults }, { reason: approvedEnable ? 'owner-enable' : 'sign-in', ports, messages: deps });
+  const grant = validatedAgentPluginToolGrant({ current: storedAgentPluginGrants({ row, projections: ports.projections }), declared: defaults, ports, messages: deps }, { reason: approvedEnable ? 'owner-enable' : 'sign-in' });
   return grant ? { row, pluginId, grant } : null;
 }
 

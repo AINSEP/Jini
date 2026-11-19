@@ -114,7 +114,7 @@ Catalog format) that this package does not implement.
 
 | export | runtime | contents |
 |---|---|---|
-| `.` (root) | universal | `PluginManifest`/`McpManifest` types, `validatePluginManifest({ value })`/`validateMcpManifest({ value })` structural validators (plus compatible `isPluginManifest(value)`/`isMcpManifest(value)` wrappers), and the known path constants (`PLUGIN_MANIFEST_FILENAME`, `PLUGIN_SKILLS_DIRNAME`, `PLUGIN_MCP_MANIFEST_FILENAME`). No filesystem access, no DOM. |
+| `.` (root) | universal | `PluginManifest`/`McpManifest` types, `validatePluginManifest({ value })`/`validateMcpManifest({ value })` structural validators (plus `isPluginManifest({ value })`/`isMcpManifest({ value })` predicates), and the known path constants (`PLUGIN_MANIFEST_FILENAME`, `PLUGIN_SKILLS_DIRNAME`, `PLUGIN_MCP_MANIFEST_FILENAME`). No filesystem access, no DOM. |
 | `./manifest` | universal | Strict manifest/MCP parsing and typed namespace readers; object structural validators are also re-exported here. |
 | `./lifecycle` | node | Host-injected installation, activation, locks, digests, bundles, trusted files, reference resolution, ranking and MCP provisioning helpers. |
 | `./lifecycle` packing | node | `createAgentPluginLifecycle(ports).packAgentPluginDirectory({ sourceDir }, { allowPaths, excludeNames, excludeSuffixes, includeTests })`; explicit allow-paths and their ancestors beat name exclusions; excluded descendants still skip. Suffix exclusions always win; test skips require `includeTests: true` to disable. |
@@ -202,7 +202,7 @@ manifest and test installation through this package's existing lifecycle.
 
 ## Lifecycle API and ports
 
-New public callables use `(requiredArgs, optionalArgs)`, with effects supplied as ports.
+New public callables use `(requiredArgs, optionalArgs = {})`, with effects supplied as ports.
 Create and retain one lifecycle per host context:
 
 ```ts
@@ -268,7 +268,7 @@ shaped authors and older string authors. Inline transport fields never become re
 metadata. MCP provisioning helpers delegate to the host and notify only after success;
 filesystem installation and federation remain separate operations with host-owned recovery.
 
-The legacy root validators keep their positional shape and behavior. New code can use the
+The root predicates take `{ value }` and narrow that object's `value`. New code can use the
 object-shaped `validatePluginManifest` and `validateMcpManifest` facades. Internal composition
 factories are implementation details and are not package exports.
 

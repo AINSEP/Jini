@@ -80,7 +80,7 @@ function treeEntry(entry) {
 }
 
 /** @param {GitDataClient} git */
-export function createBackupPusher(git) {
+export function createBackupPusher(git, _optional = {}) {
   /** @param {{ json: any, name: string }} required */
   function checkBackupPrivacy({ json, name }, _options = {}) {
     const fallbackVisibility = json.private === true ? "private" : "public";
@@ -112,8 +112,8 @@ export function createBackupPusher(git) {
     if (typeof permissions === "object" && permissions !== null && permissions.push === false) {
       return { ok: false, code: "no-push-permission", message: `this credential can read ${name} but cannot push to it` };
     }
-    const defaultBranch = extractStringField(json, "default_branch");
-    const htmlUrl = extractStringField(json, "html_url");
+    const defaultBranch = extractStringField({ value: json, field: "default_branch" });
+    const htmlUrl = extractStringField({ value: json, field: "html_url" });
     if (!defaultBranch || !htmlUrl) return { ok: false, code: PROVIDER_ERROR, message: "GitHub repository lookup response did not include a default branch or URL" };
     return { ok: true, defaultBranch, htmlUrl };
   }
@@ -121,16 +121,16 @@ export function createBackupPusher(git) {
   /** GitHub answers 409 for the ref of an EMPTY repository. @param {Target} target @param {string} branch */
   async function readBranchTip(target, branch) {
     const name = `${target.owner}/${target.repo}`;
-    const refResult = await git.send(target, { method: "GET", url: `${repoPathOf(target)}/git/ref/heads/${encPath(branch)}` });
+    const refResult = await git.send(target, { method: "GET", url: `${repoPathOf(target)}/git/ref/heads/${encPath({ path: branch })}` });
     if (refResult.kind !== "response") return git.nonResponseFailure(refResult);
     const refResponse = refResult.response;
     if (refResponse.status === 409) {
       return { ok: false, code: "repo-empty", message: `repository ${name} is empty. Add a first commit (for example a README) on GitHub, then back up again.` };
     }
     if (refResponse.status === 404) return { ok: false, code: "branch-not-found", message: `branch '${branch}' does not exist in ${name}` };
-    if (!isOk(refResponse)) return { ok: false, code: PROVIDER_ERROR, message: providerErrorMessage(refResponse, "GitHub branch lookup failed") };
+    if (!isOk(refResponse)) return { ok: false, code: PROVIDER_ERROR, message: providerErrorMessage({ response: refResponse, fallback: "GitHub branch lookup failed" }) };
     const refBody = parseJsonBody(refResponse);
-    const parentCommitSha = refBody.ok ? extractStringField(refBody.json?.object, "sha") : "";
+    const parentCommitSha = refBody.ok ? extractStringField({ value: refBody.json?.object, field: "sha" }) : "";
     if (!parentCommitSha) return { ok: false, code: PROVIDER_ERROR, message: "GitHub branch lookup response did not include a sha" };
 
     return readBackupParentTree({ target, parentCommitSha });
@@ -140,7 +140,7 @@ export function createBackupPusher(git) {
   async function readBackupParentTree({ target, parentCommitSha }, _options = {}) {
     const commitJson = await git.getJson(target, `${repoPathOf(target)}/git/commits/${enc(parentCommitSha)}`, "GitHub parent-commit lookup failed");
     if (!commitJson.ok) return commitJson;
-    const baseTreeSha = commitJson.found ? extractStringField(commitJson.json.tree, "sha") : "";
+    const baseTreeSha = commitJson.found ? extractStringField({ value: commitJson.json.tree, field: "sha" }) : "";
     if (!baseTreeSha) return { ok: false, code: PROVIDER_ERROR, message: "GitHub parent-commit lookup did not return a tree sha" };
     return { ok: true, parentCommitSha, baseTreeSha };
   }
@@ -154,7 +154,7 @@ export function createBackupPusher(git) {
     const tip = await readBranchTip(input, branch);
     if (!tip.ok) return tip;
 
-    const folderJson = await git.getJson(input, `${repoPathOf(input)}/contents/${encPath(input.folder)}?ref=${enc(branch)}`, "GitHub folder lookup failed");
+    const folderJson = await git.getJson(input, `${repoPathOf(input)}/contents/${encPath({ path: input.folder })}?ref=${enc(branch)}`, "GitHub folder lookup failed");
     if (!folderJson.ok) return folderJson;
     if (folderJson.found && !Array.isArray(folderJson.json)) {
       return { ok: false, code: "folder-is-file", message: `'${input.folder}' exists on branch '${branch}' but is not a folder — refusing to replace it` };
@@ -189,7 +189,7 @@ export function createBackupPusher(git) {
         "GitHub folder tree creation failed"
       );
       if (!folderTree.ok) return folderTree;
-      folderTreeSha = extractStringField(folderTree.json, "sha");
+      folderTreeSha = extractStringField({ value: folderTree.json, field: "sha" });
       if (!folderTreeSha) return { ok: false, code: PROVIDER_ERROR, message: "GitHub folder tree creation response did not include a sha" };
     }
     return { ok: true, sha: /** @type {string} */ (folderTreeSha) };
@@ -213,7 +213,7 @@ export function createBackupPusher(git) {
       "GitHub tree creation failed"
     );
     if (!rootTree.ok) return rootTree;
-    const rootTreeSha = extractStringField(rootTree.json, "sha");
+    const rootTreeSha = extractStringField({ value: rootTree.json, field: "sha" });
     if (!rootTreeSha) return { ok: false, code: PROVIDER_ERROR, message: "GitHub tree creation response did not include a sha" };
 
     const commit = await git.postJson(
@@ -223,7 +223,7 @@ export function createBackupPusher(git) {
       "GitHub commit creation failed"
     );
     if (!commit.ok) return commit;
-    const commitSha = extractStringField(commit.json, "sha");
+    const commitSha = extractStringField({ value: commit.json, field: "sha" });
     if (!commitSha) return { ok: false, code: PROVIDER_ERROR, message: "GitHub commit creation response did not include a sha" };
 
     const ref = await git.updateRef(input, input.branch, commitSha);

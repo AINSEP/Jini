@@ -55,9 +55,9 @@ describe('theme.ts', () => {
   });
 
   test('a safe value is plain declaration text: no fetches, no declaration breakouts, at most 200 characters', () => {
-    expect(isSafeAdminSurfaceThemeValue('color-mix(in oklab, #fff 80%, #000)')).toBe(true);
+    expect(isSafeAdminSurfaceThemeValue({ value: 'color-mix(in oklab, #fff 80%, #000)' })).toBe(true);
     for (const unsafe of ['image-set("a.png" 1x)', 'red; background: blue', 'a{b}', '<x>', 'a\\62', '@import', 'x'.repeat(201), '', 42]) {
-      expect(isSafeAdminSurfaceThemeValue(unsafe)).toBe(false);
+      expect(isSafeAdminSurfaceThemeValue({ value: unsafe })).toBe(false);
     }
   });
 

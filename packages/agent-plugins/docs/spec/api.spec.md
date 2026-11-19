@@ -28,13 +28,13 @@ The intended convention is `(required, optional = {})`. Tables below record the 
 
 | Entry point | Required/current argument | Optional | Return |
 |---|---|---|---|
-| `isPluginManifest` | `value: unknown` (positional legacy guard) | — | `value is PluginManifest` |
-| `isMcpManifest` | `value: unknown` (positional legacy guard) | — | `value is McpManifest` |
+| `isPluginManifest` | `required: { value: unknown }` | `Record<string, never> = {}` | `required is { value: PluginManifest }` |
+| `isMcpManifest` | `required: { value: unknown }` | `Record<string, never> = {}` | `required is { value: McpManifest }` |
 | `validatePluginManifest` | `{ value: unknown }` | — | `boolean` |
-| `validateMcpManifest` | `{ value: unknown }` | — | `boolean` |
+| `validateMcpManifest` | `{ value: unknown }` | `Record<string, never> = {}` | `boolean` |
 | `parseAgentPluginManifest` | `{ value: unknown }` | — | `ParseAgentPluginManifestResult` |
 | `parseAgentPluginMcpConfig` | `{ value: unknown, extensionNamespace: string }` | `{ pluginManifest?: unknown, readServerMetadata?: AgentPluginServerMetadataReader } = {}` | `ParseAgentPluginMcpConfigResult` |
-| `readAgentPluginExtension<T>` | `{ manifest: Pick<AgentPluginManifest, 'extensions'>, namespace: string, read: ({ value: Readonly<Record<string, unknown>> }) => T }` | — | `T \| undefined` |
+| `readAgentPluginExtension<T>` | `{ manifest: Pick<AgentPluginManifest, 'extensions'>, namespace: string, read: ({ value: Readonly<Record<string, unknown>> }) => T }` | `Record<string, never> = {}` | `T \| undefined` |
 
 The root exports `PluginManifest`, `PluginManifestAuthor`, `McpManifest`, and `McpServerEntry`. `PluginManifest` has required `name`, optional `$schema`, version, description, author object, homepage, repository, license, keywords, extensions, and open-ended keys. `McpManifest` has optional `$schema` and required `mcpServers`; typed server entries are stdio, streamable HTTP, or SSE. The shallow predicates do not establish all these field types.
 
@@ -44,7 +44,7 @@ Root constants: `AGENT_PLUGINS_SCHEMA_URL` and `AGENT_PLUGINS_MCP_SCHEMA_URL` po
 
 ## Lifecycle construction and supplied ports
 
-`createAgentPluginLayout({ root: string }): AgentPluginLayoutPort` requires an absolute root. `forWorkspace({ workspaceId })` returns `{ root, packages, staging, pluginDataDir({ pluginId }): string }`.
+`createAgentPluginLayout({ root: string }, _optional: Record<string, never> = {}): AgentPluginLayoutPort` requires an absolute root. `forWorkspace({ workspaceId })` returns `{ root, packages, staging, pluginDataDir({ pluginId }): string }`.
 
 `createAgentPluginLifecycle(required: AgentPluginLifecycleRequired, optional: AgentPluginLifecycleOptional = {})` returns the methods below. Required dependencies are `filesystem`, `clock`, `ids`, `process`, `layout`, `fetch`, `outboundGuard`, and `mcpProvisioning`. Required policy is `productName`, `extensionNamespace`, `bundledArchiveMagic`, `deliveryMode: 'inject' | 'pointer'`, `seededEnabledPluginIds: ReadonlySet<string>`, `retiredBundledPlugins: ReadonlyMap<string, string>`, and `formatPluginToolPointer({ pluginId }): string`. Optional observers/translators are `onEvent({ event, message }): void` and `readServerMetadata({ serverId, value }): Readonly<Record<string, unknown>>`.
 
@@ -114,13 +114,13 @@ String-valued path/id/query fields in this table are `string`; flags are `boolea
 
 ## Standalone effects and adapters
 
-`fetchAgentPluginArchive(required: { url, fetch, outboundGuard }, optional: { maxBytes?: number, signal?: AbortSignal } = {}): Promise<FetchedAgentPluginArchive>` and `maxAgentPluginArchiveBytes({}): number` are also standalone lifecycle exports.
+`fetchAgentPluginArchive(required: { url, fetch, outboundGuard }, optional: { maxBytes?: number, signal?: AbortSignal } = {}): Promise<FetchedAgentPluginArchive>` and `maxAgentPluginArchiveBytes({}, _optional: Record<string, never> = {}): number` are also standalone lifecycle exports.
 
-`provisionAgentPluginMcp({ mcpProvisioning, workspaceId, installed })`, `syncAgentPluginMcpEnabled({ mcpProvisioning, workspaceId, pluginId, enabled })`, and `removeAgentPluginMcp({ mcpProvisioning, workspaceId, pluginId })` each return `Promise<void>` with no second argument. They perform the named host operation, then roster notification. Install, enable, and uninstall do not invoke them automatically.
+`provisionAgentPluginMcp({ mcpProvisioning, workspaceId, installed })`, `syncAgentPluginMcpEnabled({ mcpProvisioning, workspaceId, pluginId, enabled })`, and `removeAgentPluginMcp({ mcpProvisioning, workspaceId, pluginId })` each return `Promise<void>` and accept `_optional: Record<string, never> = {}` as the second argument. They perform the named host operation, then roster notification. Install, enable, and uninstall do not invoke them automatically.
 
 `createNodeAgentPluginEffects({}, { filesystem?: FilesystemPort } = {})` returns `{ filesystem, clock, ids, process }`; injected native filesystem effects retain their identity. The wrapper factory and wrapper FileHandle/NodeFilesystem types are removed. Generic locks/errors/holder types come directly from `@jini-ai/platform/fs/file-lock`; activation passes 15000ms timeout, 10000ms staleness and 10ms polling.
 
-`createYauzlAgentPluginArchiveReader({ yauzl: YauzlPort }): AgentPluginArchiveReaderPort` has no second argument. The exported `YauzlPort`, `YauzlZipFile`, and `YauzlEntry` model the peer library's positional `fromBufferPromise(buffer, options)`, `eachEntry()`, `openReadStreamPromise(entry)`, and `close()` APIs. The consumer supplies the compatible library; imports do not load it automatically.
+`createYauzlAgentPluginArchiveReader({ yauzl: YauzlPort }, _optional: Record<string, never> = {}): AgentPluginArchiveReaderPort` accepts an empty options object. The exported `YauzlPort`, `YauzlZipFile`, and `YauzlEntry` model the peer library's positional `fromBufferPromise(buffer, options)`, `eachEntry()`, `openReadStreamPromise(entry)`, and `close()` APIs. The consumer supplies the compatible library; imports do not load it automatically.
 
 Constants exported by lifecycle: `ACTIVATIONS_FILENAME`, `ACTIVATIONS_LOCK_FILENAME`, `BUNDLED_DIGESTS_FILENAME`; values are in `state.spec.md`.
 

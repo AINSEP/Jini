@@ -279,7 +279,6 @@ function classifyAgentPluginMcpServerForFederation(
  */
 export function planAgentPluginMcpFederation(input: {
   readonly servers: Readonly<Record<string, McpServerConfig>>;
-}, options: {
   /** The trust rule consulted after the stdio narrowing. The host passes the real
    *  `classifyAgentPluginMcpServerTrust`; injectable so the drift guard above (a remote transport
    *  reclassified as "requires-confirmation") stays verifiable while today's rule never trips it.
@@ -287,13 +286,13 @@ export function planAgentPluginMcpFederation(input: {
    *  (object argument adapted to this positional shape); there is no default trust rule here. */
   readonly classifyTrust: AgentPluginMcpTrustClassifier;
   readonly messages: AgentPluginMcpFederationMessages;
-}): AgentPluginMcpFederationPlan {
-  const classifyTrust = options.classifyTrust;
+}, _optional: Record<string, never> = {}): AgentPluginMcpFederationPlan {
+  const classifyTrust = input.classifyTrust;
   const toUpsert: PlannedAgentPluginMcpUpsert[] = [];
   const skipped: SkippedAgentPluginMcpServer[] = [];
 
   for (const [serverKey, config] of Object.entries(input.servers)) {
-    const result = classifyAgentPluginMcpServerForFederation(serverKey, config, classifyTrust, options.messages);
+    const result = classifyAgentPluginMcpServerForFederation(serverKey, config, classifyTrust, input.messages);
     if (result.kind === "upsert") toUpsert.push(result.planned);
     else skipped.push({ serverKey, reason: result.reason });
   }
@@ -346,8 +345,8 @@ export async function resolveAgentPluginMcpServers(input: {
  * @complexity O(s) time, O(1) space in declared servers.
  */
 export function findAgentPluginMcpServerDefaults(
-  servers: Readonly<Record<string, McpServerConfig>>,
-  row: { readonly serverId: string; readonly url: string | null },
+  { servers, row }: { servers: Readonly<Record<string, McpServerConfig>>; row: { readonly serverId: string; readonly url: string | null } },
+  _optional: Record<string, never> = {},
 ): AgentPluginDefaultTools | null {
   for (const [serverKey, config] of Object.entries(servers)) {
     if (config.type === "stdio" || deriveAgentPluginConnectionId({ serverKey }) !== row.serverId) continue;
@@ -371,7 +370,7 @@ export async function resolveAgentPluginReadOnlyRemoteNames(input: {
   readonly url: string;
 }, _optional = {}): Promise<ReadonlySet<string>> {
   const servers = await resolveAgentPluginMcpServers({ ...input, bundledOnly: true });
-  return new Set(findAgentPluginMcpServerDefaults(servers, input)?.read ?? []);
+  return new Set(findAgentPluginMcpServerDefaults({ servers, row: input })?.read ?? []);
 }
 
 export interface ProvisionAgentPluginMcpServersInput {
@@ -542,10 +541,10 @@ async function adoptOrRecognizeExistingAgentPluginMcpServer(
  * one create or adopt.
  */
 export async function provisionAgentPluginMcpServers(
-  deps: AgentPluginMcpProjectionPorts & Pick<AgentPluginMcpPort, "repo" | "saveServer"> & Partial<Pick<AgentPluginMcpPort, "notifyRosterChanged">>,
-  input: ProvisionAgentPluginMcpServersInput,
+  { deps, ...input }: { deps: AgentPluginMcpProjectionPorts & Pick<AgentPluginMcpPort, "repo" | "saveServer"> & Partial<Pick<AgentPluginMcpPort, "notifyRosterChanged">> } & ProvisionAgentPluginMcpServersInput,
+  _optional: Record<string, never> = {},
 ): Promise<ProvisionAgentPluginMcpServersResult> {
-  const plan = planAgentPluginMcpFederation(input, { classifyTrust: input.classifyTrust, messages: input.messages });
+  const plan = planAgentPluginMcpFederation(input);
   const provisioned: string[] = [];
   const alreadyProvisioned: string[] = [];
   const adopted: string[] = [];

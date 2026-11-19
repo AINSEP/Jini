@@ -45,8 +45,8 @@ export interface SwitchOnSavedTokenDeps {
  * @complexity Two activation reads, at most one connect-defaults apply and one activation write, one row read.
  */
 export async function switchOnSavedTokenConnection(
-  deps: SwitchOnSavedTokenDeps,
-  target: { readonly pluginId: string; readonly connectionId: string },
+  { deps, ...target }: { deps: SwitchOnSavedTokenDeps } & { readonly pluginId: string; readonly connectionId: string },
+  _optional: Record<string, never> = {},
 ): Promise<SavedTokenSwitchOutcome> {
   const isOff = deps.isPluginOffByOperator;
   if (await isOff(target.pluginId)) return { state: "plugin-off-by-operator" };
