@@ -544,7 +544,7 @@ async function adoptOrRecognizeExistingAgentPluginMcpServer(
  */
 export async function provisionAgentPluginMcpServers(
   { deps, ...input }: { deps: AgentPluginMcpProjectionPorts & Pick<AgentPluginMcpPort, "repo" | "saveServer"> & Partial<Pick<AgentPluginMcpPort, "notifyRosterChanged">> } & ProvisionAgentPluginMcpServersInput,
-  { report = createConsoleLogger({ prefix: '[agent-plugins]' }) }: { report?: Pick<Logger, 'warn'> } = {},
+  { report = createConsoleLogger({ prefix: '[agent-plugins]' }) }: { report?: Pick<Logger, 'warn'> | undefined } = {},
 ): Promise<ProvisionAgentPluginMcpServersResult> {
   const plan = planAgentPluginMcpFederation(input);
   const provisioned: string[] = [];
@@ -592,7 +592,8 @@ async function provisionPlannedServer(
     await deps.saveServer(buildProvisioningSaveInput(planned, input));
     return { kind: "provisioned" };
   } catch (err) {
-    report.warn({ message: `MCP provisioning write for server '${planned.serverKey}' of plugin '${input.pluginId}' failed.` }, { error: err });
+    const logger = report;
+    logger.warn({ message: `MCP provisioning write for server '${planned.serverKey}' of plugin '${input.pluginId}' failed.` }, { error: err });
     // The caught error goes to `report` only; the answer text names the step and the error class,
     // never the native message (it can carry credentials from the store).
     return { kind: "failed", reason: `the MCP server row could not be saved (${describeErrorForLog({ err })})` };

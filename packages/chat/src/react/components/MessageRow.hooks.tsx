@@ -41,8 +41,7 @@ export function useAssistantMessageRenderers({ message, rows, runStreaming, runS
   const retriedRows = retriedToolRowIds({ rows });
   const renderToolCard = (row: ToolTimelineRow) => (
     <ToolCard
-      key={row.id}
-      report={report}
+      key={row.id} report={report}
       retried={retriedRows.has(row.id)}
       use={row.use}
       result={row.result}

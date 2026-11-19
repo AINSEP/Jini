@@ -1,4 +1,4 @@
-import { createConsoleLogger } from "@jini-ai/core/primitives";
+import { widgetReport } from "./resolver-contracts.js";
 import type { WidgetHostPorts, PostRecord, PostRepoPort } from "./host-ports.js";
 import type { PageHtmlEmbedRef } from "./html/html-embeds.js";
 import type { WidgetRenderIR, WidgetResolveContext } from "./types.js";
@@ -71,7 +71,7 @@ export async function resolvePostTypeEmbeds(
   const { postRepo } = deps;
   if (!postRepo) {
     if (refs.length > 0) {
-      (context.report ?? createConsoleLogger({ prefix: "[widgets]" })).warn({ message: 'resolveHtmlPageEmbeds: "post" embeds present but no postRepo dependency was supplied — every occurrence degrades to the placeholder' }, { meta: { workspaceId: context.workspaceId, occurrences: refs.length } });
+      widgetReport({ context }).warn({ message: 'resolveHtmlPageEmbeds: "post" embeds present but no postRepo dependency was supplied — every occurrence degrades to the placeholder' }, { meta: { workspaceId: context.workspaceId, occurrences: refs.length } });
     }
     return resolved;
   }
@@ -80,12 +80,12 @@ export async function resolvePostTypeEmbeds(
     refs.map(async (ref) => {
       const key = ref.id ?? ref.slug;
       if (key === null) {
-        (context.report ?? createConsoleLogger({ prefix: "[widgets]" })).warn({ message: 'resolveHtmlPageEmbeds: unresolved "post" reference — missing or invalid "id"/"slug" in data-embed-config' }, { meta: { workspaceId: context.workspaceId } });
+        widgetReport({ context }).warn({ message: 'resolveHtmlPageEmbeds: unresolved "post" reference — missing or invalid "id"/"slug" in data-embed-config' }, { meta: { workspaceId: context.workspaceId } });
         return;
       }
       const post = await findPublishedPostByRef(postRepo, ref, context, deps.host);
       if (!post) {
-        (context.report ?? createConsoleLogger({ prefix: "[widgets]" })).warn({ message: 'resolveHtmlPageEmbeds: unresolved "post" reference — no such published post' }, { meta: { workspaceId: context.workspaceId, postId: key } });
+        widgetReport({ context }).warn({ message: 'resolveHtmlPageEmbeds: unresolved "post" reference — no such published post' }, { meta: { workspaceId: context.workspaceId, postId: key } });
         return;
       }
       const renderContext = await resolvePostContentRenderContext(deps, post.bodyJson, context);

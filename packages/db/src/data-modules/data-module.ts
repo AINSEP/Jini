@@ -254,7 +254,6 @@
  */
 import { createConsoleLogger, type Logger } from "@jini-ai/core/primitives";
 import { statSync } from "node:fs";
-
 import { sql } from "kysely";
 
 import {
@@ -266,10 +265,8 @@ import {
   listTables,
 } from "../kernel/index.js";
 import { checkDiskHeadroom, type HeadroomCheck } from "./disk-headroom.js";
-import { advanceJournalPhase, beginJournalEntry, ensureMigrationJournal, stageJournalPhase } from "./migration-journal.js";
-import type { JournalPhase } from "./migration-journal.js";
-import { checkNamespaceAdoption } from "./plugin-identity.js";
-import type { PluginProvenance } from "./plugin-identity.js";
+import { advanceJournalPhase, beginJournalEntry, ensureMigrationJournal, stageJournalPhase, type JournalPhase } from "./migration-journal.js";
+import { checkNamespaceAdoption, type PluginProvenance } from "./plugin-identity.js";
 import { type PluginKernel, type PluginStore, pluginKernel } from "./plugin-store.js";
 import { discardCommittedSnapshot, isInMemoryDbPath, snapshotDb } from "./snapshot.js";
 
@@ -906,27 +903,28 @@ async function finishCommittedMigration(
 /** The SQLite file this connection really has open, warning when the configured path names another file.
  * Unchanged for an in-memory path or a Postgres/PGlite kernel. */
 async function resolveOpenDbPath(
-  { kernel, dbPath, logger }: { kernel: PluginKernel; dbPath: string; logger: Pick<Logger, "warn"> },
+  { kernel, dbPath, logger, pluginId }: { kernel: PluginKernel; dbPath: string; logger: Pick<Logger, "warn">; pluginId: string },
   _optional: Record<string, never> = {}
 ): Promise<string> {
   let openDbPath = dbPath;
   if (kernel.dialect === "sqlite" && !isInMemoryDbPath({ dbPath })) {
     const [main] = await kernel.query<{ file: string }>(sql`SELECT file FROM pragma_database_list WHERE name = 'main'`);
     openDbPath = main?.file || ":memory:";
-    warnIfNotOpenFile({ dbPath, openFile: main?.file, logger });
+    warnIfNotOpenFile({ dbPath, openFile: main?.file, logger, pluginId });
   }
   return openDbPath;
 }
 
 /** File identity is the filesystem's (dev, ino); a configured path naming another file warns and never blocks the install. */
 function warnIfNotOpenFile(
-  { dbPath, openFile, logger }: { dbPath: string; openFile: string | undefined; logger: Pick<Logger, "warn"> },
+  { dbPath, openFile, logger, pluginId }: { dbPath: string; openFile: string | undefined; logger: Pick<Logger, "warn">; pluginId: string },
   _optional: Record<string, never> = {}
 ): void {
   const named = statSync(dbPath, { throwIfNoEntry: false });
   const open = openFile ? statSync(openFile, { throwIfNoEntry: false }) : undefined;
   if (!named || !open || named.dev !== open.dev || named.ino !== open.ino) {
-    logger.warn({ message: "Configured database path does not name the open database. Tables, snapshots and disk checks use the open database. Fix the configured database path." });
+    // Paths are left out of the line (they can name private locations); the plugin id says which one.
+    logger.warn({ message: `${pluginId}: the configured database path is not the database this connection has open (${openFile ? "another file is open" : "an in-memory database is open"}). Its tables are installed in the open database, and the safety snapshot and disk-space check use it too. Fix the configured database path.` });
   }
 }
 
@@ -973,18 +971,24 @@ async function applyPlanAtomically(
     // rollback just performed IS the full recovery, no crash-recovery boot path can ever exist for
     // `:memory:` to need one.
     await advancePhaseIfJournaled(kernel, journalId, "ROLLED_BACK");
-    logger.error({ message: "Data module DDL failed." }, { error: err });
-    return {
-      ok: false,
-      created: [],
-      altered: [],
-      snapshotPath,
-      recoveryPoint: snapshotPath ?? undefined,
-      error: { code: "DDL_FAILED", message: "Data module DDL failed." },
-    };
+    // The native DDL error goes to the reporter only; the result names the plugin and the rollback.
+    const error = reportedFailure({ code: "DDL_FAILED", message: `The tables for plugin ${decl.pluginId} could not be created or altered; the change was rolled back.`, err, logger });
+    return { ok: false, created: [], altered: [], snapshotPath, recoveryPoint: snapshotPath ?? undefined, error };
   }
 
   return { ok: true, created, altered, snapshotPath };
+}
+
+/** A declaration refusal keeps its own text; anything else is reported and named without native text. */
+function preflightError({ err, pluginId, logger }: { err: unknown; pluginId: string; logger: Pick<Logger, "error"> }, _optional: Record<string, never> = {}): { code: string; message: string } {
+  if (err instanceof DeclError) return { code: err.code, message: err.message };
+  return reportedFailure({ code: "PREFLIGHT_FAILED", message: `The existing tables for plugin ${pluginId} could not be read, so nothing was changed.`, err, logger });
+}
+
+/** Sends the native error to the reporter and returns only the plain-words answer. */
+function reportedFailure({ code, message, err, logger }: { code: string; message: string; err: unknown; logger: Pick<Logger, "error"> }, _optional: Record<string, never> = {}): { code: string; message: string } {
+  logger.error({ message }, { error: err });
+  return { code, message };
 }
 
 /**
@@ -1001,13 +1005,12 @@ async function applyPlanAtomically(
  */
 export async function declareDataModule(
   required: { db: PluginStore; dbPath: string; decl: DataModuleDecl },
-  { checkHeadroom = ({ dbPath }, _optional = {}) => checkDiskHeadroom({ dbPath }), report }: {
+  { checkHeadroom = ({ dbPath }, _optional = {}) => checkDiskHeadroom({ dbPath }), report: logger = createConsoleLogger({ prefix: "[data-module]" }) }: {
     checkHeadroom?: (required: { dbPath: string }, optional?: Record<string, never>) => HeadroomCheck;
     report?: Pick<Logger, "warn" | "error">;
   } = {}
 ): Promise<DeclareResult> {
   const { dbPath, decl } = required;
-  const logger = report ?? createConsoleLogger({ prefix: "[data-module]" });
   const kernel = pluginKernel({ store: required.db });
   let plan: ReconciliationPlan;
   try {
@@ -1020,9 +1023,7 @@ export async function declareDataModule(
     const existing = await existingTables(kernel, fq);
     plan = await planReconciliation(kernel, decl, existing);
   } catch (err) {
-    if (err instanceof DeclError) return { ok: false, created: [], altered: [], snapshotPath: null, error: { code: err.code, message: err.message } };
-    logger.error({ message: "Data module preflight failed." }, { error: err });
-    return { ok: false, created: [], altered: [], snapshotPath: null, error: { code: "PREFLIGHT_FAILED", message: "Data module preflight failed." } };
+    return { ok: false, created: [], altered: [], snapshotPath: null, error: preflightError({ err, pluginId: decl.pluginId, logger }) };
   }
 
   if (plan.toCreate.length + plan.toAlter.length === 0) {
@@ -1034,7 +1035,7 @@ export async function declareDataModule(
   // The snapshot, its boot restore and the headroom check bind to the file this connection has open,
   // not to the named path. Identity is the filesystem's (dev, ino): two paths (a second bind mount,
   // a hard link) can name one file. A path naming another file warns and never blocks the install.
-  const openDbPath = await resolveOpenDbPath({ kernel, dbPath, logger });
+  const openDbPath = await resolveOpenDbPath({ kernel, dbPath, logger, pluginId: decl.pluginId });
   const recoverable = kernel.dialect === "sqlite" && !isInMemoryDbPath({ dbPath: openDbPath });
   const preflight = await runPreflightChecks(kernel, openDbPath, decl, recoverable, checkHeadroom);
   if (!preflight.ok) {

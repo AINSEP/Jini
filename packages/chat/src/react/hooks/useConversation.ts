@@ -137,10 +137,8 @@ function runStartInput(
 export function useConversation(options: UseConversationOptions): UseConversationResult {
   const defaultMessageId = useCallback(() => defaultCreateMessageId({ random: options.random ?? Math.random }), [options.random]);
   const { transport, conversationId = null, agentId, createMessageId = defaultMessageId, useRunStreamHook = useRunStream } = options;
-  const [messages, setMessagesState] = useState<ChatMessage[]>(() => redactUserHistory(
-    { history: options.initialMessages ?? [] },
-    { ...(options.redactUserText ? { redactUserText: options.redactUserText } : {}) },
-  ));
+  const [messages, setMessagesState] = useState<ChatMessage[]>(() => redactUserHistory({ history: options.initialMessages ?? [] },
+    { ...(options.redactUserText ? { redactUserText: options.redactUserText } : {}) }));
   const [scrollIntent, setScrollIntent] = useState(false);
   const [sendRefused, setSendRefused] = useState(false);
   const run = useRunStreamHook({ transport }, { report: options.report });

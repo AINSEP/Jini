@@ -1,5 +1,5 @@
 import type { PluginExportsPort } from "./html/plugin-export.js";
-import type { JsonObject, UUID } from "@jini-ai/core/primitives";
+import { createConsoleLogger, type JsonObject, type Logger, type UUID } from "@jini-ai/core/primitives";
 import type { WidgetHostPorts, PostRepoPort, MediaContentTypeStorePort } from "./host-ports.js";
 import type { MediaRepoPort, TransformDefinitionRepoPort } from "../media/index.js";
 import type { TaxonomyListPort, TermListPort } from "../taxonomy/index.js";
@@ -109,3 +109,8 @@ export type HtmlEmbedResolver = (
   deps: ResolveHtmlPageEmbedsDeps,
   context: WidgetResolveContext
 ) => Promise<ReadonlyMap<string, WidgetRenderIR>>;
+
+/** The warn sink for one render: the host's reporter, else the console under a `[widgets]` prefix. */
+export function widgetReport({ context }: { context: Pick<WidgetResolveContext, "report"> }, _optional: Record<string, never> = {}): Pick<Logger, "warn"> {
+  return context.report ?? createConsoleLogger({ prefix: "[widgets]" });
+}

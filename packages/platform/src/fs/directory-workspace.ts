@@ -13,6 +13,11 @@ import { fallbackIfMissing } from "./errno.js";
 /** Migration id recorded once the old per-app catalogs are merged into the shared registry. */
 const APP_DATA_CATALOG_MIGRATION = "app-data-catalog-v1";
 
+/** An injected reporter replaces the ports' own for every lane of this workspace. */
+function reportingPorts({ ports, report }: { ports: DurableJsonPorts; report: DurableJsonPorts['report'] | undefined }, _optional: Record<string, never> = {}): DurableJsonPorts {
+  return report ? { ...ports, report } : ports;
+}
+
 /** Node assembly only. Policy modules receive explicit filesystem, clock and process ports.
  * Settings live outside the selected home so changing the setting never loses the pointer.
  * Reading a missing home/catalog does not create it. Opt-in registry recovery may prune known
@@ -26,18 +31,19 @@ export function createNodeDirectoryWorkspace(
     registryRecovery?: { fixtureIdPattern: RegExp; temporaryRoots?: readonly string[] };
   }, { env = process.env, cwd = process.cwd(), report, ports = createNodeDurableJsonPorts({}, { report }), canonicalPath = canonicalNodeDirectory, ...directoryOptions }: UserDirectoryOptions & { env?: NodeJS.ProcessEnv; cwd?: string; report?: DurableJsonPorts['report']; ports?: DurableJsonPorts; canonicalPath?: (required: { path: string }) => string } = {},
 ) {
-  const fileAt = (filePath: string) => createDurableJsonFile({ ...ports, report: report ?? ports.report, filePath, notices: {
+  const sink = reportingPorts({ ports, report }).report;
+  const fileAt = (filePath: string) => createDurableJsonFile({ ...ports, report: sink, filePath, notices: {
     prefix: "Directory workspace", lockTimeout: ({ lockPath }) => `Timed out waiting for file lock: ${lockPath}`,
   } }, { staleMs: Infinity });
   const config = userConfig ? createDirectoryUserConfig({ homeDir, defaultFolder, envName, policy: userConfig,
     fileAt, canonicalPath, removeFile: ({ filePath }) => ports.filesystem.rmSync(filePath, { force: true }), isDirectory: (file) => ports.filesystem.statSync(file).isDirectory(), exists: (file) => { try { ports.filesystem.statSync(file); return true; } catch (error) { return fallbackIfMissing({ error, fallback: false }); } },
-  }, { env, cwd, report: (message) => (report ?? ports.report).error({ message }), ...directoryOptions }) : undefined;
+  }, { env, cwd, report: (message) => sink.error({ message }), ...directoryOptions }) : undefined;
   const settings = fileAt(config?.filePath ?? settingsFile);
   const legacyHome = () => canonicalPath({ path: resolveDirectoryHome({ homeDir, defaultFolder, envName, env, setting: env[envName] === undefined ? readSetting(settings) : undefined }, { cwd }) });
   const home = () => config?.read({}).sitesHome ?? legacyHome();
   const fixturePattern = registryRecovery ? new RegExp(registryRecovery.fixtureIdPattern.source, registryRecovery.fixtureIdPattern.flags.replace(/[gy]/g, "")) : undefined;
   const context = { homeDir, defaultFolder, envName, settingsFile, registryName, runningName, userConfig, registryRecovery,
-    env, cwd, ports: report ? { ...ports, report } : ports, canonicalPath, directoryOptions, fileAt, config, settings, home, fixturePattern };
+    env, cwd, ports: reportingPorts({ ports, report }), canonicalPath, directoryOptions, fileAt, config, settings, home, fixturePattern };
   const atHome = createWorkspaceCatalogReader(context);
   const oldCatalogs = createLegacyWorkspaceCatalogReader(context);
   // One lease adapter for both the app-data and the site-local (legacy) lease locations.

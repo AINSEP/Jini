@@ -19,10 +19,10 @@ export interface DirtyTextEdit {
 }
 
 /** Dev-only, so a fallback is never silent — see `serializeWithSplice` for each trigger this names. */
-function warnFallback({ reason }: { reason: string }, { report }: { report?: Pick<Logger, 'warn'> | undefined } = {}): void {
+function warnFallback({ trigger }: { trigger: string }, { report }: { report?: Pick<Logger, 'warn'> | undefined } = {}): void {
   if (process.env.NODE_ENV !== 'production') {
     const logger = report ?? createConsoleLogger({ prefix: '[useInteractiveHtmlEditor]' });
-    logger.warn({ message: `falling back to full re-serialization: ${reason}` });
+    logger.warn({ message: `falling back to full re-serialization: ${trigger}` });
   }
 }
 
@@ -97,11 +97,11 @@ function serializeWithSplice(
   sourcePlan: PreparedEditorSource, report: Pick<Logger, 'warn'> | undefined,
 ): string {
   if (structuralChange) {
-    warnFallback({ reason: `a block was added, moved, copied or deleted since mount (first: ${structuralChange})` }, { report });
+    warnFallback({ trigger: `a block was added, moved, copied or deleted since mount (first: ${structuralChange})` }, { report });
     return serializeCleaned(editor);
   }
   if (dirty.size === 0) {
-    warnFallback({ reason: 'no text edit was recorded for this change' }, { report });
+    warnFallback({ trigger: 'no text edit was recorded for this change' }, { report });
     return serializeCleaned(editor);
   }
 
@@ -116,12 +116,12 @@ function serializeWithSplice(
   for (const edit of ordered) {
     const range = originalIndex.get(pathKey({ path: edit.path }));
     if (range && sourcePlan.instances.some(raw => range.start < raw.outerEnd && range.end > raw.outerStart)) {
-      warnFallback({ reason: 'text edit overlaps a protected source region' }, { report });
+      warnFallback({ trigger: 'text edit overlaps a protected source region' }, { report });
       return serializeCleaned(editor);
     }
     const spliced = spliceElementInner({ html: result, path: edit.path, expectedTagName: edit.tagName, newInner: edit.component.getInnerHTML() });
     if (spliced === null) {
-      warnFallback({ reason: `element at path "${pathKey({ path: edit.path })}" could not be spliced (removed, or its tag drifted)` }, { report });
+      warnFallback({ trigger: `element at path "${pathKey({ path: edit.path })}" could not be spliced (removed, or its tag drifted)` }, { report });
       return serializeCleaned(editor);
     }
     result = spliced;

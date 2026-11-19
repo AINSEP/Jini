@@ -139,12 +139,6 @@
     "value": 1
   },
   {
-    "file": "packages/db/src/data-modules/data-module.ts",
-    "rule": "stored-error-text",
-    "value": 1,
-    "reason": "KEEP: guarded DeclError validation copy is deliberately public; driver exceptions use fixed copy."
-  },
-  {
     "file": "packages/diagnostics/src/observability/telemetry-test.ts",
     "rule": "raw-error",
     "value": 1

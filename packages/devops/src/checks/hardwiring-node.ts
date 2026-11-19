@@ -196,6 +196,6 @@ export async function runHardwiring({ collect, debtPath, baselineComment, report
   const { added, removed } = diffHardwiringDebt({ baseline: debt.violations, current: violations });
   for (const rule of rules) report.info({ message: `[hardwiring] ${rule}: ${violations.filter(v => v.rule === rule).length} total; ${added.filter(v => v.rule === rule).length} new` });
   if (removed.length) report.info({ message: `[hardwiring] ${removed.length} stale debt occurrences; remove them from ${debtPath}.` });
-  for (const v of added) report.error({ message: `[hardwiring] ${v.rule} ${v.file}:${v.line}: ${v.reason}` });
+  for (const { rule, file, line, reason: why } of added) report.error({ message: `[hardwiring] ${rule} ${file}:${line}: ${why}` });
   return added;
 }

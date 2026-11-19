@@ -463,7 +463,7 @@ export interface DomPageDriverOptions {
  */
 function ambiguousHandleError(
   { handle, count }: { handle: string; count: number },
-  { report = createConsoleLogger({ prefix: '[agentic/dom]' }) }: { report?: Pick<Logger, 'warn'> } = {},
+  { report = createConsoleLogger({ prefix: '[agentic/dom]' }) }: { report?: Pick<Logger, 'warn'> | undefined } = {},
 ): Error {
   const message = `"${handle}" is published on ${count} elements on this page, so which one it addresses is `
     + 'ambiguous — this is a page-authoring bug (duplicate data-agent-element), not something a '
@@ -498,7 +498,7 @@ function createDomElementResolver(root: DomPageDriverRequired['root'], options: 
   const find = (handle: string, action = 'read'): Element => {
     const matches = findAll(handle);
     if (matches.length === 0) throw new Error(`no element published as "${handle}" on this page`);
-    if (matches.length > 1) throw ambiguousHandleError({ handle, count: matches.length }, options.report ? { report: options.report } : {});
+    if (matches.length > 1) throw ambiguousHandleError({ handle, count: matches.length }, { report: options.report });
     const element = matches[0]!;
     const control = controlOf(element, action);
     if (['click', 'fill', 'selectOption'].includes(action)) assertActiveControl({ element: control, handle, action });
@@ -581,7 +581,7 @@ function createDomReadOperations(
       // absence but an ambiguity — so that case still refuses, same as `find`.
       const matches = findAll(handle);
       if (matches.length === 0) return null;
-      if (matches.length > 1) throw ambiguousHandleError({ handle, count: matches.length }, report ? { report } : {});
+      if (matches.length > 1) throw ambiguousHandleError({ handle, count: matches.length }, { report });
       const element = matches[0]!;
       const control = controlOf(element);
       const field = fieldDescriptorOf(control);

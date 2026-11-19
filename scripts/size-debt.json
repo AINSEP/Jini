@@ -81,14 +81,7 @@
     "function": "useComposerView",
     "line": 52,
     "rule": "max-lines-per-function",
-    "value": 171
-  },
-  {
-    "file": "packages/chat/src/react/components/Composer.tsx",
-    "function": "Composer",
-    "line": 104,
-    "rule": "max-lines-per-function",
-    "value": 108
+    "value": 170
   },
   {
     "file": "packages/chat/src/react/components/ComposerDiscovery.tsx",
@@ -119,27 +112,6 @@
     "value": 123
   },
   {
-    "file": "packages/chat/src/react/features/chat-pane/components/AgentRuntimePicker.tsx",
-    "function": "<file>",
-    "line": 599,
-    "rule": "max-lines",
-    "value": 512
-  },
-  {
-    "file": "packages/chat/src/react/features/chat-pane/components/ChatPane.tsx",
-    "function": "<file>",
-    "line": 641,
-    "rule": "max-lines",
-    "value": 766
-  },
-  {
-    "file": "packages/chat/src/react/features/chat-pane/components/ChatPane.tsx",
-    "function": "ChatPane",
-    "line": 755,
-    "rule": "max-lines-per-function",
-    "value": 176
-  },
-  {
     "file": "packages/chat/src/react/features/chat-pane/create-daemon-attachment-uploader.ts",
     "function": "createDaemonAttachmentUploader",
     "line": 195,
@@ -158,14 +130,14 @@
     "function": "useChatPane",
     "line": 404,
     "rule": "max-lines-per-function",
-    "value": 618
+    "value": 616
   },
   {
     "file": "packages/chat/src/react/features/chat-pane/hooks/useChatPane.hooks.ts",
     "function": "<file>",
     "line": 714,
     "rule": "max-lines",
-    "value": 946
+    "value": 944
   },
   {
     "file": "packages/chat/src/react/features/chat-pane/hooks/useChatPaneRuntimeInventory.hooks.ts",
@@ -228,7 +200,7 @@
     "function": "useConversation",
     "line": 136,
     "rule": "max-lines-per-function",
-    "value": 145
+    "value": 144
   },
   {
     "file": "packages/chat/src/react/hooks/useRunStream.ts",

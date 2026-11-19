@@ -438,9 +438,8 @@ export function useChatPane(options: UseChatPaneOptions, { useConversationHook =
   const attachmentBatchIdRef = useRef(initialAttachmentBatchId);
   const batchConversationIdRef = useRef(options.conversationId);
   const activeUploadsRef = useRef(new Set<AbortController>());
-  const [internalSelection, setInternalSelection] = useState<ChatPaneAgentSelection>(
-    options.initialSelection ?? { agentId: '' },
-  );
+  // A lazy initializer: the initial selection is read once, like every other `useState` seed here.
+  const [internalSelection, setInternalSelection] = useState<ChatPaneAgentSelection>(() => options.initialSelection ?? { agentId: '' });
   const workingDirectoryState = useChatPaneWorkingDirectory(definedProps({ source: {
     workingDirectory: options.workingDirectory,
     initialWorkingDirectory: options.initialWorkingDirectory,

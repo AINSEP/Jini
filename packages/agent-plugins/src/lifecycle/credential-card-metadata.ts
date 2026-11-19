@@ -116,13 +116,7 @@ export function parsePluginCredentialCards({ raw }: { raw: string }, options: { 
   PluginContributionParseResult<PluginCredentialCard> {
   let parsed: unknown;
   try { parsed = JSON.parse(raw); }
-  catch (error) {
-    try {
-      if (options.onWarning) options.onWarning('[agent-plugins] Invalid credential cards.');
-      else createConsoleLogger({ prefix: '[agent-plugins]' }).warn({ message: 'Invalid credential cards.' }, { error });
-    } catch { /* Diagnostics cannot replace the malformed-manifest refusal. */ }
-    return { ok: false, reason: 'invalid credential cards' };
-  }
+  catch (error) { return refuseUnparsableManifest({ error }, options); }
   try {
     const manifest = recordOf({ value: parsed });
     if (!manifest) throw new Error('plugin manifest must be an object');
@@ -133,6 +127,17 @@ export function parsePluginCredentialCards({ raw }: { raw: string }, options: { 
   } catch (error) {
     return { ok: false, reason: error instanceof Error ? error.message : 'invalid credential cards' };
   }
+}
+
+/** The parser's own message can echo manifest text, so the refusal and the warning name the problem
+ * in fixed words; only the default logger receives the caught error. */
+function refuseUnparsableManifest({ error }: { error: unknown }, { onWarning }: { onWarning?: ((warning: string) => void) | undefined } = {}): PluginContributionParseResult<PluginCredentialCard> {
+  const message = 'The plugin manifest is not valid JSON, so its credential cards were refused.';
+  try {
+    if (onWarning) onWarning(`[agent-plugins] ${message}`);
+    else createConsoleLogger({ prefix: '[agent-plugins]' }).warn({ message }, { error });
+  } catch { /* Diagnostics cannot replace the malformed-manifest refusal. */ }
+  return { ok: false, reason: 'the plugin manifest is not valid JSON' };
 }
 
 /** Validate collection bounds separately from manifest decoding. O(cards + fields). */

@@ -185,6 +185,11 @@ function buildChatPaneArguments({ p, runtimeView, apiModeConfigured }: {
   } });
 }
 
+/** Nothing usable is selected and no configured BYOK turn can stand in (split out of `ChatPane` for its complexity budget). */
+function isChatPaneUnavailable({ selectedAgent, apiModeConfigured }: { selectedAgent: unknown; apiModeConfigured: boolean }, _optional: Record<string, never> = {}): boolean {
+  return selectedAgent === undefined && !apiModeConfigured;
+}
+
 /**
  * Renders the self-contained chat-pane composition, including runtime and
  * working-directory orchestration owned by `@jini-ai/chat-react`.
@@ -218,7 +223,7 @@ export function ChatPane({ useAgentHandleHook = useAgentHandle, useTHook = useT,
   // Selection resolution only returns available agents, so absence normally means nothing usable
   // is selected — except a configured BYOK turn (`apiModeConfigured`, computed above), which calls
   // the provider directly over HTTP and never touches the CLI inventory.
-  const unavailable = pane.selectedAgent === undefined && !apiModeConfigured;
+  const unavailable = isChatPaneUnavailable({ selectedAgent: pane.selectedAgent, apiModeConfigured });
   const fileDrop = useChatPaneFileDropHook({ enabled: isChatPaneFileDropEnabled({ canUpload: surface.uploadAttachments !== undefined,
     disabled: p.disabled, unavailable, uploading: pane.isUploadingAttachments }), onFiles: pane.addAttachments, report: p.report });
   const slots = buildChatPaneSlots({ surfaceSlots: surface.composerSlots, embed: surface.embed, renderRuntimePicker: () => (

@@ -30,9 +30,10 @@ function builtins(requiredHost: Parameters<typeof createMailCatalog>[0], deps: M
   return [smtp, requiredHost.mailEngine.builtins.console({ clock, preview: ({ message }) => log(formatConsoleMail({ message })) })];
 }
 
-/** Nothing is delivered locally, so the preview line carries the whole body: a sign-in or
- *  confirmation link must be usable from the log. Text is preferred; an html-only message shows its html. */
+/** The preview line for the local console mailer (moved here from `createConsoleMailProvider`). */
 function formatConsoleMail({ message }: { message: OutboundEmail }, _optional: Record<string, never> = {}): string {
+  // The body is the point of a local mailer: a sign-in or confirmation link must be usable from the
+  // log, since nothing is delivered. Text is preferred (readable); an html-only message shows its html.
   const body = message.text ?? message.html;
   return `[mail:console] to=${message.to.email} subject=${JSON.stringify(message.subject)}${body === undefined ? '' : `\n${body}`}`;
 }

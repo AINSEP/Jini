@@ -9,7 +9,12 @@ import { definedProps } from '../../../util/defined-props.js';
 import { RuntimeDropUp } from './RuntimeDropUp.js';
 import { defaultChatPaneSelection, resolveChatPaneSelection } from '../rules.js';
 import type { ChatPaneAgent, ChatPaneAgentSelection, ByokRuntimeSummary } from '../types.js';
-import { runtimeAgentStatus } from './AgentRuntimePicker.js';
+
+export function runtimeAgentStatus({ agent }: { agent: ChatPaneAgent }): string {
+  if (agent.available === false) return agent.diagnostic ?? 'Not found on PATH';
+  if (agent.authStatus === 'missing') return 'Installed · sign-in required';
+  return agent.version ?? 'Installed';
+}
 
 /**
  * An agent's `fullCliAccessNote` as a warning icon whose tip (hover, focus, tap) holds the text.

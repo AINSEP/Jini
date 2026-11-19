@@ -864,6 +864,30 @@
     {
       "id": "7ae88e00abf4",
       "reason": "ext-r11b2 (R11b-2): mcp token/config writers now take a required files port, so 'the default uses the node filesystem' is obsolete; the port's own doc states the boundary."
+    },
+    {
+      "id": "9c8497d3246d",
+      "reason": "ex-log (combine-6): a failed provisioning outcome no longer carries the caught `error`; it goes to the injected `report`, and the answer text names the step and error class (federate-mcp's catch comment says so)."
+    },
+    {
+      "id": "7b86cfde3186",
+      "reason": "ex-log (combine-6): `approvedLoadFailed`'s `detail` is now the error class summary, not the raw message; the doc comment was reworded to say that."
+    },
+    {
+      "id": "08709e73b555",
+      "reason": "ex-log (combine-6): failures no longer carry `error`; provisioning reports caught values itself and the replacement comment states that reasons are safe."
+    },
+    {
+      "id": "d1c43a5c7f16",
+      "reason": "ex-log (combine-6): runIfMain now passes `io` to main; the same doc comment was reworded with the new argument and its failure behaviour."
+    },
+    {
+      "id": "c60f3fe93b3d",
+      "reason": "ex-log (combine-6): recovery decisions go through the injected `report` (safe default logger) instead of `logger.info` on console; the doc comment was reworded to that."
+    },
+    {
+      "id": "3cd030c638b4",
+      "reason": "ex-log (combine-6): `messageOf` was removed \u2014 the native message no longer reaches the observation policy, only the error class label, so the helper and its note are gone."
     }
   ]
 }

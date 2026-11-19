@@ -4,10 +4,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   AgentRuntimePicker,
-  runtimeAgentStatus,
   runtimeOptionLabel,
   runtimePopoverPosition,
 } from '../../components/AgentRuntimePicker.js';
+import { runtimeAgentStatus } from '../../components/RuntimePickerSections.js';
 import { runtimeDropUpPosition } from '../../hooks/useRuntimeDropUp.hooks.js';
 import { I18nContext } from '../../../../hooks/context.js';
 import type { ChatPaneAgent, ChatPaneAgentSelection } from '../../types.js';

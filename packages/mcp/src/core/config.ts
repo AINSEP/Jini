@@ -247,7 +247,8 @@ export async function readMcpConfig({ dataDir, files }: { dataDir: string; files
     const e = err as { code?: string; name?: string; message?: string };
     if (e.code === 'ENOENT') return { servers: [] };
     if (e.name === 'SyntaxError') {
-      report.error({ message: `The MCP config file ${configFile(dataDir)} is not valid JSON; reading it as an empty server list.` }, { error: err });
+      const logger = report;
+      logger.error({ message: `The MCP config file ${configFile(dataDir)} is not valid JSON; reading it as an empty server list.` }, { error: err });
       return { servers: [] };
     }
     throw err;

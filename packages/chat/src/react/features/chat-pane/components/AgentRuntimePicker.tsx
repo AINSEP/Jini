@@ -23,12 +23,6 @@ import type {
 // pure and now live beside the hook that consumes them.
 export { runtimeOptionLabel, runtimePopoverPosition };
 
-export function runtimeAgentStatus({ agent }: { agent: ChatPaneAgent }): string {
-  if (agent.available === false) return agent.diagnostic ?? 'Not found on PATH';
-  if (agent.authStatus === 'missing') return 'Installed · sign-in required';
-  return agent.version ?? 'Installed';
-}
-
 interface RuntimeTriggerProps {
   base: string | undefined;
   picker: UseAgentRuntimePickerResult;

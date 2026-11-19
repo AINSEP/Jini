@@ -186,9 +186,7 @@ export function useComposerView({ composer, slots, attachmentPicker, workingDire
       effectName: 'onDiscoverySelect',
       effect: () => onDiscoverySelect({ item, source, ...(argument !== undefined ? { argument } : {}) }),
     }, {
-      onSettled: () => {
-        discoveryEffectInFlightRef.current = false;
-      },
+      onSettled: () => { discoveryEffectInFlightRef.current = false; },
       report,
       onResolved: (outcome) => {
         if (!outcome || typeof outcome !== 'object') return;

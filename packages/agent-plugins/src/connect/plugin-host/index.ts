@@ -159,7 +159,7 @@ export interface PortablePluginHost<UninstallInput> extends PluginLookupPort {
  */
 function reportProvisioningFailures({ pluginId, failed, approved, warn, messages }: { pluginId: string; failed: readonly ProvisioningFailure[]; approved: boolean; warn: (message: string) => void; messages: PluginHostMessages }): void {
   // Provisioning already reported caught exceptions; this callback sees only safe failure reasons.
-  for (const failure of failed) warn(redactSecrets({ input: `Plugin '${pluginId}': MCP provisioning for server '${failure.serverKey}' failed — ${failure.reason}` }));
+  for (const { serverKey, reason: why } of failed) warn(redactSecrets({ input: `Plugin '${pluginId}': MCP provisioning for server '${serverKey}' failed — ${why}` }));
   if (approved && failed.length) throw new ToolInputError({ message: redactSecrets({ input: messages.provisioningFailed({ pluginId, failed }) }) });
 }
 
@@ -253,7 +253,7 @@ async function provisionPluginMcp<UninstallInput, Layout extends AgentPluginLayo
   try {
     const approvedEnable = execution.approvedEnable ? { principalId, accessKey: requireApprovedAccessKey(execution.approvedEnableKey, deps.messages) } : undefined;
     const servers = await resolveServers(pluginId);
-    const result = await (optional.provisionMcpServers ?? provisionAgentPluginMcpServers)({ deps: mcp, workspaceId: deps.workspaceId, pluginId, servers, principalId, classifyTrust: deps.classifyTrust, messages: deps.messages }, { ...(deps.report ? { report: deps.report } : {}) });
+    const result = await (optional.provisionMcpServers ?? provisionAgentPluginMcpServers)({ deps: mcp, workspaceId: deps.workspaceId, pluginId, servers, principalId, classifyTrust: deps.classifyTrust, messages: deps.messages }, { report: deps.report });
     reportProvisioningFailures({ pluginId, failed: result.failed, approved: execution.approvedEnable === true, warn, messages: deps.messages });
     // Same as the admin toggle: an account signed in while the plugin was off gets the plugin's
     // declared tools now (bug 2026-11-04, the host's sign-in grant owner).
@@ -267,7 +267,8 @@ async function provisionPluginMcp<UninstallInput, Layout extends AgentPluginLayo
     const detail = describeErrorForLog({ err: error });
     if (execution.approvedEnable) throw new ToolInputError({ message: redactSecrets({ input: deps.messages.approvedLoadFailed({ detail }) }) });
     // An injected reporter receives the caught value itself; the default channel logs its class only.
-    if (deps.report) deps.report.warn({ message: `Plugin '${pluginId}': MCP provisioning could not run.` }, { error });
+    const logger = deps.report;
+    if (logger) logger.warn({ message: `Plugin '${pluginId}': MCP provisioning could not run.` }, { error });
     else warn(redactSecrets({ input: `Plugin '${pluginId}': MCP provisioning could not run — ${detail}` }));
   }
 

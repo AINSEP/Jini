@@ -55,8 +55,8 @@ export const QuestionForm = forwardRef<QuestionFormHandle, QuestionFormProps>(fu
 ) {
   const t = useTHook();
   const form = useMemo(() => withoutSecretQuestionDefaults({ form: incomingForm }), [incomingForm]);
-  const guard = useUserTextGuardHook({ ...(redactUserText ? { redactUserText } : {}), ...(onSecretRedacted ? { onSecretRedacted } : {}) });
-  const locked = !interactive || !onSubmit || submittedAnswers !== undefined;
+  const guard = useUserTextGuardHook(definedGuardOptions({ redactUserText, onSecretRedacted }));
+  const locked = isQuestionFormLocked({ interactive, onSubmit, submittedAnswers });
   const state = useQuestionAnswersHook({ form, submittedAnswers, draftAnswers, locked }, { onDraftChange, onAnswerChange });
   const currentAnswers = submittedAnswers ? redactQuestionAnswers({ form, answers: submittedAnswers }).answers : state.answers;
   const ready = answersReady(form, currentAnswers);
@@ -97,6 +97,16 @@ export const QuestionForm = forwardRef<QuestionFormHandle, QuestionFormProps>(fu
 });
 
 type Answers = Record<string, string | string[]>;
+
+/** The guard's options without `undefined` members (split out of `QuestionForm` for its complexity budget). */
+function definedGuardOptions({ redactUserText, onSecretRedacted }: { [K in 'redactUserText' | 'onSecretRedacted']: QuestionFormProps[K] | undefined }, _optional: Record<string, never> = {}) {
+  return { ...(redactUserText ? { redactUserText } : {}), ...(onSecretRedacted ? { onSecretRedacted } : {}) };
+}
+
+/** A form takes no input when it is read-only, has no submit target, or was already answered. */
+function isQuestionFormLocked({ interactive, onSubmit, submittedAnswers }: { [K in 'interactive' | 'onSubmit' | 'submittedAnswers']: QuestionFormProps[K] | undefined }, _optional: Record<string, never> = {}): boolean {
+  return !interactive || !onSubmit || submittedAnswers !== undefined;
+}
 
 function answersReady(form: QuestionFormType, answers: Answers): boolean {
   const withinSelectionLimits = form.questions.every((q) => {

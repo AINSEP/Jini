@@ -1,4 +1,4 @@
-import { createConsoleLogger } from "@jini-ai/core/primitives";
+import { widgetReport } from "./resolver-contracts.js";
 import { isNonArrayRecord } from "@jini-ai/core";
 import type { JsonObject, UUID } from "@jini-ai/core/primitives";
 import type { PageHtmlEmbedRef } from "./html/html-embeds.js";
@@ -37,7 +37,7 @@ async function resolveWidgetSlugsToIds(
     Array.from(distinctSlugs).map(async (slug) => {
       const entry = await deps.entryRepo.findBySlug({ workspaceId: context.workspaceId, type: WIDGET_CONTENT_TYPE, slug });
       if (!entry) {
-        (context.report ?? createConsoleLogger({ prefix: "[widgets]" })).warn({ message: 'resolveHtmlPageEmbeds: unresolved "widget" reference — no widget with that slug' }, { meta: { workspaceId: context.workspaceId, slug } });
+        widgetReport({ context }).warn({ message: 'resolveHtmlPageEmbeds: unresolved "widget" reference — no widget with that slug' }, { meta: { workspaceId: context.workspaceId, slug } });
         return;
       }
       idBySlug.set(slug, entry.id);
@@ -83,7 +83,7 @@ function collectWidgetIdsToLoad(
     if (ref.id !== null) {
       ids.add(ref.id);
     } else if (ref.slug === null) {
-      (context.report ?? createConsoleLogger({ prefix: "[widgets]" })).warn({ message: 'resolveHtmlPageEmbeds: unresolved "widget" reference — missing or invalid "id"/"slug" in data-embed-config' }, { meta: { workspaceId: context.workspaceId } });
+      widgetReport({ context }).warn({ message: 'resolveHtmlPageEmbeds: unresolved "widget" reference — missing or invalid "id"/"slug" in data-embed-config' }, { meta: { workspaceId: context.workspaceId } });
     } else {
       // Slug-addressed references are added from the shared batched lookup below.
     }

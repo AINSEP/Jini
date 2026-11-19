@@ -159,7 +159,8 @@ export async function readTokensFile({ dataDir, clock, files }: { dataDir: strin
         filePath: `${tokensFile(dataDir)}.corrupt-${digest}`,
         contents: raw,
       });
-      report.error({ message: `The MCP token file ${tokensFile(dataDir)} is not valid JSON; kept a copy beside it and reading it as an empty store.` }, { error: err });
+      const logger = report;
+      logger.error({ message: `The MCP token file ${tokensFile(dataDir)} is not valid JSON; kept a copy beside it and reading it as an empty store.` }, { error: err });
       return { ...EMPTY, servers: { ...EMPTY.servers } };
     }
     throw err;

@@ -26,7 +26,7 @@ test("J: DDL driver failure rolls back all tables and emits a safe diagnostic", 
   try {
     const result = await declareDataModule({ db, dbPath: ":memory:", decl: declaration });
     expect(result).toMatchObject({ ok: false, created: [], altered: [], snapshotPath: null,
-      error: { code: "DDL_FAILED", message: "Data module DDL failed." } });
+      error: { code: "DDL_FAILED", message: "The tables for plugin example could not be created or altered; the change was rolled back." } });
     expect(statements).toBe(4);
     expect(await listTables({ kernel: store })).not.toContain("p_example__first");
     expect(await listTables({ kernel: store })).not.toContain("p_example__second");
@@ -41,7 +41,7 @@ test.each(["error", "string"])("J: preflight driver %s is classified without lea
   const db: PluginKernel = { ...store, query: async () => { throw kind === "error" ? failure() : SECRET; } };
   try {
     const result = await declareDataModule({ db, dbPath: ":memory:", decl: declaration });
-    expect(result).toMatchObject({ ok: false, error: { code: "PREFLIGHT_FAILED", message: "Data module preflight failed." } });
+    expect(result).toMatchObject({ ok: false, error: { code: "PREFLIGHT_FAILED", message: "The existing tables for plugin example could not be read, so nothing was changed." } });
     expect(await listTables({ kernel: store })).not.toContain("p_example__first");
     expect(sink).toHaveBeenCalledTimes(1);
     expect(JSON.stringify([result, sink.mock.calls])).not.toContain(SECRET);
@@ -65,7 +65,7 @@ test("J: path mismatch emits fixed copy and still installs into the open databas
     expect(result).toMatchObject({ ok: true, created: ["p_example__first", "p_example__second"] });
     expect(await listTables({ kernel: store })).toContain("p_example__first");
     expect(sink).toHaveBeenCalledTimes(1);
-    expect(JSON.stringify(sink.mock.calls)).toContain("Configured database path does not name the open database.");
+    expect(JSON.stringify(sink.mock.calls)).toContain("example: the configured database path is not the database this connection has open (an in-memory database is open).");
     expect(JSON.stringify(sink.mock.calls)).not.toContain(SECRET);
   } finally { await store.close(); }
 });

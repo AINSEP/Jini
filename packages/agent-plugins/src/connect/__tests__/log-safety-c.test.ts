@@ -13,13 +13,13 @@ afterEach(() => vi.restoreAllMocks());
 describe('sheet C reporting and safe outcomes', () => {
   it('refuses malformed manifest JSON without returning parser input or stack', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    expect(parsePluginCredentialCards({ raw: `{ "token": "${secret}"` })).toEqual({ ok: false, reason: 'invalid credential cards' });
+    expect(parsePluginCredentialCards({ raw: `{ "token": "${secret}"` })).toEqual({ ok: false, reason: 'the plugin manifest is not valid JSON' });
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn.mock.calls.flat().join(' ')).not.toContain(secret);
     const onWarning = vi.fn();
-    expect(parsePluginCredentialCards({ raw: `{ \"token\": \"${secret}\"` }, { onWarning })).toEqual({ ok: false, reason: 'invalid credential cards' });
+    expect(parsePluginCredentialCards({ raw: `{ \"token\": \"${secret}\"` }, { onWarning })).toEqual({ ok: false, reason: 'the plugin manifest is not valid JSON' });
     expect(onWarning).toHaveBeenCalledTimes(1);
-    expect(onWarning).toHaveBeenCalledWith('[agent-plugins] Invalid credential cards.');
+    expect(onWarning).toHaveBeenCalledWith('[agent-plugins] The plugin manifest is not valid JSON, so its credential cards were refused.');
     expect(warn).toHaveBeenCalledTimes(1);
   });
 
@@ -83,6 +83,6 @@ describe('sheet C reporting and safe outcomes', () => {
 
 it.each([Object.assign(new Error(secret), { stack: secret }), secret])('keeps malformed JSON refusal fixed when its warning port throws', error => {
   const onWarning = vi.fn(() => { throw error; });
-  expect(parsePluginCredentialCards({ raw: '{' }, { onWarning })).toEqual({ ok: false, reason: 'invalid credential cards' });
+  expect(parsePluginCredentialCards({ raw: '{' }, { onWarning })).toEqual({ ok: false, reason: 'the plugin manifest is not valid JSON' });
   expect(onWarning).toHaveBeenCalledTimes(1);
 });
