@@ -19,7 +19,7 @@ export {
   type FormDeliverySubmission,
 } from "./types.js";
 export { FORM_DELIVERY_MAX_RETRY_AFTER_MS, FormDeliveryError } from "./errors.js";
-export { planFormDeliveries, type FormDeliveryPlannerDeps } from "./planner.js";
+export { planFormDeliveries, type FormDeliveryPlannerDeps, type PlanFormDeliveriesOptions } from "./planner.js";
 export { deliverFormJob } from "./deliver-job.js";
 export { createFormDeliverySubscriptions } from "./subscriptions.js";
 export { formDeliveryRetryPolicy, type FormDeliveryRetryPolicy } from "./retry-policy.js";
