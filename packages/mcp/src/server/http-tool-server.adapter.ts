@@ -3,7 +3,7 @@ import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse, type Server as HttpServer } from 'node:http';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { CancelledNotificationSchema } from '@modelcontextprotocol/sdk/types.js';
-import { adaptSdkTransport } from './sdk-transport.js';
+import { adaptSdkTransport } from './adapters/sdk-transport.js';
 import { createMcpToolServer, type McpToolServerRequiredArgs, type McpToolServerOptions } from './tool-server.js';
 
 export interface McpHttpToolServerOptions extends Pick<McpToolServerOptions, 'resources' | 'instructions' | 'fetchImpl' | 'authHeaders' | 'delegatedTools' | 'resultPaging' | 'diagnosticToolIds' | 'messageRelay'> {

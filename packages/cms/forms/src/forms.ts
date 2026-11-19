@@ -12,7 +12,7 @@ export const MAX_LABEL_LENGTH = 200;
 export const MIN_MAX_LENGTH = 1;
 export const MAX_MAX_LENGTH = 5000;
 export const FIELD_ID_PATTERN = /^[a-z][a-z0-9_]*$/;
-export const FIELD_TYPES = new Set(["text", "email", "textarea", "checkbox"]);
+export const FIELD_TYPES: ReadonlySet<string> = new Set(["text", "email", "textarea", "checkbox"]);
 
 export const MAX_CLASS_NAME_LENGTH = 300;
 export const MAX_ATTRIBUTES_PER_FIELD = 12;

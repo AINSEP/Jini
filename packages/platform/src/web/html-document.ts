@@ -33,12 +33,12 @@ const MAX_META_VALUE = 500;
 export const LINK_PROTOCOLS: ReadonlySet<string> = new Set(["http:", "https:", "mailto:", "tel:"]);
 export const ASSET_PROTOCOLS: ReadonlySet<string> = new Set(["http:", "https:"]);
 /** Never visible and never page content; removed from the text and the returned HTML copy. */
-const STRIPPED = new Set(["script", "noscript", "template"]);
+const STRIPPED: ReadonlySet<string> = new Set(["script", "noscript", "template"]);
 /** Not visible text either, but `style` stays in the HTML copy because theming needs it. */
-const INVISIBLE = new Set([...STRIPPED, "style", "head", "svg", "iframe", "object", "canvas"]);
-const BLOCKS = new Set(["address", "article", "aside", "blockquote", "br", "dd", "div", "dl", "dt", "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hr", "li", "main", "nav", "ol", "p", "pre", "section", "table", "td", "th", "tr", "ul"]);
+const INVISIBLE: ReadonlySet<string> = new Set([...STRIPPED, "style", "head", "svg", "iframe", "object", "canvas"]);
+const BLOCKS: ReadonlySet<string> = new Set(["address", "article", "aside", "blockquote", "br", "dd", "div", "dl", "dt", "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hr", "li", "main", "nav", "ol", "p", "pre", "section", "table", "td", "th", "tr", "ul"]);
 /** `meta name=` keys worth returning; every `og:*` property is returned as well. */
-const META_NAMES = new Set(["generator", "theme-color", "author", "keywords", "twitter:title", "twitter:description", "twitter:image", "application-name"]);
+const META_NAMES: ReadonlySet<string> = new Set(["generator", "theme-color", "author", "keywords", "twitter:title", "twitter:description", "twitter:image", "application-name"]);
 
 export function attr({ element, name }: { element: Element; name: string }, _optional: Record<string, never> = {}): string | undefined {
   return element.attrs.find(a => a.name === name)?.value;

@@ -76,7 +76,7 @@ export interface VerifyRecord extends VerifyResult {
   contextId?: string | null;
 }
 
-const STOPWORDS = new Set([
+const STOPWORDS: ReadonlySet<string> = new Set([
   'the', 'and', 'for', 'with', 'that', 'this', 'must', 'should', 'have',
   'from', 'into', 'when', 'then', 'than', 'your', 'over', 'every',
   'check', 'verify', 'rule', 'future', 'artifacts', 'satisfy', 'ensure',

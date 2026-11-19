@@ -32,7 +32,7 @@ import { splitServerFixture } from '../../__tests__/args-fixtures.js';
  * a real stdio transport. Covering that needs a genuinely serializing
  * transport, not this pair.
  */
-import { adaptSdkTransport } from '../sdk-transport.js';
+import { adaptSdkTransport } from '../adapters/sdk-transport.js';
 import { EventEmitter } from 'node:events';
 import type { Readable } from 'node:stream';
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
@@ -622,4 +622,16 @@ describe('typed delegated publication — real MCP wire and existing daemon owne
     expect(session.calls.map(call => call.name)).toEqual(['inspect']);
     expect((await client.listTools()).tools).toHaveLength(fixture.tools.length + 1);
   });
+});
+
+
+it('binds all four tool/resource verbs and propagates adapted closure', async () => {
+  const { client, runPromise, serverTransport } = await bootWireServer({ resources: [helloResource()] });
+  expect((await client.listTools()).tools.map(tool => tool.name)).toEqual(['echo']);
+  expect((await client.callTool({ name: 'echo', arguments: { value: 'bound' } })).content).toEqual([{ type: 'text', text: '{"value":"bound"}' }]);
+  expect((await client.listResources()).resources.map(resource => resource.uri)).toEqual(['jini://hello']);
+  expect((await client.readResource({ uri: 'jini://hello' })).contents).toEqual([{ uri: 'jini://hello', text: 'hello world' }]);
+  const close = vi.spyOn(serverTransport, 'close');
+  await closeDown(runPromise);
+  expect(close).toHaveBeenCalledOnce();
 });

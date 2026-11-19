@@ -121,7 +121,7 @@ export interface MediaToolDeps {
  * calls. See `DerivedRiskByToolId` in the kit for why it is independent of the catalog's own
  * `sideEffects` declaration.
  */
-export const mediaDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const mediaDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> listMedia (media-service.ts): mediaRepo.list only, no write.
   ["media_list_assets", "none"],
   ["library_list", "none"],

@@ -1,6 +1,6 @@
 import type { LookupAddress, lookup } from 'node:dns';
 import type { LookupFunction } from 'node:net';
-import { Agent, type Dispatcher } from 'undici';
+import { createUndiciReachabilityDispatcher, type ReachabilityDispatcher } from './adapters/undici.js';
 import type { ReachabilityArgs } from './reachability.js';
 
 /** The lookup platform's `createValidatingLookup` returns: it resolves, then refuses private addresses. */
@@ -41,8 +41,8 @@ export function createReachabilityLookup(required: ReachabilityLookupRequired, {
   };
 }
 
-export function createReachabilityDispatcher(required: ReachabilityLookupRequired, { lookupImpl }: { lookupImpl?: typeof lookup } = {}): Agent {
-  return new Agent({ connect: { lookup: createReachabilityLookup(required, lookupImpl ? { lookupImpl } : {}) } });
+export function createReachabilityDispatcher(required: ReachabilityLookupRequired, { lookupImpl }: { lookupImpl?: typeof lookup } = {}) {
+  return createUndiciReachabilityDispatcher({ lookup: createReachabilityLookup(required, lookupImpl ? { lookupImpl } : {}) });
 }
 
 /**
@@ -58,9 +58,9 @@ export function createReachabilityDispatcher(required: ReachabilityLookupRequire
  */
 export function createNodeReachabilityPorts(
   required: NodeReachabilityRequired,
-  options: { fetch?: typeof globalThis.fetch; lookupImpl?: typeof lookup; dispatcher?: Dispatcher } = {},
+  options: { fetch?: typeof globalThis.fetch; lookupImpl?: typeof lookup; dispatcher?: ReachabilityDispatcher } = {},
 ): Pick<ReachabilityArgs, 'fetch' | 'guard'> & { close(): Promise<void> } {
-  let dispatcher: Dispatcher | undefined = options.dispatcher;
+  let dispatcher: ReachabilityDispatcher | undefined = options.dispatcher;
   return {
     close: async () => { if (!options.dispatcher) await dispatcher?.close(); },
     guard: { assertSafeUrl: ({ raw }) => required.assertSafeUrl(raw) },

@@ -45,7 +45,7 @@ export function buildProtocolProxyTargetUrl({ targetBaseUrl, requestUrl }: { tar
 
 export type ProtocolFetch = (args: { request: Request }) => Promise<Response>;
 
-export async function handleProtocolProxyRequest({ request, targetBaseUrl }: { request: Request; targetBaseUrl: string }, { fetchImpl = ({ request }) => fetch(request) }: { fetchImpl?: ProtocolFetch } = {}
+export async function handleProtocolProxyRequest({ request, targetBaseUrl }: { request: Request; targetBaseUrl: string }, { nativeFetch = globalThis.fetch, fetchImpl = ({ request }) => nativeFetch(request) }: { nativeFetch?: typeof globalThis.fetch; fetchImpl?: ProtocolFetch } = {}
 ): Promise<Response> {
   const target = buildProtocolProxyTargetUrl({ targetBaseUrl, requestUrl: request.url });
   try {

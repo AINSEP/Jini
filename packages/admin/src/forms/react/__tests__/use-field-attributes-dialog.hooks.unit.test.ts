@@ -3,6 +3,8 @@ import type { FormEvent } from "react";
 import { act, fireEvent, render, renderHook, screen } from "../../../__tests__/fetch-query-support.js";
 import { describe, expect, it, vi } from "vitest";
 
+import { createFieldAttributesDialogController } from "../../controllers/field-attributes-dialog.controller.js";
+import { addAttrRow } from "../../rules.js";
 import type { AdminFormField } from "../../models.js";
 import { FieldAttributesDialog } from "../components/FieldAttributesDialog.js";
 import { FormsCatalogScope, fakeFormsPorts } from "./catalog-scope.js";
@@ -150,4 +152,26 @@ describe("useFieldAttributesDialog catalog", () => {
     const unknown = renderHook(() => useFieldAttributesDialog({ field: choice, onSave: vi.fn(), onCancel: vi.fn() }, { usePorts: () => fakeFormsPorts({ catalog: narrow }) }));
     expect(unknown.result.current.settings.defaultChoices).toEqual([]);
   });
+});
+
+
+it("allocates attribute row IDs independently and never reuses a deleted controller row", () => {
+  const a = createFieldAttributesDialogController({ field, catalog: fakeFormsCatalog() });
+  const b = createFieldAttributesDialogController({ field, catalog: fakeFormsCatalog() });
+  expect(a.getSnapshot().rows.map(row => row._rowId)).toEqual([0, 1]);
+  expect(b.getSnapshot().rows.map(row => row._rowId)).toEqual([0, 1]);
+  a.addRow({});
+  a.removeRow({ rowId: 2 });
+  a.addRow({});
+  b.addRow({});
+  expect(a.getSnapshot().rows.map(row => row._rowId)).toEqual([0, 1, 3]);
+  expect(b.getSnapshot().rows.map(row => row._rowId)).toEqual([0, 1, 2]);
+});
+
+
+it("defaults new attribute IDs above live rows and accepts the controller allocation", () => {
+  const rows = [{ _rowId: 9, name: "title", value: "existing" }];
+  expect(addAttrRow({ rows }).at(-1)).toEqual({ _rowId: 10, name: "", value: "" });
+  expect(addAttrRow({ rows, rowId: 20 }).at(-1)).toEqual({ _rowId: 20, name: "", value: "" });
+  expect(addAttrRow({ rows: [] }).at(-1)).toEqual({ _rowId: 0, name: "", value: "" });
 });

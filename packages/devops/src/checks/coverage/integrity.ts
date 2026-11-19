@@ -1,7 +1,7 @@
 import { toRepoRelative } from './lcov.js';
 import type { SourceClassifier } from './lcov.js';
 
-const WRAPPER_HELPER_NAMES = new Set(["__toCommonJS", "__copyProps", "__toESM", "__export"]);
+const WRAPPER_HELPER_NAMES: ReadonlySet<string> = new Set(["__toCommonJS", "__copyProps", "__toESM", "__export"]);
 
 const MIN_DA_RECORDS_FOR_SEVERE_HEURISTIC = 30;
 

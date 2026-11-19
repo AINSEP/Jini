@@ -8,7 +8,7 @@ import { Transform, Writable, type Readable } from 'node:stream';
 import { setImmediate } from 'node:timers/promises';
 import { boundedMessage, type StdioMessage } from './adapters/stdio-codec.js';
 import type { McpTransportLike } from './ports.js';
-import { resolveSdkTransport } from './sdk-transport.js';
+import { resolveSdkTransport } from './adapters/sdk-transport.js';
 
 export interface StdioHostingOptions {
   readonly maxFrameBytes?: number;

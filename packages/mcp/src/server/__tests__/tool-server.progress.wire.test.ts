@@ -2,7 +2,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { onTestFinished, describe, expect, it } from 'vitest';
 
-import { adaptSdkTransport } from '../sdk-transport.js';
+import { adaptSdkTransport } from '../adapters/sdk-transport.js';
 import type { McpToolDef } from '../tool-protocol.js';
 import { createMcpToolServer } from '../tool-server.js';
 import { createFakeScheduler } from './call-progress.fixture.js';

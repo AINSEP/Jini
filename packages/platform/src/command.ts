@@ -13,7 +13,7 @@
 import { extname } from "node:path";
 import { planCmdShimInvocation, planCommandInvocation, type CommandInvocation, type CommandInvocationRequest } from "@jini-ai/core/contracts/runtime";
 
-const nodeLoadablePackageManagerExtensions = new Set([".js", ".cjs", ".mjs"]);
+const nodeLoadablePackageManagerExtensions: ReadonlySet<string> = new Set([".js", ".cjs", ".mjs"]);
 
 /**
  * Resolve a command request into the concrete invocation to spawn. On Windows,

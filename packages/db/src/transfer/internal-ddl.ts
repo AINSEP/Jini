@@ -85,7 +85,7 @@ export function indexSql(schema: string, table: TransferTable): string {
     .join("");
 }
 
-const REFERENTIAL_ACTIONS = new Set(["NO ACTION", "RESTRICT", "CASCADE", "SET NULL", "SET DEFAULT"]);
+const REFERENTIAL_ACTIONS: ReadonlySet<string> = new Set(["NO ACTION", "RESTRICT", "CASCADE", "SET NULL", "SET DEFAULT"]);
 
 function action(value: string): string {
   const upper = value.toUpperCase();

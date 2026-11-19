@@ -67,14 +67,14 @@ export interface ContentTypesToolDeps {
 }
 
 /** Descriptors for the 2 cleanup tools this pass does not wire — see file header. */
-const UNWIRED_CONTENT_TYPES_TOOL_IDS = new Set(["collections_plan_cleanup", "collections_execute_cleanup"]);
+const UNWIRED_CONTENT_TYPES_TOOL_IDS: ReadonlySet<string> = new Set(["collections_plan_cleanup", "collections_execute_cleanup"]);
 
 /**
  * This wiring layer's OWN risk classification, authored from what each handler below actually
  * calls — deliberately a second, independent source rather than a read of the catalog's own
  * `sideEffects` field. See `DerivedRiskByToolId` in the kit for why that independence matters.
  */
-export const contentTypesDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const contentTypesDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> listContentTypes (list.ts): one repo.listByWorkspace read, no write of any kind.
   ["collections_content_type_list", "none"],
   // -> registerContentType (write-service.ts): repo.save + appendRevision in one tx.

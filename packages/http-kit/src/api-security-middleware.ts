@@ -36,7 +36,7 @@ import { bearerTokenFromHeader } from '@jini-ai/core/contracts/server';
 import { isLoopbackPeerAddress } from '@jini-ai/core/net';
 
 /** Health/readiness/version probes stay reachable without a bearer token so monitoring never needs one. Both the mount-relative and `/api`-prefixed forms are listed because this middleware is always registered via `app.use('/api', ...)`, under which Express strips the `/api` prefix from `req.path` for a request to `/api/health` — the prefixed form is kept for parity with the origin module's own set rather than dropped as dead, in case a future caller mounts this middleware unprefixed. */
-const OPEN_PROBE_PATHS = new Set([
+const OPEN_PROBE_PATHS: ReadonlySet<string> = new Set([
   '/health',
   '/api/health',
   '/ready',

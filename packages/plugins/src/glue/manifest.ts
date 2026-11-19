@@ -37,7 +37,7 @@ export interface ValidateGlueManifestResult {
 }
 
 const REQUIRED_KEYS = ["id", "version", "sdkRange", "capabilities", "attachments"] as const;
-const ALLOWED_KEYS = new Set<string>(REQUIRED_KEYS);
+const ALLOWED_KEYS: ReadonlySet<string> = new Set<string>(REQUIRED_KEYS);
 
 const ID_PATTERN = /^[a-z0-9-]+$/;
 const MAX_ID_LENGTH = 50;

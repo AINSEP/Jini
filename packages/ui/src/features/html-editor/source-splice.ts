@@ -31,7 +31,7 @@ type Parse5ParentNode = DefaultTreeAdapterMap['parentNode'];
 type Parse5Element = DefaultTreeAdapterMap['element'];
 
 /** Tags GrapesJS never represents as ordinary tree components — never indexed, never a path slot. */
-const UNINDEXED_TAGS = new Set(['style', 'script']);
+const UNINDEXED_TAGS: ReadonlySet<string> = new Set(['style', 'script']);
 
 /**
  * An element's position among its ancestors' **element-only** children, ignoring text nodes,

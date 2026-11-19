@@ -24,14 +24,10 @@
  * the QUICK total bound and an explicit idle budget; request orchestration never chooses global
  * fetch. Hosts can bind the existing helper or a policy-enforcing egress client without a new port.
  */
-import { FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
-import type { HttpClientPort, HttpRequest, HttpResponse } from '@jini-ai/core/primitives';
+import type { HttpClientPort, HttpResponse } from '@jini-ai/core/primitives';
 import type { RegistryManifest } from '@jini-ai/protocol';
 import type { GithubPublishMutation, GithubRegistryClient } from './github-backend.js';
-
-const GITHUB_API = 'https://api.github.com';
-/** Pinned per GitHub's own recommendation (`X-GitHub-Api-Version` header), matching `@jini-ai/deploy`'s `packages/agent-plugins/github-pages/targets/github-pages.mjs` — see that file's doc comment for the sourcing rationale. */
-const GITHUB_API_VERSION = '2026-03-10';
+import { createGithubSender } from './providers/github-http.js';
 
 type JsonObject = Record<string, unknown>;
 
@@ -58,14 +54,11 @@ export interface GithubApiRegistryClientOptions {
  */
 export class GithubApiRegistryClient implements GithubRegistryClient {
   private readonly token: string | undefined;
-  private readonly apiUrl: string;
-
-  private readonly http: HttpClientPort;
+  private readonly send: ReturnType<typeof createGithubSender>;
 
   constructor({ http }: { http: HttpClientPort }, options: GithubApiRegistryClientOptions = {}) {
-    this.http = http;
     this.token = options.token;
-    this.apiUrl = options.apiUrl ?? GITHUB_API;
+    this.send = createGithubSender({ http, token: this.token }, options);
   }
 
   /**
@@ -221,18 +214,6 @@ export class GithubApiRegistryClient implements GithubRegistryClient {
     const first = json[0];
     return first && typeof first.html_url === 'string' ? first.html_url : undefined;
   }
-
-  /**
-   * The single request builder: every call goes to `apiUrl` with the GitHub
-   * headers (bearer auth only when a token is configured) and the QUICK
-   * idle/total bounds. A JSON `body` adds the JSON content type.
-   */
-  private send(method: 'GET' | 'POST' | 'PATCH', path: string, body?: JsonObject): Promise<HttpResponse> {
-    const json = body === undefined ? undefined : JSON.stringify(body);
-    const headers = githubHeaders(this.token, json === undefined ? {} : { 'Content-Type': 'application/json' });
-    const request: HttpRequest = { url: `${this.apiUrl}${path}`, method, headers, idleTimeoutMs: FETCH_TIMEOUT_MS.QUICK, totalDeadlineMs: FETCH_TIMEOUT_MS.QUICK, ...(json === undefined ? {} : { body: json }) };
-    return this.http.send({ request });
-  }
 }
 
 function enc(value: string): string {
@@ -307,15 +288,6 @@ function parseManifest(content: string, where: string): RegistryManifest {
 /** URL-encodes each path segment individually so directory separators survive but special characters within a segment don't. */
 function encPath(path: string): string {
   return path.split('/').filter(Boolean).map(encodeURIComponent).join('/');
-}
-
-function githubHeaders(token: string | undefined, extra: Record<string, string> = {}): Record<string, string> {
-  return {
-    Accept: 'application/vnd.github+json',
-    'X-GitHub-Api-Version': GITHUB_API_VERSION,
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...extra,
-  };
 }
 
 async function readGithubJson<T>(resp: HttpResponse): Promise<T> {

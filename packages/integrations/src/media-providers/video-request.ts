@@ -66,7 +66,7 @@ export function snapResolutionToken({ resolution, size }: { resolution: string |
   return '720p';
 }
 
-const VEO_VALID_SIZES = new Set(['1280x720', '720x1280', '1920x1080', '1080x1920']);
+const VEO_VALID_SIZES: ReadonlySet<string> = new Set(['1280x720', '720x1280', '1920x1080', '1080x1920']);
 
 /**
  * Veo (via the verified gateway's Gemini predictLongRunning shim) only

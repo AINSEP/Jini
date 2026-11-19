@@ -13,8 +13,8 @@ const MAX_TRANSACTION_TTL_MS = 15 * 60 * 1000;
 const PKCE_VALUE = /^[A-Za-z0-9._~-]{43,128}$/;
 const OPAQUE_SECURITY_VALUE = /^[A-Za-z0-9._~-]{32,512}$/;
 const SAFE_PROVIDER_ERROR = /^[A-Za-z0-9._-]{1,64}$/;
-const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
-const RESERVED_AUTHORIZATION_PARAMETERS = new Set([
+const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
+const RESERVED_AUTHORIZATION_PARAMETERS: ReadonlySet<string> = new Set([
   'client_id',
   'code_challenge',
   'code_challenge_method',

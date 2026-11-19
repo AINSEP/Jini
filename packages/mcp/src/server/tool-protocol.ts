@@ -49,8 +49,7 @@ import { sanitizeUntrustedText } from '@jini-ai/core/text';
 import { clampDeclaredBounds } from '@jini-ai/core/tool-input-repairs';
 import { unknownToolSentence } from '@jini-ai/core/tool-call-text';
 import { Validator, type Schema } from '@cfworker/json-schema';
-import { ContentBlockSchema } from '@modelcontextprotocol/sdk/types.js';
-import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
+import { isPassthroughContentBlock, type CallToolResult, type Tool } from './adapters/sdk-wire.js';
 import { argumentShapeMessage, isRecord, normalizeToolArguments, resolveMcpToolName, withArgumentContract, type McpToolArgumentContract } from './tool-arguments.js';
 import { safeDiagnostic, type DaemonRequestOptions } from './daemon-client.js';
 import { scopeNestedSchemaRefs } from './schema-ref-scope.js';
@@ -136,21 +135,6 @@ export interface McpToolDef<Args extends Record<string, unknown> = Record<string
 }
 
 /**
- * True when `block` is a well-formed MCP content block this module will pass through verbatim rather
- * than JSON-stringify. Delegates to the pinned `@modelcontextprotocol/sdk`'s own `ContentBlockSchema`
- * (the same union `CallToolResultSchema.content` is defined against) instead of a hand-maintained list
- * of per-type shape checks — see this module's own doc for why that matters: a manually maintained
- * allowlist only ever covers the block types someone remembered to add, so the *next* protocol content
- * type (this SDK version already knows five: `text`, `image`, `audio`, `resource`, `resource_link`)
- * would silently fall back to the stringify path exactly like `resource` did before this fix. A block
- * that merely claims a recognized `type` but is missing/mistyping its required field(s) still fails
- * `safeParse` and falls back to the stringify path rather than being forwarded malformed.
- */
-function isPassthroughContentBlock(block: unknown): boolean {
-  return ContentBlockSchema.safeParse(block).success;
-}
-
-/**
  * True when `payload` is already a well-formed MCP content envelope safe to hand back to the client
  * unchanged: a record whose `content` field is an array, and every entry in it is a recognized,
  * well-formed block (see {@link isPassthroughContentBlock}). A payload that merely has an array
@@ -162,7 +146,7 @@ function isPassthroughContentBlock(block: unknown): boolean {
 function isMcpContentEnvelope(payload: unknown): payload is { content: readonly unknown[]; structuredContent?: unknown } {
   if (!isRecord(payload)) return false;
   const content = payload['content'];
-  return Array.isArray(content) && content.every(isPassthroughContentBlock);
+  return Array.isArray(content) && content.every(block => isPassthroughContentBlock({ block }));
 }
 
 /** A payload is an error when it flags itself so or reports a failed batch outcome. */

@@ -27,7 +27,7 @@ const MAX_METADATA_BYTES = 16 * 1024;
 
 export type ArtifactStatus = 'streaming' | 'complete' | 'error';
 
-const ALLOWED_STATUS = new Set<ArtifactStatus>(['streaming', 'complete', 'error']);
+const ALLOWED_STATUS: ReadonlySet<ArtifactStatus> = new Set<ArtifactStatus>(['streaming', 'complete', 'error']);
 
 /**
  * A host's own artifact-kind/renderer/export vocabulary. The engine treats

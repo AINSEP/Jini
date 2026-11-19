@@ -27,8 +27,9 @@ export interface UseConversationOptions extends UserTextRedactionOptions {
   refreshSignal?: { loadMessages: () => Promise<ChatMessage[]>; visibility: EventTarget & { readonly visibilityState: string }; focus: EventTarget };
   conversationId?: string | null;
   agentId?: string;
-  /** Defaults to a `crypto.randomUUID()`-based id generator when available, else a counter. */
+  /** Defaults to a `crypto.randomUUID()`-based id generator when available, else decimal entropy. */
   createMessageId?: () => string;
+  random?: () => number;
 }
 
 export interface SendMessageOptions {
@@ -69,11 +70,9 @@ export interface UseConversationResult {
   suppressScroll: () => void;
 }
 
-let fallbackIdCounter = 0;
-function defaultCreateMessageId(): string {
+function defaultCreateMessageId({ random }: { random: () => number }, _options = {}): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
-  fallbackIdCounter += 1;
-  return `msg-${Date.now()}-${fallbackIdCounter}`;
+  return `msg-${Date.now()}-${Math.floor(random() * Number.MAX_SAFE_INTEGER)}`;
 }
 
 function pendingUserMessage(
@@ -134,7 +133,8 @@ function runStartInput(
 }
 
 export function useConversation(options: UseConversationOptions): UseConversationResult {
-  const { transport, conversationId = null, agentId, createMessageId = defaultCreateMessageId } = options;
+  const defaultMessageId = useCallback(() => defaultCreateMessageId({ random: options.random ?? Math.random }), [options.random]);
+  const { transport, conversationId = null, agentId, createMessageId = defaultMessageId } = options;
   const [messages, setMessagesState] = useState<ChatMessage[]>(() => redactUserHistory(
     { history: options.initialMessages ?? [] },
     { ...(options.redactUserText ? { redactUserText: options.redactUserText } : {}) },

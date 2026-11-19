@@ -114,7 +114,7 @@ function identityServiceDepsFrom(deps: IdentityToolDeps): AuthServiceDeps {
  * calls. See `DerivedRiskByToolId` in the kit for why it is independent of the catalog's own
  * `sideEffects` declaration.
  */
-export const identityDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const identityDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> authorize() + repo reads only; no save on any path.
   ["identity_user_list", "none"],
   ["identity_role_list", "none"],

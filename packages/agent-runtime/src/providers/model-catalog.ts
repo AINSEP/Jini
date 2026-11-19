@@ -37,7 +37,7 @@ const PROVIDER_MODELS_TIMEOUT_MS = 12_000;
 // here, before any network access, turns that into a clear local message
 // instead — the same class of gap for every one of these protocols (not
 // just Google, where an operator first reported it).
-const PROTOCOLS_REQUIRING_API_KEY = new Set<ConnectionTestProtocol>(['openai', 'senseaudio', 'anthropic', 'google']);
+const PROTOCOLS_REQUIRING_API_KEY: ReadonlySet<ConnectionTestProtocol> = new Set<ConnectionTestProtocol>(['openai', 'senseaudio', 'anthropic', 'google']);
 
 function missingApiKeyResponse(startedAt: number): ProviderModelsResponse {
   return {

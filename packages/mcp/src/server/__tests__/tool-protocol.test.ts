@@ -615,3 +615,13 @@ it('MCP marks partial and total batch failures as errors while retaining every i
   const payload = { isError: true, content: [{ type: 'text', text: 'refused' }] };
   expect(okResult({ payload })).toEqual(payload);
 });
+
+
+it.each([
+  { type: 'text', text: 7 },
+  { type: 'audio', data: 7, mimeType: 'audio/wav' },
+  { type: 'resource_link', uri: 7, name: 'bad' },
+])('stringifies a mixed content envelope when any SDK block is malformed: %j', malformed => {
+  const payload = { content: [{ type: 'text', text: 'valid' }, malformed] };
+  expect(okResult({ payload })).toEqual({ content: [{ type: 'text', text: JSON.stringify(payload) }] });
+});

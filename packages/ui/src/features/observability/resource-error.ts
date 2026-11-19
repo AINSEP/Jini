@@ -11,7 +11,7 @@
 import { telemetryUrl } from './telemetry-url.js';
 import { noopSafetyEventReporter, type SafetyEventReporter } from './ports.js';
 
-const RESOURCE_TAGS = new Set(['SCRIPT', 'LINK', 'IMG', 'IFRAME', 'AUDIO', 'VIDEO', 'SOURCE', 'TRACK']);
+const RESOURCE_TAGS: ReadonlySet<string> = new Set(['SCRIPT', 'LINK', 'IMG', 'IFRAME', 'AUDIO', 'VIDEO', 'SOURCE', 'TRACK']);
 
 export interface ResourceErrorObserverOptions {
   reporter?: SafetyEventReporter | undefined;

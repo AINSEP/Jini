@@ -10,8 +10,8 @@ import { gfm } from 'micromark-extension-gfm';
 // linearly interpolate scroll position between those anchor pairs so
 // matching blocks line up at the top edge of both panes.
 
-const CONTAINER_TOKENS = new Set(['blockQuote', 'listOrdered', 'listUnordered']);
-const FLOW_BLOCK_TOKENS = new Set([
+const CONTAINER_TOKENS: ReadonlySet<string> = new Set(['blockQuote', 'listOrdered', 'listUnordered']);
+const FLOW_BLOCK_TOKENS: ReadonlySet<string> = new Set([
   'atxHeading',
   'setextHeading',
   'paragraph',

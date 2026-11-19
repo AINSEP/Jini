@@ -57,7 +57,7 @@ const MAX_LIST_DEPTH = 20;
 /** Directory names `listFiles` excludes from its results — dependency/build/VCS noise a caller
  *  asking "what's in this theme" almost never wants, and `node_modules` specifically can be
  *  enormous. Mirrors the filter open-lovable's own `listFiles` implementation used. */
-const EXCLUDED_DIR_NAMES = new Set(['node_modules', '.git', 'dist', 'build', '.next']);
+const EXCLUDED_DIR_NAMES: ReadonlySet<string> = new Set(['node_modules', '.git', 'dist', 'build', '.next']);
 
 /** Thrown by `getPreview` when a single check finds nothing listening on `previewPort` yet. Not
  *  a retry loop — callers that want to poll do so by calling `getPreview` again. */

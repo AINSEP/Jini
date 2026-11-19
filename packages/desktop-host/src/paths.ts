@@ -41,7 +41,7 @@ export interface ResolvePathRootsOptions {
   env?: NodeJS.ProcessEnv;
 }
 
-const HOME_BARE_TOKENS = new Set(['~', '$HOME', '${HOME}']);
+const HOME_BARE_TOKENS: ReadonlySet<string> = new Set(['~', '$HOME', '${HOME}']);
 const HOME_PREFIX_RE = /^(~|\$\{HOME\}|\$HOME)[/\\](.*)$/;
 
 function expandHomePrefix(raw: string): string {

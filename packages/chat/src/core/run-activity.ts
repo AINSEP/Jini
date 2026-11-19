@@ -43,7 +43,7 @@ export interface RunActivityState {
 }
 
 /** Tool names whose only job is finding the right tool (MCP tool search / schema lookup). */
-const DISCOVERY_TOOL_NAMES = new Set([
+const DISCOVERY_TOOL_NAMES: ReadonlySet<string> = new Set([
   'ToolSearch',
   'search_tools',
   'describe_tool',
@@ -52,7 +52,7 @@ const DISCOVERY_TOOL_NAMES = new Set([
 ]);
 
 /** Ext events that are a card for the person (a form, a confirm, a sign-in). */
-const CARD_EXT_NAMES = new Set(['mcp-ui', 'a2ui']);
+const CARD_EXT_NAMES: ReadonlySet<string> = new Set(['mcp-ui', 'a2ui']);
 
 /** The A2UI ext name: its surfaces may declare themselves display-only (`@jini-ai/agentic/a2ui`). */
 const A2UI_EXT_NAME = 'a2ui';

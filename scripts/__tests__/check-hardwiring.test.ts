@@ -64,3 +64,21 @@ test('Jini package imports cannot connect site and agent plugin owners', () => {
     assert.deepEqual(collectHardwiring({ repoRoot: root }), []);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+
+test('explicit readonly collections and frozen JavaScript arrays do not own mutable module state', () => {
+  const inspector = createHardwiringInspector({ compiler: ts });
+  for (const source of [
+    'const values: ReadonlySet<string> = new Set(["one"]);',
+    'const values: ReadonlyMap<string, number> = new Map([["one", 1]]);',
+  ]) {
+    assert.deepEqual(inspector.inspect({ file: 'packages/fixture/src/table.ts', source, mode: 'jini' }), []);
+    const mutable = source.replace(/: Readonly(?:Set|Map)<[^>]+>/, '');
+    assert.deepEqual(inspector.inspect({ file: 'packages/fixture/src/table.ts', source: mutable, mode: 'jini' }).map(v => v.rule), ['HW3-module-state']);
+  }
+  const alias = 'type Table = ReadonlyMap<string, number>; const values: Table = new Map([["one", 1]]);';
+  assert.deepEqual(inspector.inspect({ file: 'packages/fixture/src/table.ts', source: alias, mode: 'jini' }).map(v => v.rule), ['HW3-module-state']);
+  const frozen = 'const values = Object.freeze(["one"]);';
+  assert.deepEqual(inspector.inspect({ file: 'packages/fixture/src/table.mjs', source: frozen, mode: 'jini' }), []);
+  assert.deepEqual(inspector.inspect({ file: 'packages/fixture/src/table.mjs', source: frozen.replace('Object.freeze', 'new Set'), mode: 'jini' }).map(v => v.rule), ['HW3-module-state']);
+});

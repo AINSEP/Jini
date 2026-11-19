@@ -27,8 +27,8 @@ export function parseArgs(argv, cwd) {
   });
 }
 
-const includeExt = new Set([".html", ".htm", ".css", ".svg"]);
-const skipDirs = new Set([
+const includeExt = Object.freeze([".html", ".htm", ".css", ".svg"]);
+const skipDirs = Object.freeze([
   ".git",
   ".next",
   ".nuxt",
@@ -39,7 +39,7 @@ const skipDirs = new Set([
   "RECON",
 ]);
 
-const projectAssetPrefixes = new Set([
+const projectAssetPrefixes = Object.freeze([
   "_next",
   "asset",
   "assets",
@@ -70,15 +70,15 @@ const projectAssetPrefixes = new Set([
   "videos",
 ]);
 
-const hostRootPrefixes = new Set(["api", "artifacts", "frames"]);
+const hostRootPrefixes = Object.freeze(["api", "artifacts", "frames"]);
 
 export function walk(fsPort, dir, files = []) {
   for (const entry of fsPort.readdirSync(dir, { withFileTypes: true })) {
     if (entry.isDirectory()) {
-      if (!skipDirs.has(entry.name)) walk(fsPort, path.join(dir, entry.name), files);
+      if (!skipDirs.includes(entry.name)) walk(fsPort, path.join(dir, entry.name), files);
       continue;
     }
-    if (includeExt.has(path.extname(entry.name).toLowerCase())) {
+    if (includeExt.includes(path.extname(entry.name).toLowerCase())) {
       files.push(path.join(dir, entry.name));
     }
   }
@@ -107,8 +107,8 @@ function decodeOrKeep(pathOnly) {
 // `parts` comes from String#split, so parts[0] and parts.at(-1) always exist.
 function looksLikeProjectAsset(parts) {
   const first = parts[0].toLowerCase();
-  if (!first || hostRootPrefixes.has(first)) return false;
-  return projectAssetPrefixes.has(first) || /\.[a-z0-9][a-z0-9_-]{0,15}$/i.test(parts.at(-1));
+  if (!first || hostRootPrefixes.includes(first)) return false;
+  return projectAssetPrefixes.includes(first) || /\.[a-z0-9][a-z0-9_-]{0,15}$/i.test(parts.at(-1));
 }
 
 /**

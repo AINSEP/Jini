@@ -358,7 +358,7 @@ export const WRITE_SHAPED_INPUT_WORDS: readonly string[] = [
   "script",
 ];
 
-const WRITE_SHAPED_WORDS = new Set(WRITE_SHAPED_INPUT_WORDS);
+const WRITE_SHAPED_WORDS: ReadonlySet<string> = new Set(WRITE_SHAPED_INPUT_WORDS);
 
 /** How deep {@link writeShapedInputNames} and {@link writeShapedSchemaInputNames} look into nested objects. */
 const WRITE_SHAPED_MAX_DEPTH = 8;

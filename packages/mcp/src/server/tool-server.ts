@@ -12,23 +12,8 @@ import { createToolExposure, type ToolDescriptor, type ToolExposurePromotion } f
 import type { Logger } from '@jini-ai/core/primitives';
 import type { McpTransportLike } from './ports.js';
 export type { McpTransportLike } from './ports.js';
-import { adaptSdkTransport, resolveSdkTransport } from './sdk-transport.js';
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import type { ServerOptions } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  CallToolRequestSchema,
-  ListResourcesRequestSchema,
-  ListToolsRequestSchema,
-  ReadResourceRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
-import type {
-  CallToolResult,
-  Implementation,
-  ListResourcesResult,
-  ListToolsResult,
-  ReadResourceResult,
-} from '@modelcontextprotocol/sdk/types.js';
+import { defaultCreateServer, defaultCreateTransport, bindSdkToolHandlers, bindSdkResourceHandlers, type SdkRequestSchemas, type SdkServerInfo, type SdkServerOptions } from './adapters/sdk-server.js';
+import type { CallToolResult, ListResourcesResult, ListToolsResult, ReadResourceResult } from './adapters/sdk-wire.js';
 import { createMcpIdleExitController } from '../client/client.js';
 import { startCallProgress, type CallProgressExtra, type CallProgressScheduler } from './call-progress.js';
 import { buildResourceIndex, handleResourceRead, resourcesToList, type McpResourceDef } from './resource-protocol.js';
@@ -46,17 +31,17 @@ const DEFAULT_IDLE_MS = 30 * 60 * 1000;
 // Method shorthand deliberately keeps parameter checking bivariant under strict TypeScript,
 // allowing handlers narrowed to the specific request schema each overload registers.
 export interface McpServerLike {
-  setRequestHandler(args: { schema: typeof ListToolsRequestSchema; handler: () => Promise<ListToolsResult> }): void;
+  setRequestHandler(args: { schema: SdkRequestSchemas['listTools']; handler: () => Promise<ListToolsResult> }): void;
   setRequestHandler(args: {
-    schema: typeof CallToolRequestSchema;
+    schema: SdkRequestSchemas['callTool'];
     handler: (
       requiredArgs: { request: { params: { name: string; arguments?: Record<string, unknown> } } },
       optionalArgs?: { extra?: CallProgressExtra },
     ) => Promise<CallToolResult>;
   }): void;
-  setRequestHandler(args: { schema: typeof ListResourcesRequestSchema; handler: () => Promise<ListResourcesResult> }): void;
+  setRequestHandler(args: { schema: SdkRequestSchemas['listResources']; handler: () => Promise<ListResourcesResult> }): void;
   setRequestHandler(args: {
-    schema: typeof ReadResourceRequestSchema;
+    schema: SdkRequestSchemas['readResource'];
     handler: (requiredArgs: { request: { params: { uri: string } } }) => Promise<ReadResourceResult>;
   }): void;
   connect(args: { transport: McpTransportLike }): Promise<void>;
@@ -107,7 +92,7 @@ export interface McpToolServerOptions extends StdioHostingOptions {
   /** Defaults to `process.stdout`; inject for tests. */
   readonly stdout?: Writable;
   /** Test/embedding seam: builds the underlying `Server`. Defaults to the real `@modelcontextprotocol/sdk` `Server`. */
-  readonly createServer?: (args: { info: Implementation; options: ServerOptions }) => McpServerLike;
+  readonly createServer?: (args: { info: SdkServerInfo; options: SdkServerOptions }) => McpServerLike;
   /** Test/embedding seam: builds the underlying transport. Defaults to the real `StdioServerTransport`. */
   readonly createTransport?: (requiredArgs: Record<string, never>, optionalArgs?: { stdin?: Readable; stdout?: Writable }) => McpTransportLike;
 }
@@ -132,23 +117,6 @@ export interface McpToolServerHandle {
    * the embedding owns closure, without stdin or an idle-exit timer.
    */
   run(required: { transport?: McpTransportLike }): Promise<void>;
-}
-
-// SDK objects remain behind these adapters; hosts implement the object-shaped ports above.
-function defaultCreateServer({ info, options }: { info: Implementation; options: ServerOptions }): McpServerLike {
-  const server = new Server(info, options);
-  return {
-    setRequestHandler: (({ schema, handler }: {
-      schema: Parameters<Server['setRequestHandler']>[0];
-      handler: (...args: any[]) => Promise<any>;
-    }) => server.setRequestHandler(schema, (request, extra) => handler({ request }, { extra }))) as McpServerLike['setRequestHandler'],
-    connect: ({ transport }) => server.connect(resolveSdkTransport({ transport })),
-    sendToolListChanged: () => server.sendToolListChanged(),
-  };
-}
-
-function defaultCreateTransport(_requiredArgs: Record<string, never>, { stdin, stdout }: { stdin?: Readable; stdout?: Writable } = {}): McpTransportLike {
-  return adaptSdkTransport({ transport: new StdioServerTransport(stdin, stdout) });
 }
 
 /**
@@ -348,14 +316,9 @@ function registerResourceHandlers({ cfg, server, ctx, withActivity }: {
   withActivity: ActivityTracker;
 }): void {
   const { resources, resourceIndex } = cfg;
-  server.setRequestHandler({
-    schema: ListResourcesRequestSchema,
-    handler: withActivity(async () => ({ resources: resourcesToList({ resources }) })),
-  });
-
-  server.setRequestHandler({
-    schema: ReadResourceRequestSchema,
-    handler: withActivity(async ({ request }: { request: { params: { uri: string } } }) => handleResourceRead({ uri: request.params.uri, resources: resourceIndex, ctx })),
+  bindSdkResourceHandlers({ server,
+    listResources: withActivity(async () => ({ resources: resourcesToList({ resources }) })),
+    readResource: () => withActivity(async ({ request }: { request: { params: { uri: string } } }) => handleResourceRead({ uri: request.params.uri, resources: resourceIndex, ctx })),
   });
 }
 
@@ -382,11 +345,10 @@ async function connectHost(cfg: HostConfig, { transport, withActivity }: {
   const publishTool = createToolPublisher({ index: toolIndex, server, options: options.delegatedTools });
   if (publishTool) ctx = { ...ctx, publishTool };
 
-  server.setRequestHandler({
-    schema: ListToolsRequestSchema,
-    handler: withActivity(async () => ({ tools: toolsToList({ tools: [...toolIndex.values()] }) })),
+  bindSdkToolHandlers({ server,
+    listTools: withActivity(async () => ({ tools: toolsToList({ tools: [...toolIndex.values()] }) })),
+    callTool: () => withActivity(createCallToolHandler(cfg, { toolIndex, ctx, resultPages })),
   });
-  server.setRequestHandler({ schema: CallToolRequestSchema, handler: withActivity(createCallToolHandler(cfg, { toolIndex, ctx, resultPages })) });
   if (resources.length > 0) registerResourceHandlers({ cfg, server, ctx, withActivity });
 
   try {
