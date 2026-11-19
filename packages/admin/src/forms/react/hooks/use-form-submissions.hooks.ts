@@ -1,7 +1,7 @@
 import type { AdminFormsPort } from "../../../core/ports/forms.js";
 import { submissionView } from "../../models.js";
 import { useFormsPorts } from "./FormsPorts.hooks.js";
-import { useController } from "../../../core/react/use-controller.js";
+import { useFormsController } from "./FormsPorts.hooks.js";
 import { createFormSubmissionsController, initialFormSubmissionsState, type FormSubmissionsState } from "../../controllers/form-submissions.controller.js";
 import { useCallback, useEffect, useRef } from "react";
 import type { AdminFormSubmission } from "../../models.js";
@@ -77,7 +77,7 @@ export function useFormSubmissions(props: { formId: string; port: AdminFormsPort
     fetch: () => port.listFormSubmissions({ formId: props.formId }, {}).then(page => ({ data: page.items.map(submission => submissionView({ submission })), nextCursor: page.nextCursor })),
   });
 
-  const { controller: stateController, snapshot: stateSnapshot } = useController({ create: () => createFormSubmissionsController({}), dependencies: [] });
+  const { controller: stateController, snapshot: stateSnapshot } = useFormsController({ create: () => createFormSubmissionsController({}), dependencies: [] });
   const state = stateSnapshot ?? initialFormSubmissionsState({});
   const { morePages, moreCursor, moreError, selectedId, loadingMore } = state;
   const setMorePages = (value: FormSubmissionsStateValue<"morePages">) => stateController?.update({ key: "morePages", value });

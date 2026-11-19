@@ -1,6 +1,6 @@
 import { createElement } from 'react';
 import type { ComponentType } from 'react';
-import type { TabViewProps } from '../../../core/react/bind-react.js';
+import type { TabViewProps } from '@jini-ai/core/contracts/admin-module';
 import { SeoDefaultsTab } from '../tabs/SeoDefaultsTab.js';
 import { SeoSitemapTab } from '../tabs/SeoSitemapTab.js';
 import { SeoEntrySection } from '../components/SeoEntryPanel.js';

@@ -1,3 +1,4 @@
+import { reactModuleUi } from '../../../core/react/module-ui.js';
 import { forwardRef, StrictMode, Suspense } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, testAdminKit, waitFor, within } from '../../../__tests__/fetch-query-support.js';
@@ -13,7 +14,7 @@ const beta: AgentPluginSummary = { ...alpha, pluginId: 'second', description: nu
 const listing: AgentPluginFiles = { pluginId: alpha.pluginId, files: [{ relativePath: 'skills/design/SKILL.md', sizeBytes: 8, content: '# Design', omitted: null }, { relativePath: 'plugin.json', sizeBytes: 2, content: '{}', omitted: null }, { relativePath: 'binary.dat', sizeBytes: 3, content: null, omitted: 'binary' }], truncated: true, limits: { maxFiles: 200, maxEntries: 2000, maxFileBytes: 524288, maxTotalBytes: 4194304 } };
 const grants = ['admin.plugins.read', 'admin.plugins.enable'];
 function setup(permissions: readonly string[] = [], requestedTab?: string) {
-  const feature = agentPlugins({}, { uninstallNotice: 'Packages are managed by this host.' }), api = createMemoryAgentPluginsApi({ plugins: [alpha, beta], files: { [alpha.pluginId]: listing } });
+  const feature = agentPlugins({ ui: reactModuleUi }, { uninstallNotice: 'Packages are managed by this host.' }), api = createMemoryAgentPluginsApi({ plugins: [alpha, beta], files: { [alpha.pluginId]: listing } });
   const admin = createAdmin({ modules: [feature], ports: { agentPluginsApi: api } }, { permissions }); const { Page, tabs } = feature.react.pages.agentPlugins;
   const tree = () => <StrictMode><feature.react.Provider admin={admin}><Suspense fallback="Loading"><Page tabs={tabs} description={admin.describe().pages[0]!} {...(requestedTab ? { requestedTab } : {})} /></Suspense></feature.react.Provider></StrictMode>;
   return { api, admin, tree };

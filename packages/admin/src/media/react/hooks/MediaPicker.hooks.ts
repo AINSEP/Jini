@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useMediaLibraryQuery } from './MediaQuery.hooks.js';
-import { useController } from '../../../core/react/use-controller.js';
+import { useMediaController } from './MediaPorts.hooks.js';
 import { createLibraryController } from '../../controllers/library.controller.js';
 import type { MediaAsset } from '../../models.js';
 import type { MediaApiPort } from '../../ports.js';
@@ -13,7 +13,7 @@ export interface MediaPickerProps {
 }
 export function useMediaPicker(props: MediaPickerProps, _optional: Record<string, never> = {}) {
   const cached = useMediaLibraryQuery({ api: props.api });
-  const { controller, snapshot } = useController(
+  const { controller, snapshot } = useMediaController(
     { create: () => createLibraryController({ api: cached.api }), dependencies: [cached.api] },
     {
       start: ({ controller }) => {

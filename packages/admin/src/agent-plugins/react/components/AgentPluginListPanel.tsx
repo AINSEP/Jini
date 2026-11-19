@@ -1,5 +1,5 @@
 import { Button, Notice, Spinner } from '../../../react/kit.js';
-import type { TabViewProps } from '../../../core/react/bind-react.js';
+import type { TabViewProps } from '@jini-ai/core/contracts/admin-module';
 import { useAgentPluginPanel } from '../hooks/AgentPluginPanel.hooks.js';
 import { AgentPluginRow } from './AgentPluginRow.js';
 import { agentPluginsMessagesEn as m } from '../../messages.en.js';

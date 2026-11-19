@@ -34,7 +34,7 @@ export interface WidgetInstanceEditorController {
 }
 import { useEffect, useRef } from 'react';
 import { useDirtyGuard } from '../../../react/kit.js';
-import { useController } from '../../../core/react/use-controller.js';
+import { useWidgetsController } from './WidgetsPorts.hooks.js';
 import { createWidgetInstanceEditorController } from '../../controllers/instance-editor.controller.js';
 import type { AdminWidgetsPort } from '../../ports.js';
 import type { WidgetEditorParams, WidgetSlugRedirectPath } from '../../models.js';
@@ -53,7 +53,7 @@ export function useWidgetInstanceEditor(
   // Saves compare with the latest rendered identity, before a route effect can run.
   const renderedKey = useRef(widgetEntityKey({ params })); renderedKey.current = widgetEntityKey({ params });
   const latest = useRef({ t, navigate, slugRedirectPath }); latest.current = { t, navigate, slugRedirectPath };
-  const { controller, snapshot } = useController({ create: () => createWidgetInstanceEditorController({ api: cachedApi, params: paramsRef.current, defaultConfig }, {
+  const { controller, snapshot } = useWidgetsController({ create: () => createWidgetInstanceEditorController({ api: cachedApi, params: paramsRef.current, defaultConfig }, {
     getEntityKey: () => renderedKey.current, t: key => latest.current.t(key), navigate: (path, options) => latest.current.navigate?.(path, options),
     slugRedirectPath: (base, id, item) => latest.current.slugRedirectPath?.(base, id, item) ?? null,
   }), dependencies: [cachedApi, defaultConfig] }, { start: ({ controller }) => { void controller.load(); } });

@@ -1,4 +1,4 @@
-import { useController } from "../../../core/react/use-controller.js";
+import { useFormsController } from "./FormsPorts.hooks.js";
 import { createFormFieldsEditorController, initialFormFieldsEditorState, type FormFieldsEditorState } from "../../controllers/form-fields-editor.controller.js";
 import { useRef } from "react";
 import type { AdminFormField } from "../../models.js";
@@ -40,7 +40,7 @@ export function useFormFieldsEditor(props: {
   fields: AdminFormField[];
   onChange: (fields: AdminFormField[]) => void;
 }, _optional: Record<string, never> = {}): FormFieldsEditorController {
-  const { controller: stateController, snapshot: stateSnapshot } = useController({ create: () => createFormFieldsEditorController({}), dependencies: [] });
+  const { controller: stateController, snapshot: stateSnapshot } = useFormsController({ create: () => createFormFieldsEditorController({}), dependencies: [] });
   const state = stateSnapshot ?? initialFormFieldsEditorState({});
   const editingAttrsIndex = state.editingAttrsIndex;
   const setEditingAttrsIndex = (value: FormFieldsEditorStateValue<"editingAttrsIndex">) => stateController?.update({ key: "editingAttrsIndex", value });

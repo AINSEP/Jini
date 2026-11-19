@@ -1,3 +1,4 @@
+import { reactModuleUi } from '../../../core/react/module-ui.js';
 import { Suspense, type ReactNode } from 'react';
 import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from '../../../__tests__/fetch-query-support.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -31,7 +32,7 @@ async function seededApi(): Promise<AdminRedirectsPort> {
 }
 
 function mountListPage(api: AdminRedirectsPort, options?: Parameters<typeof redirectsFeature>[1], live?: Parameters<typeof redirectsFeature>[1]) {
-  const feature = redirectsFeature({}, options);
+  const feature = redirectsFeature({ ui: reactModuleUi }, options);
   // The React binding scopes ports by the shared `redirectsModule` identity (the factory returns a
   // copy), so that singleton is what the host registers.
   const admin = createAdmin({ modules: [redirectsModule], ports: { redirectsApi: api } }, { permissions: ['admin.redirects.manage'] });

@@ -1,3 +1,4 @@
+import { reactModuleUi } from '../../../core/react/module-ui.js';
 import { Suspense, StrictMode } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, fireEvent, waitFor } from '../../../__tests__/fetch-query-support.js';
@@ -6,7 +7,7 @@ import { sourceControl } from '../index.js';
 import { createMemorySourceControlApi } from '../../adapters/memory.js';
 afterEach(cleanup);
 function setup(permissions: readonly string[] = []) {
-  const feature = sourceControl({}), api = createMemorySourceControlApi({ providers: [{ id: 'git', label: 'Git' }] });
+  const feature = sourceControl({ ui: reactModuleUi }), api = createMemorySourceControlApi({ providers: [{ id: 'git', label: 'Git' }] });
   const admin = createAdmin({ modules: [feature], ports: { sourceControlApi: api } }, { permissions }); const { Page, tabs } = feature.react.pages.sourceControl;
   const tree = () => <StrictMode><feature.react.Provider admin={admin}><Suspense fallback="Loading"><Page tabs={tabs} description={admin.describe().pages[0]!} requestedTab="bad-link" /></Suspense></feature.react.Provider></StrictMode>;
   return { api, admin, tree };

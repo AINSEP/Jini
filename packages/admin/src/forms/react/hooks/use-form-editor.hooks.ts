@@ -4,7 +4,7 @@ import type { FormsCatalogPort } from "../../../core/ports/forms-catalog.js";
 import { formView } from "../../models.js";
 import { describeApiError } from '@jini-ai/core/admin-runtime';
 import { useFormsPorts, useFormsOptions } from "./FormsPorts.hooks.js";
-import { useController } from "../../../core/react/use-controller.js";
+import { useFormsController } from "./FormsPorts.hooks.js";
 import { createFormEditorController, initialFormEditorState } from "../../controllers/form-editor.controller.js";
 import { formAnswerColumns, type FormAnswerColumn } from "../../html-rules.js";
 import type { AdminFormDefinition, AdminFormField } from "../../models.js";
@@ -131,7 +131,7 @@ export function useFormEditor(
 ): FormEditorController {
   const { port, catalog, navigate, t, tab } = props;
   const isNew = props.formId === "new";
-  const { controller: stateController, snapshot: stateSnapshot } = useController({ create: () => createFormEditorController({ catalog }), dependencies: [] });
+  const { controller: stateController, snapshot: stateSnapshot } = useFormsController({ create: () => createFormEditorController({ catalog }), dependencies: [] });
   const state = stateSnapshot ?? initialFormEditorState({});
   const { form, mode, html, copyFeedback, name, slug, fields, provider } = state;
   const setters = useFormEditorSetters({ stateController });

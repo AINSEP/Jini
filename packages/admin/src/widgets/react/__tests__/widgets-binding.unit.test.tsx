@@ -1,3 +1,4 @@
+import { reactModuleUi } from '../../../core/react/module-ui.js';
 import { Suspense } from 'react';
 import { cleanup, fireEvent, render, renderHook, screen, waitFor } from '../../../__tests__/fetch-query-support.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -24,7 +25,7 @@ const slots = {
 };
 
 function mount({ api, page, props }: { api: AdminWidgetsPort; page: 'library' | 'editor' | 'regions' | 'region'; props: Partial<WidgetsModulePageProps> }) {
-  const feature = widgets({ slots, widgetTypes, defaultConfig });
+  const feature = widgets({ ui: reactModuleUi, slots, widgetTypes, defaultConfig });
   const admin = createAdmin({ modules: [feature], ports: { widgetsApi: api } });
   const description = admin.describe().pages.find(p => p.id.endsWith(`.${page}`))!;
   const { Page, tabs } = feature.react.pages[page];

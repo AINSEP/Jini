@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { useController } from '../../../core/react/use-controller.js';
 import { createPlaygroundController } from '../../controllers/playground.controller.js';
 import { canMountPlayground } from '../../rules.js';
-import type { TabViewProps } from '../../../core/react/bind-react.js';
+import type { TabViewProps } from '@jini-ai/core/contracts/admin-module';
 import { usePlaygroundPorts } from './PlaygroundPorts.hooks.js';
 export function useCanvas({ permissions = [] }: TabViewProps, _optional = {}) {
   const { playgroundTargets } = usePlaygroundPorts({}); const key = permissions.join('\0');

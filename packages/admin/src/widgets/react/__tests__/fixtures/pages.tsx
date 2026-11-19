@@ -1,3 +1,5 @@
+import { WidgetsControllerContext } from '../../hooks/WidgetsPorts.hooks.js';
+import { useController } from '../../../../core/react/use-controller.js';
 import { createElement, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import * as library from '../../pages/WidgetsLibrary.js';
@@ -34,7 +36,7 @@ function Host({ children, locale: explicitLocale }: { children: ReactNode; local
   const moduleApi = useApi(api);
   const t = useMemo(() => (key: string) => translate({ locale, key }), [locale]);
   const slots = useMemo<WidgetsSlots>(() => ({ ConfigFields: props => createElement(ConfigFields, { ...props, t }), AddControl }), [t]);
-  return <WidgetsPortsContext.Provider value={{ widgetsApi: moduleApi, widgetsEvents: events }}><WidgetsOptionsContext.Provider value={{ slots, widgetTypes, defaultConfig, t, locale, slugRedirectPath }}>{children}</WidgetsOptionsContext.Provider></WidgetsPortsContext.Provider>;
+  return <WidgetsControllerContext.Provider value={useController}><WidgetsPortsContext.Provider value={{ widgetsApi: moduleApi, widgetsEvents: events }}><WidgetsOptionsContext.Provider value={{ slots, widgetTypes, defaultConfig, t, locale, slugRedirectPath }}>{children}</WidgetsOptionsContext.Provider></WidgetsPortsContext.Provider></WidgetsControllerContext.Provider>;
 }
 export function WidgetsLibrary(props: library.WidgetsLibraryProps = {}) { return <Host><library.WidgetsLibrary {...props} /></Host>; }
 export function WidgetRegions(props: regions.WidgetRegionsProps = {}) { return <Host locale="en"><regions.WidgetRegions {...props} /></Host>; }

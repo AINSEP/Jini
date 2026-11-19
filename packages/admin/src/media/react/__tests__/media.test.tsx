@@ -1,3 +1,4 @@
+import { reactModuleUi } from '../../../core/react/module-ui.js';
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render as renderController } from '@testing-library/react';
 import { render, screen, fireEvent, waitFor, cleanup, act, configure, testAdminKit } from '../../../__tests__/fetch-query-support.js';
@@ -14,8 +15,8 @@ import { KitProvider, createKit } from '@jini-ai/ui-kit/react';
 import { AdminKitProvider, Button, Dialog, TextField } from '../../../react/kit.js';
 import type { ButtonProps } from '../../../react/kit.js';
 import { MediaPurgeDialog } from '../components/MediaPurgeDialog.js';
-import { useController } from '../../../react/use-controller.js';
-import { bindReact } from '../../../react/bind-react.js';
+import { useController } from '../../../core/react/use-controller.js';
+import { bindReact } from '../../../core/react/bind-react.js';
 import { realEmbedPolicy } from '../../__tests__/fakes/embed-policy.js';
 // Lazy tab imports can exceed the default 1s under concurrent workspace builds.
 configure({ asyncUtilTimeout: 5000 });
@@ -25,7 +26,7 @@ async function fixture() {
   await api.upload({ filename: 'photo.png', contentType: 'image/png', dataBase64: 'bytes' });
   await api.upload({ filename: 'clip.webm', contentType: 'video/webm', dataBase64: 'bytes' });
   const overlays = createOverlayController({});
-  const module = media({ overlays });
+  const module = media({ ui: reactModuleUi, overlays });
   const admin = createAdmin(
     { modules: [module], ports: { embedPolicy: realEmbedPolicy, mediaApi: api } },
     {
@@ -274,7 +275,7 @@ describe('media React slice', () => {
 
 it('renders the optional credential tab without exposing saved secrets', async () => {
   const { api, overlays } = await fixture();
-  const module = media({ overlays });
+  const module = media({ ui: reactModuleUi, overlays });
   const providers = createMemoryMediaProviders({
     providers: [{ id: 'example', label: 'Example', configured: false }],
   });
@@ -317,7 +318,7 @@ it('renders the optional credential tab without exposing saved secrets', async (
 }, 30000);
 it('renders a read-only media page when write grants are absent', async () => {
   const { api, overlays } = await fixture();
-  const module = media({ overlays });
+  const module = media({ ui: reactModuleUi, overlays });
   const admin = createAdmin(
     { modules: [module], ports: { embedPolicy: realEmbedPolicy, mediaApi: api } },
     { permissions: ['media.read'] },

@@ -1,3 +1,4 @@
+import { reactModuleUi } from '../../../core/react/module-ui.js';
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from '../../../__tests__/fetch-query-support.js';
 import { AdminConfigError } from '@jini-ai/core/admin-runtime';
@@ -24,7 +25,7 @@ describe('media picker factory', () => {
     const api = createMemoryMediaApi({});
     const overlays = createOverlayController({});
     const open = vi.spyOn(overlays, 'open');
-    const port = media({ overlays }).factories.mediaPicker({ ports: { mediaApi: api }, permissions: ['media.read'] });
+    const port = media({ ui: reactModuleUi, overlays }).factories.mediaPicker({ ports: { mediaApi: api }, permissions: ['media.read'] });
     return { port, open };
   }
 

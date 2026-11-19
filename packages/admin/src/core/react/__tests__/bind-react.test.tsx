@@ -4,7 +4,8 @@ import { cleanup, render, renderHook, screen } from '@testing-library/react';
 import { AdminConfigError } from '@jini-ai/core/admin-runtime';
 import { createAdmin } from '../../module/index.js';
 import { defineAdminModule, adminPort } from '@jini-ai/core/contracts/admin-module';
-import { bindReact, type ModulePageProps, type TabViewProps } from '../index.js';
+import type { ModulePageProps, TabViewProps } from '@jini-ai/core/contracts/admin-module';
+import { bindReact } from '../index.js';
 
 afterEach(cleanup);
 

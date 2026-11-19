@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useSitemapQuery } from './SeoQuery.hooks.js';
-import { useController } from '../../../core/react/use-controller.js';
+import { useSeoController } from './SeoPorts.hooks.js';
 import { createSitemapController } from '../../controllers/sitemap.controller.js';
 import { parseSitemapXml, filterSitemapEntries } from '../../rules.js';
 import type { SitemapModalController, SitemapModalInputs, SitemapModalStatus, SitemapState } from '../../models.js';
@@ -15,7 +15,7 @@ function sitemapStatus({ enabled, query }: { enabled: boolean; query: { error?: 
 }
 export function useSitemapModal({ api, enabled }: { api: AdminSeoPort; enabled: boolean; onClose?: () => void }, _optional: Record<string, never> = {}): SitemapModalController {
   const cached = useSitemapQuery({ api, enabled });
-  const { controller, snapshot } = useController({ create: () => createSitemapController({ api: cached.api, enabled }), dependencies: [cached.api, enabled] }, { start: ({ controller }) => { void controller.load({}); } });
+  const { controller, snapshot } = useSeoController({ create: () => createSitemapController({ api: cached.api, enabled }), dependencies: [cached.api, enabled] }, { start: ({ controller }) => { void controller.load({}); } });
   const state: SitemapState = { ...(snapshot ?? { filter: '', view: 'table' as const }), status: sitemapStatus({ enabled, query: cached.query }), error: cached.query.error?.message ?? null, xmlText: cached.query.data?.text ?? '' };
   // Parse only when text/status changes, never on each filter keystroke.
   const entries = useMemo(() => state.status === 'ready' ? parseSitemapXml({ xmlText: state.xmlText }) : [], [state.status, state.xmlText]);

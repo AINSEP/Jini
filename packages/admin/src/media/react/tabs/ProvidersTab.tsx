@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import type { TabViewProps } from '../../../core/react/bind-react.js';
+import type { TabViewProps } from '@jini-ai/core/contracts/admin-module';
 import { useProvidersTab } from '../hooks/ProvidersTab.hooks.js';
 import { EyeIcon, HiddenEyeIcon, ReloadIcon } from '../components/MediaIcons.js';
 export function ProvidersTab({ useProvidersTabHook = useProvidersTab }: TabViewProps & { useProvidersTabHook?: typeof useProvidersTab }, _optional: Record<string, never> = {}) {

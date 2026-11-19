@@ -24,8 +24,6 @@
       "./react/entities": "browser",
       "./browser/shell-navigation": "browser",
       "./core/module": "universal",
-      "./react/bind-react": "browser",
-      "./react/use-controller": "browser",
       "./react/overlays": "browser",
       "./react/kit": "browser",
       "./react/testing-kit": "browser",
@@ -153,16 +151,6 @@
       "types": "./dist/core/module/index.d.ts",
       "import": "./dist/core/module/index.js",
       "default": "./dist/core/module/index.js"
-    },
-    "./react/bind-react": {
-      "types": "./dist/react/bind-react.d.ts",
-      "import": "./dist/react/bind-react.js",
-      "default": "./dist/react/bind-react.js"
-    },
-    "./react/use-controller": {
-      "types": "./dist/react/use-controller.d.ts",
-      "import": "./dist/react/use-controller.js",
-      "default": "./dist/react/use-controller.js"
     },
     "./react/overlays": {
       "types": "./dist/react/overlays.d.ts",

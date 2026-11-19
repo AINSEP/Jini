@@ -1,11 +1,14 @@
 import { createContext, useContext, useId, useState } from 'react';
-import type { ModulePageProps } from '../../../core/react/bind-react.js';
-import { useController } from '../../../core/react/use-controller.js';
+import type { ComponentType } from 'react';
+import type { ModulePageProps, TabViewProps } from '@jini-ai/core/contracts/admin-module';
+import { useAgentPluginsController } from './AgentPluginsPorts.hooks.js';
 import { createAgentPluginsController } from '../../controllers/agent-plugins.controller.js';
 import type { AgentPluginsState } from '../../models.js';
 import { AGENT_PLUGINS_READ, agentPluginDisableCopy, humanizeAgentPluginId } from '../../rules.js';
 import { useAgentPluginsPorts } from './AgentPluginsPorts.hooks.js';
 import { AdminConfigError } from '@jini-ai/core/admin-runtime';
+/** The shell passes this page its tabs as renderable components. */
+type TabbedPageProps = ModulePageProps<ComponentType<TabViewProps>>;
 export interface AgentPluginsPageScope {
   readonly controller: ReturnType<typeof createAgentPluginsController> | null;
   readonly snapshot: Readonly<AgentPluginsState> | null;
@@ -18,10 +21,10 @@ export function useAgentPluginsPageScope(_required: Record<string, never>, _opti
   if (!scope) throw new AdminConfigError({ issues: ['Agent plugins page scope unavailable'] });
   return scope;
 }
-export function useAgentPluginsPage(props: ModulePageProps, _optional = {}) {
+export function useAgentPluginsPage(props: TabbedPageProps, _optional = {}) {
   const { agentPluginsApi } = useAgentPluginsPorts({});
   const permissions = props.description.visible ? props.description.grants : [], key = permissions.join('\0');
-  const { controller, snapshot } = useController({ create: () => createAgentPluginsController({ api: agentPluginsApi, permissions }), dependencies: [agentPluginsApi, key] }, { start: ({ controller }) => { void controller.load({}); } });
+  const { controller, snapshot } = useAgentPluginsController({ create: () => createAgentPluginsController({ api: agentPluginsApi, permissions }), dependencies: [agentPluginsApi, key] }, { start: ({ controller }) => { void controller.load({}); } });
   const [localTab, setLocalTab] = useState('installed'), uninstallNoteId = useId();
   const { visible, active, activeId } = pageTabs({ description: props.description, tab: props.requestedTab ?? localTab });
   return {
@@ -41,7 +44,7 @@ export function useAgentPluginsPage(props: ModulePageProps, _optional = {}) {
 }
 /** A tab id is namespaced (`agentPlugins.installed`); the page addresses tabs by the last segment. */
 const tabSuffix = (id: string) => id.slice(id.lastIndexOf('.') + 1);
-function pageTabs({ description, tab }: { description: ModulePageProps['description']; tab: string }, _optional = {}) {
+function pageTabs({ description, tab }: { description: TabbedPageProps['description']; tab: string }, _optional = {}) {
   const visible = description.visible ? description.tabs.filter(t => t.visible) : [];
   const active = visible.find(t => t.id.endsWith(`.${tab}`)) ?? visible[0];
   return { visible, active, activeId: active ? tabSuffix(active.id) : 'installed' };

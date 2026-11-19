@@ -1,3 +1,4 @@
+import { reactModuleUi } from '../../../core/react/module-ui.js';
 import { Suspense } from "react";
 import { cleanup, render, renderHook, screen } from "../../../__tests__/fetch-query-support.js";
 import { FetchQueryProvider } from "@jini-ai/ui/fetch-query";
@@ -35,7 +36,7 @@ function settingsController(overrides: Partial<CommentSettingsController> = {}):
 
 describe("comments module page", () => {
   it("lazily loads the queue page through the bound module and renders it with the host translator", async () => {
-    const feature = comments({}, { t: shout });
+    const feature = comments({ ui: reactModuleUi }, { t: shout });
     const session = { me: async () => ({ user: { id: "operator", username: "operator" }, effectivePermissions: ["comments.read"] }) };
     const admin = createAdmin({ modules: [feature], ports: { commentsApi: memoryCommentsApi({ items: [COMMENT] }), commentsSession: session } }, { permissions: ["comments.read"] });
     const { Page } = feature.react.pages.queue;

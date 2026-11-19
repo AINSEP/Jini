@@ -1,3 +1,4 @@
+import { reactModuleUi } from '../../../core/react/module-ui.js';
 import { Component, Suspense, type ReactNode } from "react";
 import { AdminApiError, AdminConfigError } from '@jini-ai/core/admin-runtime';
 import { act, cleanup, render, renderHook, screen, waitFor } from "../../../__tests__/fetch-query-support.js";
@@ -202,7 +203,7 @@ class Boundary extends Component<{ children: ReactNode }, { error: Error | null 
 describe("forms module editor page", () => {
   function mountEditor(pageProps: Record<string, unknown>) {
     const api = createMemoryFormsApi({}, { forms: [storedForm("f1", { name: "Contact" })] });
-    const module = forms({});
+    const module = forms({ ui: reactModuleUi });
     const admin = createAdmin({ modules: [module.react.module], ports: { formsApi: api, formsCatalog: fakeFormsCatalog(), formsTrash: api.trash } }, { permissions: ["admin.forms.manage"] });
     const { Page, tabs } = module.react.pages.editor;
     const description = admin.describe().pages.find(page => page.id === "forms.editor")!;

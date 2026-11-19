@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import { useFetchQuery, useFetchMutation, useInvalidate } from '../../../react/kit.js';
 import { buildAgentListHandles } from '@jini-ai/core/agent-handles';
 import type { AdminRedirect, AdminRedirectsPort } from '../../../core/ports/redirects.js';
-import { useController } from '../../../core/react/use-controller.js';
+import { useRedirectsController } from './RedirectsPorts.hooks.js';
 import { createRedirectsController } from '../../controllers/redirects.controller.js';
 import type { RedirectsActions } from '../../controllers/redirects.controller.js';
 import type { RedirectsTranslate } from '../../models.js';
@@ -43,7 +43,7 @@ export function useRedirects(
       for (const write of writes) if (write !== activeWrite) write.reset();
     },
   };
-  const { controller, snapshot } = useController({ create: () => createRedirectsController({ actions: () => actions.current }), dependencies: [] });
+  const { controller, snapshot } = useRedirectsController({ create: () => createRedirectsController({ actions: () => actions.current }), dependencies: [] });
   const redirects = list.data;
   const createRedirect = (form: FormData) => controller?.createRedirect({ form }) ?? Promise.resolve(false);
   function submitCreate(e: FormEvent<HTMLFormElement>): void {

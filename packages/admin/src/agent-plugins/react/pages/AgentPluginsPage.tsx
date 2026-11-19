@@ -1,10 +1,13 @@
 import { Suspense } from 'react';
 import { ConfirmDialog, Notice, Spinner, Tabs } from '../../../react/kit.js';
-import type { ModulePageProps } from '../../../core/react/bind-react.js';
+import type { ComponentType } from 'react';
+import type { ModulePageProps, TabViewProps } from '@jini-ai/core/contracts/admin-module';
 import { AgentPluginsPageContext, useAgentPluginsPage } from '../hooks/AgentPluginsPage.hooks.js';
 import { AgentPluginInspector } from '../components/AgentPluginInspector.js';
 import { agentPluginsMessagesEn as m } from '../../messages.en.js';
-export function AgentPluginsPage({ useAgentPluginsPageHook = useAgentPluginsPage, ...props }: ModulePageProps & { useAgentPluginsPageHook?: typeof useAgentPluginsPage }, _optional = {}) {
+/** The shell passes this page its tabs as renderable components. */
+type TabbedPageProps = ModulePageProps<ComponentType<TabViewProps>>;
+export function AgentPluginsPage({ useAgentPluginsPageHook = useAgentPluginsPage, ...props }: TabbedPageProps & { useAgentPluginsPageHook?: typeof useAgentPluginsPage }, _optional = {}) {
   const vm = useAgentPluginsPageHook(props);
   return <section data-jini-part="agent-plugins.page"><h1>{props.description.label}</h1>{vm.denied ? <Notice tone="danger">{m.denied}</Notice> : <AgentPluginsPageContext.Provider value={vm.scope}>
     <p>{m.description}</p><Tabs label="Agent Plugin views" value={vm.activeId} items={vm.items} onValueChange={vm.onValueChange} />

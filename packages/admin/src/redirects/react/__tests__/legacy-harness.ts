@@ -1,6 +1,8 @@
 /** Test-only bridge preserving the source suites' calls/assertions while exercising Jini owners.
  * Legacy envelopes, mutable fake rows and physical removal are fixture contracts, not public APIs.
  */
+import { RedirectsControllerContext } from '../hooks/RedirectsPorts.hooks.js';
+import { useController } from '../../../core/react/use-controller.js';
 import { createElement } from 'react';
 import type { AdminRedirect, AdminRedirectCreateInput, AdminRedirectHitStats, AdminRedirectImportResult, AdminRedirectsPort } from '../../../core/ports/redirects.js';
 import { AdminApiError } from '@jini-ai/core/admin-runtime';
@@ -128,7 +130,7 @@ export function useImportRedirectsForm(port: LegacyApi, t: RedirectsTranslate, l
 export function useWiredImportRedirectsForm({ t, locale }: { t: RedirectsTranslate; locale: string }) { return useImportRedirectsForm(defaultRedirectsPort, t, locale); }
 export function Redirects({ useRedirectsHook }: { useRedirectsHook?: typeof useWiredRedirects } = {}) {
   // Publish is a host-supplied slot; the old host button's tests stay in the host.
-  return createElement(RedirectsPortsContext.Provider, { value: { redirectsApi: corePort(defaultRedirectsPort) } },
+  return createElement(RedirectsControllerContext.Provider, { value: useController }, createElement(RedirectsPortsContext.Provider, { value: { redirectsApi: corePort(defaultRedirectsPort) } },
     createElement(RedirectsOptionsContext.Provider, { value: { headerActions: createElement('button', { type: 'button' }, 'Publish redirects') } },
-      createElement<import('../pages/RedirectsPage.js').RedirectsProps>(RedirectsPage, useRedirectsHook ? { useRedirectsHook } : {})));
+      createElement<import('../pages/RedirectsPage.js').RedirectsProps>(RedirectsPage, useRedirectsHook ? { useRedirectsHook } : {}))));
 }

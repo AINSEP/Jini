@@ -1,3 +1,4 @@
+import { reactModuleUi } from '../../../core/react/module-ui.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within, configure } from '../../../__tests__/fetch-query-support.js';
 import { Suspense } from 'react';
@@ -25,7 +26,7 @@ async function fixture() {
   return { api, image, clip, untyped };
 }
 function mountPage({ api, events, requestedTab }: { api: MediaApiPort; events?: MediaEventsPort; requestedTab?: string }, { permissions = ['media.read', 'media.upload', 'media.update', 'media.trash', 'media.delete.force'] }: { permissions?: string[] } = {}) {
-  const overlays = createOverlayController({}), module = media({ overlays });
+  const overlays = createOverlayController({}), module = media({ ui: reactModuleUi, overlays });
   const admin = createAdmin({ modules: [module], ports: { embedPolicy: realEmbedPolicy, mediaApi: api, ...(events ? { mediaEvents: events } : {}) } }, { permissions });
   const { Page, tabs } = module.react.pages.library;
   const changed = vi.fn();

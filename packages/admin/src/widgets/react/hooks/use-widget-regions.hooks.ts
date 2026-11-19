@@ -13,7 +13,7 @@ export interface WidgetRegionsController {
   t: Translate;
 }
 import { useEffect, useRef } from 'react';
-import { useController } from '../../../core/react/use-controller.js';
+import { useWidgetsController } from './WidgetsPorts.hooks.js';
 import { createWidgetRegionsController, type WidgetRegionsState } from '../../controllers/regions.controller.js';
 import type { AdminWidgetsPort, WidgetsEventsPort } from '../../ports.js';
 import { widgetsEnglish } from '../../messages.en.js';
@@ -24,7 +24,7 @@ export function useWidgetRegions({ api }: { api: AdminWidgetsPort }, { t = widge
   const cached = useWidgetRegionsQuery({ api });
   const invalidate = useInvalidate();
   const latest = useRef({ t, navigate }); latest.current = { t, navigate };
-  const { controller, snapshot } = useController({ create: () => createWidgetRegionsController({ api: cached.api }, { t: key => latest.current.t(key), navigate: path => latest.current.navigate?.(path) }), dependencies: [cached.api] }, { start: ({ controller }) => { void controller.load(); } });
+  const { controller, snapshot } = useWidgetsController({ create: () => createWidgetRegionsController({ api: cached.api }, { t: key => latest.current.t(key), navigate: path => latest.current.navigate?.(path) }), dependencies: [cached.api] }, { start: ({ controller }) => { void controller.load(); } });
   useEffect(() => { if (!controller) return undefined;
     return events?.subscribe({ resource: WIDGETS_REGIONS_RESOURCE, onRefresh: () => invalidate({ key: WIDGET_QUERY_KEYS.regions }) }); }, [controller, events, invalidate]);
   return { ...mergeRegionsState({ snapshot, data: cached.query.data, queryError: cached.query.error }), setNewRegionKey: value => controller?.setNewRegionKey({ value }), bind: async () => { await controller?.bind(); }, t };

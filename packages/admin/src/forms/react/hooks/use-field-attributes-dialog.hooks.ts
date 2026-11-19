@@ -1,5 +1,5 @@
 import { useFormsPorts } from "./FormsPorts.hooks.js";
-import { useController } from "../../../core/react/use-controller.js";
+import { useFormsController } from "./FormsPorts.hooks.js";
 import { createFieldAttributesDialogController, type FieldAttributesDialogState } from "../../controllers/field-attributes-dialog.controller.js";
 import type { AdminFormField } from "../../models.js";
 import { type AttrRow } from "../../rules.js";
@@ -45,7 +45,7 @@ export function useFieldAttributesDialog(props: {
   onCancel: () => void;
 }, { usePorts = useFormsPorts }: { usePorts?: typeof useFormsPorts } = {}): FieldAttributesDialogController {
   const { formsCatalog: catalog } = usePorts();
-  const { controller: stateController, snapshot: stateSnapshot } = useController({ create: () => createFieldAttributesDialogController({ field: props.field, catalog }), dependencies: [] });
+  const { controller: stateController, snapshot: stateSnapshot } = useFormsController({ create: () => createFieldAttributesDialogController({ field: props.field, catalog }), dependencies: [] });
   const state = stateSnapshot ?? { className: props.field.className ?? "", rows: [], settings: settingsFormFromField({ field: props.field, catalog }), error: null };
   const { className, rows, error } = state;
   const setClassName = (value: FieldAttributesDialogStateValue<"className">) => stateController?.update({ key: "className", value });
