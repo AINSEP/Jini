@@ -37,6 +37,9 @@
       "./forms/submission-attempts": "universal",
       "./widgets/page-embed-types": "universal",
       "./widgets/media-attributes": "universal",
+      "./widgets/media-tags": "universal",
+      "./widgets/document-markers": "universal",
+      "./widgets/content-markers": "universal",
       "./widgets/html/html-embeds": "node",
       "./widgets/html/gallery-render": "universal",
       "./widgets/date-label": "universal",
@@ -46,6 +49,7 @@
       "./navigation/types": "universal",
       "./navigation/dropdown": "universal",
       "./navigation/href": "universal",
+      "./navigation/menu-render": "universal",
       "./navigation/node": "node",
       "./media/slug": "universal",
       "./forms": "universal",
@@ -276,6 +280,21 @@
       "import": "./dist/forms/submission-attempts.js",
       "default": "./dist/forms/submission-attempts.js"
     },
+    "./widgets/content-markers": {
+      "types": "./dist/widgets/content-markers.d.ts",
+      "import": "./dist/widgets/content-markers.js",
+      "default": "./dist/widgets/content-markers.js"
+    },
+    "./widgets/document-markers": {
+      "types": "./dist/widgets/document-markers.d.ts",
+      "import": "./dist/widgets/document-markers.js",
+      "default": "./dist/widgets/document-markers.js"
+    },
+    "./widgets/media-tags": {
+      "types": "./dist/widgets/media-tags.d.ts",
+      "import": "./dist/widgets/media-tags.js",
+      "default": "./dist/widgets/media-tags.js"
+    },
     "./widgets/media-attributes": {
       "types": "./dist/widgets/media-attributes.d.ts",
       "import": "./dist/widgets/media-attributes.js",
@@ -325,6 +344,11 @@
       "types": "./dist/navigation/dropdown.d.ts",
       "import": "./dist/navigation/dropdown.js",
       "default": "./dist/navigation/dropdown.js"
+    },
+    "./navigation/menu-render": {
+      "types": "./dist/navigation/menu-render.d.ts",
+      "import": "./dist/navigation/menu-render.js",
+      "default": "./dist/navigation/menu-render.js"
     },
     "./navigation/href": {
       "types": "./dist/navigation/href.d.ts",

@@ -15,6 +15,7 @@
     "entries": {
       ".": "universal",
       "./tools": "universal",
+      "./http-query": "universal",
       "./testkit": "universal",
       "./contribution": "node"
     }
@@ -26,6 +27,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./http-query": {
+      "types": "./dist/http-query.d.ts",
+      "import": "./dist/http-query.js",
+      "default": "./dist/http-query.js"
     },
     "./tools": {
       "types": "./dist/tools.d.ts",
