@@ -10,9 +10,9 @@ export interface PreviewSchedulerPorts<Timer, Target> {
 export function createPreviewScheduler<Timer, Target>(
   { ports }: { ports: PreviewSchedulerPorts<Timer, Target> }, { debounceMs = 1500 }: { debounceMs?: number } = {},
 ): { schedule(required: { key: string }, optional?: {}): void; cancel(required: { key: string }, optional?: {}): void } {
-  const attempts = new Map<string, { timer?: Timer }>();
+  const attempts = new Map<string, { timer?: Timer | undefined }>();
 
-  async function fire({ key, attempt }: { key: string; attempt: { timer?: Timer } }, _optional = {}): Promise<void> {
+  async function fire({ key, attempt }: { key: string; attempt: { timer?: Timer | undefined } }, _optional = {}): Promise<void> {
     if (attempts.get(key) !== attempt) return;
     attempt.timer = undefined;
     const target = ports.current({ key }, {});
@@ -26,7 +26,7 @@ export function createPreviewScheduler<Timer, Target>(
   return {
     schedule({ key }: { key: string }, _optional = {}): void {
       if (attempts.has(key)) return;
-      const attempt: { timer?: Timer } = {};
+      const attempt: { timer?: Timer | undefined } = {};
       // Coalesce one visit's readiness events; the next public visit may refresh even after success.
       attempts.set(key, attempt);
       attempt.timer = ports.schedule({ work: () => { void fire({ key, attempt }); }, delayMs: debounceMs }, {});

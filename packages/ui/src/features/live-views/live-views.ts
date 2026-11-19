@@ -80,7 +80,7 @@ export function parseReleaseProbe({ value }: { value: unknown }, _options = {}):
  */
 export async function probeRelease(
   { guest, script }: { guest: LiveGuest | null; script: string },
-  { timeoutMs = RELEASE_PROBE_TIMEOUT_MS }: { timeoutMs?: number } = {},
+  { timeoutMs = RELEASE_PROBE_TIMEOUT_MS }: { timeoutMs?: number | undefined } = {},
 ): Promise<ReleaseAnswer> {
   if (guest === null) return { release: true, parked: null };
   let timer: ReturnType<typeof setTimeout> | undefined;
