@@ -27,7 +27,7 @@ const DDL = {
 
 /** A fresh in-memory database of the dialect with the three tables applied. */
 export async function openEventsKernel({ dialect }: { dialect: "sqlite" | "postgres" }, _optional: Record<string, never> = {}): Promise<KyselyKernel<unknown>> {
-  const kernel: KyselyKernel<unknown> = dialect === "sqlite" ? sqliteKernel<unknown>(new Database(":memory:")) : openPgliteKernel({ PGlite });
+  const kernel: KyselyKernel<unknown> = dialect === "sqlite" ? sqliteKernel<unknown>({ source: new Database(":memory:") }) : openPgliteKernel({ PGlite });
   for (const statement of DDL[dialect]) await kernel.execute(sql.raw(statement));
   return kernel;
 }
