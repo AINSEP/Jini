@@ -23,12 +23,16 @@
       "./policy": "universal",
       "./plugins": "universal",
       "./render": "universal",
+      "./react": "browser",
       "./client": "browser",
       "./client.min.js": "browser",
       "./banner.css": "browser",
       "./server": "universal",
       "./node": "node",
       "./extensions.min.js": "browser"
+    },
+    "optionalPeers": {
+      "react": "opt-in: react consent settings; import @jini-ai/cookie-consent/react — React consent settings could not load react. Install react to enable this feature, or check its installed version."
     }
   },
   "type": "module",
@@ -58,6 +62,11 @@
       "types": "./dist/render/index.d.ts",
       "import": "./dist/render/index.js",
       "default": "./dist/render/index.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.js",
+      "default": "./dist/react/index.js"
     },
     "./client": {
       "types": "./dist/client/index.d.ts",
@@ -97,11 +106,25 @@
   },
   "dependencies": {},
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
     "@vitest/coverage-v8": "^2.1.9",
     "esbuild": "^0.28.1",
     "jsdom": "^25.0.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
+  },
+  "peerDependencies": {
+    "react": "^18.3.0 || ^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
   }
 }

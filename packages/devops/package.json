@@ -21,6 +21,7 @@
       "./packaging/electron/typescript": "node",
       "./agent-jobs": "node",
       "./deploy": "node",
+      "./deploy/react": "browser",
       "./checks/published-types": "node",
       "./checks/coverage": "node",
       "./checks/node": "node",
@@ -41,7 +42,8 @@
       "parse5": "opt-in: html parsing; import @jini-ai/devops/static-export — HTML parsing could not load parse5. Install parse5 to enable this feature, or check its installed version and native binaries.",
       "typescript": "opt-in: typescript source analysis — TypeScript source analysis could not load typescript. Install typescript to enable this feature, or check its installed version and native binaries.",
       "undici": "opt-in: custom http dispatchers; import @jini-ai/devops/deploy/node — Custom HTTP dispatchers could not load undici. Install undici to enable this feature, or check its installed version and native binaries.",
-      "electron": "opt-in: desktop runtime selection; import @jini-ai/devops/local-dev — Desktop runtime selection could not load electron. Install electron to run the dev server on Electron-as-node, or use stock Node."
+      "electron": "opt-in: desktop runtime selection; import @jini-ai/devops/local-dev — Desktop runtime selection could not load electron. Install electron to run the dev server on Electron-as-node, or use stock Node.",
+      "react": "opt-in: react publish result view; import @jini-ai/devops/deploy/react — The publish result view could not load react. Install react to enable this feature, or check its installed version."
     }
   },
   "type": "module",
@@ -88,6 +90,11 @@
       "types": "./dist/deploy/index.d.ts",
       "import": "./dist/deploy/index.js",
       "default": "./dist/deploy/index.js"
+    },
+    "./deploy/react": {
+      "types": "./dist/deploy/react/index.d.ts",
+      "import": "./dist/deploy/react/index.js",
+      "default": "./dist/deploy/react/index.js"
     },
     "./checks/published-types": {
       "types": "./dist/checks/published-types/index.d.ts",
@@ -163,12 +170,16 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
-    "@jini-ai/daemon": "workspace:*",
-    "@vitest/coverage-v8": "^2.1.9",
     "@jini-ai/core": "workspace:^",
+    "@jini-ai/daemon": "workspace:*",
     "@jini-ai/platform": "workspace:^",
-    "undici": "^7.30.1",
-    "parse5": "7.3.0"
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitest/coverage-v8": "^2.1.9",
+    "parse5": "7.3.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "undici": "^7.30.1"
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^"
@@ -177,7 +188,8 @@
     "typescript": "^5.6.0",
     "undici": "^7.25.0",
     "parse5": "7.3.0",
-    "electron": ">=30.0.0"
+    "electron": ">=30.0.0",
+    "react": "^18.3.0 || ^19.0.0"
   },
   "peerDependenciesMeta": {
     "parse5": {
@@ -190,6 +202,9 @@
       "optional": true
     },
     "electron": {
+      "optional": true
+    },
+    "react": {
       "optional": true
     }
   }

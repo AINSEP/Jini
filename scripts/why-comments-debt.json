@@ -888,6 +888,22 @@
     {
       "id": "3cd030c638b4",
       "reason": "ex-log (combine-6): `messageOf` was removed \u2014 the native message no longer reaches the observation policy, only the error class label, so the helper and its note are gone."
+    },
+    {
+      "id": "4ed36cd3d332",
+      "reason": "xd-admin (combine-6): the consent React panel moved from admin to @jini-ai/cookie-consent/react, which cannot read admin's theme kit; the look section now takes its fallback palette as an explicit prop, so notes about the kit provider and the kit-render test wrapper no longer apply."
+    },
+    {
+      "id": "70f8541bec52",
+      "reason": "xd-admin (combine-6): the consent React panel moved from admin to @jini-ai/cookie-consent/react, which cannot read admin's theme kit; the look section now takes its fallback palette as an explicit prop, so notes about the kit provider and the kit-render test wrapper no longer apply."
+    },
+    {
+      "id": "15438c55d071",
+      "reason": "xd-admin (combine-6): the consent React panel moved from admin to @jini-ai/cookie-consent/react, which cannot read admin's theme kit; the look section now takes its fallback palette as an explicit prop, so notes about the kit provider and the kit-render test wrapper no longer apply."
+    },
+    {
+      "id": "8fab9c710b44",
+      "reason": "xd-admin (combine-6): the consent React panel moved from admin to @jini-ai/cookie-consent/react, which cannot read admin's theme kit; the look section now takes its fallback palette as an explicit prop, so notes about the kit provider and the kit-render test wrapper no longer apply."
     }
   ]
 }
