@@ -14,6 +14,7 @@
     "runtime": "universal",
     "entries": {
       ".": "universal",
+      "./session-bootstrap": "universal",
       "./server": "node",
       "./react": "browser",
       "./react/testing": "browser",
@@ -38,6 +39,11 @@
       "types": "./dist/core/index.d.ts",
       "import": "./dist/core/index.js",
       "default": "./dist/core/index.js"
+    },
+    "./session-bootstrap": {
+      "types": "./dist/session-bootstrap/index.d.ts",
+      "import": "./dist/session-bootstrap/index.js",
+      "default": "./dist/session-bootstrap/index.js"
     },
     "./server": {
       "types": "./dist/server/index.d.ts",
