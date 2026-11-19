@@ -173,8 +173,8 @@ export interface StandingDraftAutosaveOptions {
   serverUpdatedAt?: string | undefined;
 }
 
-export function useStandingDraftAutosave(deps: StandingDraftAutosaveOptions, _options: Record<string, never> = {}): StandingDraftAutosaveController {
-  const { port, backup, entryId, enabled, serverUpdatedAt } = deps;
+function useStandingDraftState(deps: StandingDraftAutosaveOptions) {
+  const { port } = deps;
   const [backupPrincipalId] = useState(() => port.getBackupPrincipalId?.({}, {}));
   const latestDraftRef = useRef<StandingDraftAutosaveInput | null>(null);
   const backupGenerationRef = useRef(0);
@@ -205,6 +205,11 @@ export function useStandingDraftAutosave(deps: StandingDraftAutosaveOptions, _op
   // version numbers are unrelated.
   const minBaseVersionRef = useRef<number | null>(null);
 
+  return { backupPrincipalId, latestDraftRef, backupGenerationRef, recoverableDraft, setRecoverableDraft, staleBasis, setStaleBasis, staleBasisRef, backupEntryIdRef, writes, idleTimerRef, firstPendingAtRef, pendingDraftRef, minBaseVersionRef };
+}
+
+function useStandingDraftTimer(state: ReturnType<typeof useStandingDraftState>) {
+  const { idleTimerRef, firstPendingAtRef, pendingDraftRef } = state;
   const clearPendingTimer = useCallback(() => {
     if (idleTimerRef.current !== null) clearTimeout(idleTimerRef.current);
     idleTimerRef.current = null;
@@ -212,6 +217,12 @@ export function useStandingDraftAutosave(deps: StandingDraftAutosaveOptions, _op
     pendingDraftRef.current = null;
   }, []);
 
+  return clearPendingTimer;
+}
+
+function useStandingDraftStaleBasis(state: ReturnType<typeof useStandingDraftState>, deps: StandingDraftAutosaveOptions) {
+  const { staleBasisRef, setStaleBasis, backupPrincipalId, backupEntryIdRef } = state;
+  const { backup } = deps;
   /** The server refused this draft. Records the basis, and mirrors the text locally — the ONLY
    *  place it can survive a tab close while the server keeps refusing it. @complexity O(1). */
   const markStaleBasis = useCallback((id: string, draft: StandingDraftAutosaveInput) => {
@@ -241,6 +252,12 @@ export function useStandingDraftAutosave(deps: StandingDraftAutosaveOptions, _op
     backup.clear({ entryId: id }, { principalId: backupPrincipalId });
   }, [backupPrincipalId, backup]);
 
+  return { markStaleBasis, liftStaleGate, dropLocalBackup };
+}
+
+function useStandingDraftRecovery(state: ReturnType<typeof useStandingDraftState>, deps: StandingDraftAutosaveOptions) {
+  const { setRecoverableDraft, staleBasisRef, setStaleBasis, backupEntryIdRef, minBaseVersionRef, latestDraftRef, backupPrincipalId } = state;
+  const { enabled, entryId, port, backup } = deps;
   // Mount-time (and entry-change) recovery check — one read, never repeated while this entryId
   // stays mounted. A stale in-flight response from a PREVIOUS entryId is dropped via `cancelled`.
   useEffect(() => {
@@ -290,6 +307,10 @@ export function useStandingDraftAutosave(deps: StandingDraftAutosaveOptions, _op
     };
   }, [enabled, entryId, port, backupPrincipalId, backup]);
 
+}
+
+function useStandingDraftQueue(state: ReturnType<typeof useStandingDraftState>) {
+  const { writes } = state;
   const enqueue = useCallback(
     (op: () => Promise<void>): Promise<void> =>
       writes.run({ task: op }).catch(() => {
@@ -301,12 +322,25 @@ export function useStandingDraftAutosave(deps: StandingDraftAutosaveOptions, _op
     [writes]
   );
 
+  return enqueue;
+}
+
+function useStandingDraftFailedSave(state: ReturnType<typeof useStandingDraftState>, deps: StandingDraftAutosaveOptions) {
+  const { backupPrincipalId, backupEntryIdRef } = state;
+  const { entryId, backup } = deps;
   const preserveFailedSave = useCallback(({ error, draft }: { error: unknown; draft: StandingDraftAutosaveInput }, _options: Record<string, never> = {}) => {
     if (!entryId || !isUnauthorizedDraftWrite(error)) return;
     backup.write({ entryId, draft, savedAt: new Date().toISOString() }, { principalId: backupPrincipalId });
     backupEntryIdRef.current = entryId;
   }, [entryId, backupPrincipalId, backup]);
 
+  return preserveFailedSave;
+}
+
+function useStandingDraftWriter(state: ReturnType<typeof useStandingDraftState>, deps: StandingDraftAutosaveOptions, actions: ReturnType<typeof useStandingDraftStaleBasis> & { enqueue: ReturnType<typeof useStandingDraftQueue>; preserveFailedSave: ReturnType<typeof useStandingDraftFailedSave> }) {
+  const { backupGenerationRef, latestDraftRef, minBaseVersionRef } = state;
+  const { port } = deps;
+  const { enqueue, preserveFailedSave, markStaleBasis, liftStaleGate, dropLocalBackup } = actions;
   /** The one place `putAutosave` is called. Its `{ applied }` answer is acted on here rather than
    *  discarded — see this file's STALE BASIS note. @complexity Time/space: O(1) plus the request. */
   const writeAutosave = useCallback(
@@ -338,6 +372,13 @@ export function useStandingDraftAutosave(deps: StandingDraftAutosaveOptions, _op
     [dropLocalBackup, enqueue, liftStaleGate, markStaleBasis, port, preserveFailedSave]
   );
 
+  return writeAutosave;
+}
+
+function useStandingDraftSchedule(state: ReturnType<typeof useStandingDraftState>, deps: StandingDraftAutosaveOptions, actions: { liftStaleGate: ReturnType<typeof useStandingDraftStaleBasis>["liftStaleGate"]; clearPendingTimer: ReturnType<typeof useStandingDraftTimer>; writeAutosave: ReturnType<typeof useStandingDraftWriter> }) {
+  const { latestDraftRef, minBaseVersionRef, staleBasisRef, firstPendingAtRef, pendingDraftRef, idleTimerRef } = state;
+  const { enabled, entryId } = deps;
+  const { liftStaleGate, clearPendingTimer, writeAutosave } = actions;
   const scheduleAutosave = useCallback(
     (draft: StandingDraftAutosaveInput) => {
       if (!enabled || !entryId) return;
@@ -396,6 +437,11 @@ export function useStandingDraftAutosave(deps: StandingDraftAutosaveOptions, _op
     [clearPendingTimer, entryId, writeAutosave]
   );
 
+  return { scheduleAutosave, flushPendingAutosave };
+}
+
+function useStandingDraftExitFlush(deps: StandingDraftAutosaveOptions, flushPendingAutosave: ReturnType<typeof useStandingDraftSchedule>["flushPendingAutosave"]) {
+  const { enabled, entryId } = deps;
   // Flush, do not cancel, when this editor goes away. An in-app navigation (the "Posts"/"Pages"
   // back link, or any router move) unmounts the hook while a debounced tick is still pending, and
   // the previous cancel-on-unmount is exactly how the last seconds of typing were lost — verified
@@ -433,6 +479,12 @@ export function useStandingDraftAutosave(deps: StandingDraftAutosaveOptions, _op
     };
   }, [enabled, entryId, flushPendingAutosave]);
 
+}
+
+function useStandingDraftDiscard(state: ReturnType<typeof useStandingDraftState>, deps: StandingDraftAutosaveOptions, actions: ReturnType<typeof useStandingDraftStaleBasis> & { enqueue: ReturnType<typeof useStandingDraftQueue>; clearPendingTimer: ReturnType<typeof useStandingDraftTimer> }) {
+  const { backupGenerationRef, setRecoverableDraft, minBaseVersionRef, pendingDraftRef, staleBasisRef } = state;
+  const { entryId, port } = deps;
+  const { clearPendingTimer, liftStaleGate, dropLocalBackup, enqueue } = actions;
   const clearStandingDraft = useCallback(async (_required: Record<string, never> = {}, { keepOnFailure = false }: { keepOnFailure?: boolean } = {}) => {
     // A late 401/refusal must not resurrect a draft a successful Save or Discard superseded.
     backupGenerationRef.current++; clearPendingTimer();
@@ -462,6 +514,23 @@ export function useStandingDraftAutosave(deps: StandingDraftAutosaveOptions, _op
     [clearPendingTimer, liftStaleGate]
   );
 
+  return { clearStandingDraft, dismissRecoverable, supersedeBasis };
+}
+
+export function useStandingDraftAutosave(deps: StandingDraftAutosaveOptions, _options: Record<string, never> = {}): StandingDraftAutosaveController {
+  const { port, backup, entryId, enabled, serverUpdatedAt } = deps;
+  const dependencies = { port, backup, entryId, enabled, serverUpdatedAt };
+  const state = useStandingDraftState(dependencies);
+  const { recoverableDraft, staleBasis } = state;
+  const clearPendingTimer = useStandingDraftTimer(state);
+  const stale = useStandingDraftStaleBasis(state, dependencies);
+  useStandingDraftRecovery(state, dependencies);
+  const enqueue = useStandingDraftQueue(state);
+  const preserveFailedSave = useStandingDraftFailedSave(state, dependencies);
+  const writeAutosave = useStandingDraftWriter(state, dependencies, { ...stale, enqueue, preserveFailedSave });
+  const { scheduleAutosave, flushPendingAutosave } = useStandingDraftSchedule(state, dependencies, { ...stale, clearPendingTimer, writeAutosave });
+  useStandingDraftExitFlush(dependencies, flushPendingAutosave);
+  const { clearStandingDraft, dismissRecoverable, supersedeBasis } = useStandingDraftDiscard(state, dependencies, { ...stale, enqueue, clearPendingTimer });
   const comparedDraft = useMemo(() => recoverableDraft ? { ...recoverableDraft, serverUpdatedAt } : null, [recoverableDraft, serverUpdatedAt]);
   return { recoverableDraft: comparedDraft, staleBasis, dismissRecoverable, scheduleAutosave, clearStandingDraft, supersedeBasis, preserveFailedSave };
 }

@@ -174,6 +174,13 @@ function normalizeEntry(
   if (target !== key) walk.notes.push(`${location}→${target}`);
   const parentPrefix = path ? `${path}.` : '';
   const value = normalizeValue({ value: raw, schema: shape.properties[target], step: { path: `${parentPrefix}${target}`, depth: depth + 1, walk } });
+  return rememberNormalizedEntry({ key, target, value }, sources);
+}
+
+function rememberNormalizedEntry(
+  { key, target, value }: { key: string; target: string; value: unknown },
+  sources: Map<string, { key: string; value: unknown }>,
+): [string, unknown] {
   const previous = sources.get(target);
   if (previous !== undefined && !Object.is(previous.value, value)) throw new ToolInputError({ message: `Conflicting inputs '${previous.key}' and '${key}' both name '${target}'. Send only '${target}'.` });
   sources.set(target, { key, value });

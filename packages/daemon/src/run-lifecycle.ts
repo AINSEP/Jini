@@ -556,19 +556,7 @@ export interface RunLifecycleInternalErrorContext {
   readonly error: unknown;
 }
 
-/**
- * Creates the in-process `RunLifecycle` reference implementation.
- *
- * @param input.eventLog - The durable `EventLog` port this lifecycle appends to and replays from.
- * @param input.terminalRetentionMs - See {@link CreateRunLifecycleInput.terminalRetentionMs}.
- * @param input.maxTerminalRuns - See {@link CreateRunLifecycleInput.maxTerminalRuns}.
- * @param input.dropEventsOnEviction - See {@link CreateRunLifecycleInput.dropEventsOnEviction}.
- * @returns A `RunLifecycle` backed by an in-memory run registry plus the injected `EventLog`.
- * @complexity Per-call complexities documented on each method; the registry itself is a `Map` keyed by `runId` (O(1) lookup). Memory is bounded: non-terminal runs are O(n) in concurrently-live runs, and terminal runs are capped at `maxTerminalRuns` (each additionally bounded in retention time by `terminalRetentionMs`) rather than growing for the life of the process.
- * @overallScore 100/100
- */
-export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "eventLog">, optionalArgs: Pick<CreateRunLifecycleInput, "onInternalError" | "terminalRetentionMs" | "maxTerminalRuns" | "slowRunThresholdMs" | "dropEventsOnEviction" | "delegatedResultCorrelation"> = {}): RunLifecycle {
-  const input: CreateRunLifecycleInput = { ...requiredArgs, ...optionalArgs };
+function createRunRegistry(input: CreateRunLifecycleInput) {
   const { eventLog } = input;
   const terminalRetentionMs = input.terminalRetentionMs ?? DEFAULT_TERMINAL_RETENTION_MS;
   const maxTerminalRuns = input.maxTerminalRuns ?? DEFAULT_MAX_TERMINAL_RUNS;
@@ -582,8 +570,83 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
   // trims from. A run leaves this list exactly once, either via its retention timer firing or via
   // `resume()` reclaiming it; see `evictTerminalRun`/`untrackTerminalRun`.
   const terminalRunOrder: string[] = [];
-  let hydration: Promise<void> | null = null;
 
+  return { eventLog, terminalRetentionMs, maxTerminalRuns, slowRunThresholdMs, runs, idempotencyIndex, terminalRunOrder };
+}
+
+/**
+ * A subscriber is a transport-owned callback (e.g. an SSE writer) outside this module's
+ * control. One subscriber throwing (a dead socket, a broken client) must never abort the
+ * fan-out to the others, nor propagate out through `emit()`/`finish()` into driver code that
+ * has nothing to do with that transport — see CR-R1 in
+ * `ADS-memory/reports/code-review/CR-backend-coverage-push-2026-07-20.md`.
+ */
+function notifySubscribers(record: RunRecord, event: RunProtocolEvent): void {
+  for (const subscriber of record.subscribers) {
+    try {
+      subscriber(event);
+    } catch {
+      // Isolated by design — see the function doc above.
+    }
+  }
+}
+
+/**
+ * Waits out a record's in-flight durable `'start'` append, swallowing its failure.
+ *
+ * The read-only queries (`get`/`list`) use this so they never observe the window in which the
+ * in-memory record exists but its durable `'start'` entry does not: a rejecting append unwinds the
+ * record entirely, so anything reported from inside that window is a run that never existed. The
+ * rejection itself belongs to `start()`'s own caller, which is why it is dropped here rather than
+ * propagated out of a query that was only asked "what runs are there".
+ */
+async function settlePendingStart(record: RunRecord | undefined): Promise<void> {
+  if (record?.startPromise === undefined) return;
+  try {
+    await record.startPromise;
+  } catch {
+    // Reported to `start()`'s caller — see above.
+  }
+}
+
+/** Settles like `promise`, or rejects with the signal's reason once it aborts; the listener is always released. */
+function abortable({ promise }: { promise: Promise<unknown> | undefined }, { signal }: { signal: AbortSignal | undefined }): Promise<unknown> {
+  if (!signal) return Promise.resolve(promise);
+  if (signal.aborted) return Promise.reject(signal.reason);
+  return new Promise((resolve, reject) => {
+    const onAbort = (): void => { reject(signal.reason); };
+    signal.addEventListener('abort', onAbort, { once: true });
+    Promise.resolve(promise).then(resolve, reject).finally(() => { signal.removeEventListener('abort', onAbort); });
+  });
+}
+
+/** Registers a terminal waiter; an abort removes it again so a cancelled wait retains nothing. */
+function parkTerminalWaiter({ record }: { record: RunRecord }, { signal }: { signal: AbortSignal | undefined }): Promise<RunStatus> {
+  signal?.throwIfAborted();
+  return new Promise((resolve, reject) => {
+    const onAbort = (): void => {
+      const index = record.terminalWaiters.indexOf(waiter);
+      if (index >= 0) record.terminalWaiters.splice(index, 1);
+      reject(signal?.reason);
+    };
+    const waiter = (status: RunStatus): void => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve(status);
+    };
+    record.terminalWaiters.push(waiter);
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
+function resolveTerminalWaiters(record: RunRecord): void {
+  const waiters = record.terminalWaiters.splice(0, record.terminalWaiters.length);
+  const status = toPublicStatus(record);
+  for (const resolve of waiters) {
+    resolve(status);
+  }
+}
+
+function createRunLookup({ runs }: { runs: Map<string, RunRecord> }) {
   function requireRun(runId: string): RunRecord {
     const record = runs.get(runId);
     if (!record) {
@@ -591,35 +654,24 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
     }
     return record;
   }
+  return requireRun;
+}
 
-  /**
-   * A subscriber is a transport-owned callback (e.g. an SSE writer) outside this module's
-   * control. One subscriber throwing (a dead socket, a broken client) must never abort the
-   * fan-out to the others, nor propagate out through `emit()`/`finish()` into driver code that
-   * has nothing to do with that transport — see CR-R1 in
-   * `ADS-memory/reports/code-review/CR-backend-coverage-push-2026-07-20.md`.
-   */
-  function notifySubscribers(record: RunRecord, event: RunProtocolEvent): void {
-    for (const subscriber of record.subscribers) {
-      try {
-        subscriber(event);
-      } catch {
-        // Isolated by design — see the function doc above.
-      }
-    }
-  }
-
-  async function appendEvent(runId: string, record: RunRecord, event: string, data: unknown): Promise<RunProtocolEvent> {
+function createRunEventWriter({ eventLog }: { eventLog: EventLog }) {
+  async function appendEvent({ runId, record, event, data }: { runId: string; record: RunRecord; event: string; data: unknown }): Promise<RunProtocolEvent> {
     const entry = await eventLog.append({ runId, event, data });
     const runEvent = toRunEvent(runId, entry);
     notifySubscribers(record, runEvent);
     return runEvent;
   }
+  return appendEvent;
+}
 
+function createRunStartAppender({ runs, input, idempotencyIndex, appendEvent }: { runs: Map<string, RunRecord>; input: CreateRunLifecycleInput; idempotencyIndex: Map<string, string>; appendEvent: ReturnType<typeof createRunEventWriter> }) {
   /** `start()`'s phase 2: appends the durable `'start'` entry, rolling back the in-memory record and idempotency-index entry on failure. */
   async function appendStartOrRollback(runId: string, record: RunRecord, startInput: StartRunInput): Promise<void> {
     const startPayload = buildStartPayload({ runId: runId, startInput: startInput });
-    const startPromise = appendEvent(runId, record, 'start', startPayload).then(() => undefined);
+    const startPromise = appendEvent({ runId, record, event: 'start', data: startPayload }).then(() => undefined);
     record.startPromise = startPromise;
     try {
       await startPromise;
@@ -631,67 +683,43 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
       throw error;
     }
   }
+  return appendStartOrRollback;
+}
 
-  /**
-   * Waits out a record's in-flight durable `'start'` append, swallowing its failure.
-   *
-   * The read-only queries (`get`/`list`) use this so they never observe the window in which the
-   * in-memory record exists but its durable `'start'` entry does not: a rejecting append unwinds the
-   * record entirely, so anything reported from inside that window is a run that never existed. The
-   * rejection itself belongs to `start()`'s own caller, which is why it is dropped here rather than
-   * propagated out of a query that was only asked "what runs are there".
-   */
-  async function settlePendingStart(record: RunRecord | undefined): Promise<void> {
-    if (record?.startPromise === undefined) return;
-    try {
-      await record.startPromise;
-    } catch {
-      // Reported to `start()`'s caller — see above.
-    }
-  }
-
-  /** Settles like `promise`, or rejects with the signal's reason once it aborts; the listener is always released. */
-  function abortable({ promise }: { promise: Promise<unknown> | undefined }, { signal }: { signal: AbortSignal | undefined }): Promise<unknown> {
-    if (!signal) return Promise.resolve(promise);
-    if (signal.aborted) return Promise.reject(signal.reason);
-    return new Promise((resolve, reject) => {
-      const onAbort = (): void => { reject(signal.reason); };
-      signal.addEventListener('abort', onAbort, { once: true });
-      Promise.resolve(promise).then(resolve, reject).finally(() => { signal.removeEventListener('abort', onAbort); });
-    });
-  }
-
-  /** Registers a terminal waiter; an abort removes it again so a cancelled wait retains nothing. */
-  function parkTerminalWaiter({ record }: { record: RunRecord }, { signal }: { signal: AbortSignal | undefined }): Promise<RunStatus> {
-    signal?.throwIfAborted();
-    return new Promise((resolve, reject) => {
-      const onAbort = (): void => {
-        const index = record.terminalWaiters.indexOf(waiter);
-        if (index >= 0) record.terminalWaiters.splice(index, 1);
-        reject(signal?.reason);
-      };
-      const waiter = (status: RunStatus): void => {
-        signal?.removeEventListener('abort', onAbort);
-        resolve(status);
-      };
-      record.terminalWaiters.push(waiter);
-      signal?.addEventListener('abort', onAbort, { once: true });
-    });
-  }
-
-  function resolveTerminalWaiters(record: RunRecord): void {
-    const waiters = record.terminalWaiters.splice(0, record.terminalWaiters.length);
-    const status = toPublicStatus(record);
-    for (const resolve of waiters) {
-      resolve(status);
-    }
-  }
-
+function createTerminalOrderRemoval({ terminalRunOrder }: { terminalRunOrder: string[] }) {
   function removeFromTerminalOrder(runId: string): void {
     const index = terminalRunOrder.indexOf(runId);
     if (index !== -1) terminalRunOrder.splice(index, 1);
   }
+  return removeFromTerminalOrder;
+}
 
+function createRunErrorReporter({ input }: { input: CreateRunLifecycleInput }) {
+  /** Hands `context` to `onInternalError` (or `console.error`), containing a throwing sink. */
+  function reportInternalError(context: RunLifecycleInternalErrorContext): void {
+    try {
+      if (input.onInternalError) input.onInternalError(context);
+      else createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] internal error (${context.source}, runId=${context.runId})` }, { error: context.error });
+    } catch (sinkError) {
+      createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] internal error sink failed (${context.source}, runId=${context.runId})` }, { error: sinkError });
+    }
+  }
+  return reportInternalError;
+}
+
+function createEvictedRunEventDropper({ eventLog, reportInternalError }: { eventLog: EventLog; reportInternalError: ReturnType<typeof createRunErrorReporter> }) {
+  /** `evictTerminalRun`'s opt-in event drop (see `CreateRunLifecycleInput.dropEventsOnEviction`). Runs from a timer, so a failure is reported, never thrown. */
+  async function dropEvictedRunEvents(runId: string): Promise<void> {
+    try {
+      await eventLog.drop({ runId });
+    } catch (error) {
+      reportInternalError({ source: 'event-log-drop', runId, error });
+    }
+  }
+  return dropEvictedRunEvents;
+}
+
+function createTerminalRunEvictor({ removeFromTerminalOrder, runs, input, idempotencyIndex, dropEvictedRunEvents }: { removeFromTerminalOrder: ReturnType<typeof createTerminalOrderRemoval>; runs: Map<string, RunRecord>; input: CreateRunLifecycleInput; idempotencyIndex: Map<string, string>; dropEvictedRunEvents: ReturnType<typeof createEvictedRunEventDropper> }) {
   /**
    * Evicts a terminal run's in-memory record: drops it from `runs`, cleans its `idempotencyIndex`
    * entry (a stale entry would otherwise resolve `start()`'s idempotency replay to a run
@@ -711,33 +739,20 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
     clearIdempotencyIndexEntryIfMatching({ idempotencyIndex: idempotencyIndex, idempotencyKey: record.idempotencyKey, runId: runId });
     if (input.dropEventsOnEviction === true) void dropEvictedRunEvents(runId);
   }
+  return evictTerminalRun;
+}
 
-  /** `evictTerminalRun`'s opt-in event drop (see `CreateRunLifecycleInput.dropEventsOnEviction`). Runs from a timer, so a failure is reported, never thrown. */
-  async function dropEvictedRunEvents(runId: string): Promise<void> {
-    try {
-      await eventLog.drop({ runId });
-    } catch (error) {
-      reportInternalError({ source: 'event-log-drop', runId, error });
-    }
-  }
-
-  /** Hands `context` to `onInternalError` (or `console.error`), containing a throwing sink. */
-  function reportInternalError(context: RunLifecycleInternalErrorContext): void {
-    try {
-      if (input.onInternalError) input.onInternalError(context);
-      else createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] internal error (${context.source}, runId=${context.runId})` }, { error: context.error });
-    } catch (sinkError) {
-      createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] internal error sink failed (${context.source}, runId=${context.runId})` }, { error: sinkError });
-    }
-  }
-
+function createTerminalCapEnforcer({ terminalRunOrder, maxTerminalRuns, evictTerminalRun }: { terminalRunOrder: string[]; maxTerminalRuns: number; evictTerminalRun: ReturnType<typeof createTerminalRunEvictor> }) {
   /** Trims the oldest terminal records until `terminalRunOrder` is back at or under `maxTerminalRuns`. */
   function enforceTerminalCap(): void {
     while (terminalRunOrder.length > maxTerminalRuns) {
       evictTerminalRun(terminalRunOrder[0]!);
     }
   }
+  return enforceTerminalCap;
+}
 
+function createTerminalRunTracker({ terminalRunOrder, terminalRetentionMs, evictTerminalRun, enforceTerminalCap }: { terminalRunOrder: string[]; terminalRetentionMs: number; evictTerminalRun: ReturnType<typeof createTerminalRunEvictor>; enforceTerminalCap: ReturnType<typeof createTerminalCapEnforcer> }) {
   /**
    * Arms `record`'s retention timer and enrolls it in `terminalRunOrder` — called once per run,
    * right when it first becomes terminal (from `finish()`) or when an already-terminal run is
@@ -754,7 +769,10 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
     record.retentionTimer = timer;
     enforceTerminalCap();
   }
+  return trackTerminalRun;
+}
 
+function createTerminalRunUntracker({ removeFromTerminalOrder }: { removeFromTerminalOrder: ReturnType<typeof createTerminalOrderRemoval> }) {
   /** Reverses `trackTerminalRun`: cancels the pending eviction and un-enrolls `runId`. Called from `resume()` so a reclaimed run cannot be evicted out from under its new, non-terminal life. */
   function untrackTerminalRun(runId: string, record: RunRecord): void {
     removeFromTerminalOrder(runId);
@@ -763,7 +781,10 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
       record.retentionTimer = undefined;
     }
   }
+  return untrackTerminalRun;
+}
 
+function createInactivityTimeoutHandler({ input, getLifecycle }: { input: CreateRunLifecycleInput; getLifecycle: () => RunLifecycle }) {
   /**
    * Fires when a run's inactivity watchdog times out with no intervening
    * `emit()`/`finish()`. A deliberate watchdog kill is permanent: automatically restarting
@@ -791,8 +812,8 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
   async function handleInactivityTimeout(runId: string): Promise<void> {
     try {
       // A deliberate inactivity kill is permanent for this attempt, not an auto-resume signal.
-      await lifecycle.emit({ runId, input: { event: 'agent', data: { type: 'status', label: 'Stopped by inactivity watchdog', detail: 'inactivity-watchdog' } } });
-      await lifecycle.finish({ runId, status: 'failed', code: null, signal: null, resumable: false });
+      await getLifecycle().emit({ runId, input: { event: 'agent', data: { type: 'status', label: 'Stopped by inactivity watchdog', detail: 'inactivity-watchdog' } } });
+      await getLifecycle().finish({ runId, status: 'failed', code: null, signal: null, resumable: false });
     } catch (error) {
       const context: RunLifecycleInternalErrorContext = { source: 'inactivity-timeout', runId, error };
       try {
@@ -808,7 +829,10 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
       }
     }
   }
+  return handleInactivityTimeout;
+}
 
+function createSlowRunNoticeHandler({ input, getLifecycle }: { input: CreateRunLifecycleInput; getLifecycle: () => RunLifecycle }) {
   /**
    * Fires when a run's slow-run watchdog times out with no intervening `emit()` — the non-terminating
    * counterpart to {@link handleInactivityTimeout} above. Reports a `'slow_running'` agent event
@@ -830,7 +854,7 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
    */
   async function handleSlowRunNotice(runId: string): Promise<void> {
     try {
-      await lifecycle.emit({ runId: runId, input: {
+      await getLifecycle().emit({ runId: runId, input: {
         event: 'agent',
         data: {
           type: 'slow_running',
@@ -851,7 +875,10 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
       }
     }
   }
+  return handleSlowRunNotice;
+}
 
+function createRunRecordRehydrator({ runs, eventLog, idempotencyIndex, trackTerminalRun }: { runs: Map<string, RunRecord>; eventLog: EventLog; idempotencyIndex: Map<string, string>; trackTerminalRun: ReturnType<typeof createTerminalRunTracker> }) {
   /**
    * Restores one run into the in-memory index from its durable log. Returns what the caller must do
    * about it: `'skipped'` for a run already resident or with no usable log, otherwise whether the
@@ -873,8 +900,12 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
     trackTerminalRun(runId, record, terminalAt);
     return 'terminal';
   }
+  return rehydrateOne;
+}
 
-  const lifecycle: RunLifecycle = {
+function createRunRehydrateMethod({ eventLog, rehydrateOne, getLifecycle }: { eventLog: EventLog; rehydrateOne: ReturnType<typeof createRunRecordRehydrator>; getLifecycle: () => RunLifecycle }): RunLifecycle["rehydrate"] {
+  let hydration: Promise<void> | null = null;
+  return {
     async rehydrate(_args: Record<string, never>): Promise<void> {
       if (hydration) return hydration;
       hydration = (async () => {
@@ -888,12 +919,16 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
         // A process restart cannot retain an in-memory child process or cancellation listener.
         // Persist an honest terminal outcome instead of advertising an orphaned run as still live.
         for (const runId of rehydratedNonTerminalRunIds) {
-          await lifecycle.finish({ runId, status: 'failed', code: null, signal: null, resumable: true });
+          await getLifecycle().finish({ runId, status: 'failed', code: null, signal: null, resumable: true });
         }
       })();
       return hydration;
     },
+  }.rehydrate;
+}
 
+function createRunStartMethod({ idempotencyIndex, requireRun, runs, appendStartOrRollback, handleInactivityTimeout, slowRunThresholdMs, handleSlowRunNotice }: { idempotencyIndex: Map<string, string>; requireRun: ReturnType<typeof createRunLookup>; runs: Map<string, RunRecord>; appendStartOrRollback: ReturnType<typeof createRunStartAppender>; handleInactivityTimeout: ReturnType<typeof createInactivityTimeoutHandler>; slowRunThresholdMs: number | undefined; handleSlowRunNotice: ReturnType<typeof createSlowRunNoticeHandler> }): RunLifecycle["start"] {
+  return {
     async start(requiredArgs: Pick<StartRunInput, "contextRef">, optionalArgs: Pick<StartRunInput, "agentId" | "idempotencyKey" | "runId" | "inactivityTimeoutMs"> = {}): Promise<StartRunResult> {
   const startInput: StartRunInput = { ...requiredArgs, ...optionalArgs };
       // Synchronous on purpose: `resolveIdempotentReplayRunId` does no I/O, and the common case
@@ -930,7 +965,11 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
 
       return { run: toPublicStatus(record), started: true };
     },
+  }.start;
+}
 
+function createRunGetMethod({ runs }: { runs: Map<string, RunRecord> }): RunLifecycle["get"] {
+  return {
     async get({ runId }: { readonly runId: string }): Promise<RunStatus | undefined> {
       await settlePendingStart(runs.get(runId));
       // Re-read rather than reusing the record above: a failed start deletes it (see `start()`'s
@@ -939,14 +978,22 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
       const record = runs.get(runId);
       return record ? toPublicStatus(record) : undefined;
     },
+  }.get;
+}
 
+function createRunListMethod({ runs }: { runs: Map<string, RunRecord> }): RunLifecycle["list"] {
+  return {
     async list(_requiredArgs: Record<string, never>, { contextRef }: { readonly contextRef?: string } = {}): Promise<readonly RunStatus[]> {
       await Promise.all(Array.from(runs.values(), settlePendingStart));
       const all = Array.from(runs.values());
       const filtered = contextRef === undefined ? all : all.filter((record) => record.contextRef === contextRef);
       return filtered.map(toPublicStatus);
     },
+  }.list;
+}
 
+function createRunCancelMethod({ requireRun }: { requireRun: ReturnType<typeof createRunLookup> }): RunLifecycle["cancel"] {
+  return {
     async cancel(request: RunCancelRequest): Promise<RunStatus> {
       const record = requireRun(request.runId);
       await record.startPromise;
@@ -964,7 +1011,11 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
       }
       return toPublicStatus(record);
     },
+  }.cancel;
+}
 
+function createRunOnCancelRequestedMethod({ requireRun }: { requireRun: ReturnType<typeof createRunLookup> }): RunLifecycle["onCancelRequested"] {
+  return {
     /**
      * Registers a cancel-intent listener. If `cancel()` was already called
      * for this run before this subscription, the listener fires immediately
@@ -981,7 +1032,11 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
       record.cancelListeners.add(listener);
       return () => record.cancelListeners.delete(listener);
     },
+  }.onCancelRequested;
+}
 
+function createRunEmitMethod({ requireRun, appendEvent }: { requireRun: ReturnType<typeof createRunLookup>; appendEvent: ReturnType<typeof createRunEventWriter> }): RunLifecycle["emit"] {
+  return {
     async emit({ runId, input }: { readonly runId: string; readonly input: DriverEmittableInput }): Promise<RunProtocolEvent> {
       const record = requireRun(runId);
       await record.startPromise;
@@ -997,9 +1052,13 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
       // tool call) is not rendered, and letting it reset this window meant the notice could never
       // fire during exactly the long, silent tool calls it exists for.
       if (input.event === 'agent') record.slowRunWatchdog?.noteActivity({});
-      return appendEvent(runId, record, input.event, input.data);
+      return appendEvent({ runId, record, event: input.event, data: input.data });
     },
+  }.emit;
+}
 
+function createRunFinishMethod({ requireRun, eventLog, trackTerminalRun }: { requireRun: ReturnType<typeof createRunLookup>; eventLog: EventLog; trackTerminalRun: ReturnType<typeof createTerminalRunTracker> }): RunLifecycle["finish"] {
+  return {
     async finish(requiredArgs: Pick<FinishRunInput, "runId" | "status" | "code" | "signal" | "resumable">, optionalArgs: Pick<FinishRunInput, "sessionRef"> = {}): Promise<RunStatus> {
   const finishInput: FinishRunInput = { ...requiredArgs, ...optionalArgs };
       const record = requireRun(finishInput.runId);
@@ -1045,7 +1104,11 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
         }
       }
     },
+  }.finish;
+}
 
+function createRunResumeMethod({ requireRun, untrackTerminalRun, slowRunThresholdMs, handleSlowRunNotice }: { requireRun: ReturnType<typeof createRunLookup>; untrackTerminalRun: ReturnType<typeof createTerminalRunUntracker>; slowRunThresholdMs: number | undefined; handleSlowRunNotice: ReturnType<typeof createSlowRunNoticeHandler> }): RunLifecycle["resume"] {
+  return {
     async resume({ runId }: { readonly runId: string }): Promise<ResumeRunResult> {
       const record = requireRun(runId);
       const eligible = isTerminalRunState({ state: record.status.state }) && record.resumable;
@@ -1077,14 +1140,22 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
       // unbroken; only RunStatus.state changes.
       return { run: toPublicStatus(record), resumed: true };
     },
+  }.resume;
+}
 
+function createRunSuspendSlowRunNoticeMethod({ runs }: { runs: Map<string, RunRecord> }): RunLifecycle["suspendSlowRunNotice"] {
+  return {
     suspendSlowRunNotice({ runId }: { readonly runId: string }): void {
       const record = runs.get(runId);
       if (!record || isTerminalRunState({ state: record.status.state })) return;
       record.slowRunSuspensions += 1;
       record.slowRunWatchdog?.cancel({});
     },
+  }.suspendSlowRunNotice;
+}
 
+function createRunResumeSlowRunNoticeMethod({ runs, slowRunThresholdMs, handleSlowRunNotice }: { runs: Map<string, RunRecord>; slowRunThresholdMs: number | undefined; handleSlowRunNotice: ReturnType<typeof createSlowRunNoticeHandler> }): RunLifecycle["resumeSlowRunNotice"] {
+  return {
     resumeSlowRunNotice({ runId }: { readonly runId: string }): void {
       const record = runs.get(runId);
       if (!record || isTerminalRunState({ state: record.status.state })) return;
@@ -1097,7 +1168,11 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
         void handleSlowRunNotice(runId);
       } });
     },
+  }.resumeSlowRunNotice;
+}
 
+function createRunWaitForTerminalMethod({ requireRun }: { requireRun: ReturnType<typeof createRunLookup> }): RunLifecycle["waitForTerminal"] {
+  return {
     async waitForTerminal({ runId }: { readonly runId: string }, { signal }: { readonly signal?: AbortSignal } = {}): Promise<RunStatus> {
       const record = requireRun(runId);
       // Awaited (and *propagated*, unlike in `get`/`list`) before any waiter is registered. A run
@@ -1113,7 +1188,11 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
       }
       return parkTerminalWaiter({ record }, { signal });
     },
+  }.waitForTerminal;
+}
 
+function createRunStreamMethod({ runs, eventLog }: { runs: Map<string, RunRecord>; eventLog: EventLog }): RunLifecycle["stream"] {
+  return {
     async stream({ runId, onEvent }: { readonly runId: string; readonly onEvent: (event: RunProtocolEvent) => void }, options: StreamOptions = {}
     ): Promise<StreamSubscribeResult> {
       const record = runs.get(runId);
@@ -1154,7 +1233,50 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
         throw error;
       }
     },
-  };
+  }.stream;
+}
 
+/**
+ * Creates the in-process `RunLifecycle` reference implementation.
+ *
+ * @param input.eventLog - The durable `EventLog` port this lifecycle appends to and replays from.
+ * @param input.terminalRetentionMs - See {@link CreateRunLifecycleInput.terminalRetentionMs}.
+ * @param input.maxTerminalRuns - See {@link CreateRunLifecycleInput.maxTerminalRuns}.
+ * @param input.dropEventsOnEviction - See {@link CreateRunLifecycleInput.dropEventsOnEviction}.
+ * @returns A `RunLifecycle` backed by an in-memory run registry plus the injected `EventLog`.
+ * @complexity Per-call complexities documented on each method; the registry itself is a `Map` keyed by `runId` (O(1) lookup). Memory is bounded: non-terminal runs are O(n) in concurrently-live runs, and terminal runs are capped at `maxTerminalRuns` (each additionally bounded in retention time by `terminalRetentionMs`) rather than growing for the life of the process.
+ * @overallScore 100/100
+ */
+export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "eventLog">, optionalArgs: Pick<CreateRunLifecycleInput, "onInternalError" | "terminalRetentionMs" | "maxTerminalRuns" | "slowRunThresholdMs" | "dropEventsOnEviction" | "delegatedResultCorrelation"> = {}): RunLifecycle {
+  const input: CreateRunLifecycleInput = { ...requiredArgs, ...optionalArgs };
+  const { eventLog, terminalRetentionMs, maxTerminalRuns, slowRunThresholdMs, runs, idempotencyIndex, terminalRunOrder } = createRunRegistry(input);
+  const requireRun = createRunLookup({ runs });
+  const appendEvent = createRunEventWriter({ eventLog });
+  const appendStartOrRollback = createRunStartAppender({ runs, input, idempotencyIndex, appendEvent });
+  const removeFromTerminalOrder = createTerminalOrderRemoval({ terminalRunOrder });
+  const reportInternalError = createRunErrorReporter({ input });
+  const dropEvictedRunEvents = createEvictedRunEventDropper({ eventLog, reportInternalError });
+  const evictTerminalRun = createTerminalRunEvictor({ removeFromTerminalOrder, runs, input, idempotencyIndex, dropEvictedRunEvents });
+  const enforceTerminalCap = createTerminalCapEnforcer({ terminalRunOrder, maxTerminalRuns, evictTerminalRun });
+  const trackTerminalRun = createTerminalRunTracker({ terminalRunOrder, terminalRetentionMs, evictTerminalRun, enforceTerminalCap });
+  const untrackTerminalRun = createTerminalRunUntracker({ removeFromTerminalOrder });
+  const handleInactivityTimeout = createInactivityTimeoutHandler({ input, getLifecycle: () => lifecycle });
+  const handleSlowRunNotice = createSlowRunNoticeHandler({ input, getLifecycle: () => lifecycle });
+  const rehydrateOne = createRunRecordRehydrator({ runs, eventLog, idempotencyIndex, trackTerminalRun });
+  const lifecycle: RunLifecycle = {
+    rehydrate: createRunRehydrateMethod({ eventLog, rehydrateOne, getLifecycle: () => lifecycle }),
+    start: createRunStartMethod({ idempotencyIndex, requireRun, runs, appendStartOrRollback, handleInactivityTimeout, slowRunThresholdMs, handleSlowRunNotice }),
+    get: createRunGetMethod({ runs }),
+    list: createRunListMethod({ runs }),
+    cancel: createRunCancelMethod({ requireRun }),
+    onCancelRequested: createRunOnCancelRequestedMethod({ requireRun }),
+    emit: createRunEmitMethod({ requireRun, appendEvent }),
+    finish: createRunFinishMethod({ requireRun, eventLog, trackTerminalRun }),
+    resume: createRunResumeMethod({ requireRun, untrackTerminalRun, slowRunThresholdMs, handleSlowRunNotice }),
+    suspendSlowRunNotice: createRunSuspendSlowRunNoticeMethod({ runs }),
+    resumeSlowRunNotice: createRunResumeSlowRunNoticeMethod({ runs, slowRunThresholdMs, handleSlowRunNotice }),
+    waitForTerminal: createRunWaitForTerminalMethod({ requireRun }),
+    stream: createRunStreamMethod({ runs, eventLog }),
+  };
   return lifecycle;
 }
