@@ -21,13 +21,6 @@
     "value": 11
   },
   {
-    "file": "packages/cms/src/widgets/resolver-service.ts",
-    "function": "forEachDocNode",
-    "line": 107,
-    "rule": "sonarjs/cognitive-complexity",
-    "value": 13
-  },
-  {
     "file": "packages/core/src/tool-input-normalization.ts",
     "function": "normalizeEntry",
     "line": 162,

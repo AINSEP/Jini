@@ -10,17 +10,19 @@ export interface InlineEmbedRef {
 /** Pre-order visit of every non-array record node in a TipTap-shaped tree, kept off the call stack. */
 function forEachDocNode(root: unknown, visit: (node: Record<string, unknown>) => void): void {
   const stack: unknown[] = [root];
-  while (stack.length > 0) {
-    const node = stack.pop();
-    if (Array.isArray(node)) {
-      for (let i = node.length - 1; i >= 0; i--) stack.push(node[i]);
-    } else {
-      const candidate = { value: node };
-      if (!isNonArrayRecord(candidate)) continue;
-      visit(candidate.value);
-      if (Array.isArray(candidate.value.content)) stack.push(candidate.value.content);
-    }
+  while (stack.length > 0) visitDocNode(stack, stack.pop(), visit);
+}
+
+/** One step of {@link forEachDocNode}: arrays push their items in reverse (pre-order), records are visited then their `content` pushed. */
+function visitDocNode(stack: unknown[], node: unknown, visit: (node: Record<string, unknown>) => void): void {
+  if (Array.isArray(node)) {
+    for (let i = node.length - 1; i >= 0; i--) stack.push(node[i]);
+    return;
   }
+  const candidate = { value: node };
+  if (!isNonArrayRecord(candidate)) return;
+  visit(candidate.value);
+  if (Array.isArray(candidate.value.content)) stack.push(candidate.value.content);
 }
 
 /** The inline ref a `widgetEmbed` node carries, or `undefined` for any other node or malformed attrs. */

@@ -935,7 +935,7 @@
     "value": 2
   },
   {
-    "file": "packages/cms/src/taxonomy/write-service.ts",
+    "file": "packages/cms/src/taxonomy/content-deletion-cleanup.ts",
     "rule": "catch-reads-error",
     "value": 1
   },
@@ -970,9 +970,14 @@
     "value": 1
   },
   {
-    "file": "packages/cms/src/widgets/resolver-service.ts",
+    "file": "packages/cms/src/widgets/page-widget-resolution.ts",
     "rule": "catch-reads-error",
-    "value": 2
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/widgets/widget-instance-resolution.ts",
+    "rule": "catch-reads-error",
+    "value": 1
   },
   {
     "file": "packages/cms/src/widgets/write-service.ts",
