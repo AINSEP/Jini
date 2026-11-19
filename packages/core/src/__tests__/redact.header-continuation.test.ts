@@ -53,3 +53,15 @@ describe('long padding before a bare scheme word', () => {
     expect(large).toBeLessThan(small * 3 + 50);
   });
 });
+
+// A header name never introduces prose: the token after `authorization:` is its value even mid-sentence, as the rules chat
+// used before read it.
+describe('the value after an authorization label inside a sentence', () => {
+  it.each(['Hey, my authorization: abc thanks', 'Hey, my authorization :  abc thanks', 'my authorization:abc ok'])('masks the value in %j', input => {
+    expect(run(input)).not.toMatch(/\babc\b/);
+  });
+
+  it('keeps a placeholder after the label', () => {
+    expect(run('Authorization: (skipped)')).toBe('Authorization: (skipped)');
+  });
+});
