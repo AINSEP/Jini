@@ -18,6 +18,7 @@
       "./asset-cache": "node",
       "./secrets": "node",
       "./secrets/credential-sets": "node",
+      "./secrets/root-key": "node",
       "./secrets/credential-sets/contracts": "universal",
       "./secrets/testing": "node",
       "./http/guarded": "node",
@@ -99,6 +100,11 @@
       "types": "./dist/secrets/credential-sets/index.d.ts",
       "import": "./dist/secrets/credential-sets/index.js",
       "default": "./dist/secrets/credential-sets/index.js"
+    },
+    "./secrets/root-key": {
+      "types": "./dist/secrets/root-key/decide.d.ts",
+      "import": "./dist/secrets/root-key/decide.js",
+      "default": "./dist/secrets/root-key/decide.js"
     },
     "./secrets/credential-sets/contracts": {
       "types": "./dist/secrets/credential-sets/contracts.d.ts",
