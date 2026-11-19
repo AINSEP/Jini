@@ -17,6 +17,7 @@
       "./providers/tool-turn": "node",
       "./model-catalog/cache": "universal",
       "./providers/sse-decode": "universal",
+      "./providers/credentials": "universal",
       "./model-discovery": "node",
       "./model-selection": "universal",
       "./native-tool-policy": "universal"
@@ -65,6 +66,11 @@
       "import": "./dist/providers/sse-decode.js",
       "default": "./dist/providers/sse-decode.js"
     },
+    "./providers/credentials": {
+      "types": "./dist/providers/credentials.d.ts",
+      "import": "./dist/providers/credentials.js",
+      "default": "./dist/providers/credentials.js"
+    },
     "./model-selection": {
       "types": "./dist/model-discovery-shared.d.ts",
       "import": "./dist/model-discovery-shared.js",
@@ -86,6 +92,9 @@
       ],
       "providers/sse-decode": [
         "./dist/providers/sse-decode.d.ts"
+      ],
+      "providers/credentials": [
+        "./dist/providers/credentials.d.ts"
       ],
       "model-selection": [
         "./dist/model-discovery-shared.d.ts"
