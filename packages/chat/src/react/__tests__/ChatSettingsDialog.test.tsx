@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import { act, render, renderHook, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -17,7 +18,7 @@ describe('advanced chat settings', () => {
     ['.jini-chat-settings-note', 'font-size: var(--jini-font-size-sm, 0.875rem);'],
     ['.jini-chat-settings-error', 'font-size: var(--jini-font-size-sm, 0.875rem);'],
   ])('themes %s through shared tokens with standalone defaults', (selector, declaration) => {
-    const css = readFileSync(new URL('../styles/chat-settings.css', import.meta.url), 'utf8');
+    const css = readFileSync(path.resolve(__dirname, '../styles/chat-settings.css'), 'utf8');
     const rule = css.split(`${selector} {`)[1]!.split('}')[0];
     expect(rule).toContain(declaration);
   });

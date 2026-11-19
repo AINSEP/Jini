@@ -33,7 +33,7 @@ Unattended cloud run, 18:50–~21:30 UTC. Branch created from `origin/integ/merg
 | 22 | fs-j-hooks `c48b6830` | `ca94ff00` | — | error-gate rows lost in hook splits; user-management `public-args.test` red on 3 new positional helpers | `0065040e`, `bf50ecea` | GREEN |
 | 23 | dx-events `96ec2664` (incl. dx-runlife) | `a5920a75` | `agent-executor/events.ts` modify/delete: took the split, re-applied daemon-args call shapes (`createModelReceiptTracker`, `errorMessage`, `translateAcpError`, `bridgeUnavailableMessage`, `writePromptToStdin`) in the new files | catch rows moved between split files (3→3); `launch.ts` size debt must be lowered to 1044 | `0c0274e5` | GREEN. Driver cancel-during-close: daemon full suite 4828 pass at `62484795` |
 | 24 | dx-hstore `93715cbb` | `62484795` | `mcp/federation/hosted/store.ts`: took the split, re-applied args-jini-core-mcp's 15 hunks in `store-*.ts`/`access.ts`/`vault.ts`; its new characterization tests converted to the args shape | (in-merge) | in merge | GREEN |
-| 25 | ex-css `27faa0f4` | `03a581ae` | — | — | — | GREEN |
+| 25 | ex-css `27faa0f4` | `03a581ae` | — | chat ChatSettingsDialog CSS tests (9) failed: jsdom `import.meta.url` | see final fix commit | GREEN |
 | 26 | **ex-log `4f7d4d37`** | — | **skipped** (`git merge --abort`), see below | | | SKIPPED |
 | 27 | ext-j2 `84e769d9` (incl. ext-j1) | `f479e406` | injection-debt 3-way; `scripts/lib/self-test.ts`: kept HEAD's helper split, applied ext-j2's retired `cms/settings/express` fixture there (expectation now asserts it is forbidden) | 36 TS errors: taxonomy imports from pre-split `write-service.ts`, required `reportInternalError` not supplied in tests, `SettingDefinitionRecord` path, stale `sqliteKernel(db)`; guard HW-module-state; 16 why-comments; lockfile importer; new remote-run-events test expected 404 (contract says 405) | `3741ddd8` (lockfile, `pnpm install` not frozen), `bf50ecea`, `0445585e` | GREEN |
 | 28 | ext-r11b2 `8576159d` | `6c0f1534` | injection-debt 3-way | 1 why-comment (default filesystem gone) | `46cbb7d4` | GREEN |
@@ -65,7 +65,7 @@ Group 4 reds (`2158d753`, `013a26bc`, `516d02c3`):
 - G4 `013a26bc`: agent-runtime 4512, agentic 1146, cli 604, cms 4422, core 3102, admin 3087, ui 8775; platform 2 + user-management 1 red (contract lists) → fixed `516d02c3`, then platform 3288, user-management 1348.
 - G5 `62484795`: daemon 4828, mcp 1861, platform 3288, ui 8775, user-management 1 red (public-args) → fixed `bf50ecea`.
 - G6/7 `46cbb7d4`: cms 4565, mcp 1872, http-kit 735, server 468, user-management 1348, agent-plugins 2178, integrations 2071, daemon 2 red → fixed `0445585e`. core 2941 (was 3102): ext-j2 moved the 8 `core/settings/express` test files to http-kit with the code, not lost.
-- Final `0445585e`: see "Final suites" line below.
+- Final `0445585e`: admin 3087, ui 8794, daemon 4821, chat 9 red: ex-css's new ChatSettingsDialog CSS test read the stylesheet via `new URL(..., import.meta.url)`, which is not a file URL under jsdom → fixed (path.resolve, the package's existing idiom), 16/16; chat otherwise 4464 pass.
 
 ## Final gates (tree `a13d1bc2`, repo root)
 
