@@ -206,29 +206,8 @@ async function toMediaToolViewsWithPublicUrls(routeDeps: MediaToolDeps, records:
   return records.map((record) => ({ ...toMediaToolView(record), publicUrl: urls.get(record.id) ?? null }));
 }
 
-export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePublicUrls" | "recordUploadContentType" | "maxUploadBytes" | "listContentTypes">, optional: Pick<MediaToolDeps, "resolvePublicUrls" | "recordUploadContentType" | "maxUploadBytes" | "listContentTypes"> = {}): ToolRegistration[] {
-  const routeDeps: MediaToolDeps = {
-    authorize: required.authorize,
-    workspaceId: required.workspaceId,
-    clock: required.clock,
-    idGen: required.idGen,
-    mediaRepo: required.mediaRepo,
-    assetBlobRepo: required.assetBlobRepo,
-    assetRenditionRepo: required.assetRenditionRepo,
-    blobStore: required.blobStore,
-    documentTextExtractors: required.documentTextExtractors,
-    ...optional,
-  };
-  const mediaWriteDeps = () => ({
-    clock: routeDeps.clock,
-    idGen: routeDeps.idGen,
-    mediaRepo: routeDeps.mediaRepo,
-    blobRepo: routeDeps.assetBlobRepo,
-    renditionRepo: routeDeps.assetRenditionRepo,
-    blobStore: routeDeps.blobStore,
-  });
-
-  const handlers: Record<string, ToolHandler> = {
+function libraryListHandlers(routeDeps: MediaToolDeps): Record<string, ToolHandler> {
+  return {
     library_list: async (ctx) => {
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "media.read" }, { entityType: "media" });
       const { media, nextCursor } = await listMediaPage({ mediaRepo: routeDeps.mediaRepo, workspaceId: routeDeps.workspaceId,
@@ -244,6 +223,11 @@ export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePu
       }
       return { documents, nextCursor };
     },
+  };
+}
+
+function libraryReadHandlers(routeDeps: MediaToolDeps): Record<string, ToolHandler> {
+  return {
     library_read: async (ctx) => {
       const input = requireInputRecord({ input: ctx.input });
       const id = requireString({ input, key: "documentId" });
@@ -264,13 +248,31 @@ export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePu
         },
       });
     },
+  };
+}
+
+function mediaListHandlers(routeDeps: MediaToolDeps): Record<string, ToolHandler> {
+  return {
     media_list_assets: async (ctx) => {
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "media.read" }, { entityType: "media" });
       const { media, nextCursor } = await listMediaPage({ mediaRepo: routeDeps.mediaRepo, workspaceId: routeDeps.workspaceId,
         input: requireInputRecord({ input: ctx.input ?? {} }), library: false }, { contentTypes: routeDeps.listContentTypes });
       return { media: await toMediaToolViewsWithPublicUrls(routeDeps, media), nextCursor };
     },
+  };
+}
 
+function mediaUploadHandlers(routeDeps: MediaToolDeps): Record<string, ToolHandler> {
+  const mediaWriteDeps = () => ({
+    clock: routeDeps.clock,
+    idGen: routeDeps.idGen,
+    mediaRepo: routeDeps.mediaRepo,
+    blobRepo: routeDeps.assetBlobRepo,
+    renditionRepo: routeDeps.assetRenditionRepo,
+    blobStore: routeDeps.blobStore,
+  });
+
+  return {
     media_upload_asset: async (ctx) => {
       const input = requireInputRecord({ input: ctx.input });
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "media.upload" }, { entityType: "media" });
@@ -315,7 +317,11 @@ export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePu
         return { media: view };
       } });
     },
+  };
+}
 
+function mediaUpdateHandlers(routeDeps: MediaToolDeps): Record<string, ToolHandler> {
+  return {
     media_update_metadata: async (ctx) => {
       const input = requireInputRecord({ input: ctx.input });
       const mediaId = requireString({ input, key: "mediaId" });
@@ -339,7 +345,11 @@ export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePu
         return { media: toMediaToolView(media) };
       } });
     },
+  };
+}
 
+function mediaTrashHandlers(routeDeps: MediaToolDeps): Record<string, ToolHandler> {
+  return {
     media_trash_asset: async (ctx) => {
       const mediaId = requireString({ input: requireInputRecord({ input: ctx.input }), key: "mediaId" });
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "media.delete" }, { entityType: "media", entityId: mediaId });
@@ -350,6 +360,29 @@ export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePu
       });
       return { media: toMediaToolView(media) };
     },
+  };
+}
+
+export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePublicUrls" | "recordUploadContentType" | "maxUploadBytes" | "listContentTypes">, optional: Pick<MediaToolDeps, "resolvePublicUrls" | "recordUploadContentType" | "maxUploadBytes" | "listContentTypes"> = {}): ToolRegistration[] {
+  const routeDeps: MediaToolDeps = {
+    authorize: required.authorize,
+    workspaceId: required.workspaceId,
+    clock: required.clock,
+    idGen: required.idGen,
+    mediaRepo: required.mediaRepo,
+    assetBlobRepo: required.assetBlobRepo,
+    assetRenditionRepo: required.assetRenditionRepo,
+    blobStore: required.blobStore,
+    documentTextExtractors: required.documentTextExtractors,
+    ...optional,
+  };
+  const handlers: Record<string, ToolHandler> = {
+    ...libraryListHandlers(routeDeps),
+    ...libraryReadHandlers(routeDeps),
+    ...mediaListHandlers(routeDeps),
+    ...mediaUploadHandlers(routeDeps),
+    ...mediaUpdateHandlers(routeDeps),
+    ...mediaTrashHandlers(routeDeps),
   };
 
   // No `unwiredToolIds`: Media wires its ENTIRE catalog, same tripwire discipline as Forms.

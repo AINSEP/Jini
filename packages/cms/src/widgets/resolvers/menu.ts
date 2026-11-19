@@ -54,6 +54,10 @@ function toMenuItemProps(items: readonly ResolvedNavItem[], publicOnly: boolean)
   return visible as unknown as JsonObject;
 }
 
+function menuWidgetResult(menu: NonNullable<Awaited<ReturnType<NavMenuReadModel["getMenu"]>>>, props: JsonObject): WidgetResolveResult {
+  return { ok: true, ir: { componentId: "menu", props }, dependencyKeys: [menu.id] };
+}
+
 /**
  * Resolve menu widgets through navigation's read model: stored HTML or resolved items by doc mode.
  * HTML is trusted and balanced by navigation's save path (`mergeMenuHtml`), like static menus;
@@ -78,25 +82,21 @@ export function createMenuResolver(deps: MenuResolverDeps, _optional: Record<str
         const menu = await deps.navMenuReadModel.getMenu({ workspaceId: context.workspaceId, menuId: menuRef });
         if (!menu) {
           results.set(instance.id, { ok: false, reason: "target-disabled" });
-        } else {
-          let props: JsonObject;
-          if (menu.doc.mode === "html") {
-            props = { title: menu.title, mode: "html", html: menu.doc.html ?? "" };
-          } else {
-            const items = await deps.menus.resolveMenuDoc({
-              doc: menu.doc,
-              context: { workspaceId: context.workspaceId },
-              resolveTargetHref,
-            });
-            props = { title: menu.title, items: toMenuItemProps(items, deps.publicOnly === true) };
-          }
-
-          results.set(instance.id, {
-            ok: true,
-            ir: { componentId: "menu", props },
-            dependencyKeys: [menu.id],
-          });
+          continue;
         }
+        let props: JsonObject;
+        if (menu.doc.mode === "html") {
+          props = { title: menu.title, mode: "html", html: menu.doc.html ?? "" };
+        } else {
+          const items = await deps.menus.resolveMenuDoc({
+            doc: menu.doc,
+            context: { workspaceId: context.workspaceId },
+            resolveTargetHref,
+          });
+          props = { title: menu.title, items: toMenuItemProps(items, deps.publicOnly === true) };
+        }
+
+        results.set(instance.id, menuWidgetResult(menu, props));
       }
       return results;
     },

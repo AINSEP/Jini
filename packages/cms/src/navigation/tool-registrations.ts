@@ -155,8 +155,8 @@ function normalizeMenuUpdateInput(
   return { input: { ...rest, id: menuId }, notes: [`${alias}→id`] };
 }
 
-export function buildMenusRegistrations(routeDeps: MenusToolDeps): ToolRegistration[] {
-  const handlers: Record<string, ToolHandler> = {
+function menuReadHandlers(routeDeps: MenusToolDeps): Record<string, ToolHandler> {
+  return {
     menus_list_menus: async (ctx) => {
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "admin.menus.read" }, { entityType: "menu" });
       const menus = await routeDeps.menuRepo.list({ workspaceId: routeDeps.workspaceId });
@@ -170,7 +170,11 @@ export function buildMenusRegistrations(routeDeps: MenusToolDeps): ToolRegistrat
       if (!menu) throw new MenuNotFoundError({ message: `menu '${menuId}' was not found` });
       return { menu: toMenuToolView(menu) };
     },
+  };
+}
 
+function menuCreateHandlers(routeDeps: MenusToolDeps): Record<string, ToolHandler> {
+  return {
     menus_create_menu: async (ctx) => {
       const input = requireInputRecord({ input: ctx.input });
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "admin.menus.create" }, { entityType: "menu" });
@@ -194,7 +198,11 @@ export function buildMenusRegistrations(routeDeps: MenusToolDeps): ToolRegistrat
         return { menu: toMenuToolView(menu) };
       } });
     },
+  };
+}
 
+function menuUpdateHandlers(routeDeps: MenusToolDeps): Record<string, ToolHandler> {
+  return {
     menus_update_menu_tree: async (ctx) => {
       const { input } = normalizeMenuUpdateInput({ input: requireInputRecord({ input: ctx.input }) });
       const menuId = requireString({ input: input, key: "id" });
@@ -222,7 +230,11 @@ export function buildMenusRegistrations(routeDeps: MenusToolDeps): ToolRegistrat
         return { menu: toMenuToolView(menu) };
       } });
     },
+  };
+}
 
+function menuLocationHandlers(routeDeps: MenusToolDeps): Record<string, ToolHandler> {
+  return {
     menus_assign_location: async (ctx) => {
       const input = requireInputRecord({ input: ctx.input });
       const menuId = requireString({ input: input, key: "menuId" });
@@ -237,6 +249,15 @@ export function buildMenusRegistrations(routeDeps: MenusToolDeps): ToolRegistrat
         displacedMenu: displacedMenu ? toMenuToolView(displacedMenu) : null,
       };
     },
+  };
+}
+
+export function buildMenusRegistrations(routeDeps: MenusToolDeps): ToolRegistration[] {
+  const handlers: Record<string, ToolHandler> = {
+    ...menuReadHandlers(routeDeps),
+    ...menuCreateHandlers(routeDeps),
+    ...menuUpdateHandlers(routeDeps),
+    ...menuLocationHandlers(routeDeps),
   };
 
   // No `unwiredToolIds`: Menus wires its ENTIRE catalog, same tripwire discipline as Forms.

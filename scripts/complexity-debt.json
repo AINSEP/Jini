@@ -49,32 +49,11 @@
     "value": 11
   },
   {
-    "file": "packages/cms/src/navigation/repo.memory.ts",
-    "function": "InMemoryMenuRepo.save",
-    "line": 131,
-    "rule": "sonarjs/cognitive-complexity",
-    "value": 11
-  },
-  {
     "file": "packages/cms/src/widgets/resolver-service.ts",
     "function": "forEachDocNode",
     "line": 107,
     "rule": "sonarjs/cognitive-complexity",
     "value": 13
-  },
-  {
-    "file": "packages/cms/src/widgets/resolvers/menu.ts",
-    "function": "createMenuResolver.resolveMany",
-    "line": 69,
-    "rule": "sonarjs/cognitive-complexity",
-    "value": 12
-  },
-  {
-    "file": "packages/cms/src/widgets/resolvers/taxonomy.ts",
-    "function": "resolveTaxonomyEmbeds",
-    "line": 6,
-    "rule": "sonarjs/cognitive-complexity",
-    "value": 11
   },
   {
     "file": "packages/core/src/tool-input-normalization.ts",

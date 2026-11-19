@@ -280,53 +280,11 @@
     "value": 325
   },
   {
-    "file": "packages/cms/src/media/tool-registrations.ts",
-    "function": "buildMediaRegistrations",
-    "line": 209,
-    "rule": "max-lines-per-function",
-    "value": 143
-  },
-  {
-    "file": "packages/cms/src/navigation/tool-registrations.ts",
-    "function": "buildMenusRegistrations",
-    "line": 159,
-    "rule": "max-lines-per-function",
-    "value": 88
-  },
-  {
-    "file": "packages/cms/src/routing/routing.ts",
-    "function": "createRouting",
-    "line": 143,
-    "rule": "max-lines-per-function",
-    "value": 188
-  },
-  {
-    "file": "packages/cms/src/seo/sitemap.ts",
-    "function": "createSitemapService",
-    "line": 160,
-    "rule": "max-lines-per-function",
-    "value": 81
-  },
-  {
     "file": "packages/cms/src/taxonomy/write-service.ts",
     "function": "<file>",
     "line": 787,
     "rule": "max-lines",
     "value": 711
-  },
-  {
-    "file": "packages/cms/src/trash/write-service.ts",
-    "function": "createTrashService",
-    "line": 120,
-    "rule": "max-lines-per-function",
-    "value": 132
-  },
-  {
-    "file": "packages/cms/src/widgets/embed-service.ts",
-    "function": "writePostHostBody",
-    "line": 377,
-    "rule": "max-lines-per-function",
-    "value": 98
   },
   {
     "file": "packages/cms/src/widgets/resolver-service.ts",

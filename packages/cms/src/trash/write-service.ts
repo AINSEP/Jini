@@ -110,17 +110,7 @@ export function computePurgeAfter({ at }: { at: string; }, optional: { retention
   return new Date(base.getTime() + retentionDays * 24 * 60 * 60 * 1000).toISOString();
 }
 
-/**
- * Builds the Trash service.
- *
- * @param deps repo, the call-time adapter map, an id generator and a reentrant transaction runner.
- * @returns the {@link TrashPort} surface. `purgeSelected` requires host-owned human confirmation and per-row authorization.
- * @complexity O(1) to build.
- */
-export function createTrashService(deps: TrashServiceDeps, optional: TrashServiceOptional = {}): TrashPort {
-  const retentionDays = optional.retentionDays ?? DEFAULT_TRASH_RETENTION_DAYS;
-  computePurgeAfter({ at: "2000-01-01T00:00:00.000Z" }, { retentionDays });
-
+function createTrashHandlers(deps: TrashServiceDeps, optional: TrashServiceOptional, retentionDays: number): Pick<TrashPort, "trash"> {
   /** Resolved on every call — see {@link TrashServiceDeps.adapters}. @complexity O(1). */
   function requireAdapter(entityType: TrashEntityType): TrashAdapter {
     const adapter = deps.adapters.get(entityType);
@@ -179,6 +169,11 @@ export function createTrashService(deps: TrashServiceDeps, optional: TrashServic
         }
       });
     },
+  };
+}
+
+function createRestoreHandlers(deps: TrashServiceDeps, optional: TrashServiceOptional): Pick<TrashPort, "restore"> {
+  return {
     /**
      * Clears the domain marker and removes the index row, as one unit.
      *
@@ -220,29 +215,11 @@ export function createTrashService(deps: TrashServiceDeps, optional: TrashServic
         }
       });
     },
-    /** @complexity one indexed keyset read; see `TrashRepoPort.list`. */
-    async list(required, listOptional = {}): Promise<TrashPage> {
-      return deps.repo.list(required, listOptional);
-    },
-    /**
-     * Permanent deletion of selected rows. Called by the admin Trash screen or the assistant's
-     * human-confirmed permanent-delete tools; callers own confirmation, this service owns row auth.
-     *
-     * Per item, and per item only: one unavailable adapter, one stale version or one row the caller
-     * may not touch must not abort the rest of the selection, so each row gets its own permission
-     * check, its own transaction and its own recorded outcome.
-     *
-     * The gate runs on the row this method looked up, BEFORE the adapter is resolved: a caller who
-     * may not destroy a row must not learn from the outcome whether its domain is still installed.
-     *
-     * @complexity O(k) authorization calls and at most O(k) transactions for k selected ids.
-         */
-    async purgeSelected(required): Promise<PurgeReport> {
-      const rows = await deps.repo.findByIds({ workspaceId: required.workspaceId, ids: required.ids });
-      const byId = new Map(rows.map((row) => [row.id, row]));
-      const results: { id: string; outcome: PurgeItemOutcome; }[] = [];
+  };
+}
 
-      function purgeItem(row: TrashItem, adapter: TrashAdapter): Promise<PurgeItemOutcome> {
+function createPurgeItem(deps: TrashServiceDeps, optional: TrashServiceOptional, required: Parameters<TrashPort["purgeSelected"]>[0]) {
+  return function purgeItem(row: TrashItem, adapter: TrashAdapter): Promise<PurgeItemOutcome> {
         return deps.transaction({
           work: async (): Promise<PurgeItemOutcome> => {
             const result = await adapter.purge({
@@ -270,7 +247,30 @@ export function createTrashService(deps: TrashServiceDeps, optional: TrashServic
             return result;
           }
         });
-      }
+      };
+}
+
+function createPurgeHandlers(deps: TrashServiceDeps, optional: TrashServiceOptional): Pick<TrashPort, "purgeSelected"> {
+  return {
+    /**
+     * Permanent deletion of selected rows. Called by the admin Trash screen or the assistant's
+     * human-confirmed permanent-delete tools; callers own confirmation, this service owns row auth.
+     *
+     * Per item, and per item only: one unavailable adapter, one stale version or one row the caller
+     * may not touch must not abort the rest of the selection, so each row gets its own permission
+     * check, its own transaction and its own recorded outcome.
+     *
+     * The gate runs on the row this method looked up, BEFORE the adapter is resolved: a caller who
+     * may not destroy a row must not learn from the outcome whether its domain is still installed.
+     *
+     * @complexity O(k) authorization calls and at most O(k) transactions for k selected ids.
+         */
+    async purgeSelected(required): Promise<PurgeReport> {
+      const rows = await deps.repo.findByIds({ workspaceId: required.workspaceId, ids: required.ids });
+      const byId = new Map(rows.map((row) => [row.id, row]));
+      const results: { id: string; outcome: PurgeItemOutcome; }[] = [];
+
+      const purgeItem = createPurgeItem(deps, optional, required);
 
       for (const id of required.ids) {
         const row = byId.get(id);
@@ -293,6 +293,28 @@ export function createTrashService(deps: TrashServiceDeps, optional: TrashServic
 
       return { purged: results.filter((r) => r.outcome === "purged").length, results };
     },
+  };
+}
+
+/**
+ * Builds the Trash service.
+ *
+ * @param deps repo, the call-time adapter map, an id generator and a reentrant transaction runner.
+ * @returns the {@link TrashPort} surface. `purgeSelected` requires host-owned human confirmation and per-row authorization.
+ * @complexity O(1) to build.
+ */
+export function createTrashService(deps: TrashServiceDeps, optional: TrashServiceOptional = {}): TrashPort {
+  const retentionDays = optional.retentionDays ?? DEFAULT_TRASH_RETENTION_DAYS;
+  computePurgeAfter({ at: "2000-01-01T00:00:00.000Z" }, { retentionDays });
+
+  return {
+    ...createTrashHandlers(deps, optional, retentionDays),
+    ...createRestoreHandlers(deps, optional),
+    /** @complexity one indexed keyset read; see `TrashRepoPort.list`. */
+    async list(required, listOptional = {}): Promise<TrashPage> {
+      return deps.repo.list(required, listOptional);
+    },
+    ...createPurgeHandlers(deps, optional),
   };
 }
 

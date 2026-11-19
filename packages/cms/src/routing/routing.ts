@@ -130,18 +130,7 @@ export interface Routing {
   resetRoutingRegistrationsForTests(required: EmptyOptions, optional?: EmptyOptions): void;
 }
 
-/**
- * Create routing over host-owned content visibility and fault reporting.
- * Each instance owns its registrations; a host that historically shared one process registry
- * must bind one instance and reuse it across composition roots. No database or clock is constructed.
- * @param required Host ports; visibility errors propagate unchanged.
- * @param optional Initial named-route configuration (home/search by default).
- * @returns Resolvers and registration lifecycles sharing this instance's state.
- * @complexity O(r) initialization for r configured named routes.
- * @example const routing = createRouting({ ports }, { namedRoutes: [['home', '/']] });
- */
-export function createRouting(required: CreateRoutingRequired, optional: CreateRoutingOptional = {}): Routing {
-
+function createNamedRoutes(optional: CreateRoutingOptional) {
   // ---------------------------------------------------------------------------
   // Named-route registry (backs `route` targets — ADR-039 §3)
   // ---------------------------------------------------------------------------
@@ -175,34 +164,42 @@ export function createRouting(required: CreateRoutingRequired, optional: CreateR
     return namedRoutes.get(name) ?? null;
   }
 
-  // ---------------------------------------------------------------------------
-  // Path normalization + canonical URL composition
-  // ---------------------------------------------------------------------------
-
-  const ABSOLUTE_URL_PATTERN = /^[a-z][a-z0-9+.-]*:\/\//i;
-
-  function isAbsoluteUrl(value: string): boolean {
-    return ABSOLUTE_URL_PATTERN.test(value) || value.startsWith("//");
+  function resetNamedRoutes(): void {
+    namedRoutes.clear();
+    for (const [name, path] of initialNamedRoutes) namedRoutes.set(name, path);
   }
+  return { registerNamedRoute, getNamedRoute, resetNamedRoutes };
+}
 
-  /**
-   * Normalize a request/target path: strip query/hash, force a leading slash,
-   * and drop a trailing slash (except for the root path itself).
-   *
-   * @complexity O(n) in path length.
-   */
-  function normalizePath(rawPath: string): string {
-    // `split` always yields at least one element (an empty input gives [""]), so [0] is defined.
-    const withoutQueryOrHash = rawPath.split(/[?#]/, 1)[0]!;
-    const withLeadingSlash = withoutQueryOrHash.startsWith("/")
-      ? withoutQueryOrHash
-      : `/${withoutQueryOrHash}`;
-    if (withLeadingSlash.length > 1 && withLeadingSlash.endsWith("/")) {
-      return withLeadingSlash.slice(0, -1);
-    }
-    return withLeadingSlash;
+// ---------------------------------------------------------------------------
+// Path normalization + canonical URL composition
+// ---------------------------------------------------------------------------
+
+const ABSOLUTE_URL_PATTERN = /^[a-z][a-z0-9+.-]*:\/\//i;
+
+function isAbsoluteUrl(value: string): boolean {
+  return ABSOLUTE_URL_PATTERN.test(value) || value.startsWith("//");
+}
+
+/**
+ * Normalize a request/target path: strip query/hash, force a leading slash,
+ * and drop a trailing slash (except for the root path itself).
+ *
+ * @complexity O(n) in path length.
+ */
+function normalizePath(rawPath: string): string {
+  // `split` always yields at least one element (an empty input gives [""]), so [0] is defined.
+  const withoutQueryOrHash = rawPath.split(/[?#]/, 1)[0]!;
+  const withLeadingSlash = withoutQueryOrHash.startsWith("/")
+    ? withoutQueryOrHash
+    : `/${withoutQueryOrHash}`;
+  if (withLeadingSlash.length > 1 && withLeadingSlash.endsWith("/")) {
+    return withLeadingSlash.slice(0, -1);
   }
+  return withLeadingSlash;
+}
 
+function createPostPublicPath() {
   /**
    * Builds a post/page's own public path from its `slug` — the one point every call site that turns a
    * `PostRecord.slug` into a route string goes through, so the content-owned-homepage `"/"` root-slug
@@ -218,22 +215,52 @@ export function createRouting(required: CreateRoutingRequired, optional: CreateR
     return slug === "/" ? "/" : `/${slug}`;
   }
 
-  /**
-   * Compose the `canonicalUrl` a resolved `path` implies.
-   *
-   * TODO(ADR-040): compose canonicalUrl from OriginRegistryPort.canonicalOrigin(ctx)
-   * once `src/origin` exists, instead of `ctx.originOverride`. `src/origin` is
-   * being built in parallel by another agent and does not exist yet, so this
-   * library must not import it.
-   *
-   * @complexity O(1).
-   */
-  function composeCanonicalUrl(path: string, ctx: RouteResolveContext): string {
-    if (isAbsoluteUrl(path)) return path;
-    const origin = ctx.originOverride?.replace(/\/$/, "");
-    return origin ? `${origin}${path}` : path;
-  }
+  return postPublicPath;
+}
 
+/**
+ * Compose the `canonicalUrl` a resolved `path` implies.
+ *
+ * TODO(ADR-040): compose canonicalUrl from OriginRegistryPort.canonicalOrigin(ctx)
+ * once `src/origin` exists, instead of `ctx.originOverride`. `src/origin` is
+ * being built in parallel by another agent and does not exist yet, so this
+ * library must not import it.
+ *
+ * @complexity O(1).
+ */
+function composeCanonicalUrl(path: string, ctx: RouteResolveContext): string {
+  if (isAbsoluteUrl(path)) return path;
+  const origin = ctx.originOverride?.replace(/\/$/, "");
+  return origin ? `${origin}${path}` : path;
+}
+
+/**
+ * Stub: taxonomy isn't implemented in this repo. ADR-029's Round-3 audit fold
+ * promoted "term-link schema" from an Open item to a Wave-1 acceptance
+ * blocker — ADR-022 §5's `entry_refs` covers entry-to-entry references only,
+ * with no term-target schema yet (content-lib sign-off on a typed `term_refs`
+ * index, or an accepted `entry_refs` extension for term targets, is owed).
+ * Always resolves `null` until that schema lands.
+ */
+function resolveTermRefTarget(_target: TermRefTarget, _ctx: RouteResolveContext): RouteUrl | null {
+  return null;
+}
+
+const UNSAFE_URL_SCHEMES = ["javascript:", "data:"] as const;
+
+/**
+ * @complexity O(1) (bounded scheme-prefix check).
+ */
+function resolveUrlTarget(target: UrlTarget, ctx: RouteResolveContext): RouteUrl | null {
+  const href = target.href.trim();
+  const lowered = href.toLowerCase();
+  if (UNSAFE_URL_SCHEMES.some((scheme) => lowered.startsWith(scheme))) {
+    return null;
+  }
+  return { path: href, canonicalUrl: composeCanonicalUrl(href, ctx) };
+}
+
+function createEntryResolvers(required: CreateRoutingRequired, postPublicPath: Routing["postPublicPath"]) {
   // ---------------------------------------------------------------------------
   // Per-kind target resolvers (internal — dispatched by `urlFor`)
   // ---------------------------------------------------------------------------
@@ -289,32 +316,11 @@ export function createRouting(required: CreateRoutingRequired, optional: CreateR
     return entryPublicPath({ post: post, ctx: ctx });
   }
 
-  /**
-   * Stub: taxonomy isn't implemented in this repo. ADR-029's Round-3 audit fold
-   * promoted "term-link schema" from an Open item to a Wave-1 acceptance
-   * blocker — ADR-022 §5's `entry_refs` covers entry-to-entry references only,
-   * with no term-target schema yet (content-lib sign-off on a typed `term_refs`
-   * index, or an accepted `entry_refs` extension for term targets, is owed).
-   * Always resolves `null` until that schema lands.
-   */
-  function resolveTermRefTarget(_target: TermRefTarget, _ctx: RouteResolveContext): RouteUrl | null {
-    return null;
-  }
+  return { entryPublicPath, resolveEntryRefTarget };
+}
 
-  const UNSAFE_URL_SCHEMES = ["javascript:", "data:"] as const;
-
-  /**
-   * @complexity O(1) (bounded scheme-prefix check).
-   */
-  function resolveUrlTarget(target: UrlTarget, ctx: RouteResolveContext): RouteUrl | null {
-    const href = target.href.trim();
-    const lowered = href.toLowerCase();
-    if (UNSAFE_URL_SCHEMES.some((scheme) => lowered.startsWith(scheme))) {
-      return null;
-    }
-    return { path: href, canonicalUrl: composeCanonicalUrl(href, ctx) };
-  }
-
+function createInverseResolvers(required: CreateRoutingRequired, getNamedRoute: Routing["getNamedRoute"], postPublicPath: Routing["postPublicPath"]) {
+  const { entryPublicPath, resolveEntryRefTarget } = createEntryResolvers(required, postPublicPath);
   function resolveRouteRefTarget(target: RouteRefTarget, ctx: RouteResolveContext): RouteUrl | null {
     const path = getNamedRoute({ name: target.route });
     if (path === null) return null;
@@ -384,11 +390,10 @@ export function createRouting(required: CreateRoutingRequired, optional: CreateR
     return normalizePath(resolved.path) === normalizePath(required.currentPath);
   }
 
-  const phaseRegistry: PhaseRegistry = {
-    pre_content: [],
-    post_content: [],
-  };
+  return { entryPublicPath, urlFor, isActive };
+}
 
+function createPhaseRegistrations(phaseRegistry: PhaseRegistry) {
   /** Every phase, so an owner-wide revoke never has to be told which phases it used. */
   const ALL_PHASES: readonly RouteResolvePhaseName[] = ["pre_content", "post_content"];
 
@@ -457,6 +462,10 @@ export function createRouting(required: CreateRoutingRequired, optional: CreateR
     }
   }
 
+  return { registerResolvePhase, unregisterResolvePhaseOwner };
+}
+
+function createPhaseRunner(required: CreateRoutingRequired, phaseRegistry: PhaseRegistry) {
   /**
    * Run one phase's handlers in registration order, first non-`null` outcome wins.
    *
@@ -500,6 +509,10 @@ export function createRouting(required: CreateRoutingRequired, optional: CreateR
     return null;
   }
 
+  return runPhase;
+}
+
+function createForwardResolvers(runPhase: ReturnType<typeof createPhaseRunner>) {
   /**
    * Run the forward resolution pipeline for an inbound request path.
    *
@@ -574,6 +587,10 @@ export function createRouting(required: CreateRoutingRequired, optional: CreateR
     return runPhase("post_content", normalizePath(path), ctx);
   }
 
+  return { resolve, runPreContentPhase, runPostContentPhase };
+}
+
+function createSlugChangeCapture() {
   // ---------------------------------------------------------------------------
   // SlugChangeCapture slot (ADR-039 §4)
   // ---------------------------------------------------------------------------
@@ -612,6 +629,31 @@ export function createRouting(required: CreateRoutingRequired, optional: CreateR
     return boundSlugChangeCapture;
   }
 
+  function resetSlugChangeCapture(): void {
+    boundSlugChangeCapture = undefined;
+  }
+  return { registerSlugChangeCapture, getSlugChangeCapture, resetSlugChangeCapture };
+}
+
+/**
+ * Create routing over host-owned content visibility and fault reporting.
+ * Each instance owns its registrations; a host that historically shared one process registry
+ * must bind one instance and reuse it across composition roots. No database or clock is constructed.
+ * @param required Host ports; visibility errors propagate unchanged.
+ * @param optional Initial named-route configuration (home/search by default).
+ * @returns Resolvers and registration lifecycles sharing this instance's state.
+ * @complexity O(r) initialization for r configured named routes.
+ * @example const routing = createRouting({ ports }, { namedRoutes: [['home', '/']] });
+ */
+export function createRouting(required: CreateRoutingRequired, optional: CreateRoutingOptional = {}): Routing {
+  const { registerNamedRoute, getNamedRoute, resetNamedRoutes } = createNamedRoutes(optional);
+  const postPublicPath = createPostPublicPath();
+  const { entryPublicPath, urlFor, isActive } = createInverseResolvers(required, getNamedRoute, postPublicPath);
+  const phaseRegistry: PhaseRegistry = { pre_content: [], post_content: [] };
+  const { registerResolvePhase, unregisterResolvePhaseOwner } = createPhaseRegistrations(phaseRegistry);
+  const runPhase = createPhaseRunner(required, phaseRegistry);
+  const { resolve, runPreContentPhase, runPostContentPhase } = createForwardResolvers(runPhase);
+  const { registerSlugChangeCapture, getSlugChangeCapture, resetSlugChangeCapture } = createSlugChangeCapture();
   // ---------------------------------------------------------------------------
   // Test-only registry resets (deep-imported directly by this library's own
   // tests; deliberately NOT exported from index.ts's public barrel)
@@ -619,11 +661,10 @@ export function createRouting(required: CreateRoutingRequired, optional: CreateR
 
   /** Restore all module-level registries to their v0 defaults. Test use only. */
   function resetRoutingRegistrationsForTests(_required: EmptyOptions, _optional: EmptyOptions = {}): void {
-    namedRoutes.clear();
-    for (const [name, path] of initialNamedRoutes) namedRoutes.set(name, path);
+    resetNamedRoutes();
     phaseRegistry.pre_content = [];
     phaseRegistry.post_content = [];
-    boundSlugChangeCapture = undefined;
+    resetSlugChangeCapture();
   }
   return { entryPublicPath, getNamedRoute, getSlugChangeCapture, isActive, postPublicPath, registerNamedRoute, registerResolvePhase, registerSlugChangeCapture, resolve, runPostContentPhase, runPreContentPhase, unregisterResolvePhaseOwner, urlFor, resetRoutingRegistrationsForTests };
 }

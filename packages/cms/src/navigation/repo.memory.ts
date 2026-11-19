@@ -90,6 +90,22 @@ export interface MenuSaveOptions {
  *  module's own read check can throw it without a value import cycle. */
 export { menuVersionConflictError };
 
+function checkMenuSaveVersion(rows: NavMenuEntry[], record: NavMenuEntry, { options, index }: { options: MenuSaveOptions; index: number }): void {
+    if (options.expectedVersion === null) {
+      // A create needs the id free in every workspace and status, as a SQL primary key on `id` does.
+      const holder = rows.find((row) => row.id === record.id);
+      if (holder) throw menuVersionConflictError({ id: record.id, expectedVersion: null, found: holder.version });
+    } else if (options.expectedVersion !== undefined) {
+      const stored = rows[index];
+      const found = stored && stored.status !== "trash" ? stored.version : null;
+      if (found !== options.expectedVersion) {
+        throw menuVersionConflictError({ id: record.id, expectedVersion: options.expectedVersion, found });
+      }
+    } else {
+      // An omitted expected version selects the existing unconditional-save contract.
+    }
+}
+
 /**
  * In-memory `MenuRepoPort` adapter for dev/tests. See file header for why a
  * self-contained repo exists instead of an entries-backed one.
@@ -132,19 +148,7 @@ export class InMemoryMenuRepo implements MenuRepoPort {
     const index = this.rows.findIndex(
       (row) => row.workspaceId === record.workspaceId && row.id === record.id
     );
-    if (options.expectedVersion === null) {
-      // A create needs the id free in every workspace and status, as a SQL primary key on `id` does.
-      const holder = this.rows.find((row) => row.id === record.id);
-      if (holder) throw menuVersionConflictError({ id: record.id, expectedVersion: null, found: holder.version });
-    } else if (options.expectedVersion !== undefined) {
-      const stored = this.rows[index];
-      const found = stored && stored.status !== "trash" ? stored.version : null;
-      if (found !== options.expectedVersion) {
-        throw menuVersionConflictError({ id: record.id, expectedVersion: options.expectedVersion, found });
-      }
-    } else {
-      // An omitted expected version selects the existing unconditional-save contract.
-    }
+    checkMenuSaveVersion(this.rows, record, { options, index });
     if (index === -1) {
       this.rows.push(record);
       return;
