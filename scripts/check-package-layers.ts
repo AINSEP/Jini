@@ -30,6 +30,7 @@ const layers: Readonly<Record<string, number>> = {
   // Provider plugin sources adapt lower-layer domain ports (diagnostics, analytics, agent-runtime,
   // capability-providers) and register through plugins; no core package may depend on them.
   'provider-plugins': 7,
+  'integration-tests': 7,
 };
 // Standalone distributions remain leaves; a catalog only describes those leaves. One rule covers
 // every `plugin-*` package, so adding a plugin package never edits this table.

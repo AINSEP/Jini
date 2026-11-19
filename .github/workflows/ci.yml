@@ -91,6 +91,9 @@ jobs:
         run: pnpm typecheck
         continue-on-error: true
 
+      - name: integration workspace tests
+        run: pnpm --filter @jini-ai/integration-tests run test
+
       # The plugin-folder node:test suites (packages/agent-plugins/<id>/__tests__/*.test.mjs) are
       # excluded from every vitest config; this is their only automated caller besides publishing.
       # After the build: they import sibling `@jini-ai/*` packages through `dist/`.
