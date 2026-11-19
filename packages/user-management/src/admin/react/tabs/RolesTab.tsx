@@ -1,8 +1,9 @@
 import { Button, TextField, Notice } from '@jini-ai/ui-kit/react';
-import { useRolesTab } from '../hooks/RolesTab.hooks.js';
+import { useRolesTab as useRolesTab_ } from '../hooks/RolesTab.hooks.js';
 import { RoleRow } from '../components/RoleRow.js';
-export default function RolesTab(_props: {
+export default function RolesTab({ useRolesTab = useRolesTab_ }: {
     readonly params?: Readonly<Record<string, unknown>>;
+    useRolesTab?: typeof useRolesTab_;
 }, _optional: Record<string, never> = {}) {
     const v = useRolesTab({});
     return <section><h2>Roles</h2>

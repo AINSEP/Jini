@@ -13,15 +13,17 @@ export interface TotpSettingsPort {
 /** Owner settings hold setup secrets only until confirmation/cancellation or unmount.
  * @complexity O(1): one bounded status read on mount and one request per explicit action; no polling.
  */
-export function TotpSettings({ port, translate: t }: { port: TotpSettingsPort; translate: Translate }) {
-  const { status, error } = useTotpSettings({ port, t });
+export function TotpSettings({ port, translate: t, useTotpSettingsHook = useTotpSettings, useTotpSettingsFormHook = useTotpSettingsForm }: { port: TotpSettingsPort; translate: Translate; useTotpSettingsHook?: typeof useTotpSettings; useTotpSettingsFormHook?: typeof useTotpSettingsForm }) {
+  const { status, error } = useTotpSettingsHook({ port, t });
   if (error) return <p role="alert">{error}</p>;
   if (!status?.isOwner || !status.available) return null;
-  return <TotpSettingsForm port={port} enrolled={status.enrolled} t={t} />;
+  return <TotpSettingsForm port={port} enrolled={status.enrolled} t={t} useTotpSettingsFormHook={useTotpSettingsFormHook} />;
 }
 
-function TotpSettingsForm({ port, enrolled: initialEnrolled, t }: { port: TotpSettingsPort; enrolled: boolean; t: Translate }) {
-  const { enrolled, setup, password, setPassword, code, setCode, busy, error, message, passwordId, clear, enroll, confirm, remove } = useTotpSettingsForm({ port, initialEnrolled, t });
+const isTotpRemovalDisabled = ({ busy, password, code }: { busy: boolean; password: string; code: string }) => busy || !password || !code;
+
+function TotpSettingsForm({ port, enrolled: initialEnrolled, t, useTotpSettingsFormHook = useTotpSettingsForm }: { port: TotpSettingsPort; enrolled: boolean; t: Translate; useTotpSettingsFormHook?: typeof useTotpSettingsForm }) {
+  const { enrolled, setup, password, setPassword, code, setCode, busy, error, message, passwordId, clear, enroll, confirm, remove } = useTotpSettingsFormHook({ port, initialEnrolled, t });
   return <section className="card">
     <h3>{t('Authenticator app')}</h3>
     <p>{t(enrolled ? 'Your authenticator code is required at every sign-in, including desktop.' : 'Add an authenticator app to require a code when signing in as the owner.')}</p>
@@ -36,7 +38,7 @@ function TotpSettingsForm({ port, enrolled: initialEnrolled, t }: { port: TotpSe
       <SecretInput id={passwordId} label={t('Current owner password')} autoComplete="current-password" data-agent-private="" value={password} onChange={event => setPassword(event.target.value)} />
       <CodeInput code={code} setCode={setCode} t={t} visible={enrolled} />
       <button disabled={busy || !password}>{t(enrolled ? 'Replace authenticator' : 'Set up authenticator')}</button>
-      {enrolled ? <button type="button" disabled={busy || !password || !code} onClick={remove}>{t('Remove authenticator')}</button> : null}
+      {enrolled ? <button type="button" disabled={isTotpRemovalDisabled({ busy, password, code })} onClick={remove}>{t('Remove authenticator')}</button> : null}
     </form>}
     {error ? <p role="alert">{error}</p> : null}
     {message ? <p role="status">{message}</p> : null}
