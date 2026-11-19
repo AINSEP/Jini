@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { safeAspectRatio, safeTextAlign } from "../style-values.js";
+import { safeAspectRatio, safeTextAlign, safeLanguageClass } from "../style-values.js";
 
 // CSS allowlists for the two author-supplied
 // values a renderer interpolates straight into a `style="…"` attribute. HTML escaping alone cannot stop
@@ -42,4 +42,11 @@ test("safeAspectRatio: non-ratio-shaped values are rejected", () => {
   assert.equal(safeAspectRatio({ value: "auto" }), null);
   assert.equal(safeAspectRatio({ value: "" }), null);
   assert.equal(safeAspectRatio({ value: "16 / " }), null);
+});
+
+test("language classes accept one trimmed token and reject internal whitespace", () => {
+  assert.equal(safeLanguageClass({ value: " objective-c " }), "objective-c");
+  assert.equal(safeLanguageClass({ value: "python repl" }), null);
+  assert.equal(safeLanguageClass({ value: "python\trepl" }), null);
+  assert.equal(safeLanguageClass({ value: "python\nrepl" }), null);
 });

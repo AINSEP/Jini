@@ -74,7 +74,16 @@ export interface SubmitFormInput {
   sourceIp: string;
 }
 
-/** Submission outcome encoded by a host when redirecting back to a form. */
+/** One form submission's outcome, carried from `routes/site/forms-submit.ts` (which constructs it
+ *  from the real `submitForm`/error-class result) to `routes/site/pages.ts` (which decodes it back
+ *  off `req.query`, merges in any flash-cookie `values` via {@link mergeFormFlashIntoResult}, and
+ *  passes it to {@link injectFormSubmissionResultIntoHtml}) via a redirect Location's query string.
+ *
+ * `values` (2026-08-31 field-wipe fix) is deliberately NOT part of the query-string round trip
+ * (`encodeFormSubmissionResultQuery`/`decodeFormSubmissionResultFromQuery` never read or write it) —
+ * see {@link FormFlashPayload}'s own doc for why submitted field text travels via a cookie instead.
+ * It only ever appears here as something `mergeFormFlashIntoResult` attaches after the query-string
+ * decode already ran. */
 export type FormSubmissionRedirectResult =
   | { kind: "success"; slug: string }
   | {
