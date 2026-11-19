@@ -236,6 +236,8 @@
    "readReviewedFile": "function:aa936d8ad9",
    "removePathBestEffort": "function:b1253932d5",
    "resolveDirectoryHome": "function:b103bbca44",
+   "resolveElectronAppDataRoot": "function:46cc7ff754",
+   "resolveElectronUserDataDir": "function:5c4c83d67e",
    "resolvePathWithin": "function:f4a8015681",
    "reviewedFileIdentity": "function:1597ad17f5",
    "salvageJsonPrefix": "function:5646cd75b3",
@@ -832,6 +834,23 @@
    "stripHtmlPresentation": "function:1e18c79fb9",
    "webFetchPageInputSchema": "function:0c764238f6",
    "webFetchPageToolDefinition": "function:ee6b1ed669"
+  }
+ },
+ "./secrets/root-key": {
+  "types": "./dist/secrets/root-key/decide.d.ts",
+  "symbols": {
+   "LocalSiteKeyDecision": "type:fadacc2c4a",
+   "PlanSiteKeyEnsureInput": "interface:9ac80a3b33",
+   "SiteKeyEnsureAction": "type:ba1ddfe7c4",
+   "SiteKeyEnsurePlan": "interface:2c0482bede",
+   "SiteKeyEnsurePlanAction": "type:56c3a49a55",
+   "SiteKeyMaterialCheck": "type:4ade63e9b9",
+   "SiteKeyVerdict": "type:f7440109b3",
+   "decideLocalSiteKeyEnsure": "function:c4c525a72c",
+   "matchesFingerprint": "function:870d257777",
+   "planSiteKeyEnsure": "function:dc45867988",
+   "verdictOf": "function:ab6f4ec093",
+   "verdictOfCheck": "function:871ae10bf7"
   }
  }
 }

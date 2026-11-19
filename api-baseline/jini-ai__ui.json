@@ -329,6 +329,7 @@
    "DirtyGuard": "interface:11e9de78a9",
    "DirtyGuardHostPort": "type:f3b2e0fbd9",
    "DismissSubscriptionPort": "interface:6d06797813",
+   "DocumentFocus": "type:50f27a8844",
    "DraftEntry": "interface:2311e60580",
    "EMPTY_DRAFT": "variable:0cc5efa9ea",
    "EMPTY_SKILL_DRAFT": "variable:72138be417",
@@ -430,7 +431,7 @@
    "I18nProvider": "function:7f6c2069e6",
    "I18nProviderProps": "interface:679206f322",
    "ICON_PATH_DATA": "variable:fa35f6a459",
-   "Icon": "function:f3833b6c94",
+   "Icon": "function:7f582cf1ab",
    "IconName": "type:f35cfe744d",
    "IframeKeepAliveContext": "variable:cd5b2a15f4",
    "IframeKeepAlivePoolConfig": "interface:0e964928a5",
@@ -1401,6 +1402,7 @@
    "memorySourceTabs": "function:57da806355",
    "memoryTypeLabels": "function:b281444fdb",
    "mentionSelectionKey": "function:200d2ab719",
+   "menuFocusIndex": "function:ca78dffb69",
    "mergeConnectorActionResult": "function:792c3f81c4",
    "mergeConnectorToolPreview": "function:a92ef36070",
    "mergeConnectors": "function:d962af5284",
@@ -1583,7 +1585,7 @@
    "standingDraftRecoveryMessage": "function:1c21bf670b",
    "statusLabel": "function:ae686ec34e",
    "statusToneFor": "function:2166fdc847",
-   "subscribeOutsideClickOrEscape": "function:59444dc4de",
+   "subscribeOutsideClickOrEscape": "function:17ed7d5b63",
    "subscribeVisibleFocusOrVisibilityChange": "function:545c5f4b8c",
    "subscribeWindowEvent": "function:1aceb0bad9",
    "summaryToDraft": "function:01f1650f18",
@@ -1695,6 +1697,7 @@
    "useMemoryNavigation": "function:90b2c8eeeb",
    "useMemoryPorts": "function:07d4a4ea0b",
    "useMentionAutocomplete": "function:92ef1b1099",
+   "useMenuKeyboard": "function:9b27b27f95",
    "useModalWindowDragGuard": "function:f1a865d4e7",
    "useOnboardingDropdown": "function:7f0e70def5",
    "useOnboardingDropdownPlacement": "function:33452e61b1",
@@ -1719,14 +1722,14 @@
    "useSelectDropdown": "function:fcd3d885b7",
    "useSerialWrites": "function:12510309f5",
    "useSettingsDialogShell": "function:2456a30622",
-   "useSettingsSlice": "function:25f175ace6",
+   "useSettingsSlice": "function:e5a86f09e6",
    "useSettlementGeneration": "function:ce772bc396",
    "useSilentUpdatesToggle": "function:ff6df85d2b",
    "useSkillsTab": "function:554986b3df",
    "useSourceConfigAddForm": "function:37a6f80a3f",
    "useSourceConfigList": "function:0eeb75298c",
    "useStableHandler": "function:41e9cd2528",
-   "useStandingDraftAutosave": "function:15a4ea2840",
+   "useStandingDraftAutosave": "function:56e7ec30f2",
    "useSuggestInput": "function:7f904eeba8",
    "useT": "function:994f425b8d",
    "useTabLauncherMenu": "function:9816c45399",
@@ -2766,9 +2769,9 @@
    "useInvalidate": "variable:1d4817e1dd",
    "useOptimisticStoredValue": "function:66d41801e7",
    "useSerialWrites": "function:12510309f5",
-   "useSettingsSlice": "function:25f175ace6",
+   "useSettingsSlice": "function:e5a86f09e6",
    "useSettlementGeneration": "function:ce772bc396",
-   "useStandingDraftAutosave": "function:15a4ea2840"
+   "useStandingDraftAutosave": "function:56e7ec30f2"
   }
  },
  "./preview-modal-shell": {
@@ -2982,6 +2985,7 @@
  "./site-card": {
   "types": "./dist/features/site-card/index.d.ts",
   "symbols": {
+   "CardOpenKeyEvent": "interface:cfbeab8784",
    "DEFAULT_SITE_LIST_PREFS": "variable:3d11712410",
    "SiteCard": "function:eb03570a43",
    "SiteCardPin": "function:94a7af3504",
@@ -2997,6 +3001,10 @@
    "SiteListSort": "type:747d94080e",
    "SiteListToolbar": "function:4ca42d5a6b",
    "SiteListToolbarCopy": "interface:1176bf2546",
+   "cardOpenProps": "function:9f381955f3",
+   "closeMenuThen": "function:9aaecafa55",
+   "duplicateDisplayNames": "function:eb249bdaf3",
+   "isCardOpenKey": "function:4365623bd3",
    "parseSiteListPrefs": "function:ff022d3a39",
    "useSiteListPrefs": "function:e10863c362",
    "useSiteListView": "function:c30cb0856b"
@@ -3103,7 +3111,7 @@
    "TAB_STRIP_DRAG_HAPTIC_MS": "variable:e6e73983b8",
    "TAB_STRIP_DROP_HAPTIC_MS": "variable:8f9e0ec0f0",
    "TAB_STRIP_ITEM_ID_ATTRIBUTE": "variable:553b36cd3d",
-   "TabBar": "function:265be404bf",
+   "TabBar": "function:1b97cf5ceb",
    "TabBarKeyboardHandlers": "interface:6d431595b5",
    "TabBarProps": "interface:dd08ffdf1d",
    "TabBarTab": "interface:98b3dd5264",
@@ -3128,12 +3136,18 @@
    "findNearestDropTarget": "function:a70552c79c",
    "isTabClosable": "function:9c28192056",
    "isTabDraggable": "function:fe940f8614",
+   "navigateTabList": "function:54c73ed829",
+   "nextTabListIndex": "function:044ce5142a",
    "noopTabStripHaptics": "variable:6694116566",
    "pinnedTabIdSet": "function:71318e9d5a",
    "reorderTabIds": "function:275bcd7b49",
    "resolveTabBarKeyTarget": "function:c583f1a73f",
    "resolveTabBarTabIndex": "function:523ca17ed4",
+   "revealActiveTab": "function:7499df9212",
+   "rovingTabIndex": "function:f619c960e3",
    "tabHandleProps": "function:55cdb83418",
+   "tabOverflow": "function:be64ba558f",
+   "useScrollableTabStrip": "function:55bea3e5a6",
    "useTabBarKeyboard": "function:9597e6b31b",
    "useTabStripDragReorder": "function:897ea57f3c"
   }
@@ -3156,6 +3170,15 @@
    "defaultAdminTheme": "variable:74b615cabc",
    "resolveColorScheme": "function:90555cdec1",
    "validateAdminTheme": "function:b09183ded0"
+  }
+ },
+ "./browser": {
+  "types": "./dist/browser/index.d.ts",
+  "symbols": {
+   "DocumentFocus": "type:50f27a8844",
+   "menuFocusIndex": "function:ca78dffb69",
+   "useDismissOnOutsideOrEscape": "function:e0de6d9342",
+   "useMenuKeyboard": "function:9b27b27f95"
   }
  }
 }

@@ -14,15 +14,19 @@
    "CounterWindow": "interface:addca4e755",
    "CreateSseChannelOptions": "interface:30c311a7c4",
    "CreateSseResponseOptions": "interface:4dd66d03e1",
+   "DaemonAuthRequired": "interface:07290521ae",
    "ErrorResponseFactory": "type:7bca76d8d1",
    "HttpRequestObservabilityPort": "interface:1f18b4ccde",
    "InstallRouteRegistrationGuardOptions": "interface:8f1f6ec850",
    "JsonRoutePorts": "interface:c027f86b02",
    "JsonRouteSpec": "interface:249060e3b1",
+   "OwnedRunListRequired": "interface:5b1e4bbc29",
    "RateLimitProfile": "interface:371075b603",
    "RouteInternalErrorContext": "interface:a7266168db",
    "RouteInternalErrorSink": "type:4919a01145",
    "RouteRegistration": "interface:dd8f03278d",
+   "RunAccessDecision": "type:8c32e6c63b",
+   "RunOwnershipRequired": "interface:aea1c988a8",
    "SseChannel": "interface:0f3bbfc83b",
    "SseConnection": "interface:07bc99adbf",
    "StrictBearerTokenDeps": "interface:202e2692f9",
@@ -30,9 +34,12 @@
    "applyRequestTracking": "function:0af6ee0954",
    "createCompatApiError": "function:b72ee5c81d",
    "createCompatApiErrorResponse": "function:6ace5d310f",
+   "createDaemonAuthMiddleware": "function:2daa3c56c7",
    "createMemoryCounterStore": "function:99c1f89bab",
+   "createOwnedRunListHandler": "function:f867dc5bbe",
    "createRateLimiter": "function:117b280693",
    "createRequestTrackingMiddleware": "function:c1487c1af5",
+   "createRunOwnershipMiddleware": "function:8b1fc6fffa",
    "createSseChannel": "function:6b5949a137",
    "createSseResponse": "function:5dbd1e53c4",
    "defineJsonRoute": "function:c429567bcb",
@@ -74,7 +81,14 @@
   "symbols": {
    "BodySizeLimitOptional": "type:dc426235a1",
    "BodySizeLimitRequired": "interface:36ae3bae47",
+   "DaemonAuthRequired": "interface:07290521ae",
    "ErrorResponseFactory": "type:7bca76d8d1",
+   "OwnedRunListRequired": "interface:5b1e4bbc29",
+   "RunAccessDecision": "type:8c32e6c63b",
+   "RunOwnershipRequired": "interface:aea1c988a8",
+   "createDaemonAuthMiddleware": "function:2daa3c56c7",
+   "createOwnedRunListHandler": "function:f867dc5bbe",
+   "createRunOwnershipMiddleware": "function:8b1fc6fffa",
    "rejectOversizedJsonBody": "function:d053045660"
   }
  },
@@ -112,6 +126,19 @@
    "createMemoryCounterStore": "function:99c1f89bab",
    "createRateLimiter": "function:117b280693",
    "resolveClientIp": "function:cf6f709e8a"
+  }
+ },
+ "./settings": {
+  "types": "./dist/settings/index.d.ts",
+  "symbols": {
+   "PrincipalResolver": "type:37660976cc",
+   "Scheduler": "interface:51c8453667",
+   "SettingsErrorMapping": "interface:828bcf14f3",
+   "SettingsHttpOptions": "interface:6b40d1ee6a",
+   "SettingsHttpRequired": "interface:83b3e83fd3",
+   "SettingsRoutes": "interface:0bf9d5477a",
+   "registerSettingsRoutes": "function:70c12d6341",
+   "respondToSettingsError": "function:bb37e9c016"
   }
  }
 }

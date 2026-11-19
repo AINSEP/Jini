@@ -213,7 +213,7 @@
  "./browser/lazy-loader": {
   "types": "./dist/embed-widget/browser/lazy-loader.d.ts",
   "symbols": {
-   "CHAT_BUBBLE_STYLE": "variable:7278a7e6a8",
+   "CHAT_BUBBLE_STYLE": "variable:04c2ac60c5",
    "LazyChatLoaderArgs": "interface:4af1c4efc3",
    "installLazyChatLoader": "function:9c13b2de70",
    "loadChatAssets": "function:fc8b7e537a"
@@ -420,7 +420,7 @@
   }
  },
  "./core/ag-ui": {
-  "types": "./dist/core/ag-ui/entry.d.ts",
+  "types": "./dist/core/ag-ui/event-projection.d.ts",
   "symbols": {
    "AgUiEvent": "type:32e7fed7ba",
    "AgUiToAgentTranslationState": "interface:2ecbb38ab0",

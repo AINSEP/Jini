@@ -256,5 +256,13 @@
    "loadInstalledSkillToolSources": "function:01e890829a",
    "skillToolDerivedRisk": "function:d0612525c6"
   }
+ },
+ "./render-surface": {
+  "types": "./dist/core/render-surface.d.ts",
+  "symbols": {
+   "DEFAULT_RENDER_REJECTION_GRACE_MS": "variable:9492f1e1b9",
+   "RenderA2uiSurfaceOutcome": "type:c55b1fdaeb",
+   "renderA2uiSurface": "function:7413385af1"
+  }
  }
 }

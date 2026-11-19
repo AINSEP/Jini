@@ -165,6 +165,7 @@
    "AdminUser": "interface:0be19e739a",
    "ChangeUsernameController": "interface:2a438caed8",
    "ChangeUsernameDialog": "function:9c299b4096",
+   "DescribeRecoveryFailure": "type:9723504c13",
    "GrantOption": "interface:1315b1ac57",
    "GrantSelectController": "interface:45d694797d",
    "IdentityAdminPort": "interface:cf5f3d4d30",
@@ -182,10 +183,15 @@
    "MembersOptions": "interface:b1074fbd0b",
    "MembersPort": "interface:387a007d8c",
    "MembersProps": "interface:9829cdacdc",
+   "OwnerPasswordResetController": "interface:580fb91cf4",
+   "OwnerRecoveryCopy": "interface:7bd833351b",
+   "OwnerRecoveryPorts": "interface:9bc3748ff0",
    "PasskeySettings": "function:0c25960e77",
    "PasskeySettingsPort": "interface:d60af8745c",
    "PasskeySignIn": "function:9b529c4ba3",
    "PasskeySignInPort": "interface:de53800ede",
+   "RecoveryCodeSignInController": "interface:ff7c73c308",
+   "RecoveryKitController": "interface:596fff53b2",
    "ResetPasswordFieldsController": "interface:bb80f6154c",
    "ResetPasswordFieldsInput": "interface:694c6a745d",
    "RolesPort": "interface:754cb08fb8",
@@ -209,6 +215,7 @@
    "UsersPort": "interface:c34e24a18f",
    "UsersProps": "type:0dcdab862a",
    "UsersTableProps": "interface:102cb1bdeb",
+   "createRecoveryKitDownload": "function:7f7aeb7ad1",
    "describeIdentityError": "function:5b34526624",
    "describeMembersError": "function:121ee91758",
    "describeUsersError": "function:198a9f36dc",
@@ -221,8 +228,11 @@
    "useChangeUsername": "function:4dfb964add",
    "useLogin": "function:fc212f1b85",
    "useMembers": "function:ed97d73b45",
+   "useOwnerPasswordReset": "function:4258aeee0b",
+   "useRecoveryCodeSignIn": "function:05ab7a2add",
+   "useRecoveryKit": "function:3f46982bcf",
    "useResetPasswordFields": "function:89faa1ec5b",
-   "useUsers": "function:b2cfd001cf",
+   "useUsers": "function:29ef80cb59",
    "userAccountCapabilities": "function:8e100655af",
    "userRowMenuItems": "function:97035d229a"
   }
@@ -399,6 +409,15 @@
    "verifyChallengeCode": "function:3cb92d378a",
    "verifyCredentials": "function:49bd69ed64",
    "writePolicyPermission": "function:acfabfb9b2"
+  }
+ },
+ "./session-bootstrap": {
+  "types": "./dist/session-bootstrap/index.d.ts",
+  "symbols": {
+   "SessionBootstrapPorts": "interface:9d67086b93",
+   "assertLoopbackHttpUrl": "function:396af6ba6f",
+   "ensureSession": "function:e703daf358",
+   "readInitialSession": "function:cbde1a9d86"
   }
  }
 }

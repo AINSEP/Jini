@@ -148,6 +148,7 @@
    "GoogleTurnEvent": "type:68e0eebaf4",
    "GoogleTurnOptions": "interface:4a228d7803",
    "GoogleTurnResult": "interface:d39c7063a1",
+   "InvalidNativePermissionsError": "class:72fe562a0a",
    "LOCAL_HOST_DEFAULT_PERMISSIONS": "variable:9451896f11",
    "MODEL_CATALOG_TTL_MS": "variable:300f16e41d",
    "MODEL_NEGATIVE_TTL_MS": "variable:5113aa0c9c",
@@ -173,8 +174,10 @@
    "ModelProvider": "interface:c3cfd570c5",
    "ModelSource": "type:b52f3fdd91",
    "NATIVE_FALLBACK_TOOLS": "variable:c27197e607",
+   "NativeAgentPermissions": "interface:8b7feebd73",
    "NativeAgentRuntime": "interface:37d28bf80f",
    "NativeCapabilities": "interface:a368996532",
+   "NativePermissionSet": "interface:d5653d5490",
    "NativeToolPolicyInput": "interface:596ef53125",
    "NotInvocableCause": "type:9da041f01f",
    "OAuthCallbackListener": "interface:36c82c83ed",
@@ -430,6 +433,7 @@
    "fetchVelaBillingSummary": "function:4a1bcf4bb4",
    "fetchVelaPresetModels": "function:d6fcfdb3f9",
    "fetchVelaRemoteModelsWithRetry": "function:9e837c161b",
+   "fillNativePermissions": "function:a7d621d1d1",
    "findNumericEnumPaths": "function:110e2d42fc",
    "fingerprintCredential": "function:6f41a6dff7",
    "firstOpenAiChoice": "function:8db353c54f",
@@ -546,6 +550,7 @@
    "processGoogleRawPart": "function:496d9e65c0",
    "processOllamaLine": "function:59629566fb",
    "processOpenAiStreamFrame": "function:12d6126b6c",
+   "projectNativePermissions": "function:dd31b67603",
    "providerTurnAdapters": "variable:54acfad23c",
    "qoderAgentDef": "variable:113300c640",
    "qwenAgentDef": "variable:40630588ec",
@@ -607,6 +612,7 @@
    "validateBaseUrl": "function:4c50bbdfb2",
    "validateBaseUrlResolved": "function:e5f4d3a378",
    "validateFilesystemLaunch": "function:3f8d5fdfc9",
+   "validateNativePermissionSnapshot": "function:d824d2ae8a",
    "validateReadOnlyExtraDirs": "function:efc47412d9",
    "validateRuntimeSelection": "function:71733842a5",
    "vibeAgentDef": "variable:c06f2062e6",
@@ -762,6 +768,17 @@
    "providerTurnAdapters": "variable:54acfad23c",
    "runProviderToolTurn": "function:ed9b76ecbd",
    "sanitizeGoogleSchema": "function:4423d33a07"
+  }
+ },
+ "./providers/credentials": {
+  "types": "./dist/providers/credentials.d.ts",
+  "symbols": {
+   "ExecutionCredentialPort": "interface:a61e4b249a",
+   "RequestSuppliedProviderConfig": "interface:41b0575bfb",
+   "ResolvedProviderCredential": "interface:4974236d18",
+   "StoredProviderCredential": "interface:6b8fdf9ddf",
+   "createRequestSuppliedExecutionCredentialPort": "function:952e6c8048",
+   "createStoredExecutionCredentialPort": "function:a537c44396"
   }
  }
 }
