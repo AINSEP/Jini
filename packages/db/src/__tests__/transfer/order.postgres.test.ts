@@ -11,7 +11,7 @@ beforeEach(() => recreateDatabase(name));
 afterAll(() => dropDatabase(name));
 function snapshot(statement: string): TransferSource {
   const db = new Database(":memory:");
-  try { db.exec(statement); return openSqliteSnapshotSource({ bytes: db.serialize() }, { open: (bytes, options) => sqliteSnapshotClient({ db: new Database(bytes, options) }) }); }
+  try { db.exec(statement); return openSqliteSnapshotSource({ bytes: db.serialize(), open: (bytes, options) => sqliteSnapshotClient({ db: new Database(bytes, options) }) }); }
   finally { db.close(); }
 }
 it("copies a child before its parent and leaves the FK validated, reseeds identity, then enforces constraints on new rows", async () => {

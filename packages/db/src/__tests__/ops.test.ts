@@ -43,7 +43,7 @@ test("SQLite copyTo from a read-only open includes rows still in the WAL, and ne
   const mainBytesBefore = fs.readFileSync(file);
   const source = openSqliteFileKernel<unknown>({ filePath: file, open: openSqlite }, { readOnly: true });
   try {
-    await sqliteOps(source).copyTo(path.join(tmp, "wal-copy.db"));
+    await sqliteOps({ kernel: source }).copyTo(path.join(tmp, "wal-copy.db"));
     await assert.rejects(source.execute(sql`INSERT INTO t VALUES ('c')`), /readonly/);
   } finally {
     await source.close();
@@ -63,7 +63,7 @@ test("SQLite copyTo refuses an existing target with the driver's own error", asy
   taken.close();
   const source = openSqliteFileKernel<unknown>({ filePath: file, open: openSqlite }, { readOnly: true });
   try {
-    await assert.rejects(sqliteOps(source).copyTo(path.join(tmp, "taken.db")), /output file already exists/);
+    await assert.rejects(sqliteOps({ kernel: source }).copyTo(path.join(tmp, "taken.db")), /output file already exists/);
   } finally {
     await source.close();
   }
@@ -76,12 +76,12 @@ test("SQLite compactAndVerify leaves a WAL-mode file with no sidecar content, an
     await kernel.execute(sql`CREATE TABLE t (id text)`);
     await kernel.execute(sql`INSERT INTO t VALUES ('a')`);
     await kernel.execute(sql`DELETE FROM t`);
-    await sqliteOps(kernel).compactAndVerify();
+    await sqliteOps({ kernel }).compactAndVerify();
     const [mode] = await kernel.query<{ journal_mode: string }>(sql`PRAGMA journal_mode`);
     assert.equal(mode?.journal_mode, "wal");
     assert.equal(fs.existsSync(`${file}-wal`) ? fs.statSync(`${file}-wal`).size : 0, 0);
     await assert.rejects(
-      kernel.transaction(async () => sqliteOps(kernel).compactAndVerify()),
+      kernel.transaction(async () => sqliteOps({ kernel }).compactAndVerify()),
       /must be called outside a transaction/
     );
   } finally {
@@ -92,9 +92,9 @@ test("SQLite compactAndVerify leaves a WAL-mode file with no sidecar content, an
 test("sqliteOps works on the kernel of a Drizzle-style handle, and closeSqliteConnection closes it", async () => {
   const client = new Database(path.join(tmp, "handle.db"));
   const handle = { $client: client };
-  await sqliteOps(sqliteKernel<unknown>(handle)).copyTo(path.join(tmp, "handle-copy.db"));
+  await sqliteOps({ kernel: sqliteKernel<unknown>({ source: handle }) }).copyTo(path.join(tmp, "handle-copy.db"));
   assert.ok(fs.existsSync(path.join(tmp, "handle-copy.db")));
-  closeSqliteConnection(handle);
+  closeSqliteConnection({ source: handle });
   assert.equal(client.open, false);
 });
 
@@ -124,11 +124,11 @@ test("PGlite in process: copyTo restores the whole data dir into a new one; comp
   const target = path.join(tmp, "pglite-copy");
   try {
     await seedPg(kernel, 250);
-    await pgliteOps(kernel, PG_OPS).copyTo(target);
-    await assert.rejects(pgliteOps(kernel, PG_OPS).copyTo(target), /already exists/);
-    await pgliteOps(kernel, PG_OPS).compactAndVerify();
+    await pgliteOps({ kernel, ...PG_OPS }).copyTo(target);
+    await assert.rejects(pgliteOps({ kernel, ...PG_OPS }).copyTo(target), /already exists/);
+    await pgliteOps({ kernel, ...PG_OPS }).compactAndVerify();
     await assert.rejects(
-      kernel.transaction(async () => pgliteOps(kernel, PG_OPS).compactAndVerify()),
+      kernel.transaction(async () => pgliteOps({ kernel, ...PG_OPS }).compactAndVerify()),
       /must be called outside a transaction/
     );
   } finally {
@@ -142,7 +142,7 @@ test("PGlite compactAndVerify refuses an empty migration ledger", async () => {
   const kernel = openPgliteKernel<unknown>({ PGlite });
   try {
     await kernel.execute(sql`CREATE TABLE app_migrations (id text PRIMARY KEY)`);
-    await assert.rejects(pgliteOps(kernel, PG_OPS).compactAndVerify(), (err: unknown) => {
+    await assert.rejects(pgliteOps({ kernel, ...PG_OPS }).compactAndVerify(), (err: unknown) => {
       assert.ok(err instanceof StorageOpError);
       assert.equal(err.message, "the migration ledger app_migrations is empty after compacting");
       return true;
@@ -159,7 +159,7 @@ test("PGlite socket client: copyTo goes through the owner's exclusive window, an
   const target = path.join(tmp, "owned-copy");
   try {
     await seedPg(client, 30);
-    await assert.rejects(postgresOps(client, { ledgerTable: LEDGER }).copyTo(path.join(tmp, "never")), (err: unknown) => {
+    await assert.rejects(postgresOps({ kernel: client, ledgerTable: LEDGER }).copyTo(path.join(tmp, "never")), (err: unknown) => {
       assert.ok(err instanceof StorageOpNotSupportedError);
       assert.equal(
         err.message,
@@ -167,8 +167,8 @@ test("PGlite socket client: copyTo goes through the owner's exclusive window, an
       );
       return true;
     });
-    await postgresOps(client, { ledgerTable: LEDGER }).compactAndVerify(); // as a plain client: VACUUM + CHECKPOINT over the socket
-    const ops = pgliteOps(client, PG_OPS, { pgliteOwner: owner });
+    await postgresOps({ kernel: client, ledgerTable: LEDGER }).compactAndVerify(); // as a plain client: VACUUM + CHECKPOINT over the socket
+    const ops = pgliteOps({ kernel: client, ...PG_OPS }, { pgliteOwner: owner });
     await ops.copyTo(target);
     await ops.compactAndVerify();
     // The owner still serves after its exclusive window.
@@ -184,8 +184,8 @@ test("PGlite socket client: copyTo goes through the owner's exclusive window, an
 });
 
 test("each driver's ops refuse a kernel of another driver", async () => {
-  const foreign = sqliteKernel<unknown>(new Database(":memory:"));
-  assert.throws(() => sqliteOps({ ...foreign }), /^Error: sqliteOps: this SQLite kernel was not built by the sqlite driver$/);
-  assert.throws(() => postgresOps(foreign, { ledgerTable: LEDGER }), /^Error: postgresOps: a better-sqlite3 kernel is not a node-postgres connection$/);
-  assert.throws(() => pgliteOps(foreign, PG_OPS), /^Error: pgliteOps: a better-sqlite3 kernel is not PGlite in this process/);
+  const foreign = sqliteKernel<unknown>({ source: new Database(":memory:") });
+  assert.throws(() => sqliteOps({ kernel: { ...foreign } }), /^Error: sqliteOps: this SQLite kernel was not built by the sqlite driver$/);
+  assert.throws(() => postgresOps({ kernel: foreign, ledgerTable: LEDGER }), /^Error: postgresOps: a better-sqlite3 kernel is not a node-postgres connection$/);
+  assert.throws(() => pgliteOps({ kernel: foreign, ...PG_OPS }), /^Error: pgliteOps: a better-sqlite3 kernel is not PGlite in this process/);
 });

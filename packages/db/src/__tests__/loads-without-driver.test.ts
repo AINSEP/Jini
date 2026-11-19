@@ -44,11 +44,11 @@ const SUBPATHS: Record<string, { dirs: string[]; probe: string; kernel?: boolean
   },
   pglite: {
     dirs: ["pglite", "core"],
-    probe: `m.pgliteLowMemoryStartParams({ defaultStartParams: ["-x"] }).join(" ") === ["-x", ...m.PGLITE_LOW_MEMORY_SETTINGS].join(" ") && typeof m.startPgliteOwner === "function"`,
+    probe: `m.pgliteLowMemoryStartParams({ pglite: { defaultStartParams: ["-x"] } }).join(" ") === ["-x", ...m.PGLITE_LOW_MEMORY_SETTINGS].join(" ") && typeof m.startPgliteOwner === "function"`,
   },
   postgres: {
     dirs: ["postgres", "core"],
-    probe: `m.pgTypesFor({ types: { getTypeParser: () => x => x } }, { 20: x => Number(x) }).getTypeParser(20)("42") === 42`,
+    probe: `m.pgTypesFor({ pg: { types: { getTypeParser: () => x => x } }, parsers: { 20: x => Number(x) } }).getTypeParser(20)("42") === 42`,
   },
   kernel: {
     dirs: ["kernel", "core"], kernel: true,
@@ -80,7 +80,7 @@ const SUBPATHS: Record<string, { dirs: string[]; probe: string; kernel?: boolean
   },
   migrate: {
     dirs: ["migrate", "kernel", "core"], kernel: true,
-    probe: `m.sourceChecksum("") === "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" && typeof m.runMigrations === "function"`,
+    probe: `m.sourceChecksum({ text: "" }) === "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" && typeof m.runMigrations === "function"`,
   },
   "secrets-vault": {
     dirs: ["secrets-vault", "kernel"], kernel: true,

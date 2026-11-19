@@ -47,7 +47,7 @@ export async function recoverIncompleteDataModuleMigrations(required: {
   restoreSnapshots: (entries: readonly JournalEntry[]) => void | Promise<void>;
 }, _optional: Record<string, never> = {}): Promise<RecoveryResult> {
   const kernel = pluginKernel({ store: required.store });
-  if (!(await tableExists(kernel, JOURNAL_TABLE))) return { recovered: 0, entries: [] };
+  if (!(await tableExists({ kernel, table: JOURNAL_TABLE }))) return { recovered: 0, entries: [] };
   const incomplete = await findIncompleteJournalEntries({ store: kernel });
   if (incomplete.length === 0) return { recovered: 0, entries: [] };
 

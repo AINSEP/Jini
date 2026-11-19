@@ -37,7 +37,7 @@ CREATE TABLE assistant_conversation_tool_approvals (conversation_id TEXT NOT NUL
 CREATE TABLE guard (id TEXT PRIMARY KEY, settled INTEGER NOT NULL);`;
 export async function sqliteFixture(): Promise<Fixture> {
  const db = new Database(':memory:'); db.pragma('foreign_keys = ON'); ensureChatHistoryTables({ db: db }); db.exec(HOST_DDL);
- const kernel=sqliteKernel<FixtureDatabase>(db);
+ const kernel=sqliteKernel<FixtureDatabase>({ source: db });
  let reads=0, rows=0;
  const prepare=db.prepare.bind(db);
  db.prepare=(text:string)=>{
@@ -61,6 +61,6 @@ export async function twoSqliteConnections() {
  const dbs=[new Database(file),new Database(file)];
  for(const db of dbs){db.pragma('foreign_keys=ON');db.pragma('busy_timeout=5000');}
  ensureChatHistoryTables({ db: dbs[0] });dbs[0].exec(HOST_DDL);
- const wrap=(db:any):Fixture=>({kernel:sqliteKernel<FixtureDatabase>(db),make:(scope,clock)=>createChatHistoryStore({ db: db, scope: scope, clock: clock ?? testClock }),maintenance:createChatHistoryMaintenance({ db: db }),messageCount:async()=>db.prepare('SELECT COUNT(*) n FROM ai_chat_messages').get().n,readCount:()=>0,readRows:()=>0,resetReadRows:()=>{},deleteMessage:async id=>{db.prepare('DELETE FROM ai_chat_messages WHERE id=?').run(id);},close:async()=>{}});
+ const wrap=(db:any):Fixture=>({kernel:sqliteKernel<FixtureDatabase>({ source: db }),make:(scope,clock)=>createChatHistoryStore({ db: db, scope: scope, clock: clock ?? testClock }),maintenance:createChatHistoryMaintenance({ db: db }),messageCount:async()=>db.prepare('SELECT COUNT(*) n FROM ai_chat_messages').get().n,readCount:()=>0,readRows:()=>0,resetReadRows:()=>{},deleteMessage:async id=>{db.prepare('DELETE FROM ai_chat_messages WHERE id=?').run(id);},close:async()=>{}});
  return {a:wrap(dbs[0]),b:wrap(dbs[1]),close:async()=>{for(const db of dbs)db.close();rmSync(dir,{recursive:true,force:true});}};
 }

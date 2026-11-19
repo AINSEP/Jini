@@ -84,7 +84,7 @@ for (const { name, open } of dialects) {
         },
       };
       await assert.rejects(runMigrations(kernel, [tableStep("0001_first", "first_t"), failing, tableStep("0003_third", "third_t")], { ledgerTable: LEDGER }), /boom/);
-      const tables = await listTables(kernel);
+      const tables = await listTables({ kernel });
       assert.ok(tables.includes("first_t"));
       assert.ok(!tables.includes("half_done"), "the failed step's DDL rolled back");
       assert.ok(!tables.includes("third_t"), "later steps were not attempted");
@@ -103,7 +103,7 @@ for (const { name, open } of dialects) {
         id: "0001_prepared",
         checksum: sum("a"),
         prepare: async (k, context) => {
-          assert.equal(await hasLedger(k, LEDGER), false);
+          assert.equal(await hasLedger({ kernel: k, ledgerTable: LEDGER }), false);
           events.push("prepare");
           await k.execute(sql`INSERT INTO prepared_value VALUES ('prepared before up')`);
           context.note("preparation complete");
@@ -137,9 +137,9 @@ for (const { name, open } of dialects) {
       };
       await assert.rejects(runMigrations(kernel, [step, tableStep("0002_later", "later_t")], { ledgerTable: LEDGER }),
         (error: unknown) => error === failure);
-      assert.deepEqual(await listTables(kernel), ["keep_value"]);
+      assert.deepEqual(await listTables({ kernel }), ["keep_value"]);
       assert.deepEqual(await kernel.query(sql`SELECT value FROM keep_value`), [{ value: "original" }]);
-      assert.equal(await hasLedger(kernel, LEDGER), false);
+      assert.equal(await hasLedger({ kernel, ledgerTable: LEDGER }), false);
     });
 
     test("a recorded step whose checksum changed stops the run before anything is applied", async () => {
@@ -149,7 +149,7 @@ for (const { name, open } of dialects) {
         runMigrations(kernel, [tableStep("0001_first", "first_t", sum("d")), tableStep("0002_second", "second_t")], { ledgerTable: LEDGER }),
         (error: unknown) => error instanceof MigrationChecksumError && error.id === "0001_first"
       );
-      assert.ok(!(await listTables(kernel)).includes("second_t"));
+      assert.ok(!(await listTables({ kernel })).includes("second_t"));
     });
 
     test("a recorded step this runtime does not know stops the run (database from a newer version)", async () => {
@@ -174,8 +174,8 @@ for (const { name, open } of dialects) {
     test("the ledger is the one the consumer names, and is required", async () => {
       const kernel = fresh();
       await runMigrations(kernel, [tableStep("0001_first", "first_t")], { ledgerTable: "other_ledger" });
-      assert.ok(await hasLedger(kernel, "other_ledger"));
-      assert.equal(await hasLedger(kernel, LEDGER), false, "no default ledger name is ever created");
+      assert.ok(await hasLedger({ kernel, ledgerTable: "other_ledger" }));
+      assert.equal(await hasLedger({ kernel, ledgerTable: LEDGER }), false, "no default ledger name is ever created");
       await assert.rejects(
         runMigrations(kernel, [tableStep("0001_first", "first_t")], {} as never),
         /^Error: runMigrations: options.ledgerTable is required$/
@@ -211,9 +211,9 @@ test("P8: step mode rejects a newer ledger committed after the older runner's in
 
 describe("assertValidSteps", () => {
   test("rejects malformed, unordered or duplicate ids and missing checksums", () => {
-    assert.throws(() => assertValidSteps([tableStep("1_bad", "t")]), /NNNN_snake_name/);
-    assert.throws(() => assertValidSteps([tableStep("0002_b", "t"), tableStep("0001_a", "t")]), /out of order/);
-    assert.throws(() => assertValidSteps([tableStep("0001_a", "t"), tableStep("0001_a", "t")]), /out of order or duplicated/);
-    assert.throws(() => assertValidSteps([tableStep("0001_a", "t", "nope")]), /sha256/);
+    assert.throws(() => assertValidSteps({ steps: [tableStep("1_bad", "t")] }), /NNNN_snake_name/);
+    assert.throws(() => assertValidSteps({ steps: [tableStep("0002_b", "t"), tableStep("0001_a", "t")] }), /out of order/);
+    assert.throws(() => assertValidSteps({ steps: [tableStep("0001_a", "t"), tableStep("0001_a", "t")] }), /out of order or duplicated/);
+    assert.throws(() => assertValidSteps({ steps: [tableStep("0001_a", "t", "nope")] }), /sha256/);
   });
 });

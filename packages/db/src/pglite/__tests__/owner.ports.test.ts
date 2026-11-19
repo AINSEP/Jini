@@ -268,10 +268,10 @@ describe("the process port's uid and home", () => {
     const lstatSync = (path: string) => Object.assign(realFs.lstatSync(path), { uid: 99_999 });
 
     assert.throws(
-      () => ensurePrivateDir(socketDir, { privateParent: false, fs: { ...realFs, lstatSync }, proc: fakeProcess({ uid: () => 1000 }) }),
+      () => ensurePrivateDir({ dir: socketDir }, { privateParent: false, fs: { ...realFs, lstatSync }, proc: fakeProcess({ uid: () => 1000 }) }),
       /refusing socket dir/
     );
-    ensurePrivateDir(socketDir, { privateParent: false, fs: { ...realFs, lstatSync }, proc: fakeProcess({ uid: () => undefined }) });
+    ensurePrivateDir({ dir: socketDir }, { privateParent: false, fs: { ...realFs, lstatSync }, proc: fakeProcess({ uid: () => undefined }) });
     assert.equal(fs.statSync(socketDir).mode & 0o777, 0o700);
   });
 });
@@ -294,14 +294,14 @@ describe("startPgliteOwner through its ports", () => {
       assert.equal(owner.socketDir, defaultPgliteSocketDir({ dataDir, runDirName: "jinitest" }, { home }));
       assert.equal(owner.socketPath, join(owner.socketDir, PGLITE_SOCKET_FILE));
       assert.equal(fs.statSync(owner.socketPath).isSocket(), true);
-      assert.equal(runningPgliteOwner(relative(process.cwd(), dataDir)), owner, "found by an unresolved path too");
-      assert.equal(runningPgliteOwner(join(root, "other")), undefined);
+      assert.equal(runningPgliteOwner({ dataDir: relative(process.cwd(), dataDir) }), owner, "found by an unresolved path too");
+      assert.equal(runningPgliteOwner({ dataDir: join(root, "other") }), undefined);
     } finally {
       const closing = owner.close();
       assert.equal(owner.close(), closing, "close is idempotent: one shutdown");
       await closing;
     }
-    assert.equal(runningPgliteOwner(dataDir), undefined);
+    assert.equal(runningPgliteOwner({ dataDir }), undefined);
     assert.equal(fs.existsSync(owner.socketPath), false);
     assert.equal(fs.existsSync(join(dataDir, "owner.pid")), false);
   });
@@ -317,7 +317,7 @@ describe("startPgliteOwner through its ports", () => {
     );
     assert.equal(fs.existsSync(socketPath), false);
     assert.equal(fs.existsSync(join(dataDir, "owner.pid")), false);
-    assert.equal(runningPgliteOwner(dataDir), undefined);
+    assert.equal(runningPgliteOwner({ dataDir }), undefined);
 
     // Lock released and PGlite closed: the same data dir opens again at once.
     const owner = await startPgliteOwner(required, { socketDir });

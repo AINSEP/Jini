@@ -22,10 +22,10 @@ export function copySqliteInto({ source, targetPath }: {
  *   a transaction.
  * @complexity each op is one full pass over the database file, O(size).
  */
-export function sqliteOps<DB>(kernel: KyselyKernel<DB>): StorageOps {
-  const client = sqliteConnectionOf(kernel);
+export function sqliteOps<DB>({ kernel }: { kernel: KyselyKernel<DB> }, _optional: Record<string, never> = {}): StorageOps {
+  const client = sqliteConnectionOf({ kernel });
   if (client === undefined) throw new Error("sqliteOps: this SQLite kernel was not built by the sqlite driver");
-  const outsideTransaction = outsideTransactionOf(kernel as KyselyKernel<unknown>);
+  const outsideTransaction = outsideTransactionOf({ kernel: kernel as KyselyKernel<unknown> });
   return {
     async copyTo(targetPath) {
       outsideTransaction("copyTo");

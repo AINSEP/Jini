@@ -46,7 +46,7 @@ export function openPgliteKernel<DB>(
   // Surfaced by every call that awaits `ready`; this only stops an unhandled-rejection crash when
   // nothing has called in yet.
   ready.catch(() => {});
-  return buildKernel<DB>({
+  return buildKernel<DB>({ driver: {
     dialect: "postgres",
     transport: "pglite",
     capabilities: { interactiveTransactions: true, atomicBatch: true, transactionalDdl: true, backup: true },
@@ -63,5 +63,5 @@ export function openPgliteKernel<DB>(
       await ready.catch(() => {});
       await client.close();
     },
-  });
+  } });
 }

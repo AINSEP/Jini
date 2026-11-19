@@ -14,8 +14,8 @@ type Probe = { records: { id: string; payload: string } };
 // Removing withSchema, using a constant schema, or SET search_path leaks the wrong row.
 test("scoped builders isolate schemas while raw SQL, transactions, locks and close use the underlying kernel", async () => {
   const kernel = openPgliteKernel<Probe>({ PGlite });
-  const one = scopeToSchema(kernel, "tenant_one");
-  const two = scopeToSchema(kernel, "tenant_two");
+  const one = scopeToSchema({ kernel, schema: "tenant_one" });
+  const two = scopeToSchema({ kernel, schema: "tenant_two" });
   try {
     await kernel.execute(sql`CREATE SCHEMA tenant_one`);
     await kernel.execute(sql`CREATE SCHEMA tenant_two`);
@@ -43,7 +43,7 @@ test("scoped builders isolate schemas while raw SQL, transactions, locks and clo
       await one.run(db => db.updateTable("records").set({ payload: "committed" }).where("id", "=", "same").execute());
     });
     assert.deepEqual(await read(one), [{ id: "same", payload: "committed" }]);
-    await assert.rejects(scopeToSchema(kernel, "missing_schema").run(db => db.selectFrom("records").selectAll().execute()),
+    await assert.rejects(scopeToSchema({ kernel, schema: "missing_schema" }).run(db => db.selectFrom("records").selectAll().execute()),
       { code: "42P01" });
     for (const method of ["transaction", "lockKey", "query", "execute", "close", "backupTo", "require", "inTransaction"] as const) {
       assert.equal(one[method], kernel[method]);
@@ -58,7 +58,7 @@ test("scoped builders isolate schemas while raw SQL, transactions, locks and clo
 test("SQLite scope is rejected immediately with the requested schema and dialect", async () => {
   const kernel = openMemorySqliteKernel<Probe>({ open: (file, options) => new Database(file, options) });
   try {
-    assert.throws(() => scopeToSchema(kernel, "tenant_one"),
+    assert.throws(() => scopeToSchema({ kernel, schema: "tenant_one" }),
       { message: "schema 'tenant_one' needs a Postgres kernel, not sqlite" });
     assert.deepEqual(await kernel.query(sql`SELECT 17 AS n`), [{ n: 17 }]);
   } finally {

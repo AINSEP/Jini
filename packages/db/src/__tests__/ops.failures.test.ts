@@ -32,7 +32,7 @@ test("SQLite compactAndVerify refuses when another connection's read keeps the f
   reader.exec("BEGIN");
   reader.prepare("SELECT * FROM t").all(); // holds a read snapshot the checkpoint cannot pass
   try {
-    await assert.rejects(sqliteOps(sqliteKernel<unknown>(writer)).compactAndVerify(), (err: unknown) => {
+    await assert.rejects(sqliteOps({ kernel: sqliteKernel<unknown>({ source: writer }) }).compactAndVerify(), (err: unknown) => {
       assert.ok(err instanceof StorageOpError);
       assert.equal(err.message, `final WAL checkpoint on ${file} reported busy=1`);
       return true;
@@ -52,7 +52,7 @@ test("SQLite compactAndVerify refuses a database that fails integrity_check", as
   client.exec("INSERT INTO t VALUES (-1)");
   client.pragma("ignore_check_constraints = OFF");
   try {
-    await assert.rejects(sqliteOps(sqliteKernel<unknown>(client)).compactAndVerify(), (err: unknown) => {
+    await assert.rejects(sqliteOps({ kernel: sqliteKernel<unknown>({ source: client }) }).compactAndVerify(), (err: unknown) => {
       assert.ok(err instanceof StorageOpError);
       assert.equal(err.message, `${client.name} failed integrity_check: {"integrity_check":"CHECK constraint failed in t"}`);
       return true;
@@ -77,7 +77,7 @@ test("PGlite copyTo removes a partly restored target and rethrows the restore fa
   const target = path.join(tmp, "half-copy");
   try {
     await kernel.execute(sql`CREATE TABLE t (id text)`);
-    await assert.rejects(pgliteOps(kernel, { PGlite: RestoreFailsLate, ledgerTable: LEDGER }).copyTo(target), /^Error: disk full while restoring$/);
+    await assert.rejects(pgliteOps({ kernel, PGlite: RestoreFailsLate, ledgerTable: LEDGER }).copyTo(target), /^Error: disk full while restoring$/);
     assert.equal(fs.existsSync(target), false);
   } finally {
     await kernel.close();

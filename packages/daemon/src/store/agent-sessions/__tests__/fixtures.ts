@@ -17,7 +17,7 @@ INSERT INTO ai_chats VALUES ('a:b'),('a');`;
 export async function schema(kernel:KyselyKernel<AgentSessionDatabase>){for(const statement of DDL.split(';').filter(s=>s.trim()))await kernel.execute(sql.raw(statement));}
 export async function sqliteFixture(){
  const db=new Database(':memory:');db.pragma('foreign_keys=ON');db.exec(DDL);
- const kernel=sqliteKernel<AgentSessionDatabase>(db);
+ const kernel=sqliteKernel<AgentSessionDatabase>({ source: db });
  return {kernel,store:createSqliteAgentSessionStore({kernel, clock: testClock }),close:async()=>{db.close();}};
 }
 export async function pgliteFixture(){

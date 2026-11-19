@@ -11,7 +11,7 @@ function header(b18: number, b19: number): Buffer {
 function opened(bytes: Buffer) {
   let seen: Buffer | undefined;
   const client: SnapshotClient = { prepare: () => { throw new Error("unused"); }, close: () => undefined };
-  openSqliteSnapshotSource({ bytes }, { open: (b) => { seen = b; return client; } });
+  openSqliteSnapshotSource({ bytes, open: (b) => { seen = b; return client; } });
   return seen!;
 }
 
@@ -41,7 +41,7 @@ describe("virtual table classification", () => {
       }),
       close: () => undefined,
     } as unknown as SnapshotClient;
-    return openSqliteSnapshotSource({ bytes: header(1, 1) }, { open: () => client }).layout("t");
+    return openSqliteSnapshotSource({ bytes: header(1, 1), open: () => client }).layout("t");
   }
   it.each(["CREATE VIRTUAL TABLE t USING fts5(x)", "  create   virtual\ttable t USING fts5(x)", "\nCREATE VIRTUAL TABLE t"])("%j is virtual", (sql) => {
     expect(layoutFor(sql)?.virtual).toBe(true);

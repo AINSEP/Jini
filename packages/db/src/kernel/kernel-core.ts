@@ -164,7 +164,7 @@ async function kernelBackup<DB>({ rt, destPath }: { rt: KernelRuntime<DB>; destP
   await takingTurn(lock, "exclusive", () => driver.backup!(destPath));
 }
 
-export function buildKernel<DB>(driver: KernelDriver<DB>): KyselyKernel<DB> {
+export function buildKernel<DB>({ driver }: { driver: KernelDriver<DB> }, _optional: Record<string, never> = {}): KyselyKernel<DB> {
   const lock = driver.oneConnection ? (driver.turnLock ?? new TurnLock()) : undefined;
   const rt: KernelRuntime<DB> = { driver, scope: new AsyncLocalStorage<Scope<DB>>(), lock, own: { transactions: 0 } };
   const require = (capability: keyof StorageCapabilities): void => requireCapability({ rt, capability });

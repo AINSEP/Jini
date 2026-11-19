@@ -12,7 +12,7 @@ export interface GatedMutationTokensTable {
   expires_at: string;
 }
 
-export function toRecord(row: Selectable<GatedMutationTokensTable>): ConfirmationTokenRecord {
+export function toRecord({ row }: { row: Selectable<GatedMutationTokensTable> }, _optional: Record<string, never> = {}): ConfirmationTokenRecord {
   return {
     confirmationToken: row.confirmation_token,
     planHash: row.plan_hash,
@@ -24,7 +24,7 @@ export function toRecord(row: Selectable<GatedMutationTokensTable>): Confirmatio
   };
 }
 
-export function toRow(record: ConfirmationTokenRecord): Insertable<GatedMutationTokensTable> {
+export function toRow({ record }: { record: ConfirmationTokenRecord }, _optional: Record<string, never> = {}): Insertable<GatedMutationTokensTable> {
   return {
     confirmation_token: record.confirmationToken,
     plan_hash: record.planHash,

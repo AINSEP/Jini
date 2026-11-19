@@ -50,7 +50,7 @@ it('one session owns a key while normal ledger transactions commit independently
 
 it('schema-scoped kernels share ownership and a failed cycle always releases the session lock', async () => {
   const { kernel, locks } = database();
-  const scoped = scopeToSchema(kernel, 'public');
+  const scoped = scopeToSchema({ kernel, schema: 'public' });
   await expect(withKernelSessionLock({ kernel: scoped, key: 'commerce', run: async () => { throw new Error('projection failed'); } })).rejects.toThrow('projection failed');
   expect(locks.size).toBe(0);
   expect(await withKernelSessionLock({ kernel, key: 'commerce', run: async () => 'retry' })).toEqual({ acquired: true, value: 'retry' });
@@ -65,7 +65,7 @@ it('a one-connection pool rejects background session ownership before reserving 
   expect(statements.some(statement => statement.includes('pg_try_advisory_lock'))).toBe(false);
   await kernel.transaction(async () => {});
   expect(statements.some(statement => statement.toLowerCase().startsWith('commit'))).toBe(true);
-  const scoped = scopeToSchema(kernel, 'site_a');
+  const scoped = scopeToSchema({ kernel, schema: 'site_a' });
   await expect(withKernelSessionLock({ kernel: scoped, key: 'commerce', run: async () => {} })).rejects.toThrow(/pool.*at least 2|pool.*max.*2/i);
   await kernel.close();
 });
@@ -86,7 +86,7 @@ it('distinct site keys can hold ownership concurrently in the same database', as
 it('pool capacity is readable before ownership and survives a schema wrapper', async () => {
   const { kernel, statements } = database({ max: 1 });
   expect(kernelSessionPoolMax({ kernel })).toBe(1);
-  expect(kernelSessionPoolMax({ kernel: scopeToSchema(kernel, 'site_a') })).toBe(1);
+  expect(kernelSessionPoolMax({ kernel: scopeToSchema({ kernel, schema: 'site_a' }) })).toBe(1);
   expect(statements).toEqual([]);
   await kernel.close();
 });

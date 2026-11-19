@@ -43,7 +43,7 @@ const template = join(scratch, "template");
 let copies = 0;
 
 before(async () => {
-  const db = await PGlite.create({ dataDir: template, startParams: pgliteLowMemoryStartParams(PGlite) });
+  const db = await PGlite.create({ dataDir: template, startParams: pgliteLowMemoryStartParams({ pglite: PGlite }) });
   await db.close();
 });
 
@@ -168,8 +168,8 @@ describe("owner lock", () => {
 
 describe("socket location", () => {
   test("socket paths over 103 bytes are refused before the data dir is touched", async () => {
-    assert.doesNotThrow(() => assertSocketPathFits(`/${"a".repeat(102)}`));
-    assert.throws(() => assertSocketPathFits(`/${"a".repeat(103)}`), /at most 103/);
+    assert.doesNotThrow(() => assertSocketPathFits({ socketPath: `/${"a".repeat(102)}` }));
+    assert.throws(() => assertSocketPathFits({ socketPath: `/${"a".repeat(103)}` }), /at most 103/);
     const dataDir = join(scratch, "never-created");
     await assert.rejects(startPgliteOwner({ ...OWNER, dataDir }, { socketDir: `/tmp/${"d".repeat(100)}` }), /at most 103/);
     assert.equal(existsSync(dataDir), false);
@@ -183,7 +183,7 @@ describe("socket location", () => {
     assert.notEqual(dir("/sites/b/pglite", "/Users/me"), short, "one per data dir");
     const deep = dir("/sites/a/pglite", `/Users/${"x".repeat(90)}`);
     assert.equal(deep, `/tmp/jinidb-${process.getuid!()}/${short.slice(-8)}`);
-    assertSocketPathFits(join(deep, PGLITE_SOCKET_FILE));
+    assertSocketPathFits({ socketPath: join(deep, PGLITE_SOCKET_FILE) });
   });
 
   test("the consumer-chosen names must be plain names, so they cannot escape their parent dir", () => {
@@ -197,23 +197,23 @@ describe("socket location", () => {
     const target = mkdtempSync(join(scratch, "target-"));
     const link = join(scratch, "link");
     symlinkSync(target, link);
-    assert.throws(() => ensurePrivateDir(link), /not a directory owned by this user/);
+    assert.throws(() => ensurePrivateDir({ dir: link }), /not a directory owned by this user/);
   });
 
   test("the per-user parent (the /tmp/<runDirName>-<uid> fallback) must be a 0700 non-symlink dir of ours, else refused", () => {
     const loose = mkdtempSync(join(scratch, "root-"));
     chmodSync(loose, 0o777);
-    assert.throws(() => ensurePrivateDir(join(loose, "key"), { privateParent: true }), /refusing socket parent .*: not a 0700 directory owned by this user/);
+    assert.throws(() => ensurePrivateDir({ dir: join(loose, "key") }, { privateParent: true }), /refusing socket parent .*: not a 0700 directory owned by this user/);
     assert.equal(existsSync(join(loose, "key")), false, "nothing is created inside a parent others can write");
 
     const target = mkdtempSync(join(scratch, "root-target-"));
     const linked = join(scratch, "root-link");
     symlinkSync(target, linked);
-    assert.throws(() => ensurePrivateDir(join(linked, "key"), { privateParent: true }), /refusing socket parent/);
+    assert.throws(() => ensurePrivateDir({ dir: join(linked, "key") }, { privateParent: true }), /refusing socket parent/);
     assert.equal(existsSync(join(target, "key")), false);
 
     const fresh = join(scratch, "root-fresh");
-    ensurePrivateDir(join(fresh, "key"), { privateParent: true });
+    ensurePrivateDir({ dir: join(fresh, "key") }, { privateParent: true });
     assert.equal(statSync(fresh).mode & 0o777, 0o700, "a missing parent is created 0700");
     assert.equal(statSync(join(fresh, "key")).mode & 0o777, 0o700);
   });
@@ -266,7 +266,7 @@ describe("a running owner", () => {
     const second = await startPgliteOwner({ ...OWNER, dataDir: other.dataDir }, { socketDir: other.socketDir });
     try {
       const otherKernel = openPgliteSocketKernel<ProbeDb>({ pg, socketPath: second.socketPath });
-      assert.equal((await listTables(otherKernel as KyselyKernel<unknown>)).includes("kernel_probe"), false);
+      assert.equal((await listTables({ kernel: otherKernel as KyselyKernel<unknown> })).includes("kernel_probe"), false);
       await otherKernel.close();
     } finally {
       await second.close();
@@ -338,7 +338,7 @@ describe("a running owner", () => {
     await upsert(1, true);
     await upsert(2, false);
     const [row] = await kernel.query<{ n: number; flag: boolean; lang: string }>(
-      sql`SELECT n, flag, ${jsonText(kernel.dialect, sql.ref("doc"), ["meta", "lang"])} AS lang FROM kernel_probe`
+      sql`SELECT n, flag, ${jsonText({ dialect: kernel.dialect, column: sql.ref("doc"), path: ["meta", "lang"] })} AS lang FROM kernel_probe`
     );
     assert.deepEqual({ n: row!.n, flag: toBool(row!.flag), lang: row!.lang }, { n: 2, flag: false, lang: "en" });
   });
@@ -348,7 +348,7 @@ describe("a running owner", () => {
       await db.exec("CREATE TABLE IF NOT EXISTS fixture_parent (id text PRIMARY KEY)");
       await db.exec("CREATE TABLE IF NOT EXISTS fixture_child (id text PRIMARY KEY, parent_id text REFERENCES fixture_parent(id))");
     });
-    const tables = await listTables(kernel as KyselyKernel<unknown>);
+    const tables = await listTables({ kernel: kernel as KyselyKernel<unknown> });
     assert.ok(tables.includes("fixture_parent") && tables.includes("fixture_child"), `fixture tables present: ${tables.join(", ")}`);
   });
 });

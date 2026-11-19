@@ -139,7 +139,7 @@ function layoutOf(db: SnapshotClient, table: string): SourceTableLayout | null {
 }
 
 /** @complexity O(database size) to deserialize the snapshot. */
-export function openSqliteSnapshotSource({ bytes }: { bytes: Buffer }, { open }: { open: SnapshotOpener }): TransferSource {
+export function openSqliteSnapshotSource({ bytes, open }: { bytes: Buffer; open: SnapshotOpener }, _optional: Record<string, never> = {}): TransferSource {
   const db = open(inMemoryReadableBytes({ bytes }), { readonly: true });
   return {
     tableNames() {

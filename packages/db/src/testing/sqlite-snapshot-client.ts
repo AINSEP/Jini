@@ -8,7 +8,7 @@ import type { SnapshotClient } from "../transfer/sqlite-source.js";
  * Metadata all/get results stay opaque in SnapshotClient. close delegates to this same handle.
  * @complexity O(1) time and space for the adapter; statements retain the driver's query cost.
  */
-export function sqliteSnapshotClient({ db }: { db: Database.Database }): SnapshotClient {
+export function sqliteSnapshotClient({ db }: { db: Database.Database }, _optional: Record<string, never> = {}): SnapshotClient {
   return {
     prepare: sql => db.prepare<unknown[], unknown[]>(sql),
     close: () => db.close(),

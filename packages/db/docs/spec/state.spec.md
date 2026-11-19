@@ -9,7 +9,7 @@ spec_mode: reverse_spec
 
 ## Connections and kernels
 
-Acquisition returns an owned connection/kernel or a wrapper over a borrowed connection. `openSqliteConnection` returns a raw host handle whose lifetime belongs to its caller. `sqliteKernel(raw or {$client})` memoizes on raw handle, does not migrate/configure/close it, and shares transaction context only with that kernel. `openSqliteFileKernel`/`openMemorySqliteKernel` close their owned raw handle. `closeSqliteConnection` removes memoization then closes; existing references are not revoked. Weak reverse mappings and per-file turn-lock maps have no exported reset/prune operation.
+Acquisition returns an owned connection/kernel or a wrapper over a borrowed connection. `openSqliteConnection` returns a raw host handle whose lifetime belongs to its caller. `sqliteKernel({source: raw or {$client}})` memoizes on raw handle, does not migrate/configure/close it, and shares transaction context only with that kernel. `openSqliteFileKernel`/`openMemorySqliteKernel` close their owned raw handle. `closeSqliteConnection` removes memoization then closes; existing references are not revoked. Weak reverse mappings and per-file turn-lock maps have no exported reset/prune operation.
 
 PGlite kernels open one engine; ready waits for engine readiness then optional prepare. Postgres/socket kernels ready resolves immediately and does not establish that remote connectivity is healthy. All query/transaction work awaits readiness. Generic kernel close delegates to driver and adds no universal closed-state/idempotency guard. Hosts must stop new work before close; retaining a kernel after close is unsupported by this lifecycle.
 

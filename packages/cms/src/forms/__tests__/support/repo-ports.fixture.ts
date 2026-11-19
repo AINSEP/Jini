@@ -37,5 +37,5 @@ export function formSubmissionRepoFor<DB>(kernel: StorageKernel<Kysely<DB>, DB>)
   return new LegacySqlSubmissionRepo({ kernel: kernel as unknown as StorageKernel<Kysely<FormSubmissionDatabase>, FormSubmissionDatabase>, tables });
 }
 export function createSubmissionIpRetentionRepo<DB>({ kernel }: { kernel: KyselyKernel<DB> }) {
-  return retentionRepoFor({ kernel, tables, columns: ({ table }) => listColumns(kernel, table) });
+  return retentionRepoFor({ kernel, tables, columns: ({ table }) => listColumns({ kernel, table }) });
 }

@@ -42,10 +42,10 @@ export async function ensureMigrationJournal(
   _optional: Record<string, never> = {}
 ): Promise<void> {
   const kernel = pluginKernel({ store });
-  const integer = sql.raw(columnTypeSql(kernel.dialect, "INTEGER"));
-  const text = sql.raw(columnTypeSql(kernel.dialect, "TEXT"));
+  const integer = sql.raw(columnTypeSql({ dialect: kernel.dialect, affinity: "INTEGER" }));
+  const text = sql.raw(columnTypeSql({ dialect: kernel.dialect, affinity: "TEXT" }));
   await kernel.execute(sql`CREATE TABLE IF NOT EXISTS _plugin_migration_journal (
-       id ${sql.raw(autoIdColumnSql(kernel.dialect))},
+       id ${sql.raw(autoIdColumnSql({ dialect: kernel.dialect }))},
        plugin_id ${text} NOT NULL,
        phase ${text} NOT NULL,
        snapshot_path ${text} NOT NULL,
@@ -69,7 +69,7 @@ export async function beginJournalEntry(
       .returning("id")
       .executeTakeFirstOrThrow()
   );
-  await checkpointWal(kernel);
+  await checkpointWal({ kernel });
   return Number(row.id);
 }
 
@@ -105,7 +105,7 @@ export async function advanceJournalPhase(
 ): Promise<void> {
   const kernel = pluginKernel({ store: required.db });
   await stageJournalPhase({ db: kernel, id: required.id, phase: required.phase });
-  await checkpointWal(kernel);
+  await checkpointWal({ kernel });
 }
 
 /** Boot-time recovery scan (§2): any entry NOT in a terminal phase is a crash-interrupted attempt. */

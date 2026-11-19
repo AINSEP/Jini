@@ -43,7 +43,7 @@ test("renderDatabaseTypes maps every supported column type, nullability and gene
       banned boolean
     )`);
     await kernel.execute(sql`CREATE TABLE audit (at text NOT NULL)`);
-    const source = await renderDatabaseTypes(kernel, { interfaceName: "AppDatabase", source: "a test PGlite", regenerate: "pnpm gen" });
+    const source = await renderDatabaseTypes({ kernel, interfaceName: "AppDatabase", source: "a test PGlite", regenerate: "pnpm gen" });
     assert.equal(
       source,
       [
@@ -90,7 +90,7 @@ test("renderDatabaseTypes maps every supported column type, nullability and gene
 
     await kernel.execute(sql`CREATE TABLE stamped (at timestamptz)`);
     await assert.rejects(
-      renderDatabaseTypes(kernel, { interfaceName: "AppDatabase", source: "x", regenerate: "y" }),
+      renderDatabaseTypes({ kernel, interfaceName: "AppDatabase", source: "x", regenerate: "y" }),
       new Error("typegen: no TypeScript type for stamped.at (timestamp with time zone)")
     );
   } finally {
@@ -99,9 +99,9 @@ test("renderDatabaseTypes maps every supported column type, nullability and gene
 });
 
 test("renderDatabaseTypes refuses a SQLite kernel: types are read from a Postgres reference", async () => {
-  const kernel = sqliteKernel<unknown>(new Database(":memory:"));
+  const kernel = sqliteKernel<unknown>({ source: new Database(":memory:") });
   await assert.rejects(
-    renderDatabaseTypes(kernel, { interfaceName: "AppDatabase", source: "x", regenerate: "y" }),
+    renderDatabaseTypes({ kernel, interfaceName: "AppDatabase", source: "x", regenerate: "y" }),
     new Error("typegen reads a Postgres reference database")
   );
 });
@@ -116,7 +116,7 @@ test("readSchemaShape on Postgres: columns, indexes, constraints and views of th
     await kernel.execute(sql`CREATE SCHEMA other`);
     await kernel.execute(sql`CREATE TABLE other.ignored (id text)`);
 
-    const shape = await readSchemaShape(kernel);
+    const shape = await readSchemaShape({ kernel });
     // PGlite runs Postgres 18, which catalogs each NOT NULL as a named constraint.
     assert.deepEqual(shape, {
       tables: {
@@ -138,18 +138,18 @@ test("readSchemaShape on Postgres: columns, indexes, constraints and views of th
       },
       others: ["view parent_ids: SELECT id FROM parent;"],
     });
-    assert.deepEqual(Object.keys((await readSchemaShape(kernel, { exclude: ["child"] })).tables), ["parent"]);
+    assert.deepEqual(Object.keys((await readSchemaShape({ kernel }, { exclude: ["child"] })).tables), ["parent"]);
   } finally {
     await kernel.close();
   }
 });
 
 test("readSchemaShape on SQLite keeps an implicit-key foreign key's empty target column", async () => {
-  const kernel = sqliteKernel<unknown>(new Database(":memory:"));
+  const kernel = sqliteKernel<unknown>({ source: new Database(":memory:") });
   await kernel.execute(sql`CREATE TABLE parent (id text PRIMARY KEY)`);
   // `REFERENCES parent` with no column: SQLite records the target column as NULL (the parent's key).
   await kernel.execute(sql`CREATE TABLE child (id text PRIMARY KEY, parent_id text REFERENCES parent)`);
-  const shape = await readSchemaShape(kernel);
+  const shape = await readSchemaShape({ kernel });
   assert.deepEqual(shape.tables.child?.constraints, [
     "DEFINITION CREATE TABLE child (id text PRIMARY KEY, parent_id text REFERENCES parent)",
     "FOREIGN KEY (parent_id) REFERENCES parent () ON DELETE NO ACTION ON UPDATE NO ACTION",
@@ -159,12 +159,12 @@ test("readSchemaShape on SQLite keeps an implicit-key foreign key's empty target
 test("databaseFile names a SQLite file kernel's main file, and null for in-memory or Postgres", async () => {
   const file = path.join(tmp, "main.db");
   const onFile = openSqliteFileKernel<unknown>({ filePath: file, open: openSqlite });
-  const inMemory = sqliteKernel<unknown>(new Database(":memory:"));
+  const inMemory = sqliteKernel<unknown>({ source: new Database(":memory:") });
   const postgres = openPgliteKernel<unknown>({ PGlite });
   try {
-    assert.equal(await databaseFile(onFile), fs.realpathSync(file));
-    assert.equal(await databaseFile(inMemory), null);
-    assert.equal(await databaseFile(postgres), null);
+    assert.equal(await databaseFile({ kernel: onFile }), fs.realpathSync(file));
+    assert.equal(await databaseFile({ kernel: inMemory }), null);
+    assert.equal(await databaseFile({ kernel: postgres }), null);
   } finally {
     await onFile.close();
     await postgres.close();

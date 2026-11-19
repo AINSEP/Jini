@@ -26,7 +26,7 @@ export function runtimeFixture(): RuntimeFixture {
   ensureChatHistoryTables({ db });
   db.exec(RUN_DDL);
   return {
-    kernel: sqliteKernel<ChatDatabase>(db),
+    kernel: sqliteKernel<ChatDatabase>({ source: db }),
     sql: (text, ...params) => { db.prepare(text).run(...params); },
     rows: (text, ...params) => db.prepare(text).all(...params),
     close: () => db.close(),

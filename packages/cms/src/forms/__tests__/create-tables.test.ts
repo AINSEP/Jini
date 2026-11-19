@@ -50,7 +50,7 @@ test("sqlite file: creates the tables, a second run is a no-op that keeps rows, 
   const filePath = join(dir, "app.db");
   const first = new Database(filePath);
   first.pragma("foreign_keys = ON");
-  const kernel = sqliteKernel(first);
+  const kernel = sqliteKernel({ source: first });
   await createFormsTables({ kernel, tables });
   await writeThroughRepos(kernel);
   await createFormsTables({ kernel, tables });
@@ -64,7 +64,7 @@ test("sqlite file: creates the tables, a second run is a no-op that keeps rows, 
 
   const reopened = new Database(filePath);
   try {
-    const again = sqliteKernel(reopened);
+    const again = sqliteKernel({ source: reopened });
     await createFormsTables({ kernel: again, tables });
     await assertReadBack(again);
   } finally {
@@ -76,7 +76,7 @@ test("sqlite: the submission foreign key restricts deleting a form that has entr
   const db = new Database(":memory:");
   db.pragma("foreign_keys = ON");
   try {
-    const kernel = sqliteKernel(db);
+    const kernel = sqliteKernel({ source: db });
     await createFormsTables({ kernel, tables });
     await writeThroughRepos(kernel);
     assert.throws(() => db.prepare("DELETE FROM app_forms WHERE id = 'def-1'").run(), /FOREIGN KEY/);
@@ -107,7 +107,7 @@ const byteLength = (name: string) => new TextEncoder().encode(name).length;
 test("sqlite: index and constraint names stay within 63 bytes and distinct for long table names", async () => {
   const db = new Database(":memory:");
   try {
-    await createFormsTables({ kernel: sqliteKernel(db), tables: longTables });
+    await createFormsTables({ kernel: sqliteKernel({ source: db }), tables: longTables });
     const names = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name NOT LIKE 'sqlite_%'").all() as { name: string }[])
       .map((row) => row.name);
     assert.equal(names.length, 5);

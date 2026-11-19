@@ -14,19 +14,19 @@ describe("MIGRATION_ID", () => {
 
 describe("assertValidSteps", () => {
   it("accepts an empty list and strictly increasing ids", () => {
-    expect(() => assertValidSteps([])).not.toThrow();
-    expect(() => assertValidSteps([step("0001_a"), step("0002_b"), step("0010_c")])).not.toThrow();
+    expect(() => assertValidSteps({ steps: [] })).not.toThrow();
+    expect(() => assertValidSteps({ steps: [step("0001_a"), step("0002_b"), step("0010_c")] })).not.toThrow();
   });
   it("names a malformed id", () => {
-    expect(() => assertValidSteps([step("0001_a"), step("1_b")])).toThrow("migration id '1_b' is not NNNN_snake_name");
+    expect(() => assertValidSteps({ steps: [step("0001_a"), step("1_b")] })).toThrow("migration id '1_b' is not NNNN_snake_name");
   });
   it.each([["duplicate", ["0001_a", "0001_a"]], ["descending", ["0002_b", "0001_a"]], ["descending later", ["0001_a", "0003_c", "0002_b"]]])("refuses %s ids", (_label, ids) => {
-    expect(() => assertValidSteps(ids.map(id => step(id)))).toThrow(/is out of order or duplicated \(after '/);
+    expect(() => assertValidSteps({ steps: ids.map(id => step(id)) })).toThrow(/is out of order or duplicated \(after '/);
   });
   it.each(["a".repeat(63), "a".repeat(65), "A".repeat(64), `x${"a".repeat(63)}`, `${"a".repeat(63)}g`, "", `${"a".repeat(64)}\n`])("refuses checksum %j", (checksum) => {
-    expect(() => assertValidSteps([step("0001_a", checksum)])).toThrow("migration '0001_a' has no sha256 checksum");
+    expect(() => assertValidSteps({ steps: [step("0001_a", checksum)] })).toThrow("migration '0001_a' has no sha256 checksum");
   });
   it("accepts a 64-char lowercase hex checksum", () => {
-    expect(() => assertValidSteps([step("0001_a", "0123456789abcdef".repeat(4))])).not.toThrow();
+    expect(() => assertValidSteps({ steps: [step("0001_a", "0123456789abcdef".repeat(4))] })).not.toThrow();
   });
 });

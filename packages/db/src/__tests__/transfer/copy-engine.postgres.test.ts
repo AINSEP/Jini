@@ -13,7 +13,7 @@ const SITE = "fixture";
 const naming = { defaultSchema: "tovu", markerTable: "_tovu_transfer", unvalidatedTable: "pg_temp._tovu_unvalidated", schemaPrefix: "tovu_" };
 const TARGET = () => transfer.createPsqlPostgresTarget({ connectionString: CONNECTION });
 const inspectTarget = (target: transfer.PostgresTargetPort, site: string) => transfer.inspectTarget({ target, site, naming });
-const openSqliteSnapshotSource = (bytes: Buffer) => transfer.openSqliteSnapshotSource({ bytes }, { open: (data, options) => sqliteSnapshotClient({ db: new Database(data, options) }) });
+const openSqliteSnapshotSource = (bytes: Buffer) => transfer.openSqliteSnapshotSource({ bytes, open: (data, options) => sqliteSnapshotClient({ db: new Database(data, options) }) });
 const siteSchemaName = (site: string) => transfer.siteSchemaName({ site, naming });
 function migratedDb(): Database.Database {
   const db = new Database(":memory:");

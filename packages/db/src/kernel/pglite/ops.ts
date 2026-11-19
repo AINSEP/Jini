@@ -43,8 +43,7 @@ export interface PgliteRestore {
  * @complexity each op is one full pass over the data dir, O(size).
  */
 export function pgliteOps<DB>(
-  kernel: KyselyKernel<DB>,
-  required: PgliteRestore & { ledgerTable: string },
+  { kernel, ...required }: { kernel: KyselyKernel<DB> } & PgliteRestore & { ledgerTable: string },
   optional: { pgliteOwner?: PgliteExclusive } = {}
 ): StorageOps {
   const owner = optional.pgliteOwner;
@@ -52,12 +51,12 @@ export function pgliteOps<DB>(
   if (kernel.transport !== "pglite" && !ownedSocket) {
     throw new Error(`pgliteOps: a ${kernel.transport} kernel is not PGlite in this process (a socket client needs pgliteOwner)`);
   }
-  const outsideTransaction = outsideTransactionOf(kernel as KyselyKernel<unknown>);
+  const outsideTransaction = outsideTransactionOf({ kernel: kernel as KyselyKernel<unknown> });
   return {
     async copyTo(targetPath) {
       outsideTransaction("copyTo");
       if (owner !== undefined) {
-        await copyServedPgliteTo(owner, targetPath, required);
+        await copyServedPgliteTo({ owner, targetPath, ...required });
         return;
       }
       await restoreDataDir(targetPath, required, async () => {
@@ -82,7 +81,7 @@ export function pgliteOps<DB>(
         await kernel.execute(sql`VACUUM`);
         await kernel.execute(sql`CHECKPOINT`);
       }
-      await verifyLedgerReadBack(kernel as KyselyKernel<unknown>, required.ledgerTable);
+      await verifyLedgerReadBack({ kernel: kernel as KyselyKernel<unknown>, ledgerTable: required.ledgerTable });
     },
   };
 }
@@ -91,7 +90,7 @@ export function pgliteOps<DB>(
  * `copyTo` for a PGlite data dir served by `owner` (in this process): the dump is taken inside the
  * owner's exclusive window, then restored into `targetPath` (which must not exist).
  */
-export async function copyServedPgliteTo(owner: PgliteExclusive, targetPath: string, required: PgliteRestore): Promise<void> {
+export async function copyServedPgliteTo({ owner, targetPath, ...required }: { owner: PgliteExclusive; targetPath: string } & PgliteRestore, _optional: Record<string, never> = {}): Promise<void> {
   await restoreDataDir(targetPath, required, () => owner.runExclusive((db) => db.dumpDataDir("none")));
 }
 

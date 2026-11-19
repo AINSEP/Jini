@@ -113,8 +113,8 @@ export class SqlSettingsRepo implements SettingsRepoPort {
   }
 
   async saveDefinition(record: SettingDefinitionRecord): Promise<void> {
-    const row = toDefinitionRow(record);
-    const updatable = toDefinitionUpdate(record);
+    const row = toDefinitionRow({ record });
+    const updatable = toDefinitionUpdate({ record });
     await this.kernel.run((db) =>
       db
         .withTables<Record<string, SettingDefinitionsTable>>()
@@ -162,7 +162,7 @@ export class SqlSettingsRepo implements SettingsRepoPort {
   }
 
   async saveGlobalValue(record: SettingValueRecord): Promise<void> {
-    const columns = valueColumns(record);
+    const columns = valueColumns({ record });
     await this.kernel.run((db) =>
       db
         .withTables<Record<string, SettingValuesGlobalTable>>()
@@ -176,7 +176,7 @@ export class SqlSettingsRepo implements SettingsRepoPort {
   async saveWorkspaceValue(record: SettingValueRecord): Promise<void> {
     const workspaceId = record.workspaceId;
     if (workspaceId == null) throw new Error("saveWorkspaceValue requires workspaceId");
-    const columns = valueColumns(record);
+    const columns = valueColumns({ record });
     await this.kernel.run((db) =>
       db
         .withTables<Record<string, SettingValuesWorkspaceTable>>()
@@ -192,7 +192,7 @@ export class SqlSettingsRepo implements SettingsRepoPort {
     if (workspaceId == null || principalId == null) {
       throw new Error("saveUserValue requires workspaceId and principalId");
     }
-    const columns = valueColumns(record);
+    const columns = valueColumns({ record });
     await this.kernel.run((db) =>
       db
         .withTables<Record<string, SettingValuesUserTable>>()

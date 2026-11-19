@@ -49,7 +49,7 @@ const pgPath = (path: readonly string[]) => `{${checkedPath(path).join(",")}}`;
  * Not for objects or arrays (each dialect prints those differently), nor for fractional numbers
  * whose spelling matters (`1.50` reads `1.50` on Postgres, `1.5` on SQLite).
  */
-export function jsonText(dialect: StorageDialect, column: Expression<unknown>, path: readonly string[]): RawBuilder<string | null> {
+export function jsonText({ dialect, column, path }: { dialect: StorageDialect; column: Expression<unknown>; path: readonly string[] }, _optional: Record<string, never> = {}): RawBuilder<string | null> {
   if (dialect === "postgres") return sql<string | null>`(${column}::jsonb #>> ${pgPath(path)})`;
   const at = sqlitePath(path);
   // json_extract hands back SQLite values (1/0 for booleans, typed numbers); spell them as JSON does.
@@ -66,10 +66,8 @@ export function jsonText(dialect: StorageDialect, column: Expression<unknown>, p
  * `10.0` and a string never matches a number.
  */
 export function jsonScalarEquals(
-  dialect: StorageDialect,
-  column: Expression<unknown>,
-  path: readonly string[],
-  value: string | number | boolean
+  { dialect, column, path, value }: { dialect: StorageDialect; column: Expression<unknown>; path: readonly string[]; value: string | number | boolean },
+  _optional: Record<string, never> = {}
 ): RawBuilder<boolean> {
   if (dialect === "postgres") return sql<boolean>`((${column}::jsonb #> ${pgPath(path)}) = ${JSON.stringify(value)}::jsonb)`;
   const bound = typeof value === "boolean" ? Number(value) : value;
@@ -84,7 +82,7 @@ export function jsonScalarEquals(
  * A missing key is SQL NULL on both; pair with `nullsFirst()` (asc) / `nullsLast()` (desc) so NULLs
  * land where SQLite puts them by default.
  */
-export function jsonSortKey(dialect: StorageDialect, column: Expression<unknown>, path: readonly string[]): RawBuilder<unknown> {
+export function jsonSortKey({ dialect, column, path }: { dialect: StorageDialect; column: Expression<unknown>; path: readonly string[] }, _optional: Record<string, never> = {}): RawBuilder<unknown> {
   return dialect === "postgres"
     ? sql`(${column}::jsonb #> ${pgPath(path)})`
     : sql`json_extract(${column}, ${sqlitePath(path)})`;
@@ -94,7 +92,7 @@ export function jsonSortKey(dialect: StorageDialect, column: Expression<unknown>
  * The column's JSON with `path` set to `value` (any JSON-serialisable value), creating the last key
  * if it is missing. A NULL column counts as `{}`. The parent object must already exist.
  */
-export function jsonSet(dialect: StorageDialect, column: Expression<unknown>, path: readonly string[], value: unknown): RawBuilder<string> {
+export function jsonSet({ dialect, column, path, value }: { dialect: StorageDialect; column: Expression<unknown>; path: readonly string[]; value: unknown }, _optional: Record<string, never> = {}): RawBuilder<string> {
   const encoded = JSON.stringify(value);
   return dialect === "sqlite"
     ? sql<string>`json_set(coalesce(${column}, '{}'), ${sqlitePath(path)}, json(${encoded}))`
@@ -102,7 +100,7 @@ export function jsonSet(dialect: StorageDialect, column: Expression<unknown>, pa
 }
 
 /** The statement's current time as `Date#toISOString()` text (UTC, milliseconds, `Z`). */
-export function nowIso(dialect: StorageDialect): RawBuilder<string> {
+export function nowIso({ dialect }: { dialect: StorageDialect }, _optional: Record<string, never> = {}): RawBuilder<string> {
   return dialect === "sqlite"
     ? sql<string>`strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`
     : sql<string>`to_char(statement_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
@@ -111,7 +109,7 @@ export function nowIso(dialect: StorageDialect): RawBuilder<string> {
 // ---- Introspection ------------------------------------------------------------------------------
 
 /** User tables in the connection's current schema, sorted by name. Internal tables excluded. */
-export async function listTables<DB>(kernel: KyselyKernel<DB>): Promise<string[]> {
+export async function listTables<DB>({ kernel }: { kernel: KyselyKernel<DB> }, _optional: Record<string, never> = {}): Promise<string[]> {
   const rows = await kernel.query<{ name: string }>(
     kernel.dialect === "sqlite"
       ? sql`SELECT name FROM sqlite_schema WHERE type = 'table' AND substr(name, 1, 7) <> 'sqlite_' ORDER BY name`
@@ -121,12 +119,12 @@ export async function listTables<DB>(kernel: KyselyKernel<DB>): Promise<string[]
   return rows.map((row) => row.name);
 }
 
-export async function tableExists<DB>(kernel: KyselyKernel<DB>, table: string): Promise<boolean> {
-  return (await listColumns(kernel, table)).length > 0;
+export async function tableExists<DB>({ kernel, table }: { kernel: KyselyKernel<DB>; table: string }, _optional: Record<string, never> = {}): Promise<boolean> {
+  return (await listColumns({ kernel, table })).length > 0;
 }
 
 /** Columns in declaration order; empty when the table does not exist. */
-export async function listColumns<DB>(kernel: KyselyKernel<DB>, table: string): Promise<ColumnInfo[]> {
+export async function listColumns<DB>({ kernel, table }: { kernel: KyselyKernel<DB>; table: string }, _optional: Record<string, never> = {}): Promise<ColumnInfo[]> {
   const rows = await kernel.query<{ name: string; type: string; not_null: unknown; pk: unknown }>(
     kernel.dialect === "sqlite"
       ? sql`SELECT name, type, "notnull" AS not_null, pk FROM pragma_table_info(${table}) ORDER BY cid`
@@ -168,12 +166,12 @@ const PG_COLUMN_TYPES: Readonly<Record<ColumnAffinity, string>> = {
  * table created here reads back exactly as before; Postgres gets the same mapping as the frozen
  * Postgres baseline. Lower-cased, it is also what {@link listColumns} reports for that column.
  */
-export function columnTypeSql(dialect: StorageDialect, affinity: ColumnAffinity): string {
+export function columnTypeSql({ dialect, affinity }: { dialect: StorageDialect; affinity: ColumnAffinity }, _optional: Record<string, never> = {}): string {
   return dialect === "sqlite" ? affinity : PG_COLUMN_TYPES[affinity];
 }
 
 /** A generated integer primary key column's type and constraints (write the column name before it). */
-export function autoIdColumnSql(dialect: StorageDialect): string {
+export function autoIdColumnSql({ dialect }: { dialect: StorageDialect }, _optional: Record<string, never> = {}): string {
   return dialect === "sqlite" ? "INTEGER PRIMARY KEY AUTOINCREMENT" : "bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY";
 }
 
@@ -182,7 +180,7 @@ export function autoIdColumnSql(dialect: StorageDialect): string {
  * checkpoint (must run outside a write transaction on this connection: SQLite refuses it with
  * "database table is locked"). Postgres: nothing to do, a commit is already durable.
  */
-export async function checkpointWal<DB>(kernel: KyselyKernel<DB>): Promise<void> {
+export async function checkpointWal<DB>({ kernel }: { kernel: KyselyKernel<DB> }, _optional: Record<string, never> = {}): Promise<void> {
   if (kernel.dialect === "sqlite") await kernel.query(sql`PRAGMA wal_checkpoint(FULL)`);
 }
 
@@ -198,7 +196,7 @@ export interface IndexInfo {
  * UNIQUE constraint makes on its own (SQLite origin `pk`/`u`, Postgres constraint-backed), which no
  * `CREATE INDEX` declared. Empty when the table does not exist.
  */
-export async function listIndexes<DB>(kernel: KyselyKernel<DB>, table: string): Promise<Map<string, IndexInfo>> {
+export async function listIndexes<DB>({ kernel, table }: { kernel: KyselyKernel<DB>; table: string }, _optional: Record<string, never> = {}): Promise<Map<string, IndexInfo>> {
   const rows = await kernel.query<{ name: string; is_unique: unknown; column_name: string }>(
     kernel.dialect === "sqlite"
       ? sql`SELECT il.name AS name, il."unique" AS is_unique, ii.name AS column_name

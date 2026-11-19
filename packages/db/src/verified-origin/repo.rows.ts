@@ -21,7 +21,7 @@ export interface OriginSettingsTable {
 
 export type OriginRow = Selectable<OriginSettingsTable>;
 
-export function toVerifiedOrigin(row: OriginRow): VerifiedOrigin {
+export function toVerifiedOrigin({ row }: { row: OriginRow }, _optional: Record<string, never> = {}): VerifiedOrigin {
   // Built up conditionally, not `port: row.port ?? undefined` — an object literal with an
   // explicit `undefined`-valued key is NOT deep-equal to one that never had the key at all
   // (`assert.deepStrictEqual` is strict about this), and `VerifiedOrigin.port`/`.basePath` are
@@ -39,7 +39,7 @@ export function toVerifiedOrigin(row: OriginRow): VerifiedOrigin {
 
 /** The origin columns only — deliberately NOT the allowlist columns. See
  *  {@link registerConfiguredOriginOn}. */
-export function originColumns(origin: VerifiedOrigin) {
+export function originColumns({ origin }: { origin: VerifiedOrigin }, _optional: Record<string, never> = {}) {
   return {
     scheme: origin.scheme,
     host: origin.host,
@@ -57,7 +57,7 @@ export function originColumns(origin: VerifiedOrigin) {
  *
  * @complexity O(1).
  */
-export function sameOrigin(row: OriginRow, origin: VerifiedOrigin): boolean {
+export function sameOrigin({ row, origin }: { row: OriginRow; origin: VerifiedOrigin }, _optional: Record<string, never> = {}): boolean {
   const sameAddress = row.scheme === origin.scheme &&
     row.host === origin.host;
   const port = origin.port ?? null;

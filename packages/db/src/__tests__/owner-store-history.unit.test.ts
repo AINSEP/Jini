@@ -10,7 +10,7 @@ import { openSqlite } from './helpers.js';
 
 describe('legacy owner schema history', () => {
   it('pins the published DDL and applies it through its independent ledger', async () => {
-    expect(sourceChecksum(ownerStoreDdl)).toBe(ownerStoreMigration.checksum);
+    expect(sourceChecksum({ text: ownerStoreDdl })).toBe(ownerStoreMigration.checksum);
     expect(OWNER_STORE_LEDGER).toBe('owner_migrations');
     expect(ownerStoreMigrations).toEqual([ownerStoreMigration]);
     const kernel = openMemorySqliteKernel<unknown>({ open: openSqlite });

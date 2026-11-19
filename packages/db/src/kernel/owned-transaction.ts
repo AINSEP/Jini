@@ -10,12 +10,12 @@ export interface OwnedTransactionControl {
 const ownedTransactions = new WeakMap<KyselyKernel<unknown>, OwnedTransactionControl>();
 
 /** Records the control of a kernel built by buildKernel. */
-export function registerOwnedTransaction({ kernel, control }: { kernel: KyselyKernel<unknown>; control: OwnedTransactionControl }): void {
+export function registerOwnedTransaction({ kernel, control }: { kernel: KyselyKernel<unknown>; control: OwnedTransactionControl }, _optional: Record<string, never> = {}): void {
   ownedTransactions.set(kernel, control);
 }
 
 /** A kernel derived from another (schema-scoped, owned connection) shares its control, when it has one. */
-export function inheritOwnedTransaction({ from, to }: { from: KyselyKernel<unknown>; to: KyselyKernel<unknown> }): void {
+export function inheritOwnedTransaction({ from, to }: { from: KyselyKernel<unknown>; to: KyselyKernel<unknown> }, _optional: Record<string, never> = {}): void {
   const control = ownedTransactions.get(from);
   if (control !== undefined) ownedTransactions.set(to, control);
 }

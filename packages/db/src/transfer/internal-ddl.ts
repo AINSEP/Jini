@@ -33,7 +33,7 @@ export function quoteLiteral(value: string): string {
   return `'${value.replace(/'/g, "''")}'`;
 }
 
-export function qualified(schema: string, table: string): string {
+export function qualified({ schema, table }: { schema: string; table: string }, _optional: Record<string, never> = {}): string {
   return `${quoteIdent(schema)}.${quoteIdent(table)}`;
 }
 
@@ -42,7 +42,7 @@ export function qualified(schema: string, table: string): string {
  * SHA-256, so two long names never collapse into one (Postgres would silently cut both to the same
  * prefix).
  */
-export function fitIdentifier(name: string): string {
+export function fitIdentifier({ name }: { name: string }, _optional: Record<string, never> = {}): string {
   if (Buffer.byteLength(name) <= MAX_IDENTIFIER_BYTES) return name;
   const hash = createHash("sha256").update(name).digest("hex").slice(0, 8);
   let kept = name.slice(0, MAX_IDENTIFIER_BYTES - 9);
@@ -56,19 +56,19 @@ function columnSql(column: TransferTable["columns"][number]): string {
   return `${quoteIdent(column.name)} ${column.sqlType}${identity}${fallback}${column.notNull ? " NOT NULL" : ""}`;
 }
 
-export function createTableSql(schema: string, table: TransferTable): string {
+export function createTableSql({ schema, table }: { schema: string; table: TransferTable }, _optional: Record<string, never> = {}): string {
   const columns = table.columns.map(columnSql);
   if (table.primaryKey.length > 0) columns.push(`PRIMARY KEY (${table.primaryKey.map(quoteIdent).join(", ")})`);
-  return `CREATE TABLE ${qualified(schema, table.name)} (${columns.join(", ")});\n`;
+  return `CREATE TABLE ${qualified({ schema, table: table.name })} (${columns.join(", ")});\n`;
 }
 
 /** Same rule as `manifest.ts`'s `reseedSequenceSql`, schema-qualified: empty -> next is 1, else max + 1. */
-export function reseedIdentitySql(schema: string, table: TransferTable, sqlTag = "transfer"): string {
+export function reseedIdentitySql({ schema, table }: { schema: string; table: TransferTable }, { sqlTag = "transfer" }: { sqlTag?: string | undefined } = {}): string {
   return table.columns
     .filter((column) => column.identity !== undefined)
     .map((column) => {
-      const top = `COALESCE((SELECT max(${quoteIdent(column.name)}) FROM ${qualified(schema, table.name)}), 0)`;
-      return `DO $${sqlTag}$ BEGIN PERFORM setval(pg_get_serial_sequence(${quoteLiteral(qualified(schema, table.name))}, ${quoteLiteral(column.name)}), GREATEST(${top}, 1), ${top} >= 1); END $${sqlTag}$;\n`;
+      const top = `COALESCE((SELECT max(${quoteIdent(column.name)}) FROM ${qualified({ schema, table: table.name })}), 0)`;
+      return `DO $${sqlTag}$ BEGIN PERFORM setval(pg_get_serial_sequence(${quoteLiteral(qualified({ schema, table: table.name }))}, ${quoteLiteral(column.name)}), GREATEST(${top}, 1), ${top} >= 1); END $${sqlTag}$;\n`;
     })
     .join("");
 }
@@ -76,11 +76,11 @@ export function reseedIdentitySql(schema: string, table: TransferTable, sqlTag =
 /** Writes declared indexes, retaining trusted host expression terms, predicates and uniqueness.
  * @complexity O(index columns plus predicate bytes); emits SQL without executing it.
  */
-export function indexSql(schema: string, table: TransferTable): string {
+export function indexSql({ schema, table }: { schema: string; table: TransferTable }, _optional: Record<string, never> = {}): string {
   return table.indexes
     .map((index) => {
       const where = index.where === undefined ? "" : " WHERE " + index.where;
-      return `CREATE ${index.unique ? "UNIQUE " : ""}INDEX ${quoteIdent(fitIdentifier(index.name))} ON ${qualified(schema, table.name)} (${(index.expressions ?? index.columns.map(quoteIdent)).join(", ")})${where};\n`;
+      return `CREATE ${index.unique ? "UNIQUE " : ""}INDEX ${quoteIdent(fitIdentifier({ name: index.name }))} ON ${qualified({ schema, table: table.name })} (${(index.expressions ?? index.columns.map(quoteIdent)).join(", ")})${where};\n`;
     })
     .join("");
 }
@@ -114,13 +114,13 @@ interface PendingConstraint {
 }
 
 function constraintsOf(schema: string, table: TransferTable, byName: ReadonlyMap<string, TransferTable>): PendingConstraint[] {
-  const checks = table.checks.map((check) => ({ table: table.name, name: fitIdentifier(check.name), add: `CHECK (${check.sql})` }));
+  const checks = table.checks.map((check) => ({ table: table.name, name: fitIdentifier({ name: check.name }), add: `CHECK (${check.sql})` }));
   const keys = table.foreignKeys.flatMap((fk) => {
     const parent = parentColumns(fk, byName);
     if (parent === null) return [];
     const columns = fk.columns.map(quoteIdent).join(", ");
-    const references = `${qualified(schema, fk.foreignTable)} (${parent.map(quoteIdent).join(", ")})`;
-    return [{ table: table.name, name: fitIdentifier(fk.name), add: `FOREIGN KEY (${columns}) REFERENCES ${references} ON DELETE ${action(fk.onDelete)} ON UPDATE ${action(fk.onUpdate)}` }];
+    const references = `${qualified({ schema, table: fk.foreignTable })} (${parent.map(quoteIdent).join(", ")})`;
+    return [{ table: table.name, name: fitIdentifier({ name: fk.name }), add: `FOREIGN KEY (${columns}) REFERENCES ${references} ON DELETE ${action(fk.onDelete)} ON UPDATE ${action(fk.onUpdate)}` }];
   });
   return [...checks, ...keys];
 }
@@ -131,14 +131,14 @@ function constraintsOf(schema: string, table: TransferTable, byName: ReadonlyMap
  *
  * @complexity O(constraints) statements.
  */
-export function constraintSql(schema: string, tables: readonly TransferTable[], unvalidatedTable: string, sqlTag = "transfer"): string {
+export function constraintSql({ schema, tables, unvalidatedTable }: { schema: string; tables: readonly TransferTable[]; unvalidatedTable: string }, { sqlTag = "transfer" }: { sqlTag?: string | undefined } = {}): string {
   const UNVALIDATED_TABLE = unvalidatedTable.split(".").map(quoteIdent).join(".");
   const byName = new Map(tables.map((table) => [table.name, table]));
   const pending = tables.flatMap((table) => constraintsOf(schema, table, byName));
-  const adds = pending.map(({ table, name, add }) => `ALTER TABLE ${qualified(schema, table)} ADD CONSTRAINT ${quoteIdent(name)} ${add} NOT VALID;\n`);
+  const adds = pending.map(({ table, name, add }) => `ALTER TABLE ${qualified({ schema, table })} ADD CONSTRAINT ${quoteIdent(name)} ${add} NOT VALID;\n`);
   const validations = pending.map(
     ({ table, name }) =>
-      `  BEGIN ALTER TABLE ${qualified(schema, table)} VALIDATE CONSTRAINT ${quoteIdent(name)};\n` +
+      `  BEGIN ALTER TABLE ${qualified({ schema, table })} VALIDATE CONSTRAINT ${quoteIdent(name)};\n` +
       `  EXCEPTION WHEN foreign_key_violation OR check_violation THEN INSERT INTO ${UNVALIDATED_TABLE} VALUES (${quoteLiteral(table + "." + name)}); END;\n`
   );
   return (

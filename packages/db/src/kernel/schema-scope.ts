@@ -13,7 +13,7 @@ import { inheritOwnedTransaction } from "./owned-transaction.js";
  *
  * Transactions, locks and `close` are the underlying kernel's: one database, one connection pool.
  */
-export function scopeToSchema<DB>(kernel: KyselyKernel<DB>, schema: string): KyselyKernel<DB> {
+export function scopeToSchema<DB>({ kernel, schema }: { kernel: KyselyKernel<DB>; schema: string }, _optional: Record<string, never> = {}): KyselyKernel<DB> {
   if (kernel.dialect !== "postgres") throw new Error(`schema '${schema}' needs a Postgres kernel, not ${kernel.dialect}`);
   const scoped: KyselyKernel<DB> = {
     ...kernel,

@@ -11,7 +11,7 @@ test.each([
 ])(
   'only an explicit failed outcome rolls back: $outcome', async ({ outcome, rows }) => {
     const client = createCheckedSqliteClient({ database: new Database(':memory:') });
-    const kernel = sqliteKernel<unknown>(client);
+    const kernel = sqliteKernel<unknown>({ source: client });
     try {
       await kernel.execute(sql`create table writes (value integer)`);
       const result = await withSqliteTransaction({ client, kernel, work: async ({ session }) => {
@@ -28,7 +28,7 @@ test.each([
 
 test('an ordinary AggregateError retains its parts when the owned transaction rolls back', async () => {
   const client = createCheckedSqliteClient({ database: new Database(':memory:') });
-  const kernel = sqliteKernel<unknown>(client);
+  const kernel = sqliteKernel<unknown>({ source: client });
   const parts = [new Error('first'), 'second'];
   try {
     const failure = withSqliteTransaction({ client, kernel, work: async () => {
