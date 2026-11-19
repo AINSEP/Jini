@@ -1,7 +1,8 @@
 import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
 import type { Clock as ClockPort } from "@jini-ai/core/primitives";
 import type { GatedMutationHooks } from "@jini-ai/core/gated-mutations";
-import type { ImportableTermRepoPort, TermRepoPort, TaxonomyRevisionRepoPort } from "./write-service.js";
+import type { ImportableTermRepoPort } from "./import-service.js";
+import type { TermRepoPort, TaxonomyRevisionRepoPort } from "./write-contracts.js";
 import type { MergeTermPlanDetails } from "./merge-term.js";
 
 /**

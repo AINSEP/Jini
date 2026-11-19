@@ -5,7 +5,8 @@ import {
   type ContentRecordLookupPort,
   type EntryRecordLookupPort,
 } from "./content-lookup.js";
-import { isContentTypeOnAllowList, type ContentLookupPort, type ContentTypeTaxonomyPolicyPort } from "./write-service.js";
+import { isContentTypeOnAllowList } from "./assignment-service.js";
+import type { ContentLookupPort, ContentTypeTaxonomyPolicyPort } from "./write-contracts.js";
 
 /**
  * @file Which content Jini's `assignTerms`/`unassignTerms` may tag, and who may tag it. They only

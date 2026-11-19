@@ -1080,7 +1080,7 @@ describe('xaiSearchRoute.handle', () => {
 
 describe('xaiRoutes', () => {
   type Served = (request: Request) => Promise<Response>;
-  const listen = (deps: XaiHttpDeps, { denyOrigins = false }: { denyOrigins?: boolean } = {}): Served =>
+  const listen = (deps: Omit<XaiHttpDeps, 'reportInternalError'>, { denyOrigins = false }: { denyOrigins?: boolean } = {}): Served =>
     serveRoutes({ routes: xaiRoutes({ deps, host: fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {}) }) });
   async function send(served: Served, method: string, routePath: string, body?: unknown) {
     const response = await served(jsonRequest({ path: routePath, method }, { body }));

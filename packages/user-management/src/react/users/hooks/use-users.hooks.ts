@@ -217,7 +217,7 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
   const grantActions = createUsersGrantActions(state);
   const confirmResetPassword = createUsersConfirmResetAction(state, { resetPasswordMutation, passwordResetNotice });
   const onToggleStatus = createUsersToggleAction(state);
-  const disableActions = createUsersDisableActions(state, onToggleStatus);
+  const disableActions = createUsersDisableActions(state, { onToggleStatus });
   const deletion = useUsersDeletion(state);
   return createUsersController(state, {
     onCreate, ...panelActions, ...grantActions, openResetPassword, confirmResetPassword,

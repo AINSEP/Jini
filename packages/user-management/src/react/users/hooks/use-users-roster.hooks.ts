@@ -52,7 +52,7 @@ function selectCaller({ users, roles, ownPrincipalId }: {
   return { roleMap, ownProfile, callerIsOwner: ownProfile !== null && isOwnerAccount({ user: ownProfile, roles: roleMap }) };
 }
 
-export function useUsersRoster({ port, translate, queryScope }: UsersDependencies, describeError: ReturnType<typeof createUsersErrorDescriber>, { useFetchQuery = useFetchQueryDefault }: { useFetchQuery?: typeof useFetchQueryDefault } = {}) {
+export function useUsersRoster({ port, translate, queryScope, describeError }: UsersDependencies & { describeError: ReturnType<typeof createUsersErrorDescriber> }, { useFetchQuery = useFetchQueryDefault }: { useFetchQuery?: typeof useFetchQueryDefault } = {}) {
   // `portRef` (password-banner plan, 2026-09-24 Slice 3 deep-link half): captured once at mount and
   // never written again, same discipline and same reasoning as `use-assistant-chats.hooks.ts`'s own
   // `portRef` — the one-shot `me()` effect below must not spin if a caller builds a fresh port object
@@ -75,7 +75,7 @@ export function useUsersRoster({ port, translate, queryScope }: UsersDependencie
   return { portRef, users, roles, policies, canGrant, error };
 }
 
-export function useUsersCallerState(portRef: ReturnType<typeof useUsersRoster>['portRef']) {
+export function useUsersCallerState({ portRef }: { portRef: ReturnType<typeof useUsersRoster>["portRef"] }, _optional: Record<string, never> = {}) {
   /** The signed-in caller's own principal id (password-banner plan, 2026-09-24 Slice 3), from
    *  `port.me()`. `null` until that call settles, or forever if it fails — both are treated as
    *  "unknown", which the deep-link effect below and `confirmResetPassword`'s notice branch both

@@ -11,11 +11,11 @@ export function createUsersErrorDescriber(translate: Translate) {
 
 export function useUsersState(deps: UsersDependencies, { useUsersRoster = useUsersRosterDefault, useUsersCreationState = useUsersCreationStateDefault, useUsersGrantState = useUsersGrantStateDefault, useUsersStatusState = useUsersStatusStateDefault, useUsersCallerState = useUsersCallerStateDefault, useUsersRename = useUsersRenameDefault }: { useUsersRoster?: typeof useUsersRosterDefault; useUsersCreationState?: typeof useUsersCreationStateDefault; useUsersGrantState?: typeof useUsersGrantStateDefault; useUsersStatusState?: typeof useUsersStatusStateDefault; useUsersCallerState?: typeof useUsersCallerStateDefault; useUsersRename?: typeof useUsersRenameDefault } = {}) {
   const describeError = createUsersErrorDescriber(deps.translate);
-  const roster = useUsersRoster(deps, describeError);
+  const roster = useUsersRoster({ ...deps, describeError });
   const creation = useUsersCreationState(deps);
   const grant = useUsersGrantState(deps);
   const status = useUsersStatusState(deps);
-  const caller = useUsersCallerState(roster.portRef);
+  const caller = useUsersCallerState({ portRef: roster.portRef });
   const capabilities = createUsersCapabilities({ ...roster, ...caller });
   const rename = useUsersRename({ ...deps, ...capabilities });
   return { ...deps, describeError, ...roster, ...creation, ...grant, ...status, ...caller, ...capabilities, ...rename };

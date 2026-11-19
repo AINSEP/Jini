@@ -22,7 +22,7 @@ beforeEach(() => {
 describe('POST /api/runs/:runId/messages — a message sent while the run is going', () => {
   it('does not send text alone when the host has no explicit attachment delivery', async () => {
     const deliver = vi.fn((): UserMessageDelivery => 'delivered');
-    const deps = { lifecycle: makeDeps().lifecycle, deliverUserMessage: deliver };
+    const deps = { lifecycle: makeDeps().lifecycle, deliverUserMessage: deliver, reportInternalError: reportRouteInternalError };
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx' });
     const result = await runMessageRoute.handle({ input: { runId: run.id, text: 'see screenshot', attachmentIds: ['attachment:1'] }, deps });
     expect(result).toMatchObject({ ok: false, error: { details: { delivery: 'unsupported' } } });

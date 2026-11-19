@@ -1,3 +1,4 @@
+import { createApiError } from '@jini-ai/protocol';
 import { mkdtemp, rm, symlink } from 'node:fs/promises';
 import { createServer as createHttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -782,6 +783,7 @@ describe('serve() — startup descriptors and live publication', () => {
       if (!parsed.ok) throw new Error('invalid delegated request');
       const result = await delegatedToolExecuteRoute.handle({ input: parsed.value, deps: {
         lifecycle, toolExecutor, toolRegistry: registry, resolvePrincipal: () => ({ id: 'host' }), onInternalError: () => {},
+        reportInternalError: ({ message }) => createApiError({ code: 'INTERNAL_ERROR', message }),
       } }, init.signal ? { signal: init.signal } : {});
       return result.ok ? Response.json(result.value) : Response.json({ error: result.error }, { status: 403 });
     };

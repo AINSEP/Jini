@@ -565,7 +565,7 @@ describe('path-parameter parsers reject a missing segment', () => {
  */
 describe('connectorsRoutes — one round-trip per route', () => {
   type Served = (request: Request) => Promise<Response>;
-  const listen = (deps: ConnectorsHttpDeps, { denyOrigins = false }: { denyOrigins?: boolean } = {}): Served =>
+  const listen = (deps: Omit<ConnectorsHttpDeps, 'reportInternalError'>, { denyOrigins = false }: { denyOrigins?: boolean } = {}): Served =>
     serveRoutes({ routes: connectorsRoutes({ deps, host: fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {}) }) });
 
   function fullyConfigured() {
@@ -622,7 +622,7 @@ describe('connectorsRoutes — one round-trip per route', () => {
     const charge = vi.fn();
     const refund = vi.fn();
     const getCharge = vi.fn();
-    const base = listen({ ...fullyConfigured(), payments: { charge, refund, getCharge } } as ConnectorsHttpDeps);
+    const base = listen({ ...fullyConfigured(), payments: { charge, refund, getCharge } } as Omit<ConnectorsHttpDeps, 'reportInternalError'>);
 
     expect((await base(jsonRequest({ path: '/api/connectors/payments/charge', method: 'POST' }, { body: { amountCents: 500, currency: 'usd', customerRef: 'cus_1' } }))).status).toBe(404);
     expect((await base(jsonRequest({ path: '/api/connectors/payments/ch1/refund', method: 'POST' }))).status).toBe(404);

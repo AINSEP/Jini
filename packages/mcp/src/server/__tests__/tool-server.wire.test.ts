@@ -1,3 +1,4 @@
+import { createApiError } from '@jini-ai/protocol';
 import { splitServerFixture } from '../../__tests__/args-fixtures.js';
 /**
  * @module @jini/mcp/server/__tests__/tool-server.wire
@@ -333,6 +334,7 @@ async function daemonFixture(registrations: readonly ToolRegistration[], delegat
     const result = await delegatedToolExecuteRoute.handle({ input: parsed.value, deps: {
       lifecycle, toolExecutor, toolRegistry: registry, resolvePrincipal: () => ({ id: 'host-principal' }),
       onInternalError: () => {},
+      reportInternalError: ({ message }) => createApiError({ code: 'INTERNAL_ERROR', message }),
     } }, init.signal ? { signal: init.signal } : {});
     if (result.ok) return Response.json(result.value);
     const status = result.error.code === 'TOOL_OPERATION_DENIED' ? 403 : 400;

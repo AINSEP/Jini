@@ -796,6 +796,70 @@
     {
       "id": "22ef730e82fa",
       "reason": "rf2-a13: useDismissOnOutsideOrEscape's doc comment was reworded in place for the IME-safe Escape it added ('on non-composing Escape'); the rest of the statement is unchanged next to the same function."
+    },
+    {
+      "id": "5dea4970bd57",
+      "reason": "ext-j2 (R7+Z reporters): reportInternalError is now required and the daemon no longer imports @jini-ai/http-kit, so 'a caller that runs handle itself may omit it and gets @jini-ai/http-kit's' is obsolete; the field keeps a shorter doc ('Required for direct handlers; <routes> binds the host's reporter')."
+    },
+    {
+      "id": "acba63514d78",
+      "reason": "ext-j2 (R7+Z reporters): reportInternalError is now required and the daemon no longer imports @jini-ai/http-kit, so 'a caller that runs handle itself may omit it and gets @jini-ai/http-kit's' is obsolete; the field keeps a shorter doc ('Required for direct handlers; <routes> binds the host's reporter')."
+    },
+    {
+      "id": "eaff575759d8",
+      "reason": "ext-j2 (R7+Z reporters): reportInternalError is now required and the daemon no longer imports @jini-ai/http-kit, so 'a caller that runs handle itself may omit it and gets @jini-ai/http-kit's' is obsolete; the field keeps a shorter doc ('Required for direct handlers; <routes> binds the host's reporter')."
+    },
+    {
+      "id": "d4e666cc56e1",
+      "reason": "ext-j2 (R7+Z reporters): reportInternalError is now required and the daemon no longer imports @jini-ai/http-kit, so 'a caller that runs handle itself may omit it and gets @jini-ai/http-kit's' is obsolete; the field keeps a shorter doc ('Required for direct handlers; <routes> binds the host's reporter')."
+    },
+    {
+      "id": "8a6c49e4ef47",
+      "reason": "ext-j2 (R7+Z reporters): reportInternalError is now required and the daemon no longer imports @jini-ai/http-kit, so 'a caller that runs handle itself may omit it and gets @jini-ai/http-kit's' is obsolete; the field keeps a shorter doc ('Required for direct handlers; <routes> binds the host's reporter')."
+    },
+    {
+      "id": "8e6589fe5409",
+      "reason": "ext-j2 (R7+Z reporters): reportInternalError is now required and the daemon no longer imports @jini-ai/http-kit, so 'a caller that runs handle itself may omit it and gets @jini-ai/http-kit's' is obsolete; the field keeps a shorter doc ('Required for direct handlers; <routes> binds the host's reporter')."
+    },
+    {
+      "id": "4e16b559dc71",
+      "reason": "ext-j2 (R7+Z reporters): reportInternalError is now required and the daemon no longer imports @jini-ai/http-kit, so 'a caller that runs handle itself may omit it and gets @jini-ai/http-kit's' is obsolete; the field keeps a shorter doc ('Required for direct handlers; <routes> binds the host's reporter')."
+    },
+    {
+      "id": "54e7e3785bf7",
+      "reason": "ext-j2 (R7+Z reporters): reportInternalError is now required and the daemon no longer imports @jini-ai/http-kit, so 'a caller that runs handle itself may omit it and gets @jini-ai/http-kit's' is obsolete; the field keeps a shorter doc ('Required for direct handlers; <routes> binds the host's reporter')."
+    },
+    {
+      "id": "9b9aea30d589",
+      "reason": "ext-j2 (R7+Z reporters): reportInternalError is now required and the daemon no longer imports @jini-ai/http-kit, so 'a caller that runs handle itself may omit it and gets @jini-ai/http-kit's' is obsolete; the field keeps a shorter doc ('Required for direct handlers; <routes> binds the host's reporter')."
+    },
+    {
+      "id": "7b9236d6e64c",
+      "reason": "ext-j2 (kysely static import): the event-log sqlite kernel imports kysely statically now, so the comment about keeping the factory free of an eager peer import describes code that is gone."
+    },
+    {
+      "id": "09178b346fdc",
+      "reason": "ext-j2 (settings to core/http-kit): the deprecated cms/settings/express compatibility re-export was retired with its file; @jini-ai/core/settings/express is the owner."
+    },
+    {
+      "id": "241a23df7439",
+      "reason": "ext-j2: the exact cms/settings/express R2 exemption this comment explained was removed with the retired entry."
+    },
+    {
+      "id": "2644f4be7ba4",
+      "reason": "ext-j2: the guard self-test fixture now asserts the retired cms/settings/express entry is forbidden; the 'fails if the exemption is removed' regression it described no longer exists."
+    },
+    {
+      "id": "6c71f2721257",
+      "reason": "ext-j2 (settings to core/http-kit): the contract test's express-peer reasoning was rewritten for the moved adapter; the isolation assertion stays."
+    },
+    {
+      "id": "6df6089a6d49",
+      "reason": "ext-j2 (federation reader): the legacy factory/send path this guard test comment named was removed by the federation reader extraction."
+    },
+    {
+      "id": "3f5e69291128",
+      "reason": "ext-j2 (K-05b taxonomy leaves): the taxonomy barrel's @file header was rewritten for the new leaf entries; the barrel and its purpose stay."
     }
   ]
 }

@@ -118,8 +118,8 @@ test("lists projected definition fields in namespace/key order", async () => {
   const first = { namespace: "a", key: "z", ownerKind: "core", scopes: 7, status: "active", version: 1 };
   const second = { namespace: "b", key: "a", ownerKind: "site", scopes: 6, status: "alias", version: 2 };
   vi.mocked(f.deps.service.listDefinitions).mockResolvedValue([
-    second as import("../../index.js").SettingDefinitionRecord,
-    first as import("../../index.js").SettingDefinitionRecord,
+    second as import("@jini-ai/core/settings").SettingDefinitionRecord,
+    first as import("@jini-ai/core/settings").SettingDefinitionRecord,
   ]);
   registerSettingsRoutes(f.deps);
   const { capture } = await f.invoke("GET", "/prefs/definitions");

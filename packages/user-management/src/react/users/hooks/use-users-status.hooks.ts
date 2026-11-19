@@ -30,7 +30,7 @@ export function createUsersToggleAction(state: ReturnType<typeof useUsersState>)
   return onToggleStatus;
 }
 
-export function createUsersDisableActions(state: ReturnType<typeof useUsersState>, onToggleStatus: UsersController['onToggleStatus']) {
+export function createUsersDisableActions(state: ReturnType<typeof useUsersState>, { onToggleStatus }: { onToggleStatus: UsersController['onToggleStatus'] }) {
   const { rowCapabilities, setToggleError, setConfirmingDisable, confirmingDisable } = state;
   /** Opens the Disable confirm dialog for `user` — the `RowMenu` "Disable" item's `onSelect` when
    *  the user is currently active. Was an inline closure inside the old `rowMenuItems`; named here

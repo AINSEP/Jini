@@ -42,7 +42,6 @@ import {
   requireInputRecord,
   requireString,
   type AgentToolSideEffect,
-  type DerivedRiskByToolId,
   type ToolHandler,
   type ToolRegistration,
   type AgentToolDefinition,
@@ -184,7 +183,7 @@ export function buildTrashItemAgentToolCatalog(
  * risk map as well: without that, the whole-surface cross-check (`assertRiskMetadataIsWirable`) would
  * treat this wired tool as unclassified.
  */
-export const trashItemDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const trashItemDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // Routes into `content_post_delete` (`deletes-durable-state`) among others; see the catalog entry.
   [TRASH_ITEM_TOOL_ID, "deletes-durable-state"],
 ]);

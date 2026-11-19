@@ -401,7 +401,7 @@ describe('researchRoutes', () => {
   });
 
   it('answers 503 when no provider credential is configured', async () => {
-    expect(await search({ deps: { resolveCredentials: async () => ({}) }, body: { query: 'q' } })).toEqual({
+    expect(await search({ deps: { reportInternalError: reportRouteInternalError, resolveCredentials: async () => ({}) }, body: { query: 'q' } })).toEqual({
       status: 503,
       body: { error: { code: 'NOT_CONFIGURED', message: 'tavily provider not configured' } },
     });
