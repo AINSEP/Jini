@@ -35,10 +35,8 @@ function createLiveSessionData(emit: (payload: RunAgentPayload) => void) {
   // result is safe for a line still in the pipe: the CLI answers everything written before EOF.
   const unanswered = new Set<string>();
   const tasks = new Map<string, BackgroundTask>();
-  const queuedTurns = 0;
-  const backgroundTasks = 0;
 
-  return { pending, unanswered, tasks, queuedTurns, backgroundTasks, emit };
+  return { pending, unanswered, tasks, queuedTurns: 0, backgroundTasks: 0, emit };
 }
 
 function publishTask(state: ReturnType<typeof createLiveSessionData>, task: BackgroundTask): void {
