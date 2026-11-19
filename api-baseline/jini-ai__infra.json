@@ -69,7 +69,7 @@
    "processFencedOutbox": "function:ee0638996e",
    "processOutbox": "function:24f51c7a2f",
    "startOutboxDrainer": "function:50042df494",
-   "toEnqueueOnlyOutbox": "function:8c78686be2"
+   "toEnqueueOnlyOutbox": "function:473de47fab"
   }
  }
 }

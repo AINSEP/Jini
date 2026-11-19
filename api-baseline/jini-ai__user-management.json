@@ -190,7 +190,7 @@
    "ResetPasswordFieldsInput": "interface:694c6a745d",
    "RolesPort": "interface:754cb08fb8",
    "RowActionState": "interface:a27727c12d",
-   "TotpSettings": "function:4a11b099e3",
+   "TotpSettings": "function:5acc0a6ecb",
    "TotpSettingsPort": "interface:0527fe37d2",
    "UserAccountCapabilities": "interface:7264c2b76a",
    "UserManageController": "interface:bb67671215",

@@ -39,7 +39,7 @@
    "LocalNodeHttpExtension": "type:e4be652e98",
    "LocalNodeHttpExtensionContext": "interface:683acb4837",
    "ProfileActivation": "type:3796077c23",
-   "buildDaemonDbOperations": "function:6c35043b6f",
+   "buildDaemonDbOperations": "function:228bbf958c",
    "classifyRunFailureForRetry": "function:8af5e0e4cf",
    "closeHttpServer": "function:05f66cdfcd",
    "composeJiniKernel": "function:12ce059da6",
@@ -52,11 +52,11 @@
    "isCapabilityId": "function:50ce5c97a1",
    "mountRoutes": "function:0dbfa9cc02",
    "nodeSessionTimer": "variable:b6c161fda8",
-   "normalizeDaemonBindHost": "function:bb7e0affc8",
+   "normalizeDaemonBindHost": "function:d2d3a4835d",
    "projectDetectedAgent": "function:e75e0470fc",
-   "resolveBoundPort": "function:c45558f65c",
+   "resolveBoundPort": "function:62cf14912b",
    "resolveFeatureActivation": "function:6f7d15862b",
-   "resolveReportHost": "function:539ff4702d"
+   "resolveReportHost": "function:e5fb70efbe"
   }
  },
  "./adapters/node-pty": {

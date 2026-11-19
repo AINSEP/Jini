@@ -11,9 +11,9 @@
    "PLUGIN_SKILLS_DIRNAME": "variable:e9cf3d9318",
    "PluginManifest": "interface:981332f8e2",
    "PluginManifestAuthor": "interface:a4d04da65d",
-   "isMcpManifest": "function:8f0ec11822",
-   "isPluginManifest": "function:aa84ae8d7b",
-   "validateMcpManifest": "function:1890c037a8",
+   "isMcpManifest": "function:4bad6a3e0a",
+   "isPluginManifest": "function:1a82343a80",
+   "validateMcpManifest": "function:c12eaf1e0f",
    "validatePluginManifest": "function:a6c852f16e"
   }
  },
@@ -294,7 +294,7 @@
    "credentialCardsContribution": "variable:894d2122a5",
    "decodeTokenSignInEntries": "function:c4cb79f40e",
    "deriveAgentPluginConnectionId": "function:1e25c28f7c",
-   "findAgentPluginMcpServerDefaults": "function:69db31b2e8",
+   "findAgentPluginMcpServerDefaults": "function:a5dcb2baee",
    "findPluginCredentialCard": "function:2d1807b6c2",
    "grantDeclaredToolsAtBoot": "function:07a731bbe0",
    "grantDeclaredToolsToSignedInRows": "function:75c00d9b42",
@@ -310,10 +310,10 @@
    "parseCredentialCardUsedFor": "function:513ff5a08e",
    "parsePluginCredentialCards": "function:cb0ce38651",
    "parsePluginTokenMap": "function:336228ba8f",
-   "planAgentPluginMcpFederation": "function:6d985613b2",
+   "planAgentPluginMcpFederation": "function:f1e6836537",
    "previewAgentPluginEnableAccess": "function:ae6eb1c415",
    "probeToken": "function:99c6336eb2",
-   "provisionAgentPluginMcpServers": "function:b8a8997a9d",
+   "provisionAgentPluginMcpServers": "function:01e9455a0d",
    "recordAgentPluginAccessDeclined": "function:8136c24f57",
    "renameToolNames": "function:47ff6f3bf3",
    "requireTargetRow": "function:3500fd5896",
@@ -327,7 +327,7 @@
    "storedAgentPluginGrants": "function:d167e4c974",
    "switchOnSavedTokenConnection": "function:dbd00579c1",
    "titleCaseFromPluginId": "function:2657f81520",
-   "validatedAgentPluginToolGrant": "function:e8942108a8",
+   "validatedAgentPluginToolGrant": "function:bc7bbed2e9",
    "waitAtAgentPluginSignInCardWithPorts": "function:7581cc44e2"
   }
  },
@@ -392,7 +392,7 @@
    "FOLDER_MAX_FILES": "variable:1a27fd25a7",
    "FOLDER_UNREADABLE": "variable:b91751fb31",
    "FolderZipError": "class:9cc8238ad2",
-   "crc32": "function:db32ef69cc",
+   "crc32": "function:efe4abee15",
    "zipFolderFiles": "function:b5935cddd1"
   }
  },
@@ -623,7 +623,7 @@
    "classifyBundledPluginFile": "function:810f0efc4c",
    "contributeProviders": "function:a73cb62064",
    "createAgentPluginActivations": "function:a98be8f4c9",
-   "createAgentPluginLayout": "function:2ac136dd75",
+   "createAgentPluginLayout": "function:07b16a4480",
    "createAgentPluginLifecycle": "function:574e41d9a0",
    "createAutomaticAgentPluginUse": "function:b30cfb12d4",
    "createPluginContributionLoader": "function:91849dd6a0",
@@ -636,7 +636,7 @@
    "isAgentPluginName": "function:e17a3cd2f7",
    "isValidAgentPluginHostRange": "function:8b20ed6bf4",
    "legacyAgentPluginMetadataWarning": "variable:20062880ac",
-   "maxAgentPluginArchiveBytes": "function:ecb6f8ddce",
+   "maxAgentPluginArchiveBytes": "function:79a562fc6f",
    "parseAgentPluginExports": "function:50a4cbdffb",
    "parseAgentPluginManifest": "function:cf39a3623c",
    "parseAgentPluginMcpConfig": "function:8e825c4d2b",
@@ -645,18 +645,18 @@
    "planAgentPluginToolGrant": "function:93572ef4ae",
    "planAgentPluginUpdate": "function:c43178184e",
    "projectAgentPluginSearchPage": "function:bbdbcd8da6",
-   "provisionAgentPluginMcp": "function:a1aef3dae0",
+   "provisionAgentPluginMcp": "function:58e0df7c8e",
    "readAgentPluginCompatibilityMetadata": "function:7a4b567d22",
    "readAgentPluginCompatibilityWarnings": "function:61b964846c",
-   "readAgentPluginExtension": "function:e6f45e2d27",
+   "readAgentPluginExtension": "function:3653d2c922",
    "readAgentPluginMetadata": "function:722000ab87",
    "readAgentPluginPortableExtension": "function:fcf7173e41",
    "readChatAgentPluginState": "function:b5ce5ce5c7",
-   "removeAgentPluginMcp": "function:04c3729567",
+   "removeAgentPluginMcp": "function:ae9ff8301e",
    "resolveAgentPluginIdentityNamespace": "function:976cc15f0f",
-   "syncAgentPluginMcpEnabled": "function:58bb558988",
+   "syncAgentPluginMcpEnabled": "function:27eb7c1651",
    "validateAgentPluginExportProps": "function:66db482df5",
-   "validateMcpManifest": "function:1890c037a8",
+   "validateMcpManifest": "function:c12eaf1e0f",
    "validatePluginManifest": "function:a6c852f16e"
   }
  },
@@ -775,7 +775,7 @@
    "YauzlEntry": "interface:f677d84cdf",
    "YauzlPort": "interface:f5a88f41fc",
    "YauzlZipFile": "interface:deb97366e2",
-   "createYauzlAgentPluginArchiveReader": "function:0f3b3d91d8"
+   "createYauzlAgentPluginArchiveReader": "function:d7f3173c28"
   }
  },
  "./manifest": {
@@ -816,12 +816,12 @@
    "parseCredentialCardUsedFor": "function:513ff5a08e",
    "parsePluginCredentialCards": "function:cb0ce38651",
    "readAgentPluginCompatibilityWarnings": "function:61b964846c",
-   "readAgentPluginExtension": "function:e6f45e2d27",
+   "readAgentPluginExtension": "function:3653d2c922",
    "readAgentPluginMetadata": "function:722000ab87",
    "readAgentPluginPortableExtension": "function:fcf7173e41",
    "resolveAgentPluginIdentityNamespace": "function:976cc15f0f",
    "validateAgentPluginExportProps": "function:66db482df5",
-   "validateMcpManifest": "function:1890c037a8",
+   "validateMcpManifest": "function:c12eaf1e0f",
    "validatePluginManifest": "function:a6c852f16e"
   }
  },

@@ -74,27 +74,27 @@
    "StorageOps": "interface:80c7b1c2b1",
    "TableShape": "interface:718a0f0c63",
    "TurnLock": "class:44fdf74aea",
-   "autoIdColumnSql": "function:8fb3543b2c",
-   "buildKernel": "function:0b6c9ba2f4",
-   "checkpointWal": "function:96f30b3f08",
-   "columnTypeSql": "function:6b627e87a4",
-   "databaseFile": "function:5c7fff9121",
-   "jsonScalarEquals": "function:a192ba3610",
-   "jsonSet": "function:8262479703",
-   "jsonSortKey": "function:024f2aa3b8",
-   "jsonText": "function:eae0386e1e",
+   "autoIdColumnSql": "function:25c37b55b6",
+   "buildKernel": "function:71e4b83a68",
+   "checkpointWal": "function:74f25a8a8e",
+   "columnTypeSql": "function:8d513d9efd",
+   "databaseFile": "function:f80375257a",
+   "jsonScalarEquals": "function:7b393becee",
+   "jsonSet": "function:7a9a1136ba",
+   "jsonSortKey": "function:b26a165705",
+   "jsonText": "function:6cc1006b83",
    "kernelSessionPoolMax": "function:2017851ba3",
-   "listColumns": "function:0513b3a469",
-   "listIndexes": "function:e98e1e93b8",
-   "listTables": "function:3724222b8c",
-   "nowIso": "function:7e1b5bf64f",
-   "outsideTransactionOf": "function:0201d67b6b",
+   "listColumns": "function:87aab056a5",
+   "listIndexes": "function:994f94c2d3",
+   "listTables": "function:26b6df552d",
+   "nowIso": "function:d0c0f76ddc",
+   "outsideTransactionOf": "function:4b7a0f3234",
    "postgresLockKey": "function:b0b2eb04ad",
-   "readSchemaShape": "function:d283d8544f",
-   "renderDatabaseTypes": "function:02c0ebdbba",
-   "scopeToSchema": "function:ed22f853bb",
-   "tableExists": "function:81479eb902",
-   "verifyLedgerReadBack": "function:3dfb870e85",
+   "readSchemaShape": "function:7aa44d962b",
+   "renderDatabaseTypes": "function:fccaa9b255",
+   "scopeToSchema": "function:e1bda39cab",
+   "tableExists": "function:e1756b051d",
+   "verifyLedgerReadBack": "function:e1e3744c21",
    "withKernelSessionLock": "function:05458eb826"
   }
  },
@@ -105,17 +105,17 @@
    "PgliteDialect": "class:30f3410a6e",
    "PgliteExclusive": "interface:72940b1ac7",
    "PgliteRestore": "interface:6d1248facf",
-   "copyServedPgliteTo": "function:a06b0aea31",
+   "copyServedPgliteTo": "function:c7ca5c635a",
    "openPgliteKernel": "function:5c509f724f",
-   "pgliteOps": "function:9ee57979f5"
+   "pgliteOps": "function:206c8f8d09"
   }
  },
  "./kernel/postgres": {
   "types": "./dist/kernel/postgres/index.d.ts",
   "symbols": {
-   "openPgliteSocketKernel": "function:aa70bf081d",
+   "openPgliteSocketKernel": "function:202626fbfc",
    "openPostgresKernel": "function:80db86c418",
-   "postgresOps": "function:d075fd737a"
+   "postgresOps": "function:55c114da0c"
   }
  },
  "./kernel/sqlite": {
@@ -127,15 +127,15 @@
    "SqliteKernel": "type:d1c327c5ff",
    "SqliteSchemaObject": "interface:b008fa55da",
    "SqliteTableColumn": "interface:bd95fca47f",
-   "closeSqliteConnection": "function:274e0f10b7",
+   "closeSqliteConnection": "function:d15bbf0f5c",
    "copySqliteInto": "function:255d28ac1e",
-   "openMemorySqliteKernel": "function:0f8c8de60b",
+   "openMemorySqliteKernel": "function:c72882e915",
    "openSqliteFileKernel": "function:1f8b570353",
-   "sqliteClientOf": "function:2fae2e045c",
-   "sqliteConnectionOf": "function:ca28dfdc9b",
+   "sqliteClientOf": "function:2cd16add2d",
+   "sqliteConnectionOf": "function:03bc3a1b8b",
    "sqliteForeignKeyCheckedTransaction": "function:15d5101097",
-   "sqliteKernel": "function:4970204962",
-   "sqliteOps": "function:139fde617e",
+   "sqliteKernel": "function:dc1a02d3cf",
+   "sqliteOps": "function:090554fd98",
    "sqliteSchemaObjects": "function:f7599de86f",
    "sqliteTableExtendedInfo": "function:279d143bb8",
    "sqliteTableInfo": "function:0cac4b9ae7"
@@ -164,12 +164,12 @@
    "MigrationOptions": "interface:1f9bd342c9",
    "MigrationReport": "interface:a8db8059af",
    "UnknownAppliedMigrationError": "class:23fd9f4089",
-   "assertValidSteps": "function:d622b0940d",
+   "assertValidSteps": "function:8aa6d0a16f",
    "executeDdl": "function:c25f5494fc",
-   "hasLedger": "function:428eaa5c71",
+   "hasLedger": "function:749287cee2",
    "migrate": "function:fa284980fb",
    "runMigrations": "function:b86de21f36",
-   "sourceChecksum": "function:433e094bf7"
+   "sourceChecksum": "function:6f0de3c3b2"
   }
  },
  "./owner-store": {
@@ -199,12 +199,12 @@
    "PgliteSocketServer": "class:05197e07cd",
    "PgliteSocketServerOptions": "interface:a583b2514d",
    "acquireOwnerLock": "function:116fc41588",
-   "assertSocketPathFits": "function:370088897c",
+   "assertSocketPathFits": "function:946bcbe95c",
    "defaultPgliteSocketDir": "function:d9b8a7ae32",
-   "ensurePrivateDir": "function:52e6b8f3eb",
-   "errorResponseFrame": "function:4b659b45f0",
-   "pgliteLowMemoryStartParams": "function:a150baeee2",
-   "runningPgliteOwner": "function:c0a35e65f6",
+   "ensurePrivateDir": "function:769a6e443e",
+   "errorResponseFrame": "function:9802b0ca58",
+   "pgliteLowMemoryStartParams": "function:60c0d64822",
+   "runningPgliteOwner": "function:f6ea9846f6",
    "startPgliteOwner": "function:eb925a6642"
   }
  },
@@ -217,7 +217,7 @@
    "PgPoolClient": "interface:058f2be461",
    "PgPoolOptions": "interface:73d7c5871d",
    "PgQueryResult": "interface:af0fd62de2",
-   "pgTypesFor": "function:80e528ee4c"
+   "pgTypesFor": "function:2ccede7819"
   }
  },
  "./recovery": {
@@ -332,7 +332,7 @@
    "assertSqliteStopped": "function:32f44e8b3b",
    "checkpointStoppedSqliteWal": "function:8a26a37aed",
    "createCheckedSqliteClient": "function:2bebb25e9a",
-   "inspectSqliteDatabase": "function:627aa1bdc7",
+   "inspectSqliteDatabase": "function:095239dc8b",
    "inspectStoppedSqlite": "function:4bf4efadff",
    "openSqliteConnection": "function:b1fd8e4121",
    "pruneDatabaseCopies": "function:44a70b9818",
@@ -439,7 +439,7 @@
    "indexSql": "function:e04c707657",
    "inspectTarget": "function:2d147d301e",
    "introspectedTable": "function:5e2bdb7a52",
-   "openSqliteSnapshotSource": "function:210786bd9f",
+   "openSqliteSnapshotSource": "function:67d93343bf",
    "parseConnectionString": "function:02144c8c44",
    "planSnapshotTables": "function:7e6251abfe",
    "planTransfer": "function:fccdbbfe96",

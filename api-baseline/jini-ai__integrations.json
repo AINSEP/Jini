@@ -130,7 +130,7 @@
    "SharedSignInTransaction": "type:63b8ccfadc",
    "createDeviceAuthorizationStore": "function:379f0fd6de",
    "createHostedMcpSignInService": "function:9c8ff751ca",
-   "createSharedExternalMcpOAuth": "function:31aea5ee60"
+   "createSharedExternalMcpOAuth": "function:3b7881a53b"
   }
  },
  "./credentialed-http": {
@@ -168,7 +168,7 @@
    "detectSelfDescribingAuthScheme": "function:1ee3fd5ea0",
    "makeCredentialedRequest": "function:f0e8565b4f",
    "parseCredentialSchemesFile": "function:ed83bce307",
-   "probeCredentialConnection": "function:cb3bc3a947",
+   "probeCredentialConnection": "function:02e6f6e054",
    "resolveRequestTarget": "function:883e9c3874",
    "verifyCustomCredential": "function:c6d09ba2ae"
   }

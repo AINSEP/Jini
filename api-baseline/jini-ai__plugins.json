@@ -195,7 +195,7 @@
    "createDeclarativeContentTypes": "function:b1c6d395b9",
    "createHookRegistry": "function:1c7e30150f",
    "createPluginCapabilityTools": "function:5ca5a21978",
-   "createPluginContributionCapture": "function:90cd74357f",
+   "createPluginContributionCapture": "function:bb7f587502",
    "createPluginContributionRegistry": "function:bf5527260e",
    "createPluginProviderHost": "function:cfa8d414a3",
    "createPluginSourcePolicy": "function:4fed894d61",

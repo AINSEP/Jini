@@ -20,8 +20,8 @@
    "StaticRegistryBackend": "class:9238c2eb98",
    "StaticRegistryBackendOptions": "interface:4f5eb9eb8c",
    "canonicalRegistrySigningPayload": "function:de6322ab2f",
-   "ensureRegistryTables": "function:68918b5178",
-   "parseRegistrySpecifier": "function:2bbd301224",
+   "ensureRegistryTables": "function:bddafe44ed",
+   "parseRegistrySpecifier": "function:1d5f494f90",
    "resolveRegistryEntryVersion": "function:8eca8f4a69",
    "upsertRegistryEntry": "function:2f5a420575",
    "verifyRegistryEntrySignatures": "function:887a5ed295",
@@ -50,8 +50,8 @@
    "ToolDescriptor": "interface:bc781f1906",
    "ToolDescriptorSource": "interface:3942a2450e",
    "buildToolCatalogQuery": "function:eb201328ee",
-   "createLiveToolCatalogQuery": "function:983dcce50a",
-   "createPrefixSourceClassifier": "function:250c0e4856",
+   "createLiveToolCatalogQuery": "function:2c6908c299",
+   "createPrefixSourceClassifier": "function:537b81aa87",
    "createSearchEnricher": "function:e82b5d68d0",
    "listToolCatalogEntries": "function:aae2bd7173"
   }
@@ -59,7 +59,7 @@
  "./tool-catalog-builder/sqlite": {
   "types": "./dist/tool-catalog-builder/sqlite.d.ts",
   "symbols": {
-   "createSqliteCatalogStoreFactory": "function:76b24ddf65"
+   "createSqliteCatalogStoreFactory": "function:32d8933bef"
   }
  },
  "./tool-catalog/sqlite": {
@@ -67,8 +67,8 @@
   "symbols": {
    "ToolCatalogEntry": "interface:ed4c86e4ce",
    "ToolCatalogSearchHit": "interface:bcdb9f7c8c",
-   "ensureToolCatalogTables": "function:fa63a469ee",
-   "getToolCatalogEntry": "function:40959177f5",
+   "ensureToolCatalogTables": "function:d4da1e2110",
+   "getToolCatalogEntry": "function:4e5f5b546b",
    "reseedToolCatalog": "function:86adf6e9a3",
    "searchToolCatalog": "function:557aaa377f"
   }

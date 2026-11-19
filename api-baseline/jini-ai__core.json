@@ -812,7 +812,7 @@
    "TerminalSession": "interface:8945cd8764",
    "TerminalSessionState": "interface:f295b7d824",
    "TerminalSseSink": "interface:1d6307f78d",
-   "collectProcessTreePids": "function:359da42f03",
+   "collectProcessTreePids": "function:98af1fbfb4",
    "omitEnvironmentKeys": "function:6cd109c7af",
    "planCmdShimInvocation": "function:c979a89fb2",
    "planCommandInvocation": "function:332b35b2f9"
@@ -977,12 +977,12 @@
    "StorageKernel": "interface:d26cad5ef4",
    "StorageTransport": "type:40363bdd28",
    "UnsupportedCapabilityError": "class:9062ea0e74",
-   "isUniqueViolation": "function:258f757cb9",
-   "parseJsonOrUndef": "function:4cf2119d4b",
+   "isUniqueViolation": "function:9c5ffe08c2",
+   "parseJsonOrUndef": "function:e4c595f1c2",
    "row": "function:110b5299f8",
    "rows": "function:26ee0bccea",
-   "toBool": "function:992e8d8240",
-   "toBytes": "function:6a96d01264"
+   "toBool": "function:7d31541683",
+   "toBytes": "function:8f4c6a3a5f"
   }
  },
  "./contracts/vault": {
@@ -1057,9 +1057,9 @@
    "QueryResult": "interface:f29e2e7a06",
    "QueryState": "interface:3f87061867",
    "QueryStatus": "type:325ea29043",
-   "missingCachedLoaderFetchError": "function:7c4fb0b0f9",
-   "toQueryError": "function:54680e7458",
-   "withCachedLoaderFetch": "function:0d65b6e446"
+   "missingCachedLoaderFetchError": "function:12f24e046e",
+   "toQueryError": "function:1c1f2e3540",
+   "withCachedLoaderFetch": "function:1c2e459525"
   }
  },
  "./filesystem": {
@@ -1387,10 +1387,10 @@
    "deriveRequiredPermission": "function:2b2730dc02",
    "ensureSettingDefinitions": "function:5dc6fd84e2",
    "ensureSettingsUiTabDefinitions": "function:68a5d869c6",
-   "findAgentWriteRule": "function:e3333ee868",
-   "getEffective": "function:79aa2ebc16",
+   "findAgentWriteRule": "function:d849630bcd",
+   "getEffective": "function:59a1602f2b",
    "getSettingsAgentToolCatalog": "function:8880303a9a",
-   "invalidateDefinitionNamespaceCache": "function:8a9a0f8619",
+   "invalidateDefinitionNamespaceCache": "function:e71c5f7b67",
    "invalidateWorkspaceSettingsCache": "function:0fcca975e5",
    "isRevisionVisibleTo": "function:e3b41a8f6e",
    "parseNonRegisterDefinitionOp": "function:3929d86ec6",
@@ -1398,8 +1398,8 @@
    "reconcileDefinitionDefault": "function:8b70869a17",
    "registerDefinitions": "function:3e5fc1d943",
    "renameDefinition": "function:9c8a3b4e57",
-   "resetNamespace": "function:f991937518",
-   "resolveAgentWritablePreference": "function:32d74446c9",
+   "resetNamespace": "function:91f6c6b333",
+   "resolveAgentWritablePreference": "function:a2658e911f",
    "resolveDefinition": "function:7039764ac8",
    "resolveDefinitionRaw": "function:22cc6b9bbb",
    "retypeDefinition": "function:71b0785363",
@@ -1408,7 +1408,7 @@
    "tombstoneDefinition": "function:68e1a9a259",
    "translateSettingsDialog": "function:287258fbdf",
    "validateDefinitionInput": "function:60d1d6a70a",
-   "validateValueAgainstSchema": "function:b80f628482"
+   "validateValueAgainstSchema": "function:3a9138d461"
   }
  },
  "./settings/express": {
