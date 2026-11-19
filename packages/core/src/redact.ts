@@ -33,6 +33,7 @@
  */
 
 import { API_KEY_HEADER_NAMES, apiKeyHeaderRules, AUTH_HEADER_LABEL_BEFORE, authSchemeValueRanges, BARE_SCHEME_TOKEN_PATTERNS, COOKIE_ASSIGNMENT_RE } from './redact-auth-schemes.js';
+import { encodedNameValueRanges } from './redact-encoded-names.js';
 import { labelAliasValueRanges } from './redact-label-aliases.js';
 import { colonReading } from './redact-prose-values.js';
 import { quotedHintRanges } from './redact-quoted-hints.js';
@@ -368,11 +369,12 @@ const RUNTIME_SECRET_LABELS = `${SERIALIZED_SECRET_LABELS}|(?<![?&])(?:key)`;
 // Bearer, Token, ApiKey or Digest (a quoted value stays masked whole by this rule, and Basic by its own rule),
 // and a scheme word alone (`Authorization: Bearer`) describes a header.
 const AUTH_SCHEME_WORD = '(?:Bearer|Token|ApiKey|Digest|Basic)';
+// A Markdown label closes its emphasis around the separator (`**Password:**`, `**Password**:`) before the value.
 // The whitespace after the separator is read once (`(?=(\s*))\3` cannot give characters back): when the lookahead below
 // rejects a bare scheme word, backtracking into that run re-ran the header lookbehind over the padding at every
 // position, quadratic on a long run of spaces before the word.
 const MASK_AWARE_LABELED_SECRET_RE = new RegExp(
-  `(?<![\\w-])(["']?)(${RUNTIME_SECRET_LABELS})\\1\\s*[:=](?=(\\s*))\\3`
+  `(?<![\\w-])(["']?)(${RUNTIME_SECRET_LABELS})\\1(?:\\*\\*)?\\s*[:=](?:\\*\\*)?(?=(\\s*))\\3`
     + `(?!${AUTH_HEADER_LABEL_BEFORE}(?:Bearer\\s+\\S|(?:Token|ApiKey|Digest)[ \\t]+\\S|${AUTH_SCHEME_WORD}(?:[\\s"'\x60.,;:)\\]}]|$)))(?!${GENERATED_MARKER}[;&])((?!&)\\S)`,
   'gi',
 );
@@ -410,6 +412,7 @@ const URL_CREDENTIALS_RE = /\/\/([^/\s?#]+)@/g;
 const SIGNED_QUERY_RE = /([?&](?:signature|sig|x-amz-signature|x-goog-signature|access_token|refresh_token)=)([^&#\s,;"']+)/gi;
 // A parameter the labeled rule already names (password, client_secret, ...) keeps that category.
 const LABELED_URL_PARAM_NAME_RE = new RegExp(`(?:^|[.-])(?:${SECRET_LABELS})$`, 'i');
+const SIGNATURE_PARAM_NAME_RE = /(?:^|[._-])(?:sig|signature)$/i;
 
 // Only an entire generated marker is already masked. A secret glued onto marker-like text still
 // needs masking; a substring check would preserve credential suffixes in echoed header/query values.
@@ -554,6 +557,9 @@ function collectSpans({ text }: { text: string }, options: SecretRedactionOption
   collectKeyedCredentials({ text, add });
   collectLabeledSecrets({ text, add }, spans);
   for (const { start, end } of labelAliasValueRanges({ text, isMasked: isMaskedValue })) add(start, end, CATEGORY.labeledSecret);
+  for (const { start, end } of encodedNameValueRanges({ text })) {
+    if (!isMaskedValue(text.slice(start, end))) add(start, end, CATEGORY.labeledSecret);
+  }
   if (options.policy === 'aggressive') collectOpaqueTokens({ text, add }, new Set(options.diagnosticToolIds));
   if (options.redactPii !== false) collectPii({ text, add }, spans);
   return spans;
@@ -731,9 +737,12 @@ function collectApiKeyHeaders(pass: SpanPass): void {
 function collectUrlSecretParams(pass: SpanPass): void {
   collectMatches(pass, URL_SECRET_PARAM_RE, (match, index) => {
     const separator = match[0].indexOf('=') + 1;
-    if (isMaskedValue(match[0].slice(separator))) return undefined;
+    // A password may hold a literal `#`; a signature is URL-safe text that never does, so there `#` starts the fragment.
+    const fragment = SIGNATURE_PARAM_NAME_RE.test(match[1] ?? '') ? match[0].indexOf('#', separator) : -1;
+    const value = match[0].slice(separator, fragment === -1 ? undefined : fragment);
+    if (isMaskedValue(value)) return undefined;
     const category = LABELED_URL_PARAM_NAME_RE.test(match[1] ?? '') ? CATEGORY.labeledSecret : CATEGORY.urlSecretParam;
-    return { start: index + separator, end: index + match[0].length, category };
+    return { start: index + separator, end: index + separator + value.length, category };
   });
 }
 

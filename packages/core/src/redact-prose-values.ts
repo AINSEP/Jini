@@ -78,9 +78,15 @@ const QUALIFIED_KEY_MAX_VALUE = 11;
 const IDENTIFIER_WORD = /^[A-Za-z][a-z]*(?:[A-Z][a-z]+)*\d{0,4}$/;
 const isReadableIdentifier = (value: string): boolean => value.split(/[_-]/).every(word => IDENTIFIER_WORD.test(word));
 
+// A hex digest after a qualifier (`Cache key: <sha1>`) is the hash it names, as the formatter chat used before kept it.
 const isQualifiedKey = ({ before, label, value }: { before: string; label: string; value: string }): boolean =>
-  label.toLowerCase() === 'key' && (value.length <= QUALIFIED_KEY_MAX_VALUE || isReadableIdentifier(value))
+  label.toLowerCase() === 'key' && (value.length <= QUALIFIED_KEY_MAX_VALUE || isReadableIdentifier(value) || /^[0-9a-f]+$/i.test(value))
   && KEY_QUALIFIER_BEFORE.test(before);
+// A bare `key:` also names a file or lookup path in errors and logs (`key: /src/main.ts`). A path of readable words is kept;
+// a segment that is not a readable word (`/Zq8wPx3m...`) keeps the value masked.
+const isKeyPath = ({ label, value }: { label: string; value: string }): boolean =>
+  label.toLowerCase() === 'key' && /^(?:\.{0,2}\/|~\/)/.test(value)
+  && value.split(/[/.]/).filter(Boolean).every(isReadableIdentifier);
 
 
 
@@ -98,7 +104,8 @@ export function isProseAfterColon(
   { rest, gap }: { readonly rest: string; readonly gap: string },
   { before, label, token }: { readonly before: string; readonly label: string; readonly token: number },
 ): boolean {
-  if (isQualifiedKey({ before, label, value: rest.slice(0, token) }) || PLACEHOLDER_RES.some(pattern => pattern.test(rest))) return true;
+  const value = rest.slice(0, token);
+  if (isQualifiedKey({ before, label, value }) || isKeyPath({ label, value }) || PLACEHOLDER_RES.some(pattern => pattern.test(rest))) return true;
   // The value after a line break is prose unless it is one bare token on the line after the label, or starts with a
   // credential-shaped token (see isNextLineValue). A header name never heads a paragraph: whatever starts the line after
   // `Authorization:` is its credential.
@@ -111,6 +118,22 @@ export function isProseAfterColon(
  * line end; 0 otherwise (the value is its first token). @complexity O(1): anchored and bounded to eight words. */
 function passphraseLength({ rest, before }: { readonly rest: string; readonly before: string }): number {
   return isFieldStart(before) && PASSPHRASE.test(rest) ? rest.trimEnd().length : 0;
+}
+
+// A YAML block scalar indicator (`|`, `>`, with optional chomping and indent marks) ends its line; the value is on the
+// lines below that are indented deeper than the label's line, and blank lines between them.
+const BLOCK_INDICATOR = /^[|>][-+1-9]{0,2}[ \t]*(?=\r?\n)/;
+
+/** End of a block scalar's body when the value at `start` is a block indicator, else -1. `before` is the label's line up
+ * to the label. @complexity O(body): the body is read once and the scan resumes after it. */
+function blockScalarEnd({ text, start, before }: { readonly text: string; readonly start: number; readonly before: string }): number {
+  const indicator = BLOCK_INDICATOR.exec(text.slice(start, start + 8));
+  if (!indicator) return -1;
+  const indent = /^[ \t]*/.exec(before)?.[0].length ?? 0;
+  const body = new RegExp(`(?:\\r?\\n(?:[ \\t]*(?=\\r?\\n)|[ \\t]{${indent + 1},}[^\\r\\n]*))*`, 'y');
+  body.lastIndex = start + indicator[0].length;
+  const lines = body.exec(text)?.[0] ?? '';
+  return start + indicator[0].length + lines.trimEnd().length;
 }
 
 /** The text between the colon and the value, or undefined when the label is followed by `=` or no colon at all. */
@@ -135,6 +158,8 @@ export function colonReading(
   const window = text.slice(Math.max(0, labelStart - 200), labelStart);
   const before = window.slice(window.lastIndexOf('\n') + 1);
   if (isProseAfterColon({ rest, gap }, { before, label: match[2] ?? '', token: value.end - start })) return { prose: true, end: value.end };
+  const block = blockScalarEnd({ text, start, before });
+  if (block !== -1) return { prose: false, end: block };
   const phrase = passphraseLength({ rest, before });
   return { prose: false, end: phrase > value.end - start && !gap.includes('\n') ? start + phrase : value.end };
 }

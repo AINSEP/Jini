@@ -269,9 +269,10 @@ describe('@jini-ai/core — redact — redactSecrets', () => {
     );
   });
 
+  // Signature parameters end at `#` (see redact.key-and-signature-readability.test.ts).
   it.each([
-    '?token', '#access_token', '?api_key', '?X-Amz-Signature', '&client_secret',
-    ';signature', '#sig', '?code', '#password', '?pwd', '&auth', '?custom.Token-value',
+    '?token', '#access_token', '?api_key', '&client_secret',
+    '?code', '#password', '?pwd', '&auth', '?custom.Token-value',
   ])('masks the complete URL secret value, including its fragment: %s', (parameter) => {
     const input = `https://example.com/x${parameter}=short#private&page=2`;
     const redacted = redactSecrets({ input });
