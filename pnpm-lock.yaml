@@ -791,9 +791,6 @@ importers:
       '@jini-ai/db':
         specifier: workspace:^
         version: link:../db
-      '@jini-ai/http-kit':
-        specifier: workspace:^
-        version: link:../http-kit
       '@jini-ai/platform':
         specifier: workspace:^
         version: link:../platform
@@ -813,6 +810,9 @@ importers:
       '@jini-ai/chat':
         specifier: workspace:*
         version: link:../chat
+      '@jini-ai/http-kit':
+        specifier: workspace:*
+        version: link:../http-kit
       '@types/better-sqlite3':
         specifier: ^7.6.11
         version: 7.6.13
@@ -1657,10 +1657,6 @@ packages:
     resolution: {integrity: sha512-CjXrNHTnvqBVqHgdBysY3vk2T8tpJHb5/RMeHJBTyVa9xgugCB0CJTx/3oO8RV2QRQP391RWpB7D6hLjm8V9uA==}
     engines: {node: '>=6.0.0'}
     hasBin: true
-
-  '@babel/runtime@7.29.14':
-    resolution: {integrity: sha512-Y5tqevQaUAZhhj82BpYMNC1ssvLQTVAfwKdm8iy8qwmhvC2/CpcAu8OC+QEtjM7pMk7knx83u1Qj8gzkicyelw==}
-    engines: {node: '>=6.9.0'}
 
   '@babel/runtime@7.29.7':
     resolution: {integrity: sha512-Nq8OhGWiZIZGV6hLHoyAKLLcJihP/xFeBMGJoUrxTX2psI8dCifzLhZISFb+VWS3wFMRDmCGw5R+dOySCqPLhw==}
@@ -7628,8 +7624,6 @@ snapshots:
     dependencies:
       '@babel/types': 7.29.8
 
-  '@babel/runtime@7.29.14': {}
-
   '@babel/runtime@7.29.7': {}
 
   '@babel/types@7.29.7':
@@ -9782,7 +9776,7 @@ snapshots:
   '@testing-library/dom@10.4.1':
     dependencies:
       '@babel/code-frame': 7.29.7
-      '@babel/runtime': 7.29.14
+      '@babel/runtime': 7.29.7
       '@types/aria-query': 5.0.4
       aria-query: 5.3.0
       dom-accessibility-api: 0.5.16
