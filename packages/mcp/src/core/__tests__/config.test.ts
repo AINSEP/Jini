@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { writeFileAtomicAsync } from '@jini-ai/platform/fs';
 import {
   inferMcpAuthModeForUrl,
   sanitizeMcpServer,
@@ -13,7 +15,13 @@ import {
   buildAcpMcpServers,
   buildOpenCodeMcpConfigContent,
   type McpServerConfig,
+  type McpConfigFilesPort,
 } from '../index.js';
+
+const files: McpConfigFilesPort = {
+  readText: ({ filePath }) => readFile(filePath, 'utf8'),
+  writer: { writeText: writeFileAtomicAsync },
+};
 
 const tmpDirs: string[] = [];
 function tmp(): string {
@@ -150,40 +158,49 @@ describe('sanitizeMcpConfig', () => {
 });
 
 describe('readMcpConfig / writeMcpConfig', () => {
+  it('propagates an owner-check writer failure without reporting the config as saved', async () => {
+    const failure = new TypeError('owner-only verification failed');
+    const files: McpConfigFilesPort = {
+      readText: async () => '{"servers":[]}',
+      writer: { writeText: async () => { throw failure; } },
+    };
+    await expect(writeMcpConfig({ dataDir: '/rejected', body: { servers: [{ id: 'new', command: 'node' }] }, files })).rejects.toBe(failure);
+    expect(await readMcpConfig({ dataDir: '/rejected', files })).toEqual({ servers: [] });
+  });
   it('returns empty when the config file does not exist', async () => {
-    await expect(readMcpConfig({ dataDir: tmp() })).resolves.toEqual({ servers: [] });
+    await expect(readMcpConfig({ files, dataDir: tmp() })).resolves.toEqual({ servers: [] });
   });
   it('returns empty and logs on corrupt JSON', async () => {
     const dir = tmp();
     fs.writeFileSync(path.join(dir, 'mcp-config.json'), '{ not json');
-    await expect(readMcpConfig({ dataDir: dir })).resolves.toEqual({ servers: [] });
+    await expect(readMcpConfig({ files, dataDir: dir })).resolves.toEqual({ servers: [] });
   });
   it('rethrows non-ENOENT / non-syntax read errors (EISDIR)', async () => {
     const dir = tmp();
     fs.mkdirSync(path.join(dir, 'mcp-config.json')); // reading a directory throws EISDIR
-    await expect(readMcpConfig({ dataDir: dir })).rejects.toMatchObject({ code: 'EISDIR' });
+    await expect(readMcpConfig({ files, dataDir: dir })).rejects.toMatchObject({ code: 'EISDIR' });
   });
   it('sanitizes, persists, and round-trips through the mutex', async () => {
     const dir = tmp();
-    const written = await writeMcpConfig({ dataDir: dir, body: { servers: [{ id: 'a', command: 'node' }, { id: 'bad' }] } });
+    const written = await writeMcpConfig({ files, dataDir: dir, body: { servers: [{ id: 'a', command: 'node' }, { id: 'bad' }] } });
     expect(written.servers.map((s) => s.id)).toEqual(['a']);
-    await expect(readMcpConfig({ dataDir: dir })).resolves.toEqual(written);
+    await expect(readMcpConfig({ files, dataDir: dir })).resolves.toEqual(written);
   });
   it('serializes concurrent writes on the same dataDir', async () => {
     const dir = tmp();
     const [a, b] = await Promise.all([
-      writeMcpConfig({ dataDir: dir, body: { servers: [{ id: 'a', command: 'node' }] } }),
-      writeMcpConfig({ dataDir: dir, body: { servers: [{ id: 'b', command: 'deno' }] } }),
+      writeMcpConfig({ files, dataDir: dir, body: { servers: [{ id: 'a', command: 'node' }] } }),
+      writeMcpConfig({ files, dataDir: dir, body: { servers: [{ id: 'b', command: 'deno' }] } }),
     ]);
     expect(a.servers[0]?.id).toBe('a');
     expect(b.servers[0]?.id).toBe('b');
-    const final = await readMcpConfig({ dataDir: dir });
+    const final = await readMcpConfig({ files, dataDir: dir });
     expect(final.servers[0]?.id).toBe('b'); // last write wins
   });
 
   it('writes mcp-config.json with owner-only (0600) permissions (CR-006 / SEC-RB-002 — env/headers may carry API keys)', async () => {
     const dir = tmp();
-    await writeMcpConfig({ dataDir: dir, body: { servers: [{ id: 'a', command: 'node' }] } });
+    await writeMcpConfig({ files, dataDir: dir, body: { servers: [{ id: 'a', command: 'node' }] } });
     if (process.platform !== 'win32') {
       const mode = fs.statSync(path.join(dir, 'mcp-config.json')).mode & 0o777;
       expect(mode).toBe(0o600);
@@ -489,7 +506,7 @@ it('logs malformed config JSON as its class only, never the echoed file text', a
   fs.writeFileSync(path.join(dir, 'mcp-config.json'), 'boom api_key=SECRETSECRETSECRETSECRET');
   const log = vi.spyOn(console, 'error').mockImplementation(() => {});
   try {
-    await expect(readMcpConfig({ dataDir: dir })).resolves.toEqual({ servers: [] });
+    await expect(readMcpConfig({ files, dataDir: dir })).resolves.toEqual({ servers: [] });
     expect(log).toHaveBeenCalledWith('[mcp-config] Corrupted JSON, returning empty:', 'SyntaxError');
     expect(JSON.stringify(log.mock.calls)).not.toMatch(/boom|SECRETSECRET/);
   } finally { log.mockRestore(); }

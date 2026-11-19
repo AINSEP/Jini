@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { writeFileAtomicAsync } from '@jini-ai/platform/fs';
 
 // `stat` is intercepted so the fail-closed "the OS didn't honor mode 0600"
 // path (CR-006 / SEC-RB-002 — `writeFileAtomicAsync`) can be exercised
@@ -40,6 +42,11 @@ import {
   type StoredMcpToken,
 } from '../tokens.js';
 import type { Clock } from '@jini-ai/core/primitives';
+
+const files = {
+  readText: ({ filePath }: { filePath: string }) => readFile(filePath, 'utf8'),
+  writer: { writeText: writeFileAtomicAsync },
+};
 
 // A package test supplies its own clock port; the system clock lives in the platform package.
 const testClock = { nowMs: () => Date.now() };
@@ -183,17 +190,17 @@ describe('sanitizeTokensFile boundaries', () => {
 
 describe('readTokensFile', () => {
   it('returns an empty store when the file is missing', async () => {
-    await expect(readTokensFile({ dataDir: tmp(), clock: testClock })).resolves.toEqual({ servers: {} });
+    await expect(readTokensFile({ files, dataDir: tmp(), clock: testClock })).resolves.toEqual({ servers: {} });
   });
   it('returns an empty store on corrupt JSON', async () => {
     const dir = tmp();
     writeRaw(dir, '{ broken');
-    await expect(readTokensFile({ dataDir: dir, clock: testClock })).resolves.toEqual({ servers: {} });
+    await expect(readTokensFile({ files, dataDir: dir, clock: testClock })).resolves.toEqual({ servers: {} });
   });
   it('rethrows unexpected read errors (EISDIR)', async () => {
     const dir = tmp();
     fs.mkdirSync(path.join(dir, 'mcp-tokens.json'));
-    await expect(readTokensFile({ dataDir: dir, clock: testClock })).rejects.toMatchObject({ code: 'EISDIR' });
+    await expect(readTokensFile({ files, dataDir: dir, clock: testClock })).rejects.toMatchObject({ code: 'EISDIR' });
   });
 });
 
@@ -203,50 +210,50 @@ describe('token store mutations', () => {
   it('C31: returns null for inherited entries and preserves corrupt contents before replacing the store', async () => {
     const dir = tmp();
     writeRaw(dir, '{"servers":{}}');
-    expect.soft(await getToken({ dataDir: dir, serverId: 'toString', clock: testClock })).toBeNull();
+    expect.soft(await getToken({ files, dataDir: dir, serverId: 'toString', clock: testClock })).toBeNull();
 
     const corrupt = '{"servers":{"old":{"accessToken":"recover-me"}';
     writeRaw(dir, corrupt);
-    await setToken({ dataDir: dir, serverId: 'new', token: tok, clock: testClock });
+    await setToken({ files, dataDir: dir, serverId: 'new', token: tok, clock: testClock });
 
     // Recovery must retain the original bytes; no particular backup name is required.
     const backups = fs.readdirSync(dir)
       .filter((name) => name !== 'mcp-tokens.json')
       .map((name) => fs.readFileSync(path.join(dir, name), 'utf8'));
     expect.soft(backups).toContain(corrupt);
-    expect(await getToken({ dataDir: dir, serverId: 'new', clock: testClock })).toEqual(tok);
+    expect(await getToken({ files, dataDir: dir, serverId: 'new', clock: testClock })).toEqual(tok);
   });
 
   it('sets, gets, bulk-reads, and clears a token', async () => {
     const dir = tmp();
-    expect(await getToken({ dataDir: dir, serverId: 's1', clock: testClock })).toBeNull();
-    await setToken({ dataDir: dir, serverId: 's1', token: tok, clock: testClock });
-    expect(await getToken({ dataDir: dir, serverId: 's1', clock: testClock })).toEqual(tok);
-    expect(await readAllTokens({ dataDir: dir, clock: testClock })).toEqual({ s1: tok });
-    await clearToken({ dataDir: dir, serverId: 's1', clock: testClock });
-    expect(await getToken({ dataDir: dir, serverId: 's1', clock: testClock })).toBeNull();
+    expect(await getToken({ files, dataDir: dir, serverId: 's1', clock: testClock })).toBeNull();
+    await setToken({ files, dataDir: dir, serverId: 's1', token: tok, clock: testClock });
+    expect(await getToken({ files, dataDir: dir, serverId: 's1', clock: testClock })).toEqual(tok);
+    expect(await readAllTokens({ files, dataDir: dir, clock: testClock })).toEqual({ s1: tok });
+    await clearToken({ files, dataDir: dir, serverId: 's1', clock: testClock });
+    expect(await getToken({ files, dataDir: dir, serverId: 's1', clock: testClock })).toBeNull();
   });
 
   it('clearToken is a no-op when the server is absent', async () => {
     const dir = tmp();
-    await setToken({ dataDir: dir, serverId: 's1', token: tok, clock: testClock });
-    await clearToken({ dataDir: dir, serverId: 'missing', clock: testClock });
-    expect(await getToken({ dataDir: dir, serverId: 's1', clock: testClock })).toEqual(tok);
+    await setToken({ files, dataDir: dir, serverId: 's1', token: tok, clock: testClock });
+    await clearToken({ files, dataDir: dir, serverId: 'missing', clock: testClock });
+    expect(await getToken({ files, dataDir: dir, serverId: 's1', clock: testClock })).toEqual(tok);
   });
 
   it('serializes concurrent writes on the same dataDir', async () => {
     const dir = tmp();
     await Promise.all([
-      setToken({ dataDir: dir, serverId: 'a', token: { accessToken: 'A', tokenType: 'Bearer', savedAt: 1 }, clock: testClock }),
-      setToken({ dataDir: dir, serverId: 'b', token: { accessToken: 'B', tokenType: 'Bearer', savedAt: 2 }, clock: testClock }),
+      setToken({ files, dataDir: dir, serverId: 'a', token: { accessToken: 'A', tokenType: 'Bearer', savedAt: 1 }, clock: testClock }),
+      setToken({ files, dataDir: dir, serverId: 'b', token: { accessToken: 'B', tokenType: 'Bearer', savedAt: 2 }, clock: testClock }),
     ]);
-    const all = await readAllTokens({ dataDir: dir, clock: testClock });
+    const all = await readAllTokens({ files, dataDir: dir, clock: testClock });
     expect(Object.keys(all).sort()).toEqual(['a', 'b']);
   });
 
   it('persists the token file with owner-only (0600) permissions from creation (CR-006 / SEC-RB-002)', async () => {
     const dir = tmp();
-    await setToken({ dataDir: dir, serverId: 's1', token: tok, clock: testClock });
+    await setToken({ files, dataDir: dir, serverId: 's1', token: tok, clock: testClock });
     if (process.platform !== 'win32') {
       const mode = fs.statSync(path.join(dir, 'mcp-tokens.json')).mode & 0o777;
       expect(mode).toBe(0o600);
@@ -256,19 +263,19 @@ describe('token store mutations', () => {
   it('fails closed — rejects and leaves no token file — when the OS does not honor owner-only mode', async () => {
     hoisted.statMode = 'group-readable';
     const dir = tmp();
-    await expect(setToken({ dataDir: dir, serverId: 's1', token: tok, clock: testClock })).rejects.toThrow(/owner-only/);
+    await expect(setToken({ files, dataDir: dir, serverId: 's1', token: tok, clock: testClock })).rejects.toThrow(/owner-only/);
     expect(fs.existsSync(path.join(dir, 'mcp-tokens.json'))).toBe(false);
     expect(fs.readdirSync(dir)).toEqual([]); // no leftover temp file either
   });
 
   it('does not clobber a previously-persisted token when a later write fails closed', async () => {
     const dir = tmp();
-    await setToken({ dataDir: dir, serverId: 's1', token: tok, clock: testClock });
+    await setToken({ files, dataDir: dir, serverId: 's1', token: tok, clock: testClock });
     hoisted.statMode = 'group-readable';
-    await expect(setToken({ dataDir: dir, serverId: 's2', token: { accessToken: 'B', tokenType: 'Bearer', savedAt: 2 }, clock: testClock })).rejects.toThrow('atomic write refused non-owner-only permissions');
+    await expect(setToken({ files, dataDir: dir, serverId: 's2', token: { accessToken: 'B', tokenType: 'Bearer', savedAt: 2 }, clock: testClock })).rejects.toThrow('atomic write refused non-owner-only permissions');
     hoisted.statMode = 'ok';
-    expect(await getToken({ dataDir: dir, serverId: 's1', clock: testClock })).toEqual(tok);
-    expect(await getToken({ dataDir: dir, serverId: 's2', clock: testClock })).toBeNull();
+    expect(await getToken({ files, dataDir: dir, serverId: 's1', clock: testClock })).toEqual(tok);
+    expect(await getToken({ files, dataDir: dir, serverId: 's2', clock: testClock })).toBeNull();
   });
 });
 
@@ -292,7 +299,7 @@ it('logs malformed token JSON as its class only, never the echoed file text', as
   writeRaw(dir, 'boom api_key=SECRETSECRETSECRETSECRET');
   const log = vi.spyOn(console, 'error').mockImplementation(() => {});
   try {
-    await expect(readTokensFile({ dataDir: dir, clock: testClock })).resolves.toEqual({ servers: {} });
+    await expect(readTokensFile({ files, dataDir: dir, clock: testClock })).resolves.toEqual({ servers: {} });
     expect(log).toHaveBeenCalledWith('[mcp-tokens] Corrupted JSON, returning empty:', 'SyntaxError');
     expect(JSON.stringify(log.mock.calls)).not.toMatch(/boom|SECRETSECRET/);
   } finally { log.mockRestore(); }
