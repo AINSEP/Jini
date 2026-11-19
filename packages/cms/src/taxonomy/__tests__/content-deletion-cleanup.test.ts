@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { onContentDeleted } from "../write-service.js";
+import { onContentDeleted } from "../content-deletion-cleanup.js";
 
 /**
  * @file The content-deletion event subscriber and orphan-tolerant reverse lookup.

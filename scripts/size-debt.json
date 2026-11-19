@@ -308,13 +308,6 @@
     "value": 81
   },
   {
-    "file": "packages/cms/src/taxonomy/write-service.ts",
-    "function": "<file>",
-    "line": 787,
-    "rule": "max-lines",
-    "value": 711
-  },
-  {
     "file": "packages/cms/src/trash/write-service.ts",
     "function": "createTrashService",
     "line": 120,
@@ -327,13 +320,6 @@
     "line": 377,
     "rule": "max-lines-per-function",
     "value": 98
-  },
-  {
-    "file": "packages/cms/src/widgets/resolver-service.ts",
-    "function": "<file>",
-    "line": 947,
-    "rule": "max-lines",
-    "value": 701
   },
   {
     "file": "packages/commerce/src/browser/checkout.ts",

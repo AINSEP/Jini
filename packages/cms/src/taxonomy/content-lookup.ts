@@ -1,6 +1,6 @@
 import { assertEntityLive } from "../core/entity-liveness.js";
-import type { ContentLookupPort } from "./write-service.js";
-import { isContentTypeOnAllowList } from "./write-service.js";
+import type { ContentLookupPort } from "./write-contracts.js";
+import { isContentTypeOnAllowList } from "./assignment-service.js";
 
 /**
  * @file The `ContentLookupPort` adapter backed by a host's own post/page repository.

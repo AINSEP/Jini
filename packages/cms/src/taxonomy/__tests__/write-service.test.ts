@@ -4,17 +4,23 @@ import { test } from "vitest";
 import {
   assignTerms,
   unassignTerms,
+} from "../assignment-service.js";
+import {
   createTaxonomy,
   createTerm,
   renameTerm,
+} from "../write-service.js";
+import {
   deleteTerm,
   deleteTaxonomy,
   TermHasAssignedContentError,
   TermHasChildTermsError,
   TaxonomyHasAssignedContentError,
+} from "../delete-service.js";
+import {
   TermRecordNotFoundError,
   ContentRecordNotFoundError,
-} from "../write-service.js";
+} from "../write-validation.js";
 import { TaxonomyNotApplicableError, ContentTypeMismatchError } from "../validation-chain.js";
 import { ForbiddenError } from "../../core/commands/command.js";
 

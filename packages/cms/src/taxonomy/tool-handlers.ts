@@ -18,7 +18,9 @@ import { listTaxonomiesWithTerms } from "./list.js";
 import { confirmMergeTerm, executeMergeTerm, planMergeTerm } from "./merge-term.js";
 import { toTaxonomyOutbox } from "./repo.memory.js";
 import type { TaxonomyHandlerArgs, TaxonomyMergePrepared, TaxonomyPackageToolDeps } from "./tool-handlers.types.js";
-import { assignTerms, createTaxonomy, createTerm, isContentTypeOnAllowList, renameTerm, unassignTerms, type WriteServiceDeps } from "./write-service.js";
+import { assignTerms, isContentTypeOnAllowList, unassignTerms } from "./assignment-service.js";
+import { createTaxonomy, createTerm, renameTerm } from "./write-service.js";
+import { type WriteServiceDeps } from "./write-contracts.js";
 
 export const MERGE_TOOL_ID = "taxonomy_execute_merge_term";
 

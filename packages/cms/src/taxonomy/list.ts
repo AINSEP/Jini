@@ -1,4 +1,4 @@
-import type { Taxonomy, Term } from "./write-service.js";
+import type { Taxonomy, Term } from "./write-contracts.js";
 
 /**
  * @file Admin-UI backend-gap closure (design-spec.md §2.8) — the taxonomy/term registry's missing

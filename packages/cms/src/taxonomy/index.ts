@@ -36,23 +36,54 @@ export {
 export {
   TAXONOMY_ALLOWED_CONTENT_TYPES,
   isContentTypeOnAllowList,
+  assignTerms,
+  unassignTerms,
+  type UnassignableEntryTermRepoPort,
+  type AssignTermsRequired,
+  type UnassignTermsRequired,
+} from "./assignment-service.js";
+export {
   TaxonomyRecordNotFoundError,
   TermRecordNotFoundError,
   ContentRecordNotFoundError,
+  TaxonomyVersionConflictError,
+} from "./write-validation.js";
+export {
   TermHasAssignedContentError,
   TermHasChildTermsError,
   TaxonomyHasAssignedContentError,
-  TaxonomyVersionConflictError,
+  deleteTerm,
+  deleteTaxonomy,
+  type DeleteTermRequired,
+  type DeleteTaxonomyRequired,
+  type DeletableTaxonomyRepoPort,
+  type DeletableTermRepoPort,
+  type AssignmentCountEntryTermRepoPort,
+} from "./delete-service.js";
+export {
   createTaxonomy,
   createTerm,
   renameTerm,
-  assignTerms,
-  unassignTerms,
-  deleteTerm,
-  deleteTaxonomy,
+  type CreateTaxonomyRequired,
+  type CreateTermRequired,
+  type CreateTermOptional,
+  type RenameTermRequired,
+} from "./write-service.js";
+export {
   onContentDeleted,
+  type EntryTermsCleanupPort,
+  type OnContentDeletedRequired,
+} from "./content-deletion-cleanup.js";
+export {
   importTaxonomy,
   importTerm,
+  type ImportableTaxonomyRepoPort,
+  type ImportableTermRepoPort,
+  type ImportTaxonomyRequired,
+  type ImportTermRequired,
+  type ImportTermOptional,
+} from "./import-service.js";
+export {
   type AuthorizeFn,
   type Taxonomy,
   type Term,
@@ -61,29 +92,10 @@ export {
   type EntryTermRepoPort,
   type ContentLookupPort,
   type ContentTypeTaxonomyPolicyPort,
-  type UnassignableEntryTermRepoPort,
   type TaxonomyRevisionRow,
   type TaxonomyRevisionRepoPort,
   type WriteServiceDeps,
-  type CreateTaxonomyRequired,
-  type CreateTermRequired,
-  type CreateTermOptional,
-  type RenameTermRequired,
-  type AssignTermsRequired,
-  type UnassignTermsRequired,
-  type DeleteTermRequired,
-  type DeleteTaxonomyRequired,
-  type DeletableTaxonomyRepoPort,
-  type DeletableTermRepoPort,
-  type AssignmentCountEntryTermRepoPort,
-  type EntryTermsCleanupPort,
-  type OnContentDeletedRequired,
-  type ImportableTaxonomyRepoPort,
-  type ImportableTermRepoPort,
-  type ImportTaxonomyRequired,
-  type ImportTermRequired,
-  type ImportTermOptional,
-} from "./write-service.js";
+} from "./write-contracts.js";
 
 export type {
   AssignedTermView,

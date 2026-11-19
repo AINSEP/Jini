@@ -2,26 +2,40 @@ import { describe, expect, it } from "vitest";
 
 import {
   assignTerms,
+} from "../assignment-service.js";
+import {
   createTerm,
+  renameTerm,
+} from "../write-service.js";
+import {
   deleteTerm,
+} from "../delete-service.js";
+import {
   importTaxonomy,
   importTerm,
-  renameTerm,
+} from "../import-service.js";
+import {
   ContentRecordNotFoundError,
   TaxonomyRecordNotFoundError,
   TaxonomyVersionConflictError,
   TermRecordNotFoundError,
-} from "../write-service.js";
+} from "../write-validation.js";
 import type {
   ContentTypeTaxonomyPolicyPort,
-  DeleteTermRequired,
-  ImportTaxonomyRequired,
-  ImportTermRequired,
-  RenameTermRequired,
   Taxonomy,
   TaxonomyRevisionRow,
   Term,
   WriteServiceDeps,
+} from "../write-contracts.js";
+import type {
+  DeleteTermRequired,
+} from "../delete-service.js";
+import type {
+  ImportTaxonomyRequired,
+  ImportTermRequired,
+} from "../import-service.js";
+import type {
+  RenameTermRequired,
 } from "../write-service.js";
 import { ParentCrossTaxonomyError, TaxonomyNotApplicableError, TermNotFoundError } from "../validation-chain.js";
 

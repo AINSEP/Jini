@@ -1,4 +1,4 @@
-import type { Taxonomy, Term } from "./write-service.js";
+import type { Taxonomy, Term } from "./write-contracts.js";
 
 /**
  * @file The read ports a taxonomy store offers beyond the write/list ports of `write-service.ts` and

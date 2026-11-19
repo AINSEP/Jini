@@ -1,6 +1,6 @@
 import type { StorageKernel } from "@jini-ai/core/contracts/storage";
 import type { Kysely } from "kysely";
-import type { TaxonomyRevisionRepoPort, TaxonomyRevisionRow } from "../write-service.js";
+import type { TaxonomyRevisionRepoPort, TaxonomyRevisionRow } from "../write-contracts.js";
 import { type RevisionTableViews, type TaxonomySqlRequired, type TaxonomyTables, toTaxonomyRevisionRow } from "./repo.rows.js";
 
 /**

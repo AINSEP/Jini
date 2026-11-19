@@ -1,7 +1,7 @@
 import { toBool } from "@jini-ai/core/contracts/storage";
 import type { StorageKernel } from "@jini-ai/core/contracts/storage";
 import type { Generated, Insertable, Kysely, Selectable } from "kysely";
-import type { Taxonomy, TaxonomyRevisionRow, Term } from "../write-service.js";
+import type { Taxonomy, TaxonomyRevisionRow, Term } from "../write-contracts.js";
 
 /**
  * @file Row types and mapping for the host's taxonomy tables, shared by every dialect: the columns are

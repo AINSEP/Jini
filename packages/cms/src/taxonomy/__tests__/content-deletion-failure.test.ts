@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test, vi } from "vitest";
 import { createConsoleLogger } from "@jini-ai/core/primitives";
-import { onContentDeleted } from "../write-service.js";
+import { onContentDeleted } from "../content-deletion-cleanup.js";
 
 const event = { workspaceId: "ws-1", contentType: "post", contentId: "post-1" };
 

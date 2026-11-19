@@ -3,7 +3,7 @@ import { test } from "vitest";
 
 import { type ContentKernel, describeEachDialect } from "../../core/__tests__/support/dialect-matrix.js";
 import { SqlEntryTermRepo, SqlTaxonomyRepo, SqlTaxonomyRevisionRepo, SqlTermRepo } from "../sql/index.js";
-import type { Taxonomy, Term } from "../write-service.js";
+import type { Taxonomy, Term } from "../write-contracts.js";
 import { TAXONOMY_TABLES, createTables } from "./support/taxonomy-tables.fixture.js";
 
 /**

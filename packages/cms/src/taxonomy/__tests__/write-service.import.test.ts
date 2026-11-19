@@ -4,12 +4,14 @@ import { test } from "vitest";
 import {
   TaxonomyRecordNotFoundError,
   TaxonomyVersionConflictError,
+} from "../write-validation.js";
+import {
   importTaxonomy,
   importTerm,
-} from "../write-service.js";
+} from "../import-service.js";
 import { ForbiddenError } from "../../core/commands/command.js";
 import { HierarchyCycleDetectedError, TaxonomyNotHierarchicalError } from "../validation-chain.js";
-import type { Taxonomy, Term } from "../write-service.js";
+import type { Taxonomy, Term } from "../write-contracts.js";
 
 /**
  * @file `importTaxonomy`/`importTerm` — the publish-content import path (plan-publish-all-types-
