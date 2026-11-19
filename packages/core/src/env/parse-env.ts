@@ -5,35 +5,12 @@
  * that refuses it today keeps refusing it with its own error at its own time. Values that are
  * not delivered through the environment are never read here and never enter the config.
  */
-import type { EnvIssue, EnvSchema, EnvValueEcho, EnvVarSpec, HostEnvironment, ParsedEnv } from '../contracts/env.js';
+import type { EnvIssue, EnvSchema, EnvVarSpec, HostEnvironment, ParsedEnv } from '../contracts/env.js';
 import { COERCERS, describeExpected } from './coercers.js';
+import { echoEnvValue, isSet } from './value-echo.js';
 
 interface FieldResult { readonly value: unknown; readonly source?: string; readonly issue?: EnvIssue }
 type SpecsByName = ReadonlyMap<string, EnvVarSpec>;
-
-const SHOWN_LIMIT = 120;
-/** The one definition of "is it set". Never a truthiness check: `0`, `false` and `""` are real values. */
-function isSet({ value }: { value: string | undefined }): boolean {
-  return value !== undefined && value.trim() !== '';
-}
-
-/** A URL setting can carry credentials although the setting itself is not a secret. */
-function withoutCredentials({ raw }: { raw: string }): string | undefined {
-  if (!URL.canParse(raw.trim())) return undefined;
-  const url = new URL(raw.trim());
-  url.username = ''; url.password = ''; url.search = ''; url.hash = '';
-  return url.toString();
-}
-
-/** Allow-list display: a value is shown only when its spec says it is not secret and may be shown.
- * A name with no spec can therefore never leak a value. */
-function echo({ spec, raw }: { spec: EnvVarSpec | undefined; raw: string | undefined }): EnvValueEcho {
-  if (!isSet({ value: raw }) || raw === undefined) return { kind: 'unset' };
-  if (!spec || spec.secret || spec.display !== 'value') return { kind: 'hidden', length: raw.length };
-  const text = spec.type === 'url' || spec.type === 'origin' ? withoutCredentials({ raw }) : raw;
-  if (text === undefined) return { kind: 'hidden', length: raw.length };
-  return { kind: 'shown', text: text.length > SHOWN_LIMIT ? `${text.slice(0, SHOWN_LIMIT)}…` : text };
-}
 
 /** The controlling variable's raw text when set, otherwise its own default. */
 function isActive({ spec, env, byName }: { spec: EnvVarSpec; env: HostEnvironment; byName: SpecsByName }): boolean {
@@ -52,7 +29,7 @@ function defaultValue({ spec }: { spec: EnvVarSpec }): unknown {
 
 function invalid({ spec, raw }: { spec: EnvVarSpec; raw: string }): EnvIssue {
   const usedInstead = spec.secret ? undefined : spec.default;
-  return { name: spec.name, problem: 'invalid', received: echo({ spec, raw }), expected: describeExpected({ spec }),
+  return { name: spec.name, problem: 'invalid', received: echoEnvValue({ spec, raw }), expected: describeExpected({ spec }),
     ...(usedInstead === undefined ? {} : { usedInstead }), fix: spec.doc.fix };
 }
 
@@ -90,7 +67,7 @@ function checkUnknownNames({ env, ownedPrefixes, known }: { env: HostEnvironment
     .filter(name => isSet({ value: env[name] }) && !names.has(name) && ownedPrefixes.some(prefix => name.startsWith(prefix)))
     .map((name) => {
       const suggestion = nearestName({ name, known });
-      return { name, problem: 'unknown-name' as const, received: echo({ spec: undefined, raw: env[name] }), expected: 'a setting name this program knows',
+      return { name, problem: 'unknown-name' as const, received: echoEnvValue({ spec: undefined, raw: env[name] }), expected: 'a setting name this program knows',
         ...(suggestion === undefined ? {} : { suggestion }), fix: suggestion === undefined ? 'check the spelling where you set it, or remove it' : 'rename it where you set it' };
     });
 }

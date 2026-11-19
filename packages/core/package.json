@@ -73,7 +73,8 @@
       "./errors/testing": "universal",
       "./contracts/env": "universal",
       "./env/parse-env": "universal",
-      "./env/format-env-issue": "universal"
+      "./env/format-env-issue": "universal",
+      "./env/describe-env-for-diagnostics": "universal"
     },
     "isolation": {
       "entries": {
@@ -274,6 +275,11 @@
       "types": "./dist/env/format-env-issue.d.ts",
       "import": "./dist/env/format-env-issue.js",
       "default": "./dist/env/format-env-issue.js"
+    },
+    "./env/describe-env-for-diagnostics": {
+      "types": "./dist/env/describe-env-for-diagnostics.d.ts",
+      "import": "./dist/env/describe-env-for-diagnostics.js",
+      "default": "./dist/env/describe-env-for-diagnostics.js"
     },
     "./optional-peer": {
       "types": "./dist/optional-peer.d.ts",
