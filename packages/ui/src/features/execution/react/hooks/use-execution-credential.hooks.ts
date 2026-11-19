@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ByokConfig } from "../../types.js";
 import { useSerialWrites } from "../../../panel-kit/hooks/use-serial-writes.hooks.js";
 import { useSettlementGeneration } from "../../../panel-kit/hooks/use-settlement-generation.hooks.js";
-import type { SettingsSliceRefreshPort } from "../../../panel-kit/hooks/use-settings-slice.hooks.js";
+import type { SettingsSliceRefreshPort } from "../../../panel-kit/hooks/settings-slice.helpers.js";
 
 /** The metadata read by this controller. Hosts retain any additional write-only view fields. */
 export interface ExecutionCredentialView { isSet: boolean; masked: string | null; baseUrl: string | null }
