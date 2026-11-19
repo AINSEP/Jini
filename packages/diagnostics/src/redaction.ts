@@ -24,6 +24,10 @@ const BARE_SECRET_RE = /(^|[\s,;])(access_token|refresh_token|id_token|api[_-]?k
 // Case-insensitive, so the class needs only one letter case.
 const HTTP_AUTH_SCHEME_RE = /\b(Bearer|Token|Basic)\s+([a-z0-9._~\-+/=:]{4,})/gi;
 
+// Connection strings (`postgres://user:pw@host`) carry the password in the URL userinfo, at any length. The password may
+// hold an unencoded `@`, so the run backtracks to the authority's last `@`; `/` ends the authority, so runs from
+// different `//` starts never overlap and the scan stays linear. Host, port and path stay readable.
+const URL_USERINFO_RE = /\/\/[^\s/?#@:]*:[^\s/?#]+@/g;
 const REDACTED = "[REDACTED]";
 
 export interface RedactionOptions {
@@ -60,7 +64,8 @@ export function redactText({ text }: { text: string }, opts: RedactionOptions = 
   // Run the HTTP auth scheme replacement first so the credential after
   // `Bearer` / `Token` / `Basic` is captured before BARE_SECRET_RE swallows
   // the `Authorization: Bearer` prefix and stops at the space.
-  let out = text.replace(HTTP_AUTH_SCHEME_RE, (_match, scheme) => `${scheme} ${REDACTED}`);
+  let out = text.replace(URL_USERINFO_RE, `//${REDACTED}@`);
+  out = out.replace(HTTP_AUTH_SCHEME_RE, (_match, scheme) => `${scheme} ${REDACTED}`);
   out = out.replace(URL_QUERY_SECRET_RE, (_match, sep, name, eq) => `${sep}${name}${eq}${REDACTED}`);
   out = out.replace(BARE_SECRET_RE, (_match, lead, name, sep) => `${lead}${name}${sep}${REDACTED}`);
   // Bundle redaction shares only the credential catalog; diagnostic IDs and paths must remain
