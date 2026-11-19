@@ -1,5 +1,4 @@
 import { useId, type ReactNode } from 'react';
-import { useAdminThemeKit, type AdminTheme, type AdminThemeKit } from '../../react/kit.js';
 import type { ConsentAppearanceView, ConsentFieldProblem, ConsentSettingsView } from './ConsentSettingsPanel.js';
 import { createConsentTranslator, pixelInputValue, problemsFor, useConsentSettingsPanel, usePolicyVersionInput } from './settings-panel.hooks.js';
 
@@ -12,6 +11,12 @@ import { createConsentTranslator, pixelInputValue, problemsFor, useConsentSettin
  */
 
 type TextKey = 'title' | 'message' | 'acceptLabel' | 'rejectLabel' | 'preferencesLabel' | 'privacyPolicyUrl' | 'secondaryLinkLabel' | 'secondaryLinkUrl';
+
+export interface ConsentLightColors {
+  readonly bg: string;
+  readonly text: string;
+  readonly border: string;
+}
 
 export interface ConsentFieldsProps {
   value: ConsentSettingsView;
@@ -40,9 +45,9 @@ const REGION_LABELS: Readonly<Record<ConsentSettingsView['regionMode'], string>>
 const PLACEMENT_LABELS: Readonly<Record<string, string>> = { 'bottom-bar': 'Bottom bar', 'bottom-left': 'Bottom left', 'bottom-right': 'Bottom right', 'top-bar': 'Top bar' };
 // Native color inputs need concrete colors rather than CSS variable expressions. The fallbacks come from the
 // host kit's default theme, so they can only be read at render, never at import.
-function consentColorFields({ theme }: { theme: AdminTheme }, _optional: Record<string, never> = {}): readonly { key: keyof ConsentAppearanceView; label: string; fallback: string }[] {
+function consentColorFields({ lightColors }: { lightColors: ConsentLightColors }, _optional: Record<string, never> = {}): readonly { key: keyof ConsentAppearanceView; label: string; fallback: string }[] {
   return [
-    { key: 'backgroundColor', label: 'Background', fallback: theme.light.bg }, { key: 'textColor', label: 'Text', fallback: theme.light.text }, { key: 'borderColor', label: 'Border', fallback: theme.light.border },
+    { key: 'backgroundColor', label: 'Background', fallback: lightColors.bg }, { key: 'textColor', label: 'Text', fallback: lightColors.text }, { key: 'borderColor', label: 'Border', fallback: lightColors.border },
   ];
 }
 /** The engine's own pixel bounds (`compileConsentCss`); out-of-range values come back as problems. */
@@ -122,8 +127,7 @@ export function ConsentRulesFields({ value, onChange, disabled = false, problems
 
 /** Placement, bounded appearance tokens and allowlisted custom CSS. The engine checks contrast and
  * CSS safety; its problems arrive on the `appearance` field and show under the custom CSS. */
-export function ConsentLookFields({ value, onChange, disabled = false, problems, dictionary, placements = Object.keys(PLACEMENT_LABELS), useConsentSettingsPanelHook = useConsentSettingsPanel, useThemeKit = useAdminThemeKit }: ConsentFieldsProps & { placements?: readonly string[]; /** The host's theme kit; defaults to the kit the nearest `AdminKitProvider` supplies. */ useThemeKit?: () => AdminThemeKit }) {
-  const { defaultAdminTheme } = useThemeKit();
+export function ConsentLookFields({ value, onChange, disabled = false, problems, dictionary, placements = Object.keys(PLACEMENT_LABELS), useConsentSettingsPanelHook = useConsentSettingsPanel, lightColors }: ConsentFieldsProps & { placements?: readonly string[]; lightColors: ConsentLightColors }) {
   const t = createConsentTranslator({ dictionary });
   const handlers = useConsentSettingsPanelHook({ value, onChange });
   const appearance = value.appearance ?? {};
@@ -132,7 +136,7 @@ export function ConsentLookFields({ value, onChange, disabled = false, problems,
       {placements.map(placement => <option key={placement} value={placement}>{t(PLACEMENT_LABELS[placement] ?? placement)}</option>)}
     </select>}</Field>
     <div className="jini-consent-token-grid">
-      {consentColorFields({ theme: defaultAdminTheme }).map(token => <ColorToken key={token.key} label={t(token.label)} value={appearance[token.key]} fallback={token.fallback} resetLabel={t('Default')} onChange={handlers.token(token.key)} />)}
+      {consentColorFields({ lightColors }).map(token => <ColorToken key={token.key} label={t(token.label)} value={appearance[token.key]} fallback={token.fallback} resetLabel={t('Default')} onChange={handlers.token(token.key)} />)}
       {PIXEL_TOKENS.map(token => <Field key={token.key} label={t(token.label)} field={token.key}>{attributes =>
         <input className="jini-input" type="number" inputMode="numeric" min={token.min} max={token.max} step={1} placeholder={t('Default')} value={pixelInputValue({ value: appearance[token.key] })} onChange={event => handlers.token(token.key)(event.target.value === '' ? '' : `${event.target.value}px`)} {...attributes} />}</Field>)}
     </div>
