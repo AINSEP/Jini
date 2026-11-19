@@ -1,4 +1,5 @@
-import type { MailAdapterCredential, MailProviderModule, MailProviderRegistry, MailProviderSetup, SmtpMailPayload as SmtpPayload } from "@jini-ai/core/contracts/mail";
+import { createConsoleLogger } from '@jini-ai/core/primitives';
+import type { MailAdapterCredential, MailProviderModule, OutboundEmail, MailProviderRegistry, MailProviderSetup, SmtpMailPayload as SmtpPayload } from "@jini-ai/core/contracts/mail";
 import type { PluginCredentialCard } from "@jini-ai/core/contracts/credentials";
 import type { MailAdapterRegistry } from "./contribution.js";
 export interface MailCatalogDeps {
@@ -25,7 +26,15 @@ function builtins(requiredHost: Parameters<typeof createMailCatalog>[0], deps: M
   const clock = { nowMs: () => Date.now() };
   // The host transport and Jini's SMTP adapter share the object-args shape `sendMail({ mail })`.
   const smtp = requiredHost.mailEngine.builtins.smtp({ clock, createTransport: deps.createSmtpTransport });
-  return [smtp, requiredHost.mailEngine.builtins.console({ clock }, deps.log ? { log: deps.log } : {})];
+  const log = deps.log ?? ((line: string) => createConsoleLogger({ prefix: '' }).info({ message: line }));
+  return [smtp, requiredHost.mailEngine.builtins.console({ clock, preview: ({ message }) => log(formatConsoleMail({ message })) })];
+}
+
+/** Nothing is delivered locally, so the preview line carries the whole body: a sign-in or
+ *  confirmation link must be usable from the log. Text is preferred; an html-only message shows its html. */
+function formatConsoleMail({ message }: { message: OutboundEmail }, _optional: Record<string, never> = {}): string {
+  const body = message.text ?? message.html;
+  return `[mail:console] to=${message.to.email} subject=${JSON.stringify(message.subject)}${body === undefined ? '' : `\n${body}`}`;
 }
 
 /** Plugin registry, or an empty one plus the reason it could not be read. */
@@ -40,7 +49,7 @@ async function loadAdapters(deps: Pick<MailCatalogDeps, "loadMailAdapters">): Pr
 /** @agent-note The host supplies mail engine effects and exact product text; no platform runtime is imported. */
 export function createMailCatalog(requiredHost: {
  mailEngine: { createRegistry: (required: Record<string,never>, optional: { builtins: readonly MailProviderModule[] }) => MailProviderRegistry;
- builtins: { console: (required: { clock: Clock }, optional?: { log?: (line:string)=>void }) => MailProviderModule;
+ builtins: { console: (required: { clock: Clock; preview: (required: { message: OutboundEmail }) => void | Promise<void> }) => MailProviderModule;
  smtp: (required: { clock: Clock; createTransport: (config: Parameters<MailCatalogDeps["createSmtpTransport"]>[0]) => { sendMail(required: { mail: SmtpPayload }): Promise<{ messageId: string }> } }) => MailProviderModule } };
  mailHostText: { smtpCredentialLabel: string; smtpSetup: MailProviderSetup; credentialCategory: PluginCredentialCard["category"] };
  defaultSetup: (required: { credentialKeys: readonly string[] }) => MailProviderSetup;

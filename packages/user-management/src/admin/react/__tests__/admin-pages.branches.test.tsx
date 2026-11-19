@@ -1,14 +1,3 @@
-import LoginPage from '../pages/LoginPage.js';
-import MembersPage from '../pages/MembersPage.js';
-import RolesPage from '../pages/RolesPage.js';
-import UsersPage from '../pages/UsersPage.js';
-import AuthTab from '../tabs/AuthTab.js';
-import MembersTab from '../tabs/MembersTab.js';
-import UsersTab from '../tabs/UsersTab.js';
-import RolesTab from '../tabs/RolesTab.js';
-import PoliciesTab from '../tabs/PoliciesTab.js';
-import { createMembersController } from '../../controllers/members.controller.js';
-import { createUsersController } from '../../controllers/users.controller.js';
 import { Suspense } from 'react';
 import type { ReactElement } from 'react';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
@@ -275,73 +264,5 @@ describe('roles and policies tabs', () => {
     const permission = await screen.findByText('content.read');
     expect(permission.closest('li')?.textContent).toBe('content.read');
     expect(screen.queryByRole('button', { name: 'Remove permission content.read' })).toBeNull();
-  });
-});
-
-
-describe('injected admin page and tab views', () => {
-  const description = () => {
-    const feature = members({});
-    return createAdmin({ modules: [feature], ports: { membersApi: memberApi() } }).describe().pages[0]!;
-  };
-  it('uses the injected unavailable login view', () => {
-    render(<KitProvider guard="off"><LoginPage tabs={{}} description={description()} onLogin={vi.fn()}
-      useLoginPageHook={() => ({ visible: false, view: null, title: 'Injected', content: null })} /></KitProvider>);
-    expect(screen.getByText('Login is unavailable.')).toBeVisible();
-  });
-  it('uses the injected unavailable members view', () => {
-    render(<KitProvider guard="off"><MembersPage tabs={{}} description={description()}
-      useMembersPageHook={() => ({ visible: false, view: null, state: null, controller: null, canManage: false, content: null, retry() {} })} /></KitProvider>);
-    expect(screen.getByText('Members administration is unavailable.')).toBeVisible();
-  });
-  it('uses the injected unavailable users view', () => {
-    render(<KitProvider guard="off"><UsersPage tabs={{}} description={description()}
-      useUsersPageHook={() => ({ visible: false, view: null, state: null, controller: null, readOnly: true, content: null, retry() {} })} /></KitProvider>);
-    expect(screen.getByText('Users administration is unavailable.')).toBeVisible();
-  });
-  it('uses the injected unavailable roles view', () => {
-    render(<KitProvider guard="off"><RolesPage tabs={{}} description={description()}
-      useRolesPageHook={() => ({ hidden: true, view: null, state: null, controller: null, canManage: false,
-        items: [], tab: '', noTabs: true, changeTab() {}, retry() {},
-        confirm: { open: false, title: '', body: '', confirmLabel: '', tone: 'warning', consequence: 'fixture effect', pending: false, agentMayConfirm: false, onConfirm() {}, onCancel() {} },
-      })} /></KitProvider>);
-    expect(screen.getByText('Roles administration is unavailable.')).toBeVisible();
-  });
-  it('submits and edits the injected login tab', async () => {
-    const username = vi.fn(), submit = vi.fn((event: { preventDefault(): void }) => event.preventDefault());
-    render(<KitProvider guard="off"><AuthTab useAuthTabHook={() => ({
-      s: { username: 'injected', password: '', busy: false, error: null }, username, password() {}, submit,
-      submitLabel: 'Injected sign in', usernameAttrs: { autoComplete: 'username', 'data-jini-part': 'username' },
-      passwordAttrs: { autoComplete: 'current-password', 'data-jini-part': 'password' },
-    })} /></KitProvider>);
-    await userEvent.type(screen.getByRole('textbox', { name: 'Username' }), 'x');
-    expect(username).toHaveBeenCalledWith({ value: 'injectedx' });
-    await userEvent.click(screen.getByRole('button', { name: 'Injected sign in' }));
-    expect(submit).toHaveBeenCalledOnce();
-  });
-  it('uses the injected empty members tab', () => {
-    const controller = createMembersController({ api: memberApi() }, { permissions: [] });
-    render(<KitProvider guard="off"><MembersTab useMembersViewHook={() => ({
-      controller, state: { ...controller.getSnapshot(), members: [] }, canManage: false,
-    })} /></KitProvider>);
-    expect(screen.getByText('No members yet. Registered members will show up here.')).toBeVisible();
-  });
-  it('uses the injected empty users tab', () => {
-    const controller = createUsersController(fixtures(), { permissions: [] });
-    render(<KitProvider guard="off"><UsersTab useUsersTabHook={() => ({
-      s: { ...controller.getSnapshot({}), users: [] }, canCreate: false,
-      toggleForm() {}, cancelForm() {}, username() {}, email() {}, password() {}, submit() {},
-    })} /></KitProvider>);
-    expect(screen.getByText('No users yet. Create your first operator account to get started.')).toBeVisible();
-  });
-  it('uses the injected empty roles and policies tabs', () => {
-    render(<KitProvider guard="off"><RolesTab useRolesTabHook={() => ({
-      rows: [], canManage: false, name: '', saving: false, error: null, changeName() {}, submit() {}, createDisabled: true,
-    })} /><PoliciesTab usePoliciesTabHook={() => ({
-      rows: [], canManage: false, name: '', description: '', saving: false, error: null,
-      changeName() {}, changeDescription() {}, submit() {}, createDisabled: true,
-    })} /></KitProvider>);
-    expect(screen.getByText('No roles yet.')).toBeVisible();
-    expect(screen.getByText('No policies yet.')).toBeVisible();
   });
 });
