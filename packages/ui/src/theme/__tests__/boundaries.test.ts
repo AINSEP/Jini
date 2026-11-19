@@ -42,3 +42,8 @@ it('declares every lightbox paint token in the theme defaults and hides closed d
   expect(lightbox).toMatch(/\.jini-lightbox\s*\{[^}]*display:\s*none;/);
   expect(lightbox).toMatch(/\.jini-lightbox\[open\]\s*\{[^}]*width:\s*100%;[^}]*height:\s*100%;[^}]*display:\s*grid;/);
 });
+
+it('inherits the host font when the lightbox is open', () => {
+  const lightbox = readFileSync(path.resolve(__dirname, '../../styles/lightbox.css'), 'utf8');
+  expect(lightbox).toMatch(/\.jini-lightbox\[open\]\s*\{[^}]*font-family:\s*inherit;/);
+});
