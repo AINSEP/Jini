@@ -96,5 +96,11 @@ export type { SidebarRail } from './hooks/use-sidebar-rail.js';
 export { DEFAULT_NAV_SECTIONS_STORAGE_KEY, useNavSections } from './hooks/use-nav-sections.js';
 export type { NavSections, NavSectionState } from './hooks/use-nav-sections.js';
 
+export { useBrowserTelemetryFeed } from './hooks/use-browser-telemetry-feed.js';
+export { useRailLabelTitles } from './hooks/use-rail-label-titles.js';
+export { useOverflowTitle } from './hooks/use-overflow-title.js';
+export { useProcessRestart } from './hooks/use-process-restart.js';
+export type { ProcessRestartController, ProcessRestartPort } from './hooks/use-process-restart.js';
+
 export * from './shell/index.js';
 export * from './entities/index.js';
