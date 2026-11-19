@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { ForbiddenError } from "../../core/commands/command.js";
-import { renameTerm, type RenameTermRequired, type Term, type TaxonomyRevisionRow } from "../write-service.js";
+import { renameTerm, type RenameTermRequired } from "../write-service.js";
+import { type Term, type TaxonomyRevisionRow } from "../write-contracts.js";
 
 function fixture(failAt?: "revision" | "watermark" | "outbox") {
   const prior: Term = { id: "term-1", taxonomyId: "tax-1", name: "Before", parentId: null,

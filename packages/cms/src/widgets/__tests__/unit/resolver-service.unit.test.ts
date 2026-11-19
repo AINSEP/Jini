@@ -13,7 +13,10 @@ import { buildWidgetAreaFieldsJson, buildWidgetInstanceFieldsJson } from "../../
 import type { PageHtmlEmbedRef } from "../../html/html-embeds.js";
 import type { MediaContentTypeStorePort, PostRecord, PostRepoPort, WidgetHostPorts } from "../../host-ports.js";
 import { InMemoryWidgetRegionBindingRepo } from "../../repo.memory.js";
-import { THEME_OWNED_MARKER_TYPES, HTML_EMBED_RESOLVERS, resolveGalleryWidgetMedia, resolvePageWidgets, type ResolveHtmlPageEmbedsDeps } from "../../resolver-service.js";
+import { THEME_OWNED_MARKER_TYPES, HTML_EMBED_RESOLVERS } from "../../resolver-service.js";
+import { resolveGalleryWidgetMedia } from "../../media-embed-resolution.js";
+import { resolvePageWidgets } from "../../page-widget-resolution.js";
+import { type ResolveHtmlPageEmbedsDeps } from "../../resolver-contracts.js";
 import { createContactFormResolver, registerCoreResolver } from "../../resolvers/index.js";
 import type { FormDefinitionReadPort, FormDefinitionView } from "../../resolvers/ports.js";
 import type { TaxonomyListPort, TermListPort } from "../../../taxonomy/index.js";

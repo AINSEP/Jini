@@ -1,7 +1,8 @@
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 import type { KernelOutboxAdapterDeps } from "../core/kernel-outbox.js";
-import type { ContentLookupPort, EntryTermRepoPort, TaxonomyRepoPort, TaxonomyRevisionRepoPort, TaxonomyRevisionRow, Term, TermRepoPort, UnassignableEntryTermRepoPort } from "./write-service.js";
-import type { Taxonomy } from "./write-service.js";
+import type { ContentLookupPort, EntryTermRepoPort, TaxonomyRepoPort, TaxonomyRevisionRepoPort, TaxonomyRevisionRow, Term, TermRepoPort } from "./write-contracts.js";
+import type { UnassignableEntryTermRepoPort } from "./assignment-service.js";
+import type { Taxonomy } from "./write-contracts.js";
 import type { TaxonomyListPort, TermListPort } from "./list.js";
 
 /**

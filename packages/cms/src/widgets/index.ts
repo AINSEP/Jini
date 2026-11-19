@@ -21,6 +21,6 @@ export * from "./tool-registrations.js";
 export type { WidgetsPackageToolDeps } from "./tool-handlers.types.js";
 export * from "./entry-refs.memory.js";
 export * from "./entry-refs-extractor.js";
-export { resolvePageWidgets } from "./resolver-service.js";
-export type { ResolvePageWidgetsDeps, ResolvePageWidgetsInput, ResolvePageWidgetsRequired, ResolvePageWidgetsResult } from "./resolver-service.js";
+export { resolvePageWidgets } from "./page-widget-resolution.js";
+export type { ResolvePageWidgetsDeps, ResolvePageWidgetsInput, ResolvePageWidgetsRequired, ResolvePageWidgetsResult } from "./page-widget-resolution.js";
 export * from "./duplicate-embeds.js";

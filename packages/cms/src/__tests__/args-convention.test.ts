@@ -7,7 +7,7 @@ import { InMemoryMediaRepo } from "../media/repo.memory.js";
 import { withSha256Lock } from "../media/blob-gc-lock.js";
 import { assertValidTransformParams } from "../media/transform-types.js";
 import { validateFieldsAgainstSchema } from "../entries/field-validation.js";
-import { isContentTypeOnAllowList } from "../taxonomy/write-service.js";
+import { isContentTypeOnAllowList } from "../taxonomy/assignment-service.js";
 import { validateHierarchyAssignment } from "../taxonomy/validation-chain.js";
 import { InMemoryWorkspaceRepo } from "../workspace/repo.memory.js";
 import { SecretNotSupportedError, PurgeRequiredError } from "@jini-ai/core/settings";

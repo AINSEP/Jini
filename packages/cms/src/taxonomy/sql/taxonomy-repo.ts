@@ -1,7 +1,8 @@
 import type { StorageKernel } from "@jini-ai/core/contracts/storage";
 import type { Kysely } from "kysely";
 import type { TaxonomyPublishReadPort } from "../read-ports.js";
-import type { ImportableTaxonomyRepoPort, Taxonomy, TaxonomyRepoPort } from "../write-service.js";
+import type { ImportableTaxonomyRepoPort } from "../import-service.js";
+import type { Taxonomy, TaxonomyRepoPort } from "../write-contracts.js";
 import type { TaxonomyListPort } from "../list.js";
 import { TRASH_STATUS, taxonomyLockKey } from "./liveness.js";
 import { type TaxonomySqlRequired, type TaxonomyTableViews, type TaxonomyTables, toTaxonomy, toTaxonomyRow } from "./repo.rows.js";

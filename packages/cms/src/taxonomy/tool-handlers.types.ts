@@ -14,12 +14,16 @@ import type {
   ContentLookupPort,
   ContentTypeTaxonomyPolicyPort,
   EntryTermRepoPort,
-  ImportableTermRepoPort,
   TaxonomyRepoPort,
   TaxonomyRevisionRepoPort,
   TermRepoPort,
+} from "./write-contracts.js";
+import type {
+  ImportableTermRepoPort,
+} from "./import-service.js";
+import type {
   UnassignableEntryTermRepoPort,
-} from "./write-service.js";
+} from "./assignment-service.js";
 
 /** What the handlers need to put a gated plan -> confirm -> execute ceremony behind a human click. */
 export interface TaxonomyMergeGateway {

@@ -273,20 +273,6 @@
     "value": 325
   },
   {
-    "file": "packages/cms/src/taxonomy/write-service.ts",
-    "function": "<file>",
-    "line": 787,
-    "rule": "max-lines",
-    "value": 711
-  },
-  {
-    "file": "packages/cms/src/widgets/resolver-service.ts",
-    "function": "<file>",
-    "line": 947,
-    "rule": "max-lines",
-    "value": 701
-  },
-  {
     "file": "packages/commerce/src/payments/ledger/rows.ts",
     "function": "<file>",
     "line": 658,

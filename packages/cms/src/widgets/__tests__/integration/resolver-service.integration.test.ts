@@ -4,7 +4,7 @@ import test from "../support/test-runner.js";
 import { InMemoryEntryRepo } from "../../../entries/index.js";
 import { buildWidgetAreaFieldsJson, buildWidgetInstanceFieldsJson } from "../support/compat/entry-payload.js";
 import { CORE_RESOLVERS, resolveWidgetType } from "../../resolvers/index.js";
-import { resolvePageWidgets } from "../../resolver-service.js";
+import { resolvePageWidgets } from "../../page-widget-resolution.js";
 import { InMemoryWidgetRegionBindingRepo } from "../../repo.memory.js";
 import { WIDGET_AREA_CONTENT_TYPE, WIDGET_CONTENT_TYPE } from "../../types.js";
 import type { WidgetInstanceView, WidgetResolveContext, WidgetResolveResult, WidgetResolver } from "../../types.js";

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 
 import { listTaxonomiesWithTerms } from "../list.js";
-import type { Taxonomy, Term } from "../write-service.js";
+import type { Taxonomy, Term } from "../write-contracts.js";
 
 /**
  * @file design-spec.md §2.8 backend-gap closure — `listTaxonomiesWithTerms` (this dispatch).

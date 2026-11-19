@@ -1,7 +1,8 @@
 import type { StorageKernel } from "@jini-ai/core/contracts/storage";
 import type { Kysely } from "kysely";
 import type { AssignedTermView, EntryTermReadPort } from "../read-ports.js";
-import type { EntryTermRepoPort, UnassignableEntryTermRepoPort } from "../write-service.js";
+import type { EntryTermRepoPort } from "../write-contracts.js";
+import type { UnassignableEntryTermRepoPort } from "../assignment-service.js";
 import { taxonomyLockKey, termIsLive } from "./liveness.js";
 import { type EntryTermTableViews, type LiveJoinTableViews, type TaxonomySqlRequired, type TaxonomyTables } from "./repo.rows.js";
 

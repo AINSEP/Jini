@@ -1,5 +1,6 @@
 import type { UUID } from "@jini-ai/core/primitives";
-import { HTML_EMBED_RESOLVERS, THEME_OWNED_MARKER_TYPES, type ResolveHtmlPageEmbedsDeps } from "../resolver-service.js";
+import { HTML_EMBED_RESOLVERS, THEME_OWNED_MARKER_TYPES } from "../resolver-service.js";
+import { type ResolveHtmlPageEmbedsDeps } from "../resolver-contracts.js";
 import type { WidgetRenderIR, WidgetResolveContext } from "../types.js";
 import { scanHtmlEmbeds, type PageHtmlEmbedRef } from "./html-embeds.js";
 import { resolvePluginExportEmbeds } from "./plugin-export.js";
