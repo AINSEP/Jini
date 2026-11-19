@@ -45,7 +45,7 @@ export const LINE_GLYPH_RENDERERS: Record<LineGlyphName, (common: SVGProps<SVGSV
           <path d="M12 10.5v5M9.5 13h5" />
         </svg>
     ),
-    // Export Site — an arrow leaving a tray: a copy of this site going out as a `.tovu.zip`.
+    // Export Site — an arrow leaving a tray: a copy of this site going out as a site archive.
     'tray-export': (common) => (
         <svg {...common}>
           <path d="M4.5 14.5v4h15v-4" />

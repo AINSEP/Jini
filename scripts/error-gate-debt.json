@@ -1130,7 +1130,7 @@
     "value": 1
   },
   {
-    "file": "packages/core/src/redact.ts",
+    "file": "packages/core/src/format-error-for-log.ts",
     "rule": "catch-reads-error",
     "value": 1
   },
@@ -1242,7 +1242,17 @@
   {
     "file": "packages/daemon/src/http/attachments.ts",
     "rule": "catch-reads-error",
-    "value": 7
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/attachment-persistence.ts",
+    "rule": "catch-reads-error",
+    "value": 4
+  },
+  {
+    "file": "packages/daemon/src/http/disk-attachment-store.ts",
+    "rule": "catch-reads-error",
+    "value": 2
   },
   {
     "file": "packages/daemon/src/http/cancel-owned-runs.ts",
