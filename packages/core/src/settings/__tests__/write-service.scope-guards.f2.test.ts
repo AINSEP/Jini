@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ForbiddenError, PrincipalNotFoundError } from "../errors.js";
 import { InMemorySettingsRepo } from "../repo.memory.js";
-import { clear, set } from "../write-service.js";
+import { clear, set } from "../write-values.js";
 import type { SettingDefinitionRecord } from "../types.js";
 import { InMemorySettingsPrincipalLookup } from "./principal.fixture.js";
 

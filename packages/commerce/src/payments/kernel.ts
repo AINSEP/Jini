@@ -24,7 +24,11 @@ export * from "./provider-contexts.js";
 // The SQL adapter and the migrations are in `./ledger/sql.ts`, not here: they load `kysely` at
 // runtime (an optional peer a provider plugin importing this entry lacks) and take the host's
 // `@jini-ai/db` kernel and migration runner as injected values.
-export * from "./ledger/rows.js";
+export { decodeMinor, decodeNullableMinor, encodeMinor, encodeNullableMinor, LEDGER_TABLES, type LedgerTableName, LEDGER_INTEGER_COLUMNS, encodeColumns, type LedgerTableRules, LEDGER_MODES, LEDGER_TABLE_RULES, type StoredRow, paymentToRow, attemptToRow, refundToRow, disputeToRow, evidenceToRow, inboxToRow, outboxToRow, quarantineToRow, operatorActionToRow } from "./ledger/rows.js";
+export { type PaymentsTable, type AttemptsTable, type RefundsTable, type DisputesTable, type EvidenceTable, type InboxTable, type OutboxTable, type QuarantineTable, type OperatorActionsTable, type PaymentsLedgerDatabase } from "./ledger/row-tables.js";
+export { type AttemptOp, type AttemptOutcome, OPEN_ATTEMPT_OUTCOMES, type EvidenceSource, type EvidenceSubject, type InboxState, OPEN_INBOX_STATES, revivedPayload, type LedgerOutboxTopic, type LedgerQuarantineReason, type PaymentRecord, type NewPayment, type AttemptRecord, type RefundRecord, type DisputeRecord, type EvidenceRecord, type InboxRecord, type NewInbox, type OutboxRecord, type NewOutbox, type QuarantineRecord, type NewQuarantine, UNSETTLED_REFUND_STATUSES, type OperatorActionKind, type OperatorActionRecord } from "./ledger/row-records.js";
+export { type PaymentPatch, type AttemptPatch, type RefundPatch, type DisputePatch, PAYMENT_PATCH_COLUMNS, ATTEMPT_PATCH_COLUMNS, REFUND_PATCH_COLUMNS, DISPUTE_PATCH_COLUMNS, patchColumns } from "./ledger/row-patches.js";
+export { paymentFromRow, attemptFromRow, refundFromRow, disputeFromRow, evidenceFromRow, inboxFromRow, outboxFromRow, quarantineFromRow, operatorActionFromRow } from "./ledger/row-decoders.js";
 export * from "./ledger/repo.js";
 export * from "./ledger/repo.memory.js";
 export * from "./accounting/plan-evidence.js";

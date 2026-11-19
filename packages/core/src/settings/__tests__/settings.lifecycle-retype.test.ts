@@ -4,7 +4,8 @@ import { test } from "vitest";
 import { InMemorySettingsPrincipalLookup } from "./principal.fixture.js";
 import { DefinitionInvalidError, RenameRetypeConflictError } from "../errors.js";
 import { InMemorySettingsRepo } from "../repo.memory.js";
-import { registerDefinitions, retypeDefinition } from "../write-service.js";
+import { registerDefinitions } from "../write-service.js";
+import { retypeDefinition } from "../write-definition-retype.js";
 import type { SettingDefinitionRecord } from "../types.js";
 
 const clock = { nowMs: () => Date.parse("2026-07-12T00:00:00.000Z")};

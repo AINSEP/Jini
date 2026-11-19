@@ -1,12 +1,9 @@
 import { describe, expect, test } from "vitest";
 
-import {
-  decodeMinor, decodeNullableMinor, encodeColumns, encodeMinor, encodeNullableMinor, inboxFromRow, PAYMENT_PATCH_COLUMNS, patchColumns,
-  paymentFromRow,
-  attemptFromRow, attemptToRow, disputeFromRow, disputeToRow, evidenceFromRow, evidenceToRow,
-  operatorActionFromRow, operatorActionToRow, outboxFromRow, outboxToRow, quarantineFromRow, quarantineToRow,
-  refundFromRow, refundToRow, revivedPayload,
-} from "../rows.js";
+import { decodeMinor, decodeNullableMinor, encodeColumns, encodeMinor, encodeNullableMinor, attemptToRow, disputeToRow, evidenceToRow, operatorActionToRow, outboxToRow, quarantineToRow, refundToRow } from "../rows.js";
+import { inboxFromRow, paymentFromRow, attemptFromRow, disputeFromRow, evidenceFromRow, operatorActionFromRow, outboxFromRow, quarantineFromRow, refundFromRow } from "../row-decoders.js";
+import { PAYMENT_PATCH_COLUMNS, patchColumns } from "../row-patches.js";
+import { revivedPayload } from "../row-records.js";
 
 describe("decodeMinor: the one integer decoder every row mapper uses", () => {
   test("numbers, decimal strings (node-pg BIGINT) and bigints (safeIntegers, PGlite) decode to the same number", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import type { NewPayment } from "../../ledger/rows.js";
+import type { NewPayment } from "../../ledger/row-records.js";
 import { newPayment } from "../../accounting/__tests__/harness.js";
 import type { LedgerTx, PaymentsLedger } from "../../ledger/repo.js";
 import { reconcileUnknown } from "../reconciler.js";

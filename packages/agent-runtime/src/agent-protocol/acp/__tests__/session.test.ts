@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { EventEmitter } from 'node:events';
-import { attachAcpSession, type AcpPermissionRequest, type AttachAcpSessionOptions } from '../session.js';
+import { attachAcpSession } from '../session.js';
+import { type AcpPermissionRequest, type AttachAcpSessionOptions } from '../session-types.js';
 import type { AccountFailureClassifier } from '../account-failure.js';
 
 class FakeStdin extends EventEmitter {

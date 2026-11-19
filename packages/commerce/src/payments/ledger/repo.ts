@@ -21,10 +21,8 @@
  * and use the find-first / insert-or-ignore methods for races they expect.
  */
 import type { PaymentMode } from "../contract/scope.js";
-import type {
-  AttemptOp, AttemptPatch, AttemptRecord, DisputePatch, DisputeRecord, EvidenceRecord, InboxRecord, NewInbox, NewOutbox, NewPayment,
-  NewQuarantine, OperatorActionRecord, OutboxRecord, PaymentPatch, PaymentRecord, QuarantineRecord, RefundPatch, RefundRecord,
-} from "./rows.js";
+import type { AttemptOp, AttemptRecord, DisputeRecord, EvidenceRecord, InboxRecord, NewInbox, NewOutbox, NewPayment, NewQuarantine, OperatorActionRecord, OutboxRecord, PaymentRecord, QuarantineRecord, RefundRecord } from "./row-records.js";
+import type { AttemptPatch, DisputePatch, PaymentPatch, RefundPatch } from "./row-patches.js";
 
 export type LedgerConstraintKind = "unique" | "foreign-key" | "check";
 

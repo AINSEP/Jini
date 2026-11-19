@@ -133,30 +133,10 @@ export {
 
 export { createTerminalService, ensureSpawnHelperExecutable, resolveShell, spawnHelperCandidatePaths, terminalSessionState } from "./terminal.js";
 
-export type {
-  DownloadCopyAndClearOptions,
-  DownloadCopyAndClearResult,
-  ManagedDownloadChecksum,
-  ManagedDownloadErrorCode,
-  ManagedDownloadInspection,
-  ManagedDownloadOptions,
-  ManagedDownloadPayload,
-  ManagedDownloadProgress,
-  ManagedDownloadResult,
-  PruneManagedDownloadsOptions,
-  PruneManagedDownloadsResult,
-  RemoveManagedDownloadOptions,
-  RemoveManagedDownloadResult,
-} from "./download.js";
-export {
-  MANAGED_DOWNLOAD_ERROR_CODES,
-  ManagedDownloadError,
-  downloadCopyAndClear,
-  inspectManagedDownload,
-  managedDownload,
-  pruneManagedDownloads,
-  removeManagedDownload,
-} from "./download.js";
+export type { DownloadCopyAndClearOptions, DownloadCopyAndClearResult, ManagedDownloadChecksum, ManagedDownloadErrorCode, ManagedDownloadInspection, ManagedDownloadOptions, ManagedDownloadPayload, ManagedDownloadProgress, ManagedDownloadResult, PruneManagedDownloadsOptions, PruneManagedDownloadsResult, RemoveManagedDownloadOptions, RemoveManagedDownloadResult } from "./download-types.js";
+export { MANAGED_DOWNLOAD_ERROR_CODES, ManagedDownloadError } from "./download-types.js";
+export { downloadCopyAndClear, managedDownload } from "./download.js";
+export { inspectManagedDownload, pruneManagedDownloads, removeManagedDownload } from "./download-maintenance.js";
 
 export type { SigV4Credentials, SignSigV4Input, SignSigV4Result } from "./aws-sigv4.js";
 export { encodeS3PathSegment, signSigV4 } from "./aws-sigv4.js";

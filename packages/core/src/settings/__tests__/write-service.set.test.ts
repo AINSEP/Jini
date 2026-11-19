@@ -9,7 +9,7 @@ import {
   ValueValidationFailedError,
 } from "../errors.js";
 import { InMemorySettingsRepo } from "../repo.memory.js";
-import { clear, set } from "../write-service.js";
+import { clear, set } from "../write-values.js";
 import type { SettingDefinitionRecord } from "../types.js";
 
 const clock = { nowMs: () => Date.parse("2026-07-11T00:00:00.000Z")};

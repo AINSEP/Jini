@@ -4,7 +4,9 @@ import { test } from "vitest";
 import { InMemorySettingsPrincipalLookup } from "./principal.fixture.js";
 import { AliasDepthExceededError, DefinitionNotFoundError } from "../errors.js";
 import { InMemorySettingsRepo } from "../repo.memory.js";
-import { registerDefinitions, renameDefinition, retypeDefinition } from "../write-service.js";
+import { registerDefinitions } from "../write-service.js";
+import { renameDefinition } from "../write-definition-rename.js";
+import { retypeDefinition } from "../write-definition-retype.js";
 
 const clock = { nowMs: () => Date.parse("2026-07-12T00:00:00.000Z")};
 let idCounter = 0;

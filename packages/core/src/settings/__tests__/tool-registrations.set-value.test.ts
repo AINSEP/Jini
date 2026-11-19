@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test, vi } from "vitest";
-import { set } from "../write-service.js";
+import { set } from "../write-values.js";
 import { definition, fixture, target } from "./write-tool-fixture.js";
 
 test("workspace and caller-only user writes return previous and persist isolated layers", async () => {

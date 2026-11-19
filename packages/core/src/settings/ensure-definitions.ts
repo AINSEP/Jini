@@ -3,8 +3,9 @@ import type { SettingsPrincipalLookupPort } from "./principal-lookup.js";
 import type { SettingsRepoPort } from "./ports.js";
 import { resolveDefinitionRaw } from "./settings.js";
 import { SCOPE_BIT, type SettingDefinitionRecord, type SettingValueSchema } from "./types.js";
-import { extendDefinitionScopes, reconcileDefinitionDefault, registerDefinitions, type AuthorizeFn,
-  type SettingsWriteServiceDeps } from "./write-service.js";
+import { extendDefinitionScopes } from "./write-definition-retype.js";
+import { reconcileDefinitionDefault } from "./write-definition-status.js";
+import { registerDefinitions, type AuthorizeFn, type SettingsWriteServiceDeps } from "./write-service.js";
 
 /**
  * @file The one boot-time "register these definitions if they aren't already,

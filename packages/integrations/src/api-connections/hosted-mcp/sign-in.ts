@@ -65,20 +65,8 @@ async function notifyConnected(deps: SignInDeps, serverId: string): Promise<void
   }
 }
 
-/**
- * Builds the OAuth service for one workspace.
- *
- * @returns The service plus its `tokenResolver`, which `readEnabledExternalMcpConfigs` takes.
- * @complexity Construction is O(1) and performs no I/O.
- * @tradeoffs The assistant daemon can start a redirect that the web server completes: encrypted
- *   state carries the verifier and connection binding across that split using the same site key.
- *   No pending row or shared process memory is needed. The provider's single-use code and the
- *   state's expiry prevent replay. Device authorization still uses the injected durable store;
- *   its in-memory adapter is only suitable when begin and poll run in the same process.
- */
-export function createHostedMcpSignInService(required: SignInDeps, _optional: Record<string, never> = {}): ExternalMcpOAuthService {
-  const deps: ExternalMcpOAuthServiceDeps = { ...required, providers: required.providers ?? required.ports.flow.createOAuthProviderRegistry({ guard: required.httpPorts.guard }) };
-  const refresher = deps.ports.flow.createTokenRefresher({
+function createConnectionTokenRefresher(deps: ExternalMcpOAuthServiceDeps) {
+  return deps.ports.flow.createTokenRefresher({
     clock: deps.clock,
     sleep: ({ ms }) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
     port: {
@@ -130,18 +118,24 @@ export function createHostedMcpSignInService(required: SignInDeps, _optional: Re
       },
     },
   });
+}
 
-  const shared = deps.shared ? createSharedExternalMcpOAuth({ deps, shared: deps.shared, ports: deps.ports, resolveProvider: record => resolveProviderDescriptor(deps, record), configure: async input => {
+function createSharedConnectionService(deps: ExternalMcpOAuthServiceDeps) {
+  return deps.shared ? createSharedExternalMcpOAuth({ deps, shared: deps.shared, ports: deps.ports, resolveProvider: record => resolveProviderDescriptor(deps, record), configure: async input => {
     const record = await selfConfigureConnection(deps, await requireOAuthRecord(deps, input.serverId), input.redirectUri, { configurationOnly: true });
     const provider = resolveProviderDescriptor(deps, record);
     const endpoints = readStoredEndpoints(record);
     return { record, provider, client: await resolveClient(deps, record, provider), scopes: readStoredScopes(record),
       resource: endpoints.resource ?? record.url ?? undefined, issuer: endpoints.issuer };
   } }) : undefined;
+}
 
-  return {
-    ...(shared ? { assertSharedAuthorized: shared.assertAuthorized, useSharedConnection: shared.useSaved, useLocalConnection: shared.useLocal, listSharedConnections: shared.list } : {}),
-    async beginConnect(input) {
+type SignInContext = {
+  deps: ExternalMcpOAuthServiceDeps;
+  shared: ReturnType<typeof createSharedConnectionService>;
+};
+
+async function beginConnectionAuthorization({ deps, shared }: SignInContext, input: Parameters<ExternalMcpOAuthService['beginConnect']>[0]): ReturnType<ExternalMcpOAuthService['beginConnect']> {
       if (input.destination === 'shared' && !shared) throw deps.ports.errors.validation(deps.ports.copy.sharedLocalOnly, 'destination');
       if (shared && (input.destination === 'shared' || await shared.hasBinding(input))) return shared.beginConnect(input);
       // Self-configuration first: a row that names no endpoints or no client id gets them here, once,
@@ -188,9 +182,9 @@ export function createHostedMcpSignInService(required: SignInDeps, _optional: Re
       ) });
       await setOAuthStatus(deps, record.serverId, "pending");
       return { kind: "redirect_required", authorizationUrl: started.authorizationUrl, expiresAt: started.expiresAt };
-    },
+    }
 
-    async completeAuthorizationCallback(input, _options = {}) {
+async function completeConnectionAuthorization({ deps, shared }: SignInContext, input: Parameters<ExternalMcpOAuthService['completeAuthorizationCallback']>[0], _options: Parameters<ExternalMcpOAuthService['completeAuthorizationCallback']>[1] = {}): ReturnType<ExternalMcpOAuthService['completeAuthorizationCallback']> {
       if (shared && await shared.hasBinding(input)) { await shared.completeAuthorizationCallback(input); await notifyConnected(deps, input.serverId); return; }
       const record = await requireOAuthRecord(deps, input.serverId);
       const provider = resolveProviderDescriptor(deps, record);
@@ -221,9 +215,9 @@ export function createHostedMcpSignInService(required: SignInDeps, _optional: Re
       // stale copy would resurrect the pre-connect row wholesale.
       await persistTokens(deps, await requireOAuthRecord(deps, input.serverId), tokens);
       await notifyConnected(deps, input.serverId);
-    },
+    }
 
-    async pollDeviceAuthorization(input) {
+async function pollConnectionAuthorization({ deps, shared }: SignInContext, input: Parameters<ExternalMcpOAuthService['pollDeviceAuthorization']>[0]): ReturnType<ExternalMcpOAuthService['pollDeviceAuthorization']> {
       if (shared && await shared.hasBinding(input)) {
         const result = await shared.pollDeviceAuthorization(input);
         if (result.status === "connected") await notifyConnected(deps, input.serverId);
@@ -263,9 +257,9 @@ export function createHostedMcpSignInService(required: SignInDeps, _optional: Re
         await setOAuthStatus(deps, input.serverId, "disconnected");
         throw error;
       }
-    },
+    }
 
-    async disconnect(input) {
+async function disconnectConnection({ deps, shared }: SignInContext, input: Parameters<ExternalMcpOAuthService['disconnect']>[0]): ReturnType<ExternalMcpOAuthService['disconnect']> {
       if (shared && await shared.hasBinding(input)) {
         await shared.disconnect(input);
         return;
@@ -274,9 +268,9 @@ export function createHostedMcpSignInService(required: SignInDeps, _optional: Re
       // A self-registered client goes too, so a reconnect is a clean one: a client the vendor has
       // since dropped would otherwise be reused forever. An operator-typed client is kept.
       await setOAuthStatus(deps, input.serverId, "disconnected", { clearToken: true, forgetSelfRegisteredClient: true });
-    },
+    }
 
-    async reportAuthFailure(serverId, error) {
+async function reportConnectionAuthFailure({ deps, shared }: SignInContext, serverId: Parameters<ExternalMcpOAuthService['reportAuthFailure']>[0], error: Parameters<ExternalMcpOAuthService['reportAuthFailure']>[1]): ReturnType<ExternalMcpOAuthService['reportAuthFailure']> {
       if (shared && await shared.hasBinding({ serverId })) {
         await shared.markNeedsReauth({ serverId });
         throw deps.ports.errors.reauthRequired({ serverId, cause: error });
@@ -312,9 +306,10 @@ export function createHostedMcpSignInService(required: SignInDeps, _optional: Re
         label: record.label,
         ...(statusWriteFailure === undefined ? {} : { cause: statusWriteFailure }),
       });
-    },
+    }
 
-    tokenResolver: {
+function createConnectionTokenResolver({ deps, shared }: SignInContext, refresher: ReturnType<typeof createConnectionTokenRefresher>): ExternalMcpOAuthService['tokenResolver'] {
+  return {
       ...(shared ? { resolveSharedAccessToken: shared.getAccessToken } : {}),
       async resolveAccessToken({ serverId }) {
         const sharedToken = await shared?.getAccessToken({ serverId });
@@ -333,6 +328,32 @@ export function createHostedMcpSignInService(required: SignInDeps, _optional: Re
           throw error;
         }
       },
-    },
+    };
+}
+
+/**
+ * Builds the OAuth service for one workspace.
+ *
+ * @returns The service plus its `tokenResolver`, which `readEnabledExternalMcpConfigs` takes.
+ * @complexity Construction is O(1) and performs no I/O.
+ * @tradeoffs The assistant daemon can start a redirect that the web server completes: encrypted
+ *   state carries the verifier and connection binding across that split using the same site key.
+ *   No pending row or shared process memory is needed. The provider's single-use code and the
+ *   state's expiry prevent replay. Device authorization still uses the injected durable store;
+ *   its in-memory adapter is only suitable when begin and poll run in the same process.
+ */
+export function createHostedMcpSignInService(required: SignInDeps, _optional: Record<string, never> = {}): ExternalMcpOAuthService {
+  const deps: ExternalMcpOAuthServiceDeps = { ...required, providers: required.providers ?? required.ports.flow.createOAuthProviderRegistry({ guard: required.httpPorts.guard }) };
+  const refresher = createConnectionTokenRefresher(deps);
+  const shared = createSharedConnectionService(deps);
+  const context = { deps, shared };
+  return {
+    ...(shared ? { assertSharedAuthorized: shared.assertAuthorized, useSharedConnection: shared.useSaved, useLocalConnection: shared.useLocal, listSharedConnections: shared.list } : {}),
+    beginConnect: beginConnectionAuthorization.bind(null, context),
+    completeAuthorizationCallback: completeConnectionAuthorization.bind(null, context),
+    pollDeviceAuthorization: pollConnectionAuthorization.bind(null, context),
+    disconnect: disconnectConnection.bind(null, context),
+    reportAuthFailure: reportConnectionAuthFailure.bind(null, context),
+    tokenResolver: createConnectionTokenResolver(context, refresher),
   };
 }

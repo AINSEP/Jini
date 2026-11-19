@@ -27,13 +27,7 @@ import {
 import { acpRawEventShape, promotedAmrStderrPayload } from './updates.js';
 import { buildPromptBlocks } from './session-params.js';
 import { createAcpSessionState } from './session-state.js';
-import type {
-  AcpSessionController,
-  AcpSessionEffects,
-  AcpSessionState,
-  AttachAcpSessionOptions,
-  ResolvedAcpSessionOptions,
-} from './session.js';
+import type { AcpSessionController, AcpSessionEffects, AcpSessionState, AttachAcpSessionOptions, ResolvedAcpSessionOptions } from './session-types.js';
 
 /** `source` tag on every diagnostic this session reports about the ACP JSON-RPC stream. */
 const ACP_JSON_RPC_SOURCE = 'acp-json-rpc';

@@ -3,7 +3,8 @@ import { test } from "vitest";
 
 import { SettingsRevisionConflictError } from "../errors.js";
 import { InMemorySettingsRepo } from "../repo.memory.js";
-import { set, type SettingsWriteServiceDeps } from "../write-service.js";
+import { set } from "../write-values.js";
+import { type SettingsWriteServiceDeps } from "../write-service.js";
 import type { SettingDefinitionRecord } from "../types.js";
 
 function fixture() {

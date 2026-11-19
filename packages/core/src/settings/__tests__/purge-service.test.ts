@@ -5,7 +5,7 @@ import { ForbiddenError } from "../errors.js";
 import { InMemorySettingsRepo } from "../repo.memory.js";
 import type { SettingsRepoPort } from "../ports.js";
 import { purgeTenantSettings } from "../purge-service.js";
-import { set } from "../write-service.js";
+import { set } from "../write-values.js";
 import { InMemorySettingsPrincipalLookup } from "./principal.fixture.js";
 import type { SettingDefinitionRecord } from "../types.js";
 

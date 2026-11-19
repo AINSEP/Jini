@@ -3,7 +3,8 @@ import { test } from "vitest";
 
 import { ForbiddenError } from "../errors.js";
 import { InMemorySettingsRepo } from "../repo.memory.js";
-import { resetNamespace, set } from "../write-service.js";
+import { resetNamespace } from "../write-reset.js";
+import { set } from "../write-values.js";
 import { InMemorySettingsPrincipalLookup } from "./principal.fixture.js";
 import type { SettingDefinitionRecord } from "../types.js";
 

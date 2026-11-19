@@ -5,7 +5,7 @@ import type { PaymentsAlertPort } from "../../contract/alerts.js";
 import type { PaymentEvidence, RefundEvidence } from "../../contract/evidence.js";
 import type { PaymentsLedger } from "../../ledger/repo.js";
 import { memoryPaymentsLedger } from "../../ledger/repo.memory.js";
-import type { NewPayment } from "../../ledger/rows.js";
+import type { NewPayment } from "../../ledger/row-records.js";
 import { migrateCommercePayments, sqlPaymentsLedger } from "../../ledger/sql.js";
 import { createLipayFake, lipayFakeContext } from "../../testkit/lipay-fake.js";
 import { runMigrations } from "@jini-ai/db/migrate";

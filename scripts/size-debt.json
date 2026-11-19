@@ -7,20 +7,6 @@
     "value": 314
   },
   {
-    "file": "packages/agent-runtime/src/agent-protocol/acp/session.ts",
-    "function": "<file>",
-    "line": 675,
-    "rule": "max-lines",
-    "value": 745
-  },
-  {
-    "file": "packages/agent-runtime/src/providers/openai-chat.ts",
-    "function": "<file>",
-    "line": 832,
-    "rule": "max-lines",
-    "value": 504
-  },
-  {
     "file": "packages/agent-runtime/src/skills/web-clone/scripts/recon-site.mjs",
     "function": "collectSignals",
     "line": 115,
@@ -273,25 +259,11 @@
     "value": 325
   },
   {
-    "file": "packages/commerce/src/payments/ledger/rows.ts",
-    "function": "<file>",
-    "line": 658,
-    "rule": "max-lines",
-    "value": 726
-  },
-  {
     "file": "packages/core/src/redact.ts",
     "function": "<file>",
     "line": 874,
     "rule": "max-lines",
     "value": 601
-  },
-  {
-    "file": "packages/core/src/settings/write-service.ts",
-    "function": "<file>",
-    "line": 730,
-    "rule": "max-lines",
-    "value": 751
   },
   {
     "file": "packages/daemon/src/agent-executor/events.ts",
@@ -371,25 +343,11 @@
     "value": 275
   },
   {
-    "file": "packages/integrations/src/api-connections/hosted-mcp/sign-in.ts",
-    "function": "createHostedMcpSignInService",
-    "line": 796,
-    "rule": "max-lines-per-function",
-    "value": 201
-  },
-  {
     "file": "packages/mcp/src/federation/hosted/store.ts",
     "function": "<file>",
     "line": 878,
     "rule": "max-lines",
     "value": 973
-  },
-  {
-    "file": "packages/platform/src/download.ts",
-    "function": "<file>",
-    "line": 613,
-    "rule": "max-lines",
-    "value": 981
   },
   {
     "file": "packages/plugins/src/host/node/runtime-core.ts",
@@ -411,13 +369,6 @@
     "line": 644,
     "rule": "max-lines",
     "value": 560
-  },
-  {
-    "file": "packages/server/src/create-local-node-daemon.ts",
-    "function": "createLocalNodeDaemon",
-    "line": 365,
-    "rule": "max-lines-per-function",
-    "value": 112
   },
   {
     "file": "packages/sidecar/src/json-ipc.ts",

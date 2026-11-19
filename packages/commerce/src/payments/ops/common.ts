@@ -14,7 +14,7 @@ import type { RiskDecision } from "../contract/risk.js";
 import { sameScope, scopeProblem, type PaymentScope } from "../contract/scope.js";
 import type { ApplyResult } from "../accounting/apply-evidence.js";
 import { LedgerConstraintError, type LedgerTx } from "../ledger/repo.js";
-import type { AttemptOp, AttemptRecord, PaymentRecord } from "../ledger/rows.js";
+import type { AttemptOp, AttemptRecord, PaymentRecord } from "../ledger/row-records.js";
 import type { OpsDeps } from "./deps.js";
 import { scopeOf } from "./view.js";
 

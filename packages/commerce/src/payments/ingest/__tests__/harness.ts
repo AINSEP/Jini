@@ -4,7 +4,7 @@ import type { PaymentProvider } from "../../contract/provider.js";
 import type { PaymentScope } from "../../contract/scope.js";
 import type { LedgerTx, PaymentsLedger } from "../../ledger/repo.js";
 import { memoryPaymentsLedger } from "../../ledger/repo.memory.js";
-import type { NewInbox, NewPayment } from "../../ledger/rows.js";
+import type { NewInbox, NewPayment } from "../../ledger/row-records.js";
 import { createKernelProviderRegistry, type ProviderContextPort } from "../../provider-registry.js";
 import { createLipayFake, lipayFakeContext } from "../../testkit/lipay-fake.js";
 import { createWebhookReceiver, type WebhookEndpointPort } from "../receive.js";

@@ -8,12 +8,7 @@ import type { JsonRpcId, UnknownRecord } from './types.js';
 import { asObject } from './json.js';
 import { sendRpcResult, isJsonRpcId, choosePermissionOutcome } from './rpc.js';
 import { clearStageTimer, resetStageTimer, sendAgent, type AcpRun } from './session-run.js';
-import type {
-  AcpPermissionDecision,
-  AcpPermissionOption,
-  AcpPermissionRequest,
-  AttachAcpSessionOptions,
-} from './session.js';
+import type { AcpPermissionDecision, AcpPermissionOption, AcpPermissionRequest, AttachAcpSessionOptions } from './session-types.js';
 
 /** ACP `PermissionOptionKind` values; other offered options are ignored. */
 const ACP_PERMISSION_OPTION_KINDS: readonly string[] = ['allow_once', 'allow_always', 'reject_once', 'reject_always'];

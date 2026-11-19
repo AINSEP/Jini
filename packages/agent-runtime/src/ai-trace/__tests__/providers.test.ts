@@ -13,13 +13,17 @@ import {
 import { createClaudeStreamHandler } from '../../claude-stream.js';
 import { createQoderStreamHandler } from '../../qoder-stream.js';
 import { createJsonEventStreamHandler } from '../../json-event-stream.js';
-import { handleSessionUpdate, type AcpSessionEffects } from '../../agent-protocol/acp/session.js';
+import { handleSessionUpdate } from '../../agent-protocol/acp/session.js';
+import { type AcpSessionEffects } from '../../agent-protocol/acp/session-types.js';
 import { createAcpSessionState } from '../../agent-protocol/acp/session-state.js';
 import { createToolCallTextSuppressor } from '../../agent-protocol/acp/text-suppression.js';
 import { noopAccountFailureClassifier } from '../../agent-protocol/acp/account-failure.js';
 import { formatUsage } from '../../agent-protocol/acp/rpc.js';
 import { runProviderToolTurn, providerTurnAdapters } from '../../providers/tool-turn.js';
-import { processOpenAiStreamFrame, resolveOpenAiToolCalls, executeOpenAiToolCalls, type OpenAiStreamState } from '../../providers/openai-chat.js';
+import { processOpenAiStreamFrame } from '../../providers/openai-chat-request.js';
+import { resolveOpenAiToolCalls } from '../../providers/openai-chat-stream.js';
+import { executeOpenAiToolCalls } from '../../providers/openai-chat-tool-results.js';
+import { type OpenAiStreamState } from '../../providers/openai-chat-types.js';
 import { createRoleMarkerGuard } from '../../role-marker-guard.js';
 import { steppingClock } from './scenario.js';
 

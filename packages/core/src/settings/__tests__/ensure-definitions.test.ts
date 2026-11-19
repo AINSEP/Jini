@@ -4,7 +4,8 @@ import { ensureSettingDefinitions, type SettingDefinitionSpec } from "../ensure-
 import { InMemorySettingsRepo } from "../repo.memory.js";
 import { getEffective } from "../settings.js";
 import { SCOPE_BIT, type SettingDefinitionRecord } from "../types.js";
-import { extendDefinitionScopes, set } from "../write-service.js";
+import { extendDefinitionScopes } from "../write-definition-retype.js";
+import { set } from "../write-values.js";
 import { InMemorySettingsPrincipalLookup } from "./principal.fixture.js";
 
 /** Real ledger seam: boot must preserve site-owned rows and core reconciliation,

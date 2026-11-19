@@ -7,29 +7,11 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { createAcpSessionState } from '../session-state.js';
-import {
-  handleRpcError,
-  tryPromoteAmrRetryStatus,
-  handleThoughtChunkUpdate,
-  stripToolCallText,
-  shouldPreserveIncrementalProse,
-  isPlainIncrementalDelta,
-  applyDsmlArtifactSuppression,
-  handleMessageChunkUpdate,
-  mirrorArtifactWriteToolEvent,
-  updateDsmlSuppressorForToolCall,
-  handleToolCallUpdate,
-  handleSessionUpdate,
-  handleInitializeAck,
-  triggerSetModelIfNeeded,
-  handleSessionNewAck,
-  handlePromptResult,
-  isModelSetAckExpected,
-  handleModelSetAck,
-  routeResultById,
-  type AcpSessionState,
-  type AcpSessionEffects,
-} from '../session.js';
+import { handleRpcError, handleInitializeAck, triggerSetModelIfNeeded, handleSessionNewAck, handlePromptResult, isModelSetAckExpected, handleModelSetAck, routeResultById } from '../session-results.js';
+import { tryPromoteAmrRetryStatus, handleSessionUpdate } from '../session.js';
+import { handleThoughtChunkUpdate, stripToolCallText, shouldPreserveIncrementalProse, isPlainIncrementalDelta, applyDsmlArtifactSuppression, handleMessageChunkUpdate } from '../session-text-updates.js';
+import { mirrorArtifactWriteToolEvent, updateDsmlSuppressorForToolCall, handleToolCallUpdate } from '../session-tool-updates.js';
+import { type AcpSessionState, type AcpSessionEffects } from '../session-types.js';
 import { createDsmlArtifactTextSuppressor, createToolCallTextSuppressor } from '../text-suppression.js';
 import { noopAccountFailureClassifier, type AccountFailureClassifier } from '../account-failure.js';
 import type { UnknownRecord } from '../types.js';

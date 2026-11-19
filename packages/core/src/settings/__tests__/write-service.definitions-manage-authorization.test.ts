@@ -4,13 +4,10 @@ import { test } from "vitest";
 import { InMemorySettingsPrincipalLookup } from "./principal.fixture.js";
 import { ForbiddenError } from "../errors.js";
 import { InMemorySettingsRepo } from "../repo.memory.js";
-import {
-  deprecateDefinition,
-  registerDefinitions,
-  renameDefinition,
-  retypeDefinition,
-  tombstoneDefinition,
-} from "../write-service.js";
+import { deprecateDefinition, tombstoneDefinition } from "../write-definition-status.js";
+import { registerDefinitions } from "../write-service.js";
+import { renameDefinition } from "../write-definition-rename.js";
+import { retypeDefinition } from "../write-definition-retype.js";
 
 /**
  * @file `authorizeDefinitionsManage` is the single shared authorization gate in
