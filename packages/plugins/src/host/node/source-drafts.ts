@@ -144,14 +144,7 @@ function nextSealVersion(latest: string | undefined, declaredVersion: string): s
   return latest && !semver.gt(declaredVersion, latest) ? new semver.SemVer(latest).inc('patch').version : declaredVersion;
 }
 
-/** Build the bounded Node draft adapter.
- * @param required Site path and injected manifest, installer, policy and reload owners.
- * @param optional.temporaryDir External sealing staging root; defaults to the OS temp directory.
- * @returns The source tool port. Typed source/install errors describe refusals; filesystem faults reject.
- * @example createPluginSourceService({ ...host, installDir, installer, policy, reload, builtInIds: [], scaffoldEntry }, {})
- * @complexity O(package bytes) per operation, capped at 8 MiB / 512 entries.
- */
-export function createPluginSourceService(required: PluginSourceDeps, optional: { temporaryDir?: string; lockPorts?: Pick<FileLockOptions, 'clock' | 'process' | 'hostname'> } = {}): PluginSourcePort {
+function createDraftContext(required: PluginSourceDeps, optional: NonNullable<Parameters<typeof createPluginSourceService>[1]>) {
   const root = path.resolve(required.installDir);
   const drafts = path.join(root, '.drafts');
   const draft = (id: string) => path.join(drafts, id);
@@ -160,10 +153,17 @@ export function createPluginSourceService(required: PluginSourceDeps, optional: 
   // path (ids cannot start with '.') can write it. Per site: one approval covers every workspace.
   const approval = (id: string) => path.join(drafts, '.sealed', id, 'approved.json');
 
+  return { required, optional, root, drafts, draft, marker, approval };
+}
+
+type DraftContext = ReturnType<typeof createDraftContext>;
+
+function createDraftLock(ctx: DraftContext) {
+  const { required, optional, root } = ctx;
   /** Cross-process source lock serializes edits with seal snapshots. Installer keeps its own
    * publication lock. Platform records pid/time and reclaims only dead owners; age alone must
    * never steal a long seal from a live process. Token-owned release preserves a replacement. */
-  async function locked<T>(id: string, action: () => Promise<T>, options: { createRoot?: boolean } = {}): Promise<T> {
+  return async function locked<T>(id: string, action: () => Promise<T>, options: { createRoot?: boolean } = {}): Promise<T> {
     safeId(id);
     if (required.builtInIds.some(builtIn => builtIn.toLowerCase() === id)) fail('PLUGIN_SHADOWS_BUILT_IN', 'Built-in plugin source cannot be edited.');
     await confined(root, root);
@@ -175,21 +175,33 @@ export function createPluginSourceService(required: PluginSourceDeps, optional: 
       if (error instanceof FileLockTimeoutError) fail('PLUGIN_SOURCE_BUSY', 'Another source operation is in progress. Retry after it finishes.');
       throw error;
     }
-  }
-  async function versions(id: string): Promise<string[]> {
+  };
+}
+
+function createDraftVersionReader(ctx: DraftContext) {
+  const { root } = ctx;
+  return async function versions(id: string): Promise<string[]> {
     const slot = path.join(root, id);
     await confined(root, slot);
     if (!await exists(slot)) return [];
     const entries = (await readdir(slot)).filter(name => !name.startsWith('.'));
     if (entries.some(version => !semver.valid(version))) fail('PLUGIN_SOURCE_VERSION_INVALID', 'Installed plugin has an unrecognized version folder.');
     return entries.sort(semver.rcompare);
-  }
-  async function snapshot(location: string): Promise<PluginPackageSnapshot> {
+  };
+}
+
+function createDraftSnapshotReader(ctx: DraftContext) {
+  const { root } = ctx;
+  return async function snapshot(location: string): Promise<PluginPackageSnapshot> {
     await confined(root, location);
     if (!await exists(location)) fail('PLUGIN_SOURCE_DRAFT_MISSING', 'Open an installed plugin with plugin_source_open or scaffold it with plugin_source_create first.');
     return snapshotSitePluginPackage({ sourceDir: location }, PLUGIN_SOURCE_LIMITS);
-  }
-  async function putDraft(id: string, files: ReadonlyMap<string, Buffer>): Promise<void> {
+  };
+}
+
+function createDraftInstaller(ctx: DraftContext) {
+  const { root, drafts, draft } = ctx;
+  return async function putDraft(id: string, files: ReadonlyMap<string, Buffer>): Promise<void> {
     await confined(root, draft(id));
     await confined(root, drafts);
     await mkdir(drafts, { recursive: true });
@@ -199,8 +211,13 @@ export function createPluginSourceService(required: PluginSourceDeps, optional: 
       await confined(root, draft(id));
       await rename(staging, draft(id));
     } finally { await rm(staging, { recursive: true, force: true }); }
-  }
-  async function open(id: string): Promise<{ created: boolean }> {
+  };
+}
+
+function createDraftOpener(ctx: DraftContext, deps: { snapshot: ReturnType<typeof createDraftSnapshotReader>; versions: ReturnType<typeof createDraftVersionReader>; putDraft: ReturnType<typeof createDraftInstaller> }) {
+  const { root, draft } = ctx;
+  const { snapshot, versions, putDraft } = deps;
+  return async function open(id: string): Promise<{ created: boolean }> {
     await confined(root, draft(id));
     if (await exists(draft(id))) { await snapshot(draft(id)); return { created: false }; }
     const latest = (await versions(id))[0];
@@ -208,8 +225,13 @@ export function createPluginSourceService(required: PluginSourceDeps, optional: 
     const files = await snapshot(path.join(root, id, latest));
     await putDraft(id, files);
     return { created: true };
-  }
-  async function write(id: string, file: string, content: string): Promise<{ bytesWritten: number }> {
+  };
+}
+
+function createDraftWriter(ctx: DraftContext, deps: { snapshot: ReturnType<typeof createDraftSnapshotReader> }) {
+  const { root, draft } = ctx;
+  const { snapshot } = deps;
+  return async function write(id: string, file: string, content: string): Promise<{ bytesWritten: number }> {
     safeFile(file);
     if (file === LEGACY_PLUGIN_MANIFEST_FILENAME) file = MANIFEST; // legacy alias
     const { segments, bytes } = draftWriteInput(file, content);
@@ -224,22 +246,36 @@ export function createPluginSourceService(required: PluginSourceDeps, optional: 
     await writeAtomic(root, path.join(draft(id), file), bytes);
     if (file === MANIFEST) await rm(path.join(draft(id), LEGACY_PLUGIN_MANIFEST_FILENAME), { force: true }); // legacy alias
     return { bytesWritten: bytes.length };
-  }
-  async function read(id: string, file: string): Promise<{ content: string; bytes: number; digest: string }> {
+  };
+}
+
+function createDraftReader(ctx: DraftContext, deps: { snapshot: ReturnType<typeof createDraftSnapshotReader> }) {
+  const { draft } = ctx;
+  const { snapshot } = deps;
+  return async function read(id: string, file: string): Promise<{ content: string; bytes: number; digest: string }> {
     safeFile(file);
     const files = await snapshot(draft(id));
     if (PLUGIN_MANIFEST_FILENAMES.includes(file)) file = PLUGIN_MANIFEST_FILENAMES.find(name => files.has(name)) ?? MANIFEST; // legacy alias
     const bytes = files.get(file);
     if (!bytes) fail('PLUGIN_SOURCE_FILE_MISSING', 'The requested file is not in the draft.');
     return { content: bytes.toString('utf8'), bytes: bytes.length, digest: digestSitePluginSnapshot({ files: new Map([[file, bytes]]) }) };
-  }
-  function validate(id: string, manifest: unknown): void {
+  };
+}
+
+function createDraftValidator(ctx: DraftContext) {
+  const { required } = ctx;
+  return function validate(id: string, manifest: unknown): void {
     const errors = validateManifest({ ...required, manifest, folderName: id, builtInIds: required.builtInIds }).errors;
     if (errors.length) fail('PLUGIN_MANIFEST_INVALID', errors.map(error => error.message).join('; '));
-  }
+  };
+}
+
+function createDraftPublisher(ctx: DraftContext, deps: { validate: ReturnType<typeof createDraftValidator>; versions: ReturnType<typeof createDraftVersionReader>; reloadAndPrune: ReturnType<typeof createDraftReload> }) {
+  const { required, optional, root, marker } = ctx;
+  const { validate, versions, reloadAndPrune } = deps;
   /** Install a sealed, immutable copy outside discovery's tree. No alternate installer or ZIP
    * encoder is needed; the folder installer refuses sources inside its own destination. */
-  async function publish(id: string, files: ReadonlyMap<string, Buffer>, rollbackFrom?: string): Promise<PluginSourceSealResult> {
+  return async function publish(id: string, files: ReadonlyMap<string, Buffer>, rollbackFrom?: string): Promise<PluginSourceSealResult> {
     if (!required.policy.localInstallEnabled({}, {})) fail('PLUGIN_LOCAL_INSTALL_DISABLED', required.localInstallDisabledMessage ?? 'Local plugin install is disabled by the host.');
     const raw = parseDraftManifest(files);
     // `validate` checks the manifest against `folderName: id`, so a manifest whose id is missing or
@@ -259,14 +295,19 @@ export function createPluginSourceService(required: PluginSourceDeps, optional: 
       await writeAtomic(root, marker(id, version), jsonBytes({ digest: plugin.digest }));
       return await reloadAndPrune(id, plugin, rollbackFrom ? { rollbackFrom } : {});
     } finally { await rm(staging, { recursive: true, force: true }); }
-  }
-  /** Writes the draft files, then the manifest with the sealed version and fresh integrity. */
-  async function stageSealedPackage(staging: string, files: ReadonlyMap<string, Buffer>, manifest: Record<string, unknown>): Promise<void> {
-    for (const [file, bytes] of canonicalizePluginManifest({ files })) { safeFile(file); await writeAtomic(staging, path.join(staging, file), bytes); } // legacy alias
-    const integrity = await computePluginIntegrity({ sourceDir: staging });
-    await writeAtomic(staging, path.join(staging, MANIFEST), jsonBytes({ ...manifest, integrity }));
-  }
-  async function reloadAndPrune(id: string, plugin: PluginInstallPreview, rollback: { rollbackFrom?: string }): Promise<PluginSourceSealResult> {
+  };
+}
+
+/** Writes the draft files, then the manifest with the sealed version and fresh integrity. */
+async function stageSealedPackage(staging: string, files: ReadonlyMap<string, Buffer>, manifest: Record<string, unknown>): Promise<void> {
+  for (const [file, bytes] of canonicalizePluginManifest({ files })) { safeFile(file); await writeAtomic(staging, path.join(staging, file), bytes); } // legacy alias
+  const integrity = await computePluginIntegrity({ sourceDir: staging });
+  await writeAtomic(staging, path.join(staging, MANIFEST), jsonBytes({ ...manifest, integrity }));
+}
+
+function createDraftReload(ctx: DraftContext) {
+  const { required, root, marker } = ctx;
+  return async function reloadAndPrune(id: string, plugin: PluginInstallPreview, rollback: { rollbackFrom?: string }): Promise<PluginSourceSealResult> {
     let reloaded = false;
     try { reloaded = await required.reload({ id }, {}); }
     catch (error) { return { installed: true, plugin, reloaded: false, reloadError: error instanceof Error ? error.message : String(error), ...rollback }; }
@@ -277,8 +318,24 @@ export function createPluginSourceService(required: PluginSourceDeps, optional: 
       await rm(path.dirname(marker(id, retired)), { recursive: true, force: true });
     }
     return { installed: true, plugin, reloaded, ...rollback };
-  }
+  };
+}
 
+type DraftOperations = DraftContext & {
+  locked: ReturnType<typeof createDraftLock>;
+  versions: ReturnType<typeof createDraftVersionReader>;
+  snapshot: ReturnType<typeof createDraftSnapshotReader>;
+  putDraft: ReturnType<typeof createDraftInstaller>;
+  open: ReturnType<typeof createDraftOpener>;
+  write: ReturnType<typeof createDraftWriter>;
+  read: ReturnType<typeof createDraftReader>;
+  validate: ReturnType<typeof createDraftValidator>;
+  publish: ReturnType<typeof createDraftPublisher>;
+  reloadAndPrune: ReturnType<typeof createDraftReload>;
+};
+
+function draftFileOperations(ctx: DraftOperations): Pick<PluginSourcePort, 'create' | 'open' | 'list' | 'read' | 'write'> {
+  const { required, root, draft, locked, versions, snapshot, putDraft, open, write, read, validate } = ctx;
   return {
     create: ({ id, name, description }, _options = {}) => locked(id, async () => {
       if (typeof name !== 'string' || !name.trim() || typeof description !== 'string') fail('PLUGIN_SOURCE_INPUT_INVALID', 'A name and description are required.');
@@ -297,6 +354,13 @@ export function createPluginSourceService(required: PluginSourceDeps, optional: 
     list: ({ id }, _options = {}) => locked(id, async () => ({ files: [...await snapshot(draft(id))].map(([file, bytes]) => ({ path: file, bytes: bytes.length })) })),
     read: ({ id, path: file }, _options = {}) => locked(id, () => read(id, file)),
     write: ({ id, path: file, content }, _options = {}) => locked(id, () => write(id, file, content)),
+
+  };
+}
+
+function draftEditOperations(ctx: DraftOperations): Pick<PluginSourcePort, 'edit' | 'delete'> {
+  const { root, draft, locked, write, read } = ctx;
+  return {
     edit: ({ id, path: file, oldString, newString, replaceAll }, _options = {}) => locked(id, async () => {
       const validReplaceAll = replaceAll === undefined || typeof replaceAll === 'boolean';
       if (typeof oldString !== 'string' || !oldString || typeof newString !== 'string' || !validReplaceAll) fail('PLUGIN_SOURCE_INPUT_INVALID', 'Provide a nonempty oldString, a newString and optional boolean replaceAll.');
@@ -318,6 +382,13 @@ export function createPluginSourceService(required: PluginSourceDeps, optional: 
       await unlink(target);
       return { deleted: true as const };
     }),
+
+  };
+}
+
+function draftPublicationOperations(ctx: DraftOperations): Pick<PluginSourcePort, 'seal' | 'rollback' | 'isSealedHere'> {
+  const { required, root, draft, marker, locked, versions, snapshot, publish } = ctx;
+  return {
     seal: ({ id }, _options = {}) => locked(id, async () => publish(id, await snapshot(draft(id)))),
     rollback: ({ id }, _options = {}) => locked(id, async () => {
       const previous = (await versions(id))[1];
@@ -338,6 +409,13 @@ export function createPluginSourceService(required: PluginSourceDeps, optional: 
       const digest = JSON.parse(markers.get(path.basename(provenance))!.toString('utf8')).digest;
       return digest === digestSitePluginSnapshot({ files: await snapshot(path.join(root, id, version)) });
     },
+
+  };
+}
+
+function draftApprovalOperations(ctx: DraftOperations): Pick<PluginSourcePort, 'readApproval' | 'recordApproval'> {
+  const { root, approval } = ctx;
+  return {
     // Lock-free like isSealedHere: rename-published, and enabling during a seal must not fail BUSY.
     readApproval: async ({ id }, _options = {}) => {
       safeId(id);
@@ -355,4 +433,27 @@ export function createPluginSourceService(required: PluginSourceDeps, optional: 
       await writeAtomic(root, approval(id), jsonBytes({ capabilities: [...capabilities] }));
     },
   };
+}
+
+/** Build the bounded Node draft adapter.
+ * @param required Site path and injected manifest, installer, policy and reload owners.
+ * @param optional.temporaryDir External sealing staging root; defaults to the OS temp directory.
+ * @returns The source tool port. Typed source/install errors describe refusals; filesystem faults reject.
+ * @example createPluginSourceService({ ...host, installDir, installer, policy, reload, builtInIds: [], scaffoldEntry }, {})
+ * @complexity O(package bytes) per operation, capped at 8 MiB / 512 entries.
+ */
+export function createPluginSourceService(required: PluginSourceDeps, optional: { temporaryDir?: string; lockPorts?: Pick<FileLockOptions, 'clock' | 'process' | 'hostname'> } = {}): PluginSourcePort {
+  const ctx = createDraftContext(required, optional);
+  const locked = createDraftLock(ctx);
+  const versions = createDraftVersionReader(ctx);
+  const snapshot = createDraftSnapshotReader(ctx);
+  const putDraft = createDraftInstaller(ctx);
+  const open = createDraftOpener(ctx, { snapshot, versions, putDraft });
+  const write = createDraftWriter(ctx, { snapshot });
+  const read = createDraftReader(ctx, { snapshot });
+  const validate = createDraftValidator(ctx);
+  const reloadAndPrune = createDraftReload(ctx);
+  const publish = createDraftPublisher(ctx, { validate, versions, reloadAndPrune });
+  const operations = { ...ctx, locked, versions, snapshot, putDraft, open, write, read, validate, publish, reloadAndPrune };
+  return { ...draftFileOperations(operations), ...draftEditOperations(operations), ...draftPublicationOperations(operations), ...draftApprovalOperations(operations) };
 }

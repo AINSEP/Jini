@@ -546,13 +546,6 @@
     "value": 131
   },
   {
-    "file": "packages/plugins/src/host/hook-registry.ts",
-    "function": "createHookRegistry",
-    "line": 233,
-    "rule": "max-lines-per-function",
-    "value": 99
-  },
-  {
     "file": "packages/plugins/src/host/node/runtime-core.ts",
     "function": "createPluginRuntimeCore",
     "line": 387,
@@ -565,20 +558,6 @@
     "line": 804,
     "rule": "max-lines",
     "value": 560
-  },
-  {
-    "file": "packages/plugins/src/host/node/source-drafts.ts",
-    "function": "createPluginSourceService",
-    "line": 153,
-    "rule": "max-lines-per-function",
-    "value": 180
-  },
-  {
-    "file": "packages/plugins/src/host/provider-host.ts",
-    "function": "createPluginProviderHost",
-    "line": 114,
-    "rule": "max-lines-per-function",
-    "value": 134
   },
   {
     "file": "packages/search/src/indexer.ts",
@@ -789,55 +768,6 @@
     "line": 583,
     "rule": "max-lines",
     "value": 880
-  },
-  {
-    "file": "packages/user-management/src/admin/adapters/memory.ts",
-    "function": "createMemoryUsersApi",
-    "line": 154,
-    "rule": "max-lines-per-function",
-    "value": 87
-  },
-  {
-    "file": "packages/user-management/src/admin/controllers/members.controller.ts",
-    "function": "createMembersController",
-    "line": 8,
-    "rule": "max-lines-per-function",
-    "value": 120
-  },
-  {
-    "file": "packages/user-management/src/admin/controllers/roles.controller.ts",
-    "function": "createRolesController",
-    "line": 16,
-    "rule": "max-lines-per-function",
-    "value": 308
-  },
-  {
-    "file": "packages/user-management/src/admin/controllers/users.controller.ts",
-    "function": "createUsersController",
-    "line": 18,
-    "rule": "max-lines-per-function",
-    "value": 165
-  },
-  {
-    "file": "packages/user-management/src/react/members/hooks/use-members.hooks.ts",
-    "function": "useMembers",
-    "line": 92,
-    "rule": "max-lines-per-function",
-    "value": 109
-  },
-  {
-    "file": "packages/user-management/src/react/members/Members.tsx",
-    "function": "Members",
-    "line": 161,
-    "rule": "max-lines-per-function",
-    "value": 96
-  },
-  {
-    "file": "packages/user-management/src/react/testing.ts",
-    "function": "createFakeRolesPort",
-    "line": 199,
-    "rule": "max-lines-per-function",
-    "value": 107
   },
   {
     "file": "packages/user-management/src/react/users/hooks/use-users.hooks.ts",

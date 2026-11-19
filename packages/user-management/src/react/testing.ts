@@ -196,39 +196,10 @@ export interface FakeRolesPortOptions {
   initialPolicyPermissions?: AdminPolicyPermission[] | undefined;
 }
 
-export function createFakeRolesPort(_required: Record<string, never>, options: FakeRolesPortOptions = {}): RolesPort & {
-
-  readonly roles: AdminRole[];
-
-  readonly policies: AdminPolicy[];
-
-  readonly policyPermissions: AdminPolicyPermission[];
-} {
-  const roles = [...(options.roles ?? [])];
-  const policies = [...(options.policies ?? [])];
-  const policyPermissions = [...(options.initialPolicyPermissions ?? [])];
-
-  function requireRole(roleId: string): AdminRole {
-    const found = roles.find((r) => r.id === roleId);
-    if (!found) throw new Error(`fake role not found: ${roleId}`);
-    return found;
-  }
-
-  function requirePolicy(policyId: string): AdminPolicy {
-    const found = policies.find((p) => p.id === policyId);
-    if (!found) throw new Error(`fake policy not found: ${policyId}`);
-    return found;
-  }
-
+function fakeRoleOperations(roles: AdminRole[], options: FakeRolesPortOptions, requireRole: (roleId: string) => AdminRole): Pick<RolesPort, 'listRoles' | 'createRole' | 'updateRole' | 'deleteRole'> {
   return {
-    roles,
-    policies,
-    policyPermissions,
     async listRoles() {
       return { roles: [...roles] };
-    },
-    async listPolicies() {
-      return { policies: [...policies] };
     },
     async createRole({ name }) {
       if (options.createRoleError) throw options.createRoleError;
@@ -249,6 +220,14 @@ export function createFakeRolesPort(_required: Record<string, never>, options: F
       requireRole(roleId);
       const index = roles.findIndex((r) => r.id === roleId);
       roles.splice(index, 1);
+    },
+  };
+}
+
+function fakePolicyOperations(policies: AdminPolicy[], options: FakeRolesPortOptions, requirePolicy: (policyId: string) => AdminPolicy): Pick<RolesPort, 'listPolicies' | 'createPolicy' | 'updatePolicy' | 'deletePolicy'> {
+  return {
+    async listPolicies() {
+      return { policies: [...policies] };
     },
     async createPolicy(input, opts) {
       if (options.createPolicyError) throw options.createPolicyError;
@@ -276,6 +255,11 @@ export function createFakeRolesPort(_required: Record<string, never>, options: F
       const index = policies.findIndex((p) => p.id === policyId);
       policies.splice(index, 1);
     },
+  };
+}
+
+function fakePermissionOperations(policyPermissions: AdminPolicyPermission[], options: FakeRolesPortOptions, requirePolicy: (policyId: string) => AdminPolicy): Pick<RolesPort, 'writePolicyPermission' | 'listPolicyPermissions' | 'removePolicyPermission'> {
+  return {
     async writePolicyPermission(input, opts) {
       if (options.writePermissionError) throw options.writePermissionError;
       requirePolicy(input.policyId);
@@ -309,6 +293,49 @@ export function createFakeRolesPort(_required: Record<string, never>, options: F
       }
       policyPermissions.splice(index, 1);
     },
+  };
+}
+
+export function createFakeRolesPort(_required: Record<string, never>, options: FakeRolesPortOptions = {}): RolesPort & {
+
+  readonly roles: AdminRole[];
+
+  readonly policies: AdminPolicy[];
+
+  readonly policyPermissions: AdminPolicyPermission[];
+} {
+  const roles = [...(options.roles ?? [])];
+  const policies = [...(options.policies ?? [])];
+  const policyPermissions = [...(options.initialPolicyPermissions ?? [])];
+
+  function requireRole(roleId: string): AdminRole {
+    const found = roles.find((r) => r.id === roleId);
+    if (!found) throw new Error(`fake role not found: ${roleId}`);
+    return found;
+  }
+
+  function requirePolicy(policyId: string): AdminPolicy {
+    const found = policies.find((p) => p.id === policyId);
+    if (!found) throw new Error(`fake policy not found: ${policyId}`);
+    return found;
+  }
+
+  const roleOperations = fakeRoleOperations(roles, options, requireRole);
+  const policyOperations = fakePolicyOperations(policies, options, requirePolicy);
+  const permissionOperations = fakePermissionOperations(policyPermissions, options, requirePolicy);
+  return {
+    roles,
+    policies,
+    policyPermissions,
+    listRoles: roleOperations.listRoles,
+    listPolicies: policyOperations.listPolicies,
+    createRole: roleOperations.createRole,
+    updateRole: roleOperations.updateRole,
+    deleteRole: roleOperations.deleteRole,
+    createPolicy: policyOperations.createPolicy,
+    updatePolicy: policyOperations.updatePolicy,
+    deletePolicy: policyOperations.deletePolicy,
+    ...permissionOperations,
   };
 }
 
