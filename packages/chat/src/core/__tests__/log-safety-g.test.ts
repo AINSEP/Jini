@@ -25,7 +25,7 @@ it.each([false, true])('classifies an observable failure after started=%s and se
     expect(onError).toHaveBeenCalledTimes(1);
     expect(onDone).toHaveBeenCalledTimes(1);
   } else {
-    const rejection = expect(pending).rejects.toThrow('Chat request failed. Error');
+    const rejection = expect(pending).rejects.toThrow('The agent run stream stopped with an error (Error); send the message again.');
     observer.error(failure());
     await rejection;
     expect(onError).not.toHaveBeenCalled();
@@ -38,7 +38,7 @@ it.each([failure(), sentinel])('vanilla failure settles a failed reply with fixe
   const transport = { startRun: async () => { throw error; } } as unknown as ChatTransport;
   const controller = createVanillaChatController({ transport, session: { load: () => ({ open: true, messages: [] }), save, clear: vi.fn() }, agentId: 'agent', ids: () => 'id', createAbortController: () => new AbortController(), onChange: vi.fn() });
   expect(await controller.send({ text: 'hello' })).toBe(true);
-  expect(controller.getState().error).toBe('Chat request failed.');
+  expect(controller.getState().error).toBe('The message could not be sent to the agent; send it again.');
   expect(controller.getState().busy).toBe(false);
   expect(controller.getState().messages.at(-1)?.runStatus).toBe('failed');
   expect(save).toHaveBeenCalledTimes(1);

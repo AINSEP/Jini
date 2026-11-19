@@ -45,7 +45,7 @@ describe('vanilla visitor state', () => {
     await f.controller.send({ text: 'hello' });
     f.callbacks().onError(new Error('Rate limited'));
     f.callbacks().onDone([directive('navigate', true)]);
-    expect(f.controller.getState({})).toMatchObject({ busy: false, error: 'Rate limited' });
+    expect(f.controller.getState({})).toMatchObject({ busy: false, error: 'The message could not be sent to the agent; send it again.' });
     expect(f.controller.getState({}).messages.at(-1)!.runStatus).toBe('failed');
     expect(f.writes).not.toContain('navigate');
   });
@@ -58,7 +58,7 @@ describe('vanilla visitor state', () => {
       transport: { async startRun() { throw new Error('Offline'); }, async reattachRun() {}, async fetchRunStatus() { return null; }, async stopRun() {} },
     });
     await controller.send({ text: 'hello' });
-    expect(controller.getState({})).toMatchObject({ busy: false, error: 'Offline' });
+    expect(controller.getState({})).toMatchObject({ busy: false, error: 'The message could not be sent to the agent; send it again.' });
     expect(controller.getState({}).messages.at(-1)!.runStatus).toBe('failed');
     expect(await controller.send({ text: 'retry' })).toBe(true);
     expect(states.at(-1)).toBe('false');

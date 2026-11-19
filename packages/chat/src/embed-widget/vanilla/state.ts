@@ -61,7 +61,7 @@ export function createVanillaChatController(args: VanillaChatControllerArgs, _op
       const fail = (_error: Error) => {
         if (!current()) return;
         failed = true;
-        state = { ...state, error: 'Chat request failed.' };
+        state = { ...state, error: 'The message could not be sent to the agent; send it again.' };
         updateReply({ ...reply, content: assistantContentFromEvents({ events }), events: [...events], runStatus: 'failed' });
       };
       const done = (final: AgentEvent[]) => {

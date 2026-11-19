@@ -159,7 +159,7 @@ function subscribeRun(
       },
       error: (error: unknown) => {
         forgetRun({ turn });
-        const err = new Error(`Chat request failed. ${describeErrorForLog({ err: error })}`);
+        const err = new Error(`The agent run stream stopped with an error (${describeErrorForLog({ err: error })}); send the message again.`);
         if (!startSettled) {
           startSettled = true;
           reject(err);
