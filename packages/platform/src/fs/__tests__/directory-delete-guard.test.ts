@@ -36,7 +36,7 @@ function row(directory: string, origin: string): { directory: string; createdAt:
   return { directory, createdAt: "2026-01-01T00:00:00.000Z", origin };
 }
 
-/** Write `.site-meta.json` into `dir` (creating it), carrying `identity` — the identity `tovu init`
+/** Write `.site-meta.json` into `dir` (creating it), carrying `identity` — the identity the host
  *  stamps and the one the guard proves a `created` row still names. */
 function writeSiteMeta(dir: string, identity: string): string {
   fs.mkdirSync(dir, { recursive: true });
@@ -82,7 +82,7 @@ test("resolveRealPath returns the normalized path when even the filesystem root 
 
 test("isInsideDirectory is true for the container itself and for anything under it", () => {
   const repoRoot = tempDir();
-  const nested = path.join(repoRoot, "sites", "tovu-com");
+  const nested = path.join(repoRoot, "sites", "example");
   fs.mkdirSync(nested, { recursive: true });
   assert.equal(isInsideDirectory({ target: repoRoot, container: repoRoot }), true);
   assert.equal(isInsideDirectory({ target: nested, container: repoRoot }), true);
@@ -93,8 +93,8 @@ test("isInsideDirectory is false for a sibling whose name merely starts with the
   // The exact false positive a `startsWith` prefix test produces, which would refuse a legitimate
   // delete of a folder that has nothing to do with the checkout.
   const base = tempDir();
-  const repoRoot = path.join(base, "Tovu");
-  const sibling = path.join(base, "Tovu-backup");
+  const repoRoot = path.join(base, "Workspace");
+  const sibling = path.join(base, "Workspace-backup");
   fs.mkdirSync(repoRoot);
   fs.mkdirSync(sibling);
   assert.equal(isInsideDirectory({ target: sibling, container: repoRoot }), false);
@@ -102,16 +102,16 @@ test("isInsideDirectory is false for a sibling whose name merely starts with the
 
 test("isInsideDirectory is not defeated by a `..` segment that climbs back into the container", () => {
   const repoRoot = tempDir();
-  const nested = path.join(repoRoot, "sites", "tovu-com");
+  const nested = path.join(repoRoot, "sites", "example");
   fs.mkdirSync(nested, { recursive: true });
-  const roundabout = path.join(repoRoot, "sites", "elsewhere", "..", "tovu-com");
+  const roundabout = path.join(repoRoot, "sites", "elsewhere", "..", "example");
   assert.equal(isInsideDirectory({ target: roundabout, container: repoRoot }), true);
 });
 
 test("isInsideDirectory is not defeated by a symlink pointing into the container", () => {
   const base = tempDir();
   const repoRoot = path.join(base, "repo");
-  const inside = path.join(repoRoot, "sites", "tovu-com");
+  const inside = path.join(repoRoot, "sites", "example");
   fs.mkdirSync(inside, { recursive: true });
   const decoy = path.join(base, "innocent-looking-site");
   fs.symlinkSync(inside, decoy);
@@ -121,7 +121,7 @@ test("isInsideDirectory is not defeated by a symlink pointing into the container
 test("isInsideDirectory is not defeated by a symlinked container", () => {
   const base = tempDir();
   const realRepo = path.join(base, "repo");
-  const inside = path.join(realRepo, "sites", "tovu-com");
+  const inside = path.join(realRepo, "sites", "example");
   fs.mkdirSync(inside, { recursive: true });
   const repoLink = path.join(base, "repo-link");
   fs.symlinkSync(realRepo, repoLink);
@@ -216,10 +216,10 @@ test("mayEraseDirectory refuses an adopted row even when it lives outside the re
 });
 
 test("mayEraseDirectory refuses a repo-root directory whatever the row claims", () => {
-  // The backstop: this is the arm that saves `<repo>/sites/tovu-com` from a row whose provenance is
+  // The backstop: this is the arm that saves `<repo>/sites/example` from a row whose provenance is
   // wrong — a hand-edited projects file, or a future seeding path that forgets to say `adopted`.
   const repoRoot = tempDir();
-  const inside = path.join(repoRoot, "sites", "tovu-com");
+  const inside = path.join(repoRoot, "sites", "example");
   fs.mkdirSync(inside, { recursive: true });
   assert.equal(mayEraseDirectory({ row: row(inside, "created"), protectedRoot: repoRoot, createdOrigin: "created", ...marker }), false);
   assert.equal(mayEraseDirectory({ row: row(repoRoot, "created"), protectedRoot: repoRoot, createdOrigin: "created", ...marker }), false);
@@ -257,13 +257,13 @@ test("isInsideDirectory still catches a directory that no longer exists under a 
   const repoLink = path.join(base, "repo");
   fs.symlinkSync(realRepo, repoLink);
 
-  const goneButInside = path.join(repoLink, "sites", "tovu-com");
+  const goneButInside = path.join(repoLink, "sites", "example");
   assert.equal(fs.existsSync(goneButInside), false);
   assert.equal(isInsideDirectory({ target: goneButInside, container: realRepo }), true);
 });
 
 function layout(t: { onTestFinished: (fn: () => void) => void }) {
-  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'tovu-delete-guard-'));
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'directory-delete-guard-'));
   t.onTestFinished(() => fs.rmSync(base, { recursive: true, force: true }));
   const repoRoot = path.join(base, 'repo');
   const directory = path.join(base, 'site');

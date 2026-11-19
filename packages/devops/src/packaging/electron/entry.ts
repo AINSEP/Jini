@@ -12,3 +12,4 @@ export * from './staged-closure-node.js';
 export * from './tree-fingerprint.js';
 export * from './isolation.js';
 export * from './payload-scan.js';
+export * from './update-manifest-merge.js';

@@ -6,7 +6,7 @@
  * `uploads/`, `themes/`, `agent-plugins/` — with no backup and no OS trash, because that is the
  * honest meaning of "delete this project" for a project the app itself provisioned. It is NOT the
  * honest meaning for a directory the app merely ADOPTED. `main.ts` seeds the Projects screen with
- * `<repo>/sites/tovu-dev` (`seedDevFallbackSite`), a git-tracked folder holding a real production
+ * `<repo>/sites/example`, a git-tracked folder holding a real production
  * database that this app did not create a single byte of; the moment that folder classifies as a
  * site, a card for it appears and two clicks would destroy it.
  *
@@ -95,7 +95,7 @@ function isStillTheRecordedDirectory(
  *
  * `realpathSync.native` rather than the JS implementation on purpose: on macOS the native call also
  * returns the directory's canonical on-disk CASE, so a case-insensitive filesystem cannot be used to
- * smuggle `/repo/Sites/tovu-dev` past a comparison against `/repo/sites`.
+ * smuggle `/repo/Sites/example` past a comparison against `/repo/sites`.
  *
  * A path whose LEAF does not exist still resolves correctly: the deepest existing ancestor is
  * resolved and the remaining segments are re-appended to it. Resolving only whole paths would leave
