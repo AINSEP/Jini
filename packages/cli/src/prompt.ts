@@ -42,7 +42,7 @@ export class PayloadTooLargeError extends Error {
 }
 
 /** Default cap for the default file/stdin readers: generous for a prompt/body payload, small enough to bound worst-case memory. */
-const DEFAULT_MAX_READ_BYTES = 10 * 1024 * 1024;
+export const DEFAULT_MAX_READ_BYTES = 10 * 1024 * 1024;
 
 export interface PromptFlags {
   prompt?: string;
@@ -76,7 +76,7 @@ export async function readPromptFromFlags(
   if (typeof promptFile !== 'string' || promptFile.length === 0) {
     return null;
   }
-  return await readFlagSource({ source: promptFile, readDefaultStdin: defaultReadStdin }, options);
+  return await readFlagSource({ source: promptFile }, options);
 }
 
 interface ReadLimits {
@@ -93,12 +93,13 @@ type FlagSourceOptions = ReadPromptFromFlagsOptions & ReadBodyFromFlagsOptions;
  * default file reader). The byte cap and signal only reach the default readers.
  */
 async function readFlagSource(
-  { source, readDefaultStdin }: { source: string; readDefaultStdin: (limits: ReadLimits) => Promise<string> },
+  { source, readDefaultStdin }: { source: string; readDefaultStdin?: (limits: ReadLimits) => Promise<string> },
   options: FlagSourceOptions,
 ): Promise<string> {
   const readLimits: ReadLimits = { maxBytes: options.maxBytes ?? DEFAULT_MAX_READ_BYTES, ...(options.signal !== undefined ? { signal: options.signal } : {}) };
   if (source === '-') {
-    const readStdin = options.readStdin ?? ((): Promise<string> => readDefaultStdin(readLimits));
+    const readDefault = readDefaultStdin ?? ((limits: ReadLimits): Promise<string> => defaultReadStream({ input: process.stdin }, limits));
+    const readStdin = options.readStdin ?? ((): Promise<string> => readDefault(readLimits));
     return await readStdin();
   }
   const readFile = options.readFile ?? (({ path }: { path: string }): Promise<string> => defaultReadFile(path, readLimits));
@@ -150,7 +151,18 @@ async function defaultReadFile(path: string, limits: ReadLimits): Promise<string
   });
 }
 
-async function defaultReadStdin(limits: ReadLimits): Promise<string> {
+/** All of `input` as UTF-8, bounded to 10 MiB by default; rejects with PayloadTooLargeError past the cap or with the cancellation reason. */
+export function readStreamText(
+  required: { input: NodeJS.ReadableStream },
+  optional: { maxBytes?: number; signal?: AbortSignal } = {},
+): Promise<string> {
+  return defaultReadStream(required, {
+    maxBytes: optional.maxBytes ?? DEFAULT_MAX_READ_BYTES,
+    ...(optional.signal !== undefined ? { signal: optional.signal } : {}),
+  });
+}
+
+async function defaultReadStream({ input }: { input: NodeJS.ReadableStream }, limits: ReadLimits): Promise<string> {
   return await new Promise<string>((resolve, reject) => {
     if (limits.signal?.aborted === true) {
       reject(limits.signal.reason ?? new Error('stdin read aborted'));
@@ -158,21 +170,21 @@ async function defaultReadStdin(limits: ReadLimits): Promise<string> {
     }
     let buffer = '';
     let total = 0;
-    process.stdin.setEncoding('utf8');
+    input.setEncoding('utf8');
     const cleanup = (): void => {
-      process.stdin.off('data', onData);
-      process.stdin.off('end', onEnd);
-      process.stdin.off('error', onError);
+      input.off('data', onData);
+      input.off('end', onEnd);
+      input.off('error', onError);
       limits.signal?.removeEventListener('abort', onAbort);
     };
-    const pauseStdin = (): void => {
-      (process.stdin as unknown as { pause?: () => void }).pause?.();
+    const pauseInput = (): void => {
+      input.pause?.();
     };
     const onData = (chunk: string): void => {
       total += Buffer.byteLength(chunk, 'utf8');
       if (total > limits.maxBytes) {
         cleanup();
-        pauseStdin();
+        pauseInput();
         reject(new PayloadTooLargeError({ message: `stdin exceeded the ${limits.maxBytes}-byte limit` }));
         return;
       }
@@ -182,12 +194,12 @@ async function defaultReadStdin(limits: ReadLimits): Promise<string> {
     const onError = (err: unknown): void => { cleanup(); reject(err); };
     const onAbort = (): void => {
       cleanup();
-      pauseStdin();
+      pauseInput();
       reject(limits.signal?.reason ?? new Error('stdin read aborted'));
     };
-    process.stdin.on('data', onData);
-    process.stdin.on('end', onEnd);
-    process.stdin.on('error', onError);
+    input.on('data', onData);
+    input.on('end', onEnd);
+    input.on('error', onError);
     limits.signal?.addEventListener('abort', onAbort, { once: true });
   });
 }
