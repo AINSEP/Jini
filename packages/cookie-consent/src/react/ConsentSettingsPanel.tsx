@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import { ConsentBannerFields, ConsentLookFields, ConsentRulesFields, type ConsentFieldsProps } from './ConsentFields.js';
+import { ConsentBannerFields, ConsentLookFields, ConsentRulesFields, type ConsentFieldsProps, type ConsentLightColors } from './ConsentFields.js';
 import { createConsentTranslator } from './settings-panel.hooks.js';
 
 /** Bounded appearance tokens, as the engine accepts them: opaque hex colors and `Npx` lengths. */
@@ -43,6 +43,7 @@ export interface ConsentFieldProblem {
 }
 
 export interface ConsentSettingsPanelProps extends Pick<ConsentFieldsProps, 'problems' | 'limits'> {
+  lightColors: ConsentLightColors;
   value: ConsentSettingsView;
   onChange(required: { patch: Partial<ConsentSettingsView> }, optional?: Record<string, never>): void;
   loading: boolean;
@@ -55,7 +56,7 @@ export interface ConsentSettingsPanelProps extends Pick<ConsentFieldsProps, 'pro
 /** The composed default for hosts that want one screen: Rules, Banner and Look stacked.
  * Shared jini settings classes keep the panel in the host's design language.
  * Native labels/selects/checkboxes support keyboard use at desktop and narrow widths. */
-export function ConsentSettingsPanel({ value, onChange, loading, error, status, dictionary = {}, problems, limits }: ConsentSettingsPanelProps) {
+export function ConsentSettingsPanel({ value, onChange, loading, error, status, dictionary = {}, problems, limits, lightColors }: ConsentSettingsPanelProps) {
   const id = useId();
   const t = createConsentTranslator({ dictionary });
   const fields = { value, onChange, disabled: loading, problems, dictionary, limits };
@@ -65,7 +66,7 @@ export function ConsentSettingsPanel({ value, onChange, loading, error, status, 
     <p className="jini-hint">{t('Off by default. In opt-in regions, optional scripts stay paused until a visitor chooses. Unclassified third-party scripts use the marketing category. Global Privacy Control disables analytics and marketing.')}</p>
     <ConsentRulesFields {...fields} />
     <ConsentBannerFields {...fields} />
-    <ConsentLookFields {...fields} />
+    <ConsentLookFields {...fields} lightColors={lightColors} />
     {error && <p className="jini-hint jini-hint-error" role="alert">{error}</p>}
     <p className="jini-hint" role="status">{status}</p>
   </section>;

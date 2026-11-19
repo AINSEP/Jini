@@ -1,5 +1,5 @@
-import { cleanup, fireEvent, screen } from '@testing-library/react';
-import { render } from './kit-render.js';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { lightColors } from './palette.fixture.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ConsentBannerFields, ConsentLookFields, ConsentRulesFields, PolicyVersionInput } from '../ConsentFields.js';
 import { ConsentPreviewFrame } from '../ConsentPreviewFrame.js';
@@ -45,7 +45,7 @@ describe('consent components render from their injected hooks', () => {
 
   it('ConsentLookFields routes the position select to the fake handlers hook', () => {
     const { hook, handler } = panel({ placement: 'FAKE' });
-    render(<ConsentLookFields value={VALUE} onChange={vi.fn()} useConsentSettingsPanelHook={hook} />);
+    render(<ConsentLookFields lightColors={lightColors} value={VALUE} onChange={vi.fn()} useConsentSettingsPanelHook={hook} />);
     fireEvent.change(screen.getByLabelText('Position'), { target: { value: 'top-bar' } });
     expect(handler).toHaveBeenCalledWith({ placement: 'FAKE' });
   });

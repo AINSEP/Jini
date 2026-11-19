@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { fireEvent, screen } from '@testing-library/react';
-import { render } from './kit-render.js';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { lightColors } from './palette.fixture.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { ConsentBannerFields, ConsentLookFields, ConsentPreviewFrame, ConsentRulesFields, type ConsentSettingsView } from '../index.js';
@@ -9,11 +9,11 @@ import { pixelInputValue, withAppearanceToken } from '../settings-panel.hooks.js
 const initial: ConsentSettingsView = { enabled: true, regionMode: 'opt-in', policyVersion: '1', privacyPolicyUrl: '/privacy', title: 'Cookies', message: 'Choose cookies.', acceptLabel: 'Accept all', rejectLabel: 'Reject non-essential', preferencesLabel: 'Preferences' };
 
 /** A controlled host that records every patch, like a real page's autosave controller. */
-function host(Section: typeof ConsentBannerFields, extra: Record<string, unknown> = {}, start: ConsentSettingsView = initial) {
+function host(Section: typeof ConsentBannerFields | typeof ConsentLookFields, extra: Record<string, unknown> = {}, start: ConsentSettingsView = initial) {
   const patches: Partial<ConsentSettingsView>[] = [];
   function Host() {
     const [value, setValue] = useState(start);
-    return <Section value={value} onChange={({ patch }) => { patches.push(patch); setValue(current => ({ ...current, ...patch })); }} {...extra} />;
+    return <Section lightColors={lightColors} value={value} onChange={({ patch }) => { patches.push(patch); setValue(current => ({ ...current, ...patch })); }} {...extra} />;
   }
   render(<Host />);
   return patches;
@@ -168,7 +168,7 @@ describe('ConsentRulesFields', () => {
 
 describe('ConsentLookFields', () => {
   it('changes placement and sets, then resets, a color token', async () => {
-    const patches = host(ConsentLookFields as typeof ConsentBannerFields, { placements: ['bottom-bar', 'top-bar', 'corner-x'] });
+    const patches = host(ConsentLookFields, { placements: ['bottom-bar', 'top-bar', 'corner-x'] });
     const user = userEvent.setup();
     expect(screen.getByLabelText('Position')).toHaveValue('bottom-bar');
     expect(screen.getByRole('option', { name: 'corner-x' })).toBeInTheDocument();
@@ -180,7 +180,7 @@ describe('ConsentLookFields', () => {
   });
 
   it('writes pixel tokens as Npx with the engine bounds, and clearing one unsets it', () => {
-    const patches = host(ConsentLookFields as typeof ConsentBannerFields, {}, { ...initial, placement: 'bottom-left', appearance: { padding: '12px', textColor: '#000000' } });
+    const patches = host(ConsentLookFields, {}, { ...initial, placement: 'bottom-left', appearance: { padding: '12px', textColor: '#000000' } });
     const padding = screen.getByLabelText('Padding (px)');
     expect(padding).toHaveValue(12);
     expect(padding).toHaveAttribute('min', '8');
@@ -192,7 +192,7 @@ describe('ConsentLookFields', () => {
 
   it('edits custom CSS and shows the engine appearance problems under it', async () => {
     const patches: Partial<ConsentSettingsView>[] = [];
-    render(<ConsentLookFields value={{ ...initial, customCss: '' }} onChange={({ patch }) => patches.push(patch)} problems={[{ code: 'contrast', field: 'appearance', message: 'Banner text and background must have at least 4.5:1 contrast.' }]} />);
+    render(<ConsentLookFields lightColors={lightColors} value={{ ...initial, customCss: '' }} onChange={({ patch }) => patches.push(patch)} problems={[{ code: 'contrast', field: 'appearance', message: 'Banner text and background must have at least 4.5:1 contrast.' }]} />);
     const css = screen.getByLabelText('Custom CSS');
     expect(css).toHaveAccessibleDescription('Banner text and background must have at least 4.5:1 contrast.');
     fireEvent.change(css, { target: { value: '#jini-consent{padding:12px}' } });
