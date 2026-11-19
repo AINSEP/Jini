@@ -2,7 +2,8 @@ import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createDiskAttachmentStore, type AttachmentStore } from '../../attachments.js';
+import { createDiskAttachmentStore } from '../../disk-attachment-store.js';
+import { type AttachmentStore } from '../../attachment-store-types.js';
 import { INTERNAL_FAILURE_MARKER, startRouteHarness, type RouteHarness } from './harness.js';
 import { FOREIGN_ORIGIN } from './probes.js';
 

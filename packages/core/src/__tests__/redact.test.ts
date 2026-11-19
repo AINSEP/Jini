@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { createPrivateKeyLineRedactor, redactSecrets, redactSecretsWithCounts } from '../redact.js';
+import { createPrivateKeyLineRedactor } from '../secret-shapes.js';
+import { redactSecrets, redactSecretsWithCounts } from '../redact.js';
 
 describe('private-key line redaction', () => {
   it('suppresses an open block, ignores a mismatched footer, and preserves following prose', () => {

@@ -10,7 +10,7 @@
  * | `signed-in` | Copy details: ID, step, versions, time, and a fixed cause sentence |
  * | `authorized` | the same, plus the listed class/code label; or the approved cause, redacted |
  */
-import type { SecretRedactionOptions } from '../redact.js';
+import type { SecretRedactionOptions } from '../redaction-patterns.js';
 import { formatUserFacingError, type UserFacingError } from '../user-facing-error.js';
 import { isApprovedCause, type ApprovedCause } from './approved-cause.js';
 

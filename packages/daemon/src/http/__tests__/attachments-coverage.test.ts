@@ -22,15 +22,10 @@ import type { RouteHostContext } from '@jini-ai/core/contracts/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createLocalSameOriginPolicy } from '@jini-ai/core/contracts/server';
 import { testOriginConfig } from './fixtures/local-origin.js';
-import {
-  ATTACHMENTS_ROUTE_PATH,
-  createDiskAttachmentStore,
-  ftypBoxEnd,
-  hasAvifSignature,
-  type AttachmentStore,
-  type AttachmentsHttpDeps,
-  type AttachmentsInternalErrorContext,
-} from '../attachments.js';
+import { ATTACHMENTS_ROUTE_PATH, type AttachmentsHttpDeps, type AttachmentsInternalErrorContext } from '../attachments.js';
+import { createDiskAttachmentStore } from '../disk-attachment-store.js';
+import { ftypBoxEnd, hasAvifSignature } from '../attachment-signatures.js';
+import { type AttachmentStore } from '../attachment-store-types.js';
 
 const cleanups: Array<() => Promise<void>> = [];
 

@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as core from '../index.js';
-import {
-  AGENT_FAILURE_SECRET_SHAPE_RE,
-  CREDENTIAL_FILE_DENY_SEGMENTS,
-  LOCAL_OWNER_PROXY_MARKER_PREFIXES,
-  LOCAL_OWNER_PROXY_MARKER_HEADERS,
-} from '../redact.js';
+import { AGENT_FAILURE_SECRET_SHAPE_RE, CREDENTIAL_FILE_DENY_SEGMENTS, LOCAL_OWNER_PROXY_MARKER_PREFIXES, LOCAL_OWNER_PROXY_MARKER_HEADERS } from '../secret-shapes.js';
 
 describe('baseline security vocabulary', () => {
   it('pins the original agent-failure expression, alternative order and global flag', () => {

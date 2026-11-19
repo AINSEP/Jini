@@ -1,4 +1,5 @@
-import { redactSecrets, LABELED_SECRET_RE, OPAQUE_TOKEN_RE, NON_SECRET_TOKEN_RE, type SecretRedactionOptions } from "../redact.js";
+import { redactSecrets } from "../redact.js";
+import { LABELED_SECRET_RE, OPAQUE_TOKEN_RE, NON_SECRET_TOKEN_RE, type SecretRedactionOptions } from "../redaction-patterns.js";
 /**
  * @module redact
  *

@@ -37,34 +37,15 @@ import express from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createLocalTestOrigin } from './fixtures/local-origin.js';
 import type { ChatAttachment } from '@jini-ai/chat';
-import {
-  ATTACHMENTS_ROUTE_PATH,
-  AttachmentRejectedError,
-  attachmentSidecarFileName,
-  createDiskAttachmentStore,
-  detectAttachmentKind,
-  handleAttachmentUpload,
-  hasAvifSignature,
-  hasGifSignature,
-  hasJpegSignature,
-  hasPngSignature,
-  hasWebpSignature,
-  isUnchangedAttachment,
-  loadPersistedAttachments,
-  parsePersistedAttachment,
-  prepareAttachmentStorage,
-  removeUnadoptedUploads,
-  reserveAttachmentRecords,
-  sanitizeAttachmentName,
-  stageAttachmentClaim,
-  verifyClaimedAttachments,
-  writeBoundedAttachmentBody,
-  type AttachmentRecord,
-  type AttachmentsHttpDeps,
-  type AttachmentStore,
-  type CreateDiskAttachmentStoreOptions,
-  type StoredAttachment,
-} from '../attachments.js';
+import { ATTACHMENTS_ROUTE_PATH, handleAttachmentUpload, sanitizeAttachmentName, type AttachmentsHttpDeps } from '../attachments.js';
+import { AttachmentRejectedError, type StoredAttachment } from '../attachment-types.js';
+import { attachmentSidecarFileName, loadPersistedAttachments, parsePersistedAttachment, prepareAttachmentStorage, removeUnadoptedUploads } from '../attachment-persistence.js';
+import { createDiskAttachmentStore } from '../disk-attachment-store.js';
+import { detectAttachmentKind, hasAvifSignature, hasGifSignature, hasJpegSignature, hasPngSignature, hasWebpSignature } from '../attachment-signatures.js';
+import { isUnchangedAttachment, reserveAttachmentRecords, verifyClaimedAttachments, type AttachmentRecord } from '../attachment-records.js';
+import { stageAttachmentClaim } from '../attachment-staging.js';
+import { writeBoundedAttachmentBody } from '../attachment-body.js';
+import { type AttachmentStore, type CreateDiskAttachmentStoreOptions } from '../attachment-store-types.js';
 
 // ---------------------------------------------------------------------------
 // The mirrored wire type must stay assignable to `@jini-ai/chat/core`'s `ChatAttachment`
