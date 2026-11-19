@@ -110,7 +110,7 @@ describe('ACP agents (Gemini CLI / Codex / others over ACP) — real session-upd
         send: ({ payload }: { payload: Record<string, unknown> }) => observe(payload),
         fail: vi.fn(), failWithPayload: vi.fn(), writeRpc: vi.fn(), sendPrompt: vi.fn(), recoverFromModelSelectionError: vi.fn(),
         // Mirrors session.ts finishCleanPrompt: formatUsage(result.usage) → { type: 'usage', usage, durationMs }.
-        finishCleanPrompt: (usage: unknown) => observe({ type: 'usage', usage: formatUsage(usage), durationMs: 10 }),
+        finishCleanPrompt: (usage: unknown) => observe({ type: 'usage', usage: formatUsage({ usage }), durationMs: 10 }),
         emitVisibleTextDelta: (delta: string) => observe({ type: 'text_delta', delta }),
         noteArtifactTextSuppression: vi.fn(), noteToolCallTextSuppression: vi.fn(), emitAcpRawShapeDiagnostic: vi.fn(),
         toolCallTextSuppressor: createToolCallTextSuppressor(), runStartedAt: Date.now(), modelUnavailableErrorCode: undefined,

@@ -14,54 +14,54 @@ import {
 
 describe('normalizeConfigOptionToken', () => {
   it('lowercases, trims, and strips separators', () => {
-    expect(normalizeConfigOptionToken('  Model IDs ')).toBe('modelids');
-    expect(normalizeConfigOptionToken('model_id-s')).toBe('modelids');
+    expect(normalizeConfigOptionToken({ value: '  Model IDs ' })).toBe('modelids');
+    expect(normalizeConfigOptionToken({ value: 'model_id-s' })).toBe('modelids');
   });
 
   it('returns "" for a non-string', () => {
-    expect(normalizeConfigOptionToken(42)).toBe('');
-    expect(normalizeConfigOptionToken(undefined)).toBe('');
+    expect(normalizeConfigOptionToken({ value: 42 })).toBe('');
+    expect(normalizeConfigOptionToken({ value: undefined })).toBe('');
   });
 });
 
 describe('isModelConfigOption', () => {
   it('matches on category === "model"', () => {
-    expect(isModelConfigOption({ category: 'model' }, 'whatever')).toBe(true);
+    expect(isModelConfigOption({ option: { category: 'model' }, configId: 'whatever' })).toBe(true);
   });
 
   it('matches on a normalised configId === "model"', () => {
-    expect(isModelConfigOption({}, 'Model')).toBe(true);
+    expect(isModelConfigOption({ option: {}, configId: 'Model' })).toBe(true);
   });
 
   it('rejects when category is present but not "model" (and configId/name do not match either)', () => {
-    expect(isModelConfigOption({ category: 'other', name: 'unrelated' }, 'some-id')).toBe(false);
+    expect(isModelConfigOption({ option: { category: 'other', name: 'unrelated' }, configId: 'some-id' })).toBe(false);
   });
 
   it('matches on MODEL_CONFIG_OPTION_IDS membership when no category is set', () => {
-    expect(isModelConfigOption({}, 'models')).toBe(true);
+    expect(isModelConfigOption({ option: {}, configId: 'models' })).toBe(true);
   });
 
   it('matches on name === "model" when no category or known id matches', () => {
-    expect(isModelConfigOption({ name: 'Model' }, 'some-id')).toBe(true);
+    expect(isModelConfigOption({ option: { name: 'Model' }, configId: 'some-id' })).toBe(true);
   });
 
   it('returns false when nothing matches', () => {
-    expect(isModelConfigOption({ name: 'unrelated' }, 'some-id')).toBe(false);
+    expect(isModelConfigOption({ option: { name: 'unrelated' }, configId: 'some-id' })).toBe(false);
   });
 });
 
 describe('findModelConfigOption', () => {
   it('returns null for a non-array configOptions', () => {
-    expect(findModelConfigOption(null)).toBeNull();
-    expect(findModelConfigOption(undefined)).toBeNull();
+    expect(findModelConfigOption({ configOptions: null })).toBeNull();
+    expect(findModelConfigOption({ configOptions: undefined })).toBeNull();
   });
 
   it('returns null when no entry has a non-empty id', () => {
-    expect(findModelConfigOption([{}, { id: '   ' }])).toBeNull();
+    expect(findModelConfigOption({ configOptions: [{}, { id: '   ' }] })).toBeNull();
   });
 
   it('skips a non-object entry', () => {
-    expect(findModelConfigOption([null, { id: 'model', category: 'model' }])).toEqual({
+    expect(findModelConfigOption({ configOptions: [null, { id: 'model', category: 'model' }] })).toEqual({
       configId: 'model',
       currentValue: null,
       values: [],
@@ -69,31 +69,31 @@ describe('findModelConfigOption', () => {
   });
 
   it('skips an entry whose type is set and is not "select"', () => {
-    expect(findModelConfigOption([{ id: 'model', type: 'text', category: 'model' }])).toBeNull();
+    expect(findModelConfigOption({ configOptions: [{ id: 'model', type: 'text', category: 'model' }] })).toBeNull();
   });
 
   it('accepts an entry whose type is exactly "select"', () => {
     expect(
-      findModelConfigOption([{ id: 'model', type: 'select', category: 'model', options: [{ id: 'a' }] }]),
+      findModelConfigOption({ configOptions: [{ id: 'model', type: 'select', category: 'model', options: [{ id: 'a' }] }] }),
     ).toEqual({ configId: 'model', currentValue: null, values: [{ id: 'a' }] });
   });
 
   it('skips an entry that fails isModelConfigOption', () => {
-    expect(findModelConfigOption([{ id: 'unrelated', name: 'nope' }])).toBeNull();
+    expect(findModelConfigOption({ configOptions: [{ id: 'unrelated', name: 'nope' }] })).toBeNull();
   });
 
   it('reads a trimmed currentValue when present as a non-empty string', () => {
-    expect(findModelConfigOption([{ id: 'model', category: 'model', currentValue: '  x  ' }])?.currentValue).toBe(
+    expect(findModelConfigOption({ configOptions: [{ id: 'model', category: 'model', currentValue: '  x  ' }] })?.currentValue).toBe(
       'x',
     );
   });
 
   it('treats a blank currentValue as null', () => {
-    expect(findModelConfigOption([{ id: 'model', category: 'model', currentValue: '   ' }])?.currentValue).toBeNull();
+    expect(findModelConfigOption({ configOptions: [{ id: 'model', category: 'model', currentValue: '   ' }] })?.currentValue).toBeNull();
   });
 
   it('defaults values to [] when options is not an array', () => {
-    expect(findModelConfigOption([{ id: 'model', category: 'model' }])?.values).toEqual([]);
+    expect(findModelConfigOption({ configOptions: [{ id: 'model', category: 'model' }] })?.values).toEqual([]);
   });
 });
 
@@ -101,54 +101,48 @@ describe('normalizeModelConfigOptions', () => {
   const defaultOption = { id: 'default', label: 'Default (CLI config)' };
 
   it('returns null when no model config option is found', () => {
-    expect(normalizeModelConfigOptions([], defaultOption)).toBeNull();
-    expect(normalizeModelConfigOptions(undefined, defaultOption)).toBeNull();
+    expect(normalizeModelConfigOptions({ configOptions: [], defaultModelOption: defaultOption })).toBeNull();
+    expect(normalizeModelConfigOptions({ configOptions: undefined, defaultModelOption: defaultOption })).toBeNull();
   });
 
   it('always includes the default option first, deduplicated by id', () => {
     const result = normalizeModelConfigOptions(
-      [{ id: 'model', category: 'model', options: [{ value: 'default' }, { value: 'gpt' }] }],
-      defaultOption,
+      { configOptions: [{ id: 'model', category: 'model', options: [{ value: 'default' }, { value: 'gpt' }] }], defaultModelOption: defaultOption },
     );
     expect(result?.models.map((m) => m.id)).toEqual(['default', 'gpt']);
   });
 
   it('skips a non-object value entry', () => {
     const result = normalizeModelConfigOptions(
-      [{ id: 'model', category: 'model', options: [null, { value: 'gpt' }] }],
-      defaultOption,
+      { configOptions: [{ id: 'model', category: 'model', options: [null, { value: 'gpt' }] }], defaultModelOption: defaultOption },
     );
     expect(result?.models.map((m) => m.id)).toEqual(['default', 'gpt']);
   });
 
   it('uses id when value is absent, and skips an entry with neither', () => {
     const result = normalizeModelConfigOptions(
-      [{ id: 'model', category: 'model', options: [{ id: 'claude' }, {}] }],
-      defaultOption,
+      { configOptions: [{ id: 'model', category: 'model', options: [{ id: 'claude' }, {}] }], defaultModelOption: defaultOption },
     );
     expect(result?.models.map((m) => m.id)).toEqual(['default', 'claude']);
   });
 
   it('marks the current model with a " • current" label suffix', () => {
     const result = normalizeModelConfigOptions(
-      [{ id: 'model', category: 'model', currentValue: 'gpt', options: [{ value: 'gpt', name: 'GPT' }] }],
-      defaultOption,
+      { configOptions: [{ id: 'model', category: 'model', currentValue: 'gpt', options: [{ value: 'gpt', name: 'GPT' }] }], defaultModelOption: defaultOption },
     );
     expect(result?.models[1]).toEqual({ id: 'gpt', label: 'GPT (gpt) • current' });
   });
 
   it('uses id alone as the label when name equals id or is absent', () => {
     const result = normalizeModelConfigOptions(
-      [{ id: 'model', category: 'model', options: [{ value: 'gpt', name: 'gpt' }] }],
-      defaultOption,
+      { configOptions: [{ id: 'model', category: 'model', options: [{ value: 'gpt', name: 'gpt' }] }], defaultModelOption: defaultOption },
     );
     expect(result?.models[1]).toEqual({ id: 'gpt', label: 'gpt' });
   });
 
   it('deduplicates repeated values, keeping the first', () => {
     const result = normalizeModelConfigOptions(
-      [{ id: 'model', category: 'model', options: [{ value: 'gpt' }, { value: 'gpt' }] }],
-      defaultOption,
+      { configOptions: [{ id: 'model', category: 'model', options: [{ value: 'gpt' }, { value: 'gpt' }] }], defaultModelOption: defaultOption },
     );
     expect(result?.models.map((m) => m.id)).toEqual(['default', 'gpt']);
   });
@@ -204,30 +198,30 @@ describe('normalizeModels', () => {
 describe('modelSelectionErrorIsRecoverable', () => {
   it('returns true for the known recoverable codes', () => {
     for (const code of [-32603, -32602, -32601, -32002]) {
-      expect(modelSelectionErrorIsRecoverable(code)).toBe(true);
+      expect(modelSelectionErrorIsRecoverable({ code })).toBe(true);
     }
   });
 
   it('returns false for other codes', () => {
-    expect(modelSelectionErrorIsRecoverable(-1)).toBe(false);
-    expect(modelSelectionErrorIsRecoverable('nope')).toBe(false);
+    expect(modelSelectionErrorIsRecoverable({ code: -1 })).toBe(false);
+    expect(modelSelectionErrorIsRecoverable({ code: 'nope' })).toBe(false);
   });
 });
 
 describe('currentModelFromSessionResult', () => {
   it('prefers the config option currentValue', () => {
     expect(
-      currentModelFromSessionResult({ configOptions: [{ id: 'model', category: 'model', currentValue: 'x' }] }),
+      currentModelFromSessionResult({ result: { configOptions: [{ id: 'model', category: 'model', currentValue: 'x' }] } }),
     ).toBe('x');
   });
 
   it('falls back to models.currentModelId', () => {
-    expect(currentModelFromSessionResult({ models: { currentModelId: 'y' } })).toBe('y');
+    expect(currentModelFromSessionResult({ result: { models: { currentModelId: 'y' } } })).toBe('y');
   });
 
   it('returns null when neither is present or currentModelId is blank', () => {
-    expect(currentModelFromSessionResult({})).toBeNull();
-    expect(currentModelFromSessionResult({ models: { currentModelId: '   ' } })).toBeNull();
+    expect(currentModelFromSessionResult({ result: {} })).toBeNull();
+    expect(currentModelFromSessionResult({ result: { models: { currentModelId: '   ' } } })).toBeNull();
   });
 });
 

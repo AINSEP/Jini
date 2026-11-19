@@ -16,7 +16,7 @@ function nonEmptyString(value: unknown): string | undefined {
 function toolResultText(content: readonly unknown[]): string {
   return content
     .map((c: unknown) => {
-      const item = getRecord(c);
+      const item = getRecord({ value: c });
       return item?.type === 'text' ? String(item.text ?? '') : JSON.stringify(c);
     })
     .join('\n');
@@ -51,7 +51,7 @@ export function handleTurnStart(_raw: JsonRecord, send: SendAgentEvent): null {
 }
 
 /** Extracts the subset of pi's `message.usage` fields the daemon reports as token usage. */
-export function buildTokenUsage(u: JsonRecord): TokenUsage {
+export function buildTokenUsage({ u }: { u: JsonRecord }, _optional: Record<string, never> = {}): TokenUsage {
   const usage: TokenUsage = {};
   if (typeof u.input === 'number') usage.input_tokens = u.input;
   if (typeof u.output === 'number') usage.output_tokens = u.output;
@@ -61,10 +61,10 @@ export function buildTokenUsage(u: JsonRecord): TokenUsage {
   return usage;
 }
 
-export function emitTurnEndUsage(u: JsonRecord, send: SendAgentEvent, ctx: PiRpcContext): void {
-  const usage = buildTokenUsage(u);
+export function emitTurnEndUsage({ u, send, ctx }: { u: JsonRecord; send: SendAgentEvent; ctx: PiRpcContext }, _optional: Record<string, never> = {}): void {
+  const usage = buildTokenUsage({ u });
   if (Object.keys(usage).length === 0) return;
-  const cost = getRecord(u.cost);
+  const cost = getRecord({ value: u.cost });
   send({ event: 'agent', payload: {
     type: 'usage',
     usage,
@@ -73,7 +73,7 @@ export function emitTurnEndUsage(u: JsonRecord, send: SendAgentEvent, ctx: PiRpc
   } });
 }
 
-export function emitTurnEndErrorIfPresent(message: JsonRecord | undefined, raw: JsonRecord, send: SendAgentEvent): void {
+export function emitTurnEndErrorIfPresent({ message, raw, send }: { message: JsonRecord | undefined; raw: JsonRecord; send: SendAgentEvent }, _optional: Record<string, never> = {}): void {
   if (message?.stopReason !== 'error') return;
   const messageText =
     typeof message.errorMessage === 'string' && message.errorMessage.length > 0
@@ -83,10 +83,10 @@ export function emitTurnEndErrorIfPresent(message: JsonRecord | undefined, raw: 
 }
 
 export function handleTurnEnd(raw: JsonRecord, send: SendAgentEvent, ctx: PiRpcContext): null {
-  const message = getRecord(raw.message);
-  const messageUsage = getRecord(message?.usage);
-  if (messageUsage) emitTurnEndUsage(messageUsage, send, ctx);
-  emitTurnEndErrorIfPresent(message, raw, send);
+  const message = getRecord({ value: raw.message });
+  const messageUsage = getRecord({ value: message?.usage });
+  if (messageUsage) emitTurnEndUsage({ u: messageUsage, send, ctx });
+  emitTurnEndErrorIfPresent({ message, raw, send });
   return null;
 }
 
@@ -137,7 +137,7 @@ const ASSISTANT_MESSAGE_EVENT_HANDLERS: Record<string, PiAssistantEventHandler> 
 };
 
 export function handleMessageUpdate(raw: JsonRecord, send: SendAgentEvent, ctx: PiRpcContext): null {
-  const ev = getRecord(raw.assistantMessageEvent);
+  const ev = getRecord({ value: raw.assistantMessageEvent });
   const handler = typeof ev?.type === 'string' ? ASSISTANT_MESSAGE_EVENT_HANDLERS[ev.type] : undefined;
   if (ev && handler) handler(ev, send, ctx, raw);
   return null;
@@ -161,7 +161,7 @@ export function handleToolExecutionStart(raw: JsonRecord, send: SendAgentEvent):
 }
 
 export function handleToolExecutionEnd(raw: JsonRecord, send: SendAgentEvent): null {
-  const result = getRecord(raw.result);
+  const result = getRecord({ value: raw.result });
   const content = result?.content;
   const text = Array.isArray(content) ? toolResultText(content) : nonArrayToolResultText(content);
   send({ event: 'agent', payload: {
@@ -232,9 +232,9 @@ const PI_RPC_EVENT_HANDLERS: Record<string, PiRpcEventHandler> = {
  * @param ctx  - Per-run context: start timestamp and first-token sentinel.
  * @returns `'agent_end'` on run completion, `null` otherwise.
  */
-export function mapPiRpcEvent({ raw, send, ctx }: { raw: JsonRecord; send: SendAgentEvent; ctx: PiRpcContext }
+export function mapPiRpcEvent({ raw, send, ctx }: { raw: JsonRecord; send: SendAgentEvent; ctx: PiRpcContext }, _optional: Record<string, never> = {}
 ): 'agent_end' | null {
-  const message = getRecord(raw.message);
+  const message = getRecord({ value: raw.message });
   if (message?.role === 'assistant' && typeof message.model === 'string' && typeof message.provider === 'string') {
     send({ event: 'agent', payload: { type: 'status', label: 'model', model: `${message.provider}/${message.model}` } });
   }

@@ -637,7 +637,7 @@ function sanitizeGoogleSchema({ schema }: { schema: unknown }, { defs = {}, maxR
 ### [agent-protocol/core/json-line-stream.ts](../../src/agent-protocol/core/json-line-stream.ts)
 
 ```ts
-function createJsonLineStream({ onMessage }: { onMessage: (requiredArgs: { message: unknown; rawLine: string }) => void }): StreamParser;
+function createJsonLineStream({ onMessage }: { onMessage: (requiredArgs: { message: unknown; rawLine: string }) => void }, { onError }: { onError?: (error: RangeError) => void } = {}): StreamParser;
 ```
 
 ### [agent-protocol/acp/session-params.ts](../../src/agent-protocol/acp/session-params.ts)
@@ -662,7 +662,7 @@ function attachAcpSession(requiredArgs: Pick<AttachAcpSessionOptions, "child" | 
 ### [agent-protocol/pi-rpc/events.ts](../../src/agent-protocol/pi-rpc/events.ts)
 
 ```ts
-function mapPiRpcEvent({ raw, send, ctx }: { raw: JsonRecord; send: SendAgentEvent; ctx: PiRpcContext } ): 'agent_end' | null;
+function mapPiRpcEvent({ raw, send, ctx }: { raw: JsonRecord; send: SendAgentEvent; ctx: PiRpcContext }, _optional: Record<string, never> = {} ): 'agent_end' | null;
 ```
 
 ### [agent-protocol/pi-rpc/session.ts](../../src/agent-protocol/pi-rpc/session.ts)

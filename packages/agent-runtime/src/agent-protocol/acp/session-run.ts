@@ -80,7 +80,7 @@ function emptySuppressionSummary(): SuppressionSummary {
 export function createAcpRun({ options, resolved }: {
   options: AttachAcpSessionOptions;
   resolved: ResolvedAcpSessionOptions;
-}): AcpRun {
+}, _optional: Record<string, never> = {}): AcpRun {
   const { child, cwd, resumeSessionId } = options;
   if (!child.stdin || !child.stdout) {
     const error = new Error('ACP child process must expose stdin and stdout streams');
@@ -110,16 +110,16 @@ export function createAcpRun({ options, resolved }: {
   };
 }
 
-export function sendAgent(run: AcpRun, { payload }: { payload: unknown }): void {
+export function sendAgent({ run, payload }: { run: AcpRun } & { payload: unknown }, _optional: Record<string, never> = {}): void {
   run.options.send({ event: 'agent', payload });
 }
 
-export function clearStageTimer(run: AcpRun): void {
+export function clearStageTimer({ run }: { run: AcpRun }, _optional: Record<string, never> = {}): void {
   if (run.stageTimer) clearTimeout(run.stageTimer);
   run.stageTimer = null;
 }
 
-export function resetStageTimer(run: AcpRun, { label }: { label: string }): void {
+export function resetStageTimer({ run, label }: { run: AcpRun } & { label: string }, _optional: Record<string, never> = {}): void {
   if (run.stageTimer) clearTimeout(run.stageTimer);
   const { stageTimeoutMs } = run.resolved;
   // `stageTimeoutMs <= 0` disables the watchdog. Mirrors a typical outer
@@ -166,7 +166,7 @@ function sendFailure(run: AcpRun, payload: UnknownRecord): void {
     send({ event: 'error', payload });
     return;
   }
-  const originalError = asObject(payload.error);
+  const originalError = asObject({ value: payload.error });
   send({ event: 'error', payload: {
     ...payload,
     error: {
@@ -193,10 +193,10 @@ function sendFailure(run: AcpRun, payload: UnknownRecord): void {
 // `if (finished) return;` re-entry guard here anyway; removed per this
 // package's coverage-driven dead-branch discipline (verified unreachable
 // by tracing every call site — see archived provenance ledger), not suppressed.
-export function failWithPayload(run: AcpRun, payload: UnknownRecord): void {
+export function failWithPayload({ run, payload }: { run: AcpRun; payload: UnknownRecord }, _optional: Record<string, never> = {}): void {
   run.finished = true;
   run.fatal = true;
-  clearStageTimer(run);
+  clearStageTimer({ run });
   sendFailure(run, payload);
   if (!run.child.killed) run.child.kill('SIGTERM');
 }
@@ -229,7 +229,7 @@ export function failRun({ run, message }: { run: AcpRun; message: string }, opti
   if (run.finished) return;
   run.finished = true;
   run.fatal = true;
-  clearStageTimer(run);
+  clearStageTimer({ run });
   const useModelUnavailable =
     run.options.modelUnavailableErrorCode &&
     (options.forceModelUnavailable || isModelUnavailableError(message));
@@ -239,12 +239,12 @@ export function failRun({ run, message }: { run: AcpRun; message: string }, opti
   if (!run.child.killed) run.child.kill('SIGTERM');
 }
 
-export function writeRpc(run: AcpRun, rpc: { id: JsonRpcId; method: string; params: unknown; timeoutLabel: string }): void {
-  resetStageTimer(run, { label: rpc.timeoutLabel });
+export function writeRpc({ run, ...rpc }: { run: AcpRun } & { id: JsonRpcId; method: string; params: unknown; timeoutLabel: string }, _optional: Record<string, never> = {}): void {
+  resetStageTimer({ run, label: rpc.timeoutLabel });
   try {
-    sendRpc(run.stdin, rpc.id, rpc.method, rpc.params);
+    sendRpc({ writable: run.stdin, id: rpc.id, method: rpc.method, params: rpc.params });
   } catch (err) {
-    failRun({ run, message: `stdin write failed: ${errorMessage(err)}` });
+    failRun({ run, message: `stdin write failed: ${errorMessage({ err })}` });
   }
 }
 
@@ -252,13 +252,13 @@ function emitAcpRawShapeDiagnostic(run: AcpRun, update: UnknownRecord): void {
   if (!run.options.modelUnavailableErrorCode) return;
   if (run.rawAcpShapeDiagnosticCount >= ACP_RAW_EVENT_SHAPE_DIAGNOSTIC_LIMIT) return;
   run.rawAcpShapeDiagnosticCount += 1;
-  sendAgent(run, {
+  sendAgent({ run,
     payload: {
     type: 'diagnostic',
     name: 'acp_raw_event_shape',
     source: ACP_JSON_RPC_SOURCE,
     elapsedMs: Date.now() - run.runStartedAt,
-    shape: acpRawEventShape(update),
+    shape: acpRawEventShape({ update }),
   },
   });
 }
@@ -275,7 +275,7 @@ function emitVisibleTextDelta(run: AcpRun, { delta }: { delta: string }): void {
   run.state.emittedVisibleTextChunk = true;
   if (!run.emittedFirstTokenStatus) {
     run.emittedFirstTokenStatus = true;
-    sendAgent(run, {
+    sendAgent({ run,
       payload: {
       type: 'status',
       label: 'streaming',
@@ -283,7 +283,7 @@ function emitVisibleTextDelta(run: AcpRun, { delta }: { delta: string }): void {
     },
     });
   }
-  sendAgent(run, { payload: { type: 'text_delta', delta } });
+  sendAgent({ run, payload: { type: 'text_delta', delta } });
 }
 
 function applySuppressionStats({ summary, stats, delta }: {
@@ -306,7 +306,7 @@ function sendSuppressionDiagnostic(run: AcpRun, diagnostic: {
   if (run.artifactSuppressionDiagnosticCount >= ACP_RAW_EVENT_SHAPE_DIAGNOSTIC_LIMIT) return;
   run.artifactSuppressionDiagnosticCount += 1;
   const { summary, stats } = diagnostic;
-  sendAgent(run, {
+  sendAgent({ run,
     payload: {
     type: 'diagnostic',
     name: diagnostic.name,
@@ -340,7 +340,7 @@ function emitArtifactTextSuppressionSummary(run: AcpRun): void {
   const summary = run.artifactTextSuppressionSummary;
   if (summary.suppressedChars <= 0) return;
   if (run.resolved.executionProfile === 'filesystem') {
-    sendAgent(run, {
+    sendAgent({ run,
       payload: {
       type: 'diagnostic',
       name: 'unexpected_text_artifact_in_filesystem_run',
@@ -353,7 +353,7 @@ function emitArtifactTextSuppressionSummary(run: AcpRun): void {
     },
     });
   }
-  sendAgent(run, {
+  sendAgent({ run,
     payload: {
     type: 'diagnostic',
     name: 'acp_artifact_text_suppression_summary',
@@ -377,7 +377,7 @@ function noteToolCallTextSuppression(run: AcpRun, { reason }: { reason: string }
 
 function emitToolCallTextSuppressionSummary(run: AcpRun): void {
   if (run.toolCallTextSuppressionSummary.suppressedChars <= 0) return;
-  sendAgent(run, {
+  sendAgent({ run,
     payload: {
     type: 'diagnostic',
     name: 'acp_tool_call_text_suppression_summary',
@@ -392,16 +392,16 @@ function sendPrompt(run: AcpRun): void {
   const { state } = run;
   state.promptRequestId = state.nextId;
   state.expectedId = state.promptRequestId;
-  writeRpc(run, {
+  writeRpc({ run,
     id: state.promptRequestId,
     method: 'session/prompt',
     params: {
       sessionId: state.sessionId,
-      prompt: buildPromptBlocks(run.options.prompt, run.resolved.imagePaths),
+      prompt: buildPromptBlocks({ prompt: run.options.prompt, imagePaths: run.resolved.imagePaths }),
     },
     timeoutLabel: 'session/prompt',
   });
-  sendAgent(run, {
+  sendAgent({ run,
     payload: {
     type: 'status',
     label: 'waiting_for_first_output',
@@ -434,9 +434,9 @@ function flushPendingVisibleText(run: AcpRun): void {
 // coverage-driven dead-branch discipline. See archived provenance ledger.
 function finishCleanPrompt(run: AcpRun, { usageSource }: { usageSource?: unknown } = {}): void {
   flushPendingVisibleText(run);
-  const usage = formatUsage(usageSource);
+  const usage = formatUsage({ usage: usageSource });
   if (usage) {
-    sendAgent(run, {
+    sendAgent({ run,
       payload: {
       type: 'usage',
       usage,
@@ -445,7 +445,7 @@ function finishCleanPrompt(run: AcpRun, { usageSource }: { usageSource?: unknown
     });
   }
   run.finished = true;
-  clearStageTimer(run);
+  clearStageTimer({ run });
   run.stdin.end();
   // Some ACP agents keep the child process alive after stdin closes,
   // waiting for another prompt. Each run owns one process per turn, so
@@ -461,18 +461,18 @@ function recoverFromModelSelectionError(run: AcpRun): void {
   const { state } = run;
   state.setModelRequestId = null;
   state.activeModel = state.activeModel || 'default';
-  sendAgent(run, { payload: { type: 'status', label: 'model', model: state.activeModel } });
+  sendAgent({ run, payload: { type: 'status', label: 'model', model: state.activeModel } });
   sendPrompt(run);
 }
 
 /** Binds the run to the side-effect bundle the exported ACP handlers consume. */
-export function buildAcpEffects(run: AcpRun): AcpSessionEffects {
+export function buildAcpEffects({ run }: { run: AcpRun }, _optional: Record<string, never> = {}): AcpSessionEffects {
   const { options, resolved } = run;
   return {
     send: options.send,
     fail: (message, failOptions) => failRun({ run, message }, failOptions),
-    failWithPayload: (payload) => failWithPayload(run, payload),
-    writeRpc: (id, method, params, timeoutLabel) => writeRpc(run, { id, method, params, timeoutLabel }),
+    failWithPayload: (payload) => failWithPayload({ run, payload }),
+    writeRpc: (id, method, params, timeoutLabel) => writeRpc({ run, id, method, params, timeoutLabel }),
     sendPrompt: () => sendPrompt(run),
     recoverFromModelSelectionError: () => recoverFromModelSelectionError(run),
     finishCleanPrompt: (usageSource) => finishCleanPrompt(run, { usageSource }),
@@ -500,15 +500,15 @@ function handleStderrChunk(run: AcpRun, { chunk }: { chunk: string }): void {
   run.amrStderrRetryTail = `${run.amrStderrRetryTail}${String(chunk)}`.slice(
     -AMR_STDERR_RETRY_TAIL_LIMIT,
   );
-  const promotedPayload = promotedAmrStderrPayload(run.amrStderrRetryTail, run.resolved.accountFailureClassifier);
-  if (promotedPayload) failWithPayload(run, promotedPayload);
+  const promotedPayload = promotedAmrStderrPayload({ chunk: run.amrStderrRetryTail }, { classifier: run.resolved.accountFailureClassifier });
+  if (promotedPayload) failWithPayload({ run, payload: promotedPayload });
 }
 
 function handleChildClose(run: AcpRun, { parser, exit }: {
   parser: JsonLineParser;
   exit: { code: number | null; signal: NodeJS.Signals | null };
 }): void {
-  clearStageTimer(run);
+  clearStageTimer({ run });
   parser.flush();
   if (!run.finished && !run.aborted && !run.fatal) {
     failRun({
@@ -519,7 +519,7 @@ function handleChildClose(run: AcpRun, { parser, exit }: {
 }
 
 /** Connects the child's streams and lifecycle events to the parser and failure paths. */
-export function wireAcpProcessListeners({ run, parser }: { run: AcpRun; parser: JsonLineParser }): void {
+export function wireAcpProcessListeners({ run, parser }: { run: AcpRun; parser: JsonLineParser }, _optional: Record<string, never> = {}): void {
   const { child, stdin } = run;
   child.stdout?.on('data', (chunk: string) => parser.feed({ chunk: chunk }));
   child.stderr?.setEncoding('utf8');
@@ -530,8 +530,8 @@ export function wireAcpProcessListeners({ run, parser }: { run: AcpRun; parser: 
 }
 
 /** Sends the `initialize` request that opens the ACP handshake. */
-export function sendInitialize(run: AcpRun): void {
-  writeRpc(run, {
+export function sendInitialize({ run }: { run: AcpRun }, _optional: Record<string, never> = {}): void {
+  writeRpc({ run,
     id: 1,
     method: 'initialize',
     params: {
@@ -550,7 +550,7 @@ export function sendInitialize(run: AcpRun): void {
 function cancelPendingPermissionRequests(run: AcpRun): void {
   for (const [requestId, logCancellation] of run.pendingPermissionRequests) {
     try {
-      sendRpcResult(run.stdin, requestId, { outcome: { outcome: 'cancelled' } });
+      sendRpcResult({ writable: run.stdin, id: requestId, result: { outcome: { outcome: 'cancelled' } } });
     } catch {
       // Closing stdin/process signalling below remains the fallback.
     }
@@ -565,7 +565,7 @@ function sendSessionCancelIfEstablished(run: AcpRun, activeStdin: NonNullable<Ac
   const { state } = run;
   if (!state.sessionId) return;
   try {
-    sendRpc(activeStdin, state.nextId, 'session/cancel', { sessionId: state.sessionId });
+    sendRpc({ writable: activeStdin, id: state.nextId, method: 'session/cancel', params: { sessionId: state.sessionId } });
     state.nextId += 1;
   } catch {
     // The caller owns process-signal fallback if the ACP transport is gone.
@@ -576,7 +576,7 @@ function abortRun(run: AcpRun): void {
   if (run.aborted || run.finished) return;
   run.aborted = true;
   run.finished = true;
-  clearStageTimer(run);
+  clearStageTimer({ run });
   cancelPendingPermissionRequests(run);
   const { stdin } = run.child;
   if (!stdin || stdin.destroyed || stdin.writableEnded)
@@ -595,7 +595,7 @@ function abortRun(run: AcpRun): void {
 }
 
 /** The public handle `attachAcpSession` returns for one run. */
-export function buildAcpController(run: AcpRun): AcpSessionController {
+export function buildAcpController({ run }: { run: AcpRun }, _optional: Record<string, never> = {}): AcpSessionController {
   return {
     /** Returns `true` when the session ended with a fatal protocol or transport error, allowing the caller to surface the failure. */
     hasFatalError() {

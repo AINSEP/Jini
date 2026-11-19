@@ -105,7 +105,7 @@ function normalizeMcpEnv({ rawEnv, wantsMap }: { rawEnv: unknown; wantsMap: bool
  * @param imagePaths - Optional image attachment paths to append.
  * @returns An array of prompt blocks ready for inclusion in `session/prompt` params.
  */
-export function buildPromptBlocks(prompt: string, imagePaths: string[]): Array<Record<string, string>> {
+export function buildPromptBlocks({ prompt, imagePaths }: { prompt: string; imagePaths: string[] }, _optional: Record<string, never> = {}): Array<Record<string, string>> {
   const blocks: Array<Record<string, string>> = [{ type: 'text', text: prompt }];
   for (const imagePath of imagePaths) {
     if (typeof imagePath !== 'string' || imagePath.trim().length === 0) continue;

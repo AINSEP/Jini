@@ -65,15 +65,15 @@ export const FIRE_AND_FORGET_METHODS = new Set([
  * @param raw      - The parsed `extension_ui_request` RPC object from pi's stdout.
  */
 // select: pick the first option if available, else cancel.
-export function firstDialogOptionResult(opts: unknown): Record<string, unknown> {
+export function firstDialogOptionResult({ opts }: { opts: unknown }, _optional: Record<string, never> = {}): Record<string, unknown> {
   if (!Array.isArray(opts) || opts.length === 0) return { cancelled: true };
   const first = opts[0];
   return typeof first === 'string'
     ? { value: first }
-    : { value: getRecord(first)?.label ?? getRecord(first)?.value ?? '' };
+    : { value: getRecord({ value: first })?.label ?? getRecord({ value: first })?.value ?? '' };
 }
 
-export function replyExtensionUi(writable: Writable, raw: JsonRecord): void {
+export function replyExtensionUi({ writable, raw }: { writable: Writable; raw: JsonRecord }, _optional: Record<string, never> = {}): void {
   if (raw?.id == null) return;
 
   // Fire-and-forget: no response expected. Silently consume.
@@ -84,7 +84,7 @@ export function replyExtensionUi(writable: Writable, raw: JsonRecord): void {
   const result =
     raw.method === 'confirm'
       ? { confirmed: true }
-      : firstDialogOptionResult(getRecord(raw.params)?.options ?? raw.options);
+      : firstDialogOptionResult({ opts: getRecord({ value: raw.params })?.options ?? raw.options });
 
   writable.write(
     `${JSON.stringify({ type: 'extension_ui_response', id: raw.id, ...result })}\n`,
@@ -99,7 +99,7 @@ export type PiSessionFileSnapshot = Map<string, { mtimeMs: number; size: number 
  *
  * @param cwd - Absolute path to the pi working directory; may be undefined.
  */
-export function readPiSessionFiles(cwd: string | undefined): Array<{ path: string; mtimeMs: number; size: number }> {
+export function readPiSessionFiles({ cwd }: { cwd: string | undefined }, _optional: Record<string, never> = {}): Array<{ path: string; mtimeMs: number; size: number }> {
   if (typeof cwd !== 'string' || cwd.length === 0) return [];
   const sessionsDir = path.join(cwd, '.pi', 'sessions');
   let entries: fs.Dirent[];
@@ -127,9 +127,9 @@ export function readPiSessionFiles(cwd: string | undefined): Array<{ path: strin
  *
  * @param cwd - Absolute path to the pi working directory; may be undefined.
  */
-export function snapshotPiSessionFiles(cwd: string | undefined): PiSessionFileSnapshot {
+export function snapshotPiSessionFiles({ cwd }: { cwd: string | undefined }, _optional: Record<string, never> = {}): PiSessionFileSnapshot {
   const snapshot: PiSessionFileSnapshot = new Map();
-  for (const file of readPiSessionFiles(cwd)) {
+  for (const file of readPiSessionFiles({ cwd })) {
     snapshot.set(file.path, { mtimeMs: file.mtimeMs, size: file.size });
   }
   return snapshot;
@@ -145,10 +145,9 @@ export function snapshotPiSessionFiles(cwd: string | undefined): PiSessionFileSn
  * @returns Absolute path of the changed session file, or `null`.
  */
 export function resolveSessionPathChangedSince(
-  cwd: string | undefined,
-  before: PiSessionFileSnapshot,
+  { cwd, before }: { cwd: string | undefined; before: PiSessionFileSnapshot }, _optional: Record<string, never> = {},
 ): string | null {
-  const changed = readPiSessionFiles(cwd).filter((file) => {
+  const changed = readPiSessionFiles({ cwd }).filter((file) => {
     const previous = before.get(file.path);
     return !previous || file.mtimeMs > previous.mtimeMs || file.size !== previous.size;
   });
@@ -158,7 +157,7 @@ export function resolveSessionPathChangedSince(
   return changed.length === 1 ? changed[0]!.path : null;
 }
 
-export function piImageMimeType(ext: string): string {
+export function piImageMimeType({ ext }: { ext: string }, _optional: Record<string, never> = {}): string {
   if (ext === '.png') return 'image/png';
   if (ext === '.gif') return 'image/gif';
   if (ext === '.webp') return 'image/webp';
@@ -172,7 +171,7 @@ export function piImageMimeType(ext: string): string {
 // Exported for direct testing: the `+ path.sep` is load-bearing and easy to
 // drop in a later edit, so it is pinned by its own unit test rather than only
 // exercised through `tryReadImagePayload`.
-export function isPathUnderRoot(realPath: string, resolvedRoot: string): boolean {
+export function isPathUnderRoot({ realPath, resolvedRoot }: { realPath: string; resolvedRoot: string }, _optional: Record<string, never> = {}): boolean {
   return realPath === resolvedRoot || realPath.startsWith(resolvedRoot + path.sep);
 }
 
@@ -184,9 +183,7 @@ export function isPathUnderRoot(realPath: string, resolvedRoot: string): boolean
  * failure rather than throwing, so one bad image never fails the whole run.
  */
 export function tryReadImagePayload(
-  imgPath: unknown,
-  uploadRoot: string | undefined,
-  totalBytesSoFar: number,
+  { imgPath, uploadRoot, totalBytesSoFar }: { imgPath: unknown; uploadRoot: string | undefined; totalBytesSoFar: number }, _optional: Record<string, never> = {},
 ): { payload: PiImagePayload; size: number } | null {
   if (typeof imgPath !== 'string' || !imgPath.length) return null;
   try {
@@ -197,7 +194,7 @@ export function tryReadImagePayload(
 
     if (uploadRoot) {
       const resolvedRoot = fs.realpathSync(uploadRoot);
-      if (!isPathUnderRoot(realPath, resolvedRoot)) return null;
+      if (!isPathUnderRoot({ realPath, resolvedRoot })) return null;
     }
 
     const ext = path.extname(realPath).toLowerCase();
@@ -208,7 +205,7 @@ export function tryReadImagePayload(
 
     const buf = fs.readFileSync(realPath);
     return {
-      payload: { type: 'image', data: buf.toString('base64'), mimeType: piImageMimeType(ext) },
+      payload: { type: 'image', data: buf.toString('base64'), mimeType: piImageMimeType({ ext }) },
       size: stat.size,
     };
   } catch {
@@ -226,13 +223,13 @@ export function tryReadImagePayload(
  * daemon's safeImages guard already validated that each path exists under
  * UPLOAD_DIR; see {@link tryReadImagePayload} for the per-path re-checks.
  */
-export function buildPiImagePayloads(imagePaths: string[] | undefined, uploadRoot: string | undefined): PiImagePayload[] {
+export function buildPiImagePayloads({ imagePaths, uploadRoot }: { imagePaths: string[] | undefined; uploadRoot: string | undefined }, _optional: Record<string, never> = {}): PiImagePayload[] {
   const images: PiImagePayload[] = [];
   if (!Array.isArray(imagePaths) || imagePaths.length === 0) return images;
   let totalBytes = 0;
   for (const imgPath of imagePaths) {
     if (images.length >= MAX_IMAGE_COUNT) break;
-    const read = tryReadImagePayload(imgPath, uploadRoot, totalBytes);
+    const read = tryReadImagePayload({ imgPath, uploadRoot, totalBytesSoFar: totalBytes });
     if (read) {
       images.push(read.payload);
       totalBytes += read.size;
@@ -263,7 +260,7 @@ export function handlePiResponseMessage({
   promptRpcId: number | null;
   fail: (message: string, code?: string) => void;
   sendPromptCommand: () => void;
-}): void {
+}, _optional: Record<string, never> = {}): void {
   if (raw.id === parentSessionRpcId) {
     if (raw.success === false) {
       fail(
@@ -314,7 +311,7 @@ export function attachPiRpcSession(requiredArgs: Pick<PiRpcSessionOptions, "chil
     throw new Error('pi RPC child process is missing stdout');
   }
   const run: PiRun = {
-    options, stdin, runStartedAt: Date.now(), sessionFilesBeforePrompt: snapshotPiSessionFiles(cwd),
+    options, stdin, runStartedAt: Date.now(), sessionFilesBeforePrompt: snapshotPiSessionFiles({ cwd }),
     finished: false, fatal: false, sentFirstToken: { value: false }, capturedSessionPath: null,
     nextRpcId: 1, stdinOpen: true, parentSessionRpcId: null, promptRpcId: null,
     images: [],
@@ -330,7 +327,7 @@ export function attachPiRpcSession(requiredArgs: Pick<PiRpcSessionOptions, "chil
   // Build the images array for pi's prompt command. pi's RPC protocol
   // accepts `images` as an array of {type, data, mimeType} objects where
   // `data` is base64-encoded file contents.
-  run.images = buildPiImagePayloads(imagePaths, uploadRoot);
+  run.images = buildPiImagePayloads({ imagePaths, uploadRoot });
   // ---- Outbound: send new_session (if parentSession provided) then prompt via RPC ----
   // If a prior session file path is provided, send new_session with
   // parentSession so pi loads the prior conversation history into the
@@ -394,8 +391,8 @@ function failPi({ run, message }: { run: PiRun; message: string }, { code }: { c
 
 function wirePiStdin(run: PiRun): void {
   run.stdin.on('error', (err: unknown) => {
-    if (errorCode(err) !== 'EPIPE') {
-      failPi({ run, message: `stdin: ${errorMessage(err)}` });
+    if (errorCode({ err }) !== 'EPIPE') {
+      failPi({ run, message: `stdin: ${errorMessage({ err })}` });
     }
   });
   run.stdin.on('close', () => {
@@ -409,7 +406,7 @@ function handlePiAgentEnd(run: PiRun): void {
   // Capture only the session file changed by this run. If another pi
   // process wrote to the shared session directory concurrently, the
   // resolver returns null instead of risking cross-conversation resume.
-  run.capturedSessionPath = resolveSessionPathChangedSince(cwd, run.sessionFilesBeforePrompt);
+  run.capturedSessionPath = resolveSessionPathChangedSince({ cwd, before: run.sessionFilesBeforePrompt });
   // pi's RPC process stays alive after agent_end (designed for
   // multi-prompt sessions). The daemon's /api/chat is single-shot,
   // so close stdin and let the process exit naturally, or kill it
@@ -417,7 +414,7 @@ function handlePiAgentEnd(run: PiRun): void {
   try {
     run.stdin.end();
   } catch (err: unknown) {
-    failPi({ run, message: `stdin close: ${errorMessage(err)}` });
+    failPi({ run, message: `stdin close: ${errorMessage({ err })}` });
   }
   // Grace period before SIGTERM lets resource-constrained machines drain a slow event loop.
   // The host supplies timing explicitly, resolving PI_GRACEFUL_SHUTDOWN_MS at composition.
@@ -436,7 +433,7 @@ function handlePiMessage({ run, raw }: { run: PiRun; raw: unknown }): void {
 
   // Extension UI requests: auto-resolve to keep pi unblocked.
   if (raw.type === 'extension_ui_request') {
-    replyExtensionUi(run.stdin, raw);
+    replyExtensionUi({ writable: run.stdin, raw });
     return;
   }
 
@@ -465,18 +462,17 @@ function wirePiOutput({ run, child, stdout }: {
   stdout: NonNullable<ChildProcess['stdout']>;
 }): void {
   const parser = createJsonLineStream({
-    onError: error => failPi({ run, message: `parser: ${error.message}` }),
     onMessage: ({ message: raw }: { message: unknown }) => handlePiMessage({ run, raw }),
-  });
+  }, { onError: error => failPi({ run, message: `parser: ${error.message}` }) });
   stdout.on('data', (chunk: Buffer | string) => {
     try {
       parser.feed({ chunk: typeof chunk === 'string' ? chunk : chunk.toString('utf8') });
     } catch (err) {
-      failPi({ run, message: `parser: ${errorMessage(err)}` });
+      failPi({ run, message: `parser: ${errorMessage({ err })}` });
     }
   });
   stdout.on('close', () => parser.flush());
-  child.on('error', (err: unknown) => failPi({ run, message: errorMessage(err) }));
+  child.on('error', (err: unknown) => failPi({ run, message: errorMessage({ err }) }));
 }
 
 function buildPiRpcSession(run: PiRun): PiRpcSession {

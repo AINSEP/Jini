@@ -19,7 +19,7 @@ export const DEFAULT_ACP_TIMEOUT_ENV_VAR = 'AGENT_RUNTIME_ACP_TIMEOUT_MS';
  *
  * @param err - Any caught value (typically an `Error` but may be anything).
  */
-export function errorMessage(err: unknown): string {
+export function errorMessage({ err }: { err: unknown }, _optional: Record<string, never> = {}): string {
   return err instanceof Error ? err.message : String(err);
 }
 /**
@@ -36,9 +36,7 @@ export function errorMessage(err: unknown): string {
  * @returns The resolved timeout in milliseconds.
  */
 export function resolveAcpTimeoutMs(
-  env: NodeJS.ProcessEnv,
-  fallbackMs: number,
-  envVarName: string = DEFAULT_ACP_TIMEOUT_ENV_VAR,
+  { env, fallbackMs }: { env: NodeJS.ProcessEnv; fallbackMs: number }, { envVarName = DEFAULT_ACP_TIMEOUT_ENV_VAR }: { envVarName?: string | undefined } = {},
 ): number {
   const value = env[envVarName];
   if (!value?.trim()) return fallbackMs;
@@ -54,7 +52,7 @@ export function resolveAcpTimeoutMs(
  * @param value - Any value from a JSON parse result.
  * @returns The value cast as `UnknownRecord`, or `null` when the cast is unsafe.
  */
-export function asObject(value: unknown): UnknownRecord | null {
+export function asObject({ value }: { value: unknown }, _optional: Record<string, never> = {}): UnknownRecord | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as UnknownRecord : null;
 }
 /**
@@ -64,7 +62,7 @@ export function asObject(value: unknown): UnknownRecord | null {
  *
  * @param value - Any value from a parsed ACP update object.
  */
-export function acpValueKind(value: unknown): string {
+export function acpValueKind({ value }: { value: unknown }, _optional: Record<string, never> = {}): string {
   if (Array.isArray(value)) return 'array';
   if (value === null) return 'null';
   return typeof value;
@@ -76,8 +74,8 @@ export function acpValueKind(value: unknown): string {
  *
  * @param value - Any value from a parsed ACP update object.
  */
-export function objectKeys(value: unknown): string[] {
-  const obj = asObject(value);
+export function objectKeys({ value }: { value: unknown }, _optional: Record<string, never> = {}): string[] {
+  const obj = asObject({ value });
   return obj ? Object.keys(obj).sort() : [];
 }
 /**
@@ -92,11 +90,11 @@ export function objectKeys(value: unknown): string[] {
  * @param depth - Current recursion depth (max 4); callers omit this.
  * @returns The first non-empty string found, or `null` when none is present.
  */
-export function extractAcpTextValue(value: unknown, depth = 0): string | null {
+export function extractAcpTextValue({ value }: { value: unknown }, { depth = 0 }: { depth?: number | undefined } = {}): string | null {
   if (depth > 4) return null;
   if (typeof value === 'string') return value.length > 0 ? value : null;
   if (Array.isArray(value)) return joinAcpArrayText({ items: value, depth });
-  const obj = asObject(value);
+  const obj = asObject({ value });
   if (!obj) return null;
   return firstAcpKeyText({ obj, keys: NESTED_TEXT_KEYS, depth: depth + 1 });
 }
@@ -131,7 +129,7 @@ const UPDATE_TEXT_KEYS = [
  * or `null` when the joined text is empty. */
 function joinAcpArrayText({ items, depth }: { items: unknown[]; depth: number }): string | null {
   const text = items
-    .map((item) => extractAcpTextValue(item, depth + 1))
+    .map((item) => extractAcpTextValue({ value: item }, { depth: depth + 1 }))
     .filter((part): part is string => typeof part === 'string' && part.length > 0)
     .join('');
   return text.length > 0 ? text : null;
@@ -148,7 +146,7 @@ function firstAcpKeyText({
   depth: number;
 }): string | null {
   for (const key of keys) {
-    const text = extractAcpTextValue(obj[key], depth);
+    const text = extractAcpTextValue({ value: obj[key] }, { depth });
     if (text) return text;
   }
   return null;
@@ -162,6 +160,6 @@ function firstAcpKeyText({
  * @param update - A parsed ACP `session/update` params object.
  * @returns The first non-empty text string, or `null` when none is present.
  */
-export function extractAcpUpdateText(update: UnknownRecord): string | null {
+export function extractAcpUpdateText({ update }: { update: UnknownRecord }, _optional: Record<string, never> = {}): string | null {
   return firstAcpKeyText({ obj: update, keys: UPDATE_TEXT_KEYS, depth: 0 });
 }

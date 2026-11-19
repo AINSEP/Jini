@@ -54,7 +54,7 @@ export const noopAccountFailureClassifier: AccountFailureClassifier = {
  * @param failure - The classification result to describe.
  * @returns A details object carrying `action` and, when present, `actionUrl`.
  */
-export function accountFailureDetails(failure: AccountFailure): {
+export function accountFailureDetails({ failure }: { failure: AccountFailure }, _optional: Record<string, never> = {}): {
   kind: 'account_failure';
   action: string;
   actionUrl?: string;
