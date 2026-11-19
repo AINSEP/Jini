@@ -579,8 +579,8 @@ function mergeSpans(spans: readonly Span[], { keepAdjacent = false } = {}): Span
     const span = spans[rank]!;
     const length = span.end - span.start;
     const last = merged.at(-1);
-    // Literal-only replacements keep adjacent occurrences as distinct markers and counts: offsets are integers, so
-    // `start > end - 1` is `start >= end`.
+    // Literal-only replacements preserve adjacent occurrences as distinct markers and counts.
+    // Offsets are integers, so `start > end - 1` is `start >= end`.
     if (!last || span.start > last.end - Number(keepAdjacent)) {
       merged.push({ start: span.start, end: span.end, category: span.category, suffix: span.suffix, rank, categoryLength: length });
       continue;
@@ -895,7 +895,7 @@ function collectExactSecrets({ text, add, secrets }: SpanPass & { secrets: Reado
     let runEnd = -1;
     forEachOccurrence(text, needle, (at) => {
       if (insideSyntax(at, at + needle.length)) return;
-      // Heuristic union joins adjacent hits; exact-only keeps one marker for each adjacent occurrence.
+      // Heuristic union joins adjacent hits; exact-only retains one marker for each adjacent occurrence.
       if (at > runEnd - Number(options.literalOnly === true)) {
         add(runStart, runEnd, CATEGORY.exactSecret);
         runStart = at;

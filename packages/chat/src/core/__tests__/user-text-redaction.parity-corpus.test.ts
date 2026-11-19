@@ -20,8 +20,10 @@ interface Corpus {
 }
 const corpus = JSON.parse(readFileSync(new URL('./fixtures/redaction-parity-corpus.json', import.meta.url), 'utf8')) as Corpus;
 
-// The tokenizer the corpus was recorded with: any run between separators that holds a letter or digit, lower-cased, in
-// first occurrence order, with redaction markers removed first so a marker's own words never count as shown text.
+// Rounds 1-3 read: The tokenizer the corpus was recorded with: 4+ characters between separators, lower-cased, first occurrence order.
+// That missed values under 4 characters and partial disclosure, so the corpus is now recorded with any run between
+// separators that holds a letter or digit, lower-cased, in first occurrence order, with redaction markers removed first
+// so a marker's own words never count as shown text.
 const MARKER = /\[(?:REDACTED:[^\]\r\n]+|token removed)\]/gi;
 const tokens = (text: string): string[] => [...new Set(text.replace(MARKER, ' ').toLowerCase().match(/[^\s"'`,;:=&?()<>[\]{}\\]+/g) ?? [])]
   .filter(token => /[a-z0-9]/.test(token));
@@ -55,8 +57,9 @@ const DECIDED: Readonly<Record<string, string>> = {
   'primary-backup-service-account-api-key=Zq8wPx3mK7vR2tL9': 'the variable name before a masked value',
   'DB_PASSWORD=\nDB_USER=app': 'the next line is another assignment',
 };
-// The same class in the sweep, named exactly: `name=` and a line break, then the one sweep value that is itself a
-// `key=value` line. Only that line's own tokens are excused; every other hidden piece of those inputs is still checked.
+// The same class in the sweep: `name=` or `name:` with nothing after it, then a line that is its own `key=value`.
+// Named exactly: `name=` and a line break, then the one sweep value that is itself a `key=value` line. Only that line's
+// own tokens are excused; every other hidden piece of those inputs is still checked.
 const SWEEP_DECIDED: readonly { readonly separators: readonly string[]; readonly value: string; readonly reason: string }[] = [
   { separators: ['=\n', '=\r\n  '], value: 'sid=Zq8w; auth=Mf4n', reason: 'the next line is another assignment' },
 ];

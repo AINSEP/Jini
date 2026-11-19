@@ -106,11 +106,11 @@ export function isProseAfterColon(
 ): boolean {
   const value = rest.slice(0, token);
   if (isQualifiedKey({ before, label, value }) || isKeyPath({ label, value }) || PLACEHOLDER_RES.some(pattern => pattern.test(rest))) return true;
-  // A header name never introduces prose: whatever follows `Authorization:`, on its line, mid-sentence or on the next
-  // line, is its credential, as the rules chat used before read it.
-  if (label.toLowerCase() === 'authorization') return false;
   // The value after a line break is prose unless it is one bare token on the line after the label, or starts with a
-  // credential-shaped token (see isNextLineValue).
+  // credential-shaped token (see isNextLineValue). A header name never heads a paragraph: whatever starts the line after
+  // `Authorization:` is its credential.
+  // The same holds on the label's own line, mid-sentence included, as the rules chat used before read it.
+  if (label.toLowerCase() === 'authorization') return false;
   if (gap.includes('\n')) return !isNextLineValue({ line: rest });
   if (!SENTENCE_START.test(rest) || token >= OPAQUE_WORD_MIN) return false;
   return !isFieldStart(before) || FUNCTION_WORD_START.test(rest) || startsWithLabelWord({ rest, label });
