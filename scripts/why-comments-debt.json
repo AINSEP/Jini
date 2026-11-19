@@ -664,6 +664,130 @@
     {
       "id": "6fe2951b31cf",
       "reason": "ui-3 args sweep: escapeJsString's positional string overload was removed (no string caller remains in Jini or Tovu), so the comment justifying that overload describes code that no longer exists."
+    },
+    {
+      "id": "f7a37986a688",
+      "reason": "Moved or reworded, not lost: bigram containment 0.80 of this block's text in packages/daemon/src/http/tool-execution-routes.ts (merge-3 classification; the checker counts only verbatim survivors). Was packages/daemon/src/http/tool-execution-routes.ts:1."
+    },
+    {
+      "id": "4432806e92bc",
+      "reason": "packages/cms/src/widgets/ports.ts:116-116 (\"the one reference-index operation widgets performs; no extractor imple...\"): Edited in place (30954d12, moves-b1): the one-line doc was expanded with the entry-refs index rationale; same subject at packages/cms/src/widgets/ports.ts:105-111 (EntryRefRow) and :132 (EntryRefsRepoPort)."
+    },
+    {
+      "id": "dcb40cab3a99",
+      "reason": "packages/daemon/src/http/__tests__/delegated-tools.test.ts:454-456 (\"disconnect is observed on `res`, not `req` \u2014 see `adapter.ts`'s own co...\"): Test comment in delegated-tools.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 3800e9b8; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "5b06a5efa499",
+      "reason": "packages/daemon/src/http/__tests__/frontend-sessions.test.ts:221-221 (\"a sink that itself throws must not turn a contained failure into an un...\"): Test comment in frontend-sessions.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 8c00e560; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "5ce38c835f90",
+      "reason": "packages/daemon/src/http/__tests__/frontend-sessions.test.ts:327-327 (\"request completion is not a disconnect: the response can still be stre...\"): Test comment in frontend-sessions.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 8c00e560; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "b2f4a8a932bd",
+      "reason": "packages/daemon/src/http/__tests__/model-proxy.test.ts:439-440 (\"without a host sink the default line carries the error class only: the...\"): Test comment in model-proxy.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 7b7d7795; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "cc819d79faad",
+      "reason": "packages/daemon/src/http/__tests__/runs.test.ts:767-774 (\"before the fix: a write failure during the buffered-replay flush ended...\"): Test comment in runs.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in a9498587; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "3a2e77f2df6a",
+      "reason": "packages/daemon/src/http/__tests__/runs.test.ts:796-796 (\"the leaked callback would otherwise still be registered and attempt an...\"): Test comment in runs.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in a9498587; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "c5494475acec",
+      "reason": "packages/daemon/src/http/__tests__/runs.test.ts:849-856 (\"`cleanup()` unsubscribes from the lifecycle for real, so a *subsequent...\"): Test comment in runs.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in a9498587; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "4e75d6b91c76",
+      "reason": "packages/daemon/src/http/__tests__/xai.test.ts:1183-1189 (\"real express app on a real socket, one genuine round-trip per mounted ...\"): Test comment in xai.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 56f64c61; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "3aa650fbea6a",
+      "reason": "packages/daemon/src/http/frontend-sessions.ts:163-164 (\"reserve capacity before committing sse headers, so a full scope gets a...\"): Code gone: the Express handler handleFrontendSessionStream, its Express-query parseCapabilityQuery({raw}), onInternalError option, expireScopedSession and registerFrontendSessionRoutes were deleted in 8c00e560 (frontend-session routes are data on a web Response). Capacity-before-stream, origin/owner gate and the URLSearchParams parser are documented for the new code at packages/daemon/src/http/frontend-sessions.ts:143, :231-276, :302-321, :352."
+    },
+    {
+      "id": "0d9930d3a4e1",
+      "reason": "packages/daemon/src/http/frontend-sessions.ts:280-287 (\"mounts both frontend-session routes on `app`. the stream route bypasse...\"): Code gone: the Express handler handleFrontendSessionStream, its Express-query parseCapabilityQuery({raw}), onInternalError option, expireScopedSession and registerFrontendSessionRoutes were deleted in 8c00e560 (frontend-session routes are data on a web Response). Capacity-before-stream, origin/owner gate and the URLSearchParams parser are documented for the new code at packages/daemon/src/http/frontend-sessions.ts:143, :231-276, :302-321, :352. Closest surviving wording: packages/daemon/src/http/memory.ts:548 (containment 0.33)."
+    },
+    {
+      "id": "f860a25f9205",
+      "reason": "packages/daemon/src/http/frontend-sessions.ts:323-324 (\"a diagnostic sink must never turn a contained failure into an unhandle...\"): Code gone: the Express handler handleFrontendSessionStream, its Express-query parseCapabilityQuery({raw}), onInternalError option, expireScopedSession and registerFrontendSessionRoutes were deleted in 8c00e560 (frontend-session routes are data on a web Response). Capacity-before-stream, origin/owner gate and the URLSearchParams parser are documented for the new code at packages/daemon/src/http/frontend-sessions.ts:143, :231-276, :302-321, :352."
+    },
+    {
+      "id": "9b7575b24464",
+      "reason": "packages/daemon/src/http/model-proxy.ts:636-638 (\"no sse channel can exist yet at this point \u2014 `runproxystream` owns ope...\"): Code gone: runProxyStream's createSseChannel lifecycle, respondInternalError, the Express catch-all and registerModelProxyRoutes were deleted in 7b7d7795 (each route is a Response; the provider is not awaited before the stream is returned). Failure handling of the new code is documented at packages/daemon/src/http/model-proxy.ts:376-470 and the route list at :575/:635."
+    },
+    {
+      "id": "4d5c4718e81d",
+      "reason": "packages/daemon/src/http/runs.ts:302-303 (\"`createssechannel` (`sse.ts`) owns the bounded queue, backpressure, an...\"): Code gone: the Express/createSseChannel run event stream (handleRunEventStreamRequest, registerRunEventStream, registerRunRoutes, channel.open/abandon/end) was deleted in a9498587 (daemon-r7: run routes are data, the stream is a committed SSE Response). The why of the new open/commit/unsubscribe/failure order is written at packages/daemon/src/http/runs.ts:285-327."
+    },
+    {
+      "id": "203e17ec3745",
+      "reason": "packages/daemon/src/http/terminals.ts:286-296 (\"`get /api/terminals/:id/stream` \u2014 sse, with `last-event-id`/`aftercurs...\"): Code gone: registerTerminalEventStream, createDeferredEndGate, DeferredEndChannel and registerTerminalRoutes were deleted in 46a8e83c (terminal routes are data; the stream is a Response on core's SSE stream). The attach-may-end-synchronously reasoning is restated for the new code at packages/daemon/src/http/terminals.ts:255-263 and the wire shape at :245. Closest surviving wording: packages/daemon/src/http/memory.ts:548 (containment 0.31)."
+    },
+    {
+      "id": "46f4dd85bd28",
+      "reason": "packages/daemon/src/http/tool-execution-routes.ts:98-98 (\"maps a body-parser failure (too large, malformed, aborted mid-body) to...\"): Code gone: the Express ToolExecutionRouteTarget, the optional env/timingSafeEqual defaults, requireToolExecutionCaller, bodyParserFailure, streamToolExecution (res 'close'/setInterval heartbeat) and the Express mount were deleted in e36a4062 (routes are data; the caller gate is toolExecutionCallerRefusal in tool-execution-caller.ts; NDJSON is line-stream.ts + tool-execution-stream.ts). Current why-text: tool-execution-routes.ts:40-100 and :160-195; the keepalive why was restored next to the line stream that keeps one (frontend-request-route.ts)."
+    },
+    {
+      "id": "29408e9e438e",
+      "reason": "packages/daemon/src/http/tool-execution-routes.ts:149-150 (\"`res` 'close' (not `req` 'close', which fires as soon as a completed b...\"): Code gone: the Express ToolExecutionRouteTarget, the optional env/timingSafeEqual defaults, requireToolExecutionCaller, bodyParserFailure, streamToolExecution (res 'close'/setInterval heartbeat) and the Express mount were deleted in e36a4062 (routes are data; the caller gate is toolExecutionCallerRefusal in tool-execution-caller.ts; NDJSON is line-stream.ts + tool-execution-stream.ts). Current why-text: tool-execution-routes.ts:40-100 and :160-195; the keepalive why was restored next to the line stream that keeps one (frontend-request-route.ts)."
+    },
+    {
+      "id": "1e3ca52bcefb",
+      "reason": "packages/http-kit/src/__tests__/raw-sse.test.ts:259-264 (\"fake emitters alone cannot establish node's client-disconnect lifecycl...\"): Test comment of raw-sse.test.ts, deleted with its only subject createSseResponse in b6605838 (20 cases of the deleted primitive). Nothing left for it to explain; streamed-answer behaviour is pinned by http-kit's node-bridge tests and core's sse tests."
+    },
+    {
+      "id": "54c612fa96a2",
+      "reason": "packages/http-kit/src/raw-sse.ts:1-8 (\"@module sse a server-sent events primitive typed only against `node:ht...\"): Code gone: http-kit's raw SSE primitive (createSseResponse/SseConnection) was deleted in b6605838 after its last user, the frontend-session stream, moved to core's createSseStream (8c00e560). Backpressure ('drain') and response-'close' handling of a streamed answer are owned by packages/http-kit/src/node-bridge.ts (pipe + out.on('close')), which carries its own comments; the bounded queue is core's createSseStream (packages/core/src/primitives/sse.ts)."
+    },
+    {
+      "id": "168d8ed688d1",
+      "reason": "packages/http-kit/src/raw-sse.ts:11-16 (\"cap on messages buffered for one client while its socket reports backp...\"): Code gone: http-kit's raw SSE primitive (createSseResponse/SseConnection) was deleted in b6605838 after its last user, the frontend-session stream, moved to core's createSseStream (8c00e560). Backpressure ('drain') and response-'close' handling of a streamed answer are owned by packages/http-kit/src/node-bridge.ts (pipe + out.on('close')), which carries its own comments; the bounded queue is core's createSseStream (packages/core/src/primitives/sse.ts)."
+    },
+    {
+      "id": "5aea3d0f7b83",
+      "reason": "packages/http-kit/src/raw-sse.ts:20-20 (\"milliseconds between keepalive ping comment lines, sent to keep an idl...\"): Code gone: http-kit's raw SSE primitive (createSseResponse/SseConnection) was deleted in b6605838 after its last user, the frontend-session stream, moved to core's createSseStream (8c00e560). Backpressure ('drain') and response-'close' handling of a streamed answer are owned by packages/http-kit/src/node-bridge.ts (pipe + out.on('close')), which carries its own comments; the bounded queue is core's createSseStream (packages/core/src/primitives/sse.ts)."
+    },
+    {
+      "id": "2b87f4bb905f",
+      "reason": "packages/http-kit/src/raw-sse.ts:22-22 (\"invoked exactly once, the first time this connection closes for any re...\"): Code gone: http-kit's raw SSE primitive (createSseResponse/SseConnection) was deleted in b6605838 after its last user, the frontend-session stream, moved to core's createSseStream (8c00e560). Backpressure ('drain') and response-'close' handling of a streamed answer are owned by packages/http-kit/src/node-bridge.ts (pipe + out.on('close')), which carries its own comments; the bounded queue is core's createSseStream (packages/core/src/primitives/sse.ts)."
+    },
+    {
+      "id": "5db387690833",
+      "reason": "packages/http-kit/src/raw-sse.ts:29-29 (\"writes one sse `data:` event, json-serializing `data`. a no-op once th...\"): Code gone: http-kit's raw SSE primitive (createSseResponse/SseConnection) was deleted in b6605838 after its last user, the frontend-session stream, moved to core's createSseStream (8c00e560). Backpressure ('drain') and response-'close' handling of a streamed answer are owned by packages/http-kit/src/node-bridge.ts (pipe + out.on('close')), which carries its own comments; the bounded queue is core's createSseStream (packages/core/src/primitives/sse.ts)."
+    },
+    {
+      "id": "8ee053cd49fd",
+      "reason": "packages/http-kit/src/raw-sse.ts:31-31 (\"closes the connection: stops the keepalive interval and ends the respo...\"): Code gone: http-kit's raw SSE primitive (createSseResponse/SseConnection) was deleted in b6605838 after its last user, the frontend-session stream, moved to core's createSseStream (8c00e560). Backpressure ('drain') and response-'close' handling of a streamed answer are owned by packages/http-kit/src/node-bridge.ts (pipe + out.on('close')), which carries its own comments; the bounded queue is core's createSseStream (packages/core/src/primitives/sse.ts)."
+    },
+    {
+      "id": "da2c0da0c50f",
+      "reason": "packages/http-kit/src/raw-sse.ts:33-33 (\"`true` once this connection has closed, whether via an explicit `close...\"): Code gone: http-kit's raw SSE primitive (createSseResponse/SseConnection) was deleted in b6605838 after its last user, the frontend-session stream, moved to core's createSseStream (8c00e560). Backpressure ('drain') and response-'close' handling of a streamed answer are owned by packages/http-kit/src/node-bridge.ts (pipe + out.on('close')), which carries its own comments; the bounded queue is core's createSseStream (packages/core/src/primitives/sse.ts)."
+    },
+    {
+      "id": "c6f124a8ed53",
+      "reason": "packages/http-kit/src/raw-sse.ts:43-52 (\"opens `res` as a server-sent events stream: writes the `text/event-str...\"): Code gone: http-kit's raw SSE primitive (createSseResponse/SseConnection) was deleted in b6605838 after its last user, the frontend-session stream, moved to core's createSseStream (8c00e560). Backpressure ('drain') and response-'close' handling of a streamed answer are owned by packages/http-kit/src/node-bridge.ts (pipe + out.on('close')), which carries its own comments; the bounded queue is core's createSseStream (packages/core/src/primitives/sse.ts)."
+    },
+    {
+      "id": "c64608795a71",
+      "reason": "packages/http-kit/src/raw-sse.ts:57-59 (\"frames held back because the socket reported backpressure, flushed on ...\"): Code gone: http-kit's raw SSE primitive (createSseResponse/SseConnection) was deleted in b6605838 after its last user, the frontend-session stream, moved to core's createSseStream (8c00e560). Backpressure ('drain') and response-'close' handling of a streamed answer are owned by packages/http-kit/src/node-bridge.ts (pipe + out.on('close')), which carries its own comments; the bounded queue is core's createSseStream (packages/core/src/primitives/sse.ts)."
+    },
+    {
+      "id": "7260b5d44553",
+      "reason": "packages/http-kit/src/raw-sse.ts:65-70 (\"writes as much of the queue as the socket will accept. `res.write()` r...\"): Code gone: http-kit's raw SSE primitive (createSseResponse/SseConnection) was deleted in b6605838 after its last user, the frontend-session stream, moved to core's createSseStream (8c00e560). Backpressure ('drain') and response-'close' handling of a streamed answer are owned by packages/http-kit/src/node-bridge.ts (pipe + out.on('close')), which carries its own comments; the bounded queue is core's createSseStream (packages/core/src/primitives/sse.ts)."
+    },
+    {
+      "id": "d044558c73ef",
+      "reason": "packages/http-kit/src/raw-sse.ts:78-83 (\"queues one frame, dropping the connection if the backlog has outgrown ...\"): Code gone: http-kit's raw SSE primitive (createSseResponse/SseConnection) was deleted in b6605838 after its last user, the frontend-session stream, moved to core's createSseStream (8c00e560). Backpressure ('drain') and response-'close' handling of a streamed answer are owned by packages/http-kit/src/node-bridge.ts (pipe + out.on('close')), which carries its own comments; the bounded queue is core's createSseStream (packages/core/src/primitives/sse.ts)."
+    },
+    {
+      "id": "d10bcb00da57",
+      "reason": "packages/http-kit/src/raw-sse.ts:114-116 (\"a request's `'close'` can fire when a post body finishes arriving whil...\"): Code gone: http-kit's raw SSE primitive (createSseResponse/SseConnection) was deleted in b6605838 after its last user, the frontend-session stream, moved to core's createSseStream (8c00e560). Backpressure ('drain') and response-'close' handling of a streamed answer are owned by packages/http-kit/src/node-bridge.ts (pipe + out.on('close')), which carries its own comments; the bounded queue is core's createSseStream (packages/core/src/primitives/sse.ts)."
     }
   ]
 }
