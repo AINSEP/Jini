@@ -792,6 +792,10 @@
     {
       "id": "01b9a4edc7fa",
       "reason": "cookie-consent-cloud: createCookieConsent's @example was rewritten for browserPorts' new one-object args shape (browserPorts({ win: window })); the example is still next to the function, only the call shape changed."
+    },
+    {
+      "id": "22ef730e82fa",
+      "reason": "rf2-a13: useDismissOnOutsideOrEscape's doc comment was reworded in place for the IME-safe Escape it added ('on non-composing Escape'); the rest of the statement is unchanged next to the same function."
     }
   ]
 }

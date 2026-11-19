@@ -48,6 +48,16 @@ describe('readInitialSession', () => {
     expect(onBootstrapped).not.toHaveBeenCalled();
   });
 
+  it('hands a refused bootstrap\'s own error to onBootstrapFailed and still rethrows the original', async () => {
+    const error = new Error('no session');
+    const refusal = new Error('bootstrap refused');
+    const me = vi.fn(async () => { throw error; });
+    const bootstrap = vi.fn(async () => { throw refusal; });
+    const onBootstrapFailed = vi.fn();
+    await expect(readInitialSession({ me, bootstrap, admit: () => true, isUnauthenticated: () => true }, { onBootstrapFailed })).rejects.toBe(error);
+    expect(onBootstrapFailed).toHaveBeenCalledWith({ error: refusal });
+  });
+
   it('never retries or reads identity after a refused bootstrap', async () => {
     const error = new Error('no session');
     const me = vi.fn(async () => { throw error; });

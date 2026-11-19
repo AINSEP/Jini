@@ -28,7 +28,7 @@ import { subscribeOutsideClickOrEscape } from '../utils/dom-subscriptions.js';
 export interface UseDismissOnOutsideOrEscapeOptions {
   subscription?: DismissSubscriptionPort;
   /** Dismiss before bubbling Escape handlers when true. Defaults to false. */
-  escapeCapture?: boolean;
+  escapeCapture?: boolean | undefined;
   /** Skip attaching any listeners while `false` (e.g. only while a menu is open). Defaults to `true`. */
   enabled?: boolean;
   /**
@@ -44,7 +44,7 @@ export interface DismissSubscriptionPort {
   subscribe(requiredArgs: {
     containerRef: RefObject<HTMLElement | null> | undefined;
     onDismiss: () => void;
-    escapeCapture?: boolean;
+    escapeCapture?: boolean | undefined;
   }): () => void;
 }
 

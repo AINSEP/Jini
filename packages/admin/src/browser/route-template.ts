@@ -11,8 +11,8 @@ export function toRouteTemplate(
   const path = queryOrFragment === -1 ? routePath : routePath.slice(0, queryOrFragment);
   const names = new Map(Object.entries(params).map(([name, value]) => [value, name]));
   const segments = path.split('/').filter(Boolean).map((segment) => {
-    let decoded = segment;
-    try { decoded = decodeURIComponent(segment); } catch { /* Keep malformed encoding raw. */ }
+    let decoded: string;
+    try { decoded = decodeURIComponent(segment); } catch { decoded = segment; /* Keep malformed encoding raw. */ }
     const name = names.get(decoded);
     return name ? `:${name}` : segment;
   });

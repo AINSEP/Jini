@@ -16,7 +16,7 @@ const rejected = new Error('SENTINEL-SECRET');
 afterEach(cleanup);
 
 function event(): FormEvent {
-  return { preventDefault: vi.fn() } as FormEvent;
+  return { preventDefault: vi.fn() } as unknown as FormEvent;
 }
 
 function deferred<T>() {

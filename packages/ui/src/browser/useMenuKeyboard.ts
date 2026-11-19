@@ -34,7 +34,7 @@ const MENU_ENTRIES = '[role="menuitem"], [role="menuitemradio"]';
  */
 export function useMenuKeyboard<T extends HTMLElement = HTMLDivElement, B extends HTMLElement = HTMLButtonElement>(
   { open }: { open: boolean },
-  { doc = document }: { doc?: DocumentFocus } = {},
+  { doc = document }: { doc?: DocumentFocus | undefined } = {},
 ): { menuRef: RefObject<T | null>; triggerRef: RefObject<B | null>; onMenuKeyDown: (event: ReactKeyboardEvent<T>) => void } {
   const menuRef = useRef<T>(null);
   const triggerRef = useRef<B>(null);

@@ -53,7 +53,13 @@ const otherRejection = { reason: "other-rejection" };
 type PayloadVerdict = SiteKeyVerdict<typeof perSiteValue, typeof perSiteRejection>;
 type PayloadDecision = LocalSiteKeyDecision<typeof perSiteValue, typeof perSiteRejection>;
 
-const payloadCases = [
+const payloadCases: readonly {
+  name: string;
+  perSite: PayloadVerdict;
+  other: PayloadVerdict;
+  siteDbsWithKeyData: boolean;
+  expected: PayloadDecision;
+}[] = [
   {
     name: "valid per-site material wins over another valid source",
     perSite: { kind: "valid", value: perSiteValue }, other: { kind: "valid", value: otherValue },
@@ -84,13 +90,7 @@ const payloadCases = [
     perSite: { kind: "absent" }, other: { kind: "absent" },
     siteDbsWithKeyData: false, expected: { action: "mint" },
   },
-] satisfies readonly {
-  name: string;
-  perSite: PayloadVerdict;
-  other: PayloadVerdict;
-  siteDbsWithKeyData: boolean;
-  expected: PayloadDecision;
-}[];
+];
 
 it.each(payloadCases)("decideLocalSiteKeyEnsure: $name", ({ perSite, other, siteDbsWithKeyData, expected }) => {
   expect(decideLocalSiteKeyEnsure({ perSite, other, siteDbsWithKeyData })).toStrictEqual(expected);

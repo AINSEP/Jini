@@ -1,5 +1,5 @@
 // Names may resolve elsewhere; only the literal address bound by the host is admitted.
-const LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1', '[::1]']);
+const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(['127.0.0.1', '::1', '[::1]']);
 
 /**
  * Returns the parsed plain-HTTP loopback URL or throws a reason-specific refusal.

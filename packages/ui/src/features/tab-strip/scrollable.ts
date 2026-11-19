@@ -8,7 +8,7 @@ export function tabOverflow(
 
 /** Reveal the selected tab; hosts can supply their own selection marker. */
 export function revealActiveTab(
-  { strip, activeSelector = '[aria-selected="true"]' }: { strip: Pick<HTMLElement, 'querySelector'>; activeSelector?: string },
+  { strip, activeSelector = '[aria-selected="true"]' }: { strip: Pick<HTMLElement, 'querySelector'>; activeSelector?: string | undefined },
   _optional: Record<string, never> = {},
 ): void {
   strip.querySelector<HTMLElement>(activeSelector)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });

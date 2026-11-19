@@ -33,7 +33,8 @@ describe('assertLoopbackHttpUrl', () => {
     { url: 'http://evil.example.com/session/', reason: 'host', detail: 'evil.example.com' },
     { url: 'http://127.0.0.1.evil.test', reason: 'host', detail: '127.0.0.1.evil.test' },
     { url: 'http://127.0.0.1.evil.example.com/session/', reason: 'host', detail: '127.0.0.1.evil.example.com' },
-    { url: 'http://not-127.0.0.1/session/', reason: 'host', detail: 'not-127.0.0.1' },
+    // WHATWG URL parses a host ending in a number as IPv4, so this one is refused before the host check.
+    { url: 'http://not-127.0.0.1/session/', reason: 'invalid', detail: 'http://not-127.0.0.1/session/' },
     { url: 'http://127.0.0.1@evil.example.com/session/', reason: 'host', detail: 'evil.example.com' },
   ])('refuses $url with the host message port', ({ url, reason, detail }) => {
     const message = vi.fn(() => `refused ${reason}: ${detail}`);

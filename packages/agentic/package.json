@@ -15,6 +15,7 @@
     "entries": {
       ".": "universal",
       "./core": "universal",
+      "./render-surface": "universal",
       "./dom": "browser",
       "./skills/install": "node",
       "./skills/install/node": "node",
@@ -38,6 +39,11 @@
       "types": "./dist/core/index.d.ts",
       "import": "./dist/core/index.js",
       "default": "./dist/core/index.js"
+    },
+    "./render-surface": {
+      "types": "./dist/core/render-surface.d.ts",
+      "import": "./dist/core/render-surface.js",
+      "default": "./dist/core/render-surface.js"
     },
     "./dom": {
       "types": "./dist/core/dom/index.d.ts",

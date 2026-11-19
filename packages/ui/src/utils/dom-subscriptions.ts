@@ -46,7 +46,7 @@ export function getDocumentBody(): HTMLElement | null {
  */
 export function subscribeOutsideClickOrEscape(
   { container, onClose }: { container: { current: HTMLElement | null } | undefined; onClose: () => void },
-  options: { escapeCapture?: boolean } = {},
+  options: { escapeCapture?: boolean | undefined } = {},
 ): () => void {
   if (typeof document === 'undefined') return () => {};
   function onPointer(e: PointerEvent) {

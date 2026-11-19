@@ -12,11 +12,12 @@ export interface SessionBootstrapPorts<T> {
 /**
  * Keeps an existing identity, otherwise attempts one admitted bootstrap, never retried.
  * A refused bootstrap or failed identity reread preserves the original error so ordinary
- * login remains in charge. Notification follows only a successful identity reread.
+ * login remains in charge; its own error goes to `onBootstrapFailed`, never dropped. Notification follows only a successful identity reread.
  * At most one bootstrap and two identity reads; no transport is chosen here.
  */
 export async function readInitialSession<T>(
-  required: SessionBootstrapPorts<T>, optional: { onBootstrapped?: () => void } = {},
+  required: SessionBootstrapPorts<T>,
+  optional: { onBootstrapped?: () => void; onBootstrapFailed?: (required: { error: unknown }) => void } = {},
 ): Promise<T> {
   try { return await required.me({}); }
   catch (error) {
@@ -25,7 +26,10 @@ export async function readInitialSession<T>(
     try {
       await required.bootstrap({});
       session = await required.me({});
-    } catch { throw error; }
+    } catch (bootstrapError) {
+      optional.onBootstrapFailed?.({ error: bootstrapError });
+      throw error;
+    }
     optional.onBootstrapped?.();
     return session;
   }

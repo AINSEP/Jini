@@ -7,7 +7,7 @@ export function useScrollableTabStrip(
   { ResizeObserverImpl = globalThis.ResizeObserver, activeSelector }: {
     /** The resize port; defaults to the browser's `ResizeObserver`. */
     ResizeObserverImpl?: typeof ResizeObserver;
-    activeSelector?: string;
+    activeSelector?: string | undefined;
   } = {},
 ) {
   const stripRef = useRef<HTMLDivElement>(null);

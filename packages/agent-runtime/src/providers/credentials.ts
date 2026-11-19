@@ -40,7 +40,7 @@ export interface ExecutionCredentialPort {
   resolve(input: { requestBody: RequestSuppliedProviderConfig; workspaceId: string; principalId: string }): Promise<ResolvedProviderCredential | null>;
 }
 
-const VALID_PROTOCOLS = new Set(['anthropic', 'openai', 'azure', 'google']);
+const VALID_PROTOCOLS: ReadonlySet<string> = new Set(['anthropic', 'openai', 'azure', 'google']);
 
 /** `requestBody.protocol`'s own field parse, split out of `parseRequestSuppliedCredential` to keep its
  *  complexity under the ceiling; behaviour is unchanged. */
