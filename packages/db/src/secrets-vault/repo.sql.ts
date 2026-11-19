@@ -42,7 +42,7 @@ function fromRow(row: SecretsVaultTable): VaultRecord {
   catch { throw new VaultError({ code: "invalid-meta" }); }
   return { workspaceId: row.workspace_id, id: row.id, kind: row.kind, ownerKey: row.owner_key,
     principalId: row.principal_id, binding: row.binding, provider: row.provider, label: row.label,
-    isDefault: toBool(row.is_default) ?? false, revision: Number(row.revision),
+    isDefault: toBool({ value: row.is_default }) ?? false, revision: Number(row.revision),
     sealed: row.sealed_key_id === null ? null : { keyId: row.sealed_key_id, ciphertext: row.sealed_ciphertext!, nonce: row.sealed_nonce!, alg: row.sealed_alg! },
     last4: row.last4, tokenLength: row.token_length,
     meta,

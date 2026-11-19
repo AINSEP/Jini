@@ -60,24 +60,24 @@ describe("resolvePrincipal", () => {
 describe("readValueMutation", () => {
   const complete = { namespace: "preferences", key: "color", scope: "user", valueJson: 0 };
   test.each(["set", "clear"] as const)("%s accepts a complete body", (operation) => {
-    expect(readValueMutation(complete, operation)).toEqual({ namespace: "preferences", key: "color", scope: "user" });
+    expect(readValueMutation({ body: complete, operation })).toEqual({ namespace: "preferences", key: "color", scope: "user" });
   });
   test("set requires valueJson to be present, even as undefined", () => {
     const { valueJson: _omitted, ...withoutValue } = complete;
-    expect(readValueMutation(withoutValue, "set")).toBeNull();
-    expect(readValueMutation({ ...withoutValue, valueJson: undefined }, "set")).toEqual({ namespace: "preferences", key: "color", scope: "user" });
+    expect(readValueMutation({ body: withoutValue, operation: "set" })).toBeNull();
+    expect(readValueMutation({ body: { ...withoutValue, valueJson: undefined }, operation: "set" })).toEqual({ namespace: "preferences", key: "color", scope: "user" });
   });
   test("clear does not require valueJson", () => {
     const { valueJson: _omitted, ...withoutValue } = complete;
-    expect(readValueMutation(withoutValue, "clear")).toEqual({ namespace: "preferences", key: "color", scope: "user" });
+    expect(readValueMutation({ body: withoutValue, operation: "clear" })).toEqual({ namespace: "preferences", key: "color", scope: "user" });
   });
   test.each([
     { namespace: "" }, { namespace: undefined }, { key: "" }, { key: undefined }, { scope: "tenant" }, { scope: "constructor" }, { scope: undefined },
   ])("rejects %j", (override) => {
-    expect(readValueMutation({ ...complete, ...override }, "clear")).toBeNull();
+    expect(readValueMutation({ body: { ...complete, ...override }, operation: "clear" })).toBeNull();
   });
   test("stringifies non-string namespace and key", () => {
-    expect(readValueMutation({ ...complete, namespace: 7, key: true }, "clear")).toEqual({ namespace: "7", key: "true", scope: "user" });
+    expect(readValueMutation({ body: { ...complete, namespace: 7, key: true }, operation: "clear" })).toEqual({ namespace: "7", key: "true", scope: "user" });
   });
   test("names valueJson only in the set requirement", () => {
     expect(VALUE_MUTATION_REQUIRED).toEqual({

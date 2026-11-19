@@ -164,7 +164,7 @@ function parseEnvLine(rawLine: string, index: number): { readonly name: string; 
 }
 
 /** @agent-note `ports` are the host-bound credential rules (length cap, messages, secret-in-plain-field check). */
-export function parseEnvBlock(text: string, ports: CredentialPorts): Record<string, string> {
+export function parseEnvBlock({ text, ports }: { text: string; ports: CredentialPorts }, _optional: Record<string, never> = {}): Record<string, string> {
   // JSON is the lossless representation for multiline values; NAME=VALUE remains compatible.
   if (text.trimStart().startsWith('{')) {
     return parseJsonEnvBlock({ text, ports });
@@ -223,7 +223,7 @@ function parseJsonEnvBlock({ text, ports }: { text: string; ports: CredentialPor
  *   more characters, or more than `MAX_ARGS` arguments.
  * @complexity O(n) in the string length.
  */
-export function parseArgs(raw: string): string[] {
+export function parseArgs({ raw }: { raw: string }, _optional: Record<string, never> = {}): string[] {
   const args: string[] = [];
   let index = 0;
   while (index < raw.length) {
@@ -291,7 +291,7 @@ function parseToolNameList(raw: string, field: string): string[] {
  * @complexity O(n) in the number of names.
  * @overallScore 100
  */
-export function parseAllowedToolNames(raw: string): string[] {
+export function parseAllowedToolNames({ raw }: { raw: string }, _optional: Record<string, never> = {}): string[] {
   return parseToolNameList(raw, "allowedToolNames");
 }
 
@@ -305,7 +305,7 @@ export function parseAllowedToolNames(raw: string): string[] {
  * @complexity O(n) in the number of names.
  * @overallScore 100
  */
-export function parseWriteAllowedToolNames(raw: string): string[] {
+export function parseWriteAllowedToolNames({ raw }: { raw: string }, _optional: Record<string, never> = {}): string[] {
   return parseToolNameList(raw, "writeAllowedToolNames");
 }
 
@@ -446,8 +446,8 @@ async function toView(record: ExternalMcpServerRecord, ports: HostedMcpStorePort
  * @overallScore 100
  */
 export async function listExternalMcpServerViews(
-  deps: Pick<ExternalMcpStoreDeps, "repo"> & Partial<Pick<ExternalMcpStoreDeps, "sealer">> & HostedMcpStorePorts,
-  workspaceId: UUID,
+  { deps, workspaceId }: { deps: Pick<ExternalMcpStoreDeps, "repo"> & Partial<Pick<ExternalMcpStoreDeps, "sealer">> & HostedMcpStorePorts; workspaceId: UUID },
+  _optional: Record<string, never> = {},
 ): Promise<ExternalMcpServerView<HostedMcpTokenHint>[]> {
   const records = await deps.repo.listByWorkspaceId(workspaceId);
   return Promise.all(records.map(record => toView(record, deps, deps.sealer)));
@@ -716,8 +716,8 @@ async function resolveExternalMcpConfig(
 }
 
 export async function readEnabledExternalMcpConfigs(
-  deps: Pick<ExternalMcpStoreDeps, "repo" | "sealer"> & { oauth?: ExternalMcpOAuthTokenResolverPort } & HostedMcpStorePorts,
-  workspaceId: UUID,
+  { deps, workspaceId }: { deps: Pick<ExternalMcpStoreDeps, "repo" | "sealer"> & { oauth?: ExternalMcpOAuthTokenResolverPort } & HostedMcpStorePorts; workspaceId: UUID },
+  _optional: Record<string, never> = {},
 ): Promise<{ configs: ExternalMcpServerConfig[]; failures: ExternalMcpConfigFailure[] }> {
   const records = await deps.repo.listByWorkspaceId(workspaceId);
   const configs: ExternalMcpServerConfig[] = [];
@@ -746,8 +746,8 @@ export async function readEnabledExternalMcpConfigs(
  * @complexity O(n) time and output space in the config count.
  */
 export function toResolvedFederatedConnections(
-  configs: readonly ExternalMcpServerConfig[],
-  readOnlyRemoteNamesByServer: ReadonlyMap<string, ReadonlySet<string>> = new Map(),
+  { configs }: { configs: readonly ExternalMcpServerConfig[] },
+  { readOnlyRemoteNamesByServer = new Map() }: { readOnlyRemoteNamesByServer?: ReadonlyMap<string, ReadonlySet<string>> } = {},
 ): ResolvedFederatedConnection[] {
   return configs.map((config) => ({
     ...(config.target.kind === "streamable_http" && config.target.bearerToken ? { bearerToken: config.target.bearerToken } : {}),
@@ -840,7 +840,7 @@ function resolveSavedAuthMode(input: SaveExternalMcpServerInput, existing: Exter
  * @throws {ExternalMcpValidationError} Past {@link MAX_OAUTH_SCOPES}.
  * @complexity O(n) in the number of scopes.
  */
-export function parseOAuthScopes(raw: string): string[] {
+export function parseOAuthScopes({ raw }: { raw: string }, _optional: Record<string, never> = {}): string[] {
   const scopes = raw.split(/[\s,]+/).filter((part) => part.length > 0);
   if (scopes.length > MAX_OAUTH_SCOPES) {
     throw new ExternalMcpValidationError(`at most ${MAX_OAUTH_SCOPES} OAuth scopes are supported`, "oauth.scopes");
@@ -1102,7 +1102,7 @@ function resolveOAuthTokenEnvName(
  *  empty string clears it, since {@link parseOAuthScopes} of `""` is `[]`. */
 function resolveSavedOAuthScopes(oauth: SaveExternalMcpOAuthInput, existing: ExternalMcpServerRecord | null): string[] {
   if (oauth.scopes === undefined) return parseExternalMcpJsonArray({ raw: existing?.oauthScopesJson ?? null });
-  return parseOAuthScopes(oauth.scopes);
+  return parseOAuthScopes({ raw: oauth.scopes });
 }
 
 function resolveOAuthFields(
@@ -1189,7 +1189,7 @@ async function sealFreshExternalMcpEnv(
   identity: ExternalMcpIdentity,
   rawEnv: string,
 ): Promise<{ readonly sealedEnv: SealedSecret | null; readonly envNames: string[]; readonly aadVersion: number }> {
-  const env = parseEnvBlock(rawEnv, deps);
+  const env = parseEnvBlock({ text: rawEnv, ports: deps });
   const envNames = Object.keys(env);
   if (envNames.length === 0) return { sealedEnv: null, envNames, aadVersion: EXTERNAL_MCP_VAULT_VERSION };
 
@@ -1372,9 +1372,8 @@ export async function openExternalMcpOAuthPayload(
 
 /** @agent-note `deps` is the per-call sealer/keyring plus the host-bound ports; exactly one seal, the envelope is staged for the host repository's transaction. */
 export async function sealExternalMcpOAuthPayload(
-  deps: SealDeps,
-  identity: ExternalMcpIdentity,
-  payload: ExternalMcpSealedOAuthPayload,
+  { deps, identity, payload }: { deps: SealDeps; identity: ExternalMcpIdentity; payload: ExternalMcpSealedOAuthPayload },
+  _optional: Record<string, never> = {},
 ): Promise<SealedExternalMcpOAuth> {
   const hasSecret =
     (payload.clientSecret !== undefined && payload.clientSecret !== "") || payload.tokens !== undefined || Boolean(payload.staticAccessToken);
@@ -1421,7 +1420,7 @@ async function resolveSealedOAuthBlob(
     ...(nextClientSecret === undefined ? {} : { clientSecret: nextClientSecret }),
     ...(existingPayload.tokens === undefined ? {} : { tokens: existingPayload.tokens }),
   };
-  return sealExternalMcpOAuthPayload(deps, identity, next);
+  return sealExternalMcpOAuthPayload({ deps, identity, payload: next });
 }
 
 /**
@@ -1499,7 +1498,7 @@ async function resolveSealedStaticAccessToken(
       : none;
   }
   const token = normalizeExternalMcpAccessToken({ value: rawToken, transport, credential: deps.credential });
-  return sealExternalMcpOAuthPayload(deps, identity, { staticAccessToken: token });
+  return sealExternalMcpOAuthPayload({ deps, identity, payload: { staticAccessToken: token } });
 }
 
 /**
@@ -1576,13 +1575,13 @@ export async function saveExternalMcpServer(
   assertSupportedExternalMcpTransport(input.transport);
   const transport = input.transport as ExternalMcpTransport;
   const { command, url } = resolveTransportTarget(transport, input, deps);
-  const args = parseArgs(input.args);
-  const allowedToolNames = parseAllowedToolNames(input.allowedToolNames);
+  const args = parseArgs({ raw: input.args });
+  const allowedToolNames = parseAllowedToolNames({ raw: input.allowedToolNames });
   // `?? ""` is a defensive fallback, not the documented contract (the type requires the field): a
   // caller that predates this field reaches `undefined` here, and must degrade to "no write grants"
   // rather than throw on `undefined.split`. See `SaveExternalMcpServerInput.writeAllowedToolNames`'s
   // doc.
-  const writeAllowedToolNames = parseWriteAllowedToolNames(input.writeAllowedToolNames ?? "");
+  const writeAllowedToolNames = parseWriteAllowedToolNames({ raw: input.writeAllowedToolNames ?? "" });
   assertWriteAllowlistSubset(writeAllowedToolNames, allowedToolNames);
   const parsed: ParsedSaveTarget = { serverId, transport, command, url, args, allowedToolNames, writeAllowedToolNames };
   const key = { workspaceId: input.workspaceId, serverId };

@@ -158,7 +158,7 @@ export const AGENT_WRITABLE_PREFERENCE_IDS: readonly string[] = AGENT_WRITABLE_P
  * @complexity O(1).
  * @overallScore 100
  */
-export function resolveAgentWritablePreference(settingId: string): AgentWritablePreference | undefined {
+export function resolveAgentWritablePreference({ settingId }: { settingId: string }, _optional: Record<string, never> = {}): AgentWritablePreference | undefined {
   return BY_ID.get(settingId);
 }
 

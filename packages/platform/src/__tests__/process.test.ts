@@ -660,21 +660,21 @@ describe('@jini-ai/platform — process — sampleProcessPrivateMemory', () => {
 
 describe('@jini-ai/platform — process — collectProcessTreePids', () => {
   it('orders numeric PIDs descending even when a child has a lower PID than its parent', () => {
-    expect(collectProcessTreePids([
+    expect(collectProcessTreePids({ processes: [
       { command: 'parent', pid: 900, ppid: 0 },
       { command: 'child', pid: 5, ppid: 900 },
       { command: 'grandchild', pid: 3, ppid: 5 },
       { command: 'unrelated', pid: 1000, ppid: 0 },
-    ], [900, 5, 900])).toEqual([900, 5, 3]);
+    ], rootPids: [900, 5, 900] })).toEqual([900, 5, 3]);
   });
 
   it('returns nothing for an empty or all-invalid root list', () => {
-    expect(collectProcessTreePids([{ command: 'x', pid: 1, ppid: 0 }], [])).toEqual([]);
-    expect(collectProcessTreePids([], [null, undefined])).toEqual([]);
+    expect(collectProcessTreePids({ processes: [{ command: 'x', pid: 1, ppid: 0 }], rootPids: [] })).toEqual([]);
+    expect(collectProcessTreePids({ processes: [], rootPids: [null, undefined] })).toEqual([]);
   });
 
   it('de-duplicates repeated root pids', () => {
-    expect(collectProcessTreePids([{ command: 'root', pid: 1, ppid: 0 }], [1, 1, 1])).toEqual([1]);
+    expect(collectProcessTreePids({ processes: [{ command: 'root', pid: 1, ppid: 0 }], rootPids: [1, 1, 1] })).toEqual([1]);
   });
 
   it('skips a pid already visited when it is reachable as a child through more than one parent', () => {
@@ -685,7 +685,7 @@ describe('@jini-ai/platform — process — collectProcessTreePids', () => {
       { command: 'shared-via-a', pid: 4, ppid: 2 },
       { command: 'shared-via-b', pid: 4, ppid: 3 },
     ];
-    expect([...collectProcessTreePids(processes, [1])].sort((a, b) => a - b)).toEqual([1, 2, 3, 4]);
+    expect([...collectProcessTreePids({ processes, rootPids: [1] })].sort((a, b) => a - b)).toEqual([1, 2, 3, 4]);
   });
 });
 

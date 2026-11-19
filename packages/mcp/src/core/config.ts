@@ -123,9 +123,10 @@ function isKeepableMapEntry(entry: [string, unknown]): entry is [string, string]
 }
 
 function sanitizeStringMap(raw: unknown): Record<string, string> | undefined {
-  if (!isPlainObject(raw)) return undefined;
+  const input = { v: raw };
+  if (!isPlainObject(input)) return undefined;
   const out: Record<string, string> = {};
-  for (const [k, v] of Object.entries(raw).filter(isKeepableMapEntry)) out[k] = v;
+  for (const [k, v] of Object.entries(input.v).filter(isKeepableMapEntry)) out[k] = v;
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
@@ -150,8 +151,10 @@ function sanitizeMcpAuthMode(raw: unknown): McpAuthMode | undefined {
  * one server doesn't tank the whole config. Returns null when the entry is
  * unsalvageable (no id, or no transport-required fields).
  */
-export function sanitizeMcpServer({ raw }: { raw: unknown }): McpServerConfig | null {
-  if (!isPlainObject(raw)) return null;
+export function sanitizeMcpServer({ raw: value }: { raw: unknown }): McpServerConfig | null {
+  const input = { v: value };
+  if (!isPlainObject(input)) return null;
+  const raw = input.v;
   const id = typeof raw.id === 'string' ? raw.id.trim() : '';
   if (!SERVER_ID_PATTERN.test(id)) return null;
   const transport = sanitizeTransport(raw.transport);
@@ -210,8 +213,10 @@ function sanitizeRemoteFields(raw: Record<string, unknown>): TransportFields | n
  * @param raw The raw parsed JSON to sanitize.
  * @returns A clean `McpConfig` guaranteed to have only valid, unique server entries.
  */
-export function sanitizeMcpConfig({ raw }: { raw: unknown }): McpConfig {
-  if (!isPlainObject(raw)) return { servers: [] };
+export function sanitizeMcpConfig({ raw: value }: { raw: unknown }): McpConfig {
+  const input = { v: value };
+  if (!isPlainObject(input)) return { servers: [] };
+  const raw = input.v;
   const list = Array.isArray(raw.servers) ? raw.servers : [];
   const seen = new Set<string>();
   const out: McpServerConfig[] = [];

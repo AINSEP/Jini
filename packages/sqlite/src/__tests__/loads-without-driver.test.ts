@@ -12,7 +12,7 @@ it('packed old root loads without any driver and requires explicit injection for
   // 24d45ab9 added this required diagnostics dependency; keep optional database drivers absent.
   copyRuntimeTree(dir,'js-tokens',join(packages,'diagnostics/node_modules/js-tokens'));
   copyPackage(dir,'kysely',join(packages,'db/node_modules/kysely'));
-  const result=run(dir,`const a=await import('@jini-ai/sqlite');const errors=[];for(const action of [()=>a.createSqliteEventLog({ db: undefined })]){try{action();}catch(error){errors.push(error.message);}}console.log(JSON.stringify([Object.keys(a).sort(),errors,a.parseJsonOrUndef('{"x":1}')]));`);
+  const result=run(dir,`const a=await import('@jini-ai/sqlite');const errors=[];for(const action of [()=>a.createSqliteEventLog({ db: undefined })]){try{action();}catch(error){errors.push(error.message);}}console.log(JSON.stringify([Object.keys(a).sort(),errors,a.parseJsonOrUndef({ s: '{"x":1}' })]));`);
   expect(result.status, result.stderr).toBe(0);expect(result.stderr).toBe('');
   expect(JSON.parse(result.stdout)).toEqual([old.filter(e=>e.runtime).map(e=>e.name).sort(),['createSqliteEventLog: pass a borrowed SqliteDb'],{x:1}]);
   for(const driver of ['better-sqlite3','pg','@electric-sql/pglite','react']) {

@@ -92,21 +92,21 @@ for (const { name, kernel } of cases) {
       await kernel.execute(sql`INSERT INTO uniq_probe VALUES ('x', 'y')`);
       const duplicate = await kernel.execute(sql`INSERT INTO uniq_probe VALUES ('x', 'z')`).then(() => null, (err: unknown) => err);
       assert.ok(duplicate instanceof Error, "the duplicate insert must fail");
-      assert.equal(isUniqueViolation(duplicate), true);
+      assert.equal(isUniqueViolation({ err: duplicate }), true);
       const notNull = await kernel.execute(sql`INSERT INTO uniq_probe VALUES ('w', NULL)`).then(() => null, (err: unknown) => err);
       assert.ok(notNull instanceof Error, "the NULL insert must fail");
-      assert.equal(isUniqueViolation(notNull), false);
+      assert.equal(isUniqueViolation({ err: notNull }), false);
     });
   });
 }
 
 test("isUniqueViolation: in-memory doubles with SQLite's wording count; non-errors never do", () => {
-  assert.equal(isUniqueViolation(new Error("UNIQUE constraint failed: users.email")), true);
-  assert.equal(isUniqueViolation(Object.assign(new Error("duplicate key"), { code: "23505" })), true);
-  assert.equal(isUniqueViolation(Object.assign(new Error("dup"), { code: "SQLITE_CONSTRAINT_UNIQUE" })), true);
-  assert.equal(isUniqueViolation({ code: "23505", message: "UNIQUE constraint failed" }), false);
-  assert.equal(isUniqueViolation("UNIQUE constraint failed"), false);
-  assert.equal(isUniqueViolation(new Error("some other failure")), false);
+  assert.equal(isUniqueViolation({ err: new Error("UNIQUE constraint failed: users.email") }), true);
+  assert.equal(isUniqueViolation({ err: Object.assign(new Error("duplicate key"), { code: "23505" }) }), true);
+  assert.equal(isUniqueViolation({ err: Object.assign(new Error("dup"), { code: "SQLITE_CONSTRAINT_UNIQUE" }) }), true);
+  assert.equal(isUniqueViolation({ err: { code: "23505", message: "UNIQUE constraint failed" } }), false);
+  assert.equal(isUniqueViolation({ err: "UNIQUE constraint failed" }), false);
+  assert.equal(isUniqueViolation({ err: new Error("some other failure") }), false);
 });
 
 test("a JSON path must name at least one key", () => {

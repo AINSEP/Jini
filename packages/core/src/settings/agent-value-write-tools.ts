@@ -101,7 +101,7 @@ async function resolveTarget(deps: SettingsToolDeps, target: WriteTarget, isSet:
   if (definition.secret) throw new ToolInputError({ message: `${isSet ? "settings_set_value" : "settings_clear_value"}: '${definition.namespace}.${definition.key}' is a secret setting. Use its dedicated credential-entry or sign-in tool. Nothing was changed.` });
   const scopeAllowed = (definition.scopes & SCOPE_BIT[target.scope]) !== 0;
   if (!scopeAllowed) throw new ScopeNotAllowedError(name);
-  if (isSet && !validateValueAgainstSchema(definition.schema, target.value!)) throw new ValueValidationFailedError(`value for '${name}' does not match the definition schema`);
+  if (isSet && !validateValueAgainstSchema({ schema: definition.schema, value: target.value! })) throw new ValueValidationFailedError(`value for '${name}' does not match the definition schema`);
   return definition;
 }
 
@@ -127,11 +127,11 @@ function writePolicy(deps: SettingsToolDeps, toolId: SettingsValueWriteToolId, t
   const targets = definition ? [target, definition] : [target];
   const { denied, confirmation } = agentWriteRules(deps);
   for (const coordinate of targets) {
-    const rule = findAgentWriteRule(denied, coordinate);
+    const rule = findAgentWriteRule({ rules: denied, target: coordinate });
     if (rule) throw new ToolInputError({ message: `${toolId}: '${coordinate.namespace}.${coordinate.key}' can't be changed by the assistant: ${rule.reason}. The owner can change it in Settings.` });
   }
   for (const coordinate of targets) {
-    const rule = findAgentWriteRule(confirmation, coordinate);
+    const rule = findAgentWriteRule({ rules: confirmation, target: coordinate });
     if (rule) return { ...rule, namespace: coordinate.namespace, key: coordinate.key };
   }
   return undefined;
@@ -231,7 +231,7 @@ async function applyWrite(deps: SettingsToolDeps, request: WriteRequest, prepare
     return { key, scope: target.scope, previous, value: result.value, revisionSeq: result.revisionSeq };
   }
   await clear({ deps: writeDeps, input }, options);
-  const effective = await getEffective({ repo: deps.settingsRepo }, { namespace: definition.namespace, key: definition.key, scopeContext: { workspaceId: deps.workspaceId, principalId: ctx.principal.id } });
+  const effective = await getEffective({ deps: { repo: deps.settingsRepo }, namespace: definition.namespace, key: definition.key, scopeContext: { workspaceId: deps.workspaceId, principalId: ctx.principal.id } });
   return { key, scope: target.scope, previous, effective: effective?.value ?? null };
 }
 
@@ -239,7 +239,7 @@ async function applyWrite(deps: SettingsToolDeps, request: WriteRequest, prepare
  * service write -> result. The service rechecks authorization and performs its normal transaction.
  * @complexity O(value size + rule count) plus bounded repository calls and a human wait.
  * @throws ToolInputError for invalid input, denied keys, absent/declined/stale confirmation. */
-export function buildSettingsValueWriteHandler(deps: SettingsToolDeps, toolId: SettingsValueWriteToolId): ToolHandler {
+export function buildSettingsValueWriteHandler({ deps, toolId }: { deps: SettingsToolDeps; toolId: SettingsValueWriteToolId }, _optional: Record<string, never> = {}): ToolHandler {
   return async (ctx, options?: ToolExecutionOptions) => {
     // Keep the delegating actor/run bound across readiness, consent and fresh service checks.
     // parseTarget owns JSON validation/snapshotting so invalid values retain their exact refusal.

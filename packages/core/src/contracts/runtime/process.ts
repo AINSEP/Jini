@@ -22,8 +22,8 @@ export type StopProcessesResult = {
  * @returns The unique PIDs of the roots and all their descendants, descending.
  */
 export function collectProcessTreePids(
-  processes: ProcessSnapshot[],
-  rootPids: Array<number | null | undefined>,
+  { processes, rootPids }: { processes: ProcessSnapshot[]; rootPids: Array<number | null | undefined> },
+  _optional: Record<string, never> = {},
 ): number[] {
   const queue = [...new Set(rootPids.filter((pid): pid is number => typeof pid === "number"))];
   const visited = new Set<number>();

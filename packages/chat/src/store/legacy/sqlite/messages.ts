@@ -290,7 +290,7 @@ function readStoredEvents({ db, messageId }: { db: SqliteDb; messageId: string }
     .prepare(`SELECT events_json AS eventsJson FROM messages WHERE id = ?`)
     .get(messageId) as DbRow | undefined;
   if (!row) return null;
-  const parsed = parseJsonOrUndef(row.eventsJson);
+  const parsed = parseJsonOrUndef({ s: row.eventsJson });
   return Array.isArray(parsed) ? parsed : [];
 }
 
@@ -337,7 +337,7 @@ export function deleteMessage({ db, id }: { db: SqliteDb; id: string }) {
 
 /** @internal Converts a raw SQLite row to a plain object with JSON columns parsed and null coerced to undefined. */
 function normalizeMessage(row: DbRow) {
-  const folders = foldersFromReceipts({ events: parseJsonOrUndef(row.eventsJson) });
+  const folders = foldersFromReceipts({ events: parseJsonOrUndef({ s: row.eventsJson }) });
   return {
     id: row.id,
     role: row.role,
@@ -347,11 +347,11 @@ function normalizeMessage(row: DbRow) {
     runId: row.runId ?? undefined,
     runStatus: row.runStatus ?? undefined,
     lastRunEventId: row.lastRunEventId ?? undefined,
-    events: parseJsonOrUndef(row.eventsJson),
-    attachments: parseJsonOrUndef(row.attachmentsJson),
+    events: parseJsonOrUndef({ s: row.eventsJson }),
+    attachments: parseJsonOrUndef({ s: row.attachmentsJson }),
     ...(folders.length ? { folders } : {}),
     sessionMode: normalizeMessageSessionMode(row.sessionMode),
-    runContext: parseJsonOrUndef(row.runContextJson),
+    runContext: parseJsonOrUndef({ s: row.runContextJson }),
     createdAt: row.createdAt ?? undefined,
     startedAt: row.startedAt ?? undefined,
     endedAt: row.endedAt ?? undefined,

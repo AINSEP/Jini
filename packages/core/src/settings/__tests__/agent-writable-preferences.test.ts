@@ -93,7 +93,7 @@ test("consent and self-instructions stay off the unconfirmed display-preference 
 
   for (const id of withheld) {
     assert.ok(registered.has(id), `sanity: '${id}' should still be registered by boot — update this test if the tab was removed`);
-    assert.equal(resolveAgentWritablePreference(id), undefined, `'${id}' must stay off the display-preference tool; generic value writes require a human card`);
+    assert.equal(resolveAgentWritablePreference({ settingId: id }), undefined, `'${id}' must stay off the display-preference tool; generic value writes require a human card`);
     assert.equal(AGENT_WRITABLE_PREFERENCE_IDS.includes(id), false);
   }
 });
@@ -116,12 +116,12 @@ test("ids are unique and each parses back to its own namespace and key", () => {
 });
 
 test("resolveAgentWritablePreference refuses anything off the list", () => {
-  assert.equal(resolveAgentWritablePreference("core.presentation.site_title"), undefined);
-  assert.equal(resolveAgentWritablePreference(""), undefined);
-  assert.equal(resolveAgentWritablePreference("core.language"), undefined, "a namespace alone is not a setting");
-  assert.equal(resolveAgentWritablePreference("__proto__"), undefined, "a Map lookup must not resolve prototype keys");
+  assert.equal(resolveAgentWritablePreference({ settingId: "core.presentation.site_title" }), undefined);
+  assert.equal(resolveAgentWritablePreference({ settingId: "" }), undefined);
+  assert.equal(resolveAgentWritablePreference({ settingId: "core.language" }), undefined, "a namespace alone is not a setting");
+  assert.equal(resolveAgentWritablePreference({ settingId: "__proto__" }), undefined, "a Map lookup must not resolve prototype keys");
 
-  const known = resolveAgentWritablePreference("core.language.locale");
+  const known = resolveAgentWritablePreference({ settingId: "core.language.locale" });
   assert.equal(known?.namespace, "core.language");
   assert.equal(known?.key, "locale");
 });

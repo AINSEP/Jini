@@ -101,7 +101,7 @@ export function fakeProcessControl(_required: Record<string, never> = {}, option
     },
     async stopProcesses({ pids }): Promise<StopProcessesResult> {
       stopRequests.push(pids);
-      const matchedPids = collectProcessTreePids(table.map((snapshot) => ({ ...snapshot })), [...pids]).filter((pid) => table.some((snapshot) => snapshot.pid === pid));
+      const matchedPids = collectProcessTreePids({ processes: table.map((snapshot) => ({ ...snapshot })), rootPids: [...pids] }).filter((pid) => table.some((snapshot) => snapshot.pid === pid));
       table = table.filter((snapshot) => !matchedPids.includes(snapshot.pid));
       return { alreadyStopped: matchedPids.length === 0, forcedPids: [], matchedPids, remainingPids: [], stoppedPids: matchedPids };
     },

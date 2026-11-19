@@ -107,7 +107,7 @@ export function validateDefinitionInput(
   return { valid: true };
 }
 
-export function validateValueAgainstSchema(schema: SettingValueSchema, value: JsonValue): boolean {
+export function validateValueAgainstSchema({ schema, value }: { schema: SettingValueSchema; value: JsonValue }, _optional: Record<string, never> = {}): boolean {
   if (value === null) return schema.nullable === true;
   switch (schema.type) {
     case "string":
@@ -209,7 +209,7 @@ function definitionCacheKey(workspaceId: string | null, namespace: string, key: 
  * definition's identity/shape/status in this namespace: register, rename
  * (both the old and new namespace), retype, deprecate, tombstone.
  */
-export function invalidateDefinitionNamespaceCache(repo: SettingsRepoPort, namespace: string): void {
+export function invalidateDefinitionNamespaceCache({ repo, namespace }: { repo: SettingsRepoPort; namespace: string }, _optional: Record<string, never> = {}): void {
   const store = getCacheStore(repo);
   store.epoch.set(namespace, namespaceEpoch(store, namespace) + 1);
 }
@@ -327,8 +327,7 @@ export interface ResolvedSetting {
  * See docs/decisions/DR-003-settings-ledger-invariants.md.
  */
 export async function getEffective(
-  deps: { repo: SettingsRepoPort },
-  input: { namespace: string; key: string; scopeContext: SettingScopeContext },
+  { deps, ...input }: { deps: { repo: SettingsRepoPort } } & { namespace: string; key: string; scopeContext: SettingScopeContext },
   { coercers }: { coercers?: ReadonlyMap<string, SettingCoercer> } = {},
 ): Promise<ResolvedSetting | null> {
   const definition = await resolveDefinition(deps, {

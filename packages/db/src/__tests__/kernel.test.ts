@@ -148,7 +148,7 @@ for (const { name, kernel, create } of cases) {
       await upsert(2, false);
       const [row] = await kernel.run((db) => db.selectFrom("kernel_probe").selectAll().where("flag", "=", false).execute());
       assert.equal(row?.n, 2);
-      assert.equal(toBool(row!.flag), false);
+      assert.equal(toBool({ value: row!.flag }), false);
       // JSON reads back as JSON text on both (Postgres normalises spacing, so compare parsed).
       assert.equal(typeof row?.doc, "string");
       assert.deepEqual(JSON.parse(row!.doc!), { title: "Hi" });
@@ -307,10 +307,10 @@ test("a missing capability is an explicit error, never a silent downgrade", asyn
 });
 
 test("toBool / toBytes accept each driver's shape and refuse anything else", () => {
-  assert.deepEqual([toBool(true), toBool(1), toBool(false), toBool(0), toBool(null)], [true, true, false, false, null]);
-  assert.deepEqual([...toBytes(Buffer.from([1, 2]))], [1, 2]);
-  assert.deepEqual([...toBytes(new Uint8Array([3]))], [3]);
-  assert.throws(() => toBytes("AQI="), { message: "expected a binary column value, got string" });
+  assert.deepEqual([toBool({ value: true }), toBool({ value: 1 }), toBool({ value: false }), toBool({ value: 0 }), toBool({ value: null })], [true, true, false, false, null]);
+  assert.deepEqual([...toBytes({ value: Buffer.from([1, 2]) })], [1, 2]);
+  assert.deepEqual([...toBytes({ value: new Uint8Array([3]) })], [3]);
+  assert.throws(() => toBytes({ value: "AQI=" }), { message: "expected a binary column value, got string" });
 });
 
 test("TurnLock: a queued transaction goes before later readers (FIFO, no starvation)", async () => {

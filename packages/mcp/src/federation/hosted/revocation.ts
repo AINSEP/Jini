@@ -105,7 +105,7 @@ function grantRefusalFor(record: ExternalMcpServerRecord, call: FederatedCallTar
  * @complexity O(1).
  */
 /** @agent-note Pure: the caller passes the row it already read (the store's repository, once per call) and the admitted call identity; no I/O and no state. */
-export function rosterRefusalFor(record: ExternalMcpServerRecord | null, call: FederatedCallTarget): ExternalMcpRevocationReason | null {
+export function rosterRefusalFor({ record, call }: { record: ExternalMcpServerRecord | null; call: FederatedCallTarget }, _optional: Record<string, never> = {}): ExternalMcpRevocationReason | null {
   if (call.origin === undefined || call.origin.kind === "preset") return "unverifiable";
   if (record === null) return "removed";
   if (externalMcpAdmissionRevision(record) !== call.origin.admissionRevision) return "changed";

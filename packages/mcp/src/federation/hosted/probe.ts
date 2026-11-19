@@ -94,7 +94,7 @@ async function resolveProbeTarget(
   const config = configs.find((candidate) => candidate.serverId === serverId);
   if (!config) return { ok: false, failure: resolutionFailure({ failure: failures.find((candidate) => candidate.serverId === serverId) }) };
 
-  const [resolved] = toResolvedFederatedConnections([config]);
+  const [resolved] = toResolvedFederatedConnections({ configs: [config] });
   // Defensive, not reachable given the transport check above (`config.transport` mirrors
   // `record.transport` — both come from the same row): a probe must never launch a child process,
   // and a launch-spec SHAPE check right before connecting is the cheapest second guarantee of that,

@@ -18,7 +18,7 @@ import type { AgentSlug, CliInstallPlan, JsonInstallPlan, McpLaunchSpec, PlanCon
 // less-exposed handoff (e.g. piping `env` via stdin, or setting it directly
 // in the spawned child's environment) for any future agent whose CLI
 // supports that instead of argv-only `KEY=VALUE`.
-export function envFlags(env: Record<string, string>, flag: string): string[] {
+export function envFlags({ env, flag }: { env: Record<string, string>; flag: string }, _optional: Record<string, never> = {}): string[] {
   const out: string[] = [];
   for (const [k, v] of Object.entries(env)) {
     out.push(flag, `${k}=${v}`);
@@ -27,7 +27,7 @@ export function envFlags(env: Record<string, string>, flag: string): string[] {
 }
 
 // Attaches the env map under `key` only when non-empty, so configs stay clean.
-export function withEnv(entry: Record<string, unknown>, env: Record<string, string>, key: 'env' | 'environment'): Record<string, unknown> {
+export function withEnv({ entry, env, key }: { entry: Record<string, unknown>; env: Record<string, string>; key: 'env' | 'environment' }, _optional: Record<string, never> = {}): Record<string, unknown> {
   if (Object.keys(env).length > 0) entry[key] = env;
   return entry;
 }
@@ -36,7 +36,7 @@ export function withEnv(entry: Record<string, unknown>, env: Record<string, stri
  *  cline / openclaw / antigravity / trae). `extra` carries per-agent
  *  fields; env is only attached when non-empty so configs stay clean. */
 export function jsonEntry(spec: McpLaunchSpec, extra: Record<string, unknown> = {}): Record<string, unknown> {
-  return withEnv({ command: spec.command, args: spec.args, ...extra }, spec.env, 'env');
+  return withEnv({ entry: { command: spec.command, args: spec.args, ...extra }, env: spec.env, key: 'env' });
 }
 
 /** Inputs every per-agent planner receives; `appData` is the resolved `APPDATA` (win32 only). */
@@ -46,16 +46,16 @@ export interface PlannerArgs {
   appData: string | undefined;
 }
 
-export function cliPlan(slug: AgentSlug, bin: string, argv: Pick<CliInstallPlan, 'addArgv' | 'removeArgv'>, serverName: string): CliInstallPlan {
+export function cliPlan({ slug, bin, argv, serverName }: { slug: AgentSlug; bin: string; argv: Pick<CliInstallPlan, 'addArgv' | 'removeArgv'>; serverName: string }, _optional: Record<string, never> = {}): CliInstallPlan {
   return { kind: 'cli', slug, bin, ...argv, getArgv: ['mcp', 'get', serverName] };
 }
 
-export function jsonPlan(slug: AgentSlug, configPath: string, keyPath: string[], serverKey: string, entry: unknown): JsonInstallPlan {
+export function jsonPlan({ slug, configPath, keyPath, serverKey, entry }: { slug: AgentSlug; configPath: string; keyPath: string[]; serverKey: string; entry: unknown }, _optional: Record<string, never> = {}): JsonInstallPlan {
   return { kind: 'json', slug, configPath, keyPath, serverKey, entry };
 }
 
 // VS Code-family editors keep per-user state under one platform-specific root.
-export function editorUserDir(app: string, home: string, platform: NodeJS.Platform, suppliedAppData: string | undefined): string {
+export function editorUserDir({ app, home, platform, suppliedAppData }: { app: string; home: string; platform: NodeJS.Platform; suppliedAppData: string | undefined }, _optional: Record<string, never> = {}): string {
   if (platform === 'darwin') return path.join(home, 'Library', 'Application Support', app, 'User');
   if (platform === 'win32') return path.join(suppliedAppData ?? path.join(home, 'AppData', 'Roaming'), app, 'User');
   return path.join(home, '.config', app, 'User');

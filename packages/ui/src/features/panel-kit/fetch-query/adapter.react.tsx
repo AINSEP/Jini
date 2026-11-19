@@ -55,7 +55,7 @@ export function resolveFetchQueryStatus({ disabled, hasData, status }: { disable
 
 export function resolveFetchQueryError({ error, disabled, hasData }: { error: unknown; disabled: boolean; hasData: boolean }): Error | null {
   if (!error || (disabled && !hasData)) return null;
-  return toQueryError(error);
+  return toQueryError({ value: error });
 }
 
 /** Reactive keyed read. Background refresh keeps cached data visible. */
@@ -110,7 +110,7 @@ export function useFetchMutation<TInput, TOutput>(required: Pick<FetchMutationOp
       if (mounted.current && current === generation.current) setState({ status: 'success', error: null });
       return value;
     }, error => {
-      if (mounted.current && current === generation.current) setState({ status: 'error', error: toQueryError(error) });
+      if (mounted.current && current === generation.current) setState({ status: 'error', error: toQueryError({ value: error }) });
       throw error;
     });
     // Handle this same promise for callers that discard it, while still returning it so
@@ -130,7 +130,7 @@ export function useCachedLoader<T>({ key, fetch }: CachedLoaderDefaults<T>, { st
     // `fetch` is the loader's optional default; `withCachedLoaderFetch` rejects an argument-less read
     // that has none before the cache is touched (see `CachedLoaderDefaults`).
     load: (required: CachedLoaderDefaults<T> = { key, fetch }, { staleTime: readStaleTime = staleTime }: { staleTime?: number } = {}) =>
-      withCachedLoaderFetch(required, read => cache.load({ entry: cache.entry({ key: read.key }, { staleTime }), fetch: read.fetch, staleTime: readStaleTime })),
+      withCachedLoaderFetch({ ...required, read: read => cache.load({ entry: cache.entry({ key: read.key }, { staleTime }), fetch: read.fetch, staleTime: readStaleTime }) }),
     replace: ({ value }: { value: T }) => cache.replace({ entry: cache.entry({ key: key }, { staleTime: staleTime }), data: value }),
   }), [cache, key, fetch, staleTime]);
 }

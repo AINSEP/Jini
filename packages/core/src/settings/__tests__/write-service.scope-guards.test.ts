@@ -76,7 +76,7 @@ test("set, clear and resetNamespace refuse FORBIDDEN, before authorizing or writ
   await assert.rejects(() => set({ deps, input: { ...target, ...crossTenant, scope: "workspace", value: "atlas" } }), isCrossTenantRefusal);
   await assert.rejects(() => clear({ deps, input: { ...target, ...crossTenant, scope: "user" } }), isCrossTenantRefusal);
   await assert.rejects(
-    () => resetNamespace({ deps, input: { namespace: target.namespace, ...crossTenant, scope: "workspace" } }, [target.key]),
+    () => resetNamespace({ deps, input: { namespace: target.namespace, ...crossTenant, scope: "workspace" }, keysInNamespace: [target.key] }),
     isCrossTenantRefusal
   );
 

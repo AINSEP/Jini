@@ -16,4 +16,4 @@ import { jsonEntry, jsonPlan } from '../planner-shared.js';
 export const ANTIGRAVITY_MCP_CONFIG_SEGMENTS = ['.gemini', 'config', 'mcp_config.json'] as const;
 
 export const planAntigravityInstall: (args: PlannerArgs) => InstallPlan = ({ spec, ctx: { home, serverName } }) =>
-    jsonPlan('antigravity', path.join(home, ...ANTIGRAVITY_MCP_CONFIG_SEGMENTS), ['mcpServers'], serverName, jsonEntry(spec));
+    jsonPlan({ slug: 'antigravity', configPath: path.join(home, ...ANTIGRAVITY_MCP_CONFIG_SEGMENTS), keyPath: ['mcpServers'], serverKey: serverName, entry: jsonEntry(spec) });

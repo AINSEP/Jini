@@ -29,8 +29,8 @@ function value(overrides: Partial<SettingValueRecord>): SettingValueRecord {
 const coordinate = { namespace: "core.presentation", key: "timezone" };
 
 test("validateValueAgainstSchema accepts numbers only for a number schema", () => {
-  assert.equal(validateValueAgainstSchema({ type: "number" }, 3), true);
-  assert.equal(validateValueAgainstSchema({ type: "number" }, "3"), false);
+  assert.equal(validateValueAgainstSchema({ schema: { type: "number" }, value: 3 }), true);
+  assert.equal(validateValueAgainstSchema({ schema: { type: "number" }, value: "3" }), false);
 });
 
 test("validateDefinitionInput fences theme definitions to theme.* with a null workspace", () => {
@@ -43,12 +43,12 @@ test("validateDefinitionInput fences theme definitions to theme.* with a null wo
 
 test("getEffective returns a stale-version value unchanged when the definition has no coercion tag", async () => {
   const repo = new InMemorySettingsRepo({ definitions: [definition({ version: 2 })], globalValues: [value({ valueJson: "old", defVersion: 1 })] });
-  assert.deepEqual(await getEffective({ repo }, { ...coordinate, scopeContext: {} }), { value: "old", sourceLayer: "global", defVersion: 2 });
+  assert.deepEqual(await getEffective({ deps: { repo }, ...coordinate, scopeContext: {} }), { value: "old", sourceLayer: "global", defVersion: 2 });
 });
 
 test("getEffective falls back to identity when the coercion tag has no coercer", async () => {
   const repo = new InMemorySettingsRepo({ definitions: [definition({ version: 2, coercionTag: "never-registered" })], globalValues: [value({ valueJson: "old", defVersion: 1 })] });
-  assert.deepEqual(await getEffective({ repo }, { ...coordinate, scopeContext: {} }), { value: "old", sourceLayer: "global", defVersion: 2 });
+  assert.deepEqual(await getEffective({ deps: { repo }, ...coordinate, scopeContext: {} }), { value: "old", sourceLayer: "global", defVersion: 2 });
 });
 
 test("getEffective coerces a stale user-layer value with the supplied coercer", async () => {
@@ -57,14 +57,14 @@ test("getEffective coerces a stale user-layer value with the supplied coercer", 
     definitions: [definition({ version: 3, coercionTag: "pins-suffix" })],
     userValues: [value({ scope: "user", workspaceId: "ws-1", principalId: "p-1", valueJson: "u", defVersion: 2 })],
   });
-  assert.deepEqual(await getEffective({ repo }, { ...coordinate, scopeContext: { workspaceId: "ws-1", principalId: "p-1" } }, { coercers }), { value: "u!", sourceLayer: "user", defVersion: 3 });
+  assert.deepEqual(await getEffective({ deps: { repo }, ...coordinate, scopeContext: { workspaceId: "ws-1", principalId: "p-1" } }, { coercers }), { value: "u!", sourceLayer: "user", defVersion: 3 });
 });
 
 test("getEffective skips the user layer when only a principal (no workspace) is given", async () => {
   const repo = new InMemorySettingsRepo({ definitions: [definition()] });
   const user = vi.spyOn(repo, "getUserValue");
   const workspace = vi.spyOn(repo, "getWorkspaceValue");
-  assert.deepEqual(await getEffective({ repo }, { ...coordinate, scopeContext: { principalId: "p-1" } }), { value: "UTC", sourceLayer: "default", defVersion: 1 });
+  assert.deepEqual(await getEffective({ deps: { repo }, ...coordinate, scopeContext: { principalId: "p-1" } }), { value: "UTC", sourceLayer: "default", defVersion: 1 });
   assert.equal(user.mock.calls.length, 0);
   assert.equal(workspace.mock.calls.length, 0);
 });
@@ -72,7 +72,7 @@ test("getEffective skips the user layer when only a principal (no workspace) is 
 test("getEffective reads the workspace but not the user layer when no principal is given", async () => {
   const repo = new InMemorySettingsRepo({ definitions: [definition()], workspaceValues: [value({ scope: "workspace", workspaceId: "ws-1", valueJson: "ws" })] });
   const user = vi.spyOn(repo, "getUserValue");
-  assert.deepEqual(await getEffective({ repo }, { ...coordinate, scopeContext: { workspaceId: "ws-1" } }), { value: "ws", sourceLayer: "workspace", defVersion: 1 });
+  assert.deepEqual(await getEffective({ deps: { repo }, ...coordinate, scopeContext: { workspaceId: "ws-1" } }), { value: "ws", sourceLayer: "workspace", defVersion: 1 });
   assert.equal(user.mock.calls.length, 0);
 });
 
@@ -127,14 +127,14 @@ test("resolveDefinitionRaw returns a tombstoned row as stored", async () => {
 test("getEffective leaves a current-version value uncoerced even when a coercer is supplied", async () => {
   const coercers = new Map([["pins-current", () => "coerced"]]);
   const repo = new InMemorySettingsRepo({ definitions: [definition({ version: 2, coercionTag: "pins-current" })], globalValues: [value({ valueJson: "fresh", defVersion: 2 })] });
-  assert.deepEqual(await getEffective({ repo }, { ...coordinate, scopeContext: {} }, { coercers }), { value: "fresh", sourceLayer: "global", defVersion: 2 });
+  assert.deepEqual(await getEffective({ deps: { repo }, ...coordinate, scopeContext: {} }, { coercers }), { value: "fresh", sourceLayer: "global", defVersion: 2 });
 });
 
 test("getEffective: a supplied coercer overrides nothing built-in, identity stays the fallback, and no module state is written", async () => {
   const mk = () => new InMemorySettingsRepo({ definitions: [definition({ version: 3, coercionTag: "pins-isolated" })], globalValues: [value({ valueJson: "g", defVersion: 2 })] });
   const coercers = new Map([["pins-isolated", () => "overridden"]]);
-  assert.equal((await getEffective({ repo: mk() }, { ...coordinate, scopeContext: {} }, { coercers }))?.value, "overridden");
+  assert.equal((await getEffective({ deps: { repo: mk() }, ...coordinate, scopeContext: {} }, { coercers }))?.value, "overridden");
   // A later call without the option sees no trace of the earlier one.
-  assert.equal((await getEffective({ repo: mk() }, { ...coordinate, scopeContext: {} }))?.value, "g");
-  assert.equal((await getEffective({ repo: mk() }, { ...coordinate, scopeContext: {} }, { coercers: new Map() }))?.value, "g");
+  assert.equal((await getEffective({ deps: { repo: mk() }, ...coordinate, scopeContext: {} }))?.value, "g");
+  assert.equal((await getEffective({ deps: { repo: mk() }, ...coordinate, scopeContext: {} }, { coercers: new Map() }))?.value, "g");
 });

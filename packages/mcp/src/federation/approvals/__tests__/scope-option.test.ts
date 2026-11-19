@@ -8,5 +8,5 @@ test.each([
   ["", { scope: "" }],
   ["site-1", { scope: "site-1" }],
 ])("scopeOption(%j)", (scope, expected) => {
-  expect(scopeOption(scope)).toStrictEqual(expected);
+  expect(scopeOption({ scope })).toStrictEqual(expected);
 });

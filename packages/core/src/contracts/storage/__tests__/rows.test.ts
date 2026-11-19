@@ -2,8 +2,8 @@
 import { expect, it } from 'vitest';
 import { parseJsonOrUndef, row, rows } from '../rows.js';
 it('tolerates invalid JSON while retaining every valid JSON value',()=>{
-  for(const value of [undefined,null,42,{},'', '{bad']) expect(parseJsonOrUndef(value)).toBeUndefined();
-  for(const value of [null,false,0,'',[],{nested:[1,'x']}]) expect(parseJsonOrUndef(JSON.stringify(value))).toEqual(value);
+  for(const value of [undefined,null,42,{},'', '{bad']) expect(parseJsonOrUndef({ s: value })).toBeUndefined();
+  for(const value of [null,false,0,'',[],{nested:[1,'x']}]) expect(parseJsonOrUndef({ s: JSON.stringify(value) })).toEqual(value);
 });
 it('row and rows preserve object identity and positions without changing input',()=>{
   const object={x:1}, input=[object,null,false,undefined,[],1];

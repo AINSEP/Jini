@@ -11,26 +11,26 @@ import { validateValueAgainstSchema } from "../settings.js";
  */
 
 test("validateValueAgainstSchema({type:'json'}): accepts a plain object", () => {
-  assert.equal(validateValueAgainstSchema({ type: "json" }, { userAgent: "*", disallow: ["/admin"] }), true);
+  assert.equal(validateValueAgainstSchema({ schema: { type: "json" }, value: { userAgent: "*", disallow: ["/admin"] } }), true);
 });
 
 test("validateValueAgainstSchema({type:'json'}): accepts an array", () => {
   assert.equal(
-    validateValueAgainstSchema({ type: "json" }, [{ userAgent: "*" }, { userAgent: "Googlebot" }]),
+    validateValueAgainstSchema({ schema: { type: "json" }, value: [{ userAgent: "*" }, { userAgent: "Googlebot" }] }),
     true
   );
 });
 
 test("validateValueAgainstSchema({type:'json'}): accepts a bare scalar (string/number/boolean)", () => {
-  assert.equal(validateValueAgainstSchema({ type: "json" }, "a scalar string"), true);
-  assert.equal(validateValueAgainstSchema({ type: "json" }, 42), true);
-  assert.equal(validateValueAgainstSchema({ type: "json" }, true), true);
+  assert.equal(validateValueAgainstSchema({ schema: { type: "json" }, value: "a scalar string" }), true);
+  assert.equal(validateValueAgainstSchema({ schema: { type: "json" }, value: 42 }), true);
+  assert.equal(validateValueAgainstSchema({ schema: { type: "json" }, value: true }), true);
 });
 
 test("validateValueAgainstSchema({type:'json', nullable:true}): accepts null", () => {
-  assert.equal(validateValueAgainstSchema({ type: "json", nullable: true }, null), true);
+  assert.equal(validateValueAgainstSchema({ schema: { type: "json", nullable: true }, value: null }), true);
 });
 
 test("validateValueAgainstSchema({type:'json'}) (not nullable): rejects null", () => {
-  assert.equal(validateValueAgainstSchema({ type: "json" }, null), false);
+  assert.equal(validateValueAgainstSchema({ schema: { type: "json" }, value: null }), false);
 });

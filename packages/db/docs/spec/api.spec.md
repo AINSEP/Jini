@@ -16,7 +16,7 @@ Scope: all thirteen `package.json` exports, including metadata. There is no root
 | `sanitizeForFilename` | `(value: string) => string` (positional exception) |
 | `restorePointFilename` | `({ scopeId: string; watermarkAtCapture: number; timestamp: number; extension?: string }) => string` (optional extension in first object) |
 | `parseInt8` | `(text: string) => number | bigint` (positional exception) |
-| `parseJsonOrUndef` | `(value: unknown) => any` (positional exception; undefined for invalid/non-string input) |
+| `parseJsonOrUndef` | `(required: { s: unknown }, optional: Record<string, never> = {}) => any` (undefined for invalid/non-string input) |
 | `row`, `rows` | `(value: unknown) => DbRow | null`; `(value: unknown[]) => DbRow[]` (positional exceptions) |
 | `PG_OID`, `PG_PARSERS` | OIDs int8 20/json 114/jsonb 3802; readonly mapping number -> `(text: string) => unknown` |
 | `PGLITE_SOCKET_FILE` | `'.s.PGSQL.5432'` |
@@ -107,9 +107,9 @@ finally { await owner.close(); }
 | `jsonScalarEquals` | `({ dialect, column, path, value: string | number | boolean }, {} = {}) => RawBuilder<boolean>` |
 | `jsonSet` | `({ dialect, column, path, value: unknown }, {} = {}) => RawBuilder<string>` |
 | `nowIso` | `({ dialect }, {} = {}) => RawBuilder<string>` |
-| `toBool` | `(value: boolean | number | null | undefined) => boolean | null` |
-| `toBytes` | `(value: unknown) => Uint8Array` |
-| `isUniqueViolation` | `(error: unknown) => boolean` |
+| `toBool` | `(required: { value: boolean | number | null | undefined }, optional: Record<string, never> = {}) => boolean | null` |
+| `toBytes` | `(required: { value: unknown }, optional: Record<string, never> = {}) => Uint8Array` |
+| `isUniqueViolation` | `(required: { err: unknown }, optional: Record<string, never> = {}) => boolean` |
 | `listTables`, `tableExists`, `listColumns`, `listIndexes` | `({ kernel }, {} = {}) => Promise<string[]>`; `({ kernel, table }, {} = {}) => Promise<boolean / ColumnInfo[] / Map<string, IndexInfo>>` |
 | `columnTypeSql`, `autoIdColumnSql` | `({ dialect, affinity: ColumnAffinity }, {} = {}) => string`; `({ dialect }, {} = {}) => string` |
 | `checkpointWal` | `({ kernel }, {} = {}) => Promise<void>` |

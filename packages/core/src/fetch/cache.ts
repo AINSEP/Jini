@@ -62,7 +62,7 @@ export interface CacheEntry {
 
 // Normalize unknown promise rejections once so consumers receive Error without repeating
 // the same narrowing boilerplate at every read and write call site.
-export function toQueryError(value: unknown): Error {
+export function toQueryError({ value }: { value: unknown }, _optional: Record<string, never> = {}): Error {
   if (value instanceof Error) return value;
   return new Error(typeof value === 'string' && value.trim() ? value : 'request failed');
 }
@@ -188,7 +188,7 @@ export class FetchQueryCache {
       return entry.state.data as T;
     }
     entry.invalidated = true;
-    this.publish(entry, { ...entry.state, error: toQueryError(error), status: 'error', isFetching: false });
+    this.publish(entry, { ...entry.state, error: toQueryError({ value: error }), status: 'error', isFetching: false });
     throw error;
   }
 

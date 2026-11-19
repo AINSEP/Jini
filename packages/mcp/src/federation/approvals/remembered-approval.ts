@@ -15,10 +15,14 @@ export interface ApprovalContext {
   readonly alwaysKey: { serverId: string; toolName: string } | undefined;
 }
 
+function approvalConversationId(approvals: FederatedApprovalDeps | undefined, context: FederatedConfirmationContext) {
+  return approvals?.conversationIdForRun?.({ runId: context.run.id });
+}
+
 /** @complexity O(1) beyond the fingerprint hash. */
-export function approvalContext(context: FederatedConfirmationContext, request: FederatedCallConfirmationRequest, approvals: FederatedApprovalDeps | undefined, fingerprintDomain: string): ApprovalContext {
+export function approvalContext({ context, request, approvals, fingerprintDomain }: { context: FederatedConfirmationContext; request: FederatedCallConfirmationRequest; approvals: FederatedApprovalDeps | undefined; fingerprintDomain: string }, _optional: Record<string, never> = {}): ApprovalContext {
   const fingerprint = federatedToolApprovalFingerprint({ identity: request, fingerprintDomain });
-  const conversationId = approvals?.conversationIdForRun?.({ runId: context.run.id });
+  const conversationId = approvalConversationId(approvals, context);
   return {
     fingerprint,
     chatKey: approvals?.chat && conversationId ? { conversationId, principalId: context.principal.id, connectionId: request.connectionId, toolName: request.remoteName, fingerprint } : undefined,
@@ -31,14 +35,14 @@ export function approvalContext(context: FederatedConfirmationContext, request: 
  *  still valid. Lookup and delete failures propagate: remembered lookups fail closed. */
 async function alwaysGrantAuthorizes(approvals: FederatedApprovalDeps, request: FederatedCallConfirmationRequest, keys: ApprovalContext, options: FederatedCallConfirmerOptions): Promise<boolean> {
   if (!keys.alwaysKey || !approvals.always) return false;
-  const saved = await approvals.always.find(keys.alwaysKey, scopeOption(options.scope));
+  const saved = await approvals.always.find(keys.alwaysKey, scopeOption({ scope: options.scope }));
   if (saved && saved.fingerprint === keys.fingerprint && !request.destructive) return true;
-  if (saved) await approvals.always.delete(keys.alwaysKey, scopeOption(options.scope));
+  if (saved) await approvals.always.delete(keys.alwaysKey, scopeOption({ scope: options.scope }));
   return false;
 }
 
 /** Whether a remembered grant lets this call skip its card. A write-shaped call never does. */
-export async function isRemembered(approvals: FederatedApprovalDeps, request: FederatedCallConfirmationRequest, keys: ApprovalContext, options: FederatedCallConfirmerOptions): Promise<boolean> {
+export async function isRemembered({ approvals, request, keys }: { approvals: FederatedApprovalDeps; request: FederatedCallConfirmationRequest; keys: ApprovalContext }, options: FederatedCallConfirmerOptions = {}): Promise<boolean> {
   if (request.writeShapedInputs.length > 0) return false;
   if (await alwaysGrantAuthorizes(approvals, request, keys, options)) return true;
   // Neither a matching chat grant nor an always grant can authorize permanent deletion.
@@ -52,7 +56,7 @@ async function mayOfferAlways({ principalId, keys, approvals, options }: {
   principalId: string; keys: ApprovalContext; approvals: FederatedApprovalDeps | undefined; options: FederatedCallConfirmerOptions;
 }): Promise<boolean> {
   if (keys.alwaysKey === undefined || approvals === undefined) return false;
-  return approvals.mayAlwaysAllow({ principalId }, scopeOption(options.scope));
+  return approvals.mayAlwaysAllow({ principalId }, scopeOption({ scope: options.scope }));
 }
 
 /** The remember buttons this call's card may offer. A destructive or write-shaped call offers
@@ -84,7 +88,7 @@ async function persistGrant({ context, keys, approvals, choice, options }: Remem
   if (choice === "always" && keys.alwaysKey && approvals.always) {
     await approvals.always.upsert({
       ...keys.alwaysKey, fingerprint: keys.fingerprint, grantedByPrincipalId: context.principal.id, grantedAt,
-    }, scopeOption(options.scope));
+    }, scopeOption({ scope: options.scope }));
     return true;
   }
   return false;
@@ -103,6 +107,6 @@ export async function rememberApproval(input: RememberInput): Promise<void> {
   } catch (error) { report(options, { toolId: request.toolId, choice, stage: "store", error }); return; }
   try {
     await options.webhooks?.approvalRemembered({ principalId: context.principal.id,
-      connectionId: request.connectionId, toolName: request.remoteName, fingerprint: keys.fingerprint, scope: choice, grantedAt }, scopeOption(options.scope));
+      connectionId: request.connectionId, toolName: request.remoteName, fingerprint: keys.fingerprint, scope: choice, grantedAt }, scopeOption({ scope: options.scope }));
   } catch (error) { report(options, { toolId: request.toolId, choice, stage: "webhook", error }); }
 }

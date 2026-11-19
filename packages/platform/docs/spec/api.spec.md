@@ -34,7 +34,7 @@ Root namespace exports `filesystem`, `guardedHttp`, `mail`, `smtp`, `secrets`, `
 | `isProcessAlive` | `(pid: number | null | undefined): boolean` | OS liveness probe |
 | `waitForProcessExit` | `(pid, timeoutMs = 5000): Promise<boolean>` | Poll interval 100 ms |
 | `listProcessSnapshots` | `(): Promise<ProcessSnapshot[]>` | Native ps or PowerShell |
-| `collectProcessTreePids` | `(processes: ProcessSnapshot[], rootPids: (number | null | undefined)[]): number[]` | Supplied process snapshot |
+| `collectProcessTreePids` | `(required: { processes: ProcessSnapshot[]; rootPids: (number | null | undefined)[] }, optional: Record<string, never> = {}): number[]` | Supplied process snapshot |
 | `stopProcesses` | `(pids: (number | null | undefined)[]): Promise<StopProcessesResult>` | Native signal escalation |
 | `pathContains` | `({ root, target }: { root: string; target: string }, _optional: Record<string, never> = {}): boolean` | Lexical resolved paths |
 | `atomicCopyFile` | `({ sourcePath, destinationPath }: { sourcePath: string; destinationPath: string }, options: AtomicCopyFileOptions = {}): Promise<AtomicCopyFileResult>` | Optional overwrite, default false |

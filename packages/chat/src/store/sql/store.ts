@@ -467,7 +467,7 @@ export function createSqlChatStore<DB extends ChatDatabase>(
           .execute()
       );
       } catch (cause) {
-        if (isUniqueViolation(cause)) throw new ChatStoreError({ code: 'conflict' }, { cause });
+        if (isUniqueViolation({ err: cause })) throw new ChatStoreError({ code: 'conflict' }, { cause });
         throw cause;
       }
       const created = await get({ id: input.id });

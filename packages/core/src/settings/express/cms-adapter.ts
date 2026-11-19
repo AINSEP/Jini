@@ -56,7 +56,7 @@ export function createCmsSettingsService(required: {
       const keys = new Set(defs.filter((d) => d.namespace === namespace).map((d) => d.key));
       const data = [];
       for (const key of keys) {
-        const result = await getEffective({ repo }, { namespace, key, scopeContext: { workspaceId, principalId } });
+        const result = await getEffective({ deps: { repo }, namespace, key, scopeContext: { workspaceId, principalId } });
         if (result) data.push({ key, value: result.value, sourceLayer: result.sourceLayer, defVersion: result.defVersion });
       }
       return data;
@@ -77,7 +77,7 @@ export function createCmsSettingsService(required: {
     reset: async (input) => {
       const definitions = await repo.listActiveDefinitions({ workspaceId: input.scope === "global" ? null : (input.workspaceId ?? input.authWorkspaceId ?? null) });
       const keys = definitions.filter((d) => d.namespace === input.namespace).map((d) => d.key);
-      return resetNamespace({ deps, input }, keys);
+      return resetNamespace({ deps, input, keysInNamespace: keys });
     },
     definitions: ({ items, callerPrincipalId, authWorkspaceId }) => applyDefinitions({ deps, items, callerPrincipalId, authWorkspaceId }),
   };

@@ -175,9 +175,9 @@ function addToTotals({ c, usage, costUsd }: {
 }): void {
   const { totals } = c;
   totals.turns += 1;
-  totals.inputTokens = addNullable(totals.inputTokens, usage?.inputTokens ?? null);
-  totals.outputTokens = addNullable(totals.outputTokens, usage?.outputTokens ?? null);
-  totals.costUsd = addNullable(totals.costUsd, costUsd);
+  totals.inputTokens = addNullable({ a: totals.inputTokens, b: usage?.inputTokens ?? null });
+  totals.outputTokens = addNullable({ a: totals.outputTokens, b: usage?.outputTokens ?? null });
+  totals.costUsd = addNullable({ a: totals.costUsd, b: costUsd });
 }
 
 function ttftOf(open: OpenTurn): number | null {

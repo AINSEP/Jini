@@ -340,7 +340,7 @@ describe("a running owner", () => {
     const [row] = await kernel.query<{ n: number; flag: boolean; lang: string }>(
       sql`SELECT n, flag, ${jsonText({ dialect: kernel.dialect, column: sql.ref("doc"), path: ["meta", "lang"] })} AS lang FROM kernel_probe`
     );
-    assert.deepEqual({ n: row!.n, flag: toBool(row!.flag), lang: row!.lang }, { n: 2, flag: false, lang: "en" });
+    assert.deepEqual({ n: row!.n, flag: toBool({ value: row!.flag }), lang: row!.lang }, { n: 2, flag: false, lang: "en" });
   });
 
   test("a schema installed through runExclusive is visible to socket clients", async () => {

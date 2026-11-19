@@ -53,8 +53,8 @@ export function createFederatedCallConfirmer<Context extends FederatedConfirmati
 ): (required: FederatedConfirmCallInput<Context>) => Promise<FederatedCallConfirmationOutcome> {
   return async ({ context, request }) => {
     const approvals = options.approvals;
-    const keys = approvalContext(context, request, approvals, required.fingerprintDomain);
-    if (approvals && await isRemembered(approvals, request, keys, options)) return { confirmed: true };
+    const keys = approvalContext({ context, request, approvals, fingerprintDomain: required.fingerprintDomain });
+    if (approvals && await isRemembered({ approvals, request, keys }, options)) return { confirmed: true };
     const offers = await cardOffers({ request, principalId: context.principal.id, keys, approvals, options });
     const spec = buildFederatedCallConfirmSpec({ request, messages: required.messages, errorCode: required.errorCode }, { offers });
     const outcome = await required.humanConfirm.ask({ context, surfaceExchanges: required.surfaceExchanges, spec });

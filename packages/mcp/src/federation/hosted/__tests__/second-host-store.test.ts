@@ -96,7 +96,7 @@ describe("second host wires the hosted MCP store by ports", () => {
     expect(counts.open).toBe(2); // toView: env 1 + static 1
     expect(view.accessTokenHint).toEqual({ length: 20, last4: "6789" });
     Object.assign(counts, { seal: 0, open: 0 });
-    const { configs, failures } = await entry.readEnabledExternalMcpConfigs({ repo, sealer, ...ports }, WS);
+    const { configs, failures } = await entry.readEnabledExternalMcpConfigs({ deps: { repo, sealer, ...ports }, workspaceId: WS });
     expect([counts.seal, counts.open, failures]).toEqual([0, 2, []]);
     expect(configs[0]!.target).toEqual({ kind: "stdio", command: "acme-mcp", args: ["--serve"], env: { ACME_REGION: "eu-1", ACME_TOKEN: "acme-token-123456789" } });
   });
@@ -106,7 +106,7 @@ describe("second host wires the hosted MCP store by ports", () => {
     const deps = { repo, sealer, keyring, clock, ...ports };
     await entry.saveExternalMcpServer(deps, { workspaceId: WS, enabled: true, serverId: "acme-env", transport: "stdio", command: "acme-mcp", args: "", env: "K=v", allowedToolNames: "" } as never);
     const broken = { ...sealer, open: async () => { throw new Error("provider said sk_acme_secret at https://idp.acme.test/x"); } };
-    const { failures } = await entry.readEnabledExternalMcpConfigs({ repo, sealer: broken, ...ports }, WS);
+    const { failures } = await entry.readEnabledExternalMcpConfigs({ deps: { repo, sealer: broken, ...ports }, workspaceId: WS });
     expect(failures).toEqual([{ serverId: "acme-env", reason: "stored credentials could not be decrypted — check the site credential store and re-enter them in Console › Tools › Remote servers" }]);
     await expect(entry.saveExternalMcpServer(deps, { workspaceId: WS, serverId: "acme-x", transport: "stdio", command: "sk_acme_leak", args: "", allowedToolNames: "" } as never))
       .rejects.toMatchObject({ name: "ExternalMcpValidationError", message: "Acme: keep keys out of plain fields.", field: "command" });
@@ -142,7 +142,7 @@ describe("second host wires the hosted MCP store by ports", () => {
       if (serverId === "acme-live") throw Object.assign(new Error("idp said no"), { code: "ACME_SIGN_IN_AGAIN" });
       throw new Error("idp unreachable");
     } };
-    const { failures } = await entry.readEnabledExternalMcpConfigs({ repo, sealer, oauth, ...ports }, WS);
+    const { failures } = await entry.readEnabledExternalMcpConfigs({ deps: { repo, sealer, oauth, ...ports }, workspaceId: WS });
     expect(Object.fromEntries(failures.map((failure) => [failure.serverId, failure.category ?? null])))
       .toEqual({ "acme-stored": "reauth_required", "acme-live": "reauth_required", "acme-down": null });
     expect(failures.find((failure) => failure.serverId === "acme-stored")?.reason)

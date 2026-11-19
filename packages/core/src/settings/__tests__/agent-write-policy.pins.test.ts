@@ -20,16 +20,16 @@ describe('findAgentWriteRule', () => {
     [{ namespace: 'core.privacy', key: 'anything' }, 'core.privacy'],
     [{ namespace: 'core.instructions', key: 'custom' }, 'core.instructions'],
   ])('%j matches %s', (target, namespace) => {
-    expect(findAgentWriteRule(rules, target)?.namespace).toBe(namespace);
+    expect(findAgentWriteRule({ rules, target })?.namespace).toBe(namespace);
   });
   it.each([
     { namespace: 'core.instructions', key: 'other' }, { namespace: 'core.privacyx', key: 'a' }, { namespace: 'core', key: 'privacy' }, { namespace: 'Core.Privacy', key: 'a' },
   ])('%j matches nothing', (target) => {
-    expect(findAgentWriteRule(rules, target)).toBeUndefined();
+    expect(findAgentWriteRule({ rules, target })).toBeUndefined();
   });
   it('returns the FIRST matching rule', () => {
     const first = { namespace: 'n', reason: 'first' }; const second = { namespace: 'n', key: 'k', reason: 'second' };
-    expect(findAgentWriteRule([first, second], { namespace: 'n', key: 'k' })).toBe(first);
+    expect(findAgentWriteRule({ rules: [first, second], target: { namespace: 'n', key: 'k' } })).toBe(first);
   });
 });
 

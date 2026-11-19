@@ -148,7 +148,7 @@ describe("@jini-ai/platform — process stamps", () => {
       { command: "grandchild", pid: 4, ppid: 2 },
       { command: "unrelated", pid: 5, ppid: 0 },
     ];
-    const pids = collectProcessTreePids(processes, [1]);
+    const pids = collectProcessTreePids({ processes, rootPids: [1] });
     expect(pids).toEqual([4, 3, 2, 1]);
   });
 
