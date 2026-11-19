@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { act, cleanup, renderHook, waitFor } from '../../../__tests__/fetch-query-support.js';
+import { act, cleanup, renderHook, waitFor } from './harness/render.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FetchQueryProvider } from '@jini-ai/ui/fetch-query';
 import { AdminConfigError } from '@jini-ai/core/admin-runtime';

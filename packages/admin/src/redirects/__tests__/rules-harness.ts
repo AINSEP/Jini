@@ -1,5 +1,5 @@
 /** Test-only calling-convention bridge; all decisions execute the extracted pure rules. */
-import type { AdminRedirect } from '../../core/ports/redirects.js';
+import type { AdminRedirect } from '@jini-ai/admin/core';
 import * as rules from '../rules.js';
 import type { RedirectsTranslate } from '../models.js';
 export type LegacyRedirect = Omit<AdminRedirect, 'statusCode'> & { workspaceId?: string; statusCode: number };

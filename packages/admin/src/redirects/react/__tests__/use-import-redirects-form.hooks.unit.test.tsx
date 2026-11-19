@@ -1,11 +1,11 @@
-import { act, renderHook, waitFor } from "../../../__tests__/fetch-query-support.js";
+import { act, renderHook, waitFor } from "./legacy-harness.js";
 import { assert, afterEach, describe, expect, it, vi } from "vitest";
 
 import { FetchQueryProvider } from "@jini-ai/ui/fetch-query";
 import type { RedirectImportRule } from "./legacy-harness.js";
 import { createFakeRedirectsPort } from "./legacy-harness.js";
 import { useImportRedirectsForm, useWiredImportRedirectsForm } from "./legacy-harness.js";
-import type { AdminRedirectsPort } from "../../../core/ports/redirects.js";
+import type { AdminRedirectsPort } from "@jini-ai/admin/core";
 import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import { createMemoryRedirectsApi } from "../../adapters/memory.js";
 import { translateRedirectsEn } from "../../messages.en.js";
