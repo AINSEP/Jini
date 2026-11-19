@@ -185,57 +185,10 @@ export function checkPackageLayers(
   const violations: LayerViolation[] = [];
   const packages = sourcePackages({ packagesDir: join(root, 'packages') });
   const byName = new Map(packages.map(pkg => [pkg.manifest.name, pkg]));
-  function check(pkg: SourcePackage, spec: string, file: string, sourcePath?: string, declaredPeer = false): void {
-    if (!spec.startsWith('@jini-ai/')) return;
-    const owner = pkg.manifest.name.slice('@jini-ai/'.length);
-    const target = spec.slice('@jini-ai/'.length).split('/')[0]!;
-    const ownerLayer = layerOf(owner);
-    const targetLayer = layerOf(target);
-    const reason = `${owner} → ${spec}`;
-    if (ownerLayer === undefined || targetLayer === undefined) {
-      violations.push({ rule: 'L0-unlisted-package', file, reason: `${reason}: package missing from the approved layer table` }); return;
-    }
-    if (isMcpOauthEdge(owner, target)) {
-      violations.push({ rule: 'L1-layer-edge', file, reason: `${reason}: MCP and OAuth must never depend on one another` }); return;
-    }
-    // Public self-imports select an isolated entry of the same package, not a dependency edge.
-    if (owner === target && sourcePath !== undefined) return;
-    const edge = { pkg, spec, owner, target, sourcePath, declaredPeer, byName };
-    if (!isAllowedLayerEdge(edge, ownerLayer, targetLayer)) {
-      violations.push({ rule: 'L1-layer-edge', file, reason: `${reason}: L${ownerLayer} cannot depend on L${targetLayer}` });
-    }
-    checkBrowserPlatform(edge, file, reason, violations);
-    checkSourceDeclaration(edge, file, reason, violations);
-  }
-  function checkManifest(pkg: SourcePackage): void {
-    const manifestFile = relative(root, join(pkg.directory, 'package.json')).split('\\').join('/');
-    if (layerOf(pkg.manifest.name.slice('@jini-ai/'.length)) === undefined) {
-      violations.push({ rule: 'L0-unlisted-package', file: manifestFile, reason: 'package missing from the approved layer table' });
-    }
-    for (const name of Object.keys(pkg.manifest.dependencies ?? {})) check(pkg, name, manifestFile);
-    for (const name of Object.keys(pkg.manifest.peerDependencies ?? {})) check(pkg, name, manifestFile,
-      undefined, true);
-
-  }
-  function checkSources(pkg: SourcePackage): void {
-    for (const filename of packageSourceFiles({ directory: pkg.directory })) {
-      if (filename.endsWith('.css')) continue;
-      const ast = parseSource({ file: filename, source: readFileSync(filename, 'utf8') });
-      const file = relative(root, filename).split('\\').join('/');
-      const sourcePath = relative(pkg.directory, filename).split('\\').join('/');
-      function visit(node: ts.Node): void {
-        if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier
-          && ts.isStringLiteral(node.moduleSpecifier)) check(pkg, node.moduleSpecifier.text, file, sourcePath);
-        // Dynamic and require imports are included so the rule cannot be bypassed by syntax.
-        if (isLiteralModuleCall(node)) check(pkg, node.arguments[0].text, file, sourcePath);
-        ts.forEachChild(node, visit);
-      }
-      visit(ast);
-    }
-  }
+  const context = { root, violations, byName };
   for (const pkg of packages) {
-    checkManifest(pkg);
-    checkSources(pkg);
+    checkManifest(pkg, context);
+    checkSources(pkg, context);
   }
   // L5-L7: the base-only rule, with its ratchet. Layer-table fixtures opt out; the real gate never does.
   if (optional.injection !== false) {
@@ -243,4 +196,64 @@ export function checkPackageLayers(
     violations.push(...injectionViolations({ root, packages }, injection));
   }
   return violations;
+}
+
+interface LayerCheckContext {
+  root: string;
+  violations: LayerViolation[];
+  byName: Map<string, SourcePackage>;
+}
+
+function check({ pkg, spec, file, sourcePath, declaredPeer = false }: {
+  pkg: SourcePackage; spec: string; file: string; sourcePath?: string; declaredPeer?: boolean;
+}, { violations, byName }: LayerCheckContext): void {
+  if (!spec.startsWith('@jini-ai/')) return;
+  const owner = pkg.manifest.name.slice('@jini-ai/'.length);
+  const target = spec.slice('@jini-ai/'.length).split('/')[0]!;
+  const ownerLayer = layerOf(owner);
+  const targetLayer = layerOf(target);
+  const reason = `${owner} → ${spec}`;
+  if (ownerLayer === undefined || targetLayer === undefined) {
+    violations.push({ rule: 'L0-unlisted-package', file, reason: `${reason}: package missing from the approved layer table` }); return;
+  }
+  if (isMcpOauthEdge(owner, target)) {
+    violations.push({ rule: 'L1-layer-edge', file, reason: `${reason}: MCP and OAuth must never depend on one another` }); return;
+  }
+  // Public self-imports select an isolated entry of the same package, not a dependency edge.
+  if (owner === target && sourcePath !== undefined) return;
+  const edge = { pkg, spec, owner, target, sourcePath, declaredPeer, byName };
+  if (!isAllowedLayerEdge(edge, ownerLayer, targetLayer)) {
+    violations.push({ rule: 'L1-layer-edge', file, reason: `${reason}: L${ownerLayer} cannot depend on L${targetLayer}` });
+  }
+  checkBrowserPlatform(edge, file, reason, violations);
+  checkSourceDeclaration(edge, file, reason, violations);
+}
+
+function checkManifest(pkg: SourcePackage, context: LayerCheckContext): void {
+  const { root, violations } = context;
+  const manifestFile = relative(root, join(pkg.directory, 'package.json')).split('\\').join('/');
+  if (layerOf(pkg.manifest.name.slice('@jini-ai/'.length)) === undefined) {
+    violations.push({ rule: 'L0-unlisted-package', file: manifestFile, reason: 'package missing from the approved layer table' });
+  }
+  for (const name of Object.keys(pkg.manifest.dependencies ?? {})) check({ pkg, spec: name, file: manifestFile }, context);
+  for (const name of Object.keys(pkg.manifest.peerDependencies ?? {})) check({ pkg, spec: name, file: manifestFile, declaredPeer: true }, context);
+
+}
+
+function checkSources(pkg: SourcePackage, context: LayerCheckContext): void {
+  const { root } = context;
+  for (const filename of packageSourceFiles({ directory: pkg.directory })) {
+    if (filename.endsWith('.css')) continue;
+    const ast = parseSource({ file: filename, source: readFileSync(filename, 'utf8') });
+    const file = relative(root, filename).split('\\').join('/');
+    const sourcePath = relative(pkg.directory, filename).split('\\').join('/');
+    function visit(node: ts.Node): void {
+      if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier
+        && ts.isStringLiteral(node.moduleSpecifier)) check({ pkg, spec: node.moduleSpecifier.text, file, sourcePath }, context);
+      // Dynamic and require imports are included so the rule cannot be bypassed by syntax.
+      if (isLiteralModuleCall(node)) check({ pkg, spec: node.arguments[0].text, file, sourcePath }, context);
+      ts.forEachChild(node, visit);
+    }
+    visit(ast);
+  }
 }

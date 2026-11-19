@@ -55,19 +55,7 @@ export function createPostHogProductAnalyticsAdapter({ config, describeTelemetry
     enableExceptionAutocapture: false,
     ...(options.fetch ? { fetch: options.fetch } : {}),
   });
-  // Reuse the SDK's fetch owner so its Node transport and any supplied fetch keep their semantics.
-  const send = client.fetch.bind(client);
-  client.fetch = async (url, init) => {
-    if (options.signal?.aborted) return { status: 200, text: async () => "", json: async () => ({}) };
-    try {
-      const response = await send(url, init);
-      reporter.result({ phase: "export", outcome: response.status >= 200 && response.status < 300 ? "ok" : "failed", error: { status: response.status } });
-      return response;
-    } catch (error) {
-      reporter.result({ phase: "export", outcome: "failed", error });
-      throw error;
-    }
-  };
+  instrumentPostHogFetch(client, reporter, options);
   // Capture V1 wraps its HTTP failure in `cause`; retain the safe status from that failure.
   client.on("error", error => reporter.result({ phase: "export", outcome: "failed", error: error instanceof Error ? error.cause ?? error : error }));
   reporter.initialized({ message: "PostHog reporting" });
@@ -112,3 +100,20 @@ export function createPostHogProductAnalyticsAdapter({ config, describeTelemetry
   };
   return { port, dispose: async () => { try { await client.shutdown(2_000); } catch { /* best-effort */ } } };
 }
+
+function instrumentPostHogFetch(client: PostHog, reporter: ReturnType<typeof createProviderTelemetryReporter>, options: PostHogAdapterOptions): void {
+  // Reuse the SDK's fetch owner so its Node transport and any supplied fetch keep their semantics.
+  const send = client.fetch.bind(client);
+  client.fetch = async (url, init) => {
+    if (options.signal?.aborted) return { status: 200, text: async () => "", json: async () => ({}) };
+    try {
+      const response = await send(url, init);
+      reporter.result({ phase: "export", outcome: response.status >= 200 && response.status < 300 ? "ok" : "failed", error: { status: response.status } });
+      return response;
+    } catch (error) {
+      reporter.result({ phase: "export", outcome: "failed", error });
+      throw error;
+    }
+  };
+}
+

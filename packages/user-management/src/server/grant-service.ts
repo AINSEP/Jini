@@ -426,16 +426,7 @@ export async function assignRole(required: {
         throw new IdentityNotFoundError({ message: `role '${input.roleId}' was not found` });
       }
 
-      const rolePolicyLinks = await deps.repos.rolePolicies.listByRoleId({
-        workspaceId: input.workspaceId,
-        roleId: input.roleId,
-      });
-      const policyPermissionGroups = await Promise.all(
-        rolePolicyLinks.map((link) =>
-          deps.repos.policyPermissions.listByPolicyId({ workspaceId: input.workspaceId, policyId: link.policyId })
-        )
-      );
-      const conferredPermissions = policyPermissionGroups.flat().map((row) => row.permission);
+      const conferredPermissions = await rolePermissionsForAssignment({ deps, input });
 
       await assertGrantClamp({
         deps,
@@ -454,6 +445,19 @@ export async function assignRole(required: {
       return { assignment };
     },
   });
+}
+
+async function rolePermissionsForAssignment({ deps, input }: Parameters<typeof assignRole>[0]): Promise<string[]> {
+  const rolePolicyLinks = await deps.repos.rolePolicies.listByRoleId({
+    workspaceId: input.workspaceId,
+    roleId: input.roleId,
+  });
+  const policyPermissionGroups = await Promise.all(
+    rolePolicyLinks.map((link) =>
+      deps.repos.policyPermissions.listByPolicyId({ workspaceId: input.workspaceId, policyId: link.policyId })
+    )
+  );
+  return policyPermissionGroups.flat().map((row) => row.permission);
 }
 
 /**

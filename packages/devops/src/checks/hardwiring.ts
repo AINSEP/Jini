@@ -356,28 +356,8 @@ function inspect({ c, input }: { c: typeof ts; input: HardwiringSource }): Hardw
       identity: item.name,
     });
   }
-  function visitJini(node: ts.Node): void {
-    if (!envExempt && env(c, node) && !isEnvDefault(c, node)) report({
-      node,
-      rule: 'HW1-env-default',
-      reason: 'process.env is allowed only as an injected environment default (?? process.env or env = process.env).',
-      identity: envKey(c, node.parent) ?? 'process.env',
-    });
-    if (mutableModuleState({ c, node, tree })) report({
-      node,
-      rule: 'HW3-module-state',
-      reason: 'Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.',
-      identity: declarationIdentity(c, (node as ts.VariableDeclaration).name),
-    });
-    if (input.server && globalFetchCall(c, node)) report({
-      node,
-      rule: 'HW4-injected-fetch',
-      reason: 'Call an injected fetch port; the global fetch may only supply its default.',
-      identity: (node as ts.CallExpression).expression.getText(tree),
-    });
-  }
   function visit(node: ts.Node): void {
-    if (jini) visitJini(node);
+    if (jini) visitJini(node, { c, input, tree }, { envExempt, report });
     if (uncoveredDefault({ c, node, covered: input.bootCoveredEnv })) report({
       node,
       rule: 'HW6-boot-default',
@@ -394,6 +374,28 @@ function inspect({ c, input }: { c: typeof ts; input: HardwiringSource }): Hardw
   }
   visit(tree);
   return found;
+}
+
+function visitJini(node: ts.Node, { c, input, tree }: { c: typeof ts; input: HardwiringSource; tree: ts.SourceFile },
+  { envExempt, report }: { envExempt: boolean; report: (item: Omit<Parameters<typeof violation>[0], 'tree'>) => void }): void {
+  if (!envExempt && env(c, node) && !isEnvDefault(c, node)) report({
+    node,
+    rule: 'HW1-env-default',
+    reason: 'process.env is allowed only as an injected environment default (?? process.env or env = process.env).',
+    identity: envKey(c, node.parent) ?? 'process.env',
+  });
+  if (mutableModuleState({ c, node, tree })) report({
+    node,
+    rule: 'HW3-module-state',
+    reason: 'Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.',
+    identity: declarationIdentity(c, (node as ts.VariableDeclaration).name),
+  });
+  if (input.server && globalFetchCall(c, node)) report({
+    node,
+    rule: 'HW4-injected-fetch',
+    reason: 'Call an injected fetch port; the global fetch may only supply its default.',
+    identity: (node as ts.CallExpression).expression.getText(tree),
+  });
 }
 
 function firstJsx(c: typeof ts, tree: ts.SourceFile): ts.Node | undefined {

@@ -113,22 +113,7 @@ export function createSentryObservabilityAdapter({ config, context: helpers }: {
   const exportEnabled = options.exportEnabled === true;
   const owned = options.client === undefined;
   const reporter = createProviderTelemetryReporter({ endpoint: config.dsn, describeTelemetryFailure: helpers.describeTelemetryFailure }, options);
-  const transport: NonNullable<NodeOptions["transport"]> = (input) => {
-    const inner = (options.transport ?? makeNodeTransport)(input);
-    return { ...inner, async send(envelope) {
-      if (options.signal?.aborted) return { statusCode: 200 };
-      try {
-        const result = await inner.send(envelope);
-        const statusCode = result.statusCode;
-        const ok = statusCode !== undefined && statusCode >= 200 && statusCode < 300;
-        reporter.result({ phase: "export", outcome: ok ? "ok" : "failed", error: { statusCode } });
-        return result;
-      } catch (error) {
-        reporter.result({ phase: "export", outcome: "failed", error });
-        throw error;
-      }
-    } };
-  };
+  const transport: NonNullable<NodeOptions["transport"]> = createSentryTransport(options, reporter);
   const client = (options.client ?? privateClient({ config }, { transport, exportEnabled })) as NodeClient;
   const submitURL = exportEnabled ? minidumpEndpoint({ dsn: config.dsn }) : undefined;
   const active = new AsyncLocalStorage<Span>();
@@ -140,26 +125,7 @@ export function createSentryObservabilityAdapter({ config, context: helpers }: {
     ...(submitURL ? { crashUpload({ release, environment }: { release: string; environment: string }, _options = {}) {
       return { submitURL, globalExtra: { sentry: JSON.stringify({ release, environment }) } };
     } } : {}),
-    trackOperation({ name, attributes = {} }) {
-      // A host-owned enabled client must never receive denied spans. Work still runs locally.
-      if (!exportEnabled) return createNoopObservabilityPort({}).trackOperation({ name, attributes });
-      const parentSpan = active.getStore();
-      const safe = helpers.redactOperationAttributes({ attributes });
-      const span = inClient(() => (parentSpan
-        ? startInactiveSpan({ name, op: name, attributes: safe, parentSpan })
-        : startNewTrace(() => startInactiveSpan({ name, op: name, attributes: safe, forceTransaction: true }))));
-      let ended = false;
-      return {
-        run: (fn) => active.run(span, fn),
-        end({ outcome, failed, attributes: settled = {} }) {
-          if (ended) return;
-          ended = true;
-          span.setAttributes(helpers.redactOperationAttributes({ attributes: { ...settled, "operation.outcome": outcome } }));
-          span.setStatus(failed ? { code: SPAN_STATUS_ERROR, message: outcome } : { code: SPAN_STATUS_OK });
-          span.end();
-        },
-      };
-    },
+    trackOperation: createSentryOperationTracker({ exportEnabled, active, helpers }, inClient),
     reportError({ error, context }) {
       // Denied export is still an admitted local handoff, preserving request deduplication.
       // The private client's SDK enabled flag also gates delivery; borrowed clients stay untouched.
@@ -185,5 +151,50 @@ export function createSentryObservabilityAdapter({ config, context: helpers }: {
       if (!owned) return;
       try { await client.close(2_000); } catch { /* best-effort */ }
     },
+  };
+}
+
+function createSentryOperationTracker({ exportEnabled, active, helpers }: { exportEnabled: boolean; active: AsyncLocalStorage<Span>; helpers: SentryProviderContext }, inClient: <T>(fn: () => T) => T): ObservabilityAdapter['port']['trackOperation'] {
+  const operation: Pick<ObservabilityAdapter['port'], 'trackOperation'> = {
+    trackOperation({ name, attributes = {} }) {
+      // A host-owned enabled client must never receive denied spans. Work still runs locally.
+      if (!exportEnabled) return createNoopObservabilityPort({}).trackOperation({ name, attributes });
+      const parentSpan = active.getStore();
+      const safe = helpers.redactOperationAttributes({ attributes });
+      const span = inClient(() => (parentSpan
+        ? startInactiveSpan({ name, op: name, attributes: safe, parentSpan })
+        : startNewTrace(() => startInactiveSpan({ name, op: name, attributes: safe, forceTransaction: true }))));
+      let ended = false;
+      return {
+        run: (fn) => active.run(span, fn),
+        end({ outcome, failed, attributes: settled = {} }) {
+          if (ended) return;
+          ended = true;
+          span.setAttributes(helpers.redactOperationAttributes({ attributes: { ...settled, "operation.outcome": outcome } }));
+          span.setStatus(failed ? { code: SPAN_STATUS_ERROR, message: outcome } : { code: SPAN_STATUS_OK });
+          span.end();
+        },
+      };
+    }
+  };
+  return operation.trackOperation;
+}
+
+function createSentryTransport(options: SentryAdapterOptions, reporter: ReturnType<typeof createProviderTelemetryReporter>): NonNullable<NodeOptions['transport']> {
+  return (input) => {
+    const inner = (options.transport ?? makeNodeTransport)(input);
+    return { ...inner, async send(envelope) {
+      if (options.signal?.aborted) return { statusCode: 200 };
+      try {
+        const result = await inner.send(envelope);
+        const statusCode = result.statusCode;
+        const ok = statusCode !== undefined && statusCode >= 200 && statusCode < 300;
+        reporter.result({ phase: "export", outcome: ok ? "ok" : "failed", error: { statusCode } });
+        return result;
+      } catch (error) {
+        reporter.result({ phase: "export", outcome: "failed", error });
+        throw error;
+      }
+    } };
   };
 }

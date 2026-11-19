@@ -98,21 +98,7 @@ class PlaywrightSiteEvidenceBrowser implements SiteEvidenceBrowserPort {
         timeoutMs: request.timeoutMs, originBaseUrl: request.originBaseUrl,
         // Consent evidence must stay pre-consent until the operator's explicit selector is clicked.
         dismissCookieBanners: false, loadWaitMs: 5_000,
-        onRequest: ({ route, blocked }) => {
-          const pending = route.request();
-          const requestIndex = requests.length;
-          recordRequest(requests, request, {
-            method: pending.method().toUpperCase(), url: pending.url(), resourceType: pending.resourceType(), phase,
-            ...(blocked ? { blockedReason:
-              "aborted: this tool never sends a non-GET request, so no form, consent preference, or " +
-              "analytics beacon it observes is ever actually submitted. Off-origin navigation is also refused." } : {}),
-          });
-          // Preserve the phase of the attempt even if a DNS/transport refusal finishes after consent.
-          return ({ reason }: { reason: string }) => {
-            const observed = requests[requestIndex];
-            if (observed) requests[requestIndex] = { ...observed, blockedReason: reason };
-          };
-        },
+        onRequest: createRequestRecorder(requests, request, () => phase),
       });
     } catch (error) {
       result = { ok: false, reason: `page capture failed after load or navigation: ${messageOf(error)}`, ...(error instanceof OffOriginNavigationError ? { offOriginUrl: error.origin } : {}) };
@@ -174,6 +160,25 @@ class PlaywrightSiteEvidenceBrowser implements SiteEvidenceBrowserPort {
       );
     }
   }
+}
+
+function createRequestRecorder(requests: RequestEvidence[], request: ObservePageRequest, readPhase: () => ObservationPhase):
+  NonNullable<NonNullable<Parameters<typeof renderPage>[1]>['onRequest']> {
+  return ({ route, blocked }) => {
+    const pending = route.request();
+    const requestIndex = requests.length;
+    recordRequest(requests, request, {
+      method: pending.method().toUpperCase(), url: pending.url(), resourceType: pending.resourceType(), phase: readPhase(),
+      ...(blocked ? { blockedReason:
+        "aborted: this tool never sends a non-GET request, so no form, consent preference, or " +
+        "analytics beacon it observes is ever actually submitted. Off-origin navigation is also refused." } : {}),
+    });
+    // Preserve the phase of the attempt even if a DNS/transport refusal finishes after consent.
+    return ({ reason }: { reason: string }) => {
+      const observed = requests[requestIndex];
+      if (observed) requests[requestIndex] = { ...observed, blockedReason: reason };
+    };
+  };
 }
 
 /**

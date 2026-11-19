@@ -102,45 +102,10 @@ export function createPendingAuthorizationStore<T>(
     const ttlMs = optionalArgs.ttlMs ?? DEFAULT_TTL_MS;
     const maxEntries = optionalArgs.maxEntries ?? DEFAULT_MAX_ENTRIES;
     assertPendingStoreLimits({ ttlMs, maxEntries });
-    function entries<Value>(options: PendingAuthorizationCacheOptions<Value>): PendingAuthorizationCache<Value> {
-        const pending = new Map<string, Value>();
-        let cancel: (() => void) | null = null;
-        const stop = (): void => { cancel?.(); cancel = null; };
-        const expired = (value: Value, now: number): boolean => {
-            const deadline = options.expiry({ value, ttlMs });
-            return options.exclusiveExpiry === true ? deadline < now : deadline <= now;
-        };
-        const sweep = (): void => {
-            const now = deps.clock.nowMs();
-            for (const [key, value] of pending) if (expired(value, now)) pending.delete(key);
-            if (pending.size === 0) stop();
-        };
-        return {
-            put({ state, value }) {
-                sweep();
-                // Bound allocation without evicting on a replacement of an existing state.
-                // assertPendingStoreLimits guarantees maxEntries >= 1, so while this loop runs the map
-                // holds at least one key and the oldest one always exists.
-                while (!pending.has(state) && pending.size >= maxEntries) pending.delete(pending.keys().next().value!);
-                pending.set(state, value);
-                cancel ??= options.scheduler?.every({ intervalMs: Math.min(ttlMs, 60_000), run: sweep }) ?? null;
-            },
-            consume({ state }) {
-                const value = pending.get(state);
-                // Remove before returning or checking expiry so a callback replay cannot reuse state.
-                pending.delete(state);
-                if (pending.size === 0) stop();
-                if (value === undefined || expired(value, deps.clock.nowMs())) return null;
-                return value;
-            },
-            size(_requiredArgs) { sweep(); return pending.size; },
-            stop(_requiredArgs) { stop(); },
-        };
-    }
-    if ('expiry' in optionalArgs) return entries(optionalArgs);
+    if ('expiry' in optionalArgs) return createPendingEntries({ deps, ttlMs, maxEntries }, optionalArgs);
     const randomBytesFn = deps.randomBytesFn;
     if (!randomBytesFn) throw new TypeError('owner-bound authorizations require cryptographic entropy');
-    const pending = entries<PendingAuthorization>({
+    const pending = createPendingEntries<PendingAuthorization>({ deps, ttlMs, maxEntries }, {
         expiry: ({ value }) => Date.parse(value.expiresAt),
         ...(optionalArgs.scheduler === undefined ? {} : { scheduler: optionalArgs.scheduler }),
     });
@@ -164,4 +129,50 @@ export function createPendingAuthorizationStore<T>(
         },
         async size(requiredArgs) { return pending.size(requiredArgs); },
     } satisfies PendingAuthorizationStore;
+}
+
+function createPendingEntries<Value>({ deps, ttlMs, maxEntries }: { deps: { readonly clock: Clock }; ttlMs: number; maxEntries: number }, options: PendingAuthorizationCacheOptions<Value>): PendingAuthorizationCache<Value> {
+    const pending = new Map<string, Value>();
+    let cancel: (() => void) | null = null;
+    const stop = (): void => { cancel?.(); cancel = null; };
+    const expired = (value: Value, now: number): boolean => {
+        return pendingEntryExpired(options, { value, ttlMs, now });
+    };
+    const sweep = (): void => {
+        const now = deps.clock.nowMs();
+        sweepPendingEntries({ pending, now, expired, stop });
+    };
+    return {
+        put({ state, value }) {
+            sweep();
+            // Bound allocation without evicting on a replacement of an existing state.
+            // assertPendingStoreLimits guarantees maxEntries >= 1, so while this loop runs the map
+            // holds at least one key and the oldest one always exists.
+            while (!pending.has(state) && pending.size >= maxEntries) pending.delete(pending.keys().next().value!);
+            pending.set(state, value);
+            cancel ??= options.scheduler?.every({ intervalMs: Math.min(ttlMs, 60_000), run: sweep }) ?? null;
+        },
+        consume({ state }) {
+            const value = pending.get(state);
+            // Remove before returning or checking expiry so a callback replay cannot reuse state.
+            pending.delete(state);
+            if (pending.size === 0) stop();
+            if (value === undefined || expired(value, deps.clock.nowMs())) return null;
+            return value;
+        },
+        size(_requiredArgs) { sweep(); return pending.size; },
+        stop(_requiredArgs) { stop(); },
+    };
+}
+
+function pendingEntryExpired<Value>(options: PendingAuthorizationCacheOptions<Value>, input: { value: Value; ttlMs: number; now: number }): boolean {
+    const deadline = options.expiry({ value: input.value, ttlMs: input.ttlMs });
+    return options.exclusiveExpiry === true ? deadline < input.now : deadline <= input.now;
+}
+
+function sweepPendingEntries<Value>({ pending, now, expired, stop }: {
+    pending: Map<string, Value>; now: number; expired: (value: Value, now: number) => boolean; stop: () => void;
+}): void {
+    for (const [key, value] of pending) if (expired(value, now)) pending.delete(key);
+    if (pending.size === 0) stop();
 }

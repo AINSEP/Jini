@@ -96,15 +96,7 @@ async function waitUntilReady<T>(
   if (child.exitCode !== null || child.signalCode !== null) throw exitError(child.exitCode, child.signalCode);
   if (timeoutMs <= 0) throw timeoutError();
 
-  let onExit!: (code: number | null, signal: NodeJS.Signals | null) => void;
-  const exited = new Promise<never>((_resolve, reject) => {
-    onExit = (code, signal) => reject(exitError(code, signal));
-    child.once('exit', onExit);
-  });
-  let timer!: ReturnType<typeof setTimeout>;
-  const deadline = new Promise<never>((_resolve, reject) => {
-    timer = setTimeout(() => reject(timeoutError()), timeoutMs);
-  });
+  const { exited, deadline, timer, onExit } = createReadyWaiters(child, timeoutMs, { exitError, timeoutError });
   let stopped = false;
   const controller = new AbortController();
   const poll = async (): Promise<T> => {
@@ -129,6 +121,22 @@ async function waitUntilReady<T>(
     clearTimeout(timer);
     child.off('exit', onExit);
   }
+}
+
+function createReadyWaiters(child: ChildProcess, timeoutMs: number, { exitError, timeoutError }: {
+  exitError: (code: number | null, signal: NodeJS.Signals | null) => Error;
+  timeoutError: () => Error;
+}) {
+  let onExit!: (code: number | null, signal: NodeJS.Signals | null) => void;
+  const exited = new Promise<never>((_resolve, reject) => {
+    onExit = (code, signal) => reject(exitError(code, signal));
+    child.once('exit', onExit);
+  });
+  let timer!: ReturnType<typeof setTimeout>;
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(timeoutError()), timeoutMs);
+  });
+  return { exited, deadline, timer, onExit };
 }
 
 /** Use the host's shutdown request or SIGTERM, then bound the wait before SIGKILL. */

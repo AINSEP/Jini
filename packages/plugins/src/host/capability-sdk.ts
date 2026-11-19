@@ -96,19 +96,7 @@ export function buildCapabilityScopedSdk<H extends HookPoints>(
   const { pluginId, capabilities, coreDeps } = required;
   const granted = new Set<PluginCapability>(capabilities);
 
-  /**
-   * Wraps one capability-gated surface: returns `real` when `capability` is granted, otherwise a
-   * stub that synchronously throws `CapabilityDeniedError` when invoked. CIC U-003's binding
-   * property — every surface is always a present, callable function, never an absent property.
-   */
-  function gate<Fn extends (...args: never[]) => unknown>(capability: PluginCapability, real: Fn): Fn {
-    if (granted.has(capability)) {
-      return real;
-    }
-    return ((..._args: never[]) => {
-      throw new CapabilityDeniedError(pluginId, capability);
-    }) as unknown as Fn;
-  }
+  const gate = createSdkCapabilityGate(pluginId, granted);
 
   const sdk: PluginSdk<H> = {
     providers: { register: gate(PLUGIN_PROVIDER_CAPABILITY, (input, options = {}) => {
@@ -124,18 +112,7 @@ export function buildCapabilityScopedSdk<H extends HookPoints>(
     addFilter: gate("hooks.attach", (hookName: string, filter: BeforeSaveFilter) =>
       coreDeps.attachFilter(hookName, filter)
     ) as PluginSdk<H>["addFilter"],
-    routes: { add: gate("http.route.register", (input: import("@jini-ai/core/contracts/plugin-sdk").PluginRouteContribution, options: Record<string, never> = {}) => {
-      if (!coreDeps.contributions) throw new Error('plugin routes are not bound by this host');
-      coreDeps.contributions.routes.add(input, options);
-    }) },
-    tools: { add: gate("tools.register", (input: import("@jini-ai/core/contracts/plugin-sdk").PluginToolContribution, options: Record<string, never> = {}) => {
-      if (!coreDeps.contributions) throw new Error('plugin tools are not bound by this host');
-      coreDeps.contributions.tools.add(input, options);
-    }) },
-    widgets: { add: gate("render.contribute", (input: import("@jini-ai/core/contracts/plugin-sdk").PluginWidgetContribution, options: Record<string, never> = {}) => {
-      if (!coreDeps.contributions) throw new Error('plugin widgets are not bound by this host');
-      coreDeps.contributions.widgets.add(input, options);
-    }) },
+    ...gatedContributionSurfaces(gate, coreDeps),
     // V1 rationale retained: `ActionHookName`/`ContributionHookName` (@jini-ai/plugin-sdk hooks.ts) have no
     // catalog members yet (hooks v2 plan §3.3 Waves 1/2 land in a later slice), so no name
     // type-checks as an argument to either legacy surface. They remain present-but-unreachable,
@@ -161,4 +138,40 @@ export function buildCapabilityScopedSdk<H extends HookPoints>(
     },
   };
   return required.pluginSdkBinding.buildSdk({ sdk });
+}
+
+type CapabilityGate = <Fn extends (...args: never[]) => unknown>(capability: PluginCapability, real: Fn) => Fn;
+
+function createSdkCapabilityGate(pluginId: string, granted: ReadonlySet<PluginCapability>): CapabilityGate {
+  /**
+   * Wraps one capability-gated surface: returns `real` when `capability` is granted, otherwise a
+   * stub that synchronously throws `CapabilityDeniedError` when invoked. CIC U-003's binding
+   * property — every surface is always a present, callable function, never an absent property.
+   */
+  return function gate<Fn extends (...args: never[]) => unknown>(capability: PluginCapability, real: Fn): Fn {
+    if (granted.has(capability)) {
+      return real;
+    }
+    return ((..._args: never[]) => {
+      throw new CapabilityDeniedError(pluginId, capability);
+    }) as unknown as Fn;
+  };
+
+}
+
+function gatedContributionSurfaces(gate: CapabilityGate, coreDeps: CapabilityScopedSdkCoreDeps): Pick<PluginSdk, 'routes' | 'tools' | 'widgets'> {
+  return {
+    routes: { add: gate("http.route.register", (input: import("@jini-ai/core/contracts/plugin-sdk").PluginRouteContribution, options: Record<string, never> = {}) => {
+      if (!coreDeps.contributions) throw new Error('plugin routes are not bound by this host');
+      coreDeps.contributions.routes.add(input, options);
+    }) },
+    tools: { add: gate("tools.register", (input: import("@jini-ai/core/contracts/plugin-sdk").PluginToolContribution, options: Record<string, never> = {}) => {
+      if (!coreDeps.contributions) throw new Error('plugin tools are not bound by this host');
+      coreDeps.contributions.tools.add(input, options);
+    }) },
+    widgets: { add: gate("render.contribute", (input: import("@jini-ai/core/contracts/plugin-sdk").PluginWidgetContribution, options: Record<string, never> = {}) => {
+      if (!coreDeps.contributions) throw new Error('plugin widgets are not bound by this host');
+      coreDeps.contributions.widgets.add(input, options);
+    }) },
+  };
 }

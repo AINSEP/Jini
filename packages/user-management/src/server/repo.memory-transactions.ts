@@ -15,6 +15,7 @@ export function createTransactionalInMemoryIdentityRepos(required: {
   if (required.repos.transactions) throw new Error('identity repositories are already bound to a transaction port');
   const context = new AsyncLocalStorage<{ active: boolean }>();
   let tail = Promise.resolve();
+
   const stores = Object.entries(required.repos).filter(([key]) => key !== 'transactions').map(([, repo]) => {
     if (!(repo instanceof InMemoryIdentityRows)) {
       throw new Error('memory transactions require in-memory identity repositories');
@@ -23,25 +24,9 @@ export function createTransactionalInMemoryIdentityRepos(required: {
   });
 
   /** Preserve queue progress after rejection; descendants of a completed body cannot bypass it. */
-  async function exclusive<T>(execute: () => Promise<T>): Promise<T> {
-    if (context.getStore()?.active) return execute();
-    const previous = tail;
-    let release!: () => void;
-    tail = new Promise<void>(resolve => { release = resolve; });
-    await previous;
-    const scope = { active: true };
-    try {
-      return await context.run(scope, execute);
-    } finally {
-      scope.active = false;
-      release();
-    }
-  }
+  const exclusive = createIdentityQueue(context, { get tail() { return tail; }, set tail(value: Promise<void>) { tail = value; } });
 
-  const snapshot = (repo: InMemoryIdentityRows<unknown>) => {
-    const rows = repo.snapshotRows({});
-    return { restore: () => repo.restoreRows({ rows }) };
-  };
+
   const transactions: IdentityTransactionPort = {
     run: ({ execute }) => exclusive(async () => {
       // Every store was checked to be InMemoryIdentityRows when the bag was bound above.
@@ -78,4 +63,27 @@ export function createTransactionalInMemoryIdentityRepos(required: {
     principalPolicies: wrap(required.repos.principalPolicies),
   };
   return { ...repos, transactions };
+}
+
+function snapshot(repo: InMemoryIdentityRows<unknown>) {
+  const rows = repo.snapshotRows({});
+  return { restore: () => repo.restoreRows({ rows }) };
+}
+
+function createIdentityQueue(context: AsyncLocalStorage<{ active: boolean }>, queue: { tail: Promise<void> }) {
+  async function exclusive<T>(execute: () => Promise<T>): Promise<T> {
+    if (context.getStore()?.active) return execute();
+    const previous = queue.tail;
+    let release!: () => void;
+    queue.tail = new Promise<void>(resolve => { release = resolve; });
+    await previous;
+    const scope = { active: true };
+    try {
+      return await context.run(scope, execute);
+    } finally {
+      scope.active = false;
+      release();
+    }
+  }
+  return exclusive;
 }

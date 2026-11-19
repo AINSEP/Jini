@@ -132,16 +132,7 @@ export async function startLoopbackAuthorizationReceiver(_requiredArgs: OAuthEmp
     if (signal?.aborted)
         throw terminal('OAUTH_AUTHORIZATION_CANCELLED');
 
-    let expectedState: string | undefined;
-    let done = false;
-    let consumed = false;
-    let wrongStateRequests = 0;
-    let settle!: (outcome: { value: LoopbackAuthorizationResult } | { error: OAuthError }) => void;
-    const result = new Promise<LoopbackAuthorizationResult>((resolve, reject) => {
-        settle = outcome => ('value' in outcome ? resolve(outcome.value) : reject(outcome.error));
-    });
-    // Callers may cancel before awaiting; a rejection nobody awaited must not crash the host.
-    result.catch(() => undefined);
+    const attempt = createLoopbackAttempt();
 
     const server = createServer({ maxHeaderSize: MAX_HEADER_BYTES });
     server.maxHeadersCount = MAX_HEADER_COUNT;
@@ -149,48 +140,76 @@ export async function startLoopbackAuthorizationReceiver(_requiredArgs: OAuthEmp
     const expectedHost = `${LOOPBACK_HOST}:${port}`;
 
     const finish = (outcome: { value: LoopbackAuthorizationResult } | { error: OAuthError }): void => {
-        if (done)
+        if (attempt.done)
             return;
-        done = true;
+        attempt.done = true;
         cancelTimer();
         signal?.removeEventListener('abort', onAbort);
-        server.close(() => settle(outcome));
+        server.close(() => attempt.settle(outcome));
         server.closeAllConnections();
     };
     const onAbort = (): void => finish({ error: terminal('OAUTH_AUTHORIZATION_CANCELLED') });
     const cancelTimer = (optionalArgs.timers ?? nodeTimers).after({ ms: timeoutMs, run: () => finish({ error: terminal('OAUTH_AUTHORIZATION_EXPIRED') }) });
     signal?.addEventListener('abort', onAbort, { once: true });
 
-    server.on('request', (req: IncomingMessage, res: ServerResponse) => {
+    server.on('request', loopbackRequestHandler(attempt, { expectedHost, callbackFields, finish }));
+
+    return {
+        redirectUri: `http://${expectedHost}${CALLBACK_PATH}`,
+        receive({ expectedState: state }) {
+            if (attempt.expectedState !== undefined || state === '' || state.length > MAX_AUTHORIZATION_STATE_LENGTH)
+                return Promise.reject(new OAuthError({ code: 'OAUTH_INVALID_REQUEST', message: 'the loopback receiver must be armed once with a non-empty state', operatorAction: 'Start the connection again from the connection settings.' }));
+            attempt.expectedState = state;
+            return attempt.result;
+        },
+    };
+}
+
+interface LoopbackAttempt {
+    expectedState: string | undefined;
+    done: boolean;
+    consumed: boolean;
+    wrongStateRequests: number;
+    result: Promise<LoopbackAuthorizationResult>;
+    settle: (outcome: CallbackOutcome) => void;
+}
+
+function createLoopbackAttempt(): LoopbackAttempt {
+    let settle!: (outcome: { value: LoopbackAuthorizationResult } | { error: OAuthError }) => void;
+    const result = new Promise<LoopbackAuthorizationResult>((resolve, reject) => {
+        settle = outcome => ('value' in outcome ? resolve(outcome.value) : reject(outcome.error));
+    });
+    // Callers may cancel before awaiting; a rejection nobody awaited must not crash the host.
+    result.catch(() => undefined);
+
+    return { expectedState: undefined, done: false, consumed: false, wrongStateRequests: 0, result, settle };
+}
+
+function loopbackRequestHandler(state: LoopbackAttempt, context: {
+    expectedHost: string; callbackFields: readonly string[]; finish: (outcome: CallbackOutcome) => void;
+}): (req: IncomingMessage, res: ServerResponse) => void {
+    const { expectedHost, callbackFields, finish } = context;
+    return (req, res) => {
         const route = routeLoopbackRequest({
             request: { method: req.method, rawUrl: req.url, host: req.headers.host, hasBody: hasBody(req) },
-            expectedHost, path: CALLBACK_PATH, armed: expectedState !== undefined && !consumed && !done,
+            expectedHost, path: CALLBACK_PATH, armed: state.expectedState !== undefined && !state.consumed && !state.done,
         });
         if (route.kind === 'ignore') {
             void reply(res, route.status, FAILED_PAGE);
             return;
         }
-        const outcome = readOutcome({ query: route.query, expectedState: expectedState!, callbackFields });
+        const outcome = readOutcome({ query: route.query, expectedState: state.expectedState!, callbackFields });
         // Not this attempt's callback (a local process or a page probing ports): answer it and keep
         // the slot armed, so it cannot end the sign-in; the bound and the timeout still close it.
-        wrongStateRequests += isWrongState(outcome) ? 1 : 0;
-        if (isWrongState(outcome) && wrongStateRequests < MAX_WRONG_STATE_REQUESTS) {
+        state.wrongStateRequests += isWrongState(outcome) ? 1 : 0;
+        if (isWrongState(outcome) && state.wrongStateRequests < MAX_WRONG_STATE_REQUESTS) {
             void reply(res, 400, FAILED_PAGE);
             return;
         }
         // Consumed synchronously with the state check: a request already pipelined behind this
         // one finds the slot taken and is never read as a callback.
-        consumed = true;
+        state.consumed = true;
         void reply(res, 'value' in outcome ? 200 : 400, 'value' in outcome ? DONE_PAGE : FAILED_PAGE).then(() => finish(outcome));
-    });
 
-    return {
-        redirectUri: `http://${expectedHost}${CALLBACK_PATH}`,
-        receive({ expectedState: state }) {
-            if (expectedState !== undefined || state === '' || state.length > MAX_AUTHORIZATION_STATE_LENGTH)
-                return Promise.reject(new OAuthError({ code: 'OAUTH_INVALID_REQUEST', message: 'the loopback receiver must be armed once with a non-empty state', operatorAction: 'Start the connection again from the connection settings.' }));
-            expectedState = state;
-            return result;
-        },
     };
 }

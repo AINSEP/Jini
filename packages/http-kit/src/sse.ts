@@ -122,19 +122,58 @@ export function createSseChannel<E extends SseEvent>({ res }: { readonly res: Se
   const maxQueuedEvents = options.maxQueuedEvents ?? DEFAULT_MAX_QUEUED_SSE_EVENTS;
   const formatEvent = options.formatEvent ?? (({ event }: { event: E }) => defaultFormatEvent(event));
 
-  const queue: E[] = [];
-  let flowing = false;
-  let writable = true;
-  let closed = false;
-  let ending = false;
-  const closeCallbacks: Array<() => void> = [];
+  const state: SseChannelState<E> = {
+    queue: [], flowing: false, writable: true, closed: false, ending: false, closeCallbacks: [],
+  };
+  const { markClosed, finish, end } = createSseLifecycle(res, state);
+  const isTerminalEvent = (event: E): boolean | undefined => options.isEndEvent?.({ event });
+  const pump = createSsePump(res, state, { formatEvent, options, finish, end, isTerminalEvent });
+  const { enqueue, open } = createSseProducer(res, state, { maxQueuedEvents, finish, pump });
 
+  res.on('drain', () => {
+    state.writable = true;
+    pump();
+  });
+  // The client disconnecting only marks the channel closed — it must not itself call `res.end()`
+  // (see `end()`'s doc for why calling it a second time would be safe anyway, but a route that
+  // still wants to send a *non-SSE* response — e.g. a JSON error — after discovering a subscribe
+  // failed needs `isClosed()` to be observable without the response having been touched yet).
+  res.on('close', markClosed);
+
+  const onClose = ({ callback }: { readonly callback: () => void }): void => {
+    if (state.closed) {
+      callback();
+      return;
+    }
+    state.closeCallbacks.push(callback);
+  };
+
+  return {
+    enqueue,
+    open,
+    isClosed: () => state.closed,
+    end,
+    abandon: markClosed,
+    onClose,
+  };
+}
+
+interface SseChannelState<E> {
+  queue: E[];
+  flowing: boolean;
+  writable: boolean;
+  closed: boolean;
+  ending: boolean;
+  closeCallbacks: Array<() => void>;
+}
+
+function createSseLifecycle<E>(res: ServerResponse, state: SseChannelState<E>) {
   const markClosed = (): void => {
-    if (closed) return;
-    closed = true;
+    if (state.closed) return;
+    state.closed = true;
     // Copy first: a callback that itself calls `onClose` during this loop must not be invoked
     // twice or mutate the array being iterated.
-    const callbacks = closeCallbacks.splice(0, closeCallbacks.length);
+    const callbacks = state.closeCallbacks.splice(0, state.closeCallbacks.length);
     for (const callback of callbacks) callback();
   };
 
@@ -146,85 +185,85 @@ export function createSseChannel<E extends SseEvent>({ res }: { readonly res: Se
 
   /** Stop production now; an open backlog finishes on drain. O(1) excluding close callbacks. */
   const end = (): void => {
-    if (closed) return;
-    ending = true;
-    if (flowing && queue.length > 0) return;
+    if (state.closed) return;
+    state.ending = true;
+    if (state.flowing && state.queue.length > 0) return;
     finish();
   };
 
+  return { markClosed, finish, end };
+}
+
+function createSsePump<E extends SseEvent>(res: ServerResponse, state: SseChannelState<E>,
+  { formatEvent, options, finish, end, isTerminalEvent }: {
+    formatEvent: NonNullable<CreateSseChannelOptions<E>['formatEvent']>;
+    options: CreateSseChannelOptions<E>;
+    finish: () => void;
+    end: () => void;
+    isTerminalEvent: (event: E) => boolean | undefined;
+  }) {
   const pump = (): void => {
-    if (!flowing || closed) return;
-    while (writable && queue.length > 0) {
-      const event = queue.shift()!;
-      let wroteOk: boolean;
-      try {
-        wroteOk = res.write(formatEvent({ event }));
-      } catch (error) {
-        // A dead/broken transport must never throw back through whatever is producing events —
-        // stop this channel only.
-        options.onWriteError?.({ error });
-        finish();
-        return;
-      }
-      if (wroteOk === false) writable = false;
-      if (isTerminalEvent(event)) {
-        finish();
-        return;
-      }
+    if (!state.flowing || state.closed) return;
+    while (state.writable && state.queue.length > 0) {
+      if (!writeNextSseEvent(res, state, { formatEvent, options, finish, isTerminalEvent })) return;
     }
-    if (ending) end();
+    if (state.ending) end();
   };
 
-  const isTerminalEvent = (event: E): boolean | undefined => options.isEndEvent?.({ event });
+  return pump;
+}
 
+function writeNextSseEvent<E extends SseEvent>(res: ServerResponse, state: SseChannelState<E>,
+  { formatEvent, options, finish, isTerminalEvent }: {
+    formatEvent: NonNullable<CreateSseChannelOptions<E>['formatEvent']>;
+    options: CreateSseChannelOptions<E>;
+    finish: () => void;
+    isTerminalEvent: (event: E) => boolean | undefined;
+  }): boolean {
+  const event = state.queue.shift()!;
+  let wroteOk: boolean;
+  try {
+    wroteOk = res.write(formatEvent({ event }));
+  } catch (error) {
+    // A dead/broken transport must never throw back through whatever is producing events —
+    // stop this channel only.
+    options.onWriteError?.({ error });
+    finish();
+    return false;
+  }
+  if (wroteOk === false) state.writable = false;
+  if (isTerminalEvent(event)) {
+    finish();
+    return false;
+  }
+  return true;
+}
+
+function createSseProducer<E>(res: ServerResponse, state: SseChannelState<E>,
+  { maxQueuedEvents, finish, pump }: { maxQueuedEvents: number; finish: () => void; pump: () => void }) {
   const enqueue = ({ event }: { readonly event: E }): void => {
-    if (closed || ending) return;
-    if (queue.length >= maxQueuedEvents) {
+    if (state.closed || state.ending) return;
+    if (state.queue.length >= maxQueuedEvents) {
       // Slow/stalled consumer — disconnect rather than grow memory without bound.
       finish();
       return;
     }
-    queue.push(event);
+    state.queue.push(event);
     pump();
   };
 
   const open = (): void => {
-    if (closed || flowing) return;
+    if (state.closed || state.flowing) return;
     res.statusCode = 200;
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
-    flowing = true;
+    state.flowing = true;
     pump();
   };
 
-  res.on('drain', () => {
-    writable = true;
-    pump();
-  });
-  // The client disconnecting only marks the channel closed — it must not itself call `res.end()`
-  // (see `end()`'s doc for why calling it a second time would be safe anyway, but a route that
-  // still wants to send a *non-SSE* response — e.g. a JSON error — after discovering a subscribe
-  // failed needs `isClosed()` to be observable without the response having been touched yet).
-  res.on('close', markClosed);
-
-  const onClose = ({ callback }: { readonly callback: () => void }): void => {
-    if (closed) {
-      callback();
-      return;
-    }
-    closeCallbacks.push(callback);
-  };
-
-  return {
-    enqueue,
-    open,
-    isClosed: () => closed,
-    end,
-    abandon: markClosed,
-    onClose,
-  };
+  return { enqueue, open };
 }
 
 /** Reads a reconnect cursor from the standard `Last-Event-ID` header, falling back to an `afterCursor` query parameter. Shared by any SSE route that supports reconnect replay (the header takes precedence since it is what browsers set automatically on `EventSource` reconnect). */

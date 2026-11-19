@@ -65,82 +65,103 @@ export function createFakeBrowserWindowFactory(_requiredArgs: Record<string, nev
 } {
   const windows: ElectronBrowserWindowLike[] = [];
 
-  const factory = (_requiredArgs: Record<string, never>, _options: ElectronBrowserWindowOptions = {}): ElectronBrowserWindowLike => {
-    let destroyed = false;
-    let didFinishLoad: (() => void) | null = null;
-    let didFailLoad: ((args: { event: unknown; errorCode: number; errorDescription: string }) => void) | null = null;
-    let willNavigate: ((args: { event: { preventDefault(): void }; url: string }) => void) | null = null;
-    let beforeRequest: ((args: { details: { url: string }; callback: (response: { cancel: boolean }) => void }) => void) | null = null;
-    const closedListeners: Array<() => void> = [];
+  const factory = (_requiredArgs: Record<string, never>, _options: ElectronBrowserWindowOptions = {}): ElectronBrowserWindowLike => createFakeBrowserWindow(script, windows);
+  return { factory, windows };
+}
 
-    const webContents: ElectronWebContentsLike = {
-      session: {
-        webRequest: {
-          onBeforeRequest({ listener }) {
-            beforeRequest = listener;
-          },
-        },
-      },
-      async loadURL() {},
-      once({ event, listener }) {
-        if (event === 'did-finish-load') didFinishLoad = listener as () => void;
-        if (event === 'did-fail-load') didFailLoad = listener as (args: { event: unknown; errorCode: number; errorDescription: string }) => void;
-      },
-      on({ event, listener }) {
-        if (event === 'will-navigate') willNavigate = listener as (args: { event: { preventDefault(): void }; url: string }) => void;
-      },
-      async printToPDF() {
-        return script.pdfResult ?? Buffer.from('pdf-bytes');
-      },
-      async capturePage() {
-        const png = script.pngResult ?? Buffer.from('png-bytes');
-        return { toPNG: () => png };
-      },
-    };
+function createFakeBrowserWindow(script: FakeWindowScript, windows: ElectronBrowserWindowLike[]): ElectronBrowserWindowLike {
+  let destroyed = false;
+  const closedListeners: Array<() => void> = [];
+  const { webContents, loadURL, triggerBeforeRequest, triggerWillNavigate } = createFakeWindowContents(script);
 
-    const win: ElectronBrowserWindowLike & { triggerBeforeRequest(url: string): { cancel: boolean }; triggerWillNavigate(url: string): boolean } = {
-      webContents,
-      async loadURL(_args: { url: string }) {
-        if (script.hang === true) return;
-        queueMicrotask(() => {
-          if (script.failLoad != null) didFailLoad?.({ event: null, errorCode: script.failLoad.errorCode, errorDescription: script.failLoad.errorDescription });
-          else didFinishLoad?.();
-        });
+  const win: ElectronBrowserWindowLike & { triggerBeforeRequest(url: string): { cancel: boolean }; triggerWillNavigate(url: string): boolean } = {
+    webContents,
+    loadURL,
+    show() {},
+    hide() {},
+    focus() {},
+    close() {
+      win.destroy();
+    },
+    destroy() {
+      destroyed = true;
+      for (const listener of closedListeners) listener();
+    },
+    isDestroyed() {
+      return destroyed;
+    },
+    on({ event, listener }) {
+      if (event === 'closed') closedListeners.push(listener);
+    },
+    triggerBeforeRequest,
+    triggerWillNavigate,
+  };
+  windows.push(win);
+  return win;
+}
+
+function createFakeWindowContents(script: FakeWindowScript) {
+  let didFinishLoad: (() => void) | null = null;
+  let didFailLoad: ((args: { event: unknown; errorCode: number; errorDescription: string }) => void) | null = null;
+  const navigation = createFakeWindowNavigation();
+
+  const webContents: ElectronWebContentsLike = {
+    session: {
+      webRequest: {
+        onBeforeRequest: navigation.onBeforeRequest,
       },
-      show() {},
-      hide() {},
-      focus() {},
-      close() {
-        win.destroy();
-      },
-      destroy() {
-        destroyed = true;
-        for (const listener of closedListeners) listener();
-      },
-      isDestroyed() {
-        return destroyed;
-      },
-      on({ event, listener }) {
-        if (event === 'closed') closedListeners.push(listener);
-      },
-      triggerBeforeRequest(url: string) {
-        let result: { cancel: boolean } = { cancel: false };
-        beforeRequest?.({ details: { url }, callback: (response) => {
-          result = response;
-        } });
-        return result;
-      },
-      triggerWillNavigate(url: string) {
-        let prevented = false;
-        willNavigate?.({ event: { preventDefault: () => (prevented = true) }, url });
-        return prevented;
-      },
-    };
-    windows.push(win);
-    return win;
+    },
+    async loadURL() {},
+    once({ event, listener }) {
+      if (event === 'did-finish-load') didFinishLoad = listener as () => void;
+      if (event === 'did-fail-load') didFailLoad = listener as (args: { event: unknown; errorCode: number; errorDescription: string }) => void;
+    },
+    on: navigation.on,
+    async printToPDF() {
+      return script.pdfResult ?? Buffer.from('pdf-bytes');
+    },
+    async capturePage() {
+      const png = script.pngResult ?? Buffer.from('png-bytes');
+      return { toPNG: () => png };
+    },
   };
 
-  return { factory, windows };
+  return { webContents,
+    async loadURL(_args: { url: string }) {
+      if (script.hang === true) return;
+      queueMicrotask(() => {
+        if (script.failLoad != null) didFailLoad?.({ event: null, errorCode: script.failLoad.errorCode, errorDescription: script.failLoad.errorDescription });
+        else didFinishLoad?.();
+      });
+    },
+    triggerBeforeRequest: navigation.triggerBeforeRequest,
+    triggerWillNavigate: navigation.triggerWillNavigate,
+  };
+}
+
+function createFakeWindowNavigation() {
+  let willNavigate: ((args: { event: { preventDefault(): void }; url: string }) => void) | null = null;
+  let beforeRequest: ((args: { details: { url: string }; callback: (response: { cancel: boolean }) => void }) => void) | null = null;
+  return {
+    onBeforeRequest({ listener }: Parameters<ElectronWebContentsLike['session']['webRequest']['onBeforeRequest']>[0]) {
+      beforeRequest = listener;
+    },
+    on({ event, listener }: Parameters<ElectronWebContentsLike['on']>[0]) {
+      if (event === 'will-navigate') willNavigate = listener as (args: { event: { preventDefault(): void }; url: string }) => void;
+    },
+    triggerBeforeRequest(url: string) {
+      let result: { cancel: boolean } = { cancel: false };
+      beforeRequest?.({ details: { url }, callback: (response) => {
+        result = response;
+      } });
+      return result;
+    },
+    triggerWillNavigate(url: string) {
+      let prevented = false;
+      willNavigate?.({ event: { preventDefault: () => (prevented = true) }, url });
+      return prevented;
+    },
+  };
 }
 
 export function createFakeElectronProtocol(_requiredArgs: Record<string, never>): ElectronProtocolLike & { handlers: Map<string, (args: { request: Request }) => Promise<Response>> } {

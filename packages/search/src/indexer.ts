@@ -93,33 +93,81 @@ function shouldUpsert(record: SearchSourceRecord, provider: SearchProvider): boo
 export function createSearchIndexer(required: SearchIndexerRequired, optional: SearchIndexerOptional = {}): SearchIndexer {
   const { sources, registry, targets, state, now } = required;
   const { maxAttempts = 5, scanPageSize = 100 } = optional;
+  const resolve = createIndexerResolve({ required, registry });
+  const planRow = createIndexerPlanRow({ now });
+  const putPlan = createIndexerPutPlan({ state }, () => ({ planRow }));
+  const settleObserved = createIndexerSettleObserved({ state });
+  const freshRecords = createIndexerFreshRecords({ state });
+  const settleCall = createIndexerSettleCall({ state }, () => ({ planRow }));
+  const writeChunks = createIndexerWriteChunks(() => ({ settleCall }));
+  const writeToTarget = createIndexerWriteToTarget(() => ({ resolve, putPlan, freshRecords, writeChunks }));
+  const currentTargets = createIndexerCurrentTargets({ targets });
+  const settledRow = createIndexerSettledRow({ now });
+  const settleTask = createIndexerSettleTask(() => ({ settleObserved, settledRow }));
+  const checkRevisions = createIndexerCheckRevisions(() => ({ checkChunk }));
+  const checkChunk = createIndexerCheckChunk(() => ({ settleObserved, settledRow }));
+  const settleInFlight = createIndexerSettleInFlight(() => ({ settleTask, checkRevisions }));
+  const rewriteRow = createIndexerRewriteRow({ sources, now }, () => ({ settleObserved, writeToTarget, settledRow }));
+  const reconcileTarget = createIndexerReconcileTarget({ state, maxAttempts }, () => ({ resolve, settleInFlight, rewriteRow }));
+  const scanSource = createIndexerScanSource({ state, scanPageSize }, () => ({ writeToTarget }));
+  const promote = createIndexerPromote({ targets, state }, () => ({ dropRetired }));
+  const dropRetired = createIndexerDropRetired({ targets, state }, () => ({ resolve }));
+  const backfillTarget = createIndexerBackfillTarget({ sources }, () => ({ scanSource }));
+  const readMarks = createIndexerReadMarks({ sources, state });
 
-  const resolve = async (target: SearchTarget, workspaceId: string): Promise<Resolved | null> => {
+  return {
+    eventNames: [...new Set(sources.flatMap(source => source.events))],
+
+    handleEvent: createIndexerHandleEvent({ required, sources }, () => ({ writeToTarget, currentTargets })),
+
+    reconcile: createIndexerReconcile({ state }, () => ({ currentTargets, reconcileTarget, dropRetired })),
+
+    backfill: createIndexerBackfill({ targets }, () => ({ resolve, promote, backfillTarget, readMarks })),
+
+    startRebuild: createIndexerStartRebuild({ targets }),
+  };
+}
+
+function createIndexerResolve({ required, registry }: { required: SearchIndexerRequired; registry: SearchIndexerRequired['registry'] }) {
+  return async (target: SearchTarget, workspaceId: string): Promise<Resolved | null> => {
     const provider = registry.get({ id: target.providerId })?.provider;
     if (!provider) return null;
     const ctx = await required.contextFor({ target, workspaceId });
     return ctx ? { provider, ctx } : null;
   };
+}
 
-  const planRow = (target: SearchTarget, plan: Plan, settle: Settle): SearchIndexStateRow => ({
+function createIndexerPlanRow({ now }: { now: SearchIndexerRequired['now'] }) {
+  return (target: SearchTarget, plan: Plan, settle: Settle): SearchIndexStateRow => ({
     target, key: plan.record.key, revision: plan.record.revision, deleted: !plan.upsert,
     status: settle.status, attempts: plan.attempts, updatedAtMs: now(),
     ...(settle.taskId === undefined ? {} : { taskId: settle.taskId }),
     ...(settle.lastError === undefined ? {} : { lastError: settle.lastError }),
   });
+}
 
-  const putPlan = (target: SearchTarget, plan: Plan, settle: Settle) => state.put({ row: planRow(target, plan, settle) });
+function createIndexerPutPlan({ state }: { state: SearchIndexStatePort }, dependencies: () => { planRow: ReturnType<typeof createIndexerPlanRow> }) {
+  return (target: SearchTarget, plan: Plan, settle: Settle) => {
+    const { planRow } = dependencies();
+    return state.put({ row: planRow(target, plan, settle) });
+  };
+}
 
-  /** Compare-and-swap a settled row against the identity the caller observed (see `settle`). */
-  const settleObserved = (row: SearchIndexStateRow, settled: SearchIndexStateRow) =>
+/** Compare-and-swap a settled row against the identity the caller observed (see `settle`). */
+  
+function createIndexerSettleObserved({ state }: { state: SearchIndexStatePort }) {
+  return (row: SearchIndexStateRow, settled: SearchIndexStateRow) =>
     state.settle({ row: settled, expected: { revision: row.revision, taskId: row.taskId ?? null } });
+}
 
-  /**
+/**
    * Records worth writing, each with its attempt number. An event/backfill write is skipped when
    * the row already holds an equal or newer revision (a delayed or duplicated event); a retry only
    * skips an OLDER revision, because retrying the same revision is the point of a retry.
    */
-  const freshRecords = async (target: SearchTarget, records: readonly SearchSourceRecord[], retry: boolean) => {
+  
+function createIndexerFreshRecords({ state }: { state: SearchIndexStatePort }) {
+  return async (target: SearchTarget, records: readonly SearchSourceRecord[], retry: boolean) => {
     const fresh: { record: SearchSourceRecord; attempts: number }[] = [];
     for (const record of records) {
       const prior = await state.get({ target, key: record.key });
@@ -130,13 +178,17 @@ export function createSearchIndexer(required: SearchIndexerRequired, optional: S
     }
     return fresh;
   };
+}
 
-  /**
+/**
    * Map one write call's result onto its plans' rows; returns how many ended `indexed`. Each settle
    * is a compare-and-swap on the `pending` mark this write made (its revision, no task): a newer
    * revision written meanwhile owns the row and is never overwritten by this older completion.
    */
-  const settleCall = async (target: SearchTarget, plans: readonly Plan[], result: ProviderResult<SearchWriteResult>): Promise<number> => {
+  
+function createIndexerSettleCall({ state }: { state: SearchIndexStatePort }, dependencies: () => { planRow: ReturnType<typeof createIndexerPlanRow> }) {
+  return async (target: SearchTarget, plans: readonly Plan[], result: ProviderResult<SearchWriteResult>): Promise<number> => {
+    const { planRow } = dependencies();
     let indexed = 0;
     for (const plan of plans) {
       const settle = settleOf(plan, result);
@@ -145,8 +197,11 @@ export function createSearchIndexer(required: SearchIndexerRequired, optional: S
     }
     return indexed;
   };
+}
 
-  const writeChunks = async <T>(input: { target: SearchTarget; plans: readonly Plan[]; maxBatch: number; payload: (plan: Plan) => T; call: (items: T[]) => Promise<ProviderResult<SearchWriteResult>> }): Promise<number> => {
+function createIndexerWriteChunks(dependencies: () => { settleCall: ReturnType<typeof createIndexerSettleCall> }) {
+  return async <T>(input: { target: SearchTarget; plans: readonly Plan[]; maxBatch: number; payload: (plan: Plan) => T; call: (items: T[]) => Promise<ProviderResult<SearchWriteResult>> }): Promise<number> => {
+    const { settleCall } = dependencies();
     let indexed = 0;
     for (const chunk of chunks(input.plans, input.maxBatch)) {
       const result = await guarded(() => input.call(chunk.map(input.payload)));
@@ -154,9 +209,13 @@ export function createSearchIndexer(required: SearchIndexerRequired, optional: S
     }
     return indexed;
   };
+}
 
-  /** Write records to ONE target: mark pending, call the provider in batches, settle each row. */
-  const writeToTarget = async (input: { target: SearchTarget; workspaceId: string; records: readonly SearchSourceRecord[]; retry: boolean }): Promise<WriteTally> => {
+/** Write records to ONE target: mark pending, call the provider in batches, settle each row. */
+  
+function createIndexerWriteToTarget(dependencies: () => { resolve: ReturnType<typeof createIndexerResolve>; putPlan: ReturnType<typeof createIndexerPutPlan>; freshRecords: ReturnType<typeof createIndexerFreshRecords>; writeChunks: ReturnType<typeof createIndexerWriteChunks> }) {
+  return async (input: { target: SearchTarget; workspaceId: string; records: readonly SearchSourceRecord[]; retry: boolean }): Promise<WriteTally> => {
+    const { resolve, putPlan, freshRecords, writeChunks } = dependencies();
     const { target } = input;
     const fresh = await freshRecords(target, input.records, input.retry);
     if (fresh.length === 0) return { written: 0, indexed: 0 };
@@ -182,34 +241,46 @@ export function createSearchIndexer(required: SearchIndexerRequired, optional: S
     });
     return { written: plans.length, indexed: upserted + removed };
   };
+}
 
-  const currentTargets = async (siteId: string) => targetList(await targets.get({ siteId }));
+function createIndexerCurrentTargets({ targets }: { targets: SearchTargetPort }) {
+  return async (siteId: string) => targetList(await targets.get({ siteId }));
+}
 
-  const settledRow = (row: SearchIndexStateRow, settle: Settle): SearchIndexStateRow => ({
+function createIndexerSettledRow({ now }: { now: SearchIndexerRequired['now'] }) {
+  return (row: SearchIndexStateRow, settle: Settle): SearchIndexStateRow => ({
     target: row.target, key: row.key, revision: row.revision, deleted: row.deleted, attempts: row.attempts,
     status: settle.status, updatedAtMs: now(),
     ...(settle.lastError === undefined ? {} : { lastError: settle.lastError }),
   });
+}
 
-  /**
+/**
    * Ask an async provider how an earlier `pending` write ended. 1 when it is now indexed. The settle
    * only lands while the row still holds this revision AND this task: an event that wrote a newer
    * revision while the task was awaited keeps its own pending task (and its retry) intact.
    */
-  const settleTask = async (row: SearchIndexStateRow, taskId: string, resolved: Resolved, awaitTask: NonNullable<SearchProvider['awaitTask']>): Promise<number> => {
+  
+function createIndexerSettleTask(dependencies: () => { settleObserved: ReturnType<typeof createIndexerSettleObserved>; settledRow: ReturnType<typeof createIndexerSettledRow> }) {
+  return async (row: SearchIndexStateRow, resolved: Resolved, { taskId, awaitTask }: { taskId: string; awaitTask: NonNullable<SearchProvider['awaitTask']> }): Promise<number> => {
+    const { settleObserved, settledRow } = dependencies();
     const result = await guarded(() => awaitTask.call(resolved.provider, resolved.ctx, { taskId }));
     if (result.status !== 'ok' || result.value === 'pending') return 0;
     const succeeded = result.value === 'succeeded';
     const written = await settleObserved(row, settledRow(row, succeeded ? { status: 'indexed' } : { status: 'failed', lastError: 'task_failed' }));
     return succeeded && written ? 1 : 0;
   };
+}
 
-  /**
+/**
    * Settle indeterminate rows by asking the provider what it holds. A row whose write landed is
    * marked indexed; anything else is returned for a re-load and re-write (never blindly marked
    * failed: an `unknown` outcome may well have happened).
    */
-  const checkRevisions = async (rows: readonly SearchIndexStateRow[], resolved: Resolved): Promise<{ settled: number; rewrite: SearchIndexStateRow[] }> => {
+  
+function createIndexerCheckRevisions(dependencies: () => { checkChunk: ReturnType<typeof createIndexerCheckChunk> }) {
+  return async (rows: readonly SearchIndexStateRow[], resolved: Resolved): Promise<{ settled: number; rewrite: SearchIndexStateRow[] }> => {
+    const { checkChunk } = dependencies();
     let settled = 0;
     const rewrite: SearchIndexStateRow[] = [];
     for (const chunk of chunks(rows, Math.max(1, resolved.provider.capabilities.maxBatch))) {
@@ -219,9 +290,13 @@ export function createSearchIndexer(required: SearchIndexerRequired, optional: S
     }
     return { settled, rewrite };
   };
+}
 
-  /** One `revisionOf` call's worth of {@link checkRevisions}; an indeterminate answer leaves the rows as they are. */
-  const checkChunk = async (chunk: readonly SearchIndexStateRow[], resolved: Resolved): Promise<{ settled: number; rewrite: SearchIndexStateRow[] }> => {
+/** One `revisionOf` call's worth of {@link checkRevisions}; an indeterminate answer leaves the rows as they are. */
+  
+function createIndexerCheckChunk(dependencies: () => { settleObserved: ReturnType<typeof createIndexerSettleObserved>; settledRow: ReturnType<typeof createIndexerSettledRow> }) {
+  return async (chunk: readonly SearchIndexStateRow[], resolved: Resolved): Promise<{ settled: number; rewrite: SearchIndexStateRow[] }> => {
+    const { settleObserved, settledRow } = dependencies();
     const result = await guarded(() => resolved.provider.revisionOf(resolved.ctx, { keys: chunk.map(row => row.key) }));
     if (result.status !== 'ok') return { settled: 0, rewrite: [] };
     const held = new Map(result.value.map(entry => [encodeSearchKey({ key: entry.key }), entry]));
@@ -233,23 +308,31 @@ export function createSearchIndexer(required: SearchIndexerRequired, optional: S
     }
     return { settled, rewrite };
   };
+}
 
-  /** `pending` rows with a task are awaited; `unknown` rows (and a `pending` row whose process died
+/** `pending` rows with a task are awaited; `unknown` rows (and a `pending` row whose process died
    * between marking and the call, so it has no task) are checked with `revisionOf`. */
-  const settleInFlight = async (rows: readonly SearchIndexStateRow[], resolved: Resolved): Promise<{ settled: number; rewrite: SearchIndexStateRow[] }> => {
+  
+function createIndexerSettleInFlight(dependencies: () => { settleTask: ReturnType<typeof createIndexerSettleTask>; checkRevisions: ReturnType<typeof createIndexerCheckRevisions> }) {
+  return async (rows: readonly SearchIndexStateRow[], resolved: Resolved): Promise<{ settled: number; rewrite: SearchIndexStateRow[] }> => {
+    const { settleTask, checkRevisions } = dependencies();
     const { awaitTask } = resolved.provider;
     let settled = 0;
     const check: SearchIndexStateRow[] = [];
     for (const row of rows) {
-      if (row.status === 'pending' && row.taskId !== undefined && awaitTask) settled += await settleTask(row, row.taskId, resolved, awaitTask);
+      if (row.status === 'pending' && row.taskId !== undefined && awaitTask) settled += await settleTask(row, resolved, { taskId: row.taskId, awaitTask });
       else check.push(row);
     }
     const checked = await checkRevisions(check, resolved);
     return { settled: settled + checked.settled, rewrite: checked.rewrite };
   };
+}
 
-  /** Re-load the row's document from its source and write the current truth again (a retry). */
-  const rewriteRow = async (row: SearchIndexStateRow, workspaceId: string): Promise<number> => {
+/** Re-load the row's document from its source and write the current truth again (a retry). */
+  
+function createIndexerRewriteRow({ sources, now }: { sources: SearchIndexerRequired['sources']; now: SearchIndexerRequired['now'] }, dependencies: () => { settleObserved: ReturnType<typeof createIndexerSettleObserved>; writeToTarget: ReturnType<typeof createIndexerWriteToTarget>; settledRow: ReturnType<typeof createIndexerSettledRow> }) {
+  return async (row: SearchIndexStateRow, workspaceId: string): Promise<number> => {
+    const { settleObserved, writeToTarget, settledRow } = dependencies();
     const source = sources.find(candidate => candidate.collection === row.key.collection);
     if (!source) {
       await settleObserved(row, { ...settledRow(row, { status: 'failed', lastError: 'no_source' }), attempts: row.attempts + 1 });
@@ -258,8 +341,11 @@ export function createSearchIndexer(required: SearchIndexerRequired, optional: S
     const record = await source.load({ siteId: row.target.siteId, workspaceId: row.key.workspaceId, documentId: row.key.documentId, occurredAtMs: now() });
     return (await writeToTarget({ target: row.target, workspaceId, records: [record], retry: true })).indexed;
   };
+}
 
-  const reconcileTarget = async (target: SearchTarget, workspaceId: string, limit: number): Promise<number> => {
+function createIndexerReconcileTarget({ state, maxAttempts }: { state: SearchIndexStatePort; maxAttempts: number }, dependencies: () => { resolve: ReturnType<typeof createIndexerResolve>; settleInFlight: ReturnType<typeof createIndexerSettleInFlight>; rewriteRow: ReturnType<typeof createIndexerRewriteRow> }) {
+  return async (target: SearchTarget, workspaceId: string, limit: number): Promise<number> => {
+    const { resolve, settleInFlight, rewriteRow } = dependencies();
     // Exhausted failures are excluded before the limit, or the oldest of them would fill every sweep.
     const rows = await state.listByStatus({ target, statuses: RECONCILE_STATUSES, limit }, { failedBelowAttempts: maxAttempts });
     const retry = rows.filter(row => row.status === 'failed' && row.attempts < maxAttempts);
@@ -271,9 +357,13 @@ export function createSearchIndexer(required: SearchIndexerRequired, optional: S
     for (const row of [...inFlightResult.rewrite, ...retry]) settled += await rewriteRow(row, workspaceId);
     return settled;
   };
+}
 
-  /** Scan one source from its watermark, writing each page; the watermark moves after EVERY page. */
-  const scanSource = async (input: { source: SearchDocumentSource; target: SearchTarget; siteId: string; workspaceId: string; cursor: string | undefined; pages: number }) => {
+/** Scan one source from its watermark, writing each page; the watermark moves after EVERY page. */
+  
+function createIndexerScanSource({ state, scanPageSize }: { state: SearchIndexStatePort; scanPageSize: number }, dependencies: () => { writeToTarget: ReturnType<typeof createIndexerWriteToTarget> }) {
+  return async (input: { source: SearchDocumentSource; target: SearchTarget; siteId: string; workspaceId: string; cursor: string | undefined; pages: number }) => {
+    const { writeToTarget } = dependencies();
     const { source, target } = input;
     let { cursor, pages } = input;
     let written = 0;
@@ -289,14 +379,18 @@ export function createSearchIndexer(required: SearchIndexerRequired, optional: S
     }
     return { done: false, written, pages };
   };
+}
 
-  /**
+/**
    * Flip building→active once nothing is in flight. Partial `failed` rows do not block: they would
    * block forever, and reconcile keeps retrying them against the new active target. If every write
    * failed, keep the old generation serving queries until a retry succeeds. It is dropped only
    * after the atomic flip.
    */
-  const promote = async (siteId: string, workspaceId: string, target: SearchTarget): Promise<boolean> => {
+  
+function createIndexerPromote({ targets, state }: { targets: SearchTargetPort; state: SearchIndexStatePort }, dependencies: () => { dropRetired: ReturnType<typeof createIndexerDropRetired> }) {
+  return async (siteId: string, workspaceId: string, target: SearchTarget): Promise<boolean> => {
+    const { dropRetired } = dependencies();
     const counts = await state.counts({ target });
     if (counts.pending + counts.unknown > 0) return false;
     if (counts.indexed === 0 && counts.failed > 0) return false;
@@ -305,8 +399,9 @@ export function createSearchIndexer(required: SearchIndexerRequired, optional: S
     await dropRetired(siteId, workspaceId);
     return true;
   };
+}
 
-  /**
+/**
    * Drop every retired (replaced) generation of a site. The bookkeeping rows are deleted either
    * way, since a replaced target is never written or read again. The vendor index can be dropped
    * only while its provider is registered and configured (nothing else can reach it), and the
@@ -314,7 +409,10 @@ export function createSearchIndexer(required: SearchIndexerRequired, optional: S
    * outcome, a missing credential or an unregistered provider leaves it for the next reconcile,
    * instead of leaving the old content in the vendor index forever.
    */
-  const dropRetired = async (siteId: string, workspaceId: string): Promise<void> => {
+  
+function createIndexerDropRetired({ targets, state }: { targets: SearchTargetPort; state: SearchIndexStatePort }, dependencies: () => { resolve: ReturnType<typeof createIndexerResolve> }) {
+  return async (siteId: string, workspaceId: string): Promise<void> => {
+    const { resolve } = dependencies();
     for (const retired of await targets.listRetired({ siteId })) {
       await state.deleteTarget({ target: retired });
       const resolved = await resolve(retired, workspaceId);
@@ -322,8 +420,11 @@ export function createSearchIndexer(required: SearchIndexerRequired, optional: S
       if (dropped?.status === 'ok') await targets.forgetRetired({ target: retired });
     }
   };
+}
 
-  const backfillTarget = async (input: { siteId: string; workspaceId: string; target: SearchTarget; pageBudget: number; marks: readonly Watermark[] }): Promise<{ done: boolean; written: number }> => {
+function createIndexerBackfillTarget({ sources }: { sources: SearchIndexerRequired['sources'] }, dependencies: () => { scanSource: ReturnType<typeof createIndexerScanSource> }) {
+  return async (input: { siteId: string; workspaceId: string; target: SearchTarget; pageBudget: number; marks: readonly Watermark[] }): Promise<{ done: boolean; written: number }> => {
+    const { scanSource } = dependencies();
     let written = 0;
     let pages = input.pageBudget;
     for (const [index, source] of sources.entries()) {
@@ -336,17 +437,19 @@ export function createSearchIndexer(required: SearchIndexerRequired, optional: S
     }
     return { done: true, written };
   };
+}
 
-  const readMarks = async (target: SearchTarget): Promise<Watermark[]> => {
+function createIndexerReadMarks({ sources, state }: { sources: SearchIndexerRequired['sources']; state: SearchIndexStatePort }) {
+  return async (target: SearchTarget): Promise<Watermark[]> => {
     const marks: Watermark[] = [];
     for (const source of sources) marks.push(await state.getWatermark({ target, collection: source.collection }));
     return marks;
   };
+}
 
-  return {
-    eventNames: [...new Set(sources.flatMap(source => source.events))],
-
-    async handleEvent({ event }: { event: SearchSourceEvent }) {
+function createIndexerHandleEvent({ required, sources }: { required: SearchIndexerRequired; sources: SearchIndexerRequired['sources'] }, dependencies: () => { writeToTarget: ReturnType<typeof createIndexerWriteToTarget>; currentTargets: ReturnType<typeof createIndexerCurrentTargets> }): SearchIndexer['handleEvent'] {
+  const operation: SearchIndexer['handleEvent'] = async ({ event }: { event: SearchSourceEvent }) => {
+    const { writeToTarget, currentTargets } = dependencies();
       const named = sources.flatMap(source => {
         if (!source.events.includes(event.name)) return [];
         const documentId = source.documentIdOf({ event });
@@ -364,9 +467,13 @@ export function createSearchIndexer(required: SearchIndexerRequired, optional: S
         const record = await source.load({ siteId, workspaceId: event.workspaceId, documentId, occurredAtMs });
         for (const target of list) await writeToTarget({ target, workspaceId: event.workspaceId, records: [record], retry: false });
       }
-    },
+    };
+  return operation;
+}
 
-    async reconcile({ siteId, workspaceId }, { limit = 50 } = {}) {
+function createIndexerReconcile({ state }: { state: SearchIndexStatePort }, dependencies: () => { currentTargets: ReturnType<typeof createIndexerCurrentTargets>; reconcileTarget: ReturnType<typeof createIndexerReconcileTarget>; dropRetired: ReturnType<typeof createIndexerDropRetired> }): SearchIndexer['reconcile'] {
+  const operation: SearchIndexer['reconcile'] = async ({ siteId, workspaceId }, { limit = 50 } = {}) => {
+    const { currentTargets, reconcileTarget, dropRetired } = dependencies();
       // Retries the index drop of every replaced generation not yet confirmed gone.
       await dropRetired(siteId, workspaceId);
       const list = await currentTargets(siteId);
@@ -378,9 +485,13 @@ export function createSearchIndexer(required: SearchIndexerRequired, optional: S
         remaining += counts.pending + counts.unknown + counts.failed;
       }
       return { settled, remaining };
-    },
+    };
+  return operation;
+}
 
-    async backfill({ siteId, workspaceId }, { pageBudget = 10 } = {}) {
+function createIndexerBackfill({ targets }: { targets: SearchTargetPort }, dependencies: () => { resolve: ReturnType<typeof createIndexerResolve>; promote: ReturnType<typeof createIndexerPromote>; backfillTarget: ReturnType<typeof createIndexerBackfillTarget>; readMarks: ReturnType<typeof createIndexerReadMarks> }): SearchIndexer['backfill'] {
+  const operation: SearchIndexer['backfill'] = async ({ siteId, workspaceId }, { pageBudget = 10 } = {}) => {
+    const { resolve, promote, backfillTarget, readMarks } = dependencies();
       const current = await targets.get({ siteId });
       const target = current.building ?? current.active;
       if (target === null) return { done: true, written: 0, promoted: false };
@@ -395,15 +506,18 @@ export function createSearchIndexer(required: SearchIndexerRequired, optional: S
       // `target` is the building one whenever one exists; only a building target is ever promoted.
       const promoted = done && current.building !== null ? await promote(siteId, workspaceId, target) : false;
       return { done, written, promoted };
-    },
+    };
+  return operation;
+}
 
-    async startRebuild({ siteId, providerId }) {
+function createIndexerStartRebuild({ targets }: { targets: SearchTargetPort }): SearchIndexer['startRebuild'] {
+  const operation: SearchIndexer['startRebuild'] = async ({ siteId, providerId }) => {
       const current = await targets.get({ siteId });
       const generation = Math.max(current.active?.generation ?? 0, current.building?.generation ?? 0) + 1;
       await targets.setBuilding({ target: { siteId, providerId, generation } });
       return targets.get({ siteId });
-    },
-  };
+    };
+  return operation;
 }
 
 /** Whether the provider holds this row's write: its revision or a newer one, with the same deletion state. */
