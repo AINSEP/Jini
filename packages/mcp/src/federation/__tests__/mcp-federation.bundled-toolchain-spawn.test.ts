@@ -86,10 +86,9 @@ interface ChildReport {
  *  what the real child reported about itself. */
 async function attachAndReport(launch: McpStdioLaunchSpec, env: NodeJS.ProcessEnv, reportPath: string): Promise<ChildReport> {
   const warnings: string[] = [];
-  const result = await attachFederatedMcpTools({ connect: createDefaultConnect({
-      resolver: stdioLaunchResolverFromEnv({ env, toolchainDirEnvVar: "EXAMPLE_NODE_TOOLCHAIN_DIR", npmRootEnvVar: "EXAMPLE_BUNDLED_NPM_ROOT", messages: federationMessages }),
+  const result = await attachFederatedMcpTools({ env: env, connect: createDefaultConnect({ parentEnv: env, resolver: stdioLaunchResolverFromEnv({ env, toolchainDirEnvVar: "EXAMPLE_NODE_TOOLCHAIN_DIR", npmRootEnvVar: "EXAMPLE_BUNDLED_NPM_ROOT", messages: federationMessages }),
       clientInfo, messages: federationMessages, bearerToken: () => undefined,
-    }), registry: fakeRegistry(), deps: { messages: federationMessages, errorCode: "EXTERNAL_MCP", permissionGate: testPermissionGate({ authorize: async () => ({ allowed: true, reason: "matched" }), scope: "ws-toolchain" }), scope: "ws-toolchain" } }, { connections: [{ config: CONFIG, launch }], logger: { error: () => undefined, info: () => undefined, warn: ({ message }: { message: string }) => warnings.push(message) }, env });
+    }), registry: fakeRegistry(), deps: { messages: federationMessages, errorCode: "EXTERNAL_MCP", permissionGate: testPermissionGate({ authorize: async () => ({ allowed: true, reason: "matched" }), scope: "ws-toolchain" }), scope: "ws-toolchain" } }, { connections: [{ config: CONFIG, launch }], logger: { error: () => undefined, info: () => undefined, warn: ({ message }: { message: string }) => warnings.push(message) } });
   await Promise.all(result.sessions.map((session) => session.close({})));
   assert.deepEqual(warnings, [], "the fixture connection must attach cleanly");
   return JSON.parse(fs.readFileSync(reportPath, "utf8")) as ChildReport;
@@ -106,7 +105,7 @@ test("with the desktop toolchain env set, a bare npx launch really spawns execPa
 
     const report = await attachAndReport(
       { command: "npx", args: ["-y", "some-mcp-server"], env: {} },
-      { PATH: "/usr/bin:/bin", HOME: root, EXAMPLE_NODE_TOOLCHAIN_DIR: toolchainDir, EXAMPLE_BUNDLED_NPM_ROOT: npmRoot },
+      { PATH: "/usr/bin:/bin", HOME: root, PRIVATE_HOST_SECRET: "hidden", EXAMPLE_NODE_TOOLCHAIN_DIR: toolchainDir, EXAMPLE_BUNDLED_NPM_ROOT: npmRoot },
       path.join(npmRoot, "bin", "report.json"),
     );
 
@@ -115,6 +114,7 @@ test("with the desktop toolchain env set, a bare npx launch really spawns execPa
     assert.equal(report.env.npm_config_cache, path.join(toolchainDir, "npm-cache"));
     assert.equal(report.env.npm_config_prefix, path.join(toolchainDir, "npm-prefix"));
     assert.equal(report.env.PATH?.split(path.delimiter)[0], path.join(toolchainDir, "bin"));
+    assert.equal(report.envKeys.includes("PRIVATE_HOST_SECRET"), false);
     assert.equal(report.env.EXAMPLE_NODE_TOOLCHAIN_DIR, undefined, "the resolver-selection vars must never reach the child");
     assert.equal(report.env.EXAMPLE_BUNDLED_NPM_ROOT, undefined, "the resolver-selection vars must never reach the child");
   } finally {

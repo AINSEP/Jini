@@ -9,10 +9,10 @@
  * Try: `curl -s 'http://127.0.0.1:4319/ask?q=how+often+do+i+water+the+plants' | python3 -m json.tool`
  */
 import { createServer } from 'node:http';
+import { pathToFileURL } from 'node:url';
 import { ask } from './ask.js';
 import { SITE_ITEMS } from './items.js';
 
-const PORT = Number(process.env['NLWEB_DEMO_PORT'] ?? 4319);
 /** Bounded so a long body cannot be used to exhaust memory. */
 const MAX_BODY_BYTES = 8_192;
 
@@ -33,32 +33,39 @@ async function readQuestion(request: import('node:http').IncomingMessage, url: U
   return typeof question === 'string' ? question : '';
 }
 
-const server = createServer((request, response) => {
-  void (async () => {
-    const url = new URL(request.url ?? '/', `http://${request.headers.host ?? '127.0.0.1'}`);
-    const send = (status: number, body: unknown) => {
-      response.writeHead(status, {
-        'Content-Type': 'application/json; charset=utf-8',
-        'Cache-Control': 'no-store',
-      });
-      response.end(JSON.stringify(body, null, 2));
-    };
+/** Start the demo listener with the entry branch's resolved port. */
+export function main({ port }: { port: number }, _options = {}): void {
+  const server = createServer((request, response) => {
+    void (async () => {
+      const url = new URL(request.url ?? '/', `http://${request.headers.host ?? '127.0.0.1'}`);
+      const send = (status: number, body: unknown) => {
+        response.writeHead(status, {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'no-store',
+        });
+        response.end(JSON.stringify(body, null, 2));
+      };
 
-    if (url.pathname !== '/ask') {
-      send(404, { error: 'not found', hint: 'POST /ask {"question": "..."} or GET /ask?q=...' });
-      return;
-    }
+      if (url.pathname !== '/ask') {
+        send(404, { error: 'not found', hint: 'POST /ask {"question": "..."} or GET /ask?q=...' });
+        return;
+      }
 
-    try {
-      const question = await readQuestion(request, url);
-      send(200, await ask(SITE_ITEMS, question));
-    } catch (error) {
-      // A blank question is a caller error, not a server fault — say which.
-      send(400, { error: error instanceof Error ? error.message : String(error) });
-    }
-  })();
-});
+      try {
+        const question = await readQuestion(request, url);
+        send(200, await ask(SITE_ITEMS, question));
+      } catch (error) {
+        // A blank question is a caller error, not a server fault — say which.
+        send(400, { error: error instanceof Error ? error.message : String(error) });
+      }
+    })();
+  });
 
-server.listen(PORT, '127.0.0.1', () => {
-  console.log(`nlweb-demo listening on http://127.0.0.1:${PORT}/ask (${SITE_ITEMS.length} items)`);
-});
+  server.listen(port, '127.0.0.1', () => {
+    console.log(`nlweb-demo listening on http://127.0.0.1:${port}/ask (${SITE_ITEMS.length} items)`);
+  });
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main({ port: Number(process.env['NLWEB_DEMO_PORT'] ?? 4319) });
+}

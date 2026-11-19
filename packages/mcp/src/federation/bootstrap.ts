@@ -133,7 +133,7 @@ export interface AttachFederatedMcpToolsParams {
   extraConnections?: readonly ResolvedFederatedConnection[] | undefined;
   connect: (request: { connection: ResolvedFederatedConnection }) => Promise<McpSessionPort>;
   logger?: Logger | undefined;
-  env?: NodeJS.ProcessEnv | undefined;
+  env: NodeJS.ProcessEnv;
 
 }
 
@@ -172,7 +172,7 @@ function resolveFederationAttachInputs(params: AttachFederatedMcpToolsParams): {
 } {
   const logger = params.logger ?? consoleLogger;
   const connect = params.connect;
-  const presetConnections = params.connections ?? resolveFederatedMcpPresets({ env: params.env ?? process.env, logger, registry: params.presetRegistry ?? defaultFederatedMcpPresetRegistry });
+  const presetConnections = params.connections ?? resolveFederatedMcpPresets({ env: params.env, logger, registry: params.presetRegistry ?? defaultFederatedMcpPresetRegistry });
   const connections = [
     ...presetConnections.map((connection): OriginTaggedConnection => ({ connection: withPresetOrigin(connection), isPreset: true })),
     ...(params.extraConnections ?? []).map((connection): OriginTaggedConnection => ({ connection, isPreset: false })),
@@ -180,8 +180,8 @@ function resolveFederationAttachInputs(params: AttachFederatedMcpToolsParams): {
   return { logger, connect, connections };
 }
 
-export type AttachFederatedMcpToolsRequiredArgs = Pick<AttachFederatedMcpToolsParams, "registry" | "deps" | "connect">;
-export type AttachFederatedMcpToolsOptions = Omit<AttachFederatedMcpToolsParams, "registry" | "deps" | "connect">;
+export type AttachFederatedMcpToolsRequiredArgs = Pick<AttachFederatedMcpToolsParams, "registry" | "deps" | "connect" | "env">;
+export type AttachFederatedMcpToolsOptions = Omit<AttachFederatedMcpToolsParams, "registry" | "deps" | "connect" | "env">;
 
 export async function attachFederatedMcpTools(requiredArgs: AttachFederatedMcpToolsRequiredArgs, optionalArgs: AttachFederatedMcpToolsOptions = {}): Promise<AttachFederatedToolsResult> {
   const params = { ...requiredArgs, ...optionalArgs };

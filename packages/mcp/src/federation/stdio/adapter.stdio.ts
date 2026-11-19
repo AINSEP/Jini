@@ -388,10 +388,10 @@ export async function connectMcpStdioSession(deps: { channel: McpStdioChannel; r
  *
  * @complexity O(n) in bytes received.
  */
-export function spawnMcpStdioChannel(resolved: ResolvedStdioLaunch & { messages: FederationMessages }): McpStdioChannel {
+export function spawnMcpStdioChannel(resolved: ResolvedStdioLaunch & { messages: FederationMessages; parentEnv: NodeJS.ProcessEnv }): McpStdioChannel {
   const child = spawn(resolved.command, [...resolved.args], {
     cwd: resolveStdioChildCwd({ resolved: resolved }),
-    env: buildMcpChildEnv({ command: resolved.command, specEnv: resolved.env }, { launchEnv: resolved.launchEnv }),
+    env: buildMcpChildEnv({ command: resolved.command, specEnv: resolved.env, parentEnv: resolved.parentEnv }, { launchEnv: resolved.launchEnv }),
     stdio: ["pipe", "pipe", "pipe"],
   });
 
@@ -519,8 +519,8 @@ const WIN32_INHERITED_ENV_VARS = [
 /** Electron's run-as-Node switch. Env-only: Electron has no command-line flag for it. */
 const ELECTRON_RUN_AS_NODE = "ELECTRON_RUN_AS_NODE";
 
-/** {@link buildMcpChildEnv}'s input. Everything past `specEnv` is a test seam that defaults to the
- *  real process; production passes only `command` and `specEnv`. */
+/** {@link buildMcpChildEnv}'s input. The host supplies `parentEnv`; the remaining process
+ *  options are injectable seams for platform and executable identity. */
 interface McpChildEnvInput {
   /** The child's `command`, compared against `execPath` on win32. */
   readonly command: string;
@@ -537,7 +537,7 @@ interface McpChildEnvInput {
    */
   readonly launchEnv?: Readonly<Record<string, string>> | undefined;
   readonly platform?: NodeJS.Platform | undefined;
-  readonly parentEnv?: NodeJS.ProcessEnv | undefined;
+  readonly parentEnv: NodeJS.ProcessEnv;
   readonly execPath?: string | undefined;
 }
 
@@ -567,12 +567,12 @@ interface McpChildEnvInput {
 export function buildMcpChildEnv({
   command,
   specEnv,
-}: Pick<McpChildEnvInput, "command" | "specEnv">, {
+  parentEnv,
+}: Pick<McpChildEnvInput, "command" | "specEnv" | "parentEnv">, {
   launchEnv = {},
   platform = process.platform,
-  parentEnv = process.env,
   execPath = process.execPath,
-}: Omit<McpChildEnvInput, "command" | "specEnv"> = {}): Record<string, string> {
+}: Omit<McpChildEnvInput, "command" | "specEnv" | "parentEnv"> = {}): Record<string, string> {
   return { ...inheritedParentEnv(parentEnv, platform), ...carriedRunMode({ command, platform, parentEnv, execPath }), ...launchEnv, ...specEnv };
 }
 

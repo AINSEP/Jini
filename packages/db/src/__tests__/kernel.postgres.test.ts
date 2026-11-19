@@ -1,3 +1,4 @@
+import os from "node:os";
 import assert from "node:assert/strict";
 import { afterAll as after, beforeAll as before, test } from "vitest";
 
@@ -6,7 +7,8 @@ import pg from "pg";
 
 import { openPostgresKernel } from "../kernel/postgres/index.js";
 import type { KyselyKernel } from "../kernel/port.js";
-import { freshPostgresDatabase } from "../testing/postgres-database.js";
+import { legacyPgHelpers, pgFixtureFromEnv } from "../testing/pg-fixture.js";
+import { postgresDatabaseHelpers } from "../testing/postgres-database.js";
 
 /**
  * @file The kernel on a REAL Postgres server through node-postgres: a pool, so two transactions run
@@ -14,6 +16,9 @@ import { freshPostgresDatabase } from "../testing/postgres-database.js";
  * read-then-insert transactions both read the same "latest" row under READ COMMITTED — and (2)
  * `lockKey` removes it. Fails (never skips) when the local server is down.
  */
+
+const helpers = legacyPgHelpers({ fixture: pgFixtureFromEnv({ env: process.env, userInfo: os.userInfo }) });
+const { freshPostgresDatabase } = postgresDatabaseHelpers({ helpers, env: process.env, userInfo: os.userInfo });
 
 interface LedgerDb {
   ledger: { id: string; stream: string; seq: number; previous_id: string | null };

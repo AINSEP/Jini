@@ -511,7 +511,7 @@ test("a preset registered from outside core is resolved and connected without co
   });
 
   const registry = fakeRegistry(["database_get_health"]);
-  const result = await attachFederatedMcpTools({ registry, deps: fakeDeps().deps, connect: async () => sessionFor() }, { logger: collectingLogger().logger, env: { SOME_VENDOR_SETTING: "1" } });
+  const result = await attachFederatedMcpTools({ env: { SOME_VENDOR_SETTING: "1" }, registry, deps: fakeDeps().deps, connect: async () => sessionFor() }, { logger: collectingLogger().logger });
 
   assert.deepEqual(result.registeredToolIds, ["mcp__acme__list_tables", "mcp__acme__get_advisors"]);
   // The env bag reaches the preset by injection, not by the preset reading `process.env` itself.
@@ -526,7 +526,7 @@ test("a preset that declines contributes nothing, silently — 'not configured' 
 
   const { messages, logger } = collectingLogger();
   const registry = fakeRegistry();
-  const result = await attachFederatedMcpTools({ registry, deps: fakeDeps().deps, connect: createDefaultConnect({ resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages: federationMessages, bearerToken: () => undefined }) }, { logger, env: {} });
+  const result = await attachFederatedMcpTools({ env: {}, registry, deps: fakeDeps().deps, connect: createDefaultConnect({ parentEnv: {}, resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages: federationMessages, bearerToken: () => undefined }) }, { logger });
 
   assert.deepEqual(result.registeredToolIds, []);
   assert.deepEqual(messages, [], "an unconfigured preset must not log every boot");
@@ -546,7 +546,7 @@ test("two presets both contribute, and one vendor's broken config does not disab
 
   const { messages, logger } = collectingLogger();
   const registry = fakeRegistry();
-  const result = await attachFederatedMcpTools({ registry, deps: fakeDeps().deps, connect: async () => sessionFor() }, { logger, env: {} });
+  const result = await attachFederatedMcpTools({ env: {}, registry, deps: fakeDeps().deps, connect: async () => sessionFor() }, { logger });
 
   assert.deepEqual(result.registeredToolIds, ["mcp__working__list_tables", "mcp__working__get_advisors"]);
   assert.ok(messages.some((message) => message.includes("preset 'broken' configuration is invalid, continuing without federated tools")));
@@ -563,7 +563,7 @@ test("re-registering the same presetId replaces it, so a module imported twice c
 
   const { messages, logger } = collectingLogger();
   const registry = fakeRegistry();
-  const result = await attachFederatedMcpTools({ registry, deps: fakeDeps().deps, connect: async () => sessionFor() }, { logger, env: {} });
+  const result = await attachFederatedMcpTools({ env: {}, registry, deps: fakeDeps().deps, connect: async () => sessionFor() }, { logger });
 
   assert.deepEqual(result.registeredToolIds, ["mcp__acme__list_tables", "mcp__acme__get_advisors"]);
   assert.equal(
@@ -600,7 +600,7 @@ function collectingLogger() {
 
 test("with no configuration, the daemon boots exactly as it did before federation existed", async () => {
   const registry = fakeRegistry(["database_get_health"]);
-  const result = await attachFederatedMcpTools({ registry, deps: fakeDeps().deps, connect: createDefaultConnect({ resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages: federationMessages, bearerToken: () => undefined }) }, { env: {} });
+  const result = await attachFederatedMcpTools({ env: {}, registry, deps: fakeDeps().deps, connect: createDefaultConnect({ parentEnv: {}, resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages: federationMessages, bearerToken: () => undefined }) });
 
   assert.deepEqual(result.registeredToolIds, []);
   assert.equal(registry.registered.length, 0);
@@ -616,7 +616,7 @@ test("omitting `env` reads the real process.env, not just the explicit `env: {}`
   let seen: NodeJS.ProcessEnv | undefined;
   registerFederatedMcpPreset({ preset: { presetId: "env-observer", resolve: ({ env }) => { seen = env; return null; } } });
   const registry = fakeRegistry(["database_get_health"]);
-  const result = await attachFederatedMcpTools({ registry, deps: fakeDeps().deps, connect: createDefaultConnect({ resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages: federationMessages, bearerToken: () => undefined }) }, {  });
+  const result = await attachFederatedMcpTools({ env: {}, registry, deps: fakeDeps().deps, connect: createDefaultConnect({ parentEnv: {}, resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages: federationMessages, bearerToken: () => undefined }) });
   assert.equal(seen, process.env, "the preset must receive the real environment");
   assert.equal(seen?.[key], "env-from-process");
   assert.deepEqual(result.registeredToolIds, []);
@@ -627,7 +627,7 @@ test("a configured connection registers its admitted tools into the daemon's reg
   const registry = fakeRegistry(["database_get_health"]);
   const { messages, logger } = collectingLogger();
 
-  const result = await attachFederatedMcpTools({ registry, deps: fakeDeps().deps, connect: async () => sessionFor() }, { logger, connections: [{ config: CONFIG, launch: { command: "unused", args: [], env: {} } }] });
+  const result = await attachFederatedMcpTools({ env: {}, registry, deps: fakeDeps().deps, connect: async () => sessionFor() }, { logger, connections: [{ config: CONFIG, launch: { command: "unused", args: [], env: {} } }] });
 
   assert.deepEqual(result.registeredToolIds, ["mcp__supabase__list_tables", "mcp__supabase__get_advisors"]);
   assert.equal(registry.registered.length, 2);
@@ -639,7 +639,7 @@ test("an unreachable or broken remote is stepped over — Example's own catalog 
   const registry = fakeRegistry(["database_get_health"]);
   const { messages, logger } = collectingLogger();
 
-  const result = await attachFederatedMcpTools({ registry, deps: fakeDeps().deps, connect: async () => {
+  const result = await attachFederatedMcpTools({ env: {}, registry, deps: fakeDeps().deps, connect: async () => {
       throw new Error("connect timed out after 15000ms");
     } }, { logger, connections: [{ config: CONFIG, launch: { command: "unused", args: [], env: {} } }] });
 
@@ -655,7 +655,7 @@ test("a remote that connects but cannot enumerate is stepped over, and its sessi
       throw new Error("remote returned JSON-RPC error -32000: invalid access token");
     } });
 
-  const result = await attachFederatedMcpTools({ registry, deps: fakeDeps().deps, connect: async () => session }, { logger, connections: [{ config: CONFIG, launch: { command: "unused", args: [], env: {} } }] });
+  const result = await attachFederatedMcpTools({ env: {}, registry, deps: fakeDeps().deps, connect: async () => session }, { logger, connections: [{ config: CONFIG, launch: { command: "unused", args: [], env: {} } }] });
 
   assert.deepEqual(result.registeredToolIds, []);
   assert.equal(session.closed, true, "a session that failed mid-setup must not leak its child process");
@@ -676,7 +676,7 @@ test("a remote that fails mid-setup AND whose own close() also rejects still res
     },
   };
 
-  const result = await attachFederatedMcpTools({ registry, deps: fakeDeps().deps, connect: async () => session }, { logger, connections: [{ config: CONFIG, launch: { command: "unused", args: [], env: {} } }] });
+  const result = await attachFederatedMcpTools({ env: {}, registry, deps: fakeDeps().deps, connect: async () => session }, { logger, connections: [{ config: CONFIG, launch: { command: "unused", args: [], env: {} } }] });
 
   assert.deepEqual(result.registeredToolIds, []);
   assert.deepEqual(result.sessions, [], "a session that failed mid-setup is never returned as a live session to close again");
@@ -698,7 +698,7 @@ test("an invalid-but-enabled configuration warns and continues rather than throw
   const registry = fakeRegistry();
   const { messages, logger } = collectingLogger();
 
-  const result = await attachFederatedMcpTools({ registry, deps: fakeDeps().deps, connect: createDefaultConnect({ resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages: federationMessages, bearerToken: () => undefined }) }, { logger, env: {} });
+  const result = await attachFederatedMcpTools({ env: {}, registry, deps: fakeDeps().deps, connect: createDefaultConnect({ parentEnv: {}, resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages: federationMessages, bearerToken: () => undefined }) }, { logger });
 
   assert.deepEqual(result.registeredToolIds, []);
   assert.ok(messages.some((message) => message.includes("configuration is invalid, continuing without federated tools")));
@@ -708,7 +708,7 @@ test("a remote whose id would collide with a native tool loses the whole connect
   const registry = fakeRegistry(["mcp__supabase__list_tables"]);
   const { messages, logger } = collectingLogger();
 
-  const result = await attachFederatedMcpTools({ registry, deps: fakeDeps().deps, connect: async () => sessionFor() }, { logger, connections: [{ config: CONFIG, launch: { command: "unused", args: [], env: {} } }] });
+  const result = await attachFederatedMcpTools({ env: {}, registry, deps: fakeDeps().deps, connect: async () => sessionFor() }, { logger, connections: [{ config: CONFIG, launch: { command: "unused", args: [], env: {} } }] });
 
   // Dropping the connection whole is the safe direction: "no federated tools" is always acceptable.
   assert.deepEqual(result.registeredToolIds, []);
@@ -732,7 +732,7 @@ test("omitting `logger` uses the real console logger — info and warn both reac
   });
 
   const registry = fakeRegistry(["database_get_health"]);
-  const result = await attachFederatedMcpTools({ registry, deps: fakeDeps().deps, connect: async () => sessionFor() }, { connections: [{ config: CONFIG, launch: { command: "unused", args: [], env: {} } }] });
+  const result = await attachFederatedMcpTools({ env: {}, registry, deps: fakeDeps().deps, connect: async () => sessionFor() }, { connections: [{ config: CONFIG, launch: { command: "unused", args: [], env: {} } }] });
 
   assert.deepEqual(result.registeredToolIds, ["mcp__supabase__list_tables", "mcp__supabase__get_advisors"]);
   assert.ok(
@@ -784,7 +784,7 @@ test("injected production `connect` uses the real defaultConnect — a genuine s
   const registry = fakeRegistry();
   const { messages, logger } = collectingLogger();
 
-  const result = await attachFederatedMcpTools({ registry, deps: fakeDeps().deps, connect: createDefaultConnect({ resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages: federationMessages, bearerToken: () => undefined }) }, { logger, connections: [
+  const result = await attachFederatedMcpTools({ env: {}, registry, deps: fakeDeps().deps, connect: createDefaultConnect({ parentEnv: {}, resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages: federationMessages, bearerToken: () => undefined }) }, { logger, connections: [
       {
         config: { ...CONFIG, allowedToolNames: ["echo_fixture"] },
         launch: { command: process.execPath, args: ["-e", MINIMAL_MCP_SERVER_SCRIPT], env: {} },
@@ -820,7 +820,7 @@ test("defaultConnect's own connect-timeout fires when the child never completes 
   const registry = fakeRegistry();
   const { messages, logger } = collectingLogger();
 
-  const result = await attachFederatedMcpTools({ registry, deps: fakeDeps().deps, connect: createDefaultConnect({ resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages: federationMessages, bearerToken: () => undefined }) }, { logger, connections: [
+  const result = await attachFederatedMcpTools({ env: {}, registry, deps: fakeDeps().deps, connect: createDefaultConnect({ parentEnv: {}, resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages: federationMessages, bearerToken: () => undefined }) }, { logger, connections: [
       {
         config: { ...CONFIG, connectTimeoutMs: 50 },
         launch: { command: process.execPath, args: ["-e", NEVER_RESPONDS_SCRIPT], env: {} },
@@ -839,7 +839,7 @@ test("defaultConnect: a launch command that does not exist fails the connection 
   const registry = fakeRegistry();
   const { messages, logger } = collectingLogger();
 
-  const result = await attachFederatedMcpTools({ registry, deps: fakeDeps().deps, connect: createDefaultConnect({ resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages: federationMessages, bearerToken: () => undefined }) }, { logger, connections: [
+  const result = await attachFederatedMcpTools({ env: {}, registry, deps: fakeDeps().deps, connect: createDefaultConnect({ parentEnv: {}, resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages: federationMessages, bearerToken: () => undefined }) }, { logger, connections: [
       {
         config: CONFIG,
         launch: { command: "example-mcp-federation-test-nonexistent-binary-xyz", args: [], env: {} },
@@ -869,7 +869,7 @@ test("defaultConnect: a real child writing to stderr does not fail, hang, or lea
   const registry = fakeRegistry();
   const { messages, logger } = collectingLogger();
 
-  const result = await attachFederatedMcpTools({ registry, deps: fakeDeps().deps, connect: createDefaultConnect({ resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages: federationMessages, bearerToken: () => undefined }) }, { logger, connections: [
+  const result = await attachFederatedMcpTools({ env: {}, registry, deps: fakeDeps().deps, connect: createDefaultConnect({ parentEnv: {}, resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages: federationMessages, bearerToken: () => undefined }) }, { logger, connections: [
       {
         // Keep an admitted fixture tool: empty grants deliberately close their sessions.
         config: { ...CONFIG, allowedToolNames: ['echo_fixture'] },
@@ -956,7 +956,7 @@ test("omitting `connect` routes a HOSTED connection to the HTTP adapter — a re
   const { messages, logger } = collectingLogger();
   const server = await startLoopbackMcpServer({ requireBearer: "at-live-1" });
 
-  const result = await attachFederatedMcpTools({ registry, deps: fakeDeps().deps, connect: createDefaultConnect({ resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages: federationMessages, bearerToken: () => undefined }) }, { logger, connections: [
+  const result = await attachFederatedMcpTools({ env: {}, registry, deps: fakeDeps().deps, connect: createDefaultConnect({ parentEnv: {}, resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages: federationMessages, bearerToken: () => undefined }) }, { logger, connections: [
       {
         config: { ...CONFIG, allowedToolNames: ["list_tables"] },
         launch: { url: server.url, headers: { authorization: "Bearer at-live-1" } },
@@ -991,7 +991,7 @@ test("attachFederatedMcpTools returns one report per connection that reached adm
   const registry = fakeRegistry();
   const { logger } = collectingLogger();
 
-  const result = await attachFederatedMcpTools({ registry, deps: fakeDeps().deps, connect: async () => sessionFor() }, { logger, connections: [{ config: CONFIG, launch: { command: "unused", args: [], env: {} } }] });
+  const result = await attachFederatedMcpTools({ env: {}, registry, deps: fakeDeps().deps, connect: async () => sessionFor() }, { logger, connections: [{ config: CONFIG, launch: { command: "unused", args: [], env: {} } }] });
 
   assert.equal(result.reports.length, 1);
   assert.equal(result.reports[0]?.connectionId, "supabase");
@@ -1012,7 +1012,7 @@ test("tags each report with whether it came from a preset or the operator's rost
   const { logger } = collectingLogger();
   const rosterConfig: FederatedMcpConnectionConfig = { ...CONFIG, connectionId: "roster-connection" };
 
-  const result = await attachFederatedMcpTools({ registry, deps: fakeDeps().deps, connect: async () => sessionFor() }, { logger, connections: [{ config: CONFIG, launch: { command: "unused", args: [], env: {} } }], extraConnections: [{ config: rosterConfig, launch: { command: "unused", args: [], env: {} } }] });
+  const result = await attachFederatedMcpTools({ env: {}, registry, deps: fakeDeps().deps, connect: async () => sessionFor() }, { logger, connections: [{ config: CONFIG, launch: { command: "unused", args: [], env: {} } }], extraConnections: [{ config: rosterConfig, launch: { command: "unused", args: [], env: {} } }] });
 
   assert.equal(result.reports.length, 2);
   assert.equal(result.reports.find((r) => r.connectionId === "supabase")?.isPreset, true);
@@ -1023,7 +1023,7 @@ test("a connection that fails before admission (bad handshake) contributes no re
   const registry = fakeRegistry();
   const { logger } = collectingLogger();
 
-  const result = await attachFederatedMcpTools({ registry, deps: fakeDeps().deps, connect: async () => {
+  const result = await attachFederatedMcpTools({ env: {}, registry, deps: fakeDeps().deps, connect: async () => {
       throw new Error("connect timed out after 15000ms");
     } }, { logger, connections: [{ config: CONFIG, launch: { command: "unused", args: [], env: {} } }] });
 
@@ -1032,7 +1032,7 @@ test("a connection that fails before admission (bad handshake) contributes no re
 
 test("with no connections at all, reports is empty rather than omitted or throwing", async () => {
   const registry = fakeRegistry();
-  const result = await attachFederatedMcpTools({ registry, deps: fakeDeps().deps, connect: createDefaultConnect({ resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages: federationMessages, bearerToken: () => undefined }) }, { env: {} });
+  const result = await attachFederatedMcpTools({ env: {}, registry, deps: fakeDeps().deps, connect: createDefaultConnect({ parentEnv: {}, resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages: federationMessages, bearerToken: () => undefined }) });
 
   assert.deepEqual(result.reports, []);
 });
@@ -1047,7 +1047,7 @@ test("an admitted write-authorized tool is logged as a WARN, naming the connecti
   };
   const session = new InMemoryMcpSession({ tools: [{ name: "generate_image", description: "Generates an image.", inputSchema: OBJECT_SCHEMA, annotations: { readOnlyHint: false } }] }, { onCall: () => ({ content: [{ type: "text", text: "ok" }] }) });
 
-  const result = await attachFederatedMcpTools({ registry, deps: fakeDeps().deps, connect: async () => session }, { logger, connections: [{ config: writeConfig, launch: { command: "unused", args: [], env: {} } }] });
+  const result = await attachFederatedMcpTools({ env: {}, registry, deps: fakeDeps().deps, connect: async () => session }, { logger, connections: [{ config: writeConfig, launch: { command: "unused", args: [], env: {} } }] });
 
   assert.deepEqual(result.registeredToolIds, ["mcp__supabase__generate_image"]);
   assert.ok(
@@ -1065,7 +1065,7 @@ test("a write-authorized name absent from the allowlist is logged as drift, sibl
     writeAllowedToolNames: ["forgot_to_allowlist"],
   };
 
-  const result = await attachFederatedMcpTools({ registry, deps: fakeDeps().deps, connect: async () => sessionFor() }, { logger, connections: [{ config: driftConfig, launch: { command: "unused", args: [], env: {} } }] });
+  const result = await attachFederatedMcpTools({ env: {}, registry, deps: fakeDeps().deps, connect: async () => sessionFor() }, { logger, connections: [{ config: driftConfig, launch: { command: "unused", args: [], env: {} } }] });
 
   assert.equal(result.reports[0]?.report.writeAllowedButNotAllowlisted.length, 1);
   assert.ok(
@@ -1083,7 +1083,7 @@ test("a hosted server that rejects the token is reported as a failed connection,
   const { messages, logger } = collectingLogger();
   const server = await startLoopbackMcpServer({ requireBearer: "the-right-token" });
 
-  const result = await attachFederatedMcpTools({ registry, deps: fakeDeps().deps, connect: createDefaultConnect({ resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages: federationMessages, bearerToken: () => undefined }) }, { logger, connections: [{ config: CONFIG, launch: { url: server.url, headers: { authorization: "Bearer the-wrong-token" } } }] });
+  const result = await attachFederatedMcpTools({ env: {}, registry, deps: fakeDeps().deps, connect: createDefaultConnect({ parentEnv: {}, resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages: federationMessages, bearerToken: () => undefined }) }, { logger, connections: [{ config: CONFIG, launch: { url: server.url, headers: { authorization: "Bearer the-wrong-token" } } }] });
 
   try {
     assert.deepEqual(result.registeredToolIds, []);
@@ -1106,10 +1106,10 @@ test("bootstrap resolves the injected host registry and an independent host boot
   presetRegistry.register({ preset: { presetId: "host", resolve: () => ({ config: CONFIG, launch: FAKE_LAUNCH }) } });
   const connect = async () => sessionFor();
   const { logger } = collectingLogger();
-  const populated = await attachFederatedMcpTools({ registry: fakeRegistry(), deps: fakeDeps().deps, connect }, { presetRegistry, logger, env: {} });
+  const populated = await attachFederatedMcpTools({ env: {}, registry: fakeRegistry(), deps: fakeDeps().deps, connect }, { presetRegistry, logger });
   assert.ok(populated.registeredToolIds.includes("mcp__supabase__list_tables"));
   assert.equal(populated.reports[0]!.isPreset, true);
-  const empty = await attachFederatedMcpTools({ registry: fakeRegistry(), deps: fakeDeps().deps, connect }, { presetRegistry: createFederatedMcpPresetRegistry({}), logger, env: {} });
+  const empty = await attachFederatedMcpTools({ env: {}, registry: fakeRegistry(), deps: fakeDeps().deps, connect }, { presetRegistry: createFederatedMcpPresetRegistry({}), logger });
   assert.deepEqual(empty.registeredToolIds, []);
   assert.deepEqual(empty.reports, []);
 });
@@ -1118,8 +1118,7 @@ test("public source metadata strips URL credentials, paths and headers and hides
   for (const launch of [{ url: 'https://SENTINEL_USER:SENTINEL_PASSWORD@tools.example.test/private/SENTINEL_PATH?key=SENTINEL_QUERY', headers: { Authorization: 'SENTINEL_HEADER' } },
     { command: 'SENTINEL_COMMAND', args: ['SENTINEL_ARGS'], env: { key: 'SENTINEL_ENV' } }]) {
     const registry = fakeRegistry();
-    await attachFederatedMcpTools({ registry, deps: fakeDeps().deps, connect: async () => sessionFor() }, { logger: collectingLogger().logger,
-      connections: [{ config: CONFIG, launch }] });
+    await attachFederatedMcpTools({ env: {}, registry, deps: fakeDeps().deps, connect: async () => sessionFor() }, { logger: collectingLogger().logger, connections: [{ config: CONFIG, launch }] });
     const metadata = registry.registered.map(entry => entry.descriptor.metadata?.mcpSource);
     assert.deepEqual(metadata, Array.from({ length: 2 }, () => ({ id: 'supabase', host: 'url' in launch ? 'tools.example.test' : 'local command' })));
     assert.equal(JSON.stringify(metadata).includes('SENTINEL'), false);

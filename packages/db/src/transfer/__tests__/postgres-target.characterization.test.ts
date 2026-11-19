@@ -43,7 +43,7 @@ describe('connection URL compatibility pins', () => {
       const executable = join(directory, 'psql');
       await writeFile(executable, `#!${process.execPath}\nprocess.stderr.write(${JSON.stringify(stderr)}); process.exit(1);\n`);
       await chmod(executable, 0o700);
-      const target = createPsqlPostgresTarget({ connectionString: 'postgres://user@localhost/db' }, { parentEnv: { PATH: directory } });
+      const target = createPsqlPostgresTarget({ connectionString: 'postgres://user@localhost/db' , parentEnv: { PATH: directory } });
       expect(await target.query('SELECT 1')).toEqual({ ok: false, error: "psql request failed" });
     } finally {
       await rm(directory, { recursive: true, force: true });

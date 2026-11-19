@@ -27,10 +27,10 @@ function buildOptions(steps: {
   envUrl: string | undefined;
   discover: Discover | undefined;
   defaultUrl: string | undefined;
-}): ResolveDaemonUrlOptions {
+}): ResolveDaemonUrlOptions & { env: NodeJS.ProcessEnv } {
   return {
     env: steps.envUrl === undefined ? {} : { [ENV]: steps.envUrl },
-    envVarName: ENV,
+    ...(steps.envUrl !== undefined ? { configuredUrl: steps.envUrl } : {}),
     ...(steps.flagUrl !== undefined ? { flagUrl: steps.flagUrl } : {}),
     ...(steps.discover !== undefined ? { discover: steps.discover } : {}),
     ...(steps.defaultUrl !== undefined ? { defaultUrl: steps.defaultUrl } : {}),
@@ -57,7 +57,7 @@ describe('resolveDaemonUrl resolution-order truth table', () => {
     const options = buildOptions({ flagUrl, envUrl, discover: d === 'absent' ? undefined : discover, defaultUrl });
     // First non-empty of flag/env/discover wins; otherwise defaultUrl as-is (even '').
     const expected = [flagUrl, envUrl, value(d, 'http://127.0.0.1:3')].find((v) => v !== undefined && v.length > 0) ?? defaultUrl;
-    const result = resolveDaemonUrl({}, options);
+    const result = resolveDaemonUrl({ env: options.env }, options);
     await (expected === undefined
       ? expect(result).rejects.toThrow(
           'no daemon URL resolved: pass flagUrl, set envVarName on a populated env var, supply a discover() probe, or provide defaultUrl.',
@@ -70,18 +70,31 @@ describe('resolveDaemonUrl resolution-order truth table', () => {
 });
 
 describe('resolveDaemonUrl edge pins', () => {
+  it('keeps the configured URL ahead of discovery without reading the discovery map', async () => {
+    const env = { [ENV]: 'http://map.example' };
+    let calls = 0;
+    const discover: Discover = async ({ env: selected }) => {
+      calls++;
+      expect(selected).toBe(env);
+      return 'http://discovered.example';
+    };
+    await expect(resolveDaemonUrl({ env }, { configuredUrl: 'http://configured.example', discover })).resolves.toBe('http://configured.example');
+    expect(calls).toBe(0);
+    await expect(resolveDaemonUrl({ env }, { discover })).resolves.toBe('http://discovered.example');
+    expect(calls).toBe(1);
+  });
   it('treats a null flagUrl as unset', async () => {
-    await expect(resolveDaemonUrl({}, { flagUrl: null, defaultUrl: 'http://127.0.0.1:9' })).resolves.toBe('http://127.0.0.1:9');
+    await expect(resolveDaemonUrl({ env: {} }, { flagUrl: null, defaultUrl: 'http://127.0.0.1:9' })).resolves.toBe('http://127.0.0.1:9');
   });
 
-  it('ignores a populated env var when envVarName is not given', async () => {
+  it('ignores a populated env var when configuredUrl is not given', async () => {
     await expect(
-      resolveDaemonUrl({}, { env: { [ENV]: 'http://127.0.0.1:2' }, defaultUrl: 'http://127.0.0.1:9' }),
+      resolveDaemonUrl({ env: { [ENV]: 'http://127.0.0.1:2' } }, { defaultUrl: 'http://127.0.0.1:9' }),
     ).resolves.toBe('http://127.0.0.1:9');
   });
 
-  it('looks up the empty-string env key when envVarName is the empty string', async () => {
-    await expect(resolveDaemonUrl({}, { env: { '': 'http://127.0.0.1:5' }, envVarName: '' })).resolves.toBe('http://127.0.0.1:5');
+  it('accepts a configured URL that the caller resolved from the empty-string env key', async () => {
+    await expect(resolveDaemonUrl({ env: { '': 'http://127.0.0.1:5' } }, { configuredUrl: 'http://127.0.0.1:5' })).resolves.toBe('http://127.0.0.1:5');
   });
 
   it('hands discover() the resolved env and the caller timeout', async () => {
@@ -91,7 +104,7 @@ describe('resolveDaemonUrl edge pins', () => {
       seen.push({ env: e, timeoutMs });
       return 'http://127.0.0.1:3';
     };
-    await resolveDaemonUrl({}, { env, discover, timeoutMs: 25 });
+    await resolveDaemonUrl({ env }, { discover, timeoutMs: 25 });
     expect(seen).toEqual([{ env, timeoutMs: 25 }]);
     expect(seen[0]!.env).toBe(env);
   });
@@ -100,19 +113,19 @@ describe('resolveDaemonUrl edge pins', () => {
     const discover: Discover = async () => {
       throw new Error('probe exploded');
     };
-    await expect(resolveDaemonUrl({}, { discover, defaultUrl: 'http://127.0.0.1:9' })).rejects.toThrow('probe exploded');
+    await expect(resolveDaemonUrl({ env: {} }, { discover, defaultUrl: 'http://127.0.0.1:9' })).rejects.toThrow('probe exploded');
   });
 
   it('throws a TypeError when an untyped discover() resolves undefined (type-violating input)', async () => {
     // Malformed-input fixture: a JS caller breaking the `string | null` contract.
     const discover = (async () => undefined) as unknown as Discover;
-    await expect(resolveDaemonUrl({}, { discover, defaultUrl: 'http://127.0.0.1:9' })).rejects.toThrow(TypeError);
+    await expect(resolveDaemonUrl({ env: {} }, { discover, defaultUrl: 'http://127.0.0.1:9' })).rejects.toThrow(TypeError);
   });
 
   it('warns exactly once, with the sanitized URL, for whichever step won', async () => {
     const messages: string[] = [];
     const { discover } = recordingDiscover('http://user:pw@remote.example:4111');
-    await resolveDaemonUrl({}, { discover, warn: ({ message }) => { messages.push(message); } });
+    await resolveDaemonUrl({ env: {} }, { discover, warn: ({ message }) => { messages.push(message); } });
     expect(messages).toEqual([
       'daemon URL http://remote.example:4111/ is neither loopback nor HTTPS; traffic to a remote, non-HTTPS daemon is not encrypted.',
     ]);
@@ -120,14 +133,14 @@ describe('resolveDaemonUrl edge pins', () => {
 
   it('returns the URL verbatim (credentials included) while only the warning is sanitized', async () => {
     const messages: string[] = [];
-    const url = await resolveDaemonUrl({}, { defaultUrl: 'http://user:pw@remote.example', warn: ({ message }) => { messages.push(message); } });
+    const url = await resolveDaemonUrl({ env: {} }, { defaultUrl: 'http://user:pw@remote.example', warn: ({ message }) => { messages.push(message); } });
     expect(url).toBe('http://user:pw@remote.example');
     expect(messages[0]).not.toContain('pw');
   });
 
   it('does not warn for an empty defaultUrl (unparseable)', async () => {
     const messages: string[] = [];
-    await expect(resolveDaemonUrl({}, { defaultUrl: '', warn: ({ message }) => { messages.push(message); } })).resolves.toBe('');
+    await expect(resolveDaemonUrl({ env: {} }, { defaultUrl: '', warn: ({ message }) => { messages.push(message); } })).resolves.toBe('');
     expect(messages).toEqual([]);
   });
 });

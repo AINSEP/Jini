@@ -148,15 +148,13 @@ test("the default connector forwards the injected logger and challenge hook to H
   const logger = { warn: () => undefined };
   const onAuthenticationChallenge = () => undefined;
   let connected = false;
-  const connect = createDefaultConnect({ resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages: federationMessages,
-    bearerToken: () => undefined }, { logger, onAuthenticationChallenge,
-    connectHttp: async (_deps, options) => {
+  const connect = createDefaultConnect({ parentEnv: {}, resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages: federationMessages,
+    bearerToken: () => undefined }, { logger, onAuthenticationChallenge, connectHttp: async (_deps, options) => {
       assert.equal(options?.logger, logger);
       assert.equal(options?.onAuthenticationChallenge, onAuthenticationChallenge);
       connected = true;
       return { listTools: async () => [], callTool: async () => ({}), close: async () => undefined };
-    },
-  });
+    } });
   await connect({ connection: { config, launch: spec } });
   assert.equal(connected, true);
 });

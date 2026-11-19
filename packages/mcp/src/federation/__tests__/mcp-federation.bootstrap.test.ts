@@ -60,6 +60,26 @@ const HTTP_LAUNCH: McpHttpLaunchSpec = { url: "https://example.invalid/mcp", hea
 
 const HTTP_CONNECTION: ResolvedFederatedConnection = { config: CONFIG, launch: HTTP_LAUNCH };
 
+test("presets receive the host map and an explicit empty connection list skips them", async () => {
+  const { attachFederatedMcpTools } = await import("../bootstrap.js");
+  const env = { SELECTED_PRESET: "yes" };
+  const resolve = vi.fn(({ env: selected }: { env: NodeJS.ProcessEnv }) => selected.SELECTED_PRESET === "yes" ? HTTP_CONNECTION : null);
+  const presetRegistry = { list: () => [{ presetId: "fixture", resolve }], register: () => {}, reset: () => {} };
+  const connect = vi.fn(async () => fakeSession());
+  const deps = { messages: federationMessages, errorCode: "EXTERNAL_MCP", permissionGate: testPermissionGate({ authorize: async () => ({ allowed: true, reason: "matched" }), scope: WORKSPACE_ID }), scope: WORKSPACE_ID };
+  const result = await attachFederatedMcpTools({ registry: fakeRegistry(), deps, connect, env }, { presetRegistry });
+  try {
+    assert.equal(resolve.mock.calls[0]?.[0].env, env);
+    assert.equal(connect.mock.calls.length, 1);
+    assert.equal(result.reports[0]?.isPreset, true);
+    resolve.mockClear(); connect.mockClear();
+    const empty = await attachFederatedMcpTools({ registry: fakeRegistry(), deps, connect, env }, { presetRegistry, connections: [] });
+    assert.deepEqual(empty.sessions, []);
+    assert.equal(resolve.mock.calls.length, 0);
+    assert.equal(connect.mock.calls.length, 0);
+  } finally { await Promise.all(result.sessions.map(session => session.close({}))); }
+});
+
 function fakeSession(): McpSessionPort {
   return {
     listTools: async () => [],
@@ -87,19 +107,17 @@ test("defaultConnect hands the hosted transport callTimeoutMs as its per-request
 
   const { createDefaultConnect } = await import("../stdio/default-connect.js");
   const { IDENTITY_STDIO_LAUNCH_RESOLVER } = await import("../stdio/stdio-launch-resolver.js");
-  const connect = createDefaultConnect({ resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages: federationMessages, bearerToken: () => undefined }, {
-    connectHttp: async ({ requestTimeoutMs }) => {
+  const connect = createDefaultConnect({ parentEnv: {}, resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages: federationMessages, bearerToken: () => undefined }, { connectHttp: async ({ requestTimeoutMs }) => {
       seenRequestTimeouts.push(requestTimeoutMs);
       return fakeSession();
-    },
-  });
+    } });
 
   const { attachFederatedMcpTools } = await import("../bootstrap.js");
 
   const registry = fakeRegistry();
   const authorize = async () => ({ allowed: true, reason: "matched" });
 
-  const result = await attachFederatedMcpTools({ registry, deps: { messages: federationMessages, errorCode: "EXTERNAL_MCP", permissionGate: testPermissionGate({ authorize: authorize, scope: WORKSPACE_ID }), scope: WORKSPACE_ID }, connect }, { connections: [HTTP_CONNECTION], env: {} });
+  const result = await attachFederatedMcpTools({ env: {}, registry, deps: { messages: federationMessages, errorCode: "EXTERNAL_MCP", permissionGate: testPermissionGate({ authorize: authorize, scope: WORKSPACE_ID }), scope: WORKSPACE_ID }, connect }, { connections: [HTTP_CONNECTION] });
 
   assert.equal(seenRequestTimeouts.length, 1, "defaultConnect should call connectMcpHttpSession exactly once for one hosted connection");
   assert.equal(
@@ -116,7 +134,7 @@ test("attachFederatedMcpTools stamps preset connections with a preset origin, fo
   const config: FederatedMcpConnectionConfig = { ...CONFIG, allowedToolNames: ["ping"] };
   const registry = fakeRegistry();
 
-  await attachFederatedMcpTools({ registry, deps: { messages: federationMessages, errorCode: "EXTERNAL_MCP", permissionGate: testPermissionGate({ authorize: async () => ({ allowed: true, reason: "matched" }), scope: WORKSPACE_ID }), scope: WORKSPACE_ID, assertConnectionUsable: ({ connectionId: _connectionId, call }: { connectionId: string; call: FederatedCallTarget }) => {
+  await attachFederatedMcpTools({ env: {}, registry, deps: { messages: federationMessages, errorCode: "EXTERNAL_MCP", permissionGate: testPermissionGate({ authorize: async () => ({ allowed: true, reason: "matched" }), scope: WORKSPACE_ID }), scope: WORKSPACE_ID, assertConnectionUsable: ({ connectionId: _connectionId, call }: { connectionId: string; call: FederatedCallTarget }) => {
         seenOrigins.push(call.origin);
       } }, connect: async () => ({
       // Server-marked read-only, so the call runs without a G3 card — this case is only about origin.
@@ -176,7 +194,7 @@ test("createDefaultConnect: a stdioLaunchResolver that throws McpLaunchUnavailab
     spawnCalls += 1;
     throw new Error("spawnChannel must not be called — the resolver must throw before any spawn");
   };
-  const uvxConnect = createDefaultConnect({ resolver: throwingResolver, clientInfo, messages: federationMessages, bearerToken: () => undefined }, { spawnChannel: fakeSpawnChannel });
+  const uvxConnect = createDefaultConnect({ parentEnv: {}, resolver: throwingResolver, clientInfo, messages: federationMessages, bearerToken: () => undefined }, { spawnChannel: fakeSpawnChannel });
 
   const okSession: McpSessionPort = {
     listTools: async () => [{ name: "ping", inputSchema: { type: "object", properties: {} } }],
@@ -187,7 +205,7 @@ test("createDefaultConnect: a stdioLaunchResolver that throws McpLaunchUnavailab
   const { messages, logger } = collectingLogger();
   const registry = fakeRegistry();
 
-  const result = await attachFederatedMcpTools({ registry, deps: { messages: federationMessages, errorCode: "EXTERNAL_MCP", permissionGate: testPermissionGate({ authorize: async () => ({ allowed: true, reason: "matched" }), scope: WORKSPACE_ID }), scope: WORKSPACE_ID }, connect: async ({ connection }: { connection: ResolvedFederatedConnection }) => (connection.config.connectionId === UVX_CONFIG.connectionId ? uvxConnect({ connection }) : okSession) }, { connections: [
+  const result = await attachFederatedMcpTools({ env: {}, registry, deps: { messages: federationMessages, errorCode: "EXTERNAL_MCP", permissionGate: testPermissionGate({ authorize: async () => ({ allowed: true, reason: "matched" }), scope: WORKSPACE_ID }), scope: WORKSPACE_ID }, connect: async ({ connection }: { connection: ResolvedFederatedConnection }) => (connection.config.connectionId === UVX_CONFIG.connectionId ? uvxConnect({ connection }) : okSession) }, { connections: [
       { config: UVX_CONFIG, launch: UVX_LAUNCH },
       { config: OK_CONFIG, launch: HTTP_LAUNCH },
     ], logger });
@@ -217,7 +235,7 @@ test("a connect timeout produces a human-readable connectFailures entry with no 
   const registry = fakeRegistry();
   const timeoutMessage = "connect timed out after 15000ms";
 
-  const result = await attachFederatedMcpTools({ registry, deps: { messages: federationMessages, errorCode: "EXTERNAL_MCP", permissionGate: testPermissionGate({ authorize: async () => ({ allowed: true, reason: "matched" }), scope: WORKSPACE_ID }), scope: WORKSPACE_ID }, connect: async () => {
+  const result = await attachFederatedMcpTools({ env: {}, registry, deps: { messages: federationMessages, errorCode: "EXTERNAL_MCP", permissionGate: testPermissionGate({ authorize: async () => ({ allowed: true, reason: "matched" }), scope: WORKSPACE_ID }), scope: WORKSPACE_ID }, connect: async () => {
       throw new Error(timeoutMessage);
     } }, { connections: [{ config: { ...CONFIG, connectionId: "namecom" }, launch: HTTP_LAUNCH }] });
 
@@ -231,15 +249,14 @@ test.each(['connect', 'listTools'])(
     const { messages, logger } = collectingLogger();
     const failure = new Error('request to https://operator:url-password@example.invalid/mcp?token=query-secret failed password=short-secret');
     let closed = 0;
-    const result = await attachFederatedMcpTools({
-      registry: fakeRegistry(),
+    const result = await attachFederatedMcpTools({ env: {}, registry: fakeRegistry(),
       deps: { messages: federationMessages, errorCode: 'EXTERNAL_MCP', scope: WORKSPACE_ID,
         permissionGate: testPermissionGate({ authorize: async () => ({ allowed: true, reason: 'matched' }), scope: WORKSPACE_ID }) },
       connect: async () => {
         if (failureStage === 'connect') throw failure;
         return { ...fakeSession(), listTools: async () => { throw failure; }, close: async () => { closed++; } };
       },
-    }, { connections: [HTTP_CONNECTION], logger, env: {} });
+    }, { connections: [HTTP_CONNECTION], logger });
     assert.equal(result.connectFailures.length, 1);
     const reason = result.connectFailures[0]!.reason;
     for (const secret of ['operator', 'url-password', 'query-secret', 'short-secret']) {

@@ -27,16 +27,14 @@ async function readJsonIfExists<T>(filePath: string): Promise<T | null> {
 }
 
 export interface LoadHostConfigFileOptions {
-  explicitPathEnvVar?: string;
+  explicitPath: string | undefined;
   candidatePaths: string[];
-  env?: NodeJS.ProcessEnv;
 }
 
-export async function loadHostConfigFile<T extends Record<string, unknown>>(requiredArgs: Pick<LoadHostConfigFileOptions, 'candidatePaths'>, optionalArgs: Omit<LoadHostConfigFileOptions, 'candidatePaths'> = {}
+export async function loadHostConfigFile<T extends Record<string, unknown>>(requiredArgs: LoadHostConfigFileOptions, optionalArgs = {}
 ): Promise<T> {
   const options = { ...optionalArgs, ...requiredArgs };
-  const env = options.env ?? process.env;
-  const explicit = options.explicitPathEnvVar == null ? undefined : env[options.explicitPathEnvVar];
+  const explicit = options.explicitPath;
   if (explicit != null && explicit.length > 0) {
     const config = await readJsonIfExists<T>(resolve(explicit));
     if (config == null) throw new Error(`host config not found at ${explicit}`);

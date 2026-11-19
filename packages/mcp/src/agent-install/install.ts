@@ -96,6 +96,8 @@ export interface McpLaunchSpec {
  * and platform without touching the real filesystem.
  */
 export interface PlanContext {
+  /** Resolved Windows roaming data directory, or undefined for the OS fallback. */
+  appData: string | undefined;
   /** Absolute home directory (os.homedir()). Injected for testability. */
   home: string;
   /** Node platform — selects per-OS config paths (cline / trae). */
@@ -166,14 +168,14 @@ const AGENT_PLANNERS: { readonly [K in AgentSlug]: (args: PlannerArgs) => Instal
  */
 export function planAgentInstall(
   { slug, spec, ctx }: { slug: AgentSlug; spec: McpLaunchSpec; ctx: PlanContext },
-  { env = process.env }: { env?: NodeJS.ProcessEnv } = {},
+  _options: Record<string, never> = {},
 ): InstallPlan {
   // Own-property lookup only: a slug such as `constructor` or `__proto__` must not
   // resolve to an inherited Object.prototype member and be called as a planner.
   if (!Object.prototype.hasOwnProperty.call(AGENT_PLANNERS, slug)) {
     throw new Error(`unknown agent slug: ${String(slug)}`);
   }
-  return AGENT_PLANNERS[slug]({ spec, ctx, appData: env.APPDATA });
+  return AGENT_PLANNERS[slug]({ spec, ctx, appData: ctx.appData });
 }
 
 // --- Pure JSON merge / removal (the heart of the 'json' strategy) -------

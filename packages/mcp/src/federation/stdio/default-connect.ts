@@ -9,13 +9,13 @@ import type { McpStdioLaunchResolver, ResolvedStdioLaunch } from "./stdio-launch
  * @complexity O(1) to construct; connection work is bounded by the configured timeouts.
  */
 export function createDefaultConnect(
-  { resolver, clientInfo, messages, bearerToken }: {
-    resolver: McpStdioLaunchResolver;
+  { resolver, clientInfo, messages, bearerToken, parentEnv }: {
+    resolver: McpStdioLaunchResolver; parentEnv: NodeJS.ProcessEnv;
     clientInfo: McpClientInfo;
     messages: FederationMessages;
     bearerToken: McpBearerTokenSupplier;
   },
-  { spawnChannel = ({ resolved }: { resolved: ResolvedStdioLaunch }) => spawnMcpStdioChannel({ ...resolved, messages }), fetch: fetchImpl = globalThis.fetch,
+  { spawnChannel = ({ resolved }: { resolved: ResolvedStdioLaunch }) => spawnMcpStdioChannel({ ...resolved, messages, parentEnv }), fetch: fetchImpl = globalThis.fetch,
     connectHttp = connectMcpHttpSession, onAuthenticationChallenge, logger = { warn: ({ message }: { message: string }) => console.warn(message) } }: {
     spawnChannel?: ((required: { resolved: ResolvedStdioLaunch }) => McpStdioChannel) | undefined;
     fetch?: typeof fetch | undefined;

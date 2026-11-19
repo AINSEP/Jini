@@ -307,7 +307,7 @@ test('real stdout framing reassembles a split reply and drains two replies in on
       }
     });
   `;
-  const channel = spawnMcpStdioChannel({ messages: federationMessages, command: process.execPath, args: ['-e', script], env: {}, launchEnv: {} });
+  const channel = spawnMcpStdioChannel({ parentEnv: process.env, messages: federationMessages, command: process.execPath, args: ['-e', script], env: {}, launchEnv: {} });
   try {
     const session = await connectMcpStdioSession({clientInfo, messages: federationMessages,  channel, requestTimeoutMs: 2000 });
     const results = await Promise.all([
@@ -323,7 +323,7 @@ test('real stdout framing reassembles a split reply and drains two replies in on
 });
 
 test('real stdout framing closes on an unterminated message over the 4 MiB cap', { timeout: 5000 }, async () => {
-  const channel = spawnMcpStdioChannel({ messages: federationMessages, command: process.execPath, args: ['-e', "process.stdout.write('x'.repeat(4 * 1024 * 1024 + 1)); setInterval(() => {}, 1000);"], env: {}, launchEnv: {} });
+  const channel = spawnMcpStdioChannel({ parentEnv: process.env, messages: federationMessages, command: process.execPath, args: ['-e', "process.stdout.write('x'.repeat(4 * 1024 * 1024 + 1)); setInterval(() => {}, 1000);"], env: {}, launchEnv: {} });
   try {
     const reason = await new Promise<string>((resolve) => channel.onClose({ listener: ({ reason }) => (resolve)(reason) }));
     assert.equal(reason, 'inbound message exceeded the size cap');

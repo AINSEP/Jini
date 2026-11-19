@@ -17,18 +17,17 @@ export interface TransferPgTestDb {
 }
 
 /** The psql adapter for one connection string; the helpers' default target. */
-function psqlTarget(connectionString: string): PostgresTargetPort {
-  return createPsqlPostgresTarget({ connectionString });
+function psqlTarget(connectionString: string, parentEnv: Readonly<Record<string, string | undefined>>): PostgresTargetPort {
+  return createPsqlPostgresTarget({ connectionString, parentEnv });
 }
 
 /**
- * Binds the helpers to one environment and target factory. The module's own exports below are this
- * factory over `process.env` (read once, at import) and the psql adapter.
+ * Binds the helpers to one supplied environment and target factory.
  * @complexity O(1) per helper call plus one target query.
  */
 export function createTransferPgTestDb(
   { env }: { env: Readonly<Record<string, string | undefined>> },
-  { target = psqlTarget }: { target?: (connectionString: string) => PostgresTargetPort } = {},
+  { target = (connectionString) => psqlTarget(connectionString, env) }: { target?: (connectionString: string) => PostgresTargetPort } = {},
 ): TransferPgTestDb {
   const user = env.PGUSER ?? "la";
   const port = env.PGPORT ?? "5432";
@@ -55,5 +54,3 @@ export function createTransferPgTestDb(
     },
   };
 }
-
-export const { connectionFor, sql, recreateDatabase, dropDatabase } = createTransferPgTestDb({ env: process.env });

@@ -50,7 +50,7 @@ describe("attachFederatedMcpTools — operator warnings", () => {
   it("warns about an allowlisted tool the server never advertised, and still admits the advertised one", async () => {
     const { messages, logger } = collectingLogger();
     const registry = fakeRegistry();
-    const result = await attachFederatedMcpTools({ registry, deps: DEPS, connect: async () => pingSession() }, { connections: [connection("vendor", ["ping", "pnig"])], logger });
+    const result = await attachFederatedMcpTools({ env: {}, registry, deps: DEPS, connect: async () => pingSession() }, { connections: [connection("vendor", ["ping", "pnig"])], logger });
 
     expect(result.reports[0]?.report.allowlistedButAbsent).toEqual(["pnig"]);
     expect(registry.registered).toHaveLength(1);
@@ -59,7 +59,7 @@ describe("attachFederatedMcpTools — operator warnings", () => {
 
   it("records a connect failure that throws a non-Error value with its string form, and continues", async () => {
     const { messages, logger } = collectingLogger();
-    const result = await attachFederatedMcpTools({ registry: fakeRegistry(), deps: DEPS, connect: async () => { throw "ECONNREFUSED"; } }, { connections: [connection("down")], logger });
+    const result = await attachFederatedMcpTools({ env: {}, registry: fakeRegistry(), deps: DEPS, connect: async () => { throw "ECONNREFUSED"; } }, { connections: [connection("down")], logger });
 
     expect(result.connectFailures).toEqual([{ connectionId: "down", reason: "ECONNREFUSED" }]);
     expect(result.reports).toEqual([]);
@@ -74,7 +74,7 @@ describe("attachFederatedMcpTools — operator warnings", () => {
       warn: ({ message }: { message: string }, optional: { error?: unknown } = {}) => { warnings.push({ message, error: optional.error }); },
     };
     const failure = new Error("boom api_key=SECRETSECRETSECRETSECRET");
-    await attachFederatedMcpTools({ registry: fakeRegistry(), deps: DEPS, connect: async () => { throw failure; } }, { connections: [connection("down")], logger });
+    await attachFederatedMcpTools({ env: {}, registry: fakeRegistry(), deps: DEPS, connect: async () => { throw failure; } }, { connections: [connection("down")], logger });
 
     expect(warnings).toHaveLength(1);
     expect(warnings[0]?.message).toBe("mcp-federation: 'down' failed, continuing without its tools");

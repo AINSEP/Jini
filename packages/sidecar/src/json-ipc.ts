@@ -5,7 +5,7 @@
  * server that decodes one JSON frame per connection (UTF-8 safe across chunk
  * boundaries), runs a handler, and replies `{ok,result}`/`{ok:false,error}`, plus
  * a client request with timeout. Includes opt-in structured tracing (gated by
- * `JINI_JSON_IPC_TRACE`) and stale-socket cleanup before binding. The trace
+ * the per-instance `trace` option) and stale-socket cleanup before binding. The trace
  * sequence counter is module-private singleton state. Depends on `node:fs`,
  * `node:net`, `node:path`, `node:string_decoder`, the shared net close helper,
  * the IPC-path recognizer, and the public IPC types.
@@ -34,14 +34,6 @@ const DEFAULT_MAX_FRAME_BYTES = 1_000_000;
 const DEFAULT_IDLE_TIMEOUT_MS = 30_000;
 
 let jsonIpcTraceSeq = 0;
-
-/**
- * @internal Whether JSON-IPC tracing is enabled via `JINI_JSON_IPC_TRACE`.
- */
-function jsonIpcTraceEnabled(): boolean {
-  const value = process.env.JINI_JSON_IPC_TRACE;
-  return value === "1" || value === "true" || value === "yes";
-}
 
 /**
  * @internal Allocate a per-connection trace id.
@@ -79,8 +71,8 @@ function summarizeJsonIpcMessage(message: unknown): Record<string, unknown> {
 /**
  * @internal Emit a trace line to stderr when tracing is enabled.
  */
-function traceJsonIpc(event: string, details: Record<string, unknown>): void {
-  if (!jsonIpcTraceEnabled()) return;
+function traceJsonIpc(trace: boolean, event: string, details: Record<string, unknown>): void {
+  if (!trace) return;
   console.error("[jini sidecar] json ipc trace", { event, ...details });
 }
 
@@ -191,9 +183,9 @@ export async function createJsonIpcServer({
 }: {
   handler: JsonIpcHandler;
   socketPath: string;
-}, { maxFrameBytes = DEFAULT_MAX_FRAME_BYTES, idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MS }: {
+}, { trace = false, maxFrameBytes = DEFAULT_MAX_FRAME_BYTES, idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MS }: {
   /** Reject a connection whose single frame exceeds this many bytes before a newline arrives (SEC-004). @default 1_000_000 */
-  maxFrameBytes?: number;
+  maxFrameBytes?: number; trace?: boolean;
   /** Drop a connection that has not delivered one complete frame within this many ms (SEC-004). @default 30_000 */
   idleTimeoutMs?: number;
 } = {}): Promise<JsonIpcServerHandle> {
@@ -216,7 +208,7 @@ export async function createJsonIpcServer({
     const decoder = new StringDecoder("utf8");
     const traceId = nextJsonIpcTraceId();
     const startedAt = process.hrtime.bigint();
-    traceJsonIpc("server.connection", { socketPath, traceId });
+    traceJsonIpc(trace, "server.connection", { socketPath, traceId });
 
     // Idle deadline (SEC-004): a peer that opens a connection and never completes a
     // newline-terminated frame (or dribbles bytes indefinitely) would otherwise hold the
@@ -229,7 +221,7 @@ export async function createJsonIpcServer({
       // archived provenance ledger's 2026-07-22 entry kept against a future edit reordering that
       // sequence is now structural: the two steps live in one function and cannot be split.
       handled = true;
-      traceJsonIpc("server.idle_timeout", {
+      traceJsonIpc(trace, "server.idle_timeout", {
         durationMs: jsonIpcTraceDurationMs(startedAt),
         idleTimeoutMs,
         socketPath,
@@ -254,7 +246,7 @@ export async function createJsonIpcServer({
       // away since a test would have to manually `.emit()` a fabricated
       // non-Error value to reach the other side, which isn't real socket
       // behavior (see archived provenance ledger's 2026-07-22 entry).
-      traceJsonIpc("server.socket_error", {
+      traceJsonIpc(trace, "server.socket_error", {
         durationMs: jsonIpcTraceDurationMs(startedAt),
         error: describeErrorForLog({ err: error }),
         socketPath,
@@ -263,7 +255,7 @@ export async function createJsonIpcServer({
     });
     socket.on("close", () => {
       clearTimeout(idleTimer);
-      traceJsonIpc("server.socket_close", {
+      traceJsonIpc(trace, "server.socket_close", {
         durationMs: jsonIpcTraceDurationMs(startedAt),
         socketPath,
         traceId,
@@ -271,7 +263,7 @@ export async function createJsonIpcServer({
     });
     socket.on("data", async (chunk) => {
       if (handled) return;
-      traceJsonIpc("server.data", {
+      traceJsonIpc(trace, "server.data", {
         bytes: chunk.byteLength,
         durationMs: jsonIpcTraceDurationMs(startedAt),
         socketPath,
@@ -280,7 +272,7 @@ export async function createJsonIpcServer({
       receivedBytes += chunk.byteLength;
       if (receivedBytes > maxFrameBytes) {
         claimFrame();
-        traceJsonIpc("server.frame_too_large", {
+        traceJsonIpc(trace, "server.frame_too_large", {
           durationMs: jsonIpcTraceDurationMs(startedAt),
           maxFrameBytes,
           receivedBytes,
@@ -311,7 +303,7 @@ export async function createJsonIpcServer({
         // — never a non-Error value — matching the same reasoning as the
         // socket-error `instanceof Error` checks above (see
         // archived provenance ledger's 2026-07-22 entry).
-        traceJsonIpc("server.frame_parse_failed", {
+        traceJsonIpc(trace, "server.frame_parse_failed", {
           durationMs: jsonIpcTraceDurationMs(startedAt),
           error: describeErrorForLog({ err: error }),
           frameBytes: Buffer.byteLength(frame),
@@ -327,7 +319,7 @@ export async function createJsonIpcServer({
         return;
       }
       const messageSummary = summarizeJsonIpcMessage(message);
-      traceJsonIpc("server.frame_parsed", {
+      traceJsonIpc(trace, "server.frame_parsed", {
         durationMs: jsonIpcTraceDurationMs(startedAt),
         frameBytes: Buffer.byteLength(frame),
         message: messageSummary,
@@ -335,14 +327,14 @@ export async function createJsonIpcServer({
         traceId,
       });
       try {
-        traceJsonIpc("server.handler_start", {
+        traceJsonIpc(trace, "server.handler_start", {
           durationMs: jsonIpcTraceDurationMs(startedAt),
           message: messageSummary,
           socketPath,
           traceId,
         });
         const result = await handler({ message });
-        traceJsonIpc("server.handler_success", {
+        traceJsonIpc(trace, "server.handler_success", {
           durationMs: jsonIpcTraceDurationMs(startedAt),
           message: messageSummary,
           socketPath,
@@ -355,7 +347,7 @@ export async function createJsonIpcServer({
         // the traceId as a correlation handle; the error's class and code are logged
         // server-side only, unconditionally (not gated behind JINI_JSON_IPC_TRACE).
         createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/sidecar] json-ipc handler failed (traceId=${traceId})` }, { error });
-        traceJsonIpc("server.handler_failed", {
+        traceJsonIpc(trace, "server.handler_failed", {
           durationMs: jsonIpcTraceDurationMs(startedAt),
           error: describeErrorForLog({ err: error }),
           message: messageSummary,
@@ -396,7 +388,7 @@ export async function createJsonIpcServer({
  */
 export async function requestJsonIpc<T = any>(
   { socketPath, payload }: { socketPath: string; payload: unknown },
-  { timeoutMs = 1500 }: { timeoutMs?: number } = {},
+  { timeoutMs = 1500, trace = false }: { timeoutMs?: number; trace?: boolean } = {},
 ): Promise<T> {
   return await new Promise<T>((resolveRequest, rejectRequest) => {
     const socket = createConnection(socketPath);
@@ -408,7 +400,7 @@ export async function requestJsonIpc<T = any>(
     // multibyte character split across two `data` events is not corrupted.
     const decoder = new StringDecoder("utf8");
     const messageSummary = summarizeJsonIpcMessage(payload);
-    traceJsonIpc("client.connect_start", { message: messageSummary, socketPath, timeoutMs, traceId });
+    traceJsonIpc(trace, "client.connect_start", { message: messageSummary, socketPath, timeoutMs, traceId });
     const settle = (callback: () => void) => {
       if (settled) return;
       settled = true;
@@ -416,7 +408,7 @@ export async function requestJsonIpc<T = any>(
       callback();
     };
     const timeout = setTimeout(() => {
-      traceJsonIpc("client.timeout", {
+      traceJsonIpc(trace, "client.timeout", {
         durationMs: jsonIpcTraceDurationMs(startedAt),
         message: messageSummary,
         socketPath,
@@ -428,14 +420,14 @@ export async function requestJsonIpc<T = any>(
     }, timeoutMs);
 
     socket.on("connect", () => {
-      traceJsonIpc("client.connected", {
+      traceJsonIpc(trace, "client.connected", {
         durationMs: jsonIpcTraceDurationMs(startedAt),
         message: messageSummary,
         socketPath,
         traceId,
       });
       const frame = `${JSON.stringify(payload)}\n`;
-      traceJsonIpc("client.write_start", {
+      traceJsonIpc(trace, "client.write_start", {
         bytes: Buffer.byteLength(frame),
         durationMs: jsonIpcTraceDurationMs(startedAt),
         message: messageSummary,
@@ -443,7 +435,7 @@ export async function requestJsonIpc<T = any>(
         traceId,
       });
       const flushed = socket.write(frame, () => {
-        traceJsonIpc("client.write_callback", {
+        traceJsonIpc(trace, "client.write_callback", {
           durationMs: jsonIpcTraceDurationMs(startedAt),
           message: messageSummary,
           socketPath,
@@ -452,7 +444,7 @@ export async function requestJsonIpc<T = any>(
       });
       if (!flushed) {
         socket.once("drain", () => {
-          traceJsonIpc("client.drain", {
+          traceJsonIpc(trace, "client.drain", {
             durationMs: jsonIpcTraceDurationMs(startedAt),
             message: messageSummary,
             socketPath,
@@ -462,7 +454,7 @@ export async function requestJsonIpc<T = any>(
       }
     });
     socket.on("data", (chunk) => {
-      traceJsonIpc("client.data", {
+      traceJsonIpc(trace, "client.data", {
         bytes: chunk.byteLength,
         durationMs: jsonIpcTraceDurationMs(startedAt),
         message: messageSummary,
@@ -487,7 +479,7 @@ export async function requestJsonIpc<T = any>(
           return;
         }
         if (!response.ok) {
-          traceJsonIpc("client.response_error", {
+          traceJsonIpc(trace, "client.response_error", {
             durationMs: jsonIpcTraceDurationMs(startedAt),
             error: response.error?.message ?? "IPC request failed",
             message: messageSummary,
@@ -497,7 +489,7 @@ export async function requestJsonIpc<T = any>(
           rejectRequest(ipcResponseError(response.error));
           return;
         }
-        traceJsonIpc("client.response_success", {
+        traceJsonIpc(trace, "client.response_success", {
           durationMs: jsonIpcTraceDurationMs(startedAt),
           message: messageSummary,
           socketPath,
@@ -510,7 +502,7 @@ export async function requestJsonIpc<T = any>(
       // Same defense-in-depth, not-reachable-through-real-usage reasoning as
       // the server-side `error instanceof Error` check above (see that
       // comment + archived provenance ledger's 2026-07-22 entry).
-      traceJsonIpc("client.socket_error", {
+      traceJsonIpc(trace, "client.socket_error", {
         durationMs: jsonIpcTraceDurationMs(startedAt),
         error: describeErrorForLog({ err: error }),
         message: messageSummary,
@@ -520,7 +512,7 @@ export async function requestJsonIpc<T = any>(
       settle(() => rejectRequest(error));
     });
     socket.on("close", () => {
-      traceJsonIpc("client.socket_close", {
+      traceJsonIpc(trace, "client.socket_close", {
         durationMs: jsonIpcTraceDurationMs(startedAt),
         message: messageSummary,
         socketPath,

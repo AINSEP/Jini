@@ -1,6 +1,7 @@
 /** The live-Postgres test helpers, bound to a fake target: connection strings, statements and errors. */
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { createTransferPgTestDb } from "../../testing/transfer-pg-test-db.js";
+import * as psqlAdapter from "../../transfer/postgres-target.js";
 import type { PostgresTargetPort, TargetResult } from "../../transfer/index.js";
 
 function recording(answer: TargetResult<string[][]> = { ok: true, value: [] }) {
@@ -18,6 +19,18 @@ it("builds local connection strings from the defaults or the PG environment over
   const ci = createTransferPgTestDb({ env: { PGUSER: "ci", PGPORT: "6543", PGHOST: "/var/run/postgresql" } });
   expect(ci.connectionFor("scratch")).toBe("postgresql://ci@localhost:6543/scratch?host=%2Fvar%2Frun%2Fpostgresql");
   expect(ci.connectionFor("scratch", "pw")).toBe("postgresql://ci:pw@localhost:6543/scratch?host=%2Fvar%2Frun%2Fpostgresql");
+});
+
+it("forwards its selected parent map to the default target", async () => {
+  const env = { PATH: "/fixture/bin", PGUSER: "fixture", PGPASSWORD: "unrelated" };
+  const fake = recording({ ok: true, value: [["selected"]] });
+  const create = vi.spyOn(psqlAdapter, "createPsqlPostgresTarget").mockReturnValue(fake.target("fixture"));
+  try {
+    const db = createTransferPgTestDb({ env });
+    expect(await db.sql("scratch", "SELECT 1")).toBe("selected");
+    expect(create).toHaveBeenCalledWith({ connectionString: db.connectionFor("scratch"), parentEnv: env });
+    expect(create.mock.calls[0]?.[0].parentEnv).toBe(env);
+  } finally { create.mockRestore(); }
 });
 
 it("runs a statement against the named database and joins rows by newlines and cells by tabs", async () => {

@@ -59,6 +59,7 @@ export type ProjectRuntimePathRequest<TStamp extends SidecarStampShape = Sidecar
 
 /** Inputs for resolving the sidecar base (explicit, env, or project-derived). */
 export type BaseResolutionOptions<TStamp extends SidecarStampShape = SidecarStampShape> = {
+  configuredBase: string | undefined;
   contract: SidecarContractDescriptor<TStamp>;
   source: TStamp["source"] | string;
 };
@@ -77,6 +78,7 @@ export type RuntimeRootRequest<TStamp extends SidecarStampShape = SidecarStampSh
 
 /** Inputs for resolving an app's IPC socket/pipe path. */
 export type AppIpcPathRequest<TStamp extends SidecarStampShape = SidecarStampShape> = {
+  ipcBase: string | undefined;
   app: TStamp["app"] | string;
   contract: SidecarContractDescriptor<TStamp>;
   namespace: string;
@@ -101,6 +103,7 @@ export type SidecarRuntimeContext<TStamp extends SidecarStampShape = SidecarStam
 
 /** Inputs for composing the env a child sidecar is launched with. */
 export type SidecarLaunchEnvRequest<TStamp extends SidecarStampShape = SidecarStampShape> = {
+  extraEnv: NodeJS.ProcessEnv;
   base: string;
   contract: SidecarContractDescriptor<TStamp>;
   stamp: TStamp;
@@ -136,17 +139,13 @@ export type JsonIpcServerHandle = {
 
 export type BaseResolutionOptionsOptionalArgs = {
   base?: string | null;
-  env?: NodeJS.ProcessEnv;
   projectRoot?: string;
 };
 
 export type AppIpcPathRequestOptionalArgs = {
-  env?: NodeJS.ProcessEnv;
 };
 
-export type SidecarLaunchEnvRequestOptionalArgs = {
-  extraEnv?: NodeJS.ProcessEnv;
-};
+export type SidecarLaunchEnvRequestOptionalArgs = Record<string, never>;
 
 export type BootstrapSidecarRuntimeOptionsOptionalArgs = {
   base?: string | null;

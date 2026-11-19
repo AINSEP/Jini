@@ -42,7 +42,7 @@ const connectionString = "postgresql://owner:pw@db.example:6543/app?sslmode=requ
 
 it("runs one query as psql argv with a PG-only environment built from the connection string", async () => {
   const psql = fakePsql({ stdout: "1\tone\n\n2\ttwo\n" });
-  const target = createPsqlPostgresTarget({ connectionString }, { parentEnv: { PATH: "/bin", PGPASSWORD: "stray", PGHOST: "elsewhere", EMPTY: undefined }, spawnProcess: psql.spawnProcess });
+  const target = createPsqlPostgresTarget({ connectionString , parentEnv: { PATH: "/bin", PGPASSWORD: "stray", PGHOST: "elsewhere", EMPTY: undefined } }, { spawnProcess: psql.spawnProcess });
   expect(await target.query("SELECT id, name FROM t")).toEqual({ ok: true, value: [["1", "one"], ["2", "two"]] });
   expect(psql.launches).toEqual([{
     args: ["-X", "-q", "-v", "ON_ERROR_STOP=1", "-t", "-A", "-F", "\t", "-c", "SELECT id, name FROM t"],
@@ -56,14 +56,14 @@ it("runs one query as psql argv with a PG-only environment built from the connec
 
 it("names the application psql reports when the host supplies one", async () => {
   const psql = fakePsql();
-  const target = createPsqlPostgresTarget({ connectionString }, { parentEnv: {}, applicationName: "host-copy", spawnProcess: psql.spawnProcess });
+  const target = createPsqlPostgresTarget({ connectionString , parentEnv: {} }, { applicationName: "host-copy", spawnProcess: psql.spawnProcess });
   expect(await target.query("SELECT 1")).toEqual({ ok: true, value: [] });
   expect(psql.launches[0]!.env.PGAPPNAME).toBe("host-copy");
 });
 
 it("streams a script through stdin in order, waiting for drain when psql falls behind", async () => {
   const psql = fakePsql();
-  const target = createPsqlPostgresTarget({ connectionString }, { parentEnv: {}, spawnProcess: psql.spawnProcess });
+  const target = createPsqlPostgresTarget({ connectionString , parentEnv: {} }, { spawnProcess: psql.spawnProcess });
   const chunks = ["BEGIN;\n", "COPY t FROM STDIN;\n1\n\\.\n", "COMMIT;\n"];
   expect(await target.runScript(chunks)).toEqual({ ok: true, value: null });
   expect(psql.launches[0]!.args).toEqual(["-X", "-q", "-v", "ON_ERROR_STOP=1", "-f", "-"]);
@@ -73,13 +73,13 @@ it("streams a script through stdin in order, waiting for drain when psql falls b
 
 it("reports a psql that cannot start without any detail", async () => {
   const psql = fakePsql({ startError: true });
-  const target = createPsqlPostgresTarget({ connectionString }, { parentEnv: {}, spawnProcess: psql.spawnProcess });
+  const target = createPsqlPostgresTarget({ connectionString , parentEnv: {} }, { spawnProcess: psql.spawnProcess });
   expect(await target.query("SELECT 1")).toEqual({ ok: false, error: "psql could not be started" });
 });
 
 it("survives psql closing its stdin early and still reports the exit", async () => {
   const psql = fakePsql({ stdinError: true, code: 2, stderr: "psql: error: connection to server failed: timeout expired\n" });
-  const target = createPsqlPostgresTarget({ connectionString }, { parentEnv: {}, spawnProcess: psql.spawnProcess });
+  const target = createPsqlPostgresTarget({ connectionString , parentEnv: {} }, { spawnProcess: psql.spawnProcess });
   expect(await target.runScript(["SELECT 1;\n"])).toEqual({ ok: false, error: "psql request failed" });
 });
 
@@ -92,7 +92,7 @@ it.each([
   { label: "an empty stderr", stderr: "", expected: { ok: false, error: "psql request failed" } },
 ])("reduces $label to a copier-owned error", async ({ stderr, expected }) => {
   const psql = fakePsql({ stderr, code: 3 });
-  const target = createPsqlPostgresTarget({ connectionString }, { parentEnv: {}, spawnProcess: psql.spawnProcess });
+  const target = createPsqlPostgresTarget({ connectionString , parentEnv: {} }, { spawnProcess: psql.spawnProcess });
   expect(await target.runScript(["SELECT 1;\n"])).toEqual(expected);
-  expect(await createPsqlPostgresTarget({ connectionString }, { parentEnv: {}, spawnProcess: fakePsql({ stderr, code: null }).spawnProcess }).query("SELECT 1")).toEqual(expected);
+  expect(await createPsqlPostgresTarget({ connectionString , parentEnv: {} }, { spawnProcess: fakePsql({ stderr, code: null }).spawnProcess }).query("SELECT 1")).toEqual(expected);
 });

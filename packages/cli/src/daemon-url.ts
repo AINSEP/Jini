@@ -15,14 +15,8 @@ import { isLoopbackHostname } from '@jini-ai/core/net';
 export interface ResolveDaemonUrlOptions {
   /** Value passed via a `--daemon-url`-shaped flag. Empty string is treated as unset. */
   flagUrl?: string | null;
-  /** Defaults to `process.env`; inject for tests. */
-  env?: NodeJS.ProcessEnv;
-  /**
-   * Name of the environment variable to check (e.g. `'JINI_DAEMON_URL'`).
-   * Omit to skip the env step entirely — this package has no baked-in
-   * product env var name.
-   */
-  envVarName?: string;
+  /** Resolved host setting. Empty string is treated as unset. */
+  configuredUrl?: string | undefined;
   /**
    * Optional discovery probe (e.g. a sidecar IPC status roundtrip). Return
    * `null` when nothing was discovered so resolution falls through to
@@ -44,19 +38,17 @@ export interface ResolveDaemonUrlOptions {
 /**
  * Resolve a daemon HTTP base URL for a CLI client command.
  *
- * Resolution order: `flagUrl`, then `env[envVarName]` (when `envVarName` is
- * given), then `discover()` (when given), then `defaultUrl`. Throws when
+ * Resolution order: `flagUrl`, then `configuredUrl`, then `discover()` (when given), then `defaultUrl`. Throws when
  * every step is exhausted and no `defaultUrl` was supplied — a silent
  * `http://127.0.0.1:0`-style fallback would be worse than a clear error,
  * and this package has no locked default port to fall back to on its own.
  */
-export async function resolveDaemonUrl(_requiredArgs: Record<string, never>, options: ResolveDaemonUrlOptions = {}): Promise<string> {
-  const env = options.env ?? process.env;
-  // `??` short-circuits, so discover() is only probed when flag and env both came up empty.
+export async function resolveDaemonUrl({ env }: { env: NodeJS.ProcessEnv }, options: ResolveDaemonUrlOptions = {}): Promise<string> {
+  // `??` short-circuits, so discover() is only probed when flag and configured URL both came up empty.
   // defaultUrl is taken as-is (even `''`): only `undefined` skips it.
   const url =
     nonEmpty(options.flagUrl ?? null) ??
-    envCandidate({ env }, options) ??
+    nonEmpty(options.configuredUrl ?? null) ??
     (await discoverCandidate({ env }, options)) ??
     options.defaultUrl;
   if (url === undefined) {
@@ -73,11 +65,6 @@ export async function resolveDaemonUrl(_requiredArgs: Record<string, never>, opt
 /** `value` when it is a non-empty string, else `undefined` (`null` and `''` both mean "unset"). */
 function nonEmpty(value: string | null): string | undefined {
   return value !== null && value.length > 0 ? value : undefined;
-}
-
-/** The env step: `env[envVarName]`, skipped entirely when no `envVarName` was given. */
-function envCandidate({ env }: { env: NodeJS.ProcessEnv }, { envVarName }: ResolveDaemonUrlOptions): string | undefined {
-  return envVarName === undefined ? undefined : nonEmpty(env[envVarName] ?? null);
 }
 
 /** The discovery step: one `discover()` probe with the caller timeout (default 800ms), when a probe was given. */

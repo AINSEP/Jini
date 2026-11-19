@@ -27,9 +27,17 @@ function fakePsql({ code = 0, stdout = "", stderr = "", startError = false }: { 
 const URL_ = "postgres://u:p@db.test:5433/app";
 
 describe("psql adapter", () => {
+  it("does not retain an unrelated inherited password on a passwordless connection", async () => {
+    const psql = fakePsql({ stdout: "1\n" });
+    const target = createPsqlPostgresTarget({ connectionString: "postgres://u@db.test/app", parentEnv: { PATH: "/selected/bin", PGPASSWORD: "leak", PGOPTIONS: "evil" } }, { spawnProcess: psql.spawn });
+    expect(await target.query("SELECT 1")).toEqual({ ok: true, value: [["1"]] });
+    expect(psql.calls[0]?.env.PATH).toBe("/selected/bin");
+    expect(psql.calls[0]?.env).not.toHaveProperty("PGPASSWORD");
+    expect(psql.calls[0]?.env).not.toHaveProperty("PGOPTIONS");
+  });
   it("drops every PG* parent variable, keeps the rest, and pins argv for a query", async () => {
     const psql = fakePsql({ stdout: "a\tb\n\nc\td\n" });
-    const target = createPsqlPostgresTarget({ connectionString: URL_ }, { spawnProcess: psql.spawn, parentEnv: { PATH: "/bin", PGPASSWORD: "leak", PGHOST: "evil", PG: "x", PGOPTIONS: "-c evil=1", NOTPG: "kept", pgx: "lower-kept", UNSET: undefined } });
+    const target = createPsqlPostgresTarget({ connectionString: URL_ , parentEnv: { PATH: "/bin", PGPASSWORD: "leak", PGHOST: "evil", PG: "x", PGOPTIONS: "-c evil=1", NOTPG: "kept", pgx: "lower-kept", UNSET: undefined } }, { spawnProcess: psql.spawn });
     await expect(target.query("select 1")).resolves.toEqual({ ok: true, value: [["a", "b"], ["c", "d"]] });
     const { args, env } = psql.calls[0]!;
     expect(args).toEqual(["-X", "-q", "-v", "ON_ERROR_STOP=1", "-t", "-A", "-F", "\t", "-c", "select 1"]);
@@ -41,14 +49,14 @@ describe("psql adapter", () => {
 
   it("runScript streams every chunk to stdin and returns null on success", async () => {
     const psql = fakePsql({});
-    const target = createPsqlPostgresTarget({ connectionString: URL_ }, { spawnProcess: psql.spawn, parentEnv: {} });
+    const target = createPsqlPostgresTarget({ connectionString: URL_ , parentEnv: {} }, { spawnProcess: psql.spawn });
     await expect(target.runScript(["BEGIN;", "COMMIT;"])).resolves.toEqual({ ok: true, value: null });
     expect(psql.calls[0]!.args).toEqual(["-X", "-q", "-v", "ON_ERROR_STOP=1", "-f", "-"]);
     expect(psql.calls[0]!.stdin).toBe("BEGIN;COMMIT;");
   });
 
   it("a psql that cannot start reports a fixed message", async () => {
-    const target = createPsqlPostgresTarget({ connectionString: URL_ }, { spawnProcess: fakePsql({ startError: true }).spawn, parentEnv: {} });
+    const target = createPsqlPostgresTarget({ connectionString: URL_ , parentEnv: {} }, { spawnProcess: fakePsql({ startError: true }).spawn });
     await expect(target.query("x")).resolves.toEqual({ ok: false, error: "psql could not be started" });
   });
 
@@ -61,7 +69,7 @@ describe("psql adapter", () => {
     ["COPY context names the table (quotes stripped)", 'ERROR: bad\nCONTEXT:  COPY "site_a"."posts", line 3\n', { ok: false, error: "psql request failed", copyTable: "site_a.posts" }],
     ["empty stderr", "", { ok: false, error: "psql request failed" }],
   ])("classifies %s", async (_label, stderr, expected) => {
-    const target = createPsqlPostgresTarget({ connectionString: URL_ }, { spawnProcess: fakePsql({ code: 3, stderr }).spawn, parentEnv: {} });
+    const target = createPsqlPostgresTarget({ connectionString: URL_ , parentEnv: {} }, { spawnProcess: fakePsql({ code: 3, stderr }).spawn });
     await expect(target.runScript(["x"])).resolves.toEqual(expected);
   });
 });

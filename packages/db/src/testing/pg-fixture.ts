@@ -1,4 +1,3 @@
-import os from "node:os";
 import { createPgFixture, type PgFixtureOptions, type PsqlResult } from "../pg-fixture.js";
 export type { PsqlResult } from "../pg-fixture.js";
 
@@ -36,8 +35,3 @@ export function legacyPgHelpers({ fixture }: { fixture: ReturnType<typeof create
     dropDatabase: (database) => fixture.dropDatabase({ database }),
   };
 }
-
-// Compatibility for existing internal test helpers; all execution belongs to the public fixture.
-export const { psql, recreateDatabase, dropDatabase } = legacyPgHelpers({
-  fixture: pgFixtureFromEnv({ env: process.env, userInfo: os.userInfo }),
-});

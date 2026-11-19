@@ -3,13 +3,24 @@ import { mkdtemp, mkdir, readFile, writeFile, chmod, readdir, rm, symlink, stat 
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { installOwnedJsonAgent } from '../owned-json-install.js';
-import { planAgentInstall } from '../install.js';
+import { planAgentInstall, verifyJsonAgentInstall } from '../install.js';
 
 const homes: string[] = [];
+
+test('install and verification use the same host-owned Windows AppData', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'mcp-appdata-')); homes.push(home);
+  const appData = join(home, 'custom-roaming');
+  const ctx = { home, appData, platform: 'win32' as const, serverName: 'jini' };
+  const spec = { command: 'node', args: ['/bridge.js'], env: {} };
+  await installOwnedJsonAgent({ agentId: 'trae', allowed: true, spec, ctx });
+  const configPath = join(appData, 'Trae', 'User', 'mcp.json');
+  expect(JSON.parse(await readFile(configPath, 'utf8'))).toEqual({ mcpServers: { jini: spec } });
+  await verifyJsonAgentInstall({ agentId: 'trae', spec, ctx, readFile: ({ path }) => readFile(path, 'utf8') });
+});
 afterEach(async () => { await Promise.all(homes.splice(0).map(home => rm(home, { recursive: true, force: true }))); });
 async function fixture() {
   const home = await mkdtemp(join(tmpdir(), 'mcp-owned-')); homes.push(home);
-  const required = { agentId: 'antigravity', allowed: true, ctx: { home, platform: 'linux' as const, serverName: 'jini' },
+  const required = { agentId: 'antigravity', allowed: true, ctx: { home, appData: undefined, platform: 'linux' as const, serverName: 'jini' },
     spec: { command: 'node', args: ['/bridge.js'], env: {} } };
   const plan = planAgentInstall({ ...required, slug: 'antigravity' });
   if (plan.kind !== 'json') throw new Error('Expected JSON');

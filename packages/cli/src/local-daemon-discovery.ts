@@ -8,7 +8,7 @@
  * `discoveryFile` config, backed by `@jini-ai/sidecar`'s `daemon-registry.ts`); this module is the
  * matching CLI-side reader: `createLocalDaemonDiscovery(...)` builds a probe over that same
  * on-disk record, verified live (not just present — see `readLiveDaemonRegistryRecord`'s own
- * doc), that plugs directly into `resolveDaemonUrl({}, { discover })`.
+ * doc), that plugs directly into `resolveDaemonUrl({ env }, { discover })`.
  *
  * Deliberately not wired to a hardcoded default `dataDir`: exactly like `resolveDaemonUrl` itself
  * has no baked-in env var name or default URL, this package has no opinion on where a given
@@ -40,7 +40,7 @@ function resolveRegistryPathFromOptions(options: LocalDaemonDiscoveryOptions): s
 }
 
 /**
- * Build a `resolveDaemonUrl({}, { discover })`-compatible probe backed by a local, on-disk daemon
+ * Build a `resolveDaemonUrl({ env }, { discover })`-compatible probe backed by a local, on-disk daemon
  * registry record: reads the record at the resolved registry path, confirms the recording
  * process's pid is still alive (a stale record left behind by a daemon that crashed rather than
  * shut down cleanly is never trusted — see `readLiveDaemonRegistryRecord`), and returns its

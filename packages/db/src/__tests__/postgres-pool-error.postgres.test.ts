@@ -1,3 +1,4 @@
+import os from "node:os";
 import assert from "node:assert/strict";
 import { afterAll as after, test } from "vitest";
 
@@ -6,7 +7,8 @@ import pg from "pg";
 
 import { openPostgresKernel } from "../kernel/postgres/index.js";
 import type { KyselyKernel } from "../kernel/port.js";
-import { freshPostgresDatabase } from "../testing/postgres-database.js";
+import { legacyPgHelpers, pgFixtureFromEnv } from "../testing/pg-fixture.js";
+import { postgresDatabaseHelpers } from "../testing/postgres-database.js";
 
 /**
  * @file The node-postgres pool survives the server dropping one of its idle connections (restart,
@@ -14,6 +16,9 @@ import { freshPostgresDatabase } from "../testing/postgres-database.js";
  * event on the pool; with no listener, the EventEmitter throws and the process dies. Runs against a
  * REAL Postgres server and fails (never skips) when it is down.
  */
+
+const helpers = legacyPgHelpers({ fixture: pgFixtureFromEnv({ env: process.env, userInfo: os.userInfo }) });
+const { freshPostgresDatabase } = postgresDatabaseHelpers({ helpers, env: process.env, userInfo: os.userInfo });
 
 const APP = "jini_pool_error_probe";
 const url = `${freshPostgresDatabase("jini_kernel_pg_pool_error_fixture")}&application_name=${APP}`;

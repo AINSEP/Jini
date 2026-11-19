@@ -18,12 +18,12 @@ type Trace = { event: string } & Record<string, unknown>;
 
 let root: string;
 let traces: Trace[];
-let previousTrace: string | undefined;
+let trace = false;
 
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), "jini-ipc-contract-"));
   traces = [];
-  previousTrace = process.env.JINI_JSON_IPC_TRACE;
+  trace = false;
   vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
     if (args[0] === "[jini sidecar] json ipc trace") traces.push(args[1] as Trace);
   });
@@ -42,8 +42,6 @@ const reap = async (child: ChildProcess) => {
 afterEach(async () => {
   for (const child of children.splice(0)) await reap(child);
   vi.restoreAllMocks();
-  if (previousTrace === undefined) delete process.env.JINI_JSON_IPC_TRACE;
-  else process.env.JINI_JSON_IPC_TRACE = previousTrace;
   await rm(root, { force: true, recursive: true });
 });
 
@@ -78,10 +76,10 @@ describe("prepareIpcPath — live socket is never treated as stale", () => {
 
   it("a second server on a live socket fails with EADDRINUSE and the first keeps serving", async () => {
     const socketPath = join(root, "dup.sock");
-    const first = await createJsonIpcServer({ handler: async () => "first", socketPath });
+    const first = await createJsonIpcServer({ handler: async () => "first", socketPath }, { trace });
     try {
-      await expect(createJsonIpcServer({ handler: async () => "second", socketPath })).rejects.toMatchObject({ code: "EADDRINUSE" });
-      await expect(requestJsonIpc({ socketPath, payload: {} })).resolves.toBe("first");
+      await expect(createJsonIpcServer({ handler: async () => "second", socketPath }, { trace })).rejects.toMatchObject({ code: "EADDRINUSE" });
+      await expect(requestJsonIpc({ socketPath, payload: {} }, { trace })).resolves.toBe("first");
     } finally {
       await first.close();
     }
@@ -103,9 +101,9 @@ describe("prepareIpcPath — live socket is never treated as stale", () => {
     child.removeAllListeners("exit");
     await reap(child);
     expect(lstatSync(socketPath).isSocket()).toBe(true);
-    const server = await createJsonIpcServer({ handler: async () => "reborn", socketPath });
+    const server = await createJsonIpcServer({ handler: async () => "reborn", socketPath }, { trace });
     try {
-      await expect(requestJsonIpc({ socketPath, payload: {} })).resolves.toBe("reborn");
+      await expect(requestJsonIpc({ socketPath, payload: {} }, { trace })).resolves.toBe("reborn");
     } finally {
       await server.close();
     }
@@ -141,7 +139,7 @@ describe("jsonIpcError", () => {
   });
 });
 
-describe("JINI_JSON_IPC_TRACE gate", () => {
+describe("per-instance trace gate", () => {
   it.each([
     ["1", true],
     ["true", true],
@@ -151,12 +149,11 @@ describe("JINI_JSON_IPC_TRACE gate", () => {
     ["", false],
     [undefined, false],
   ])("%j → tracing %s", async (value, enabled) => {
-    if (value === undefined) delete process.env.JINI_JSON_IPC_TRACE;
-    else process.env.JINI_JSON_IPC_TRACE = value;
+    trace = value === "1" || value === "true" || value === "yes";
     const socketPath = join(root, "gate.sock");
-    const server = await createJsonIpcServer({ handler: async () => 1, socketPath });
+    const server = await createJsonIpcServer({ handler: async () => 1, socketPath }, { trace });
     try {
-      await requestJsonIpc({ socketPath, payload: { type: "PING" } });
+      await requestJsonIpc({ socketPath, payload: { type: "PING" } }, { trace });
     } finally {
       await server.close();
     }
@@ -165,17 +162,35 @@ describe("JINI_JSON_IPC_TRACE gate", () => {
 });
 
 const traceId = expect.stringMatching(new RegExp(`^ipc-${process.pid}-\\d+$`));
-const base = (socketPath: string) => ({ socketPath, traceId, durationMs: expect.any(Number) });
+const base = (socketit("keeps enabled and disabled tracing independent across server and request instances", async () => {
+  const enabledPath = join(root, "enabled.sock"), disabledPath = join(root, "disabled.sock");
+  const enabled = await createJsonIpcServer({ socketPath: enabledPath, handler: () => "enabled" }, { trace: true });
+  const disabled = await createJsonIpcServer({ socketPath: disabledPath, handler: () => "disabled" });
+  try {
+    expect(await requestJsonIpc({ socketPath: enabledPath, payload: {} }, { trace: true })).toBe("enabled");
+    expect(await requestJsonIpc({ socketPath: disabledPath, payload: {} })).toBe("disabled");
+    expect(traces.some(item => item.socketPath === enabledPath && item.event === "server.handler_success")).toBe(true);
+    expect(traces.some(item => item.socketPath === enabledPath && item.event === "client.response_success")).toBe(true);
+    expect(traces.filter(item => item.socketPath === disabledPath)).toEqual([]);
+    traces = [];
+    expect(await requestJsonIpc({ socketPath: disabledPath, payload: {} }, { trace: true })).toBe("disabled");
+    expect(await requestJsonIpc({ socketPath: enabledPath, payload: {} })).toBe("enabled");
+    expect(traces.some(item => item.socketPath === disabledPath && item.event.startsWith("server."))).toBe(false);
+    expect(traces.some(item => item.socketPath === enabledPath && item.event === "client.connect_start")).toBe(false);
+  } finally { await enabled.close(); await disabled.close(); }
+});Path: string) => ({ socketPath, traceId, durationMs: expect.any(Number) });
+
+
 
 describe("trace vocabulary and details", () => {
 
   it("a successful round trip emits the full client+server sequence with summarised messages", async () => {
-    process.env.JINI_JSON_IPC_TRACE = "yes";
+    trace = true;
     const socketPath = join(root, "ok.sock");
-    const server = await createJsonIpcServer({ handler: async () => ({ fine: true }), socketPath });
+    const server = await createJsonIpcServer({ handler: async () => ({ fine: true }), socketPath }, { trace });
     const payload = { type: "EVAL", input: { zeta: 1, alpha: 2, mid: 3 } };
     try {
-      await expect(requestJsonIpc({ socketPath, payload }, { timeoutMs: 2000 })).resolves.toEqual({ fine: true });
+      await expect(requestJsonIpc({ socketPath, payload }, { trace, timeoutMs: 2000 })).resolves.toEqual({ fine: true });
       await new Promise((r) => setTimeout(r, 20));
     } finally {
       await server.close();
@@ -214,11 +229,11 @@ describe("trace vocabulary and details", () => {
     ["null input", { type: "T", input: null }, { type: "T", hasInput: true, inputType: "object" }],
     ["no input", { type: "T" }, { type: "T" }],
   ])("summarises a %s message as %j", async (_label, payload, summary) => {
-    process.env.JINI_JSON_IPC_TRACE = "1";
+    trace = true;
     const socketPath = join(root, "sum.sock");
-    const server = await createJsonIpcServer({ handler: async () => 0, socketPath });
+    const server = await createJsonIpcServer({ handler: async () => 0, socketPath }, { trace });
     try {
-      await requestJsonIpc({ socketPath, payload });
+      await requestJsonIpc({ socketPath, payload }, { trace });
     } finally {
       await server.close();
     }
@@ -226,12 +241,12 @@ describe("trace vocabulary and details", () => {
   });
 
   it("handler failure: peer gets HANDLER_ERROR + requestId; trace and log carry only redacted detail", async () => {
-    process.env.JINI_JSON_IPC_TRACE = "1";
+    trace = true;
     const socketPath = join(root, "fail.sock");
-    const server = await createJsonIpcServer({ handler: async () => { throw new Error("db at /secret/path failed"); }, socketPath });
+    const server = await createJsonIpcServer({ handler: async () => { throw new Error("db at /secret/path failed"); }, socketPath }, { trace });
     let rejection: (Error & { code?: string; requestId?: string }) | undefined;
     try {
-      await requestJsonIpc({ socketPath, payload: { type: "X" } }).catch((error) => (rejection = error));
+      await requestJsonIpc({ socketPath, payload: { type: "X" } }, { trace }).catch((error) => (rejection = error));
     } finally {
       await server.close();
     }
@@ -245,9 +260,9 @@ describe("trace vocabulary and details", () => {
   });
 
   it("unparseable frame: SyntaxError message relayed without a code; parse-failed trace", async () => {
-    process.env.JINI_JSON_IPC_TRACE = "1";
+    trace = true;
     const socketPath = join(root, "parse.sock");
-    const server = await createJsonIpcServer({ handler: async () => 0, socketPath });
+    const server = await createJsonIpcServer({ handler: async () => 0, socketPath }, { trace });
     let reply = "";
     try {
       reply = await rawExchange(socketPath, "{nope\n");
@@ -265,7 +280,7 @@ describe("trace vocabulary and details", () => {
     const fake = createNetServer((socket) => socket.on("data", () => socket.end(`${JSON.stringify({ ok: false, error: { message: "plain" } })}\n`)));
     await new Promise<void>((resolve) => fake.listen(socketPath, () => resolve()));
     try {
-      const error = (await requestJsonIpc({ socketPath, payload: {} }).catch((e) => e)) as Error & { code?: string; requestId?: string };
+      const error = (await requestJsonIpc({ socketPath, payload: {} }, { trace }).catch((e) => e)) as Error & { code?: string; requestId?: string };
       expect(error.message).toBe("plain");
       expect("code" in error).toBe(false);
       expect("requestId" in error).toBe(false);
@@ -275,12 +290,12 @@ describe("trace vocabulary and details", () => {
   });
 
   it("client falls back to 'IPC request failed' when an error response has no error object", async () => {
-    process.env.JINI_JSON_IPC_TRACE = "1";
+    trace = true;
     const socketPath = join(root, "bare.sock");
     const fake = createNetServer((socket) => socket.on("data", () => socket.end(`${JSON.stringify({ ok: false })}\n`)));
     await new Promise<void>((resolve) => fake.listen(socketPath, () => resolve()));
     try {
-      await expect(requestJsonIpc({ socketPath, payload: {} })).rejects.toThrow(/^IPC request failed$/);
+      await expect(requestJsonIpc({ socketPath, payload: {} }, { trace })).rejects.toThrow(/^IPC request failed$/);
     } finally {
       await close(fake);
     }
@@ -288,11 +303,11 @@ describe("trace vocabulary and details", () => {
   });
 
   it("client timeout trace carries timeoutMs; error names the socket", async () => {
-    process.env.JINI_JSON_IPC_TRACE = "1";
+    trace = true;
     const socketPath = join(root, "slow.sock");
-    const server = await createJsonIpcServer({ handler: () => new Promise(() => undefined), socketPath });
+    const server = await createJsonIpcServer({ handler: () => new Promise(() => undefined), socketPath }, { trace });
     try {
-      await expect(requestJsonIpc({ socketPath, payload: { type: "S" } }, { timeoutMs: 50 })).rejects.toThrow(`IPC request timed out: ${socketPath}`);
+      await expect(requestJsonIpc({ socketPath, payload: { type: "S" } }, { trace, timeoutMs: 50 })).rejects.toThrow(`IPC request timed out: ${socketPath}`);
     } finally {
       await server.close();
     }
@@ -300,16 +315,16 @@ describe("trace vocabulary and details", () => {
   });
 
   it("client socket error (no listener) is traced and rejects with ENOENT", async () => {
-    process.env.JINI_JSON_IPC_TRACE = "1";
+    trace = true;
     const socketPath = join(root, "absent.sock");
-    await expect(requestJsonIpc({ socketPath, payload: {} })).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(requestJsonIpc({ socketPath, payload: {} }, { trace })).rejects.toMatchObject({ code: "ENOENT" });
     expect(traces.find((trace) => trace.event === "client.socket_error")).toEqual({ event: "client.socket_error", ...base(socketPath), message: { type: "undefined" }, error: "Error(ENOENT)" });
   });
 
   it("idle timeout trace carries idleTimeoutMs and drops the connection", async () => {
-    process.env.JINI_JSON_IPC_TRACE = "1";
+    trace = true;
     const socketPath = join(root, "idle.sock");
-    const server = await createJsonIpcServer({ handler: async () => 0, socketPath }, { idleTimeoutMs: 30 });
+    const server = await createJsonIpcServer({ handler: async () => 0, socketPath }, { trace, idleTimeoutMs: 30 });
     try {
       await expect(rawExchange(socketPath, "{\"partial\":")).resolves.toBe("");
     } finally {
@@ -321,11 +336,11 @@ describe("trace vocabulary and details", () => {
 
 describe("frame size boundary (SEC-004)", () => {
   it("accepts a frame of exactly maxFrameBytes and refuses maxFrameBytes + 1", async () => {
-    process.env.JINI_JSON_IPC_TRACE = "1";
+    trace = true;
     const socketPath = join(root, "size.sock");
     const frame = `${JSON.stringify({ pad: "x".repeat(20) })}\n`;
     const limit = Buffer.byteLength(frame);
-    const server = await createJsonIpcServer({ handler: async () => "ok", socketPath }, { maxFrameBytes: limit });
+    const server = await createJsonIpcServer({ handler: async () => "ok", socketPath }, { trace, maxFrameBytes: limit });
     try {
       expect(JSON.parse(await rawExchange(socketPath, frame))).toEqual({ ok: true, result: "ok" });
       const refused = JSON.parse(await rawExchange(socketPath, ` ${frame}`));
@@ -338,7 +353,7 @@ describe("frame size boundary (SEC-004)", () => {
 
   it("an empty frame (bare newline) is answered as a parse failure, not left waiting", async () => {
     const socketPath = join(root, "empty.sock");
-    const server = await createJsonIpcServer({ handler: async () => "never", socketPath }, { idleTimeoutMs: 5_000 });
+    const server = await createJsonIpcServer({ handler: async () => "never", socketPath }, { trace, idleTimeoutMs: 5_000 });
     try {
       const reply = JSON.parse(await rawExchange(socketPath, "\n"));
       expect(reply.ok).toBe(false);
@@ -349,11 +364,11 @@ describe("frame size boundary (SEC-004)", () => {
   });
 
   it("a payload larger than the socket buffer traces client.drain", async () => {
-    process.env.JINI_JSON_IPC_TRACE = "1";
+    trace = true;
     const socketPath = join(root, "drain.sock");
-    const server = await createJsonIpcServer({ handler: async () => "ok", socketPath }, { maxFrameBytes: 8_000_000 });
+    const server = await createJsonIpcServer({ handler: async () => "ok", socketPath }, { trace, maxFrameBytes: 8_000_000 });
     try {
-      await requestJsonIpc({ socketPath, payload: { blob: "x".repeat(4_000_000) } }, { timeoutMs: 10_000 });
+      await requestJsonIpc({ socketPath, payload: { blob: "x".repeat(4_000_000) } }, { trace, timeoutMs: 10_000 });
     } finally {
       await server.close();
     }
@@ -363,7 +378,7 @@ describe("frame size boundary (SEC-004)", () => {
   it("ignores a second frame on the same connection (one request per connection)", async () => {
     const socketPath = join(root, "two.sock");
     const handler = vi.fn(async ({ message }: { message: unknown }) => message);
-    const server = await createJsonIpcServer({ handler, socketPath });
+    const server = await createJsonIpcServer({ handler, socketPath }, { trace });
     try {
       const reply = await rawExchange(socketPath, "{\"n\":1}\n{\"n\":2}\n");
       expect(reply.trim().split("\n").map((line) => JSON.parse(line))).toEqual([{ ok: true, result: { n: 1 } }]);

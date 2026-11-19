@@ -92,7 +92,7 @@ it.each(['resolve', 'spawn'])('includes synchronous %s time in the stdio connect
   vi.setSystemTime(0);
   const channel = new ScriptedMcpStdioChannel({ messages, respond: () => undefined });
   const spawnChannel = vi.fn(() => { if (phase === 'spawn') vi.setSystemTime(101); return channel; });
-  const connect = createDefaultConnect({ clientInfo, messages, bearerToken: () => undefined,
+  const connect = createDefaultConnect({ parentEnv: {}, clientInfo, messages, bearerToken: () => undefined,
     resolver: { resolve: required => { if (phase === 'resolve') vi.setSystemTime(101); return IDENTITY_STDIO_LAUNCH_RESOLVER.resolve(required); } } }, { spawnChannel });
   await expect(connect({ connection: { config, launch: { command: 'example', args: [], env: {} } } })).rejects.toThrow('connect timed out after 100ms');
   if (phase === 'resolve') expect(spawnChannel).not.toHaveBeenCalled();

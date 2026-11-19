@@ -83,8 +83,9 @@ export function resolveSourceRuntimeRoot<TStamp extends SidecarStampShape>({
 export function resolveSidecarBase<TStamp extends SidecarStampShape>({
   contract,
   source,
-}: BaseResolutionOptions<TStamp>, { base, env = process.env, projectRoot = process.cwd() }: BaseResolutionOptionsOptionalArgs = {}): string {
-  return resolve(base ?? env[contract.env.base] ?? resolveSourceRuntimeRoot({ contract, projectRoot, source }));
+  configuredBase,
+}: BaseResolutionOptions<TStamp>, { base, projectRoot = process.cwd() }: BaseResolutionOptionsOptionalArgs = {}): string {
+  return resolve(base ?? configuredBase ?? resolveSourceRuntimeRoot({ contract, projectRoot, source }));
 }
 
 /**
@@ -239,7 +240,8 @@ export function resolveAppIpcPath<TStamp extends SidecarStampShape>({
   app,
   contract,
   namespace,
-}: AppIpcPathRequest<TStamp>, { env = process.env }: AppIpcPathRequestOptionalArgs = {}): string {
+  ipcBase,
+}: AppIpcPathRequest<TStamp>, _options: AppIpcPathRequestOptionalArgs = {}): string {
   const normalizedApp = contract.normalizeApp({ app });
   const normalizedNamespace = contract.normalizeNamespace({ namespace });
 
@@ -247,6 +249,6 @@ export function resolveAppIpcPath<TStamp extends SidecarStampShape>({
     return `\\\\.\\pipe\\${contract.defaults.windowsPipePrefix}-${normalizedNamespace}-${normalizedApp}`;
   }
 
-  const ipcBase = resolve(env[contract.env.ipcBase] ?? contract.defaults.ipcBase);
-  return join(ipcBase, normalizedNamespace, `${normalizedApp}.sock`);
+  const resolvedBase = resolve(ipcBase ?? contract.defaults.ipcBase);
+  return join(resolvedBase, normalizedNamespace, `${normalizedApp}.sock`);
 }

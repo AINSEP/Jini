@@ -1,11 +1,16 @@
+import os from "node:os";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import pg from "pg";
 import { SettingsRevisionConflictError, set } from "@jini-ai/core/settings";
 
 import { openPostgresKernel } from "../kernel/postgres/index.js";
-import { freshPostgresDatabase } from "../testing/postgres-database.js";
+import { legacyPgHelpers, pgFixtureFromEnv } from "../testing/pg-fixture.js";
+import { postgresDatabaseHelpers } from "../testing/postgres-database.js";
 import { prepareSettingsCas, settingsCasWrite, settingsRevisionContract, SqlSettingsCasFixture, type SettingsCasDb } from "./settings-revision.fixture.js";
+
+const helpers = legacyPgHelpers({ fixture: pgFixtureFromEnv({ env: process.env, userInfo: os.userInfo }) });
+const { freshPostgresDatabase } = postgresDatabaseHelpers({ helpers, env: process.env, userInfo: os.userInfo });
 
 async function openPair(_required: Record<string, never>, _optional = {}) {
   const connectionString = freshPostgresDatabase("jini_settings_cas_fixture");

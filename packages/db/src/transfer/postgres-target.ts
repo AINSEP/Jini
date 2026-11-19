@@ -144,7 +144,7 @@ function runPsql(env: Record<string, string>, args: readonly string[], chunks: I
  *
  * @throws {InvalidConnectionStringError} When the string cannot be parsed.
  */
-export function createPsqlPostgresTarget({ connectionString }: { connectionString: string }, { parentEnv = process.env, applicationName, spawnProcess = spawnPsql }: { parentEnv?: NodeJS.ProcessEnv; applicationName?: string; spawnProcess?: PsqlSpawn } = {}): PostgresTargetPort {
+export function createPsqlPostgresTarget({ connectionString, parentEnv }: { connectionString: string; parentEnv: NodeJS.ProcessEnv }, { applicationName, spawnProcess = spawnPsql }: { applicationName?: string; spawnProcess?: PsqlSpawn } = {}): PostgresTargetPort {
   const parsed = parseConnectionString({ raw: connectionString }, applicationName === undefined ? {} : { applicationName });
   const env = { ...environmentWithout(parentEnv), ...parsed.env };
   return {

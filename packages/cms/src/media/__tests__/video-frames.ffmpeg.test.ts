@@ -61,7 +61,7 @@ it('kills on abort and on bounded-output overflow', async () => {
 
 it('missing binaries returns an explicit unavailable result without spawning', async () => {
   const run = vi.fn();
-  const extractor = createFfmpegVideoFrameExtractor({ findBinaries: async () => undefined, runProcess: run }, {});
+  const extractor = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: async () => undefined, runProcess: run }, {});
   expect(await extractor.extract({ bytes: mp4 }, {})).toEqual({ ok: false, reason: 'unavailable', message: 'video preview unavailable on this host (nice, ffmpeg and ffprobe are required).' });
   expect(run).not.toHaveBeenCalled();
 });
@@ -70,7 +70,7 @@ it('seeks each input independently in one niced ffmpeg, limits all threads and c
   const calls: Array<{ command: string; args: readonly string[]; timeout: number }> = [];
   let inputPath = '';
   let outputPaths: string[] = [];
-  const extractor = createFfmpegVideoFrameExtractor({ findBinaries: binaries, runProcess: async (required, optional) => {
+  const extractor = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: binaries, runProcess: async (required, optional) => {
     calls.push({ ...required, timeout: optional.timeoutMs });
     inputPath = required.args[required.args.indexOf('-i') + 1]!;
     await access(inputPath);
@@ -108,7 +108,7 @@ it('seeks each input independently in one niced ffmpeg, limits all threads and c
 
 it.each(['frames', 'sheet'] as const)('uses output-scoped passthrough without removed vsync across all batches (%s)', async layout => {
   const calls: Array<readonly string[]> = [];
-  const extractor = createFfmpegVideoFrameExtractor({ findBinaries: binaries, runProcess: async required => {
+  const extractor = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: binaries, runProcess: async required => {
     calls.push(required.args);
     if (required.args[2] === '/host/ffprobe') return Buffer.from(probe);
     return emitImages(required.args, [jpeg]);
@@ -141,7 +141,7 @@ it.each(['frames', 'sheet'] as const)('uses output-scoped passthrough without re
 it('forwards gap and start through eight serial batches with whole-request file shares', async () => {
   const calls: Array<readonly string[]> = [];
   const longProbe = Buffer.from(probe.replace('"duration":"2"', '"duration":"20"'));
-  const extractor = createFfmpegVideoFrameExtractor({ findBinaries: binaries, runProcess: async required => {
+  const extractor = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: binaries, runProcess: async required => {
     if (required.args[2] === '/host/ffprobe') return longProbe;
     expect(required.command).toBe('/usr/bin/nice');
     expect(required.args.slice(0, 2)).toEqual(['-n', '19']);
@@ -171,7 +171,7 @@ it('accepts exactly the aggregate JPEG budget and refuses file overflow without 
   image.set([255, 217], image.length - 2);
   let inputPath = '';
   let emitted = image;
-  const extractor = createFfmpegVideoFrameExtractor({ findBinaries: binaries, runProcess: async required => {
+  const extractor = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: binaries, runProcess: async required => {
     inputPath = required.args[required.args.indexOf('-i') + 1]!;
     if (required.args[2] === '/host/ffprobe') return Buffer.from(probe);
     return emitImages(required.args, [emitted]);
@@ -190,7 +190,7 @@ it('allocates an aggregate-safe per-image file budget and refuses a runner that 
   image.set([255, 216], 0);
   image.set([255, 217], image.length - 2);
   let args: readonly string[] = [];
-  const extractor = createFfmpegVideoFrameExtractor({ findBinaries: binaries, runProcess: async required => {
+  const extractor = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: binaries, runProcess: async required => {
     if (required.args[2] === '/host/ffprobe') return Buffer.from(probe);
     args = required.args;
     return emitImages(args, [image]);
@@ -199,7 +199,7 @@ it('allocates an aggregate-safe per-image file budget and refuses a runner that 
   const allocations = values(args, '-fs').map(Number);
   expect(allocations).toEqual(Array(8).fill(VIDEO_MAX_OUTPUT_BYTES / 64)); // Stop after first oversized batch.
   // Failure must release the process-wide lock.
-  const absent = createFfmpegVideoFrameExtractor({ findBinaries: async () => undefined }, {});
+  const absent = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: async () => undefined }, {});
   expect(await absent.extract({ bytes: mp4 }, {})).toMatchObject({ reason: 'unavailable' });
 });
 
@@ -207,7 +207,7 @@ it('keeps the per-frame budget even when an injected process runner ignores its 
   const image = Buffer.alloc(VIDEO_MAX_FRAME_BYTES + 1);
   image.set([255, 216], 0);
   image.set([255, 217], image.length - 2);
-  const extractor = createFfmpegVideoFrameExtractor({ findBinaries: binaries, runProcess: async required => required.args[2] === '/host/ffprobe' ? Buffer.from(probe) : emitImages(required.args, [image]) }, {});
+  const extractor = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: binaries, runProcess: async required => required.args[2] === '/host/ffprobe' ? Buffer.from(probe) : emitImages(required.args, [image]) }, {});
   expect(await extractor.extract({ bytes: mp4 }, { frames: 1 })).toEqual({ ok: false, reason: 'invalid', message: 'Video preview exceeded its output limit.' });
 });
 
@@ -216,20 +216,20 @@ it('allows only one extraction across separate adapter instances; releases after
   let finish!: () => void;
   const entered = new Promise<void>(resolve => { enter = resolve; });
   const waiting = new Promise<void>(resolve => { finish = resolve; });
-  const first = createFfmpegVideoFrameExtractor({ findBinaries: binaries, runProcess: async () => { enter(); await waiting; throw new Error('bad clip'); } }, {});
+  const first = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: binaries, runProcess: async () => { enter(); await waiting; throw new Error('bad clip'); } }, {});
   const pending = first.extract({ bytes: mp4 }, {});
   await entered;
-  const second = createFfmpegVideoFrameExtractor({ findBinaries: binaries, runProcess: async () => Buffer.from(probe) }, {});
+  const second = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: binaries, runProcess: async () => Buffer.from(probe) }, {});
   expect(await second.extract({ bytes: mp4 }, {})).toMatchObject({ ok: false, reason: 'busy' });
   finish();
   expect(await pending).toMatchObject({ ok: false, reason: 'invalid' });
-  const absent = createFfmpegVideoFrameExtractor({ findBinaries: async () => undefined }, {});
+  const absent = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: async () => undefined }, {});
   expect(await absent.extract({ bytes: mp4 }, {})).toMatchObject({ reason: 'unavailable' });
 });
 
 it('refuses oversize and non-video input before any process runs', async () => {
   const run = vi.fn();
-  const extractor = createFfmpegVideoFrameExtractor({ runProcess: run }, {});
+  const extractor = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, runProcess: run }, {});
   expect(await extractor.extract({ bytes: new Uint8Array(VIDEO_MAX_INPUT_BYTES + 1) }, {})).toMatchObject({ ok: false, reason: 'too-large' });
   expect(await extractor.extract({ bytes: Buffer.from('file:///etc/passwd') }, {})).toMatchObject({ ok: false, reason: 'invalid' });
   expect(run).not.toHaveBeenCalled();
@@ -264,7 +264,7 @@ it('ENOENT is reported unavailable and cannot leave a codec process running', as
 it('shares one deadline across probe and all eight batches', async () => {
   let elapsed = 0;
   const budgets: number[] = [];
-  const extractor = createFfmpegVideoFrameExtractor({ findBinaries: binaries, nowMs: () => elapsed, runProcess: async (required, optional) => {
+  const extractor = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: binaries, nowMs: () => elapsed, runProcess: async (required, optional) => {
     budgets.push(optional.timeoutMs);
     elapsed += 2000;
     return required.args[2] === '/host/ffprobe' ? Buffer.from(probe) : emitImages(required.args, [jpeg]);
@@ -277,7 +277,7 @@ it('shares one deadline across probe and all eight batches', async () => {
 it('does not launch another seek when the extraction deadline has expired', async () => {
   let elapsed = 0;
   const run = vi.fn(async () => { elapsed = VIDEO_EXTRACTION_TIMEOUT_MS + 1; return Buffer.from(probe); });
-  const extractor = createFfmpegVideoFrameExtractor({ findBinaries: binaries, nowMs: () => elapsed, runProcess: run }, {});
+  const extractor = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: binaries, nowMs: () => elapsed, runProcess: run }, {});
   expect(await extractor.extract({ bytes: mp4 }, {})).toMatchObject({ ok: false, reason: 'timeout' });
   expect(run).toHaveBeenCalledTimes(1);
 });
@@ -285,7 +285,7 @@ it('does not launch another seek when the extraction deadline has expired', asyn
 
 it('builds four sheets from eight source batches and four JPEG-only assembly passes', async () => {
   const calls: Array<readonly string[]> = [];
-  const extractor = createFfmpegVideoFrameExtractor({ findBinaries: binaries, runProcess: async required => {
+  const extractor = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: binaries, runProcess: async required => {
     if (required.args[2] === '/host/ffprobe') return Buffer.from(probe);
     calls.push(required.args);
     return emitImages(required.args, [jpeg]);
@@ -328,7 +328,7 @@ it('builds four sheets from eight source batches and four JPEG-only assembly pas
 it('handles one-tile sheets and rejects missing, invalid or oversized sheet JPEGs', async () => {
   let args: readonly string[] = [];
   let image: Uint8Array | undefined = jpeg;
-  const extractor = createFfmpegVideoFrameExtractor({ findBinaries: binaries, runProcess: async required => {
+  const extractor = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: binaries, runProcess: async required => {
     if (required.args[2] === '/host/ffprobe') return Buffer.from(probe);
     args = required.args;
     if (values(args, '-ss').length) return emitImages(args, [jpeg]); // Validate final sheet failures independently of tile extraction.
@@ -351,7 +351,7 @@ it('handles one-tile sheets and rejects missing, invalid or oversized sheet JPEG
 it('omitted count defaults to sixteen separate 768px frames in two serial batches', async () => {
   let calls = 0;
   let args: readonly string[] = [];
-  const extractor = createFfmpegVideoFrameExtractor({ findBinaries: binaries, runProcess: async required => {
+  const extractor = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: binaries, runProcess: async required => {
     if (required.args[2] === '/host/ffprobe') return Buffer.from(probe);
     calls++;
     args = required.args;
@@ -372,7 +372,7 @@ it('omitted count defaults to sixteen separate 768px frames in two serial batche
 it('partial sheets retain repeated and unsorted sampling positions with a black unused cell', async () => {
   let args: readonly string[] = [];
   const seeks: string[] = [];
-  const extractor = createFfmpegVideoFrameExtractor({ findBinaries: binaries, runProcess: async required => {
+  const extractor = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: binaries, runProcess: async required => {
     if (required.args[2] === '/host/ffprobe') return Buffer.from(probe);
     args = required.args;
     seeks.push(...values(args, '-ss'));
@@ -390,11 +390,11 @@ it('partial sheets retain repeated and unsorted sampling positions with a black 
 
 it('refuses invalid layout before discovery and rejects an expired deadline after ffmpeg returns', async () => {
   const find = vi.fn(binaries);
-  const invalid = createFfmpegVideoFrameExtractor({ findBinaries: find }, {});
+  const invalid = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: find }, {});
   expect(await invalid.extract({ bytes: mp4 }, { layout: 'grid' as 'sheet' })).toEqual({ ok: false, reason: 'invalid', message: 'Video layout must be frames or sheet.' });
   expect(find).not.toHaveBeenCalled();
   let elapsed = 0;
-  const extractor = createFfmpegVideoFrameExtractor({ findBinaries: binaries, nowMs: () => elapsed, runProcess: async required => {
+  const extractor = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: binaries, nowMs: () => elapsed, runProcess: async required => {
     if (required.args[2] === '/host/ffprobe') return Buffer.from(probe);
     await emitImages(required.args, [jpeg]);
     elapsed = VIDEO_EXTRACTION_TIMEOUT_MS + 1;
@@ -410,7 +410,7 @@ it.each([16, 64])('preserves unsorted duplicate timestamps and JPEG order over s
   let completed = 0;
   let active = 0;
   const calls: Array<readonly string[]> = [];
-  const extractor = createFfmpegVideoFrameExtractor({ findBinaries: binaries, runProcess: async required => {
+  const extractor = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: binaries, runProcess: async required => {
     if (required.args[2] === '/host/ffprobe') return Buffer.from(probe);
     expect(active).toBe(0);
     active++;
@@ -440,7 +440,7 @@ it.each([16, 64])('sheet source invocations stay capped and use one shared deadl
   let sourcePath = '';
   let sourceCalls = 0;
   let assemblyCalls = 0;
-  const extractor = createFfmpegVideoFrameExtractor({ findBinaries: binaries, nowMs: () => elapsed, runProcess: async (required, optional) => {
+  const extractor = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: binaries, nowMs: () => elapsed, runProcess: async (required, optional) => {
     budgets.push(optional.timeoutMs);
     elapsed += 1000;
     if (required.args[2] === '/host/ffprobe') {
@@ -476,7 +476,7 @@ it.each(['frames', 'sheet'] as const)('stops after the first batch when the shar
   let elapsed = 0;
   const paths: string[] = [];
   let calls = 0;
-  const extractor = createFfmpegVideoFrameExtractor({ findBinaries: binaries, nowMs: () => elapsed, runProcess: async required => {
+  const extractor = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: binaries, nowMs: () => elapsed, runProcess: async required => {
     paths.push(...values(required.args, '-i'), ...outputs(required.args));
     calls++;
     if (required.args[2] === '/host/ffprobe') return Buffer.from(probe);
@@ -498,7 +498,7 @@ it.each(['frames', 'sheet'] as const)('cancellation in batch two kills the group
   const paths: string[] = [];
   let directory = '';
   let codecCalls = 0;
-  const extractor = createFfmpegVideoFrameExtractor({ findBinaries: binaries, runProcess: async (required, optional) => {
+  const extractor = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: binaries, runProcess: async (required, optional) => {
     paths.push(...values(required.args, '-i'), ...outputs(required.args));
     directory = values(required.args, '-i')[0]!.replace(/[/]input$/, '');
     if (required.args[2] === '/host/ffprobe') return Buffer.from(probe);
@@ -515,7 +515,7 @@ it.each(['frames', 'sheet'] as const)('cancellation in batch two kills the group
   controller.abort();
   expect(killGroup).toHaveBeenCalledTimes(1);
   expect(killGroup).toHaveBeenCalledWith({ pid: 123 }, {});
-  const other = createFfmpegVideoFrameExtractor({ findBinaries: async () => undefined }, {});
+  const other = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: async () => undefined }, {});
   expect(await other.extract({ bytes: mp4 }, {})).toMatchObject({ reason: 'busy' });
   await access(directory);
   codec.emit('close', null, 'SIGKILL');
@@ -530,7 +530,7 @@ it('validates sheet output after bounded tile extraction, removes used tiles bef
   let assemblies = 0;
   let directory = '';
   let invalidFinal = false;
-  const extractor = createFfmpegVideoFrameExtractor({ findBinaries: binaries, runProcess: async required => {
+  const extractor = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: binaries, runProcess: async required => {
     if (required.args[2] === '/host/ffprobe') return Buffer.from(probe);
     const inputs = values(required.args, '-i');
     directory = inputs[0]!.replace(/[/](?:input|tile-\d+\.jpg)$/, '');
@@ -554,7 +554,7 @@ it('keeps the full 8 MiB sheet budget across separate JPEG assembly passes', asy
   image.set([255, 216], 0);
   image.set([255, 217], image.length - 2);
   const limits: number[] = [];
-  const extractor = createFfmpegVideoFrameExtractor({ findBinaries: binaries, runProcess: async required => {
+  const extractor = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: binaries, runProcess: async required => {
     if (required.args[2] === '/host/ffprobe') return Buffer.from(probe);
     if (values(required.args, '-ss').length) return emitImages(required.args, [jpeg]);
     limits.push(...values(required.args, '-fs').map(Number));
@@ -571,7 +571,7 @@ it('observes cancellation after a runner returns, before starting any later batc
   const controller = new AbortController();
   let calls = 0;
   let inputPath = '';
-  const extractor = createFfmpegVideoFrameExtractor({ findBinaries: binaries, runProcess: async required => {
+  const extractor = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: binaries, runProcess: async required => {
     inputPath = values(required.args, '-i')[0]!;
     calls++;
     if (required.args[2] === '/host/ffprobe') return Buffer.from(probe);
@@ -600,13 +600,13 @@ it('discovers nice, ffmpeg and ffprobe only as absolute executable files and nev
     await mkdir(join(bin, 'ffprobe')); // A directory is not an executable file.
     for (const name of ['nice', 'ffmpeg']) await writeFile(join(bin, name), '#!/bin/sh\n', { mode: 0o755 });
     await writeFile(join(root, 'ffprobe'), '#!/bin/sh\n', { mode: 0o755 });
-    const env = { PATH: ['relative/bin', bin].join(':'), FFPROBE_PATH: join(root, 'ffprobe') };
-    expect(await findVideoBinaries({}, { env, platform: 'linux' })).toEqual({ nice: join(bin, 'nice'), ffmpeg: join(bin, 'ffmpeg'), ffprobe: join(root, 'ffprobe') });
+    const searchPath = ['relative/bin', bin].join(':'), ffprobePath = join(root, 'ffprobe');
+    expect(await findVideoBinaries({ searchPath, ffmpegPath: undefined, ffprobePath }, { platform: 'linux' })).toEqual({ nice: join(bin, 'nice'), ffmpeg: join(bin, 'ffmpeg'), ffprobe: join(root, 'ffprobe') });
     // A relative configured path is host misconfiguration, never resolved against the cwd.
-    expect(await findVideoBinaries({}, { env: { ...env, FFMPEG_PATH: 'ffmpeg' }, platform: 'linux' })).toBeUndefined();
-    expect(await findVideoBinaries({}, { env, platform: 'win32' })).toBeUndefined();
-    expect(await findVideoBinaries({}, { env: { FFMPEG_PATH: '/missing/ffmpeg' }, platform: 'linux' })).toBeUndefined(); // No PATH at all.
-    const fromHost = await (findVideoBinaries as (required: Record<string, never>) => Promise<unknown>)({});
+    expect(await findVideoBinaries({ searchPath, ffmpegPath: 'ffmpeg', ffprobePath }, { platform: 'linux' })).toBeUndefined();
+    expect(await findVideoBinaries({ searchPath, ffmpegPath: undefined, ffprobePath }, { platform: 'win32' })).toBeUndefined();
+    expect(await findVideoBinaries({ searchPath: undefined, ffmpegPath: '/missing/ffmpeg', ffprobePath: undefined }, { platform: 'linux' })).toBeUndefined(); // No PATH at all.
+    const fromHost = await findVideoBinaries({ searchPath: process.env.PATH, ffmpegPath: process.env.FFMPEG_PATH, ffprobePath: process.env.FFPROBE_PATH });
     expect(fromHost === undefined || typeof fromHost === 'object').toBe(true);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
@@ -672,26 +672,26 @@ it('observes a cancellation that lands while the process is spawning', async () 
   expect(killGroup).toHaveBeenCalledTimes(1);
 });
 
-it('passes host env and platform to discovery and reports an unavailable spawn as unavailable', async () => {
+it('passes host binary values and platform to discovery and reports an unavailable spawn as unavailable', async () => {
   const findBinaries = vi.fn(binaries);
-  const extractor = createFfmpegVideoFrameExtractor({ findBinaries, env: { PATH: '/x' }, platform: 'linux', runProcess: (required, optional) => {
+  const extractor = createFfmpegVideoFrameExtractor({ findBinaries, searchPath: '/x', ffmpegPath: '/configured/ffmpeg', ffprobePath: '/configured/ffprobe', platform: 'linux', runProcess: (required, optional) => {
     const failed = child();
     const pending = runLowPriorityVideoProcess({ ...required, spawnProcess: spawnOf(failed) }, optional);
     failed.emit('error', Object.assign(new Error('missing'), { code: 'ENOENT' }));
     return pending;
   } }, {});
   expect(await extractor.extract({ bytes: mp4 }, {})).toEqual({ ok: false, reason: 'unavailable', message: 'video preview unavailable on this host (nice, ffmpeg and ffprobe are required).' });
-  expect(findBinaries).toHaveBeenCalledWith({}, { env: { PATH: '/x' }, platform: 'linux' });
+  expect(findBinaries).toHaveBeenCalledWith({ searchPath: '/x', ffmpegPath: '/configured/ffmpeg', ffprobePath: '/configured/ffprobe' }, { platform: 'linux' });
 });
 
 it('refuses a pre-canceled request and a deadline that expires between the check and the launch', async () => {
   const controller = new AbortController();
   controller.abort();
   const run = vi.fn();
-  const canceled = createFfmpegVideoFrameExtractor({ findBinaries: binaries, runProcess: run }, {});
+  const canceled = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: binaries, runProcess: run }, {});
   expect(await canceled.extract({ bytes: mp4 }, { signal: controller.signal })).toEqual({ ok: false, reason: 'canceled', message: 'Video preview canceled.' });
   const clock = [0, 0, VIDEO_EXTRACTION_TIMEOUT_MS];
-  const racing = createFfmpegVideoFrameExtractor({ findBinaries: binaries, nowMs: () => clock.shift() ?? VIDEO_EXTRACTION_TIMEOUT_MS, runProcess: run }, {});
+  const racing = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: binaries, nowMs: () => clock.shift() ?? VIDEO_EXTRACTION_TIMEOUT_MS, runProcess: run }, {});
   expect(await racing.extract({ bytes: mp4 }, {})).toEqual({ ok: false, reason: 'timeout', message: 'Video preview timed out.' });
   expect(run).not.toHaveBeenCalled();
 });
@@ -700,7 +700,7 @@ it('refuses a pre-canceled request and a deadline that expires between the check
 it.each(['frames', 'sheet'] as const)('refuses a %s output that grows past the total budget after its size check', async layout => {
   let pending = 0;
   let target = '';
-  const extractor = createFfmpegVideoFrameExtractor({ findBinaries: binaries, nowMs: () => {
+  const extractor = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: binaries, nowMs: () => {
     if (pending > 0 && --pending === 0) writeFileSync(target, jpegOf(VIDEO_MAX_OUTPUT_BYTES + 1));
     return 0;
   }, runProcess: async required => {
@@ -717,7 +717,7 @@ it('reports temporary files that cannot be removed and still releases the lock',
   let directory = '';
   const { rm: remove } = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
   const removal = vi.mocked(rm);
-  const extractor = createFfmpegVideoFrameExtractor({ findBinaries: binaries, runProcess: async required => {
+  const extractor = createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: binaries, runProcess: async required => {
     directory = dirname(required.args[required.args.indexOf('-i') + 1]!);
     removal.mockRejectedValueOnce(Object.assign(new Error('Permission denied'), { code: 'EACCES' }));
     throw new Error('probe failed');
@@ -725,7 +725,7 @@ it('reports temporary files that cannot be removed and still releases the lock',
   try {
     expect(await extractor.extract({ bytes: mp4 }, {})).toEqual({ ok: false, reason: 'invalid', message: 'Video preview temporary files could not be removed.' });
     expect(removal).toHaveBeenCalledWith(directory, { recursive: true, force: true });
-    expect(await createFfmpegVideoFrameExtractor({ findBinaries: async () => undefined }, {}).extract({ bytes: mp4 }, {})).toMatchObject({ reason: 'unavailable' });
+    expect(await createFfmpegVideoFrameExtractor({ searchPath: undefined, ffmpegPath: undefined, ffprobePath: undefined, findBinaries: async () => undefined }, {}).extract({ bytes: mp4 }, {})).toMatchObject({ reason: 'unavailable' });
   } finally {
     removal.mockReset().mockImplementation(remove);
     await remove(directory, { recursive: true, force: true });

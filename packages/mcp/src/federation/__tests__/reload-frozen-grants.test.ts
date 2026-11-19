@@ -26,12 +26,10 @@ it('reloads owner grants and withdraws disabled sources using frozen schemas wit
   };
   const connect = async () => { connects++; return session; };
   const deps = { errorCode: 'MCP', messages, permissionGate: async () => {} };
-  await attachFederatedMcpTools({ registry, deps, connect }, { connections: [], extraConnections: connections,
-    buildRegistrations: params => {
+  await attachFederatedMcpTools({ env: {}, registry, deps, connect }, { connections: [], extraConnections: connections, buildRegistrations: params => {
       const built = buildFederatedMcpRegistrations(params);
       return { ...built, registrations: built.registrations.map(registration => ({ ...registration, descriptor: { ...registration.descriptor, description: 'Host approval adapter retained' } })) };
-    },
-  });
+    } });
   const readNames = (admissionRevision: string) => readFrozenFederationToolNames({ registry, connectionId: 'media', origin: { kind: 'roster', admissionRevision } });
   expect(readNames('original-endpoint')).toEqual(['read', 'write']);
   expect(readNames('different-endpoint')).toBeNull();

@@ -19,7 +19,7 @@ function spec(env: Record<string, string> = {}): McpLaunchSpec {
   return { command: '/usr/bin/node', args: ['/app/cli.js', 'mcp'], env };
 }
 function ctx(overrides: Partial<PlanContext> = {}): PlanContext {
-  return { home: '/home/u', platform: 'linux', serverName: 'jini', ...overrides };
+  return { home: '/home/u', platform: 'linux', serverName: 'jini', appData: process.env.APPDATA, ...overrides };
 }
 
 const savedAppData = process.env.APPDATA;
@@ -371,19 +371,19 @@ describe('planAgentInstall — characterization pins (before refactor)', () => {
     },
   );
 
-  it('reads APPDATA from the injected env option, not process.env, for cline on win32', () => {
+  it('uses each Windows host context AppData instead of the ambient value', () => {
     process.env.APPDATA = '/ignored';
-    const plan = planAgentInstall({ slug: 'cline', spec: spec(), ctx: ctx({ platform: 'win32' }) }, { env: { APPDATA: '/appdata' } });
-    expect(plan).toMatchObject({ configPath: '/appdata/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json' });
+    for (const appData of ['/appdata-a', '/appdata-b']) expect(planAgentInstall({ slug: 'cline', spec: spec(), ctx: ctx({ platform: 'win32', appData }) }))
+      .toMatchObject({ configPath: `${appData}/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json` });
   });
 
   it('falls back to <home>/AppData/Roaming for trae on win32 when the injected env has no APPDATA', () => {
-    const plan = planAgentInstall({ slug: 'trae', spec: spec(), ctx: ctx({ platform: 'win32' }) }, { env: {} });
+    const plan = planAgentInstall({ slug: 'trae', spec: spec(), ctx: ctx({ platform: 'win32', appData: undefined }) });
     expect(plan).toMatchObject({ configPath: '/home/u/AppData/Roaming/Trae/User/mcp.json' });
   });
 
   it('uses the injected APPDATA for trae on win32', () => {
-    const plan = planAgentInstall({ slug: 'trae', spec: spec(), ctx: ctx({ platform: 'win32' }) }, { env: { APPDATA: '/appdata' } });
+    const plan = planAgentInstall({ slug: 'trae', spec: spec(), ctx: ctx({ platform: 'win32', appData: '/appdata' }) });
     expect(plan).toMatchObject({ configPath: '/appdata/Trae/User/mcp.json' });
   });
 
@@ -412,7 +412,7 @@ describe('planAgentInstall — characterization pins (before refactor)', () => {
 
   it('builds a relative config path when the injected APPDATA is relative (reported, not fixed)', () => {
     // A relative APPDATA is not rejected, so the json strategy would write relative to the cwd.
-    const plan = planAgentInstall({ slug: 'trae', spec: spec(), ctx: ctx({ platform: 'win32' }) }, { env: { APPDATA: 'rel/appdata' } });
+    const plan = planAgentInstall({ slug: 'trae', spec: spec(), ctx: ctx({ platform: 'win32', appData: 'rel/appdata' }) });
     expect(plan).toMatchObject({ configPath: 'rel/appdata/Trae/User/mcp.json' });
   });
 

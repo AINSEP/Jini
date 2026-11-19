@@ -226,7 +226,7 @@ describe("@jini-ai/sidecar — path boundary uses descriptor defaults, not hardc
   });
 
   it("resolves descriptor-specific IPC paths", () => {
-    expect(resolveAppIpcPath({ app: "ui", contract: fakeContract, namespace: "alpha" })).toBe(
+    expect(resolveAppIpcPath({ app: "ui", contract: fakeContract, namespace: "alpha", ipcBase: undefined })).toBe(
       process.platform === "win32" ? "\\\\.\\pipe\\fake-product-alpha-ui" : "/tmp/fake-product/ipc/alpha/ui.sock",
     );
   });
@@ -239,7 +239,7 @@ describe("@jini-ai/sidecar — path boundary uses descriptor defaults, not hardc
 
     expect(resolveNamespace({ contract: fakeContract }, { env })).toBe("selected");
     expect(
-      resolveSidecarBase({ contract: fakeContract, source: "tool" }, { env, projectRoot: "/repo/product" }),
+      resolveSidecarBase({ contract: fakeContract, source: "tool", configuredBase: env[fakeContract.env.base] }, { projectRoot: "/repo/product" }),
     ).toBe(resolve("/runtime/base"));
   });
 
@@ -274,7 +274,7 @@ describe("@jini-ai/sidecar — path boundary uses descriptor defaults, not hardc
   });
 
   it("resolveSidecarBase falls all the way through to the computed source runtime root when neither base nor env is set", () => {
-    expect(resolveSidecarBase({ contract: fakeContract, source: "tool" }, { env: {}, projectRoot: "/repo/product" })).toBe(
+    expect(resolveSidecarBase({ contract: fakeContract, source: "tool", configuredBase: undefined }, { projectRoot: "/repo/product" })).toBe(
       resolve("/repo/product", ".fake-tmp", "tool"),
     );
   });
@@ -307,7 +307,7 @@ describe("@jini-ai/sidecar — path boundary uses descriptor defaults, not hardc
     const originalPlatform = process.platform;
     Object.defineProperty(process, "platform", { configurable: true, value: "win32" });
     try {
-      expect(resolveAppIpcPath({ app: "ui", contract: fakeContract, namespace: "alpha" })).toBe(
+      expect(resolveAppIpcPath({ app: "ui", contract: fakeContract, namespace: "alpha", ipcBase: undefined })).toBe(
         "\\\\.\\pipe\\fake-product-alpha-ui",
       );
     } finally {
@@ -320,13 +320,13 @@ describe("@jini-ai/sidecar — bootstrap", () => {
   it("creates launch env from descriptor env names and bootstraps back to a matching runtime context", () => {
     const stamp: FakeStamp = {
       app: "api",
-      ipc: resolveAppIpcPath({ app: "api", contract: fakeContract, namespace: "alpha" }),
+      ipc: resolveAppIpcPath({ app: "api", contract: fakeContract, namespace: "alpha", ipcBase: undefined }),
       mode: "dev",
       namespace: "alpha",
       source: "tool",
     };
 
-    const launchEnv = createSidecarLaunchEnv({ base: "/runtime/base", contract: fakeContract, stamp }, { extraEnv: {} });
+    const launchEnv = createSidecarLaunchEnv({ base: "/runtime/base", contract: fakeContract, stamp, extraEnv: {} });
     expect(launchEnv).toEqual({
       FAKE_BASE: resolve("/runtime/base"),
       FAKE_IPC_PATH: stamp.ipc,
@@ -347,7 +347,7 @@ describe("@jini-ai/sidecar — bootstrap", () => {
   it("rejects a stamp whose app does not match the expected app", () => {
     const stamp: FakeStamp = {
       app: "api",
-      ipc: resolveAppIpcPath({ app: "api", contract: fakeContract, namespace: "alpha" }),
+      ipc: resolveAppIpcPath({ app: "api", contract: fakeContract, namespace: "alpha", ipcBase: undefined }),
       mode: "dev",
       namespace: "alpha",
       source: "tool",
@@ -373,7 +373,7 @@ describe("@jini-ai/sidecar — bootstrap", () => {
   it("rejects when the incoming env already carries a conflicting canonical value (namespace/source/ipc)", () => {
     const stamp: FakeStamp = {
       app: "api",
-      ipc: resolveAppIpcPath({ app: "api", contract: fakeContract, namespace: "alpha" }),
+      ipc: resolveAppIpcPath({ app: "api", contract: fakeContract, namespace: "alpha", ipcBase: undefined }),
       mode: "dev",
       namespace: "alpha",
       source: "tool",
@@ -387,7 +387,7 @@ describe("@jini-ai/sidecar — bootstrap", () => {
   it("accepts a matching pre-existing env value and honors an explicit projectRoot option", () => {
     const stamp: FakeStamp = {
       app: "api",
-      ipc: resolveAppIpcPath({ app: "api", contract: fakeContract, namespace: "alpha" }),
+      ipc: resolveAppIpcPath({ app: "api", contract: fakeContract, namespace: "alpha", ipcBase: undefined }),
       mode: "dev",
       namespace: "alpha",
       source: "tool",
@@ -606,25 +606,21 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
   it("round-trips a request/response over a unix socket and traces low-level events without changing semantics", async () => {
     const root = await mkdtemp(join(tmpdir(), "jini-sidecar-ipc-"));
     const socketPath = testIpcPath(root);
-    const previousTrace = process.env.JINI_JSON_IPC_TRACE;
     const previousError = console.error;
     const logs: unknown[] = [];
-    process.env.JINI_JSON_IPC_TRACE = "1";
     console.error = (...args: unknown[]) => {
       logs.push(args);
     };
 
-    const server = await createJsonIpcServer({ handler: async ({ message }) => ({ seen: message?.type }), socketPath });
+    const server = await createJsonIpcServer({ handler: async ({ message }) => ({ seen: message?.type }), socketPath }, { trace: true });
 
     try {
-      await expect(requestJsonIpc({ socketPath, payload: { input: { expression: "secret()" }, type: "EVAL" } })).resolves.toEqual({
+      await expect(requestJsonIpc({ socketPath, payload: { input: { expression: "secret()" }, type: "EVAL" } }, { trace: true })).resolves.toEqual({
         seen: "EVAL",
       });
     } finally {
       await server.close();
       console.error = previousError;
-      if (previousTrace == null) delete process.env.JINI_JSON_IPC_TRACE;
-      else process.env.JINI_JSON_IPC_TRACE = previousTrace;
       await rm(root, { force: true, recursive: true });
     }
 
@@ -1234,17 +1230,17 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
 describe("@jini-ai/sidecar — bootstrap option precedence (F2)", () => {
   const stampFor = (env: NodeJS.ProcessEnv = {}) => ({
     app: "api" as const, mode: "dev" as const, namespace: "alpha", source: "tool" as const,
-    ipc: resolveAppIpcPath({ app: "api", contract: fakeContract, namespace: "alpha" }, { env }),
+    ipc: resolveAppIpcPath({ app: "api", contract: fakeContract, namespace: "alpha", ipcBase: env[fakeContract.env.ipcBase] }),
   });
   it("an explicit base wins over the env base, both for launch env and bootstrap", () => {
-    const launch = createSidecarLaunchEnv({ base: "/explicit", contract: fakeContract, stamp: stampFor() }, { extraEnv: { FAKE_BASE: "/from-env", KEEP: "1" } });
+    const launch = createSidecarLaunchEnv({ base: "/explicit", contract: fakeContract, stamp: stampFor(), extraEnv: { FAKE_BASE: "/from-env", KEEP: "1" } });
     expect(launch.FAKE_BASE).toBe(resolve("/explicit"));
     expect(launch.KEEP).toBe("1");
     const env: NodeJS.ProcessEnv = { FAKE_BASE: "/from-env" };
     expect(bootstrapSidecarRuntime({ stampInput: stampFor(), env, app: "api", contract: fakeContract }, { base: "/explicit" }).base).toBe(resolve("/explicit"));
   });
   it("without a base the launch env falls back to the extraEnv base, not process.env", () => {
-    const launch = createSidecarLaunchEnv({ base: null, contract: fakeContract, stamp: stampFor() } as never, { extraEnv: { FAKE_BASE: "/from-extra" } });
+    const launch = createSidecarLaunchEnv({ base: null, contract: fakeContract, stamp: stampFor(), extraEnv: { FAKE_BASE: "/from-extra" } } as never);
     expect(launch.FAKE_BASE).toBe(resolve("/from-extra"));
   });
   it("bootstrap resolves the base from projectRoot when neither option nor env names one", () => {

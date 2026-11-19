@@ -48,7 +48,7 @@ test("keepStderrTail: keeps only the most recent output, so a chatty server cann
 });
 
 test("spawnMcpStdioChannel: a real child that dies at startup closes with its stderr, secrets redacted", async () => {
-  const channel = spawnMcpStdioChannel({ messages: federationMessages, command: process.execPath, args: [
+  const channel = spawnMcpStdioChannel({ parentEnv: process.env, messages: federationMessages, command: process.execPath, args: [
       "-e",
       "console.error('Error: Invalid NAME_API_URL provided: ' + process.env.NAME_API_URL + ' token=' + process.env.NAME_TOKEN); process.exit(1);",
     ], env: { NAME_API_URL: "https://api.dev.name.com", NAME_TOKEN: "abcd-secret-token-9999" }, launchEnv: {} });
@@ -60,7 +60,7 @@ test("spawnMcpStdioChannel: a real child that dies at startup closes with its st
 });
 
 test("spawnMcpStdioChannel: send after the child exited throws instead of writing into a dead pipe", async () => {
-  const channel = spawnMcpStdioChannel({ messages: federationMessages, command: process.execPath, args: ["-e", "process.exit(3)"], env: {}, launchEnv: {} });
+  const channel = spawnMcpStdioChannel({ parentEnv: process.env, messages: federationMessages, command: process.execPath, args: ["-e", "process.exit(3)"], env: {}, launchEnv: {} });
 
   await new Promise<string>((resolve) => channel.onClose({ listener: ({ reason }) => (resolve)(reason) }));
 
@@ -91,7 +91,7 @@ test("resolveStdioChildCwd: every other command keeps inheriting the daemon's cw
 // through the token — a fragment no exact-value replacement can match, served to the admin UI.
 test("spawnMcpStdioChannel: a token cut by the tail limit is still redacted, not left as a fragment", async () => {
   const token = "tok_0123456789abcdef";
-  const channel = spawnMcpStdioChannel({ messages: federationMessages, command: process.execPath, args: ["-e", "process.stderr.write('token=' + process.env.TOKEN + ' ' + 'x'.repeat(595)); process.exit(1);"], env: { TOKEN: token }, launchEnv: {} });
+  const channel = spawnMcpStdioChannel({ parentEnv: process.env, messages: federationMessages, command: process.execPath, args: ["-e", "process.stderr.write('token=' + process.env.TOKEN + ' ' + 'x'.repeat(595)); process.exit(1);"], env: { TOKEN: token }, launchEnv: {} });
 
   const reason = await new Promise<string>((resolve) => channel.onClose({ listener: ({ reason }) => (resolve)(reason) }));
 
@@ -123,7 +123,7 @@ test("createStderrTail: a token still arriving when the child exits is redacted 
 // `npx-cli.js` before the cwd is chosen, so a basename check on the rewritten command saw Electron
 // and kept the project cwd — the exact npm EUNSUPPORTEDPROTOCOL failure the neutral cwd exists for.
 test("resolveStdioChildCwd: desktop's rewritten npx (Electron + npx-cli.js) still runs in the neutral directory", () => {
-  const resolver = createBundledNodeLaunchResolver({ messages: federationMessages, toolchainDir: "/toolchain", npmRoot: "/npm" }, { execPath: "/Applications/Example.app/Contents/MacOS/Example", platform: "darwin", parentEnv: { PATH: "/usr/bin" } });
+  const resolver = createBundledNodeLaunchResolver({ parentEnv: { PATH: "/usr/bin" }, messages: federationMessages, toolchainDir: "/toolchain", npmRoot: "/npm" }, { execPath: "/Applications/Example.app/Contents/MacOS/Example", platform: "darwin" });
   const resolved = resolver.resolve({ spec: { command: "npx", args: ["-y", "namecom-mcp@latest"], env: {} } });
   assert.equal(resolved.command, "/Applications/Example.app/Contents/MacOS/Example");
   assert.equal(resolveStdioChildCwd({ resolved: resolved }, { neutralDir: "/neutral" }), "/neutral");

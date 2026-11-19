@@ -18,7 +18,7 @@ it('makes tools available after granting an already-on connection without restar
   ] }); };
   const deps = { errorCode: 'EXTERNAL_MCP', messages,
     permissionGate: testPermissionGate({ authorize: async () => ({ allowed: true, reason: 'matched' }), scope: 'ws' }), scope: 'ws' };
-  const boot = await attachFederatedMcpTools({ registry, deps, connect }, { connections: [], extraConnections: [connection] });
+  const boot = await attachFederatedMcpTools({ env: {}, registry, deps, connect }, { connections: [], extraConnections: [connection] });
   expect(boot.reports[0]?.report.admitted).toEqual([]);
   expect(boot.sessions, 'an empty grant must not retain an unused session across re-admission').toEqual([]);
   const reload = createFederationReloadCoordinator({ coordDeps: { registry, deps, connect, resolveConnections: async () => [connection] },

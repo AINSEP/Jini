@@ -140,7 +140,7 @@ export function createFederationReloadCoordinator({ coordDeps, initiallyAdmitted
     // Empty, not omitted: omission resolves presets from the environment again, even though the
     // boot pass already admitted them. Reload concerns only the operator-editable roster;
     // environment presets cannot change without a real restart.
-    const attached = await attach({ registry: coordDeps.registry, deps: coordDeps.deps, connect: coordDeps.connect }, { connections: [], extraConnections: unadmitted, ...(coordDeps.logger ? { logger: coordDeps.logger } : {}) });
+    const attached = await attach({ env: {}, registry: coordDeps.registry, deps: coordDeps.deps, connect: coordDeps.connect }, { connections: [], extraConnections: unadmitted, ...(coordDeps.logger ? { logger: coordDeps.logger } : {}) });
 
     const attemptedConnections = new Map(unadmitted.map(connection => [connection.config.connectionId, connection]));
     for (const entry of attached.reports) {

@@ -1,5 +1,4 @@
-import os from "node:os";
-import { type LegacyPgHelpers, psql, recreateDatabase } from "./pg-fixture.js";
+import { type LegacyPgHelpers } from "./pg-fixture.js";
 import { pgContentSchemaSql } from "./content-schema.js";
 
 /**
@@ -54,9 +53,3 @@ export function postgresDatabaseHelpers(
   }
   return { freshPostgresDatabase, freshPostgresContentDatabase };
 }
-
-export const { freshPostgresDatabase, freshPostgresContentDatabase } = postgresDatabaseHelpers({
-  helpers: { psql, recreateDatabase },
-  env: process.env,
-  userInfo: os.userInfo,
-});

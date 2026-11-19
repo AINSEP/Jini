@@ -20,7 +20,7 @@ async function fixture({ reply, env = { API_TOKEN: CANARY }, launchEnv = {} }: {
       ? { result: { protocolVersion: "2025-06-18", serverInfo: { name: "fixture" } } }
       : reply) };
   } });
-  const connect = createDefaultConnect({ messages, clientInfo, bearerToken: () => undefined,
+  const connect = createDefaultConnect({ parentEnv: {}, messages, clientInfo, bearerToken: () => undefined,
     resolver: { resolve: required => ({ ...IDENTITY_STDIO_LAUNCH_RESOLVER.resolve(required), launchEnv }) },
   }, { spawnChannel: ({ resolved }) => {
     assert.deepEqual(resolved.env, env);

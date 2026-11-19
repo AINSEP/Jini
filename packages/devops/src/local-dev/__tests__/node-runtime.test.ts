@@ -4,27 +4,31 @@ import { expect, test, vi } from 'vitest';
 vi.mock('node:child_process', () => ({ spawnSync: vi.fn() }));
 import { selectNodeRuntime } from '../node-runtime.js';
 
+test('passes the selected parent map unchanged to every candidate probe', () => {
+  const env = { PATH: '/host/bin', ELECTRON_RUN_AS_NODE: '0' };
+  const usable = vi.fn(({ command }: { command: string; env: NodeJS.ProcessEnv }) => command === '/second');
+  expect(selectNodeRuntime({ searchFrom: ['/first', '/second'], nodePath: '/node', env }, {
+    resolveBinary: ({ directory }) => directory, usable,
+  }).command).toBe('/second');
+  expect(usable.mock.calls.map(([input]) => input.env)).toEqual([env, env]);
+  expect(usable.mock.calls[0]?.[0].env).toBe(env);
+  expect(usable.mock.calls[1]?.[0].env).toBe(env);
+});
+
 test('dev API uses the installed desktop runtime as Node, including Windows executable paths', () => {
   const command = 'C:\\repo with spaces\\electron.exe';
-  expect(selectNodeRuntime({ searchFrom: ['/repo'], nodePath: '/node' }, {
-    resolveBinary: () => command, usable: () => true,
-  })).toEqual({ command, env: { ELECTRON_RUN_AS_NODE: '1' }, fallback: false });
+  expect(selectNodeRuntime({ searchFrom: ['/repo'], nodePath: '/node', env: {} }, { resolveBinary: () => command, usable: () => true })).toEqual({ command, env: { ELECTRON_RUN_AS_NODE: '1' }, fallback: false });
 });
 
 test('a missing or unusable desktop runtime falls back to the supplied stock Node', () => {
   for (const resolveBinary of [() => { throw new Error('missing'); }, () => '/broken']) {
-    expect(selectNodeRuntime({ searchFrom: ['/repo'], nodePath: '/node' }, {
-      resolveBinary, usable: () => false,
-    })).toEqual({ command: '/node', env: {}, fallback: true });
+    expect(selectNodeRuntime({ searchFrom: ['/repo'], nodePath: '/node', env: {} }, { resolveBinary, usable: () => false })).toEqual({ command: '/node', env: {}, fallback: true });
   }
 });
 
 test('runtime discovery tries the desktop workspace after the root installation', () => {
   const seen: string[] = [];
-  const result = selectNodeRuntime({ searchFrom: ['/root', '/desktop'], nodePath: '/node' }, {
-    resolveBinary: ({ directory }) => { seen.push(directory); return directory; },
-    usable: ({ command }) => command === '/desktop',
-  });
+  const result = selectNodeRuntime({ searchFrom: ['/root', '/desktop'], nodePath: '/node', env: {} }, { resolveBinary: ({ directory }) => { seen.push(directory); return directory; }, usable: ({ command }) => command === '/desktop' });
   expect(seen).toEqual(['/root', '/desktop']);
   expect(result.command).toBe('/desktop');
 });
@@ -44,9 +48,7 @@ test('the package manifest declares electron as a classified opt-in peer for run
 test('the native probe forwards the injected environment without mutating it', () => {
   vi.mocked(spawnSync).mockReturnValue({ status: 0 } as ReturnType<typeof spawnSync>);
   const env = { PATH: '/isolated/bin', PROBE_MARKER: 'injected', ELECTRON_RUN_AS_NODE: '0' };
-  const result = selectNodeRuntime({ searchFrom: ['/repo'], nodePath: '/node' }, {
-    env, resolveBinary: () => '/electron',
-  });
+  const result = selectNodeRuntime({ searchFrom: ['/repo'], nodePath: '/node', env: env }, { resolveBinary: () => '/electron' });
   expect(result).toEqual({ command: '/electron', env: { ELECTRON_RUN_AS_NODE: '1' }, fallback: false });
   const [command, args, options] = vi.mocked(spawnSync).mock.calls[0]!;
   expect(command).toBe('/electron');

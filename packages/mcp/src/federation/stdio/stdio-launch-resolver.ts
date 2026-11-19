@@ -201,6 +201,7 @@ function findExecutable(
 /** {@link createBundledNodeLaunchResolver}'s config. Only `toolchainDir` and `npmRoot` are ever
  * passed in production; the rest are test seams that default to the real process. */
 export interface BundledNodeLaunchResolverConfig {
+  readonly parentEnv: NodeJS.ProcessEnv;
   readonly messages: FederationMessages;
   /** `toolchain env option`: holds `bin/` (shims), `npm-cache/`, `npm-prefix/`. */
   readonly toolchainDir: string;
@@ -212,7 +213,6 @@ export interface BundledNodeLaunchResolverConfig {
 export interface BundledNodeLaunchResolverOptions {
   readonly execPath?: string | undefined;
   readonly platform?: NodeJS.Platform | undefined;
-  readonly parentEnv?: NodeJS.ProcessEnv | undefined;
   readonly isExecutable?: ((required: { candidatePath: string }) => boolean) | undefined;
 }
 
@@ -233,10 +233,10 @@ export function createBundledNodeLaunchResolver({
   messages,
   toolchainDir,
   npmRoot,
+  parentEnv,
 }: BundledNodeLaunchResolverConfig, {
   execPath = process.execPath,
   platform = process.platform,
-  parentEnv = process.env,
   isExecutable = ({ candidatePath }: { candidatePath: string }) => defaultIsExecutable(candidatePath),
 }: BundledNodeLaunchResolverOptions = {}): McpStdioLaunchResolver {
   const pathModule = platform === "win32" ? path.win32 : path.posix;
@@ -316,7 +316,7 @@ export function stdioLaunchResolverFromEnv(
     });
   }
 
-  return createBundledNodeLaunchResolver({ toolchainDir, npmRoot, messages }, { parentEnv: env });
+  return createBundledNodeLaunchResolver({ toolchainDir, npmRoot, messages, parentEnv: env });
 }
 
 /** Keep fallback policy separate from resolution; only an explicit true can broaden execution. */

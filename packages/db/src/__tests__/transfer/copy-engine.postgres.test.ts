@@ -3,15 +3,17 @@ import { test, beforeEach, afterAll } from "vitest";
 import Database from "better-sqlite3";
 import * as transfer from "../../transfer/index.js";
 import type { CopyResult, TransferTable } from "../../transfer/index.js";
-import { connectionFor, dropDatabase, recreateDatabase, sql } from "../../testing/transfer-pg-test-db.js";
+import { createTransferPgTestDb } from "../../testing/transfer-pg-test-db.js";
 import { sqliteSnapshotClient } from "../../testing/sqlite-snapshot-client.js";
 
 // Engine cases moved from host; schema and exclusions are explicit fixture policy, never library defaults.
+const { connectionFor, dropDatabase, recreateDatabase, sql } = createTransferPgTestDb({ env: process.env });
+
 const FIXTURE_DB = `jini_transfer_fixture_${process.pid}`;
 const CONNECTION = connectionFor(FIXTURE_DB);
 const SITE = "fixture";
 const naming = { defaultSchema: "tovu", markerTable: "_tovu_transfer", unvalidatedTable: "pg_temp._tovu_unvalidated", schemaPrefix: "tovu_" };
-const TARGET = () => transfer.createPsqlPostgresTarget({ connectionString: CONNECTION });
+const TARGET = () => transfer.createPsqlPostgresTarget({ connectionString: CONNECTION , parentEnv: process.env });
 const inspectTarget = (target: transfer.PostgresTargetPort, site: string) => transfer.inspectTarget({ target, site, naming });
 const openSqliteSnapshotSource = (bytes: Buffer) => transfer.openSqliteSnapshotSource({ bytes }, { open: (data, options) => sqliteSnapshotClient({ db: new Database(data, options) }) });
 const siteSchemaName = (site: string) => transfer.siteSchemaName({ site, naming });

@@ -70,7 +70,7 @@ test("stdioLaunchResolverFromEnv: both vars set and npx-cli.js present delegates
 });
 
 test("createBundledNodeLaunchResolver: posix npx is rewritten to execPath running npx-cli.js, launchEnv pinned exactly", () => {
-  const resolver = createBundledNodeLaunchResolver({ messages: federationMessages, toolchainDir: "/toolchain", npmRoot: "/npm" }, { execPath: "/Applications/Example.app/electron", platform: "linux", parentEnv: { PATH: "/usr/bin:/bin" } });
+  const resolver = createBundledNodeLaunchResolver({ parentEnv: { PATH: "/usr/bin:/bin" }, messages: federationMessages, toolchainDir: "/toolchain", npmRoot: "/npm" }, { execPath: "/Applications/Example.app/electron", platform: "linux" });
   const resolved = resolver.resolve({ spec: spec("npx", ["-y", "pkg"]) });
   assert.deepEqual(resolved, {
     command: "/Applications/Example.app/electron",
@@ -87,7 +87,7 @@ test("createBundledNodeLaunchResolver: posix npx is rewritten to execPath runnin
 });
 
 test("createBundledNodeLaunchResolver: posix npm is rewritten to execPath running npm-cli.js", () => {
-  const resolver = createBundledNodeLaunchResolver({ messages: federationMessages, toolchainDir: "/toolchain", npmRoot: "/npm" }, { execPath: "/electron", platform: "linux", parentEnv: { PATH: "/usr/bin" } });
+  const resolver = createBundledNodeLaunchResolver({ parentEnv: { PATH: "/usr/bin" }, messages: federationMessages, toolchainDir: "/toolchain", npmRoot: "/npm" }, { execPath: "/electron", platform: "linux" });
   const resolved = resolver.resolve({ spec: spec("npm", ["install"]) });
   assert.equal(resolved.command, "/electron");
   assert.deepEqual(resolved.args, [`/npm/bin/${NPM_CLI}`, "install"]);
@@ -99,7 +99,7 @@ test("createBundledNodeLaunchResolver: posix npm is rewritten to execPath runnin
 });
 
 test("createBundledNodeLaunchResolver: posix node is rewritten to execPath with args unchanged", () => {
-  const resolver = createBundledNodeLaunchResolver({ messages: federationMessages, toolchainDir: "/toolchain", npmRoot: "/npm" }, { execPath: "/electron", platform: "linux", parentEnv: { PATH: "/usr/bin" } });
+  const resolver = createBundledNodeLaunchResolver({ parentEnv: { PATH: "/usr/bin" }, messages: federationMessages, toolchainDir: "/toolchain", npmRoot: "/npm" }, { execPath: "/electron", platform: "linux" });
   const resolved = resolver.resolve({ spec: spec("node", ["server.js"]) });
   assert.equal(resolved.command, "/electron");
   assert.deepEqual(resolved.args, ["server.js"]);
@@ -111,7 +111,7 @@ test("createBundledNodeLaunchResolver: posix node is rewritten to execPath with 
 });
 
 test("createBundledNodeLaunchResolver: win32 npx.cmd/npm.cmd/node.exe are matched too, using ';' and backslashes", () => {
-  const resolver = createBundledNodeLaunchResolver({ messages: federationMessages, toolchainDir: "C:\\toolchain", npmRoot: "C:\\npm" }, { execPath: "C:\\electron.exe", platform: "win32", parentEnv: { PATH: "C:\\Windows" } });
+  const resolver = createBundledNodeLaunchResolver({ parentEnv: { PATH: "C:\\Windows" }, messages: federationMessages, toolchainDir: "C:\\toolchain", npmRoot: "C:\\npm" }, { execPath: "C:\\electron.exe", platform: "win32" });
 
   const npx = resolver.resolve({ spec: spec("npx.cmd", ["-y", "pkg"]) });
   assert.equal(npx.command, "C:\\electron.exe");
@@ -128,7 +128,7 @@ test("createBundledNodeLaunchResolver: win32 npx.cmd/npm.cmd/node.exe are matche
 });
 
 test("createBundledNodeLaunchResolver: PATH order is toolchain bin, then parent PATH, then darwin well-known dirs, deduped", () => {
-  const resolver = createBundledNodeLaunchResolver({ messages: federationMessages, toolchainDir: "/toolchain", npmRoot: "/npm" }, { platform: "darwin", parentEnv: { PATH: "/usr/bin:/usr/local/bin", HOME: "/Users/op" } });
+  const resolver = createBundledNodeLaunchResolver({ parentEnv: { PATH: "/usr/bin:/usr/local/bin", HOME: "/Users/op" }, messages: federationMessages, toolchainDir: "/toolchain", npmRoot: "/npm" }, { platform: "darwin" });
   const resolved = resolver.resolve({ spec: spec("node", []) });
   assert.equal(
     resolved.launchEnv.PATH,
@@ -137,13 +137,13 @@ test("createBundledNodeLaunchResolver: PATH order is toolchain bin, then parent 
 });
 
 test("createBundledNodeLaunchResolver: darwin well-known $HOME dirs are skipped when HOME is unset", () => {
-  const resolver = createBundledNodeLaunchResolver({ messages: federationMessages, toolchainDir: "/toolchain", npmRoot: "/npm" }, { platform: "darwin", parentEnv: { PATH: "/usr/bin" } });
+  const resolver = createBundledNodeLaunchResolver({ parentEnv: { PATH: "/usr/bin" }, messages: federationMessages, toolchainDir: "/toolchain", npmRoot: "/npm" }, { platform: "darwin" });
   const resolved = resolver.resolve({ spec: spec("node", []) });
   assert.equal(resolved.launchEnv.PATH, "/toolchain/bin:/usr/bin:/opt/homebrew/bin:/usr/local/bin");
 });
 
 test("createBundledNodeLaunchResolver: a bare non-Node command found on the search path resolves to its absolute path, no ELECTRON_RUN_AS_NODE", () => {
-  const resolver = createBundledNodeLaunchResolver({ messages: federationMessages, toolchainDir: "/toolchain", npmRoot: "/npm" }, { platform: "darwin", parentEnv: { PATH: "/usr/bin", HOME: "/Users/op" }, isExecutable: ({ candidatePath }) => candidatePath === "/Users/op/.local/bin/uvx" });
+  const resolver = createBundledNodeLaunchResolver({ parentEnv: { PATH: "/usr/bin", HOME: "/Users/op" }, messages: federationMessages, toolchainDir: "/toolchain", npmRoot: "/npm" }, { platform: "darwin", isExecutable: ({ candidatePath }) => candidatePath === "/Users/op/.local/bin/uvx" });
   const resolved = resolver.resolve({ spec: spec("uvx", ["mcp-server-thing"]) });
   assert.equal(resolved.command, "/Users/op/.local/bin/uvx");
   assert.deepEqual(resolved.args, ["mcp-server-thing"]);
@@ -157,7 +157,7 @@ test("createBundledNodeLaunchResolver: a bare non-Node command found on the sear
 
 for (const missing of ["uvx", "docker", "foo"] as const) {
   test(`createBundledNodeLaunchResolver: ${missing} not found on the search path throws McpLaunchUnavailableError with the exact §2 message`, () => {
-    const resolver = createBundledNodeLaunchResolver({ messages: federationMessages, toolchainDir: "/toolchain", npmRoot: "/npm" }, { platform: "linux", parentEnv: { PATH: "/usr/bin" }, isExecutable: () => false });
+    const resolver = createBundledNodeLaunchResolver({ parentEnv: { PATH: "/usr/bin" }, messages: federationMessages, toolchainDir: "/toolchain", npmRoot: "/npm" }, { platform: "linux", isExecutable: () => false });
     assert.throws(
       () => resolver.resolve({ spec: spec(missing) }),
       (error: unknown) => {
@@ -171,7 +171,7 @@ for (const missing of ["uvx", "docker", "foo"] as const) {
 }
 
 test("createBundledNodeLaunchResolver: an existing absolute command is left unchanged but still gets the PATH extras", () => {
-  const resolver = createBundledNodeLaunchResolver({ messages: federationMessages, toolchainDir: "/toolchain", npmRoot: "/npm" }, { platform: "linux", parentEnv: { PATH: "/usr/bin" }, isExecutable: ({ candidatePath }) => candidatePath === "/opt/vendor/server" });
+  const resolver = createBundledNodeLaunchResolver({ parentEnv: { PATH: "/usr/bin" }, messages: federationMessages, toolchainDir: "/toolchain", npmRoot: "/npm" }, { platform: "linux", isExecutable: ({ candidatePath }) => candidatePath === "/opt/vendor/server" });
   const resolved = resolver.resolve({ spec: spec("/opt/vendor/server", ["--flag"]) });
   assert.equal(resolved.command, "/opt/vendor/server");
   assert.deepEqual(resolved.args, ["--flag"]);
@@ -180,7 +180,7 @@ test("createBundledNodeLaunchResolver: an existing absolute command is left unch
 });
 
 test("createBundledNodeLaunchResolver: a missing absolute command throws a generic McpLaunchUnavailableError", () => {
-  const resolver = createBundledNodeLaunchResolver({ messages: federationMessages, toolchainDir: "/toolchain", npmRoot: "/npm" }, { platform: "linux", parentEnv: { PATH: "/usr/bin" }, isExecutable: () => false });
+  const resolver = createBundledNodeLaunchResolver({ parentEnv: { PATH: "/usr/bin" }, messages: federationMessages, toolchainDir: "/toolchain", npmRoot: "/npm" }, { platform: "linux", isExecutable: () => false });
   assert.throws(
     () => resolver.resolve({ spec: spec("/opt/vendor/missing-server", ["--flag"]) }),
     (error: unknown) => {
@@ -196,7 +196,7 @@ test("createBundledNodeLaunchResolver: a missing absolute command throws a gener
 
 test("createBundledNodeLaunchResolver: a relative command with a path separator is checked against the spec's cwd and left unchanged, not searched on PATH", () => {
   const checked: string[] = [];
-  const resolver = createBundledNodeLaunchResolver({ messages: federationMessages, toolchainDir: "/toolchain", npmRoot: "/npm" }, { platform: "linux", parentEnv: { PATH: "/usr/bin" }, isExecutable: ({ candidatePath }) => {
+  const resolver = createBundledNodeLaunchResolver({ parentEnv: { PATH: "/usr/bin" }, messages: federationMessages, toolchainDir: "/toolchain", npmRoot: "/npm" }, { platform: "linux", isExecutable: ({ candidatePath }) => {
       checked.push(candidatePath);
       return candidatePath === "/work/bin/server";
     } });
@@ -209,7 +209,7 @@ test("createBundledNodeLaunchResolver: a relative command with a path separator 
 });
 
 test("createBundledNodeLaunchResolver: on win32 a bare command is also found as <name>.exe, as spawn itself would", () => {
-  const resolver = createBundledNodeLaunchResolver({ messages: federationMessages, toolchainDir: "C:\\toolchain", npmRoot: "C:\\npm" }, { platform: "win32", parentEnv: { PATH: "C:\\tools" }, isExecutable: ({ candidatePath }) => candidatePath === "C:\\tools\\uvx.exe" });
+  const resolver = createBundledNodeLaunchResolver({ parentEnv: { PATH: "C:\\tools" }, messages: federationMessages, toolchainDir: "C:\\toolchain", npmRoot: "C:\\npm" }, { platform: "win32", isExecutable: ({ candidatePath }) => candidatePath === "C:\\tools\\uvx.exe" });
   const resolved = resolver.resolve({ spec: spec("uvx", ["mcp-server-thing"]) });
   assert.equal(resolved.command, "C:\\tools\\uvx.exe");
   assert.equal("ELECTRON_RUN_AS_NODE" in resolved.launchEnv, false);

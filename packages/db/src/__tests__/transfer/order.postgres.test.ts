@@ -3,8 +3,10 @@ import Database from "better-sqlite3";
 import pg from "pg";
 import { afterAll, beforeEach, expect, it } from "vitest";
 import { createPsqlPostgresTarget, introspectedTable, openSqliteSnapshotSource, runCopy, type TransferSource } from "../../transfer/index.js";
-import { connectionFor, dropDatabase, recreateDatabase, sql } from "../../testing/transfer-pg-test-db.js";
+import { createTransferPgTestDb } from "../../testing/transfer-pg-test-db.js";
 import { sqliteSnapshotClient } from "../../testing/sqlite-snapshot-client.js";
+const { connectionFor, dropDatabase, recreateDatabase, sql } = createTransferPgTestDb({ env: process.env });
+
 const name = `jini_transfer_order_${process.pid}`;
 const naming = { defaultSchema: "fixture", markerTable: "_fixture_copy", unvalidatedTable: "pg_temp._fixture_unvalidated", schemaPrefix: "fixture_" };
 beforeEach(() => recreateDatabase(name));
@@ -21,7 +23,7 @@ it("copies a child before its parent and leaves the FK validated, reseeds identi
     INSERT INTO parent VALUES (7, 'old'); INSERT INTO child VALUES (3, 7);`);
   try {
     const tables = ["child", "parent"].map(name => introspectedTable({ name, layout: source.layout(name)! }));
-    const result = await runCopy({ sources: [{ name: "fixture", source, tables, leftOut: [] }], target: createPsqlPostgresTarget({ connectionString: connectionFor(name) }), naming, schema: "fixture", marker: { site: "fixture", snapshotAt: "fixed" }, replaceExisting: false });
+    const result = await runCopy({ sources: [{ name: "fixture", source, tables, leftOut: [] }], target: createPsqlPostgresTarget({ connectionString: connectionFor(name) , parentEnv: process.env }), naming, schema: "fixture", marker: { site: "fixture", snapshotAt: "fixed" }, replaceExisting: false });
     expect(result).toEqual({ ok: true, tables: [{ name: "child", rows: 1 }, { name: "parent", rows: 1 }], unvalidatedConstraints: [] });
     expect(await sql(name, "SELECT convalidated FROM pg_constraint WHERE conname = 'child_parent_id_fkey'")).toBe("t");
     expect(await sql(name, "INSERT INTO fixture.parent DEFAULT VALUES RETURNING id, label")).toBe("8\tnew");
@@ -44,7 +46,7 @@ it("copies both physical sources in one transaction and records both counts in t
       const physical = source as TransferSource;
       return { name: name as string, source: physical, tables: physical.tableNames().map(name => introspectedTable({ name, layout: physical.layout(name)! })), leftOut: [] };
     });
-    const result = await runCopy({ sources, target: createPsqlPostgresTarget({ connectionString: connectionFor(name) }), naming, schema: "fixture", marker: { site: "both", snapshotAt: "fixed" }, replaceExisting: false });
+    const result = await runCopy({ sources, target: createPsqlPostgresTarget({ connectionString: connectionFor(name) , parentEnv: process.env }), naming, schema: "fixture", marker: { site: "both", snapshotAt: "fixed" }, replaceExisting: false });
     expect(result.ok).toBe(true);
     expect(await sql(name, "SELECT (table_counts->>'records') || ',' || (table_counts->>'messages') FROM fixture._fixture_copy")).toBe("1,1");
     expect(await sql(name, "SELECT id FROM fixture.messages")).toBe("message");

@@ -2,11 +2,10 @@ import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 
-interface RuntimeInput { searchFrom: readonly string[]; nodePath: string }
+interface RuntimeInput { env: NodeJS.ProcessEnv; searchFrom: readonly string[]; nodePath: string }
 interface RuntimeOptions {
   resolveBinary?: (input: { directory: string }) => string;
   usable?: (input: { command: string; env: NodeJS.ProcessEnv }) => boolean;
-  env?: NodeJS.ProcessEnv;
 }
 
 function installedBinary({ directory }: { directory: string }): string {
@@ -29,8 +28,8 @@ function usableBinary({ command, env }: { command: string; env: NodeJS.ProcessEn
  * @returns Command and the minimal environment override; never mutates the caller's environment.
  * @complexity O(search roots), with one bounded 5s native probe per discovered binary.
  */
-export function selectNodeRuntime({ searchFrom, nodePath }: RuntimeInput,
-  { resolveBinary = installedBinary, usable = usableBinary, env = process.env }: RuntimeOptions = {},
+export function selectNodeRuntime({ searchFrom, nodePath, env }: RuntimeInput,
+  { resolveBinary = installedBinary, usable = usableBinary }: RuntimeOptions = {},
 ): { command: string; env: Record<string, string>; fallback: boolean } {
   for (const directory of searchFrom) {
     try {

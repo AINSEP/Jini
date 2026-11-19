@@ -1,11 +1,12 @@
+import os from "node:os";
 import assert from "node:assert/strict";
 import { afterAll as after, beforeAll as before, test } from "vitest";
 
 import { sql } from "kysely";
 import pg from "pg";
 
-import { dropDatabase } from "../testing/pg-fixture.js";
-import { freshPostgresDatabase } from "../testing/postgres-database.js";
+import { legacyPgHelpers, pgFixtureFromEnv } from "../testing/pg-fixture.js";
+import { postgresDatabaseHelpers } from "../testing/postgres-database.js";
 import { openPostgresKernel } from "../kernel/postgres/index.js";
 import { StorageOpError, StorageOpNotSupportedError } from "../kernel/ops.js";
 import { postgresOps } from "../kernel/postgres/index.js";
@@ -15,6 +16,10 @@ import type { KyselyKernel } from "../kernel/port.js";
  * @file The storage ops port on a real Postgres server (node-postgres): no file copy, with the reason
  * named; compacting is `VACUUM (ANALYZE)` plus a read-back of the migration ledger.
  */
+
+const helpers = legacyPgHelpers({ fixture: pgFixtureFromEnv({ env: process.env, userInfo: os.userInfo }) });
+const { freshPostgresDatabase } = postgresDatabaseHelpers({ helpers, env: process.env, userInfo: os.userInfo });
+const { dropDatabase } = helpers;
 
 const DB = "jini_kernel_ops_test";
 let kernel: KyselyKernel<unknown>;

@@ -17,8 +17,7 @@ afterEach(() => vi.restoreAllMocks());
 
 it('logs a resolver fallback warning once per connect factory, however many connections resolve', async () => {
   const warnings: string[] = [];
-  const connect = createDefaultConnect({ resolver: warningResolver, clientInfo, messages, bearerToken: () => undefined },
-    { spawnChannel: refusingSpawn, logger: { warn: ({ message }) => warnings.push(message) } });
+  const connect = createDefaultConnect({ parentEnv: {}, resolver: warningResolver, clientInfo, messages, bearerToken: () => undefined }, { spawnChannel: refusingSpawn, logger: { warn: ({ message }) => warnings.push(message) } });
   await expect(connect({ connection })).rejects.toThrow('spawn refused');
   await expect(connect({ connection })).rejects.toThrow('spawn refused');
   expect(warnings).toEqual(['toolchain incomplete']);
@@ -28,8 +27,7 @@ it('a fresh connect factory warns again: deduplication is per instance, not proc
   const warnings: string[] = [];
   const logger = { warn: ({ message }: { message: string }) => warnings.push(message) };
   for (let i = 0; i < 2; i += 1) {
-    const connect = createDefaultConnect({ resolver: warningResolver, clientInfo, messages, bearerToken: () => undefined },
-      { spawnChannel: refusingSpawn, logger });
+    const connect = createDefaultConnect({ parentEnv: {}, resolver: warningResolver, clientInfo, messages, bearerToken: () => undefined }, { spawnChannel: refusingSpawn, logger });
     await expect(connect({ connection })).rejects.toThrow('spawn refused');
   }
   expect(warnings).toEqual(['toolchain incomplete', 'toolchain incomplete']);
@@ -37,8 +35,7 @@ it('a fresh connect factory warns again: deduplication is per instance, not proc
 
 it('without an injected logger the fallback warning goes to console.warn', async () => {
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-  const connect = createDefaultConnect({ resolver: warningResolver, clientInfo, messages, bearerToken: () => undefined },
-    { spawnChannel: refusingSpawn });
+  const connect = createDefaultConnect({ parentEnv: {}, resolver: warningResolver, clientInfo, messages, bearerToken: () => undefined }, { spawnChannel: refusingSpawn });
   await expect(connect({ connection })).rejects.toThrow('spawn refused');
   expect(warn).toHaveBeenCalledWith('toolchain incomplete');
 });
@@ -47,8 +44,7 @@ it('a resolver without a warning logs nothing and leaves no timer behind after a
   vi.useFakeTimers();
   try {
     const warnings: string[] = [];
-    const connect = createDefaultConnect({ resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages, bearerToken: () => undefined },
-      { spawnChannel: refusingSpawn, logger: { warn: ({ message }) => warnings.push(message) } });
+    const connect = createDefaultConnect({ parentEnv: {}, resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages, bearerToken: () => undefined }, { spawnChannel: refusingSpawn, logger: { warn: ({ message }) => warnings.push(message) } });
     await expect(connect({ connection })).rejects.toThrow('spawn refused');
     expect(warnings).toEqual([]);
     expect(vi.getTimerCount()).toBe(0);
@@ -68,7 +64,7 @@ it('keeps fresh bearer suppliers bound to their connection, even at one URL', as
       : { tools: [] };
     return new Response(JSON.stringify({ jsonrpc: '2.0', id: body.id, result }), { headers: { 'content-type': 'application/json' } });
   }) as typeof fetch;
-  const connect = createDefaultConnect({ resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages,
+  const connect = createDefaultConnect({ parentEnv: {}, resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages,
     bearerToken: () => 'unrelated-runtime-token' }, { fetch: fetchImpl });
   let tokenA = 'owner-a';
   let allowed = true;

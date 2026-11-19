@@ -10,46 +10,53 @@ const INIT = { protocolVersion: "2025-06-18", capabilities: {}, serverInfo: { na
 const EXE = "C:\\Program Files\\Example\\Example.exe";
 
 describe("buildMcpChildEnv", () => {
+  test("uses the selected host PATH and mode while excluding its unrelated secret", () => {
+    const parentEnv = { PATH: "D:\\host\\bin", ELECTRON_RUN_AS_NODE: "1", PRIVATE_HOST_SECRET: "hidden" };
+    expect(buildMcpChildEnv({ command: EXE, specEnv: {}, parentEnv }, { platform: "win32", execPath: EXE }))
+      .toEqual({ PATH: "D:\\host\\bin", ELECTRON_RUN_AS_NODE: "1" });
+    expect(buildMcpChildEnv({ command: "other.exe", specEnv: {}, parentEnv }, { platform: "win32", execPath: EXE }))
+      .toEqual({ PATH: "D:\\host\\bin" });
+  });
   test("off win32 the run mode is never carried, even for this very executable", () => {
-    const env = buildMcpChildEnv({ command: "/app/example", specEnv: {} }, { platform: "linux", parentEnv: { ELECTRON_RUN_AS_NODE: "1", PATH: "/p" }, execPath: "/app/example" });
+    const env = buildMcpChildEnv({ parentEnv: { ELECTRON_RUN_AS_NODE: "1", PATH: "/p" }, command: "/app/example", specEnv: {} }, { platform: "linux", execPath: "/app/example" });
     expect(env).toEqual({ PATH: "/p" });
   });
 
   test("on win32 a different executable never receives the run mode", () => {
-    const env = buildMcpChildEnv({ command: "C:\\other\\server.exe", specEnv: {} }, { platform: "win32", parentEnv: { ELECTRON_RUN_AS_NODE: "1" }, execPath: EXE });
+    const env = buildMcpChildEnv({ parentEnv: { ELECTRON_RUN_AS_NODE: "1" }, command: "C:\\other\\server.exe", specEnv: {} }, { platform: "win32", execPath: EXE });
     expect(env).toEqual({});
   });
 
   test("on win32 an empty run mode is not carried to this very executable", () => {
-    const env = buildMcpChildEnv({ command: EXE, specEnv: {} }, { platform: "win32", parentEnv: { ELECTRON_RUN_AS_NODE: "" }, execPath: EXE });
+    const env = buildMcpChildEnv({ parentEnv: { ELECTRON_RUN_AS_NODE: "" }, command: EXE, specEnv: {} }, { platform: "win32", execPath: EXE });
     expect(env).toEqual({});
   });
 
   test("on win32 the carried run mode keeps the parent's exact value", () => {
-    const env = buildMcpChildEnv({ command: EXE, specEnv: {} }, { platform: "win32", parentEnv: { ELECTRON_RUN_AS_NODE: "yes" }, execPath: EXE });
+    const env = buildMcpChildEnv({ parentEnv: { ELECTRON_RUN_AS_NODE: "yes" }, command: EXE, specEnv: {} }, { platform: "win32", execPath: EXE });
     expect(env).toEqual({ ELECTRON_RUN_AS_NODE: "yes" });
   });
 
   test("launchEnv and then specEnv override the carried run mode", () => {
     const options = { platform: "win32" as const, parentEnv: { ELECTRON_RUN_AS_NODE: "1" }, execPath: EXE };
-    expect(buildMcpChildEnv({ command: EXE, specEnv: {} }, { ...options, launchEnv: { ELECTRON_RUN_AS_NODE: "launch" } })).toEqual({ ELECTRON_RUN_AS_NODE: "launch" });
-    expect(buildMcpChildEnv({ command: EXE, specEnv: { ELECTRON_RUN_AS_NODE: "spec" } }, { ...options, launchEnv: { ELECTRON_RUN_AS_NODE: "launch" } })).toEqual({ ELECTRON_RUN_AS_NODE: "spec" });
+    expect(buildMcpChildEnv({ parentEnv: (options).parentEnv, command: EXE, specEnv: {} }, { ...options, launchEnv: { ELECTRON_RUN_AS_NODE: "launch" } })).toEqual({ ELECTRON_RUN_AS_NODE: "launch" });
+    expect(buildMcpChildEnv({ parentEnv: (options).parentEnv, command: EXE, specEnv: { ELECTRON_RUN_AS_NODE: "spec" } }, { ...options, launchEnv: { ELECTRON_RUN_AS_NODE: "launch" } })).toEqual({ ELECTRON_RUN_AS_NODE: "spec" });
   });
 
   test("win32-only names are not inherited off win32", () => {
-    const env = buildMcpChildEnv({ command: "x", specEnv: {} }, { platform: "darwin", parentEnv: { SystemRoot: "C:\\Windows", APPDATA: "a", HOME: "/h" }, execPath: "/e" });
+    const env = buildMcpChildEnv({ parentEnv: { SystemRoot: "C:\\Windows", APPDATA: "a", HOME: "/h" }, command: "x", specEnv: {} }, { platform: "darwin", execPath: "/e" });
     expect(env).toEqual({ HOME: "/h" });
   });
 
   test("an empty win32 variable is not inherited", () => {
-    const env = buildMcpChildEnv({ command: "x", specEnv: {} }, { platform: "win32", parentEnv: { SystemRoot: "", TEMP: "t" }, execPath: EXE });
+    const env = buildMcpChildEnv({ parentEnv: { SystemRoot: "", TEMP: "t" }, command: "x", specEnv: {} }, { platform: "win32", execPath: EXE });
     expect(env).toEqual({ TEMP: "t" });
   });
 
   test("names outside the allowlist are never inherited, whatever the platform", () => {
     const secret = "gh" + "p_" + "x".repeat(36);
     for (const platform of ["linux", "win32"] as const) {
-      expect(buildMcpChildEnv({ command: "x", specEnv: {} }, { platform, parentEnv: { GITHUB_TOKEN: secret, HTTPS_PROXY: "http://u:p@h" }, execPath: EXE })).toEqual({});
+      expect(buildMcpChildEnv({ parentEnv: { GITHUB_TOKEN: secret, HTTPS_PROXY: "http://u:p@h" }, command: "x", specEnv: {} }, { platform, execPath: EXE })).toEqual({});
     }
   });
 });
@@ -137,7 +144,7 @@ describe("McpStdioSession requests", () => {
 describe("spawnMcpStdioChannel exit draining", () => {
   function closeReason(script: string): Promise<{ reason: string; ms: number }> {
     const started = Date.now();
-    const channel = spawnMcpStdioChannel({ messages: federationMessages, command: "/bin/sh", args: ["-c", script], env: {}, launchEnv: {} });
+    const channel = spawnMcpStdioChannel({ parentEnv: process.env, messages: federationMessages, command: "/bin/sh", args: ["-c", script], env: {}, launchEnv: {} });
     return new Promise(resolve => channel.onClose({ listener: ({ reason }) => resolve({ reason, ms: Date.now() - started }) }));
   }
 

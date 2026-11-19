@@ -42,14 +42,14 @@ async function bootPreset({ writeAllowedToolNames }: { writeAllowedToolNames: st
     roster: { findByServerId: async () => { throw new Error("a preset has no roster row to read"); } },
     errorFactory: { create: ({ reason }) => new Error(`refused:${reason}`) },
   });
-  const result = await attachFederatedMcpTools({ registry, deps: {
+  const result = await attachFederatedMcpTools({ env: {}, registry, deps: {
     messages: federationMessages, errorCode: "EXTERNAL_MCP", scope: "workspace", assertConnectionUsable,
     permissionGate: testPermissionGate({ scope: "workspace", authorize: async () => ({ allowed: true, reason: "matched" }) }),
   }, connect: async () => ({
     listTools: async () => [CREATE, LIST],
     callTool: async ({ name }) => { sent.push(name); return { content: [] }; },
     close: async () => undefined,
-  }) }, { presetRegistry, env: {} });
+  }) }, { presetRegistry });
   const call = (remoteName: string) => registry.registered.find((r) => r.descriptor.id === `mcp__vendor__${remoteName}`)!.handler({
     executionId: "execution", run: { id: "run" }, principal: { id: "owner" }, input: {}, signal: new AbortController().signal,
   });
