@@ -1180,19 +1180,14 @@
     "value": 1
   },
   {
-    "file": "packages/daemon/src/agent-executor/child-input.ts",
+    "file": "packages/daemon/src/agent-executor/child-stream-events.ts",
     "rule": "catch-reads-error",
     "value": 1
   },
   {
-    "file": "packages/daemon/src/agent-executor/acp-events.ts",
+    "file": "packages/daemon/src/agent-executor/event-cleanup.ts",
     "rule": "catch-reads-error",
-    "value": 1
-  },
-  {
-    "file": "packages/daemon/src/agent-executor/pi-rpc-events.ts",
-    "rule": "catch-reads-error",
-    "value": 1
+    "value": 2
   },
   {
     "file": "packages/daemon/src/agent-executor/http-mcp.ts",
