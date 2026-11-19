@@ -13,6 +13,8 @@ function viewportIconName(viewport: BrowserViewportId): string {
 }
 
 export interface BrowserViewportControlsProps {
+  useTHook?: typeof useT;
+  useDismissOnOutsideOrEscapeHook?: typeof useDismissOnOutsideOrEscape;
   viewport: BrowserViewportId;
   onViewport: (viewport: BrowserViewportId) => void;
   disabled?: boolean;
@@ -31,17 +33,18 @@ export interface BrowserViewportControlsProps {
  * `features/browser-chrome/` section before building a second one.
  */
 export function BrowserViewportControls({
+  useTHook = useT, useDismissOnOutsideOrEscapeHook = useDismissOnOutsideOrEscape,
   viewport,
   onViewport,
   disabled,
   presets = BROWSER_VIEWPORT_PRESETS,
 }: BrowserViewportControlsProps) {
-  const t = useT();
+  const t = useTHook();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const activePreset = presets.find((preset) => preset.id === viewport) ?? presets[0];
 
-  useDismissOnOutsideOrEscape({ onDismiss: () => setOpen(false) }, { enabled: open, containerRef: menuRef });
+  useDismissOnOutsideOrEscapeHook({ onDismiss: () => setOpen(false) }, { enabled: open, containerRef: menuRef });
 
   if (!activePreset) return null;
 
@@ -66,7 +69,16 @@ export function BrowserViewportControls({
           <RemixIcon name="arrow-down-s-line" size={13} />
         </button>
       </span>
-      {open ? (
+      {open ? <BrowserViewportListbox presets={presets} viewport={viewport} onViewport={onViewport} close={() => setOpen(false)} t={t} /> : null}
+    </div>
+  );
+}
+
+function BrowserViewportListbox({ presets, viewport, onViewport, close, t }: {
+  presets: BrowserViewportPreset[]; viewport: BrowserViewportId; onViewport: (viewport: BrowserViewportId) => void;
+  close: () => void; t: ReturnType<typeof useT>;
+}) {
+  return (
         <div className="jini-browser-viewport-menu" role="listbox" aria-label={t('Viewport')}>
           {presets.map((preset) => (
             <button
@@ -77,7 +89,7 @@ export function BrowserViewportControls({
               className={preset.id === viewport ? 'active' : ''}
               onClick={() => {
                 onViewport(preset.id);
-                setOpen(false);
+                close();
               }}
             >
               <span className="jini-browser-viewport-menu-label">
@@ -88,7 +100,5 @@ export function BrowserViewportControls({
             </button>
           ))}
         </div>
-      ) : null}
-    </div>
   );
 }

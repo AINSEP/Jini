@@ -1,10 +1,10 @@
 import { Button, TextField, Notice } from '@jini-ai/ui-kit/react';
 import { useRolesTab } from '../hooks/RolesTab.hooks.js';
 import { RoleRow } from '../components/RoleRow.js';
-export default function RolesTab(_props: {
+export default function RolesTab({ useRolesTabHook = useRolesTab }: {
     readonly params?: Readonly<Record<string, unknown>>;
-}, _optional: Record<string, never> = {}) {
-    const v = useRolesTab({});
+ useRolesTabHook?: typeof useRolesTab; }, _optional: Record<string, never> = {}) {
+    const v = useRolesTabHook({});
     return <section><h2>Roles</h2>
     {v.canManage ? <form onSubmit={v.submit}>{v.error ? <Notice tone="danger">{v.error}</Notice> : null}
       <TextField label="Role name" value={v.name} onValueChange={v.changeName} required/>

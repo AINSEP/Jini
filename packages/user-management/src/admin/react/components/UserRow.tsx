@@ -1,8 +1,8 @@
 import { Button, Badge, Menu, TextField, Select, Notice } from '@jini-ai/ui-kit/react';
 import type { AdminOperator } from '../../models.js';
 import { useUserRow } from '../hooks/UsersTab.hooks.js';
-export function UserRow({ user }: { user: AdminOperator }, _optional: Record<string, never> = {}) {
-  const v = useUserRow({ user });
+export function UserRow({ user, useUserRowHook = useUserRow }: { user: AdminOperator; useUserRowHook?: typeof useUserRow }, _optional: Record<string, never> = {}) {
+  const v = useUserRowHook({ user });
   return <><tr><td>{v.canExpand ? <Button onPress={v.toggle} attrs={{ 'aria-expanded': v.expanded }}>{user.username}</Button> : user.username}</td><td>{user.email ?? '—'}</td>
     <td><Badge>{user.status}</Badge></td><td>{v.roles}</td><td>{v.policies}</td><td>{v.items.length ? <Menu label={v.menuLabel} items={v.items} disabled={v.s.confirming || v.s.rowSavingId !== null}/> : null}</td></tr>
     {v.expanded ? <tr><td colSpan={6}>

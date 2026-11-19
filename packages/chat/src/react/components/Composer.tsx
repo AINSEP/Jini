@@ -28,6 +28,9 @@ import { ComposerDiscoveryMenu, ComposerSlashMenu } from './ComposerDiscovery.js
 import { runComposerHostEffect, useComposerView } from './Composer.hooks.js';
 
 export interface ComposerProps {
+  useAgentHandleHook?: typeof useAgentHandle;
+  useTHook?: typeof useT;
+  useComposerViewHook?: typeof useComposerView;
   /** Stable automation base; false suppresses every package-owned control handle. */
   agentHandle?: string | false | undefined;
   composer: UseComposerResult;
@@ -102,31 +105,42 @@ export interface ComposerProps {
  * @overallScore 100/100
  */
 export function Composer({
-  agentHandle,
-  composer,
-  onSend,
+  useAgentHandleHook = useAgentHandle, useTHook = useT, useComposerViewHook = useComposerView,
+  agentHandle, composer, onSend,
   disabled = false,
   sendDisabled = false,
-  sendDisabledReason,
-  sendDisabledReasonId,
-  placeholder,
-  slots,
-  attachmentPicker,
+  sendDisabledReason, sendDisabledReasonId, placeholder, slots, attachmentPicker,
   running = false,
-  onCancel,
-  onInterrupt,
-  workingDirectory,
-  onChangeWorkingDirectory,
-  onPickWorkingDirectory,
+  onCancel, onInterrupt, workingDirectory, onChangeWorkingDirectory, onPickWorkingDirectory,
 }: ComposerProps) {
-  const base = useAgentHandle({ agentHandle });
-  const t = useT();
-  const { attachmentInputRef, textareaRef, discoveryMenuOpen, setDiscoveryMenuOpen, setSlashActiveIndex, setDismissedSlashDraft, discoveryMenuPosition, slashMenuPosition, workdirOpen, setWorkdirOpen, workdirDraft, setWorkdirDraft, workdirPosition, discoveryGroups, leadingAccessories, footerLeadingAccessory, footerAccessories, plusMenuItems, hasDiscoveryItems, slash, slashOpen, slashActiveOption, selectSlashItem, selectPlusItem, toggleWorkdir, confirmWorkdir, handleKeyDown, handleAttachmentChange, handleAttachmentPaste } = useComposerView({ composer, slots, attachmentPicker, workingDirectory, onChangeWorkingDirectory, disabled, sendDisabled, onInterrupt, onSend });
+  const base = useAgentHandleHook({ agentHandle });
+  const t = useTHook();
+  const view = useComposerViewHook({ composer, slots, attachmentPicker, workingDirectory, onChangeWorkingDirectory, disabled, sendDisabled, onInterrupt, onSend });
 
   return (
     <div className="jini-composer">
-      <AccessorySlot className="jini-composer-leading">{leadingAccessories}</AccessorySlot>
+      <AccessorySlot className="jini-composer-leading">{view.leadingAccessories}</AccessorySlot>
       <ComposerAttachmentRow base={base} composer={composer} attachmentPicker={attachmentPicker} />
+      <ComposerInput base={base} composer={composer} disabled={disabled} placeholder={placeholder} view={view} t={t} />
+      <div className="jini-composer-footer">
+        <ComposerFooterLeading base={base} attachmentPicker={attachmentPicker} disabled={disabled} view={view} t={t}
+          workingDirectory={workingDirectory} onChangeWorkingDirectory={onChangeWorkingDirectory} onPickWorkingDirectory={onPickWorkingDirectory} />
+        <ComposerFooterTrailing base={base} view={view} t={t} composer={composer} running={running} disabled={disabled}
+          sendDisabled={sendDisabled} onSend={onSend} onCancel={onCancel} sendDisabledReason={sendDisabledReason} sendDisabledReasonId={sendDisabledReasonId} />
+      </div>
+    </div>
+  );
+}
+
+type Translate = ReturnType<typeof useT>;
+
+function ComposerInput({ base, composer, disabled, placeholder, view, t }: {
+  base: string | undefined; composer: UseComposerResult; disabled: boolean; placeholder: string | undefined;
+  view: ReturnType<typeof useComposerView>; t: Translate;
+}) {
+  const { textareaRef, setSlashActiveIndex, setDismissedSlashDraft, handleKeyDown, handleAttachmentPaste,
+    slashOpen, slashActiveOption, slash, selectSlashItem, slashMenuPosition } = view;
+  return <>
       <textarea
         {...agentHandleProps({}, { base, action: 'draft', role: 'field', label: t('Message draft') })}
         ref={textareaRef}
@@ -148,17 +162,21 @@ export function Composer({
         rows={3}
       />
       {slashOpen ? (
-        <ComposerSlashMenu
-          base={base}
-          matches={slash.matches}
-          activeIndex={slashActiveOption}
-          onSelect={selectSlashItem}
-          showFilterHint={slash.showFilterHint}
-          style={slashMenuPosition}
-          t={t}
-        />
+        <ComposerSlashMenu base={base} matches={slash.matches} activeIndex={slashActiveOption}
+          onSelect={selectSlashItem} showFilterHint={slash.showFilterHint} style={slashMenuPosition} t={t} />
       ) : null}
-      <div className="jini-composer-footer">
+  </>;
+}
+
+function ComposerFooterLeading({ base, attachmentPicker, disabled, view, t, workingDirectory, onChangeWorkingDirectory, onPickWorkingDirectory }: {
+  base: string | undefined; attachmentPicker: ComposerProps['attachmentPicker']; disabled: boolean;
+  view: ReturnType<typeof useComposerView>; t: Translate; workingDirectory: ComposerProps['workingDirectory'];
+  onChangeWorkingDirectory: ComposerProps['onChangeWorkingDirectory']; onPickWorkingDirectory: ComposerProps['onPickWorkingDirectory'];
+}) {
+  const { hasDiscoveryItems, attachmentInputRef, handleAttachmentChange, discoveryGroups, discoveryMenuOpen, setDiscoveryMenuOpen,
+    selectPlusItem, discoveryMenuPosition, footerLeadingAccessory, workdirOpen, workdirDraft, workdirPosition,
+    toggleWorkdir, setWorkdirDraft, confirmWorkdir, setWorkdirOpen } = view;
+  return <>
         <ComposerAttachButton base={base} attachmentPicker={attachmentPicker} hidden={hasDiscoveryItems} disabled={disabled} inputRef={attachmentInputRef} onChange={handleAttachmentChange} t={t} />
         <ComposerDiscoveryMenu
           base={base}
@@ -175,21 +193,19 @@ export function Composer({
           t={t}
         />
         <AccessorySlot className="jini-composer-footer-leading">{footerLeadingAccessory}</AccessorySlot>
-        <ComposerWorkdirControl
-          base={base}
-          workingDirectory={workingDirectory}
-          onChangeWorkingDirectory={onChangeWorkingDirectory}
-          onPickWorkingDirectory={onPickWorkingDirectory}
-          disabled={disabled}
-          open={workdirOpen}
-          draft={workdirDraft}
-          position={workdirPosition}
-          onToggle={toggleWorkdir}
-          onDraftChange={setWorkdirDraft}
-          onConfirm={confirmWorkdir}
-          onClose={() => setWorkdirOpen(false)}
-          t={t}
-        />
+        <ComposerWorkdirControl base={base} workingDirectory={workingDirectory} onChangeWorkingDirectory={onChangeWorkingDirectory}
+          onPickWorkingDirectory={onPickWorkingDirectory} disabled={disabled} open={workdirOpen} draft={workdirDraft} position={workdirPosition}
+          onToggle={toggleWorkdir} onDraftChange={setWorkdirDraft} onConfirm={confirmWorkdir} onClose={() => setWorkdirOpen(false)} t={t} />
+  </>;
+}
+
+function ComposerFooterTrailing({ base, view, t, composer, running, disabled, sendDisabled, onSend, onCancel, sendDisabledReason, sendDisabledReasonId }: {
+  base: string | undefined; view: ReturnType<typeof useComposerView>; t: Translate; composer: UseComposerResult;
+  running: boolean; disabled: boolean; sendDisabled: boolean; onSend: () => void; onCancel: ComposerProps['onCancel'];
+  sendDisabledReason: ComposerProps['sendDisabledReason']; sendDisabledReasonId: ComposerProps['sendDisabledReasonId'];
+}) {
+  const { footerAccessories, plusMenuItems } = view;
+  return <>
         {/* One group, so a footer too narrow for everything wraps the picker and send to their own
             line together instead of leaving send alone on it (see the styles' footer rules). */}
         <div className="jini-composer-footer-trailing">
@@ -207,13 +223,9 @@ export function Composer({
             sendDisabledReasonId={sendDisabledReasonId}
             t={t}
           />
-        </div>
-      </div>
-    </div>
-  );
+        </div>  </>;
 }
 
-type Translate = ReturnType<typeof useT>;
 
 function slashTextareaAria(slashOpen: boolean, activeOption: number) {
   if (!slashOpen) return { 'aria-controls': undefined, 'aria-expanded': false, 'aria-activedescendant': undefined };
@@ -318,47 +330,8 @@ function ComposerWorkdirControl({ base, workingDirectory, onChangeWorkingDirecto
       >
         <RemixIcon name="folder-line" size={20} />
       </button>
-      {!onPickWorkingDirectory && open ? (
-        <div
-          className="jini-composer-workdir-panel"
-          data-testid="composer-workdir-panel"
-          role="dialog"
-          aria-label={t('Working directory')}
-          style={position}
-        >
-          <input
-            type="text"
-            className="jini-composer-workdir-input"
-            {...agentHandleProps({}, { base, action: 'workdir-path', role: 'field', label: t('Working directory path') })}
-            data-testid="composer-workdir-input"
-            value={draft}
-            onChange={(e) => onDraftChange(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                onConfirm();
-                return;
-              }
-              if (e.key === 'Escape') {
-                e.preventDefault();
-                onClose();
-              }
-            }}
-            placeholder={t('Working directory path')}
-            aria-label={t('Working directory path')}
-            autoFocus
-          />
-          <button
-            type="button"
-            className="jini-composer-workdir-confirm"
-            {...agentHandleProps({}, { base, action: 'workdir-set', role: 'button', label: t('Set working directory') })}
-            data-testid="composer-workdir-confirm"
-            onClick={onConfirm}
-          >
-            {t('Set')}
-          </button>
-        </div>
-      ) : null}
+      {!onPickWorkingDirectory && open ? <ComposerWorkdirPopover base={base} draft={draft} position={position}
+        onDraftChange={onDraftChange} onConfirm={onConfirm} onClose={onClose} t={t} /> : null}
     </div>
   );
 }
@@ -413,5 +386,52 @@ function ComposerSendGroup({ base, running, disabled, sendDisabled, canSubmit, o
         </button>
       ) : null}
     </span>
+  );
+}
+
+function ComposerWorkdirPopover({ base, draft, position, onDraftChange, onConfirm, onClose, t }: {
+  base: string | undefined; draft: string; position: CSSProperties | undefined; onDraftChange: (draft: string) => void;
+  onConfirm: () => void; onClose: () => void; t: Translate;
+}) {
+  return (
+        <div
+          className="jini-composer-workdir-panel"
+          data-testid="composer-workdir-panel"
+          role="dialog"
+          aria-label={t('Working directory')}
+          style={position}
+        >
+          <input
+            type="text"
+            className="jini-composer-workdir-input"
+            {...agentHandleProps({}, { base, action: 'workdir-path', role: 'field', label: t('Working directory path') })}
+            data-testid="composer-workdir-input"
+            value={draft}
+            onChange={(e) => onDraftChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                onConfirm();
+                return;
+              }
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                onClose();
+              }
+            }}
+            placeholder={t('Working directory path')}
+            aria-label={t('Working directory path')}
+            autoFocus
+          />
+          <button
+            type="button"
+            className="jini-composer-workdir-confirm"
+            {...agentHandleProps({}, { base, action: 'workdir-set', role: 'button', label: t('Set working directory') })}
+            data-testid="composer-workdir-confirm"
+            onClick={onConfirm}
+          >
+            {t('Set')}
+          </button>
+        </div>
   );
 }

@@ -1,15 +1,14 @@
 import { useId, type Dispatch, type FormEvent, type SetStateAction } from "react";
-import type { AdminIdentityUser, AdminPolicy, AdminRole } from "../models.js";
-import { RowMenu, ConfirmDialog, InfoTip, SecretInput } from "../kit.js";
-import { agentHandle, buildAgentListHandles } from "@jini-ai/core/agent-handles";
+import type { AdminPolicy, AdminRole } from "../models.js";
+import { InfoTip, SecretInput } from "../kit.js";
+import { agentHandle } from "@jini-ai/core/agent-handles";
 
-import { grantOptionLabel, type UserAccountCapabilities } from "./rules.js";
-import { UserGrantCells, UserNameCell, UserStatusCell, userRowMenuItemsFor } from "./UserRowParts.js";
+import { UsersTable, type UserManageController } from "./UsersTable.js";
+import { UsersDialogs } from "./UsersDialogs.js";
 import { useUsers, type UsersController, type UsersDependencies, type UsersOptions } from "./hooks/use-users.hooks.js";
 import type { ReactNode } from "react";
 
-import { createResetPasswordConfirmHandler, useResetPasswordFields } from "./hooks/use-reset-password-fields.hooks.js";
-import { ChangeUsernameDialog } from "./ChangeUsernameDialog.js";
+import type { useResetPasswordFields } from "./hooks/use-reset-password-fields.hooks.js";
 
 import { type Translate } from '@jini-ai/core/text';
 /**
@@ -79,6 +78,7 @@ export type UsersHook = (dependencies: UsersHookDependencies, options?: UsersOpt
 
 /** Every `Users` prop except the hook/`translate` pair (see {@link UsersProps}). */
 export interface UsersBaseProps extends Omit<UsersDependencies, "translate">, UsersOptions {
+  useFields?: typeof useResetPasswordFields;
   /** The host owns localization of protocol status/role labels. */
   renderServerLabel?: ((required: { value: string }) => ReactNode) | undefined;
 }
@@ -108,7 +108,6 @@ interface NewUserFormProps {
 
 /** The "New user" form — extracted from `Users` verbatim; own scope for `formError`/`saving`. */
 function NewUserForm({ username, setUsername, email, setEmail, password, setPassword, saving, formError, onCreate, t }: NewUserFormProps) {
-  const passwordInputId = useId();
   return (
     <form onSubmit={onCreate} className="notice integrations-form form-measure">
       {formError ? <span className="save-error">{formError}</span> : null}
@@ -130,35 +129,7 @@ function NewUserForm({ username, setUsername, email, setEmail, password, setPass
           {...agentHandle({ handle: "users-new-email" }, { role: "field", label: "The new user's email address" })}
         />
       </label>
-      {/* A sibling label keeps the eye toggle's "Show password" name out of the input's own
-          accessible name, and keeps the interactive toggle outside the label. */}
-      <div>
-        <label htmlFor={passwordInputId}>{t("Password")}</label>
-        {/* `autoComplete="new-password"`, NOT `"off"` — Chrome deliberately ignores `off` on
-            credential-shaped fields (a long-standing intentional decision, not a bug). Without
-            this, this form's `type="email"` input right above reads to Chrome as a login pair, and
-            Chrome offered to fill the logged-in ADMIN's own saved email/password into a form meant
-            to create a DIFFERENT user. `new-password` is the value Chrome/Safari/Firefox actually
-            honor for "this is an account-creation field, not a saved login" — matching this repo's
-            own corrected precedent on `security/AccessTokensTab.tsx`'s token field (commit
-            `fc64f2d9`, superseding an earlier `autoComplete="off"` attempt that did not work).
-            Known trade-off, not fixed here: Chrome may now offer to GENERATE a password on this
-            field — a suggestion popup, not a silently wrong value. */}
-        <SecretInput
-          label={t("Password")}
-          toggleLabels={{ show: t("Show password"), hide: t("Hide password") }}
-          id={passwordInputId}
-          autoComplete="new-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          minLength={1}
-          {...agentHandle({ handle: "users-new-password" }, {
-            role: "field",
-            label: "The new user's password — a credential field, so only a human can fill it",
-          })}
-        />
-      </div>
+      <NewUserPasswordField password={password} setPassword={setPassword} t={t} />
       <button
         type="submit"
         disabled={saving}
@@ -167,564 +138,6 @@ function NewUserForm({ username, setUsername, email, setEmail, password, setPass
         {saving ? t("Creating…") : t("Create user")}
       </button>
     </form>
-  );
-}
-
-/** The subset of `AdminRole`/`AdminPolicy` a grant `<select>` actually renders. Named rather than
- *  taking the full records, so the shared control below cannot come to depend on anything a role has
- *  and a policy does not. */
-export interface GrantOption {
-  id: string;
-  name: string;
-  isBuiltin: boolean;
-}
-
-/** One "pick something, then grant it to this user" control. Both grants on the Manage panel are
- *  this same shape, which is what lets them share {@link GrantSelect} instead of being two
- *  near-identical blocks whose props had to be threaded separately. */
-export interface GrantSelectController {
-  options: GrantOption[];
-  /** The id currently selected in the `<select>`, or `""` for the placeholder row. */
-  pendingId: string;
-  setPendingId: Dispatch<SetStateAction<string>>;
-  submit: (required: { principalId: string }) => Promise<void>;
-}
-
-/**
- * Everything the expanded "Manage" panel needs, as one object.
- *
- * Replaces the fifteen loose state/setter/callback props this panel used to take and `UserRow` used
- * to relay through an `Omit<UserManagePanelProps, "principalId">` rest spread. The grouping is by
- * interaction, not by convenience: the email editor and the two grants are three independent
- * controls that happen to share one error line and one in-flight flag, and saying so in the type is
- * what lets a test build a Manage panel without also standing up a row, a table, and a page.
- */
-export interface UserManageController {
-  /** The one error line the whole panel shares — any of the three writes can set it. */
-  error: string | null;
-  /** Shared by both grants: the panel issues one grant at a time. */
-  saving: boolean;
-  email: {
-    value: string;
-    set: Dispatch<SetStateAction<string>>;
-    saving: boolean;
-    save: (required: { principalId: string }) => Promise<void>;
-  };
-  /** `null` when the caller may not read roles/policies (`UsersController.canGrant`): no grant controls. */
-  roleGrant: GrantSelectController | null;
-  policyGrant: GrantSelectController | null;
-}
-
-interface GrantSelectProps {
-  principalId: string;
-  label: string;
-  placeholder: string;
-  submitLabel: string;
-  grant: GrantSelectController;
-  saving: boolean;
-  /** Distinct handle base for this grant — `UserManagePanel` renders this component twice (role,
-   *  policy), so a fixed name would collide (only one Manage panel is ever open at a time, but a
-   *  hardcoded handle in a shared component still means two call sites publish the SAME handle —
-   *  the exact trap this workstream's shared-component convention exists to avoid). */
-  agentBase: string;
-  t: (key: string) => string;
-}
-
-/** The select-plus-button both grants render. */
-function GrantSelect({ principalId, label, placeholder, submitLabel, grant, saving, agentBase, t }: GrantSelectProps) {
-  return (
-    <label>
-      {label}
-      <span className="editor-actions">
-        <select
-          value={grant.pendingId}
-          onChange={(e) => grant.setPendingId(e.target.value)}
-          {...agentHandle({ handle: `${agentBase}-select` }, {
-            role: "field",
-            label: `${label} — set with page.select_option, not click`,
-          })}
-        >
-          <option value="">{placeholder}</option>
-          {grant.options.map((option) => (
-            <option key={option.id} value={option.id}>
-              {grantOptionLabel({ option, translate: t })}
-              {option.isBuiltin ? ` ${t("(built-in)")}` : ""}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          disabled={!grant.pendingId || saving}
-          onClick={() => grant.submit({ principalId })}
-          {...agentHandle({ handle: `${agentBase}-submit` }, { role: "button", label: `${submitLabel} the selected option to this user` })}
-        >
-          {saving ? t("Saving…") : submitLabel}
-        </button>
-      </span>
-    </label>
-  );
-}
-
-export interface UserManagePanelProps {
-  principalId: string;
-  manage: UserManageController;
-  t: (key: string) => string;
-  /** The table's column count, so the panel row spans it exactly (fewer without Roles/Policies). */
-  colSpan?: number;
-}
-
-/** The expanded "Manage" row's contents (email edit, role/policy grant forms).
- *
- *  Exported so a test can drive it with a hand-built {@link UserManageController} — the seam only
- *  counts as one if something other than `Users` can supply it. */
-export function UserManagePanel({ principalId, manage, t, colSpan = 6 }: UserManagePanelProps) {
-  return (
-    <tr>
-      <td colSpan={colSpan}>
-        <div className="notice integrations-form">
-          {manage.error ? <span className="save-error">{manage.error}</span> : null}
-          <label>
-            {t("Email")}
-            <span className="editor-actions">
-              <input
-                type="email"
-                value={manage.email.value}
-                onChange={(e) => manage.email.set(e.target.value)}
-                placeholder={t("(none)")}
-                {...agentHandle({ handle: "user-manage-email" }, { role: "field", label: "This user's email address" })}
-              />
-              <button
-                type="button"
-                disabled={manage.email.saving}
-                onClick={() => manage.email.save({ principalId })}
-                {...agentHandle({ handle: "user-manage-email-save" }, { role: "button", label: "Save this user's email address" })}
-              >
-                {manage.email.saving ? t("Saving…") : t("Save email")}
-              </button>
-            </span>
-          </label>
-          {manage.roleGrant ? (
-            <GrantSelect
-              principalId={principalId}
-              label={t("Assign role")}
-              placeholder={t("Select a role…")}
-              submitLabel={t("Assign")}
-              grant={manage.roleGrant}
-              saving={manage.saving}
-              agentBase="user-manage-role"
-              t={t}
-            />
-          ) : null}
-          {manage.policyGrant ? (
-            <GrantSelect
-              principalId={principalId}
-              label={t("Attach policy")}
-              placeholder={t("Select a policy…")}
-              submitLabel={t("Attach")}
-              grant={manage.policyGrant}
-              saving={manage.saving}
-              agentBase="user-manage-policy"
-              t={t}
-            />
-          ) : null}
-        </div>
-      </td>
-    </tr>
-  );
-}
-
-/** A user row's own affordances — expand/collapse and the three menu actions. Distinct from
- *  {@link UserManageController}, which describes what the expanded panel does once it is open. */
-export interface UserRowActionsController {
-  expandedId: string | null;
-  toggleExpanded: (user: AdminIdentityUser) => void;
-  /** Which row has a status write in flight — drives that row's disabled menu item only. */
-  savingId: string | null;
-  requestDisable: (user: AdminIdentityUser) => void;
-  toggleStatus: (user: AdminIdentityUser) => Promise<void>;
-  openResetPassword: (user: AdminIdentityUser) => void;
-  renameUserHandler?: UsersController["renameUserHandler"];
-  /** Delete-user plan v2 (2026-09-24): whether the row's `RowMenu` should carry a "Delete" item at
-   *  all — see `use-users.hooks.ts`'s `canManageUserTrash` doc comment for where this comes from. */
-  canDelete: boolean;
-  rowCapabilities?: (user: AdminIdentityUser) => UserAccountCapabilities;
-  requestDelete: (user: AdminIdentityUser) => void;
-}
-
-export interface UserRowProps {
-  user: AdminIdentityUser;
-  isOwn?: boolean;
-  roleById: ReadonlyMap<string, AdminRole>;
-  policyById: ReadonlyMap<string, AdminPolicy>;
-  /** Whether the Roles/Policies cells render — see {@link UsersTableProps.showGrants}. */
-  showGrants: boolean;
-  actions: UserRowActionsController;
-  manage: UserManageController;
-  /** This row's own distinct handle base — computed once, across every rendered row, by
-   *  `UsersTable` (via `buildAgentListHandles`); see `Taxonomy.tsx`'s `NewTermForm.agentBase` for
-   *  why a per-instance uniqueness search does not work here. */
-  agentBase: string;
-  t: (key: string) => string;
-  translate: Translate;
-  renderServerLabel?: UsersProps["renderServerLabel"];
-}
-
-/** One user's row plus its optional expanded "Manage" row. `key` lives on the `<UserRow>` element at
- *  the call site, not inside here, since this is no longer the array-mapping callback itself. */
-function UserRow({ user, isOwn, roleById, policyById, showGrants, actions, manage, agentBase, t, translate, renderServerLabel }: UserRowProps) {
-  const expanded = actions.expandedId === user.principalId;
-  return (
-    <>
-      <tr aria-current={isOwn ? "true" : undefined}>
-        <UserNameCell user={user} isOwn={isOwn} expanded={expanded} onToggle={actions.toggleExpanded} agentBase={agentBase} t={t} />
-        <td>{user.email ?? <span className="muted-cell">—</span>}</td>
-        <UserStatusCell status={user.status} t={t} renderServerLabel={renderServerLabel} />
-        {showGrants ? (
-          <UserGrantCells user={user} roleById={roleById} policyById={policyById} t={t} translate={translate} renderServerLabel={renderServerLabel} />
-        ) : null}
-        <td>
-          {/* Matches Posts.tsx/Pages.tsx's three-dot RowMenu shape — Disable/Enable,
-              Manage, and Reset password all live in the menu; there is no standalone
-              button left in this column. See `rules.ts`'s `userRowMenuItems` doc comment
-              for why "Manage" keeps a static label instead of alternating with "Close". */}
-          <RowMenu
-            triggerLabel={`${t("Actions for user")} "${user.username}"`}
-            agentHandle={`${agentBase}-menu`}
-            items={userRowMenuItemsFor({ user, actions, translate })}
-          />
-        </td>
-      </tr>
-      {expanded ? (
-        <UserManagePanel principalId={user.principalId} manage={manage} t={t} colSpan={showGrants ? 6 : 4} />
-      ) : null}
-    </>
-  );
-}
-
-export interface UsersTableProps {
-  users: AdminIdentityUser[];
-  ownPrincipalId?: string | undefined;
-  /** The full records, for the Roles/Policies label columns. The grant selects get their own
-   *  `options` through `manage`, so neither consumer has to reach into the other's props. */
-  roles: AdminRole[];
-  policies: AdminPolicy[];
-  /** `UsersController.canGrant`: without `role.manage` there are no names to resolve grant ids
-   *  against, so the Roles/Policies columns are left out rather than showing raw ids. */
-  showGrants: boolean;
-  actions: UserRowActionsController;
-  manage: UserManageController;
-  t: (key: string) => string;
-  translate: Translate;
-  renderServerLabel?: UsersProps["renderServerLabel"];
-}
-
-/** The users table, or the empty state. Builds the role/policy lookup maps once per render rather
- *  than once per row. */
-function UsersTable({ users, ownPrincipalId, roles, policies, showGrants, actions, manage, t, translate, renderServerLabel }: UsersTableProps) {
-  if (users.length === 0) {
-    return (
-      <div className="card">
-        <div className="empty-state">
-          <p>{t("No users yet.")}</p>
-          <p className="page-description">{t("Create your first operator account to get started.")}</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Not `useMemo`d: computed after the empty-state early return above, so a `useMemo` here would
-  // need hoisting above it to keep hook order stable across renders — same constraint `Media.tsx`
-  // documents for its own post-early-return computation. Not worth that indirection: these three
-  // maps/handles are a single O(n) pass each over one operator's own users/roles/policies (already
-  // built once per render rather than once per row, per this function's own doc comment above).
-  const roleById = new Map<string, AdminRole>(roles.map((role) => [role.id, role]));
-  const policyById = new Map<string, AdminPolicy>(policies.map((policy) => [policy.id, policy]));
-  // Principal ids are stable and unique, so they disambiguate one row's Manage toggle from
-  // another's — same reasoning as every other list on this workstream.
-  const rowHandles = buildAgentListHandles({ prefix: "users-row", ids: users.map((user) => user.principalId) });
-
-  return (
-    <div className="table-scroll">
-      <table className="list-table">
-        <thead>
-          <tr>
-            <th>{t("Username")}</th>
-            <th>{t("Email")}</th>
-            <th>{t("Status")}</th>
-            {showGrants ? (
-              <>
-                <th data-label={t("Roles")}>
-                  {t("Roles")}
-                  {/* Built-in grants are defined in server/seed.ts. */}
-                  <InfoTip
-                    triggerLabel={t("About roles")}
-                    label={[
-                      t("• Owner — full control, including users and site keys."),
-                      t("• Admin — manage content, settings, site keys, and roles within their permissions."),
-                      t("• Editor — edit, publish, and delete content; upload, edit, and trash media; switch themes."),
-                      t("• Viewer — read content, changes, and plugin information."),
-                    ].join("\n")}
-                  />
-                </th>
-                <th>{t("Policies")}</th>
-              </>
-            ) : null}
-            <th>{t("More")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {users.map((user, index) => (
-            <UserRow
-              key={user.principalId}
-              user={user}
-              isOwn={user.principalId === ownPrincipalId}
-              roleById={roleById}
-              policyById={policyById}
-              showGrants={showGrants}
-              actions={actions}
-              manage={manage}
-              agentBase={rowHandles[index]!}
-              t={t}
-              translate={translate}
-              renderServerLabel={renderServerLabel}
-            />
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-interface UserDisableDialogProps {
-  confirmingDisable: AdminIdentityUser | null;
-  setConfirmingDisable: Dispatch<SetStateAction<AdminIdentityUser | null>>;
-  toggleSavingId: string | null;
-  confirmDisable: () => Promise<void>;
-  t: (key: string) => string;
-}
-
-/** The Disable confirm dialog — extracted from `Users` verbatim. */
-function UserDisableDialog({ confirmingDisable, setConfirmingDisable, toggleSavingId, confirmDisable, t }: UserDisableDialogProps) {
-  return (
-    <ConfirmDialog
-      cancelLabel={t("Cancel")}
-      open={confirmingDisable !== null}
-      agentHandle="users-disable"
-      title={t("Disable this user?")}
-      body={
-        confirmingDisable ? (
-          <p>
-            {t("Disable")} &quot;{confirmingDisable.username}&quot;? {t("They will not be able to sign in until re-enabled.")}
-          </p>
-        ) : null
-      }
-      confirmLabel={t("Disable")}
-      tone="warning"
-      pending={confirmingDisable !== null && toggleSavingId === confirmingDisable.principalId}
-      onConfirm={confirmDisable}
-      onCancel={() => setConfirmingDisable(null)}
-    />
-  );
-}
-
-interface UserDeleteDialogProps {
-  confirmingDelete: AdminIdentityUser | null;
-  setConfirmingDelete: Dispatch<SetStateAction<AdminIdentityUser | null>>;
-  deleteSaving: boolean;
-  confirmDelete: () => Promise<void>;
-  t: (key: string) => string;
-}
-
-/** The Delete confirm dialog (delete-user plan v2, 2026-09-24) — mirrors {@link UserDisableDialog}'s
- *  shape exactly (own props, own state), naming the Trash rather than a permanent removal since
- *  that is what "Delete" now does here (decisions 2/7 of the plan). */
-function UserDeleteDialog({ confirmingDelete, setConfirmingDelete, deleteSaving, confirmDelete, t }: UserDeleteDialogProps) {
-  return (
-    <ConfirmDialog
-      cancelLabel={t("Cancel")}
-      open={confirmingDelete !== null}
-      agentHandle="users-delete"
-      title={t("Delete this user?")}
-      body={
-        confirmingDelete ? (
-          <p>
-            {t("Delete")} &quot;{confirmingDelete.username}&quot;?{" "}
-            {t(
-              "They will be signed out and moved to the Trash. You can restore them there; they are deleted permanently after 60 days.",
-            )}
-          </p>
-        ) : null
-      }
-      confirmLabel={t("Move to trash")}
-      tone="danger"
-      pending={deleteSaving}
-      onConfirm={confirmDelete}
-      onCancel={() => setConfirmingDelete(null)}
-    />
-  );
-}
-
-interface RevealablePasswordFieldProps {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  visible: boolean;
-  onToggleVisible: () => void;
-  /** Distinct handle base — `UserResetPasswordDialog` renders this twice (new password, confirm),
-   *  so a fixed name would collide, same reasoning as `GrantSelect.agentBase` above. */
-  agentBase: string;
-  t: (key: string) => string;
-}
-
-/** One password input plus its own independent show/hide toggle. `UserResetPasswordDialog` renders
- *  this twice (new password, confirm new password) so each field can be revealed on its own — the
- *  whole point of the confirm field is catching a typo by eye, which a single toggle driving both
- *  fields would not let the operator do selectively. Follows this file's `GrantSelect` precedent: a
- *  shape used by more than one caller gets its own top-level function instead of staying inline
- *  twice.
- *
- *  The toggle itself is icon-only (standard eye / eye-with-slash convention, per owner request —
- *  not a text "Show"/"Hide" link): the accessible name flips between "Show <label>"/"Hide <label>"
- *  via `aria-label` (screen reader), which is the one on/off signal a text label would have given
- *  (no `aria-pressed` on top: that announced the state twice). The shared stroke icon keeps the
- *  open-eye/eye-with-slash convention without duplicating glyphs in this screen.
- *
- *  The shared `.jini-secret` wrapper gives the icon its own space: the host's `.field input {
- *  width: 100% }` must not make the input fight a sibling toggle for room. */
-function RevealablePasswordField({ id, label, value, onChange, visible, onToggleVisible, agentBase, t }: RevealablePasswordFieldProps) {
-  return (
-    <div className="field">
-      <label className="field-label" htmlFor={id}>
-        {label}
-      </label>
-      <SecretInput
-        id={id}
-        label={label}
-        toggleLabels={{ show: `${t("Show")} ${label}`, hide: `${t("Hide")} ${label}` }}
-        revealed={visible}
-        onRevealedChange={onToggleVisible}
-        toggleAttrs={agentHandle({ handle: `${agentBase}-reveal` }, { role: "button", label: `Show or hide the ${label.toLowerCase()} field's characters` })}
-        // `new-password`, not `off` (Chrome ignores `off`): without it Chrome filled a saved
-        // login into "New password" only. Kept while revealed as `type="text"`, too.
-        autoComplete="new-password"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        style={{ flex: "1 1 auto", minWidth: 0 }}
-        {...agentHandle({ handle: agentBase }, {
-          role: "field",
-          label: `${label} — a credential field, so only a human can fill it`,
-        })}
-      />
-    </div>
-  );
-}
-
-interface UserResetPasswordDialogProps {
-  resetPasswordFor: AdminIdentityUser | null;
-  setResetPasswordFor: Dispatch<SetStateAction<AdminIdentityUser | null>>;
-  newPassword: string;
-  setNewPassword: Dispatch<SetStateAction<string>>;
-  passwordError: string | null;
-  setPasswordError: Dispatch<SetStateAction<string | null>>;
-  passwordSaving: boolean;
-  confirmResetPassword: () => Promise<void>;
-  t: (key: string) => string;
-  /** Injectable seam for the confirm-field + reveal-toggle state. Defaults to the real
-   *  {@link useResetPasswordFields}. */
-  useFields?: typeof useResetPasswordFields;
-}
-
-/** Resolves `useFields` to the real hook when no override is passed, because ESLint's
- *  cyclomatic-complexity rule counts a default parameter value evaluated inside a function's OWN
- *  body as one of that function's own branches; a call out to a separately-scoped resolver does
- *  not. */
-function resolveResetPasswordFieldsHook(
-  override: typeof useResetPasswordFields | undefined,
-): typeof useResetPasswordFields {
-  return override ?? useResetPasswordFields;
-}
-
-/** The reset-password dialog — extracted from `Users` verbatim, since extended with the confirm
- *  field and both reveal toggles (see this file's header). */
-function UserResetPasswordDialog({
-  resetPasswordFor,
-  setResetPasswordFor,
-  newPassword,
-  setNewPassword,
-  passwordError,
-  setPasswordError,
-  passwordSaving,
-  confirmResetPassword,
-  t,
-  useFields: useFieldsProp,
-}: UserResetPasswordDialogProps) {
-  const useFields = resolveResetPasswordFieldsHook(useFieldsProp);
-  const fields = useFields({ resetPasswordFor, newPassword });
-  const displayedError = fields.mismatch ? t("Passwords do not match.") : passwordError;
-
-  const handleConfirm = createResetPasswordConfirmHandler({ mismatch: fields.mismatch, confirmResetPassword });
-
-  return (
-    <ConfirmDialog
-      cancelLabel={t("Cancel")}
-      open={resetPasswordFor !== null}
-      agentHandle="users-reset-password"
-      title={t("Reset password?")}
-      body={
-        resetPasswordFor ? (
-          <>
-            <p>
-              {t("Set a new password for")} &quot;{resetPasswordFor.username}&quot;.{" "}
-              {t("Every active session for this user will be signed out.")}
-            </p>
-            <RevealablePasswordField
-              id="users-reset-password-input"
-              label={t("New password")}
-              value={newPassword}
-              onChange={setNewPassword}
-              visible={fields.showNewPassword}
-              onToggleVisible={fields.toggleShowNewPassword}
-              agentBase="users-reset-password"
-              t={t}
-            />
-            <RevealablePasswordField
-              id="users-reset-password-confirm-input"
-              label={t("Confirm new password")}
-              value={fields.confirmPassword}
-              onChange={fields.setConfirmPassword}
-              visible={fields.showConfirmPassword}
-              onToggleVisible={fields.toggleShowConfirmPassword}
-              // NOT "users-reset-password-confirm" — that string is already the dialog's own
-              // ConfirmDialog Confirm button handle (`agentHandle="users-reset-password"` above,
-              // `-confirm` sub-handle). Two elements answering to the same handle is a
-              // page-authoring bug the page driver refuses to resolve (see
-              // `dom-page-driver.ts`'s `ambiguousHandleError`), so this field gets its own name.
-              agentBase="users-reset-password-retype"
-              t={t}
-            />
-            {/* One shared slot, fixed precedence: a live mismatch always wins over a stale
-                `passwordError` left over from a previous failed attempt, so the two can never be
-                shown — or appear to conflict — at the same time. Once the fields agree again, the
-                stale server error (if any) reappears until the next submit or Cancel clears it. */}
-            {fields.mismatch || passwordError ? (
-              <p className="save-error" role="alert">
-                {displayedError}
-              </p>
-            ) : null}
-          </>
-        ) : null
-      }
-      confirmLabel={t("Reset password")}
-      tone="warning"
-      pending={passwordSaving}
-      onConfirm={handleConfirm}
-      onCancel={() => {
-        setResetPasswordFor(null);
-        setNewPassword("");
-        setPasswordError(null);
-      }}
-    />
   );
 }
 
@@ -821,146 +234,64 @@ function userManageController({ controller, roles, policies }: {
   };
 }
 
-export function Users({ useUsersHook, port, translate: injectedTranslate, queryScope,
+export function Users({ useUsersHook = useUsers, useFields, port, translate: injectedTranslate, queryScope,
   openOwnPasswordReset, onOwnPasswordResetClosed, passwordResetNotice, renderServerLabel }: UsersProps) {
-  // Widening `useUsers` to `UsersHook` is sound only through the `UsersProps` union: whenever
+  // The dependency cast is sound only through the `UsersProps` union: whenever
   // `useUsersHook` is omitted or typed as `useUsers`, `translate` is required, so the default hook
   // never runs without it. TypeScript cannot correlate the two destructured props itself.
-  const useSelectedUsersHook = (useUsersHook ?? useUsers) as UsersHook;
-  const controller = useSelectedUsersHook({ port, translate: injectedTranslate, queryScope }, {
-    openOwnPasswordReset, onOwnPasswordResetClosed, passwordResetNotice,
-  });
-  const {
-    users,
-    roles,
-    policies,
-    canGrant,
-    error,
-
-    formOpen,
-    setFormOpen,
-    username,
-    setUsername,
-    email,
-    setEmail,
-    password,
-    setPassword,
-    saving,
-    formError,
-    onCreate,
-
-    expandedId,
-    toggleExpanded,
-
-    toggleSavingId,
-    toggleError,
-    notice,
-
-    confirmingDisable,
-    setConfirmingDisable,
-    requestDisable,
-    confirmDisable,
-    onToggleStatus,
-
-    resetPasswordFor,
-    setResetPasswordFor,
-    newPassword,
-    setNewPassword,
-    passwordSaving,
-    passwordError,
-    setPasswordError,
-    openResetPassword,
-    confirmResetPassword,
-
-    canManageUserTrash,
-    rowCapabilities,
-    ownProfile,
-    renameUserHandler,
-    changeUsername,
-    confirmingDelete,
-    setConfirmingDelete,
-    requestDelete,
-    deleteSaving,
-    confirmDelete,
-
-    t,
-    translate,
-  } = controller;
-
+  const dependencies = { port, translate: injectedTranslate, queryScope } as UsersDependencies;
+  const controller = useUsersHook(dependencies, { openOwnPasswordReset, onOwnPasswordResetClosed, passwordResetNotice });
+  const { users, roles, policies, error, t } = controller;
   if (error) return <div className="notice error">{error}</div>;
   if (!users || !roles || !policies) return <div className="notice">{t("Loading users…")}</div>;
-
   return (
     <div className="page">
-      <UsersPageHeader formOpen={formOpen} setFormOpen={setFormOpen} t={t} />
-
-      {formOpen ? (
-        <NewUserForm
-          username={username}
-          setUsername={setUsername}
-          email={email}
-          setEmail={setEmail}
-          password={password}
-          setPassword={setPassword}
-          saving={saving}
-          formError={formError}
-          onCreate={onCreate}
-          t={t}
-        />
-      ) : null}
-
-      <UsersNotices toggleError={toggleError} notice={notice} />
-
-      <UsersTable
-        users={users}
-        ownPrincipalId={ownProfile?.principalId}
-        roles={roles}
-        policies={policies}
-        showGrants={canGrant}
-        actions={{
-          expandedId,
-          toggleExpanded,
-          savingId: toggleSavingId,
-          requestDisable,
-          toggleStatus: onToggleStatus,
-          openResetPassword,
-          renameUserHandler,
-          canDelete: canManageUserTrash,
-          rowCapabilities,
-          requestDelete,
-        }}
-        manage={userManageController({ controller, roles, policies })}
-        t={t}
-        translate={translate}
-        renderServerLabel={renderServerLabel}
-      />
-
-      <UserDisableDialog
-        confirmingDisable={confirmingDisable}
-        setConfirmingDisable={setConfirmingDisable}
-        toggleSavingId={toggleSavingId}
-        confirmDisable={confirmDisable}
-        t={t}
-      />
-      <UserDeleteDialog
-        confirmingDelete={confirmingDelete}
-        setConfirmingDelete={setConfirmingDelete}
-        deleteSaving={deleteSaving}
-        confirmDelete={confirmDelete}
-        t={t}
-      />
-      <UserResetPasswordDialog
-        resetPasswordFor={resetPasswordFor}
-        setResetPasswordFor={setResetPasswordFor}
-        newPassword={newPassword}
-        setNewPassword={setNewPassword}
-        passwordError={passwordError}
-        setPasswordError={setPasswordError}
-        passwordSaving={passwordSaving}
-        confirmResetPassword={confirmResetPassword}
-        t={t}
-      />
-      {changeUsername ? <ChangeUsernameDialog controller={changeUsername} translate={t} /> : null}
+      <UsersPageHeader formOpen={controller.formOpen} setFormOpen={controller.setFormOpen} t={t} />
+      {controller.formOpen ? <NewUserForm {...controller} /> : null}
+      <UsersNotices toggleError={controller.toggleError} notice={controller.notice} />
+      <UsersTable users={users} ownPrincipalId={controller.ownProfile?.principalId} roles={roles} policies={policies}
+        showGrants={controller.canGrant} actions={{
+          expandedId: controller.expandedId, toggleExpanded: controller.toggleExpanded, savingId: controller.toggleSavingId,
+          requestDisable: controller.requestDisable, toggleStatus: controller.onToggleStatus, openResetPassword: controller.openResetPassword,
+          renameUserHandler: controller.renameUserHandler, canDelete: controller.canManageUserTrash,
+          rowCapabilities: controller.rowCapabilities, requestDelete: controller.requestDelete,
+        }} manage={userManageController({ controller, roles, policies })} t={t} translate={controller.translate} renderServerLabel={renderServerLabel} />
+      <UsersDialogs controller={controller} {...(useFields ? { useFields } : {})} />
     </div>
   );
+}
+
+function NewUserPasswordField({ password, setPassword, t }: Pick<NewUserFormProps, 'password' | 'setPassword' | 't'>) {
+  const passwordInputId = useId();
+  return <>
+      {/* A sibling label keeps the eye toggle's "Show password" name out of the input's own
+          accessible name, and keeps the interactive toggle outside the label. */}
+      <div>
+        <label htmlFor={passwordInputId}>{t("Password")}</label>
+        {/* `autoComplete="new-password"`, NOT `"off"` — Chrome deliberately ignores `off` on
+            credential-shaped fields (a long-standing intentional decision, not a bug). Without
+            this, this form's `type="email"` input right above reads to Chrome as a login pair, and
+            Chrome offered to fill the logged-in ADMIN's own saved email/password into a form meant
+            to create a DIFFERENT user. `new-password` is the value Chrome/Safari/Firefox actually
+            honor for "this is an account-creation field, not a saved login" — matching this repo's
+            own corrected precedent on `security/AccessTokensTab.tsx`'s token field (commit
+            `fc64f2d9`, superseding an earlier `autoComplete="off"` attempt that did not work).
+            Known trade-off, not fixed here: Chrome may now offer to GENERATE a password on this
+            field — a suggestion popup, not a silently wrong value. */}
+        <SecretInput
+          label={t("Password")}
+          toggleLabels={{ show: t("Show password"), hide: t("Hide password") }}
+          id={passwordInputId}
+          autoComplete="new-password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          minLength={1}
+          {...agentHandle({ handle: "users-new-password" }, {
+            role: "field",
+            label: "The new user's password — a credential field, so only a human can fill it",
+          })}
+        />
+      </div>
+  </>;
 }

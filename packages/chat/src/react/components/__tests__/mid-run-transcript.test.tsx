@@ -5,7 +5,7 @@ import { acceptedInputUserEvent } from '../../../core/accepted-input.js';
 import { translateRunAgentPayload } from '../../../core/run-events/entry.js';
 import type { AgentEvent, ChatMessage } from '../../../core/index.js';
 import { clearExtEventRenderers } from '../../ext-event-renderer-registry.js';
-import { registerMidRunUserMessageRenderer } from '../MidRunUserMessage.js';
+import { registerMidRunUserMessageRenderer, MidRunUserMessage } from '../MidRunUserMessage.js';
 import { MessageRow } from '../MessageRow.js';
 import { MessageList } from '../MessageList.js';
 import { ChatPane } from '../../features/chat-pane/components/ChatPane.js';
@@ -110,4 +110,16 @@ it.each(['button', 'shortcut'] as const)('one %s send is one bubble during a cap
   expect(screen.queryByText('Sending…')).toBeNull();
   expect(transport.calls).toHaveLength(1);
   expect(transport.stoppedRunIds).toEqual([]);
+});
+
+
+it('passes injected queued copy and gallery state through to each receipt', async () => {
+  renderWithChatSurfaces(<MidRunUserMessage runStreaming events={[
+    { id: 'receipt', text: 'Read this file', deliveryState: 'queued', attachments: [{ path: '/a.zip', name: 'a.zip', kind: 'file' }] },
+  ]} useTHook={() => (key) => `injected:${key}`} useAttachmentGalleryHook={() => ({
+    opened: { path: '/preview.zip', name: 'preview.zip', kind: 'file' },
+    navigation: undefined, open: () => {}, close: () => {},
+  })} />);
+  expect(screen.getByText('injected:Queued — read after the current step')).toBeInTheDocument();
+  expect(await screen.findByRole('dialog', { name: 'preview.zip preview' })).toBeInTheDocument();
 });

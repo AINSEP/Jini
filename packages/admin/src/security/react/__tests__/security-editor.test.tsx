@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '../../../__tests__/fetch-query-support.js';
 import { KitProvider } from '@jini-ai/ui-kit/react';
 import { createAdmin } from '../../../core/module/index.js';
+import { CredentialEditor } from '../components/CredentialEditor.js';
+import { useCredentialEditor } from '../hooks/CredentialEditor.hooks.js';
 import { security } from '../index.js';
 import { createMemoryRootKey, createMemorySecurityApi } from '../../adapters/memory.js';
 import type { CredentialProvider } from '../../models.js';
@@ -128,4 +130,13 @@ describe('access tokens tab', () => {
     expect(await screen.findByText('Permission denied')).toBeVisible();
     expect(screen.queryByRole('region', { name: 'Access tokens' })).toBeNull();
   });
+});
+
+
+it('uses the injected editor draft title', () => {
+  render(<CredentialEditor controller={null} saving={false} draft={{
+    kind: 'custom', providerId: '', label: 'Draft', token: '', values: {}, category: 'general', baseUrl: '', additionalHosts: '', username: '',
+  }} useCredentialEditorHook={(props) => ({ ...useCredentialEditor(props), title: 'Injected credential draft' })} />);
+  expect(screen.getByRole('dialog', { name: 'Injected credential draft' })).toBeVisible();
+  expect(screen.getByLabelText('Name')).toHaveValue('Draft');
 });

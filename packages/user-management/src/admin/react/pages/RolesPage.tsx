@@ -19,8 +19,8 @@ function RolesShell({ v, view }: { v: ReturnType<typeof useRolesPage>; view: Rol
     </div>
   </RolesViewContext.Provider>;
 }
-export default function RolesPage(props: RolesPageProps) {
-    const v = useRolesPage(props);
+export default function RolesPage({ useRolesPageHook = useRolesPage, ...props }: RolesPageProps & { useRolesPageHook?: typeof useRolesPage }) {
+    const v = useRolesPageHook(props);
     if (v.hidden)
         return <Notice>Roles administration is unavailable.</Notice>;
     if (!v.state)

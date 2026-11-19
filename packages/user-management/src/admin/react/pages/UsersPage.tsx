@@ -16,8 +16,8 @@ function UsersShell({ v, view }: { v: ReturnType<typeof useUsersPage>; view: Use
     <UsersConfirmation/>
   </div></UsersViewContext.Provider>;
 }
-export default function UsersPage(props: UsersPageProps) {
-  const v = useUsersPage(props);
+export default function UsersPage({ useUsersPageHook = useUsersPage, ...props }: UsersPageProps & { useUsersPageHook?: typeof useUsersPage }) {
+  const v = useUsersPageHook(props);
   if (!v.visible) return <Notice>Users administration is unavailable.</Notice>;
   if (!v.state) return <Spinner label={m.loading}/>;
   if (v.state.error) return <Notice tone="danger">{v.state.error}<Button onPress={v.retry}>Retry</Button></Notice>;

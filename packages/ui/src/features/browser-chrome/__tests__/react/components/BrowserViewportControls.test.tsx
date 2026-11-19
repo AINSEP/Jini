@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { BrowserViewportControls } from '../../../react/components/BrowserViewportControls.js';
@@ -99,4 +99,18 @@ describe('BrowserViewportControls', () => {
     await user.click(screen.getByRole('button'));
     expect(screen.getByRole('option', { name: /Tablette/ })).not.toBeNull();
   });
+});
+
+
+it('uses injected viewport labels and dismissal', async () => {
+  let dismiss = () => {};
+  const useDismissOnOutsideOrEscapeHook = vi.fn(({ onDismiss }: { onDismiss: () => void }) => { dismiss = onDismiss; });
+  render(<BrowserViewportControls viewport="desktop" onViewport={vi.fn()} useTHook={() => key => `injected:${key}`}
+    useDismissOnOutsideOrEscapeHook={useDismissOnOutsideOrEscapeHook} />);
+  await userEvent.click(screen.getByRole('button', { name: 'injected:Use the full browser tab size' }));
+  expect(screen.getByRole('listbox', { name: 'injected:Viewport' })).toBeVisible();
+  expect(screen.getByRole('option', { name: 'injected:Tablet' })).toBeVisible();
+  expect(useDismissOnOutsideOrEscapeHook).toHaveBeenLastCalledWith({ onDismiss: expect.any(Function) }, { enabled: true, containerRef: expect.any(Object) });
+  act(() => dismiss());
+  expect(screen.queryByRole('listbox')).toBeNull();
 });

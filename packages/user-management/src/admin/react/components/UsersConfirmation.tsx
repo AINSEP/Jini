@@ -2,8 +2,8 @@ import { ConfirmDialog, Notice, SecretInput } from '@jini-ai/ui-kit/react';
 import { useId } from 'react';
 import { useUsersConfirmation, newPasswordAttrs } from '../hooks/UsersTab.hooks.js';
 /** Kept mounted independently of row menus. Confirmation and cancellation share ui-kit's guards. */
-export function UsersConfirmation(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
-  const v = useUsersConfirmation({});
+export function UsersConfirmation({ useUsersConfirmationHook = useUsersConfirmation }: { useUsersConfirmationHook?: typeof useUsersConfirmation } = {}, _optional: Record<string, never> = {}) {
+  const v = useUsersConfirmationHook({});
   const fieldId = useId();
   return <ConfirmDialog {...v.confirm} body={<div><p>{v.s.pending?.user.username}</p><p>{v.copy.body}</p>
     {v.reset ? <><label className="jini-field-label" htmlFor={`${fieldId}-new`}>New password</label>

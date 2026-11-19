@@ -4,7 +4,7 @@ import { agentHandle } from "@jini-ai/core/agent-handles";
 
 import type { AdminIdentityUser, AdminPolicy, AdminRole } from "../models.js";
 import { formatGrantLabel, userRowMenuItems } from "./rules.js";
-import type { UserRowActionsController } from "./Users.js";
+import type { UserRowActionsController } from "./UsersTable.js";
 
 import { type Translate } from '@jini-ai/core/text';
 /**

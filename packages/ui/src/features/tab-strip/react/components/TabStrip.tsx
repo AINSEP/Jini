@@ -9,6 +9,7 @@ import { TabStripItem } from './TabStripItem.js';
 import { TabStripFrame } from './TabStripFrame.js';
 
 export interface TabStripProps extends AgentControlProps {
+  useAgentHandleHook?: typeof useAgentHandle;
   tabs: TabStripTab[];
   activeTabId: string | null;
   onActivate: (tabId: string) => void;
@@ -44,6 +45,7 @@ export interface TabStripProps extends AgentControlProps {
  * part of this primitive).
  */
 export function TabStrip({
+  useAgentHandleHook = useAgentHandle,
   tabs,
   activeTabId,
   onActivate,
@@ -59,7 +61,7 @@ export function TabStrip({
   useTabStripDragReorder: useTabStripDragReorderHook = useTabStripDragReorder,
   ...agentProps
 }: TabStripProps) {
-  const base = useAgentHandle(agentProps);
+  const base = useAgentHandleHook(agentProps);
   const { draggingTabId, dragOverTarget, stripRef, stripDragProps, getItemDragProps } = useTabStripDragReorderHook({
     tabs,
     onReorder,
@@ -77,11 +79,23 @@ export function TabStrip({
       onDrop={stripDragProps.onDrop}
       onDragLeave={stripDragProps.onDragLeave}
     >
+      <TabStripItems tabs={tabs} activeTabId={activeTabId} onActivate={onActivate} onClose={onClose} closeLabel={closeLabel} closeIcon={closeIcon}
+        base={base} page={agentProps['data-agent-page']} draggingTabId={draggingTabId} dragOverTarget={dragOverTarget} getItemDragProps={getItemDragProps} />
+      {trailing}
+    </TabStripFrame>
+  );
+}
+
+function TabStripItems({ tabs, activeTabId, onActivate, onClose, closeLabel, closeIcon, base, page, draggingTabId, dragOverTarget, getItemDragProps }: {
+  tabs: TabStripTab[]; activeTabId: string | null; onActivate: TabStripProps['onActivate']; onClose: TabStripProps['onClose'];
+  closeLabel: string | undefined; closeIcon: ReactNode; base: string | undefined; page: string | undefined;
+} & Pick<ReturnType<typeof useTabStripDragReorder>, 'draggingTabId' | 'dragOverTarget' | 'getItemDragProps'>) {
+  return <>
       {tabs.map((tab) => (
         <TabStripItem
           key={tab.id}
           agentHandle={base ? `${base}-tab-${agentHandleSegment({ value: tab.id })}` : false}
-          data-agent-page={agentProps['data-agent-page']}
+          data-agent-page={page}
           tab={tab}
           active={tab.id === activeTabId}
           dragging={draggingTabId === tab.id}
@@ -95,7 +109,5 @@ export function TabStrip({
           closeIcon={closeIcon}
         />
       ))}
-      {trailing}
-    </TabStripFrame>
-  );
+  </>;
 }

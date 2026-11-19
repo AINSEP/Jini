@@ -9,13 +9,14 @@
 // `CustomSelectOptionButton` leaf, and the dumb `CustomSelect` render.
 
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties, KeyboardEvent, MutableRefObject, ReactNode } from 'react';
-import { createPortal } from 'react-dom';
+import type { KeyboardEvent, MutableRefObject } from 'react';
 import { useOverlayContainer } from '../kit.js';
-import { useSelectPopover, isSelectEventInside, openSelectOnKey, applySelectNavigationKey, resolveSelectPortalContainer, resolveSelectOriginPage } from './select-popover.js';
+import { useSelectPopover, isSelectEventInside, openSelectOnKey, applySelectNavigationKey, resolveSelectOriginPage } from './select-popover.js';
 import { Icon } from './Icon.js';
 import { agentHandleProps } from '@jini-ai/core/agent-handles';
-import { useAgentHandle, type AgentControlProps } from '../hooks/useAgentHandle.js';
+import { useAgentHandle } from '../hooks/useAgentHandle.js';
+import { CustomSelectMenu, CustomSelectMarkup } from './CustomSelectMarkup.js';
+import type { CustomSelectProps, UseCustomSelectParams, UseCustomSelectResult } from './CustomSelect.types.js';
 import { useCustomSelectOptionRenderer } from './CustomSelect.hooks.js';
 
 export interface CustomSelectOption {
@@ -30,41 +31,6 @@ export interface CustomSelectGroup {
 }
 
 export type CustomSelectItem = CustomSelectOption | CustomSelectGroup;
-
-export interface CustomSelectProps extends AgentControlProps {
-  value: string;
-  options: CustomSelectItem[];
-  onChange: (value: string) => void;
-  ariaLabel: string;
-  labelledBy?: string;
-  // `| undefined` (not just `?`) so a caller under `exactOptionalPropertyTypes`
-  // can forward its OWN optional `className` prop straight through without
-  // needing a conditional-spread — see `SearchableModelSelect`, this
-  // component's first real consumer.
-  className?: string | undefined;
-  triggerClassName?: string;
-  menuClassName?: string;
-  disabled?: boolean;
-  placeholder?: string;
-  portal?: boolean;
-  /** Host-owned portal destination; otherwise the nearest native dialog keeps the menu in its top layer.
-   * Keep this container outside clipping regions and transformed fixed-position containing blocks.
-   */
-  portalContainer?: Element | DocumentFragment | null | undefined;
-  title?: string;
-  onFocus?: () => void;
-  /** Extra content rendered inside the menu, above the option list — the seam
-   *  `SearchableModelSelect` uses to place a search input inside the popover
-   *  without this component needing to know search exists. `undefined`
-   *  renders nothing extra, so every existing caller is unaffected. */
-  menuHeader?: ReactNode;
-  /** Fires whenever the menu's open state changes. Optional: a plain select
-   *  has nothing to do with this; `SearchableModelSelect` uses it to focus
-   *  its search input and reset the query exactly when the menu opens. */
-  onOpenChange?: (open: boolean) => void;
-  /** Custom hook override for dependency injection / testing. */
-  useCustomSelect?: typeof useCustomSelect;
-}
 
 /** A single option after grouped items are flattened; `group` records the
  * originating group label (absent for top-level options). */
@@ -211,46 +177,6 @@ export function isCustomSelectEventInside(
   return isSelectEventInside({ target, trigger: button, panel: menu });
 }
 
-export interface UseCustomSelectParams {
-  value: string;
-  options: CustomSelectItem[];
-  onChange: (value: string) => void;
-  portal: boolean;
-  placeholder?: string | undefined;
-  /** See `CustomSelectProps.onOpenChange`. */
-  onOpenChange?: ((open: boolean) => void) | undefined;
-}
-
-export interface UseCustomSelectResult {
-  /** Colon-free id prefix for the trigger/menu/option ids. */
-  idBase: string;
-  buttonRef: MutableRefObject<HTMLButtonElement | null>;
-  menuRef: MutableRefObject<HTMLDivElement | null>;
-  open: boolean;
-  activeValue: string;
-  position: CustomSelectMenuPosition | null;
-  /** Label to show on the trigger (selected option, else placeholder, else value). */
-  selectedLabel: string;
-  /** Maps each option value to its stable DOM id. */
-  optionIdByValue: Map<string, string>;
-  /** `aria-activedescendant` for the trigger, or `undefined` when none. */
-  activeOptionId: string | undefined;
-  /** Recompute the portal menu position from the live trigger rect. */
-  updatePosition: () => void;
-  /** Commit a value (ignoring missing/disabled), close, and refocus the trigger. */
-  choose: (nextValue: string) => void;
-  /** Set the active (highlighted) option value. */
-  setActiveValue: (value: string) => void;
-  /** Toggle the menu open/closed. */
-  toggleOpen: () => void;
-  /** Full keyboard handler for the trigger button. */
-  onButtonKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
-  /** Escape handler for the menu container — closes even when focus is inside
-   *  custom `menuHeader` content. See this function's definition for why
-   *  `onButtonKeyDown` alone is not enough. */
-  onMenuKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
-}
-
 /**
  * All of CustomSelect's behavior — ids, refs, open/active/position state, the
  * portal-positioning effect, the open/value active-option reconciliation
@@ -259,19 +185,9 @@ export interface UseCustomSelectResult {
  * logic is testable in isolation from the DOM; `CustomSelect` is the dumb
  * consumer.
  */
-export function useCustomSelect({
-  value,
-  options,
-  onChange,
-  portal,
-  placeholder,
-  onOpenChange,
-}: UseCustomSelectParams, _optional: Record<string, never> = {}): UseCustomSelectResult {
+export function useCustomSelect({ value, options, onChange, portal, placeholder, onOpenChange }: UseCustomSelectParams, _optional: Record<string, never> = {}): UseCustomSelectResult {
   const reactId = useId();
   const idBase = reactId.replace(/:/g, '');
-  const wasOpenRef = useRef(false);
-  const activeSourceValueRef = useRef(value);
-  const [activeValue, setActiveValue] = useState(value);
   const popover = useSelectPopover({ measurePosition: ({ trigger }) => computeCustomSelectMenuPosition(
     trigger.getBoundingClientRect(), { width: window.innerWidth, height: window.innerHeight },
   ) }, { portal, onOpenChange });
@@ -284,29 +200,7 @@ export function useCustomSelect({
     () => flatOptions.filter((option) => !option.disabled),
     [flatOptions],
   );
-  const flatOptionsRef = useRef(flatOptions);
-  const enabledOptionsRef = useRef(enabledOptions);
-  flatOptionsRef.current = flatOptions;
-  enabledOptionsRef.current = enabledOptions;
-  const optionIdByValue = useMemo(
-    () => new Map(flatOptions.map((option, index) => [option.value, `${idBase}-option-${index}`])),
-    [flatOptions, idBase],
-  );
-  const activeOptionId = open && activeValue ? optionIdByValue.get(activeValue) : undefined;
-
-  useEffect(() => {
-    const result = reconcileCustomSelectActiveValue({
-      open,
-      value,
-      wasOpen: wasOpenRef.current,
-      activeSourceValue: activeSourceValueRef.current,
-      flatOptions: flatOptionsRef.current,
-      enabledOptions: enabledOptionsRef.current,
-    });
-    wasOpenRef.current = result.wasOpen;
-    activeSourceValueRef.current = result.activeSourceValue;
-    if (result.nextActiveValue !== undefined) setActiveValue(result.nextActiveValue);
-  }, [open, value]);
+  const { activeValue, setActiveValue, optionIdByValue, activeOptionId } = useCustomSelectActive({ open, value, flatOptions, enabledOptions, idBase });
 
   const choose = (nextValue: string) => {
     const next = flatOptions.find((option) => option.value === nextValue);
@@ -315,23 +209,9 @@ export function useCustomSelect({
     popover.closePanel({ refocusTrigger: true });
   };
 
-  const moveActive = (direction: 1 | -1) => {
-    const next = nextCustomSelectActiveValue(enabledOptions, activeValue, direction);
-    if (next !== null) setActiveValue(next);
-  };
-
   const toggleOpen = () => open ? popover.closePanel({ refocusTrigger: false }) : popover.openPanel();
 
-  const onButtonKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
-    if (popover.handleDismissKey(event)) return;
-    if (openSelectOnKey({ event, open, openPanel: popover.openPanel })) return;
-    if (!open) return;
-    applySelectNavigationKey({ key: event.key, actions: {
-      preventDefault: () => event.preventDefault(), move: moveActive,
-      edge: (edge) => setActiveValue((edge === 'first' ? enabledOptions[0] : enabledOptions.at(-1))?.value ?? ''),
-      choose: () => choose(activeValue || value),
-    } }, { spaceChooses: true });
-  };
+  const onButtonKeyDown = customSelectTriggerKeyHandler({ popover, open, enabledOptions, activeValue, setActiveValue, choose, value });
 
   // Escape closes even when focus has moved into custom `menuHeader` content
   // (e.g. `SearchableModelSelect`'s search input) — `onButtonKeyDown` alone
@@ -344,23 +224,8 @@ export function useCustomSelect({
     popover.handleDismissKey(event);
   };
 
-  return {
-    idBase,
-    buttonRef,
-    menuRef,
-    open,
-    activeValue,
-    position,
-    selectedLabel,
-    optionIdByValue,
-    activeOptionId,
-    updatePosition,
-    choose,
-    setActiveValue,
-    toggleOpen,
-    onButtonKeyDown,
-    onMenuKeyDown,
-  };
+  return { idBase, buttonRef, menuRef, open, activeValue, position, selectedLabel, optionIdByValue, activeOptionId,
+    updatePosition, choose, setActiveValue, toggleOpen, onButtonKeyDown, onMenuKeyDown };
 }
 
 export interface CustomSelectOriginTheme {
@@ -440,30 +305,9 @@ export function useCustomSelectOriginTheme({ buttonRef, open, portal }: {
   return portal ? attributes : {};
 }
 
-/** Inline geometry for a portalled menu once it has been measured; an inline menu is laid out by CSS. */
-function customSelectMenuStyle({ portal, position }: {
-  portal: boolean; position: CustomSelectMenuPosition | null;
-}): CSSProperties | undefined {
-  return portal && position
-    ? {
-        top: position.top,
-        left: position.left,
-        width: position.width,
-        maxHeight: position.maxHeight,
-      }
-    : undefined;
-}
-
-/** Where an open menu renders: inline, or portalled only after its first measurement. */
-function mountCustomSelectMenu({ menu, portal, position, trigger }: {
-  menu: ReactNode; portal: boolean; position: CustomSelectMenuPosition | null; trigger: HTMLElement | null;
-}, { container, fallbackContainer }: { container?: Element | DocumentFragment | null | undefined; fallbackContainer?: Element | DocumentFragment | null | undefined } = {}): ReactNode {
-  if (!portal) return menu;
-  return position ? createPortal(menu, resolveSelectPortalContainer({ trigger }, { container, fallbackContainer })) : null;
-}
-
 /** The listbox rows: groups render a labelled block of option buttons, flat options render directly. */
-function CustomSelectMenuOptions({ options, value, activeValue, optionIdByValue, onChoose, onActive, base }: {
+export function CustomSelectMenuOptions({ useCustomSelectOptionRendererHook = useCustomSelectOptionRenderer, options, value, activeValue, optionIdByValue, onChoose, onActive, base }: {
+  useCustomSelectOptionRendererHook?: typeof useCustomSelectOptionRenderer;
   base: string | undefined;
   options: CustomSelectProps['options'];
   value: string;
@@ -472,7 +316,7 @@ function CustomSelectMenuOptions({ options, value, activeValue, optionIdByValue,
   onChoose: (value: string) => void;
   onActive: (value: string) => void;
 }) {
-  const renderOption = useCustomSelectOptionRenderer({ base, value, activeValue, optionIdByValue, onChoose, onActive, OptionButton: CustomSelectOptionButton });
+  const renderOption = useCustomSelectOptionRendererHook({ base, value, activeValue, optionIdByValue, onChoose, onActive, OptionButton: CustomSelectOptionButton });
   return (
     <>
       {options.map((item) => (isCustomSelectGroup(item) ? (
@@ -492,6 +336,7 @@ function CustomSelectMenuOptions({ options, value, activeValue, optionIdByValue,
  * trigger button and the listbox menu.
  */
 export function CustomSelect({
+  useAgentHandleHook = useAgentHandle, useOverlayContainerHook = useOverlayContainer, useCustomSelectOriginThemeHook = useCustomSelectOriginTheme,
   value,
   options,
   onChange,
@@ -511,46 +356,16 @@ export function CustomSelect({
   useCustomSelect: useCustomSelectHook = useCustomSelect,
   ...agentProps
 }: CustomSelectProps) {
-  const {
-    idBase,
-    buttonRef,
-    menuRef,
-    open,
-    activeValue,
-    position,
-    selectedLabel,
-    optionIdByValue,
-    activeOptionId,
-    choose,
-    setActiveValue,
-    toggleOpen,
-    onButtonKeyDown,
-    onMenuKeyDown,
-  } = useCustomSelectHook({ value, options, onChange, portal, placeholder, onOpenChange });
+  const state = useCustomSelectHook({ value, options, onChange, portal, placeholder, onOpenChange });
+  const { buttonRef, open, activeValue, optionIdByValue, choose, setActiveValue } = state;
 
-  const base = useAgentHandle(agentProps);
-  const overlayContainer = useOverlayContainer({});
+  const base = useAgentHandleHook(agentProps);
+  const overlayContainer = useOverlayContainerHook({});
   const originPage = agentProps['data-agent-page'] ?? resolveSelectOriginPage({ trigger: buttonRef.current });
-  const originTheme = useCustomSelectOriginTheme({ buttonRef, open, portal });
+  const originTheme = useCustomSelectOriginThemeHook({ buttonRef, open, portal });
 
-  const menu = (
-    <div
-      ref={menuRef}
-      id={`${idBase}-menu`}
-      onKeyDown={onMenuKeyDown}
-      {...originTheme}
-      data-agent-page={originPage}
-      data-agent-private={agentProps['data-agent-private']}
-      className={[
-        'jini-select-menu',
-        portal ? 'portal' : 'inline',
-        menuClassName,
-      ].filter(Boolean).join(' ')}
-      role="listbox"
-      aria-label={ariaLabel}
-      style={customSelectMenuStyle({ portal, position })}
-    >
-      {menuHeader}
+  const menu = <CustomSelectMenu state={state} portal={portal} menuClassName={menuClassName} ariaLabel={ariaLabel}
+    menuHeader={menuHeader} originTheme={originTheme} originPage={originPage} agentProps={agentProps}>
       <CustomSelectMenuOptions
         base={base}
         options={options}
@@ -560,45 +375,15 @@ export function CustomSelect({
         onChoose={choose}
         onActive={setActiveValue}
       />
-    </div>
-  );
-
-  return (
-    <div className={['jini-select', className].filter(Boolean).join(' ')}>
-      <button
-        ref={buttonRef}
-        {...agentHandleProps({}, { base, role: 'field', label: ariaLabel })}
-        data-agent-private={agentProps['data-agent-private']}
-        data-agent-page={agentProps['data-agent-page']}
-        type="button"
-        className={['jini-select-trigger', triggerClassName].filter(Boolean).join(' ')}
-        role="combobox"
-        value={value}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-controls={`${idBase}-menu`}
-        aria-activedescendant={activeOptionId}
-        aria-describedby={labelledBy}
-        aria-label={`${ariaLabel}: ${selectedLabel}`}
-        disabled={disabled}
-        title={title}
-        onClick={toggleOpen}
-        onKeyDown={onButtonKeyDown}
-        onFocus={onFocus}
-      >
-        <span id={`${idBase}-value`} className="jini-select-value">
-          {selectedLabel}
-        </span>
-        <Icon name="chevron-down" size={14} />
-      </button>
-      {open ? mountCustomSelectMenu({ menu, portal, position, trigger: buttonRef.current }, { container: portalContainer, fallbackContainer: overlayContainer }) : null}
-    </div>
-  );
+  </CustomSelectMenu>;
+  return <CustomSelectMarkup state={state} base={base} agentProps={agentProps} value={value} ariaLabel={ariaLabel}
+    {...{ labelledBy, className, triggerClassName, disabled, title, onFocus, portal, portalContainer, overlayContainer, menu }} />;
 }
 
 /** One row in the listbox: a selectable option button that reports hover
  * (activation) and click (choice) back to {@link CustomSelect}. */
 export function CustomSelectOptionButton({
+  useAgentHandleHook = useAgentHandle,
   option,
   selected,
   active,
@@ -607,6 +392,7 @@ export function CustomSelectOptionButton({
   onActive,
   agentHandle,
 }: {
+  useAgentHandleHook?: typeof useAgentHandle;
   agentHandle?: string | false | undefined;
   option: CustomSelectOption;
   selected: boolean;
@@ -615,7 +401,7 @@ export function CustomSelectOptionButton({
   onChoose: (value: string) => void;
   onActive: (value: string) => void;
 }) {
-  const base = useAgentHandle({ agentHandle });
+  const base = useAgentHandleHook({ agentHandle });
   return (
     <button
       {...agentHandleProps({}, { base, role: 'button', label: option.label })}
@@ -639,4 +425,59 @@ export function CustomSelectOptionButton({
       </span>
     </button>
   );
+}
+
+function useCustomSelectActive({ open, value, flatOptions, enabledOptions, idBase }: {
+  open: boolean; value: string; flatOptions: CustomSelectFlatOption[]; enabledOptions: CustomSelectFlatOption[]; idBase: string;
+}, _optional = {}) {
+  const wasOpenRef = useRef(false);
+  const activeSourceValueRef = useRef(value);
+  const [activeValue, setActiveValue] = useState(value);
+  const flatOptionsRef = useRef(flatOptions);
+  const enabledOptionsRef = useRef(enabledOptions);
+  flatOptionsRef.current = flatOptions;
+  enabledOptionsRef.current = enabledOptions;
+  const optionIdByValue = useMemo(
+    () => new Map(flatOptions.map((option, index) => [option.value, `${idBase}-option-${index}`])),
+    [flatOptions, idBase],
+  );
+  const activeOptionId = open && activeValue ? optionIdByValue.get(activeValue) : undefined;
+
+  useEffect(() => {
+    const result = reconcileCustomSelectActiveValue({
+      open,
+      value,
+      wasOpen: wasOpenRef.current,
+      activeSourceValue: activeSourceValueRef.current,
+      flatOptions: flatOptionsRef.current,
+      enabledOptions: enabledOptionsRef.current,
+    });
+    wasOpenRef.current = result.wasOpen;
+    activeSourceValueRef.current = result.activeSourceValue;
+    if (result.nextActiveValue !== undefined) setActiveValue(result.nextActiveValue);
+  }, [open, value]);
+
+  return { activeValue, setActiveValue, optionIdByValue, activeOptionId };
+}
+
+function customSelectTriggerKeyHandler({ popover, open, enabledOptions, activeValue, setActiveValue, choose, value }: {
+  popover: ReturnType<typeof useSelectPopover<CustomSelectMenuPosition>>; open: boolean; enabledOptions: CustomSelectFlatOption[];
+  activeValue: string; setActiveValue: (value: string) => void; choose: (value: string) => void; value: string;
+}, _optional = {}) {
+  const moveActive = (direction: 1 | -1) => {
+    const next = nextCustomSelectActiveValue(enabledOptions, activeValue, direction);
+    if (next !== null) setActiveValue(next);
+  };
+
+  return (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (popover.handleDismissKey(event)) return;
+    if (openSelectOnKey({ event, open, openPanel: popover.openPanel })) return;
+    if (!open) return;
+    applySelectNavigationKey({ key: event.key, actions: {
+      preventDefault: () => event.preventDefault(), move: moveActive,
+      edge: (edge) => setActiveValue((edge === 'first' ? enabledOptions[0] : enabledOptions.at(-1))?.value ?? ''),
+      choose: () => choose(activeValue || value),
+    } }, { spaceChooses: true });
+  };
+
 }

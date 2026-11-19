@@ -4,8 +4,8 @@ import type { MembersPageProps } from '../hooks/MembersScope.hooks.js';
 import { MembersViewContext, useMembersPage } from '../hooks/MembersPage.hooks.js';
 import { membersMessagesEn as m } from '../../messages.en.js';
 import { MembersConfirmation } from '../components/MembersConfirmation.js';
-export default function MembersPage(props: MembersPageProps, _optional: Record<string, never> = {}) {
-  const v = useMembersPage(props);
+export default function MembersPage({ useMembersPageHook = useMembersPage, ...props }: MembersPageProps & { useMembersPageHook?: typeof useMembersPage }, _optional: Record<string, never> = {}) {
+  const v = useMembersPageHook(props);
   if (!v.visible) return <Notice>Members administration is unavailable.</Notice>;
   if (!v.state) return <Spinner label={m.loading}/>;
   if (v.state.error) return <Notice tone="danger">{v.state.error}<Button onPress={v.retry}>Retry</Button></Notice>;

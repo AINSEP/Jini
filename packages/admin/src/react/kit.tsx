@@ -216,13 +216,13 @@ export function useAdminKit(): AdminKit {
 }
 
 /* ---------- same-name facades: moved/repointed code changes only its import line ---------- */
-function slot<K extends keyof AdminKitComponents>(name: K): AdminKitComponents[K] {
-  const Slot = forwardRef<unknown, ComponentProps<AdminKitComponents[K]>>(function AdminKitSlot(props, ref) {
-    const Impl = useAdminKit().components[name] as ComponentType<Record<string, unknown>>;
+function slot<K extends keyof AdminKitComponents>(name: K) {
+  const Slot = forwardRef<unknown, ComponentProps<AdminKitComponents[K]> & { useAdminKitHook?: typeof useAdminKit }>(function AdminKitSlot({ useAdminKitHook = useAdminKit, ...props }, ref) {
+    const Impl = useAdminKitHook().components[name] as ComponentType<Record<string, unknown>>;
     return <Impl {...(props as Record<string, unknown>)} ref={ref} />;
   });
   Slot.displayName = `AdminKit.${name}`;
-  return Slot as unknown as AdminKitComponents[K];
+  return Slot;
 }
 export const Button = slot('Button');
 export const IconButton = slot('IconButton');

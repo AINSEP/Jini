@@ -1,8 +1,8 @@
 import { Button, TextField, Notice } from '@jini-ai/ui-kit/react';
 import { useUsersTab, newPasswordAttrs } from '../hooks/UsersTab.hooks.js';
 import { UserRow } from '../components/UserRow.js';
-export default function UsersTab(_props: { readonly params?: Readonly<Record<string, unknown>> } = {}, _optional: Record<string, never> = {}) {
-  const v = useUsersTab({});
+export default function UsersTab({ useUsersTabHook = useUsersTab }: { readonly params?: Readonly<Record<string, unknown>>; useUsersTabHook?: typeof useUsersTab; } = {}, _optional: Record<string, never> = {}) {
+  const v = useUsersTabHook({});
   return <section aria-label="Users">
     {v.canCreate ? <Button onPress={v.toggleForm}>New user</Button> : null}
     {v.canCreate && v.s.formOpen ? <form onSubmit={v.submit}>

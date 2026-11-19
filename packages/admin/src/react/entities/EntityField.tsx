@@ -58,8 +58,8 @@ function NumberInput(props: EntityFieldProps): ReactNode {
     onChange={(e) => onChange({ value: e.target.value === '' ? undefined : Number(e.target.value) })} />;
 }
 
-export function EntityField(required: EntityFieldProps): ReactNode {
-  const base = useAgentHandle({ agentHandle: required.agentHandle });
+export function EntityField({ useAgentHandleHook = useAgentHandle, ...required }: EntityFieldProps & { useAgentHandleHook?: typeof useAgentHandle }): ReactNode {
+  const base = useAgentHandleHook({ agentHandle: required.agentHandle });
   const props: EntityFieldProps = { ...required, agentHandle: base ?? false };
   const { field, value, onChange } = props;
   switch (field.kind) {

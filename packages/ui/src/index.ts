@@ -125,6 +125,7 @@ export * from './react/components/Toast.js';
 export * from './react/components/Loading.js';
 export * from './react/components/TooltipLayer.js';
 export * from './react/components/CustomSelect.js';
+export type { CustomSelectProps, UseCustomSelectParams, UseCustomSelectResult } from './react/components/CustomSelect.types.js';
 export * from './react/components/KitErrorBoundary.js';
 export * from './react/components/LanguageMenu.js';
 export * from './react/components/WorkingDirPicker.js';

@@ -2,7 +2,7 @@ import { act, render, renderHook, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { ChatSettingsDialog } from '../components/ChatSettingsDialog.js';
-import { useChatSettingsDialog } from '../components/ChatSettingsDialog.hooks.js';
+import { useChatSettingsDialog, useChatSettingsView } from '../components/ChatSettingsDialog.hooks.js';
 
 describe('advanced chat settings', () => {
   it('keeps open state in the hook', () => {
@@ -105,4 +105,17 @@ describe('advanced chat settings', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: 'Close' }));
     expect(onClose).toHaveBeenCalledOnce();
   });
+});
+
+
+it('renders panel copy from the injected settings view', () => {
+  const useChatSettingsViewHook: typeof useChatSettingsView = (required) => {
+    const vm = useChatSettingsView(required);
+    return { ...vm, t: (key) => `injected:${key}` };
+  };
+  render(<ChatSettingsDialog open onClose={vi.fn()} displaySections={[]}
+    permissions={{ enabled: false, canEdit: true, capabilities: [], onChange: vi.fn() }}
+    useChatSettingsViewHook={useChatSettingsViewHook} />);
+  expect(screen.getByRole('dialog', { name: 'injected:Chat settings' })).toBeInTheDocument();
+  expect(screen.getByRole('tabpanel', { name: 'injected:Display' })).toBeInTheDocument();
 });

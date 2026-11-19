@@ -6,6 +6,7 @@
 import { fireEvent, render, screen, waitFor } from '../../../__tests__/fetch-query-support.js';
 import { describe, expect, it, vi } from 'vitest';
 import type { AdminErasedEntityPort, AdminEntityRowData } from '../../../core/ports/entities.js';
+import { EntityField } from '../EntityField.js';
 import { EntityEdit } from '../EntityEdit.js';
 import { EntityList } from '../EntityList.js';
 import { createEntityRoutes } from '../contribution.js';
@@ -66,4 +67,13 @@ describe('entity screen seams, as they behave before the seams exist', () => {
     view.rerender(<EntityList {...f} entityName="notes" limitParam={null} />);
     expect(f.port.list).toHaveBeenCalledTimes(1);
   });
+});
+
+
+it('uses the resolved injected handle on the entity text input', () => {
+  render(<EntityField inputId="injected-field" field={{ name: 'title', kind: 'text' }} value="Draft" text="" relations={{}}
+    translate={({ key }) => key} disabled={false} invalid={false} onChange={vi.fn()} onTextChange={vi.fn()}
+    useAgentHandleHook={() => 'injected-entity-title'} />);
+  expect(screen.getByRole('textbox')).toHaveAttribute('data-agent-element', 'injected-entity-title');
+  expect(screen.getByRole('textbox')).toHaveValue('Draft');
 });

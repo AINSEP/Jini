@@ -42,3 +42,16 @@ describe('admin kit contract', () => {
     expect(renderHook(() => useAdminThemeKit(), { wrapper }).result.current.resolveColorScheme({ preference: 'dark' })).toBe('dark');
   });
 });
+
+
+it('uses an injected kit and forwards the original button ref without the hook prop', () => {
+  const received = vi.fn();
+  const kit = fakeAdminKit({ components: { Button: (props) => {
+    received(props);
+    return <button ref={props.ref}>{props.children}</button>;
+  } } });
+  const ref = createRef<HTMLButtonElement>();
+  render(<Button ref={ref} useAdminKitHook={() => kit}>Injected button</Button>);
+  expect(ref.current).toBe(screen.getByRole('button', { name: 'Injected button' }));
+  expect(received.mock.calls[0]![0]).not.toHaveProperty('useAdminKitHook');
+});

@@ -128,18 +128,21 @@ const bubbleMotion = ({local, fps, slideFrom}: {local: number; fps: number; slid
 });
 
 const Bubble = ({
+  useCurrentFrameHook = useCurrentFrame, useVideoConfigHook = useVideoConfig,
   message,
   participant,
   chatSpec,
   seenBySpeaker,
 }: {
+  useCurrentFrameHook?: typeof useCurrentFrame;
+  useVideoConfigHook?: typeof useVideoConfig;
   message: Message;
   participant: ChatSpec["participants"][number];
   chatSpec: ChatSpec;
   seenBySpeaker: boolean;
 }) => {
-  const frame = useCurrentFrame();
-  const {fps} = useVideoConfig();
+  const frame = useCurrentFrameHook();
+  const {fps} = useVideoConfigHook();
   const {container, nicknameMode} = chatSpec.sceneConfig;
   const isRight = message.side === "right";
   if (frame < message.appearAt) {
@@ -150,13 +153,57 @@ const Bubble = ({
   const colors = bubbleColors({container, isRight});
   const {displayText, fitsSingleLine, bubbleWidth} = bubbleTextLayout({text: message.text, container});
   const emphasis = EMPHASIS_STYLE[message.highlight ? "highlight" : "plain"];
+  return <BubbleCard message={message} participant={participant} seenBySpeaker={seenBySpeaker} nicknameMode={nicknameMode}
+    side={side} scale={scale} x={x} opacity={opacity} colors={colors} displayText={displayText} fitsSingleLine={fitsSingleLine}
+    bubbleWidth={bubbleWidth} emphasis={emphasis} />;
+};
+
+export const BubbleScene = ({chatSpec, useCurrentFrameHook = useCurrentFrame, useVideoConfigHook}: {chatSpec: ChatSpec; useCurrentFrameHook?: typeof useCurrentFrame; useVideoConfigHook?: typeof useVideoConfig}) => {
+  const frame = useCurrentFrameHook();
+  const theme = CONTAINER_THEME[chatSpec.sceneConfig.container];
+  const headerOpacity = interpolate(frame, [0, 12], [0, 1], {extrapolateRight: "clamp"});
+  const seen = new Set<string>();
+  const participantsByName = new Map(chatSpec.participants.map((participant) => [participant.name, participant]));
+  const showContainer = chatSpec.sceneConfig.container !== "none";
+  const inner = (
+    <>
+      {showContainer ? <BubbleSceneHeader chatSpec={chatSpec} theme={theme} headerOpacity={headerOpacity} /> : null}
+      <div style={{padding: showContainer ? "0 22px" : "180px 92px", flex: 1, width: "100%"}}>
+        {chatSpec.messages.map((message) => {
+          const seenBefore = seen.has(message.speaker);
+          seen.add(message.speaker);
+          const participant = participantsByName.get(message.speaker);
+          if (!participant) return null;
+          return <Bubble key={message.id} message={message} participant={participant} chatSpec={chatSpec} seenBySpeaker={seenBefore} useCurrentFrameHook={useCurrentFrameHook} {...(useVideoConfigHook ? {useVideoConfigHook} : {})} />;
+        })}
+      </div>
+    </>
+  );
+  if (!showContainer) {
+    return (
+      <div style={{width: 1080, height: 1920, display: "flex", flexDirection: "column", background: "transparent"}}>
+        {inner}
+      </div>
+    );
+  }
+  return (
+    <div style={{width: "100%", height: "100%", background: theme.screenBg, display: "flex",
+      flexDirection: "column", fontFamily: FONT_FAMILY, overflow: "hidden"}}>
+      {inner}
+    </div>
+  );
+};
+
+const BubbleCard = ({message, participant, seenBySpeaker, nicknameMode, side, scale, x, opacity, colors, displayText, fitsSingleLine, bubbleWidth, emphasis}: {
+  message: Message; participant: ChatSpec["participants"][number]; seenBySpeaker: boolean; nicknameMode: ChatSpec["sceneConfig"]["nicknameMode"];
+  side: typeof SIDE_STYLE[keyof typeof SIDE_STYLE]; scale: number; x: number; opacity: number;
+  colors: ReturnType<typeof bubbleColors>; displayText: string; fitsSingleLine: boolean; bubbleWidth: number;
+  emphasis: typeof EMPHASIS_STYLE[keyof typeof EMPHASIS_STYLE];
+}) => {
   return (
     <div
       style={{
-        display: "flex",
-        marginBottom: 14,
-        opacity,
-        justifyContent: side.align,
+        display: "flex", marginBottom: 14, opacity, justifyContent: side.align,
       }}
     >
       <div style={{display: "flex", gap: 12, alignItems: "flex-start", flexDirection: side.flexDirection, maxWidth: "86%"}}>
@@ -165,17 +212,10 @@ const Bubble = ({
           {isNameShown({nicknameMode, seenBySpeaker}) ? <div style={{fontSize: 18, color: "#7C8490", fontWeight: 700}}>{message.speaker}</div> : null}
           <div
             style={{
-              background: colors.background,
-              display: "block",
-              width: Math.ceil(bubbleWidth),
-              maxWidth: "100%",
-              padding: "16px 22px",
-              borderRadius: 16,
-              fontSize: BUBBLE_FONT_SIZE,
-              lineHeight: 1.35,
-              fontWeight: BUBBLE_FONT_WEIGHT,
-              color: colors.color,
-              fontFamily: FONT_FAMILY,
+              background: colors.background, display: "block", width: Math.ceil(bubbleWidth),
+              maxWidth: "100%", padding: "16px 22px", borderRadius: 16,
+              fontSize: BUBBLE_FONT_SIZE, lineHeight: 1.35, fontWeight: BUBBLE_FONT_WEIGHT,
+              color: colors.color, fontFamily: FONT_FAMILY,
               whiteSpace: fitsSingleLine ? "nowrap" : "pre-wrap",
               wordBreak: "break-word",
               overflowWrap: "normal",
@@ -193,16 +233,9 @@ const Bubble = ({
   );
 };
 
-export const BubbleScene = ({chatSpec}: {chatSpec: ChatSpec}) => {
-  const frame = useCurrentFrame();
-  const theme = CONTAINER_THEME[chatSpec.sceneConfig.container];
-  const headerOpacity = interpolate(frame, [0, 12], [0, 1], {extrapolateRight: "clamp"});
-  const seen = new Set<string>();
-  const participantsByName = new Map(chatSpec.participants.map((participant) => [participant.name, participant]));
-  const showContainer = chatSpec.sceneConfig.container !== "none";
-  const inner = (
-    <>
-      {showContainer ? (
+const BubbleSceneHeader = ({chatSpec, theme, headerOpacity}: {
+  chatSpec: ChatSpec; theme: typeof CONTAINER_THEME[keyof typeof CONTAINER_THEME]; headerOpacity: number;
+}) => (
         <>
           <div
             style={{
@@ -226,46 +259,4 @@ export const BubbleScene = ({chatSpec}: {chatSpec: ChatSpec}) => {
             </div>
           ) : null}
         </>
-      ) : null}
-      <div style={{padding: showContainer ? "0 22px" : "180px 92px", flex: 1, width: "100%"}}>
-        {chatSpec.messages.map((message) => {
-          const seenBefore = seen.has(message.speaker);
-          seen.add(message.speaker);
-          const participant = participantsByName.get(message.speaker);
-          if (!participant) return null;
-          return <Bubble key={message.id} message={message} participant={participant} chatSpec={chatSpec} seenBySpeaker={seenBefore} />;
-        })}
-      </div>
-    </>
-  );
-  if (!showContainer) {
-    return (
-      <div
-        style={{
-          width: 1080,
-          height: 1920,
-          display: "flex",
-          flexDirection: "column",
-          background: "transparent",
-        }}
-      >
-        {inner}
-      </div>
-    );
-  }
-  return (
-    <div
-      style={{
-        width: "100%",
-        height: "100%",
-        background: theme.screenBg,
-        display: "flex",
-        flexDirection: "column",
-        fontFamily: FONT_FAMILY,
-        overflow: "hidden",
-      }}
-    >
-      {inner}
-    </div>
-  );
-};
+);
