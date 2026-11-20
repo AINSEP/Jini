@@ -179,7 +179,7 @@ function observeUnresolvedToolCalls({ ctx }: { ctx: WireChildLifecycleContext },
   } }).catch(error => {
     // Observing tools is fallible I/O too: report it, but never strand close/finish on a replay
     // failure or leave an unhandled rejection while the child is still running.
-    reportPostCloseFailure(ctx.onCleanupFailure, { runId, phase: 'tool-cancellation', pid: child.pid, error });
+    reportPostCloseFailure({ onCleanupFailure: ctx.onCleanupFailure, context: { runId, phase: 'tool-cancellation', pid: child.pid, error } });
     return null;
   });
 
@@ -192,7 +192,7 @@ function observeUnresolvedToolCalls({ ctx }: { ctx: WireChildLifecycleContext },
       await lifecycle.emit({ runId, input: { event: 'agent', data: {
         type: 'tool_result', toolUseId, content: 'Tool execution cancelled.', isError: true,
       } } }).catch(error => {
-        reportPostCloseFailure(ctx.onCleanupFailure, { runId, phase: 'tool-cancellation', pid: child.pid, error });
+        reportPostCloseFailure({ onCleanupFailure: ctx.onCleanupFailure, context: { runId, phase: 'tool-cancellation', pid: child.pid, error } });
       });
     }
   }
@@ -276,13 +276,13 @@ async function resolveChildResumable(
   const { classifyFailure, runId, def } = ctx;
   // A bridge failure is not resumable: resuming would start the same CLI with the same bridge.
   return status === 'failed' && !bridge.bridgeUnavailable && classifyFailure !== undefined
-    ? await classifyFailureSafely(ctx, classifyFailure, {
+    ? await classifyFailureSafely({ ctx, classifyFailure, context: {
         runId,
         agentId: def.id,
         code,
         signal: signal ?? null,
         sideEffects: { userVisibleOutputSeen: signals.userVisibleOutputSeen, toolCallSeen: signals.toolCallSeen },
-      })
+      } })
     : false;
 }
 

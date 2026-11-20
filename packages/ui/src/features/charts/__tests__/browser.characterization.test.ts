@@ -2,13 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { mountChart, type MountChartOptions } from '../browser.js';
 import { createChartProviderRegistry } from '../registry.js';
 import {
-  DEFAULT_CHART_THEME,
   type ChartInstance,
   type ChartMountOptions,
   type ChartProvider,
   type ChartSpec,
   type ChartProviderEntry,
 } from '@jini-ai/core/contracts/charts';
+import { DEFAULT_CHART_THEME } from '../default-theme.js';
 
 const spec: ChartSpec = { kind: 'bar', data: [{ label: 'Old', value: 1 }], series: [{ key: 'value' }] };
 const nextSpec: ChartSpec = { ...spec, data: [{ label: 'New', value: 9 }] };
@@ -46,6 +46,7 @@ describe('chart browser lifecycle characterization', () => {
     });
     const view = host({ providers: [provider({ id: 'first', mount })] });
     await mounted.promise;
+    expect(mount.mock.calls[0]?.[0].theme.mode).toBe('auto');
     expect(view.fallback.hidden).toBe(false);
     expect(view.renderer.textContent).toBe('Chart');
     firstRender.resolve(); await view.chart.ready;

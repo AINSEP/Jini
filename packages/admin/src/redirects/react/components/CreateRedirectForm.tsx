@@ -4,7 +4,7 @@ import type { FormEventHandler, ReactNode } from 'react';
 type Translate = (key: string, options?: { serverLabel?: string }) => string;
 
 /** Page title block and the host's header slot. */
-export function RedirectsHeader({ headerActions, t }: { headerActions: ReactNode; t: Translate }, _optional: Record<string, never> = {}) {
+export function RedirectsHeader({ headerActions, t }: { headerActions: ReactNode; t: Translate }) {
   return (
     <div className="page-header">
       <div className="page-header-text">
@@ -22,7 +22,7 @@ export function RedirectsHeader({ headerActions, t }: { headerActions: ReactNode
 }
 
 /** The HTTP status code select of the create form. */
-function StatusCodeField({ t }: { t: Translate }, _optional: Record<string, never> = {}) {
+function StatusCodeField({ t }: { t: Translate }) {
   return (
     <div className="field">
       <label className="field-label" htmlFor="redirect-status-code">{t("Status code")}</label>
@@ -42,7 +42,7 @@ function StatusCodeField({ t }: { t: Translate }, _optional: Record<string, neve
 }
 
 /** The four inputs of the create-redirect form. */
-function CreateRedirectFields({ t }: { t: Translate }, _optional: Record<string, never> = {}) {
+function CreateRedirectFields({ t }: { t: Translate }) {
   return (
     <div className="field-group">
       <div className="field-row">
@@ -86,7 +86,7 @@ function CreateRedirectFields({ t }: { t: Translate }, _optional: Record<string,
 }
 
 /** Create-redirect form: match type, from, to, status code and the submit button. */
-export function CreateRedirectForm({ t, saving, submitCreate }: { t: Translate; saving: boolean; submitCreate: FormEventHandler<HTMLFormElement> }, _optional: Record<string, never> = {}) {
+export function CreateRedirectForm({ t, saving, submitCreate }: { t: Translate; saving: boolean; submitCreate: FormEventHandler<HTMLFormElement> }) {
   return (
     <form className="card form-measure" onSubmit={submitCreate}>
       <CreateRedirectFields t={t} />

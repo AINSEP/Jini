@@ -216,9 +216,9 @@ async function buildSavedRecord(deps: HostedMcpStoreDeps, input: SaveExternalMcp
   const runtime = carryOAuthRuntimeState(authMode, oauthFields, existing);
   const aadIdentity: ExternalMcpIdentity = { workspaceId: input.workspaceId, serverId };
   const { sealedEnv, envNames, aadVersion } = await resolveExternalMcpSealedEnv(deps, aadIdentity, input.env, existing);
-  const { sealedOAuth, oauthAadVersion, oauthTokenEnvName } = await resolveSavedCredentialColumns(deps, aadIdentity, { authMode, transport, input, oauthFields, keepToken: runtime.keepToken, existing });
+  const { sealedOAuth, oauthAadVersion, oauthTokenEnvName } = await resolveSavedCredentialColumns({ deps, identity: aadIdentity, context: { authMode, transport, input, oauthFields, keepToken: runtime.keepToken, existing } });
   const now = nowIso({ clock: deps.clock });
-  const writeGrantAttribution = resolveWriteGrantAttribution(input, writeAllowedToolNames, existing, now);
+  const writeGrantAttribution = resolveWriteGrantAttribution({ input, writeAllowedToolNames, existing, nowIso: now });
   const record: ExternalMcpServerRecord = {
     workspaceId: input.workspaceId,
     serverId,

@@ -3,7 +3,7 @@ import { useWiredFormsList } from '../hooks/use-forms-list.hooks.js';
 import { useFormsListView } from '../hooks/forms-view.hooks.js';
 import { FormsListDeleteDialog, FormsListHeader, formsListColumns } from '../components/FormsListParts.js';
 /**
- * @file Forms list screen (SPEC-010 ui.spec.md §2.1/§3.1) — the `/admin/forms` route.
+ * @file Forms list screen — the host-supplied example `/admin/forms` route.
  * Mirrors `Menus.tsx`/`Posts.tsx`'s fetch/loading/error/table convention. Layout now follows the
  * Posts/Media page-primitive pass (`.page`/`.page-header`/`.card`/`.table-scroll`/`.empty-state`,
  * see `styles.css`) instead of the bare `.editor-header` this screen used before — see
@@ -40,7 +40,7 @@ export interface FormsListProps {
   useFormsListViewHook?: typeof useFormsListView;
 }
 
-export function FormsList({ useFormsListHook = useWiredFormsList, useFormsListViewHook = useFormsListView }: FormsListProps = {}, _optional: Record<string, never> = {}) {
+export function FormsList({ useFormsListHook = useWiredFormsList, useFormsListViewHook = useFormsListView }: FormsListProps = {}) {
   const { forms, formatFormDates, error, rowSavingId, toggleStatus, pendingDelete, setPendingDelete, removeForm, t } = useFormsListHook();
 
   const { rows, cancelDelete, headerActions } = useFormsListViewHook({ forms, t, formatFormDates, toggleStatus, setPendingDelete });

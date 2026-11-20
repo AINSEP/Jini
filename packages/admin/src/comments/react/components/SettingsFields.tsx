@@ -3,7 +3,7 @@ import type { CommentsTranslator } from '../../messages.en.js';
 import { agentHandle } from '@jini-ai/core/agent-handles';
 
 /** The two on/off switches of the comments settings form. */
-export function CommentsSwitchFields({ settings, t }: { settings: CommentsSettings; t: CommentsTranslator }, _optional: Record<string, never> = {}) {
+export function CommentsSwitchFields({ settings, t }: { settings: CommentsSettings; t: CommentsTranslator }) {
   return (
   <div className="field-group">
     <label className="form-checkbox-field">

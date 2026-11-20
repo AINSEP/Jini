@@ -67,16 +67,12 @@ async function persistSelfConfiguration(
  * @complexity O(1) in row size; a bounded, small number of outbound requests, and none at all on the
  *   already-configured path.
  */
-export async function selfConfigureConnection(
-  deps: SignInDeps,
-  record: ExternalMcpServerRecord,
-  redirectUri: string | undefined,
-  options: { readonly configurationOnly?: boolean } = {},
+export async function selfConfigureConnection({ deps, record, redirectUri, options = {} }: { deps: SignInDeps; record: ExternalMcpServerRecord; redirectUri: string | undefined; options?: { readonly configurationOnly?: boolean } | undefined }, _optional = {}
 ): Promise<ExternalMcpServerRecord> {
   const stored = readStoredEndpoints(record);
   const mustDiscover = needsEndpointDiscovery(record, stored);
   const mustResolveGrant = record.oauthGrant === null;
-  const keepClient = record.oauthClientId !== null && !isStaleSelfRegisteredClient(record, stored, redirectUri);
+  const keepClient = record.oauthClientId !== null && !isStaleSelfRegisteredClient({ record, endpoints: stored, redirectUri });
   if (!mustDiscover && !mustResolveGrant && keepClient) return record;
 
   const discovered = await discoverConnectionAuthorizationServer(deps, record);
@@ -93,7 +89,7 @@ export async function selfConfigureConnection(
     return persistSelfConfiguration(deps, record, { endpoints, scopes, grant, clientId: record.oauthClientId, clientSecret: undefined }, options);
   }
 
-  const minted = await mintClientForConnection(deps, record, discovered, { redirectUri, scopes, grant });
+  const minted = await mintClientForConnection({ deps, record, discovered, input: { redirectUri, scopes, grant } });
   return persistSelfConfiguration(deps, record, {
     endpoints: withMintedClient({ endpoints, minted, redirectUri }),
     scopes,
@@ -115,7 +111,7 @@ export async function selfConfigureConnection(
  */
 function selfConfiguredGrant(required: { readonly record: ExternalMcpServerRecord; readonly discovered: DiscoveredOAuthConfiguration; readonly ports: HostedMcpSignInPorts }): ExternalMcpOAuthGrant {
   const { record, discovered } = required;
-  return record.oauthGrant === null ? resolveGrantFromDiscovery(discovered.server.grantTypesSupported, record.serverId, required.ports) : (record.oauthGrant as ExternalMcpOAuthGrant);
+  return record.oauthGrant === null ? resolveGrantFromDiscovery({ grantTypesSupported: discovered.server.grantTypesSupported, serverId: record.serverId, ports: required.ports }) : (record.oauthGrant as ExternalMcpOAuthGrant);
 }
 
 /**

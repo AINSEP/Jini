@@ -34,7 +34,7 @@ import type {
  *
  * Owner namespace (2026-07-21, fixed): `packages/cms/src/entries/field-validation.ts`'s
  * `validateFieldsAgainstSchema` now accepts an `owner` parameter instead of hardcoding `site`
- * (a real, confirmed gap against ADR-022 §2 — see that file's header and the implementation
+ * (a real, confirmed gap — see that file's header and the implementation
  * report). Widget instances write under `fields.ext.widget.*` (`WIDGET_FIELD_NAMESPACE`) and
  * `widget_area` entries under `fields.ext.widgets.*` (`WIDGET_AREA_FIELD_NAMESPACE`), matching
  * REQ-01/REQ-11's literal namespacing — not a shared `site` bag.
@@ -148,7 +148,7 @@ export function areaDocWithPlacements(required: {
 }
 
 /**
- * Registers the `widget`/`widget_area` seeded content types (ADR-047 §1, REQ-11) in `workspaceId`
+ * Registers the `widget`/`widget_area` seeded content types in `workspaceId`
  * if not already present — idempotent, safe to call before every write. Delegates to
  * `features/content-types/write-service.ts`'s real `registerContentType` chokepoint (the same
  * mechanism any Collections content type is registered through) rather than hand-constructing a

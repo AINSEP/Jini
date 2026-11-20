@@ -48,7 +48,7 @@ const UiKitContext = createContext<UiKit | null>(null);
 /** Supplies the host's kit to every ui select and secret input below it. The first kit wins: a
  * later prop change is ignored so a re-render cannot swap components under mounted state.
  * @complexity O(1). */
-export function UiKitProvider(required: { kit: UiKit; children: ReactNode }, _optional: Record<string, never> = {}) {
+export function UiKitProvider(required: { kit: UiKit; children: ReactNode }) {
   const [kit] = useState(() => required.kit);
   return <UiKitContext.Provider value={kit}>{required.children}</UiKitContext.Provider>;
 }

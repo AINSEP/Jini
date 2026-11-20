@@ -206,10 +206,7 @@ export function reconcileCustomSelectActiveValue(
 
 /** Pure: is a pointerdown target inside the trigger or the (possibly absent)
  * menu? Used to decide whether an outside click should close the menu. */
-export function isCustomSelectEventInside(
-  target: Node,
-  button: HTMLElement | null,
-  menu: HTMLElement | null,
+export function isCustomSelectEventInside({ target, button, menu }: { target: Node; button: HTMLElement | null; menu: HTMLElement | null }, _optional = {}
 ): boolean {
   return isSelectEventInside({ target, trigger: button, panel: menu });
 }

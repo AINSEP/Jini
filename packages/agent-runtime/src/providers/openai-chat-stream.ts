@@ -85,7 +85,7 @@ export function resolveOpenAiToolCalls({ pending }: { pending: ReadonlyMap<numbe
   });
 }
 
-export function emitPendingOpenAiToolUseEvents(toolCalls: readonly OpenAiToolCall[], onEvent: (event: OpenAiTurnEvent) => void): void {
+export function emitPendingOpenAiToolUseEvents({ toolCalls, onEvent }: { toolCalls: readonly OpenAiToolCall[]; onEvent: (event: OpenAiTurnEvent) => void }, _optional = {}): void {
   for (const call of toolCalls) {
     onEvent({ type: 'tool_use', id: call.id, name: call.name, input: call.input });
   }

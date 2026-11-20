@@ -3,14 +3,14 @@ import type { Insertable, Selectable, Kysely } from "kysely";
 import type { StorageKernel } from "@jini-ai/core/contracts/storage";
 import type { EntryRefsSqlRow, EntryRefsTables } from "./tables.js";
 import type { UUID } from "@jini-ai/core/primitives";
-// EntryRefsRepoPort is written only by the entries write chokepoint's extraction, in the same transaction (ADR-022 §5, SPEC-043 REQ-29..32).
+// EntryRefsRepoPort is written only by the entries write chokepoint's extraction, in the same transaction.
 import type { EntryRefRow, EntryRefsRepoPort } from "../ports.js";
 
 type EntryRefSourceKind = EntryRefRow["sourceKind"];
 type EntryRefTargetKind = EntryRefRow["targetKind"];
 
 /**
- * @file THE durable `EntryRefsRepoPort` adapter (ADR-006 rule-of-two "second adapter" half —
+ * @file THE durable `EntryRefsRepoPort` adapter (rule-of-two "second adapter" half —
  * `InMemoryEntryRefsRepo` from `@jini-ai/cms/widgets` is the first): one Kysely query body
  * for every dialect the storage kernel drives. The host binds its table name and kernel
  * at the composition root.

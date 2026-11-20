@@ -10,7 +10,7 @@ import type { RunRecord, createRunLookup } from './run-lifecycle-registry.js';
  * own (the log is already scoped by the `runId` parameter every `EventLog` method takes), so
  * this is the one place that stamps it onto the outgoing envelope.
  */
-export function toRunEvent(runId: string, entry: EventLogEntry): RunProtocolEvent {
+export function toRunEvent({ runId, entry }: { runId: string; entry: EventLogEntry }, _optional = {}): RunProtocolEvent {
   return {
     runId,
     eventId: `${runId}:${entry.id}`,
@@ -33,7 +33,7 @@ export function deliverReplayedEvents({ runId, entries, onEvent }: { readonly ru
 ): Set<string> {
   const deliveredEventIds = new Set<string>();
   for (const entry of entries) {
-    const event = toRunEvent(runId, entry);
+    const event = toRunEvent({ runId, entry });
     deliveredEventIds.add(event.eventId);
     onEvent(event);
   }
@@ -90,7 +90,7 @@ export function notifySubscribers(record: RunRecord, event: RunProtocolEvent): v
 export function createRunEventWriter({ eventLog }: { eventLog: EventLog }) {
   async function appendEvent({ runId, record, event, data }: { runId: string; record: RunRecord; event: string; data: unknown }): Promise<RunProtocolEvent> {
     const entry = await eventLog.append({ runId, event, data });
-    const runEvent = toRunEvent(runId, entry);
+    const runEvent = toRunEvent({ runId, entry });
     notifySubscribers(record, runEvent);
     return runEvent;
   }
@@ -150,7 +150,7 @@ export function createRunStreamMethod({ runs, eventLog }: { runs: Map<string, Ru
 
         const terminal = isTerminalRunState({ state: record.status.state });
         if (terminal && record.terminalEndEntry) {
-          deliverUndeliveredEvents({ events: [toRunEvent(runId, record.terminalEndEntry)], deliveredEventIds: deliveredEventIds, onEvent: onEvent });
+          deliverUndeliveredEvents({ events: [toRunEvent({ runId, entry: record.terminalEndEntry })], deliveredEventIds: deliveredEventIds, onEvent: onEvent });
         }
 
         return finishStreamSubscription({ record: record, subscriber: subscriber, terminal: terminal });

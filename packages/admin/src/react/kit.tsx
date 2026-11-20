@@ -203,7 +203,7 @@ export interface AdminKit {
 const AdminKitContext = createContext<AdminKit | null>(null);
 
 /** Mount once at the host root. The first kit is kept: hook slots must not change identity. */
-export function AdminKitProvider(required: { kit: AdminKit; children: ReactNode }, _optional: Record<string, never> = {}) {
+export function AdminKitProvider(required: { kit: AdminKit; children: ReactNode }) {
   const [kit] = useState(() => required.kit);
   return <AdminKitContext.Provider value={kit}>{required.children}</AdminKitContext.Provider>;
 }

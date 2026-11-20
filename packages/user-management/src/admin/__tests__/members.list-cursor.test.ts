@@ -17,7 +17,7 @@ describe('member list cursor', () => {
     expect(second.nextCursor).toBeNull();
     expect((await api.listMembers({}, { afterId: 'b', limit: 2 })).members.map(row => row.id)).toEqual(['c']);
     await expect(api.listMembers({}, { cursor: 'invalid' })).rejects.toThrow(/invalid cursor/i);
-    await expect(api.listMembers({}, { cursor: first.nextCursor, afterId: 'a' })).rejects.toThrow();
+    await expect(api.listMembers({}, { cursor: first.nextCursor, afterId: 'a' })).rejects.toMatchObject({ code: 'VALIDATION_ERROR', message: 'Pass cursor or afterId, not both.' });
     await expect(createMemoryMembersApi({ workspaceId: 'w' }).listMembers({}, { cursor: 'invalid' })).rejects.toThrow(/invalid cursor/i);
   });
 

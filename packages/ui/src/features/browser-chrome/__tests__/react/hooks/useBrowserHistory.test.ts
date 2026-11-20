@@ -74,7 +74,7 @@ describe('useWiredBrowserHistory', () => {
   });
 
   it('binds the real localStorage-backed history port under the default namespace', async () => {
-    const { result } = renderHook(() => useWiredBrowserHistory('project-1', { debounceMs: 1 }));
+    const { result } = renderHook(() => useWiredBrowserHistory({ scopeKey: 'project-1', options: { debounceMs: 1 } }));
     expect(result.current.history).toEqual([]);
 
     act(() => result.current.commitVisit('https://a.com', { title: 'A Site' }));

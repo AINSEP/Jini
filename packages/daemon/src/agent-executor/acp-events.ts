@@ -141,13 +141,13 @@ async function finishAcpOnClose({ ctx, state, getTail, unsubscribeCancel, output
   const status = await output.settle({ status: finalStatus });
   const resumable =
     status === 'failed' && classifyFailure !== undefined
-      ? await classifyFailureSafely(ctx, classifyFailure, {
+      ? await classifyFailureSafely({ ctx, classifyFailure, context: {
           runId,
           agentId,
           code,
           signal: signal ?? null,
           sideEffects: { userVisibleOutputSeen: state.userVisibleOutputSeen, toolCallSeen: state.toolCallSeen },
-        })
+        } })
       : false;
   await lifecycle.finish({ runId, status, code, signal: signal ?? null, resumable }, { ...(state.capturedSessionId !== undefined ? { sessionRef: state.capturedSessionId } : {}) });
 }

@@ -487,10 +487,10 @@ describe('CustomSelect pure helpers', () => {
     menu.appendChild(inMenu);
     const outside = document.createElement('div');
 
-    expect(isCustomSelectEventInside(inButton, button, menu)).toBe(true); // in trigger
-    expect(isCustomSelectEventInside(inMenu, null, menu)).toBe(true); // trigger absent, in menu
-    expect(isCustomSelectEventInside(outside, button, menu)).toBe(false); // neither
-    expect(isCustomSelectEventInside(outside, null, null)).toBe(false); // both absent
+    expect(isCustomSelectEventInside({ target: inButton, button, menu })).toBe(true); // in trigger
+    expect(isCustomSelectEventInside({ target: inMenu, button: null, menu })).toBe(true); // trigger absent, in menu
+    expect(isCustomSelectEventInside({ target: outside, button, menu })).toBe(false); // neither
+    expect(isCustomSelectEventInside({ target: outside, button: null, menu: null })).toBe(false); // both absent
   });
 });
 

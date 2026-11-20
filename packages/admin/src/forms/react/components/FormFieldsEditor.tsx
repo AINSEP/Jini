@@ -24,7 +24,7 @@ export function FormFieldsEditor({
   useFormFieldsEditorHook = useFormFieldsEditor,
   useFormFieldsViewHook = useFormFieldsView,
   t,
-}: FormFieldsEditorProps, _optional: Record<string, never> = {}) {
+}: FormFieldsEditorProps) {
   const controller = useFormFieldsEditorHook({ fields, onChange });
   const { editingAttrsIndex, closeAttrsDialog, addField } = controller;
   // Field ids are the form's own field vocabulary and are unique once saved, but a freshly-added

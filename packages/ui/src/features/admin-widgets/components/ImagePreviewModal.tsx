@@ -34,7 +34,7 @@ export function ImagePreviewModal({
       open={open}
       title={alt}
       onClose={onClose}
-      className="image-preview-modal"
+      className="jini-image-preview-modal"
       labels={{ close: closeLabel }}
       useLightboxHook={useModal}
       partAttrs={handle ? { close: { ...agentHandle({ handle: handle }, { role: "button", label: closeLabel }) } } : undefined}

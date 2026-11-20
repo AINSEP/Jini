@@ -7,7 +7,7 @@ import { AgentPluginInspector } from '../components/AgentPluginInspector.js';
 import { agentPluginsMessagesEn as m } from '../../messages.en.js';
 /** The shell passes this page its tabs as renderable components. */
 type TabbedPageProps = ModulePageProps<ComponentType<TabViewProps>>;
-export function AgentPluginsPage({ useAgentPluginsPageHook = useAgentPluginsPage, ...props }: TabbedPageProps & { useAgentPluginsPageHook?: typeof useAgentPluginsPage }, _optional = {}) {
+export function AgentPluginsPage({ useAgentPluginsPageHook = useAgentPluginsPage, ...props }: TabbedPageProps & { useAgentPluginsPageHook?: typeof useAgentPluginsPage }) {
   const vm = useAgentPluginsPageHook(props);
   return <section data-jini-part="agent-plugins.page"><h1>{props.description.label}</h1>{vm.denied ? <Notice tone="danger">{m.denied}</Notice> : <AgentPluginsPageContext.Provider value={vm.scope}>
     <p>{m.description}</p><Tabs label="Agent Plugin views" value={vm.activeId} items={vm.items} onValueChange={vm.onValueChange} />

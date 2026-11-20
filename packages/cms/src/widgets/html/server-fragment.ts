@@ -1,4 +1,4 @@
-/** Public plugin fragments are HTML, never inline script (ADR-025). Use the existing HTML parser,
+/** Public plugin fragments are HTML, never inline script. Use the existing HTML parser,
  * not regex sanitization: decoded attributes and foreign namespaces matter. */
 import { parseFragment, serialize, type DefaultTreeAdapterMap } from 'parse5';
 const ELEMENTS: ReadonlySet<string> = new Set(['div','span','p','br','hr','strong','em','b','i','small','h1','h2','h3','h4','h5','h6','ul','ol','li','dl','dt','dd','blockquote','pre','code','a','img','figure','figcaption','table','thead','tbody','tr','th','td','section','article','aside','header','footer','nav','form','label','input','textarea','select','option','button']);

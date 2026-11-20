@@ -43,7 +43,7 @@ async function resolveStdioTarget(
     if (!record.oauthTokenEnvName) {
       return externalMcpFailure({ record, reason: "no environment variable name is configured to receive its OAuth access token" });
     }
-    const token = await resolveExternalMcpAccessToken(record, oauth, ports);
+    const token = await resolveExternalMcpAccessToken({ record, oauth, settingsLink: ports.settingsLink, reauthRequiredCode: ports.reauthRequiredCode });
     if (!token.ok) return externalMcpFailure({ record, reason: token.reason }, { category: token.category });
     resolvedEnv = { ...resolvedEnv, [record.oauthTokenEnvName]: token.token };
   }
@@ -74,7 +74,7 @@ async function resolveHttpTarget(
   let shared = false;
   if (authMode === "static_env" && staticAccessToken !== null) headers.authorization = `Bearer ${staticAccessToken}`;
   if (authMode === "oauth") {
-    const token = await resolveExternalMcpAccessToken(record, oauth, ports);
+    const token = await resolveExternalMcpAccessToken({ record, oauth, settingsLink: ports.settingsLink, reauthRequiredCode: ports.reauthRequiredCode });
     if (!token.ok) return externalMcpFailure({ record, reason: token.reason }, { category: token.category });
     headers.authorization = `Bearer ${token.token}`;
     shared = token.shared === true;

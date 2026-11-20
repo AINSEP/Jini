@@ -180,7 +180,7 @@ export function isSelfRegisteredClient(record: ExternalMcpServerRecord, endpoint
  * unknown one). A device-grant connect sends no callback, so it never makes a client stale.
  * @complexity O(1).
  */
-export function isStaleSelfRegisteredClient(record: ExternalMcpServerRecord, endpoints: StoredOAuthEndpoints, redirectUri: string | undefined): boolean {
+export function isStaleSelfRegisteredClient({ record, endpoints, redirectUri }: { record: ExternalMcpServerRecord; endpoints: StoredOAuthEndpoints; redirectUri: string | undefined }, _optional = {}): boolean {
   if (redirectUri === undefined || record.oauthGrant === "device_code") return false;
   return isSelfRegisteredClient(record, endpoints) && endpoints.registeredRedirectUri !== redirectUri;
 }

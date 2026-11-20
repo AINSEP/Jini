@@ -13,7 +13,7 @@ function previewMedia(vm: ReturnType<typeof useMediaCard>) {
   if (vm.video) return <video className="jini-media-card-media" src={vm.src} controls preload="metadata" aria-label={vm.alt} onError={vm.onVideoError} />;
   return <div className="jini-media-card-placeholder"><DocumentIcon /><p className="jini-media-card-placeholder-text">Preview not available</p>{vm.src && <a className="jini-media-card-placeholder-link" href={vm.src} target="_blank" rel="noreferrer">Download original</a>}</div>;
 }
-function PreviewMarkup(vm: ReturnType<typeof useMediaCard>, _optional: Record<string, never> = {}) {
+function PreviewMarkup(vm: ReturnType<typeof useMediaCard>) {
   return <>
     {previewMedia(vm)}
     {vm.onEdit && <Button className="jini-media-card-edit" variant="ghost" attrs={vm.editAttrs} onPress={vm.onEdit} disabled={vm.busy}><EyeIcon /><span className="jini-visually-hidden">Edit metadata</span></Button>}
@@ -21,11 +21,11 @@ function PreviewMarkup(vm: ReturnType<typeof useMediaCard>, _optional: Record<st
   </>;
 }
 /** The lightbox uses the same fallback chain without the grid's metadata and actions. */
-export function MediaPreview({ useMediaCardHook = useMediaCard, ...props }: MediaCardProps & { useMediaCardHook?: typeof useMediaCard }, _optional: Record<string, never> = {}) {
+export function MediaPreview({ useMediaCardHook = useMediaCard, ...props }: MediaCardProps & { useMediaCardHook?: typeof useMediaCard }) {
   const vm = useMediaCardHook(props);
   return <PreviewMarkup {...vm} />;
 }
-export function MediaCard({ useMediaCardHook = useMediaCard, ...props }: MediaCardProps & { useMediaCardHook?: typeof useMediaCard }, _optional: Record<string, never> = {}) {
+export function MediaCard({ useMediaCardHook = useMediaCard, ...props }: MediaCardProps & { useMediaCardHook?: typeof useMediaCard }) {
   const vm = useMediaCardHook(props);
   return <article className="jini-media-card" data-jini-part="media.card" data-media-id={vm.item.id} tabIndex={-1}>
     <div className="jini-media-card-preview" data-jini-part="media.preview.frame"><PreviewMarkup {...vm} /></div>

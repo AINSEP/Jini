@@ -23,7 +23,7 @@ import {
  * see `FormEditor.tsx`'s own header for the full rationale, which stays with the guard in the view
  * since it describes render behaviour, not this hook's state).
  *
- * `tab` (ADR-063, 2026-08-31): no longer local state — it is `props.tab`, derived from the route
+ * `tab` (2026-08-31): no longer local state — it is `props.tab`, derived from the route
  * (`/forms/:formId` vs `/forms/:formId/submissions`) by `panels.tsx`/`FormEditor.tsx`. Switching
  * tabs calls the injected `navigate` (real app router), the same idiom `Deployment.tsx`'s tab strip
  * uses, rather than a local `setTab` — Submissions has its own independent fetch, so a tab switch
@@ -93,7 +93,7 @@ export interface FormEditorController {
   setFields: (fields: AdminFormField[]) => void;
   tab: "fields" | "submissions";
   /** Navigates to this form's Fields or Submissions route — real `navigate()`, not local state
-   *  (ADR-063: Submissions has its own independent fetch, so a tab switch is a genuine route
+   *  (Submissions has its own independent fetch, so a tab switch is a genuine route
    *  change, the same idiom `Deployment.tsx`'s tab strip uses). Pushes a history entry (no
    *  `replace`) so browser back/forward move naturally between the two routes, unlike the
    *  `?tab=` screens' `replace: true` view-filter switches. */

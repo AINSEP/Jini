@@ -4,10 +4,10 @@ import { InteractiveUiRegistry, type InteractiveComponentEntry } from '../intera
 import type { InteractiveComponentManifest } from '../interactive-ui/types.js';
 import { chartSpecSchema } from './contract.js';
 import {
-  DEFAULT_CHART_THEME,
   type ChartSpec,
   type ChartTheme,
 } from '@jini-ai/core/contracts/charts';
+import { DEFAULT_CHART_THEME } from './default-theme.js';
 import { mountChart, type MountedChart, type MountChartOptions } from './browser.js';
 import { CHART_SPEC_COMPONENT_ID, chartCatalogManifests } from './catalog-manifests.js';
 import { chartCapability, type ChartProviderRegistry } from './registry.js';

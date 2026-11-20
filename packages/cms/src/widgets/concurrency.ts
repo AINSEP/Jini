@@ -1,5 +1,5 @@
 /**
- * @file A tiny per-key async mutex (SPEC-043 REQ-06/15, AC-04/EC-02).
+ * @file A tiny per-key async mutex.
  *
  * Purpose:
  * `packages/cms/src/entries/write-service.ts`'s `updateEntry` reads the current row, checks

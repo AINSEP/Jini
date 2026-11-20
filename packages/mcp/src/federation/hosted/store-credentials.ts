@@ -37,10 +37,7 @@ function oauthStatusFailure({ record, settingsLink }: { record: ExternalMcpServe
  *
  * @complexity O(1) plus at most one token refresh round trip.
  */
-export async function resolveExternalMcpAccessToken(
-  record: ExternalMcpServerRecord,
-  oauth: ExternalMcpOAuthTokenResolverPort | undefined,
-  { settingsLink, reauthRequiredCode }: Pick<HostedMcpStorePorts, "settingsLink" | "reauthRequiredCode">,
+export async function resolveExternalMcpAccessToken({ record, oauth, settingsLink, reauthRequiredCode }: { record: ExternalMcpServerRecord; oauth: ExternalMcpOAuthTokenResolverPort | undefined; settingsLink: Pick<HostedMcpStorePorts, "settingsLink" | "reauthRequiredCode">["settingsLink"]; reauthRequiredCode: Pick<HostedMcpStorePorts, "settingsLink" | "reauthRequiredCode">["reauthRequiredCode"] }, _optional = {}
 ): Promise<{ readonly ok: true; readonly token: string; readonly shared?: true } | ({ readonly ok: false } & Omit<ExternalMcpConfigFailure, "serverId">)> {
   try {
     const shared = await oauth?.resolveSharedAccessToken?.({ serverId: record.serverId });
@@ -261,17 +258,14 @@ function resolveStaticAccessTokenEnvName(
  *
  * @complexity O(1) beyond at most one unseal and one seal.
  */
-export async function resolveSavedCredentialColumns(
-  deps: SealDeps,
-  identity: ExternalMcpIdentity,
-  context: {
+export async function resolveSavedCredentialColumns({ deps, identity, context }: { deps: SealDeps; identity: ExternalMcpIdentity; context: {
     readonly authMode: ExternalMcpAuthMode;
     readonly transport: ExternalMcpTransport;
     readonly input: SaveExternalMcpServerInput;
     readonly oauthFields: ResolvedOAuthFields;
     readonly keepToken: boolean;
     readonly existing: ExternalMcpServerRecord | null;
-  },
+  } }, _optional = {}
 ): Promise<SealedExternalMcpOAuth & { readonly oauthTokenEnvName: string | null }> {
   const { authMode, transport, input, oauthFields, keepToken, existing } = context;
   if (authMode !== "static_env") {

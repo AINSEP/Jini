@@ -1,5 +1,5 @@
 /**
- * @file Typed domain errors for `widgets` (SPEC-043).
+ * @file Typed domain errors for `widgets`.
  *
  * Purpose:
  * One class per error this module originates; route handlers map these 1:1 to HTTP codes.

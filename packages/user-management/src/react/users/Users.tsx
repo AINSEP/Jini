@@ -13,7 +13,7 @@ import { ChangeUsernameDialog } from "./ChangeUsernameDialog.js";
 
 import { type Translate } from '@jini-ai/core/text';
 /**
- * @file Admin "Users" screen (SPEC-006 §3 human grant-writing transitions + 0.6.0 CRUD-completion
+ * @file Admin "Users" screen (human grant-writing transitions + 0.6.0 CRUD-completion
  * amendment) — markup only.
  *
  * State and API calls live in `hooks/use-users.hooks.ts`; the row-menu logic and the

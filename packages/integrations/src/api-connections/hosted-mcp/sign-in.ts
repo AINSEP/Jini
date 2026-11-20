@@ -122,7 +122,7 @@ function createConnectionTokenRefresher(deps: ExternalMcpOAuthServiceDeps) {
 
 function createSharedConnectionService(deps: ExternalMcpOAuthServiceDeps) {
   return deps.shared ? createSharedExternalMcpOAuth({ deps, shared: deps.shared, ports: deps.ports, resolveProvider: record => resolveProviderDescriptor(deps, record), configure: async input => {
-    const record = await selfConfigureConnection(deps, await requireOAuthRecord(deps, input.serverId), input.redirectUri, { configurationOnly: true });
+    const record = await selfConfigureConnection({ deps, record: await requireOAuthRecord(deps, input.serverId), redirectUri: input.redirectUri, options: { configurationOnly: true } });
     const provider = resolveProviderDescriptor(deps, record);
     const endpoints = readStoredEndpoints(record);
     return { record, provider, client: await resolveClient(deps, record, provider), scopes: readStoredScopes(record),
@@ -140,7 +140,7 @@ async function beginConnectionAuthorization({ deps, shared }: SignInContext, inp
       if (shared && (input.destination === 'shared' || await shared.hasBinding(input))) return shared.beginConnect(input);
       // Self-configuration first: a row that names no endpoints or no client id gets them here, once,
       // and every step below then reads an ordinary fully-specified connection.
-      const record = await selfConfigureConnection(deps, await requireOAuthRecord(deps, input.serverId), input.redirectUri);
+      const record = await selfConfigureConnection({ deps, record: await requireOAuthRecord(deps, input.serverId), redirectUri: input.redirectUri });
       const provider = resolveProviderDescriptor(deps, record);
       const client = await resolveClient(deps, record, provider);
       const scopes = readStoredScopes(record);

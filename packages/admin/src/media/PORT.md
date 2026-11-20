@@ -106,10 +106,10 @@ that attributes were unwired or only one locale existed were not copied as curre
 Working directory: engine repository root. Exit codes read directly from completed commands.
 
 - `pnpm --filter @jini-ai/admin exec tsc --noEmit` — exit 0.
-- `env -u TOVU_ADMIN_PASSWORD pnpm --filter @jini-ai/admin exec vitest run src/media` — exit 0;
+- With the host admin-password override cleared, `pnpm --filter @jini-ai/admin exec vitest run src/media` — exit 0;
   8 files / 178 tests. Baseline: 4 files / 19 tests, both commands exit 0.
-- `env -u TOVU_ADMIN_PASSWORD DEBUG_PRINT_LIMIT=1000 pnpm --filter @jini-ai/admin exec vitest run src/media --maxWorkers=1 --minWorkers=1`
-  — exit 0; same 8 files / 178 tests.
+- With the host admin-password override cleared, `DEBUG_PRINT_LIMIT=1000 pnpm --filter @jini-ai/admin exec vitest run src/media --maxWorkers=1 --minWorkers=1`
+ — exit 0; same 8 files / 178 tests.
 
 An intermediate parallel run timed out the existing lazy-tab test at 5 seconds. The lazy test now
 allows 15 seconds for module loading; assertions remain unchanged. New library tests use the same

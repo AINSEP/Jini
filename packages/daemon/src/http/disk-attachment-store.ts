@@ -252,7 +252,7 @@ function createAttachmentListPendingForOwnerMethod({ records }: { records: Map<s
         // what makes an ownerless record excluded rather than accidentally matched by a falsy-ish
         // `ownerId` argument — see this method's own doc on why that must never be a wildcard.
         .filter((record) => record.ownerId !== undefined && record.ownerId === ownerId
-          && isUnclaimedOrClaimedBy(record.claimedRunId, runId))
+          && isUnclaimedOrClaimedBy({ claimedRunId: record.claimedRunId, runId }))
         .sort((a, b) => a.createdAt - b.createdAt)
         .map((record) => ({ ref: record.id, name: record.name, kind: record.kind, size: record.size, createdAt: record.createdAt }));
     },

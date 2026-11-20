@@ -170,7 +170,7 @@ export async function runOpenAiCompatibleRequest(requiredArgs: Pick<OpenAiCompat
   const resolvedToolCalls = resolveOpenAiToolCalls({ pending: state.toolCalls });
 
   if (state.finishReason === 'tool_calls' && !hasEnded()) {
-    emitPendingOpenAiToolUseEvents(resolvedToolCalls, onEvent);
+    emitPendingOpenAiToolUseEvents({ toolCalls: resolvedToolCalls, onEvent });
   }
 
   return { finishReason: state.finishReason, toolCalls: resolvedToolCalls, text: state.fullText };

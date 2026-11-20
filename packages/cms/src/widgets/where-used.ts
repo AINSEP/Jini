@@ -17,7 +17,7 @@
  * importing its host's transport module is not. Same misplacement species as
  * `core/rate-limit/rate-limit.ts` and `features/plugin-runtime/admin-response.ts`, both already
  * relocated. the host app's `src/server/inbound/public-http/http/site/page-head.ts` is the same species but NOT relocated — its own doc
- * comment records a deliberate ADR-032 decision that the render layer, not `seo`, owns this seam,
+ * comment records a deliberate decision that the render layer, not `seo`, owns this seam,
  * which the 2026-08-02 module-graph analysis's "page-head.ts -> seo/" suggestion did not account
  * for; that one needs an architecture decision, not a mechanical move (2026-08-12 Refactor pass).
  * The HTTP layer re-exports this symbol so its own consumers keep their existing import site.

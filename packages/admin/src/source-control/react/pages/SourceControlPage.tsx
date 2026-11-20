@@ -6,7 +6,7 @@ import { useSourceControlPage } from '../hooks/SourceControlPage.hooks.js';
 import { sourceControlMessagesEn as m } from '../../messages.en.js';
 /** The shell passes this page its tabs as renderable components. */
 type TabbedPageProps = ModulePageProps<ComponentType<TabViewProps>>;
-export function SourceControlPage({ useSourceControlPageHook = useSourceControlPage, ...props }: TabbedPageProps & { useSourceControlPageHook?: typeof useSourceControlPage }, _optional = {}) {
+export function SourceControlPage({ useSourceControlPageHook = useSourceControlPage, ...props }: TabbedPageProps & { useSourceControlPageHook?: typeof useSourceControlPage }) {
   const vm = useSourceControlPageHook(props);
   return <section data-jini-part="source-control.page"><p>Operations</p><h1>{props.description.label}</h1>{vm.denied ? <Notice tone="danger">{m.denied}</Notice> : <><p>{m.description}</p><Tabs label="Source control views" value={vm.active} items={vm.items} onValueChange={vm.onValueChange} /><Suspense fallback={<Spinner label={m.loading} />}>{vm.ActiveTab && <vm.ActiveTab params={vm.params} permissions={vm.permissions} />}</Suspense></>}</section>;
 }

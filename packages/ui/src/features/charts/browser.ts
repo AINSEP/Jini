@@ -1,12 +1,12 @@
 /** Framework-free mounting, failure recovery and table fallback. No React imports. */
 import {
-  DEFAULT_CHART_THEME,
   type ChartInstance,
   type ChartProvider,
   type ChartRenderInput,
   type ChartSpec,
   type ChartTheme,
 } from '@jini-ai/core/contracts/charts';
+import { DEFAULT_CHART_THEME } from './default-theme.js';
 import { selectChartProviders, type ChartProviderRegistry, type RegisteredChartProvider } from './registry.js';
 import { applyChartTheme, renderChartTable } from './table.js';
 export { applyChartTheme, renderChartTable } from './table.js';

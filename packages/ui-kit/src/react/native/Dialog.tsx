@@ -16,7 +16,7 @@ export const NativeDialog = forwardRef<HTMLDialogElement, DialogProps & { hooks?
 export const defaultNativeConfirmDialogHooks = { useKitContext, useNativeConfirm };
 export type NativeConfirmDialogHooks = typeof defaultNativeConfirmDialogHooks;
 
-export function NativeConfirmDialog({ hooks = defaultNativeConfirmDialogHooks, ...props }: ConfirmViewProps & { hooks?: NativeConfirmDialogHooks | undefined }, _optional: Record<string, never> = {}) {
+export function NativeConfirmDialog({ hooks = defaultNativeConfirmDialogHooks, ...props }: ConfirmViewProps & { hooks?: NativeConfirmDialogHooks | undefined }) {
   const Button = hooks.useKitContext({})?.kit.components.Button ?? NativeButton;
   const vm = hooks.useNativeConfirm(props, { Button });
   return <dialog {...vm.props}>

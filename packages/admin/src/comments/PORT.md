@@ -8,8 +8,8 @@ Programmer(Execution): persona loaded from `AI-Dev-Shop/agents/programmer/skills
 - C0 brief SHA256 `6c1b41d519cccf41fc687d9f3c744b208bdbde7200f697d551bdfdec025b0efe`.
 - C2 brief SHA256 `ccfeb0caa10bab7daea1e670cee7b01ae34653059927ef89b1210855422f4607`.
 - CMS-JINI-MODULAR-DESIGN Rev 3 decision 1, §4 C2/M2, SHA256 `efd7544a4ea3b23d59f847f00c36a2abb5c6ec9f82a2e1a6a3327f1f336ffd85`.
-- Tovu source: `apps/admin/src/features/comments/{Comments.tsx,rules.ts,hooks/*,__tests__/*}` and actual `lib/api.ts` request implementations; GET/PUT settings routes were inspected at dispatch.
-- Governing Tovu architecture sections 13 and 14, project memory, Jini START-HERE/extraction-plan and capabilities were consulted. Governance ADR indexes have no applicable scope row.
+- Original host source: `apps/admin/src/features/comments/{Comments.tsx,rules.ts,hooks/*,__tests__/*}` and actual `lib/api.ts` request implementations; GET/PUT settings routes were inspected at dispatch.
+- Governing host architecture sections 13 and 14, project memory, Jini START-HERE/extraction-plan and capabilities were consulted. Governance ADR indexes have no applicable scope row.
 - Pattern priming uses the explicitly directed `admin/media` and `admin/agent-plugins` owners: `defineAdminModule`, `bindReact`, controller stores, effect-owned `useController`, HTTP/memory/conformance subpaths. No new pattern or architecture approval is requested.
 - MCP graph tools were unavailable; existing Jini Graphify and understand-anything indexes returned no relevant matches. Current source was then read directly. No repository was indexed. The Claude-specific Sonnet sidekick is unavailable on this Codex host; no helper or process was launched.
 
@@ -49,11 +49,11 @@ Module `comments`, page `queue` (`comments.queue`), route `/comments`, page perm
 
 The host still performs serialization/auth/retries/deadlines/error decoding. Already-decoded errors with status/body are adapted to existing `AdminApiError`, preserving message/code/body fields so empty-message fallbacks and 409 currentVersion remain unchanged. Generic network errors remain intact.
 
-`comments({}, { t })` is the React module factory. Its page loader remains lazy. Its scoped translation provider adds no DOM. Default English uses the 47 exact source keys. For Part B, the host must bind a translator covering the existing comments + common dictionary, navigation labels (`People`, `Comments`, `Settings`) and shared server labels (`pending`, `approved`, `spam`, `trash`). The current comments dictionary alone does not contain the latter sets. Use the existing host translation owners; keep those dictionaries in Tovu. No locale or refresh singleton exists in production Jini code.
+`comments({}, { t })` is the React module factory. Its page loader remains lazy. Its scoped translation provider adds no DOM. Default English uses the 47 exact source keys. For Part B, the host must bind a translator covering the existing comments + common dictionary, navigation labels (`People`, `Comments`, `Settings`) and shared server labels (`pending`, `approved`, `spam`, `trash`). The current comments dictionary alone does not contain the latter sets. Use the existing host translation owners; keep those dictionaries in the host. No locale or refresh singleton exists in production Jini code.
 
 Locale/grant updates configure the existing controller rather than reconstructing it, preserving cursor/row state and the uncontrolled-form baseline. API or workspace/principal scope changes get a fresh queue controller; API replacement is not required for identity changes.
 
-Part B binding addition: `feature.react.Provider` accepts an optional `t` prop, defaulting to the factory's translator. A host can update that prop from its existing locale hook without recreating the factory/Provider/page identities or losing the settings form's draft and baseline. The Tovu host switch tests exercise this through the actual module. This additive React-only seam requires rebuilding/publishing admin; no core port, universal entry or dependency changes were made.
+Part B binding addition: `feature.react.Provider` accepts an optional `t` prop, defaulting to the factory's translator. A host can update that prop from its existing locale hook without recreating the factory/Provider/page identities or losing the settings form's draft and baseline. The host switch tests exercise this through the actual module. This additive React-only seam requires rebuilding/publishing admin; no core port, universal entry or dependency changes were made.
 
 ### Queue cache identity binding (required host follow-up)
 
@@ -65,7 +65,7 @@ API identity alone is insufficient because a host may keep its authenticated tra
 A new scope object with the same field values preserves the controller and shared query keys.
 This is a required React binding change; the universal API/transport contracts are unchanged.
 
-Tovu follow-up (not edited in this fix):
+The host follow-up (not edited in this fix):
 
 - `apps/admin/src/integrations/jini-admin/comments-ports.ts`: add a typed scope factory
   `createCommentsQueueScope({ principalId }, { workspaceId = WORKSPACE_ID } = {})` returning
@@ -85,7 +85,7 @@ query provider. They populate A's first/cursor pages, switch while another A cur
 then assert that every B render excludes A and that B's first/cursor reads reach the same API.
 Existing API-replacement and scope-local invalidation tests remain in place. No tests were run.
 
-No host slots or headerActions are needed for this screen. Part A left Tovu wiring/deletion to the serial Part B job; that host switch is now implemented, with runtime/release acceptance left to the coordinator.
+No host slots or headerActions are needed for this screen. Part A left the host wiring/deletion to the serial Part B job; that host switch is now implemented, with runtime/release acceptance left to the coordinator.
 
 ## Memory and conformance
 
@@ -124,9 +124,9 @@ The host runner is Vitest 4 and this workspace runner is Vitest 2. The rules sui
 
 Test-only support adapts old fixture call shapes to the production two-object core API; it calls the actual hooks/rules/views. The full page request assertions still run through the real HTTP adapter and shared core transport. Hook fixtures use memory plus controlled responses where the original tests require repeated pages/errors. These are test harnesses, not shipped API ports or alternative controllers.
 
-All 188 expectation expressions in the seven copied suites were AST-compared to Tovu and are byte-identical (22/8/8/49/69/21/11 respectively). A source parser read 34 TS/TSX files with zero syntax diagnostics; it created no compiler program and ran no typecheck. A source AST import walk resolved all runtime imports from the universal entry (13 modules), HTTP adapter (2), memory adapter (47), and conformance (1); no React, node:* or host imports were reachable. These structural inspections do not establish type correctness, behavior or packaging readiness.
+All 188 expectation expressions in the seven copied suites were AST-compared to the host and are byte-identical (22/8/8/49/69/21/11 respectively). A source parser read 34 TS/TSX files with zero syntax diagnostics; it created no compiler program and ran no typecheck. A source AST import walk resolved all runtime imports from the universal entry (13 modules), HTTP adapter (2), memory adapter (47), and conformance (1); no React, node:* or host imports were reachable. These structural inspections do not establish type correctness, behavior or packaging readiness.
 
-Stays in Tovu: comments-i18n.unit.test.ts (host dictionaries); panels-render/nav-wiring/sidebar-labels suites; integrations/jini-admin/modules.hooks.unit.test.tsx. Every Tovu test/source file is untouched for Part A.
+Stays in the host: comments-i18n.unit.test.ts (host dictionaries); panels-render/nav-wiring/sidebar-labels suites; integrations/jini-admin/modules.hooks.unit.test.tsx. Every host test/source file is untouched for Part A.
 
 No tests/builds/typechecks/installs/servers/commits/staging/git worktree operations or reindexing ran. No process remains from this job. The coordinator must apply M2, install dev peer links, build, run the Part A suites/guard/packaging, accept the behavior diff, publish the package, then authorize the serial Part B switch and browser check.
 

@@ -70,8 +70,13 @@ describe("handshake helpers", () => {
     const result = { ok: true };
     expect(parseStdioReply({ line: JSON.stringify({ jsonrpc: "2.0", id: 1, result }), id: 1 })).toEqual(result);
     expect(parseStdioReply({ line: JSON.stringify({ jsonrpc: "2.0", id: 9, result }), id: 1 })).toBeUndefined();
-    for (const line of ["[]", JSON.stringify({ jsonrpc: "1.0" }), JSON.stringify({ jsonrpc: "2.0", id: 1, error: {} }), JSON.stringify({ jsonrpc: "2.0", id: 1, result: [] })]) {
-      expect(() => parseStdioReply({ line, id: 1 })).toThrow();
+    for (const [line, message] of [
+      ["[]", /^invalid MCP JSON-RPC reply$/],
+      [JSON.stringify({ jsonrpc: "1.0" }), /^invalid MCP JSON-RPC reply$/],
+      [JSON.stringify({ jsonrpc: "2.0", id: 1, error: {} }), /^MCP request 1 failed$/],
+      [JSON.stringify({ jsonrpc: "2.0", id: 1, result: [] }), /^MCP request 1 failed$/],
+    ] satisfies [string, RegExp][]) {
+      expect(() => parseStdioReply({ line, id: 1 })).toThrow(message);
     }
   });
   test("assertStdioHandshake checks identity and roster", () => {

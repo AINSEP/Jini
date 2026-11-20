@@ -1,6 +1,6 @@
 import { Button, TextField, TextArea, Select, Dialog } from '../../../react/kit.js';
 import { useCredentialEditor, type CredentialEditorProps } from '../hooks/CredentialEditor.hooks.js';
-export function CredentialEditor({ useCredentialEditorHook = useCredentialEditor, ...props }: CredentialEditorProps & { useCredentialEditorHook?: typeof useCredentialEditor }, _optional = {}) {
+export function CredentialEditor({ useCredentialEditorHook = useCredentialEditor, ...props }: CredentialEditorProps & { useCredentialEditorHook?: typeof useCredentialEditor }) {
   const vm = useCredentialEditorHook(props);
   return <Dialog open title={vm.title} onClose={vm.cancel} pending={vm.saving}>
     <TextField label="Name" value={props.draft.label} onValueChange={vm.onLabel} disabled={vm.saving} />

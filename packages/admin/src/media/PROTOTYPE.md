@@ -72,5 +72,5 @@ and upload limits. Memory is a fake and stores no credentials. The adapter confo
 runner creates/deletes temporary assets; use only an isolated backend.
 
 Current checks: `pnpm --filter @jini-ai/admin exec tsc --noEmit` and
-`env -u TOVU_ADMIN_PASSWORD pnpm --filter @jini-ai/admin exec vitest run src/media`.
+With the host admin-password override cleared, `pnpm --filter @jini-ai/admin exec vitest run src/media`.
 The deleted `src/react/kit` must not appear in verification commands or imports.

@@ -1,4 +1,4 @@
-import { createConsoleLogger } from '@jini-ai/core/primitives';
+import { createConsoleLogger, type Clock } from '@jini-ai/core/primitives';
 import type { MailAdapterCredential, MailProviderModule, OutboundEmail, MailProviderRegistry, MailProviderSetup, SmtpMailPayload as SmtpPayload } from "@jini-ai/core/contracts/mail";
 import type { PluginCredentialCard } from "@jini-ai/core/contracts/credentials";
 import type { MailAdapterRegistry } from "./contribution.js";
@@ -8,7 +8,6 @@ export interface MailCatalogDeps {
  log?: ((line: string) => void) | undefined;
  resolvePluginAccountToken?: ((required: { pluginId: string; serverId: string }) => Promise<string | null>) | undefined;
 }
-type Clock = { nowMs(): number };
 export interface MailProviderCatalog {
   readonly registry: MailProviderRegistry;
   /** Plugin provider ids in registry order (plugin id, then declaration order). */

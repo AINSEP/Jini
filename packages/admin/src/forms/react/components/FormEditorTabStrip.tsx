@@ -12,7 +12,7 @@ export function FormEditorTabStrip({ showTabs, tab, onTabChange, tabRefs, onTabs
   t: (key: string) => string;
   /** Dependency injection seam for tests; defaulted to the real hook. */
   useFormTabStripViewHook?: typeof useFormTabStripView;
-}, _optional: Record<string, never> = {}) {
+}) {
   const tabs = useFormTabStripViewHook({ onTabChange, tabRefs });
   if (!showTabs) return null;
 

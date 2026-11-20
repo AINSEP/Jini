@@ -11,7 +11,7 @@ Owner dispatch: Part A ONLY, authoritative uncommitted Phase 17 native Dialog an
 - Design SHA256 `efd7544a4ea3b23d59f847f00c36a2abb5c6ec9f82a2e1a6a3327f1f336ffd85`.
 - `source-manifest.json` records exact hashes for all source inputs and host tests. No input drift occurred during this job.
 
-Only this domain's Jini source and requested host artifacts were written. No Tovu source, core port, shared React component, manifest, lockfile, script or dist edit. No install, build, test, typecheck, server, index_repository, commit, staging, stash or checkout. Concurrent work elsewhere is not attributed to this job.
+Only this domain's Jini source and requested host artifacts were written. No host source, core port, shared React component, manifest, lockfile, script or dist edit. No install, build, test, typecheck, server, index_repository, commit, staging, stash or checkout. Concurrent work elsewhere is not attributed to this job.
 
 ## Ownership and pattern contract
 
@@ -27,7 +27,7 @@ Reuse: shared config/picker/catalog/default config and slug redirect; inspected 
 
 Reuse: navigation and refresh; inspected core/ports/shell.ts and media events plus host refresh filter/subscription; optional widgetsNavigation uses `Pick<AdminShellNavigationPort, 'navigate'>`, while widgetsEvents receives resource/onRefresh and delegates filtering to the host. `AdminShellPort` named in C0 does not exist in this tree; the existing navigation owner is reused. No new router or refresh bus is implemented.
 
-Graph MCP methods were unavailable in this host. Tovu's CLI wrapper was absent; Jini's search_graph CLI returned existing generic UI widgets, not an AdminWidgetsPort. Graphify and understand-anything scans provided no relevant current domain owner. Direct working-tree reads and scoped rg confirmed the authoritative uncommitted flow. No index was refreshed. Jini's Sonnet sidekick host/model was unavailable in this Codex dispatch; the work remained sequential and no helper result is claimed.
+Graph MCP methods were unavailable in this host. The host's CLI wrapper was absent; Jini's search_graph CLI returned existing generic UI widgets, not an AdminWidgetsPort. Graphify and understand-anything scans provided no relevant current domain owner. Direct working-tree reads and scoped rg confirmed the authoritative uncommitted flow. No index was refreshed. Jini's Sonnet sidekick host/model was unavailable in this Codex dispatch; the work remained sequential and no helper result is claimed.
 
 ## Port contract and host limits
 
@@ -78,7 +78,7 @@ Coordinator must run widgets suites, admin build, guard and packaging after M2 a
 
 ## Handoff and risks
 
-Observable differences intended: none when the documented host seams are supplied. The production slots/defaults/catalog remain owned by the host. Copied slot fixtures verify the screen contract, not the real nested components or native-dialog behavior. Host-only wiring cases and the real WidgetConfigFields/WidgetPickerDialog suites remain Tovu acceptance gates (listed in the behavior diff).
+Observable differences intended: none when the documented host seams are supplied. The production slots/defaults/catalog remain owned by the host. Copied slot fixtures verify the screen contract, not the real nested components or native-dialog behavior. Host-only wiring cases and the real WidgetConfigFields/WidgetPickerDialog suites remain host acceptance gates (listed in the behavior diff).
 
 Recorded follow-up: extract the shared WidgetConfigFields/WidgetPickerDialog family (including catalog/default config) into its approved Jini owner in a separate job; C5 explicitly leaves it host-owned. No parallel production copy was introduced.
 

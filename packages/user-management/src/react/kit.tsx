@@ -69,7 +69,7 @@ export class UserManagementKitMissingError extends Error {
 const UserManagementKitContext = createContext<UserManagementKit | null>(null);
 
 /** Mount once at the host root. The first kit is kept: hook slots must not change identity. */
-export function UserManagementKitProvider(required: { kit: UserManagementKit; children: ReactNode }, _optional: Record<string, never> = {}): ReactElement {
+export function UserManagementKitProvider(required: { kit: UserManagementKit; children: ReactNode }): ReactElement {
   const [kit] = useState(() => required.kit);
   return <UserManagementKitContext.Provider value={kit}>{required.children}</UserManagementKitContext.Provider>;
 }

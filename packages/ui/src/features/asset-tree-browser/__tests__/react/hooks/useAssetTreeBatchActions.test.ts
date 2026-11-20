@@ -23,7 +23,7 @@ describe('triggerBrowserDownload', () => {
   it('creates an object URL, clicks a temporary anchor, and revokes the URL after a delay', () => {
     const blob = new Blob(['data']);
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
-    triggerBrowserDownload(blob, 'archive.zip');
+    triggerBrowserDownload({ blob, filename: 'archive.zip' });
     expect(createObjectURL).toHaveBeenCalledWith(blob);
     expect(clickSpy).toHaveBeenCalledTimes(1);
     expect(revokeObjectURL).not.toHaveBeenCalled();

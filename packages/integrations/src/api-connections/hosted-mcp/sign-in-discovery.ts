@@ -101,7 +101,7 @@ function registrationGrantTypes(grant: ExternalMcpOAuthGrant): readonly string[]
  *   "connect failed" has no way to guess that from the failure alone.
  * @complexity O(n) in the number of advertised grant types.
  */
-export function resolveGrantFromDiscovery(grantTypesSupported: readonly string[], serverId: string, ports: HostedMcpSignInPorts): ExternalMcpOAuthGrant {
+export function resolveGrantFromDiscovery({ grantTypesSupported, serverId, ports }: { grantTypesSupported: readonly string[]; serverId: string; ports: HostedMcpSignInPorts }, _optional = {}): ExternalMcpOAuthGrant {
   if (grantTypesSupported.includes("authorization_code")) return "authorization_code";
   if (grantTypesSupported.includes(DEVICE_CODE_GRANT_TYPE)) return "device_code";
   throw ports.errors.oauth({ code: "OAUTH_INVALID_REQUEST", message: ports.copy.noSupportedGrant({ serverId, offered: grantTypesSupported }), operatorAction: ports.copy.actions.chooseGrant });
@@ -120,11 +120,7 @@ export function resolveGrantFromDiscovery(grantTypesSupported: readonly string[]
  *   endpoint, which is the point at which an operator genuinely does have to supply a client id.
  * @complexity O(1) — one bounded outbound request.
  */
-export async function mintClientForConnection(
-  deps: SignInDeps,
-  record: ExternalMcpServerRecord,
-  discovered: DiscoveredOAuthConfiguration,
-  input: { readonly redirectUri: string | undefined; readonly scopes: readonly string[]; readonly grant: ExternalMcpOAuthGrant },
+export async function mintClientForConnection({ deps, record, discovered, input }: { deps: SignInDeps; record: ExternalMcpServerRecord; discovered: DiscoveredOAuthConfiguration; input: { readonly redirectUri: string | undefined; readonly scopes: readonly string[]; readonly grant: ExternalMcpOAuthGrant } }, _optional = {}
 ) {
   const registrationEndpoint = discovered.server.registrationEndpoint;
   if (registrationEndpoint === null) {

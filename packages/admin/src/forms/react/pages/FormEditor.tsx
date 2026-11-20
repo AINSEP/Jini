@@ -7,7 +7,7 @@ import { FormEditorMainPanel } from "../components/FormEditorMainPanel.js";
 export interface FormEditorProps {
   formId: string;
   /** Which tab is active, derived from the route by `panels.tsx` (`/forms/:formId` -> `"fields"`,
-   *  `/forms/:formId/submissions` -> `"submissions"`) — ADR-063. Ignored while `isNew`/tabs aren't
+   *  `/forms/:formId/submissions` -> `"submissions"`). Ignored while `isNew`/tabs aren't
    *  shown. */
   tab: "fields" | "submissions";
   /** Dependency injection seam for tests — see `PostsProps.usePostsHook` for the convention. */
@@ -20,7 +20,7 @@ export interface FormEditorProps {
  * JSX value rather than two copies). Split into its own top-level component, not just a local
  * `const`, because a `const` assigned inside `FormEditor` still executes in that function's own
  * scope — every branch inside it would still count toward `FormEditor`'s own complexity score. */
-export function FormEditor({ formId, tab, useFormEditorHook = useWiredFormEditor }: FormEditorProps, _optional: Record<string, never> = {}) {
+export function FormEditor({ formId, tab, useFormEditorHook = useWiredFormEditor }: FormEditorProps) {
   const editor = useFormEditorHook({ formId, tab });
   const { answerColumns, isNew, form, name, tab: activeTab, onTabChange, error, showTabs, tabRefs, onTabsKeyDown, leave, t } = editor;
 

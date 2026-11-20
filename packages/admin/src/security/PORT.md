@@ -61,9 +61,9 @@ or real browser validation is claimed. Memory is a fake and stores no secret mat
 Working directory: /Users/la/Programming/Jini.
 
 - `pnpm --filter @jini-ai/admin exec tsc --noEmit` — exit 0, no diagnostics.
-- `env -u TOVU_ADMIN_PASSWORD pnpm --filter @jini-ai/admin exec vitest run src/security` — exit 0;
+- With the host admin-password override cleared, `pnpm --filter @jini-ai/admin exec vitest run src/security` — exit 0;
   4 files / 25 tests passed (HTTP 6, rules 3, controllers 10, React 6), duration 8.81s.
-- Baseline before edits: same typecheck exit 0; `env -u TOVU_ADMIN_PASSWORD pnpm --filter
+- Baseline before edits: same typecheck exit 0; with the host admin-password override cleared, `pnpm --filter
   @jini-ai/admin exec vitest run src/core/module src/media` — exit 0, 5 files / 24 tests.
 
 A validation helper independently ran an intermediate green security check (3 files / 20 tests).

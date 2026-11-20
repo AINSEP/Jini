@@ -13,7 +13,7 @@ function SettingSwitch(required: {
   label: string; checked: boolean; disabled?: boolean | undefined; onChange: (checked: boolean) => void;
   description?: string | undefined; descriptionId: string; className?: string | undefined;
   tooltip?: string | undefined;
-}, _optional: Record<string, never> = {}) {
+}) {
   const inputId = useId();
   return <div className={['jini-chat-settings-row', required.className].filter(Boolean).join(' ')}>
     <input id={inputId} type="checkbox" role="switch" className="jini-checkbox jini-chat-settings-switch"
@@ -38,7 +38,7 @@ export function ChatSettingsDialog({ useChatSettingsViewHook = useChatSettingsVi
   useChatSettingsViewHook?: typeof useChatSettingsView;
   open: boolean; onClose: () => void; displaySections: readonly ChatSettingsSection[];
   permissions: ChatPermissionsPort; t?: (key: string) => string;
-}, _optional: Record<string, never> = {}) {
+}) {
   const vm = useChatSettingsViewHook(required);
   const dialogRef = useRef<HTMLDialogElement>(null), closeRef = useRef<HTMLButtonElement>(null), titleId = useId();
   const openerRef = useRef<Element | null>(null);

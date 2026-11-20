@@ -404,7 +404,7 @@ Active owners use ports/options; historical host path names below identify prove
    *  spy distinguishes them) — narrowing here, not widening the wrapper, is what keeps the port a
    *  true callee-rename with zero behavior change. */
 
-/** `title` is optional (SPEC-043 ui.spec §4.3): omitted keeps the widget's current title. */
+/** `title` is optional: omitted keeps the widget's current title. */
 
 /** Moves a widget instance to the Trash via the generic single-item route
    *  (`POST .../trash/items`, `api.trash({ type: "widget", id })`) — the same route every other

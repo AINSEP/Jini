@@ -60,7 +60,7 @@ describe('useWiredBrowserBridgeRegistration', () => {
   it('binds the no-op bridge registration port and never throws', () => {
     const handle = makeHandle('https://a.com');
     const { unmount, rerender } = renderHook(
-      ({ h }: { h: BrowserTabHandle | null }) => useWiredBrowserBridgeRegistration('tab-1', h),
+      ({ h }: { h: BrowserTabHandle | null }) => useWiredBrowserBridgeRegistration({ scopeKey: 'tab-1', handle: h }),
       { initialProps: { h: handle } },
     );
     rerender({ h: makeHandle('https://b.com') });

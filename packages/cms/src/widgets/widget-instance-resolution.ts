@@ -18,7 +18,7 @@ export function toRenderIr(result: WidgetResolveResult | undefined): WidgetRende
  * Batch-loads and resolves every widget instance in `referencedIds` (REQ-24's "one batched query,
  * at most one `resolveWidgetType` call per type" guarantee) into a `widgetEntryId ->
  * WidgetResolveResult` map. Extracted so this exact batching contract has ONE implementation rather
- * than two that could silently diverge (SPEC-047 Slice 2 inline refactor beat) — `resolvePageWidgets`
+ * than two that could silently diverge (the inline refactor) — `resolvePageWidgets`
  * (below, region + TipTap-inline-embed callers) and `resolveHtmlPageEmbeds` (an `"html"`-format
  * Page's `data-widget-embed` callers) both call this.
  *

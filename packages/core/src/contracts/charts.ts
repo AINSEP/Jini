@@ -1,4 +1,4 @@
-/** @agent-note Types and one constant. What chart providers implement; generic over the host element type
+/** @agent-note Types only. What chart providers implement; generic over the host element type
  * so this entry carries no DOM lib. */
 
 export type ChartKind = 'bar' | 'line' | 'pie' | (string & {});
@@ -25,7 +25,6 @@ export interface ChartTheme {
   readonly mode: 'light' | 'dark' | 'auto';
   readonly tokens?: Readonly<Record<string, string>>;
 }
-export const DEFAULT_CHART_THEME: ChartTheme = { mode: 'auto' };
 export interface ChartRenderInput { readonly spec: ChartSpec; readonly theme: ChartTheme }
 export interface ChartMountOptions {
   /** Reports errors occurring after mount returns (for example a React commit failure). */

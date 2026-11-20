@@ -8,7 +8,7 @@ export function ChatSettingsSegmented(required: {
   items: readonly { key: string; label: string; checked?: boolean | undefined; disabled?: boolean | undefined; change: () => void }[];
   inputRole?: 'menuitemradio' | undefined;
   checkedRef?: ((input: HTMLInputElement | null) => void) | undefined;
-}, _optional: Record<string, never> = {}) {
+}) {
   const focusKey = (required.items.find(item => item.checked) ?? required.items[0])?.key;
   return <div className="jini-chat-settings-segmented">
     {required.items.map(item => <label key={item.key} className="jini-chat-settings-segment">

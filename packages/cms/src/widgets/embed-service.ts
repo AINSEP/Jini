@@ -1,7 +1,6 @@
 import { isNonArrayRecord } from "@jini-ai/core";
 /**
- * @file Server-side, versioned document-mutation command for `widgetEmbed` nodes (SPEC-043
- * REQ-44/45, ADR-047 Debate Fold-In Amendment 6).
+ * @file Server-side, versioned document-mutation command for `widgetEmbed` nodes.
  *
  * Purpose:
  * The second entry point into the SAME document-mutation contract the live TipTap editor's own
@@ -73,8 +72,7 @@ export interface EmbedServiceDeps {
    */
   forgetRemovedPost: ForgetRemovedPostFn;
   /** The same command-gateway change-set store the live editor's own post-save route uses, so a
-   *  post/page embed write records an auditable, revertible change set identically (ADR-047
-   *  Amendment 6). */
+   *  post/page embed write records an auditable, revertible change set identically. */
   changeSets: ChangeSetRepoPort;
   clock: ClockPort;
   ids: { newId: () => string };
@@ -273,7 +271,7 @@ async function loadEmbedHost(deps: EmbedServiceDeps, workspaceId: UUID, hostEntr
     );
   }
   if (post.bodyFormat === "html") {
-    // An html-format Page (SPEC-047) has no Tiptap body — `data-embed-config` markers are its embed
+    // An html-format Page has no Tiptap body — `data-embed-config` markers are its embed
     // mechanism instead (`html-embeds.ts`), not a `widgetEmbed` node.
     throw new WidgetEmbedHostUnsupportedError({ message: `host '${hostEntryId}' is an HTML-format page, which has no rich-text body for widgetEmbed nodes; embed widgets in it with a data-embed-config marker of type "widget" via pages_write_region or pages_write_html instead`, reason: "html-page" }
     );
@@ -441,7 +439,7 @@ function rethrowPostEmbedError(deps: EmbedServiceDeps, err: unknown, { workspace
 
 /** REQ-44's post/page host arm — writes through the SAME command-gateway + `updatePost` chokepoint
  *  the live TipTap editor's own Save path uses (`routes/posts/update.ts`), so a post/page embed
- *  mutation gets an identical change-set/rollback unit of work (ADR-047 Amendment 6, D2). Only
+ *  mutation gets an identical change-set/rollback unit of work. Only
  *  `bodyJson` actually changes; every other field travels through unchanged from `current`.
  *
  *  Unlike the entries arm above — which re-extracts `entry_refs` inside `updateEntry`'s `onWritten`,

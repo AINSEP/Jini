@@ -233,11 +233,7 @@ function toolNameSetsEqual(a: readonly string[], b: readonly string[]): boolean 
  *
  * @complexity O(n) in the length of the longer list (via {@link toolNameSetsEqual}).
  */
-export function resolveWriteGrantAttribution(
-  input: Pick<SaveExternalMcpServerInput, "principalId">,
-  writeAllowedToolNames: readonly string[],
-  existing: ExternalMcpServerRecord | null,
-  nowIso: ISODateTime,
+export function resolveWriteGrantAttribution({ input, writeAllowedToolNames, existing, nowIso }: { input: Pick<SaveExternalMcpServerInput, "principalId">; writeAllowedToolNames: readonly string[]; existing: ExternalMcpServerRecord | null; nowIso: ISODateTime }, _optional = {}
 ): Pick<ExternalMcpServerRecord, "writeGrantsUpdatedByPrincipalId" | "writeGrantsUpdatedAt"> {
   const previousWriteAllowedToolNames = parseExternalMcpJsonArray({ raw: existing?.writeAllowedToolNames ?? null });
   if (toolNameSetsEqual(previousWriteAllowedToolNames, writeAllowedToolNames)) {

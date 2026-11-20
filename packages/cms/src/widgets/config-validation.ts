@@ -2,8 +2,7 @@ import { parseGalleryConfig } from "./markers/gallery.js";
 import { isNonArrayRecord } from "@jini-ai/core";
 
 /**
- * @file A minimal JSON-Schema-subset validator for `fields.ext.widget.*` config bags (SPEC-043
- * REQ-02, INV-01).
+ * @file A minimal JSON-Schema-subset validator for `fields.ext.widget.*` config bags.
  *
  * Purpose:
  * `widgets/registry.ts`'s `WidgetTypeRegistration.configSchema` records use a small, deliberately

@@ -3,7 +3,7 @@ import type { WidgetRegionBindingRepoPort } from "./ports.js";
 import type { WidgetRegionBindingRow, WidgetRegionKey } from "./types.js";
 
 /**
- * @file In-memory `WidgetRegionBindingRepoPort` adapter (ADR-006 rule-of-two "one being built now"
+ * @file In-memory `WidgetRegionBindingRepoPort` adapter (rule-of-two "one being built now"
  * half — `repo.sqlite.ts` is the other), mirroring `navigation/repo.memory.ts`'s
  * `InMemoryNavLocationBindingRepo` exactly: enforces `UNIQUE(workspace_id, region_key)` by storing
  * at most one row per `(workspaceId, regionKey)` pair, `upsert` replacing any prior row for that

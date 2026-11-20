@@ -7,7 +7,7 @@ Host identity words are normalized to `host` to keep the package neutral.
 
 ```text
 /**
- * @file Admin "Users" screen (SPEC-006 §3 human grant-writing transitions + 0.6.0 CRUD-completion
+ * @file Admin "Users" screen (human grant-writing transitions + 0.6.0 CRUD-completion
  * amendment) — markup only.
  *
  * State and API calls live in `hooks/use-users.hooks.ts`; the row-menu logic and the
@@ -819,7 +819,7 @@ Host identity words are normalized to `host` to keep the package neutral.
  *  Values are the English source strings — `t()`'s own keys — not yet localized; `describeApiError`
  *  below is what translates them. */
 // Delete-user plan v2 (2026-09-24), Slice 3/decision 7 — the DELETE route's own 409s.
-/** Server error `code` -> a plain-language prefix (SPEC-006 errors.spec.md §2), layered on the
+/** Server error `code` -> a plain-language prefix, layered on the
  *  shared default (`lib/api.ts`'s `describeApiError`) — this screen's `RESOURCE_CONFLICT` means
  *  "username already in use", a different meaning than `Roles.tsx`'s "still referenced" or
  *  `Workspace.tsx`'s "slug already taken" for the same code (audit cross-cutting finding #2 —
@@ -926,7 +926,7 @@ Host identity words are normalized to `host` to keep the package neutral.
 
 ```text
 /**
- * @file Admin "Members" screen (ADR-030, ADR-PIPE-013 Decision §7) — markup only.
+ * @file Admin "Members" screen — markup only.
  *
  * State and API calls live in `hooks/use-members.hooks.ts`; the row-menu logic, per-row action
  * state shape, and the server-error-message override live in `rules.ts`. What stays here is what
