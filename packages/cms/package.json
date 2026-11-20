@@ -15,6 +15,7 @@
     "entries": {
       "./themes/template-applicability": "universal",
       "./themes/preview/roster": "node",
+      "./themes/preview/refresh": "node",
       "./themes/preview/watcher": "node",
       "./trash/adapters/directory": "node",
       "./themes/files/read-content": "node",
@@ -34,6 +35,8 @@
       "./taxonomy": "universal",
       "./presentation": "universal",
       "./presentation/document-shell": "universal",
+      "./presentation/html": "universal",
+      "./presentation/page-head": "universal",
       "./media/import": "universal",
       "./core/tools": "universal",
       "./trash": "universal",
@@ -41,6 +44,8 @@
       "./forms/html-render": "universal",
       "./forms/validation-messages": "universal",
       "./forms/result-html": "universal",
+      "./forms/result-query": "universal",
+      "./forms/result-flash": "universal",
       "./forms/form-controls": "universal",
       "./forms/submission-attempts": "universal",
       "./widgets/page-embed-types": "universal",
@@ -199,6 +204,11 @@
       "import": "./dist/themes/preview/roster.node.js",
       "default": "./dist/themes/preview/roster.node.js"
     },
+    "./themes/preview/refresh": {
+      "types": "./dist/themes/preview/refresh.node.d.ts",
+      "import": "./dist/themes/preview/refresh.node.js",
+      "default": "./dist/themes/preview/refresh.node.js"
+    },
     "./themes/preview/watcher": {
       "types": "./dist/themes/preview/watcher.node.d.ts",
       "import": "./dist/themes/preview/watcher.node.js",
@@ -304,6 +314,16 @@
       "import": "./dist/presentation/document-shell.js",
       "default": "./dist/presentation/document-shell.js"
     },
+    "./presentation/html": {
+      "types": "./dist/presentation/html.d.ts",
+      "import": "./dist/presentation/html.js",
+      "default": "./dist/presentation/html.js"
+    },
+    "./presentation/page-head": {
+      "types": "./dist/presentation/page-head.d.ts",
+      "import": "./dist/presentation/page-head.js",
+      "default": "./dist/presentation/page-head.js"
+    },
     "./presentation": {
       "types": "./dist/presentation/index.d.ts",
       "import": "./dist/presentation/index.js",
@@ -338,6 +358,16 @@
       "types": "./dist/forms/result-html.d.ts",
       "import": "./dist/forms/result-html.js",
       "default": "./dist/forms/result-html.js"
+    },
+    "./forms/result-query": {
+      "types": "./dist/forms/result-query.d.ts",
+      "import": "./dist/forms/result-query.js",
+      "default": "./dist/forms/result-query.js"
+    },
+    "./forms/result-flash": {
+      "types": "./dist/forms/result-flash.d.ts",
+      "import": "./dist/forms/result-flash.js",
+      "default": "./dist/forms/result-flash.js"
     },
     "./forms/validation-messages": {
       "types": "./dist/forms/validation-messages.d.ts",

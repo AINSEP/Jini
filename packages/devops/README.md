@@ -15,6 +15,8 @@ public subpath and permission boundary.
 | `./packaging/electron` | Dependency staging, staged runtime closure checks, optional-peer contracts, archive byte verification, freshness and quiet-tree policies. |
 | `./packaging/electron/typescript` | Host-supplied TypeScript AST adapter; TypeScript is a required peer. |
 | `./agent-jobs` | Bounded CLI jobs with resume, stdin prompts, raw logs and stream-based completion. |
+| `./backup/plan-store` | Node-backed in-memory backup plans with expiry and principal/workspace binding. |
+| `./backup/push-jobs` | In-memory backup push jobs with progress, cancellation and bounded waits. |
 | `./checks/published-types` | Published type-surface, registry-drift, linked-package and captured-log checks. |
 | `./checks/coverage` | LCOV, floor, diff, disk-inventory and contamination/baseline policies. |
 | `./checks/node` | Explicit filesystem, process, environment-loader and installer adapters. |

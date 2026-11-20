@@ -4,9 +4,11 @@ import { createAdminSurfaceConnections } from '../connections/connections.js';
 
 afterEach(() => { vi.restoreAllMocks(); });
 
-test('a failed desktop sign-in warns with the error class only and keeps the generic stored attempt', async () => {
+test.each([
+  { secret: Object.assign(new Error('boom api_key=SECRETSECRETSECRETSECRET'), { code: 'SQLITE_BUSY' }), logged: 'Error(SQLITE_BUSY)', attemptCode: 'sign-in-failed' },
+  { secret: new Error('boom api_key=SECRETSECRETSECRETSECRET'), logged: 'Error', attemptCode: 'unknown' },
+])('a failed desktop sign-in warns with the plugin id and $logged only and keeps the safe stored attempt', async ({ secret, logged, attemptCode }) => {
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-  const secret = Object.assign(new Error('boom api_key=SECRETSECRETSECRETSECRET'), { code: 'SECRETSECRETSECRETSECRET' });
   const attempts = new Map<string, unknown>();
   const connection = { pluginId: 'p', descriptor: { connectionId: 'c' }, scopeSets: [] };
   const host = {
@@ -17,14 +19,14 @@ test('a failed desktop sign-in warns with the error class only and keeps the gen
     callbackInbox: { deposit: () => {}, take: () => null },
     notAvailable: () => new Error('not available'),
   };
-  const diagnostics: unknown[] = [];
-  const report = createConsoleLogger({ prefix: '[admin-surfaces]' }, { diagnostics: record => diagnostics.push(record.error) });
+  const report = createConsoleLogger({ prefix: '[admin-surfaces]' });
+  const reportWarn = vi.spyOn(report, 'warn');
   const port = createAdminSurfaceConnections({ report, host: host as never, pluginId: 'p', workspaceId: 'ws', principalId: 'admin' });
   await port.begin({ connectionId: 'c', action: 'connect' });
   await vi.waitFor(() => expect(warn).toHaveBeenCalledTimes(1));
   const printed = warn.mock.calls.flat().map(String).join('\n');
-  expect(printed).toBe("[admin-surfaces] Desktop sign-in did not complete.\nError");
+  expect(reportWarn.mock.calls).toEqual([[{ message: `desktop sign-in for 'p' did not complete: ${logged}` }]]);
+  expect(warn.mock.calls).toEqual([[`[admin-surfaces] desktop sign-in for 'p' did not complete: ${logged}`]]);
   for (const banned of ['boom', 'SECRETSECRET', 'connections-log-safety']) expect(printed).not.toContain(banned);
-  expect(diagnostics).toEqual([secret]);
-  expect(attempts.get('ref:c')).toEqual({ code: 'sign-in-failed', nextAction: 'reconnect' });
+  expect(attempts.get('ref:c')).toEqual({ code: attemptCode, nextAction: 'reconnect' });
 });
