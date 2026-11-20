@@ -1,23 +1,23 @@
 /**
- * @file SPEC-017 C-106 / CIC U-004 / REQ-15 / AC-17 — boot-time crash reconciliation
- * (ADR-041 §3).
+ * @file Boot-time crash reconciliation.
+ *
  *
  * Purpose:
  * A boot scanner that converts any non-terminal `migration_runs` row (read from the sidecar ops
- * journal — the only place guaranteed to survive a mid-crash restore of `content.db`, ADR-041 §2)
+ * journal — the only place guaranteed to survive a mid-crash restore of `content.db`)
  * into a `migration.interrupted` ledger row, and blocks normal site open until an operator
  * resolves it via Recovery. This is a real, accepted downtime vector, traded deliberately for
- * "never boot into a half-migrated schema" (ADR-041 §3).
+ * "never boot into a half-migrated schema".
  *
  * How it relates to the project:
  * The boot composition root calls this BEFORE `evaluate-boot-migration-policy.ts`'s
- * `evaluateBootMigrationPolicy` (C-107) every boot cycle (U-004-ORD1) — that ordering is a
+ * `evaluateBootMigrationPolicy` every boot cycle — that ordering is a
  * composition-root wiring concern this module cannot itself enforce; the sibling `defensive`
  * precondition check lives in `evaluate-boot-migration-policy.ts` instead.
  *
- * ADR-041/043/044/045 re-audit (2026-07-16, TM-adr041-043-044-045-audit-001, Finding 2 — hard
+ * Recovery re-audit (2026-07-16, TM-adr041-043-044-045-audit-001, Finding 2 — hard
  * blocker fix): this function is now actually invoked, by `server/runtime/boot/bootstrap.ts`'s
- * `database-migration-reconciliation` boot module (a CRITICAL ADR-046 Phase 2 boot module, runs
+ * `database-migration-reconciliation` boot module (a CRITICAL Phase 2 boot module, runs
  * first), before the real server accepts any traffic. It was previously fully built and
  * unit-tested but never called by any composition root — a real, live gap (not just a "seams
  * only" v1 disclosure) this fix closes. `evaluate-boot-migration-policy.ts`'s

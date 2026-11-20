@@ -163,7 +163,7 @@ export function isFullHtmlDocument({ html }: { html: string }, _optional = {}): 
 
 /**
  * Splices `page-head.ts`'s `serializeHeadElements()` output into an already-complete static-tier
- * document's `<head>` (SPEC-008 T045 gap fix). `renderStaticPage`'s output bypasses `pageShell`
+ * document's `<head>` (gap fix). `renderStaticPage`'s output bypasses `pageShell`
  * entirely — a static theme's page is already a full `<!doctype html>` document, not a body
  * fragment — which meant `extraHead` (the SEO fold's title/canonical/meta/OG/JSON-LD) was silently
  * dropped for every static-tier home page even though the route layer always computed it. Mirrors

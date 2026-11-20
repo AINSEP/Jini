@@ -1,6 +1,6 @@
 /**
- * @file `RedirectMatcher` implementation (SPEC-009 REQ-07/19/20/22;
- * behavior.spec.md §1, §2, §4, §7).
+ * @file `RedirectMatcher` implementation;
+ * see behavior.spec.md.
  *
  * Purpose:
  * Pure, bounded, no-I/O matching of a request path against a set of redirect
@@ -23,7 +23,7 @@
  * already-sorted input, matching behavior.spec.md §2.2's "never re-sort what
  * the repo returns" invariant for the already-optimal case).
  *
- * Architectural role: INTERNAL SEAM (not an ADR-006 port, see `ports.ts`'s
+ * Architectural role: INTERNAL SEAM (not a rule-of-two port, see `ports.ts`'s
  * file header) — pure functions only, no I/O.
  */
 import { sameRedirectPath } from "./path-key.js";
@@ -140,7 +140,7 @@ function matchOne(rule: RedirectRecord, path: string): CandidateMatch | null {
     case "wildcard":
       return matchWildcard(rule, path);
     case "regex":
-      // Deferred (ADR-033 §8) — never authored in v1 (validatePattern rejects it at write
+      // Deferred — never authored in v1 (validatePattern rejects it at write
       // time), so no live rule should ever carry this matchType. Defensive no-match.
       return null;
     default:

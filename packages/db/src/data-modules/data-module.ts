@@ -1,5 +1,5 @@
 /**
- * @file The core-mediated plugin dataModule engine (ADR-023 §2/§3/§4/§5/§6/§9).
+ * @file The core-mediated plugin dataModule engine.
  *
  * A plugin DECLARES its desired tables as data; CORE alone executes the DDL. A plugin never
  * authors a migration and never holds a raw DB handle. The flow, in order:
@@ -211,8 +211,8 @@
  * in the other direction (the same principle `discardCommittedSnapshot` already documents: "must
  * not turn a successful migration into a reported failure").
  *
- * T2 (§4's exclusive cross-process lock) is DELIBERATELY NOT acquired here — SPEC-033 correction
- * (2026-07-16), superseding SPEC-032's original implementation. The ADR's own §4 text scopes T2's
+ * T2 (the exclusive cross-process lock) is DELIBERATELY NOT acquired here — correction
+ * (2026-07-16), superseding the original implementation. The original design scopes T2's
  * purpose narrowly: "The SQLite online backup API is safe under concurrent writers during
  * snapshot creation — that step needs no change here. Restore is a different, less-safe
  * operation" — the lock exists to guard RESTORE, not the live snapshot+DDL window. `restore.ts`'s
@@ -230,10 +230,10 @@
  * ADR-stated justification doesn't apply here, rather than debugging a specific interleaving
  * further, is the correct call.
  *
- * ADR-023 is ACCEPTED (2026-07-11) after a 3-round external audit whose T1-T8 findings are now
+ * The dataModule design is ACCEPTED (2026-07-11) after a 3-round external audit whose T1-T8 findings are now
  * ALL reflected in code across this file, `migration-journal.ts`, `disk-headroom.ts`,
- * `plugin-identity.ts`, `migration-recovery.ts`, and `restore.ts` — see SPEC-032/SPEC-033 for the
- * full record of which finding lives where. This engine exists ahead of §12's "v1 ships seams
+ * `plugin-identity.ts`, `migration-recovery.ts`, and `restore.ts` — see the original specs for the
+ * full record of which finding lives where. This engine exists ahead of the "v1 ships seams
  * only" schedule: §12's own last line permits shipping it early "against a concrete demand
  * plugin," and Newsletter (a host module) is exactly that — a real
  * production consumer already calling this engine before this file's safety mechanics existed.
@@ -249,8 +249,8 @@
  *
  * NOTE (§0 access-control caveat): a Tier-3 in-process plugin could bypass this by opening the db
  * file directly. The RECOVERABILITY guarantee here (who snapshots + who runs DDL = core) holds
- * unconditionally for core-mediated DDL; the access-control framing is advisory until ADR-024 §4
- * Rung 2 (capability sandbox) ships — see ADR-023 §0 for the full, precise wording.
+ * unconditionally for core-mediated DDL; the access-control framing is advisory until
+ * Rung 2 (capability sandbox) ships — see the original design for the full, precise wording.
  */
 import { createConsoleLogger, type Logger } from "@jini-ai/core/primitives";
 import { statSync } from "node:fs";
@@ -281,11 +281,11 @@ export interface ColumnDecl {
 }
 
 /**
- * ADR-023 §2 ("declared FKs") / ADR-031 OQ-1 (SDK stress-test finding) — the dataModule seam's
+ * Declared FKs / the SDK stress-test finding — the dataModule seam's
  * declared-index grammar. Comments' moderation-queue query pattern
  * (`workspace_id, entry_id, status`) is the concrete demand this grows the seam against, per
  * OQ-1's own instruction not to silently work around the gap. Deliberately NOT a foreign-key
- * declaration seam too — ADR-031 §2 itself says referential integrity to `entries`/parent
+ * declaration seam too — the original design says referential integrity to `entries`/parent
  * comments is "chokepoint-validated, not FK-enforced (v1)", so only indexes are the real,
  * load-bearing need; adding FK-declaration grammar with no consumer would be speculative.
  */
@@ -469,7 +469,7 @@ function indexSql(fqTableName: string, idx: IndexDecl): { indexName: string; sql
   return { indexName, sql: `CREATE ${unique}INDEX "${indexName}" ON "${fqTableName}" (${columns})` };
 }
 
-/** Core's own migration timeline, extended to admit plugin entries later (ADR-023 §12). */
+/** Core's own migration timeline, extended to admit plugin entries later. */
 async function ensureJournal(kernel: PluginKernel): Promise<void> {
   const text = sql.raw(columnTypeSql({ dialect: kernel.dialect, affinity: "TEXT" }));
   await kernel.execute(sql`CREATE TABLE IF NOT EXISTS _plugin_migrations (

@@ -1,18 +1,18 @@
 /**
- * @file Resolution logic for the host `routing` Tier-2 library (ADR-039 v0).
+ * @file Resolution logic for the host `routing` Tier-2 library (v0).
  *
  * Purpose:
- * Implements the inverse resolver (`urlFor`/`isActive`) Menus (ADR-029) and
- * SEO (ADR-032) consume, the forward resolution pipeline registration seam
- * Redirects (ADR-033) will consume, the named-route registry backing `route`
- * targets, and the `SlugChangeCapture` registration slot (ADR-039 §4).
+ * Implements the inverse resolver (`urlFor`/`isActive`) Menus and
+ * SEO consume, the forward resolution pipeline registration seam
+ * Redirects will consume, the named-route registry backing `route`
+ * targets, and the `SlugChangeCapture` registration slot.
  *
  * How it relates to the project:
  * - `routing/types.ts` supplies the `RouteTarget` vocabulary and result shapes.
  * - `routing/ports.ts` supplies `RouteResolverDeps` (reuses `PostRepoPort`).
  * - Only `post` is a real implemented content type today, so `entryRef`
  *   resolution goes through `PostRepoPort` directly; `termRef` is a documented
- *   stub (taxonomy doesn't exist yet — ADR-029 Round-3 fold item 1).
+ *   stub (taxonomy doesn't exist yet — Round-3 fold item 1).
  *
  * Architectural role:
  * Core-owned Tier-2 library code. No Drizzle/SQLite adapter and no HTTP
@@ -31,7 +31,7 @@ export interface RegisterNamedRouteInput {
 }
 
 // ---------------------------------------------------------------------------
-// Inverse resolver — `urlFor` / `isActive` (ADR-039 §2, Round-2 amendment 4)
+// Inverse resolver — `urlFor` / `isActive` (Round-2 amendment 4)
 // ---------------------------------------------------------------------------
 
 export interface UrlForRequired {
@@ -52,7 +52,7 @@ export interface IsActiveRequired {
 export interface IsActiveOptional {}
 
 // ---------------------------------------------------------------------------
-// Forward resolution pipeline (ADR-039 §1) — registration seam for Redirects
+// Forward resolution pipeline — registration seam for Redirects
 // ---------------------------------------------------------------------------
 
 /**
@@ -132,7 +132,7 @@ export interface Routing {
 
 function createNamedRoutes(optional: CreateRoutingOptional) {
   // ---------------------------------------------------------------------------
-  // Named-route registry (backs `route` targets — ADR-039 §3)
+  // Named-route registry (backs `route` targets)
   // ---------------------------------------------------------------------------
 
   const DEFAULT_NAMED_ROUTES: ReadonlyArray<readonly [string, string]> = [
@@ -145,7 +145,7 @@ function createNamedRoutes(optional: CreateRoutingOptional) {
 
   /**
    * Register (or overwrite) a named core route. Core-owned registration, not an
-   * open plugin hook — matches ADR-039 §1's treatment of the forward pipeline.
+   * open plugin hook — matches the forward pipeline's treatment.
    *
    * @complexity O(1) time/space.
    */
@@ -221,7 +221,7 @@ function createPostPublicPath() {
 /**
  * Compose the `canonicalUrl` a resolved `path` implies.
  *
- * TODO(ADR-040): compose canonicalUrl from OriginRegistryPort.canonicalOrigin(ctx)
+ * TODO: compose canonicalUrl from OriginRegistryPort.canonicalOrigin(ctx)
  * once `src/origin` exists, instead of `ctx.originOverride`. `src/origin` is
  * being built in parallel by another agent and does not exist yet, so this
  * library must not import it.
@@ -235,9 +235,9 @@ function composeCanonicalUrl(path: string, ctx: RouteResolveContext): string {
 }
 
 /**
- * Stub: taxonomy isn't implemented in this repo. ADR-029's Round-3 audit fold
+ * Stub: taxonomy isn't implemented in this repo. The Round-3 audit fold
  * promoted "term-link schema" from an Open item to a Wave-1 acceptance
- * blocker — ADR-022 §5's `entry_refs` covers entry-to-entry references only,
+ * blocker — `entry_refs` covers entry-to-entry references only,
  * with no term-target schema yet (content-lib sign-off on a typed `term_refs`
  * index, or an accepted `entry_refs` extension for term targets, is owed).
  * Always resolves `null` until that schema lands.
@@ -331,7 +331,7 @@ function createInverseResolvers(required: CreateRoutingRequired, getNamedRoute: 
    * Resolve a `RouteTarget` to its concrete path + canonical URL.
    *
    * Purpose: the one inverse-resolution entrypoint Menus and SEO depend on.
-   * Deviates from ADR-039 §2's 2-arg pseudocode (`urlFor(target, ctx)`) by
+   * Deviates from the original 2-arg pseudocode (`urlFor(target, ctx)`) by
    * taking a required-object first parameter carrying `deps` — `entryRef`
    * resolution needs an async `PostRepoPort` call, so `urlFor` must be async and
    * (per this repo's house style) DI'd rather than reaching for a singleton.
@@ -374,7 +374,7 @@ function createInverseResolvers(required: CreateRoutingRequired, getNamedRoute: 
    *
    * v0 does exact-path matching only, after normalization. Ancestor/prefix
    * semantics for nested menu highlighting (is `/blog` active on `/blog/post`?)
-   * are explicitly deferred to v0.1 (ADR-039 "Open" item 3) since they also
+   * are explicitly deferred to v0.1 (open design item 3) since they also
    * need the `urlFor → null` caller-render contract (hide vs. render inert)
    * pinned first.
    *
@@ -400,13 +400,13 @@ function createPhaseRegistrations(phaseRegistry: PhaseRegistry) {
   /**
    * Register a resolver into an ordered, core-owned pipeline phase
    * (`normalize → pre_content → content-resolve → post_content → 404`,
-   * ADR-039 §1). Not an open ADR-009 plugin hook in v1 — this is the seam
-   * Redirects (ADR-033) will register into once it exists; no real rules are
+   * in that order). Not an open plugin hook in v1 — this is the seam
+   * Redirects will register into once it exists; no real rules are
    * registered by this library itself.
    *
    * Resolvers within a phase run in registration order; the first non-`null`
    * outcome short-circuits the remaining resolvers in that phase and the rest
-   * of the pipeline. Per ADR-039 Round-2 amendment 5, a `pre_content` resolver
+   * of the pipeline. Per Round-2 amendment 5, a `pre_content` resolver
    * must only ever return a redirect/gone decision with an audited rule — it
    * must never fabricate a `not_found` for a path that live content could still
    * resolve. This library does not enforce that invariant (no rules exist yet
@@ -553,7 +553,7 @@ function createForwardResolvers(runPhase: ReturnType<typeof createPhaseRunner>) 
    * lookup in between. This additive, thin wrapper around the already-tested
    * module-private `runPhase()` lets a real site route run ONLY `pre_content`
    * before its own content lookup, and (separately) `runPostContentPhase` only
-   * after that lookup has failed — exactly ADR-039 §1's documented pipeline
+   * after that lookup has failed — exactly the documented pipeline
    * order (`pre_content -> content-resolve -> post_content`), which the single
    * `resolve()` export cannot reproduce when a real content lookup must run in
    * the middle. `resolve()`'s own SHAPE is UNCHANGED by this addition — this
@@ -592,14 +592,14 @@ function createForwardResolvers(runPhase: ReturnType<typeof createPhaseRunner>) 
 
 function createSlugChangeCapture() {
   // ---------------------------------------------------------------------------
-  // SlugChangeCapture slot (ADR-039 §4)
+  // SlugChangeCapture slot
   // ---------------------------------------------------------------------------
 
   let boundSlugChangeCapture: SlugChangeCapture | undefined;
 
   /**
    * Bind the single `SlugChangeCapture` implementation the content write
-   * chokepoint calls inside a rename transaction. Per ADR-039 Round-2
+   * chokepoint calls inside a rename transaction. Per Round-2
    * amendment 1, no slot implementation may be plugin-supplied — this function
    * has no plugin-facing registration path today, only a core composition-root
    * call site.

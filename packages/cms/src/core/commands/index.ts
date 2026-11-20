@@ -1,5 +1,5 @@
 /**
- * @file Public surface of the command gateway module (ADR-018).
+ * @file Public surface of the command gateway module.
  *
  * The admin mutation write path: `executeCommand` records an auditable,
  * revertible change set; `revertChangeSet` undoes one via the inverse-applier

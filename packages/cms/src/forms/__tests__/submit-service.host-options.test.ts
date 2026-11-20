@@ -424,10 +424,12 @@ test("submitForm: a copy waiting on a first copy that fails is stored itself, no
     await enqueue(event);
   });
 
-  const [first, second] = await Promise.allSettled([submitForm({ deps, input: attempt("tok-1") }), submitForm({ deps, input: attempt("tok-1") })]);
+  const outcomes = await Promise.allSettled([submitForm({ deps, input: attempt("tok-1") }), submitForm({ deps, input: attempt("tok-1") })]);
 
-  assert.equal(first.status, "rejected");
-  assert.deepEqual(second, { status: "fulfilled", value: { status: "accepted" } });
+  // Either copy may reach the claim first under load, so match outcomes, not array positions.
+  assert.deepEqual(outcomes.map((o) => o.status).sort(), ["fulfilled", "rejected"]);
+  assert.ok(outcomes.some((o) => o.status === "rejected" && o.reason instanceof Error && o.reason.message === "outbox unavailable"), "the copy that hit the outbox fault fails with it");
+  assert.ok(outcomes.some((o) => o.status === "fulfilled" && o.value.status === "accepted"), "the other copy is accepted");
   assert.equal((await storedSubmissions(deps)).length, 1);
 });
 

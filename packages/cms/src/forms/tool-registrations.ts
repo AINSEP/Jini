@@ -1,9 +1,9 @@
 /**
- * @file Forms' half of ADR-049 Decision 4 (SPEC-010): maps `agent-tools.ts`'s five catalog entries
+ * @file Forms' tool-registration wiring: maps `agent-tools.ts`'s five catalog entries
  * onto the three `write-service.ts` operations plus the two submission reads, as `ToolRegistration`s.
  *
  * `ToolPolicy.authorize` is a pass-through for all five (see `buildDomainRegistrations`), because
- * ADR-021 §2 is "one evaluator". For the three definition tools, `admin.forms.manage` is enforced
+ * the rule is "one evaluator". For the three definition tools, `admin.forms.manage` is enforced
  * one layer down by `executeCommand` inside every one of the three write-service functions, against
  * the SAME `authorize()` the human admin routes use. For the two submission tools, there is no
  * domain service layer to inherit a gate from — `formSubmissionRepo`/`formDefinitionRepo` are read

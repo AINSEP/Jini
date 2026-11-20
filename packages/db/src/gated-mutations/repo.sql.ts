@@ -4,8 +4,8 @@ import { isRedeemable, type ConfirmationTokenRecord, type TokenStorePort } from 
 import { toRecord, toRow, type GatedMutationTokensTable } from "./repo.rows.js";
 
 /**
- * @file SPEC-022 durability fix — THE durable `TokenStorePort` adapter: one Kysely query body for
- * every dialect (storage plan §4, ADR-066). `sqlite/gated-mutation-token-repo.sqlite.ts` is the
+ * @file Durability fix — THE durable `TokenStorePort` adapter: one Kysely query body for
+ * every dialect (storage plan). `sqlite/gated-mutation-token-repo.sqlite.ts` is the
  * thin subclass the composition root builds from the content db handle.
  *
  * Purpose:

@@ -1,7 +1,7 @@
 import type { FormDefinitionRecord, FormSubmissionRecord } from "./types.js";
 /**
- * @file `registerFormNotifySubscriber` — the Forms-owned outbox subscriber (SPEC-010 REQ-12,
- * ADR-PIPE-010 C-009).
+ * @file `registerFormNotifySubscriber` — the Forms-owned outbox subscriber.
+ *
  *
  * Purpose:
  * Subscribes `form.submission.received`; on a notify-enabled definition, calls `MailerPort.send()`

@@ -1,5 +1,5 @@
 /**
- * @file The Forms agent-tool catalog (SPEC-010, ADR-PIPE-010), instantiating SPEC-016 REQ-22's
+ * @file The Forms agent-tool catalog, instantiating the
  * naming/callability convention for this domain — the same shape
  * `Jini packages/cms/src/content-types/agent-tools.ts` uses, including its `inputSchema` contract.
  *
@@ -35,8 +35,8 @@
  *
  * How it relates to the project:
  * the host's tool assembly maps these entries into `@jini-ai/core` `ToolRegistration`s;
- * the ADR-014 tool filter consumes the catalog to decide which names a session may see. Actual
- * enforcement is `executeCommand`'s ADR-021 `authorize()` inside each write-service function —
+ * the tool filter consumes the catalog to decide which names a session may see. Actual
+ * enforcement is `executeCommand`'s `authorize()` inside each write-service function —
  * this module declares shape only and performs no I/O.
  *
  * Architectural role:

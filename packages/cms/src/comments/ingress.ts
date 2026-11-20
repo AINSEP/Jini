@@ -1,13 +1,13 @@
 /**
- * @file ADR-031 §4 — `CommentIngressPolicy`, the single core-mediated public-submission
- * boundary (mirrors ADR-027's one `MediaIngressPolicy`). Enforces, in order:
+ * @file `CommentIngressPolicy`, the single core-mediated public-submission
+ * boundary (mirrors the single `MediaIngressPolicy`). Enforces, in order:
  * comments-enabled → entry-open → parent-exists → depth-cap → rate-limit → honeypot/size/link
  * caps → sanitize → hook chain (veto/transform) → spam classification → write.
  *
  * Spam is stored silently (`status: "spam"`), never rejected at the boundary — a rejection is an
- * oracle a spammer tunes against (ADR-031 §4's own explicit instruction).
+ * oracle a spammer tunes against.
  *
- * `entryLookup` is a narrow, caller-injected dependency (ADR-046 Phase 3's "narrow typed
+ * `entryLookup` is a narrow, caller-injected dependency (Phase 3's "narrow typed
  * dependencies" convention) rather than a direct import of the entries feature module — its
  * `commentsClosed` field is where `CommentsSettings.closeAfterDays` math against the entry's own
  * publish date belongs; this file does not duplicate that logic.
@@ -16,7 +16,7 @@
  * the HTTP route layer, per `CommentSubmission`'s own doc: "the raw IP is never stored" — this
  * file never sees it) under the fixed keys `authorIpHash` and `honeypotValue`.
  *
- * `getSettings` (SPEC-035, ADR-028 Settings Layered Ledger wiring) is a per-call RESOLVER, not a
+ * `getSettings` (Settings Layered Ledger wiring) is a per-call RESOLVER, not a
  * boot-captured snapshot — `submit()` reads it fresh at the top of every call, so an operator's
  * settings change via the admin `PUT .../comments/settings` route (`settings.ts`) takes effect on
  * the very next submission, not only after a restart. `index.ts` builds this resolver from
@@ -67,7 +67,7 @@ export interface CommentIngressDeps {
   getSettings: (workspaceId: UUID) => Promise<CommentsSettings>;
   entryLookup: (required: { workspaceId: UUID; entryId: UUID }) => Promise<EntryLookupResult | null>;
   rateLimiter: CommentRateLimiter;
-  /** ADR-031 §8 — every successful submission emits `comments.submitted` (whatever status
+  /** Every successful submission emits `comments.submitted` (whatever status
    * resulted, including an auto-classified `spam`); a moderator's LATER explicit action is what
    * emits `comments.marked_spam` (see `write-service.ts`) — the two are deliberately distinct. */
   outbox: OutboxPort;
@@ -190,7 +190,7 @@ function buildCommentRecord(params: {
   };
 }
 
-// OQ-3 resolution (ADR-031 round-2 fold, SPEC-035): every ingress-created comment gets a `submit`
+// Open question resolution (round-2 fold): every ingress-created comment gets a `submit`
 // moderation_log row, attributed to the seeded system principal — the ingress has no real operator
 // principal to attribute this to (the visitor is anonymous by definition), and the
 // auto-classification (pending/approved/spam) IS itself a moderation decision, just one core made

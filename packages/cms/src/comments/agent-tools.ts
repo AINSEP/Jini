@@ -1,6 +1,6 @@
 /**
- * @file The Comments agent-tool catalog (ADR-031/SPEC-033/SPEC-035), instantiating SPEC-016
- * REQ-22's naming/callability convention for this domain — the same shape `forms/agent-tools.ts`
+ * @file The Comments agent-tool catalog, instantiating the
+ * naming/callability convention for this domain — the same shape `forms/agent-tools.ts`
  * and `Jini packages/user-management/src/server/agent-tools.ts` use, including the `inputSchema` contract.
  *
  * Purpose:
@@ -23,7 +23,7 @@
  * comment" as the paradigmatic example. The moderation tools below (`approve`/`mark_spam`/`trash`/
  * `restore`) act on exactly that content. This catalog does not withhold them — moderating comments
  * IS the domain's core admin-UI functionality, every action here is reversible (trash <-> restore,
- * approve <-> mark_spam), and the ADR-021 permission gate a human moderator would need is the
+ * approve <-> mark_spam), and the permission gate a human moderator would need is the
  * identical gate a tool call must pass — but a reviewer should know the risk was considered, not
  * assume it wasn't. `purge` above is exactly the one action in this ladder where "reversible" stops
  * being true, which is why it alone is withheld.

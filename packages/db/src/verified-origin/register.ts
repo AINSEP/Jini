@@ -30,7 +30,7 @@ export type ConfiguredOriginWriteResult = "inserted" | "updated" | "unchanged";
  * The read and the write run in one kernel transaction under `lockKey` on the workspace's row, so
  * two booting processes cannot both see "no row" and both insert.
  *
- * @param origin - Re-validated through `createVerifiedOrigin`, so the ADR-040 scheme/source
+ * @param origin - Re-validated through `createVerifiedOrigin`, so the scheme/source
  * invariant cannot be bypassed by a caller that hand-built the object.
  * @returns which write happened, for the boot log.
  * @throws {InsecureOriginSourceError} if `origin` violates the scheme/source invariant. Callers

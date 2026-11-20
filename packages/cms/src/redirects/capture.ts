@@ -2,7 +2,7 @@ import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
 import { assertRedirectSourceAllowed } from "./redirects.js";
 /**
  * @file `RedirectSlugChangeCapture` — the `SlugChangeCapture` implementation
- * (SPEC-009 REQ-15/16/17; ADR-PIPE-009 Decision A).
+ *
  *
  * Purpose:
  * The single implementer of `routing`'s `SlugChangeCapture` slot. Inserts an

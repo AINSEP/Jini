@@ -166,7 +166,7 @@ export function renderHtmlForm(
  * Renders one field descriptor's `class`/extra-attribute string, both attached to the SAME
  * rendered input element the field's own `id`/`name`/`required`/`type` already get. Re-checks
  * `ATTRIBUTE_NAME_PATTERN` here rather than trusting that every stored field passed through
- * `forms.ts`'s `validateFieldDescriptors` (this is the public render path, REQ-37/ADR-047) —
+ * `forms.ts`'s `validateFieldDescriptors` (this is the public render path) —
  * defense in depth, since an attribute NAME is not something `escapeHtml` can make safe the way it
  * can a value (`onclick` is structurally dangerous regardless of how its own text is escaped).
  * `className` carries no such risk once escaped, so it is not re-validated, only escaped.

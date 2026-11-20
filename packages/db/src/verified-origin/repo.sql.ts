@@ -5,8 +5,8 @@ import type { UUID } from "@jini-ai/core/primitives";
 import { toVerifiedOrigin, type OriginRow, type OriginSettingsTable } from "./repo.rows.js";
 
 /**
- * @file ADR-046 Phase 1 — THE durable `OriginSettingRepoPort` adapter: one Kysely query body for
- * every dialect (storage plan §4, ADR-066); ADR-006 rule-of-two "second adapter" half,
+ * @file Phase 1 — THE durable `OriginSettingRepoPort` adapter: one Kysely query body for
+ * every dialect (storage plan); rule-of-two "second adapter" half,
  * `Jini packages/http-kit/src/verified-origin/repo.memory.ts`'s `InMemoryOriginSettingRepo` is the first.
  * `sqlite/origin-repo.sqlite.ts` is the thin layer the composition root builds from the content db
  * handle.
@@ -17,7 +17,7 @@ import { toVerifiedOrigin, type OriginRow, type OriginSettingsTable } from "./re
  * array on every boot, not even genuinely "seeded once." This adapter makes the row durable.
  *
  * The READ adapter is read-only by design (matches `OriginSettingRepoPort`, which declares no write
- * method). Writes are two standalone boot-time functions below, not port methods — ADR-006's
+ * method). Writes are two standalone boot-time functions below, not port methods — the
  * rule-of-two says don't abstract before the second adapter needs it, and there is still only one
  * durable adapter:
  *
@@ -34,7 +34,7 @@ import { toVerifiedOrigin, type OriginRow, type OriginSettingsTable } from "./re
  * instead of letting them see a half-booted row.
  *
  * Still open, and still a real gap: no ADMIN route or reachability/ownership VERIFICATION flow
- * exists (ADR-040's own "Open" section keeps that as a v0.1 item). Registration authority today is
+ * exists (the original design keeps that as a v0.1 item). Registration authority today is
  * "whoever can set this deployment's process environment", nothing weaker and nothing stronger.
  */
 

@@ -191,7 +191,7 @@ export const taxonomyPlanMergeTermHandler = ({ deps }: TaxonomyHandlerArgs): Too
 
   // No explicit pre-check here: `gateway.ts`'s plan() calls authorize() unconditionally, BEFORE
   // hooks.computePlan() ever runs (see `taxonomyDerivedRisk`'s comment for this tool). Adding a
-  // second check here would be the duplicate evaluator ADR-021 §2 forbids.
+   // second check here would be a forbidden duplicate evaluator.
   return planMergeTerm({
     principalId: ctx.principal.id,
     principalKind: AGENT_TOOL_PRINCIPAL_KIND,

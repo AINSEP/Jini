@@ -1,5 +1,5 @@
 /**
- * @file Typed domain errors for `seo` (SPEC-008 errors.spec.md §2).
+ * @file Typed domain errors for `seo` (errors.spec.md).
  *
  * Purpose:
  * One class per error this module originates, mirroring

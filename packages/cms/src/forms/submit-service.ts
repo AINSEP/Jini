@@ -3,8 +3,8 @@ import { assertCurrentFormSchema } from "./stale-form.js";
 import { FORM_SCHEMA_HASH_FIELD } from "./portable-validation.js";
 import { captureSubmissionEvidence } from "./submission-evidence.js";
 /**
- * @file `submit-service.ts` — the sole public submission write path (SPEC-010 REQ-05..09/16,
- * ADR-PIPE-010 C-008).
+ * @file `submit-service.ts` — the sole public submission write path.
+ *
  *
  * Purpose:
  * `submitForm` deliberately bypasses `executeCommand` (no actor/permission fits an anonymous

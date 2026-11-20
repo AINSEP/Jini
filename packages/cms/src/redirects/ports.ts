@@ -1,25 +1,25 @@
 /**
- * @file Port + seam contracts for the `redirects` Tier-2 library (ADR-033).
+ * @file Port + seam contracts for the `redirects` Tier-2 library.
  *
- * ADR-006 accounting (rule-of-two):
- * - `RedirectRepoPort` is a genuine port — it rides the ADR-015 seam with two
+ * Rule-of-two accounting:
+ * - `RedirectRepoPort` is a genuine port — it rides the repository seam with two
  *   adapters built now (in-memory for tests + Drizzle/SQLite for persistence),
  *   matching every other feature in `src/features/*`.
  * - `RedirectMatcher` and `RedirectHitSink` are declared here as ordinary
- *   INTERNAL SEAMS, not ADR-006 ports. Neither has a second adapter under
+ *   INTERNAL SEAMS, not rule-of-two ports. Neither has a second adapter under
  *   construction today: the matcher's plausible-second is an edge/CDN compiler
  *   (emit an nginx `map` / Cloudflare ruleset), the hit sink's is an external
- *   analytics store — both real, neither built now. Per ADR-006 they stay
+ *   analytics store — both real, neither built now. By the rule-of-two they stay
  *   ordinary code with a documented seam, promoted to a port the day the second
  *   adapter is real. They are typed as interfaces purely for testability.
  *
  * Architectural role:
  * INTERFACES ONLY — no feature logic.
  *
- * Grounding: ADR-006 (rule-of-two), ADR-015 (repo behind a port), ADR-009
- * (typed calls / outbox / hooks), ADR-022 (chokepoint writes record a revision
- * in the same tx; bounded matching = the totality/bounded-cost trust primitive),
- * ADR-021 (permission strings enforced by the calling gateway, not the repo).
+ * Grounding: rule-of-two, repo behind a port,
+ * typed calls / outbox / hooks, chokepoint writes record a revision
+ * in the same tx; bounded matching = the totality/bounded-cost trust primitive,
+ * permission strings enforced by the calling gateway, not the repo.
  */
 import type { ISODateTime, UUID } from "@jini-ai/core/primitives";
 import type { RedirectLocationRefusalReason } from "./target-gate.js";
@@ -35,9 +35,9 @@ import type {
 
 /**
  * Persistence port for redirect rules + their revision ledger + tombstones.
- * The single write chokepoint (ADR-022 §4a): `save` MUST persist the record and
+ * The single write chokepoint: `save` MUST persist the record and
  * its {@link RedirectRevision} in one transaction; no other module writes the
- * `redirects` / `redirect_revisions` tables (CI import-graph canary, ADR-027
+ * `redirects` / `redirect_revisions` tables (CI import-graph canary, media-sidecar
  * precedent).
  */
 export interface RedirectRepoPort {
@@ -72,7 +72,7 @@ export interface RedirectRepoPort {
 
   /**
    * Resolve where an existing rule with the given `fromPattern` already points,
-   * used at write time for cycle detection + chain collapsing (ADR-033 §6).
+   * used at write time for cycle detection + chain collapsing.
    */
   findByFromPattern(required: {
     workspaceId: UUID;
@@ -87,11 +87,11 @@ export interface RedirectRepoPort {
 }
 
 /**
- * INTERNAL SEAM (not an ADR-006 port). Pure, bounded matching of a request
+ * INTERNAL SEAM (not a rule-of-two port). Pure, bounded matching of a request
  * against the dynamic rule set. Implementations MUST be total and
  * bounded-cost — linear-time / RE2 semantics, an anchored pattern, and a
  * per-request evaluation cap — because this is the request-hot-path expression
- * evaluator ADR-022's amendment designates a trust-boundary primitive. No
+ * evaluator designated a trust-boundary primitive. No
  * backtracking regex engine may back this.
  */
 export interface RedirectMatcher {
@@ -117,9 +117,9 @@ export interface RedirectMatcher {
 }
 
 /**
- * INTERNAL SEAM (not an ADR-006 port). Best-effort, off-hot-path hit
+ * INTERNAL SEAM (not a rule-of-two port). Best-effort, off-hot-path hit
  * aggregation. The resolver emits a {@link RedirectHitEvent} via the outbox
- * (ADR-009 async lane); an idempotent handler folds it into the
+ * (async lane); an idempotent handler folds it into the
  * `redirect_hits` sidecar through this sink. A dropped increment loses a
  * statistic, never a redirect.
  */
@@ -134,14 +134,14 @@ export interface RedirectHitSink {
  * twice per request lifecycle: `pre_content` (override rules only) and
  * `post_content` (the 404-fill pass). The exact registration contract with the
  * (not-yet-designed) `routing` library is OWED by the future routing ADR —
- * ADR-033 §4 specifies the redirects side and flags the seam as co-dependent.
+ * the redirects design specifies the redirects side and flags the seam as co-dependent.
  */
 export interface RedirectResolver {
   resolve(request: RedirectRequest, optional?: Record<string, never>): Promise<RedirectResolution>;
 }
 
 /* ------------------------------------------------------------------ *
- * Events (ADR-009 lane 2 — outbox, async) + Hooks (lane 3 — sync)     *
+ * Events (lane 2 — outbox, async) + Hooks (lane 3 — sync)     *
  * ------------------------------------------------------------------ */
 
 export interface RedirectMutatedEventPayload {
@@ -159,7 +159,7 @@ export interface RedirectHitEventPayload {
 export type RedirectHitEvent = DomainEvent<RedirectHitEventPayload>;
 
 /**
- * Sync filter hook (ADR-009 lane 3): lets a plugin transform or short-circuit a
+ * Sync filter hook (lane 3): lets a plugin transform or short-circuit a
  * resolution — e.g. an i18n plugin rewriting the target per locale, or an SEO
  * plugin adding canonicalization. Declared-before-attached; ordered by explicit
  * priority. Conditional (geo/device/auth) redirects are the named v1-deferred
@@ -181,7 +181,7 @@ export interface RouteResolveContext {
   readonly locale?: string;
   readonly originKey?: string;
   /**
-   * TODO(ADR-040): compose canonicalUrl from OriginRegistryPort.canonicalOrigin(ctx)
+   * TODO: compose canonicalUrl from OriginRegistryPort.canonicalOrigin(ctx)
    * once src/origin exists. Until then, a caller that knows the verified origin
    * may pass it here; absent, canonicalUrl falls back to the relative path.
    */
@@ -206,7 +206,7 @@ export interface SlugChangeCaptureInput {
 
 /**
  * The single named slot content's write chokepoint calls inside the rename
- * transaction (ADR-039 §4). Declared here by routing (content knows nothing of
+ * transaction. Declared here by routing (content knows nothing of
  * redirects); implemented by the redirects library; wired by the composition
  * root. **No slot implementation may be plugin-supplied** (Round-2 amendment 1
  * — the slot is core-resident by definition).

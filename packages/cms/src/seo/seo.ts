@@ -8,7 +8,7 @@ import { resolveWorkspaceOrigin, toAbsoluteUrl } from "./absolute-url.js";
 import { SeoEntryNotFoundError } from "./errors.js";
 import { resolveSeoImageDetails, type SeoImageDetails, type ResolveSeoImageRefDeps } from "./media.js";
 /** Featured image (2026-10-05) as a share-image ref: the core "public" transform every `/m/` URL
- *  already serves (`deps.ts`'s ADR-027 §4 registration). */
+ *  already serves (`deps.ts`'s registration). */
 function featuredImageRef(post: PostRecord): string | undefined {
   return post.featuredMediaId ? `${post.featuredMediaId}:public` : undefined;
 }
@@ -52,7 +52,7 @@ const EXCERPT_MAX_LENGTH = 160;
 
 /** override > site default > derived excerpt (behavior.spec.md §1.1). Derivation reads whichever
  *  body column `bodyFormat` says is live — `bodyJson` (TipTap doc) or `bodyHtml` (bespoke-HTML
- *  Page, SPEC-047/ADR-056 Decision 3) — so an html-format Page gets a real excerpt instead of
+ *  Page) — so an html-format Page gets a real excerpt instead of
  *  silently resolving to `undefined`. Exported for the RSS feed (`feed.ts`), whose item description
  *  is the post's own excerpt, never the site-wide default. */
 export function deriveExcerpt(required: { post: PostRecord; postRepo: Pick<SeoPostReadPort, "extractPlainText"> }, _optional: Record<string, never> = {}): string | undefined {
@@ -175,7 +175,7 @@ async function firstResolvedImage(deps: GetEntryMetaDeps, workspaceId: string, r
 /** openGraph/twitter image refs resolve through media (fail-soft, EC-07), then joined onto the
  *  workspace's verified origin ({@link toAbsoluteUrl}) — `resolveSeoImageRef` returns either an
  *  already-absolute ref (passed through unchanged) or the site-relative `/m/{assetId}/...` URL
- *  contract (ADR-027 §4), which needs the same absolutizing every other SEO URL does; crawlers
+ *  contract, which needs the same absolutizing every other SEO URL does; crawlers
  *  require `og:image` to be absolute, same as `og:url`. */
 async function resolveShareImages(
   deps: GetEntryMetaDeps,

@@ -7,7 +7,7 @@ import { OriginNotVerifiedError } from "@jini-ai/core/contracts/server/verified-
 
 /**
  * @file `toAbsoluteUrl`/`resolveWorkspaceOrigin` — the one seam that joins a workspace's verified
- * origin onto a site-relative path (SPEC-008 gap fix, 2026-09-03).
+ * origin onto a site-relative path (gap fix, 2026-09-03).
  *
  * Before this file existed, `canonical`, `og:url`, `og:image`, and `twitter:image` all emitted bare
  * paths (`/documentation`, `/m/{assetId}/...`) on both production and local — reproduced with
@@ -16,7 +16,7 @@ import { OriginNotVerifiedError } from "@jini-ai/core/contracts/server/verified-
  * Graph protocol: every social crawler and link-preview fetcher fails to resolve a relative one, so
  * link previews for the live site were silently broken.
  *
- * Root cause: `packages/cms/src/routing/routing.ts`'s `composeCanonicalUrl` has carried a `TODO(ADR-040)`
+ * Root cause: `packages/cms/src/routing/routing.ts`'s `composeCanonicalUrl` has carried a `TODO`
  * since routing was built — "compose canonicalUrl from OriginRegistryPort.canonicalOrigin(ctx) once
  * src/origin exists" — but nothing ever wired it up once `src/origin` (now `features/origin`)
  * landed; `RouteResolveContext.originOverride` (the seam that TODO describes) is never populated by
@@ -87,7 +87,7 @@ export function toAbsoluteUrl(required: { origin: VerifiedOrigin | undefined; pa
 
 /**
  * Resolves the workspace's verified origin for {@link toAbsoluteUrl}, degrading to `undefined`
- * when none is registered yet (`OriginNotVerifiedError` — ADR-040's documented fail-closed
+ * when none is registered yet (`OriginNotVerifiedError` — the documented fail-closed
  * precondition on `canonicalOrigin`, not a bug). Any OTHER error is a real registry failure and is
  * rethrown rather than silently swallowed into the same degraded path.
  *

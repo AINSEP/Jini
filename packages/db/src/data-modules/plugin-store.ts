@@ -4,7 +4,7 @@ import type { KyselyKernel } from "../kernel/index.js";
 
 /**
  * @file The database a plugin data module works on: the storage kernel, whichever driver is
- * underneath (ADR-066). The core's own `_plugin_*` bookkeeping tables are typed here; the plugins'
+ * underneath. The core's own `_plugin_*` bookkeeping tables are typed here; the plugins'
  * own `p_{pluginId}__*` tables are declared at runtime and reached through raw kernel statements.
  */
 

@@ -21,12 +21,12 @@ import {
 } from "./repo.rows.js";
 
 /**
- * @file THE `SettingsRepoPort` adapter (SPEC-007, rule-of-two #2): one Kysely query body for every dialect
- * the storage kernel drives (storage plan §4, ADR-066). Satisfies the same port as `@jini-ai/core/settings`'
+ * @file THE `SettingsRepoPort` adapter (rule-of-two #2): one Kysely query body for every dialect
+ * the storage kernel drives (storage plan). Satisfies the same port as `@jini-ai/core/settings`'
  * `InMemorySettingsRepo`; `repo.sqlite.ts` is the thin subclass the call sites build from the content db handle.
  *
  * `transaction` is the kernel's: `write-service.ts`'s chokepoint callback awaits repo calls inside it, which
- * the kernel allows (ADR-028 §4's "`BEGIN IMMEDIATE` -> ... -> COMMIT" on SQLite).
+ * the kernel allows ("`BEGIN IMMEDIATE` -> ... -> COMMIT" on SQLite).
  */
 
 /** Host-owned table names. No schema or product table defaults live in the adapter. */

@@ -1,7 +1,7 @@
 import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
 /**
- * @file THE `redirects` write chokepoint (SPEC-009 REQ-01/04/05/06/07/08/13/
- * 14/22/26; ADR-PIPE-009 C-001..C-004).
+ * @file THE `redirects` write chokepoint.
+ *
  *
  * Purpose:
  * `createRedirect`/`updateRedirect`/`tombstoneRedirect`/`importRedirects` —

@@ -6,7 +6,7 @@ import type { TermRepoPort, TaxonomyRevisionRepoPort } from "./write-contracts.j
 import type { MergeTermPlanDetails } from "./merge-term.js";
 
 /**
- * @file Taxonomy's `GatedMutationHooks` factory for the `mergeTerm` ceremony (SPEC-018 C-207) —
+ * @file Taxonomy's `GatedMutationHooks` factory for the `mergeTerm` ceremony —
  * the domain-specific quarter of what used to be `server/gated-mutations-composition.ts`, split
  * out so Taxonomy no longer needs a back-edge into `server/` for its own hook builder. The generic
  * pieces every ceremony shares (`buildGatewayDeps`, `planHashOf`, `resolveActorClassIdentity`,
@@ -40,8 +40,8 @@ export interface BuildMergeTermHooksInput {
 }
 
 /**
- * SPEC-018 C-207 — the taxonomy `mergeTerm` ceremony's `GatedMutationHooks`. `computePlan()` is
- * re-invoked by both `gateway.plan()` and `gateway.execute()` (CIC U-001-B3): it live-recomputes
+ * The taxonomy `mergeTerm` ceremony's `GatedMutationHooks`. `computePlan()` is
+ * re-invoked by both `gateway.plan()` and `gateway.execute()`: it live-recomputes
  * the overlap count every call, so a change in `entry_terms` between confirm and execute correctly
  * produces a different plan hash and a `PLAN_STALE` rejection at execute time — never a cached,
  * possibly-stale count.

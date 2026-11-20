@@ -1,7 +1,7 @@
 import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
 /**
  * @file `RedirectResolver` (read-path resolution) + `registerRedirectsPhaseHandlers`
- * (routing-chain adapter) — SPEC-009 REQ-09/10/18/19/20; ADR-PIPE-009 C-006/C-007.
+ * (routing-chain adapter).
  *
  * Purpose:
  * Owns the read-path open-redirect oracle call (C-013 in the implementation
