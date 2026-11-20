@@ -55,3 +55,25 @@ test('a directory-shaped Unix symlink is still a symlink and never streamed', as
   for await (const entry of reader.entries({ archive: new Uint8Array() })) entries.push(entry);
   expect(entries).toEqual([{ kind: 'symlink', entryPath: 'link/' }]);
 });
+
+test('special Unix file types are refused kinds and never streamed', async () => {
+  let streamed = 0;
+  const entries: YauzlEntry[] = [
+    { fileName: 'pipe', versionMadeBy: 3 << 8, externalFileAttributes: 0o010644 << 16, uncompressedSize: 0 },
+    { fileName: 'chr', versionMadeBy: 3 << 8, externalFileAttributes: 0o020644 << 16, uncompressedSize: 0 },
+    { fileName: 'blk', versionMadeBy: 3 << 8, externalFileAttributes: 0o060644 << 16, uncompressedSize: 0 },
+    { fileName: 'sock', versionMadeBy: 3 << 8, externalFileAttributes: 0o140644 << 16, uncompressedSize: 0 },
+    { fileName: 'odd', versionMadeBy: 3 << 8, externalFileAttributes: 0o030644 << 16, uncompressedSize: 0 },
+    { fileName: 'pipe/', versionMadeBy: 3 << 8, externalFileAttributes: 0o010644 << 16, uncompressedSize: 0 },
+    { fileName: 'plain', versionMadeBy: 3 << 8, externalFileAttributes: 0o644 << 16, uncompressedSize: 1 },
+  ];
+  const reader = createYauzlAgentPluginArchiveReader({ yauzl: { fromBufferPromise: async () => ({
+    eachEntry: async function* () { yield* entries; },
+    openReadStreamPromise: async () => { streamed++; return (async function* () {})(); },
+    close: () => {},
+  }) } });
+  const projected = [];
+  for await (const entry of reader.entries({ archive: new Uint8Array() })) projected.push(entry);
+  expect(projected.map(entry => entry.kind)).toEqual(['fifo', 'device', 'device', 'device', 'device', 'fifo', 'file']);
+  expect(streamed).toBe(0);
+});
