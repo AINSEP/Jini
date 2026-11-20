@@ -218,5 +218,15 @@
     "rule": "stored-error-text",
     "value": 1,
     "reason": "KEEP: guarded PeopleApiError copy is the typed login API contract; unknown failures use login failed."
+  },
+  {
+    "file": "packages/diagnostics/src/web-evidence/collect-page-evidence.ts",
+    "rule": "error-helper",
+    "value": 1
+  },
+  {
+    "file": "packages/integrations/src/webhooks/worker.ts",
+    "rule": "raw-error",
+    "value": 1
   }
 ]

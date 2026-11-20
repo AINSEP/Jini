@@ -136,7 +136,10 @@ function refuseUnparsableManifest({ error }: { error: unknown }, { onWarning }: 
   try {
     if (onWarning) onWarning(`[agent-plugins] ${message}`);
     else createConsoleLogger({ prefix: '[agent-plugins]' }).warn({ message }, { error });
-  } catch { /* Diagnostics cannot replace the malformed-manifest refusal. */ }
+  } catch (warningFailure) {
+    // Diagnostics cannot replace the malformed-manifest refusal; the failed warning still reaches the console.
+    createConsoleLogger({ prefix: '[agent-plugins]' }).warn({ message: 'The invalid-manifest warning could not be delivered.' }, { error: warningFailure });
+  }
   return { ok: false, reason: 'the plugin manifest is not valid JSON' };
 }
 

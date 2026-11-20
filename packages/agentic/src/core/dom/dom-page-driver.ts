@@ -470,7 +470,10 @@ function ambiguousHandleError(
     + 'caller can resolve; publish a unique handle per element';
   // The handle is page-authored text, so the log line names the bug without echoing it; the
   // thrown error still carries the full message for the caller.
-  try { report.warn({ message: `A data-agent-element handle is published on ${count} elements on this page (duplicate handle).` }); } catch { /* Diagnostics must not replace the refusal. */ }
+  try { report.warn({ message: `A data-agent-element handle is published on ${count} elements on this page (duplicate handle).` }); } catch (reportFailure) {
+    // Diagnostics must not replace the refusal; the failed report itself still reaches the console.
+    createConsoleLogger({ prefix: '[agentic/dom]' }).warn({ message: 'The duplicate-handle report could not be delivered.' }, { error: reportFailure });
+  }
   return new Error(message);
 }
 
