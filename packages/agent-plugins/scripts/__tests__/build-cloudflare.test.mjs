@@ -11,7 +11,7 @@ test('the exported Cloudflare payload loads both targets and constructs a portab
   const published = path.dirname(fileURLToPath(import.meta.resolve('@jini-ai/agent-plugins/cloudflare')));
   const copied = path.join(root, 'cloudflare');
   await cp(published, copied, { recursive: true });
-  const descriptor = JSON.parse(await readFile(path.join(copied, 'tovu-deploy-targets.json'), 'utf8'));
+  const descriptor = JSON.parse(await readFile(path.join(copied, 'jini-deploy-targets.json'), 'utf8'));
   assert.deepEqual(descriptor.targets.map(target => target.id).sort(), ['cloudflare-pages', 'cloudflare-workers']);
   for (const target of descriptor.targets) {
     const module = await import(pathToFileURL(path.join(copied, target.module)));
