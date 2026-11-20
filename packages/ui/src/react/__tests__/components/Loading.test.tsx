@@ -19,7 +19,7 @@ describe('Loading primitives', () => {
 
   it('DesignCardSkeleton renders its thumb and meta rows', () => {
     const { container } = render(<DesignCardSkeleton />);
-    expect(container.querySelector('.design-card-thumb')).toBeTruthy();
+    expect(container.querySelector('.jini-design-card-thumb')).toBeTruthy();
     expect(container.querySelectorAll('.skeleton-block').length).toBe(2);
   });
 
@@ -35,6 +35,6 @@ describe('Loading primitives', () => {
 
   it('CenteredLoader omits the label span when no label is given', () => {
     const { container } = render(<CenteredLoader />);
-    expect(container.querySelector('.centered-loader-label')).toBeNull();
+    expect(container.querySelector('.jini-centered-loader-label')).toBeNull();
   });
 });

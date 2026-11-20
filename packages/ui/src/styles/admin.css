@@ -278,18 +278,18 @@
 
 .tab-bar .visually-hidden { position: absolute; top: 0; left: 0; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 
-.coming-soon-panel .settings-ui-inert-note {
+.jini-coming-soon-panel .settings-ui-inert-note {
   margin: 0 0 12px; padding: 10px 14px; font-size: 12px; line-height: 1.5;
   color: var(--jini-text-muted); background: var(--jini-bg-subtle);
   border: 1px dashed var(--jini-border); border-radius: var(--jini-radius-sm);
 }
-.coming-soon-panel .settings-ui-inert-control { opacity: 0.55; }
+.jini-coming-soon-panel .settings-ui-inert-control { opacity: 0.55; }
 
 .select-search { box-sizing: border-box; padding: .5rem .7rem; background: var(--jini-bg-elevated); color: var(--jini-text); border: 1px solid var(--jini-border); border-radius: var(--jini-radius-sm); font: inherit; }
 .tab-bar-item:focus-visible { outline: 2px solid var(--jini-accent); outline-offset: 2px; }
-.coming-soon-notice-kicker { color: var(--jini-text-muted); font-size: .75rem; }
-.coming-soon-notice h1 { margin: 0 0 .4rem; }
-.coming-soon-notice p { color: var(--jini-text-muted); }
+.jini-coming-soon-notice-kicker { color: var(--jini-text-muted); font-size: .75rem; }
+.jini-coming-soon-notice h1 { margin: 0 0 .4rem; }
+.jini-coming-soon-notice p { color: var(--jini-text-muted); }
 
 .admin-layout { background: var(--jini-bg); color: var(--jini-text); font-family: var(--jini-font-body); }
 .admin-layout :is(h1, h2, h3) { font-family: var(--jini-font-heading); }

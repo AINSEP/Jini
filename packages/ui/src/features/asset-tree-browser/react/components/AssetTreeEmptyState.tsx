@@ -12,11 +12,11 @@ export function AssetTreeEmptyState({ actions = [], useTHook = useT }: AssetTree
   const t = useTHook();
 
   return (
-    <div className="asset-tree-empty" data-testid="asset-tree-empty">
-      <div className="asset-tree-empty-pill">
-        <span className="asset-tree-empty-title">{t('No files yet')}</span>
+    <div className="jini-asset-tree-empty" data-testid="asset-tree-empty">
+      <div className="jini-asset-tree-empty-pill">
+        <span className="jini-asset-tree-empty-title">{t('No files yet')}</span>
         {actions.length > 0 ? (
-          <div className="asset-tree-empty-actions">
+          <div className="jini-asset-tree-empty-actions">
             {actions.map((action) => (
               <button
                 key={action.key}

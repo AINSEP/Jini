@@ -57,7 +57,7 @@ export interface CreateExecutionPortOptions {
    * oversight: that screen probes the ADMIN's own credential (server-side since 2026-08-05, but
    * still a DIFFERENT stored row from the site's), a different purpose from this flag entirely. If
    * it opted in, an empty field there would silently probe — and report results for — the visitor
-   * key, crossing the boundary ADR-058 §5 makes structural. (The admin's OWN stored fallback for a
+   * key, crossing the structural credential boundary. (The admin's OWN stored fallback for a
    * BYOK *turn* is unconditional and happens entirely server-side in `assistant-byok.ts` — this
    * flag only ever concerns the SITE credential these `test-connection`/`list-models` probes can
    * optionally fall back to.)

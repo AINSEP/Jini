@@ -150,7 +150,7 @@ function MarkdownModeTabs({
   const t = useTHook();
   return (
     <SegmentedToggle
-      className="markdown-mode-tabs"
+      className="jini-markdown-mode-tabs"
       ariaLabel={modeAriaLabel ?? t('Markdown view mode')}
       value={mode}
       onChange={onModeChange}
@@ -185,10 +185,10 @@ function MarkdownEditorPane({
   const t = useTHook();
   const label = ariaLabel ?? t('Markdown editor');
   return (
-    <section className="markdown-editor-pane" aria-label={label}>
+    <section className="jini-markdown-editor-pane" aria-label={label}>
       <textarea
         ref={editorRef}
-        className="markdown-editor"
+        className="jini-markdown-editor"
         value={sourceText}
         aria-label={label}
         spellCheck
@@ -224,10 +224,10 @@ function MarkdownPreviewPane({
   const t = useTHook();
   const activatePreview = createMarkdownPreviewActivator({ activatePane });
   return (
-    <div className="markdown-preview-pane-wrap">
+    <div className="jini-markdown-preview-pane-wrap">
       <section
         ref={previewRef}
-        className="markdown-preview-pane"
+        className="jini-markdown-preview-pane"
         aria-label={ariaLabel ?? t('Markdown preview')}
         onPointerDown={activatePreview}
         onWheel={activatePreview}

@@ -55,15 +55,15 @@ export function ResourceRowListView(props: ResourceRowListViewProps) {
   const isEmpty = !loading && rows.length === 0;
 
   return (
-    <section className="resource-row-list">
+    <section className="jini-resource-row-list">
       <ResourceRowListHero {...props} />
 
       <ResourceRowListAlerts {...props} />
 
-      <section className="resource-row-list-saved" aria-label={sectionLabel}>
-        <div className="resource-row-list-section-head">
+      <section className="jini-resource-row-list-saved" aria-label={sectionLabel}>
+        <div className="jini-resource-row-list-section-head">
           <h2>{sectionLabel}</h2>
-          {loading ? <span className="resource-row-list-section-meta">{loadingLabel}</span> : null}
+          {loading ? <span className="jini-resource-row-list-section-meta">{loadingLabel}</span> : null}
         </div>
 
         {isEmpty ? <ResourceRowListEmpty {...props} /> : null}

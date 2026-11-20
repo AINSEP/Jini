@@ -101,5 +101,5 @@ const ClientPooledIframe = forwardRef<HTMLIFrameElement, PooledIframeProps & { u
     setForwardedRef(forwardedRef, frame);
   });
 
-  return <span ref={hostRef} className="pooled-iframe-host" />;
+  return <span ref={hostRef} className="jini-pooled-iframe-host" />;
 });

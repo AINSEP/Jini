@@ -199,7 +199,7 @@ describe('ResourceCard', () => {
     const { rerender } = render(<ResourceCard {...baseProps({ item, menuContainerRef })} />);
     expect(menuContainerRef.current).toBeNull();
     rerender(<ResourceCard {...baseProps({ item, menuContainerRef, menuOpen: true })} />);
-    expect(menuContainerRef.current).toHaveClass('resource-board-card-menu-anchor');
+    expect(menuContainerRef.current).toHaveClass('jini-resource-board-card-menu-anchor');
   });
 
   it('leaves a non-danger menu item without a class attribute', () => {

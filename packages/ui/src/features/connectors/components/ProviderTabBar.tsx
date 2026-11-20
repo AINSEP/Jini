@@ -19,7 +19,7 @@ export function ProviderTabBar({ tabs, selectedId, onSelect, ariaLabel, agentHan
   const resolvedAriaLabel = ariaLabel ?? t('Connector provider');
   const tabHandles = agentHandle ? buildAgentListHandles({ prefix: agentHandle, ids: tabs.map((tab) => tab.id) }) : undefined;
   return (
-    <div className="connectors-provider-tabs" role="tablist" aria-label={resolvedAriaLabel}>
+    <div className="jini-connectors-provider-tabs" role="tablist" aria-label={resolvedAriaLabel}>
       {tabs.map((tab, index) => {
         const active = tab.id === selectedId;
         return (

@@ -104,7 +104,7 @@ export function SourceConfigField({ spec, value, error, disabled = false, idPref
       </label>
       <SourceConfigFieldControl spec={spec} value={value} inputId={inputId} shared={shared} reveal={reveal} isLockedSecret={isLockedSecret} />
       {error ? (
-        <span id={errorId} className="source-config-field-error" role="alert">
+        <span id={errorId} className="jini-source-config-field-error" role="alert">
           {error}
         </span>
       ) : null}
@@ -221,10 +221,10 @@ function SelectControl({
 function TextareaControl({ spec, value, inputId, shared, reveal, isLockedSecret, placeholder, useTHook = useT }: FieldControlProps & { placeholder: string | undefined } & { useTHook?: typeof useT }) {
   const t = useTHook();
   if (spec.kind !== 'secret-textarea') {
-    return <span className="source-config-field-row"><textarea id={inputId} value={value} placeholder={placeholder} {...shared} /></span>;
+    return <span className="jini-source-config-field-row"><textarea id={inputId} value={value} placeholder={placeholder} {...shared} /></span>;
   }
   return (
-    <span className="source-config-field-row">
+    <span className="jini-source-config-field-row">
       <SecretTextarea
         id={inputId}
         label={t(spec.label)}
@@ -250,7 +250,7 @@ function TextareaControl({ spec, value, inputId, shared, reveal, isLockedSecret,
 function PasswordControl({ spec, value, inputId, shared, reveal, placeholder, useTHook = useT }: FieldControlProps & { placeholder: string | undefined } & { useTHook?: typeof useT }) {
   const t = useTHook();
   return (
-    <span className="source-config-field-row">
+    <span className="jini-source-config-field-row">
       <SecretInput
         id={inputId}
         label={t(spec.label)}

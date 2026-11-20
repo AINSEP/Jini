@@ -368,14 +368,14 @@ describe('CommentSidePanel boundary pins', () => {
     const { container } = render(
       <CommentSidePanel {...baseProps({ getCommentAttachments: () => [], resolveAttachmentUrl: (a) => a.path })} />,
     );
-    expect(container.querySelector('.comment-side-attachments')).toBeNull();
+    expect(container.querySelector('.jini-comment-side-attachments')).toBeNull();
   });
 
   it('renders no attachment strip when attachments exist but no resolver is supplied', () => {
     const { container } = render(
       <CommentSidePanel {...baseProps({ getCommentAttachments: () => [{ path: 'a.png', name: 'a.png' }] })} />,
     );
-    expect(container.querySelector('.comment-side-attachments')).toBeNull();
+    expect(container.querySelector('.jini-comment-side-attachments')).toBeNull();
   });
 
   it('marks a selected row and its checkbox, and offers Deselect', () => {

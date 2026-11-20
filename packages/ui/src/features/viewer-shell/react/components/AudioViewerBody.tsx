@@ -12,9 +12,9 @@ export interface AudioViewerBodyProps {
  *  is stripped out. */
 export function AudioViewerBody({ src, label }: AudioViewerBodyProps) {
   return (
-    <div className="audio-card">
+    <div className="jini-audio-card">
       <Icon name="mic" size={28} />
-      <div className="audio-card-name">{label}</div>
+      <div className="jini-audio-card-name">{label}</div>
       <audio src={src} controls preload="metadata" />
     </div>
   );

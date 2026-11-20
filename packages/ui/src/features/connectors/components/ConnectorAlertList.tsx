@@ -15,21 +15,21 @@ export function ConnectorAlertList({ alerts, onOpenDetails, openDetailsAriaLabel
   const resolvedOpenDetailsAriaLabel = openDetailsAriaLabel ?? ((name: string) => t('Open details for {name}', { name }));
   if (alerts.length === 0) return null;
   return (
-    <div className="connector-panel-alerts">
+    <div className="jini-connector-panel-alerts">
       {alerts.map((alert) => (
         <div
           key={`${alert.connectorId}:${alert.message}`}
-          className="connector-panel-alert"
+          className="jini-connector-panel-alert"
           title={`${alert.connectorName}: ${alert.message}`}
         >
-          <p className="connector-panel-alert-copy" role="status">
+          <p className="jini-connector-panel-alert-copy" role="status">
             <strong title={alert.connectorName}>{alert.connectorName}</strong>
             <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)' }}>: </span>
             <span title={alert.message}>{alert.message}</span>
           </p>
           <button
             type="button"
-            className="icon-only connector-panel-alert-action"
+            className="icon-only jini-connector-panel-alert-action"
             aria-label={resolvedOpenDetailsAriaLabel(alert.connectorName)}
             title={resolvedOpenDetailsAriaLabel(alert.connectorName)}
             onClick={() => onOpenDetails(alert.connectorId)}

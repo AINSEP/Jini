@@ -76,9 +76,9 @@ function SourceConfigListHead({ title, subtitle, useTHook = useT }: { title?: st
   const t = useTHook();
   if (!title && !subtitle) return null;
   return (
-    <div className="source-config-list-head">
+    <div className="jini-source-config-list-head">
       {title ? <h3>{t(title)}</h3> : null}
-      {subtitle ? <p className="source-config-list-subtitle">{t(subtitle)}</p> : null}
+      {subtitle ? <p className="jini-source-config-list-subtitle">{t(subtitle)}</p> : null}
     </div>
   );
 }
@@ -87,7 +87,7 @@ function SourceConfigListError({ loadError, useTHook = useT }: { loadError?: str
   const t = useTHook();
   if (!loadError) return null;
   return (
-    <div className="source-config-list-error" role="alert">
+    <div className="jini-source-config-list-error" role="alert">
       {t(loadError)}
     </div>
   );
@@ -105,7 +105,7 @@ function SourceConfigListBody<TSource extends SourceConfigItem>({ useTHook = use
     );
   }
   if (sources.length === 0) {
-    return <div className="source-config-list-empty">{emptyMessage ? t(emptyMessage) : t('No sources configured yet.')}</div>;
+    return <div className="jini-source-config-list-empty">{emptyMessage ? t(emptyMessage) : t('No sources configured yet.')}</div>;
   }
   // Positionally aligned with `sources` below — computed once per render rather than per card, so
   // the O(n) suffix-search dedup in `buildAgentListHandles` runs once for the whole list, not once

@@ -26,7 +26,7 @@ export function ResourceCardMenuItems({
 }) {
   return (
     <div
-      className="resource-board-card-menu"
+      className="jini-resource-board-card-menu"
       role="menu"
       onClick={(event) => event.stopPropagation()}
       onKeyDown={(event) => event.stopPropagation()}
@@ -68,10 +68,10 @@ export function ResourceCardMenu({
   onAction: (kind: string) => void;
 }) {
   return (
-    <div className="resource-board-card-menu-anchor" ref={menuOpen ? menuContainerRef : undefined}>
+    <div className="jini-resource-board-card-menu-anchor" ref={menuOpen ? menuContainerRef : undefined}>
       <button
         type="button"
-        className="resource-board-card-more"
+        className="jini-resource-board-card-more"
         aria-label={moreLabel}
         aria-haspopup="menu"
         aria-expanded={menuOpen}
@@ -107,11 +107,11 @@ export function ResourceCardMeta<TBody>({
 }) {
   const toneMapProps = toneMap ? { toneMap } : {};
   return (
-    <div className="resource-board-card-meta">
-      <div className="resource-board-card-title" title={item.title}>
+    <div className="jini-resource-board-card-meta">
+      <div className="jini-resource-board-card-title" title={item.title}>
         {item.title}
       </div>
-      {item.subtitle ? <div className="resource-board-card-subtitle">{item.subtitle}</div> : null}
+      {item.subtitle ? <div className="jini-resource-board-card-subtitle">{item.subtitle}</div> : null}
       {item.status && statusLabel ? <StatusPill status={item.status} label={statusLabel} {...toneMapProps} /> : null}
     </div>
   );

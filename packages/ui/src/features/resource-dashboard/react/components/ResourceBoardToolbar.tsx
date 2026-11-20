@@ -62,14 +62,14 @@ function ResourceBoardSelectControls({
 }: ResourceBoardSelectControlsProps) {
   if (!selectMode) {
     return (
-      <button type="button" className="resource-board-select-toggle" onClick={onEnterSelectMode}>
+      <button type="button" className="jini-resource-board-select-toggle" onClick={onEnterSelectMode}>
         {selectModeLabel}
       </button>
     );
   }
   return (
-    <div className="resource-board-select-bar" role="group">
-      <span className="resource-board-select-count">{selectedCountLabel(selectedCount)}</span>
+    <div className="jini-resource-board-select-bar" role="group">
+      <span className="jini-resource-board-select-count">{selectedCountLabel(selectedCount)}</span>
       <button type="button" disabled={selectedCount === 0 || bulkDeleteBusy} onClick={onBulkDelete}>
         {deleteSelectedLabel}
       </button>
@@ -88,7 +88,7 @@ type ResourceBoardSortPillProps = Pick<
 function ResourceBoardSortPill({ sortOptions, activeSort, onSortChange, sortAriaLabel }: ResourceBoardSortPillProps) {
   if (sortOptions.length === 0) return null;
   return (
-    <div className="resource-board-sort-pill" role="group" aria-label={sortAriaLabel}>
+    <div className="jini-resource-board-sort-pill" role="group" aria-label={sortAriaLabel}>
       {sortOptions.map((option) => (
         <button
           key={option.value}
@@ -117,7 +117,7 @@ function ResourceBoardViewPill({
   kanbanViewLabel,
 }: ResourceBoardViewPillProps) {
   return (
-    <div className="resource-board-view-pill" role="group" aria-label={viewToggleAriaLabel}>
+    <div className="jini-resource-board-view-pill" role="group" aria-label={viewToggleAriaLabel}>
       <button
         aria-pressed={viewMode === 'grid'}
         className={viewMode === 'grid' ? 'active' : ''}
@@ -151,17 +151,17 @@ export function ResourceBoardToolbar(props: ResourceBoardToolbarProps) {
   const showSelectControls = props.enableBulkDelete && props.viewMode === 'grid';
 
   return (
-    <div className="resource-board-toolbar">
-      <div className="resource-board-toolbar-left">
+    <div className="jini-resource-board-toolbar">
+      <div className="jini-resource-board-toolbar-left">
         <ResourceBoardSortPill {...props} />
       </div>
-      <div className="resource-board-toolbar-right">
+      <div className="jini-resource-board-toolbar-right">
         {onCreate && createLabel ? (
-          <button type="button" className="resource-board-create-button" onClick={onCreate}>
+          <button type="button" className="jini-resource-board-create-button" onClick={onCreate}>
             {createLabel}
           </button>
         ) : null}
-        <div className="resource-board-search">
+        <div className="jini-resource-board-search">
           <input placeholder={searchPlaceholder} value={query} onChange={(event) => onQueryChange(event.target.value)} />
         </div>
         {showSelectControls ? <ResourceBoardSelectControls {...props} /> : null}

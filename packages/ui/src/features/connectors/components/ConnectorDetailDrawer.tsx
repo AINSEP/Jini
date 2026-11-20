@@ -131,12 +131,12 @@ function ConnectorDrawerAbout({
   return (
     <section className="connector-drawer-section">
       <h3 className="connector-drawer-section-title">{t('About')}</h3>
-      <p className="connector-drawer-description">{description}</p>
+      <p className="jini-connector-drawer-description">{description}</p>
       {isAuthorizationPending ? (
-        <div className="connector-authorization-block" role="status">
-          <p className="connector-authorization-hint">{t('Authorization in progress. It should finish shortly.')}</p>
+        <div className="jini-connector-authorization-block" role="status">
+          <p className="jini-connector-authorization-hint">{t('Authorization in progress. It should finish shortly.')}</p>
           {redirectUrl ? (
-            <button type="button" className="connector-authorization-link" onClick={continueAuthorization}>
+            <button type="button" className="jini-connector-authorization-link" onClick={continueAuthorization}>
               {continueInBrowserLabel ?? t('Continue in browser')}
             </button>
           ) : null}
@@ -148,7 +148,7 @@ function ConnectorDrawerAbout({
 
 function ConnectorDrawerAlert({ message }: { message: string }) {
   return (
-    <p className="connector-authorization-hint connector-authorization-error" role="alert">
+    <p className="jini-connector-authorization-hint jini-connector-authorization-error" role="alert">
       {message}
     </p>
   );
@@ -169,12 +169,12 @@ function ConnectorDrawerDetails({ connector, categoryLabel, accountLabel, flags,
   const { isDisconnecting } = flags;
   return (
     <section className="connector-drawer-section">
-      <div className="connector-drawer-section-head">
+      <div className="jini-connector-drawer-section-head">
         <h3 className="connector-drawer-section-title">{t('Details')}</h3>
         {flags.isConnected ? (
           <button
             type="button"
-            className={`ghost connector-drawer-inline-action connector-action is-disconnect${isDisconnecting ? ' is-loading' : ''}`}
+            className={`ghost connector-drawer-inline-action jini-connector-action is-disconnect${isDisconnecting ? ' is-loading' : ''}`}
             disabled={!flags.canDisconnect}
             aria-busy={isDisconnecting || undefined}
             onClick={() => onDisconnect(connector.id)}
@@ -185,7 +185,7 @@ function ConnectorDrawerDetails({ connector, categoryLabel, accountLabel, flags,
           </button>
         ) : null}
       </div>
-      <dl className="connector-drawer-details">
+      <dl className="jini-connector-drawer-details">
         <div>
           <dt>{t('Status')}</dt>
           <dd>{t(statusLabel({ status: connector.status }))}</dd>
@@ -205,7 +205,7 @@ function ConnectorDrawerDetails({ connector, categoryLabel, accountLabel, flags,
           </div>
         ) : null}
         {connector.lastError ? (
-          <div className="connector-drawer-details-error">
+          <div className="jini-connector-drawer-details-error">
             <dt>{t('Error')}</dt>
             <dd>{connector.lastError}</dd>
           </div>
@@ -217,15 +217,15 @@ function ConnectorDrawerDetails({ connector, categoryLabel, accountLabel, flags,
 
 function ConnectorDrawerTool({ tool }: { tool: Connector['tools'][number] }) {
   return (
-    <li className="connector-drawer-tool">
-      <div className="connector-drawer-tool-head">
-        <span className="connector-drawer-tool-title">{tool.title || tool.name}</span>
+    <li className="jini-connector-drawer-tool">
+      <div className="jini-connector-drawer-tool-head">
+        <span className="jini-connector-drawer-tool-title">{tool.title || tool.name}</span>
         <span className={`connector-drawer-tool-badge side-${tool.safety.sideEffect}`} title={tool.safety.reason}>
           {tool.safety.sideEffect}
         </span>
       </div>
-      {tool.description ? <p className="connector-drawer-tool-desc">{tool.description}</p> : null}
-      <code className="connector-drawer-tool-name">{tool.name}</code>
+      {tool.description ? <p className="jini-connector-drawer-tool-desc">{tool.description}</p> : null}
+      <code className="jini-connector-drawer-tool-name">{tool.name}</code>
     </li>
   );
 }
@@ -245,18 +245,18 @@ function ConnectorDrawerToolsBody({ connector, toolsPreviewLoading, toolsLoaded,
   const toolCount = getConnectorDisplayToolCount(connector);
   if (toolsPreviewLoading || !toolsLoaded) {
     return (
-      <p className="connector-drawer-empty">
+      <p className="jini-connector-drawer-empty">
         <Icon name="spinner" size={12} /> {t('Loading tools…')}
       </p>
     );
   }
   if (actualToolCount === 0 && toolCount > 0) {
-    return <p className="connector-drawer-empty">{t('Tool details unavailable ({count})', { count: toolCount })}</p>;
+    return <p className="jini-connector-drawer-empty">{t('Tool details unavailable ({count})', { count: toolCount })}</p>;
   }
-  if (actualToolCount === 0) return <p className="connector-drawer-empty">{t('No tools available')}</p>;
+  if (actualToolCount === 0) return <p className="jini-connector-drawer-empty">{t('No tools available')}</p>;
   return (
     <>
-      <ul className="connector-drawer-tools">
+      <ul className="jini-connector-drawer-tools">
         {connector.tools.map((tool) => (
           <ConnectorDrawerTool key={tool.name} tool={tool} />
         ))}
@@ -264,7 +264,7 @@ function ConnectorDrawerToolsBody({ connector, toolsPreviewLoading, toolsLoaded,
       {connector.toolsNextCursor ? (
         <button
           type="button"
-          className="ghost connector-drawer-load-more"
+          className="ghost jini-connector-drawer-load-more"
           disabled={toolsPreviewLoading}
           onClick={() => onLoadMoreTools(connector.id, connector.toolsNextCursor!)}
         >
@@ -298,10 +298,10 @@ function ConnectorDrawerFoot({ connectorId, flags, onConnect, onCancelAuthorizat
   const { isAuthorizationPending } = flags;
   const isBusy = flags.isConnecting || isAuthorizationPending;
   return (
-    <footer className="connector-drawer-foot">
+    <footer className="jini-connector-drawer-foot">
       <button
         type="button"
-        className={`primary connector-action is-connect${isBusy ? ' is-loading' : ''}`}
+        className={`primary jini-connector-action is-connect${isBusy ? ' is-loading' : ''}`}
         disabled={!flags.canConnect}
         aria-busy={isBusy || undefined}
         onClick={() => onConnect(connectorId)}
@@ -313,7 +313,7 @@ function ConnectorDrawerFoot({ connectorId, flags, onConnect, onCancelAuthorizat
       {isAuthorizationPending ? (
         <button
           type="button"
-          className="ghost connector-action is-cancel-authorization"
+          className="ghost jini-connector-action jini-is-cancel-authorization"
           onClick={() => onCancelAuthorization(connectorId)}
           {...agentHandleProps({}, { base: agentHandle, action: 'cancel-authorization', role: 'button', label: t('Cancel authorization') })}
         >

@@ -9,7 +9,7 @@ export type FormsListRow = ReturnType<typeof useFormsListView>["rows"][number];
 type Translate = (key: string) => string;
 
 /** Title block, the optional host slot and the "New form" link. */
-export function FormsListHeader({ headerActions, t }: { headerActions: ReactNode; t: Translate }, _optional: Record<string, never> = {}) {
+export function FormsListHeader({ headerActions, t }: { headerActions: ReactNode; t: Translate }) {
   return (
     <div
       className="page-header"
@@ -63,7 +63,7 @@ export function formsListColumns({ t }: { t: Translate }, _optional: Record<stri
       // visible text is the bare short date; the event word lives in the hover title and the
       // screen-reader text only, since the header already names both events.
       cell: (form: FormsListRow) => (
-        <span className="forms-dates">
+        <span className="jini-forms-dates">
           {form.dates.map((line) => (
             <time key={line.kind} className="forms-dates-line" dateTime={line.dateTime} title={line.label}>
               <span aria-hidden="true">{line.text}</span>
@@ -91,7 +91,7 @@ export function formsListColumns({ t }: { t: Translate }, _optional: Record<stri
 /** The "Move to trash?" confirmation for one form. */
 export function FormsListDeleteDialog({ pendingDelete, rowSavingId, removeForm, cancelDelete, t }: {
   pendingDelete: AdminFormDefinition | null; rowSavingId: string | null; removeForm: () => void; cancelDelete: () => void; t: Translate;
-}, _optional: Record<string, never> = {}) {
+}) {
   return (
   <ConfirmDialog
     open={pendingDelete !== null}

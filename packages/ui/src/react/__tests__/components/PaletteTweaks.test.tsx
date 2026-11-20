@@ -16,16 +16,16 @@ import {
 
 describe('PaletteTweaks pure helpers', () => {
   it('resolvePalettePreview: original previews nothing, null restores the selection, a palette previews itself', () => {
-    expect(resolvePalettePreview('original', 'coral')).toBeNull();
-    expect(resolvePalettePreview(null, 'coral')).toBe('coral');
-    expect(resolvePalettePreview(null, null)).toBeNull();
-    expect(resolvePalettePreview('electric', 'coral')).toBe('electric');
+    expect(resolvePalettePreview({ target: 'original', selected: 'coral' })).toBeNull();
+    expect(resolvePalettePreview({ target: null, selected: 'coral' })).toBe('coral');
+    expect(resolvePalettePreview({ target: null, selected: null })).toBeNull();
+    expect(resolvePalettePreview({ target: 'electric', selected: 'coral' })).toBe('electric');
   });
 
   it('nextPaletteSelection toggles: re-picking the selected palette deselects it', () => {
-    expect(nextPaletteSelection('electric', 'electric')).toBeNull(); // deselect
-    expect(nextPaletteSelection('coral', 'electric')).toBe('electric'); // switch
-    expect(nextPaletteSelection(null, 'electric')).toBe('electric'); // fresh pick
+    expect(nextPaletteSelection({ selected: 'electric', id: 'electric' })).toBeNull(); // deselect
+    expect(nextPaletteSelection({ selected: 'coral', id: 'electric' })).toBe('electric'); // switch
+    expect(nextPaletteSelection({ selected: null, id: 'electric' })).toBe('electric'); // fresh pick
   });
 
   it('paletteItemClassName appends selected/hovered modifiers', () => {

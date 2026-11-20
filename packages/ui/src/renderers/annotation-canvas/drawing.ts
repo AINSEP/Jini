@@ -15,10 +15,9 @@ export const STROKE_COLOR = defaultAdminTheme.light.danger;
 export const STROKE_WIDTH = 4;
 export const TARGET_COLOR = defaultAdminTheme.light.primary;
 /** Text-annotation glyph height as a fraction of the frame height, so a dropped label reads at a consistent size across differently-sized frames and its on-screen size matches what gets baked into an exported screenshot. */
-export const TEXT_FONT_FRACTION = 0.03;
-export const TEXT_LINE_HEIGHT = 1.25;
-export const TEXT_MIN_FONT_PX = 12;
-export const TEXT_FONT_FAMILY = defaultAdminTheme.fonts.body;
+const TEXT_FONT_FRACTION = 0.03;
+const TEXT_LINE_HEIGHT = 1.25;
+const TEXT_MIN_FONT_PX = 12;
 
 export function textFontSizePx({ frameHeight }: { frameHeight: number }, _optional: Record<string, never> = {}): number {
   return Math.max(TEXT_MIN_FONT_PX, TEXT_FONT_FRACTION * frameHeight);

@@ -12,13 +12,13 @@ export function ResourceBoardAlerts<TBody>({
   return (
     <>
       {error ? (
-        <div className="resource-board-error" role="alert">
+        <div className="jini-resource-board-error" role="alert">
           {errorLabel ?? error}
         </div>
       ) : null}
 
       {actionError ? (
-        <div className="resource-board-action-error" role="alert">
+        <div className="jini-resource-board-action-error" role="alert">
           {actionErrorLabel ?? actionError}
         </div>
       ) : null}
@@ -45,7 +45,7 @@ export function ResourceBoardGrid<TBody>({
   onItemAction,
 }: ResourceBoardViewProps<TBody>) {
   return (
-    <div className="resource-board-grid" data-testid="resource-board-grid">
+    <div className="jini-resource-board-grid" data-testid="resource-board-grid">
       {items.map((item) => (
         <ResourceCard
           key={item.id}
@@ -78,9 +78,9 @@ export function ResourceBoardGrid<TBody>({
  */
 export function ResourceBoardContent<TBody>(props: ResourceBoardViewProps<TBody>) {
   const { loading, error, items, hasAnyItems, viewMode, onKanbanDelete } = props;
-  if (loading) return <div className="resource-board-loading" role="status" />;
+  if (loading) return <div className="jini-resource-board-loading" role="status" />;
   if (!error && items.length === 0) {
-    return <div className="resource-board-empty">{hasAnyItems ? props.emptyStateNoMatch : props.emptyStateTitle}</div>;
+    return <div className="jini-resource-board-empty">{hasAnyItems ? props.emptyStateNoMatch : props.emptyStateTitle}</div>;
   }
   if (viewMode === 'grid') return <ResourceBoardGrid {...props} />;
   return (

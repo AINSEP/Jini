@@ -27,10 +27,10 @@ const LOCALES = [
 
 describe('LanguageMenu helpers', () => {
   it('resolveActiveLocaleLabel returns the matching label, else the raw code', () => {
-    expect(resolveActiveLocaleLabel(LOCALES, 'ja')).toBe('日本語');
+    expect(resolveActiveLocaleLabel({ locales: LOCALES, locale: 'ja' })).toBe('日本語');
     // Unknown code falls back to the code itself.
-    expect(resolveActiveLocaleLabel(LOCALES, 'fr')).toBe('fr');
-    expect(resolveActiveLocaleLabel([], 'en')).toBe('en');
+    expect(resolveActiveLocaleLabel({ locales: LOCALES, locale: 'fr' })).toBe('fr');
+    expect(resolveActiveLocaleLabel({ locales: [], locale: 'en' })).toBe('en');
   });
 
   it('isLanguageMenuDismissKey is true only for Escape', () => {
@@ -64,10 +64,10 @@ describe('LanguageMenu helpers', () => {
   });
 
   it('languageMenuPopoverClassName reflects placement, compact, and align', () => {
-    expect(languageMenuPopoverClassName('up', false, 'start')).toBe(
+    expect(languageMenuPopoverClassName({ placement: 'up', compact: false, align: 'start' })).toBe(
       'lang-menu-popover lang-menu-popover--up lang-menu-popover--align-start',
     );
-    expect(languageMenuPopoverClassName('down', true, 'end')).toBe(
+    expect(languageMenuPopoverClassName({ placement: 'down', compact: true, align: 'end' })).toBe(
       'lang-menu-popover lang-menu-popover--down lang-menu-popover--compact lang-menu-popover--align-end',
     );
   });
@@ -98,7 +98,7 @@ describe('useLanguageMenuDisclosure', () => {
 
 describe('useActiveLocaleLabel', () => {
   it('derives the active label and recomputes when the locale changes', () => {
-    const { result, rerender } = renderHook(({ locale }) => useActiveLocaleLabel(LOCALES, locale), {
+    const { result, rerender } = renderHook(({ locale }) => useActiveLocaleLabel({ locales: LOCALES, locale }), {
       initialProps: { locale: 'en' },
     });
     expect(result.current).toBe('English');

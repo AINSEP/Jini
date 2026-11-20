@@ -231,13 +231,13 @@ describe('ResourceBoardView', () => {
   it('attaches menuContainerRef to the open card menu anchor', () => {
     const menuContainerRef: React.RefObject<HTMLDivElement | null> = { current: null };
     render(<ResourceBoardView {...baseProps({ openMenuId: 'a', menuContainerRef })} />);
-    expect(menuContainerRef.current).toHaveClass('resource-board-card-menu-anchor');
+    expect(menuContainerRef.current).toHaveClass('jini-resource-board-card-menu-anchor');
   });
 
   it('shows no empty state alongside a load error, even with zero items', () => {
     const { container } = render(<ResourceBoardView {...baseProps({ items: [], error: 'down' })} />);
     expect(screen.getByRole('alert')).toHaveTextContent('down');
-    expect(container.querySelector('.resource-board-empty')).toBeNull();
+    expect(container.querySelector('.jini-resource-board-empty')).toBeNull();
   });
 
   it('adds the is-kanban modifier to the root only in kanban view', () => {

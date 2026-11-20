@@ -453,7 +453,7 @@ describe('ConnectorDetailDrawer', () => {
       />,
     );
     expect(screen.getByText('Sends a chat message')).toBeTruthy();
-    expect(screen.getByText('send_message', { selector: '.connector-drawer-tool-title' })).toBeTruthy();
+    expect(screen.getByText('send_message', { selector: '.jini-connector-drawer-tool-title' })).toBeTruthy();
   });
 
   it('fires onConnect and shows the cancel-authorization footer action while authorization is pending', async () => {
@@ -560,7 +560,7 @@ describe('ConnectorDetailDrawer', () => {
         onLoadMoreTools={noop}
       />,
     );
-    expect(container.querySelector('.connector-drawer-foot .is-connect')?.textContent).toBe('Authorization pending');
+    expect(container.querySelector('.jini-connector-drawer-foot .is-connect')?.textContent).toBe('Authorization pending');
   });
 
   it('shows the default cancel-failed message when the host supplies none', () => {

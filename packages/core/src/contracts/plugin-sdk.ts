@@ -66,7 +66,7 @@ export interface PluginToolContribution {
 }
 export interface PluginWidgetContribution {
   readonly name: string;
-  /** Public SSR only. Host sanitizes the bounded HTML before partial placement (ADR-025). */
+  /** Public SSR only. Host sanitizes the bounded HTML before partial placement. */
   readonly render: (required: PluginInvocationContext, optional?: Record<string, never>) => string | Promise<string>;
 }
 export type PluginContribution = { readonly kind: 'route'; readonly value: PluginRouteContribution } | { readonly kind: 'tool'; readonly value: PluginToolContribution } | { readonly kind: 'widget'; readonly value: PluginWidgetContribution };

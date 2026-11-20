@@ -85,7 +85,7 @@ export const QuestionForm = forwardRef<QuestionFormHandle, QuestionFormProps>(fu
   return (
     <div className={`question-form${locked ? ' question-form-locked' : ''}`} data-form-id={form.id}>
       <QuestionFormHead form={form} locked={locked} t={t} />
-      <div className="question-form-body">
+      <div className="jini-question-form-body">
         {form.questions.map((q) => (
           <QuestionField key={q.id} q={q} value={currentAnswers[q.id]} formId={form.id} locked={locked} t={t} {...state.handlers} />
         ))}
@@ -125,23 +125,23 @@ function answersReady(form: QuestionFormType, answers: Answers): boolean {
 
 function QuestionFormHead({ form, locked, t }: { t: ReturnType<typeof useT>; form: QuestionFormType; locked: boolean }) {
   return (
-    <div className="question-form-head">
-      <span className="question-form-icon" aria-hidden>
+    <div className="jini-question-form-head">
+      <span className="jini-question-form-icon" aria-hidden>
         ?
       </span>
-      <div className="question-form-titles">
-        <div className="question-form-title">{form.title}</div>
-        {form.description ? <div className="question-form-desc">{form.description}</div> : null}
+      <div className="jini-question-form-titles">
+        <div className="jini-question-form-title">{form.title}</div>
+        {form.description ? <div className="jini-question-form-desc">{form.description}</div> : null}
       </div>
-      {locked ? <span className="question-form-pill">{t('Answered')}</span> : null}
+      {locked ? <span className="jini-question-form-pill">{t('Answered')}</span> : null}
     </div>
   );
 }
 
 function QuestionFormFoot({ locked, answered, ready, submitLabel, onSubmit, t }: { t: ReturnType<typeof useT>; locked: boolean; answered: boolean; ready: boolean; submitLabel: string | undefined; onSubmit: () => void }) {
   return (
-    <div className="question-form-foot">
-      {locked ? <span className="qf-locked-note">{answered ? t('You answered this') : t('A newer message answered this')}</span> : <span className="qf-hint">{t('Answer above, then continue')}</span>}
+    <div className="jini-question-form-foot">
+      {locked ? <span className="jini-qf-locked-note">{answered ? t('You answered this') : t('A newer message answered this')}</span> : <span className="jini-qf-hint">{t('Answer above, then continue')}</span>}
       {!locked ? (
         <button type="button" className="primary" onClick={onSubmit} disabled={!ready} title={ready ? t('Submit your answers') : t('Answer the required questions first')}>
           {submitLabel ?? t('Continue')}

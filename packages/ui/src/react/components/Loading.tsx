@@ -8,9 +8,9 @@ interface SpinnerProps {
 
 export function Spinner({ size = 14, label }: SpinnerProps) {
   return (
-    <span className="loading-spinner" role="status" aria-live="polite">
+    <span className="jini-loading-spinner" role="status" aria-live="polite">
       <Icon name="spinner" size={size} />
-      {label ? <span className="loading-spinner-label">{label}</span> : null}
+      {label ? <span className="jini-loading-spinner-label">{label}</span> : null}
     </span>
   );
 }
@@ -39,9 +39,9 @@ export function Skeleton({ width, height = 14, radius = 6, className }: Skeleton
  */
 export function DesignCardSkeleton() {
   return (
-    <div className="design-card design-card-skeleton" aria-hidden>
-      <div className="design-card-thumb skeleton-shimmer" />
-      <div className="design-card-meta-block">
+    <div className="jini-design-card jini-design-card-skeleton" aria-hidden>
+      <div className="jini-design-card-thumb skeleton-shimmer" />
+      <div className="jini-design-card-meta-block">
         <Skeleton height={13} width="65%" />
         <Skeleton height={11} width="45%" />
       </div>
@@ -55,9 +55,9 @@ export function DesignCardSkeleton() {
  */
 export function CenteredLoader({ label }: { label?: string }) {
   return (
-    <div className="centered-loader">
+    <div className="jini-centered-loader">
       <Spinner size={20} />
-      {label ? <span className="centered-loader-label">{label}</span> : null}
+      {label ? <span className="jini-centered-loader-label">{label}</span> : null}
     </div>
   );
 }

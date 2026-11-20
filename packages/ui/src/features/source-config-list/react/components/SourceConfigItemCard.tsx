@@ -153,7 +153,7 @@ function ItemCardSummary<TSource extends SourceConfigItem>({
   return (
     <button
       type="button"
-      className="source-config-item-card-summary"
+      className="jini-source-config-item-card-summary"
       {...sourceConfigAgentProps({ base: agentHandle,
         role: 'button',
         // Stable ontology, so it must not read "Collapse" once expanded — see `agent-handles.ts`.
@@ -164,7 +164,7 @@ function ItemCardSummary<TSource extends SourceConfigItem>({
       aria-expanded={expanded}
     >
       <span className="source-config-item-card-label">{label}</span>
-      {source.trust ? <span className="source-config-item-card-trust-badge">{t(trustOption?.label ?? source.trust)}</span> : null}
+      {source.trust ? <span className="jini-source-config-item-card-trust-badge">{t(trustOption?.label ?? source.trust)}</span> : null}
     </button>
   );
 }
@@ -189,7 +189,7 @@ function ItemCardActions<TSource extends SourceConfigItem>({ useTHook = useT, ..
       ) : null}
       <button
         type="button"
-        className="source-config-item-card-remove"
+        className="jini-source-config-item-card-remove"
         {...sourceConfigAgentProps({ base: agentHandle, role: 'button', label: t('Remove'), action: 'remove' })}
         onClick={onRemove}
         disabled={anyActionPending}
@@ -264,7 +264,7 @@ function ItemCardBody<TSource extends SourceConfigItem>(props: ItemCardPartProps
   const testResultProps = testResult ? { result: testResult } : {};
   const testHandleProps = agentHandle ? { agentHandle: sourceConfigActionHandle({ base: agentHandle, action: 'test' }) } : {};
   return (
-    <div className="source-config-item-card-body">
+    <div className="jini-source-config-item-card-body">
       {capabilities.canUpdate ? <ItemCardEditToggle {...props} edit={edit} /> : null}
       {edit.editing ? <ItemCardEditFields {...props} edit={edit} /> : <ItemCardReadOnlyFields {...props} />}
       {capabilities.canTest ? (
@@ -285,7 +285,7 @@ function ItemCardEditToggle<TSource extends SourceConfigItem>({ useTHook = useT,
   const t = useTHook();
   if (!edit.editing) {
     return (
-      <div className="source-config-item-card-edit-toggle">
+      <div className="jini-source-config-item-card-edit-toggle">
         <button
           type="button"
           {...sourceConfigAgentProps({ base: agentHandle, role: 'button', label: t('Edit'), action: 'edit' })}
@@ -298,7 +298,7 @@ function ItemCardEditToggle<TSource extends SourceConfigItem>({ useTHook = useT,
     );
   }
   return (
-    <div className="source-config-item-card-edit-toggle">
+    <div className="jini-source-config-item-card-edit-toggle">
       <button
         type="button"
         {...sourceConfigAgentProps({ base: agentHandle, role: 'button', label: t('Save'), action: 'save' })}
@@ -322,7 +322,7 @@ function ItemCardEditToggle<TSource extends SourceConfigItem>({ useTHook = useT,
 function ItemCardEditFields<TSource extends SourceConfigItem>({ source, fieldSpecs, agentHandle, label, edit, useTHook = useT }: ItemCardPartProps<TSource> & { edit: ItemCardEdit } & { useTHook?: typeof useT }) {
   const t = useTHook();
   return (
-    <div className="source-config-item-card-edit-fields">
+    <div className="jini-source-config-item-card-edit-fields">
       <label className="source-config-field" htmlFor={`source-config-item-card-${source.id}-label`}>
         <span className="source-config-field-label">{t('Label')}</span>
         <input
@@ -357,9 +357,9 @@ function ItemCardEditFields<TSource extends SourceConfigItem>({ source, fieldSpe
 function ItemCardReadOnlyFields<TSource extends SourceConfigItem>({ source, fieldSpecs, useTHook = useT }: SourceConfigItemCardProps<TSource> & { useTHook?: typeof useT }) {
   const t = useTHook();
   return (
-    <dl className="source-config-item-card-fields">
+    <dl className="jini-source-config-item-card-fields">
       {fieldSpecs.map((spec) => (
-        <div key={spec.key} className="source-config-item-card-field">
+        <div key={spec.key} className="jini-source-config-item-card-field">
           <dt>{t(spec.label)}</dt>
           <dd>{maskFieldValue({ kind: spec.kind, value: source.fields[spec.key] ?? '' })}</dd>
         </div>

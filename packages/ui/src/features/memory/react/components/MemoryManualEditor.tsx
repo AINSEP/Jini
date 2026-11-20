@@ -246,9 +246,9 @@ export function MemoryManualEditor({ useTHook = useT, ...props }: MemoryManualEd
   const t = useTHook();
   const flashLabel = useMemo(() => memoryFlashLabels({ t }), [t]);
   return (
-    <div className="memory-tab-panel memory-manual-panel">
-      <div className="memory-source-summary">
-        <span className="memory-block-icon">
+    <div className="jini-memory-tab-panel jini-memory-manual-panel">
+      <div className="jini-memory-source-summary">
+        <span className="jini-memory-block-icon">
           <Icon name="edit" size={15} />
         </span>
         <div>
@@ -264,7 +264,7 @@ export function MemoryManualEditor({ useTHook = useT, ...props }: MemoryManualEd
       </div>
 
       {flash && flash.kind !== 'pathCopied' ? (
-        <div key={flash.key} role="status" aria-live="polite" className="memory-flash-pill">
+        <div key={flash.key} role="status" aria-live="polite" className="jini-memory-flash-pill">
           {flashLabel[flash.kind]}
         </div>
       ) : null}

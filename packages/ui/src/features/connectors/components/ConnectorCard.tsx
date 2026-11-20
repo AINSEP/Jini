@@ -48,7 +48,7 @@ function ConnectorCardTitleDot({ status, isAuthorizationPending, useTHook = useT
   if (status === 'connected') {
     return (
       <span
-        className={`connector-status-dot connector-card-title-dot status-${status}`}
+        className={`connector-status-dot jini-connector-card-title-dot status-${status}`}
         aria-label={t(statusLabel({ status }))}
         title={t(statusLabel({ status }))}
         role="img"
@@ -58,7 +58,7 @@ function ConnectorCardTitleDot({ status, isAuthorizationPending, useTHook = useT
   if (!isAuthorizationPending) return null;
   return (
     <span
-      className="connector-status-dot connector-card-title-dot status-pending"
+      className="connector-status-dot jini-connector-card-title-dot status-pending"
       aria-label={t('Authorization pending')}
       title={t('Authorization pending')}
       role="img"
@@ -72,9 +72,9 @@ function ConnectorCardToolsBadge({ connector, toolsLoaded, useTHook = useT }: { 
   const toolsBadge = toolsBadgeTranslation({ count: getConnectorDisplayToolCount(connector) });
   const toolsBadgeLabel = t(toolsBadge.key, toolsBadge.vars);
   return (
-    <span className="connector-meta-tools" aria-hidden={!showToolsBadge}>
+    <span className="jini-connector-meta-tools" aria-hidden={!showToolsBadge}>
       {showToolsBadge ? (
-        <span className="connector-tools-badge is-ready" title={toolsBadgeLabel}>
+        <span className="jini-connector-tools-badge is-ready" title={toolsBadgeLabel}>
           <span>{toolsBadgeLabel}</span>
         </span>
       ) : null}
@@ -96,7 +96,7 @@ function ConnectorDisconnectButton({ flags, disabled, agentHandle, onActivate, u
   return (
     <button
       type="button"
-      className={`icon-only connector-action is-disconnect${isDisconnecting ? ' is-loading' : ''}`}
+      className={`icon-only jini-connector-action is-disconnect${isDisconnecting ? ' is-loading' : ''}`}
       disabled={!flags.canDisconnect}
       aria-busy={isDisconnecting || undefined}
       aria-label={t('Disconnect')}
@@ -119,7 +119,7 @@ function ConnectorConnectButton({ flags, disabled, agentHandle, onActivate, useT
   return (
     <button
       type="button"
-      className={`icon-only connector-action is-connect${isBusy ? ' is-loading' : ''}`}
+      className={`icon-only jini-connector-action is-connect${isBusy ? ' is-loading' : ''}`}
       disabled={!flags.canConnect}
       aria-busy={isBusy || undefined}
       aria-label={isAuthorizationPending ? t('Authorization pending') : t('Connect')}
@@ -140,7 +140,7 @@ function ConnectorCancelAuthorizationButton({ onActivate, useTHook = useT }: { o
   return (
     <button
       type="button"
-      className="icon-only connector-action is-cancel-authorization"
+      className="icon-only jini-connector-action jini-is-cancel-authorization"
       aria-label={t('Cancel authorization')}
       title={t('Cancel authorization')}
       onMouseDown={stopPropagation}
@@ -183,12 +183,12 @@ function ConnectorCardHints({
   return (
     <>
       {authorizationCancelFailed ? (
-        <p className="connector-authorization-hint connector-authorization-error" role="alert">
+        <p className="jini-connector-authorization-hint jini-connector-authorization-error" role="alert">
           {cancelFailedMessage ?? t("Couldn't cancel authorization. Try again.")}
         </p>
       ) : null}
       {redirectUrl ? (
-        <button type="button" className="connector-authorization-link" title={t('Authorization in progress')} onClick={continueAuthorization}>
+        <button type="button" className="jini-connector-authorization-link" title={t('Authorization in progress')} onClick={continueAuthorization}>
           {continueInBrowserLabel ?? t('Continue in browser')}
         </button>
       ) : null}

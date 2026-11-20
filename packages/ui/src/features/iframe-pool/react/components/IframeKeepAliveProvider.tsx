@@ -25,7 +25,7 @@ export function IframeKeepAliveProvider({
   return (
     <IframeKeepAliveContext.Provider value={pool}>
       {children}
-      <div ref={parkedHostRef} className="iframe-keep-alive-pool" aria-hidden="true" />
+      <div ref={parkedHostRef} className="jini-iframe-keep-alive-pool" aria-hidden="true" />
     </IframeKeepAliveContext.Provider>
   );
 }

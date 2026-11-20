@@ -14,11 +14,11 @@ export interface ResourceMetricsProps {
 export function ResourceMetrics({ metrics, ariaLabel }: ResourceMetricsProps) {
   if (metrics.length === 0) return null;
   return (
-    <div className="resource-dashboard-metrics" aria-label={ariaLabel}>
+    <div className="jini-resource-dashboard-metrics" aria-label={ariaLabel}>
       {metrics.map((metric) => (
-        <div key={metric.key} className="resource-dashboard-metric">
-          <span className="resource-dashboard-metric-value">{metric.value}</span>
-          <span className="resource-dashboard-metric-label">{metric.label}</span>
+        <div key={metric.key} className="jini-resource-dashboard-metric">
+          <span className="jini-resource-dashboard-metric-value">{metric.value}</span>
+          <span className="jini-resource-dashboard-metric-label">{metric.label}</span>
         </div>
       ))}
     </div>

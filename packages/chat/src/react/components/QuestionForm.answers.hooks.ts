@@ -42,7 +42,7 @@ export function useQuestionAnswers(
   function updateCheckboxCustom(q: Question, raw: string) {
     if (locked) return;
     const current = Array.isArray(answers[q.id]) ? (answers[q.id] as string[]) : [];
-    const fixed = current.filter((entry) => questionValueIsKnown(q, entry));
+    const fixed = current.filter((entry) => questionValueIsKnown({ q, value: entry }));
     update(q.id, [...fixed, ...splitCustomEntries(raw)]);
   }
   function selectFiles(q: Question, list: FileList | null) {
@@ -61,9 +61,9 @@ function buildInitialState(form: QuestionFormType, submitted: Answers | undefine
 
 /** Submitted beats draft beats default beats empty; file drafts are never restored (the File objects are gone). */
 function initialQuestionValue(q: Question, submitted: Answers | undefined, draft: Answers | undefined): string | string[] {
-  if (submitted?.[q.id] !== undefined) return canonicalizeQuestionValue(q, submitted[q.id]!);
-  if (draft?.[q.id] !== undefined && q.type !== 'file') return canonicalizeQuestionValue(q, draft[q.id]!);
-  if (q.defaultValue !== undefined) return canonicalizeQuestionValue(q, q.defaultValue);
+  if (submitted?.[q.id] !== undefined) return canonicalizeQuestionValue({ q, value: submitted[q.id]! });
+  if (draft?.[q.id] !== undefined && q.type !== 'file') return canonicalizeQuestionValue({ q, value: draft[q.id]! });
+  if (q.defaultValue !== undefined) return canonicalizeQuestionValue({ q, value: q.defaultValue });
   return emptyQuestionValue(q);
 }
 

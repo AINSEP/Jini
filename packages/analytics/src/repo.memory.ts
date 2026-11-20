@@ -1,6 +1,6 @@
 /**
  * Process-local in-memory AnalyticsSinkPort adapter for tests/development. One adapter is built
- * now; forwarding to an external collector is the plausible next adapter (ADR-006 rule-of-two).
+ * now; forwarding to an external collector is the plausible next adapter (rule-of-two).
  * Appends normalized hits without durability or rollup wiring; persistent tables belong to a
  * host's storage adapter. Tests inject this sink into ingestHit through AnalyticsSinkPort.
  */
@@ -45,7 +45,7 @@ export class LocalBufferSink implements AnalyticsSinkPort {
 
   capabilities(_required: Record<string, never>): AnalyticsSinkCapabilities {
     // A process-local array does not survive restart. Previously durable=true was an
-    // untrustworthy claim (ADR-046 INV-03); only a persistent host adapter earns that promise.
+    // untrustworthy claim; only a persistent host adapter earns that promise.
     return { durable: false, batch: true };
   }
 

@@ -513,17 +513,17 @@ describe('MemoryConnectedPanel', () => {
 
   it('shows Loading in the summary badge while connectors load', () => {
     const { container } = renderPanel({ connectorsLoading: true, connectedCount: 3 });
-    expect(container.querySelector('.memory-connected-summary .memory-source-badge')?.textContent).toBe('Loading');
+    expect(container.querySelector('.jini-memory-connected-summary .memory-source-badge')?.textContent).toBe('Loading');
   });
 
   it('shows the connected count in the summary badge once loaded', () => {
     const { container } = renderPanel({ connectedCount: 3 });
-    expect(container.querySelector('.memory-connected-summary .memory-source-badge')?.textContent).toBe('3 connected');
+    expect(container.querySelector('.jini-memory-connected-summary .memory-source-badge')?.textContent).toBe('3 connected');
   });
 
   it('uses the singular app noun in the run bar for exactly one connected app', () => {
     const { container } = renderPanel({ connectedCount: 1, selectedConnectedConnectorIds: ['notion'] });
-    expect(container.querySelector('.memory-connector-runbar .hint')?.textContent).toBe('Selected 1 of 1 connected app.');
+    expect(container.querySelector('.jini-memory-connector-runbar .hint')?.textContent).toBe('Selected 1 of 1 connected app.');
   });
 
   it('disables the scan button while suggestions are saving', () => {
@@ -533,7 +533,7 @@ describe('MemoryConnectedPanel', () => {
 
   it('renders no description element at all for a suggestion without one', () => {
     const { container } = renderPanel({ connectorSuggestions: [suggestion('s1', { description: '' })] });
-    expect(container.querySelector('.memory-suggestion-copy small')).toBeNull();
+    expect(container.querySelector('.jini-memory-suggestion-copy small')).toBeNull();
   });
 
   it('renders each diagnostic row detail line from the attempt', () => {

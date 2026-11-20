@@ -28,37 +28,37 @@ export function TodoCard({ todos, runStreaming, onDismiss, useTHook = useT }: To
 
   return (
     <div className={`op-card op-todo${expanded ? '' : ' op-todo-collapsed'}`}>
-      <div className="op-card-head op-todo-head">
+      <div className="op-card-head jini-op-todo-head">
         <button
           type="button"
-          className="op-todo-toggle"
+          className="jini-op-todo-toggle"
           aria-expanded={expanded}
           onClick={() => setOverrideExpanded(!expanded)}
           title={expanded ? t('Collapse todos') : t('Expand todos')}
         >
-          <span className="op-icon" aria-hidden>
+          <span className="jini-op-icon" aria-hidden>
             ☐
           </span>
           <span className="op-title">{t('Todos')}</span>
-          <span className="op-meta">
+          <span className="jini-op-meta">
             {done}/{todos.length}
           </span>
-          {!expanded && inProgressTodo ? <span className="op-todo-current">{todoLabel({ todo: inProgressTodo })}</span> : null}
-          <span className="op-todo-chev" aria-hidden>
+          {!expanded && inProgressTodo ? <span className="jini-op-todo-current">{todoLabel({ todo: inProgressTodo })}</span> : null}
+          <span className="jini-op-todo-chev" aria-hidden>
             {expanded ? <Icon name="chevron-down" size={11} /> : <Icon name="chevron-right" size={11} />}
           </span>
         </button>
         <TodoDismissButton onDismiss={onDismiss} allComplete={allComplete} t={t} />
       </div>
       <div className={`accordion-collapsible${expanded ? ' open' : ''}`}>
-        <div className="accordion-collapsible-inner">
-          <ul className="todo-list">
+        <div className="jini-accordion-collapsible-inner">
+          <ul className="jini-todo-list">
             {todos.map((todo, i) => (
               <li key={i} className={`todo-item todo-${todo.status}`}>
-                <span className="todo-check" aria-hidden>
+                <span className="jini-todo-check" aria-hidden>
                   {todoStatusGlyph({ status: todo.status })}
                 </span>
-                <span className="todo-text">{todoLabel({ todo })}</span>
+                <span className="jini-todo-text">{todoLabel({ todo })}</span>
               </li>
             ))}
           </ul>
@@ -72,7 +72,7 @@ export function TodoCard({ todos, runStreaming, onDismiss, useTHook = useT }: To
 function TodoDismissButton({ onDismiss, allComplete, t }: { onDismiss: (() => void) | undefined; allComplete: boolean; t: ReturnType<typeof useT> }) {
   if (!onDismiss || !allComplete) return null;
   return (
-    <button type="button" className="op-todo-done" onClick={() => onDismiss()} title={t('Dismiss')}>
+    <button type="button" className="jini-op-todo-done" onClick={() => onDismiss()} title={t('Dismiss')}>
       {t('Done')}
     </button>
   );

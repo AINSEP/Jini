@@ -55,7 +55,7 @@ export function AssetTreeRowMenu({
     <div
       ref={containerRef}
       data-testid="asset-tree-row-menu-popover"
-      className="asset-tree-row-popover"
+      className="jini-asset-tree-row-popover"
       style={{ top, left }}
       onMouseDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}

@@ -23,19 +23,19 @@ function MemorySuggestionCard({
   const sourceLabel = suggestion.source?.connectorName || suggestion.source?.toolTitle || t('Connected apps');
   return (
     <label className={`memory-suggestion-card${selected ? ' is-selected' : ''}`}>
-      <span className="memory-connector-check">
+      <span className="jini-memory-connector-check">
         <input type="checkbox" checked={selected} onChange={() => toggleConnectorSuggestion(suggestion.id)} />
         <span aria-hidden="true">{selected ? <Icon name="check" size={13} /> : null}</span>
       </span>
-      <span className="memory-suggestion-copy">
-        <span className="memory-suggestion-title">
+      <span className="jini-memory-suggestion-copy">
+        <span className="jini-memory-suggestion-title">
           <strong>{suggestion.name}</strong>
-          <span className="memory-type-badge">{typeLabel}</span>
+          <span className="jini-memory-type-badge">{typeLabel}</span>
         </span>
         {suggestion.description ? <small>{suggestion.description}</small> : null}
-        <span className="memory-suggestion-body">{suggestion.body}</span>
+        <span className="jini-memory-suggestion-body">{suggestion.body}</span>
       </span>
-      <span className="memory-connector-state is-connected">{sourceLabel}</span>
+      <span className="jini-memory-connector-state jini-is-connected">{sourceLabel}</span>
     </label>
   );
 }

@@ -59,9 +59,9 @@ function MemoryIndexEditorFooter({
 function MemoryIndexEditorCard({ index, indexDraft, onIndexDraftChange, onSaveIndex, busy, useTHook = useT }: MemoryIndexEditorCardProps & { useTHook?: typeof useT }) {
   const t = useTHook();
   return (
-    <details className="library-group memory-advanced-card">
-      <summary className="memory-details-summary">
-        <span className="memory-details-title">{t('MEMORY.md index')}</span>
+    <details className="jini-library-group jini-memory-advanced-card">
+      <summary className="jini-memory-details-summary">
+        <span className="jini-memory-details-title">{t('MEMORY.md index')}</span>
       </summary>
       <textarea
         value={indexDraft ?? index}
@@ -87,15 +87,15 @@ function MemoryTreeCard({ memoryTree, treeFolders, treeChildren, onStartEdit, us
   const t = useTHook();
   if (treeFolders.length === 0) return null;
   return (
-    <details className="library-group memory-advanced-card">
-      <summary className="memory-details-summary">
-        <span className="memory-details-title">{t('Memory tree')}</span>
-        <span className="filter-pill-count">{memoryTree.length}</span>
+    <details className="jini-library-group jini-memory-advanced-card">
+      <summary className="jini-memory-details-summary">
+        <span className="jini-memory-details-title">{t('Memory tree')}</span>
+        <span className="jini-filter-pill-count">{memoryTree.length}</span>
       </summary>
-      <p className="memory-advanced-hint">
+      <p className="jini-memory-advanced-hint">
         {t('Technical view of the same saved memories. Most users only need the saved-memory list above.')}
       </p>
-      <div className="memory-tree-advanced">
+      <div className="jini-memory-tree-advanced">
         {treeFolders.map((folder) => (
           <MemoryTreeFolderCard
             key={folder.id}
@@ -153,7 +153,7 @@ function MemoryTreeFolderCard({
 function MemoryTreeChildRow({ child, onStartEdit, useTHook = useT }: { child: MemoryTreeNode; onStartEdit: (id: string) => void; useTHook?: typeof useT; }) {
   const t = useTHook();
   return (
-    <li className="memory-tree-child-row">
+    <li className="jini-memory-tree-child-row">
       <span style={{ minWidth: 0 }}>
         <span className="library-card-name">{child.name}</span>{' '}
         <span className="library-card-badge">{child.id}</span>
@@ -199,31 +199,31 @@ export function MemoryAdvancedModal({ useTHook = useT, ...props }: MemoryAdvance
   if (!open || !modalHost) return null;
   return createPortal(
     <div
-      className="memory-action-modal-backdrop"
+      className="jini-memory-action-modal-backdrop"
       role="presentation"
       // The dialog below stops propagation, so any mouse-down that reaches the
       // backdrop must have originated on the backdrop itself.
       onMouseDown={onClose}
     >
       <div
-        className="memory-action-modal memory-action-modal--advanced"
+        className="jini-memory-action-modal jini-memory-action-modal--advanced"
         role="dialog"
         aria-modal="true"
         aria-labelledby="memory-advanced-modal-title"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="memory-action-modal-head">
+        <div className="jini-memory-action-modal-head">
           <div>
             <h3 id="memory-advanced-modal-title">{t('Advanced')}</h3>
             <p>{t('Inspect or edit the underlying memory index.')}</p>
           </div>
-          <button type="button" className="memory-action-modal-close" onClick={onClose} aria-label={t('Close')} title={t('Close')}>
+          <button type="button" className="jini-memory-action-modal-close" onClick={onClose} aria-label={t('Close')} title={t('Close')}>
             <Icon name="close" size={16} />
           </button>
         </div>
-        <div className="memory-action-modal-body memory-advanced-modal-body">
-          <p className="memory-advanced-hint">{t('Inspect or edit the underlying memory index.')}</p>
-          <div className="memory-advanced-stack">
+        <div className="jini-memory-action-modal-body jini-memory-advanced-modal-body">
+          <p className="jini-memory-advanced-hint">{t('Inspect or edit the underlying memory index.')}</p>
+          <div className="jini-memory-advanced-stack">
             <MemoryIndexEditorCard {...props} />
             <MemoryTreeCard {...props} />
           </div>

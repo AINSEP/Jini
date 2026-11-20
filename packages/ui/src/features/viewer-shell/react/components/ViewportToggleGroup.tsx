@@ -19,7 +19,7 @@ export interface ViewportToggleGroupProps {
 export function ViewportToggleGroup({ presets, viewport, onViewport, ariaLabel }: ViewportToggleGroupProps) {
   return (
     <SegmentedToggle
-      className="viewer-viewport-toggle-group"
+      className="jini-viewer-viewport-toggle-group"
       ariaLabel={ariaLabel}
       value={viewport}
       onChange={onViewport}

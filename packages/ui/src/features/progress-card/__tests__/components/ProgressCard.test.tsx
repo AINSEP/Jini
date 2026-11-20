@@ -68,7 +68,7 @@ describe('ProgressCard', () => {
 
   it('renders nothing for the step section when steps is empty', () => {
     const { container } = render(<ProgressCard data={data({ steps: [] })} />);
-    expect(container.querySelector('.progress-card-steps')).toBeNull();
+    expect(container.querySelector('.jini-progress-card-steps')).toBeNull();
   });
 
   it('caps rendered steps at maxSteps', () => {
@@ -94,7 +94,7 @@ describe('ProgressCard', () => {
 
   it('omits the secondary-items section entirely when there are none', () => {
     const { container } = render(<ProgressCard data={data()} />);
-    expect(container.querySelector('.progress-card-secondary-items')).toBeNull();
+    expect(container.querySelector('.jini-progress-card-secondary-items')).toBeNull();
   });
 
   it('renders translated title/detail/heading copy when mounted under an I18nProvider with a matching dictionary', () => {

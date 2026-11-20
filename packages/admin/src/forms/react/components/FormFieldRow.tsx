@@ -5,7 +5,7 @@ type Row = ReturnType<typeof useFormFieldsView>["rows"][number];
 type Cell = { row: Row; t: (key: string) => string };
 
 /** Field id, locked once saved. */
-function FieldIdCell({ row: { field, index, isExisting, base, onId }, t }: Cell, _optional: Record<string, never> = {}) {
+function FieldIdCell({ row: { field, index, isExisting, base, onId }, t }: Cell) {
   return (
       <td data-label={t("ID")}>
         <input
@@ -23,7 +23,7 @@ function FieldIdCell({ row: { field, index, isExisting, base, onId }, t }: Cell,
 }
 
 /** Field label. */
-function FieldLabelCell({ row: { field, index, base, onLabel }, t }: Cell, _optional: Record<string, never> = {}) {
+function FieldLabelCell({ row: { field, index, base, onLabel }, t }: Cell) {
   return (
       <td data-label={t("Label")}>
         <input
@@ -37,7 +37,7 @@ function FieldLabelCell({ row: { field, index, base, onLabel }, t }: Cell, _opti
 }
 
 /** The type picker, grouped by the registry. */
-function FieldTypeCell({ row: { field, index, base, typeGroups, onType }, t }: Cell, _optional: Record<string, never> = {}) {
+function FieldTypeCell({ row: { field, index, base, typeGroups, onType }, t }: Cell) {
   return (
       <td data-label={t("Type")}>
         <select
@@ -64,7 +64,7 @@ function FieldTypeCell({ row: { field, index, base, typeGroups, onType }, t }: C
 }
 
 /** Required checkbox. */
-function FieldRequiredCell({ row: { field, index, base, onRequired }, t }: Cell, _optional: Record<string, never> = {}) {
+function FieldRequiredCell({ row: { field, index, base, onRequired }, t }: Cell) {
   return (
       <td data-label={t("Required")}>
         <input
@@ -82,7 +82,7 @@ function FieldRequiredCell({ row: { field, index, base, onRequired }, t }: Cell,
 }
 
 /** Max length, or a dash for types without one. */
-function FieldMaxLengthCell({ row: { field, index, base, hasLength, onMaxLength }, t }: Cell, _optional: Record<string, never> = {}) {
+function FieldMaxLengthCell({ row: { field, index, base, hasLength, onMaxLength }, t }: Cell) {
   return (
       <td data-label={t("Max length")}>
         {!hasLength ? (
@@ -104,7 +104,7 @@ function FieldMaxLengthCell({ row: { field, index, base, hasLength, onMaxLength 
 }
 
 /** The kebab that opens the field settings dialog. */
-function FieldSettingsCell({ row: { base, displayName, ref, onAttributes }, t }: Cell, _optional: Record<string, never> = {}) {
+function FieldSettingsCell({ row: { base, displayName, ref, onAttributes }, t }: Cell) {
   return (
       <td data-label={t("Settings")}>
         {/* Reuses `RowMenu`'s (`@jini-ai/admin/react`) own kebab glyph and
@@ -133,9 +133,9 @@ function FieldSettingsCell({ row: { base, displayName, ref, onAttributes }, t }:
 }
 
 /** Remove, refused once the field is saved. */
-function FieldRemoveCell({ row: { base, isExisting, onRemove }, t }: Cell, _optional: Record<string, never> = {}) {
+function FieldRemoveCell({ row: { base, isExisting, onRemove }, t }: Cell) {
   return (
-      <td className="form-field-remove-cell">
+      <td className="jini-form-field-remove-cell">
         <button
           type="button"
           disabled={isExisting}
@@ -153,7 +153,7 @@ function FieldRemoveCell({ row: { base, isExisting, onRemove }, t }: Cell, _opti
 }
 
 /** One field of the form as a table row. */
-export function FormFieldRow({ row, t }: Cell, _optional: Record<string, never> = {}) {
+export function FormFieldRow({ row, t }: Cell) {
   return (
     <tr>
       <FieldIdCell row={row} t={t} />

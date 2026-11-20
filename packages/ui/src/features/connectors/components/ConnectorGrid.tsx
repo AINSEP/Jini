@@ -55,12 +55,12 @@ function ConnectorGridEmpty({
     : t('No connectors match "{query}"', { query: searchQuery.trim() });
   const action = emptyNoMatchAction ?? t('Clear search');
   return (
-    <div className="tab-empty connectors-empty" role="status" aria-live="polite" data-testid="connectors-empty">
-      <p className="connectors-empty-title">{title}</p>
-      <p className="connectors-empty-body">{emptyNoMatchBody ?? t('Try a different search term.')}</p>
+    <div className="jini-tab-empty jini-connectors-empty" role="status" aria-live="polite" data-testid="connectors-empty">
+      <p className="jini-connectors-empty-title">{title}</p>
+      <p className="jini-connectors-empty-body">{emptyNoMatchBody ?? t('Try a different search term.')}</p>
       <button
         type="button"
-        className="ghost connectors-empty-action"
+        className="ghost jini-connectors-empty-action"
         onClick={onClearSearch}
         {...agentHandleProps({}, { base: agentHandle, action: 'clear-search', role: 'button', label: action })}
       >

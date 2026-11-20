@@ -12,8 +12,8 @@ export interface StatCardProps {
 export function StatCard({ label, value, className }: StatCardProps) {
   return (
     <div className={['plugins-view__stat', className].filter(Boolean).join(' ')}>
-      <span className="plugins-view__stat-value">{value}</span>
-      <span className="plugins-view__stat-label">{label}</span>
+      <span className="jini-plugins-view__stat-value">{value}</span>
+      <span className="jini-plugins-view__stat-label">{label}</span>
     </div>
   );
 }

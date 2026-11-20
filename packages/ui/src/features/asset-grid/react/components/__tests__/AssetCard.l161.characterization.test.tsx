@@ -40,7 +40,7 @@ describe('AssetCard L161 characterization', () => {
       renderCardExtra: extra ? renderCardExtra : undefined,
       onDeleteAsset: remove ? onDeleteAsset : undefined,
     })} />);
-    const row = container.querySelector('.asset-grid-card-actions');
+    const row = container.querySelector('.jini-asset-grid-card-actions');
     expect(row !== null).toBe(extra || remove);
     expect(screen.queryByText('Extra one') !== null).toBe(extra);
     expect(screen.queryByRole('button', { name: 'Remove' }) !== null).toBe(remove);
@@ -56,7 +56,7 @@ describe('AssetCard L161 characterization', () => {
   it('keeps the actions row when the host extra renderer returns null', () => {
     const renderCardExtra = vi.fn(() => null);
     const { container } = render(<AssetCard {...props({ renderCardExtra })} />);
-    expect(container.querySelector('.asset-grid-card-actions')).toBeEmptyDOMElement();
+    expect(container.querySelector('.jini-asset-grid-card-actions')).toBeEmptyDOMElement();
     expect(renderCardExtra).toHaveBeenCalledTimes(1);
     expect(renderCardExtra).toHaveBeenCalledWith({ id: 'one' });
   });
@@ -82,7 +82,7 @@ describe('AssetCard L161 characterization', () => {
 
   it('omits empty badges and subtitle', () => {
     const { container } = render(<AssetCard {...props({ sourceLabel: '', kindLabel: '', subtitle: '' })} />);
-    expect(container.querySelector('.asset-grid-card-badge')).toBeNull();
+    expect(container.querySelector('.jini-asset-grid-card-badge')).toBeNull();
     expect(container.querySelector('.asset-grid-card-subtitle')).toBeNull();
   });
 });

@@ -19,7 +19,7 @@ export function AssetTreeToolbar({ actions, useTHook = useT }: AssetTreeToolbarP
   if (actions.length === 0) return null;
 
   return (
-    <div className="asset-tree-toolbar-actions">
+    <div className="jini-asset-tree-toolbar-actions">
       {actions.map((action) => (
         <button
           key={action.key}

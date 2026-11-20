@@ -87,8 +87,8 @@ function renderGridContent<TAsset extends AssetGridItem>(
   },
   _options: Record<string, never> = {},
 ) {
-  if (loading && bodyProps.assets.length === 0) return <p className="asset-grid-empty">{t('Loading…')}</p>;
-  if (bodyProps.assets.length === 0) return emptyState ?? <div className="asset-grid-empty">{t('No assets yet.')}</div>;
+  if (loading && bodyProps.assets.length === 0) return <p className="jini-asset-grid-empty">{t('Loading…')}</p>;
+  if (bodyProps.assets.length === 0) return emptyState ?? <div className="jini-asset-grid-empty">{t('No assets yet.')}</div>;
   return <AssetGridBody {...bodyProps} />;
 }
 

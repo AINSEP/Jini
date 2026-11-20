@@ -29,7 +29,7 @@ function storedPrefix(iso: string): string {
   return iso.slice(0, 16).replace("T", " ");
 }
 
-/** A stored UTC prefix can label server time as viewer time (host issue D-06), so absolute instants
+/** A stored UTC prefix can label server time as viewer time, so absolute instants
  * are converted with Intl into the given zone, which also follows that zone's DST. Zone-less ISO is
  * already local wall time; other text would be parsed in the host's ambient zone, so it stays as given. */
 function formatInZone({ iso, timeZone }: { iso: string; timeZone: string }, _options = {}): string {

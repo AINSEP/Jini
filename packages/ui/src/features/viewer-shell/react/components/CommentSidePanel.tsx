@@ -127,7 +127,7 @@ function CommentSideExpanded<TComment extends ViewerCommentBase>(props: CommentS
   const { comments, sending, queueOnSend = false, sendDisabled = false, renderCreateForm = true } = props;
   const selectedCount = props.visibleSelectedIds.size;
   return (
-    <aside id={props.panelId} className="comment-side-panel" data-testid="comment-side-panel" aria-label={props.commentsLabel}>
+    <aside id={props.panelId} className="jini-comment-side-panel" data-testid="comment-side-panel" aria-label={props.commentsLabel}>
       <CommentSideHeader
         toggleRef={props.toggleRef}
         panelId={props.panelId}
@@ -146,7 +146,7 @@ function CommentSideExpanded<TComment extends ViewerCommentBase>(props: CommentS
         onClearSelection={props.onClearSelection}
         onSendSelected={props.onSendSelected}
       />
-      {props.composer ? <div className="comment-side-composer">{props.composer}</div> : null}
+      {props.composer ? <div className="jini-comment-side-composer">{props.composer}</div> : null}
       <CommentSideCreateForm
         renderCreateForm={renderCreateForm}
         draft={props.newCommentDraft}
@@ -169,9 +169,9 @@ function CommentSideList<TComment extends ViewerCommentBase>({ useTHook = useT, 
   const t = useTHook();
   const { comments, reorder, visibleSelectedIds, activeCommentId, formatTs } = props;
   return (
-    <div className="comment-side-list" onDragLeave={reorder.onDragLeaveContainer}>
+    <div className="jini-comment-side-list" onDragLeave={reorder.onDragLeaveContainer}>
       {comments.length === 0 ? (
-        <div className="comment-side-empty">{t('No comments yet')}</div>
+        <div className="jini-comment-side-empty">{t('No comments yet')}</div>
       ) : (
         comments.map((comment, index) => (
           <CommentSideItem
@@ -258,7 +258,7 @@ function CommentSideRail({
     <button
       ref={railRef}
       type="button"
-      className="comment-side-rail"
+      className="jini-comment-side-rail"
       data-testid="comment-side-collapsed-rail"
       aria-label={showLabel}
       aria-expanded={false}
@@ -295,21 +295,21 @@ function CommentSideHeader({
   const hideLabel = t('Hide {label}', { label: commentsLabel });
   const allSelected = commentCount > 0 && selectedCount === commentCount;
   return (
-    <div className="comment-side-header">
-      <div className="comment-side-title">
+    <div className="jini-comment-side-header">
+      <div className="jini-comment-side-title">
         <RemixIcon name="message-3-line" size={15} />
         <span>{commentsLabel}</span>
       </div>
-      <div className="comment-side-header-actions">
+      <div className="jini-comment-side-header-actions">
         {commentCount > 0 ? (
-          <button type="button" className="comment-side-select-all" disabled={allSelected} onClick={onSelectAll}>
+          <button type="button" className="jini-comment-side-select-all" disabled={allSelected} onClick={onSelectAll}>
             {t('Select all')}
           </button>
         ) : null}
         <button
           ref={toggleRef}
           type="button"
-          className="comment-side-collapse"
+          className="jini-comment-side-collapse"
           aria-label={hideLabel}
           aria-controls={panelId}
           aria-expanded={true}
@@ -383,10 +383,10 @@ function CommentSideItemHead<TComment extends ViewerCommentBase>({
 }) {
   const dragLabel = useTHook()('Drag to reorder');
   return (
-    <div className="comment-side-item-head">
+    <div className="jini-comment-side-item-head">
       <button
         type="button"
-        className="comment-side-drag-handle"
+        className="jini-comment-side-drag-handle"
         title={dragLabel}
         aria-label={dragLabel}
         draggable={reorder.canReorder}
@@ -397,10 +397,10 @@ function CommentSideItemHead<TComment extends ViewerCommentBase>({
       >
         <Icon name="grip-vertical" size={13} />
       </button>
-      <span className="comment-side-author">
+      <span className="jini-comment-side-author">
         <strong>{`${index + 1}. ${label}`}</strong>
       </span>
-      <span className="comment-side-time">{timeLabel}</span>
+      <span className="jini-comment-side-time">{timeLabel}</span>
       <CommentSideCheck selected={selected} onToggle={() => onToggleSelect(comment.id)} />
     </div>
   );
@@ -457,7 +457,7 @@ function CommentSideItem<TComment extends ViewerCommentBase>(props: CommentSideI
         timeLabel={props.formatTs(props.getCommentTimestamp(comment))}
         onToggleSelect={props.onToggleSelect}
       />
-      <div className="comment-side-body">{props.getCommentBody(comment)}</div>
+      <div className="jini-comment-side-body">{props.getCommentBody(comment)}</div>
       {resolveAttachmentUrl && attachments.length > 0 ? (
         <CommentSideAttachments attachments={attachments} resolveAttachmentUrl={resolveAttachmentUrl} />
       ) : null}

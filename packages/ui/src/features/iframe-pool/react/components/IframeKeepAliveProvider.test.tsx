@@ -24,7 +24,7 @@ function renderWithPool(maxMounted?: number) {
 describe('IframeKeepAliveProvider', () => {
   it('renders a hidden parked-host div alongside children', () => {
     const { container } = renderWithPool();
-    const parked = container.querySelector('div.iframe-keep-alive-pool');
+    const parked = container.querySelector('div.jini-iframe-keep-alive-pool');
     expect(parked).not.toBeNull();
     expect(parked?.getAttribute('aria-hidden')).toBe('true');
   });
@@ -46,7 +46,7 @@ describe('IframeKeepAliveProvider', () => {
     const el = getPool().attach('a', host, () => document.createElement('iframe'));
     act(() => getPool().release('a'));
     expect(host.contains(el)).toBe(false);
-    const parked = container.querySelector('div.iframe-keep-alive-pool');
+    const parked = container.querySelector('div.jini-iframe-keep-alive-pool');
     expect(parked?.contains(el)).toBe(true);
     expect(el.getAttribute('data-pool-active')).toBe('false');
     expect(el.getAttribute('aria-hidden')).toBe('true');
