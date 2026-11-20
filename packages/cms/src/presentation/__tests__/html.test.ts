@@ -109,7 +109,7 @@ test("a page mixing off-site, same-site, and anchor links only rewrites the off-
   assert.match(result, /<a href="\/pricing">Pricing<\/a>/);
   assert.match(result, /<a href="https:\/\/agent-plugins\.org\/specification" rel="noopener noreferrer" target="_blank">Spec<\/a>/);
   assert.match(result, /<a href="#top">Top<\/a>/);
-  assert.match(result, /<a href="mailto:hi@tovu\.example">Contact<\/a>/);
+  assert.match(result, /<a href="mailto:hi@site\.example">Contact<\/a>/);
   assert.equal(result, html.replace(`<a href="https://agent-plugins.org/specification">`, `<a href="https://agent-plugins.org/specification" rel="noopener noreferrer" target="_blank">`));
 });
 

@@ -28,13 +28,13 @@ test("undefined results and a foreign slug leave every byte unchanged", () => {
 test("Builder validation escapes field errors and restores values without a second value or replacement expansion", () => {
   assert.equal(injectFormSubmissionResultIntoHtml({ html: builder, result: { kind: "validation", slug: "s",
     fieldErrors: [{ field: "name", reason: "required" }], values: { name: '$& $1 $$ <&"' } }, markup, feedback }),
-    '<div class="form-success legacy" data-form-slug="s" hidden>Thanks $&</div><form class="form" data-form-slug="s"><div class="form-error" data-form-slug="s">Fix the fields.</div><div class="field-error" data-field="name">Check name &lt;&amp; $& $1 $$.</div><input name="name" value="$& $1 $$ &lt;&amp;&quot;"></form>');
+    '<div class="form-success legacy" data-form-slug="s" hidden>Thanks $&</div><form class="form" data-form-slug="s"><div class="form-error" data-form-slug="s">Fix the fields.</div><div class="field-error" data-field="name">Check name &lt;&amp; $&amp; $1 $$.</div><input name="name" value="$&amp; $1 $$ &lt;&amp;&quot;"></form>');
 });
 
 test("authored validation lists messages in order; empty errors get the fallback entry", () => {
   assert.equal(injectFormSubmissionResultIntoHtml({ html: authored, result: { kind: "validation", slug: "s",
     fieldErrors: [{ field: "name", reason: "required" }, { field: "email", reason: "invalid" }] }, markup, feedback }),
-    '<div data-host-success data-form-slug="s" hidden>Thanks</div><form data-host-form="s" data-form-slug="s"><div data-host-error data-form-slug="s">Check name &lt;&amp; $& $1 $$. Check email &lt;&amp; $& $1 $$.</div><input name="name"></form>');
+    '<div data-host-success data-form-slug="s" hidden>Thanks</div><form data-host-form="s" data-form-slug="s"><div data-host-error data-form-slug="s">Check name &lt;&amp; $&amp; $1 $$. Check email &lt;&amp; $&amp; $1 $$.</div><input name="name"></form>');
   const calls: unknown[] = [];
   injectFormSubmissionResultIntoHtml({ html: authored, result: { kind: "validation", slug: "s", fieldErrors: [] }, markup,
     feedback: { ...feedback, validationMessages: (input) => { calls.push(input); return feedback.validationMessages(input); } } });
@@ -44,7 +44,7 @@ test("authored validation lists messages in order; empty errors get the fallback
 test("restoration preserves other quote styles, data attributes, textarea content and input closure", () => {
   const form = `<form data-form-slug="s"><input name="a" value='old'><input name="b" value="Don't know"><input name="c" data-default-value="keep"/><textarea name="d">old</textarea></form>`;
   assert.equal(injectFormSubmissionResultIntoHtml({ html: form, result: { kind: "too-fast", slug: "s", values: { a: "$&", b: "$1", c: "$$", d: "<& $&" } }, markup, feedback }),
-    '<form data-form-slug="s"><input name="a" value="$&"><input name="b" value="$1"><input name="c" data-default-value="keep" value="$$"/><textarea name="d">&lt;&amp; $&</textarea></form>');
+    '<form data-form-slug="s"><input name="a" value="$&amp;"><input name="b" value="$1"><input name="c" data-default-value="keep" value="$$"/><textarea name="d">&lt;&amp; $&amp;</textarea></form>');
 });
 
 test("timing, rate-limit and error outcomes use the supplied copy without disturbing other content", () => {

@@ -158,14 +158,14 @@ async function sendNotification({ deps, definition, submission, recipient, paylo
     if (durable) throw err instanceof FormNotificationError ? err : new FormNotificationError({ submissionId, retryable: true });
     // A send failure is terminal for this delivery: log, never retry inline or alter
     // the persisted submission, and continue so the other recipients can still receive it.
-    warn({ logger: deps.logger, message: "Form notification send threw." }, { error: err });
+    warn({ logger: deps.logger, message: `[forms:notify] mail send threw for submission '${submissionId}' (recipient address withheld from logs)` }, { error: err });
     return;
   }
   if (result.ok) return;
   if (durable) throw new FormNotificationError({ submissionId, retryable: result.retryable,
     retryAfterMs: result.retryAfterMs,
     outcome: result.unknown ? "unknown" : "not-applied" });
-  warn({ logger: deps.logger, message: "Form notification send failed." }, { error: Object.assign(new Error(result.message), { code: result.errorCode }) });
+  warn({ logger: deps.logger, message: `[forms:notify] mail send failed for submission '${submissionId}' (recipient address withheld from logs)` }, { error: Object.assign(new Error(result.message), { code: result.errorCode }) });
 }
 
 /** Captured labels/options make a delayed notification describe the form the visitor answered.

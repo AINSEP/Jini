@@ -89,6 +89,6 @@ test("planCleanup surfaces a gateway refusal as reason='gateway_rejected' carryi
   assert.equal(result.ok, false);
   if (result.ok) return;
   assert.equal(result.error.reason, "gateway_rejected");
-  assert.equal(result.error.message, "plan store unavailable");
+  assert.equal(result.error.message, "The cleanup gateway refused the plan for content type recipe (string).");
   assert.deepEqual(gateway.calls, [{ principalId: "user-1", workspaceId: "ws-1", contentTypeKey: "recipe", domain: "collections", action: "cleanup" }]);
 });

@@ -71,7 +71,7 @@ test('library_read returns typed install guidance and authorizes before calling 
   const ctx = { executionId: 'e', principal: { id: 'owner' }, run: { id: 'r' },
     input: { documentId: f.input.id }, signal: new AbortController().signal } as ToolExecutionContext;
   assert.deepEqual(await read()(ctx), { untrusted: true, error: { code: 'DOCUMENT_TEXT_UNAVAILABLE',
-    message: 'extraction unavailable — install unpdf', install: 'unpdf' } });
+    message: "No document-text extractor is installed for this file's format; see install.", install: 'unpdf' } });
   assert.equal(calls, 1);
   deps.authorize = async () => ({ allowed: false, reason: 'denied' });
   await assert.rejects(read()(ctx));

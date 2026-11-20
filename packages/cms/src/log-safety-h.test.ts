@@ -144,7 +144,7 @@ test("H: cleanup gateway refusal preserves reason without reflecting adapter tex
   }, input: { workspaceId: "ws", actorId: "actor", contentTypeKey: "article", exportReference: "export" } });
   expect(plans).toBe(1);
   expect(result.ok).toBe(false);
-  if (!result.ok) expect([result.error.reason, result.error.message]).toEqual(["gateway_rejected", "Cleanup gateway rejected the plan."]);
+  if (!result.ok) expect([result.error.reason, result.error.message]).toEqual(["gateway_rejected", "The cleanup gateway refused the plan for content type article (Error)."]);
 });
 
 test.each(["DOCUMENT_TEXT_UNAVAILABLE", "DOCUMENT_TEXT_FAILED"] as const)("H: library read %s returns fixed copy", async code => {
@@ -162,7 +162,7 @@ test.each(["DOCUMENT_TEXT_UNAVAILABLE", "DOCUMENT_TEXT_FAILED"] as const)("H: li
   const tool = buildMediaRegistrations(deps).find(row => row.descriptor.id === "library_read")!;
   const context: ToolExecutionContext = { executionId: "exec", principal: { id: "actor" }, run: { id: "run" }, input: { documentId: media.id }, signal: new AbortController().signal };
   const result = await tool.handler(context);
-  expect(result).toEqual({ untrusted: true, error: { code, message: code === "DOCUMENT_TEXT_UNAVAILABLE" ? "Document text extraction is unavailable." : "Document text extraction failed." } });
+  expect(result).toEqual({ untrusted: true, error: { code, message: code === "DOCUMENT_TEXT_UNAVAILABLE" ? "No document-text extractor is installed for this file's format; see install." : "The document-text extractor could not read this file." } });
   expect(await mediaRepo.findById({ workspaceId: "ws", id: media.id })).not.toBeNull();
 });
 

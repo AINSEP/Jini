@@ -1,3 +1,4 @@
+import { describeErrorForLog } from "@jini-ai/core";
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 import type { Clock } from "@jini-ai/core/primitives";
 import { CleanupNotEligibleError } from "./errors.js";
@@ -94,7 +95,7 @@ export async function planCleanup(
     action: "cleanup",
   });
   if (!planResult.ok) {
-    return { ok: false, error: new CleanupNotEligibleError({ reason: "gateway_rejected" }, { message: "Cleanup gateway rejected the plan." }) };
+    return { ok: false, error: new CleanupNotEligibleError({ reason: "gateway_rejected" }, { message: `The cleanup gateway refused the plan for content type ${input.contentTypeKey} (${describeErrorForLog({ err: planResult.error })}).` }) };
   }
   return { ok: true, value: planResult.value };
 }

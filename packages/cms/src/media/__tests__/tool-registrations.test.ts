@@ -332,7 +332,7 @@ test("m1: an unavailable document extractor returns the typed safe failure witho
   const { deps } = fakeDeps();
   const document = await seedDocument(deps, "guide.pdf", "%PDF-1.7\n%%EOF");
   assert.deepEqual(await tool(deps, "library_read").handler(executionContext({ documentId: document.id })), {
-    untrusted: true, error: { code: "DOCUMENT_TEXT_UNAVAILABLE", message: "Document text extraction is unavailable." },
+    untrusted: true, error: { code: "DOCUMENT_TEXT_UNAVAILABLE", message: "No document-text extractor is installed for this file's format; see install." },
   });
   assert.equal((await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: document.id }))?.id, document.id);
 });
