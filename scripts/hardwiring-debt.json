@@ -24,20 +24,6 @@
     },
     {
       "rule": "HW3-module-state",
-      "file": "packages/admin/src/react/components/Sidebar.tsx",
-      "line": 134,
-      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
-      "fingerprint": "ba969abe920e292a50bc1a9ba59d405644ccff7812e069dced469c8c729133c3"
-    },
-    {
-      "rule": "HW3-module-state",
-      "file": "packages/admin/src/react/components/Sidebar.tsx",
-      "line": 197,
-      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
-      "fingerprint": "a98d492b5f5995ac867674aad64b6e38f5baeca47560c8ee93f813b5812cbb1b"
-    },
-    {
-      "rule": "HW3-module-state",
       "file": "packages/agent-runtime/src/acp-model-probe.ts",
       "line": 35,
       "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
@@ -651,13 +637,6 @@
       "line": 19,
       "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
       "fingerprint": "a51a6c19a1ffc7416827e89adf20749d23ad42452c396cf7e627409f2896922c"
-    },
-    {
-      "rule": "HW3-module-state",
-      "file": "packages/ui/src/features/observability/stuck-run.ts",
-      "line": 30,
-      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
-      "fingerprint": "1f64fff08d787e732e04559f4d241876b399d9d4251af79833bd22adbb2d331a"
     },
     {
       "rule": "HW3-module-state",

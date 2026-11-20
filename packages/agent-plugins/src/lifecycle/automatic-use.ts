@@ -7,7 +7,7 @@ import { agentVisiblePluginCandidate } from './search-projection.js';
 export type ChatAgentPlugins = 'auto' | 'ask' | 'off';
 export const DEFAULT_CHAT_AGENT_PLUGINS: ChatAgentPlugins = 'auto';
 const MAX_AUTOMATIC_GUIDANCE_BYTES = 8 * 1024;
-const MAX_PRIMARY_GUIDANCE_BYTES = 16 * 1024;
+const MAX_QUERY_GUIDANCE_BYTES = 24 * 1024;
 /** Browser-owned, per-conversation state. Clearing it deliberately permits a fresh question. */
 export interface ChatAgentPluginState {
   decision: { selected: readonly string[]; asked?: boolean; delivered?: readonly string[] } | null;
@@ -28,25 +28,17 @@ function describeMatch({ plugin }: { plugin: AgentPluginSearchCandidate }, _opti
     why: (plugin.summary ?? plugin.description ?? `Provides ${(plugin.provides ?? plugin.keywords).join(', ')}`).split(/[\n.]/)[0]!.replace(/\s+/g, ' ').slice(0, 180) };
 }
 
-/** Present metadata only. A byte is a conservative upper bound on a UTF-8 text token, so
- * this stays below 600 tokens without a model-specific tokenizer or a plugin-count limit.
- * @returns A bounded note in relevance order, with discovery for every omitted match.
- * @complexity O(p) metadata formatting; output is bounded independently of plugin count.
- */
-function relevantPluginNote({ matches, formatPluginToolPointer }: { matches: readonly AgentPluginSearchCandidate[]; formatPluginToolPointer?: AgentPluginLifecyclePorts['formatPluginToolPointer'] | undefined }, _options = {}): string {
-  if (!matches.length) return '';
-  const header = 'Relevant agent plugins for this request:\n';
-  const footer = formatPluginToolPointer ? `\nLoad one with ${formatPluginToolPointer({ pluginId: '<pluginId>', file: 'SKILL.md' })} before acting on that part.` : '';
-  const more = (remaining: number) => remaining ? `\n+${remaining} more relevant: search_agent_plugin_local({ query: <same request>, offset: 0 }); page with nextOffset` : '';
-  const lines: string[] = [];
-  const bytes = (text: string) => new TextEncoder().encode(text).length;
-  for (const match of matches) {
-    const { id, name, why } = describeMatch({ plugin: match });
-    const line = `${name} (${id}) — ${why}`;
-    if (bytes(header + [...lines, line].join('\n') + more(matches.length - lines.length - 1) + footer) > 600) break;
-    lines.push(line);
-  }
-  return header + lines.join('\n') + more(matches.length - lines.length) + footer;
+function enabledPluginCatalog({ ctx, candidates }: {
+  ctx: UseContext; candidates: readonly AgentPluginSearchCandidate[];
+}, _options = {}): string {
+  const rows = [...candidates].filter(plugin => !ctx.state.excluded.includes(plugin.pluginId) && !ctx.delivered.has(plugin.pluginId))
+    .sort((a, b) => a.pluginId.localeCompare(b.pluginId));
+  return rows.length ? 'Enabled agent plugins (load one before acting on its part):\n' + rows.map(plugin => catalogRow({ ctx, plugin })).join('\n') : '';
+}
+function catalogRow({ ctx, plugin }: { ctx: UseContext; plugin: AgentPluginSearchCandidate }, _options = {}): string {
+  const { id, name, why } = describeMatch({ plugin });
+  const pointer = ctx.ports.formatPluginToolPointer?.({ pluginId: id, file: 'SKILL.md' }) ?? `search_agent_plugin_local({ query: "${id}" })`;
+  return `- ${name} (${id}): ${why}` + (plugin.keywords.length ? `\n  Use for: ${plugin.keywords.slice(0, 8).join(', ')}` : '') + `\n  Load: ${pointer}`;
 }
 export interface AutomaticAgentPluginPorts {
   /** Optional so hosts wired before this port keep working; without it, notes omit the load pointer. */
@@ -71,7 +63,18 @@ function rankCandidates(
   const { capabilities } = input;
   const admit = (plugins: readonly AgentPluginSearchCandidate[]) => plugins.map(plugin => ({ ...plugin, score: 4 }));
   if (capabilities) return admit(candidates.filter(plugin => plugin.provides?.some(capability => capabilities.includes(capability))));
-  return ports.rank({ query: input.query ?? '', candidates, limit: candidates.length }, {});
+  return withRequiredProviders({ ranked: ports.rank({ query: input.query ?? '', candidates, limit: candidates.length }, {}), candidates });
+}
+
+function withRequiredProviders({ ranked, candidates }: {
+  ranked: readonly AgentPluginSearchMatch[]; candidates: readonly AgentPluginSearchCandidate[];
+}, _options = {}): readonly AgentPluginSearchMatch[] {
+  const top = ranked[0];
+  if (!top) return ranked;
+  const required = candidates.filter(plugin => plugin.enabled && plugin.provides?.some(capability => top.requires?.includes(capability)))
+    .map(plugin => ranked.find(match => match.pluginId === plugin.pluginId) ?? { ...plugin, score: 4 });
+  const ordered = [top, ...required, ...ranked];
+  return ordered.filter((plugin, index) => ordered.findIndex(match => match.pluginId === plugin.pluginId) === index);
 }
 
 /** Validate the request's small browser state; malformed state means no previous decision.
@@ -169,8 +172,8 @@ function recordDelivery({ ctx, plugin, result }: {
 async function resolveGuidance({ ctx, matches }: {
   ctx: UseContext;
   matches: readonly AgentPluginSearchMatch[];
-}, { primaryId, signal }: {
-  primaryId?: string | undefined;
+}, { budget, signal }: {
+  budget?: number | undefined;
   signal?: AbortSignal | undefined;
 } = {}): Promise<string[]> {
   const guidance: string[] = [];
@@ -178,12 +181,13 @@ async function resolveGuidance({ ctx, matches }: {
   const guidanceFor = async (match: AgentPluginSearchMatch): Promise<string | undefined> => {
     const result = await resolveOneGuidance(ctx, { plugin: match }, { signal });
     if (result.status !== 'loaded') return undefined;
-    if (new TextEncoder().encode(result.guidance).length > (match.pluginId === primaryId ? MAX_PRIMARY_GUIDANCE_BYTES : MAX_AUTOMATIC_GUIDANCE_BYTES)) {
+    if (new TextEncoder().encode(result.guidance).length > (budget ?? MAX_AUTOMATIC_GUIDANCE_BYTES)) {
       const pointer = ctx.ports.formatPluginToolPointer?.({ pluginId: match.pluginId, skill: match.pluginId, file: 'SKILL.md' });
       const howToLoad = pointer === undefined ? '' : ` Load the full instructions with ${pointer}; use the same call with file '<relative path>' for supporting references.`;
       return `Agent Plugin '${match.pluginId}' guidance is deferred because it exceeds the automatic byte limit.${howToLoad}`;
     }
     recordDelivery({ ctx, plugin: match, result });
+    if (budget !== undefined) budget -= new TextEncoder().encode(result.guidance).length;
     return result.guidance;
   };
   for (const match of matches) {
@@ -212,14 +216,14 @@ async function publishUsage(ctx: UseContext, ): Promise<void> {
     // Usage publication is advisory; losing its event must not discard resolved model guidance.
   }
 }
-/** Query preflight delivers one primary; guarded capabilities resolve their providers.
+/** Query preflight delivers the top and required providers; guarded capabilities resolve their providers.
  * Effects serialize with loads so a suggestion never consumes a backstop's delivery.
  */
 async function prepare({ ctx, input }: { ctx: UseContext; input: PrepareInput }): Promise<string> {
   for (const id of input.loaded ?? []) ctx.alreadyLoaded.add(id);
   if (ctx.mode === 'off' || input.signal?.aborted) return '';
-  const catalog = (await ctx.ports.list({}, {})).filter(plugin => !ctx.state.excluded.includes(plugin.pluginId));
-  const candidates = catalog.filter(plugin => plugin.enabled);
+  const installed = (await ctx.ports.list({}, {})).filter(plugin => !ctx.state.excluded.includes(plugin.pluginId));
+  const candidates = installed.filter(plugin => plugin.enabled);
   for (const id of ctx.alreadyLoaded) if (!candidates.some(plugin => plugin.pluginId === id)) ctx.alreadyLoaded.delete(id);
   const matches = await consentedMatches({ ctx, candidates, input });
   const result = await preparedGuidance({ ctx, matches, input });
@@ -227,8 +231,9 @@ async function prepare({ ctx, input }: { ctx: UseContext; input: PrepareInput })
   await publishUsage(ctx);
   // Preflight never resolves off packages implicitly. A catalog line offers an explicit read;
   // its setup guidance may explain whether enabling or credentials are needed.
-  const off = offPluginNote(ctx, { catalog, input });
-  return [result, off].filter(Boolean).join('\n\n');
+  const off = offPluginNote(ctx, { catalog: installed, input });
+  const catalog = input.query !== undefined && !input.capabilities?.length ? enabledPluginCatalog({ ctx, candidates }) : '';
+  return [result, catalog, off].filter(Boolean).join('\n\n');
 }
 /** Rank enabled candidates, drop plugins this run already has, then apply the person's consent. */
 async function consentedMatches({ ctx, candidates, input }: {
@@ -241,7 +246,7 @@ async function consentedMatches({ ctx, candidates, input }: {
   const relevant = ranked.filter(plugin => !ctx.delivered.has(plugin.pluginId) && !input.loaded?.includes(plugin.pluginId) && (!ctx.alreadyLoaded.has(plugin.pluginId) || !!input.query));
   return applyConsent({ ctx, matches: relevant }, { signal: input.signal });
 }
-/** Capability calls resolve every match; a query resolves one primary and notes the rest. */
+/** Capability calls resolve every match; a query resolves the top and required providers. */
 async function preparedGuidance({ ctx, matches, input }: {
   ctx: UseContext;
   matches: AgentPluginSearchMatch[];
@@ -249,18 +254,19 @@ async function preparedGuidance({ ctx, matches, input }: {
 }): Promise<string> {
   const shouldLoad = !!input.capabilities?.length;
   const primary = primaryMatch({ ctx, matches, input });
-  return shouldLoad ? (await resolveGuidance({ ctx, matches }, { signal: input.signal })).join('\n\n') : [
-    ...(await resolveGuidance({ ctx, matches: primary }, { primaryId: primary[0]?.pluginId, signal: input.signal })),
-    relevantPluginNote({ matches: matches.slice(primary.length), formatPluginToolPointer: ctx.ports.formatPluginToolPointer }),
-  ].filter(Boolean).join('\n\n');
+  return shouldLoad ? (await resolveGuidance({ ctx, matches }, { signal: input.signal })).join('\n\n') : (await resolveGuidance({ ctx, matches: primary }, { budget: MAX_QUERY_GUIDANCE_BYTES, signal: input.signal })).join('\n\n');
 }
-/** The single top match a fresh, unbounded query preflight delivers in full; otherwise none. */
+/** The top match and required providers a fresh, unbounded query preflight delivers in full; otherwise none. */
 function primaryMatch({ ctx, matches, input }: {
   ctx: UseContext;
   matches: AgentPluginSearchMatch[];
   input: PrepareInput;
 }): AgentPluginSearchMatch[] {
-  return input.maxPromptArgBytes === undefined && input.query && !input.loaded?.length && !ctx.alreadyLoaded.has(matches[0]?.pluginId ?? '') ? matches.slice(0, 1) : [];
+  if (!(input.maxPromptArgBytes === undefined && input.query && !input.loaded?.length && !ctx.alreadyLoaded.has(matches[0]?.pluginId ?? ''))) return [];
+  const [top, ...rest] = matches;
+  if (!top) return [];
+  const required = rest.filter(plugin => !ctx.alreadyLoaded.has(plugin.pluginId) && plugin.provides?.some(capability => top.requires?.includes(capability)));
+  return [top, ...required].slice(0, 3);
 }
 /** Rank readable metadata for off plugins; never load their tools or guidance implicitly. O(p*t). */
 function offPluginNote(ctx: UseContext, { catalog, input }: { catalog: readonly AgentPluginSearchCandidate[]; input: PrepareInput }): string {

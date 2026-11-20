@@ -1,3 +1,5 @@
+import { ACP_AUTH_REQUIRED_ERROR_CODE } from './constants.js';
+import { accountFailureDetails } from './account-failure.js';
 import type { UnknownRecord } from './types.js';
 import { rpcErrorData, rpcErrorRetryable, promotedOpenCodeSessionErrorPayload, formatUsage } from './rpc.js';
 import { findModelConfigOption, currentModelFromSessionResult, modelSelectionErrorIsRecoverable } from './models.js';
@@ -35,7 +37,14 @@ export function handleRpcError({
   if (error?.code === -32603 && obj.id !== state.expectedId) {
     return;
   }
+  if (error?.code === ACP_AUTH_REQUIRED_ERROR_CODE && /auth/i.test(rpcErr)) { failAuthRequired({ effects, rpcErr }); return; }
   failWithRpcError({ effects, obj, rpcErr });
+}
+
+function failAuthRequired({ effects, rpcErr }: { effects: AcpSessionEffects; rpcErr: string }): void {
+  const message = `This agent is not signed in. Sign in to its command-line tool on this computer, then retry. (${rpcErr})`;
+  effects.failWithPayload({ message, error: { code: 'AUTH_REQUIRED', message, retryable: false,
+    details: accountFailureDetails({ failure: { code: 'AUTH_REQUIRED', message, action: 'sign_in' } }) } });
 }
 
 /** True when `obj` is a recoverable error answering our own `session/set_model`

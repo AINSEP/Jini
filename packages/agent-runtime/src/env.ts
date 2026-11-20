@@ -72,6 +72,7 @@ function applyAgentHousekeeping({ env, agentId }: { env: NodeJS.ProcessEnv; agen
     case 'amr':
       backfillAmrEnv({ env });
       return;
+    case 'opencode-acp':
     case 'opencode':
       // OpenCode is bun-based and, left to its defaults, walks up from its
       // cwd to the nearest project root and runs `bun install` there at

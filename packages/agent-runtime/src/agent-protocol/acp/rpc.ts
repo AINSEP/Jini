@@ -33,6 +33,9 @@ export function sendRpc({ writable, id, method, params }: { writable: RpcWritabl
 export function sendRpcResult({ writable, id, result }: { writable: RpcWritable; id: JsonRpcId; result: unknown }, _optional: Record<string, never> = {}): void {
   writable.write(`${JSON.stringify({ jsonrpc: '2.0', id, result })}\n`);
 }
+export function sendRpcError({ writable, id, code, message }: { writable: RpcWritable; id: JsonRpcId; code: number; message: string }, _optional: Record<string, never> = {}): void {
+  writable.write(`${JSON.stringify({ jsonrpc: '2.0', id, error: { code, message } })}\n`);
+}
 /**
  * Type guard that returns `true` when `value` is a valid JSON-RPC id
  * (a `number` or `string`). Used before replying to incoming requests.

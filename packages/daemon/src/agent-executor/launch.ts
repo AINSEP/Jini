@@ -110,7 +110,7 @@ import {
   armHandoffWatcher,
 } from './handoff.js';
 
-const HTTP_MCP_ENV_ADAPTERS: ReadonlyMap<string, typeof withOpenCodeHttpMcp> = new Map([['opencode', withOpenCodeHttpMcp]]);
+const HTTP_MCP_ENV_ADAPTERS: ReadonlyMap<string, typeof withOpenCodeHttpMcp> = new Map([['opencode', withOpenCodeHttpMcp], ['opencode-acp', withOpenCodeHttpMcp]]);
 const HTTP_MCP_HOME_ADAPTERS: ReadonlyMap<string, typeof codexHttpMcpStaging> = new Map([['codex', codexHttpMcpStaging]]);
 const FILESYSTEM_ADAPTERS: ReadonlyMap<string, typeof claudeFilesystemAdapter> = new Map([['claude', claudeFilesystemAdapter]]);
 

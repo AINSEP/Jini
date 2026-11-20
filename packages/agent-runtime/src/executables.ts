@@ -77,6 +77,7 @@ const AGENT_BIN_ENV_KEYS: ReadonlyMap<string, string> = new Map<string, string>(
   ['kilo', kiloBinEnvKey],
   ['mimo', mimoBinEnvKey],
   ['opencode', opencodeBinEnvKey],
+  ['opencode-acp', opencodeBinEnvKey],
   ['pi', piBinEnvKey],
   ['qoder', qoderBinEnvKey],
   ['qwen', qwenBinEnvKey],

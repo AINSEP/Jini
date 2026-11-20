@@ -1,10 +1,8 @@
 /**
  * Single entry point for the always-on observability observers (boot
  * timing, long tasks, resource-load errors, visibility/session length,
- * white-screen detection). `trackIframeLoad` (`iframe.ts`) and the
- * `trackRunStart`/`trackRunProgress`/`trackRunTerminal` watchdog
- * (`stuck-run.ts`) are intentionally NOT wired in here — both need a call
- * site (an iframe mount, a run lifecycle) rather than a page-load install,
+ * white-screen detection). `trackIframeLoad` (`iframe.ts`) is intentionally
+ * NOT wired in here — it needs an iframe mount rather than a page-load install,
  * matching the origin module's own boundary.
  *
  * Call once, as early as possible (before the app tree mounts) so every

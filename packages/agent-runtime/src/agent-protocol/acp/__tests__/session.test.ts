@@ -201,6 +201,26 @@ describe('attachAcpSession', () => {
     });
   });
 
+  describe('unknown agent requests', () => {
+    it('replies method-not-found and still completes the prompt', () => {
+      const child = new FakeAcpChild();
+      const controller = attachWith(baseOptions(child));
+      handshakeToSessionNew(child);
+      emitLine(child, { jsonrpc: '2.0', id: 'x-7', method: 'fs/read_text_file', params: { path: '/a' } });
+      expect(lastWrite(child)).toEqual({ jsonrpc: '2.0', id: 'x-7', error: { code: -32601, message: 'Method not found: fs/read_text_file' } });
+      emitResult(child, 3, {});
+      expect(controller.completedSuccessfully()).toBe(true);
+    });
+    it('does not answer an unknown notification', () => {
+      const child = new FakeAcpChild();
+      attachWith(baseOptions(child));
+      handshakeToSessionNew(child);
+      const count = writesOf(child).length;
+      emitLine(child, { jsonrpc: '2.0', method: 'x/unknown', params: {} });
+      expect(writesOf(child)).toHaveLength(count);
+    });
+  });
+
   describe('resume flow (resumeSessionId)', () => {
     it('P15: resumes with MCP servers and accepts a load response without a session id', () => {
       const child = new FakeAcpChild();
@@ -367,6 +387,16 @@ describe('attachAcpSession', () => {
   });
 
   describe('RPC error handling', () => {
+    it('asks a signed-out agent user to sign in', () => {
+      const child = new FakeAcpChild();
+      const send = vi.fn();
+      attachWith(baseOptions(child, { send }));
+      emitResult(child, 1, {});
+      emitRpcError(child, 2, { code: -32000, message: 'Authentication required' });
+      const message = 'This agent is not signed in. Sign in to its command-line tool on this computer, then retry. (json-rpc id 2: Authentication required)';
+      expect(send).toHaveBeenCalledWith({ event: 'error', payload: { message, error: { code: 'AUTH_REQUIRED', message, retryable: false, details: { kind: 'account_failure', action: 'sign_in' } } } });
+      expect(writesOf(child).some(request => request.method === 'session/prompt')).toBe(false);
+    });
     it('fails with the rpc error message for a non-recoverable error on the expected id', () => {
       const child = new FakeAcpChild();
       const send = vi.fn();
@@ -1397,6 +1427,7 @@ describe('attachAcpSession', () => {
       handshakeToSessionNew(child);
       controller.abort();
       const cancelCall = writesOf(child).find((w) => w.method === 'session/cancel');
+      expect(cancelCall).not.toHaveProperty('id');
       expect(cancelCall).toMatchObject({ params: { sessionId: 'sess-1' } });
       expect(child.stdin!.ended).toBe(true);
     });
