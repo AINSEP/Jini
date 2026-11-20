@@ -140,6 +140,9 @@ Source: [types.ts](../../src/media/types.ts), [ports.ts](../../src/media/ports.t
 
 ```ts
 declare function computeBlobStorageKey(input: { workspaceId: UUID; sha256: string }): string;
+declare function parseOptionalStringField({ raw, field }: { raw: unknown; field: string }, _optional = {}): string | undefined;
+declare function parseOptionalTitleField({ raw }: { raw: unknown }, _optional = {}): string | undefined;
+declare function parseOptionalSlugField({ raw }: { raw: unknown }, _optional = {}): string | undefined;
 declare function isAllowedMediaHtmlAttributeName(requiredArgs: { name: string }, optionalArgs: Record<string, never> = {}): boolean;
 declare function parseMediaHtmlAttributes(requiredArgs: { text: string }, optionalArgs: Record<string, never> = {}): ParsedMediaHtmlAttributes;
 declare function describeMediaHtmlAttributeError(error: MediaHtmlAttributeError): string;
@@ -347,7 +350,7 @@ const created = await createWorkspace({ deps: { repo: workspaceRepo, clock, idGe
 
 ### `./entries`
 
-Source: [types.ts](../../src/entries/types.ts), [list.ts](../../src/entries/list.ts), [field-validation.ts](../../src/entries/field-validation.ts), [lifecycle-dispatch.ts](../../src/entries/lifecycle-dispatch.ts), [write-service.ts](../../src/entries/write-service.ts), [repo.memory.ts](../../src/entries/repo.memory.ts), [agent-tools.ts](../../src/entries/agent-tools.ts), [tool-registrations.ts](../../src/entries/tool-registrations.ts).
+Source: [types.ts](../../src/entries/types.ts), [list.ts](../../src/entries/list.ts), [field-validation.ts](../../src/entries/field-validation.ts), [lifecycle-dispatch.ts](../../src/entries/lifecycle-dispatch.ts), [write-service.ts](../../src/entries/write-service.ts), [write-error-status.ts](../../src/entries/write-error-status.ts), [repo.memory.ts](../../src/entries/repo.memory.ts), [agent-tools.ts](../../src/entries/agent-tools.ts), [tool-registrations.ts](../../src/entries/tool-registrations.ts).
 
 ```ts
 declare function listEntries( required: { repo: EntryListPort; workspaceId: string }, optional: { type?: string | undefined } = {} ): Promise<{ items: EntryRecord[] }>;
@@ -361,6 +364,8 @@ declare function publishEntry(required: PublishUnpublishEntryRequired): Promise<
 declare function unpublishEntry(required: PublishUnpublishEntryRequired): Promise<Result<{ entry: EntryRecord }, Error>>;
 declare function toEntryOutbox(deps: { outbox: { enqueue(event: { id: string; workspaceId: string; name: string; occurredAt: string; payload: Record<string, unknown>; }): Promise<void>; }; clock: Clock; idGen: { newId(): string }; workspaceId: string; }): OutboxPort;
 declare function buildEntriesRegistrations(routeDeps: EntriesToolDeps): ToolRegistration[];
+declare function entryWriteErrorStatus(required: { error: Error }, optional: Record<string, never> = {}): { status: number; code: string };
+declare function entriesDeps(routeDeps: EntriesToolDeps): { entryRepo; contentTypeRepo; clock; ids; authorize; outbox };
 ```
 
 Types/data: `EntryStatus`, `EntryFieldsJson`, `EntryRecord`, `OwningContentType`, `ActorIdentityInput`, `Result`, `EntryListPort`, `FieldValidationError`, `ValidateFieldsResult`, `EntryLifecycleOp`, `EntryLifecycleHandler`, `ENTRY_LIFECYCLE_OP_NAMES`, `ENTRY_LIFECYCLE_OPS`, `EntryRevisionInput`, `EntryRepoPort`, `ContentTypeLookupPort`, `OutboxPort`, `WatermarkPort`, `CreateEntryRequired`, `UpdateEntryRequired`, `ImportEntryRequired`, `PublishUnpublishEntryRequired`, `EntriesAgentToolSideEffect`, `EntriesAgentToolDefinition`, `entriesAgentToolCatalog`, `EntriesToolDeps`, `entriesDerivedRisk`.
@@ -411,6 +416,7 @@ declare function planCleanup( required: PlanCleanupRequired ): Promise<Result<{ 
 declare function executeCleanup( required: ExecuteCleanupRequired ): Promise<Result<{ removedEntryCount: number }, unknown>>;
 declare function toContentTypeOutbox(deps: { outbox: { enqueue(event: { id: string; workspaceId: string; name: string; occurredAt: string; payload: Record<string, unknown>; }): Promise<void>; }; clock: Clock; idGen: { newId(): string }; workspaceId: string; }): OutboxPort;
 declare function buildContentTypesRegistrations(routeDeps: ContentTypesToolDeps): ToolRegistration[];
+declare function contentTypeWriteErrorStatus(required: { error: Error }, optional: Record<string, never> = {}): { status: number; code: string };
 ```
 
 Types/data: `IndexableFieldKind`, `StorageOnlyFieldKind`, `ContentTypeFieldKind`, `ContentTypeFieldDef`, `ContentTypeStatus`, `ContentTypeRecord`, `ActorPrincipalKind`, `ActorIdentityInput`, `Result`, `CONTENT_TYPE_SCALAR_KINDS`, `INDEXABLE_FIELD_KINDS`, `STORAGE_ONLY_FIELD_KINDS`, `CONTENT_TYPE_FIELD_KINDS`, `ContentTypeListPort`, `FieldIndexState`, `FieldIndexTransition`, `IDENTIFIER_GRAMMAR_PATTERN`, `ContentTypeRevisionInput`, `ContentTypeRepoPort`, `IndexProvisionerPort`, `OutboxPort`, `WatermarkPort`, `ContentTypeWriteServiceDeps`, `RegisterContentTypeRequired`, `UpdateContentTypeFieldsRequired`, `LifecycleTransitionInput`, `DeprecateContentTypeRequired`, `ReactivateContentTypeRequired`, `TeardownIndexProvisionerPort`, `TombstoneContentTypeRequired`, `ContentTypeLifecycleOp`, `LifecycleDispatchDeps`, `LifecycleDispatchInput`, `ContentTypeLifecycleHandler`, `CONTENT_TYPE_LIFECYCLE_OP_NAMES`, `CONTENT_TYPE_LIFECYCLE_OPS`, `CleanupEligibilityCheckRepoPort`, `PlanCleanupGatewayPort`, `PlanCleanupRequired`, `ExecuteCleanupGatewayPort`, `CleanupRemovalRepoPort`, `ExecuteCleanupRequired`, `ContentTypesAgentToolSideEffect`, `ContentTypesAgentToolActorClassRule`, `ContentTypesAgentToolDefinition`, `contentTypesAgentToolCatalog`, `ContentTypesToolDeps`, `contentTypesDerivedRisk`.

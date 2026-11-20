@@ -78,7 +78,7 @@ function isEntriesShapeRejection({ error }: { error: unknown }): boolean {
 /** Shared dependency bag for `write-service.ts` calls — every mutating handler here takes this
  * identical shape (a superset of what `updateEntry`/`publishEntry`/`unpublishEntry` individually
  * need; passing the extra `ids` field to those is harmless since none of them declare it). */
-function entriesDeps(routeDeps: EntriesToolDeps) {
+export function entriesDeps(routeDeps: EntriesToolDeps) {
   return {
     entryRepo: routeDeps.entryRepo,
     contentTypeRepo: routeDeps.contentTypeRepo,
