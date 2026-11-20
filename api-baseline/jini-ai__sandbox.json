@@ -61,7 +61,7 @@
    "createNodeWorkerScheduler": "function:5d76180383",
    "createWorkerCapacity": "function:a6e1996157",
    "renderInWorkerSandbox": "function:dd23bffbb8",
-   "resolveDefaultTimeoutMs": "function:7449085e24",
+   "resolveDefaultTimeoutMs": "function:0db5bf682a",
    "runInWorkerSandbox": "function:cf842980ba"
   }
  }

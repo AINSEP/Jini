@@ -225,6 +225,24 @@
    "captureBudget": "function:93cd1d9ded"
   }
  },
+ "./web-evidence/capture-clock": {
+  "types": "./dist/web-evidence/capture-clock.d.ts",
+  "symbols": {
+   "CaptureClock": "interface:7eb2803d88",
+   "REAL_CAPTURE_CLOCK": "variable:e1cf471793"
+  }
+ },
+ "./web-evidence/page-body": {
+  "types": "./dist/web-evidence/page-body.d.ts",
+  "symbols": {
+   "DEFAULT_MAX_BODY_BYTES": "variable:0c61a0497f",
+   "MAX_MAX_BODY_BYTES": "variable:73eb7d8cda",
+   "PageBodyOptions": "interface:cfc59e0df7",
+   "ShapedPageBody": "type:d1d9ec7e74",
+   "readPageBodyOptions": "function:0bca1699f4",
+   "shapePageBody": "function:42b94fdefb"
+  }
+ },
  "./web-evidence/playwright": {
   "types": "./dist/web-evidence/playwright-browser.d.ts",
   "symbols": {
@@ -281,13 +299,6 @@
   "types": "./dist/web-evidence/testing/fake-clock.d.ts",
   "symbols": {
    "FakeCaptureClock": "class:147d19cde2"
-  }
- },
- "./web-evidence/capture-clock": {
-  "types": "./dist/web-evidence/capture-clock.d.ts",
-  "symbols": {
-   "CaptureClock": "interface:7eb2803d88",
-   "REAL_CAPTURE_CLOCK": "variable:e1cf471793"
   }
  }
 }

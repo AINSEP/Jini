@@ -538,7 +538,7 @@
    "WebhookDeliveryTimer": "interface:6fd4da0838",
    "WebhookDeliveryVetoedError": "class:04732bd1b2",
    "WebhookDeliveryWorker": "interface:7ae0efa157",
-   "WebhookDeliveryWorkerOptional": "interface:a0cf356439",
+   "WebhookDeliveryWorkerOptional": "interface:136486db21",
    "WebhookDeliveryWorkerRequired": "interface:c32efc60a6",
    "WebhookDeliveryWorkerStoppedError": "class:d4175f63d1",
    "WebhookEventEnvelope": "interface:127b6e6ff5",

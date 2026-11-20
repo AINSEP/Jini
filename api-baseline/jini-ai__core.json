@@ -2,7 +2,7 @@
  ".": {
   "types": "./dist/index.d.ts",
   "symbols": {
-   "ACTOR_CLASS_RULES_REQUIRING_CONFIRMATION_TRANSPORT": "variable:3041243310",
+   "ACTOR_CLASS_RULES_REQUIRING_CONFIRMATION_TRANSPORT": "variable:e1c69c0e4c",
    "AGENT_FAILURE_SECRET_SHAPE_RE": "variable:8f4391b873",
    "AGENT_TOOL_PRINCIPAL_KIND": "variable:b10be6eb11",
    "APPROVAL_WAIT_TIMEOUT_MS": "variable:124bb0b5c6",
@@ -332,6 +332,24 @@
    "withoutBatchGuidance": "function:29c49bf698"
   }
  },
+ "./admin-runtime": {
+  "types": "./dist/admin-runtime/index.d.ts",
+  "symbols": {
+   "AdminApiError": "class:a7ab399c2c",
+   "AdminConfigError": "class:937619e96c",
+   "AdminNavGroupShape": "interface:724192fad7",
+   "AdminPanelAccessDeclaration": "interface:0d2e1c4fb5",
+   "AdminPanelAccessEntry": "type:985f8dc57e",
+   "ControllerStore": "interface:b77a3895bb",
+   "WritableControllerStore": "interface:fe17a8caa7",
+   "createControllerStore": "function:cd87d5ad0f",
+   "describeApiError": "function:7b68d3e7c6",
+   "hasPermission": "function:21c5e3ddfa",
+   "isPanelAccessible": "function:13d35c94b8",
+   "querySuffix": "function:afce399693",
+   "withoutInaccessiblePanels": "function:61198e07ae"
+  }
+ },
  "./agent-handles": {
   "types": "./dist/agent-handles/index.d.ts",
   "symbols": {
@@ -399,6 +417,94 @@
    "UseAdminController": "type:f9a9af40c9",
    "adminPort": "function:223d80e8d9",
    "defineAdminModule": "function:97211cec77"
+  }
+ },
+ "./contracts/agents": {
+  "types": "./dist/contracts/agents/index.d.ts",
+  "symbols": {
+   "AcpModelProbe": "interface:9f374a8912",
+   "AcpModelProbeRequest": "interface:f1578841c8",
+   "AgentLaunchKind": "type:4c5dcb0871",
+   "AgentLaunchResolution": "type:986479674b",
+   "AgentModelDiscoveryPort": "interface:cad3a9c79f",
+   "AgentServiceFailureCode": "type:b4c1951227",
+   "ConnectionTestKind": "type:460be4ac17",
+   "ConnectionTestProtocol": "type:846bdb308c",
+   "DefaultModelResolution": "type:d5ce169306",
+   "DiscoveredModel": "interface:600ff33f83",
+   "DnsLookupAddress": "type:3822d631cf",
+   "DnsLookupFn": "type:f2525f6416",
+   "ModelCacheEntry": "interface:e61561cdec",
+   "ModelCatalogSnapshot": "interface:71ec2295d1",
+   "ModelDiscoveryContext": "interface:e7f8b5d354",
+   "ModelDiscoveryDeps": "interface:ceb47e75b5",
+   "ModelIdentityKind": "type:681825245b",
+   "ModelProbeResult": "interface:8530fbb053",
+   "ModelSource": "type:b52f3fdd91",
+   "NativeCapabilities": "interface:a368996532",
+   "NativeToolPolicyInput": "interface:596ef53125",
+   "PreparedAgentLogFile": "type:d1f8534236",
+   "PreparedPromptFile": "type:af9d0d2e64",
+   "PromptAugmenter": "interface:e8df2b0060",
+   "ProviderModelOption": "interface:30322a159b",
+   "ProviderModelsKind": "type:f36fc30ae0",
+   "ProviderModelsQuery": "interface:1fefca45ac",
+   "ProviderModelsRequest": "interface:93c750c32d",
+   "ProviderModelsResponse": "interface:554ff283e5",
+   "RunConsentKey": "type:335db9d5b0",
+   "RunContextSelection": "interface:c7e2d5827b",
+   "RunPlan": "type:47862acb92",
+   "RunPlanHost": "interface:6abdcd75c2",
+   "RuntimeAgentDef": "type:9db91ea915",
+   "RuntimeBuildOptions": "type:e465bac53c",
+   "RuntimeCapabilityMap": "type:9c0cf463b2",
+   "RuntimeContext": "type:68794893ee",
+   "RuntimeEnv": "type:2b8d8b1695",
+   "RuntimeListModels": "type:1d0bd8f1a1",
+   "RuntimeLock": "type:6b73a4f22e",
+   "RuntimeLockAcquireContext": "type:69d9f93ea5",
+   "RuntimeLockHandoffContext": "type:3e2ff8742b",
+   "RuntimeLockHold": "type:6766a6f9ad",
+   "RuntimeModelOption": "type:287c3912b2",
+   "RuntimeModelSource": "type:a0f6c7abdf",
+   "RuntimePromptBudgetError": "type:8379e8eef7",
+   "RuntimeReasoningInModelId": "type:721c834cbf",
+   "RuntimeReasoningOption": "interface:3f0fb9e694",
+   "RuntimeSelectionError": "class:a47f9d0728",
+   "RuntimeStdoutPolicy": "type:5db926d6f7",
+   "WorkspaceContextItem": "interface:95f545c991"
+  }
+ },
+ "./contracts/ai-trace": {
+  "types": "./dist/contracts/ai-trace/index.d.ts",
+  "symbols": {
+   "AiCapturedText": "interface:bb34cc71ae",
+   "AiContentCapture": "type:02a2fa5586",
+   "AiCostSource": "type:f316c0f33e",
+   "AiRunOutcome": "type:b07e4d6bde",
+   "AiTokenUsage": "interface:f15e0a1e89",
+   "AiToolErrorClass": "type:133c6cf6fa",
+   "AiTraceEvent": "type:0558aa9bfd",
+   "AiTraceModelTurn": "interface:3c69905940",
+   "AiTraceRecorder": "interface:621f631619",
+   "AiTraceRecorderOptions": "interface:0d5b1a3ed3",
+   "AiTraceRunFinished": "interface:dcc08bf6e3",
+   "AiTraceRunStarted": "interface:e0f5fdba32",
+   "AiTraceSink": "interface:b70e71a19b",
+   "AiTraceToolCall": "interface:2a4b438fae",
+   "AiTraceTotals": "interface:c1c63d3cd2",
+   "CaptureTextOptions": "interface:3b52a62948",
+   "DEFAULT_LAZY_SINK_QUEUE": "variable:bcb58f3fe1",
+   "DEFAULT_MAX_CAPTURED_CHARS": "variable:277c32168b",
+   "RecordingAiTraceSink": "interface:805942cfdf",
+   "captureText": "function:97893930be",
+   "classifyToolError": "function:b03090deea",
+   "createAiTraceRecorder": "function:ee759b2278",
+   "createFanOutAiTraceSink": "function:a66a619395",
+   "createLazyAiTraceSink": "function:242bd2d5a5",
+   "createRecordingAiTraceSink": "function:421d77e2b0",
+   "noopAiTraceSink": "variable:2dcccde323",
+   "normalizeAiUsage": "function:dede2b2e8f"
   }
  },
  "./contracts/blob": {
@@ -530,13 +636,28 @@
    "SourceControlWriterBuildResult": "type:3d0c838773"
   }
  },
+ "./contracts/env": {
+  "types": "./dist/contracts/env.d.ts",
+  "symbols": {
+   "EnvFamily": "interface:51b469fd97",
+   "EnvIssue": "interface:09697ef6a4",
+   "EnvKind": "type:89d687a239",
+   "EnvSchema": "interface:4128dadd9e",
+   "EnvValueEcho": "type:5b507655ff",
+   "EnvValueType": "type:f8d3d5ee2c",
+   "EnvVarDoc": "interface:31f264ab45",
+   "EnvVarSpec": "interface:63e8780a96",
+   "HostEnvironment": "type:d35cb4053f",
+   "ParsedEnv": "interface:80e63411b9"
+  }
+ },
  "./contracts/events": {
   "types": "./dist/contracts/events.d.ts",
   "symbols": {
    "AuthorizeFn": "type:a37e758d08",
    "ChangeSetItemRecord": "interface:dacb3cee90",
    "ChangeSetOperation": "type:6b7b6bcb4a",
-   "ChangeSetRecord": "interface:ecf2ca0089",
+   "ChangeSetRecord": "interface:c815820220",
    "ChangeSetRepoPort": "interface:f5977e5aba",
    "ChangeSetStatus": "type:411e5eed4c",
    "ChangeSetWithItems": "interface:58817f5ef7",
@@ -550,7 +671,7 @@
    "ExecuteCommandOptional": "interface:f3cf8ce12b",
    "ExecuteCommandRequired": "interface:abdd1ce66f",
    "OutboxPort": "interface:053c1c807d",
-   "OutboxRecord": "interface:0494ce3e16",
+   "OutboxRecord": "interface:6d13316eb7",
    "TransactionalRepoPort": "interface:5f66eb000a"
   }
  },
@@ -591,15 +712,15 @@
    "ExternalMcpSealedOAuthPayload": "interface:96a5268c51",
    "ExternalMcpServerConfig": "interface:b2fba32a39",
    "ExternalMcpServerKey": "interface:0d4170aa39",
-   "ExternalMcpServerRecord": "interface:ce8abdffed",
-   "ExternalMcpServerRepoPort": "interface:33c19ab2bc",
+   "ExternalMcpServerRecord": "interface:431d8d43dc",
+   "ExternalMcpServerRepoPort": "interface:d2fd2ee5b1",
    "ExternalMcpServerTarget": "type:dafc62cd48",
-   "ExternalMcpServerView": "interface:a6db3d9db9",
+   "ExternalMcpServerView": "interface:ddf0281e93",
    "ExternalMcpStoreDeps": "interface:43ff1d5179",
    "ExternalMcpTransport": "type:b60187651b",
    "McpBearerTokenSupplier": "type:2df1fda99c",
    "SaveExternalMcpOAuthInput": "interface:7baa53c565",
-   "SaveExternalMcpServerInput": "interface:9e26b5e2dd",
+   "SaveExternalMcpServerInput": "interface:7e864ea6b7",
    "SealedExternalMcpOAuth": "interface:f8b677027b"
   }
  },
@@ -739,6 +860,47 @@
    "TokenRefresher": "interface:3630296115",
    "TokenRefresherDeps": "interface:f84f99abb8",
    "TokenRequestDeps": "interface:102e2d426c"
+  }
+ },
+ "./contracts/observability": {
+  "types": "./dist/contracts/observability.d.ts",
+  "symbols": {
+   "AgentRunStatus": "type:ecd64f6b8c",
+   "AgentRunTracker": "interface:d6adb008e4",
+   "AgentRunTrackingInput": "interface:594908be6d",
+   "AgentRunTrackingOptions": "interface:faebcc76f2",
+   "AgentRunTrackingOutcome": "interface:7645a90c6d",
+   "BrowserAnalyticsContribution": "interface:35bf803803",
+   "CrashUpload": "interface:e405e1a2c9",
+   "DbQueryTracker": "interface:b98c2b41b6",
+   "DbQueryTrackingInput": "interface:b4a3892b07",
+   "DbQueryTrackingOutcome": "interface:6b07c3659d",
+   "ErrorReport": "interface:45e80d00ad",
+   "MetricInput": "interface:752a847e41",
+   "MetricOptions": "interface:520fca4487",
+   "ObservabilityAdapter": "interface:1491e9a1a8",
+   "ObservabilityPort": "interface:d50aeccba0",
+   "OperationAttributes": "type:5f21641fd2",
+   "OperationTracker": "interface:b54c24a11f",
+   "OperationTrackingInput": "interface:56c6663bc4",
+   "OperationTrackingOutcome": "interface:7c125d443d",
+   "OutboundCallTracker": "interface:93dd9f6da0",
+   "OutboundCallTrackingInput": "interface:5d16cac053",
+   "OutboundCallTrackingOutcome": "interface:c7bda10852",
+   "ProductAiGeneration": "interface:763aae86b8",
+   "ProductAnalyticsAdapter": "interface:0a5702b6fa",
+   "ProductAnalyticsPort": "interface:4f970df791",
+   "ProductEvent": "interface:adae78171e",
+   "ProductEventProperties": "type:26620b06b1",
+   "ProductIdentity": "interface:bf693445f5",
+   "RequestTracker": "interface:7827d27dfd",
+   "RequestTrackingInput": "interface:6f344b2b09",
+   "RequestTrackingOptions": "interface:4559bbb18f",
+   "RequestTrackingOutcome": "interface:7acf53aa90",
+   "TraceIds": "interface:7f0df79153",
+   "TrackerScope": "interface:56e04a3266",
+   "createNoopObservabilityPort": "function:5d6602af3c",
+   "isNoopObservabilityPort": "function:95a1d95a0a"
   }
  },
  "./contracts/plugin-sdk": {
@@ -1044,6 +1206,123 @@
    "ToolContributions": "interface:de4818d839",
    "ToolContributor": "interface:305da859d1",
    "createContributionRegistry": "function:d7ca6184f5"
+  }
+ },
+ "./env/describe-env-for-diagnostics": {
+  "types": "./dist/env/describe-env-for-diagnostics.d.ts",
+  "symbols": {
+   "describeEnvForDiagnostics": "function:e65e67372d"
+  }
+ },
+ "./env/format-env-issue": {
+  "types": "./dist/env/format-env-issue.d.ts",
+  "symbols": {
+   "formatEnvIssue": "function:4d4431058a"
+  }
+ },
+ "./env/parse-env": {
+  "types": "./dist/env/parse-env.d.ts",
+  "symbols": {
+   "parseEnv": "function:4ffefe7251"
+  }
+ },
+ "./errors/approved-cause": {
+  "types": "./dist/errors/approved-cause.d.ts",
+  "symbols": {
+   "ApproveCauseOptions": "interface:cc18fbdbeb",
+   "ApprovedCause": "interface:1caa9117cd",
+   "approveCause": "function:a4408c574c",
+   "isApprovedCause": "function:7786751459"
+  }
+ },
+ "./errors/bindings": {
+  "types": "./dist/errors/bindings.d.ts",
+  "symbols": {
+   "ClassErrorBinding": "interface:f6ebec51f5",
+   "DiscriminantErrorBinding": "interface:fbd570736c",
+   "ErrorBinding": "type:1b5f5a089b",
+   "ErrorClass": "type:9e22b18a44",
+   "ErrorScope": "interface:35ec393f11",
+   "ErrorScopeOptions": "interface:3ffdbcd8d7",
+   "ErrorText": "type:7f2f1b67d3",
+   "defineErrorScope": "function:c93896f551"
+  }
+ },
+ "./errors/catalog": {
+  "types": "./dist/errors/catalog.d.ts",
+  "symbols": {
+   "ErrorCatalog": "interface:aec31ab2db",
+   "ErrorCatalogOptions": "type:97c6f0a266",
+   "ErrorMatch": "interface:7e7ebb38ad",
+   "createErrorCatalog": "function:bfa9b3d8c0"
+  }
+ },
+ "./errors/disclosure": {
+  "types": "./dist/errors/disclosure.d.ts",
+  "symbols": {
+   "DiscloseIncidentOptions": "interface:bb2c1dd468",
+   "ErrorAudience": "type:8a16208a08",
+   "INCIDENT_CAUSE_SENTENCE": "variable:1a590c8297",
+   "discloseIncident": "function:3de38fed5d"
+  }
+ },
+ "./errors/error-id": {
+  "types": "./dist/errors/error-id.d.ts",
+  "symbols": {
+   "MintErrorIdOptions": "interface:f6360fe2ee",
+   "mintToolErrorId": "function:64fcd02eef"
+  }
+ },
+ "./errors/idioms": {
+  "types": "./dist/errors/idioms.d.ts",
+  "symbols": {
+   "FallbackOptions": "interface:ea5a04b91e",
+   "IdiomOptions": "interface:546d405a34",
+   "absentWhen": "function:c2dd204dc8",
+   "afterSettled": "function:1f14d9caac",
+   "bestEffort": "function:8a37e637f9",
+   "observed": "function:9a25a22385",
+   "orFallback": "function:ece11b42f2",
+   "orFallbackSync": "function:ecb9e55a6b"
+  }
+ },
+ "./errors/reporter": {
+  "types": "./dist/errors/reporter.d.ts",
+  "symbols": {
+   "DescribeFailureOptions": "interface:ef4c9db83f",
+   "DescribedFailure": "interface:7aedc11e91",
+   "ErrorReporter": "interface:619fcf6ade",
+   "ErrorReporterOptions": "interface:ac22a19a67",
+   "ErrorReporterPorts": "interface:bf5bbcad58",
+   "IncidentTrackerReport": "interface:71ed80695a",
+   "RecordFailureOptions": "interface:a5fcc0a160",
+   "UNAVAILABLE_ERROR_ID": "variable:e377da43a0",
+   "createErrorReporter": "function:62aa2f03cb"
+  }
+ },
+ "./errors/sentences": {
+  "types": "./dist/errors/sentences.d.ts",
+  "symbols": {
+   "CORE_ERROR_SENTENCES": "variable:086f1cf02c",
+   "ErrorSentence": "interface:9b676f000c",
+   "ErrorSentenceOptions": "interface:4c3ecedccc",
+   "ErrorSentenceSet": "interface:168e65c639",
+   "InterpolateSentenceOptions": "interface:01628ba3ad",
+   "SentenceAudience": "type:e7f6cf77dc",
+   "defineErrorSentences": "function:f6a5e4dce9",
+   "interpolateSentence": "function:d4948a5e35",
+   "isErrorCodeToken": "function:036d4e543c"
+  }
+ },
+ "./errors/testing": {
+  "types": "./dist/errors/testing.d.ts",
+  "symbols": {
+   "RecordingReporterOptions": "interface:92af02eb35",
+   "createFixedClock": "function:de8ac795fe",
+   "createRecordingLogger": "function:963a3a7046",
+   "createRecordingReporter": "function:2bb26a5e30",
+   "createRecordingTracker": "function:fedae55ab5",
+   "createSequenceIds": "function:73f349d19e"
   }
  },
  "./fetch": {
@@ -1430,39 +1709,12 @@
    "resolveUserLayerReadTarget": "function:3337f23ab6",
    "retypeDefinition": "function:71b0785363",
    "set": "function:ede470745a",
-   "settingsDerivedRisk": "variable:5c9940ac1e",
+   "settingsDerivedRisk": "variable:09d6465dbd",
    "settingsWritePermission": "function:af03e11c6a",
    "tombstoneDefinition": "function:68e1a9a259",
    "translateSettingsDialog": "function:287258fbdf",
    "validateDefinitionInput": "function:60d1d6a70a",
    "validateValueAgainstSchema": "function:3a9138d461"
-  }
- },
- "./settings/express": {
-  "types": "./dist/settings/express/index.d.ts",
-  "symbols": {
-   "Authorize": "type:79eec872f6",
-   "DefinitionResult": "type:84e22015fe",
-   "EffectiveSettingRow": "type:83ee7b8673",
-   "PrincipalResolver": "type:37660976cc",
-   "RawSetting": "type:a903bdb875",
-   "Scheduler": "interface:51c8453667",
-   "SettingsChangeFeed": "interface:2ae18690c2",
-   "SettingsErrorMapping": "interface:828bcf14f3",
-   "SettingsHttpOptions": "interface:6b40d1ee6a",
-   "SettingsHttpRequired": "interface:83b3e83fd3",
-   "SettingsPermissions": "interface:e6f7548c05",
-   "SettingsRoutes": "interface:0bf9d5477a",
-   "SettingsService": "interface:c2f4676e44",
-   "TargetWorkspaceResolution": "type:c19f98293c",
-   "UserLayerReadTarget": "type:b2d44772bd",
-   "createCmsSettingsChangeFeed": "function:737838afec",
-   "createCmsSettingsService": "function:c041c17923",
-   "registerSettingsRoutes": "function:70c12d6341",
-   "resolveTargetWorkspaceId": "function:3b81d92502",
-   "resolveUserLayerReadTarget": "function:3337f23ab6",
-   "respondToSettingsError": "function:bb37e9c016",
-   "settingsWritePermission": "function:af03e11c6a"
   }
  },
  "./text": {
@@ -1507,220 +1759,6 @@
    "trimCharsStart": "function:f1a8952ee2"
   }
  },
- "./contracts/agents": {
-  "types": "./dist/contracts/agents/index.d.ts",
-  "symbols": {
-   "AcpModelProbe": "interface:9f374a8912",
-   "AcpModelProbeRequest": "interface:f1578841c8",
-   "AgentLaunchKind": "type:4c5dcb0871",
-   "AgentLaunchResolution": "type:986479674b",
-   "AgentModelDiscoveryPort": "interface:cad3a9c79f",
-   "AgentServiceFailureCode": "type:b4c1951227",
-   "ConnectionTestKind": "type:460be4ac17",
-   "ConnectionTestProtocol": "type:846bdb308c",
-   "DefaultModelResolution": "type:d5ce169306",
-   "DiscoveredModel": "interface:600ff33f83",
-   "DnsLookupAddress": "type:3822d631cf",
-   "DnsLookupFn": "type:f2525f6416",
-   "ModelCacheEntry": "interface:e61561cdec",
-   "ModelCatalogSnapshot": "interface:71ec2295d1",
-   "ModelDiscoveryContext": "interface:e7f8b5d354",
-   "ModelDiscoveryDeps": "interface:ceb47e75b5",
-   "ModelIdentityKind": "type:681825245b",
-   "ModelProbeResult": "interface:8530fbb053",
-   "ModelSource": "type:b52f3fdd91",
-   "NativeCapabilities": "interface:a368996532",
-   "NativeToolPolicyInput": "interface:596ef53125",
-   "PreparedAgentLogFile": "type:d1f8534236",
-   "PreparedPromptFile": "type:af9d0d2e64",
-   "PromptAugmenter": "interface:e8df2b0060",
-   "ProviderModelOption": "interface:30322a159b",
-   "ProviderModelsKind": "type:f36fc30ae0",
-   "ProviderModelsQuery": "interface:1fefca45ac",
-   "ProviderModelsRequest": "interface:93c750c32d",
-   "ProviderModelsResponse": "interface:554ff283e5",
-   "RunConsentKey": "type:335db9d5b0",
-   "RunContextSelection": "interface:c7e2d5827b",
-   "RunPlan": "type:47862acb92",
-   "RunPlanHost": "interface:6abdcd75c2",
-   "RuntimeAgentDef": "type:9db91ea915",
-   "RuntimeBuildOptions": "type:e465bac53c",
-   "RuntimeCapabilityMap": "type:9c0cf463b2",
-   "RuntimeContext": "type:68794893ee",
-   "RuntimeEnv": "type:2b8d8b1695",
-   "RuntimeListModels": "type:1d0bd8f1a1",
-   "RuntimeLock": "type:6b73a4f22e",
-   "RuntimeLockAcquireContext": "type:69d9f93ea5",
-   "RuntimeLockHandoffContext": "type:3e2ff8742b",
-   "RuntimeLockHold": "type:6766a6f9ad",
-   "RuntimeModelOption": "type:287c3912b2",
-   "RuntimeModelSource": "type:a0f6c7abdf",
-   "RuntimePromptBudgetError": "type:8379e8eef7",
-   "RuntimeReasoningInModelId": "type:721c834cbf",
-   "RuntimeReasoningOption": "interface:3f0fb9e694",
-   "RuntimeSelectionError": "class:a47f9d0728",
-   "RuntimeStdoutPolicy": "type:5db926d6f7",
-   "WorkspaceContextItem": "interface:95f545c991"
-  }
- },
- "./contracts/ai-trace": {
-  "types": "./dist/contracts/ai-trace/index.d.ts",
-  "symbols": {
-   "AiCapturedText": "interface:bb34cc71ae",
-   "AiContentCapture": "type:02a2fa5586",
-   "AiCostSource": "type:f316c0f33e",
-   "AiRunOutcome": "type:b07e4d6bde",
-   "AiTokenUsage": "interface:f15e0a1e89",
-   "AiToolErrorClass": "type:133c6cf6fa",
-   "AiTraceEvent": "type:0558aa9bfd",
-   "AiTraceModelTurn": "interface:3c69905940",
-   "AiTraceRecorder": "interface:621f631619",
-   "AiTraceRecorderOptions": "interface:0d5b1a3ed3",
-   "AiTraceRunFinished": "interface:dcc08bf6e3",
-   "AiTraceRunStarted": "interface:e0f5fdba32",
-   "AiTraceSink": "interface:b70e71a19b",
-   "AiTraceToolCall": "interface:2a4b438fae",
-   "AiTraceTotals": "interface:c1c63d3cd2",
-   "CaptureTextOptions": "interface:3b52a62948",
-   "DEFAULT_LAZY_SINK_QUEUE": "variable:bcb58f3fe1",
-   "DEFAULT_MAX_CAPTURED_CHARS": "variable:277c32168b",
-   "RecordingAiTraceSink": "interface:805942cfdf",
-   "captureText": "function:97893930be",
-   "classifyToolError": "function:b03090deea",
-   "createAiTraceRecorder": "function:ee759b2278",
-   "createFanOutAiTraceSink": "function:a66a619395",
-   "createLazyAiTraceSink": "function:242bd2d5a5",
-   "createRecordingAiTraceSink": "function:421d77e2b0",
-   "noopAiTraceSink": "variable:2dcccde323",
-   "normalizeAiUsage": "function:dede2b2e8f"
-  }
- },
- "./contracts/env": {
-  "types": "./dist/contracts/env.d.ts",
-  "symbols": {
-   "EnvFamily": "interface:51b469fd97",
-   "EnvIssue": "interface:09697ef6a4",
-   "EnvKind": "type:89d687a239",
-   "EnvSchema": "interface:4128dadd9e",
-   "EnvValueEcho": "type:5b507655ff",
-   "EnvValueType": "type:f8d3d5ee2c",
-   "EnvVarDoc": "interface:31f264ab45",
-   "EnvVarSpec": "interface:63e8780a96",
-   "HostEnvironment": "type:d35cb4053f",
-   "ParsedEnv": "interface:80e63411b9"
-  }
- },
- "./env/format-env-issue": {
-  "types": "./dist/env/format-env-issue.d.ts",
-  "symbols": {
-   "formatEnvIssue": "function:4d4431058a"
-  }
- },
- "./env/parse-env": {
-  "types": "./dist/env/parse-env.d.ts",
-  "symbols": {
-   "parseEnv": "function:4ffefe7251"
-  }
- },
- "./errors/approved-cause": {
-  "types": "./dist/errors/approved-cause.d.ts",
-  "symbols": {
-   "ApproveCauseOptions": "interface:cc18fbdbeb",
-   "ApprovedCause": "interface:1caa9117cd",
-   "approveCause": "function:a4408c574c",
-   "isApprovedCause": "function:7786751459"
-  }
- },
- "./errors/bindings": {
-  "types": "./dist/errors/bindings.d.ts",
-  "symbols": {
-   "ClassErrorBinding": "interface:f6ebec51f5",
-   "DiscriminantErrorBinding": "interface:fbd570736c",
-   "ErrorBinding": "type:1b5f5a089b",
-   "ErrorClass": "type:9e22b18a44",
-   "ErrorScope": "interface:35ec393f11",
-   "ErrorScopeOptions": "interface:3ffdbcd8d7",
-   "ErrorText": "type:7f2f1b67d3",
-   "defineErrorScope": "function:c93896f551"
-  }
- },
- "./errors/catalog": {
-  "types": "./dist/errors/catalog.d.ts",
-  "symbols": {
-   "ErrorCatalog": "interface:aec31ab2db",
-   "ErrorCatalogOptions": "type:97c6f0a266",
-   "ErrorMatch": "interface:7e7ebb38ad",
-   "createErrorCatalog": "function:bfa9b3d8c0"
-  }
- },
- "./errors/disclosure": {
-  "types": "./dist/errors/disclosure.d.ts",
-  "symbols": {
-   "DiscloseIncidentOptions": "interface:bb2c1dd468",
-   "ErrorAudience": "type:8a16208a08",
-   "INCIDENT_CAUSE_SENTENCE": "variable:1a590c8297",
-   "discloseIncident": "function:3de38fed5d"
-  }
- },
- "./errors/error-id": {
-  "types": "./dist/errors/error-id.d.ts",
-  "symbols": {
-   "MintErrorIdOptions": "interface:f6360fe2ee",
-   "mintToolErrorId": "function:64fcd02eef"
-  }
- },
- "./errors/idioms": {
-  "types": "./dist/errors/idioms.d.ts",
-  "symbols": {
-   "FallbackOptions": "interface:ea5a04b91e",
-   "IdiomOptions": "interface:546d405a34",
-   "absentWhen": "function:c2dd204dc8",
-   "afterSettled": "function:1f14d9caac",
-   "bestEffort": "function:8a37e637f9",
-   "observed": "function:9a25a22385",
-   "orFallback": "function:ece11b42f2",
-   "orFallbackSync": "function:ecb9e55a6b"
-  }
- },
- "./errors/reporter": {
-  "types": "./dist/errors/reporter.d.ts",
-  "symbols": {
-   "DescribeFailureOptions": "interface:ef4c9db83f",
-   "DescribedFailure": "interface:7aedc11e91",
-   "ErrorReporter": "interface:619fcf6ade",
-   "ErrorReporterOptions": "interface:ac22a19a67",
-   "ErrorReporterPorts": "interface:bf5bbcad58",
-   "IncidentTrackerReport": "interface:71ed80695a",
-   "RecordFailureOptions": "interface:a5fcc0a160",
-   "UNAVAILABLE_ERROR_ID": "variable:e377da43a0",
-   "createErrorReporter": "function:62aa2f03cb"
-  }
- },
- "./errors/sentences": {
-  "types": "./dist/errors/sentences.d.ts",
-  "symbols": {
-   "CORE_ERROR_SENTENCES": "variable:086f1cf02c",
-   "ErrorSentence": "interface:9b676f000c",
-   "ErrorSentenceOptions": "interface:4c3ecedccc",
-   "ErrorSentenceSet": "interface:168e65c639",
-   "InterpolateSentenceOptions": "interface:01628ba3ad",
-   "SentenceAudience": "type:e7f6cf77dc",
-   "defineErrorSentences": "function:f6a5e4dce9",
-   "interpolateSentence": "function:d4948a5e35",
-   "isErrorCodeToken": "function:036d4e543c"
-  }
- },
- "./errors/testing": {
-  "types": "./dist/errors/testing.d.ts",
-  "symbols": {
-   "RecordingReporterOptions": "interface:92af02eb35",
-   "createFixedClock": "function:de8ac795fe",
-   "createRecordingLogger": "function:963a3a7046",
-   "createRecordingReporter": "function:2bb26a5e30",
-   "createRecordingTracker": "function:fedae55ab5",
-   "createSequenceIds": "function:73f349d19e"
-  }
- },
  "./tool-call-text": {
   "types": "./dist/tool-call-text.d.ts",
   "symbols": {
@@ -1736,71 +1774,6 @@
    "assertRepairKeywords": "function:db7f7d38e9",
    "clampDeclaredBounds": "function:80355df88f",
    "missingArgumentGuidance": "function:6e67772d50"
-  }
- },
- "./admin-runtime": {
-  "types": "./dist/admin-runtime/index.d.ts",
-  "symbols": {
-   "AdminApiError": "class:a7ab399c2c",
-   "AdminConfigError": "class:937619e96c",
-   "AdminNavGroupShape": "interface:724192fad7",
-   "AdminPanelAccessDeclaration": "interface:0d2e1c4fb5",
-   "AdminPanelAccessEntry": "type:985f8dc57e",
-   "ControllerStore": "interface:b77a3895bb",
-   "WritableControllerStore": "interface:fe17a8caa7",
-   "createControllerStore": "function:cd87d5ad0f",
-   "describeApiError": "function:7b68d3e7c6",
-   "hasPermission": "function:21c5e3ddfa",
-   "isPanelAccessible": "function:13d35c94b8",
-   "querySuffix": "function:afce399693",
-   "withoutInaccessiblePanels": "function:61198e07ae"
-  }
- },
- "./contracts/observability": {
-  "types": "./dist/contracts/observability.d.ts",
-  "symbols": {
-   "AgentRunStatus": "type:ecd64f6b8c",
-   "AgentRunTracker": "interface:d6adb008e4",
-   "AgentRunTrackingInput": "interface:594908be6d",
-   "AgentRunTrackingOptions": "interface:faebcc76f2",
-   "AgentRunTrackingOutcome": "interface:7645a90c6d",
-   "BrowserAnalyticsContribution": "interface:35bf803803",
-   "CrashUpload": "interface:e405e1a2c9",
-   "DbQueryTracker": "interface:b98c2b41b6",
-   "DbQueryTrackingInput": "interface:b4a3892b07",
-   "DbQueryTrackingOutcome": "interface:6b07c3659d",
-   "ErrorReport": "interface:45e80d00ad",
-   "MetricInput": "interface:752a847e41",
-   "MetricOptions": "interface:520fca4487",
-   "ObservabilityAdapter": "interface:1491e9a1a8",
-   "ObservabilityPort": "interface:d50aeccba0",
-   "OperationAttributes": "type:5f21641fd2",
-   "OperationTracker": "interface:b54c24a11f",
-   "OperationTrackingInput": "interface:56c6663bc4",
-   "OperationTrackingOutcome": "interface:7c125d443d",
-   "OutboundCallTracker": "interface:93dd9f6da0",
-   "OutboundCallTrackingInput": "interface:5d16cac053",
-   "OutboundCallTrackingOutcome": "interface:c7bda10852",
-   "ProductAiGeneration": "interface:763aae86b8",
-   "ProductAnalyticsAdapter": "interface:0a5702b6fa",
-   "ProductAnalyticsPort": "interface:4f970df791",
-   "ProductEvent": "interface:adae78171e",
-   "ProductEventProperties": "type:26620b06b1",
-   "ProductIdentity": "interface:bf693445f5",
-   "RequestTracker": "interface:7827d27dfd",
-   "RequestTrackingInput": "interface:6f344b2b09",
-   "RequestTrackingOptions": "interface:4559bbb18f",
-   "RequestTrackingOutcome": "interface:7acf53aa90",
-   "TraceIds": "interface:7f0df79153",
-   "TrackerScope": "interface:56e04a3266",
-   "createNoopObservabilityPort": "function:5d6602af3c",
-   "isNoopObservabilityPort": "function:95a1d95a0a"
-  }
- },
- "./env/describe-env-for-diagnostics": {
-  "types": "./dist/env/describe-env-for-diagnostics.d.ts",
-  "symbols": {
-   "describeEnvForDiagnostics": "function:e65e67372d"
   }
  }
 }

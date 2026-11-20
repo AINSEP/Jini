@@ -141,7 +141,7 @@
    "VibecodingSessionSnapshot": "interface:7d6c019f8e",
    "VibecodingToolArgs": "interface:4b4b593894",
    "VibecodingToolRunner": "interface:991bf3dade",
-   "VibecodingWorkbench": "function:1745e27bed",
+   "VibecodingWorkbench": "function:92557dcc9d",
    "VibecodingWorkbenchProps": "interface:1831af8a8e",
    "createVibecodingSession": "function:bf56a4875c",
    "createVibecodingToolRegistrations": "function:a4962c86db",

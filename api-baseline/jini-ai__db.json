@@ -43,7 +43,7 @@
    "beginJournalEntry": "function:4e82be2de3",
    "checkDiskHeadroom": "function:b71fc2d4a5",
    "checkNamespaceAdoption": "function:97fa3f78e7",
-   "declareDataModule": "function:12d8616061",
+   "declareDataModule": "function:88c0fe7f4f",
    "discardCommittedSnapshot": "function:fd3ed02167",
    "ensureMigrationJournal": "function:6686ed8107",
    "ensurePluginIdentityTable": "function:558e8de7e9",
@@ -58,6 +58,32 @@
    "restoreSqliteSnapshots": "function:4b13ec37e6",
    "snapshotDb": "function:a1b9c52a62",
    "stageJournalPhase": "function:416ed27ac0"
+  }
+ },
+ "./events": {
+  "types": "./dist/events/index.d.ts",
+  "symbols": {
+   "ChangeSetItemsTable": "interface:04159e78e1",
+   "ChangeSetSqlOptional": "type:d5677dc40c",
+   "ChangeSetSqlRequired": "interface:8fcb4cb8ba",
+   "ChangeSetTables": "interface:b1deefe524",
+   "ChangeSetsTable": "interface:c3b56ad52b",
+   "OutboxEventsTable": "interface:4d66e6c483",
+   "OutboxSqlOptional": "type:a0fa436d1f",
+   "OutboxSqlRequired": "interface:2a86d5a818",
+   "OutboxTables": "interface:581ba7a1a6",
+   "SqlChangeSetRepo": "class:b207d7521a",
+   "SqlOutboxAdapter": "class:f9d241c408",
+   "outboxEventValues": "function:8905363407"
+  }
+ },
+ "./gated-mutations": {
+  "types": "./dist/gated-mutations/index.d.ts",
+  "symbols": {
+   "GatedMutationTokensTable": "interface:5592201e73",
+   "SqlTokenStore": "class:c7b45d3032",
+   "TokenStoreSqlRequired": "interface:9a60f0f192",
+   "TokenStoreTables": "interface:32c5084db7"
   }
  },
  "./kernel": {
@@ -114,7 +140,7 @@
   "types": "./dist/kernel/postgres/index.d.ts",
   "symbols": {
    "openPgliteSocketKernel": "function:202626fbfc",
-   "openPostgresKernel": "function:80db86c418",
+   "openPostgresKernel": "function:231fd64c7e",
    "postgresOps": "function:55c114da0c"
   }
  },
@@ -306,6 +332,19 @@
    "SqlSecretsVaultRepo": "class:0650a9beaa"
   }
  },
+ "./settings": {
+  "types": "./dist/settings/index.d.ts",
+  "symbols": {
+   "SettingDefinitionsTable": "interface:74abfccadc",
+   "SettingRevisionsTable": "interface:3255dec598",
+   "SettingValuesGlobalTable": "interface:3d4026ffd9",
+   "SettingValuesUserTable": "interface:8155e0b275",
+   "SettingValuesWorkspaceTable": "interface:988b9e61cb",
+   "SettingsSqlRequired": "interface:a140c4da48",
+   "SettingsTables": "interface:bf5d407fd3",
+   "SqlSettingsRepo": "class:881d21d532"
+  }
+ },
  "./sqlite": {
   "types": "./dist/sqlite/index.d.ts",
   "symbols": {
@@ -452,28 +491,6 @@
    "topologicalTableCopyOrder": "function:2c3b2df947"
   }
  },
- "./gated-mutations": {
-  "types": "./dist/gated-mutations/index.d.ts",
-  "symbols": {
-   "GatedMutationTokensTable": "interface:5592201e73",
-   "SqlTokenStore": "class:c7b45d3032",
-   "TokenStoreSqlRequired": "interface:9a60f0f192",
-   "TokenStoreTables": "interface:32c5084db7"
-  }
- },
- "./settings": {
-  "types": "./dist/settings/index.d.ts",
-  "symbols": {
-   "SettingDefinitionsTable": "interface:74abfccadc",
-   "SettingRevisionsTable": "interface:3255dec598",
-   "SettingValuesGlobalTable": "interface:3d4026ffd9",
-   "SettingValuesUserTable": "interface:8155e0b275",
-   "SettingValuesWorkspaceTable": "interface:988b9e61cb",
-   "SettingsSqlRequired": "interface:a140c4da48",
-   "SettingsTables": "interface:bf5d407fd3",
-   "SqlSettingsRepo": "class:881d21d532"
-  }
- },
  "./verified-origin": {
   "types": "./dist/verified-origin/index.d.ts",
   "symbols": {
@@ -484,23 +501,6 @@
    "OriginTables": "interface:756c63ce2a",
    "SqlOriginSettingRepo": "class:8f37d8b218",
    "registerConfiguredOrigin": "function:51aa4653bf"
-  }
- },
- "./events": {
-  "types": "./dist/events/index.d.ts",
-  "symbols": {
-   "ChangeSetItemsTable": "interface:04159e78e1",
-   "ChangeSetSqlOptional": "type:d5677dc40c",
-   "ChangeSetSqlRequired": "interface:8fcb4cb8ba",
-   "ChangeSetTables": "interface:b1deefe524",
-   "ChangeSetsTable": "interface:c3b56ad52b",
-   "OutboxEventsTable": "interface:4d66e6c483",
-   "OutboxSqlOptional": "type:a0fa436d1f",
-   "OutboxSqlRequired": "interface:2a86d5a818",
-   "OutboxTables": "interface:581ba7a1a6",
-   "SqlChangeSetRepo": "class:b207d7521a",
-   "SqlOutboxAdapter": "class:f9d241c408",
-   "outboxEventValues": "function:8905363407"
   }
  }
 }

@@ -88,7 +88,7 @@
    "BrowserAnalyticsMode": "type:667195bc39",
    "ProductAnalyticsConsent": "type:d7d3edc463",
    "ProductAnalyticsConsentRevision": "type:d9e95ff6c1",
-   "ProductAnalyticsGuardOptions": "interface:6c5847d930",
+   "ProductAnalyticsGuardOptions": "interface:43eab8646b",
    "createAiGenerationSink": "function:c0560e10ae",
    "createNoopProductAnalytics": "function:b4ac19a1aa",
    "fanOutProductAnalytics": "function:34600b04d5",
@@ -96,7 +96,7 @@
    "isNoopProductAnalytics": "function:7c32a5c20f",
    "renderBrowserAnalytics": "function:4ed8604294",
    "resolveBrowserAnalyticsMode": "function:9e4f9205a7",
-   "withProductAnalyticsGuards": "function:6fe2ea3394"
+   "withProductAnalyticsGuards": "function:434c5b091a"
   }
  }
 }

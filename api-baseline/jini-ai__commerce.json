@@ -406,7 +406,7 @@
  "./react": {
   "types": "./dist/react/index.d.ts",
   "symbols": {
-   "Payments": "function:003aa30705"
+   "Payments": "function:0833381401"
   }
  },
  "./repo": {
@@ -446,7 +446,7 @@
    "commerceCatalogDerivedRisk": "variable:d59b4687b2",
    "commerceCatalogToolCatalog": "variable:f4c4673bac",
    "contributeCommerceGetStatusTools": "function:7a36bac99e",
-   "derivedRisk": "variable:f1765dc2a1"
+   "derivedRisk": "variable:f12a513ea4"
   }
  }
 }

@@ -4,7 +4,6 @@
   "symbols": {
    "AdminAnalyticsHit": "interface:d3b6059ec5",
    "AdminAnalyticsPort": "interface:cd4bd25062",
-   "AdminApiError": "class:a7ab399c2c",
    "AdminAssignMenuLocationResult": "interface:214cc29f68",
    "AdminAuthPort": "interface:bed271e138",
    "AdminAuthUser": "interface:ecec13f990",
@@ -70,9 +69,7 @@
    "AdminNavEntry": "interface:298ea2ef9c",
    "AdminNavGroup": "interface:7da6b80859",
    "AdminNavItem": "interface:27c563540a",
-   "AdminPanel": "interface:e82eec9ab0",
-   "AdminPanelAccessDeclaration": "type:281a7549a7",
-   "AdminPanelAccessEntry": "type:985f8dc57e",
+   "AdminPanel": "interface:7e3cc88765",
    "AdminPlugin": "interface:8cdb0fa809",
    "AdminPolicy": "interface:1769ce67e6",
    "AdminRecoveryDeepLinkResult": "interface:925915db2d",
@@ -159,11 +156,8 @@
    "createHttpTransport": "function:da187c4619",
    "currentRoutePath": "function:a377f06935",
    "describeAdminEntityFieldMismatch": "function:6e7c6245de",
-   "describeApiError": "function:7b68d3e7c6",
    "eraseEntityPort": "function:98f1b15d19",
    "getErasedEntityPort": "function:34aa5e732b",
-   "hasPermission": "function:21c5e3ddfa",
-   "isPanelAccessible": "function:13d35c94b8",
    "listErasedEntityPorts": "function:abea4bf941",
    "loadNamespaceValues": "function:ddfb80eb9b",
    "matchRoute": "function:43a5be05bb",
@@ -174,8 +168,7 @@
    "resolveAgentPageId": "function:bfc1b97df6",
    "resolvePanels": "function:6f02ee31d6",
    "saveChangedEntries": "function:add1fa0f1c",
-   "stripTrailingSlash": "function:21e8a87467",
-   "withoutInaccessiblePanels": "function:ceb49acc39"
+   "stripTrailingSlash": "function:21e8a87467"
   }
  },
  "./agent-plugins": {
@@ -299,8 +292,8 @@
    "commentsMessagesEn": "variable:d946d5988f",
    "commentsModule": "variable:952a064fd2",
    "commentsSessionToken": "variable:aea44aea87",
-   "createCommentQueueController": "function:8e47a83c96",
-   "createCommentSettingsController": "function:08bba9ebb2",
+   "createCommentQueueController": "function:d1ce8fcabb",
+   "createCommentSettingsController": "function:764df5d828",
    "createCommentsController": "function:908464e229",
    "describeModerationError": "function:693386ff26",
    "emptyRowState": "function:69b6b06588",
@@ -351,25 +344,6 @@
    "useWiredComments": "function:04ff191dd7"
   }
  },
- "./consent/react": {
-  "types": "./dist/consent/react/index.d.ts",
-  "symbols": {
-   "CONSENT_PREVIEW_DESKTOP_WIDTH": "variable:f2e37bdec8",
-   "ConsentAppearanceView": "interface:726ea9ab6d",
-   "ConsentBannerFields": "function:d9a581c4d7",
-   "ConsentFieldProblem": "interface:3030577d40",
-   "ConsentFieldsProps": "interface:3669b2eff8",
-   "ConsentLookFields": "function:c1b340b5b0",
-   "ConsentPreviewFrame": "function:1e6e80ae3b",
-   "ConsentPreviewFrameProps": "interface:1d947551e1",
-   "ConsentPreviewWidth": "type:b0ae665a19",
-   "ConsentRulesFields": "function:3786afe7aa",
-   "ConsentSettingsPanel": "function:8bea6b0fb1",
-   "ConsentSettingsPanelProps": "interface:dd4f588135",
-   "ConsentSettingsView": "interface:ab7afbb3aa",
-   "consentPreviewScale": "function:8b92fa47bc"
-  }
- },
  "./contracts/*": {
   "types": null,
   "symbols": {}
@@ -379,7 +353,6 @@
   "symbols": {
    "AdminAnalyticsHit": "interface:d3b6059ec5",
    "AdminAnalyticsPort": "interface:cd4bd25062",
-   "AdminApiError": "class:a7ab399c2c",
    "AdminAssignMenuLocationResult": "interface:214cc29f68",
    "AdminAuthPort": "interface:bed271e138",
    "AdminAuthUser": "interface:ecec13f990",
@@ -445,9 +418,7 @@
    "AdminNavEntry": "interface:298ea2ef9c",
    "AdminNavGroup": "interface:7da6b80859",
    "AdminNavItem": "interface:27c563540a",
-   "AdminPanel": "interface:e82eec9ab0",
-   "AdminPanelAccessDeclaration": "type:281a7549a7",
-   "AdminPanelAccessEntry": "type:985f8dc57e",
+   "AdminPanel": "interface:7e3cc88765",
    "AdminPlugin": "interface:8cdb0fa809",
    "AdminPolicy": "interface:1769ce67e6",
    "AdminRecoveryDeepLinkResult": "interface:925915db2d",
@@ -534,11 +505,8 @@
    "createHttpTransport": "function:da187c4619",
    "currentRoutePath": "function:a377f06935",
    "describeAdminEntityFieldMismatch": "function:6e7c6245de",
-   "describeApiError": "function:7b68d3e7c6",
    "eraseEntityPort": "function:98f1b15d19",
    "getErasedEntityPort": "function:34aa5e732b",
-   "hasPermission": "function:21c5e3ddfa",
-   "isPanelAccessible": "function:13d35c94b8",
    "listErasedEntityPorts": "function:abea4bf941",
    "loadNamespaceValues": "function:ddfb80eb9b",
    "matchRoute": "function:43a5be05bb",
@@ -549,14 +517,12 @@
    "resolveAgentPageId": "function:bfc1b97df6",
    "resolvePanels": "function:6f02ee31d6",
    "saveChangedEntries": "function:add1fa0f1c",
-   "stripTrailingSlash": "function:21e8a87467",
-   "withoutInaccessiblePanels": "function:ceb49acc39"
+   "stripTrailingSlash": "function:21e8a87467"
   }
  },
  "./core/module": {
   "types": "./dist/core/module/index.d.ts",
   "symbols": {
-   "AdminConfigError": "class:937619e96c",
    "AdminHostPorts": "type:6b63af667d",
    "AdminOptions": "interface:c047d09c49",
    "createAdmin": "function:2cb02d59f2"
@@ -566,9 +532,7 @@
   "types": "./dist/core/react/index.d.ts",
   "symbols": {
    "LazyTabView": "type:aa5e2ea4ae",
-   "ModulePageProps": "interface:071098ab58",
    "ReactViews": "type:e2f10a5fc4",
-   "TabViewProps": "interface:9299a0e125",
    "bindReact": "function:3eecca7227",
    "reactModuleUi": "variable:cf64adfac0",
    "useController": "function:52b9de3f2d"
@@ -602,7 +566,7 @@
    "KEYS": "variable:87289e5875",
    "MAX_ATTRIBUTES_PER_FIELD": "variable:ad4bd4aab7",
    "MAX_CLASS_NAME_LENGTH": "variable:4dc5827ddf",
-   "addAttrRow": "function:f6e4addad1",
+   "addAttrRow": "function:8e72426b75",
    "addFormField": "function:b93f14b0c6",
    "attrRowsFromField": "function:0fbe193d06",
    "blankField": "function:90ceef73a9",
@@ -668,10 +632,10 @@
  "./forms/react": {
   "types": "./dist/forms/react/index.d.ts",
   "symbols": {
-   "FieldAttributesDialogProps": "interface:a0ef6a047a",
+   "FieldAttributesDialogProps": "interface:8ea3347472",
    "FormEditorProps": "interface:a1f6fca668",
    "FormsControllerContext": "variable:0d6e47fd30",
-   "FormsListProps": "interface:1918367674",
+   "FormsListProps": "interface:f1d8bdc411",
    "FormsModulePageProps": "interface:7207209c1f",
    "FormsOptionsContext": "variable:be1f1ba3f4",
    "FormsPorts": "interface:17dce7a3a9",
@@ -773,7 +737,7 @@
    "PlaygroundPorts": "interface:5878976565",
    "PlaygroundState": "interface:f34c47dd24",
    "canMountPlayground": "function:88e2fbc1e8",
-   "createPlaygroundController": "function:0dc85b1b05",
+   "createPlaygroundController": "function:485236978b",
    "playgroundMessagesEn": "variable:1d2793d756",
    "playgroundModule": "variable:a9ccffe0bf"
   }
@@ -799,23 +763,23 @@
  "./playground/react": {
   "types": "./dist/playground/react/index.d.ts",
   "symbols": {
-   "playground": "function:33d62414ef",
+   "playground": "function:b4e0f6cc07",
    "usePlaygroundPorts": "function:e0df555889"
   }
  },
  "./react": {
   "types": "./dist/react/index.d.ts",
   "symbols": {
-   "AdminShell": "function:e37d1d4706",
+   "AdminShell": "function:4dfbc51830",
    "AdminShellAppearance": "interface:3b58d2a937",
    "AdminShellBaseProps": "interface:314614d305",
    "AdminShellContext": "interface:ec65a27792",
    "AdminShellHostProps": "interface:dd9c950ae5",
    "AdminShellLabels": "interface:35df642712",
-   "AdminShellModel": "interface:6033cac52a",
+   "AdminShellModel": "interface:33d8d1e3e0",
    "AdminShellNavigationPort": "interface:f3d28f90df",
    "AdminShellPanel": "type:508d30166f",
-   "AdminShellProps": "interface:493d48a31f",
+   "AdminShellProps": "interface:2c51198c28",
    "AdminShellRenderArgs": "interface:35057a7248",
    "AdminShellSession": "interface:a004033128",
    "AdminShellSessionController": "interface:753148519f",
@@ -825,7 +789,7 @@
    "AdminShellSidebarArgs": "interface:631d20116a",
    "AdminShellSidebarProps": "interface:8114245305",
    "AdminShellSlotArgs": "interface:4507e4c45f",
-   "AdminShellSlots": "interface:46da8622d0",
+   "AdminShellSlots": "interface:5030177dee",
    "AdminThemeEnvironment": "interface:34f58a288c",
    "AdminThemePreferenceStorePort": "interface:826709481f",
    "ConfirmButton": "function:d00147e3aa",
@@ -910,15 +874,6 @@
    "useSidebarRail": "function:bdd1f93e70"
   }
  },
- "./react/bind-react": {
-  "types": "./dist/react/bind-react.d.ts",
-  "symbols": {
-   "ModulePageProps": "interface:071098ab58",
-   "ReactViews": "type:e8ee705bb2",
-   "TabViewProps": "interface:9299a0e125",
-   "bindReact": "function:19aa8c1fbc"
-  }
- },
  "./react/entities": {
   "types": "./dist/react/entities/index.d.ts",
   "symbols": {
@@ -968,9 +923,9 @@
    "AdminThemeTarget": "type:b650c87226",
    "AgentAttrsPort": "type:3f50ca900e",
    "AgentControlProps": "interface:5534945b03",
-   "Badge": "variable:7921dc5de6",
+   "Badge": "variable:68211ea23f",
    "BadgeProps": "interface:d84ae3bec8",
-   "Button": "variable:6063459b7d",
+   "Button": "variable:53a22c83eb",
    "ButtonProps": "interface:70f13023c2",
    "CanvasContentWrapperNode": "interface:e567a43b71",
    "CanvasEmbedPlaceholderDescriptor": "interface:93d510ac86",
@@ -988,7 +943,7 @@
    "HtmlEditor": "variable:d31865ebe5",
    "HtmlEditorProps": "interface:98fc40bf68",
    "HtmlEditorTarget": "interface:8fbd7f7e24",
-   "IconButton": "variable:76163a15b5",
+   "IconButton": "variable:773b6f4c59",
    "IconButtonProps": "interface:35f8d2efbf",
    "InfoTip": "variable:9f6308e627",
    "InfoTipProps": "interface:c57f614143",
@@ -1001,29 +956,29 @@
    "MatchMediaPort": "type:1eef261c33",
    "MediaProviderCatalogPolicy": "interface:76f2253372",
    "MediaProviderOption": "interface:103c7efe4e",
-   "Menu": "variable:3c1020b146",
+   "Menu": "variable:e403795beb",
    "MenuItem": "interface:3a2e6a6a19",
    "MenuProps": "interface:7ae81161e8",
    "NativeDialogView": "interface:2e90428ecd",
-   "Notice": "variable:3fd8169406",
+   "Notice": "variable:d6cdef7de4",
    "NoticeProps": "interface:6d21eba88d",
    "Select": "variable:fd2923cee9",
    "SelectOption": "interface:e209100cd7",
    "SelectProps": "interface:dd7a04ddef",
    "SettlementGeneration": "interface:c1ddd0846c",
-   "Spinner": "variable:28ae914a19",
+   "Spinner": "variable:c02100ec7c",
    "SpinnerProps": "interface:9a47834e6d",
-   "Switch": "variable:4f044712fb",
+   "Switch": "variable:325b837845",
    "SwitchProps": "interface:31fa1847a9",
    "TabBar": "variable:851006f3b4",
    "TabBarProps": "interface:dd08ffdf1d",
    "TabBarTab": "interface:23a1657a31",
    "TabItem": "interface:6aaee72466",
-   "Tabs": "variable:ccb1406429",
+   "Tabs": "variable:e7bea968a3",
    "TabsProps": "interface:b220040ee7",
-   "TextArea": "variable:b46c7d52e1",
+   "TextArea": "variable:3d38a86007",
    "TextAreaProps": "interface:2e1b37c1b7",
-   "TextField": "variable:891714bff6",
+   "TextField": "variable:82046ca5c5",
    "TextFieldProps": "interface:122b3458de",
    "WidgetSelect": "variable:84eaa79a5c",
    "WidgetSelectOption": "interface:f8d19f3d08",
@@ -1058,16 +1013,16 @@
  "./react/shell": {
   "types": "./dist/react/shell/index.d.ts",
   "symbols": {
-   "AdminShell": "function:e37d1d4706",
+   "AdminShell": "function:4dfbc51830",
    "AdminShellAppearance": "interface:3b58d2a937",
    "AdminShellBaseProps": "interface:314614d305",
    "AdminShellContext": "interface:ec65a27792",
    "AdminShellHostProps": "interface:dd9c950ae5",
    "AdminShellLabels": "interface:35df642712",
-   "AdminShellModel": "interface:6033cac52a",
+   "AdminShellModel": "interface:33d8d1e3e0",
    "AdminShellNavigationPort": "interface:f3d28f90df",
    "AdminShellPanel": "type:508d30166f",
-   "AdminShellProps": "interface:493d48a31f",
+   "AdminShellProps": "interface:2c51198c28",
    "AdminShellRenderArgs": "interface:35057a7248",
    "AdminShellSession": "interface:a004033128",
    "AdminShellSessionController": "interface:753148519f",
@@ -1077,7 +1032,7 @@
    "AdminShellSidebarArgs": "interface:631d20116a",
    "AdminShellSidebarProps": "interface:8114245305",
    "AdminShellSlotArgs": "interface:4507e4c45f",
-   "AdminShellSlots": "interface:46da8622d0",
+   "AdminShellSlots": "interface:5030177dee",
    "AdminThemeEnvironment": "interface:34f58a288c",
    "AdminThemePreferenceStorePort": "interface:826709481f",
    "resolveAdminShellModel": "function:5ff071ada8",
@@ -1090,12 +1045,6 @@
   "symbols": {
    "fakeAdminKit": "function:de20c6c74f",
    "fixtureQuery": "function:725c0d932a"
-  }
- },
- "./react/use-controller": {
-  "types": "./dist/react/use-controller.d.ts",
-  "symbols": {
-   "useController": "function:52b9de3f2d"
   }
  },
  "./redirects": {
@@ -1127,7 +1076,7 @@
    "WriteState": "type:c698f6b6fc",
    "buildCreateRedirectPayload": "function:18098c26d0",
    "createHitCountController": "function:e742bed7c9",
-   "createImportRedirectsController": "function:8e27c8e3c2",
+   "createImportRedirectsController": "function:e87fe3cce8",
    "createRedirectsController": "function:3acd3e3316",
    "firstWriteError": "function:7038744f86",
    "isAnyWritePending": "function:729c4c96da",
@@ -1204,8 +1153,8 @@
    "blankCredentialDraft": "function:9c6aae1e9b",
    "buildCredentialPatch": "function:d7156dee21",
    "createAccessTokensController": "function:22b052dc57",
-   "createOtherCredentialsController": "function:165c38f444",
-   "createRootKeyController": "function:5a10595d5f",
+   "createOtherCredentialsController": "function:f9699a0d31",
+   "createRootKeyController": "function:93c53a962a",
    "credentialCategory": "function:17bc412cf1",
    "credentialLabel": "function:43bfe06e11",
    "credentialStore": "function:f1f16c983f",
@@ -1219,7 +1168,7 @@
    "securityMessagesEn": "variable:64aad6ad93",
    "securityModule": "variable:ab7eb240b1",
    "validateCredentialDraft": "function:2c42416b1f",
-   "writePermission": "function:8338adac4a"
+   "writePermission": "function:eed8d35ca5"
   }
  },
  "./security/adapters/http": {
@@ -1247,7 +1196,7 @@
  "./security/react": {
   "types": "./dist/security/react/index.d.ts",
   "symbols": {
-   "security": "function:6941374f2d",
+   "security": "function:90cab31763",
    "useSecurityPorts": "function:a0ed09c781"
   }
  },
@@ -1291,7 +1240,7 @@
    "actionLabel": "function:7b448bcccd",
    "buildMediaRef": "function:ffd1e4ecac",
    "buildSeoSettingsPatch": "function:c57897404e",
-   "createEntryPickerController": "function:277d8e3f0a",
+   "createEntryPickerController": "function:5bb0e9c49a",
    "createMediaRefController": "function:93686fca91",
    "createSeoController": "function:e7e4cc18b8",
    "createSeoEntryController": "function:8a8c1f3882",
@@ -1351,7 +1300,7 @@
   "symbols": {
    "SeoControllerContext": "variable:8d1098ebd9",
    "SeoMediaPickerSlotProps": "interface:2519631be1",
-   "SeoProps": "interface:8f85b5e5bb",
+   "SeoProps": "interface:0fc89d0e1d",
    "SeoReactOptions": "interface:d46f7cc774",
    "resolveSeoTabs": "function:e07d61970c",
    "seo": "function:767abe7ae9",
@@ -1447,7 +1396,7 @@
    "WidgetsNavigationPort": "type:b4c867a986",
    "WidgetsRequestOptions": "interface:5a59350cba",
    "WidgetsTranslate": "type:e4d00cfc38",
-   "buildDraftPlacement": "function:d19f7e7ba3",
+   "buildDraftPlacement": "function:40b2745ac2",
    "createWidgetInstanceEditorController": "function:cae4976428",
    "createWidgetRegionEditorController": "function:8a4aad79df",
    "createWidgetRegionsController": "function:71215bc146",
@@ -1497,11 +1446,11 @@
  "./widgets/react": {
   "types": "./dist/widgets/react/index.d.ts",
   "symbols": {
-   "WidgetInstanceEditorProps": "interface:762c063028",
-   "WidgetRegionEditorProps": "interface:286331a5bd",
-   "WidgetRegionsProps": "interface:b176fbd680",
+   "WidgetInstanceEditorProps": "interface:99fb176ff4",
+   "WidgetRegionEditorProps": "interface:9c460106ae",
+   "WidgetRegionsProps": "interface:c3344ef2a8",
    "WidgetsControllerContext": "variable:d103bcec5a",
-   "WidgetsLibraryProps": "interface:919d6bccc8",
+   "WidgetsLibraryProps": "interface:a712deef17",
    "WidgetsModulePageProps": "type:23133e0bab",
    "WidgetsReactOptions": "interface:ad456c770c",
    "WidgetsSlots": "interface:d5c0462582",

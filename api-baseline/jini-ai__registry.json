@@ -5,7 +5,7 @@
    "DatabaseRegistryBackend": "class:52df24c820",
    "DatabaseRegistryBackendOptions": "interface:144f543922",
    "GITHUB_ACTIONS_OIDC_ISSUER": "variable:34a22ebbb1",
-   "GithubApiRegistryClient": "class:11d8210be3",
+   "GithubApiRegistryClient": "class:a34af72867",
    "GithubApiRegistryClientOptions": "interface:1a158438f5",
    "GithubOidcTrustRoot": "interface:8d5a19b78e",
    "GithubPublishMutation": "interface:90329cb7f3",
@@ -53,7 +53,7 @@
    "createLiveToolCatalogQuery": "function:2c6908c299",
    "createPrefixSourceClassifier": "function:537b81aa87",
    "createSearchEnricher": "function:e82b5d68d0",
-   "listToolCatalogEntries": "function:aae2bd7173"
+   "listToolCatalogEntries": "function:1d57d8f79a"
   }
  },
  "./tool-catalog-builder/sqlite": {

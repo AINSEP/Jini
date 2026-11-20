@@ -59,12 +59,12 @@
    "hasInvalidSubdirLength": "function:a4cad75dad",
    "isMultiSegmentOrAbsoluteWin32Path": "function:2eba77c161",
    "isReservedRelativeSegment": "function:f3f71deb00",
-   "isValidUpsertInput": "function:fb9cf0421d",
+   "isValidUpsertInput": "function:a08bf4465e",
    "parseEntryFrontmatter": "function:871d235651",
    "parseRuleBody": "function:e629a26f78",
    "parseStrictJson": "function:680bd15fd5",
    "renderEntryFrontmatter": "function:19b3463faf",
-   "resolveUpsertEntryId": "function:a8bbcccdd1"
+   "resolveUpsertEntryId": "function:de17291322"
   }
  }
 }

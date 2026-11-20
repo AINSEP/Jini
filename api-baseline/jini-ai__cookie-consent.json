@@ -119,6 +119,26 @@
    "validateScripts": "function:6fb60ed585"
   }
  },
+ "./react": {
+  "types": "./dist/react/index.d.ts",
+  "symbols": {
+   "CONSENT_PREVIEW_DESKTOP_WIDTH": "variable:f2e37bdec8",
+   "ConsentAppearanceView": "interface:726ea9ab6d",
+   "ConsentBannerFields": "function:92edbc3d2a",
+   "ConsentFieldProblem": "interface:3030577d40",
+   "ConsentFieldsProps": "interface:c9e35df51f",
+   "ConsentLightColors": "interface:e8c2a09f20",
+   "ConsentLookFields": "function:8beb966b92",
+   "ConsentPreviewFrame": "function:ce141d0904",
+   "ConsentPreviewFrameProps": "interface:44bcddcfa2",
+   "ConsentPreviewWidth": "type:b0ae665a19",
+   "ConsentRulesFields": "function:1728e64394",
+   "ConsentSettingsPanel": "function:a2b27b60db",
+   "ConsentSettingsPanelProps": "interface:728b0c127a",
+   "ConsentSettingsView": "interface:ab7afbb3aa",
+   "consentPreviewScale": "function:8b92fa47bc"
+  }
+ },
  "./render": {
   "types": "./dist/render/index.d.ts",
   "symbols": {

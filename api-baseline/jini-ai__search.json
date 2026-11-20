@@ -74,6 +74,13 @@
    "validateContributedSearchProvider": "function:314cf52224"
   }
  },
+ "./http-query": {
+  "types": "./dist/http-query.d.ts",
+  "symbols": {
+   "SearchQueryIssue": "type:7b61598f52",
+   "parseSearchRequest": "function:3c3f074eaf"
+  }
+ },
  "./testkit": {
   "types": "./dist/testkit/index.d.ts",
   "symbols": {

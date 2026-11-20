@@ -175,7 +175,7 @@
    "AgentModelContextLike": "interface:2df5adde5a",
    "AgentModelContextRegisterToolOptions": "interface:ac90074c53",
    "AgentModelContextToolRegistration": "interface:2c41de2529",
-   "DomPageDriverOptions": "interface:4ab83a295b",
+   "DomPageDriverOptions": "interface:ce0cdaf183",
    "DomPageDriverPage": "interface:737ee2c155",
    "DomPageDriverRequired": "interface:f835c7d525",
    "DriverPagePort": "interface:2457354a2b",
@@ -184,6 +184,14 @@
    "createDriverPagePort": "function:7271863f9a",
    "currentAgentPage": "function:ae7bc74536",
    "getAgentModelContext": "function:1c28ff0efc"
+  }
+ },
+ "./render-surface": {
+  "types": "./dist/core/render-surface.d.ts",
+  "symbols": {
+   "DEFAULT_RENDER_REJECTION_GRACE_MS": "variable:9492f1e1b9",
+   "RenderA2uiSurfaceOutcome": "type:c55b1fdaeb",
+   "renderA2uiSurface": "function:7413385af1"
   }
  },
  "./skills/install": {
@@ -255,14 +263,6 @@
    "buildSkillToolRegistrations": "function:f0cd1f755e",
    "loadInstalledSkillToolSources": "function:01e890829a",
    "skillToolDerivedRisk": "function:d0612525c6"
-  }
- },
- "./render-surface": {
-  "types": "./dist/core/render-surface.d.ts",
-  "symbols": {
-   "DEFAULT_RENDER_REJECTION_GRACE_MS": "variable:9492f1e1b9",
-   "RenderA2uiSurfaceOutcome": "type:c55b1fdaeb",
-   "renderA2uiSurface": "function:7413385af1"
   }
  }
 }
