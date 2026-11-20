@@ -58,6 +58,12 @@ function errorKindOf(result: ToolExecutionResult): string | undefined {
   return result.status === "failed" ? result.errorKind ?? "internal" : undefined;
 }
 
+function recordToolCallMetrics({ observability, toolId, failed }: { observability: Partial<Pick<ObservabilityPort, "metric" | "supportsMetric">>; toolId: string; failed: boolean }): void {
+  if (!observability.supportsMetric || !observability.metric) return;
+  observability.metric({ name: "tool.calls", value: 1 }, { kind: "counter", attributes: { "tool.id": toolId } });
+  if (failed) observability.metric({ name: "tool.failures", value: 1 }, { kind: "counter", attributes: { "tool.id": toolId } });
+}
+
 /**
  * Wraps `inner` so each `execute` is one `tool.call` operation: `tool.id` (or the fixed
  * {@link UNREGISTERED_TOOL_LABEL}), `agent.run.id` and `user.id` (the principal, pseudonymous) at start,
@@ -71,11 +77,12 @@ function errorKindOf(result: ToolExecutionResult): string | undefined {
  * @returns A drop-in `ToolExecutor`; results and throws pass through unchanged; other methods delegate.
  * @complexity O(1) beyond `inner`'s own cost.
  */
-export function withToolCallObservability({ inner, observability }: { inner: ToolExecutor; observability: Pick<ObservabilityPort, "trackOperation" | "reportError"> }, { isRegisteredTool }: { isRegisteredTool?: IsRegisteredTool } = {}): ToolExecutor {
+export function withToolCallObservability({ inner, observability }: { inner: ToolExecutor; observability: Pick<ObservabilityPort, "trackOperation" | "reportError"> & Partial<Pick<ObservabilityPort, "metric" | "supportsMetric">> }, { isRegisteredTool, observabilityEnabled }: { isRegisteredTool?: IsRegisteredTool; observabilityEnabled?: () => boolean } = {}): ToolExecutor {
   return decorateToolExecutor({ inner,
-    execute: async (
+    execute: (required, options = {}) => {
+      if (observabilityEnabled && !observabilityEnabled()) return inner.execute(required, options);
+      return (async (
       { principal, run, toolId, input }: { principal: Principal; run: RunRef; toolId: string; input: unknown },
-      options: Parameters<ToolExecutor['execute']>[1] = {},
     ): Promise<ToolExecutionResult> => {
       const attributes = { "tool.id": toolCallLabel({ toolId }, { isRegisteredTool }), "agent.run.id": run.id, "user.id": pseudonymousUserId({ principal }) };
       const context = { operation: TOOL_CALL_OPERATION, attributes };
@@ -88,6 +95,7 @@ export function withToolCallObservability({ inner, observability }: { inner: Too
         const errorKind = error instanceof ToolInputError ? "validation" : "internal";
         if (errorKind === "internal") tracker.run(() => observability.reportError({ error, context }));
         tracker.end({ outcome: "threw", failed: true, attributes: { "tool.error_kind": errorKind } });
+        recordToolCallMetrics({ observability, toolId: attributes["tool.id"], failed: true });
         throw error;
       }
       const errorKind = errorKindOf(result);
@@ -95,7 +103,9 @@ export function withToolCallObservability({ inner, observability }: { inner: Too
         tracker.run(() => observability.reportError({ error: new ToolExecutionFailure(result.error ?? result.status), context }));
       }
       tracker.end({ outcome: result.status, failed: FAILED_STATUSES.has(result.status), ...(errorKind ? { attributes: { "tool.error_kind": errorKind } } : {}) });
+      recordToolCallMetrics({ observability, toolId: attributes["tool.id"], failed: FAILED_STATUSES.has(result.status) });
       return result;
+      })(required);
     },
   });
 }

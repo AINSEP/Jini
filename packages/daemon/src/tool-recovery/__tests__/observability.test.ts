@@ -1,5 +1,5 @@
 /** Each tool call becomes one observed operation; execution errors are reported, input errors are not. */
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { ToolInputError } from "@jini-ai/core";
 import type { ObservabilityPort } from "@jini-ai/core/contracts/observability";
 import { withToolCallObservability, ToolExecutionFailure, UNREGISTERED_TOOL_LABEL, UNIDENTIFIED_USER_LABEL } from "../index.js";
@@ -83,6 +83,43 @@ test("a throw is rethrown unchanged; ToolInputError (unknown tool) is validation
     expect(fake.operations[0]?.end).toEqual({ outcome: "threw", failed: true, attributes: { "tool.error_kind": kind } });
     expect(fake.operations[0]?.errors.length).toBe(reported);
   }
+});
+
+test.each(['completed', 'timed-out', 'denied'] as const)('%s increments tool.calls and failures follow the span classification', async status => {
+  const fake = createFakePort();
+  const metric = vi.fn();
+  const result: ToolExecutionResult = { executionId: 'e', status };
+  const executor = withToolCallObservability({ inner: executorReturning(() => result),
+    observability: { ...fake.port, metric, supportsMetric: true } }, {});
+  expect(await executor.execute(CALL)).toBe(result);
+  const expected = [[{ name: 'tool.calls', value: 1 }, { kind: 'counter', attributes: { 'tool.id': 'pages_list' } }]];
+  if (status === 'timed-out') expected.push([{ name: 'tool.failures', value: 1 }, { kind: 'counter', attributes: { 'tool.id': 'pages_list' } }]);
+  expect(metric.mock.calls).toEqual(expected);
+  expect(fake.operations[0]?.end?.failed).toBe(status === 'timed-out');
+});
+
+test('an input throw increments calls and failures once with the fixed unregistered label', async () => {
+  const fake = createFakePort();
+  const metric = vi.fn();
+  const error = new ToolInputError({ message: 'unknown tool' });
+  const executor = withToolCallObservability({ inner: executorReturning(() => { throw error; }),
+    observability: { ...fake.port, metric, supportsMetric: true } }, { isRegisteredTool: () => false });
+  await expect(executor.execute({ ...CALL, toolId: 'made_up_tool' })).rejects.toBe(error);
+  expect(metric.mock.calls).toEqual([
+    [{ name: 'tool.calls', value: 1 }, { kind: 'counter', attributes: { 'tool.id': 'unregistered' } }],
+    [{ name: 'tool.failures', value: 1 }, { kind: 'counter', attributes: { 'tool.id': 'unregistered' } }],
+  ]);
+  expect(fake.operations[0]?.end?.failed).toBe(true);
+});
+
+test('ports without metric capability receive no measurements', async () => {
+  const fake = createFakePort();
+  const metric = vi.fn();
+  const result: ToolExecutionResult = { executionId: 'e', status: 'completed' };
+  for (const observability of [fake.port, { ...fake.port, metric, supportsMetric: false }]) {
+    expect(await withToolCallObservability({ inner: executorReturning(() => result), observability }, {}).execute(CALL)).toBe(result);
+  }
+  expect(metric).not.toHaveBeenCalled();
 });
 
 test("other executor methods delegate to inner", () => {

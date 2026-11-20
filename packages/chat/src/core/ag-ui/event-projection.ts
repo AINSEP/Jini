@@ -8,6 +8,7 @@
  * The host emits RUN_STARTED and terminal RUN_FINISHED/RUN_ERROR outside this pure projection. */
 import { EventType, type AGUIEvent } from '@ag-ui/core';
 import type { AgentEvent } from '../events.js';
+import { readSseFrames, readTerminalReason, translateRunFrame, type RunFrameCarry, type RunFrameOutcome, type RunNotices } from '../run-events/entry.js';
 
 export interface EventIdGenerator {
   next(args: { prefix: string; ordinal: number }): string;
@@ -172,3 +173,104 @@ export function translateAgentEventToAgUi({ event, state }: { event: AgentEvent;
 export function closeAgUiRun({ state }: { state: AgUiTranslationState }): AgUiEvent[] {
   return closeOpenMessages(state);
 }
+
+/**
+ * Hands Jini's `readSseFrames` the daemon response as a stream while this route keeps the reader.
+ *
+ * `readSseFrames` takes a stream and holds its only reader until the frames end. The route needs
+ * its own handle on the daemon response too: the `res.on("close", ...)` hook cancels that reader so
+ * a client that leaves stops the upstream read at once, not at the daemon's next frame. A
+ * `ReadableStream` can only have one active reader at a time — a second `body.getReader()` throws
+ * `TypeError: ReadableStream is locked` — so the route keeps the one reader and Jini pulls through
+ * it. Cancelling the reader resolves the pending pull as done, which ends the frames the same way
+ * a daemon close does.
+ *
+ * `id:` lines are ignored by the frame reader: this path has no reattach story to resume a cursor
+ * for.
+ */
+function streamFromReader({ reader }: { reader: ReadableStreamDefaultReader<Uint8Array> }, _optional = {}): ReadableStream<Uint8Array> {
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      const { done, value } = await reader.read();
+      if (done) controller.close();
+      else controller.enqueue(value);
+    },
+    cancel: (reason) => reader.cancel(reason),
+  });
+}
+
+interface AgUiFrameContext {
+  reader: ReadableStreamDefaultReader<Uint8Array>;
+  threadId: string;
+  runId: string;
+  state: AgUiTranslationState;
+  notices: RunNotices;
+  write: (event: AgUiEvent) => void;
+}
+
+/** Writes every event in `events` to `res`, in order — the repeated `for (const e of events)
+ *  writeAgUiEvent(res, e)` pattern below, named once so each caller is a flat sequence of
+ *  statements rather than its own loop. */
+function writeAllAgUiEvents({ write, events }: { write: (event: AgUiEvent) => void; events: AgUiEvent[] }, _optional = {}): void {
+  for (const event of events) write(event);
+}
+
+/**
+ * Writes one translated daemon frame as AG-UI events. Every daemon SSE frame's `data:` line is the
+ * FULL `RunProtocolEventWire` envelope, not the inner payload; Jini's `translateRunFrame` unwraps
+ * it, and a frame it cannot read yields no events instead of failing the run.
+ *
+ * A terminal frame (`error`, or `end`) first writes its own notices, then closes any open
+ * message/reasoning segment, then the one terminal event: `RUN_ERROR` for an `error` frame and for
+ * an `end` the daemon classified as failed, else `RUN_FINISHED` — with reason `cancelled` for an
+ * `end` the daemon classified as canceled, else the frame's own reason (`stop` when it names none).
+ *
+ * @returns the run's final status once a terminal frame has closed it — the caller stops reading
+ *   further frames and ends the response — else `null`.
+ */
+function writeFrameOutcome(
+  { frame, outcome, ctx }: { frame: { data: string }; outcome: RunFrameOutcome; ctx: AgUiFrameContext },
+  _optional = {},
+): "succeeded" | "failed" | "canceled" | null {
+  for (const event of outcome.events) writeAllAgUiEvents({ write: ctx.write, events: translateAgentEventToAgUi({ event, state: ctx.state }) });
+  if (!outcome.error && !outcome.terminal) return null;
+  writeAllAgUiEvents({ write: ctx.write, events: closeAgUiRun({ state: ctx.state }) });
+  if (outcome.error) {
+    ctx.write({ type: EventType.RUN_ERROR, message: outcome.error.message });
+    return "failed";
+  }
+  const canceled = outcome.terminal === "canceled";
+  const reason = canceled ? "cancelled" : readTerminalReason({ raw: frame.data, wrapped: true }) || "stop";
+  ctx.write({ type: EventType.RUN_FINISHED, threadId: ctx.threadId, runId: ctx.runId, result: { reason } });
+  return canceled ? "canceled" : "succeeded";
+}
+
+/** Drains one AG-UI run's daemon frames to completion, writing translated events directly to
+ *  `ctx.res` and ending the response either on an explicit terminal frame, on the stream simply
+ *  closing (same dual-completion posture `consumeByokStream` uses for the identical case), or on a
+ *  read error. Split out of `handleAgUiRun` so the try/catch and its loop don't add to that
+ *  function's own branch count.
+ *  @returns How the run ended, for its agent-run span: a terminal frame's own status (an `end` the
+ *  daemon classified as failed or canceled is that, not `succeeded`); a natural close counts as
+ *  `succeeded`, like the `RUN_FINISHED` it writes; a read error is `failed` with that error. */
+export async function drainRunFramesToAgUi(ctx: AgUiFrameContext): Promise<{ status: "succeeded" | "failed" | "canceled"; error?: unknown }> {
+  // One carry per daemon connection, so the later chunks of a split echo line are dropped too.
+  const carry: RunFrameCarry = {};
+  try {
+    for await (const frame of readSseFrames({ body: streamFromReader({ reader: ctx.reader }) })) {
+      const outcome = translateRunFrame({ kind: frame.event, raw: frame.data, notices: ctx.notices }, { carry });
+      const status = writeFrameOutcome({ frame, outcome, ctx });
+      if (status) {
+        return { status };
+      }
+    }
+    writeAllAgUiEvents({ write: ctx.write, events: closeAgUiRun({ state: ctx.state }) });
+    ctx.write({ type: EventType.RUN_FINISHED, threadId: ctx.threadId, runId: ctx.runId, result: { reason: "stop" } });
+    return { status: "succeeded" };
+  } catch (error) {
+    writeAllAgUiEvents({ write: ctx.write, events: closeAgUiRun({ state: ctx.state }) });
+    ctx.write({ type: EventType.RUN_ERROR, message: error instanceof Error ? error.message : String(error) });
+    return { status: "failed", error };
+  }
+}
+

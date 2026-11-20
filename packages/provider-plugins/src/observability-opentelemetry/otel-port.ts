@@ -12,7 +12,7 @@ export type { ExporterFactory, TraceSpanKind, TracerPort, TracerProviderFactory 
 export interface OtelAdapterDependencies {
  config: ObservabilityConfigEnabled; exporterFactory: ExporterFactory; tracerProviderFactory: TracerProviderFactory;
 }
-export interface OtelAdapterOptions { scope?: SpanScopePort; helpers: ObservabilityHelpers; }
+export interface OtelAdapterOptions { scope?: SpanScopePort; helpers: ObservabilityHelpers; metric?: ObservabilityPort["metric"]; }
 type Attributes = Record<string, string | number>;
 
 /** Decode before classifying; malformed encodings and non-label segments fail closed.
@@ -67,6 +67,7 @@ function once<O>(handler: (outcome: O) => void): (outcome: O) => void {
 
 interface OtelCtx {
  readonly tracer: TracerPort; readonly scope: SpanScopePort | undefined; readonly helpers: ObservabilityHelpers; readonly reportedSpans: WeakSet<TraceSpanPort>;
+ readonly metric: ObservabilityPort["metric"] | undefined;
 }
 
 /** Sets final attributes and ends, preserving an exception already recorded by reportError.
@@ -169,6 +170,7 @@ function reportError({ ctx, error, context }: { ctx: OtelCtx; error: unknown; co
 }
 
 function trackAgentRun({ ctx, runId, conversationId, agentName }: { ctx: OtelCtx; runId: string; conversationId?: string; agentName?: string }): ReturnType<ObservabilityPort['trackAgentRun']> {
+ const startedAt = ctx.metric ? performance.now() : 0;
  // A run outlives the request that started it, so it is its own trace rather than a long child.
  const span = start({ ctx, name: agentName ? `invoke_agent ${agentName}` : 'invoke_agent', kind: 'internal', attributes: {
   'gen_ai.operation.name': 'invoke_agent', ...(agentName ? { 'gen_ai.agent.name': agentName } : {}),
@@ -176,6 +178,7 @@ function trackAgentRun({ ctx, runId, conversationId, agentName }: { ctx: OtelCtx
  } }, { root: true });
  return { run: runIn({ ctx, span }), end: once(({ status, error }) => {
   finishWithOutcome({ ctx, span, attributes: { 'agent.run.status': status } }, { error, ...(FAILED_RUN_STATUSES.has(status) ? { softFailure: status } : {}) });
+  ctx.metric?.({ name: 'agent.run.duration', value: performance.now() - startedAt }, { kind: 'histogram', unit: 'ms' });
  }) };
 }
 
@@ -185,10 +188,10 @@ function trackAgentRun({ ctx, runId, conversationId, agentName }: { ctx: OtelCtx
  * @returns One adapter whose spans end once, with final names, redacted attributes and error status.
  * @throws Provider/exporter errors propagate during setup. No globals or SDK imports are used.
  */
-export function createOtelObservabilityPort({ config, exporterFactory, tracerProviderFactory }: OtelAdapterDependencies, { scope, helpers }: OtelAdapterOptions): ObservabilityPort {
+export function createOtelObservabilityPort({ config, exporterFactory, tracerProviderFactory }: OtelAdapterDependencies, { scope, helpers, metric }: OtelAdapterOptions): ObservabilityPort {
  const exporter = exporterFactory.create({ endpoint: config.endpoint });
  const provider = tracerProviderFactory.create({ serviceName: config.serviceName, exporter });
- const ctx: OtelCtx = { tracer: provider.getTracer({ name: config.tracerName }), scope, helpers, reportedSpans: new WeakSet<TraceSpanPort>() };
+ const ctx: OtelCtx = { tracer: provider.getTracer({ name: config.tracerName }), scope, helpers, metric, reportedSpans: new WeakSet<TraceSpanPort>() };
  return {
   supportsMetric: false,
   activeTraceIds: (_required = {}, _optional = {}) => scope?.active()?.ids?.(),
