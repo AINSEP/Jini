@@ -40,11 +40,6 @@
     "value": 1
   },
   {
-    "file": "packages/admin/src/forms/react/hooks/use-form-editor.hooks.ts",
-    "rule": "catch-reads-error",
-    "value": 3
-  },
-  {
     "file": "packages/admin/src/forms/react/hooks/use-form-submissions.hooks.ts",
     "rule": "failure-text-from-catalog",
     "value": 1
@@ -96,16 +91,6 @@
   },
   {
     "file": "packages/admin/src/react/entities/contribution.tsx",
-    "rule": "catch-reads-error",
-    "value": 1
-  },
-  {
-    "file": "packages/admin/src/react/entities/EntityEdit.tsx",
-    "rule": "no-generic-failure-text",
-    "value": 1
-  },
-  {
-    "file": "packages/admin/src/react/entities/use-entity-edit.ts",
     "rule": "catch-reads-error",
     "value": 1
   },
@@ -221,11 +206,6 @@
   },
   {
     "file": "packages/admin/src/widgets/conformance/widgets-api.conformance.ts",
-    "rule": "catch-reads-error",
-    "value": 1
-  },
-  {
-    "file": "packages/admin/src/widgets/controllers/region-editor.controller.ts",
     "rule": "catch-reads-error",
     "value": 1
   },
@@ -445,16 +425,6 @@
     "value": 3
   },
   {
-    "file": "packages/agent-runtime/src/ai-trace/capture.ts",
-    "rule": "catch-reads-error",
-    "value": 1
-  },
-  {
-    "file": "packages/agent-runtime/src/ai-trace/sinks.ts",
-    "rule": "catch-reads-error",
-    "value": 1
-  },
-  {
     "file": "packages/agent-runtime/src/amr-model-cache.ts",
     "rule": "no-generic-failure-text",
     "value": 1
@@ -473,11 +443,6 @@
     "file": "packages/agent-runtime/src/claude-filesystem-policy.ts",
     "rule": "catch-reads-error",
     "value": 2
-  },
-  {
-    "file": "packages/agent-runtime/src/claude-stream.ts",
-    "rule": "catch-reads-error",
-    "value": 1
   },
   {
     "file": "packages/agent-runtime/src/defs/amr/executable-resolution.ts",
@@ -506,11 +471,6 @@
   },
   {
     "file": "packages/agent-runtime/src/executables.ts",
-    "rule": "catch-reads-error",
-    "value": 1
-  },
-  {
-    "file": "packages/agent-runtime/src/json-event-stream.ts",
     "rule": "catch-reads-error",
     "value": 1
   },
@@ -631,11 +591,6 @@
   },
   {
     "file": "packages/chat/src/core/assistant-client/a2ui-action-poster.ts",
-    "rule": "catch-reads-error",
-    "value": 1
-  },
-  {
-    "file": "packages/chat/src/core/assistant-client/attachment-liveness.ts",
     "rule": "catch-reads-error",
     "value": 1
   },
@@ -950,11 +905,6 @@
     "value": 1
   },
   {
-    "file": "packages/cms/src/widgets/date-label.ts",
-    "rule": "catch-reads-error",
-    "value": 1
-  },
-  {
     "file": "packages/cms/src/widgets/embed-service.ts",
     "rule": "failure-text-from-catalog",
     "value": 2
@@ -1036,11 +986,6 @@
   },
   {
     "file": "packages/commerce/src/payments/ingest/worker.ts",
-    "rule": "catch-reads-error",
-    "value": 1
-  },
-  {
-    "file": "packages/commerce/src/payments/ledger/repo.memory.ts",
     "rule": "catch-reads-error",
     "value": 1
   },
@@ -1200,19 +1145,9 @@
     "value": 6
   },
   {
-    "file": "packages/daemon/src/agent-executor/live-session-state.ts",
-    "rule": "catch-reads-error",
-    "value": 1
-  },
-  {
     "file": "packages/daemon/src/agent-executor/mcp-bridge-probe.ts",
     "rule": "catch-reads-error",
     "value": 2
-  },
-  {
-    "file": "packages/daemon/src/agent-executor/mcp-bridge.ts",
-    "rule": "catch-reads-error",
-    "value": 1
   },
   {
     "file": "packages/daemon/src/agent-executor/opencode/mcp-config.ts",
@@ -1281,16 +1216,6 @@
   },
   {
     "file": "packages/daemon/src/http/frontend-guest-scope.ts",
-    "rule": "catch-reads-error",
-    "value": 1
-  },
-  {
-    "file": "packages/daemon/src/http/frontend-request-route.ts",
-    "rule": "catch-reads-error",
-    "value": 1
-  },
-  {
-    "file": "packages/daemon/src/http/frontend-sessions.ts",
     "rule": "catch-reads-error",
     "value": 1
   },
@@ -2030,11 +1955,6 @@
     "value": 1
   },
   {
-    "file": "packages/oauth/src/registration-cache.ts",
-    "rule": "catch-reads-error",
-    "value": 1
-  },
-  {
     "file": "packages/oauth/src/revocation.ts",
     "rule": "failure-text-from-catalog",
     "value": 1
@@ -2520,16 +2440,6 @@
     "value": 1
   },
   {
-    "file": "packages/ui/src/features/memory/react/hooks/useMemoryConnectors.hooks.ts",
-    "rule": "catch-reads-error",
-    "value": 3
-  },
-  {
-    "file": "packages/ui/src/features/memory/react/hooks/useMemoryConnectors.hooks.ts",
-    "rule": "failure-text-from-catalog",
-    "value": 3
-  },
-  {
     "file": "packages/ui/src/features/memory/react/hooks/useMemoryEntries.hooks.ts",
     "rule": "catch-reads-error",
     "value": 7
@@ -2551,16 +2461,6 @@
   },
   {
     "file": "packages/ui/src/features/panel-kit/failure-channel.ts",
-    "rule": "catch-reads-error",
-    "value": 1
-  },
-  {
-    "file": "packages/ui/src/features/panel-kit/fetch-query/adapter.react.tsx",
-    "rule": "catch-reads-error",
-    "value": 1
-  },
-  {
-    "file": "packages/ui/src/features/panel-kit/fetch-query/adapter.tanstack.tsx",
     "rule": "catch-reads-error",
     "value": 1
   },
@@ -2626,11 +2526,6 @@
   },
   {
     "file": "packages/ui/src/features/tab-strip/dependencies.ts",
-    "rule": "catch-reads-error",
-    "value": 1
-  },
-  {
-    "file": "packages/ui/src/features/version-manager/react/hooks/useVersionManager.ts",
     "rule": "catch-reads-error",
     "value": 1
   },

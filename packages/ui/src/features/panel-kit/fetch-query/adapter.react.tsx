@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { DEFAULT_STALE_TIME, FetchQueryCache, toQueryError, withCachedLoaderFetch, type FetchQueryEnvironmentPort, type QueryCacheSchedulerPort } from '@jini-ai/core/fetch';
+import { observed } from '@jini-ai/core/errors/idioms';
 import type { Clock } from '@jini-ai/core/primitives';
 import { browserFetchQueryEnvironment } from './environment.browser.js';
 import { browserClock, browserScheduler } from './browser-timing.js';
@@ -115,7 +116,7 @@ export function useFetchMutation<TInput, TOutput>(required: Pick<FetchMutationOp
     });
     // Handle this same promise for callers that discard it, while still returning it so
     // await/catch observes the original rejection; discarding the derived promise is intentional.
-    void promise.catch(() => {});
+    observed({ promise });
     return promise;
   }, [cache]);
   const reset = useCallback(() => { generation.current += 1; setState({ status: 'idle', error: null }); }, []);

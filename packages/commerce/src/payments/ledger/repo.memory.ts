@@ -1,6 +1,7 @@
 import { OPEN_INTENT_STATUSES } from "../state/status.js";
 import type { PaymentMode } from "../contract/scope.js";
 import { AsyncLocalStorage } from "node:async_hooks";
+import { afterSettled } from "@jini-ai/core/errors/idioms";
 
 import { ATTEMPT_PATCH_COLUMNS, DISPUTE_PATCH_COLUMNS, PAYMENT_PATCH_COLUMNS, REFUND_PATCH_COLUMNS, patchColumns, type AttemptPatch, type DisputePatch, type PaymentPatch, type RefundPatch } from "./row-patches.js";
 import { LEDGER_MODES, LEDGER_TABLE_RULES, LEDGER_TABLES, attemptToRow, disputeToRow, encodeColumns, encodeMinor, evidenceToRow, inboxToRow, outboxToRow, paymentToRow, quarantineToRow, refundToRow, operatorActionToRow, type LedgerTableName, type LedgerTableRules } from "./rows.js";
@@ -481,7 +482,7 @@ export function memoryPaymentsLedger(_required: Record<string, never> = {}, _opt
       if (active.getStore() === true) return fn(tx);
       const run = tail.then(() => active.run(true, () => attempt(fn)));
       // The queue must keep moving past a failed transaction; the caller still sees the failure via `run`.
-      tail = run.catch(() => undefined);
+      tail = afterSettled({ promise: run });
       return run;
     },
   };

@@ -1,3 +1,5 @@
+import { orFallback } from "@jini-ai/core/errors/idioms";
+
 /**
  * @file Site-timezone date formatting for rendered dates (Bug D, 2026-10-22).
  *
@@ -45,12 +47,13 @@ export async function resolveSiteTimeZoneSafely(
   required: { workspaceId: string },
   optional: { siteTimeZone?: SiteTimeZonePort } = {},
 ): Promise<string> {
-  if (!optional.siteTimeZone) return DEFAULT_SITE_TIME_ZONE;
-  try {
-    return normalizeTimeZone({ timeZone: await optional.siteTimeZone.resolveTimeZone(required) });
-  } catch {
-    return DEFAULT_SITE_TIME_ZONE;
-  }
+  const siteTimeZone = optional.siteTimeZone;
+  if (!siteTimeZone) return DEFAULT_SITE_TIME_ZONE;
+  return orFallback({
+    work: async () => normalizeTimeZone({ timeZone: await siteTimeZone.resolveTimeZone(required) }),
+    fallback: DEFAULT_SITE_TIME_ZONE,
+    step: "read site time zone",
+  });
 }
 
 /** The parsed instant, or `undefined` for a malformed timestamp. */

@@ -2,6 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import { isCancelledError, replaceEqualDeep, QueryClient, QueryClientProvider, useMutation, useQuery } from '@tanstack/react-query';
 import { DEFAULT_STALE_TIME, FetchQueryCache, IDLE_RETENTION, toQueryError, withCachedLoaderFetch, type FetchQueryEnvironmentPort } from '@jini-ai/core/fetch';
+import { observed } from '@jini-ai/core/errors/idioms';
 import { browserFetchQueryEnvironment } from './environment.browser.js';
 import { browserClock, browserScheduler } from './browser-timing.js';
 import { resolveFetchQueryError, resolveFetchQueryStatus } from './adapter.react.js';
@@ -181,7 +182,7 @@ function useFetchMutation<TInput, TOutput>({ run }: Pick<FetchMutationOptions<TI
     const promise = mutateAsync(required);
     // Handle this same promise for callers that discard it, while still returning it so
     // await/catch observes the original rejection; discarding the derived promise is intentional.
-    void promise.catch(() => {});
+    observed({ promise });
     return promise;
   }, [mutateAsync]);
   return { mutate, status: mutation.status, error: mutation.status === 'error' ? toQueryError({ value: mutation.error }) : null, reset };

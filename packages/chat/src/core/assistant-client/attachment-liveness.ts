@@ -1,3 +1,4 @@
+import { orFallback } from "@jini-ai/core/errors/idioms";
 import type { ChatAttachment } from "../messages.js";
 
 /**
@@ -43,18 +44,20 @@ export interface ChatAttachmentValidatorOptions {
  * @complexity O(1); one request, abandoned after `timeoutMs`.
  */
 async function isAttachmentStillServed(ref: string, options: { fetchImpl: typeof fetch; timeoutMs: number; endpoint: (required: { ref: string }, optional: Record<string, never>) => string }): Promise<boolean> {
-  try {
-    const response = await options.fetchImpl(options.endpoint({ ref }, {}), {
-      method: "HEAD",
-      credentials: "same-origin",
-      signal: AbortSignal.timeout(options.timeoutMs),
-    });
-    return response.ok;
-  } catch {
+  return orFallback({
+    work: async () => {
+      const response = await options.fetchImpl(options.endpoint({ ref }, {}), {
+        method: "HEAD",
+        credentials: "same-origin",
+        signal: AbortSignal.timeout(options.timeoutMs),
+      });
+      return response.ok;
+    },
     // A network fault, an abort, or a same-origin policy refusal. Indistinguishable from here, and
     // all mean the same thing: nothing was confirmed, so the reference does not come back.
-    return false;
-  }
+    fallback: false,
+    step: "probe saved attachment",
+  });
 }
 
 /**
