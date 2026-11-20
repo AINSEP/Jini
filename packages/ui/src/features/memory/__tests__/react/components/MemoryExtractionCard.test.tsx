@@ -37,7 +37,7 @@ describe('MemoryExtractionCard', () => {
     expect(screen.getByText('a saved fact')).toBeInTheDocument();
     expect(screen.getByText('Done')).toBeInTheDocument();
     expect(screen.getByText('Model')).toBeInTheDocument();
-    expect(document.querySelector('.memory-extraction-card.jini-is-success')).not.toBeNull();
+    expect(document.querySelector('.memory-extraction-card.is-success')).not.toBeNull();
   });
 
   it('renders a written-id chip per entry and opens its preview on click', async () => {
