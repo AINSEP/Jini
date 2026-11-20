@@ -17,7 +17,7 @@ import { parse } from 'smol-toml';
 async function launch(vendor: 'claude' | 'codex' | 'opencode' | 'opencode-acp', failHttp = false, failure?: 'sync-spawn' | 'async-spawn' | 'invocation', locked?: { resume: boolean }) {
   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
   const child = Object.assign(new EventEmitter(), { stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(),
-    exitCode: null, signalCode: null, pid: 56789 });
+    exitCode: null, signalCode: null, pid: 56789, killed: false, kill: vi.fn(() => true) });
   const definition: RuntimeAgentDef & { mcpHttp: boolean } = { ...(vendor === 'opencode-acp' ? opencodeAcpAgentDef : getAgentDef({ id: vendor })!), ...fixtureModelDiscovery, mcpHttp: true };
   const endpointClose = vi.fn(async () => {});
   const prepareHttp = vi.fn(async () => {
