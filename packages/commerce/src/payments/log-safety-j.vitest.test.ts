@@ -6,12 +6,13 @@ import { ingestWorld } from "./ingest/__tests__/harness.js";
 import { createInboxWorker } from "./ingest/worker.js";
 
 const SECRET = "j-provider-token-private-driver-text";
-const COPY = "Payment provider operation failed.";
+const thrownCopy = (kind: string) => `The payment provider threw instead of answering (${kind === "error" ? "Error" : "string"}); the payment will be reconciled`;
+const answerCopy = (kind: "rejected" | "unknown") => kind === "rejected" ? "The payment provider refused the operation (TRANSPORT_ERROR)" : "The payment provider could not confirm the operation (TRANSPORT_ERROR); it will be reconciled";
 const failure = () => Object.assign(new Error(SECRET), { stack: `Error: ${SECRET}\n at ${SECRET}` });
 
 test.each(["error", "string"])("J: thrown provider %s remains unknown with safe public copy", async kind => {
   const result = await dispatch({ call: async () => { throw kind === "error" ? failure() : SECRET; } });
-  expect(result).toEqual({ kind: "unknown", error: { code: "PROVIDER_ERROR", retryable: true, message: COPY } });
+  expect(result).toEqual({ kind: "unknown", error: { code: "PROVIDER_ERROR", retryable: true, message: thrownCopy(kind) } });
 });
 
 test.each(["rejected", "unknown"] as const)("J: returned provider %s preserves codes and persists safe copy", async kind => {
@@ -19,11 +20,11 @@ test.each(["rejected", "unknown"] as const)("J: returned provider %s preserves c
   w.scripted.queue("createIntent", { kind, error: { code: "TRANSPORT_ERROR", message: SECRET, retryable: true, providerStatus: 503 } });
   const request = { scope: SCRIPTED, amount: USD(200), idempotencyKey: "safe", reference: "order" };
   const result = await w.service.createIntent(request);
-  expect(result).toMatchObject({ ok: false, error: { code: "TRANSPORT_ERROR", message: COPY },
+  expect(result).toMatchObject({ ok: false, error: { code: "TRANSPORT_ERROR", message: answerCopy(kind) },
     payment: { status: kind === "unknown" ? "unknown" : "failed" } });
   if (result.ok || !result.payment) throw new Error("expected provider failure");
   const stored = await w.read(result.payment.id);
-  expect(stored.attempts).toEqual([expect.objectContaining({ outcome: kind, errorCode: "TRANSPORT_ERROR", errorMessage: COPY })]);
+  expect(stored.attempts).toEqual([expect.objectContaining({ outcome: kind, errorCode: "TRANSPORT_ERROR", errorMessage: answerCopy(kind) })]);
   expect(stored.evidence).toEqual([]);
   expect(stored.outbox).toEqual([]);
   const replay = await w.service.createIntent(request);
@@ -42,7 +43,7 @@ test("J: the attempt persistence boundary refuses raw provider text independentl
   await w.ledger.transaction({ fn: tx => markAttempt({ tx, deps: w.deps, attemptId: before.attempts[0]!.id,
     outcome: { kind: "rejected", error: { code: "DECLINED", message: SECRET, retryable: false } } }) });
   const stored = await w.read(result.payment.id);
-  expect(stored.attempts).toEqual([expect.objectContaining({ outcome: "rejected", errorCode: "DECLINED", errorMessage: COPY })]);
+  expect(stored.attempts).toEqual([expect.objectContaining({ outcome: "rejected", errorCode: "DECLINED", errorMessage: "The payment provider refused the operation (DECLINED)" })]);
   expect(JSON.stringify(stored)).not.toContain(SECRET);
 });
 

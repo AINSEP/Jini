@@ -176,7 +176,7 @@ describe("capture/void: provider answers", () => {
     const again = await w.service.capture({ scope: SCRIPTED, paymentId: held.id, amount: USD(100), idempotencyKey: "ck-1", grant: "g" });
     expect(again).toEqual({
       ok: false, payment: expect.objectContaining({ status: "authorized" }),
-      error: { code: "PROVIDER_ERROR", message: "rate limited (replayed: the earlier capture under this idempotencyKey was rejected and moved no money; a new attempt needs a new idempotencyKey)", retryable: false },
+      error: { code: "PROVIDER_ERROR", message: "The payment provider refused the operation (PROVIDER_ERROR) (replayed: the earlier capture under this idempotencyKey was rejected and moved no money; a new attempt needs a new idempotencyKey)", retryable: false },
     });
     expect(w.scripted.calls.filter((c) => c.op === "capture")).toHaveLength(1);
   });

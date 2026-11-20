@@ -152,7 +152,7 @@ describe("refund: provider answers", () => {
     const id = await scriptedPaid(w);
     w.scripted.queue("refund", rejected());
     const result = await w.service.refund({ scope: SCRIPTED, paymentId: id, amount: USD(3_000), idempotencyKey: "rk", grant: await refundGrant(w, id, 3_000, "rk", SCRIPTED) });
-    expect(result).toEqual({ ok: false, error: { code: "DECLINED", message: "Payment provider operation failed.", retryable: false } });
+    expect(result).toEqual({ ok: false, error: { code: "DECLINED", message: "The payment provider refused the operation (DECLINED)", retryable: false } });
     expect((await w.read(id)).refunds.map((r) => r.status)).toEqual(["failed"]);
     expect((await w.read(id)).payment?.refundHeldMinor).toBe(0);
   });
@@ -162,11 +162,11 @@ describe("refund: provider answers", () => {
     const id = await scriptedPaid(w);
     w.scripted.queue("refund", { kind: "rejected", error: paymentError({ code: "PROVIDER_ERROR", message: "rate limited" }, { retryable: true }) });
     const first = await w.service.refund({ scope: SCRIPTED, paymentId: id, amount: USD(3_000), idempotencyKey: "rk", grant: await refundGrant(w, id, 3_000, "rk", SCRIPTED) });
-    expect(first).toEqual({ ok: false, error: { code: "PROVIDER_ERROR", message: "rate limited", retryable: false } });
+    expect(first).toEqual({ ok: false, error: { code: "PROVIDER_ERROR", message: "The payment provider refused the operation (PROVIDER_ERROR)", retryable: false } });
     const again = await w.service.refund({ scope: SCRIPTED, paymentId: id, amount: USD(3_000), idempotencyKey: "rk", grant: "g" });
     expect(again).toEqual({ ok: false, error: {
       code: "PROVIDER_ERROR", retryable: false,
-      message: "rate limited (replayed: the earlier refund under this idempotencyKey was rejected and moved no money; a new attempt needs a new idempotencyKey)",
+      message: "The payment provider refused the operation (PROVIDER_ERROR) (replayed: the earlier refund under this idempotencyKey was rejected and moved no money; a new attempt needs a new idempotencyKey)",
     } });
     expect(w.scripted.calls.filter((c) => c.op === "refund")).toHaveLength(1);
   });

@@ -1,3 +1,4 @@
+import { describeErrorForLog } from "@jini-ai/core";
 /**
  * @file Shared steps of every payments operation: typed refusals, request checks, the provider
  * context, the provider-call wrapper, attempt rows, alerts and the idempotency-race retry.
@@ -100,11 +101,17 @@ export async function dispatch<T>({ call }: { call: () => Promise<Outcome<T>> },
   let outcome: Outcome<T> | null | undefined;
   try {
     outcome = await call();
-  } catch {
-    return unknownOutcome({ message: "Payment provider operation failed." });
+  } catch (error) {
+    return unknownOutcome({ message: `The payment provider threw instead of answering (${describeErrorForLog({ err: error })}); the payment will be reconciled` });
   }
   if (!readable({ outcome })) return unknownOutcome({ message: "provider returned no readable Outcome" });
-  return outcome.kind === "ok" ? outcome : { ...outcome, error: { ...outcome.error, message: "Payment provider operation failed." } };
+  return outcome.kind === "ok" ? outcome : { ...outcome, error: { ...outcome.error, message: providerAnswerText({ outcome }) } };
+}
+
+/** The provider's own message can carry account or card data, so the stored text names the answer
+ * kind and the provider's code only. */
+function providerAnswerText({ outcome }: { outcome: Exclude<Outcome<unknown>, { kind: "ok" }> }, _optional: Record<string, never> = {}): string {
+  return outcome.kind === "rejected" ? `The payment provider refused the operation (${outcome.error.code})` : `The payment provider could not confirm the operation (${outcome.error.code}); it will be reconciled`;
 }
 
 /** `ok` with a non-null payload, or a `rejected`/`unknown` carrying a complete PaymentError. An unreadable rejection is NOT trusted as "no money moved". */
@@ -136,7 +143,7 @@ export async function markAttempt(
   { tx, deps, attemptId, outcome }: { tx: LedgerTx; deps: OpsDeps; attemptId: string; outcome: Outcome<unknown> },
   _optional: Record<string, never> = {}
 ): Promise<void> {
-  const error = outcome.kind === "ok" ? {} : { errorCode: outcome.error.code, errorMessage: "Payment provider operation failed." };
+  const error = outcome.kind === "ok" ? {} : { errorCode: outcome.error.code, errorMessage: providerAnswerText({ outcome }) };
   await tx.updateAttempt({ id: attemptId, patch: { outcome: outcome.kind, ...error, updatedAt: deps.now() } });
 }
 
