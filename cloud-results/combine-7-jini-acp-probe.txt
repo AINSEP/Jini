@@ -1,0 +1,35 @@
+INIT {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1,"agentCapabilities":{"loadSession":true,"mcpCapabilities":{"http":true,"sse":true},"promptCapabilities":{"embeddedContext":true,"image":true},"sessionCapabilities":{"close":{},"fork":{},"list":{},"resume":{}}},"authMethods":[{"description":"Run `opencode auth login` in the terminal","name":"Login with opencode","id":"opencode-login"}],"agentInfo":{"name":"OpenCode","version":"1.19.6"}}}
+NEW {"jsonrpc":"2.0","id":2,"result":{"sessionId":"ses_e04d029d3ffeYS1HYEIu7TYSab","configOptions":[{"id":"model","name":"Model","category":"model","type":"select","currentValue":"opencode/big-pickle","options":[{"value":"amazon-bedrock/au.anthropic.claude-opus-4-6-v1","name":"Amazon Bedrock/AU Anthropic Claude Opus 4.6"},{"value":"amazon-bedrock/au.anthropic.claude-sonnet-4-6","name":"Amazon Bedrock/AU Anthropic Claude Sonnet 4.6"},{"value":"amazon-bedrock/anthropic.claude-fable-5","name":"Amazon Bedrock/Claude Fable 5"},{"value":"amazon-bedrock/eu.anthropic.claude-fable-5","name":"Amazon Bedrock/Claude Fable 5 (EU)"},{"value":"amazon-bedrock/global.anthropic.claude-fable-5","name":"Amazon Bedrock/Claude Fable 5 (Global)"},{"value":"amazon-bedrock/us.anthropic.claude-fable-5","name":"Amazon Bedrock/Claude Fable 5 (US)"},{"value":"amazon-bedrock/anthropic.claude-fable-5-1","name":"Amazon Bedrock/Claude Fable 5.1"},{"value":"amazon-bedrock/global.anthropic.claude-fable-5-1","name":"Amazon Bedrock/Claude Fable 5.1 (Global)"},{"value":"amazon-bedrock/us.anthropic.claude-fable-5-1","name":"Amazon Bedrock/Claude Fable 5.1 (US)"},{"value":"amazon-bedrock/anthropic.claude-fable-5-2","name":"Amazon Bedrock/Claude Fable 5.2"},{"value":"amazon-bedrock/global.anthropic.claude-fable-5-2","name":"Amazon Bedrock/Claude Fable 5.2 (Global)"},{"value":"amazon-bedrock/us.anthropic.claude-fable-5-2","name":"Amazon Bedrock/Claude Fable 5.2 (US)"},{"value":"amazon-bedrock/anthropic.claude-haiku-4-5-2
+NOTIF {"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"ses_e04d029d3ffeYS1HYEIu7TYSab","update":{"sessionUpdate":"available_commands_update","availableCommands":[{"name":"customize-opencode","description":"Use ONLY when the user is editing or creating opencode's own configuration: opencode.json, opencode.jsonc, files under .opencode/, or files under ~/.config/opencode/. Also use when cr
+ERR Error handling request {
+  jsonrpc: "2.0",
+  id: 3,
+  method: "session/load",
+  params: {
+    sessionId: "bogus-id",
+    cwd: "/tmp/claude-0/oc/proj",
+    mcpServers: [],
+  },
+} {
+  code: -32603,
+  message: "Internal error: OpenCode service failure",
+  data: {
+    service: "session",
+  },
+}
+LOAD-BOGUS {"jsonrpc":"2.0","id":3,"error":{"code":-32603,"message":"Internal error: OpenCode service failure","data":{"service":"session"}}}
+NOTIF {"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"ses_e04d029d3ffeYS1HYEIu7TYSab","update":{"sessionUpdate":"usage_update","used":0,"size":200000,"cost":{"amount":0,"currency":"USD"}}}}
+PROMPT {"jsonrpc":"2.0","id":4,"error":{"code":-32603,"message":"Internal error: Proxy refused to open a tunnel: 403 Forbidden (agent proxy: no rule or network setting allows this host)","data":{"service":"session","errorName":"UnknownError"}}}
+ERR Error handling request {
+  jsonrpc: "2.0",
+  id: 4,
+  method: "session/prompt",
+  params: {
+    sessionId: "ses_e04d029d3ffeYS1HYEIu7TYSab",
+    prompt: [
+      [Object ...]
+    ],
+  },
+} {
+  code: -32603,
+  message: "Internal error: Proxy refused to open a tunnel: 403 Forbidden (agent proxy: no rulEXIT null SIGTERM 61 ms
