@@ -434,6 +434,7 @@
    "openAiLoopExitReason": "function:35fc5e5f52",
    "openAiRequestBody": "function:7fe3062d08",
    "openAiRequestUrl": "function:1dee38f12c",
+   "opencodeAcpAgentDef": "variable:8d91077656",
    "opencodeAgentDef": "variable:726d10b9f0",
    "parseAIHubMixCatalog": "function:6bce253443",
    "parseAccumulatedToolInputJson": "function:54cac2a61e",
@@ -582,6 +583,17 @@
    "normalizeDiscoveredModels": "function:085e365f72",
    "validateRuntimeModelSelection": "function:349f7dba7d",
    "withModelProbeTimeout": "function:97a0f05871"
+  }
+ },
+ "./native-permissions": {
+  "types": "./dist/native-permissions.d.ts",
+  "symbols": {
+   "InvalidNativePermissionsError": "class:72fe562a0a",
+   "NativeAgentPermissions": "interface:8b7feebd73",
+   "NativePermissionSet": "interface:d5653d5490",
+   "fillNativePermissions": "function:a7d621d1d1",
+   "projectNativePermissions": "function:dd31b67603",
+   "validateNativePermissionSnapshot": "function:d824d2ae8a"
   }
  },
  "./native-tool-policy": {

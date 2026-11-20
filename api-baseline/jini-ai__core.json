@@ -1078,6 +1078,17 @@
    "serverConformance": "function:8808ec27f5"
   }
  },
+ "./contracts/server/security-headers": {
+  "types": "./dist/contracts/server/security-headers.d.ts",
+  "symbols": {
+   "CSP_REPORT_ONLY_HEADER": "variable:5800295606",
+   "DeclaredPageHosts": "interface:eb4058c072",
+   "SecurityHeaderSet": "type:2e17c78588",
+   "addDeclaredHostsToPolicy": "function:11453a7ebb",
+   "isDeclaredOrigin": "function:b77c95555a",
+   "withDeclaredHosts": "function:5c5f2958e5"
+  }
+ },
  "./contracts/server/testing": {
   "types": "./dist/contracts/server/testing.d.ts",
   "symbols": {

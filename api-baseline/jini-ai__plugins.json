@@ -298,6 +298,7 @@
    "attachLoadedPlugin": "function:3416182ad5",
    "computePluginIntegrity": "function:8ac32747be",
    "createPluginInvocationBinding": "function:7b54a64de3",
+   "createPluginModuleImporter": "function:b02fe32749",
    "createPluginModuleSnapshotLifecycle": "function:9a44296fc6",
    "createPluginRuntimeCore": "function:9c6993d139",
    "createPluginSourceService": "function:76bce1de33",

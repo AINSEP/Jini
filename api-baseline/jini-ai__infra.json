@@ -54,7 +54,7 @@
    "OutboxFailureCodes": "interface:3c1c65d02f",
    "OutboxPort": "interface:197df4ac81",
    "OutboxRecord": "interface:321375a84e",
-   "OutboxRetryPolicy": "interface:c3c629f3d5",
+   "OutboxRetryPolicy": "interface:b7fabb2f2f",
    "OutboxRetryPolicyResolver": "type:6dfe580331",
    "OutboxWorkerArgs": "interface:ae284c4e07",
    "OutboxWorkerOptions": "interface:edb9ba13fd",

@@ -846,6 +846,7 @@
    "SidebarProps": "interface:5f6cc21561",
    "SidebarRail": "interface:d464115cd8",
    "SidebarRailToggleProps": "interface:32945239d9",
+   "ThemePreviewReloadControl": "function:50a4206821",
    "UseConfirmDialog": "type:059a87c1bc",
    "createEntityPanel": "function:706032df0c",
    "createEntityRoutes": "function:24db9e25f2",
@@ -914,7 +915,7 @@
    "AdminKit": "interface:b219f36597",
    "AdminKitComponents": "interface:f764c98cce",
    "AdminKitHooks": "interface:943521f7c0",
-   "AdminKitProvider": "function:60da7d224a",
+   "AdminKitProvider": "function:94b9894e57",
    "AdminQueryKit": "interface:fe542cee9a",
    "AdminTheme": "interface:f2b152ab6a",
    "AdminThemeColors": "interface:3e5919e150",
@@ -1004,7 +1005,7 @@
   "types": "./dist/react/overlays.d.ts",
   "symbols": {
    "OverlayEntry": "interface:01cb19932a",
-   "OverlayHost": "function:24be8353e0",
+   "OverlayHost": "function:2a367a5b64",
    "OverlayHostProps": "interface:f25ef4c1b0",
    "OverlayPort": "interface:4936efa0a3",
    "createOverlayController": "function:45e8753744"

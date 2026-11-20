@@ -23,6 +23,28 @@
    "runAgentJobs": "function:21d3174cea"
   }
  },
+ "./backup/plan-store": {
+  "types": "./dist/backup/plan-store.node.d.ts",
+  "symbols": {
+   "DEFAULT_MAX_PLANS": "variable:3d69949a21",
+   "DEFAULT_MAX_TOTAL_PLANS": "variable:24fd581b1d",
+   "DEFAULT_PLAN_TTL_MS": "variable:78f6bdf64c",
+   "SiteBackupPlan": "type:d0d8388e97",
+   "SiteBackupPlanStore": "class:39bdd77d6e",
+   "TakeSiteBackupPlanResult": "type:d5f20e0e65"
+  }
+ },
+ "./backup/push-jobs": {
+  "types": "./dist/backup/push-jobs.d.ts",
+  "symbols": {
+   "FINISHED_JOB_TTL_MS": "variable:eea1e6538d",
+   "PushJob": "interface:cbf3a0ad50",
+   "PushJobKey": "interface:ba15ab3142",
+   "PushJobWait": "type:abd07071a0",
+   "SiteBackupPushJobs": "class:8ebcef8092",
+   "SiteBackupPushProgress": "interface:17e5c15a76"
+  }
+ },
  "./backup/upload": {
   "types": "./dist/backup/upload.node.d.ts",
   "symbols": {

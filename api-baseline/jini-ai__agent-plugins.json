@@ -534,7 +534,7 @@
    "AgentPluginOrigin": "type:f5d8db2afb",
    "AgentPluginOutboundGuardPort": "interface:60b98cc660",
    "AgentPluginProcessPort": "interface:381df1f7f0",
-   "AgentPluginSearchCandidate": "interface:d9c323f760",
+   "AgentPluginSearchCandidate": "interface:529879efd1",
    "AgentPluginSearchMatch": "interface:8736c2dc0b",
    "AgentPluginSearchSkill": "interface:6d4d9e05cc",
    "AgentPluginServerMetadata": "interface:9019ba443e",

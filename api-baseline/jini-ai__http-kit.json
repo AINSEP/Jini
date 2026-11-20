@@ -109,6 +109,14 @@
    "logCompletedRequest": "function:621db323d4"
   }
  },
+ "./range": {
+  "types": "./dist/range.d.ts",
+  "symbols": {
+   "ParseRangeHeaderRequired": "interface:d5dd85ba3a",
+   "ParsedRange": "type:a363fccca9",
+   "parseRangeHeader": "function:1c549e1f06"
+  }
+ },
  "./rate-limit": {
   "types": "./dist/rate-limit.d.ts",
   "symbols": {

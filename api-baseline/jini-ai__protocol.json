@@ -24,7 +24,7 @@
    "EventLogAppendOptions": "interface:b12136dff2",
    "EventLogEntry": "interface:51c59fff92",
    "EventLogReplayResult": "type:a6be024267",
-   "GENERIC_ERROR_CODES": "variable:3fedd3d12b",
+   "GENERIC_ERROR_CODES": "variable:c20af69f68",
    "GenericErrorCode": "type:ad9be0023d",
    "IdResponse": "interface:43b24e04b3",
    "JournalEntry": "interface:5ad9f05356",
