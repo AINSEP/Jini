@@ -59,3 +59,5 @@ export type {
 export { duplicateFormDefinition, type DuplicateFormRequired } from "./duplicate-form.js";
 
 export { buildFormDestinationRegistry } from "./destination-registry.js";
+
+export { FORM_TEXT_MAX_CHARS, FORM_LONG_TEXT_MAX_CHARS, fieldMaxChars, capSubmissionFieldLengths } from "./field-length-caps.js";

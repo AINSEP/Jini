@@ -5,12 +5,13 @@ import { buildFormDestinationRegistry } from "../destination-registry.js";
 import type { FormDestinationDescriptor, FormDestinationModule, LoadedFormDestination } from "../destination-contracts.js";
 
 const cohosted = { id: "co", label: "Co", module: "d/co.mjs", receive: "co-hosted", hosts: ["host-a"] };
-const receiving: FormDestinationModule = { pull: async () => ({ items: [], nextAfter: 0, hasMore: false }), ack: async () => ({ acknowledged: 0 }) };
+const pull: NonNullable<FormDestinationModule["pull"]> = async () => ({ items: [], nextAfter: 0, hasMore: false });
+const receiving: FormDestinationModule = { pull, ack: async () => ({ acknowledged: 0 }) };
 const loaded = (descriptor: FormDestinationDescriptor, pluginId: string, module: FormDestinationModule = receiving): LoadedFormDestination => ({ descriptor, pluginId, module });
 
 test("a module missing what its receive mode needs is dropped with the reason", () => {
   const registry = buildFormDestinationRegistry({ refusals: ["earlier refusal"], loaded: [
-    loaded(cohosted as FormDestinationDescriptor, "p1", { pull: receiving.pull }),
+    loaded(cohosted as FormDestinationDescriptor, "p1", { pull }),
     loaded({ id: "relay", label: "R", module: "r.mjs", receive: "external" }, "p2"),
     loaded({ id: "push", label: "P", module: "p.mjs" }, "p3", {}),
     loaded({ id: "ok-push", label: "P", module: "p.mjs" }, "p4", { deliver: async () => undefined }),
