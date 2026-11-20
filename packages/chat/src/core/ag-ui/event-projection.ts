@@ -6,7 +6,7 @@
  * reads them back. Strict interruption ordering closes a message before a tool starts. IDs and custom event names
  * are injected, with official AG-UI types authoritative; auth, routes and encoder stay with the host.
  * The host emits RUN_STARTED and terminal RUN_FINISHED/RUN_ERROR outside this pure projection. */
-import { EventType, type AGUIEvent } from '@ag-ui/core';
+import { EventType, InterruptSchema, RunAgentInputSchema, type AGUIEvent, type Interrupt } from '@ag-ui/core';
 import type { AgentEvent } from '../events.js';
 import { readSseFrames, readTerminalReason, translateRunFrame, type RunFrameCarry, type RunFrameOutcome, type RunNotices } from '../run-events/entry.js';
 
@@ -259,6 +259,14 @@ export async function drainRunFramesToAgUi(ctx: AgUiFrameContext): Promise<{ sta
   try {
     for await (const frame of readSseFrames({ body: streamFromReader({ reader: ctx.reader }) })) {
       const outcome = translateRunFrame({ kind: frame.event, raw: frame.data, notices: ctx.notices }, { carry });
+      if (frame.event === 'agent' && outcome.events.length > 0) {
+        const marker = InterruptSchema.safeParse(JSON.parse(frame.data).payload.pendingApproval);
+        if (marker.success) {
+          writeAllAgUiEvents({ write: ctx.write, events: closeAgUiRun({ state: ctx.state }) });
+          ctx.write(confirmationInterrupt({ threadId: ctx.threadId, runId: ctx.runId, interrupt: marker.data }));
+          return { status: 'succeeded' };
+        }
+      }
       const status = writeFrameOutcome({ frame, outcome, ctx });
       if (status) {
         return { status };
@@ -274,3 +282,59 @@ export async function drainRunFramesToAgUi(ctx: AgUiFrameContext): Promise<{ sta
   }
 }
 
+export function confirmationInterrupt({ threadId, runId, interrupt }: {
+  threadId: string; runId: string; interrupt: Interrupt;
+}, _optional: Record<string, never> = {}): Extract<AgUiEvent, { type: EventType.RUN_FINISHED }> {
+  return { type: EventType.RUN_FINISHED, threadId, runId,
+    outcome: { type: 'interrupt', interrupts: [{ ...interrupt, reason: 'confirmation' }] } };
+}
+
+export function readConfirmationResume({ input, threadId, runId, interruptId }: {
+  input: unknown; threadId: string; runId: string; interruptId: string;
+}, _optional: Record<string, never> = {}): { decision: 'allow' | 'deny' } | undefined {
+  const parsed = RunAgentInputSchema.safeParse(input);
+  if (!parsed.success) return undefined;
+  const value = parsed.data;
+  if (value.threadId !== threadId || value.parentRunId !== runId) return undefined;
+  if (value.resume?.length !== 1) return undefined;
+  const entry = value.resume[0]!;
+  if (entry.interruptId !== interruptId) return undefined;
+  if (entry.status === 'cancelled') return { decision: 'deny' };
+  if (entry.payload === 'allow') return { decision: 'allow' };
+  if (['deny', 'dismissed'].includes(entry.payload)) return { decision: 'deny' };
+  return undefined;
+}
+
+export function createAgUiPauseStore({ caps, nowMs }: {
+  caps: { global: number; perScope: number }; nowMs: () => number;
+}, _optional: Record<string, never> = {}) {
+  const records = new Map<string, {
+    owner: string; threadId: string; runId: string; interruptId: string;
+    state: unknown; scopeKey: string; abandonAtMs: number;
+  }>();
+  return {
+    park(entry: Parameters<typeof records.set>[1], _optional: Record<string, never> = {}): boolean {
+      const now = nowMs();
+      let scoped = 0;
+      for (const [id, record] of records) {
+        if (record.abandonAtMs <= now) records.delete(id);
+        else if (record.scopeKey === entry.scopeKey) scoped++;
+      }
+      if (entry.abandonAtMs <= now || records.has(entry.interruptId)) return false;
+      if (records.size >= caps.global || scoped >= caps.perScope) return false;
+      records.set(entry.interruptId, { ...entry });
+      return true;
+    },
+    claim({ owner, threadId, runId, interruptId }: { owner: string; threadId: string; runId: string; interruptId: string }, _optional: Record<string, never> = {}) {
+      const record = records.get(interruptId);
+      if (!record) return undefined;
+      if (record.abandonAtMs <= nowMs()) { records.delete(interruptId); return undefined; }
+      if (record.owner !== owner || record.threadId !== threadId || record.runId !== runId) return undefined;
+      records.delete(interruptId);
+      return record;
+    },
+    remove({ interruptId }: { interruptId: string }, _optional: Record<string, never> = {}): boolean {
+      return records.delete(interruptId);
+    },
+  };
+}
