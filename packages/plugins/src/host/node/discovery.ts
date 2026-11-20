@@ -2,8 +2,7 @@ import { readPluginIdentity } from "@jini-ai/core/plugin-directory";
 /** Site tier admission belongs to tierPolicy.siteErrors; static validation uses host-supplied
  * catalogs and declaration grammar. */
 /**
- * @file `discoverPlugins()` — enumerate built-in + site plugins with status (SPEC-005 REQ-02/03,
- * EC-08/EC-09, TB-01, DUP-01).
+ * @file `discoverPlugins()` — enumerate built-in + site plugins with status.
  *
  * Purpose:
  * Read-only enumeration. Scans the install-dir's `plugins/<id>/<version>/` tree (REQ-02) plus the
@@ -16,7 +15,7 @@ import { readPluginIdentity } from "@jini-ai/core/plugin-directory";
  * not).
  *
  * Never `import()`s plugin code — that is `loader.ts`'s job, gated by integrity/`sdkRange` first
- * (BR-01, CIC U-001). Discovery only reads bytes to hash/measure/list them.
+ * Discovery only reads bytes to hash/measure/list them.
  *
  * Architectural role:
  * TDD-certified implementation (implementation outline C-007). Signature and JSDoc are
@@ -117,7 +116,7 @@ function toDiscoveryRecord(params: {
 
 /**
  * The absolute entry-file path for a discovered SITE plugin (REQ-02's fixed `server/index.mjs`
- * package layout, ADR-004) — the exact path `loadPlugin()`'s `entryPath` param expects, and the
+ * package layout) — the exact path `loadPlugin()`'s `entryPath` param expects, and the
  * same join `discoverOneSiteCandidate()` below already performs internally for its manifest read.
  * Exported so a composition root resolving a dynamic site-sourced load target (`plugin-runtime.ts`)
  * does not re-derive this convention independently and risk it drifting from discovery's own.

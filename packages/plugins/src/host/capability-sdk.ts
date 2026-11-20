@@ -1,12 +1,12 @@
 /**
- * @file `buildCapabilityScopedSdk()` — builds the per-load `PluginSdk` handle (SPEC-005 REQ-04;
- * CIC U-003, `ESCALATE_SECURITY`).
+ * @file `buildCapabilityScopedSdk()` — builds the per-load `PluginSdk` handle
+ * (`ESCALATE_SECURITY`).
  *
  * Purpose:
  * REQ-04: "the SDK object handed to the plugin exposes ONLY the granted surface. A plugin
  * invoking a surface it did not declare fails at the SDK boundary (`CAPABILITY_DENIED`)."
  *
- * **CIC U-003 (Binding, ESCALATE_SECURITY):** a naive reading of REQ-04 could satisfy "exposes
+ * **Binding, ESCALATE_SECURITY:** a naive reading of the requirement could satisfy "exposes
  * only the granted surface" by simply OMITTING ungranted properties (`sdk.content = granted ?
  * {...} : undefined`). That is the wrong implementation — AC-05's contract requires a classified,
  * catchable `CAPABILITY_DENIED` error, not a bare `TypeError` from calling a method on
@@ -16,14 +16,14 @@
  * SYNCHRONOUSLY throws a typed `CapabilityDeniedError` naming the missing capability. Any
  * deviation from "always present, never absent" requires a recorded
  * `[CIC_DEVIATION_APPROVED]` entry — see
- * `reports/pipeline/005-plugin-system/critical-internal-constraints.md` U-003.
+ * `reports/pipeline/005-plugin-system/critical-internal-constraints.md`.
  *
  * Built fresh per plugin load (never a shared module-level singleton, ADR Decision item 2) — a
  * new `PluginSdk` object is constructed for every `loadPlugin()` call, closing over that one
  * plugin's own `pluginId` and granted capability set only.
  *
  * Architectural role:
- * TDD-certified implementation (implementation outline C-009, CIC U-003). Signature and JSDoc are
+ * TDD-certified implementation. Signature and JSDoc are
  * design-frozen; `buildCapabilityScopedSdk()` returns fresh per-plugin delegates for granted
  * capabilities and present, typed-denial stubs for every ungranted surface.
  */
@@ -81,7 +81,7 @@ export type BuildCapabilityScopedSdkOptional = Record<string, never>
 
 /**
  * Builds one plugin's capability-scoped `PluginSdk` handle. Every one of the three v1 surfaces is
- * always present on the returned object (CIC U-003) — granted surfaces delegate to `coreDeps`,
+ * always present on the returned object — granted surfaces delegate to `coreDeps`,
  * ungranted surfaces are stubs that throw `CapabilityDeniedError` when invoked (never at build
  * time — the stub itself is a normal, present function; only CALLING it throws).
  *
@@ -119,7 +119,7 @@ export function buildCapabilityScopedSdk<H extends HookPoints>(
     // following the same "always present" contract as addFilter, gated on hooks.attach. There
     // is still no action-hook coreDeps backing until a hook is cataloged. Explicit contribution
     // records below now have real route/tool/widget owners and use those owners' capabilities.
-    // No action hooks are cataloged. Preserve CIC U-003's callable denial boundary, but remove
+    // No action hooks are cataloged. Preserve the callable denial boundary, but remove
     // the silent no-op: a granted unsupported action fails explicitly until a real owner exists.
     addAction: gate("hooks.attach", (..._args: never[]) => { throw new Error('no plugin action hooks are cataloged'); }),
     addContribution: (input, options = {}) => {
@@ -145,7 +145,7 @@ type CapabilityGate = <Fn extends (...args: never[]) => unknown>(capability: Plu
 function createSdkCapabilityGate(pluginId: string, granted: ReadonlySet<PluginCapability>): CapabilityGate {
   /**
    * Wraps one capability-gated surface: returns `real` when `capability` is granted, otherwise a
-   * stub that synchronously throws `CapabilityDeniedError` when invoked. CIC U-003's binding
+   * stub that synchronously throws `CapabilityDeniedError` when invoked. The binding
    * property — every surface is always a present, callable function, never an absent property.
    */
   return function gate<Fn extends (...args: never[]) => unknown>(capability: PluginCapability, real: Fn): Fn {

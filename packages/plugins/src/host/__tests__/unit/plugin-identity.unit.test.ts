@@ -31,7 +31,7 @@ describe('site publisher identity shares the portable plugin contract', () => {
   });
 
   it('validates metadata without changing storage id or permission capabilities', () => {
-    expect(validateManifest({ ...manifestHost, manifest: manifest('bridge', 'tovu/github'), folderName: 'bridge', builtInIds: [] })).toEqual({ errors: [], warnings: [] });
+    expect(validateManifest({ ...manifestHost, manifest: manifest('bridge', 'jini/github'), folderName: 'bridge', builtInIds: [] })).toEqual({ errors: [], warnings: [] });
     const legacy = validateManifest({ ...manifestHost, manifest: manifest('bridge'), folderName: 'bridge', builtInIds: [] });
     expect(legacy.errors).toEqual([]);
     expect(legacy.warnings).toEqual(["Plugin 'bridge' has no publisher-qualified id; using 'unknown/bridge'."]);
@@ -59,12 +59,12 @@ describe('site publisher identity shares the portable plugin contract', () => {
     const legacy = await previewSitePluginInstall({ sourceDir: await source('legacy'), deps });
     expect(legacy.publisherId).toBe('unknown/legacy');
     expect(legacy.warnings).toEqual(["Plugin 'legacy' has no publisher-qualified id; using 'unknown/legacy'."]);
-    const sourceDir = await source('github', 'tovu/github');
+    const sourceDir = await source('github', 'jini/github');
     const preview = await previewSitePluginInstall({ sourceDir, deps });
-    expect(preview.publisherId).toBe('tovu/github');
+    expect(preview.publisherId).toBe('jini/github');
     expect(preview.provides).toEqual(['source-control']);
     await installSitePlugin({ sourceDir, expectedDigest: preview.digest, deps });
-    await expect(previewSitePluginInstall({ sourceDir: await source('alias', 'tovu/github'), deps })).rejects.toMatchObject({ code: 'PLUGIN_ID_CONFLICT' });
+    await expect(previewSitePluginInstall({ sourceDir: await source('alias', 'jini/github'), deps })).rejects.toMatchObject({ code: 'PLUGIN_ID_CONFLICT' });
     await expect(previewSitePluginInstall({ sourceDir: await source('github', 'github/github'), replace: true, deps })).rejects.toMatchObject({ code: 'PLUGIN_ID_CONFLICT' });
   });
   it.each(['json', 'identity', 'missing'])('skips an unrelated broken %s manifest in preview and install', async kind => {

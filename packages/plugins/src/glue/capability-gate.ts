@@ -1,6 +1,6 @@
 /**
  * @file `buildGlueCapabilityGate()` — capability-scoped delegate handle for `GlueCapability`
- * (SPEC-048 REQ-1/REQ-4; ADR-057 CIC-1, `ESCALATE_SECURITY`).
+ * (`ESCALATE_SECURITY`).
  *
  * Purpose:
  * Extends the sibling plugin mechanism's own `gate()` pattern (always-present, granted-delegates,
@@ -22,7 +22,7 @@
  * zero I/O of its own — it is pure wiring between "is this granted" and "which closure runs."
  *
  * Architectural role:
- * Design-frozen contract for the extension-glue-tier work (ADR-057, Implementation Outline slice
+ * Design-frozen contract for the extension-glue-tier work (Implementation Outline slice
  * 1). Depends on `./manifest`'s `GlueCapability` type and `core/`'s shared capability vocabulary
  * — no host-specific dependency.
  */

@@ -49,7 +49,7 @@ export interface EnableDeclaredPluginOptional {
  */
 export async function enableDeclaredPlugin(required: EnableDeclaredPluginRequired, optional: EnableDeclaredPluginOptional = {}): Promise<void> {
   const { pluginId, workspaceId, manifest, loadCode } = required;
-  // ADR-024 §1: a Tier-1 plugin is zero executable code — the runtime never imports anything for it.
+  // A Tier-1 plugin is zero executable code — the runtime never imports anything for it.
   const load = manifest.tier === "tier-1" ? async () => {} : loadCode;
   const { decls } = required.declarativeContentTypes.parse({ value: manifest.contentTypes });
   if (decls.length === 0) {

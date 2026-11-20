@@ -6,8 +6,8 @@
   "engine": 1,
   "tier": "tier-3",
   "extensions": {
-    "tovu": {
-      "id": "tovu/charts-recharts"
+    "jini": {
+      "id": "jini/charts-recharts"
     }
   },
   "capabilities": [],

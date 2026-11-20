@@ -6,7 +6,7 @@
   "engine": 1,
   "tier": "tier-3",
   "extensions": {
-    "tovu": { "id": "jini/payments-stripe" },
+    "jini": { "id": "jini/payments-stripe" },
     "open-marketing": { "id": "jini/payments-stripe" }
   },
   "capabilities": ["providers.register"],

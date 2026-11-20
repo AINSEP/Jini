@@ -1,6 +1,6 @@
 /** The application injects the existing invocation and export-validation owners. */
 /**
- * @file `runTier2Call()` — the worker-side half of one Tier-2 plugin call (ADR-024 §3/§4).
+ * @file `runTier2Call()` — the worker-side half of one Tier-2 plugin call.
  *
  * Pure apart from the injected importer: import the plugin, validate its `definePlugin()` export
  * with the SAME check `loadPlugin()` uses, build the SAME capability-scoped SDK over the SAME
@@ -9,7 +9,7 @@
  * `{ ok: false, stage, error }` reply instead of a throw, so the server can tell "the plugin's code
  * failed" (a reply) from "the worker itself died or ran out of time" (a rejected call).
  *
- * The server-side manifest checks (integrity, sdkRange — CIC U-001) have already run before any
+ * The server-side manifest checks (integrity, sdkRange) have already run before any
  * request reaches this function; it never sees a plugin the loader has not cleared.
  */
 import path from "node:path";

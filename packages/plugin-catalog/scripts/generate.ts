@@ -8,15 +8,6 @@ import {
   AGENT_PLUGINS_PACKAGE, AGENT_PLUGINS_ROOT, agentPluginPackages, isPublishedAgentPluginFile, type AgentPluginPackageRow,
 } from '../../../scripts/lib/agent-plugin-packages.js';
 
-/** Release tooling keeps this portable/legacy lookup local instead of importing another package's source. */
-function resolveAgentPluginIdentityNamespace({ value }: { readonly value: unknown }): string {
-  if (typeof value !== 'object' || value === null || Array.isArray(value) || !('extensions' in value)) return 'jini';
-  const extensions = value.extensions;
-  if (typeof extensions !== 'object' || extensions === null || Array.isArray(extensions)) return 'jini';
-  if (Object.hasOwn(extensions, 'jini')) return 'jini';
-  return Object.hasOwn(extensions, 'tovu') ? 'tovu' : 'jini';
-}
-
 interface BrowserProvider { kind: string; contractVersion: number; javascript: string }
 interface PluginManifest {
   id?: string; name: string; version: string; description?: string; $schema?: string;
@@ -29,9 +20,9 @@ interface PackageManifest { name: string; version: string; description: string }
 type CatalogKind = 'provider' | 'agent';
 /** All provider runtimes ship from this distribution's independently addressable subpaths. */
 const PROVIDER_DISTRIBUTION = '@jini-ai/provider-plugins';
-/** Legacy provider manifests retain their publisher namespace. Agent metadata resolves through
+/** Provider manifests retain their publisher namespace. Agent metadata resolves through
  * the portable parser so every host discovers the same bundled publisher identity. */
-export const CATALOG_HOST_NAMESPACE = 'tovu';
+export const CATALOG_HOST_NAMESPACE = 'jini';
 /** One catalog record. An agent entry resolves as `${packageName}/${path}` (`@jini-ai/agent-plugins/<id>`);
  * a provider entry's `path` is its artifact folder inside `packageName`. */
 export interface CatalogEntry {
@@ -63,7 +54,7 @@ export function catalogEntry(required: {
   }
   return {
     ...(kind === 'agent' ? agentMetadata(required) : providerMetadata(required)), id,
-    publisherIdentity: readPluginIdentity({ manifest: { ...plugin }, namespace: kind === 'agent' ? resolveAgentPluginIdentityNamespace({ value: plugin }) : CATALOG_HOST_NAMESPACE, name: id }).id,
+    publisherIdentity: readPluginIdentity({ manifest: { ...plugin }, namespace: kind === 'agent' ? 'jini' : CATALOG_HOST_NAMESPACE, name: id }).id,
     packageName: pkg.name, version: pkg.version,
     description: plugin.description ?? plugin.name, expectedDigests: null,
   };

@@ -18,7 +18,7 @@ function write(file: string, content: unknown): void {
 
 async function provider(packageRoot: string, bytes = 'export const value = 1;'): Promise<CatalogEntry> {
   const pkg = { name: '@jini-ai/provider-plugins', version: '1.0.0', description: 'providers' };
-  const plugin = { id: 'fixture', name: 'Fixture', version: '1.0.0', extensions: { tovu: { id: 'jini/fixture' } },
+  const plugin = { id: 'fixture', name: 'Fixture', version: '1.0.0', extensions: { jini: { id: 'jini/fixture' } },
     contributes: { providers: [{ contract: 'fixture', contractVersion: 1 }] } };
   const artifact = join(packageRoot, 'plugins/fixture/1.0.0');
   write(join(packageRoot, 'package.json'), pkg);
@@ -31,7 +31,7 @@ async function provider(packageRoot: string, bytes = 'export const value = 1;'):
 async function agent(packageRoot: string, version = '0.3.1', bytes = 'original'): Promise<CatalogEntry> {
   const pkg = { name: '@jini-ai/agent-plugins', version: '1.0.0', description: 'agents' };
   const plugin = { $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json', name: 'face', version,
-    extensions: { tovu: { id: 'jini/face' } } };
+    extensions: { jini: { id: 'jini/face' } } };
   write(join(packageRoot, 'package.json'), pkg);
   write(join(packageRoot, 'face/plugin.json'), plugin);
   write(join(packageRoot, 'face/skill.md'), bytes);

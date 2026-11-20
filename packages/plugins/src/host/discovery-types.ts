@@ -17,7 +17,7 @@ export interface PluginDiscoveryRecord {
   readonly version: string;
   readonly source: "built-in" | "site";
   /** (1.1.2, REQ-10/REQ-18) The plugin's trust tier, projected verbatim from the already-required
-   * `PluginManifest.tier` (REQ-01/ADR-024 §1) — mirrors how `source` already passes through
+   * `PluginManifest.tier` — mirrors how `source` already passes through
    * unchanged. Optional on this stub type only so pre-existing fixtures in unrelated test files
    * (`activation.integration.test.ts`, `loader.integration.test.ts`) that construct
    * `PluginDiscoveryRecord` literals for concerns unrelated to REQ-10/`PLUGINS_LIST` are not forced

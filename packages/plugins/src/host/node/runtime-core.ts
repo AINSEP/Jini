@@ -193,7 +193,7 @@ export function createPluginRuntimeCore<TEvent, TOptions>(
     let scopedSdk: PluginSdk | undefined;
     const coreDeps = { ...invocation.coreDeps, contributions: capture };
 
-    // CIC U-001: the importer FACTORY runs here, before loadPlugin's integrity/sdkRange checks, so
+    // The importer FACTORY runs here, before loadPlugin's integrity/sdkRange checks, so
     // it must stay inert; loadPlugin invokes the returned importer only after those checks. A site
     // target takes the contained immutable snapshot; built-in seams retain their original path.
     const moduleImporter = resolveRuntimeImporter({ target, record });
@@ -229,10 +229,10 @@ export function createPluginRuntimeCore<TEvent, TOptions>(
   }
 
   function resolveRuntimeImporter({ target, record }: { target: PluginLoadTarget; record: PluginDiscoveryRecord }, _options = {}) {
-    // Tier 2 (ADR-024 §3/§4): the plugin's code must never be imported into this process. Its
+    // Tier 2: the plugin's code must never be imported into this process. Its
     // import seam probes it in a fresh worker and hands `loadPlugin()` a proxy whose filter is an
     // RPC; supplied as `loadPlugin()`'s required `importModule` port, so integrity + sdkRange
-    // still run first (CIC U-001). Only a built-in reaches here as tier-2: discovery marks a site
+    // still run first. Only a built-in reaches here as tier-2: discovery marks a site
     // tier-2 package invalid (the worker is no sandbox yet). Were site tier-2 ever allowed, its worker
     // would need the seam's `resolveWorkerEntry` pointed at the integrity-checked module snapshot,
     // since an injected worker seam bypasses the host's default snapshot importer.
