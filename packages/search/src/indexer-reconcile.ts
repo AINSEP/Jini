@@ -1,9 +1,9 @@
 import { encodeSearchKey, type SearchProvider, type SearchRevisionState } from './contract.js';
 import { type SearchIndexer } from './api.js';
 import { type SearchIndexStatePort, type SearchIndexStateRow, type SearchIndexStatus, type SearchTarget } from './ports.js';
-import { type SearchIndexerRequired } from './indexer.js';
+import type { SearchIndexerRequired } from './indexer.js';
 import { type Resolved, type Settle, guarded, chunks, type createIndexerResolve, type createIndexerWriteToTarget, type createIndexerCurrentTargets } from './indexer-write.js';
-import { type createIndexerDropRetired } from './indexer-backfill.js';
+import type { createIndexerDropRetired } from './indexer-backfill.js';
 
 const RECONCILE_STATUSES: readonly SearchIndexStatus[] = ['pending', 'unknown', 'failed'];
 /** Compare-and-swap a settled row against the identity the caller observed (see `settle`). */

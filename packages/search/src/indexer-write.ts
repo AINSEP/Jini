@@ -1,7 +1,7 @@
 import { providerUnknown, type ProviderResult } from '@jini-ai/core/provider-registry';
 import { encodeSearchKey, type SearchDocument, type SearchProvider, type SearchProviderContext, type SearchTombstone, type SearchWriteResult, type SearchWriteStatus } from './contract.js';
 import { type SearchIndexStatePort, type SearchIndexStateRow, type SearchIndexStatus, type SearchSiteTargets, type SearchSourceRecord, type SearchTarget, type SearchTargetPort } from './ports.js';
-import { type SearchIndexerRequired } from './indexer.js';
+import type { SearchIndexerRequired } from './indexer.js';
 
 /** The lastError recorded when a target's provider is not registered or has no context. */
 export const SEARCH_NOT_CONFIGURED = 'not_configured';

@@ -9,10 +9,13 @@ import { afterEach, vi } from 'vitest';
 // command failures) without spawning fake OSes.
 type ExecFileCallback = (error: (Error & { code?: number | string }) | null, stdout: string, stderr: string) => void;
 
-export const mockState = vi.hoisted(() => ({
+// A plain object, not `vi.hoisted`: vitest refuses to export a hoisted
+// variable, and this module is imported before the module under test, so the
+// state exists before the mock factory below reads it.
+export const mockState = {
   execFileImpl: null as ((command: string, args: string[], options: unknown, callback: ExecFileCallback) => void) | null,
   spawnImpl: null as ((command: string, args: string[], options: unknown) => unknown) | null,
-}));
+};
 
 vi.mock('node:child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:child_process')>();

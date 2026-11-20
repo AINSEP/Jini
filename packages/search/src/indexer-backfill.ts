@@ -1,6 +1,6 @@
 import { type SearchIndexer } from './api.js';
 import { type SearchDocumentSource, type SearchIndexStatePort, type SearchTarget, type SearchTargetPort } from './ports.js';
-import { type SearchIndexerRequired } from './indexer.js';
+import type { SearchIndexerRequired } from './indexer.js';
 import { guarded, type createIndexerResolve, type createIndexerWriteToTarget } from './indexer-write.js';
 
 type Watermark = Awaited<ReturnType<SearchIndexStatePort['getWatermark']>>;
