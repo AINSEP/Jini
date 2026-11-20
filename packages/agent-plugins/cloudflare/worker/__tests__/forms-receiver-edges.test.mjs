@@ -33,14 +33,14 @@ test('a rate counter answer without rows counts as over the limit (fail closed)'
 
 test('a pending row the binding returns without an ip column reads as ip null; no results reads as an empty page', async () => {
   const row = { seq: 3, id: 'r3', form_slug: 'w', answers_json: '{"a":"b"}', submitted_at: '2026-01-01T00:00:00.000Z' };
-  const page = await listPending({ env: { TOVU_FORMS: stubDb({ results: [row] }) }, url: new URL('https://s.example/_tovu/forms/pending?after=1&limit=1') });
+  const page = await listPending({ env: { JINI_FORMS: stubDb({ results: [row] }) }, url: new URL('https://s.example/_jini/forms/pending?after=1&limit=1') });
   assert.deepEqual(await page.json(), { items: [{ seq: 3, id: 'r3', formSlug: 'w', answers: { a: 'b' }, submittedAt: '2026-01-01T00:00:00.000Z', ip: null }], nextAfter: 3, hasMore: true });
-  const empty = await listPending({ env: { TOVU_FORMS: stubDb({}) }, url: new URL('https://s.example/_tovu/forms/pending') });
+  const empty = await listPending({ env: { JINI_FORMS: stubDb({}) }, url: new URL('https://s.example/_jini/forms/pending') });
   assert.deepEqual(await empty.json(), { items: [], nextAfter: 0, hasMore: false });
 });
 
 test('an acknowledge whose run result has no meta reports zero acknowledged', async () => {
-  const request = new Request('https://s.example/_tovu/forms/ack', { method: 'POST', body: JSON.stringify({ ids: ['a'] }) });
-  const response = await acknowledge({ request, env: { TOVU_FORMS: stubDb({}) } }, { now: () => 0 });
+  const request = new Request('https://s.example/_jini/forms/ack', { method: 'POST', body: JSON.stringify({ ids: ['a'] }) });
+  const response = await acknowledge({ request, env: { JINI_FORMS: stubDb({}) } }, { now: () => 0 });
   assert.deepEqual(await response.json(), { acknowledged: 0 });
 });

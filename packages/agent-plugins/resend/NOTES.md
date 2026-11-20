@@ -8,7 +8,7 @@ these behaviours generically; the vendor detail lives here.
   2026-10-21): a batch of 20 deferred on almost every other row and used to exhaust the outbox budget.
 - **Batch idempotency keys.** One key per message (`<key>:<index>`), which core's mail delivery policy now
   mirrors for per-recipient dispatch.
-- **Credential label.** `Tovu Mail — Resend API` is the v1 label shape core's `defaultCredentialLabel`
+- **Credential label.** The original host's v1 label shape is what core's `defaultCredentialLabel`
   reproduces for v2 descriptors without one.
 - **Feedback inbox.** Resend webhook events are recorded under `providerId: "resend"`.
 
@@ -40,7 +40,7 @@ these behaviours generically; the vendor detail lives here.
   malformed key gets 400, which core's generic probe reports as "unavailable", not "rejected"; the
   skill tells the assistant what that usually means.
 - **Two keys on purpose.** The site's mail adapter keeps its own Sending access key
-  (`Tovu Mail — Resend API`); the account tools use the separate Full access key. Site mail keeps
+  (`Mail — Resend API`); the account tools use the separate Full access key. Site mail keeps
   least privilege, and revoking one never breaks the other.
 - **Default tools.** 62 of the 64 allowed. Left out: every `remove-*`, `batch-remove-suppressions`,
   `send-broadcast`, API key create/update/remove, webhook create/update/rotate/replay, OAuth-grant

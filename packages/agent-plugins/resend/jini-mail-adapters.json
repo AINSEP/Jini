@@ -5,7 +5,7 @@
       "id": "resend",
       "label": "Resend",
       "module": "adapters/resend.mjs",
-      "credentialLabel": "Tovu Mail — Resend API",
+      "credentialLabel": "Mail — Resend API",
       "credentialKeys": ["token"],
       "feedback": true,
       "credentialCard": {

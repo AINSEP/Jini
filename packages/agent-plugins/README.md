@@ -35,12 +35,8 @@ metadata from partial manifests. `parseAgentPluginMcpConfig({ value }, { pluginM
 `authMode`, `defaultTools`, `tokenAuth`, and `renamedTools` without a product namespace. Reviewed
 `defaultTools.read` declarations must come from `plugin.json`, never an inline transport entry.
 
-Compatibility with installed `extensions.tovu` manifests and prefixed MCP metadata is retained
-through **at least 2027-05-06**. Removal requires an explicit future release decision; the date
-never causes a plugin to stop loading. A present `extensions.jini` wins as a whole, and a present
-new MCP field wins over its legacy alias even when malformed. Parsers return compatibility
-warnings; lifecycle indexing and MCP loading forward them through the host's `onEvent` port.
-Existing publisher ids remain stable during this namespace migration.
+Portable manifests use `extensions.jini` and unprefixed MCP metadata. A malformed
+`extensions.jini` entry is refused. Bundled publisher ids use the `jini/<name>` namespace.
 
 A plugin is a directory. Example (this package publishes it as `@jini-ai/agent-plugins/ui-ux-design`):
 
@@ -283,11 +279,11 @@ object-shaped reads, filters and optional legacy metadata reader.
 ### Extension namespaces
 
 `extensions` keys in `plugin.json` are **host keys**. A plugin declares one entry per host it
-supports, for example `"tovu": { "id": "tovu/stock" }` beside `"open-marketing": { "id": "tovu/stock" }`.
+supports, for example `"example-host": { "id": "publisher/stock" }` beside `"open-marketing": { "id": "publisher/stock" }`.
 
 - A host reads only its own key, the `extensionNamespace` it passes to the lifecycle.
-- Without a host namespace, exported parsers and validators read `jini`, falling back to the legacy
-  `tovu` key only when `jini` is absent. A present malformed `jini` entry is refused, never bypassed.
+- Without a host namespace, exported parsers and validators read `jini`.
+  A present malformed `jini` entry is refused, never bypassed.
   Passing a namespace explicitly reads only that key, with no fallback to another host.
 - Publisher ids stay as declared. There is no alias between keys and no content rewrite.
 - A customized fork (`zipCustomizedAgentPluginFolder`) gets `local/<name>` under every host key
@@ -313,7 +309,7 @@ Uninstall keeps persistent state by default; deleting it requires a matching con
 The reserved workspace directory ids `staging`, `packages`, `memory`, and `data` are refused
 as plugin ids so package state cannot overlap migration inputs or installation scratch.
 
-The `dev.tovu.memory` proposal is consumer policy and is not implemented by this neutral entry.
+The memory proposal belongs to the consumer and is not implemented by this neutral entry.
 No version bump or publishing accompanies this workspace implementation.
 
 Admin-screen actions can also be assistant tools. Declare `effect: "read" | "write" |

@@ -8,7 +8,7 @@ import test from 'node:test';
 // resend-mcp tests stay with the host (they exercise Tovu's lifecycle, registries and MCP wiring).
 const root = path.resolve(import.meta.dirname, '..');
 // Frozen identifier: the sending key's label is persisted in operators' vaults (plan §4.3).
-const FROZEN_LABEL = 'Tovu Mail — Resend API';
+const FROZEN_LABEL = 'Mail — Resend API';
 
 /** Every file this plugin ships, as forward-slash paths relative to the plugin root. */
 async function shippedFiles() {
@@ -22,7 +22,7 @@ const skill = () => readFile(path.join(root, 'skills/resend/SKILL.md'), 'utf8');
 
 test('the payload ships the mail adapter its contribution names, with its helper modules', async () => {
   const files = await shippedFiles();
-  const { adapters } = JSON.parse(await readFile(path.join(root, 'tovu-mail-adapters.json'), 'utf8'));
+  const { adapters } = JSON.parse(await readFile(path.join(root, 'jini-mail-adapters.json'), 'utf8'));
   assert.deepEqual(adapters.map(adapter => adapter.module), ['adapters/resend.mjs']);
   assert.equal(adapters[0].credentialLabel, FROZEN_LABEL);
   for (const file of ['adapters/resend.mjs', 'lib/domains.mjs', 'lib/errors.mjs', 'lib/feedback.mjs']) {
@@ -51,7 +51,7 @@ test('the portable skill keeps account and sending keys apart through their secu
 
 test('the shipped text is host-neutral apart from frozen identifiers, and keeps the publisher id', async () => {
   const manifest = JSON.parse(await readFile(path.join(root, 'plugin.json'), 'utf8'));
-  assert.equal(manifest.extensions.jini.id, 'tovu/resend');
+  assert.equal(manifest.extensions.jini.id, 'jini/resend');
   assert.doesNotMatch(manifest.description, /\bTovu\b/);
   for (const file of (await shippedFiles()).filter(name => /\.(md|mjs)$/.test(name))) {
     const text = (await readFile(path.join(root, file), 'utf8')).replaceAll(FROZEN_LABEL, '');

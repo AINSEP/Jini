@@ -1,5 +1,5 @@
 /**
- * @file Phase-A proof for the Sheets tools (lot G11): the plugin's real `tovu-agent-tools.json` and
+ * @file Phase-A proof for the Sheets tools (lot G11): the plugin's real `jini-agent-tools.json` and
  * `tools/sheets/*.mjs` modules run through the real Jini tool projection (schema validation,
  * per-call capability session, affected-resource disclosure) against the local fake of Google. One
  * vertical-slice proof plus security pins: approval class and disclosure per tool, read and payload
@@ -56,7 +56,7 @@ let descriptors;
 
 /** Loads the real declaration file and modules the way the host loader hands them to the projection. */
 async function loadPluginTools() {
-  const parsed = parseAgentPluginToolsFile({ raw: await readFile(new URL('tovu-agent-tools.json', PLUGIN_ROOT), 'utf8') });
+  const parsed = parseAgentPluginToolsFile({ raw: await readFile(new URL('jini-agent-tools.json', PLUGIN_ROOT), 'utf8') });
   assert.equal(parsed.ok, true);
   return Promise.all(parsed.descriptors.map(async (descriptor) => ({ pluginId: PLUGIN, descriptor, module: (await import(new URL(descriptor.module, PLUGIN_ROOT))).default })));
 }

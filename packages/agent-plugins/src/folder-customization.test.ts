@@ -77,10 +77,10 @@ async function forkManifest(extensions: Record<string, unknown> | undefined, ide
   return { manifest: JSON.parse(storedEntryText(archive, 'plugin.json')), text: Buffer.from(archive).toString('utf8') };
 }
 
-const HISTORY = { renamedFrom: ['tovu/old-stock'], supersedes: { plugins: ['tovu/older'] } };
+const HISTORY = { renamedFrom: ['jini/old-stock'], supersedes: { plugins: ['jini/older'] } };
 
 test('a portable fork preserves capabilities and presentation from an installed legacy manifest', async () => {
-  const metadata = { id: 'tovu/stock', provides: ['stock-data'], displayName: 'Stock', summary: 'Useful data', ...HISTORY };
+  const metadata = { id: 'jini/stock', provides: ['stock-data'], displayName: 'Stock', summary: 'Useful data', ...HISTORY };
   const { manifest } = await forkManifest({ tovu: metadata }, 'jini');
   expect(manifest.extensions.jini).toEqual({ id: 'local/custom', provides: ['stock-data'], displayName: 'Stock', summary: 'Useful data' });
   expect(manifest.extensions.tovu.id).toBe('local/custom');
@@ -88,15 +88,15 @@ test('a portable fork preserves capabilities and presentation from an installed 
 
 // Legacy-only: a moved plugin that still declares only the `tovu` host key.
 test.each(['tovu', 'open-marketing'])('a fork of a tovu-only manifest gets a fresh local id when forked by %s', async host => {
-  const { manifest, text } = await forkManifest({ tovu: { id: 'tovu/stock', provides: ['stock-data'], ...HISTORY } }, host);
+  const { manifest, text } = await forkManifest({ tovu: { id: 'jini/stock', provides: ['stock-data'], ...HISTORY } }, host);
   expect(manifest.extensions.tovu).toEqual({ id: 'local/custom', provides: ['stock-data'] });
   expect(manifest.extensions[host].id).toBe('local/custom');
-  for (const claim of ['tovu/stock', 'tovu/old-stock', 'tovu/older', 'renamedFrom', 'supersedes']) expect(text).not.toContain(claim);
+  for (const claim of ['jini/stock', 'jini/old-stock', 'jini/older', 'renamedFrom', 'supersedes']) expect(text).not.toContain(claim);
 });
 
 test('a fork of a dual-key manifest keeps no foreign publisher id, alias or supersession claim', async () => {
   const { manifest, text } = await forkManifest({
-    tovu: { id: 'tovu/stock', ...HISTORY },
+    tovu: { id: 'jini/stock', ...HISTORY },
     'open-marketing': { id: 'jini/stock', renamedFrom: ['jini/old-stock'], hostRange: '^1.0.0' },
     'com.example.client': { theme: 'dark' },
   }, 'open-marketing');
@@ -105,7 +105,7 @@ test('a fork of a dual-key manifest keeps no foreign publisher id, alias or supe
     'open-marketing': { id: 'local/custom', hostRange: '^1.0.0' },
     'com.example.client': { theme: 'dark' },
   });
-  for (const claim of ['tovu/stock', 'jini/stock', 'jini/old-stock', 'tovu/old-stock', 'tovu/older']) expect(text).not.toContain(claim);
+  for (const claim of ['jini/stock', 'jini/stock', 'jini/old-stock', 'jini/old-stock', 'jini/older']) expect(text).not.toContain(claim);
 });
 
 test('a fork of a manifest with no extensions declares a local id for the requesting host', async () => {

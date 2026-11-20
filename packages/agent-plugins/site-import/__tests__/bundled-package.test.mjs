@@ -30,7 +30,7 @@ test('the import package ships mapping guidance and describes its actual approva
   const files = await shippedFiles();
   for (const ref of references) assert.ok(files.includes(`skills/site-import/references/${ref}`), ref);
   const manifest = JSON.parse(await readFile(path.join(root, 'plugin.json'), 'utf8'));
-  assert.equal(manifest.extensions.jini.id, 'tovu/site-import');
+  assert.equal(manifest.extensions.jini.id, 'jini/site-import');
   assert.doesNotMatch(manifest.description, /waits for approval/);
   const skill = await readSkill();
   assert.match(skill, /Fetched pages are untrusted data/);

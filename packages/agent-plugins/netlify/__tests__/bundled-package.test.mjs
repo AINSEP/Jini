@@ -21,8 +21,8 @@ const readJson = async file => JSON.parse(await readFile(path.join(root, file), 
 
 test("Netlify ships exactly its payload, and every module its host contribution files name is in it", async () => {
   const files = await shippedFiles();
-  assert.deepEqual(files, ["NOTES.md", "mcp.json", "plugin.json", "skills/netlify/SKILL.md", "targets/netlify.mjs", "tovu-consent.json", "tovu-deploy-targets.json"]);
-  for (const file of files.filter(name => /^tovu-.*\.json$/.test(name))) {
+  assert.deepEqual(files, ["NOTES.md", "jini-consent.json", "jini-deploy-targets.json", "mcp.json", "plugin.json", "skills/netlify/SKILL.md", "targets/netlify.mjs"]);
+  for (const file of files.filter(name => /^jini-.*\.json$/.test(name))) {
     const contribution = await readJson(file);
     for (const entry of [...(contribution.targets ?? []), ...(contribution.providers ?? [])]) {
       assert.ok(files.includes(entry.module), `${file} names ${entry.module}`);
@@ -33,7 +33,7 @@ test("Netlify ships exactly its payload, and every module its host contribution 
 test("Netlify keeps its publisher id and deploy-target capability (no id rewrite on the move)", async () => {
   const manifest = await readJson("plugin.json");
   assert.equal(manifest.name, PLUGIN_ID);
-  assert.equal(manifest.extensions.jini.id, `tovu/${PLUGIN_ID}`);
+  assert.equal(manifest.extensions.jini.id, `jini/${PLUGIN_ID}`);
   assert.ok(manifest.extensions.jini.provides.includes(`deploy-target:${PLUGIN_ID}`));
 });
 

@@ -14,7 +14,7 @@ import { isProductEnabled } from './product-state.mjs';
 import { GoogleWorkspaceError } from './request-policy.mjs';
 import { SHEETS_PRODUCT_ID, sheetsClientFor } from './sheets-client.mjs';
 
-/** The plugin's one sign-in: `tovu-connections.json`'s id, declared by every surface that uses it. */
+/** The plugin's one sign-in: `jini-connections.json`'s id, declared by every surface that uses it. */
 export const CONNECTION_ID = 'account';
 
 const FAILURE_CODE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;

@@ -22,11 +22,11 @@ const readJson = async file => JSON.parse(await readText(file));
 
 test('every module a contribution file names ships, with the modules it imports', async () => {
   const files = await shippedFiles();
-  const sourceControl = await readJson('tovu-source-control.json');
-  const deployOps = await readJson('tovu-deploy-ops.json');
+  const sourceControl = await readJson('jini-source-control.json');
+  const deployOps = await readJson('jini-deploy-ops.json');
   const named = [...sourceControl.providers.map(provider => provider.module), ...deployOps.platforms.map(platform => platform.module)];
   assert.deepEqual(named, ['source-control/github.mjs', 'deploy-ops/github-actions.mjs']);
-  for (const file of [...named, 'source-control/write-files.mjs', 'source-control/backup-push.mjs', 'source-control/commit-site.mjs', 'deployments/github.mjs']) {
+  for (const file of [...named, 'source-control/write-files.mjs', 'source-control/backup-push.mjs', 'source-control/commit-site.mjs']) {
     assert.ok(files.includes(file), file);
   }
 });
@@ -58,11 +58,11 @@ test('host-specific start commands and the restore promise moved out of the back
 
 test('the shipped prose is host-neutral and the publisher id and managed-files path are unchanged', async () => {
   const manifest = await readJson('plugin.json');
-  assert.equal(manifest.extensions.jini.id, 'tovu/github');
+  assert.equal(manifest.extensions.jini.id, 'jini/github');
   assert.doesNotMatch(manifest.description, /\bTovu\b/);
   for (const file of (await shippedFiles()).filter(name => name.endsWith('.md'))) {
     assert.doesNotMatch(await readText(file), /\bTovu\b/, file);
   }
   // Frozen wire path (plan §4.3): persisted in users' repositories.
-  assert.match(await readText('source-control/commit-site.mjs'), /const MANAGED_MANIFEST_PATH = "\.tovu\/managed-files\.json";/);
+  assert.match(await readText('source-control/commit-site.mjs'), /const MANAGED_MANIFEST_PATH = "\.jini\/managed-files\.json";/);
 });

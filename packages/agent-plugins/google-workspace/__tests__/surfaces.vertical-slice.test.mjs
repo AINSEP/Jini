@@ -17,7 +17,7 @@ after(async () => { await fake.close(); });
 
 test('vertical slice: Sheets on → hosted Picker → verified selection → form destination saved as its delivery binding', async () => {
   serveGoogle(fake);
-  const ports = createHostPorts({ publicConfig: { TOVU_GOOGLE_PICKER_BROWSER_KEY: 'browser-key-placeholder', TOVU_GOOGLE_PICKER_APP_ID: '123456789' } });
+  const ports = createHostPorts({ publicConfig: { JINI_GOOGLE_PICKER_BROWSER_KEY: 'browser-key-placeholder', JINI_GOOGLE_PICKER_APP_ID: '123456789' } });
   const surfaces = await bootSurfaces({ fake, ports }, { randomId: () => 'session-0123456789abcdef' });
 
   const on = await surfaces.dispatch('connection', 'set-product', { productId: 'sheets', enabled: true });

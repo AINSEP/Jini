@@ -31,7 +31,7 @@ const TOKEN = `fake-access-${'d'.repeat(24)}`;
 const BOOK = 'book-one-id';
 const OTHER_BOOK = 'book-two-id';
 const TAB_ID = 7;
-const HEADERS = ['_tovu_submission_id', '_tovu_submitted_at', 'Name', 'Email'];
+const HEADERS = ['_jini_submission_id', '_jini_submitted_at', 'Name', 'Email'];
 
 let fake;
 before(async () => { fake = await startFakeGoogle({ clients: {} }); });
@@ -147,8 +147,8 @@ test('a lost append whose re-scan also fails stays outcome-unknown, never report
   assert.deepEqual(await deliver(job({ kit: lost })), { ok: false, error: { code: 'outcome-unknown', retryable: true, outcome: 'unknown' } });
 });
 
-test('missing plugin column: a prepared tab whose _tovu_submitted_at header is gone is mapping-invalid and nothing is appended', async () => {
-  grid([{ sheetId: TAB_ID, title: 'Contact form', rows: { 1: ['_tovu_submission_id', 'Name', 'Email'] } }]);
+test('missing plugin column: a prepared tab whose _jini_submitted_at header is gone is mapping-invalid and nothing is appended', async () => {
+  grid([{ sheetId: TAB_ID, title: 'Contact form', rows: { 1: ['_jini_submission_id', 'Name', 'Email'] } }]);
   assert.deepEqual(await deliver(job()), { ok: false, error: { code: 'mapping-invalid', retryable: false, outcome: 'not-applied' } });
   assert.equal(appends().length, 0);
 });
@@ -167,18 +167,18 @@ test('renamed label: a tagged field keeps its column when the form label and the
   sheets.tab(TAB_ID).rows.get(1)[2] = 'Contact name';
   const renamed = { slug: 'contact', fields: [{ name: 'name', required: true, label: 'Full name' }, FORM.fields[1]] };
   assert.equal((await deliver(job({ form: renamed, submission: { id: 'sub-2', answers: { name: 'Bo', email: 'bo@example.test' } } }))).ok, true);
-  assert.deepEqual(sheets.rowsOf(TAB_ID), [['_tovu_submission_id', '_tovu_submitted_at', 'Contact name', 'Email'], ['sub-1', '2026-10-20T10:00:00.000Z', 'Ada', 'ada@example.test'], ['sub-2', '2026-10-20T10:00:00.000Z', 'Bo', 'bo@example.test']]);
+  assert.deepEqual(sheets.rowsOf(TAB_ID), [['_jini_submission_id', '_jini_submitted_at', 'Contact name', 'Email'], ['sub-1', '2026-10-20T10:00:00.000Z', 'Ada', 'ada@example.test'], ['sub-2', '2026-10-20T10:00:00.000Z', 'Bo', 'bo@example.test']]);
 });
 
 test('markers win over headers: a tagged column is used even when another column now carries the label', async () => {
-  const sheets = grid([{ sheetId: TAB_ID, title: 'Contact form', rows: { 1: ['_tovu_submission_id', '_tovu_submitted_at', 'Email', 'Name'] }, markers: { name: 2, email: 3 } }]);
+  const sheets = grid([{ sheetId: TAB_ID, title: 'Contact form', rows: { 1: ['_jini_submission_id', '_jini_submitted_at', 'Email', 'Name'] }, markers: { name: 2, email: 3 } }]);
   assert.equal((await deliver(job())).ok, true);
   assert.deepEqual(sheets.rowsOf(TAB_ID)[1], ['sub-1', '2026-10-20T10:00:00.000Z', 'Ada', 'ada@example.test']);
 });
 
 test('a field tagged on two columns is mapping-invalid and nothing is appended', async () => {
   const sheets = grid([{ sheetId: TAB_ID, title: 'Contact form', rows: { 1: HEADERS } }]);
-  sheets.metadata.push({ sheetId: TAB_ID, key: 'tovu_form_field', value: 'name', index: 2 }, { sheetId: TAB_ID, key: 'tovu_form_field', value: 'name', index: 3 });
+  sheets.metadata.push({ sheetId: TAB_ID, key: 'jini_form_field', value: 'name', index: 2 }, { sheetId: TAB_ID, key: 'jini_form_field', value: 'name', index: 3 });
   assert.equal((await deliver(job())).error.code, 'mapping-invalid');
   assert.equal(appends().length, 0);
 });
@@ -199,7 +199,7 @@ test('a column tagged for one field is never taken by another field with that he
 
 test('marker-keyed metadata on a row (not one column) is ignored', async () => {
   const sheets = grid([{ sheetId: TAB_ID, title: 'Contact form', rows: { 1: HEADERS } }]);
-  sheets.metadata.push({ sheetId: TAB_ID, key: 'tovu_form_field', value: 'name', index: 0, dimension: 'ROWS' });
+  sheets.metadata.push({ sheetId: TAB_ID, key: 'jini_form_field', value: 'name', index: 0, dimension: 'ROWS' });
   assert.equal((await deliver(job())).ok, true);
   assert.deepEqual(sheets.rowsOf(TAB_ID)[1], ['sub-1', '2026-10-20T10:00:00.000Z', 'Ada', 'ada@example.test']);
 });
@@ -226,7 +226,7 @@ test('duplicated header: a header found twice is mapping-invalid', async () => {
   assert.equal(appends().length, 0);
 });
 
-test('incompatible header row: a first row without _tovu_submission_id is mapping-invalid', async () => {
+test('incompatible header row: a first row without _jini_submission_id is mapping-invalid', async () => {
   grid([{ sheetId: TAB_ID, title: 'Contact form', rows: { 1: ['Name', 'Email'] } }]);
   assert.equal((await deliver(job())).error.code, 'mapping-invalid');
   assert.equal(appends().length, 0);
@@ -277,7 +277,7 @@ test('an unexpected host error is a retryable delivery-failed whose text is drop
 });
 
 test('existing columns in another order: each value lands under its own header', async () => {
-  const sheets = grid([{ sheetId: TAB_ID, title: 'Contact form', rows: { 1: ['Email', '_tovu_submitted_at', 'Name', '_tovu_submission_id'] } }]);
+  const sheets = grid([{ sheetId: TAB_ID, title: 'Contact form', rows: { 1: ['Email', '_jini_submitted_at', 'Name', '_jini_submission_id'] } }]);
   assert.equal((await deliver(job())).ok, true);
   assert.deepEqual(sheets.rowsOf(TAB_ID)[1], ['ada@example.test', '2026-10-20T10:00:00.000Z', 'Ada', 'sub-1']);
 });
@@ -452,7 +452,7 @@ test('labels: a missing or blank label falls back to the field id, and a label i
   const sheets = grid([{ sheetId: TAB_ID, title: 'Contact form' }]);
   const form = { slug: 'contact', fields: [{ name: 'phone' }, { name: 'note', label: '   ' }, { name: 'city', label: '  City ' }] };
   assert.equal((await deliver(job({ form, submission: { answers: { phone: '1', note: 'n', city: 'c' } } }))).ok, true);
-  assert.deepEqual(sheets.rowsOf(TAB_ID)[0], ['_tovu_submission_id', '_tovu_submitted_at', 'phone', 'note', 'City']);
+  assert.deepEqual(sheets.rowsOf(TAB_ID)[0], ['_jini_submission_id', '_jini_submitted_at', 'phone', 'note', 'City']);
 });
 
 test('answers: null and absent answers are blank cells, numbers and booleans keep their type in the RAW row', async () => {
@@ -470,14 +470,14 @@ test('dedupe: blank and malformed id cells are skipped and a padded id still mat
 });
 
 test('mapping: a null cell in the header row counts as blank, so the headers around it keep their positions', () => {
-  const mapping = [{ header: '_tovu_submission_id', source: 'id' }, { header: 'Name', field: 'name' }];
-  const layout = planColumns({ mapping, headerRow: ['_tovu_submission_id', null, 'Name'], markers: new Map() });
+  const mapping = [{ header: '_jini_submission_id', source: 'id' }, { header: 'Name', field: 'name' }];
+  const layout = planColumns({ mapping, headerRow: ['_jini_submission_id', null, 'Name'], markers: new Map() });
   assert.deepEqual(layout.columns, [0, 2]);
   assert.deepEqual(layout.newHeaders, []);
 });
 
 test('mapping: a header row of only null cells is a fresh tab, so every header is written', () => {
-  const mapping = [{ header: '_tovu_submission_id', source: 'id' }, { header: 'Name', field: 'name' }];
+  const mapping = [{ header: '_jini_submission_id', source: 'id' }, { header: 'Name', field: 'name' }];
   const layout = planColumns({ mapping, headerRow: [null, null], markers: new Map() });
-  assert.deepEqual(layout.newHeaders, [{ index: 0, header: '_tovu_submission_id' }, { index: 1, header: 'Name' }]);
+  assert.deepEqual(layout.newHeaders, [{ index: 0, header: '_jini_submission_id' }, { index: 1, header: 'Name' }]);
 });

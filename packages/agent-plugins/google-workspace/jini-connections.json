@@ -27,8 +27,8 @@
       "apiOrigins": ["https://sheets.googleapis.com", "https://www.googleapis.com"],
       "byoClient": true,
       "clients": {
-        "web": { "clientIdEnv": "TOVU_GOOGLE_WORKSPACE_OAUTH_WEB_CLIENT_ID", "clientSecretEnv": "TOVU_GOOGLE_WORKSPACE_OAUTH_WEB_CLIENT_SECRET" },
-        "desktop": { "clientIdEnv": "TOVU_GOOGLE_WORKSPACE_OAUTH_DESKTOP_CLIENT_ID", "clientSecretEnv": "TOVU_GOOGLE_WORKSPACE_OAUTH_DESKTOP_CLIENT_SECRET" }
+        "web": { "clientIdEnv": "JINI_GOOGLE_WORKSPACE_OAUTH_WEB_CLIENT_ID", "clientSecretEnv": "JINI_GOOGLE_WORKSPACE_OAUTH_WEB_CLIENT_SECRET" },
+        "desktop": { "clientIdEnv": "JINI_GOOGLE_WORKSPACE_OAUTH_DESKTOP_CLIENT_ID", "clientSecretEnv": "JINI_GOOGLE_WORKSPACE_OAUTH_DESKTOP_CLIENT_SECRET" }
       }
     }
   ]

@@ -114,7 +114,7 @@ function createBlobArtifactStore(required) {
       } });
     },
     /**
-     * Anonymous HEAD of the public URL. Blob does not serve the no-store/robots headers the Tovu
+     * Anonymous HEAD of the public URL. Blob does not serve the no-store/robots headers the host
      * delivery contract checks, so this checks what Blob does guarantee: exact size and ZIP type.
      */
     async verify({ key, url, present, bytes }, options = {}) {

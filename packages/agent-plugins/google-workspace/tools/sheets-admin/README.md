@@ -3,8 +3,8 @@
 ## Purpose
 
 The structural and formatting half of the Google Sheets chat tools: everything beyond reading and
-writing values. Each file is one tool module declared in `../../tovu-agent-tools.json` and reached
-by the assistant under its `name` with the host's plugin prefix (in Tovu, `p_google_workspace__<name>`).
+writing values. Each file is one tool module declared in `../../jini-agent-tools.json` and reached
+by the assistant under its `name` with the host's plugin prefix (in the first host, `p_google_workspace__<name>`).
 
 | Module | Tool | Effect |
 |---|---|---|
@@ -42,4 +42,4 @@ by the assistant under its `name` with the host's plugin prefix (in Tovu, `p_goo
 A new request kind is one reviewed row in `REQUEST_KINDS` (effect, replay class, required fields)
 plus a line in `skills/google-workspace/references/sheets.md`. A new named wrapper is a module here
 that builds inventory requests and calls `runBatchUpdate`, plus a declaration appended to
-`tovu-agent-tools.json`. Phase B may fold the shared helpers into `lib/sheets-client.mjs`.
+`jini-agent-tools.json`. Phase B may fold the shared helpers into `lib/sheets-client.mjs`.

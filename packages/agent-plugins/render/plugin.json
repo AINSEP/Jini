@@ -3,7 +3,7 @@
   "name": "render",
   "version": "1.0.1",
   "description": "Generates render.yaml and deploys existing Render server services through the API, with status, logs and environment variable tools.",
-  "author": "Tovu",
+  "author": "Jini",
   "license": "Apache-2.0",
   "extensions": {
     "jini": {
@@ -11,7 +11,7 @@
       "vendorAliases": ["render.com", "render.yaml", "onrender.com", "RENDER_API_KEY"],
       "displayName": "Render",
       "summary": "Configure and deploy an existing Render server service, then check its status and logs.",
-      "id": "tovu/render",
+      "id": "jini/render",
       "provides": [
         "deploy-config:render",
         "deploy-ops:render"

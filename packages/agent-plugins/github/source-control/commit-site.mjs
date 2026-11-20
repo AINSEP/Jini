@@ -13,7 +13,7 @@ import { createHash } from "node:crypto";
  *   reported `diverged`, never overwritten.
  * - The parent TREE read fails the whole commit when it fails: building without `base_tree` would
  *   silently delete every file on the branch this export does not write.
- * - `.tovu/managed-files.json` records every path THIS adapter wrote plus its blob sha. A later
+ * - `.jini/managed-files.json` records every path THIS adapter wrote plus its blob sha. A later
  *   export deletes a path it no longer writes only when the live blob still has that exact sha; a
  *   hand-edited, unverifiable or v1 (no sha) path is kept and reported in `divergedPaths`. A
  *   manifest that cannot be read fails the commit, rather than forgetting what it owned.
@@ -32,7 +32,7 @@ const GITHUB_API = "https://api.github.com";
 const GITHUB_API_VERSION = "2026-03-10";
 /** Where this adapter records exactly which paths IT wrote. A dotfile directory, so it never collides
  *  with real export output. */
-const MANAGED_MANIFEST_PATH = ".tovu/managed-files.json";
+const MANAGED_MANIFEST_PATH = ".jini/managed-files.json";
 const GITHUB_FETCH_TIMEOUT_MS = 30_000;
 const GIT_SHA_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i;
 

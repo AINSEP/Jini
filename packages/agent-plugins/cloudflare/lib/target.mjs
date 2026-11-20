@@ -127,7 +127,7 @@ function preparePublish({ input, kit, config, plan, targetId }, _options = {}) {
   const assets = prepareAssets({ files: input.files, responseHeaders: input.responseHeaders, kit }, { maxFiles });
   if (!plan) return { assets };
   const expected = createHash('sha256').update(JSON.stringify({ manifest: assets.manifest, config: assets.config })).digest('hex');
-  const path = `/.well-known/tovu-deployment-${expected}.txt`;
+  const path = `/.well-known/jini-deployment-${expected}.txt`;
   const proofFile = { file: path.slice(1), data: expected, contentType: 'text/plain' };
   return { assets: prepareAssets({ files: [...input.files, proofFile], responseHeaders: input.responseHeaders, kit }, { maxFiles }), proof: { path, expected } };
 }

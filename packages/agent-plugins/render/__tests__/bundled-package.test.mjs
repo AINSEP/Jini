@@ -20,8 +20,8 @@ const readJson = async (file) => JSON.parse(await readFile(path.join(root, file)
 
 test("render ships exactly its portable payload and none of the host's files", async () => {
   assert.deepEqual(await shippedFiles(), [
-    "deploy-configs/render.mjs", "deploy-ops/render.mjs", "mcp.json", "plugin.json", "skills/render/SKILL.md",
-    "tovu-deploy-configs.json", "tovu-deploy-ops.json",
+    "deploy-configs/render.mjs", "deploy-ops/render.mjs", "jini-deploy-configs.json", "jini-deploy-ops.json",
+    "mcp.json", "plugin.json", "skills/render/SKILL.md",
   ]);
 });
 
@@ -29,10 +29,10 @@ test("render keeps its publisher id, contributions and frozen contribution file 
   const manifest = await readJson("plugin.json");
   assert.equal(manifest.name, "render");
   assert.equal(manifest.version, "1.0.1");
-  assert.equal(manifest.extensions.jini.id, "tovu/render");
+  assert.equal(manifest.extensions.jini.id, "jini/render");
   assert.deepEqual(manifest.extensions.jini.provides, ["deploy-config:render", "deploy-ops:render"]);
-  const configs = await readJson("tovu-deploy-configs.json");
-  const ops = await readJson("tovu-deploy-ops.json");
+  const configs = await readJson("jini-deploy-configs.json");
+  const ops = await readJson("jini-deploy-ops.json");
   const files = await shippedFiles();
   for (const entry of [...configs.generators, ...ops.platforms]) assert.ok(files.includes(entry.module), entry.module);
 });

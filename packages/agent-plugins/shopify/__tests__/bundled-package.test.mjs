@@ -18,7 +18,7 @@ test('the plugin ships exactly its manifest, empty MCP config, skill and four re
   assert.deepEqual(files, ['plugin.json', 'mcp.json', skillFile, ...referenceFiles].sort());
   const manifest = JSON.parse(await readFile(path.join(root, 'plugin.json'), 'utf8'));
   assert.equal(manifest.name, 'shopify');
-  assert.equal(manifest.extensions.jini.id, 'tovu/shopify');
+  assert.equal(manifest.extensions.jini.id, 'jini/shopify');
   assert.deepEqual(manifest.extensions.jini.provides, ['commerce:shopify']);
   assert.deepEqual(JSON.parse(await readFile(path.join(root, 'mcp.json'), 'utf8')).mcpServers, {});
   assert.doesNotMatch(`${manifest.description} ${manifest.extensions.jini.summary}`, /\bTovu\b/);

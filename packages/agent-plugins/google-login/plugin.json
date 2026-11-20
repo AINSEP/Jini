@@ -3,12 +3,12 @@
   "name": "google-login",
   "version": "0.1.1",
   "description": "Adds Google sign-in for site members using this site's own Google OAuth client. Includes setup guidance for apps using Supabase Auth.",
-  "author": "Tovu",
+  "author": "Jini",
   "license": "Apache-2.0",
   "extensions": {
     "jini": {
       "maturity": "soon",
-      "id": "tovu/google-login",
+      "id": "jini/google-login",
       "displayName": "Google Login",
       "summary": "Let members sign in with Google, or set up Google in an app's existing Supabase Auth.",
       "provides": ["member-login:google"],

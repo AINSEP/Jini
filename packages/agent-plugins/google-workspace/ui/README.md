@@ -2,8 +2,8 @@
 
 ## Purpose
 
-The plugin's own admin screens, declared in `../tovu-admin-surfaces.json` and mounted by the host as
-sandboxed frames (Jini `@jini-ai/agent-plugins/admin-surfaces`; in Tovu,
+The plugin's own admin screens, declared in `../jini-admin-surfaces.json` and mounted by the host as
+sandboxed frames (Jini `@jini-ai/agent-plugins/admin-surfaces`; in the first host,
 `apps/website/src/features/agent-plugins/admin-surfaces/`). Three surfaces:
 
 | surface id | entry | what the person does there |
@@ -61,13 +61,13 @@ The host decides (the handler call's `context.hostKind`), and the bootstrap's `m
 `system-browser` on a desktop host (Google's native Picker as a code + PKCE sign-in with
 `trigger_onepick` and the spreadsheet MIME filter; `picked_file_ids` comes back through the host's
 callback inbox), `hosted` on a hosted site (the JS Picker inside the frame, with the bootstrap's
-short-lived access token and the public `TOVU_GOOGLE_PICKER_BROWSER_KEY` / `TOVU_GOOGLE_PICKER_APP_ID`).
+short-lived access token and the public `JINI_GOOGLE_PICKER_BROWSER_KEY` / `JINI_GOOGLE_PICKER_APP_ID`).
 `unavailable` names why (not connected, permission missing, Sheets off, or a hosted site without both
 Picker values: `picker-not-configured`). Every selection is verified by `lib/picker-selection.mjs` before it is saved.
 
 ## Extension points
 
 A new product adds its switch automatically (the connection panel lists `products.json`); a new
-action needs a declaration in `tovu-admin-surfaces.json` (closed schemas) and a handler in the
+action needs a declaration in `jini-admin-surfaces.json` (closed schemas) and a handler in the
 surface's module. Another provider plugin builds its own panels on the same host seam; nothing here
 is imported by a host or Jini.

@@ -8,10 +8,7 @@
       "tokenAuth": {
         "helpUrl": "https://supabase.com/dashboard/account/tokens",
         "probeUrl": "https://api.supabase.com/v1/projects",
-        "importFromEnv": "TOVU_SUPABASE_MCP_ACCESS_TOKEN",
-        "retiredEnv": ["TOVU_SUPABASE_MCP_ENABLED", "TOVU_SUPABASE_MCP_PROJECT_REF", "TOVU_SUPABASE_MCP_ALLOWED_TOOLS",
-                       "TOVU_SUPABASE_MCP_FEATURES", "TOVU_SUPABASE_MCP_PACKAGE", "TOVU_SUPABASE_MCP_CONNECT_TIMEOUT_MS",
-                       "TOVU_SUPABASE_MCP_CALL_TIMEOUT_MS", "TOVU_SUPABASE_MCP_MAX_RESULT_BYTES"]
+        "importFromEnv": "JINI_SUPABASE_MCP_ACCESS_TOKEN"
       },
       "defaultTools": {
         "allow": ["list_organizations", "get_organization", "list_projects", "get_project", "get_cost", "confirm_cost",

@@ -7,7 +7,7 @@
       "module": "targets/github-pages.mjs",
       "projectName": {
         "label": "Commit message",
-        "help": "Used as the commit message when Tovu pushes the export to the gh-pages branch."
+        "help": "Used as the commit message when the app pushes the export to the gh-pages branch."
       },
       "config": [
         {
@@ -55,7 +55,7 @@
       "i18n": {
         "es": {
           "Commit message": "Mensaje de confirmación",
-          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Se usa como mensaje de confirmación cuando Tovu envía la exportación a la rama gh-pages.",
+          "Used as the commit message when the app pushes the export to the gh-pages branch.": "Se usa como mensaje de confirmación cuando la aplicación envía la exportación a la rama gh-pages.",
           "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "Necesita un token de acceso personal clásico con el alcance \"repo\", o un token de granularidad fina con permisos Contents y Pages configurados en Read and write.",
           "Repository": "Repositorio",
           "Owner": "Propietario",
@@ -68,7 +68,7 @@
         },
         "id": {
           "Commit message": "Pesan commit",
-          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Digunakan sebagai pesan commit saat Tovu mendorong ekspor ke branch gh-pages.",
+          "Used as the commit message when the app pushes the export to the gh-pages branch.": "Digunakan sebagai pesan commit saat aplikasi ini mendorong ekspor ke branch gh-pages.",
           "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "Memerlukan token akses pribadi klasik dengan cakupan \"repo\", atau token terperinci dengan izin Contents dan Pages yang disetel ke Read and write.",
           "Repository": "Repositori",
           "Owner": "Pemilik",
@@ -80,7 +80,7 @@
         },
         "de": {
           "Commit message": "Commit-Nachricht",
-          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Wird als Commit-Nachricht verwendet, wenn Tovu den Export in den Branch gh-pages pusht.",
+          "Used as the commit message when the app pushes the export to the gh-pages branch.": "Wird als Commit-Nachricht verwendet, wenn die App den Export in den Branch gh-pages pusht.",
           "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "Benötigt einen klassischen persönlichen Zugriffstoken mit dem Bereich \"repo\" oder einen feingranularen Token mit den Berechtigungen Contents und Pages auf Read and write.",
           "Owner": "Inhaber",
           "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "Der GitHub-Benutzer oder die Organisation, dem bzw. der das Repository gehört. Geben Sie Ihren eigenen Benutzernamen ein oder den Namen der Organisation, wenn es der Organisation gehört.",
@@ -91,7 +91,7 @@
         },
         "zh-CN": {
           "Commit message": "提交消息",
-          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Tovu 将导出内容推送到 gh-pages 分支时，会使用此消息作为提交消息。",
+          "Used as the commit message when the app pushes the export to the gh-pages branch.": "应用将导出内容推送到 gh-pages 分支时，会使用此消息作为提交消息。",
           "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "需要具有 \"repo\" 范围的经典个人访问令牌，或将 Contents 和 Pages 权限设为 Read and write 的细粒度令牌。",
           "Repository": "仓库",
           "Owner": "所有者",
@@ -104,7 +104,7 @@
         },
         "zh-TW": {
           "Commit message": "提交訊息",
-          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Tovu 將匯出內容推送至 gh-pages 分支時，會使用此訊息作為提交訊息。",
+          "Used as the commit message when the app pushes the export to the gh-pages branch.": "應用程式將匯出內容推送至 gh-pages 分支時，會使用此訊息作為提交訊息。",
           "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "需要具有 \"repo\" 範圍的傳統個人存取權杖，或將 Contents 與 Pages 權限設為 Read and write 的細微權杖。",
           "Repository": "儲存庫",
           "Owner": "擁有者",
@@ -117,7 +117,7 @@
         },
         "pt-BR": {
           "Commit message": "Mensagem de commit",
-          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Usada como mensagem de commit quando o Tovu envia a exportação para a branch gh-pages.",
+          "Used as the commit message when the app pushes the export to the gh-pages branch.": "Usada como mensagem de commit quando o aplicativo envia a exportação para a branch gh-pages.",
           "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "Precisa de um token de acesso pessoal clássico com o escopo \"repo\", ou de um token refinado com as permissões Contents e Pages definidas como Read and write.",
           "Repository": "Repositório",
           "Owner": "Proprietário",
@@ -129,7 +129,7 @@
         },
         "ru": {
           "Commit message": "Сообщение коммита",
-          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Используется как сообщение коммита, когда Tovu отправляет экспорт в ветку gh-pages.",
+          "Used as the commit message when the app pushes the export to the gh-pages branch.": "Используется как сообщение коммита, когда приложение отправляет экспорт в ветку gh-pages.",
           "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "Нужен классический персональный токен доступа с областью \"repo\" или детализированный токен с разрешениями Contents и Pages, установленными в Read and write.",
           "Owner": "Владелец",
           "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "Пользователь или организация GitHub, которой принадлежит репозиторий. Введите своё имя пользователя или название организации, если репозиторий принадлежит ей.",
@@ -142,7 +142,7 @@
         },
         "fa": {
           "Commit message": "پیام کامیت",
-          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "وقتی Tovu خروجی را به شاخه gh-pages پوش می‌کند، از این به‌عنوان پیام کامیت استفاده می‌شود.",
+          "Used as the commit message when the app pushes the export to the gh-pages branch.": "وقتی برنامه خروجی را به شاخه gh-pages پوش می‌کند، از این به‌عنوان پیام کامیت استفاده می‌شود.",
           "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "به یک توکن دسترسی شخصی کلاسیک با دامنه \"repo\"، یا یک توکن ریزدانه با مجوزهای Contents و Pages روی Read and write نیاز دارد.",
           "Owner": "مالک",
           "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "کاربر یا سازمان GitHub که مالک مخزن است. نام کاربری خودتان را وارد کنید، یا اگر مخزن متعلق به سازمان است، نام سازمان را.",
@@ -155,7 +155,7 @@
         },
         "ar": {
           "Commit message": "رسالة الالتزام",
-          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "تُستخدم كرسالة التزام عندما يدفع Tovu التصدير إلى فرع gh-pages.",
+          "Used as the commit message when the app pushes the export to the gh-pages branch.": "تُستخدم كرسالة التزام عندما يدفع التطبيق التصدير إلى فرع gh-pages.",
           "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "يتطلب رمز وصول شخصياً تقليدياً بنطاق \"repo\"، أو رمزاً دقيق الصلاحيات مع تعيين أذونات Contents وPages إلى Read and write.",
           "Owner": "المالك",
           "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "مستخدم GitHub أو المؤسسة التي تملك المستودع. أدخل اسم المستخدم الخاص بك، أو اسم المؤسسة إذا كانت هي المالكة.",
@@ -168,7 +168,7 @@
         },
         "ja": {
           "Commit message": "コミットメッセージ",
-          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Tovu がエクスポートを gh-pages ブランチへプッシュするときのコミットメッセージとして使われます。",
+          "Used as the commit message when the app pushes the export to the gh-pages branch.": "このアプリがエクスポートを gh-pages ブランチへプッシュするときのコミットメッセージとして使われます。",
           "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "\"repo\" スコープの従来の個人アクセストークン、または Contents と Pages の権限を Read and write に設定したきめ細かいトークンが必要です。",
           "Repository": "リポジトリ",
           "Owner": "オーナー",
@@ -181,7 +181,7 @@
         },
         "ko": {
           "Commit message": "커밋 메시지",
-          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Tovu가 내보내기를 gh-pages 브랜치로 푸시할 때 커밋 메시지로 사용됩니다.",
+          "Used as the commit message when the app pushes the export to the gh-pages branch.": "앱이 내보내기를 gh-pages 브랜치로 푸시할 때 커밋 메시지로 사용됩니다.",
           "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "\"repo\" 범위가 있는 클래식 개인 액세스 토큰 또는 Contents와 Pages 권한이 Read and write로 설정된 세분화된 토큰이 필요합니다.",
           "Repository": "리포지토리",
           "Owner": "소유자",
@@ -194,7 +194,7 @@
         },
         "pl": {
           "Commit message": "Komunikat commitu",
-          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Używane jako komunikat commitu, gdy Tovu wysyła eksport do gałęzi gh-pages.",
+          "Used as the commit message when the app pushes the export to the gh-pages branch.": "Używane jako komunikat commitu, gdy aplikacja wysyła eksport do gałęzi gh-pages.",
           "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "Wymaga klasycznego osobistego tokenu dostępu z zakresem \"repo\" albo szczegółowego tokenu z uprawnieniami Contents i Pages ustawionymi na Read and write.",
           "Owner": "Właściciel",
           "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "Użytkownik lub organizacja GitHub, do której należy repozytorium. Wpisz swoją nazwę użytkownika albo nazwę organizacji, jeśli to ona jest właścicielem.",
@@ -207,7 +207,7 @@
         },
         "hu": {
           "Commit message": "Commit üzenet",
-          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Ezt használja commit üzenetként, amikor a Tovu az exportot a gh-pages ágba küldi.",
+          "Used as the commit message when the app pushes the export to the gh-pages branch.": "Ezt használja commit üzenetként, amikor az alkalmazás az exportot a gh-pages ágba küldi.",
           "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "Klasszikus személyes hozzáférési token szükséges \"repo\" hatókörrel, vagy finomhangolt token, amelynél a Contents és Pages engedélyek Read and write értékre vannak állítva.",
           "Owner": "Tulajdonos",
           "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "Az a GitHub-felhasználó vagy szervezet, amelyé a tároló. Adja meg a saját felhasználónevét, vagy a szervezet nevét, ha a tároló a szervezeté.",
@@ -220,7 +220,7 @@
         },
         "fr": {
           "Commit message": "Message de commit",
-          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Utilisé comme message de commit lorsque Tovu envoie l’export vers la branche gh-pages.",
+          "Used as the commit message when the app pushes the export to the gh-pages branch.": "Utilisé comme message de commit lorsque l’application envoie l’export vers la branche gh-pages.",
           "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "Nécessite un jeton d’accès personnel classique avec la portée \"repo\", ou un jeton à granularité fine avec les autorisations Contents et Pages réglées sur Read and write.",
           "Repository": "Dépôt",
           "Owner": "Propriétaire",
@@ -233,7 +233,7 @@
         },
         "uk": {
           "Commit message": "Повідомлення коміту",
-          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Використовується як повідомлення коміту, коли Tovu надсилає експорт до гілки gh-pages.",
+          "Used as the commit message when the app pushes the export to the gh-pages branch.": "Використовується як повідомлення коміту, коли застосунок надсилає експорт до гілки gh-pages.",
           "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "Потрібен класичний персональний токен доступу з областю \"repo\" або деталізований токен із дозволами Contents і Pages, установленими на Read and write.",
           "Owner": "Власник",
           "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "Користувач або організація GitHub, якій належить репозиторій. Введіть своє ім’я користувача або назву організації, якщо репозиторій належить їй.",
@@ -246,7 +246,7 @@
         },
         "tr": {
           "Commit message": "Commit mesajı",
-          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Tovu dışa aktarmayı gh-pages dalına gönderdiğinde commit mesajı olarak kullanılır.",
+          "Used as the commit message when the app pushes the export to the gh-pages branch.": "Uygulama dışa aktarmayı gh-pages dalına gönderdiğinde commit mesajı olarak kullanılır.",
           "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "\"repo\" kapsamına sahip klasik bir kişisel erişim belirteci veya Contents ve Pages izinleri Read and write olarak ayarlanmış ayrıntılı bir belirteç gerekir.",
           "Owner": "Sahip",
           "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "Deponun sahibi olan GitHub kullanıcısı veya kuruluşu. Kendi kullanıcı adınızı ya da depo bir kuruluşa aitse kuruluşun adını girin.",
@@ -259,7 +259,7 @@
         },
         "th": {
           "Commit message": "ข้อความคอมมิต",
-          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "ใช้เป็นข้อความคอมมิตเมื่อ Tovu พุชการส่งออกไปยังสาขา gh-pages",
+          "Used as the commit message when the app pushes the export to the gh-pages branch.": "ใช้เป็นข้อความคอมมิตเมื่อแอปพุชการส่งออกไปยังสาขา gh-pages",
           "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "ต้องใช้โทเค็นการเข้าถึงส่วนบุคคลแบบคลาสสิกที่มีขอบเขต \"repo\" หรือโทเค็นแบบละเอียดที่ตั้งค่าสิทธิ์ Contents และ Pages เป็น Read and write",
           "Owner": "เจ้าของ",
           "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "ผู้ใช้หรือองค์กร GitHub ที่เป็นเจ้าของรีโพซิทอรี ใส่ชื่อผู้ใช้ของคุณเอง หรือชื่อองค์กรหากองค์กรเป็นเจ้าของ",
@@ -272,7 +272,7 @@
         },
         "it": {
           "Commit message": "Messaggio di commit",
-          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Usato come messaggio di commit quando Tovu invia l’esportazione al branch gh-pages.",
+          "Used as the commit message when the app pushes the export to the gh-pages branch.": "Usato come messaggio di commit quando l’applicazione invia l’esportazione al branch gh-pages.",
           "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "Richiede un token di accesso personale classico con l’ambito \"repo\", oppure un token granulare con i permessi Contents e Pages impostati su Read and write.",
           "Owner": "Proprietario",
           "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "L’utente o l’organizzazione GitHub proprietaria del repository. Inserisci il tuo nome utente, oppure il nome dell’organizzazione se il repository è suo.",
@@ -284,7 +284,7 @@
         },
         "hi": {
           "Commit message": "कमिट संदेश",
-          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "जब Tovu एक्सपोर्ट को gh-pages शाखा में पुश करता है, तो यह कमिट संदेश के रूप में उपयोग होता है।",
+          "Used as the commit message when the app pushes the export to the gh-pages branch.": "जब यह ऐप एक्सपोर्ट को gh-pages शाखा में पुश करता है, तो यह कमिट संदेश के रूप में उपयोग होता है।",
           "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "\"repo\" स्कोप वाला क्लासिक व्यक्तिगत एक्सेस टोकन, या Contents और Pages अनुमतियों को Read and write पर सेट किया गया फाइन-ग्रेन्ड टोकन चाहिए।",
           "Owner": "स्वामी",
           "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "वह GitHub उपयोगकर्ता या संगठन जिसके पास रिपॉज़िटरी है। अपना उपयोगकर्ता नाम दर्ज करें, या यदि रिपॉज़िटरी संगठन की है तो संगठन का नाम।",
@@ -297,7 +297,7 @@
         },
         "ur": {
           "Commit message": "کمٹ پیغام",
-          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "جب Tovu ایکسپورٹ کو gh-pages برانچ پر پش کرتا ہے تو اسے کمٹ پیغام کے طور پر استعمال کیا جاتا ہے۔",
+          "Used as the commit message when the app pushes the export to the gh-pages branch.": "جب یہ ایپ ایکسپورٹ کو gh-pages برانچ پر پش کرتی ہے تو اسے کمٹ پیغام کے طور پر استعمال کیا جاتا ہے۔",
           "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "\"repo\" دائرہ کار والا کلاسک ذاتی رسائی ٹوکن، یا Contents اور Pages کی اجازتیں Read and write پر سیٹ والا باریک ٹوکن درکار ہے۔",
           "Owner": "مالک",
           "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "وہ GitHub صارف یا تنظیم جس کی ملکیت میں ریپوزٹری ہے۔ اپنا صارف نام درج کریں، یا اگر ریپوزٹری تنظیم کی ہے تو تنظیم کا نام۔",
@@ -310,7 +310,7 @@
         },
         "bn": {
           "Commit message": "কমিট বার্তা",
-          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Tovu যখন gh-pages শাখায় এক্সপোর্ট পুশ করে, তখন এটি কমিট বার্তা হিসেবে ব্যবহৃত হয়।",
+          "Used as the commit message when the app pushes the export to the gh-pages branch.": "অ্যাপটি যখন gh-pages শাখায় এক্সপোর্ট পুশ করে, তখন এটি কমিট বার্তা হিসেবে ব্যবহৃত হয়।",
           "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "\"repo\" স্কোপসহ একটি ক্লাসিক ব্যক্তিগত অ্যাক্সেস টোকেন, অথবা Contents এবং Pages অনুমতি Read and write-এ সেট করা একটি সূক্ষ্ম-গ্রেইন টোকেন প্রয়োজন।",
           "Owner": "মালিক",
           "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "যে GitHub ব্যবহারকারী বা সংস্থা রিপোজিটরির মালিক। আপনার নিজের ব্যবহারকারী নাম লিখুন, অথবা রিপোজিটরি সংস্থার হলে সংস্থার নাম।",

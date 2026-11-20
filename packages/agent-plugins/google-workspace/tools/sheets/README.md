@@ -3,8 +3,8 @@
 ## Purpose
 
 The Google Sheets chat tools for spreadsheets, values, data filters and search (design §D). Each
-`.mjs` file is one tool module declared in `../../tovu-agent-tools.json`; the assistant sees it under
-its `name` with the host's plugin prefix (in Tovu, `p_google_workspace__<name>`). Every tool takes the `connectionRef` of the Google Workspace
+`.mjs` file is one tool module declared in `../../jini-agent-tools.json`; the assistant sees it under
+its `name` with the host's plugin prefix (in the first host, `p_google_workspace__<name>`). Every tool takes the `connectionRef` of the Google Workspace
 connection; tools on an existing file also take its `spreadsheetId`. Tab, sort, filter, format,
 named-range, protection, metadata, raw batch-update, CSV export and Picker tools live in
 `../sheets-admin/` (a separate lot).
@@ -50,5 +50,5 @@ through `lib/http.mjs` (token right before each request, where the host charges 
 ## Extension points
 
 A new Sheets tool adds one module here (or under `../sheets-admin/`) and one entry in
-`tovu-agent-tools.json`; it reuses `sendSheetsRequest`, `sheetsUrl` and the bound helpers. A
+`jini-agent-tools.json`; it reuses `sendSheetsRequest`, `sheetsUrl` and the bound helpers. A
 second product uses `lib/http.mjs` directly with its own URL helper.

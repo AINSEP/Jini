@@ -15,7 +15,7 @@ import { PICKED_SPREADSHEETS_KEY, rememberPickedSpreadsheet } from '../lib/picke
 import { startFakeGoogle } from './fake-google-http.mjs';
 import { FILE_ID, OTHER_FILE_ID, bootSurfaces, createHostPorts, destinationBinding, serveGoogle } from './surface-harness.mjs';
 
-const PICKER_CONFIG = { TOVU_GOOGLE_PICKER_BROWSER_KEY: 'browser-key-placeholder', TOVU_GOOGLE_PICKER_APP_ID: '123456789' };
+const PICKER_CONFIG = { JINI_GOOGLE_PICKER_BROWSER_KEY: 'browser-key-placeholder', JINI_GOOGLE_PICKER_APP_ID: '123456789' };
 const SAVED_VIEW = { spreadsheetId: FILE_ID, title: 'Leads', url: `https://docs.google.com/spreadsheets/d/${FILE_ID}/edit`, sheetId: 7, tabTitle: 'Leads' };
 
 let fake;
@@ -357,7 +357,7 @@ test('destinations (F11): a host binding with neither formIds nor allForms fails
 
 test('surface tokens (F7): bootstrap without a signed-in principal cannot mint a Picker access token', async () => {
   serveGoogle(fake);
-  const ports = createHostPorts({ publicConfig: { TOVU_GOOGLE_PICKER_BROWSER_KEY: 'browser-key-placeholder', TOVU_GOOGLE_PICKER_APP_ID: '123456789' } });
+  const ports = createHostPorts({ publicConfig: { JINI_GOOGLE_PICKER_BROWSER_KEY: 'browser-key-placeholder', JINI_GOOGLE_PICKER_APP_ID: '123456789' } });
   ports.state.set('products', { sheets: true });
   const surfaces = await bootSurfaces({ fake, ports }, { principalId: null });
   await assert.rejects(surfaces.bootstrap('picker'));

@@ -26,10 +26,10 @@ export const MARKUP = '<img src="x" onerror="globalThis.__pwned = true">';
 const PROTOCOL = 'jini.admin-surface';
 const VERSION = 1;
 
-const SURFACES = JSON.parse(readFileSync(new URL('../tovu-admin-surfaces.json', import.meta.url), 'utf8')).surfaces;
+const SURFACES = JSON.parse(readFileSync(new URL('../jini-admin-surfaces.json', import.meta.url), 'utf8')).surfaces;
 
 /**
- * The action names a surface declares in the plugin's `tovu-admin-surfaces.json`.
+ * The action names a surface declares in the plugin's `jini-admin-surfaces.json`.
  * @param {{ surfaceId: string }} required
  * @returns {string[]}
  */

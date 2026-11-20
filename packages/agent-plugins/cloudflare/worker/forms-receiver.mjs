@@ -21,8 +21,8 @@ export async function handleRequest({ request, env, manifest }, options = {}) {
   const url = new URL(request.url);
   const submit = SUBMIT_PATH.exec(url.pathname);
   if (submit) return request.method === 'POST' ? handleSubmit({ request, env, manifest, slug: submit[1] }, options) : errorPage({ status: 405, message: 'This address only accepts form submissions.' });
-  if (url.pathname === '/_tovu/forms/pending') return request.method === 'GET' ? guarded({ request, env, work: () => listPending({ env, url }, options) }) : json({ status: 405, body: { error: 'METHOD_NOT_ALLOWED' } });
-  if (url.pathname === '/_tovu/forms/ack') return request.method === 'POST' ? guarded({ request, env, work: () => acknowledge({ request, env }, options) }) : json({ status: 405, body: { error: 'METHOD_NOT_ALLOWED' } });
+  if (url.pathname === '/_jini/forms/pending') return request.method === 'GET' ? guarded({ request, env, work: () => listPending({ env, url }, options) }) : json({ status: 405, body: { error: 'METHOD_NOT_ALLOWED' } });
+  if (url.pathname === '/_jini/forms/ack') return request.method === 'POST' ? guarded({ request, env, work: () => acknowledge({ request, env }, options) }) : json({ status: 405, body: { error: 'METHOD_NOT_ALLOWED' } });
   const slug = sentFormSlug({ request, url, manifest });
   return slug ? withSentNotice({ request, env, slug }, options) : env.ASSETS.fetch(request);
 }
@@ -56,11 +56,11 @@ export function sentNoticeHandlers({ slug }, _options = {}) {
     element.setAttribute('hidden', '');
     if (state.slot || state.noticed) return;
     state.noticed = true;
-    element.after(`<p class="tovu-form-success" data-form-slug="${slug}" role="status">${SENT_MESSAGE}</p>`, { html: true });
+    element.after(`<p class="jini-form-success" data-form-slug="${slug}" role="status">${SENT_MESSAGE}</p>`, { html: true });
   } };
   return [
-    [`div.tovu-form-success[data-form-slug="${slug}"]`, showSlot],
-    [`div[data-tovu-form-success][data-form-slug="${slug}"]`, showSlot],
+    [`div.jini-form-success[data-form-slug="${slug}"]`, showSlot],
+    [`div[data-jini-form-success][data-form-slug="${slug}"]`, showSlot],
     [`form[data-form-slug="${slug}"]`, hideForm],
   ];
 }
@@ -77,7 +77,7 @@ export async function handleSubmit({ request, env, manifest, slug }, { now = () 
   if (hasHoneypotValue({ fields: parsed.fields })) return successRedirect({ request, form });
   const checked = checkFields({ form, fields: parsed.fields });
   if (checked.error) return errorPage({ status: 400, message: checked.error, back });
-  const refused = await storeSubmission({ db: env.TOVU_FORMS, slug, answers: checked.answers, evidence: form.evidence, ip: request.headers.get('CF-Connecting-IP'), secret: env.TOVU_FORMS_SECRET, back }, { now, randomId });
+  const refused = await storeSubmission({ db: env.JINI_FORMS, slug, answers: checked.answers, evidence: form.evidence, ip: request.headers.get('CF-Connecting-IP'), secret: env.JINI_FORMS_SECRET, back }, { now, randomId });
   return refused ?? successRedirect({ request, form });
 }
 
@@ -273,7 +273,7 @@ function json({ status = 200, body }, _options = {}) {
 
 /** Bearer check with a constant-time comparison of SHA-256 digests (equal length by construction). */
 export async function authorized({ request, env }, _options = {}) {
-  const secret = env.TOVU_FORMS_SECRET;
+  const secret = env.JINI_FORMS_SECRET;
   const header = request.headers.get('Authorization') ?? '';
   if (typeof secret !== 'string' || secret.length < 32 || !header.startsWith('Bearer ')) return false;
   const encoder = new TextEncoder();
@@ -295,7 +295,7 @@ async function guarded({ request, env, work }, _options = {}) {
 export async function listPending({ env, url }, _options = {}) {
   const after = Math.max(0, Number.parseInt(url.searchParams.get('after') ?? '0', 10) || 0);
   const limit = Math.min(LIMITS.maxPage, Math.max(1, Number.parseInt(url.searchParams.get('limit') ?? '50', 10) || 50));
-  const { results = [] } = await env.TOVU_FORMS.prepare('SELECT seq, id, form_slug, answers_json, submitted_at FROM submissions WHERE pulled_at IS NULL AND seq > ? ORDER BY seq LIMIT ?').bind(after, limit).all();
+  const { results = [] } = await env.JINI_FORMS.prepare('SELECT seq, id, form_slug, answers_json, submitted_at FROM submissions WHERE pulled_at IS NULL AND seq > ? ORDER BY seq LIMIT ?').bind(after, limit).all();
   const items = results.map(row => pendingRow({ row }));
   return json({ body: { items, nextAfter: items.length ? items[items.length - 1].seq : after, hasMore: items.length === limit } });
 }
@@ -319,7 +319,7 @@ export async function acknowledge({ request, env }, { now = () => Date.now() } =
   try { body = await request.json(); } catch { body = null; }
   const ids = body?.ids;
   if (!validIds({ ids })) return json({ status: 400, body: { error: 'INVALID_IDS' } });
-  const result = await env.TOVU_FORMS.prepare(`DELETE FROM submissions WHERE id IN (${ids.map(() => '?').join(', ')})`)
+  const result = await env.JINI_FORMS.prepare(`DELETE FROM submissions WHERE id IN (${ids.map(() => '?').join(', ')})`)
     .bind(...ids).run();
   return json({ body: { acknowledged: Number(result.meta?.changes ?? 0) } });
 }

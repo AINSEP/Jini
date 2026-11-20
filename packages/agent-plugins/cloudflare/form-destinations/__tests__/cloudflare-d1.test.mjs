@@ -13,7 +13,7 @@ test('the D1 destination pulls and acknowledges through the same receiver client
 });
 
 test('the descriptor declares it co-hosted on Workers only, and the hosting target no longer pulls', async () => {
-  const file = JSON.parse(await readFile(new URL('../../tovu-form-destinations.json', import.meta.url), 'utf8'));
+  const file = JSON.parse(await readFile(new URL('../../jini-form-destinations.json', import.meta.url), 'utf8'));
   assert.deepEqual(file, { schemaVersion: 1, destinations: [{ id: 'cloudflare-d1', label: 'Cloudflare (D1 in your account)', module: 'form-destinations/cloudflare-d1.mjs', receive: 'co-hosted', hosts: ['cloudflare-workers'] }] });
   assert.equal('pullFormSubmissions' in workers, false);
   assert.equal('acknowledgeFormSubmissions' in workers, false);

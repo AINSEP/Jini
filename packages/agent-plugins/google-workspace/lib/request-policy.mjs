@@ -1,7 +1,7 @@
 /**
  * @file Google request policy for the Google Workspace plugin: the safe error every failure becomes,
  * whether a failed request may be retried and how long to wait. The per-minute budgets themselves
- * are declared in `tovu-connections.json` and enforced by the host on every token read.
+ * are declared in `jini-connections.json` and enforced by the host on every token read.
  *
  * Exists so chat tools, admin actions and form delivery share ONE answer to "may this run again?"
  * and one error vocabulary. Errors never carry tokens, Google's own message text or sheet contents:

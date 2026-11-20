@@ -53,7 +53,7 @@ export function installSheetsGrid(required) {
     rows: new Map(Object.entries(tab.rows ?? {}).map(([row, cells]) => [Number(row), [...cells]])),
   }));
   // Column markers: { sheetId, key, value, index } (what createDeveloperMetadata stores on a column).
-  const metadata = required.tabs.flatMap((tab) => Object.entries(tab.markers ?? {}).map(([value, index]) => ({ sheetId: tab.sheetId, key: 'tovu_form_field', value, index })));
+  const metadata = required.tabs.flatMap((tab) => Object.entries(tab.markers ?? {}).map(([value, index]) => ({ sheetId: tab.sheetId, key: 'jini_form_field', value, index })));
   const grid = {
     failNext: undefined,
     tab: (sheetId) => tabs.find((tab) => tab.sheetId === sheetId),

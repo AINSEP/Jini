@@ -24,7 +24,7 @@ const readManifest = async () => JSON.parse(await readFile(path.join(root, 'plug
 
 test(`${face}: one provider-settings card that saves the ${provider} provider plugin through the host`, async () => {
   const host = (await readManifest()).extensions.jini;
-  assert.equal(host.id, `tovu/${face}`, 'frozen publisher id');
+  assert.equal(host.id, `jini/${face}`, 'frozen publisher id');
   assert.equal(host.providerPlugin, provider, 'the face follows the provider in its own package');
   assert.equal(host.displayName, 'PostHog');
   const [card, ...rest] = host.credentialCards;

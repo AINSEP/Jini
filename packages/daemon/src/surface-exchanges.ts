@@ -9,7 +9,7 @@
  * tree, a validation error — and wait again, any number of times. When it is done it closes the
  * exchange and returns, and the human's answers are the tool call's ordinary result. The agent is
  * still alive the whole time, which is what makes the transcript correct by construction rather than
- * reconstructed afterwards (ADR-055 Decision 4).
+ * reconstructed afterwards.
  *
  * A one-shot ask — show a form, get one submission — is the degenerate case, expressed by
  * {@link askOnce}. It is a helper over this, not a separate mechanism.
@@ -43,7 +43,7 @@
  *
  * An exchange id is a **correlation handle**. It says which in-flight call a message belongs to and
  * confers nothing — contrast the former token store, which minted a genuine secret because the
- * delete it guards is a second tool call the model could otherwise make itself (ADR-055 Decision 3).
+ * delete it guards is a second tool call the model could otherwise make itself.
  * Ids here are stored in the clear and compared with `===`. Copying that module's hashing and
  * constant-time comparison would imply a security property this handle does not carry.
  *
@@ -405,7 +405,7 @@ export async function askThenReport<T>({ exchange, confirmationEmission, handle 
  * `"declined"` covers an explicit non-`"confirm"` decision — a real Cancel click, and equally a
  * missing, non-string, or unrecognised `decision` field, all fail-closed to the same outcome.
  * `"expired"`/`"abandoned"` mirror {@link SurfaceMessage}'s own non-`"received"` statuses one-for-one
- * (ADR-055 Decision 6: no-answer is a result, not a thrown error).
+ * (no-answer is a result, not a thrown error).
  */
 export type ConfirmationOutcome = { confirmed: true } | { confirmed: false; reason: 'declined' | 'expired' | 'abandoned' };
 /**

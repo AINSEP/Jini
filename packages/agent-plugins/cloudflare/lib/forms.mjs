@@ -4,12 +4,11 @@ import { refusal, segment } from './api.mjs';
 
 /** Form submissions destination: one D1 database per site Worker plus the bundled receiver.
  * Forms, fields and full validation stay in the host; this file only provisions storage and transport.
- * The `TOVU_*` bindings, `tovu-forms-*` database names and `/_tovu/*` routes are frozen wire names:
- * live Workers and D1 databases already use them. */
-export const FORMS_BINDING = 'TOVU_FORMS';
-export const FORMS_SECRET_BINDING = 'TOVU_FORMS_SECRET';
+ * The Worker bindings, database names and private routes use the Jini namespace. */
+export const FORMS_BINDING = 'JINI_FORMS';
+export const FORMS_SECRET_BINDING = 'JINI_FORMS_SECRET';
 /** Routed to the Worker before static assets, so a missing asset can never answer a form POST. */
-export const FORMS_WORKER_ROUTES = ['/forms/*', '/_tovu/*'];
+export const FORMS_WORKER_ROUTES = ['/forms/*', '/_jini/*'];
 export const FREE_PLAN_NOTE = 'Free plan limits: 100,000 Worker requests/day, D1 100,000 row writes/day and 500 MB per database (shared with the rest of this Cloudflare account).';
 const D1_PAGING = { perPage: 100, maxPages: 10 };
 const SLUG = /^[a-z0-9][a-z0-9-]{0,99}$/;
@@ -118,7 +117,7 @@ function formsRefusal({ kit, message, status = 400, code = 'CLOUDFLARE_FORMS_INV
 
 /** Stable per-site identity derived from the Worker name; never random, so republish reuses it. */
 export function databaseName({ resourceName }, _options = {}) {
-  return `tovu-forms-${resourceName}`.slice(0, 63);
+  return `jini-forms-${resourceName}`.slice(0, 63);
 }
 
 const PERMISSION_STEP = 'Edit the saved Cloudflare API token: add Account > D1 > Edit (dashboard: My Profile > API Tokens > the token > Edit), keep its existing Workers permissions, then preview again.';
@@ -172,7 +171,7 @@ async function previewWorkersForms({ api, kit, resourceName, normalized, count }
 function workerFormsPreview({ resourceName, name, existing, count, pendingCount }, _options = {}) {
   return { status: 'on', forms: count, pendingCount,
     changes: [{ action: existing ? 'reuse' : 'create', resource: 'd1-database', name, ...(existing ? { databaseId: existing.uuid } : {}) },
-      { action: 'bind', resource: 'worker', resourceName, routes: count ? FORMS_WORKER_ROUTES : ['/_tovu/*'] }],
+      { action: 'bind', resource: 'worker', resourceName, routes: count ? FORMS_WORKER_ROUTES : ['/_jini/*'] }],
     message: `Form submissions: on (${count} form${count === 1 ? '' : 's'}). Submissions are stored in D1 database ${name} (${existing ? 'reused' : 'created'}) in this Cloudflare account and pulled into the site admin on demand. ${FREE_PLAN_NOTE} Pending answers: ${pendingCount ?? 'count unavailable'}. Uncollected answers never expire automatically.` };
 }
 
@@ -282,7 +281,7 @@ export async function formsWorkerParts({ manifest, secret, databaseId }, { pageR
       { name: 'forms-manifest.mjs', source: `export default ${JSON.stringify({ forms: manifest.forms })};\n` },
     ],
     bindings: [{ type: 'd1', name: FORMS_BINDING, id: databaseId }, { type: 'secret_text', name: FORMS_SECRET_BINDING, text: secret }],
-    runWorkerFirst: manifest.forms.length ? [...FORMS_WORKER_ROUTES, ...pageRoutes] : ['/_tovu/*'],
+    runWorkerFirst: manifest.forms.length ? [...FORMS_WORKER_ROUTES, ...pageRoutes] : ['/_jini/*'],
   };
 }
 
@@ -320,7 +319,7 @@ const hasRowMeta = item => typeof item.submittedAt === 'string' && (item.ip === 
 const isPending = item => hasRowIdentity(item) && hasRowBody(item) && hasRowMeta(item);
 
 function pendingPath({ after, limit }, _options = {}) {
-  return `/_tovu/forms/pending?after=${Number(after) || 0}&limit=${Math.min(100, Math.max(1, Number(limit) || 50))}`;
+  return `/_jini/forms/pending?after=${Number(after) || 0}&limit=${Math.min(100, Math.max(1, Number(limit) || 50))}`;
 }
 
 /** One page of unpulled submissions, oldest first. */
@@ -333,6 +332,6 @@ export async function pullFormSubmissions({ kit, destination }, { after = 0, lim
 
 /** Marks rows the host has committed; only then are they no longer pending. */
 export async function acknowledgeFormSubmissions({ kit, destination, ids }, _options = {}) {
-  const result = await receiverCall({ kit, destination, path: '/_tovu/forms/ack', init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) } });
+  const result = await receiverCall({ kit, destination, path: '/_jini/forms/ack', init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) } });
   return { acknowledged: Number(result?.acknowledged) || 0 };
 }

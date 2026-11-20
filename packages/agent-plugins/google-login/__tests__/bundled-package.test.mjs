@@ -28,9 +28,9 @@ test('every file the sign-in button export names ships in the payload', async ()
 
 test('the login provider and its card agree, and the publisher id is unchanged', async () => {
   const manifest = JSON.parse(await readFile(path.join(root, 'plugin.json'), 'utf8'));
-  assert.equal(manifest.extensions.jini.id, 'tovu/google-login');
+  assert.equal(manifest.extensions.jini.id, 'jini/google-login');
   const [card] = manifest.extensions.jini.credentialCards;
-  const { providers: [provider] } = JSON.parse(await readFile(path.join(root, 'tovu-login-providers.json'), 'utf8'));
+  const { providers: [provider] } = JSON.parse(await readFile(path.join(root, 'jini-login-providers.json'), 'utf8'));
   assert.equal(provider.credentialCardTarget, card.target);
   assert.equal(provider.credentialLabel, card.label);
   assert.deepEqual(provider.scopes, ['openid', 'email', 'profile']);

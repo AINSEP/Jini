@@ -1,9 +1,9 @@
 # Phase 12 commerce extraction
 
 Owner authorization: commerce stays off but remains planned. This package is its reusable owner;
-Tovu contains CMS-specific adapters and unchanged historical storage declarations only.
+The original host contains CMS-specific adapters and unchanged historical storage declarations only.
 
-| Original Tovu source | Jini source |
+| Original host source | Jini source |
 | --- | --- |
 | `apps/website/src/features/commerce/{contracts,types,ports,errors,checkout,webhook-inbox,storefront,status}.ts` | `src/catalog/` (same filenames) |
 | `apps/website/src/features/commerce/{repo,repo.rows}.ts` | `src/catalog/` plus borrowed query types in `database.ts` |
@@ -16,7 +16,7 @@ Tovu contains CMS-specific adapters and unchanged historical storage declaration
 ## Phase 1 additions (2026-10-29)
 
 Source implementation follows [PLAN-phase1.md](PLAN-phase1.md), revision 3. Runtime verification
-and coverage measurement are pending; this inventory is not a validation result. Tovu still
+and coverage measurement are pending; this inventory is not a validation result. The original host still
 keeps commerce off and must ship its host catalog migration before enabling `payOrder`.
 
 | Ownership | Source |
@@ -47,11 +47,11 @@ payment/refund/replay/webhook suites, HTTP raw-byte verification, stock checkout
 locale suites. Refused-preparation tests use injected fakes and assert that SQL/HTTP never starts.
 There are no module mocks in the new package.
 
-Tovu keeps `features/commerce/repo.sqlite.ts` and its real CMS-schema/dialect integrations;
+The original host keeps `features/commerce/repo.sqlite.ts` and its real CMS-schema/dialect integrations;
 `features/plugins/{lipay,store}/{manifest,*-plugin}.ts` adapt the existing declaration/recovery engine;
 unmounted store/product/status HTTP adapters keep CMS theme/authentication boundaries. Their future
 transport tests explicitly opt in, independently of production composition. The old generic
-implementations are removed, not re-exported through a parallel Tovu path.
+implementations are removed, not re-exported through a parallel path in the original host.
 
 Production composition no longer mounts commerce routes or installs its tool contributor. The
 Payments panel, source-screen inventory, search/approval entries and store capability inventory entry
@@ -77,12 +77,12 @@ and `src/react/panel-rationale.md`; these records are not executable registratio
 
 New package and exports: `@jini-ai/commerce`, `/repo`, `/payments`, `/store`, `/http`, `/tools`, `/react`.
 The coordinator must resolve/build this source package and its workspace dependencies before the
-combined validation batch. Tovu declares the future registry range `^0.1.0`; no registry publication,
+combined validation batch. The original host declares the future registry range `^0.1.0`; no registry publication,
 lockfile regeneration, dependency installation or dist build occurred in this dispatch. Local
 validation needs the coordinator's normal source/build resolution until the owner publishes.
 
-Tovu source consumers needing these exports are enumerated in the phase's `CHANGED-FILES.txt`.
+The original host source consumers needing these exports are enumerated in the phase's `CHANGED-FILES.txt`.
 Exact test paths are in `RERUN-TESTS.txt` under
-`Tovu/ADS-memory/.local-artifacts/cleanup-program/phase-12-commerce/`.
+the original host's records (`ADS-memory/.local-artifacts/cleanup-program/phase-12-commerce/`).
 Static source inventory: the four requested production source groups decrease from 3,842 to 271
 lines (3,571 fewer), including retained adapters and manifests, excluding tests and external wiring.

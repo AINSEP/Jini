@@ -1,7 +1,7 @@
 /**
  * @file Characterization pins for existing Google Workspace plugin files that the Sheets admin tools
  * (lot G12) extend: the safe error table in `lib/request-policy.mjs` (new codes are added, none of
- * these may change) and the `account_info` entry of `tovu-agent-tools.json` (new tools are appended
+ * these may change) and the `account_info` entry of `jini-agent-tools.json` (new tools are appended
  * after it, it stays as it is). Green on the files before the Sheets admin tools landed.
  */
 import assert from 'node:assert/strict';
@@ -42,8 +42,8 @@ test('request-policy: an unknown write outcome stays uncertain-outcome and a 5xx
   assert.equal(classifyFailure({ kind: 'read', status: 503 }).code, 'service-unavailable');
 });
 
-test('tovu-agent-tools.json: account_info stays the first tool, unchanged', async () => {
-  const file = JSON.parse(await readFile(new URL('../tovu-agent-tools.json', import.meta.url), 'utf8'));
+test('jini-agent-tools.json: account_info stays the first tool, unchanged', async () => {
+  const file = JSON.parse(await readFile(new URL('../jini-agent-tools.json', import.meta.url), 'utf8'));
   assert.equal(file.schemaVersion, 1);
   assert.deepEqual(file.tools[0], {
     name: 'account_info',
