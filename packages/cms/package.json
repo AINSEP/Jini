@@ -13,6 +13,15 @@
     "kind": "content-model",
     "runtime": "universal",
     "entries": {
+      "./themes/template-applicability": "universal",
+      "./themes/preview/roster": "node",
+      "./themes/preview/watcher": "node",
+      "./trash/adapters/directory": "node",
+      "./themes/files/read-content": "node",
+      "./themes/files/moves": "node",
+      "./themes/files/trash": "node",
+      "./themes/files/original-source": "node",
+      "./themes/files/originals": "node",
       ".": "universal",
       "./core": "universal",
       "./navigation": "universal",
@@ -85,7 +94,10 @@
       "./media/plugins/document-text/unpdf": "node",
       "./media/plugins/document-text/mammoth": "node",
       "./forms/portable-validation": "universal",
-      "./core/commands": "universal"
+      "./core/commands": "universal",
+      "./themes/layout": "universal",
+      "./themes/files/reviewed-write": "node",
+      "./themes/files/atomic-write": "node"
     },
     "isolation": {
       "domains": {
@@ -139,6 +151,9 @@
         ],
         "listing": [
           "src/listing"
+        ],
+        "themes": [
+          "src/themes"
         ]
       },
       "forbidden": {
@@ -174,6 +189,66 @@
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",
   "exports": {
+    "./themes/template-applicability": {
+      "types": "./dist/themes/template-applicability.d.ts",
+      "import": "./dist/themes/template-applicability.js",
+      "default": "./dist/themes/template-applicability.js"
+    },
+    "./themes/preview/roster": {
+      "types": "./dist/themes/preview/roster.node.d.ts",
+      "import": "./dist/themes/preview/roster.node.js",
+      "default": "./dist/themes/preview/roster.node.js"
+    },
+    "./themes/preview/watcher": {
+      "types": "./dist/themes/preview/watcher.node.d.ts",
+      "import": "./dist/themes/preview/watcher.node.js",
+      "default": "./dist/themes/preview/watcher.node.js"
+    },
+    "./trash/adapters/directory": {
+      "types": "./dist/trash/adapters/directory.node.d.ts",
+      "import": "./dist/trash/adapters/directory.node.js",
+      "default": "./dist/trash/adapters/directory.node.js"
+    },
+    "./themes/files/read-content": {
+      "types": "./dist/themes/files/read-content.node.d.ts",
+      "import": "./dist/themes/files/read-content.node.js",
+      "default": "./dist/themes/files/read-content.node.js"
+    },
+    "./themes/files/moves": {
+      "types": "./dist/themes/files/moves.node.d.ts",
+      "import": "./dist/themes/files/moves.node.js",
+      "default": "./dist/themes/files/moves.node.js"
+    },
+    "./themes/files/trash": {
+      "types": "./dist/themes/files/trash.node.d.ts",
+      "import": "./dist/themes/files/trash.node.js",
+      "default": "./dist/themes/files/trash.node.js"
+    },
+    "./themes/files/original-source": {
+      "types": "./dist/themes/files/original-source.node.d.ts",
+      "import": "./dist/themes/files/original-source.node.js",
+      "default": "./dist/themes/files/original-source.node.js"
+    },
+    "./themes/files/originals": {
+      "types": "./dist/themes/files/originals.node.d.ts",
+      "import": "./dist/themes/files/originals.node.js",
+      "default": "./dist/themes/files/originals.node.js"
+    },
+    "./themes/files/atomic-write": {
+      "types": "./dist/themes/files/atomic-write.node.d.ts",
+      "import": "./dist/themes/files/atomic-write.node.js",
+      "default": "./dist/themes/files/atomic-write.node.js"
+    },
+    "./themes/files/reviewed-write": {
+      "types": "./dist/themes/files/reviewed-write.node.d.ts",
+      "import": "./dist/themes/files/reviewed-write.node.js",
+      "default": "./dist/themes/files/reviewed-write.node.js"
+    },
+    "./themes/layout": {
+      "types": "./dist/themes/layout.d.ts",
+      "import": "./dist/themes/layout.js",
+      "default": "./dist/themes/layout.js"
+    },
     ".": {
       "types": "./dist/core/index.d.ts",
       "import": "./dist/core/index.js",
