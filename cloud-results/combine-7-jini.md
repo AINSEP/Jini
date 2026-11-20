@@ -1,10 +1,10 @@
-SHA_PLACEHOLDER
+**`integ/merge-7-2026-11-20` @ `06cd7ae7e`** (last merge/fix commit; the only commit on top adds this report and `cloud-results/combine-7-jini-*.txt`)
 
 # combine-7 JINI (2026-11-20) — `integ/merge-7-2026-11-20`
 
 Unattended cloud run, 21:00–~00:15 UTC. Branch created from `origin/integ/merge-6-2026-11-19` (`d3e78b387`). Node v24.22.3 (`~/.local/node24` → `/opt/node24`), pnpm 10.33.2 (corepack). No subagents, no codebase-memory tools, no force-push, no `--no-verify`; only this branch pushed. `main` / `refactor/terra` / `plan/*` untouched (`refactor/terra` only fetched for the default why-comments base).
 
-**Summary: all 23 listed merges done (G1–G5, nothing left). Final tree: full build 0 errors, full typecheck 0, guard 0, size / hooks pass, log-safety unchanged from base (BASE-RED). RED vs base and LISTED, not fixed (not build/typecheck/guard blockers, per the run's fix rule): complexity (2 new: jb2, jy-pads), why-comments vs base (116 lost blocks: jb2's deleted code + the jy-* prose rewrites), error gate 4 new lines (no `--update`). Plugin catalog regenerated; api:update committed. Tovu hits in `packages/`: 519 lines in 183 files (base 1234), all listed in `combine-7-jini-tovu-hits.txt`. Tests: see "Tests".**
+**Summary: all 23 listed merges done (G1–G5, nothing left). Final tree: full build 0 errors, full typecheck 0, guard 0, size / hooks pass, log-safety unchanged from base (BASE-RED). RED vs base and LISTED, not fixed (not build/typecheck/guard blockers, per the run's fix rule): complexity (2 new: jb2, jy-pads), why-comments vs base (116 lost blocks: jb2's deleted code + the jy-* prose rewrites), error gate 4 new lines (no `--update`). Plugin catalog regenerated; api:update committed. Tovu hits in `packages/`: 519 lines in 183 files (base 1234), all listed in `combine-7-jini-tovu-hits.txt`. Full suites of all 36 touched packages green after 2 fixes, except 1 load-sensitive admin case that passes alone ("Tests").**
 
 ## Method
 - Base first (unmodified `d3e78b387`): frozen install 0; `pnpm --no-bail -r build` 0 (0 `error TS`); `pnpm -r --no-bail --if-present run typecheck` 0 + `tsc -p scripts/tsconfig.json --noEmit` 0; every gate below recorded (`combine-7-jini-base-<gate>.txt`).
@@ -44,7 +44,7 @@ Unattended cloud run, 21:00–~00:15 UTC. Branch created from `origin/integ/merg
 | 12 | ub-jini `365edf277` | `a6e19dcb5` | none | none (agent-plugins 4, plugins 10); owed `./host/node` API row → api:update | — | GREEN |
 | 13 | bl-jini `878ce80c3` | `6049de379` | `.changeset/http-kit-range-entry.md` add/add → jx-c6fix's; `cms/package.json` → HEAD + token-aliases only. **Dropped X1–X8**: bl's cms/devops/http-kit package.json entries (devops/http-kit manifests = HEAD) and `.changeset/{cms-blocked-entries,devops-backup-entries}.md`. jx-c6fix's tags kept where they differ: `./forms/result-flash` universal (bl: node), `./backup/push-jobs` universal (bl: node). `cms/src/media/index.ts` (vs dh-jini) and cms integration contract test (vs xd-rs-c) auto-merged | cms contract-test assertion followed jx's tag (in merge); devops contract test expected every subpath `node` → push-jobs failed; error gate +1 New `[catch-reads-error] cms/src/media/chat-preview.ts` | `43d49a6f2` | GREEN (1 EG line) |
 | 14 | jb1 `6da21feaf` | `b8df8418e` | none | none (chat 7, daemon 18, provider-plugins 17) | — | GREEN |
-| 15 | jb2 `c39b5bbdd` | `f4502fb6b` | none | daemon `http-mcp-launch.integration.test.ts` "OpenCode ACP pilot…" — fake child had no `kill` (`failRun` SIGTERMs on close); **complexity** `agent-plugins/src/lifecycle/automatic-use.ts:222 prepare (11)`; **why-comments** 28 blocks lost (stuck-run watchdog deleted, redaction guesser removed, automatic-use rework, Sidebar DOMParser) | `60e718b01` (fixture); complexity + why-comments LISTED | tests GREEN; ratchets RED (listed) |
+| 15 | jb2 `c39b5bbdd` | `f4502fb6b` | none | daemon `http-mcp-launch.integration.test.ts` "OpenCode ACP pilot…" — fake child had no `kill` (`failRun` SIGTERMs on close); **complexity** `agent-plugins/src/lifecycle/automatic-use.ts:222 prepare (11)`; **why-comments** 28 blocks lost (stuck-run watchdog deleted, redaction guesser removed, automatic-use rework, Sidebar DOMParser) | `60e718b01` (fixture), `06cd7ae7e` (chat `tests/` redaction case, found by the full suite); complexity + why-comments LISTED | tests GREEN; ratchets RED (listed) |
 | 16 | dj-jini `a3a507cb4` | `f150add81` | none (ledger J8 merged last of G3) | none; witnesses: admin region-editor 14, chat delivery-and-liveness 18, cms date-label 8, daemon live-session-state 11, ui fetch-query 171, commerce ledger kernel suite 194 (+1 postgres skipped), oauth dynamic-registration 29; J8's 21 removed keys produced no New/Worse line | — | GREEN |
 | 17 | jy-core `949c622a1` | `d0f458116` | none (`plugin-catalog/__tests__/catalog.test.ts` vs uiux-split auto-merged) | plugin-catalog 26 failures (catalog stale until the post-G4 regenerate, expected) | `f3fa92748` | GREEN after regenerate |
 | 18 | jy-pay `d9c625e6d` | `141991ca3` | none (`.gitleaks.toml` exact-line allowlist merged as is) | agent-plugin content tests: charts-echarts/charts-recharts read `provider.extensions.tovu` (provider manifests now `jini`); cloudflare payload test opened `tovu-deploy-targets.json` (renamed by K9; REFRESH listed these) | `f3fa92748` | GREEN |
@@ -69,7 +69,7 @@ No merged branch replaced a specific error/log message with a generic one that I
 7. **jy-cls class renames are breaking for host CSS**: e.g. `jini-memory-action-modal-backdrop`, `jini-memory-connected-summary`, `jini-memory-connector-result jini-is-success`, `jini-image-preview-modal`, `jini-form-editor-panel`; template-literal classes (`is-${tone}`) were skipped, so the same component can now mix `jini-is-*` and `is-*`.
 8. **api:check `@jini-ai/daemon` REMOVED** 46 entries (`./terminal`, `./http#register*Routes`, …) — pre-existing baseline drift, not from this run (no change to `packages/daemon/package.json` or `src/http/index.ts` between `d3e78b387` and HEAD; `registerHealthRoutes` is absent at base too). api:update now records the real surface.
 
-## Final gates (HEAD `e1640809d`; build at `f3fa92748`, identical source apart from api-baseline/report/the routing test)
+## Final gates (gates at `bcc8db58d`; full build at `f3fa92748`; later commits change only two test files and `cloud-results/`)
 | command | base `d3e78b387` | final |
 |---|---|---|
 | `pnpm --no-bail -r build` | 0, 0 `error TS` | **0**, 0 `error TS` |
@@ -130,7 +130,14 @@ New raw log path: [console] packages/ui/src/features/panel-kit/hooks/use-setting
 Complexity and why-comments lines: `combine-7-jini-complexity.txt`, `combine-7-jini-why-base.txt`, `combine-7-jini-why-default.txt` (every line).
 
 ## Tests
-TESTS_PLACEHOLDER
+Full suites at `f3fa92748` in worktree `/home/user/jt` (fresh frozen install + `pnpm --no-bail -r build` exit 0, 0 `error TS`), every package this run touched (36), `--maxWorkers=2 --minWorkers=1`; raw summary `combine-7-jini-suites.txt`:
+agent-runtime 4530 (+1 skipped), daemon 4831 (+1), **cms 4999/5000**, platform 3353 (+6), search 371, agent-plugins 2198 (+2), **chat 4464/4468** (+1), ui 8816, **admin 3072/3073**, core 2947, devops 1326, http-kit 750, integrations 2077, plugins 1015, provider-plugins 901, plugin-catalog 68, commerce node 52 + vitest 11 + kernel 1421 (+1), oauth 824, mcp 1882, db 950, diagnostics 1090, desktop-host 749 (+1), sidecar 416 (+3), agentic 1149, analytics 226, artifacts 242, capability-providers 198, cli 604, infra 155, node-adapters 11, protocol 794, registry 392, sandbox 179, ui-kit 232, user-management 1353, vibecoding 364. Plus `pnpm test:agent-plugins:content` 1391/1391 and `guard:plugins` 0 (main tree, after `f3fa92748`).
+- search and commerce first exited 1 before running (their own `test` scripts already pass `--maxWorkers`, so the appended flag was duplicated); re-run with the plain script: green (numbers above).
+- **cms 1 red** `routing/__tests__/routing.ports.test.ts` "…ADR-039 registry rationale verbatim" — jy-pa J03 rewrote the pinned README prose. Fixed `e1640809d` (test pins the new prose); 5/5.
+- **chat 4 red** `tests/folder-drop-redaction.integration.test.ts` (4 path cases) — jb2 RD-J1 stops masking unlabelled long ids, the test (outside `src/`) still expected the AWS-example string removed. Fixed `06cd7ae7e` (glues a runtime-built `ghp_` key instead; same property); 4/4.
+- **admin 1 red under load** `agent-plugins/react/__tests__/agent-plugins.test.tsx` "renders both enabled and disabled rows read-only…" (no `Portable components` region found after Expand) — passes 7/7 run alone; the file and `AgentPluginRow.tsx` last changed by jy-pads only in prose/pads. Load-sensitive; not chased.
+- E-J1 (cms submit-service host-options) green under load: see Extra checks (a).
+- Per-merge targeted runs and their reds: see the per-branch table.
 
 ## Extra checks
 - **(a) E-J1** cms `forms/__tests__/submit-service.host-options.test.ts` under full-suite load: **25/25 pass** (the "pending copy" case included) in the full cms run.
