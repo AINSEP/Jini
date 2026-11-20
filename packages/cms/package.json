@@ -13,6 +13,8 @@
     "kind": "content-model",
     "runtime": "universal",
     "entries": {
+      "./publish/transfer": "universal",
+      "./publish/transfer/blob-staging": "node",
       "./themes/template-applicability": "universal",
       "./themes/preview/roster": "node",
       "./themes/preview/refresh": "node",
@@ -106,6 +108,9 @@
     },
     "isolation": {
       "domains": {
+        "publish": [
+          "src/publish"
+        ],
         "content-types": [
           "src/content-types"
         ],
@@ -194,6 +199,16 @@
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",
   "exports": {
+    "./publish/transfer": {
+      "types": "./dist/publish/transfer/index.d.ts",
+      "import": "./dist/publish/transfer/index.js",
+      "default": "./dist/publish/transfer/index.js"
+    },
+    "./publish/transfer/blob-staging": {
+      "types": "./dist/publish/transfer/blob-staging.d.ts",
+      "import": "./dist/publish/transfer/blob-staging.js",
+      "default": "./dist/publish/transfer/blob-staging.js"
+    },
     "./themes/template-applicability": {
       "types": "./dist/themes/template-applicability.d.ts",
       "import": "./dist/themes/template-applicability.js",
