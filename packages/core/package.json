@@ -25,6 +25,7 @@
       "./object-store": "universal",
       "./contracts/server": "universal",
       "./contracts/server/verified-origin": "universal",
+      "./contracts/server/security-headers": "universal",
       "./contracts/server/testing": "universal",
       "./contracts/server/conformance": "universal",
       "./naming": "universal",
@@ -185,6 +186,11 @@
       "types": "./dist/contracts/server/verified-origin/index.d.ts",
       "import": "./dist/contracts/server/verified-origin/index.js",
       "default": "./dist/contracts/server/verified-origin/index.js"
+    },
+    "./contracts/server/security-headers": {
+      "types": "./dist/contracts/server/security-headers.d.ts",
+      "import": "./dist/contracts/server/security-headers.js",
+      "default": "./dist/contracts/server/security-headers.js"
     },
     "./contracts/server/testing": {
       "types": "./dist/contracts/server/testing.d.ts",

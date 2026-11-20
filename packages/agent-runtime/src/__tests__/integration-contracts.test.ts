@@ -104,6 +104,7 @@ describe('integrated runtime contracts', () => {
       ['providers/tool-turn', 'providers/tool-turn', 'node'],
       ['model-catalog/cache', 'model-catalog-cache', 'universal'],
       ['providers/sse-decode', 'providers/sse-decode', 'universal'],
+      ['native-permissions', 'native-permissions', 'universal'],
     ] satisfies [string, string, string][]) {
       expect(manifest.exports[`./${subpath}`]).toEqual({
         types: `./dist/${module}.d.ts`, import: `./dist/${module}.js`, default: `./dist/${module}.js`,
