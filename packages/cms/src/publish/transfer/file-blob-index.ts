@@ -27,7 +27,7 @@
  */
 
 /** One packed file's location on this machine and its size — never its bytes; a caller re-reads and
- *  re-hashes them at the moment it actually needs them ({@link apps/website/src/features/publish-content/composite-blob-source.ts}'s own
+ *  re-hashes them at the moment it actually needs them (the host's composite blob source's own
  *  doc explains why a cached read would be unsafe here). */
 export interface FileBlobIndexEntry {
   readonly absPath: string;

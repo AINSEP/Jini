@@ -93,7 +93,7 @@ export const PUBLISH_CONTENT_BUNDLE_MAX_BODY_BYTES = 20 * 1024 * 1024;
  *
  * @complexity O(1).
  */
-export function computeBundleExpiry(required: { receivedAt: string; ttlMs?: number }, _optional = {}): string {
+export function computeBundleExpiry(required: { receivedAt: string; ttlMs?: number | undefined }, _optional = {}): string {
   const ttlMs = required.ttlMs ?? PUBLISH_CONTENT_BUNDLE_TTL_MS;
   return new Date(new Date(required.receivedAt).getTime() + ttlMs).toISOString();
 }
