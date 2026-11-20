@@ -42,7 +42,7 @@ describe('standalone plugin catalog', () => {
 
   it('preserves each agent manifest version independently of the npm release', () => {
     expect(entries.find(entry => entry.id === 'ui-ux-design')).toMatchObject({
-      kind: 'agent', packageName: AGENT_PLUGINS_PACKAGE, version: agentPluginsPackage.version, pluginVersion: '0.6.3', path: 'ui-ux-design',
+      kind: 'agent', packageName: AGENT_PLUGINS_PACKAGE, version: agentPluginsPackage.version, pluginVersion: '0.7.0', path: 'ui-ux-design',
       contract: { id: 'agent-plugins', version: '1.0.0' },
     });
     expect(entries.find(entry => entry.id === 'slide-design')).toMatchObject({

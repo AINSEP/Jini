@@ -15,7 +15,7 @@ micro-interaction recipes. It does not restate what siblings own:
 - `components-and-states.md`: which states each component needs and its interaction
   rules (feedback timing, optimistic vs confirmed feedback).
 - `foundations.md`: motion duration and easing as design tokens.
-- `kuinetic-reference.md`: kUInetic syntax and every effect name used below.
+- The `kuinetic` plugin (skill `kuinetic`): kUInetic syntax and every effect name used below.
 - The `impeccable` skill's `reference/animate.md`, when installed: the motion thesis,
   choosing material by meaning, the duration-by-consequence table, and the default
   arrival curve. Use its numbers; this file does not repeat them.
@@ -23,7 +23,7 @@ micro-interaction recipes. It does not restate what siblings own:
 ## Library Choice: kUInetic First
 
 1. **Detect kUInetic before writing any motion.** Use the signals in
-   `kuinetic-reference.md` → Detect: `data-kui` in markup, a `vendor/kuinetic/` folder,
+   the `kuinetic` plugin → Detect: `data-kui` in markup, a `vendor/kuinetic/` folder,
    a `kuinetic*.js` script tag, the `kuinetic` package, or `window.__kuinetic`.
 2. **Present: use its attributes.** Express every effect the catalog names as `data-kui`.
    Do not hand-write CSS or JS for an effect it provides. Do not load GSAP, Motion,
@@ -40,7 +40,7 @@ micro-interaction recipes. It does not restate what siblings own:
 5. **Absent: native CSS first.** Propose adding kUInetic only when the surface needs
    several of its effects and adding a dependency is in scope; never for one effect.
 6. **Vendored copies lag.** Confirm a recent option exists in the shipped bundle before
-   using it (`kuinetic-reference.md` → Version lag).
+   using it (the `kuinetic` plugin → Version lag).
 
 ## Implementation Defaults
 
@@ -106,7 +106,7 @@ The baseline is `ui-loop.md`. Animation-specific rules:
   shortened or crossfaded so the change is still visible; spatial, continuous,
   parallax, pinned, autoplaying, and scroll-linked motion is disabled to its end state.
 - Never strand an element at its from-state (`opacity: 0`, offset).
-- kUInetic applies this automatically (`kuinetic-reference.md` → Reduced Motion).
+- kUInetic applies this automatically (the `kuinetic` plugin → Reduced Motion).
   Tighten one element with `rm:`; do not add your own overrides on `data-kui` elements.
 - A disabled spinner or skeleton shimmer still needs a non-motion loading signal: text,
   `aria-busy`, or a static placeholder.

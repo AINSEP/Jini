@@ -468,6 +468,14 @@
   "types": null,
   "symbols": {}
  },
+ "./kuinetic": {
+  "types": null,
+  "symbols": {}
+ },
+ "./kuinetic/*": {
+  "types": null,
+  "symbols": {}
+ },
  "./langfuse": {
   "types": null,
   "symbols": {}
@@ -910,6 +918,14 @@
   "symbols": {}
  },
  "./sentry/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./shadcn-ui": {
+  "types": null,
+  "symbols": {}
+ },
+ "./shadcn-ui/*": {
   "types": null,
   "symbols": {}
  },

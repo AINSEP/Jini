@@ -21,10 +21,11 @@ async function shippedFiles() {
 
 const frontmatter = (text) => text.split('\n---')[0];
 
-test('all seven design skills and the references they name travel in the package', async () => {
+test('the six design skills and the references they name travel in the package', async () => {
   const files = await shippedFiles();
   const entries = files.filter(file => /^skills\/[^/]+\/SKILL\.md$/.test(file));
-  assert.equal(entries.length, 7);
+  assert.deepEqual(entries.map(entry => entry.split('/')[1]),
+    ['frontend-accessibility', 'gstack-design', 'interface-design', 'ui-ux-design', 'vercel-web-design-guidelines', 'web-compliance']);
   for (const entry of entries) {
     const skill = await read(entry);
     assert.match(skill, /^---\nname: /, entry);
@@ -35,6 +36,42 @@ test('all seven design skills and the references they name travel in the package
   assert.deepEqual(JSON.parse(await read('mcp.json')).mcpServers, {});
 });
 
+// Jini's automatic guidance limit (MAX_AUTOMATIC_GUIDANCE_BYTES, src/lifecycle/automatic-use.ts) is
+// 8 KiB for everything delivered together: this SKILL.md, its file inventory and a host's overlay.
+// The core keeps half of it so a host overlay still fits; everything else is an on-demand reference.
+test('the always-delivered core stays within half the 8 KiB automatic guidance limit', async () => {
+  assert.ok(Buffer.byteLength(await read('skills/ui-ux-design/SKILL.md')) <= 4096);
+});
+
+test('the core names every reference, every other skill and the split-out plugins in its load table', async () => {
+  const core = await read('skills/ui-ux-design/SKILL.md');
+  const table = core.slice(core.indexOf('## Load before you build'));
+  for (const file of (await shippedFiles()).filter(name => name.startsWith('skills/ui-ux-design/references/'))) {
+    assert.ok(table.includes('`' + file.slice('skills/ui-ux-design/'.length) + '`'), file);
+  }
+  for (const skill of ['frontend-accessibility', 'web-compliance', 'interface-design', 'gstack-design', 'vercel-web-design-guidelines']) {
+    assert.ok(table.includes(`skill \`${skill}\``), skill);
+  }
+  assert.ok(table.includes('| use kUInetic, or the theme already uses it | the `kuinetic` plugin (skill `kuinetic`) first,'));
+  assert.ok(table.includes('the `shadcn-ui` plugin'));
+});
+
+test('a redesign keeps the theme design system, and the full workflow moved intact', async () => {
+  assert.ok(flat(await read('skills/ui-ux-design/SKILL.md')).includes('A redesign keeps the existing theme\'s design system: its tokens, fonts, colours, spacing and components.'));
+  const workflow = await read('skills/ui-ux-design/references/full-workflow.md');
+  for (const heading of ['## Execution', '## UI Loop Contract', '## Guardrails', '## Output', '## Reference', '### Decision Rule', '### Failure Path']) {
+    assert.ok(workflow.includes(`\n${heading}\n`), heading);
+  }
+});
+
+test('shadcn-ui and kUInetic are separate plugins, not files of this one', async () => {
+  const files = await shippedFiles();
+  assert.deepEqual(files.filter(file => /shadcn|kuinetic-reference/.test(file)), []);
+  for (const plugin of ['shadcn-ui', 'kuinetic']) {
+    assert.equal(JSON.parse(await readFile(path.join(root, '..', plugin, 'plugin.json'), 'utf8')).name, plugin);
+  }
+});
+
 test('the manifest keeps the card summary and the search keywords of both former copies', async () => {
   const manifest = JSON.parse(await read('plugin.json'));
   assert.deepEqual(manifest.extensions, { jini: {
@@ -43,9 +80,10 @@ test('the manifest keeps the card summary and the search keywords of both former
     id: 'jini/ui-ux-design',
     provides: ['ui-design'],
   } });
+  assert.doesNotMatch(manifest.description, /shadcn/);
   assert.deepEqual(manifest.keywords, ['design', 'ui', 'ux', 'ui-design', 'theme', 'page', 'website', 'layout']);
   // Hosts seeded Tovu's 0.6.0; an equal or lower version over different bytes is refused or flagged.
-  assert.equal(manifest.version, '0.6.3');
+  assert.equal(manifest.version, '0.7.0');
 });
 
 test('the design skill carries the shared tool-use wording, not one host\'s chat rules', async () => {
@@ -53,12 +91,6 @@ test('the design skill carries the shared tool-use wording, not one host\'s chat
   assert.ok(skill.includes('## Tool use and context Load this skill and the references needed for the task through the current host\'s guidance reader. Discover available editing, media and screenshot tools before using them. Follow the host\'s tool permissions. CLI examples apply only to an authorized coding checkout. If a capability is missing, explain the limitation instead of inventing a tool. Use supplied specs and design notes as context; this skill does not require a particular repository or framework. Return the design in the conversation unless the user requests a saved artifact through an available tool.'));
   assert.ok(skill.includes('- Read any supplied feature spec, current product UI constraints and architecture decisions before making visual decisions; state assumptions where context is missing.'));
   assert.doesNotMatch(skill, /Read the active spec|## Tovu tool use/);
-});
-
-test('shadcn keeps its coding-tool list and tells every host to discover tools first', async () => {
-  const skill = await read('skills/shadcn-ui/SKILL.md');
-  assert.ok(frontmatter(skill).includes('allowed-tools:\n  - "shadcn*:*"\n  - "mcp_shadcn*"\n  - "Read"\n  - "Write"\n  - "Bash"\n  - "web_fetch"'));
-  assert.ok(flat(skill).includes('Discover the tools available in the current host before using them. Use only capabilities that the host provides and permits. The CLI and React examples below describe work in an authorized coding checkout; they do not authorize shell commands or dependency installation in another environment. If shadcn MCP tools are unavailable, explain the limitation. Do not invent tool availability or install dependencies to bypass host restrictions.'));
 });
 
 test('web-compliance declares its name and description', async () => {

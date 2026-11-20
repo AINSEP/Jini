@@ -1,0 +1,10 @@
+Jini shadcn/ui Agent Plugin
+Copyright 2026 Leona Burime
+
+The skills/shadcn-ui tree moved here unchanged from the Jini UI/UX Design Agent
+Plugin (packages/agent-plugins/ui-ux-design), which assembled it from AI-Dev-Shop's
+skills tree. Its upstream is the shadcn-ui skill of google-labs-code/stitch-skills,
+as named in skills/shadcn-ui/README.md. The skill references retain their original
+source links and attribution. shadcn/ui itself is not included.
+
+See LICENSE for the Apache License, Version 2.0.

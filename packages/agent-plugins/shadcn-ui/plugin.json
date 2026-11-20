@@ -1,0 +1,26 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "shadcn-ui",
+  "version": "0.1.0",
+  "description": "shadcn/ui (Radix or Base UI with Tailwind CSS) component discovery, setup, customization and integration guidance for React app work, as one portable Agent Plugin.",
+  "license": "Apache-2.0",
+  "extensions": {
+    "jini": {
+      "displayName": "shadcn/ui",
+      "summary": "Helps the assistant build React and Tailwind apps with shadcn/ui components.",
+      "id": "jini/shadcn-ui",
+      "provides": [
+        "shadcn-ui"
+      ]
+    }
+  },
+  "keywords": [
+    "shadcn",
+    "shadcn-ui",
+    "react",
+    "tailwind",
+    "radix",
+    "components",
+    "nextjs"
+  ]
+}

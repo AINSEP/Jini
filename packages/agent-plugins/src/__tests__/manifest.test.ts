@@ -47,16 +47,15 @@ describe('ui-ux-design plugin', () => {
     const manifest: unknown = JSON.parse(readFileSync(join(pluginRoot, 'plugin.json'), 'utf8'));
     expect(isPluginManifest({ value: manifest })).toBe(true);
     expect((manifest as { name: string }).name).toBe('ui-ux-design');
-    expect((manifest as { version: string }).version).toBe('0.6.3');
+    expect((manifest as { version: string }).version).toBe('0.7.0');
   });
 
-  it('bundles a skill directory per Web-Design-owned AI-Dev-Shop skill', () => {
+  it('bundles a skill directory per Web-Design-owned AI-Dev-Shop skill; shadcn-ui ships as its own plugin', () => {
     const skillDirs = readdirSync(join(pluginRoot, PLUGIN_SKILLS_DIRNAME)).sort();
     expect(skillDirs).toEqual([
       'frontend-accessibility',
       'gstack-design',
       'interface-design',
-      'shadcn-ui',
       'ui-ux-design',
       'vercel-web-design-guidelines',
       'web-compliance',

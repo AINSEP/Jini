@@ -1,5 +1,17 @@
 # @jini-ai/agent-plugins/ui-ux-design
 
+## 0.7.0 (inner plugin version)
+
+- The always-delivered `skills/ui-ux-design/SKILL.md` is now a short core (under 4 KiB) so it fits
+  the 8 KiB automatic guidance limit and arrives on the first turn: tool-use wording, core rules
+  (a redesign keeps the theme's design system) and a required load-before-you-build table that
+  names every reference, every other skill and the split-out plugins.
+- The former SKILL.md body (Execution, UI Loop Contract, Guardrails, Output, Reference) moved
+  verbatim to `references/full-workflow.md`, loaded on demand.
+- `skills/shadcn-ui/` moved unchanged to its own plugin, `@jini-ai/agent-plugins/shadcn-ui`.
+- `references/kuinetic-reference.md` moved verbatim to its own plugin, `@jini-ai/agent-plugins/kuinetic`;
+  `ui-animation.md` and the workflow now point at that plugin.
+
 ## 0.6.19
 
 - Publishes in place as the `@jini-ai/agent-plugins/ui-ux-design` subpath; the wrapper and assembler are retired.
