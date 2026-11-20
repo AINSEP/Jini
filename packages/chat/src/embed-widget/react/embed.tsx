@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client';
 import type { ChatTransport } from '../../core/transport.js';
 import { ChatPane } from '../../react/chat-pane.js';
 import type { ChatPaneAgent } from '../../react/chat-pane.js';
+import { ChatSurfacesProvider, type ChatSurfaces } from '../../react/surfaces.js';
 import { ChatFab } from '../../react/components/ChatFab.js';
 import { JiniChatProvider } from '../../react/components/JiniChatProvider.js';
 import type { BrowserSessionStore } from '../browser/session-store.js';
@@ -59,8 +60,8 @@ export function EmbedChatWidget({ useEmbedChatWidgetHook = useEmbedChatWidget, .
   </div>;
 }
 /** Mounts into a host-provided node and returns lifecycle cleanup. O(1) plus React rendering. */
-export function mountEmbedChat({ element, widget }: { element: Element; widget: EmbedChatWidgetArgs }): { unmount: (args: Record<string, never>) => void } {
+export function mountEmbedChat({ element, widget, surfaces }: { element: Element; widget: EmbedChatWidgetArgs; surfaces: ChatSurfaces }): { unmount: (args: Record<string, never>) => void } {
   const root = createRoot(element);
-  root.render(<EmbedChatWidget {...widget} />);
+  root.render(<ChatSurfacesProvider surfaces={surfaces}><EmbedChatWidget {...widget} /></ChatSurfacesProvider>);
   return { unmount: (_args: Record<string, never>) => root.unmount() };
 }

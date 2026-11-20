@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ChatMessage } from '../../../core/messages.js';
 import type { ChatTransport } from '../../../core/transport.js';
 import type { ChatPaneProps } from '../../../react/chat-pane.js';
+import { fakeChatSurfaces } from '../../../react/__tests__/fake-chat-surfaces.js';
 import { EmbedChatWidget, mountEmbedChat } from '../embed.js';
 import type { EmbedChatWidgetArgs } from '../embed.js';
 
@@ -91,7 +92,7 @@ describe('embed composition', () => {
     const element = document.createElement('div');
     document.body.append(element);
     let mounted!: ReturnType<typeof mountEmbedChat>;
-    await act(async () => { mounted = mountEmbedChat({ element, widget }); });
+    await act(async () => { mounted = mountEmbedChat({ element, widget, surfaces: fakeChatSurfaces() }); });
     expect(element.querySelector('h2')!.textContent).toBe('Help');
     await act(async () => mounted.unmount({}));
     expect(element.childNodes.length).toBe(0);
