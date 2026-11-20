@@ -297,7 +297,7 @@ export function createOtelObservabilityAdapter({ config, context, scope }: { con
   const reporter = createProviderTelemetryReporter({ endpoint: config.endpoint, describeTelemetryFailure: context.describeTelemetryFailure }, options);
   const { shutdown, ...factories } = createOtelFactories({ describeTelemetryFailure: context.describeTelemetryFailure }, options);
   const metrics = createMetrics({ config, context }, options);
-  const port = { ...createOtelObservabilityPort({ config, ...factories }, { scope, helpers: { errorType: context.errorType, redactOperationAttributes: context.redactOperationAttributes, redactLabel: context.redactLabel } }), metric: metrics.metric, supportsMetric: true };
+  const port = { ...createOtelObservabilityPort({ config, ...factories }, { scope, helpers: { errorType: context.errorType, redactOperationAttributes: context.redactOperationAttributes, redactLabel: context.redactLabel }, ...(options.exportEnabled === true ? { metric: metrics.metric } : {}) }), metric: metrics.metric, supportsMetric: true };
   reporter.initialized({ message: options.exportEnabled === true ? "OpenTelemetry exporting" : "OpenTelemetry export disabled" });
   return { port, dispose: async () => {
     try { await Promise.all([shutdown(), metrics.shutdown()]); reporter.result({ phase: "shutdown", outcome: "ok" }); }

@@ -1,6 +1,6 @@
 import { sqliteReadVersion } from '../sql/read-version.js';
 import { acceptedInputEvent, acceptedInputUserEvent } from "../../core/accepted-input.js";
-import { redactUserMessage } from "../../core/user-text-redaction.js";
+import { redactUserMessage, redactUserText } from "../../core/user-text-redaction.js";
 import type { RunIdPolicy } from "../../core/durable-runs/ports.js";
 import { recoveredRunEvents, type AgentEvent, type ChatMessage } from "../../core/index.js";
 import type { ChatKernel, ChatDatabase } from "./kernel.js";
@@ -84,6 +84,20 @@ function acceptedUserMessage(
     ...acceptedReceiptFields({ message }),
     ...(message.folders ? { folders: message.folders } : {}),
     ...(message.attachments ? { attachments: message.attachments } : {}) };
+}
+
+/** The request as it is stored for recovery and replay. The user row is masked when it is written; the request carries
+ * the same text (the user message and the prompt built from it), so it is masked before it is serialized at all.
+ * A request with nothing to mask is returned as it came. */
+function maskedRequest({ request }: { request: DurableRun["request"] }, _optional = {}): DurableRun["request"] {
+  const context = JSON.parse(request.contextRef) as { userMessage?: { content?: unknown }; prompt?: unknown };
+  const mask = (text: unknown) => typeof text === "string" ? redactUserText({ text }) : null;
+  const content = mask(context.userMessage?.content);
+  const prompt = mask(context.prompt);
+  if (!content?.secretRedacted && !prompt?.secretRedacted) return request;
+  return { ...request, contextRef: JSON.stringify({ ...context,
+    ...(content ? { userMessage: { ...context.userMessage, content: content.text } } : {}),
+    ...(prompt ? { prompt: prompt.text } : {}) }) };
 }
 
 function recoveryFields({ row, metadata }: { row: RunRow; metadata: Metadata }, _optional = {}) {
@@ -375,7 +389,7 @@ export function createDurableRunStore<DB extends ChatDatabase>({ kernel: hostKer
       if (userMessage) await appendAcceptedQuestion({ history, required, userMessage });
       if (!await appendQueuedAnswer({ history, required, hasQuestion: userMessage !== null })) return null;
       await kernel.run((db) => db.insertInto("assistant_run_attempts").values({
-        message_id: required.messageId, engine: "daemon", accepted_json: JSON.stringify(required.request),
+        message_id: required.messageId, engine: "daemon", accepted_json: JSON.stringify(maskedRequest({ request: required.request }, {})),
         recovery_count: 0, recovery_deadline: null, last_progress_at: required.now, cancel_reason: null,
         recovery_elapsed_ms: 0, attempt_started_at: required.now,
         session_id: null, session_confirmed: 0, child_pid: null, child_started_at: null, attempt_base_json: "[]",
