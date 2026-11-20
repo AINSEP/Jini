@@ -7,7 +7,7 @@ import path from "node:path";
 import { test, type TestContext } from "../support/fixture-runner.js";
 
 import type { PluginManifest } from "../support/manifest.js";
-import { PluginSnapshotIntegrityError, snapshotPluginModuleGraph, type PluginModuleSnapshotLifecycle } from "../../node/module-snapshot.js";
+import { createPluginModuleImporter, PluginSnapshotIntegrityError, snapshotPluginModuleGraph, type PluginModuleSnapshotLifecycle } from "../../node/module-snapshot.js";
 
 /**
  * @file `snapshotPluginModuleGraph` against a real installed package on disk: the verified copy, each
@@ -84,4 +84,44 @@ test("a snapshot owner for a different runtime root is refused before copying in
     { pluginRoot: p.pluginRoot, manifest: p.manifest({ "server/index.mjs": digest(ENTRY) }) }, { lifecycle },
   ), { code: "SNAPSHOT_ROOT_MISMATCH" });
   assert.equal(copied, false);
+});
+
+const manifest = { integrity: {} } as unknown as PluginManifest;
+
+test("built-in seam receives its original entry and projects the default without running setup", async () => {
+  let entry: string | undefined;
+  let setupCalls = 0;
+  const exported = { definition: { setup: () => { setupCalls++; } } };
+  const importer = createPluginModuleImporter({ manifest, source: "built-in" }, {
+    importModule: async (entryPath) => { entry = entryPath; return { default: exported }; },
+  });
+  assert.deepEqual(await importer({ plugin: { pluginId: manifest.id, packageRoot: "/built-in" }, modulePath: "compiled-in-entry" }), { exported });
+  assert.equal(entry, "compiled-in-entry");
+  assert.equal(setupCalls, 0);
+});
+
+test("non-object module seams remain invalid even when they carry a default property", async () => {
+  const invalidModule = Object.assign(() => {}, { default: { definition: { setup() {} } } });
+  const importer = createPluginModuleImporter({ manifest, source: "built-in" }, { importModule: async () => invalidModule });
+  assert.deepEqual(await importer({ plugin: { pluginId: manifest.id, packageRoot: "/built-in" }, modulePath: "compiled-in-entry" }), { exported: undefined });
+});
+
+test("site entry outside its real package root is refused without importing it", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "plugin-host-containment-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const packageRoot = path.join(root, "package");
+  mkdirSync(packageRoot);
+  const modulePath = path.join(root, "outside.mjs");
+  writeFileSync(modulePath, 'throw new Error("outside entry was evaluated");');
+  const importer = createPluginModuleImporter({ manifest, source: "site" });
+  assert.equal(await importer({ plugin: { pluginId: manifest.id, packageRoot }, modulePath }), `module path '${modulePath}' escapes the plugin root`);
+});
+
+test("a built-in source with no injected seam imports its entry directly, without a site snapshot", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "plugin-host-builtin-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const modulePath = path.join(root, "entry.mjs");
+  writeFileSync(modulePath, 'export default { origin: "compiled-in" };');
+  const importer = createPluginModuleImporter({ manifest, source: "built-in" });
+  assert.deepEqual(await importer({ plugin: { pluginId: manifest.id, packageRoot: root }, modulePath }), { exported: { origin: "compiled-in" } });
 });
