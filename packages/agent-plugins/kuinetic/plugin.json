@@ -1,0 +1,27 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "kuinetic",
+  "version": "0.1.0",
+  "description": "kUInetic, the declarative data-kui animation library: detection, setup, attribute grammar, effect names, reduced motion and opt-in tiers, as one portable Agent Plugin.",
+  "license": "Apache-2.0",
+  "extensions": {
+    "jini": {
+      "displayName": "kUInetic",
+      "summary": "Helps the assistant add kUInetic animation with the right attributes and effect names.",
+      "id": "jini/kuinetic",
+      "provides": [
+        "kuinetic"
+      ]
+    }
+  },
+  "keywords": [
+    "kuinetic",
+    "animation",
+    "motion",
+    "data-kui",
+    "scroll",
+    "reveal",
+    "transition",
+    "lightbox"
+  ]
+}

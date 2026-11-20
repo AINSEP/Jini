@@ -11,8 +11,8 @@ const require = createRequire(import.meta.url);
 
 /** Plugins whose only runtime class is skills: they ship skills, no contribution file and no MCP server. */
 export const SKILLS_ONLY_PLUGIN_IDS = [
-  'charts-echarts', 'charts-recharts', 'commerce', 'formspree', 'google-forms', 'jev', 'opentelemetry', 'posthog',
-  'sentry', 'shopify', 'site-compliance', 'site-import', 'slide-design', 'software-engineering', 'ui-ux-design', 'wordpress',
+  'charts-echarts', 'charts-recharts', 'commerce', 'formspree', 'google-forms', 'jev', 'kuinetic', 'opentelemetry', 'posthog',
+  'sentry', 'shadcn-ui', 'shopify', 'site-compliance', 'site-import', 'slide-design', 'software-engineering', 'ui-ux-design', 'wordpress',
 ] as const;
 
 /** The published directory of one bundled plugin. */
