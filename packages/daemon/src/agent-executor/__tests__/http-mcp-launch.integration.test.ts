@@ -3,7 +3,7 @@ import { PassThrough } from 'node:stream';
 import type { ChildProcess, spawn as nodeSpawn } from 'node:child_process';
 import { readFile, access } from 'node:fs/promises';
 import { createCommandInvocation } from '@jini-ai/platform/command';
-import { getAgentDef } from '@jini-ai/agent-runtime';
+import { getAgentDef, opencodeAcpAgentDef } from '@jini-ai/agent-runtime';
 import { type RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import { expect, it, vi } from 'vitest';
 import { createAgentExecutor } from '../index.js';
@@ -14,11 +14,11 @@ import { parse } from 'smol-toml';
 
 /** Runs the real executor and vendor argv/config writers with only process launch replaced.
  * Packaged CLI consumption remains a cloud gate; this fixture makes no version claim. */
-async function launch(vendor: 'claude' | 'codex' | 'opencode', failHttp = false, failure?: 'sync-spawn' | 'async-spawn' | 'invocation', locked?: { resume: boolean }) {
+async function launch(vendor: 'claude' | 'codex' | 'opencode' | 'opencode-acp', failHttp = false, failure?: 'sync-spawn' | 'async-spawn' | 'invocation', locked?: { resume: boolean }) {
   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
   const child = Object.assign(new EventEmitter(), { stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(),
     exitCode: null, signalCode: null, pid: 56789 });
-  const definition: RuntimeAgentDef & { mcpHttp: boolean } = { ...getAgentDef({ id: vendor })!, ...fixtureModelDiscovery, mcpHttp: true };
+  const definition: RuntimeAgentDef & { mcpHttp: boolean } = { ...(vendor === 'opencode-acp' ? opencodeAcpAgentDef : getAgentDef({ id: vendor })!), ...fixtureModelDiscovery, mcpHttp: true };
   const endpointClose = vi.fn(async () => {});
   const prepareHttp = vi.fn(async () => {
     if (failHttp) throw new Error('listener did not bind');
@@ -109,6 +109,13 @@ it.each(['claude', 'codex', 'opencode'] as const)('HTTP %s launch contains no se
   } finally { await f.finish(); }
   expect(f.endpointClose).toHaveBeenCalledTimes(1);
   if (claudePath) await expect(access(claudePath)).rejects.toMatchObject({ code: 'ENOENT' });
+});
+
+it('OpenCode ACP pilot receives its HTTP endpoint through inline config', async () => {
+  const f = await launch('opencode-acp');
+  try {
+    expect(JSON.parse(f.environment.OPENCODE_CONFIG_CONTENT!).mcp.jini).toEqual({ type: 'remote', url: 'http://127.0.0.1:12345/mcp', headers: { Authorization: 'Bearer endpoint-only' } });
+  } finally { await f.finish(); }
 });
 
 it('prelaunch HTTP failure selects stdio once through the real executor', async () => {

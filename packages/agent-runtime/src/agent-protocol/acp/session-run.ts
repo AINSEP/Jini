@@ -559,8 +559,7 @@ function sendSessionCancelIfEstablished(run: AcpRun, activeStdin: NonNullable<Ac
   const { state } = run;
   if (!state.sessionId) return;
   try {
-    sendRpc({ writable: activeStdin, id: state.nextId, method: 'session/cancel', params: { sessionId: state.sessionId } });
-    state.nextId += 1;
+    activeStdin.write(`${JSON.stringify({ jsonrpc: '2.0', method: 'session/cancel', params: { sessionId: state.sessionId } })}\n`);
   } catch {
     // The caller owns process-signal fallback if the ACP transport is gone.
   }

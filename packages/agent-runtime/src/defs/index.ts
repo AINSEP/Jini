@@ -23,6 +23,7 @@ export * from './kilo.js';
 export * from './kimi.js';
 export * from './kiro.js';
 export * from './mimo.js';
+export * from './opencode-acp.js';
 export * from './opencode.js';
 export * from './pi.js';
 export * from './qoder.js';

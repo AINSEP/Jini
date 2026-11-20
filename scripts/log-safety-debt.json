@@ -222,7 +222,8 @@
   {
     "file": "packages/diagnostics/src/web-evidence/collect-page-evidence.ts",
     "rule": "error-helper",
-    "value": 1
+    "value": 1,
+    "reason": "KEEP: the flagged identifier is the policy-redacted browser-unavailable reason passed to skip() inside report(), not a caught value."
   },
   {
     "file": "packages/integrations/src/webhooks/worker.ts",

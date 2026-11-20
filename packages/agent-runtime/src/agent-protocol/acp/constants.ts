@@ -6,6 +6,8 @@
 
 /** ACP JSON-RPC protocol version sent in every `initialize` handshake. */
 export const ACP_PROTOCOL_VERSION = 1;
+/** ACP's auth_required error code */
+export const ACP_AUTH_REQUIRED_ERROR_CODE = -32000;
 /** Default timeout in milliseconds for short-lived ACP operations such as model detection. */
 export const DEFAULT_TIMEOUT_MS = 15_000;
 /** Absolute upper ceiling for any ACP-derived timeout value (24 hours). */

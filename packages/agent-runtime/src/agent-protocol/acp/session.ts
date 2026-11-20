@@ -18,7 +18,7 @@ import { createJsonLineStream } from '../core/index.js';
 import type { UnknownRecord } from './types.js';
 import { DEFAULT_STAGE_TIMEOUT_MS } from './constants.js';
 import { asObject } from './json.js';
-import { rpcErrorMessage } from './rpc.js';
+import { rpcErrorMessage, isJsonRpcId, sendRpcError } from './rpc.js';
 import { promotedAmrRetryStatusPayload } from './updates.js';
 import { currentModelFromSessionResult } from './models.js';
 import { buildAcpEffects, buildAcpController, createAcpRun, failRun, resetStageTimer, sendInitialize, wireAcpProcessListeners, type AcpRun } from './session-run.js';
@@ -200,5 +200,13 @@ function routeAcpMessage({ run, effects, obj, rawLine }: {
     handleSessionUpdate({ state, effects, update });
     return;
   }
+  if (typeof obj.method === 'string') { replyMethodNotFound({ run, obj }); return; }
   routeResultById({ state, effects, obj, result: asObject({ value: obj.result }), rawLine });
+}
+
+function replyMethodNotFound({ run, obj }: { run: AcpRun; obj: UnknownRecord }): void {
+  if (!isJsonRpcId(obj.id)) return;
+  try {
+    sendRpcError({ writable: run.stdin, id: obj.id, code: -32601, message: `Method not found: ${String(obj.method)}` });
+  } catch { /* broken pipe: transport lifecycle owns process failure */ }
 }

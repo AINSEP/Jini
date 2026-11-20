@@ -346,6 +346,7 @@ async function buildSearchCandidate(
     ...(identity.maturity ? { maturity: identity.maturity } : {}),
     ...(identity.providerPlugin ? { providerPlugin: identity.providerPlugin } : {}),
     provides: identity.provides,
+    ...(plugin.requires !== undefined ? { requires: plugin.requires } : {}),
     keywords: identity.keywords,
     enabled: ports.activations.isAgentPluginActive({ activations: activations, pluginId: plugin.pluginId }),
     skills: skills.map((skill) => ({ name: skill.name, summary: skill.summary })),

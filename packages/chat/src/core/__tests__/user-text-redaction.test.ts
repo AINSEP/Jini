@@ -10,8 +10,6 @@ describe('user text paste guard', () => {
     ['chat prefix', 'xoxb-' + '1234567890-1234567890-' + synthetic],
     ['cloud access id', 'AKIA' + 'A1B2C3D4E5F6G7H8'],
     ['JWT', 'eyJ' + synthetic + '.eyJ' + synthetic + '.' + synthetic],
-    ['opaque entropy', synthetic + synthetic],
-    ['alphabetic entropy', 'aBcDeFgHiJkLmNoPqRsTuVwXyZaBcDeFgHiJkLmNoPqRsTuVwXyZ'],
     ['short authorization', 'Bearer x'],
     ['short assignment', 'api_key=x'],
   ];
@@ -23,6 +21,8 @@ describe('user text paste guard', () => {
     expect(redactUserText({ text: result.text })).toEqual({ text: result.text, secretRedacted: false, count: 0 });
   });
   const ordinary = [
+    synthetic + synthetic,
+    'aBcDeFgHiJkLmNoPqRsTuVwXyZaBcDeFgHiJkLmNoPqRsTuVwXyZ',
     'The secret to success is practice. Bearer token authentication is supported.',
     'https://example.test/docs?q=hello#section',
     'https://example.test/assets/' + synthetic + synthetic + '.png',
@@ -65,25 +65,10 @@ describe('user text paste guard', () => {
   });
 });
 
-describe('entropy fallback classification corpus', () => {
-  const awsSecret = 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY';
-  const unquotedRoots = ['/Users/la/proj', '~/proj', String.raw`C:\Users\la\proj`, String.raw`\\server\share\proj`];
-  for (const root of unquotedRoots) {
-    it.each([' ', '\t', '\n', '\u00a0'])('redacts a slash-bearing secret after unquoted ' + root + ' separated by %j', separator => {
-      const text = `${root}${separator}${awsSecret}`;
-      expect(redactUserText({ text })).toEqual({ text: `${root}${separator}[token removed]`, secretRedacted: true, count: 1 });
-      expect(buildTranscript({ history: [{ id: 'secret', role: 'user', content: text }] })).toBe(`## user\n${root}${separator}[token removed]`);
-    });
-  }
-  it.each([
-    "look in '/Users/la/proj and use KEY, don't share",
-    "look in '/Users/la/proj and use KEY, don't share 'x'",
-    'check `~/proj and KEY isn`t it',
-  ])('an apostrophe later in the line does not close an unterminated quoted path: %s', template => {
-    const text = template.replace('KEY', awsSecret);
-    expect(redactUserText({ text })).toEqual({ text: template.replace('KEY', '[token removed]'), secretRedacted: true, count: 1 });
-  });
+describe('shared rule classification corpus', () => {
   const mustKeep = [
+    ['avif file name', 'please open aZ9kQ2mX7pL4vB8nR1tY6wC3h.avif'],
+    ['unlabelled 40-character run', 'aZ9kQ2mX7pL4vB8nR1tY6wC3hJ5dF0gS2eU7iO4q'],
     ['macOS folder', '/Users/la/Documents/Tovu/Some-Folder2026'],
     ['Linux folder', '/home/alex/Projects/Customer-Portal2026/SourceFiles'],
     ['home-relative folder', '~/Documents/Customer-Portal2026/SourceFiles'],
@@ -131,24 +116,6 @@ describe('entropy fallback classification corpus', () => {
       expect(redactUserText({ text: result.text })).toEqual({ text: result.text, secretRedacted: false, count: 0 });
     });
   }
-  it.each([
-    ['opaque token', synthetic + synthetic],
-    ['opaque token containing a slash', synthetic + '/' + synthetic],
-    ['alphabetic token', 'aBcDeFgHiJkLmNoPqRsTuVwXyZaBcDeFgHiJkLmNoPqRsTuVwXyZ'],
-    ['token behind a bare root slash', '/' + synthetic + synthetic],
-  ])('still redacts an unlabelled %s outside a path', (_name, text) => {
-    expect(redactUserText({ text })).toEqual({ text: '[token removed]', secretRedacted: true, count: 1 });
-  });
-  it('does not treat a bare or quoted root + token as a path', () => {
-    expect(redactUserText({ text: 'C:\\' + synthetic + synthetic })).toEqual({ text: 'C:\\[token removed]', secretRedacted: true, count: 1 });
-    expect(redactUserText({ text: `"/${synthetic}${synthetic}"` })).toEqual({ text: '"[token removed]"', secretRedacted: true, count: 1 });
-  });
-  it('keeps a path while redacting an adjacent opaque token', () => {
-    const path = '/Users/la/Documents/Tovu/Some-Folder2026';
-    expect(redactUserText({ text: `${path} ${synthetic}${synthetic}` })).toEqual({
-      text: `${path} [token removed]`, secretRedacted: true, count: 1,
-    });
-  });
   it('still redacts a path submitted as an explicitly secret field', () => {
     expect(redactUserText({ text: '/Users/la/Documents/Tovu/Some-Folder2026' }, { secretField: true })).toEqual({
       text: '[token removed]', secretRedacted: true, count: 1,
