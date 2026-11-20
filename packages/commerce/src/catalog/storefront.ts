@@ -5,7 +5,7 @@ import type { CommercePriceRecord, CommerceProductRecord, CommerceProductSpec } 
  * product shape (2026-08-12: "wire products into template render data").
  *
  * Purpose:
- * The render pipeline's `SiteProduct` (the host app's `src/server/inbound/public-http/http/site/render.ts`) is deliberately shaped
+ * The render pipeline's `SiteProduct` (defined in the host render context) is deliberately shaped
  * structurally rather than imported from a specific data source's module — its own doc says so
  * explicitly, for the sample store plugin, so the core render engine never depends on any one
  * plugin/feature's types. This module keeps that same decoupling in the other direction:
@@ -53,7 +53,7 @@ import type { CommercePriceRecord, CommerceProductRecord, CommerceProductSpec } 
  */
 
 /** The public-render-facing shape this module produces — structurally compatible with
- * `SiteProduct` (the host app's `src/server/inbound/public-http/http/site/render.ts`), not imported from it. See file header. */
+ * `SiteProduct` (defined in the host render context), not imported from it. See file header. */
 export interface StorefrontSiteProduct {
   id: string;
   /** Readable-slugs S7 (2026-09-23): the product's own unique slug — `render.ts`'s

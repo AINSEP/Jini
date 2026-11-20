@@ -1,5 +1,6 @@
 import type { KeyboardEvent, RefObject } from 'react';
 import { StatusPill } from './StatusPill.js';
+import { menuFocusIndex } from '../../../../browser/useMenuKeyboard.js';
 import type { ResourceBoardItem, ResourceMenuActionSpec, ResourceStatusToneMap } from '../../types.js';
 
 /** The card's own class list: `is-selected` and `select-mode` modifiers on top of the base class. */
@@ -12,7 +13,7 @@ export function isCardActivationKey(event: KeyboardEvent): boolean {
   return event.key === 'Enter' || event.key === ' ';
 }
 
-/** The open kebab menu's items — clicks and keydowns inside it never bubble to the card. */
+/** The open kebab menu's items: arrow keys move between them, Escape reaches the board's dismiss listener, and other clicks and keydowns never bubble to the card. */
 export function ResourceCardMenuItems({
   menuActions,
   busy,
@@ -29,7 +30,14 @@ export function ResourceCardMenuItems({
       className="jini-resource-board-card-menu"
       role="menu"
       onClick={(event) => event.stopPropagation()}
-      onKeyDown={(event) => event.stopPropagation()}
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') event.stopPropagation();
+        const entries = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')];
+        const next = menuFocusIndex({ key: event.key, current: entries.findIndex((entry) => entry === event.target), count: entries.length });
+        if (next === null) return;
+        event.preventDefault();
+        entries[next]?.focus();
+      }}
     >
       {menuActions.map((action) => (
         <button

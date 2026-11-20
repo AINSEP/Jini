@@ -348,7 +348,7 @@ export const MEDIA_ELEMENT_ATTRIBUTE_NAMES: ReadonlySet<string> = new Set([
  * - **`widget` stays excluded from THIS constant** (it has its own 2026-09-16 rule instead — see this
  *   file's header and {@link withElementKeptIfAttributed}). Unlike `post`/`content`, a widget's
  *   resolved root tag is NOT a small, closed set this function can reason about: `WIDGET_IR_RENDERERS`
- *   (the host app's `src/server/inbound/public-http/http/site/render.ts`) alone spans `<div>`, `<ul>`, `<li>`, `<nav>`, and `<form>` across
+ *   (in the host renderer) alone spans `<div>`, `<ul>`, `<li>`, `<nav>`, and `<form>` across
  *   its registered component ids, and `resolver-service.ts`'s own doc states adding a new widget type
  *   is meant to be cheap — a future one can introduce any root tag. Several of today's shapes are also
  *   written to BE the final element at the marker's position rather than content for a further

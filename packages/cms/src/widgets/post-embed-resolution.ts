@@ -45,7 +45,7 @@ export async function findPublishedPostByRef(
  * authoritative when both are present).
  *
  * Returns RAW post data (title/bodyJson/updatedAt/slug), not rendered HTML — this file (`widgets/`)
- * must not depend on the host app's `src/server/inbound/public-http/http/site/render.ts` (that module sits above this one in the codebase's
+ * must not depend on the host renderer (that module sits above this one in the codebase's
  * layering, the same constraint `resolveMediaTypeEmbeds`'s own doc discloses for why it returns
  * `{assetId, transformName, ...}` instead of an `<img>` string). `render.ts`'s `renderWidgetIr`
  * `"post-content"` case (which already has `renderDocNode` in scope) does the actual TipTap-to-HTML
