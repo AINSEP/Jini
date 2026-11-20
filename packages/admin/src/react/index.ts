@@ -56,6 +56,8 @@ export type {
   ConfirmDialogDefaultsProviderProps,
 } from './components/ConfirmDialog/ConfirmDialog.hooks.js';
 
+export { ThemePreviewReloadControl } from './components/ThemePreviewReloadControl.js';
+
 // The list table. Sorting is opt-in per column (`DataTableColumn.sort`); pagination and row
 // selection are still deliberately absent — see its file header for the corpus evidence behind
 // every one of these decisions.
