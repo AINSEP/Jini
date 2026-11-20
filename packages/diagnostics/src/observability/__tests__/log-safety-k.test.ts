@@ -26,18 +26,18 @@ it.each(['import', 'launch'] as const)('keeps browser %s guidance and drops raw 
   expect(launch).toHaveBeenCalledTimes(stage === 'import' ? 0 : 2);
 });
 
-it('sends only a caught class label through observation policy and closes the browser', async () => {
+it('sends a caught message only through the host observation policy and closes the browser', async () => {
   const failure = new TypeError('PRIVATE_OBSERVATION_SENTINEL');
   failure.stack = 'PRIVATE_OBSERVATION_STACK_SENTINEL';
   const close = vi.fn(async () => {});
-  const redactMessage = vi.fn(({ message }: { message: string }) => `policy: ${message}`);
+  const redactMessage = vi.fn(({ message }: { message: string }) => `policy: ${message.replace('PRIVATE_OBSERVATION_SENTINEL', '[redacted]')}`);
   const result = await collectPageEvidence({ workspaceId: 'workspace', paths: ['/page'],
     originRegistry: { canonicalOrigin: async () => ({ scheme: 'https', host: 'example.test', verifiedAt: '', source: 'host' }) },
     openBrowser: async () => ({ available: true, browser: { observe: async () => { throw failure; }, close } }),
     observationPolicy: { redactObservation: ({ observation }) => observation, redactMessage },
   });
-  expect(result.skipped).toEqual([{ path: '/page', reason: 'navigation-failed', message: 'policy: Page observation failed: TypeError' }]);
-  expect(redactMessage).toHaveBeenCalledWith({ message: 'Page observation failed: TypeError' });
+  expect(result.skipped).toEqual([{ path: '/page', reason: 'navigation-failed', message: 'policy: [redacted]' }]);
+  expect(redactMessage).toHaveBeenCalledWith({ message: 'PRIVATE_OBSERVATION_SENTINEL' });
   expect(close).toHaveBeenCalledTimes(1);
   expect(JSON.stringify(result)).not.toMatch(/PRIVATE_OBSERVATION_(STACK_)?SENTINEL/);
 });

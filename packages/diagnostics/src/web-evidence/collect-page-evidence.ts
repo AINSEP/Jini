@@ -46,7 +46,6 @@ import type { Clock } from "@jini-ai/core/primitives";
  */
 import type { VerifiedOriginPort } from "./same-origin.js";
 import { PageWorkBudget, PageWorkTimeout } from "./page-work-budget.js";
-import { describeErrorForLog } from '@jini-ai/core';
 
 import type {
   ObservationPhase,
@@ -257,7 +256,7 @@ async function attemptPage(
     return { kind: "observed", page: { ...outcome.page, observation: policy.redactObservation({ observation: outcome.page.observation }) } };
   } catch (error) {
     const reason = error instanceof PageWorkTimeout && remainingMs <= SITE_EVIDENCE_LIMITS.maxPageLoadMs ? "deadline" : "navigation-failed";
-    return { kind: "skipped", skipped: skip(path, reason, policy.redactMessage({ message: `Page observation failed: ${describeErrorForLog({ err: error })}` })) };
+    return { kind: "skipped", skipped: skip(path, reason, policy.redactMessage({ message: messageOf(error) })) };
   }
 }
 
@@ -381,6 +380,12 @@ function redactToOrigin(url: string): string {
 
 function skip(path: string, reason: SkippedPageReason, message: string): SkippedPage {
   return { path, reason, message };
+}
+
+/** Same tiny helper as `playwright-browser.ts`'s own — duplicated rather than imported, matching
+ *  this feature's existing convention for a helper this small. */
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 /** Re-exported so a caller building a report has the phase vocabulary without importing the port

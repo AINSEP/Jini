@@ -5,10 +5,10 @@ const request: ObservePageRequest = { url: 'https://example.com/', originBaseUrl
 test('missing optional module and missing binary are explicit availability results', async () => {
  const missing = await openPlaywrightSiteEvidenceBrowser({}, { moduleLoader: { load: async () => { throw new Error('module absent'); } } });
  expect(missing.available).toBe(false);
- if (!missing.available) expect(missing.reason).toContain('module absent');
+ if (!missing.available) expect(missing.reason).toContain("cannot be observed here (Error). Install it with 'npm install -D playwright'");
  const unavailable = await openPlaywrightSiteEvidenceBrowser({}, { moduleLoader: { load: async () => ({ chromium: { launch: async () => { throw new Error('binary absent'); } } }) } });
  expect(unavailable.available).toBe(false);
- if (!unavailable.available) expect(unavailable.reason).toContain('binary absent');
+ if (!unavailable.available) expect(unavailable.reason).toContain('launch failed with Error).');
 });
 test('fresh context, read-only requests, cookie-value omission and teardown work without a browser install', async () => {
  let routeHandler: ((route: any) => Promise<void> | void) | undefined; const calls: string[] = [];
